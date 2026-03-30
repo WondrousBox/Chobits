@@ -413,6 +413,7 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
    * @param arg.inputPath - 输入视频路径
    * @param arg.outputPath - 输出 WebM 路径
    * @param arg.segments - 片段标记 { start, loopStart, loopEnd, end } (毫秒)
+   * @param arg.speeds - 片段倍速 { intro, loop, outro } (1.0 = 原速)
    * @param arg.chromaKey - 色度键设置 { enabled, color, similarity, blend }
    * @param arg.meta - 元数据 { eventType, title }
    */
@@ -429,11 +430,21 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
           loopEnd: number;
           end: number;
         };
+        speeds?: {
+          intro: number;
+          loop: number;
+          outro: number;
+        };
         chromaKey?: {
           enabled: boolean;
           color: string;
           similarity: number;
           blend: number;
+        };
+        output?: {
+          fps: number;
+          width: number;
+          height: number;
         };
         meta?: {
           eventType?: string;
@@ -446,45 +457,119 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
       if (!input || !output) throw new Error('inputPath 和 outputPath 必须指定');
 
       const segments = arg?.segments || { start: 0, loopStart: 0, loopEnd: 0, end: 0 };
+      const speeds = arg?.speeds || { intro: 1, loop: 1, outro: 1 };
       const chromaKey = arg?.chromaKey || { enabled: false, color: '#00ff00', similarity: 40, blend: 15 };
+      const outputSettings = arg?.output || { fps: 8, width: 360, height: 480 };
+
+      // 判断是否有循环片段和是否需要变速
+      const hasLoop = segments.loopStart < segments.loopEnd;
+      const needsSpeed = speeds.intro !== 1 || speeds.loop !== 1 || speeds.outro !== 1;
+
+      // 构建缩放+帧率滤镜字符串
+      const scaleFilter = `scale=${outputSettings.width}:${outputSettings.height}:flags=lanczos`;
+      const fpsFilter = `fps=${outputSettings.fps}`;
+
+      // 构建色度键滤镜字符串
+      let chromaFilter = '';
+      if (chromaKey.enabled) {
+        const hexColor = chromaKey.color.replace('#', '');
+        const r = parseInt(hexColor.slice(0, 2), 16);
+        const g = parseInt(hexColor.slice(2, 4), 16);
+        const b = parseInt(hexColor.slice(4, 6), 16);
+        const colorStr = `0x${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+        const similarity = chromaKey.similarity / 100;
+        const blend = chromaKey.blend / 100;
+        chromaFilter = `chromakey=${colorStr}:${similarity.toFixed(2)}:${blend.toFixed(2)}`;
+      }
 
       return await new Promise<string>((resolve, reject) => {
         try {
           let cmd = ffmpeg(input);
 
-          // 构建滤镜链
-          const filterParts: string[] = [];
+          if (needsSpeed && hasLoop) {
+            // 分段变速：使用 filter_complex 对三段分别调速后拼接
+            const startS = segments.start / 1000;
+            const loopStartS = segments.loopStart / 1000;
+            const loopEndS = segments.loopEnd / 1000;
+            const endS = segments.end / 1000;
 
-          // 1. 片段裁剪（如果设置了）
-          if (segments.start > 0 || segments.end > 0) {
-            cmd = cmd.setStartTime(segments.start / 1000); // 转换为秒
-            if (segments.end > 0) {
-              const duration = (segments.end - segments.start) / 1000;
-              cmd = cmd.setDuration(duration);
+            const parts: string[] = [];
+            const concatInputs: string[] = [];
+            let splitCount = 0;
+
+            // 判断各段是否有内容
+            const hasIntro = segments.loopStart > segments.start;
+            const hasOutro = segments.end > segments.loopEnd;
+
+            if (hasIntro) splitCount++;
+            splitCount++; // loop 段总是存在
+            if (hasOutro) splitCount++;
+
+            // 分割输入流
+            const splitLabels: string[] = [];
+            for (let i = 0; i < splitCount; i++) splitLabels.push(`s${i}`);
+            parts.push(`[0:v]split=${splitCount}${splitLabels.map((l) => `[${l}]`).join('')}`);
+
+            let idx = 0;
+
+            // Intro 段
+            if (hasIntro) {
+              const label = splitLabels[idx++];
+              parts.push(`[${label}]trim=start=${startS}:end=${loopStartS},setpts=PTS-STARTPTS,setpts=PTS/${speeds.intro},${scaleFilter},${fpsFilter}[intro]`);
+              concatInputs.push('[intro]');
             }
-          }
 
-          // 2. 色度键抠图（如果启用）
-          if (chromaKey.enabled) {
-            // 解析颜色
-            const hexColor = chromaKey.color.replace('#', '');
-            const r = parseInt(hexColor.slice(0, 2), 16);
-            const g = parseInt(hexColor.slice(2, 4), 16);
-            const b = parseInt(hexColor.slice(4, 6), 16);
-            const colorStr = `0x${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+            // Loop 段
+            {
+              const label = splitLabels[idx++];
+              parts.push(`[${label}]trim=start=${loopStartS}:end=${loopEndS},setpts=PTS-STARTPTS,setpts=PTS/${speeds.loop},${scaleFilter},${fpsFilter}[loop]`);
+              concatInputs.push('[loop]');
+            }
 
-            // 相似度转换为 FFmpeg 的 similarity 参数 (0.0-1.0)
-            const similarity = chromaKey.similarity / 100;
-            // 混合度
-            const blend = chromaKey.blend / 100;
+            // Outro 段
+            if (hasOutro) {
+              const label = splitLabels[idx++];
+              parts.push(`[${label}]trim=start=${loopEndS}:end=${endS},setpts=PTS-STARTPTS,setpts=PTS/${speeds.outro},${scaleFilter},${fpsFilter}[outro]`);
+              concatInputs.push('[outro]');
+            }
 
-            // chromakey 滤镜：将指定颜色变为透明
-            filterParts.push(`chromakey=${colorStr}:${similarity.toFixed(2)}:${blend.toFixed(2)}`);
-          }
+            // 拼接
+            if (concatInputs.length > 1) {
+              parts.push(`${concatInputs.join('')}concat=n=${concatInputs.length}:v=1:a=0${chromaFilter ? ',' + chromaFilter : ''}[outv]`);
+            } else {
+              // 只有一段，添加色度键后输出
+              const singleInput = concatInputs[0].replace('[', '').replace(']', '');
+              const lastPart = parts[parts.length - 1];
+              // 替换最后一段的输出标签
+              parts[parts.length - 1] = lastPart.replace(`[${singleInput}]`, chromaFilter ? `,${chromaFilter}[outv]` : '[outv]');
+            }
 
-          // 应用滤镜
-          if (filterParts.length > 0) {
-            cmd = cmd.videoFilter(filterParts.join(','));
+            const filterComplex = parts.join(';');
+            cmd = cmd.complexFilter(filterComplex, 'outv');
+          } else if (needsSpeed && !hasLoop) {
+            // 无循环段，单一倍速
+            if (segments.start > 0 || segments.end > 0) {
+              cmd = cmd.setStartTime(segments.start / 1000);
+              if (segments.end > 0) {
+                cmd = cmd.setDuration((segments.end - segments.start) / 1000);
+              }
+            }
+            const filters = [`setpts=PTS/${speeds.intro}`, scaleFilter, fpsFilter];
+            if (chromaFilter) filters.push(chromaFilter);
+            cmd = cmd.videoFilter(filters.join(','));
+          } else {
+            // 无变速：使用原有简单裁剪逻辑
+            if (segments.start > 0 || segments.end > 0) {
+              cmd = cmd.setStartTime(segments.start / 1000);
+              if (segments.end > 0) {
+                cmd = cmd.setDuration((segments.end - segments.start) / 1000);
+              }
+            }
+            if (chromaFilter) {
+              cmd = cmd.videoFilter([chromaFilter, scaleFilter, fpsFilter].join(','));
+            } else {
+              cmd = cmd.videoFilter([scaleFilter, fpsFilter].join(','));
+            }
           }
 
           // 输出设置

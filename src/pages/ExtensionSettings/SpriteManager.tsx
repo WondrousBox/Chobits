@@ -270,17 +270,23 @@ export default function SpriteManager({ className }: { className?: string }): JS
                     inputPath: config.inputPath,
                     outputPath,
                     segments: config.segments,
+                    speeds: config.speeds,
+                    output: config.output,
                     chromaKey: { enabled: false, color: '#00ff00', similarity: 0, blend: 0 },
                     meta: { eventType: config.eventType, title: config.title }
                   });
-                  // 注册精灵（调整 loop 时间为相对于裁剪后的起始）
+                  // 注册精灵（根据倍速调整 loop 时间）
                   const id = 'sprite-' + Math.random().toString(36).slice(2, 10);
                   const hasLoop = config.segments.loopEnd > config.segments.loopStart;
+                  const sp = config.speeds;
+                  const introDur = hasLoop ? (config.segments.loopStart - config.segments.start) / sp.intro : (config.segments.end - config.segments.start) / sp.intro;
+                  const loopDur = hasLoop ? (config.segments.loopEnd - config.segments.loopStart) / sp.loop : 0;
+                  const outroDur = hasLoop ? (config.segments.end - config.segments.loopEnd) / sp.outro : 0;
                   await window.YUA.sprite.register({
                     filePath: outputPath,
-                    loopStartMs: hasLoop ? config.segments.loopStart - config.segments.start : undefined,
-                    loopEndMs: hasLoop ? config.segments.loopEnd - config.segments.start : undefined,
-                    durationMs: config.segments.end - config.segments.start,
+                    loopStartMs: hasLoop ? introDur : undefined,
+                    loopEndMs: hasLoop ? introDur + loopDur : undefined,
+                    durationMs: introDur + loopDur + outroDur,
                     meta: {
                       id,
                       title: config.title || '自定义动画',
