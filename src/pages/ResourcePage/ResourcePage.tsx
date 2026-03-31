@@ -9,7 +9,6 @@ import { SidebarProvider } from '@/components/ui/sidebar';
 import ChatPage from '@/pages/ChatPage/ChatPage';
 import SettingsPage, { SettingsCategory } from '@/pages/SettingsPage/SettingsPage';
 
-import AppsPage from './AppsPage';
 import EditRssSettingsDialog from './components/EditRssSettingsDialog';
 import { UIFolder } from './components/FolderSidebar';
 import ContentToolbar from './components/layout/ContentToolbar';
@@ -426,7 +425,6 @@ const ResourcePage: React.FC = () => {
           <Route path="home" element={<ChatPage hideTitleBar />} />
           <Route path="tasks" element={<TaskList workspaceId={wsFilter} />} />
           <Route path="workflows" element={<WorkflowPage />} />
-          <Route path="apps" element={<AppsPage />} />
           <Route path="recycle" element={<RecycleBinPage hideTitleBar />} />
           <Route path="preview/:resourceId" element={<ResourcePreviewWindow />} />
           <Route path="rss/:resourceId" element={<RssFeedPage />} />
