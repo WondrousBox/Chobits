@@ -1,22 +1,20 @@
 import clsx from 'clsx';
 import React, { useEffect, useState } from 'react';
-import { TbAdjustments, TbBook, TbBrain, TbCpu, TbFolderOpen, TbKeyboard, TbMessage2, TbNetwork, TbPlug } from 'react-icons/tb';
+import { TbAdjustments, TbBook, TbCpu, TbFolderOpen, TbKeyboard, TbMessage2, TbNetwork, TbPlug } from 'react-icons/tb';
 
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
 
 import DragAbleTitle from '../../components/common/DragAbleTitle';
-import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
 import AiSettings from './components/AiSettings';
 import GlossarySettings from './components/glossary/GlossarySettings';
 import PreferencesSettings from './components/PreferencesSettings';
 import PromptSetting from './components/PromptSetting';
 import ProxySettings from './components/ProxySettings';
 import ShortcutsSettings from './components/ShortcutsSettings';
-import VectorManagement from './components/VectorManagement';
 import Workspace from './components/Workspace';
 import PluginPage from './PluginPage';
 
-export type DefaultSettingsCategory = 'preferences' | 'workspace' | 'ai' | 'prompt' | 'glossary' | 'plugins' | 'shortcuts' | 'embedding' | 'proxy';
+export type DefaultSettingsCategory = 'preferences' | 'workspace' | 'ai' | 'prompt' | 'glossary' | 'plugins' | 'shortcuts' | 'proxy';
 
 export type SettingsCategory = DefaultSettingsCategory | (string & {});
 
@@ -71,12 +69,6 @@ const defaultCategories: SettingsCategoryDef[] = [
     label: '快捷键',
     icon: TbKeyboard,
     description: '全局快捷键设置'
-  },
-  {
-    id: 'embedding',
-    label: '嵌入任务',
-    icon: TbBrain,
-    description: '向量嵌入任务管理'
   },
   {
     id: 'proxy',
@@ -138,16 +130,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = []
     switch (activeCategory) {
       case 'preferences':
         return <PreferencesSettings />;
-      case 'embedding':
-        return (
-          <div className="p-4 space-y-4">
-            <VectorManagement />
-            <div className="space-y-1">
-              <div className="text-xs font-medium text-muted-foreground px-2 py-1">嵌入任务队列</div>
-              <EmbeddingJobsPanel />
-            </div>
-          </div>
-        );
       case 'workspace':
         return <Workspace />;
       case 'plugins':

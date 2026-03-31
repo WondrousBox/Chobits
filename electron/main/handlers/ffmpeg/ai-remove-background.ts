@@ -2,10 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { env, pipeline } from '@huggingface/transformers';
+import { app } from 'electron';
 import sharp from 'sharp';
 
 import { PluginConfigStore } from '../../../../packages/plugins/plugin-config-store';
-import { getModelCacheDir } from '../embedding/provider';
 
 type Pipeline = any;
 
@@ -28,7 +28,7 @@ export class AIRemoveBackground {
     env.allowLocalModels = true;
     env.allowRemoteModels = false; // 允许从 HuggingFace 下载模型
     const pluginsDir = PluginConfigStore.getPluginsDir();
-    env.localModelPath = pluginsDir || getModelCacheDir();
+    env.localModelPath = pluginsDir || path.join(app.getPath('userData'), 'data', 'models');
     env.cacheDir = path.join(env.localModelPath, 'transformers-cache');
 
     console.log(env.localModelPath);
