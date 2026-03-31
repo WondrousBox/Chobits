@@ -50,6 +50,13 @@ export interface DownloadProgress {
   etaMs?: number;
   percentage?: number;
   error?: string;
+  // Resource metadata for renderer to construct entries
+  pluginId?: string;
+  resourceId?: string;
+  type?: ResourceType;
+  name?: string;
+  displayName?: string;
+  version?: string;
 }
 
 interface InternalTask {
@@ -75,6 +82,8 @@ export class PluginResourceManager extends EventEmitter {
   private concurrency = 2;
   private downloadDir: string;
   private downloader: Downloader | null = null;
+  private lastProgressEmit = new Map<string, number>();
+  private static PROGRESS_THROTTLE_MS = 200;
 
   constructor() {
     super();
@@ -317,8 +326,37 @@ export class PluginResourceManager extends EventEmitter {
   }
 
   private emitProgress(id: string, partial: Partial<DownloadProgress>): void {
-    const base: DownloadProgress = { id, status: 'queued', doneBytes: 0, ...partial } as any;
+    // Throttle 'downloading' status updates to avoid IPC flooding
+    const now = Date.now();
+    if (partial.status === 'downloading') {
+      const lastEmit = this.lastProgressEmit.get(id) || 0;
+      if (now - lastEmit < PluginResourceManager.PROGRESS_THROTTLE_MS) {
+        return;
+      }
+    }
+    this.lastProgressEmit.set(id, now);
+
+    // Find resource metadata from running or queue tasks
+    const task = this.running.find((t) => t.resource.id === id) || this.queue.find((t) => t.resource.id === id);
+    const resource = task?.resource;
+    const base: DownloadProgress = {
+      id,
+      status: 'queued',
+      doneBytes: 0,
+      pluginId: resource?.pluginId,
+      resourceId: resource?.resourceId,
+      type: resource?.type,
+      name: resource?.name,
+      displayName: resource?.displayName,
+      version: resource?.version,
+      ...partial
+    } as any;
     this.emit('progress', base);
+
+    // Clean up throttle tracking for terminal states
+    if (['installed', 'failed', 'cancelled'].includes(partial.status || '')) {
+      this.lastProgressEmit.delete(id);
+    }
   }
 
   private kick(): void {
@@ -480,8 +518,7 @@ export class PluginResourceManager extends EventEmitter {
         this.emitProgress(task.resource.id, { status: 'failed', error: task.resource.lastError });
         eventManager.emit(AppEvent.SPRITE_DOWNLOAD_FAIL, { name: task.resource.name || task.resource.id });
       }
-      // 清理下载文件（如果存在）
-      // 可能还在.download状态（下载失败或 hash 验证失败），也可能已经重命名为最终文件（但后续处理失败）
+      // 清理临时的 .download 文件（下载中断时的临时文件）
       const tempFile = `${finalFile}.download`;
       if (fs.existsSync(tempFile)) {
         try {
@@ -490,13 +527,17 @@ export class PluginResourceManager extends EventEmitter {
           // 忽略删除错误
         }
       }
-      if (fs.existsSync(finalFile)) {
+      // 只在下载阶段失败时删除已下载的文件
+      // 如果是解压阶段失败（文件已下载完成），保留文件以避免重新下载
+      if (archiveType === 'none' && fs.existsSync(finalFile)) {
+        // 非压缩包类型，下载失败时清理不完整的文件
         try {
           fs.unlinkSync(finalFile);
         } catch {
           // 忽略删除错误
         }
       }
+      // 注意：压缩包类型的已下载文件保留，下次重试时会通过 hash 校验跳过下载
     } finally {
       this.finish(task);
     }

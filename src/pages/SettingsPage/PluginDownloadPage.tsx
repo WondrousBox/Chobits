@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { TbAlertCircle, TbBox, TbCheck, TbClock, TbDownload, TbPlug, TbX } from 'react-icons/tb';
+import { TbAlertCircle, TbBox, TbCheck, TbClock, TbDownload, TbPlug, TbRefresh, TbTrash, TbX } from 'react-icons/tb';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 interface PluginDownloadProgress {
   id: string;
   pluginId: string;
+  resourceId?: string;
   type: 'engine' | 'model';
   name: string;
   displayName?: string;
@@ -36,6 +37,7 @@ const PluginDownloadPage: React.FC = () => {
             initialDownloads.set(resource.id, {
               id: resource.id,
               pluginId: resource.pluginId,
+              resourceId: resource.resourceId,
               type: resource.type,
               name: resource.name,
               displayName: resource.displayName,
@@ -62,7 +64,9 @@ const PluginDownloadPage: React.FC = () => {
         const next = new Map(prev);
         const existing = next.get(info.id);
         next.set(info.id, {
+          ...existing,
           ...info,
+          resourceId: info.resourceId || existing?.resourceId,
           doneBytes: info.doneBytes !== undefined ? info.doneBytes : existing?.doneBytes || 0,
           totalBytes: info.totalBytes !== undefined ? info.totalBytes : existing?.totalBytes,
           speedBps: info.speedBps !== undefined ? info.speedBps : existing?.speedBps,
@@ -89,6 +93,37 @@ const PluginDownloadPage: React.FC = () => {
         if (item) {
           next.set(id, { ...item, status: 'cancelled' });
         }
+        return next;
+      });
+    }
+  };
+
+  const handleRetry = async (id: string): Promise<void> => {
+    const item = downloads.get(id);
+    if (!item || !item.pluginId || !item.resourceId) return;
+    const res = await window.YUA.pluginResource['plugin-resource:install']({
+      pluginId: item.pluginId,
+      resourceId: item.resourceId,
+      deleteAfterInstall: true
+    });
+    if (res.ok) {
+      setDownloads((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(id);
+        if (existing) {
+          next.set(id, { ...existing, status: 'queued', doneBytes: 0, error: undefined });
+        }
+        return next;
+      });
+    }
+  };
+
+  const handleRemove = async (id: string): Promise<void> => {
+    const res = await window.YUA.pluginResource['plugin-resource:remove']({ id });
+    if (res.ok) {
+      setDownloads((prev) => {
+        const next = new Map(prev);
+        next.delete(id);
         return next;
       });
     }
@@ -167,7 +202,7 @@ const PluginDownloadPage: React.FC = () => {
   const downloadList = Array.from(downloads.values());
   const activeDownloads = downloadList.filter((d) => ['queued', 'downloading', 'extracting', 'verifying'].includes(d.status));
   const completedDownloads = downloadList.filter((d) => d.status === 'installed');
-  const failedDownloads = downloadList.filter((d) => d.status === 'failed');
+  const failedDownloads = downloadList.filter((d) => ['failed', 'cancelled'].includes(d.status));
 
   return (
     <div className="w-full h-full flex flex-col bg-background">
@@ -196,7 +231,7 @@ const PluginDownloadPage: React.FC = () => {
                 已完成 ({completedDownloads.length})
               </TabsTrigger>
               <TabsTrigger value="failed" className="flex-1">
-                失败 ({failedDownloads.length})
+                失败/取消 ({failedDownloads.length})
               </TabsTrigger>
             </TabsList>
 
@@ -308,8 +343,18 @@ const PluginDownloadPage: React.FC = () => {
                           {item.type === 'engine' && <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">引擎</span>}
                           {item.type === 'model' && <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded">模型</span>}
                         </div>
-                        <span className="text-xs text-red-600">{getStatusText(item.status)}</span>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {item.resourceId && (
+                            <Button size="icon" variant="ghost" onClick={() => handleRetry(item.id)} className="w-8 h-8" title="重试">
+                              <TbRefresh className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button size="icon" variant="ghost" onClick={() => handleRemove(item.id)} className="w-8 h-8" title="移除">
+                            <TbTrash className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
+                      <div className="text-xs text-muted-foreground">{getStatusText(item.status)}</div>
                       {item.error && <div className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded mt-2">{item.error}</div>}
                     </div>
                   ))}

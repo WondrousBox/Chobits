@@ -1,3 +1,5 @@
+export type DownloadStatus = 'queued' | 'downloading' | 'extracting' | 'verifying' | 'installed' | 'failed' | 'cancelled' | 'removed';
+
 export type InstalledResource = {
   id: string;
   resourceId: string;
@@ -8,7 +10,7 @@ export type InstalledResource = {
   version?: string;
   sizeBytes?: number;
   progressBytes?: number;
-  status?: string;
+  status?: DownloadStatus;
   speedBps?: number;
   etaMs?: number;
   lastError?: string;

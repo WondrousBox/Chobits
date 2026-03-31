@@ -244,9 +244,19 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
       status: 'queued'
     };
 
+    // 设置 installPath 以便正确检查是否已安装
+    if (resource.type === 'engine') {
+      resource.installPath = pluginResourceManager.getEnginePath(resource.pluginId, resource.binaryName || resource.name);
+    } else {
+      resource.installPath = pluginResourceManager.getModelPath(resource.pluginId, resource.name);
+    }
+
     // 检查是否已安装（基于文件存在）
     if (pluginResourceManager.isInstalled(resource)) {
-      // 同ID不存在但文件已存在时，也直接返回已安装
+      // 同ID不存在但文件已存在时，标记为已安装并保存到 store
+      resource.status = 'installed';
+      resource.installedAt = Date.now();
+      PluginResourceStore.upsert(resource);
       return { ok: true, data: resource, message: 'Resource already installed' };
     }
 

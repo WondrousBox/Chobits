@@ -1,10 +1,11 @@
 import { isPluginCompatibleWithPlatform, isSystemPresetPlugin, PluginCategory, PluginDefinition } from '@packages/plugins/types';
 import React, { useEffect, useMemo, useState } from 'react';
-import { TbBox, TbFilter, TbLoader, TbSettings, TbWifi, TbX } from 'react-icons/tb';
+import { TbBox, TbDownload, TbFilter, TbLoader, TbPlug, TbSettings, TbWifi, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
 
 // 分类配置：中文名称和显示顺序
 const CATEGORY_CONFIG: { value: PluginCategory; label: string }[] = [
@@ -84,7 +85,6 @@ const PluginPage: React.FC<PluginPageProps> = () => {
     const listener = (_: any, info: any): void => {
       if (!info || !info.id) return;
 
-      // @ts-ignore
       setInstalled((prev) => {
         const idx = prev.findIndex((m) => m.id === info.id);
         if (idx < 0) {
@@ -94,6 +94,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
               ...prev,
               {
                 id: info.id,
+                resourceId: info.resourceId || '',
                 pluginId: info.pluginId || '',
                 type: info.type || 'model',
                 name: info.name || '',
@@ -367,6 +368,10 @@ const PluginPage: React.FC<PluginPageProps> = () => {
             <SelectModelFolder />
           </PopoverContent>
         </Popover>
+        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => window.YUA.window['window:open']('pluginDownload')}>
+          <TbDownload className="h-4 w-4 mr-1" />
+          下载管理
+        </Button>
         <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowNetworkDialog(true)}>
           <TbWifi className="h-4 w-4 mr-1" />
           网络测试
@@ -378,7 +383,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
       {/* 左右布局：引擎列表 + 模型详情 */}
       <div className="flex-1 overflow-hidden flex">
         {/* 左侧：引擎列表 */}
-        <div className="w-60 shrink-0 border-r border-border overflow-y-auto">
+        <div className="w-64 shrink-0 border-r border-border overflow-y-auto">
           {pluginIds.length === 0 ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center text-muted-foreground p-4">
@@ -387,7 +392,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
               </div>
             </div>
           ) : (
-            <div className="py-1">
+            <div className="space-y-1 p-2">
               {Object.entries(resourcesByPlugin).map(([pluginId, { engines, models }]) => {
                 const engineDef = engines[0];
                 const pluginName = engineDef?.displayName || engineDef?.name || models[0]?.displayName || models[0]?.name || pluginId.replace('plugin:', '');
@@ -399,24 +404,31 @@ const PluginPage: React.FC<PluginPageProps> = () => {
                 const categoryLabel = firstCategory ? CATEGORY_CONFIG.find((c) => c.value === firstCategory)?.label || firstCategory : '';
 
                 return (
-                  <button
+                  <div
                     key={pluginId}
                     onClick={() => setSelectedPluginId(pluginId)}
-                    className={`w-full text-left px-3 py-2.5 transition-colors border-l-2 ${isSelected ? 'bg-accent border-l-primary' : 'border-l-transparent hover:bg-muted/50'}`}
+                    className={cn('flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors hover:bg-accent/50', isSelected && 'bg-accent ring-1 ring-primary/30')}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium truncate">{pluginName}</span>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {isEngineDownloading && <TbLoader className="h-3 w-3 animate-spin text-blue-500" />}
-                        {hasInstalledEngine && <span className="text-[10px] px-1.5 rounded-md bg-green-500/90 text-white">已安装</span>}
+                    <div
+                      className={cn(
+                        'flex h-10 w-10 items-center justify-center rounded-full shrink-0 transition-colors',
+                        hasInstalledEngine ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+                      )}
+                    >
+                      {isEngineDownloading ? <TbLoader className="h-5 w-5 animate-spin" /> : <TbPlug className="h-5 w-5" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium truncate">{pluginName}</span>
+                        {hasInstalledEngine && <span className="text-[10px] px-1.5 rounded-md bg-green-500/90 text-white shrink-0">已安装</span>}
+                      </div>
+                      <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+                        {categoryLabel}
+                        {categoryLabel && models.length > 0 && ' · '}
+                        {models.length > 0 && `${models.length} 个模型`}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 mt-1 text-[11px] text-muted-foreground">
-                      {categoryLabel && <span>{categoryLabel}</span>}
-                      {categoryLabel && models.length > 0 && <span>·</span>}
-                      {models.length > 0 && <span>{models.length} 个模型</span>}
-                    </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
