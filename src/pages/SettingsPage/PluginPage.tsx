@@ -1,7 +1,6 @@
 import { isPluginCompatibleWithPlatform, isSystemPresetPlugin, PluginCategory, PluginDefinition } from '@packages/plugins/types';
-import { AnimatePresence, motion } from 'framer-motion';
 import React, { useEffect, useMemo, useState } from 'react';
-import { TbBox, TbChevronDown, TbChevronRight, TbFilter, TbLoader, TbSettings, TbWifi, TbX } from 'react-icons/tb';
+import { TbBox, TbFilter, TbLoader, TbSettings, TbWifi, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -51,7 +50,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
   const [loading, setLoading] = useState(true);
   const [tabValue, setTabValue] = useState<'available' | 'installed'>('available');
   const [installing, setInstalling] = useState<string | null>(null);
-  const [expandedPlugins, setExpandedPlugins] = useState<Set<string>>(new Set());
+  const [selectedPluginId, setSelectedPluginId] = useState<string | null>(null);
   const [showNetworkDialog, setShowNetworkDialog] = useState(false);
   const [showFolderSettings, setShowFolderSettings] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<PluginCategory | null>(null);
@@ -268,20 +267,20 @@ const PluginPage: React.FC<PluginPageProps> = () => {
       });
     }
 
+    // 过滤掉没有引擎的分组（引擎不兼容当前平台时，其模型也不应展示）
+    for (const pluginId of Object.keys(grouped)) {
+      if (grouped[pluginId].engines.length === 0) {
+        delete grouped[pluginId];
+      }
+    }
+
     return grouped;
   })();
 
-  const togglePluginExpanded = (pluginId: string): void => {
-    setExpandedPlugins((prev) => {
-      const next = new Set(prev);
-      if (next.has(pluginId)) {
-        next.delete(pluginId);
-      } else {
-        next.add(pluginId);
-      }
-      return next;
-    });
-  };
+  // 计算当前选中的插件
+  const pluginIds = Object.keys(resourcesByPlugin);
+  const activePluginId = selectedPluginId && pluginIds.includes(selectedPluginId) ? selectedPluginId : pluginIds[0] || null;
+  const activePlugin = activePluginId ? resourcesByPlugin[activePluginId] : null;
 
   // 渲染资源列表项
   const renderResourceItem = (resource: PluginDefinition): React.ReactElement => {
@@ -386,62 +385,104 @@ const PluginPage: React.FC<PluginPageProps> = () => {
 
       <NetworkCheckDialog open={showNetworkDialog} onOpenChange={setShowNetworkDialog} />
 
-      {/* 插件列表 */}
-      <div className="flex-1 overflow-y-auto p-4">
-        {Object.keys(resourcesByPlugin).length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center text-muted-foreground">
-              <TbBox className="h-12 w-12 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">暂无插件</p>
+      {/* 左右布局：引擎列表 + 模型详情 */}
+      <div className="flex-1 overflow-hidden flex">
+        {/* 左侧：引擎列表 */}
+        <div className="w-60 shrink-0 border-r border-border overflow-y-auto">
+          {pluginIds.length === 0 ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center text-muted-foreground p-4">
+                <TbBox className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                <p className="text-xs">暂无插件</p>
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {Object.entries(resourcesByPlugin).map(([pluginId, { engines, models }]) => {
-              const pluginName = engines[0]?.pluginId.replace('plugin:', '') || models[0]?.pluginId.replace('plugin:', '') || pluginId.replace('plugin:', '');
-              const isExpanded = expandedPlugins.has(pluginId);
-              const hasModels = models.length > 0;
-              const hasEngines = engines.length > 0;
-              // 检查是否有已安装的引擎（包括系统预设引擎）
-              const hasInstalledEngine =
-                installed.some((resource) => resource.pluginId === pluginId && resource.type === 'engine' && resource.status === 'installed') || engines.some((engine) => isSystemPresetPlugin(engine));
-              const shouldShowModels = hasModels && hasInstalledEngine;
+          ) : (
+            <div className="py-1">
+              {Object.entries(resourcesByPlugin).map(([pluginId, { engines, models }]) => {
+                const engineDef = engines[0];
+                const pluginName = engineDef?.displayName || engineDef?.name || models[0]?.displayName || models[0]?.name || pluginId.replace('plugin:', '');
+                const isSelected = activePluginId === pluginId;
+                const hasInstalledEngine = installed.some((r) => r.pluginId === pluginId && r.type === 'engine' && r.status === 'installed') || engines.some((e) => isSystemPresetPlugin(e));
+                const isEngineDownloading = installed.some((r) => r.pluginId === pluginId && r.type === 'engine' && ['queued', 'downloading', 'extracting', 'verifying'].includes(r.status || ''));
+                const category = engineDef?.category;
+                const firstCategory = Array.isArray(category) ? category[0] : category;
+                const categoryLabel = firstCategory ? CATEGORY_CONFIG.find((c) => c.value === firstCategory)?.label || firstCategory : '';
 
-              return (
-                <div key={pluginId} className="bg-card/10 border border-border/70 rounded-xl overflow-hidden">
-                  {/* 引擎列表 */}
-                  {hasEngines && <div className="divide-y divide-border/70">{engines.map((resource) => renderResourceItem(resource))}</div>}
-
-                  {/* 模型列表（可展开） */}
-                  {shouldShowModels && (
-                    <div className={hasEngines ? 'border-t border-border/70' : ''}>
-                      <button onClick={() => togglePluginExpanded(pluginId)} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-muted-foreground hover:bg-muted/30 transition-colors">
-                        {isExpanded ? <TbChevronDown className="h-4 w-4" /> : <TbChevronRight className="h-4 w-4" />}
-                        <TbBox className="h-4 w-4" />
-                        <span>
-                          {pluginName} 模型列表 ({models.length})
-                        </span>
-                      </button>
-                      <AnimatePresence initial={false}>
-                        {isExpanded && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.2, ease: 'easeInOut' }}
-                            style={{ overflow: 'hidden' }}
-                          >
-                            <div className="border-t border-border/50 divide-y divide-border/50">{models.map((resource) => renderResourceItem(resource))}</div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                return (
+                  <button
+                    key={pluginId}
+                    onClick={() => setSelectedPluginId(pluginId)}
+                    className={`w-full text-left px-3 py-2.5 transition-colors border-l-2 ${isSelected ? 'bg-accent border-l-primary' : 'border-l-transparent hover:bg-muted/50'}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium truncate">{pluginName}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {isEngineDownloading && <TbLoader className="h-3 w-3 animate-spin text-blue-500" />}
+                        {hasInstalledEngine && <span className="text-[10px] px-1.5 rounded-md bg-green-500/90 text-white">已安装</span>}
+                      </div>
                     </div>
-                  )}
+                    <div className="flex items-center gap-1.5 mt-1 text-[11px] text-muted-foreground">
+                      {categoryLabel && <span>{categoryLabel}</span>}
+                      {categoryLabel && models.length > 0 && <span>·</span>}
+                      {models.length > 0 && <span>{models.length} 个模型</span>}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* 右侧：引擎详情 + 模型列表 */}
+        <div className="flex-1 overflow-y-auto">
+          {activePlugin ? (
+            <div>
+              {/* 引擎信息 */}
+              {activePlugin.engines.length > 0 && (
+                <div className="relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-purple-500/8 to-cyan-500/5 dark:from-blue-500/10 dark:via-purple-500/12 dark:to-cyan-500/10" />
+                  <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.08)_50%,transparent_75%)] bg-[length:250%_100%] animate-[shimmer_6s_ease-in-out_infinite]" />
+                  <div className="relative divide-y divide-border/70">{activePlugin.engines.map((resource) => renderResourceItem(resource))}</div>
                 </div>
-              );
-            })}
-          </div>
-        )}
+              )}
+
+              {/* 模型列表或提示 */}
+              {(() => {
+                const hasInstalledEngine =
+                  installed.some((r) => r.pluginId === activePluginId && r.type === 'engine' && r.status === 'installed') || activePlugin.engines.some((e) => isSystemPresetPlugin(e));
+
+                if (activePlugin.models.length === 0) return null;
+
+                if (!hasInstalledEngine) {
+                  return (
+                    <div className="border-t border-border/70 px-4 py-8 text-center text-muted-foreground">
+                      <TbBox className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                      <p className="text-sm">请先安装引擎后再选择模型</p>
+                      <p className="text-xs mt-1 opacity-70">该引擎有 {activePlugin.models.length} 个可用模型</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="border-t border-border/70">
+                    <div className="px-4 py-2.5 text-sm text-muted-foreground flex items-center gap-2 bg-muted/20">
+                      <TbBox className="h-4 w-4" />
+                      <span>模型列表 ({activePlugin.models.length})</span>
+                    </div>
+                    <div className="divide-y divide-border/50">{activePlugin.models.map((resource) => renderResourceItem(resource))}</div>
+                  </div>
+                );
+              })()}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center text-muted-foreground">
+                <TbBox className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                <p className="text-sm">暂无插件</p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

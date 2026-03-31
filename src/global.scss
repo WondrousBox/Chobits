@@ -101,6 +101,19 @@
   }
 }
 
+/* Shimmer animation for plugin engine cards */
+@keyframes shimmer {
+  0% {
+    background-position: 250% 0;
+  }
+  50% {
+    background-position: -50% 0;
+  }
+  100% {
+    background-position: 250% 0;
+  }
+}
+
 .shimmer-title {
   background: linear-gradient(
     90deg,
