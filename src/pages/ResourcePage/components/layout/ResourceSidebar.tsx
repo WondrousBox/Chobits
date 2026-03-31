@@ -54,7 +54,6 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
   const location = useLocation();
   const isTasksRoute = location.pathname.includes('/tasks');
   const isWorkflowsRoute = location.pathname.includes('/workflows');
-  const isAppsRoute = location.pathname.includes('/apps');
   const isHomeRoute = location.pathname === '/resources' || location.pathname === '/resources/' || location.pathname === '/resources/home';
 
   return (
@@ -134,22 +133,6 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
             >
               <TbLine />
               工作流
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem
-            key={'apps'}
-            onClick={() => {
-              navigate('/resources/apps', { replace: true });
-              setFavoriteFilter(false);
-              setFolderFilter('');
-            }}
-          >
-            <SidebarMenuButton
-              variant={isAppsRoute ? 'outline' : 'default'}
-              className={`h-8 transition-colors ${isAppsRoute ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground' : ''}`}
-            >
-              <TbApps />
-              应用
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbMicrophone, TbMicrophoneOff, TbX } from 'react-icons/tb';
+import { TbLanguage, TbMicrophone, TbMicrophoneOff, TbX } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { UnifiedChatInput } from '@/components/chat';
@@ -213,6 +213,36 @@ const AssistantPage: React.FC = () => {
         </Button>
 
         <div className="drag-region space-y-2">
+          {/* 常用功能快捷入口 */}
+          <div className="px-1 pb-1 no-drag">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] text-muted-foreground">常用能力</span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="w-8 h-8 rounded-full"
+                  title="视频转写"
+                  onClick={() => {
+                    setQuery('帮我对一个视频做语音转写，生成带时间轴的字幕文件（优先识别中文，可自动检测其他语言）。如果需要文件或资源，请先提示我选择或拖入视频。');
+                  }}
+                >
+                  <TbMicrophone className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="w-8 h-8 rounded-full"
+                  title="字幕翻译"
+                  onClick={() => {
+                    setQuery('帮我把一份现有的中文字幕翻译成其它语言字幕，保留原有时间轴格式。请先询问我：目标语言、字幕格式（如 SRT、ASS）、以及是否需要润色优化。');
+                  }}
+                >
+                  <TbLanguage className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
           <div ref={inputBlockRef} className="flex items-start gap-3 relative no-drag">
             <div className="flex-1 relative">
               <UnifiedChatInput
