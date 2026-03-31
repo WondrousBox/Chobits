@@ -8,6 +8,7 @@ import { inferCodingWorkspaceLabel } from '@/lib/coding-workspace';
 import { useChatSelection } from '@/pages/ChatPage/context/ChatSelectionContext';
 
 import UnifiedChatInput, { UnifiedChatInputProps } from './UnifiedChatInput';
+import WebSearchToggle from './WebSearchToggle';
 
 export interface ChatInputWithServiceProps extends Omit<UnifiedChatInputProps, 'onSend' | 'footerLeft'> {
   onStart: (params: {
@@ -18,12 +19,27 @@ export interface ChatInputWithServiceProps extends Omit<UnifiedChatInputProps, '
     agentId: string;
     codingWorkspaceRoot?: string;
     codingWorkspaceLabel?: string;
+    webSearchEnabled?: boolean;
   }) => void | Promise<void>;
   onMenuOpenChange?: (open: boolean) => void;
 }
 
 export default function ChatInputWithService({ onStart, onMenuOpenChange, ...rest }: ChatInputWithServiceProps): JSX.Element {
-  const { agents, providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, setProviderId, setModelId, setAgentId, setCodingWorkspace } = useChatSelection();
+  const {
+    agents,
+    providerId,
+    modelId,
+    presetId,
+    agentId,
+    codingWorkspaceRoot,
+    codingWorkspaceLabel,
+    webSearchEnabled,
+    setProviderId,
+    setModelId,
+    setAgentId,
+    setCodingWorkspace,
+    setWebSearchEnabled
+  } = useChatSelection();
 
   const isCoder = agentId === 'coder';
 
@@ -56,6 +72,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, ...res
       modelId,
       preferredPresetId: presetId || undefined,
       agentId,
+      webSearchEnabled,
       ...(isCoder && codingWorkspaceRoot
         ? {
           codingWorkspaceRoot,
@@ -99,6 +116,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, ...res
             modelTypes={['chat']}
             onOpenChange={onMenuOpenChange}
           />
+          <WebSearchToggle enabled={webSearchEnabled} onToggle={setWebSearchEnabled} />
           {isCoder && (
             <>
               <Button type="button" variant="outline" size="sm" className="h-8 max-w-44 rounded-full text-xs" onClick={handlePickWorkspace} title={codingWorkspaceRoot || '选择项目目录'}>

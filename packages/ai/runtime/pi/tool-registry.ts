@@ -143,6 +143,20 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
     name: 'toolboxLookupTool',
     status: 'ready-for-pi-runtime'
   },
+  'web-search': {
+    category: 'integration',
+    description: '搜索互联网获取最新信息',
+    compatName: 'webSearchTool',
+    name: 'webSearchTool',
+    status: 'ready-for-pi-runtime'
+  },
+  'web-read': {
+    category: 'integration',
+    description: '读取指定网页的内容',
+    compatName: 'webReadTool',
+    name: 'webReadTool',
+    status: 'ready-for-pi-runtime'
+  },
   'workflow-run': {
     category: 'background-task',
     description: '查找和执行工作流，可完成视频转写、音频提取、OCR、关键帧提取、AI图片生成等任务',

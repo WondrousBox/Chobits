@@ -11,11 +11,13 @@ export interface ChatSelectionContextValue {
   agentId: string;
   codingWorkspaceRoot: string;
   codingWorkspaceLabel: string;
+  webSearchEnabled: boolean;
   setProviderId: (id: string) => void;
   setModelId: (id: string) => void;
   setPresetId: (id: string) => void;
   setAgentId: (id: string) => void;
   setCodingWorkspace: (workspace: { root: string; label?: string } | null) => void;
+  setWebSearchEnabled: (enabled: boolean) => void;
   refresh: () => Promise<void>;
 }
 
@@ -27,7 +29,8 @@ const LS_KEYS = {
   presetId: 'chat.sel.presetId',
   agentId: 'chat.sel.agentId',
   codingWorkspaceRoot: 'chat.sel.codingWorkspaceRoot',
-  codingWorkspaceLabel: 'chat.sel.codingWorkspaceLabel'
+  codingWorkspaceLabel: 'chat.sel.codingWorkspaceLabel',
+  webSearchEnabled: 'chat.sel.webSearchEnabled'
 };
 
 export function ChatSelectionProvider({ children }: { children: React.ReactNode }): JSX.Element {
@@ -39,6 +42,7 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
   const [agentId, setAgentId] = useState<string>(() => localStorage.getItem(LS_KEYS.agentId) || 'assistant');
   const [codingWorkspaceRoot, setCodingWorkspaceRootState] = useState<string>(() => localStorage.getItem(LS_KEYS.codingWorkspaceRoot) || '');
   const [codingWorkspaceLabel, setCodingWorkspaceLabelState] = useState<string>(() => localStorage.getItem(LS_KEYS.codingWorkspaceLabel) || '');
+  const [webSearchEnabled, setWebSearchEnabledState] = useState<boolean>(() => localStorage.getItem(LS_KEYS.webSearchEnabled) === 'true');
 
   // Persist selections
   useEffect(() => {
@@ -107,6 +111,14 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
       /* noop */
     }
   }, [codingWorkspaceLabel]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS_KEYS.webSearchEnabled, webSearchEnabled ? 'true' : 'false');
+    } catch {
+      /* noop */
+    }
+  }, [webSearchEnabled]);
 
   // One-time cleanup for the removed preset-ordering compatibility state.
   useEffect(() => {
@@ -191,6 +203,10 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
     setCodingWorkspaceLabelState(workspace.label?.trim() || '');
   }, []);
 
+  const setWebSearchEnabled = useCallback((enabled: boolean) => {
+    setWebSearchEnabledState(enabled);
+  }, []);
+
   const value = useMemo<ChatSelectionContextValue>(
     () => ({
       agents,
@@ -200,14 +216,16 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
       agentId,
       codingWorkspaceRoot,
       codingWorkspaceLabel,
+      webSearchEnabled,
       setProviderId,
       setModelId,
       setPresetId,
       setAgentId,
       setCodingWorkspace,
+      setWebSearchEnabled,
       refresh
     }),
-    [agents, providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, setProviderId, setPresetId, setCodingWorkspace, refresh]
+    [agents, providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, webSearchEnabled, setProviderId, setPresetId, setCodingWorkspace, setWebSearchEnabled, refresh]
   );
 
   return <ChatSelectionContext.Provider value={value}>{children}</ChatSelectionContext.Provider>;
