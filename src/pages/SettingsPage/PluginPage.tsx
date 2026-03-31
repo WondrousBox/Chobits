@@ -3,7 +3,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { TbBox, TbFilter, TbLoader, TbSettings, TbWifi, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -52,7 +51,6 @@ const PluginPage: React.FC<PluginPageProps> = () => {
   const [installing, setInstalling] = useState<string | null>(null);
   const [selectedPluginId, setSelectedPluginId] = useState<string | null>(null);
   const [showNetworkDialog, setShowNetworkDialog] = useState(false);
-  const [showFolderSettings, setShowFolderSettings] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<PluginCategory | null>(null);
 
   // 获取当前可用的分类列表（只显示有插件的分类）
@@ -358,25 +356,17 @@ const PluginPage: React.FC<PluginPageProps> = () => {
           </Button>
         )}
 
-        <Dialog open={showFolderSettings} onOpenChange={setShowFolderSettings}>
-          <DialogTrigger asChild>
+        <Popover>
+          <PopoverTrigger asChild>
             <Button size="sm" variant="outline" className="h-8 text-xs" title="设置下载文件夹">
               <TbSettings className="h-4 w-4 mr-1" />
               存储位置
             </Button>
-          </DialogTrigger>
-          <DialogContent className="w-full max-w-md">
-            <DialogHeader>
-              <DialogTitle></DialogTitle>
-              <DialogDescription></DialogDescription>
-            </DialogHeader>
-            <SelectModelFolder
-              onConfigured={() => {
-                setShowFolderSettings(false);
-              }}
-            />
-          </DialogContent>
-        </Dialog>
+          </PopoverTrigger>
+          <PopoverContent className="w-80" align="end">
+            <SelectModelFolder />
+          </PopoverContent>
+        </Popover>
         <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowNetworkDialog(true)}>
           <TbWifi className="h-4 w-4 mr-1" />
           网络测试

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { TbFolder, TbFolderOpen, TbLoader } from 'react-icons/tb';
+import { TbArrowRight, TbFolder, TbLoader } from 'react-icons/tb';
 
-import { Button } from '@/components/ui/button';
 import { maskPath } from '@/lib/helpers';
 
 type SelectModelFolderProps = {
@@ -78,12 +77,9 @@ const SelectModelFolder: React.FC<SelectModelFolderProps> = ({ onConfigured }) =
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-2">
       {/* 当前路径显示 */}
-      <div
-        className="group flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
-        onClick={openFolder}
-      >
+      <div className="group flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors" onClick={openFolder}>
         <div className="flex-shrink-0 w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center">
           <TbFolder className="h-4 w-4 text-primary" />
         </div>
@@ -93,19 +89,16 @@ const SelectModelFolder: React.FC<SelectModelFolderProps> = ({ onConfigured }) =
             {pluginsDir ? maskPath(pluginsDir) : '未设置'}
           </div>
         </div>
-        {pluginsDir && <TbFolderOpen className="h-4 w-4 flex-shrink-0 text-muted-foreground group-hover:text-primary transition-colors" />}
+        {pluginsDir && <TbArrowRight className="h-4 w-4 flex-shrink-0 text-muted-foreground group-hover:text-primary transition-colors" />}
       </div>
 
       {/* 说明文字 */}
       <p className="text-xs text-muted-foreground leading-relaxed">
-        插件资源包含引擎和模型文件，可能占用较大空间，建议选择非系统盘存储。
+        插件占用较大空间，建议选择非系统盘存储。
+        <span className="text-primary underline cursor-pointer ml-1 whitespace-nowrap" onClick={pickDir}>
+          [{!pluginsDir ? '选择存储位置' : '更改存储位置'}]
+        </span>
       </p>
-
-      {/* 操作按钮 */}
-      <Button variant="outline" className="w-full" onClick={pickDir} disabled={pickBusy}>
-        {pickBusy ? <TbLoader className="h-4 w-4 mr-2 animate-spin" /> : <TbFolder className="h-4 w-4 mr-2" />}
-        {!pluginsDir ? '选择存储位置' : '更改存储位置'}
-      </Button>
     </div>
   );
 };
