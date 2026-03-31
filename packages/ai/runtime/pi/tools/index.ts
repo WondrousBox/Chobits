@@ -19,6 +19,8 @@ import { createPiShellExecTool } from './shell-exec';
 import { createPiSummaryTool } from './summary';
 import { createPiToolboxLookupTool } from './toolbox-lookup';
 import { createPiTranslationTool } from './translation';
+import { createPiWebReadTool } from './web-read';
+import { createPiWebSearchTool } from './web-search';
 import { createPiWorkflowRunTool } from './workflow-run';
 import { createPiYoutubeDownloadTool } from './youtube-download';
 import { createPiYoutubeSubscribeTool } from './youtube-subscribe';
@@ -39,6 +41,8 @@ const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
   'shell-exec': createPiShellExecTool,
   'summarize-content': createPiSummaryTool,
   'translate-subtitles': createPiTranslationTool,
+  'web-read': createPiWebReadTool,
+  'web-search': createPiWebSearchTool,
   'youtube-download': createPiYoutubeDownloadTool,
   'youtube-subscribe': createPiYoutubeSubscribeTool,
   'memory-search': createPiMemorySearchTool,

@@ -264,6 +264,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
     agentId?: string;
     codingWorkspaceRoot?: string;
     codingWorkspaceLabel?: string;
+    webSearchEnabled?: boolean;
   }): Promise<void> => {
     const content = params.content;
     const selectedProviderId = params.providerId || providerId;
@@ -311,6 +312,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
         stream: true,
         extras: {
           model: selectedModelId,
+          ...(params.webSearchEnabled ? { webSearchEnabled: true } : {}),
           ...(selectedAgentId === 'coder' && selectedCodingWorkspaceRoot
             ? {
               codingWorkspaceRoot: selectedCodingWorkspaceRoot,

@@ -20,13 +20,28 @@ function prependSystemPrompt(messages: ChatMessage[], systemPrompt?: string): Ch
   return [{ role: 'system', content: systemPrompt }, ...messages];
 }
 
+const WEB_SEARCH_TOOL_IDS = ['web-search', 'web-read'];
+
 function resolveEnabledToolIds(req: ChatRequest, preset: ProviderPresetRecord | undefined, profileDefaultToolIds: string[]): string[] {
   const extrasToolIds = Array.isArray(req.extras?.enabledTools) ? (req.extras?.enabledTools as string[]) : undefined;
 
-  if (extrasToolIds) return normalizePiToolIds(extrasToolIds);
-  if (preset?.enabledTools?.length) return normalizePiToolIds(preset.enabledTools);
+  let toolIds: string[];
+  if (extrasToolIds) {
+    toolIds = normalizePiToolIds(extrasToolIds);
+  } else if (preset?.enabledTools?.length) {
+    toolIds = normalizePiToolIds(preset.enabledTools);
+  } else {
+    toolIds = normalizePiToolIds(profileDefaultToolIds);
+  }
 
-  return normalizePiToolIds(profileDefaultToolIds);
+  if (req.extras?.webSearchEnabled) {
+    const existing = new Set(toolIds);
+    for (const id of WEB_SEARCH_TOOL_IDS) {
+      if (!existing.has(id)) toolIds.push(id);
+    }
+  }
+
+  return toolIds;
 }
 
 function resolveCodingWorkspace(req: ChatRequest): PiCodingWorkspaceContext | undefined {

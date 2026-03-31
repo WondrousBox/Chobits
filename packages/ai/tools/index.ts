@@ -181,6 +181,16 @@ export function listToolInfos(): ToolInfo[] {
       id: 'youtube-subscribe',
       name: 'youtubeSubscribeTool',
       description: youtubeSubscribeTool.description || '订阅 YouTube 频道'
+    },
+    {
+      id: 'web-search',
+      name: 'webSearchTool',
+      description: '搜索互联网获取最新信息'
+    },
+    {
+      id: 'web-read',
+      name: 'webReadTool',
+      description: '读取指定网页的内容'
     }
   ];
 }
