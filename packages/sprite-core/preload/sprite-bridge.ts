@@ -32,9 +32,8 @@ export type SpriteBridgeType = {
   // 交互上报
   interact(type: string, data?: any): Promise<void>;
 
-  // 拖拽
+  // 拖拽（主进程轮询光标，渲染进程仅发 start/end 信号）
   dragStart(offsetX: number, offsetY: number): Promise<void>;
-  dragMove(screenX: number, screenY: number): Promise<void>;
   dragEnd(): Promise<void>;
 
   // 动画完成上报
@@ -95,18 +94,12 @@ export const spriteBridge: SpriteBridgeType = {
   // ── 交互上报 ─────────────────────────────────────────────
   interact: (type, data) => ipcRenderer.invoke('sprite:interact', { type, data }),
 
-  // ── 拖拽 ─────────────────────────────────────────────────
+  // ── 拖拽（主进程轮询光标，渲染进程仅发 start/end 信号）────
   dragStart: (offsetX, offsetY) =>
     ipcRenderer.invoke('sprite:drag', {
       phase: 'start',
       offsetX,
       offsetY
-    }),
-  dragMove: (screenX, screenY) =>
-    ipcRenderer.invoke('sprite:drag', {
-      phase: 'move',
-      screenX,
-      screenY
     }),
   dragEnd: () => ipcRenderer.invoke('sprite:drag', { phase: 'end' }),
 
