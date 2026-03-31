@@ -4,7 +4,6 @@ import type { DailyCareBridgeType } from '../electron/main/daily/ipc-renderer';
 import type { AnnotationIpcRenderer } from '../electron/main/handlers/annotation/ipc-renderer';
 import type { ClipIpcRenderer } from '../electron/main/handlers/clip/ipc-renderer';
 import type { DownloaderIpcRendererType } from '../electron/main/handlers/downloader/ipc-renderer';
-import type { VectorIpcType } from '../electron/main/handlers/embedding/ipc-renderer';
 import type { FFmpegIpcType } from '../electron/main/handlers/ffmpeg/ipc-renderer';
 import type { FileIpcType } from '../electron/main/handlers/file/ipc-renderer';
 import type { FolderIpcType } from '../electron/main/handlers/folder/ipc-renderer';
@@ -20,12 +19,12 @@ import type { TrashIpcType } from '../electron/main/handlers/trash/ipc-renderer'
 import type { WorkspaceIpcType } from '../electron/main/handlers/workspace/ipc-renderer';
 import type { YtDlpIpcRendererType } from '../electron/main/handlers/ytdlp/ipc-renderer';
 import type { PluginResourceIpcType } from '../electron/main/plugins/ipc-renderer';
+import type { memoryApi } from '../electron/preload/apis/memory';
 import type { PersonaApiBridgeType } from '../electron/preload/apis/persona';
 import type { ShortcutsBridgeType } from '../electron/preload/apis/shortcuts';
 import type { StatusBridgeType } from '../electron/preload/apis/status';
 import type { WindowBridgeType } from '../electron/preload/apis/window';
 import type { AIApi } from '../packages/ai/types';
-import type { memoryApi } from '../electron/preload/apis/memory';
 import type { AppEventPayload } from '../packages/event/events';
 import type { RecorderIpcRendererType } from '../packages/recorder/ipc-renderer';
 import type { SherpaIpcRendererType } from '../packages/sherpa/ipc-renderer';
@@ -46,10 +45,6 @@ declare global {
 
       window: WindowBridgeType;
       ffmpeg: FFmpegIpcType;
-      vector: VectorIpcType & {
-        onEmbeddingJob(cb: (job: any) => void): () => void;
-        onEmbeddingProgress(cb: (p: { id: string; done: number; total: number; status?: string }) => void): () => void;
-      };
       resource: ResourceIpcType;
       trash: TrashIpcType;
       workspace: WorkspaceIpcType;
