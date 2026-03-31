@@ -906,13 +906,6 @@ export class SpriteManager {
     this.showToast(undefined, { category: 'hold' });
   }
 
-  /** 更新拖拽位置 */
-  updateDrag(screenX: number, screenY: number): void {
-    if (this.windowController) {
-      this.windowController.updateDrag(screenX, screenY);
-    }
-  }
-
   /** 结束拖拽 */
   endDrag(): void {
     if (this.windowController) {

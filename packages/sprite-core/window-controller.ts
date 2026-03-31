@@ -40,6 +40,8 @@ export interface WindowControllerOptions {
   getWindow: () => SpriteWindow | null;
   /** 获取屏幕工作区尺寸 */
   getScreenSize: () => { width: number; height: number };
+  /** 获取光标屏幕坐标（主进程直接查询，无 IPC 延迟） */
+  getCursorScreenPoint: () => { x: number; y: number };
   /** 获取精灵内边距 */
   getPadding: () => number;
   /** 获取精灵尺寸 */
@@ -79,6 +81,7 @@ export class WindowController {
   private dragging = false;
   private dragOffsetX = 0;
   private dragOffsetY = 0;
+  private dragTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(options: WindowControllerOptions) {
     this.opts = options;
@@ -199,39 +202,57 @@ export class WindowController {
   // 拖拽
   // ============================================================================
 
-  /** 开始拖拽 */
+  /** 开始拖拽（启动主进程轮询光标位置，彻底消除 IPC 延迟） */
   startDrag(offsetX: number, offsetY: number): void {
     this.stopWalk();
+    this.stopDragTimer();
     this.dragging = true;
     this.dragOffsetX = offsetX;
     this.dragOffsetY = offsetY;
-  }
 
-  /** 更新拖拽位置 */
-  updateDrag(screenX: number, screenY: number): void {
-    if (!this.dragging) return;
-    const win = this.opts.getWindow();
-    if (!win || win.isDestroyed()) return;
-
-    const padding = this.opts.getPadding();
-    // dragOffsetX/Y 是 clientX/Y（相对于窗口左上角），
-    // screenX/Y 是鼠标屏幕坐标，所以 screenX - dragOffsetX 就是窗口左上角位置，
-    // 不需要额外减去 padding（padding 已包含在 clientX 中）
-    const x = screenX - this.dragOffsetX;
-    const y = screenY - this.dragOffsetY;
-
-    // 边界约束
-    const screen = this.opts.getScreenSize();
-    const sprite = this.opts.getSpriteSize();
-    const clampedX = clamp(x, -padding, screen.width - sprite.width - padding);
-    const clampedY = clamp(y, -padding, screen.height - sprite.height - padding);
-
-    win.setPosition(Math.round(clampedX), Math.round(clampedY));
+    // 主进程 ~60fps 轮询光标位置并移动窗口
+    this.dragTimer = setInterval(() => this.dragTick(), TICK_INTERVAL);
   }
 
   /** 结束拖拽 */
   endDrag(): void {
+    this.stopDragTimer();
     this.dragging = false;
+  }
+
+  /** 拖拽轮询 tick — 主进程直接读取光标位置 */
+  private dragTick(): void {
+    if (!this.dragging) {
+      this.stopDragTimer();
+      return;
+    }
+    const win = this.opts.getWindow();
+    if (!win || win.isDestroyed()) {
+      this.stopDragTimer();
+      this.dragging = false;
+      return;
+    }
+
+    const cursor = this.opts.getCursorScreenPoint();
+    const padding = this.opts.getPadding();
+    const x = cursor.x - this.dragOffsetX;
+    const y = cursor.y - this.dragOffsetY;
+
+    // 边界约束
+    const scr = this.opts.getScreenSize();
+    const sprite = this.opts.getSpriteSize();
+    const clampedX = clamp(x, -padding, scr.width - sprite.width - padding);
+    const clampedY = clamp(y, -padding, scr.height - sprite.height - padding);
+
+    win.setPosition(Math.round(clampedX), Math.round(clampedY));
+  }
+
+  /** 停止拖拽定时器 */
+  private stopDragTimer(): void {
+    if (this.dragTimer) {
+      clearInterval(this.dragTimer);
+      this.dragTimer = null;
+    }
   }
 
   /** 是否正在拖拽 */
@@ -278,6 +299,7 @@ export class WindowController {
 
   destroy(): void {
     this.cancelWalk();
+    this.stopDragTimer();
     this.dragging = false;
   }
 

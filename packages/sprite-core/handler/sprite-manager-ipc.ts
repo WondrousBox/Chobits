@@ -56,6 +56,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   const windowCtrl = new WindowController({
     getWindow: () => (win.isDestroyed() ? null : (win as any)),
     getScreenSize: () => screen.getPrimaryDisplay().workAreaSize,
+    getCursorScreenPoint: () => screen.getCursorScreenPoint(),
     getPadding: () => mgr.getSpriteConfig().padding,
     getSpriteSize: () => {
       const cfg = mgr.getSpriteConfig();
@@ -93,14 +94,11 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     mgr.reportInteraction(payload.type, payload.data);
   });
 
-  // 拖拽
-  ipcMain.handle('sprite:drag', (_e, payload: { phase: 'start' | 'move' | 'end'; screenX?: number; screenY?: number; offsetX?: number; offsetY?: number }) => {
+  // 拖拽（主进程轮询光标位置，渲染进程只负责 start/end 信号）
+  ipcMain.handle('sprite:drag', (_e, payload: { phase: 'start' | 'end'; offsetX?: number; offsetY?: number }) => {
     switch (payload.phase) {
       case 'start':
         mgr.startDrag(payload.offsetX!, payload.offsetY!);
-        break;
-      case 'move':
-        mgr.updateDrag(payload.screenX!, payload.screenY!);
         break;
       case 'end':
         mgr.endDrag();

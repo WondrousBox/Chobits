@@ -5,16 +5,15 @@
  *
  * 逻辑：
  * 1. mousedown 开始 250ms 长按检测
- * 2. 长按后上报 sprite:drag start
- * 3. mousemove 30fps 节流上报 sprite:drag move
- * 4. mouseup 上报 sprite:drag end
+ * 2. 长按后上报 sprite:drag start（主进程开始 60fps 轮询光标位置）
+ * 3. mouseup 上报 sprite:drag end
  *
- * 不做窗口移动，窗口移动由主进程 WindowController 处理。
+ * 不再发送 mousemove 坐标——主进程直接通过 screen.getCursorScreenPoint()
+ * 获取实时光标位置，彻底消除 IPC 往返延迟。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 const HOLD_DELAY_MS = 250;
-const FRAME_INTERVAL = 1000 / 30; // 30fps
 
 export function useDragCollector(): {
   onMouseDown: (e: React.MouseEvent) => void;
@@ -24,7 +23,6 @@ export function useDragCollector(): {
   const [isDragging, setIsDragging] = useState(false);
   const [isDragReady, setIsDragReady] = useState(false);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSendRef = useRef(0);
   const holdCleanupRef = useRef<() => void>(() => { });
 
   const cancelHold = useCallback(() => {
@@ -70,23 +68,16 @@ export function useDragCollector(): {
         setIsDragReady(true);
         setIsDragging(true);
 
-        // 上报拖拽开始
+        // 上报拖拽开始（主进程启动光标轮询）
         window.YUA.sprite.dragStart(offsetX, offsetY);
       }, HOLD_DELAY_MS);
     },
     [cancelHold]
   );
 
-  // 全局 mousemove/mouseup 监听
+  // 全局 mouseup 监听（不再需要 mousemove，主进程自行轮询光标）
   useEffect(() => {
     if (!isDragging) return;
-
-    const onMove = (e: MouseEvent): void => {
-      const now = performance.now();
-      if (now - lastSendRef.current < FRAME_INTERVAL) return;
-      lastSendRef.current = now;
-      window.YUA.sprite.dragMove(e.screenX, e.screenY);
-    };
 
     const onUp = (): void => {
       window.YUA.sprite.dragEnd();
@@ -94,10 +85,8 @@ export function useDragCollector(): {
       setIsDragReady(false);
     };
 
-    document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
     return () => {
-      document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
   }, [isDragging]);
