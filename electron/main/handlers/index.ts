@@ -14,7 +14,6 @@ import { initScreenshotHandlers } from '../screenshot';
 import { initSkillTreeHandlers } from '../skillTreeWindow';
 import { getResourcePath } from '../utils/resources-path';
 import { initAnnotationHandlers } from './annotation/ipc-main';
-import { initMemoryHandlers } from './memory/ipc-main';
 import { initAutomationHandlers } from './automation/ipc-main';
 import { initClipHandlers } from './clip/ipc-main';
 import { initDownloadHandlers } from './downloader/ipc-main';
@@ -24,6 +23,7 @@ import { initFileHandlers } from './file/ipc-main';
 import { initFolderHandlers } from './folder/ipc-main';
 import { initMediaHandlers } from './media/ipc-main';
 import { initMediaTrackHandlers } from './mediaTrack/ipc-main';
+import { initMemoryHandlers } from './memory/ipc-main';
 import { initPreferencesHandlers } from './preferences/ipc-main';
 import { initProxyHandlers } from './proxy/ipc-main';
 import { getHttpProxy } from './proxy/proxy';
@@ -73,24 +73,16 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
     getHttpProxy,
     getPluginDefinitionsPath: () => getResourcePath('plugins')!,
     onProgress: (info: DownloadProgress) => {
-      try {
-        // 发送到主窗口
-        win.webContents.send('plugin-resource:progress', info);
-      } catch {
-        // 窗口可能已关闭
-      }
-      // 同时发送到插件下载窗口
-      try {
-        const downloadWindow = windowManager.get('pluginDownload');
-        if (downloadWindow && !downloadWindow.isDestroyed()) {
-          downloadWindow.webContents.send('plugin-resource:progress', info);
+      // 发送到所有可能需要进度更新的窗口
+      const targets = [win, windowManager.get('pluginDownload'), windowManager.get('pluginManager'), windowManager.get('settings')];
+      for (const w of targets) {
+        try {
+          if (w && !w.isDestroyed()) {
+            w.webContents.send('plugin-resource:progress', info);
+          }
+        } catch {
+          // 窗口可能已关闭
         }
-        const settingsWindow = windowManager.get('settings');
-        if (settingsWindow && !settingsWindow.isDestroyed()) {
-          settingsWindow.webContents.send('plugin-resource:progress', info);
-        }
-      } catch {
-        // 窗口可能不存在或已关闭
       }
     }
   });
