@@ -71,6 +71,7 @@ const BRANCH_SECTORS: Record<string, { start: number; end: number }> = {
 };
 
 const COL_SPREAD = 22;
+const COL_RADIUS_OFFSET = 40;
 
 const NODE_EMOJI: Record<string, string> = {
   microphone: '🎤',
@@ -150,7 +151,7 @@ function computeLayout(): NodeLayout[] {
       const ci = sameTR.indexOf(node);
       angle += (ci - (sameTR.length - 1) / 2) * COL_SPREAD;
     }
-    const radius = TIER_RADII[node.tier];
+    const radius = TIER_RADII[node.tier] + node.column * COL_RADIUS_OFFSET;
     const { x, y } = angleToXY(angle, radius);
     layouts.push({ id: node.id, x, y, angle, radius, node });
   }
@@ -306,29 +307,76 @@ export class SkillTreeRenderer {
     ctx.globalAlpha = 1;
   }
 
-  // ━━ Tier rings ━━
+  // ━━ Tier rings (solar system / atomic model) ━━
   private drawTierRings(ctx: CanvasRenderingContext2D, _W: number, _H: number, _cam: Camera, toS: (wx: number, wy: number) => { x: number; y: number }, t: number): void {
     const center = toS(0, 0);
     const tiers: SkillTier[] = ['beginner', 'intermediate', 'advanced', 'professional', 'master'];
+
     for (const tier of tiers) {
       const cfg = skillTierConfig[tier];
-      const r = TIER_RADII[tier] * _cam.zoom;
+      const baseR = TIER_RADII[tier] * _cam.zoom;
+
+      // ── Single thin orbital ring ──
       ctx.save();
-      ctx.translate(center.x, center.y);
-      ctx.rotate(t * 0.02 * (cfg.order % 2 === 0 ? 1 : -1));
-      ctx.strokeStyle = hexAlpha(cfg.color, 0.12);
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 12]);
+      ctx.strokeStyle = hexAlpha(cfg.color, 0.18);
+      ctx.lineWidth = 0.8 * _cam.zoom;
       ctx.beginPath();
-      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.arc(center.x, center.y, baseR, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.setLineDash([]);
       ctx.restore();
 
-      // Label at angle 5°
+      // ── Orbital particles with trails ──
+      const particleCount = 3 + cfg.order;
+      const orbitSpeed = (0.12 + cfg.order * 0.04) * (cfg.order % 2 === 0 ? 1 : -1);
+      for (let i = 0; i < particleCount; i++) {
+        const angle = t * orbitSpeed + (i * Math.PI * 2) / particleCount;
+        const px = center.x + Math.cos(angle) * baseR;
+        const py = center.y + Math.sin(angle) * baseR;
+
+        // Trail arc
+        ctx.save();
+        const trailLen = 0.3;
+        const dir = orbitSpeed > 0 ? -1 : 1;
+        const trailGrad = ctx.createConicGradient(angle + dir * trailLen, center.x, center.y);
+        const sweep = Math.abs(trailLen) / (Math.PI * 2);
+        if (dir < 0) {
+          trailGrad.addColorStop(0, 'transparent');
+          trailGrad.addColorStop(sweep, hexAlpha(cfg.color, 0.2));
+        } else {
+          trailGrad.addColorStop(1 - sweep, hexAlpha(cfg.color, 0.2));
+          trailGrad.addColorStop(1, 'transparent');
+        }
+        ctx.strokeStyle = trailGrad;
+        ctx.lineWidth = 2.5 * _cam.zoom;
+        ctx.beginPath();
+        const startA = dir < 0 ? angle + dir * trailLen : angle;
+        const endA = dir < 0 ? angle : angle + dir * trailLen;
+        ctx.arc(center.x, center.y, baseR, startA, endA);
+        ctx.stroke();
+        ctx.restore();
+
+        // Particle glow
+        const glowR = 6 * _cam.zoom;
+        const pg = ctx.createRadialGradient(px, py, 0, px, py, glowR);
+        pg.addColorStop(0, hexAlpha(cfg.color, 0.7));
+        pg.addColorStop(0.4, hexAlpha(cfg.color, 0.2));
+        pg.addColorStop(1, 'transparent');
+        ctx.fillStyle = pg;
+        ctx.beginPath();
+        ctx.arc(px, py, glowR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Particle core
+        ctx.fillStyle = hexAlpha(cfg.color, 0.95);
+        ctx.beginPath();
+        ctx.arc(px, py, 1.5 * _cam.zoom, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // ── Tier label ──
       const labelPos = angleToXY(5, TIER_RADII[tier]);
       const ls = toS(labelPos.x, labelPos.y);
-      ctx.font = '10px "Microsoft YaHei", sans-serif';
+      ctx.font = `${10 * _cam.zoom}px "Microsoft YaHei", sans-serif`;
       ctx.fillStyle = hexAlpha(cfg.color, 0.5);
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
@@ -403,9 +451,9 @@ export class SkillTreeRenderer {
       ctx.lineWidth = isCoreLine ? 2.5 : 2;
       ctx.stroke();
     } else {
-      ctx.strokeStyle = hexAlpha(colors.color, 0.35);
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([6, 6]);
+      ctx.strokeStyle = hexAlpha(colors.color, 0.2);
+      ctx.lineWidth = 0.7;
+      ctx.setLineDash([4, 8]);
       ctx.stroke();
       ctx.setLineDash([]);
     }
@@ -490,7 +538,6 @@ export class SkillTreeRenderer {
       const isHovered = data.hoveredSkill === nl.id;
       const isSelected = data.selectedSkill === nl.id;
       const colors = getNodeColors(nl.node.branch);
-      const tierCfg = skillTierConfig[nl.node.tier];
       const r = NODE_R * cam.zoom;
       const emoji = NODE_EMOJI[nl.id] || '?';
 
@@ -572,27 +619,23 @@ export class SkillTreeRenderer {
       ctx.fillText(emoji, s.x, s.y + 1);
       ctx.globalAlpha = 1;
 
-      // ── Lock overlay ──
+      // ── Lock badge (only when locked) ──
       if (!isUnlocked) {
-        ctx.font = `${r * 0.55}px sans-serif`;
-        ctx.globalAlpha = 0.6;
-        ctx.fillText('🔒', s.x, s.y + 1);
-        ctx.globalAlpha = 1;
+        const badgeR = 7 * cam.zoom;
+        const bx = s.x + r * 0.7;
+        const by = s.y - r * 0.7;
+        ctx.fillStyle = 'rgba(30,41,59,0.9)';
+        ctx.beginPath();
+        ctx.arc(bx, by, badgeR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(100,116,139,0.5)';
+        ctx.lineWidth = 1 * cam.zoom;
+        ctx.stroke();
+        ctx.font = `${8 * cam.zoom}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🔒', bx, by + 0.5);
       }
-
-      // ── Tier badge ──
-      const badgeR = 8 * cam.zoom;
-      const bx = s.x + r * 0.75;
-      const by = s.y - r * 0.75;
-      ctx.fillStyle = hexAlpha(tierCfg.color, 0.85);
-      ctx.beginPath();
-      ctx.arc(bx, by, badgeR, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.font = `bold ${7 * cam.zoom}px "Microsoft YaHei", sans-serif`;
-      ctx.fillStyle = '#fff';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(tierCfg.label.charAt(0), bx, by);
 
       // ── Name label ──
       ctx.font = `${10 * cam.zoom}px "Microsoft YaHei", sans-serif`;
