@@ -167,6 +167,15 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
       //   action: () => window.YUA.window['window:open']('recycle')
       // },
       {
+        id: 'memory-graph',
+        label: '记忆图谱',
+        icon: '🧠',
+        shortcut: 'g',
+        action: () => {
+          window.YUA.window['window:open']('memoryGraph');
+        }
+      },
+      {
         id: 'settings',
         label: '设置',
         icon: '⚙️',

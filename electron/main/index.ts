@@ -159,8 +159,8 @@ async function createWindow(): Promise<void> {
     win?.webContents.send('main-process-message', new Date().toLocaleString());
   });
 
-  win.on('focus', () => eventManager.emit(AppEvent.SPRITE_SYSTEM_FOCUS));
-  win.on('blur', () => eventManager.emit(AppEvent.SPRITE_SYSTEM_BLUR));
+  // win.on('focus', () => eventManager.emit(AppEvent.SPRITE_SYSTEM_FOCUS));
+  // win.on('blur', () => eventManager.emit(AppEvent.SPRITE_SYSTEM_BLUR));
 
   // Make all links open with the browser, not with the application
   win.webContents.setWindowOpenHandler(({ url }) => {
