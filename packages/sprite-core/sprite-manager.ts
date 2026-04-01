@@ -800,6 +800,31 @@ export class SpriteManager {
     return result;
   }
 
+  /** 重置人格状态（等级、经验、好感度等） */
+  resetPersonaState(): PersonaState {
+    const now = Date.now();
+    this.personaState.loadState({
+      name: this.personaState.getState().name,
+      xp: 0,
+      level: 1,
+      xpToNextLevel: 100,
+      favor: 50,
+      favorLevel: 'friend',
+      mood: 'neutral',
+      moodIntensity: 50,
+      totalInteractions: 0,
+      totalSessionTime: 0,
+      loginStreak: 0,
+      lastLoginDate: '',
+      achievements: [],
+      createdAt: now,
+      updatedAt: now
+    });
+    this.persistence.markDirty();
+    this.broadcastState();
+    return this.personaState.getState();
+  }
+
   // ============================================================================
   // 交互上报
   // ============================================================================
