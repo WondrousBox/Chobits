@@ -10,6 +10,7 @@ import { getProviderDefinitionSchema } from './providers/service';
 import { PiExecutionService } from './runtime/pi/execution-service';
 import { PiSessionService } from './runtime/pi/session-service';
 import { generatePiConversationTitle, normalizeGeneratedConversationTitle } from './runtime/pi/tasks/title';
+import type { AgentLoopCompletePayload } from './services/memory-types';
 import { ChatMessage, ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent } from './types';
 
 // local UUID fallback if uuid not present
@@ -270,6 +271,23 @@ ${JSON.stringify(forcePiRuntime(req), null, 2)}
       eventManager.emit(AppEvent.SPRITE_AI_ERROR, { message: errorMessage });
     } else {
       eventManager.emit(AppEvent.SPRITE_AI_COMPLETE, { conversationId: conv?.id });
+
+      if (conv?.id) {
+        const payload: AgentLoopCompletePayload = {
+          conversationId: conv.id,
+          toolCalls: collectedToolCalls,
+          hasToolCalls: collectedToolCalls.length > 0,
+          assistantContentLength: fullText.length,
+          runtime: 'pi',
+          persisted: shouldPersist,
+          agentId: req.agentId || preview.resolved.profile.id
+        };
+        console.log(
+          `[ChatService] Emitting AGENT_LOOP_COMPLETE: conv=${conv.id}, persisted=${shouldPersist}, ` +
+          `toolCalls=${collectedToolCalls.length}, agentId=${payload.agentId}, textLen=${fullText.length}`
+        );
+        eventManager.emit(AppEvent.AGENT_LOOP_COMPLETE, payload);
+      }
     }
   }
 

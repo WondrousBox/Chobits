@@ -34,6 +34,8 @@ const TOPIC_SPLIT_PROMPT = `你是一个对话分析器。分析以下对话内�
 3. 短暂的、无实质内容的消息可以忽略（问候、确认等）
 4. 输出每个主题块的标题、描述、和涉及的消息范围
 5. topicSlug 使用小写英文或拼音，连字符分隔，不超过 40 字符
+6. messageRanges 中的 conversationId 必须与对话标题括号中的完整 ID 完全一致（例如 "1328a73f-1767-4470-9119-3957037e141d"），不要修改或简化
+7. seqStart 和 seqEnd 使用对话中 (seq:N) 标记的实际数字
 
 输出格式（JSON）：
 {
@@ -43,7 +45,7 @@ const TOPIC_SPLIT_PROMPT = `你是一个对话分析器。分析以下对话内�
       "topicSlug": "topic-slug",
       "description": "该主题讨论了什么...",
       "messageRanges": [
-        { "conversationId": "conv-xxx", "seqStart": 1, "seqEnd": 20 }
+        { "conversationId": "对话标题括号中的完整ID", "seqStart": 1, "seqEnd": 20 }
       ],
       "estimatedImportance": 0.8
     }
@@ -112,16 +114,21 @@ export async function collect(
   listMessages: (convId: string) => Promise<Array<{ role: string; content: string; seq: number; createdAt: number }>>,
   getConversation: (convId: string) => Promise<{ id: string; title?: string | null } | undefined>
 ): Promise<CollectOutput> {
+  const TAG = '[MemoryExtraction:collect]';
   const conversations: CollectedConversation[] = [];
+
+  console.log(`${TAG} Collecting from ${input.conversationIds.length} conversations, watermarks=${input.watermarks ? 'yes' : 'no'}`);
 
   for (const convId of input.conversationIds) {
     const conv = await getConversation(convId);
-    if (!conv) continue;
+    if (!conv) {
+      console.warn(`${TAG} Conv ${convId} not found, skipping`);
+      continue;
+    }
 
     const allMessages = await listMessages(convId);
     const watermark = input.watermarks?.get(convId) ?? 0;
 
-    // 增量：只取新消息，且只取 user/assistant
     const newMessages = allMessages
       .filter((m) => m.seq > watermark && (m.role === 'user' || m.role === 'assistant'))
       .map((m) => ({
@@ -130,6 +137,8 @@ export async function collect(
         seq: m.seq,
         createdAt: m.createdAt ?? Date.now()
       }));
+
+    console.log(`${TAG} Conv ${convId} ("${conv.title || '(no title)'}"):  total=${allMessages.length}, watermark=${watermark}, eligible=${newMessages.length}`);
 
     if (newMessages.length === 0) continue;
 
@@ -147,6 +156,7 @@ export async function collect(
     end: allTimestamps.length ? new Date(Math.max(...allTimestamps)).toISOString().slice(0, 10) : ''
   };
 
+  console.log(`${TAG} Collected ${totalMessageCount} messages from ${conversations.length} conversations, dateRange=${dateRange.start}~${dateRange.end}`);
   return { conversations, totalMessageCount, dateRange };
 }
 
@@ -154,9 +164,9 @@ export async function collect(
  * Step 2: Split — 主题拆分
  */
 export async function splitTopics(collected: CollectOutput, ctx: ExtractionContext): Promise<TopicSplitOutput> {
+  const TAG = '[MemoryExtraction:split]';
   ctx.onProgress?.({ stage: 'split', current: 0, total: 1, message: '正在分析对话主题...' });
 
-  // 格式化对话文本
   const conversationText = collected.conversations
     .map((c) => {
       const header = c.title ? `### 对话：${c.title} (${c.conversationId})` : `### 对话：${c.conversationId}`;
@@ -166,14 +176,19 @@ export async function splitTopics(collected: CollectOutput, ctx: ExtractionConte
     .join('\n\n---\n\n');
 
   const prompt = `${TOPIC_SPLIT_PROMPT}\n\n---\n\n对话内容：\n${conversationText}`;
+  console.log(`${TAG} Sending split prompt to LLM (${prompt.length} chars)...`);
 
   const response = await ctx.chatFn(prompt, ctx.signal);
+  console.log(`${TAG} LLM response received (${response.length} chars)`);
+
   const parsed = safeParseJson<TopicSplitOutput>(response);
 
   if (!parsed?.topicClusters?.length) {
+    console.warn(`${TAG} LLM returned no topic clusters. Raw response (first 500 chars): ${response.slice(0, 500)}`);
     return { topicClusters: [] };
   }
 
+  console.log(`${TAG} Identified ${parsed.topicClusters.length} topic(s): ${parsed.topicClusters.map((c) => `"${c.topicLabel}" (importance=${c.estimatedImportance})`).join(', ')}`);
   ctx.onProgress?.({ stage: 'split', current: 1, total: 1, message: `识别到 ${parsed.topicClusters.length} 个主题` });
   return parsed;
 }
@@ -182,21 +197,61 @@ export async function splitTopics(collected: CollectOutput, ctx: ExtractionConte
  * Step 3: Extract — 对每个主题块调用 LLM 结构化提取
  */
 export async function extractMemory(cluster: TopicCluster, collected: CollectOutput, ctx: ExtractionContext): Promise<MemoryExtractionOutput | null> {
-  // 筛选相关消息
-  const relevantMessages = collected.conversations.flatMap((c) => {
-    const ranges = cluster.messageRanges.filter((r) => r.conversationId === c.conversationId);
+  const TAG = `[MemoryExtraction:extract "${cluster.topicSlug}"]`;
+
+  const collectedConvIds = collected.conversations.map((c) => c.conversationId);
+  const rangeConvIds = cluster.messageRanges.map((r) => r.conversationId);
+  console.log(`${TAG} Matching messages — collected convIds: ${JSON.stringify(collectedConvIds)}, range convIds: ${JSON.stringify(rangeConvIds)}, ranges: ${JSON.stringify(cluster.messageRanges)}`);
+
+  let relevantMessages = collected.conversations.flatMap((c) => {
+    // 精确匹配 + 模糊匹配（LLM 可能返回截断/变形的 conversationId）
+    const ranges = cluster.messageRanges.filter(
+      (r) => r.conversationId === c.conversationId || c.conversationId.includes(r.conversationId) || r.conversationId.includes(c.conversationId)
+    );
     if (!ranges.length) return [];
     return c.messages.filter((m) => ranges.some((r) => m.seq >= r.seqStart && m.seq <= r.seqEnd));
   });
 
-  if (relevantMessages.length === 0) return null;
+  // 回退：如果精确+模糊匹配都失败，但只有一个 conversation，直接用 seq 范围匹配
+  if (relevantMessages.length === 0 && collected.conversations.length === 1) {
+    const c = collected.conversations[0];
+    const allRanges = cluster.messageRanges;
+    if (allRanges.length > 0) {
+      relevantMessages = c.messages.filter((m) => allRanges.some((r) => m.seq >= r.seqStart && m.seq <= r.seqEnd));
+      if (relevantMessages.length > 0) {
+        console.log(`${TAG} Fallback: matched ${relevantMessages.length} messages by seq range only (ignoring convId mismatch)`);
+      }
+    }
+  }
+
+  // 最终回退：如果还是空，把该 conversation 的所有消息都拿来做提取
+  if (relevantMessages.length === 0 && collected.conversations.length === 1) {
+    relevantMessages = collected.conversations[0].messages;
+    console.log(`${TAG} Final fallback: using ALL ${relevantMessages.length} messages from single conversation`);
+  }
+
+  if (relevantMessages.length === 0) {
+    console.warn(`${TAG} No relevant messages found for topic "${cluster.topicLabel}" (multi-conv scenario, no match)`);
+    return null;
+  }
+
+  console.log(`${TAG} Found ${relevantMessages.length} relevant messages`);
 
   const conversationText = relevantMessages.map((m) => `[${m.role}] ${m.content}`).join('\n');
 
   const prompt = EXTRACTION_PROMPT.replace('{topicLabel}', cluster.topicLabel).replace('{description}', cluster.description) + `\n\n---\n\n对话内容：\n${conversationText}`;
+  console.log(`${TAG} Sending extraction prompt to LLM (${prompt.length} chars)...`);
 
   const response = await ctx.chatFn(prompt, ctx.signal);
-  return safeParseJson<MemoryExtractionOutput>(response);
+  console.log(`${TAG} LLM response received (${response.length} chars)`);
+
+  const parsed = safeParseJson<MemoryExtractionOutput>(response);
+  if (!parsed) {
+    console.warn(`${TAG} Failed to parse extraction result. Raw response (first 500 chars): ${response.slice(0, 500)}`);
+  } else {
+    console.log(`${TAG} Extracted: summary="${parsed.summary?.slice(0, 80)}...", keywords=${parsed.keywords?.length}, sections=${Object.keys(parsed.sections || {}).length}`);
+  }
+  return parsed;
 }
 
 /**
@@ -292,13 +347,16 @@ export interface WriteDbOps {
 }
 
 export async function writeMemory(merged: MergedNote, ctx: { workspaceRoot: string }, dbOps: WriteDbOps): Promise<WriteStats> {
+  const TAG = `[MemoryExtraction:write "${merged.noteId}"]`;
   const stats: WriteStats = { notesCreated: 0, notesUpdated: 0, topicsCreated: 0, edgesCreated: 0, keywordsCreated: 0 };
 
   // 5a. 写 Markdown 文件（事务外）
   const absolutePath = path.join(ctx.workspaceRoot, merged.filePath);
+  console.log(`${TAG} Writing markdown to: ${absolutePath}`);
   await fs.mkdir(path.dirname(absolutePath), { recursive: true });
   const markdownContent = renderNoteMarkdown(merged);
   await fs.writeFile(absolutePath, markdownContent, 'utf-8');
+  console.log(`${TAG} Markdown written: ${markdownContent.length} chars`);
 
   // 解析 sections（从生成的 Markdown 内容解析行号）
   const parsedSections = parseSections(markdownContent, merged.noteId);
@@ -425,53 +483,72 @@ export async function runExtractionPipeline(
     dbOps: Parameters<typeof writeMemory>[2];
   }
 ): Promise<ExtractionResult> {
+  const TAG = '[MemoryExtraction:pipeline]';
   const result: ExtractionResult = {
     succeeded: [],
     failed: [],
     stats: { notesCreated: 0, notesUpdated: 0, topicsCreated: 0, edgesCreated: 0, keywordsCreated: 0 }
   };
 
+  const pipelineStart = Date.now();
+  console.log(`${TAG} ========== Pipeline START ==========`);
+  console.log(`${TAG} Input: ${input.conversationIds.length} conversations, date=${ctx.date}, ws=${ctx.workspaceId}`);
+
   // Step 1: Collect
   ctx.onProgress?.({ stage: 'collect', current: 0, total: 1, message: '正在收集对话数据...' });
   const collected = await collect(input, deps.listMessages, deps.getConversation);
   if (collected.totalMessageCount === 0) {
+    console.warn(`${TAG} Step 1 (Collect): 0 messages collected, aborting pipeline`);
     return result;
   }
+  console.log(`${TAG} Step 1 (Collect): ✓ ${collected.totalMessageCount} messages from ${collected.conversations.length} conversations`);
   ctx.onProgress?.({ stage: 'collect', current: 1, total: 1, message: `收集到 ${collected.totalMessageCount} 条消息` });
 
   // Step 2: Split
+  console.log(`${TAG} Step 2 (Split): calling LLM for topic splitting...`);
   const splitResult = await splitTopics(collected, ctx);
   if (!splitResult.topicClusters.length) {
+    console.warn(`${TAG} Step 2 (Split): no topic clusters identified, aborting pipeline`);
     return result;
   }
+  console.log(`${TAG} Step 2 (Split): ✓ ${splitResult.topicClusters.length} topic cluster(s)`);
 
-  // Step 3+4+5: 对每个 topic cluster 执行 extract → merge → write
+  // Step 3+4+5
   const total = splitResult.topicClusters.length;
   for (let i = 0; i < total; i++) {
     const cluster = splitResult.topicClusters[i];
+    console.log(`${TAG} Step 3+4+5 [${i + 1}/${total}]: Processing topic "${cluster.topicLabel}" (slug=${cluster.topicSlug})`);
     ctx.onProgress?.({ stage: 'extract', current: i, total, currentTopic: cluster.topicLabel, message: `正在提取：${cluster.topicLabel}` });
 
-    if (ctx.signal?.aborted) break;
+    if (ctx.signal?.aborted) {
+      console.warn(`${TAG} Aborted at topic ${i + 1}/${total}`);
+      break;
+    }
 
     try {
       // Step 3: Extract
       const extraction = await extractMemory(cluster, collected, ctx);
       if (!extraction) {
+        console.warn(`${TAG} Step 3 (Extract): null result for "${cluster.topicSlug}"`);
         result.failed.push({ topicSlug: cluster.topicSlug, error: 'Extraction returned null' });
         continue;
       }
+      console.log(`${TAG} Step 3 (Extract): ✓ for "${cluster.topicSlug}"`);
 
       // Step 4: Merge
       ctx.onProgress?.({ stage: 'merge', current: i, total, currentTopic: cluster.topicLabel });
       const existingNote = await deps.findExistingNote(ctx.date, extraction.topicSlug, ctx.workspaceId);
+      console.log(`${TAG} Step 4 (Merge): existing note for "${extraction.topicSlug}": ${existingNote ? `found (id=${existingNote.id})` : 'none (will create)'}`);
       const sourceConvIds = cluster.messageRanges.map((r) => r.conversationId);
       const merged = mergeMemory(extraction, existingNote, ctx, dedup(sourceConvIds), cluster.messageRanges);
+      console.log(`${TAG} Step 4 (Merge): ✓ action=${merged.action}, noteId=${merged.noteId}, filePath=${merged.filePath}`);
 
       // Step 5: Write
       ctx.onProgress?.({ stage: 'write', current: i, total, currentTopic: cluster.topicLabel });
+      console.log(`${TAG} Step 5 (Write): writing to disk and DB...`);
       const writeStats = await writeMemory(merged, ctx, deps.dbOps);
+      console.log(`${TAG} Step 5 (Write): ✓ stats=${JSON.stringify(writeStats)}`);
 
-      // 累加统计
       result.stats.notesCreated += writeStats.notesCreated;
       result.stats.notesUpdated += writeStats.notesUpdated;
       result.stats.topicsCreated += writeStats.topicsCreated;
@@ -479,11 +556,15 @@ export async function runExtractionPipeline(
       result.stats.keywordsCreated += writeStats.keywordsCreated;
       result.succeeded.push({ topicSlug: cluster.topicSlug, noteId: merged.noteId });
     } catch (err: any) {
-      console.warn(`[MemoryExtraction] Failed to process topic "${cluster.topicSlug}":`, err);
+      console.error(`${TAG} FAILED to process topic "${cluster.topicSlug}":`, err?.message || err);
+      if (err?.stack) console.error(err.stack);
       result.failed.push({ topicSlug: cluster.topicSlug, error: err?.message || String(err) });
     }
   }
 
+  const elapsed = ((Date.now() - pipelineStart) / 1000).toFixed(1);
+  console.log(`${TAG} ========== Pipeline END (${elapsed}s) ==========`);
+  console.log(`${TAG} Result: succeeded=${result.succeeded.length}, failed=${result.failed.length}, stats=${JSON.stringify(result.stats)}`);
   return result;
 }
 
@@ -502,16 +583,14 @@ function mergeEntities(existing: Array<{ name: string; type: string }>, incoming
 
 function safeParseJson<T>(text: string): T | null {
   try {
-    // 尝试提取 JSON 块（LLM 可能包含 ```json 包裹）
     const jsonMatch = text.match(/```json\s*([\s\S]*?)```/);
     const jsonStr = jsonMatch ? jsonMatch[1] : text;
     return JSON.parse(jsonStr.trim()) as T;
   } catch {
-    // 尝试直接解析
     try {
       return JSON.parse(text.trim()) as T;
-    } catch {
-      console.warn('[MemoryExtraction] Failed to parse JSON response');
+    } catch (e2) {
+      console.warn(`[MemoryExtraction] Failed to parse JSON response. Error: ${e2 instanceof Error ? e2.message : e2}. First 300 chars: ${text.slice(0, 300)}`);
       return null;
     }
   }

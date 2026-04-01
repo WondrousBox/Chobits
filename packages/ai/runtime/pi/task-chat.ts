@@ -75,21 +75,29 @@ export async function createPiTaskChatRuntime(resolved: ResolvedPiRequest): Prom
 
   return {
     chatFn: async (prompt, onEvent, abortSignal) => {
+      const TAG = '[PiTaskChat]';
       try {
+        console.log(`${TAG} streamSimple start: model=${model.id}, prompt=${prompt.length} chars, hasApiKey=${!!resolved.model.apiKey}`);
         const stream = ai.streamSimple(model, createPromptContext(prompt) as any, buildSimpleOptions(resolved, abortSignal));
 
+        let eventCount = 0;
+        let textChars = 0;
         for await (const event of stream) {
+          eventCount++;
           switch (event.type) {
             case 'text_delta':
+              textChars += event.delta.length;
               onEvent({
                 type: 'delta',
                 data: { text: event.delta }
               });
               break;
             case 'done':
+              console.log(`${TAG} Stream done: ${eventCount} events, ${textChars} text chars`);
               onEvent({ type: 'message_completed' });
               return;
             case 'error':
+              console.error(`${TAG} Stream error event: ${event.error.errorMessage || 'unknown error'}`, event.error);
               onEvent({
                 type: 'error',
                 data: { message: event.error.errorMessage || 'Pi task execution failed' }
@@ -100,8 +108,10 @@ export async function createPiTaskChatRuntime(resolved: ResolvedPiRequest): Prom
           }
         }
 
+        console.log(`${TAG} Stream ended without 'done' event: ${eventCount} events, ${textChars} text chars`);
         onEvent({ type: 'message_completed' });
       } catch (error: any) {
+        console.error(`${TAG} Stream threw exception:`, error?.message || error);
         onEvent({
           type: 'error',
           data: { message: error?.message || 'Pi task execution failed' }
