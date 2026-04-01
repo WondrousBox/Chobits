@@ -2,7 +2,7 @@ import './styles.css';
 
 import { AnimatePresence, motion } from 'framer-motion';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { TbSparkles, TbStarFilled, TbX } from 'react-icons/tb';
+import { TbRefresh, TbSparkles, TbStarFilled, TbX } from 'react-icons/tb';
 
 import SkillDetailPanel from './SkillDetailPanel';
 import SkillTreeCanvas from './SkillTreeCanvas';
@@ -227,6 +227,20 @@ const SkillTreeSettings: React.FC = () => {
     window.ipcRenderer.invoke('skillTree:close');
   }, []);
 
+  // 重置等级
+  const handleResetLevel = useCallback(async () => {
+    const confirmed = window.confirm('确定要重置精灵等级吗？这将清除所有经验值、好感度和成就数据。');
+    if (!confirmed) return;
+
+    try {
+      await window.YUA.persona.resetState();
+      setPersonaLevel(1);
+      setSkillStatuses(initializeSkillStatuses(1));
+    } catch (error) {
+      console.error('重置等级失败:', error);
+    }
+  }, []);
+
   return (
     <div className="absolute inset-0 overflow-hidden">
       {/* 技能树画布 */}
@@ -250,6 +264,10 @@ const SkillTreeSettings: React.FC = () => {
               <span className="text-xs text-slate-400">
                 精灵 <span className="text-amber-400 font-bold">Lv.{personaLevel}</span>
               </span>
+              {/* 重置等级按钮 */}
+              <button onClick={handleResetLevel} className="p-1 rounded hover:bg-slate-700/50 transition-colors group" title="重置等级（测试用）">
+                <TbRefresh className="w-3 h-3 text-slate-500 group-hover:text-slate-300 transition-colors" />
+              </button>
             </div>
             <div className="h-4 w-px bg-slate-700" />
             {/* 技能统计 */}

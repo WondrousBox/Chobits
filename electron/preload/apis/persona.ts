@@ -24,6 +24,9 @@ export const personaApi = {
   /** 解锁成就 */
   unlockAchievement: (achievementId: string) => ipcRenderer.invoke('sprite:persona:unlockAchievement', { id: achievementId }),
 
+  /** 重置人格状态（等级、经验、好感度等） */
+  resetState: () => ipcRenderer.invoke('sprite:persona:reset'),
+
   // --- 事件订阅 (统一通过 sprite:state 新通道) ---
 
   /** 订阅人格状态变化事件 */

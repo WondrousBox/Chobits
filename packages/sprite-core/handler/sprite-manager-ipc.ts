@@ -152,6 +152,11 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     return { ok: true, unlocked };
   });
 
+  ipcMain.handle('sprite:persona:reset', () => {
+    const state = mgr.resetPersonaState();
+    return { ok: true, state };
+  });
+
   // ===== 配置 =====
 
   ipcMain.handle('sprite:config:getAutoWalk', () => {

@@ -426,8 +426,108 @@ function migrateOldVecTable(): void {
   }
 }
 
+/**
+ * Pre-migration compatibility fixes.
+ *
+ * When `pnpm db:push` was used to apply schema changes directly, the
+ * corresponding Drizzle migration files may fail because the DDL they
+ * contain has already been applied.  We detect these situations and
+ * either mark the migration as applied or clean up conflicting objects
+ * so that the standard `migrate()` call succeeds.
+ *
+ * Drizzle's migrate() determines which migrations to apply by comparing
+ * the last row's `created_at` in `__drizzle_migrations` against each
+ * migration's `folderMillis` (the journal `when` field).  If an earlier
+ * compat fix inserted a row with `Date.now()` as `created_at`, this
+ * timestamp may exceed later migrations' `folderMillis`, causing them
+ * to be permanently skipped.  We detect and clean up such phantom rows.
+ */
+function preMigrationCompat(): void {
+  if (!db) return;
+
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS __drizzle_migrations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      hash TEXT NOT NULL,
+      created_at NUMERIC
+    )`);
+
+    const HASH_0009 = 'e5218191d7af6dc4a542277c5863573c4e946c8eda7ba4d368390e3f0635156e';
+    const MILLIS_0009 = 1773487817867;
+
+    const memoryTablesExist = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='memory_topics'`).get();
+
+    // --- Cleanup: remove phantom migration records --------------------------------
+    // If memory tables don't exist, migration 0010 was never successfully applied.
+    // Delete any __drizzle_migrations rows at/after 0009's timestamp that aren't
+    // the correct 0009 record — these are leftovers from buggy previous compat
+    // fixes that used Date.now() as created_at, blocking subsequent migrations.
+    if (!memoryTablesExist) {
+      const suspectRows = db.prepare(`SELECT id, hash, created_at FROM __drizzle_migrations WHERE created_at >= ?`).all(MILLIS_0009) as Array<{ id: number; hash: string; created_at: number }>;
+
+      for (const row of suspectRows) {
+        if (row.hash === HASH_0009 && row.created_at === MILLIS_0009) continue;
+        db.prepare(`DELETE FROM __drizzle_migrations WHERE id = ?`).run(row.id);
+        console.log(`[db] Pre-migration compat: removed phantom migration record (hash=${row.hash.slice(0, 12)}…, created_at=${row.created_at})`);
+      }
+    }
+
+    // --- Fix 1: migration 0009 ---------------------------------------------------
+    // 0009_young_chameleon.sql:
+    //   ALTER TABLE conversations RENAME COLUMN "provider_instance_id" TO "provider_preset_id"
+    //
+    // If db:push already renamed the column, the ALTER fails.  Mark as applied
+    // using the correct hash and the journal's folderMillis (NOT Date.now()).
+    const m0009Applied = db.prepare(`SELECT 1 FROM __drizzle_migrations WHERE hash = ?`).get(HASH_0009);
+
+    if (!m0009Applied) {
+      const cols = db.prepare(`PRAGMA table_info(conversations)`).all() as Array<{ name: string }>;
+      const hasNewCol = cols.some((c) => c.name === 'provider_preset_id');
+      const hasOldCol = cols.some((c) => c.name === 'provider_instance_id');
+
+      if (hasNewCol && !hasOldCol) {
+        db.prepare(`INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)`).run(HASH_0009, MILLIS_0009);
+        console.log('[db] Pre-migration compat: marked migration 0009 as applied (column already renamed via db:push)');
+      }
+    }
+
+    // --- Fix 2: migration 0010 ---------------------------------------------------
+    // 0010_thick_preak.sql creates all memory_* tables and ends with:
+    //   DROP INDEX idx_chat_messages_conv_seq;
+    //   CREATE UNIQUE INDEX uq_chat_messages_conv_seq ...
+    //
+    // ensureChatMessageSequenceIndex() (run after every boot) may have already
+    // created uq_chat_messages_conv_seq, causing the CREATE to fail and rolling
+    // back the entire migration (including all memory tables).
+    if (!memoryTablesExist) {
+      try {
+        db.exec(`DROP INDEX IF EXISTS uq_chat_messages_conv_seq`);
+        console.log('[db] Pre-migration compat: dropped pre-existing uq_chat_messages_conv_seq for migration 0010');
+      } catch {
+        /* ignore */
+      }
+
+      const oldIdx = db.prepare(`SELECT name FROM sqlite_master WHERE type='index' AND name='idx_chat_messages_conv_seq'`).get();
+      if (!oldIdx) {
+        try {
+          db.exec(`CREATE INDEX idx_chat_messages_conv_seq ON chat_messages (conversation_id, seq)`);
+          console.log('[db] Pre-migration compat: recreated idx_chat_messages_conv_seq for migration 0010');
+        } catch {
+          /* ignore – table may not exist yet on fresh install */
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[db] preMigrationCompat failed (non-fatal):', e);
+  }
+}
+
 function initSchema(): void {
   if (!db) return;
+
+  // Fix up known migration conflicts before running Drizzle migrate()
+  preMigrationCompat();
+
   try {
     const d = getOrm();
 
