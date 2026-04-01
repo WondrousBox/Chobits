@@ -127,6 +127,7 @@ function generateSingleThumbnail(sourcePath: string, timestamp: number, width: n
       .format('image2pipe')
       .videoCodec('mjpeg')
       .size(`${width}x${height}`)
+      // @ts-ignore
       .on('data', (chunk: Buffer) => {
         chunks.push(chunk);
       })

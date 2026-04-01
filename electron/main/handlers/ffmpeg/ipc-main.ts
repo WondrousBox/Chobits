@@ -573,7 +573,7 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
           }
 
           // 输出设置
-          cmd = cmd
+          cmd
             .videoCodec('libvpx-vp9')
             .outputOptions([
               '-pix_fmt',
