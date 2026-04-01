@@ -231,8 +231,15 @@ export function initMemoryHandlers(): void {
         const maxTopics = params?.maxTopics ?? 200;
         const maxEdges = params?.maxEdges ?? 500;
 
+        // 解析 workspaceId，未提供时使用默认 workspace
+        let wsId = params?.workspaceId;
+        if (!wsId) {
+          const defaultWs = await WorkspacesRepo.getDefault();
+          wsId = defaultWs?.id;
+        }
+
         // 获取主题节点
-        const topics = params?.topicId ? await MemoryTopicRepo.listChildren(params.topicId) : await MemoryTopicRepo.listAll(params?.workspaceId, maxTopics);
+        const topics = params?.topicId ? await MemoryTopicRepo.listChildren(params.topicId) : await MemoryTopicRepo.listAll(wsId, maxTopics);
 
         // 如果指定了 topicId，也包含该主题本身
         if (params?.topicId) {
@@ -241,12 +248,12 @@ export function initMemoryHandlers(): void {
         }
 
         // 获取所有边
-        const edges = await MemoryEdgeRepo.listAll(params?.workspaceId, maxEdges);
+        const edges = await MemoryEdgeRepo.listAll(wsId, maxEdges);
 
         // 可选：获取关联的 notes
         let notes: any[] = [];
-        if (params?.includeNotes) {
-          notes = await MemoryNoteRepo.listByWorkspace(params?.workspaceId ?? '', 100, 0);
+        if (params?.includeNotes && wsId) {
+          notes = await MemoryNoteRepo.listByWorkspace(wsId, 100, 0);
         }
 
         return { topics, edges, notes };
