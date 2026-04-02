@@ -54,8 +54,8 @@
   - 已经是 **真正的 custom tool 工厂注册点**
 - `packages/ai/runtime/pi/tool-registry.ts`
   - 当前主要负责 **tool metadata / tool id 归一化**
-- `packages/ai/runtime/pi/profile-descriptors.ts`
-  - 已经是 profile 定义入口
+- `packages/ai/runtime/pi/profiles.md` + `profile-markdown.ts` + `profile-descriptors.ts`
+  - profile 定义入口：Markdown 真相源 + 解析 + `?raw` 加载导出
 - `src/pages/ChatPage/components/ChatInputBar.tsx`
   - 已经提供 agent 选择入口
 - `src/pages/ChatPage/context/ChatSelectionContext.tsx`
@@ -265,8 +265,8 @@ packages/ai/runtime/pi/
   - 增加新工具 metadata
 - `packages/ai/runtime/pi/tools/index.ts`
   - 注册真实 tool factory
-- `packages/ai/runtime/pi/profile-descriptors.ts`
-  - 新增 `coder` profile
+- `packages/ai/runtime/pi/profiles.md`（及 `profile-descriptors.ts` 加载链）
+  - 新增 `coder` profile 节
 - `src/pages/ChatPage/context/ChatSelectionContext.tsx`
   - 增加 coding workspace 选择状态
 - `src/pages/ChatPage/components/ChatInputBar.tsx`
@@ -509,7 +509,7 @@ isCommandAllowed(...)
 
 ## 9. Profile 设计
 
-在 `packages/ai/runtime/pi/profile-descriptors.ts` 中新增：
+在 `packages/ai/runtime/pi/profiles.md` 中新增 `## profile:coder` 节（由现有加载链解析）：
 
 - `coder`
 
@@ -737,8 +737,8 @@ P0 规则：
   - 注册真实工厂
 - 修改 `tool-registry.ts`
   - 增加 metadata
-- 修改 `profile-descriptors.ts`
-  - 新增 `coder`
+- 修改 `profiles.md`（必要时配合 `tool-registry.ts` 默认工具）
+  - 新增 `coder` profile
 
 ### 完成标志
 
