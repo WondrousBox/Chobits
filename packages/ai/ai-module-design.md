@@ -39,6 +39,9 @@ AI 模块目前作为独立包位于 `packages/ai` 下，由主进程在启动�
 - `packages/ai/ipc-renderer.ts`：渲染进程可用的 `aiBridge` 封装，通过 `ipcRenderer` 调用上述 IPC
 - `packages/ai/providers/builtins/*`：内建 Provider 的 definition / models 真相源
 - `packages/ai/providers/*`：各服务商 thin adapter 与 runtime helper（如：`openai.ts`、`anthropic.ts`、`gemini.ts`、`ollama.ts`、`openai-runtime.ts` 等）
+- `packages/ai/runtime/pi/profiles.md`：Pi profile 系统提示与元数据的 Markdown 真相源（与 `toolbox.md` 同模式，Vite `?raw` 加载）
+- `packages/ai/runtime/pi/profile-markdown.ts`：从 `profiles.md` 解析出 `PiProfileDescriptor`
+- `packages/ai/runtime/pi/profile-descriptors.ts`：组装并导出 `getPiProfileDescriptor` / `listPiProfileDescriptors`
 - `packages/ai/runtime/pi/profile-registry.ts`：Pi profile 注册表，对外提供 UI agent/profile 元数据
 - `packages/ai/selection-strategy.ts`：自动选择最佳预设的策略配置与评分
 
@@ -297,6 +300,7 @@ Provider 适配要点：
 当前代码已经不再维护早期 `packages/ai/agents/*` 这套代码态 Agent 目录，而是拆成两类能力：
 
 - **Pi profile**
+  - 系统提示与默认工具等由 `packages/ai/runtime/pi/profiles.md` 维护，经 `profile-markdown.ts` 解析、`profile-descriptors.ts` 导出；
   - 由 `packages/ai/runtime/pi/profile-registry.ts` 提供 UI 可选 profile 元数据；
   - 主聊天、session tool 调度、one-shot execution 都基于 profile descriptor 决定行为。
 - **业务服务**
@@ -422,7 +426,7 @@ console.log(res.tags);
 
 ## 13.1 Coding Profile Notes
 
-- Pi profiles now include a `coder` profile for repository-aware editing sessions.
+- Pi profiles now include a `coder` profile for repository-aware editing sessions（`coder` 节见 `profiles.md`）。
 - The main chat page and the resource AI sidebar both pass `agentId` together with `extras.codingWorkspaceRoot` and `extras.codingWorkspaceLabel` when `coder` is active.
 - `packages/ai/runtime/pi/model-resolver.ts` resolves that workspace into `ResolvedPiRequest.coding`.
 - `packages/ai/runtime/pi/session-factory.ts` uses the selected workspace root as the Pi session `cwd`.

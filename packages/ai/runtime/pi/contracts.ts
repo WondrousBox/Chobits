@@ -20,6 +20,17 @@ export interface PiAgentProfile {
   defaultToolIds: string[];
 }
 
+/** Pi profile 完整描述（含系统提示），由 `profiles.md` 解析或代码组装 */
+export interface PiProfileDescriptor {
+  id: string;
+  label: string;
+  description?: string;
+  instructions: string;
+  defaultToolIds: string[];
+  executionMode: PiExecutionMode;
+  supportsToolCalls: boolean;
+}
+
 export interface ResolvedPiModelConfig {
   providerId: string;
   canonicalProviderId: string;

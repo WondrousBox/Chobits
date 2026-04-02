@@ -1,6 +1,6 @@
 # Pi Runtime
 
-更新时间：2026-03-21
+更新时间：2026-04-02
 
 `packages/ai/runtime/pi` 是当前 Chobits AI 运行时里负责 Pi 接入的主目录。它不再只是实验代码，而是已经参与真实聊天、任务执行、工具调用和 coder session 的正式模块。
 当前聊天 UI 只暴露 3 个用户可选模式：`chat`（对话模式）、`assistant`（Agent模式）和 `coder`（代码模式）。
@@ -41,9 +41,19 @@
 - `tool-context.ts`
   - 生成 session-scoped tool context；现在除了 conversation/window 信息，也包含 `coding` workspace 信息。
 - `tool-registry.ts`
-  - 维护 tool metadata、tool id 归一化，以及不同 profile 的默认工具集合。
+  - 维护 tool metadata、tool id 归一化，以及不同 profile 的默认工具集合（`DEFAULT_SESSION_TOOL_IDS` / `DEFAULT_CODER_TOOL_IDS`）。
+- `toolbox.md` + `toolbox.ts`
+  - 工具技能说明的 Markdown 真相源；`toolboxLookupTool` 按需检索。编辑 `toolbox.md` 即可调整说明（Vite `?raw` 打包进主进程）。
 - `tools/*`
   - Pi custom tools 的实际实现入口。
+
+### Profile（聊天模式）
+
+- `profiles.md` + `profile-markdown.ts` + `profile-descriptors.ts`
+  - 与 `toolbox.md` 相同思路：**改 Markdown 即可调整**各 profile 的 `label` / `description` / `executionMode` / `supportsToolCalls` / `defaultToolIds`（可用 `@session`、`@coder`）以及完整系统提示。
+  - 每个 profile 以 `## profile:<id>` 分段，正文在 `### system prompt` 之下（instructions 内可自由使用 `##` 小标题，避免与 profile 边界冲突）。
+- `profile-registry.ts`
+  - 对外暴露 UI 可选的 agent/profile 列表，内部读 `profile-descriptors`。
 
 ### Coding Workspace 服务
 
@@ -84,8 +94,8 @@
   - 真实聊天页面入口；会把 coder workspace 一起传给 `chatStream`。
 - `src/pages/ResourcePage/components/AIChatSidebar.tsx`
   - 资源页侧边栏也支持 `coder` 模式下选择项目目录，并把 workspace extras 一起传给 `chatStream`。
-- `packages/ai/runtime/pi/profile-descriptors.ts`
-  - 定义 `coder` profile，并为它挂载默认 coding tools。
+- `packages/ai/runtime/pi/profiles.md`
+  - 定义 `chat` / `assistant` / `coder` 等 profile 的系统提示与元数据（构建时由 `profile-descriptors.ts` 经 `?raw` 加载）。
 - `packages/ai/runtime/pi/session-service.ts`
   - 当 `coder` 缺少 workspace 时，直接返回明确提示，不会隐式回退到 `process.cwd()`。
 - `packages/ai/runtime/pi/session-factory.ts`
@@ -127,10 +137,11 @@
 
 ## 开发约定
 
-1. 新增 Pi custom tool 时，优先放进 `tools/*`，并同步更新 `tool-registry.ts` 与 `tools/index.ts`。
-2. 新增 coder 相关能力时，优先复用 `coding/*` service，而不是在 renderer 侧新造一层 IPC 封装给 agent 用。
-3. 如果运行时上下文需要被 session、tool、UI 同时感知，优先进入 `ResolvedPiRequest` 和 `PiSessionToolContext`，不要散落在局部变量里。
-4. `coder` profile 的能力必须保持 workspace-aware；不要再回到默认 `process.cwd()` 推断模式。
+1. 新增 Pi custom tool 时，优先放进 `tools/*`，并同步更新 `tool-registry.ts` 与 `tools/index.ts`，必要时在 `toolbox.md` 增加技能章节。
+2. 调整聊天模式文案、工具策略或系统提示时，优先编辑 `profiles.md`，无需在 TS 里堆长字符串。
+3. 新增 coder 相关能力时，优先复用 `coding/*` service，而不是在 renderer 侧新造一层 IPC 封装给 agent 用。
+4. 如果运行时上下文需要被 session、tool、UI 同时感知，优先进入 `ResolvedPiRequest` 和 `PiSessionToolContext`，不要散落在局部变量里。
+5. `coder` profile 的能力必须保持 workspace-aware；不要再回到默认 `process.cwd()` 推断模式。
 
 ## 当前状态总结
 
