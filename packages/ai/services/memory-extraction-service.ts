@@ -205,9 +205,7 @@ export async function extractMemory(cluster: TopicCluster, collected: CollectOut
 
   let relevantMessages = collected.conversations.flatMap((c) => {
     // 精确匹配 + 模糊匹配（LLM 可能返回截断/变形的 conversationId）
-    const ranges = cluster.messageRanges.filter(
-      (r) => r.conversationId === c.conversationId || c.conversationId.includes(r.conversationId) || r.conversationId.includes(c.conversationId)
-    );
+    const ranges = cluster.messageRanges.filter((r) => r.conversationId === c.conversationId || c.conversationId.includes(r.conversationId) || r.conversationId.includes(c.conversationId));
     if (!ranges.length) return [];
     return c.messages.filter((m) => ranges.some((r) => m.seq >= r.seqStart && m.seq <= r.seqEnd));
   });

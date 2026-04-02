@@ -166,6 +166,10 @@ export interface ExtractionJobParams {
   workspaceId: string;
   targetDate?: string;
   targetConversationIds: string[];
+  /** 触发提取时的实际 provider（优先使用，避免读取 stale 的会话记录） */
+  providerId?: string;
+  /** 触发提取时的实际 provider preset */
+  providerPresetId?: string;
 }
 
 export interface ExtractionProgress {
@@ -233,6 +237,10 @@ export interface AgentLoopCompletePayload {
   persisted: boolean;
   /** agent / profile ID */
   agentId?: string;
+  /** 本轮实际使用的 provider（用于记忆提取选择模型） */
+  providerId?: string;
+  /** 本轮实际使用的 provider preset */
+  providerPresetId?: string;
 }
 
 // ━━ Chat function type for LLM calls ━━

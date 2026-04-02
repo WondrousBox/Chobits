@@ -280,11 +280,12 @@ ${JSON.stringify(forcePiRuntime(req), null, 2)}
           assistantContentLength: fullText.length,
           runtime: 'pi',
           persisted: shouldPersist,
-          agentId: req.agentId || preview.resolved.profile.id
+          agentId: req.agentId || preview.resolved.profile.id,
+          providerId: preview.resolved.model.providerId,
+          providerPresetId
         };
         console.log(
-          `[ChatService] Emitting AGENT_LOOP_COMPLETE: conv=${conv.id}, persisted=${shouldPersist}, ` +
-          `toolCalls=${collectedToolCalls.length}, agentId=${payload.agentId}, textLen=${fullText.length}`
+          `[ChatService] Emitting AGENT_LOOP_COMPLETE: conv=${conv.id}, persisted=${shouldPersist}, ` + `toolCalls=${collectedToolCalls.length}, agentId=${payload.agentId}, textLen=${fullText.length}`
         );
         eventManager.emit(AppEvent.AGENT_LOOP_COMPLETE, payload);
       }
