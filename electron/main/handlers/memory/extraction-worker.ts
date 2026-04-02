@@ -21,12 +21,18 @@ import { memoryExtractionQueue, type QueuedJob } from './extraction-queue';
 
 // ━━ Config ━━
 
-/** 触发自动提取所需的最少新消息数 */
+/** 触发自动提取所需的最少新消息数（watermark 之后的） */
 const MIN_NEW_MESSAGES = 4;
-/** 同一会话连续触发的最小间隔（ms） */
-const MIN_TRIGGER_INTERVAL = 30 * 60 * 1000; // 30 分钟
+/** 同一会话连续触发的最小冷却间隔（ms）— 仅防止短时间内重复触发 */
+const MIN_TRIGGER_COOLDOWN = 15 * 1000; // 15 秒
 /** 记录每个 conversation 最近一次触发时间 */
 const lastTriggerTime = new Map<string, number>();
+/** 增量提取水位线：记录每个 conversation 已提取到的最大 message seq */
+const conversationWatermarks = new Map<string, number>();
+/** 正在提取中的 conversation set（用于 coalescing） */
+const extractingConversations = new Set<string>();
+/** 等待 trailing run 的 conversation set（coalescing 暂存） */
+const pendingTrailingRun = new Set<string>();
 
 // ━━ chatFn Adapter ━━
 
@@ -51,6 +57,10 @@ function adaptChatFn(piChatFn: PiTaskChatFunction): MemoryChatFn {
         if (event.type === 'error') {
           errorMessage = event.data.message;
           console.error(`${TAG} LLM returned error event: ${errorMessage}`);
+          // 输出原始提示词用于调试敏感内容问题
+          console.error(`${TAG} === FAILED PROMPT START (${prompt.length} chars) ===`);
+          console.error(prompt);
+          console.error(`${TAG} === FAILED PROMPT END ===`);
         }
       },
       signal
@@ -73,15 +83,28 @@ function adaptChatFn(piChatFn: PiTaskChatFunction): MemoryChatFn {
 // ━━ findExistingNote ━━
 
 async function findExistingNote(date: string, topicSlug: string, workspaceId: string): Promise<{ id: string; frontmatter: MemoryNoteFrontmatter; sections: Map<string, string> } | null> {
-  // 通过 topic slug 查找当天已有 note
-  const topic = await MemoryTopicRepo.findBySlug(topicSlug, workspaceId);
-  if (!topic) return null;
+  // 策略 1：通过 topic slug 在 DB 中查找当天已有 note
+  let matchingNote: any = null;
 
-  const notesByDate = await MemoryNoteRepo.listByDate(date, workspaceId);
-  const matchingNote = notesByDate.find((n: any) => {
-    const topics = safeJsonParse(n.topics, []);
-    return topics.some((t: string) => slugify(t) === topicSlug);
-  });
+  const topic = await MemoryTopicRepo.findBySlug(topicSlug, workspaceId);
+  if (topic) {
+    const notesByDate = await MemoryNoteRepo.listByDate(date, workspaceId);
+    matchingNote = notesByDate.find((n: any) => {
+      const topics = safeJsonParse(n.topics, []);
+      return topics.some((t: string) => slugify(t) === topicSlug);
+    });
+  }
+
+  // 策略 2（回退）：通过构造的 filePath 直接查找
+  // 解决 LLM 生成拼音 slug 而 DB 中存储中文 topic label 导致 slugify 不匹配的问题
+  if (!matchingNote) {
+    const { buildNotePath } = await import('../../../../packages/ai/services/memory-note-writer');
+    const expectedFilePath = buildNotePath(date, topicSlug);
+    matchingNote = await MemoryNoteRepo.getByFilePath(expectedFilePath);
+    if (matchingNote) {
+      console.log(`[MemoryWorker:findExistingNote] Found existing note by filePath fallback: ${expectedFilePath} (id=${matchingNote.id})`);
+    }
+  }
 
   if (!matchingNote) return null;
 
@@ -170,16 +193,23 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
     return emptyResult;
   }
 
-  // 从源对话中获取用户实际使用的 provider，避免硬编码
-  let providerId: string | undefined;
-  let providerPresetId: string | undefined;
-  for (const convId of conversationIds) {
-    const conv = await ChatRepo.ensureConversation({ id: convId });
-    if (conv?.providerId) {
-      providerId = conv.providerId;
-      providerPresetId = conv.providerPresetId ?? undefined;
-      break;
+  // 优先使用 job 携带的 provider（从事件触发时捕获的当前 provider），
+  // 其次回退到从会话记录中读取（已通过 ensureConversation 更新）
+  let providerId: string | undefined = job.providerId;
+  let providerPresetId: string | undefined = job.providerPresetId;
+
+  if (!providerId) {
+    for (const convId of conversationIds) {
+      const conv = await ChatRepo.ensureConversation({ id: convId });
+      if (conv?.providerId) {
+        providerId = conv.providerId;
+        providerPresetId = conv.providerPresetId ?? undefined;
+        console.log(`${TAG} Provider resolved from conversation record: ${providerId} (preset=${providerPresetId || '(default)'})`);
+        break;
+      }
     }
+  } else {
+    console.log(`${TAG} Provider from job params: ${providerId} (preset=${providerPresetId || '(default)'})`);
   }
 
   if (!providerId) {
@@ -187,68 +217,145 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
     return emptyResult;
   }
 
-  // 记忆提取是结构化 JSON 输出任务，优先使用轻量快速模型
-  const extractionModel = resolveExtractionModel(providerId);
-  console.log(`${TAG} Creating LLM runtime: provider=${providerId}, preset=${providerPresetId || '(default)'}, model=${extractionModel || '(provider default)'}`);
-  let runtime;
-  try {
-    runtime = await createPiTaskChatRuntimeFromRequest({
-      providerId,
+  const date = job.targetDate || new Date().toISOString().slice(0, 10);
+
+  // 构建增量水位线：只提取上次之后的新消息
+  const watermarks = new Map<string, number>();
+  for (const convId of conversationIds) {
+    const wm = conversationWatermarks.get(convId);
+    if (wm !== undefined) {
+      watermarks.set(convId, wm);
+    }
+  }
+
+  const pipelineDeps = {
+    listMessages: async (convId: string) => {
+      const msgs = await ChatRepo.listMessages(convId, 1000, 0);
+      console.log(`${TAG} [collect] Loaded ${msgs.length} messages for conv ${convId}`);
+      return msgs.map((m: any) => ({
+        role: m.role,
+        content: m.content,
+        seq: m.seq,
+        createdAt: m.createdAt ?? Date.now()
+      }));
+    },
+    getConversation: async (convId: string) => {
+      const conv = await ChatRepo.ensureConversation({ id: convId });
+      console.log(`${TAG} [collect] Conv ${convId}: title="${conv?.title || '(no title)'}", exists=${!!conv}`);
+      return conv ? { id: conv.id, title: conv.title } : undefined;
+    },
+    findExistingNote,
+    dbOps: buildWriteDbOps()
+  };
+
+  const makeProgressHandler = () => (progress: any) => {
+    console.log(`${TAG} Progress: stage=${progress.stage}, ${progress.current}/${progress.total}${progress.currentTopic ? ` topic="${progress.currentTopic}"` : ''} ${progress.message || ''}`);
+    eventManager.emit(AppEvent.MEMORY_EXTRACTION_PROGRESS, {
+      jobId: job.id,
+      ...progress
+    });
+  };
+
+  /**
+   * 创建 LLM runtime 并运行提取管线。
+   * @param model 指定模型名，undefined 表示使用 provider 默认模型
+   * @param label 日志标签（如 "fast" 或 "fallback"）
+   */
+  const runWithModel = async (model: string | undefined, label: string): Promise<ExtractionResult> => {
+    console.log(`${TAG} [${label}] Creating LLM runtime: provider=${providerId}, preset=${providerPresetId || '(default)'}, model=${model || '(provider default)'}`);
+    const runtime = await createPiTaskChatRuntimeFromRequest({
+      providerId: providerId!,
       providerPresetId,
       agentId: 'memory-extraction',
       maxTokens: 4000,
-      ...(extractionModel ? { model: extractionModel } : {})
+      ...(model ? { model } : {})
     });
-  } catch (err: any) {
-    console.error(`${TAG} Failed to create Pi task runtime (provider=${providerId}):`, err?.message || err);
-    throw err;
-  }
-  const chatFn = adaptChatFn(runtime.chatFn);
-  console.log(`${TAG} LLM runtime ready, model: ${runtime.modelId}`);
+    const chatFn = adaptChatFn(runtime.chatFn);
+    console.log(`${TAG} [${label}] LLM runtime ready, model: ${runtime.modelId}`);
 
-  const date = job.targetDate || new Date().toISOString().slice(0, 10);
-  const ctx = {
-    chatFn,
-    workspaceId: job.workspaceId,
-    workspaceRoot: ws.rootPath,
-    date,
-    signal,
-    onProgress: (progress: any) => {
-      console.log(`${TAG} Progress: stage=${progress.stage}, ${progress.current}/${progress.total}${progress.currentTopic ? ` topic="${progress.currentTopic}"` : ''} ${progress.message || ''}`);
-      eventManager.emit(AppEvent.MEMORY_EXTRACTION_PROGRESS, {
-        jobId: job.id,
-        ...progress
-      });
-    }
+    const ctx = {
+      chatFn,
+      workspaceId: job.workspaceId,
+      workspaceRoot: ws!.rootPath,
+      date,
+      signal,
+      onProgress: makeProgressHandler()
+    };
+
+    return runExtractionPipeline({ conversationIds, watermarks }, ctx, pipelineDeps);
   };
 
   eventManager.emit(AppEvent.MEMORY_EXTRACTION_STARTED, { jobId: job.id });
 
+  // 标记正在提取
+  for (const convId of conversationIds) {
+    extractingConversations.add(convId);
+  }
+
+  console.log(`${TAG} Running extraction pipeline for ${conversationIds.length} conversations...`);
+  console.log(`${TAG} Watermarks: ${[...watermarks.entries()].map(([k, v]) => `${k.slice(0, 8)}...=${v}`).join(', ') || '(none, full scan)'}`);
+
   try {
-    console.log(`${TAG} Running extraction pipeline for ${conversationIds.length} conversations...`);
-    const result = await runExtractionPipeline({ conversationIds }, ctx, {
-      listMessages: async (convId) => {
-        const msgs = await ChatRepo.listMessages(convId, 1000, 0);
-        console.log(`${TAG} [collect] Loaded ${msgs.length} messages for conv ${convId}`);
-        return msgs.map((m: any) => ({
-          role: m.role,
-          content: m.content,
-          seq: m.seq,
-          createdAt: m.createdAt ?? Date.now()
-        }));
-      },
-      getConversation: async (convId) => {
-        const conv = await ChatRepo.ensureConversation({ id: convId });
-        console.log(`${TAG} [collect] Conv ${convId}: title="${conv?.title || '(no title)'}", exists=${!!conv}`);
-        return conv ? { id: conv.id, title: conv.title } : undefined;
-      },
-      findExistingNote,
-      dbOps: buildWriteDbOps()
-    });
+    // 记忆提取是结构化 JSON 输出任务，优先使用轻量快速模型
+    const fastModel = resolveExtractionModel(providerId);
+    let result: ExtractionResult;
+
+    if (fastModel) {
+      try {
+        result = await runWithModel(fastModel, 'fast');
+      } catch (fastErr: any) {
+        // 快速模型失败（安全策略、模型能力不足等），回退到对话原始模型
+        console.warn(`${TAG} ⚠️ 快速模型 ${fastModel} 提取失败: ${fastErr?.message || fastErr}`);
+        console.warn(`${TAG} ⚠️ 正在切换为对话原始模型重试记忆提取...`);
+        result = await runWithModel(undefined, 'fallback');
+        console.log(`${TAG} ✓ 使用对话原始模型重试成功`);
+      }
+    } else {
+      result = await runWithModel(undefined, 'default');
+    }
 
     console.log(`${TAG} Pipeline completed: succeeded=${result.succeeded.length}, failed=${result.failed.length}, stats=${JSON.stringify(result.stats)}`);
     if (result.failed.length > 0) {
       console.warn(`${TAG} Failed topics:`, result.failed);
+    }
+
+    // 更新水位线：获取每个 conversation 的最大 seq
+    for (const convId of conversationIds) {
+      try {
+        const msgs = await ChatRepo.listMessages(convId, 1000, 0);
+        const maxSeq = msgs.reduce((max: number, m: any) => Math.max(max, m.seq ?? 0), 0);
+        if (maxSeq > 0) {
+          conversationWatermarks.set(convId, maxSeq);
+          console.log(`${TAG} Updated watermark for conv ${convId.slice(0, 8)}...: seq=${maxSeq}`);
+        }
+      } catch (e) {
+        console.warn(`${TAG} Failed to update watermark for conv ${convId}:`, e);
+      }
+    }
+
+    // 清理提取中标记
+    for (const convId of conversationIds) {
+      extractingConversations.delete(convId);
+    }
+
+    // Coalescing: 如果有 pending trailing run，立即调度
+    for (const convId of conversationIds) {
+      if (pendingTrailingRun.has(convId)) {
+        pendingTrailingRun.delete(convId);
+        console.log(`${TAG} Trailing run: re-triggering extraction for conv ${convId.slice(0, 8)}...`);
+        // 用 setImmediate 避免栈溢出
+        setImmediate(() => {
+          eventManager.emit(AppEvent.AGENT_LOOP_COMPLETE, {
+            conversationId: convId,
+            persisted: true,
+            hasToolCalls: false,
+            agentId: undefined,
+            toolCalls: [],
+            assistantContentLength: 0,
+            runtime: 'other'
+          } satisfies AgentLoopCompletePayload);
+        });
+      }
     }
 
     eventManager.emit(AppEvent.MEMORY_EXTRACTION_COMPLETED, {
@@ -258,7 +365,14 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
 
     return result;
   } catch (err: any) {
-    console.error(`${TAG} Pipeline FAILED:`, err?.message || err, err?.stack);
+    console.error(`${TAG} Pipeline FAILED (所有模型均失败):`, err?.message || err, err?.stack);
+
+    // 清理提取中标记（即使失败也要清理，否则 coalescing 永远不会触发）
+    for (const convId of conversationIds) {
+      extractingConversations.delete(convId);
+      pendingTrailingRun.delete(convId); // 失败时不重试 trailing run
+    }
+
     eventManager.emit(AppEvent.MEMORY_EXTRACTION_FAILED, {
       jobId: job.id,
       error: err?.message
@@ -296,9 +410,16 @@ function onAgentLoopComplete(payload: AgentLoopCompletePayload): void {
   }
 
   const lastTime = lastTriggerTime.get(conversationId);
-  if (lastTime && Date.now() - lastTime < MIN_TRIGGER_INTERVAL) {
-    const remainMs = MIN_TRIGGER_INTERVAL - (Date.now() - lastTime);
-    console.log(`${TAG} Throttled: conv ${conversationId} was triggered ${Math.round((Date.now() - lastTime) / 1000)}s ago, wait ${Math.round(remainMs / 1000)}s more`);
+  if (lastTime && Date.now() - lastTime < MIN_TRIGGER_COOLDOWN) {
+    const remainMs = MIN_TRIGGER_COOLDOWN - (Date.now() - lastTime);
+    console.log(`${TAG} Cooldown: conv ${conversationId} was triggered ${Math.round((Date.now() - lastTime) / 1000)}s ago, wait ${Math.round(remainMs / 1000)}s more`);
+    return;
+  }
+
+  // Coalescing: 如果该 conversation 正在提取中，暂存为 trailing run 而不是丢弃
+  if (extractingConversations.has(conversationId)) {
+    pendingTrailingRun.add(conversationId);
+    console.log(`${TAG} Coalescing: conv ${conversationId} is being extracted, stashed for trailing run`);
     return;
   }
 
@@ -309,13 +430,17 @@ function onAgentLoopComplete(payload: AgentLoopCompletePayload): void {
   setTimeout(async () => {
     try {
       const messages = await ChatRepo.listMessages(conversationId, 1000, 0);
-      const userAssistantCount = messages.filter((m: any) => m.role === 'user' || m.role === 'assistant').length;
+      const userAssistantMessages = messages.filter((m: any) => m.role === 'user' || m.role === 'assistant');
+
+      // 增量计数：只统计水位线之后的新消息
+      const watermark = conversationWatermarks.get(conversationId) ?? 0;
+      const newMessages = userAssistantMessages.filter((m: any) => (m.seq ?? 0) > watermark);
 
       const threshold = hasToolCalls ? Math.max(2, MIN_NEW_MESSAGES - 2) : MIN_NEW_MESSAGES;
-      console.log(`${TAG} Conv ${conversationId}: ${userAssistantCount} user/assistant messages, threshold=${threshold} (hasToolCalls=${hasToolCalls})`);
+      console.log(`${TAG} Conv ${conversationId}: total=${userAssistantMessages.length}, watermark=${watermark}, new=${newMessages.length}, threshold=${threshold} (hasToolCalls=${hasToolCalls})`);
 
-      if (userAssistantCount < threshold) {
-        console.log(`${TAG} Skipped: message count ${userAssistantCount} < threshold ${threshold}`);
+      if (newMessages.length < threshold) {
+        console.log(`${TAG} Skipped: new message count ${newMessages.length} < threshold ${threshold}`);
         return;
       }
 
@@ -331,10 +456,12 @@ function onAgentLoopComplete(payload: AgentLoopCompletePayload): void {
       const jobId = await memoryExtractionQueue.enqueue({
         jobType: 'conversation_close',
         workspaceId,
-        targetConversationIds: [conversationId]
+        targetConversationIds: [conversationId],
+        providerId: payload.providerId,
+        providerPresetId: payload.providerPresetId
       });
 
-      console.log(`${TAG} ✓ Enqueued job ${jobId} for conv ${conversationId} (ws=${workspaceId}, toolCalls=${payload.toolCalls.length})`);
+      console.log(`${TAG} ✓ Enqueued job ${jobId} for conv ${conversationId} (ws=${workspaceId}, provider=${payload.providerId || '(from conv)'}, toolCalls=${payload.toolCalls.length})`);
     } catch (e) {
       console.error(`${TAG} Failed to enqueue after agent loop complete:`, e);
     }
@@ -355,8 +482,15 @@ function onConversationComplete(data: any): void {
   }
 
   const lastTime = lastTriggerTime.get(conversationId);
-  if (lastTime && Date.now() - lastTime < MIN_TRIGGER_INTERVAL) {
-    console.log(`${TAG} Throttled: conv ${conversationId} (already handled by agentLoop or recently triggered)`);
+  if (lastTime && Date.now() - lastTime < MIN_TRIGGER_COOLDOWN) {
+    console.log(`${TAG} Cooldown: conv ${conversationId} (already handled by agentLoop or recently triggered)`);
+    return;
+  }
+
+  // Coalescing: 如果该 conversation 正在提取中，暂存为 trailing run
+  if (extractingConversations.has(conversationId)) {
+    pendingTrailingRun.add(conversationId);
+    console.log(`${TAG} Coalescing: conv ${conversationId} is being extracted, stashed for trailing run`);
     return;
   }
 
@@ -364,12 +498,16 @@ function onConversationComplete(data: any): void {
   setTimeout(async () => {
     try {
       const messages = await ChatRepo.listMessages(conversationId, 1000, 0);
-      const userAssistantCount = messages.filter((m: any) => m.role === 'user' || m.role === 'assistant').length;
+      const userAssistantMessages = messages.filter((m: any) => m.role === 'user' || m.role === 'assistant');
 
-      console.log(`${TAG} Conv ${conversationId}: ${userAssistantCount} user/assistant messages, threshold=${MIN_NEW_MESSAGES}`);
+      // 增量计数：只统计水位线之后的新消息
+      const watermark = conversationWatermarks.get(conversationId) ?? 0;
+      const newMessages = userAssistantMessages.filter((m: any) => (m.seq ?? 0) > watermark);
 
-      if (userAssistantCount < MIN_NEW_MESSAGES) {
-        console.log(`${TAG} Skipped: message count ${userAssistantCount} < ${MIN_NEW_MESSAGES}`);
+      console.log(`${TAG} Conv ${conversationId}: total=${userAssistantMessages.length}, watermark=${watermark}, new=${newMessages.length}, threshold=${MIN_NEW_MESSAGES}`);
+
+      if (newMessages.length < MIN_NEW_MESSAGES) {
+        console.log(`${TAG} Skipped: new message count ${newMessages.length} < ${MIN_NEW_MESSAGES}`);
         return;
       }
 
@@ -446,7 +584,7 @@ function resolveExtractionModel(providerId: string): string | undefined {
     anthropic: 'claude-sonnet-4-20250514',
     deepseek: 'deepseek-chat',
     qwen: 'qwen-turbo',
-    gemini: 'gemini-2.0-flash',
+    gemini: 'gemini-2.0-flash'
   };
   return fastModels[providerId];
 }

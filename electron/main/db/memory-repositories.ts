@@ -35,6 +35,17 @@ import {
 export const MemoryNoteRepo = {
   async upsert(note: NewMemoryNote): Promise<MemoryNoteRow | undefined> {
     const db = getOrm();
+
+    // 检查是否存在同 filePath 但不同 id 的记录（LLM 重复生成相同 slug 但不同随机 id）
+    if (note.filePath) {
+      const existingByPath = await db.select().from(memory_notes).where(eq(memory_notes.filePath, note.filePath)).limit(1);
+      if (existingByPath[0] && existingByPath[0].id !== note.id) {
+        console.log(`[MemoryNoteRepo:upsert] filePath conflict: existing id=${existingByPath[0].id}, new id=${note.id}. Reusing existing id.`);
+        // 使用已有记录的 id 进行更新，避免 UNIQUE file_path 冲突
+        (note as any).id = existingByPath[0].id;
+      }
+    }
+
     const rows = await db
       .insert(memory_notes)
       .values(note as any)

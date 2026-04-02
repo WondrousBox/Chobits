@@ -1552,7 +1552,22 @@ export const ChatRepo = {
     const id = payload.id;
     if (id) {
       const rows = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
-      if (rows[0]) return rows[0];
+      if (rows[0]) {
+        // 如果 provider 发生了变化（用户切换了模型/服务商），更新会话记录
+        const existing = rows[0];
+        if (payload.providerId && (existing.providerId !== payload.providerId || existing.providerPresetId !== (payload.providerPresetId ?? null))) {
+          await db
+            .update(conversations)
+            .set({
+              providerId: payload.providerId,
+              providerPresetId: payload.providerPresetId ?? null,
+              updatedAt: Date.now()
+            })
+            .where(eq(conversations.id, id));
+          return { ...existing, providerId: payload.providerId, providerPresetId: payload.providerPresetId ?? null };
+        }
+        return existing;
+      }
     }
     const now = Date.now();
     const values: any = {
