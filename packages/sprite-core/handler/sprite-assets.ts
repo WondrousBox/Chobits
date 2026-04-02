@@ -45,7 +45,7 @@ async function ensureDirs(dir: string): Promise<void> {
 
 const SETTINGS_DIR = path.join(app.getPath('userData'), 'data');
 
-async function getDefaultSpritesDir(): Promise<string> {
+export async function getDefaultSpritesDir(): Promise<string> {
   // Packaged resources (read-only)
   const spritesDir = deps().getResourcePath('sprites');
   deps().addAllowedResourceRoot(spritesDir! as string);

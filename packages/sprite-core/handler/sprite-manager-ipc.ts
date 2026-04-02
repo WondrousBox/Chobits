@@ -30,11 +30,13 @@
 
 import { app, BrowserWindow, ipcMain, screen } from 'electron';
 
+import { buildCharacterPersonaPrompt, getCharacterDefinition, getCharacterInfo, getDimensionSchema, initCharacterService } from '../character-service';
 import type { InteractionType } from '../interaction-tracker';
 import type { SpeakRequest, SpriteSpeakConfig } from '../speak/types';
 import { SpriteManager } from '../sprite-manager';
 import { WindowController } from '../window-controller';
 import { listSprites } from './sprite-assets';
+import { getDefaultSpritesDir } from './sprite-assets';
 import { initSpriteEventListener } from './sprite-event-listener';
 
 export interface SpriteManagerDeps {
@@ -157,6 +159,37 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     return { ok: true, state };
   });
 
+  // ===== 角色人格 API =====
+
+  ipcMain.handle('sprite:character:getInfo', () => {
+    return getCharacterInfo();
+  });
+
+  ipcMain.handle('sprite:character:getPersonaPrompt', () => {
+    const persona = mgr.getPersonaState();
+    return buildCharacterPersonaPrompt({
+      favorLevel: persona.favorLevel,
+      mood: persona.mood,
+      level: persona.level
+    });
+  });
+
+  // ===== 维度 API =====
+
+  ipcMain.handle('sprite:dimensions:get', () => {
+    const schema = getDimensionSchema();
+    if (!schema) return null;
+    const persona = mgr.getPersonaState();
+    return schema.map((def) => ({
+      id: def.id,
+      name: def.name,
+      icon: def.icon,
+      description: def.description,
+      maxValue: def.maxValue,
+      value: persona.dimensions[def.id] ?? def.initialValue
+    }));
+  });
+
   // ===== 配置 =====
 
   ipcMain.handle('sprite:config:getAutoWalk', () => {
@@ -248,7 +281,40 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   });
 
   // ===== 启动引擎 =====
+
+  // Initialize character service with the sprites directory
+  const spritesDir = await getDefaultSpritesDir();
+  initCharacterService(spritesDir);
+
   await mgr.start();
+
+  // Register character persona enricher into the AI module's generic extension point.
+  // The enricher is only active when extras.characterPersonaEnabled is set and agent is not 'coder'.
+  try {
+    const { registerSystemPromptEnricher } = await import('../../ai/system-prompt-enricher');
+    registerSystemPromptEnricher({
+      id: 'character-persona',
+      resolve: (ctx) => {
+        if (!ctx.request.extras?.characterPersonaEnabled) return null;
+        if (ctx.request.agentId === 'coder') return null;
+        if (!getCharacterDefinition()) return null;
+        const persona = mgr.getPersonaState();
+        return buildCharacterPersonaPrompt({
+          favorLevel: persona.favorLevel,
+          mood: persona.mood,
+          level: persona.level
+        });
+      }
+    });
+  } catch {
+    // AI module not available — skip enricher registration
+  }
+
+  // ===== 初始化维度值（从 character.json 定义） =====
+  const dimSchema = getDimensionSchema();
+  if (dimSchema) {
+    mgr.initDimensions(dimSchema.map((d) => ({ id: d.id, initialValue: d.initialValue })));
+  }
 
   // ===== 初始化事件监听器（订阅业务事件触发动画） =====
   const cleanupEventListener = initSpriteEventListener(mgr);

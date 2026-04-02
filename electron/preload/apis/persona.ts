@@ -64,7 +64,20 @@ export const personaApi = {
     const handler = (_: any, data: { achievementId: string }): void => callback(data);
     ipcRenderer.on('persona:achievement-unlocked', handler);
     return () => ipcRenderer.removeListener('persona:achievement-unlocked', handler);
-  }
+  },
+
+  // --- 角色人格 API ---
+
+  /** 获取当前角色基础信息 (id, name, tagline) */
+  getCharacterInfo: () => ipcRenderer.invoke('sprite:character:getInfo'),
+
+  /** 获取基于当前好感度/心情动态生成的角色人格系统提示词 */
+  getCharacterPersonaPrompt: () => ipcRenderer.invoke('sprite:character:getPersonaPrompt'),
+
+  // --- 维度 API ---
+
+  /** 获取维度数据（包含 schema 定义和当前值） */
+  getDimensions: () => ipcRenderer.invoke('sprite:dimensions:get')
 };
 
 export type PersonaApiBridgeType = typeof personaApi;

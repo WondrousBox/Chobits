@@ -265,6 +265,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
     codingWorkspaceRoot?: string;
     codingWorkspaceLabel?: string;
     webSearchEnabled?: boolean;
+    characterPersonaEnabled?: boolean;
   }): Promise<void> => {
     const content = params.content;
     const selectedProviderId = params.providerId || providerId;
@@ -313,6 +314,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
         extras: {
           model: selectedModelId,
           ...(params.webSearchEnabled ? { webSearchEnabled: true } : {}),
+          ...(params.characterPersonaEnabled ? { characterPersonaEnabled: true } : {}),
           ...(selectedAgentId === 'coder' && selectedCodingWorkspaceRoot
             ? {
               codingWorkspaceRoot: selectedCodingWorkspaceRoot,
@@ -626,9 +628,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
                     className="group flex flex-col items-start justify-between rounded-xl border bg-card text-card-foreground p-4 text-left hover:shadow-sm hover:bg-accent/50 transition-colors"
                   >
                     <div className="flex items-center gap-3 mb-2">
-                      <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
-                        🎙️
-                      </div>
+                      <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">🎙️</div>
                       <div>
                         <div className="font-medium text-sm">视频转写</div>
                         <div className="text-xs text-muted-foreground">将视频语音转换为带时间轴的字幕文本</div>
@@ -647,9 +647,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
                     className="group flex flex-col items-start justify-between rounded-xl border bg-card text-card-foreground p-4 text-left hover:shadow-sm hover:bg-accent/50 transition-colors"
                   >
                     <div className="flex items-center gap-3 mb-2">
-                      <div className="p-2 rounded-lg bg-green-500/10 text-green-500">
-                        🌐
-                      </div>
+                      <div className="p-2 rounded-lg bg-green-500/10 text-green-500">🌐</div>
                       <div>
                         <div className="font-medium text-sm">字幕翻译</div>
                         <div className="text-xs text-muted-foreground">一键翻译现有字幕到多种目标语言</div>

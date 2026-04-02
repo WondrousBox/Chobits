@@ -7,6 +7,7 @@
 
 import { AppEvent, eventManager } from '@packages/event';
 
+import { getConversationRewards, getDimensionSchema } from '../character-service';
 import type { SpriteManager } from '../sprite-manager';
 
 export interface SpriteEventPayload {
@@ -15,6 +16,11 @@ export interface SpriteEventPayload {
   workflowName?: string;
   count?: number;
   error?: string;
+  // AI conversation reward fields
+  conversationId?: string;
+  messageCount?: number;
+  toolCallCount?: number;
+  assistantContentLength?: number;
 }
 
 type SpriteHandler = (data?: SpriteEventPayload) => void;
@@ -26,6 +32,9 @@ type SpriteHandler = (data?: SpriteEventPayload) => void;
  */
 export function initSpriteEventListener(mgr: SpriteManager): () => void {
   const handlers: Array<{ event: AppEvent; handler: SpriteHandler }> = [];
+
+  // ===== 对话奖励冷却 =====
+  let lastRewardTime = 0;
 
   // AI 聊天事件
   handlers.push({
@@ -41,6 +50,44 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     handler: (data) => {
       mgr.showToast(data?.message || '完成！', { category: 'success', duration: 1500 });
       mgr.playOnce('celebrate', { durationMs: 1500 });
+
+      // ===== 对话奖励：XP + 好感度 =====
+      const rewards = getConversationRewards();
+      const now = Date.now();
+      if (now - lastRewardTime < rewards.cooldownMs) return;
+      lastRewardTime = now;
+
+      let bonusXP = 0;
+      let bonusFavor = 0;
+
+      // 检查奖励条件
+      for (const cond of rewards.bonusConditions) {
+        if (cond.id === 'long-conversation' && data?.assistantContentLength && data.assistantContentLength >= 500) {
+          bonusXP += cond.xpBonus;
+          bonusFavor += cond.favorBonus;
+        }
+        if (cond.id === 'tool-usage' && data?.toolCallCount && data.toolCallCount > 0) {
+          bonusXP += cond.xpBonus;
+          bonusFavor += cond.favorBonus;
+        }
+      }
+
+      mgr.addXP(rewards.xpPerConversation + bonusXP, 'conversation');
+      mgr.changeFavor(rewards.favorPerConversation + bonusFavor, 'conversation');
+
+      // ===== 维度成长 =====
+      const dims = getDimensionSchema();
+      if (dims) {
+        for (const dim of dims) {
+          let growth = 0;
+          if (dim.growthSources.includes('conversation')) growth += 1.0;
+          if (dim.growthSources.includes('tool-usage') && data?.toolCallCount && data.toolCallCount > 0) growth += 0.8;
+          if (dim.growthSources.includes('task-completion') && data?.assistantContentLength && data.assistantContentLength >= 500) growth += 0.5;
+          if (growth > 0) {
+            mgr.updateDimension(dim.id, growth, dim.maxValue);
+          }
+        }
+      }
     }
   });
 

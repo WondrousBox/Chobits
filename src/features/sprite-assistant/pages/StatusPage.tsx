@@ -4,6 +4,7 @@ import { TbHeartFilled, TbX } from 'react-icons/tb';
 import { Button } from '@/components/ui/button';
 
 import PersonaStatusPanel from '../ui/PersonaStatusPanel';
+import RadarChart, { RadarDimension } from '../ui/RadarChart';
 
 type RoleProfile = {
   name: string;
@@ -24,18 +25,26 @@ type PersonaState = {
 export const StatusPage: React.FC = () => {
   const [role, setRole] = useState<RoleProfile | null>(null);
   const [persona, setPersona] = useState<PersonaState | null>(null);
+  const [dimensions, setDimensions] = useState<RadarDimension[] | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
     const load = async (): Promise<void> => {
       try {
-        const [roleRes, personaRes] = await Promise.all([window.YUA.status['status:getRole'](), window.YUA.persona.getState()]);
+        const [roleRes, personaRes, dimsRes] = await Promise.all([
+          window.YUA.status['status:getRole'](),
+          window.YUA.persona.getState(),
+          window.YUA.persona.getDimensions()
+        ]);
 
         if (!mounted) return;
         setRole(roleRes?.role);
         if (personaRes?.ok && personaRes.state) {
           setPersona(personaRes.state);
+        }
+        if (dimsRes) {
+          setDimensions(dimsRes);
         }
       } finally {
         if (mounted) setLoading(false);
@@ -79,6 +88,14 @@ export const StatusPage: React.FC = () => {
 
       {/* 精灵状态面板 */}
       <PersonaStatusPanel persona={persona} />
+
+      {/* 维度雷达图 */}
+      {dimensions && dimensions.length >= 3 && (
+        <div className="flex flex-col items-center px-2 py-3">
+          <h3 className="text-xs font-medium text-muted-foreground mb-2">能力维度</h3>
+          <RadarChart dimensions={dimensions} size={180} />
+        </div>
+      )}
     </div>
   );
 };

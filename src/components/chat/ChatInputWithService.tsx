@@ -1,9 +1,10 @@
-import { TbFolderCode, TbX } from 'react-icons/tb';
+import { TbFolderCode, TbMask, TbX } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { inferCodingWorkspaceLabel } from '@/lib/coding-workspace';
 import { useChatSelection } from '@/pages/ChatPage/context/ChatSelectionContext';
 
@@ -20,6 +21,7 @@ export interface ChatInputWithServiceProps extends Omit<UnifiedChatInputProps, '
     codingWorkspaceRoot?: string;
     codingWorkspaceLabel?: string;
     webSearchEnabled?: boolean;
+    characterPersonaEnabled?: boolean;
   }) => void | Promise<void>;
   onMenuOpenChange?: (open: boolean) => void;
 }
@@ -34,11 +36,13 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, ...res
     codingWorkspaceRoot,
     codingWorkspaceLabel,
     webSearchEnabled,
+    characterPersonaEnabled,
     setProviderId,
     setModelId,
     setAgentId,
     setCodingWorkspace,
-    setWebSearchEnabled
+    setWebSearchEnabled,
+    setCharacterPersonaEnabled
   } = useChatSelection();
 
   const isCoder = agentId === 'coder';
@@ -73,6 +77,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, ...res
       preferredPresetId: presetId || undefined,
       agentId,
       webSearchEnabled,
+      characterPersonaEnabled,
       ...(isCoder && codingWorkspaceRoot
         ? {
           codingWorkspaceRoot,
@@ -117,6 +122,25 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, ...res
             onOpenChange={onMenuOpenChange}
           />
           <WebSearchToggle enabled={webSearchEnabled} onToggle={setWebSearchEnabled} />
+          {!isCoder && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant={characterPersonaEnabled ? 'default' : 'outline'}
+                  size="sm"
+                  className={`h-8 rounded-full text-xs ${characterPersonaEnabled ? 'bg-violet-600 hover:bg-violet-700 text-white' : ''}`}
+                  onClick={() => setCharacterPersonaEnabled(!characterPersonaEnabled)}
+                >
+                  <TbMask className="mr-1 h-4 w-4" />
+                  {characterPersonaEnabled ? '角色已注入' : '注入角色'}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{characterPersonaEnabled ? '已注入角色人格到对话中，AI 将以角色身份回复' : '点击注入角色人格，AI 将根据好感度和心情调整说话风格'}</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
           {isCoder && (
             <>
               <Button type="button" variant="outline" size="sm" className="h-8 max-w-44 rounded-full text-xs" onClick={handlePickWorkspace} title={codingWorkspaceRoot || '选择项目目录'}>

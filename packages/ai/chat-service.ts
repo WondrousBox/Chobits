@@ -270,7 +270,12 @@ ${JSON.stringify(forcePiRuntime(req), null, 2)}
     if (errorMessage) {
       eventManager.emit(AppEvent.SPRITE_AI_ERROR, { message: errorMessage });
     } else {
-      eventManager.emit(AppEvent.SPRITE_AI_COMPLETE, { conversationId: conv?.id });
+      eventManager.emit(AppEvent.SPRITE_AI_COMPLETE, {
+        conversationId: conv?.id,
+        messageCount: streamMessages.length,
+        toolCallCount: collectedToolCalls.length,
+        assistantContentLength: fullText.length
+      });
 
       if (conv?.id) {
         const payload: AgentLoopCompletePayload = {
