@@ -15,6 +15,16 @@ OpenClaw 生态的记忆系统核心模式可供参考：
 
 按你建议的：DB schema → Repository → Extraction service → Retrieval service → IPC handlers → Agent tools
 
+## 当前实现状态（2026-04-03）
+
+- Phase 1 DB Schema：已完成。
+- Phase 2 Repository：已完成。
+- Phase 3 Extraction Service：部分完成。`conversation_close` 主链路、队列、worker、merge/write 已实现；`daily_extraction`、漏跑补偿、配置 UI 仍未完成。
+- Phase 4 Retrieval Service：部分完成。`search` / `get` / `browseTopics` / `searchWithContent` 已实现；但当前对外 `search()` 主要提供 Stage 1-3 结果，完整 Stage 4-6 风格流程仍主要在 `searchWithContent()` 内部 helper 中。
+- Phase 5 IPC Handlers：已完成，并已扩展到 `memory:stats`、`memory:cleanupForConversations`、`memory:clearAll`。
+- Phase 6 Agent Tools：已完成；实际代码位于 `packages/ai/runtime/pi/tools/`，并且当前是 4 个工具（`memorySearchTool`、`memoryGetTool`、`memoryTopicsTool`、`memorySaveTool`）。
+- Phase 7 对话删除 → 记忆清理联动：已完成。
+
 ## Phase 1: DB Schema
 
 **目标**：在 `electron/main/db/schema.ts` 中新增 7 张 memory 表 \+ FTS5 虚拟表
@@ -75,7 +85,8 @@ OpenClaw 生态的记忆系统核心模式可供参考：
   - `recallSections()` — Stage 4：section FTS \+ actionHint \+ keyword 匹配
   - `targetedRead()` — Stage 5：按行号从 Markdown 文件读取段落正文，token 预算裁剪
   - `assembleContext()` — Stage 6：组装三层结构（主题概览 \+ note 摘要 \+ 段落正文）
-  - `search()` — 统一入口，串联 Stage 1\-6
+  - `search()` — 当前对外主入口，稳定提供 Stage 1-3 结果；`includeContent` 仅附带 section 摘要
+  - `searchWithContent()` — 服务层 helper，一步到位执行 Stage 1-6 风格流程
   - `get()` — 按 noteId \+ section 精确读取
   - `browseTopics()` — 主题图谱浏览
 
@@ -87,7 +98,7 @@ OpenClaw 生态的记忆系统核心模式可供参考：
 - `electron/main/handlers/memory/ipc-main.ts`（新）— `initMemoryHandlers()`
   - `memory:search` / `memory:get` / `memory:topics` / `memory:listNotes`
   - `memory:syncStatus` / `memory:triggerSync` / `memory:rebuildIndex` / `memory:deleteNote`
-  - `memory:graphData`（预留）
+  - `memory:graphData` / `memory:stats` / `memory:cleanupForConversations` / `memory:clearAll`
 - `electron/main/handlers/index.ts` — 注册 `initMemoryHandlers()`
 - `electron/preload/apis/memory.ts`（新）— preload bridge，暴露 `window.YUA.memory.*`
 - `electron/preload/index.ts` — 注册 memory API
@@ -96,19 +107,23 @@ OpenClaw 生态的记忆系统核心模式可供参考：
 
 ## Phase 6: Agent Tools
 
-**目标**：在 AI agent 框架中注册 3 个 memory tool
+**目标**：在 AI runtime 中注册 4 个 memory tool
 **文件**：
 
-- `packages/ai-agent/` 下注册工具定义：
+- `packages/ai/runtime/pi/tools/` 下注册工具定义：
   - `memorySearchTool` — 调用 `memory:search` IPC
   - `memoryGetTool` — 调用 `memory:get` IPC
   - `memoryTopicsTool` — 调用 `memory:topics` IPC
+  - `memorySaveTool` — 将重要信息主动写入长期记忆
+- `packages/ai/runtime/pi/tool-registry.ts` — 注册 tool metadata，并加入 `DEFAULT_SESSION_TOOL_IDS`
 - System prompt 扩展：在 AI chat 中注入记忆系统使用指南段
-- 自动注入策略：新会话开始时预加载近 7 天高重要度记忆摘要
+- 自动注入策略：system prompt 指导已接入；“新会话自动预加载近 7 天高重要度记忆摘要”暂未实现
 
-## 建议先启动 Phase 1
+## 历史建议：先启动 Phase 1
 
-Phase 1（DB Schema）是最安全的切入点，因为：
+这段是最初的实施建议，保留作历史上下文；截至 2026-04-03，Phase 1 已完成。
+
+Phase 1（DB Schema）当时被认为是最安全的切入点，因为：
 
 1. 纯 additive，不影响现有任何表
 2. 可以立即 `pnpm db:generate` 验证

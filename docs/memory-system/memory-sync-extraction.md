@@ -3,6 +3,15 @@
 > 本文档定义 Chobits 记忆系统的增量同步策略、记忆提取流水线、后台任务编排，以及观测与验证指标。
 > 核心约束：提取任务不阻塞聊天主链路，对话数据只进不出（幂等、可重试），Markdown 为最终事实源。
 
+## 当前实现状态（2026-04-03）
+
+- 已完成：主触发链路、提取队列与 worker、增量水位线、提取进度事件、手动触发同步、FTS 重建、对话删除后的记忆清理。
+- 当前主触发源是 `AppEvent.AGENT_LOOP_COMPLETE`；`AppEvent.SPRITE_AI_COMPLETE` 仅作为兼容旧路径保留。触发后会延迟 5 秒再做脏检查和入队。
+- 已实现的调度细节包括：`conversationWatermarks` 内存水位线、`extractingConversations` + `pendingTrailingRun` 的 coalescing/trailing-run 机制、有工具调用时把新增消息阈值从 4 降到 2。
+- 提取模型当前会优先尝试 provider 对应的 fast model，失败后回退到该 provider / preset 的默认模型配置。
+- 尚未实现：`daily_extraction` 定时任务、漏跑补偿、窗口关闭/会话切换触发、`memory:cancelSync`、`memory:getMetrics`、`memory:validateIndex`、配置 UI。
+- `memory:rebuildIndex` 当前只重建 FTS 索引，不会重新执行整套提取流水线。
+
 ---
 
 ## 1. 触发入口总览
@@ -34,6 +43,9 @@
                     └──────────────────┘
 ```
 
+> 注：截至 2026-04-03，图中的“日终批量提取”“窗口关闭/切换触发”仍未落地。当前实际运行的是
+> `AGENT_LOOP_COMPLETE` / `SPRITE_AI_COMPLETE` 两条会话完成入口，以及 `memory:triggerSync` 手动触发。
+
 ---
 
 ## 2. 触发入口详细设计
@@ -42,61 +54,61 @@
 
 **触发时机**
 
-| 场景        | 触发条件                           | 说明               |
-| ----------- | ---------------------------------- | ------------------ |
-| AI 响应完成 | `AppEvent.SPRITE_AI_COMPLETE` 事件 | 每次对话回合完成后 |
-| 窗口关闭    | `beforeunload` / `will-quit`       | 应用关闭时 flush   |
-| 会话切换    | 用户切换到另一个 conversation      | 前一个会话视为暂结 |
+| 场景 | 触发条件 | 说明 |
+| --- | --- | --- |
+| Agent 工具循环结束 | `AppEvent.AGENT_LOOP_COMPLETE` 事件 | 当前主路径；Pi runtime 回合完成后触发 |
+| 普通对话完成（兼容） | `AppEvent.SPRITE_AI_COMPLETE` 事件 | 旧路径 / 非 Pi runtime 的兼容入口 |
 
 **判定逻辑：是否需要提取**
 
-不是每次对话完成都触发提取。需要满足以下条件之一：
+不是每次对话完成都直接入队。当前实现的核心判断如下：
 
 ```typescript
-interface ConversationDirtyCheck {
+const MIN_NEW_MESSAGES = 4;
+const MIN_TRIGGER_COOLDOWN = 15 * 1000; // 15 秒
+
+async function onConversationComplete(payload: {
   conversationId: string;
-  /** 本次会话的消息数 */
-  messageCount: number;
-  /** 距上次提取后新增的消息数 */
-  newMessagesSinceLastExtraction: number;
-  /** 上次提取时间 */
-  lastExtractionAt?: number;
-}
+  persisted?: boolean;
+  hasToolCalls?: boolean;
+}) {
+  if (!payload.conversationId || payload.persisted === false) return;
+  if (recentlyTriggered(payload.conversationId, MIN_TRIGGER_COOLDOWN)) return;
 
-function shouldTriggerExtraction(check: ConversationDirtyCheck): boolean {
-  // 条件 1：新增消息数 ≥ 阈值（避免对单句问答做提取）
-  const MIN_NEW_MESSAGES = 4;
+  // 如果同一会话仍在提取中，不丢弃，先挂成 trailing run
+  if (extractingConversations.has(payload.conversationId)) {
+    pendingTrailingRun.add(payload.conversationId);
+    return;
+  }
 
-  // 条件 2：距上次提取时间 ≥ 最小间隔（防止频繁触发）
-  const MIN_INTERVAL_MS = 30 * 60 * 1000; // 30 分钟
+  // 当前实现会延迟 5 秒再检查，尽量等消息持久化完整
+  setTimeout(async () => {
+    const watermark = conversationWatermarks.get(payload.conversationId) ?? 0;
+    const newMessages = await listUserAssistantMessagesAfter(payload.conversationId, watermark);
 
-  // 条件 3：总消息数 ≥ 最小有意义对话长度
-  const MIN_TOTAL_MESSAGES = 6;
+    // 带 tool call 的回合信息密度更高，阈值会从 4 降到 2
+    const threshold = payload.hasToolCalls ? 2 : MIN_NEW_MESSAGES;
+    if (newMessages.length < threshold) return;
 
-  if (check.newMessagesSinceLastExtraction < MIN_NEW_MESSAGES) return false;
-  if (check.messageCount < MIN_TOTAL_MESSAGES) return false;
-  if (check.lastExtractionAt && Date.now() - check.lastExtractionAt < MIN_INTERVAL_MS) return false;
-
-  return true;
+    await enqueueConversationCloseJob(payload.conversationId);
+  }, 5000);
 }
 ```
 
-**接入点：ChatService 扩展**
+**接入点：Extraction Worker 事件监听（当前实现）**
 
 ```typescript
-// packages/ai/chat-service.ts — chatStreamWithPi 末尾
-// 在 AppEvent.SPRITE_AI_COMPLETE 触发后追加：
+// electron/main/handlers/memory/extraction-worker.ts
+// 当前主路径：Agent 工具循环结束后触发
+eventManager.on(AppEvent.AGENT_LOOP_COMPLETE, onAgentLoopComplete);
 
-eventManager.on(AppEvent.SPRITE_AI_COMPLETE, async (payload) => {
-  const { conversationId } = payload;
-  // 不阻塞主链路，fire-and-forget
-  this.checkAndQueueExtraction(conversationId).catch((e) => {
-    console.warn('[Memory] Extraction check failed:', e);
-  });
-});
+// 兼容路径：普通对话完成后触发
+eventManager.on(AppEvent.SPRITE_AI_COMPLETE, onConversationComplete);
 ```
 
 ### 2.2 入口 ②：日终批量提取（daily_extraction）
+
+> 截至 2026-04-03，此入口仍是设计目标，代码尚未接入 `DailyCareService`，也没有漏跑补偿逻辑。
 
 **触发时机**
 
@@ -1275,14 +1287,20 @@ DailyCareService.tick() 检查
 
 ## 12. IPC 接口汇总
 
-| Channel                | 请求参数                                           | 响应                         | 说明             |
-| ---------------------- | -------------------------------------------------- | ---------------------------- | ---------------- |
-| `memory:triggerSync`   | `{ workspaceId, date?, conversationIds?, force? }` | `{ queued: true, jobId }`    | 手动触发提取     |
-| `memory:syncStatus`    | `{ jobId? }`                                       | `SyncJobRow \| SyncJobRow[]` | 查询任务状态     |
-| `memory:cancelSync`    | `{ jobId }`                                        | `{ cancelled: boolean }`     | 取消进行中的任务 |
-| `memory:rebuildIndex`  | `{ workspaceId }`                                  | `{ jobId }`                  | 全量重建索引     |
-| `memory:getMetrics`    | `{ workspaceId }`                                  | `OperationalMetrics`         | 获取系统运行指标 |
-| `memory:validateIndex` | `{ workspaceId }`                                  | `ConsistencyReport`          | 验证索引一致性   |
+| Channel | 请求参数 | 响应 | 说明 |
+| --- | --- | --- | --- |
+| `memory:search` | `{ query, workspaceId, topicFilter?, dateRange?, maxResults?, includeContent? }` | `MemorySearchResult` | 搜索记忆 |
+| `memory:get` | `{ noteId, section?, lineRange? }` | `MemoryGetResult \| null` | 读取 note / 段落详情 |
+| `memory:topics` | `{ topicId?, action?, workspaceId?, limit? }` | `MemoryTopicsResult` | 浏览主题图谱 |
+| `memory:listNotes` | `{ workspaceId, limit?, offset? }` | `MemoryNoteRow[]` | 分页列出 note |
+| `memory:syncStatus` | 无 | `{ queue, latestJob }` | 查询当前队列与最近任务状态 |
+| `memory:triggerSync` | `{ workspaceId?, date?, conversationIds?, force? }` | `{ queued: boolean, jobId?, error? }` | 手动触发提取 |
+| `memory:rebuildIndex` | 无 | `{ success: boolean, notesIndexed?, error? }` | 当前仅重建 FTS 索引 |
+| `memory:deleteNote` | `noteId` | `{ success: boolean, error? }` | 删除单条记忆 note |
+| `memory:graphData` | `{ topicId?, workspaceId?, includeNotes?, maxTopics?, maxEdges? }` | `{ topics, edges, notes }` | 获取图谱数据 |
+| `memory:stats` | `{ workspaceId? }` | `{ noteCount, topicCount, edgeCount }` | 获取基础统计 |
+| `memory:cleanupForConversations` | `{ conversationIds }` | `{ updated, deleted, errors }` | 按对话清理相关记忆 |
+| `memory:clearAll` | `{ workspaceId? }` | `{ tablesCleared, filesDeleted, errors }` | 清空记忆数据 |
 
 ---
 
@@ -1295,21 +1313,21 @@ export enum AppEvent {
   // ... 现有事件 ...
 
   /** 记忆提取任务开始 */
-  MEMORY_EXTRACTION_STARTED = 'memory:extraction:started',
+  MEMORY_EXTRACTION_STARTED = 'MEMORY_EXTRACTION_STARTED',
   /** 记忆提取进度更新 */
-  MEMORY_EXTRACTION_PROGRESS = 'memory:extraction:progress',
+  MEMORY_EXTRACTION_PROGRESS = 'MEMORY_EXTRACTION_PROGRESS',
   /** 记忆提取任务完成 */
-  MEMORY_EXTRACTION_COMPLETED = 'memory:extraction:completed',
+  MEMORY_EXTRACTION_COMPLETED = 'MEMORY_EXTRACTION_COMPLETED',
   /** 记忆提取任务失败 */
-  MEMORY_EXTRACTION_FAILED = 'memory:extraction:failed'
+  MEMORY_EXTRACTION_FAILED = 'MEMORY_EXTRACTION_FAILED'
 }
 ```
 
 ---
 
-## 14. 配置 UI 预留
+## 14. 配置 UI 预留（尚未实现）
 
-虽然第一阶段不做 UI，但需要预留以下设置项到 preferences：
+当前代码尚未接入这套 preferences；以下内容仍属于预留设计。
 
 ```typescript
 interface MemoryPreferences {

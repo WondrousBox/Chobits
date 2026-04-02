@@ -35,6 +35,7 @@ import { initStatusHandlers } from './status';
 import { initSystemHandlers } from './system/ipc-main';
 import { initThemeHandlers } from './theme/ipc-main';
 import { initTrashHandlers } from './trash/ipc-main';
+import { initUserProfileHandlers } from './user-profile/ipc-main';
 import { initWindowHandlers } from './window';
 import { initWorkspaceHandlers } from './workspace/ipc-main';
 
@@ -97,6 +98,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initAnnotationHandlers();
   initMediaHandlers(win);
   initMemoryHandlers();
+  initUserProfileHandlers();
   await initSpriteManagerIPC(win, {
     addAllowedResourceRoot: (await import('../resource-protocol')).addAllowedResourceRoot
   });
