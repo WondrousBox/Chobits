@@ -235,6 +235,12 @@ function mapChatHistoryMessage(message: ChatRequest['messages'][number], model: 
 async function buildPiContext(resolved: ResolvedPiRequest, model: PiModel): Promise<PiContext> {
   const profileInstructions = await resolveProfileInstructions(resolved);
   const systemParts: string[] = profileInstructions ? [profileInstructions] : [];
+
+  // Resolve dynamic system prompt enrichments from registered enrichers
+  const { resolveSystemPromptEnrichments } = await import('../../system-prompt-enricher');
+  const enrichments = await resolveSystemPromptEnrichments(resolved.request);
+  systemParts.push(...enrichments);
+
   const messages: PiMessage[] = [];
 
   for (const message of resolved.messages) {

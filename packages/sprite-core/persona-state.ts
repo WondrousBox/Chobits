@@ -76,6 +76,9 @@ export interface PersonaState {
   // 成就
   achievements: string[]; // 已解锁的成就 ID
 
+  // 多维度能力值（雷达图）
+  dimensions: Record<string, number>; // dimensionId → current value
+
   // 时间戳
   createdAt: number;
   updatedAt: number;
@@ -242,6 +245,7 @@ export class PersonaStateManager {
       loginStreak: 0,
       lastLoginDate: '',
       achievements: [],
+      dimensions: {},
       createdAt: now,
       updatedAt: now,
       ...options?.initialState
@@ -475,6 +479,55 @@ export class PersonaStateManager {
   addSessionTime(seconds: number): void {
     this.state.totalSessionTime += seconds;
     this.state.updatedAt = Date.now();
+  }
+
+  // --- 多维度能力值 ---
+
+  /** 获取所有维度当前值 */
+  getDimensions(): Record<string, number> {
+    return { ...this.state.dimensions };
+  }
+
+  /** 获取单个维度值 */
+  getDimension(id: string): number {
+    return this.state.dimensions[id] ?? 0;
+  }
+
+  /**
+   * 更新维度值，应用边际递减。
+   * @param id 维度 ID
+   * @param delta 基础增量
+   * @param maxValue 维度上限（默认 100）
+   */
+  updateDimension(id: string, delta: number, maxValue = 100): { oldValue: number; newValue: number } {
+    const old = this.state.dimensions[id] ?? 0;
+    // 边际递减：越接近上限成长越慢
+    const diminish = 1 - (old / maxValue) * 0.5;
+    // 等级加成
+    const levelMult = 1 + this.state.level * 0.01;
+    const effective = delta * levelMult * diminish;
+    const newVal = Math.max(0, Math.min(maxValue, old + effective));
+    this.state.dimensions[id] = Math.round(newVal * 100) / 100;
+    this.state.updatedAt = Date.now();
+
+    this.eventBus?.emit('persona:dimension-updated', { id, oldValue: old, newValue: this.state.dimensions[id], delta: effective }, 'persona-state');
+    this.notifyChange();
+    return { oldValue: old, newValue: this.state.dimensions[id] };
+  }
+
+  /** 批量初始化维度（仅对尚未初始化的维度设置初始值） */
+  initDimensions(defs: Array<{ id: string; initialValue: number }>): void {
+    let changed = false;
+    for (const def of defs) {
+      if (this.state.dimensions[def.id] === undefined) {
+        this.state.dimensions[def.id] = def.initialValue;
+        changed = true;
+      }
+    }
+    if (changed) {
+      this.state.updatedAt = Date.now();
+      this.notifyChange();
+    }
   }
 
   // --- 扩展 ---

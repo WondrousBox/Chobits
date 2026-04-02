@@ -12,12 +12,14 @@ export interface ChatSelectionContextValue {
   codingWorkspaceRoot: string;
   codingWorkspaceLabel: string;
   webSearchEnabled: boolean;
+  characterPersonaEnabled: boolean;
   setProviderId: (id: string) => void;
   setModelId: (id: string) => void;
   setPresetId: (id: string) => void;
   setAgentId: (id: string) => void;
   setCodingWorkspace: (workspace: { root: string; label?: string } | null) => void;
   setWebSearchEnabled: (enabled: boolean) => void;
+  setCharacterPersonaEnabled: (enabled: boolean) => void;
   refresh: () => Promise<void>;
 }
 
@@ -30,7 +32,8 @@ const LS_KEYS = {
   agentId: 'chat.sel.agentId',
   codingWorkspaceRoot: 'chat.sel.codingWorkspaceRoot',
   codingWorkspaceLabel: 'chat.sel.codingWorkspaceLabel',
-  webSearchEnabled: 'chat.sel.webSearchEnabled'
+  webSearchEnabled: 'chat.sel.webSearchEnabled',
+  characterPersonaEnabled: 'chat.sel.characterPersonaEnabled'
 };
 
 export function ChatSelectionProvider({ children }: { children: React.ReactNode }): JSX.Element {
@@ -43,6 +46,7 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
   const [codingWorkspaceRoot, setCodingWorkspaceRootState] = useState<string>(() => localStorage.getItem(LS_KEYS.codingWorkspaceRoot) || '');
   const [codingWorkspaceLabel, setCodingWorkspaceLabelState] = useState<string>(() => localStorage.getItem(LS_KEYS.codingWorkspaceLabel) || '');
   const [webSearchEnabled, setWebSearchEnabledState] = useState<boolean>(() => localStorage.getItem(LS_KEYS.webSearchEnabled) === 'true');
+  const [characterPersonaEnabled, setCharacterPersonaEnabledState] = useState<boolean>(() => localStorage.getItem(LS_KEYS.characterPersonaEnabled) === 'true');
 
   // Persist selections
   useEffect(() => {
@@ -119,6 +123,14 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
       /* noop */
     }
   }, [webSearchEnabled]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS_KEYS.characterPersonaEnabled, characterPersonaEnabled ? 'true' : 'false');
+    } catch {
+      /* noop */
+    }
+  }, [characterPersonaEnabled]);
 
   // One-time cleanup for the removed preset-ordering compatibility state.
   useEffect(() => {
@@ -207,6 +219,10 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
     setWebSearchEnabledState(enabled);
   }, []);
 
+  const setCharacterPersonaEnabled = useCallback((enabled: boolean) => {
+    setCharacterPersonaEnabledState(enabled);
+  }, []);
+
   const value = useMemo<ChatSelectionContextValue>(
     () => ({
       agents,
@@ -217,15 +233,33 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
       codingWorkspaceRoot,
       codingWorkspaceLabel,
       webSearchEnabled,
+      characterPersonaEnabled,
       setProviderId,
       setModelId,
       setPresetId,
       setAgentId,
       setCodingWorkspace,
       setWebSearchEnabled,
+      setCharacterPersonaEnabled,
       refresh
     }),
-    [agents, providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, webSearchEnabled, setProviderId, setPresetId, setCodingWorkspace, setWebSearchEnabled, refresh]
+    [
+      agents,
+      providerId,
+      modelId,
+      presetId,
+      agentId,
+      codingWorkspaceRoot,
+      codingWorkspaceLabel,
+      webSearchEnabled,
+      characterPersonaEnabled,
+      setProviderId,
+      setPresetId,
+      setCodingWorkspace,
+      setWebSearchEnabled,
+      setCharacterPersonaEnabled,
+      refresh
+    ]
   );
 
   return <ChatSelectionContext.Provider value={value}>{children}</ChatSelectionContext.Provider>;

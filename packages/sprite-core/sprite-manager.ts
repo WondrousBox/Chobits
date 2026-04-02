@@ -800,6 +800,19 @@ export class SpriteManager {
     return result;
   }
 
+  /** 更新维度值 */
+  updateDimension(id: string, delta: number, maxValue?: number): { oldValue: number; newValue: number } {
+    const result = this.personaState.updateDimension(id, delta, maxValue);
+    this.persistence.markDirty();
+    return result;
+  }
+
+  /** 批量初始化维度（仅对尚未初始化的维度设置初始值） */
+  initDimensions(defs: Array<{ id: string; initialValue: number }>): void {
+    this.personaState.initDimensions(defs);
+    this.persistence.markDirty();
+  }
+
   /** 重置人格状态（等级、经验、好感度等） */
   resetPersonaState(): PersonaState {
     const now = Date.now();
@@ -817,6 +830,7 @@ export class SpriteManager {
       loginStreak: 0,
       lastLoginDate: '',
       achievements: [],
+      dimensions: {},
       createdAt: now,
       updatedAt: now
     });

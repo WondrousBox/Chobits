@@ -51,6 +51,17 @@ export { DEFAULT_DURATION, MESSAGE_IPC_CHANNELS, MESSAGE_PRIORITY, SPRITE_EVENT_
 export { AnimationRegistry } from './animation-registry';
 export type { BehaviorCondition, BehaviorContext, BehaviorDefinition, BehaviorPriority } from './behavior-engine';
 export { BehaviorEngine, createAutoWalkBehavior, createBoredBehavior, createFavorDecayBehavior, createRandomMessageBehavior, createSleepyBehavior } from './behavior-engine';
+export type { CharacterDefinition, ConversationRewards, DimensionDef, FavorPersonaEntry, MoodExpression, PersonaPromptContext } from './character-service';
+export {
+  buildCharacterPersonaPrompt,
+  getCharacterDefinition,
+  getCharacterInfo,
+  getConversationRewards,
+  getDimensionSchema,
+  getFavorPersonaOverlay,
+  initCharacterService,
+  reloadCharacter
+} from './character-service';
 export type { SpritePersonaEvent, SpritePersonaEventType } from './event-bus';
 export { SpriteEventBus } from './event-bus';
 export type { InteractionEvent, InteractionStats, InteractionType } from './interaction-tracker';
