@@ -1,6 +1,25 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ForceGraph2D, { type ForceGraphMethods } from 'react-force-graph-2d';
-import { TbArrowRight, TbBrain, TbCalendar, TbChevronRight, TbFileText, TbFocus2, TbLayoutSidebar, TbList, TbLoader2, TbNote, TbRefresh, TbSearch, TbStar, TbTopologyRing, TbX, TbZoomIn, TbZoomOut, TbZoomReset } from 'react-icons/tb';
+import {
+  TbArrowRight,
+  TbBrain,
+  TbCalendar,
+  TbChevronRight,
+  TbFileText,
+  TbFocus2,
+  TbLayoutSidebar,
+  TbList,
+  TbLoader2,
+  TbNote,
+  TbRefresh,
+  TbSearch,
+  TbStar,
+  TbTopologyRing,
+  TbX,
+  TbZoomIn,
+  TbZoomOut,
+  TbZoomReset
+} from 'react-icons/tb';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
@@ -512,10 +531,12 @@ function DetailPanel({
 
 function SearchPanel({
   workspaceId,
-  onHighlightNote
+  onHighlightNote,
+  onSearchResults
 }: {
   workspaceId: string;
   onHighlightNote: (noteId: string) => void;
+  onSearchResults: (result: SearchResult | null) => void;
 }): React.ReactElement {
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -526,20 +547,23 @@ function SearchPanel({
     async (q: string) => {
       if (!q.trim() || !workspaceId) {
         setResult(null);
+        onSearchResults(null);
         return;
       }
       setSearching(true);
       try {
         const res = await window.YUA.memory.search({ query: q, workspaceId, maxResults: 10, includeContent: true });
         setResult(res);
+        onSearchResults(res);
       } catch (e) {
         console.error('[MemoryGraph] search failed:', e);
         setResult(null);
+        onSearchResults(null);
       } finally {
         setSearching(false);
       }
     },
-    [workspaceId]
+    [workspaceId, onSearchResults]
   );
 
   const handleInputChange = useCallback(
@@ -577,6 +601,7 @@ function SearchPanel({
               onClick={() => {
                 setQuery('');
                 setResult(null);
+                onSearchResults(null);
               }}
             >
               <TbX className="h-3 w-3" />
@@ -603,9 +628,7 @@ function SearchPanel({
 
           {!searching && result && (
             <div className="space-y-4">
-              <div className="text-[10px] text-muted-foreground">
-                找到 {result.totalFound} 条记忆
-              </div>
+              <div className="text-[10px] text-muted-foreground">找到 {result.totalFound} 条记忆</div>
 
               {result.topics.length > 0 && (
                 <div>
@@ -631,11 +654,7 @@ function SearchPanel({
                     <span>匹配记忆</span>
                   </div>
                   {result.notes.map((note) => (
-                    <button
-                      key={note.id}
-                      className="w-full text-left rounded-lg border border-border/50 p-3 hover:bg-muted/30 transition-colors"
-                      onClick={() => onHighlightNote(note.id)}
-                    >
+                    <button key={note.id} className="w-full text-left rounded-lg border border-border/50 p-3 hover:bg-muted/30 transition-colors" onClick={() => onHighlightNote(note.id)}>
                       <div className="flex items-center gap-2 text-[10px] text-muted-foreground mb-1.5">
                         <TbCalendar className="h-3 w-3" />
                         <span>{note.date}</span>
@@ -683,13 +702,7 @@ function SearchPanel({
 
 // ━━ Notes List Panel ━━
 
-function NotesListPanel({
-  workspaceId,
-  onHighlightNote
-}: {
-  workspaceId: string;
-  onHighlightNote: (noteId: string) => void;
-}): React.ReactElement {
+function NotesListPanel({ workspaceId, onHighlightNote }: { workspaceId: string; onHighlightNote: (noteId: string) => void }): React.ReactElement {
   const [notes, setNotes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -746,11 +759,7 @@ function NotesListPanel({
                 const topics = safeJsonParse(note.topics);
                 const keywords = safeJsonParse(note.keywords);
                 return (
-                  <button
-                    key={note.id}
-                    className="w-full text-left rounded-lg border border-border/50 p-2.5 hover:bg-muted/30 transition-colors"
-                    onClick={() => onHighlightNote(note.id)}
-                  >
+                  <button key={note.id} className="w-full text-left rounded-lg border border-border/50 p-2.5 hover:bg-muted/30 transition-colors" onClick={() => onHighlightNote(note.id)}>
                     <div className="flex flex-wrap gap-1 mb-1.5">
                       {topics.map((t: string, i: number) => (
                         <span key={i} className="inline-flex px-1.5 py-0.5 rounded text-[10px] bg-violet-500/10 text-violet-300/80">
@@ -797,6 +806,8 @@ export default function MemoryGraphPage(): React.ReactElement {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('search');
   const [memoryStats, setMemoryStats] = useState<{ noteCount: number; topicCount: number; edgeCount: number } | null>(null);
+  const [highlightedNodeIds, setHighlightedNodeIds] = useState<Set<string>>(new Set());
+  const [highlightedLinkKeys, setHighlightedLinkKeys] = useState<Set<string>>(new Set());
 
   // ━━ Load workspace ━━
 
@@ -860,6 +871,8 @@ export default function MemoryGraphPage(): React.ReactElement {
 
   // ━━ Node rendering ━━
 
+  const hasHighlight = highlightedNodeIds.size > 0;
+
   const paintNode = useCallback(
     (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const n = node as GraphNode;
@@ -868,14 +881,30 @@ export default function MemoryGraphPage(): React.ReactElement {
       const isHovered = hoveredNode?.id === n.id;
       const isSelected = selectedNode?.id === n.id;
       const isFaded = filterTerm && !graphData.nodes.find((gn) => gn.id === n.id);
+      const isHighlighted = hasHighlight && highlightedNodeIds.has(n.id);
+      const isDimmed = hasHighlight && !isHighlighted && !isHovered && !isSelected;
 
       ctx.save();
 
+      // 搜索高亮时，非命中节点整体压暗
+      if (isDimmed) ctx.globalAlpha = 0.15;
+
       if (n.type === 'topic') {
         const baseSize = n.size;
-        const drawSize = isHovered || isSelected ? baseSize * 1.2 : baseSize;
+        const drawSize = isHighlighted ? baseSize * 1.25 : isHovered || isSelected ? baseSize * 1.2 : baseSize;
 
-        if (isSelected || isHovered) {
+        // 高亮光晕
+        if (isHighlighted) {
+          ctx.beginPath();
+          ctx.arc(x, y, drawSize + 8, 0, 2 * Math.PI);
+          const glow = ctx.createRadialGradient(x, y, drawSize, x, y, drawSize + 8);
+          glow.addColorStop(0, 'rgba(139, 92, 246, 0.4)');
+          glow.addColorStop(1, 'rgba(139, 92, 246, 0)');
+          ctx.fillStyle = glow;
+          ctx.fill();
+        }
+
+        if ((isSelected || isHovered) && !isHighlighted) {
           ctx.beginPath();
           ctx.arc(x, y, drawSize + 4, 0, 2 * Math.PI);
           ctx.fillStyle = `${n.color}33`;
@@ -884,31 +913,46 @@ export default function MemoryGraphPage(): React.ReactElement {
 
         ctx.beginPath();
         ctx.arc(x, y, drawSize, 0, 2 * Math.PI);
-        ctx.fillStyle = isFaded ? `${n.color}44` : n.color;
+        ctx.fillStyle = isFaded ? `${n.color}44` : isHighlighted ? n.color : n.color;
         ctx.fill();
 
-        ctx.strokeStyle = isSelected ? '#fff' : `${n.color}88`;
-        ctx.lineWidth = isSelected ? 2 : 1;
+        ctx.strokeStyle = isHighlighted ? '#e0e7ff' : isSelected ? '#fff' : `${n.color}88`;
+        ctx.lineWidth = isHighlighted ? 2.5 : isSelected ? 2 : 1;
         ctx.stroke();
 
         const fontSize = Math.max(10, Math.min(14, 10 + n.noteCount));
-        const scaledFont = fontSize / globalScale;
-        ctx.font = `600 ${scaledFont}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+        const scaledFont = (isHighlighted ? fontSize + 1 : fontSize) / globalScale;
+        ctx.font = `${isHighlighted ? '700' : '600'} ${scaledFont}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
         const textWidth = ctx.measureText(n.label).width;
         const textY = y + drawSize + scaledFont * 0.8;
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fillStyle = isHighlighted ? 'rgba(0, 0, 0, 0.8)' : 'rgba(0, 0, 0, 0.6)';
         ctx.fillRect(x - textWidth / 2 - 2 / globalScale, textY - scaledFont * 0.5, textWidth + 4 / globalScale, scaledFont * 1.1);
 
-        ctx.fillStyle = isFaded ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.9)';
+        ctx.fillStyle = isFaded ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.95)';
         ctx.fillText(n.label, x, textY);
       } else {
         const size = n.size;
-        const drawSize = isHovered || isSelected ? size * 1.3 : size;
+        const drawSize = isHighlighted ? size * 1.5 : isHovered || isSelected ? size * 1.3 : size;
 
-        if (isSelected || isHovered) {
+        // 高亮光晕
+        if (isHighlighted) {
+          ctx.beginPath();
+          ctx.moveTo(x, y - drawSize - 6);
+          ctx.lineTo(x + drawSize + 6, y);
+          ctx.lineTo(x, y + drawSize + 6);
+          ctx.lineTo(x - drawSize - 6, y);
+          ctx.closePath();
+          const glow = ctx.createRadialGradient(x, y, drawSize * 0.5, x, y, drawSize + 6);
+          glow.addColorStop(0, 'rgba(59, 130, 246, 0.45)');
+          glow.addColorStop(1, 'rgba(59, 130, 246, 0)');
+          ctx.fillStyle = glow;
+          ctx.fill();
+        }
+
+        if ((isSelected || isHovered) && !isHighlighted) {
           ctx.beginPath();
           ctx.moveTo(x, y - drawSize - 3);
           ctx.lineTo(x + drawSize + 3, y);
@@ -925,50 +969,80 @@ export default function MemoryGraphPage(): React.ReactElement {
         ctx.lineTo(x, y + drawSize);
         ctx.lineTo(x - drawSize, y);
         ctx.closePath();
-        ctx.fillStyle = isFaded ? `${n.color}44` : n.color;
+        ctx.fillStyle = isFaded ? `${n.color}44` : isHighlighted ? 'rgba(96, 165, 250, 1)' : n.color;
         ctx.fill();
-        ctx.strokeStyle = isSelected ? '#fff' : 'rgba(59, 130, 246, 0.5)';
-        ctx.lineWidth = isSelected ? 1.5 : 0.5;
+        ctx.strokeStyle = isHighlighted ? '#e0e7ff' : isSelected ? '#fff' : 'rgba(59, 130, 246, 0.5)';
+        ctx.lineWidth = isHighlighted ? 2 : isSelected ? 1.5 : 0.5;
         ctx.stroke();
 
-        // Show label for notes
-        if ((isHovered || isSelected) && globalScale > 1.5) {
-          const scaledFont = 9 / globalScale;
-          ctx.font = `400 ${scaledFont}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+        // Show label for highlighted/hovered/selected notes
+        if ((isHighlighted || isHovered || isSelected) && (isHighlighted || globalScale > 1.5)) {
+          const scaledFont = (isHighlighted ? 10 : 9) / globalScale;
+          ctx.font = `${isHighlighted ? '600' : '400'} ${scaledFont}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          const label = n.label.slice(0, 25);
+          const label = n.label.slice(0, 30);
           const textWidth = ctx.measureText(label).width;
           const textY = y + drawSize + scaledFont * 0.8;
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+          ctx.fillStyle = isHighlighted ? 'rgba(0, 0, 0, 0.8)' : 'rgba(0, 0, 0, 0.5)';
           ctx.fillRect(x - textWidth / 2 - 2 / globalScale, textY - scaledFont * 0.5, textWidth + 4 / globalScale, scaledFont * 1.1);
-          ctx.fillStyle = 'rgba(255,255,255,0.85)';
+          ctx.fillStyle = 'rgba(255,255,255,0.95)';
           ctx.fillText(label, x, textY);
         }
       }
 
       ctx.restore();
     },
-    [hoveredNode, selectedNode, filterTerm, graphData.nodes]
+    [hoveredNode, selectedNode, filterTerm, graphData.nodes, hasHighlight, highlightedNodeIds]
   );
 
   // ━━ Link rendering ━━
 
-  const paintLink = useCallback((link: any, ctx: CanvasRenderingContext2D) => {
-    const l = link as any;
-    const source = l.source;
-    const target = l.target;
-    if (!source?.x || !target?.x) return;
+  const paintLink = useCallback(
+    (link: any, ctx: CanvasRenderingContext2D) => {
+      const l = link as any;
+      const source = l.source;
+      const target = l.target;
+      if (!source?.x || !target?.x) return;
 
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(source.x, source.y);
-    ctx.lineTo(target.x, target.y);
-    ctx.strokeStyle = l.color || 'rgba(148, 163, 184, 0.3)';
-    ctx.lineWidth = Math.max(0.5, (l.weight || 1) * 0.8);
-    ctx.stroke();
-    ctx.restore();
-  }, []);
+      const sourceId = typeof source === 'object' ? source.id : source;
+      const targetId = typeof target === 'object' ? target.id : target;
+      const linkKey = `${sourceId}-${targetId}`;
+      const linkKeyReverse = `${targetId}-${sourceId}`;
+      const isLinkHighlighted = hasHighlight && (highlightedLinkKeys.has(linkKey) || highlightedLinkKeys.has(linkKeyReverse));
+      const isLinkDimmed = hasHighlight && !isLinkHighlighted;
+
+      ctx.save();
+
+      if (isLinkHighlighted) {
+        // 高亮经络：亮色发光线条
+        ctx.beginPath();
+        ctx.moveTo(source.x, source.y);
+        ctx.lineTo(target.x, target.y);
+        ctx.strokeStyle = 'rgba(139, 92, 246, 0.15)';
+        ctx.lineWidth = Math.max(4, (l.weight || 1) * 3);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(source.x, source.y);
+        ctx.lineTo(target.x, target.y);
+        ctx.strokeStyle = 'rgba(167, 139, 250, 0.9)';
+        ctx.lineWidth = Math.max(1.5, (l.weight || 1) * 1.2);
+        ctx.stroke();
+      } else {
+        ctx.globalAlpha = isLinkDimmed ? 0.08 : 1;
+        ctx.beginPath();
+        ctx.moveTo(source.x, source.y);
+        ctx.lineTo(target.x, target.y);
+        ctx.strokeStyle = l.color || 'rgba(148, 163, 184, 0.3)';
+        ctx.lineWidth = Math.max(0.5, (l.weight || 1) * 0.8);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    },
+    [hasHighlight, highlightedLinkKeys]
+  );
 
   // ━━ Interaction handlers ━━
 
@@ -985,6 +1059,57 @@ export default function MemoryGraphPage(): React.ReactElement {
   const handleBackgroundClick = useCallback(() => {
     setSelectedNode(null);
   }, []);
+
+  // ━━ Handle search results → build highlight set ━━
+
+  const handleSearchResults = useCallback(
+    (result: SearchResult | null) => {
+      if (!result || (result.notes.length === 0 && result.topics.length === 0)) {
+        setHighlightedNodeIds(new Set());
+        setHighlightedLinkKeys(new Set());
+        return;
+      }
+
+      const hitIds = new Set<string>();
+
+      // Collect matched note IDs
+      for (const note of result.notes) {
+        hitIds.add(note.id);
+      }
+
+      // Match search-result topic labels to graph topic nodes
+      const topicLabels = new Set(result.topics.map((t) => t.label.toLowerCase()));
+      for (const t of rawTopics) {
+        if (topicLabels.has(t.label.toLowerCase())) {
+          hitIds.add(t.id);
+        }
+      }
+
+      // Also match note.topics (string[]) to topic nodes for richer connectivity
+      for (const note of result.notes) {
+        for (const topicLabel of note.topics) {
+          const lower = topicLabel.toLowerCase();
+          for (const t of rawTopics) {
+            if (t.label.toLowerCase() === lower) {
+              hitIds.add(t.id);
+            }
+          }
+        }
+      }
+
+      // Build link keys: edges where BOTH endpoints are highlighted
+      const linkKeys = new Set<string>();
+      for (const edge of rawEdges) {
+        if (hitIds.has(edge.sourceId) && hitIds.has(edge.targetId)) {
+          linkKeys.add(`${edge.sourceId}-${edge.targetId}`);
+        }
+      }
+
+      setHighlightedNodeIds(hitIds);
+      setHighlightedLinkKeys(linkKeys);
+    },
+    [rawTopics, rawEdges]
+  );
 
   // ━━ Highlight a note in the graph ━━
 
@@ -1030,6 +1155,8 @@ export default function MemoryGraphPage(): React.ReactElement {
   const handleRefresh = useCallback(() => {
     setSelectedNode(null);
     setFilterTerm('');
+    setHighlightedNodeIds(new Set());
+    setHighlightedLinkKeys(new Set());
     loadGraphData(focusTopicId);
     if (workspaceId) {
       window.YUA.memory
@@ -1169,7 +1296,7 @@ export default function MemoryGraphPage(): React.ReactElement {
               </button>
             </div>
             <div className="flex-1 overflow-hidden">
-              {sidebarTab === 'search' && <SearchPanel workspaceId={workspaceId} onHighlightNote={handleHighlightNote} />}
+              {sidebarTab === 'search' && <SearchPanel workspaceId={workspaceId} onHighlightNote={handleHighlightNote} onSearchResults={handleSearchResults} />}
               {sidebarTab === 'notes' && <NotesListPanel workspaceId={workspaceId} onHighlightNote={handleHighlightNote} />}
             </div>
           </div>
