@@ -4,6 +4,15 @@
 > 核心策略：结构化元数据过滤 + FTS5 全文检索 + 主题图谱扩展 + 渐进式定点读取。
 > 向量检索仅作为未来可插拔增强层，不影响本文档描述的基础检索能力。
 
+## 当前实现状态（2026-04-03）
+
+- 已实现：`analyzeQuery`、`recallTopics`、`recallNotes`、`recallSections`、`targetedRead`、`assembleContext`、`search`、`get`、`browseTopics`、`searchWithContent`。
+- 当前对外主入口 `search()` 实际主要执行 Stage 1-3；当 `includeContent=true` 时，只追加各 note 的 section 摘要，不会自动读取段落正文。
+- `searchWithContent()` 已实现一步到位的 Stage 1-6 风格流程，但目前仅是服务层 helper，尚未暴露为 IPC 或 Agent tool。
+- 当前运行时已注册并默认启用 `memorySearchTool`、`memoryGetTool`、`memoryTopicsTool`、`memorySaveTool`。
+- `topicFilter` 参数已经暴露到 IPC / preload / tool 调用链，但 `retrieval.search()` 里当前还没有真正应用这个过滤条件。
+- “新会话自动预加载重要记忆”仍未实现；当前主要依赖 system prompt 指导 Agent 在需要时显式调用记忆工具。
+
 ---
 
 ## 1. 检索总览
@@ -106,6 +115,11 @@ function analyzeQuery(query: string): QueryAnalysisResult {
   // ... 规则实现
 }
 ```
+
+**当前实现补充**：
+
+- `analyzeQuery()` 内置了中英文 stop words 过滤，避免把“之前”“我们”“一下”“the”等弱信号词直接塞进检索 token。
+- 如果剥离时间词、动作词后没有剩余有效 token，当前实现会标记 `broadRecall = true`，交给后续召回阶段走“最近记忆兜底”。
 
 **方案 B：LLM 辅助解析（高质量，第二阶段可选）**
 
@@ -227,7 +241,7 @@ export interface TopicRecallResult {
 
 综合元数据过滤 + FTS 全文命中 + 图谱关联，产出一个排序后的候选 note 列表。
 
-### 4.2 三路候选生成
+### 4.2 候选生成（当前实现额外包含广泛召回兜底）
 
 ```
           TopicRecallResult.allTopicIds
@@ -318,9 +332,24 @@ ORDER BY date DESC, importance DESC
 LIMIT 50;
 ```
 
+#### Route D: 广泛召回兜底（当前实现）
+
+当 `analyzeQuery()` 没有得到有效搜索词，且 Route A-C 也没有产生命中候选时，当前实现会回退到“最近记忆”：
+
+```typescript
+if (analysis.broadRecall && candidateMap.size === 0) {
+  const recentNotes = await db.listNotesByWorkspace(workspaceId, maxResults * 2, 0);
+  for (const note of recentNotes) {
+    if (!candidateMap.has(note.id)) {
+      candidateMap.set(note.id, noteToCandidate(note, { metadataScore: 0.3 }));
+    }
+  }
+}
+```
+
 ### 4.3 融合排序
 
-三路候选合并后去重，按加权分数排序：
+候选集合合并后去重，按加权分数排序：
 
 ```typescript
 export interface NoteCandidate {
@@ -684,7 +713,7 @@ const memorySearchParameters = Type.Object({
   ),
   includeContent: Type.Optional(
     Type.Boolean({
-      description: '是否包含段落正文，默认 false（只返回摘要）'
+      description: '是否附带各 note 的 section 摘要，默认 false（不自动读取段落正文）'
     })
   )
 });
@@ -831,6 +860,38 @@ interface MemoryTopicsResult {
 },
 ```
 
+### 8.4 memory_save — 记忆写入
+
+把重要信息主动写入长期记忆，适用于用户明确要求“记住”，或者对话中出现稳定偏好、重要决策、项目计划等长期有价值的信息。
+
+```typescript
+const memorySaveParameters = Type.Object({
+  topic: Type.String({ description: '记忆主题标签，简短概括，如「用户偏好」「项目计划」「技术决策」' }),
+  content: Type.String({ description: '要保存的记忆内容（Markdown 格式）' }),
+  keywords: Type.Array(Type.String(), { description: '关键词列表，至少 2 个，用于日后检索', minItems: 2 }),
+  importance: Type.Optional(Type.Number({ description: '重要度 0.0~1.0，默认 0.7', minimum: 0, maximum: 1 })),
+  summary: Type.Optional(Type.String({ description: '一句话摘要；不提供时由系统根据 content 截取' }))
+});
+```
+
+**当前实现说明**：
+
+- 工具位于 `packages/ai/runtime/pi/tools/memory-save.ts`。
+- 当前会创建一个单主题 note，并把 `content` 写入 `Overview` 段。
+- 如果当前对话有 `conversationId`，会写入 `sourceConversationIds` 作为溯源。
+
+**Tool 注册**：
+
+```typescript
+'memory-save': {
+  category: 'content',
+  description: '将重要信息保存到长期记忆（用户要求记住或对话中出现重要内容时自主保存）',
+  compatName: 'memorySaveTool',
+  name: 'memorySaveTool',
+  status: 'ready-for-pi-runtime',
+},
+```
+
 ---
 
 ## 9. IPC 接口定义
@@ -847,9 +908,12 @@ Renderer 进程通过 IPC 访问记忆系统。
 | `memory:listNotes`    | renderer → main | 列出记忆 note（分页）      |
 | `memory:syncStatus`   | renderer → main | 查询同步任务状态           |
 | `memory:triggerSync`  | renderer → main | 手动触发记忆提取           |
-| `memory:rebuildIndex` | renderer → main | 重建全部索引               |
+| `memory:rebuildIndex` | renderer → main | 当前仅重建 FTS 索引        |
 | `memory:deleteNote`   | renderer → main | 删除记忆 note              |
 | `memory:graphData`    | renderer → main | 获取图谱数据（未来 UI 用） |
+| `memory:stats`        | renderer → main | 获取 note/topic/edge 统计  |
+| `memory:cleanupForConversations` | renderer → main | 按 conversation 清理相关记忆 |
+| `memory:clearAll`     | renderer → main | 清空记忆数据               |
 
 ### 9.2 Preload Bridge
 
@@ -861,10 +925,15 @@ export const memoryApi = {
   topics: (params: MemoryTopicsParams) => ipcRenderer.invoke('memory:topics', params),
   listNotes: (params: { workspaceId: string; limit?: number; offset?: number }) => ipcRenderer.invoke('memory:listNotes', params),
   syncStatus: () => ipcRenderer.invoke('memory:syncStatus'),
-  triggerSync: (params?: { date?: string; conversationIds?: string[] }) => ipcRenderer.invoke('memory:triggerSync', params),
+  triggerSync: (params?: { workspaceId?: string; date?: string; conversationIds?: string[]; force?: boolean }) =>
+    ipcRenderer.invoke('memory:triggerSync', params),
   rebuildIndex: () => ipcRenderer.invoke('memory:rebuildIndex'),
   deleteNote: (noteId: string) => ipcRenderer.invoke('memory:deleteNote', noteId),
-  graphData: (params?: { topicId?: string }) => ipcRenderer.invoke('memory:graphData', params)
+  graphData: (params?: { topicId?: string; workspaceId?: string; includeNotes?: boolean; maxTopics?: number; maxEdges?: number }) =>
+    ipcRenderer.invoke('memory:graphData', params),
+  cleanupForConversations: (params: { conversationIds: string[] }) => ipcRenderer.invoke('memory:cleanupForConversations', params),
+  clearAll: (params?: { workspaceId?: string }) => ipcRenderer.invoke('memory:clearAll', params),
+  stats: (params?: { workspaceId?: string }) => ipcRenderer.invoke('memory:stats', params)
 };
 ```
 
@@ -873,6 +942,8 @@ export const memoryApi = {
 ## 10. 自动注入策略
 
 ### 10.1 何时自动注入记忆
+
+> 截至 2026-04-03，下述“新会话自动预加载重要记忆”仍是目标态，当前实现主要依赖 Agent 在 system prompt 指导下按需调用记忆工具。
 
 ```
 新会话开始
@@ -906,12 +977,14 @@ const MEMORY_SYSTEM_PROMPT_SECTION = `
 - **memorySearchTool**: 搜索过去的对话要点、决策和偏好
 - **memoryGetTool**: 读取记忆的具体段落内容
 - **memoryTopicsTool**: 浏览记忆主题图谱
+- **memorySaveTool**: 在用户要求记住，或出现长期有价值的信息时写入记忆
 
 使用指南：
 1. 当用户提到"之前"、"上次"、"记得"等词语时，主动搜索记忆
 2. 当用户的问题涉及偏好、决定、待办时，搜索记忆以保持一致性
 3. 先用 memorySearchTool 获取摘要，再用 memoryGetTool 读取详情
-4. 不要凭空编造记忆内容，如果没有找到相关记忆，诚实告知
+4. 当用户明确要求记住，或对话中出现稳定偏好/重要决策时，使用 memorySaveTool
+5. 不要凭空编造记忆内容，如果没有找到相关记忆，诚实告知
 `;
 ```
 

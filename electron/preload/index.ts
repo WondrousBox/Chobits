@@ -33,6 +33,7 @@ import { memoryApi } from './apis/memory';
 import { personaApi } from './apis/persona';
 import { shortcutsBridge } from './apis/shortcuts';
 import { statusBridge } from './apis/status';
+import { userProfileApi } from './apis/user-profile';
 import { windowBridge } from './apis/window';
 
 const handles: Record<string, (...arg: any) => any> = {};
@@ -101,6 +102,7 @@ contextBridge.exposeInMainWorld('YUA', {
   annotation: createAnnotationIpcRenderer(ipcRenderer),
   media: mediaIpcRenderer,
   memory: memoryApi,
+  userProfile: userProfileApi,
   events: {
     on: (callback: (payload: AppEventPayload) => void) => {
       const subscription = (_event: any, payload: AppEventPayload): void => callback(payload);

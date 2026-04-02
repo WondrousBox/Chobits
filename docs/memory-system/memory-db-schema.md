@@ -4,6 +4,15 @@
 > 设计原则：Markdown 为事实源，数据库只存结构索引与关系，不承担最终真相。
 > 第一阶段不依赖向量服务，以 FTS5 + 元数据过滤 + 图谱扩展为主检索路径。
 
+## 当前实现状态（2026-04-03）
+
+- 表结构与 FTS5 虚拟表已经在 `electron/main/db/schema.ts` 与 `electron/main/db/index.ts` 中落地。
+- 当前写路径已经稳定写入 `memory_notes`、`memory_sections`、`memory_topics`、`memory_note_keywords`、`memory_sync_jobs` 与 FTS；对话删除联动清理也已实现。
+- 当前提取写路径主要创建 `belongs_to_topic` 边；`related_to_topic`、`related_to_note`、`contains_section` 等关系仍主要停留在 schema 预留层。
+- 下列字段虽然已建模，但当前通常为空或只部分填充：`fileChecksum`、`timeRangeStart` / `timeRangeEnd`、`parentTopicId`、`relatedTopicIds`、`memory_sections.keywords`、`memory_keywords.primaryTopicId`。
+- FTS 的 `body` 字段当前实际写入的是摘要级文本（`note.summary` / `section.summary`），不是完整正文；完整正文仍回到 Markdown 做定点读取。
+- `uq_mem_notes_file_path` 当前是全局 `filePath` 唯一，不按 `workspaceId` 分区。
+
 ---
 
 ## 1. 表清单与职责
@@ -100,6 +109,8 @@ export const memory_notes = sqliteTable(
 export type MemoryNoteRow = InferSelectModel<typeof memory_notes>;
 export type NewMemoryNote = InferInsertModel<typeof memory_notes>;
 ```
+
+> 当前实现说明：`uq_mem_notes_file_path` 是全局唯一索引，不区分 `workspaceId`；提取写路径通常也不会主动回填 `fileChecksum` 与 `timeRange*`。
 
 ### 2.2 memory_sections — 段落索引
 
@@ -311,6 +322,8 @@ export type MemoryKeywordRow = InferSelectModel<typeof memory_keywords>;
 export type NewMemoryKeyword = InferInsertModel<typeof memory_keywords>;
 ```
 
+> 当前实现说明：`primaryTopicId` 已建模并建索引，但当前提取写路径通常不会回填该字段。
+
 ### 2.6 memory_note_keywords — Note ↔ Keyword 关联表
 
 多对多关系。一个 note 有多个关键词，一个关键词出现在多个 note 中。
@@ -441,11 +454,13 @@ CREATE VIRTUAL TABLE IF NOT EXISTS memory_notes_fts USING fts5(
   keywords,          -- 空格分隔的关键词字符串
   aliases,           -- 空格分隔的别名字符串
   entities,          -- 空格分隔的实体名字符串
-  body,              -- note: overview 段正文 | section: 段落正文
+  body,              -- 当前实现写入 note.summary / section.summary；正文仍回到 Markdown 读取
   content='',        -- contentless 模式（正文回到 Markdown 读取）
   tokenize='unicode61 remove_diacritics 2'  -- 支持中英文混合分词
 );
 ```
+
+> 当前实现说明：FTS 可用于 note / section 的摘要级召回；真正的段落正文仍依赖 `memory_sections.lineStart/lineEnd` 回到 Markdown 做 targeted read。
 
 ### 3.2 FTS 使用说明
 
@@ -468,7 +483,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS memory_notes_fts USING fts5(
 | 记忆提取完成（新 note 生成）         | INSERT 该 note + 其所有 section 到 FTS  |
 | 记忆 note 更新（重新提取或用户编辑） | DELETE old entries → INSERT new entries |
 | 记忆 note 删除                       | DELETE from FTS                         |
-| 手动重建索引                         | TRUNCATE FTS → 遍历所有存量 note 重建   |
+| 手动重建索引                         | 重建 FTS 虚拟表 → 遍历所有未删除 note/section 重新写入 |
 
 ---
 

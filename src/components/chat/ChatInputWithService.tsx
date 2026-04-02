@@ -1,4 +1,4 @@
-import { TbFolderCode, TbMask, TbX } from 'react-icons/tb';
+import { TbFolderCode, TbRobot, TbX } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
@@ -93,7 +93,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, ...res
       onSend={handleSend}
       showSaveButton={false}
       footerLeft={
-        <div className="flex items-center gap-2 shrink-0 no-drag">
+        <div className="flex items-center gap-1 shrink-0 no-drag">
           <Select value={agentId} onValueChange={setAgentId}>
             <SelectTrigger className="h-8 max-w-32 rounded-full text-xs text-muted-foreground">
               <SelectValue placeholder="选择模式" />
@@ -132,7 +132,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, ...res
                   className={`h-8 rounded-full text-xs ${characterPersonaEnabled ? 'bg-violet-600 hover:bg-violet-700 text-white' : ''}`}
                   onClick={() => setCharacterPersonaEnabled(!characterPersonaEnabled)}
                 >
-                  <TbMask className="mr-1 h-4 w-4" />
+                  <TbRobot />
                   {characterPersonaEnabled ? '角色已注入' : '注入角色'}
                 </Button>
               </TooltipTrigger>

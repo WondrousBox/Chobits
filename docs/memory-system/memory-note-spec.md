@@ -3,6 +3,14 @@
 > 本文档定义 Chobits 记忆系统中 Memory Note 的文件布局、Frontmatter 规范、正文结构和命名约定。
 > 所有记忆文件以 Markdown 为事实源，数据库只存结构索引，不承担最终真相。
 
+## 当前实现状态（2026-04-03）
+
+- `memory-note-writer.ts` 与 `memory-note-parser.ts` 已实现，当前提取流程会实际生成 daily note，并能解析 section 摘要与行号。
+- 当前自动生成的主要是 `memory/daily/YYYY/MM/YYYY-MM-DD-topic-slug.md`；`YYYY-MM-DD.index.md`、`memory/topics/*.md`、`MEMORY.md` 仍处于设计预留阶段。
+- 同日同 slug 的记忆当前更倾向于复用并增量合并已有 note，不会自动生成 `-2`、`-3` 这类序号后缀文件。
+- 当前 `MemoryExtractionOutput` 已调整为“单个主题”的结构；多主题拆分发生在上游 `TopicCluster[]` 阶段，而不是在这个 JSON 里再包一层 `notes[]`。
+- Frontmatter 规范里的 `timeRange`、`parentTopicId`、`relatedTopicIds` 等字段仍然有效，但当前自动提取路径通常只会填充基础字段。
+
 ---
 
 ## 1. 目录布局
@@ -14,11 +22,11 @@
     │   └── YYYY/
     │       └── MM/
     │           ├── YYYY-MM-DD-topic-slug.md        # 主题 note（核心文件）
-    │           ├── YYYY-MM-DD-topic-slug-2.md      # 同天同主题多轮时的序号后缀
-    │           └── YYYY-MM-DD.index.md             # 当天索引（可选，仅供人工浏览）
-    ├── topics/                         # 主题档案（第二阶段）
+    │           ├── YYYY-MM-DD-topic-slug-2.md      # 规范预留；当前提取流程默认复用/合并同日同 slug note
+    │           └── YYYY-MM-DD.index.md             # 设计预留，当前未自动生成
+    ├── topics/                         # 主题档案（第二阶段，当前未自动生成）
     │   └── topic-slug.md              # 长期稳定的主题汇总
-    └── MEMORY.md                       # 长期人格记忆汇总（第二阶段）
+    └── MEMORY.md                       # 长期人格记忆汇总（第二阶段，当前未自动生成）
 ```
 
 ### 命名规则
@@ -27,7 +35,7 @@
 | ---------- | ------------------------------------------ | ---------------------------------------- |
 | 日期       | `YYYY-MM-DD`                               | `2026-03-26`                             |
 | topic-slug | 小写英文或拼音，连字符分隔，不超过 40 字符 | `ai-agent-memory-system`                 |
-| 序号后缀   | 同天同 slug 时追加 `-2`, `-3`              | `2026-03-26-ai-agent-memory-system-2.md` |
+| 序号后缀   | 规范预留；当前实现默认复用/合并同天同 slug note，不自动追加 `-2`, `-3` | `2026-03-26-ai-agent-memory-system-2.md` |
 | 索引文件   | `YYYY-MM-DD.index.md`                      | `2026-03-26.index.md`                    |
 
 > **slug 生成策略**：由 LLM 在记忆提取时根据主题名生成英文 slug。不要求与 topic label 一一对应，
@@ -371,43 +379,29 @@ mem_{date}_{slug}_{short-hash}
 
 ## 7. 记忆提取时的 LLM 输出要求
 
-当记忆提取 pipeline 从对话中生成 Memory Note 时，LLM 需要输出以下
-结构化 JSON（然后由系统转化为 YAML frontmatter + Markdown 正文）：
+当记忆提取 pipeline 从对话中生成 Memory Note 时，当前 LLM 针对单个主题输出以下
+结构化 JSON（然后由系统转化为 YAML frontmatter + Markdown 正文）。如果一个对话被拆成多个主题，
+拆分动作发生在上游 `TopicCluster[]` 阶段，这里每次只处理一个主题：
 
 ```typescript
 export interface MemoryExtractionOutput {
-  // 一个对话可能拆分为多个主题 note
-  notes: Array<{
-    // 主题信息
-    topicSlug: string; // 英文 slug
-    topics: string[]; // 规范化主题名
-    parentTopicId?: string;
-    relatedTopics?: string[]; // 关联主题名（非 ID，由系统解析为 ID）
-
-    // 关键词与实体
-    keywords: string[];
-    aliases?: string[];
-    entities?: MemoryNoteEntity[];
-
-    // 摘要
-    summary: string;
-
-    // 权重
-    importance: number;
-    stability: number;
-
-    // 正文段落
+  topicLabel: string;
+  topicSlug: string;
+  summary: string;
+  importance: number;
+  stability: number;
+  keywords: string[];
+  aliases?: string[];
+  entities?: MemoryNoteEntity[];
+  relatedTopics?: string[];
+  sections: {
     overview: string;
     keyFacts?: string;
     decisions?: string;
     openLoops?: string;
     evidence?: string;
-    relatedTopicsSection?: string;
-
-    // 消息范围（用于溯源）
-    seqStart: number;
-    seqEnd: number;
-  }>;
+    relatedTopicsDetail?: string;
+  };
 }
 ```
 
