@@ -15,9 +15,9 @@ import type { MemoryChatFn } from './memory-types';
 // ━━ 常量 ━━
 
 /** 正文最大字符数（不含 frontmatter） */
-export const PERSONA_CHAR_BUDGET = 900;
+export const PERSONA_CHAR_BUDGET = 1200;
 /** 最大信息条目 */
-export const PERSONA_ITEM_BUDGET = 24;
+export const PERSONA_ITEM_BUDGET = 30;
 /** 判定器信号阈值 */
 export const PERSONA_SIGNAL_THRESHOLD = 0.62;
 /** Snapshot 最大字数 */
@@ -40,6 +40,7 @@ export const PERSONA_DIMENSION_LIMITS: Record<PersonaDimension, number> = {
   goal: 5,
   personality: 5,
   decision: 3,
+  activity: 4,
   recent: 2
 };
 
@@ -51,12 +52,13 @@ export const PERSONA_SECTIONS: ReadonlyArray<{ heading: string; dimension: Perso
   { heading: 'Goals & Motivation', dimension: 'goal' },
   { heading: 'Personality & Communication', dimension: 'personality' },
   { heading: 'Decision Style & Boundaries', dimension: 'decision' },
+  { heading: 'Current Activities', dimension: 'activity' },
   { heading: 'Recent Shift', dimension: 'recent' }
 ] as const;
 
 // ━━ 核心类型 ━━
 
-export type PersonaDimension = 'basic' | 'preference' | 'goal' | 'personality' | 'decision' | 'recent';
+export type PersonaDimension = 'basic' | 'preference' | 'goal' | 'personality' | 'decision' | 'activity' | 'recent';
 
 export interface PersonaFrontmatter {
   version: number;
@@ -85,7 +87,7 @@ export interface ParsedPersona {
 
 // ━━ 判定器类型 ━━
 
-export type PersonaUpdateReason = 'new_stable_preference' | 'new_goal_or_priority' | 'communication_style_shift' | 'conflict_resolution' | 'insufficient_signal';
+export type PersonaUpdateReason = 'new_stable_preference' | 'new_goal_or_priority' | 'communication_style_shift' | 'conflict_resolution' | 'recent_activity_update' | 'insufficient_signal';
 
 export interface PersonaEvidenceItem {
   conversationId: string;

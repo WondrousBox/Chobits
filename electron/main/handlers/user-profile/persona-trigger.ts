@@ -44,7 +44,7 @@ function adaptChatFn(piChatFn: PiTaskChatFunction): PersonaChatFn {
 // ━━ Executor ━━
 
 async function executePersonaUpdate(job: PersonaQueuedJob, signal: AbortSignal): Promise<PersonaUpdateResult> {
-  const TAG = '[PersonaTrigger:exec]';
+  const TAG = '[PersonaTrigger:exec] ⭐';
 
   const ws = await WorkspacesRepo.getById(job.workspaceId);
   if (!ws?.rootPath) throw new Error(`Workspace ${job.workspaceId} not found`);
@@ -89,7 +89,7 @@ async function executePersonaUpdate(job: PersonaQueuedJob, signal: AbortSignal):
 // ━━ 事件入口 ━━
 
 async function checkAndQueuePersonaUpdate(payload: AgentLoopCompletePayload): Promise<void> {
-  const TAG = '[PersonaTrigger]';
+  const TAG = '[PersonaTrigger] ⭐';
   const { conversationId, persisted, hasToolCalls, agentId, providerId, providerPresetId } = payload;
 
   // 获取 workspace
@@ -128,6 +128,7 @@ async function checkAndQueuePersonaUpdate(payload: AgentLoopCompletePayload): Pr
     try {
       currentPersona = await fs.readFile(path.join(ws.rootPath, 'memory', PERSONA_FILENAME), 'utf-8');
     } catch {
+      console.log(`${TAG} Persona file not found at ${path.join(ws.rootPath, 'memory', PERSONA_FILENAME)}`);
       // 文件不存在
     }
   }
@@ -153,15 +154,25 @@ async function checkAndQueuePersonaUpdate(payload: AgentLoopCompletePayload): Pr
   });
   const chatFn = adaptChatFn(runtime.chatFn);
 
-  const result = await checkPersonaUpdateNeeded(
-    {
-      conversationId,
-      workspaceId,
-      currentPersona,
-      conversationSnippet: snippet
-    },
-    chatFn
-  );
+  // 设置 60 秒超时，避免 LLM 无响应时永久挂起
+  const abortController = new AbortController();
+  const timeout = setTimeout(() => abortController.abort(), 60_000);
+
+  let result;
+  try {
+    result = await checkPersonaUpdateNeeded(
+      {
+        conversationId,
+        workspaceId,
+        currentPersona,
+        conversationSnippet: snippet
+      },
+      chatFn,
+      abortController.signal
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!result.decision.shouldUpdate) {
     console.log(`${TAG} Decision: no update needed (reason=${result.decision.reason}, score=${result.decision.signalScore})`);
@@ -190,9 +201,8 @@ async function checkAndQueuePersonaUpdate(payload: AgentLoopCompletePayload): Pr
 }
 
 // ━━ 初始化 ━━
-
 export function initPersonaTrigger(): void {
-  const TAG = '[PersonaTrigger:init]';
+  const TAG = '[PersonaTrigger:init] ⭐';
 
   // 注册 executor
   personaUpdateQueue.setExecutor(executePersonaUpdate);

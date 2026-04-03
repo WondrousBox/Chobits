@@ -214,7 +214,22 @@ export const spriteEventMessages: Record<string, SpriteEventMessageEntry> = {
   shield: ['护盾启动！🛡️'],
   trail: ['拖尾效果~'],
   impact: ['冲击！💫'],
-  hit: ['命中！']
+  hit: ['命中！'],
+
+  // ── memory 记忆类 ──
+  memoryExtractStart: ['整理记忆中...📝', '让我回忆一下~', '记忆提取开始~'],
+  memoryExtractProgress: (ctx?: { progress?: number }) => {
+    if (ctx?.progress !== undefined) return `记忆整理中... ${Math.round(ctx.progress * 100)}%`;
+    return '记忆整理中...';
+  },
+  memoryExtractComplete: ['小本本记下了！✨', '我记住了~', '又多了解你一点了~📖'],
+  memoryExtractFail: ['记忆出错了...', '等我后面再想想...'],
+
+  // ── persona 用户画像类 ──
+  personaUpdateStart: ['刷新了对你的印象中...🔍', '让我重新认识一下你~'],
+  personaUpdateComplete: ['我感觉更加了解你了~✨', '用户画像更新完毕！', '我更懂你了~'],
+  personaUpdateFail: ['脑袋短路了...', '刚刚开小差了，抱歉~'],
+  personaUpdateSkipped: ['了解了~']
 };
 
 // ============================================================================

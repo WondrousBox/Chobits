@@ -47,22 +47,35 @@ const CHECK_PROMPT = `你是用户画像更新判定器。你的任务不是更�
 2) 本轮新增对话片段（含 conversationId 和 seq）
 
 判定标准：
-- 只有出现"稳定偏好、长期目标、明确沟通风格、决策边界、冲突修正"才应更新
-- 临时情绪、一次性问题、寒暄、无结论讨论不应触发更新
-- 若与现有画像重复，不应触发更新
+- 出现"稳定偏好、长期目标、明确沟通风格、决策边界、冲突修正"应更新
+- 用户提到**近期正在做的事、当前项目、最近的兴趣或关注点**也应更新（放入 activity 维度）
+- 用户透露出的**作息习惯、工作状态、生活近况**也值得记录到 activity 维度
+- 纯寒暄（你好/再见）、一次性无上下文的提问不应触发更新
+- 若与现有画像完全重复，不应触发更新
+
+维度说明：
+- basic: 年龄、职业、技术栈等基本信息
+- preference: 稳定的偏好和品味
+- goal: 长期目标和动力
+- personality: 沟通风格
+- decision: 决策偏好
+- activity: 近期正在做的事、当前项目与关注点（重要！这是高频更新的维度）
+- recent: 近期态度或偏好的转变
 
 输出 JSON：
 {
   "shouldUpdate": true/false,
-  "reason": "new_stable_preference|new_goal_or_priority|communication_style_shift|conflict_resolution|insufficient_signal",
+  "reason": "new_stable_preference|new_goal_or_priority|communication_style_shift|conflict_resolution|recent_activity_update|insufficient_signal",
   "signalScore": 0.0~1.0,
   "evidence": [
     {"conversationId":"...","seqStart":1,"seqEnd":8,"note":"简要证据"}
   ],
   "candidateFacts": [
-    {"dimension":"preference|goal|personality|decision|basic|recent","statement":"...","confidence":0.0~1.0}
+    {"dimension":"preference|goal|personality|decision|basic|activity|recent","statement":"...","confidence":0.0~1.0}
   ]
 }
+
+注意：activity 维度的信号分数应适当放宽（0.4+ 即可），因为这类信息时效性强，及时记录比等待确认更重要。
 
 只输出 JSON，不要解释。`;
 
@@ -130,16 +143,20 @@ export async function checkPersonaUpdateNeeded(input: CheckPersonaInput, chatFn:
 
   const prompt = `${CHECK_PROMPT}\n\n---\n\n${personaSummary}\n\n---\n\n本轮对话片段：\n${input.conversationSnippet}`;
 
-  console.log(`${TAG} Sending check prompt to LLM (${prompt.length} chars)...`);
+  console.log(`${TAG} ⭐ Sending check prompt to LLM (${prompt.length} chars)...`);
+  console.log('⭐⭐⭐⭐⭐', prompt, '⭐⭐⭐⭐⭐');
 
   const response = await chatFn(prompt, signal);
-  console.log(`${TAG} LLM response: ${response.length} chars`);
+  console.log(`${TAG} ⭐ LLM response: ${response.length} chars`);
 
   const decision = parseCheckResponse(response);
 
-  // 应用阈值
-  if (decision.shouldUpdate && decision.signalScore < PERSONA_SIGNAL_THRESHOLD) {
-    console.log(`${TAG} signalScore ${decision.signalScore} < threshold ${PERSONA_SIGNAL_THRESHOLD}, overriding to shouldUpdate=false`);
+  // 应用阈值（activity 类更新使用较低门槛）
+  const isActivityUpdate = decision.reason === 'recent_activity_update' || decision.candidateFacts.some((f: any) => f.dimension === 'activity');
+  const effectiveThreshold = isActivityUpdate ? 0.35 : PERSONA_SIGNAL_THRESHOLD;
+
+  if (decision.shouldUpdate && decision.signalScore < effectiveThreshold) {
+    console.log(`${TAG} ⭐ signalScore ${decision.signalScore} < threshold ${effectiveThreshold} (activity=${isActivityUpdate}), overriding to shouldUpdate=false`);
     decision.shouldUpdate = false;
     decision.reason = 'insufficient_signal';
   }
@@ -149,8 +166,10 @@ export async function checkPersonaUpdateNeeded(input: CheckPersonaInput, chatFn:
     decision.evidence = decision.evidence.slice(0, 3);
   }
 
+  console.log(decision);
+
   console.log(
-    `${TAG} Decision: shouldUpdate=${decision.shouldUpdate}, reason=${decision.reason}, score=${decision.signalScore}, evidence=${decision.evidence.length}, facts=${decision.candidateFacts.length}`
+    `${TAG} ⭐ Decision: shouldUpdate=${decision.shouldUpdate}, reason=${decision.reason}, score=${decision.signalScore}, evidence=${decision.evidence.length}, facts=${decision.candidateFacts.length}`
   );
 
   return { decision };

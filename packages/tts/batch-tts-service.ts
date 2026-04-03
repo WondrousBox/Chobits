@@ -16,7 +16,7 @@ import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs-extra';
 import * as path from 'path';
 
-import { silenceAudio } from './common';
+import { silenceAudio, stripEmoji } from './common';
 import EdgeTTS, { type EdgeTTSOptions } from './edge';
 import type { BaseTTS } from './types';
 
@@ -776,7 +776,7 @@ export const BatchTTSService = {
                 async () => {
                   const synthesizeResult = await tts.textToSpeech({
                     ...config,
-                    text: item.text,
+                    text: stripEmoji(item.text),
                     fetchOptions: httpProxy ? { agent: httpProxy } : undefined
                   } as EdgeTTSOptions);
 

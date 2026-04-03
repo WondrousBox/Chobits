@@ -23,6 +23,7 @@ import type { memoryApi } from '../electron/preload/apis/memory';
 import type { PersonaApiBridgeType } from '../electron/preload/apis/persona';
 import type { ShortcutsBridgeType } from '../electron/preload/apis/shortcuts';
 import type { StatusBridgeType } from '../electron/preload/apis/status';
+import type { userProfileApi } from '../electron/preload/apis/user-profile';
 import type { WindowBridgeType } from '../electron/preload/apis/window';
 import type { AIApi } from '../packages/ai/types';
 import type { AppEventPayload } from '../packages/event/events';
@@ -74,6 +75,7 @@ declare global {
       annotation: AnnotationIpcRenderer;
       media: MediaIpcType;
       memory: typeof memoryApi;
+      userProfile: typeof userProfileApi;
       events: {
         on: (callback: (payload: AppEventPayload) => void) => () => void;
       };

@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React, { useEffect, useState } from 'react';
-import { TbAdjustments, TbBook, TbCpu, TbFolderOpen, TbKeyboard, TbMessage2, TbNetwork, TbPlug } from 'react-icons/tb';
+import { TbAdjustments, TbBook, TbCpu, TbFolderOpen, TbKeyboard, TbMessage2, TbNetwork, TbPlug, TbUser } from 'react-icons/tb';
 
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
 
@@ -11,10 +11,11 @@ import PreferencesSettings from './components/PreferencesSettings';
 import PromptSetting from './components/PromptSetting';
 import ProxySettings from './components/ProxySettings';
 import ShortcutsSettings from './components/ShortcutsSettings';
+import UserProfileSettings from './components/UserProfileSettings';
 import Workspace from './components/Workspace';
 import PluginPage from './PluginPage';
 
-export type DefaultSettingsCategory = 'preferences' | 'workspace' | 'ai' | 'prompt' | 'glossary' | 'plugins' | 'shortcuts' | 'proxy';
+export type DefaultSettingsCategory = 'preferences' | 'workspace' | 'ai' | 'user-profile' | 'prompt' | 'glossary' | 'plugins' | 'shortcuts' | 'proxy';
 
 export type SettingsCategory = DefaultSettingsCategory | (string & {});
 
@@ -45,6 +46,12 @@ const defaultCategories: SettingsCategoryDef[] = [
     label: '对话设置',
     icon: TbMessage2,
     description: 'AI 提供商、API Key、对话参数'
+  },
+  {
+    id: 'user-profile',
+    label: '用户画像',
+    icon: TbUser,
+    description: '查看 AI 自动提取的用户偏好画像'
   },
   {
     id: 'prompt',
@@ -136,6 +143,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = []
         return <PluginPage />;
       case 'ai':
         return <AiSettings initialProviderId={initialAiProviderId || undefined} />;
+      case 'user-profile':
+        return <UserProfileSettings />;
       case 'prompt':
         return <PromptSetting />;
       case 'glossary':

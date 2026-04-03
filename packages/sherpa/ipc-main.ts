@@ -3,6 +3,7 @@ import * as fscb from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
+import { stripEmoji } from '@packages/tts/common';
 import { app, BrowserWindow, ipcMain } from 'electron';
 
 import { ResourcesRepo, WorkspacesRepo } from '../../electron/main/db/repositories';
@@ -527,7 +528,7 @@ export function initSherpaHandlers(): void {
               } else {
                 // 字幕文件为空，删除它
                 console.log('[Sherpa] 字幕文件为空，删除它');
-                await fs.unlink(stream.subtitleFilePath).catch(() => {});
+                await fs.unlink(stream.subtitleFilePath).catch(() => { });
               }
             } catch (error) {
               console.log('[Sherpa] 字幕文件不存在或无法访问:', error);
@@ -885,7 +886,7 @@ export function initSherpaHandlers(): void {
       try {
         TTS_generateSpeech({
           uuid: 'tts-stream',
-          text: data.text,
+          text: stripEmoji(data.text),
           sid: data.sid,
           speed: data.speed,
           outputPath: data.outputPath,
@@ -941,7 +942,7 @@ export function initSherpaHandlers(): void {
 
             TTS_generateSpeech({
               uuid: `tts-file-${data.requestId}`,
-              text: data.text,
+              text: stripEmoji(data.text),
               sid: data.sid,
               speed: data.speed,
               outputPath: data.outputPath,
