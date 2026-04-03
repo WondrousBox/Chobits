@@ -91,7 +91,7 @@ packages/                   # Shared packages (monorepo-style)
 - Preload bridge: `electron/preload/apis/*.ts`
 - Renderer access: `window.YUA.domain.action(payload)`
 
-**Handler domains** (25+): `resource`, `ai`, `ffmpeg`, `folder`, `workspace`, `file`, `system`, `preferences`, `proxy`, `theme`, `shortcuts`, `sprite`, `status`, `trash`, `ytdlp`, `rss`, `automation`, `downloader`, `embedding`, `clip`, `annotation`, `spleeter`, `window`
+**Handler domains** (25+): `resource`, `ai`, `ffmpeg`, `folder`, `workspace`, `file`, `system`, `preferences`, `proxy`, `theme`, `shortcuts`, `sprite`, `status`, `trash`, `ytdlp`, `rss`, `automation`, `downloader`, `embedding`, `clip`, `annotation`, `spleeter`, `window`, `memory`
 
 ### Database Architecture
 
@@ -146,6 +146,29 @@ Only files in allowed roots (workspace resources, app resources) are accessible.
 - **Chat service**: `packages/ai/chat-service.ts` — conversation management, streaming, abort support
 - **Instance-based selection**: Per-conversation provider configuration with fallback
 - **API key storage**: System keychain via `keytar` with JSON fallback; secrets never exposed to renderer
+- **System prompt enrichment**: `packages/ai/system-prompt-enricher.ts` — plugin-style registry for external modules to inject system prompt segments (e.g., persona, memory auto-recall)
+
+### Memory System
+
+**Location**: `packages/ai/services/memory-*.ts` (core services), `electron/main/handlers/memory/` (IPC + workers)
+
+- **Extraction pipeline**: Conversations → LLM topic splitting → structured extraction → Markdown notes (`memory/daily/YYYY/MM/`)
+- **Retrieval pipeline**: 6-stage pipeline (Query Analysis → Topic Recall → Note Recall → Section Recall → Targeted Read → Context Assembly)
+- **Auto-recall**: Automatically retrieves relevant memories before each conversation turn via `SystemPromptEnricher`. Uses AI to extract search keywords from user message, then runs the structural retrieval pipeline. Results injected into system prompt as `<recalled_memories>` block.
+- **Agent tools**: `memorySearchTool`, `memoryGetTool`, `memoryTopicsTool`, `memorySaveTool` — for explicit memory operations by the AI agent
+- **Storage**: SQLite tables (`memory_notes`, `memory_topics`, `memory_sections`, `memory_edges`, `memory_keywords`) + Markdown files on disk + FTS5 full-text index
+
+**IPC prefix**: `memory:*`
+
+**Key files**:
+
+- `packages/ai/services/memory-auto-recall.ts` — Auto-recall service (triage, keyword extraction, search, caching)
+- `electron/main/handlers/memory/memory-auto-recall-enricher.ts` — Enricher bridge (registers with SystemPromptEnricher, provides DB deps)
+- `packages/ai/services/memory-retrieval-service.ts` — 6-stage retrieval pipeline
+- `packages/ai/services/memory-extraction-service.ts` — LLM-based memory extraction from conversations
+- `electron/main/handlers/memory/extraction-worker.ts` — Background extraction worker
+
+**Design docs**: `docs/memory-system/`
 
 ### Workflow System
 
@@ -415,11 +438,11 @@ Tracks (subtitle-edit, TTS, media tracks) are stored in the project folder's `da
 
 **Track types:**
 
-| Track Type        | ID Prefix    | Description                                    |
-| ----------------- | ------------ | ---------------------------------------------- |
-| Subtitle Edit     | `subtitle-`  | Manual subtitle editing/arrangement tracks     |
-| TTS Track         | `tts-`       | Independent TTS tracks with voice config       |
-| Media Track       | `media-`     | Media overlay tracks (video/audio layers)      |
+| Track Type    | ID Prefix   | Description                                |
+| ------------- | ----------- | ------------------------------------------ |
+| Subtitle Edit | `subtitle-` | Manual subtitle editing/arrangement tracks |
+| TTS Track     | `tts-`      | Independent TTS tracks with voice config   |
+| Media Track   | `media-`    | Media overlay tracks (video/audio layers)  |
 
 **How it works:**
 
@@ -431,23 +454,24 @@ Tracks (subtitle-edit, TTS, media tracks) are stored in the project folder's `da
 
 **IPC API for tracks** (prefix `resource:`):
 
-| Method                              | Description                                           |
-| ----------------------------------- | ----------------------------------------------------- |
-| `resource:createSubtitleEditTrack`  | Create a subtitle edit track                          |
-| `resource:getSubtitleEditTracks`    | List all subtitle edit tracks for a resource          |
-| `resource:updateSubtitleEditTrack`  | Update subtitle-edit track segments                   |
-| `resource:deleteSubtitleEditTrack`  | Delete a subtitle edit track                          |
-| `resource:deleteTranslation`        | Delete a translation file from project folder         |
-| `resource:createTTSTrack`           | Create an independent TTS track                       |
-| `resource:getTTSTracks`             | List all TTS tracks for a resource                    |
-| `resource:updateTTSTrack`           | Update TTS track configuration                        |
-| `resource:deleteTTSTrack`           | Delete a TTS track (config + audio files)             |
-| `resource:createMediaTrack`         | Create a media overlay track                          |
-| `resource:getMediaTracks`           | List all media tracks for a resource                  |
-| `resource:updateMediaTrack`         | Update media track configuration                      |
-| `resource:deleteMediaTrack`         | Delete a media track                                  |
+| Method                             | Description                                   |
+| ---------------------------------- | --------------------------------------------- |
+| `resource:createSubtitleEditTrack` | Create a subtitle edit track                  |
+| `resource:getSubtitleEditTracks`   | List all subtitle edit tracks for a resource  |
+| `resource:updateSubtitleEditTrack` | Update subtitle-edit track segments           |
+| `resource:deleteSubtitleEditTrack` | Delete a subtitle edit track                  |
+| `resource:deleteTranslation`       | Delete a translation file from project folder |
+| `resource:createTTSTrack`          | Create an independent TTS track               |
+| `resource:getTTSTracks`            | List all TTS tracks for a resource            |
+| `resource:updateTTSTrack`          | Update TTS track configuration                |
+| `resource:deleteTTSTrack`          | Delete a TTS track (config + audio files)     |
+| `resource:createMediaTrack`        | Create a media overlay track                  |
+| `resource:getMediaTracks`          | List all media tracks for a resource          |
+| `resource:updateMediaTrack`        | Update media track configuration              |
+| `resource:deleteMediaTrack`        | Delete a media track                          |
 
 **Important:** Tracks do NOT create database resource records. They exist only as files in the project folder. This means:
+
 - Tracks don't appear in resource lists or search
 - Tracks don't have cascade delete issues with parent resources
 - Tracks are automatically cleaned up when parent resource's project folder is deleted
@@ -460,13 +484,13 @@ Annotations (highlights, notes, vocabulary) are stored in the project folder's `
 
 **Annotation types:**
 
-| Type          | Color                        | Description                              |
-| ------------- | ---------------------------- | ---------------------------------------- |
-| `highlight`   | Yellow `hsl(48, 95%, 55%)`   | Text highlighting                         |
-| `note`        | Blue `hsl(210, 80%, 60%)`    | General notes                             |
-| `vocabulary`  | Green `hsl(150, 70%, 50%)`   | Vocabulary/word lists                     |
-| `comment`     | Purple `hsl(280, 70%, 60%)`  | Comments                                  |
-| `custom`      | Orange `hsl(30, 80%, 55%)`   | Custom annotations                        |
+| Type         | Color                       | Description           |
+| ------------ | --------------------------- | --------------------- |
+| `highlight`  | Yellow `hsl(48, 95%, 55%)`  | Text highlighting     |
+| `note`       | Blue `hsl(210, 80%, 60%)`   | General notes         |
+| `vocabulary` | Green `hsl(150, 70%, 50%)`  | Vocabulary/word lists |
+| `comment`    | Purple `hsl(280, 70%, 60%)` | Comments              |
+| `custom`     | Orange `hsl(30, 80%, 55%)`  | Custom annotations    |
 
 **How it works:**
 
@@ -477,11 +501,11 @@ Annotations (highlights, notes, vocabulary) are stored in the project folder's `
 
 **IPC API for annotations** (prefix `annotation:`):
 
-| Method                 | Description                                    |
-| ---------------------- | ---------------------------------------------- |
-| `annotation:load`      | Load annotation data for a resource            |
-| `annotation:save`      | Save annotation data for a resource            |
-| `annotation:delete`    | Delete annotation data file                    |
+| Method              | Description                         |
+| ------------------- | ----------------------------------- |
+| `annotation:load`   | Load annotation data for a resource |
+| `annotation:save`   | Save annotation data for a resource |
+| `annotation:delete` | Delete annotation data file         |
 
 ### Implementation
 
@@ -621,6 +645,7 @@ DEBUG_IPC=1 pnpm dev
 - `packages/ai/ai-module-design.md` - AI system design
 - `packages/workflow/README.md` - Workflow system documentation
 - `resources/providers/README.md` - Provider icon assets
+- `docs/memory-system/` - Memory system design documents (retrieval pipeline, extraction, note spec)
 
 ## Documentation Maintenance Rules
 

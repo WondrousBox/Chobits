@@ -1,6 +1,7 @@
 /**
  * Memory System IPC Handlers
  * 注册 memory:* IPC channels，连接 retrieval service + extraction queue 到具体 DB repositories。
+ * 同时注册 memory-auto-recall 系统提示词 enricher，在每轮对话前自动检索相关记忆。
  */
 
 import { ipcMain } from 'electron';
@@ -11,6 +12,7 @@ import { MemoryEdgeRepo, MemoryFTSRepo, MemoryKeywordRepo, MemoryNoteKeywordRepo
 import { WorkspacesRepo } from '../../db/repositories';
 import { memoryExtractionQueue } from './extraction-queue';
 import { initMemoryExtractionWorker } from './extraction-worker';
+import { initMemoryAutoRecallEnricher } from './memory-auto-recall-enricher';
 import { cleanupMemoryForConversations, clearAllMemory } from './memory-cleanup';
 
 // ━━ DB Deps Adapter ━━
@@ -300,6 +302,22 @@ export function initMemoryHandlers(): void {
 
   // 初始化提取 worker（注册 executor + 事件监听）
   initMemoryExtractionWorker();
+
+  // 注册自动记忆召回 enricher（在每轮对话 system prompt 构建阶段自动注入相关记忆）
+  initMemoryAutoRecallEnricher(db);
+
+  // ━━ Auto-Recall Management ━━
+
+  ipcMain.handle('memory:clearRecallCache', async (_event, conversationId?: string) => {
+    try {
+      const { clearRecallCache } = await import('../../../../packages/ai/services/memory-auto-recall');
+      clearRecallCache(conversationId);
+      return { success: true };
+    } catch (e: any) {
+      console.error('[Memory] clearRecallCache failed:', e);
+      return { success: false, error: e?.message };
+    }
+  });
 
   console.log('[Memory] IPC handlers initialized');
 }

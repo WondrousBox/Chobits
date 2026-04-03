@@ -24,5 +24,7 @@ export const memoryApi = {
 
   clearAll: (params?: { workspaceId?: string }) => ipcRenderer.invoke('memory:clearAll', params),
 
-  stats: (params?: { workspaceId?: string }) => ipcRenderer.invoke('memory:stats', params)
+  stats: (params?: { workspaceId?: string }) => ipcRenderer.invoke('memory:stats', params),
+
+  clearRecallCache: (conversationId?: string) => ipcRenderer.invoke('memory:clearRecallCache', conversationId)
 };
