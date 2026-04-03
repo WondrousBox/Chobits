@@ -6,7 +6,7 @@ import type { AgentSession } from '@mariozechner/pi-coding-agent';
 
 import type { ResolvedPiRequest } from './contracts';
 import { createPiSessionToolContext, type PiSessionToolContext } from './tool-context';
-import { createPiCustomTools } from './tools';
+import { createPiCustomTools, listPiReadyToolIds } from './tools';
 
 type PiModel = import('@mariozechner/pi-ai').Model<any>;
 type PiAgentThinkingLevel = import('@mariozechner/pi-agent-core').ThinkingLevel;
@@ -125,7 +125,16 @@ export class PiSessionFactory {
     const authStorage = AuthStorage.inMemory();
     seedRuntimeApiKeys(authStorage, options.resolved, options.model);
     const toolContext = createPiSessionToolContext(options.resolved);
-    const customTools = createPiCustomTools(options.resolved.enabledToolIds, toolContext);
+
+    // Register ALL tools into the session registry (so they can be dynamically activated later)
+    const allToolIds = listPiReadyToolIds();
+    const allTools = createPiCustomTools(allToolIds, toolContext);
+
+    // Determine initial active tools based on injection mode
+    const injectionMode = options.resolved.profile.toolInjectionMode ?? 'dynamic';
+    const initialActiveNames = injectionMode === 'all' ? allTools.map((t) => t.name) : createPiCustomTools(options.resolved.enabledToolIds, toolContext).map((t) => t.name);
+
+    console.log('[PiSession] mode:', injectionMode, '| registered:', allTools.length, 'tools, initially active:', initialActiveNames.length);
 
     const modelRegistry = new ModelRegistry(authStorage, '');
     const settingsManager = SettingsManager.inMemory({
@@ -150,8 +159,9 @@ export class PiSessionFactory {
 
     const { session } = await (createAgentSession as any)({
       authStorage,
-      customTools,
+      customTools: allTools,
       cwd,
+      initialActiveToolNames: initialActiveNames,
       model: options.model,
       modelRegistry,
       resourceLoader,
@@ -160,6 +170,34 @@ export class PiSessionFactory {
       thinkingLevel: options.thinkingLevel || 'off',
       tools: []
     });
+
+    // PATCH: pi-agent-core's runLoop captures context.tools (array reference) once at the start.
+    // Agent.setTools() replaces the reference (this._state.tools = newArray), so tools activated
+    // mid-loop via toolbox never appear in the LLM's tools parameter until the next prompt() call.
+    // Fix: mutate the array IN-PLACE so the existing reference sees the new tools immediately.
+    const agentInner = (session as any).agent;
+    if (agentInner && typeof agentInner.setTools === 'function') {
+      agentInner.setTools = function (t: any[]) {
+        const arr = this._state.tools;
+        arr.length = 0;
+        arr.push(...t);
+      };
+    }
+
+    // WORKAROUND: pi-coding-agent's constructor calls _buildRuntime with
+    // includeAllExtensionTools: true, which appends ALL customTools to the
+    // active set — defeating initialActiveToolNames. Force-reset here.
+    // In 'all' mode this is a no-op since all tools are already intended to be active.
+    session.setActiveToolsByName(initialActiveNames);
+
+    console.log('[PiSession] active tools after reset:', session.getActiveToolNames().length);
+
+    // Wire session into toolContext so toolbox can dynamically activate/deactivate tools
+    toolContext.session = {
+      getActiveToolNames: () => session.getActiveToolNames(),
+      setActiveToolsByName: (names: string[]) => session.setActiveToolsByName(names),
+      getAllTools: () => session.getAllTools()
+    };
 
     return {
       dispose: () => {

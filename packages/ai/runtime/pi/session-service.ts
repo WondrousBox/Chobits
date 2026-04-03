@@ -500,7 +500,9 @@ export class PiSessionService {
 
   async chatStream(req: ChatRequest, emit: (event: StreamEvent) => void, signal?: AbortSignal): Promise<void> {
     const preview = await this.preview(req);
-    const legacy = createLegacyStreamEmitter(emit);
+    const legacy = createLegacyStreamEmitter(emit, {
+      characterPersonaEnabled: !!preview.resolved.request.extras?.characterPersonaEnabled
+    });
 
     legacy.connected();
 
@@ -557,6 +559,8 @@ export class PiSessionService {
       });
 
       if (sessionPrompt) {
+        console.log(preview.resolved);
+
         const sessionResult = await this.chatStreamWithCodingSession(preview.resolved, model, context, legacy, signal);
 
         if (sessionResult.usedSession) {
@@ -697,6 +701,22 @@ export class PiSessionService {
 
     try {
       session.agent.replaceMessages(promptState.history as any);
+
+      // ━━ Debug: dump full prompt context before sending to LLM ━━
+      console.log('\n[PiSession:DEBUG] ═══════════════ FULL PROMPT TO LLM ═══════════════');
+      console.log('[PiSession:DEBUG] System Prompt (%d chars):\n%s', session.systemPrompt.length, session.systemPrompt);
+      console.log('[PiSession:DEBUG] ─── Active Tools (%d) ───', session.getActiveToolNames().length);
+      for (const tool of session.getAllTools().filter((t) => session.getActiveToolNames().includes(t.name))) {
+        console.log('[PiSession:DEBUG]   • %s: %s [params: %s]', tool.name, tool.description?.slice(0, 80) || '(no desc)', JSON.stringify(Object.keys(tool.parameters?.properties || {})));
+      }
+      console.log('[PiSession:DEBUG] ─── Messages (%d) ───', promptState.history.length + 1);
+      for (const msg of promptState.history) {
+        const text = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+        console.log('[PiSession:DEBUG]   [%s] %s', msg.role, text.slice(0, 200));
+      }
+      console.log('[PiSession:DEBUG]   [user] %s', typeof promptState.prompt === 'string' ? promptState.prompt.slice(0, 200) : JSON.stringify(promptState.prompt).slice(0, 200));
+      console.log('[PiSession:DEBUG] ═══════════════════════════════════════════════════\n');
+
       await session.agent.prompt(promptState.prompt);
 
       if (!terminalEmitted) {

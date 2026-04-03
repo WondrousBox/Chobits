@@ -83,7 +83,7 @@ Renderer（示例约定，实际路径视实现为准）：
 
 - `delta`：`{ type: 'delta'; data: { text?: string; toolCall?: any } }`
 - `message_completed`：`{ type: 'message_completed'; data: { message: ChatMessage } }`
-- `tool_call`：`{ type: 'tool_call'; data: { name: string; args: any; callId: string } }`
+- `tool_call`：`{ type: 'tool_call'; data: { name: string; args: any; callId: string; label?: string } }`
 - `tool_result`：`{ type: 'tool_result'; data: { callId: string; result: any } }`
 - `metadata`：`{ type: 'metadata'; data: Record<string, any> }`
 - `error`：`{ type: 'error'; data: { message: string; code?: string; cause?: any } }`

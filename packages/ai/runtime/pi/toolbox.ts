@@ -33,100 +33,6 @@ export interface ToolboxIndex {
 // ━━ Content (loaded from toolbox.md via Vite raw import) ━━
 
 import TOOLBOX_CONTENT from './toolbox.md?raw';
-// 编辑 toolbox.md 后，运行 `node -e "console.log(require('fs').readFileSync('packages/ai/runtime/pi/toolbox.md','utf8'))"` 查看内容
-// 然后更新下面的常量。未来可用 Vite raw import 自动化。
-
-// description: '
-// **关于推送资源卡片的工作流程**：
-// 当用户想要查看资源、询问有没有某个资源、或者你找到了用户需要的资源时：
-// 1. 先使用 resourceQueryTool 查询资源（获取 resourceId 和资源信息）
-// 2. 使用 pushCardTool 推送资源卡片到聊天窗口，让用户可以直接点击查看
-// 3. 推送卡片时，可以附带简短的文字说明（text 参数）
-
-// pushCardTool 使用示例：
-// - 推送数据库中的资源：pushCardTool({ type: 'video', resourceId: 'xxx', text: '这是你想要找的视频' })
-// - 推送临时内容：pushCardTool({ type: 'link', data: { id: 'temp', title: '示例', url: 'https://...' }, text: '推荐链接' })
-
-// **关于翻译功能的工作流程**：
-// 当用户需要翻译字幕时，请按照以下步骤操作：
-// 1. 使用 resourceQueryTool 查找要翻译的字幕文件（获取 resourceId）
-// 2. 直接使用 translationTool 执行翻译（只需传入 resourceId 和 targetLanguage）
-// 3. 翻译会在后台异步进行，完成后会通知用户
-
-// **关于总结功能的工作流程**：
-// 当用户需要总结字幕或文本内容时，请按照以下步骤操作：
-// 1. 使用 resourceQueryTool 查找要总结的字幕文件（获取 resourceId）
-// 2. 直接使用 summaryTool 执行总结（只需传入 resourceId 和 targetLanguage）
-// 3. 总结会在后台异步进行，完成后会通知用户
-
-// **关于 YouTube 下载功能的工作流程**：
-// 当用户提供 YouTube 链接并要求下载时，请按照以下步骤操作：
-// 1. 识别用户消息中的 YouTube 链接（youtube.com 或 youtu.be）
-// 2. 使用 youtubeDownloadTool 下载视频（传入 url 和可选的 quality、filename 等）
-// 3. 下载任务启动后，告知用户下载已开始，并说明可以在下载管理器中查看进度
-// 4. **友情提示**：如果返回了 channelInfo，建议用户订阅该频道："如果你喜欢这个频道，我可以帮你订阅它，这样就能自动获取最新视频了。想要订阅吗？"
-
-// **关于 YouTube 订阅功能的工作流程**：
-// 当用户要求订阅 YouTube 频道时，请按照以下步骤操作：
-// 1. 使用 youtubeSubscribeTool 订阅频道（传入 channelIdOrUrl）
-// 2. 可选询问用户是否需要自动下载新视频（autoDownload 参数）
-// 3. 订阅成功后，告知用户订阅信息（频道名称、视频数量等）
-// 4. 如果有 latestVideos，可以向用户展示最新的几个视频
-
-// **重要提示**：
-// - 当用户询问资源或想要查看资源时，务必使用 pushCardTool 推送资源卡片
-// - 翻译和总结工具只需要 resourceId，会自动加载字幕内容，无需先调用 readSubtitleTool
-// - readSubtitleTool 主要用于预览字幕内容，翻译/总结前不是必须调用的
-// - YouTube 下载和订阅工具可以直接调用，不需要先查询资源
-// - 下载任务是异步的，立即返回不代表下载完成
-// - 订阅后的视频可以在资源库的"订阅"标签中查看
-// - 如果用户没有指定目标语言，可以询问用户想要翻译/总结成什么语言
-
-// 请根据用户的需求自主选择合适的工具来完成任务。
-// 如果不需要使用工具，直接回答用户的问题即可。
-// 回答时请使用中文，保持友好和专业。
-
-// ## 长期记忆
-
-// 你有访问用户长期记忆的能力。可用以下工具：
-// - **memorySearchTool**: 搜索过去的对话要点、决策和偏好
-// - **memoryGetTool**: 读取记忆的具体段落内容
-// - **memoryTopicsTool**: 浏览记忆主题图谱
-// - **memorySaveTool**: 将重要信息保存到长期记忆
-
-// ### 记忆检索指南：
-// 1. 当用户提到"之前"、"上次"、"记得"、"我们聊过"、"你还记得吗"等词语时，**必须主动调用 memorySearchTool 搜索记忆**，不要直接说没有记忆
-// 2. 当用户询问聊天历史、之前的对话内容时，使用 memorySearchTool 搜索，如果没有具体关键词，可以用 memoryTopicsTool 浏览所有主题
-// 3. 当用户的问题涉及偏好、决定、待办时，搜索记忆以保持一致性
-// 4. 先用 memorySearchTool 获取摘要，需要详情时再用 memoryGetTool 读取
-// 5. 不要凭空编造记忆内容，如果搜索后确实没有找到相关记忆，诚实告知
-
-// ### 自主保存记忆指南：
-// 你需要**主动判断对话中是否出现了值得长期记住的内容**，并自动调用 memorySaveTool 保存。不要等用户说"帮我记住"才保存。
-
-// **应当自动保存的内容**（满足任一即可）：
-// - 用户明确表达的**个人偏好**（如喜好、习惯、工作方式、技术栈偏好等）
-// - 用户做出的**重要决策或结论**（如项目方案选型、架构决定、设计原则等）
-// - 用户分享的**关键个人信息**（如项目背景、团队情况、工作职责等）
-// - 对话中产生的**重要待办事项或计划**（如下一步要做什么、里程碑等）
-// - 用户明确提出的**需求或目标**（如产品需求、功能期望、长期计划等）
-// - 经过深入讨论后达成的**技术方案或解决方案**
-// - 用户说"记住"、"帮我记一下"、"保存这个"时（显式请求）
-
-// **不应自动保存的内容**：
-// - 临时性的闲聊、问候、简单问答
-// - 通用知识问答（用户没有分享个人信息）
-// - 纯粹的工具操作指令（如"帮我翻译这个字幕"）
-// - 已经在之前的记忆中保存过的重复内容
-
-// **保存时的注意事项**：
-// - 保存时选择一个简洁准确的主题标签（topic），方便日后检索
-// - 内容要提炼核心要点，不要逐字记录对话原文
-// - 设置合理的 importance（一般偏好 0.6，重要决策 0.8，关键规划 0.9）
-// - 提取足够的 keywords 以便检索（至少 3 个）
-// - 保存后简短告知用户"我已经记住了这个信息"，不需要长篇说明
-
-// **重要**：在回答"我们聊过什么"这类问题前，一定要先调用工具搜索，不能直接假设没有记忆。`,
 
 // ━━ Parser ━━
 
@@ -231,53 +137,228 @@ export function resetToolboxCache(): void {
   cachedIndex = null;
 }
 
+// ━━ Multilingual Search Helpers ━━
+
+/** Bidirectional synonym table for cross-language matching */
+const SYNONYM_TABLE: Record<string, string[]> = {
+  翻译: ['translate', 'translation'],
+  translate: ['翻译'],
+  translation: ['翻译'],
+  下载: ['download'],
+  download: ['下载'],
+  字幕: ['subtitle', 'caption', 'srt'],
+  subtitle: ['字幕'],
+  caption: ['字幕'],
+  总结: ['summarize', 'summary', '概括', '摘要'],
+  summarize: ['总结', '摘要'],
+  summary: ['总结', '摘要'],
+  查找: ['search', 'find', 'query', '查询', '搜索'],
+  查询: ['search', 'find', 'query', '查找', '搜索'],
+  搜索: ['search', 'find', '查找', '查询'],
+  search: ['查找', '查询', '搜索'],
+  find: ['查找', '查询'],
+  视频: ['video'],
+  video: ['视频'],
+  音频: ['audio'],
+  audio: ['音频'],
+  记忆: ['memory', '记住'],
+  memory: ['记忆', '记住'],
+  订阅: ['subscribe', 'subscription', '关注'],
+  subscribe: ['订阅'],
+  subscription: ['订阅'],
+  工作流: ['workflow'],
+  workflow: ['工作流'],
+  转写: ['transcribe', 'transcription'],
+  transcribe: ['转写'],
+  transcription: ['转写'],
+  ocr: ['文字识别'],
+  文字识别: ['ocr'],
+  资源: ['resource'],
+  resource: ['资源'],
+  记住: ['remember', 'save', '保存', '记忆'],
+  remember: ['记住', '记忆']
+};
+
+/**
+ * Tokenize a mixed CJK+Latin query into meaningful search terms.
+ *
+ * "翻译字幕"      → ["翻译", "字幕"]     (known CJK compounds)
+ * "download video" → ["download", "video"]
+ * "翻译subtitle"  → ["翻译", "subtitle"]
+ */
+function tokenizeQuery(text: string): string[] {
+  const result: string[] = [];
+  // Split by whitespace and common delimiters first
+  const parts = text.split(/[\s,，、;；:：]+/).filter(Boolean);
+  for (const part of parts) {
+    // Split CJK runs from Latin runs within the same token
+    const segments = part.match(/[\u4e00-\u9fff\u3400-\u4dbf]+|[a-zA-Z0-9_-]+/g);
+    if (segments) {
+      for (const seg of segments) {
+        if (/[\u4e00-\u9fff]/.test(seg)) {
+          // For CJK: try to match known synonyms as whole tokens first,
+          // then fall back to bigrams for unknown compounds
+          const cjkTokens = splitCJKByKnownTerms(seg);
+          result.push(...cjkTokens);
+        } else {
+          result.push(seg);
+        }
+      }
+    }
+  }
+  return result.filter((t) => t.length > 0).map((t) => t.toLowerCase());
+}
+
+/**
+ * Split a CJK string by matching known synonym/trigger terms first,
+ * then emit remaining characters as individual tokens.
+ *
+ * "翻译字幕" → ["翻译", "字幕"] (both are known terms)
+ * "看看字幕" → ["看看", "字幕"] (bigram fallback for "看看")
+ */
+function splitCJKByKnownTerms(text: string): string[] {
+  const knownTerms = Object.keys(SYNONYM_TABLE).filter((k) => /[\u4e00-\u9fff]/.test(k));
+  // Sort by length desc for greedy matching
+  knownTerms.sort((a, b) => b.length - a.length);
+
+  const tokens: string[] = [];
+  let remaining = text;
+
+  while (remaining.length > 0) {
+    let matched = false;
+    for (const term of knownTerms) {
+      if (remaining.startsWith(term)) {
+        tokens.push(term);
+        remaining = remaining.slice(term.length);
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      // Emit bigrams for unknown CJK segments, or single char if only 1 left
+      if (remaining.length >= 2) {
+        tokens.push(remaining.slice(0, 2));
+        remaining = remaining.slice(1); // sliding window
+      } else {
+        tokens.push(remaining);
+        remaining = '';
+      }
+    }
+  }
+  return tokens;
+}
+
+/** Expand tokens with synonyms for cross-language matching */
+function expandWithSynonyms(tokens: string[]): string[] {
+  const expanded = new Set(tokens);
+  for (const token of tokens) {
+    const syns = SYNONYM_TABLE[token];
+    if (syns) {
+      for (const syn of syns) {
+        expanded.add(syn.toLowerCase());
+      }
+    }
+  }
+  return Array.from(expanded);
+}
+
+/**
+ * Parse camelCase tool names into searchable parts.
+ * "resourceQueryTool" → ["resource", "query", "tool"]
+ */
+function parseToolNameParts(name: string): string[] {
+  return name
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .toLowerCase()
+    .split(/[\s_-]+/)
+    .filter(Boolean);
+}
+
 // ━━ Search ━━
 
 /**
  * 根据查询匹配相关技能。
- * 匹配策略：触发词包含检索 > 名称包含检索 > 工具名匹配
+ *
+ * 多层打分策略（灵感来自 Claude Code 的 ToolSearchTool）：
+ * 1. 触发词精确匹配（最高权重）
+ * 2. 技能名称匹配
+ * 3. Token 级匹配（含同义词跨语言扩展）
+ * 4. 工具名 camelCase 拆分匹配
+ * 5. 内容关键词匹配（最低权重）
  */
 export function searchToolbox(query: string, maxResults = 3): ToolboxSkillEntry[] {
   const index = loadToolboxIndex();
   if (!index.skills.length) return [];
 
-  const q = query.toLowerCase();
+  const queryLower = query.toLowerCase().trim();
+  const tokens = tokenizeQuery(query);
+  const expandedTokens = expandWithSynonyms(tokens);
+  const originalSet = new Set(tokens);
 
-  // 评分
   const scored = index.skills.map((skill) => {
     let score = 0;
+    const nameLower = skill.name.toLowerCase();
 
-    // 触发词匹配（权重最高）
+    // ━━ 1. Trigger-level matching (highest weight) ━━
     for (const trigger of skill.triggers) {
-      if (q.includes(trigger.toLowerCase())) {
-        score += 10;
-      } else if (trigger.toLowerCase().includes(q)) {
-        score += 5;
+      const tLower = trigger.toLowerCase();
+      if (queryLower === tLower) {
+        score += 15; // exact full match
+      } else if (queryLower.includes(tLower)) {
+        score += 10; // query contains full trigger
+      } else if (tLower.includes(queryLower)) {
+        score += 7; // trigger contains full query
       }
     }
 
-    // 名称匹配
-    if (q.includes(skill.name.toLowerCase()) || skill.name.toLowerCase().includes(q)) {
+    // ━━ 2. Skill name matching ━━
+    if (queryLower === nameLower) {
+      score += 12;
+    } else if (queryLower.includes(nameLower) || nameLower.includes(queryLower)) {
       score += 8;
     }
 
-    // 工具名匹配
-    for (const tool of skill.tools) {
-      if (q.includes(tool.toLowerCase())) {
-        score += 6;
-      }
-    }
+    // ━━ 3. Token-level matching with synonym expansion ━━
+    for (const token of expandedTokens) {
+      const isSynonym = !originalSet.has(token);
+      const weight = isSynonym ? 0.6 : 1; // synonyms get reduced weight
 
-    // 查询词在内容中出现
-    const queryTokens = q.split(/[\s,，、;；]+/).filter((t) => t.length > 1);
-    for (const token of queryTokens) {
-      if (skill.content.toLowerCase().includes(token)) {
-        score += 2;
-      }
+      // vs triggers
       for (const trigger of skill.triggers) {
-        if (trigger.toLowerCase().includes(token)) {
-          score += 3;
+        const tLower = trigger.toLowerCase();
+        if (tLower === token) {
+          score += 6 * weight;
+        } else if (tLower.includes(token)) {
+          score += 3 * weight;
         }
+      }
+
+      // vs skill name tokens
+      const nameTokens = tokenizeQuery(skill.name);
+      for (const nt of nameTokens) {
+        if (nt === token) {
+          score += 5 * weight;
+        } else if (nt.includes(token) || token.includes(nt)) {
+          score += 2 * weight;
+        }
+      }
+
+      // vs tool name parts (camelCase split)
+      for (const tool of skill.tools) {
+        const parts = parseToolNameParts(tool);
+        for (const part of parts) {
+          if (part === token) {
+            score += 4 * weight;
+          } else if (part.includes(token) || token.includes(part)) {
+            score += 2 * weight;
+          }
+        }
+      }
+
+      // vs content keywords (lowest weight)
+      if (skill.content.toLowerCase().includes(token)) {
+        score += 1 * weight;
       }
     }
 

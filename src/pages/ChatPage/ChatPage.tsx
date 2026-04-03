@@ -337,7 +337,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
             const copy = prev.slice();
             const m = copy[idx];
             const existing = m.activities || [];
-            const activity: ToolActivity = { callId: ev.data.callId, name: ev.data.name, args: ev.data.args, status: 'calling' };
+            const activity: ToolActivity = { callId: ev.data.callId, name: ev.data.name, args: ev.data.args, status: 'calling', label: ev.data.label };
             copy[idx] = { ...m, activities: [...existing, activity] };
             return copy;
           });

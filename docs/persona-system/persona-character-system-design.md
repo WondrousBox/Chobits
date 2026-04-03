@@ -1,8 +1,8 @@
 # 角色人格系统 (Persona Character System) 设计文档
 
-> **版本**: v1.3 - Phase 3 已实现
+> **版本**: v1.4 - Phase 3.5 工具标签人格化
 > **日期**: 2026-04-02
-> **状态**: Phase 1 ✅ | Phase 2 ✅ | Phase 3 ✅ | Phase 4-5 RFC
+> **状态**: Phase 1 ✅ | Phase 2 ✅ | Phase 3 ✅ | Phase 3.5 ✅ | Phase 4-5 RFC
 
 ---
 
@@ -43,7 +43,7 @@
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **对话不产生好感度/XP**  | `chat-service.ts` 在对话完成后发出 `SPRITE_AI_COMPLETE` 事件，但 `persona-state.ts` 的 XP 源 `conversation` 需要外部调用 `addXP()` 才能生效，目前未连通 |
 | **无角色性格文件**       | 精灵的动画、行为都有配置，但"她是谁、怎么说话、什么性格"没有结构化描述                                                                                  |
-| **系统提示词与角色脱耦** | `profiles.md`（经 `profile-descriptors` 加载）中的 `instructions` 是功能性的（工具使用规则），不包含角色人格                                                                 |
+| **系统提示词与角色脱耦** | `profiles.md`（经 `profile-descriptors` 加载）中的 `instructions` 是功能性的（工具使用规则），不包含角色人格                                            |
 | **好感度不影响对话**     | 好感度分了 6 档（stranger→soulmate），但对话风格不随好感度变化                                                                                          |
 | **无角色包概念**         | 动画文件在 `resources/sprites/`，但没有"角色包"抽象来打包动画+性格+语音                                                                                 |
 
@@ -187,6 +187,18 @@ resources/sprites/
     "excited": {
       "animation": "celebrate",
       "messageStyle": "语速快，用感叹号，很热情"
+    }
+  },
+
+  // ======== 工具调用标签（角色人格化） ========
+  // 覆盖默认的工具调用展示文案，支持 {param} 占位符
+  "toolLabels": {
+    "toolboxTool": {
+      "default": { "calling": "翻翻我的工具箱……", "done": "工具箱看完啦" },
+      "conditions": [{ "when": { "action": "search" }, "calling": "在工具箱里搜搜「{query}」……", "done": "找到啦！" }]
+    },
+    "memorySearchTool": {
+      "default": { "calling": "在记忆里搜搜「{query}」……", "done": "记忆搜索完成" }
     }
   },
 
@@ -741,6 +753,33 @@ effective = delta × (1 + level × 0.01) × (1 - currentValue/maxValue × 0.5)
 - `src/features/sprite-assistant/ui/RadarChart.tsx` — **新建**，SVG 雷达图组件
 - `src/features/sprite-assistant/pages/StatusPage.tsx` — 集成雷达图展示
 
+### Phase 3.5: 工具标签人格化 ✅
+
+**让每个工具调用都带有角色人格的展示文案**
+
+1. ~~创建 `tool-labels.ts` 共享模块，提供默认工具标签 + 条件匹配 + `{param}` 占位符渲染~~
+2. ~~在 `CharacterDefinition` 中扩展 `toolLabels?: Record<string, ToolLabelDefinition>` 字段~~
+3. ~~在 `character-service.ts` 中导出 `getCharacterToolLabels()` 函数~~
+4. ~~在 `sprite-manager-ipc.ts` 中角色加载后调用 `setCharacterToolLabels()` 注册角色覆盖标签~~
+5. ~~在 `stream-adapter.ts` 中计算标签并通过 `tool_call` 事件传递给前端~~
+6. ~~在 `ToolCallActivity.tsx` 中使用 `label` 字段展示人格化文案~~
+7. ~~在 `character.json` 中添加示例 `toolLabels` 配置~~
+
+**标签解析优先级**：角色覆盖 > 默认标签 > 工具名 fallback
+
+**占位符渲染**：`{key}` 从工具入参中取值，超过 60 字符自动截断，未匹配的占位符被移除
+
+**涉及文件**（均已完成）：
+
+- `packages/ai/runtime/pi/tool-labels.ts` — **新建**，工具标签系统核心（默认标签、条件匹配、`{param}` 渲染）
+- `packages/ai/types.ts` — 修改，`StreamEvent` 的 `tool_call` 类型添加 `label?: string`
+- `packages/ai/runtime/pi/stream-adapter.ts` — 修改，调用 `resolveToolLabel()` 计算标签
+- `packages/sprite-core/character-service.ts` — 修改，添加 `ToolLabelDefinition` 类型 + `toolLabels` 字段 + `getCharacterToolLabels()`
+- `packages/sprite-core/handler/sprite-manager-ipc.ts` — 修改，角色加载后注册工具标签覆盖
+- `src/components/chat/ToolCallActivity.tsx` — 修改，使用 `label` 展示人格化文案
+- `src/pages/ChatPage/ChatPage.tsx` — 修改，传递 `label` 到 `ToolActivity`
+- `resources/sprites/character.json` — 修改，添加 `toolLabels` 示例配置
+
 ### Phase 4: 角色包系统
 
 **可安装/切换的角色**
@@ -850,6 +889,19 @@ effective = delta × (1 + level × 0.01) × (1 - currentValue/maxValue × 0.5)
 | `electron/preload/apis/persona.ts`                      | 修改 | 添加 `getDimensions()` preload API                              |
 | `src/features/sprite-assistant/ui/RadarChart.tsx`       | 新建 | SVG 雷达图组件                                                  |
 | `src/features/sprite-assistant/pages/StatusPage.tsx`    | 修改 | 集成雷达图展示                                                  |
+
+#### Phase 3.5 ✅
+
+| 文件                                                 | 类型 | 说明                                                         |
+| ---------------------------------------------------- | ---- | ------------------------------------------------------------ |
+| `packages/ai/runtime/pi/tool-labels.ts`              | 新建 | 工具标签系统核心（默认标签、条件匹配、`{param}` 渲染）       |
+| `packages/ai/types.ts`                               | 修改 | `StreamEvent` 的 `tool_call` 类型添加 `label?: string`       |
+| `packages/ai/runtime/pi/stream-adapter.ts`           | 修改 | 调用 `resolveToolLabel()` 计算标签并传递给前端               |
+| `packages/sprite-core/character-service.ts`          | 修改 | 添加 `ToolLabelDefinition` 类型、`toolLabels` 字段、导出函数 |
+| `packages/sprite-core/handler/sprite-manager-ipc.ts` | 修改 | 角色加载后注册工具标签覆盖                                   |
+| `src/components/chat/ToolCallActivity.tsx`           | 修改 | 使用 `label` 展示人格化文案                                  |
+| `src/pages/ChatPage/ChatPage.tsx`                    | 修改 | 传递 `label` 到 `ToolActivity`                               |
+| `resources/sprites/character.json`                   | 修改 | 添加 `toolLabels` 示例配置                                   |
 
 #### Phase 4
 

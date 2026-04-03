@@ -111,6 +111,56 @@
     }
   },
 
+  "toolLabels": {
+    "toolboxTool": {
+      "default": { "calling": "翻翻我的工具箱……", "done": "工具箱看完啦" },
+      "conditions": [
+        { "when": { "action": "search" }, "calling": "在工具箱里搜搜「{query}」……", "done": "找到啦！" },
+        { "when": { "action": "list" }, "calling": "看看我有哪些技能～", "done": "技能列表在这里" },
+        { "when": { "action": "get" }, "calling": "看看这个技能的详情……", "done": "详情已经拿到了" },
+        { "when": { "action": "activate" }, "calling": "启用这个工具！", "done": "工具准备好了～" },
+        { "when": { "action": "deactivate" }, "calling": "先把这个工具收起来", "done": "已经收好了" }
+      ]
+    },
+    "resourceQueryTool": {
+      "default": { "calling": "帮你翻翻资源库……", "done": "资源找到了～" }
+    },
+    "pushCardTool": {
+      "default": { "calling": "准备推一张卡片给你", "done": "卡片推好啦" }
+    },
+    "translationTool": {
+      "default": { "calling": "开始翻译字幕……", "done": "翻译搞定了！" }
+    },
+    "summaryTool": {
+      "default": { "calling": "认真读一下然后帮你总结……", "done": "总结做好了～" }
+    },
+    "readSubtitleTool": {
+      "default": { "calling": "读一下字幕内容……", "done": "字幕已读取" }
+    },
+    "youtubeDownloadTool": {
+      "default": { "calling": "去下载这个视频：{url}", "done": "下载任务已经安排好了～" }
+    },
+    "memorySearchTool": {
+      "default": { "calling": "在记忆里搜搜「{query}」……", "done": "记忆搜索完成" }
+    },
+    "memorySaveTool": {
+      "default": { "calling": "把这个记住……", "done": "记住了！" }
+    },
+    "askUserTool": {
+      "default": { "calling": "有个问题想问你～", "done": "收到你的回答了" }
+    },
+    "webSearchTool": {
+      "default": { "calling": "去搜一下「{query}」……", "done": "搜索结果出来了" }
+    },
+    "workflowRunTool": {
+      "default": { "calling": "执行工作流……", "done": "工作流跑完了" },
+      "conditions": [
+        { "when": { "action": "search" }, "calling": "找找有什么工作流……", "done": "找到了" },
+        { "when": { "action": "run" }, "calling": "开始运行工作流～", "done": "工作流跑完啦！" }
+      ]
+    }
+  },
+
   "dimensions": {
     "schema": [
       {

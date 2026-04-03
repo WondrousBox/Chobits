@@ -94,7 +94,7 @@ export type StreamEvent =
   | { type: 'connected' }
   | { type: 'delta'; data: { text?: string; toolCall?: any } }
   | { type: 'message_completed'; data: { message: ChatMessage } }
-  | { type: 'tool_call'; data: { name: string; args: any; callId: string } }
+  | { type: 'tool_call'; data: { name: string; args: any; callId: string; label?: string } }
   | { type: 'tool_result'; data: { callId: string; result: any } }
   | { type: 'tool_progress'; data: { callId: string; progress: number; message?: string } }
   | { type: 'thinking_delta'; data: { text: string } }

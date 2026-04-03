@@ -72,6 +72,22 @@ export interface ConversationRewards {
   bonusConditions: ConversationBonusCondition[];
 }
 
+export interface ToolLabelTemplate {
+  calling: string;
+  done: string;
+}
+
+export interface ConditionalToolLabel {
+  when: Record<string, string>;
+  calling: string;
+  done: string;
+}
+
+export interface ToolLabelDefinition {
+  default: ToolLabelTemplate;
+  conditions?: ConditionalToolLabel[];
+}
+
 export interface CharacterMeta {
   author: string;
   version: string;
@@ -96,6 +112,8 @@ export interface CharacterDefinition {
     extensible: boolean;
   };
   conversationRewards: ConversationRewards;
+  /** Per-tool display label overrides with placeholder support */
+  toolLabels?: Record<string, ToolLabelDefinition>;
   meta: CharacterMeta;
 }
 
@@ -238,10 +256,20 @@ export function buildCharacterPersonaPrompt(ctx: PersonaPromptContext): string |
 export function getCharacterInfo(): { id: string; name: string; nameAliases: string[]; tagline: string } | null {
   const char = getCharacterDefinition();
   if (!char) return null;
+
   return {
     id: char.id,
     name: char.name,
     nameAliases: char.nameAliases,
     tagline: char.identity.tagline
   };
+}
+
+/**
+ * Get tool label overrides from the current character definition.
+ * Returns undefined if no character is loaded or no toolLabels are defined.
+ */
+export function getCharacterToolLabels(): Record<string, ToolLabelDefinition> | undefined {
+  const char = getCharacterDefinition();
+  return char?.toolLabels ?? undefined;
 }

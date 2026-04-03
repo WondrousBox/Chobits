@@ -4,8 +4,8 @@
  * 与 toolbox.md 相同：通过 Vite `?raw` 加载 Markdown，编辑 md 即可调整行为。
  */
 
-import type { PiExecutionMode, PiProfileDescriptor } from './contracts';
-import { DEFAULT_CODER_TOOL_IDS, DEFAULT_SESSION_TOOL_IDS, normalizePiToolIds } from './tool-registry';
+import type { PiExecutionMode, PiProfileDescriptor, PiToolInjectionMode } from './contracts';
+import { DEFAULT_CODER_TOOL_IDS, INITIAL_ACTIVE_SESSION_TOOL_IDS, normalizePiToolIds } from './tool-registry';
 
 // `**label:** 值`（key 后为 `:**`，与 toolbox 的 `**触发词：**` 不同）
 const META_LINE = /^\*\*([a-zA-Z][a-zA-Z0-9]*):\*\*\s*(.*)$/;
@@ -18,7 +18,7 @@ function parseBool(raw: string): boolean {
 function resolveDefaultToolIds(raw: string): string[] {
   const s = raw.trim();
   if (!s || s === '-' || s === '—') return [];
-  if (s === '@session') return [...DEFAULT_SESSION_TOOL_IDS];
+  if (s === '@session') return [...INITIAL_ACTIVE_SESSION_TOOL_IDS];
   if (s === '@coder') return [...DEFAULT_CODER_TOOL_IDS];
   return normalizePiToolIds(
     s
@@ -32,6 +32,13 @@ function parseExecutionMode(raw: string): PiExecutionMode {
   const v = raw.trim().toLowerCase();
   if (v === 'one-shot' || v === 'oneshot') return 'one-shot';
   return 'session';
+}
+
+function parseToolInjectionMode(raw: string | undefined): PiToolInjectionMode {
+  if (!raw) return 'dynamic';
+  const v = raw.trim().toLowerCase();
+  if (v === 'all') return 'all';
+  return 'dynamic';
 }
 
 /**
@@ -92,6 +99,7 @@ export function parseProfilesMarkdown(markdown: string): Record<string, PiProfil
     const executionMode = parseExecutionMode(meta.executionmode || 'session');
     const supportsToolCalls = meta.supportstoolcalls ? parseBool(meta.supportstoolcalls) : false;
     const defaultToolIds = resolveDefaultToolIds(meta.defaulttoolids || '');
+    const toolInjectionMode = parseToolInjectionMode(meta.toolinjectionmode);
 
     if (!instructionsBlock) {
       throw new Error(`[profiles.md] Profile "${sec.id}" is missing "### system prompt" section or instructions body is empty.`);
@@ -104,7 +112,8 @@ export function parseProfilesMarkdown(markdown: string): Record<string, PiProfil
       instructions: instructionsBlock,
       defaultToolIds,
       executionMode,
-      supportsToolCalls
+      supportsToolCalls,
+      toolInjectionMode
     };
   }
 

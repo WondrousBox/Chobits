@@ -13,6 +13,7 @@ import UserChoiceCard from './UserChoiceCard';
 export interface ToolActivity {
   callId: string;
   name: string;
+  label?: string;
   args?: any;
   status: 'calling' | 'done';
   result?: any;
@@ -55,39 +56,14 @@ function formatValue(val: any, max = 2000): { text: string; lang?: string } {
 const CARD_TOOL_NAMES = new Set(['pushCardTool', 'push-card']);
 const ASK_USER_TOOL_NAMES = new Set(['askUserTool', 'ask-user']);
 
-const TOOL_DISPLAY_NAMES: Record<string, string> = {
-  toolboxLookupTool: '查阅工具箱',
-  resourceQueryTool: '查询资源',
-  translationTool: '翻译字幕',
-  summaryTool: '总结内容',
-  readSubtitleTool: '读取字幕',
-  youtubeDownloadTool: '下载视频',
-  youtubeSubscribeTool: '订阅频道',
-  memorySearchTool: '搜索记忆',
-  memoryGetTool: '获取记忆',
-  memoryTopicsTool: '浏览记忆主题',
-  memorySaveTool: '保存记忆',
-  workflowRunTool: '执行工作流',
-  askUserTool: '等待用户选择'
-};
-
-function getToolDisplayName(name: string, args?: any): string {
-  if (name === 'toolboxLookupTool' && args) {
-    const a = typeof args === 'string' ? JSON.parse(args) : args;
-    const action = a?.action;
-    const query = a?.query;
-    if (action === 'search' && query) return `查阅工具箱：搜索"${query}"`;
-    if (action === 'get' && query) return `查阅工具箱：获取"${query}"`;
-    if (action === 'list') return '查阅工具箱：列出技能';
-  }
-  if (name === 'workflowRunTool' && args) {
-    const a = typeof args === 'string' ? JSON.parse(args) : args;
-    const action = a?.action;
-    if (action === 'list') return '查找工作流：列出全部';
-    if (action === 'search' && a?.query) return `查找工作流：搜索"${a.query}"`;
-    if (action === 'run' && a?.workflowId) return `执行工作流：${a.workflowId}`;
-  }
-  return TOOL_DISPLAY_NAMES[name] || name;
+/**
+ * Get the display name for a tool call.
+ * Uses the pre-computed label from the backend if available,
+ * otherwise falls back to the tool name.
+ */
+function getToolDisplayName(activity: ToolActivity): string {
+  if (activity.label) return activity.label;
+  return activity.name;
 }
 
 const CardToolItem: React.FC<{ activity: ToolActivity }> = ({ activity }) => {
@@ -127,7 +103,7 @@ const ToolCallItem: React.FC<{ activity: ToolActivity; onUserChoiceSubmit?: (cho
   if (ASK_USER_TOOL_NAMES.has(activity.name)) return <AskUserToolItem activity={activity} onSubmit={onUserChoiceSubmit} />;
 
   const [expanded, setExpanded] = useState(false);
-  const displayName = getToolDisplayName(activity.name, activity.args);
+  const displayName = getToolDisplayName(activity);
   const hasProgress = activity.status === 'calling' && activity.progress !== undefined && activity.progress > 0;
 
   return (

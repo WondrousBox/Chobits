@@ -1,4 +1,5 @@
 import type { ChatMessage, StreamEvent, UserChoiceRequest } from '../../types';
+import { resolveToolLabel } from './tool-labels';
 
 type UnknownPiEvent = {
   type?: string;
@@ -20,7 +21,13 @@ type LegacyStreamEmitter = {
   done: () => void;
 };
 
-export function createLegacyStreamEmitter(emit: (event: StreamEvent) => void): LegacyStreamEmitter {
+export interface LegacyStreamEmitterOptions {
+  /** Whether character persona is enabled — controls character-specific tool labels */
+  characterPersonaEnabled?: boolean;
+}
+
+export function createLegacyStreamEmitter(emit: (event: StreamEvent) => void, options?: LegacyStreamEmitterOptions): LegacyStreamEmitter {
+  const useCharacterLabels = options?.characterPersonaEnabled ?? false;
   return {
     connected() {
       emit({ type: 'connected' });
@@ -32,8 +39,19 @@ export function createLegacyStreamEmitter(emit: (event: StreamEvent) => void): L
       emit({ type: 'metadata', data });
     },
     toolCall(name: string, args: any, callId: string) {
-      console.log(`[AI Tool] 调用工具: ${name}`, { callId, args: typeof args === 'string' ? args.slice(0, 200) : args });
-      emit({ type: 'tool_call', data: { args, callId, name } });
+      const parsedArgs =
+        typeof args === 'string'
+          ? (() => {
+            try {
+              return JSON.parse(args);
+            } catch {
+              return {};
+            }
+          })()
+          : (args ?? {});
+      const label = resolveToolLabel(name, parsedArgs, 'calling', useCharacterLabels);
+      console.log(`[AI Tool] 调用工具: ${name} → ${label}`, { callId, args: typeof args === 'string' ? args.slice(0, 200) : args });
+      emit({ type: 'tool_call', data: { args, callId, label, name } });
     },
     toolResult(callId: string, result: any) {
       console.log(`[AI Tool] 工具返回: ${callId}`, typeof result === 'object' ? { success: result?.success, error: result?.error } : result);
