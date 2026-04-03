@@ -1,6 +1,6 @@
-# Workspace User Persona 设计 v1
+# Workspace User Persona 设计 v1.1
 
-> 目标：在每次对话后的记忆提取阶段，自动维护一份"空间级用户画像"，用于描述用户的信息、偏好、品味、目标、性格与沟通习惯。
+> 目标：在每次对话后的记忆提取阶段，自动维护一份"空间级用户画像"，用于描述用户的信息、偏好、品味、目标、性格、沟通习惯及近期动态。
 > 约束：画像必须持续进化，但不能无限增长；越更新越精炼。
 
 ---
@@ -30,8 +30,8 @@
 version: 1
 workspaceId: 'ws-xxx'
 updatedAt: 1712102400000
-charBudget: 900
-itemBudget: 24
+charBudget: 1200
+itemBudget: 30
 compressionRound: 12
 ---
 ```
@@ -42,8 +42,8 @@ compressionRound: 12
 
 为节省 token，采用严格上限：
 
-1. 正文最大字符数：`900`（不含 frontmatter）。
-2. 最大信息条目：`24` 条。
+1. 正文最大字符数：`1200`（不含 frontmatter）。
+2. 最大信息条目：`30` 条。
 3. 单条信息建议长度：`12~48` 字。
 4. 每个维度最多条目：
    - 基本信息：3
@@ -51,6 +51,7 @@ compressionRound: 12
    - 目标与动机：5
    - 性格与沟通风格：5
    - 决策偏好与边界：3
+   - 近期动态（当前项目与关注点）：4
    - 最近变化（短期态）：2
 
 超过预算必须执行压缩，不允许写入超限版本。
@@ -86,6 +87,10 @@ compressionRound: 12
 
 - ...
 
+## Current Activities
+
+- ...
+
 ## Recent Shift
 
 - ...
@@ -93,10 +98,11 @@ compressionRound: 12
 
 规则：
 
-1. 只允许以上 7 个一级 section。
+1. 只允许以上 8 个一级 section。
 2. 每条必须是"结论句"，不写过程叙述。
 3. 禁止冗余修饰词（如"非常非常"、"可能大概"）。
 4. 不写无法证实的推断性人格标签。
+5. Current Activities 记录用户近期正在做的事、当前项目和关注点，时效性强，新活动应替换旧内容。
 
 ---
 
@@ -129,7 +135,7 @@ compressionRound: 12
 ```ts
 type PersonaUpdateDecision = {
   shouldUpdate: boolean;
-  reason: 'new_stable_preference' | 'new_goal_or_priority' | 'communication_style_shift' | 'conflict_resolution' | 'insufficient_signal';
+  reason: 'new_stable_preference' | 'new_goal_or_priority' | 'communication_style_shift' | 'conflict_resolution' | 'recent_activity_update' | 'insufficient_signal';
   signalScore: number; // 0~1
   evidence: Array<{
     conversationId: string;
@@ -138,14 +144,17 @@ type PersonaUpdateDecision = {
     note: string;
   }>;
   candidateFacts: Array<{
-    dimension: 'basic' | 'preference' | 'goal' | 'personality' | 'decision' | 'recent';
+    dimension: 'basic' | 'preference' | 'goal' | 'personality' | 'decision' | 'activity' | 'recent';
     statement: string;
     confidence: number; // 0~1
   }>;
 };
 ```
 
-推荐阈值：`shouldUpdate = signalScore >= 0.62` 且 `evidence.length > 0`。
+推荐阈值：
+
+- 默认：`shouldUpdate = signalScore >= 0.62` 且 `evidence.length > 0`。
+- Activity 类更新：`signalScore >= 0.35` 即可通过（时效性强，及时记录比等待确认更重要）。
 
 进一步约束：
 
@@ -215,22 +224,35 @@ eventManager.on(AppEvent.AGENT_LOOP_COMPLETE, async (payload) => {
 2) 本轮新增对话片段（含 conversationId 和 seq）
 
 判定标准：
-- 只有出现"稳定偏好、长期目标、明确沟通风格、决策边界、冲突修正"才应更新
-- 临时情绪、一次性问题、寒暄、无结论讨论不应触发更新
-- 若与现有画像重复，不应触发更新
+- 出现"稳定偏好、长期目标、明确沟通风格、决策边界、冲突修正"应更新
+- 用户提到**近期正在做的事、当前项目、最近的兴趣或关注点**也应更新（放入 activity 维度）
+- 用户透露出的**作息习惯、工作状态、生活近况**也值得记录到 activity 维度
+- 纯寒暄（你好/再见）、一次性无上下文的提问不应触发更新
+- 若与现有画像完全重复，不应触发更新
+
+维度说明：
+- basic: 年龄、职业、技术栈等基本信息
+- preference: 稳定的偏好和品味
+- goal: 长期目标和动力
+- personality: 沟通风格
+- decision: 决策偏好
+- activity: 近期正在做的事、当前项目与关注点（重要！这是高频更新的维度）
+- recent: 近期态度或偏好的转变
 
 输出 JSON：
 {
   "shouldUpdate": true/false,
-  "reason": "new_stable_preference|new_goal_or_priority|communication_style_shift|conflict_resolution|insufficient_signal",
+  "reason": "new_stable_preference|new_goal_or_priority|communication_style_shift|conflict_resolution|recent_activity_update|insufficient_signal",
   "signalScore": 0.0~1.0,
   "evidence": [
     {"conversationId":"...","seqStart":1,"seqEnd":8,"note":"简要证据"}
   ],
   "candidateFacts": [
-    {"dimension":"preference|goal|personality|decision|basic|recent","statement":"...","confidence":0.0~1.0}
+    {"dimension":"preference|goal|personality|decision|basic|activity|recent","statement":"...","confidence":0.0~1.0}
   ]
 }
+
+注意：activity 维度的信号分数应适当放宽（0.4+ 即可），因为这类信息时效性强，及时记录比等待确认更重要。
 
 只输出 JSON，不要解释。
 ```
@@ -305,6 +327,7 @@ Section 到 dimension 映射：
 | Goals & Motivation          | `goal`                       |
 | Personality & Communication | `personality`                |
 | Decision Style & Boundaries | `decision`                   |
+| Current Activities          | `activity`                   |
 | Recent Shift                | `recent`                     |
 
 ## 6.2 候选事实结构
@@ -313,7 +336,7 @@ Section 到 dimension 映射：
 
 ```ts
 type PersonaFact = {
-  dimension: 'basic' | 'preference' | 'goal' | 'personality' | 'decision' | 'recent';
+  dimension: 'basic' | 'preference' | 'goal' | 'personality' | 'decision' | 'activity' | 'recent';
   statement: string;
   confidence: number; // 0~1
   stability: number; // 0~1，长期稳定性
@@ -344,7 +367,7 @@ $$
 1. 删除低分条目（从低到高）。
 2. 合并可合并条目（同维度同语义）。
 3. 重写为更短句（保持语义不变）。
-4. 若仍超限，优先删除 `recent` 维度低分条目。
+4. 若仍超限，优先删除 `recent` 和 `activity` 维度低分条目。
 
 目标函数：在固定字符预算内最大化信息密度。
 
@@ -382,14 +405,16 @@ $$
 
 输出规则：
 - 输出完整的 User Persona Markdown（含所有 section）
-- 只允许 7 个 section：Snapshot, Basic Info, Preferences & Taste, Goals & Motivation, Personality & Communication, Decision Style & Boundaries, Recent Shift
+- 只允许 8 个 section：Snapshot, Basic Info, Preferences & Taste, Goals & Motivation, Personality & Communication, Decision Style & Boundaries, Current Activities, Recent Shift
 - 每条信息必须是结论句（不写过程叙述）
-- 总条目数 <= 24 条，总正文 <= 900 字符
+- 总条目数 <= 30 条，总正文 <= 1200 字符
 - 与现有画像冲突的条目用新证据替换旧值
 - 重复条目合并为更精炼的表达
 - 低置信（confidence < 0.5）仅放入 Recent Shift
 - 无变化的条目原样保留
 - Snapshot 必须是一句话（<= 60 字），概括用户画像核心
+- Current Activities 记录用户近期正在做的事、当前项目和关注点（最多 4 条），时效性强，新活动应替换旧内容
+- Recent Shift 记录近期态度/偏好转变（最多 2 条）
 - 禁止写入助手的偏好或系统策略
 - 无内容的 section 省略（Snapshot 除外）
 
@@ -413,8 +438,8 @@ $$
 
 每次写入前执行校验：
 
-1. 字符数 <= `900`。
-2. 条目数 <= `24`。
+1. 字符数 <= `1200`。
+2. 条目数 <= `30`。
 3. 每个 section 不超过其条目上限。
 4. 不能出现空 section（无内容则省略该 section，除了 Snapshot）。
 5. `Snapshot` 必须可被独立注入（单段可读）。
@@ -604,11 +629,11 @@ PERSONA_UPDATE_SKIPPED = 'PERSONA_UPDATE_SKIPPED',
 
 ## 12.1 注入层级
 
-| 层级 | 内容                 | token 预算     | 条件                  |
-| ---- | -------------------- | -------------- | --------------------- |
-| L0   | Snapshot（一句话）   | ~30 token      | 必注入                |
-| L1   | Top facts（3~8 条）  | ~100~250 token | 默认注入              |
-| L2   | Full persona（全文） | ~400~500 token | 仅 rebuild 或详细模式 |
+| 层级 | 内容                 | token 预算     | 条件                    |
+| ---- | -------------------- | -------------- | ----------------------- |
+| L0   | Snapshot（一句话）   | ~30 token      | 必注入                  |
+| L1   | Top facts（3~10 条） | ~100~300 token | 默认注入（含 activity） |
+| L2   | Full persona（全文） | ~500~700 token | 仅 rebuild 或详细模式   |
 
 ## 12.2 注入模板
 
@@ -624,6 +649,17 @@ PERSONA_UPDATE_SKIPPED = 'PERSONA_UPDATE_SKIPPED',
 
 在 system prompt 中，位于 角色人格描述（character persona）之后、
 工具使用说明之前。通过 `system-prompt-enricher.ts` 的 enrichment pipeline 注入。
+
+**实现文件**：`electron/main/handlers/user-profile/user-profile-enricher.ts`
+
+注入时自动跳过以下场景：
+
+- 非持久化对话（标题生成、ephemeral 等）
+- 内部 agent（`memory-extraction`、`user-persona-check`、`user-persona-update` 等）
+- 画像文件不存在或为空
+
+注入级别为 `top`（Snapshot + Top Facts，含 Current Activities，排除 Recent Shift）。
+使用 5 分钟内存缓存避免频繁磁盘读取，画像更新后自动清除缓存。
 
 ---
 
@@ -645,7 +681,7 @@ PERSONA_UPDATE_SKIPPED = 'PERSONA_UPDATE_SKIPPED',
 | ------------------------------- | -------- | ------------------ |
 | `check_to_update_rate`          | 15%~40%  | 判定触发率         |
 | `update_accept_rate`            | > 98%    | 更新成功率         |
-| `avg_persona_char_count`        | 700~900  | 平均字符占用       |
+| `avg_persona_char_count`        | 900~1200 | 平均字符占用       |
 | `persona_injection_token_saved` | —        | 相对注入节省 token |
 | `contradiction_detected_rate`   | 持续下降 | 冲突率             |
 | `recent_shift_promotion_rate`   | 10%~30%  | 短期条目晋升率     |
@@ -675,14 +711,14 @@ PERSONA_UPDATE_SKIPPED = 'PERSONA_UPDATE_SKIPPED',
 1. `AGENT_LOOP_COMPLETE` -> check -> enqueue -> update 全链路可跑通。
 2. 判定跳过时链路不中断且主对话无阻塞。
 3. 写入失败可自动回滚到上一个 `.bak.md`。
-4. 多次连续对话下 charCount 始终 <= 900。
+4. 多次连续对话下 charCount 始终 <= 1200。
 5. 首次创建流程可正常生成初始画像。
 6. 手动编辑后的下次更新不会覆盖用户修改。
 
 ## 15.3 验收门槛
 
-1. 连续 100 次更新后，字符数始终 <= 900。
-2. 任意时刻条目数始终 <= 24。
+1. 连续 100 次更新后，字符数始终 <= 1200。
+2. 任意时刻条目数始终 <= 30。
 3. 同一用户偏好在 3 次重复表达后稳定保留。
 4. 无证据条目不会写入正式画像。
 5. Recent Shift 超过 30 天未确认的条目被自动清理。
@@ -699,13 +735,15 @@ Phase A（最小可用）— ✅ 已完成
 4. `user-profile:getInjectionText` — 获取注入文本
 5. 画像解析器 + 更新 Prompt + 写入 + 预算校验 + 回滚
 
-Phase B（稳定化）
+Phase B（稳定化）— 部分完成
 
 1. 判定日志与观测指标
 2. 去重、重试、冷却策略
 3. 冲突解决增强
 4. Recent Shift 晋升/过期机制
-5. System prompt 注入集成
+5. ✅ System prompt 注入集成（`user-profile-enricher.ts`，5 分钟缓存，画像更新后自动清缓存）
+6. ✅ 前端设置页面（用户画像分类，展示各维度画像内容）
+7. ✅ 判定超时保护（60 秒 AbortController）
 
 Phase C（高级能力）
 
@@ -759,6 +797,11 @@ v2（后续）：
 ## Decision Style & Boundaries
 
 - 接受渐进式迭代，不接受一次性大爆炸改造。
+
+## Current Activities
+
+- 正在开发 AI 记忆功能和用户画像系统。
+- 近期关注对话驱动的画像自动提取与注入。
 ```
 
 ---
@@ -786,12 +829,15 @@ v2（后续）：
 
 ### Phase B：稳定化
 
-| ID  | 任务                  | 文件                                                    | 状态      |
-| --- | --------------------- | ------------------------------------------------------- | --------- |
-| B1  | 判定日志              | `electron/main/handlers/user-profile/persona-logger.ts` | ⬜ 未实现 |
-| B2  | 冲突解决增强          | `packages/ai/services/persona-update-service.ts`        | ⬜ 未实现 |
-| B3  | Recent Shift 生命周期 | `packages/ai/services/persona-update-service.ts`        | ⬜ 未实现 |
-| B4  | System Prompt 注入    | `packages/ai/system-prompt-enricher.ts`                 | ⬜ 未实现 |
+| ID  | 任务                  | 文件                                                           | 状态      |
+| --- | --------------------- | -------------------------------------------------------------- | --------- |
+| B1  | 判定日志              | `electron/main/handlers/user-profile/persona-logger.ts`        | ⬜ 未实现 |
+| B2  | 冲突解决增强          | `packages/ai/services/persona-update-service.ts`               | ⬜ 未实现 |
+| B3  | Recent Shift 生命周期 | `packages/ai/services/persona-update-service.ts`               | ⬜ 未实现 |
+| B4  | System Prompt 注入    | `electron/main/handlers/user-profile/user-profile-enricher.ts` | ✅ 已实现 |
+| B5  | 前端设置页面          | `src/pages/SettingsPage/components/UserProfileSettings.tsx`    | ✅ 已实现 |
+| B6  | Renderer 类型声明     | `src/renderer.d.ts`                                            | ✅ 已实现 |
+| B7  | 判定超时保护          | `electron/main/handlers/user-profile/persona-trigger.ts`       | ✅ 已实现 |
 
 ### Phase C：高级能力
 

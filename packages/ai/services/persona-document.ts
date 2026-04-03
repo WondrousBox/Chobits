@@ -101,9 +101,9 @@ export function extractSnapshot(parsed: ParsedPersona): string {
 }
 
 /**
- * 提取 Top Facts（排除 Recent Shift），按 dimension 顺序返回。
+ * 提取 Top Facts（排除 Recent Shift，但包含 Current Activities），按 dimension 顺序返回。
  */
-export function extractTopFacts(parsed: ParsedPersona, maxCount: number = 8): string[] {
+export function extractTopFacts(parsed: ParsedPersona, maxCount: number = 10): string[] {
   return parsed.facts
     .filter((f) => f.dimension !== 'recent')
     .slice(0, maxCount)

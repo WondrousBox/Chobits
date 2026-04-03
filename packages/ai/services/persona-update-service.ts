@@ -36,7 +36,7 @@ const UPDATE_PROMPT = `你是用户画像精炼器。你的任务是将新证据
 
 输出规则：
 - 输出完整的 User Persona Markdown（含所有 section）
-- 只允许 7 个 section：Snapshot, Basic Info, Preferences & Taste, Goals & Motivation, Personality & Communication, Decision Style & Boundaries, Recent Shift
+- 只允许 8 个 section：Snapshot, Basic Info, Preferences & Taste, Goals & Motivation, Personality & Communication, Decision Style & Boundaries, Current Activities, Recent Shift
 - 每条信息必须是结论句（不写过程叙述）
 - 总条目数 <= ${PERSONA_ITEM_BUDGET} 条，总正文 <= ${PERSONA_CHAR_BUDGET} 字符
 - 与现有画像冲突的条目用新证据替换旧值
@@ -44,6 +44,8 @@ const UPDATE_PROMPT = `你是用户画像精炼器。你的任务是将新证据
 - 低置信（confidence < 0.5）仅放入 Recent Shift
 - 无变化的条目原样保留
 - Snapshot 必须是一句话（<= 60 字），概括用户画像核心
+- Current Activities 记录用户近期正在做的事、当前项目和关注点（最多 4 条），这些信息时效性强，新的活动应替换旧的
+- Recent Shift 记录近期态度/偏好转变（最多 2 条）
 - 禁止写入助手的偏好或系统策略
 - 无内容的 section 省略（Snapshot 除外）
 

@@ -19,7 +19,7 @@ import { useSpriteSpeak } from './speak/useSpriteSpeak';
 import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
 import StatusIndicator from './ui/StatusIndicator';
 
-const showBlock = true; // 开发时显示
+const showBlock = false; // 开发时显示
 
 /** 内部组件：包含实际逻辑 */
 const AIAssistantInner: React.FC = () => {

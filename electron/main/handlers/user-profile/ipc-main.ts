@@ -17,6 +17,7 @@ import { PERSONA_FILENAME, type PersonaChatFn, type PersonaCheckParams, type Per
 import { ChatRepo, WorkspacesRepo } from '../../db/repositories';
 import { personaUpdateQueue } from './persona-queue';
 import { initPersonaTrigger } from './persona-trigger';
+import { initUserProfileEnricher } from './user-profile-enricher';
 
 function adaptChatFn(piChatFn: PiTaskChatFunction): PersonaChatFn {
   return async (prompt: string, signal?: AbortSignal): Promise<string> => {
@@ -145,6 +146,9 @@ export function initUserProfileHandlers(): void {
 
   // 初始化事件触发器
   initPersonaTrigger();
+
+  // 注册系统提示词 enricher
+  initUserProfileEnricher();
 
   console.log('[UserProfile] IPC handlers registered');
 }

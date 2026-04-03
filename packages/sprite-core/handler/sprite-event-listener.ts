@@ -330,6 +330,76 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     }
   });
 
+  // ===== 记忆提取事件 =====
+
+  handlers.push({
+    event: AppEvent.MEMORY_EXTRACTION_STARTED,
+    handler: (data) => {
+      mgr.showToast(data?.message || '整理记忆中...', { category: 'processing' });
+      mgr.playOnce('thinking', { durationMs: 2000 });
+    }
+  });
+
+  handlers.push({
+    event: AppEvent.MEMORY_EXTRACTION_PROGRESS,
+    handler: (data) => {
+      if (data?.progress !== undefined) {
+        mgr.updateBusy(data.progress, data.message || '记忆整理中...');
+      }
+    }
+  });
+
+  handlers.push({
+    event: AppEvent.MEMORY_EXTRACTION_COMPLETED,
+    handler: (data) => {
+      mgr.clearBusy();
+      mgr.showToast(data?.message || '记忆整理完毕！', { category: 'success', duration: 2000 });
+      mgr.playOnce('celebrate', { durationMs: 1500 });
+    }
+  });
+
+  handlers.push({
+    event: AppEvent.MEMORY_EXTRACTION_FAILED,
+    handler: (data) => {
+      mgr.clearBusy();
+      mgr.showToast(data?.message || data?.error || '记忆提取失败', { category: 'error', duration: 2000 });
+      mgr.playOnce('emotion', { durationMs: 1500 });
+    }
+  });
+
+  // ===== 用户画像更新事件 =====
+
+  handlers.push({
+    event: AppEvent.USER_PERSONA_UPDATE_STARTED,
+    handler: (data) => {
+      mgr.showToast(data?.message || '在更新对你的印象中...', { category: 'processing' });
+      mgr.playOnce('thinking', { durationMs: 2000 });
+    }
+  });
+
+  handlers.push({
+    event: AppEvent.USER_PERSONA_UPDATE_COMPLETED,
+    handler: (data) => {
+      mgr.showToast(data?.message || '对你的了解又加深了~', { category: 'success', duration: 2000 });
+      mgr.playOnce('celebrate', { durationMs: 1500 });
+    }
+  });
+
+  handlers.push({
+    event: AppEvent.USER_PERSONA_UPDATE_FAILED,
+    handler: (data) => {
+      mgr.showToast(data?.message || data?.error || '印象更新失败了', { category: 'error', duration: 2000 });
+      mgr.playOnce('emotion', { durationMs: 1500 });
+    }
+  });
+
+  handlers.push({
+    event: AppEvent.USER_PERSONA_UPDATE_SKIPPED,
+    handler: (data) => {
+      mgr.showToast(data?.message || '印象暂时不用更新~', { category: 'info', duration: 1500 });
+    }
+  });
+
   // 注册所有事件监听器
   handlers.forEach(({ event, handler }) => {
     eventManager.on(event, handler);
