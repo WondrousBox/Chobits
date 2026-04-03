@@ -8,10 +8,10 @@
 
 - 已实现：`analyzeQuery`、`recallTopics`、`recallNotes`、`recallSections`、`targetedRead`、`assembleContext`、`search`、`get`、`browseTopics`、`searchWithContent`。
 - 当前对外主入口 `search()` 实际主要执行 Stage 1-3；当 `includeContent=true` 时，只追加各 note 的 section 摘要，不会自动读取段落正文。
-- `searchWithContent()` 已实现一步到位的 Stage 1-6 风格流程，但目前仅是服务层 helper，尚未暴露为 IPC 或 Agent tool。
+- `searchWithContent()` 已实现一步到位的 Stage 1-6 风格流程，被 auto-recall enricher 作为核心搜索引擎使用。
 - 当前运行时已注册并默认启用 `memorySearchTool`、`memoryGetTool`、`memoryTopicsTool`、`memorySaveTool`。
 - `topicFilter` 参数已经暴露到 IPC / preload / tool 调用链，但 `retrieval.search()` 里当前还没有真正应用这个过滤条件。
-- “新会话自动预加载重要记忆”仍未实现；当前主要依赖 system prompt 指导 Agent 在需要时显式调用记忆工具。
+- **自动记忆召回已实现**：通过 `memory-auto-recall` enricher，在每轮对话的 system prompt 构建阶段自动检索并注入相关记忆。详见下方「自动记忆召回」章节。
 
 ---
 
@@ -939,54 +939,127 @@ export const memoryApi = {
 
 ---
 
-## 10. 自动注入策略
+## 10. 自动记忆召回（Auto-Recall）
 
-### 10.1 何时自动注入记忆
+### 10.1 设计概览
 
-> 截至 2026-04-03，下述“新会话自动预加载重要记忆”仍是目标态，当前实现主要依赖 Agent 在 system prompt 指导下按需调用记忆工具。
+自动记忆召回通过 `SystemPromptEnricher` 机制，在每轮对话的 system prompt 构建阶段自动检索并注入相关记忆。无需 Agent 显式调用 tool，用户的对话上下文中已包含相关记忆信息。
+
+**设计灵感**：参考 Claude Code 的 `findRelevantMemories` 机制——扫描记忆文件头信息，用轻量模型选最相关的记忆注入上下文。Chobits 在此基础上结合已有的 6 阶段检索流水线，实现更精确的结构化检索。
+
+**核心设计决策**：
+- **AI 评估关键词**（pre-search）：由 AI 判断是否需要搜索记忆 + 提取最优搜索关键词
+- **规则排序结果**（post-search）：搜索后的关联性判断由已有的 fusion scoring（FTS + 主题图谱 + 重要度 + 时效性）完成，不再额外调用 AI 评估结果
+- **理由**：一次 AI 调用（关键词提取）比两次（关键词 + 结果筛选）更高效；已有的 scoring 算法对结构化数据的相关性排序已足够精确
+
+### 10.2 召回流程
 
 ```
-新会话开始
-    │
-    ├── 检查该 workspace 是否有记忆数据
-    │   └── 无 → 跳过
-    │
-    ├── 有 →
-    │   ├── 取最近 7 天内 importance ≥ 0.7 的 note 摘要
-    │   ├── 取所有 Open Loops（稳定度 < 0.5 的待办类段落）
-    │   └── 组装为 system prompt 补充段
+用户发送消息
     │
     ▼
-每次用户提问时
-    │
-    ├── Agent 判断是否需要回忆（通过 tool 或自动触发）
-    │   ├── 系统提示中有指导："如果你不确定用户之前的偏好或决定，先搜索记忆"
-    │   └── Agent 调用 memory_search tool
-    │
-    ▼
-检索结果注入当前消息上下文
+┌──────────────────────────────┐
+│ Stage 1: 规则分诊 (Triage)    │  ← 0ms，纯规则
+│ 跳过：问候、感谢、太短、空消息  │
+│ 通过：有实质内容的消息          │
+└──────┬───────────────────────┘
+       │ 通过
+       ▼
+┌──────────────────────────────┐
+│ 缓存检查                      │
+│ 同一对话每 N 轮才重新检索      │
+│ 显式引用记忆的信号词绕过缓存    │
+└──────┬───────────────────────┘
+       │ 未命中 / 过期
+       ▼
+┌──────────────────────────────┐
+│ Stage 2: 关键词提取           │
+│ ┌─ AI 提取 (useLlmKeywords)  │  ← ~100ms, maxTokens=256
+│ │  判断 needsRecall + 提取    │
+│ │  2-5 个关键词               │
+│ └─ 规则降级                   │  ← AI 不可用时使用
+│    分词 + 停用词过滤           │
+└──────┬───────────────────────┘
+       │ keywords (non-empty)
+       ▼
+┌──────────────────────────────┐
+│ Stage 3: 结构化检索           │  ← 复用 searchWithContent()
+│ FTS5 + 主题图谱 + 定点读取    │    完整 Stage 1-6 流水线
+└──────┬───────────────────────┘
+       │ assembled context
+       ▼
+┌──────────────────────────────┐
+│ Context Assembly              │
+│ 包装为 <recalled_memories>    │
+│ 注入 system prompt            │
+└──────────────────────────────┘
 ```
 
-### 10.2 System Prompt 补充段模板
+### 10.3 文件结构
+
+| 文件 | 职责 |
+|------|------|
+| `packages/ai/services/memory-auto-recall.ts` | 核心服务：分诊、关键词提取、搜索、缓存管理 |
+| `electron/main/handlers/memory/memory-auto-recall-enricher.ts` | 桥接层：注册 enricher、提供 DB 依赖和 chatFn |
+
+### 10.4 配置参数
 
 ```typescript
-const MEMORY_SYSTEM_PROMPT_SECTION = `
-## 长期记忆
-
-你有访问用户长期记忆的能力。可用以下工具：
-- **memorySearchTool**: 搜索过去的对话要点、决策和偏好
-- **memoryGetTool**: 读取记忆的具体段落内容
-- **memoryTopicsTool**: 浏览记忆主题图谱
-- **memorySaveTool**: 在用户要求记住，或出现长期有价值的信息时写入记忆
-
-使用指南：
-1. 当用户提到"之前"、"上次"、"记得"等词语时，主动搜索记忆
-2. 当用户的问题涉及偏好、决定、待办时，搜索记忆以保持一致性
-3. 先用 memorySearchTool 获取摘要，再用 memoryGetTool 读取详情
-4. 当用户明确要求记住，或对话中出现稳定偏好/重要决策时，使用 memorySaveTool
-5. 不要凭空编造记忆内容，如果没有找到相关记忆，诚实告知
-`;
+interface AutoRecallConfig {
+  enabled: boolean;        // 是否启用，默认 true
+  maxContextChars: number; // 召回上下文最大字符数，默认 3000
+  recallInterval: number;  // 同一对话中两次召回的最小轮次间隔，默认 3
+  useLlmKeywords: boolean; // 是否使用 AI 提取关键词，默认 true
+}
 ```
+
+### 10.5 缓存策略
+
+- 每个对话维护一个 `RecallCacheEntry`（结果 + 消息计数 + 时间戳）
+- 缓存命中条件：同一对话、轮次差 < `recallInterval`、未过期（30 分钟 TTL）
+- 缓存绕过条件：用户消息包含记忆信号词（"之前"、"上次"、"remember" 等）
+- 缓存容量：最多 50 个对话，超限时淘汰最旧的 25%
+
+### 10.6 注入格式
+
+```xml
+<recalled_memories>
+以下是从长期记忆中自动检索到的可能相关的信息。请酌情参考：
+- 如果记忆内容与当前话题直接相关，可以自然地融入回复中
+- 如果记忆内容似乎不太相关，可以忽略
+- 不要主动提及"我从记忆中查到"，除非用户问到
+- 记忆可能已过时，如果与当前对话矛盾，以当前对话为准
+
+## 相关记忆主题
+...
+## 相关记忆摘要
+...
+## 记忆详情
+...
+</recalled_memories>
+```
+
+### 10.7 与显式 Tool 调用的关系
+
+自动召回和现有的 Agent tool（`memorySearchTool`、`memoryGetTool` 等）互补：
+
+| 场景 | 自动召回 | Agent Tool |
+|------|---------|------------|
+| 用户偏好/背景 | ✅ 自动注入 | 不需要 |
+| 用户主动问"之前说了什么" | ✅ 自动注入 + | Agent 可再调用 tool 补充 |
+| 精确查找特定记忆 | 可能不够精确 | ✅ Agent 调用 memoryGetTool |
+| 浏览主题图谱 | ❌ 不支持 | ✅ Agent 调用 memoryTopicsTool |
+| 保存新记忆 | ❌ 不相关 | ✅ Agent 调用 memorySaveTool |
+
+### 10.8 IPC 接口
+
+| Channel | 方向 | 说明 |
+|---------|------|------|
+| `memory:clearRecallCache` | renderer → main | 清除自动召回缓存（指定对话或全部） |
+
+### 10.9 System Prompt 工具指导（仍保留）
+
+即使有自动召回，system prompt 中仍保留 Agent tool 使用指导，供 Agent 在需要更精确检索时使用。
 
 ---
 
