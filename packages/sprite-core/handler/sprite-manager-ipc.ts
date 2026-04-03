@@ -30,7 +30,7 @@
 
 import { app, BrowserWindow, ipcMain, screen } from 'electron';
 
-import { buildCharacterPersonaPrompt, getCharacterDefinition, getCharacterInfo, getDimensionSchema, initCharacterService } from '../character-service';
+import { buildCharacterPersonaPrompt, getCharacterDefinition, getCharacterInfo, getCharacterToolLabels, getDimensionSchema, initCharacterService } from '../character-service';
 import type { InteractionType } from '../interaction-tracker';
 import type { SpeakRequest, SpriteSpeakConfig } from '../speak/types';
 import { SpriteManager } from '../sprite-manager';
@@ -308,6 +308,18 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     });
   } catch {
     // AI module not available — skip enricher registration
+  }
+
+  // Register character tool labels into the tool-labels system
+  try {
+    const { setCharacterToolLabels } = await import('../../ai/runtime/pi/tool-labels');
+    const toolLabels = getCharacterToolLabels();
+    if (toolLabels) {
+      setCharacterToolLabels(toolLabels);
+      console.log('[SpriteManager] Character tool labels loaded:', Object.keys(toolLabels).length, 'tools');
+    }
+  } catch {
+    // AI runtime not available — skip tool labels
   }
 
   // ===== 初始化维度值（从 character.json 定义） =====

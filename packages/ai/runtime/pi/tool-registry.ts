@@ -138,9 +138,9 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
   },
   'toolbox-lookup': {
     category: 'meta',
-    description: '查找工具箱中的技能使用说明，了解工具的使用方法和工作流程',
-    compatName: 'toolboxLookupTool',
-    name: 'toolboxLookupTool',
+    description: '万能工具箱：搜索技能、了解工具用法、执行工具',
+    compatName: 'toolboxTool',
+    name: 'toolboxTool',
     status: 'ready-for-pi-runtime'
   },
   'web-search': {
@@ -168,6 +168,7 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
 
 export const DEFAULT_CODER_TOOL_IDS = ['file-list', 'file-read', 'file-glob', 'file-grep', 'file-write', 'file-edit', 'shell-exec', 'ask-user'];
 
+/** All tools available to the assistant profile (registered into session registry) */
 export const DEFAULT_SESSION_TOOL_IDS = [
   'query-resources',
   'read-subtitle',
@@ -182,8 +183,13 @@ export const DEFAULT_SESSION_TOOL_IDS = [
   'memory-save',
   'toolbox-lookup',
   'workflow-run',
+  'web-search',
+  'web-read',
   'ask-user'
 ];
+
+/** Initially active tools for assistant profile (others activated on-demand via toolbox) */
+export const INITIAL_ACTIVE_SESSION_TOOL_IDS = ['toolbox-lookup', 'ask-user'];
 
 function createToolDescriptor(toolId: string): PiToolDescriptor | undefined {
   const meta = DEFAULT_TOOL_METADATA[toolId];

@@ -16,7 +16,8 @@ export function getPiAgentProfile(profileId: string = DEFAULT_PI_PROFILE_ID): Pi
     executionMode: descriptor.executionMode,
     instructions: descriptor.instructions,
     supportsToolCalls: descriptor.supportsToolCalls,
-    defaultToolIds: [...descriptor.defaultToolIds]
+    defaultToolIds: [...descriptor.defaultToolIds],
+    toolInjectionMode: descriptor.toolInjectionMode
   };
 }
 
@@ -28,7 +29,8 @@ export function listPiAgentProfiles(): PiAgentProfile[] {
     executionMode: descriptor.executionMode,
     instructions: descriptor.instructions,
     supportsToolCalls: descriptor.supportsToolCalls,
-    defaultToolIds: [...descriptor.defaultToolIds]
+    defaultToolIds: [...descriptor.defaultToolIds],
+    toolInjectionMode: descriptor.toolInjectionMode
   }));
 }
 

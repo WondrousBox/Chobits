@@ -10,6 +10,9 @@ export type PiToolCategory = 'query' | 'content' | 'background-task' | 'ui-side-
 
 export type PiToolStatus = 'legacy-only' | 'scaffolded' | 'ready-for-pi-runtime';
 
+/** Tool injection mode: 'all' = inject all tools upfront, 'dynamic' = toolbox-based on-demand activation */
+export type PiToolInjectionMode = 'all' | 'dynamic';
+
 export interface PiAgentProfile {
   id: PiProfileId;
   label: string;
@@ -18,6 +21,8 @@ export interface PiAgentProfile {
   executionMode: PiExecutionMode;
   supportsToolCalls: boolean;
   defaultToolIds: string[];
+  /** Tool injection mode (default: 'dynamic' for assistant, 'all' for others) */
+  toolInjectionMode: PiToolInjectionMode;
 }
 
 /** Pi profile 完整描述（含系统提示），由 `profiles.md` 解析或代码组装 */
@@ -29,6 +34,7 @@ export interface PiProfileDescriptor {
   defaultToolIds: string[];
   executionMode: PiExecutionMode;
   supportsToolCalls: boolean;
+  toolInjectionMode: PiToolInjectionMode;
 }
 
 export interface ResolvedPiModelConfig {

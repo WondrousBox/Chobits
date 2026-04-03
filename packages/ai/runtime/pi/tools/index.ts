@@ -53,6 +53,33 @@ const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
   'workflow-run': createPiWorkflowRunTool
 };
 
+/** compatName → toolId 映射，供 toolbox proxy execute 按名称查找 */
+const COMPAT_NAME_TO_TOOL_ID: Record<string, string> = {
+  askUserTool: 'ask-user',
+  fileEditTool: 'file-edit',
+  fileGlobTool: 'file-glob',
+  fileGrepTool: 'file-grep',
+  fileListTool: 'file-list',
+  fileReadTool: 'file-read',
+  fileWriteTool: 'file-write',
+  pushCardTool: 'push-card',
+  resourceQueryTool: 'query-resources',
+  readSubtitleTool: 'read-subtitle',
+  shellExecTool: 'shell-exec',
+  summaryTool: 'summarize-content',
+  translationTool: 'translate-subtitles',
+  webReadTool: 'web-read',
+  webSearchTool: 'web-search',
+  youtubeDownloadTool: 'youtube-download',
+  youtubeSubscribeTool: 'youtube-subscribe',
+  memorySearchTool: 'memory-search',
+  memoryGetTool: 'memory-get',
+  memorySaveTool: 'memory-save',
+  memoryTopicsTool: 'memory-topics',
+  toolboxTool: 'toolbox-lookup',
+  workflowRunTool: 'workflow-run'
+};
+
 export function createPiCustomTools(enabledToolIds: string[], toolContext: PiSessionToolContext): ToolDefinition[] {
   const seen = new Set<string>();
   const tools: ToolDefinition[] = [];
@@ -66,6 +93,13 @@ export function createPiCustomTools(enabledToolIds: string[], toolContext: PiSes
   }
 
   return tools;
+}
+
+/**
+ * 列出所有可用工具的名称映射（compatName → toolId），供 toolbox activate/deactivate 错误提示使用。
+ */
+export function listAvailableToolNames(): Array<{ toolId: string; compatName: string }> {
+  return Object.entries(COMPAT_NAME_TO_TOOL_ID).map(([compatName, toolId]) => ({ toolId, compatName }));
 }
 
 export function listPiReadyToolIds(): string[] {
