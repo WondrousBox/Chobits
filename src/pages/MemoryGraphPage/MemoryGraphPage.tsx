@@ -14,6 +14,7 @@ import {
   TbRefresh,
   TbSearch,
   TbStar,
+  TbTag,
   TbTopologyRing,
   TbX,
   TbZoomIn,
@@ -63,6 +64,21 @@ interface EdgeRow {
   weight?: number | null;
 }
 
+interface KeywordNode {
+  id: string;
+  canonical: string;
+  aliases?: string | null;
+  entityType?: string | null;
+  primaryTopicId?: string | null;
+  occurrenceCount?: number | null;
+}
+
+interface NoteKeywordLink {
+  noteId: string;
+  keywordId: string;
+  relevance?: number | null;
+}
+
 // Search result types
 interface SearchResultNote {
   id: string;
@@ -109,7 +125,7 @@ interface TopicDetail {
 interface GraphNode {
   id: string;
   label: string;
-  type: 'topic' | 'note';
+  type: 'topic' | 'note' | 'keyword';
   heat: number;
   noteCount: number;
   size: number;
@@ -118,6 +134,7 @@ interface GraphNode {
   keywords?: string[];
   date?: string;
   importance?: number;
+  entityType?: string;
   x?: number;
   y?: number;
   fx?: number;
@@ -153,13 +170,31 @@ function noteColor(importance: number): string {
   return `rgba(59, 130, 246, ${alpha})`;
 }
 
+const ENTITY_TYPE_COLORS: Record<string, string> = {
+  person: '#f59e0b',
+  product: '#10b981',
+  technology: '#06b6d4',
+  organization: '#8b5cf6',
+  concept: '#ec4899',
+  location: '#ef4444',
+  event: '#f97316',
+  keyword: '#22c55e',
+  other: '#94a3b8'
+};
+
+function keywordColor(entityType?: string | null): string {
+  return ENTITY_TYPE_COLORS[entityType ?? 'keyword'] ?? ENTITY_TYPE_COLORS.keyword;
+}
+
 const RELATION_COLORS: Record<string, string> = {
   parent_topic_of: 'rgba(139, 92, 246, 0.5)',
   belongs_to_topic: 'rgba(59, 130, 246, 0.4)',
   related_to_topic: 'rgba(20, 184, 166, 0.5)',
   related_to_note: 'rgba(234, 179, 8, 0.3)',
   shares_keyword: 'rgba(168, 85, 247, 0.3)',
-  references_note: 'rgba(249, 115, 22, 0.3)'
+  references_note: 'rgba(249, 115, 22, 0.3)',
+  note_has_keyword: 'rgba(34, 197, 94, 0.35)',
+  keyword_to_topic: 'rgba(139, 92, 246, 0.3)'
 };
 
 function safeJsonParse(json: string | null | undefined, fallback: any[] = []): any[] {
@@ -174,7 +209,16 @@ function safeJsonParse(json: string | null | undefined, fallback: any[] = []): a
 
 // ━━ Build Graph Helpers ━━
 
-function buildGraphData(topics: TopicNode[], edges: EdgeRow[], notes: NoteNode[], showNotes: boolean, filterTerm: string): GraphData {
+function buildGraphData(
+  topics: TopicNode[],
+  edges: EdgeRow[],
+  notes: NoteNode[],
+  showNotes: boolean,
+  filterTerm: string,
+  keywordNodes: KeywordNode[] = [],
+  noteKeywordLinks: NoteKeywordLink[] = [],
+  showKeywords = false
+): GraphData {
   const nodeMap = new Map<string, GraphNode>();
 
   for (const t of topics) {
@@ -217,6 +261,25 @@ function buildGraphData(topics: TopicNode[], edges: EdgeRow[], notes: NoteNode[]
     }
   }
 
+  // 添加关键词节点
+  if (showKeywords) {
+    for (const kw of keywordNodes) {
+      const count = kw.occurrenceCount ?? 1;
+      const size = Math.max(3, Math.min(14, 3 + Math.log2(count + 1) * 3));
+      nodeMap.set(kw.id, {
+        id: kw.id,
+        label: kw.canonical,
+        type: 'keyword',
+        heat: 0,
+        noteCount: 0,
+        size,
+        color: keywordColor(kw.entityType),
+        entityType: kw.entityType ?? undefined,
+        description: kw.entityType ? `类型: ${kw.entityType} · 出现 ${count} 次` : `出现 ${count} 次`
+      });
+    }
+  }
+
   let activeNodeIds: Set<string> | null = null;
   if (filterTerm) {
     const lower = filterTerm.toLowerCase();
@@ -244,6 +307,38 @@ function buildGraphData(topics: TopicNode[], edges: EdgeRow[], notes: NoteNode[]
     if (seenLinks.has(key)) continue;
     seenLinks.add(key);
     links.push({ source: e.sourceId, target: e.targetId, relationType: e.relationType, weight: e.weight ?? 1, color: RELATION_COLORS[e.relationType] || 'rgba(148, 163, 184, 0.3)' });
+  }
+
+  // 添加 note ↔ keyword 关联边
+  if (showKeywords) {
+    for (const nk of noteKeywordLinks) {
+      if (!validIds.has(nk.noteId) || !validIds.has(nk.keywordId)) continue;
+      const key = `${nk.noteId}-${nk.keywordId}-note_has_keyword`;
+      if (seenLinks.has(key)) continue;
+      seenLinks.add(key);
+      links.push({
+        source: nk.noteId,
+        target: nk.keywordId,
+        relationType: 'note_has_keyword',
+        weight: nk.relevance ?? 0.5,
+        color: RELATION_COLORS.note_has_keyword
+      });
+    }
+    // 添加 keyword → primaryTopic 关联边
+    for (const kw of keywordNodes) {
+      if (!kw.primaryTopicId) continue;
+      if (!validIds.has(kw.id) || !validIds.has(kw.primaryTopicId)) continue;
+      const key = `${kw.id}-${kw.primaryTopicId}-keyword_to_topic`;
+      if (seenLinks.has(key)) continue;
+      seenLinks.add(key);
+      links.push({
+        source: kw.id,
+        target: kw.primaryTopicId,
+        relationType: 'keyword_to_topic',
+        weight: 0.6,
+        color: RELATION_COLORS.keyword_to_topic
+      });
+    }
   }
 
   return { nodes: filteredNodes, links };
@@ -292,12 +387,15 @@ function DetailPanel({
         })
         .catch(console.error)
         .finally(() => setDetailLoading(false));
-    } else {
+    } else if (node.type === 'note') {
       window.YUA.memory
         .get({ noteId: node.id })
         .then((result: NoteDetail | null) => setNoteDetail(result))
         .catch(console.error)
         .finally(() => setDetailLoading(false));
+    } else {
+      // keyword: no extra detail to fetch
+      setDetailLoading(false);
     }
   }, [node, workspaceId]);
 
@@ -326,8 +424,8 @@ function DetailPanel({
       <div className="p-4 border-b border-border/50 shrink-0">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            {node.type === 'topic' ? <TbTopologyRing className="h-4 w-4 text-violet-500" /> : <TbNote className="h-4 w-4 text-blue-500" />}
-            <span className="text-xs font-medium text-muted-foreground uppercase">{node.type === 'topic' ? '主题' : '笔记'}</span>
+            {node.type === 'topic' ? <TbTopologyRing className="h-4 w-4 text-violet-500" /> : node.type === 'keyword' ? <TbTag className="h-4 w-4 text-green-500" /> : <TbNote className="h-4 w-4 text-blue-500" />}
+            <span className="text-xs font-medium text-muted-foreground uppercase">{node.type === 'topic' ? '主题' : node.type === 'keyword' ? '关键词' : '笔记'}</span>
           </div>
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose}>
             <TbX className="h-3.5 w-3.5" />
@@ -366,6 +464,14 @@ function DetailPanel({
             <div className="flex justify-between">
               <span className="text-muted-foreground">重要度</span>
               <span className="tabular-nums">{(node.importance * 100).toFixed(0)}%</span>
+            </div>
+          )}
+          {node.type === 'keyword' && node.entityType && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">实体类型</span>
+              <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] border" style={{ borderColor: keywordColor(node.entityType), color: keywordColor(node.entityType) }}>
+                {node.entityType}
+              </span>
             </div>
           )}
         </div>
@@ -796,7 +902,10 @@ export default function MemoryGraphPage(): React.ReactElement {
   const [rawTopics, setRawTopics] = useState<TopicNode[]>([]);
   const [rawEdges, setRawEdges] = useState<EdgeRow[]>([]);
   const [rawNotes, setRawNotes] = useState<NoteNode[]>([]);
+  const [rawKeywords, setRawKeywords] = useState<KeywordNode[]>([]);
+  const [rawNoteKeywords, setRawNoteKeywords] = useState<NoteKeywordLink[]>([]);
   const [showNotes, setShowNotes] = useState(true);
+  const [showKeywords, setShowKeywords] = useState(false);
   const [filterTerm, setFilterTerm] = useState('');
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [focusTopicId, setFocusTopicId] = useState<string | undefined>();
@@ -825,10 +934,12 @@ export default function MemoryGraphPage(): React.ReactElement {
     async (topicId?: string) => {
       setLoading(true);
       try {
-        const result = await window.YUA.memory.graphData({ topicId, workspaceId: workspaceId || undefined, includeNotes: true, maxTopics: 200, maxEdges: 500 });
+        const result = await window.YUA.memory.graphData({ topicId, workspaceId: workspaceId || undefined, includeNotes: true, includeKeywords: true, maxTopics: 200, maxEdges: 500 });
         setRawTopics(result.topics ?? []);
         setRawEdges(result.edges ?? []);
         setRawNotes(result.notes ?? []);
+        setRawKeywords(result.keywords ?? []);
+        setRawNoteKeywords(result.noteKeywords ?? []);
         setFocusTopicId(topicId);
       } catch (err) {
         console.error('[MemoryGraph] Failed to load:', err);
@@ -852,9 +963,9 @@ export default function MemoryGraphPage(): React.ReactElement {
   // ━━ Rebuild graph when raw data or filters change ━━
 
   useEffect(() => {
-    const data = buildGraphData(rawTopics, rawEdges, rawNotes, showNotes, filterTerm);
+    const data = buildGraphData(rawTopics, rawEdges, rawNotes, showNotes, filterTerm, rawKeywords, rawNoteKeywords, showKeywords);
     setGraphData(data);
-  }, [rawTopics, rawEdges, rawNotes, showNotes, filterTerm]);
+  }, [rawTopics, rawEdges, rawNotes, showNotes, filterTerm, rawKeywords, rawNoteKeywords, showKeywords]);
 
   // ━━ Resize observer ━━
 
@@ -933,6 +1044,48 @@ export default function MemoryGraphPage(): React.ReactElement {
 
         ctx.fillStyle = isFaded ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.95)';
         ctx.fillText(n.label, x, textY);
+      } else if (n.type === 'keyword') {
+        // 关键词节点：圆角矩形（标签形状）
+        const baseSize = n.size;
+        const drawSize = isHighlighted ? baseSize * 1.4 : isHovered || isSelected ? baseSize * 1.2 : baseSize;
+        const w = drawSize * 2.5;
+        const h = drawSize * 1.6;
+        const r = drawSize * 0.4;
+
+        if (isHighlighted) {
+          ctx.beginPath();
+          ctx.roundRect(x - w / 2 - 3, y - h / 2 - 3, w + 6, h + 6, r + 2);
+          const glow = ctx.createRadialGradient(x, y, drawSize * 0.3, x, y, drawSize * 2);
+          glow.addColorStop(0, `${n.color}66`);
+          glow.addColorStop(1, `${n.color}00`);
+          ctx.fillStyle = glow;
+          ctx.fill();
+        }
+
+        if ((isSelected || isHovered) && !isHighlighted) {
+          ctx.beginPath();
+          ctx.roundRect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 4, r + 1);
+          ctx.fillStyle = `${n.color}22`;
+          ctx.fill();
+        }
+
+        ctx.beginPath();
+        ctx.roundRect(x - w / 2, y - h / 2, w, h, r);
+        ctx.fillStyle = isFaded ? `${n.color}44` : isHighlighted ? n.color : `${n.color}cc`;
+        ctx.fill();
+        ctx.strokeStyle = isHighlighted ? '#e0e7ff' : isSelected ? '#fff' : `${n.color}88`;
+        ctx.lineWidth = isHighlighted ? 2 : isSelected ? 1.5 : 0.5;
+        ctx.stroke();
+
+        // 关键词标签文字（始终显示）
+        const scaledFont = Math.max(8, drawSize * 0.9) / globalScale;
+        ctx.font = `${isHighlighted ? '600' : '500'} ${scaledFont}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = isFaded ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.95)';
+        const maxLabelLen = Math.floor(w * globalScale / (scaledFont * globalScale * 0.6));
+        const kwLabel = n.label.length > maxLabelLen ? n.label.slice(0, maxLabelLen - 1) + '…' : n.label;
+        ctx.fillText(kwLabel, x, y);
       } else {
         const size = n.size;
         const drawSize = isHighlighted ? size * 1.5 : isHovered || isSelected ? size * 1.3 : size;
@@ -1179,7 +1332,7 @@ export default function MemoryGraphPage(): React.ReactElement {
 
   // ━━ Stats ━━
 
-  const stats = useMemo(() => ({ topics: rawTopics.length, notes: rawNotes.length, edges: rawEdges.length }), [rawTopics, rawNotes, rawEdges]);
+  const stats = useMemo(() => ({ topics: rawTopics.length, notes: rawNotes.length, edges: rawEdges.length, keywords: rawKeywords.length }), [rawTopics, rawNotes, rawEdges, rawKeywords]);
 
   // ━━ Zoom to fit after data loads ━━
 
@@ -1230,6 +1383,15 @@ export default function MemoryGraphPage(): React.ReactElement {
                 </div>
               </TooltipTrigger>
               <TooltipContent side="bottom">显示笔记节点</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1.5 px-2">
+                  <TbTag className="h-3.5 w-3.5 text-muted-foreground" />
+                  <Switch checked={showKeywords} onCheckedChange={setShowKeywords} className="scale-75" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">显示关键词节点</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -1360,6 +1522,10 @@ export default function MemoryGraphPage(): React.ReactElement {
               笔记 {stats.notes}
             </span>
             <span className="flex items-center gap-1">
+              <span className="inline-block w-3 h-1.5 rounded-sm" style={{ background: '#22c55e' }} />
+              关键词 {stats.keywords}
+            </span>
+            <span className="flex items-center gap-1">
               <span className="inline-block w-3 h-px" style={{ background: '#94a3b8' }} />
               关系 {stats.edges}
             </span>
@@ -1378,6 +1544,10 @@ export default function MemoryGraphPage(): React.ReactElement {
             <div className="flex items-center gap-1.5">
               <span className="inline-block w-2 h-2 rounded-sm rotate-45" style={{ background: '#3b82f6' }} />
               <span>记忆笔记</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-1.5 rounded-sm" style={{ background: '#22c55e' }} />
+              <span>关键词</span>
             </div>
             <div className="flex items-center gap-1.5 text-muted-foreground/60">
               <span>节点大小 = 关联数量</span>

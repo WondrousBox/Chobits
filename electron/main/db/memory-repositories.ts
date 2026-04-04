@@ -574,6 +574,19 @@ export const MemoryKeywordRepo = {
     const db = getOrm();
     const rows = await db.select().from(memory_keywords).where(eq(memory_keywords.id, id)).limit(1);
     return rows[0];
+  },
+
+  /** 列出 workspace 中的所有关键词（按出现次数排序） */
+  async listAll(workspaceId?: string, limit = 300): Promise<MemoryKeywordRow[]> {
+    const db = getOrm();
+    const wheres: any[] = [];
+    if (workspaceId) wheres.push(eq(memory_keywords.workspaceId, workspaceId));
+    return db
+      .select()
+      .from(memory_keywords)
+      .where(wheres.length ? and(...wheres) : undefined)
+      .orderBy(desc(memory_keywords.occurrenceCount))
+      .limit(limit);
   }
 };
 
@@ -611,6 +624,26 @@ export const MemoryNoteKeywordRepo = {
     const db = getOrm();
     const res = await db.delete(memory_note_keywords).where(eq(memory_note_keywords.noteId, noteId)).run();
     return (res as any).changes ?? 0;
+  },
+
+  /** 列出 workspace 中所有 note-keyword 关联（用于图谱绘制） */
+  async listAllByWorkspace(workspaceId: string, limit = 1000): Promise<MemoryNoteKeywordRow[]> {
+    const db = getOrm();
+    // 通过 join memory_keywords 筛选 workspace
+    return db
+      .select({
+        id: memory_note_keywords.id,
+        noteId: memory_note_keywords.noteId,
+        keywordId: memory_note_keywords.keywordId,
+        scope: memory_note_keywords.scope,
+        sectionId: memory_note_keywords.sectionId,
+        relevance: memory_note_keywords.relevance,
+        createdAt: memory_note_keywords.createdAt
+      })
+      .from(memory_note_keywords)
+      .innerJoin(memory_keywords, eq(memory_note_keywords.keywordId, memory_keywords.id))
+      .where(eq(memory_keywords.workspaceId, workspaceId))
+      .limit(limit);
   }
 };
 
