@@ -225,13 +225,16 @@ export function initMemoryHandlers(): void {
         topicId?: string;
         workspaceId?: string;
         includeNotes?: boolean;
+        includeKeywords?: boolean;
         maxTopics?: number;
         maxEdges?: number;
+        maxKeywords?: number;
       }
     ) => {
       try {
         const maxTopics = params?.maxTopics ?? 200;
         const maxEdges = params?.maxEdges ?? 500;
+        const maxKeywords = params?.maxKeywords ?? 300;
 
         // 解析 workspaceId，未提供时使用默认 workspace
         let wsId = params?.workspaceId;
@@ -258,10 +261,18 @@ export function initMemoryHandlers(): void {
           notes = await MemoryNoteRepo.listByWorkspace(wsId, 100, 0);
         }
 
-        return { topics, edges, notes };
+        // 可选：获取关键词和 note-keyword 关联
+        let keywords: any[] = [];
+        let noteKeywords: any[] = [];
+        if (params?.includeKeywords && wsId) {
+          keywords = await MemoryKeywordRepo.listAll(wsId, maxKeywords);
+          noteKeywords = await MemoryNoteKeywordRepo.listAllByWorkspace(wsId, 2000);
+        }
+
+        return { topics, edges, notes, keywords, noteKeywords };
       } catch (e: any) {
         console.error('[Memory] graphData failed:', e);
-        return { topics: [], edges: [], notes: [] };
+        return { topics: [], edges: [], notes: [], keywords: [], noteKeywords: [] };
       }
     }
   );
