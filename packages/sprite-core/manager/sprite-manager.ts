@@ -18,251 +18,26 @@
  * 4. BehaviorEngine 上下文从自身实例读取
  */
 
-import fs from 'node:fs';
-import fsp from 'node:fs/promises';
-import path from 'node:path';
-
-import type { AnimationEntry } from './animation-registry';
-import { AnimationRegistry } from './animation-registry';
-import type { BehaviorContext, BehaviorDefinition } from './behavior-engine';
-import {
-  BehaviorEngine,
-  createActionBehavior,
-  createAmbientBehavior,
-  createAutoWalkBehavior,
-  createBoredBehavior,
-  createEmotionBehavior,
-  createFavorDecayBehavior,
-  createIdleSleepyBehavior,
-  createRandomMessageBehavior,
-  createSeasonalBehavior,
-  createSleepyBehavior
-} from './behavior-engine';
-import { SpriteEventBus } from './event-bus';
-import type { InteractionType } from './interaction-tracker';
-import { InteractionTracker } from './interaction-tracker';
-import Messages from './messages/zh-CN';
-import { getSpriteEventText } from './messages/zh-CN';
-import type { FavorLevel, MoodType, PersonaState } from './persona-state';
-import { PersonaStateManager } from './persona-state';
-import { SpeakService } from './speak/speak-service';
-import type { SpeakResult, SpriteSpeakConfig, SpriteSpeakPayload } from './speak/types';
-import type { SpriteState, SpriteSubState } from './state-machine';
-import { SpriteStateMachine } from './state-machine';
-import type { MessageCategory, MessageIPCPayload, SpriteAnimation, SpriteConfig, SpriteInitialState, SpritePlayCommand, SpriteStateSnapshot } from './types';
-
-// ============================================================================
-// 平台抽象接口（由 Electron main process 注入）
-// ============================================================================
-
-/** BrowserWindow 的最小接口 */
-export interface SpriteWindow {
-  webContents: {
-    send(channel: string, ...args: any[]): void;
-  };
-  getBounds(): { x: number; y: number; width: number; height: number };
-  setPosition(x: number, y: number, animate?: boolean): void;
-  setSize(width: number, height: number, animate?: boolean): void;
-  isDestroyed(): boolean;
-}
-
-/** SpriteManager 初始化选项 */
-export interface SpriteManagerOptions {
-  /** 主窗口 */
-  win: SpriteWindow;
-  /** 用户数据目录（用于持久化），通常为 app.getPath('userData') */
-  dataDir: string;
-  /** 获取主屏幕工作区尺寸 */
-  getScreenSize: () => { width: number; height: number };
-  /** 应用名称 */
-  appName?: string;
-}
-
-// ============================================================================
-// 内部持久化 (从 persona-state-service.ts 内聚)
-// ============================================================================
-
-interface PersonaStatePersistenceRow {
-  id: string;
-  name: string;
-  description?: string;
-  xp: number;
-  level: number;
-  favor: number;
-  mood: string;
-  moodIntensity: number;
-  totalInteractions: number;
-  totalSessionTime: number;
-  loginStreak: number;
-  lastLoginDate: string;
-  achievements: string;
-  createdAt: number;
-  updatedAt: number;
-}
-
-class PersonaStatePersistence {
-  private filePath: string;
-  private dirty = false;
-  private saveTimer: ReturnType<typeof setInterval> | null = null;
-  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-  constructor(dataDir: string) {
-    const settingsDir = path.join(dataDir, 'data');
-    this.filePath = path.join(settingsDir, 'persona-state.json');
-  }
-
-  /** 加载状态 */
-  async load(): Promise<PersonaStatePersistenceRow | null> {
-    try {
-      const raw = await fsp.readFile(this.filePath, 'utf-8');
-      return JSON.parse(raw);
-    } catch {
-      return null;
-    }
-  }
-
-  /** 标记为脏并 debounce 保存 */
-  markDirty(): void {
-    this.dirty = true;
-    this.debounceSave();
-  }
-
-  /** 立即保存 */
-  async save(state: PersonaStatePersistenceRow): Promise<void> {
-    try {
-      const dir = path.dirname(this.filePath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      await fsp.writeFile(this.filePath, JSON.stringify(state, null, 2), 'utf-8');
-      this.dirty = false;
-    } catch (err) {
-      console.error('[SpriteManager] Failed to save persona state:', err);
-    }
-  }
-
-  /** 启动自动保存 (每 60 秒) */
-  startAutoSave(getState: () => PersonaStatePersistenceRow): void {
-    this.stopAutoSave();
-    this.saveTimer = setInterval(async () => {
-      if (this.dirty) {
-        await this.save(getState());
-      }
-    }, 60_000);
-  }
-
-  /** 停止自动保存 */
-  stopAutoSave(): void {
-    if (this.saveTimer) {
-      clearInterval(this.saveTimer);
-      this.saveTimer = null;
-    }
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = null;
-    }
-  }
-
-  /** debounce 保存 (5 秒) */
-  private debounceSave(): void {
-    if (this.debounceTimer) clearTimeout(this.debounceTimer);
-    this.debounceTimer = setTimeout(() => {
-      // actual save is done by auto-save loop
-    }, 5_000);
-  }
-
-  isDirty(): boolean {
-    return this.dirty;
-  }
-}
-
-// ============================================================================
-// Auto-walk 配置持久化
-// ============================================================================
-
-class AutoWalkConfig {
-  private filePath: string;
-  private _enabled = true;
-
-  constructor(dataDir: string) {
-    this.filePath = path.join(dataDir, 'data', 'auto-walk-config.json');
-  }
-
-  load(): void {
-    try {
-      if (fs.existsSync(this.filePath)) {
-        const txt = fs.readFileSync(this.filePath, 'utf8');
-        const parsed = JSON.parse(txt);
-        this._enabled = parsed.enabled ?? true;
-      }
-    } catch {
-      this._enabled = true;
-    }
-  }
-
-  save(): void {
-    try {
-      const dir = path.dirname(this.filePath);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(this.filePath, JSON.stringify({ enabled: this._enabled }, null, 2), 'utf8');
-    } catch {
-      /* ignore */
-    }
-  }
-
-  get enabled(): boolean {
-    return this._enabled;
-  }
-
-  set enabled(v: boolean) {
-    this._enabled = v;
-    this.save();
-  }
-}
-
-// ============================================================================
-// 状态→事件映射
-// ============================================================================
-
-function mapStateToEventType(state: SpriteState, subState: SpriteSubState | null): string {
-  switch (state) {
-    case 'idle':
-      return 'idle';
-    case 'walking':
-      return 'walk';
-    case 'running':
-      return 'run';
-    case 'dragging':
-      return 'drag';
-    case 'sleeping':
-      return 'sleep';
-    case 'bored':
-      return 'bored';
-    case 'reacting':
-      switch (subState) {
-        case 'click':
-          return 'click';
-        case 'hold':
-          return 'hold';
-        case 'drop':
-          return 'drop';
-        case 'file-drag-over':
-          return 'fileDragOver';
-        case 'file-drop':
-          return 'fileDrop';
-        case 'sleepy':
-          return 'sleep';
-        case 'celebrate':
-          return 'celebrate';
-        case 'emotion':
-          return 'happy';
-        default:
-          return 'idle';
-      }
-    default:
-      return 'idle';
-  }
-}
+import type { AnimationEntry } from '../animation-registry';
+import { AnimationRegistry } from '../animation-registry';
+import type { BehaviorContext, BehaviorDefinition } from '../behavior-engine';
+import { BehaviorEngine } from '../behavior-engine';
+import { SpriteEventBus } from '../event-bus';
+import type { InteractionType } from '../interaction-tracker';
+import { InteractionTracker } from '../interaction-tracker';
+import Messages from '../messages/zh-CN';
+import { getSpriteEventText } from '../messages/zh-CN';
+import type { MoodType, PersonaState } from '../persona-state';
+import { PersonaStateManager } from '../persona-state';
+import { SpeakService } from '../speak/speak-service';
+import type { SpeakResult, SpriteSpeakConfig, SpriteSpeakPayload } from '../speak/types';
+import type { SpriteState, SpriteSubState } from '../state-machine';
+import { SpriteStateMachine } from '../state-machine';
+import type { MessageCategory, MessageIPCPayload, SpriteAnimation, SpriteConfig, SpriteInitialState, SpritePlayCommand, SpriteStateSnapshot } from '../types';
+import { registerDefaultBehaviors } from './default-behaviors';
+import { AutoWalkConfig, PersonaStatePersistence } from './persistence';
+import { mapStateToEventType } from './state-mapping';
+import type { PersonaStatePersistenceRow, SpriteManagerOptions, SpriteWindow } from './types';
 
 // ============================================================================
 // SpriteManager 实现
@@ -416,7 +191,7 @@ export class SpriteManager {
     this.persistence.startAutoSave(() => this.getPersonaStateForPersistence());
 
     // 4. 注册默认行为
-    this.registerDefaultBehaviors();
+    registerDefaultBehaviors(this);
 
     // 5. 初始化语音合成服务
     await this.speakService.init();
@@ -495,14 +270,6 @@ export class SpriteManager {
    * 根据 eventType 尝试播放对应动画 + 显示气泡文案。
    * 如果 AnimationRegistry 中没有匹配动画，则仅显示气泡文字。
    * 这是为所有 SpriteEventType 提供统一触发入口的核心方法。
-   *
-   * @param eventType SpriteEventType 事件类型（如 'happy', 'jump', 'appear' 等）
-   * @param options 可选参数
-   *   - message: 自定义气泡文案（覆盖默认文案查找）
-   *   - duration: toast 持续时间
-   *   - durationMs: 动画持续时间
-   *   - ctx: 文案模板上下文
-   *   - silent: 不显示 toast（仅播放动画）
    */
   trigger(
     eventType: string,
@@ -517,8 +284,6 @@ export class SpriteManager {
     // 1. 尝试查找并播放动画
     const anim = this.animationRegistry.findByEvent({ eventType });
     if (anim) {
-      // 有动画 → 直接发送播放指令到渲染进程
-      // 不走 playOnce('custom') 避免 mapStateToEventType 找不到正确映射
       this.currentAnimation = {
         animationId: anim.id,
         source: anim.source,
@@ -635,7 +400,6 @@ export class SpriteManager {
 
     // 自动朗读：非静默类别 且 非来自 speak() 的调用
     if (!this._speakGuard && !SpriteManager.MUTE_CATEGORIES.has(options?.category ?? '')) {
-      // 优先使用直传文案，否则根据 category 从文案目录解析
       const speakText = content || (options?.category ? Messages.t(options.category, options?.ctx) : '');
       if (speakText) {
         this.speakService.speak(speakText).catch(() => { });
@@ -689,22 +453,16 @@ export class SpriteManager {
   /**
    * 让精灵说话
    * 同时显示文字气泡 + 合成并播放语音
-   * @param text 要说的文本
-   * @param options 可选参数
    */
   async speak(text: string, options?: { showBubble?: boolean; bubbleDuration?: number }): Promise<SpeakResult> {
     const showBubble = options?.showBubble ?? true;
 
-    // 设置 guard，防止 showToast 内再次触发 speakService.speak
     this._speakGuard = true;
     try {
-      // 显示文字气泡
       if (showBubble) {
         const bubbleDuration = options?.bubbleDuration ?? Math.max(3000, text.length * 200);
         this.showToast(text, { duration: bubbleDuration, category: 'message' });
       }
-
-      // 合成并播放语音
       return await this.speakService.speak(text);
     } finally {
       this._speakGuard = false;
@@ -756,7 +514,6 @@ export class SpriteManager {
         subState: this.getSubState(),
         personaSnapshot: this.personaState.getState()
       });
-      // 等级提升特效
       this.trigger('powerUp', { message: `升级了！当前等级 ${result.newLevel} ⭐` });
     }
     return result;
@@ -794,7 +551,6 @@ export class SpriteManager {
     const result = this.personaState.unlockAchievement(id);
     if (result) {
       this.persistence.markDirty();
-      // 成就解锁特效
       this.trigger('sparkle', { message: '成就解锁！✨' });
     }
     return result;
@@ -1027,7 +783,6 @@ export class SpriteManager {
   /** 设置自动行走开关 */
   setAutoWalkEnabled(enabled: boolean): void {
     this.autoWalkConfig.enabled = enabled;
-    // 如果关闭，停止当前行走
     if (!enabled) {
       this.stopWalk();
     }
@@ -1053,14 +808,12 @@ export class SpriteManager {
   handleAnimationComplete(animId: string, phase: 'intro' | 'loop' | 'outro' | 'full'): void {
     this.eventBus.emit('anim:complete', { animId, phase }, 'renderer');
 
-    // outro 播完后，如果正在等待切到 idle 动画，立即解析并发送
     if ((phase === 'outro' || phase === 'full') && this._pendingIdleAfterOutro) {
       this._pendingIdleAfterOutro = false;
       this.resolveAndSendAnimation(this.getState(), this.getSubState());
       return;
     }
 
-    // 如果是完整播放完成且当前状态是 reacting，自动回到 idle
     if (phase === 'full' || phase === 'outro') {
       const state = this.getState();
       if (state === 'reacting') {
@@ -1072,7 +825,6 @@ export class SpriteManager {
   /** 处理文件拖放 */
   handleFileDrop(files: any[]): void {
     this.reportInteraction('file-drop', { fileCount: files.length });
-    // 显示文件接收消息
     const names = files.map((f: any) => f.name).filter(Boolean);
     this.showToast(undefined, {
       category: 'fileDrop',
@@ -1086,7 +838,6 @@ export class SpriteManager {
 
   /** 渲染进程就绪 */
   handleRendererReady(): void {
-    // 发送初始状态
     const initial = this.getInitialState();
     this.sendToRenderer('sprite:state', {
       state: initial.state,
@@ -1098,7 +849,6 @@ export class SpriteManager {
       this.sendToRenderer('sprite:play', initial.currentAnimation);
     }
 
-    // 发送欢迎消息（仅首次，避免其他窗口 ready 时重复播放）
     if (!this._welcomeSent) {
       this._welcomeSent = true;
       setTimeout(() => {
@@ -1145,13 +895,9 @@ export class SpriteManager {
 
   /** 状态机变化回调 */
   private onStateChange(newState: SpriteState, _oldState: SpriteState, subState: SpriteSubState | null): void {
-    // 如果当前动画是三段式动画且正在从非 idle → idle，先让 outro 播完
-    // 不立即切换动画，只广播状态（使渲染进程 isPlaying=false → 触发 outro）
     if (newState === 'idle' && _oldState !== 'idle' && this.currentAnimation?.playback?.loopStartMs != null && this.currentAnimation?.playback?.loopEndMs != null) {
       this._pendingIdleAfterOutro = true;
-      // 仅广播状态变化，不发送新动画
       this.broadcastState();
-      // 安全超时：如果 outro 未正常完成（视频错误等），3 秒后强制切换
       setTimeout(() => {
         if (this._pendingIdleAfterOutro) {
           this._pendingIdleAfterOutro = false;
@@ -1164,7 +910,6 @@ export class SpriteManager {
     this._pendingIdleAfterOutro = false;
     this.resolveAndSendAnimation(newState, subState);
 
-    // 广播状态变化
     this.broadcastState();
   }
 
@@ -1194,7 +939,6 @@ export class SpriteManager {
           : undefined
       };
 
-      // 同步更新精灵尺寸配置
       if (animEntry.playback) {
         const pb = animEntry.playback;
         if (pb.width != null) this.spriteConfig.width = pb.width;
@@ -1202,7 +946,6 @@ export class SpriteManager {
         if (pb.padding != null) this.spriteConfig.padding = pb.padding;
       }
 
-      // 广播播放指令
       this.sendToRenderer('sprite:play', this.currentAnimation);
     }
   }
@@ -1261,149 +1004,6 @@ export class SpriteManager {
       screenSize,
       position
     };
-  }
-
-  /** 注册默认行为 */
-  private registerDefaultBehaviors(): void {
-    // 自动行走
-    this.behaviorEngine.register(
-      createAutoWalkBehavior(async (_ctx) => {
-        if (!this.isAutoWalkEnabled()) return;
-        if (!this.windowController) return;
-
-        const pos = this.getPosition();
-        const screen = this.getScreenSize();
-        const config = this.getSpriteConfig();
-
-        const minX = -config.padding;
-        const maxX = screen.width - config.width - config.padding;
-        const targetX = Math.random() * (maxX - minX) + minX;
-
-        const yRange = screen.height * 0.1;
-        const yMin = Math.max(-config.padding, pos[1] - yRange);
-        const yMax = Math.min(screen.height - config.height - config.padding, pos[1] + yRange);
-        const targetY = Math.random() * (yMax - yMin) + yMin;
-
-        await this.walkTo(targetX, targetY);
-      })
-    );
-
-    // 困倦
-    const sleepyDef = createSleepyBehavior();
-    sleepyDef.action = (_ctx) => {
-      this.playOnce('sleepy');
-      this.showToast(undefined, { category: 'reminder' });
-    };
-    this.behaviorEngine.register(sleepyDef);
-
-    // 长时间闲置困倦（100秒无交互）
-    const idleSleepyDef = createIdleSleepyBehavior();
-    idleSleepyDef.action = (_ctx) => {
-      this.playOnce('sleepy');
-      this.showToast('有点困了呢...', { category: 'info', duration: 2000 });
-    };
-    this.behaviorEngine.register(idleSleepyDef);
-
-    // 无聊
-    const boredDef = createBoredBehavior();
-    boredDef.action = (_ctx) => {
-      this.transitionTo('bored');
-    };
-    this.behaviorEngine.register(boredDef);
-
-    // 随机消息
-    const msgDef = createRandomMessageBehavior();
-    msgDef.action = (_ctx) => {
-      this.showToast(undefined, { category: 'tip' });
-    };
-    this.behaviorEngine.register(msgDef);
-
-    // 好感度衰减
-    const decayDef = createFavorDecayBehavior();
-    decayDef.action = (_ctx) => {
-      this.changeFavor(-1, 'idle-decay');
-    };
-    this.behaviorEngine.register(decayDef);
-
-    // ===== 情感自发行为 =====
-    const emotionDef = createEmotionBehavior();
-    emotionDef.action = (ctx) => {
-      // 根据好感度选择情感类型
-      const favor = ctx.personaState.favor;
-      const highFavorEmotions = ['happy', 'joy', 'excited', 'proud', 'curious'];
-      const midFavorEmotions = ['curious', 'surprised', 'shy', 'thinking'];
-      const lowFavorEmotions = ['bored', 'annoyed', 'confused', 'tired'];
-
-      let pool: string[];
-      if (favor >= 60) {
-        pool = highFavorEmotions;
-      } else if (favor >= 30) {
-        pool = midFavorEmotions;
-      } else {
-        pool = lowFavorEmotions;
-      }
-      const picked = pool[Math.floor(Math.random() * pool.length)];
-      this.trigger(picked);
-    };
-    this.behaviorEngine.register(emotionDef);
-
-    // ===== 动作自发行为 =====
-    const actionDef = createActionBehavior();
-    actionDef.action = (ctx) => {
-      const favor = ctx.personaState.favor;
-      // 基础动作（任意好感度可触发）
-      const baseActions = ['sit', 'stand', 'wave', 'nod', 'point', 'lookLeft', 'lookRight'];
-      // 高好感度解锁动作
-      const highFavorActions = ['dance', 'spin', 'jump'];
-
-      const pool = favor >= 60 ? [...baseActions, ...highFavorActions] : baseActions;
-      const picked = pool[Math.floor(Math.random() * pool.length)];
-      this.trigger(picked);
-    };
-    this.behaviorEngine.register(actionDef);
-
-    // ===== 氛围自发行为 =====
-    const ambientDef = createAmbientBehavior();
-    ambientDef.action = () => {
-      const ambientEvents = ['breath', 'blink', 'float'];
-      const picked = ambientEvents[Math.floor(Math.random() * ambientEvents.length)];
-      this.trigger(picked, { silent: true }); // 氛围动画不显示文案
-    };
-    this.behaviorEngine.register(ambientDef);
-
-    // ===== 季节/节日行为 =====
-    const seasonalDef = createSeasonalBehavior();
-    seasonalDef.action = () => {
-      const now = new Date();
-      const month = now.getMonth() + 1; // 1-12
-      const day = now.getDate();
-
-      // 节日优先
-      if (month === 12 && day >= 24 && day <= 26) {
-        this.trigger('christmas');
-        return;
-      }
-      if (month === 10 && day === 31) {
-        this.trigger('halloween');
-        return;
-      }
-      if (month === 1 && day === 1) {
-        this.trigger('newYear');
-        return;
-      }
-
-      // 季节
-      if (month >= 3 && month <= 5) {
-        this.trigger('spring');
-      } else if (month >= 6 && month <= 8) {
-        this.trigger('summer');
-      } else if (month >= 9 && month <= 11) {
-        this.trigger('autumn');
-      } else {
-        this.trigger('winter');
-      }
-    };
-    this.behaviorEngine.register(seasonalDef);
   }
 
   /** 获取持久化用的状态行 */

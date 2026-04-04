@@ -5,10 +5,8 @@
  * 支持配置驱动设计，可扩展
  */
 
-import type { TriggerConfig } from '../config/trigger-mapping';
 import { TRIGGER_MAPPING } from '../config/trigger-mapping';
-import { SpriteManager } from '../sprite-manager';
-import type { MessageCategory } from '../types';
+import { SpriteManager } from '../manager';
 
 /**
  * 触发精灵动画(核心函数)

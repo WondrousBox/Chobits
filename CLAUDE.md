@@ -646,6 +646,8 @@ DEBUG_IPC=1 pnpm dev
 - `packages/workflow/README.md` - Workflow system documentation
 - `resources/providers/README.md` - Provider icon assets
 - `docs/memory-system/` - Memory system design documents (retrieval pipeline, extraction, note spec)
+- `docs/sprite-core/` - Sprite core engine documentation (architecture, events, refactor plan)
+- `docs/persona-system/` - Persona character system design
 
 ## Documentation Maintenance Rules
 

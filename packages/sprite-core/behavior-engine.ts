@@ -174,7 +174,7 @@ export function createIdleSleepyBehavior(): BehaviorDefinition {
     name: '长时间闲置困倦',
     enabled: true,
     priority: 'normal',
-    schedule: { type: 'interval', intervalMs: 15000 }, // 每15秒检查
+    schedule: { type: 'interval', intervalMs: 150000 }, // 每150秒检查
     conditions: [
       (ctx) => ctx.interactionStats.idleDuration > 100000 // 100秒无交互
     ],
@@ -287,9 +287,7 @@ export function createAmbientBehavior(): BehaviorDefinition {
     enabled: true,
     priority: 'low',
     schedule: { type: 'random', minMs: 30000, maxMs: 60000 }, // 30-60秒
-    conditions: [
-      (ctx) => ctx.spriteState === 'idle'
-    ],
+    conditions: [(ctx) => ctx.spriteState === 'idle'],
     probability: 0.7,
     action: () => { },
     allowedStates: ['idle'],
@@ -305,9 +303,7 @@ export function createSeasonalBehavior(): BehaviorDefinition {
     enabled: true,
     priority: 'normal',
     schedule: { type: 'interval', intervalMs: 3600000 }, // 每小时检查
-    conditions: [
-      (ctx) => ctx.spriteState === 'idle'
-    ],
+    conditions: [(ctx) => ctx.spriteState === 'idle'],
     probability: 1,
     action: () => { },
     allowedStates: ['idle'],
