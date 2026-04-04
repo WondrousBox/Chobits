@@ -51,7 +51,17 @@ export { DEFAULT_DURATION, MESSAGE_IPC_CHANNELS, MESSAGE_PRIORITY, SPRITE_EVENT_
 export { AnimationRegistry } from './animation-registry';
 export type { BehaviorCondition, BehaviorContext, BehaviorDefinition, BehaviorPriority } from './behavior-engine';
 export { BehaviorEngine, createAutoWalkBehavior, createBoredBehavior, createFavorDecayBehavior, createRandomMessageBehavior, createSleepyBehavior } from './behavior-engine';
-export type { CharacterDefinition, ConditionalToolLabel, ConversationRewards, DimensionDef, FavorPersonaEntry, MoodExpression, PersonaPromptContext, ToolLabelDefinition, ToolLabelTemplate } from './character-service';
+export type {
+  CharacterDefinition,
+  ConditionalToolLabel,
+  ConversationRewards,
+  DimensionDef,
+  FavorPersonaEntry,
+  MoodExpression,
+  PersonaPromptContext,
+  ToolLabelDefinition,
+  ToolLabelTemplate
+} from './character-service';
 export {
   buildCharacterPersonaPrompt,
   getCharacterDefinition,
@@ -73,8 +83,8 @@ export type { SpriteState, SpriteSubState, StateConfig, StateTransition } from '
 export { SpriteStateMachine } from './state-machine';
 
 // ----- Manager (主进程门面) -----
-export type { SpriteManagerOptions, SpriteWindow } from './sprite-manager';
-export { SpriteManager } from './sprite-manager';
+export type { SpriteManagerOptions, SpriteWindow } from './manager';
+export { SpriteManager } from './manager';
 
 // ----- WindowController -----
 export type { WindowControllerOptions } from './window-controller';

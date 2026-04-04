@@ -8,7 +8,7 @@
 import { AppEvent, eventManager } from '@packages/event';
 
 import { getConversationRewards, getDimensionSchema } from '../character-service';
-import type { SpriteManager } from '../sprite-manager';
+import type { SpriteManager } from '../manager';
 
 export interface SpriteEventPayload {
   message?: string;

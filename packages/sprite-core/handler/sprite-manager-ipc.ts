@@ -32,8 +32,8 @@ import { app, BrowserWindow, ipcMain, screen } from 'electron';
 
 import { buildCharacterPersonaPrompt, getCharacterDefinition, getCharacterInfo, getCharacterToolLabels, getDimensionSchema, initCharacterService } from '../character-service';
 import type { InteractionType } from '../interaction-tracker';
+import { SpriteManager } from '../manager';
 import type { SpeakRequest, SpriteSpeakConfig } from '../speak/types';
-import { SpriteManager } from '../sprite-manager';
 import { WindowController } from '../window-controller';
 import { listSprites } from './sprite-assets';
 import { getDefaultSpritesDir } from './sprite-assets';

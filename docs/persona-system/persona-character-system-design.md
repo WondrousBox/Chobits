@@ -746,7 +746,7 @@ effective = delta × (1 + level × 0.01) × (1 - currentValue/maxValue × 0.5)
 **涉及文件**（均已完成）：
 
 - `packages/sprite-core/persona-state.ts` — 扩展（添加 `dimensions` 字段、`updateDimension()`、`initDimensions()`、`getDimensions()`）
-- `packages/sprite-core/sprite-manager.ts` — 添加 `updateDimension()` 和 `initDimensions()` 门面方法
+- `packages/sprite-core/manager/sprite-manager.ts` — 添加 `updateDimension()` 和 `initDimensions()` 门面方法
 - `packages/sprite-core/handler/sprite-event-listener.ts` — 对话完成时自动增长维度
 - `packages/sprite-core/handler/sprite-manager-ipc.ts` — 添加 `sprite:dimensions:get` IPC handler + 启动时初始化维度
 - `electron/preload/apis/persona.ts` — 添加 `getDimensions()` preload API
@@ -883,7 +883,7 @@ effective = delta × (1 + level × 0.01) × (1 - currentValue/maxValue × 0.5)
 | 文件                                                    | 类型 | 说明                                                            |
 | ------------------------------------------------------- | ---- | --------------------------------------------------------------- |
 | `packages/sprite-core/persona-state.ts`                 | 修改 | 添加 `dimensions` 字段、`updateDimension()`、`initDimensions()` |
-| `packages/sprite-core/sprite-manager.ts`                | 修改 | 添加 `updateDimension()`、`initDimensions()` 门面方法           |
+| `packages/sprite-core/manager/sprite-manager.ts`        | 修改 | 添加 `updateDimension()`、`initDimensions()` 门面方法           |
 | `packages/sprite-core/handler/sprite-event-listener.ts` | 修改 | 对话完成时自动增长维度                                          |
 | `packages/sprite-core/handler/sprite-manager-ipc.ts`    | 修改 | 添加 `sprite:dimensions:get` IPC + 启动时初始化维度             |
 | `electron/preload/apis/persona.ts`                      | 修改 | 添加 `getDimensions()` preload API                              |

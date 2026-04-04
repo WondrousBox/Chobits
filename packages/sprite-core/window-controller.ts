@@ -11,7 +11,7 @@
  * 将 window.YUA.window['window:move'] 替换为 win.setPosition()。
  */
 
-import type { SpriteWindow } from './sprite-manager';
+import type { SpriteWindow } from './manager';
 
 // ============================================================================
 // 数学工具 (从 src/lib/helpers.ts 内联)
