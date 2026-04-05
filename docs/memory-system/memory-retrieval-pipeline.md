@@ -381,7 +381,7 @@ function computeFinalScore(candidate: NoteCandidate, analysis: QueryAnalysisResu
 
   // ━━ 动作意图加权 ━━
   let actionScore = 0;
-  if (analysis.actionHint === 'decision' && candidate.topics.some((t) => t.includes('Decisions'))) {
+  if (analysis.actionHint === 'decision' && candidate.topics.some((t) => t.includes('Key Points'))) {
     actionScore = 1.0;
   } else if (analysis.actionHint === 'open_loop' && candidate.topics.some((t) => t.includes('Open'))) {
     actionScore = 1.0;
@@ -420,8 +420,8 @@ Top-N note IDs + 原始查询
   ┌────────────────────────────────┐
   │ Step 4a: Section 元数据过滤    │
   │ 按 actionHint 优先匹配段落类型 │
-  │ decision → "Decisions" 段      │
-  │ open_loop → "Open Loops" 段    │
+  │ decision → "Key Points" 段         │
+  │ open_loop → "Open Items" 段      │
   └──────────┬─────────────────────┘
              │
              ▼
@@ -462,7 +462,7 @@ LIMIT 30;
 SELECT id, noteId, heading, summary, lineStart, lineEnd, charCount
 FROM memory_sections
 WHERE noteId IN (:topNNoteIds)
-  AND heading LIKE :actionHeading  -- 如 '%Decisions%'
+  AND heading LIKE :actionHeading  -- 如 '%Key Points%'
 ORDER BY sectionOrder;
 
 -- Step 4c: 关键词匹配
@@ -761,7 +761,7 @@ const memoryGetParameters = Type.Object({
   noteId: Type.String({ description: '记忆 note ID（从 memory_search 结果获取）' }),
   section: Type.Optional(
     Type.String({
-      description: '段落标题，如 "Decisions" 或 "Key Facts"。不填则返回整篇 note 的标题树。'
+      description: '段落标题，如 "Key Points" 或 "Open Items"。不填则返回整篇 note 的标题树。'
     })
   ),
   lineRange: Type.Optional(
@@ -877,7 +877,7 @@ const memorySaveParameters = Type.Object({
 **当前实现说明**：
 
 - 工具位于 `packages/ai/runtime/pi/tools/memory-save.ts`。
-- 当前会创建一个单主题 note，并把 `content` 写入 `Overview` 段。
+- 当前会创建一个单主题 note，并把 `content` 写入 `Key Points` 段。
 - 如果当前对话有 `conversationId`，会写入 `sourceConversationIds` 作为溯源。
 
 **Tool 注册**：
@@ -900,20 +900,20 @@ Renderer 进程通过 IPC 访问记忆系统。
 
 ### 9.1 IPC Channel 清单
 
-| Channel               | 方向            | 说明                       |
-| --------------------- | --------------- | -------------------------- |
-| `memory:search`       | renderer → main | 搜索记忆                   |
-| `memory:get`          | renderer → main | 读取记忆详情               |
-| `memory:topics`       | renderer → main | 浏览主题图谱               |
-| `memory:listNotes`    | renderer → main | 列出记忆 note（分页）      |
-| `memory:syncStatus`   | renderer → main | 查询同步任务状态           |
-| `memory:triggerSync`  | renderer → main | 手动触发记忆提取           |
-| `memory:rebuildIndex` | renderer → main | 当前仅重建 FTS 索引        |
-| `memory:deleteNote`   | renderer → main | 删除记忆 note              |
-| `memory:graphData`    | renderer → main | 获取图谱数据（未来 UI 用） |
-| `memory:stats`        | renderer → main | 获取 note/topic/edge 统计  |
+| Channel                          | 方向            | 说明                         |
+| -------------------------------- | --------------- | ---------------------------- |
+| `memory:search`                  | renderer → main | 搜索记忆                     |
+| `memory:get`                     | renderer → main | 读取记忆详情                 |
+| `memory:topics`                  | renderer → main | 浏览主题图谱                 |
+| `memory:listNotes`               | renderer → main | 列出记忆 note（分页）        |
+| `memory:syncStatus`              | renderer → main | 查询同步任务状态             |
+| `memory:triggerSync`             | renderer → main | 手动触发记忆提取             |
+| `memory:rebuildIndex`            | renderer → main | 当前仅重建 FTS 索引          |
+| `memory:deleteNote`              | renderer → main | 删除记忆 note                |
+| `memory:graphData`               | renderer → main | 获取图谱数据（未来 UI 用）   |
+| `memory:stats`                   | renderer → main | 获取 note/topic/edge 统计    |
 | `memory:cleanupForConversations` | renderer → main | 按 conversation 清理相关记忆 |
-| `memory:clearAll`     | renderer → main | 清空记忆数据               |
+| `memory:clearAll`                | renderer → main | 清空记忆数据                 |
 
 ### 9.2 Preload Bridge
 
@@ -925,12 +925,10 @@ export const memoryApi = {
   topics: (params: MemoryTopicsParams) => ipcRenderer.invoke('memory:topics', params),
   listNotes: (params: { workspaceId: string; limit?: number; offset?: number }) => ipcRenderer.invoke('memory:listNotes', params),
   syncStatus: () => ipcRenderer.invoke('memory:syncStatus'),
-  triggerSync: (params?: { workspaceId?: string; date?: string; conversationIds?: string[]; force?: boolean }) =>
-    ipcRenderer.invoke('memory:triggerSync', params),
+  triggerSync: (params?: { workspaceId?: string; date?: string; conversationIds?: string[]; force?: boolean }) => ipcRenderer.invoke('memory:triggerSync', params),
   rebuildIndex: () => ipcRenderer.invoke('memory:rebuildIndex'),
   deleteNote: (noteId: string) => ipcRenderer.invoke('memory:deleteNote', noteId),
-  graphData: (params?: { topicId?: string; workspaceId?: string; includeNotes?: boolean; maxTopics?: number; maxEdges?: number }) =>
-    ipcRenderer.invoke('memory:graphData', params),
+  graphData: (params?: { topicId?: string; workspaceId?: string; includeNotes?: boolean; maxTopics?: number; maxEdges?: number }) => ipcRenderer.invoke('memory:graphData', params),
   cleanupForConversations: (params: { conversationIds: string[] }) => ipcRenderer.invoke('memory:cleanupForConversations', params),
   clearAll: (params?: { workspaceId?: string }) => ipcRenderer.invoke('memory:clearAll', params),
   stats: (params?: { workspaceId?: string }) => ipcRenderer.invoke('memory:stats', params)
@@ -948,6 +946,7 @@ export const memoryApi = {
 **设计灵感**：参考 Claude Code 的 `findRelevantMemories` 机制——扫描记忆文件头信息，用轻量模型选最相关的记忆注入上下文。Chobits 在此基础上结合已有的 6 阶段检索流水线，实现更精确的结构化检索。
 
 **核心设计决策**：
+
 - **AI 评估关键词**（pre-search）：由 AI 判断是否需要搜索记忆 + 提取最优搜索关键词
 - **规则排序结果**（post-search）：搜索后的关联性判断由已有的 fusion scoring（FTS + 主题图谱 + 重要度 + 时效性）完成，不再额外调用 AI 评估结果
 - **理由**：一次 AI 调用（关键词提取）比两次（关键词 + 结果筛选）更高效；已有的 scoring 算法对结构化数据的相关性排序已足够精确
@@ -997,18 +996,18 @@ export const memoryApi = {
 
 ### 10.3 文件结构
 
-| 文件 | 职责 |
-|------|------|
-| `packages/ai/services/memory-auto-recall.ts` | 核心服务：分诊、关键词提取、搜索、缓存管理 |
+| 文件                                                           | 职责                                         |
+| -------------------------------------------------------------- | -------------------------------------------- |
+| `packages/ai/services/memory-auto-recall.ts`                   | 核心服务：分诊、关键词提取、搜索、缓存管理   |
 | `electron/main/handlers/memory/memory-auto-recall-enricher.ts` | 桥接层：注册 enricher、提供 DB 依赖和 chatFn |
 
 ### 10.4 配置参数
 
 ```typescript
 interface AutoRecallConfig {
-  enabled: boolean;        // 是否启用，默认 true
+  enabled: boolean; // 是否启用，默认 true
   maxContextChars: number; // 召回上下文最大字符数，默认 3000
-  recallInterval: number;  // 同一对话中两次召回的最小轮次间隔，默认 3
+  recallInterval: number; // 同一对话中两次召回的最小轮次间隔，默认 3
   useLlmKeywords: boolean; // 是否使用 AI 提取关键词，默认 true
 }
 ```
@@ -1043,18 +1042,18 @@ interface AutoRecallConfig {
 
 自动召回和现有的 Agent tool（`memorySearchTool`、`memoryGetTool` 等）互补：
 
-| 场景 | 自动召回 | Agent Tool |
-|------|---------|------------|
-| 用户偏好/背景 | ✅ 自动注入 | 不需要 |
-| 用户主动问"之前说了什么" | ✅ 自动注入 + | Agent 可再调用 tool 补充 |
-| 精确查找特定记忆 | 可能不够精确 | ✅ Agent 调用 memoryGetTool |
-| 浏览主题图谱 | ❌ 不支持 | ✅ Agent 调用 memoryTopicsTool |
-| 保存新记忆 | ❌ 不相关 | ✅ Agent 调用 memorySaveTool |
+| 场景                     | 自动召回      | Agent Tool                     |
+| ------------------------ | ------------- | ------------------------------ |
+| 用户偏好/背景            | ✅ 自动注入   | 不需要                         |
+| 用户主动问"之前说了什么" | ✅ 自动注入 + | Agent 可再调用 tool 补充       |
+| 精确查找特定记忆         | 可能不够精确  | ✅ Agent 调用 memoryGetTool    |
+| 浏览主题图谱             | ❌ 不支持     | ✅ Agent 调用 memoryTopicsTool |
+| 保存新记忆               | ❌ 不相关     | ✅ Agent 调用 memorySaveTool   |
 
 ### 10.8 IPC 接口
 
-| Channel | 方向 | 说明 |
-|---------|------|------|
+| Channel                   | 方向            | 说明                               |
+| ------------------------- | --------------- | ---------------------------------- |
 | `memory:clearRecallCache` | renderer → main | 清除自动召回缓存（指定对话或全部） |
 
 ### 10.9 System Prompt 工具指导（仍保留）
@@ -1098,10 +1097,10 @@ interface AutoRecallConfig {
   返回 MemorySearchResult 给 Agent
         │
         ▼
-  Agent 看到摘要后 → 调用 memoryGetTool(noteId, section:"Decisions")
+  Agent 看到摘要后 → 调用 memoryGetTool(noteId, section:"Key Points")
         │
         ▼
-  ┌─ Stage 5 ─┐  targetedRead(noteId, "Decisions")
+  ┌─ Stage 5 ─┐  targetedRead(noteId, "Key Points")
   │            │  → content: "- 不依赖向量服务...\n- Markdown 为事实源..."
   └─────┬──────┘
         │

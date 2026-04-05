@@ -61,7 +61,7 @@ export interface MemoryNoteFrontmatter {
 
 export interface MemoryNoteSectionIndex {
   noteId: string;
-  heading: string; // 标题路径，如 "Key Facts > 技术选型"
+  heading: string; // 标题路径，如 "Key Points"
   headingLevel: number; // 2 | 3
   summary: string; // 段落摘要
   keywords: string[]; // 段落级关键词
@@ -97,16 +97,10 @@ export interface MemoryExtractionOutput {
   importance: number;
   stability: number;
   keywords: string[];
-  aliases?: string[];
   entities?: MemoryNoteEntity[];
-  relatedTopics?: string[];
   sections: {
-    overview: string;
-    keyFacts?: string;
-    decisions?: string;
-    openLoops?: string;
-    evidence?: string;
-    relatedTopicsDetail?: string;
+    keyPoints: string;
+    openItems?: string;
   };
 }
 
