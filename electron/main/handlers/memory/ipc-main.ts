@@ -36,6 +36,8 @@ function buildRetrievalDbDeps(): RetrievalDbDeps {
     listNotesByWorkspace: (workspaceId, limit, offset) => MemoryNoteRepo.listByWorkspace(workspaceId, limit, offset),
     listNotesByDateRange: (start, end, workspaceId) => MemoryNoteRepo.listByDateRange(start, end, workspaceId),
     listNotesByTopicId: (topicId, workspaceId, limit) => MemoryNoteRepo.listByTopicId(topicId, workspaceId, limit),
+    // Direct search (LIKE-based, CJK fallback)
+    searchNotesByTerms: (terms, workspaceId, limit) => MemoryNoteRepo.searchByTerms(terms, workspaceId, limit),
     // Sections
     listSectionsByNote: (noteId) => MemorySectionRepo.listByNote(noteId),
     // FTS

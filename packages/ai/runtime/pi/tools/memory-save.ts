@@ -62,7 +62,7 @@ export function createPiMemorySaveTool(toolContext: PiSessionToolContext): ToolD
         };
 
         const sections = new Map<string, string>();
-        sections.set('Overview', input.content);
+        sections.set('Key Points', input.content);
 
         const merged: MergedNote = {
           action: 'create',

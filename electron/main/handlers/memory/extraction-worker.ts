@@ -45,8 +45,9 @@ function adaptChatFn(piChatFn: PiTaskChatFunction): MemoryChatFn {
     const TAG = '[MemoryWorker:chatFn]';
     let fullText = '';
     let errorMessage: string | undefined;
+    const callStart = Date.now();
 
-    console.log(`${TAG} Calling LLM (prompt ${prompt.length} chars)...`);
+    console.log(`${TAG} 🧠📤 Calling LLM (prompt ${prompt.length} chars)...`);
 
     await piChatFn(
       prompt,
@@ -70,10 +71,11 @@ function adaptChatFn(piChatFn: PiTaskChatFunction): MemoryChatFn {
       throw new Error(`LLM call failed: ${errorMessage}`);
     }
 
+    const callElapsed = ((Date.now() - callStart) / 1000).toFixed(1);
     if (!fullText) {
-      console.warn(`${TAG} LLM returned empty response (0 chars)`);
+      console.warn(`${TAG} 🧠⚠️ LLM returned empty response (0 chars) [${callElapsed}s]`);
     } else {
-      console.log(`${TAG} LLM response: ${fullText.length} chars`);
+      console.log(`${TAG} 🧠📥 LLM response: ${fullText.length} chars [${callElapsed}s]`);
     }
 
     return fullText;
@@ -164,7 +166,7 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
     stats: { notesCreated: 0, notesUpdated: 0, topicsCreated: 0, edgesCreated: 0, keywordsCreated: 0 }
   };
 
-  console.log(`${TAG} Starting job ${job.id} (type=${job.jobType}, ws=${job.workspaceId}, convIds=${JSON.stringify(job.targetConversationIds)})`);
+  console.log(`${TAG} 🧠🚀 Starting job ${job.id} (type=${job.jobType}, ws=${job.workspaceId}, convIds=${JSON.stringify(job.targetConversationIds)})`);
 
   const ws = await WorkspacesRepo.getById(job.workspaceId);
   if (!ws?.rootPath) {
@@ -262,7 +264,7 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
    * @param label 日志标签（如 "fast" 或 "fallback"）
    */
   const runWithModel = async (model: string | undefined, label: string): Promise<ExtractionResult> => {
-    console.log(`${TAG} [${label}] Creating LLM runtime: provider=${providerId}, preset=${providerPresetId || '(default)'}, model=${model || '(provider default)'}`);
+    console.log(`${TAG} 🧠⚙️ [${label}] Creating LLM runtime: provider=${providerId}, preset=${providerPresetId || '(default)'}, model=${model || '(provider default)'}`);
     const runtime = await createPiTaskChatRuntimeFromRequest({
       providerId: providerId!,
       providerPresetId,
@@ -271,7 +273,7 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
       ...(model ? { model } : {})
     });
     const chatFn = adaptChatFn(runtime.chatFn);
-    console.log(`${TAG} [${label}] LLM runtime ready, model: ${runtime.modelId}`);
+    console.log(`${TAG} 🧠✅ [${label}] LLM runtime ready, model: ${runtime.modelId}`);
 
     const ctx = {
       chatFn,
@@ -314,7 +316,7 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
       result = await runWithModel(undefined, 'default');
     }
 
-    console.log(`${TAG} Pipeline completed: succeeded=${result.succeeded.length}, failed=${result.failed.length}, stats=${JSON.stringify(result.stats)}`);
+    console.log(`${TAG} 🧠🏁 Pipeline completed: succeeded=${result.succeeded.length}, failed=${result.failed.length}, stats=${JSON.stringify(result.stats)}`);
     if (result.failed.length > 0) {
       console.warn(`${TAG} Failed topics:`, result.failed);
     }

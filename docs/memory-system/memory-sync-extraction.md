@@ -54,10 +54,10 @@
 
 **触发时机**
 
-| 场景 | 触发条件 | 说明 |
-| --- | --- | --- |
-| Agent 工具循环结束 | `AppEvent.AGENT_LOOP_COMPLETE` 事件 | 当前主路径；Pi runtime 回合完成后触发 |
-| 普通对话完成（兼容） | `AppEvent.SPRITE_AI_COMPLETE` 事件 | 旧路径 / 非 Pi runtime 的兼容入口 |
+| 场景                 | 触发条件                            | 说明                                  |
+| -------------------- | ----------------------------------- | ------------------------------------- |
+| Agent 工具循环结束   | `AppEvent.AGENT_LOOP_COMPLETE` 事件 | 当前主路径；Pi runtime 回合完成后触发 |
+| 普通对话完成（兼容） | `AppEvent.SPRITE_AI_COMPLETE` 事件  | 旧路径 / 非 Pi runtime 的兼容入口     |
 
 **判定逻辑：是否需要提取**
 
@@ -67,11 +67,7 @@
 const MIN_NEW_MESSAGES = 4;
 const MIN_TRIGGER_COOLDOWN = 15 * 1000; // 15 秒
 
-async function onConversationComplete(payload: {
-  conversationId: string;
-  persisted?: boolean;
-  hasToolCalls?: boolean;
-}) {
+async function onConversationComplete(payload: { conversationId: string; persisted?: boolean; hasToolCalls?: boolean }) {
   if (!payload.conversationId || payload.persisted === false) return;
   if (recentlyTriggered(payload.conversationId, MIN_TRIGGER_COOLDOWN)) return;
 
@@ -473,40 +469,35 @@ interface TopicCluster {
 
 ```typescript
 const EXTRACTION_PROMPT = `
-你是一个记忆提取器。根据以下对话片段，为指定的主题提取结构化记忆。
+从对话中提取记忆索引，用于日后快速检索。记忆是索引而非转录，完整内容可通过 sourceConversationIds 回溯原始对话。
 
 主题：{topicLabel}
 主题描述：{description}
 
 规则：
-1. 提取的记忆应是对话的精华，不是逐句转录
-2. 重点提取：关键事实、技术决策、用户偏好、待办事项、有价值的上下文
-3. 跳过：闲聊、重复内容、过程性操作（如"我来搜索一下"）
-4. entities 应包含提到的产品名、技术名、人名、项目名等
-5. aliases 应包含主题的中英文变体、缩写
-6. relatedTopics 只列与本主题有直接关联的其他主题
+1. 只提取有长期价值的信息：用户偏好、关键事实、技术决策、重要结论
+2. 跳过：闲聊、重复内容、过程性操作、助手的推理过程、通用知识
+3. summary 用 1-2 句话概括核心要点，不要复述对话过程
+4. keywords 应包含适合搜索的关键词（中英文均可），3-6 个
+5. entities 只列对话中明确提到的专有名词（产品、人名、技术等）
+6. sections.keyPoints 用精炼的要点列表，每条一行，格式为 "- 要点内容"，合并事实和决策
+7. sections.openItems 只在有明确待办/未解决问题时才填写，否则省略
 
 输出格式（JSON）—— MemoryExtractionOutput：
 {
   "topicLabel": "string",
   "topicSlug": "string",
-  "summary": "2~3 句话概要",
+  "summary": "1~2 句话概要",
   "importance": 0.0~1.0,
   "stability": 0.0~1.0,
   "keywords": ["kw1", "kw2"],
-  "aliases": ["别名1", "alias2"],
   "entities": [
     { "name": "OpenClaw", "type": "product" },
     { "name": "sqlite-vec", "type": "technology" }
   ],
-  "relatedTopics": ["主题A", "主题B"],
   "sections": {
-    "overview": "概述内容...",
-    "keyFacts": ["事实1", "事实2"],
-    "decisions": ["决策1 及其理由"],
-    "openLoops": ["待确认/待实现的事项"],
-    "evidence": ["对话中的关键引语或数据"],
-    "relatedTopicsDetail": "与其他主题的关联说明"
+    "keyPoints": "- 要点1\n- 要点2",
+    "openItems": "- 待办1（可选，无则省略此字段）"
   }
 }
 只输出 JSON，不要解释。
@@ -568,7 +559,6 @@ async function mergeMemory(input: MergeInput): Promise<MergedNote> {
     ...existingNote.frontmatter,
     version: existingNote.frontmatter.version + 1,
     keywords: dedup([...existingNote.frontmatter.keywords, ...newExtraction.keywords]),
-    aliases: dedup([...existingNote.frontmatter.aliases, ...newExtraction.aliases]),
     entities: mergeEntities(existingNote.frontmatter.entities, newExtraction.entities),
     importance: Math.max(existingNote.frontmatter.importance, newExtraction.importance),
     stability: newExtraction.stability, // 稳定度以最新判定为准
@@ -577,10 +567,8 @@ async function mergeMemory(input: MergeInput): Promise<MergedNote> {
   };
 
   // 策略 2：Section 内容合并
-  // keyFacts: 追加新事实（去重）
-  // decisions: 追加新决策
-  // openLoops: 根据新信息关闭已解决的事项，追加新事项
-  // evidence: 追加新证据
+  // keyPoints: 追加新要点（去重）
+  // openItems: 根据新信息关闭已解决的事项，追加新事项
   const mergedSections = mergeSections(existingNote.sections, newExtraction.sections);
 
   return {
@@ -595,14 +583,13 @@ async function mergeMemory(input: MergeInput): Promise<MergedNote> {
 **Open Loop 智能合并**：
 
 ```typescript
-// 用 LLM 判断已有 openLoops 是否被新对话解决
-const OPEN_LOOP_MERGE_PROMPT = `
-已有的 Open Loops：
-{existingLoops}
+// 用 LLM 判断已有 openItems 是否被新对话解决
+const OPEN_ITEMS_MERGE_PROMPT = `
+已有的 Open Items：
+{existingItems}
 
-新的对话内容涉及的决策和事实：
-{newDecisions}
-{newFacts}
+新的对话内容涉及的要点：
+{newKeyPoints}
 
 判断每个 Open Loop 的现状，输出 JSON：
 [
@@ -1026,10 +1013,10 @@ const RETRIEVAL_TEST_QUERIES = [
   { query: '上周讨论了什么', expectedDateRange: 'last_week' },
 
   // 类别 4：决策回忆
-  { query: '我们决定不用向量检索的原因', expectedSections: ['Decisions'] },
+  { query: '我们决定不用向量检索的原因', expectedSections: ['Key Points'] },
 
   // 类别 5：待办查询
-  { query: '还有哪些事情没做完', expectedSections: ['Open Loops'] },
+  { query: '还有哪些事情没做完', expectedSections: ['Open Items'] },
 
   // 类别 6：实体关联
   { query: 'OpenClaw 的记忆系统是怎么设计的', expectedEntities: ['OpenClaw'] },
@@ -1287,20 +1274,20 @@ DailyCareService.tick() 检查
 
 ## 12. IPC 接口汇总
 
-| Channel | 请求参数 | 响应 | 说明 |
-| --- | --- | --- | --- |
-| `memory:search` | `{ query, workspaceId, topicFilter?, dateRange?, maxResults?, includeContent? }` | `MemorySearchResult` | 搜索记忆 |
-| `memory:get` | `{ noteId, section?, lineRange? }` | `MemoryGetResult \| null` | 读取 note / 段落详情 |
-| `memory:topics` | `{ topicId?, action?, workspaceId?, limit? }` | `MemoryTopicsResult` | 浏览主题图谱 |
-| `memory:listNotes` | `{ workspaceId, limit?, offset? }` | `MemoryNoteRow[]` | 分页列出 note |
-| `memory:syncStatus` | 无 | `{ queue, latestJob }` | 查询当前队列与最近任务状态 |
-| `memory:triggerSync` | `{ workspaceId?, date?, conversationIds?, force? }` | `{ queued: boolean, jobId?, error? }` | 手动触发提取 |
-| `memory:rebuildIndex` | 无 | `{ success: boolean, notesIndexed?, error? }` | 当前仅重建 FTS 索引 |
-| `memory:deleteNote` | `noteId` | `{ success: boolean, error? }` | 删除单条记忆 note |
-| `memory:graphData` | `{ topicId?, workspaceId?, includeNotes?, maxTopics?, maxEdges? }` | `{ topics, edges, notes }` | 获取图谱数据 |
-| `memory:stats` | `{ workspaceId? }` | `{ noteCount, topicCount, edgeCount }` | 获取基础统计 |
-| `memory:cleanupForConversations` | `{ conversationIds }` | `{ updated, deleted, errors }` | 按对话清理相关记忆 |
-| `memory:clearAll` | `{ workspaceId? }` | `{ tablesCleared, filesDeleted, errors }` | 清空记忆数据 |
+| Channel                          | 请求参数                                                                         | 响应                                          | 说明                       |
+| -------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------- | -------------------------- |
+| `memory:search`                  | `{ query, workspaceId, topicFilter?, dateRange?, maxResults?, includeContent? }` | `MemorySearchResult`                          | 搜索记忆                   |
+| `memory:get`                     | `{ noteId, section?, lineRange? }`                                               | `MemoryGetResult \| null`                     | 读取 note / 段落详情       |
+| `memory:topics`                  | `{ topicId?, action?, workspaceId?, limit? }`                                    | `MemoryTopicsResult`                          | 浏览主题图谱               |
+| `memory:listNotes`               | `{ workspaceId, limit?, offset? }`                                               | `MemoryNoteRow[]`                             | 分页列出 note              |
+| `memory:syncStatus`              | 无                                                                               | `{ queue, latestJob }`                        | 查询当前队列与最近任务状态 |
+| `memory:triggerSync`             | `{ workspaceId?, date?, conversationIds?, force? }`                              | `{ queued: boolean, jobId?, error? }`         | 手动触发提取               |
+| `memory:rebuildIndex`            | 无                                                                               | `{ success: boolean, notesIndexed?, error? }` | 当前仅重建 FTS 索引        |
+| `memory:deleteNote`              | `noteId`                                                                         | `{ success: boolean, error? }`                | 删除单条记忆 note          |
+| `memory:graphData`               | `{ topicId?, workspaceId?, includeNotes?, maxTopics?, maxEdges? }`               | `{ topics, edges, notes }`                    | 获取图谱数据               |
+| `memory:stats`                   | `{ workspaceId? }`                                                               | `{ noteCount, topicCount, edgeCount }`        | 获取基础统计               |
+| `memory:cleanupForConversations` | `{ conversationIds }`                                                            | `{ updated, deleted, errors }`                | 按对话清理相关记忆         |
+| `memory:clearAll`                | `{ workspaceId? }`                                                               | `{ tablesCleared, filesDeleted, errors }`     | 清空记忆数据               |
 
 ---
 

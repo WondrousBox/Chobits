@@ -690,7 +690,7 @@ export const memory_sections = sqliteTable(
       .notNull(),
 
     // ━━ 标题信息 ━━
-    heading: text('heading').notNull(), // 标题路径，如 "Key Facts" 或 "Key Facts > 技术选型"
+    heading: text('heading').notNull(), // 标题名，如 "Key Points" 或 "Open Items"
     headingLevel: integer('heading_level').notNull(), // 2 = ##, 3 = ###
     sectionOrder: integer('section_order').notNull(), // 段落在 note 内的顺序（从 0 开始）
 

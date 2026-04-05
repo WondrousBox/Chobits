@@ -17,6 +17,7 @@ import { WorkspacesRepo } from '../../db/repositories';
 interface NoteTopicInfo {
   parentTopicId?: string | null;
   relatedTopicIds?: string | null;
+  topics?: string | null;
 }
 
 /**
@@ -90,15 +91,7 @@ export async function clearAllMemory(workspaceId?: string): Promise<{
   }
 
   // 1. 清除所有 DB 表（按依赖顺序删除，子表先删）
-  const tables = [
-    'memory_note_keywords',
-    'memory_sections',
-    'memory_edges',
-    'memory_sync_jobs',
-    'memory_keywords',
-    'memory_notes',
-    'memory_topics'
-  ];
+  const tables = ['memory_note_keywords', 'memory_sections', 'memory_edges', 'memory_sync_jobs', 'memory_keywords', 'memory_notes', 'memory_topics'];
 
   for (const table of tables) {
     try {
@@ -202,15 +195,39 @@ async function fullDeleteMemoryNote(noteId: string, workspaceId?: string | null,
   const rawDb = getDB();
 
   // 0. 在删除 note 之前，收集它关联的 topic IDs（用于后续孤立清理）
-  let topicIds: string[] = [];
+  const topicIds: string[] = [];
   if (rawDb) {
-    const noteRow = rawDb.prepare('SELECT parent_topic_id, related_topic_ids FROM memory_notes WHERE id = ?').get(noteId) as NoteTopicInfo | undefined;
+    const noteRow = rawDb.prepare('SELECT parent_topic_id, related_topic_ids, topics FROM memory_notes WHERE id = ?').get(noteId) as NoteTopicInfo | undefined;
     if (noteRow) {
       if (noteRow.parentTopicId) topicIds.push(noteRow.parentTopicId);
       try {
         const related = JSON.parse(noteRow.relatedTopicIds || '[]');
         if (Array.isArray(related)) topicIds.push(...related);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
+      // 从 topics JSON 数组（topic labels）解析出对应的 topic IDs
+      try {
+        const topicLabels: string[] = JSON.parse(noteRow.topics || '[]');
+        if (Array.isArray(topicLabels)) {
+          for (const label of topicLabels) {
+            const slug = label
+              .toLowerCase()
+              .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '-')
+              .replace(/^-|-$/g, '')
+              .slice(0, 40);
+            const topicId = `topic_${slug}`;
+            topicIds.push(topicId);
+            // 也用 slug 做精确查询以防 ID 不匹配
+            const topicRow = rawDb.prepare('SELECT id FROM memory_topics WHERE slug = ? LIMIT 1').get(slug) as { id: string } | undefined;
+            if (topicRow && topicRow.id !== topicId) {
+              topicIds.push(topicRow.id);
+            }
+          }
+        }
+      } catch {
+        /* ignore */
+      }
     }
   }
 
@@ -242,17 +259,26 @@ async function fullDeleteMemoryNote(noteId: string, workspaceId?: string | null,
   if (rawDb && topicIds.length > 0) {
     const uniqueTopicIds = [...new Set(topicIds)];
     for (const topicId of uniqueTopicIds) {
+      // 先确认 topic 是否存在
+      const topicRow = rawDb.prepare('SELECT id, label FROM memory_topics WHERE id = ?').get(topicId) as { id: string; label: string } | undefined;
+      if (!topicRow) continue;
+
+      // 检查 topics JSON 数组中是否还有其他 note 引用该 topic label
+      const inTopicsArray = rawDb.prepare('SELECT 1 FROM memory_notes WHERE topics LIKE ? AND deleted_at IS NULL LIMIT 1').get(`%${topicRow.label}%`);
+      if (inTopicsArray) continue;
+
+      // 检查 parentTopicId 是否还被引用
       const asParent = rawDb.prepare('SELECT 1 FROM memory_notes WHERE parent_topic_id = ? AND deleted_at IS NULL LIMIT 1').get(topicId);
-      if (!asParent) {
-        // 也检查 related_topic_ids 中是否还被引用
-        const asRelated = rawDb.prepare("SELECT 1 FROM memory_notes WHERE related_topic_ids LIKE ? AND deleted_at IS NULL LIMIT 1").get(`%${topicId}%`);
-        if (!asRelated) {
-          // 也检查是否还有子 topic 引用它
-          const hasChildren = rawDb.prepare('SELECT 1 FROM memory_topics WHERE parent_id = ? AND deleted_at IS NULL LIMIT 1').get(topicId);
-          if (!hasChildren) {
-            rawDb.prepare('DELETE FROM memory_topics WHERE id = ?').run(topicId);
-          }
-        }
+      if (asParent) continue;
+
+      // 也检查 related_topic_ids 中是否还被引用
+      const asRelated = rawDb.prepare('SELECT 1 FROM memory_notes WHERE related_topic_ids LIKE ? AND deleted_at IS NULL LIMIT 1').get(`%${topicId}%`);
+      if (asRelated) continue;
+
+      // 也检查是否还有子 topic 引用它
+      const hasChildren = rawDb.prepare('SELECT 1 FROM memory_topics WHERE parent_id = ? AND deleted_at IS NULL LIMIT 1').get(topicId);
+      if (!hasChildren) {
+        rawDb.prepare('DELETE FROM memory_topics WHERE id = ?').run(topicId);
       }
     }
   }

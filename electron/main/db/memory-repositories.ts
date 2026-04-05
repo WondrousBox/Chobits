@@ -227,6 +227,37 @@ export const MemoryNoteRepo = {
     }
 
     return { updated, orphaned };
+  },
+
+  /**
+   * 模糊搜索 notes — 通过 LIKE 匹配 summary、keywords、topics 字段。
+   * 用于弥补 FTS5 在中文分词场景下的不足。
+   */
+  async searchByTerms(terms: string[], workspaceId?: string, limit = 20): Promise<MemoryNoteRow[]> {
+    if (!terms.length) return [];
+    const rawDb = getDB();
+    if (!rawDb) return [];
+
+    // Build OR conditions: each term matches summary, keywords, or topics
+    const conditions: string[] = [];
+    const params: string[] = [];
+    for (const term of terms) {
+      if (!term.trim()) continue;
+      const safeTerm = `%${term.trim()}%`;
+      conditions.push('(summary LIKE ? OR keywords LIKE ? OR topics LIKE ?)');
+      params.push(safeTerm, safeTerm, safeTerm);
+    }
+    if (!conditions.length) return [];
+
+    let sql = `SELECT * FROM memory_notes WHERE deleted_at IS NULL AND (${conditions.join(' OR ')})`;
+    if (workspaceId) {
+      sql += ` AND workspace_id = ?`;
+      params.push(workspaceId);
+    }
+    sql += ` ORDER BY importance DESC, date DESC LIMIT ?`;
+    params.push(String(limit));
+
+    return rawDb.prepare(sql).all(...params) as MemoryNoteRow[];
   }
 };
 

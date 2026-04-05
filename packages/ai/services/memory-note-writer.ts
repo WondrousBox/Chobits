@@ -18,7 +18,7 @@ export function renderNoteMarkdown(note: MergedNote): string {
   parts.push('');
 
   // 固定的段落顺序
-  const sectionOrder = ['Overview', 'Key Facts', 'Decisions', 'Open Loops', 'Evidence', 'Related Topics'];
+  const sectionOrder = ['Key Points', 'Open Items'];
 
   for (const heading of sectionOrder) {
     const content = note.sections.get(heading);
@@ -129,32 +129,16 @@ function renderFrontmatter(fm: MemoryNoteFrontmatter): string {
  * 从 MemoryExtractionOutput 的 sections 构建 Markdown 段落 Map
  */
 export function buildSectionsMap(sections: {
-  overview: string;
-  keyFacts?: string;
-  decisions?: string;
-  openLoops?: string;
-  evidence?: string;
-  relatedTopicsDetail?: string;
+  keyPoints: string;
+  openItems?: string;
 }): Map<string, string> {
   const map = new Map<string, string>();
 
-  if (sections.overview) {
-    map.set('Overview', sections.overview);
+  if (sections.keyPoints) {
+    map.set('Key Points', sections.keyPoints);
   }
-  if (sections.keyFacts) {
-    map.set('Key Facts', sections.keyFacts);
-  }
-  if (sections.decisions) {
-    map.set('Decisions', sections.decisions);
-  }
-  if (sections.openLoops) {
-    map.set('Open Loops', sections.openLoops);
-  }
-  if (sections.evidence) {
-    map.set('Evidence', sections.evidence);
-  }
-  if (sections.relatedTopicsDetail) {
-    map.set('Related Topics', sections.relatedTopicsDetail);
+  if (sections.openItems) {
+    map.set('Open Items', sections.openItems);
   }
 
   return map;

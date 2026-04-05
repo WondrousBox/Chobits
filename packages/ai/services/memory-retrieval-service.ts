@@ -138,6 +138,8 @@ export interface RetrievalDbDeps {
   listNotesByWorkspace: (workspaceId: string, limit?: number, offset?: number) => Promise<any[]>;
   listNotesByDateRange: (start: string, end: string, workspaceId?: string) => Promise<any[]>;
   listNotesByTopicId: (topicId: string, workspaceId?: string, limit?: number) => Promise<any[]>;
+  // Direct search (LIKE-based, for CJK fallback)
+  searchNotesByTerms?: (terms: string[], workspaceId?: string, limit?: number) => Promise<any[]>;
   // Sections
   listSectionsByNote: (noteId: string) => Promise<any[]>;
   // FTS
@@ -417,6 +419,24 @@ export async function recallNotes(analysis: QueryAnalysisResult, topicResult: To
     }
   }
 
+  // Route B2: 直接 LIKE 搜索（弥补 FTS unicode61 对中文分词不足）
+  if (db.searchNotesByTerms) {
+    const searchTerms = [...analysis.topicTerms, ...analysis.keywordTerms, ...analysis.entityTerms].filter(Boolean);
+    const uniqueTerms = [...new Set(searchTerms)];
+    if (uniqueTerms.length > 0) {
+      const likeHits = await db.searchNotesByTerms(uniqueTerms, workspaceId, 20);
+      for (const note of likeHits) {
+        if (!candidateMap.has(note.id)) {
+          candidateMap.set(note.id, noteToCandidate(note, { ftsScore: 0.6 }));
+        } else {
+          // Boost existing candidate if also found via LIKE
+          const existing = candidateMap.get(note.id)!;
+          existing.ftsScore = Math.max(existing.ftsScore, 0.6);
+        }
+      }
+    }
+  }
+
   // Route C: 元数据过滤（时间范围）
   if (analysis.timeHint) {
     const { start, end } = resolveTimeRange(analysis.timeHint);
@@ -463,10 +483,10 @@ export async function recallSections(analysis: QueryAnalysisResult, noteIds: str
 
   // Step 4a: actionHint 优先匹配段落类型
   const actionHeadingMap: Record<string, string> = {
-    decision: 'Decisions',
-    open_loop: 'Open Loops',
-    evidence: 'Evidence',
-    recall: 'Overview'
+    decision: 'Key Points',
+    open_loop: 'Open Items',
+    evidence: 'Key Points',
+    recall: 'Key Points'
   };
   if (analysis.actionHint && analysis.actionHint !== 'general') {
     const targetHeading = actionHeadingMap[analysis.actionHint];
@@ -833,7 +853,24 @@ function buildFtsQuery(analysis: QueryAnalysisResult): string {
   const allTerms = [...analysis.topicTerms, ...analysis.entityTerms, ...analysis.keywordTerms].filter(Boolean);
   const unique = [...new Set(allTerms)];
   if (unique.length === 0) return '';
-  return unique.map((t) => `"${t}"`).join(' OR ');
+
+  // Use both phrase match and individual token match for better Chinese recall.
+  // Phrase "AB" matches exact sequence; individual A OR B broadens recall.
+  const parts: string[] = [];
+  for (const t of unique) {
+    // Phrase match (high precision)
+    parts.push(`"${t}"`);
+    // For multi-char Chinese terms, also add individual chars as fallback
+    // so "命运石之门" can match even if tokenized differently
+    if (t.length > 2 && /[\u4e00-\u9fff]/.test(t)) {
+      // Split into bigrams for better CJK matching
+      for (let i = 0; i < t.length - 1; i++) {
+        const bigram = t.slice(i, i + 2);
+        parts.push(`"${bigram}"`);
+      }
+    }
+  }
+  return parts.join(' OR ');
 }
 
 function resolveTimeRange(hint: QueryAnalysisResult['timeHint']): { start: string; end: string } {
