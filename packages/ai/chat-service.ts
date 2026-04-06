@@ -79,8 +79,8 @@ export class ChatService {
     setTimeout(async () => {
       try {
         console.log(`
-=========================================================
-Starting chat stream
+====  Starting chat stream  =============================
+
 ${JSON.stringify(forcePiRuntime(req), null, 2)}
 =========================================================
 `);

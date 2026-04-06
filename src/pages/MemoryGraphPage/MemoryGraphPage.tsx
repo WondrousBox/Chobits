@@ -424,7 +424,13 @@ function DetailPanel({
       <div className="p-4 border-b border-border/50 shrink-0">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            {node.type === 'topic' ? <TbTopologyRing className="h-4 w-4 text-violet-500" /> : node.type === 'keyword' ? <TbTag className="h-4 w-4 text-green-500" /> : <TbNote className="h-4 w-4 text-blue-500" />}
+            {node.type === 'topic' ? (
+              <TbTopologyRing className="h-4 w-4 text-violet-500" />
+            ) : node.type === 'keyword' ? (
+              <TbTag className="h-4 w-4 text-green-500" />
+            ) : (
+              <TbNote className="h-4 w-4 text-blue-500" />
+            )}
             <span className="text-xs font-medium text-muted-foreground uppercase">{node.type === 'topic' ? '主题' : node.type === 'keyword' ? '关键词' : '笔记'}</span>
           </div>
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose}>
@@ -512,7 +518,7 @@ function DetailPanel({
                 <div>
                   <div className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
                     <TbNote className="h-3 w-3" />
-                    关联记忆笔记
+                    关联记忆
                   </div>
                   <div className="space-y-2">
                     {topicDetail.notes.map((note) => (
@@ -1083,7 +1089,7 @@ export default function MemoryGraphPage(): React.ReactElement {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = isFaded ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.95)';
-        const maxLabelLen = Math.floor(w * globalScale / (scaledFont * globalScale * 0.6));
+        const maxLabelLen = Math.floor((w * globalScale) / (scaledFont * globalScale * 0.6));
         const kwLabel = n.label.length > maxLabelLen ? n.label.slice(0, maxLabelLen - 1) + '…' : n.label;
         ctx.fillText(kwLabel, x, y);
       } else {

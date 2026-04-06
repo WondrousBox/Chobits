@@ -212,7 +212,7 @@ export async function splitTopics(collected: CollectOutput, ctx: ExtractionConte
  * Step 3: Extract — 对每个主题块调用 LLM 结构化提取
  */
 export async function extractMemory(cluster: TopicCluster, collected: CollectOutput, ctx: ExtractionContext): Promise<MemoryExtractionOutput | null> {
-  const TAG = `[MemoryExtraction:extract "${cluster.topicSlug}"]`;
+  const TAG = `[MemoryExtraction:extract "${cluster.topicSlug}"] 🧠✏️`;
 
   const collectedConvIds = collected.conversations.map((c) => c.conversationId);
   const rangeConvIds = cluster.messageRanges.map((r) => r.conversationId);
@@ -253,12 +253,12 @@ export async function extractMemory(cluster: TopicCluster, collected: CollectOut
   const conversationText = relevantMessages.map((m) => `[${m.role}] ${m.content}`).join('\n');
 
   const prompt = EXTRACTION_PROMPT.replace('{topicLabel}', cluster.topicLabel).replace('{description}', cluster.description) + `\n\n---\n\n对话内容：\n${conversationText}`;
-  console.log(`${TAG} 🧠🔍 Sending extraction prompt to LLM (${prompt.length} chars)...`);
+  console.log(`${TAG} Sending extraction prompt to LLM (${prompt.length} chars)...`);
 
   const extractStart = Date.now();
   const response = await ctx.chatFn(prompt, ctx.signal);
   const extractElapsed = ((Date.now() - extractStart) / 1000).toFixed(1);
-  console.log(`${TAG} 🧠🔍 LLM response received (${response.length} chars) [${extractElapsed}s]`);
+  console.log(`${TAG} LLM response received (${response.length} chars) [${extractElapsed}s]`);
 
   const parsed = parseJsonMarkdown(response) as MemoryExtractionOutput | null;
   if (!parsed || !parsed.topicLabel || !parsed.topicSlug) {
@@ -273,7 +273,7 @@ export async function extractMemory(cluster: TopicCluster, collected: CollectOut
   parsed.sections = parsed.sections || { keyPoints: '' };
   parsed.sections.keyPoints = parsed.sections.keyPoints || '';
 
-  console.log(`${TAG} 🧠🔍 Extracted: summary="${parsed.summary?.slice(0, 80)}...", keywords=${parsed.keywords?.length}, sections=${Object.keys(parsed.sections || {}).length}`);
+  console.log(`${TAG} Extracted: summary="${parsed.summary?.slice(0, 80)}...", keywords=${parsed.keywords?.length}, sections=${Object.keys(parsed.sections || {}).length}`);
   return parsed;
 }
 

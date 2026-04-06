@@ -8,16 +8,18 @@
  * 1. 桥接 auto-recall 服务和 system-prompt-enricher 注册表
  * 2. 提供 DB 依赖、chatFn 工厂、workspaceId 解析
  * 3. 管理 chatFn 缓存（按 provider 缓存，避免每次重建）
+ * 4. 支持 prefetch 模式：在 chatStream 入口提前启动搜索，enricher resolve 时仅 await 结果
  */
 
 import type { PiTaskChatFunction } from '../../../../packages/ai/runtime/pi/task-chat';
-import { type AutoRecallDeps, performAutoRecall } from '../../../../packages/ai/services/memory-auto-recall';
+import { type AutoRecallDeps, getActivePrefetch, performAutoRecall, registerPrefetch } from '../../../../packages/ai/services/memory-auto-recall';
 import type { RetrievalDbDeps } from '../../../../packages/ai/services/memory-retrieval-service';
 import type { MemoryChatFn } from '../../../../packages/ai/services/memory-types';
 import { registerSystemPromptEnricher } from '../../../../packages/ai/system-prompt-enricher';
+import type { ChatRequest } from '../../../../packages/ai/types';
 import { WorkspacesRepo } from '../../db/repositories';
 
-const TAG = '[MemoryAutoRecall:Enricher]';
+const TAG = '[MemoryAutoRecall:Enricher] 🧠🔍';
 
 // ━━ chatFn Cache ━━
 
@@ -119,52 +121,149 @@ async function getOrCreateChatFn(providerId: string, providerPresetId?: string):
 
 // ━━ Enricher Registration ━━
 
+/** 内部持有的 DB 依赖引用，供 prefetch 使用 */
+let enricherDb: RetrievalDbDeps | undefined;
+
+/**
+ * 从 chatStream 入口提前启动记忆预取。
+ *
+ * 调用时机：preWarm hook 中，在 preview / buildPiModel / buildPiContext 之前。
+ * 这样当 enricher.resolve() 被调用时，搜索可能已经完成（或接近完成），
+ * 将记忆检索延迟与 preview + model 加载并行，减少用户等待。
+ *
+ * 关键：promise 和 handle 必须同步创建并注册到 activePrefetches，
+ * 否则 resolve() 调用 getActivePrefetch() 时可能找不到，导致重复搜索。
+ */
+export function kickoffMemoryPrefetch(request: ChatRequest): void {
+  if (!enricherDb) {
+    console.log(`${TAG} [preWarm] Skipped: enricherDb not initialized`);
+    return;
+  }
+  if (!request.messages?.length) {
+    console.log(`${TAG} [preWarm] Skipped: no messages in request`);
+    return;
+  }
+  if (request.persist === false) {
+    console.log(`${TAG} [preWarm] Skipped: persist=false (ephemeral chat)`);
+    return;
+  }
+  if (!request.conversationId) {
+    console.log(`${TAG} [preWarm] Skipped: no conversationId (cannot register prefetch)`);
+    return;
+  }
+  console.log(`${TAG} [preWarm] Starting prefetch: conv=${request.conversationId.slice(0, 8)}, provider=${request.providerId}, msgs=${request.messages.length}`);
+
+  const db = enricherDb;
+  const providerId = request.providerId;
+  const messages = request.messages;
+  const conversationId = request.conversationId;
+
+  // 同步创建 promise（包含异步 deps 构建 + 搜索），立即注册到 map
+  const promise = (async (): Promise<import('../../../../packages/ai/services/memory-auto-recall').AutoRecallResult> => {
+    let chatFn: MemoryChatFn | undefined;
+    if (providerId) {
+      try {
+        chatFn = await getOrCreateChatFn(providerId, request.providerPresetId);
+      } catch {
+        // 降级为规则提取
+      }
+    }
+
+    const deps: AutoRecallDeps = {
+      db,
+      chatFn,
+      getWorkspaceId: async () => {
+        const wsId = request.extras?.workspaceId;
+        if (wsId) return wsId;
+        const defaultWs = await WorkspacesRepo.getDefault();
+        return defaultWs?.id;
+      }
+    };
+
+    return performAutoRecall(messages, deps, conversationId);
+  })().catch((e) => {
+    if (e?.name !== 'AbortError') {
+      console.warn(`${TAG} Prefetch failed:`, e instanceof Error ? e.message : e);
+    }
+    return { context: '', keywords: [], noteCount: 0, skipped: true, skipReason: 'prefetch_error' };
+  });
+
+  // 同步注册 — resolve() 调用 getActivePrefetch() 时一定能找到
+  registerPrefetch(conversationId, promise);
+}
+
 /**
  * 注册 memory-auto-recall enricher。
  * 在 initMemoryHandlers 中调用，提供 DB 依赖。
  */
 export function initMemoryAutoRecallEnricher(db: RetrievalDbDeps): void {
+  enricherDb = db;
+
   registerSystemPromptEnricher({
     id: 'memory-auto-recall',
+    preWarm: (ctx) => {
+      // 在 chatStream 入口处提前启动记忆预取
+      kickoffMemoryPrefetch(ctx.request);
+    },
     resolve: async (ctx) => {
       const { request } = ctx;
 
       // 需要有消息才能判断是否需要召回
-      if (!request.messages?.length) return null;
-
-      // 非持久化对话（如标题生成、ephemeral）跳过
-      if (request.persist === false) return null;
-
-      // 获取 provider 信息（用于创建 chatFn）
-      const providerId = request.providerId;
-
-      // 构建 deps
-      let chatFn: MemoryChatFn | undefined;
-      if (providerId) {
-        try {
-          chatFn = await getOrCreateChatFn(providerId, request.providerPresetId);
-        } catch {
-          // chatFn 创建失败不影响流程，会降级为规则提取
-        }
+      if (!request.messages?.length) {
+        console.log(`${TAG} [resolve] Skipped: no messages`);
+        return null;
       }
 
-      const deps: AutoRecallDeps = {
-        db,
-        chatFn,
-        getWorkspaceId: async () => {
-          // 优先从 request extras 获取
-          const wsId = request.extras?.workspaceId;
-          if (wsId) return wsId;
-          // 回退到默认 workspace
-          const defaultWs = await WorkspacesRepo.getDefault();
-          return defaultWs?.id;
-        }
-      };
+      // 非持久化对话（如标题生成、ephemeral）跳过
+      if (request.persist === false) {
+        console.log(`${TAG} [resolve] Skipped: persist=false`);
+        return null;
+      }
+
+      console.log(`${TAG} [resolve] Running: conv=${request.conversationId?.slice(0, 8) || 'none'}, msgs=${request.messages.length}`);
 
       try {
-        const result = await performAutoRecall(request.messages, deps, request.conversationId);
+        // 优先使用已启动的预取结果
+        const prefetch = request.conversationId ? getActivePrefetch(request.conversationId) : undefined;
+
+        let result;
+        if (prefetch) {
+          // 预取已在进行中 — 直接 await 结果（大部分延迟已与 model 加载并行）
+          const waitStart = Date.now();
+          result = await prefetch.promise;
+          const waited = Date.now() - waitStart;
+          if (waited > 10) {
+            console.log(`${TAG} Awaited prefetch for ${waited}ms (settled=${!!prefetch.settledAt})`);
+          }
+        } else {
+          // 没有预取 — 降级为同步执行（兼容旧路径）
+          const providerId = request.providerId;
+
+          let chatFn: MemoryChatFn | undefined;
+          if (providerId) {
+            try {
+              chatFn = await getOrCreateChatFn(providerId, request.providerPresetId);
+            } catch {
+              // chatFn 创建失败不影响流程，会降级为规则提取
+            }
+          }
+
+          const deps: AutoRecallDeps = {
+            db,
+            chatFn,
+            getWorkspaceId: async () => {
+              const wsId = request.extras?.workspaceId;
+              if (wsId) return wsId;
+              const defaultWs = await WorkspacesRepo.getDefault();
+              return defaultWs?.id;
+            }
+          };
+
+          result = await performAutoRecall(request.messages, deps, request.conversationId);
+        }
 
         if (result.skipped || !result.context) {
+          console.log(`${TAG} [resolve] No context to inject: skipped=${result.skipped}, reason=${result.skipReason || 'empty_context'}, keywords=[${result.keywords.join(', ')}]`);
           return null;
         }
 

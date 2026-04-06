@@ -499,6 +499,11 @@ export class PiSessionService {
   }
 
   async chatStream(req: ChatRequest, emit: (event: StreamEvent) => void, signal?: AbortSignal): Promise<void> {
+    // Pre-warm enrichers early — lets memory auto-recall start prefetch
+    // while preview() and buildPiModel() are running
+    const { preWarmEnrichers } = await import('../../system-prompt-enricher');
+    preWarmEnrichers(req);
+
     const preview = await this.preview(req);
     const legacy = createLegacyStreamEmitter(emit, {
       characterPersonaEnabled: !!preview.resolved.request.extras?.characterPersonaEnabled

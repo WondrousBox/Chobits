@@ -34,6 +34,15 @@ export interface SystemPromptEnricher {
    * The enricher can inspect request.extras flags to decide whether to activate.
    */
   resolve: (ctx: SystemPromptEnricherContext) => string | null | undefined | Promise<string | null | undefined>;
+  /**
+   * Optional pre-warm hook. Called at the start of chatStream, before
+   * buildPiContext / resolve. Enrichers can use this to start async work
+   * early (e.g., prefetch memory search) so the result is ready by the
+   * time resolve() is called.
+   *
+   * This is fire-and-forget — exceptions are silently caught.
+   */
+  preWarm?: (ctx: SystemPromptEnricherContext) => void;
 }
 
 const enrichers = new Map<string, SystemPromptEnricher>();
@@ -50,19 +59,46 @@ export function unregisterSystemPromptEnricher(id: string): void {
 
 /**
  * Resolve all registered enrichers and return their non-empty prompt segments.
- * Enrichers are called in registration order.
+ * Enrichers are resolved in parallel for reduced latency.
+ * Results are returned in registration order.
  */
 export async function resolveSystemPromptEnrichments(request: ChatRequest): Promise<string[]> {
+  const entries = [...enrichers.values()];
+  console.log(`[SystemPromptEnricher] resolve: running ${entries.length} enrichers [${entries.map((e) => e.id).join(', ')}]`);
+  const t0 = Date.now();
+  const settled = await Promise.allSettled(entries.map((enricher) => enricher.resolve({ request })));
   const results: string[] = [];
-  for (const enricher of enrichers.values()) {
-    try {
-      const segment = await enricher.resolve({ request });
+  for (let i = 0; i < settled.length; i++) {
+    const outcome = settled[i];
+    if (outcome.status === 'fulfilled') {
+      const segment = outcome.value;
       if (typeof segment === 'string' && segment.trim()) {
         results.push(segment.trim());
       }
-    } catch {
-      // Enricher failures are silently ignored to avoid breaking chat
+    } else {
+      console.warn(`[SystemPromptEnricher] enricher "${entries[i].id}" rejected:`, outcome.reason);
     }
   }
+  console.log(`[SystemPromptEnricher] resolve done in ${Date.now() - t0}ms: ${results.length} segments injected`);
   return results;
+}
+
+/**
+ * Fire all registered enrichers' preWarm hooks.
+ * Should be called at the start of chatStream, before preview / buildPiContext.
+ * This gives enrichers a head start on async work (e.g., memory prefetch).
+ */
+export function preWarmEnrichers(request: ChatRequest): void {
+  const ids = [...enrichers.keys()];
+  console.log(`[SystemPromptEnricher] preWarm: ${ids.length} enrichers registered [${ids.join(', ')}]`);
+  const ctx: SystemPromptEnricherContext = { request };
+  for (const enricher of enrichers.values()) {
+    if (enricher.preWarm) {
+      try {
+        enricher.preWarm(ctx);
+      } catch {
+        // Pre-warm failures are silently ignored
+      }
+    }
+  }
 }
