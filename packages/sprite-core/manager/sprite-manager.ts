@@ -67,7 +67,7 @@ export class SpriteManager {
 
   // 当前动画和配置
   private currentAnimation: SpritePlayCommand | null = null;
-  private spriteConfig: SpriteConfig = { width: 200, height: 200, padding: 100 };
+  private spriteConfig: SpriteConfig = { width: 200, height: 200, padding: 100, showDebugOverlay: false };
 
   // 状态广播节流
   private lastStateBroadcast = 0;
@@ -296,7 +296,8 @@ export class SpriteManager {
             loopStartMs: anim.playback.loopStartMs,
             loopEndMs: anim.playback.loopEndMs,
             durationMs: options?.durationMs ?? anim.playback.durationMs,
-            autoIdle: anim.playback.autoIdle ?? true
+            autoIdle: anim.playback.autoIdle ?? true,
+            movement: anim.playback.movement
           }
           : { durationMs: options?.durationMs ?? 2000, autoIdle: true }
       };
@@ -310,6 +311,9 @@ export class SpriteManager {
       }
 
       this.sendToRenderer('sprite:play', this.currentAnimation);
+
+      // 启动自动移动
+      this.handleAnimationMovement(anim.playback?.movement);
     }
 
     // 2. 显示气泡文案（除非 silent）
@@ -341,7 +345,8 @@ export class SpriteManager {
           loopStartMs: anim.playback.loopStartMs,
           loopEndMs: anim.playback.loopEndMs,
           durationMs: options?.durationMs ?? anim.playback.durationMs,
-          autoIdle: anim.playback.autoIdle ?? true
+          autoIdle: anim.playback.autoIdle ?? true,
+          movement: anim.playback.movement
         }
         : { durationMs: options?.durationMs ?? 2000, autoIdle: true }
     };
@@ -354,6 +359,9 @@ export class SpriteManager {
     }
 
     this.sendToRenderer('sprite:play', this.currentAnimation);
+
+    // 启动自动移动
+    this.handleAnimationMovement(anim.playback?.movement);
 
     if (!options?.silent) {
       const eventType = anim.eventTypes?.[0];
@@ -740,7 +748,8 @@ export class SpriteManager {
         loopStartMs: anim.loopStartMs,
         loopEndMs: anim.loopEndMs,
         durationMs: anim.durationMs,
-        autoIdle: anim.autoIdle
+        autoIdle: anim.autoIdle,
+        movement: anim.movement
       },
       tags: anim.meta.tags,
       deletable: anim.meta.deletable,
@@ -788,6 +797,38 @@ export class SpriteManager {
     }
   }
 
+  /** 获取是否显示调试辅助线 */
+  isDebugOverlayEnabled(): boolean {
+    return this.spriteConfig.showDebugOverlay ?? false;
+  }
+
+  /** 设置调试辅助线开关 */
+  setDebugOverlayEnabled(enabled: boolean): void {
+    this.spriteConfig.showDebugOverlay = enabled;
+    this.sendToRenderer('sprite:config', this.spriteConfig);
+  }
+
+  /** 预览窗口移动效果（临时应用尺寸和移动配置） */
+  previewMovement(config: { width: number; height: number; padding: number; movement: import('../types').SpriteMovementConfig }): void {
+    // 更新窗口尺寸
+    this.spriteConfig.width = config.width;
+    this.spriteConfig.height = config.height;
+    this.spriteConfig.padding = config.padding;
+    this.sendToRenderer('sprite:config', this.spriteConfig);
+
+    if (this.windowController) {
+      this.windowController.setSize(config.width, config.height, config.padding);
+    }
+
+    // 启动自动移动
+    this.handleAnimationMovement(config.movement);
+  }
+
+  /** 停止移动预览 */
+  stopMovementPreview(): void {
+    this.stopAutoMove();
+  }
+
   /** 获取初始全量状态 */
   getInitialState(): SpriteInitialState {
     return {
@@ -807,6 +848,11 @@ export class SpriteManager {
   /** 处理渲染进程上报的动画播放完成 */
   handleAnimationComplete(animId: string, phase: 'intro' | 'loop' | 'outro' | 'full'): void {
     this.eventBus.emit('anim:complete', { animId, phase }, 'renderer');
+
+    // 动画播放完成时停止自动移动
+    if (phase === 'full' || phase === 'outro') {
+      this.stopAutoMove();
+    }
 
     if ((phase === 'outro' || phase === 'full') && this._pendingIdleAfterOutro) {
       this._pendingIdleAfterOutro = false;
@@ -934,7 +980,8 @@ export class SpriteManager {
             loopStartMs: animEntry.playback.loopStartMs,
             loopEndMs: animEntry.playback.loopEndMs,
             durationMs: animEntry.playback.durationMs,
-            autoIdle: animEntry.playback.autoIdle
+            autoIdle: animEntry.playback.autoIdle,
+            movement: animEntry.playback.movement
           }
           : undefined
       };
@@ -947,6 +994,9 @@ export class SpriteManager {
       }
 
       this.sendToRenderer('sprite:play', this.currentAnimation);
+
+      // 启动自动移动
+      this.handleAnimationMovement(animEntry.playback?.movement);
     }
   }
 
@@ -978,6 +1028,30 @@ export class SpriteManager {
       personaSnapshot: this.personaState.getState()
     };
     this.sendToRenderer('sprite:state', snapshot);
+  }
+
+  /** 处理动画播放时的窗口自动移动 */
+  private handleAnimationMovement(movement?: import('../types').SpriteMovementConfig): void {
+    // 先停止之前的自动移动
+    this.stopAutoMove();
+
+    if (movement?.enabled && this.windowController) {
+      this.windowController.startAutoMove(movement);
+
+      // 通知渲染进程移动方向（用于精灵翻转）
+      const dir = this.windowController.getAutoMoveDirection?.();
+      if (dir) {
+        this.sendToRenderer('sprite:walk', { active: true, direction: dir });
+      }
+    }
+  }
+
+  /** 停止自动移动 */
+  private stopAutoMove(): void {
+    if (this.windowController?.isAutoMoving?.()) {
+      this.windowController.stopAutoMove();
+      this.sendToRenderer('sprite:walk', { active: false });
+    }
   }
 
   /** 安全发送 IPC 到渲染进程 */

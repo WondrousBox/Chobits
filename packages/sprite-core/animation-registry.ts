@@ -13,6 +13,7 @@
  */
 
 import type { PersonaState } from './persona-state';
+import type { SpriteMovementConfig } from './types';
 
 // ============ 类型定义 ============
 
@@ -48,6 +49,8 @@ export interface AnimationEntry {
     loopEndMs?: number;
     durationMs?: number;
     autoIdle?: boolean;
+    /** 动画播放时的窗口移动配置 */
+    movement?: SpriteMovementConfig;
   };
 
   /** 元数据 */

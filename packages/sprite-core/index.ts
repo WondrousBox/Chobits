@@ -39,6 +39,8 @@ export type {
   SpriteEventType,
   SpriteInitialState,
   SpriteMessageData,
+  SpriteMovementConfig,
+  SpriteMovementDirection,
   SpritePlayCommand,
   SpriteStateSnapshot,
   SpriteWalkState,

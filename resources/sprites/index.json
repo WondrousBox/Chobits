@@ -46,7 +46,12 @@
       "muted": true,
       "playsInline": true,
       "loopStartMs": 500,
-      "loopEndMs": 2500
+      "loopEndMs": 2500,
+      "movement": {
+        "enabled": true,
+        "direction": "random",
+        "speed": 60
+      }
     },
     {
       "meta": {

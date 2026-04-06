@@ -158,6 +158,8 @@ sprite.getSpriteConfig();
 sprite.setSpriteConfig({ width: 200, height: 200 });
 sprite.isAutoWalkEnabled();
 sprite.setAutoWalkEnabled(true);
+sprite.isDebugOverlayEnabled();
+sprite.setDebugOverlayEnabled(true);
 
 // ===== 事件 =====
 const off = sprite.on('persona:level-up', handler);
@@ -392,7 +394,7 @@ import {
 
 ### 9. WindowController — 窗口控制器
 
-主进程中管理精灵窗口的位置移动，包括贝塞尔曲线路径行走、拖拽、边界约束。
+主进程中管理精灵窗口的位置移动，包括贝塞尔曲线路径行走、拖拽、自动移动、边界约束。
 
 ```typescript
 import { WindowController } from '@packages/sprite-core';
@@ -411,7 +413,34 @@ await wc.walkTo(500, 300);
 wc.stopWalk();
 wc.startDrag(offsetX, offsetY);
 wc.endDrag();
+
+// 自动移动：动画播放时沿指定方向恒速移动
+wc.startAutoMove({ enabled: true, direction: 'left', speed: 80 });
+wc.stopAutoMove();
+wc.isAutoMoving();
+wc.getAutoMoveDirection(); // 'left' | 'right' | null
 ```
+
+**自动移动方向 (SpriteMovementDirection)**:
+
+| 方向         | 说明     |
+| ------------ | -------- |
+| `left`       | 向左移动 |
+| `right`      | 向右移动 |
+| `up`         | 向上移动 |
+| `down`       | 向下移动 |
+| `up-left`    | 左上移动 |
+| `up-right`   | 右上移动 |
+| `down-left`  | 左下移动 |
+| `down-right` | 右下移动 |
+| `random`     | 随机方向 |
+
+**自动移动行为**:
+
+- 按配置的方向和速度匀速移动窗口
+- 到达屏幕边界时自动停止
+- 拖拽开始时自动停止
+- 动画播放完成时自动停止
 
 ### 10. SpeakService — 语音合成模块
 
@@ -562,11 +591,45 @@ IPC: sprite:play → 渲染进程播放
       "padding": 100,
       "loop": true,
       "loopStartMs": 500,
-      "loopEndMs": 2500
+      "loopEndMs": 2500,
+      "movement": {
+        "enabled": true,
+        "direction": "random",
+        "speed": 60
+      }
     }
   ]
 }
 ```
+
+**动画尺寸配置**:
+每个动画可以单独定义 `width`、`height`、`padding`，支持不同宽高比的视频精灵。当动画切换时，窗口大小会自动调整为对应动画的尺寸。
+
+**Movement 配置说明**:
+
+| 字段        | 类型                    | 必须 | 默认 | 说明                |
+| ----------- | ----------------------- | ---- | ---- | ------------------- |
+| `enabled`   | boolean                 | ✅   | -    | 是否启用窗口移动    |
+| `direction` | SpriteMovementDirection | ✅   | -    | 移动方向            |
+| `speed`     | number                  | ❌   | 60   | 移动速度（像素/秒） |
+
+### 调试辅助线 (Debug Overlay)
+
+运行时可通过 IPC 开关调试辅助线，显示精灵的 padding 边界和内容区域。
+
+```typescript
+// 渲染进程开启
+await window.YUA.sprite.setDebugOverlay(true);
+
+// 查询当前状态
+const enabled = await window.YUA.sprite.getDebugOverlay();
+```
+
+**显示内容**:
+
+- **外边框**（绿色虚线）：含 padding 的完整可点击区域
+- **内边框**（橙色实线）：精灵内容区域
+- **文字标签**：`padding=100 | 180×240` 显示当前尺寸信息
 
 ---
 
@@ -653,25 +716,29 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 
 ### 上行（渲染进程 → 主进程）
 
-| 通道                                | 载荷                                                | 说明             |
-| ----------------------------------- | --------------------------------------------------- | ---------------- |
-| `sprite:interact`                   | `{ type, data? }`                                   | 用户交互上报     |
-| `sprite:drag`                       | `{ phase, screenX?, screenY?, offsetX?, offsetY? }` | 拖拽事件         |
-| `sprite:anim-complete`              | `{ animId, phase }`                                 | 动画播放完成     |
-| `sprite:file-drop`                  | `{ files }`                                         | 文件拖放         |
-| `sprite:ready`                      | -                                                   | 渲染进程就绪     |
-| `sprite:get-initial-state`          | -                                                   | 获取初始全量状态 |
-| `sprite:persona:getState`           | -                                                   | 获取人格状态     |
-| `sprite:persona:addXP`              | `{ amount, source? }`                               | 增加经验         |
-| `sprite:persona:changeFavor`        | `{ delta, reason? }`                                | 修改好感度       |
-| `sprite:persona:recordLogin`        | -                                                   | 记录每日登录     |
-| `sprite:persona:unlockAchievement`  | `{ id }`                                            | 解锁成就         |
-| `sprite:persona:reset`              | -                                                   | 重置人格状态     |
-| `sprite:character:getInfo`          | -                                                   | 获取角色信息     |
-| `sprite:character:getPersonaPrompt` | `{ context }`                                       | 获取人格 prompt  |
-| `sprite:dimensions:get`             | -                                                   | 获取维度状态     |
-| `sprite:config:getAutoWalk`         | -                                                   | 获取自动行走开关 |
-| `sprite:config:setAutoWalk`         | `{ enabled }`                                       | 设置自动行走开关 |
+| 通道                                | 载荷                                                | 说明               |
+| ----------------------------------- | --------------------------------------------------- | ------------------ |
+| `sprite:interact`                   | `{ type, data? }`                                   | 用户交互上报       |
+| `sprite:drag`                       | `{ phase, screenX?, screenY?, offsetX?, offsetY? }` | 拖拽事件           |
+| `sprite:anim-complete`              | `{ animId, phase }`                                 | 动画播放完成       |
+| `sprite:file-drop`                  | `{ files }`                                         | 文件拖放           |
+| `sprite:ready`                      | -                                                   | 渲染进程就绪       |
+| `sprite:get-initial-state`          | -                                                   | 获取初始全量状态   |
+| `sprite:persona:getState`           | -                                                   | 获取人格状态       |
+| `sprite:persona:addXP`              | `{ amount, source? }`                               | 增加经验           |
+| `sprite:persona:changeFavor`        | `{ delta, reason? }`                                | 修改好感度         |
+| `sprite:persona:recordLogin`        | -                                                   | 记录每日登录       |
+| `sprite:persona:unlockAchievement`  | `{ id }`                                            | 解锁成就           |
+| `sprite:persona:reset`              | -                                                   | 重置人格状态       |
+| `sprite:character:getInfo`          | -                                                   | 获取角色信息       |
+| `sprite:character:getPersonaPrompt` | `{ context }`                                       | 获取人格 prompt    |
+| `sprite:dimensions:get`             | -                                                   | 获取维度状态       |
+| `sprite:config:getAutoWalk`         | -                                                   | 获取自动行走开关   |
+| `sprite:config:setAutoWalk`         | `{ enabled }`                                       | 设置自动行走开关   |
+| `sprite:config:getDebugOverlay`     | -                                                   | 获取调试辅助线开关 |
+| `sprite:config:setDebugOverlay`     | `{ enabled }`                                       | 设置调试辅助线开关 |
+| `sprite:previewMovement`            | `{ width, height, padding, movement }`              | 预览窗口移动效果   |
+| `sprite:stopMovementPreview`        | -                                                   | 停止移动预览       |
 
 ### 下行（主进程 → 渲染进程）
 
@@ -694,7 +761,9 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 
 **交互上报**: `interact()`, `dragStart()`, `dragEnd()`, `animComplete()`, `fileDrop()`
 
-**状态与配置**: `getInitialState()`, `ready()`, `getAutoWalk()`, `setAutoWalk()`
+**状态与配置**: `getInitialState()`, `ready()`, `getAutoWalk()`, `setAutoWalk()`, `getDebugOverlay()`, `setDebugOverlay()`
+
+**移动预览**: `previewMovement()`, `stopMovementPreview()`
 
 **语音合成**: `speak()`, `synthesizeSpeech()`, `getSpeakConfig()`, `setSpeakConfig()`, `resetSpeakConfig()`, `getSpeakCacheStats()`, `clearSpeakCache()`
 

@@ -201,6 +201,25 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     return p.enabled;
   });
 
+  ipcMain.handle('sprite:config:getDebugOverlay', () => {
+    return mgr.isDebugOverlayEnabled();
+  });
+
+  ipcMain.handle('sprite:config:setDebugOverlay', (_e, p: { enabled: boolean }) => {
+    mgr.setDebugOverlayEnabled(p.enabled);
+    return p.enabled;
+  });
+
+  // 预览窗口移动效果
+  ipcMain.handle('sprite:previewMovement', (_e, p: { width: number; height: number; padding: number; movement: any }) => {
+    mgr.previewMovement(p);
+  });
+
+  // 停止移动预览
+  ipcMain.handle('sprite:stopMovementPreview', () => {
+    mgr.stopMovementPreview();
+  });
+
   // ===== 语音合成 (Speak) =====
 
   /** 让精灵说话：合成 + 播放 + 显示气泡 */

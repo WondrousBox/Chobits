@@ -15,8 +15,9 @@ export const PATH_CURVE_FACTOR = 0.15;
 // Padding is fetched dynamically at runtime from main process; this is only a safe default
 export const DEFAULT_ASSISTANT_PADDING = 100;
 
-// Debug overlay toggle for padding boundary
-export const SHOW_PADDING_DEBUG = false;
+// Debug overlay is now controlled at runtime via sprite:config:setDebugOverlay IPC
+// (Previously: export const SHOW_PADDING_DEBUG = false)
+export const SHOW_PADDING_DEBUG = true;
 
 // Renderer mode toggle: 'video' (current sprite videos) or 'three' (3D demo)
 export type AssistantRendererMode = 'video' | 'three';

@@ -8,6 +8,7 @@
  * 4. 转码为 WebM（含透明通道）
  */
 
+import type { SpriteMovementConfig, SpriteMovementDirection } from '@packages/sprite-core/types';
 import { ChevronsUpDown } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TbPlayerPause, TbPlayerPlay, TbPlus, TbX, TbZoomIn, TbZoomOut } from 'react-icons/tb';
@@ -26,6 +27,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { SpriteEventGroups } from '@/features/sprite-assistant';
@@ -184,6 +186,11 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
   // 元数据
   const [eventType, setEventType] = useState<string>(initialConfig?.eventType || '');
   const [title, setTitle] = useState<string>(initialConfig?.title || '');
+
+  // 窗口移动配置
+  const [movement, setMovement] = useState<SpriteMovementConfig>({ enabled: false, direction: 'random', speed: 60 });
+  // 精灵窗口 padding
+  const [padding, setPadding] = useState<number>(100);
 
   // 预览模式 — 启用色度键后自动开启
   const previewChroma = chromaKey.enabled;
@@ -553,6 +560,8 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
     setOutput({ ...DEFAULT_OUTPUT });
     setTitle('');
     setEventType('');
+    setMovement({ enabled: false, direction: 'random', speed: 60 });
+    setPadding(100);
   }, [stopThreePhasePreview]);
 
   // Canvas 录制导出：播放视频并实时应用色度键，通过 MediaRecorder 录制为 WebM VP9 with Alpha
@@ -704,7 +713,11 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
           },
           loopStartMs: adjustedLoopStart,
           loopEndMs: adjustedLoopEnd,
-          durationMs: trimmedDuration
+          durationMs: trimmedDuration,
+          width: output.width,
+          height: output.height,
+          padding,
+          movement: movement.enabled ? movement : undefined
         });
       } else {
         // FFmpeg 路径：裁剪 + 倍速 + 转码 WebM VP9
@@ -724,9 +737,13 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
         });
         await window.YUA.sprite.register({
           filePath: outputPath,
+          width: output.width,
+          height: output.height,
+          padding,
           loopStartMs: adjustedLoopStart,
           loopEndMs: adjustedLoopEnd,
           durationMs: trimmedDuration,
+          movement: movement.enabled ? movement : undefined,
           meta: {
             id,
             title: title || '自定义动画',
@@ -742,7 +759,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
       setInternalProcessing(false);
       setProcessProgress(0);
     }
-  }, [inputPath, processingFlag, segments, speeds, output, chromaKey, eventType, title, hasLoop, stopThreePhasePreview, recordCanvasWithChromaKey, onProcess, onImportComplete]);
+  }, [inputPath, processingFlag, segments, speeds, output, chromaKey, eventType, title, hasLoop, padding, movement, stopThreePhasePreview, recordCanvasWithChromaKey, onProcess, onImportComplete]);
 
   return (
     <div className="h-full">
@@ -829,6 +846,28 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
                   <Button size="sm" variant="outline" onClick={previewFull} title="预览完整动画（循环3次后结束）">
                     完整预览
                   </Button>
+                  {movement.enabled && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        window.YUA.sprite.previewMovement({
+                          width: output.width,
+                          height: output.height,
+                          padding,
+                          movement
+                        });
+                      }}
+                      title="预览窗口移动效果"
+                    >
+                      测试移动
+                    </Button>
+                  )}
+                  {movement.enabled && (
+                    <Button size="sm" variant="ghost" onClick={() => window.YUA.sprite.stopMovementPreview()} title="停止窗口移动">
+                      停止
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1239,6 +1278,60 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
                   />
                 </div>
               </div>
+            </div>
+
+            {/* 窗口设置 */}
+            <div className="space-y-3 border-t pt-3">
+              <Label className="text-xs">窗口设置</Label>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1">
+                  <Label className="text-[11px] text-muted-foreground shrink-0">Padding</Label>
+                  <Input type="number" value={padding} onChange={(e) => setPadding(Math.max(0, parseInt(e.target.value) || 0))} className="h-7 w-16 text-xs text-center" />
+                </div>
+                <span className="text-[10px] text-muted-foreground">
+                  窗口总宽 = {output.width + padding * 2}，总高 = {output.height + padding * 2}
+                </span>
+              </div>
+
+              {/* 窗口移动 */}
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">播放时窗口移动</Label>
+                <Switch checked={movement.enabled} onCheckedChange={(checked) => setMovement((prev) => ({ ...prev, enabled: checked }))} />
+              </div>
+
+              {movement.enabled && (
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1">
+                    <Label className="text-[11px] text-muted-foreground shrink-0">方向</Label>
+                    <Select value={movement.direction} onValueChange={(v) => setMovement((prev) => ({ ...prev, direction: v as SpriteMovementDirection }))}>
+                      <SelectTrigger className="h-7 w-28 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="left">← 向左</SelectItem>
+                        <SelectItem value="right">→ 向右</SelectItem>
+                        <SelectItem value="up">↑ 向上</SelectItem>
+                        <SelectItem value="down">↓ 向下</SelectItem>
+                        <SelectItem value="up-left">↖ 左上</SelectItem>
+                        <SelectItem value="up-right">↗ 右上</SelectItem>
+                        <SelectItem value="down-left">↙ 左下</SelectItem>
+                        <SelectItem value="down-right">↘ 右下</SelectItem>
+                        <SelectItem value="random">🎲 随机</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Label className="text-[11px] text-muted-foreground shrink-0">速度</Label>
+                    <Input
+                      type="number"
+                      value={movement.speed ?? 60}
+                      onChange={(e) => setMovement((prev) => ({ ...prev, speed: Math.max(1, parseInt(e.target.value) || 60) }))}
+                      className="h-7 w-16 text-xs text-center"
+                    />
+                    <span className="text-[10px] text-muted-foreground">px/s</span>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}

@@ -4,6 +4,7 @@
  * 主进程中管理精灵窗口的位置移动：
  * - 行走动画（贝塞尔曲线路径 + 30fps 节流）
  * - 拖拽移动
+ * - 自动移动（动画播放时沿指定方向恒速移动）
  * - 位置管理与边界约束
  *
  * 从渲染进程 useWalkAnimation.ts + useDragMove.ts 迁移而来，
@@ -12,6 +13,7 @@
  */
 
 import type { SpriteWindow } from './manager';
+import type { SpriteMovementConfig, SpriteMovementDirection } from './types';
 
 // ============================================================================
 // 数学工具 (从 src/lib/helpers.ts 内联)
@@ -82,6 +84,15 @@ export class WindowController {
   private dragOffsetX = 0;
   private dragOffsetY = 0;
   private dragTimer: ReturnType<typeof setInterval> | null = null;
+
+  // 自动移动状态（动画播放时沿指定方向恒速移动）
+  private autoMoving = false;
+  private autoMoveTimer: ReturnType<typeof setInterval> | null = null;
+  private autoMoveVelocity: { dx: number; dy: number } = { dx: 0, dy: 0 };
+  private autoMoveLastTime = 0;
+  private autoMoveLastMoveTime = 0;
+  /** 自动移动的实际方向（用于 random 解析后的结果） */
+  private autoMoveDirection: 'left' | 'right' | null = null;
 
   constructor(options: WindowControllerOptions) {
     this.opts = options;
@@ -205,6 +216,7 @@ export class WindowController {
   /** 开始拖拽（启动主进程轮询光标位置，彻底消除 IPC 延迟） */
   startDrag(offsetX: number, offsetY: number): void {
     this.stopWalk();
+    this.stopAutoMove();
     this.stopDragTimer();
     this.dragging = true;
     this.dragOffsetX = offsetX;
@@ -261,6 +273,128 @@ export class WindowController {
   }
 
   // ============================================================================
+  // 自动移动（动画播放时沿指定方向恒速移动）
+  // ============================================================================
+
+  /** 开始自动移动 */
+  startAutoMove(config: SpriteMovementConfig): void {
+    this.stopAutoMove();
+    if (!config.enabled) return;
+
+    const speed = config.speed ?? DEFAULT_WALK_SPEED;
+    if (speed <= 0) return;
+
+    const dir = config.direction === 'random' ? this.resolveRandomDirection() : config.direction;
+
+    const velocity = this.directionToVelocity(dir, speed);
+    this.autoMoveVelocity = velocity;
+    this.autoMoveDirection = velocity.dx < 0 ? 'left' : velocity.dx > 0 ? 'right' : null;
+
+    this.autoMoving = true;
+    this.autoMoveLastTime = Date.now();
+    this.autoMoveLastMoveTime = 0;
+
+    this.autoMoveTimer = setInterval(() => this.autoMoveTick(), TICK_INTERVAL);
+  }
+
+  /** 停止自动移动 */
+  stopAutoMove(): void {
+    if (this.autoMoveTimer) {
+      clearInterval(this.autoMoveTimer);
+      this.autoMoveTimer = null;
+    }
+    this.autoMoving = false;
+    this.autoMoveDirection = null;
+  }
+
+  /** 是否正在自动移动 */
+  isAutoMoving(): boolean {
+    return this.autoMoving;
+  }
+
+  /** 获取自动移动方向（用于精灵翻转） */
+  getAutoMoveDirection(): 'left' | 'right' | null {
+    return this.autoMoving ? this.autoMoveDirection : null;
+  }
+
+  /** 自动移动 tick */
+  private autoMoveTick(): void {
+    if (!this.autoMoving) {
+      this.stopAutoMove();
+      return;
+    }
+
+    const win = this.opts.getWindow();
+    if (!win || win.isDestroyed()) {
+      this.stopAutoMove();
+      return;
+    }
+
+    const now = Date.now();
+    const dt = now - this.autoMoveLastTime;
+    this.autoMoveLastTime = now;
+
+    const bounds = win.getBounds();
+    const scr = this.opts.getScreenSize();
+    const padding = this.opts.getPadding();
+    const sprite = this.opts.getSpriteSize();
+
+    const newX = bounds.x + (this.autoMoveVelocity.dx * dt) / 1000;
+    const newY = bounds.y + (this.autoMoveVelocity.dy * dt) / 1000;
+
+    // 边界约束
+    const clampedX = clamp(newX, -padding, scr.width - sprite.width - padding);
+    const clampedY = clamp(newY, -padding, scr.height - sprite.height - padding);
+
+    // 30fps 节流窗口位置更新
+    if (this.autoMoveLastMoveTime === 0 || now - this.autoMoveLastMoveTime >= IPC_THROTTLE) {
+      this.autoMoveLastMoveTime = now;
+      win.setPosition(Math.round(clampedX), Math.round(clampedY));
+    }
+
+    // 到达边界则停止
+    const atEdge =
+      (this.autoMoveVelocity.dx < 0 && clampedX <= -padding) ||
+      (this.autoMoveVelocity.dx > 0 && clampedX >= scr.width - sprite.width - padding) ||
+      (this.autoMoveVelocity.dy < 0 && clampedY <= -padding) ||
+      (this.autoMoveVelocity.dy > 0 && clampedY >= scr.height - sprite.height - padding);
+    if (atEdge) {
+      this.stopAutoMove();
+    }
+  }
+
+  /** 将方向枚举转换为速度向量 */
+  private directionToVelocity(direction: SpriteMovementDirection, speed: number): { dx: number; dy: number } {
+    const diag = speed * Math.SQRT1_2; // 对角线速度分量
+    switch (direction) {
+      case 'left':
+        return { dx: -speed, dy: 0 };
+      case 'right':
+        return { dx: speed, dy: 0 };
+      case 'up':
+        return { dx: 0, dy: -speed };
+      case 'down':
+        return { dx: 0, dy: speed };
+      case 'up-left':
+        return { dx: -diag, dy: -diag };
+      case 'up-right':
+        return { dx: diag, dy: -diag };
+      case 'down-left':
+        return { dx: -diag, dy: diag };
+      case 'down-right':
+        return { dx: diag, dy: diag };
+      default:
+        return { dx: 0, dy: 0 };
+    }
+  }
+
+  /** 随机选取一个具体方向 */
+  private resolveRandomDirection(): SpriteMovementDirection {
+    const directions: SpriteMovementDirection[] = ['left', 'right', 'up', 'down', 'up-left', 'up-right', 'down-left', 'down-right'];
+    return directions[Math.floor(Math.random() * directions.length)];
+  }
+
+  // ============================================================================
   // 尺寸
   // ============================================================================
 
@@ -300,6 +434,7 @@ export class WindowController {
   destroy(): void {
     this.cancelWalk();
     this.stopDragTimer();
+    this.stopAutoMove();
     this.dragging = false;
   }
 

@@ -1,6 +1,7 @@
 /**
  * Padding 边界调试覆盖层
  * - 根据当前精灵动画定义显示内核矩形与外层 padding 范围。
+ * - 通过 spriteConfig.showDebugOverlay 运行时控制显隐。
  */
 import React from 'react';
 
@@ -13,8 +14,9 @@ export const PaddingDebugOverlay: React.FC<{ padding: number }> = ({ padding }) 
   const width = spriteConfig.width;
   const height = spriteConfig.height;
   const actualPadding = spriteConfig.padding ?? padding;
+  const show = spriteConfig.showDebugOverlay ?? SHOW_PADDING_DEBUG;
 
-  return SHOW_PADDING_DEBUG ? (
+  return show ? (
     <div
       style={{
         position: 'absolute',
