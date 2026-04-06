@@ -821,15 +821,62 @@ export async function browseTopics(db: RetrievalDbDeps, opts: { topicId?: string
 /**
  * searchWithContent — 搜索并自动读取命中段落的正文（一步到位的 search+read）
  */
-export async function searchWithContent(query: string, workspaceId: string, db: RetrievalDbDeps, maxChars = 4000): Promise<string> {
+export interface SearchWithContentResult {
+  context: string;
+  noteCount: number;
+  topicCount: number;
+}
+
+export async function searchWithContent(query: string, workspaceId: string, db: RetrievalDbDeps, maxChars = 4000): Promise<SearchWithContentResult> {
+  const TAG = '[MemorySearch] 🧠🔎';
+  const t0 = Date.now();
+
+  // Stage 1: Query Analysis
   const analysis = analyzeQuery(query);
+  console.log(`${TAG} ── Stage 1: Query Analysis ──
+  query: "${query}"
+  topicTerms: [${analysis.topicTerms.join(', ')}]
+  entityTerms: [${analysis.entityTerms.join(', ')}]
+  keywordTerms: [${analysis.keywordTerms.join(', ')}]
+  timeHint: ${analysis.timeHint ? JSON.stringify(analysis.timeHint) : 'none'}
+  actionHint: ${analysis.actionHint || 'none'}
+  broadRecall: ${!!analysis.broadRecall}`);
+
+  // Stage 2: Topic Recall
+  const t1 = Date.now();
   const topicResult = await recallTopics(analysis, workspaceId, db);
+  console.log(`${TAG} ── Stage 2: Topic Recall (${Date.now() - t1}ms) ──
+  directHits: [${topicResult.directHits.map((t) => `${t.label}(heat=${t.heat.toFixed(2)})`).join(', ')}]
+  expanded: [${topicResult.expanded.map((t) => `${t.label}(depth=${t.depth})`).join(', ')}]
+  allTopicIds: ${topicResult.allTopicIds.length} total`);
+
+  // Stage 3: Note Recall
+  const t2 = Date.now();
   const noteResult = await recallNotes(analysis, topicResult, workspaceId, db, 10);
+  console.log(`${TAG} ── Stage 3: Note Recall (${Date.now() - t2}ms) ──
+  candidates: ${noteResult.candidates.length} / totalFound: ${noteResult.totalFound}
+${noteResult.candidates
+      .slice(0, 5)
+      .map(
+        (n, i) => `  [${i}] ${n.date} | topics=[${n.topics.join(',')}] | score=${n.finalScore.toFixed(3)} (fts=${n.ftsScore.toFixed(2)}, graph=${n.graphScore.toFixed(2)}) | "${n.summary.slice(0, 60)}"`
+      )
+      .join('\n')}`);
 
-  if (noteResult.candidates.length === 0) return '';
+  if (noteResult.candidates.length === 0) {
+    console.log(`${TAG} ── No candidates found, skipping stages 4-6 (total ${Date.now() - t0}ms) ──`);
+    return { context: '', noteCount: 0, topicCount: topicResult.directHits.length };
+  }
 
+  // Stage 4: Section Recall
   const noteIds = noteResult.candidates.map((c) => c.noteId);
+  const t3 = Date.now();
   const sectionCandidates = await recallSections(analysis, noteIds, db, 15);
+  console.log(`${TAG} ── Stage 4: Section Recall (${Date.now() - t3}ms) ──
+  sections: ${sectionCandidates.length}
+${sectionCandidates
+      .slice(0, 8)
+      .map((s, i) => `  [${i}] noteId=${s.noteId.slice(0, 8)}… | heading="${s.heading}" | score=${s.score.toFixed(2)}`)
+      .join('\n')}`);
 
   // 构建 noteId → filePath 映射
   const noteFileMap = new Map<string, string>();
@@ -843,8 +890,22 @@ export async function searchWithContent(query: string, workspaceId: string, db: 
     }
   }
 
+  // Stage 5: Targeted Read
+  const t4 = Date.now();
   const readResult = await targetedRead(sectionCandidates, noteFileMap, Math.round(maxChars * 0.7));
-  return assembleContext(topicResult, noteResult, readResult);
+  console.log(`${TAG} ── Stage 5: Targeted Read (${Date.now() - t4}ms) ──
+  sections read: ${readResult.sections.length} | chars: ${readResult.totalCharsRead} | budgetExhausted: ${readResult.budgetExhausted}
+${readResult.sections
+      .slice(0, 5)
+      .map((s, i) => `  [${i}] "${s.heading}" → ${s.content.length} chars${s.truncated ? ' (truncated)' : ''}`)
+      .join('\n')}`);
+
+  // Stage 6: Context Assembly
+  const context = assembleContext(topicResult, noteResult, readResult);
+  console.log(`${TAG} ── Stage 6: Context Assembly (total ${Date.now() - t0}ms) ──
+  output: ${context.length} chars`);
+
+  return { context, noteCount: noteResult.candidates.length, topicCount: topicResult.directHits.length };
 }
 
 // ━━ Helpers ━━

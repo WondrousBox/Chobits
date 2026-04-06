@@ -363,14 +363,16 @@ export function extractKeywordsFromMessage(content: string): string[] {
  * @param signal - AbortSignal（用于取消 LLM 调用）
  */
 export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecallDeps, conversationId?: string, signal?: AbortSignal): Promise<AutoRecallResult> {
-  const TAG = '[AutoRecall]';
+  const TAG = '[AutoRecall] 🧠🔍';
   const config: AutoRecallConfig = { ...DEFAULT_AUTO_RECALL_CONFIG, ...deps.config };
 
   // ─── Stage 1: Triage ───
   const triage = shouldAttemptRecall(messages, config);
   if (!triage.should) {
+    console.log(`${TAG} Stage 1 triage: skipped (${triage.reason})`);
     return { context: '', keywords: [], noteCount: 0, skipped: true, skipReason: triage.reason };
   }
+  console.log(`${TAG} Stage 1 triage: proceed`);
 
   // ─── Cache check ───
   if (conversationId) {
@@ -397,6 +399,7 @@ export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecal
   // ─── Workspace check ───
   const workspaceId = await deps.getWorkspaceId();
   if (!workspaceId) {
+    console.log(`${TAG} Skipped: no workspace ID available`);
     return { context: '', keywords: [], noteCount: 0, skipped: true, skipReason: 'no_workspace' };
   }
 
@@ -461,20 +464,17 @@ export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecal
   }
 
   // ─── Stage 3: Search ───
-  const { searchWithContent, search } = await import('./memory-retrieval-service');
+  const { searchWithContent } = await import('./memory-retrieval-service');
   const searchQuery = keywords.join(' ');
 
   try {
     console.log(`${TAG} Searching memories: query="${searchQuery}", ws=${workspaceId?.slice(0, 8)}`);
 
-    // 使用 searchWithContent 执行 Stage 1-6 完整流水线
-    const context = await searchWithContent(searchQuery, workspaceId, deps.db, config.maxContextChars);
+    // 使用 searchWithContent 执行 Stage 1-6 完整流水线（含元数据）
+    const searchResult = await searchWithContent(searchQuery, workspaceId, deps.db, config.maxContextChars);
 
-    // 同时获取结构化结果用于日志/元数据
-    const searchResult = await search(searchQuery, workspaceId, deps.db, { maxResults: 5 });
-
-    const noteCount = searchResult.notes.length;
-    console.log(`${TAG} Found ${noteCount} notes, ${searchResult.topics.length} topics` + (context ? `, context=${context.length} chars` : ', no context content'));
+    const { context, noteCount, topicCount } = searchResult;
+    console.log(`${TAG} Found ${noteCount} notes, ${topicCount} topics` + (context ? `, context=${context.length} chars` : ', no context content'));
 
     const result: AutoRecallResult = {
       context: context || '',
@@ -514,4 +514,120 @@ export function clearRecallCache(conversationId?: string): void {
   } else {
     recallCache.clear();
   }
+}
+
+// ━━ Prefetch API ━━
+
+/**
+ * 预取句柄 — 借鉴 claude-code 的 prefetch 模式。
+ *
+ * 允许在 chatStream 入口处提前启动记忆搜索，
+ * 当 enricher 的 resolve() 被调用时直接 await 已经在运行的 promise，
+ * 从而将记忆检索延迟与 preview / model 加载并行。
+ */
+export interface AutoRecallPrefetch {
+  /** 异步结果 promise */
+  promise: Promise<AutoRecallResult>;
+  /** 完成时间戳（null 表示仍在进行） */
+  settledAt: number | null;
+  /** 中止控制器 */
+  abort: () => void;
+}
+
+/**
+ * 启动记忆召回预取。
+ *
+ * 不会阻塞调用方 — 返回一个句柄，可以在后续 await。
+ * 如果预取已在进行（同一 conversationId），复用已有 promise。
+ */
+const activePrefetches = new Map<string, AutoRecallPrefetch>();
+
+export function startAutoRecallPrefetch(messages: ChatMessage[], deps: AutoRecallDeps, conversationId?: string): AutoRecallPrefetch | undefined {
+  // 如果已有同一对话的 prefetch 且仍在运行，复用
+  if (conversationId && activePrefetches.has(conversationId)) {
+    const existing = activePrefetches.get(conversationId)!;
+    if (!existing.settledAt) return existing;
+    // 已完成的旧 prefetch — 清理后重新启动
+    activePrefetches.delete(conversationId);
+  }
+
+  const controller = new AbortController();
+  const firedAt = Date.now();
+
+  const promise = performAutoRecall(messages, deps, conversationId, controller.signal).catch((e) => {
+    if (e?.name !== 'AbortError') {
+      console.warn('[AutoRecall:Prefetch] Failed:', e instanceof Error ? e.message : e);
+    }
+    return { context: '', keywords: [], noteCount: 0, skipped: true, skipReason: 'prefetch_error' } as AutoRecallResult;
+  });
+
+  const handle: AutoRecallPrefetch = {
+    promise,
+    settledAt: null,
+    abort: () => controller.abort()
+  };
+
+  void promise.finally(() => {
+    handle.settledAt = Date.now();
+    console.log(`[AutoRecall:Prefetch] Settled in ${Date.now() - firedAt}ms`);
+    // 自动清理已完成的 prefetch（延迟 5s，给 enricher resolve 留时间）
+    if (conversationId) {
+      setTimeout(() => {
+        const cur = activePrefetches.get(conversationId);
+        if (cur === handle) activePrefetches.delete(conversationId);
+      }, 5000);
+    }
+  });
+
+  if (conversationId) {
+    activePrefetches.set(conversationId, handle);
+  }
+
+  return handle;
+}
+
+/**
+ * 直接注册一个 prefetch handle（由外部构建 promise）。
+ *
+ * 与 startAutoRecallPrefetch 不同，此函数允许调用方自行构建 promise
+ * 并立即（同步地）注册到 activePrefetches map 中，避免异步 deps 构建
+ * 导致的注册延迟 / 竞态条件。
+ */
+export function registerPrefetch(conversationId: string, promise: Promise<AutoRecallResult>): AutoRecallPrefetch {
+  // 如果已有同一对话的 prefetch 且仍在运行，复用
+  if (activePrefetches.has(conversationId)) {
+    const existing = activePrefetches.get(conversationId)!;
+    if (!existing.settledAt) return existing;
+    activePrefetches.delete(conversationId);
+  }
+
+  const firedAt = Date.now();
+  const controller = new AbortController();
+
+  const handle: AutoRecallPrefetch = {
+    promise,
+    settledAt: null,
+    abort: () => controller.abort()
+  };
+
+  void promise.finally(() => {
+    handle.settledAt = Date.now();
+    console.log(`[AutoRecall:Prefetch] Settled in ${Date.now() - firedAt}ms`);
+    if (conversationId) {
+      setTimeout(() => {
+        const cur = activePrefetches.get(conversationId);
+        if (cur === handle) activePrefetches.delete(conversationId);
+      }, 5000);
+    }
+  });
+
+  activePrefetches.set(conversationId, handle);
+  return handle;
+}
+
+/**
+ * 获取已启动的预取句柄（如果存在）。
+ */
+export function getActivePrefetch(conversationId: string): AutoRecallPrefetch | undefined {
+  return activePrefetches.get(conversationId);
 }
