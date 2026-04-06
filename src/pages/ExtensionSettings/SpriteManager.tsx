@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { TbPlayerPlay, TbTools, TbTrash } from 'react-icons/tb';
+import { TbBug, TbPlayerPlay, TbTools, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -104,8 +104,20 @@ export default function SpriteManager({ className }: { className?: string }): JS
   // 精灵导入状态
   const [spriteConfig, setSpriteConfig] = useState<Partial<SpriteVideoConfig>>({});
   const [spriteProcessing, setSpriteProcessing] = useState(false);
+  const [debugOverlay, setDebugOverlay] = useState(false);
   // 默认的内置分类：使用全部预设事件类型（不包含 custom）
   const BUILTIN = React.useMemo(() => SPRITE_EVENT_TYPES.filter((c) => c !== 'custom'), []);
+
+  // 初始化读取调试辅助线状态
+  useEffect(() => {
+    window.YUA.sprite.getDebugOverlay().then(setDebugOverlay).catch(() => { });
+  }, []);
+
+  const toggleDebugOverlay = useCallback(async () => {
+    const next = !debugOverlay;
+    setDebugOverlay(next);
+    await window.YUA.sprite.setDebugOverlay(next);
+  }, [debugOverlay]);
 
   const refresh = React.useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -239,6 +251,9 @@ export default function SpriteManager({ className }: { className?: string }): JS
           <Button size="sm" variant="outline" onClick={refresh} disabled={loading}>
             刷新
           </Button>
+          <Button size="sm" variant={debugOverlay ? 'default' : 'outline'} onClick={toggleDebugOverlay} title="调试辅助线">
+            <TbBug />
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setToolOpen(true)}>
             <TbTools />
             工具
@@ -247,7 +262,7 @@ export default function SpriteManager({ className }: { className?: string }): JS
       </div>
       {/* 精灵导入工具弹窗 */}
       <Dialog open={toolOpen} onOpenChange={setToolOpen}>
-        <DialogContent className="max-w-4xl h-[600px] max-h-[90vh] overflow-none">
+        <DialogContent className="max-w-4xl h-[80vh] max-h-[90vh] overflow-none">
           <DialogHeader>
             <DialogTitle>精灵视频导入</DialogTitle>
           </DialogHeader>

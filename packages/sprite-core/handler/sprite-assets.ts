@@ -212,7 +212,8 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
       autoIdle: anim.autoIdle ?? true,
       loopStartMs: anim.loopStartMs,
       loopEndMs: anim.loopEndMs,
-      durationMs: anim.durationMs
+      durationMs: anim.durationMs,
+      movement: anim.movement
     };
     // mark deletable for user-created item
     (newItem.meta as any).deletable = true;
@@ -238,9 +239,11 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
         durationMs?: number;
         width?: number;
         height?: number;
+        padding?: number;
+        movement?: SpriteAnimation['movement'];
       }
     ) => {
-      const { data, meta, loopStartMs, loopEndMs, durationMs, width, height } = payload || ({} as any);
+      const { data, meta, loopStartMs, loopEndMs, durationMs, width, height, padding, movement } = payload || ({} as any);
       if (!data || !(data instanceof ArrayBuffer || Buffer.isBuffer(data))) {
         throw new Error('[sprite:registerFromData] data is required (ArrayBuffer or Buffer)');
       }
@@ -266,7 +269,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
         source: { localPath: finalPath, type: 'video/webm' },
         width: width ?? 180,
         height: height ?? 240,
-        padding: 100,
+        padding: padding ?? 100,
         autoplay: true,
         muted: true,
         playsInline: true,
@@ -274,7 +277,8 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
         autoIdle: true,
         loopStartMs,
         loopEndMs,
-        durationMs
+        durationMs,
+        movement
       };
       (newItem.meta as any).deletable = true;
 

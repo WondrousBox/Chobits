@@ -25,6 +25,8 @@ export type SpriteBridgeType = {
     durationMs?: number;
     width?: number;
     height?: number;
+    padding?: number;
+    movement?: SpriteAnimation['movement'];
   }): Promise<SpriteAnimation>;
   remove(id: string, deleteFile?: boolean): Promise<{ ok: boolean }>;
   updateMeta(id: string, meta: Partial<SpriteAnimation['meta']>): Promise<{ ok: boolean; item?: SpriteAnimation }>;
@@ -51,6 +53,12 @@ export type SpriteBridgeType = {
   // 配置
   getAutoWalk(): Promise<boolean>;
   setAutoWalk(enabled: boolean): Promise<boolean>;
+  getDebugOverlay(): Promise<boolean>;
+  setDebugOverlay(enabled: boolean): Promise<boolean>;
+
+  // 窗口移动预览
+  previewMovement(config: { width: number; height: number; padding: number; movement: any }): Promise<void>;
+  stopMovementPreview(): Promise<void>;
 
   // 语音合成 (Speak)
   speak(text: string, options?: { showBubble?: boolean; bubbleDuration?: number }): Promise<SpeakResult>;
@@ -118,6 +126,10 @@ export const spriteBridge: SpriteBridgeType = {
   // ── 配置 ─────────────────────────────────────────────────
   getAutoWalk: () => ipcRenderer.invoke('sprite:config:getAutoWalk'),
   setAutoWalk: (enabled) => ipcRenderer.invoke('sprite:config:setAutoWalk', { enabled }),
+  getDebugOverlay: () => ipcRenderer.invoke('sprite:config:getDebugOverlay'),
+  setDebugOverlay: (enabled) => ipcRenderer.invoke('sprite:config:setDebugOverlay', { enabled }),
+  previewMovement: (config) => ipcRenderer.invoke('sprite:previewMovement', config),
+  stopMovementPreview: () => ipcRenderer.invoke('sprite:stopMovementPreview'),
 
   // ── 语音合成 (Speak) ──────────────────────────────────────
   speak: (text, options) => ipcRenderer.invoke('sprite:speak', { text, showBubble: options?.showBubble, bubbleDuration: options?.bubbleDuration }),

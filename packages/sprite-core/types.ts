@@ -169,6 +169,23 @@ export interface MessagesProvider {
 }
 
 // ============================================================================
+// 窗口移动配置
+// ============================================================================
+
+/** 动画播放时的窗口移动方向 */
+export type SpriteMovementDirection = 'left' | 'right' | 'up' | 'down' | 'up-left' | 'up-right' | 'down-left' | 'down-right' | 'random';
+
+/** 精灵动画窗口移动配置 */
+export interface SpriteMovementConfig {
+  /** 是否启用动画播放时的窗口移动 */
+  enabled: boolean;
+  /** 移动方向 */
+  direction: SpriteMovementDirection;
+  /** 移动速度（像素/秒），默认 60 */
+  speed?: number;
+}
+
+// ============================================================================
 // 精灵动画定义
 // ============================================================================
 
@@ -184,6 +201,8 @@ export interface SpriteAnimation {
   durationMs?: number;
   loopStartMs?: number;
   loopEndMs?: number;
+  /** 动画播放时的窗口移动配置 */
+  movement?: SpriteMovementConfig;
   meta: {
     id: string;
     title: string;
@@ -327,6 +346,8 @@ export interface SpritePlayCommand {
     loopEndMs?: number;
     durationMs?: number;
     autoIdle?: boolean;
+    /** 动画播放时的窗口移动配置 */
+    movement?: SpriteMovementConfig;
   };
 }
 
@@ -337,7 +358,7 @@ export interface SpriteInitialState {
   personaState: any;
   animations: SpriteAnimation[];
   currentAnimation: SpritePlayCommand | null;
-  config: { width: number; height: number; padding: number };
+  config: SpriteConfig;
 }
 
 /** 精灵行走状态 */
@@ -351,4 +372,6 @@ export interface SpriteConfig {
   width: number;
   height: number;
   padding: number;
+  /** 是否显示调试辅助线 */
+  showDebugOverlay?: boolean;
 }
