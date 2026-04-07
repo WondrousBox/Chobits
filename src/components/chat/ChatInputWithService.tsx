@@ -1,14 +1,18 @@
-import { TbFolderCode, TbRobot, TbX } from 'react-icons/tb';
+import { useCallback, useRef } from 'react';
+import { TbRobot } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { inferCodingWorkspaceLabel } from '@/lib/coding-workspace';
+import { pickCodingWorkspace } from '@/lib/coding-workspace';
 import { useChatSelection } from '@/pages/ChatPage/context/ChatSelectionContext';
 
-import UnifiedChatInput, { UnifiedChatInputProps } from './UnifiedChatInput';
+import ChatAgentSelect from './ChatAgentSelect';
+import ChatFooterActions from './ChatFooterActions';
+import CodingWorkspaceButton from './CodingWorkspaceButton';
+import UnifiedChatInput, { UnifiedChatInputHandle, UnifiedChatInputProps } from './UnifiedChatInput';
+import { mergeTranscriptWithInput, useSpeechInput } from './useSpeechInput';
 import WebSearchToggle from './WebSearchToggle';
 
 export interface ChatInputWithServiceProps extends Omit<UnifiedChatInputProps, 'onSend' | 'footerLeft'> {
@@ -26,7 +30,7 @@ export interface ChatInputWithServiceProps extends Omit<UnifiedChatInputProps, '
   onMenuOpenChange?: (open: boolean) => void;
 }
 
-export default function ChatInputWithService({ onStart, onMenuOpenChange, ...rest }: ChatInputWithServiceProps): JSX.Element {
+export default function ChatInputWithService({ onStart, onMenuOpenChange, footerRightExtra, disabled, ...rest }: ChatInputWithServiceProps): JSX.Element {
   const {
     agents,
     providerId,
@@ -44,22 +48,17 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, ...res
     setWebSearchEnabled,
     setCharacterPersonaEnabled
   } = useChatSelection();
+  const inputRef = useRef<UnifiedChatInputHandle>(null);
 
   const isCoder = agentId === 'coder';
 
   const handlePickWorkspace = async (): Promise<void> => {
-    const result = await window.YUA.file['file:pickDir']({
-      defaultPath: codingWorkspaceRoot || undefined
-    });
-
-    if (result?.canceled || !result.path) {
+    const workspace = await pickCodingWorkspace(codingWorkspaceRoot);
+    if (!workspace) {
       return;
     }
 
-    setCodingWorkspace({
-      root: result.path,
-      label: inferCodingWorkspaceLabel(result.path)
-    });
+    setCodingWorkspace(workspace);
   };
 
   const handleSend = async (content: string): Promise<void> => {
@@ -80,32 +79,37 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, ...res
       characterPersonaEnabled,
       ...(isCoder && codingWorkspaceRoot
         ? {
-          codingWorkspaceRoot,
-          codingWorkspaceLabel: codingWorkspaceLabel || undefined
-        }
+            codingWorkspaceRoot,
+            codingWorkspaceLabel: codingWorkspaceLabel || undefined
+          }
         : {})
     });
   };
 
+  const handleTranscriptFinal = useCallback((text: string): void => {
+    const input = inputRef.current;
+    if (!input) {
+      return;
+    }
+
+    input.setValue(mergeTranscriptWithInput(input.getValue(), text));
+    input.focus();
+  }, []);
+
+  const speechInput = useSpeechInput({
+    onTranscriptFinal: handleTranscriptFinal
+  });
+
   return (
     <UnifiedChatInput
+      ref={inputRef}
       {...rest}
+      disabled={disabled}
       onSend={handleSend}
       showSaveButton={false}
       footerLeft={
         <div className="flex items-center gap-1 shrink-0 no-drag">
-          <Select value={agentId} onValueChange={setAgentId}>
-            <SelectTrigger className="h-8 max-w-32 rounded-full text-xs text-muted-foreground">
-              <SelectValue placeholder="选择模式" />
-            </SelectTrigger>
-            <SelectContent className="text-xs">
-              {agents.map((agent) => (
-                <SelectItem key={agent.id} value={agent.id}>
-                  {agent.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <ChatAgentSelect agents={agents} value={agentId} onValueChange={setAgentId} />
           <ProviderModelSelect
             providerId={providerId}
             presetId={presetId || undefined}
@@ -142,19 +146,33 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, ...res
             </Tooltip>
           )}
           {isCoder && (
-            <>
-              <Button type="button" variant="outline" size="sm" className="h-8 max-w-44 rounded-full text-xs" onClick={handlePickWorkspace} title={codingWorkspaceRoot || '选择项目目录'}>
-                <TbFolderCode className="mr-1 h-4 w-4" />
-                <span className="truncate">{codingWorkspaceLabel || '选择项目'}</span>
-              </Button>
-              {codingWorkspaceRoot && (
-                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setCodingWorkspace(null)} title="清除项目目录">
-                  <TbX className="h-4 w-4" />
-                </Button>
-              )}
-            </>
+            <CodingWorkspaceButton
+              workspaceRoot={codingWorkspaceRoot}
+              workspaceLabel={codingWorkspaceLabel}
+              onPick={handlePickWorkspace}
+              onClear={() => setCodingWorkspace(null)}
+              triggerVariant="outline"
+              triggerSize="sm"
+              triggerClassName="h-8 rounded-full text-xs"
+              clearVariant="ghost"
+              clearSize="icon"
+              clearClassName="h-8 w-8 rounded-full"
+            />
           )}
         </div>
+      }
+      footerRightExtra={
+        <ChatFooterActions
+          speechInput={{
+            disabled,
+            interimText: speechInput.interimText,
+            isBusy: speechInput.isBusy,
+            isListening: speechInput.isListening,
+            onToggle: speechInput.toggle
+          }}
+        >
+          {footerRightExtra}
+        </ChatFooterActions>
       }
     />
   );
