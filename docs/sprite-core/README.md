@@ -409,17 +409,32 @@ const wc = new WindowController({
   }
 });
 
-await wc.walkTo(500, 300);
+await wc.walkTo(500, 300); // 贝塞尔曲线路径行走
+await wc.walkTo(500, 300, 80); // 可自定义速度 (px/s)
 wc.stopWalk();
 wc.startDrag(offsetX, offsetY);
 wc.endDrag();
 
 // 自动移动：动画播放时沿指定方向恒速移动
-wc.startAutoMove({ enabled: true, direction: 'left', speed: 80 });
+wc.startAutoMove({ enabled: true, mode: 'direction', direction: 'left', speed: 80 });
 wc.stopAutoMove();
 wc.isAutoMoving();
 wc.getAutoMoveDirection(); // 'left' | 'right' | null
 ```
+
+**移动模式 (SpriteMovementMode)**:
+
+| 模式        | 说明                                                                   |
+| ----------- | ---------------------------------------------------------------------- |
+| `direction` | 沿固定方向恒速移动，到达屏幕边界停止                                   |
+| `walkTo`    | 随机选取屏幕位置，沿贝塞尔曲线路径移动（三段式动画：intro→loop→outro） |
+
+**移动触发方式 (SpriteMovementTrigger)**:
+
+| 触发方式    | 说明                                              |
+| ----------- | ------------------------------------------------- |
+| `animation` | 动画播放时自动触发移动（默认）                    |
+| `behavior`  | 由 BehaviorEngine 行为调度触发，支持定时/随机间隔 |
 
 **自动移动方向 (SpriteMovementDirection)**:
 
@@ -435,12 +450,13 @@ wc.getAutoMoveDirection(); // 'left' | 'right' | null
 | `down-right` | 右下移动 |
 | `random`     | 随机方向 |
 
-**自动移动行为**:
+**移动行为特性**:
 
-- 按配置的方向和速度匀速移动窗口
-- 到达屏幕边界时自动停止
+- **direction 模式**: 按配置方向和速度匀速移动窗口，到达屏幕边界自动停止
+- **walkTo 模式**: 随机选取屏幕位置（Y 轴范围受 `verticalRange` 限制），沿贝塞尔曲线自然移动，方向由目标位置自动推导
 - 拖拽开始时自动停止
 - 动画播放完成时自动停止
+- walkTo 模式要求动画具备 `loopStartMs`/`loopEndMs` 循环片段（用于三段式播放）
 
 ### 10. SpeakService — 语音合成模块
 
@@ -594,8 +610,17 @@ IPC: sprite:play → 渲染进程播放
       "loopEndMs": 2500,
       "movement": {
         "enabled": true,
-        "direction": "random",
-        "speed": 60
+        "mode": "walkTo",
+        "speed": 60,
+        "trigger": "behavior",
+        "behaviorSchedule": {
+          "type": "random",
+          "minMs": 10000,
+          "maxMs": 25000,
+          "probability": 0.8,
+          "minIdleMs": 5000
+        },
+        "verticalRange": 0.1
       }
     }
   ]
@@ -607,11 +632,59 @@ IPC: sprite:play → 渲染进程播放
 
 **Movement 配置说明**:
 
-| 字段        | 类型                    | 必须 | 默认 | 说明                |
-| ----------- | ----------------------- | ---- | ---- | ------------------- |
-| `enabled`   | boolean                 | ✅   | -    | 是否启用窗口移动    |
-| `direction` | SpriteMovementDirection | ✅   | -    | 移动方向            |
-| `speed`     | number                  | ❌   | 60   | 移动速度（像素/秒） |
+| 字段               | 类型                    | 必须 | 默认        | 说明                                                         |
+| ------------------ | ----------------------- | ---- | ----------- | ------------------------------------------------------------ |
+| `enabled`          | boolean                 | ✅   | -           | 是否启用窗口移动                                             |
+| `mode`             | SpriteMovementMode      | ❌   | `direction` | 移动模式：`direction`（方向移动）或 `walkTo`（随机行走）     |
+| `direction`        | SpriteMovementDirection | ❌   | `random`    | 移动方向（`mode='direction'` 时使用）                        |
+| `speed`            | number                  | ❌   | 60          | 移动速度（像素/秒）                                          |
+| `trigger`          | SpriteMovementTrigger   | ❌   | `animation` | 触发方式：`animation`（动画播放时）或 `behavior`（行为调度） |
+| `behaviorSchedule` | object                  | ❌   | -           | 行为调度配置（`trigger='behavior'` 时使用）                  |
+| `verticalRange`    | number                  | ❌   | 0.1         | walkTo 模式竖直范围限制（屏幕高度比例 0-1）                  |
+
+**behaviorSchedule 子配置**:
+
+| 字段          | 类型   | 默认   | 说明                                |
+| ------------- | ------ | ------ | ----------------------------------- |
+| `type`        | string | random | 调度类型：`random`/`interval`       |
+| `intervalMs`  | number | 15000  | 固定间隔（ms），`type='interval'`   |
+| `minMs`       | number | 10000  | 随机最小间隔（ms），`type='random'` |
+| `maxMs`       | number | 25000  | 随机最大间隔（ms），`type='random'` |
+| `probability` | number | 0.8    | 触发概率 (0-1)                      |
+| `minIdleMs`   | number | 5000   | 最小空闲时间（ms）                  |
+
+**Movement 配置示例**:
+
+```json
+// walkTo 模式（随机行走，行为调度触发）
+{
+  "movement": {
+    "enabled": true,
+    "mode": "walkTo",
+    "speed": 60,
+    "trigger": "behavior",
+    "behaviorSchedule": {
+      "type": "random",
+      "minMs": 10000,
+      "maxMs": 25000,
+      "probability": 0.8,
+      "minIdleMs": 5000
+    },
+    "verticalRange": 0.1
+  }
+}
+
+// direction 模式（方向移动，动画播放时触发）
+{
+  "movement": {
+    "enabled": true,
+    "mode": "direction",
+    "direction": "left",
+    "speed": 80,
+    "trigger": "animation"
+  }
+}
+```
 
 ### 调试辅助线 (Debug Overlay)
 

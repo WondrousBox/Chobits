@@ -175,14 +175,69 @@ export interface MessagesProvider {
 /** 动画播放时的窗口移动方向 */
 export type SpriteMovementDirection = 'left' | 'right' | 'up' | 'down' | 'up-left' | 'up-right' | 'down-left' | 'down-right' | 'random';
 
+/**
+ * 移动模式:
+ * - 'direction': 沿固定方向恒速移动，到达屏幕边界停止
+ * - 'walkTo': 随机选取屏幕位置，沿贝塞尔曲线路径移动（三段式动画：intro→loop→outro）
+ */
+export type SpriteMovementMode = 'direction' | 'walkTo';
+
+/**
+ * 移动触发方式:
+ * - 'animation': 动画播放时自动触发移动
+ * - 'behavior': 通过 BehaviorEngine 行为调度触发（支持定时/随机间隔）
+ */
+export type SpriteMovementTrigger = 'animation' | 'behavior';
+
 /** 精灵动画窗口移动配置 */
 export interface SpriteMovementConfig {
   /** 是否启用动画播放时的窗口移动 */
   enabled: boolean;
-  /** 移动方向 */
-  direction: SpriteMovementDirection;
+
+  /**
+   * 移动模式，默认 'direction'
+   * - 'direction': 沿固定方向恒速移动（需配置 direction）
+   * - 'walkTo': 随机选取屏幕位置行走（方向由目标推导，需动画具备 loopStartMs/loopEndMs 循环片段）
+   */
+  mode?: SpriteMovementMode;
+
+  /** 移动方向（mode='direction' 时使用） */
+  direction?: SpriteMovementDirection;
+
   /** 移动速度（像素/秒），默认 60 */
   speed?: number;
+
+  /**
+   * 移动触发方式，默认 'animation'
+   * - 'animation': 动画播放时自动启动移动
+   * - 'behavior': 由 BehaviorEngine 调度触发（配合 behaviorSchedule 使用）
+   */
+  trigger?: SpriteMovementTrigger;
+
+  /**
+   * 行为调度配置（trigger='behavior' 时生效）
+   * 控制自动行走的定时触发参数
+   */
+  behaviorSchedule?: {
+    /** 调度类型: 'random' 随机间隔 | 'interval' 固定间隔 */
+    type: 'random' | 'interval';
+    /** 固定间隔（ms），type='interval' 时使用，默认 15000 */
+    intervalMs?: number;
+    /** 随机间隔最小值（ms），type='random' 时使用，默认 10000 */
+    minMs?: number;
+    /** 随机间隔最大值（ms），type='random' 时使用，默认 25000 */
+    maxMs?: number;
+    /** 触发概率 (0-1)，默认 0.8 */
+    probability?: number;
+    /** 最小空闲时间（ms），需要空闲超过此时间才允许触发，默认 5000 */
+    minIdleMs?: number;
+  };
+
+  /**
+   * walkTo 模式的竖直范围限制（占屏幕高度比例 0-1），默认 0.1
+   * 限制目标位置与当前位置的 Y 轴偏差，避免角度过大
+   */
+  verticalRange?: number;
 }
 
 // ============================================================================

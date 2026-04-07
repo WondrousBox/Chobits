@@ -199,7 +199,9 @@ export function createBoredBehavior(): BehaviorDefinition {
       (ctx) => ctx.interactionStats.idleDuration > 120000 // 2分钟无交互
     ],
     probability: 0.15,
-    action: () => { },
+    action: () => {
+      //
+    },
     allowedStates: ['idle']
   };
 }
@@ -214,7 +216,9 @@ export function createRandomMessageBehavior(): BehaviorDefinition {
     schedule: { type: 'random', minMs: 300000, maxMs: 1800000 }, // 5-30分钟
     conditions: [(ctx) => ctx.spriteState === 'idle', (ctx) => ctx.interactionStats.idleDuration > 60000],
     probability: 1,
-    action: () => { },
+    action: () => {
+      //
+    },
     allowedStates: ['idle'],
     blockedStates: ['dragging', 'walking', 'sleeping']
   };
@@ -233,7 +237,9 @@ export function createFavorDecayBehavior(): BehaviorDefinition {
       (ctx) => ctx.personaState.favor > 20 // 不低于 20
     ],
     probability: 1,
-    action: () => { },
+    action: () => {
+      //
+    },
     allowedStates: ['idle', 'sleeping', 'bored'],
     dailyLimit: 5
   };
@@ -254,7 +260,9 @@ export function createEmotionBehavior(): BehaviorDefinition {
       (ctx) => ctx.interactionStats.idleDuration > 60000 // 至少 1 分钟无交互
     ],
     probability: 0.6,
-    action: () => { }, // 由 SpriteManager 注册时覆盖
+    action: () => {
+      //
+    }, // 由 SpriteManager 注册时覆盖
     allowedStates: ['idle', 'bored'],
     blockedStates: ['dragging', 'walking', 'running', 'sleeping', 'reacting']
   };
@@ -273,7 +281,9 @@ export function createActionBehavior(): BehaviorDefinition {
       (ctx) => ctx.interactionStats.idleDuration > 120000 // 至少 2 分钟无交互
     ],
     probability: 0.5,
-    action: () => { },
+    action: () => {
+      //
+    },
     allowedStates: ['idle', 'bored'],
     blockedStates: ['dragging', 'walking', 'running', 'sleeping', 'reacting']
   };
@@ -289,7 +299,9 @@ export function createAmbientBehavior(): BehaviorDefinition {
     schedule: { type: 'random', minMs: 30000, maxMs: 60000 }, // 30-60秒
     conditions: [(ctx) => ctx.spriteState === 'idle'],
     probability: 0.7,
-    action: () => { },
+    action: () => {
+      //
+    },
     allowedStates: ['idle'],
     blockedStates: ['dragging', 'walking', 'running', 'sleeping', 'reacting']
   };
@@ -305,7 +317,9 @@ export function createSeasonalBehavior(): BehaviorDefinition {
     schedule: { type: 'interval', intervalMs: 3600000 }, // 每小时检查
     conditions: [(ctx) => ctx.spriteState === 'idle'],
     probability: 1,
-    action: () => { },
+    action: () => {
+      //
+    },
     allowedStates: ['idle'],
     dailyLimit: 1 // 每天最多一次
   };
@@ -494,6 +508,7 @@ export class BehaviorEngine {
 
       try {
         await def.action(ctx);
+        console.log('behavior triggered: ❤❤❤❤❤', def.name, '❤❤❤❤❤');
       } catch (err) {
         console.error(`[BehaviorEngine] Action failed for ${def.id}:`, err);
       } finally {

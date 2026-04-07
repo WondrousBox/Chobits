@@ -396,9 +396,12 @@ export class SpriteManager {
 
   /** 轻量提示 */
   showToast(content?: string, options?: { category?: MessageCategory; duration?: number; level?: string; ctx?: any }): void {
+    // 如果只传了 category 没有 content，先获取文本以确保显示和朗读一致
+    const resolvedContent = content ?? (options?.category ? Messages.t(options.category, options?.ctx) : undefined);
+
     const payload: MessageIPCPayload = {
       type: 'toast',
-      content,
+      content: resolvedContent,
       category: options?.category,
       duration: options?.duration,
       level: options?.level as any,
@@ -408,9 +411,8 @@ export class SpriteManager {
 
     // 自动朗读：非静默类别 且 非来自 speak() 的调用
     if (!this._speakGuard && !SpriteManager.MUTE_CATEGORIES.has(options?.category ?? '')) {
-      const speakText = content || (options?.category ? Messages.t(options.category, options?.ctx) : '');
-      if (speakText) {
-        this.speakService.speak(speakText).catch(() => { });
+      if (resolvedContent) {
+        this.speakService.speak(resolvedContent).catch(() => {});
       }
     }
   }
@@ -668,9 +670,9 @@ export class SpriteManager {
   // ============================================================================
 
   /** 行走到目标位置 */
-  async walkTo(x: number, y: number): Promise<void> {
+  async walkTo(x: number, y: number, speed?: number): Promise<void> {
     if (this.windowController) {
-      await this.windowController.walkTo(x, y);
+      await this.windowController.walkTo(x, y, speed);
     }
   }
 
@@ -730,6 +732,14 @@ export class SpriteManager {
   /** 获取动画列表 (AnimationRegistry) */
   getAnimationList(): AnimationEntry[] {
     return this.animationRegistry.getAll();
+  }
+
+  /** 按事件类型查找最佳动画 */
+  findAnimationByEvent(eventType: string): AnimationEntry | undefined {
+    return this.animationRegistry.findByEvent({
+      eventType,
+      personaState: this.personaState.getState()
+    });
   }
 
   /** 注册动画到 Registry */
@@ -820,8 +830,31 @@ export class SpriteManager {
       this.windowController.setSize(config.width, config.height, config.padding);
     }
 
-    // 启动自动移动
-    this.handleAnimationMovement(config.movement);
+    // 预览时直接启动移动，忽略 trigger 和 mode 限制
+    this.stopAutoMove();
+    if (config.movement?.enabled && this.windowController) {
+      const mode = config.movement.mode ?? 'direction';
+      if (mode === 'walkTo') {
+        // walkTo 模式预览：随机选一个目标位置行走
+        const pos = this.getPosition();
+        const screen = this.getScreenSize();
+        const verticalRange = config.movement.verticalRange ?? 0.1;
+        const minX = -config.padding;
+        const maxX = screen.width - config.width - config.padding;
+        const targetX = Math.random() * (maxX - minX) + minX;
+        const yRange = screen.height * verticalRange;
+        const yMin = Math.max(-config.padding, pos[1] - yRange);
+        const yMax = Math.min(screen.height - config.height - config.padding, pos[1] + yRange);
+        const targetY = Math.random() * (yMax - yMin) + yMin;
+        this.walkTo(targetX, targetY, config.movement.speed);
+      } else {
+        this.windowController.startAutoMove(config.movement);
+        const dir = this.windowController.getAutoMoveDirection?.();
+        if (dir) {
+          this.sendToRenderer('sprite:walk', { active: true, direction: dir });
+        }
+      }
+    }
   }
 
   /** 停止移动预览 */
@@ -1035,14 +1068,24 @@ export class SpriteManager {
     // 先停止之前的自动移动
     this.stopAutoMove();
 
-    if (movement?.enabled && this.windowController) {
-      this.windowController.startAutoMove(movement);
+    if (!movement?.enabled || !this.windowController) return;
 
-      // 通知渲染进程移动方向（用于精灵翻转）
-      const dir = this.windowController.getAutoMoveDirection?.();
-      if (dir) {
-        this.sendToRenderer('sprite:walk', { active: true, direction: dir });
-      }
+    // trigger='behavior' 模式下，移动由 BehaviorEngine 调度，不在动画播放时自动启动
+    // trigger='animation' (默认) 模式下，动画播放时自动启动移动
+    const trigger = movement.trigger ?? 'animation';
+    if (trigger === 'behavior') return;
+
+    // mode='walkTo' 模式下，不使用 startAutoMove（这由 walkTo() 路径行走实现）
+    const mode = movement.mode ?? 'direction';
+    if (mode === 'walkTo') return;
+
+    // mode='direction'：沿固定方向恒速移动
+    this.windowController.startAutoMove(movement);
+
+    // 通知渲染进程移动方向（用于精灵翻转）
+    const dir = this.windowController.getAutoMoveDirection?.();
+    if (dir) {
+      this.sendToRenderer('sprite:walk', { active: true, direction: dir });
     }
   }
 
