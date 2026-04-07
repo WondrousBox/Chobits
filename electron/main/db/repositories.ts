@@ -1553,19 +1553,33 @@ export const ChatRepo = {
     if (id) {
       const rows = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
       if (rows[0]) {
-        // 如果 provider 发生了变化（用户切换了模型/服务商），更新会话记录
         const existing = rows[0];
+        const patch: Record<string, any> = {};
+
+        // 如果 provider 发生了变化（用户切换了模型/服务商），更新会话记录
         if (payload.providerId && (existing.providerId !== payload.providerId || existing.providerPresetId !== (payload.providerPresetId ?? null))) {
+          patch.providerId = payload.providerId;
+          patch.providerPresetId = payload.providerPresetId ?? null;
+        }
+
+        // 对已有旧会话做 workspace 回填，避免后续记忆链路退回默认 workspace。
+        if (!existing.workspaceId && payload.workspaceId) {
+          patch.workspaceId = payload.workspaceId;
+        } else if (existing.workspaceId && payload.workspaceId && existing.workspaceId !== payload.workspaceId) {
+          console.warn(`[ChatRepo] ensureConversation workspace mismatch: existing=${existing.workspaceId}, requested=${payload.workspaceId}, conversation=${id}`);
+        }
+
+        if (Object.keys(patch).length > 0) {
           await db
             .update(conversations)
             .set({
-              providerId: payload.providerId,
-              providerPresetId: payload.providerPresetId ?? null,
+              ...patch,
               updatedAt: Date.now()
             })
             .where(eq(conversations.id, id));
-          return { ...existing, providerId: payload.providerId, providerPresetId: payload.providerPresetId ?? null };
+          return { ...existing, ...patch };
         }
+
         return existing;
       }
     }

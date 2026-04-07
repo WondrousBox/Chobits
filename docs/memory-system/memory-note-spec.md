@@ -11,6 +11,10 @@
 - 正文结构采用精简格式：`Key Points`（必须）+ `Open Items`（可选）。
 - `MemoryExtractionOutput` 为单个主题的结构；多主题拆分发生在上游 `TopicCluster[]` 阶段。
 - LLM 提取结果只包含 `keyPoints` + `openItems` 两个 section，不生成 `aliases` 或 `relatedTopics`。
+- **内容生成服务已实现**（`packages/ai/services/memory-content-gen.ts`）：
+  - `YYYY-MM-DD.index.md` — 当天索引，每日维护 tick 自动生成昨日索引，也可通过 `memory:generateDailyIndex` 手动触发。
+  - `topics/topic-slug.md` — 主题档案，通过 `memory:generateTopicArchives` 批量生成。
+  - `MEMORY.md` — 全局记忆索引，通过 `memory:generateMemoryIndex` 生成。
 
 ---
 
@@ -24,10 +28,10 @@
     │       └── MM/
     │           ├── YYYY-MM-DD-topic-slug.md        # 主题 note（核心文件）
     │           ├── YYYY-MM-DD-topic-slug-2.md      # 规范预留；当前提取流程默认复用/合并同日同 slug note
-    │           └── YYYY-MM-DD.index.md             # 设计预留，当前未自动生成
-    ├── topics/                         # 主题档案（第二阶段，当前未自动生成）
+    │           └── YYYY-MM-DD.index.md             # 当天索引（每日维护 tick 自动生成，也可手动触发）
+    ├── topics/                         # 主题档案（通过 memory:generateTopicArchives 生成）
     │   └── topic-slug.md              # 长期稳定的主题汇总
-    └── MEMORY.md                       # 长期人格记忆汇总（第二阶段，当前未自动生成）
+    └── MEMORY.md                       # 全局记忆索引（通过 memory:generateMemoryIndex 生成）
 ```
 
 ### 命名规则

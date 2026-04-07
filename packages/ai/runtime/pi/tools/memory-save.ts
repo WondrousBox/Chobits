@@ -2,6 +2,7 @@ import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
 import { WorkspacesRepo } from '@packages/common/db';
 import { Type } from '@sinclair/typebox';
 
+import { getTodayMemoryDate } from '../../../services/memory-date';
 import { writeMemory } from '../../../services/memory-extraction-service';
 import { buildNotePath, generateNoteId } from '../../../services/memory-note-writer';
 import type { MemoryNoteFrontmatter, MergedNote } from '../../../services/memory-types';
@@ -27,7 +28,7 @@ export function createPiMemorySaveTool(toolContext: PiSessionToolContext): ToolD
 
     async execute(_toolCallId, input) {
       try {
-        const workspaceId = await resolveWorkspaceId();
+        const workspaceId = await resolveWorkspaceId(toolContext);
         if (!workspaceId) {
           return createJsonToolResult({ success: false, error: 'No active workspace' });
         }
@@ -38,7 +39,7 @@ export function createPiMemorySaveTool(toolContext: PiSessionToolContext): ToolD
         }
 
         const now = Date.now();
-        const date = new Date().toISOString().slice(0, 10);
+        const date = getTodayMemoryDate();
         const topicSlug = slugify(input.topic);
         const noteId = generateNoteId(date, topicSlug);
         const filePath = buildNotePath(date, topicSlug);
@@ -76,7 +77,7 @@ export function createPiMemorySaveTool(toolContext: PiSessionToolContext): ToolD
 
         return createJsonToolResult({
           success: true,
-          noteId,
+          noteId: merged.noteId,
           topic: input.topic,
           filePath,
           message: `记忆已保存：${input.topic}`

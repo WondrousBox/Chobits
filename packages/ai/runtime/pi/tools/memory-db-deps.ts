@@ -7,6 +7,7 @@ import { MemoryEdgeRepo, MemoryFTSRepo, MemoryKeywordRepo, MemoryNoteKeywordRepo
 
 import type { WriteDbOps } from '../../../services/memory-extraction-service';
 import type { RetrievalDbDeps } from '../../../services/memory-retrieval-service';
+import type { PiSessionToolContext } from '../tool-context';
 
 export function buildRetrievalDbDeps(): RetrievalDbDeps {
   return {
@@ -90,7 +91,19 @@ export function buildWriteDbOps(): WriteDbOps {
   };
 }
 
-export async function resolveWorkspaceId(): Promise<string | undefined> {
+export async function resolveWorkspaceId(toolContext?: PiSessionToolContext): Promise<string | undefined> {
+  const requestedWorkspaceId =
+    typeof toolContext?.resolved?.request?.extras?.workspaceId === 'string' && toolContext.resolved.request.extras.workspaceId.trim()
+      ? toolContext.resolved.request.extras.workspaceId.trim()
+      : undefined;
+  if (requestedWorkspaceId) return requestedWorkspaceId;
+
+  const conversationId = toolContext?.conversationId?.trim();
+  if (toolContext && conversationId) {
+    const existing = await toolContext.chatRepo.ensureConversation({ id: conversationId });
+    if (existing?.workspaceId) return existing.workspaceId;
+  }
+
   const ws = await WorkspacesRepo.getDefault();
   return ws?.id;
 }

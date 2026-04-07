@@ -17,7 +17,7 @@ import type { RetrievalDbDeps } from '../../../../packages/ai/services/memory-re
 import type { MemoryChatFn } from '../../../../packages/ai/services/memory-types';
 import { registerSystemPromptEnricher } from '../../../../packages/ai/system-prompt-enricher';
 import type { ChatRequest } from '../../../../packages/ai/types';
-import { WorkspacesRepo } from '../../db/repositories';
+import { ChatRepo, WorkspacesRepo } from '../../db/repositories';
 
 const TAG = '[MemoryAutoRecall:Enricher] 🧠🔍';
 
@@ -78,6 +78,19 @@ function resolveRecallModel(providerId: string): string | undefined {
     gemini: 'gemini-2.0-flash'
   };
   return fastModels[providerId];
+}
+
+async function resolveRequestWorkspaceId(request: ChatRequest): Promise<string | undefined> {
+  const requestedWorkspaceId = typeof request.extras?.workspaceId === 'string' && request.extras.workspaceId.trim() ? request.extras.workspaceId.trim() : undefined;
+  if (requestedWorkspaceId) return requestedWorkspaceId;
+
+  if (request.conversationId) {
+    const existing = await ChatRepo.ensureConversation({ id: request.conversationId });
+    if (existing?.workspaceId) return existing.workspaceId;
+  }
+
+  const defaultWs = await WorkspacesRepo.getDefault();
+  return defaultWs?.id;
 }
 
 /**
@@ -172,12 +185,7 @@ export function kickoffMemoryPrefetch(request: ChatRequest): void {
     const deps: AutoRecallDeps = {
       db,
       chatFn,
-      getWorkspaceId: async () => {
-        const wsId = request.extras?.workspaceId;
-        if (wsId) return wsId;
-        const defaultWs = await WorkspacesRepo.getDefault();
-        return defaultWs?.id;
-      }
+      getWorkspaceId: async () => resolveRequestWorkspaceId(request)
     };
 
     return performAutoRecall(messages, deps, conversationId);
@@ -207,6 +215,18 @@ export function initMemoryAutoRecallEnricher(db: RetrievalDbDeps): void {
     },
     resolve: async (ctx) => {
       const { request } = ctx;
+
+      // 检查记忆系统配置
+      try {
+        const { getMemoryConfig } = await import('./memory-config');
+        const cfg = getMemoryConfig();
+        if (!cfg.memoryEnabled || !cfg.autoRecallEnabled) {
+          console.log(`${TAG} [resolve] Skipped: memoryEnabled=${cfg.memoryEnabled}, autoRecallEnabled=${cfg.autoRecallEnabled}`);
+          return null;
+        }
+      } catch {
+        /* no config file yet, use defaults (enabled) */
+      }
 
       // 需要有消息才能判断是否需要召回
       if (!request.messages?.length) {
@@ -251,12 +271,7 @@ export function initMemoryAutoRecallEnricher(db: RetrievalDbDeps): void {
           const deps: AutoRecallDeps = {
             db,
             chatFn,
-            getWorkspaceId: async () => {
-              const wsId = request.extras?.workspaceId;
-              if (wsId) return wsId;
-              const defaultWs = await WorkspacesRepo.getDefault();
-              return defaultWs?.id;
-            }
+            getWorkspaceId: async () => resolveRequestWorkspaceId(request)
           };
 
           result = await performAutoRecall(request.messages, deps, request.conversationId);

@@ -525,7 +525,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
             <>
               <ResizableHandle className="hover:bg-primary" withHandle />
               <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
-                <AIChatSidebar onClose={() => setAiChatOpen(false)} />
+                <AIChatSidebar onClose={() => setAiChatOpen(false)} workspaceId={wsFilter || undefined} />
               </ResizablePanel>
             </>
           )}

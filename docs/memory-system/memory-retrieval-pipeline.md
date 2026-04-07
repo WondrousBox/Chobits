@@ -10,8 +10,10 @@
 - 当前对外主入口 `search()` 实际主要执行 Stage 1-3；当 `includeContent=true` 时，只追加各 note 的 section 摘要，不会自动读取段落正文。
 - `searchWithContent()` 已实现一步到位的 Stage 1-6 风格流程，被 auto-recall enricher 作为核心搜索引擎使用。
 - 当前运行时已注册并默认启用 `memorySearchTool`、`memoryGetTool`、`memoryTopicsTool`、`memorySaveTool`。
-- `topicFilter` 参数已经暴露到 IPC / preload / tool 调用链，但 `retrieval.search()` 里当前还没有真正应用这个过滤条件。
-- **自动记忆召回已实现**：通过 `memory-auto-recall` enricher，在每轮对话的 system prompt 构建阶段自动检索并注入相关记忆。详见下方「自动记忆召回」章节。
+- `topicFilter` 参数已实现：`search()` 中在 Stage 3 之后做后置过滤，只保留属于指定主题的候选笔记。
+- **LLM 辅助查询分析已实现**：`createLlmQueryAnalyzer()` 可创建 LLM 查询分析器，优先使用 LLM 拆解查询（提取主题词、实体、关键词、时间线索、动作类型），失败时回退到规则解析。已集成到 `searchWithContent()` 第 5 个可选参数。
+- **新会话预加载已实现**：`performAutoRecall()` 中当检测到首轮对话（`userMessages.length <= 1`）且 `db.listRecentImportant` 可用时，自动注入近 7 天高重要度（≥ 0.7）记忆摘要，无需关键词搜索。
+- **自动记忆召回已实现**：通过 `memory-auto-recall` enricher，在每轮对话的 system prompt 构建阶段自动检索并注入相关记忆。支持通过 `memory-config.json` 中的 `autoRecallEnabled` 开关控制。详见下方「自动记忆召回」章节。
 
 ---
 

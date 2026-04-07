@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { BrowserWindow, ipcMain, WebContents } from 'electron';
 
-import { ChatRepo } from '../common/db';
+import { ChatRepo, WorkspacesRepo } from '../common/db';
 import { eventManager } from '../event';
 import { AppEvent } from '../event/events';
 import { normalizeProviderPreset, resolveProviderPresetId } from './provider-preset';
@@ -121,7 +121,8 @@ ${JSON.stringify(forcePiRuntime(req), null, 2)}
       id: req.conversationId,
       agentId: req.agentId || preview.resolved.profile.id,
       providerId: preview.resolved.model.providerId,
-      providerPresetId
+      providerPresetId,
+      workspaceId: await this.resolveWorkspaceId(req)
     });
 
     const lastUserMessage = this.getLastUserMessage(req.messages);
@@ -165,7 +166,8 @@ ${JSON.stringify(forcePiRuntime(req), null, 2)}
         id: req.conversationId,
         agentId: req.agentId || preview.resolved.profile.id,
         providerId: preview.resolved.model.providerId,
-        providerPresetId
+        providerPresetId,
+        workspaceId: await this.resolveWorkspaceId(req)
       });
     }
 
@@ -348,15 +350,30 @@ ${JSON.stringify(forcePiRuntime(req), null, 2)}
     agentId: string;
     providerId: string;
     providerPresetId?: string;
+    workspaceId?: string;
   }): Promise<Awaited<ReturnType<typeof ChatRepo.ensureConversation>>> {
-    const { agentId, id, providerId, providerPresetId } = params;
+    const { agentId, id, providerId, providerPresetId, workspaceId } = params;
 
     return ChatRepo.ensureConversation({
       id,
       agentId,
       providerId,
-      providerPresetId
+      providerPresetId,
+      workspaceId
     });
+  }
+
+  private async resolveWorkspaceId(req: ChatRequest): Promise<string | undefined> {
+    const requestedWorkspaceId = typeof req.extras?.workspaceId === 'string' && req.extras.workspaceId.trim() ? req.extras.workspaceId.trim() : undefined;
+    if (requestedWorkspaceId) return requestedWorkspaceId;
+
+    if (req.conversationId) {
+      const existing = await ChatRepo.ensureConversation({ id: req.conversationId });
+      if (existing?.workspaceId) return existing.workspaceId;
+    }
+
+    const defaultWorkspace = await WorkspacesRepo.getDefault();
+    return defaultWorkspace?.id || undefined;
   }
 
   private async loadConversationContextMessages(conversationId: string): Promise<ChatMessage[] | undefined> {

@@ -7,6 +7,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
+import { formatMemoryDate, getRelativeMemoryDate } from './memory-date';
 import { readLines } from './memory-note-parser';
 
 // ━━ Types ━━
@@ -146,6 +147,13 @@ export interface RetrievalDbDeps {
   ftsSearch: (query: string, opts?: { entryType?: 'note' | 'section'; noteIds?: string[]; limit?: number }) => Array<{ entry_id: string; entry_type: string; note_id: string; rank: number }>;
   // Workspace
   getWorkspaceRoot: (workspaceId: string) => Promise<string | null>;
+  // Recent important notes (for new session preload)
+  listRecentImportant?: (
+    workspaceId: string,
+    minImportance?: number,
+    days?: number,
+    limit?: number
+  ) => Promise<Array<{ id: string; date: string; summary: string | null; importance: number; topics?: string }>>;
 }
 
 // ━━ Stop Words (filtered from search terms) ━━
@@ -668,6 +676,13 @@ export async function search(
   // Stage 3
   const noteResult = await recallNotes(analysis, topicResult, workspaceId, db, opts.maxResults ?? 5);
 
+  // 应用 topicFilter：过滤候选 notes，只保留包含指定 topic 的结果
+  if (opts.topicFilter && opts.topicFilter.length > 0) {
+    const filterSet = new Set(opts.topicFilter.map((t) => t.toLowerCase()));
+    noteResult.candidates = noteResult.candidates.filter((n) => n.topics.some((t) => filterSet.has(t.toLowerCase())));
+    noteResult.totalFound = noteResult.candidates.length;
+  }
+
   // 构建结果
   const result: MemorySearchResult = {
     topics: topicResult.directHits.map((t) => ({ label: t.label, heat: t.heat })),
@@ -827,12 +842,67 @@ export interface SearchWithContentResult {
   topicCount: number;
 }
 
-export async function searchWithContent(query: string, workspaceId: string, db: RetrievalDbDeps, maxChars = 4000): Promise<SearchWithContentResult> {
+/** LLM 辅助查询分析函数（可选增强） */
+export type LlmQueryAnalyzer = (query: string) => Promise<QueryAnalysisResult | null>;
+
+const LLM_QUERY_ANALYSIS_PROMPT = `你是一个查询分析器。把用户的查询拆解为以下 JSON 格式：
+{
+  "topicTerms": ["主题词1", "主题词2"],
+  "entityTerms": ["产品名/人名/技术名"],
+  "keywordTerms": ["其他关键词"],
+  "timeHint": { "type": "recent", "days": 7 },
+  "actionHint": "recall"
+}
+
+timeHint.type: "recent"(最近N天，含days字段）| "range"（含start/end字段）| "specific"（含start/end字段）| null（无时间信号）
+actionHint: "recall"（回忆）| "decision"（决定/确认）| "open_loop"（待办/未完成）| "evidence"（证据/原因）| "general"（通用）
+topicTerms: 提取查询中的主题/领域词
+entityTerms: 提取专有名词（产品、人名、技术名等）
+keywordTerms: 提取用于全文搜索的关键词
+
+只输出 JSON，不要解释。
+
+用户查询：`;
+
+/**
+ * 创建 LLM 辅助查询分析器
+ */
+export function createLlmQueryAnalyzer(chatFn: (prompt: string) => Promise<string>): LlmQueryAnalyzer {
+  return async (query: string): Promise<QueryAnalysisResult | null> => {
+    try {
+      const response = await chatFn(`${LLM_QUERY_ANALYSIS_PROMPT}${query}`);
+      const parsed = JSON.parse(
+        response
+          .replace(/```json?\n?/g, '')
+          .replace(/```/g, '')
+          .trim()
+      );
+      return {
+        topicTerms: parsed.topicTerms || [],
+        entityTerms: parsed.entityTerms || [],
+        keywordTerms: parsed.keywordTerms || [],
+        timeHint: parsed.timeHint || undefined,
+        actionHint: parsed.actionHint || 'general',
+        originalQuery: query
+      };
+    } catch {
+      return null; // 回退到规则解析
+    }
+  };
+}
+
+export async function searchWithContent(query: string, workspaceId: string, db: RetrievalDbDeps, maxChars = 4000, llmAnalyzer?: LlmQueryAnalyzer): Promise<SearchWithContentResult> {
   const TAG = '[MemorySearch] 🧠🔎';
   const t0 = Date.now();
 
-  // Stage 1: Query Analysis
-  const analysis = analyzeQuery(query);
+  // Stage 1: Query Analysis（优先 LLM，失败回退规则解析）
+  let analysis: QueryAnalysisResult;
+  if (llmAnalyzer) {
+    const llmResult = await llmAnalyzer(query);
+    analysis = llmResult ?? analyzeQuery(query);
+  } else {
+    analysis = analyzeQuery(query);
+  }
   console.log(`${TAG} ── Stage 1: Query Analysis ──
   query: "${query}"
   topicTerms: [${analysis.topicTerms.join(', ')}]
@@ -936,13 +1006,13 @@ function buildFtsQuery(analysis: QueryAnalysisResult): string {
 
 function resolveTimeRange(hint: QueryAnalysisResult['timeHint']): { start: string; end: string } {
   if (!hint) return { start: '', end: '' };
-  const today = new Date().toISOString().slice(0, 10);
+  const today = formatMemoryDate();
 
   if (hint.type === 'specific' && hint.start) {
     return { start: hint.start, end: hint.end || hint.start };
   }
   if (hint.type === 'recent' && hint.days) {
-    const start = new Date(Date.now() - hint.days * 86400000).toISOString().slice(0, 10);
+    const start = getRelativeMemoryDate(-hint.days);
     return { start, end: today };
   }
   if (hint.type === 'range' && hint.start && hint.end) {

@@ -4,12 +4,14 @@
  * 从对话中提取结构化记忆，写入 Markdown 文件并建立数据库索引。
  */
 
+import { createHash } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
 import { parseJsonMarkdown } from '../json';
+import { formatMemoryDate } from './memory-date';
 import { parseSections } from './memory-note-parser';
-import { buildNotePath, buildSectionsMap, generateNoteId, renderNoteMarkdown } from './memory-note-writer';
+import { buildNotePath, buildSectionId, buildSectionsMap, generateNoteId, renderNoteMarkdown } from './memory-note-writer';
 import type {
   CollectedConversation,
   CollectInput,
@@ -147,8 +149,8 @@ export async function collect(
   const totalMessageCount = conversations.reduce((sum, c) => sum + c.messages.length, 0);
   const allTimestamps = conversations.flatMap((c) => c.messages.map((m) => m.createdAt));
   const dateRange = {
-    start: allTimestamps.length ? new Date(Math.min(...allTimestamps)).toISOString().slice(0, 10) : '',
-    end: allTimestamps.length ? new Date(Math.max(...allTimestamps)).toISOString().slice(0, 10) : ''
+    start: allTimestamps.length ? formatMemoryDate(Math.min(...allTimestamps)) : '',
+    end: allTimestamps.length ? formatMemoryDate(Math.max(...allTimestamps)) : ''
   };
 
   console.log(`${TAG} 🧠📚 Collected ${totalMessageCount} messages from ${conversations.length} conversations, dateRange=${dateRange.start}~${dateRange.end}`);
@@ -280,13 +282,14 @@ export async function extractMemory(cluster: TopicCluster, collected: CollectOut
 /**
  * Step 4: Merge — 与已有 note 合并
  */
-export function mergeMemory(
+export async function mergeMemory(
   extraction: MemoryExtractionOutput,
   existingNote: { id: string; frontmatter: MemoryNoteFrontmatter; sections: Map<string, string> } | null,
   ctx: ExtractionContext,
   sourceConversationIds: string[],
-  sourceMessageRanges: Array<{ conversationId: string; seqStart: number; seqEnd: number }>
-): MergedNote {
+  sourceMessageRanges: Array<{ conversationId: string; seqStart: number; seqEnd: number }>,
+  timeRange?: { start: number; end: number }
+): Promise<MergedNote> {
   const now = Date.now();
 
   if (!existingNote) {
@@ -299,6 +302,7 @@ export function mergeMemory(
       version: 1,
       workspaceId: ctx.workspaceId,
       date: ctx.date,
+      timeRange,
       topics: [extraction.topicLabel],
       keywords: extraction.keywords || [],
       entities: extraction.entities,
@@ -321,9 +325,19 @@ export function mergeMemory(
   }
 
   // 增量合并
+  // 扩展 timeRange
+  const existingRange = existingNote.frontmatter.timeRange;
+  const mergedTimeRange = timeRange
+    ? {
+      start: existingRange ? Math.min(existingRange.start, timeRange.start) : timeRange.start,
+      end: existingRange ? Math.max(existingRange.end, timeRange.end) : timeRange.end
+    }
+    : existingRange;
+
   const mergedFrontmatter: MemoryNoteFrontmatter = {
     ...existingNote.frontmatter,
     version: existingNote.frontmatter.version + 1,
+    timeRange: mergedTimeRange,
     keywords: dedup([...existingNote.frontmatter.keywords, ...(extraction.keywords || [])]),
     entities: mergeEntities(existingNote.frontmatter.entities || [], extraction.entities || []),
     importance: Math.max(existingNote.frontmatter.importance, extraction.importance ?? 0.5),
@@ -333,13 +347,24 @@ export function mergeMemory(
     updatedAt: now
   };
 
-  // Section 合并：新内容追加到已有 section
+  // Section 合并 — 智能合并 Open Items
   const mergedSections = new Map(existingNote.sections);
   const newSections = buildSectionsMap(extraction.sections);
   for (const [heading, content] of newSections) {
     const existing = mergedSections.get(heading);
     if (existing) {
-      mergedSections.set(heading, `${existing}\n\n${content}`);
+      if (heading === 'Open Items') {
+        // 用 LLM 判断已有 openItems 是否被新对话内容解决
+        try {
+          const resolvedContent = await resolveOpenItems(existing, content, extraction.sections?.keyPoints || '', ctx);
+          mergedSections.set(heading, resolvedContent);
+        } catch {
+          // LLM 失败时回退到简单追加
+          mergedSections.set(heading, `${existing}\n${content}`);
+        }
+      } else {
+        mergedSections.set(heading, `${existing}\n${content}`);
+      }
     } else {
       mergedSections.set(heading, content);
     }
@@ -379,8 +404,11 @@ export async function writeMemory(merged: MergedNote, ctx: { workspaceRoot: stri
   await fs.writeFile(absolutePath, markdownContent, 'utf-8');
   console.log(`${TAG} 🧠💾 Markdown written: ${markdownContent.length} chars`);
 
+  // 计算 fileChecksum
+  const fileChecksum = createHash('sha256').update(markdownContent, 'utf-8').digest('hex');
+
   // 解析 sections（从生成的 Markdown 内容解析行号）
-  const parsedSections = parseSections(markdownContent, merged.noteId);
+  let parsedSections = parseSections(markdownContent, merged.noteId);
 
   // 5b. upsert memory_notes
   const noteRow = {
@@ -391,6 +419,7 @@ export async function writeMemory(merged: MergedNote, ctx: { workspaceRoot: stri
     timeRangeStart: merged.frontmatter.timeRange?.start,
     timeRangeEnd: merged.frontmatter.timeRange?.end,
     filePath: merged.filePath,
+    fileChecksum,
     topics: JSON.stringify(merged.frontmatter.topics),
     parentTopicId: merged.frontmatter.parentTopicId,
     relatedTopicIds: merged.frontmatter.relatedTopicIds ? JSON.stringify(merged.frontmatter.relatedTopicIds) : null,
@@ -408,23 +437,36 @@ export async function writeMemory(merged: MergedNote, ctx: { workspaceRoot: stri
     createdAt: merged.frontmatter.createdAt,
     updatedAt: merged.frontmatter.updatedAt
   };
-  await dbOps.upsertNote(noteRow);
+  const persistedNote = await dbOps.upsertNote(noteRow);
+  const persistedNoteId = persistedNote?.id || merged.noteId;
+  if (persistedNoteId !== merged.noteId) {
+    merged.noteId = persistedNoteId;
+    merged.frontmatter.id = persistedNoteId;
+    parsedSections = parseSections(markdownContent, persistedNoteId);
+  }
   if (merged.action === 'create') stats.notesCreated++;
   else stats.notesUpdated++;
 
   // 5c. rebuild sections
-  const sectionRows = parsedSections.map((sec, idx) => ({
-    noteId: merged.noteId,
-    heading: sec.heading,
-    headingLevel: sec.headingLevel,
-    sectionOrder: idx,
-    summary: sec.summary,
-    keywords: sec.keywords?.length ? JSON.stringify(sec.keywords) : null,
-    lineStart: sec.lineStart,
-    lineEnd: sec.lineEnd,
-    charCount: sec.charCount
-  }));
-  await dbOps.rebuildSections(merged.noteId, sectionRows);
+  // Populate section keywords: use note-level keywords that appear in section content
+  const noteKeywords = merged.frontmatter.keywords || [];
+  const sectionRows = parsedSections.map((sec, idx) => {
+    const sectionContent = (merged.sections.get(sec.heading) || sec.summary || '').toLowerCase();
+    const matchedKeywords = noteKeywords.filter((kw) => sectionContent.includes(kw.toLowerCase()));
+    return {
+      id: buildSectionId(persistedNoteId, sec.heading),
+      noteId: persistedNoteId,
+      heading: sec.heading,
+      headingLevel: sec.headingLevel,
+      sectionOrder: idx,
+      summary: sec.summary,
+      keywords: matchedKeywords.length ? JSON.stringify(matchedKeywords) : null,
+      lineStart: sec.lineStart,
+      lineEnd: sec.lineEnd,
+      charCount: sec.charCount
+    };
+  });
+  await dbOps.rebuildSections(persistedNoteId, sectionRows);
 
   // 5d. upsert topics
   const slugify = (s: string): string =>
@@ -447,19 +489,64 @@ export async function writeMemory(merged: MergedNote, ctx: { workspaceRoot: stri
     if (result) stats.topicsCreated++;
   }
 
-  // 5e. upsert edges (topic → note)
-  const edges = merged.frontmatter.topics.map((topicLabel) => ({
-    sourceType: 'topic' as const,
-    sourceId: `topic_${slugify(topicLabel)}`,
-    targetType: 'note' as const,
-    targetId: merged.noteId,
-    relationType: 'belongs_to_topic' as const,
-    workspaceId: merged.frontmatter.workspaceId
-  }));
+  // 5e. upsert edges
+  const edges: Array<{
+    sourceType: 'topic' | 'note';
+    sourceId: string;
+    targetType: 'topic' | 'note' | 'section';
+    targetId: string;
+    relationType: string;
+    workspaceId: string;
+  }> = [];
+
+  // topic → note (belongs_to_topic)
+  const topicSlugs: string[] = [];
+  for (const topicLabel of merged.frontmatter.topics) {
+    const slug = slugify(topicLabel);
+    topicSlugs.push(slug);
+    edges.push({
+      sourceType: 'topic',
+      sourceId: `topic_${slug}`,
+      targetType: 'note',
+      targetId: persistedNoteId,
+      relationType: 'belongs_to_topic',
+      workspaceId: merged.frontmatter.workspaceId
+    });
+  }
+
+  // topic → topic (related_to_topic): 同一 note 的不同 topics 互相关联
+  if (topicSlugs.length > 1) {
+    for (let i = 0; i < topicSlugs.length; i++) {
+      for (let j = i + 1; j < topicSlugs.length; j++) {
+        edges.push({
+          sourceType: 'topic',
+          sourceId: `topic_${topicSlugs[i]}`,
+          targetType: 'topic',
+          targetId: `topic_${topicSlugs[j]}`,
+          relationType: 'related_to_topic',
+          workspaceId: merged.frontmatter.workspaceId
+        });
+      }
+    }
+  }
+
+  // note → section (contains_section)
+  for (const sec of parsedSections) {
+    const sectionId = buildSectionId(persistedNoteId, sec.heading);
+    edges.push({
+      sourceType: 'note',
+      sourceId: persistedNoteId,
+      targetType: 'section',
+      targetId: sectionId,
+      relationType: 'contains_section',
+      workspaceId: merged.frontmatter.workspaceId
+    });
+  }
+
   stats.edgesCreated += await dbOps.upsertEdges(edges);
 
   // 5f. upsert keywords
-  stats.keywordsCreated += await dbOps.upsertKeywords(merged.noteId, merged.frontmatter.keywords, merged.frontmatter.entities || [], merged.frontmatter.workspaceId);
+  stats.keywordsCreated += await dbOps.upsertKeywords(persistedNoteId, merged.frontmatter.keywords, merged.frontmatter.entities || [], merged.frontmatter.workspaceId);
 
   // 5g. rebuild FTS
   const topics = merged.frontmatter.topics;
@@ -471,7 +558,7 @@ export async function writeMemory(merged: MergedNote, ctx: { workspaceRoot: stri
   const ftsBody = [merged.frontmatter.summary, allSectionContent].filter(Boolean).join('\n');
 
   dbOps.rebuildFTS(
-    merged.noteId,
+    persistedNoteId,
     {
       title: topics.join(' '),
       summary: merged.frontmatter.summary,
@@ -485,7 +572,7 @@ export async function writeMemory(merged: MergedNote, ctx: { workspaceRoot: stri
       // not parsedSections.summary which only captures blockquotes
       const sectionContent = merged.sections.get(sec.heading) || sec.summary;
       return {
-        id: `${merged.noteId}_sec_${sec.heading.replace(/\s+/g, '_').toLowerCase()}`,
+        id: buildSectionId(persistedNoteId, sec.heading),
         title: sec.heading,
         summary: sec.summary || sectionContent.slice(0, 200),
         keywords: (sec.keywords || []).join(' '),
@@ -569,7 +656,17 @@ export async function runExtractionPipeline(
       const existingNote = await deps.findExistingNote(ctx.date, extraction.topicSlug, ctx.workspaceId);
       console.log(`${TAG} 🧠④ Step 4 (Merge): existing note for "${extraction.topicSlug}": ${existingNote ? `found (id=${existingNote.id})` : 'none (will create)'}`);
       const sourceConvIds = cluster.messageRanges.map((r) => r.conversationId);
-      const merged = mergeMemory(extraction, existingNote, ctx, dedup(sourceConvIds), cluster.messageRanges);
+
+      // 计算 timeRange：从 collected messages 的时间戳
+      const clusterMessages = collected.conversations.flatMap((c) => {
+        const range = cluster.messageRanges.find((r) => r.conversationId === c.conversationId);
+        if (!range) return [];
+        return c.messages.filter((m) => m.seq >= range.seqStart && m.seq <= range.seqEnd);
+      });
+      const timestamps = clusterMessages.map((m) => m.createdAt).filter((t) => t > 0);
+      const timeRange = timestamps.length > 0 ? { start: Math.min(...timestamps), end: Math.max(...timestamps) } : undefined;
+
+      const merged = await mergeMemory(extraction, existingNote, ctx, dedup(sourceConvIds), cluster.messageRanges, timeRange);
       console.log(`${TAG} 🧠④ Step 4 (Merge): ✓ action=${merged.action}, noteId=${merged.noteId}, filePath=${merged.filePath}`);
 
       // Step 5: Write
@@ -598,6 +695,42 @@ export async function runExtractionPipeline(
 }
 
 // ━━ Helpers ━━
+
+const OPEN_ITEMS_MERGE_PROMPT = `判断已有的 Open Items 中哪些已被解决。
+
+已有的 Open Items：
+{existingItems}
+
+新的对话中提取的要点：
+{newKeyPoints}
+
+新增的 Open Items：
+{newOpenItems}
+
+规则：
+1. 如果已有 item 已被新要点明确解决/完成/回答，标记为 resolved 并删除
+2. 如果已有 item 被更新但未完全解决，保留并更新描述
+3. 新增的 open items 追加到列表
+4. 输出合并后的完整 Open Items 列表，每条用 "- " 开头
+5. 如果所有 items 都已解决且没有新的，输出空字符串
+
+直接输出 Open Items 内容（不含 ## 标题），不要解释。`;
+
+/**
+ * 用 LLM 智能合并 Open Items：判断已有待办是否被新对话解决。
+ */
+async function resolveOpenItems(existingItems: string, newItems: string, newKeyPoints: string, ctx: ExtractionContext): Promise<string> {
+  const prompt = OPEN_ITEMS_MERGE_PROMPT.replace('{existingItems}', existingItems.trim()).replace('{newKeyPoints}', newKeyPoints.trim()).replace('{newOpenItems}', newItems.trim());
+
+  const response = await ctx.chatFn(prompt, ctx.signal);
+  const trimmed = response.trim();
+
+  // 如果 LLM 返回空或明确表示全部解决，返回空
+  if (!trimmed || trimmed === '无' || trimmed === 'none' || trimmed === '（无）') {
+    return '';
+  }
+  return trimmed;
+}
 
 function dedup<T>(arr: T[]): T[] {
   return [...new Set(arr)];

@@ -1,5 +1,10 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 import { and, desc, eq, gte, inArray, isNull, like, lte, sql } from 'drizzle-orm';
 
+import { getRelativeMemoryDate } from '../../../packages/ai/services/memory-date';
+import { parseFrontmatter, readLines } from '../../../packages/ai/services/memory-note-parser';
 import { getDB, getOrm } from '.';
 import {
   memory_edges,
@@ -36,12 +41,22 @@ export const MemoryNoteRepo = {
   async upsert(note: NewMemoryNote): Promise<MemoryNoteRow | undefined> {
     const db = getOrm();
 
-    // 检查是否存在同 filePath 但不同 id 的记录（LLM 重复生成相同 slug 但不同随机 id）
+    // 检查是否存在同 workspace + filePath 但不同 id 的记录（LLM 重复生成相同 slug 但不同随机 id）
     if (note.filePath) {
-      const existingByPath = await db.select().from(memory_notes).where(eq(memory_notes.filePath, note.filePath)).limit(1);
+      const wheres: any[] = [eq(memory_notes.filePath, note.filePath)];
+      if (note.workspaceId) wheres.push(eq(memory_notes.workspaceId, note.workspaceId));
+      else wheres.push(isNull(memory_notes.workspaceId));
+
+      const existingByPath = await db
+        .select()
+        .from(memory_notes)
+        .where(and(...wheres))
+        .limit(1);
       if (existingByPath[0] && existingByPath[0].id !== note.id) {
-        console.log(`[MemoryNoteRepo:upsert] filePath conflict: existing id=${existingByPath[0].id}, new id=${note.id}. Reusing existing id.`);
-        // 使用已有记录的 id 进行更新，避免 UNIQUE file_path 冲突
+        console.log(
+          `[MemoryNoteRepo:upsert] workspace+filePath conflict: ws=${note.workspaceId || 'null'}, existing id=${existingByPath[0].id}, new id=${note.id}. Reusing existing id.`
+        );
+        // 使用已有记录的 id 进行更新，避免 UNIQUE(workspace_id, file_path) 冲突
         (note as any).id = existingByPath[0].id;
       }
     }
@@ -64,9 +79,12 @@ export const MemoryNoteRepo = {
     return rows[0];
   },
 
-  async getByFilePath(filePath: string): Promise<MemoryNoteRow | undefined> {
+  async getByFilePath(filePath: string, workspaceId?: string | null): Promise<MemoryNoteRow | undefined> {
     const db = getOrm();
-    const rows = await db.select().from(memory_notes).where(eq(memory_notes.filePath, filePath)).limit(1);
+    const wheres: any[] = [eq(memory_notes.filePath, filePath)];
+    if (workspaceId) wheres.push(eq(memory_notes.workspaceId, workspaceId));
+    else wheres.push(isNull(memory_notes.workspaceId));
+    const rows = await db.select().from(memory_notes).where(and(...wheres)).limit(1);
     return rows[0];
   },
 
@@ -131,7 +149,7 @@ export const MemoryNoteRepo = {
   /** 按重要度和时间获取近期高重要度 note（用于自动注入） */
   async listRecentImportant(workspaceId: string, minImportance = 0.7, days = 7, limit = 10): Promise<MemoryNoteRow[]> {
     const db = getOrm();
-    const cutoffDate = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+    const cutoffDate = getRelativeMemoryDate(-days);
     return db
       .select()
       .from(memory_notes)
@@ -183,13 +201,27 @@ export const MemoryNoteRepo = {
 
   /** 查找包含指定 conversationId 的 notes（用于水位查询） */
   async findByConversationId(conversationId: string, workspaceId?: string): Promise<MemoryNoteRow[]> {
-    const db = getOrm();
-    const wheres: any[] = [like(memory_notes.sourceConversationIds, `%${conversationId}%`), isNull(memory_notes.deletedAt)];
-    if (workspaceId) wheres.push(eq(memory_notes.workspaceId, workspaceId));
-    return db
-      .select()
-      .from(memory_notes)
-      .where(and(...wheres));
+    const rawDb = getDB();
+    if (!rawDb) return [];
+
+    const params: string[] = [conversationId];
+    let sql = `
+      SELECT *
+      FROM memory_notes
+      WHERE deleted_at IS NULL
+        AND EXISTS (
+          SELECT 1
+          FROM json_each(memory_notes.source_conversation_ids)
+          WHERE json_each.value = ?
+        )
+    `;
+
+    if (workspaceId) {
+      sql += ' AND workspace_id = ?';
+      params.push(workspaceId);
+    }
+
+    return rawDb.prepare(sql).all(...params) as MemoryNoteRow[];
   },
 
   /**
@@ -442,6 +474,39 @@ export const MemoryTopicRepo = {
       .from(memory_topics)
       .where(and(...wheres));
     return (rows[0] as any)?.count ?? 0;
+  },
+
+  /**
+   * 对所有主题执行 heat 衰减。
+   * 使用指数衰减：heat = heat * decayFactor
+   * 默认 decayFactor = 0.95（约 14 天半衰期）。
+   * 只衰减 heat > 0.01 的主题，低于阈值的直接归零。
+   * 返回受影响的行数。
+   */
+  applyHeatDecay(decayFactor = 0.95, workspaceId?: string): number {
+    const rawDb = getDB();
+    if (!rawDb) return 0;
+    const now = Date.now();
+    let sql: string;
+    const params: any[] = [decayFactor, now];
+
+    if (workspaceId) {
+      sql = `UPDATE memory_topics
+             SET heat = CASE WHEN heat * ? < 0.01 THEN 0.0 ELSE heat * ? END,
+                 updated_at = ?
+             WHERE deleted_at IS NULL AND heat > 0.0 AND workspace_id = ?`;
+      params.splice(1, 0, decayFactor); // need two copies of decayFactor
+      params.push(workspaceId);
+    } else {
+      sql = `UPDATE memory_topics
+             SET heat = CASE WHEN heat * ? < 0.01 THEN 0.0 ELSE heat * ? END,
+                 updated_at = ?
+             WHERE deleted_at IS NULL AND heat > 0.0`;
+      params.splice(1, 0, decayFactor); // need two copies of decayFactor
+    }
+
+    const res = rawDb.prepare(sql).run(...params);
+    return (res as any).changes ?? 0;
   }
 };
 
@@ -754,6 +819,16 @@ export const MemorySyncJobRepo = {
   async list(limit = 20, offset = 0): Promise<MemorySyncJobRow[]> {
     const db = getOrm();
     return db.select().from(memory_sync_jobs).orderBy(desc(memory_sync_jobs.createdAt)).limit(limit).offset(offset);
+  },
+
+  async findByWorkspace(workspaceId: string, limit = 100): Promise<MemorySyncJobRow[]> {
+    const db = getOrm();
+    return db.select().from(memory_sync_jobs).where(eq(memory_sync_jobs.workspaceId, workspaceId)).orderBy(desc(memory_sync_jobs.createdAt)).limit(limit);
+  },
+
+  async getAll(limit = 100): Promise<MemorySyncJobRow[]> {
+    const db = getOrm();
+    return db.select().from(memory_sync_jobs).orderBy(desc(memory_sync_jobs.createdAt)).limit(limit);
   }
 };
 
@@ -823,8 +898,6 @@ export const MemoryFTSRepo = {
   /** 重新插入除指定 noteId 外的所有 FTS 条目 */
   _reinsertAllExcept(rawDb: ReturnType<typeof getDB>, excludeNoteId: string): void {
     if (!rawDb) return;
-    const db = getOrm();
-
     const allNotes = rawDb.prepare('SELECT * FROM memory_notes WHERE deleted_at IS NULL AND id != ?').all(excludeNoteId) as MemoryNoteRow[];
 
     for (const note of allNotes) {
@@ -832,6 +905,8 @@ export const MemoryFTSRepo = {
       const kw = safeJsonParse(note.keywords, []);
       const aliases = safeJsonParse(note.aliases, []);
       const entities = safeJsonParse(note.entities, []);
+      const sections = rawDb.prepare('SELECT * FROM memory_sections WHERE note_id = ? ORDER BY section_order').all(note.id) as MemorySectionRow[];
+      const { noteBody, sectionBodies } = loadIndexedBodies(rawDb, note, sections);
 
       this.insertNoteEntry(note.id, {
         title: topics.join(' '),
@@ -839,10 +914,8 @@ export const MemoryFTSRepo = {
         keywords: kw.join(' '),
         aliases: aliases.join(' '),
         entities: entities.map((e: any) => e?.name || e).join(' '),
-        body: note.summary || ''
+        body: noteBody
       });
-
-      const sections = rawDb.prepare('SELECT * FROM memory_sections WHERE note_id = ? ORDER BY section_order').all(note.id) as MemorySectionRow[];
 
       for (const sec of sections) {
         const secKw = safeJsonParse(sec.keywords, []);
@@ -852,7 +925,7 @@ export const MemoryFTSRepo = {
           keywords: secKw.join(' '),
           aliases: '',
           entities: '',
-          body: sec.summary || ''
+          body: sectionBodies.get(sec.id) || sec.summary || ''
         });
       }
     }
@@ -958,6 +1031,8 @@ export const MemoryFTSRepo = {
       const keywords = safeJsonParse(note.keywords, []);
       const aliases = safeJsonParse(note.aliases, []);
       const entities = safeJsonParse(note.entities, []);
+      const sections = await db.select().from(memory_sections).where(eq(memory_sections.noteId, note.id)).orderBy(memory_sections.sectionOrder);
+      const { noteBody, sectionBodies } = loadIndexedBodies(rawDb, note, sections as MemorySectionRow[]);
 
       this.insertNoteEntry(note.id, {
         title: topics.join(' '),
@@ -965,11 +1040,8 @@ export const MemoryFTSRepo = {
         keywords: keywords.join(' '),
         aliases: aliases.join(' '),
         entities: entities.map((e: any) => e?.name || e).join(' '),
-        body: note.summary || ''
+        body: noteBody
       });
-
-      // 获取 sections
-      const sections = await db.select().from(memory_sections).where(eq(memory_sections.noteId, note.id)).orderBy(memory_sections.sectionOrder);
 
       for (const sec of sections as MemorySectionRow[]) {
         const secKeywords = safeJsonParse(sec.keywords, []);
@@ -979,7 +1051,7 @@ export const MemoryFTSRepo = {
           keywords: secKeywords.join(' '),
           aliases: '',
           entities: '',
-          body: sec.summary || ''
+          body: sectionBodies.get(sec.id) || sec.summary || ''
         });
       }
       count++;
@@ -997,5 +1069,43 @@ function safeJsonParse(json: string | null | undefined, fallback: any[] = []): a
     return Array.isArray(parsed) ? parsed : fallback;
   } catch {
     return fallback;
+  }
+}
+
+function loadIndexedBodies(rawDb: ReturnType<typeof getDB>, note: MemoryNoteRow, sections: MemorySectionRow[]): { noteBody: string; sectionBodies: Map<string, string> } {
+  const sectionBodies = new Map<string, string>();
+
+  if (!rawDb || !note.filePath || !note.workspaceId) {
+    return { noteBody: note.summary || '', sectionBodies };
+  }
+
+  const workspace = rawDb.prepare('SELECT root_path FROM workspaces WHERE id = ? LIMIT 1').get(note.workspaceId) as { root_path?: string } | undefined;
+  if (!workspace?.root_path) {
+    return { noteBody: note.summary || '', sectionBodies };
+  }
+
+  try {
+    const absolutePath = path.join(workspace.root_path, note.filePath);
+    const content = fs.readFileSync(absolutePath, 'utf-8');
+    const { bodyStartLine } = parseFrontmatter(content);
+    const lines = content.split('\n');
+    const noteBody =
+      lines
+        .slice(Math.max(0, bodyStartLine - 1))
+        .join('\n')
+        .trim() ||
+      note.summary ||
+      '';
+
+    for (const sec of sections) {
+      const body = readLines(content, sec.lineStart, sec.lineEnd).trim();
+      if (body) {
+        sectionBodies.set(sec.id, body);
+      }
+    }
+
+    return { noteBody, sectionBodies };
+  } catch {
+    return { noteBody: note.summary || '', sectionBodies };
   }
 }

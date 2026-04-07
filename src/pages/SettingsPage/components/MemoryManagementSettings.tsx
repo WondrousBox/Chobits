@@ -3,13 +3,26 @@ import { TbBrain, TbLoader2, TbTopologyRing, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
 
 import { SettingGroup, SettingItem } from './SettingComponents';
+
+interface MemoryConfig {
+  memoryEnabled: boolean;
+  autoExtractionEnabled: boolean;
+  autoRecallEnabled: boolean;
+  extractionProviderId?: string;
+  extractionModel?: string;
+  minNewMessagesForExtraction: number;
+  extractionCooldownMinutes: number;
+  maxTokensPerExtraction: number;
+}
 
 const MemoryManagementSettings: React.FC = () => {
   const [isClearing, setIsClearing] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [noteCount, setNoteCount] = useState<number | null>(null);
+  const [config, setConfig] = useState<MemoryConfig | null>(null);
 
   useEffect(() => {
     window.YUA.memory
@@ -18,7 +31,23 @@ const MemoryManagementSettings: React.FC = () => {
         setNoteCount(stats?.totalNotes ?? 0);
       })
       .catch(() => { });
+
+    window.YUA.memory
+      .getConfig()
+      .then((res: { ok: boolean; config?: MemoryConfig }) => {
+        if (res.ok && res.config) setConfig(res.config);
+      })
+      .catch(() => { });
   }, []);
+
+  const updateConfig = async (patch: Partial<MemoryConfig>): Promise<void> => {
+    try {
+      const res = await window.YUA.memory.setConfig(patch as Record<string, unknown>);
+      if (res.ok && res.config) setConfig(res.config);
+    } catch (err) {
+      console.error('更新记忆配置失败:', err);
+    }
+  };
 
   const handleClearAll = async (): Promise<void> => {
     setIsClearing(true);
@@ -36,6 +65,25 @@ const MemoryManagementSettings: React.FC = () => {
   return (
     <>
       <SettingGroup title="记忆">
+        {config && (
+          <>
+            <SettingItem
+              title="启用记忆系统"
+              description="关闭后将不再自动提取和召回记忆"
+              action={<Switch checked={config.memoryEnabled} onCheckedChange={(checked) => updateConfig({ memoryEnabled: checked })} />}
+            />
+            <SettingItem
+              title="自动提取"
+              description="对话结束后自动从对话内容中提取记忆"
+              action={<Switch checked={config.autoExtractionEnabled} disabled={!config.memoryEnabled} onCheckedChange={(checked) => updateConfig({ autoExtractionEnabled: checked })} />}
+            />
+            <SettingItem
+              title="自动召回"
+              description="对话时自动检索并注入相关记忆到上下文"
+              action={<Switch checked={config.autoRecallEnabled} disabled={!config.memoryEnabled} onCheckedChange={(checked) => updateConfig({ autoRecallEnabled: checked })} />}
+            />
+          </>
+        )}
         <SettingItem
           title="记忆图谱"
           description={noteCount !== null ? `查看记忆主题图谱和知识网络（当前 ${noteCount} 条记忆）` : '查看记忆主题图谱和知识网络'}

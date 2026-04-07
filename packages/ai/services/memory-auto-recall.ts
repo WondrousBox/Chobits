@@ -403,8 +403,46 @@ export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecal
     return { context: '', keywords: [], noteCount: 0, skipped: true, skipReason: 'no_workspace' };
   }
 
-  // ─── Stage 2: Keyword Extraction ───
+  // ─── New Session Preload: 新会话首轮自动注入近期高重要度记忆 ───
   const userMessages = messages.filter((m) => m.role === 'user');
+  if (userMessages.length <= 1 && deps.db.listRecentImportant) {
+    console.log(`${TAG} New session detected (userMessages=${userMessages.length}), preloading recent important memories`);
+    try {
+      const recentNotes = await deps.db.listRecentImportant(workspaceId, 0.7, 7, 5);
+      if (recentNotes.length > 0) {
+        const summaries = recentNotes
+          .map((n) => {
+            let topicStr = '';
+            try {
+              const parsed = typeof n.topics === 'string' ? JSON.parse(n.topics) : n.topics;
+              if (Array.isArray(parsed) && parsed.length) topicStr = ` [${parsed.join(', ')}]`;
+            } catch {
+              /* ignore */
+            }
+            return `- (${n.date}${topicStr}) ${n.summary || '(no summary)'}`;
+          })
+          .join('\n');
+        const preloadContext = `近期重要记忆摘要（最近 7 天，重要度 ≥ 0.7）：\n${summaries}`;
+
+        const result: AutoRecallResult = {
+          context: preloadContext,
+          keywords: [],
+          noteCount: recentNotes.length,
+          skipped: false
+        };
+        if (conversationId) {
+          updateCache(conversationId, result, userMessages.length);
+        }
+        console.log(`${TAG} Preloaded ${recentNotes.length} recent important notes`);
+        return result;
+      }
+      console.log(`${TAG} No recent important notes found, falling through to keyword search`);
+    } catch (err) {
+      console.warn(`${TAG} Session preload failed, falling through:`, err);
+    }
+  }
+
+  // ─── Stage 2: Keyword Extraction ───
   const lastUserMsg = userMessages[userMessages.length - 1];
   const userContent = typeof lastUserMsg.content === 'string' ? lastUserMsg.content : '';
 
@@ -464,14 +502,17 @@ export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecal
   }
 
   // ─── Stage 3: Search ───
-  const { searchWithContent } = await import('./memory-retrieval-service');
+  const { searchWithContent, createLlmQueryAnalyzer } = await import('./memory-retrieval-service');
   const searchQuery = keywords.join(' ');
+
+  // 如果有 chatFn，创建 LLM 查询分析器增强搜索
+  const llmAnalyzer = deps.chatFn ? createLlmQueryAnalyzer(deps.chatFn) : undefined;
 
   try {
     console.log(`${TAG} Searching memories: query="${searchQuery}", ws=${workspaceId?.slice(0, 8)}`);
 
     // 使用 searchWithContent 执行 Stage 1-6 完整流水线（含元数据）
-    const searchResult = await searchWithContent(searchQuery, workspaceId, deps.db, config.maxContextChars);
+    const searchResult = await searchWithContent(searchQuery, workspaceId, deps.db, config.maxContextChars, llmAnalyzer);
 
     const { context, noteCount, topicCount } = searchResult;
     console.log(`${TAG} Found ${noteCount} notes, ${topicCount} topics` + (context ? `, context=${context.length} chars` : ', no context content'));
