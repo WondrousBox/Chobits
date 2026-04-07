@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { TbBug, TbPlayerPlay, TbTools, TbTrash } from 'react-icons/tb';
+import { TbBug, TbPlayerPlay, TbTools, TbTrash, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -110,7 +109,10 @@ export default function SpriteManager({ className }: { className?: string }): JS
 
   // 初始化读取调试辅助线状态
   useEffect(() => {
-    window.YUA.sprite.getDebugOverlay().then(setDebugOverlay).catch(() => { });
+    window.YUA.sprite
+      .getDebugOverlay()
+      .then(setDebugOverlay)
+      .catch(() => { });
   }, []);
 
   const toggleDebugOverlay = useCallback(async () => {
@@ -261,12 +263,16 @@ export default function SpriteManager({ className }: { className?: string }): JS
         </div>
       </div>
       {/* 精灵导入工具弹窗 */}
-      <Dialog open={toolOpen} onOpenChange={setToolOpen}>
-        <DialogContent className="max-w-4xl h-[80vh] max-h-[90vh] overflow-none">
-          <DialogHeader>
-            <DialogTitle>精灵视频导入</DialogTitle>
-          </DialogHeader>
-          <div className="overflow-hidden h-full w-full">
+      {toolOpen && (
+        <div className="h-[100vh] w-[100vw] max-w-[unset] overflow-none fixed top-0 left-0 z-[9999] bg-background">
+          <div className="p-2 box-border flex justify-between items-center">
+            精灵视频导入
+            <Button size="icon" variant={'ghost'} onClick={() => setToolOpen(false)}>
+              <TbX />
+            </Button>
+          </div>
+
+          <div className="overflow-hidden h-full w-full p-2 box-border" style={{ height: 'calc(100% - 52px)' }}>
             <SpriteVideoEditor
               initialConfig={spriteConfig}
               onConfigChange={setSpriteConfig}
@@ -318,8 +324,8 @@ export default function SpriteManager({ className }: { className?: string }): JS
               }}
             />
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
 
       {/* 防止窗口增高时 Grid 行被平均拉伸：content-start(items-start) 让多余空间留在容器底部 */}
       <div className="pr-1">

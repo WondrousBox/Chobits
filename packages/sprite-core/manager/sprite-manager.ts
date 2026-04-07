@@ -412,7 +412,7 @@ export class SpriteManager {
     // 自动朗读：非静默类别 且 非来自 speak() 的调用
     if (!this._speakGuard && !SpriteManager.MUTE_CATEGORIES.has(options?.category ?? '')) {
       if (resolvedContent) {
-        this.speakService.speak(resolvedContent).catch(() => {});
+        this.speakService.speak(resolvedContent).catch(() => { });
       }
     }
   }
@@ -931,7 +931,7 @@ export class SpriteManager {
     if (!this._welcomeSent) {
       this._welcomeSent = true;
       setTimeout(() => {
-        this.showToast(undefined, { category: 'welcome' });
+        this.trigger('welcome');
       }, 500);
     }
   }
