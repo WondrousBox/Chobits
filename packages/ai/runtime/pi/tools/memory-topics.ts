@@ -26,8 +26,7 @@ const memoryTopicsParameters = Type.Object({
     )
 });
 
-export function createPiMemoryTopicsTool(_toolContext: PiSessionToolContext): ToolDefinition<typeof memoryTopicsParameters> {
-    void _toolContext;
+export function createPiMemoryTopicsTool(toolContext: PiSessionToolContext): ToolDefinition<typeof memoryTopicsParameters> {
     const db = buildRetrievalDbDeps();
 
     return {
@@ -38,7 +37,7 @@ export function createPiMemoryTopicsTool(_toolContext: PiSessionToolContext): To
 
         async execute(_toolCallId, input) {
             try {
-                const workspaceId = await resolveWorkspaceId();
+                const workspaceId = await resolveWorkspaceId(toolContext);
 
                 const result = await retrieval.browseTopics(db, {
                     topicId: input.topicId,

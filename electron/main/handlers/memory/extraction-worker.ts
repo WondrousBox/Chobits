@@ -10,14 +10,16 @@ import * as path from 'node:path';
 
 import { createPiTaskChatRuntimeFromRequest, type PiTaskChatFunction } from '../../../../packages/ai/runtime/pi/task-chat';
 import { buildWriteDbOps } from '../../../../packages/ai/runtime/pi/tools/memory-db-deps';
+import { formatMemoryDate, getNextMemoryDate, getRelativeMemoryDate, getTodayMemoryDate } from '../../../../packages/ai/services/memory-date';
 import { runExtractionPipeline } from '../../../../packages/ai/services/memory-extraction-service';
 import { parseFrontmatter } from '../../../../packages/ai/services/memory-note-parser';
 import type { AgentLoopCompletePayload, ExtractionResult, MemoryChatFn, MemoryNoteFrontmatter } from '../../../../packages/ai/services/memory-types';
 import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
-import { MemoryNoteRepo, MemoryTopicRepo } from '../../db/memory-repositories';
+import { MemoryNoteRepo, MemorySyncJobRepo, MemoryTopicRepo } from '../../db/memory-repositories';
 import { ChatRepo, WorkspacesRepo } from '../../db/repositories';
 import { memoryExtractionQueue, type QueuedJob } from './extraction-queue';
+import { getMemoryConfig } from './memory-config';
 
 // ━━ Config ━━
 
@@ -102,9 +104,9 @@ async function findExistingNote(date: string, topicSlug: string, workspaceId: st
   if (!matchingNote) {
     const { buildNotePath } = await import('../../../../packages/ai/services/memory-note-writer');
     const expectedFilePath = buildNotePath(date, topicSlug);
-    matchingNote = await MemoryNoteRepo.getByFilePath(expectedFilePath);
+    matchingNote = await MemoryNoteRepo.getByFilePath(expectedFilePath, workspaceId);
     if (matchingNote) {
-      console.log(`[MemoryWorker:findExistingNote] Found existing note by filePath fallback: ${expectedFilePath} (id=${matchingNote.id})`);
+      console.log(`[MemoryWorker:findExistingNote] Found existing note by workspace+filePath fallback: ws=${workspaceId}, path=${expectedFilePath} (id=${matchingNote.id})`);
     }
   }
 
@@ -178,7 +180,7 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
   let conversationIds = job.targetConversationIds || [];
   if (!conversationIds.length) {
     const allConvs = await ChatRepo.listConversations({}, 100, 0);
-    const targetDate = job.targetDate || new Date().toISOString().slice(0, 10);
+    const targetDate = job.targetDate || getTodayMemoryDate();
     const dayStart = new Date(targetDate + 'T00:00:00').getTime();
     const dayEnd = dayStart + 86400000;
     conversationIds = allConvs
@@ -219,7 +221,7 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
     return emptyResult;
   }
 
-  const date = job.targetDate || new Date().toISOString().slice(0, 10);
+  const date = job.targetDate || getTodayMemoryDate();
 
   // 构建增量水位线：只提取上次之后的新消息
   const watermarks = new Map<string, number>();
@@ -400,6 +402,13 @@ function onAgentLoopComplete(payload: AgentLoopCompletePayload): void {
 
   console.log(`${TAG} Received AGENT_LOOP_COMPLETE: conv=${conversationId}, persisted=${persisted}, agentId=${agentId}, toolCalls=${payload.toolCalls.length}`);
 
+  // 检查记忆系统配置
+  const cfg = getMemoryConfig();
+  if (!cfg.memoryEnabled || !cfg.autoExtractionEnabled) {
+    console.log(`${TAG} Skipped: memoryEnabled=${cfg.memoryEnabled}, autoExtractionEnabled=${cfg.autoExtractionEnabled}`);
+    return;
+  }
+
   if (!conversationId || !persisted) {
     console.log(`${TAG} Skipped: conversationId=${conversationId}, persisted=${persisted}`);
     return;
@@ -535,6 +544,174 @@ function onConversationComplete(data: any): void {
   }, 5000);
 }
 
+// ━━ Daily Extraction & Heat Decay ━━
+
+/** 上次日终提取日期（内存缓存） */
+let lastDailyExtractionDate: string | undefined;
+/** 上次 heat 衰减日期 */
+let lastHeatDecayDate: string | undefined;
+
+/**
+ * 检查是否需要进行日终批量提取。
+ * 由 DailyCareService 的 tick 回调或启动补偿调用。
+ * 当前天尚未进行日终提取且有新对话数据时，入队提取任务。
+ */
+async function checkDailyMemoryExtraction(): Promise<void> {
+  const TAG = '[MemoryWorker:daily]';
+
+  try {
+    const today = getTodayMemoryDate();
+
+    // 已完成今天的提取 → 跳过
+    if (lastDailyExtractionDate === today) return;
+
+    // 当前有正在运行的提取任务 → 跳过
+    if (memoryExtractionQueue.isRunning()) return;
+
+    const ws = await WorkspacesRepo.getDefault();
+    if (!ws?.id) return;
+
+    // 检查是否有未提取的对话
+    // 首先确定需要处理的日期：从上次提取日期的下一天到今天
+    const targetDate = lastDailyExtractionDate ? getNextDate(lastDailyExtractionDate) : today;
+
+    // 查找目标日期范围内有更新的会话
+    const allConvs = await ChatRepo.listConversations({}, 200, 0);
+    const dayStart = new Date(targetDate + 'T00:00:00').getTime();
+    const dayEnd = new Date(today + 'T23:59:59').getTime();
+    const conversations = allConvs.filter((c: any) => {
+      const t = c.lastMessageAt || c.updatedAt;
+      return t >= dayStart && t <= dayEnd;
+    });
+
+    if (conversations.length === 0) {
+      lastDailyExtractionDate = today;
+      console.log(`${TAG} No conversations found for daily extraction (${targetDate} ~ ${today}), skipping`);
+      return;
+    }
+
+    // 过滤已在水位线内的会话（避免重复提取）
+    const needsExtraction: string[] = [];
+    for (const conv of conversations) {
+      const watermark = conversationWatermarks.get(conv.id) ?? 0;
+      const msgs = await ChatRepo.listMessages(conv.id, 1000, 0);
+      const newMsgs = msgs.filter((m: any) => (m.role === 'user' || m.role === 'assistant') && (m.seq ?? 0) > watermark);
+      if (newMsgs.length >= 2) {
+        needsExtraction.push(conv.id);
+      }
+    }
+
+    if (needsExtraction.length === 0) {
+      lastDailyExtractionDate = today;
+      console.log(`${TAG} All conversations already extracted, marking ${today} as done`);
+      return;
+    }
+
+    console.log(`${TAG} 🧠📅 Enqueuing daily extraction for ${needsExtraction.length} conversations (${targetDate} ~ ${today})`);
+
+    await memoryExtractionQueue.enqueue({
+      jobType: 'daily_extraction',
+      workspaceId: ws.id,
+      targetDate: targetDate,
+      targetConversationIds: needsExtraction
+    });
+
+    lastDailyExtractionDate = today;
+  } catch (e) {
+    console.error('[MemoryWorker:daily] Daily extraction check failed:', e);
+  }
+}
+
+/**
+ * 应用 topic heat 衰减，每天执行一次。
+ * 衰减因子 0.95 ≈ 14 天半衰期。
+ */
+function applyDailyHeatDecay(): void {
+  const TAG = '[MemoryWorker:heatDecay]';
+  const today = getTodayMemoryDate();
+  if (lastHeatDecayDate === today) return;
+
+  try {
+    const affected = MemoryTopicRepo.applyHeatDecay(0.95);
+    lastHeatDecayDate = today;
+    if (affected > 0) {
+      console.log(`${TAG} Applied heat decay to ${affected} topics (factor=0.95)`);
+    }
+  } catch (e) {
+    console.error(`${TAG} Heat decay failed:`, e);
+  }
+}
+
+/**
+ * 漏跑补偿：应用启动时检查是否有未完成的日终提取。
+ * 如果上次提取日期与今天之间有间隔，自动触发补偿提取。
+ */
+async function compensateMissedExtractions(): Promise<void> {
+  const TAG = '[MemoryWorker:compensate]';
+
+  try {
+    // 查找最近一次成功完成的 sync job
+    const recentJobs = await MemorySyncJobRepo.findByStatus('completed');
+    if (recentJobs.length === 0) {
+      console.log(`${TAG} No completed extraction jobs found, skipping compensation`);
+      return;
+    }
+
+    const lastJob = recentJobs[0]; // already sorted by completedAt desc
+    const lastCompletedDate = lastJob.targetDate || (lastJob.completedAt ? formatMemoryDate(lastJob.completedAt) : null);
+
+    if (!lastCompletedDate) return;
+
+    const today = getTodayMemoryDate();
+    const daysBetween = getDaysBetween(lastCompletedDate, today);
+
+    if (daysBetween <= 1) {
+      console.log(`${TAG} No missed extractions (last: ${lastCompletedDate}, today: ${today})`);
+      lastDailyExtractionDate = lastCompletedDate;
+      return;
+    }
+
+    console.log(`${TAG} 🧠🔄 Detected ${daysBetween - 1} missed extraction day(s) since ${lastCompletedDate}`);
+    // 设置 lastDailyExtractionDate 为上次成功日期，让 checkDailyMemoryExtraction 自动补提取
+    lastDailyExtractionDate = lastCompletedDate;
+
+    // 立即触发一次日终提取检查来开始补偿
+    await checkDailyMemoryExtraction();
+  } catch (e) {
+    console.error(`${TAG} Compensation check failed:`, e);
+  }
+}
+
+/**
+ * 每日自动维护入口 — 由 DailyCareService tick 或直接定时器调用。
+ * 包含：heat 衰减 + 日终批量提取检查。
+ */
+export async function memoryDailyMaintenanceTick(): Promise<void> {
+  applyDailyHeatDecay();
+  await checkDailyMemoryExtraction();
+
+  // 生成昨日的 daily index（如果有笔记的话）
+  try {
+    const yesterday = getRelativeMemoryDate(-1);
+    const { generateDailyIndex } = await import('../../../../packages/ai/services/memory-content-gen');
+    const ws = await WorkspacesRepo.getDefault();
+    if (ws?.rootPath) {
+      const contentGenDb = {
+        listNotesByDate: (date: string, workspaceId?: string) => MemoryNoteRepo.listByDate(date, workspaceId),
+        listNotesByWorkspace: (workspaceId: string, limit?: number, offset?: number) => MemoryNoteRepo.listByWorkspace(workspaceId, limit, offset),
+        listAllTopics: (workspaceId?: string, limit?: number) => MemoryTopicRepo.listAll(workspaceId, limit),
+        listNotesByTopicId: (topicId: string, workspaceId?: string, limit?: number) => MemoryNoteRepo.listByTopicId(topicId, workspaceId, limit)
+      };
+      const result = await generateDailyIndex(yesterday, ws.rootPath, contentGenDb, ws.id);
+      if (result.noteCount > 0) {
+        console.log(`[MemoryWorker] Generated daily index for ${yesterday}: ${result.noteCount} notes`);
+      }
+    }
+  } catch (e) {
+    console.warn('[MemoryWorker] Daily index generation failed:', e);
+  }
+}
+
 // ━━ Init ━━
 
 /**
@@ -542,6 +719,8 @@ function onConversationComplete(data: any): void {
  * 1. 注册 executor 到 queue
  * 2. 监听 AGENT_LOOP_COMPLETE 事件 — agent 工具循环结束后精确触发（主路径）
  * 3. 监听 SPRITE_AI_COMPLETE 事件 — 兼容旧路径 / 非 Pi runtime
+ * 4. 启动补偿检查 — 检测并修复漏跑的日终提取
+ * 5. 启动每日维护定时器 — heat 衰减 + 日终提取
  */
 export function initMemoryExtractionWorker(): void {
   memoryExtractionQueue.setExecutor(executeJob);
@@ -551,7 +730,20 @@ export function initMemoryExtractionWorker(): void {
   // 兼容路径：普通对话完成（节流保证不会与主路径重复）
   eventManager.on(AppEvent.SPRITE_AI_COMPLETE, onConversationComplete);
 
-  console.log('[MemoryWorker] Extraction worker initialized (agent-loop-complete + legacy)');
+  // 启动补偿：检查并修复漏跑的日终提取（延迟 10 秒，避免阻塞启动）
+  setTimeout(() => {
+    compensateMissedExtractions().catch((e) => console.error('[MemoryWorker] Compensation failed:', e));
+  }, 10_000);
+
+  // 每日维护定时器：每 30 分钟检查一次日终提取和 heat 衰减
+  setInterval(
+    () => {
+      memoryDailyMaintenanceTick().catch((e) => console.error('[MemoryWorker] Daily maintenance failed:', e));
+    },
+    30 * 60 * 1000
+  );
+
+  console.log('[MemoryWorker] Extraction worker initialized (agent-loop-complete + legacy + daily-maintenance)');
 }
 
 // ━━ Helpers ━━
@@ -589,4 +781,16 @@ function resolveExtractionModel(providerId: string): string | undefined {
     gemini: 'gemini-2.0-flash'
   };
   return fastModels[providerId];
+}
+
+/** 获取日期的下一天（YYYY-MM-DD 格式） */
+function getNextDate(dateStr: string): string {
+  return getNextMemoryDate(dateStr);
+}
+
+/** 计算两个日期之间的天数差 */
+function getDaysBetween(start: string, end: string): number {
+  const s = new Date(start + 'T00:00:00').getTime();
+  const e = new Date(end + 'T00:00:00').getTime();
+  return Math.round((e - s) / 86400000);
 }

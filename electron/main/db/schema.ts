@@ -668,7 +668,7 @@ export const memory_notes = sqliteTable(
     idxMemNotesParentTopic: index('idx_mem_notes_parent_topic').on(t.parentTopicId),
     idxMemNotesCreated: index('idx_mem_notes_created').on(t.createdAt),
     idxMemNotesDeleted: index('idx_mem_notes_deleted').on(t.deletedAt),
-    uqMemNotesFilePath: uniqueIndex('uq_mem_notes_file_path').on(t.filePath)
+    uqMemNotesWorkspaceFilePath: uniqueIndex('uq_mem_notes_workspace_file_path').on(t.workspaceId, t.filePath)
   })
 );
 

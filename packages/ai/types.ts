@@ -29,6 +29,7 @@ export type ChatRequestExtras = Record<string, any> & {
   codingWorkspaceRoot?: string;
   codingWorkspaceLabel?: string;
   codingMode?: 'safe';
+  workspaceId?: string;
 };
 
 export type ChatRequest = ProviderScopedRequest & {

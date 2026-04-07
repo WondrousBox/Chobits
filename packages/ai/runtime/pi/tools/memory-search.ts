@@ -33,8 +33,7 @@ const memorySearchParameters = Type.Object({
   )
 });
 
-export function createPiMemorySearchTool(_toolContext: PiSessionToolContext): ToolDefinition<typeof memorySearchParameters> {
-  void _toolContext;
+export function createPiMemorySearchTool(toolContext: PiSessionToolContext): ToolDefinition<typeof memorySearchParameters> {
   const db = buildRetrievalDbDeps();
 
   return {
@@ -46,7 +45,7 @@ export function createPiMemorySearchTool(_toolContext: PiSessionToolContext): To
 
     async execute(_toolCallId, input) {
       try {
-        const workspaceId = await resolveWorkspaceId();
+        const workspaceId = await resolveWorkspaceId(toolContext);
         if (!workspaceId) {
           return createJsonToolResult({ success: false, error: 'No active workspace', topics: [], notes: [], totalFound: 0 });
         }

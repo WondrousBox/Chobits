@@ -216,7 +216,8 @@ export function buildCharacterPersonaPrompt(ctx: PersonaPromptContext): string |
   const sections: string[] = [];
 
   // Identity
-  sections.push(`## 你的身份\n你的名字是 ${char.name}。${char.identity.background}`);
+  sections.push(`## 你的身份
+你的名字是 ${char.name}。${char.identity.background}`);
 
   // Core traits
   sections.push(`## 性格特征\n${char.identity.coreTraits.map((t) => `- ${t}`).join('\n')}`);
@@ -244,7 +245,7 @@ export function buildCharacterPersonaPrompt(ctx: PersonaPromptContext): string |
   // Boundaries
   sections.push(`## 行为边界\n${char.identity.boundaries.map((b) => `- ${b}`).join('\n')}`);
 
-  console.log(sections.join('\n\n'));
+  console.log('角色的 Prompt', sections.join('\n\n'));
 
   return sections.join('\n\n');
 }

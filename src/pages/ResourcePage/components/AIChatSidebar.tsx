@@ -38,6 +38,7 @@ interface Agent {
 
 interface AIChatSidebarProps {
   onClose: () => void;
+  workspaceId?: string;
 }
 
 function MarkdownMessage({ content }: { content: string }): JSX.Element {
@@ -59,7 +60,7 @@ const STORAGE_KEYS = {
   providerId: 'ai-sidebar.providerId'
 };
 
-const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
+const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -275,6 +276,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
           stream: true,
           extras: {
             model: resolvedSelection.modelId,
+            ...(workspaceId ? { workspaceId } : {}),
             ...(isCoder && codingWorkspaceRoot
               ? {
                 codingWorkspaceRoot,

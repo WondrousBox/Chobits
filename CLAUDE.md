@@ -154,19 +154,24 @@ Only files in allowed roots (workspace resources, app resources) are accessible.
 
 - **Extraction pipeline**: Conversations → LLM topic splitting → structured extraction → Markdown notes (`memory/daily/YYYY/MM/`)
 - **Retrieval pipeline**: 6-stage pipeline (Query Analysis → Topic Recall → Note Recall → Section Recall → Targeted Read → Context Assembly)
-- **Auto-recall**: Automatically retrieves relevant memories before each conversation turn via `SystemPromptEnricher`. Uses AI to extract search keywords from user message, then runs the structural retrieval pipeline. Results injected into system prompt as `<recalled_memories>` block.
+- **Auto-recall**: Automatically retrieves relevant memories before each conversation turn via `SystemPromptEnricher`. Uses AI to extract search keywords from user message, then runs the structural retrieval pipeline. Results injected into system prompt as `<recalled_memories>` block. New sessions (first turn) auto-preload recent high-importance memories.
+- **LLM query analysis**: Optional LLM-assisted query parsing (`createLlmQueryAnalyzer`) enhances `searchWithContent()` with better topic/entity/keyword extraction.
 - **Agent tools**: `memorySearchTool`, `memoryGetTool`, `memoryTopicsTool`, `memorySaveTool` — for explicit memory operations by the AI agent
 - **Storage**: SQLite tables (`memory_notes`, `memory_topics`, `memory_sections`, `memory_edges`, `memory_keywords`) + Markdown files on disk + FTS5 full-text index
+- **Content generation**: Daily index (`YYYY-MM-DD.index.md`), topic archives (`topics/topic-slug.md`), global index (`MEMORY.md`) — auto-generated via daily maintenance tick or manual IPC trigger
+- **Configuration**: `memory-config.json` stores system toggle, auto-extraction toggle, auto-recall toggle; UI in `MemoryManagementSettings.tsx`
 
 **IPC prefix**: `memory:*`
 
 **Key files**:
 
-- `packages/ai/services/memory-auto-recall.ts` — Auto-recall service (triage, keyword extraction, search, caching)
+- `packages/ai/services/memory-auto-recall.ts` — Auto-recall service (triage, keyword extraction, search, caching, new session preload)
 - `electron/main/handlers/memory/memory-auto-recall-enricher.ts` — Enricher bridge (registers with SystemPromptEnricher, provides DB deps)
-- `packages/ai/services/memory-retrieval-service.ts` — 6-stage retrieval pipeline
-- `packages/ai/services/memory-extraction-service.ts` — LLM-based memory extraction from conversations
-- `electron/main/handlers/memory/extraction-worker.ts` — Background extraction worker
+- `packages/ai/services/memory-retrieval-service.ts` — 6-stage retrieval pipeline + LLM query analyzer
+- `packages/ai/services/memory-extraction-service.ts` — LLM-based memory extraction from conversations + Open Loop intelligent merge
+- `packages/ai/services/memory-content-gen.ts` — Content file generation (daily index, topic archives, MEMORY.md)
+- `electron/main/handlers/memory/extraction-worker.ts` — Background extraction worker + daily maintenance (heat decay, daily extraction, index generation)
+- `electron/main/handlers/memory/memory-config.ts` — Memory system configuration store
 
 **Design docs**: `docs/memory-system/`
 

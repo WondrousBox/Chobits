@@ -9,7 +9,13 @@
 - 当前主触发源是 `AppEvent.AGENT_LOOP_COMPLETE`；`AppEvent.SPRITE_AI_COMPLETE` 仅作为兼容旧路径保留。触发后会延迟 5 秒再做脏检查和入队。
 - 已实现的调度细节包括：`conversationWatermarks` 内存水位线、`extractingConversations` + `pendingTrailingRun` 的 coalescing/trailing-run 机制、有工具调用时把新增消息阈值从 4 降到 2。
 - 提取模型当前会优先尝试 provider 对应的 fast model，失败后回退到该 provider / preset 的默认模型配置。
-- 尚未实现：`daily_extraction` 定时任务、漏跑补偿、窗口关闭/会话切换触发、`memory:cancelSync`、`memory:getMetrics`、`memory:validateIndex`、配置 UI。
+- 已实现：`daily_extraction` 定时任务（30 分钟间隔维护 tick）、漏跑补偿（启动时检查并回溯）、`memory:cancelSync`（取消当前/指定提取任务）、`memory:getMetrics`（提取统计与索引计数）。
+- 已实现：配置 UI（`MemoryManagementSettings` 中的记忆系统总开关、自动提取开关、自动召回开关），配置存储于 `memory-config.json`。
+- 已实现：Open Loop 智能合并 — `mergeMemory()` 中对 "Open Items" section 使用 LLM 判断已有待办是否被新对话解决。
+- 已实现：3 种边类型创建（`belongs_to_topic`、`related_to_topic`、`contains_section`）。
+- 已实现：`fileChecksum`（sha256）、`timeRange`（消息时间戳范围）、`sections.keywords`（段落级关键词）字段自动填充。
+- 已实现：heat 衰减（指数衰减因子 0.95，每日执行一次）。
+- 尚未实现：窗口关闭/会话切换触发、`memory:validateIndex`。
 - `memory:rebuildIndex` 当前只重建 FTS 索引，不会重新执行整套提取流水线。
 
 ---
@@ -1312,26 +1318,27 @@ export enum AppEvent {
 
 ---
 
-## 14. 配置 UI 预留（尚未实现）
+## 14. 配置 UI（已实现）
 
-当前代码尚未接入这套 preferences；以下内容仍属于预留设计。
+配置存储于 `electron/main/handlers/memory/memory-config.ts`，持久化为 `<userData>/data/memory-config.json`。
+
+UI 位于 `src/pages/SettingsPage/components/MemoryManagementSettings.tsx`，提供以下开关：
+
+- **记忆系统总开关** (`memoryEnabled`) — 关闭后自动提取和自动召回均停止
+- **自动提取** (`autoExtractionEnabled`) — 控制对话结束后是否自动触发记忆提取
+- **自动召回** (`autoRecallEnabled`) — 控制对话前是否自动检索并注入相关记忆
+
+IPC 通道：`memory:getConfig` / `memory:setConfig`。
 
 ```typescript
-interface MemoryPreferences {
-  /** 记忆系统总开关 */
+interface MemoryConfig {
   memoryEnabled: boolean;
-  /** 自动提取开关 */
   autoExtractionEnabled: boolean;
-  /** 提取使用的 provider/model（独立于聊天 provider） */
+  autoRecallEnabled: boolean;
   extractionProviderId?: string;
   extractionModel?: string;
-  /** 最小触发消息数 */
   minNewMessagesForExtraction: number;
-  /** 提取触发最小间隔（分钟） */
   extractionCooldownMinutes: number;
-  /** 日终提取时间 */
-  dailyExtractionTime: string;
-  /** 单次最大 token 预算 */
   maxTokensPerExtraction: number;
 }
 ```

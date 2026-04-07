@@ -115,6 +115,11 @@ export class MemoryExtractionQueue {
     };
   }
 
+  /** 是否有正在运行或排队中的任务 */
+  isRunning(): boolean {
+    return this.running !== null || this.queue.length > 0;
+  }
+
   private async processNext(): Promise<void> {
     const TAG = '[MemoryQueue:process]';
 

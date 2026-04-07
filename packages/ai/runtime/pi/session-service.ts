@@ -564,8 +564,6 @@ export class PiSessionService {
       });
 
       if (sessionPrompt) {
-        console.log(preview.resolved);
-
         const sessionResult = await this.chatStreamWithCodingSession(preview.resolved, model, context, legacy, signal);
 
         if (sessionResult.usedSession) {

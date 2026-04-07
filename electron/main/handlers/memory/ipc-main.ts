@@ -46,7 +46,9 @@ function buildRetrievalDbDeps(): RetrievalDbDeps {
     getWorkspaceRoot: async (workspaceId) => {
       const ws = await WorkspacesRepo.getById(workspaceId);
       return ws?.rootPath ?? null;
-    }
+    },
+    // Recent important notes (for new session preload)
+    listRecentImportant: (workspaceId, minImportance, days, limit) => MemoryNoteRepo.listRecentImportant(workspaceId, minImportance, days, limit)
   };
 }
 
@@ -163,6 +165,56 @@ export function initMemoryHandlers(): void {
     }
   });
 
+  ipcMain.handle('memory:cancelSync', async (_event, jobId?: string) => {
+    try {
+      if (jobId) {
+        const cancelled = memoryExtractionQueue.cancel(jobId);
+        return { success: cancelled, jobId };
+      }
+      // Cancel the currently running job
+      const status = memoryExtractionQueue.getStatus();
+      if (status.running) {
+        const cancelled = memoryExtractionQueue.cancel(status.running.id);
+        return { success: cancelled, jobId: status.running.id };
+      }
+      return { success: false, error: 'No running job to cancel' };
+    } catch (e: any) {
+      console.error('[Memory] cancelSync failed:', e);
+      return { success: false, error: e?.message };
+    }
+  });
+
+  ipcMain.handle('memory:getMetrics', async (_event, params?: { workspaceId?: string }) => {
+    try {
+      const wsId = params?.workspaceId || (await WorkspacesRepo.getDefault())?.id;
+
+      // Extraction metrics from sync jobs
+      const allJobs = wsId ? await MemorySyncJobRepo.findByWorkspace(wsId) : await MemorySyncJobRepo.getAll();
+      const completed = allJobs.filter((j: any) => j.status === 'completed');
+      const failed = allJobs.filter((j: any) => j.status === 'failed');
+
+      // Note/topic/edge counts
+      const [noteCount, topicCount, edgeCount] = await Promise.all([MemoryNoteRepo.count(wsId), MemoryTopicRepo.count(wsId), MemoryEdgeRepo.count(wsId)]);
+
+      return {
+        extraction: {
+          totalJobs: allJobs.length,
+          completedJobs: completed.length,
+          failedJobs: failed.length,
+          lastCompletedAt: completed[0]?.completedAt ?? null,
+          lastFailedAt: failed[0]?.createdAt ?? null,
+          totalNotesCreated: completed.reduce((sum: number, j: any) => sum + (j.notesCreated ?? 0), 0),
+          totalNotesUpdated: completed.reduce((sum: number, j: any) => sum + (j.notesUpdated ?? 0), 0)
+        },
+        index: { noteCount, topicCount, edgeCount },
+        queue: memoryExtractionQueue.getStatus()
+      };
+    } catch (e: any) {
+      console.error('[Memory] getMetrics failed:', e);
+      return { extraction: {}, index: {}, queue: { running: null, queued: [] } };
+    }
+  });
+
   ipcMain.handle(
     'memory:triggerSync',
     async (
@@ -210,6 +262,8 @@ export function initMemoryHandlers(): void {
       await MemoryEdgeRepo.deleteByNote(noteId);
       // 删除 note-keyword 关联
       await MemoryNoteKeywordRepo.deleteByNote(noteId);
+      // 删除 section 索引，避免软删 note 后留下悬空 section
+      await MemorySectionRepo.deleteByNote(noteId);
       // 软删除 note（cascade 删 sections）
       await MemoryNoteRepo.softDelete([noteId]);
       return { success: true };
@@ -329,6 +383,83 @@ export function initMemoryHandlers(): void {
     } catch (e: any) {
       console.error('[Memory] clearRecallCache failed:', e);
       return { success: false, error: e?.message };
+    }
+  });
+
+  // ━━ Memory Config ━━
+
+  ipcMain.handle('memory:getConfig', async () => {
+    try {
+      const { getMemoryConfig } = await import('./memory-config');
+      return { ok: true, config: getMemoryConfig() };
+    } catch (e: any) {
+      console.error('[Memory] getConfig failed:', e);
+      return { ok: false, error: e?.message };
+    }
+  });
+
+  ipcMain.handle('memory:setConfig', async (_event, patch: Record<string, unknown>) => {
+    try {
+      const { setMemoryConfig } = await import('./memory-config');
+      const config = setMemoryConfig(patch as any);
+      return { ok: true, config };
+    } catch (e: any) {
+      console.error('[Memory] setConfig failed:', e);
+      return { ok: false, error: e?.message };
+    }
+  });
+
+  // ━━ Content Generation ━━
+
+  const contentGenDb = {
+    listNotesByDate: (date: string, workspaceId?: string) => MemoryNoteRepo.listByDate(date, workspaceId),
+    listNotesByWorkspace: (workspaceId: string, limit?: number, offset?: number) => MemoryNoteRepo.listByWorkspace(workspaceId, limit, offset),
+    listAllTopics: (workspaceId?: string, limit?: number) => MemoryTopicRepo.listAll(workspaceId, limit),
+    listNotesByTopicId: (topicId: string, workspaceId?: string, limit?: number) => MemoryNoteRepo.listByTopicId(topicId, workspaceId, limit)
+  };
+
+  ipcMain.handle('memory:generateDailyIndex', async (_event, params: { date: string; workspaceId?: string }) => {
+    try {
+      const { generateDailyIndex } = await import('../../../../packages/ai/services/memory-content-gen');
+      const wsId = params.workspaceId || (await WorkspacesRepo.getDefault())?.id;
+      if (!wsId) return { ok: false, error: 'no workspace' };
+      const ws = await WorkspacesRepo.getById(wsId);
+      if (!ws?.rootPath) return { ok: false, error: 'workspace has no root path' };
+      const result = await generateDailyIndex(params.date, ws.rootPath, contentGenDb, wsId);
+      return { ok: true, ...result };
+    } catch (e: any) {
+      console.error('[Memory] generateDailyIndex failed:', e);
+      return { ok: false, error: e?.message };
+    }
+  });
+
+  ipcMain.handle('memory:generateTopicArchives', async (_event, params?: { workspaceId?: string }) => {
+    try {
+      const { generateAllTopicArchives } = await import('../../../../packages/ai/services/memory-content-gen');
+      const wsId = params?.workspaceId || (await WorkspacesRepo.getDefault())?.id;
+      if (!wsId) return { ok: false, error: 'no workspace' };
+      const ws = await WorkspacesRepo.getById(wsId);
+      if (!ws?.rootPath) return { ok: false, error: 'workspace has no root path' };
+      const result = await generateAllTopicArchives(ws.rootPath, contentGenDb, wsId);
+      return { ok: true, ...result };
+    } catch (e: any) {
+      console.error('[Memory] generateTopicArchives failed:', e);
+      return { ok: false, error: e?.message };
+    }
+  });
+
+  ipcMain.handle('memory:generateMemoryIndex', async (_event, params?: { workspaceId?: string }) => {
+    try {
+      const { generateMemoryIndex } = await import('../../../../packages/ai/services/memory-content-gen');
+      const wsId = params?.workspaceId || (await WorkspacesRepo.getDefault())?.id;
+      if (!wsId) return { ok: false, error: 'no workspace' };
+      const ws = await WorkspacesRepo.getById(wsId);
+      if (!ws?.rootPath) return { ok: false, error: 'workspace has no root path' };
+      const result = await generateMemoryIndex(ws.rootPath, contentGenDb, wsId);
+      return { ok: true, ...result };
+    } catch (e: any) {
+      console.error('[Memory] generateMemoryIndex failed:', e);
+      return { ok: false, error: e?.message };
     }
   });
 

@@ -12,6 +12,10 @@ export const memoryApi = {
 
   syncStatus: () => ipcRenderer.invoke('memory:syncStatus'),
 
+  cancelSync: (jobId?: string) => ipcRenderer.invoke('memory:cancelSync', jobId),
+
+  getMetrics: (params?: { workspaceId?: string }) => ipcRenderer.invoke('memory:getMetrics', params),
+
   triggerSync: (params?: { workspaceId?: string; date?: string; conversationIds?: string[]; force?: boolean }) => ipcRenderer.invoke('memory:triggerSync', params),
 
   rebuildIndex: () => ipcRenderer.invoke('memory:rebuildIndex'),
@@ -27,5 +31,15 @@ export const memoryApi = {
 
   stats: (params?: { workspaceId?: string }) => ipcRenderer.invoke('memory:stats', params),
 
-  clearRecallCache: (conversationId?: string) => ipcRenderer.invoke('memory:clearRecallCache', conversationId)
+  clearRecallCache: (conversationId?: string) => ipcRenderer.invoke('memory:clearRecallCache', conversationId),
+
+  getConfig: () => ipcRenderer.invoke('memory:getConfig'),
+
+  setConfig: (patch: Record<string, unknown>) => ipcRenderer.invoke('memory:setConfig', patch),
+
+  generateDailyIndex: (params: { date: string; workspaceId?: string }) => ipcRenderer.invoke('memory:generateDailyIndex', params),
+
+  generateTopicArchives: (params?: { workspaceId?: string }) => ipcRenderer.invoke('memory:generateTopicArchives', params),
+
+  generateMemoryIndex: (params?: { workspaceId?: string }) => ipcRenderer.invoke('memory:generateMemoryIndex', params)
 };

@@ -128,10 +128,7 @@ function renderFrontmatter(fm: MemoryNoteFrontmatter): string {
 /**
  * 从 MemoryExtractionOutput 的 sections 构建 Markdown 段落 Map
  */
-export function buildSectionsMap(sections: {
-  keyPoints: string;
-  openItems?: string;
-}): Map<string, string> {
+export function buildSectionsMap(sections: { keyPoints: string; openItems?: string }): Map<string, string> {
   const map = new Map<string, string>();
 
   if (sections.keyPoints) {
@@ -161,6 +158,10 @@ export function buildNotePath(date: string, topicSlug: string, suffix?: number):
 export function generateNoteId(date: string, topicSlug: string): string {
   const shortHash = Math.random().toString(16).slice(2, 8);
   return `mem_${date}_${topicSlug}_${shortHash}`;
+}
+
+export function buildSectionId(noteId: string, heading: string): string {
+  return `${noteId}_sec_${heading.replace(/\s+/g, '_').toLowerCase()}`;
 }
 
 // ━━ Helpers ━━

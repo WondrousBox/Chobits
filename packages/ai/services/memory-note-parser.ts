@@ -161,79 +161,122 @@ export function extractBlockquoteSummary(sectionContent: string): string {
 function parseSimpleYaml(yaml: string): Record<string, any> {
   const result: Record<string, any> = {};
   const lines = yaml.split('\n');
-  let currentKey = '';
-  let currentArray: any[] | null = null;
-  let currentObject: Record<string, any> | null = null;
-  let objectKey = '';
+  let index = 0;
 
-  for (const line of lines) {
-    // 空行
-    if (line.trim() === '') continue;
-
-    // 数组项
-    const arrayMatch = line.match(/^\s{2}-\s+(.+)$/);
-    if (arrayMatch && currentArray !== null) {
-      const value = parseYamlValue(arrayMatch[1].trim());
-      // 检查是否是对象数组项
-      const kvMatch = arrayMatch[1].trim().match(/^(\w+):\s*(.+)$/);
-      if (kvMatch) {
-        currentObject = { [kvMatch[1]]: parseYamlValue(kvMatch[2]) };
-        currentArray.push(currentObject);
-        objectKey = currentKey;
-      } else {
-        currentObject = null;
-        currentArray.push(value);
-      }
+  while (index < lines.length) {
+    const line = lines[index];
+    if (!line || line.trim() === '') {
+      index++;
       continue;
     }
 
-    // 对象嵌套属性
-    const nestedMatch = line.match(/^\s{4}(\w+):\s*(.+)$/);
-    if (nestedMatch && currentObject) {
-      currentObject[nestedMatch[1]] = parseYamlValue(nestedMatch[2]);
-      continue;
-    }
-
-    // 2空格嵌套（timeRange 等）
-    const subObjMatch = line.match(/^\s{2}(\w+):\s*(.+)$/);
-    if (subObjMatch && !currentArray && currentKey) {
-      if (typeof result[currentKey] !== 'object' || Array.isArray(result[currentKey])) {
-        result[currentKey] = {};
-      }
-      result[currentKey][subObjMatch[1]] = parseYamlValue(subObjMatch[2]);
-      continue;
-    }
-
-    // 顶层键值对
     const topMatch = line.match(/^(\w+):\s*(.*)$/);
-    if (topMatch) {
-      const key = topMatch[1];
-      const rawVal = topMatch[2].trim();
+    if (!topMatch) {
+      index++;
+      continue;
+    }
 
-      currentKey = key;
-      currentObject = null;
+    const key = topMatch[1];
+    const rawVal = topMatch[2].trim();
 
-      if (rawVal === '' || rawVal === '>') {
-        // 可能是数组或多行值
-        currentArray = [];
-        result[key] = currentArray;
-      } else {
-        currentArray = null;
-        result[key] = parseYamlValue(rawVal);
+    if (rawVal === '>') {
+      const foldedLines: string[] = [];
+      index++;
+      while (index < lines.length) {
+        const foldedLine = lines[index];
+        if (/^\s{2}/.test(foldedLine)) {
+          foldedLines.push(foldedLine.replace(/^\s{2}/, ''));
+          index++;
+          continue;
+        }
+        if (foldedLine.trim() === '') {
+          foldedLines.push('');
+          index++;
+          continue;
+        }
+        break;
       }
+      result[key] = foldedLines.join('\n').trim();
+      continue;
     }
-  }
 
-  // 处理多行标量值（summary 等用 > 的字段）：将数组合并为字符串
-  for (const key of Object.keys(result)) {
-    if (Array.isArray(result[key]) && result[key].length > 0 && typeof result[key][0] === 'string') {
-      // 检查是否全是字符串且无对象元素（可能是多行标量）
-      // 不合并 topics、keywords 等真正的数组
-      // 用 > 标记的字段才合并
+    if (rawVal !== '') {
+      result[key] = parseYamlValue(rawVal);
+      index++;
+      continue;
     }
+
+    const nextLine = lines[index + 1] || '';
+    if (/^\s{2}-\s+/.test(nextLine)) {
+      const parsedArray = parseYamlArray(lines, index + 1);
+      result[key] = parsedArray.value;
+      index = parsedArray.nextIndex;
+      continue;
+    }
+
+    if (/^\s{2}\w+:\s*/.test(nextLine)) {
+      const parsedObject = parseYamlObject(lines, index + 1);
+      result[key] = parsedObject.value;
+      index = parsedObject.nextIndex;
+      continue;
+    }
+
+    result[key] = '';
+    index++;
   }
 
   return result;
+}
+
+function parseYamlArray(lines: string[], startIndex: number): { value: any[]; nextIndex: number } {
+  const value: any[] = [];
+  let index = startIndex;
+
+  while (index < lines.length) {
+    const line = lines[index];
+    if (!/^\s{2}-\s+/.test(line)) break;
+
+    const itemRaw = line.replace(/^\s{2}-\s+/, '').trim();
+    const kvMatch = itemRaw.match(/^(\w+):\s*(.*)$/);
+
+    if (!kvMatch) {
+      value.push(parseYamlValue(itemRaw));
+      index++;
+      continue;
+    }
+
+    const item: Record<string, any> = {
+      [kvMatch[1]]: parseYamlValue(kvMatch[2])
+    };
+    index++;
+
+    while (index < lines.length) {
+      const nestedLine = lines[index];
+      const nestedMatch = nestedLine.match(/^\s{4}(\w+):\s*(.*)$/);
+      if (!nestedMatch) break;
+      item[nestedMatch[1]] = parseYamlValue(nestedMatch[2]);
+      index++;
+    }
+
+    value.push(item);
+  }
+
+  return { value, nextIndex: index };
+}
+
+function parseYamlObject(lines: string[], startIndex: number): { value: Record<string, any>; nextIndex: number } {
+  const value: Record<string, any> = {};
+  let index = startIndex;
+
+  while (index < lines.length) {
+    const line = lines[index];
+    const match = line.match(/^\s{2}(\w+):\s*(.*)$/);
+    if (!match) break;
+    value[match[1]] = parseYamlValue(match[2]);
+    index++;
+  }
+
+  return { value, nextIndex: index };
 }
 
 function parseYamlValue(raw: string): any {

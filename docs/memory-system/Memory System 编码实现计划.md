@@ -18,10 +18,10 @@ OpenClaw 生态的记忆系统核心模式可供参考：
 ## 当前实现状态（2026-04-03）
 
 - Phase 1 DB Schema：已完成。
-- Phase 2 Repository：已完成。
-- Phase 3 Extraction Service：部分完成。`conversation_close` 主链路、队列、worker、merge/write 已实现；`daily_extraction`、漏跑补偿、配置 UI 仍未完成。
-- Phase 4 Retrieval Service：部分完成。`search` / `get` / `browseTopics` / `searchWithContent` 已实现；但当前对外 `search()` 主要提供 Stage 1-3 结果，完整 Stage 4-6 风格流程仍主要在 `searchWithContent()` 内部 helper 中。
-- Phase 5 IPC Handlers：已完成，并已扩展到 `memory:stats`、`memory:cleanupForConversations`、`memory:clearAll`。
+- Phase 2 Repository：已完成。含 `MemoryTopicRepo.applyHeatDecay()`、`MemorySyncJobRepo.findByWorkspace()/getAll()`。
+- Phase 3 Extraction Service：已完成。`conversation_close` 主链路、队列、worker、merge/write 已实现；`daily_extraction` 定时触发（30 分钟间隔检查）、漏跑补偿（启动时回溯）、Open Loop 智能合并（LLM 判断待办是否已解决）、3 种边类型创建（`belongs_to_topic`/`related_to_topic`/`contains_section`）、`fileChecksum`/`timeRange`/`sections.keywords` 字段填充均已实现。
+- Phase 4 Retrieval Service：已完成。`search` / `get` / `browseTopics` / `searchWithContent` 已实现；`topicFilter` 过滤生效；LLM 辅助查询分析 (`createLlmQueryAnalyzer`) 已集成到 `searchWithContent`；新会话预加载（首轮自动注入近 7 天高重要度记忆摘要）已接入 auto-recall。
+- Phase 5 IPC Handlers：已完成，扩展到 `memory:stats`、`memory:cleanupForConversations`、`memory:clearAll`、`memory:cancelSync`、`memory:getMetrics`、`memory:getConfig`/`memory:setConfig`、`memory:generateDailyIndex`、`memory:generateTopicArchives`、`memory:generateMemoryIndex`。
 - Phase 6 Agent Tools：已完成；实际代码位于 `packages/ai/runtime/pi/tools/`，并且当前是 4 个工具（`memorySearchTool`、`memoryGetTool`、`memoryTopicsTool`、`memorySaveTool`）。
 - Phase 7 对话删除 → 记忆清理联动：已完成。
 

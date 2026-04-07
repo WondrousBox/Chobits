@@ -61,8 +61,18 @@ export async function cleanupMemoryForConversations(conversationIds: string[]): 
   if (rawDb) {
     for (const convId of conversationIds) {
       try {
-        // sync_jobs 的 target_conversation_ids 是 JSON 数组，包含该对话 ID 的记录应清理
-        rawDb.prepare(`DELETE FROM memory_sync_jobs WHERE target_conversation_ids LIKE ?`).run(`%${convId}%`);
+        // sync_jobs 的 target_conversation_ids 是 JSON 数组，这里做精确匹配，避免子串误删。
+        rawDb
+          .prepare(`
+            DELETE FROM memory_sync_jobs
+            WHERE target_conversation_ids IS NOT NULL
+              AND EXISTS (
+                SELECT 1
+                FROM json_each(memory_sync_jobs.target_conversation_ids)
+                WHERE json_each.value = ?
+              )
+          `)
+          .run(convId);
       } catch (e: any) {
         errors.push(`Failed to cleanup sync_jobs for conversation ${convId}: ${e?.message}`);
       }
