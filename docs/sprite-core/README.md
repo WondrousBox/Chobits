@@ -35,7 +35,7 @@ packages/sprite-core/
 ├── config/                     # 配置
 │   └── trigger-mapping.ts      # 场景→动画触发映射表
 ├── messages/                   # 消息文案
-│   └── zh-CN.ts                # 中文气泡文案目录（53+ 类别）
+│   └── zh-CN.ts                # 中文气泡文案目录（53+ 类别 + 150+ 事件文案）
 ├── speak/                      # 语音合成模块
 │   ├── index.ts
 │   ├── speak-service.ts        # Edge TTS 语音合成服务
@@ -582,6 +582,29 @@ IPC: sprite:play → 渲染进程播放
 - 不走状态机重解析，直接发送 `sprite:play` 指令
 - 渲染端可通过 `window.YUA.sprite.trigger()` 调用
 
+### 消息文案查找机制
+
+`zh-CN.ts` 中定义了两层文案：
+
+1. **MessageCatalog (catalog)** — 按 `MessageCategory` 索引（53 个类别），用于 `showToast(undefined, { category })` 查找
+2. **spriteEventMessages** — 按 `SpriteEventType` 索引（150+ 条目），用于 `trigger()` 和 `getSpriteEventText()` 查找
+
+**查找优先级（`getSpriteEventText(eventType, ctx)`）**：
+
+1. `spriteEventMessages[eventType]` — 优先查找事件专用文案
+2. `catalog[eventType]` — fallback 到 MessageCategory 文案（部分事件名与类别名重叠）
+3. 返回空字符串
+
+**重要规则**: 在 `sprite-event-listener.ts` 中的 handler 避免硬编码 fallback 文案，应统一通过 `getSpriteEventText(eventKey)` 从文案目录获取，确保文案定制化生效，支持随机选取和上下文插值。
+
+```typescript
+// ✅ 正确写法 — 使用文案目录
+mgr.showToast(data?.message || getSpriteEventText('memoryExtractComplete'), { category: 'success' });
+
+// ❌ 错误写法 — 硬编码字符串绕过文案目录
+mgr.showToast(data?.message || '记忆整理完毕！', { category: 'success' });
+```
+
 ### 动画配置文件
 
 - 默认动画：`resources/sprites/index.json`
@@ -730,21 +753,27 @@ eventManager.emit(AppEvent.SPRITE_AI_START);
 eventManager.emit(AppEvent.SPRITE_AI_COMPLETE, { message: '生成完成！' });
 ```
 
-| 事件                                  | 触发时机     | 效果                                    |
-| ------------------------------------- | ------------ | --------------------------------------- |
-| `SPRITE_AI_START`                     | AI 开始处理  | `playOnce('emotion')` + toast           |
-| `SPRITE_AI_COMPLETE`                  | AI 处理完成  | `playOnce('celebrate')` + toast         |
-| `SPRITE_WORKFLOW_START`               | 工作流开始   | `showBusy()` + `playOnce('emotion')`    |
-| `SPRITE_WORKFLOW_COMPLETE`            | 工作流完成   | `clearBusy()` + `playOnce('celebrate')` |
-| `SPRITE_RESOURCE_IMPORT_START`        | 资源导入开始 | `showBusy()`                            |
-| `SPRITE_RESOURCE_IMPORT_COMPLETE`     | 资源导入完成 | `clearBusy()` + `playOnce('celebrate')` |
-| `SPRITE_DOWNLOAD_COMPLETE/FAIL`       | 插件下载     | toast                                   |
-| `SPRITE_PLUGIN_INSTALL/REMOVE`        | 插件操作     | toast                                   |
-| `SPRITE_MEDIA_PROCESS_START/COMPLETE` | 媒体处理     | busy + toast                            |
-| `SPRITE_TRASH_DELETE/RESTORE`         | 回收站操作   | toast                                   |
-| `SPRITE_RSS_REFRESH/NEW_CONTENT`      | RSS 操作     | toast                                   |
-| `SPRITE_SYSTEM_READY/QUIT`            | 系统生命周期 | appear/disappear 动画                   |
-| `SPRITE_SYSTEM_FOCUS/BLUR`            | 窗口焦点     | wake/sleep                              |
+| 事件                                  | 触发时机     | 效果                                    | 文案来源                               |
+| ------------------------------------- | ------------ | --------------------------------------- | -------------------------------------- |
+| `SPRITE_AI_START`                     | AI 开始处理  | `playOnce('emotion')` + toast           | `spriteEventMessages.aiThinking`       |
+| `SPRITE_AI_COMPLETE`                  | AI 处理完成  | `playOnce('celebrate')` + toast         | `spriteEventMessages.aiComplete`       |
+| `SPRITE_AI_ERROR`                     | AI 处理出错  | `playOnce('emotion')` + toast           | `spriteEventMessages.aiError`          |
+| `SPRITE_WORKFLOW_START`               | 工作流开始   | `showBusy()` + `playOnce('emotion')`    | `spriteEventMessages.workflowStart`    |
+| `SPRITE_WORKFLOW_COMPLETE`            | 工作流完成   | `clearBusy()` + `playOnce('celebrate')` | `spriteEventMessages.workflowComplete` |
+| `SPRITE_WORKFLOW_FAIL`                | 工作流失败   | `clearBusy()` + `playOnce('emotion')`   | `spriteEventMessages.workflowFail`     |
+| `SPRITE_WORKFLOW_CANCEL`              | 工作流取消   | `clearBusy()` + toast                   | `spriteEventMessages.workflowCancel`   |
+| `SPRITE_RESOURCE_IMPORT_START`        | 资源导入开始 | `showBusy()`                            | `spriteEventMessages.importStart`      |
+| `SPRITE_RESOURCE_IMPORT_COMPLETE`     | 资源导入完成 | `clearBusy()` + `playOnce('celebrate')` | `spriteEventMessages.importComplete`   |
+| `SPRITE_RESOURCE_IMPORT_ERROR`        | 资源导入失败 | `clearBusy()` + `playOnce('emotion')`   | `spriteEventMessages.importError`      |
+| `SPRITE_DOWNLOAD_COMPLETE/FAIL`       | 插件下载     | toast                                   | `catalog.download/error`               |
+| `SPRITE_PLUGIN_INSTALL/REMOVE`        | 插件操作     | toast                                   | `catalog.install/remove`               |
+| `SPRITE_MEDIA_PROCESS_START/COMPLETE` | 媒体处理     | busy + toast                            | `trigger()` 自动查找                   |
+| `SPRITE_TRASH_DELETE/RESTORE`         | 回收站操作   | toast                                   | `trigger()` 自动查找                   |
+| `SPRITE_RSS_REFRESH/NEW_CONTENT`      | RSS 操作     | toast                                   | `trigger()` 自动查找                   |
+| `SPRITE_SYSTEM_READY/QUIT`            | 系统生命周期 | appear/disappear 动画                   | `spriteEventMessages.appear/disappear` |
+| `SPRITE_SYSTEM_FOCUS/BLUR`            | 窗口焦点     | wake/sleep                              | `spriteEventMessages.wake/sleep`       |
+| `MEMORY_EXTRACTION_*`                 | 记忆提取     | toast + thinking/celebrate 动画         | `spriteEventMessages.memoryExtract*`   |
+| `USER_PERSONA_UPDATE_*`               | 用户画像更新 | toast + thinking/celebrate 动画         | `spriteEventMessages.personaUpdate*`   |
 
 ### C. 配置驱动触发 (trigger-mapping)
 

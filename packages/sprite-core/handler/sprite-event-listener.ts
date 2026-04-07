@@ -9,6 +9,7 @@ import { AppEvent, eventManager } from '@packages/event';
 
 import { getConversationRewards, getDimensionSchema } from '../character-service';
 import type { SpriteManager } from '../manager';
+import { getSpriteEventText } from '../messages/zh-CN';
 
 export interface SpriteEventPayload {
   message?: string;
@@ -40,7 +41,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.SPRITE_AI_START,
     handler: (data) => {
-      mgr.showToast(data?.message || '思考中...', { category: 'loading' });
+      mgr.showToast(data?.message || getSpriteEventText('aiThinking'), { category: 'loading' });
       mgr.playOnce('emotion', { durationMs: 2000 });
     }
   });
@@ -48,7 +49,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.SPRITE_AI_COMPLETE,
     handler: (data) => {
-      mgr.showToast(data?.message || '完成！', { category: 'success', duration: 1500 });
+      mgr.showToast(data?.message || getSpriteEventText('aiComplete'), { category: 'success', duration: 1500 });
       mgr.playOnce('celebrate', { durationMs: 1500 });
 
       // ===== 对话奖励：XP + 好感度 =====
@@ -94,7 +95,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.SPRITE_AI_ERROR,
     handler: (data) => {
-      mgr.showToast(data?.message || data?.error || '出错了', { category: 'error', duration: 2000 });
+      mgr.showToast(data?.message || data?.error || getSpriteEventText('aiError'), { category: 'error', duration: 2000 });
       mgr.playOnce('emotion', { durationMs: 1500 });
     }
   });
@@ -103,7 +104,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.SPRITE_WORKFLOW_START,
     handler: (data) => {
-      mgr.showBusy(data?.message || data?.workflowName || '执行中...', 0);
+      mgr.showBusy(data?.message || data?.workflowName || getSpriteEventText('workflowStart'), 0);
       mgr.playOnce('emotion', { durationMs: 1500 });
     }
   });
@@ -121,7 +122,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.SPRITE_WORKFLOW_COMPLETE,
     handler: (data) => {
       mgr.clearBusy();
-      mgr.showToast(data?.message || '任务完成！', { category: 'celebrate', duration: 2000 });
+      mgr.showToast(data?.message || getSpriteEventText('workflowComplete'), { category: 'celebrate', duration: 2000 });
       mgr.playOnce('celebrate', { durationMs: 2000 });
     }
   });
@@ -130,7 +131,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.SPRITE_WORKFLOW_FAIL,
     handler: (data) => {
       mgr.clearBusy();
-      mgr.showToast(data?.message || data?.error || '执行失败', { category: 'error', duration: 2000 });
+      mgr.showToast(data?.message || data?.error || getSpriteEventText('workflowFail'), { category: 'error', duration: 2000 });
       mgr.playOnce('emotion', { durationMs: 1500 });
     }
   });
@@ -139,7 +140,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.SPRITE_WORKFLOW_CANCEL,
     handler: () => {
       mgr.clearBusy();
-      mgr.showToast('已取消', { category: 'info', duration: 1000 });
+      mgr.showToast(getSpriteEventText('workflowCancel'), { category: 'info', duration: 1000 });
     }
   });
 
@@ -147,7 +148,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.SPRITE_RESOURCE_IMPORT_START,
     handler: (data) => {
-      mgr.showBusy(data?.message || '导入中...', 0);
+      mgr.showBusy(data?.message || getSpriteEventText('importStart'), 0);
       mgr.playOnce('emotion', { durationMs: 1500 });
     }
   });
@@ -165,8 +166,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.SPRITE_RESOURCE_IMPORT_COMPLETE,
     handler: (data) => {
       mgr.clearBusy();
-      const msg = data?.count ? `已导入 ${data.count} 个文件` : '导入完成';
-      mgr.showToast(msg, { category: 'success', duration: 1500 });
+      mgr.showToast(data?.message || getSpriteEventText('importComplete', { count: data?.count }), { category: 'success', duration: 1500 });
       mgr.playOnce('celebrate', { durationMs: 1500 });
     }
   });
@@ -175,7 +175,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.SPRITE_RESOURCE_IMPORT_ERROR,
     handler: (data) => {
       mgr.clearBusy();
-      mgr.showToast(data?.message || data?.error || '导入失败', { category: 'error', duration: 2000 });
+      mgr.showToast(data?.message || data?.error || getSpriteEventText('importError'), { category: 'error', duration: 2000 });
       mgr.playOnce('emotion', { durationMs: 1500 });
     }
   });
@@ -335,7 +335,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.MEMORY_EXTRACTION_STARTED,
     handler: (data) => {
-      mgr.showToast(data?.message || '整理记忆中...', { category: 'processing' });
+      mgr.showToast(data?.message || getSpriteEventText('memoryExtractStart'), { category: 'processing' });
       mgr.playOnce('thinking', { durationMs: 2000 });
     }
   });
@@ -344,7 +344,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.MEMORY_EXTRACTION_PROGRESS,
     handler: (data) => {
       if (data?.progress !== undefined) {
-        mgr.updateBusy(data.progress, data.message || '记忆整理中...');
+        mgr.updateBusy(data.progress, data.message || getSpriteEventText('memoryExtractProgress', { progress: data.progress }));
       }
     }
   });
@@ -353,7 +353,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.MEMORY_EXTRACTION_COMPLETED,
     handler: (data) => {
       mgr.clearBusy();
-      mgr.showToast(data?.message || '记忆整理完毕！', { category: 'success', duration: 2000 });
+      mgr.showToast(data?.message || getSpriteEventText('memoryExtractComplete'), { category: 'success', duration: 2000 });
       mgr.playOnce('celebrate', { durationMs: 1500 });
     }
   });
@@ -362,7 +362,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.MEMORY_EXTRACTION_FAILED,
     handler: (data) => {
       mgr.clearBusy();
-      mgr.showToast(data?.message || data?.error || '记忆提取失败', { category: 'error', duration: 2000 });
+      mgr.showToast(data?.message || data?.error || getSpriteEventText('memoryExtractFail'), { category: 'error', duration: 2000 });
       mgr.playOnce('emotion', { durationMs: 1500 });
     }
   });
@@ -372,7 +372,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.USER_PERSONA_UPDATE_STARTED,
     handler: (data) => {
-      mgr.showToast(data?.message || '在更新对你的印象中...', { category: 'processing' });
+      mgr.showToast(data?.message || getSpriteEventText('personaUpdateStart'), { category: 'processing' });
       mgr.playOnce('thinking', { durationMs: 2000 });
     }
   });
@@ -380,7 +380,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.USER_PERSONA_UPDATE_COMPLETED,
     handler: (data) => {
-      mgr.showToast(data?.message || '对你的了解又加深了~', { category: 'success', duration: 2000 });
+      mgr.showToast(data?.message || getSpriteEventText('personaUpdateComplete'), { category: 'success', duration: 2000 });
       mgr.playOnce('celebrate', { durationMs: 1500 });
     }
   });
@@ -388,7 +388,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.USER_PERSONA_UPDATE_FAILED,
     handler: (data) => {
-      mgr.showToast(data?.message || data?.error || '印象更新失败了', { category: 'error', duration: 2000 });
+      mgr.showToast(data?.message || data?.error || getSpriteEventText('personaUpdateFail'), { category: 'error', duration: 2000 });
       mgr.playOnce('emotion', { durationMs: 1500 });
     }
   });
@@ -396,7 +396,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.USER_PERSONA_UPDATE_SKIPPED,
     handler: (data) => {
-      mgr.showToast(data?.message || '印象暂时不用更新~', { category: 'info', duration: 1500 });
+      mgr.showToast(data?.message || getSpriteEventText('personaUpdateSkipped'), { category: 'info', duration: 1500 });
     }
   });
 

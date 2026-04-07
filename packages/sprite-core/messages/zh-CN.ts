@@ -216,6 +216,25 @@ export const spriteEventMessages: Record<string, SpriteEventMessageEntry> = {
   impact: ['冲击！💫'],
   hit: ['命中！'],
 
+  // ── AI 对话类 ──
+  aiThinking: ['思考中...🤔', '在想呢~', '让我想想...'],
+  aiComplete: ['回答完成！✨', '搞定了~', '这就是答案~'],
+  aiError: ['思考出错了...', 'AI开小差了...', '出了点问题...'],
+
+  // ── 工作流类 ──
+  workflowStart: ['任务开始执行~', '工作流启动！', '开始处理了~'],
+  workflowComplete: ['任务完成！✨', '工作流执行成功~', '搞定！'],
+  workflowFail: ['任务执行失败了...', '工作流出错了...', '没能完成...'],
+  workflowCancel: ['任务已取消~', '工作流已停止'],
+
+  // ── 资源导入类 ──
+  importStart: ['开始导入~', '正在准备导入...'],
+  importComplete: (ctx?: { count?: number }) => {
+    if (ctx?.count) return `已导入 ${ctx.count} 个文件 ✅`;
+    return '导入完成！✨';
+  },
+  importError: ['导入失败了...', '导入出错了...'],
+
   // ── memory 记忆类 ──
   memoryExtractStart: ['整理记忆中...📝', '让我回忆一下~', '记忆提取开始~'],
   memoryExtractProgress: (ctx?: { progress?: number }) => {

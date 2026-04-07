@@ -140,3 +140,5 @@
 1. **`trigger()` 动画解析 bug**：原来 `trigger()` 调用 `playOnce('custom')`，但 `mapStateToEventType('reacting', 'custom')` 返回 `'idle'`，导致找到 idle 动画而非 trigger 指定的动画。修复：`trigger()` 直接发送 `sprite:play` 指令到渲染进程。
 
 2. **重复欢迎消息**：`SPRITE_SYSTEM_READY` 触发 `trigger('appear')` 会显示 toast，同时 `handleRendererReady()` 也显示 welcome toast。修复：`SPRITE_SYSTEM_READY` handler 改为 `silent: true`。
+
+3. **事件监听器绕过消息文案目录**：`sprite-event-listener.ts` 中大量 handler 使用 `showToast(hardcodedString)` + `playOnce()` 组合，直接传入硬编码的中文字符串作为 fallback，完全绕过了 `zh-CN.ts` 中定义的 `spriteEventMessages` 文案。`trigger()` 方法内部会调用 `getSpriteEventText()` 从文案目录随机选取文案，但 `showToast()` 被直接传入固定字符串就不会走查找逻辑。修复：所有 handler 改为 `getSpriteEventText(eventKey)` 查找文案，同时为 AI/工作流/资源导入事件补充了 `spriteEventMessages` 条目（`aiThinking`、`aiComplete`、`aiError`、`workflowStart`、`workflowComplete`、`workflowFail`、`workflowCancel`、`importStart`、`importComplete`、`importError`）。
