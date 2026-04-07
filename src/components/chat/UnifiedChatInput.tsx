@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { TbBookmark, TbLoader2, TbSend, TbSquare } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
@@ -57,39 +57,51 @@ export interface UnifiedChatInputProps {
   onHeightChange?: (height: number) => void;
 }
 
+export interface UnifiedChatInputHandle {
+  focus: () => void;
+  getValue: () => string;
+  setValue: (value: string) => void;
+}
+
 const DEFAULT_PLACEHOLDERS = ['输入问题，开始对话...', '让我帮你分析一段文字', '帮我把这段中文翻译成英文', '写一个代码示例', '检索资源库中的内容'];
 
-export default function UnifiedChatInput({
-  value,
-  defaultValue,
-  onChange,
-  onSend,
-  onSave,
-  onStop,
-  loading = false,
-  placeholders = DEFAULT_PLACEHOLDERS,
-  placeholderInterval = 3000,
-  className,
-  footerLeft,
-  footerRightExtra,
-  autoClear = true,
-  disabled = false,
-  autoFocus = false,
-  onKeyDown,
-  showSendButton = true,
-  showSaveButton = true,
-  maxHeight = 200,
-  onHeightChange
-}: UnifiedChatInputProps): JSX.Element {
+const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInputProps>(function UnifiedChatInput(
+  {
+    value,
+    defaultValue,
+    onChange,
+    onSend,
+    onSave,
+    onStop,
+    loading = false,
+    placeholders = DEFAULT_PLACEHOLDERS,
+    placeholderInterval = 3000,
+    className,
+    footerLeft,
+    footerRightExtra,
+    autoClear = true,
+    disabled = false,
+    autoFocus = false,
+    onKeyDown,
+    showSendButton = true,
+    showSaveButton = true,
+    maxHeight = 200,
+    onHeightChange
+  }: UnifiedChatInputProps,
+  ref
+): JSX.Element {
   // 受控/非受控模式
   const isControlled = useMemo(() => value !== undefined, [value]);
   const [inner, setInner] = useState<string>(defaultValue ?? '');
   const text = isControlled ? (value as string) : inner;
-  const setText = (v: string): void => {
-    if (disabled) return;
-    if (isControlled) onChange?.(v);
-    else setInner(v);
-  };
+  const setText = useCallback(
+    (v: string): void => {
+      if (disabled) return;
+      if (isControlled) onChange?.(v);
+      else setInner(v);
+    },
+    [disabled, isControlled, onChange]
+  );
 
   // 占位文字轮换
   const [phIndex, setPhIndex] = useState(() => Math.floor(Math.random() * placeholders.length));
@@ -117,6 +129,20 @@ export default function UnifiedChatInput({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [showScrollbar, setShowScrollbar] = useState(false);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      focus: () => {
+        textareaRef.current?.focus();
+      },
+      getValue: () => text,
+      setValue: (nextValue: string) => {
+        setText(nextValue);
+      }
+    }),
+    [setText, text]
+  );
 
   // 自动聚焦
   useEffect(() => {
@@ -265,4 +291,6 @@ export default function UnifiedChatInput({
       </div>
     </div>
   );
-}
+});
+
+export default UnifiedChatInput;

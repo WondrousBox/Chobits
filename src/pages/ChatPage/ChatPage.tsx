@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TbArrowDown, TbChevronRight, TbDots, TbEdit, TbHistory, TbLoader2, TbPin, TbPlus, TbRefresh, TbShare, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
@@ -25,7 +25,6 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
   const { providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, setProviderId, setModelId, setPresetId, setAgentId, setCodingWorkspace } = useChatSelection();
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; createdAt?: number; activities?: ToolActivity[]; thinking?: string; isThinking?: boolean }>>([]);
   const [loading, setLoading] = useState(false);
-  // Provider/preset/agent are managed inside ChatInputBar now
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
   const disposerRef = useRef<{ dispose: () => void; cancel: () => Promise<any> } | null>(null);
   const assistantIndexRef = useRef<number>(-1);
@@ -46,8 +45,6 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
   const [deletingConvId, setDeletingConvId] = useState<string | null>(null);
 
   const currentConversation = useMemo(() => conversations.find((c) => c.id === conversationId) || null, [conversations, conversationId]);
-
-  // Provider/agents/instances fetching moved into ChatInputBar
 
   // Load conversations list
   const loadConversations = async (): Promise<void> => {
@@ -117,11 +114,11 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
   };
 
   // Start a brand new conversation (reset state)
-  const newConversation = (): void => {
+  const newConversation = useCallback((): void => {
     setSelectedConvId(null);
     setConversationId(undefined);
     setMessages([]);
-  };
+  }, []);
 
   // Open rename dialog
   const openRenameDialog = (id: string): void => {
@@ -175,7 +172,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
     const handlePayload = (payload: any): void => {
       if (!payload?.initialMessage) return;
       // 清除缓存 payload，防止关闭后再次打开时重复触发
-      window.ipcRenderer?.invoke('window:payload:clear', 'chat').catch(() => { });
+      window.ipcRenderer?.invoke('window:payload:clear', 'chat').catch(() => {});
       // 重置为新对话状态
       newConversation();
       // 延迟一帧确保状态已重置，再发起对话
@@ -230,7 +227,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
       window.ipcRenderer?.off('on:window:open:ready', ipcHandler);
       clearTimeout(timer);
     };
-  }, []);
+  }, [newConversation, setAgentId, setCodingWorkspace, setModelId, setPresetId, setProviderId]);
 
   // Listen for conversation title updates from main process
   useEffect(() => {
@@ -317,9 +314,9 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
           ...(params.characterPersonaEnabled ? { characterPersonaEnabled: true } : {}),
           ...(selectedAgentId === 'coder' && selectedCodingWorkspaceRoot
             ? {
-              codingWorkspaceRoot: selectedCodingWorkspaceRoot,
-              codingWorkspaceLabel: selectedCodingWorkspaceLabel || undefined
-            }
+                codingWorkspaceRoot: selectedCodingWorkspaceRoot,
+                codingWorkspaceLabel: selectedCodingWorkspaceLabel || undefined
+              }
             : {})
         }
       },

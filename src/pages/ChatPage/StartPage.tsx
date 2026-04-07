@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbLanguage, TbMicrophone, TbMicrophoneOff, TbX } from 'react-icons/tb';
+import { TbLanguage, TbMicrophone, TbX } from 'react-icons/tb';
 import { toast } from 'sonner';
 
-import { UnifiedChatInput } from '@/components/chat';
+import { ChatFooterActions, mergeTranscriptWithInput, UnifiedChatInput, UnifiedChatInputHandle, useSpeechInput } from '@/components/chat';
 import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
 
@@ -22,29 +22,28 @@ const AssistantPage: React.FC = () => {
   const [query, setQuery] = useState('');
   const [opening, setOpening] = useState(true);
   const [closing, setClosing] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
   const [loading, setLoading] = useState(false);
   const contentRootRef = useRef<HTMLDivElement | null>(null);
   const inputBlockRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<UnifiedChatInputHandle>(null);
   // 控制当模型下拉展开时，暂停自动尺寸调整
   const modelMenuOpenRef = useRef<boolean>(false);
 
   const { providerId, modelId, presetId, setProviderId, setModelId, setPresetId } = useChatSelection();
 
-  const handleToggleRecording = useCallback(async () => {
-    try {
-      if (isRecording) {
-        await window.YUA.recorder.stop();
-        setIsRecording(false);
-      } else {
-        await window.YUA.recorder.start();
-        setIsRecording(true);
-      }
-    } catch (error) {
-      console.error('Failed to toggle recording:', error);
-      setIsRecording(false);
+  const handleTranscriptFinal = useCallback((text: string): void => {
+    const input = inputRef.current;
+    if (!input) {
+      return;
     }
-  }, [isRecording]);
+
+    input.setValue(mergeTranscriptWithInput(input.getValue(), text));
+    input.focus();
+  }, []);
+
+  const speechInput = useSpeechInput({
+    onTranscriptFinal: handleTranscriptFinal
+  });
 
   // 进场动画结束标记
   useEffect(() => {
@@ -246,6 +245,7 @@ const AssistantPage: React.FC = () => {
           <div ref={inputBlockRef} className="flex items-start gap-3 relative no-drag">
             <div className="flex-1 relative">
               <UnifiedChatInput
+                ref={inputRef}
                 value={query}
                 onChange={setQuery}
                 placeholders={PLACEHOLDERS}
@@ -276,14 +276,15 @@ const AssistantPage: React.FC = () => {
                   </div>
                 }
                 footerRightExtra={
-                  <Button
-                    variant={'outline'}
-                    size={'icon'}
-                    className={`rounded-full ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white'}`}
-                    onClick={handleToggleRecording}
-                  >
-                    {isRecording ? <TbMicrophoneOff /> : <TbMicrophone />}
-                  </Button>
+                  <ChatFooterActions
+                    speechInput={{
+                      disabled: loading,
+                      interimText: speechInput.interimText,
+                      isBusy: speechInput.isBusy,
+                      isListening: speechInput.isListening,
+                      onToggle: speechInput.toggle
+                    }}
+                  />
                 }
               />
             </div>

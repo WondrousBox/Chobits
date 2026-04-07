@@ -1,18 +1,27 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbAt, TbChevronDown, TbClock, TbDotsVertical, TbFolderCode, TbLoader2, TbMicrophone, TbPhoto, TbPlayerStop, TbPlus, TbWorld, TbX } from 'react-icons/tb';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { TbAt, TbClock, TbDotsVertical, TbLoader2, TbPhoto, TbPlayerStop, TbPlus, TbWorld } from 'react-icons/tb';
 import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
 import { toast } from 'sonner';
 
-import ThinkingActivity from '@/components/chat/ThinkingActivity';
-import type { ToolActivity } from '@/components/chat/ToolCallActivity';
-import ToolCallActivity from '@/components/chat/ToolCallActivity';
+import {
+  ChatAgentSelect,
+  ChatFooterActions,
+  CodingWorkspaceButton,
+  mergeTranscriptWithInput,
+  ThinkingActivity,
+  type ToolActivity,
+  ToolCallActivity,
+  UnifiedChatInput,
+  type UnifiedChatInputHandle,
+  useSpeechInput
+} from '@/components/chat';
 import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { resolveModelFirstSelection } from '@/lib/ai-model-first';
-import { inferCodingWorkspaceLabel } from '@/lib/coding-workspace';
+import { pickCodingWorkspace } from '@/lib/coding-workspace';
 import { formatRelativeTime } from '@/lib/time';
 
 interface Message {
@@ -78,12 +87,11 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
   const [loadingConvs, setLoadingConvs] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const inputRef = useRef<UnifiedChatInputHandle>(null);
   const listEndRef = useRef<HTMLDivElement | null>(null);
   const assistantIndexRef = useRef<number>(-1);
   const disposerRef = useRef<{ dispose: () => void; cancel: () => Promise<any> } | null>(null);
 
-  const currentAgent = useMemo(() => agents.find((agent) => agent.id === agentId), [agents, agentId]);
   const isCoder = agentId === 'coder';
 
   useEffect(() => {
@@ -182,16 +190,13 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
   };
 
   const handlePickWorkspace = async (): Promise<void> => {
-    const result = await window.YUA.file['file:pickDir']({
-      defaultPath: codingWorkspaceRoot || undefined
-    });
-
-    if (result?.canceled || !result.path) {
+    const workspace = await pickCodingWorkspace(codingWorkspaceRoot);
+    if (!workspace) {
       return;
     }
 
-    setCodingWorkspaceRoot(result.path);
-    setCodingWorkspaceLabel(inferCodingWorkspaceLabel(result.path));
+    setCodingWorkspaceRoot(workspace.root);
+    setCodingWorkspaceLabel(workspace.label);
   };
 
   const clearCodingWorkspace = (): void => {
@@ -212,17 +217,17 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
     listEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, loading]);
 
-  useEffect(() => {
-    const element = textareaRef.current;
-    if (!element) return;
+  const handleTranscriptFinal = useCallback((text: string): void => {
+    setInputText((prev) => mergeTranscriptWithInput(prev, text));
+    inputRef.current?.focus();
+  }, []);
 
-    element.style.height = 'auto';
-    const maxHeight = 120;
-    element.style.height = `${Math.min(element.scrollHeight, maxHeight)}px`;
-  }, [inputText]);
+  const speechInput = useSpeechInput({
+    onTranscriptFinal: handleTranscriptFinal
+  });
 
-  const handleSend = async (): Promise<void> => {
-    const content = inputText.trim();
+  const handleSend = async (nextContent?: string): Promise<void> => {
+    const content = (nextContent ?? inputText).trim();
     if (!content || loading || !providerId || !modelId) {
       if (!providerId || !modelId) {
         toast.error('请先选择一个模型');
@@ -279,9 +284,9 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
             ...(workspaceId ? { workspaceId } : {}),
             ...(isCoder && codingWorkspaceRoot
               ? {
-                codingWorkspaceRoot,
-                codingWorkspaceLabel: codingWorkspaceLabel || undefined
-              }
+                  codingWorkspaceRoot,
+                  codingWorkspaceLabel: codingWorkspaceLabel || undefined
+                }
               : {})
           }
         },
@@ -504,42 +509,28 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
       </div>
 
       <div className="px-4 py-3 shrink-0 border-t">
-        <div className="border border-border rounded-lg bg-background">
-          <textarea
-            ref={textareaRef}
-            rows={1}
-            className="w-full resize-none min-h-[40px] max-h-[120px] px-3 py-2.5 text-sm bg-transparent border-0 outline-none placeholder:text-muted-foreground/60"
-            value={inputText}
-            onChange={(event) => setInputText(event.target.value)}
-            placeholder="Plan, @ for context, / for commands"
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                if (!loading) {
-                  void handleSend();
-                }
-              }
-            }}
-          />
-
-          <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-t border-border">
+        <UnifiedChatInput
+          ref={inputRef}
+          value={inputText}
+          onChange={setInputText}
+          loading={loading}
+          onSend={handleSend}
+          onStop={handleStop}
+          autoClear={false}
+          showSaveButton={false}
+          maxHeight={120}
+          className="my-0 mx-0 max-w-none w-full"
+          placeholders={['Plan, @ for context, / for commands']}
+          footerLeft={
             <div className="flex items-center gap-1 min-w-0 flex-wrap">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button type="button" className="flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:bg-muted rounded transition-colors">
-                    <span className="text-primary">@</span>
-                    <span>{currentAgent?.label || '模式'}</span>
-                    <TbChevronDown className="w-3 h-3" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="min-w-[120px]">
-                  {agents.map((agent) => (
-                    <DropdownMenuItem key={agent.id} onClick={() => setAgentId(agent.id)}>
-                      {agent.label}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <ChatAgentSelect
+                agents={agents}
+                value={agentId}
+                onValueChange={setAgentId}
+                placeholder="模式"
+                prefix={<span className="text-primary">@</span>}
+                triggerClassName="h-auto max-w-36 gap-1 border-0 px-2 py-1 text-xs shadow-none hover:bg-muted"
+              />
 
               <ProviderModelSelect
                 providerId={providerId}
@@ -561,41 +552,40 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
               />
 
               {isCoder && (
-                <>
-                  <button
-                    type="button"
-                    className="inline-flex max-w-36 items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:bg-muted rounded transition-colors"
-                    onClick={() => void handlePickWorkspace()}
-                    title={codingWorkspaceRoot || '选择项目目录'}
-                  >
-                    <TbFolderCode className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{codingWorkspaceLabel || '选择项目'}</span>
-                  </button>
-                  {codingWorkspaceRoot && (
-                    <button type="button" className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors" onClick={clearCodingWorkspace} title="清除项目目录">
-                      <TbX className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </>
+                <CodingWorkspaceButton
+                  workspaceRoot={codingWorkspaceRoot}
+                  workspaceLabel={codingWorkspaceLabel}
+                  onPick={handlePickWorkspace}
+                  onClear={clearCodingWorkspace}
+                  triggerVariant="ghost"
+                  triggerSize="sm"
+                  triggerClassName="h-auto max-w-36 px-2 py-1 text-xs text-muted-foreground shadow-none hover:bg-muted"
+                  clearVariant="ghost"
+                  clearSize="icon"
+                  clearClassName="h-7 w-7 rounded p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted"
+                  iconClassName="h-3.5 w-3.5"
+                />
               )}
             </div>
-
-            <div className="flex items-center gap-0.5">
-              <button type="button" className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors" title="@提及">
-                <TbAt className="w-4 h-4" />
-              </button>
-              <button type="button" className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors" title="联网搜索">
-                <TbWorld className="w-4 h-4" />
-              </button>
-              <button type="button" className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors" title="上传图片">
-                <TbPhoto className="w-4 h-4" />
-              </button>
-              <button type="button" className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors" title="语音输入">
-                <TbMicrophone className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
+          }
+          footerRightExtra={
+            <ChatFooterActions
+              actionButtonClassName="h-7 w-7 rounded p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted"
+              actions={[
+                { ariaLabel: '@提及', tooltip: '@提及', icon: <TbAt className="w-4 h-4" /> },
+                { ariaLabel: '联网搜索', tooltip: '联网搜索', icon: <TbWorld className="w-4 h-4" /> },
+                { ariaLabel: '上传图片', tooltip: '上传图片', icon: <TbPhoto className="w-4 h-4" /> }
+              ]}
+              speechInput={{
+                disabled: loading,
+                interimText: speechInput.interimText,
+                isBusy: speechInput.isBusy,
+                isListening: speechInput.isListening,
+                onToggle: speechInput.toggle
+              }}
+            />
+          }
+        />
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ChatAgentSelect } from '@/components/chat';
 
 import { useChatSelection } from '../context/ChatSelectionContext';
 import ChatInput from './ChatInput';
@@ -31,22 +31,9 @@ export default function ChatInputBar({ onStart, onStop, loading, placeholder, cl
       placeholder={placeholder}
       className={className}
       footerLeft={
-        <>
-          <div className="shrink-0 no-drag">
-            <Select value={agentId} onValueChange={setAgentId}>
-              <SelectTrigger className="h-8 rounded-full text-xs text-muted-foreground">
-                <SelectValue placeholder="选择 Agent" />
-              </SelectTrigger>
-              <SelectContent className="text-xs">
-                {agents.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    {a.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </>
+        <div className="shrink-0 no-drag">
+          <ChatAgentSelect agents={agents} value={agentId} onValueChange={setAgentId} placeholder="选择 Agent" triggerClassName="h-8 rounded-full text-xs text-muted-foreground" />
+        </div>
       }
     />
   );
