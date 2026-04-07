@@ -10,13 +10,13 @@ import {
   ChatFooterActions,
   CodingWorkspaceButton,
   mergeTranscriptWithInput,
-  ThinkingActivity,
   type ToolActivity,
   ToolCallActivity,
   UnifiedChatInput,
   type UnifiedChatInputHandle,
   useSpeechInput
 } from '@/components/chat';
+import ThinkingActivity from '@/components/chat/ThinkingActivity';
 import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -284,9 +284,9 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
             ...(workspaceId ? { workspaceId } : {}),
             ...(isCoder && codingWorkspaceRoot
               ? {
-                  codingWorkspaceRoot,
-                  codingWorkspaceLabel: codingWorkspaceLabel || undefined
-                }
+                codingWorkspaceRoot,
+                codingWorkspaceLabel: codingWorkspaceLabel || undefined
+              }
               : {})
           }
         },
