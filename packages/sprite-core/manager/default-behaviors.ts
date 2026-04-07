@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /**
  * 默认行为注册
  *
@@ -5,6 +6,7 @@
  * 从 SpriteManager 中抽取为独立函数。
  */
 
+import type { BehaviorContext } from '../behavior-engine';
 import {
   createActionBehavior,
   createAmbientBehavior,
@@ -17,36 +19,93 @@ import {
   createSeasonalBehavior,
   createSleepyBehavior
 } from '../behavior-engine';
+import type { SpriteMovementConfig } from '../types';
 import type { SpriteManager } from './sprite-manager';
+
+/**
+ * 根据 walk 动画的 movement 配置计算随机行走目标位置
+ */
+function computeWalkTarget(mgr: SpriteManager, movementConfig?: SpriteMovementConfig): { targetX: number; targetY: number } | null {
+  const pos = mgr.getPosition();
+  const screen = (mgr as any).getScreenSize();
+  const config = mgr.getSpriteConfig();
+
+  const minX = -config.padding;
+  const maxX = screen.width - config.width - config.padding;
+  const targetX = Math.random() * (maxX - minX) + minX;
+
+  // 竖直范围：优先使用配置中的 verticalRange，默认 0.1（屏幕高度的 10%）
+  const verticalRange = movementConfig?.verticalRange ?? 0.1;
+  const yRange = screen.height * verticalRange;
+  const yMin = Math.max(-config.padding, pos[1] - yRange);
+  const yMax = Math.min(screen.height - config.height - config.padding, pos[1] + yRange);
+  const targetY = Math.random() * (yMax - yMin) + yMin;
+
+  return { targetX, targetY };
+}
 
 /** 注册所有默认行为到 SpriteManager */
 export function registerDefaultBehaviors(mgr: SpriteManager): void {
-  // 自动行走
-  mgr.registerBehavior(
-    createAutoWalkBehavior(async (_ctx) => {
-      if (!mgr.isAutoWalkEnabled()) return;
-      if (!(mgr as any).windowController) return;
+  // 自动行走：从 walk 动画的 movement 配置读取参数
+  const walkAnim = mgr.findAnimationByEvent('walk');
+  const walkMovement = walkAnim?.playback?.movement;
 
-      const pos = mgr.getPosition();
-      const screen = (mgr as any).getScreenSize();
-      const config = mgr.getSpriteConfig();
+  // 根据 movement 配置构建 auto-walk 行为
+  const autoWalkDef = createAutoWalkBehavior(async (_ctx) => {
+    if (!mgr.isAutoWalkEnabled()) return;
+    if (!(mgr as any).windowController) return;
 
-      const minX = -config.padding;
-      const maxX = screen.width - config.width - config.padding;
-      const targetX = Math.random() * (maxX - minX) + minX;
+    // 重新查找以获取最新配置
+    const currentWalkAnim = mgr.findAnimationByEvent('walk');
+    const movement = currentWalkAnim?.playback?.movement;
 
-      const yRange = screen.height * 0.1;
-      const yMin = Math.max(-config.padding, pos[1] - yRange);
-      const yMax = Math.min(screen.height - config.height - config.padding, pos[1] + yRange);
-      const targetY = Math.random() * (yMax - yMin) + yMin;
+    const mode = movement?.mode ?? 'walkTo';
+    const walkSpeed = movement?.speed;
 
-      await mgr.walkTo(targetX, targetY);
-    })
-  );
+    if (mode === 'walkTo') {
+      // walkTo 模式：随机选取屏幕位置，沿贝塞尔曲线行走
+      // 需要动画具备 loopStartMs/loopEndMs 循环片段
+      const hasLoop = currentWalkAnim?.playback?.loopStartMs != null && currentWalkAnim?.playback?.loopEndMs != null;
+      if (!hasLoop) return;
+
+      const target = computeWalkTarget(mgr, movement);
+      if (!target) return;
+
+      await mgr.walkTo(target.targetX, target.targetY, walkSpeed);
+    } else {
+      // direction 模式：也使用 walkTo 路径行走
+      const target = computeWalkTarget(mgr, movement);
+      if (!target) return;
+
+      await mgr.walkTo(target.targetX, target.targetY, walkSpeed);
+    }
+  });
+
+  // 使用 walk 动画配置中的 behaviorSchedule 覆盖默认调度参数
+  if (walkMovement?.trigger === 'behavior' && walkMovement.behaviorSchedule) {
+    const bs = walkMovement.behaviorSchedule;
+    autoWalkDef.schedule = {
+      type: bs.type ?? 'random',
+      intervalMs: bs.intervalMs,
+      minMs: bs.minMs ?? 10000,
+      maxMs: bs.maxMs ?? 25000
+    };
+    if (bs.probability != null) {
+      autoWalkDef.probability = bs.probability;
+    }
+    if (bs.minIdleMs != null) {
+      autoWalkDef.conditions = [
+        (ctx: BehaviorContext) => ctx.spriteState === 'idle' || ctx.spriteState === 'bored',
+        (ctx: BehaviorContext) => ctx.interactionStats.idleDuration > (bs.minIdleMs ?? 5000)
+      ];
+    }
+  }
+
+  mgr.registerBehavior(autoWalkDef);
 
   // 困倦
   const sleepyDef = createSleepyBehavior();
-  sleepyDef.action = (_ctx) => {
+  sleepyDef.action = (_ctx: BehaviorContext) => {
     mgr.playOnce('sleepy');
     mgr.showToast(undefined, { category: 'reminder' });
   };
@@ -54,7 +113,7 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
 
   // 长时间闲置困倦（100秒无交互）
   const idleSleepyDef = createIdleSleepyBehavior();
-  idleSleepyDef.action = (_ctx) => {
+  idleSleepyDef.action = (_ctx: BehaviorContext) => {
     mgr.playOnce('sleepy');
     mgr.showToast('有点困了呢...', { category: 'info', duration: 2000 });
   };
@@ -62,28 +121,28 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
 
   // 无聊
   const boredDef = createBoredBehavior();
-  boredDef.action = (_ctx) => {
+  boredDef.action = (_ctx: BehaviorContext) => {
     mgr.transitionTo('bored');
   };
   mgr.registerBehavior(boredDef);
 
   // 随机消息
   const msgDef = createRandomMessageBehavior();
-  msgDef.action = (_ctx) => {
+  msgDef.action = (_ctx: BehaviorContext) => {
     mgr.showToast(undefined, { category: 'tip' });
   };
   mgr.registerBehavior(msgDef);
 
   // 好感度衰减
   const decayDef = createFavorDecayBehavior();
-  decayDef.action = (_ctx) => {
+  decayDef.action = (_ctx: BehaviorContext) => {
     mgr.changeFavor(-1, 'idle-decay');
   };
   mgr.registerBehavior(decayDef);
 
   // ===== 情感自发行为 =====
   const emotionDef = createEmotionBehavior();
-  emotionDef.action = (ctx) => {
+  emotionDef.action = (ctx: BehaviorContext) => {
     const favor = ctx.personaState.favor;
     const highFavorEmotions = ['happy', 'joy', 'excited', 'proud', 'curious'];
     const midFavorEmotions = ['curious', 'surprised', 'shy', 'thinking'];
@@ -104,7 +163,7 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
 
   // ===== 动作自发行为 =====
   const actionDef = createActionBehavior();
-  actionDef.action = (ctx) => {
+  actionDef.action = (ctx: BehaviorContext) => {
     const favor = ctx.personaState.favor;
     const baseActions = ['sit', 'stand', 'wave', 'nod', 'point', 'lookLeft', 'lookRight'];
     const highFavorActions = ['dance', 'spin', 'jump'];

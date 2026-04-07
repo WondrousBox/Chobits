@@ -77,6 +77,7 @@ export class WindowController {
     progressed: number;
     lastTickTime: number;
     lastMoveTime: number;
+    speed: number;
   } | null = null;
 
   // 拖拽状态
@@ -103,7 +104,7 @@ export class WindowController {
   // ============================================================================
 
   /** 行走到目标位置（贝塞尔曲线路径） */
-  walkTo(targetX: number, targetY: number): Promise<void> {
+  walkTo(targetX: number, targetY: number, speed?: number): Promise<void> {
     // 如果正在行走，先停止
     if (this.walking) {
       this.cancelWalk();
@@ -162,7 +163,8 @@ export class WindowController {
       totalDist: acc,
       progressed: 0,
       lastTickTime: now,
-      lastMoveTime: 0
+      lastMoveTime: 0,
+      speed: speed ?? DEFAULT_WALK_SPEED
     };
 
     return new Promise<void>((resolve) => {
@@ -284,7 +286,8 @@ export class WindowController {
     const speed = config.speed ?? DEFAULT_WALK_SPEED;
     if (speed <= 0) return;
 
-    const dir = config.direction === 'random' ? this.resolveRandomDirection() : config.direction;
+    const direction = config.direction ?? 'random';
+    const dir = direction === 'random' ? this.resolveRandomDirection() : direction;
 
     const velocity = this.directionToVelocity(dir, speed);
     this.autoMoveVelocity = velocity;
@@ -460,7 +463,7 @@ export class WindowController {
     this.walkData.lastTickTime = now;
 
     // 前进距离
-    this.walkData.progressed = clamp(this.walkData.progressed + (DEFAULT_WALK_SPEED * dt) / 1000, 0, this.walkData.totalDist);
+    this.walkData.progressed = clamp(this.walkData.progressed + (this.walkData.speed * dt) / 1000, 0, this.walkData.totalDist);
 
     const { points, startX, startY, progressed, totalDist } = this.walkData;
 

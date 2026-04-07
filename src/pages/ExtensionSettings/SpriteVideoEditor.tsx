@@ -8,7 +8,7 @@
  * 4. 转码为 WebM（含透明通道）
  */
 
-import type { SpriteMovementConfig, SpriteMovementDirection } from '@packages/sprite-core/types';
+import type { SpriteMovementConfig, SpriteMovementDirection, SpriteMovementMode, SpriteMovementTrigger } from '@packages/sprite-core/types';
 import { ChevronsUpDown } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TbPlayerPause, TbPlayerPlay, TbPlus, TbX, TbZoomIn, TbZoomOut } from 'react-icons/tb';
@@ -188,7 +188,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
   const [title, setTitle] = useState<string>(initialConfig?.title || '');
 
   // 窗口移动配置
-  const [movement, setMovement] = useState<SpriteMovementConfig>({ enabled: false, direction: 'random', speed: 60 });
+  const [movement, setMovement] = useState<SpriteMovementConfig>({ enabled: false, mode: 'direction', direction: 'random', speed: 60 });
   // 精灵窗口 padding
   const [padding, setPadding] = useState<number>(100);
 
@@ -560,7 +560,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
     setOutput({ ...DEFAULT_OUTPUT });
     setTitle('');
     setEventType('');
-    setMovement({ enabled: false, direction: 'random', speed: 60 });
+    setMovement({ enabled: false, mode: 'direction', direction: 'random', speed: 60 });
     setPadding(100);
   }, [stopThreePhasePreview]);
 
@@ -1300,36 +1300,174 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
               </div>
 
               {movement.enabled && (
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1">
-                    <Label className="text-[11px] text-muted-foreground shrink-0">方向</Label>
-                    <Select value={movement.direction} onValueChange={(v) => setMovement((prev) => ({ ...prev, direction: v as SpriteMovementDirection }))}>
-                      <SelectTrigger className="h-7 w-28 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="left">← 向左</SelectItem>
-                        <SelectItem value="right">→ 向右</SelectItem>
-                        <SelectItem value="up">↑ 向上</SelectItem>
-                        <SelectItem value="down">↓ 向下</SelectItem>
-                        <SelectItem value="up-left">↖ 左上</SelectItem>
-                        <SelectItem value="up-right">↗ 右上</SelectItem>
-                        <SelectItem value="down-left">↙ 左下</SelectItem>
-                        <SelectItem value="down-right">↘ 右下</SelectItem>
-                        <SelectItem value="random">🎲 随机</SelectItem>
-                      </SelectContent>
-                    </Select>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1">
+                      <Label className="text-[11px] text-muted-foreground shrink-0">模式</Label>
+                      <Select value={movement.mode ?? 'direction'} onValueChange={(v) => setMovement((prev) => ({ ...prev, mode: v as SpriteMovementMode }))}>
+                        <SelectTrigger className="h-7 w-28 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="direction">方向移动</SelectItem>
+                          <SelectItem value="walkTo">随机行走</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Label className="text-[11px] text-muted-foreground shrink-0">速度</Label>
+                      <Input
+                        type="number"
+                        value={movement.speed ?? 60}
+                        onChange={(e) => setMovement((prev) => ({ ...prev, speed: Math.max(1, parseInt(e.target.value) || 60) }))}
+                        className="h-7 w-16 text-xs text-center"
+                      />
+                      <span className="text-[10px] text-muted-foreground">px/s</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Label className="text-[11px] text-muted-foreground shrink-0">速度</Label>
-                    <Input
-                      type="number"
-                      value={movement.speed ?? 60}
-                      onChange={(e) => setMovement((prev) => ({ ...prev, speed: Math.max(1, parseInt(e.target.value) || 60) }))}
-                      className="h-7 w-16 text-xs text-center"
-                    />
-                    <span className="text-[10px] text-muted-foreground">px/s</span>
+
+                  {(movement.mode ?? 'direction') === 'direction' && (
+                    <div className="flex items-center gap-1">
+                      <Label className="text-[11px] text-muted-foreground shrink-0">方向</Label>
+                      <Select value={movement.direction ?? 'random'} onValueChange={(v) => setMovement((prev) => ({ ...prev, direction: v as SpriteMovementDirection }))}>
+                        <SelectTrigger className="h-7 w-28 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="left">← 向左</SelectItem>
+                          <SelectItem value="right">→ 向右</SelectItem>
+                          <SelectItem value="up">↑ 向上</SelectItem>
+                          <SelectItem value="down">↓ 向下</SelectItem>
+                          <SelectItem value="up-left">↖ 左上</SelectItem>
+                          <SelectItem value="up-right">↗ 右上</SelectItem>
+                          <SelectItem value="down-left">↙ 左下</SelectItem>
+                          <SelectItem value="down-right">↘ 右下</SelectItem>
+                          <SelectItem value="random">🎲 随机</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {(movement.mode ?? 'direction') === 'walkTo' && (
+                    <div className="flex items-center gap-1">
+                      <Label className="text-[11px] text-muted-foreground shrink-0">竖直范围</Label>
+                      <Input
+                        type="number"
+                        step="0.05"
+                        min="0.01"
+                        max="1"
+                        value={movement.verticalRange ?? 0.1}
+                        onChange={(e) => setMovement((prev) => ({ ...prev, verticalRange: Math.max(0.01, Math.min(1, parseFloat(e.target.value) || 0.1)) }))}
+                        className="h-7 w-16 text-xs text-center"
+                      />
+                      <span className="text-[10px] text-muted-foreground">屏幕比例</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1">
+                      <Label className="text-[11px] text-muted-foreground shrink-0">触发</Label>
+                      <Select value={movement.trigger ?? 'animation'} onValueChange={(v) => setMovement((prev) => ({ ...prev, trigger: v as SpriteMovementTrigger }))}>
+                        <SelectTrigger className="h-7 w-32 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="animation">动画播放时</SelectItem>
+                          <SelectItem value="behavior">行为调度</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
+
+                  {movement.trigger === 'behavior' && (
+                    <div className="space-y-1 pl-2 border-l-2 border-muted">
+                      <div className="flex items-center gap-2">
+                        <Label className="text-[11px] text-muted-foreground shrink-0">间隔</Label>
+                        <Select
+                          value={movement.behaviorSchedule?.type ?? 'random'}
+                          onValueChange={(v) => setMovement((prev) => ({ ...prev, behaviorSchedule: { ...prev.behaviorSchedule, type: v as 'random' | 'interval' } }))}
+                        >
+                          <SelectTrigger className="h-7 w-24 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="random">随机</SelectItem>
+                            <SelectItem value="interval">固定</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {(movement.behaviorSchedule?.type ?? 'random') === 'random' ? (
+                          <>
+                            <Input
+                              type="number"
+                              value={(movement.behaviorSchedule?.minMs ?? 10000) / 1000}
+                              onChange={(e) =>
+                                setMovement((prev) => ({
+                                  ...prev,
+                                  behaviorSchedule: { ...prev.behaviorSchedule, type: prev.behaviorSchedule?.type ?? 'random', minMs: Math.max(1, parseInt(e.target.value) || 10) * 1000 }
+                                }))
+                              }
+                              className="h-7 w-14 text-xs text-center"
+                            />
+                            <span className="text-[10px] text-muted-foreground">~</span>
+                            <Input
+                              type="number"
+                              value={(movement.behaviorSchedule?.maxMs ?? 25000) / 1000}
+                              onChange={(e) =>
+                                setMovement((prev) => ({
+                                  ...prev,
+                                  behaviorSchedule: { ...prev.behaviorSchedule, type: prev.behaviorSchedule?.type ?? 'random', maxMs: Math.max(1, parseInt(e.target.value) || 25) * 1000 }
+                                }))
+                              }
+                              className="h-7 w-14 text-xs text-center"
+                            />
+                            <span className="text-[10px] text-muted-foreground">秒</span>
+                          </>
+                        ) : (
+                          <>
+                            <Input
+                              type="number"
+                              value={(movement.behaviorSchedule?.intervalMs ?? 15000) / 1000}
+                              onChange={(e) =>
+                                setMovement((prev) => ({ ...prev, behaviorSchedule: { ...prev.behaviorSchedule, type: 'interval', intervalMs: Math.max(1, parseInt(e.target.value) || 15) * 1000 } }))
+                              }
+                              className="h-7 w-14 text-xs text-center"
+                            />
+                            <span className="text-[10px] text-muted-foreground">秒</span>
+                          </>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label className="text-[11px] text-muted-foreground shrink-0">概率</Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="1"
+                          value={movement.behaviorSchedule?.probability ?? 0.8}
+                          onChange={(e) =>
+                            setMovement((prev) => ({
+                              ...prev,
+                              behaviorSchedule: { ...prev.behaviorSchedule, type: prev.behaviorSchedule?.type ?? 'random', probability: Math.max(0, Math.min(1, parseFloat(e.target.value) || 0.8)) }
+                            }))
+                          }
+                          className="h-7 w-16 text-xs text-center"
+                        />
+                        <Label className="text-[11px] text-muted-foreground shrink-0">空闲</Label>
+                        <Input
+                          type="number"
+                          value={(movement.behaviorSchedule?.minIdleMs ?? 5000) / 1000}
+                          onChange={(e) =>
+                            setMovement((prev) => ({
+                              ...prev,
+                              behaviorSchedule: { ...prev.behaviorSchedule, type: prev.behaviorSchedule?.type ?? 'random', minIdleMs: Math.max(0, parseInt(e.target.value) || 5) * 1000 }
+                            }))
+                          }
+                          className="h-7 w-14 text-xs text-center"
+                        />
+                        <span className="text-[10px] text-muted-foreground">秒</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
