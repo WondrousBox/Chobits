@@ -47,61 +47,69 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         }
       },
       {
-        id: 'asr-service',
-        label: isASRRunning ? '停止识别服务' : '启动识别服务',
-        icon: isASRRunning ? '⏹️' : '🧠',
-        shortcut: 'a',
-        action: async () => {
-          if (isASRRunning) {
-            // 停止 ASR 服务
-            try {
-              await window.YUA.sherpa.freeInstance();
-              await window.YUA.sherpa.saveASRConfig({ enabled: false });
-              setIsASRRunning(false);
-            } catch (error) {
-              console.error('停止 ASR 服务失败:', error);
-            }
-          } else {
-            // 打开 ASR 配置页面来启动服务
-            window.YUA.window['window:open']('asrConfig');
-          }
-        }
-      },
-      {
-        id: 'mic-recording',
-        label: '麦克风识别',
-        icon: '🎤',
-        shortcut: 'm',
-        action: () => {
-          window.YUA.window['window:open']('asr' as any, { audioSource: 'microphone' });
-        }
-      },
-      {
-        id: 'system-audio-recording',
-        label: '电脑声音识别',
-        icon: '🔉',
-        shortcut: 'e',
-        action: () => {
-          window.YUA.window['window:open']('asr' as any, { audioSource: 'system-audio' });
-        }
-      },
-      {
-        id: 'web-recorder',
-        label: '纯录制',
+        id: 'voice-service',
+        label: '语音服务',
         icon: '🎙️',
-        shortcut: 'p',
-        action: () => {
-          window.YUA.window['window:open']('webRecorder');
-        }
-      },
-      {
-        id: 'tts-config',
-        label: 'TTS 测试',
-        icon: '🔊',
-        shortcut: 'v',
-        action: () => {
-          window.YUA.window['window:open']('ttsConfig');
-        }
+        shortcut: 'a',
+        children: [
+          {
+            id: 'asr-service',
+            label: isASRRunning ? '停止识别服务' : '启动识别服务',
+            icon: isASRRunning ? '⏹️' : '🧠',
+            shortcut: 's',
+            action: async () => {
+              if (isASRRunning) {
+                // 停止 ASR 服务
+                try {
+                  await window.YUA.sherpa.freeInstance();
+                  await window.YUA.sherpa.saveASRConfig({ enabled: false });
+                  setIsASRRunning(false);
+                } catch (error) {
+                  console.error('停止 ASR 服务失败:', error);
+                }
+              } else {
+                // 打开 ASR 配置页面来启动服务
+                window.YUA.window['window:open']('asrConfig');
+              }
+            }
+          },
+          {
+            id: 'mic-recording',
+            label: '麦克风识别',
+            icon: '🎤',
+            shortcut: 'm',
+            action: () => {
+              window.YUA.window['window:open']('asr' as any, { audioSource: 'microphone' });
+            }
+          },
+          {
+            id: 'system-audio-recording',
+            label: '电脑声音识别',
+            icon: '🔉',
+            shortcut: 'e',
+            action: () => {
+              window.YUA.window['window:open']('asr' as any, { audioSource: 'system-audio' });
+            }
+          },
+          {
+            id: 'web-recorder',
+            label: '纯录制',
+            icon: '🎙️',
+            shortcut: 'p',
+            action: () => {
+              window.YUA.window['window:open']('webRecorder');
+            }
+          },
+          {
+            id: 'tts-config',
+            label: 'TTS 测试',
+            icon: '🔊',
+            shortcut: 'v',
+            action: () => {
+              window.YUA.window['window:open']('ttsConfig');
+            }
+          }
+        ]
       },
       {
         id: 'tagger',

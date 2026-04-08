@@ -243,9 +243,9 @@ export function buildCharacterPersonaPrompt(ctx: PersonaPromptContext): string |
   }
 
   // Boundaries
-  sections.push(`## 行为边界\n${char.identity.boundaries.map((b) => `- ${b}`).join('\n')}`);
+  sections.push(`## 核心原则\n${char.identity.boundaries.map((b) => `- ${b}`).join('\n')}`);
 
-  console.log('角色的 Prompt', sections.join('\n\n'));
+  console.log('角色的 Prompt ❤❤❤\n', sections.join('\n\n'));
 
   return sections.join('\n\n');
 }

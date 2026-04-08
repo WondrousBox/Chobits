@@ -911,7 +911,7 @@ export default function MemoryGraphPage(): React.ReactElement {
   const [rawKeywords, setRawKeywords] = useState<KeywordNode[]>([]);
   const [rawNoteKeywords, setRawNoteKeywords] = useState<NoteKeywordLink[]>([]);
   const [showNotes, setShowNotes] = useState(true);
-  const [showKeywords, setShowKeywords] = useState(false);
+  const [showKeywords, setShowKeywords] = useState(true);
   const [filterTerm, setFilterTerm] = useState('');
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [focusTopicId, setFocusTopicId] = useState<string | undefined>();
@@ -1449,14 +1449,14 @@ export default function MemoryGraphPage(): React.ReactElement {
           <div className="w-72 shrink-0 border-r border-border bg-background/50 flex flex-col">
             <div className="flex border-b border-border/50 shrink-0">
               <button
-                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${sidebarTab === 'search' ? 'text-foreground border-b-2 border-violet-500' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-t-0 border-l-0 border-r-0 ${sidebarTab === 'search' ? 'text-foreground border-b-2 border-violet-500' : 'text-muted-foreground hover:text-foreground'}`}
                 onClick={() => setSidebarTab('search')}
               >
                 <TbSearch className="h-3.5 w-3.5" />
                 记忆搜索
               </button>
               <button
-                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${sidebarTab === 'notes' ? 'text-foreground border-b-2 border-blue-500' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-t-0 border-l-0 border-r-0 ${sidebarTab === 'notes' ? 'text-foreground border-b-2 border-blue-500' : 'text-muted-foreground hover:text-foreground'}`}
                 onClick={() => setSidebarTab('notes')}
               >
                 <TbList className="h-3.5 w-3.5" />
