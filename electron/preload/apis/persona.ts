@@ -10,6 +10,21 @@ import { ipcRenderer } from 'electron';
 
 import type { PersonaSnapshot, SpritePersonaStateResult, SpriteStateSnapshot } from '../../../packages/sprite-core/types';
 
+export interface PersonaXPGainedPayload {
+  amount: number;
+  source?: string;
+  newXP: number;
+}
+
+export interface PersonaFavorChangedPayload {
+  oldFavor: number;
+  newFavor: number;
+  delta: number;
+  reason?: string;
+  levelChanged: boolean;
+  newLevel?: string;
+}
+
 export const personaApi = {
   /** 获取完整人格状态 */
   getState: (): Promise<SpritePersonaStateResult> => ipcRenderer.invoke('sprite:persona:getState'),
@@ -52,6 +67,20 @@ export const personaApi = {
     const handler = (_: any, data: { oldLevel: number; newLevel: number }): void => callback(data);
     ipcRenderer.on('persona:level-up', handler);
     return () => ipcRenderer.removeListener('persona:level-up', handler);
+  },
+
+  /** 订阅经验增长事件 */
+  onXPGained: (callback: (data: PersonaXPGainedPayload) => void) => {
+    const handler = (_: any, data: PersonaXPGainedPayload): void => callback(data);
+    ipcRenderer.on('persona:xp-gained', handler);
+    return () => ipcRenderer.removeListener('persona:xp-gained', handler);
+  },
+
+  /** 订阅好感度变化事件 */
+  onFavorChanged: (callback: (data: PersonaFavorChangedPayload) => void) => {
+    const handler = (_: any, data: PersonaFavorChangedPayload): void => callback(data);
+    ipcRenderer.on('persona:favor-changed', handler);
+    return () => ipcRenderer.removeListener('persona:favor-changed', handler);
   },
 
   /** 订阅每日登录事件 */

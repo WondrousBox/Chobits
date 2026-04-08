@@ -7,7 +7,7 @@
 
 import { AppEvent, eventManager } from '@packages/event';
 
-import { getConversationRewards, getDimensionSchema } from '../character-service';
+import { type ActivityRewardId, getActivityRewards, getConversationRewards, getDimensionSchema } from '../character-service';
 import type { SpriteManager } from '../manager';
 import { getSpriteEventText } from '../messages/zh-CN';
 
@@ -17,6 +17,7 @@ export interface SpriteEventPayload {
   workflowName?: string;
   count?: number;
   error?: string;
+  success?: boolean;
   // AI conversation reward fields
   conversationId?: string;
   messageCount?: number;
@@ -36,6 +37,37 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
 
   // ===== 对话奖励冷却 =====
   let lastRewardTime = 0;
+
+  const applyDimensionGrowth = (growthBySource: Record<string, number> | undefined): void => {
+    if (!growthBySource) return;
+    const dims = getDimensionSchema();
+    if (!dims.length) return;
+
+    for (const dim of dims) {
+      let growth = 0;
+      for (const [source, amount] of Object.entries(growthBySource)) {
+        if (amount > 0 && dim.growthSources.includes(source)) {
+          growth += amount;
+        }
+      }
+      if (growth > 0) {
+        mgr.updateDimension(dim.id, growth, dim.maxValue);
+      }
+    }
+  };
+
+  const grantActivityReward = (activityId: ActivityRewardId): void => {
+    const reward = getActivityRewards()[activityId];
+    if (!reward) return;
+
+    if (reward.xp > 0) {
+      mgr.addXP(reward.xp, activityId);
+    }
+    if (reward.favor !== 0) {
+      mgr.changeFavor(reward.favor, activityId);
+    }
+    applyDimensionGrowth(reward.dimensionGrowth);
+  };
 
   // AI 聊天事件
   handlers.push({
@@ -77,18 +109,11 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
       mgr.changeFavor(rewards.favorPerConversation + bonusFavor, 'conversation');
 
       // ===== 维度成长 =====
-      const dims = getDimensionSchema();
-      if (dims) {
-        for (const dim of dims) {
-          let growth = 0;
-          if (dim.growthSources.includes('conversation')) growth += 1.0;
-          if (dim.growthSources.includes('tool-usage') && data?.toolCallCount && data.toolCallCount > 0) growth += 0.8;
-          if (dim.growthSources.includes('task-completion') && data?.assistantContentLength && data.assistantContentLength >= 500) growth += 0.5;
-          if (growth > 0) {
-            mgr.updateDimension(dim.id, growth, dim.maxValue);
-          }
-        }
-      }
+      applyDimensionGrowth({
+        conversation: 1.0,
+        'tool-usage': data?.toolCallCount && data.toolCallCount > 0 ? 0.8 : 0,
+        'task-completion': data?.assistantContentLength && data.assistantContentLength >= 500 ? 0.5 : 0
+      });
     }
   });
 
@@ -124,6 +149,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
       mgr.clearBusy();
       mgr.showToast(data?.message || getSpriteEventText('workflowComplete'), { category: 'celebrate', duration: 2000 });
       mgr.playOnce('celebrate', { durationMs: 2000 });
+      grantActivityReward('workflow-complete');
     }
   });
 
@@ -168,6 +194,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
       mgr.clearBusy();
       mgr.showToast(data?.message || getSpriteEventText('importComplete', { count: data?.count }), { category: 'success', duration: 1500 });
       mgr.playOnce('celebrate', { durationMs: 1500 });
+      grantActivityReward('resource-import-complete');
     }
   });
 
@@ -193,6 +220,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.SPRITE_DOWNLOAD_COMPLETE,
     handler: (data) => {
       mgr.trigger('success', { message: data?.message || '下载完成！' });
+      grantActivityReward('download-complete');
     }
   });
 
@@ -209,6 +237,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.SPRITE_PLUGIN_INSTALL,
     handler: (data) => {
       mgr.trigger('install', { message: data?.message || '插件安装完成！' });
+      grantActivityReward('plugin-install');
     }
   });
 
@@ -216,6 +245,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.SPRITE_PLUGIN_REMOVE,
     handler: (data) => {
       mgr.trigger('remove', { message: data?.message || '插件已移除' });
+      grantActivityReward('plugin-remove');
     }
   });
 
@@ -223,6 +253,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.SPRITE_PLUGIN_UPDATE,
     handler: (data) => {
       mgr.trigger('update', { message: data?.message || '插件已更新！' });
+      grantActivityReward('plugin-update');
     }
   });
 
@@ -294,6 +325,11 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.SPRITE_MEDIA_PROCESS_COMPLETE,
     handler: (data) => {
       mgr.clearBusy();
+      if (data?.success === false) {
+        mgr.trigger('error', { message: data?.message || '媒体处理失败' });
+        return;
+      }
+      grantActivityReward('media-process-complete');
       mgr.trigger('success', { message: data?.message || '媒体处理完成！' });
     }
   });
@@ -326,6 +362,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.SPRITE_TRASH_RESTORE,
     handler: (data) => {
+      grantActivityReward('trash-restore');
       mgr.trigger('success', { message: data?.message || '已从回收站恢复！' });
     }
   });
@@ -336,7 +373,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.MEMORY_EXTRACTION_STARTED,
     handler: (data) => {
       mgr.showToast(data?.message || getSpriteEventText('memoryExtractStart'), { category: 'processing' });
-      mgr.playOnce('thinking', { durationMs: 2000 });
+      mgr.trigger('thinking', { durationMs: 2000, silent: true });
     }
   });
 
@@ -355,6 +392,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
       mgr.clearBusy();
       mgr.showToast(data?.message || getSpriteEventText('memoryExtractComplete'), { category: 'success', duration: 2000 });
       mgr.playOnce('celebrate', { durationMs: 1500 });
+      grantActivityReward('memory-extraction-completed');
     }
   });
 
@@ -373,7 +411,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.USER_PERSONA_UPDATE_STARTED,
     handler: (data) => {
       mgr.showToast(data?.message || getSpriteEventText('personaUpdateStart'), { category: 'processing' });
-      mgr.playOnce('thinking', { durationMs: 2000 });
+      mgr.trigger('thinking', { durationMs: 2000, silent: true });
     }
   });
 
@@ -382,6 +420,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     handler: (data) => {
       mgr.showToast(data?.message || getSpriteEventText('personaUpdateComplete'), { category: 'success', duration: 2000 });
       mgr.playOnce('celebrate', { durationMs: 1500 });
+      grantActivityReward('user-persona-update-completed');
     }
   });
 

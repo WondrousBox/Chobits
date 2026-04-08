@@ -48,19 +48,7 @@ export const StatusPage: React.FC = () => {
   return (
     <div className="w-full h-full bg-background rounded-xl">
       <div className="flex p-1 items-center">
-        <div className="flex-1 pl-1">
-          {role && (
-            <div className="text-sm flex items-center gap-4">
-              <span>
-                {role.name} <span className="text-muted-foreground text-xs ml-1">Lv.{persona?.level ?? '—'}</span>
-              </span>
-              <div className="flex items-center gap-1">
-                <TbHeartFilled color="red" size={16} />
-                <span className="font-mono text-xs text-muted-foreground">{persona?.favor ?? 0}</span>
-              </div>
-            </div>
-          )}
-        </div>
+        <div className="flex-1 pl-1">{role && <div className="text-sm flex items-center gap-4">{role.name}</div>}</div>
         <Button
           size="icon"
           variant={'outline'}
@@ -77,12 +65,7 @@ export const StatusPage: React.FC = () => {
       <PersonaStatusPanel persona={persona} />
 
       {/* 维度雷达图 */}
-      {dimensions && dimensions.length >= 3 && (
-        <div className="flex flex-col items-center px-2 py-3">
-          <h3 className="text-xs font-medium text-muted-foreground mb-2">能力维度</h3>
-          <RadarChart dimensions={dimensions} className="w-full" />
-        </div>
-      )}
+      {dimensions && dimensions.length >= 3 && <RadarChart dimensions={dimensions} className="w-full" />}
     </div>
   );
 };

@@ -17,6 +17,7 @@ import { MessageProvider, SpriteMessage } from './message';
 import { Renderer } from './renderers';
 import { useSpriteSpeak } from './speak/useSpriteSpeak';
 import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
+import PersonaGainEffects from './ui/PersonaGainEffects';
 import StatusIndicator from './ui/StatusIndicator';
 
 const showBlock = false; // 开发时显示
@@ -142,6 +143,7 @@ const AIAssistantInner: React.FC = () => {
       <PaddingDebugOverlay padding={padding} />
       {/* 统一消息组件 */}
       <SpriteMessage />
+      <PersonaGainEffects />
       <Dropzone
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}

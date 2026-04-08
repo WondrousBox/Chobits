@@ -352,17 +352,23 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   // ===== 初始化事件监听器（订阅业务事件触发动画） =====
   initSpriteEventListener(mgr);
 
-  // ===== 事件转发：persona:level-up → 主窗口 =====
+  // ===== 事件转发：persona:* → 主窗口 =====
   // 渲染进程负责打开窗口和处理数据
-  mgr.on('persona:level-up', (event) => {
-    try {
-      if (!win.isDestroyed()) {
-        win.webContents.send('persona:level-up', event.payload);
+  const forwardPersonaEvent = (eventName: string, channel: string): void => {
+    mgr.on(eventName, (event) => {
+      try {
+        if (!win.isDestroyed()) {
+          win.webContents.send(channel, event.payload);
+        }
+      } catch {
+        /* ignore */
       }
-    } catch {
-      /* ignore */
-    }
-  });
+    });
+  };
+
+  forwardPersonaEvent('persona:level-up', 'persona:level-up');
+  forwardPersonaEvent('persona:xp-gained', 'persona:xp-gained');
+  forwardPersonaEvent('persona:favor-changed', 'persona:favor-changed');
 
   // ===== 临时资源根目录（用于视频预览等场景） =====
   ipcMain.handle('sprite:addTempResourceRoot', (_e, root: string) => {

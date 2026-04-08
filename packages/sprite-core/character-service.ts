@@ -72,6 +72,24 @@ export interface ConversationRewards {
   bonusConditions: ConversationBonusCondition[];
 }
 
+export type ActivityRewardId =
+  | 'workflow-complete'
+  | 'resource-import-complete'
+  | 'download-complete'
+  | 'plugin-install'
+  | 'plugin-update'
+  | 'plugin-remove'
+  | 'media-process-complete'
+  | 'memory-extraction-completed'
+  | 'user-persona-update-completed'
+  | 'trash-restore';
+
+export interface ActivityReward {
+  xp: number;
+  favor: number;
+  dimensionGrowth?: Record<string, number>;
+}
+
 export interface ToolLabelTemplate {
   calling: string;
   done: string;
@@ -112,6 +130,7 @@ export interface CharacterDefinition {
     extensible: boolean;
   };
   conversationRewards: ConversationRewards;
+  activityRewards?: Partial<Record<ActivityRewardId, ActivityReward>>;
   /** Per-tool display label overrides with placeholder support */
   toolLabels?: Record<string, ToolLabelDefinition>;
   meta: CharacterMeta;
@@ -121,6 +140,85 @@ export interface CharacterDefinition {
 
 let cachedCharacter: CharacterDefinition | null = null;
 let characterFilePath: string | null = null;
+
+const DEFAULT_ACTIVITY_REWARDS: Record<ActivityRewardId, ActivityReward> = {
+  'workflow-complete': {
+    xp: 12,
+    favor: 0.4,
+    dimensionGrowth: {
+      'workflow-usage': 1.0,
+      'task-completion': 0.6
+    }
+  },
+  'resource-import-complete': {
+    xp: 8,
+    favor: 0.2,
+    dimensionGrowth: {
+      'task-completion': 0.5
+    }
+  },
+  'download-complete': {
+    xp: 8,
+    favor: 0.2,
+    dimensionGrowth: {
+      'task-completion': 0.4
+    }
+  },
+  'plugin-install': {
+    xp: 10,
+    favor: 0.3,
+    dimensionGrowth: {
+      'tool-usage': 0.8,
+      'task-completion': 0.5
+    }
+  },
+  'plugin-update': {
+    xp: 6,
+    favor: 0.2,
+    dimensionGrowth: {
+      'tool-usage': 0.6,
+      'task-completion': 0.4
+    }
+  },
+  'plugin-remove': {
+    xp: 4,
+    favor: 0,
+    dimensionGrowth: {
+      'tool-usage': 0.4
+    }
+  },
+  'media-process-complete': {
+    xp: 9,
+    favor: 0.2,
+    dimensionGrowth: {
+      'task-completion': 0.5,
+      'tool-usage': 0.3
+    }
+  },
+  'memory-extraction-completed': {
+    xp: 3,
+    favor: 0.1,
+    dimensionGrowth: {
+      conversation: 0.3,
+      'task-completion': 0.2
+    }
+  },
+  'user-persona-update-completed': {
+    xp: 5,
+    favor: 0.3,
+    dimensionGrowth: {
+      conversation: 0.4,
+      'task-completion': 0.3
+    }
+  },
+  'trash-restore': {
+    xp: 4,
+    favor: 0.1,
+    dimensionGrowth: {
+      'task-completion': 0.2
+    }
+  }
+};
 
 /**
  * Initialize the character service with the sprites directory path.
@@ -169,6 +267,33 @@ export function getConversationRewards(): ConversationRewards {
     cooldownMs: 60_000,
     bonusConditions: []
   };
+}
+
+/**
+ * Get the activity reward config for non-conversation user-visible completions.
+ * Returns defaults if character is not loaded, and merges per-activity overrides.
+ */
+export function getActivityRewards(): Record<ActivityRewardId, ActivityReward> {
+  const char = getCharacterDefinition();
+  const overrides = char?.activityRewards ?? {};
+  const activityIds = Object.keys(DEFAULT_ACTIVITY_REWARDS) as ActivityRewardId[];
+
+  return activityIds.reduce(
+    (acc, activityId) => {
+      const base = DEFAULT_ACTIVITY_REWARDS[activityId];
+      const override = overrides[activityId];
+      acc[activityId] = {
+        ...base,
+        ...override,
+        dimensionGrowth: {
+          ...(base.dimensionGrowth ?? {}),
+          ...(override?.dimensionGrowth ?? {})
+        }
+      };
+      return acc;
+    },
+    {} as Record<ActivityRewardId, ActivityReward>
+  );
 }
 
 /**

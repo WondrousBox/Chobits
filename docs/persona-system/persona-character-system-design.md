@@ -8,6 +8,9 @@
 >
 > - `PersonaState.dimensions` 已纳入 `persona-state.json` 持久化，并增加历史快照兼容读取
 > - `persona:dimension-updated` 已补入 EventBus 类型定义
+> - 精灵主界面已补齐 XP / 好感度增长的前端反馈通路：主进程转发 `persona:xp-gained`、`persona:favor-changed`，视频精灵可显示飘字与爱心动画
+> - `recordDailyLogin()` 现已直接兑现登录 / 连续登录奖励，不再只返回 `xpBonus` 而遗漏实际状态变更
+> - `character.json` 新增 `activityRewards`，用于配置工作流、导入、下载、插件、媒体处理、记忆提取、用户画像更新、回收站恢复等完成态事件的 XP / 好感度 / 维度成长奖励
 >
 > 运行时统一收口方案见 `docs/sprite-core/sprite-runtime-unification-plan.md`
 
@@ -286,6 +289,64 @@ resources/sprites/
         "favorBonus": 1.0
       }
     ]
+  },
+
+  // ======== 业务完成态奖励配置 ========
+  "activityRewards": {
+    "workflow-complete": {
+      "xp": 12,
+      "favor": 0.4,
+      "dimensionGrowth": {
+        "workflow-usage": 1.0,
+        "task-completion": 0.6
+      }
+    },
+    "download-complete": {
+      "xp": 8,
+      "favor": 0.2,
+      "dimensionGrowth": {
+        "task-completion": 0.4
+      }
+    },
+    "plugin-install": {
+      "xp": 10,
+      "favor": 0.3,
+      "dimensionGrowth": {
+        "tool-usage": 0.8,
+        "task-completion": 0.5
+      }
+    },
+    "media-process-complete": {
+      "xp": 9,
+      "favor": 0.2,
+      "dimensionGrowth": {
+        "task-completion": 0.5,
+        "tool-usage": 0.3
+      }
+    },
+    "memory-extraction-completed": {
+      "xp": 3,
+      "favor": 0.1,
+      "dimensionGrowth": {
+        "conversation": 0.3,
+        "task-completion": 0.2
+      }
+    },
+    "user-persona-update-completed": {
+      "xp": 5,
+      "favor": 0.3,
+      "dimensionGrowth": {
+        "conversation": 0.4,
+        "task-completion": 0.3
+      }
+    },
+    "trash-restore": {
+      "xp": 4,
+      "favor": 0.1,
+      "dimensionGrowth": {
+        "task-completion": 0.2
+      }
+    }
   },
 
   // ======== 元数据 ========
@@ -1039,6 +1100,7 @@ effective = delta × (1 + level × 0.01) × (1 - currentValue/maxValue × 0.5)
   - `initCharacterService(spritesDir)` 初始化
   - `getCharacterDefinition()` 带缓存的加载
   - `getConversationRewards()` 获取奖励配置（含 fallback 默认值）
+  - `getActivityRewards()` 获取工作流 / 下载 / 插件等完成态奖励配置
   - `getFavorPersonaOverlay(level)` 获取好感度层
   - `getDimensionSchema()` 获取维度定义
   - `reloadCharacter()` 支持运行时重载

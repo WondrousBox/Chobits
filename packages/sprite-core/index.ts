@@ -58,6 +58,8 @@ export { AnimationRegistry } from './animation-registry';
 export type { BehaviorCondition, BehaviorContext, BehaviorDefinition, BehaviorPriority } from './behavior-engine';
 export { BehaviorEngine, createAutoWalkBehavior, createBoredBehavior, createFavorDecayBehavior, createRandomMessageBehavior, createSleepyBehavior } from './behavior-engine';
 export type {
+  ActivityReward,
+  ActivityRewardId,
   CharacterDefinition,
   ConditionalToolLabel,
   ConversationRewards,
@@ -70,6 +72,7 @@ export type {
 } from './character-service';
 export {
   buildCharacterPersonaPrompt,
+  getActivityRewards,
   getCharacterDefinition,
   getCharacterInfo,
   getCharacterToolLabels,
