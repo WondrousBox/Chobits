@@ -67,6 +67,18 @@ export interface OutputSettings {
 
 // 默认输出设置
 const DEFAULT_OUTPUT: OutputSettings = { fps: 8, width: 360, height: 480 };
+const DEFAULT_PLAYBACK_SCALE = 1;
+const DEFAULT_PADDING = 100;
+const DEFAULT_MOVEMENT: SpriteMovementConfig = { enabled: false, mode: 'direction', direction: 'random', speed: 60 };
+
+function normalizePlaybackScale(scale?: number): number {
+  if (!Number.isFinite(scale)) return DEFAULT_PLAYBACK_SCALE;
+  return Math.max(1, scale ?? DEFAULT_PLAYBACK_SCALE);
+}
+
+function getPlaybackDimension(outputSize: number, playbackScale: number): number {
+  return Math.max(1, Math.round(outputSize / normalizePlaybackScale(playbackScale)));
+}
 
 // 编辑器配置
 export interface SpriteVideoConfig {
@@ -75,6 +87,9 @@ export interface SpriteVideoConfig {
   chromaKey: ChromaKeySettings;
   speeds: SegmentSpeeds;
   output: OutputSettings;
+  playbackScale: number;
+  padding: number;
+  movement: SpriteMovementConfig;
   eventType?: string;
   title?: string;
 }
@@ -182,15 +197,19 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
 
   // 输出设置
   const [output, setOutput] = useState<OutputSettings>(initialConfig?.output || { ...DEFAULT_OUTPUT });
+  const [playbackScale, setPlaybackScale] = useState<number>(normalizePlaybackScale(initialConfig?.playbackScale));
 
   // 元数据
   const [eventType, setEventType] = useState<string>(initialConfig?.eventType || '');
   const [title, setTitle] = useState<string>(initialConfig?.title || '');
 
   // 窗口移动配置
-  const [movement, setMovement] = useState<SpriteMovementConfig>({ enabled: false, mode: 'direction', direction: 'random', speed: 60 });
+  const [movement, setMovement] = useState<SpriteMovementConfig>(initialConfig?.movement || { ...DEFAULT_MOVEMENT });
   // 精灵窗口 padding
-  const [padding, setPadding] = useState<number>(100);
+  const [padding, setPadding] = useState<number>(initialConfig?.padding ?? DEFAULT_PADDING);
+
+  const playbackWidth = getPlaybackDimension(output.width, playbackScale);
+  const playbackHeight = getPlaybackDimension(output.height, playbackScale);
 
   // 预览模式 — 启用色度键后自动开启
   const previewChroma = chromaKey.enabled;
@@ -256,11 +275,14 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
         chromaKey,
         speeds,
         output,
+        playbackScale,
+        padding,
+        movement,
         eventType,
         title
       });
     }
-  }, [inputPath, segments, chromaKey, speeds, output, eventType, title, onConfigChange]);
+  }, [inputPath, segments, chromaKey, speeds, output, playbackScale, padding, movement, eventType, title, onConfigChange]);
 
   // 视频加载完成
   const handleLoadedMetadata = useCallback(() => {
@@ -269,12 +291,19 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
     const dur = video.duration * 1000;
     setDuration(dur);
     // 初始化片段标记
-    setSegments((prev) => ({
-      start: prev.start || 0,
-      loopStart: prev.loopStart || 0,
-      loopEnd: prev.loopEnd || dur * 0.3,
-      end: prev.end || dur
-    }));
+    setSegments((prev) => {
+      const start = Math.max(0, Math.min(prev.start, dur));
+      const end = prev.end > 0 ? Math.max(start, Math.min(prev.end, dur)) : dur;
+      const loopStart = Math.max(start, Math.min(prev.loopStart, end));
+      const loopEnd = prev.loopEnd > loopStart ? Math.min(prev.loopEnd, end) : loopStart;
+
+      return {
+        start,
+        loopStart,
+        loopEnd,
+        end
+      };
+    });
   }, []);
 
   // 时间更新
@@ -558,10 +587,11 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
     setChromaKey({ enabled: false, color: '#00ff00', similarity: 40, blend: 15 });
     setSpeeds({ intro: 1, loop: 1, outro: 1 });
     setOutput({ ...DEFAULT_OUTPUT });
+    setPlaybackScale(DEFAULT_PLAYBACK_SCALE);
     setTitle('');
     setEventType('');
-    setMovement({ enabled: false, mode: 'direction', direction: 'random', speed: 60 });
-    setPadding(100);
+    setMovement({ ...DEFAULT_MOVEMENT });
+    setPadding(DEFAULT_PADDING);
   }, [stopThreePhasePreview]);
 
   // Canvas 录制导出：播放视频并实时应用色度键，通过 MediaRecorder 录制为 WebM VP9 with Alpha
@@ -714,15 +744,15 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
           loopStartMs: adjustedLoopStart,
           loopEndMs: adjustedLoopEnd,
           durationMs: trimmedDuration,
-          width: output.width,
-          height: output.height,
+          width: playbackWidth,
+          height: playbackHeight,
           padding,
           movement: movement.enabled ? movement : undefined
         });
       } else {
         // FFmpeg 路径：裁剪 + 倍速 + 转码 WebM VP9
         if (onProcess) {
-          await onProcess({ inputPath, segments, chromaKey, speeds, output, eventType, title });
+          await onProcess({ inputPath, segments, chromaKey, speeds, output, playbackScale, padding, movement, eventType, title });
           return; // onProcess 负责后续流程
         }
         // Fallback: 直接调用 FFmpeg + 注册
@@ -737,8 +767,8 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
         });
         await window.YUA.sprite.register({
           filePath: outputPath,
-          width: output.width,
-          height: output.height,
+          width: playbackWidth,
+          height: playbackHeight,
           padding,
           loopStartMs: adjustedLoopStart,
           loopEndMs: adjustedLoopEnd,
@@ -759,7 +789,26 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
       setInternalProcessing(false);
       setProcessProgress(0);
     }
-  }, [inputPath, processingFlag, segments, speeds, output, chromaKey, eventType, title, hasLoop, padding, movement, stopThreePhasePreview, recordCanvasWithChromaKey, onProcess, onImportComplete]);
+  }, [
+    inputPath,
+    processingFlag,
+    segments,
+    speeds,
+    output,
+    chromaKey,
+    eventType,
+    title,
+    hasLoop,
+    padding,
+    movement,
+    playbackScale,
+    playbackWidth,
+    playbackHeight,
+    stopThreePhasePreview,
+    recordCanvasWithChromaKey,
+    onProcess,
+    onImportComplete
+  ]);
 
   return (
     <div className="h-full">
@@ -852,8 +901,8 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
                       variant="outline"
                       onClick={() => {
                         window.YUA.sprite.previewMovement({
-                          width: output.width,
-                          height: output.height,
+                          width: playbackWidth,
+                          height: playbackHeight,
                           padding,
                           movement
                         });
@@ -1250,7 +1299,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
               {/* 输出设置 */}
               <div className="space-y-2 border-t pt-3 flex-1">
                 <Label className="text-xs">输出设置</Label>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <div className="flex items-center gap-1">
                     <Label className="text-[11px] text-muted-foreground shrink-0">宽</Label>
                     <Input
@@ -1283,15 +1332,24 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
 
               {/* 窗口设置 */}
               <div className="space-y-3 border-t pt-3 flex-1">
-                <Label className="text-xs">窗口设置</Label>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1">
-                    <Label className="text-[11px] text-muted-foreground shrink-0">Padding</Label>
-                    <Input type="number" value={padding} onChange={(e) => setPadding(Math.max(0, parseInt(e.target.value) || 0))} className="h-7 w-16 text-xs text-center" />
-                  </div>
+                <div className="text-lg font-bold">播放设置</div>
+                <div className="flex items-center gap-1">
+                  <div className="text-[11px] text-muted-foreground shrink-0">视频播放倍数</div>
+                  <Select value={String(playbackScale)} onValueChange={(v) => setPlaybackScale(Number(v))}>
+                    <SelectTrigger className="h-8 w-20 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">@x1</SelectItem>
+                      <SelectItem value="2">@x2</SelectItem>
+                      <SelectItem value="3">@x3</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <span className="text-[10px] text-muted-foreground">
-                    窗口总宽 = {output.width + padding * 2}，总高 = {output.height + padding * 2}
+                    Video = {output.width} x {output.height}, JSON = {playbackWidth} x {playbackHeight} Window = {playbackWidth + padding * 2} x {playbackHeight + padding * 2}
                   </span>
+                  <div className="text-[11px] text-muted-foreground shrink-0">窗口设置</div>
+                  <Input type="number" value={padding} onChange={(e) => setPadding(Math.max(0, parseInt(e.target.value) || 0))} className="h-7 w-16 text-xs text-center" />
                 </div>
 
                 {/* 窗口移动 */}

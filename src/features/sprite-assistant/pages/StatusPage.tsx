@@ -46,8 +46,8 @@ export const StatusPage: React.FC = () => {
   if (loading) return <div className="p-6 text-muted-foreground">加载中...</div>;
 
   return (
-    <div className="w-full h-full">
-      <div className="flex p-1 items-center bg-background">
+    <div className="w-full h-full bg-background rounded-xl">
+      <div className="flex p-1 items-center">
         <div className="flex-1 pl-1">
           {role && (
             <div className="text-sm flex items-center gap-4">
@@ -64,7 +64,7 @@ export const StatusPage: React.FC = () => {
         <Button
           size="icon"
           variant={'outline'}
-          className="w-8 h-8"
+          className="w-8 h-8 rounded-full"
           onClick={() => {
             window.YUA.window['window:close']('status');
           }}
@@ -80,7 +80,7 @@ export const StatusPage: React.FC = () => {
       {dimensions && dimensions.length >= 3 && (
         <div className="flex flex-col items-center px-2 py-3">
           <h3 className="text-xs font-medium text-muted-foreground mb-2">能力维度</h3>
-          <RadarChart dimensions={dimensions} size={180} />
+          <RadarChart dimensions={dimensions} className="w-full" />
         </div>
       )}
     </div>
