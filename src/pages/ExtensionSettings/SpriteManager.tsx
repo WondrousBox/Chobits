@@ -26,6 +26,10 @@ function baseName(p: string): string {
   return last;
 }
 
+function getPlaybackSize(outputSize: number, playbackScale?: number): number {
+  return Math.max(1, Math.round(outputSize / Math.max(1, playbackScale || 1)));
+}
+
 // 小型预览组件：只有在 hover 时才真正挂载 <video>，离开时卸载，避免同时占用大量资源
 // 精灵预览：静止首帧，hover 播放循环
 function SpritePreview({ src, type, width, height }: { src: string; type: string; width: number; height: number }): JSX.Element {
@@ -264,7 +268,7 @@ export default function SpriteManager({ className }: { className?: string }): JS
       </div>
       {/* 精灵导入工具弹窗 */}
       {toolOpen && (
-        <div className="h-[100vh] w-[100vw] max-w-[unset] overflow-none fixed top-0 left-0 z-[9999] bg-background">
+        <div className="h-[100vh] w-[100vw] max-w-[unset] overflow-none fixed top-0 left-0 z-[40] bg-background">
           <div className="p-2 box-border flex justify-between items-center">
             精灵视频导入
             <Button size="icon" variant={'ghost'} onClick={() => setToolOpen(false)}>
@@ -303,11 +307,17 @@ export default function SpriteManager({ className }: { className?: string }): JS
                   const introDur = hasLoop ? (config.segments.loopStart - config.segments.start) / sp.intro : (config.segments.end - config.segments.start) / sp.intro;
                   const loopDur = hasLoop ? (config.segments.loopEnd - config.segments.loopStart) / sp.loop : 0;
                   const outroDur = hasLoop ? (config.segments.end - config.segments.loopEnd) / sp.outro : 0;
+                  const spriteWidth = getPlaybackSize(config.output.width, config.playbackScale);
+                  const spriteHeight = getPlaybackSize(config.output.height, config.playbackScale);
                   await window.YUA.sprite.register({
                     filePath: outputPath,
+                    width: spriteWidth,
+                    height: spriteHeight,
+                    padding: config.padding,
                     loopStartMs: hasLoop ? introDur : undefined,
                     loopEndMs: hasLoop ? introDur + loopDur : undefined,
                     durationMs: introDur + loopDur + outroDur,
+                    movement: config.movement.enabled ? config.movement : undefined,
                     meta: {
                       id,
                       title: config.title || '自定义动画',

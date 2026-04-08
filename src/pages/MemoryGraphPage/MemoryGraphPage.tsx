@@ -1037,19 +1037,28 @@ export default function MemoryGraphPage(): React.ReactElement {
         ctx.lineWidth = isHighlighted ? 2.5 : isSelected ? 2 : 1;
         ctx.stroke();
 
-        const fontSize = Math.max(10, Math.min(14, 10 + n.noteCount));
-        const scaledFont = (isHighlighted ? fontSize + 1 : fontSize) / globalScale;
-        ctx.font = `${isHighlighted ? '700' : '600'} ${scaledFont}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+        // 文本绘制在圆形内部，字号跟随缩放
+        const fontSize = Math.max(4, drawSize * 0.55);
+        ctx.font = `${isHighlighted ? '700' : '600'} ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
-        const textWidth = ctx.measureText(n.label).width;
-        const textY = y + drawSize + scaledFont * 0.8;
-        ctx.fillStyle = isHighlighted ? 'rgba(0, 0, 0, 0.8)' : 'rgba(0, 0, 0, 0.6)';
-        ctx.fillRect(x - textWidth / 2 - 2 / globalScale, textY - scaledFont * 0.5, textWidth + 4 / globalScale, scaledFont * 1.1);
+        // 截断文本以适配圆形
+        const maxTextWidth = drawSize * 1.6;
+        let displayLabel = n.label;
+        while (ctx.measureText(displayLabel).width > maxTextWidth && displayLabel.length > 1) {
+          displayLabel = displayLabel.slice(0, -1);
+        }
+        if (displayLabel.length < n.label.length) displayLabel += '…';
+
+        // 描边增强可读性
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.lineWidth = fontSize * 0.15;
+        ctx.lineJoin = 'round';
+        ctx.strokeText(displayLabel, x, y);
 
         ctx.fillStyle = isFaded ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.95)';
-        ctx.fillText(n.label, x, textY);
+        ctx.fillText(displayLabel, x, y);
       } else if (n.type === 'keyword') {
         // 关键词节点：圆角矩形（标签形状）
         const baseSize = n.size;
@@ -1083,28 +1092,31 @@ export default function MemoryGraphPage(): React.ReactElement {
         ctx.lineWidth = isHighlighted ? 2 : isSelected ? 1.5 : 0.5;
         ctx.stroke();
 
-        // 关键词标签文字（始终显示）
-        const scaledFont = Math.max(8, drawSize * 0.9) / globalScale;
+        // 关键词标签文字（始终显示，字号跟随缩放）
+        const scaledFont = Math.max(3, Math.min(8, drawSize * 0.9));
         ctx.font = `${isHighlighted ? '600' : '500'} ${scaledFont}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = isFaded ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.95)';
-        const maxLabelLen = Math.floor((w * globalScale) / (scaledFont * globalScale * 0.6));
+        const maxLabelLen = Math.floor(w / (scaledFont * 0.6));
         const kwLabel = n.label.length > maxLabelLen ? n.label.slice(0, maxLabelLen - 1) + '…' : n.label;
         ctx.fillText(kwLabel, x, y);
       } else {
+        // 记忆笔记 — 缩小菱形，文本始终在外部展示
         const size = n.size;
-        const drawSize = isHighlighted ? size * 1.5 : isHovered || isSelected ? size * 1.3 : size;
+        const diamondScale = 0.4;
+        const rawDraw = size * diamondScale;
+        const drawSize = isHighlighted ? rawDraw * 1.5 : isHovered || isSelected ? rawDraw * 1.3 : rawDraw;
 
         // 高亮光晕
         if (isHighlighted) {
           ctx.beginPath();
-          ctx.moveTo(x, y - drawSize - 6);
-          ctx.lineTo(x + drawSize + 6, y);
-          ctx.lineTo(x, y + drawSize + 6);
-          ctx.lineTo(x - drawSize - 6, y);
+          ctx.moveTo(x, y - drawSize - 4);
+          ctx.lineTo(x + drawSize + 4, y);
+          ctx.lineTo(x, y + drawSize + 4);
+          ctx.lineTo(x - drawSize - 4, y);
           ctx.closePath();
-          const glow = ctx.createRadialGradient(x, y, drawSize * 0.5, x, y, drawSize + 6);
+          const glow = ctx.createRadialGradient(x, y, drawSize * 0.3, x, y, drawSize + 4);
           glow.addColorStop(0, 'rgba(59, 130, 246, 0.45)');
           glow.addColorStop(1, 'rgba(59, 130, 246, 0)');
           ctx.fillStyle = glow;
@@ -1113,10 +1125,10 @@ export default function MemoryGraphPage(): React.ReactElement {
 
         if ((isSelected || isHovered) && !isHighlighted) {
           ctx.beginPath();
-          ctx.moveTo(x, y - drawSize - 3);
-          ctx.lineTo(x + drawSize + 3, y);
-          ctx.lineTo(x, y + drawSize + 3);
-          ctx.lineTo(x - drawSize - 3, y);
+          ctx.moveTo(x, y - drawSize - 2);
+          ctx.lineTo(x + drawSize + 2, y);
+          ctx.lineTo(x, y + drawSize + 2);
+          ctx.lineTo(x - drawSize - 2, y);
           ctx.closePath();
           ctx.fillStyle = 'rgba(59, 130, 246, 0.15)';
           ctx.fill();
@@ -1134,20 +1146,18 @@ export default function MemoryGraphPage(): React.ReactElement {
         ctx.lineWidth = isHighlighted ? 2 : isSelected ? 1.5 : 0.5;
         ctx.stroke();
 
-        // Show label for highlighted/hovered/selected notes
-        if ((isHighlighted || isHovered || isSelected) && (isHighlighted || globalScale > 1.5)) {
-          const scaledFont = (isHighlighted ? 10 : 9) / globalScale;
-          ctx.font = `${isHighlighted ? '600' : '400'} ${scaledFont}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          const label = n.label.slice(0, 30);
-          const textWidth = ctx.measureText(label).width;
-          const textY = y + drawSize + scaledFont * 0.8;
-          ctx.fillStyle = isHighlighted ? 'rgba(0, 0, 0, 0.8)' : 'rgba(0, 0, 0, 0.5)';
-          ctx.fillRect(x - textWidth / 2 - 2 / globalScale, textY - scaledFont * 0.5, textWidth + 4 / globalScale, scaledFont * 1.1);
-          ctx.fillStyle = 'rgba(255,255,255,0.95)';
-          ctx.fillText(label, x, textY);
-        }
+        // 始终显示标签文本（菱形外部下方），字号跟随缩放
+        const scaledFont = (isHighlighted ? 12 : 10) / Math.pow(globalScale, 0.4);
+        ctx.font = `${isHighlighted ? '600' : '400'} ${scaledFont}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const label = n.label.slice(0, 25);
+        const textWidth = ctx.measureText(label).width;
+        const textY = y + drawSize + scaledFont * 0.9;
+        ctx.fillStyle = isHighlighted ? 'rgba(0, 0, 0, 0.7)' : 'rgba(0, 0, 0, 0.45)';
+        ctx.fillRect(x - textWidth / 2 - 1 / globalScale, textY - scaledFont * 0.5, textWidth + 2 / globalScale, scaledFont * 1.1);
+        ctx.fillStyle = isFaded ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.9)';
+        ctx.fillText(label, x, textY);
       }
 
       ctx.restore();

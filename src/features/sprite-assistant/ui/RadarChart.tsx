@@ -68,7 +68,7 @@ const RadarChart: React.FC<RadarChartProps> = ({ dimensions, size = 200, classNa
 
   return (
     <div className={className}>
-      <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size}>
+      <svg viewBox={`0 0 ${size} ${size}`} className="w-full" style={{ height: 'auto' }}>
         {/* Grid rings */}
         {gridPolygons.map((points, i) => (
           <polygon key={`grid-${i}`} points={points} fill="none" stroke="currentColor" strokeWidth={0.5} opacity={0.15} />
