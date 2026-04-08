@@ -33,6 +33,7 @@ import { app, BrowserWindow, ipcMain, screen } from 'electron';
 import { buildCharacterPersonaPrompt, getCharacterDefinition, getCharacterInfo, getCharacterToolLabels, getDimensionSchema, initCharacterService } from '../character-service';
 import { isSpriteInteractionIntent, type SpriteInteractionPayload } from '../interaction-contract';
 import { SpriteManager } from '../manager';
+import type { SpriteSpontaneousUtteranceExecutor } from '../manager';
 import type { SpeakRequest, SpriteSpeakConfig } from '../speak/types';
 import { WindowController } from '../window-controller';
 import { listSprites } from './sprite-assets';
@@ -41,6 +42,7 @@ import { initSpriteEventListener } from './sprite-event-listener';
 
 export interface SpriteManagerDeps {
   addAllowedResourceRoot: (root: string) => void;
+  spontaneousUtteranceExecutor?: SpriteSpontaneousUtteranceExecutor;
 }
 
 export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManagerDeps): Promise<void> {
@@ -49,7 +51,8 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     win: win as any,
     dataDir: app.getPath('userData'),
     getScreenSize: () => screen.getPrimaryDisplay().workAreaSize,
-    appName: 'Chobits'
+    appName: 'Chobits',
+    spontaneousUtteranceExecutor: deps.spontaneousUtteranceExecutor
   });
 
   // 初始化 WindowController 并注入

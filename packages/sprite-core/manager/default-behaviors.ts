@@ -22,6 +22,10 @@ import {
 import type { SpriteMovementConfig } from '../types';
 import type { SpriteManager } from './sprite-manager';
 
+function pickRandomAction(pool: string[]): string {
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 /**
  * 根据 walk 动画的 movement 配置计算随机行走目标位置
  */
@@ -163,14 +167,49 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
 
   // ===== 动作自发行为 =====
   const actionDef = createActionBehavior();
-  actionDef.action = (ctx: BehaviorContext) => {
+  actionDef.action = async (ctx: BehaviorContext) => {
     const favor = ctx.personaState.favor;
     const baseActions = ['sit', 'stand', 'wave', 'nod', 'point', 'lookLeft', 'lookRight'];
     const highFavorActions = ['dance', 'spin', 'jump'];
 
     const pool = favor >= 60 ? [...baseActions, ...highFavorActions] : baseActions;
-    const picked = pool[Math.floor(Math.random() * pool.length)];
-    mgr.trigger(picked);
+    const fallbackAction = pickRandomAction(pool);
+    const executor = mgr.getSpontaneousUtteranceExecutor();
+
+    if (!executor) {
+      mgr.trigger(fallbackAction);
+      return;
+    }
+
+    try {
+      const utterance = await executor.generateForIdleAction({
+        behaviorId: actionDef.id,
+        triggeredAt: Date.now(),
+        actionCandidates: pool,
+        sprite: {
+          state: ctx.spriteState,
+          mood: ctx.personaState.mood,
+          moodIntensity: ctx.personaState.moodIntensity,
+          favor: ctx.personaState.favor,
+          level: ctx.personaState.level,
+          idleDurationMs: ctx.interactionStats.idleDuration
+        }
+      });
+
+      if (!utterance?.text?.trim()) {
+        mgr.trigger(fallbackAction);
+        return;
+      }
+
+      const picked = utterance.recommendedAction && pool.includes(utterance.recommendedAction) ? utterance.recommendedAction : fallbackAction;
+      mgr.trigger(picked, { silent: true });
+      await mgr.speak(utterance.text.trim(), {
+        showBubble: true,
+        bubbleDuration: utterance.bubbleDurationMs
+      });
+    } catch {
+      mgr.trigger(fallbackAction);
+    }
   };
   mgr.registerBehavior(actionDef);
 

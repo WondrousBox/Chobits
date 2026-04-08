@@ -9,7 +9,7 @@ import pkg from '../../../package.json';
 const SETTINGS_DIR = path.join(app.getPath('userData'), 'data');
 const ROLE_FILE = path.join(SETTINGS_DIR, 'role.json');
 
-type RoleProfile = {
+export type RoleProfile = {
   name: string;
   mood?: string;
   level?: number;
@@ -35,9 +35,13 @@ async function writeJson(file: string, data: any) {
   await fsp.writeFile(file, JSON.stringify(data, null, 2), 'utf-8');
 }
 
+export async function getStoredRoleProfile(): Promise<RoleProfile> {
+  return readJson<RoleProfile>(ROLE_FILE, { name: pkg.name, mood: 'idle', level: 1, favor: 50 });
+}
+
 export function initStatusHandlers(_win: BrowserWindow) {
   ipcMain.handle('status:getRole', async () => {
-    const role = await readJson<RoleProfile>(ROLE_FILE, { name: pkg.name, mood: 'idle', level: 1, favor: 50 });
+    const role = await getStoredRoleProfile();
     return { ok: true, role };
   });
 

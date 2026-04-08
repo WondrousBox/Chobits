@@ -37,7 +37,7 @@ import type { MessageCategory, MessageIPCPayload, SpriteAnimation, SpriteConfig,
 import { registerDefaultBehaviors } from './default-behaviors';
 import { AutoWalkConfig, PersonaStatePersistence } from './persistence';
 import { mapStateToEventType } from './state-mapping';
-import type { PersonaStatePersistenceRow, SpriteManagerOptions, SpriteWindow } from './types';
+import type { PersonaStatePersistenceRow, SpriteManagerOptions, SpriteSpontaneousUtteranceExecutor, SpriteWindow } from './types';
 
 // ============================================================================
 // SpriteManager 实现
@@ -64,6 +64,7 @@ export class SpriteManager {
   // Electron 依赖
   private win: SpriteWindow;
   private getScreenSize: () => { width: number; height: number };
+  private spontaneousUtteranceExecutor?: SpriteSpontaneousUtteranceExecutor;
 
   // 当前动画和配置
   private currentAnimation: SpritePlayCommand | null = null;
@@ -94,6 +95,7 @@ export class SpriteManager {
   private constructor(options: SpriteManagerOptions) {
     this.win = options.win;
     this.getScreenSize = options.getScreenSize;
+    this.spontaneousUtteranceExecutor = options.spontaneousUtteranceExecutor;
 
     // 创建引擎实例
     this.eventBus = new SpriteEventBus();
@@ -927,6 +929,10 @@ export class SpriteManager {
   /** 注册自定义行为 */
   registerBehavior(behavior: BehaviorDefinition): void {
     this.behaviorEngine.register(behavior);
+  }
+
+  getSpontaneousUtteranceExecutor(): SpriteSpontaneousUtteranceExecutor | undefined {
+    return this.spontaneousUtteranceExecutor;
   }
 
   // ============================================================================

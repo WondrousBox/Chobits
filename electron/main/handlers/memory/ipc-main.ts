@@ -6,7 +6,6 @@
 
 import { ipcMain } from 'electron';
 
-import type { RetrievalDbDeps } from '../../../../packages/ai/services/memory-retrieval-service';
 import * as retrieval from '../../../../packages/ai/services/memory-retrieval-service';
 import { MemoryEdgeRepo, MemoryFTSRepo, MemoryKeywordRepo, MemoryNoteKeywordRepo, MemoryNoteRepo, MemorySectionRepo, MemorySyncJobRepo, MemoryTopicRepo } from '../../db/memory-repositories';
 import { WorkspacesRepo } from '../../db/repositories';
@@ -14,43 +13,10 @@ import { memoryExtractionQueue } from './extraction-queue';
 import { initMemoryExtractionWorker } from './extraction-worker';
 import { initMemoryAutoRecallEnricher } from './memory-auto-recall-enricher';
 import { cleanupMemoryForConversations, clearAllMemory } from './memory-cleanup';
+import { buildRetrievalDbDeps } from './retrieval-db-deps';
 
 // ━━ DB Deps Adapter ━━
 
-function buildRetrievalDbDeps(): RetrievalDbDeps {
-  return {
-    // Topic
-    searchTopics: (term, workspaceId, limit) => MemoryTopicRepo.search(term, workspaceId, limit) as any,
-    getTopicById: (id) => MemoryTopicRepo.getById(id),
-    listTopicChildren: (parentId) => MemoryTopicRepo.listChildren(parentId),
-    listTopicRoots: (workspaceId, limit) => MemoryTopicRepo.listRoots(workspaceId, limit),
-    // Keyword
-    findKeywordsByTopic: (topicId) => MemoryKeywordRepo.findByTopicId(topicId),
-    findKeywordByCanonical: (canonical, workspaceId) => MemoryKeywordRepo.findByCanonical(canonical, workspaceId),
-    findKeywordByAlias: (alias, workspaceId) => MemoryKeywordRepo.findByAlias(alias, workspaceId),
-    // Edges
-    findAdjacentTopics: (topicIds, limit) => MemoryEdgeRepo.findAdjacentTopics(topicIds, limit),
-    findEdgesBySource: (sourceType, sourceId, relationType) => MemoryEdgeRepo.findBySource(sourceType, sourceId, relationType),
-    // Notes
-    getNoteById: (id) => MemoryNoteRepo.getById(id),
-    listNotesByWorkspace: (workspaceId, limit, offset) => MemoryNoteRepo.listByWorkspace(workspaceId, limit, offset),
-    listNotesByDateRange: (start, end, workspaceId) => MemoryNoteRepo.listByDateRange(start, end, workspaceId),
-    listNotesByTopicId: (topicId, workspaceId, limit) => MemoryNoteRepo.listByTopicId(topicId, workspaceId, limit),
-    // Direct search (LIKE-based, CJK fallback)
-    searchNotesByTerms: (terms, workspaceId, limit) => MemoryNoteRepo.searchByTerms(terms, workspaceId, limit),
-    // Sections
-    listSectionsByNote: (noteId) => MemorySectionRepo.listByNote(noteId),
-    // FTS
-    ftsSearch: (query, opts) => MemoryFTSRepo.search(query, opts),
-    // Workspace
-    getWorkspaceRoot: async (workspaceId) => {
-      const ws = await WorkspacesRepo.getById(workspaceId);
-      return ws?.rootPath ?? null;
-    },
-    // Recent important notes (for new session preload)
-    listRecentImportant: (workspaceId, minImportance, days, limit) => MemoryNoteRepo.listRecentImportant(workspaceId, minImportance, days, limit)
-  };
-}
 
 // ━━ IPC Registration ━━
 
