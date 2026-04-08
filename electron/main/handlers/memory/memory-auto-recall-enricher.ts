@@ -301,13 +301,11 @@ export function initMemoryAutoRecallEnricher(db: RetrievalDbDeps): void {
  * 包含使用指导，帮助 AI 正确使用记忆信息。
  */
 function formatAutoRecallContext(memoryContext: string): string {
-  return `<recalled_memories>
-以下是从长期记忆中自动检索到的可能相关的信息。请酌情参考：
-- 如果记忆内容与当前话题直接相关，可以自然地融入回复中
-- 如果记忆内容似乎不太相关，可以忽略
-- 不要主动提及"我从记忆中查到"，除非用户问到
-- 记忆可能已过时，如果与当前对话矛盾，以当前对话为准
-
+  return `以下是你想到的可能相关的信息：
+<recalled_memories>
 ${memoryContext}
-</recalled_memories>`;
+</recalled_memories>
+如果想到的内容与当前话题直接相关，可以自然地融入回复。
+如果内容不太相关，可以忽略，记忆如果出现偏差，以当前对话为准。
+`;
 }

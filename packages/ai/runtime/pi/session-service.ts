@@ -232,14 +232,114 @@ function mapChatHistoryMessage(message: ChatRequest['messages'][number], model: 
   return undefined;
 }
 
+/**
+ * Parse a markdown string into sections split by `## ` headings.
+ * Returns an array of { heading, body } where heading is the full heading line
+ * (e.g. "## 你的身份") and body is the content until the next `## ` heading.
+ * Content before the first `## ` heading is returned with heading = ''.
+ */
+function parseMarkdownSections(text: string): { heading: string; body: string }[] {
+  const lines = text.split('\n');
+  const sections: { heading: string; bodyLines: string[] }[] = [];
+  let current: { heading: string; bodyLines: string[] } = { heading: '', bodyLines: [] };
+
+  for (const line of lines) {
+    if (/^## /.test(line)) {
+      sections.push(current);
+      current = { heading: line, bodyLines: [] };
+    } else {
+      current.bodyLines.push(line);
+    }
+  }
+  sections.push(current);
+
+  return sections.map((s) => ({
+    heading: s.heading,
+    body: s.bodyLines.join('\n')
+  }));
+}
+
+/**
+ * Merge enrichment text into a base markdown text at the `## ` section level.
+ *
+ * - If an enrichment contains a `## ` heading that also exists in the base,
+ *   the enrichment's section **replaces** the base section (heading + body).
+ * - If an enrichment contains a `## ` heading NOT in the base, the section
+ *   is **appended** after all existing base sections.
+ * - Content in enrichments without any `## ` heading is appended as-is.
+ */
+function mergeMarkdownSections(base: string, enrichmentTexts: string[]): string {
+  const baseSections = parseMarkdownSections(base);
+
+  // Build a map from normalized heading → index for quick lookup
+  const headingIndex = new Map<string, number>();
+  for (let i = 0; i < baseSections.length; i++) {
+    const h = baseSections[i].heading.trim();
+    if (h) headingIndex.set(h, i);
+  }
+
+  const appendSections: { heading: string; body: string }[] = [];
+  const plainAppends: string[] = [];
+
+  for (const enrichment of enrichmentTexts) {
+    const enrichSections = parseMarkdownSections(enrichment);
+
+    for (const sec of enrichSections) {
+      const h = sec.heading.trim();
+      if (!h) {
+        // No heading — plain content, append as-is
+        const text = sec.body.trim();
+        if (text) plainAppends.push(text);
+        continue;
+      }
+
+      const idx = headingIndex.get(h);
+      if (idx !== undefined) {
+        // Override the base section
+        baseSections[idx] = { heading: sec.heading, body: sec.body };
+      } else {
+        // New section — append later
+        appendSections.push(sec);
+      }
+    }
+  }
+
+  // Reconstruct the merged markdown
+  const parts: string[] = [];
+  for (const sec of baseSections) {
+    if (sec.heading) {
+      parts.push(sec.heading + '\n' + sec.body);
+    } else {
+      const text = sec.body.trim();
+      if (text) parts.push(text);
+    }
+  }
+  for (const sec of appendSections) {
+    parts.push(sec.heading + '\n' + sec.body);
+  }
+  parts.push(...plainAppends);
+
+  return parts.join('\n\n').trim();
+}
+
 async function buildPiContext(resolved: ResolvedPiRequest, model: PiModel): Promise<PiContext> {
   const profileInstructions = await resolveProfileInstructions(resolved);
-  const systemParts: string[] = profileInstructions ? [profileInstructions] : [];
 
   // Resolve dynamic system prompt enrichments from registered enrichers
   const { resolveSystemPromptEnrichments } = await import('../../system-prompt-enricher');
   const enrichments = await resolveSystemPromptEnrichments(resolved.request);
-  systemParts.push(...enrichments);
+
+  // Merge enrichments into profile instructions at the ## section level:
+  // enrichment sections with headings matching the profile override them;
+  // new sections and plain (non-sectioned) enrichment text are appended.
+  const systemParts: string[] = [];
+  if (profileInstructions && enrichments.length) {
+    systemParts.push(mergeMarkdownSections(profileInstructions, enrichments));
+  } else if (profileInstructions) {
+    systemParts.push(profileInstructions);
+  } else {
+    systemParts.push(...enrichments);
+  }
 
   const messages: PiMessage[] = [];
 
