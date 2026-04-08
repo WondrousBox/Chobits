@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 
-import { useSpriteState } from '../context/SpriteStateContext';
+import { useSpriteState } from '../context/hooks';
 import { resolveSpriteSrc } from '../utils/resource';
 
 /**

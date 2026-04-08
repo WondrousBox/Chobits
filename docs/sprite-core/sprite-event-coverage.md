@@ -1,7 +1,11 @@
 # 精灵事件全覆盖触发系统
 
-> **状态**：✅ 已完成（Phase 1/2/3/4 全部完成）  
-> **目标**：为 `SpriteEventGroups` 中定义的 150+ 事件类型全部建立触发路径。
+> **状态**：事件覆盖路径已建立，但运行时契约统一仍在收口  
+> **目标**：为 `SpriteEventGroups` 中定义的 150+ 事件类型建立触发路径，并持续收口事件模型、状态模型与配置入口。
+>
+> 补充说明：本文件描述的是“触发覆盖率”，不等于“运行时模型已经完全统一”。关于当前仍待收口的 Persona 持久化、动画 trigger 分类与配置入口问题，请参阅 [sprite-runtime-unification-plan.md](./sprite-runtime-unification-plan.md)。
+>
+> 2026-04-08 更新：`sprite:interact` 与 EventBus 已统一到同一套 `SpriteInteractionIntent` / `SpriteInteractionEvent` 契约，交互统计改为 EventBus 单源。
 
 ---
 
@@ -25,7 +29,13 @@
 | system       | 4        | 100%                                                      |
 | **总计**     | **~150** | **~100%**                                                 |
 
-所有事件通过以下路径覆盖：业务 AppEvent 埋点 / 自发行为 / `SpriteManager.trigger()` 统一 API / 渲染端 `window.YUA.sprite.trigger()`。
+所有事件已具备触发路径：业务 AppEvent 埋点 / 自发行为 / `SpriteManager.trigger()` 统一 API / 渲染端 `window.YUA.sprite.trigger()`。
+
+但需要注意：
+
+- 覆盖率高，不代表类型系统和运行时语义已经完全闭环
+- `SpriteSubState` 与 animation trigger 仍需进一步拆分
+- 部分交互与 persona 事件还存在兼容层或类型定义滞后问题
 
 ---
 
@@ -48,9 +58,9 @@
 
 适用于：AI 聊天、工作流、资源导入、下载、插件、媒体处理、RSS、回收站
 
-### B. 用户交互 → reportInteraction() → playOnce + showToast
+### B. 用户交互 → typed intent / drag event → EventBus → runtime reaction
 
-适用于：click, hold, drag, fileDragOver, fileDrop, hover, double-click
+适用于：click, double-click, hover-enter, hover-leave, file-drag-over, file-drag-leave, file-drop, context-menu, drag:start, drag:end
 
 ### C. 自发行为 → BehaviorEngine.tick() → trigger()
 

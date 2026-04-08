@@ -5,6 +5,8 @@
  * 从 src/components/AIAssistant/types.ts 和 message/types.ts 迁移而来。
  */
 
+import type { PersonaState as PersonaSnapshot } from './persona-state';
+
 // ============================================================================
 // 消息分类
 // ============================================================================
@@ -153,6 +155,8 @@ export const SpriteEventGroups = {
 export const SPRITE_EVENT_TYPES = Array.from(new Set(Object.values(SpriteEventGroups).flat())) as ReadonlyArray<string>;
 
 export type SpriteEventType = (typeof SPRITE_EVENT_TYPES)[number] | 'custom';
+
+export type { PersonaSnapshot };
 
 // ============================================================================
 // 消息生产
@@ -385,7 +389,7 @@ export const DEFAULT_DURATION: Record<MessageType, number> = {
 export interface SpriteStateSnapshot {
   state: string;
   subState: string | null;
-  personaSnapshot?: any;
+  personaSnapshot?: PersonaSnapshot;
 }
 
 /** 精灵播放指令 */
@@ -410,10 +414,16 @@ export interface SpritePlayCommand {
 export interface SpriteInitialState {
   state: string;
   subState: string | null;
-  personaState: any;
+  personaState: PersonaSnapshot | null;
   animations: SpriteAnimation[];
   currentAnimation: SpritePlayCommand | null;
   config: SpriteConfig;
+}
+
+/** 获取人格状态响应 */
+export interface SpritePersonaStateResult {
+  ok: true;
+  state: PersonaSnapshot;
 }
 
 /** 精灵行走状态 */

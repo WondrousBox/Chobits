@@ -14,6 +14,7 @@
  */
 
 import { SpriteEventBus, type SpritePersonaEvent } from './event-bus';
+import { isSpriteInteractionEvent, type SpriteInteractionEvent, type SpriteInteractionPayload } from './interaction-contract';
 
 // ============ 类型定义 ============
 
@@ -25,7 +26,7 @@ export interface InteractionEvent {
   type: InteractionType;
   timestamp: number;
   /** 附加数据 */
-  data?: Record<string, any>;
+  data?: SpriteInteractionPayload;
 }
 
 /** 交互统计 */
@@ -49,16 +50,15 @@ export interface InteractionStats {
 }
 
 /** 事件名到交互类型的映射 */
-const EVENT_TO_INTERACTION: Record<string, InteractionType> = {
+const EVENT_TO_INTERACTION: Partial<Record<SpriteInteractionEvent, InteractionType>> = {
   'interact:click': 'click',
   'interact:double-click': 'double-click',
-  'interact:drag:start': 'drag',
   'interact:drag:end': 'drag',
-  'interact:hold:start': 'hold',
   'interact:hold:end': 'hold',
   'interact:hover:enter': 'hover',
   'interact:hover:leave': 'hover',
-  'interact:file-drag-over': 'hover',
+  'interact:file-drag-over': 'file-drag-over',
+  'interact:file-drag-leave': 'file-drag-leave',
   'interact:file-drop': 'file-drop',
   'interact:context-menu': 'context-menu'
 };
@@ -98,6 +98,9 @@ export class InteractionTracker {
     // 自动订阅事件
     if (options?.eventBus) {
       this.unsubscribe = options.eventBus.on('*', (event: SpritePersonaEvent) => {
+        if (!isSpriteInteractionEvent(event.type)) {
+          return;
+        }
         const interactionType = EVENT_TO_INTERACTION[event.type];
         if (interactionType) {
           this.record(interactionType, event.payload);
@@ -112,7 +115,7 @@ export class InteractionTracker {
   // ============ 公共 API ============
 
   /** 手动记录一次交互 */
-  record(type: InteractionType, data?: Record<string, any>): void {
+  record(type: InteractionType, data?: SpriteInteractionPayload): void {
     const now = Date.now();
     this.window.push({ type, timestamp: now, data });
     this.lastInteractionAt = now;

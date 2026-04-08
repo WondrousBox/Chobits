@@ -8,9 +8,11 @@
 
 import { ipcRenderer } from 'electron';
 
+import type { PersonaSnapshot, SpritePersonaStateResult, SpriteStateSnapshot } from '../../../packages/sprite-core/types';
+
 export const personaApi = {
   /** 获取完整人格状态 */
-  getState: () => ipcRenderer.invoke('sprite:persona:getState'),
+  getState: (): Promise<SpritePersonaStateResult> => ipcRenderer.invoke('sprite:persona:getState'),
 
   /** 增加经验值 */
   addXP: (amount: number) => ipcRenderer.invoke('sprite:persona:addXP', { amount }),
@@ -25,19 +27,19 @@ export const personaApi = {
   unlockAchievement: (achievementId: string) => ipcRenderer.invoke('sprite:persona:unlockAchievement', { id: achievementId }),
 
   /** 重置人格状态（等级、经验、好感度等） */
-  resetState: () => ipcRenderer.invoke('sprite:persona:reset'),
+  resetState: (): Promise<SpritePersonaStateResult> => ipcRenderer.invoke('sprite:persona:reset'),
 
   // --- 事件订阅 (统一通过 sprite:state 新通道) ---
 
   /** 订阅人格状态变化事件 */
-  onStateChanged: (callback: (state: any) => void) => {
+  onStateChanged: (callback: (state: PersonaSnapshot) => void) => {
     // 新通道: sprite:state 包含 personaSnapshot
-    const handler = (_: any, data: any): void => {
+    const handler = (_: any, data: SpriteStateSnapshot): void => {
       if (data?.personaSnapshot) callback(data.personaSnapshot);
     };
     ipcRenderer.on('sprite:state', handler);
     // 同时兼容旧通道
-    const oldHandler = (_: any, state: any): void => callback(state);
+    const oldHandler = (_: any, state: PersonaSnapshot): void => callback(state);
     ipcRenderer.on('persona:state-changed', oldHandler);
     return () => {
       ipcRenderer.removeListener('sprite:state', handler);

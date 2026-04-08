@@ -10,36 +10,12 @@
  * 3. 通过 Context 向下传递只读状态
  */
 
-import type { PersonaState } from '@packages/sprite-core';
-import type { SpriteConfig, SpriteInitialState, SpritePlayCommand, SpriteStateSnapshot, SpriteWalkState } from '@packages/sprite-core/types';
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import type { PersonaSnapshot, SpriteConfig, SpriteInitialState, SpritePlayCommand, SpriteStateSnapshot, SpriteWalkState } from '@packages/sprite-core/types';
+import React, { useEffect, useMemo, useState } from 'react';
 
-// ============================================================================
-// Context 类型
-// ============================================================================
-
-export interface SpriteStateContextValue {
-  /** 当前精灵主状态 */
-  spriteState: string;
-  /** 当前子状态 */
-  subState: string | null;
-  /** 只读人格状态快照 */
-  personaState: PersonaState | null;
-  /** 当前播放动画信息 */
-  currentAnimation: SpritePlayCommand | null;
-  /** 行走方向 */
-  walkDirection: 'left' | 'right' | null;
-  /** 是否正在行走 */
-  isWalking: boolean;
-  /** 精灵尺寸配置 */
-  spriteConfig: SpriteConfig;
-  /** 是否已就绪 */
-  ready: boolean;
-}
+import { SpriteStateContext, type SpriteStateContextValue } from './sprite-state-context';
 
 const DEFAULT_CONFIG: SpriteConfig = { width: 180, height: 240, padding: 100, showDebugOverlay: false };
-
-const SpriteStateContext = createContext<SpriteStateContextValue | null>(null);
 
 // ============================================================================
 // Provider
@@ -48,7 +24,7 @@ const SpriteStateContext = createContext<SpriteStateContextValue | null>(null);
 export const SpriteStateProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [spriteState, setSpriteState] = useState<string>('idle');
   const [subState, setSubState] = useState<string | null>(null);
-  const [personaState, setPersonaState] = useState<PersonaState | null>(null);
+  const [personaState, setPersonaState] = useState<PersonaSnapshot | null>(null);
   const [currentAnimation, setCurrentAnimation] = useState<SpritePlayCommand | null>(null);
   const [walkDirection, setWalkDirection] = useState<'left' | 'right' | null>(null);
   const [isWalking, setIsWalking] = useState(false);
@@ -156,26 +132,3 @@ export const SpriteStateProvider: React.FC<React.PropsWithChildren> = ({ childre
 
   return <SpriteStateContext.Provider value={value}>{children}</SpriteStateContext.Provider>;
 };
-
-// ============================================================================
-// Hooks
-// ============================================================================
-
-/** 获取完整精灵状态上下文 */
-export function useSpriteState(): SpriteStateContextValue {
-  const ctx = useContext(SpriteStateContext);
-  if (!ctx) throw new Error('useSpriteState must be used within SpriteStateProvider');
-  return ctx;
-}
-
-/** 仅获取人格状态快照 */
-export function usePersonaState(): PersonaState | null {
-  const { personaState } = useSpriteState();
-  return personaState;
-}
-
-/** 仅获取精灵主状态 */
-export function useSpriteStateName(): string {
-  const { spriteState } = useSpriteState();
-  return spriteState;
-}

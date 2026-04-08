@@ -6,7 +6,7 @@
 import React from 'react';
 
 import { SHOW_PADDING_DEBUG } from '../constants';
-import { useSpriteState } from '../context/SpriteStateContext';
+import { useSpriteState } from '../context/hooks';
 
 export const PaddingDebugOverlay: React.FC<{ padding: number }> = ({ padding }) => {
   const { spriteConfig } = useSpriteState();

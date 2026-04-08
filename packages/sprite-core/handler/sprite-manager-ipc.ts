@@ -31,7 +31,7 @@
 import { app, BrowserWindow, ipcMain, screen } from 'electron';
 
 import { buildCharacterPersonaPrompt, getCharacterDefinition, getCharacterInfo, getCharacterToolLabels, getDimensionSchema, initCharacterService } from '../character-service';
-import type { InteractionType } from '../interaction-tracker';
+import { isSpriteInteractionIntent, type SpriteInteractionPayload } from '../interaction-contract';
 import { SpriteManager } from '../manager';
 import type { SpeakRequest, SpriteSpeakConfig } from '../speak/types';
 import { WindowController } from '../window-controller';
@@ -42,8 +42,6 @@ import { initSpriteEventListener } from './sprite-event-listener';
 export interface SpriteManagerDeps {
   addAllowedResourceRoot: (root: string) => void;
 }
-
-let deps: SpriteManagerDeps;
 
 export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManagerDeps): Promise<void> {
   // 初始化 SpriteManager
@@ -92,8 +90,12 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   // ===== 渲染进程 → 主进程 (handle) =====
 
   // 交互上报
-  ipcMain.handle('sprite:interact', (_e, payload: { type: InteractionType; data?: Record<string, any> }) => {
-    mgr.reportInteraction(payload.type, payload.data);
+  ipcMain.handle('sprite:interact', (_e, payload: { type: string; data?: SpriteInteractionPayload }) => {
+    const interactionType = payload?.type ?? '';
+    if (!isSpriteInteractionIntent(interactionType)) {
+      throw new Error(`[sprite:interact] Unsupported interaction intent: ${String(payload?.type)}`);
+    }
+    mgr.reportInteraction(interactionType, payload?.data);
   });
 
   // 拖拽（主进程轮询光标位置，渲染进程只负责 start/end 信号）
@@ -348,7 +350,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   }
 
   // ===== 初始化事件监听器（订阅业务事件触发动画） =====
-  const cleanupEventListener = initSpriteEventListener(mgr);
+  initSpriteEventListener(mgr);
 
   // ===== 事件转发：persona:level-up → 主窗口 =====
   // 渲染进程负责打开窗口和处理数据

@@ -10,24 +10,14 @@
  * 设计为纯 TS 类，不依赖 React。
  */
 
+import type { SpriteInteractionEvent } from './interaction-contract';
+
+export type { SpriteInteractionEvent } from './interaction-contract';
+
 // ============ 事件类型定义 ============
 
 /** 精灵状态相关事件 */
 export type SpriteStateEvent = 'state:idle' | 'state:walking' | 'state:running' | 'state:dragging' | 'state:sleeping' | 'state:reacting';
-
-/** 用户交互事件 */
-export type SpriteInteractionEvent =
-  | 'interact:click'
-  | 'interact:double-click'
-  | 'interact:drag:start'
-  | 'interact:drag:end'
-  | 'interact:hold:start'
-  | 'interact:hold:end'
-  | 'interact:hover:enter'
-  | 'interact:hover:leave'
-  | 'interact:file-drag-over'
-  | 'interact:file-drop'
-  | 'interact:context-menu';
 
 /** 动画播放事件 */
 export type SpriteAnimationEvent = 'anim:play' | 'anim:stop' | 'anim:complete' | 'anim:phase:intro' | 'anim:phase:loop' | 'anim:phase:outro';
@@ -41,6 +31,7 @@ export type SpritePersonaProgressEvent =
   | 'persona:level-up'
   | 'persona:favor-changed'
   | 'persona:mood-changed'
+  | 'persona:dimension-updated'
   | 'persona:achievement-unlocked'
   | 'persona:skill-unlocked'
   | 'persona:daily-login'

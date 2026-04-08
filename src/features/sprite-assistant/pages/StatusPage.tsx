@@ -1,3 +1,4 @@
+import type { PersonaSnapshot } from '@packages/sprite-core/types';
 import React, { useEffect, useState } from 'react';
 import { TbHeartFilled, TbX } from 'react-icons/tb';
 
@@ -9,22 +10,12 @@ import RadarChart, { RadarDimension } from '../ui/RadarChart';
 type RoleProfile = {
   name: string;
   mood?: string;
-  level?: number;
-  favor?: number;
   description?: string;
-};
-
-type PersonaState = {
-  level: number;
-  xp: number;
-  xpToNextLevel: number;
-  mood: number;
-  affection: number;
 };
 
 export const StatusPage: React.FC = () => {
   const [role, setRole] = useState<RoleProfile | null>(null);
-  const [persona, setPersona] = useState<PersonaState | null>(null);
+  const [persona, setPersona] = useState<PersonaSnapshot | null>(null);
   const [dimensions, setDimensions] = useState<RadarDimension[] | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -32,11 +23,7 @@ export const StatusPage: React.FC = () => {
     let mounted = true;
     const load = async (): Promise<void> => {
       try {
-        const [roleRes, personaRes, dimsRes] = await Promise.all([
-          window.YUA.status['status:getRole'](),
-          window.YUA.persona.getState(),
-          window.YUA.persona.getDimensions()
-        ]);
+        const [roleRes, personaRes, dimsRes] = await Promise.all([window.YUA.status['status:getRole'](), window.YUA.persona.getState(), window.YUA.persona.getDimensions()]);
 
         if (!mounted) return;
         setRole(roleRes?.role);
@@ -65,11 +52,11 @@ export const StatusPage: React.FC = () => {
           {role && (
             <div className="text-sm flex items-center gap-4">
               <span>
-                {role.name} <span className="text-muted-foreground text-xs ml-1">Lv.{role.level ?? '—'}</span>
+                {role.name} <span className="text-muted-foreground text-xs ml-1">Lv.{persona?.level ?? '—'}</span>
               </span>
               <div className="flex items-center gap-1">
                 <TbHeartFilled color="red" size={16} />
-                <span className="font-mono text-xs text-muted-foreground">{role.favor ?? 0}</span>
+                <span className="font-mono text-xs text-muted-foreground">{persona?.favor ?? 0}</span>
               </div>
             </div>
           )}

@@ -1,8 +1,12 @@
 # sprite-core — 桌面精灵人格化核心引擎
 
+> 2026-04-08 补充：当前主进程统一运行时已经落地。`PersonaState` 持久化已补齐 `dimensions` 与历史快照兼容读取，`sprite:interact` typed contract 也已收口；剩余仍在继续收口的重点是动画 trigger 分类和配置入口。请结合 [sprite-runtime-unification-plan.md](./sprite-runtime-unification-plan.md) 一起阅读。
+
 ## 概览
 
 `sprite-core` 是 Chobits 桌面精灵的**纯逻辑层**，提供人格化核心引擎能力。它不依赖 React、Electron 或任何 UI 框架，可以独立测试和复用。
+
+2026-04-08 更新：`sprite:interact` 已统一为共享 `SpriteInteractionIntent` 契约，交互统计改为 EventBus 单源记账，renderer / preload / IPC / runtime 不再各自维护漂移的 hover/file-drag 语义。
 
 ## 架构
 
@@ -16,6 +20,7 @@ packages/sprite-core/
 ├── behavior-engine.ts          # 行为引擎（自主行为调度）
 ├── animation-registry.ts       # 动画注册表
 ├── character-service.ts        # 角色定义服务（人格模板、对话奖励、维度）
+├── interaction-contract.ts     # 交互输入 / EventBus 事件共享契约
 ├── window-controller.ts        # 窗口控制器（行走/拖拽/位置）
 ├── types.ts                    # 共享类型定义（150+ 事件类型）
 ├── manager/                    # SpriteManager 门面模块
@@ -50,7 +55,7 @@ packages/sprite-core/
 ### 数据流
 
 ```
-用户交互 → EventBus → InteractionTracker → 统计
+用户交互(intent) → EventBus → InteractionTracker → 统计
                     → PersonaStateManager   → XP/等级/好感度变化 → EventBus → UI 更新
                     → StateMachine          → 状态切换 → AnimationRegistry → IPC → 渲染进程播放
 
@@ -82,7 +87,8 @@ BehaviorEngine (tick 1s) → 检查条件 → 触发行为 → SpriteManager.tri
 │   <SpriteAssistant>                                      │
 │     ├ AnimationPlayer       # 收到 animId → 播放视频      │
 │     ├ SpriteMessage         # 收到 sprite:message → 展示  │
-│     ├ DragCollector         # 交互采集 → sprite:interact   │
+│     ├ AIAssistant           # click/hover → sprite:interact│
+│     ├ DragCollector         # 拖拽采集 → sprite:drag       │
 │     ├ FileDropCollector     # 文件拖放 → sprite:file-drop  │
 │     └ SpeakPlayer           # 语音播放 → sprite:speak      │
 └──────────────────────────────────────────────────────────┘
@@ -144,6 +150,7 @@ sprite.endDrag();
 
 // ===== 交互 =====
 sprite.reportInteraction('click');
+sprite.reportInteraction('hover-enter');
 sprite.reportInteraction('file-drop', { fileCount: 3 });
 
 // ===== 动画 =====
@@ -234,6 +241,12 @@ sm.onChange((newState, oldState, ctx) => { ... });
 **子状态 (SpriteSubState)**:
 `click` | `hold` | `drop` | `file-drag-over` | `file-drop` | `sleepy` | `emotion` | `celebrate` | `custom`
 
+说明：
+
+- `SpriteSubState` 表示 runtime 中 `reacting` 的子状态，不等于所有动画 trigger
+- `thinking`、`happy`、`surprised` 等更适合作为 animation trigger / eventType，而不是继续扩张状态机子状态
+- 当前代码里仍有少量业务事件直接 `playOnce('thinking')` 的历史写法，后续以 `trigger()` 收口为准
+
 ### 4. PersonaStateManager — 人格化状态管理
 
 完整的 RPG 数值系统。
@@ -280,6 +293,15 @@ psm.initDimensions([{ id: 'curiosity', initialValue: 50 }]);
 - 连续登录 → +25×streak XP
 - 长时间不使用 → -5 好感度
 
+### 4.1 Persona DTO 约定
+
+`sprite-core` 当前将渲染层只读人格快照统一为 `PersonaSnapshot`。
+
+- `SpriteStateSnapshot.personaSnapshot` 使用共享 `PersonaSnapshot`
+- `SpriteInitialState.personaState` 使用共享 `PersonaSnapshot | null`
+- `window.YUA.persona.getState()` 返回 `{ ok: true, state: PersonaSnapshot }`
+- 状态页、状态面板等 UI 不应再定义本地 `affection` / 数字型 `mood` 影子类型
+
 ### 5. InteractionTracker — 交互追踪器
 
 滑动窗口统计，为行为引擎和游戏化提供数据。
@@ -295,8 +317,17 @@ const stats = tracker.getStats();
 // tracker.isActive()  — 最近1分钟有交互？
 ```
 
+**交互输入契约 (SpriteInteractionIntent)**:
+`click` | `double-click` | `hover-enter` | `hover-leave` | `file-drag-over` | `file-drag-leave` | `file-drop` | `context-menu`
+
 **交互类型 (InteractionType)**:
 `click` | `double-click` | `drag` | `hold` | `hover` | `file-drag-over` | `file-drag-leave` | `file-drop` | `context-menu` | `conversation` | `walk-trigger` | `custom`
+
+说明：
+
+- `SpriteInteractionIntent` 是 renderer / preload / IPC / `SpriteManager.reportInteraction()` 共用的输入契约
+- `InteractionType` 是 `InteractionTracker` 的统计分类，`hover-enter` / `hover-leave` 会聚合到 `hover`
+- 运行时交互计数以 EventBus 为唯一来源，避免 `reportInteraction()` 与 `InteractionTracker` 双重记账
 
 ### 6. BehaviorEngine — 行为引擎
 
@@ -735,10 +766,15 @@ const enabled = await window.YUA.sprite.getDebugOverlay();
 
 | 交互     | 触发位置               | IPC                | 主进程处理                                                 |
 | -------- | ---------------------- | ------------------ | ---------------------------------------------------------- |
-| 点击     | `useDragCollector`     | `sprite:interact`  | `playOnce('click')`                                        |
-| 长按     | `useDragCollector`     | `sprite:interact`  | `playOnce('hold')`                                         |
-| 拖拽     | `useDragCollector`     | `sprite:drag`      | `transitionTo('dragging')`                                 |
-| 文件悬停 | `useFileDropCollector` | `sprite:interact`  | `transitionTo('reacting', { subState: 'file-drag-over' })` |
+| 点击     | `AIAssistant`          | `sprite:interact`  | `reportInteraction('click')` → `playOnce('click')`         |
+| 双击     | `AIAssistant`          | `sprite:interact`  | `reportInteraction('double-click')`                        |
+| 右键     | `AIAssistant`          | `sprite:interact`  | `reportInteraction('context-menu')`                        |
+| hover 进入 | `AIAssistant`        | `sprite:interact`  | `reportInteraction('hover-enter')`                         |
+| hover 离开 | `AIAssistant`        | `sprite:interact`  | `reportInteraction('hover-leave')`                         |
+| 拖拽开始 | `useDragCollector`     | `sprite:drag`      | `transitionTo('dragging')` + `emit('interact:drag:start')` |
+| 拖拽结束 | `useDragCollector`     | `sprite:drag`      | `transitionTo('idle')` + `emit('interact:drag:end')`       |
+| 文件悬停 | `useFileDropCollector` | `sprite:interact`  | `reportInteraction('file-drag-over')`                      |
+| 文件离开 | `useFileDropCollector` | `sprite:interact`  | `reportInteraction('file-drag-leave')`                     |
 | 文件拖放 | `useFileDropCollector` | `sprite:file-drop` | `reportInteraction('file-drop')`                           |
 
 ### B. 业务事件触发 (AppEvent → sprite-event-listener)
@@ -814,13 +850,18 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 
 ## IPC 通信协议
 
-所有精灵相关通道统一使用 `sprite:` 前缀。
+核心运行时通道统一使用 `sprite:` 前缀。
+
+说明：
+
+- 当前代码仍保留少量兼容层事件与旧 handler，例如 `persona:level-up`、`auto-walk-enabled-changed`
+- 这些兼容通道用于平滑迁移，不应继续作为新的正式能力入口
 
 ### 上行（渲染进程 → 主进程）
 
 | 通道                                | 载荷                                                | 说明               |
 | ----------------------------------- | --------------------------------------------------- | ------------------ |
-| `sprite:interact`                   | `{ type, data? }`                                   | 用户交互上报       |
+| `sprite:interact`                   | `{ type: SpriteInteractionIntent, data? }`          | 用户交互上报       |
 | `sprite:drag`                       | `{ phase, screenX?, screenY?, offsetX?, offsetY? }` | 拖拽事件           |
 | `sprite:anim-complete`              | `{ animId, phase }`                                 | 动画播放完成       |
 | `sprite:file-drop`                  | `{ files }`                                         | 文件拖放           |
@@ -861,7 +902,7 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 
 **动画管理**: `list()`, `listByEvent()`, `get()`, `register()`, `registerFromData()`, `remove()`, `updateMeta()`
 
-**交互上报**: `interact()`, `dragStart()`, `dragEnd()`, `animComplete()`, `fileDrop()`
+**交互上报**: `interact(type: SpriteInteractionIntent)`, `dragStart()`, `dragEnd()`, `animComplete()`, `fileDrop()`
 
 **状态与配置**: `getInitialState()`, `ready()`, `getAutoWalk()`, `setAutoWalk()`, `getDebugOverlay()`, `setDebugOverlay()`
 

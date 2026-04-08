@@ -10,7 +10,7 @@ import { motion } from 'framer-motion';
 import React, { useEffect, useState } from 'react';
 import { TbStarFilled } from 'react-icons/tb';
 
-import { usePersonaState, useSpriteState } from '../context/SpriteStateContext';
+import { usePersonaState, useSpriteState } from '../context/hooks';
 
 const XPProgressBar: React.FC = () => {
   const personaState = usePersonaState();

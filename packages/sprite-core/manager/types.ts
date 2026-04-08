@@ -1,3 +1,5 @@
+import type { PersonaState } from '../persona-state';
+
 // ============================================================================
 // 平台抽象接口（由 Electron main process 注入）
 // ============================================================================
@@ -25,21 +27,23 @@ export interface SpriteManagerOptions {
   appName?: string;
 }
 
-/** 持久化状态行 */
+/** 人格状态持久化快照（JSON 文件） */
 export interface PersonaStatePersistenceRow {
   id: string;
-  name: string;
-  description?: string;
-  xp: number;
-  level: number;
-  favor: number;
-  mood: string;
-  moodIntensity: number;
-  totalInteractions: number;
-  totalSessionTime: number;
-  loginStreak: number;
-  lastLoginDate: string;
-  achievements: string;
-  createdAt: number;
-  updatedAt: number;
+  version: 2;
+  name: PersonaState['name'];
+  description?: PersonaState['description'];
+  xp: PersonaState['xp'];
+  level: PersonaState['level'];
+  favor: PersonaState['favor'];
+  mood: PersonaState['mood'];
+  moodIntensity: PersonaState['moodIntensity'];
+  totalInteractions: PersonaState['totalInteractions'];
+  totalSessionTime: PersonaState['totalSessionTime'];
+  loginStreak: PersonaState['loginStreak'];
+  lastLoginDate: PersonaState['lastLoginDate'];
+  achievements: PersonaState['achievements'];
+  dimensions: PersonaState['dimensions'];
+  createdAt: PersonaState['createdAt'];
+  updatedAt: PersonaState['updatedAt'];
 }
