@@ -9,8 +9,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { TbFile, TbFileText, TbMusic, TbPhoto, TbPlayerPlay, TbVideo, TbWorld } from 'react-icons/tb';
 
 import { ResourceItem } from '@/pages/ResourcePage/types';
-import { getFileCoverByPath, getResourceSummary } from '@/pages/ResourcePage/utils/resourceUtils';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
+import { getFileCoverByPath, getResourceSummary } from '@/pages/ResourcePage/utils/resourceUtils';
 
 import type { ChatCardType } from '../types';
 
@@ -144,13 +144,7 @@ const ResourceCard: React.FC<ResourceCardProps> = ({ resourceId, data, cardType 
   // 紧凑模式渲染
   if (compact) {
     return (
-      <div
-        onClick={handleClick}
-        className={clsx(
-          'group flex items-center gap-2 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors p-2 w-72',
-          className
-        )}
-      >
+      <div onClick={handleClick} className={clsx('group flex items-center gap-2 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors p-2 w-72', className)}>
         {/* 缩略图 */}
         <div className="relative w-10 h-10 rounded overflow-hidden bg-muted shrink-0">
           {isImage && resource.filePath ? (
@@ -189,13 +183,7 @@ const ResourceCard: React.FC<ResourceCardProps> = ({ resourceId, data, cardType 
 
   // 完整模式渲染
   return (
-    <div
-      onClick={handleClick}
-      className={clsx(
-        'group rounded-xl border bg-card overflow-hidden hover:shadow-lg hover:border-primary/50 cursor-pointer transition-all',
-        className
-      )}
-    >
+    <div onClick={handleClick} className={clsx('group rounded-xl border bg-card overflow-hidden hover:shadow-lg hover:border-primary/50 cursor-pointer transition-all', className)}>
       {/* 媒体区域 */}
       <div className="relative aspect-video bg-gradient-to-br from-background to-muted">
         {/* 图片直接显示 */}
