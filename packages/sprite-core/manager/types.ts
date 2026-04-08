@@ -25,6 +25,36 @@ export interface SpriteManagerOptions {
   getScreenSize: () => { width: number; height: number };
   /** 应用名称 */
   appName?: string;
+  /** AI 自发说话执行器（可选） */
+  spontaneousUtteranceExecutor?: SpriteSpontaneousUtteranceExecutor;
+}
+
+export interface SpriteSpontaneousUtteranceRequest {
+  behaviorId: string;
+  triggeredAt: number;
+  actionCandidates: string[];
+  sprite: {
+    state: string;
+    mood: PersonaState['mood'];
+    moodIntensity: number;
+    favor: number;
+    level: number;
+    idleDurationMs: number;
+  };
+}
+
+export interface SpriteSpontaneousUtteranceResult {
+  text: string;
+  intentCategory?: string;
+  tone?: string;
+  emotion?: string;
+  recommendedAction?: string;
+  bubbleDurationMs?: number;
+  whyThisFits?: string;
+}
+
+export interface SpriteSpontaneousUtteranceExecutor {
+  generateForIdleAction(input: SpriteSpontaneousUtteranceRequest): Promise<SpriteSpontaneousUtteranceResult | null>;
 }
 
 /** 人格状态持久化快照（JSON 文件） */

@@ -13,4 +13,11 @@ export { registerDefaultBehaviors } from './default-behaviors';
 export { AutoWalkConfig, PersonaStatePersistence } from './persistence';
 export { SpriteManager } from './sprite-manager';
 export { mapStateToEventType } from './state-mapping';
-export type { PersonaStatePersistenceRow, SpriteManagerOptions, SpriteWindow } from './types';
+export type {
+  PersonaStatePersistenceRow,
+  SpriteManagerOptions,
+  SpriteSpontaneousUtteranceExecutor,
+  SpriteSpontaneousUtteranceRequest,
+  SpriteSpontaneousUtteranceResult,
+  SpriteWindow
+} from './types';

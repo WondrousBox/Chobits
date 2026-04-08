@@ -30,6 +30,7 @@ import { getHttpProxy } from './proxy/proxy';
 import { initResourceHandlers } from './resource/ipc-main';
 import { initRssHandlers } from './rss/ipc-main';
 import { initShortcutsHandlers } from './shortcuts';
+import { SpriteSpontaneousUtteranceService } from './sprite/spontaneous-utterance-service';
 import { initSpleeterHandlers } from './spleeter/ipc-main';
 import { initStatusHandlers } from './status';
 import { initSystemHandlers } from './system/ipc-main';
@@ -99,7 +100,9 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initMediaHandlers(win);
   initMemoryHandlers();
   initUserProfileHandlers();
+  const spontaneousUtteranceService = new SpriteSpontaneousUtteranceService();
   await initSpriteManagerIPC(win, {
-    addAllowedResourceRoot: (await import('../resource-protocol')).addAllowedResourceRoot
+    addAllowedResourceRoot: (await import('../resource-protocol')).addAllowedResourceRoot,
+    spontaneousUtteranceExecutor: spontaneousUtteranceService
   });
 }
