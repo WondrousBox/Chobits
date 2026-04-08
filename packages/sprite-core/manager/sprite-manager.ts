@@ -23,7 +23,7 @@ import { AnimationRegistry } from '../animation-registry';
 import type { BehaviorContext, BehaviorDefinition } from '../behavior-engine';
 import { BehaviorEngine } from '../behavior-engine';
 import { SpriteEventBus } from '../event-bus';
-import type { InteractionType } from '../interaction-tracker';
+import { SPRITE_INTERACTION_EVENT_BY_INTENT, type SpriteInteractionIntent, type SpriteInteractionPayload } from '../interaction-contract';
 import { InteractionTracker } from '../interaction-tracker';
 import Messages from '../messages/zh-CN';
 import { getSpriteEventText } from '../messages/zh-CN';
@@ -175,13 +175,14 @@ export class SpriteManager {
         xp: saved.xp,
         level: saved.level,
         favor: saved.favor,
-        mood: saved.mood as any,
+        mood: saved.mood,
         moodIntensity: saved.moodIntensity,
         totalInteractions: saved.totalInteractions,
         totalSessionTime: saved.totalSessionTime,
         loginStreak: saved.loginStreak,
         lastLoginDate: saved.lastLoginDate,
-        achievements: JSON.parse(saved.achievements || '[]'),
+        achievements: saved.achievements,
+        dimensions: saved.dimensions,
         createdAt: saved.createdAt,
         updatedAt: saved.updatedAt
       });
@@ -610,26 +611,9 @@ export class SpriteManager {
   // ============================================================================
 
   /** 记录交互 */
-  reportInteraction(type: InteractionType, data?: Record<string, any>): void {
-    this.interactionTracker.record(type, data);
-
-    // 同步触发事件总线
-    const eventMap: Record<string, string> = {
-      click: 'interact:click',
-      'double-click': 'interact:double-click',
-      drag: 'interact:drag:end',
-      hold: 'interact:hold:end',
-      hover: 'interact:hover:enter',
-      'file-drag-over': 'interact:file-drag-over',
-      'file-drag-leave': 'interact:file-drag-leave',
-      'file-drop': 'interact:file-drop',
-      'context-menu': 'interact:context-menu'
-    };
-
-    const eventType = eventMap[type];
-    if (eventType) {
-      this.eventBus.emit(eventType as any, data, 'sprite-manager');
-    }
+  reportInteraction(type: SpriteInteractionIntent, data?: SpriteInteractionPayload): void {
+    const eventType = SPRITE_INTERACTION_EVENT_BY_INTENT[type];
+    this.eventBus.emit(eventType, data, 'sprite-manager');
 
     // file-drag-over → 切换到 reacting/file-drag-over（持续到 drag-leave 或 file-drop）
     if (type === 'file-drag-over' && this.getState() !== 'dragging') {
@@ -644,9 +628,8 @@ export class SpriteManager {
     }
 
     // 自动触发临时反应状态
-    const reactionMap: Record<string, SpriteSubState> = {
+    const reactionMap: Partial<Record<SpriteInteractionIntent, SpriteSubState>> = {
       click: 'click',
-      hold: 'hold',
       'file-drop': 'file-drop'
     };
     const subState = reactionMap[type];
@@ -655,7 +638,7 @@ export class SpriteManager {
     }
 
     // 根据交互类型显示对应文案
-    const toastCategoryMap: Partial<Record<InteractionType, MessageCategory>> = {
+    const toastCategoryMap: Partial<Record<SpriteInteractionIntent, MessageCategory>> = {
       click: 'click',
       'file-drag-over': 'drag'
     };
@@ -708,6 +691,7 @@ export class SpriteManager {
     if (this.windowController) {
       this.windowController.startDrag(offsetX, offsetY);
     }
+    this.eventBus.emit('interact:drag:start', { offsetX, offsetY }, 'sprite-manager');
     this.showToast(undefined, { category: 'hold' });
   }
 
@@ -717,7 +701,7 @@ export class SpriteManager {
       this.windowController.endDrag();
     }
     this.transitionTo('idle');
-    this.reportInteraction('drag');
+    this.eventBus.emit('interact:drag:end', undefined, 'sprite-manager');
   }
 
   // ============================================================================
@@ -1128,6 +1112,7 @@ export class SpriteManager {
     const state = this.personaState.getState();
     return {
       id: 'default',
+      version: 2,
       name: state.name,
       description: state.description,
       xp: state.xp,
@@ -1139,7 +1124,8 @@ export class SpriteManager {
       totalSessionTime: state.totalSessionTime,
       loginStreak: state.loginStreak,
       lastLoginDate: state.lastLoginDate,
-      achievements: JSON.stringify(state.achievements),
+      achievements: [...state.achievements],
+      dimensions: { ...state.dimensions },
       createdAt: state.createdAt,
       updatedAt: state.updatedAt
     };

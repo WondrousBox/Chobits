@@ -7,7 +7,8 @@
 
 // ── Components ──────────────────────────────────────────────
 export { AIAssistant } from './AIAssistant';
-export { SpriteStateProvider, useSpriteState } from './context/SpriteStateContext';
+export { useSpriteState } from './context/hooks';
+export { SpriteStateProvider } from './context/SpriteStateContext';
 
 // ── Types (re-exported from @packages/sprite-core) ──────────
 export type { MessageCatalog, MessageCategory, MessageProducer, MessagesProvider, SpriteAnimation, SpriteEventType } from './types';

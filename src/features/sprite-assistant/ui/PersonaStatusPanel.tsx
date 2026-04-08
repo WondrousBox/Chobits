@@ -4,19 +4,12 @@
  * 显示精灵的等级、经验进度、心情和好感度
  * 用于状态窗口中展示角色信息
  */
+import type { PersonaSnapshot } from '@packages/sprite-core/types';
 import React from 'react';
 import { TbHeartFilled, TbStarFilled } from 'react-icons/tb';
 
-interface PersonaState {
-  level: number;
-  xp: number;
-  xpToNextLevel: number;
-  mood: number;
-  affection: number;
-}
-
 interface PersonaStatusPanelProps {
-  persona: PersonaState | null;
+  persona: PersonaSnapshot | null;
 }
 
 const PersonaStatusPanel: React.FC<PersonaStatusPanelProps> = ({ persona }) => {
@@ -52,7 +45,7 @@ const PersonaStatusPanel: React.FC<PersonaStatusPanelProps> = ({ persona }) => {
         </div>
         <div className="flex items-center gap-1">
           <TbHeartFilled className="w-3 h-3 text-red-400" />
-          <span className="font-mono">{persona.affection}</span>
+          <span className="font-mono">{persona.favor}</span>
         </div>
       </div>
     </div>

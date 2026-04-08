@@ -8,6 +8,7 @@
 
 import { ipcRenderer } from 'electron';
 
+import type { SpriteInteractionIntent, SpriteInteractionPayload } from '../interaction-contract';
 import type { SpeakResult, SpriteSpeakConfig } from '../speak/types';
 import type { SpriteAnimation } from '../types';
 
@@ -32,7 +33,7 @@ export type SpriteBridgeType = {
   updateMeta(id: string, meta: Partial<SpriteAnimation['meta']>): Promise<{ ok: boolean; item?: SpriteAnimation }>;
 
   // 交互上报
-  interact(type: string, data?: any): Promise<void>;
+  interact(type: SpriteInteractionIntent, data?: SpriteInteractionPayload): Promise<void>;
 
   // 拖拽（主进程轮询光标，渲染进程仅发 start/end 信号）
   dragStart(offsetX: number, offsetY: number): Promise<void>;
@@ -191,7 +192,7 @@ export const spriteBridge: SpriteBridgeType = {
     };
   },
   onBusyClear: (cb) => {
-    const handler = (_: any): void => cb();
+    const handler = (): void => cb();
     ipcRenderer.on('sprite:busy:clear', handler);
     return () => {
       ipcRenderer.off('sprite:busy:clear', handler);

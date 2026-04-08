@@ -10,7 +10,7 @@ import React, { useEffect, useRef } from 'react';
 
 import Dropzone from '@/components/common/Dropzone';
 
-import { useSpriteState } from './context/SpriteStateContext';
+import { useSpriteState } from './context/hooks';
 import { useDragCollector } from './hooks/useDragCollector';
 import { useFileDropCollector } from './hooks/useFileDropCollector';
 import { MessageProvider, SpriteMessage } from './message';
@@ -23,12 +23,12 @@ const showBlock = true; // 开发时显示
 
 /** 内部组件：包含实际逻辑 */
 const AIAssistantInner: React.FC = () => {
-  const { spriteState, currentAnimation, walkDirection, isWalking, spriteConfig, ready } = useSpriteState();
+  const { currentAnimation, walkDirection, isWalking, spriteConfig, ready } = useSpriteState();
   const { width, height, padding } = spriteConfig;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const { onMouseDown, isDragging, isDragReady } = useDragCollector();
-  const { isFileDragOver, handleDragEnter, handleDragLeave, handleDrop, handleDropFiles } = useFileDropCollector();
+  const { handleDragEnter, handleDragLeave, handleDropFiles } = useFileDropCollector();
 
   // 全局语音播放
   useSpriteSpeak();
@@ -52,7 +52,9 @@ const AIAssistantInner: React.FC = () => {
       // 打开升级窗口并传递数据
       await window.YUA.window['window:open']('levelUp', data);
     });
-    return unsub;
+    return () => {
+      unsub();
+    };
   }, []);
 
   // 首次挂载：初始定位窗口
@@ -111,10 +113,12 @@ const AIAssistantInner: React.FC = () => {
 
   const handleContextMenu = (e: React.MouseEvent): void => {
     e.preventDefault();
+    window.YUA.sprite.interact('context-menu');
     window.YUA.window['window:open']('menu');
   };
 
   const handleDoubleClick = (): void => {
+    window.YUA.sprite.interact('double-click');
     window.YUA.window['window:open']('assistant');
   };
 

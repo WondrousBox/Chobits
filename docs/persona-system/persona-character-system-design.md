@@ -3,6 +3,13 @@
 > **版本**: v1.4 - Phase 3.5 工具标签人格化
 > **日期**: 2026-04-02
 > **状态**: Phase 1 ✅ | Phase 2 ✅ | Phase 3 ✅ | Phase 3.5 ✅ | Phase 4-5 RFC
+>
+> 2026-04-08 实现校准补充：本设计文档中的 Phase 3 目标大体已经接入代码，本轮已完成以下收口：
+>
+> - `PersonaState.dimensions` 已纳入 `persona-state.json` 持久化，并增加历史快照兼容读取
+> - `persona:dimension-updated` 已补入 EventBus 类型定义
+>
+> 运行时统一收口方案见 `docs/sprite-core/sprite-runtime-unification-plan.md`
 
 ---
 
@@ -952,6 +959,8 @@ A: Phase 1 不支持编辑。Phase 4 的角色包系统可能支持用户自定�
 > 每次实现新 Phase 时更新此节，保持文档与代码同步。
 
 ### [v1.3] - 2026-04-02 — Phase 3 多维度培养
+
+> 2026-04-08 校准说明：以下内容描述的是 Phase 3 设计目标与主要接入结果。本轮已补齐 `dimensions` 持久化与 `persona:dimension-updated` 事件类型，后续仍需继续完成更大范围的事件/状态/配置收口。
 
 **新增**
 

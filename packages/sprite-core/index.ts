@@ -34,6 +34,7 @@ export type {
   MessageType,
   NoticeInput,
   NoticeMessage,
+  PersonaSnapshot,
   SpriteAnimation,
   SpriteConfig,
   SpriteEventType,
@@ -43,6 +44,7 @@ export type {
   SpriteMovementDirection,
   SpriteMovementMode,
   SpriteMovementTrigger,
+  SpritePersonaStateResult,
   SpritePlayCommand,
   SpriteStateSnapshot,
   SpriteWalkState,
@@ -79,6 +81,8 @@ export {
 } from './character-service';
 export type { SpritePersonaEvent, SpritePersonaEventType } from './event-bus';
 export { SpriteEventBus } from './event-bus';
+export type { SpriteInteractionEvent, SpriteInteractionIntent, SpriteInteractionPayload } from './interaction-contract';
+export { isSpriteInteractionEvent, isSpriteInteractionIntent, SPRITE_INTERACTION_EVENT_BY_INTENT, SPRITE_INTERACTION_EVENTS, SPRITE_INTERACTION_INTENTS } from './interaction-contract';
 export type { InteractionEvent, InteractionStats, InteractionType } from './interaction-tracker';
 export { InteractionTracker } from './interaction-tracker';
 export type { FavorLevel, LevelConfig, MoodType, PersonaState } from './persona-state';

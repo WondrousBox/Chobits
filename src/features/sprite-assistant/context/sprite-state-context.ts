@@ -1,0 +1,23 @@
+import type { PersonaSnapshot, SpriteConfig, SpritePlayCommand } from '@packages/sprite-core/types';
+import { createContext } from 'react';
+
+export interface SpriteStateContextValue {
+  /** 当前精灵主状态 */
+  spriteState: string;
+  /** 当前子状态 */
+  subState: string | null;
+  /** 只读人格状态快照 */
+  personaState: PersonaSnapshot | null;
+  /** 当前播放动画信息 */
+  currentAnimation: SpritePlayCommand | null;
+  /** 行走方向 */
+  walkDirection: 'left' | 'right' | null;
+  /** 是否正在行走 */
+  isWalking: boolean;
+  /** 精灵尺寸配置 */
+  spriteConfig: SpriteConfig;
+  /** 是否已就绪 */
+  ready: boolean;
+}
+
+export const SpriteStateContext = createContext<SpriteStateContextValue | null>(null);
