@@ -11,18 +11,25 @@ export interface RadarDimension {
 interface RadarChartProps {
   dimensions: RadarDimension[];
   size?: number;
+  padding?: number;
   className?: string;
 }
 
-const RadarChart: React.FC<RadarChartProps> = ({ dimensions, size = 200, className }) => {
+type LabelAnchor = 'start' | 'middle' | 'end';
+
+const RadarChart: React.FC<RadarChartProps> = ({ dimensions, size = 200, padding = 24, className }) => {
   const count = dimensions.length;
   if (count < 3) return null;
 
   const cx = size / 2;
   const cy = size / 2;
-  const radius = size * 0.36;
-  const labelRadius = size * 0.48;
   const levels = 4; // grid rings
+  const labelFontSize = Math.max(8, Math.round(size * 0.045));
+  const safePadding = Math.min(size / 3, Math.max(0, padding));
+  const labelOffset = Math.max(12, size * 0.06);
+  const labelEdgePadding = Math.max(8, Math.min(16, safePadding * 0.5));
+  const radius = Math.min(size * 0.36, Math.max(size * 0.18, size / 2 - safePadding - labelOffset));
+  const labelRadius = Math.min(size / 2 - safePadding, radius + labelOffset);
 
   // Angle for each axis (start from top, go clockwise)
   const angleStep = (2 * Math.PI) / count;
@@ -62,8 +69,38 @@ const RadarChart: React.FC<RadarChartProps> = ({ dimensions, size = 200, classNa
   // Labels
   const labels = dimensions.map((dim, i) => {
     const p = getPoint(i, labelRadius);
-    const pct = Math.round((dim.value / dim.maxValue) * 100);
-    return { ...p, dim, pct };
+    const content = [dim.icon, dim.name].filter(Boolean).join(' ');
+    const estimatedWidth = Math.max(labelFontSize * 2, Array.from(content).length * labelFontSize * 0.8);
+    const halfWidth = estimatedWidth / 2;
+    const halfHeight = labelFontSize * 0.6;
+    const minX = labelEdgePadding;
+    const maxX = size - labelEdgePadding;
+    const minY = labelEdgePadding;
+    const maxY = size - labelEdgePadding;
+    let textAnchor: LabelAnchor = 'middle';
+    let x = p.x;
+    let y = p.y;
+
+    if (p.x - halfWidth < minX) {
+      textAnchor = 'start';
+      x = minX;
+    } else if (p.x + halfWidth > maxX) {
+      textAnchor = 'end';
+      x = maxX;
+    }
+
+    if (p.y - halfHeight < minY) {
+      y = minY + halfHeight;
+    } else if (p.y + halfHeight > maxY) {
+      y = maxY - halfHeight;
+    }
+
+    return {
+      content,
+      x,
+      y,
+      textAnchor
+    };
   });
 
   return (
@@ -91,8 +128,17 @@ const RadarChart: React.FC<RadarChartProps> = ({ dimensions, size = 200, classNa
 
         {/* Labels */}
         {labels.map((label, i) => (
-          <text key={`label-${i}`} x={label.x} y={label.y} textAnchor="middle" dominantBaseline="central" className="fill-foreground" fontSize={10}>
-            {label.dim.icon} {label.dim.name}
+          <text
+            key={`label-${i}`}
+            x={label.x}
+            y={label.y}
+            textAnchor={label.textAnchor}
+            dominantBaseline="middle"
+            className="pointer-events-none select-none text-muted-foreground/70"
+            fill="currentColor"
+            fontSize={labelFontSize}
+          >
+            {label.content}
           </text>
         ))}
       </svg>

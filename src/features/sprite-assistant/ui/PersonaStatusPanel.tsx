@@ -6,7 +6,7 @@
  */
 import type { PersonaSnapshot } from '@packages/sprite-core/types';
 import React from 'react';
-import { TbHeartFilled, TbStarFilled } from 'react-icons/tb';
+import { TbHeartFilled } from 'react-icons/tb';
 
 interface PersonaStatusPanelProps {
   persona: PersonaSnapshot | null;
@@ -22,7 +22,6 @@ const PersonaStatusPanel: React.FC<PersonaStatusPanelProps> = ({ persona }) => {
       <div className="flex items-center gap-3">
         {/* 等级徽章 */}
         <div className="flex items-center gap-1.5">
-          <TbStarFilled className="w-4 h-4 text-amber-500" />
           <span className="text-sm font-bold">Lv.{persona.level}</span>
         </div>
 
@@ -40,12 +39,23 @@ const PersonaStatusPanel: React.FC<PersonaStatusPanelProps> = ({ persona }) => {
       {/* 心情和好感度 */}
       <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
         <div className="flex items-center gap-1">
-          <span>心情:</span>
-          <span className="font-mono">{persona.mood}</span>
-        </div>
-        <div className="flex items-center gap-1">
           <TbHeartFilled className="w-3 h-3 text-red-400" />
-          <span className="font-mono">{persona.favor}</span>
+          <span className="font-mono">
+            {{
+              joyful: '开心',
+              content: '满足',
+              neutral: '平静',
+              bored: '无聊',
+              sad: '难过',
+              sleepy: '困倦',
+              excited: '兴奋',
+              curious: '好奇',
+              annoyed: '烦躁'
+            }[persona.mood] ?? persona.mood}
+          </span>
+          <span className="font-mono">
+            {persona.favor >= 95 ? '灵魂伴侣' : persona.favor >= 80 ? '挚友' : persona.favor >= 60 ? '好友' : persona.favor >= 40 ? '朋友' : persona.favor >= 20 ? '认识' : '陌生人'}
+          </span>
         </div>
       </div>
     </div>

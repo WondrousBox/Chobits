@@ -434,14 +434,15 @@ export class PersonaStateManager {
     this.state.lastLoginDate = today;
     this.state.updatedAt = Date.now();
 
-    // 发送日常登录事件
+    const dailyLoginXP = this.calculateXPGainForEvent('persona:daily-login');
     this.eventBus?.emit('persona:daily-login', { streak: this.state.loginStreak }, 'persona-state');
 
     // 连续登录奖励
-    let xpBonus = 0;
+    let xpBonus = dailyLoginXP;
     if (this.state.loginStreak > 1) {
+      const streakBonusXP = this.calculateXPGainForEvent('persona:streak-bonus');
       this.eventBus?.emit('persona:streak-bonus', { streak: this.state.loginStreak }, 'persona-state');
-      xpBonus = 25 * Math.min(this.state.loginStreak, 7);
+      xpBonus += streakBonusXP;
     }
 
     this.notifyChange();
@@ -595,7 +596,8 @@ export class PersonaStateManager {
   }
 
   /** 处理事件触发的 XP 增加 */
-  private handleXPEvent(eventName: string): void {
+  private handleXPEvent(eventName: string): number {
+    let totalXP = 0;
     for (const source of this.xpSources) {
       if (source.event !== eventName) continue;
       if (!this.checkDailyLimit(`xp:${source.id}`, source.dailyLimit)) continue;
@@ -607,11 +609,30 @@ export class PersonaStateManager {
 
       this.incrementDailyCount(`xp:${source.id}`);
       this.addXP(xp, source.id);
+      totalXP += xp;
     }
+    return totalXP;
+  }
+
+  private calculateXPGainForEvent(eventName: string): number {
+    let totalXP = 0;
+    for (const source of this.xpSources) {
+      if (source.event !== eventName) continue;
+      if (!this.checkDailyLimit(`xp:${source.id}`, source.dailyLimit)) continue;
+
+      let xp = source.baseXP;
+      if (source.multiplier) {
+        xp = Math.floor(xp * source.multiplier(this.state));
+      }
+
+      totalXP += xp;
+    }
+    return totalXP;
   }
 
   /** 处理事件触发的好感度变化 */
-  private handleFavorEvent(eventName: string): void {
+  private handleFavorEvent(eventName: string): number {
+    let totalDelta = 0;
     for (const mod of this.favorModifiers) {
       if (mod.event !== eventName) continue;
       if (!this.checkDailyLimit(`favor:${mod.id}`, mod.dailyLimit)) continue;
@@ -620,17 +641,19 @@ export class PersonaStateManager {
       this.incrementDailyCount(`favor:${mod.id}`);
       this.lastFavorTrigger.set(mod.id, Date.now());
       this.changeFavor(mod.delta, mod.id);
+      totalDelta += mod.delta;
     }
+    return totalDelta;
   }
 
   /** 设置事件订阅自动处理 XP 和好感度 */
   private setupEventSubscriptions(): void {
     if (!this.eventBus) return;
+    const selfRewardEvents = new Set(['persona:daily-login', 'persona:streak-bonus']);
 
     // 监听所有事件，自动匹配 XP 来源和好感度修改器
     this.eventBus.on('*', (event) => {
-      // 避免自己触发的事件产生递归
-      if (event.source === 'persona-state') return;
+      if (event.source === 'persona-state' && !selfRewardEvents.has(event.type)) return;
 
       this.handleXPEvent(event.type);
       this.handleFavorEvent(event.type);
