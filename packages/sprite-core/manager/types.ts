@@ -33,6 +33,7 @@ export interface SpriteSpontaneousUtteranceRequest {
   behaviorId: string;
   triggeredAt: number;
   actionCandidates: string[];
+  fallbackAction: string;
   sprite: {
     state: string;
     mood: PersonaState['mood'];
@@ -43,18 +44,99 @@ export interface SpriteSpontaneousUtteranceRequest {
   };
 }
 
+export interface SpriteSpontaneousUtteranceDelivery {
+  pace?: 'slow' | 'steady' | 'brisk';
+  energy?: 'soft' | 'light' | 'lifted' | 'grounded';
+  pauseHint?: 'none' | 'minor' | 'breath';
+}
+
+export type SpriteSpontaneousUtteranceActionSource = 'model' | 'style-map' | 'random-fallback';
+export type SpriteSpontaneousUtteranceIntentCategory = 'philosophy' | 'encouragement' | 'playful' | 'reminder' | 'planning' | 'empathy' | 'reflection';
+export type SpriteSpontaneousUtteranceTonePreference = 'auto' | 'gentle' | 'playful' | 'calm' | 'firm' | 'curious' | 'tender';
+export type SpriteSpontaneousUtteranceHistoryStatus = 'spoken' | 'generated' | 'skipped' | 'failed';
+
+export interface SpriteSpontaneousUtterancePreferences {
+  enabled: boolean;
+  cooldownMinutes: number;
+  dailyLimit: number;
+  preferredTone: SpriteSpontaneousUtteranceTonePreference;
+  allowedIntentCategories: SpriteSpontaneousUtteranceIntentCategory[];
+}
+
+export interface SpriteSpontaneousUtteranceHistoryQuery {
+  workspaceId?: string;
+  limit?: number;
+  query?: string;
+  status?: SpriteSpontaneousUtteranceHistoryStatus | 'all';
+  intentCategory?: SpriteSpontaneousUtteranceIntentCategory | 'all';
+}
+
+export interface SpriteSpontaneousUtteranceHistoryItem {
+  utteranceId?: string;
+  timestamp: number;
+  workspaceId?: string;
+  conversationId?: string;
+  behaviorId?: string;
+  status: SpriteSpontaneousUtteranceHistoryStatus;
+  text?: string;
+  intentCategory?: SpriteSpontaneousUtteranceIntentCategory;
+  tone?: string;
+  emotion?: string;
+  delivery?: SpriteSpontaneousUtteranceDelivery;
+  bubbleDurationMs?: number;
+  whyThisFits?: string;
+  executedAction?: string;
+  fallbackAction?: string;
+  actionSource?: SpriteSpontaneousUtteranceActionSource;
+  spoken?: boolean;
+  fallbackUsed?: boolean;
+  skipped?: boolean;
+  reason?: string;
+  triggerReason?: string;
+  providerId?: string;
+  providerPresetId?: string;
+  model?: string;
+  latencyMs?: number;
+}
+
 export interface SpriteSpontaneousUtteranceResult {
+  /** 关联生成与执行日志的内部 ID */
+  utteranceId?: string;
   text: string;
   intentCategory?: string;
   tone?: string;
   emotion?: string;
+  delivery?: SpriteSpontaneousUtteranceDelivery;
   recommendedAction?: string;
+  actionSource?: SpriteSpontaneousUtteranceActionSource;
   bubbleDurationMs?: number;
   whyThisFits?: string;
 }
 
+export interface SpriteSpontaneousUtteranceExecutionReport {
+  utteranceId?: string;
+  behaviorId: string;
+  triggeredAt: number;
+  text?: string;
+  intentCategory?: string;
+  tone?: string;
+  emotion?: string;
+  delivery?: SpriteSpontaneousUtteranceDelivery;
+  bubbleDurationMs?: number;
+  whyThisFits?: string;
+  executedAction: string;
+  actionSource: SpriteSpontaneousUtteranceActionSource;
+  spoken: boolean;
+  fallbackUsed: boolean;
+  error?: string;
+}
+
 export interface SpriteSpontaneousUtteranceExecutor {
   generateForIdleAction(input: SpriteSpontaneousUtteranceRequest): Promise<SpriteSpontaneousUtteranceResult | null>;
+  reportIdleActionExecution?(report: SpriteSpontaneousUtteranceExecutionReport): Promise<void>;
+  getSpontaneousUtterancePreferences?(): Promise<SpriteSpontaneousUtterancePreferences>;
+  updateSpontaneousUtterancePreferences?(patch: Partial<SpriteSpontaneousUtterancePreferences>): Promise<SpriteSpontaneousUtterancePreferences>;
+  listSpontaneousUtterances?(query?: SpriteSpontaneousUtteranceHistoryQuery): Promise<SpriteSpontaneousUtteranceHistoryItem[]>;
 }
 
 /** 人格状态持久化快照（JSON 文件） */

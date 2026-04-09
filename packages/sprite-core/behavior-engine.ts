@@ -275,7 +275,7 @@ export function createActionBehavior(): BehaviorDefinition {
     name: '闲置小动作',
     enabled: true,
     priority: 'low',
-    schedule: { type: 'random', minMs: 300000, maxMs: 600000 }, // 5-10分钟
+    schedule: { type: 'random', minMs: 30000, maxMs: 60000 }, // 30-60秒
     conditions: [
       (ctx) => ctx.spriteState === 'idle',
       (ctx) => ctx.interactionStats.idleDuration > 120000 // 至少 2 分钟无交互
@@ -296,7 +296,7 @@ export function createAmbientBehavior(): BehaviorDefinition {
     name: '闲置氛围动画',
     enabled: true,
     priority: 'low',
-    schedule: { type: 'random', minMs: 30000, maxMs: 60000 }, // 30-60秒
+    schedule: { type: 'random', minMs: 300000, maxMs: 600000 }, // 5-10分钟
     conditions: [(ctx) => ctx.spriteState === 'idle'],
     probability: 0.7,
     action: () => {
@@ -507,8 +507,9 @@ export class BehaviorEngine {
       this.eventBus?.emit(`behavior:${def.id.replace(/[^a-z0-9-]/g, '-')}-triggered` as any, { behaviorId: def.id, name: def.name }, 'behavior-engine');
 
       try {
-        await def.action(ctx);
         console.log('behavior triggered: ❤❤❤❤❤', def.name, '❤❤❤❤❤');
+        await def.action(ctx);
+        console.log('behavior completed: ❤❤❤❤❤', def.name, '❤❤❤❤❤');
       } catch (err) {
         console.error(`[BehaviorEngine] Action failed for ${def.id}:`, err);
       } finally {

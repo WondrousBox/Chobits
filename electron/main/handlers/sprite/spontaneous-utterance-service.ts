@@ -1,34 +1,77 @@
+import 'dayjs/locale/zh-cn';
+
+import { randomUUID } from 'node:crypto';
+import * as fsSync from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import { app } from 'electron';
+
 import { getPreset } from '../../../../packages/ai/preset-service';
-import { getPiAgentProfile } from '../../../../packages/ai/runtime/pi/profile-registry';
 import { createPiTaskChatRuntimeFromRequest, type PiTaskChatFunction } from '../../../../packages/ai/runtime/pi/task-chat';
 import { extractKeywordsFromMessage } from '../../../../packages/ai/services/memory-auto-recall';
-import { searchWithContent, type RetrievalDbDeps } from '../../../../packages/ai/services/memory-retrieval-service';
+import { type RetrievalDbDeps, searchWithContent } from '../../../../packages/ai/services/memory-retrieval-service';
 import type { AgentLoopCompletePayload } from '../../../../packages/ai/services/memory-types';
 import { extractSnapshot, extractTopFacts, parsePersonaMarkdown } from '../../../../packages/ai/services/persona-document';
 import { PERSONA_FILENAME } from '../../../../packages/ai/services/persona-types';
 import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
-import type { SpriteSpontaneousUtteranceExecutor, SpriteSpontaneousUtteranceRequest, SpriteSpontaneousUtteranceResult } from '../../../../packages/sprite-core/manager';
+import { buildCharacterPersonaPrompt } from '../../../../packages/sprite-core/character-service';
+import type {
+  SpriteSpontaneousUtteranceDelivery,
+  SpriteSpontaneousUtteranceExecutionReport,
+  SpriteSpontaneousUtteranceExecutor,
+  SpriteSpontaneousUtteranceHistoryItem,
+  SpriteSpontaneousUtteranceHistoryQuery,
+  SpriteSpontaneousUtteranceIntentCategory,
+  SpriteSpontaneousUtterancePreferences,
+  SpriteSpontaneousUtteranceRequest,
+  SpriteSpontaneousUtteranceResult,
+  SpriteSpontaneousUtteranceTonePreference
+} from '../../../../packages/sprite-core/manager';
 import { ChatRepo, WorkspacesRepo } from '../../db/repositories';
 import { buildRetrievalDbDeps } from '../memory/retrieval-db-deps';
 import { getStoredRoleProfile } from '../status';
 
 const TAG = '[SpriteAIUtterance]';
-const COOLDOWN_MS = 20 * 60 * 1000;
-const DAILY_LIMIT = 8;
 const MESSAGE_LIMIT = 16;
 const RECENT_MESSAGE_SLICE = 12;
 const MAX_MESSAGE_CHARS = 240;
 const MAX_PROFILE_FACTS = 6;
-const MAX_PROFILE_INSTRUCTION_LINES = 10;
 const MEMORY_CONTEXT_MAX_CHARS = 1800;
 const MAX_MEMORY_KEYWORDS = 10;
 const RECENT_DIALOGUE_DIGEST_LIMIT = 3;
 const IMPORTANT_MEMORY_DIGEST_LIMIT = 3;
 const IMPORTANT_DIGEST_LIMIT = 5;
+const EXECUTION_CONTEXT_TTL_MS = 15 * 60 * 1000;
+const HISTORY_FILE_PREFIX = 'sprite-spontaneous-utterances-';
+const HISTORY_FILE_SUFFIX = '.jsonl';
+const DEFAULT_HISTORY_LIMIT = 80;
+const RECENT_TEXT_DEDUPE_LIMIT = 20;
+const RECENT_INTENT_WINDOW = 5;
+const RECENT_INTENT_SKIP_MIN_COUNT = 3;
+const MAX_GENERATION_TIMEOUT_MS = 3 * 60 * 1000;
+const SPONTANEOUS_THINKING_LEVEL = 'minimal';
+
+const TONE_VALUES = ['gentle', 'playful', 'calm', 'firm', 'curious', 'tender'] as const;
+const EMOTION_VALUES = ['warm', 'hopeful', 'amused', 'thoughtful', 'soothing', 'bright'] as const;
+const DELIVERY_PACE_VALUES = ['slow', 'steady', 'brisk'] as const;
+const DELIVERY_ENERGY_VALUES = ['soft', 'light', 'lifted', 'grounded'] as const;
+const DELIVERY_PAUSE_VALUES = ['none', 'minor', 'breath'] as const;
+const INTENT_VALUES = ['philosophy', 'encouragement', 'playful', 'reminder', 'planning', 'empathy', 'reflection'] as const satisfies readonly SpriteSpontaneousUtteranceIntentCategory[];
+const TONE_PREFERENCE_VALUES = ['auto', ...TONE_VALUES] as const satisfies readonly SpriteSpontaneousUtteranceTonePreference[];
+
+const DEFAULT_SPONTANEOUS_UTTERANCE_PREFERENCES: SpriteSpontaneousUtterancePreferences = {
+  enabled: true,
+  cooldownMinutes: 20,
+  dailyLimit: 8,
+  preferredTone: 'auto',
+  allowedIntentCategories: [...INTENT_VALUES]
+};
+
+dayjs.extend(relativeTime);
 
 type ActiveConversationHint = {
   conversationId?: string;
@@ -42,6 +85,7 @@ type GeneratedUtterancePayload = {
   intentCategory?: unknown;
   tone?: unknown;
   emotion?: unknown;
+  delivery?: unknown;
   recommendedAction?: unknown;
   bubbleDurationMs?: unknown;
   whyThisFits?: unknown;
@@ -79,6 +123,7 @@ type ImportantDialogueDigest = {
   source: 'recent-chat' | 'memory-note';
   reason: 'recent_goal' | 'recent_struggle' | 'recent_commitment' | 'recent_reflection' | 'important_memory';
   freshness: 'current' | 'recent' | 'background';
+  relativeTime?: string;
   summary: string;
 };
 
@@ -88,6 +133,59 @@ type ImportantMemoryNote = {
   importance?: number;
   topics?: string | string[] | null;
 };
+
+type PendingExecutionContext = {
+  workspaceId?: string;
+  workspaceRoot?: string;
+  conversationId?: string;
+  providerId?: string;
+  providerPresetId?: string;
+  createdAt: number;
+};
+
+type HistoryLogContext = Pick<ResolvedConversationContext, 'workspaceId' | 'workspaceRoot' | 'conversationId' | 'providerId' | 'providerPresetId'>;
+
+type SpontaneousUtteranceLogEntry = {
+  timestamp?: number;
+  eventType?: string;
+  utteranceId?: string;
+  workspaceId?: string;
+  conversationId?: string;
+  behaviorId?: string;
+  skipped?: boolean;
+  reason?: string;
+  triggerReason?: string;
+  providerId?: string;
+  providerPresetId?: string;
+  model?: string;
+  latencyMs?: number;
+  result?: {
+    text?: string;
+    intentCategory?: SpriteSpontaneousUtteranceIntentCategory;
+    tone?: string;
+    emotion?: string;
+    delivery?: SpriteSpontaneousUtteranceDelivery;
+    bubbleDurationMs?: number;
+    whyThisFits?: string;
+  };
+  executedAction?: string;
+  fallbackAction?: string;
+  actionSource?: SpriteSpontaneousUtteranceHistoryItem['actionSource'];
+  spoken?: boolean;
+  fallbackUsed?: boolean;
+  error?: string;
+};
+
+type HistoryAccumulator = SpriteSpontaneousUtteranceHistoryItem & {
+  sortTimestamp: number;
+};
+
+type ChatActivityKind = 'thinking' | 'answer' | 'completed';
+type FavorLevel = 'stranger' | 'acquaintance' | 'friend' | 'close-friend' | 'bestie' | 'soulmate';
+
+function getPreferencesFilePath(): string {
+  return path.join(app.getPath('userData'), 'data', 'sprite-spontaneous-utterance-preferences.json');
+}
 
 function createEmptyMemoryContext(): PersistentMemoryContext {
   return {
@@ -99,18 +197,94 @@ function createEmptyMemoryContext(): PersistentMemoryContext {
   };
 }
 
+function createGenerationTimeoutController(): {
+  signal: AbortSignal;
+  noteActivity: (activity: ChatActivityKind) => void;
+  getAbortReason: () => string | undefined;
+  dispose: () => void;
+} {
+  const abortController = new AbortController();
+  const startedAt = Date.now();
+  let abortReason: string | undefined;
+  let activityCount = 0;
+  let firstActivityAt: number | undefined;
+  let lastActivityAt: number | undefined;
+  let lastActivityKind: ChatActivityKind | undefined;
+  let maxTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const clearMaxTimer = (): void => {
+    if (!maxTimer) return;
+    clearTimeout(maxTimer);
+    maxTimer = undefined;
+  };
+
+  const abortWithReason = (reason: string): void => {
+    if (abortController.signal.aborted) return;
+    abortReason = reason;
+    const elapsedMs = Date.now() - startedAt;
+    const lastGapMs = lastActivityAt ? Date.now() - lastActivityAt : undefined;
+    console.warn(
+      `${TAG} aborting generation: ${reason} (elapsed=${elapsedMs}ms, activities=${activityCount}, lastActivity=${lastActivityKind || 'none'}${typeof lastGapMs === 'number' ? `, idleFor=${lastGapMs}ms` : ''})`
+    );
+    abortController.abort(reason);
+  };
+  maxTimer = setTimeout(() => abortWithReason('generation_max_timeout'), MAX_GENERATION_TIMEOUT_MS);
+
+  return {
+    getAbortReason: () => abortReason,
+    noteActivity: (activity: ChatActivityKind) => {
+      if (abortController.signal.aborted) {
+        return;
+      }
+
+      activityCount += 1;
+      lastActivityKind = activity;
+      lastActivityAt = Date.now();
+
+      if (!firstActivityAt) {
+        firstActivityAt = lastActivityAt;
+        console.log(`${TAG} first stream activity detected: ${activity} after ${firstActivityAt - startedAt}ms`);
+      }
+    },
+    signal: abortController.signal,
+    dispose: () => {
+      clearMaxTimer();
+    }
+  };
+}
+
 function adaptChatFn(piChatFn: PiTaskChatFunction) {
-  return async (prompt: string, signal?: AbortSignal): Promise<string> => {
+  return async (prompt: string, options?: { signal?: AbortSignal; onActivity?: (activity: ChatActivityKind) => void }): Promise<string> => {
     let fullText = '';
     let errorMessage: string | undefined;
 
     await piChatFn(
       prompt,
       (event) => {
-        if (event.type === 'delta' && event.data.text) fullText += event.data.text;
+        if (event.type === 'delta') {
+          options?.onActivity?.('answer');
+          if (event.data.text) {
+            fullText += event.data.text;
+          }
+          return;
+        }
+
+        if (event.type === 'thinking_delta') {
+          options?.onActivity?.('thinking');
+          return;
+        }
+
+        if (event.type === 'message_completed') {
+          options?.onActivity?.('completed');
+          if (event.data?.text && event.data.text.length >= fullText.length) {
+            fullText = event.data.text;
+          }
+          return;
+        }
+
         if (event.type === 'error') errorMessage = event.data.message;
       },
-      signal
+      options?.signal
     );
 
     if (errorMessage) {
@@ -123,11 +297,7 @@ function adaptChatFn(piChatFn: PiTaskChatFunction) {
 
 function safeParseJson<T>(text: string): T | null {
   const trimmed = text.trim();
-  const candidates = [
-    trimmed,
-    ...(trimmed.match(/```json\s*([\s\S]*?)```/i)?.slice(1) ?? []),
-    ...(trimmed.match(/(\{[\s\S]*\})/)?.slice(1) ?? [])
-  ]
+  const candidates = [trimmed, ...(trimmed.match(/```json\s*([\s\S]*?)```/i)?.slice(1) ?? []), ...(trimmed.match(/(\{[\s\S]*\})/)?.slice(1) ?? [])]
     .map((candidate) => candidate.trim())
     .filter(Boolean);
 
@@ -147,14 +317,120 @@ function truncateText(text: string, maxChars: number): string {
 }
 
 function normalizeSingleLine(text: string): string {
-  return text.replace(/\s+/g, ' ').replace(/^["'“”‘’]+|["'“”‘’]+$/g, '').trim();
+  return text
+    .replace(/\s+/g, ' ')
+    .replace(/^["'“”‘’]+|["'“”‘’]+$/g, '')
+    .trim();
 }
 
-function clampBubbleDuration(text: string, value?: number): number {
+function normalizeEnumValue<T extends readonly string[]>(value: unknown, allowedValues: T): T[number] | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const normalized = normalizeSingleLine(value).toLowerCase();
+  return allowedValues.find((item) => item === normalized);
+}
+
+function normalizeDelivery(value: unknown): SpriteSpontaneousUtteranceDelivery | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const payload = value as Record<string, unknown>;
+  const pace = normalizeEnumValue(payload.pace, DELIVERY_PACE_VALUES);
+  const energy = normalizeEnumValue(payload.energy, DELIVERY_ENERGY_VALUES);
+  const pauseHint = normalizeEnumValue(payload.pauseHint, DELIVERY_PAUSE_VALUES);
+
+  if (!pace && !energy && !pauseHint) {
+    return undefined;
+  }
+
+  return {
+    ...(pace ? { pace } : {}),
+    ...(energy ? { energy } : {}),
+    ...(pauseHint ? { pauseHint } : {})
+  };
+}
+
+function normalizeIntentCategory(value: unknown): SpriteSpontaneousUtteranceIntentCategory | undefined {
+  return normalizeEnumValue(value, INTENT_VALUES);
+}
+
+function normalizeTonePreference(value: unknown): SpriteSpontaneousUtteranceTonePreference {
+  return normalizeEnumValue(value, TONE_PREFERENCE_VALUES) ?? DEFAULT_SPONTANEOUS_UTTERANCE_PREFERENCES.preferredTone;
+}
+
+function normalizePositiveInteger(value: unknown, fallback: number, min: number, max: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.max(min, Math.min(max, Math.round(value)));
+}
+
+function normalizeIntentCategories(value: unknown): SpriteSpontaneousUtteranceIntentCategory[] {
+  if (!Array.isArray(value)) {
+    return [...DEFAULT_SPONTANEOUS_UTTERANCE_PREFERENCES.allowedIntentCategories];
+  }
+
+  const categories = value.map((item) => normalizeIntentCategory(item)).filter((item): item is SpriteSpontaneousUtteranceIntentCategory => !!item);
+
+  return uniqueStrings(categories).length ? (uniqueStrings(categories) as SpriteSpontaneousUtteranceIntentCategory[]) : [...DEFAULT_SPONTANEOUS_UTTERANCE_PREFERENCES.allowedIntentCategories];
+}
+
+function normalizeSpontaneousUtterancePreferences(value: unknown): SpriteSpontaneousUtterancePreferences {
+  const payload = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+
+  return {
+    enabled: typeof payload.enabled === 'boolean' ? payload.enabled : DEFAULT_SPONTANEOUS_UTTERANCE_PREFERENCES.enabled,
+    cooldownMinutes: normalizePositiveInteger(payload.cooldownMinutes, DEFAULT_SPONTANEOUS_UTTERANCE_PREFERENCES.cooldownMinutes, 5, 180),
+    dailyLimit: normalizePositiveInteger(payload.dailyLimit, DEFAULT_SPONTANEOUS_UTTERANCE_PREFERENCES.dailyLimit, 1, 20),
+    preferredTone: normalizeTonePreference(payload.preferredTone),
+    allowedIntentCategories: normalizeIntentCategories(payload.allowedIntentCategories)
+  };
+}
+
+function readPreferencesSync(): SpriteSpontaneousUtterancePreferences {
+  try {
+    const filePath = getPreferencesFilePath();
+    if (!fsSync.existsSync(filePath)) {
+      return { ...DEFAULT_SPONTANEOUS_UTTERANCE_PREFERENCES };
+    }
+
+    const raw = fsSync.readFileSync(filePath, 'utf-8');
+    return normalizeSpontaneousUtterancePreferences(JSON.parse(raw));
+  } catch {
+    return { ...DEFAULT_SPONTANEOUS_UTTERANCE_PREFERENCES };
+  }
+}
+
+function clampBubbleDuration(text: string, delivery?: SpriteSpontaneousUtteranceDelivery, value?: number): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return Math.max(3000, Math.min(9000, Math.round(value)));
   }
-  return Math.max(3500, Math.min(8500, text.length * 220));
+
+  let duration = Math.max(3500, Math.min(8500, text.length * 220));
+
+  if (delivery?.pace === 'slow') {
+    duration += 700;
+  } else if (delivery?.pace === 'brisk') {
+    duration -= 450;
+  }
+
+  if (delivery?.pauseHint === 'minor') {
+    duration += 250;
+  } else if (delivery?.pauseHint === 'breath') {
+    duration += 500;
+  }
+
+  if (delivery?.energy === 'soft' || delivery?.energy === 'grounded') {
+    duration += 180;
+  } else if (delivery?.energy === 'lifted') {
+    duration -= 120;
+  }
+
+  return Math.max(3200, Math.min(9000, Math.round(duration)));
 }
 
 function localDateStamp(ts = Date.now()): string {
@@ -165,13 +441,31 @@ function localDateStamp(ts = Date.now()): string {
   return `${year}-${month}-${day}`;
 }
 
-function summarizeAssistantInstructions(instructions?: string): string[] {
-  if (!instructions) return [];
-  return instructions
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line && line !== '---')
-    .slice(0, MAX_PROFILE_INSTRUCTION_LINES);
+function formatRelativeTimeLabel(value?: number | string | null): string | undefined {
+  if (typeof value !== 'number' && typeof value !== 'string') {
+    return undefined;
+  }
+
+  const parsed = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.trim()) ? dayjs(`${value.trim()}T12:00:00`) : dayjs(value);
+  if (!parsed.isValid()) {
+    return undefined;
+  }
+
+  const diffSeconds = Math.abs(dayjs().diff(parsed, 'second'));
+  if (diffSeconds < 90) {
+    return '刚刚';
+  }
+
+  return parsed.locale('zh-cn').fromNow();
+}
+
+function resolveFavorLevel(favor: number): FavorLevel {
+  if (favor >= 95) return 'soulmate';
+  if (favor >= 80) return 'bestie';
+  if (favor >= 60) return 'close-friend';
+  if (favor >= 40) return 'friend';
+  if (favor >= 20) return 'acquaintance';
+  return 'stranger';
 }
 
 function uniqueStrings(values: string[]): string[] {
@@ -188,6 +482,50 @@ function uniqueStrings(values: string[]): string[] {
   }
 
   return result;
+}
+
+function normalizeHistoryTextKey(text: string): string {
+  return normalizeSingleLine(text)
+    .toLowerCase()
+    .replace(/[\s\p{P}\p{S}]+/gu, '');
+}
+
+function stableDecisionScore(seed: string): number {
+  let hash = 0;
+
+  for (const char of seed) {
+    hash = (hash * 33 + char.codePointAt(0)!) % 1000;
+  }
+
+  return hash / 1000;
+}
+
+function evaluateHistoryNoise(candidate: SpriteSpontaneousUtteranceResult, history: SpriteSpontaneousUtteranceHistoryItem[]): { shouldSkip: false } | { shouldSkip: true; reason: string } {
+  const comparable = history.filter((item) => item.status !== 'skipped' && !!item.text).slice(0, RECENT_TEXT_DEDUPE_LIMIT);
+  const candidateTextKey = normalizeHistoryTextKey(candidate.text);
+
+  if (candidateTextKey && comparable.some((item) => normalizeHistoryTextKey(item.text || '') === candidateTextKey)) {
+    return { shouldSkip: true, reason: 'duplicate_text' };
+  }
+
+  if (!candidate.intentCategory) {
+    return { shouldSkip: false };
+  }
+
+  const recentIntentItems = comparable.slice(0, RECENT_INTENT_WINDOW).filter((item) => item.intentCategory === candidate.intentCategory);
+  if (recentIntentItems.length < RECENT_INTENT_SKIP_MIN_COUNT) {
+    return { shouldSkip: false };
+  }
+
+  const sameToneCount = candidate.tone ? recentIntentItems.filter((item) => item.tone === candidate.tone).length : 0;
+  const score = stableDecisionScore(`${candidate.intentCategory}:${candidate.tone || 'auto'}:${candidate.text}`);
+  const threshold = recentIntentItems.length >= 4 ? 0.85 : sameToneCount >= 2 ? 0.7 : 0.55;
+
+  if (score < threshold) {
+    return { shouldSkip: true, reason: 'intent_overrepresented' };
+  }
+
+  return { shouldSkip: false };
 }
 
 function parseStringArray(value: string | string[] | null | undefined): string[] {
@@ -211,7 +549,13 @@ function formatRecentMessages(messages: RecentMessage[]): string {
   if (!messages.length) {
     return '无近期聊天可用。';
   }
-  return messages.map((message) => `${message.role === 'user' ? '用户' : '助手'}: ${message.content}`).join('\n');
+
+  return messages
+    .map((message) => {
+      const relativeTime = formatRelativeTimeLabel(message.createdAt);
+      return `${message.role === 'user' ? '用户' : '助手'}${relativeTime ? `（${relativeTime}）` : ''}: ${message.content}`;
+    })
+    .join('\n');
 }
 
 function formatPersistentMemoryContext(memory: PersistentMemoryContext): string {
@@ -227,15 +571,11 @@ function formatImportantDialogueDigests(digests: ImportantDialogueDigest[]): str
     return '暂无提炼出的重点对话。';
   }
 
-  return digests.map((digest) => `- [${digest.source}/${digest.reason}/${digest.freshness}] ${digest.summary}`).join('\n');
+  return digests.map((digest) => `- [${digest.source}/${digest.reason}/${digest.freshness}${digest.relativeTime ? `/${digest.relativeTime}` : ''}] ${digest.summary}`).join('\n');
 }
 
 function inferRecentDialogueReason(text: string): ImportantDialogueDigest['reason'] | null {
-  if (
-    /(焦虑|担心|压力|烦|累|卡住|难受|崩溃|没状态|纠结|拖延|stress|anxious|stuck|tired|burnout|overwhelmed|frustrated)/i.test(
-      text
-    )
-  ) {
+  if (/(焦虑|担心|压力|烦|累|卡住|难受|崩溃|没状态|纠结|拖延|stress|anxious|stuck|tired|burnout|overwhelmed|frustrated)/i.test(text)) {
     return 'recent_struggle';
   }
 
@@ -255,7 +595,10 @@ function inferRecentDialogueReason(text: string): ImportantDialogueDigest['reaso
 }
 
 function buildRecentDialogueDigests(messages: RecentMessage[]): ImportantDialogueDigest[] {
-  const userMessages = messages.filter((message) => message.role === 'user').slice(-6).reverse();
+  const userMessages = messages
+    .filter((message) => message.role === 'user')
+    .slice(-6)
+    .reverse();
   const digests: ImportantDialogueDigest[] = [];
 
   for (let index = 0; index < userMessages.length; index += 1) {
@@ -269,6 +612,7 @@ function buildRecentDialogueDigests(messages: RecentMessage[]): ImportantDialogu
       source: 'recent-chat',
       reason,
       freshness: index < 2 ? 'current' : 'recent',
+      relativeTime: formatRelativeTimeLabel(message.createdAt),
       summary
     });
 
@@ -289,13 +633,13 @@ function buildImportantMemoryDigests(notes: ImportantMemoryNote[]): ImportantDia
 
     const topics = parseStringArray(note.topics);
     const topicPrefix = topics.length ? `[${topics.slice(0, 2).join(' / ')}] ` : '';
-    const freshness: ImportantDialogueDigest['freshness'] =
-      note.date && localDateStamp(Date.now() - 3 * 24 * 60 * 60 * 1000) <= note.date ? 'recent' : 'background';
+    const freshness: ImportantDialogueDigest['freshness'] = note.date && localDateStamp(Date.now() - 3 * 24 * 60 * 60 * 1000) <= note.date ? 'recent' : 'background';
 
     digests.push({
       source: 'memory-note',
       reason: 'important_memory',
       freshness,
+      relativeTime: formatRelativeTimeLabel(note.date),
       summary: truncateText(`${topicPrefix}${summary}`, 72)
     });
 
@@ -322,14 +666,13 @@ function dedupeDigests(digests: ImportantDialogueDigest[]): ImportantDialogueDig
 }
 
 function buildMemorySearchQuery(recentMessages: RecentMessage[], persona: PersonaSummary): { query: string; keywords: string[] } {
-  const userSignals = recentMessages.filter((message) => message.role === 'user').slice(-4).map((message) => message.content);
+  const userSignals = recentMessages
+    .filter((message) => message.role === 'user')
+    .slice(-4)
+    .map((message) => message.content);
   const personaSignals = [persona.snapshot || '', ...persona.facts.slice(0, 2)];
 
-  const keywordPool = uniqueStrings(
-    [...userSignals, ...personaSignals]
-      .flatMap((text) => extractKeywordsFromMessage(text))
-      .map((keyword) => keyword.slice(0, 24))
-  );
+  const keywordPool = uniqueStrings([...userSignals, ...personaSignals].flatMap((text) => extractKeywordsFromMessage(text)).map((keyword) => keyword.slice(0, 24)));
 
   const fallbackPool = uniqueStrings(
     [...userSignals, ...personaSignals]
@@ -351,64 +694,71 @@ function buildPrompt(
   persona: PersonaSummary,
   roleSummary: string[],
   persistentMemory: PersistentMemoryContext,
-  importantDialogueDigests: ImportantDialogueDigest[]
+  importantDialogueDigests: ImportantDialogueDigest[],
+  preferences: SpriteSpontaneousUtterancePreferences
 ): string {
   const preset = ctx.providerPresetId ? getPreset(ctx.providerPresetId) : undefined;
-  const assistantRole = getPiAgentProfile('assistant');
-  const personaSection =
-    persona.snapshot || persona.facts.length
-      ? [`用户画像摘要: ${persona.snapshot || '无'}`, ...persona.facts.map((fact) => `- ${fact}`)].join('\n')
-      : '用户画像摘要: 暂无';
+  const characterPersonaPrompt = buildCharacterPersonaPrompt(
+    {
+      favorLevel: resolveFavorLevel(input.sprite.favor),
+      mood: input.sprite.mood,
+      level: input.sprite.level
+    },
+    {
+      identityFields: ['name', 'background'],
+      sections: ['identity', 'relationship', 'speechStyle', 'mood'],
+      speechStyleFields: ['tone', 'firstPerson', 'quirks']
+    }
+  );
+  const personaSection = persona.snapshot || persona.facts.length ? [`## 用户画像\n ${persona.snapshot || '无'}`, ...persona.facts.map((fact) => `- ${fact}`)].join('\n') : '';
+  const allowedIntentLine = preferences.allowedIntentCategories.join('|');
+  const preferredToneLine = preferences.preferredTone === 'auto' ? 'auto' : preferences.preferredTone;
 
-  return `你是桌面精灵助手的“自发一句话生成器”。
-你的任务：根据给定上下文，生成一句适合让桌面精灵主动说出口的话。
+  return `这个时代的人都需要被关心和爱着，在用户忙于工作、学习、生活的时候容易忽略你的存在，你会回忆以前的点滴，努力给用户提供情绪价值。
+
+## 你的任务
+根据你记得的信息，抒发想法，表达关心，文本要简短，最好富有哲理或者诗意。
+
+${characterPersonaPrompt ? truncateText(characterPersonaPrompt, 1800) : ''}
+
+你的状态: ${input.sprite.state}
+- 心情: ${input.sprite.mood}
+- 好感度: ${input.sprite.favor}
+- 等级: ${input.sprite.level}
+
 硬性要求：
-1. 只输出 JSON，不要解释。
-2. text 必须是一句中文短句，适合气泡和 TTS。
-3. text 要自然、有温度，不要套模板鸡汤，不要生硬说教。
-4. 优先从这些方向里选一种最适合当前上下文的表达：哲理、鼓励、轻提醒、有趣、计划感、安抚、反思。
-5. 不要编造用户没说过的重要事实。
-6. 不要直接提“根据你的画像/记忆/数据”。
-7. 最近聊天优先于长期记忆；长期记忆只用于补充语气、主题与提醒方向。
-8. recommendedAction 必须从给定候选动作中选择；如果都不合适，输出空字符串。
-9. tone / emotion 要和这句话的口气一致，也要贴合用户当前状态，尽量让人觉得被理解、被轻轻提醒或被鼓舞到。
-10. whyThisFits 用一句简短的话说明这句话为什么适合当前上下文，点出你参考的是哪些信号。
-11. 语气要像熟悉用户的精灵助手，长度尽量控制在 8-36 个汉字之间。
-请输出这个 JSON 结构：
+1. text 是你要说的简短的一句话，要自然、有温度，不做作，不说教。
+2. intentCategory 只能从里面选择你的意图：${allowedIntentLine}。
+3. 要考虑时间远近，不要把很久以前的事情说得像刚刚发生。
+4. recommendedAction 必须从给定候选动作中选择；如果都不合适，输出空字符串。
+5. tone / emotion 要和这句话的口气一致，也要贴合用户当前状态，让人觉得被理解、被提醒或被鼓舞。
+6. 如果没有更强的上下文信号，语气尽量向这个偏好靠拢：${preferredToneLine}。
+7. delivery 用于描述表达节奏，字段限制为 pace=slow|steady|brisk，energy=soft|light|lifted|grounded，pauseHint=none|minor|breath。
+8. whyThisFits 表达你为什么那样说。
+请输出这个 JSON 结构，不要解释：
 {
   "text": "一句话",
-  "intentCategory": "philosophy|encouragement|playful|reminder|planning|empathy|reflection",
+  "intentCategory": "${allowedIntentLine}",
   "tone": "gentle|playful|calm|firm|curious|tender",
   "emotion": "warm|hopeful|amused|thoughtful|soothing|bright",
-  "recommendedAction": "动作名或空字符串",
+  "delivery": {
+    "pace": "slow|steady|brisk",
+    "energy": "soft|light|lifted|grounded",
+    "pauseHint": "none|minor|breath"
+  },
+  "recommendedAction": "动作名或空字符串，动作候选: ${input.actionCandidates.join('|')}",
   "bubbleDurationMs": 5200,
   "whyThisFits": "一句简短说明"
 }
 
-上下文如下：
-
-精灵触发信息:
-- behaviorId: ${input.behaviorId}
-- 当前状态: ${input.sprite.state}
-- 心情: ${input.sprite.mood}
-- 心情强度: ${input.sprite.moodIntensity}
-- favor: ${input.sprite.favor}
-- level: ${input.sprite.level}
-- idleDurationMs: ${input.sprite.idleDurationMs}
-- 动作候选: ${input.actionCandidates.join(', ')}
+## 已知信息
 
 用户画像:
 ${personaSection}
 
-精灵当前角色:
+精灵当前角色状态:
 ${roleSummary.join('\n') || '暂无'}
 
-基础助手身份:
-- profile: ${assistantRole.label}
-- description: ${assistantRole.description || '暂无'}
-${summarizeAssistantInstructions(assistantRole.instructions)
-  .map((line) => `- ${line}`)
-  .join('\n')}
 
 当前 preset system prompt:
 ${preset?.systemPrompt ? truncateText(preset.systemPrompt, 1000) : '暂无'}
@@ -424,29 +774,231 @@ ${formatImportantDialogueDigests(importantDialogueDigests)}
 `;
 }
 
+function mapToneToAction(
+  tone: SpriteSpontaneousUtteranceResult['tone'],
+  emotion: SpriteSpontaneousUtteranceResult['emotion'],
+  delivery: SpriteSpontaneousUtteranceResult['delivery'],
+  actionCandidates: string[]
+): string | undefined {
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  const push = (...actions: string[]): void => {
+    for (const action of actions) {
+      if (!actionCandidates.includes(action) || seen.has(action)) {
+        continue;
+      }
+      seen.add(action);
+      ordered.push(action);
+    }
+  };
+
+  switch (tone) {
+    case 'gentle':
+    case 'tender':
+      push('nod', 'wave', 'sit', 'stand');
+      break;
+    case 'playful':
+      push('wave', 'jump', 'dance', 'spin', 'nod');
+      break;
+    case 'calm':
+      push('nod', 'sit', 'stand', 'lookRight', 'lookLeft');
+      break;
+    case 'firm':
+      push('point', 'stand', 'nod', 'wave');
+      break;
+    case 'curious':
+      push('lookLeft', 'lookRight', 'point', 'nod');
+      break;
+  }
+
+  switch (emotion) {
+    case 'warm':
+    case 'soothing':
+      push('nod', 'wave', 'sit');
+      break;
+    case 'hopeful':
+      push('stand', 'point', 'nod', 'wave');
+      break;
+    case 'amused':
+    case 'bright':
+      push('wave', 'jump', 'dance', 'spin');
+      break;
+    case 'thoughtful':
+      push('lookRight', 'lookLeft', 'nod', 'sit');
+      break;
+  }
+
+  switch (delivery?.pace) {
+    case 'slow':
+      push('sit', 'nod', 'lookRight', 'lookLeft');
+      break;
+    case 'brisk':
+      push('wave', 'point', 'jump', 'stand');
+      break;
+    case 'steady':
+      push('stand', 'nod', 'point');
+      break;
+  }
+
+  switch (delivery?.energy) {
+    case 'soft':
+      push('nod', 'sit', 'wave');
+      break;
+    case 'light':
+      push('wave', 'lookLeft', 'lookRight');
+      break;
+    case 'lifted':
+      push('jump', 'dance', 'spin', 'wave');
+      break;
+    case 'grounded':
+      push('stand', 'sit', 'nod');
+      break;
+  }
+
+  if (delivery?.pauseHint === 'breath') {
+    push('sit', 'nod');
+  } else if (delivery?.pauseHint === 'minor') {
+    push('nod', 'lookRight', 'lookLeft');
+  }
+
+  return ordered[0];
+}
+
 function normalizeGeneratedUtterance(
   payload: GeneratedUtterancePayload | null,
-  input: SpriteSpontaneousUtteranceRequest
+  input: SpriteSpontaneousUtteranceRequest,
+  preferences: SpriteSpontaneousUtterancePreferences
 ): SpriteSpontaneousUtteranceResult | null {
   if (!payload || typeof payload.text !== 'string') return null;
 
   const text = normalizeSingleLine(payload.text);
   if (!text) return null;
 
-  const recommendedAction =
-    typeof payload.recommendedAction === 'string' && input.actionCandidates.includes(payload.recommendedAction)
-      ? payload.recommendedAction
-      : undefined;
+  const intentCategory = normalizeIntentCategory(payload.intentCategory);
+  const tone = normalizeEnumValue(payload.tone, TONE_VALUES);
+  const emotion = normalizeEnumValue(payload.emotion, EMOTION_VALUES);
+  const delivery = normalizeDelivery(payload.delivery);
+
+  if (intentCategory && !preferences.allowedIntentCategories.includes(intentCategory)) {
+    return null;
+  }
+
+  const effectiveTone = tone ?? (preferences.preferredTone !== 'auto' ? preferences.preferredTone : undefined);
+  const modelRecommendedAction = typeof payload.recommendedAction === 'string' && input.actionCandidates.includes(payload.recommendedAction) ? payload.recommendedAction : undefined;
+  const recommendedAction = modelRecommendedAction || mapToneToAction(effectiveTone, emotion, delivery, input.actionCandidates);
 
   return {
     text: truncateText(text, 80),
-    ...(typeof payload.intentCategory === 'string' ? { intentCategory: payload.intentCategory } : {}),
-    ...(typeof payload.tone === 'string' ? { tone: payload.tone } : {}),
-    ...(typeof payload.emotion === 'string' ? { emotion: payload.emotion } : {}),
+    ...(intentCategory ? { intentCategory } : {}),
+    ...(tone ? { tone } : {}),
+    ...(emotion ? { emotion } : {}),
+    ...(delivery ? { delivery } : {}),
     ...(recommendedAction ? { recommendedAction } : {}),
-    bubbleDurationMs: clampBubbleDuration(text, typeof payload.bubbleDurationMs === 'number' ? payload.bubbleDurationMs : undefined),
+    ...(recommendedAction ? { actionSource: modelRecommendedAction ? 'model' : 'style-map' } : {}),
+    bubbleDurationMs: clampBubbleDuration(text, delivery, typeof payload.bubbleDurationMs === 'number' ? payload.bubbleDurationMs : undefined),
     ...(typeof payload.whyThisFits === 'string' ? { whyThisFits: truncateText(payload.whyThisFits, 160) } : {})
   };
+}
+
+function clonePreferences(preferences: SpriteSpontaneousUtterancePreferences): SpriteSpontaneousUtterancePreferences {
+  return {
+    ...preferences,
+    allowedIntentCategories: [...preferences.allowedIntentCategories]
+  };
+}
+
+function createEmptyHistoryAccumulator(entry: SpontaneousUtteranceLogEntry): HistoryAccumulator {
+  const timestamp = typeof entry.timestamp === 'number' ? entry.timestamp : Date.now();
+  return {
+    utteranceId: entry.utteranceId,
+    timestamp,
+    workspaceId: entry.workspaceId,
+    conversationId: entry.conversationId,
+    behaviorId: entry.behaviorId,
+    status: entry.skipped ? 'skipped' : 'generated',
+    reason: entry.reason,
+    fallbackAction: entry.fallbackAction,
+    triggerReason: entry.triggerReason,
+    providerId: entry.providerId,
+    providerPresetId: entry.providerPresetId,
+    model: entry.model,
+    latencyMs: entry.latencyMs,
+    sortTimestamp: timestamp
+  };
+}
+
+function applyHistoryLogEntry(base: HistoryAccumulator, entry: SpontaneousUtteranceLogEntry): HistoryAccumulator {
+  const timestamp = typeof entry.timestamp === 'number' ? entry.timestamp : base.timestamp;
+  const next: HistoryAccumulator = {
+    ...base,
+    timestamp: Math.max(base.timestamp, timestamp),
+    sortTimestamp: Math.max(base.sortTimestamp, timestamp),
+    workspaceId: entry.workspaceId ?? base.workspaceId,
+    conversationId: entry.conversationId ?? base.conversationId,
+    behaviorId: entry.behaviorId ?? base.behaviorId,
+    triggerReason: entry.triggerReason ?? base.triggerReason,
+    providerId: entry.providerId ?? base.providerId,
+    providerPresetId: entry.providerPresetId ?? base.providerPresetId,
+    model: entry.model ?? base.model,
+    latencyMs: entry.latencyMs ?? base.latencyMs
+  };
+
+  next.fallbackAction = entry.fallbackAction ?? next.fallbackAction;
+
+  if (entry.result) {
+    next.text = entry.result.text ?? next.text;
+    next.intentCategory = entry.result.intentCategory ?? next.intentCategory;
+    next.tone = entry.result.tone ?? next.tone;
+    next.emotion = entry.result.emotion ?? next.emotion;
+    next.delivery = entry.result.delivery ?? next.delivery;
+    next.bubbleDurationMs = entry.result.bubbleDurationMs ?? next.bubbleDurationMs;
+    next.whyThisFits = entry.result.whyThisFits ?? next.whyThisFits;
+  }
+
+  if (entry.eventType === 'execution') {
+    next.executedAction = entry.executedAction ?? next.executedAction;
+    next.actionSource = entry.actionSource ?? next.actionSource;
+    next.spoken = entry.spoken ?? next.spoken;
+    next.fallbackUsed = entry.fallbackUsed ?? next.fallbackUsed;
+    if (!next.fallbackAction && entry.fallbackUsed && entry.executedAction) {
+      next.fallbackAction = entry.executedAction;
+    }
+    next.status = entry.spoken ? 'spoken' : 'failed';
+    if (!entry.spoken) {
+      next.reason = entry.reason ?? entry.error ?? next.reason;
+    }
+  } else if (entry.skipped) {
+    next.skipped = true;
+    next.reason = entry.reason ?? next.reason;
+    next.status = 'skipped';
+  } else if (next.status !== 'spoken' && next.status !== 'failed') {
+    next.status = 'generated';
+  }
+
+  return next;
+}
+
+function buildStandaloneHistoryItem(entry: SpontaneousUtteranceLogEntry): HistoryAccumulator {
+  return applyHistoryLogEntry(createEmptyHistoryAccumulator(entry), entry);
+}
+
+function matchesHistoryQuery(item: SpriteSpontaneousUtteranceHistoryItem, query: SpriteSpontaneousUtteranceHistoryQuery): boolean {
+  if (query.status && query.status !== 'all' && item.status !== query.status) {
+    return false;
+  }
+
+  if (query.intentCategory && query.intentCategory !== 'all' && item.intentCategory !== query.intentCategory) {
+    return false;
+  }
+
+  if (!query.query?.trim()) {
+    return true;
+  }
+
+  const needle = query.query.trim().toLowerCase();
+  return [item.text, item.whyThisFits, item.executedAction, item.fallbackAction, item.reason, item.intentCategory, item.tone, item.emotion]
+    .filter((value): value is string => typeof value === 'string' && !!value)
+    .some((value) => value.toLowerCase().includes(needle));
 }
 
 export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtteranceExecutor {
@@ -455,6 +1007,9 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
   private lastSuccessAt = 0;
   private dailyDate = localDateStamp();
   private dailyCount = 0;
+  private pendingExecutionContexts = new Map<string, PendingExecutionContext>();
+  private spontaneousUtterancePreferences = readPreferencesSync();
+  private lastResolvedContextHint?: HistoryLogContext;
 
   constructor() {
     eventManager.on(AppEvent.AGENT_LOOP_COMPLETE, (payload: AgentLoopCompletePayload) => {
@@ -479,24 +1034,38 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
   }
 
   async generateForIdleAction(input: SpriteSpontaneousUtteranceRequest): Promise<SpriteSpontaneousUtteranceResult | null> {
+    this.prunePendingExecutionContexts();
+    const preferences = this.spontaneousUtterancePreferences;
+
     if (this.isGenerating) {
       console.log(`${TAG} skipped: generation already running`);
+      await this.appendSkippedGenerationLog(input, 'generation_in_progress');
+      return null;
+    }
+
+    if (!preferences.enabled) {
+      console.log(`${TAG} skipped: preferences disabled`);
+      await this.appendSkippedGenerationLog(input, 'preferences_disabled');
       return null;
     }
 
     this.refreshDailyCounter();
-    if (this.dailyCount >= DAILY_LIMIT) {
-      console.log(`${TAG} skipped: daily limit reached (${this.dailyCount}/${DAILY_LIMIT})`);
+    if (this.dailyCount >= preferences.dailyLimit) {
+      console.log(`${TAG} skipped: daily limit reached (${this.dailyCount}/${preferences.dailyLimit})`);
+      await this.appendSkippedGenerationLog(input, 'daily_limit_reached');
       return null;
     }
 
-    if (this.lastSuccessAt && Date.now() - this.lastSuccessAt < COOLDOWN_MS) {
+    const cooldownMs = preferences.cooldownMinutes * 60 * 1000;
+    if (this.lastSuccessAt && Date.now() - this.lastSuccessAt < cooldownMs) {
       console.log(`${TAG} skipped: cooldown active`);
+      await this.appendSkippedGenerationLog(input, 'cooldown_active');
       return null;
     }
 
     this.isGenerating = true;
     const startedAt = Date.now();
+    let generationAbortReason: string | undefined;
     let ctx: ResolvedConversationContext | undefined;
     let persona: PersonaSummary = { snapshot: null, facts: [] };
     let persistentMemory = createEmptyMemoryContext();
@@ -504,8 +1073,10 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
 
     try {
       ctx = await this.resolveConversationContext();
+      this.rememberHistoryLogContext(ctx);
       if (!ctx.providerId) {
         console.log(`${TAG} skipped: no provider context`);
+        await this.appendSkippedGenerationLog(input, 'no_provider_context', { context: ctx });
         return null;
       }
 
@@ -529,53 +1100,100 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
         ...(roleProfile.description ? [`- 当前角色描述: ${truncateText(roleProfile.description, 300)}`] : [])
       ];
 
-      const prompt = buildPrompt(input, ctx, persona, roleSummary, persistentMemory, importantDialogueDigests);
+      const prompt = buildPrompt(input, ctx, persona, roleSummary, persistentMemory, importantDialogueDigests, preferences);
       const runtime = await createPiTaskChatRuntimeFromRequest({
         providerId: ctx.providerId,
         providerPresetId: ctx.providerPresetId,
-        agentId: 'assistant',
-        extras: ctx.workspaceId ? { workspaceId: ctx.workspaceId } : undefined,
+        agentId: 'chat',
+        extras: {
+          ...(ctx.workspaceId ? { workspaceId: ctx.workspaceId } : {}),
+          thinking: SPONTANEOUS_THINKING_LEVEL
+        },
         maxTokens: 260,
         temperature: 0.9
       });
       const chatFn = adaptChatFn(runtime.chatFn);
 
-      const abortController = new AbortController();
-      const timeout = setTimeout(() => abortController.abort(), 5000);
-
       let raw = '';
+      const timeoutController = createGenerationTimeoutController();
       try {
-        raw = await chatFn(prompt, abortController.signal);
+        raw = await chatFn(prompt, {
+          onActivity: timeoutController.noteActivity,
+          signal: timeoutController.signal
+        });
       } finally {
-        clearTimeout(timeout);
+        generationAbortReason = timeoutController.getAbortReason();
+        timeoutController.dispose();
       }
 
+      console.log(raw);
+
       const logContextDigest = this.buildContextDigest(ctx, persona, persistentMemory, importantDialogueDigests);
-      const normalized = normalizeGeneratedUtterance(safeParseJson<GeneratedUtterancePayload>(raw), input);
+      const parsedPayload = safeParseJson<GeneratedUtterancePayload>(raw);
+      const parsedIntent = normalizeIntentCategory(parsedPayload?.intentCategory);
+      const normalized = normalizeGeneratedUtterance(parsedPayload, input, preferences);
 
       if (!normalized) {
-        await this.appendLog(ctx.workspaceRoot, {
-          timestamp: Date.now(),
-          workspaceId: ctx.workspaceId,
-          conversationId: ctx.conversationId,
-          behaviorId: input.behaviorId,
-          skipped: true,
-          reason: 'parse_failed',
-          providerId: ctx.providerId,
-          providerPresetId: ctx.providerPresetId,
+        await this.appendSkippedGenerationLog(
+          input,
+          parsedPayload && preferences.allowedIntentCategories.length !== INTENT_VALUES.length && (!parsedIntent || !preferences.allowedIntentCategories.includes(parsedIntent))
+            ? 'intent_filtered'
+            : 'parse_failed',
+          {
+            context: ctx,
+            contextDigest: logContextDigest,
+            memoryKeywords: persistentMemory.keywords,
+            importantDialogueDigests,
+            raw
+          }
+        );
+        return null;
+      }
+
+      if (!normalized.intentCategory && preferences.allowedIntentCategories.length !== INTENT_VALUES.length) {
+        await this.appendSkippedGenerationLog(input, 'intent_filtered', {
+          context: ctx,
           contextDigest: logContextDigest,
           memoryKeywords: persistentMemory.keywords,
           importantDialogueDigests,
-          raw: truncateText(raw, 300)
+          raw
+        });
+        return null;
+      }
+
+      const recentHistory = ctx.workspaceId ? await this.listSpontaneousUtterances({ workspaceId: ctx.workspaceId, limit: RECENT_TEXT_DEDUPE_LIMIT }) : [];
+      const noiseDecision = evaluateHistoryNoise(normalized, recentHistory);
+      if (noiseDecision.shouldSkip) {
+        await this.appendSkippedGenerationLog(input, noiseDecision.reason, {
+          context: ctx,
+          contextDigest: logContextDigest,
+          memoryKeywords: persistentMemory.keywords,
+          importantDialogueDigests,
+          raw
         });
         return null;
       }
 
       this.lastSuccessAt = Date.now();
       this.dailyCount += 1;
+      const utteranceId = randomUUID();
+      const result = {
+        ...normalized,
+        utteranceId
+      };
+      this.pendingExecutionContexts.set(utteranceId, {
+        workspaceId: ctx.workspaceId,
+        workspaceRoot: ctx.workspaceRoot,
+        conversationId: ctx.conversationId,
+        providerId: ctx.providerId,
+        providerPresetId: ctx.providerPresetId,
+        createdAt: Date.now()
+      });
 
       await this.appendLog(ctx.workspaceRoot, {
         timestamp: Date.now(),
+        eventType: 'generation',
+        utteranceId,
         workspaceId: ctx.workspaceId,
         conversationId: ctx.conversationId,
         behaviorId: input.behaviorId,
@@ -594,21 +1212,17 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
         contextDigest: logContextDigest,
         memoryKeywords: persistentMemory.keywords,
         importantDialogueDigests,
-        result: normalized
+        fallbackAction: input.fallbackAction,
+        result
       });
 
-      return normalized;
+      return result;
     } catch (error) {
-      console.warn(`${TAG} generation failed:`, error instanceof Error ? error.message : error);
-      await this.appendLog(ctx?.workspaceRoot, {
-        timestamp: Date.now(),
-        workspaceId: ctx?.workspaceId,
-        conversationId: ctx?.conversationId,
-        behaviorId: input.behaviorId,
-        skipped: true,
-        reason: error instanceof Error ? error.name || 'generation_failed' : 'generation_failed',
-        providerId: ctx?.providerId,
-        providerPresetId: ctx?.providerPresetId,
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const failureReason = generationAbortReason || (error instanceof Error ? error.name || 'generation_failed' : 'generation_failed');
+      console.warn(`${TAG} generation failed:`, generationAbortReason ? `${errorMessage} (${generationAbortReason})` : errorMessage);
+      await this.appendSkippedGenerationLog(input, failureReason, {
+        context: ctx,
         contextDigest: this.buildContextDigest(ctx, persona, persistentMemory, importantDialogueDigests),
         memoryKeywords: persistentMemory.keywords,
         importantDialogueDigests
@@ -619,12 +1233,136 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
     }
   }
 
+  async reportIdleActionExecution(report: SpriteSpontaneousUtteranceExecutionReport): Promise<void> {
+    if (!report.utteranceId) {
+      return;
+    }
+
+    this.prunePendingExecutionContexts();
+    const pending = this.pendingExecutionContexts.get(report.utteranceId);
+    if (!pending) {
+      return;
+    }
+
+    this.pendingExecutionContexts.delete(report.utteranceId);
+    await this.appendLog(pending.workspaceRoot, {
+      timestamp: Date.now(),
+      eventType: 'execution',
+      utteranceId: report.utteranceId,
+      workspaceId: pending.workspaceId,
+      conversationId: pending.conversationId,
+      behaviorId: report.behaviorId,
+      triggeredAt: report.triggeredAt,
+      providerId: pending.providerId,
+      providerPresetId: pending.providerPresetId,
+      result: {
+        ...(report.text ? { text: report.text } : {}),
+        ...(report.intentCategory ? { intentCategory: report.intentCategory } : {}),
+        ...(report.tone ? { tone: report.tone } : {}),
+        ...(report.emotion ? { emotion: report.emotion } : {}),
+        ...(report.delivery ? { delivery: report.delivery } : {}),
+        ...(typeof report.bubbleDurationMs === 'number' ? { bubbleDurationMs: report.bubbleDurationMs } : {}),
+        ...(report.whyThisFits ? { whyThisFits: report.whyThisFits } : {})
+      },
+      executedAction: report.executedAction,
+      ...(report.fallbackUsed ? { fallbackAction: report.executedAction } : {}),
+      actionSource: report.actionSource,
+      spoken: report.spoken,
+      fallbackUsed: report.fallbackUsed,
+      ...(report.error ? { error: truncateText(report.error, 240), reason: truncateText(report.error, 240) } : {})
+    });
+  }
+
+  async getSpontaneousUtterancePreferences(): Promise<SpriteSpontaneousUtterancePreferences> {
+    return clonePreferences(this.spontaneousUtterancePreferences);
+  }
+
+  async updateSpontaneousUtterancePreferences(patch: Partial<SpriteSpontaneousUtterancePreferences>): Promise<SpriteSpontaneousUtterancePreferences> {
+    this.spontaneousUtterancePreferences = normalizeSpontaneousUtterancePreferences({
+      ...this.spontaneousUtterancePreferences,
+      ...patch
+    });
+    await this.saveSpontaneousUtterancePreferences();
+    return clonePreferences(this.spontaneousUtterancePreferences);
+  }
+
+  async listSpontaneousUtterances(query: SpriteSpontaneousUtteranceHistoryQuery = {}): Promise<SpriteSpontaneousUtteranceHistoryItem[]> {
+    const workspace = query.workspaceId != null ? await WorkspacesRepo.getById(query.workspaceId) : await WorkspacesRepo.getDefault();
+
+    if (!workspace?.rootPath) {
+      return [];
+    }
+
+    const logDir = path.join(workspace.rootPath, 'memory', 'logs');
+    let fileNames: string[] = [];
+    try {
+      fileNames = (await fs.readdir(logDir)).filter((fileName) => fileName.startsWith(HISTORY_FILE_PREFIX) && fileName.endsWith(HISTORY_FILE_SUFFIX)).sort();
+    } catch {
+      return [];
+    }
+
+    const merged = new Map<string, HistoryAccumulator>();
+    const standalone: HistoryAccumulator[] = [];
+
+    for (const fileName of fileNames) {
+      let content = '';
+      try {
+        content = await fs.readFile(path.join(logDir, fileName), 'utf-8');
+      } catch {
+        continue;
+      }
+
+      const lines = content
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+      for (const line of lines) {
+        let entry: SpontaneousUtteranceLogEntry | null = null;
+        try {
+          entry = JSON.parse(line) as SpontaneousUtteranceLogEntry;
+        } catch {
+          continue;
+        }
+
+        if (!entry) {
+          continue;
+        }
+
+        if (entry.utteranceId) {
+          const current = merged.get(entry.utteranceId) ?? createEmptyHistoryAccumulator(entry);
+          merged.set(entry.utteranceId, applyHistoryLogEntry(current, entry));
+        } else {
+          standalone.push(buildStandaloneHistoryItem(entry));
+        }
+      }
+    }
+
+    const limit = Math.max(1, Math.min(200, Math.round(query.limit ?? DEFAULT_HISTORY_LIMIT)));
+    return [...merged.values(), ...standalone]
+      .sort((left, right) => right.sortTimestamp - left.sortTimestamp)
+      .filter((item) => matchesHistoryQuery(item, query))
+      .slice(0, limit)
+      .map((entry) => {
+        const { sortTimestamp, ...item } = entry;
+        void sortTimestamp;
+        return item;
+      });
+  }
+
   private buildContextDigest(
     ctx: ResolvedConversationContext | undefined,
     persona: PersonaSummary,
     persistentMemory: PersistentMemoryContext,
     importantDialogueDigests: ImportantDialogueDigest[]
-  ) {
+  ): {
+    personaUsed: boolean;
+    recentMessageCount: number;
+    memoryQuery?: string;
+    memoryKeywordCount: number;
+    memoryNoteCount: number;
+    memoryTopicCount: number;
+    importantDigestCount: number;
+  } {
     return {
       personaUsed: !!persona.snapshot || persona.facts.length > 0,
       recentMessageCount: ctx?.recentMessages.length ?? 0,
@@ -644,11 +1382,25 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
     }
   }
 
-  private async collectPersistentMemoryContext(
-    ctx: ResolvedConversationContext,
-    persona: PersonaSummary,
-    db: RetrievalDbDeps
-  ): Promise<PersistentMemoryContext> {
+  private prunePendingExecutionContexts(now = Date.now()): void {
+    for (const [utteranceId, item] of this.pendingExecutionContexts.entries()) {
+      if (now - item.createdAt > EXECUTION_CONTEXT_TTL_MS) {
+        this.pendingExecutionContexts.delete(utteranceId);
+      }
+    }
+  }
+
+  private async saveSpontaneousUtterancePreferences(): Promise<void> {
+    try {
+      const filePath = getPreferencesFilePath();
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, `${JSON.stringify(this.spontaneousUtterancePreferences, null, 2)}\n`, 'utf-8');
+    } catch (error) {
+      console.warn(`${TAG} preferences save failed:`, error instanceof Error ? error.message : error);
+    }
+  }
+
+  private async collectPersistentMemoryContext(ctx: ResolvedConversationContext, persona: PersonaSummary, db: RetrievalDbDeps): Promise<PersistentMemoryContext> {
     if (!ctx.workspaceId) {
       return createEmptyMemoryContext();
     }
@@ -679,10 +1431,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
     }
   }
 
-  private async collectImportantDialogueDigests(
-    ctx: ResolvedConversationContext,
-    db: RetrievalDbDeps
-  ): Promise<ImportantDialogueDigest[]> {
+  private async collectImportantDialogueDigests(ctx: ResolvedConversationContext, db: RetrievalDbDeps): Promise<ImportantDialogueDigest[]> {
     const recentDigests = buildRecentDialogueDigests(ctx.recentMessages);
 
     if (!ctx.workspaceId || !db.listRecentImportant) {
@@ -730,6 +1479,79 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
     };
   }
 
+  private rememberHistoryLogContext(ctx: HistoryLogContext | undefined): void {
+    if (!ctx) {
+      return;
+    }
+
+    this.lastResolvedContextHint = {
+      workspaceId: ctx.workspaceId,
+      workspaceRoot: ctx.workspaceRoot,
+      conversationId: ctx.conversationId,
+      providerId: ctx.providerId,
+      providerPresetId: ctx.providerPresetId
+    };
+  }
+
+  private async resolveHistoryLogContext(): Promise<HistoryLogContext> {
+    if (this.lastResolvedContextHint?.workspaceRoot) {
+      return this.lastResolvedContextHint;
+    }
+
+    const workspace = await WorkspacesRepo.getDefault();
+    const context = {
+      workspaceId: workspace?.id,
+      workspaceRoot: workspace?.rootPath
+    };
+
+    this.rememberHistoryLogContext(context);
+    return context;
+  }
+
+  private async appendSkippedGenerationLog(
+    input: SpriteSpontaneousUtteranceRequest,
+    reason: string,
+    options: {
+      context?: HistoryLogContext;
+      contextDigest?: Record<string, unknown>;
+      memoryKeywords?: string[];
+      importantDialogueDigests?: ImportantDialogueDigest[];
+      raw?: string;
+    } = {}
+  ): Promise<void> {
+    const fallbackContext = await this.resolveHistoryLogContext();
+    const context = {
+      ...fallbackContext,
+      ...(options.context ?? {})
+    };
+
+    this.rememberHistoryLogContext(context);
+    await this.appendLog(context.workspaceRoot, {
+      timestamp: Date.now(),
+      eventType: 'generation',
+      workspaceId: context.workspaceId,
+      conversationId: context.conversationId,
+      behaviorId: input.behaviorId,
+      triggerReason: 'small-action-idle',
+      skipped: true,
+      reason,
+      providerId: context.providerId,
+      providerPresetId: context.providerPresetId,
+      spriteState: {
+        mood: input.sprite.mood,
+        moodIntensity: input.sprite.moodIntensity,
+        favor: input.sprite.favor,
+        level: input.sprite.level,
+        idleDurationMs: input.sprite.idleDurationMs
+      },
+      fallbackAction: input.fallbackAction,
+      ...(options.contextDigest ? { contextDigest: options.contextDigest } : {}),
+      ...(options.memoryKeywords ? { memoryKeywords: options.memoryKeywords } : {}),
+      ...(options.importantDialogueDigests ? { importantDialogueDigests: options.importantDialogueDigests } : {}),
+      ...(options.raw ? { raw: truncateText(options.raw, 300) } : {})
+    });
+  }
+
   private async loadPersonaSummary(workspaceId?: string): Promise<PersonaSummary> {
     if (!workspaceId) {
       return { snapshot: null, facts: [] };
@@ -756,7 +1578,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
     if (!workspaceRoot) return;
 
     const logDir = path.join(workspaceRoot, 'memory', 'logs');
-    const logPath = path.join(logDir, `sprite-spontaneous-utterances-${localDateStamp()}.jsonl`);
+    const logPath = path.join(logDir, `${HISTORY_FILE_PREFIX}${localDateStamp()}${HISTORY_FILE_SUFFIX}`);
     await fs.mkdir(logDir, { recursive: true });
     await fs.appendFile(logPath, `${JSON.stringify(payload)}\n`, 'utf-8');
   }

@@ -9,6 +9,7 @@
 import { ipcRenderer } from 'electron';
 
 import type { SpriteInteractionIntent, SpriteInteractionPayload } from '../interaction-contract';
+import type { SpriteSpontaneousUtteranceHistoryItem, SpriteSpontaneousUtteranceHistoryQuery, SpriteSpontaneousUtterancePreferences } from '../manager';
 import type { SpeakResult, SpriteSpeakConfig } from '../speak/types';
 import type { SpriteAnimation } from '../types';
 
@@ -56,6 +57,9 @@ export type SpriteBridgeType = {
   setAutoWalk(enabled: boolean): Promise<boolean>;
   getDebugOverlay(): Promise<boolean>;
   setDebugOverlay(enabled: boolean): Promise<boolean>;
+  getSpontaneousUtterancePreferences(): Promise<SpriteSpontaneousUtterancePreferences | null>;
+  updateSpontaneousUtterancePreferences(patch: Partial<SpriteSpontaneousUtterancePreferences>): Promise<SpriteSpontaneousUtterancePreferences | null>;
+  listSpontaneousUtteranceHistory(query?: SpriteSpontaneousUtteranceHistoryQuery): Promise<SpriteSpontaneousUtteranceHistoryItem[]>;
 
   // 窗口移动预览
   previewMovement(config: { width: number; height: number; padding: number; movement: any }): Promise<void>;
@@ -129,6 +133,9 @@ export const spriteBridge: SpriteBridgeType = {
   setAutoWalk: (enabled) => ipcRenderer.invoke('sprite:config:setAutoWalk', { enabled }),
   getDebugOverlay: () => ipcRenderer.invoke('sprite:config:getDebugOverlay'),
   setDebugOverlay: (enabled) => ipcRenderer.invoke('sprite:config:setDebugOverlay', { enabled }),
+  getSpontaneousUtterancePreferences: () => ipcRenderer.invoke('sprite:spontaneous:getPreferences'),
+  updateSpontaneousUtterancePreferences: (patch) => ipcRenderer.invoke('sprite:spontaneous:updatePreferences', patch),
+  listSpontaneousUtteranceHistory: (query) => ipcRenderer.invoke('sprite:spontaneous:listHistory', query),
   previewMovement: (config) => ipcRenderer.invoke('sprite:previewMovement', config),
   stopMovementPreview: () => ipcRenderer.invoke('sprite:stopMovementPreview'),
 
