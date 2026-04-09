@@ -26,6 +26,7 @@
 
 import type { ChatMessage } from '../types';
 import type { RetrievalDbDeps } from './memory-retrieval-service';
+import { logMemoryTrace, shortTraceId } from './memory-trace';
 import type { MemoryChatFn } from './memory-types';
 
 // ━━ Types ━━
@@ -365,21 +366,35 @@ export function extractKeywordsFromMessage(content: string): string[] {
 export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecallDeps, conversationId?: string, signal?: AbortSignal): Promise<AutoRecallResult> {
   const TAG = '[AutoRecall] 🧠🔍';
   const config: AutoRecallConfig = { ...DEFAULT_AUTO_RECALL_CONFIG, ...deps.config };
+  const conversationKey = shortTraceId(conversationId);
+  const userMessageCount = messages.filter((m) => m.role === 'user').length;
 
   // ─── Stage 1: Triage ───
   const triage = shouldAttemptRecall(messages, config);
   if (!triage.should) {
     console.log(`${TAG} Stage 1 triage: skipped (${triage.reason})`);
+    logMemoryTrace({
+      conversationId: conversationKey,
+      event: 'auto_recall.triage.skip',
+      messageCount: messages.length,
+      reason: triage.reason,
+      userMessageCount
+    });
     return { context: '', keywords: [], noteCount: 0, skipped: true, skipReason: triage.reason };
   }
   console.log(`${TAG} Stage 1 triage: proceed`);
+  logMemoryTrace({
+    conversationId: conversationKey,
+    event: 'auto_recall.triage.proceed',
+    messageCount: messages.length,
+    userMessageCount
+  });
 
   // ─── Cache check ───
   if (conversationId) {
     const cached = recallCache.get(conversationId);
     if (cached) {
-      const messageCount = messages.filter((m) => m.role === 'user').length;
-      const turnsSinceRecall = messageCount - cached.messageCount;
+      const turnsSinceRecall = userMessageCount - cached.messageCount;
       const isExpired = Date.now() - cached.timestamp > CACHE_TTL_MS;
 
       // 在间隔轮次内复用缓存，除非用户显式引用了记忆
@@ -390,6 +405,14 @@ export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecal
 
         if (!hasMemoryHint) {
           console.log(`${TAG} Cache hit for conv=${conversationId?.slice(0, 8)} (turnsSince=${turnsSinceRecall})`);
+          logMemoryTrace({
+            cacheAgeMs: Date.now() - cached.timestamp,
+            conversationId: conversationKey,
+            event: 'auto_recall.cache.hit',
+            reason: 'interval_reuse',
+            turnsSinceRecall,
+            userMessageCount
+          });
           return cached.result;
         }
       }
@@ -400,13 +423,32 @@ export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecal
   const workspaceId = await deps.getWorkspaceId();
   if (!workspaceId) {
     console.log(`${TAG} Skipped: no workspace ID available`);
+    logMemoryTrace({
+      conversationId: conversationKey,
+      event: 'auto_recall.workspace.missing',
+      messageCount: messages.length,
+      userMessageCount
+    });
     return { context: '', keywords: [], noteCount: 0, skipped: true, skipReason: 'no_workspace' };
   }
+  logMemoryTrace({
+    conversationId: conversationKey,
+    event: 'auto_recall.workspace.resolved',
+    userMessageCount,
+    workspaceId: shortTraceId(workspaceId)
+  });
 
   // ─── New Session Preload: 新会话首轮自动注入近期高重要度记忆 ───
   const userMessages = messages.filter((m) => m.role === 'user');
   if (userMessages.length <= 1 && deps.db.listRecentImportant) {
     console.log(`${TAG} New session detected (userMessages=${userMessages.length}), preloading recent important memories`);
+    logMemoryTrace({
+      conversationId: conversationKey,
+      event: 'auto_recall.preload.start',
+      thresholdDays: 7,
+      thresholdImportance: 0.7,
+      userMessageCount
+    });
     try {
       const recentNotes = await deps.db.listRecentImportant(workspaceId, 0.7, 7, 5);
       if (recentNotes.length > 0) {
@@ -434,11 +476,29 @@ export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecal
           updateCache(conversationId, result, userMessages.length);
         }
         console.log(`${TAG} Preloaded ${recentNotes.length} recent important notes`);
+        logMemoryTrace({
+          contextChars: preloadContext.length,
+          conversationId: conversationKey,
+          event: 'auto_recall.preload.hit',
+          noteCount: recentNotes.length,
+          userMessageCount
+        });
         return result;
       }
       console.log(`${TAG} No recent important notes found, falling through to keyword search`);
+      logMemoryTrace({
+        conversationId: conversationKey,
+        event: 'auto_recall.preload.miss',
+        userMessageCount
+      });
     } catch (err) {
       console.warn(`${TAG} Session preload failed, falling through:`, err);
+      logMemoryTrace({
+        conversationId: conversationKey,
+        error: err instanceof Error ? err.message : String(err),
+        event: 'auto_recall.preload.error',
+        userMessageCount
+      }, 'warn');
     }
   }
 
@@ -460,12 +520,24 @@ export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecal
       .join('\n');
 
     console.log(`${TAG} Extracting keywords via LLM...`);
+    logMemoryTrace({
+      conversationId: conversationKey,
+      event: 'auto_recall.keywords.llm.start',
+      recentContextChars: recentMsgs.length,
+      userMessageCount
+    });
     const llmResult = await extractRecallKeywords(userContent, recentMsgs, deps.chatFn, signal);
     needsRecall = llmResult.needsRecall;
     keywords = llmResult.keywords;
 
     if (!needsRecall) {
       console.log(`${TAG} LLM says no recall needed: ${llmResult.reasoning || '(no reason)'}`);
+      logMemoryTrace({
+        conversationId: conversationKey,
+        event: 'auto_recall.keywords.llm.skip',
+        reason: llmResult.reasoning || 'not_relevant',
+        userMessageCount
+      });
       const result: AutoRecallResult = {
         context: '',
         keywords: [],
@@ -479,15 +551,35 @@ export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecal
       return result;
     }
     console.log(`${TAG} LLM keywords: [${keywords.join(', ')}] (reason: ${llmResult.reasoning || '-'})`);
+    logMemoryTrace({
+      conversationId: conversationKey,
+      event: 'auto_recall.keywords.llm.result',
+      keywordCount: keywords.length,
+      keywords,
+      reason: llmResult.reasoning || '-',
+      userMessageCount
+    });
   }
 
   // 降级：规则提取
   if (keywords.length === 0) {
     keywords = extractKeywordsFromMessage(userContent);
     console.log(`${TAG} Rule-based keywords: [${keywords.join(', ')}]`);
+    logMemoryTrace({
+      conversationId: conversationKey,
+      event: 'auto_recall.keywords.rule.result',
+      keywordCount: keywords.length,
+      keywords,
+      userMessageCount
+    });
   }
 
   if (keywords.length === 0) {
+    logMemoryTrace({
+      conversationId: conversationKey,
+      event: 'auto_recall.keywords.empty',
+      userMessageCount
+    });
     const result: AutoRecallResult = {
       context: '',
       keywords: [],
@@ -510,12 +602,32 @@ export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecal
 
   try {
     console.log(`${TAG} Searching memories: query="${searchQuery}", ws=${workspaceId?.slice(0, 8)}`);
+    const searchStartedAt = Date.now();
+    logMemoryTrace({
+      conversationId: conversationKey,
+      event: 'auto_recall.search.start',
+      keywordCount: keywords.length,
+      keywords,
+      query: searchQuery,
+      userMessageCount,
+      workspaceId: shortTraceId(workspaceId)
+    });
 
     // 使用 searchWithContent 执行 Stage 1-6 完整流水线（含元数据）
     const searchResult = await searchWithContent(searchQuery, workspaceId, deps.db, config.maxContextChars, llmAnalyzer);
 
     const { context, noteCount, topicCount } = searchResult;
     console.log(`${TAG} Found ${noteCount} notes, ${topicCount} topics` + (context ? `, context=${context.length} chars` : ', no context content'));
+    logMemoryTrace({
+      contextChars: context?.length || 0,
+      conversationId: conversationKey,
+      durationMs: Date.now() - searchStartedAt,
+      event: 'auto_recall.search.result',
+      keywordCount: keywords.length,
+      noteCount,
+      topicCount,
+      userMessageCount
+    });
 
     const result: AutoRecallResult = {
       context: context || '',
@@ -531,6 +643,14 @@ export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecal
     return result;
   } catch (e) {
     console.error(`${TAG} Search failed:`, e instanceof Error ? e.message : e);
+    logMemoryTrace({
+      conversationId: conversationKey,
+      error: e instanceof Error ? e.message : String(e),
+      event: 'auto_recall.search.error',
+      keywordCount: keywords.length,
+      keywords,
+      userMessageCount
+    }, 'error');
     return { context: '', keywords, noteCount: 0, skipped: true, skipReason: 'search_error' };
   }
 }
@@ -587,7 +707,13 @@ export function startAutoRecallPrefetch(messages: ChatMessage[], deps: AutoRecal
   // 如果已有同一对话的 prefetch 且仍在运行，复用
   if (conversationId && activePrefetches.has(conversationId)) {
     const existing = activePrefetches.get(conversationId)!;
-    if (!existing.settledAt) return existing;
+    if (!existing.settledAt) {
+      logMemoryTrace({
+        conversationId: shortTraceId(conversationId),
+        event: 'auto_recall.prefetch.reuse'
+      });
+      return existing;
+    }
     // 已完成的旧 prefetch — 清理后重新启动
     activePrefetches.delete(conversationId);
   }
@@ -611,6 +737,11 @@ export function startAutoRecallPrefetch(messages: ChatMessage[], deps: AutoRecal
   void promise.finally(() => {
     handle.settledAt = Date.now();
     console.log(`[AutoRecall:Prefetch] Settled in ${Date.now() - firedAt}ms`);
+    logMemoryTrace({
+      conversationId: shortTraceId(conversationId),
+      durationMs: Date.now() - firedAt,
+      event: 'auto_recall.prefetch.settled'
+    });
     // 自动清理已完成的 prefetch（延迟 5s，给 enricher resolve 留时间）
     if (conversationId) {
       setTimeout(() => {
@@ -623,6 +754,11 @@ export function startAutoRecallPrefetch(messages: ChatMessage[], deps: AutoRecal
   if (conversationId) {
     activePrefetches.set(conversationId, handle);
   }
+  logMemoryTrace({
+    conversationId: shortTraceId(conversationId),
+    event: 'auto_recall.prefetch.started',
+    messageCount: messages.length
+  });
 
   return handle;
 }
@@ -638,7 +774,13 @@ export function registerPrefetch(conversationId: string, promise: Promise<AutoRe
   // 如果已有同一对话的 prefetch 且仍在运行，复用
   if (activePrefetches.has(conversationId)) {
     const existing = activePrefetches.get(conversationId)!;
-    if (!existing.settledAt) return existing;
+    if (!existing.settledAt) {
+      logMemoryTrace({
+        conversationId: shortTraceId(conversationId),
+        event: 'auto_recall.prefetch.reuse'
+      });
+      return existing;
+    }
     activePrefetches.delete(conversationId);
   }
 
@@ -654,6 +796,11 @@ export function registerPrefetch(conversationId: string, promise: Promise<AutoRe
   void promise.finally(() => {
     handle.settledAt = Date.now();
     console.log(`[AutoRecall:Prefetch] Settled in ${Date.now() - firedAt}ms`);
+    logMemoryTrace({
+      conversationId: shortTraceId(conversationId),
+      durationMs: Date.now() - firedAt,
+      event: 'auto_recall.prefetch.settled'
+    });
     if (conversationId) {
       setTimeout(() => {
         const cur = activePrefetches.get(conversationId);
@@ -663,6 +810,10 @@ export function registerPrefetch(conversationId: string, promise: Promise<AutoRe
   });
 
   activePrefetches.set(conversationId, handle);
+  logMemoryTrace({
+    conversationId: shortTraceId(conversationId),
+    event: 'auto_recall.prefetch.registered'
+  });
   return handle;
 }
 

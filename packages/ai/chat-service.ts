@@ -5,11 +5,12 @@ import { BrowserWindow, ipcMain, WebContents } from 'electron';
 import { ChatRepo, WorkspacesRepo } from '../common/db';
 import { eventManager } from '../event';
 import { AppEvent } from '../event/events';
+import { buildConversationPlaceholderTitle, normalizeGeneratedConversationTitle } from './conversation-title';
 import { normalizeProviderPreset, resolveProviderPresetId } from './provider-preset';
 import { getProviderDefinitionSchema } from './providers/service';
 import { PiExecutionService } from './runtime/pi/execution-service';
 import { PiSessionService } from './runtime/pi/session-service';
-import { generatePiConversationTitle, normalizeGeneratedConversationTitle } from './runtime/pi/tasks/title';
+import { generatePiConversationTitle } from './runtime/pi/tasks/title';
 import type { AgentLoopCompletePayload } from './services/memory-types';
 import { ChatMessage, ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent } from './types';
 
@@ -117,15 +118,17 @@ ${JSON.stringify(forcePiRuntime(req), null, 2)}
       throw new Error(preview.availability.reason || 'Pi runtime packages are not installed yet.');
     }
 
+    const lastUserMessage = this.getLastUserMessage(req.messages);
+    const placeholderTitle = this.buildPlaceholderConversationTitle(lastUserMessage?.content);
     const conv = await this.ensureHistoricalConversationRecord({
       id: req.conversationId,
       agentId: req.agentId || preview.resolved.profile.id,
       providerId: preview.resolved.model.providerId,
       providerPresetId,
+      title: placeholderTitle || undefined,
       workspaceId: await this.resolveWorkspaceId(req)
     });
 
-    const lastUserMessage = this.getLastUserMessage(req.messages);
     if (lastUserMessage) {
       await this.persistConversationMessage(conv.id, lastUserMessage);
     }
@@ -159,6 +162,7 @@ ${JSON.stringify(forcePiRuntime(req), null, 2)}
 
     const shouldPersist = req.persist !== false;
     const lastUserMessage = this.getLastUserMessage(req.messages);
+    const placeholderTitle = this.buildPlaceholderConversationTitle(lastUserMessage?.content);
     let conv = undefined;
 
     if (shouldPersist) {
@@ -167,6 +171,7 @@ ${JSON.stringify(forcePiRuntime(req), null, 2)}
         agentId: req.agentId || preview.resolved.profile.id,
         providerId: preview.resolved.model.providerId,
         providerPresetId,
+        title: placeholderTitle || undefined,
         workspaceId: await this.resolveWorkspaceId(req)
       });
     }
@@ -207,7 +212,7 @@ ${JSON.stringify(forcePiRuntime(req), null, 2)}
         if (event.type === 'connected') {
           emit(event);
           if (conv && !emittedConversationMetadata) {
-            emit({ type: 'metadata', data: { conversationId: conv.id } });
+            emit({ type: 'metadata', data: { conversationId: conv.id, title: conv.title || null } });
             emittedConversationMetadata = true;
           }
           return;
@@ -263,8 +268,8 @@ ${JSON.stringify(forcePiRuntime(req), null, 2)}
       await this.persistConversationMessageSafely(conv.id, finalMessage, emit, 'assistant');
     }
 
-    if (conv && finalMessage?.content && !conv.title) {
-      this.generateConversationTitle(conv.id, lastUserMessage?.content || '', finalMessage.content, req).catch((e) => {
+    if (conv && finalMessage?.content && this.shouldAutoGenerateConversationTitle(conv.title, placeholderTitle)) {
+      this.generateConversationTitle(conv.id, lastUserMessage?.content || '', finalMessage.content, req, placeholderTitle).catch((e) => {
         console.warn('[ChatService] Auto title generation failed:', e);
       });
     }
@@ -350,15 +355,17 @@ ${JSON.stringify(forcePiRuntime(req), null, 2)}
     agentId: string;
     providerId: string;
     providerPresetId?: string;
+    title?: string;
     workspaceId?: string;
   }): Promise<Awaited<ReturnType<typeof ChatRepo.ensureConversation>>> {
-    const { agentId, id, providerId, providerPresetId, workspaceId } = params;
+    const { agentId, id, providerId, providerPresetId, title, workspaceId } = params;
 
     return ChatRepo.ensureConversation({
       id,
       agentId,
       providerId,
       providerPresetId,
+      title,
       workspaceId
     });
   }
@@ -368,7 +375,7 @@ ${JSON.stringify(forcePiRuntime(req), null, 2)}
     if (requestedWorkspaceId) return requestedWorkspaceId;
 
     if (req.conversationId) {
-      const existing = await ChatRepo.ensureConversation({ id: req.conversationId });
+      const existing = await ChatRepo.getConversation(req.conversationId);
       if (existing?.workspaceId) return existing.workspaceId;
     }
 
@@ -436,12 +443,23 @@ ${JSON.stringify(forcePiRuntime(req), null, 2)}
     return [...systemMessages, ...dialogMessages.slice(-6)];
   }
 
+  private buildPlaceholderConversationTitle(userContent?: string): string {
+    return userContent ? buildConversationPlaceholderTitle(userContent) : '';
+  }
+
+  private shouldAutoGenerateConversationTitle(currentTitle?: string | null, placeholderTitle?: string): boolean {
+    const normalizedCurrentTitle = (currentTitle || '').trim();
+    const normalizedPlaceholderTitle = (placeholderTitle || '').trim();
+    if (!normalizedCurrentTitle) return true;
+    return !!normalizedPlaceholderTitle && normalizedCurrentTitle === normalizedPlaceholderTitle;
+  }
+
   /**
    * Generate a conversation title using AI in the main process.
    * Runs in the background after the first assistant reply.
    * Broadcasts the updated title to all renderer windows.
    */
-  private async generateConversationTitle(conversationId: string, userContent: string, assistantContent: string, resolved: ChatRequest): Promise<void> {
+  private async generateConversationTitle(conversationId: string, userContent: string, assistantContent: string, resolved: ChatRequest, placeholderTitle: string): Promise<void> {
     // Notify all windows that title generation has started (for shimmer animation)
     this.broadcastToAllWindows(CONV_TITLE_UPDATED_CHANNEL, { conversationId, title: null, status: 'generating' });
 
@@ -456,8 +474,8 @@ ${JSON.stringify(forcePiRuntime(req), null, 2)}
         providerPresetId: resolveProviderPresetId(resolved),
         extras: resolved.extras?.model
           ? {
-            model: resolved.extras.model
-          }
+              model: resolved.extras.model
+            }
           : undefined,
         messages: titleMessages,
         persist: false
@@ -483,11 +501,17 @@ ${JSON.stringify(forcePiRuntime(req), null, 2)}
         title = normalizeGeneratedConversationTitle(resp?.message?.content || '');
       }
 
+      const latestConversation = await ChatRepo.getConversation(conversationId);
+      if (latestConversation && !this.shouldAutoGenerateConversationTitle(latestConversation.title, placeholderTitle)) {
+        this.broadcastToAllWindows(CONV_TITLE_UPDATED_CHANNEL, { conversationId, title: latestConversation.title || null, status: 'done' });
+        return;
+      }
+
       if (title && title.length > 0) {
         await ChatRepo.renameConversation(conversationId, title);
         this.broadcastToAllWindows(CONV_TITLE_UPDATED_CHANNEL, { conversationId, title, status: 'done' });
       } else {
-        this.broadcastToAllWindows(CONV_TITLE_UPDATED_CHANNEL, { conversationId, title: null, status: 'done' });
+        this.broadcastToAllWindows(CONV_TITLE_UPDATED_CHANNEL, { conversationId, title: latestConversation?.title || placeholderTitle || null, status: 'done' });
       }
     } catch (e) {
       console.warn('[ChatService] Title generation failed:', e);

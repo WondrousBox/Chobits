@@ -4,6 +4,7 @@ const {
   buildPiModelHeadersMock,
   buildPiModelMock,
   isPiRuntimeRequestedMock,
+  preWarmEnrichersMock,
   piSessionFactoryCreateCodingSessionMock,
   resolvePiRequestMock,
   resolvePiToolDescriptorsMock
@@ -11,6 +12,7 @@ const {
   buildPiModelHeadersMock: vi.fn(),
   buildPiModelMock: vi.fn(),
   isPiRuntimeRequestedMock: vi.fn(),
+  preWarmEnrichersMock: vi.fn(),
   piSessionFactoryCreateCodingSessionMock: vi.fn(),
   resolvePiRequestMock: vi.fn(),
   resolvePiToolDescriptorsMock: vi.fn()
@@ -39,6 +41,11 @@ vi.mock('../packages/ai/runtime/pi/session-factory', () => ({
   }
 }));
 
+vi.mock('../packages/ai/system-prompt-enricher', () => ({
+  preWarmEnrichers: preWarmEnrichersMock,
+  resolveSystemPromptEnrichments: vi.fn().mockResolvedValue([])
+}));
+
 import { PiSessionService } from '../packages/ai/runtime/pi/session-service';
 
 describe('PiSessionService coder workspace guard', () => {
@@ -48,6 +55,7 @@ describe('PiSessionService coder workspace guard', () => {
     buildPiModelHeadersMock.mockReturnValue(undefined);
     isPiRuntimeRequestedMock.mockReturnValue(true);
     piSessionFactoryCreateCodingSessionMock.mockReset();
+    preWarmEnrichersMock.mockReset();
     resolvePiToolDescriptorsMock.mockReturnValue([
       {
         id: 'file-read',
@@ -106,57 +114,75 @@ describe('PiSessionService coder workspace guard', () => {
   });
 
   it('emits workspace-required stream events before any model execution', async () => {
-    resolvePiRequestMock.mockResolvedValue({
-      runtime: 'pi',
-      runtimeRequested: true,
-      request: {
-        providerId: 'openai',
-        agentId: 'coder',
-        messages: [{ role: 'user', content: 'edit src/main.ts' }]
-      },
-      profile: {
-        id: 'coder',
-        label: 'Coder',
-        instructions: 'coder profile',
-        defaultToolIds: ['file-read'],
-        executionMode: 'session',
-        supportsToolCalls: true
-      },
-      model: {
-        providerId: 'openai',
-        canonicalProviderId: 'openai',
-        modelId: 'gpt-5',
-        source: 'provider',
-        secrets: {}
-      },
-      messages: [{ role: 'user', content: 'edit src/main.ts' }],
-      enabledToolIds: ['file-read']
-    });
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    try {
+      resolvePiRequestMock.mockResolvedValue({
+        runtime: 'pi',
+        runtimeRequested: true,
+        request: {
+          providerId: 'openai',
+          agentId: 'coder',
+          messages: [{ role: 'user', content: 'edit src/main.ts' }]
+        },
+        profile: {
+          id: 'coder',
+          label: 'Coder',
+          instructions: 'coder profile',
+          defaultToolIds: ['file-read'],
+          executionMode: 'session',
+          supportsToolCalls: true
+        },
+        model: {
+          providerId: 'openai',
+          canonicalProviderId: 'openai',
+          modelId: 'gpt-5',
+          source: 'provider',
+          secrets: {}
+        },
+        messages: [{ role: 'user', content: 'edit src/main.ts' }],
+        enabledToolIds: ['file-read']
+      });
 
-    const events: Array<{ type: string; data?: any }> = [];
-    const service = new PiSessionService();
+      const events: Array<{ type: string; data?: any }> = [];
+      const service = new PiSessionService();
 
-    await service.chatStream(
-      {
-        providerId: 'openai',
-        agentId: 'coder',
-        messages: [{ role: 'user', content: 'edit src/main.ts' }]
-      } as any,
-      (event) => {
-        events.push(event);
-      }
-    );
+      await service.chatStream(
+        {
+          providerId: 'openai',
+          agentId: 'coder',
+          messages: [{ role: 'user', content: 'edit src/main.ts' }]
+        } as any,
+        (event) => {
+          events.push(event);
+        }
+      );
 
-    expect(events.map((event) => event.type)).toEqual(['connected', 'metadata', 'message_completed', 'done']);
-    expect(events[1].data).toMatchObject({
-      runtime: 'pi',
-      profileId: 'coder',
-      workspaceRequired: true
-    });
-    expect(events[2].data?.message?.metadata).toMatchObject({
-      runtime: 'pi',
-      workspaceRequired: true
-    });
-    expect(buildPiModelMock).not.toHaveBeenCalled();
+      expect(events.map((event) => event.type)).toEqual(['connected', 'metadata', 'message_completed', 'done']);
+      expect(preWarmEnrichersMock).toHaveBeenCalledTimes(1);
+      expect(preWarmEnrichersMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentId: 'coder',
+          providerId: 'openai'
+        })
+      );
+      expect(events[1].data).toMatchObject({
+        runtime: 'pi',
+        profileId: 'coder',
+        workspaceRequired: true
+      });
+      expect(events[2].data?.message?.metadata).toMatchObject({
+        runtime: 'pi',
+        workspaceRequired: true
+      });
+      expect(buildPiModelMock).not.toHaveBeenCalled();
+      expect(
+        logSpy.mock.calls
+          .map((call) => String(call[0]))
+          .filter((line) => line.startsWith('[MemoryTrace] '))
+          .map((line) => JSON.parse(line.slice('[MemoryTrace] '.length)).event)
+      ).toEqual(expect.arrayContaining(['pi_chat_stream.prewarm.start', 'pi_chat_stream.prewarm.dispatched']));
+    } finally {
+      logSpy.mockRestore();
+    }
   });
 });
