@@ -1,3 +1,4 @@
+import { normalizeGeneratedConversationTitle } from '../../../conversation-title';
 import { normalizeProviderPreset, resolveProviderPresetId } from '../../../provider-preset';
 import type { ChatMessage, ChatRequest, ProviderScopedRequest } from '../../../types';
 import { PiExecutionService } from '../execution-service';
@@ -10,12 +11,6 @@ export interface GeneratePiConversationTitleOptions extends ProviderScopedReques
   maxLength?: number;
   model?: string;
   userContent: string;
-}
-
-export function normalizeGeneratedConversationTitle(title: string, maxLength: number = 30): string {
-  const normalized = (title || '').trim().replace(/^["'\u300c]|["'\u300d]$/g, '');
-  if (!normalized) return '';
-  return normalized.length > maxLength ? normalized.slice(0, maxLength) + '\u2026' : normalized;
 }
 
 function getPiExecutionService(): PiExecutionService {

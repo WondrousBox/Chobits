@@ -13,6 +13,7 @@
 
 import type { PiTaskChatFunction } from '../../../../packages/ai/runtime/pi/task-chat';
 import { type AutoRecallDeps, getActivePrefetch, performAutoRecall, registerPrefetch } from '../../../../packages/ai/services/memory-auto-recall';
+import { logMemoryTrace, shortTraceId } from '../../../../packages/ai/services/memory-trace';
 import type { RetrievalDbDeps } from '../../../../packages/ai/services/memory-retrieval-service';
 import type { MemoryChatFn } from '../../../../packages/ai/services/memory-types';
 import { registerSystemPromptEnricher } from '../../../../packages/ai/system-prompt-enricher';
@@ -148,23 +149,49 @@ let enricherDb: RetrievalDbDeps | undefined;
  * 否则 resolve() 调用 getActivePrefetch() 时可能找不到，导致重复搜索。
  */
 export function kickoffMemoryPrefetch(request: ChatRequest): void {
+  const conversationKey = shortTraceId(request.conversationId);
   if (!enricherDb) {
     console.log(`${TAG} [preWarm] Skipped: enricherDb not initialized`);
+    logMemoryTrace({
+      conversationId: conversationKey,
+      event: 'auto_recall.prewarm.skip',
+      reason: 'db_uninitialized'
+    });
     return;
   }
   if (!request.messages?.length) {
     console.log(`${TAG} [preWarm] Skipped: no messages in request`);
+    logMemoryTrace({
+      conversationId: conversationKey,
+      event: 'auto_recall.prewarm.skip',
+      reason: 'no_messages'
+    });
     return;
   }
   if (request.persist === false) {
     console.log(`${TAG} [preWarm] Skipped: persist=false (ephemeral chat)`);
+    logMemoryTrace({
+      conversationId: conversationKey,
+      event: 'auto_recall.prewarm.skip',
+      reason: 'persist_false'
+    });
     return;
   }
   if (!request.conversationId) {
     console.log(`${TAG} [preWarm] Skipped: no conversationId (cannot register prefetch)`);
+    logMemoryTrace({
+      event: 'auto_recall.prewarm.skip',
+      reason: 'no_conversation_id'
+    });
     return;
   }
   console.log(`${TAG} [preWarm] Starting prefetch: conv=${request.conversationId.slice(0, 8)}, provider=${request.providerId}, msgs=${request.messages.length}`);
+  logMemoryTrace({
+    conversationId: conversationKey,
+    event: 'auto_recall.prewarm.start',
+    messageCount: request.messages.length,
+    providerId: request.providerId || 'unknown'
+  });
 
   const db = enricherDb;
   const providerId = request.providerId;
@@ -192,6 +219,11 @@ export function kickoffMemoryPrefetch(request: ChatRequest): void {
   })().catch((e) => {
     if (e?.name !== 'AbortError') {
       console.warn(`${TAG} Prefetch failed:`, e instanceof Error ? e.message : e);
+      logMemoryTrace({
+        conversationId: conversationKey,
+        error: e instanceof Error ? e.message : String(e),
+        event: 'auto_recall.prewarm.error'
+      }, 'warn');
     }
     return { context: '', keywords: [], noteCount: 0, skipped: true, skipReason: 'prefetch_error' };
   });
@@ -215,6 +247,7 @@ export function initMemoryAutoRecallEnricher(db: RetrievalDbDeps): void {
     },
     resolve: async (ctx) => {
       const { request } = ctx;
+      const conversationId = shortTraceId(request.conversationId);
 
       // 检查记忆系统配置
       try {
@@ -222,6 +255,13 @@ export function initMemoryAutoRecallEnricher(db: RetrievalDbDeps): void {
         const cfg = getMemoryConfig();
         if (!cfg.memoryEnabled || !cfg.autoRecallEnabled) {
           console.log(`${TAG} [resolve] Skipped: memoryEnabled=${cfg.memoryEnabled}, autoRecallEnabled=${cfg.autoRecallEnabled}`);
+          logMemoryTrace({
+            autoRecallEnabled: cfg.autoRecallEnabled,
+            conversationId,
+            event: 'auto_recall.resolve.skip',
+            memoryEnabled: cfg.memoryEnabled,
+            reason: 'config_disabled'
+          });
           return null;
         }
       } catch {
@@ -231,16 +271,33 @@ export function initMemoryAutoRecallEnricher(db: RetrievalDbDeps): void {
       // 需要有消息才能判断是否需要召回
       if (!request.messages?.length) {
         console.log(`${TAG} [resolve] Skipped: no messages`);
+        logMemoryTrace({
+          conversationId,
+          event: 'auto_recall.resolve.skip',
+          reason: 'no_messages'
+        });
         return null;
       }
 
       // 非持久化对话（如标题生成、ephemeral）跳过
       if (request.persist === false) {
         console.log(`${TAG} [resolve] Skipped: persist=false`);
+        logMemoryTrace({
+          conversationId,
+          event: 'auto_recall.resolve.skip',
+          reason: 'persist_false'
+        });
         return null;
       }
 
       console.log(`${TAG} [resolve] Running: conv=${request.conversationId?.slice(0, 8) || 'none'}, msgs=${request.messages.length}`);
+      logMemoryTrace({
+        conversationId,
+        event: 'auto_recall.resolve.start',
+        messageCount: request.messages.length,
+        providerId: request.providerId || 'unknown',
+        source: 'memory_auto_recall'
+      });
 
       try {
         // 优先使用已启动的预取结果
@@ -252,6 +309,12 @@ export function initMemoryAutoRecallEnricher(db: RetrievalDbDeps): void {
           const waitStart = Date.now();
           result = await prefetch.promise;
           const waited = Date.now() - waitStart;
+          logMemoryTrace({
+            conversationId,
+            event: 'auto_recall.resolve.prefetch_awaited',
+            settled: !!prefetch.settledAt,
+            waitMs: waited
+          });
           if (waited > 10) {
             console.log(`${TAG} Awaited prefetch for ${waited}ms (settled=${!!prefetch.settledAt})`);
           }
@@ -274,20 +337,46 @@ export function initMemoryAutoRecallEnricher(db: RetrievalDbDeps): void {
             getWorkspaceId: async () => resolveRequestWorkspaceId(request)
           };
 
+          logMemoryTrace({
+            conversationId,
+            event: 'auto_recall.resolve.sync_fallback'
+          });
           result = await performAutoRecall(request.messages, deps, request.conversationId);
         }
 
         if (result.skipped || !result.context) {
           console.log(`${TAG} [resolve] No context to inject: skipped=${result.skipped}, reason=${result.skipReason || 'empty_context'}, keywords=[${result.keywords.join(', ')}]`);
+          logMemoryTrace({
+            contextChars: result.context.length,
+            conversationId,
+            event: 'auto_recall.resolve.no_context',
+            keywordCount: result.keywords.length,
+            keywords: result.keywords,
+            reason: result.skipReason || 'empty_context',
+            skipped: result.skipped
+          });
           return null;
         }
 
         console.log(`${TAG} Injecting memory context: ${result.noteCount} notes, ${result.context.length} chars, keywords=[${result.keywords.join(', ')}]`);
+        logMemoryTrace({
+          contextChars: result.context.length,
+          conversationId,
+          event: 'auto_recall.resolve.inject',
+          keywordCount: result.keywords.length,
+          keywords: result.keywords,
+          noteCount: result.noteCount
+        });
 
         // 包装为 system prompt 段落
         return formatAutoRecallContext(result.context);
       } catch (e) {
         console.warn(`${TAG} Auto-recall failed (non-fatal):`, e instanceof Error ? e.message : e);
+        logMemoryTrace({
+          conversationId,
+          error: e instanceof Error ? e.message : String(e),
+          event: 'auto_recall.resolve.error'
+        }, 'warn');
         return null;
       }
     }

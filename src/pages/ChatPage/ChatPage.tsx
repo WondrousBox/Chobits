@@ -1,3 +1,4 @@
+import { buildConversationPlaceholderTitle } from '@packages/ai/conversation-title';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TbArrowDown, TbChevronRight, TbDots, TbEdit, TbHistory, TbLoader2, TbPin, TbPlus, TbRefresh, TbShare, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
@@ -34,6 +35,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renamingConvId, setRenamingConvId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
+  const [pendingConversationTitle, setPendingConversationTitle] = useState<string | null>(null);
   // Track conversations that are waiting for AI-generated titles
   const [generatingTitleIds, setGeneratingTitleIds] = useState<Set<string>>(new Set());
 
@@ -71,6 +73,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
   const selectConversation = async (id: string): Promise<void> => {
     setSelectedConvId(id);
     setConversationId(id);
+    setPendingConversationTitle(null);
     try {
       const rows = await window.YUA.ai.listMessages(id, 2000, 0);
       const mapped = (rows || []).map((r: any) => {
@@ -117,6 +120,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
   const newConversation = useCallback((): void => {
     setSelectedConvId(null);
     setConversationId(undefined);
+    setPendingConversationTitle(null);
     setMessages([]);
   }, []);
 
@@ -274,11 +278,16 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
 
     if (!content.trim() || !selectedProviderId || !selectedModelId) return;
 
+    const placeholderTitle = !conversationId ? buildConversationPlaceholderTitle(content) : '';
+
     const resolvedPreset = await window.YUA.ai.resolveUsablePreset(selectedProviderId, preferredPresetId);
     if (!resolvedPreset?.id) {
+      setPendingConversationTitle(null);
       toast.error('当前服务商还没有可用预设，请先到 AI 设置中完成配置');
       return;
     }
+
+    setPendingConversationTitle(placeholderTitle || null);
 
     setProviderId(selectedProviderId);
     setModelId(selectedModelId);
@@ -322,8 +331,19 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
       },
       (ev: any) => {
         if (ev?.type === 'metadata' && ev.data?.conversationId) {
-          setConversationId(ev.data.conversationId);
-          setSelectedConvId(ev.data.conversationId);
+          const nextConversationId = ev.data.conversationId;
+          const nextTitle = typeof ev.data.title === 'string' && ev.data.title.trim() ? ev.data.title : placeholderTitle;
+          setConversationId(nextConversationId);
+          setSelectedConvId(nextConversationId);
+          if (nextTitle) {
+            setConversations((prev) => {
+              const existing = prev.find((item) => item.id === nextConversationId);
+              if (existing) {
+                return prev.map((item) => (item.id === nextConversationId ? { ...item, title: existing.title || nextTitle } : item));
+              }
+              return [{ id: nextConversationId, title: nextTitle, lastMessageAt: userMsg.createdAt, messagesCount: 1 }, ...prev];
+            });
+          }
           // Refresh conversation list so the new conversation appears in sidebar
           loadConversations();
         }
@@ -506,7 +526,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
           title={
             <div className="flex items-center gap-2 w-full">
               <span>🗨️</span>
-              <div className="text-left truncate flex-1">{currentConversation?.title || '未命名会话'}</div>
+              <div className="text-left truncate flex-1">{currentConversation?.title || pendingConversationTitle || '未命名会话'}</div>
             </div>
           }
         />

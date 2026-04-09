@@ -1569,6 +1569,11 @@ export const ChatRepo = {
           console.warn(`[ChatRepo] ensureConversation workspace mismatch: existing=${existing.workspaceId}, requested=${payload.workspaceId}, conversation=${id}`);
         }
 
+        // 仅当旧会话还没有标题时，回填首条用户消息生成的占位标题。
+        if (!existing.title && payload.title) {
+          patch.title = payload.title;
+        }
+
         if (Object.keys(patch).length > 0) {
           await db
             .update(conversations)
@@ -1599,6 +1604,12 @@ export const ChatRepo = {
     };
     if (id) values.id = id;
     const rows = await db.insert(conversations).values(values).returning().all();
+    return rows[0];
+  },
+
+  async getConversation(id: string): Promise<ConversationRow | undefined> {
+    const db = getOrm();
+    const rows = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
     return rows[0];
   },
 

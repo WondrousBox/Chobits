@@ -214,6 +214,19 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
   }, [loadAgents, loadConversations]);
 
   useEffect(() => {
+    const dispose = window.YUA.ai.onConversationTitleUpdated((data) => {
+      if (data.status === 'generating') return;
+      if (data.title) {
+        setConversations((prev) => prev.map((conversation) => (conversation.id === data.conversationId ? { ...conversation, title: data.title || conversation.title } : conversation)));
+        return;
+      }
+      void loadConversations();
+    });
+
+    return () => dispose();
+  }, [loadConversations]);
+
+  useEffect(() => {
     listEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, loading]);
 
@@ -284,15 +297,26 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
             ...(workspaceId ? { workspaceId } : {}),
             ...(isCoder && codingWorkspaceRoot
               ? {
-                codingWorkspaceRoot,
-                codingWorkspaceLabel: codingWorkspaceLabel || undefined
-              }
+                  codingWorkspaceRoot,
+                  codingWorkspaceLabel: codingWorkspaceLabel || undefined
+                }
               : {})
           }
         },
         (event: any) => {
           if (event?.type === 'metadata' && event.data?.conversationId) {
-            setConversationId(event.data.conversationId);
+            const nextConversationId = event.data.conversationId;
+            const nextTitle = typeof event.data.title === 'string' ? event.data.title.trim() : '';
+            setConversationId(nextConversationId);
+            if (nextTitle) {
+              setConversations((prev) => {
+                const existing = prev.find((conversation) => conversation.id === nextConversationId);
+                if (existing) {
+                  return prev.map((conversation) => (conversation.id === nextConversationId ? { ...conversation, title: existing.title || nextTitle } : conversation));
+                }
+                return [{ id: nextConversationId, title: nextTitle, messagesCount: 1, lastMessageAt: userMessage.createdAt }, ...prev];
+              });
+            }
           }
 
           if (event?.type === 'tool_call' && event.data) {

@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import type { ChatRequest, ChatResponse, StreamEvent } from '../../types';
 import { waitForUserChoice } from '../../user-choice-registry';
+import { logMemoryTrace, shortTraceId } from '../../services/memory-trace';
 import type { PiRuntimeAvailability, PiRuntimePreview, ResolvedPiRequest } from './contracts';
 import { resolvePiRequest } from './model-resolver';
 import { buildPiModel, buildPiModelHeaders } from './provider-model';
@@ -324,6 +325,15 @@ function mergeMarkdownSections(base: string, enrichmentTexts: string[]): string 
 
 async function buildPiContext(resolved: ResolvedPiRequest, model: PiModel): Promise<PiContext> {
   const profileInstructions = await resolveProfileInstructions(resolved);
+  const enrichmentStartedAt = Date.now();
+  const conversationId = shortTraceId(resolved.request.conversationId);
+
+  logMemoryTrace({
+    conversationId,
+    event: 'pi_context.build.start',
+    messageCount: resolved.messages.length,
+    providerId: resolved.model.providerId
+  });
 
   // Resolve dynamic system prompt enrichments from registered enrichers
   const { resolveSystemPromptEnrichments } = await import('../../system-prompt-enricher');
@@ -358,8 +368,18 @@ async function buildPiContext(resolved: ResolvedPiRequest, model: PiModel): Prom
     throw new Error('Pi runtime requires at least one non-system message.');
   }
 
+  const systemPrompt = systemParts.join('\n\n');
+  logMemoryTrace({
+    conversationId,
+    durationMs: Date.now() - enrichmentStartedAt,
+    enrichmentCount: enrichments.length,
+    event: 'pi_context.build.done',
+    messageCount: messages.length,
+    systemPromptChars: systemPrompt.length
+  });
+
   return {
-    ...(systemParts.length ? { systemPrompt: systemParts.join('\n\n') } : {}),
+    ...(systemParts.length ? { systemPrompt } : {}),
     messages
   };
 }
@@ -602,7 +622,17 @@ export class PiSessionService {
     // Pre-warm enrichers early — lets memory auto-recall start prefetch
     // while preview() and buildPiModel() are running
     const { preWarmEnrichers } = await import('../../system-prompt-enricher');
+    logMemoryTrace({
+      conversationId: shortTraceId(req.conversationId),
+      event: 'pi_chat_stream.prewarm.start',
+      messageCount: req.messages?.length || 0,
+      providerId: req.providerId || 'unknown'
+    });
     preWarmEnrichers(req);
+    logMemoryTrace({
+      conversationId: shortTraceId(req.conversationId),
+      event: 'pi_chat_stream.prewarm.dispatched'
+    });
 
     const preview = await this.preview(req);
     const legacy = createLegacyStreamEmitter(emit, {
