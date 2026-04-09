@@ -17,6 +17,9 @@
  *   sprite:persona:unlockAchievement — 解锁成就
  *   sprite:config:getAutoWalk — 获取自动行走开关
  *   sprite:config:setAutoWalk — 设置自动行走开关
+ *   sprite:spontaneous:getPreferences — 获取主动发言偏好
+ *   sprite:spontaneous:updatePreferences — 更新主动发言偏好
+ *   sprite:spontaneous:listHistory — 查询主动发言历史
  *
  * 下行(主进程→渲染)：
  *   sprite:play             — 播放动画命令
@@ -32,8 +35,8 @@ import { app, BrowserWindow, ipcMain, screen } from 'electron';
 
 import { buildCharacterPersonaPrompt, getCharacterDefinition, getCharacterInfo, getCharacterToolLabels, getDimensionSchema, initCharacterService } from '../character-service';
 import { isSpriteInteractionIntent, type SpriteInteractionPayload } from '../interaction-contract';
-import { SpriteManager } from '../manager';
 import type { SpriteSpontaneousUtteranceExecutor } from '../manager';
+import { SpriteManager } from '../manager';
 import type { SpeakRequest, SpriteSpeakConfig } from '../speak/types';
 import { WindowController } from '../window-controller';
 import { listSprites } from './sprite-assets';
@@ -170,13 +173,13 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     return getCharacterInfo();
   });
 
-  ipcMain.handle('sprite:character:getPersonaPrompt', () => {
+  ipcMain.handle('sprite:character:getPersonaPrompt', (_e, options?: import('../character-service').PersonaPromptBuildOptions) => {
     const persona = mgr.getPersonaState();
     return buildCharacterPersonaPrompt({
       favorLevel: persona.favorLevel,
       mood: persona.mood,
       level: persona.level
-    });
+    }, options);
   });
 
   // ===== 维度 API =====
@@ -213,6 +216,18 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   ipcMain.handle('sprite:config:setDebugOverlay', (_e, p: { enabled: boolean }) => {
     mgr.setDebugOverlayEnabled(p.enabled);
     return p.enabled;
+  });
+
+  ipcMain.handle('sprite:spontaneous:getPreferences', async () => {
+    return (await deps.spontaneousUtteranceExecutor?.getSpontaneousUtterancePreferences?.()) ?? null;
+  });
+
+  ipcMain.handle('sprite:spontaneous:updatePreferences', async (_e, p: Record<string, unknown>) => {
+    return (await deps.spontaneousUtteranceExecutor?.updateSpontaneousUtterancePreferences?.(p as any)) ?? null;
+  });
+
+  ipcMain.handle('sprite:spontaneous:listHistory', async (_e, p: Record<string, unknown> | undefined) => {
+    return (await deps.spontaneousUtteranceExecutor?.listSpontaneousUtterances?.(p as any)) ?? [];
   });
 
   // 预览窗口移动效果

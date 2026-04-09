@@ -7,12 +7,12 @@
 <!-- AUTO-GENERATED:SPRITE-AI-STATUS START -->
 ## Auto Status
 
-- Last synced: 2026-04-09 02:04:59
+- Last synced: 2026-04-09 10:26:40
 - Sync command: `pnpm docs:sprite-ai:sync`
 - Phase 1: implemented
 - Phase 2: implemented
-- Phase 3: pending
-- Phase 4: pending
+- Phase 3: implemented
+- Phase 4: implemented
 
 ### Current Chain
 - Trigger path: `idle-action` -> `spontaneousUtteranceExecutor` -> `SpriteSpontaneousUtteranceService`
@@ -216,7 +216,7 @@ AI 输出的一句话应该满足以下特征：
    - `ChatRepo.listMessages(conversationId)`，定义在 `electron/main/db/repositories.ts`
 4. 当前助手角色
    - 精灵角色文件：`electron/main/handlers/status.ts` 中的 `role.json`
-   - Pi `assistant` profile：`packages/ai/runtime/pi/profiles.md`
+   - 角色人格 prompt builder：`packages/sprite-core/character-service.ts` 中的 `buildCharacterPersonaPrompt()`
    - 用户 preset 的 `systemPrompt`：`packages/ai/runtime/pi/model-resolver.ts`
 5. 精灵当前状态
    - 可直接从 `BehaviorContext` 和 `SpriteManager` 获取
@@ -262,7 +262,7 @@ flowchart TD
     C --> D["Main Process: SpriteSpontaneousUtteranceService"]
     D --> E["上下文装配"]
     E --> E1["USER_PERSONA.md"]
-    E --> E2["role.json + assistant profile + preset"]
+    E --> E2["role.json + character persona + preset"]
     E --> E3["recent chat messages"]
     E --> E4["memory retrieval"]
     E --> E5["important conversation digest"]
@@ -361,12 +361,12 @@ type IdleActionUtteranceRequest = {
     snapshot?: string;
     topFacts: string[];
   };
-  assistantRole?: {
+  characterRole?: {
     roleName?: string;
     roleMood?: string;
     roleFavor?: number;
     roleDescription?: string;
-    baseAssistantProfile?: string;
+    characterPersonaPrompt?: string;
     presetSystemPrompt?: string;
   };
   recentConversation?: {
@@ -409,13 +409,14 @@ type IdleActionUtteranceRequest = {
 1. 精灵角色状态
    - `role.json`
    - 包含 `name / mood / level / favor / description`
-2. 基础 assistant profile
-   - `packages/ai/runtime/pi/profiles.md`
-   - 作为长期身份底色
+2. 角色人格 prompt
+   - `packages/sprite-core/character-service.ts`
+   - 复用 `buildCharacterPersonaPrompt()` 的输出，作为说话风格、关系层级、当前心情的核心身份底色
+   - 该 builder 应支持 `options` 做局部裁剪，例如只保留 `identity / relationship / speechStyle`，或在 `speechStyle` 内只取 `tone / firstPerson / quirks`
 3. 当前 preset `systemPrompt`
    - 作为用户当前对模型的行为约束
 
-推荐做法不是把三份原文全部注入，而是提前转成角色摘要：
+推荐做法不是把几份原文全部注入，而是提前转成角色摘要：
 
 ```ts
 type AssistantRoleDigest = {
@@ -426,7 +427,7 @@ type AssistantRoleDigest = {
 };
 ```
 
-这样更利于控制 prompt 稳定性。
+其中最重要的是 character persona prompt；如果自发说话链路继续走 one-shot task runtime，就不能依赖聊天 enrichers 隐式注入，而应该在主进程显式复用 `buildCharacterPersonaPrompt()` 的结果。并且不同场景应允许传入 `options`，只选择必要的人格字段，避免把整份角色设定无差别塞进 prompt。
 
 ## 7.3 最近聊天记忆
 
@@ -814,7 +815,7 @@ System prompt 应明确这些约束：
 
 1. 最近消息
 2. persona 摘要
-3. role 摘要
+3. 角色人格摘要
 
 先跑通即可。
 
@@ -904,4 +905,3 @@ System prompt 应明确这些约束：
 3. 更会选择合适语气
 4. 有完整可追踪历史
 5. 可继续扩展为真正的“精灵主动陪伴表达系统”
-

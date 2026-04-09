@@ -35,8 +35,7 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "check:permissions": "node scripts/check-permissions.mjs",
-    "docs:sprite-ai:sync": "node scripts/update-sprite-ai-doc.mjs"
+    "check:permissions": "node scripts/check-permissions.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.7.3",

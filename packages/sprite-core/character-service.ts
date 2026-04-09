@@ -328,39 +328,100 @@ export interface PersonaPromptContext {
   level: number;
 }
 
+export type PersonaPromptSection = 'identity' | 'coreTraits' | 'relationship' | 'speechStyle' | 'mood' | 'boundaries';
+export type PersonaIdentityField = 'name' | 'background' | 'tagline';
+export type PersonaSpeechStyleField = 'tone' | 'language' | 'firstPerson' | 'addressUser' | 'quirks' | 'examples';
+
+export interface PersonaPromptBuildOptions {
+  sections?: PersonaPromptSection[];
+  identityFields?: PersonaIdentityField[];
+  speechStyleFields?: PersonaSpeechStyleField[];
+}
+
+const DEFAULT_PERSONA_PROMPT_SECTIONS: PersonaPromptSection[] = ['identity', 'coreTraits', 'relationship', 'speechStyle', 'mood', 'boundaries'];
+const DEFAULT_IDENTITY_FIELDS: PersonaIdentityField[] = ['name', 'background'];
+const DEFAULT_SPEECH_STYLE_FIELDS: PersonaSpeechStyleField[] = ['tone', 'firstPerson', 'quirks', 'examples'];
+
 /**
  * Build a character persona system prompt based on the current character definition
  * and the user's persona state (favor level, mood, etc.).
  *
  * Returns null if no character is loaded.
  */
-export function buildCharacterPersonaPrompt(ctx: PersonaPromptContext): string | null {
+export function buildCharacterPersonaPrompt(ctx: PersonaPromptContext, options?: PersonaPromptBuildOptions): string | null {
   const char = getCharacterDefinition();
   if (!char) return null;
 
   const sections: string[] = [];
+  const selectedSections = new Set(options?.sections ?? DEFAULT_PERSONA_PROMPT_SECTIONS);
+  const selectedIdentityFields = new Set(options?.identityFields ?? DEFAULT_IDENTITY_FIELDS);
+  const selectedSpeechStyleFields = new Set(options?.speechStyleFields ?? DEFAULT_SPEECH_STYLE_FIELDS);
+
+  if (options?.identityFields?.length) {
+    selectedSections.add('identity');
+  }
+
+  if (options?.speechStyleFields?.length) {
+    selectedSections.add('speechStyle');
+  }
 
   // Identity
-  sections.push(`## 你的身份
-你的名字是 ${char.name}。${char.identity.background}`);
+  if (selectedSections.has('identity')) {
+    const identityLines: string[] = [];
+    if (selectedIdentityFields.has('name')) {
+      identityLines.push(`- 名字：${char.name}`);
+    }
+    if (selectedIdentityFields.has('tagline') && char.identity.tagline) {
+      identityLines.push(`- 角色标语：${char.identity.tagline}`);
+    }
+    if (selectedIdentityFields.has('background') && char.identity.background) {
+      identityLines.push(`- 背景：${char.identity.background}`);
+    }
+    if (identityLines.length > 0) {
+      sections.push(`## 你的身份\n${identityLines.join('\n')}`);
+    }
+  }
 
   // Core traits
-  sections.push(`## 性格特征\n${char.identity.coreTraits.map((t) => `- ${t}`).join('\n')}`);
+  if (selectedSections.has('coreTraits') && char.identity.coreTraits.length > 0) {
+    sections.push(`## 性格特征\n${char.identity.coreTraits.map((t) => `- ${t}`).join('\n')}`);
+  }
 
   // Favor-based persona overlay
   const favorEntry = char.favorPersona[ctx.favorLevel];
-  if (favorEntry) {
+  if (selectedSections.has('relationship') && favorEntry) {
     sections.push(`## 当前关系\n${favorEntry.systemPromptOverlay}`);
   }
 
   // Speech style
   const style = char.speechStyle;
-  const quirksText = style.quirks.map((q) => `- ${q}`).join('\n');
-  const examplesText = style.examples.map((e) => `- ${e.situation}：「${e.response}」`).join('\n');
-  sections.push(`## 说话风格\n语气：${style.tone}\n自称：${style.firstPerson}\n\n说话习惯：\n${quirksText}\n\n参考示例：\n${examplesText}`);
+  if (selectedSections.has('speechStyle')) {
+    const speechParts: string[] = [];
+    if (selectedSpeechStyleFields.has('tone')) {
+      speechParts.push(`语气：${style.tone}`);
+    }
+    if (selectedSpeechStyleFields.has('language')) {
+      speechParts.push(`语言：${style.language}`);
+    }
+    if (selectedSpeechStyleFields.has('firstPerson')) {
+      speechParts.push(`自称：${style.firstPerson}`);
+    }
+    if (selectedSpeechStyleFields.has('addressUser')) {
+      speechParts.push(`对用户称呼：${style.addressUser}`);
+    }
+    if (selectedSpeechStyleFields.has('quirks') && style.quirks.length > 0) {
+      speechParts.push(`说话习惯：\n${style.quirks.map((q) => `- ${q}`).join('\n')}`);
+    }
+    if (selectedSpeechStyleFields.has('examples') && style.examples.length > 0) {
+      speechParts.push(`参考示例：\n${style.examples.map((e) => `- ${e.situation}：「${e.response}」`).join('\n')}`);
+    }
+    if (speechParts.length > 0) {
+      sections.push(`## 说话风格\n${speechParts.join('\n\n')}`);
+    }
+  }
 
   // Mood modifier (only if not neutral)
-  if (ctx.mood !== 'neutral') {
+  if (selectedSections.has('mood') && ctx.mood !== 'neutral') {
     const moodExpr = char.moodExpressions[ctx.mood];
     if (moodExpr) {
       sections.push(`## 当前心情\n你现在的心情是「${ctx.mood}」。${moodExpr.messageStyle}`);
@@ -368,7 +429,13 @@ export function buildCharacterPersonaPrompt(ctx: PersonaPromptContext): string |
   }
 
   // Boundaries
-  sections.push(`## 核心原则\n${char.identity.boundaries.map((b) => `- ${b}`).join('\n')}`);
+  if (selectedSections.has('boundaries') && char.identity.boundaries.length > 0) {
+    sections.push(`## 核心原则\n${char.identity.boundaries.map((b) => `- ${b}`).join('\n')}`);
+  }
+
+  if (sections.length === 0) {
+    return null;
+  }
 
   console.log('角色的 Prompt ❤❤❤\n', sections.join('\n\n'));
 

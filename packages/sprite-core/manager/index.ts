@@ -16,8 +16,17 @@ export { mapStateToEventType } from './state-mapping';
 export type {
   PersonaStatePersistenceRow,
   SpriteManagerOptions,
+  SpriteSpontaneousUtteranceActionSource,
+  SpriteSpontaneousUtteranceDelivery,
+  SpriteSpontaneousUtteranceExecutionReport,
   SpriteSpontaneousUtteranceExecutor,
+  SpriteSpontaneousUtteranceHistoryItem,
+  SpriteSpontaneousUtteranceHistoryQuery,
+  SpriteSpontaneousUtteranceHistoryStatus,
+  SpriteSpontaneousUtteranceIntentCategory,
+  SpriteSpontaneousUtterancePreferences,
   SpriteSpontaneousUtteranceRequest,
   SpriteSpontaneousUtteranceResult,
+  SpriteSpontaneousUtteranceTonePreference,
   SpriteWindow
 } from './types';

@@ -8,6 +8,7 @@
 
 import { ipcRenderer } from 'electron';
 
+import type { PersonaPromptBuildOptions } from '../../../packages/sprite-core/character-service';
 import type { PersonaSnapshot, SpritePersonaStateResult, SpriteStateSnapshot } from '../../../packages/sprite-core/types';
 
 export interface PersonaXPGainedPayload {
@@ -103,7 +104,7 @@ export const personaApi = {
   getCharacterInfo: () => ipcRenderer.invoke('sprite:character:getInfo'),
 
   /** 获取基于当前好感度/心情动态生成的角色人格系统提示词 */
-  getCharacterPersonaPrompt: () => ipcRenderer.invoke('sprite:character:getPersonaPrompt'),
+  getCharacterPersonaPrompt: (options?: PersonaPromptBuildOptions) => ipcRenderer.invoke('sprite:character:getPersonaPrompt', options),
 
   // --- 维度 API ---
 

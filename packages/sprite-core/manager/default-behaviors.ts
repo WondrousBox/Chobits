@@ -21,9 +21,51 @@ import {
 } from '../behavior-engine';
 import type { SpriteMovementConfig } from '../types';
 import type { SpriteManager } from './sprite-manager';
+import type { SpriteSpontaneousUtteranceActionSource, SpriteSpontaneousUtteranceResult } from './types';
 
 function pickRandomAction(pool: string[]): string {
   return pool[Math.floor(Math.random() * pool.length)];
+}
+
+async function reportIdleActionExecution(
+  mgr: SpriteManager,
+  utterance: SpriteSpontaneousUtteranceResult | null | undefined,
+  payload: {
+    behaviorId: string;
+    triggeredAt: number;
+    executedAction: string;
+    actionSource: SpriteSpontaneousUtteranceActionSource;
+    spoken: boolean;
+    fallbackUsed: boolean;
+    error?: string;
+  }
+): Promise<void> {
+  const executor = mgr.getSpontaneousUtteranceExecutor();
+  if (!executor?.reportIdleActionExecution || !utterance?.utteranceId) {
+    return;
+  }
+
+  try {
+    await executor.reportIdleActionExecution({
+      utteranceId: utterance.utteranceId,
+      behaviorId: payload.behaviorId,
+      triggeredAt: payload.triggeredAt,
+      text: utterance.text,
+      intentCategory: utterance.intentCategory,
+      tone: utterance.tone,
+      emotion: utterance.emotion,
+      delivery: utterance.delivery,
+      bubbleDurationMs: utterance.bubbleDurationMs,
+      whyThisFits: utterance.whyThisFits,
+      executedAction: payload.executedAction,
+      actionSource: payload.actionSource,
+      spoken: payload.spoken,
+      fallbackUsed: payload.fallbackUsed,
+      ...(payload.error ? { error: payload.error } : {})
+    });
+  } catch {
+    // 执行日志是附加能力，不能反过来打断行为主链路
+  }
 }
 
 /**
@@ -174,6 +216,7 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
 
     const pool = favor >= 60 ? [...baseActions, ...highFavorActions] : baseActions;
     const fallbackAction = pickRandomAction(pool);
+    const triggeredAt = Date.now();
     const executor = mgr.getSpontaneousUtteranceExecutor();
 
     if (!executor) {
@@ -181,11 +224,15 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
       return;
     }
 
+    let utterance: SpriteSpontaneousUtteranceResult | null = null;
+    let actionTriggered = false;
+
     try {
-      const utterance = await executor.generateForIdleAction({
+      utterance = await executor.generateForIdleAction({
         behaviorId: actionDef.id,
-        triggeredAt: Date.now(),
+        triggeredAt,
         actionCandidates: pool,
+        fallbackAction,
         sprite: {
           state: ctx.spriteState,
           mood: ctx.personaState.mood,
@@ -202,13 +249,41 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
       }
 
       const picked = utterance.recommendedAction && pool.includes(utterance.recommendedAction) ? utterance.recommendedAction : fallbackAction;
+      const actionSource: SpriteSpontaneousUtteranceActionSource =
+        utterance.recommendedAction && pool.includes(utterance.recommendedAction)
+          ? utterance.actionSource && utterance.actionSource !== 'random-fallback'
+            ? utterance.actionSource
+            : 'model'
+          : 'random-fallback';
+
       mgr.trigger(picked, { silent: true });
-      await mgr.speak(utterance.text.trim(), {
+      actionTriggered = true;
+      const speakResult = await mgr.speak(utterance.text.trim(), {
         showBubble: true,
         bubbleDuration: utterance.bubbleDurationMs
       });
-    } catch {
-      mgr.trigger(fallbackAction);
+      await reportIdleActionExecution(mgr, utterance, {
+        behaviorId: actionDef.id,
+        triggeredAt,
+        executedAction: picked,
+        actionSource,
+        spoken: !!speakResult?.success,
+        fallbackUsed: actionSource === 'random-fallback' || !speakResult?.success,
+        ...(speakResult?.error ? { error: speakResult.error } : {})
+      });
+    } catch (error) {
+      if (!actionTriggered) {
+        mgr.trigger(fallbackAction);
+      }
+      await reportIdleActionExecution(mgr, utterance, {
+        behaviorId: actionDef.id,
+        triggeredAt,
+        executedAction: actionTriggered && utterance?.recommendedAction ? utterance.recommendedAction : fallbackAction,
+        actionSource: actionTriggered && utterance?.recommendedAction ? (utterance.actionSource ?? 'model') : 'random-fallback',
+        spoken: false,
+        fallbackUsed: true,
+        ...(error instanceof Error ? { error: error.message } : {})
+      });
     }
   };
   mgr.registerBehavior(actionDef);
