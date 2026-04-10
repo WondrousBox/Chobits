@@ -131,7 +131,7 @@ export function createAutoWalkBehavior(walkAction: (ctx: BehaviorContext) => Pro
     name: '自动行走',
     enabled: true,
     priority: 'low',
-    schedule: { type: 'random', minMs: 10000, maxMs: 25000 },
+    schedule: { type: 'random', minMs: 20000, maxMs: 60000 },
     conditions: [(ctx) => ctx.spriteState === 'idle' || ctx.spriteState === 'bored', (ctx) => ctx.interactionStats.idleDuration > 5000],
     probability: 0.8,
     action: walkAction,
