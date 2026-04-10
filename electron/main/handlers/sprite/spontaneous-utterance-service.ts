@@ -35,6 +35,7 @@ import type {
 import { ChatRepo, WorkspacesRepo } from '../../db/repositories';
 import { buildRetrievalDbDeps } from '../memory/retrieval-db-deps';
 import { getStoredRoleProfile } from '../status';
+import { buildSpontaneousUtteranceRuntimeRequest } from './spontaneous-utterance-runtime';
 
 const TAG = '[SpriteAIUtterance]';
 const MESSAGE_LIMIT = 16;
@@ -54,7 +55,6 @@ const RECENT_TEXT_DEDUPE_LIMIT = 20;
 const RECENT_INTENT_WINDOW = 5;
 const RECENT_INTENT_SKIP_MIN_COUNT = 3;
 const MAX_GENERATION_TIMEOUT_MS = 3 * 60 * 1000;
-const SPONTANEOUS_THINKING_LEVEL = 'minimal';
 
 const TONE_VALUES = ['gentle', 'playful', 'calm', 'firm', 'curious', 'tender'] as const;
 const EMOTION_VALUES = ['warm', 'hopeful', 'amused', 'thoughtful', 'soothing', 'bright'] as const;
@@ -975,17 +975,13 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
       ];
 
       const prompt = buildPrompt(input, ctx, persona, roleSummary, persistentMemory, importantDialogueDigests, preferences);
-      const runtime = await createPiTaskChatRuntimeFromRequest({
-        providerId: ctx.providerId,
-        providerPresetId: ctx.providerPresetId,
-        agentId: 'chat',
-        extras: {
-          ...(ctx.workspaceId ? { workspaceId: ctx.workspaceId } : {}),
-          thinking: SPONTANEOUS_THINKING_LEVEL
-        },
-        maxTokens: 260,
-        temperature: 0.9
-      });
+      const runtime = await createPiTaskChatRuntimeFromRequest(
+        buildSpontaneousUtteranceRuntimeRequest({
+          providerId: ctx.providerId,
+          providerPresetId: ctx.providerPresetId,
+          workspaceId: ctx.workspaceId
+        })
+      );
       let raw = '';
       const timeoutController = createGenerationTimeoutController();
       try {
