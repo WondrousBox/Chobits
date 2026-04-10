@@ -4,7 +4,8 @@
  * 生成记忆系统的辅助内容文件：
  * 1. Daily Index (YYYY-MM-DD.index.md) — 当天所有记忆 note 的概览
  * 2. Topic Archive (topics/topic-slug.md) — 主题长期汇总
- * 3. MEMORY.md — 全局记忆索引
+ * 3. MEMORY.md — 长期记忆摘要（供未来回忆使用）
+ * 4. INDEX.md — 全局浏览索引（供人工浏览）
  */
 
 import * as fs from 'node:fs/promises';
@@ -37,6 +38,7 @@ export interface ContentGenDbDeps {
       topics: string;
       summary: string;
       importance: number;
+      stability: number;
     }>
   >;
   listAllTopics: (
@@ -65,6 +67,28 @@ export interface ContentGenDbDeps {
       importance: number;
     }>
   >;
+}
+
+interface MemoryDigestCandidate {
+  date: string;
+  daysAgo: number;
+  id: string;
+  importance: number;
+  keyPoints: string[];
+  openItems: string[];
+  priorityScore: number;
+  recallCues: MemoryRecallCue[];
+  recencyScore: number;
+  stability: number;
+  summary: string;
+  topics: string[];
+}
+
+type MemoryRecallCueType = 'ongoing' | 'decision' | 'principle' | 'event' | 'follow_up';
+
+interface MemoryRecallCue {
+  statement: string;
+  type: MemoryRecallCueType;
 }
 
 // ━━ Daily Index ━━
@@ -185,15 +209,227 @@ export async function generateAllTopicArchives(workspaceRoot: string, db: Conten
   return { generated, errors };
 }
 
-// ━━ MEMORY.md ━━
+function normalizeInlineText(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
 
-export async function generateMemoryIndex(workspaceRoot: string, db: ContentGenDbDeps, workspaceId?: string): Promise<{ filePath: string; topicCount: number; noteCount: number }> {
-  const topics = await db.listAllTopics(workspaceId, 500);
-  const notes = workspaceId ? await db.listNotesByWorkspace(workspaceId, 1000, 0) : [];
+function truncateInlineText(text: string, maxChars: number): string {
+  const normalized = normalizeInlineText(text);
+  return normalized.length <= maxChars ? normalized : `${normalized.slice(0, Math.max(0, maxChars - 3))}...`;
+}
 
+function parseJsonStringArray(value: string | null | undefined): string[] {
+  if (!value) return [];
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string').map((item) => normalizeInlineText(item)).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function extractSectionBody(markdown: string, heading: string): string {
+  const pattern = new RegExp(`^##\\s+${escapeRegExp(heading)}\\s*$\\n([\\s\\S]*?)(?=^##\\s+|$)`, 'm');
+  return markdown.match(pattern)?.[1]?.trim() ?? '';
+}
+
+function extractMarkdownBullets(sectionBody: string): string[] {
+  return sectionBody
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('- '))
+    .map((line) => normalizeInlineText(line.slice(2)))
+    .filter(Boolean);
+}
+
+function normalizeRecallCueType(rawType: string): MemoryRecallCueType | null {
+  const normalized = normalizeInlineText(rawType).toLowerCase();
+  if (normalized === 'ongoing') return 'ongoing';
+  if (normalized === 'decision') return 'decision';
+  if (normalized === 'principle') return 'principle';
+  if (normalized === 'event') return 'event';
+  if (normalized === 'follow_up' || normalized === 'follow-up' || normalized === 'follow up' || normalized === 'followup') return 'follow_up';
+  return null;
+}
+
+function extractRecallCues(sectionBody: string): MemoryRecallCue[] {
+  const cues: MemoryRecallCue[] = [];
+
+  for (const bullet of extractMarkdownBullets(sectionBody)) {
+    const match = bullet.match(/^\[([^\]]+)\]\s*(.+)$/);
+    if (!match) {
+      continue;
+    }
+
+    const type = normalizeRecallCueType(match[1]);
+    const statement = normalizeInlineText(match[2]);
+    if (!type || !statement) {
+      continue;
+    }
+
+    cues.push({ statement, type });
+  }
+
+  return cues;
+}
+
+function computeDaysAgo(date: string, now = Date.now()): number {
+  const value = Date.parse(`${date}T00:00:00Z`);
+  if (!Number.isFinite(value)) {
+    return 3650;
+  }
+
+  return Math.max(0, Math.floor((now - value) / (24 * 60 * 60 * 1000)));
+}
+
+function computeRecencyScore(daysAgo: number): number {
+  return Math.max(0, 1 - daysAgo / 45);
+}
+
+function computePriorityScore(note: { importance: number; stability: number; recencyScore: number; openItems: string[] }): number {
+  return note.importance * 0.46 + note.stability * 0.34 + note.recencyScore * 0.2 + (note.openItems.length > 0 ? 0.06 : 0);
+}
+
+function buildTopicPrefix(topics: string[]): string {
+  return topics.length > 0 ? `${topics.slice(0, 2).join(' / ')}：` : '';
+}
+
+function buildOngoingLine(note: MemoryDigestCandidate): string {
+  const openItemSuffix = note.openItems[0] ? ` 待跟进：${truncateInlineText(note.openItems[0], 56)}` : '';
+  return `- ${note.date} · ${buildTopicPrefix(note.topics)}${truncateInlineText(note.summary, 88)}${openItemSuffix}`;
+}
+
+function buildPrincipleLine(note: MemoryDigestCandidate): string {
+  const preferredPoint = note.keyPoints.find((item) => item && !normalizeInlineText(note.summary).includes(normalizeInlineText(item)));
+  const content = preferredPoint || note.summary;
+  return `- ${buildTopicPrefix(note.topics)}${truncateInlineText(content, 96)}`;
+}
+
+function buildRecentEventLine(note: MemoryDigestCandidate): string {
+  return `- ${note.date} · ${buildTopicPrefix(note.topics)}${truncateInlineText(note.summary, 92)}`;
+}
+
+function buildRecallCueLine(note: MemoryDigestCandidate, cue: MemoryRecallCue): string {
+  switch (cue.type) {
+    case 'ongoing':
+      return `- ${note.date} · ${buildTopicPrefix(note.topics)}${truncateInlineText(cue.statement, 92)}`;
+    case 'decision':
+    case 'principle':
+      return `- ${buildTopicPrefix(note.topics)}${truncateInlineText(cue.statement, 98)}`;
+    case 'follow_up':
+      return `- ${buildTopicPrefix(note.topics)}${truncateInlineText(cue.statement, 92)}`;
+    case 'event':
+    default:
+      return `- ${note.date} · ${buildTopicPrefix(note.topics)}${truncateInlineText(cue.statement, 92)}`;
+  }
+}
+
+function dedupeLines(lines: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const line of lines) {
+    const key = normalizeInlineText(line).toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(line);
+  }
+
+  return result;
+}
+
+function appendSection(lines: string[], title: string, items: string[]): void {
+  const deduped = dedupeLines(items).filter(Boolean);
+  if (deduped.length === 0) {
+    return;
+  }
+
+  lines.push(`## ${title}`);
+  lines.push('');
+  lines.push(...deduped);
+  lines.push('');
+}
+
+function combinePreferredLines(groups: string[][], limit: number): string[] {
+  const seen = new Set<string>();
+  const combined: string[] = [];
+
+  for (const group of groups) {
+    for (const line of group) {
+      const key = normalizeInlineText(line).toLowerCase();
+      if (!key || seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      combined.push(line);
+      if (combined.length >= limit) {
+        return combined;
+      }
+    }
+  }
+
+  return combined;
+}
+
+async function enrichDigestCandidate(
+  note: Awaited<ReturnType<ContentGenDbDeps['listNotesByWorkspace']>>[number],
+  workspaceRoot: string
+): Promise<MemoryDigestCandidate | null> {
+  const summary = normalizeInlineText(note.summary || '');
+  if (!summary) {
+    return null;
+  }
+
+  let markdown = '';
+  try {
+    markdown = await fs.readFile(path.join(workspaceRoot, note.filePath), 'utf-8');
+  } catch {
+    markdown = '';
+  }
+
+  const openItems = extractMarkdownBullets(extractSectionBody(markdown, 'Open Items')).slice(0, 4);
+  const keyPoints = extractMarkdownBullets(extractSectionBody(markdown, 'Key Points')).slice(0, 4);
+  const recallCues = extractRecallCues(extractSectionBody(markdown, 'Recall Cues')).slice(0, 6);
+  const daysAgo = computeDaysAgo(note.date);
+  const recencyScore = computeRecencyScore(daysAgo);
+  const stability = note.stability ?? 0.5;
+
+  return {
+    date: note.date,
+    daysAgo,
+    id: note.id,
+    importance: note.importance ?? 0.5,
+    keyPoints,
+    openItems,
+    priorityScore: computePriorityScore({
+      importance: note.importance ?? 0.5,
+      openItems,
+      recencyScore,
+      stability
+    }),
+    recallCues,
+    recencyScore,
+    stability,
+    summary,
+    topics: parseJsonStringArray(note.topics)
+  };
+}
+
+async function writeBrowseIndex(
+  workspaceRoot: string,
+  notes: Awaited<ReturnType<ContentGenDbDeps['listNotesByWorkspace']>>,
+  topics: Awaited<ReturnType<ContentGenDbDeps['listAllTopics']>>,
+  workspaceId?: string
+): Promise<string> {
   const lines: string[] = [];
 
   lines.push('---');
+  if (workspaceId) lines.push(`workspaceId: '${workspaceId}'`);
   lines.push(`topicCount: ${topics.length}`);
   lines.push(`noteCount: ${notes.length}`);
   lines.push(`generatedAt: '${new Date().toISOString()}'`);
@@ -204,18 +440,16 @@ export async function generateMemoryIndex(workspaceRoot: string, db: ContentGenD
   lines.push(`> ${topics.length} 个主题 | ${notes.length} 条记忆`);
   lines.push('');
 
-  // Top topics by heat
   if (topics.length > 0) {
     lines.push('## 热门主题');
     lines.push('');
     const hotTopics = [...topics].sort((a, b) => (b.heat ?? 0) - (a.heat ?? 0)).slice(0, 20);
-    for (const t of hotTopics) {
-      lines.push(`- **${t.label}** (热度 ${(t.heat ?? 0).toFixed(2)}, ${t.noteCount ?? 0} 条笔记)${t.description ? ` — ${t.description}` : ''}`);
+    for (const topic of hotTopics) {
+      lines.push(`- **${topic.label}** (热度 ${(topic.heat ?? 0).toFixed(2)}, ${topic.noteCount ?? 0} 条笔记)${topic.description ? ` — ${topic.description}` : ''}`);
     }
     lines.push('');
   }
 
-  // Recent notes
   if (notes.length > 0) {
     lines.push('## 最近记忆');
     lines.push('');
@@ -227,29 +461,133 @@ export async function generateMemoryIndex(workspaceRoot: string, db: ContentGenD
         lines.push('');
         lastDate = note.date;
       }
-      let noteTopics: string[] = [];
-      try {
-        noteTopics = JSON.parse(note.topics);
-      } catch {
-        /* ignore */
-      }
+
       const fileName = path.basename(note.filePath);
-      lines.push(
-        `- [${fileName}](daily/${note.date.replace(/-/g, '/').slice(0, 7)}/${fileName}) — ${note.summary?.slice(0, 80) || '(无摘要)'}${noteTopics.length ? ` [${noteTopics.join(', ')}]` : ''}`
-      );
+      const noteTopics = parseJsonStringArray(note.topics);
+      lines.push(`- [${fileName}](daily/${note.date.replace(/-/g, '/').slice(0, 7)}/${fileName}) — ${truncateInlineText(note.summary || '(无摘要)', 80)}${noteTopics.length ? ` [${noteTopics.join(', ')}]` : ''}`);
     }
     lines.push('');
   }
 
-  // All topics list
   if (topics.length > 0) {
     lines.push('## 全部主题');
     lines.push('');
     const sorted = [...topics].sort((a, b) => a.label.localeCompare(b.label));
-    for (const t of sorted) {
-      lines.push(`- [${t.label}](topics/${t.slug}.md) (${t.noteCount ?? 0} 条笔记)`);
+    for (const topic of sorted) {
+      lines.push(`- [${topic.label}](topics/${topic.slug}.md) (${topic.noteCount ?? 0} 条笔记)`);
     }
     lines.push('');
+  }
+
+  const relPath = 'memory/INDEX.md';
+  const absPath = path.join(workspaceRoot, relPath);
+  await fs.mkdir(path.dirname(absPath), { recursive: true });
+  await fs.writeFile(absPath, lines.join('\n'), 'utf-8');
+  return relPath;
+}
+
+// ━━ MEMORY.md ━━
+
+export async function generateMemoryIndex(
+  workspaceRoot: string,
+  db: ContentGenDbDeps,
+  workspaceId?: string
+): Promise<{ filePath: string; indexFilePath: string; noteCount: number; selectedCount: number; topicCount: number }> {
+  const topics = await db.listAllTopics(workspaceId, 500);
+  const notes = workspaceId ? await db.listNotesByWorkspace(workspaceId, 1000, 0) : [];
+  const indexFilePath = await writeBrowseIndex(workspaceRoot, notes, topics, workspaceId);
+  const frontmatterDate = new Date().toISOString();
+  const prioritizedNotes = [...notes]
+    .filter((note) => normalizeInlineText(note.summary || '').length >= 8)
+    .sort((left, right) => {
+      const leftDaysAgo = computeDaysAgo(left.date);
+      const rightDaysAgo = computeDaysAgo(right.date);
+      const leftScore = left.importance * 0.46 + (left.stability ?? 0.5) * 0.34 + computeRecencyScore(leftDaysAgo) * 0.2;
+      const rightScore = right.importance * 0.46 + (right.stability ?? 0.5) * 0.34 + computeRecencyScore(rightDaysAgo) * 0.2;
+      return rightScore - leftScore;
+    })
+    .slice(0, 80);
+  const enrichedNotes = (await Promise.all(prioritizedNotes.map((note) => enrichDigestCandidate(note, workspaceRoot)))).filter(
+    (note): note is MemoryDigestCandidate => !!note
+  );
+  const meaningfulNotes = enrichedNotes.filter(
+    (note) =>
+      (note.recallCues.length > 0 && (note.importance >= 0.55 || note.stability >= 0.55 || note.openItems.length > 0)) ||
+      note.importance >= 0.72 ||
+      note.stability >= 0.72 ||
+      (note.openItems.length > 0 && note.importance >= 0.55)
+  );
+
+  const lines: string[] = [];
+
+  lines.push('---');
+  if (workspaceId) lines.push(`workspaceId: '${workspaceId}'`);
+  lines.push(`topicCount: ${topics.length}`);
+  lines.push(`noteCount: ${notes.length}`);
+  lines.push(`selectedCount: ${meaningfulNotes.length}`);
+  lines.push(`indexFilePath: '${indexFilePath}'`);
+  lines.push(`generatedAt: '${frontmatterDate}'`);
+  lines.push('---');
+  lines.push('');
+  lines.push('# 长期记忆');
+  lines.push('');
+  lines.push('> 这里只保留未来值得回忆的重点事件、延续事项、关键决定与重要未完成项，不罗列文件索引。');
+  lines.push('');
+
+  if (meaningfulNotes.length === 0) {
+    lines.push('目前还没有足够稳定且重要、值得写入长期记忆摘要的内容。');
+    lines.push('');
+  } else {
+    const takeNotes = (candidates: MemoryDigestCandidate[], limit: number): MemoryDigestCandidate[] => candidates.slice(0, limit);
+
+    const ongoingNotes = takeNotes(
+      [...meaningfulNotes]
+        .filter((note) => note.openItems.length > 0 || (note.daysAgo <= 21 && note.importance >= 0.78))
+        .sort((left, right) => (right.openItems.length > 0 ? 1 : 0) - (left.openItems.length > 0 ? 1 : 0) || right.priorityScore - left.priorityScore),
+      5
+    );
+    const ongoingCueLines = [...meaningfulNotes]
+      .sort((left, right) => right.priorityScore - left.priorityScore)
+      .flatMap((note) => note.recallCues.filter((cue) => cue.type === 'ongoing').map((cue) => buildRecallCueLine(note, cue)));
+    appendSection(lines, '正在延续的事情', combinePreferredLines([ongoingCueLines, ongoingNotes.map((note) => buildOngoingLine(note))], 5));
+
+    const principleNotes = takeNotes(
+      [...meaningfulNotes]
+        .filter((note) => note.stability >= 0.78 || note.importance >= 0.86)
+        .sort((left, right) => right.stability - left.stability || right.priorityScore - left.priorityScore),
+      5
+    );
+    const principleCueLines = [...meaningfulNotes]
+      .sort((left, right) => right.priorityScore - left.priorityScore)
+      .flatMap((note) =>
+        note.recallCues
+          .filter((cue) => cue.type === 'decision' || cue.type === 'principle')
+          .map((cue) => buildRecallCueLine(note, cue))
+      );
+    appendSection(lines, '关键决定与长期原则', combinePreferredLines([principleCueLines, principleNotes.map((note) => buildPrincipleLine(note))], 5));
+
+    const recentEventNotes = takeNotes(
+      [...meaningfulNotes]
+        .filter((note) => note.daysAgo <= 45 && note.importance >= 0.74)
+        .sort((left, right) => right.priorityScore - left.priorityScore),
+      4
+    );
+    const recentEventCueLines = [...meaningfulNotes]
+      .sort((left, right) => right.priorityScore - left.priorityScore)
+      .flatMap((note) => note.recallCues.filter((cue) => cue.type === 'event').map((cue) => buildRecallCueLine(note, cue)));
+    appendSection(lines, '近期值得记住的事件', combinePreferredLines([recentEventCueLines, recentEventNotes.map((note) => buildRecentEventLine(note))], 4));
+
+    const followUpCueLines = [...meaningfulNotes]
+      .sort((left, right) => right.priorityScore - left.priorityScore)
+      .flatMap((note) => note.recallCues.filter((cue) => cue.type === 'follow_up').map((cue) => buildRecallCueLine(note, cue)));
+    const openLoopLines = ongoingNotes
+      .flatMap((note) => note.openItems.map((item) => `- ${buildTopicPrefix(note.topics)}${truncateInlineText(item, 92)}`))
+      .slice(0, 6);
+    appendSection(lines, '待跟进', combinePreferredLines([followUpCueLines, openLoopLines], 6));
+
+    if (!lines.some((line) => line.startsWith('## '))) {
+      appendSection(lines, '长期线索', meaningfulNotes.slice(0, 5).map((note) => buildRecentEventLine(note)));
+    }
   }
 
   const relPath = 'memory/MEMORY.md';
@@ -257,5 +595,11 @@ export async function generateMemoryIndex(workspaceRoot: string, db: ContentGenD
   await fs.mkdir(path.dirname(absPath), { recursive: true });
   await fs.writeFile(absPath, lines.join('\n'), 'utf-8');
 
-  return { filePath: relPath, topicCount: topics.length, noteCount: notes.length };
+  return {
+    filePath: relPath,
+    indexFilePath,
+    noteCount: notes.length,
+    selectedCount: meaningfulNotes.length,
+    topicCount: topics.length
+  };
 }

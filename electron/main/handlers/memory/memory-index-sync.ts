@@ -15,8 +15,10 @@ export interface MemoryIndexRefreshResult {
   ok: boolean;
   reason?: string;
   filePath?: string;
+  indexFilePath?: string;
   topicCount?: number;
   noteCount?: number;
+  selectedCount?: number;
 }
 
 const contentGenDb = {
@@ -30,7 +32,7 @@ export async function refreshMemoryIndexForWorkspace(workspaceId: string, option
   const workspaceKey = shortTraceId(workspaceId);
   const trigger = options.trigger || 'unknown';
 
-  console.log(`${TAG} Refreshing memory/MEMORY.md: ws=${workspaceId}, trigger=${trigger}, jobType=${options.jobType || '(none)'}`);
+  console.log(`${TAG} Refreshing memory/MEMORY.md (+ memory/INDEX.md): ws=${workspaceId}, trigger=${trigger}, jobType=${options.jobType || '(none)'}`);
   logMemoryTrace({
     conversationCount: options.conversationIds?.length || 0,
     event: 'memory_index.refresh.start',
@@ -56,12 +58,16 @@ export async function refreshMemoryIndexForWorkspace(workspaceId: string, option
 
   try {
     const result = await generateMemoryIndex(ws.rootPath, contentGenDb, workspaceId);
-    console.log(`${TAG} Refreshed memory/MEMORY.md: ws=${workspaceId}, topics=${result.topicCount}, notes=${result.noteCount}, path=${result.filePath}`);
+    console.log(
+      `${TAG} Refreshed memory/MEMORY.md: ws=${workspaceId}, topics=${result.topicCount}, notes=${result.noteCount}, selected=${result.selectedCount}, path=${result.filePath}, index=${result.indexFilePath}`
+    );
     logMemoryTrace({
       event: 'memory_index.refresh.result',
       filePath: result.filePath,
+      indexFilePath: result.indexFilePath,
       jobType: options.jobType,
       noteCount: result.noteCount,
+      selectedCount: result.selectedCount,
       topicCount: result.topicCount,
       trigger,
       workspaceId: workspaceKey

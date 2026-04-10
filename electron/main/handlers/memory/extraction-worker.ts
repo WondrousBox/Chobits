@@ -13,14 +13,16 @@ import { buildWriteDbOps } from '../../../../packages/ai/runtime/pi/tools/memory
 import { formatMemoryDate, getNextMemoryDate, getRelativeMemoryDate, getTodayMemoryDate } from '../../../../packages/ai/services/memory-date';
 import { runExtractionPipeline } from '../../../../packages/ai/services/memory-extraction-service';
 import { parseFrontmatter } from '../../../../packages/ai/services/memory-note-parser';
-import { createManagedTaskChatFn, LONG_TASK_CHAT_TIMEOUTS } from '../../../../packages/ai/services/task-chat-runner';
+import { backfillRecallCues, findRecallCueBackfillCandidates, type RecallCueBackfillNoteRow } from '../../../../packages/ai/services/memory-recall-cue-backfill';
+import { logMemoryTrace, shortTraceId } from '../../../../packages/ai/services/memory-trace';
 import type { AgentLoopCompletePayload, ExtractionResult, MemoryChatFn, MemoryNoteFrontmatter } from '../../../../packages/ai/services/memory-types';
+import { createManagedTaskChatFn, LONG_TASK_CHAT_TIMEOUTS } from '../../../../packages/ai/services/task-chat-runner';
 import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
 import { MemoryNoteRepo, MemorySyncJobRepo, MemoryTopicRepo } from '../../db/memory-repositories';
 import { ChatRepo, WorkspacesRepo } from '../../db/repositories';
 import { memoryExtractionQueue, type QueuedJob } from './extraction-queue';
-import { getMemoryConfig } from './memory-config';
+import { getMemoryConfig, type MemoryConfig } from './memory-config';
 import { refreshMemoryIndexForWorkspace } from './memory-index-sync';
 
 // ━━ Config ━━
@@ -149,6 +151,153 @@ async function findExistingNote(date: string, topicSlug: string, workspaceId: st
   }
 }
 
+async function resolveProviderFromConversationIds(conversationIds: string[]): Promise<{ providerId?: string; providerPresetId?: string }> {
+  for (const convId of conversationIds) {
+    const conv = await ChatRepo.ensureConversation({ id: convId });
+    if (conv?.providerId) {
+      return {
+        providerId: conv.providerId,
+        providerPresetId: conv.providerPresetId ?? undefined
+      };
+    }
+  }
+
+  return {};
+}
+
+async function resolveBackfillNoteRows(job: QueuedJob): Promise<RecallCueBackfillNoteRow[]> {
+  if (job.targetNoteIds?.length) {
+    const rows = await Promise.all(job.targetNoteIds.map((noteId) => MemoryNoteRepo.getById(noteId)));
+    return rows
+      .filter((row): row is NonNullable<typeof row> => !!row && row.workspaceId === job.workspaceId && !row.deletedAt)
+      .map((row) => ({
+        date: row.date,
+        filePath: row.filePath,
+        id: row.id,
+        importance: row.importance,
+        sourceConversationIds: row.sourceConversationIds,
+        stability: row.stability,
+        summary: row.summary,
+        topics: row.topics
+      }));
+  }
+
+  const notes = await MemoryNoteRepo.listByWorkspace(job.workspaceId, Math.max(40, (job.backfillLimit ?? 5) * 6), 0);
+  return notes.map((row) => ({
+    date: row.date,
+    filePath: row.filePath,
+    id: row.id,
+    importance: row.importance,
+    sourceConversationIds: row.sourceConversationIds,
+    stability: row.stability,
+    summary: row.summary,
+    topics: row.topics
+  }));
+}
+
+async function executeRecallCueBackfillJob(job: QueuedJob, signal: AbortSignal, workspaceRoot: string, cfg: MemoryConfig, onProgress: (progress: any) => void): Promise<ExtractionResult> {
+  const TAG = '[MemoryWorker:backfill]';
+  const noteRows = await resolveBackfillNoteRows(job);
+  const explicitTargetIds = !!job.targetNoteIds?.length;
+  const limit = Math.max(1, job.backfillLimit ?? (explicitTargetIds ? job.targetNoteIds!.length : 5));
+  const candidates = await findRecallCueBackfillCandidates(workspaceRoot, noteRows, {
+    explicitTargetIds,
+    limit
+  });
+
+  logMemoryTrace({
+    event: 'recall_cue.backfill.enqueue.resolve',
+    explicitTargetIds,
+    limit,
+    noteCount: candidates.length,
+    workspaceId: shortTraceId(job.workspaceId)
+  });
+
+  if (candidates.length === 0) {
+    console.log(`${TAG} No notes require Recall Cues backfill`);
+    return {
+      failed: [],
+      stats: { edgesCreated: 0, keywordsCreated: 0, notesCreated: 0, notesUpdated: 0, topicsCreated: 0 },
+      succeeded: []
+    };
+  }
+
+  let providerId = job.providerId;
+  let providerPresetId = job.providerPresetId;
+
+  if (!providerId) {
+    const sourceConversationIds = candidates.flatMap((row) => safeJsonParse(row.sourceConversationIds, []));
+    const resolved = await resolveProviderFromConversationIds(dedupStrings(sourceConversationIds));
+    providerId = resolved.providerId;
+    providerPresetId = resolved.providerPresetId;
+    if (providerId) {
+      console.log(`${TAG} Provider resolved from source conversations: ${providerId} (preset=${providerPresetId || '(default)'})`);
+    }
+  } else {
+    console.log(`${TAG} Provider from job params: ${providerId} (preset=${providerPresetId || '(default)'})`);
+  }
+
+  if (!providerId && cfg.extractionProviderId) {
+    providerId = cfg.extractionProviderId;
+    console.log(`${TAG} Provider fallback from memory config: ${providerId}`);
+  }
+
+  if (!providerId) {
+    throw new Error('No provider found for recall cue backfill');
+  }
+
+  const preferredModel = cfg.extractionModel || resolveExtractionModel(providerId);
+
+  const runWithModel = async (model: string | undefined, label: string): Promise<ExtractionResult> => {
+    console.log(`${TAG} 🧠⚙️ [${label}] Creating LLM runtime: provider=${providerId}, preset=${providerPresetId || '(default)'}, model=${model || '(provider default)'}`);
+    const runtime = await createPiTaskChatRuntimeFromRequest({
+      providerId,
+      providerPresetId,
+      agentId: 'memory-recall-cue-backfill',
+      maxTokens: 1200,
+      ...(model ? { model } : {})
+    });
+    const chatFn = adaptChatFn(runtime.chatFn);
+    console.log(`${TAG} 🧠✅ [${label}] LLM runtime ready, model: ${runtime.modelId}`);
+
+    return backfillRecallCues({
+      chatFn,
+      dbOps: buildWriteDbOps(),
+      explicitTargetIds,
+      limit,
+      notes: candidates,
+      onProgress,
+      signal,
+      workspaceId: job.workspaceId,
+      workspaceRoot
+    });
+  };
+
+  let result: ExtractionResult;
+  try {
+    result = await runWithModel(preferredModel, cfg.extractionModel ? 'configured' : 'fast');
+  } catch (fastErr: any) {
+    if (cfg.extractionModel || preferredModel) {
+      console.warn(`${TAG} ⚠️ 首选模型回填 Recall Cues 失败: ${fastErr?.message || fastErr}`);
+      console.warn(`${TAG} ⚠️ 正在切换为 provider 默认模型重试 Recall Cues 回填...`);
+      result = await runWithModel(undefined, 'fallback');
+    } else {
+      throw fastErr;
+    }
+  }
+
+  console.log(`${TAG} Recall Cue backfill completed: updated=${result.stats.notesUpdated}, failed=${result.failed.length}`);
+
+  if (result.stats.notesUpdated > 0) {
+    await refreshMemoryIndexForWorkspace(job.workspaceId, {
+      jobType: job.jobType,
+      trigger: 'recall_cue_backfill_success'
+    });
+  }
+
+  return result;
+}
+
 // ━━ Executor ━━
 
 async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<ExtractionResult> {
@@ -167,6 +316,34 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
     return emptyResult;
   }
   console.log(`${TAG} Workspace resolved: ${ws.rootPath}`);
+  const cfg = getMemoryConfig();
+
+  const makeProgressHandler = () => (progress: any) => {
+    console.log(`${TAG} Progress: stage=${progress.stage}, ${progress.current}/${progress.total}${progress.currentTopic ? ` topic="${progress.currentTopic}"` : ''} ${progress.message || ''}`);
+    eventManager.emit(AppEvent.MEMORY_EXTRACTION_PROGRESS, {
+      jobId: job.id,
+      ...progress
+    });
+  };
+
+  eventManager.emit(AppEvent.MEMORY_EXTRACTION_STARTED, { jobId: job.id });
+
+  if (job.jobType === 'recall_cue_backfill') {
+    try {
+      const result = await executeRecallCueBackfillJob(job, signal, ws.rootPath, cfg, makeProgressHandler());
+      eventManager.emit(AppEvent.MEMORY_EXTRACTION_COMPLETED, {
+        jobId: job.id,
+        stats: result.stats
+      });
+      return result;
+    } catch (err: any) {
+      eventManager.emit(AppEvent.MEMORY_EXTRACTION_FAILED, {
+        jobId: job.id,
+        error: err?.message
+      });
+      throw err;
+    }
+  }
 
   let conversationIds = job.targetConversationIds || [];
   if (!conversationIds.length) {
@@ -194,17 +371,19 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
   let providerPresetId: string | undefined = job.providerPresetId;
 
   if (!providerId) {
-    for (const convId of conversationIds) {
-      const conv = await ChatRepo.ensureConversation({ id: convId });
-      if (conv?.providerId) {
-        providerId = conv.providerId;
-        providerPresetId = conv.providerPresetId ?? undefined;
-        console.log(`${TAG} Provider resolved from conversation record: ${providerId} (preset=${providerPresetId || '(default)'})`);
-        break;
-      }
+    const resolved = await resolveProviderFromConversationIds(conversationIds);
+    providerId = resolved.providerId;
+    providerPresetId = resolved.providerPresetId;
+    if (providerId) {
+      console.log(`${TAG} Provider resolved from conversation record: ${providerId} (preset=${providerPresetId || '(default)'})`);
     }
   } else {
     console.log(`${TAG} Provider from job params: ${providerId} (preset=${providerPresetId || '(default)'})`);
+  }
+
+  if (!providerId && cfg.extractionProviderId) {
+    providerId = cfg.extractionProviderId;
+    console.log(`${TAG} Provider fallback from memory config: ${providerId}`);
   }
 
   if (!providerId) {
@@ -243,14 +422,6 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
     dbOps: buildWriteDbOps()
   };
 
-  const makeProgressHandler = () => (progress: any) => {
-    console.log(`${TAG} Progress: stage=${progress.stage}, ${progress.current}/${progress.total}${progress.currentTopic ? ` topic="${progress.currentTopic}"` : ''} ${progress.message || ''}`);
-    eventManager.emit(AppEvent.MEMORY_EXTRACTION_PROGRESS, {
-      jobId: job.id,
-      ...progress
-    });
-  };
-
   /**
    * 创建 LLM runtime 并运行提取管线。
    * @param model 指定模型名，undefined 表示使用 provider 默认模型
@@ -280,8 +451,6 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
     return runExtractionPipeline({ conversationIds, watermarks }, ctx, pipelineDeps);
   };
 
-  eventManager.emit(AppEvent.MEMORY_EXTRACTION_STARTED, { jobId: job.id });
-
   // 标记正在提取
   for (const convId of conversationIds) {
     extractingConversations.add(convId);
@@ -292,7 +461,7 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
 
   try {
     // 记忆提取是结构化 JSON 输出任务，优先使用轻量快速模型
-    const fastModel = resolveExtractionModel(providerId);
+    const fastModel = cfg.extractionModel || resolveExtractionModel(providerId);
     let result: ExtractionResult;
 
     if (fastModel) {
@@ -619,6 +788,55 @@ async function checkDailyMemoryExtraction(): Promise<void> {
   }
 }
 
+async function checkRecallCueBackfill(): Promise<void> {
+  const TAG = '[MemoryWorker:recallBackfillCheck]';
+
+  try {
+    const cfg = getMemoryConfig();
+    if (!cfg.memoryEnabled || !cfg.autoExtractionEnabled) {
+      return;
+    }
+
+    if (memoryExtractionQueue.isRunning()) {
+      return;
+    }
+
+    const ws = await WorkspacesRepo.getDefault();
+    if (!ws?.id || !ws.rootPath) {
+      return;
+    }
+
+    const notes = await resolveBackfillNoteRows({
+      backfillLimit: 4,
+      createdAt: Date.now(),
+      id: 'maintenance-probe',
+      jobType: 'recall_cue_backfill',
+      priority: 0,
+      status: 'queued',
+      targetConversationIds: [],
+      workspaceId: ws.id
+    } as QueuedJob);
+    const candidates = await findRecallCueBackfillCandidates(ws.rootPath, notes, {
+      limit: 4
+    });
+
+    if (candidates.length === 0) {
+      return;
+    }
+
+    console.log(`${TAG} Enqueuing gradual Recall Cues backfill for ${candidates.length} note(s)`);
+    await memoryExtractionQueue.enqueue({
+      backfillLimit: candidates.length,
+      jobType: 'recall_cue_backfill',
+      targetConversationIds: [],
+      targetNoteIds: candidates.map((note) => note.id),
+      workspaceId: ws.id
+    });
+  } catch (error) {
+    console.error(`${TAG} Recall Cues backfill check failed:`, error);
+  }
+}
+
 /**
  * 应用 topic heat 衰减，每天执行一次。
  * 衰减因子 0.95 ≈ 14 天半衰期。
@@ -686,6 +904,7 @@ async function compensateMissedExtractions(): Promise<void> {
 export async function memoryDailyMaintenanceTick(): Promise<void> {
   applyDailyHeatDecay();
   await checkDailyMemoryExtraction();
+  await checkRecallCueBackfill();
 
   // 生成昨日的 daily index（如果有笔记的话）
   try {
@@ -761,6 +980,10 @@ function safeJsonParse(json: string | null | undefined, fallback: any[] = []): a
   } catch {
     return fallback;
   }
+}
+
+function dedupStrings(values: string[]): string[] {
+  return [...new Set(values.filter((value) => typeof value === 'string' && value.trim()))];
 }
 
 /**
