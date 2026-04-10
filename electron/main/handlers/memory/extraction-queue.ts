@@ -34,7 +34,7 @@ export class MemoryExtractionQueue {
   async enqueue(params: ExtractionJobParams): Promise<string> {
     const TAG = '[MemoryQueue:enqueue]';
 
-    // 去重：conversation_close 用 conversationIds 去重，其它类型用日期+workspace 去重
+    // 去重：conversation_close 用 conversationIds 去重，recall_cue_backfill 用 noteIds/limit 去重，其它类型用日期+workspace 去重
     const duplicate = this.queue.find((j) => {
       if (j.status !== 'queued') return false;
       if (j.jobType !== params.jobType || j.workspaceId !== params.workspaceId) return false;
@@ -42,6 +42,14 @@ export class MemoryExtractionQueue {
       if (params.jobType === 'conversation_close') {
         const existingIds = new Set(j.targetConversationIds || []);
         return (params.targetConversationIds || []).every((id) => existingIds.has(id));
+      }
+      if (params.jobType === 'recall_cue_backfill') {
+        const requestedNoteIds = params.targetNoteIds || [];
+        const existingNoteIds = new Set(j.targetNoteIds || []);
+        if (requestedNoteIds.length > 0) {
+          return requestedNoteIds.every((id) => existingNoteIds.has(id));
+        }
+        return j.backfillLimit === params.backfillLimit;
       }
       return j.targetDate === params.targetDate;
     });
@@ -65,7 +73,9 @@ export class MemoryExtractionQueue {
     this.queue.push(job);
     this.queue.sort((a, b) => a.priority - b.priority || a.createdAt - b.createdAt);
 
-    console.log(`${TAG} Job ${id} enqueued: type=${params.jobType}, ws=${params.workspaceId}, convIds=${JSON.stringify(params.targetConversationIds)}, queueLen=${this.queue.length}, running=${!!this.running}`);
+    console.log(
+      `${TAG} Job ${id} enqueued: type=${params.jobType}, ws=${params.workspaceId}, convIds=${JSON.stringify(params.targetConversationIds)}, noteIds=${JSON.stringify(params.targetNoteIds || [])}, limit=${params.backfillLimit ?? '(default)'}, queueLen=${this.queue.length}, running=${!!this.running}`
+    );
 
     try {
       await MemorySyncJobRepo.create({
@@ -143,7 +153,9 @@ export class MemoryExtractionQueue {
     next.abortController = new AbortController();
 
     const startedAt = Date.now();
-    console.log(`${TAG} ▶ Starting job ${next.id} (type=${next.jobType}, convIds=${JSON.stringify(next.targetConversationIds)})`);
+    console.log(
+      `${TAG} ▶ Starting job ${next.id} (type=${next.jobType}, convIds=${JSON.stringify(next.targetConversationIds)}, noteIds=${JSON.stringify(next.targetNoteIds || [])}, limit=${next.backfillLimit ?? '(default)'})`
+    );
     await MemorySyncJobRepo.updateStatus(next.id, 'running', { startedAt } as any).catch(() => { });
 
     try {
@@ -196,8 +208,10 @@ function jobPriority(jobType: MemorySyncJobType): number {
       return 1;
     case 'daily_extraction':
       return 2;
-    default:
+    case 'recall_cue_backfill':
       return 3;
+    default:
+      return 4;
   }
 }
 

@@ -916,7 +916,7 @@ export const memory_sync_jobs = sqliteTable(
 
     // ━━ 任务类型 ━━
     jobType: text('job_type', {
-      enum: ['daily_extraction', 'conversation_close', 'manual_reindex', 'file_change_reindex']
+      enum: ['daily_extraction', 'conversation_close', 'manual_reindex', 'file_change_reindex', 'recall_cue_backfill']
     }).notNull(),
 
     // ━━ 任务范围 ━━

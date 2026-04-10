@@ -12,6 +12,7 @@ import { parseJsonMarkdown } from '../json';
 import { formatMemoryDate } from './memory-date';
 import { parseSections } from './memory-note-parser';
 import { buildNotePath, buildSectionId, buildSectionsMap, generateNoteId, renderNoteMarkdown } from './memory-note-writer';
+import { mergeUniqueBulletSection, normalizeRecallCueSection } from './memory-recall-cue-utils';
 import type {
   CollectedConversation,
   CollectInput,
@@ -70,6 +71,9 @@ const EXTRACTION_PROMPT = `从对话中提取记忆索引，用于日后快速�
 5. entities 只列对话中明确提到的专有名词（产品、人名、技术等）
 6. sections.keyPoints 用精炼的要点列表，每条一行，格式为 "- 要点内容"，合并事实和决策
 7. sections.openItems 只在有明确待办/未解决问题时才填写，否则省略
+8. sections.recallCues 只记录“未来值得回忆”的重点，不要流水账；每条必须使用 "- [kind] 内容"
+9. kind 只能是：ongoing（正在延续的事情）、decision（关键决定）、principle（长期原则）、event（值得记住的事件）、follow_up（重要待跟进）
+10. 如果当前主题没有足够强的长期记忆候选，可以省略 sections.recallCues
 
 输出格式（JSON）：
 {
@@ -84,7 +88,8 @@ const EXTRACTION_PROMPT = `从对话中提取记忆索引，用于日后快速�
   ],
   "sections": {
     "keyPoints": "- 要点1\n- 要点2",
-    "openItems": "- 待办1（可选，无则省略此字段）"
+    "openItems": "- 待办1（可选，无则省略此字段）",
+    "recallCues": "- [decision] 关键决定（可选，无则省略此字段）"
   }
 }
 只输出 JSON，不要解释。`;
@@ -274,6 +279,7 @@ export async function extractMemory(cluster: TopicCluster, collected: CollectOut
   parsed.stability = parsed.stability ?? 0.5;
   parsed.sections = parsed.sections || { keyPoints: '' };
   parsed.sections.keyPoints = parsed.sections.keyPoints || '';
+  parsed.sections.recallCues = normalizeRecallCueSection(parsed.sections.recallCues);
 
   console.log(`${TAG} Extracted: summary="${parsed.summary?.slice(0, 80)}...", keywords=${parsed.keywords?.length}, sections=${Object.keys(parsed.sections || {}).length}`);
   return parsed;
@@ -291,6 +297,11 @@ export async function mergeMemory(
   timeRange?: { start: number; end: number }
 ): Promise<MergedNote> {
   const now = Date.now();
+  const normalizedSections = {
+    ...extraction.sections,
+    keyPoints: extraction.sections.keyPoints || '',
+    recallCues: normalizeRecallCueSection(extraction.sections.recallCues)
+  };
 
   if (!existingNote) {
     // 全新 note
@@ -319,7 +330,7 @@ export async function mergeMemory(
       action: 'create',
       noteId,
       frontmatter,
-      sections: buildSectionsMap(extraction.sections),
+      sections: buildSectionsMap(normalizedSections),
       filePath
     };
   }
@@ -349,7 +360,7 @@ export async function mergeMemory(
 
   // Section 合并 — 智能合并 Open Items
   const mergedSections = new Map(existingNote.sections);
-  const newSections = buildSectionsMap(extraction.sections);
+  const newSections = buildSectionsMap(normalizedSections);
   for (const [heading, content] of newSections) {
     const existing = mergedSections.get(heading);
     if (existing) {
@@ -362,6 +373,8 @@ export async function mergeMemory(
           // LLM 失败时回退到简单追加
           mergedSections.set(heading, `${existing}\n${content}`);
         }
+      } else if (heading === 'Recall Cues') {
+        mergedSections.set(heading, mergeUniqueBulletSection(content, existing, 8));
       } else {
         mergedSections.set(heading, `${existing}\n${content}`);
       }

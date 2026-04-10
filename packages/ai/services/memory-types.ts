@@ -101,6 +101,12 @@ export interface MemoryExtractionOutput {
   sections: {
     keyPoints: string;
     openItems?: string;
+    /**
+     * 长期记忆候选（可选）：
+     * 每条必须使用 `- [kind] 内容` 形式，其中 kind ∈
+     * ongoing | decision | principle | event | follow_up
+     */
+    recallCues?: string;
   };
 }
 
@@ -153,13 +159,17 @@ export interface CollectOutput {
 
 // ━━ Extraction Job ━━
 
-export type MemorySyncJobType = 'daily_extraction' | 'conversation_close' | 'manual_reindex' | 'file_change_reindex';
+export type MemorySyncJobType = 'daily_extraction' | 'conversation_close' | 'manual_reindex' | 'file_change_reindex' | 'recall_cue_backfill';
 
 export interface ExtractionJobParams {
   jobType: MemorySyncJobType;
   workspaceId: string;
   targetDate?: string;
   targetConversationIds: string[];
+  /** 用于 Recall Cues 回填的目标 note 列表 */
+  targetNoteIds?: string[];
+  /** 用于 Recall Cues 回填的最大处理数量 */
+  backfillLimit?: number;
   /** 触发提取时的实际 provider（优先使用，避免读取 stale 的会话记录） */
   providerId?: string;
   /** 触发提取时的实际 provider preset */

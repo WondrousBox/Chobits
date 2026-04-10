@@ -18,6 +18,9 @@ export const memoryApi = {
 
   triggerSync: (params?: { workspaceId?: string; date?: string; conversationIds?: string[]; force?: boolean }) => ipcRenderer.invoke('memory:triggerSync', params),
 
+  backfillRecallCues: (params?: { workspaceId?: string; noteIds?: string[]; limit?: number; providerId?: string; providerPresetId?: string }) =>
+    ipcRenderer.invoke('memory:backfillRecallCues', params),
+
   rebuildIndex: () => ipcRenderer.invoke('memory:rebuildIndex'),
 
   deleteNote: (noteId: string) => ipcRenderer.invoke('memory:deleteNote', noteId),

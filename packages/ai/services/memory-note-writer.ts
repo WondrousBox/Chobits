@@ -18,7 +18,7 @@ export function renderNoteMarkdown(note: MergedNote): string {
   parts.push('');
 
   // 固定的段落顺序
-  const sectionOrder = ['Key Points', 'Open Items'];
+  const sectionOrder = ['Key Points', 'Open Items', 'Recall Cues'];
 
   for (const heading of sectionOrder) {
     const content = note.sections.get(heading);
@@ -128,7 +128,7 @@ function renderFrontmatter(fm: MemoryNoteFrontmatter): string {
 /**
  * 从 MemoryExtractionOutput 的 sections 构建 Markdown 段落 Map
  */
-export function buildSectionsMap(sections: { keyPoints: string; openItems?: string }): Map<string, string> {
+export function buildSectionsMap(sections: { keyPoints: string; openItems?: string; recallCues?: string }): Map<string, string> {
   const map = new Map<string, string>();
 
   if (sections.keyPoints) {
@@ -136,6 +136,9 @@ export function buildSectionsMap(sections: { keyPoints: string; openItems?: stri
   }
   if (sections.openItems) {
     map.set('Open Items', sections.openItems);
+  }
+  if ('recallCues' in sections && sections.recallCues) {
+    map.set('Recall Cues', sections.recallCues);
   }
 
   return map;

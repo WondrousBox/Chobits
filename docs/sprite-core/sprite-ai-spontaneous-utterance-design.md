@@ -211,6 +211,8 @@ AI 输出的一句话应该满足以下特征：
    - 解析能力在 `packages/ai/services/persona-document.ts`
 2. 长期记忆检索
    - `packages/ai/services/memory-retrieval-service.ts`
+   - `memory/MEMORY.md` 应优先作为“长期记忆摘要”参与上下文，而 `memory/INDEX.md` 只用于人工浏览，不应主导 prompt
+   - `MEMORY.md` 的内容应优先来自各 note 的 `Recall Cues`（长期记忆候选），而不是把最近 note 摘要机械拼接成目录式上下文
 3. 最近聊天消息
    - `ChatRepo.listMessages(conversationId)`，定义在 `electron/main/db/repositories.ts`
 4. 当前助手角色
@@ -812,8 +814,13 @@ System prompt 应明确这些约束：
 目标：
 
 1. 接入 `MemoryRetrievalService`
-2. 引入“最近重要对话摘要”
+2. 优先接入 `memory/MEMORY.md`，而不是只拼“最近重要对话摘要”
 3. 提高文案贴合度
+
+补充说明：
+
+1. `MEMORY.md` 的质量依赖各 note 中的 `Recall Cues`。
+2. 对历史 note 应允许后台渐进式回填 `Recall Cues`，避免自发说话长期退回“最近记忆兜底”。
 
 这一阶段重点是提升内容质量，而不是 UI。
 

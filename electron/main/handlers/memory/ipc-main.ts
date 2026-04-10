@@ -17,7 +17,6 @@ import { buildRetrievalDbDeps } from './retrieval-db-deps';
 
 // ━━ DB Deps Adapter ━━
 
-
 // ━━ IPC Registration ━━
 
 export function initMemoryHandlers(): void {
@@ -205,6 +204,40 @@ export function initMemoryHandlers(): void {
         return { queued: true, jobId };
       } catch (e: any) {
         console.error('[Memory] triggerSync failed:', e);
+        return { queued: false, error: e?.message };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'memory:backfillRecallCues',
+    async (
+      _event,
+      params?: {
+        workspaceId?: string;
+        noteIds?: string[];
+        limit?: number;
+        providerId?: string;
+        providerPresetId?: string;
+      }
+    ) => {
+      try {
+        const ws = params?.workspaceId || (await WorkspacesRepo.getDefault())?.id;
+        if (!ws) return { queued: false, error: 'No workspace' };
+
+        const jobId = await memoryExtractionQueue.enqueue({
+          backfillLimit: params?.limit,
+          jobType: 'recall_cue_backfill',
+          providerId: params?.providerId,
+          providerPresetId: params?.providerPresetId,
+          targetConversationIds: [],
+          targetNoteIds: params?.noteIds || [],
+          workspaceId: ws
+        });
+
+        return { queued: true, jobId };
+      } catch (e: any) {
+        console.error('[Memory] backfillRecallCues failed:', e);
         return { queued: false, error: e?.message };
       }
     }

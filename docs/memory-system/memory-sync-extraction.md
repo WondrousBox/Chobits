@@ -3,7 +3,7 @@
 > 本文档定义 Chobits 记忆系统的增量同步策略、记忆提取流水线、后台任务编排，以及观测与验证指标。
 > 核心约束：提取任务不阻塞聊天主链路，对话数据只进不出（幂等、可重试），Markdown 为最终事实源。
 
-## 当前实现状态（2026-04-03）
+## 当前实现状态（2026-04-10）
 
 - 已完成：主触发链路、提取队列与 worker、增量水位线、提取进度事件、手动触发同步、FTS 重建、对话删除后的记忆清理。
 - 当前主触发源是 `AppEvent.AGENT_LOOP_COMPLETE`；`AppEvent.SPRITE_AI_COMPLETE` 仅作为兼容旧路径保留。触发后会延迟 5 秒再做脏检查和入队。
@@ -15,6 +15,8 @@
 - 已实现：3 种边类型创建（`belongs_to_topic`、`related_to_topic`、`contains_section`）。
 - 已实现：`fileChecksum`（sha256）、`timeRange`（消息时间戳范围）、`sections.keywords`（段落级关键词）字段自动填充。
 - 已实现：heat 衰减（指数衰减因子 0.95，每日执行一次）。
+- 已实现：`recall_cue_backfill` 历史回填任务，复用长任务 LLM 执行机制，为旧 note 渐进式补写 `Recall Cues`，并在成功后自动刷新 `memory/MEMORY.md`。
+- 已实现：手动入口 `memory:backfillRecallCues`，可指定 noteIds 或 limit 做回填测试。
 - 尚未实现：窗口关闭/会话切换触发、`memory:validateIndex`。
 - `memory:rebuildIndex` 当前只重建 FTS 索引，不会重新执行整套提取流水线。
 
@@ -49,8 +51,8 @@
                     └──────────────────┘
 ```
 
-> 注：截至 2026-04-03，图中的“日终批量提取”“窗口关闭/切换触发”仍未落地。当前实际运行的是
-> `AGENT_LOOP_COMPLETE` / `SPRITE_AI_COMPLETE` 两条会话完成入口，以及 `memory:triggerSync` 手动触发。
+> 注：截至 2026-04-10，图中的“窗口关闭/切换触发”仍未落地。当前实际运行的是
+> `AGENT_LOOP_COMPLETE` / `SPRITE_AI_COMPLETE` 两条会话完成入口、`memoryDailyMaintenanceTick()` 中的渐进式 `Recall Cues` 回填检查，以及 `memory:triggerSync` / `memory:backfillRecallCues` 两个手动入口。
 
 ---
 
@@ -473,6 +475,9 @@ interface TopicCluster {
 
 对每个 TopicCluster 调用 LLM，产出 `MemoryExtractionOutput`（定义见 memory-note-spec.md）：
 
+> 说明：这里抽取的是面向检索与合并的 Memory Note 事实源，不直接等价于 `MEMORY.md`。
+> `MEMORY.md` 在内容生成阶段会优先消费 note 中的 `Recall Cues`，再结合 `importance`、`stability`、`Open Items` 和近期性做长期记忆摘要整理。
+
 ```typescript
 const EXTRACTION_PROMPT = `
 从对话中提取记忆索引，用于日后快速检索。记忆是索引而非转录，完整内容可通过 sourceConversationIds 回溯原始对话。
@@ -488,6 +493,9 @@ const EXTRACTION_PROMPT = `
 5. entities 只列对话中明确提到的专有名词（产品、人名、技术等）
 6. sections.keyPoints 用精炼的要点列表，每条一行，格式为 "- 要点内容"，合并事实和决策
 7. sections.openItems 只在有明确待办/未解决问题时才填写，否则省略
+8. sections.recallCues 只记录“未来值得回忆”的重点，不要流水账；每条必须使用 "- [kind] 内容"
+9. kind 只能是：ongoing（正在延续的事情）、decision（关键决定）、principle（长期原则）、event（值得记住的事件）、follow_up（重要待跟进）
+10. 如果当前主题没有足够强的长期记忆候选，可以省略 sections.recallCues
 
 输出格式（JSON）—— MemoryExtractionOutput：
 {
@@ -503,7 +511,8 @@ const EXTRACTION_PROMPT = `
   ],
   "sections": {
     "keyPoints": "- 要点1\n- 要点2",
-    "openItems": "- 待办1（可选，无则省略此字段）"
+    "openItems": "- 待办1（可选，无则省略此字段）",
+    "recallCues": "- [decision] 关键决定（可选，无则省略此字段）"
   }
 }
 只输出 JSON，不要解释。
@@ -1288,6 +1297,7 @@ DailyCareService.tick() 检查
 | `memory:listNotes`               | `{ workspaceId, limit?, offset? }`                                               | `MemoryNoteRow[]`                             | 分页列出 note              |
 | `memory:syncStatus`              | 无                                                                               | `{ queue, latestJob }`                        | 查询当前队列与最近任务状态 |
 | `memory:triggerSync`             | `{ workspaceId?, date?, conversationIds?, force? }`                              | `{ queued: boolean, jobId?, error? }`         | 手动触发提取               |
+| `memory:backfillRecallCues`      | `{ workspaceId?, noteIds?, limit?, providerId?, providerPresetId? }`             | `{ queued: boolean, jobId?, error? }`         | 手动触发 Recall Cues 回填  |
 | `memory:rebuildIndex`            | 无                                                                               | `{ success: boolean, notesIndexed?, error? }` | 当前仅重建 FTS 索引        |
 | `memory:deleteNote`              | `noteId`                                                                         | `{ success: boolean, error? }`                | 删除单条记忆 note          |
 | `memory:graphData`               | `{ topicId?, workspaceId?, includeNotes?, maxTopics?, maxEdges? }`               | `{ topics, edges, notes }`                    | 获取图谱数据               |
