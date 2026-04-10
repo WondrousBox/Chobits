@@ -11,6 +11,7 @@ import * as path from 'node:path';
 import { ipcMain } from 'electron';
 
 import { createPiTaskChatRuntimeFromRequest, type PiTaskChatFunction } from '../../../../packages/ai/runtime/pi/task-chat';
+import { buildNonReasoningTaskRuntimeRequest } from '../../../../packages/ai/runtime/pi/task-model-policy';
 import { checkPersonaUpdateNeeded, formatConversationSnippet } from '../../../../packages/ai/services/persona-check-service';
 import { extractSnapshot, extractTopFacts, parsePersonaMarkdown } from '../../../../packages/ai/services/persona-document';
 import { PERSONA_FILENAME, type PersonaChatFn, type PersonaCheckParams, type PersonaDocumentSummary, type PersonaUpdateJobParams } from '../../../../packages/ai/services/persona-types';
@@ -82,12 +83,14 @@ export function initUserProfileHandlers(): void {
     const providerId = params.providerId;
     if (!providerId) throw new Error('providerId is required');
 
-    const runtime = await createPiTaskChatRuntimeFromRequest({
-      providerId,
-      providerPresetId: params.providerPresetId,
-      agentId: 'user-persona-check',
-      maxTokens: 1000
-    });
+    const runtime = await createPiTaskChatRuntimeFromRequest(
+      buildNonReasoningTaskRuntimeRequest({
+        providerId,
+        providerPresetId: params.providerPresetId,
+        agentId: 'user-persona-check',
+        maxTokens: 1000
+      })
+    );
     const chatFn = adaptChatFn(runtime.chatFn);
 
     return checkPersonaUpdateNeeded({ conversationId: params.conversationId, workspaceId: params.workspaceId, currentPersona, conversationSnippet: snippet }, chatFn);

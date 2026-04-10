@@ -12,9 +12,10 @@
  */
 
 import type { PiTaskChatFunction } from '../../../../packages/ai/runtime/pi/task-chat';
+import { buildNonReasoningTaskRuntimeRequest, resolveNonReasoningTaskModel } from '../../../../packages/ai/runtime/pi/task-model-policy';
 import { type AutoRecallDeps, getActivePrefetch, performAutoRecall, registerPrefetch } from '../../../../packages/ai/services/memory-auto-recall';
-import { logMemoryTrace, shortTraceId } from '../../../../packages/ai/services/memory-trace';
 import type { RetrievalDbDeps } from '../../../../packages/ai/services/memory-retrieval-service';
+import { logMemoryTrace, shortTraceId } from '../../../../packages/ai/services/memory-trace';
 import type { MemoryChatFn } from '../../../../packages/ai/services/memory-types';
 import { registerSystemPromptEnricher } from '../../../../packages/ai/system-prompt-enricher';
 import type { ChatRequest } from '../../../../packages/ai/types';
@@ -64,23 +65,6 @@ function adaptPiChatFn(piChatFn: PiTaskChatFunction): MemoryChatFn {
   };
 }
 
-/**
- * 根据 provider 选择适合关键词提取的轻量模型。
- * 关键词提取是简单的 JSON 输出任务，使用快速模型降低延迟和成本。
- */
-function resolveRecallModel(providerId: string): string | undefined {
-  const fastModels: Record<string, string> = {
-    zai: 'glm-4.5-air',
-    zhipu: 'glm-4-flash',
-    openai: 'gpt-4o-mini',
-    anthropic: 'claude-sonnet-4-20250514',
-    deepseek: 'deepseek-chat',
-    qwen: 'qwen-turbo',
-    gemini: 'gemini-2.0-flash'
-  };
-  return fastModels[providerId];
-}
-
 async function resolveRequestWorkspaceId(request: ChatRequest): Promise<string | undefined> {
   const requestedWorkspaceId = typeof request.extras?.workspaceId === 'string' && request.extras.workspaceId.trim() ? request.extras.workspaceId.trim() : undefined;
   if (requestedWorkspaceId) return requestedWorkspaceId;
@@ -106,15 +90,17 @@ async function getOrCreateChatFn(providerId: string, providerPresetId?: string):
 
   try {
     const { createPiTaskChatRuntimeFromRequest } = await import('../../../../packages/ai/runtime/pi/task-chat');
-    const fastModel = resolveRecallModel(providerId);
+    const fastModel = resolveNonReasoningTaskModel(providerId);
 
-    const runtime = await createPiTaskChatRuntimeFromRequest({
-      providerId,
-      providerPresetId,
-      agentId: 'memory-auto-recall',
-      maxTokens: 256,
-      ...(fastModel ? { model: fastModel } : {})
-    });
+    const runtime = await createPiTaskChatRuntimeFromRequest(
+      buildNonReasoningTaskRuntimeRequest({
+        providerId,
+        providerPresetId,
+        agentId: 'memory-auto-recall',
+        maxTokens: 256,
+        ...(fastModel ? { model: fastModel } : {})
+      })
+    );
 
     const chatFn = adaptPiChatFn(runtime.chatFn);
 
@@ -219,11 +205,14 @@ export function kickoffMemoryPrefetch(request: ChatRequest): void {
   })().catch((e) => {
     if (e?.name !== 'AbortError') {
       console.warn(`${TAG} Prefetch failed:`, e instanceof Error ? e.message : e);
-      logMemoryTrace({
-        conversationId: conversationKey,
-        error: e instanceof Error ? e.message : String(e),
-        event: 'auto_recall.prewarm.error'
-      }, 'warn');
+      logMemoryTrace(
+        {
+          conversationId: conversationKey,
+          error: e instanceof Error ? e.message : String(e),
+          event: 'auto_recall.prewarm.error'
+        },
+        'warn'
+      );
     }
     return { context: '', keywords: [], noteCount: 0, skipped: true, skipReason: 'prefetch_error' };
   });
@@ -372,11 +361,14 @@ export function initMemoryAutoRecallEnricher(db: RetrievalDbDeps): void {
         return formatAutoRecallContext(result.context);
       } catch (e) {
         console.warn(`${TAG} Auto-recall failed (non-fatal):`, e instanceof Error ? e.message : e);
-        logMemoryTrace({
-          conversationId,
-          error: e instanceof Error ? e.message : String(e),
-          event: 'auto_recall.resolve.error'
-        }, 'warn');
+        logMemoryTrace(
+          {
+            conversationId,
+            error: e instanceof Error ? e.message : String(e),
+            event: 'auto_recall.resolve.error'
+          },
+          'warn'
+        );
         return null;
       }
     }

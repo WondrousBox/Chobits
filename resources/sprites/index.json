@@ -267,6 +267,27 @@
       "muted": true,
       "playsInline": true,
       "loop": false
+    },
+    {
+      "meta": {
+        "id": "welcome-default",
+        "title": "welcome",
+        "eventType": "welcome",
+        "deletable": true
+      },
+      "source": {
+        "localPath": "./welcome.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false,
+      "autoIdle": true,
+      "durationMs": 5016.667
     }
   ]
 }
