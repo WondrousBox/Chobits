@@ -9,6 +9,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
 import { createPiTaskChatRuntimeFromRequest, type PiTaskChatFunction } from '../../../../packages/ai/runtime/pi/task-chat';
+import { buildNonReasoningTaskRuntimeRequest, resolveNonReasoningTaskModel } from '../../../../packages/ai/runtime/pi/task-model-policy';
 import { buildWriteDbOps } from '../../../../packages/ai/runtime/pi/tools/memory-db-deps';
 import { formatMemoryDate, getNextMemoryDate, getRelativeMemoryDate, getTodayMemoryDate } from '../../../../packages/ai/services/memory-date';
 import { runExtractionPipeline } from '../../../../packages/ai/services/memory-extraction-service';
@@ -246,17 +247,21 @@ async function executeRecallCueBackfillJob(job: QueuedJob, signal: AbortSignal, 
     throw new Error('No provider found for recall cue backfill');
   }
 
-  const preferredModel = cfg.extractionModel || resolveExtractionModel(providerId);
+  const preferredModel = resolveNonReasoningTaskModel(providerId, {
+    preferredModel: cfg.extractionModel
+  });
 
   const runWithModel = async (model: string | undefined, label: string): Promise<ExtractionResult> => {
     console.log(`${TAG} 🧠⚙️ [${label}] Creating LLM runtime: provider=${providerId}, preset=${providerPresetId || '(default)'}, model=${model || '(provider default)'}`);
-    const runtime = await createPiTaskChatRuntimeFromRequest({
-      providerId,
-      providerPresetId,
-      agentId: 'memory-recall-cue-backfill',
-      maxTokens: 1200,
-      ...(model ? { model } : {})
-    });
+    const runtime = await createPiTaskChatRuntimeFromRequest(
+      buildNonReasoningTaskRuntimeRequest({
+        providerId,
+        providerPresetId,
+        agentId: 'memory-recall-cue-backfill',
+        maxTokens: 1200,
+        ...(model ? { model } : {})
+      })
+    );
     const chatFn = adaptChatFn(runtime.chatFn);
     console.log(`${TAG} 🧠✅ [${label}] LLM runtime ready, model: ${runtime.modelId}`);
 
@@ -429,13 +434,15 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
    */
   const runWithModel = async (model: string | undefined, label: string): Promise<ExtractionResult> => {
     console.log(`${TAG} 🧠⚙️ [${label}] Creating LLM runtime: provider=${providerId}, preset=${providerPresetId || '(default)'}, model=${model || '(provider default)'}`);
-    const runtime = await createPiTaskChatRuntimeFromRequest({
-      providerId: providerId!,
-      providerPresetId,
-      agentId: 'memory-extraction',
-      maxTokens: 4000,
-      ...(model ? { model } : {})
-    });
+    const runtime = await createPiTaskChatRuntimeFromRequest(
+      buildNonReasoningTaskRuntimeRequest({
+        providerId: providerId!,
+        providerPresetId,
+        agentId: 'memory-extraction',
+        maxTokens: 4000,
+        ...(model ? { model } : {})
+      })
+    );
     const chatFn = adaptChatFn(runtime.chatFn);
     console.log(`${TAG} 🧠✅ [${label}] LLM runtime ready, model: ${runtime.modelId}`);
 
@@ -461,7 +468,9 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
 
   try {
     // 记忆提取是结构化 JSON 输出任务，优先使用轻量快速模型
-    const fastModel = cfg.extractionModel || resolveExtractionModel(providerId);
+    const fastModel = resolveNonReasoningTaskModel(providerId, {
+      preferredModel: cfg.extractionModel
+    });
     let result: ExtractionResult;
 
     if (fastModel) {
@@ -984,23 +993,6 @@ function safeJsonParse(json: string | null | undefined, fallback: any[] = []): a
 
 function dedupStrings(values: string[]): string[] {
   return [...new Set(values.filter((value) => typeof value === 'string' && value.trim()))];
-}
-
-/**
- * 根据 provider 选择适合记忆提取的轻量模型。
- * 记忆提取只需要结构化 JSON 输出能力，不需要旗舰模型，使用快速模型可以显著降低延迟。
- */
-function resolveExtractionModel(providerId: string): string | undefined {
-  const fastModels: Record<string, string> = {
-    zai: 'glm-4.5-air',
-    zhipu: 'glm-4-flash',
-    openai: 'gpt-4o-mini',
-    anthropic: 'claude-sonnet-4-20250514',
-    deepseek: 'deepseek-chat',
-    qwen: 'qwen-turbo',
-    gemini: 'gemini-2.0-flash'
-  };
-  return fastModels[providerId];
 }
 
 /** 获取日期的下一天（YYYY-MM-DD 格式） */

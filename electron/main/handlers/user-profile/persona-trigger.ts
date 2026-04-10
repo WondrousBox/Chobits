@@ -11,11 +11,12 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
 import { createPiTaskChatRuntimeFromRequest, type PiTaskChatFunction } from '../../../../packages/ai/runtime/pi/task-chat';
+import { buildNonReasoningTaskRuntimeRequest } from '../../../../packages/ai/runtime/pi/task-model-policy';
 import type { AgentLoopCompletePayload } from '../../../../packages/ai/services/memory-types';
 import { checkGate, checkPersonaUpdateNeeded, formatConversationSnippet, type GateCheckInput } from '../../../../packages/ai/services/persona-check-service';
 import { PERSONA_FILENAME, type PersonaChatFn, type PersonaUpdateResult } from '../../../../packages/ai/services/persona-types';
-import { createManagedTaskChatFn, LONG_TASK_CHAT_TIMEOUTS } from '../../../../packages/ai/services/task-chat-runner';
 import { updatePersona } from '../../../../packages/ai/services/persona-update-service';
+import { createManagedTaskChatFn, LONG_TASK_CHAT_TIMEOUTS } from '../../../../packages/ai/services/task-chat-runner';
 import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
 import { ChatRepo, WorkspacesRepo } from '../../db/repositories';
@@ -42,12 +43,14 @@ async function executePersonaUpdate(job: PersonaQueuedJob, signal: AbortSignal):
   if (!providerId) throw new Error('No providerId for persona update');
 
   console.log(`${TAG} Creating LLM runtime: provider=${providerId}`);
-  const runtime = await createPiTaskChatRuntimeFromRequest({
-    providerId,
-    providerPresetId: job.providerPresetId,
-    agentId: 'user-persona-update',
-    maxTokens: 2000
-  });
+  const runtime = await createPiTaskChatRuntimeFromRequest(
+    buildNonReasoningTaskRuntimeRequest({
+      providerId,
+      providerPresetId: job.providerPresetId,
+      agentId: 'user-persona-update',
+      maxTokens: 2000
+    })
+  );
   const chatFn = adaptChatFn(runtime.chatFn);
 
   eventManager.emit(AppEvent.USER_PERSONA_UPDATE_STARTED, {
@@ -135,12 +138,14 @@ async function checkAndQueuePersonaUpdate(payload: AgentLoopCompletePayload): Pr
 
   // 创建 LLM runtime 并调用判定
   console.log(`${TAG} Running persona check for conv ${conversationId}...`);
-  const runtime = await createPiTaskChatRuntimeFromRequest({
-    providerId: resolvedProviderId,
-    providerPresetId: providerPresetId || conv?.providerPresetId || undefined,
-    agentId: 'user-persona-check',
-    maxTokens: 1000
-  });
+  const runtime = await createPiTaskChatRuntimeFromRequest(
+    buildNonReasoningTaskRuntimeRequest({
+      providerId: resolvedProviderId,
+      providerPresetId: providerPresetId || conv?.providerPresetId || undefined,
+      agentId: 'user-persona-check',
+      maxTokens: 1000
+    })
+  );
   const chatFn = adaptChatFn(runtime.chatFn);
 
   let result;

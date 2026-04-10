@@ -218,7 +218,7 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
     const executor = mgr.getSpontaneousUtteranceExecutor();
 
     if (!executor) {
-      mgr.trigger(fallbackAction);
+      mgr.trigger(fallbackAction, { silent: true });
       return;
     }
 
