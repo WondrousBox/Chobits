@@ -10,17 +10,18 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import { app } from 'electron';
 
 import { getPreset } from '../../../../packages/ai/preset-service';
-import { createPiTaskChatRuntimeFromRequest, type PiTaskChatFunction } from '../../../../packages/ai/runtime/pi/task-chat';
+import { createPiTaskChatRuntimeFromRequest } from '../../../../packages/ai/runtime/pi/task-chat';
 import { extractKeywordsFromMessage } from '../../../../packages/ai/services/memory-auto-recall';
 import { type RetrievalDbDeps, searchWithContent } from '../../../../packages/ai/services/memory-retrieval-service';
+import { logMemoryTrace, shortTraceId } from '../../../../packages/ai/services/memory-trace';
 import type { AgentLoopCompletePayload } from '../../../../packages/ai/services/memory-types';
 import { extractSnapshot, extractTopFacts, parsePersonaMarkdown } from '../../../../packages/ai/services/persona-document';
 import { PERSONA_FILENAME } from '../../../../packages/ai/services/persona-types';
+import { collectTaskChatText, createActivityAwareTaskTimeoutController, type TaskChatActivityKind } from '../../../../packages/ai/services/task-chat-runner';
 import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
 import { buildCharacterPersonaPrompt } from '../../../../packages/sprite-core/character-service';
 import type {
-  SpriteSpontaneousUtteranceDelivery,
   SpriteSpontaneousUtteranceExecutionReport,
   SpriteSpontaneousUtteranceExecutor,
   SpriteSpontaneousUtteranceHistoryItem,
@@ -57,9 +58,6 @@ const SPONTANEOUS_THINKING_LEVEL = 'minimal';
 
 const TONE_VALUES = ['gentle', 'playful', 'calm', 'firm', 'curious', 'tender'] as const;
 const EMOTION_VALUES = ['warm', 'hopeful', 'amused', 'thoughtful', 'soothing', 'bright'] as const;
-const DELIVERY_PACE_VALUES = ['slow', 'steady', 'brisk'] as const;
-const DELIVERY_ENERGY_VALUES = ['soft', 'light', 'lifted', 'grounded'] as const;
-const DELIVERY_PAUSE_VALUES = ['none', 'minor', 'breath'] as const;
 const INTENT_VALUES = ['philosophy', 'encouragement', 'playful', 'reminder', 'planning', 'empathy', 'reflection'] as const satisfies readonly SpriteSpontaneousUtteranceIntentCategory[];
 const TONE_PREFERENCE_VALUES = ['auto', ...TONE_VALUES] as const satisfies readonly SpriteSpontaneousUtteranceTonePreference[];
 
@@ -85,9 +83,7 @@ type GeneratedUtterancePayload = {
   intentCategory?: unknown;
   tone?: unknown;
   emotion?: unknown;
-  delivery?: unknown;
   recommendedAction?: unknown;
-  bubbleDurationMs?: unknown;
   whyThisFits?: unknown;
 };
 
@@ -111,12 +107,15 @@ type PersonaSummary = {
   facts: string[];
 };
 
+type PersistentMemorySource = 'targeted_search' | 'broad_recall' | 'memory_index' | 'combined';
+
 type PersistentMemoryContext = {
   query: string;
   keywords: string[];
   context: string;
   noteCount: number;
   topicCount: number;
+  source?: PersistentMemorySource;
 };
 
 type ImportantDialogueDigest = {
@@ -164,8 +163,6 @@ type SpontaneousUtteranceLogEntry = {
     intentCategory?: SpriteSpontaneousUtteranceIntentCategory;
     tone?: string;
     emotion?: string;
-    delivery?: SpriteSpontaneousUtteranceDelivery;
-    bubbleDurationMs?: number;
     whyThisFits?: string;
   };
   executedAction?: string;
@@ -180,7 +177,6 @@ type HistoryAccumulator = SpriteSpontaneousUtteranceHistoryItem & {
   sortTimestamp: number;
 };
 
-type ChatActivityKind = 'thinking' | 'answer' | 'completed';
 type FavorLevel = 'stranger' | 'acquaintance' | 'friend' | 'close-friend' | 'bestie' | 'soulmate';
 
 function getPreferencesFilePath(): string {
@@ -199,100 +195,17 @@ function createEmptyMemoryContext(): PersistentMemoryContext {
 
 function createGenerationTimeoutController(): {
   signal: AbortSignal;
-  noteActivity: (activity: ChatActivityKind) => void;
+  noteActivity: (activity: TaskChatActivityKind) => void;
   getAbortReason: () => string | undefined;
   dispose: () => void;
 } {
-  const abortController = new AbortController();
-  const startedAt = Date.now();
-  let abortReason: string | undefined;
-  let activityCount = 0;
-  let firstActivityAt: number | undefined;
-  let lastActivityAt: number | undefined;
-  let lastActivityKind: ChatActivityKind | undefined;
-  let maxTimer: ReturnType<typeof setTimeout> | undefined;
-
-  const clearMaxTimer = (): void => {
-    if (!maxTimer) return;
-    clearTimeout(maxTimer);
-    maxTimer = undefined;
-  };
-
-  const abortWithReason = (reason: string): void => {
-    if (abortController.signal.aborted) return;
-    abortReason = reason;
-    const elapsedMs = Date.now() - startedAt;
-    const lastGapMs = lastActivityAt ? Date.now() - lastActivityAt : undefined;
-    console.warn(
-      `${TAG} aborting generation: ${reason} (elapsed=${elapsedMs}ms, activities=${activityCount}, lastActivity=${lastActivityKind || 'none'}${typeof lastGapMs === 'number' ? `, idleFor=${lastGapMs}ms` : ''})`
-    );
-    abortController.abort(reason);
-  };
-  maxTimer = setTimeout(() => abortWithReason('generation_max_timeout'), MAX_GENERATION_TIMEOUT_MS);
-
-  return {
-    getAbortReason: () => abortReason,
-    noteActivity: (activity: ChatActivityKind) => {
-      if (abortController.signal.aborted) {
-        return;
-      }
-
-      activityCount += 1;
-      lastActivityKind = activity;
-      lastActivityAt = Date.now();
-
-      if (!firstActivityAt) {
-        firstActivityAt = lastActivityAt;
-        console.log(`${TAG} first stream activity detected: ${activity} after ${firstActivityAt - startedAt}ms`);
-      }
-    },
-    signal: abortController.signal,
-    dispose: () => {
-      clearMaxTimer();
+  return createActivityAwareTaskTimeoutController({
+    tag: TAG,
+    timeouts: {
+      maxTimeoutMs: MAX_GENERATION_TIMEOUT_MS,
+      maxTimeoutReason: 'generation_max_timeout'
     }
-  };
-}
-
-function adaptChatFn(piChatFn: PiTaskChatFunction) {
-  return async (prompt: string, options?: { signal?: AbortSignal; onActivity?: (activity: ChatActivityKind) => void }): Promise<string> => {
-    let fullText = '';
-    let errorMessage: string | undefined;
-
-    await piChatFn(
-      prompt,
-      (event) => {
-        if (event.type === 'delta') {
-          options?.onActivity?.('answer');
-          if (event.data.text) {
-            fullText += event.data.text;
-          }
-          return;
-        }
-
-        if (event.type === 'thinking_delta') {
-          options?.onActivity?.('thinking');
-          return;
-        }
-
-        if (event.type === 'message_completed') {
-          options?.onActivity?.('completed');
-          if (event.data?.text && event.data.text.length >= fullText.length) {
-            fullText = event.data.text;
-          }
-          return;
-        }
-
-        if (event.type === 'error') errorMessage = event.data.message;
-      },
-      options?.signal
-    );
-
-    if (errorMessage) {
-      throw new Error(errorMessage);
-    }
-
-    return fullText;
-  };
+  });
 }
 
 function safeParseJson<T>(text: string): T | null {
@@ -316,6 +229,60 @@ function truncateText(text: string, maxChars: number): string {
   return text.length <= maxChars ? text : `${text.slice(0, Math.max(0, maxChars - 3))}...`;
 }
 
+function stripMarkdownFrontmatter(text: string): string {
+  return text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
+}
+
+function parseFrontmatterCount(content: string, key: 'noteCount' | 'topicCount'): number {
+  const match = content.match(new RegExp(`${key}:\\s*(\\d+)`));
+  return match ? Number.parseInt(match[1], 10) || 0 : 0;
+}
+
+function extractMemoryIndexContext(content: string, maxChars: number): { context: string; noteCount: number; topicCount: number } {
+  const noteCount = parseFrontmatterCount(content, 'noteCount');
+  const topicCount = parseFrontmatterCount(content, 'topicCount');
+  const lines: string[] = [];
+
+  for (const line of stripMarkdownFrontmatter(content).split(/\r?\n/)) {
+    if (line.trim() === '## 全部主题') {
+      break;
+    }
+    lines.push(line);
+  }
+
+  return {
+    context: truncateText(lines.join('\n').trim(), maxChars),
+    noteCount,
+    topicCount
+  };
+}
+
+function formatPersistentMemorySection(title: string, content: string): string {
+  const normalized = content.trim();
+  if (!normalized) {
+    return '';
+  }
+
+  return `### ${title}\n${normalized}`;
+}
+
+function mergePersistentMemoryContexts(primary: PersistentMemoryContext, secondary: PersistentMemoryContext, maxChars: number): PersistentMemoryContext {
+  const primaryBudget = Math.max(400, Math.round(maxChars * 0.58));
+  const secondaryBudget = Math.max(240, maxChars - primaryBudget - 64);
+  const primarySection = formatPersistentMemorySection('MEMORY.md 摘要', truncateText(primary.context, primaryBudget));
+  const secondaryTitle = secondary.source === 'targeted_search' ? '定向命中记忆' : '补充记忆';
+  const secondarySection = formatPersistentMemorySection(secondaryTitle, truncateText(secondary.context, secondaryBudget));
+
+  return {
+    query: truncateText(uniqueStrings([primary.query, secondary.query].filter(Boolean)).join(' / '), 160),
+    keywords: uniqueStrings([...primary.keywords, ...secondary.keywords]).slice(0, MAX_MEMORY_KEYWORDS),
+    context: truncateText([primarySection, secondarySection].filter(Boolean).join('\n\n'), maxChars),
+    noteCount: secondary.noteCount || primary.noteCount,
+    topicCount: Math.max(primary.topicCount, secondary.topicCount),
+    source: 'combined'
+  };
+}
+
 function normalizeSingleLine(text: string): string {
   return text
     .replace(/\s+/g, ' ')
@@ -330,27 +297,6 @@ function normalizeEnumValue<T extends readonly string[]>(value: unknown, allowed
 
   const normalized = normalizeSingleLine(value).toLowerCase();
   return allowedValues.find((item) => item === normalized);
-}
-
-function normalizeDelivery(value: unknown): SpriteSpontaneousUtteranceDelivery | undefined {
-  if (!value || typeof value !== 'object') {
-    return undefined;
-  }
-
-  const payload = value as Record<string, unknown>;
-  const pace = normalizeEnumValue(payload.pace, DELIVERY_PACE_VALUES);
-  const energy = normalizeEnumValue(payload.energy, DELIVERY_ENERGY_VALUES);
-  const pauseHint = normalizeEnumValue(payload.pauseHint, DELIVERY_PAUSE_VALUES);
-
-  if (!pace && !energy && !pauseHint) {
-    return undefined;
-  }
-
-  return {
-    ...(pace ? { pace } : {}),
-    ...(energy ? { energy } : {}),
-    ...(pauseHint ? { pauseHint } : {})
-  };
 }
 
 function normalizeIntentCategory(value: unknown): SpriteSpontaneousUtteranceIntentCategory | undefined {
@@ -403,34 +349,6 @@ function readPreferencesSync(): SpriteSpontaneousUtterancePreferences {
   } catch {
     return { ...DEFAULT_SPONTANEOUS_UTTERANCE_PREFERENCES };
   }
-}
-
-function clampBubbleDuration(text: string, delivery?: SpriteSpontaneousUtteranceDelivery, value?: number): number {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return Math.max(3000, Math.min(9000, Math.round(value)));
-  }
-
-  let duration = Math.max(3500, Math.min(8500, text.length * 220));
-
-  if (delivery?.pace === 'slow') {
-    duration += 700;
-  } else if (delivery?.pace === 'brisk') {
-    duration -= 450;
-  }
-
-  if (delivery?.pauseHint === 'minor') {
-    duration += 250;
-  } else if (delivery?.pauseHint === 'breath') {
-    duration += 500;
-  }
-
-  if (delivery?.energy === 'soft' || delivery?.energy === 'grounded') {
-    duration += 180;
-  } else if (delivery?.energy === 'lifted') {
-    duration -= 120;
-  }
-
-  return Math.max(3200, Math.min(9000, Math.round(duration)));
 }
 
 function localDateStamp(ts = Date.now()): string {
@@ -563,7 +481,18 @@ function formatPersistentMemoryContext(memory: PersistentMemoryContext): string 
     return '暂无匹配到可用的持久记忆。';
   }
 
-  return [`- 检索线索: ${memory.query || '无'}`, `- 命中笔记: ${memory.noteCount}`, memory.context].join('\n');
+  const sourceLabel =
+    memory.source === 'combined'
+      ? 'memory/MEMORY.md 摘要 + 定向检索'
+      : memory.source === 'broad_recall'
+        ? '最近记忆兜底'
+        : memory.source === 'memory_index'
+          ? 'memory/MEMORY.md 摘要'
+          : memory.source === 'targeted_search'
+            ? '定向检索'
+            : null;
+
+  return [`- 检索线索: ${memory.query || '无'}`, ...(sourceLabel ? [`- 记忆来源: ${sourceLabel}`] : []), `- 命中笔记: ${memory.noteCount}`, memory.context].join('\n');
 }
 
 function formatImportantDialogueDigests(digests: ImportantDialogueDigest[]): string {
@@ -714,10 +643,10 @@ function buildPrompt(
   const allowedIntentLine = preferences.allowedIntentCategories.join('|');
   const preferredToneLine = preferences.preferredTone === 'auto' ? 'auto' : preferences.preferredTone;
 
-  return `这个时代的人都需要被关心和爱着，在用户忙于工作、学习、生活的时候容易忽略你的存在，你会回忆以前的点滴，努力给用户提供情绪价值。
+  return `人都需要被关心和被爱，你会努力给用户提供情绪价值。
 
 ## 你的任务
-根据你记得的信息，抒发想法，表达关心，文本要简短，最好富有哲理或者诗意。
+根据你直到的信息，抒发想法，表达关心，文本要简短，有哲理或诗意或者复函人文气息，其中不乏旅游、美食、历史、文化、健康、生活的见解和思考。
 
 ${characterPersonaPrompt ? truncateText(characterPersonaPrompt, 1800) : ''}
 
@@ -727,28 +656,16 @@ ${characterPersonaPrompt ? truncateText(characterPersonaPrompt, 1800) : ''}
 - 等级: ${input.sprite.level}
 
 硬性要求：
-1. text 是你要说的简短的一句话，要自然、有温度，不做作，不说教。
-2. intentCategory 只能从里面选择你的意图：${allowedIntentLine}。
-3. 要考虑时间远近，不要把很久以前的事情说得像刚刚发生。
-4. recommendedAction 必须从给定候选动作中选择；如果都不合适，输出空字符串。
-5. tone / emotion 要和这句话的口气一致，也要贴合用户当前状态，让人觉得被理解、被提醒或被鼓舞。
-6. 如果没有更强的上下文信号，语气尽量向这个偏好靠拢：${preferredToneLine}。
-7. delivery 用于描述表达节奏，字段限制为 pace=slow|steady|brisk，energy=soft|light|lifted|grounded，pauseHint=none|minor|breath。
-8. whyThisFits 表达你为什么那样说。
+1. tone / emotion 要和这句话的口气一致，也要贴合用户当前状态，让人觉得被理解、提醒或鼓舞。
+2. 如果没有更强的上下文信号，语气尽量向这个偏好靠拢：${preferredToneLine}。
 请输出这个 JSON 结构，不要解释：
 {
-  "text": "一句话",
-  "intentCategory": "${allowedIntentLine}",
+  "text": "你要说的简短的一句话，要自然、有温度，不做作，不说教",
+  "intentCategory": "只能从里面选择你的意图：${allowedIntentLine}",
   "tone": "gentle|playful|calm|firm|curious|tender",
   "emotion": "warm|hopeful|amused|thoughtful|soothing|bright",
-  "delivery": {
-    "pace": "slow|steady|brisk",
-    "energy": "soft|light|lifted|grounded",
-    "pauseHint": "none|minor|breath"
-  },
-  "recommendedAction": "动作名或空字符串，动作候选: ${input.actionCandidates.join('|')}",
-  "bubbleDurationMs": 5200,
-  "whyThisFits": "一句简短说明"
+  "recommendedAction": "必须从给定候选动作中选择；如果都不合适，输出空字符串，动作候选: ${input.actionCandidates.join('|')}",
+  "whyThisFits": "表达你为什么那样说"
 }
 
 ## 已知信息
@@ -774,12 +691,7 @@ ${formatImportantDialogueDigests(importantDialogueDigests)}
 `;
 }
 
-function mapToneToAction(
-  tone: SpriteSpontaneousUtteranceResult['tone'],
-  emotion: SpriteSpontaneousUtteranceResult['emotion'],
-  delivery: SpriteSpontaneousUtteranceResult['delivery'],
-  actionCandidates: string[]
-): string | undefined {
+function mapToneToAction(tone: SpriteSpontaneousUtteranceResult['tone'], emotion: SpriteSpontaneousUtteranceResult['emotion'], actionCandidates: string[]): string | undefined {
   const seen = new Set<string>();
   const ordered: string[] = [];
   const push = (...actions: string[]): void => {
@@ -828,39 +740,6 @@ function mapToneToAction(
       break;
   }
 
-  switch (delivery?.pace) {
-    case 'slow':
-      push('sit', 'nod', 'lookRight', 'lookLeft');
-      break;
-    case 'brisk':
-      push('wave', 'point', 'jump', 'stand');
-      break;
-    case 'steady':
-      push('stand', 'nod', 'point');
-      break;
-  }
-
-  switch (delivery?.energy) {
-    case 'soft':
-      push('nod', 'sit', 'wave');
-      break;
-    case 'light':
-      push('wave', 'lookLeft', 'lookRight');
-      break;
-    case 'lifted':
-      push('jump', 'dance', 'spin', 'wave');
-      break;
-    case 'grounded':
-      push('stand', 'sit', 'nod');
-      break;
-  }
-
-  if (delivery?.pauseHint === 'breath') {
-    push('sit', 'nod');
-  } else if (delivery?.pauseHint === 'minor') {
-    push('nod', 'lookRight', 'lookLeft');
-  }
-
   return ordered[0];
 }
 
@@ -877,7 +756,6 @@ function normalizeGeneratedUtterance(
   const intentCategory = normalizeIntentCategory(payload.intentCategory);
   const tone = normalizeEnumValue(payload.tone, TONE_VALUES);
   const emotion = normalizeEnumValue(payload.emotion, EMOTION_VALUES);
-  const delivery = normalizeDelivery(payload.delivery);
 
   if (intentCategory && !preferences.allowedIntentCategories.includes(intentCategory)) {
     return null;
@@ -885,17 +763,15 @@ function normalizeGeneratedUtterance(
 
   const effectiveTone = tone ?? (preferences.preferredTone !== 'auto' ? preferences.preferredTone : undefined);
   const modelRecommendedAction = typeof payload.recommendedAction === 'string' && input.actionCandidates.includes(payload.recommendedAction) ? payload.recommendedAction : undefined;
-  const recommendedAction = modelRecommendedAction || mapToneToAction(effectiveTone, emotion, delivery, input.actionCandidates);
+  const recommendedAction = modelRecommendedAction || mapToneToAction(effectiveTone, emotion, input.actionCandidates);
 
   return {
     text: truncateText(text, 80),
     ...(intentCategory ? { intentCategory } : {}),
     ...(tone ? { tone } : {}),
     ...(emotion ? { emotion } : {}),
-    ...(delivery ? { delivery } : {}),
     ...(recommendedAction ? { recommendedAction } : {}),
     ...(recommendedAction ? { actionSource: modelRecommendedAction ? 'model' : 'style-map' } : {}),
-    bubbleDurationMs: clampBubbleDuration(text, delivery, typeof payload.bubbleDurationMs === 'number' ? payload.bubbleDurationMs : undefined),
     ...(typeof payload.whyThisFits === 'string' ? { whyThisFits: truncateText(payload.whyThisFits, 160) } : {})
   };
 }
@@ -950,8 +826,6 @@ function applyHistoryLogEntry(base: HistoryAccumulator, entry: SpontaneousUttera
     next.intentCategory = entry.result.intentCategory ?? next.intentCategory;
     next.tone = entry.result.tone ?? next.tone;
     next.emotion = entry.result.emotion ?? next.emotion;
-    next.delivery = entry.result.delivery ?? next.delivery;
-    next.bubbleDurationMs = entry.result.bubbleDurationMs ?? next.bubbleDurationMs;
     next.whyThisFits = entry.result.whyThisFits ?? next.whyThisFits;
   }
 
@@ -1112,13 +986,11 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
         maxTokens: 260,
         temperature: 0.9
       });
-      const chatFn = adaptChatFn(runtime.chatFn);
-
       let raw = '';
       const timeoutController = createGenerationTimeoutController();
       try {
-        raw = await chatFn(prompt, {
-          onActivity: timeoutController.noteActivity,
+        raw = await collectTaskChatText(runtime.chatFn, prompt, {
+          noteActivity: timeoutController.noteActivity,
           signal: timeoutController.signal
         });
       } finally {
@@ -1260,8 +1132,6 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
         ...(report.intentCategory ? { intentCategory: report.intentCategory } : {}),
         ...(report.tone ? { tone: report.tone } : {}),
         ...(report.emotion ? { emotion: report.emotion } : {}),
-        ...(report.delivery ? { delivery: report.delivery } : {}),
-        ...(typeof report.bubbleDurationMs === 'number' ? { bubbleDurationMs: report.bubbleDurationMs } : {}),
         ...(report.whyThisFits ? { whyThisFits: report.whyThisFits } : {})
       },
       executedAction: report.executedAction,
@@ -1361,6 +1231,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
     memoryKeywordCount: number;
     memoryNoteCount: number;
     memoryTopicCount: number;
+    memorySource?: PersistentMemorySource;
     importantDigestCount: number;
   } {
     return {
@@ -1370,6 +1241,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
       memoryKeywordCount: persistentMemory.keywords.length,
       memoryNoteCount: persistentMemory.noteCount,
       memoryTopicCount: persistentMemory.topicCount,
+      ...(persistentMemory.source ? { memorySource: persistentMemory.source } : {}),
       importantDigestCount: importantDialogueDigests.length
     };
   }
@@ -1400,35 +1272,208 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
     }
   }
 
-  private async collectPersistentMemoryContext(ctx: ResolvedConversationContext, persona: PersonaSummary, db: RetrievalDbDeps): Promise<PersistentMemoryContext> {
-    if (!ctx.workspaceId) {
-      return createEmptyMemoryContext();
+  private buildPersistentMemoryTraceBase(ctx: ResolvedConversationContext, persona: PersonaSummary, query: string, keywords: string[]): Record<string, unknown> {
+    return {
+      conversationId: shortTraceId(ctx.conversationId),
+      hasPersonaSnapshot: !!persona.snapshot,
+      keywordCount: keywords.length,
+      keywords: keywords.length ? keywords : undefined,
+      personaFactCount: persona.facts.length,
+      query: query || undefined,
+      recentMessageCount: ctx.recentMessages.length,
+      userMessageCount: ctx.recentMessages.filter((message) => message.role === 'user').length,
+      workspaceId: shortTraceId(ctx.workspaceId)
+    };
+  }
+
+  private async loadMemoryIndexContext(ctx: ResolvedConversationContext, query: string, keywords: string[], traceBase: Record<string, unknown>): Promise<PersistentMemoryContext | null> {
+    if (!ctx.workspaceRoot) {
+      logMemoryTrace(
+        {
+          ...traceBase,
+          event: 'spontaneous_memory.index.skip',
+          reason: 'workspace_root_missing'
+        },
+        'warn'
+      );
+      return null;
     }
 
-    const { query, keywords } = buildMemorySearchQuery(ctx.recentMessages, persona);
-    if (!query) {
-      return createEmptyMemoryContext();
-    }
+    const filePath = path.join(ctx.workspaceRoot, 'memory', 'MEMORY.md');
 
     try {
-      const result = await searchWithContent(query, ctx.workspaceId, db, MEMORY_CONTEXT_MAX_CHARS);
+      const content = await fs.readFile(filePath, 'utf-8');
+      const extracted = extractMemoryIndexContext(content, MEMORY_CONTEXT_MAX_CHARS);
+
+      if (!extracted.context) {
+        logMemoryTrace(
+          {
+            ...traceBase,
+            event: 'spontaneous_memory.index.skip',
+            filePath: 'memory/MEMORY.md',
+            reason: 'empty_index'
+          },
+          'warn'
+        );
+        return null;
+      }
+
+      logMemoryTrace({
+        ...traceBase,
+        contextChars: extracted.context.length,
+        event: 'spontaneous_memory.index.result',
+        filePath: 'memory/MEMORY.md',
+        noteCount: extracted.noteCount,
+        topicCount: extracted.topicCount
+      });
+
       return {
-        query: truncateText(query, 160),
+        query: truncateText(query ? `${query} / MEMORY.md` : 'MEMORY.md', 160),
         keywords,
-        context: truncateText(result.context, MEMORY_CONTEXT_MAX_CHARS),
-        noteCount: result.noteCount,
-        topicCount: result.topicCount
+        context: extracted.context,
+        noteCount: extracted.noteCount,
+        topicCount: extracted.topicCount,
+        source: 'memory_index'
       };
     } catch (error) {
-      console.warn(`${TAG} memory recall failed:`, error instanceof Error ? error.message : error);
+      logMemoryTrace(
+        {
+          ...traceBase,
+          error: error instanceof Error ? error.message : String(error),
+          event: 'spontaneous_memory.index.error',
+          filePath: 'memory/MEMORY.md'
+        },
+        'warn'
+      );
+      return null;
+    }
+  }
+
+  private async collectPersistentMemoryContext(ctx: ResolvedConversationContext, persona: PersonaSummary, db: RetrievalDbDeps): Promise<PersistentMemoryContext> {
+    const { query, keywords } = buildMemorySearchQuery(ctx.recentMessages, persona);
+    const traceBase = this.buildPersistentMemoryTraceBase(ctx, persona, query, keywords);
+
+    if (!ctx.workspaceId) {
+      logMemoryTrace(
+        {
+          ...traceBase,
+          event: 'spontaneous_memory.collect.skip',
+          reason: 'workspace_missing'
+        },
+        'warn'
+      );
+      return createEmptyMemoryContext();
+    }
+
+    logMemoryTrace({
+      ...traceBase,
+      event: 'spontaneous_memory.collect.start'
+    });
+
+    const runSearch = async (searchQuery: string, source: PersistentMemorySource): Promise<PersistentMemoryContext | null> => {
+      const startedAt = Date.now();
+
+      try {
+        logMemoryTrace({
+          ...traceBase,
+          event: 'spontaneous_memory.search.start',
+          source,
+          searchQuery: searchQuery || undefined
+        });
+
+        const result = await searchWithContent(searchQuery, ctx.workspaceId!, db, MEMORY_CONTEXT_MAX_CHARS);
+        logMemoryTrace({
+          ...traceBase,
+          contextChars: result.context.length,
+          durationMs: Date.now() - startedAt,
+          event: 'spontaneous_memory.search.result',
+          noteCount: result.noteCount,
+          source,
+          topicCount: result.topicCount
+        });
+
+        if (result.noteCount <= 0 || !result.context.trim()) {
+          return null;
+        }
+
+        return {
+          query: truncateText(searchQuery || '最近记忆', 160),
+          keywords,
+          context: truncateText(result.context, MEMORY_CONTEXT_MAX_CHARS),
+          noteCount: result.noteCount,
+          topicCount: result.topicCount,
+          source
+        };
+      } catch (error) {
+        logMemoryTrace(
+          {
+            ...traceBase,
+            durationMs: Date.now() - startedAt,
+            error: error instanceof Error ? error.message : String(error),
+            event: 'spontaneous_memory.search.error',
+            source
+          },
+          'warn'
+        );
+        return null;
+      }
+    };
+
+    const memoryIndexContext = await this.loadMemoryIndexContext(ctx, query, keywords, traceBase);
+    const targetedResult = query ? await runSearch(query, 'targeted_search') : null;
+
+    if (memoryIndexContext && targetedResult) {
+      const combined = mergePersistentMemoryContexts(memoryIndexContext, targetedResult, MEMORY_CONTEXT_MAX_CHARS);
+      logMemoryTrace({
+        ...traceBase,
+        contextChars: combined.context.length,
+        event: 'spontaneous_memory.combine.result',
+        noteCount: combined.noteCount,
+        sources: ['memory_index', 'targeted_search'],
+        topicCount: combined.topicCount
+      });
+      return combined;
+    }
+
+    if (memoryIndexContext) {
+      return memoryIndexContext;
+    }
+
+    if (targetedResult) {
+      return targetedResult;
+    }
+
+    logMemoryTrace({
+      ...traceBase,
+      event: 'spontaneous_memory.search.fallback',
+      fallbackSource: 'broad_recall',
+      reason: query ? 'targeted_and_index_empty' : 'query_and_index_empty'
+    });
+
+    const broadRecallResult = await runSearch('', 'broad_recall');
+    if (broadRecallResult) {
       return {
-        query: truncateText(query, 160),
-        keywords,
-        context: '',
-        noteCount: 0,
-        topicCount: 0
+        ...broadRecallResult,
+        query: truncateText(query ? `${query} / 最近记忆` : '最近记忆', 160)
       };
     }
+
+    logMemoryTrace(
+      {
+        ...traceBase,
+        event: 'spontaneous_memory.collect.empty',
+        reason: 'no_memory_context'
+      },
+      'warn'
+    );
+
+    return {
+      query: truncateText(query, 160),
+      keywords,
+      context: '',
+      noteCount: 0,
+      topicCount: 0
+    };
   }
 
   private async collectImportantDialogueDigests(ctx: ResolvedConversationContext, db: RetrievalDbDeps): Promise<ImportantDialogueDigest[]> {

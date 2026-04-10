@@ -14,26 +14,17 @@ import { createPiTaskChatRuntimeFromRequest, type PiTaskChatFunction } from '../
 import { checkPersonaUpdateNeeded, formatConversationSnippet } from '../../../../packages/ai/services/persona-check-service';
 import { extractSnapshot, extractTopFacts, parsePersonaMarkdown } from '../../../../packages/ai/services/persona-document';
 import { PERSONA_FILENAME, type PersonaChatFn, type PersonaCheckParams, type PersonaDocumentSummary, type PersonaUpdateJobParams } from '../../../../packages/ai/services/persona-types';
+import { createManagedTaskChatFn, LONG_TASK_CHAT_TIMEOUTS } from '../../../../packages/ai/services/task-chat-runner';
 import { ChatRepo, WorkspacesRepo } from '../../db/repositories';
 import { personaUpdateQueue } from './persona-queue';
 import { initPersonaTrigger } from './persona-trigger';
 import { initUserProfileEnricher } from './user-profile-enricher';
 
 function adaptChatFn(piChatFn: PiTaskChatFunction): PersonaChatFn {
-  return async (prompt: string, signal?: AbortSignal): Promise<string> => {
-    let fullText = '';
-    let errorMessage: string | undefined;
-    await piChatFn(
-      prompt,
-      (event) => {
-        if (event.type === 'delta' && event.data.text) fullText += event.data.text;
-        if (event.type === 'error') errorMessage = event.data.message;
-      },
-      signal
-    );
-    if (errorMessage) throw new Error(`LLM call failed: ${errorMessage}`);
-    return fullText;
-  };
+  return createManagedTaskChatFn(piChatFn, {
+    tag: '[UserProfileTaskChat]',
+    timeouts: LONG_TASK_CHAT_TIMEOUTS
+  });
 }
 
 export function initUserProfileHandlers(): void {

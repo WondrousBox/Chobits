@@ -111,10 +111,10 @@ export async function createPiTaskChatRuntime(resolved: ResolvedPiRequest): Prom
 
   return {
     chatFn: async (prompt, onEvent, abortSignal) => {
-      const TAG = '[PiTaskChat]';
+      const TAG = '[PiTaskChat] >';
       try {
         console.log(prompt);
-        console.log(`${TAG} streamSimple start: model=${model.id}, prompt=${prompt.length} chars, hasApiKey=${!!resolved.model.apiKey}`);
+        console.log(`${TAG} streamSimple start: ${resolved.request.providerId}/${model.id}, prompt=${prompt.length} chars, hasApiKey=${!!resolved.model.apiKey}`);
         const stream = ai.streamSimple(model, createPromptContext(prompt) as any, buildSimpleOptions(resolved, abortSignal));
 
         let eventCount = 0;

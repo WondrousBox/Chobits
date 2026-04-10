@@ -14,6 +14,7 @@ import { createPiTaskChatRuntimeFromRequest, type PiTaskChatFunction } from '../
 import type { AgentLoopCompletePayload } from '../../../../packages/ai/services/memory-types';
 import { checkGate, checkPersonaUpdateNeeded, formatConversationSnippet, type GateCheckInput } from '../../../../packages/ai/services/persona-check-service';
 import { PERSONA_FILENAME, type PersonaChatFn, type PersonaUpdateResult } from '../../../../packages/ai/services/persona-types';
+import { createManagedTaskChatFn, LONG_TASK_CHAT_TIMEOUTS } from '../../../../packages/ai/services/task-chat-runner';
 import { updatePersona } from '../../../../packages/ai/services/persona-update-service';
 import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
@@ -23,22 +24,10 @@ import { type PersonaQueuedJob, personaUpdateQueue } from './persona-queue';
 // ━━ chatFn 适配 ━━
 
 function adaptChatFn(piChatFn: PiTaskChatFunction): PersonaChatFn {
-  return async (prompt: string, signal?: AbortSignal): Promise<string> => {
-    let fullText = '';
-    let errorMessage: string | undefined;
-
-    await piChatFn(
-      prompt,
-      (event) => {
-        if (event.type === 'delta' && event.data.text) fullText += event.data.text;
-        if (event.type === 'error') errorMessage = event.data.message;
-      },
-      signal
-    );
-
-    if (errorMessage) throw new Error(`LLM call failed: ${errorMessage}`);
-    return fullText;
-  };
+  return createManagedTaskChatFn(piChatFn, {
+    tag: '[PersonaTaskChat]',
+    timeouts: LONG_TASK_CHAT_TIMEOUTS
+  });
 }
 
 // ━━ Executor ━━
@@ -154,25 +143,16 @@ async function checkAndQueuePersonaUpdate(payload: AgentLoopCompletePayload): Pr
   });
   const chatFn = adaptChatFn(runtime.chatFn);
 
-  // 设置 60 秒超时，避免 LLM 无响应时永久挂起
-  const abortController = new AbortController();
-  const timeout = setTimeout(() => abortController.abort(), 60_000);
-
   let result;
-  try {
-    result = await checkPersonaUpdateNeeded(
-      {
-        conversationId,
-        workspaceId,
-        currentPersona,
-        conversationSnippet: snippet
-      },
-      chatFn,
-      abortController.signal
-    );
-  } finally {
-    clearTimeout(timeout);
-  }
+  result = await checkPersonaUpdateNeeded(
+    {
+      conversationId,
+      workspaceId,
+      currentPersona,
+      conversationSnippet: snippet
+    },
+    chatFn
+  );
 
   if (!result.decision.shouldUpdate) {
     console.log(`${TAG} Decision: no update needed (reason=${result.decision.reason}, score=${result.decision.signalScore})`);

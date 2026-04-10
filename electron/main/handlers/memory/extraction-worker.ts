@@ -13,6 +13,7 @@ import { buildWriteDbOps } from '../../../../packages/ai/runtime/pi/tools/memory
 import { formatMemoryDate, getNextMemoryDate, getRelativeMemoryDate, getTodayMemoryDate } from '../../../../packages/ai/services/memory-date';
 import { runExtractionPipeline } from '../../../../packages/ai/services/memory-extraction-service';
 import { parseFrontmatter } from '../../../../packages/ai/services/memory-note-parser';
+import { createManagedTaskChatFn, LONG_TASK_CHAT_TIMEOUTS } from '../../../../packages/ai/services/task-chat-runner';
 import type { AgentLoopCompletePayload, ExtractionResult, MemoryChatFn, MemoryNoteFrontmatter } from '../../../../packages/ai/services/memory-types';
 import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
@@ -20,6 +21,7 @@ import { MemoryNoteRepo, MemorySyncJobRepo, MemoryTopicRepo } from '../../db/mem
 import { ChatRepo, WorkspacesRepo } from '../../db/repositories';
 import { memoryExtractionQueue, type QueuedJob } from './extraction-queue';
 import { getMemoryConfig } from './memory-config';
+import { refreshMemoryIndexForWorkspace } from './memory-index-sync';
 
 // ━━ Config ━━
 
@@ -43,44 +45,33 @@ const pendingTrailingRun = new Set<string>();
  * 必须正确处理 error 事件，否则 LLM 失败时会静默返回空字符串。
  */
 function adaptChatFn(piChatFn: PiTaskChatFunction): MemoryChatFn {
+  const runChat = createManagedTaskChatFn(piChatFn, {
+    tag: '[MemoryWorker:chatFn]',
+    timeouts: LONG_TASK_CHAT_TIMEOUTS
+  });
+
   return async (prompt: string, signal?: AbortSignal): Promise<string> => {
     const TAG = '[MemoryWorker:chatFn]';
-    let fullText = '';
-    let errorMessage: string | undefined;
     const callStart = Date.now();
-
     console.log(`${TAG} 🧠📤 Calling LLM (prompt ${prompt.length} chars)...`);
 
-    await piChatFn(
-      prompt,
-      (event) => {
-        if (event.type === 'delta' && event.data.text) {
-          fullText += event.data.text;
-        }
-        if (event.type === 'error') {
-          errorMessage = event.data.message;
-          console.error(`${TAG} LLM returned error event: ${errorMessage}`);
-          // 输出原始提示词用于调试敏感内容问题
-          console.error(`${TAG} === FAILED PROMPT START (${prompt.length} chars) ===`);
-          console.error(prompt);
-          console.error(`${TAG} === FAILED PROMPT END ===`);
-        }
-      },
-      signal
-    );
-
-    if (errorMessage) {
-      throw new Error(`LLM call failed: ${errorMessage}`);
+    try {
+      const fullText = await runChat(prompt, signal);
+      const callElapsed = ((Date.now() - callStart) / 1000).toFixed(1);
+      if (!fullText) {
+        console.warn(`${TAG} 🧠⚠️ LLM returned empty response (0 chars) [${callElapsed}s]`);
+      } else {
+        console.log(`${TAG} 🧠📥 LLM response: ${fullText.length} chars [${callElapsed}s]`);
+      }
+      return fullText;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`${TAG} LLM call failed: ${message}`);
+      console.error(`${TAG} === FAILED PROMPT START (${prompt.length} chars) ===`);
+      console.error(prompt);
+      console.error(`${TAG} === FAILED PROMPT END ===`);
+      throw error;
     }
-
-    const callElapsed = ((Date.now() - callStart) / 1000).toFixed(1);
-    if (!fullText) {
-      console.warn(`${TAG} 🧠⚠️ LLM returned empty response (0 chars) [${callElapsed}s]`);
-    } else {
-      console.log(`${TAG} 🧠📥 LLM response: ${fullText.length} chars [${callElapsed}s]`);
-    }
-
-    return fullText;
   };
 }
 
@@ -361,6 +352,12 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
         });
       }
     }
+
+    await refreshMemoryIndexForWorkspace(job.workspaceId, {
+      conversationIds,
+      jobType: job.jobType,
+      trigger: 'extraction_success'
+    });
 
     eventManager.emit(AppEvent.MEMORY_EXTRACTION_COMPLETED, {
       jobId: job.id,
