@@ -17,7 +17,6 @@ export type {
   PersonaStatePersistenceRow,
   SpriteManagerOptions,
   SpriteSpontaneousUtteranceActionSource,
-  SpriteSpontaneousUtteranceDelivery,
   SpriteSpontaneousUtteranceExecutionReport,
   SpriteSpontaneousUtteranceExecutor,
   SpriteSpontaneousUtteranceHistoryItem,

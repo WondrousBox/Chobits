@@ -44,12 +44,6 @@ export interface SpriteSpontaneousUtteranceRequest {
   };
 }
 
-export interface SpriteSpontaneousUtteranceDelivery {
-  pace?: 'slow' | 'steady' | 'brisk';
-  energy?: 'soft' | 'light' | 'lifted' | 'grounded';
-  pauseHint?: 'none' | 'minor' | 'breath';
-}
-
 export type SpriteSpontaneousUtteranceActionSource = 'model' | 'style-map' | 'random-fallback';
 export type SpriteSpontaneousUtteranceIntentCategory = 'philosophy' | 'encouragement' | 'playful' | 'reminder' | 'planning' | 'empathy' | 'reflection';
 export type SpriteSpontaneousUtteranceTonePreference = 'auto' | 'gentle' | 'playful' | 'calm' | 'firm' | 'curious' | 'tender';
@@ -82,8 +76,6 @@ export interface SpriteSpontaneousUtteranceHistoryItem {
   intentCategory?: SpriteSpontaneousUtteranceIntentCategory;
   tone?: string;
   emotion?: string;
-  delivery?: SpriteSpontaneousUtteranceDelivery;
-  bubbleDurationMs?: number;
   whyThisFits?: string;
   executedAction?: string;
   fallbackAction?: string;
@@ -106,10 +98,8 @@ export interface SpriteSpontaneousUtteranceResult {
   intentCategory?: string;
   tone?: string;
   emotion?: string;
-  delivery?: SpriteSpontaneousUtteranceDelivery;
   recommendedAction?: string;
   actionSource?: SpriteSpontaneousUtteranceActionSource;
-  bubbleDurationMs?: number;
   whyThisFits?: string;
 }
 
@@ -121,8 +111,6 @@ export interface SpriteSpontaneousUtteranceExecutionReport {
   intentCategory?: string;
   tone?: string;
   emotion?: string;
-  delivery?: SpriteSpontaneousUtteranceDelivery;
-  bubbleDurationMs?: number;
   whyThisFits?: string;
   executedAction: string;
   actionSource: SpriteSpontaneousUtteranceActionSource;

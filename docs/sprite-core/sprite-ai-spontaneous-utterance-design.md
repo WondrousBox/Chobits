@@ -102,8 +102,7 @@ AI 输出的一句话应该满足以下特征：
 1. `intentCategory`：这句话属于鼓励、提醒、幽默、计划、哲思等哪一类
 2. `tone`：温柔、俏皮、沉静、笃定、体贴等
 3. `emotion`：暖心、好奇、轻快、认真、安抚等
-4. `delivery`：更适合轻声、停顿感、短促、平稳，还是偏活泼
-5. `recommendedAction`：和说话更匹配的小动作建议
+4. `recommendedAction`：和说话更匹配的小动作建议
 
 ### 2.4 工程目标
 
@@ -154,7 +153,7 @@ AI 输出的一句话应该满足以下特征：
 
 1. `mgr.trigger(eventType)`：触发动效和气泡
 2. `mgr.showToast(text)`：展示气泡，并可能触发朗读
-3. `mgr.speak(text, { showBubble, bubbleDuration })`：直接发声并可显示气泡
+3. `mgr.speak(text, { showBubble: true })`：直接发声并显示气泡
 
 因此这个需求不需要重做发声层，重点是：
 
@@ -326,7 +325,7 @@ export interface SpriteSpontaneousUtteranceExecutor {
 3. 若成功返回：
    - 取 `recommendedAction`，没有则回退到本地随机动作
    - 调 `mgr.trigger(action)`
-   - 再调 `mgr.speak(text, { showBubble: true, bubbleDuration })`
+   - 再调 `mgr.speak(text, { showBubble: true })`
 4. 若失败或超时：
    - 回退为当前逻辑，只做 `mgr.trigger(randomAction)`
 
@@ -538,13 +537,7 @@ System prompt 应明确这些约束：
   "intentCategory": "reminder",
   "tone": "gentle",
   "emotion": "warm",
-  "delivery": {
-    "pace": "slow",
-    "energy": "soft",
-    "pauseHint": "minor"
-  },
   "recommendedAction": "nod",
-  "bubbleDurationMs": 5200,
   "whyThisFits": "用户最近在任务切换和焦虑之间摇摆，这句更适合做轻提醒。"
 }
 ```
@@ -559,13 +552,9 @@ System prompt 应明确这些约束：
    - `gentle | playful | calm | firm | curious | tender`
 4. `emotion`
    - `warm | hopeful | amused | thoughtful | soothing | bright`
-5. `delivery`
-   - 暂时主要用于日志和后续扩展
-6. `recommendedAction`
+5. `recommendedAction`
    - 当前可以映射到现有动作池，如 `wave/nod/lookRight/point/...`
-7. `bubbleDurationMs`
-   - 用于气泡展示时长估算
-8. `whyThisFits`
+6. `whyThisFits`
    - 仅用于日志，不展示给用户
 
 ## 8.3 文案约束建议
@@ -597,7 +586,7 @@ System prompt 应明确这些约束：
 2. 主进程服务生成一句话
 3. 根据返回的 `recommendedAction` 选择动作
 4. `mgr.trigger(action)`
-5. 紧接着 `mgr.speak(text, { showBubble: true, bubbleDuration })`
+5. 紧接着 `mgr.speak(text, { showBubble: true })`
 
 ### 9.1 为什么不是先动作后生成
 
@@ -672,7 +661,6 @@ System prompt 应明确这些约束：
     "tone": "gentle",
     "emotion": "warm",
     "recommendedAction": "nod",
-    "bubbleDurationMs": 5200,
     "whyThisFits": "..."
   },
   "executedAction": "nod",
@@ -834,8 +822,7 @@ System prompt 应明确这些约束：
 目标：
 
 1. `tone/emotion` 驱动动作选择
-2. 根据文案长度自动估算 `bubbleDuration`
-3. 后续如 TTS 支持更丰富风格，可接入语音表达
+2. 后续如 TTS 支持更丰富风格，可接入语音表达
 
 ## Phase 4：做历史分析与配置化
 

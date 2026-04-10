@@ -54,8 +54,6 @@ async function reportIdleActionExecution(
       intentCategory: utterance.intentCategory,
       tone: utterance.tone,
       emotion: utterance.emotion,
-      delivery: utterance.delivery,
-      bubbleDurationMs: utterance.bubbleDurationMs,
       whyThisFits: utterance.whyThisFits,
       executedAction: payload.executedAction,
       actionSource: payload.actionSource,
@@ -258,10 +256,7 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
 
       mgr.trigger(picked, { silent: true });
       actionTriggered = true;
-      const speakResult = await mgr.speak(utterance.text.trim(), {
-        showBubble: true,
-        bubbleDuration: utterance.bubbleDurationMs
-      });
+      const speakResult = await mgr.speak(utterance.text.trim(), { showBubble: true });
       await reportIdleActionExecution(mgr, utterance, {
         behaviorId: actionDef.id,
         triggeredAt,
