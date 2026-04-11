@@ -4,15 +4,17 @@
 > 核心策略：结构化元数据过滤 + FTS5 全文检索 + 主题图谱扩展 + 渐进式定点读取。
 > 向量检索仅作为未来可插拔增强层，不影响本文档描述的基础检索能力。
 
-## 当前实现状态（2026-04-03）
+## 当前实现状态（2026-04-11）
 
 - 已实现：`analyzeQuery`、`recallTopics`、`recallNotes`、`recallSections`、`targetedRead`、`assembleContext`、`search`、`get`、`browseTopics`、`searchWithContent`。
 - 当前对外主入口 `search()` 实际主要执行 Stage 1-3；当 `includeContent=true` 时，只追加各 note 的 section 摘要，不会自动读取段落正文。
 - `searchWithContent()` 已实现一步到位的 Stage 1-6 风格流程，被 auto-recall enricher 作为核心搜索引擎使用。
-- 当前运行时已注册并默认启用 `memorySearchTool`、`memoryGetTool`、`memoryTopicsTool`、`memorySaveTool`。
+- 当前运行时已注册并默认启用 `memorySearchTool`、`memoryGetTool`、`memoryTopicsTool`、`memorySaveTool`、`memoryDiaryTool`。
 - `topicFilter` 参数已实现：`search()` 中在 Stage 3 之后做后置过滤，只保留属于指定主题的候选笔记。
 - **LLM 辅助查询分析已实现**：`createLlmQueryAnalyzer()` 可创建 LLM 查询分析器，优先使用 LLM 拆解查询（提取主题词、实体、关键词、时间线索、动作类型），失败时回退到规则解析。已集成到 `searchWithContent()` 第 5 个可选参数。
-- **新会话预加载已实现**：`performAutoRecall()` 中当检测到首轮对话（`userMessages.length <= 1`）且 `db.listRecentImportant` 可用时，自动注入近 7 天高重要度（≥ 0.7）记忆摘要，无需关键词搜索。
+- **新会话预加载已实现**：`performAutoRecall()` 中当检测到首轮对话（`userMessages.length <= 1`）且 `db.listRecentImportant` 可用时，自动注入近 7 天高重要度（≥ 0.7）记忆摘要 + MEMORY.md 中的 Critical Facts（5 分钟缓存 TTL），无需关键词搜索。
+- **Domain 命名空间过滤已实现**（I-4）：Stage 2 新增 Step 2d（domain filtering），根据查询中的人名/项目名匹配 `person:Name` 或 `project:Name` 域的主题，提升召回准确度。
+- **实体事实图谱扩展已实现**（I-3）：Stage 2 新增 Step 2e（entity fact graph expansion），如果查询中包含已知实体，查询其 `entity_fact` 边关联的 `evidenceNoteId`，将这些 note 加入候选集。
 - **自动记忆召回已实现**：通过 `memory-auto-recall` enricher，在每轮对话的 system prompt 构建阶段自动检索并注入相关记忆。支持通过 `memory-config.json` 中的 `autoRecallEnabled` 开关控制。详见下方「自动记忆召回」章节。
 
 ---
@@ -231,9 +233,38 @@ LIMIT 20;
 export interface TopicRecallResult {
   directHits: Array<{ id: string; label: string; heat: number; matchType: 'label' | 'alias' | 'keyword' }>;
   expanded: Array<{ id: string; label: string; heat: number; depth: number }>;
-  allTopicIds: string[]; // directHits + expanded 的去重合集
+  domainHits: Array<{ id: string; label: string; heat: number; domain: string }>; // I-4: Domain 命名空间匹配
+  allTopicIds: string[]; // directHits + expanded + domainHits 的去重合集
 }
 ```
+
+### 3.5 Step 2d: Domain 命名空间过滤（I-4）
+
+如果查询中包含人名或项目名，尝试匹配 `memory_topics.domain` 字段，获取该领域下所有主题：
+
+```typescript
+// 检测查询中的人名/项目名
+// 如果 entityTerms 中有 "Alice"，构造 domainKey = "person:Alice"
+// 如果 entityTerms 中有 "chobits"，构造 domainKey = "project:chobits"
+
+const domainTopics = await db.findTopicsByDomain(domainKey, workspaceId);
+// 将命中的 topic 加入 allTopicIds
+```
+
+域匹配的主题权重略低于直接匹配（heat × 0.8），避免对非相关主题的过度扩展。
+
+### 3.6 Step 2e: 实体事实图谱扩展（I-3）
+
+如果查询中包含已知实体名，查询 `memory_edges` 中的 `entity_fact` 边，获取关联的 note 作为额外候选：
+
+```typescript
+// 查询实体相关的事实边
+const entityFacts = await db.queryEntityFacts(entityName, Date.now());
+// entityFacts 中的 evidenceNoteId 指向相关 note
+// 将这些 note 加入 Stage 3 的候选集（作为额外的图谱路由候选）
+```
+
+支持 point-in-time 查询：通过 `validFrom <= asOf` 且 `(validTo IS NULL OR validTo > asOf)` 过滤，只返回当前有效的事实。
 
 ---
 
@@ -890,6 +921,45 @@ const memorySaveParameters = Type.Object({
   description: '将重要信息保存到长期记忆（用户要求记住或对话中出现重要内容时自主保存）',
   compatName: 'memorySaveTool',
   name: 'memorySaveTool',
+  status: 'ready-for-pi-runtime',
+},
+```
+
+### 8.5 memory_diary — Agent 日记（I-7）
+
+AI 可以写入观察性日记条目，记录对用户行为模式、偏好变化、新发现等的观察。日记条目存储在 `memory/diary/YYYY-MM-DD.md` 中，以追加模式写入。
+
+```typescript
+const memoryDiaryParameters = Type.Object({
+  content: Type.String({ description: '日记内容，应为 AI 的观察或洞察' }),
+  tags: Type.Optional(
+    Type.Array(Type.String(), {
+      description: '可选标签，如 ["用户偏好", "行为模式"]'
+    })
+  )
+});
+```
+
+**写入格式**：
+
+```markdown
+## HH:MM
+
+内容文本
+
+tags: tag1, tag2
+
+---
+```
+
+**Tool 注册**：
+
+```typescript
+'memory-diary': {
+  category: 'content',
+  description: '写入 AI 观察日记（行为模式、偏好变化、新发现等）',
+  compatName: 'memoryDiaryTool',
+  name: 'memoryDiaryTool',
   status: 'ready-for-pi-runtime',
 },
 ```

@@ -20,6 +20,8 @@ export function buildRetrievalDbDeps(): RetrievalDbDeps {
     findKeywordByAlias: (alias, workspaceId) => MemoryKeywordRepo.findByAlias(alias, workspaceId),
     findAdjacentTopics: (topicIds, limit) => MemoryEdgeRepo.findAdjacentTopics(topicIds, limit),
     findEdgesBySource: (sourceType, sourceId, relationType) => MemoryEdgeRepo.findBySource(sourceType, sourceId, relationType),
+    queryEntityFacts: (entity, opts) => MemoryEdgeRepo.queryEntityFacts(entity, opts),
+    findTopicsByDomain: (domain, workspaceId, limit) => MemoryTopicRepo.findByDomain(domain, workspaceId, limit),
     getNoteById: (id) => MemoryNoteRepo.getById(id),
     listNotesByWorkspace: (workspaceId, limit, offset) => MemoryNoteRepo.listByWorkspace(workspaceId, limit, offset),
     listNotesByDateRange: (start, end, workspaceId) => MemoryNoteRepo.listByDateRange(start, end, workspaceId),
@@ -41,6 +43,10 @@ export function buildWriteDbOps(): WriteDbOps {
       const existing = await MemoryTopicRepo.findBySlug(topic.slug, topic.workspaceId);
       if (existing) {
         await MemoryTopicRepo.updateHeat(existing.id, 0.05);
+        // Update domain if provided and not already set
+        if (topic.domain && !existing.domain) {
+          await MemoryTopicRepo.update(existing.id, { domain: topic.domain, domainType: topic.domainType });
+        }
         return null;
       }
       return MemoryTopicRepo.upsert({
@@ -87,6 +93,9 @@ export function buildWriteDbOps(): WriteDbOps {
     },
     rebuildFTS: (noteId: string, noteData: any, sections: any[]) => {
       MemoryFTSRepo.rebuildForNote(noteId, noteData, sections);
+    },
+    upsertEntityFact: (fact: { subject: string; predicate: string; object: string; validFrom?: number; evidenceNoteId?: string; workspaceId?: string }) => {
+      return MemoryEdgeRepo.addEntityFact(fact);
     }
   };
 }

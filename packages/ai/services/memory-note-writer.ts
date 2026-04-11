@@ -18,7 +18,7 @@ export function renderNoteMarkdown(note: MergedNote): string {
   parts.push('');
 
   // 固定的段落顺序
-  const sectionOrder = ['Key Points', 'Open Items', 'Recall Cues'];
+  const sectionOrder = ['Key Points', 'Open Items', 'Recall Cues', 'Source Excerpts'];
 
   for (const heading of sectionOrder) {
     const content = note.sections.get(heading);

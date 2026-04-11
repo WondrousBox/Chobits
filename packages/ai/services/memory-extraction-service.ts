@@ -42,6 +42,7 @@ const TOPIC_SPLIT_PROMPT = `将对话归纳为尽可能少的主题，用于搜�
 4. conversationId 必须与标题括号中的完整 ID 一致
 5. seqStart/seqEnd 使用 (seq:N) 标记的实际数字
 6. 忽略无实质内容的消息
+7. domain：判断该主题所属领域。格式为 "person:姓名"（关于某人）、"project:项目名"（关于某项目），或 "general"（通用话题）。如果不确定，填 "general"
 
 {
   "topicClusters": [
@@ -52,7 +53,8 @@ const TOPIC_SPLIT_PROMPT = `将对话归纳为尽可能少的主题，用于搜�
       "messageRanges": [
         { "conversationId": "对话标题括号中的完整ID", "seqStart": 1, "seqEnd": 20 }
       ],
-      "estimatedImportance": 0.8
+      "estimatedImportance": 0.8,
+      "domain": "general"
     }
   ]
 }
@@ -68,12 +70,13 @@ const EXTRACTION_PROMPT = `从对话中提取记忆索引，用于日后快速�
 2. 跳过：闲聊、重复内容、过程性操作、助手的推理过程、通用知识
 3. summary 用 1-2 句话概括核心要点，不要复述对话过程
 4. keywords 应包含适合搜索的关键词（中英文均可），3-6 个
-5. entities 只列对话中明确提到的专有名词（产品、人名、技术等）
+5. entities 只列对话中明确提到的专有名词（产品、人名、技术等）。如有明确的事实性关系（如某人负责某项目、某技术用于某产品），在 relations 中列出
 6. sections.keyPoints 用精炼的要点列表，每条一行，格式为 "- 要点内容"，合并事实和决策
 7. sections.openItems 只在有明确待办/未解决问题时才填写，否则省略
 8. sections.recallCues 只记录“未来值得回忆”的重点，不要流水账；每条必须使用 "- [kind] 内容"
 9. kind 只能是：ongoing（正在延续的事情）、decision（关键决定）、principle（长期原则）、event（值得记住的事件）、follow_up（重要待跟进）
 10. 如果当前主题没有足够强的长期记忆候选，可以省略 sections.recallCues
+11. sourceExcerpts：仅在 importance > 0.8 时提供，逐字摘录用户原话中最关键的片段（每条 ≤ 200 字符，最多 3 条）。这些片段将作为日后检索的原文佐证。如果 importance ≤ 0.8，省略此字段。
 
 输出格式（JSON）：
 {
@@ -84,13 +87,14 @@ const EXTRACTION_PROMPT = `从对话中提取记忆索引，用于日后快速�
   "stability": 0.0~1.0,
   "keywords": ["kw1", "kw2"],
   "entities": [
-    { "name": "ProductX", "type": "product" }
+    { "name": "ProductX", "type": "product", "relations": [{ "predicate": "uses", "object": "TechY", "validFrom": "2026-04" }] }
   ],
   "sections": {
     "keyPoints": "- 要点1\n- 要点2",
     "openItems": "- 待办1（可选，无则省略此字段）",
     "recallCues": "- [decision] 关键决定（可选，无则省略此字段）"
-  }
+  },
+  "sourceExcerpts": ["用户原话片段1（仅 importance>0.8 时提供，可选）"]
 }
 只输出 JSON，不要解释。`;
 
@@ -202,6 +206,7 @@ export async function splitTopics(collected: CollectOutput, ctx: ExtractionConte
     c.messageRanges = c.messageRanges.filter((r) => r.conversationId && typeof r.seqStart === 'number' && typeof r.seqEnd === 'number');
     c.description = c.description || '';
     c.estimatedImportance = c.estimatedImportance ?? 0.5;
+    c.domain = typeof c.domain === 'string' && c.domain.trim() ? c.domain.trim() : 'general';
     return true;
   });
 
@@ -281,7 +286,19 @@ export async function extractMemory(cluster: TopicCluster, collected: CollectOut
   parsed.sections.keyPoints = parsed.sections.keyPoints || '';
   parsed.sections.recallCues = normalizeRecallCueSection(parsed.sections.recallCues);
 
-  console.log(`${TAG} Extracted: summary="${parsed.summary?.slice(0, 80)}...", keywords=${parsed.keywords?.length}, sections=${Object.keys(parsed.sections || {}).length}`);
+  // Sanitize sourceExcerpts: only keep if importance > 0.8, max 3 items, each ≤ 200 chars
+  if (Array.isArray(parsed.sourceExcerpts) && parsed.importance > 0.8) {
+    parsed.sourceExcerpts = parsed.sourceExcerpts
+      .filter((s: unknown): s is string => typeof s === 'string' && s.trim().length > 0)
+      .slice(0, 3)
+      .map((s: string) => s.slice(0, 200));
+  } else {
+    delete parsed.sourceExcerpts;
+  }
+
+  console.log(
+    `${TAG} Extracted: summary="${parsed.summary?.slice(0, 80)}...", keywords=${parsed.keywords?.length}, sections=${Object.keys(parsed.sections || {}).length}${parsed.sourceExcerpts ? `, excerpts=${parsed.sourceExcerpts.length}` : ''}`
+  );
   return parsed;
 }
 
@@ -326,11 +343,18 @@ export async function mergeMemory(
       updatedAt: now
     };
 
+    const sections = buildSectionsMap(normalizedSections);
+
+    // Add Source Excerpts section for high-importance notes
+    if (extraction.sourceExcerpts?.length) {
+      sections.set('Source Excerpts', renderSourceExcerpts(extraction.sourceExcerpts, ctx.date));
+    }
+
     return {
       action: 'create',
       noteId,
       frontmatter,
-      sections: buildSectionsMap(normalizedSections),
+      sections,
       filePath
     };
   }
@@ -383,6 +407,33 @@ export async function mergeMemory(
     }
   }
 
+  // Add/merge Source Excerpts for high-importance notes
+  if (extraction.sourceExcerpts?.length) {
+    const newExcerpts = renderSourceExcerpts(extraction.sourceExcerpts, ctx.date);
+    const existingExcerpts = mergedSections.get('Source Excerpts');
+    if (existingExcerpts) {
+      mergedSections.set('Source Excerpts', `${existingExcerpts}\n${newExcerpts}`);
+    } else {
+      mergedSections.set('Source Excerpts', newExcerpts);
+    }
+  }
+
+  // I-5: Lightweight contradiction detection for high-importance notes
+  if (mergedFrontmatter.importance > 0.8 && existingNote.sections.get('Key Points') && extraction.sections.keyPoints) {
+    try {
+      const contradictions = await detectContradictions(existingNote.sections.get('Key Points') || '', extraction.sections.keyPoints, ctx);
+      if (contradictions.length > 0) {
+        const warningLines = contradictions.map((c) => `- ⚠️ 矛盾: "${c.old}" → "${c.new}" (${c.type})`);
+        const existing = mergedSections.get('Key Points') || '';
+        mergedSections.set('Key Points', `${existing}\n\n### ⚠️ Contradictions Detected\n${warningLines.join('\n')}`);
+        console.log(`[MemoryExtraction:merge] ⚠️ ${contradictions.length} contradiction(s) detected for note ${existingNote.id}`);
+      }
+    } catch (e) {
+      // Contradiction detection is best-effort; don't block merge on failure
+      console.warn('[MemoryExtraction:merge] Contradiction detection failed:', e);
+    }
+  }
+
   return {
     action: 'update',
     noteId: existingNote.id,
@@ -403,6 +454,8 @@ export interface WriteDbOps {
   upsertEdges: (edges: any[]) => Promise<number>;
   upsertKeywords: (noteId: string, keywords: string[], entities: any[], workspaceId: string) => Promise<number>;
   rebuildFTS: (noteId: string, noteData: any, sections: any[]) => void;
+  /** Optional: upsert entity fact edge with temporal fields (I-3) */
+  upsertEntityFact?: (fact: { subject: string; predicate: string; object: string; validFrom?: number; evidenceNoteId?: string; workspaceId?: string }) => Promise<any>;
 }
 
 export async function writeMemory(merged: MergedNote, ctx: { workspaceRoot: string }, dbOps: WriteDbOps): Promise<WriteStats> {
@@ -489,6 +542,10 @@ export async function writeMemory(merged: MergedNote, ctx: { workspaceRoot: stri
       .replace(/^-|-$/g, '')
       .slice(0, 40);
 
+  // Parse domain info for topic upsert
+  const domain = merged.frontmatter.domain;
+  const domainType = domain ? (domain.startsWith('person:') ? 'person' : domain.startsWith('project:') ? 'project' : 'general') : undefined;
+
   for (const topicLabel of merged.frontmatter.topics) {
     const result = await dbOps.upsertTopic({
       label: topicLabel,
@@ -497,7 +554,8 @@ export async function writeMemory(merged: MergedNote, ctx: { workspaceRoot: stri
       heat: 1.0,
       noteCount: 1,
       firstSeenAt: Date.now(),
-      lastSeenAt: Date.now()
+      lastSeenAt: Date.now(),
+      ...(domain ? { domain, domainType } : {})
     });
     if (result) stats.topicsCreated++;
   }
@@ -558,13 +616,41 @@ export async function writeMemory(merged: MergedNote, ctx: { workspaceRoot: stri
 
   stats.edgesCreated += await dbOps.upsertEdges(edges);
 
+  // 5e-2. entity fact edges (from entities with relations)
+  const entities = merged.frontmatter.entities || [];
+  for (const entity of entities) {
+    if (!entity.relations?.length) continue;
+    for (const rel of entity.relations) {
+      const validFrom = rel.validFrom ? parseValidFromDate(rel.validFrom) : Date.now();
+      edges.push({
+        sourceType: 'note' as const,
+        sourceId: entity.name,
+        targetType: 'note' as const,
+        targetId: rel.object,
+        relationType: 'entity_fact',
+        workspaceId: merged.frontmatter.workspaceId
+      });
+      // Also upsert with temporal fields via a separate path if dbOps supports it
+      if (dbOps.upsertEntityFact) {
+        await dbOps.upsertEntityFact({
+          subject: entity.name,
+          predicate: rel.predicate,
+          object: rel.object,
+          validFrom,
+          evidenceNoteId: persistedNoteId,
+          workspaceId: merged.frontmatter.workspaceId
+        });
+      }
+    }
+  }
+
   // 5f. upsert keywords
   stats.keywordsCreated += await dbOps.upsertKeywords(persistedNoteId, merged.frontmatter.keywords, merged.frontmatter.entities || [], merged.frontmatter.workspaceId);
 
   // 5g. rebuild FTS
   const topics = merged.frontmatter.topics;
   const keywords = merged.frontmatter.keywords;
-  const entities = (merged.frontmatter.entities || []).map((e) => e.name);
+  const entityNames = (merged.frontmatter.entities || []).map((e) => e.name);
 
   // Collect all section content for FTS body (so key points are searchable)
   const allSectionContent = Array.from(merged.sections.values()).join('\n');
@@ -577,7 +663,7 @@ export async function writeMemory(merged: MergedNote, ctx: { workspaceRoot: stri
       summary: merged.frontmatter.summary,
       keywords: keywords.join(' '),
       aliases: '',
-      entities: entities.join(' '),
+      entities: entityNames.join(' '),
       body: ftsBody
     },
     parsedSections.map((sec) => {
@@ -680,6 +766,10 @@ export async function runExtractionPipeline(
       const timeRange = timestamps.length > 0 ? { start: Math.min(...timestamps), end: Math.max(...timestamps) } : undefined;
 
       const merged = await mergeMemory(extraction, existingNote, ctx, dedup(sourceConvIds), cluster.messageRanges, timeRange);
+      // Pass domain from topic cluster to merged note frontmatter
+      if (cluster.domain && cluster.domain !== 'general') {
+        merged.frontmatter.domain = cluster.domain;
+      }
       console.log(`${TAG} 🧠④ Step 4 (Merge): ✓ action=${merged.action}, noteId=${merged.noteId}, filePath=${merged.filePath}`);
 
       // Step 5: Write
@@ -729,6 +819,26 @@ const OPEN_ITEMS_MERGE_PROMPT = `判断已有的 Open Items 中哪些已被解�
 
 直接输出 Open Items 内容（不含 ## 标题），不要解释。`;
 
+const CONTRADICTION_CHECK_PROMPT = `判断已有事实与新提取的事实之间是否存在矛盾。
+
+已有的要点：
+{existingKeyPoints}
+
+新提取的要点：
+{newKeyPoints}
+
+规则：
+1. 只标记明确的矛盾（如同一事物的相反描述、不同的决策结论、不一致的归属关系）
+2. 忽略补充信息、细节扩展、自然演进
+3. 如果没有矛盾，输出 {"contradictions": []}
+4. 每条矛盾包含 old（已有事实）、new（新事实）、type（类型）
+
+type 可选值：decision_change（决策变更）、attribution_conflict（归属冲突）、factual_conflict（事实矛盾）
+
+输出 JSON：
+{"contradictions": [{"old": "已有事实", "new": "新事实", "type": "decision_change|attribution_conflict|factual_conflict"}]}
+只输出 JSON，不要解释。`;
+
 /**
  * 用 LLM 智能合并 Open Items：判断已有待办是否被新对话解决。
  */
@@ -745,6 +855,27 @@ async function resolveOpenItems(existingItems: string, newItems: string, newKeyP
   return trimmed;
 }
 
+interface ContradictionItem {
+  old: string;
+  new: string;
+  type: 'decision_change' | 'attribution_conflict' | 'factual_conflict';
+}
+
+/**
+ * I-5: 轻量级矛盾检测。仅对 importance > 0.8 的 merge 调用。
+ * 比较已有 Key Points 与新提取的 Key Points，识别事实冲突。
+ */
+async function detectContradictions(existingKeyPoints: string, newKeyPoints: string, ctx: ExtractionContext): Promise<ContradictionItem[]> {
+  const prompt = CONTRADICTION_CHECK_PROMPT.replace('{existingKeyPoints}', existingKeyPoints.trim()).replace('{newKeyPoints}', newKeyPoints.trim());
+
+  const response = await ctx.chatFn(prompt, ctx.signal);
+  const parsed = parseJsonMarkdown(response) as { contradictions?: ContradictionItem[] } | null;
+  if (!parsed?.contradictions?.length) return [];
+
+  // Validate each contradiction has required fields
+  return parsed.contradictions.filter((c) => typeof c.old === 'string' && typeof c.new === 'string' && typeof c.type === 'string');
+}
+
 function dedup<T>(arr: T[]): T[] {
   return [...new Set(arr)];
 }
@@ -754,4 +885,21 @@ function mergeEntities(existing: MemoryNoteEntity[], incoming: MemoryNoteEntity[
   for (const e of existing) map.set(e.name.toLowerCase(), e);
   for (const e of incoming) map.set(e.name.toLowerCase(), e);
   return Array.from(map.values());
+}
+
+/**
+ * 将 sourceExcerpts 渲染为 Markdown blockquote 格式。
+ * 每条格式：> "原文片段" — YYYY-MM-DD
+ */
+function renderSourceExcerpts(excerpts: string[], date: string): string {
+  return excerpts.map((e) => `> "${e}" — ${date}`).join('\n');
+}
+
+/**
+ * 解析 LLM 返回的 validFrom 日期字符串为毫秒时间戳。
+ * 支持格式：YYYY-MM-DD, YYYY-MM, YYYY
+ */
+function parseValidFromDate(dateStr: string): number {
+  const d = new Date(dateStr);
+  return Number.isNaN(d.getTime()) ? Date.now() : d.getTime();
 }

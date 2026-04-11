@@ -31,6 +31,8 @@ export interface MemoryConfig {
   extractionCooldownMinutes: number;
   /** 单次最大 token 预算 */
   maxTokensPerExtraction: number;
+  /** 定期保存间隔：每 N 条新消息后强制触发提取（I-6: 防止长会话中间丢失记忆） */
+  periodicSaveInterval?: number;
 }
 
 const DEFAULT_CONFIG: MemoryConfig = {

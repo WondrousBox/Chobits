@@ -15,20 +15,28 @@ OpenClaw 生态的记忆系统核心模式可供参考：
 
 按你建议的：DB schema → Repository → Extraction service → Retrieval service → IPC handlers → Agent tools
 
-## 当前实现状态（2026-04-10）
+## 当前实现状态（2026-04-11）
 
 - Phase 1 DB Schema：已完成。
-- Phase 2 Repository：已完成。含 `MemoryTopicRepo.applyHeatDecay()`、`MemorySyncJobRepo.findByWorkspace()/getAll()`。
+- Phase 2 Repository：已完成。含 `MemoryTopicRepo.applyHeatDecay()`、`MemorySyncJobRepo.findByWorkspace()/getAll()`。新增 `MemoryEdgeRepo.addEntityFact()/invalidateEntityFact()/queryEntityFacts()/entityTimeline()`、`MemoryTopicRepo.findByDomain()/findByDomainType()`。
 - Phase 3 Extraction Service：已完成。`conversation_close` 主链路、队列、worker、merge/write 已实现；`daily_extraction` 定时触发（30 分钟间隔检查）、漏跑补偿（启动时回溯）、Open Loop 智能合并（LLM 判断待办是否已解决）、3 种边类型创建（`belongs_to_topic`/`related_to_topic`/`contains_section`）、`fileChecksum`/`timeRange`/`sections.keywords` 字段填充均已实现。
   - 2026-04-10 更新：提取阶段新增 `Recall Cues` section，用来沉淀“未来值得回忆”的长期记忆候选；`MEMORY.md` 生成时优先消费这些候选，而不是仅靠 summary / key points 规则猜测。
   - 2026-04-10 补充：新增 `recall_cue_backfill` 历史回填任务，复用长任务 LLM 执行机制，为旧 note 渐进式补写 `Recall Cues`；回填成功后自动刷新 `memory/MEMORY.md`。
-- Phase 4 Retrieval Service：已完成。`search` / `get` / `browseTopics` / `searchWithContent` 已实现；`topicFilter` 过滤生效；LLM 辅助查询分析 (`createLlmQueryAnalyzer`) 已集成到 `searchWithContent`；新会话预加载（首轮自动注入近 7 天高重要度记忆摘要）已接入 auto-recall。
+  - 2026-04-11 更新（MemPalace 参考优化）：
+    - I-1: Always-Loaded Critical Facts — `MEMORY.md` 新增 `## Critical Facts` 段落（top-5 最稳定的关键记忆）；新会话首轮自动预加载（5 分钟缓存 TTL）。
+    - I-2: Source Excerpts — 对 importance > 0.8 的 note，LLM 自动提取最多 3 条用户原话引用（`## Source Excerpts`）。
+    - I-3: Temporal Entity KG — `memory_edges` 新增 `validFrom`/`validTo`/`confidence` + `entity_fact`/`entity_attribute`/`entity_relation` 边类型；提取 Step 5e-2 自动创建实体事实边。
+    - I-4: Domain Namespace — `memory_topics` 新增 `domain`/`domainType`；LLM 主题拆分自动判断领域；检索 Stage 2 Step 2d 按域过滤。
+    - I-5: Contradiction Detection — 合并时对 importance > 0.8 的 note 执行 LLM 矛盾检查，矛盾标记 ⚠️。
+    - I-6: Periodic Save — 长对话每 20 条消息自动触发提取（`periodicSaveInterval` 可配置）。
+    - I-7: Agent Diary — 新增 `memoryDiaryTool`，AI 写入观察日记到 `memory/diary/YYYY-MM-DD.md`。
+- Phase 4 Retrieval Service：已完成。`search` / `get` / `browseTopics` / `searchWithContent` 已实现；`topicFilter` 过滤生效；LLM 辅助查询分析 (`createLlmQueryAnalyzer`) 已集成到 `searchWithContent`；新会话预加载（首轮自动注入近 7 天高重要度记忆摘要 + Critical Facts）已接入 auto-recall；Stage 2 新增 Step 2d（Domain 过滤）和 Step 2e（实体事实图谱扩展）。
 - Phase 5 IPC Handlers：已完成，扩展到 `memory:stats`、`memory:cleanupForConversations`、`memory:clearAll`、`memory:cancelSync`、`memory:getMetrics`、`memory:getConfig`/`memory:setConfig`、`memory:generateDailyIndex`、`memory:generateTopicArchives`、`memory:generateMemoryIndex`。
   - 2026-04-10 更新：`memory:generateMemoryIndex` 现在会同时刷新两个文件：
-    - `memory/MEMORY.md`：长期记忆摘要，供未来回忆与上下文注入直接使用
+    - `memory/MEMORY.md`：长期记忆摘要（含 Critical Facts 段落），供未来回忆与上下文注入直接使用
     - `memory/INDEX.md`：浏览索引，保留主题/文件导航，不再让 `MEMORY.md` 承担目录职责
   - 2026-04-10 补充：新增 `memory:backfillRecallCues`，便于手动测试指定 note / limit 的历史回填任务。
-- Phase 6 Agent Tools：已完成；实际代码位于 `packages/ai/runtime/pi/tools/`，并且当前是 4 个工具（`memorySearchTool`、`memoryGetTool`、`memoryTopicsTool`、`memorySaveTool`）。
+- Phase 6 Agent Tools：已完成；实际代码位于 `packages/ai/runtime/pi/tools/`，当前是 5 个工具（`memorySearchTool`、`memoryGetTool`、`memoryTopicsTool`、`memorySaveTool`、`memoryDiaryTool`）。
 - Phase 7 对话删除 → 记忆清理联动：已完成。
 
 ## Phase 1: DB Schema

@@ -110,6 +110,22 @@ eventManager.on(AppEvent.AGENT_LOOP_COMPLETE, onAgentLoopComplete);
 eventManager.on(AppEvent.SPRITE_AI_COMPLETE, onConversationComplete);
 ```
 
+**周期性保存（I-6: Periodic Save）**：
+
+长对话中，`onAgentLoopComplete` 会追踪每个会话的累计消息数。当消息数达到 `periodicSaveInterval`（默认 20 条）时，自动强制触发一次提取，无论是否达到常规触发阈值。这防止了长对话中间的信息丢失。
+
+```typescript
+const PERIODIC_SAVE_INTERVAL = 20;
+const messagesSinceLastExtraction = new Map<string, number>();
+
+// 在 onAgentLoopComplete 中：
+// 1. 累加当前会话的消息计数
+// 2. 如果累计 >= periodicSaveInterval → 强制入队提取
+// 3. 成功入队后重置计数
+```
+
+`periodicSaveInterval` 可通过 `memory-config.json` 的 `periodicSaveInterval` 字段配置。
+
 ### 2.2 入口 ②：日终批量提取（daily_extraction）
 
 > 截至 2026-04-03，此入口仍是设计目标，代码尚未接入 `DailyCareService`，也没有漏跑补偿逻辑。
@@ -433,6 +449,7 @@ const TOPIC_SPLIT_PROMPT = `
 2. 一个主题块可以跨越多次对话（如果不同对话讨论了同一话题）
 3. 短暂的、无实质内容的消息可以忽略（问候、确认等）
 4. 输出每个主题块的标题、描述、和涉及的消息范围
+5. 判断每个主题块的最可能领域属性（domain）：如果主要围绕某个人就写 "person:名字"，某个项目就写 "project:名称"，否则写 "general"
 
 输出格式（JSON）：
 {
@@ -441,6 +458,7 @@ const TOPIC_SPLIT_PROMPT = `
       "topicLabel": "AI Agent 记忆系统设计",
       "topicSlug": "ai-agent-memory-system",
       "description": "讨论了记忆系统的整体架构，包括无向量检索策略...",
+      "domain": "project:chobits",
       "messageRanges": [
         { "conversationId": "conv-xxx", "seqStart": 1, "seqEnd": 20 },
         { "conversationId": "conv-yyy", "seqStart": 5, "seqEnd": 12 }
@@ -456,6 +474,7 @@ interface TopicCluster {
   topicLabel: string;
   topicSlug: string;
   description: string;
+  domain?: string; // 领域标识，如 "person:Alice"、"project:chobits"、"general"
   messageRanges: Array<{
     conversationId: string;
     seqStart: number;
@@ -496,6 +515,8 @@ const EXTRACTION_PROMPT = `
 8. sections.recallCues 只记录“未来值得回忆”的重点，不要流水账；每条必须使用 "- [kind] 内容"
 9. kind 只能是：ongoing（正在延续的事情）、decision（关键决定）、principle（长期原则）、event（值得记住的事件）、follow_up（重要待跟进）
 10. 如果当前主题没有足够强的长期记忆候选，可以省略 sections.recallCues
+11. 如果 importance > 0.8，还需提取用户的原始话语作为 sourceExcerpts（最多 3 条，每条不超过 200 字符）
+12. entities 中如果存在实体间关系，请用 relations 字段描述（如 {"name":"Alice","type":"person","relations":[{"target":"Project X","predicate":"works_on","validFrom":"2026-01"}]}）
 
 输出格式（JSON）—— MemoryExtractionOutput：
 {
@@ -507,13 +528,14 @@ const EXTRACTION_PROMPT = `
   "keywords": ["kw1", "kw2"],
   "entities": [
     { "name": "OpenClaw", "type": "product" },
-    { "name": "sqlite-vec", "type": "technology" }
+    { "name": "Alice", "type": "person", "relations": [{"target": "Chobits", "predicate": "works_on", "validFrom": "2026-04"}] }
   ],
   "sections": {
     "keyPoints": "- 要点1\n- 要点2",
     "openItems": "- 待办1（可选，无则省略此字段）",
     "recallCues": "- [decision] 关键决定（可选，无则省略此字段）"
-  }
+  },
+  "sourceExcerpts": ["user original quote 1", "user original quote 2"]
 }
 只输出 JSON，不要解释。
 `;
@@ -613,6 +635,38 @@ const OPEN_ITEMS_MERGE_PROMPT = `
 `;
 ```
 
+**矛盾检测（I-5: Contradiction Detection）**：
+
+更新合并时，如果 note 的 importance > 0.8，会执行轻量级 LLM 矛盾检查：
+
+```typescript
+const CONTRADICTION_CHECK_PROMPT = `
+以下是一条已有记忆的要点和即将合并的新要点。
+请检查新旧信息之间是否存在事实矛盾。
+
+已有要点：
+{existingKeyPoints}
+
+新要点：
+{newKeyPoints}
+
+如果存在矛盾，输出 JSON 数组：
+[
+  { "existing": "已有内容原文", "incoming": "新内容原文", "description": "矛盾描述" }
+]
+如果没有矛盾，输出空数组 []
+`;
+```
+
+检测到的矛盾会在 Key Points 中以 ⚠️ 标记，帮助后续回溯：
+
+```
+## Key Points
+
+- ⚠️ 矛盾：之前说用 PostgreSQL，现在改成 SQLite — 数据库选型已变更
+- 其他正常要点...
+```
+
 ### 4.6 Step 5: Write（落盘 + 建索引）
 
 ```
@@ -628,10 +682,12 @@ MergedNote
     │   └── 解析 Markdown 标题树 → section 索引
     │
     ├── 5d. 更新 memory_topics 表
-    │   └── upsert 主题节点 + 更新 heat/noteCount
+    │   └── upsert 主题节点 + 更新 heat/noteCount + 写入 domain/domainType
     │
     ├── 5e. 更新 memory_edges 表
-    │   └── topic→note, topic→topic, note→note 边
+    │   ├── 5e-1. topic→note, topic→topic, note→section 边
+    │   └── 5e-2. 实体事实边（entity_fact / entity_attribute / entity_relation）
+    │         └── 从 entities.relations 创建带 validFrom/validTo 时序字段的边
     │
     ├── 5f. 更新 memory_keywords / memory_note_keywords 表
     │   └── 关键词/别名规范化 + 关联

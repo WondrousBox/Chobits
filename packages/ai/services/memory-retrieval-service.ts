@@ -134,6 +134,10 @@ export interface RetrievalDbDeps {
   // Edges
   findAdjacentTopics: (topicIds: string[], limit?: number) => Promise<any[]>;
   findEdgesBySource: (sourceType: string, sourceId: string, relationType?: string) => Promise<any[]>;
+  // Entity facts (I-3: temporal KG)
+  queryEntityFacts?: (entity: string, opts?: { asOf?: number; workspaceId?: string; limit?: number }) => Promise<any[]>;
+  // Domain filtering (I-4)
+  findTopicsByDomain?: (domain: string, workspaceId?: string, limit?: number) => Promise<any[]>;
   // Notes
   getNoteById: (id: string) => Promise<any>;
   listNotesByWorkspace: (workspaceId: string, limit?: number, offset?: number) => Promise<any[]>;
@@ -380,6 +384,44 @@ export async function recallTopics(analysis: QueryAnalysisResult, workspaceId: s
         const topic = await db.getTopicById(targetId);
         if (topic) {
           expanded.push({ id: topic.id, label: topic.label, heat: topic.heat ?? 0, depth: 1 });
+        }
+      }
+    }
+  }
+
+  // Step 2d: Domain-based filtering (I-4)
+  // If entityTerms match a "person:Name" or "project:Name" domain, pull in domain-scoped topics
+  if (db.findTopicsByDomain) {
+    for (const term of analysis.entityTerms) {
+      if (!term) continue;
+      for (const prefix of ['person', 'project']) {
+        const domainKey = `${prefix}:${term}`;
+        const domainTopics = await db.findTopicsByDomain(domainKey, workspaceId, 5);
+        for (const t of domainTopics) {
+          if (!hitTopicIds.has(t.id)) {
+            hitTopicIds.add(t.id);
+            directHits.push({ id: t.id, label: t.label, heat: t.heat ?? 0, matchType: 'label' });
+          }
+        }
+      }
+    }
+  }
+
+  // Step 2e: Entity fact graph expansion (I-3)
+  // If entityTerms match entity facts, pull in related notes via evidenceNoteId
+  if (db.queryEntityFacts) {
+    for (const term of analysis.entityTerms) {
+      if (!term) continue;
+      const facts = await db.queryEntityFacts(term, { workspaceId, limit: 10 });
+      for (const fact of facts) {
+        const noteId = fact.evidenceNoteId || fact.evidence_note_id;
+        if (noteId) {
+          // Entity facts link to notes — we'll use these note IDs in Stage 3
+          // Store them for later use via the topicResult
+          const factInfo = `${fact.sourceId || fact.source_id}→${fact.evidenceSnippet || fact.evidence_snippet}→${fact.targetId || fact.target_id}`;
+          if (!expanded.some((e) => e.id === noteId)) {
+            expanded.push({ id: noteId, label: factInfo, heat: 1.0, depth: 1 });
+          }
         }
       }
     }

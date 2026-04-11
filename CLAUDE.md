@@ -154,9 +154,16 @@ Only files in allowed roots (workspace resources, app resources) are accessible.
 
 - **Extraction pipeline**: Conversations → LLM topic splitting → structured extraction → Markdown notes (`memory/daily/YYYY/MM/`)
 - **Retrieval pipeline**: 6-stage pipeline (Query Analysis → Topic Recall → Note Recall → Section Recall → Targeted Read → Context Assembly)
-- **Auto-recall**: Automatically retrieves relevant memories before each conversation turn via `SystemPromptEnricher`. Uses AI to extract search keywords from user message, then runs the structural retrieval pipeline. Results injected into system prompt as `<recalled_memories>` block. New sessions (first turn) auto-preload recent high-importance memories.
+- **Auto-recall**: Automatically retrieves relevant memories before each conversation turn via `SystemPromptEnricher`. Uses AI to extract search keywords from user message, then runs the structural retrieval pipeline. Results injected into system prompt as `<recalled_memories>` block. New sessions (first turn) auto-preload recent high-importance memories + critical facts from MEMORY.md.
+- **Critical Facts Layer**: MEMORY.md includes a `## Critical Facts` section (top-5 most stable ongoing/decision/principle items). Loaded into new sessions via `loadCriticalFacts()` with 5-min cache TTL, ensuring AI has core context from the first message.
+- **Source Excerpts**: For high-importance notes (>0.8), original user quotes are preserved in `## Source Excerpts` sections as verbatim evidence for future retrieval.
+- **Temporal Entity KG**: Entity facts extracted with `validFrom`/`validTo` temporal fields and stored as `entity_fact`/`entity_attribute`/`entity_relation` edge types in `memory_edges`. Supports `queryEntityFacts(entity, asOf)` for point-in-time queries and `invalidateEntityFact()` for fact expiration.
+- **Domain Namespace**: Topics tagged with `domain` (e.g., `person:Alice`, `project:chobits`, `general`) and `domainType` for namespace-scoped retrieval, improving recall for person/project-specific queries.
+- **Contradiction Detection**: Lightweight LLM-based contradiction check during merge (Step 4) for importance >0.8 notes. Detected contradictions are marked with ⚠️ in Key Points section.
+- **Periodic Save**: Message counter triggers extraction every 20 messages during long conversations (configurable via `periodicSaveInterval`), preventing memory loss mid-session.
 - **LLM query analysis**: Optional LLM-assisted query parsing (`createLlmQueryAnalyzer`) enhances `searchWithContent()` with better topic/entity/keyword extraction.
-- **Agent tools**: `memorySearchTool`, `memoryGetTool`, `memoryTopicsTool`, `memorySaveTool` — for explicit memory operations by the AI agent
+- **Agent tools**: `memorySearchTool`, `memoryGetTool`, `memoryTopicsTool`, `memorySaveTool`, `memoryDiaryTool` — for explicit memory operations by the AI agent
+- **Agent Diary**: `memoryDiaryTool` allows AI to write observational diary entries to `memory/diary/YYYY-MM-DD.md`, building persistent agent-specific knowledge across sessions.
 - **Storage**: SQLite tables (`memory_notes`, `memory_topics`, `memory_sections`, `memory_edges`, `memory_keywords`) + Markdown files on disk + FTS5 full-text index
 - **Content generation**: Daily index (`YYYY-MM-DD.index.md`), topic archives (`topics/topic-slug.md`), global index (`MEMORY.md`) — auto-generated via daily maintenance tick or manual IPC trigger
 - **Configuration**: `memory-config.json` stores system toggle, auto-extraction toggle, auto-recall toggle; UI in `MemoryManagementSettings.tsx`
@@ -172,6 +179,8 @@ Only files in allowed roots (workspace resources, app resources) are accessible.
 - `packages/ai/services/memory-content-gen.ts` — Content file generation (daily index, topic archives, MEMORY.md)
 - `electron/main/handlers/memory/extraction-worker.ts` — Background extraction worker + daily maintenance (heat decay, daily extraction, index generation)
 - `electron/main/handlers/memory/memory-config.ts` — Memory system configuration store
+- `packages/ai/runtime/pi/tools/memory-diary.ts` — Agent diary tool (write observational entries to `memory/diary/`)
+- `electron/main/db/memory-repositories.ts` — Memory DB repositories (notes, topics, edges, keywords, entity facts)
 
 **Design docs**: `docs/memory-system/`
 

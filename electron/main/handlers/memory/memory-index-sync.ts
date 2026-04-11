@@ -1,4 +1,5 @@
 import { generateMemoryIndex } from '../../../../packages/ai/services/memory-content-gen';
+import { clearCriticalFactsCache } from '../../../../packages/ai/services/memory-auto-recall';
 import { logMemoryTrace, shortTraceId } from '../../../../packages/ai/services/memory-trace';
 import { MemoryNoteRepo, MemoryTopicRepo } from '../../db/memory-repositories';
 import { WorkspacesRepo } from '../../db/repositories';
@@ -58,6 +59,7 @@ export async function refreshMemoryIndexForWorkspace(workspaceId: string, option
 
   try {
     const result = await generateMemoryIndex(ws.rootPath, contentGenDb, workspaceId);
+    clearCriticalFactsCache();
     console.log(
       `${TAG} Refreshed memory/MEMORY.md: ws=${workspaceId}, topics=${result.topicCount}, notes=${result.noteCount}, selected=${result.selectedCount}, path=${result.filePath}, index=${result.indexFilePath}`
     );

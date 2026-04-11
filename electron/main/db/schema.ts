@@ -740,6 +740,10 @@ export const memory_topics = sqliteTable(
     // ━━ 关联关键词 ━━
     keywords: text('keywords'), // JSON string[]，强关联关键词
 
+    // ━━ 领域命名空间 ━━
+    domain: text('domain'), // 如 "person:Alice", "project:chobits", "general"
+    domainType: text('domain_type', { enum: ['person', 'project', 'general'] }),
+
     // ━━ 归属 ━━
     workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
 
@@ -761,7 +765,8 @@ export const memory_topics = sqliteTable(
     idxMemTopicsParent: index('idx_mem_topics_parent').on(t.parentId),
     idxMemTopicsWorkspace: index('idx_mem_topics_workspace').on(t.workspaceId),
     idxMemTopicsHeat: index('idx_mem_topics_heat').on(t.heat),
-    idxMemTopicsLastSeen: index('idx_mem_topics_last_seen').on(t.lastSeenAt)
+    idxMemTopicsLastSeen: index('idx_mem_topics_last_seen').on(t.lastSeenAt),
+    idxMemTopicsDomain: index('idx_mem_topics_domain').on(t.domain, t.workspaceId)
   })
 );
 
@@ -787,7 +792,19 @@ export const memory_edges = sqliteTable(
 
     // ━━ 关系描述 ━━
     relationType: text('relation_type', {
-      enum: ['parent_topic_of', 'belongs_to_topic', 'related_to_topic', 'related_to_note', 'contains_section', 'derived_from_conversation', 'shares_keyword', 'references_note']
+      enum: [
+        'parent_topic_of',
+        'belongs_to_topic',
+        'related_to_topic',
+        'related_to_note',
+        'contains_section',
+        'derived_from_conversation',
+        'shares_keyword',
+        'references_note',
+        'entity_fact',
+        'entity_attribute',
+        'entity_relation'
+      ]
     }).notNull(),
 
     // ━━ 权重与证据 ━━
@@ -797,6 +814,11 @@ export const memory_edges = sqliteTable(
     origin: text('origin', {
       enum: ['llm_extracted', 'rule_inferred', 'user_manual']
     }).default('llm_extracted'),
+
+    // ━━ 时序有效性（用于实体事实边） ━━
+    validFrom: integer('valid_from'), // 毫秒时间戳，事实何时开始为真
+    validTo: integer('valid_to'), // 毫秒时间戳，事实何时失效（null = 仍然有效）
+    confidence: real('confidence').default(1.0), // 置信度 0.0~1.0
 
     // ━━ 归属 ━━
     workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
@@ -810,7 +832,8 @@ export const memory_edges = sqliteTable(
     idxMemEdgesTarget: index('idx_mem_edges_target').on(t.targetType, t.targetId),
     idxMemEdgesRelation: index('idx_mem_edges_relation').on(t.relationType),
     uqMemEdgesLink: uniqueIndex('uq_mem_edges_link').on(t.sourceType, t.sourceId, t.targetType, t.targetId, t.relationType),
-    idxMemEdgesWorkspace: index('idx_mem_edges_workspace').on(t.workspaceId)
+    idxMemEdgesWorkspace: index('idx_mem_edges_workspace').on(t.workspaceId),
+    idxMemEdgesValid: index('idx_mem_edges_valid').on(t.validFrom, t.validTo)
   })
 );
 

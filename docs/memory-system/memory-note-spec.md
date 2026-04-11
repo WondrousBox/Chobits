@@ -3,18 +3,19 @@
 > 本文档定义 Chobits 记忆系统中 Memory Note 的文件布局、Frontmatter 规范、正文结构和命名约定。
 > 所有记忆文件以 Markdown 为事实源，数据库只存结构索引，不承担最终真相。
 
-## 当前实现状态（2026-04-10）
+## 当前实现状态（2026-04-11）
 
 - `memory-note-writer.ts` 与 `memory-note-parser.ts` 已实现，提取流程生成 daily note 并解析 section 行号。
 - 自动生成 `memory/daily/YYYY/MM/YYYY-MM-DD-topic-slug.md`。
 - 同日同 slug 的记忆复用并增量合并已有 note。
-- 正文结构采用精简格式：`Key Points`（必须）+ `Open Items`（可选）+ `Recall Cues`（可选）。
+- 正文结构采用精简格式：`Key Points`（必须）+ `Open Items`（可选）+ `Recall Cues`（可选）+ `Source Excerpts`（可选，重要度 > 0.8 时自动生成）。
 - `MemoryExtractionOutput` 为单个主题的结构；多主题拆分发生在上游 `TopicCluster[]` 阶段。
-- LLM 提取结果包含 `keyPoints` / `openItems`，并可额外产出 `recallCues` 作为长期记忆候选。
+- LLM 提取结果包含 `keyPoints` / `openItems`，并可额外产出 `recallCues`、`sourceExcerpts`。
+- **Frontmatter 新增 `domain` 字段**：用于领域命名空间（如 `person:Alice`、`project:chobits`、`general`）。
 - **内容生成服务已实现**（`packages/ai/services/memory-content-gen.ts`）：
   - `YYYY-MM-DD.index.md` — 当天索引，每日维护 tick 自动生成昨日索引，也可通过 `memory:generateDailyIndex` 手动触发。
   - `topics/topic-slug.md` — 主题档案，通过 `memory:generateTopicArchives` 批量生成。
-  - `MEMORY.md` — 长期记忆摘要，通过 `memory:generateMemoryIndex` 生成，供未来回忆直接使用。
+  - `MEMORY.md` — 长期记忆摘要，通过 `memory:generateMemoryIndex` 生成，供未来回忆直接使用。包含 **Critical Facts** 部分（top-5 最稳定的关键记忆）。
   - `INDEX.md` — 全局浏览索引，与 `MEMORY.md` 同次刷新生成，保留文件和主题导航。
 
 ---
@@ -30,9 +31,11 @@
     │           ├── YYYY-MM-DD-topic-slug.md        # 主题 note（核心文件）
     │           ├── YYYY-MM-DD-topic-slug-2.md      # 规范预留；当前提取流程默认复用/合并同日同 slug note
     │           └── YYYY-MM-DD.index.md             # 当天索引（每日维护 tick 自动生成，也可手动触发）
+    ├── diary/                          # Agent 观察日记（I-7: memoryDiaryTool 写入）
+    │   └── YYYY-MM-DD.md              # 每日日记（追加模式）
     ├── topics/                         # 主题档案（通过 memory:generateTopicArchives 生成）
     │   └── topic-slug.md              # 长期稳定的主题汇总
-    ├── MEMORY.md                       # 长期记忆摘要（通过 memory:generateMemoryIndex 生成）
+    ├── MEMORY.md                       # 长期记忆摘要（含 Critical Facts 段落，通过 memory:generateMemoryIndex 生成）
     └── INDEX.md                        # 全局浏览索引（与 MEMORY.md 一起生成）
 ```
 
@@ -70,6 +73,9 @@ date: '2026-03-26' # 记忆所属日期（ISO 8601 日期）
 topics: # 主题标签列表（规范化名称）
   - '记忆系统设计'
 
+# ━━ 领域命名空间 ━━
+domain: 'project:chobits' # 可选，领域标识（如 person:Alice、project:chobits、general）
+
 # ━━ 关键词与实体 ━━
 keywords: # 关键词列表（用于 FTS 命中），3-6 个
   - '记忆检索'
@@ -106,22 +112,23 @@ updatedAt: 1711440000000 # 最后更新时间（毫秒）
 
 ### 2.2 字段说明
 
-| 字段                    | 类型     | 必填   | 说明                                                                          |
-| ----------------------- | -------- | ------ | ----------------------------------------------------------------------------- |
-| `id`                    | string   | **是** | 全局唯一标识，格式 `mem_{date}_{slug}_{short-hash}`，由系统生成，不可人工修改 |
-| `version`               | number   | **是** | 修订版本号，从 1 开始，每次更新递增                                           |
-| `workspaceId`           | string   | **是** | 所属工作空间 ID                                                               |
-| `date`                  | string   | **是** | 记忆所属日期，ISO 8601 格式 `YYYY-MM-DD`                                      |
-| `topics`                | string[] | **是** | 主题标签列表，至少 1 个。采用规范化名称，用于 topic graph 关联                |
-| `keywords`              | string[] | **是** | 关键词列表，3-6 个。用于 FTS5/BM25 命中。应包含中英文                         |
-| `entities`              | Entity[] | 否     | 命名实体列表（人名、产品名、技术名等），每个实体包含 `name` 和 `type`         |
-| `summary`               | string   | **是** | 1-2 句话的摘要，用于 note 级召回时快速展示                                    |
-| `sourceConversationIds` | string[] | **是** | 来源对话 ID，用于溯源                                                         |
-| `sourceMessageRange`    | object[] | 否     | 精确的消息序号范围，用于回溯原始对话                                          |
-| `importance`            | number   | **是** | 重要度 0.0~1.0。由 LLM 评估或规则推断                                         |
-| `stability`             | number   | **是** | 稳定度 0.0~1.0。高 = 长期有效（偏好、决策）；低 = 时效性强（计划、待办）      |
-| `createdAt`             | number   | **是** | 创建时间（毫秒时间戳）                                                        |
-| `updatedAt`             | number   | **是** | 最后更新时间（毫秒时间戳）                                                    |
+| 字段                    | 类型     | 必填   | 说明                                                                                         |
+| ----------------------- | -------- | ------ | -------------------------------------------------------------------------------------------- |
+| `id`                    | string   | **是** | 全局唯一标识，格式 `mem_{date}_{slug}_{short-hash}`，由系统生成，不可人工修改                |
+| `version`               | number   | **是** | 修订版本号，从 1 开始，每次更新递增                                                          |
+| `workspaceId`           | string   | **是** | 所属工作空间 ID                                                                              |
+| `date`                  | string   | **是** | 记忆所属日期，ISO 8601 格式 `YYYY-MM-DD`                                                     |
+| `topics`                | string[] | **是** | 主题标签列表，至少 1 个。采用规范化名称，用于 topic graph 关联                               |
+| `domain`                | string   | 否     | 领域命名空间，如 `person:Alice`、`project:chobits`、`general`。由 LLM 在主题拆分时自动判断。 |
+| `keywords`              | string[] | **是** | 关键词列表，3-6 个。用于 FTS5/BM25 命中。应包含中英文                                        |
+| `entities`              | Entity[] | 否     | 命名实体列表（人名、产品名、技术名等），每个实体包含 `name` 和 `type`                        |
+| `summary`               | string   | **是** | 1-2 句话的摘要，用于 note 级召回时快速展示                                                   |
+| `sourceConversationIds` | string[] | **是** | 来源对话 ID，用于溯源                                                                        |
+| `sourceMessageRange`    | object[] | 否     | 精确的消息序号范围，用于回溯原始对话                                                         |
+| `importance`            | number   | **是** | 重要度 0.0~1.0。由 LLM 评估或规则推断                                                        |
+| `stability`             | number   | **是** | 稳定度 0.0~1.0。高 = 长期有效（偏好、决策）；低 = 时效性强（计划、待办）                     |
+| `createdAt`             | number   | **是** | 创建时间（毫秒时间戳）                                                                       |
+| `updatedAt`             | number   | **是** | 最后更新时间（毫秒时间戳）                                                                   |
 
 ### 2.3 Entity 类型枚举
 
@@ -158,16 +165,21 @@ updatedAt: 1711440000000 # 最后更新时间（毫秒）
 - [decision] 未来值得回忆的关键决定
 - [ongoing] 正在延续的重要事情
 - [follow_up] 需要后续继续跟进的重要事项
+
+## Source Excerpts
+
+> 原始用户原话引用 1（仅当 importance > 0.8 时自动生成）
+> 原始用户原话引用 2
 ```
 
 ### 3.1 段落规则
 
-| 规则     | 说明                                                                                  |
-| -------- | ------------------------------------------------------------------------------------- |
-| 标题层级 | 一级段落用 `##`，段落内子标题用 `###`                                                 |
-| 段落顺序 | Key Points → Open Items → Recall Cues                                                 |
-| 可选段落 | Open Items / Recall Cues 在无内容时省略                                               |
-| 内容风格 | 每条要点一行，使用 `- ` 列表格式，精炼概括，不做详细展开                              |
+| 规则     | 说明                                                                                   |
+| -------- | -------------------------------------------------------------------------------------- |
+| 标题层级 | 一级段落用 `##`，段落内子标题用 `###`                                                  |
+| 段落顺序 | Key Points → Open Items → Recall Cues → Source Excerpts                                |
+| 可选段落 | Open Items / Recall Cues / Source Excerpts 在无内容时省略                              |
+| 内容风格 | 每条要点一行，使用 `- ` 列表格式，精炼概括，不做详细展开                               |
 | 段落长度 | Key Points 建议不超过 15 条要点；Recall Cues 建议不超过 6 条，只保留未来值得回忆的重点 |
 
 ### 3.2 Recall Cues 约定
@@ -191,20 +203,38 @@ updatedAt: 1711440000000 # 最后更新时间（毫秒）
 3. `MEMORY.md` 应优先使用 `Recall Cues` 生成长期记忆摘要；缺失时才退回 `summary` / `Key Points` / `Open Items` 的规则兜底。
 4. 历史 note 可以通过后台回填任务渐进式补写 `Recall Cues`；回填时仍必须遵守“宁缺毋滥”的标准，不能把弱信号话题机械补成长期记忆。
 
-### 3.3 Section 索引模型
+### 3.3 Source Excerpts 约定
+
+`Source Excerpts` 段落保存高重要度记忆（importance > 0.8）的原始用户原话引用，作为未来检索时的证据参考。
+
+```markdown
+## Source Excerpts
+
+> 原始用户原话引用 1（最多保留 3 条，每条截断在 200 字符以内）
+> 原始用户原话引用 2
+```
+
+约束：
+
+1. 仅当 note 的 `importance > 0.8` 时才由 LLM 自动生成 `sourceExcerpts`。
+2. 每个 note 最多保留 3 条引用，每条最长 200 字符。
+3. 引用必须是用户的原话片段，不得改写或编造。
+4. 合并更新时，Source Excerpts 会被覆盖为最新提取结果。
+
+### 3.4 Section 索引模型
 
 每个 `##` 段落会被索引为一个 section record（存数据库），包含：
 
-| 字段           | 说明                                    |
-| -------------- | --------------------------------------- |
-| `noteId`       | 所属 Memory Note 的 id                  |
-| `heading`      | 标题名，如 `Key Points`、`Open Items` 或 `Recall Cues` |
-| `headingLevel` | 标题层级（2 = `##`, 3 = `###`）         |
-| `summary`      | 段落摘要（从正文提取）                  |
-| `keywords`     | 段落级关键词（从正文提取）              |
-| `lineStart`    | 起始行号（1-based）                     |
-| `lineEnd`      | 结束行号（1-based）                     |
-| `charCount`    | 段落字符数                              |
+| 字段           | 说明                                                                      |
+| -------------- | ------------------------------------------------------------------------- |
+| `noteId`       | 所属 Memory Note 的 id                                                    |
+| `heading`      | 标题名，如 `Key Points`、`Open Items`、`Recall Cues` 或 `Source Excerpts` |
+| `headingLevel` | 标题层级（2 = `##`, 3 = `###`）                                           |
+| `summary`      | 段落摘要（从正文提取）                                                    |
+| `keywords`     | 段落级关键词（从正文提取）                                                |
+| `lineStart`    | 起始行号（1-based）                                                       |
+| `lineEnd`      | 结束行号（1-based）                                                       |
+| `charCount`    | 段落字符数                                                                |
 
 ---
 
@@ -264,7 +294,7 @@ noteCount: 3
 2. 只有达到“未来值得回忆”的阈值才进入该文件。
 3. 如果没有足够重要且稳定的内容，允许 `MEMORY.md` 保持很短，甚至只说明当前暂无长期记忆摘要。
 4. 完整浏览能力放到 `INDEX.md`，不要把 `MEMORY.md` 退化回索引页。
-5. 历史 note 的 `Recall Cues` 回填成功后，应自动刷新 `MEMORY.md`，让旧记忆质量逐步提升，而不是长期依赖“最近记忆”兜底。
+5. 历史 note 的 `Recall Cues` 回填成功后，应自动刷新 `MEMORY.md`，让旧记忆质量逐步提升，而不是长期依赖“最近记忆”兜底。6. **顶部包含 `## Critical Facts` 段落**（I-1: Always-Loaded Critical Facts Layer）：从 Recall Cues 中挑选 top-5 最稳定的 `ongoing` / `decision` / `principle` 类型条目。新会话首轮消息自动预加载 Critical Facts（5 分钟缓存 TTL），确保 AI 从第一条消息就有核心上下文。
 
 ```markdown
 ---
@@ -279,6 +309,12 @@ generatedAt: '2026-04-10T12:00:00.000Z'
 # 长期记忆
 
 > 这里只保留未来值得回忆的重点事件、延续事项、关键决定与重要未完成项，不罗列文件索引。
+
+## Critical Facts
+
+- [decision] 记忆系统：MEMORY.md 应只保留未来值得回忆的重点事件，不再承担目录索引职责。
+- [ongoing] 记忆系统：正在优化提取流水线的合并逻辑。
+- [principle] AI 架构：所有 AI provider 通过统一适配器接口接入，保持可替换性。
 
 ## 正在延续的事情
 
