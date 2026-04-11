@@ -11,7 +11,16 @@ import { ipcRenderer } from 'electron';
 import type { SpriteInteractionIntent, SpriteInteractionPayload } from '../interaction-contract';
 import type { SpriteSpontaneousUtteranceHistoryItem, SpriteSpontaneousUtteranceHistoryQuery, SpriteSpontaneousUtterancePreferences } from '../manager';
 import type { SpeakResult, SpriteSpeakConfig } from '../speak/types';
-import type { SpriteAnimation } from '../types';
+import type { MessageBridgePayload, MessageIPCPayload, SpriteAnimation } from '../types';
+import { MESSAGE_IPC_CHANNELS } from '../types';
+
+function onMessageBridge(cb: (payload: MessageBridgePayload) => void): () => void {
+  const handler = (_: any, payload: MessageBridgePayload): void => cb(payload);
+  ipcRenderer.on(MESSAGE_IPC_CHANNELS.BRIDGE, handler);
+  return () => {
+    ipcRenderer.off(MESSAGE_IPC_CHANNELS.BRIDGE, handler);
+  };
+}
 
 export type SpriteBridgeType = {
   // 动画管理 (原有)
@@ -170,13 +179,11 @@ export const spriteBridge: SpriteBridgeType = {
       ipcRenderer.off('sprite:state', handler);
     };
   },
-  onMessage: (cb) => {
-    const handler = (_: any, data: any): void => cb(data);
-    ipcRenderer.on('sprite:message', handler);
-    return () => {
-      ipcRenderer.off('sprite:message', handler);
-    };
-  },
+  onMessage: (cb) =>
+    onMessageBridge((event) => {
+      if (event.source !== 'sprite' || event.kind !== 'show') return;
+      cb(event.payload as MessageIPCPayload);
+    }),
   onWalk: (cb) => {
     const handler = (_: any, data: any): void => cb(data);
     ipcRenderer.on('sprite:walk', handler);
@@ -191,20 +198,21 @@ export const spriteBridge: SpriteBridgeType = {
       ipcRenderer.off('sprite:config', handler);
     };
   },
-  onBusyUpdate: (cb) => {
-    const handler = (_: any, data: any): void => cb(data);
-    ipcRenderer.on('sprite:busy:update', handler);
-    return () => {
-      ipcRenderer.off('sprite:busy:update', handler);
-    };
-  },
-  onBusyClear: (cb) => {
-    const handler = (): void => cb();
-    ipcRenderer.on('sprite:busy:clear', handler);
-    return () => {
-      ipcRenderer.off('sprite:busy:clear', handler);
-    };
-  },
+  onBusyUpdate: (cb) =>
+    onMessageBridge((event) => {
+      if (event.source !== 'sprite' || event.kind !== 'show' || event.payload.type !== 'busy') return;
+      cb({
+        progress: event.payload.progress,
+        message: event.payload.content
+      });
+    }),
+  onBusyClear: (cb) =>
+    onMessageBridge((event) => {
+      if (event.source !== 'sprite' || event.kind !== 'clear') return;
+      if (event.payload.type === 'busy' || event.payload.type === 'all' || event.payload.type === undefined) {
+        cb();
+      }
+    }),
   onSpeak: (cb) => {
     const handler = (_: any, data: any): void => cb(data);
     ipcRenderer.on('sprite:speak', handler);

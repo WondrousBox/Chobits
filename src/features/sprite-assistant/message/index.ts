@@ -60,6 +60,9 @@ export { BusyRenderer, NoticeRenderer, ToastRenderer } from './renderers';
 export type {
   BusyInput,
   BusyMessage,
+  MessageBridgeClearPayload,
+  MessageBridgePayload,
+  MessageBridgeSource,
   MessageButton,
   MessageContextValue,
   MessageIPCPayload,

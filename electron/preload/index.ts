@@ -7,6 +7,7 @@ import { pluginResourceIpcRenderer } from '../../packages/plugins/ipc-renderer';
 import { recorderIpcRenderer } from '../../packages/recorder/ipc-renderer';
 import { sherpaIpcRenderer } from '../../packages/sherpa/ipc-renderer';
 import { spriteBridge } from '../../packages/sprite-core/preload';
+import { MESSAGE_IPC_CHANNELS, type MessageBridgePayload } from '../../packages/sprite-core/types';
 import { createTTSIpcRenderer } from '../../packages/tts/ipc-renderer';
 import { ytdlpIpcRenderer } from '../../packages/ytdlp/ipc-renderer';
 import { dailyCareBridge } from '../main/daily/ipc-renderer';
@@ -37,16 +38,36 @@ import { userProfileApi } from './apis/user-profile';
 import { windowBridge } from './apis/window';
 
 const handles: Record<string, (...arg: any) => any> = {};
+const ipcRendererListenerMap = new Map<string, WeakMap<(...args: any[]) => any, (...args: any[]) => void>>();
+
+function getIpcRendererListenerMap(channel: string): WeakMap<(...args: any[]) => any, (...args: any[]) => void> {
+  let listeners = ipcRendererListenerMap.get(channel);
+  if (!listeners) {
+    listeners = new WeakMap();
+    ipcRendererListenerMap.set(channel, listeners);
+  }
+  return listeners;
+}
 
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('ipcRenderer', {
   on(...args: Parameters<typeof ipcRenderer.on>) {
     const [channel, listener] = args;
-    return ipcRenderer.on(channel, (event, ...args) => listener(event, ...args));
+    const channelListeners = getIpcRendererListenerMap(channel);
+    let wrappedListener = channelListeners.get(listener);
+
+    if (!wrappedListener) {
+      wrappedListener = (event, ...eventArgs) => listener(event, ...eventArgs);
+      channelListeners.set(listener, wrappedListener);
+    }
+
+    ipcRenderer.on(channel, wrappedListener);
+    return () => ipcRenderer.off(channel, listener);
   },
   off(...args: Parameters<typeof ipcRenderer.off>) {
-    const [channel, ...omit] = args;
-    return ipcRenderer.off(channel, ...omit);
+    const [channel, listener] = args;
+    const wrappedListener = getIpcRendererListenerMap(channel).get(listener);
+    return ipcRenderer.off(channel, wrappedListener ?? listener);
   },
   send(...args: Parameters<typeof ipcRenderer.send>) {
     const [channel, ...omit] = args;
@@ -103,6 +124,13 @@ contextBridge.exposeInMainWorld('YUA', {
   media: mediaIpcRenderer,
   memory: memoryApi,
   userProfile: userProfileApi,
+  messages: {
+    on: (callback: (payload: MessageBridgePayload) => void) => {
+      const subscription = (_event: any, payload: MessageBridgePayload): void => callback(payload);
+      ipcRenderer.on(MESSAGE_IPC_CHANNELS.BRIDGE, subscription);
+      return () => ipcRenderer.off(MESSAGE_IPC_CHANNELS.BRIDGE, subscription);
+    }
+  },
   events: {
     on: (callback: (payload: AppEventPayload) => void) => {
       const subscription = (_event: any, payload: AppEventPayload): void => callback(payload);

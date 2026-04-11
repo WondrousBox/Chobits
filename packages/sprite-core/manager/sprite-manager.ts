@@ -33,7 +33,18 @@ import { SpeakService } from '../speak/speak-service';
 import type { SpeakResult, SpriteSpeakConfig, SpriteSpeakPayload } from '../speak/types';
 import type { SpriteState, SpriteSubState } from '../state-machine';
 import { SpriteStateMachine } from '../state-machine';
-import type { MessageCategory, MessageIPCPayload, SpriteAnimation, SpriteConfig, SpriteInitialState, SpritePlayCommand, SpriteStateSnapshot } from '../types';
+import {
+  MESSAGE_IPC_CHANNELS,
+  type MessageBridgeClearPayload,
+  type MessageBridgePayload,
+  type MessageCategory,
+  type MessageIPCPayload,
+  type SpriteAnimation,
+  type SpriteConfig,
+  type SpriteInitialState,
+  type SpritePlayCommand,
+  type SpriteStateSnapshot
+} from '../types';
 import { registerDefaultBehaviors } from './default-behaviors';
 import { AutoWalkConfig, PersonaStatePersistence } from './persistence';
 import { mapStateToEventType } from './state-mapping';
@@ -397,6 +408,18 @@ export class SpriteManager {
    */
   private static MUTE_CATEGORIES: ReadonlySet<string> = new Set(['loading', 'processing', 'waiting']);
 
+  private sendMessageBridge(payload: MessageBridgePayload): void {
+    this.sendToRenderer(MESSAGE_IPC_CHANNELS.BRIDGE, payload);
+  }
+
+  private sendRendererMessage(payload: MessageIPCPayload): void {
+    this.sendMessageBridge({ kind: 'show', payload, source: 'sprite' });
+  }
+
+  private clearRendererMessage(payload: MessageBridgeClearPayload): void {
+    this.sendMessageBridge({ kind: 'clear', payload, source: 'sprite' });
+  }
+
   /** 轻量提示 */
   showToast(content?: string, options?: { category?: MessageCategory; duration?: number; level?: string; ctx?: any }): void {
     // 如果只传了 category 没有 content，先获取文本以确保显示和朗读一致
@@ -410,7 +433,7 @@ export class SpriteManager {
       level: options?.level as any,
       ctx: options?.ctx
     };
-    this.sendToRenderer('sprite:message', payload);
+    this.sendRendererMessage(payload);
 
     // 自动朗读：非静默类别 且 非来自 speak() 的调用
     if (!this._speakGuard && !SpriteManager.MUTE_CATEGORIES.has(options?.category ?? '')) {
@@ -431,7 +454,7 @@ export class SpriteManager {
       routineId: options?.routineId,
       level: options?.level as any
     };
-    this.sendToRenderer('sprite:message', payload);
+    this.sendRendererMessage(payload);
 
     // 自动朗读通知内容
     if (content && !this._speakGuard) {
@@ -446,17 +469,21 @@ export class SpriteManager {
       content,
       progress
     };
-    this.sendToRenderer('sprite:message', payload);
+    this.sendRendererMessage(payload);
   }
 
   /** 更新忙碌进度 */
   updateBusy(progress: number, content?: string): void {
-    this.sendToRenderer('sprite:busy:update', { progress, message: content });
+    this.sendRendererMessage({
+      type: 'busy',
+      progress,
+      content
+    });
   }
 
   /** 清除忙碌状态 */
   clearBusy(): void {
-    this.sendToRenderer('sprite:busy:clear', {});
+    this.clearRendererMessage({ type: 'busy' });
   }
 
   // ============================================================================

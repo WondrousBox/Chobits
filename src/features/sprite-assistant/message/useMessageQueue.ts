@@ -239,16 +239,22 @@ export function useMessageQueue(): UseMessageQueueReturn {
   }, []);
 
   /** 关闭消息 */
-  const dismiss = useCallback(
-    (id?: string) => {
-      if (id) {
-        removeMessage(id);
-      } else if (state.current) {
-        removeMessage(state.current.id);
+  const dismiss = useCallback((id?: string) => {
+    setState((prev) => {
+      const targetId = id ?? prev.current?.id;
+      if (!targetId) return prev;
+
+      const newQueue = prev.queue.filter((m) => m.id !== targetId);
+      if (newQueue.length === prev.queue.length) {
+        return prev;
       }
-    },
-    [removeMessage, state.current]
-  );
+
+      return {
+        current: newQueue[0] || null,
+        queue: newQueue
+      };
+    });
+  }, []);
 
   /** 清除所有消息 */
   const clearAll = useCallback(() => {
