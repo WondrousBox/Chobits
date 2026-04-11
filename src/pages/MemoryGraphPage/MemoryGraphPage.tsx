@@ -1063,8 +1063,11 @@ export default function MemoryGraphPage(): React.ReactElement {
         // 关键词节点：圆角矩形（标签形状）
         const baseSize = n.size;
         const drawSize = isHighlighted ? baseSize * 1.4 : isHovered || isSelected ? baseSize * 1.2 : baseSize;
-        const w = drawSize * 2.5;
-        const h = drawSize * 1.6;
+        const scaledFont = Math.max(3, Math.min(8, drawSize * 0.9));
+        ctx.font = `${isHighlighted ? '600' : '500'} ${scaledFont}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+        const textWidth = ctx.measureText(n.label).width;
+        const w = Math.max(drawSize * 2.5, textWidth + scaledFont * 0.8);
+        const h = Math.max(drawSize * 1.6, scaledFont * 1.8);
         const r = drawSize * 0.4;
 
         if (isHighlighted) {
@@ -1092,15 +1095,11 @@ export default function MemoryGraphPage(): React.ReactElement {
         ctx.lineWidth = isHighlighted ? 2 : isSelected ? 1.5 : 0.5;
         ctx.stroke();
 
-        // 关键词标签文字（始终显示，字号跟随缩放）
-        const scaledFont = Math.max(3, Math.min(8, drawSize * 0.9));
-        ctx.font = `${isHighlighted ? '600' : '500'} ${scaledFont}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+        // 关键词标签文字完整显示（节点宽度按文本自适应）
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = isFaded ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.95)';
-        const maxLabelLen = Math.floor(w / (scaledFont * 0.6));
-        const kwLabel = n.label.length > maxLabelLen ? n.label.slice(0, maxLabelLen - 1) + '…' : n.label;
-        ctx.fillText(kwLabel, x, y);
+        ctx.fillText(n.label, x, y);
       } else {
         // 记忆笔记 — 缩小菱形，文本始终在外部展示
         const size = n.size;
@@ -1146,18 +1145,7 @@ export default function MemoryGraphPage(): React.ReactElement {
         ctx.lineWidth = isHighlighted ? 2 : isSelected ? 1.5 : 0.5;
         ctx.stroke();
 
-        // 始终显示标签文本（菱形外部下方），字号跟随缩放
-        const scaledFont = (isHighlighted ? 12 : 10) / Math.pow(globalScale, 0.4);
-        ctx.font = `${isHighlighted ? '600' : '400'} ${scaledFont}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        const label = n.label.slice(0, 25);
-        const textWidth = ctx.measureText(label).width;
-        const textY = y + drawSize + scaledFont * 0.9;
-        ctx.fillStyle = isHighlighted ? 'rgba(0, 0, 0, 0.7)' : 'rgba(0, 0, 0, 0.45)';
-        ctx.fillRect(x - textWidth / 2 - 1 / globalScale, textY - scaledFont * 0.5, textWidth + 2 / globalScale, scaledFont * 1.1);
-        ctx.fillStyle = isFaded ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.9)';
-        ctx.fillText(label, x, textY);
+        // note 文本统一在后处理层绘制，确保显示在最上层
       }
 
       ctx.restore();
@@ -1211,6 +1199,48 @@ export default function MemoryGraphPage(): React.ReactElement {
       ctx.restore();
     },
     [hasHighlight, highlightedLinkKeys]
+  );
+
+  // ━━ Overlay rendering (top layer labels) ━━
+
+  const paintOverlay = useCallback(
+    (ctx: CanvasRenderingContext2D, globalScale: number) => {
+      const nodesToLabel = graphData.nodes.filter((n) => {
+        if (n.type !== 'note') return false;
+        const isHovered = hoveredNode?.id === n.id;
+        const isSelected = selectedNode?.id === n.id;
+        const isHighlighted = hasHighlight && highlightedNodeIds.has(n.id);
+        return isHovered || isSelected || isHighlighted;
+      });
+
+      for (const n of nodesToLabel) {
+        const x = n.x ?? 0;
+        const y = n.y ?? 0;
+        const isHovered = hoveredNode?.id === n.id;
+        const isSelected = selectedNode?.id === n.id;
+        const isHighlighted = hasHighlight && highlightedNodeIds.has(n.id);
+        const isFaded = filterTerm && !graphData.nodes.find((gn) => gn.id === n.id);
+        const size = n.size;
+        const diamondScale = 0.4;
+        const rawDraw = size * diamondScale;
+        const drawSize = isHighlighted ? rawDraw * 1.5 : isHovered || isSelected ? rawDraw * 1.3 : rawDraw;
+
+        const scaledFont = (isHighlighted ? 12 : 10) / Math.pow(globalScale, 0.4);
+        ctx.save();
+        ctx.font = `${isHighlighted ? '600' : '400'} ${scaledFont}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const label = n.label.slice(0, 25);
+        const textWidth = ctx.measureText(label).width;
+        const textY = y + drawSize + scaledFont * 0.9;
+        ctx.fillStyle = isHighlighted ? 'rgba(0, 0, 0, 0.7)' : 'rgba(0, 0, 0, 0.45)';
+        ctx.fillRect(x - textWidth / 2 - 1 / globalScale, textY - scaledFont * 0.5, textWidth + 2 / globalScale, scaledFont * 1.1);
+        ctx.fillStyle = isFaded ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.9)';
+        ctx.fillText(label, x, textY);
+        ctx.restore();
+      }
+    },
+    [graphData.nodes, hoveredNode, selectedNode, hasHighlight, highlightedNodeIds, filterTerm]
   );
 
   // ━━ Interaction handlers ━━
@@ -1507,6 +1537,7 @@ export default function MemoryGraphPage(): React.ReactElement {
               graphData={graphData}
               nodeCanvasObject={paintNode}
               linkCanvasObject={paintLink}
+              onRenderFramePost={paintOverlay}
               nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
                 const n = node as GraphNode;
                 ctx.beginPath();

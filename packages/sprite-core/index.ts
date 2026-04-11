@@ -22,6 +22,9 @@
 export type {
   BusyInput,
   BusyMessage,
+  MessageBridgeClearPayload,
+  MessageBridgePayload,
+  MessageBridgeSource,
   MessageButton,
   MessageCatalog,
   MessageCategory,

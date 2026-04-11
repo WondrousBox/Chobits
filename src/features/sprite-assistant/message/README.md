@@ -65,12 +65,12 @@ interface SpriteMessage {
 │                              │                               │
 │         ┌────────────────────┼────────────────────┐         │
 │         ▼                    ▼                    ▼         │
-│  ┌─────────────┐      ┌─────────────┐      ┌─────────────┐ │
-│  │ 渲染进程触发  │      │  IPC 触发   │      │ 组件 Props  │ │
-│  │ showToast() │      │ app:message │      │ (兼容模式)  │ │
-│  │ showNotice()│      │ app:busy:*  │      │             │ │
-│  │ showBusy()  │      │ app:notice  │      │             │ │
-│  └─────────────┘      └─────────────┘      └─────────────┘ │
+│  ┌─────────────┐      ┌──────────────────┐      ┌─────────────┐ │
+│  │ 渲染进程触发  │      │  Message Bridge  │      │ 组件 Props  │ │
+│  │ showToast() │      │ app:message:bridge│      │ (兼容模式)  │ │
+│  │ showNotice()│      │ 统一 show/clear   │      │             │ │
+│  │ showBusy()  │      │ source=app/sprite │      │             │ │
+│  └─────────────┘      └──────────────────┘      └─────────────┘ │
 │                              │                               │
 │                              ▼                               │
 │  ┌─────────────────────────────────────────────────────┐   │
@@ -173,7 +173,7 @@ sendNotice('新版本可用', {
 sendBusy('处理中...', 50);
 clearBusy();
 
-// 旧 API - 仍然支持（向后兼容）
+// 旧 API - 仍然支持（会被映射到统一 bridge）
 sendAppNotice({ message: '提示消息', level: 'info' });
 sendAppBusyStart(0, '加载中...');
 sendAppBusyProgress(50, '处理中...');
@@ -199,21 +199,20 @@ const PRIORITY_MAP = { busy: 3, notice: 2, toast: 1 };
 
 ## 🔄 IPC 频道
 
-### 新频道
+### 运行时主频道
 
-| 频道                | 方向            | 说明         |
-| ------------------- | --------------- | ------------ |
-| `app:message`       | Main → Renderer | 发送统一消息 |
-| `app:message:clear` | Main → Renderer | 清除消息     |
+| 频道                 | 方向            | 说明                                   |
+| -------------------- | --------------- | -------------------------------------- |
+| `app:message:bridge` | Main → Renderer | 统一消息桥，承载 `show` / `clear` 事件 |
 
-### 兼容旧频道
+### 兼容入口
 
-| 频道                | 方向            | 说明                           |
-| ------------------- | --------------- | ------------------------------ |
-| `app:notice`        | Main → Renderer | 发送通知（映射到 notice 类型） |
-| `app:busy:start`    | Main → Renderer | 开始忙碌（映射到 busy 类型）   |
-| `app:busy:end`      | Main → Renderer | 结束忙碌（清除 busy）          |
-| `app:busy:progress` | Main → Renderer | 更新进度                       |
+| API / 来源                 | 说明                                               |
+| -------------------------- | -------------------------------------------------- |
+| `sendToast` / `sendNotice` | 主进程直接发送 bridge 消息                         |
+| `sendAppNotice`            | 旧通知 API，内部映射到 bridge                      |
+| `sendAppBusy*`             | 旧忙碌 API，内部映射到 bridge                      |
+| `SpriteManager.show*`      | sprite 侧消息，统一走 bridge，并带 `source=sprite` |
 
 ---
 
@@ -222,7 +221,8 @@ const PRIORITY_MAP = { busy: 3, notice: 2, toast: 1 };
 - **统一入口**：一个组件处理所有消息类型
 - **优先级管理**：重要消息优先展示，避免遮挡
 - **平滑过渡**：消息切换时有动画效果
-- **向后兼容**：旧的 IPC 频道继续工作
+- **单通道桥接**：`app:*` 和 `sprite:*` 在运行时收敛成一个 message bridge
+- **向后兼容**：旧的发送 API 仍然可用，但会映射到统一 bridge
 - **类型安全**：完整的 TypeScript 类型定义
 - **解耦设计**：触发和展示分离，易于扩展
 

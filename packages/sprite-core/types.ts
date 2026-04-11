@@ -349,7 +349,27 @@ export interface MessageIPCPayload {
   ctx?: any;
 }
 
+export type MessageBridgeSource = 'app' | 'sprite';
+
+export interface MessageBridgeClearPayload {
+  id?: string;
+  type?: MessageType | 'all';
+}
+
+export type MessageBridgePayload =
+  | {
+    kind: 'show';
+    payload: MessageIPCPayload;
+    source: MessageBridgeSource;
+  }
+  | {
+    kind: 'clear';
+    payload: MessageBridgeClearPayload;
+    source: MessageBridgeSource;
+  };
+
 export const MESSAGE_IPC_CHANNELS = {
+  BRIDGE: 'app:message:bridge',
   MESSAGE: 'app:message',
   MESSAGE_CLEAR: 'app:message:clear',
   LEGACY_NOTICE: 'app:notice',

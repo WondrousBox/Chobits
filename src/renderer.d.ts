@@ -30,6 +30,7 @@ import type { AppEventPayload } from '../packages/event/events';
 import type { RecorderIpcRendererType } from '../packages/recorder/ipc-renderer';
 import type { SherpaIpcRendererType } from '../packages/sherpa/ipc-renderer';
 import type { SpriteBridgeType } from '../packages/sprite-core/preload';
+import type { MessageBridgePayload } from '../packages/sprite-core/types';
 import type { TTSIpcRenderer } from '../packages/tts/ipc-renderer';
 
 declare global {
@@ -76,6 +77,9 @@ declare global {
       media: MediaIpcType;
       memory: typeof memoryApi;
       userProfile: typeof userProfileApi;
+      messages: {
+        on: (callback: (payload: MessageBridgePayload) => void) => () => void;
+      };
       events: {
         on: (callback: (payload: AppEventPayload) => void) => () => void;
       };

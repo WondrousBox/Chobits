@@ -5,21 +5,23 @@
 
 // Re-export everything from sprite-core
 export type {
-  MessageType,
-  MessageLevel,
-  MessageButton,
-  ToastMessage,
-  NoticeMessage,
-  BusyMessage,
-  ToastInput,
-  NoticeInput,
   BusyInput,
+  BusyMessage,
+  MessageBridgeClearPayload,
+  MessageBridgePayload,
+  MessageBridgeSource,
+  MessageButton,
+  MessageContextValue,
   MessageIPCPayload,
+  MessageLevel,
   MessageQueueState,
-  MessageContextValue
+  MessageType,
+  NoticeInput,
+  NoticeMessage,
+  ToastInput,
+  ToastMessage
 } from '@packages/sprite-core/types';
-
-export { MESSAGE_PRIORITY, MESSAGE_IPC_CHANNELS, DEFAULT_DURATION } from '@packages/sprite-core/types';
+export { DEFAULT_DURATION, MESSAGE_IPC_CHANNELS, MESSAGE_PRIORITY } from '@packages/sprite-core/types';
 
 // Backward compat: SpriteMessage → SpriteMessageData
 export type { SpriteMessageData as SpriteMessage } from '@packages/sprite-core/types';
