@@ -540,6 +540,30 @@ export async function generateMemoryIndex(
   } else {
     const takeNotes = (candidates: MemoryDigestCandidate[], limit: number): MemoryDigestCandidate[] => candidates.slice(0, limit);
 
+    // ━━ Critical Facts section — always-loaded compact summary ━━
+    // Picks the most stable ongoing + decision/principle cues for injection into every conversation.
+    const criticalFactCandidates = [...meaningfulNotes]
+      .filter((note) => note.stability >= 0.6 || note.importance >= 0.75)
+      .sort((left, right) => right.stability - left.stability || right.importance - left.importance);
+    const criticalFactLines: string[] = [];
+    for (const note of criticalFactCandidates) {
+      if (criticalFactLines.length >= 5) break;
+      for (const cue of note.recallCues) {
+        if (criticalFactLines.length >= 5) break;
+        if (cue.type === 'ongoing' || cue.type === 'decision' || cue.type === 'principle') {
+          const line = `- [${cue.type}] ${buildTopicPrefix(note.topics)}${truncateInlineText(cue.statement, 96)}`;
+          criticalFactLines.push(line);
+        }
+      }
+    }
+    // If no recall cues, fall back to high-stability note summaries
+    if (criticalFactLines.length === 0) {
+      for (const note of criticalFactCandidates.slice(0, 5)) {
+        criticalFactLines.push(`- ${buildTopicPrefix(note.topics)}${truncateInlineText(note.summary, 96)}`);
+      }
+    }
+    appendSection(lines, 'Critical Facts', dedupeLines(criticalFactLines));
+
     const ongoingNotes = takeNotes(
       [...meaningfulNotes]
         .filter((note) => note.openItems.length > 0 || (note.daysAgo <= 21 && note.importance >= 0.78))

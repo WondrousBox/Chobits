@@ -8,6 +8,12 @@
 export interface MemoryNoteEntity {
   name: string;
   type: 'person' | 'product' | 'technology' | 'organization' | 'concept' | 'location' | 'event' | 'other';
+  /** 实体关系（可选），用于时序实体知识图谱 */
+  relations?: Array<{
+    predicate: string; // 如 "works_on", "prefers", "collaborates_with"
+    object: string; // 目标实体名
+    validFrom?: string; // 开始时间，如 "2026-04"
+  }>;
 }
 
 export interface MemoryNoteMessageRange {
@@ -35,6 +41,8 @@ export interface MemoryNoteFrontmatter {
   topics: string[]; // 至少 1 个
   parentTopicId?: string;
   relatedTopicIds?: string[];
+  /** 领域命名空间，如 "person:Alice", "project:chobits", "general" */
+  domain?: string;
 
   // 关键词与实体
   keywords: string[]; // 至少 3 个
@@ -83,6 +91,8 @@ export interface TopicCluster {
     seqEnd: number;
   }>;
   estimatedImportance: number;
+  /** 领域命名空间，如 "person:Alice", "project:chobits", "general" */
+  domain?: string;
 }
 
 export interface TopicSplitOutput {
@@ -108,6 +118,12 @@ export interface MemoryExtractionOutput {
      */
     recallCues?: string;
   };
+  /**
+   * 原始对话关键片段（可选）：
+   * 仅在 importance > 0.8 时由 LLM 提取，每条 ≤ 200 字符，最多 3 条。
+   * 用于保留用户原话作为日后检索佐证。
+   */
+  sourceExcerpts?: string[];
 }
 
 // ━━ Merge Result ━━

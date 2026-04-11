@@ -8,6 +8,7 @@ import { createPiFileGrepTool } from './file-grep';
 import { createPiFileListTool } from './file-list';
 import { createPiFileReadTool } from './file-read';
 import { createPiFileWriteTool } from './file-write';
+import { createPiMemoryDiaryTool } from './memory-diary';
 import { createPiMemoryGetTool } from './memory-get';
 import { createPiMemorySaveTool } from './memory-save';
 import { createPiMemorySearchTool } from './memory-search';
@@ -49,6 +50,7 @@ const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
   'memory-get': createPiMemoryGetTool,
   'memory-save': createPiMemorySaveTool,
   'memory-topics': createPiMemoryTopicsTool,
+  'memory-diary': createPiMemoryDiaryTool,
   'toolbox-lookup': createPiToolboxLookupTool,
   'workflow-run': createPiWorkflowRunTool
 };
@@ -76,6 +78,7 @@ const COMPAT_NAME_TO_TOOL_ID: Record<string, string> = {
   memoryGetTool: 'memory-get',
   memorySaveTool: 'memory-save',
   memoryTopicsTool: 'memory-topics',
+  memoryDiaryTool: 'memory-diary',
   toolboxTool: 'toolbox-lookup',
   workflowRunTool: 'workflow-run'
 };

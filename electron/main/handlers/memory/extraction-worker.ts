@@ -32,10 +32,14 @@ import { refreshMemoryIndexForWorkspace } from './memory-index-sync';
 const MIN_NEW_MESSAGES = 4;
 /** 同一会话连续触发的最小冷却间隔（ms）— 仅防止短时间内重复触发 */
 const MIN_TRIGGER_COOLDOWN = 15 * 1000; // 15 秒
+/** 定期保存间隔：每 N 条新消息后强制触发提取（I-6: 防止长会话丢失记忆） */
+const PERIODIC_SAVE_INTERVAL = 20;
 /** 记录每个 conversation 最近一次触发时间 */
 const lastTriggerTime = new Map<string, number>();
 /** 增量提取水位线：记录每个 conversation 已提取到的最大 message seq */
 const conversationWatermarks = new Map<string, number>();
+/** 自上次提取以来的累计消息计数（用于定期保存检测） */
+const messagesSinceLastExtraction = new Map<string, number>();
 /** 正在提取中的 conversation set（用于 coalescing） */
 const extractingConversations = new Set<string>();
 /** 等待 trailing run 的 conversation set（coalescing 暂存） */
@@ -622,12 +626,28 @@ function onAgentLoopComplete(payload: AgentLoopCompletePayload): void {
       const watermark = conversationWatermarks.get(conversationId) ?? 0;
       const newMessages = userAssistantMessages.filter((m: any) => (m.seq ?? 0) > watermark);
 
-      const threshold = hasToolCalls ? Math.max(2, MIN_NEW_MESSAGES - 2) : MIN_NEW_MESSAGES;
-      console.log(`${TAG} Conv ${conversationId}: total=${userAssistantMessages.length}, watermark=${watermark}, new=${newMessages.length}, threshold=${threshold} (hasToolCalls=${hasToolCalls})`);
+      // I-6: 更新累计消息计数
+      const prevCount = messagesSinceLastExtraction.get(conversationId) ?? 0;
+      const currentCount = prevCount + newMessages.length;
+      messagesSinceLastExtraction.set(conversationId, currentCount);
 
-      if (newMessages.length < threshold) {
-        console.log(`${TAG} Skipped: new message count ${newMessages.length} < threshold ${threshold}`);
+      // 定期保存：当累计消息达到阈值时，强制触发提取
+      const periodicInterval = getMemoryConfig().periodicSaveInterval ?? PERIODIC_SAVE_INTERVAL;
+      const periodicTrigger = currentCount >= periodicInterval;
+
+      const threshold = hasToolCalls ? Math.max(2, MIN_NEW_MESSAGES - 2) : MIN_NEW_MESSAGES;
+      console.log(
+        `${TAG} Conv ${conversationId}: total=${userAssistantMessages.length}, watermark=${watermark}, new=${newMessages.length}, threshold=${threshold} (hasToolCalls=${hasToolCalls}), periodicCount=${currentCount}/${periodicInterval}`
+      );
+
+      if (newMessages.length < threshold && !periodicTrigger) {
+        console.log(`${TAG} Skipped: new message count ${newMessages.length} < threshold ${threshold}, no periodic trigger`);
         return;
+      }
+
+      if (periodicTrigger) {
+        console.log(`${TAG} 🔄 Periodic save triggered: ${currentCount} messages since last extraction (interval=${periodicInterval})`);
+        messagesSinceLastExtraction.set(conversationId, 0); // Reset counter
       }
 
       const conv = await ChatRepo.ensureConversation({ id: conversationId });
@@ -646,6 +666,9 @@ function onAgentLoopComplete(payload: AgentLoopCompletePayload): void {
         providerId: payload.providerId,
         providerPresetId: payload.providerPresetId
       });
+
+      // Reset periodic counter after successful enqueue
+      messagesSinceLastExtraction.set(conversationId, 0);
 
       console.log(`${TAG} ✓ Enqueued job ${jobId} for conv ${conversationId} (ws=${workspaceId}, provider=${payload.providerId || '(from conv)'}, toolCalls=${payload.toolCalls.length})`);
     } catch (e) {

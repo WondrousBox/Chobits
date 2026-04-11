@@ -450,6 +450,23 @@ export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecal
       userMessageCount
     });
     try {
+      // Load critical facts from MEMORY.md (always-loaded layer)
+      let criticalFactsBlock = '';
+      if (deps.db.getWorkspaceRoot) {
+        const wsRoot = await deps.db.getWorkspaceRoot(workspaceId);
+        if (wsRoot) {
+          const facts = await loadCriticalFacts(wsRoot);
+          if (facts) {
+            criticalFactsBlock = `长期关键记忆：\n${facts}`;
+            logMemoryTrace({
+              conversationId: conversationKey,
+              criticalFactsChars: facts.length,
+              event: 'auto_recall.preload.critical_facts'
+            });
+          }
+        }
+      }
+
       const recentNotes = await deps.db.listRecentImportant(workspaceId, 0.7, 7, 5);
       if (recentNotes.length > 0) {
         const summaries = recentNotes
@@ -464,7 +481,8 @@ export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecal
             return `- (${n.date}${topicStr}) ${n.summary || '(no summary)'}`;
           })
           .join('\n');
-        const preloadContext = `近期重要记忆摘要（最近 7 天，重要度 ≥ 0.7）：\n${summaries}`;
+        const recentBlock = `近期重要记忆摘要（最近 7 天，重要度 ≥ 0.7）：\n${summaries}`;
+        const preloadContext = criticalFactsBlock ? `${criticalFactsBlock}\n\n${recentBlock}` : recentBlock;
 
         const result: AutoRecallResult = {
           context: preloadContext,
@@ -491,14 +509,37 @@ export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecal
         event: 'auto_recall.preload.miss',
         userMessageCount
       });
+      // Even without recent notes, inject critical facts if available
+      if (criticalFactsBlock) {
+        const result: AutoRecallResult = {
+          context: criticalFactsBlock,
+          keywords: [],
+          noteCount: 0,
+          skipped: false
+        };
+        if (conversationId) {
+          updateCache(conversationId, result, userMessages.length);
+        }
+        console.log(`${TAG} Injecting critical facts only (no recent notes)`);
+        logMemoryTrace({
+          contextChars: criticalFactsBlock.length,
+          conversationId: conversationKey,
+          event: 'auto_recall.preload.critical_facts_only',
+          userMessageCount
+        });
+        return result;
+      }
     } catch (err) {
       console.warn(`${TAG} Session preload failed, falling through:`, err);
-      logMemoryTrace({
-        conversationId: conversationKey,
-        error: err instanceof Error ? err.message : String(err),
-        event: 'auto_recall.preload.error',
-        userMessageCount
-      }, 'warn');
+      logMemoryTrace(
+        {
+          conversationId: conversationKey,
+          error: err instanceof Error ? err.message : String(err),
+          event: 'auto_recall.preload.error',
+          userMessageCount
+        },
+        'warn'
+      );
     }
   }
 
@@ -643,14 +684,17 @@ export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecal
     return result;
   } catch (e) {
     console.error(`${TAG} Search failed:`, e instanceof Error ? e.message : e);
-    logMemoryTrace({
-      conversationId: conversationKey,
-      error: e instanceof Error ? e.message : String(e),
-      event: 'auto_recall.search.error',
-      keywordCount: keywords.length,
-      keywords,
-      userMessageCount
-    }, 'error');
+    logMemoryTrace(
+      {
+        conversationId: conversationKey,
+        error: e instanceof Error ? e.message : String(e),
+        event: 'auto_recall.search.error',
+        keywordCount: keywords.length,
+        keywords,
+        userMessageCount
+      },
+      'error'
+    );
     return { context: '', keywords, noteCount: 0, skipped: true, skipReason: 'search_error' };
   }
 }
@@ -675,6 +719,57 @@ export function clearRecallCache(conversationId?: string): void {
   } else {
     recallCache.clear();
   }
+}
+
+// ━━ Critical Facts Loader ━━
+
+/**
+ * 从 MEMORY.md 中的 "## Critical Facts" 段落加载关键事实摘要。
+ *
+ * 这些是最稳定的 ongoing/decision/principle 回忆线索，
+ * 会在每次新对话时注入，让 AI 从第一个 token 就了解用户。
+ *
+ * 设计：
+ * - 读取 MEMORY.md，提取 ## Critical Facts 到下一个 ## 之间的内容
+ * - 5 分钟缓存，避免每次对话都读磁盘
+ * - 如果文件不存在或无 Critical Facts 段落，返回空字符串
+ */
+
+let criticalFactsCache: { content: string; loadedAt: number } | undefined;
+const CRITICAL_FACTS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+export async function loadCriticalFacts(workspaceRoot: string): Promise<string> {
+  // Check cache
+  if (criticalFactsCache && Date.now() - criticalFactsCache.loadedAt < CRITICAL_FACTS_CACHE_TTL_MS) {
+    return criticalFactsCache.content;
+  }
+
+  try {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const memoryMdPath = path.join(workspaceRoot, 'memory', 'MEMORY.md');
+    const content = await fs.readFile(memoryMdPath, 'utf-8');
+
+    // Extract ## Critical Facts section
+    const sectionMatch = content.match(/^## Critical Facts\s*\n([\s\S]*?)(?=^## |\n*$)/m);
+    if (!sectionMatch || !sectionMatch[1].trim()) {
+      criticalFactsCache = { content: '', loadedAt: Date.now() };
+      return '';
+    }
+
+    const facts = sectionMatch[1].trim();
+    criticalFactsCache = { content: facts, loadedAt: Date.now() };
+    return facts;
+  } catch {
+    // File doesn't exist yet or read error — not a problem
+    criticalFactsCache = { content: '', loadedAt: Date.now() };
+    return '';
+  }
+}
+
+/** Clear the critical facts cache (e.g. after MEMORY.md regeneration) */
+export function clearCriticalFactsCache(): void {
+  criticalFactsCache = undefined;
 }
 
 // ━━ Prefetch API ━━

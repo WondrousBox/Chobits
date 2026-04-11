@@ -136,6 +136,13 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
     name: 'memorySaveTool',
     status: 'ready-for-pi-runtime'
   },
+  'memory-diary': {
+    category: 'content',
+    description: '写入 AI 助手日记，记录对话中的观察、经验和处理策略',
+    compatName: 'memoryDiaryTool',
+    name: 'memoryDiaryTool',
+    status: 'ready-for-pi-runtime'
+  },
   'toolbox-lookup': {
     category: 'meta',
     description: '万能工具箱：搜索技能、了解工具用法、执行工具',

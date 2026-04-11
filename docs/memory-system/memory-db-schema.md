@@ -4,11 +4,13 @@
 > 设计原则：Markdown 为事实源，数据库只存结构索引与关系，不承担最终真相。
 > 第一阶段不依赖向量服务，以 FTS5 + 元数据过滤 + 图谱扩展为主检索路径。
 
-## 当前实现状态（2026-04-03）
+## 当前实现状态（2026-04-11）
 
 - 表结构与 FTS5 虚拟表已经在 `electron/main/db/schema.ts` 与 `electron/main/db/index.ts` 中落地。
 - 当前写路径已经稳定写入 `memory_notes`、`memory_sections`、`memory_topics`、`memory_note_keywords`、`memory_sync_jobs` 与 FTS；对话删除联动清理也已实现。
-- 当前提取写路径主要创建 `belongs_to_topic` 边；`related_to_topic`、`related_to_note`、`contains_section` 等关系仍主要停留在 schema 预留层。
+- 当前提取写路径创建 `belongs_to_topic`、`related_to_topic`、`contains_section` 三种边；新增 `entity_fact`、`entity_attribute`、`entity_relation` 三种实体事实边类型（I-3: 时序实体知识图谱）。
+- `memory_edges` 新增时序字段：`valid_from`、`valid_to`、`confidence`，用于实体事实的时效管理。
+- `memory_topics` 新增领域命名空间字段：`domain`、`domain_type`，支持按 person/project/general 维度过滤（I-4: Domain 命名空间）。
 - 下列字段虽然已建模，但当前通常为空或只部分填充：`fileChecksum`、`timeRangeStart` / `timeRangeEnd`、`parentTopicId`、`relatedTopicIds`、`memory_sections.keywords`、`memory_keywords.primaryTopicId`。
 - FTS 的 `body` 字段当前实际写入的是摘要级文本（`note.summary` / `section.summary`），不是完整正文；完整正文仍回到 Markdown 做定点读取。
 - `uq_mem_notes_file_path` 当前是全局 `filePath` 唯一，不按 `workspaceId` 分区。
@@ -183,6 +185,10 @@ export const memory_topics = sqliteTable(
     // ━━ 归属 ━━
     workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
 
+    // ━━ 领域命名空间（I-4: Domain Namespace） ━━
+    domain: text('domain'), // 领域标识，如 "person:Alice"、"project:chobits"、"general"
+    domainType: text('domain_type', { enum: ['person', 'project', 'general'] }), // 领域类型
+
     // ━━ 活跃度与统计（用于图谱可视化预留） ━━
     noteCount: integer('note_count').default(0), // 关联 note 数量
     heat: real('heat').default(0), // 近期活跃度分（0.0~1.0）
@@ -201,13 +207,16 @@ export const memory_topics = sqliteTable(
     idxMemTopicsParent: index('idx_mem_topics_parent').on(t.parentId),
     idxMemTopicsWorkspace: index('idx_mem_topics_workspace').on(t.workspaceId),
     idxMemTopicsHeat: index('idx_mem_topics_heat').on(t.heat),
-    idxMemTopicsLastSeen: index('idx_mem_topics_last_seen').on(t.lastSeenAt)
+    idxMemTopicsLastSeen: index('idx_mem_topics_last_seen').on(t.lastSeenAt),
+    idxMemTopicsDomain: index('idx_mem_topics_domain').on(t.domain, t.workspaceId)
   })
 );
 
 export type MemoryTopicRow = InferSelectModel<typeof memory_topics>;
 export type NewMemoryTopic = InferInsertModel<typeof memory_topics>;
 ```
+
+> 2026-04-11 新增字段：`domain`（如 `"person:Alice"`、`"project:chobits"`、`"general"`）和 `domainType`（`person` | `project` | `general`）用于领域命名空间过滤，提升人/项目相关查询的召回率。由 LLM 在主题拆分阶段自动判断。
 
 ### 2.4 memory_edges — 图谱边
 
@@ -237,17 +246,25 @@ export const memory_edges = sqliteTable(
         'contains_section', // note -> section（包含）
         'derived_from_conversation', // note -> conversation（溯源）
         'shares_keyword', // note -> note（共享关键词）
-        'references_note' // note -> note（引用）
+        'references_note', // note -> note（引用）
+        'entity_fact', // entity -> entity（实体事实，如 person→works_on→project）
+        'entity_attribute', // entity -> value（实体属性，如 person→prefers→tool）
+        'entity_relation' // entity -> entity（实体关系，如 person→collaborates_with→person）
       ]
     }).notNull(),
 
     // ━━ 权重与证据 ━━
     weight: real('weight').default(1.0), // 边权重（检索排序用）
     evidenceNoteId: text('evidence_note_id'), // 证据来源 note ID
-    evidenceSnippet: text('evidence_snippet'), // 关系证据摘要（<200 字）
+    evidenceSnippet: text('evidence_snippet'), // 关系证据摘要（<200 字）；实体事实边用于存储 predicate
     origin: text('origin', {
       enum: ['llm_extracted', 'rule_inferred', 'user_manual']
     }).default('llm_extracted'), // 关系来源
+
+    // ━━ 时序有效性（用于实体事实边） ━━
+    validFrom: integer('valid_from'), // 毫秒时间戳，事实何时开始为真
+    validTo: integer('valid_to'), // 毫秒时间戳，事实何时失效（null = 仍然有效）
+    confidence: real('confidence').default(1.0), // 置信度 0.0~1.0
 
     // ━━ 归属 ━━
     workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
@@ -265,13 +282,18 @@ export const memory_edges = sqliteTable(
     idxMemEdgesRelation: index('idx_mem_edges_relation').on(t.relationType),
     // 防重复边
     uqMemEdgesLink: uniqueIndex('uq_mem_edges_link').on(t.sourceType, t.sourceId, t.targetType, t.targetId, t.relationType),
-    idxMemEdgesWorkspace: index('idx_mem_edges_workspace').on(t.workspaceId)
+    idxMemEdgesWorkspace: index('idx_mem_edges_workspace').on(t.workspaceId),
+    idxMemEdgesValid: index('idx_mem_edges_valid').on(t.validFrom, t.validTo)
   })
 );
 
 export type MemoryEdgeRow = InferSelectModel<typeof memory_edges>;
 export type NewMemoryEdge = InferInsertModel<typeof memory_edges>;
 ```
+
+> 2026-04-11 新增字段：`validFrom`、`validTo`、`confidence` 用于实体事实边的时序管理。`entity_fact`、`entity_attribute`、`entity_relation` 三种新的 `relationType` 支持实体事实存储。
+> `evidenceSnippet` 在实体事实边中用于存储 predicate（如 `"works_on"`、`"prefers"`）。
+> Repository 新增 `addEntityFact()`、`invalidateEntityFact()`、`queryEntityFacts(entity, asOf)`、`entityTimeline(entity)` 方法。
 
 ### 2.5 memory_keywords — 关键词规范化表
 
@@ -478,11 +500,11 @@ CREATE VIRTUAL TABLE IF NOT EXISTS memory_notes_fts USING fts5(
 
 ### 3.3 FTS 数据写入时机
 
-| 事件                                 | 动作                                    |
-| ------------------------------------ | --------------------------------------- |
-| 记忆提取完成（新 note 生成）         | INSERT 该 note + 其所有 section 到 FTS  |
-| 记忆 note 更新（重新提取或用户编辑） | DELETE old entries → INSERT new entries |
-| 记忆 note 删除                       | DELETE from FTS                         |
+| 事件                                 | 动作                                                   |
+| ------------------------------------ | ------------------------------------------------------ |
+| 记忆提取完成（新 note 生成）         | INSERT 该 note + 其所有 section 到 FTS                 |
+| 记忆 note 更新（重新提取或用户编辑） | DELETE old entries → INSERT new entries                |
+| 记忆 note 删除                       | DELETE from FTS                                        |
 | 手动重建索引                         | 重建 FTS 虚拟表 → 遍历所有未删除 note/section 重新写入 |
 
 ---
@@ -518,7 +540,9 @@ CREATE VIRTUAL TABLE IF NOT EXISTS memory_notes_fts USING fts5(
 ┌─────────────────┐
 │  memory_edges   │   sourceType + sourceId ─── targetType + targetId
 │                 │   relationType: parent_topic_of | belongs_to_topic | ...
+│                 │                 entity_fact | entity_attribute | entity_relation
 │                 │   weight, origin, evidence
+│                 │   validFrom, validTo, confidence（实体事实边时序字段）
 └─────────────────┘
 
 ┌──────────────────┐

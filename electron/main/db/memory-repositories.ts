@@ -53,9 +53,7 @@ export const MemoryNoteRepo = {
         .where(and(...wheres))
         .limit(1);
       if (existingByPath[0] && existingByPath[0].id !== note.id) {
-        console.log(
-          `[MemoryNoteRepo:upsert] workspace+filePath conflict: ws=${note.workspaceId || 'null'}, existing id=${existingByPath[0].id}, new id=${note.id}. Reusing existing id.`
-        );
+        console.log(`[MemoryNoteRepo:upsert] workspace+filePath conflict: ws=${note.workspaceId || 'null'}, existing id=${existingByPath[0].id}, new id=${note.id}. Reusing existing id.`);
         // 使用已有记录的 id 进行更新，避免 UNIQUE(workspace_id, file_path) 冲突
         (note as any).id = existingByPath[0].id;
       }
@@ -84,7 +82,11 @@ export const MemoryNoteRepo = {
     const wheres: any[] = [eq(memory_notes.filePath, filePath)];
     if (workspaceId) wheres.push(eq(memory_notes.workspaceId, workspaceId));
     else wheres.push(isNull(memory_notes.workspaceId));
-    const rows = await db.select().from(memory_notes).where(and(...wheres)).limit(1);
+    const rows = await db
+      .select()
+      .from(memory_notes)
+      .where(and(...wheres))
+      .limit(1);
     return rows[0];
   },
 
@@ -476,6 +478,32 @@ export const MemoryTopicRepo = {
     return (rows[0] as any)?.count ?? 0;
   },
 
+  /** 按 domain 查找主题（I-4: 命名空间过滤） */
+  async findByDomain(domain: string, workspaceId?: string, limit = 20): Promise<MemoryTopicRow[]> {
+    const db = getOrm();
+    const wheres: any[] = [isNull(memory_topics.deletedAt), eq(memory_topics.domain, domain)];
+    if (workspaceId) wheres.push(eq(memory_topics.workspaceId, workspaceId));
+    return db
+      .select()
+      .from(memory_topics)
+      .where(and(...wheres))
+      .orderBy(desc(memory_topics.heat))
+      .limit(limit);
+  },
+
+  /** 按 domainType 查找主题 */
+  async findByDomainType(domainType: string, workspaceId?: string, limit = 50): Promise<MemoryTopicRow[]> {
+    const db = getOrm();
+    const wheres: any[] = [isNull(memory_topics.deletedAt), eq(memory_topics.domainType, domainType as any)];
+    if (workspaceId) wheres.push(eq(memory_topics.workspaceId, workspaceId));
+    return db
+      .select()
+      .from(memory_topics)
+      .where(and(...wheres))
+      .orderBy(desc(memory_topics.heat))
+      .limit(limit);
+  },
+
   /**
    * 对所有主题执行 heat 衰减。
    * 使用指数衰减：heat = heat * decayFactor
@@ -609,6 +637,104 @@ export const MemoryEdgeRepo = {
       .from(memory_edges)
       .where(wheres.length ? and(...wheres) : undefined);
     return (rows[0] as any)?.count ?? 0;
+  },
+
+  // ━━ 实体事实操作（I-3: 时序实体知识图谱） ━━
+
+  /** 添加实体事实边 (entity_fact/entity_attribute/entity_relation) */
+  async addEntityFact(fact: {
+    subject: string;
+    predicate: string;
+    object: string;
+    relationType?: 'entity_fact' | 'entity_attribute' | 'entity_relation';
+    validFrom?: number;
+    confidence?: number;
+    evidenceNoteId?: string;
+    workspaceId?: string;
+  }): Promise<MemoryEdgeRow | undefined> {
+    const db = getOrm();
+    const edge: NewMemoryEdge = {
+      sourceType: 'note',
+      sourceId: fact.subject,
+      targetType: 'note',
+      targetId: fact.object,
+      relationType: fact.relationType || 'entity_fact',
+      weight: 1.0,
+      evidenceNoteId: fact.evidenceNoteId,
+      evidenceSnippet: fact.predicate,
+      origin: 'llm_extracted',
+      validFrom: fact.validFrom ?? Date.now(),
+      confidence: fact.confidence ?? 1.0,
+      workspaceId: fact.workspaceId
+    };
+    const rows = await db
+      .insert(memory_edges)
+      .values(edge as any)
+      .onConflictDoUpdate({
+        target: [memory_edges.sourceType, memory_edges.sourceId, memory_edges.targetType, memory_edges.targetId, memory_edges.relationType],
+        set: { weight: 1.0, validFrom: edge.validFrom, confidence: edge.confidence, updatedAt: Date.now() }
+      })
+      .returning()
+      .all();
+    return rows[0];
+  },
+
+  /** 标记实体事实过期 */
+  async invalidateEntityFact(subject: string, predicate: string, object: string, validTo: number): Promise<void> {
+    const rawDb = getDB();
+    if (!rawDb) return;
+    rawDb
+      .prepare(
+        `UPDATE memory_edges
+         SET valid_to = ?, updated_at = ?
+         WHERE source_id = ? AND target_id = ? AND evidence_snippet = ?
+           AND relation_type IN ('entity_fact', 'entity_attribute', 'entity_relation')
+           AND valid_to IS NULL`
+      )
+      .run(validTo, Date.now(), subject, object, predicate);
+  },
+
+  /** 查询实体的当前有效事实 */
+  async queryEntityFacts(entity: string, opts?: { asOf?: number; workspaceId?: string; limit?: number }): Promise<MemoryEdgeRow[]> {
+    const rawDb = getDB();
+    if (!rawDb) return [];
+    const asOf = opts?.asOf ?? Date.now();
+    const limit = opts?.limit ?? 50;
+
+    let sql = `SELECT * FROM memory_edges
+      WHERE (source_id = ? OR target_id = ?)
+        AND relation_type IN ('entity_fact', 'entity_attribute', 'entity_relation')
+        AND (valid_from IS NULL OR valid_from <= ?)
+        AND (valid_to IS NULL OR valid_to > ?)`;
+    const params: any[] = [entity, entity, asOf, asOf];
+
+    if (opts?.workspaceId) {
+      sql += ` AND workspace_id = ?`;
+      params.push(opts.workspaceId);
+    }
+    sql += ` ORDER BY valid_from DESC LIMIT ?`;
+    params.push(limit);
+
+    return rawDb.prepare(sql).all(...params) as MemoryEdgeRow[];
+  },
+
+  /** 查询实体的完整时间线（包括已过期的事实） */
+  async entityTimeline(entity: string, workspaceId?: string): Promise<MemoryEdgeRow[]> {
+    const rawDb = getDB();
+    if (!rawDb) return [];
+
+    let sql = `SELECT * FROM memory_edges
+      WHERE (source_id = ? OR target_id = ?)
+        AND relation_type IN ('entity_fact', 'entity_attribute', 'entity_relation')`;
+    const params: any[] = [entity, entity];
+
+    if (workspaceId) {
+      sql += ` AND workspace_id = ?`;
+      params.push(workspaceId);
+    }
+    sql += ` ORDER BY valid_from ASC`;
+
+    return rawDb.prepare(sql).all(...params) as MemoryEdgeRow[];
   }
 };
 

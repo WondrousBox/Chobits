@@ -20,6 +20,8 @@ export function buildRetrievalDbDeps(): RetrievalDbDeps {
     findKeywordByAlias: (alias, workspaceId) => MemoryKeywordRepo.findByAlias(alias, workspaceId),
     findAdjacentTopics: (topicIds, limit) => MemoryEdgeRepo.findAdjacentTopics(topicIds, limit),
     findEdgesBySource: (sourceType, sourceId, relationType) => MemoryEdgeRepo.findBySource(sourceType, sourceId, relationType),
+    queryEntityFacts: (entity, opts) => MemoryEdgeRepo.queryEntityFacts(entity, opts),
+    findTopicsByDomain: (domain, workspaceId, limit) => MemoryTopicRepo.findByDomain(domain, workspaceId, limit),
     getNoteById: (id) => MemoryNoteRepo.getById(id),
     listNotesByWorkspace: (workspaceId, limit, offset) => MemoryNoteRepo.listByWorkspace(workspaceId, limit, offset),
     listNotesByDateRange: (start, end, workspaceId) => MemoryNoteRepo.listByDateRange(start, end, workspaceId),
