@@ -15,29 +15,16 @@ OpenClaw 生态的记忆系统核心模式可供参考：
 
 按你建议的：DB schema → Repository → Extraction service → Retrieval service → IPC handlers → Agent tools
 
-## 当前实现状态（2026-04-11）
+## 当前实现状态（2026-04-12）
 
-- Phase 1 DB Schema：已完成。
-- Phase 2 Repository：已完成。含 `MemoryTopicRepo.applyHeatDecay()`、`MemorySyncJobRepo.findByWorkspace()/getAll()`。新增 `MemoryEdgeRepo.addEntityFact()/invalidateEntityFact()/queryEntityFacts()/entityTimeline()`、`MemoryTopicRepo.findByDomain()/findByDomainType()`。
-- Phase 3 Extraction Service：已完成。`conversation_close` 主链路、队列、worker、merge/write 已实现；`daily_extraction` 定时触发（30 分钟间隔检查）、漏跑补偿（启动时回溯）、Open Loop 智能合并（LLM 判断待办是否已解决）、3 种边类型创建（`belongs_to_topic`/`related_to_topic`/`contains_section`）、`fileChecksum`/`timeRange`/`sections.keywords` 字段填充均已实现。
-  - 2026-04-10 更新：提取阶段新增 `Recall Cues` section，用来沉淀“未来值得回忆”的长期记忆候选；`MEMORY.md` 生成时优先消费这些候选，而不是仅靠 summary / key points 规则猜测。
-  - 2026-04-10 补充：新增 `recall_cue_backfill` 历史回填任务，复用长任务 LLM 执行机制，为旧 note 渐进式补写 `Recall Cues`；回填成功后自动刷新 `memory/MEMORY.md`。
-  - 2026-04-11 更新（MemPalace 参考优化）：
-    - I-1: Always-Loaded Critical Facts — `MEMORY.md` 新增 `## Critical Facts` 段落（top-5 最稳定的关键记忆）；新会话首轮自动预加载（5 分钟缓存 TTL）。
-    - I-2: Source Excerpts — 对 importance > 0.8 的 note，LLM 自动提取最多 3 条用户原话引用（`## Source Excerpts`）。
-    - I-3: Temporal Entity KG — `memory_edges` 新增 `validFrom`/`validTo`/`confidence` + `entity_fact`/`entity_attribute`/`entity_relation` 边类型；提取 Step 5e-2 自动创建实体事实边。
-    - I-4: Domain Namespace — `memory_topics` 新增 `domain`/`domainType`；LLM 主题拆分自动判断领域；检索 Stage 2 Step 2d 按域过滤。
-    - I-5: Contradiction Detection — 合并时对 importance > 0.8 的 note 执行 LLM 矛盾检查，矛盾标记 ⚠️。
-    - I-6: Periodic Save — 长对话每 20 条消息自动触发提取（`periodicSaveInterval` 可配置）。
-    - I-7: Agent Diary — 新增 `memoryDiaryTool`，AI 写入观察日记到 `memory/diary/YYYY-MM-DD.md`。
-- Phase 4 Retrieval Service：已完成。`search` / `get` / `browseTopics` / `searchWithContent` 已实现；`topicFilter` 过滤生效；LLM 辅助查询分析 (`createLlmQueryAnalyzer`) 已集成到 `searchWithContent`；新会话预加载（首轮自动注入近 7 天高重要度记忆摘要 + Critical Facts）已接入 auto-recall；Stage 2 新增 Step 2d（Domain 过滤）和 Step 2e（实体事实图谱扩展）。
-- Phase 5 IPC Handlers：已完成，扩展到 `memory:stats`、`memory:cleanupForConversations`、`memory:clearAll`、`memory:cancelSync`、`memory:getMetrics`、`memory:getConfig`/`memory:setConfig`、`memory:generateDailyIndex`、`memory:generateTopicArchives`、`memory:generateMemoryIndex`。
-  - 2026-04-10 更新：`memory:generateMemoryIndex` 现在会同时刷新两个文件：
-    - `memory/MEMORY.md`：长期记忆摘要（含 Critical Facts 段落），供未来回忆与上下文注入直接使用
-    - `memory/INDEX.md`：浏览索引，保留主题/文件导航，不再让 `MEMORY.md` 承担目录职责
-  - 2026-04-10 补充：新增 `memory:backfillRecallCues`，便于手动测试指定 note / limit 的历史回填任务。
-- Phase 6 Agent Tools：已完成；实际代码位于 `packages/ai/runtime/pi/tools/`，当前是 5 个工具（`memorySearchTool`、`memoryGetTool`、`memoryTopicsTool`、`memorySaveTool`、`memoryDiaryTool`）。
+- Phase 1 DB Schema：已完成。`memory_notes` 已持久化 `domain`，并包含 `timeRange`、`parentTopicId`、`relatedTopicIds`、`aliases`、`entities` 等 note 级字段。
+- Phase 2 Repository：已完成。除 `MemoryTopicRepo.applyHeatDecay()`、`MemorySyncJobRepo.findByWorkspace()/getAll()` 外，还包含 `MemoryEdgeRepo.addEntityFact()/invalidateEntityFact()/queryEntityFacts()/entityTimeline()`、`MemoryTopicRepo.findByDomain()/findByDomainType()`。FTS 已拆为独立的 `memory-fts.ts` / `memory-fts-repo.ts`，当前采用 note-scoped 增量维护，并在启动时把旧 contentless FTS 自动迁移为 row-mutable FTS。
+- Phase 3 Extraction Service：已完成。`conversation_close` 主链路、队列、worker、merge/write、`daily_extraction`、漏跑补偿、Open Loop 智能合并、`Recall Cues`、`Source Excerpts`、实体关系写边、`fileChecksum` / `timeRange` / `sections.keywords` 均已落地。`memory-config.json` 中的 `minNewMessagesForExtraction`、`extractionCooldownMinutes`、`maxTokensPerExtraction`、`periodicSaveInterval` 现已真实接到 runtime worker。
+- Phase 4 Retrieval Service：已完成。`search` / `get` / `browseTopics` / `searchWithContent` 已实现；`topicFilter`、LLM 查询分析、新会话预加载、Domain 过滤、实体事实扩展、LIKE fallback、broad recall fallback 均已接入。`entity_fact.evidenceNoteId` 当前通过 `factNoteIds` 直达 Stage 3 note 候选，不再混入 topic expansion。Electron auto-recall 与 Pi memory tools 的 retrieval deps 能力已对齐。
+- Phase 5 IPC Handlers：已完成，现包含 `memory:stats`、`memory:cleanupForConversations`、`memory:clearAll`、`memory:cancelSync`、`memory:getMetrics`、`memory:getConfig` / `memory:setConfig`、`memory:generateDailyIndex`、`memory:generateTopicArchives`、`memory:generateMemoryIndex`、`memory:backfillRecallCues` 等入口。
+- Phase 6 Agent Tools：已完成。实际代码位于 `packages/ai/runtime/pi/tools/`，当前注册了 5 个工具：`memorySearchTool`、`memoryGetTool`、`memoryTopicsTool`、`memorySaveTool`、`memoryDiaryTool`。其中前 4 个进入 `DEFAULT_SESSION_TOOL_IDS`；`memoryDiaryTool` 只完成注册与写文件，当前不是默认 session tool，也不进入检索闭环。
 - Phase 7 对话删除 → 记忆清理联动：已完成。
+- Repair wave 状态：`P0-1` ~ `P0-4`、`P1-1`、`P1-2`、`P1-4` 已完成；当前剩余的高优先事项是 `P1-3 diary` 产品方向收口。
 
 ## Phase 1: DB Schema
 
@@ -49,7 +36,7 @@ OpenClaw 生态的记忆系统核心模式可供参考：
 - 运行 `pnpm db:generate` 生成 migration
   **注意**：
 - 所有新表用 `memory_` 前缀，与现有表完全隔离
-- FTS5 用 `content=''` contentless 模式，正文回到 Markdown 读取
+- FTS5 当前使用可行级删除/插入的 row-mutable 表定义；旧的 `content=''` contentless 版本会在启动时自动迁移并从派生源重建
 - `memory_notes.workspaceId` 引用现有 `workspaces.id`
 
 ## Phase 2: Repository
@@ -65,7 +52,7 @@ OpenClaw 生态的记忆系统核心模式可供参考：
   _ `MemoryKeywordRepo` — upsertCanonical / findByCanonical / findByAlias
   _ `MemoryNoteKeywordRepo` — bulkUpsert / deleteByNote
   _ `MemorySyncJobRepo` — create / updateStatus / updateProgress / findByStatus / getLatest
-  _ `MemoryFTSRepo` — insertNoteEntry / insertSectionEntry / deleteByNote / rebuildAll / search\(match query\)
+  _ `MemoryFTSRepo` — 已演进到 `electron/main/db/memory-fts-repo.ts`，支持 `insertNoteEntry` / `insertSectionEntry` / `deleteByNote` / `rebuildForNote` / `rebuildAll` / `search(match query)`
   **模式**：复用现有 Repository 模式（`getOrm()` / Drizzle query builder / 事务用 `(db as any).transaction()`）
 
 ## Phase 3: Extraction Service
@@ -121,7 +108,7 @@ OpenClaw 生态的记忆系统核心模式可供参考：
 
 ## Phase 6: Agent Tools
 
-**目标**：在 AI runtime 中注册 4 个 memory tool
+**目标**：在 AI runtime 中注册 5 个 memory tool，其中 diary 作为按需日志工具保留
 **文件**：
 
 - `packages/ai/runtime/pi/tools/` 下注册工具定义：
@@ -129,9 +116,10 @@ OpenClaw 生态的记忆系统核心模式可供参考：
   - `memoryGetTool` — 调用 `memory:get` IPC
   - `memoryTopicsTool` — 调用 `memory:topics` IPC
   - `memorySaveTool` — 将重要信息主动写入长期记忆
-- `packages/ai/runtime/pi/tool-registry.ts` — 注册 tool metadata，并加入 `DEFAULT_SESSION_TOOL_IDS`
+  - `memoryDiaryTool` — 追加写入 `memory/diary/YYYY-MM-DD.md`
+- `packages/ai/runtime/pi/tool-registry.ts` — 注册 tool metadata；`memory-search` / `memory-get` / `memory-topics` / `memory-save` 进入 `DEFAULT_SESSION_TOOL_IDS`，`memory-diary` 仅注册 metadata、按需启用
 - System prompt 扩展：在 AI chat 中注入记忆系统使用指南段
-- 自动注入策略：system prompt 指导已接入；“新会话自动预加载近 7 天高重要度记忆摘要”暂未实现
+- 自动注入策略：system prompt 指导已接入；新会话自动预加载近 7 天高重要度记忆摘要 + `Critical Facts` 已实现
 
 ## 历史建议：先启动 Phase 1
 

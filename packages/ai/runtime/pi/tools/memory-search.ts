@@ -30,6 +30,11 @@ const memorySearchParameters = Type.Object({
     Type.Boolean({
       description: '是否包含段落摘要，默认 false（只返回 note 摘要）'
     })
+  ),
+  debug: Type.Optional(
+    Type.Boolean({
+      description: 'Return debug scoring breakdowns and recall routes. Default false.'
+    })
   )
 });
 
@@ -53,6 +58,7 @@ export function createPiMemorySearchTool(toolContext: PiSessionToolContext): Too
         const result = await retrieval.search(input.query, workspaceId, db, {
           maxResults: input.maxResults,
           includeContent: input.includeContent,
+          debug: input.debug,
           topicFilter: input.topicFilter,
           dateRange: input.dateRange
         });

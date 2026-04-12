@@ -633,6 +633,7 @@ export const memory_notes = sqliteTable(
     topics: text('topics').notNull(), // JSON string[]
     parentTopicId: text('parent_topic_id').references((): AnySQLiteColumn => memory_topics.id, { onDelete: 'set null' }),
     relatedTopicIds: text('related_topic_ids'), // JSON string[]
+    domain: text('domain'), // 如 "person:Alice", "project:chobits", "general"
 
     // ━━ 关键词与实体（冗余存储用于快速过滤） ━━
     keywords: text('keywords').notNull(), // JSON string[]
@@ -666,6 +667,7 @@ export const memory_notes = sqliteTable(
     idxMemNotesImportance: index('idx_mem_notes_importance').on(t.importance),
     idxMemNotesStability: index('idx_mem_notes_stability').on(t.stability),
     idxMemNotesParentTopic: index('idx_mem_notes_parent_topic').on(t.parentTopicId),
+    idxMemNotesDomain: index('idx_mem_notes_domain').on(t.domain, t.workspaceId),
     idxMemNotesCreated: index('idx_mem_notes_created').on(t.createdAt),
     idxMemNotesDeleted: index('idx_mem_notes_deleted').on(t.deletedAt),
     uqMemNotesWorkspaceFilePath: uniqueIndex('uq_mem_notes_workspace_file_path').on(t.workspaceId, t.filePath)

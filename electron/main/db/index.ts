@@ -11,8 +11,10 @@ const require = createRequire(import.meta.url);
 import { inArray } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 
+import { parseFrontmatter, readLines } from '../../../packages/ai/services/memory-note-parser';
 import { binPathLog } from '../logger';
 import { Env } from '../utils';
+import { isLegacyContentlessMemoryFtsSql, MEMORY_FTS_CREATE_SQL, MEMORY_FTS_TABLE_NAME } from './memory-fts';
 import { documents } from './schema';
 
 // We'll dynamically load the sqlite-vec extension (ship prebuilt per-platform binaries)
@@ -347,24 +349,147 @@ function ensureChatMessageSequenceIndex(): void {
 function ensureMemoryFTS(): void {
   if (!db) return;
   try {
-    db.exec(`
-      CREATE VIRTUAL TABLE IF NOT EXISTS memory_notes_fts USING fts5(
-        entry_id,
-        entry_type,
-        note_id,
-        title,
-        summary,
-        keywords,
-        aliases,
-        entities,
-        body,
-        content='',
-        tokenize='unicode61 remove_diacritics 2'
-      );
-    `);
+    const existing = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name = ?`).get(MEMORY_FTS_TABLE_NAME) as { sql?: string | null } | undefined;
+    const needsCreate = !existing;
+    const needsMigration = isLegacyContentlessMemoryFtsSql(existing?.sql);
+
+    if (needsMigration) {
+      db.exec(`DROP TABLE IF EXISTS ${MEMORY_FTS_TABLE_NAME}`);
+    }
+
+    if (needsCreate || needsMigration) {
+      db.exec(MEMORY_FTS_CREATE_SQL);
+      const rebuilt = rebuildMemoryFtsFromDerivedSources();
+      const action = needsMigration ? 'migrated' : 'created';
+      console.log(`[memory] FTS5 virtual table ${action}${rebuilt > 0 ? ` and rebuilt ${rebuilt} notes` : ''}`);
+      return;
+    }
+
     console.log('[memory] FTS5 virtual table ensured');
   } catch (e) {
     console.warn('[memory] Failed to create memory_notes_fts virtual table:', e);
+  }
+}
+
+function rebuildMemoryFtsFromDerivedSources(): number {
+  if (!db) return 0;
+
+  const notes = db.prepare('SELECT * FROM memory_notes WHERE deleted_at IS NULL').all() as Array<{
+    id: string;
+    summary?: string | null;
+    keywords?: string | null;
+    aliases?: string | null;
+    entities?: string | null;
+    topics?: string | null;
+    workspace_id?: string | null;
+    file_path?: string | null;
+  }>;
+
+  if (notes.length === 0) {
+    return 0;
+  }
+
+  const selectSections = db.prepare('SELECT * FROM memory_sections WHERE note_id = ? ORDER BY section_order');
+  const selectWorkspace = db.prepare('SELECT root_path FROM workspaces WHERE id = ? LIMIT 1');
+  const clearStmt = db.prepare(`DELETE FROM ${MEMORY_FTS_TABLE_NAME}`);
+  const insertNoteStmt = db.prepare(
+    `INSERT INTO ${MEMORY_FTS_TABLE_NAME}(entry_id, entry_type, note_id, title, summary, keywords, aliases, entities, body)
+       VALUES (?, 'note', ?, ?, ?, ?, ?, ?, ?)`
+  );
+  const insertSectionStmt = db.prepare(
+    `INSERT INTO ${MEMORY_FTS_TABLE_NAME}(entry_id, entry_type, note_id, title, summary, keywords, aliases, entities, body)
+       VALUES (?, 'section', ?, ?, ?, ?, ?, ?, ?)`
+  );
+
+  db.transaction(() => {
+    clearStmt.run();
+
+    for (const note of notes) {
+      const topics = safeJsonArray(note.topics);
+      const keywords = safeJsonArray(note.keywords);
+      const aliases = safeJsonArray(note.aliases);
+      const entities = safeJsonArray(note.entities);
+      const sections = selectSections.all(note.id) as Array<{
+        id: string;
+        heading: string;
+        summary?: string | null;
+        keywords?: string | null;
+        line_start?: number;
+        line_end?: number;
+      }>;
+      const { noteBody, sectionBodies } = loadMemoryFtsBodies(note, sections, selectWorkspace);
+
+      insertNoteStmt.run(note.id, note.id, topics.join(' '), note.summary || '', keywords.join(' '), aliases.join(' '), entities.map((entity: any) => entity?.name || entity).join(' '), noteBody);
+
+      for (const section of sections) {
+        const sectionKeywords = safeJsonArray(section.keywords);
+        insertSectionStmt.run(section.id, note.id, section.heading, section.summary || '', sectionKeywords.join(' '), '', '', sectionBodies.get(section.id) || section.summary || '');
+      }
+    }
+  })();
+
+  return notes.length;
+}
+
+function loadMemoryFtsBodies(
+  note: {
+    summary?: string | null;
+    workspace_id?: string | null;
+    file_path?: string | null;
+  },
+  sections: Array<{
+    id: string;
+    summary?: string | null;
+    line_start?: number;
+    line_end?: number;
+  }>,
+  selectWorkspace: { get: (workspaceId: string) => { root_path?: string | null } | undefined }
+): { noteBody: string; sectionBodies: Map<string, string> } {
+  const sectionBodies = new Map<string, string>();
+
+  if (!note.workspace_id || !note.file_path) {
+    return { noteBody: note.summary || '', sectionBodies };
+  }
+
+  try {
+    const workspace = selectWorkspace.get(note.workspace_id);
+    if (!workspace?.root_path) {
+      return { noteBody: note.summary || '', sectionBodies };
+    }
+
+    const absolutePath = path.join(workspace.root_path, note.file_path);
+    const content = fs.readFileSync(absolutePath, 'utf-8');
+    const { bodyStartLine } = parseFrontmatter(content);
+    const lines = content.split('\n');
+    const noteBody =
+      lines
+        .slice(Math.max(0, bodyStartLine - 1))
+        .join('\n')
+        .trim() ||
+      note.summary ||
+      '';
+
+    for (const section of sections) {
+      if (!section.line_start || !section.line_end) continue;
+      const body = readLines(content, section.line_start, section.line_end).trim();
+      if (body) {
+        sectionBodies.set(section.id, body);
+      }
+    }
+
+    return { noteBody, sectionBodies };
+  } catch {
+    return { noteBody: note.summary || '', sectionBodies };
+  }
+}
+
+function safeJsonArray(value: string | null | undefined): any[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
   }
 }
 

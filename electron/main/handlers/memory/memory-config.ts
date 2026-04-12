@@ -14,6 +14,9 @@ import path from 'node:path';
 
 import { app } from 'electron';
 
+import { DEFAULT_EXTRACTION_CONFIG } from '../../../../packages/ai/services/memory-types';
+import { DEFAULT_PERIODIC_SAVE_INTERVAL, resolveExtractionRuntimeConfig } from './extraction-runtime-config';
+
 export interface MemoryConfig {
   /** 记忆系统总开关 */
   memoryEnabled: boolean;
@@ -39,9 +42,10 @@ const DEFAULT_CONFIG: MemoryConfig = {
   memoryEnabled: true,
   autoExtractionEnabled: true,
   autoRecallEnabled: true,
-  minNewMessagesForExtraction: 4,
-  extractionCooldownMinutes: 5,
-  maxTokensPerExtraction: 4000
+  minNewMessagesForExtraction: DEFAULT_EXTRACTION_CONFIG.minNewMessages,
+  extractionCooldownMinutes: DEFAULT_EXTRACTION_CONFIG.minTriggerInterval / (60 * 1000),
+  maxTokensPerExtraction: DEFAULT_EXTRACTION_CONFIG.maxTokensPerExtraction,
+  periodicSaveInterval: DEFAULT_PERIODIC_SAVE_INTERVAL
 };
 
 const CONFIG_DIR = path.join(app.getPath('userData'), 'data');
@@ -59,18 +63,31 @@ export function getMemoryConfig(): MemoryConfig {
     if (fs.existsSync(CONFIG_FILE)) {
       const raw = fs.readFileSync(CONFIG_FILE, 'utf-8');
       const data = JSON.parse(raw);
-      return { ...DEFAULT_CONFIG, ...data };
+      return normalizeMemoryConfig(data);
     }
   } catch {
     // ignore parse errors, return default
   }
-  return { ...DEFAULT_CONFIG };
+  return normalizeMemoryConfig();
 }
 
 export function setMemoryConfig(patch: Partial<MemoryConfig>): MemoryConfig {
   const current = getMemoryConfig();
-  const updated = { ...current, ...patch };
+  const updated = normalizeMemoryConfig({ ...current, ...patch });
   ensureConfigDir();
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(updated, null, 2));
   return updated;
+}
+
+function normalizeMemoryConfig(data: Partial<MemoryConfig> = {}): MemoryConfig {
+  const runtime = resolveExtractionRuntimeConfig(data);
+
+  return {
+    ...DEFAULT_CONFIG,
+    ...data,
+    minNewMessagesForExtraction: runtime.minNewMessagesForExtraction,
+    extractionCooldownMinutes: runtime.extractionCooldownMinutes,
+    maxTokensPerExtraction: runtime.maxTokensPerExtraction,
+    periodicSaveInterval: runtime.periodicSaveInterval
+  };
 }

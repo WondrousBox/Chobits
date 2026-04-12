@@ -16,6 +16,15 @@ export interface MemoryNoteEntity {
   }>;
 }
 
+export type MemoryNoteContradictionType = 'decision_change' | 'attribution_conflict' | 'factual_conflict';
+
+export interface MemoryNoteContradiction {
+  old: string;
+  new: string;
+  type: MemoryNoteContradictionType;
+  detectedAt: number; // 毫秒时间戳
+}
+
 export interface MemoryNoteMessageRange {
   conversationId: string;
   seqStart: number;
@@ -51,6 +60,7 @@ export interface MemoryNoteFrontmatter {
 
   // 摘要
   summary: string;
+  contradictions?: MemoryNoteContradiction[];
 
   // 溯源
   sourceConversationIds: string[];
@@ -225,8 +235,8 @@ export interface MemoryExtractionConfig {
 export const DEFAULT_EXTRACTION_CONFIG: MemoryExtractionConfig = {
   enabled: true,
   minNewMessages: 4,
-  minTriggerInterval: 30 * 60 * 1000,
-  maxTokensPerExtraction: 20000
+  minTriggerInterval: 5 * 60 * 1000,
+  maxTokensPerExtraction: 4000
 };
 
 // ━━ Agent Loop Complete Payload ━━
