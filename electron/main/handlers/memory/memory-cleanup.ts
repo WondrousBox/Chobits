@@ -266,6 +266,7 @@ async function fullDeleteMemoryNote(noteId: string, workspaceId?: string | null,
   MemoryFTSRepo.deleteByNote(noteId);
   // 2. 删除图谱边
   await MemoryEdgeRepo.deleteByNote(noteId);
+  await MemoryEdgeRepo.deleteByEvidenceNote(noteId);
   // 3. 删除 note-keyword 关联（先收集关联的 keyword IDs）
   let keywordIds: string[] = [];
   if (rawDb) {

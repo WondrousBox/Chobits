@@ -622,6 +622,45 @@ export const MemoryEdgeRepo = {
     return (res as any).changes ?? 0;
   },
 
+  /** 删除以某条 note 作为事实证据的实体边，避免 note 删除后实体节点残留 */
+  async deleteByEvidenceNote(noteId: string): Promise<number> {
+    const rawDb = getDB();
+    if (!rawDb) return 0;
+    const res = rawDb
+      .prepare(
+        `DELETE FROM memory_edges
+         WHERE evidence_note_id = ?
+           AND relation_type IN ('entity_fact', 'entity_attribute', 'entity_relation')`
+      )
+      .run(noteId);
+    return (res as any).changes ?? 0;
+  },
+
+  /** 清理历史遗留的孤儿实体边，避免图谱继续从已删除 note 的证据边推导出实体节点 */
+  async pruneOrphanedEvidenceEdges(workspaceId?: string): Promise<number> {
+    const rawDb = getDB();
+    if (!rawDb) return 0;
+
+    let sql = `DELETE FROM memory_edges
+      WHERE relation_type IN ('entity_fact', 'entity_attribute', 'entity_relation')
+        AND evidence_note_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM memory_notes
+          WHERE memory_notes.id = memory_edges.evidence_note_id
+            AND memory_notes.deleted_at IS NULL
+        )`;
+    const params: any[] = [];
+
+    if (workspaceId) {
+      sql += ' AND workspace_id = ?';
+      params.push(workspaceId);
+    }
+
+    const res = rawDb.prepare(sql).run(...params);
+    return (res as any).changes ?? 0;
+  },
+
   /** 查找两个 topic 之间通过边关联的 topic IDs（1 层扩展） */
   async findAdjacentTopics(topicIds: string[], limit = 20): Promise<MemoryEdgeRow[]> {
     const rawDb = getDB();
@@ -694,7 +733,15 @@ export const MemoryEdgeRepo = {
       .values(edge as any)
       .onConflictDoUpdate({
         target: [memory_edges.sourceType, memory_edges.sourceId, memory_edges.targetType, memory_edges.targetId, memory_edges.relationType],
-        set: { weight: 1.0, validFrom: edge.validFrom, confidence: edge.confidence, updatedAt: Date.now() }
+        set: {
+          weight: 1.0,
+          validFrom: edge.validFrom,
+          confidence: edge.confidence,
+          evidenceNoteId: edge.evidenceNoteId,
+          evidenceSnippet: edge.evidenceSnippet,
+          workspaceId: edge.workspaceId,
+          updatedAt: Date.now()
+        }
       })
       .returning()
       .all();

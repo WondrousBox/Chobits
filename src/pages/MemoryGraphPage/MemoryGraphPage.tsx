@@ -125,7 +125,7 @@ interface TopicDetail {
 interface GraphNode {
   id: string;
   label: string;
-  type: 'topic' | 'note' | 'keyword';
+  type: 'topic' | 'note' | 'keyword' | 'entity';
   heat: number;
   noteCount: number;
   size: number;
@@ -193,6 +193,9 @@ const RELATION_COLORS: Record<string, string> = {
   related_to_note: 'rgba(234, 179, 8, 0.3)',
   shares_keyword: 'rgba(168, 85, 247, 0.3)',
   references_note: 'rgba(249, 115, 22, 0.3)',
+  entity_fact: 'rgba(245, 158, 11, 0.45)',
+  entity_attribute: 'rgba(16, 185, 129, 0.45)',
+  entity_relation: 'rgba(14, 165, 233, 0.45)',
   note_has_keyword: 'rgba(34, 197, 94, 0.35)',
   keyword_to_topic: 'rgba(139, 92, 246, 0.3)'
 };
@@ -220,6 +223,21 @@ function buildGraphData(
   showKeywords = false
 ): GraphData {
   const nodeMap = new Map<string, GraphNode>();
+  const keywordEntityTypeByLabel = new Map<string, string>();
+  const entityEdgeDegree = new Map<string, number>();
+
+  for (const kw of keywordNodes) {
+    const label = kw.canonical?.trim().toLowerCase();
+    if (label && kw.entityType) {
+      keywordEntityTypeByLabel.set(label, kw.entityType);
+    }
+  }
+
+  for (const edge of edges) {
+    if (!['entity_fact', 'entity_attribute', 'entity_relation'].includes(edge.relationType)) continue;
+    entityEdgeDegree.set(edge.sourceId, (entityEdgeDegree.get(edge.sourceId) ?? 0) + 1);
+    entityEdgeDegree.set(edge.targetId, (entityEdgeDegree.get(edge.targetId) ?? 0) + 1);
+  }
 
   for (const t of topics) {
     const heat = t.heat ?? 0;
@@ -278,6 +296,23 @@ function buildGraphData(
         description: kw.entityType ? `类型: ${kw.entityType} · 出现 ${count} 次` : `出现 ${count} 次`
       });
     }
+  }
+
+  for (const [entityId, relationCount] of entityEdgeDegree) {
+    if (!entityId || nodeMap.has(entityId)) continue;
+    const entityType = keywordEntityTypeByLabel.get(entityId.trim().toLowerCase()) ?? 'other';
+    const size = Math.max(5, Math.min(18, 5 + relationCount * 2));
+    nodeMap.set(entityId, {
+      id: entityId,
+      label: entityId,
+      type: 'entity',
+      heat: 0,
+      noteCount: relationCount,
+      size,
+      color: keywordColor(entityType),
+      entityType,
+      description: `实体关系节点 · ${relationCount} 条关联`
+    });
   }
 
   let activeNodeIds: Set<string> | null = null;
@@ -394,7 +429,7 @@ function DetailPanel({
         .catch(console.error)
         .finally(() => setDetailLoading(false));
     } else {
-      // keyword: no extra detail to fetch
+      // keyword/entity: no extra detail to fetch
       setDetailLoading(false);
     }
   }, [node, workspaceId]);
@@ -426,12 +461,16 @@ function DetailPanel({
           <div className="flex items-center gap-2">
             {node.type === 'topic' ? (
               <TbTopologyRing className="h-4 w-4 text-violet-500" />
+            ) : node.type === 'entity' ? (
+              <TbBrain className="h-4 w-4 text-amber-500" />
             ) : node.type === 'keyword' ? (
               <TbTag className="h-4 w-4 text-green-500" />
             ) : (
               <TbNote className="h-4 w-4 text-blue-500" />
             )}
-            <span className="text-xs font-medium text-muted-foreground uppercase">{node.type === 'topic' ? '主题' : node.type === 'keyword' ? '关键词' : '笔记'}</span>
+            <span className="text-xs font-medium text-muted-foreground uppercase">
+              {node.type === 'topic' ? '主题' : node.type === 'entity' ? '实体' : node.type === 'keyword' ? '关键词' : '笔记'}
+            </span>
           </div>
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose}>
             <TbX className="h-3.5 w-3.5" />
@@ -479,6 +518,22 @@ function DetailPanel({
                 {node.entityType}
               </span>
             </div>
+          )}
+          {node.type === 'entity' && (
+            <>
+              {node.entityType && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">实体类型</span>
+                  <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] border" style={{ borderColor: keywordColor(node.entityType), color: keywordColor(node.entityType) }}>
+                    {node.entityType}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">关系数</span>
+                <span className="tabular-nums">{node.noteCount}</span>
+              </div>
+            </>
           )}
         </div>
 
@@ -1066,15 +1121,79 @@ export default function MemoryGraphPage(): React.ReactElement {
         const scaledFont = Math.max(3, Math.min(8, drawSize * 0.9));
         ctx.font = `${isHighlighted ? '600' : '500'} ${scaledFont}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
         const textWidth = ctx.measureText(n.label).width;
-        const w = Math.max(drawSize * 2.5, textWidth + scaledFont * 0.8);
-        const h = Math.max(drawSize * 1.6, scaledFont * 1.8);
-        const r = drawSize * 0.4;
+        const notch = Math.max(4, drawSize * 0.8);
+        const w = Math.max(drawSize * 2.6, textWidth + scaledFont * 1.4 + notch);
+        const h = Math.max(drawSize * 1.55, scaledFont * 1.85);
+        const textX = x + notch * 0.14;
+
+        const drawKeywordShape = (pad = 0) => {
+          const left = x - w / 2 - pad;
+          const right = x + w / 2 + pad;
+          const top = y - h / 2 - pad * 0.8;
+          const bottom = y + h / 2 + pad * 0.8;
+          const tagLeft = left + notch + pad * 0.4;
+
+          ctx.beginPath();
+          ctx.moveTo(tagLeft, top);
+          ctx.lineTo(right - 2, top);
+          ctx.quadraticCurveTo(right, top, right, top + 2);
+          ctx.lineTo(right, bottom - 2);
+          ctx.quadraticCurveTo(right, bottom, right - 2, bottom);
+          ctx.lineTo(tagLeft, bottom);
+          ctx.lineTo(left, y);
+          ctx.closePath();
+        };
+
+        if (isHighlighted) {
+          const glow = ctx.createRadialGradient(x, y, drawSize * 0.3, x, y, drawSize * 2);
+          glow.addColorStop(0, `${n.color}66`);
+          glow.addColorStop(1, `${n.color}00`);
+          drawKeywordShape(3);
+          ctx.fillStyle = glow;
+          ctx.fill();
+        }
+
+        if ((isSelected || isHovered) && !isHighlighted) {
+          drawKeywordShape(2);
+          ctx.fillStyle = `${n.color}22`;
+          ctx.fill();
+        }
+
+        drawKeywordShape();
+        ctx.fillStyle = isFaded ? `${n.color}3d` : isHighlighted ? `${n.color}e6` : `${n.color}b8`;
+        ctx.fill();
+        ctx.strokeStyle = isHighlighted ? '#e0e7ff' : isSelected ? '#fff' : `${n.color}88`;
+        ctx.lineWidth = isHighlighted ? 2 : isSelected ? 1.5 : 0.9;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(x - w / 2 + notch * 0.55, y, Math.max(1.2, h * 0.11), 0, 2 * Math.PI);
+        ctx.strokeStyle = isFaded ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.55)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // 关键词标签文字完整显示（节点宽度按文本自适应）
+        ctx.textAlign = 'center';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = isFaded ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.95)';
+        ctx.fillText(n.label, textX, y);
+      } else if (n.type === 'entity') {
+        const baseSize = n.size * 1.05;
+        const drawSize = isHighlighted ? baseSize * 1.45 : isHovered || isSelected ? baseSize * 1.22 : baseSize;
+        const scaledFont = Math.max(4, Math.min(9, drawSize * 0.88));
+        ctx.font = `${isHighlighted ? '700' : '600'} ${scaledFont}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+        const textWidth = ctx.measureText(n.label).width;
+        const w = Math.max(drawSize * 3.1, textWidth + scaledFont * 1.9);
+        const h = Math.max(drawSize * 1.8, scaledFont * 2);
+        const r = h / 2;
+        const textX = x + Math.max(2, drawSize * 0.22);
 
         if (isHighlighted) {
           ctx.beginPath();
-          ctx.roundRect(x - w / 2 - 3, y - h / 2 - 3, w + 6, h + 6, r + 2);
-          const glow = ctx.createRadialGradient(x, y, drawSize * 0.3, x, y, drawSize * 2);
-          glow.addColorStop(0, `${n.color}66`);
+          ctx.roundRect(x - w / 2 - 4, y - h / 2 - 4, w + 8, h + 8, r + 4);
+          const glow = ctx.createRadialGradient(x, y, drawSize * 0.25, x, y, drawSize * 2.1);
+          glow.addColorStop(0, `${n.color}70`);
           glow.addColorStop(1, `${n.color}00`);
           ctx.fillStyle = glow;
           ctx.fill();
@@ -1082,24 +1201,36 @@ export default function MemoryGraphPage(): React.ReactElement {
 
         if ((isSelected || isHovered) && !isHighlighted) {
           ctx.beginPath();
-          ctx.roundRect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 4, r + 1);
-          ctx.fillStyle = `${n.color}22`;
+          ctx.roundRect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 4, r + 2);
+          ctx.fillStyle = `${n.color}24`;
           ctx.fill();
         }
 
         ctx.beginPath();
         ctx.roundRect(x - w / 2, y - h / 2, w, h, r);
-        ctx.fillStyle = isFaded ? `${n.color}44` : isHighlighted ? n.color : `${n.color}cc`;
+        const entityGradient = ctx.createLinearGradient(x - w / 2, y, x + w / 2, y);
+        entityGradient.addColorStop(0, isFaded ? `${n.color}38` : `${n.color}f0`);
+        entityGradient.addColorStop(1, isFaded ? `${n.color}24` : `${n.color}a8`);
+        ctx.fillStyle = entityGradient;
         ctx.fill();
-        ctx.strokeStyle = isHighlighted ? '#e0e7ff' : isSelected ? '#fff' : `${n.color}88`;
-        ctx.lineWidth = isHighlighted ? 2 : isSelected ? 1.5 : 0.5;
+        ctx.strokeStyle = isHighlighted ? '#fef3c7' : isSelected ? '#fff' : `${n.color}aa`;
+        ctx.lineWidth = isHighlighted ? 2.4 : isSelected ? 1.8 : 1.3;
         ctx.stroke();
 
-        // 关键词标签文字完整显示（节点宽度按文本自适应）
+        ctx.beginPath();
+        ctx.roundRect(x - w / 2 + 4, y - h / 2 + 4, Math.max(3, drawSize * 0.38), h - 8, Math.max(2, drawSize * 0.22));
+        ctx.fillStyle = isFaded ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.16)';
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.roundRect(x - w / 2 + 8, y - h / 2 + 4, w - 16, Math.max(2, h * 0.15), Math.max(2, h * 0.1));
+        ctx.fillStyle = isFaded ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.14)';
+        ctx.fill();
+
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = isFaded ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.95)';
-        ctx.fillText(n.label, x, y);
+        ctx.fillStyle = isFaded ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.96)';
+        ctx.fillText(n.label, textX, y);
       } else {
         // 记忆笔记 — 缩小菱形，文本始终在外部展示
         const size = n.size;
@@ -1569,7 +1700,7 @@ export default function MemoryGraphPage(): React.ReactElement {
               笔记 {stats.notes}
             </span>
             <span className="flex items-center gap-1">
-              <span className="inline-block w-3 h-1.5 rounded-sm" style={{ background: '#22c55e' }} />
+              <span className="inline-block w-4 h-2" style={{ background: '#22c55e', clipPath: 'polygon(24% 0, 100% 0, 100% 100%, 24% 100%, 0 50%)' }} />
               关键词 {stats.keywords}
             </span>
             <span className="flex items-center gap-1">
@@ -1593,8 +1724,24 @@ export default function MemoryGraphPage(): React.ReactElement {
               <span>记忆笔记</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="inline-block w-3 h-1.5 rounded-sm" style={{ background: '#22c55e' }} />
+              <span className="inline-block w-4 h-2" style={{ background: '#22c55e', clipPath: 'polygon(24% 0, 100% 0, 100% 100%, 24% 100%, 0 50%)' }} />
               <span>关键词</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block min-w-4 h-2 rounded-full border" style={{ background: 'linear-gradient(90deg, #f59e0b, #f97316)', borderColor: 'rgba(255,255,255,0.35)' }} />
+              <span>实体节点（颜色代表实体类型）</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-4 h-px" style={{ background: 'rgba(245, 158, 11, 0.75)' }} />
+              <span>实体事实</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-4 h-px" style={{ background: 'rgba(16, 185, 129, 0.75)' }} />
+              <span>实体属性</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-4 h-px" style={{ background: 'rgba(14, 165, 233, 0.75)' }} />
+              <span>实体关系</span>
             </div>
             <div className="flex items-center gap-1.5 text-muted-foreground/60">
               <span>节点大小 = 关联数量</span>
