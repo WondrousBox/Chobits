@@ -272,18 +272,12 @@ export function initMemoryHandlers(): void {
 
   ipcMain.handle('memory:deleteNote', async (_event, noteId: string) => {
     try {
-      // 删除 FTS 条目
       const note = await MemoryNoteRepo.getById(noteId);
       MemoryFTSRepo.deleteByNote(noteId);
       await MemoryEdgeRepo.deleteByNote(noteId);
-      // 删除边
-      await MemoryEdgeRepo.deleteByNote(noteId);
-      // 删除 note-keyword 关联
+      await MemoryEdgeRepo.deleteByEvidenceNote(noteId);
       await MemoryNoteKeywordRepo.deleteByNote(noteId);
-      // 删除 section 索引，避免软删 note 后留下悬空 section
       await MemorySectionRepo.deleteByNote(noteId);
-      await MemoryNoteRepo.softDelete([noteId]);
-      // 软删除 note（cascade 删 sections）
       await MemoryNoteRepo.softDelete([noteId]);
       retrieval.clearMemorySearchCache(note?.workspaceId || undefined);
       return { success: true };
@@ -318,6 +312,8 @@ export function initMemoryHandlers(): void {
           const defaultWs = await WorkspacesRepo.getDefault();
           wsId = defaultWs?.id;
         }
+
+        await MemoryEdgeRepo.pruneOrphanedEvidenceEdges(wsId);
 
         // 获取主题节点
         const topics = params?.topicId ? await MemoryTopicRepo.listChildren(params.topicId) : await MemoryTopicRepo.listAll(wsId, maxTopics);
@@ -358,10 +354,10 @@ export function initMemoryHandlers(): void {
   ipcMain.handle('memory:stats', async (_event, params?: { workspaceId?: string }) => {
     try {
       const [noteCount, topicCount, edgeCount] = await Promise.all([MemoryNoteRepo.count(params?.workspaceId), MemoryTopicRepo.count(params?.workspaceId), MemoryEdgeRepo.count(params?.workspaceId)]);
-      return { noteCount, topicCount, edgeCount };
+      return { noteCount, topicCount, edgeCount, totalNotes: noteCount };
     } catch (e: any) {
       console.error('[Memory] stats failed:', e);
-      return { noteCount: 0, topicCount: 0, edgeCount: 0 };
+      return { noteCount: 0, topicCount: 0, edgeCount: 0, totalNotes: 0 };
     }
   });
 

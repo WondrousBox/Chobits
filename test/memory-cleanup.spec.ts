@@ -10,6 +10,7 @@ const cleanupMocks = vi.hoisted(() => ({
   deleteNoteByIds: vi.fn(async () => 1),
   deleteFtsByNote: vi.fn(),
   deleteEdgeByNote: vi.fn(async () => 1),
+  deleteEdgeByEvidenceNote: vi.fn(async () => 1),
   deleteNoteKeywordByNote: vi.fn(async () => 1),
   getWorkspaceById: vi.fn(),
   rawPrepare: vi.fn(),
@@ -33,7 +34,8 @@ vi.mock('../electron/main/db/memory-repositories', () => ({
     deleteByIds: cleanupMocks.deleteNoteByIds
   },
   MemoryEdgeRepo: {
-    deleteByNote: cleanupMocks.deleteEdgeByNote
+    deleteByNote: cleanupMocks.deleteEdgeByNote,
+    deleteByEvidenceNote: cleanupMocks.deleteEdgeByEvidenceNote
   },
   MemoryNoteKeywordRepo: {
     deleteByNote: cleanupMocks.deleteNoteKeywordByNote
@@ -66,6 +68,7 @@ beforeEach(() => {
   cleanupMocks.deleteNoteByIds.mockClear();
   cleanupMocks.deleteFtsByNote.mockClear();
   cleanupMocks.deleteEdgeByNote.mockClear();
+  cleanupMocks.deleteEdgeByEvidenceNote.mockClear();
   cleanupMocks.deleteNoteKeywordByNote.mockClear();
   cleanupMocks.getWorkspaceById.mockReset();
   cleanupMocks.rawExec.mockClear();
@@ -102,6 +105,7 @@ describe('memory cleanup regression coverage', () => {
     });
     expect(cleanupMocks.deleteFtsByNote).not.toHaveBeenCalled();
     expect(cleanupMocks.deleteEdgeByNote).not.toHaveBeenCalled();
+    expect(cleanupMocks.deleteEdgeByEvidenceNote).not.toHaveBeenCalled();
     expect(cleanupMocks.deleteNoteKeywordByNote).not.toHaveBeenCalled();
     expect(cleanupMocks.deleteNoteByIds).not.toHaveBeenCalled();
     expect(cleanupMocks.clearMemorySearchCache).toHaveBeenCalledTimes(1);
@@ -137,6 +141,7 @@ describe('memory cleanup regression coverage', () => {
     });
     expect(cleanupMocks.deleteFtsByNote).toHaveBeenCalledWith('note_orphan');
     expect(cleanupMocks.deleteEdgeByNote).toHaveBeenCalledWith('note_orphan');
+    expect(cleanupMocks.deleteEdgeByEvidenceNote).toHaveBeenCalledWith('note_orphan');
     expect(cleanupMocks.deleteNoteKeywordByNote).toHaveBeenCalledWith('note_orphan');
     expect(cleanupMocks.deleteNoteByIds).toHaveBeenCalledWith(['note_orphan']);
     expect(cleanupMocks.clearMemorySearchCache).toHaveBeenCalledWith('ws-1');

@@ -27,8 +27,8 @@ const MemoryManagementSettings: React.FC = () => {
   useEffect(() => {
     window.YUA.memory
       .stats()
-      .then((stats: { totalNotes?: number }) => {
-        setNoteCount(stats?.totalNotes ?? 0);
+      .then((stats: { noteCount?: number; totalNotes?: number }) => {
+        setNoteCount(stats?.noteCount ?? stats?.totalNotes ?? 0);
       })
       .catch(() => { });
 
