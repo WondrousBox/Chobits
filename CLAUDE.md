@@ -162,8 +162,10 @@ Only files in allowed roots (workspace resources, app resources) are accessible.
 - **Contradiction Detection**: Lightweight LLM-based contradiction check during merge (Step 4) for importance >0.8 notes. Detected contradictions are marked with ⚠️ in Key Points section.
 - **Periodic Save**: Message counter triggers extraction every 20 messages during long conversations (configurable via `periodicSaveInterval`), preventing memory loss mid-session.
 - **LLM query analysis**: Optional LLM-assisted query parsing (`createLlmQueryAnalyzer`) enhances `searchWithContent()` with better topic/entity/keyword extraction.
-- **Agent tools**: `memorySearchTool`, `memoryGetTool`, `memoryTopicsTool`, `memorySaveTool`, `memoryDiaryTool` — for explicit memory operations by the AI agent
+- **Agent tools**: `memorySearchTool`, `memoryGetTool`, `memoryTopicsTool`, `memorySaveTool`, `memoryDiaryTool`, `memoryRefreshCriticalTool`, `personaUpdateTool` — for explicit memory operations by the AI agent
 - **Agent Diary**: `memoryDiaryTool` allows AI to write observational diary entries to `memory/diary/YYYY-MM-DD.md`, building persistent agent-specific knowledge across sessions.
+- **Agent-Initiated Persona Update**: `personaUpdateTool` allows AI to proactively update `USER_PERSONA.md` during chat, bypassing the normal AGENT_LOOP_COMPLETE gate/cooldown. Accepts candidate facts with dimension/statement/confidence. Used when important user preferences or profile changes are detected mid-conversation.
+- **Agent-Initiated Memory Refresh**: `memoryRefreshCriticalTool` regenerates `MEMORY.md` on demand and clears the critical facts cache + recall cache, so newly saved high-importance memories immediately appear in always-loaded context. Typically used after `memorySaveTool` saves critical facts.
 - **Storage**: SQLite tables (`memory_notes`, `memory_topics`, `memory_sections`, `memory_edges`, `memory_keywords`) + Markdown files on disk + FTS5 full-text index
 - **Content generation**: Daily index (`YYYY-MM-DD.index.md`), topic archives (`topics/topic-slug.md`), global index (`MEMORY.md`) — auto-generated via daily maintenance tick or manual IPC trigger
 - **Configuration**: `memory-config.json` stores system toggle, auto-extraction toggle, auto-recall toggle; UI in `MemoryManagementSettings.tsx`

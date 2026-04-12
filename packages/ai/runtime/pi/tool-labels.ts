@@ -86,6 +86,12 @@ const DEFAULT_TOOL_LABELS: Record<string, ToolLabelDefinition> = {
   memoryDiaryTool: {
     default: { calling: '记录日志', done: '日志已记录' }
   },
+  memoryRefreshCriticalTool: {
+    default: { calling: '刷新关键记忆', done: '关键记忆已刷新' }
+  },
+  personaUpdateTool: {
+    default: { calling: '更新用户画像', done: '用户画像已更新' }
+  },
   workflowRunTool: {
     default: { calling: '执行工作流', done: '工作流完成' },
     conditions: [

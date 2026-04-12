@@ -10,9 +10,11 @@ import { createPiFileReadTool } from './file-read';
 import { createPiFileWriteTool } from './file-write';
 import { createPiMemoryDiaryTool } from './memory-diary';
 import { createPiMemoryGetTool } from './memory-get';
+import { createPiMemoryRefreshCriticalTool } from './memory-refresh-critical';
 import { createPiMemorySaveTool } from './memory-save';
 import { createPiMemorySearchTool } from './memory-search';
 import { createPiMemoryTopicsTool } from './memory-topics';
+import { createPiPersonaUpdateTool } from './persona-update';
 import { createPiPushCardTool } from './push-card';
 import { createPiReadSubtitleTool } from './read-subtitle';
 import { createPiResourceQueryTool } from './resource-query';
@@ -51,6 +53,8 @@ const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
   'memory-save': createPiMemorySaveTool,
   'memory-topics': createPiMemoryTopicsTool,
   'memory-diary': createPiMemoryDiaryTool,
+  'memory-refresh-critical': createPiMemoryRefreshCriticalTool,
+  'persona-update': createPiPersonaUpdateTool,
   'toolbox-lookup': createPiToolboxLookupTool,
   'workflow-run': createPiWorkflowRunTool
 };
@@ -79,6 +83,8 @@ const COMPAT_NAME_TO_TOOL_ID: Record<string, string> = {
   memorySaveTool: 'memory-save',
   memoryTopicsTool: 'memory-topics',
   memoryDiaryTool: 'memory-diary',
+  memoryRefreshCriticalTool: 'memory-refresh-critical',
+  personaUpdateTool: 'persona-update',
   toolboxTool: 'toolbox-lookup',
   workflowRunTool: 'workflow-run'
 };

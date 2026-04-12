@@ -143,6 +143,20 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
     name: 'memoryDiaryTool',
     status: 'ready-for-pi-runtime'
   },
+  'memory-refresh-critical': {
+    category: 'content',
+    description: '立即刷新 MEMORY.md 关键记忆索引，使新保存的重要记忆在后续对话中自动注入',
+    compatName: 'memoryRefreshCriticalTool',
+    name: 'memoryRefreshCriticalTool',
+    status: 'ready-for-pi-runtime'
+  },
+  'persona-update': {
+    category: 'content',
+    description: '主动更新用户画像，将对话中发现的用户偏好、目标、活动等立即写入 USER_PERSONA.md',
+    compatName: 'personaUpdateTool',
+    name: 'personaUpdateTool',
+    status: 'ready-for-pi-runtime'
+  },
   'toolbox-lookup': {
     category: 'meta',
     description: '万能工具箱：搜索技能、了解工具用法、执行工具',
@@ -188,6 +202,8 @@ export const DEFAULT_SESSION_TOOL_IDS = [
   'memory-get',
   'memory-topics',
   'memory-save',
+  'memory-refresh-critical',
+  'persona-update',
   'toolbox-lookup',
   'workflow-run',
   'web-search',
