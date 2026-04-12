@@ -23,15 +23,20 @@ export function buildRetrievalDbDeps(): RetrievalDbDeps {
     queryEntityFacts: (entity, opts) => MemoryEdgeRepo.queryEntityFacts(entity, opts),
     findTopicsByDomain: (domain, workspaceId, limit) => MemoryTopicRepo.findByDomain(domain, workspaceId, limit),
     getNoteById: (id) => MemoryNoteRepo.getById(id),
+    listNotesByIds: (ids) => MemoryNoteRepo.listByIds(ids),
     listNotesByWorkspace: (workspaceId, limit, offset) => MemoryNoteRepo.listByWorkspace(workspaceId, limit, offset),
     listNotesByDateRange: (start, end, workspaceId) => MemoryNoteRepo.listByDateRange(start, end, workspaceId),
     listNotesByTopicId: (topicId, workspaceId, limit) => MemoryNoteRepo.listByTopicId(topicId, workspaceId, limit),
+    searchNotesByTerms: (terms, workspaceId, limit) => MemoryNoteRepo.searchByTerms(terms, workspaceId, limit),
     listSectionsByNote: (noteId) => MemorySectionRepo.listByNote(noteId),
+    listSectionsByNoteIds: (noteIds) => MemorySectionRepo.listByNoteIds(noteIds),
     ftsSearch: (query, opts) => MemoryFTSRepo.search(query, opts),
     getWorkspaceRoot: async (workspaceId) => {
       const ws = await WorkspacesRepo.getById(workspaceId);
       return ws?.rootPath ?? null;
-    }
+    },
+    listRecentImportant: (workspaceId, minImportance, days, limit) =>
+      MemoryNoteRepo.listRecentImportant(workspaceId, minImportance, days, limit)
   };
 }
 

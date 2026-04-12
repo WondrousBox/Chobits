@@ -1,24 +1,22 @@
 /**
  * Memory Note Writer
- * 将 MergedNote 渲染为 Markdown 文件内容（YAML frontmatter + 结构化正文）。
+ * Render merged notes to Markdown with YAML frontmatter.
  */
 
 import type { MemoryNoteFrontmatter, MergedNote } from './memory-types';
 
 /**
- * 渲染完整的 Memory Note Markdown 内容
+ * Render a full Memory Note Markdown document.
  */
 export function renderNoteMarkdown(note: MergedNote): string {
   const parts: string[] = [];
 
-  // YAML Frontmatter
   parts.push('---');
   parts.push(renderFrontmatter(note.frontmatter));
   parts.push('---');
   parts.push('');
 
-  // 固定的段落顺序
-  const sectionOrder = ['Key Points', 'Open Items', 'Recall Cues', 'Source Excerpts'];
+  const sectionOrder = ['Key Points', 'Contradictions', 'Open Items', 'Recall Cues', 'Source Excerpts'];
 
   for (const heading of sectionOrder) {
     const content = note.sections.get(heading);
@@ -30,7 +28,6 @@ export function renderNoteMarkdown(note: MergedNote): string {
     }
   }
 
-  // 其余自定义段落（非标准段落名）
   for (const [heading, content] of note.sections) {
     if (!sectionOrder.includes(heading) && content && content.trim()) {
       parts.push(`## ${heading}`);
@@ -44,81 +41,95 @@ export function renderNoteMarkdown(note: MergedNote): string {
 }
 
 /**
- * 渲染 YAML frontmatter（不含 --- 分隔符）
+ * Render YAML frontmatter without `---` delimiters.
  */
 function renderFrontmatter(fm: MemoryNoteFrontmatter): string {
   const lines: string[] = [];
 
-  // 身份
   lines.push(`id: '${fm.id}'`);
   lines.push(`version: ${fm.version}`);
 
-  // 归属
-  lines.push(`workspaceId: '${fm.workspaceId}'`);
-  lines.push(`date: '${fm.date}'`);
+  lines.push(`workspaceId: '${escapeYaml(fm.workspaceId)}'`);
+  lines.push(`date: '${escapeYaml(fm.date)}'`);
   if (fm.timeRange) {
     lines.push('timeRange:');
     lines.push(`  start: ${fm.timeRange.start}`);
     lines.push(`  end: ${fm.timeRange.end}`);
   }
 
-  // 主题
   lines.push('topics:');
-  for (const t of fm.topics) {
-    lines.push(`  - '${escapeYaml(t)}'`);
+  for (const topic of fm.topics) {
+    lines.push(`  - '${escapeYaml(topic)}'`);
   }
   if (fm.parentTopicId) {
-    lines.push(`parentTopicId: '${fm.parentTopicId}'`);
+    lines.push(`parentTopicId: '${escapeYaml(fm.parentTopicId)}'`);
   }
   if (fm.relatedTopicIds?.length) {
     lines.push('relatedTopicIds:');
-    for (const id of fm.relatedTopicIds) {
-      lines.push(`  - '${id}'`);
+    for (const relatedTopicId of fm.relatedTopicIds) {
+      lines.push(`  - '${escapeYaml(relatedTopicId)}'`);
     }
   }
+  if (fm.domain) {
+    lines.push(`domain: '${escapeYaml(fm.domain)}'`);
+  }
 
-  // 关键词
   lines.push('keywords:');
-  for (const kw of fm.keywords) {
-    lines.push(`  - '${escapeYaml(kw)}'`);
+  for (const keyword of fm.keywords) {
+    lines.push(`  - '${escapeYaml(keyword)}'`);
   }
   if (fm.aliases?.length) {
     lines.push('aliases:');
-    for (const a of fm.aliases) {
-      lines.push(`  - '${escapeYaml(a)}'`);
+    for (const alias of fm.aliases) {
+      lines.push(`  - '${escapeYaml(alias)}'`);
     }
   }
   if (fm.entities?.length) {
     lines.push('entities:');
-    for (const e of fm.entities) {
-      lines.push(`  - name: '${escapeYaml(e.name)}'`);
-      lines.push(`    type: '${e.type}'`);
+    for (const entity of fm.entities) {
+      lines.push(`  - name: '${escapeYaml(entity.name)}'`);
+      lines.push(`    type: '${escapeYaml(entity.type)}'`);
+      if (entity.relations?.length) {
+        lines.push('    relations:');
+        for (const relation of entity.relations) {
+          lines.push(`      - predicate: '${escapeYaml(relation.predicate)}'`);
+          lines.push(`        object: '${escapeYaml(relation.object)}'`);
+          if (relation.validFrom) {
+            lines.push(`        validFrom: '${escapeYaml(relation.validFrom)}'`);
+          }
+        }
+      }
     }
   }
 
-  // 摘要
-  lines.push(`summary: >`);
+  lines.push('summary: >');
   lines.push(`  ${fm.summary.replace(/\n/g, '\n  ')}`);
+  if (fm.contradictions?.length) {
+    lines.push('contradictions:');
+    for (const contradiction of fm.contradictions) {
+      lines.push(`  - old: '${escapeYaml(contradiction.old)}'`);
+      lines.push(`    new: '${escapeYaml(contradiction.new)}'`);
+      lines.push(`    type: '${escapeYaml(contradiction.type)}'`);
+      lines.push(`    detectedAt: ${contradiction.detectedAt}`);
+    }
+  }
 
-  // 溯源
   lines.push('sourceConversationIds:');
-  for (const id of fm.sourceConversationIds) {
-    lines.push(`  - '${id}'`);
+  for (const conversationId of fm.sourceConversationIds) {
+    lines.push(`  - '${escapeYaml(conversationId)}'`);
   }
   if (fm.sourceMessageRange?.length) {
     lines.push('sourceMessageRange:');
-    for (const r of fm.sourceMessageRange) {
-      lines.push(`  - conversationId: '${r.conversationId}'`);
-      lines.push(`    seqStart: ${r.seqStart}`);
-      lines.push(`    seqEnd: ${r.seqEnd}`);
+    for (const range of fm.sourceMessageRange) {
+      lines.push(`  - conversationId: '${escapeYaml(range.conversationId)}'`);
+      lines.push(`    seqStart: ${range.seqStart}`);
+      lines.push(`    seqEnd: ${range.seqEnd}`);
     }
   }
 
-  // 权重
   lines.push(`importance: ${fm.importance}`);
   lines.push(`stability: ${fm.stability}`);
 
-  // 生命周期
   lines.push(`createdAt: ${fm.createdAt}`);
   lines.push(`updatedAt: ${fm.updatedAt}`);
 
@@ -126,7 +137,7 @@ function renderFrontmatter(fm: MemoryNoteFrontmatter): string {
 }
 
 /**
- * 从 MemoryExtractionOutput 的 sections 构建 Markdown 段落 Map
+ * Build the default note sections map from extraction output.
  */
 export function buildSectionsMap(sections: { keyPoints: string; openItems?: string; recallCues?: string }): Map<string, string> {
   const map = new Map<string, string>();
@@ -145,8 +156,8 @@ export function buildSectionsMap(sections: { keyPoints: string; openItems?: stri
 }
 
 /**
- * 构建 memory note 文件路径（workspace-relative）
- * 格式：memory/daily/YYYY/MM/YYYY-MM-DD-topic-slug.md
+ * Build a workspace-relative memory note path.
+ * Format: memory/daily/YYYY/MM/YYYY-MM-DD-topic-slug.md
  */
 export function buildNotePath(date: string, topicSlug: string, suffix?: number): string {
   const [year, month] = date.split('-');
@@ -155,8 +166,8 @@ export function buildNotePath(date: string, topicSlug: string, suffix?: number):
 }
 
 /**
- * 生成 Memory Note ID
- * 格式：mem_{date}_{slug}_{short-hash}
+ * Generate a new Memory Note id.
+ * Format: mem_{date}_{slug}_{short-hash}
  */
 export function generateNoteId(date: string, topicSlug: string): string {
   const shortHash = Math.random().toString(16).slice(2, 8);
@@ -166,8 +177,6 @@ export function generateNoteId(date: string, topicSlug: string): string {
 export function buildSectionId(noteId: string, heading: string): string {
   return `${noteId}_sec_${heading.replace(/\s+/g, '_').toLowerCase()}`;
 }
-
-// ━━ Helpers ━━
 
 function escapeYaml(s: string): string {
   return s.replace(/'/g, "''");

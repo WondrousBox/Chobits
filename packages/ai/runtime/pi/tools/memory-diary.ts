@@ -11,19 +11,21 @@ import { resolveWorkspaceId } from './memory-db-deps';
 import { createJsonToolResult } from './result';
 
 const memoryDiaryParameters = Type.Object({
-  entry: Type.String({ description: '日记内容：记录本次对话中的观察、学到的东西、处理策略等经验总结' }),
-  tags: Type.Optional(Type.Array(Type.String(), { description: '可选标签，用于分类检索，如「调试技巧」「用户偏好」' }))
+  entry: Type.String({ description: '日志内容：记录本次对话中的观察、学到的东西、处理策略等经验总结。仅写入 diary 日志，不会进入长期记忆检索。' }),
+  tags: Type.Optional(Type.Array(Type.String(), { description: '可选标签，用于人工分类浏览，如「调试技巧」「用户偏好」' }))
 });
 
 /**
- * I-7: Agent Diary Tool — AI 在对话结束时写入观察和经验日记。
+ * I-7: Agent Diary Tool — 当前明确作为 log-only 日志面保留。
  * 日记条目写入 memory/diary/YYYY-MM-DD.md，追加形式。
+ * 不进入 memory DB / FTS / auto-recall / topic graph。
  */
 export function createPiMemoryDiaryTool(toolContext: PiSessionToolContext): ToolDefinition<typeof memoryDiaryParameters> {
   return {
     name: 'memoryDiaryTool',
     label: 'memoryDiaryTool',
-    description: '写入 AI 助手日记。在对话中有值得记录的观察、学到的经验、处理策略时使用。日记帮助你在未来的对话中更好地服务用户。不要在每次对话都写日记，只在有真正的洞察时才写。',
+    description:
+      '写入 AI 助手日志。在对话中有值得记录的观察、学到的经验、处理策略时使用。该工具只会追加写入 `memory/diary/YYYY-MM-DD.md` 日志文件，不会进入长期记忆检索或自动召回。不要在每次对话都写，只在有真正洞察时才写。',
     parameters: memoryDiaryParameters,
 
     async execute(_toolCallId, input) {
@@ -56,7 +58,7 @@ export function createPiMemoryDiaryTool(toolContext: PiSessionToolContext): Tool
         }
 
         if (!fileExists) {
-          const header = `# Agent Diary — ${date}\n`;
+          const header = `# Agent Diary — ${date}\n\n> 这是 AI 助手的日志页；当前不会进入长期记忆检索或自动召回。\n`;
           await fs.writeFile(diaryFile, header + entryBlock, 'utf-8');
         } else {
           await fs.appendFile(diaryFile, entryBlock, 'utf-8');
@@ -64,9 +66,13 @@ export function createPiMemoryDiaryTool(toolContext: PiSessionToolContext): Tool
 
         return createJsonToolResult({
           success: true,
+          surface: 'log-only',
+          indexed: false,
+          searchable: false,
+          recallable: false,
           date,
           file: `memory/diary/${date}.md`,
-          message: '日记已记录'
+          message: '日志已记录（不会进入长期记忆检索）'
         });
       } catch (error: any) {
         return createJsonToolResult({

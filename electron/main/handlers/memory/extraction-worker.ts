@@ -23,17 +23,12 @@ import { AppEvent } from '../../../../packages/event/events';
 import { MemoryNoteRepo, MemorySyncJobRepo, MemoryTopicRepo } from '../../db/memory-repositories';
 import { ChatRepo, WorkspacesRepo } from '../../db/repositories';
 import { memoryExtractionQueue, type QueuedJob } from './extraction-queue';
+import { evaluateExtractionTrigger, getCooldownState, resolveExtractionRuntimeConfig } from './extraction-runtime-config';
 import { getMemoryConfig, type MemoryConfig } from './memory-config';
 import { refreshMemoryIndexForWorkspace } from './memory-index-sync';
 
 // ━━ Config ━━
 
-/** 触发自动提取所需的最少新消息数（watermark 之后的） */
-const MIN_NEW_MESSAGES = 4;
-/** 同一会话连续触发的最小冷却间隔（ms）— 仅防止短时间内重复触发 */
-const MIN_TRIGGER_COOLDOWN = 15 * 1000; // 15 秒
-/** 定期保存间隔：每 N 条新消息后强制触发提取（I-6: 防止长会话丢失记忆） */
-const PERIODIC_SAVE_INTERVAL = 20;
 /** 记录每个 conversation 最近一次触发时间 */
 const lastTriggerTime = new Map<string, number>();
 /** 增量提取水位线：记录每个 conversation 已提取到的最大 message seq */
@@ -44,6 +39,8 @@ const messagesSinceLastExtraction = new Map<string, number>();
 const extractingConversations = new Set<string>();
 /** 等待 trailing run 的 conversation set（coalescing 暂存） */
 const pendingTrailingRun = new Set<string>();
+/** 已经安排了延迟检查的 conversation set。 */
+const scheduledConversationChecks = new Set<string>();
 
 // ━━ chatFn Adapter ━━
 
@@ -326,6 +323,10 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
   }
   console.log(`${TAG} Workspace resolved: ${ws.rootPath}`);
   const cfg = getMemoryConfig();
+  const runtimeConfig = resolveExtractionRuntimeConfig(cfg);
+  console.log(
+    `${TAG} Effective extraction config: minNewMessages=${runtimeConfig.minNewMessagesForExtraction}, cooldownMinutes=${runtimeConfig.extractionCooldownMinutes}, cooldownMs=${runtimeConfig.cooldownMs}, maxTokens=${runtimeConfig.maxTokensPerExtraction}, periodicSaveInterval=${runtimeConfig.periodicSaveInterval}`
+  );
 
   const makeProgressHandler = () => (progress: any) => {
     console.log(`${TAG} Progress: stage=${progress.stage}, ${progress.current}/${progress.total}${progress.currentTopic ? ` topic="${progress.currentTopic}"` : ''} ${progress.message || ''}`);
@@ -443,7 +444,7 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
         providerId: providerId!,
         providerPresetId,
         agentId: 'memory-extraction',
-        maxTokens: 4000,
+        maxTokens: runtimeConfig.maxTokensPerExtraction,
         ...(model ? { model } : {})
       })
     );
@@ -578,11 +579,11 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
 function onAgentLoopComplete(payload: AgentLoopCompletePayload): void {
   const TAG = '[MemoryWorker:agentLoop]';
   const { conversationId, persisted, hasToolCalls, agentId } = payload;
+  const cfg = getMemoryConfig();
+  const runtimeConfig = resolveExtractionRuntimeConfig(cfg);
 
   console.log(`${TAG} Received AGENT_LOOP_COMPLETE: conv=${conversationId}, persisted=${persisted}, agentId=${agentId}, toolCalls=${payload.toolCalls.length}`);
 
-  // 检查记忆系统配置
-  const cfg = getMemoryConfig();
   if (!cfg.memoryEnabled || !cfg.autoExtractionEnabled) {
     console.log(`${TAG} Skipped: memoryEnabled=${cfg.memoryEnabled}, autoExtractionEnabled=${cfg.autoExtractionEnabled}`);
     return;
@@ -599,10 +600,11 @@ function onAgentLoopComplete(payload: AgentLoopCompletePayload): void {
     return;
   }
 
-  const lastTime = lastTriggerTime.get(conversationId);
-  if (lastTime && Date.now() - lastTime < MIN_TRIGGER_COOLDOWN) {
-    const remainMs = MIN_TRIGGER_COOLDOWN - (Date.now() - lastTime);
-    console.log(`${TAG} Cooldown: conv ${conversationId} was triggered ${Math.round((Date.now() - lastTime) / 1000)}s ago, wait ${Math.round(remainMs / 1000)}s more`);
+  const cooldown = getCooldownState(lastTriggerTime.get(conversationId), Date.now(), runtimeConfig);
+  if (cooldown.active) {
+    console.log(
+      `${TAG} Cooldown: conv ${conversationId} was triggered ${Math.round(cooldown.elapsedMs / 1000)}s ago, wait ${Math.round(cooldown.remainingMs / 1000)}s more`
+    );
     return;
   }
 
@@ -613,8 +615,12 @@ function onAgentLoopComplete(payload: AgentLoopCompletePayload): void {
     return;
   }
 
-  // 立即标记时间戳，防止 legacy 路径在 5 秒延迟内重复入队
-  lastTriggerTime.set(conversationId, Date.now());
+  if (scheduledConversationChecks.has(conversationId)) {
+    console.log(`${TAG} Pending delayed check already scheduled for conv ${conversationId}, skipping duplicate schedule`);
+    return;
+  }
+
+  scheduledConversationChecks.add(conversationId);
 
   console.log(`${TAG} Scheduling delayed check (5s) for conv ${conversationId}...`);
   setTimeout(async () => {
@@ -631,21 +637,24 @@ function onAgentLoopComplete(payload: AgentLoopCompletePayload): void {
       const currentCount = prevCount + newMessages.length;
       messagesSinceLastExtraction.set(conversationId, currentCount);
 
-      // 定期保存：当累计消息达到阈值时，强制触发提取
-      const periodicInterval = getMemoryConfig().periodicSaveInterval ?? PERIODIC_SAVE_INTERVAL;
-      const periodicTrigger = currentCount >= periodicInterval;
-
-      const threshold = hasToolCalls ? Math.max(2, MIN_NEW_MESSAGES - 2) : MIN_NEW_MESSAGES;
+      const latestRuntimeConfig = resolveExtractionRuntimeConfig(getMemoryConfig());
+      const periodicInterval = latestRuntimeConfig.periodicSaveInterval;
+      const triggerDecision = evaluateExtractionTrigger({
+        config: latestRuntimeConfig,
+        hasToolCalls,
+        newMessageCount: newMessages.length,
+        accumulatedMessageCount: currentCount
+      });
       console.log(
-        `${TAG} Conv ${conversationId}: total=${userAssistantMessages.length}, watermark=${watermark}, new=${newMessages.length}, threshold=${threshold} (hasToolCalls=${hasToolCalls}), periodicCount=${currentCount}/${periodicInterval}`
+        `${TAG} Conv ${conversationId}: total=${userAssistantMessages.length}, watermark=${watermark}, new=${newMessages.length}, threshold=${triggerDecision.threshold} (hasToolCalls=${hasToolCalls}), periodicCount=${triggerDecision.periodicCount}/${triggerDecision.periodicInterval}`
       );
 
-      if (newMessages.length < threshold && !periodicTrigger) {
-        console.log(`${TAG} Skipped: new message count ${newMessages.length} < threshold ${threshold}, no periodic trigger`);
+      if (!triggerDecision.shouldEnqueue) {
+        console.log(`${TAG} Skipped: new message count ${newMessages.length} < threshold ${triggerDecision.threshold}, no periodic trigger`);
         return;
       }
 
-      if (periodicTrigger) {
+      if (triggerDecision.periodicTrigger) {
         console.log(`${TAG} 🔄 Periodic save triggered: ${currentCount} messages since last extraction (interval=${periodicInterval})`);
         messagesSinceLastExtraction.set(conversationId, 0); // Reset counter
       }
@@ -673,6 +682,8 @@ function onAgentLoopComplete(payload: AgentLoopCompletePayload): void {
       console.log(`${TAG} ✓ Enqueued job ${jobId} for conv ${conversationId} (ws=${workspaceId}, provider=${payload.providerId || '(from conv)'}, toolCalls=${payload.toolCalls.length})`);
     } catch (e) {
       console.error(`${TAG} Failed to enqueue after agent loop complete:`, e);
+    } finally {
+      scheduledConversationChecks.delete(conversationId);
     }
   }, 5000);
 }
@@ -684,14 +695,21 @@ function onAgentLoopComplete(payload: AgentLoopCompletePayload): void {
 function onConversationComplete(data: any): void {
   const TAG = '[MemoryWorker:legacy]';
   const conversationId = data?.conversationId;
+  const cfg = getMemoryConfig();
+  const runtimeConfig = resolveExtractionRuntimeConfig(cfg);
+
+  if (!cfg.memoryEnabled || !cfg.autoExtractionEnabled) {
+    console.log(`${TAG} Skipped: memoryEnabled=${cfg.memoryEnabled}, autoExtractionEnabled=${cfg.autoExtractionEnabled}`);
+    return;
+  }
 
   if (!conversationId) {
     console.log(`${TAG} Received SPRITE_AI_COMPLETE without conversationId, skipping`);
     return;
   }
 
-  const lastTime = lastTriggerTime.get(conversationId);
-  if (lastTime && Date.now() - lastTime < MIN_TRIGGER_COOLDOWN) {
+  const cooldown = getCooldownState(lastTriggerTime.get(conversationId), Date.now(), runtimeConfig);
+  if (cooldown.active) {
     console.log(`${TAG} Cooldown: conv ${conversationId} (already handled by agentLoop or recently triggered)`);
     return;
   }
@@ -703,6 +721,12 @@ function onConversationComplete(data: any): void {
     return;
   }
 
+  if (scheduledConversationChecks.has(conversationId)) {
+    console.log(`${TAG} Pending delayed check already scheduled for conv ${conversationId}, skipping duplicate schedule`);
+    return;
+  }
+
+  scheduledConversationChecks.add(conversationId);
   console.log(`${TAG} Scheduling delayed check (5s) for conv ${conversationId}...`);
   setTimeout(async () => {
     try {
@@ -713,11 +737,28 @@ function onConversationComplete(data: any): void {
       const watermark = conversationWatermarks.get(conversationId) ?? 0;
       const newMessages = userAssistantMessages.filter((m: any) => (m.seq ?? 0) > watermark);
 
-      console.log(`${TAG} Conv ${conversationId}: total=${userAssistantMessages.length}, watermark=${watermark}, new=${newMessages.length}, threshold=${MIN_NEW_MESSAGES}`);
+      const prevCount = messagesSinceLastExtraction.get(conversationId) ?? 0;
+      const currentCount = prevCount + newMessages.length;
+      messagesSinceLastExtraction.set(conversationId, currentCount);
 
-      if (newMessages.length < MIN_NEW_MESSAGES) {
-        console.log(`${TAG} Skipped: new message count ${newMessages.length} < ${MIN_NEW_MESSAGES}`);
+      const latestRuntimeConfig = resolveExtractionRuntimeConfig(getMemoryConfig());
+      const triggerDecision = evaluateExtractionTrigger({
+        config: latestRuntimeConfig,
+        hasToolCalls: false,
+        newMessageCount: newMessages.length,
+        accumulatedMessageCount: currentCount
+      });
+      console.log(
+        `${TAG} Conv ${conversationId}: total=${userAssistantMessages.length}, watermark=${watermark}, new=${newMessages.length}, threshold=${triggerDecision.threshold}, periodicCount=${triggerDecision.periodicCount}/${triggerDecision.periodicInterval}`
+      );
+
+      if (!triggerDecision.shouldEnqueue) {
+        console.log(`${TAG} Skipped: new message count ${newMessages.length} < ${triggerDecision.threshold}, no periodic trigger`);
         return;
+      }
+
+      if (triggerDecision.periodicTrigger) {
+        messagesSinceLastExtraction.set(conversationId, 0);
       }
 
       const conv = await ChatRepo.ensureConversation({ id: conversationId });
@@ -735,9 +776,12 @@ function onConversationComplete(data: any): void {
         targetConversationIds: [conversationId]
       });
 
+      messagesSinceLastExtraction.set(conversationId, 0);
       console.log(`${TAG} ✓ Enqueued job ${jobId} for conv ${conversationId} (legacy path)`);
     } catch (e) {
       console.error(`${TAG} Failed to enqueue:`, e);
+    } finally {
+      scheduledConversationChecks.delete(conversationId);
     }
   }, 5000);
 }
@@ -758,6 +802,12 @@ async function checkDailyMemoryExtraction(): Promise<void> {
   const TAG = '[MemoryWorker:daily]';
 
   try {
+    const cfg = getMemoryConfig();
+    if (!cfg.memoryEnabled || !cfg.autoExtractionEnabled) {
+      return;
+    }
+    const runtimeConfig = resolveExtractionRuntimeConfig(cfg);
+
     const today = getTodayMemoryDate();
 
     // 已完成今天的提取 → 跳过
@@ -794,7 +844,7 @@ async function checkDailyMemoryExtraction(): Promise<void> {
       const watermark = conversationWatermarks.get(conv.id) ?? 0;
       const msgs = await ChatRepo.listMessages(conv.id, 1000, 0);
       const newMsgs = msgs.filter((m: any) => (m.role === 'user' || m.role === 'assistant') && (m.seq ?? 0) > watermark);
-      if (newMsgs.length >= 2) {
+      if (newMsgs.length >= runtimeConfig.minNewMessagesForExtraction) {
         needsExtraction.push(conv.id);
       }
     }
@@ -971,6 +1021,7 @@ export async function memoryDailyMaintenanceTick(): Promise<void> {
  * 5. 启动每日维护定时器 — heat 衰减 + 日终提取
  */
 export function initMemoryExtractionWorker(): void {
+  const runtimeConfig = resolveExtractionRuntimeConfig(getMemoryConfig());
   memoryExtractionQueue.setExecutor(executeJob);
 
   // 主路径：agent 工具循环结束
@@ -991,7 +1042,9 @@ export function initMemoryExtractionWorker(): void {
     30 * 60 * 1000
   );
 
-  console.log('[MemoryWorker] Extraction worker initialized (agent-loop-complete + legacy + daily-maintenance)');
+  console.log(
+    `[MemoryWorker] Extraction worker initialized (agent-loop-complete + legacy + daily-maintenance); effectiveConfig=${JSON.stringify(runtimeConfig)}`
+  );
 }
 
 // ━━ Helpers ━━

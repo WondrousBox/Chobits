@@ -3,21 +3,26 @@
 > 本文档定义 Chobits 记忆系统的增量同步策略、记忆提取流水线、后台任务编排，以及观测与验证指标。
 > 核心约束：提取任务不阻塞聊天主链路，对话数据只进不出（幂等、可重试），Markdown 为最终事实源。
 
-## 当前实现状态（2026-04-10）
+## 当前实现状态（2026-04-12）
 
-- 已完成：主触发链路、提取队列与 worker、增量水位线、提取进度事件、手动触发同步、FTS 重建、对话删除后的记忆清理。
+- 已完成：主触发链路、提取队列与 worker、增量水位线、提取进度事件、手动触发同步、FTS 索引增量维护、对话删除后的记忆清理。
 - 当前主触发源是 `AppEvent.AGENT_LOOP_COMPLETE`；`AppEvent.SPRITE_AI_COMPLETE` 仅作为兼容旧路径保留。触发后会延迟 5 秒再做脏检查和入队。
-- 已实现的调度细节包括：`conversationWatermarks` 内存水位线、`extractingConversations` + `pendingTrailingRun` 的 coalescing/trailing-run 机制、有工具调用时把新增消息阈值从 4 降到 2。
+- 已实现的调度细节包括：`conversationWatermarks` 内存水位线、`extractingConversations` + `pendingTrailingRun` 的 coalescing/trailing-run 机制，以及运行时配置驱动的消息阈值 / cooldown / periodic save 判定。
 - 提取模型当前会优先尝试 provider 对应的 fast model，失败后回退到该 provider / preset 的默认模型配置。
 - 已实现：`daily_extraction` 定时任务（30 分钟间隔维护 tick）、漏跑补偿（启动时检查并回溯）、`memory:cancelSync`（取消当前/指定提取任务）、`memory:getMetrics`（提取统计与索引计数）。
-- 已实现：配置 UI（`MemoryManagementSettings` 中的记忆系统总开关、自动提取开关、自动召回开关），配置存储于 `memory-config.json`。
+- 已实现：配置 UI（`MemoryManagementSettings` 中的记忆系统总开关、自动提取开关、自动召回开关），配置存储于 `memory-config.json`，并通过 `resolveExtractionRuntimeConfig()` 真正影响 worker 运行时行为。
 - 已实现：Open Loop 智能合并 — `mergeMemory()` 中对 "Open Items" section 使用 LLM 判断已有待办是否被新对话解决。
+- 已实现：note merge compaction — `mergeMemory()` 现在会刷新 `summary`，并对 `Key Points` / `Open Items` / `Recall Cues` 做去重压缩；有新 `Source Excerpts` 时直接覆盖旧摘录，避免长期 append 膨胀。
 - 已实现：3 种边类型创建（`belongs_to_topic`、`related_to_topic`、`contains_section`）。
 - 已实现：`fileChecksum`（sha256）、`timeRange`（消息时间戳范围）、`sections.keywords`（段落级关键词）字段自动填充。
 - 已实现：heat 衰减（指数衰减因子 0.95，每日执行一次）。
 - 已实现：`recall_cue_backfill` 历史回填任务，复用长任务 LLM 执行机制，为旧 note 渐进式补写 `Recall Cues`，并在成功后自动刷新 `memory/MEMORY.md`。
 - 已实现：手动入口 `memory:backfillRecallCues`，可指定 noteIds 或 limit 做回填测试。
-- 尚未实现：窗口关闭/会话切换触发、`memory:validateIndex`。
+- 已实现：核心回归测试覆盖提取、清理、内容生成、检索与 runtime config 接线。
+- 记忆 FTS 现为 note-scoped 增量维护；启动时若检测到旧的 contentless `memory_notes_fts`，会自动重建为可行级删除/插入的 row-mutable FTS 表并从派生源重建。
+- 已实现：高重要度 note 的矛盾处理从 `Key Points` 内联 warning 升级为结构化 `frontmatter.contradictions[]` + 独立 `Contradictions` 段，并为矛盾查询增加定向召回。
+- 已实现：`memory:validateIndex`，按 Markdown 真值源只读校验 `memory_notes` / `memory_sections` / `memory_notes_fts` 是否与派生索引一致，并返回 mismatch report。
+- 尚未实现：窗口关闭/会话切换触发。
 - `memory:rebuildIndex` 当前只重建 FTS 索引，不会重新执行整套提取流水线。
 
 ---
@@ -51,7 +56,7 @@
                     └──────────────────┘
 ```
 
-> 注：截至 2026-04-10，图中的“窗口关闭/切换触发”仍未落地。当前实际运行的是
+> 注：截至 2026-04-12，图中的“窗口关闭/切换触发”仍未落地。当前实际运行的是
 > `AGENT_LOOP_COMPLETE` / `SPRITE_AI_COMPLETE` 两条会话完成入口、`memoryDailyMaintenanceTick()` 中的渐进式 `Recall Cues` 回填检查，以及 `memory:triggerSync` / `memory:backfillRecallCues` 两个手动入口。
 
 ---
@@ -72,12 +77,13 @@
 不是每次对话完成都直接入队。当前实现的核心判断如下：
 
 ```typescript
-const MIN_NEW_MESSAGES = 4;
-const MIN_TRIGGER_COOLDOWN = 15 * 1000; // 15 秒
+const runtimeConfig = resolveExtractionRuntimeConfig(loadMemoryConfig());
 
 async function onConversationComplete(payload: { conversationId: string; persisted?: boolean; hasToolCalls?: boolean }) {
   if (!payload.conversationId || payload.persisted === false) return;
-  if (recentlyTriggered(payload.conversationId, MIN_TRIGGER_COOLDOWN)) return;
+
+  const cooldown = getCooldownState(lastTriggeredAt.get(payload.conversationId), Date.now(), runtimeConfig);
+  if (cooldown.active) return;
 
   // 如果同一会话仍在提取中，不丢弃，先挂成 trailing run
   if (extractingConversations.has(payload.conversationId)) {
@@ -89,10 +95,15 @@ async function onConversationComplete(payload: { conversationId: string; persist
   setTimeout(async () => {
     const watermark = conversationWatermarks.get(payload.conversationId) ?? 0;
     const newMessages = await listUserAssistantMessagesAfter(payload.conversationId, watermark);
+    const accumulatedMessageCount = messagesSinceLastExtraction.get(payload.conversationId) ?? newMessages.length;
 
-    // 带 tool call 的回合信息密度更高，阈值会从 4 降到 2
-    const threshold = payload.hasToolCalls ? 2 : MIN_NEW_MESSAGES;
-    if (newMessages.length < threshold) return;
+    const decision = evaluateExtractionTrigger({
+      config: runtimeConfig,
+      hasToolCalls: !!payload.hasToolCalls,
+      newMessageCount: newMessages.length,
+      accumulatedMessageCount
+    });
+    if (!decision.shouldEnqueue) return;
 
     await enqueueConversationCloseJob(payload.conversationId);
   }, 5000);
@@ -112,23 +123,26 @@ eventManager.on(AppEvent.SPRITE_AI_COMPLETE, onConversationComplete);
 
 **周期性保存（I-6: Periodic Save）**：
 
-长对话中，`onAgentLoopComplete` 会追踪每个会话的累计消息数。当消息数达到 `periodicSaveInterval`（默认 20 条）时，自动强制触发一次提取，无论是否达到常规触发阈值。这防止了长对话中间的信息丢失。
+长对话中，`onAgentLoopComplete` 会追踪每个会话的累计消息数。当消息数达到 `periodicSaveInterval`（默认 20 条）时，`evaluateExtractionTrigger()` 会把这次触发标记为 `periodicTrigger=true`，从而强制入队一次提取，无论是否达到常规阈值。这防止了长对话中间的信息丢失。
 
 ```typescript
-const PERIODIC_SAVE_INTERVAL = 20;
-const messagesSinceLastExtraction = new Map<string, number>();
+const decision = evaluateExtractionTrigger({
+  config: runtimeConfig,
+  hasToolCalls,
+  newMessageCount,
+  accumulatedMessageCount
+});
 
-// 在 onAgentLoopComplete 中：
-// 1. 累加当前会话的消息计数
-// 2. 如果累计 >= periodicSaveInterval → 强制入队提取
-// 3. 成功入队后重置计数
+if (decision.periodicTrigger) {
+  await enqueueConversationCloseJob(conversationId);
+}
 ```
 
-`periodicSaveInterval` 可通过 `memory-config.json` 的 `periodicSaveInterval` 字段配置。
+`periodicSaveInterval`、`minNewMessagesForExtraction`、`extractionCooldownMinutes`、`maxTokensPerExtraction` 均可通过 `memory-config.json` 配置，并在 worker 启动时打印 effective config。
 
 ### 2.2 入口 ②：日终批量提取（daily_extraction）
 
-> 截至 2026-04-03，此入口仍是设计目标，代码尚未接入 `DailyCareService`，也没有漏跑补偿逻辑。
+> 截至 2026-04-12，此入口已接入 `DailyCareService`，且包含漏跑补偿逻辑。下面保留的是最终落地后的结构说明。
 
 **触发时机**
 
@@ -595,6 +609,7 @@ async function mergeMemory(input: MergeInput): Promise<MergedNote> {
   const mergedFrontmatter = {
     ...existingNote.frontmatter,
     version: existingNote.frontmatter.version + 1,
+    summary: newExtraction.summary, // 摘要以最新提取为准
     keywords: dedup([...existingNote.frontmatter.keywords, ...newExtraction.keywords]),
     entities: mergeEntities(existingNote.frontmatter.entities, newExtraction.entities),
     importance: Math.max(existingNote.frontmatter.importance, newExtraction.importance),
@@ -604,8 +619,10 @@ async function mergeMemory(input: MergeInput): Promise<MergedNote> {
   };
 
   // 策略 2：Section 内容合并
-  // keyPoints: 追加新要点（去重）
-  // openItems: 根据新信息关闭已解决的事项，追加新事项
+  // keyPoints: 去重合并并限制条数，避免长期追加膨胀
+  // openItems: 根据新信息关闭已解决的事项，再回到去重后的 bullet 列表
+  // recallCues: 归一化 kind 并限制条数
+  // sourceExcerpts: 有新摘录时用最新摘录覆盖旧摘录
   const mergedSections = mergeSections(existingNote.sections, newExtraction.sections);
 
   return {
@@ -658,13 +675,17 @@ const CONTRADICTION_CHECK_PROMPT = `
 `;
 ```
 
-检测到的矛盾会在 Key Points 中以 ⚠️ 标记，帮助后续回溯：
+检测到的矛盾现在会进入结构化 `frontmatter.contradictions[]`，并同步渲染为独立的 `Contradictions` 段。旧事实会尽量从 `Key Points` 中移除，避免 canonical facts 与 conflict annotations 混在一起：
 
 ```
 ## Key Points
 
-- ⚠️ 矛盾：之前说用 PostgreSQL，现在改成 SQLite — 数据库选型已变更
+- 现在决定使用 SQLite + FTS
 - 其他正常要点...
+
+## Contradictions
+
+- [decision_change] old: "之前说用 PostgreSQL" -> new: "现在改成 SQLite + FTS" (detected: 2026-04-12)
 ```
 
 ### 4.6 Step 5: Write（落盘 + 建索引）
@@ -937,22 +958,20 @@ async function recoverInFlightJobs(): Promise<void> {
 ### 8.2 配置项
 
 ```typescript
-interface MemoryExtractionConfig {
-  /** 是否启用自动记忆提取 */
-  enabled: boolean;
-  /** 触发提取的最少新增消息数 */
-  minNewMessages: number; // default: 4
-  /** 会话结束触发的最小间隔（毫秒） */
-  minTriggerInterval: number; // default: 30 * 60 * 1000
-  /** 单次提取的最大 token 预算 */
-  maxTokensPerExtraction: number; // default: 20000
-  /** 使用的 AI provider 和 model（可独立配置，不绑定聊天 provider） */
-  providerId?: string;
-  model?: string;
-  /** 日终提取的目标时间（HH:mm） */
-  dailyExtractionTime?: string; // default: "02:00"
+interface MemoryConfig {
+  memoryEnabled: boolean;
+  autoExtractionEnabled: boolean;
+  autoRecallEnabled: boolean;
+  extractionProviderId?: string;
+  extractionModel?: string;
+  minNewMessagesForExtraction: number; // default: 4
+  extractionCooldownMinutes: number; // default: 5
+  maxTokensPerExtraction: number; // default: 4000
+  periodicSaveInterval: number; // default: 20
 }
 ```
+
+Worker 启动时会通过 `resolveExtractionRuntimeConfig()` 把这组持久化配置规范化为运行时参数，例如把 `extractionCooldownMinutes` 转成 `cooldownMs`，并打印 effective config。
 
 ### 8.3 智能跳过
 
@@ -1172,42 +1191,50 @@ async function collectOperationalMetrics(): Promise<OperationalMetrics> {
 
 ```typescript
 /**
- * 定期验证 DB 索引与文件系统的一致性。
- * 可在 DailyCare 中每天运行一次。
+ * 当前已实现的只读审计入口：
+ * IPC `memory:validateIndex`
+ *
+ * 设计目标：
+ * 1. 以 Markdown 为真值源重建“期望状态”
+ * 2. 对比 memory_notes / memory_sections / memory_notes_fts
+ * 3. 仅报告漂移，不做写入修复
  */
-async function validateIndexConsistency(workspaceId: string): Promise<ConsistencyReport> {
-  const report = { total: 0, consistent: 0, missingFile: 0, missingIndex: 0, stale: 0 };
+async function validateMemoryIndex(workspaceId: string, issueLimit = 200): Promise<MemoryIndexAuditReport> {
+  const markdownNotes = await scanMarkdownNotes(workspaceId);
+  const dbNotes = await MemoryNoteRepo.listByWorkspace(workspaceId, 200, 0);
 
-  // 1. DB 中有索引但文件不存在
-  const indexedNotes = await db.select().from(memory_notes).where(eq(memory_notes.workspaceId, workspaceId));
-  for (const note of indexedNotes) {
-    report.total++;
-    if (!(await fileExists(note.filePath))) {
-      report.missingFile++;
-    } else {
-      // 检查文件内容 checksum 是否与索引一致
-      const fileChecksum = await computeChecksum(note.filePath);
-      if (fileChecksum !== note.checksum) {
-        report.stale++;
-      } else {
-        report.consistent++;
-      }
-    }
+  const issues: MemoryIndexAuditIssue[] = [];
+
+  for (const note of markdownNotes) {
+    compareNoteSnapshot(note, dbNotes, issues);
+    compareSections(note, issues);
+    compareFtsEntries(note, issues);
   }
 
-  // 2. 文件系统有文件但 DB 中无索引
-  const mdFiles = await glob('memory/daily/**/*.md', { cwd: workspacePath });
-  for (const file of mdFiles) {
-    if (file.endsWith('.index.md')) continue;
-    const frontmatter = parseFrontmatter(file);
-    if (frontmatter?.id && !indexedNotes.find((n) => n.id === frontmatter.id)) {
-      report.missingIndex++;
-    }
-  }
-
-  return report;
+  return {
+    ok: issues.length === 0,
+    workspaceId,
+    scannedFiles: markdownNotes.length,
+    issueCount: issues.length,
+    issueLimit,
+    summary: {
+      markdownIssues: countIssues(issues, 'markdown'),
+      noteIssues: countIssues(issues, 'note'),
+      sectionIssues: countIssues(issues, 'section'),
+      ftsIssues: countIssues(issues, 'fts')
+    },
+    issues: issues.slice(0, issueLimit)
+  };
 }
 ```
+
+当前实现补充说明：
+
+- 审计扫描 `memory/daily/**/*.md`，排除 `.index.md`。
+- 它会从 Markdown 重新解析 frontmatter、sections、section id、`fileChecksum` 与段落关键词命中，再与 DB/FTS 实际状态逐项比对。
+- 报告会区分四类问题：`markdownIssues`、`noteIssues`、`sectionIssues`、`ftsIssues`。
+- 该入口是只读校验，不会修改 DB，也不会替代 `memory:rebuildIndex`。
+- 当前已由 `test/memory-index-audit.spec.ts` 覆盖“完全一致”和“note / FTS 漂移可报出”两条核心路径。
 
 ### 10.6 验证流程
 
@@ -1347,7 +1374,7 @@ DailyCareService.tick() 检查
 
 | Channel                          | 请求参数                                                                         | 响应                                          | 说明                       |
 | -------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------- | -------------------------- |
-| `memory:search`                  | `{ query, workspaceId, topicFilter?, dateRange?, maxResults?, includeContent? }` | `MemorySearchResult`                          | 搜索记忆                   |
+| `memory:search`                  | `{ query, workspaceId, topicFilter?, dateRange?, maxResults?, includeContent?, debug? }` | `MemorySearchResult`                          | 搜索记忆                   |
 | `memory:get`                     | `{ noteId, section?, lineRange? }`                                               | `MemoryGetResult \| null`                     | 读取 note / 段落详情       |
 | `memory:topics`                  | `{ topicId?, action?, workspaceId?, limit? }`                                    | `MemoryTopicsResult`                          | 浏览主题图谱               |
 | `memory:listNotes`               | `{ workspaceId, limit?, offset? }`                                               | `MemoryNoteRow[]`                             | 分页列出 note              |
@@ -1355,6 +1382,7 @@ DailyCareService.tick() 检查
 | `memory:triggerSync`             | `{ workspaceId?, date?, conversationIds?, force? }`                              | `{ queued: boolean, jobId?, error? }`         | 手动触发提取               |
 | `memory:backfillRecallCues`      | `{ workspaceId?, noteIds?, limit?, providerId?, providerPresetId? }`             | `{ queued: boolean, jobId?, error? }`         | 手动触发 Recall Cues 回填  |
 | `memory:rebuildIndex`            | 无                                                                               | `{ success: boolean, notesIndexed?, error? }` | 当前仅重建 FTS 索引        |
+| `memory:validateIndex`           | `{ workspaceId?, issueLimit? }`                                                  | `{ ok: boolean, report?, error? }`            | 基于 Markdown 的只读索引审计 |
 | `memory:deleteNote`              | `noteId`                                                                         | `{ success: boolean, error? }`                | 删除单条记忆 note          |
 | `memory:graphData`               | `{ topicId?, workspaceId?, includeNotes?, maxTopics?, maxEdges? }`               | `{ topics, edges, notes }`                    | 获取图谱数据               |
 | `memory:stats`                   | `{ workspaceId? }`                                                               | `{ noteCount, topicCount, edgeCount }`        | 获取基础统计               |
@@ -1406,6 +1434,7 @@ interface MemoryConfig {
   minNewMessagesForExtraction: number;
   extractionCooldownMinutes: number;
   maxTokensPerExtraction: number;
+  periodicSaveInterval: number;
 }
 ```
 

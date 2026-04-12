@@ -75,6 +75,7 @@ interface MemoryDigestCandidate {
   id: string;
   importance: number;
   keyPoints: string[];
+  markdownCharCount: number;
   openItems: string[];
   priorityScore: number;
   recallCues: MemoryRecallCue[];
@@ -86,9 +87,17 @@ interface MemoryDigestCandidate {
 
 type MemoryRecallCueType = 'ongoing' | 'decision' | 'principle' | 'event' | 'follow_up';
 
+type MemoryLifecycleAction = 'archive' | 'freeze' | 'refresh' | 'compact';
+
 interface MemoryRecallCue {
   statement: string;
   type: MemoryRecallCueType;
+}
+
+interface MemoryLifecycleSuggestion {
+  action: MemoryLifecycleAction;
+  note: MemoryDigestCandidate;
+  score: number;
 }
 
 // ━━ Daily Index ━━
@@ -234,8 +243,30 @@ function escapeRegExp(text: string): string {
 }
 
 function extractSectionBody(markdown: string, heading: string): string {
-  const pattern = new RegExp(`^##\\s+${escapeRegExp(heading)}\\s*$\\n([\\s\\S]*?)(?=^##\\s+|$)`, 'm');
-  return markdown.match(pattern)?.[1]?.trim() ?? '';
+  const lines = markdown.split(/\r?\n/);
+  const headingPattern = new RegExp(`^##\\s+${escapeRegExp(heading)}\\s*$`);
+  let startIndex = -1;
+
+  for (let index = 0; index < lines.length; index++) {
+    if (headingPattern.test(lines[index])) {
+      startIndex = index + 1;
+      break;
+    }
+  }
+
+  if (startIndex < 0) {
+    return '';
+  }
+
+  let endIndex = lines.length;
+  for (let index = startIndex; index < lines.length; index++) {
+    if (/^##\s+/.test(lines[index])) {
+      endIndex = index;
+      break;
+    }
+  }
+
+  return lines.slice(startIndex, endIndex).join('\n').trim();
 }
 
 function extractMarkdownBullets(sectionBody: string): string[] {
@@ -329,6 +360,112 @@ function buildRecallCueLine(note: MemoryDigestCandidate, cue: MemoryRecallCue): 
   }
 }
 
+const PREFERENCE_SIGNAL_PATTERN =
+  /\b(prefer|preference|preferably|like|dislike|avoid|default|usually|habit|workflow|style)\b|喜欢|不喜欢|偏好|习惯|倾向|默认|避免|风格|通常/i;
+
+function hasPreferenceSignal(text: string): boolean {
+  return PREFERENCE_SIGNAL_PATTERN.test(text);
+}
+
+function noteLooksLikePreference(note: MemoryDigestCandidate): boolean {
+  return hasPreferenceSignal(note.summary) || note.topics.some((topic) => hasPreferenceSignal(topic)) || note.keyPoints.some((item) => hasPreferenceSignal(item));
+}
+
+function selectUserPreferenceText(note: MemoryDigestCandidate): string | null {
+  const preferredCue =
+    note.recallCues.find((cue) => (cue.type === 'decision' || cue.type === 'principle') && hasPreferenceSignal(cue.statement)) ??
+    note.recallCues.find((cue) => hasPreferenceSignal(cue.statement));
+  if (preferredCue) {
+    return preferredCue.statement;
+  }
+
+  const preferredKeyPoint = note.keyPoints.find((item) => hasPreferenceSignal(item));
+  if (preferredKeyPoint) {
+    return preferredKeyPoint;
+  }
+
+  return noteLooksLikePreference(note) ? note.summary : null;
+}
+
+function buildUserPreferenceLine(note: MemoryDigestCandidate, text: string): string {
+  return `- ${buildTopicPrefix(note.topics)}${truncateInlineText(text, 96)}`;
+}
+
+function buildActiveProjectLine(note: MemoryDigestCandidate): string {
+  const topicLabel = buildLifecycleTopicLabel(note.topics);
+  const anchor =
+    note.recallCues.find((cue) => cue.type === 'ongoing' || cue.type === 'follow_up')?.statement ??
+    note.openItems[0] ??
+    note.summary;
+  const nextStep = note.openItems.find((item) => normalizeInlineText(item) !== normalizeInlineText(anchor));
+  const nextStepSuffix = nextStep ? ` Next: ${truncateInlineText(nextStep, 44)}` : '';
+  return `- ${topicLabel}: ${truncateInlineText(anchor, 82)}${nextStepSuffix}`;
+}
+
+function buildLifecycleTopicLabel(topics: string[]): string {
+  return topics.length > 0 ? topics.slice(0, 2).join(' / ') : 'Untitled memory';
+}
+
+function buildLifecycleReason(note: MemoryDigestCandidate, action: MemoryLifecycleAction): string {
+  switch (action) {
+    case 'archive':
+      return `${note.daysAgo}d old, stable ${note.stability.toFixed(2)}, no open items`;
+    case 'freeze':
+      return `${note.daysAgo}d stable candidate, importance ${note.importance.toFixed(2)}`;
+    case 'refresh':
+      return `${note.daysAgo}d stale, stability ${note.stability.toFixed(2)}, still relevant`;
+    case 'compact':
+    default:
+      return `${note.markdownCharCount} chars, aging note with dense content`;
+  }
+}
+
+function buildLifecycleLine(suggestion: MemoryLifecycleSuggestion): string {
+  const topicLabel = buildLifecycleTopicLabel(suggestion.note.topics);
+  const summary = truncateInlineText(suggestion.note.summary, 84);
+  const reason = buildLifecycleReason(suggestion.note, suggestion.action);
+  return `- [${suggestion.action}] ${topicLabel} | ${suggestion.note.date} | ${summary} (${reason})`;
+}
+
+function classifyMemoryLifecycle(note: MemoryDigestCandidate): MemoryLifecycleSuggestion | null {
+  const hasOpenItems = note.openItems.length > 0;
+  const hasRecallValue = note.recallCues.length > 0 || note.importance >= 0.7 || note.stability >= 0.7;
+
+  if (!hasOpenItems && note.daysAgo >= 90 && note.stability >= 0.78 && note.importance >= 0.7) {
+    return {
+      action: 'archive',
+      note,
+      score: note.stability * 0.45 + note.importance * 0.35 + Math.min(note.daysAgo / 180, 1) * 0.2
+    };
+  }
+
+  if (!hasOpenItems && note.daysAgo >= 21 && note.stability >= 0.88 && note.importance >= 0.72) {
+    return {
+      action: 'freeze',
+      note,
+      score: note.stability * 0.5 + note.importance * 0.35 + Math.min(note.daysAgo / 60, 1) * 0.15
+    };
+  }
+
+  if (note.daysAgo >= 45 && note.stability < 0.72 && hasRecallValue) {
+    return {
+      action: 'refresh',
+      note,
+      score: note.importance * 0.42 + (1 - note.stability) * 0.33 + Math.min(note.daysAgo / 120, 1) * 0.25
+    };
+  }
+
+  if (note.daysAgo >= 14 && note.markdownCharCount >= 900 && note.importance >= 0.68) {
+    return {
+      action: 'compact',
+      note,
+      score: Math.min(note.markdownCharCount / 1800, 1) * 0.45 + note.importance * 0.3 + Math.min(note.daysAgo / 60, 1) * 0.25
+    };
+  }
+
+  return null;
+}
+
 function dedupeLines(lines: string[]): string[] {
   const seen = new Set<string>();
   const result: string[] = [];
@@ -376,6 +513,27 @@ function combinePreferredLines(groups: string[][], limit: number): string[] {
   return combined;
 }
 
+function collectUniqueTopicNotes(candidates: MemoryDigestCandidate[], limit: number): MemoryDigestCandidate[] {
+  const selected: MemoryDigestCandidate[] = [];
+  const seenTopicKeys = new Set<string>();
+
+  for (const note of candidates) {
+    const topicKey = normalizeInlineText(buildLifecycleTopicLabel(note.topics)).toLowerCase() || note.id;
+    if (seenTopicKeys.has(topicKey)) {
+      continue;
+    }
+
+    seenTopicKeys.add(topicKey);
+    selected.push(note);
+
+    if (selected.length >= limit) {
+      break;
+    }
+  }
+
+  return selected;
+}
+
 async function enrichDigestCandidate(
   note: Awaited<ReturnType<ContentGenDbDeps['listNotesByWorkspace']>>[number],
   workspaceRoot: string
@@ -405,6 +563,7 @@ async function enrichDigestCandidate(
     id: note.id,
     importance: note.importance ?? 0.5,
     keyPoints,
+    markdownCharCount: normalizeInlineText(markdown).length,
     openItems,
     priorityScore: computePriorityScore({
       importance: note.importance ?? 0.5,
@@ -517,6 +676,10 @@ export async function generateMemoryIndex(
       note.stability >= 0.72 ||
       (note.openItems.length > 0 && note.importance >= 0.55)
   );
+  const lifecycleSuggestions = meaningfulNotes
+    .map((note) => classifyMemoryLifecycle(note))
+    .filter((suggestion): suggestion is MemoryLifecycleSuggestion => !!suggestion)
+    .sort((left, right) => right.score - left.score);
 
   const lines: string[] = [];
 
@@ -562,7 +725,36 @@ export async function generateMemoryIndex(
         criticalFactLines.push(`- ${buildTopicPrefix(note.topics)}${truncateInlineText(note.summary, 96)}`);
       }
     }
+    const userPreferenceLines = [...meaningfulNotes]
+      .filter((note) => note.stability >= 0.82 || note.importance >= 0.84 || noteLooksLikePreference(note))
+      .sort((left, right) => right.stability - left.stability || right.priorityScore - left.priorityScore)
+      .map((note) => {
+        const text = selectUserPreferenceText(note);
+        return text ? buildUserPreferenceLine(note, text) : '';
+      })
+      .filter(Boolean)
+      .slice(0, 5);
+    const activeProjectCandidates = [...meaningfulNotes]
+      .filter(
+        (note) =>
+          note.openItems.length > 0 ||
+          note.recallCues.some((cue) => cue.type === 'ongoing' || cue.type === 'follow_up') ||
+          (note.daysAgo <= 45 && note.importance >= 0.8)
+      )
+      .sort(
+        (left, right) =>
+          (right.openItems.length > 0 ? 1 : 0) -
+            (left.openItems.length > 0 ? 1 : 0) ||
+          (right.recallCues.some((cue) => cue.type === 'ongoing' || cue.type === 'follow_up') ? 1 : 0) -
+            (left.recallCues.some((cue) => cue.type === 'ongoing' || cue.type === 'follow_up') ? 1 : 0) ||
+          right.priorityScore - left.priorityScore
+      );
+    const activeProjectLines = collectUniqueTopicNotes(activeProjectCandidates, 4).map((note) => buildActiveProjectLine(note));
+
     appendSection(lines, 'Critical Facts', dedupeLines(criticalFactLines));
+    appendSection(lines, 'User Preferences', userPreferenceLines);
+    appendSection(lines, 'Active Projects', activeProjectLines);
+    appendSection(lines, 'Lifecycle Suggestions', lifecycleSuggestions.slice(0, 6).map((suggestion) => buildLifecycleLine(suggestion)));
 
     const ongoingNotes = takeNotes(
       [...meaningfulNotes]

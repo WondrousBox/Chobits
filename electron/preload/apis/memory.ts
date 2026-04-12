@@ -1,7 +1,7 @@
 import { ipcRenderer } from 'electron';
 
 export const memoryApi = {
-  search: (params: { query: string; workspaceId: string; topicFilter?: string[]; dateRange?: { start?: string; end?: string }; maxResults?: number; includeContent?: boolean }) =>
+  search: (params: { query: string; workspaceId: string; topicFilter?: string[]; dateRange?: { start?: string; end?: string }; maxResults?: number; includeContent?: boolean; debug?: boolean }) =>
     ipcRenderer.invoke('memory:search', params),
 
   get: (params: { noteId: string; section?: string; lineRange?: { start: number; end: number } }) => ipcRenderer.invoke('memory:get', params),
@@ -22,6 +22,8 @@ export const memoryApi = {
     ipcRenderer.invoke('memory:backfillRecallCues', params),
 
   rebuildIndex: () => ipcRenderer.invoke('memory:rebuildIndex'),
+
+  validateIndex: (params?: { workspaceId?: string; issueLimit?: number }) => ipcRenderer.invoke('memory:validateIndex', params),
 
   deleteNote: (noteId: string) => ipcRenderer.invoke('memory:deleteNote', noteId),
 

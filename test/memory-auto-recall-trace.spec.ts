@@ -1,11 +1,23 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { createLlmQueryAnalyzerMock, searchWithContentMock } = vi.hoisted(() => ({
+const { analyzeQueryMock, createLlmQueryAnalyzerMock, searchWithContentMock } = vi.hoisted(() => ({
+  analyzeQueryMock: vi.fn((query: string) => ({
+    topicTerms: query ? [query] : [],
+    entityTerms: [],
+    keywordTerms: query ? [query] : [],
+    actionHint: 'general',
+    originalQuery: query
+  })),
   createLlmQueryAnalyzerMock: vi.fn(() => undefined),
   searchWithContentMock: vi.fn()
 }));
 
 vi.mock('../packages/ai/services/memory-retrieval-service', () => ({
+  analyzeQuery: analyzeQueryMock,
   createLlmQueryAnalyzer: createLlmQueryAnalyzerMock,
   searchWithContent: searchWithContentMock
 }));
@@ -21,10 +33,11 @@ vi.mock('../electron/main/db/repositories', () => ({
 }));
 
 import { initMemoryAutoRecallEnricher } from '../electron/main/handlers/memory/memory-auto-recall-enricher';
-import { clearRecallCache, performAutoRecall } from '../packages/ai/services/memory-auto-recall';
+import { clearCriticalFactsCache, clearRecallCache, performAutoRecall } from '../packages/ai/services/memory-auto-recall';
 import { preWarmEnrichers, resolveSystemPromptEnrichments, unregisterSystemPromptEnricher } from '../packages/ai/system-prompt-enricher';
 
 const TRACE_PREFIX = '[MemoryTrace] ';
+const tempDirs: string[] = [];
 
 function parseTraceLines(lines: string[]): Array<Record<string, any>> {
   return lines
@@ -38,6 +51,7 @@ describe('memory auto recall trace logging', () => {
   let errorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
+    clearCriticalFactsCache();
     clearRecallCache();
     unregisterSystemPromptEnricher('memory-auto-recall');
     vi.clearAllMocks();
@@ -53,7 +67,9 @@ describe('memory auto recall trace logging', () => {
     errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    clearCriticalFactsCache();
+    await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
     unregisterSystemPromptEnricher('memory-auto-recall');
     logSpy.mockRestore();
     warnSpy.mockRestore();
@@ -100,6 +116,19 @@ describe('memory auto recall trace logging', () => {
       query: expect.stringContaining('Rust'),
       workspaceId: 'ws-trace'
     });
+    expect(searchWithContentMock).toHaveBeenCalledWith(
+      expect.any(String),
+      'ws-trace-1',
+      expect.anything(),
+      expect.any(Number),
+      expect.objectContaining({
+        analysis: expect.objectContaining({
+          topicTerms: expect.any(Array),
+          keywordTerms: expect.any(Array)
+        })
+      })
+    );
+    expect(createLlmQueryAnalyzerMock).not.toHaveBeenCalled();
     expect(events.find((event) => event.event === 'auto_recall.search.result')).toMatchObject({
       contextChars: '近期记忆：继续推进 Rust memory pipeline 项目'.length,
       noteCount: 2,
@@ -154,5 +183,60 @@ describe('memory auto recall trace logging', () => {
       conversationId: 'conv-tra',
       noteCount: 2
     });
+  });
+
+  it('preloads the structured always-loaded MEMORY.md sections on a new session', async () => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), 'chobits-auto-recall-always-loaded-'));
+    tempDirs.push(workspaceRoot);
+
+    await mkdir(path.join(workspaceRoot, 'memory'), { recursive: true });
+    await writeFile(
+      path.join(workspaceRoot, 'memory', 'MEMORY.md'),
+      [
+        '# Long-term Memory',
+        '',
+        '## Critical Facts',
+        '',
+        '- [decision] Keep extraction thresholds runtime-configured',
+        '',
+        '## User Preferences',
+        '',
+        '- Runtime Memory / Worker: Prefer runtime-configured thresholds over hardcoded defaults',
+        '',
+        '## Active Projects',
+        '',
+        '- Runtime Memory: Monitor extraction worker stability Next: Add cleanup regression tests'
+      ].join('\n'),
+      'utf-8'
+    );
+
+    const result = await performAutoRecall(
+      [
+        {
+          content: 'What should we keep in mind before we continue the runtime memory work?',
+          role: 'user'
+        }
+      ] as any,
+      {
+        config: { useLlmKeywords: false },
+        db: {
+          getWorkspaceRoot: async () => workspaceRoot,
+          listRecentImportant: vi.fn(async () => [])
+        } as any,
+        getWorkspaceId: async () => 'ws-trace-3'
+      },
+      'conv-trace-3'
+    );
+
+    expect(result).toMatchObject({
+      noteCount: 0,
+      skipped: false
+    });
+    expect(result.context).toContain('## Critical Facts');
+    expect(result.context).toContain('## User Preferences');
+    expect(result.context).toContain('## Active Projects');
+    expect(result.context).toContain('Prefer runtime-configured thresholds over hardcoded defaults');
+    expect(result.context).toContain('Monitor extraction worker stability');
+    expect(searchWithContentMock).not.toHaveBeenCalled();
   });
 });

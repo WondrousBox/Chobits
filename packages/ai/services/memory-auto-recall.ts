@@ -455,10 +455,12 @@ export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecal
       if (deps.db.getWorkspaceRoot) {
         const wsRoot = await deps.db.getWorkspaceRoot(workspaceId);
         if (wsRoot) {
-          const facts = await loadCriticalFacts(wsRoot);
+          const alwaysLoaded = await loadAlwaysLoadedMemory(wsRoot);
+          const facts = formatAlwaysLoadedMemoryContext(alwaysLoaded);
           if (facts) {
             criticalFactsBlock = `长期关键记忆：\n${facts}`;
             logMemoryTrace({
+              alwaysLoadedSectionCount: countAlwaysLoadedSections(alwaysLoaded),
               conversationId: conversationKey,
               criticalFactsChars: facts.length,
               event: 'auto_recall.preload.critical_facts'
@@ -635,11 +637,19 @@ export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecal
   }
 
   // ─── Stage 3: Search ───
-  const { searchWithContent, createLlmQueryAnalyzer } = await import('./memory-retrieval-service');
+  const { analyzeQuery, searchWithContent } = await import('./memory-retrieval-service');
   const searchQuery = keywords.join(' ');
+  const baseAnalysis = analyzeQuery(userContent);
+  const recallAnalysis = {
+    ...baseAnalysis,
+    originalQuery: searchQuery,
+    topicTerms: [...keywords],
+    keywordTerms: [...keywords],
+    broadRecall: keywords.length === 0 ? baseAnalysis.broadRecall : false
+  };
 
   // 如果有 chatFn，创建 LLM 查询分析器增强搜索
-  const llmAnalyzer = deps.chatFn ? createLlmQueryAnalyzer(deps.chatFn) : undefined;
+// Reuse the analysis prepared above so auto-recall does not pay for a second query-analysis pass.
 
   try {
     console.log(`${TAG} Searching memories: query="${searchQuery}", ws=${workspaceId?.slice(0, 8)}`);
@@ -655,7 +665,9 @@ export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecal
     });
 
     // 使用 searchWithContent 执行 Stage 1-6 完整流水线（含元数据）
-    const searchResult = await searchWithContent(searchQuery, workspaceId, deps.db, config.maxContextChars, llmAnalyzer);
+    const searchResult = await searchWithContent(searchQuery, workspaceId, deps.db, config.maxContextChars, {
+      analysis: recallAnalysis
+    });
 
     const { context, noteCount, topicCount } = searchResult;
     console.log(`${TAG} Found ${noteCount} notes, ${topicCount} topics` + (context ? `, context=${context.length} chars` : ', no context content'));
@@ -735,15 +747,76 @@ export function clearRecallCache(conversationId?: string): void {
  * - 如果文件不存在或无 Critical Facts 段落，返回空字符串
  */
 
-let criticalFactsCache: { content: string; loadedAt: number } | undefined;
-const CRITICAL_FACTS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+type AlwaysLoadedMemoryKey = 'criticalFacts' | 'userPreferences' | 'activeProjects';
 
-export async function loadCriticalFacts(workspaceRoot: string): Promise<string> {
-  // Check cache
-  if (criticalFactsCache && Date.now() - criticalFactsCache.loadedAt < CRITICAL_FACTS_CACHE_TTL_MS) {
-    return criticalFactsCache.content;
+export interface AlwaysLoadedMemorySections {
+  criticalFacts: string;
+  userPreferences: string;
+  activeProjects: string;
+}
+
+const ALWAYS_LOADED_SECTION_SPECS: Array<{ heading: string; key: AlwaysLoadedMemoryKey }> = [
+  { heading: 'Critical Facts', key: 'criticalFacts' },
+  { heading: 'User Preferences', key: 'userPreferences' },
+  { heading: 'Active Projects', key: 'activeProjects' }
+];
+
+const ALWAYS_LOADED_MEMORY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const alwaysLoadedMemoryCache = new Map<string, { content: AlwaysLoadedMemorySections; loadedAt: number }>();
+
+function createEmptyAlwaysLoadedMemory(): AlwaysLoadedMemorySections {
+  return {
+    criticalFacts: '',
+    userPreferences: '',
+    activeProjects: ''
+  };
+}
+
+function extractMemorySection(content: string, heading: string): string {
+  const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return content.match(new RegExp(`^##\\s+${escapedHeading}\\s*$\\n([\\s\\S]*?)(?=^##\\s+|\\n*$)`, 'm'))?.[1]?.trim() ?? '';
+}
+
+function countAlwaysLoadedSections(sections: AlwaysLoadedMemorySections): number {
+  return ALWAYS_LOADED_SECTION_SPECS.reduce((count, section) => count + (sections[section.key] ? 1 : 0), 0);
+}
+
+function formatAlwaysLoadedMemoryContext(sections: AlwaysLoadedMemorySections): string {
+  return ALWAYS_LOADED_SECTION_SPECS.map((section) => (sections[section.key] ? `## ${section.heading}\n${sections[section.key]}` : ''))
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+export async function loadAlwaysLoadedMemory(workspaceRoot: string): Promise<AlwaysLoadedMemorySections> {
+  const cached = alwaysLoadedMemoryCache.get(workspaceRoot);
+  if (cached && Date.now() - cached.loadedAt < ALWAYS_LOADED_MEMORY_CACHE_TTL_MS) {
+    return cached.content;
   }
 
+  try {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const memoryMdPath = path.join(workspaceRoot, 'memory', 'MEMORY.md');
+    const content = await fs.readFile(memoryMdPath, 'utf-8');
+    const sections = createEmptyAlwaysLoadedMemory();
+
+    for (const section of ALWAYS_LOADED_SECTION_SPECS) {
+      sections[section.key] = extractMemorySection(content, section.heading);
+    }
+
+    alwaysLoadedMemoryCache.set(workspaceRoot, { content: sections, loadedAt: Date.now() });
+    return sections;
+  } catch {
+    const emptySections = createEmptyAlwaysLoadedMemory();
+    alwaysLoadedMemoryCache.set(workspaceRoot, { content: emptySections, loadedAt: Date.now() });
+    return emptySections;
+  }
+}
+
+export async function loadCriticalFacts(workspaceRoot: string): Promise<string> {
+  return (await loadAlwaysLoadedMemory(workspaceRoot)).criticalFacts;
+
+  /*
   try {
     const fs = await import('node:fs/promises');
     const path = await import('node:path');
@@ -765,11 +838,12 @@ export async function loadCriticalFacts(workspaceRoot: string): Promise<string> 
     criticalFactsCache = { content: '', loadedAt: Date.now() };
     return '';
   }
+  */
 }
 
 /** Clear the critical facts cache (e.g. after MEMORY.md regeneration) */
 export function clearCriticalFactsCache(): void {
-  criticalFactsCache = undefined;
+  alwaysLoadedMemoryCache.clear();
 }
 
 // ━━ Prefetch API ━━

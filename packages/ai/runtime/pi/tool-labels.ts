@@ -84,7 +84,7 @@ const DEFAULT_TOOL_LABELS: Record<string, ToolLabelDefinition> = {
     default: { calling: '保存记忆：{topic}', done: '记忆已保存' }
   },
   memoryDiaryTool: {
-    default: { calling: '写入日记', done: '日记已记录' }
+    default: { calling: '记录日志', done: '日志已记录' }
   },
   workflowRunTool: {
     default: { calling: '执行工作流', done: '工作流完成' },

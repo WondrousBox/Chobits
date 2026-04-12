@@ -4,17 +4,21 @@
 > 核心策略：结构化元数据过滤 + FTS5 全文检索 + 主题图谱扩展 + 渐进式定点读取。
 > 向量检索仅作为未来可插拔增强层，不影响本文档描述的基础检索能力。
 
-## 当前实现状态（2026-04-11）
+## 当前实现状态（2026-04-12）
 
 - 已实现：`analyzeQuery`、`recallTopics`、`recallNotes`、`recallSections`、`targetedRead`、`assembleContext`、`search`、`get`、`browseTopics`、`searchWithContent`。
-- 当前对外主入口 `search()` 实际主要执行 Stage 1-3；当 `includeContent=true` 时，只追加各 note 的 section 摘要，不会自动读取段落正文。
-- `searchWithContent()` 已实现一步到位的 Stage 1-6 风格流程，被 auto-recall enricher 作为核心搜索引擎使用。
-- 当前运行时已注册并默认启用 `memorySearchTool`、`memoryGetTool`、`memoryTopicsTool`、`memorySaveTool`、`memoryDiaryTool`。
-- `topicFilter` 参数已实现：`search()` 中在 Stage 3 之后做后置过滤，只保留属于指定主题的候选笔记。
-- **LLM 辅助查询分析已实现**：`createLlmQueryAnalyzer()` 可创建 LLM 查询分析器，优先使用 LLM 拆解查询（提取主题词、实体、关键词、时间线索、动作类型），失败时回退到规则解析。已集成到 `searchWithContent()` 第 5 个可选参数。
-- **新会话预加载已实现**：`performAutoRecall()` 中当检测到首轮对话（`userMessages.length <= 1`）且 `db.listRecentImportant` 可用时，自动注入近 7 天高重要度（≥ 0.7）记忆摘要 + MEMORY.md 中的 Critical Facts（5 分钟缓存 TTL），无需关键词搜索。
-- **Domain 命名空间过滤已实现**（I-4）：Stage 2 新增 Step 2d（domain filtering），根据查询中的人名/项目名匹配 `person:Name` 或 `project:Name` 域的主题，提升召回准确度。
-- **实体事实图谱扩展已实现**（I-3）：Stage 2 新增 Step 2e（entity fact graph expansion），如果查询中包含已知实体，查询其 `entity_fact` 边关联的 `evidenceNoteId`，将这些 note 加入候选集。
+- `search()` 是稳定的对外主入口，实际执行 Stage 1-3；当 `includeContent=true` 时，只补充 note 的 section 摘要，不自动执行 Stage 4-6。
+- `searchWithContent()` 执行完整的 Stage 1-6 流程，当前被 auto-recall enricher 作为正文级检索入口使用。
+- 当前检索层已实现 `topicFilter`、LLM 辅助查询分析、LIKE fallback（弥补中文 FTS 分词不足）和 broad recall fallback（无有效搜索词时回退最近记忆）。
+- **检索词扩展已实现**（O1）：显式检索现在会在 FTS / LIKE fallback 前做轻量 query rewriting，包括中文 bigram 扩展、分隔词拆分和小范围同义词扩展，提升中文查询与证据型查询的召回率。
+- **检索能力对齐已完成**：Electron auto-recall 与 Pi memory tools 现已共享 `searchNotesByTerms`、`listRecentImportant` 等可选检索能力，避免入口间召回能力漂移。
+- **O3 延迟优化已实现**：检索层现支持 `listNotesByIds` / `listSectionsByNoteIds` 批量读取；Stage 3/4 会优先走批量 note/section 加载，Stage 5 会缓存已读 Markdown 文件内容，降低 N+1 DB / 文件读取开销。
+- **Auto-recall analysis 复用已实现**：auto-recall 在关键词提取后会直接把已准备好的 `QueryAnalysisResult` 传给 `searchWithContent()`，避免对同一请求再做一轮查询分析。
+- **新会话预加载已实现**：`performAutoRecall()` 中当检测到首轮对话（`userMessages.length <= 1`）且 `db.listRecentImportant` 可用时，自动注入近 7 天高重要度（≥ 0.7）记忆摘要 + `MEMORY.md` 的 always-loaded layer（`Critical Facts` / `User Preferences` / `Active Projects`，5 分钟缓存 TTL），无需关键词搜索。
+- **Domain 命名空间过滤已实现**（I-4）：Stage 2 Step 2d 会根据查询中的人名/项目名尝试匹配 `person:Name` 或 `project:Name` 域的主题，提升召回准确度。
+- **实体事实图谱扩展已实现**（I-3）：Stage 2 Step 2e 会查询 `entity_fact` 边关联的 `evidenceNoteId`，并将它们写入 `factNoteIds`。Stage 3 再直接把这些 note ids 合并进 note candidate 集，不再把 note id 误当作 topic id 走 topic expansion。
+- **检索评分透明度已实现**（P2-4）：`search({ debug: true })`、`memory:search(debug=true)` 和 `memorySearchTool(debug=true)` 现在都会返回 `debug.analysis`、`debug.weights`、`debug.topicRecall`、`debug.noteRanking`，并在每条 note 上附带 `scoreBreakdown.matchReasons`。
+- 当前运行时已注册 5 个 memory tools：`memorySearchTool`、`memoryGetTool`、`memoryTopicsTool`、`memorySaveTool`、`memoryDiaryTool`。其中前 4 个进入 `DEFAULT_SESSION_TOOL_IDS`；`memoryDiaryTool` 只完成注册与写文件，当前不在默认 session tool 列表中，也不参与索引/检索闭环。
 - **自动记忆召回已实现**：通过 `memory-auto-recall` enricher，在每轮对话的 system prompt 构建阶段自动检索并注入相关记忆。支持通过 `memory-config.json` 中的 `autoRecallEnabled` 开关控制。详见下方「自动记忆召回」章节。
 
 ---
@@ -233,8 +237,8 @@ LIMIT 20;
 export interface TopicRecallResult {
   directHits: Array<{ id: string; label: string; heat: number; matchType: 'label' | 'alias' | 'keyword' }>;
   expanded: Array<{ id: string; label: string; heat: number; depth: number }>;
-  domainHits: Array<{ id: string; label: string; heat: number; domain: string }>; // I-4: Domain 命名空间匹配
-  allTopicIds: string[]; // directHits + expanded + domainHits 的去重合集
+  factNoteIds: string[]; // I-3: entity_fact -> evidenceNoteId 的直连 note ids
+  allTopicIds: string[]; // directHits + expanded 的去重 topic ids
 }
 ```
 
@@ -259,9 +263,13 @@ const domainTopics = await db.findTopicsByDomain(domainKey, workspaceId);
 
 ```typescript
 // 查询实体相关的事实边
-const entityFacts = await db.queryEntityFacts(entityName, Date.now());
-// entityFacts 中的 evidenceNoteId 指向相关 note
-// 将这些 note 加入 Stage 3 的候选集（作为额外的图谱路由候选）
+const entityFacts = await db.queryEntityFacts(entityName, { workspaceId, limit: 10 });
+const factNoteIds = entityFacts
+  .map((fact) => fact.evidenceNoteId)
+  .filter(Boolean);
+
+// 注意：这些 evidence note 不进入 allTopicIds，
+// 而是在 Stage 3 中通过 getNoteById(noteId) 直接并入候选集
 ```
 
 支持 point-in-time 查询：通过 `validFrom <= asOf` 且 `(validTo IS NULL OR validTo > asOf)` 过滤，只返回当前有效的事实。
@@ -277,7 +285,7 @@ const entityFacts = await db.queryEntityFacts(entityName, Date.now());
 ### 4.2 候选生成（当前实现额外包含广泛召回兜底）
 
 ```
-          TopicRecallResult.allTopicIds
+          TopicRecallResult.allTopicIds + TopicRecallResult.factNoteIds
           QueryAnalysisResult.*
                     │
         ┌───────────┼───────────┐
@@ -313,6 +321,19 @@ WHERE me.sourceType = 'topic'
 ORDER BY mn.date DESC
 LIMIT 50;
 ```
+
+#### Route A2: 实体事实 evidence note 直连
+
+```typescript
+for (const noteId of topicResult.factNoteIds) {
+  const note = await db.getNoteById(noteId);
+  if (note) {
+    mergeNoteCandidate(candidateMap, note, { graphScore: 0.9 });
+  }
+}
+```
+
+这一路不会调用 `listNotesByTopicId()`，避免把 note id 误路由成 topic id。
 
 #### Route B: FTS 全文命中
 
@@ -385,44 +406,81 @@ if (analysis.broadRecall && candidateMap.size === 0) {
 候选集合合并后去重，按加权分数排序：
 
 ```typescript
-export interface NoteCandidate {
-  noteId: string;
-  summary: string;
-  date: string;
-  importance: number;
-  stability: number;
-  topics: string[];
-  keywords: string[];
+const RETRIEVAL_SCORE_WEIGHTS = {
+  fts: 0.35,
+  graph: 0.25,
+  metadata: 0,
+  importance: 0.15,
+  recency: 0.15,
+  action: 0.1
+};
 
-  // 各路得分（归一化到 0~1）
-  ftsScore: number; // FTS5 rank 归一化
-  graphScore: number; // 图谱命中 1.0，未命中 0.0，子主题扩展 0.5
-  metadataScore: number; // 元数据过滤命中 1.0
+export interface NoteScoreBreakdown {
+  weights: typeof RETRIEVAL_SCORE_WEIGHTS;
+  raw: {
+    fts: number;
+    graph: number;
+    metadata: number;
+    importance: number;
+    recency: number;
+    action: number;
+  };
+  weighted: {
+    fts: number;
+    graph: number;
+    metadata: number;
+    importance: number;
+    recency: number;
+    action: number;
+  };
+  ageInDays: number;
+  matchReasons: string[];
+  finalScore: number;
 }
 
-function computeFinalScore(candidate: NoteCandidate, analysis: QueryAnalysisResult): number {
-  // ━━ 权重配置 ━━
-  const W_FTS = 0.35; // FTS 全文匹配
-  const W_GRAPH = 0.25; // 图谱关联
-  const W_IMPORTANCE = 0.15; // 重要度
-  const W_RECENCY = 0.15; // 时效性
-  const W_ACTION = 0.1; // 动作意图匹配
-
-  // ━━ 时效性衰减 ━━
+function computeScoreBreakdown(candidate: NoteCandidate, analysis: QueryAnalysisResult): NoteScoreBreakdown {
   const ageInDays = daysSince(candidate.date);
   const recencyScore = Math.exp(-0.023 * ageInDays); // 半衰期 ≈ 30 天
+  const actionScore = computeActionScore(candidate, analysis);
 
-  // ━━ 动作意图加权 ━━
-  let actionScore = 0;
-  if (analysis.actionHint === 'decision' && candidate.topics.some((t) => t.includes('Key Points'))) {
-    actionScore = 1.0;
-  } else if (analysis.actionHint === 'open_loop' && candidate.topics.some((t) => t.includes('Open'))) {
-    actionScore = 1.0;
-  }
+  const raw = {
+    fts: candidate.ftsScore,
+    graph: candidate.graphScore,
+    metadata: candidate.metadataScore,
+    importance: candidate.importance,
+    recency: recencyScore,
+    action: actionScore
+  };
 
-  return W_FTS * candidate.ftsScore + W_GRAPH * candidate.graphScore + W_IMPORTANCE * candidate.importance + W_RECENCY * recencyScore + W_ACTION * actionScore;
+  const weighted = {
+    fts: raw.fts * RETRIEVAL_SCORE_WEIGHTS.fts,
+    graph: raw.graph * RETRIEVAL_SCORE_WEIGHTS.graph,
+    metadata: raw.metadata * RETRIEVAL_SCORE_WEIGHTS.metadata,
+    importance: raw.importance * RETRIEVAL_SCORE_WEIGHTS.importance,
+    recency: raw.recency * RETRIEVAL_SCORE_WEIGHTS.recency,
+    action: raw.action * RETRIEVAL_SCORE_WEIGHTS.action
+  };
+
+  return {
+    weights: RETRIEVAL_SCORE_WEIGHTS,
+    raw,
+    weighted,
+    ageInDays,
+    matchReasons: candidate.matchReasons,
+    finalScore: weighted.fts + weighted.graph + weighted.metadata + weighted.importance + weighted.recency + weighted.action
+  };
 }
 ```
+
+当前实现中，`matchReasons` 会保留候选是通过哪条召回路径进入排序的，例如：
+
+- `topic:topic_runtime:direct`
+- `topic:topic_memory:expanded`
+- `entity_fact`
+- `fts:note`
+- `like_fallback`
+- `date_range`
+- `broad_recall`
 
 ### 4.4 输出
 
@@ -430,11 +488,21 @@ function computeFinalScore(candidate: NoteCandidate, analysis: QueryAnalysisResu
 export interface NoteRecallResult {
   candidates: NoteCandidate[]; // 已排序，Top-N
   totalFound: number;
-  topicContext: TopicRecallResult;
+}
+
+export interface MemorySearchDebugInfo {
+  analysis: QueryAnalysisResult;
+  weights: RetrievalScoreWeights;
+  topicRecall: TopicRecallResult;
+  noteRanking: Array<{
+    rank: number;
+    noteId: string;
+    scoreBreakdown: NoteScoreBreakdown;
+  }>;
 }
 ```
 
-默认 Top-N = 10，可根据 token 预算调整。
+默认 Top-N = 10，可根据 token 预算调整。显式搜索入口在 `debug=true` 时，会把 `scoreBreakdown` 挂到每条返回 note 上，并额外返回 `MemorySearchDebugInfo`，方便对排序结果做可解释性排查。
 
 ---
 
@@ -453,8 +521,10 @@ Top-N note IDs + 原始查询
   ┌────────────────────────────────┐
   │ Step 4a: Section 元数据过滤    │
   │ 按 actionHint 优先匹配段落类型 │
-  │ decision → "Key Points" 段         │
-  │ open_loop → "Open Items" 段      │
+  │ decision → "Key Points" 段          │
+  │ evidence → "Source Excerpts" 优先   │
+  │ open_loop → "Open Items" 段         │
+  │ contradiction → "Contradictions" 段 │
   └──────────┬─────────────────────┘
              │
              ▼
@@ -495,7 +565,7 @@ LIMIT 30;
 SELECT id, noteId, heading, summary, lineStart, lineEnd, charCount
 FROM memory_sections
 WHERE noteId IN (:topNNoteIds)
-  AND heading LIKE :actionHeading  -- 如 '%Key Points%'
+  AND heading LIKE :actionHeading  -- 如 '%Source Excerpts%' / '%Key Points%' / '%Contradictions%'
 ORDER BY sectionOrder;
 
 -- Step 4c: 关键词匹配
@@ -925,16 +995,16 @@ const memorySaveParameters = Type.Object({
 },
 ```
 
-### 8.5 memory_diary — Agent 日记（I-7）
+### 8.5 memory_diary — Agent 日记（I-7，当前为日志面）
 
-AI 可以写入观察性日记条目，记录对用户行为模式、偏好变化、新发现等的观察。日记条目存储在 `memory/diary/YYYY-MM-DD.md` 中，以追加模式写入。
+`memoryDiaryTool` 当前是一个已注册但部分接线的能力：AI 可以把观察、经验和处理策略追加写入 `memory/diary/YYYY-MM-DD.md`。这些 diary 文件当前不会进入 memory DB / FTS / topic graph，也不在 `DEFAULT_SESSION_TOOL_IDS` 中默认启用，因此它更接近日志面，而不是可检索的事实记忆面。
 
 ```typescript
 const memoryDiaryParameters = Type.Object({
-  content: Type.String({ description: '日记内容，应为 AI 的观察或洞察' }),
+  entry: Type.String({ description: '日记内容：记录本次对话中的观察、学到的东西、处理策略等经验总结' }),
   tags: Type.Optional(
     Type.Array(Type.String(), {
-      description: '可选标签，如 ["用户偏好", "行为模式"]'
+      description: '可选标签，用于分类检索，如 ["调试技巧", "用户偏好"]'
     })
   )
 });
@@ -943,16 +1013,14 @@ const memoryDiaryParameters = Type.Object({
 **写入格式**：
 
 ```markdown
-## HH:MM
+# Agent Diary — 2026-04-12
+
+### 14:32:05 [调试技巧, 用户偏好]
 
 内容文本
-
-tags: tag1, tag2
-
----
 ```
 
-**Tool 注册**：
+**Tool 注册状态**：
 
 ```typescript
 'memory-diary': {
@@ -963,6 +1031,12 @@ tags: tag1, tag2
   status: 'ready-for-pi-runtime',
 },
 ```
+
+说明：
+
+- 已注册 tool metadata，并可按需调用。
+- 当前未加入 `DEFAULT_SESSION_TOOL_IDS`。
+- 当前不会被 memory 检索、auto-recall 或内容生成服务消费。
 
 ---
 
@@ -1006,6 +1080,8 @@ export const memoryApi = {
   stats: (params?: { workspaceId?: string }) => ipcRenderer.invoke('memory:stats', params)
 };
 ```
+
+其中 `MemorySearchParams` 现支持可选 `debug?: boolean`，用于返回显式检索的评分拆解和召回路径解释。
 
 ---
 

@@ -6,6 +6,7 @@ import { and, desc, eq, gte, inArray, isNull, like, lte, sql } from 'drizzle-orm
 import { getRelativeMemoryDate } from '../../../packages/ai/services/memory-date';
 import { parseFrontmatter, readLines } from '../../../packages/ai/services/memory-note-parser';
 import { getDB, getOrm } from '.';
+import { MEMORY_FTS_CREATE_SQL, MEMORY_FTS_TABLE_NAME } from './memory-fts';
 import {
   memory_edges,
   memory_keywords,
@@ -75,6 +76,17 @@ export const MemoryNoteRepo = {
     const db = getOrm();
     const rows = await db.select().from(memory_notes).where(eq(memory_notes.id, id)).limit(1);
     return rows[0];
+  },
+
+  async listByIds(ids: string[]): Promise<MemoryNoteRow[]> {
+    if (!ids.length) return [];
+    const db = getOrm();
+    const rows = await db
+      .select()
+      .from(memory_notes)
+      .where(and(inArray(memory_notes.id, ids), isNull(memory_notes.deletedAt)));
+    const byId = new Map(rows.map((row) => [row.id, row] as const));
+    return ids.map((id) => byId.get(id)).filter((row): row is MemoryNoteRow => !!row);
   },
 
   async getByFilePath(filePath: string, workspaceId?: string | null): Promise<MemoryNoteRow | undefined> {
@@ -320,6 +332,16 @@ export const MemorySectionRepo = {
   async listByNote(noteId: string): Promise<MemorySectionRow[]> {
     const db = getOrm();
     return db.select().from(memory_sections).where(eq(memory_sections.noteId, noteId)).orderBy(memory_sections.sectionOrder);
+  },
+
+  async listByNoteIds(noteIds: string[]): Promise<MemorySectionRow[]> {
+    if (!noteIds.length) return [];
+    const db = getOrm();
+    return db
+      .select()
+      .from(memory_sections)
+      .where(inArray(memory_sections.noteId, noteIds))
+      .orderBy(memory_sections.noteId, memory_sections.sectionOrder);
   },
 
   async getById(id: string): Promise<MemorySectionRow | undefined> {
@@ -969,7 +991,7 @@ export const MemoryFTSRepo = {
     if (!rawDb) return;
     rawDb
       .prepare(
-        `INSERT INTO memory_notes_fts(entry_id, entry_type, note_id, title, summary, keywords, aliases, entities, body)
+        `INSERT INTO ${MEMORY_FTS_TABLE_NAME}(entry_id, entry_type, note_id, title, summary, keywords, aliases, entities, body)
          VALUES (?, 'note', ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(noteId, noteId, data.title, data.summary, data.keywords, data.aliases, data.entities, data.body);
@@ -981,7 +1003,7 @@ export const MemoryFTSRepo = {
     if (!rawDb) return;
     rawDb
       .prepare(
-        `INSERT INTO memory_notes_fts(entry_id, entry_type, note_id, title, summary, keywords, aliases, entities, body)
+        `INSERT INTO ${MEMORY_FTS_TABLE_NAME}(entry_id, entry_type, note_id, title, summary, keywords, aliases, entities, body)
          VALUES (?, 'section', ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(sectionId, noteId, data.title, data.summary, data.keywords, data.aliases, data.entities, data.body);

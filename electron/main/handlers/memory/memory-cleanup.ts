@@ -10,8 +10,10 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
+import { clearMemorySearchCache } from '../../../../packages/ai/services/memory-retrieval-service';
 import { getDB } from '../../db';
-import { MemoryEdgeRepo, MemoryFTSRepo, MemoryNoteKeywordRepo, MemoryNoteRepo } from '../../db/memory-repositories';
+import { MemoryFTSRepo } from '../../db/memory-fts-repo';
+import { MemoryEdgeRepo, MemoryNoteKeywordRepo, MemoryNoteRepo } from '../../db/memory-repositories';
 import { WorkspacesRepo } from '../../db/repositories';
 
 interface NoteTopicInfo {
@@ -32,15 +34,24 @@ export async function cleanupMemoryForConversations(conversationIds: string[]): 
   let updated = 0;
   let deleted = 0;
   const errors: string[] = [];
+  const touchedWorkspaceIds = new Set<string>();
+  let shouldClearAllSearchCache = false;
 
   for (const convId of conversationIds) {
     try {
       const { updated: updatedNotes, orphaned } = await MemoryNoteRepo.removeConversationSource(convId);
       updated += updatedNotes.length;
+      for (const note of updatedNotes) {
+        const workspaceId = note.workspaceId;
+        if (typeof workspaceId === 'string' && workspaceId.trim()) touchedWorkspaceIds.add(workspaceId);
+        else shouldClearAllSearchCache = true;
+      }
 
       // 完整删除孤立 note
       for (const note of orphaned) {
         try {
+          if (note.workspaceId) touchedWorkspaceIds.add(note.workspaceId);
+          else shouldClearAllSearchCache = true;
           await fullDeleteMemoryNote(note.id, note.workspaceId, note.filePath);
           deleted++;
         } catch (e: any) {
@@ -54,6 +65,13 @@ export async function cleanupMemoryForConversations(conversationIds: string[]): 
 
   if (deleted > 0 || updated > 0) {
     console.log(`[Memory] Cleanup: ${deleted} notes deleted, ${updated} notes updated`);
+    if (shouldClearAllSearchCache) {
+      clearMemorySearchCache();
+    } else {
+      for (const workspaceId of touchedWorkspaceIds) {
+        clearMemorySearchCache(workspaceId);
+      }
+    }
   }
 
   // 清理与被删对话关联的 sync_jobs
@@ -63,7 +81,8 @@ export async function cleanupMemoryForConversations(conversationIds: string[]): 
       try {
         // sync_jobs 的 target_conversation_ids 是 JSON 数组，这里做精确匹配，避免子串误删。
         rawDb
-          .prepare(`
+          .prepare(
+            `
             DELETE FROM memory_sync_jobs
             WHERE target_conversation_ids IS NOT NULL
               AND EXISTS (
@@ -71,7 +90,8 @@ export async function cleanupMemoryForConversations(conversationIds: string[]): 
                 FROM json_each(memory_sync_jobs.target_conversation_ids)
                 WHERE json_each.value = ?
               )
-          `)
+          `
+          )
           .run(convId);
       } catch (e: any) {
         errors.push(`Failed to cleanup sync_jobs for conversation ${convId}: ${e?.message}`);
@@ -164,6 +184,7 @@ export async function clearAllMemory(workspaceId?: string): Promise<{
   }
 
   console.log(`[Memory] Clear all: ${tablesCleared.length} tables cleared, ${filesDeleted} files deleted`);
+  clearMemorySearchCache(workspaceId);
   return { tablesCleared, filesDeleted, errors };
 }
 

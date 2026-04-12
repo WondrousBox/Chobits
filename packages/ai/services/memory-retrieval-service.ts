@@ -17,7 +17,7 @@ export interface QueryAnalysisResult {
   entityTerms: string[];
   keywordTerms: string[];
   timeHint?: { type: 'recent' | 'range' | 'specific'; days?: number; start?: string; end?: string };
-  actionHint?: 'recall' | 'decision' | 'open_loop' | 'evidence' | 'general';
+  actionHint?: 'recall' | 'decision' | 'open_loop' | 'evidence' | 'contradiction' | 'general';
   broadRecall?: boolean;
   originalQuery: string;
 }
@@ -32,7 +32,40 @@ export interface TopicHit {
 export interface TopicRecallResult {
   directHits: TopicHit[];
   expanded: Array<{ id: string; label: string; heat: number; depth: number }>;
+  factNoteIds: string[];
   allTopicIds: string[];
+}
+
+export interface RetrievalScoreWeights {
+  fts: number;
+  graph: number;
+  metadata: number;
+  importance: number;
+  recency: number;
+  action: number;
+}
+
+export interface NoteScoreBreakdown {
+  weights: RetrievalScoreWeights;
+  raw: {
+    fts: number;
+    graph: number;
+    metadata: number;
+    importance: number;
+    recency: number;
+    action: number;
+  };
+  weighted: {
+    fts: number;
+    graph: number;
+    metadata: number;
+    importance: number;
+    recency: number;
+    action: number;
+  };
+  ageInDays: number;
+  matchReasons: string[];
+  finalScore: number;
 }
 
 export interface NoteCandidate {
@@ -43,9 +76,13 @@ export interface NoteCandidate {
   stability: number;
   topics: string[];
   keywords: string[];
+  filePath?: string;
+  workspaceId?: string;
   ftsScore: number;
   graphScore: number;
   metadataScore: number;
+  matchReasons: string[];
+  scoreBreakdown?: NoteScoreBreakdown;
   finalScore: number;
 }
 
@@ -83,6 +120,24 @@ export interface TargetedReadResult {
 }
 
 /** 统一搜索结果（给 Agent tool 用） */
+export interface MemorySearchDebugNote {
+  rank: number;
+  noteId: string;
+  date: string;
+  topics: string[];
+  summary: string;
+  importance: number;
+  stability: number;
+  scoreBreakdown: NoteScoreBreakdown;
+}
+
+export interface MemorySearchDebugInfo {
+  analysis: QueryAnalysisResult;
+  weights: RetrievalScoreWeights;
+  topicRecall: TopicRecallResult;
+  noteRanking: MemorySearchDebugNote[];
+}
+
 export interface MemorySearchResult {
   topics: Array<{ label: string; heat: number }>;
   notes: Array<{
@@ -92,8 +147,10 @@ export interface MemorySearchResult {
     summary: string;
     importance: number;
     sections?: Array<{ heading: string; summary: string }>;
+    scoreBreakdown?: NoteScoreBreakdown;
   }>;
   totalFound: number;
+  debug?: MemorySearchDebugInfo;
 }
 
 /** 精确读取结果 */
@@ -140,6 +197,7 @@ export interface RetrievalDbDeps {
   findTopicsByDomain?: (domain: string, workspaceId?: string, limit?: number) => Promise<any[]>;
   // Notes
   getNoteById: (id: string) => Promise<any>;
+  listNotesByIds?: (ids: string[]) => Promise<any[]>;
   listNotesByWorkspace: (workspaceId: string, limit?: number, offset?: number) => Promise<any[]>;
   listNotesByDateRange: (start: string, end: string, workspaceId?: string) => Promise<any[]>;
   listNotesByTopicId: (topicId: string, workspaceId?: string, limit?: number) => Promise<any[]>;
@@ -147,6 +205,7 @@ export interface RetrievalDbDeps {
   searchNotesByTerms?: (terms: string[], workspaceId?: string, limit?: number) => Promise<any[]>;
   // Sections
   listSectionsByNote: (noteId: string) => Promise<any[]>;
+  listSectionsByNoteIds?: (noteIds: string[]) => Promise<any[]>;
   // FTS
   ftsSearch: (query: string, opts?: { entryType?: 'note' | 'section'; noteIds?: string[]; limit?: number }) => Array<{ entry_id: string; entry_type: string; note_id: string; rank: number }>;
   // Workspace
@@ -286,6 +345,7 @@ export function analyzeQuery(query: string): QueryAnalysisResult {
 
   // 动作词提取
   const actionPatterns: Array<{ regex: RegExp; hint: QueryAnalysisResult['actionHint'] }> = [
+    { regex: /矛盾|冲突|conflict|contradiction/i, hint: 'contradiction' },
     { regex: /聊过|聊了|讨论过|谈到|提到|mentioned|discussed/i, hint: 'recall' },
     { regex: /决定|定了|确认|decided|confirmed/i, hint: 'decision' },
     { regex: /待|要做|未完成|todo|pending|没做完/i, hint: 'open_loop' },
@@ -324,22 +384,78 @@ export function analyzeQuery(query: string): QueryAnalysisResult {
 export async function recallTopics(analysis: QueryAnalysisResult, workspaceId: string, db: RetrievalDbDeps): Promise<TopicRecallResult> {
   const directHits: TopicHit[] = [];
   const hitTopicIds = new Set<string>();
+  const factNoteIds = new Set<string>();
+  const expanded: TopicRecallResult['expanded'] = [];
+  const expandedTopicIds = new Set<string>();
+
+  const addDirectHit = (topic: any, matchType: TopicHit['matchType']): void => {
+    if (!topic?.id || hitTopicIds.has(topic.id)) {
+      return;
+    }
+    hitTopicIds.add(topic.id);
+    directHits.push({ id: topic.id, label: topic.label, heat: topic.heat ?? 0, matchType });
+  };
+
+  const addExpandedTopic = (topic: any, depth: number): void => {
+    if (!topic?.id || hitTopicIds.has(topic.id) || expandedTopicIds.has(topic.id)) {
+      return;
+    }
+    expandedTopicIds.add(topic.id);
+    expanded.push({ id: topic.id, label: topic.label, heat: topic.heat ?? 0, depth });
+  };
 
   // Step 2a: 直接匹配 topic (label/slug/aliases)
-  const allTerms = [...analysis.topicTerms, ...analysis.entityTerms];
-  for (const term of allTerms) {
-    if (!term) continue;
-    const topics = await db.searchTopics(term, workspaceId, 5);
-    for (const t of topics) {
-      if (!hitTopicIds.has(t.id)) {
-        hitTopicIds.add(t.id);
-        directHits.push({ id: t.id, label: t.label, heat: t.heat ?? 0, matchType: 'label' });
+  const topicSearchTerms = dedupStrings([...analysis.topicTerms, ...analysis.entityTerms]);
+  if (topicSearchTerms.length > 0) {
+    const topicBatches = await Promise.all(topicSearchTerms.map((term) => db.searchTopics(term, workspaceId, 5)));
+    for (const topics of topicBatches) {
+      for (const topic of topics) {
+        addDirectHit(topic, 'label');
       }
     }
   }
 
   // Step 2b: 关键词 → 主题
-  for (const term of analysis.keywordTerms) {
+  const keywordTerms = dedupStrings(analysis.keywordTerms);
+  if (keywordTerms.length > 0) {
+    const [canonicalHits, aliasHitBatches] = await Promise.all([
+      Promise.all(keywordTerms.map((term) => db.findKeywordByCanonical(term, workspaceId))),
+      Promise.all(keywordTerms.map((term) => db.findKeywordByAlias(term, workspaceId)))
+    ]);
+
+    const orderedTopicMatches: Array<{ topicId: string; matchType: TopicHit['matchType'] }> = [];
+    const seenKeywordTopicIds = new Set<string>();
+
+    for (const keywordHit of canonicalHits) {
+      const topicId = keywordHit?.primaryTopicId;
+      if (!topicId || hitTopicIds.has(topicId) || seenKeywordTopicIds.has(topicId)) {
+        continue;
+      }
+      seenKeywordTopicIds.add(topicId);
+      orderedTopicMatches.push({ topicId, matchType: 'keyword' });
+    }
+
+    for (const aliasHits of aliasHitBatches) {
+      for (const aliasHit of aliasHits) {
+        const topicId = aliasHit?.primaryTopicId;
+        if (!topicId || hitTopicIds.has(topicId) || seenKeywordTopicIds.has(topicId)) {
+          continue;
+        }
+        seenKeywordTopicIds.add(topicId);
+        orderedTopicMatches.push({ topicId, matchType: 'alias' });
+      }
+    }
+
+    if (orderedTopicMatches.length > 0) {
+      const resolvedTopics = await Promise.all(orderedTopicMatches.map((match) => db.getTopicById(match.topicId)));
+      for (const [index, topic] of resolvedTopics.entries()) {
+        if (topic) {
+          addDirectHit(topic, orderedTopicMatches[index].matchType);
+        }
+      }
+    }
+  }
+  for (const term of [] as string[]) {
     const kw = await db.findKeywordByCanonical(term, workspaceId);
     if (kw?.primaryTopicId && !hitTopicIds.has(kw.primaryTopicId)) {
       const topic = await db.getTopicById(kw.primaryTopicId);
@@ -362,8 +478,55 @@ export async function recallTopics(analysis: QueryAnalysisResult, workspaceId: s
   }
 
   // Step 2c: 图谱扩展（子主题 + 邻接主题，最多 1 层）
-  const expanded: TopicRecallResult['expanded'] = [];
   if (hitTopicIds.size > 0) {
+    const hitIds = Array.from(hitTopicIds);
+
+    const childBatches = await Promise.all(hitIds.slice(0, 5).map((parentId) => db.listTopicChildren(parentId)));
+    for (const children of childBatches) {
+      for (const child of children.slice(0, 5)) {
+        addExpandedTopic(child, 1);
+      }
+    }
+
+    const adjacentEdges = await db.findAdjacentTopics(hitIds, 10);
+    const adjacentTopicIds = dedupStrings(
+      adjacentEdges
+        .map((edge) => edge.targetId || edge.target_id)
+        .filter((targetId) => targetId && !hitTopicIds.has(targetId) && !expandedTopicIds.has(targetId))
+    );
+    if (adjacentTopicIds.length > 0) {
+      const adjacentTopics = await Promise.all(adjacentTopicIds.map((topicId) => db.getTopicById(topicId)));
+      for (const topic of adjacentTopics) {
+        addExpandedTopic(topic, 1);
+      }
+    }
+  }
+
+  const entityTerms = dedupStrings(analysis.entityTerms);
+  if (db.findTopicsByDomain && entityTerms.length > 0) {
+    const domainQueries = entityTerms.flatMap((term) => ['person', 'project'].map((prefix) => `${prefix}:${term}`));
+    const domainTopicBatches = await Promise.all(domainQueries.map((domainKey) => db.findTopicsByDomain!(domainKey, workspaceId, 5)));
+    for (const domainTopics of domainTopicBatches) {
+      for (const topic of domainTopics) {
+        addDirectHit(topic, 'label');
+      }
+    }
+  }
+
+  if (db.queryEntityFacts && entityTerms.length > 0) {
+    const factBatches = await Promise.all(entityTerms.map((term) => db.queryEntityFacts!(term, { workspaceId, limit: 10 })));
+    for (const facts of factBatches) {
+      for (const fact of facts) {
+        const noteId = fact.evidenceNoteId || fact.evidence_note_id;
+        if (noteId) {
+          factNoteIds.add(noteId);
+        }
+      }
+    }
+  }
+
+  // Legacy serial expansion path kept inert below while the new parallelized path settles.
+  if (false && hitTopicIds.size > 0) {
     const hitIds = Array.from(hitTopicIds);
 
     // 子主题
@@ -391,7 +554,7 @@ export async function recallTopics(analysis: QueryAnalysisResult, workspaceId: s
 
   // Step 2d: Domain-based filtering (I-4)
   // If entityTerms match a "person:Name" or "project:Name" domain, pull in domain-scoped topics
-  if (db.findTopicsByDomain) {
+  if (false && db.findTopicsByDomain) {
     for (const term of analysis.entityTerms) {
       if (!term) continue;
       for (const prefix of ['person', 'project']) {
@@ -409,26 +572,24 @@ export async function recallTopics(analysis: QueryAnalysisResult, workspaceId: s
 
   // Step 2e: Entity fact graph expansion (I-3)
   // If entityTerms match entity facts, pull in related notes via evidenceNoteId
-  if (db.queryEntityFacts) {
+  if (false && db.queryEntityFacts) {
     for (const term of analysis.entityTerms) {
       if (!term) continue;
       const facts = await db.queryEntityFacts(term, { workspaceId, limit: 10 });
       for (const fact of facts) {
         const noteId = fact.evidenceNoteId || fact.evidence_note_id;
         if (noteId) {
-          // Entity facts link to notes — we'll use these note IDs in Stage 3
-          // Store them for later use via the topicResult
-          const factInfo = `${fact.sourceId || fact.source_id}→${fact.evidenceSnippet || fact.evidence_snippet}→${fact.targetId || fact.target_id}`;
-          if (!expanded.some((e) => e.id === noteId)) {
-            expanded.push({ id: noteId, label: factInfo, heat: 1.0, depth: 1 });
-          }
+          // Entity facts link directly to notes.
+          // Keep them out of topic expansion so Stage 3 does not misroute note IDs
+          // through listNotesByTopicId().
+          factNoteIds.add(noteId);
         }
       }
     }
   }
 
   const allTopicIds = [...Array.from(hitTopicIds), ...expanded.map((e) => e.id)];
-  return { directHits, expanded, allTopicIds };
+  return { directHits, expanded, factNoteIds: Array.from(factNoteIds), allTopicIds };
 }
 
 // ━━ Stage 3: Note Recall ━━
@@ -438,13 +599,26 @@ export async function recallNotes(analysis: QueryAnalysisResult, topicResult: To
 
   // Route A: 图谱关联 note
   if (topicResult.allTopicIds.length > 0) {
-    for (const topicId of topicResult.allTopicIds.slice(0, 10)) {
-      const notes = await db.listNotesByTopicId(topicId, workspaceId, 20);
+    const topicIds = topicResult.allTopicIds.slice(0, 10);
+    const noteBatches = await Promise.all(topicIds.map((topicId) => db.listNotesByTopicId(topicId, workspaceId, 20)));
+    for (const [index, topicId] of topicIds.entries()) {
+      const notes = noteBatches[index] || [];
       for (const note of notes) {
-        if (!candidateMap.has(note.id)) {
-          const isDirectHit = topicResult.directHits.some((h) => topicResult.allTopicIds.includes(h.id));
-          candidateMap.set(note.id, noteToCandidate(note, { graphScore: isDirectHit ? 1.0 : 0.5 }));
-        }
+        const graphScore = topicResult.directHits.some((h) => h.id === topicId) ? 1.0 : 0.5;
+        const relation = topicResult.directHits.some((h) => h.id === topicId) ? 'direct' : 'expanded';
+        mergeNoteCandidate(candidateMap, note, { graphScore }, [`topic:${topicId}:${relation}`]);
+      }
+    }
+  }
+
+  // Route A2: 实体事实命中的 evidence notes
+  if (topicResult.factNoteIds.length > 0) {
+    const factNoteIds = topicResult.factNoteIds.slice(0, 10);
+    const factNotes = await loadNotesByIds(factNoteIds, db);
+    for (const noteId of factNoteIds) {
+      const note = factNotes.get(noteId);
+      if (note) {
+        mergeNoteCandidate(candidateMap, note, { graphScore: 0.9 }, ['entity_fact']);
       }
     }
   }
@@ -455,15 +629,20 @@ export async function recallNotes(analysis: QueryAnalysisResult, topicResult: To
     const ftsHits = db.ftsSearch(ftsQuery, { entryType: 'note', limit: 30 });
     // 归一化 FTS rank
     const maxRank = ftsHits.length > 0 ? Math.abs(ftsHits[0].rank) : 1;
+    const missingNotes = await loadNotesByIds(
+      dedupStrings(ftsHits.map((hit) => hit.note_id).filter((noteId) => noteId && !candidateMap.has(noteId))),
+      db
+    );
     for (const hit of ftsHits) {
       const noteId = hit.note_id;
       const ftsScore = maxRank > 0 ? Math.abs(hit.rank) / maxRank : 0;
       if (candidateMap.has(noteId)) {
         candidateMap.get(noteId)!.ftsScore = Math.max(candidateMap.get(noteId)!.ftsScore, ftsScore);
+        addMatchReasons(candidateMap.get(noteId)!, ['fts:note']);
       } else {
-        const note = await db.getNoteById(noteId);
+        const note = missingNotes.get(noteId);
         if (note) {
-          candidateMap.set(noteId, noteToCandidate(note, { ftsScore }));
+          mergeNoteCandidate(candidateMap, note, { ftsScore }, ['fts:note']);
         }
       }
     }
@@ -471,18 +650,11 @@ export async function recallNotes(analysis: QueryAnalysisResult, topicResult: To
 
   // Route B2: 直接 LIKE 搜索（弥补 FTS unicode61 对中文分词不足）
   if (db.searchNotesByTerms) {
-    const searchTerms = [...analysis.topicTerms, ...analysis.keywordTerms, ...analysis.entityTerms].filter(Boolean);
-    const uniqueTerms = [...new Set(searchTerms)];
+    const uniqueTerms = collectSearchTerms(analysis);
     if (uniqueTerms.length > 0) {
       const likeHits = await db.searchNotesByTerms(uniqueTerms, workspaceId, 20);
       for (const note of likeHits) {
-        if (!candidateMap.has(note.id)) {
-          candidateMap.set(note.id, noteToCandidate(note, { ftsScore: 0.6 }));
-        } else {
-          // Boost existing candidate if also found via LIKE
-          const existing = candidateMap.get(note.id)!;
-          existing.ftsScore = Math.max(existing.ftsScore, 0.6);
-        }
+        mergeNoteCandidate(candidateMap, note, { ftsScore: 0.6 }, ['like_fallback']);
       }
     }
   }
@@ -493,11 +665,7 @@ export async function recallNotes(analysis: QueryAnalysisResult, topicResult: To
     if (start && end) {
       const notes = await db.listNotesByDateRange(start, end, workspaceId);
       for (const note of notes.slice(0, 30)) {
-        if (!candidateMap.has(note.id)) {
-          candidateMap.set(note.id, noteToCandidate(note, { metadataScore: 0.5 }));
-        } else {
-          candidateMap.get(note.id)!.metadataScore = 0.5;
-        }
+        mergeNoteCandidate(candidateMap, note, { metadataScore: 0.5 }, ['date_range']);
       }
     }
   }
@@ -506,15 +674,15 @@ export async function recallNotes(analysis: QueryAnalysisResult, topicResult: To
   if (analysis.broadRecall && candidateMap.size === 0) {
     const recentNotes = await db.listNotesByWorkspace(workspaceId, maxResults * 2, 0);
     for (const note of recentNotes) {
-      if (!candidateMap.has(note.id)) {
-        candidateMap.set(note.id, noteToCandidate(note, { metadataScore: 0.3 }));
-      }
+      mergeNoteCandidate(candidateMap, note, { metadataScore: 0.3 }, ['broad_recall']);
     }
   }
 
   // 融合排序
   const candidates = Array.from(candidateMap.values()).map((c) => {
-    c.finalScore = computeFinalScore(c, analysis);
+    const breakdown = computeScoreBreakdown(c, analysis);
+    c.scoreBreakdown = breakdown;
+    c.finalScore = breakdown.finalScore;
     return c;
   });
   candidates.sort((a, b) => b.finalScore - a.finalScore);
@@ -530,22 +698,32 @@ export async function recallNotes(analysis: QueryAnalysisResult, topicResult: To
 export async function recallSections(analysis: QueryAnalysisResult, noteIds: string[], db: RetrievalDbDeps, maxResults = 20): Promise<SectionCandidate[]> {
   if (!noteIds.length) return [];
   const candidates: SectionCandidate[] = [];
+  const limitedNoteIds = noteIds.slice(0, 10);
+  const sectionsByNoteId = await loadSectionsByNoteIds(limitedNoteIds, db);
+  const sectionById = new Map<string, any>();
+  for (const sections of sectionsByNoteId.values()) {
+    for (const section of sections) {
+      sectionById.set(section.id, section);
+    }
+  }
 
   // Step 4a: actionHint 优先匹配段落类型
-  const actionHeadingMap: Record<string, string> = {
-    decision: 'Key Points',
-    open_loop: 'Open Items',
-    evidence: 'Key Points',
-    recall: 'Key Points'
+  const actionHeadingMap: Record<string, string[]> = {
+    decision: ['Key Points'],
+    open_loop: ['Open Items'],
+    evidence: ['Source Excerpts', 'Key Points'],
+    contradiction: ['Contradictions'],
+    recall: ['Key Points']
   };
   if (analysis.actionHint && analysis.actionHint !== 'general') {
-    const targetHeading = actionHeadingMap[analysis.actionHint];
-    if (targetHeading) {
-      for (const noteId of noteIds.slice(0, 10)) {
-        const sections = await db.listSectionsByNote(noteId);
+    const targetHeadings = actionHeadingMap[analysis.actionHint];
+    if (targetHeadings?.length) {
+      for (const noteId of limitedNoteIds) {
+        const sections = sectionsByNoteId.get(noteId) || [];
         for (const sec of sections) {
           const heading = sec.heading || sec.heading;
-          if (heading?.includes(targetHeading)) {
+          const targetIndex = heading ? targetHeadings.findIndex((target) => heading.includes(target)) : -1;
+          if (targetIndex >= 0) {
             candidates.push({
               sectionId: sec.id,
               noteId: sec.noteId || sec.note_id,
@@ -556,7 +734,7 @@ export async function recallSections(analysis: QueryAnalysisResult, noteIds: str
               lineEnd: sec.lineEnd || sec.line_end,
               charCount: sec.charCount || sec.char_count || 0,
               matchType: 'action_hint',
-              score: 1.0
+              score: 1.0 - targetIndex * 0.05
             });
           }
         }
@@ -567,11 +745,10 @@ export async function recallSections(analysis: QueryAnalysisResult, noteIds: str
   // Step 4b: Section FTS 命中
   const ftsQuery = buildFtsQuery(analysis);
   if (ftsQuery) {
-    const ftsHits = db.ftsSearch(ftsQuery, { entryType: 'section', noteIds, limit: 20 });
+    const ftsHits = db.ftsSearch(ftsQuery, { entryType: 'section', noteIds: limitedNoteIds, limit: 20 });
     for (const hit of ftsHits) {
       if (!candidates.some((c) => c.sectionId === hit.entry_id)) {
-        const sections = await db.listSectionsByNote(hit.note_id);
-        const sec = sections.find((s: any) => s.id === hit.entry_id);
+        const sec = sectionById.get(hit.entry_id);
         if (sec) {
           candidates.push({
             sectionId: sec.id,
@@ -603,6 +780,7 @@ export async function targetedRead(
   maxChars = 2800
 ): Promise<TargetedReadResult> {
   const result: ReadSection[] = [];
+  const fileContentCache = new Map<string, string>();
   let totalChars = 0;
   let budgetExhausted = false;
 
@@ -615,11 +793,14 @@ export async function targetedRead(
     const filePath = noteFileMap.get(section.noteId);
     if (!filePath) continue;
 
-    let fileContent: string;
-    try {
-      fileContent = await fs.readFile(filePath, 'utf-8');
-    } catch {
-      continue;
+    let fileContent = fileContentCache.get(filePath);
+    if (!fileContent) {
+      try {
+        fileContent = await fs.readFile(filePath, 'utf-8');
+        fileContentCache.set(filePath, fileContent);
+      } catch {
+        continue;
+      }
     }
 
     const content = readLines(fileContent, section.lineStart, section.lineEnd);
@@ -702,10 +883,76 @@ export async function search(
   query: string,
   workspaceId: string,
   db: RetrievalDbDeps,
-  opts: { maxResults?: number; includeContent?: boolean; topicFilter?: string[]; dateRange?: { start?: string; end?: string } } = {}
+  opts: SearchOptions = {}
+): Promise<MemorySearchResult> {
+  if (!shouldUseMemorySearchCache(opts)) {
+    return runSearchPipeline(query, workspaceId, db, opts);
+  }
+
+  pruneExpiredMemorySearchCache();
+  const cacheKey = buildMemorySearchCacheKey(query, workspaceId, opts);
+  const globalGeneration = memorySearchCacheGlobalGeneration;
+  const workspaceGeneration = getMemorySearchCacheWorkspaceGeneration(workspaceId);
+  const cached = memorySearchCache.get(cacheKey);
+  const now = Date.now();
+
+  if (cached) {
+    const generationMatches = cached.globalGeneration === globalGeneration && cached.workspaceGeneration === workspaceGeneration;
+    if (!generationMatches) {
+      memorySearchCache.delete(cacheKey);
+    } else if (cached.value && cached.expiresAt > now) {
+      return cloneMemorySearchResult(cached.value);
+    } else if (cached.promise) {
+      return cloneMemorySearchResult(await cached.promise);
+    } else {
+      memorySearchCache.delete(cacheKey);
+    }
+  }
+
+  const pendingSearch = runSearchPipeline(query, workspaceId, db, opts);
+  const pendingEntry: MemorySearchCacheEntry = {
+    workspaceId,
+    globalGeneration,
+    workspaceGeneration,
+    expiresAt: 0,
+    promise: pendingSearch
+  };
+  memorySearchCache.set(cacheKey, pendingEntry);
+
+  try {
+    const result = await pendingSearch;
+    const cacheStillValid =
+      memorySearchCacheGlobalGeneration === globalGeneration && getMemorySearchCacheWorkspaceGeneration(workspaceId) === workspaceGeneration;
+
+    if (cacheStillValid) {
+      memorySearchCache.set(cacheKey, {
+        workspaceId,
+        globalGeneration,
+        workspaceGeneration,
+        expiresAt: Date.now() + MEMORY_SEARCH_CACHE_TTL_MS,
+        value: cloneMemorySearchResult(result)
+      });
+    } else if (memorySearchCache.get(cacheKey) === pendingEntry) {
+      memorySearchCache.delete(cacheKey);
+    }
+
+    return cloneMemorySearchResult(result);
+  } catch (error) {
+    if (memorySearchCache.get(cacheKey) === pendingEntry) {
+      memorySearchCache.delete(cacheKey);
+    }
+    throw error;
+  }
+}
+
+async function runSearchPipeline(
+  query: string,
+  workspaceId: string,
+  db: RetrievalDbDeps,
+  opts: SearchOptions = {}
 ): Promise<MemorySearchResult> {
   // Stage 1
-  const analysis = analyzeQuery(query);
+  const analysis = await resolveQueryAnalysis(query, opts.analysis, opts.llmAnalyzer);
 
   // 应用外部过滤
   if (opts.dateRange?.start && opts.dateRange?.end) {
@@ -733,15 +980,20 @@ export async function search(
       date: n.date,
       topics: n.topics,
       summary: n.summary,
-      importance: n.importance
+      importance: n.importance,
+      ...(opts.debug ? { scoreBreakdown: n.scoreBreakdown } : {})
     })),
     totalFound: noteResult.totalFound
   };
 
   // 可选：附加 section 摘要
   if (opts.includeContent) {
+    const sectionsByNoteId = await loadSectionsByNoteIds(
+      result.notes.map((note) => note.id),
+      db
+    );
     for (const note of result.notes) {
-      const sections = await db.listSectionsByNote(note.id);
+      const sections = sectionsByNoteId.get(note.id) || [];
       note.sections = sections.map((s: any) => ({
         heading: s.heading,
         summary: s.summary || ''
@@ -749,7 +1001,46 @@ export async function search(
     }
   }
 
+  if (opts.debug) {
+    result.debug = {
+      analysis,
+      weights: { ...RETRIEVAL_SCORE_WEIGHTS },
+      topicRecall: {
+        directHits: topicResult.directHits.map((hit) => ({ ...hit })),
+        expanded: topicResult.expanded.map((entry) => ({ ...entry })),
+        factNoteIds: [...topicResult.factNoteIds],
+        allTopicIds: [...topicResult.allTopicIds]
+      },
+      noteRanking: noteResult.candidates.map((candidate, index) => ({
+        rank: index + 1,
+        noteId: candidate.noteId,
+        date: candidate.date,
+        topics: [...candidate.topics],
+        summary: candidate.summary,
+        importance: candidate.importance,
+        stability: candidate.stability,
+        scoreBreakdown: candidate.scoreBreakdown || computeScoreBreakdown(candidate, analysis)
+      }))
+    };
+  }
+
   return result;
+}
+
+export function clearMemorySearchCache(workspaceId?: string): void {
+  if (!workspaceId) {
+    memorySearchCache.clear();
+    memorySearchCacheWorkspaceGenerations.clear();
+    memorySearchCacheGlobalGeneration += 1;
+    return;
+  }
+
+  memorySearchCacheWorkspaceGenerations.set(workspaceId, getMemorySearchCacheWorkspaceGeneration(workspaceId) + 1);
+  for (const [cacheKey, entry] of memorySearchCache.entries()) {
+    if (entry.workspaceId === workspaceId) {
+      memorySearchCache.delete(cacheKey);
+    }
+  }
 }
 
 /**
@@ -884,6 +1175,44 @@ export interface SearchWithContentResult {
   topicCount: number;
 }
 
+export interface SearchOptions {
+  maxResults?: number;
+  includeContent?: boolean;
+  topicFilter?: string[];
+  dateRange?: { start?: string; end?: string };
+  debug?: boolean;
+  analysis?: QueryAnalysisResult;
+  llmAnalyzer?: LlmQueryAnalyzer;
+}
+
+export interface SearchWithContentOptions {
+  analysis?: QueryAnalysisResult;
+  llmAnalyzer?: LlmQueryAnalyzer;
+}
+
+interface MemorySearchCacheEntry {
+  workspaceId: string;
+  globalGeneration: number;
+  workspaceGeneration: number;
+  expiresAt: number;
+  promise?: Promise<MemorySearchResult>;
+  value?: MemorySearchResult;
+}
+
+const MEMORY_SEARCH_CACHE_TTL_MS = 5000;
+const memorySearchCache = new Map<string, MemorySearchCacheEntry>();
+const memorySearchCacheWorkspaceGenerations = new Map<string, number>();
+let memorySearchCacheGlobalGeneration = 0;
+
+const RETRIEVAL_SCORE_WEIGHTS: RetrievalScoreWeights = {
+  fts: 0.35,
+  graph: 0.25,
+  metadata: 0,
+  importance: 0.15,
+  recency: 0.15,
+  action: 0.1
+};
+
 /** LLM 辅助查询分析函数（可选增强） */
 export type LlmQueryAnalyzer = (query: string) => Promise<QueryAnalysisResult | null>;
 
@@ -897,7 +1226,7 @@ const LLM_QUERY_ANALYSIS_PROMPT = `你是一个查询分析器。把用户的查
 }
 
 timeHint.type: "recent"(最近N天，含days字段）| "range"（含start/end字段）| "specific"（含start/end字段）| null（无时间信号）
-actionHint: "recall"（回忆）| "decision"（决定/确认）| "open_loop"（待办/未完成）| "evidence"（证据/原因）| "general"（通用）
+actionHint: "recall"（回忆）| "decision"（决定/确认）| "open_loop"（待办/未完成）| "evidence"（证据/原因）| "contradiction"（矛盾/冲突）| "general"（通用）
 topicTerms: 提取查询中的主题/领域词
 entityTerms: 提取专有名词（产品、人名、技术名等）
 keywordTerms: 提取用于全文搜索的关键词
@@ -933,14 +1262,86 @@ export function createLlmQueryAnalyzer(chatFn: (prompt: string) => Promise<strin
   };
 }
 
-export async function searchWithContent(query: string, workspaceId: string, db: RetrievalDbDeps, maxChars = 4000, llmAnalyzer?: LlmQueryAnalyzer): Promise<SearchWithContentResult> {
+function normalizeSearchWithContentOptions(options?: LlmQueryAnalyzer | SearchWithContentOptions): SearchWithContentOptions {
+  if (typeof options === 'function') {
+    return { llmAnalyzer: options };
+  }
+  return options ?? {};
+}
+
+async function resolveQueryAnalysis(query: string, analysis?: QueryAnalysisResult, llmAnalyzer?: LlmQueryAnalyzer): Promise<QueryAnalysisResult> {
+  if (analysis) {
+    return { ...analysis };
+  }
+  if (llmAnalyzer) {
+    const llmResult = await llmAnalyzer(query);
+    if (llmResult) {
+      return llmResult;
+    }
+  }
+  return analyzeQuery(query);
+}
+
+async function buildNoteFileMap(noteCandidates: NoteCandidate[], workspaceId: string, db: RetrievalDbDeps): Promise<Map<string, string>> {
+  const noteFileMap = new Map<string, string>();
+  if (noteCandidates.length === 0) return noteFileMap;
+
+  const noteMeta = new Map<string, { filePath?: string; workspaceId?: string }>();
+  const missingNoteIds: string[] = [];
+  for (const note of noteCandidates) {
+    if (note.filePath) {
+      noteMeta.set(note.noteId, { filePath: note.filePath, workspaceId: note.workspaceId || workspaceId });
+    } else {
+      missingNoteIds.push(note.noteId);
+    }
+  }
+
+  const missingNotes = await loadNotesByIds(missingNoteIds, db);
+  for (const [noteId, note] of missingNotes) {
+    noteMeta.set(noteId, {
+      filePath: note.filePath || note.file_path,
+      workspaceId: note.workspaceId || note.workspace_id || workspaceId
+    });
+  }
+
+  const workspaceRootCache = new Map<string, string | null>();
+  const getCachedWorkspaceRoot = async (targetWorkspaceId: string): Promise<string | null> => {
+    if (workspaceRootCache.has(targetWorkspaceId)) {
+      return workspaceRootCache.get(targetWorkspaceId) ?? null;
+    }
+    const root = await db.getWorkspaceRoot(targetWorkspaceId);
+    workspaceRootCache.set(targetWorkspaceId, root);
+    return root;
+  };
+
+  for (const [noteId, meta] of noteMeta) {
+    if (!meta.filePath) continue;
+    const targetWorkspaceId = meta.workspaceId || workspaceId;
+    const workspaceRoot = await getCachedWorkspaceRoot(targetWorkspaceId);
+    if (!workspaceRoot) continue;
+    noteFileMap.set(noteId, path.join(workspaceRoot, meta.filePath));
+  }
+
+  return noteFileMap;
+}
+
+export async function searchWithContent(
+  query: string,
+  workspaceId: string,
+  db: RetrievalDbDeps,
+  maxChars = 4000,
+  llmAnalyzerOrOptions?: LlmQueryAnalyzer | SearchWithContentOptions
+): Promise<SearchWithContentResult> {
   const TAG = '[MemorySearch] 🧠🔎';
   const t0 = Date.now();
+  const options = normalizeSearchWithContentOptions(llmAnalyzerOrOptions);
 
   // Stage 1: Query Analysis（优先 LLM，失败回退规则解析）
   let analysis: QueryAnalysisResult;
-  if (llmAnalyzer) {
-    const llmResult = await llmAnalyzer(query);
+  if (options.analysis) {
+    analysis = { ...options.analysis };
+  } else if (options.llmAnalyzer) {
+    const llmResult = await options.llmAnalyzer(query);
     analysis = llmResult ?? analyzeQuery(query);
   } else {
     analysis = analyzeQuery(query);
@@ -960,6 +1361,7 @@ export async function searchWithContent(query: string, workspaceId: string, db: 
   console.log(`${TAG} ── Stage 2: Topic Recall (${Date.now() - t1}ms) ──
   directHits: [${topicResult.directHits.map((t) => `${t.label}(heat=${t.heat.toFixed(2)})`).join(', ')}]
   expanded: [${topicResult.expanded.map((t) => `${t.label}(depth=${t.depth})`).join(', ')}]
+  factNoteIds: [${topicResult.factNoteIds.join(', ')}]
   allTopicIds: ${topicResult.allTopicIds.length} total`);
 
   // Stage 3: Note Recall
@@ -970,7 +1372,7 @@ export async function searchWithContent(query: string, workspaceId: string, db: 
 ${noteResult.candidates
       .slice(0, 5)
       .map(
-        (n, i) => `  [${i}] ${n.date} | topics=[${n.topics.join(',')}] | score=${n.finalScore.toFixed(3)} (fts=${n.ftsScore.toFixed(2)}, graph=${n.graphScore.toFixed(2)}) | "${n.summary.slice(0, 60)}"`
+        (n, i) => `  [${i}] ${n.date} | topics=[${n.topics.join(',')}] | ${formatScoreBreakdownForLog(n)} | reasons=[${n.matchReasons.join(', ')}] | "${n.summary.slice(0, 60)}"`
       )
       .join('\n')}`);
 
@@ -991,16 +1393,7 @@ ${sectionCandidates
       .join('\n')}`);
 
   // 构建 noteId → filePath 映射
-  const noteFileMap = new Map<string, string>();
-  for (const noteId of noteIds) {
-    const note = await db.getNoteById(noteId);
-    if (note?.filePath && note?.workspaceId) {
-      const wsRoot = await db.getWorkspaceRoot(note.workspaceId);
-      if (wsRoot) {
-        noteFileMap.set(noteId, path.join(wsRoot, note.filePath));
-      }
-    }
-  }
+  const noteFileMap = await buildNoteFileMap(noteResult.candidates, workspaceId, db);
 
   // Stage 5: Targeted Read
   const t4 = Date.now();
@@ -1023,6 +1416,7 @@ ${readResult.sections
 // ━━ Helpers ━━
 
 function buildFtsQuery(analysis: QueryAnalysisResult): string {
+  return buildExpandedFtsQuery(analysis);
   const allTerms = [...analysis.topicTerms, ...analysis.entityTerms, ...analysis.keywordTerms].filter(Boolean);
   const unique = [...new Set(allTerms)];
   if (unique.length === 0) return '';
@@ -1046,6 +1440,121 @@ function buildFtsQuery(analysis: QueryAnalysisResult): string {
   return parts.join(' OR ');
 }
 
+const QUERY_TERM_SYNONYMS: Record<string, string[]> = {
+  evidence: ['reason', 'quote', 'source excerpt'],
+  reason: ['why', 'evidence'],
+  why: ['reason', 'evidence'],
+  '\u8bc1\u636e': ['\u539f\u8bdd', '\u5f15\u7528', '\u6458\u5f55'],
+  '\u4f9d\u636e': ['\u8bc1\u636e', '\u539f\u8bdd', '\u6458\u5f55'],
+  '\u539f\u8bdd': ['\u8bc1\u636e', '\u6458\u5f55'],
+  '\u6458\u5f55': ['\u539f\u8bdd', '\u5f15\u7528'],
+  vector: ['embedding', '\u5411\u91cf'],
+  embedding: ['vector', '\u5411\u91cf'],
+  '\u5411\u91cf': ['vector', 'embedding'],
+  memory: ['\u8bb0\u5fc6'],
+  '\u8bb0\u5fc6': ['memory'],
+  '\u68c0\u7d22': ['\u53ec\u56de', '\u641c\u7d22'],
+  '\u53ec\u56de': ['\u68c0\u7d22', '\u56de\u5fc6']
+};
+
+function buildExpandedFtsQuery(analysis: QueryAnalysisResult): string {
+  const terms = collectSearchTerms(analysis);
+  if (terms.length === 0) return '';
+  return terms.map((term) => `"${term}"`).join(' OR ');
+}
+
+function collectSearchTerms(analysis: QueryAnalysisResult, maxTerms = 24): string[] {
+  const baseTerms = [...analysis.topicTerms, ...analysis.entityTerms, ...analysis.keywordTerms];
+  const queue = baseTerms.map((term) => normalizeSearchTerm(term)).filter(Boolean);
+  const seen = new Set<string>();
+  const collected: string[] = [];
+
+  while (queue.length > 0 && collected.length < maxTerms) {
+    const term = normalizeSearchTerm(queue.shift());
+    if (!term) continue;
+
+    const key = term.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    collected.push(term);
+
+    for (const variant of expandSearchTerm(term)) {
+      const normalizedVariant = normalizeSearchTerm(variant);
+      if (normalizedVariant && !seen.has(normalizedVariant.toLowerCase())) {
+        queue.push(normalizedVariant);
+      }
+    }
+  }
+
+  return collected;
+}
+
+function expandSearchTerm(term: string): string[] {
+  const variants = new Set<string>();
+
+  for (const part of term.split(/[\s/_-]+/)) {
+    const normalized = normalizeSearchTerm(part);
+    if (normalized && normalized !== term) variants.add(normalized);
+  }
+
+  for (const match of term.match(/[\u4e00-\u9fff]{2,}/g) || []) {
+    for (let i = 0; i < match.length - 1; i++) {
+      variants.add(match.slice(i, i + 2));
+    }
+  }
+
+  const synonymKey = term.toLowerCase();
+  for (const synonym of QUERY_TERM_SYNONYMS[synonymKey] || []) {
+    const normalized = normalizeSearchTerm(synonym);
+    if (normalized && normalized !== term) variants.add(normalized);
+  }
+
+  return Array.from(variants);
+}
+
+function normalizeSearchTerm(term: string | undefined): string {
+  if (!term) return '';
+  return term
+    .replace(/["'`]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function shouldUseMemorySearchCache(opts: SearchOptions): boolean {
+  return !opts.analysis && !opts.llmAnalyzer;
+}
+
+function buildMemorySearchCacheKey(query: string, workspaceId: string, opts: SearchOptions): string {
+  return JSON.stringify({
+    workspaceId,
+    query: normalizeSearchTerm(query),
+    maxResults: opts.maxResults ?? 5,
+    includeContent: !!opts.includeContent,
+    debug: !!opts.debug,
+    topicFilter: dedupStrings((opts.topicFilter || []).map((term) => normalizeSearchTerm(term).toLowerCase()).filter(Boolean)).sort(),
+    dateRange: {
+      start: opts.dateRange?.start ?? null,
+      end: opts.dateRange?.end ?? null
+    }
+  });
+}
+
+function cloneMemorySearchResult(result: MemorySearchResult): MemorySearchResult {
+  return JSON.parse(JSON.stringify(result)) as MemorySearchResult;
+}
+
+function pruneExpiredMemorySearchCache(now = Date.now()): void {
+  for (const [cacheKey, entry] of memorySearchCache.entries()) {
+    if (!entry.promise && entry.expiresAt <= now) {
+      memorySearchCache.delete(cacheKey);
+    }
+  }
+}
+
+function getMemorySearchCacheWorkspaceGeneration(workspaceId: string): number {
+  return memorySearchCacheWorkspaceGenerations.get(workspaceId) ?? 0;
+}
+
 function resolveTimeRange(hint: QueryAnalysisResult['timeHint']): { start: string; end: string } {
   if (!hint) return { start: '', end: '' };
   const today = formatMemoryDate();
@@ -1063,7 +1572,43 @@ function resolveTimeRange(hint: QueryAnalysisResult['timeHint']): { start: strin
   return { start: '', end: '' };
 }
 
-function noteToCandidate(note: any, scores: { ftsScore?: number; graphScore?: number; metadataScore?: number } = {}): NoteCandidate {
+async function loadNotesByIds(noteIds: string[], db: RetrievalDbDeps): Promise<Map<string, any>> {
+  const uniqueIds = dedupStrings(noteIds);
+  if (uniqueIds.length === 0) return new Map();
+
+  const notes = db.listNotesByIds ? await db.listNotesByIds(uniqueIds) : await Promise.all(uniqueIds.map((noteId) => db.getNoteById(noteId)));
+  const noteMap = new Map<string, any>();
+  for (const note of notes) {
+    if (note?.id) {
+      noteMap.set(note.id, note);
+    }
+  }
+  return noteMap;
+}
+
+async function loadSectionsByNoteIds(noteIds: string[], db: RetrievalDbDeps): Promise<Map<string, any[]>> {
+  const uniqueIds = dedupStrings(noteIds);
+  const grouped = new Map<string, any[]>();
+  if (uniqueIds.length === 0) return grouped;
+
+  const sections = db.listSectionsByNoteIds
+    ? await db.listSectionsByNoteIds(uniqueIds)
+    : (await Promise.all(uniqueIds.map((noteId) => db.listSectionsByNote(noteId)))).flat();
+
+  for (const noteId of uniqueIds) {
+    grouped.set(noteId, []);
+  }
+  for (const section of sections) {
+    const noteId = section.noteId || section.note_id;
+    if (!noteId) continue;
+    const bucket = grouped.get(noteId);
+    if (bucket) bucket.push(section);
+    else grouped.set(noteId, [section]);
+  }
+  return grouped;
+}
+
+function noteToCandidate(note: any, scores: { ftsScore?: number; graphScore?: number; metadataScore?: number } = {}, matchReasons: string[] = []): NoteCandidate {
   return {
     noteId: note.id,
     summary: note.summary || '',
@@ -1072,33 +1617,101 @@ function noteToCandidate(note: any, scores: { ftsScore?: number; graphScore?: nu
     stability: note.stability ?? 0.5,
     topics: safeJsonParse(note.topics, []),
     keywords: safeJsonParse(note.keywords, []),
+    filePath: note.filePath || note.file_path,
+    workspaceId: note.workspaceId || note.workspace_id,
     ftsScore: scores.ftsScore ?? 0,
     graphScore: scores.graphScore ?? 0,
     metadataScore: scores.metadataScore ?? 0,
+    matchReasons: dedupStrings(matchReasons),
     finalScore: 0
   };
 }
 
-function computeFinalScore(candidate: NoteCandidate, analysis: QueryAnalysisResult): number {
-  const W_FTS = 0.35;
-  const W_GRAPH = 0.25;
-  const W_IMPORTANCE = 0.15;
-  const W_RECENCY = 0.15;
-  const W_ACTION = 0.1;
+function mergeNoteCandidate(candidateMap: Map<string, NoteCandidate>, note: any, scores: { ftsScore?: number; graphScore?: number; metadataScore?: number } = {}, matchReasons: string[] = []): void {
+  const existing = candidateMap.get(note.id);
+  if (!existing) {
+    candidateMap.set(note.id, noteToCandidate(note, scores, matchReasons));
+    return;
+  }
 
+  if (scores.ftsScore !== undefined) {
+    existing.ftsScore = Math.max(existing.ftsScore, scores.ftsScore);
+  }
+  if (scores.graphScore !== undefined) {
+    existing.graphScore = Math.max(existing.graphScore, scores.graphScore);
+  }
+  if (scores.metadataScore !== undefined) {
+    existing.metadataScore = Math.max(existing.metadataScore, scores.metadataScore);
+  }
+  if (!existing.filePath && (note.filePath || note.file_path)) {
+    existing.filePath = note.filePath || note.file_path;
+  }
+  if (!existing.workspaceId && (note.workspaceId || note.workspace_id)) {
+    existing.workspaceId = note.workspaceId || note.workspace_id;
+  }
+  addMatchReasons(existing, matchReasons);
+}
+
+function computeScoreBreakdown(candidate: NoteCandidate, analysis: QueryAnalysisResult): NoteScoreBreakdown {
   // 时效性衰减（半衰期 ≈ 30 天）
   const ageInDays = candidate.date ? (Date.now() - new Date(candidate.date).getTime()) / 86400000 : 30;
   const recencyScore = Math.exp(-0.023 * Math.max(0, ageInDays));
 
   // 动作意图加权
-  let actionScore = 0;
-  if (analysis.actionHint === 'decision') {
-    actionScore = candidate.topics.some((t) => t.toLowerCase().includes('decision')) ? 1.0 : 0;
-  } else if (analysis.actionHint === 'open_loop') {
-    actionScore = candidate.topics.some((t) => t.toLowerCase().includes('open')) ? 1.0 : 0;
-  }
+  const actionScore = computeActionScore(candidate, analysis);
 
-  return W_FTS * candidate.ftsScore + W_GRAPH * candidate.graphScore + W_IMPORTANCE * candidate.importance + W_RECENCY * recencyScore + W_ACTION * actionScore;
+  const raw = {
+    fts: candidate.ftsScore,
+    graph: candidate.graphScore,
+    metadata: candidate.metadataScore,
+    importance: candidate.importance,
+    recency: recencyScore,
+    action: actionScore
+  };
+
+  const weighted = {
+    fts: raw.fts * RETRIEVAL_SCORE_WEIGHTS.fts,
+    graph: raw.graph * RETRIEVAL_SCORE_WEIGHTS.graph,
+    metadata: raw.metadata * RETRIEVAL_SCORE_WEIGHTS.metadata,
+    importance: raw.importance * RETRIEVAL_SCORE_WEIGHTS.importance,
+    recency: raw.recency * RETRIEVAL_SCORE_WEIGHTS.recency,
+    action: raw.action * RETRIEVAL_SCORE_WEIGHTS.action
+  };
+
+  return {
+    weights: { ...RETRIEVAL_SCORE_WEIGHTS },
+    raw,
+    weighted,
+    ageInDays,
+    matchReasons: [...candidate.matchReasons],
+    finalScore: weighted.fts + weighted.graph + weighted.metadata + weighted.importance + weighted.recency + weighted.action
+  };
+}
+
+function computeActionScore(candidate: NoteCandidate, analysis: QueryAnalysisResult): number {
+  if (analysis.actionHint === 'decision') {
+    return candidate.topics.some((t) => t.toLowerCase().includes('decision')) ? 1.0 : 0;
+  }
+  if (analysis.actionHint === 'open_loop') {
+    return candidate.topics.some((t) => t.toLowerCase().includes('open')) ? 1.0 : 0;
+  }
+  return 0;
+}
+
+function addMatchReasons(candidate: NoteCandidate, matchReasons: string[]): void {
+  candidate.matchReasons = dedupStrings([...candidate.matchReasons, ...matchReasons]);
+}
+
+function formatScoreBreakdownForLog(candidate: NoteCandidate): string {
+  const breakdown = candidate.scoreBreakdown;
+  if (!breakdown) {
+    return `score=${candidate.finalScore.toFixed(3)}`;
+  }
+  return `score=${breakdown.finalScore.toFixed(3)} [fts=${breakdown.weighted.fts.toFixed(2)}, graph=${breakdown.weighted.graph.toFixed(2)}, importance=${breakdown.weighted.importance.toFixed(2)}, recency=${breakdown.weighted.recency.toFixed(2)}, action=${breakdown.weighted.action.toFixed(2)}, metadata=${breakdown.weighted.metadata.toFixed(2)}]`;
+}
+
+function dedupStrings(values: string[]): string[] {
+  return [...new Set(values.filter((value) => typeof value === 'string' && value.trim()))];
 }
 
 function safeJsonParse(json: string | null | undefined, fallback: any[] = []): any[] {

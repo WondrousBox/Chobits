@@ -1,12 +1,6 @@
 import type { RetrievalDbDeps } from '../../../../packages/ai/services/memory-retrieval-service';
-import {
-  MemoryEdgeRepo,
-  MemoryFTSRepo,
-  MemoryKeywordRepo,
-  MemoryNoteRepo,
-  MemorySectionRepo,
-  MemoryTopicRepo
-} from '../../db/memory-repositories';
+import { MemoryFTSRepo } from '../../db/memory-fts-repo';
+import { MemoryEdgeRepo, MemoryKeywordRepo, MemoryNoteRepo, MemorySectionRepo, MemoryTopicRepo } from '../../db/memory-repositories';
 import { WorkspacesRepo } from '../../db/repositories';
 
 export function buildRetrievalDbDeps(): RetrievalDbDeps {
@@ -23,17 +17,18 @@ export function buildRetrievalDbDeps(): RetrievalDbDeps {
     queryEntityFacts: (entity, opts) => MemoryEdgeRepo.queryEntityFacts(entity, opts),
     findTopicsByDomain: (domain, workspaceId, limit) => MemoryTopicRepo.findByDomain(domain, workspaceId, limit),
     getNoteById: (id) => MemoryNoteRepo.getById(id),
+    listNotesByIds: (ids) => MemoryNoteRepo.listByIds(ids),
     listNotesByWorkspace: (workspaceId, limit, offset) => MemoryNoteRepo.listByWorkspace(workspaceId, limit, offset),
     listNotesByDateRange: (start, end, workspaceId) => MemoryNoteRepo.listByDateRange(start, end, workspaceId),
     listNotesByTopicId: (topicId, workspaceId, limit) => MemoryNoteRepo.listByTopicId(topicId, workspaceId, limit),
     searchNotesByTerms: (terms, workspaceId, limit) => MemoryNoteRepo.searchByTerms(terms, workspaceId, limit),
     listSectionsByNote: (noteId) => MemorySectionRepo.listByNote(noteId),
+    listSectionsByNoteIds: (noteIds) => MemorySectionRepo.listByNoteIds(noteIds),
     ftsSearch: (query, opts) => MemoryFTSRepo.search(query, opts),
     getWorkspaceRoot: async (workspaceId) => {
       const workspace = await WorkspacesRepo.getById(workspaceId);
       return workspace?.rootPath ?? null;
     },
-    listRecentImportant: (workspaceId, minImportance, days, limit) =>
-      MemoryNoteRepo.listRecentImportant(workspaceId, minImportance, days, limit)
+    listRecentImportant: (workspaceId, minImportance, days, limit) => MemoryNoteRepo.listRecentImportant(workspaceId, minImportance, days, limit)
   };
 }

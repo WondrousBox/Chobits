@@ -11,6 +11,7 @@ import * as path from 'node:path';
 import { parseJsonMarkdown } from '../json';
 import { formatMemoryDate } from './memory-date';
 import { parseSections } from './memory-note-parser';
+import { clearMemorySearchCache } from './memory-retrieval-service';
 import { buildNotePath, buildSectionId, buildSectionsMap, generateNoteId, renderNoteMarkdown } from './memory-note-writer';
 import { mergeUniqueBulletSection, normalizeRecallCueSection } from './memory-recall-cue-utils';
 import type {
@@ -21,6 +22,7 @@ import type {
   ExtractionResult,
   MemoryChatFn,
   MemoryExtractionOutput,
+  MemoryNoteContradiction,
   MemoryNoteEntity,
   MemoryNoteFrontmatter,
   MergedNote,
@@ -314,10 +316,15 @@ export async function mergeMemory(
   timeRange?: { start: number; end: number }
 ): Promise<MergedNote> {
   const now = Date.now();
+  const existingKeyPoints = existingNote ? stripLegacyContradictionAppendix(existingNote.sections.get('Key Points') || '') : '';
+  const carriedContradictions = existingNote
+    ? mergeContradictions(existingNote.frontmatter.contradictions, parseLegacyContradictions(existingNote.sections.get('Key Points') || '', existingNote.frontmatter.updatedAt ?? now), now)
+    : undefined;
   const normalizedSections = {
     ...extraction.sections,
-    keyPoints: extraction.sections.keyPoints || '',
-    recallCues: normalizeRecallCueSection(extraction.sections.recallCues)
+    keyPoints: compactBulletSection(extraction.sections.keyPoints || '', '', MAX_KEY_POINTS),
+    openItems: compactBulletSection(extraction.sections.openItems || '', '', MAX_OPEN_ITEMS) || undefined,
+    recallCues: normalizeRecallCueSection(extraction.sections.recallCues, MAX_RECALL_CUES)
   };
 
   if (!existingNote) {
@@ -334,7 +341,8 @@ export async function mergeMemory(
       topics: [extraction.topicLabel],
       keywords: extraction.keywords || [],
       entities: extraction.entities,
-      summary: extraction.summary,
+      summary: compactSummary(extraction.summary),
+      contradictions: undefined,
       sourceConversationIds,
       sourceMessageRange: sourceMessageRanges,
       importance: extraction.importance ?? 0.5,
@@ -343,11 +351,11 @@ export async function mergeMemory(
       updatedAt: now
     };
 
-    const sections = buildSectionsMap(normalizedSections);
+    const sections = compactMergedSections(buildSectionsMap(normalizedSections));
 
     // Add Source Excerpts section for high-importance notes
     if (extraction.sourceExcerpts?.length) {
-      sections.set('Source Excerpts', renderSourceExcerpts(extraction.sourceExcerpts, ctx.date));
+      sections.set('Source Excerpts', renderSourceExcerpts(normalizeSourceExcerpts(extraction.sourceExcerpts), ctx.date));
     }
 
     return {
@@ -375,8 +383,10 @@ export async function mergeMemory(
     timeRange: mergedTimeRange,
     keywords: dedup([...existingNote.frontmatter.keywords, ...(extraction.keywords || [])]),
     entities: mergeEntities(existingNote.frontmatter.entities || [], extraction.entities || []),
+    summary: compactSummary(extraction.summary, existingNote.frontmatter.summary),
     importance: Math.max(existingNote.frontmatter.importance, extraction.importance ?? 0.5),
     stability: extraction.stability ?? existingNote.frontmatter.stability,
+    contradictions: carriedContradictions,
     sourceConversationIds: dedup([...existingNote.frontmatter.sourceConversationIds, ...sourceConversationIds]),
     sourceMessageRange: [...(existingNote.frontmatter.sourceMessageRange || []), ...sourceMessageRanges],
     updatedAt: now
@@ -384,6 +394,9 @@ export async function mergeMemory(
 
   // Section 合并 — 智能合并 Open Items
   const mergedSections = new Map(existingNote.sections);
+  if (existingNote.sections.has('Key Points')) {
+    mergedSections.set('Key Points', existingKeyPoints);
+  }
   const newSections = buildSectionsMap(normalizedSections);
   for (const [heading, content] of newSections) {
     const existing = mergedSections.get(heading);
@@ -392,13 +405,21 @@ export async function mergeMemory(
         // 用 LLM 判断已有 openItems 是否被新对话内容解决
         try {
           const resolvedContent = await resolveOpenItems(existing, content, extraction.sections?.keyPoints || '', ctx);
-          mergedSections.set(heading, resolvedContent);
+          const compactedOpenItems = compactBulletSection(resolvedContent, '', MAX_OPEN_ITEMS);
+          if (compactedOpenItems) mergedSections.set(heading, compactedOpenItems);
+          else mergedSections.delete(heading);
         } catch {
           // LLM 失败时回退到简单追加
           mergedSections.set(heading, `${existing}\n${content}`);
         }
+      } else if (heading === 'Key Points') {
+        const mergedKeyPoints = compactBulletSection(content, existing, MAX_KEY_POINTS);
+        if (mergedKeyPoints) mergedSections.set(heading, mergedKeyPoints);
+        else mergedSections.delete(heading);
       } else if (heading === 'Recall Cues') {
-        mergedSections.set(heading, mergeUniqueBulletSection(content, existing, 8));
+        const mergedRecallCues = normalizeRecallCueSection(mergeUniqueBulletSection(content, existing, MAX_RECALL_CUES), MAX_RECALL_CUES);
+        if (mergedRecallCues) mergedSections.set(heading, mergedRecallCues);
+        else mergedSections.delete(heading);
       } else {
         mergedSections.set(heading, `${existing}\n${content}`);
       }
@@ -409,23 +430,22 @@ export async function mergeMemory(
 
   // Add/merge Source Excerpts for high-importance notes
   if (extraction.sourceExcerpts?.length) {
-    const newExcerpts = renderSourceExcerpts(extraction.sourceExcerpts, ctx.date);
-    const existingExcerpts = mergedSections.get('Source Excerpts');
-    if (existingExcerpts) {
-      mergedSections.set('Source Excerpts', `${existingExcerpts}\n${newExcerpts}`);
-    } else {
-      mergedSections.set('Source Excerpts', newExcerpts);
-    }
+    const newExcerpts = renderSourceExcerpts(normalizeSourceExcerpts(extraction.sourceExcerpts), ctx.date);
+    mergedSections.set('Source Excerpts', newExcerpts);
   }
 
   // I-5: Lightweight contradiction detection for high-importance notes
-  if (mergedFrontmatter.importance > 0.8 && existingNote.sections.get('Key Points') && extraction.sections.keyPoints) {
+  if (mergedFrontmatter.importance > 0.8 && existingKeyPoints && extraction.sections.keyPoints) {
     try {
-      const contradictions = await detectContradictions(existingNote.sections.get('Key Points') || '', extraction.sections.keyPoints, ctx);
+      const contradictions = await detectContradictions(existingKeyPoints, extraction.sections.keyPoints, ctx);
       if (contradictions.length > 0) {
-        const warningLines = contradictions.map((c) => `- ⚠️ 矛盾: "${c.old}" → "${c.new}" (${c.type})`);
-        const existing = mergedSections.get('Key Points') || '';
-        mergedSections.set('Key Points', `${existing}\n\n### ⚠️ Contradictions Detected\n${warningLines.join('\n')}`);
+        mergedFrontmatter.contradictions = mergeContradictions(mergedFrontmatter.contradictions, contradictions, now);
+        const canonicalKeyPoints = removeContradictedBullets(mergedSections.get('Key Points') || '', contradictions);
+        if (canonicalKeyPoints) {
+          mergedSections.set('Key Points', canonicalKeyPoints);
+        } else {
+          mergedSections.delete('Key Points');
+        }
         console.log(`[MemoryExtraction:merge] ⚠️ ${contradictions.length} contradiction(s) detected for note ${existingNote.id}`);
       }
     } catch (e) {
@@ -433,6 +453,14 @@ export async function mergeMemory(
       console.warn('[MemoryExtraction:merge] Contradiction detection failed:', e);
     }
   }
+
+  if (mergedFrontmatter.contradictions?.length) {
+    mergedSections.set('Contradictions', renderContradictionsSection(mergedFrontmatter.contradictions));
+  } else {
+    mergedSections.delete('Contradictions');
+  }
+
+  compactMergedSections(mergedSections);
 
   return {
     action: 'update',
@@ -489,6 +517,7 @@ export async function writeMemory(merged: MergedNote, ctx: { workspaceRoot: stri
     topics: JSON.stringify(merged.frontmatter.topics),
     parentTopicId: merged.frontmatter.parentTopicId,
     relatedTopicIds: merged.frontmatter.relatedTopicIds ? JSON.stringify(merged.frontmatter.relatedTopicIds) : null,
+    domain: merged.frontmatter.domain ?? null,
     keywords: JSON.stringify(merged.frontmatter.keywords),
     aliases: merged.frontmatter.aliases ? JSON.stringify(merged.frontmatter.aliases) : null,
     entities: merged.frontmatter.entities ? JSON.stringify(merged.frontmatter.entities) : null,
@@ -682,6 +711,7 @@ export async function writeMemory(merged: MergedNote, ctx: { workspaceRoot: stri
     })
   );
 
+  clearMemorySearchCache(merged.frontmatter.workspaceId);
   return stats;
 }
 
@@ -766,8 +796,8 @@ export async function runExtractionPipeline(
       const timeRange = timestamps.length > 0 ? { start: Math.min(...timestamps), end: Math.max(...timestamps) } : undefined;
 
       const merged = await mergeMemory(extraction, existingNote, ctx, dedup(sourceConvIds), cluster.messageRanges, timeRange);
-      // Pass domain from topic cluster to merged note frontmatter
-      if (cluster.domain && cluster.domain !== 'general') {
+      // Preserve specific domains, but also persist `general` on brand-new notes
+      if (cluster.domain && (cluster.domain !== 'general' || !merged.frontmatter.domain)) {
         merged.frontmatter.domain = cluster.domain;
       }
       console.log(`${TAG} 🧠④ Step 4 (Merge): ✓ action=${merged.action}, noteId=${merged.noteId}, filePath=${merged.filePath}`);
@@ -855,11 +885,12 @@ async function resolveOpenItems(existingItems: string, newItems: string, newKeyP
   return trimmed;
 }
 
-interface ContradictionItem {
-  old: string;
-  new: string;
-  type: 'decision_change' | 'attribution_conflict' | 'factual_conflict';
-}
+const MAX_KEY_POINTS = 15;
+const MAX_OPEN_ITEMS = 12;
+const MAX_RECALL_CUES = 6;
+const MAX_SOURCE_EXCERPTS = 3;
+
+type ContradictionItem = Pick<MemoryNoteContradiction, 'old' | 'new' | 'type'>;
 
 /**
  * I-5: 轻量级矛盾检测。仅对 importance > 0.8 的 merge 调用。
@@ -880,11 +911,225 @@ function dedup<T>(arr: T[]): T[] {
   return [...new Set(arr)];
 }
 
+function compactSummary(summary: string | undefined, fallback = ''): string {
+  const source = typeof summary === 'string' && summary.trim() ? summary : fallback;
+  return source
+    .split(/\r?\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+}
+
+function compactBulletSection(primary: string, secondary: string, maxItems: number): string {
+  return mergeUniqueBulletSection(primary || '', secondary || '', maxItems).trim();
+}
+
+function compactMergedSections(sections: Map<string, string>): Map<string, string> {
+  const keyPoints = compactBulletSection(sections.get('Key Points') || '', '', MAX_KEY_POINTS);
+  if (keyPoints) sections.set('Key Points', keyPoints);
+  else sections.delete('Key Points');
+
+  const openItems = compactBulletSection(sections.get('Open Items') || '', '', MAX_OPEN_ITEMS);
+  if (openItems) sections.set('Open Items', openItems);
+  else sections.delete('Open Items');
+
+  const recallCues = normalizeRecallCueSection(sections.get('Recall Cues'), MAX_RECALL_CUES);
+  if (recallCues) sections.set('Recall Cues', recallCues);
+  else sections.delete('Recall Cues');
+
+  const sourceExcerpts = compactQuoteSection(sections.get('Source Excerpts') || '', MAX_SOURCE_EXCERPTS);
+  if (sourceExcerpts) sections.set('Source Excerpts', sourceExcerpts);
+  else sections.delete('Source Excerpts');
+
+  return sections;
+}
+
+function normalizeSourceExcerpts(excerpts: string[]): string[] {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  for (const excerpt of excerpts) {
+    const value = excerpt.trim();
+    const key = value.replace(/\s+/g, ' ').trim().toLowerCase();
+    if (!value || seen.has(key)) continue;
+    seen.add(key);
+    normalized.push(value.slice(0, 200));
+    if (normalized.length >= MAX_SOURCE_EXCERPTS) break;
+  }
+
+  return normalized;
+}
+
+function compactQuoteSection(content: string, maxItems: number): string {
+  const seen = new Set<string>();
+  const lines: string[] = [];
+
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line.startsWith('> ')) continue;
+    const key = line.replace(/\s+/g, ' ').trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    lines.push(line);
+    if (lines.length >= maxItems) break;
+  }
+
+  return lines.join('\n');
+}
+
+function mergeContradictions(
+  existing: MemoryNoteFrontmatter['contradictions'],
+  incoming: ContradictionItem[] | undefined,
+  detectedAt: number
+): MemoryNoteFrontmatter['contradictions'] {
+  const merged = new Map<string, MemoryNoteContradiction>();
+
+  for (const contradiction of existing || []) {
+    merged.set(buildContradictionKey(contradiction), { ...contradiction });
+  }
+
+  for (const contradiction of incoming || []) {
+    const key = buildContradictionKey(contradiction);
+    if (!merged.has(key)) {
+      merged.set(key, {
+        ...contradiction,
+        detectedAt
+      });
+    }
+  }
+
+  return merged.size > 0 ? Array.from(merged.values()) : undefined;
+}
+
+function buildContradictionKey(contradiction: ContradictionItem): string {
+  return `${contradiction.type}\u0000${normalizeContradictionText(contradiction.old)}\u0000${normalizeContradictionText(contradiction.new)}`;
+}
+
+function stripLegacyContradictionAppendix(content: string): string {
+  if (!content.trim()) return '';
+  const lines = content.split('\n');
+  const legacyHeadingIndex = lines.findIndex((line) => line.trim() === '### ⚠️ Contradictions Detected');
+  if (legacyHeadingIndex < 0) {
+    return content.trim();
+  }
+  return lines
+    .slice(0, legacyHeadingIndex)
+    .join('\n')
+    .trim();
+}
+
+function parseLegacyContradictions(content: string, detectedAt: number): MemoryNoteContradiction[] {
+  const lines = content.split('\n');
+  const legacyHeadingIndex = lines.findIndex((line) => line.trim() === '### ⚠️ Contradictions Detected');
+  if (legacyHeadingIndex < 0) {
+    return [];
+  }
+
+  const items: MemoryNoteContradiction[] = [];
+  const legacyLinePattern = /^\s*-\s*⚠️\s*矛盾:\s*"(.+?)"\s*→\s*"(.+?)"\s*\((decision_change|attribution_conflict|factual_conflict)\)\s*$/;
+
+  for (const line of lines.slice(legacyHeadingIndex + 1)) {
+    const match = line.match(legacyLinePattern);
+    if (!match) continue;
+    items.push({
+      old: match[1],
+      new: match[2],
+      type: match[3] as MemoryNoteContradiction['type'],
+      detectedAt
+    });
+  }
+
+  return items;
+}
+
+function removeContradictedBullets(content: string, contradictions: ContradictionItem[]): string {
+  const targets = new Set(contradictions.map((contradiction) => normalizeContradictionText(contradiction.old)));
+  const keptLines = stripLegacyContradictionAppendix(content)
+    .split('\n')
+    .filter((line) => {
+      const bulletContent = extractBulletContent(line);
+      return !bulletContent || !targets.has(bulletContent);
+    });
+
+  return collapseBlankLines(keptLines).trim();
+}
+
+function extractBulletContent(line: string): string | null {
+  const match = line.match(/^\s*-\s+(.*)$/);
+  if (!match) return null;
+  return normalizeContradictionText(match[1]);
+}
+
+function normalizeContradictionText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function collapseBlankLines(lines: string[]): string {
+  const collapsed: string[] = [];
+
+  for (const line of lines) {
+    if (line.trim() === '' && collapsed[collapsed.length - 1]?.trim() === '') {
+      continue;
+    }
+    collapsed.push(line);
+  }
+
+  return collapsed.join('\n');
+}
+
+function renderContradictionsSection(contradictions: MemoryNoteContradiction[]): string {
+  return contradictions
+    .map((contradiction) => {
+      const detectedDate = formatMemoryDate(contradiction.detectedAt);
+      return `- [${contradiction.type}] old: "${contradiction.old}" -> new: "${contradiction.new}" (detected: ${detectedDate})`;
+    })
+    .join('\n');
+}
+
 function mergeEntities(existing: MemoryNoteEntity[], incoming: MemoryNoteEntity[]): MemoryNoteEntity[] {
   const map = new Map<string, MemoryNoteEntity>();
-  for (const e of existing) map.set(e.name.toLowerCase(), e);
-  for (const e of incoming) map.set(e.name.toLowerCase(), e);
+  for (const entity of existing) {
+    map.set(entity.name.toLowerCase(), cloneEntity(entity));
+  }
+  for (const entity of incoming) {
+    const key = entity.name.toLowerCase();
+    const current = map.get(key);
+    if (!current) {
+      map.set(key, cloneEntity(entity));
+      continue;
+    }
+    map.set(key, {
+      ...current,
+      ...cloneEntity(entity),
+      relations: mergeEntityRelations(current.relations, entity.relations)
+    });
+  }
   return Array.from(map.values());
+}
+
+function mergeEntityRelations(existing: MemoryNoteEntity['relations'], incoming: MemoryNoteEntity['relations']): MemoryNoteEntity['relations'] {
+  const merged = new Map<string, NonNullable<MemoryNoteEntity['relations']>[number]>();
+
+  for (const relation of existing || []) {
+    merged.set(buildRelationKey(relation), { ...relation });
+  }
+  for (const relation of incoming || []) {
+    merged.set(buildRelationKey(relation), { ...relation });
+  }
+
+  return merged.size > 0 ? Array.from(merged.values()) : undefined;
+}
+
+function buildRelationKey(relation: NonNullable<MemoryNoteEntity['relations']>[number]): string {
+  return `${relation.predicate}\u0000${relation.object}\u0000${relation.validFrom ?? ''}`;
+}
+
+function cloneEntity(entity: MemoryNoteEntity): MemoryNoteEntity {
+  return {
+    ...entity,
+    relations: entity.relations?.map((relation) => ({ ...relation }))
+  };
 }
 
 /**

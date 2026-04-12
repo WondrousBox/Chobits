@@ -7,7 +7,8 @@
 import { ipcMain } from 'electron';
 
 import * as retrieval from '../../../../packages/ai/services/memory-retrieval-service';
-import { MemoryEdgeRepo, MemoryFTSRepo, MemoryKeywordRepo, MemoryNoteKeywordRepo, MemoryNoteRepo, MemorySectionRepo, MemorySyncJobRepo, MemoryTopicRepo } from '../../db/memory-repositories';
+import { MemoryFTSRepo } from '../../db/memory-fts-repo';
+import { MemoryEdgeRepo, MemoryKeywordRepo, MemoryNoteKeywordRepo, MemoryNoteRepo, MemorySectionRepo, MemorySyncJobRepo, MemoryTopicRepo } from '../../db/memory-repositories';
 import { WorkspacesRepo } from '../../db/repositories';
 import { memoryExtractionQueue } from './extraction-queue';
 import { initMemoryExtractionWorker } from './extraction-worker';
@@ -35,12 +36,14 @@ export function initMemoryHandlers(): void {
         dateRange?: { start?: string; end?: string };
         maxResults?: number;
         includeContent?: boolean;
+        debug?: boolean;
       }
     ) => {
       try {
         return await retrieval.search(params.query, params.workspaceId, db, {
           maxResults: params.maxResults,
           includeContent: params.includeContent,
+          debug: params.debug,
           topicFilter: params.topicFilter,
           dateRange: params.dateRange
         });
@@ -246,6 +249,7 @@ export function initMemoryHandlers(): void {
   ipcMain.handle('memory:rebuildIndex', async () => {
     try {
       const count = await MemoryFTSRepo.rebuildAll();
+      retrieval.clearMemorySearchCache();
       return { success: true, notesIndexed: count };
     } catch (e: any) {
       console.error('[Memory] rebuildIndex failed:', e);
@@ -253,18 +257,35 @@ export function initMemoryHandlers(): void {
     }
   });
 
+  ipcMain.handle('memory:validateIndex', async (_event, params?: { workspaceId?: string; issueLimit?: number }) => {
+    try {
+      const { validateMemoryIndex } = await import('./memory-index-audit');
+      const wsId = params?.workspaceId || (await WorkspacesRepo.getDefault())?.id;
+      if (!wsId) return { ok: false, error: 'no workspace' };
+      const report = await validateMemoryIndex(wsId, { issueLimit: params?.issueLimit });
+      return { ok: report.ok, report };
+    } catch (e: any) {
+      console.error('[Memory] validateIndex failed:', e);
+      return { ok: false, error: e?.message };
+    }
+  });
+
   ipcMain.handle('memory:deleteNote', async (_event, noteId: string) => {
     try {
       // 删除 FTS 条目
+      const note = await MemoryNoteRepo.getById(noteId);
       MemoryFTSRepo.deleteByNote(noteId);
+      await MemoryEdgeRepo.deleteByNote(noteId);
       // 删除边
       await MemoryEdgeRepo.deleteByNote(noteId);
       // 删除 note-keyword 关联
       await MemoryNoteKeywordRepo.deleteByNote(noteId);
       // 删除 section 索引，避免软删 note 后留下悬空 section
       await MemorySectionRepo.deleteByNote(noteId);
+      await MemoryNoteRepo.softDelete([noteId]);
       // 软删除 note（cascade 删 sections）
       await MemoryNoteRepo.softDelete([noteId]);
+      retrieval.clearMemorySearchCache(note?.workspaceId || undefined);
       return { success: true };
     } catch (e: any) {
       console.error('[Memory] deleteNote failed:', e);
