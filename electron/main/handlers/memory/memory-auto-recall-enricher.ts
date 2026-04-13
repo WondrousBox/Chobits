@@ -11,15 +11,19 @@
  * 4. 支持 prefetch 模式：在 chatStream 入口提前启动搜索，enricher resolve 时仅 await 结果
  */
 
+import { createHash } from 'node:crypto';
+
+import type { RecordAiUsageEventInput } from '../../../../packages/ai/analytics/types';
 import type { PiTaskChatFunction } from '../../../../packages/ai/runtime/pi/task-chat';
 import { buildNonReasoningTaskRuntimeRequest, resolveNonReasoningTaskModel } from '../../../../packages/ai/runtime/pi/task-model-policy';
 import { type AutoRecallDeps, getActivePrefetch, performAutoRecall, registerPrefetch } from '../../../../packages/ai/services/memory-auto-recall';
 import type { RetrievalDbDeps } from '../../../../packages/ai/services/memory-retrieval-service';
 import { logMemoryTrace, shortTraceId } from '../../../../packages/ai/services/memory-trace';
-import type { MemoryChatFn } from '../../../../packages/ai/services/memory-types';
+import type { MemoryChatFn, MemoryChatInvocation, MemoryUsageEvent } from '../../../../packages/ai/services/memory-types';
 import { registerSystemPromptEnricher } from '../../../../packages/ai/system-prompt-enricher';
-import type { ChatRequest } from '../../../../packages/ai/types';
+import type { ChatRequest, TokenUsage } from '../../../../packages/ai/types';
 import { ChatRepo, WorkspacesRepo } from '../../db/repositories';
+import { recordAiUsageEvent } from '../analytics/usage-recorder';
 
 const TAG = '[MemoryAutoRecall:Enricher] 🧠🔍';
 
@@ -27,6 +31,7 @@ const TAG = '[MemoryAutoRecall:Enricher] 🧠🔍';
 
 interface CachedChatFn {
   chatFn: MemoryChatFn;
+  model: string;
   providerId: string;
   providerPresetId?: string;
   createdAt: number;
@@ -35,34 +40,188 @@ interface CachedChatFn {
 let cachedChatFn: CachedChatFn | undefined;
 const CHAT_FN_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
+function toAnalyticsUsage(usage?: TokenUsage): RecordAiUsageEventInput['usage'] | undefined {
+  if (!usage) {
+    return undefined;
+  }
+
+  return {
+    cacheReadTokens: usage.cacheReadTokens,
+    cacheWriteTokens: usage.cacheWriteTokens,
+    estimatedCost: usage.cost,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    reasoningTokens: usage.reasoningTokens,
+    totalTokens: usage.totalTokens
+  };
+}
+
+async function recordMemoryRecallUsageEventSafely(input: RecordAiUsageEventInput): Promise<void> {
+  try {
+    const result = await recordAiUsageEvent(input);
+    if (!result.ok) {
+      console.warn('[MemoryAutoRecall:usage] Failed to record AI usage event:', {
+        code: result.code,
+        message: result.message,
+        requestId: input.requestId,
+        warnings: result.warnings
+      });
+      return;
+    }
+
+    if (result.warnings?.length) {
+      console.warn('[MemoryAutoRecall:usage] AI usage event recorded with warnings:', {
+        eventId: result.eventId,
+        requestId: input.requestId,
+        warnings: result.warnings
+      });
+    }
+  } catch (error) {
+    console.warn('[MemoryAutoRecall:usage] Unexpected AI usage recording error:', error);
+  }
+}
+
+function resolveAutoRecallRequestId(request: ChatRequest): string {
+  const requestId = typeof request.requestId === 'string' && request.requestId.trim() ? request.requestId.trim() : undefined;
+  if (requestId) {
+    return requestId;
+  }
+
+  const abortId = typeof request.abortId === 'string' && request.abortId.trim() ? request.abortId.trim() : undefined;
+  if (abortId) {
+    return abortId;
+  }
+
+  const lastMessage = request.messages[request.messages.length - 1];
+  const fallbackHash = createHash('sha1')
+    .update(
+      JSON.stringify({
+        conversationId: request.conversationId || null,
+        messageCount: request.messages.length,
+        providerId: request.providerId,
+        workspaceId: request.extras?.workspaceId || null,
+        lastMessageContent: typeof lastMessage?.content === 'string' ? lastMessage.content : '',
+        lastMessageCreatedAt: lastMessage?.createdAt || null,
+        lastMessageRole: lastMessage?.role || null
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+
+  return `memory-auto-recall:${fallbackHash}`;
+}
+
+function createMemoryRecallUsageRecorder(params: {
+  conversationId?: string;
+  model: string;
+  providerId: string;
+  providerPresetId?: string;
+  requestId: string;
+  workspaceId?: string;
+}): (event: MemoryUsageEvent) => Promise<void> {
+  return (event) => {
+    return recordMemoryRecallUsageEventSafely({
+      workspaceId: params.workspaceId,
+      traceId: params.requestId,
+      requestId: params.requestId,
+      operationKey: event.operationKey,
+      sourceType: 'memory',
+      sourceId: params.conversationId || params.requestId,
+      sourceLabel: '记忆召回',
+      usageCategory: 'memory',
+      usageFeature: 'memory_recall',
+      usageStage: event.usageStage,
+      providerId: params.providerId,
+      providerPresetId: params.providerPresetId,
+      model: params.model,
+      agentId: 'memory-auto-recall',
+      status: event.status,
+      usage: toAnalyticsUsage(event.usage),
+      rawUsage: event.rawUsage,
+      meteringSource: 'provider_reported',
+      startedAt: event.startedAt,
+      completedAt: event.completedAt,
+      metadata: {
+        conversationId: params.conversationId || null,
+        recallMode: 'auto',
+        runtime: 'pi',
+        ...(event.metadata || {})
+      }
+    });
+  };
+}
+
 /**
  * 将 PiTaskChatFunction（流式）适配为 MemoryChatFn（非流式）。
  * 与 extraction-worker 中的 adaptChatFn 逻辑相同。
  */
 function adaptPiChatFn(piChatFn: PiTaskChatFunction): MemoryChatFn {
-  return async (prompt: string, signal?: AbortSignal): Promise<string> => {
+  let lastInvocation: MemoryChatInvocation | undefined;
+
+  const chatFn: MemoryChatFn = async (prompt: string, signal?: AbortSignal): Promise<string> => {
+    const startedAt = Date.now();
     let fullText = '';
     let errorMessage: string | undefined;
+    let rawUsage: unknown;
+    let usage: TokenUsage | undefined;
 
-    await piChatFn(
-      prompt,
-      (event) => {
-        if (event.type === 'delta' && event.data.text) {
-          fullText += event.data.text;
-        }
-        if (event.type === 'error') {
-          errorMessage = event.data.message;
-        }
-      },
-      signal
-    );
+    try {
+      await piChatFn(
+        prompt,
+        (event) => {
+          if (event.type === 'delta' && event.data.text) {
+            fullText += event.data.text;
+            return;
+          }
 
-    if (errorMessage) {
-      throw new Error(`LLM call failed: ${errorMessage}`);
+          if (event.type === 'message_completed') {
+            if (event.data?.text && event.data.text.length >= fullText.length) {
+              fullText = event.data.text;
+            }
+            usage = event.data?.usage;
+            rawUsage = event.data?.rawUsage;
+            return;
+          }
+
+          if (event.type === 'error') {
+            errorMessage = event.data.message;
+          }
+        },
+        signal
+      );
+
+      lastInvocation = {
+        completedAt: Date.now(),
+        rawUsage,
+        startedAt,
+        status: signal?.aborted ? 'cancelled' : errorMessage ? 'failed' : 'completed',
+        usage
+      };
+
+      if (errorMessage) {
+        throw new Error(`LLM call failed: ${errorMessage}`);
+      }
+
+      return fullText;
+    } catch (error) {
+      lastInvocation = {
+        completedAt: Date.now(),
+        rawUsage,
+        startedAt,
+        status: signal?.aborted ? 'cancelled' : 'failed',
+        usage
+      };
+      throw error;
     }
-
-    return fullText;
   };
+
+  chatFn.consumeLastInvocation = () => {
+    const invocation = lastInvocation;
+    lastInvocation = undefined;
+    return invocation;
+  };
+
+  return chatFn;
 }
 
 async function resolveRequestWorkspaceId(request: ChatRequest): Promise<string | undefined> {
@@ -82,10 +241,10 @@ async function resolveRequestWorkspaceId(request: ChatRequest): Promise<string |
  * 获取或创建 chatFn。
  * 按 provider 缓存，避免每次 enricher 调用都重建 runtime。
  */
-async function getOrCreateChatFn(providerId: string, providerPresetId?: string): Promise<MemoryChatFn | undefined> {
+async function getOrCreateChatFn(providerId: string, providerPresetId?: string): Promise<CachedChatFn | undefined> {
   // 检查缓存是否可用
   if (cachedChatFn && cachedChatFn.providerId === providerId && cachedChatFn.providerPresetId === providerPresetId && Date.now() - cachedChatFn.createdAt < CHAT_FN_TTL_MS) {
-    return cachedChatFn.chatFn;
+    return cachedChatFn;
   }
 
   try {
@@ -106,17 +265,41 @@ async function getOrCreateChatFn(providerId: string, providerPresetId?: string):
 
     cachedChatFn = {
       chatFn,
+      model: runtime.modelId,
       providerId,
       providerPresetId,
       createdAt: Date.now()
     };
 
     console.log(`${TAG} Created chatFn: provider=${providerId}, model=${runtime.modelId}`);
-    return chatFn;
+    return cachedChatFn;
   } catch (e) {
     console.warn(`${TAG} Failed to create chatFn, will use rule-based extraction:`, e instanceof Error ? e.message : e);
     return undefined;
   }
+}
+
+async function buildAutoRecallDeps(db: RetrievalDbDeps, request: ChatRequest): Promise<AutoRecallDeps> {
+  const workspaceId = await resolveRequestWorkspaceId(request);
+  const resolvedChat = request.providerId ? await getOrCreateChatFn(request.providerId, request.providerPresetId) : undefined;
+
+  return {
+    ...(resolvedChat
+      ? {
+          chatFn: resolvedChat.chatFn,
+          onUsageEvent: createMemoryRecallUsageRecorder({
+            conversationId: request.conversationId,
+            model: resolvedChat.model,
+            providerId: resolvedChat.providerId,
+            providerPresetId: resolvedChat.providerPresetId,
+            requestId: resolveAutoRecallRequestId(request),
+            workspaceId
+          })
+        }
+      : {}),
+    db,
+    getWorkspaceId: async () => workspaceId
+  };
 }
 
 // ━━ Enricher Registration ━━
@@ -180,27 +363,12 @@ export function kickoffMemoryPrefetch(request: ChatRequest): void {
   });
 
   const db = enricherDb;
-  const providerId = request.providerId;
   const messages = request.messages;
   const conversationId = request.conversationId;
 
   // 同步创建 promise（包含异步 deps 构建 + 搜索），立即注册到 map
   const promise = (async (): Promise<import('../../../../packages/ai/services/memory-auto-recall').AutoRecallResult> => {
-    let chatFn: MemoryChatFn | undefined;
-    if (providerId) {
-      try {
-        chatFn = await getOrCreateChatFn(providerId, request.providerPresetId);
-      } catch {
-        // 降级为规则提取
-      }
-    }
-
-    const deps: AutoRecallDeps = {
-      db,
-      chatFn,
-      getWorkspaceId: async () => resolveRequestWorkspaceId(request)
-    };
-
+    const deps = await buildAutoRecallDeps(db, request);
     return performAutoRecall(messages, deps, conversationId);
   })().catch((e) => {
     if (e?.name !== 'AbortError') {
@@ -309,22 +477,7 @@ export function initMemoryAutoRecallEnricher(db: RetrievalDbDeps): void {
           }
         } else {
           // 没有预取 — 降级为同步执行（兼容旧路径）
-          const providerId = request.providerId;
-
-          let chatFn: MemoryChatFn | undefined;
-          if (providerId) {
-            try {
-              chatFn = await getOrCreateChatFn(providerId, request.providerPresetId);
-            } catch {
-              // chatFn 创建失败不影响流程，会降级为规则提取
-            }
-          }
-
-          const deps: AutoRecallDeps = {
-            db,
-            chatFn,
-            getWorkspaceId: async () => resolveRequestWorkspaceId(request)
-          };
+          const deps = await buildAutoRecallDeps(db, request);
 
           logMemoryTrace({
             conversationId,

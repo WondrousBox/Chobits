@@ -7,7 +7,7 @@ import { writeMemory } from '../../../services/memory-extraction-service';
 import { buildNotePath, generateNoteId } from '../../../services/memory-note-writer';
 import type { MemoryNoteFrontmatter, MergedNote } from '../../../services/memory-types';
 import type { PiSessionToolContext } from '../tool-context';
-import { buildWriteDbOps, resolveWorkspaceId } from './memory-db-deps';
+import { buildTopicCanonicalizer, buildWriteDbOps, resolveWorkspaceId } from './memory-db-deps';
 import { createJsonToolResult } from './result';
 
 const memorySaveParameters = Type.Object({
@@ -40,7 +40,13 @@ export function createPiMemorySaveTool(toolContext: PiSessionToolContext): ToolD
 
         const now = Date.now();
         const date = getTodayMemoryDate();
-        const topicSlug = slugify(input.topic);
+        const canonicalTopic = await buildTopicCanonicalizer()({
+          topicLabel: input.topic,
+          topicSlug: slugify(input.topic),
+          workspaceId
+        });
+        const topicLabel = canonicalTopic.label;
+        const topicSlug = canonicalTopic.slug;
         const noteId = generateNoteId(date, topicSlug);
         const filePath = buildNotePath(date, topicSlug);
         const conversationId = toolContext.conversationId;
@@ -52,8 +58,9 @@ export function createPiMemorySaveTool(toolContext: PiSessionToolContext): ToolD
           version: 1,
           workspaceId,
           date,
-          topics: [input.topic],
+          topics: [topicLabel],
           keywords: input.keywords,
+          aliases: canonicalTopic.aliases.length ? canonicalTopic.aliases : undefined,
           summary,
           sourceConversationIds: conversationId ? [conversationId] : [],
           importance: input.importance ?? 0.7,
@@ -78,9 +85,9 @@ export function createPiMemorySaveTool(toolContext: PiSessionToolContext): ToolD
         return createJsonToolResult({
           success: true,
           noteId: merged.noteId,
-          topic: input.topic,
+          topic: topicLabel,
           filePath,
-          message: `记忆已保存：${input.topic}`
+          message: `记忆已保存：${topicLabel}`
         });
       } catch (error: any) {
         return createJsonToolResult({

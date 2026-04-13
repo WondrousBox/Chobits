@@ -5,15 +5,17 @@ import { BrowserWindow } from 'electron';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
+import { recordAiUsageEvent } from '../../electron/main/handlers/analytics/usage-recorder';
 import { ResourcesRepo, WorkspacesRepo } from '../common/db';
 import { sendAppBusyEnd, sendAppBusyProgress, sendAppBusyStart } from '../event';
+import type { RecordAiUsageEventInput } from './analytics/types';
 import { normalizeProviderPreset, resolveProviderPresetId } from './provider-preset';
 import { PiSessionService } from './runtime/pi/session-service';
 import { createPiTaskChatRuntimeFromRequest, type PiTaskChatFunction as ChatFunction } from './runtime/pi/task-chat';
 import { MindmapService } from './services/mindmap-service';
 import { SummaryService } from './services/summary-service';
 import { TranslationService } from './services/translation-service';
-import type { MindmapRequest, ProviderScopedRequest, SummarizeRequest, TranslateRequest } from './types';
+import type { MindmapRequest, ProviderScopedRequest, SummarizeRequest, TokenUsage, TranslateRequest } from './types';
 
 // ==================== 项目文件夹常量 ====================
 
@@ -681,6 +683,112 @@ function getMetadataResourceId(metadata?: TaskMetadata): string | undefined {
   return typeof metadata?.resourceId === 'string' ? metadata.resourceId : undefined;
 }
 
+function getMetadataWorkspaceId(metadata?: TaskMetadata): string | undefined {
+  return typeof metadata?.workspaceId === 'string' ? metadata.workspaceId : undefined;
+}
+
+function toAnalyticsUsage(usage?: TokenUsage): RecordAiUsageEventInput['usage'] | undefined {
+  if (!usage) {
+    return undefined;
+  }
+
+  return {
+    cacheReadTokens: usage.cacheReadTokens,
+    cacheWriteTokens: usage.cacheWriteTokens,
+    estimatedCost: usage.cost,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    reasoningTokens: usage.reasoningTokens,
+    totalTokens: usage.totalTokens
+  };
+}
+
+async function recordTaskUsageEventSafely(input: RecordAiUsageEventInput, context: string): Promise<void> {
+  try {
+    const result = await recordAiUsageEvent(input);
+    if (!result.ok) {
+      console.warn(`[${context}] Failed to record AI usage event:`, {
+        code: result.code,
+        message: result.message,
+        requestId: input.requestId,
+        warnings: result.warnings
+      });
+      return;
+    }
+
+    if (result.warnings?.length) {
+      console.warn(`[${context}] AI usage event recorded with warnings:`, {
+        eventId: result.eventId,
+        requestId: input.requestId,
+        warnings: result.warnings
+      });
+    }
+  } catch (error) {
+    console.warn(`[${context}] Unexpected AI usage recording error:`, error);
+  }
+}
+
+type TaskUsageEventPayload = {
+  attemptIndex?: number;
+  completedAt?: number;
+  metadata?: Record<string, unknown>;
+  operationKey?: string;
+  rawUsage?: unknown;
+  startedAt?: number;
+  status: 'completed' | 'failed' | 'cancelled';
+  usage?: TokenUsage;
+};
+
+function createTaskUsageRecorder(params: {
+  context: string;
+  metadata?: Record<string, unknown>;
+  model: string;
+  providerId: string;
+  providerPresetId?: string;
+  requestId: string;
+  resourceId?: string;
+  sourceId: string;
+  sourceLabel: string;
+  sourceType: RecordAiUsageEventInput['sourceType'];
+  usageCategory: RecordAiUsageEventInput['usageCategory'];
+  usageFeature: RecordAiUsageEventInput['usageFeature'];
+  usageStage: RecordAiUsageEventInput['usageStage'];
+  workspaceId?: string;
+}): (event: TaskUsageEventPayload) => void {
+  return (event) => {
+    void recordTaskUsageEventSafely(
+      {
+        workspaceId: params.workspaceId,
+        traceId: params.requestId,
+        requestId: params.requestId,
+        operationKey: event.operationKey || 'generate',
+        attemptIndex: event.attemptIndex,
+        resourceId: params.resourceId,
+        sourceType: params.sourceType,
+        sourceId: params.sourceId,
+        sourceLabel: params.sourceLabel,
+        usageCategory: params.usageCategory,
+        usageFeature: params.usageFeature,
+        usageStage: params.usageStage,
+        providerId: params.providerId,
+        providerPresetId: params.providerPresetId,
+        model: params.model,
+        status: event.status,
+        usage: toAnalyticsUsage(event.usage),
+        rawUsage: event.rawUsage,
+        meteringSource: 'provider_reported',
+        startedAt: event.startedAt,
+        completedAt: event.completedAt || Date.now(),
+        metadata: {
+          ...(params.metadata || {}),
+          ...(event.metadata || {})
+        }
+      },
+      params.context
+    );
+  };
+}
+
 async function createPreferredTaskChatRuntime(
   params: ProviderScopedRequest & {
     model: string;
@@ -1245,6 +1353,28 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
     effectiveModel = runtime.modelId;
   }
   const taskLabel = incomingTaskLabel || `${providerId}/${effectiveModel}`;
+  const translationUsageRecorder = createTaskUsageRecorder({
+    context: 'executeSubtitleTranslation',
+    metadata: {
+      resourceId: effectiveResourceId || null,
+      runtime: injectedChatFn ? 'custom_chat_fn' : 'pi',
+      sourceLanguage: sourceLanguage || null,
+      targetLanguage,
+      totalSegments: actualSegments.length
+    },
+    model: effectiveModel,
+    providerId,
+    providerPresetId: resolvedProviderPresetId,
+    requestId,
+    resourceId: effectiveResourceId,
+    sourceId: effectiveResourceId || requestId,
+    sourceLabel: '字幕翻译',
+    sourceType: 'translation',
+    usageCategory: 'content_processing',
+    usageFeature: 'translation',
+    usageStage: 'generate',
+    workspaceId: sourceWorkspaceId || getMetadataWorkspaceId(effectiveMetadata)
+  });
 
   // 步骤4: 创建事件发射器，处理翻译回调
   const accumulatedTranslations: Array<{ index: number; text: string }> = [];
@@ -1329,6 +1459,7 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
       providerId,
       model: effectiveModel,
       metadata: effectiveMetadata,
+      onUsageEvent: translationUsageRecorder,
       options
     },
     emit,
@@ -1373,6 +1504,7 @@ export async function executeSummarize(payload: SummarizePayload): Promise<{ req
   const resolvedProviderPresetId = resolveProviderPresetId(normalizedPayload);
   const effectiveMetadata = createEffectiveTaskMetadata(metadata, resourceId);
   const effectiveResourceId = getMetadataResourceId(effectiveMetadata);
+  let sourceWorkspaceId = getMetadataWorkspaceId(effectiveMetadata);
 
   if (abortSignal?.aborted) {
     throw new Error('Aborted');
@@ -1384,6 +1516,8 @@ export async function executeSummarize(payload: SummarizePayload): Promise<{ req
   if (!actualContent && effectiveResourceId) {
     try {
       actualContent = await loadContentFromResource(effectiveResourceId);
+      const resource = await ResourcesRepo.getById(effectiveResourceId);
+      sourceWorkspaceId = resource?.workspaceId || sourceWorkspaceId;
     } catch (error) {
       console.error('[summarize] Failed to load content from resource:', error);
       throw error;
@@ -1397,6 +1531,15 @@ export async function executeSummarize(payload: SummarizePayload): Promise<{ req
 
   if (!actualContent) {
     throw new Error('No content provided and unable to load content from resourceId');
+  }
+
+  if (!sourceWorkspaceId && effectiveResourceId) {
+    try {
+      const resource = await ResourcesRepo.getById(effectiveResourceId);
+      sourceWorkspaceId = resource?.workspaceId || sourceWorkspaceId;
+    } catch {
+      // Ignore workspace lookup failures; usage can still be recorded without workspace scoping.
+    }
   }
 
   // 步骤2: 创建聊天函数
@@ -1413,6 +1556,27 @@ export async function executeSummarize(payload: SummarizePayload): Promise<{ req
     effectiveModel = runtime.modelId;
   }
   const taskLabel = incomingTaskLabel || `${providerId}/${effectiveModel}`;
+  const summaryUsageRecorder = createTaskUsageRecorder({
+    context: 'executeSummarize',
+    metadata: {
+      contentType: Array.isArray(actualContent) ? 'segments' : 'text',
+      resourceId: effectiveResourceId || null,
+      runtime: injectedChatFn ? 'custom_chat_fn' : 'pi',
+      targetLanguage
+    },
+    model: effectiveModel,
+    providerId,
+    providerPresetId: resolvedProviderPresetId,
+    requestId,
+    resourceId: effectiveResourceId,
+    sourceId: effectiveResourceId || requestId,
+    sourceLabel: '内容总结',
+    sourceType: 'summary',
+    usageCategory: 'content_processing',
+    usageFeature: 'summary',
+    usageStage: 'generate',
+    workspaceId: sourceWorkspaceId
+  });
 
   // 步骤4: 创建事件发射器
   const startTimestamp = Date.now();
@@ -1452,6 +1616,7 @@ export async function executeSummarize(payload: SummarizePayload): Promise<{ req
       targetLanguage,
       languageNames,
       metadata: effectiveMetadata,
+      onUsageEvent: summaryUsageRecorder,
       options
     },
     abortSignal
@@ -1495,6 +1660,7 @@ export async function executeMindmap(payload: MindmapPayload): Promise<{ request
   const resolvedProviderPresetId = resolveProviderPresetId(normalizedPayload);
   const effectiveMetadata = createEffectiveTaskMetadata(metadata, resourceId);
   const effectiveResourceId = getMetadataResourceId(effectiveMetadata);
+  let sourceWorkspaceId = getMetadataWorkspaceId(effectiveMetadata);
 
   if (abortSignal?.aborted) {
     throw new Error('Aborted');
@@ -1507,6 +1673,8 @@ export async function executeMindmap(payload: MindmapPayload): Promise<{ request
     try {
       const loaded = await loadSegmentsFromResource(effectiveResourceId);
       actualContent = loaded.segments;
+      const resource = await ResourcesRepo.getById(effectiveResourceId);
+      sourceWorkspaceId = resource?.workspaceId || sourceWorkspaceId;
     } catch (error) {
       console.error('[mindmap] Failed to load content from resource:', error);
       throw error;
@@ -1520,6 +1688,15 @@ export async function executeMindmap(payload: MindmapPayload): Promise<{ request
 
   if (!actualContent) {
     throw new Error('No content provided and unable to load content from resourceId');
+  }
+
+  if (!sourceWorkspaceId && effectiveResourceId) {
+    try {
+      const resource = await ResourcesRepo.getById(effectiveResourceId);
+      sourceWorkspaceId = resource?.workspaceId || sourceWorkspaceId;
+    } catch {
+      // Ignore workspace lookup failures; usage can still be recorded without workspace scoping.
+    }
   }
 
   // 步骤2: 创建聊天函数
@@ -1536,6 +1713,27 @@ export async function executeMindmap(payload: MindmapPayload): Promise<{ request
     effectiveModel = runtime.modelId;
   }
   const taskLabel = incomingTaskLabel || `${providerId}/${effectiveModel}`;
+  const mindmapUsageRecorder = createTaskUsageRecorder({
+    context: 'executeMindmap',
+    metadata: {
+      contentType: Array.isArray(actualContent) ? 'segments' : 'text',
+      resourceId: effectiveResourceId || null,
+      runtime: injectedChatFn ? 'custom_chat_fn' : 'pi',
+      targetLanguage
+    },
+    model: effectiveModel,
+    providerId,
+    providerPresetId: resolvedProviderPresetId,
+    requestId,
+    resourceId: effectiveResourceId,
+    sourceId: effectiveResourceId || requestId,
+    sourceLabel: '思维导图',
+    sourceType: 'mindmap',
+    usageCategory: 'content_processing',
+    usageFeature: 'mindmap',
+    usageStage: 'generate',
+    workspaceId: sourceWorkspaceId
+  });
 
   // 步骤3: 创建事件发射器
   const emit = createEventEmitter({
@@ -1573,6 +1771,7 @@ export async function executeMindmap(payload: MindmapPayload): Promise<{ request
       targetLanguage,
       languageNames,
       metadata: effectiveMetadata,
+      onUsageEvent: mindmapUsageRecorder,
       options
     },
     abortSignal

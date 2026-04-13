@@ -20,7 +20,11 @@ function formatTokenCount(value?: number): string {
 export default function ChatTokenUsage({ usage, label, className, variant = 'message' }: ChatTokenUsageProps): JSX.Element | null {
   if (!usage) return null;
 
-  const totalTokens = usage.totalTokens ?? (usage.inputTokens || usage.outputTokens ? (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0) : undefined);
+  const hasTokenComponent =
+    usage.inputTokens !== undefined || usage.outputTokens !== undefined || usage.cacheReadTokens !== undefined || usage.cacheWriteTokens !== undefined || usage.reasoningTokens !== undefined;
+  const totalTokens =
+    usage.totalTokens ??
+    (hasTokenComponent ? (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0) + (usage.cacheReadTokens ?? 0) + (usage.cacheWriteTokens ?? 0) + (usage.reasoningTokens ?? 0) : undefined);
 
   if (usage.inputTokens === undefined && usage.outputTokens === undefined && totalTokens === undefined) {
     return null;

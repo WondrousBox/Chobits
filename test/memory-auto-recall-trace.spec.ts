@@ -40,9 +40,7 @@ const TRACE_PREFIX = '[MemoryTrace] ';
 const tempDirs: string[] = [];
 
 function parseTraceLines(lines: string[]): Array<Record<string, any>> {
-  return lines
-    .filter((line) => line.startsWith(TRACE_PREFIX))
-    .map((line) => JSON.parse(line.slice(TRACE_PREFIX.length)));
+  return lines.filter((line) => line.startsWith(TRACE_PREFIX)).map((line) => JSON.parse(line.slice(TRACE_PREFIX.length)));
 }
 
 describe('memory auto recall trace logging', () => {
@@ -102,13 +100,7 @@ describe('memory auto recall trace logging', () => {
     const eventNames = events.map((event) => event.event);
 
     expect(eventNames).toEqual(
-      expect.arrayContaining([
-        'auto_recall.triage.proceed',
-        'auto_recall.workspace.resolved',
-        'auto_recall.keywords.rule.result',
-        'auto_recall.search.start',
-        'auto_recall.search.result'
-      ])
+      expect.arrayContaining(['auto_recall.triage.proceed', 'auto_recall.workspace.resolved', 'auto_recall.keywords.rule.result', 'auto_recall.search.start', 'auto_recall.search.result'])
     );
 
     expect(events.find((event) => event.event === 'auto_recall.search.start')).toMatchObject({
@@ -136,6 +128,72 @@ describe('memory auto recall trace logging', () => {
     });
   });
 
+  it('emits usage events for llm keyword extraction during auto recall', async () => {
+    const onUsageEvent = vi.fn();
+    const chatFn = vi.fn(async () => '{"needsRecall":true,"reasoning":"needs memory","keywords":["Rust","pipeline"]}') as any;
+
+    let consumed = false;
+    chatFn.consumeLastInvocation = () => {
+      if (consumed) {
+        return undefined;
+      }
+      consumed = true;
+      return {
+        completedAt: 200,
+        rawUsage: { completion_tokens: 6, prompt_tokens: 18, total_tokens: 24 },
+        startedAt: 100,
+        status: 'completed',
+        usage: {
+          inputTokens: 18,
+          outputTokens: 6,
+          totalTokens: 24
+        }
+      };
+    };
+
+    const result = await performAutoRecall(
+      [
+        {
+          content: '还记得我们之前讨论过的 Rust pipeline 设计吗？',
+          role: 'user'
+        }
+      ] as any,
+      {
+        chatFn,
+        db: {},
+        getWorkspaceId: async () => 'ws-trace-usage',
+        onUsageEvent
+      },
+      'conv-trace-usage'
+    );
+
+    expect(result).toMatchObject({
+      keywords: ['Rust', 'pipeline'],
+      noteCount: 2,
+      skipped: false
+    });
+
+    expect(onUsageEvent).toHaveBeenCalledTimes(1);
+    expect(onUsageEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operationKey: 'keyword_extraction',
+        status: 'completed',
+        usageStage: 'analyze',
+        usage: expect.objectContaining({
+          inputTokens: 18,
+          outputTokens: 6,
+          totalTokens: 24
+        }),
+        metadata: expect.objectContaining({
+          conversationId: 'conv-trace-usage',
+          memoryRecallMode: 'auto',
+          recentContextChars: expect.any(Number),
+          userMessageChars: expect.any(Number)
+        })
+      })
+    );
+  });
+
   it('logs the preWarm to resolve to inject timing points for system prompt recall', async () => {
     initMemoryAutoRecallEnricher({
       listRecentImportant: undefined
@@ -161,22 +219,12 @@ describe('memory auto recall trace logging', () => {
     expect(enrichments[0]).toContain('<recalled_memories>');
     expect(enrichments[0]).toContain('Rust memory pipeline');
 
-    const allLines = [
-      ...logSpy.mock.calls.map((call) => String(call[0])),
-      ...warnSpy.mock.calls.map((call) => String(call[0])),
-      ...errorSpy.mock.calls.map((call) => String(call[0]))
-    ];
+    const allLines = [...logSpy.mock.calls.map((call) => String(call[0])), ...warnSpy.mock.calls.map((call) => String(call[0])), ...errorSpy.mock.calls.map((call) => String(call[0]))];
     const events = parseTraceLines(allLines);
     const eventNames = events.map((event) => event.event);
 
     expect(eventNames).toEqual(
-      expect.arrayContaining([
-        'auto_recall.prewarm.start',
-        'auto_recall.prefetch.registered',
-        'auto_recall.resolve.start',
-        'auto_recall.resolve.prefetch_awaited',
-        'auto_recall.resolve.inject'
-      ])
+      expect.arrayContaining(['auto_recall.prewarm.start', 'auto_recall.prefetch.registered', 'auto_recall.resolve.start', 'auto_recall.resolve.prefetch_awaited', 'auto_recall.resolve.inject'])
     );
 
     expect(events.find((event) => event.event === 'auto_recall.resolve.inject')).toMatchObject({

@@ -277,7 +277,7 @@ describe('memory note fact-source roundtrip', () => {
 
     const upsertNote = vi.fn(async (note: any) => note);
     const rebuildSections = vi.fn(async () => []);
-    const upsertTopic = vi.fn(async (topic: any) => topic);
+    const upsertTopic = vi.fn(async (topic: any) => ({ id: `topic_${topic.slug}`, label: topic.label, slug: topic.slug, created: true }));
     const upsertEdges = vi.fn(async (edges: any[]) => edges.length);
     const upsertKeywords = vi.fn(async () => 0);
     const rebuildFTS = vi.fn();

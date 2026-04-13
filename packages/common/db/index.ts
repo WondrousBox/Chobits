@@ -1,4 +1,5 @@
 export * from '../../../electron/main/db';
+export * from '../../../electron/main/db/analytics-repositories';
 export { MemoryFTSRepo } from '../../../electron/main/db/memory-fts-repo';
 export * from '../../../electron/main/db/memory-repositories';
 export * from '../../../electron/main/db/repositories';

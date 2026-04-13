@@ -1,5 +1,5 @@
 import React from 'react';
-import { TbApps, TbFilter, TbHeart, TbHome, TbLine, TbSettings, TbTrash } from 'react-icons/tb';
+import { TbChartBar, TbFilter, TbHeart, TbHome, TbLine, TbSettings, TbTrash } from 'react-icons/tb';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
@@ -54,6 +54,7 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
   const location = useLocation();
   const isTasksRoute = location.pathname.includes('/tasks');
   const isWorkflowsRoute = location.pathname.includes('/workflows');
+  const isAnalyticsRoute = location.pathname.includes('/analytics');
   const isHomeRoute = location.pathname === '/resources' || location.pathname === '/resources/' || location.pathname === '/resources/home';
 
   return (
@@ -103,6 +104,22 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
+          <SidebarMenuItem
+            key={'analytics'}
+            onClick={() => {
+              navigate('/resources/analytics', { replace: true });
+              setFavoriteFilter(false);
+              setFolderFilter('');
+            }}
+          >
+            <SidebarMenuButton
+              variant={isAnalyticsRoute ? 'outline' : 'default'}
+              className={`h-8 transition-colors ${isAnalyticsRoute ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground' : ''}`}
+            >
+              <TbChartBar />
+              统计
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem
             key={'tasks'}
             onClick={() => {

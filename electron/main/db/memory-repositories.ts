@@ -290,8 +290,8 @@ export const MemoryNoteRepo = {
     for (const term of terms) {
       if (!term.trim()) continue;
       const safeTerm = `%${term.trim()}%`;
-      conditions.push('(summary LIKE ? OR keywords LIKE ? OR topics LIKE ?)');
-      params.push(safeTerm, safeTerm, safeTerm);
+      conditions.push('(summary LIKE ? OR keywords LIKE ? OR topics LIKE ? OR aliases LIKE ?)');
+      params.push(safeTerm, safeTerm, safeTerm, safeTerm);
     }
     if (!conditions.length) return [];
 
@@ -822,6 +822,7 @@ export const MemoryKeywordRepo = {
         set: {
           aliases: (keyword as any).aliases,
           entityType: (keyword as any).entityType,
+          primaryTopicId: sql`COALESCE(${(keyword as any).primaryTopicId ?? null}, ${memory_keywords.primaryTopicId})`,
           occurrenceCount: sql`occurrence_count + 1`,
           lastSeenAt: Date.now(),
           updatedAt: Date.now()

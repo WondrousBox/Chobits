@@ -1,6 +1,6 @@
 /**
  * Memory Extraction Service
- * 5 步提取流水线：Collect → Split → Extract → Merge → Write
+ * 6 步提取流水线：Collect → Split → Extract → Canonicalize Topic → Merge → Write
  * 从对话中提取结构化记忆，写入 Markdown 文件并建立数据库索引。
  */
 
@@ -11,9 +11,9 @@ import * as path from 'node:path';
 import { parseJsonMarkdown } from '../json';
 import { formatMemoryDate } from './memory-date';
 import { parseSections } from './memory-note-parser';
-import { clearMemorySearchCache } from './memory-retrieval-service';
 import { buildNotePath, buildSectionId, buildSectionsMap, generateNoteId, renderNoteMarkdown } from './memory-note-writer';
 import { mergeUniqueBulletSection, normalizeRecallCueSection } from './memory-recall-cue-utils';
+import { clearMemorySearchCache } from './memory-retrieval-service';
 import type {
   CollectedConversation,
   CollectInput,
@@ -25,6 +25,7 @@ import type {
   MemoryNoteContradiction,
   MemoryNoteEntity,
   MemoryNoteFrontmatter,
+  MemoryUsageEvent,
   MergedNote,
   TopicCluster,
   TopicSplitOutput,
@@ -111,6 +112,32 @@ export interface ExtractionContext {
   date: string; // YYYY-MM-DD
   signal?: AbortSignal;
   onProgress?: ProgressCallback;
+  onUsageEvent?: (event: MemoryUsageEvent) => void | Promise<void>;
+}
+
+async function emitMemoryUsage(ctx: ExtractionContext, input: Pick<MemoryUsageEvent, 'metadata' | 'operationKey' | 'usageStage'>): Promise<void> {
+  const invocation = ctx.chatFn.consumeLastInvocation?.();
+  if (!invocation) {
+    return;
+  }
+
+  await ctx.onUsageEvent?.({
+    ...invocation,
+    metadata: input.metadata,
+    operationKey: input.operationKey,
+    usageStage: input.usageStage
+  });
+}
+
+async function runMemoryChat(ctx: ExtractionContext, prompt: string, input: Pick<MemoryUsageEvent, 'metadata' | 'operationKey' | 'usageStage'>): Promise<string> {
+  try {
+    const response = await ctx.chatFn(prompt, ctx.signal);
+    await emitMemoryUsage(ctx, input);
+    return response;
+  } catch (error) {
+    await emitMemoryUsage(ctx, input);
+    throw error;
+  }
 }
 
 /**
@@ -187,7 +214,14 @@ export async function splitTopics(collected: CollectOutput, ctx: ExtractionConte
   console.log(`${TAG} Sending split prompt to LLM (${prompt.length} chars)...`);
 
   const splitStart = Date.now();
-  const response = await ctx.chatFn(prompt, ctx.signal);
+  const response = await runMemoryChat(ctx, prompt, {
+    metadata: {
+      conversationCount: collected.conversations.length,
+      messageCount: collected.totalMessageCount
+    },
+    operationKey: 'split_topics',
+    usageStage: 'analyze'
+  });
   const splitElapsed = ((Date.now() - splitStart) / 1000).toFixed(1);
   console.log(`${TAG} LLM response received (${response.length} chars) [${splitElapsed}s]`);
 
@@ -270,7 +304,16 @@ export async function extractMemory(cluster: TopicCluster, collected: CollectOut
   console.log(`${TAG} Sending extraction prompt to LLM (${prompt.length} chars)...`);
 
   const extractStart = Date.now();
-  const response = await ctx.chatFn(prompt, ctx.signal);
+  const response = await runMemoryChat(ctx, prompt, {
+    metadata: {
+      messageRangeCount: cluster.messageRanges.length,
+      relevantMessageCount: relevantMessages.length,
+      topicLabel: cluster.topicLabel,
+      topicSlug: cluster.topicSlug
+    },
+    operationKey: `topic:${cluster.topicSlug}:extract`,
+    usageStage: 'extract'
+  });
   const extractElapsed = ((Date.now() - extractStart) / 1000).toFixed(1);
   console.log(`${TAG} LLM response received (${response.length} chars) [${extractElapsed}s]`);
 
@@ -332,6 +375,7 @@ export async function mergeMemory(
     const noteId = generateNoteId(ctx.date, extraction.topicSlug);
     const filePath = buildNotePath(ctx.date, extraction.topicSlug);
 
+    const topicAliases = dedup(extraction.topicAliases || []);
     const frontmatter: MemoryNoteFrontmatter = {
       id: noteId,
       version: 1,
@@ -340,6 +384,7 @@ export async function mergeMemory(
       timeRange,
       topics: [extraction.topicLabel],
       keywords: extraction.keywords || [],
+      aliases: topicAliases.length ? topicAliases : undefined,
       entities: extraction.entities,
       summary: compactSummary(extraction.summary),
       contradictions: undefined,
@@ -372,16 +417,18 @@ export async function mergeMemory(
   const existingRange = existingNote.frontmatter.timeRange;
   const mergedTimeRange = timeRange
     ? {
-      start: existingRange ? Math.min(existingRange.start, timeRange.start) : timeRange.start,
-      end: existingRange ? Math.max(existingRange.end, timeRange.end) : timeRange.end
-    }
+        start: existingRange ? Math.min(existingRange.start, timeRange.start) : timeRange.start,
+        end: existingRange ? Math.max(existingRange.end, timeRange.end) : timeRange.end
+      }
     : existingRange;
 
+  const mergedAliases = dedup([...(existingNote.frontmatter.aliases || []), ...(extraction.topicAliases || [])]);
   const mergedFrontmatter: MemoryNoteFrontmatter = {
     ...existingNote.frontmatter,
     version: existingNote.frontmatter.version + 1,
     timeRange: mergedTimeRange,
     keywords: dedup([...existingNote.frontmatter.keywords, ...(extraction.keywords || [])]),
+    aliases: mergedAliases.length ? mergedAliases : undefined,
     entities: mergeEntities(existingNote.frontmatter.entities || [], extraction.entities || []),
     summary: compactSummary(extraction.summary, existingNote.frontmatter.summary),
     importance: Math.max(existingNote.frontmatter.importance, extraction.importance ?? 0.5),
@@ -404,7 +451,7 @@ export async function mergeMemory(
       if (heading === 'Open Items') {
         // 用 LLM 判断已有 openItems 是否被新对话内容解决
         try {
-          const resolvedContent = await resolveOpenItems(existing, content, extraction.sections?.keyPoints || '', ctx);
+          const resolvedContent = await resolveOpenItems(existing, content, extraction.sections?.keyPoints || '', ctx, extraction.topicSlug);
           const compactedOpenItems = compactBulletSection(resolvedContent, '', MAX_OPEN_ITEMS);
           if (compactedOpenItems) mergedSections.set(heading, compactedOpenItems);
           else mergedSections.delete(heading);
@@ -437,7 +484,7 @@ export async function mergeMemory(
   // I-5: Lightweight contradiction detection for high-importance notes
   if (mergedFrontmatter.importance > 0.8 && existingKeyPoints && extraction.sections.keyPoints) {
     try {
-      const contradictions = await detectContradictions(existingKeyPoints, extraction.sections.keyPoints, ctx);
+      const contradictions = await detectContradictions(existingKeyPoints, extraction.sections.keyPoints, ctx, extraction.topicSlug);
       if (contradictions.length > 0) {
         mergedFrontmatter.contradictions = mergeContradictions(mergedFrontmatter.contradictions, contradictions, now);
         const canonicalKeyPoints = removeContradictedBullets(mergedSections.get('Key Points') || '', contradictions);
@@ -480,7 +527,7 @@ export interface WriteDbOps {
   rebuildSections: (noteId: string, sections: any[]) => Promise<any>;
   upsertTopic: (topic: any) => Promise<any>;
   upsertEdges: (edges: any[]) => Promise<number>;
-  upsertKeywords: (noteId: string, keywords: string[], entities: any[], workspaceId: string) => Promise<number>;
+  upsertKeywords: (noteId: string, keywords: string[], entities: any[], workspaceId: string, primaryTopicId?: string) => Promise<number>;
   rebuildFTS: (noteId: string, noteData: any, sections: any[]) => void;
   /** Optional: upsert entity fact edge with temporal fields (I-3) */
   upsertEntityFact?: (fact: { subject: string; predicate: string; object: string; validFrom?: number; evidenceNoteId?: string; workspaceId?: string }) => Promise<any>;
@@ -519,7 +566,7 @@ export async function writeMemory(merged: MergedNote, ctx: { workspaceRoot: stri
     relatedTopicIds: merged.frontmatter.relatedTopicIds ? JSON.stringify(merged.frontmatter.relatedTopicIds) : null,
     domain: merged.frontmatter.domain ?? null,
     keywords: JSON.stringify(merged.frontmatter.keywords),
-    aliases: merged.frontmatter.aliases ? JSON.stringify(merged.frontmatter.aliases) : null,
+    aliases: merged.frontmatter.aliases?.length ? JSON.stringify(merged.frontmatter.aliases) : null,
     entities: merged.frontmatter.entities ? JSON.stringify(merged.frontmatter.entities) : null,
     summary: merged.frontmatter.summary,
     sourceConversationIds: JSON.stringify(merged.frontmatter.sourceConversationIds),
@@ -575,18 +622,29 @@ export async function writeMemory(merged: MergedNote, ctx: { workspaceRoot: stri
   const domain = merged.frontmatter.domain;
   const domainType = domain ? (domain.startsWith('person:') ? 'person' : domain.startsWith('project:') ? 'project' : 'general') : undefined;
 
+  const persistedTopics: Array<{ id: string; label: string; slug: string; created: boolean }> = [];
   for (const topicLabel of merged.frontmatter.topics) {
+    const topicSlug = slugify(topicLabel);
     const result = await dbOps.upsertTopic({
       label: topicLabel,
-      slug: slugify(topicLabel),
+      slug: topicSlug,
       workspaceId: merged.frontmatter.workspaceId,
       heat: 1.0,
       noteCount: 1,
       firstSeenAt: Date.now(),
       lastSeenAt: Date.now(),
+      aliases: merged.frontmatter.aliases,
+      keywords: merged.frontmatter.keywords,
       ...(domain ? { domain, domainType } : {})
     });
-    if (result) stats.topicsCreated++;
+    const resolvedTopic = {
+      id: result?.id || `topic_${topicSlug}`,
+      label: result?.label || topicLabel,
+      slug: result?.slug || topicSlug,
+      created: result?.created === true
+    };
+    persistedTopics.push(resolvedTopic);
+    if (resolvedTopic.created) stats.topicsCreated++;
   }
 
   // 5e. upsert edges
@@ -600,13 +658,10 @@ export async function writeMemory(merged: MergedNote, ctx: { workspaceRoot: stri
   }> = [];
 
   // topic → note (belongs_to_topic)
-  const topicSlugs: string[] = [];
-  for (const topicLabel of merged.frontmatter.topics) {
-    const slug = slugify(topicLabel);
-    topicSlugs.push(slug);
+  for (const topic of persistedTopics) {
     edges.push({
       sourceType: 'topic',
-      sourceId: `topic_${slug}`,
+      sourceId: topic.id,
       targetType: 'note',
       targetId: persistedNoteId,
       relationType: 'belongs_to_topic',
@@ -615,14 +670,14 @@ export async function writeMemory(merged: MergedNote, ctx: { workspaceRoot: stri
   }
 
   // topic → topic (related_to_topic): 同一 note 的不同 topics 互相关联
-  if (topicSlugs.length > 1) {
-    for (let i = 0; i < topicSlugs.length; i++) {
-      for (let j = i + 1; j < topicSlugs.length; j++) {
+  if (persistedTopics.length > 1) {
+    for (let i = 0; i < persistedTopics.length; i++) {
+      for (let j = i + 1; j < persistedTopics.length; j++) {
         edges.push({
           sourceType: 'topic',
-          sourceId: `topic_${topicSlugs[i]}`,
+          sourceId: persistedTopics[i].id,
           targetType: 'topic',
-          targetId: `topic_${topicSlugs[j]}`,
+          targetId: persistedTopics[j].id,
           relationType: 'related_to_topic',
           workspaceId: merged.frontmatter.workspaceId
         });
@@ -674,7 +729,7 @@ export async function writeMemory(merged: MergedNote, ctx: { workspaceRoot: stri
   }
 
   // 5f. upsert keywords
-  stats.keywordsCreated += await dbOps.upsertKeywords(persistedNoteId, merged.frontmatter.keywords, merged.frontmatter.entities || [], merged.frontmatter.workspaceId);
+  stats.keywordsCreated += await dbOps.upsertKeywords(persistedNoteId, merged.frontmatter.keywords, merged.frontmatter.entities || [], merged.frontmatter.workspaceId, persistedTopics[0]?.id);
 
   // 5g. rebuild FTS
   const topics = merged.frontmatter.topics;
@@ -725,6 +780,7 @@ export async function runExtractionPipeline(
     listMessages: (convId: string) => Promise<Array<{ role: string; content: string; seq: number; createdAt: number }>>;
     getConversation: (convId: string) => Promise<{ id: string; title?: string | null } | undefined>;
     findExistingNote: (date: string, topicSlug: string, workspaceId: string) => Promise<{ id: string; frontmatter: MemoryNoteFrontmatter; sections: Map<string, string> } | null>;
+    canonicalizeTopic?: (input: { topicLabel: string; topicSlug: string; workspaceId: string; domain?: string }) => Promise<{ label: string; slug: string; aliases: string[]; confidence?: number }>;
     dbOps: Parameters<typeof writeMemory>[2];
   }
 ): Promise<ExtractionResult> {
@@ -758,11 +814,11 @@ export async function runExtractionPipeline(
   }
   console.log(`${TAG} 🧠② Step 2 (Split): ✓ ${splitResult.topicClusters.length} topic cluster(s)`);
 
-  // Step 3+4+5
+  // Step 3+3.5+4+5
   const total = splitResult.topicClusters.length;
   for (let i = 0; i < total; i++) {
     const cluster = splitResult.topicClusters[i];
-    console.log(`${TAG} 🧠③④⑤ [${i + 1}/${total}]: Processing topic "${cluster.topicLabel}" (slug=${cluster.topicSlug})`);
+    console.log(`${TAG} 🧠③③½④⑤ [${i + 1}/${total}]: Processing topic "${cluster.topicLabel}" (slug=${cluster.topicSlug})`);
     ctx.onProgress?.({ stage: 'extract', current: i, total, currentTopic: cluster.topicLabel, message: `正在提取：${cluster.topicLabel}` });
 
     if (ctx.signal?.aborted) {
@@ -779,6 +835,25 @@ export async function runExtractionPipeline(
         continue;
       }
       console.log(`${TAG} 🧠③ Step 3 (Extract): ✓ for "${cluster.topicSlug}"`);
+
+      if (deps.canonicalizeTopic) {
+        const rawTopicLabel = extraction.topicLabel;
+        const rawTopicSlug = extraction.topicSlug;
+        const canonicalTopic = await deps.canonicalizeTopic({
+          topicLabel: rawTopicLabel,
+          topicSlug: rawTopicSlug,
+          workspaceId: ctx.workspaceId,
+          domain: cluster.domain
+        });
+        extraction.topicLabel = canonicalTopic.label;
+        extraction.topicSlug = canonicalTopic.slug;
+        extraction.topicAliases = canonicalTopic.aliases;
+        if (rawTopicLabel !== canonicalTopic.label || rawTopicSlug !== canonicalTopic.slug) {
+          console.log(
+            `${TAG} 🧠③½ Step 3.5 (Canonicalize): "${rawTopicLabel}" (${rawTopicSlug}) -> "${canonicalTopic.label}" (${canonicalTopic.slug}), aliases=${JSON.stringify(canonicalTopic.aliases)}`
+          );
+        }
+      }
 
       // Step 4: Merge
       ctx.onProgress?.({ stage: 'merge', current: i, total, currentTopic: cluster.topicLabel });
@@ -813,7 +888,7 @@ export async function runExtractionPipeline(
       result.stats.topicsCreated += writeStats.topicsCreated;
       result.stats.edgesCreated += writeStats.edgesCreated;
       result.stats.keywordsCreated += writeStats.keywordsCreated;
-      result.succeeded.push({ topicSlug: cluster.topicSlug, noteId: merged.noteId });
+      result.succeeded.push({ topicSlug: extraction.topicSlug, noteId: merged.noteId });
     } catch (err: any) {
       console.error(`${TAG} FAILED to process topic "${cluster.topicSlug}":`, err?.message || err);
       if (err?.stack) console.error(err.stack);
@@ -872,10 +947,18 @@ type 可选值：decision_change（决策变更）、attribution_conflict（归�
 /**
  * 用 LLM 智能合并 Open Items：判断已有待办是否被新对话解决。
  */
-async function resolveOpenItems(existingItems: string, newItems: string, newKeyPoints: string, ctx: ExtractionContext): Promise<string> {
+async function resolveOpenItems(existingItems: string, newItems: string, newKeyPoints: string, ctx: ExtractionContext, topicSlug: string): Promise<string> {
   const prompt = OPEN_ITEMS_MERGE_PROMPT.replace('{existingItems}', existingItems.trim()).replace('{newKeyPoints}', newKeyPoints.trim()).replace('{newOpenItems}', newItems.trim());
 
-  const response = await ctx.chatFn(prompt, ctx.signal);
+  const response = await runMemoryChat(ctx, prompt, {
+    metadata: {
+      hasExistingItems: !!existingItems.trim(),
+      hasNewItems: !!newItems.trim(),
+      topicSlug
+    },
+    operationKey: `topic:${topicSlug}:open_items`,
+    usageStage: 'merge'
+  });
   const trimmed = response.trim();
 
   // 如果 LLM 返回空或明确表示全部解决，返回空
@@ -896,10 +979,18 @@ type ContradictionItem = Pick<MemoryNoteContradiction, 'old' | 'new' | 'type'>;
  * I-5: 轻量级矛盾检测。仅对 importance > 0.8 的 merge 调用。
  * 比较已有 Key Points 与新提取的 Key Points，识别事实冲突。
  */
-async function detectContradictions(existingKeyPoints: string, newKeyPoints: string, ctx: ExtractionContext): Promise<ContradictionItem[]> {
+async function detectContradictions(existingKeyPoints: string, newKeyPoints: string, ctx: ExtractionContext, topicSlug: string): Promise<ContradictionItem[]> {
   const prompt = CONTRADICTION_CHECK_PROMPT.replace('{existingKeyPoints}', existingKeyPoints.trim()).replace('{newKeyPoints}', newKeyPoints.trim());
 
-  const response = await ctx.chatFn(prompt, ctx.signal);
+  const response = await runMemoryChat(ctx, prompt, {
+    metadata: {
+      hasExistingKeyPoints: !!existingKeyPoints.trim(),
+      hasNewKeyPoints: !!newKeyPoints.trim(),
+      topicSlug
+    },
+    operationKey: `topic:${topicSlug}:contradiction`,
+    usageStage: 'merge'
+  });
   const parsed = parseJsonMarkdown(response) as { contradictions?: ContradictionItem[] } | null;
   if (!parsed?.contradictions?.length) return [];
 
@@ -978,11 +1069,7 @@ function compactQuoteSection(content: string, maxItems: number): string {
   return lines.join('\n');
 }
 
-function mergeContradictions(
-  existing: MemoryNoteFrontmatter['contradictions'],
-  incoming: ContradictionItem[] | undefined,
-  detectedAt: number
-): MemoryNoteFrontmatter['contradictions'] {
+function mergeContradictions(existing: MemoryNoteFrontmatter['contradictions'], incoming: ContradictionItem[] | undefined, detectedAt: number): MemoryNoteFrontmatter['contradictions'] {
   const merged = new Map<string, MemoryNoteContradiction>();
 
   for (const contradiction of existing || []) {
@@ -1013,10 +1100,7 @@ function stripLegacyContradictionAppendix(content: string): string {
   if (legacyHeadingIndex < 0) {
     return content.trim();
   }
-  return lines
-    .slice(0, legacyHeadingIndex)
-    .join('\n')
-    .trim();
+  return lines.slice(0, legacyHeadingIndex).join('\n').trim();
 }
 
 function parseLegacyContradictions(content: string, detectedAt: number): MemoryNoteContradiction[] {

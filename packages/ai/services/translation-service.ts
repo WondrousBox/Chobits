@@ -1,5 +1,6 @@
 import { type AimSegments, parser, utils } from '@aim-packages/subtitle';
 
+import type { TokenUsage } from '../types';
 import { bindAbortControllerToSignal, createTaskRegistry, type ManagedTask } from './task-manager';
 
 /**
@@ -174,10 +175,12 @@ export interface TranslationOptions {
  * 流式聊天事件类型
  */
 export interface ChatStreamEvent {
-  type: 'delta' | 'message_completed' | 'error';
+  type: 'delta' | 'thinking_delta' | 'message_completed' | 'error';
   data?: {
-    text?: string;
     message?: string;
+    rawUsage?: unknown;
+    text?: string;
+    usage?: TokenUsage;
   };
 }
 
@@ -198,6 +201,17 @@ export type ChatFunction = (
   /** 中止信号 */
   abortSignal?: AbortSignal
 ) => Promise<void>;
+
+export interface TranslationUsageEvent {
+  attemptIndex?: number;
+  completedAt?: number;
+  metadata?: Record<string, unknown>;
+  operationKey?: string;
+  rawUsage?: unknown;
+  startedAt?: number;
+  status: 'completed' | 'failed' | 'cancelled';
+  usage?: TokenUsage;
+}
 
 export interface TranslationRequest {
   /** 请求 ID（必填，用于跟踪和取消任务） */
@@ -220,6 +234,8 @@ export interface TranslationRequest {
   sourceLanguage?: string;
   /** 元数据（可选，用于传递额外信息如 resourceId） */
   metadata?: Record<string, any>;
+  /** Usage 事件回调（可选，用于记录 provider 级消耗） */
+  onUsageEvent?: (event: TranslationUsageEvent) => void;
   /** 翻译配置选项 */
   options?: TranslationOptions;
 }
@@ -452,7 +468,7 @@ export const TranslationService = {
    * @returns 翻译完成后的片段数组
    */
   async translateSubtitles(request: TranslationRequest, emit: TranslationEmitter, externalSignal?: AbortSignal): Promise<AimSegments[]> {
-    const { requestId, chatFn, providerId, model, taskLabel = 'translation', segments, targetLanguage, languageNames = {}, metadata, options = {} } = request;
+    const { requestId, chatFn, providerId, model, taskLabel = 'translation', segments, targetLanguage, languageNames = {}, metadata, onUsageEvent, options = {} } = request;
 
     // 解构配置选项，使用默认值
     const { maxConcurrency = 3, chunkSize = 1000, maxRetries = 2, promptTemplate, generateSummary = true, glossary } = options;
@@ -696,6 +712,9 @@ Now translate the following into **{targetLanguage}** and only show me the trans
         }
 
         let currentTranslation = '';
+        let hasReportedUsage = false;
+        let llmCallStartedAt: number | undefined;
+        let streamError: Error | undefined;
 
         // 用于处理 summary 标签的状态
         let accumulatedText = ''; // 累积所有接收到的文本
@@ -856,6 +875,8 @@ Now translate the following into **{targetLanguage}** and only show me the trans
         };
 
         try {
+          llmCallStartedAt = Date.now();
+
           // 调用传入的 chatFn 进行流式翻译
           await chatFn(
             prompt,
@@ -872,14 +893,70 @@ Now translate the following into **{targetLanguage}** and only show me the trans
 
                 currentTranslation += deltaText;
               } else if (event?.type === 'message_completed') {
+                if (!hasReportedUsage) {
+                  onUsageEvent?.({
+                    attemptIndex: attempt,
+                    completedAt: Date.now(),
+                    metadata: {
+                      chunkIndex,
+                      endIndex,
+                      startIndex,
+                      totalChunks
+                    },
+                    operationKey: `chunk:${chunkIndex}`,
+                    rawUsage: event.data?.rawUsage,
+                    startedAt: llmCallStartedAt,
+                    status: 'completed',
+                    usage: event.data?.usage
+                  });
+                  hasReportedUsage = true;
+                }
                 translateParser.end();
               } else if (event?.type === 'error') {
-                throw new Error(event.data?.message || '翻译失败');
+                const errorMessage = event.data?.message || '翻译失败';
+                if (!hasReportedUsage) {
+                  onUsageEvent?.({
+                    attemptIndex: attempt,
+                    completedAt: Date.now(),
+                    metadata: {
+                      chunkIndex,
+                      endIndex,
+                      startIndex,
+                      totalChunks
+                    },
+                    operationKey: `chunk:${chunkIndex}`,
+                    startedAt: llmCallStartedAt,
+                    status: abortSignal?.aborted ? 'cancelled' : 'failed'
+                  });
+                  hasReportedUsage = true;
+                }
+                streamError = new Error(errorMessage);
               }
             },
             abortSignal
           );
+
+          if (streamError) {
+            throw streamError;
+          }
         } catch (error) {
+          if (!hasReportedUsage) {
+            onUsageEvent?.({
+              attemptIndex: attempt,
+              completedAt: Date.now(),
+              metadata: {
+                chunkIndex,
+                endIndex,
+                startIndex,
+                totalChunks
+              },
+              operationKey: `chunk:${chunkIndex}`,
+              startedAt: llmCallStartedAt,
+              status: abortSignal?.aborted ? 'cancelled' : 'failed'
+            });
+            hasReportedUsage = true;
+          }
+
           // 如果被外部中止，则直接抛出
           if (abortSignal?.aborted) {
             throw new Error('Aborted');

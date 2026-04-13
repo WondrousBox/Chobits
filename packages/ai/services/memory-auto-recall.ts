@@ -27,7 +27,7 @@
 import type { ChatMessage } from '../types';
 import type { RetrievalDbDeps } from './memory-retrieval-service';
 import { logMemoryTrace, shortTraceId } from './memory-trace';
-import type { MemoryChatFn } from './memory-types';
+import type { MemoryChatFn, MemoryUsageEvent } from './memory-types';
 
 // ━━ Types ━━
 
@@ -53,6 +53,8 @@ export interface AutoRecallDeps {
   db: RetrievalDbDeps;
   /** 用于 AI 关键词提取的轻量聊天函数（可选，缺失时降级为规则提取） */
   chatFn?: MemoryChatFn;
+  /** 记录真实 provider usage（可选） */
+  onUsageEvent?: (event: MemoryUsageEvent) => void | Promise<void>;
   /** 获取当前工作区 ID */
   getWorkspaceId: () => Promise<string | undefined>;
   /** 配置覆盖 */
@@ -71,6 +73,10 @@ export interface AutoRecallResult {
   /** 跳过原因 */
   skipReason?: string;
 }
+
+type AutoRecallUsageContext = Pick<MemoryUsageEvent, 'metadata' | 'operationKey' | 'usageStage'> & {
+  onUsageEvent?: (event: MemoryUsageEvent) => void | Promise<void>;
+};
 
 // ━━ Conversation Recall Cache ━━
 
@@ -166,7 +172,8 @@ export async function extractRecallKeywords(
   userMessage: string,
   recentContext: string,
   chatFn: MemoryChatFn,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  usageContext?: AutoRecallUsageContext
 ): Promise<{ needsRecall: boolean; keywords: string[]; reasoning?: string }> {
   const prompt = `${KEYWORD_EXTRACTION_PROMPT}
 
@@ -177,7 +184,7 @@ User's current message:
 ${userMessage}`;
 
   try {
-    const response = await chatFn(prompt, signal);
+    const response = await runAutoRecallChat(chatFn, prompt, signal, usageContext);
 
     // Parse JSON from response (tolerant of wrapping text/markdown)
     const jsonMatch = response.match(/\{[\s\S]*?\}/);
@@ -196,6 +203,35 @@ ${userMessage}`;
     console.warn('[AutoRecall] LLM keyword extraction failed, falling back to rule-based:', e instanceof Error ? e.message : e);
     // 降级：假设需要搜索，使用规则提取关键词
     return { needsRecall: true, keywords: [] };
+  }
+}
+
+async function emitAutoRecallUsage(chatFn: MemoryChatFn, usageContext?: AutoRecallUsageContext): Promise<void> {
+  if (!usageContext?.onUsageEvent) {
+    return;
+  }
+
+  const invocation = chatFn.consumeLastInvocation?.();
+  if (!invocation) {
+    return;
+  }
+
+  await usageContext.onUsageEvent({
+    ...invocation,
+    metadata: usageContext.metadata,
+    operationKey: usageContext.operationKey,
+    usageStage: usageContext.usageStage
+  });
+}
+
+async function runAutoRecallChat(chatFn: MemoryChatFn, prompt: string, signal?: AbortSignal, usageContext?: AutoRecallUsageContext): Promise<string> {
+  try {
+    const response = await chatFn(prompt, signal);
+    await emitAutoRecallUsage(chatFn, usageContext);
+    return response;
+  } catch (error) {
+    await emitAutoRecallUsage(chatFn, usageContext);
+    throw error;
   }
 }
 
@@ -569,7 +605,17 @@ export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecal
       recentContextChars: recentMsgs.length,
       userMessageCount
     });
-    const llmResult = await extractRecallKeywords(userContent, recentMsgs, deps.chatFn, signal);
+    const llmResult = await extractRecallKeywords(userContent, recentMsgs, deps.chatFn, signal, {
+      metadata: {
+        conversationId: conversationId || null,
+        memoryRecallMode: 'auto',
+        recentContextChars: recentMsgs.length,
+        userMessageChars: userContent.length
+      },
+      onUsageEvent: deps.onUsageEvent,
+      operationKey: 'keyword_extraction',
+      usageStage: 'analyze'
+    });
     needsRecall = llmResult.needsRecall;
     keywords = llmResult.keywords;
 
@@ -649,7 +695,7 @@ export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecal
   };
 
   // 如果有 chatFn，创建 LLM 查询分析器增强搜索
-// Reuse the analysis prepared above so auto-recall does not pay for a second query-analysis pass.
+  // Reuse the analysis prepared above so auto-recall does not pay for a second query-analysis pass.
 
   try {
     console.log(`${TAG} Searching memories: query="${searchQuery}", ws=${workspaceId?.slice(0, 8)}`);
