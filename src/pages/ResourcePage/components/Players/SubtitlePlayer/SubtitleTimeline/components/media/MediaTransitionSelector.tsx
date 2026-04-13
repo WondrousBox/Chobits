@@ -7,6 +7,8 @@ import { Slider } from '@/components/ui/slider';
 
 import type { MediaTransition, TransitionType } from '../../types';
 import { MEDIA_CONFIG } from '../../types';
+import { useLabels } from '../../context/TimelineContext';
+import type { TimelineLabels } from '../../adapters/types';
 
 interface MediaTransitionSelectorProps {
   /** Whether the panel is open */
@@ -24,14 +26,14 @@ interface MediaTransitionSelectorProps {
 }
 
 /**
- * Transition type options
+ * Build transition type options with localized labels
  */
-const TRANSITION_OPTIONS: { type: TransitionType; label: string; icon: React.ElementType; description: string }[] = [
-  { type: 'none', label: '无', icon: TbX, description: '无转场效果' },
-  { type: 'fade', label: '淡入淡出', icon: TbBlur, description: '渐变透明度过渡' },
-  { type: 'dissolve', label: '溶解', icon: TbBlur, description: '像素级溶解效果' },
-  { type: 'wipe-left', label: '左擦除', icon: TbArrowBarToRight, description: '从左向右擦除' },
-  { type: 'wipe-right', label: '右擦除', icon: TbArrowBarToLeft, description: '从右向左擦除' }
+const getTransitionOptions = (labels: Required<TimelineLabels>) => [
+  { type: 'none' as TransitionType, label: labels.transitionTypeNone, icon: TbX, description: labels.transitionTypeNoneDesc },
+  { type: 'fade' as TransitionType, label: labels.transitionTypeFade, icon: TbBlur, description: labels.transitionTypeFadeDesc },
+  { type: 'dissolve' as TransitionType, label: labels.transitionTypeDissolve, icon: TbBlur, description: labels.transitionTypeDissolveDesc },
+  { type: 'wipe-left' as TransitionType, label: labels.transitionTypeWipeLeft, icon: TbArrowBarToRight, description: labels.transitionTypeWipeLeftDesc },
+  { type: 'wipe-right' as TransitionType, label: labels.transitionTypeWipeRight, icon: TbArrowBarToLeft, description: labels.transitionTypeWipeRightDesc }
 ];
 
 /**
@@ -42,6 +44,8 @@ const TRANSITION_OPTIONS: { type: TransitionType; label: string; icon: React.Ele
  * - 转场时长调整
  */
 export const MediaTransitionSelector: React.FC<MediaTransitionSelectorProps> = ({ open, onClose, transition, position, onTransitionChange, className }) => {
+  const labels = useLabels();
+  const transitionOptions = getTransitionOptions(labels);
   const currentType = transition?.type ?? 'none';
   const currentDuration = transition?.duration ?? MEDIA_CONFIG.DEFAULT_TRANSITION_DURATION;
 
@@ -83,7 +87,7 @@ export const MediaTransitionSelector: React.FC<MediaTransitionSelectorProps> = (
     <div className={clsx('absolute left-0 top-full mt-1 w-56 bg-background border rounded-lg shadow-lg z-50', className)}>
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b">
-        <h4 className="text-xs font-medium">{position === 'in' ? '入场' : '出场'}转场</h4>
+        <h4 className="text-xs font-medium">{`${position === 'in' ? labels.transitionIn : labels.transitionOut}${labels.transitionLabel}`}</h4>
         <Button variant="ghost" size="sm" className="w-5 h-5 p-0" onClick={onClose}>
           <TbX className="w-3 h-3" />
         </Button>
@@ -91,7 +95,7 @@ export const MediaTransitionSelector: React.FC<MediaTransitionSelectorProps> = (
 
       {/* Transition types */}
       <div className="p-2 space-y-1">
-        {TRANSITION_OPTIONS.map((option) => {
+        {transitionOptions.map((option) => {
           const Icon = option.icon;
           const isSelected = currentType === option.type;
 
@@ -115,7 +119,7 @@ export const MediaTransitionSelector: React.FC<MediaTransitionSelectorProps> = (
       {currentType !== 'none' && (
         <div className="px-3 pb-3 pt-1 border-t">
           <div className="flex items-center justify-between mb-1.5">
-            <label className="text-xs font-medium text-foreground">时长</label>
+            <label className="text-xs font-medium text-foreground">{labels.transitionDuration}</label>
             <span className="text-xs text-muted-foreground font-mono">{currentDuration.toFixed(1)}s</span>
           </div>
           <Slider value={[currentDuration]} onValueChange={handleDurationChange} min={0.1} max={2.0} step={0.1} className="w-full" />
@@ -130,7 +134,7 @@ export const MediaTransitionSelector: React.FC<MediaTransitionSelectorProps> = (
       {transition && (
         <div className="border-t p-2">
           <Button variant="ghost" size="sm" className="w-full h-6 text-xs" onClick={handleRemove}>
-            移除转场
+            {labels.transitionRemove}
           </Button>
         </div>
       )}
@@ -155,6 +159,7 @@ interface TransitionTypeButtonProps {
 }
 
 export const TransitionTypeButton: React.FC<TransitionTypeButtonProps> = ({ transition, position, onClick, isSelectorOpen = false }) => {
+  const labels = useLabels();
   const hasTransition = transition && transition.type !== 'none';
 
   return (
@@ -166,7 +171,7 @@ export const TransitionTypeButton: React.FC<TransitionTypeButtonProps> = ({ tran
         isSelectorOpen && 'ring-1 ring-primary'
       )}
       onClick={onClick}
-      title={hasTransition ? `${position === 'in' ? '入场' : '出场'}: ${transition.type} (${transition.duration}s)` : `添加${position === 'in' ? '入场' : '出场'}转场`}
+      title={hasTransition ? `${position === 'in' ? labels.transitionIn : labels.transitionOut}: ${transition.type} (${transition.duration}s)` : `添加${position === 'in' ? labels.transitionIn : labels.transitionOut}${labels.transitionLabel}`}
     >
       {hasTransition ? <span className="text-[10px] font-mono">{transition.duration.toFixed(1)}</span> : <span className="text-[10px]">+</span>}
     </button>

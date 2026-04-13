@@ -9,12 +9,14 @@ import { TbArrowMerge, TbArrowsHorizontal, TbChevronDown, TbChevronUp, TbPencil,
 
 import { Button } from '@/components/ui/button';
 
+import { useLabels } from '../../../context/TimelineContext';
 import type { BlockActionBarProps } from '../types';
 
 /**
  * BlockActionBar 组件
  */
 export const BlockActionBar: React.FC<BlockActionBarProps> = ({ capabilities, content, callbacks, disabled }) => {
+  const labels = useLabels();
   if (disabled) return null;
 
   const buttons: React.ReactNode[] = [];
@@ -32,7 +34,7 @@ export const BlockActionBar: React.FC<BlockActionBarProps> = ({ capabilities, co
           // 触发编辑模式（通过双击回调）
           callbacks.onDoubleClick?.(content.id, e as unknown as React.MouseEvent);
         }}
-        title="编辑"
+        title={labels.blockEdit}
       >
         <TbPencil className="w-3 h-3" />
       </Button>
@@ -55,7 +57,7 @@ export const BlockActionBar: React.FC<BlockActionBarProps> = ({ capabilities, co
             callbacks?.onPlay?.(content.id);
           }
         }}
-        title={content.isPlaying ? '暂停' : '播放'}
+        title={content.isPlaying ? labels.blockPause : labels.blockPlay}
       >
         {content.isPlaying ? <TbPlayerPause className="w-3 h-3" /> : <TbPlayerPlay className="w-3 h-3" />}
       </Button>
@@ -76,7 +78,7 @@ export const BlockActionBar: React.FC<BlockActionBarProps> = ({ capabilities, co
             e.stopPropagation();
             callbacks.onMoveUp?.(content.id);
           }}
-          title="上移（提前播放）"
+          title={labels.blockMoveUp}
         >
           <TbChevronUp className="w-3 h-3" />
         </Button>
@@ -98,7 +100,7 @@ export const BlockActionBar: React.FC<BlockActionBarProps> = ({ capabilities, co
             e.stopPropagation();
             callbacks.onMoveDown?.(content.id);
           }}
-          title="下移（延后播放）"
+          title={labels.blockMoveDown}
         >
           <TbChevronDown className="w-3 h-3" />
         </Button>
@@ -109,7 +111,7 @@ export const BlockActionBar: React.FC<BlockActionBarProps> = ({ capabilities, co
   // 速率显示（剪辑块，只显示不可点击）
   if (capabilities.special?.showRateLabel && content.playbackRate !== undefined) {
     buttons.push(
-      <span key="rate" className="inline-flex items-center justify-center w-7 h-6 rounded bg-background border shadow-sm text-[10px] font-mono text-foreground/70" title="拖拽块两端边缘可调整速度">
+      <span key="rate" className="inline-flex items-center justify-center w-7 h-6 rounded bg-background border shadow-sm text-[10px] font-mono text-foreground/70" title={labels.blockDragEdgeSpeed}>
         {content.playbackRate}x
       </span>
     );
@@ -118,7 +120,7 @@ export const BlockActionBar: React.FC<BlockActionBarProps> = ({ capabilities, co
   // 变换按钮（媒体块）
   if (callbacks?.onTransform) {
     buttons.push(
-      <Button key="transform" size="icon" variant="outline" className="w-6 h-6 rounded-full p-0 bg-background shadow-sm hover:bg-accent" title="变换设置">
+      <Button key="transform" size="icon" variant="outline" className="w-6 h-6 rounded-full p-0 bg-background shadow-sm hover:bg-accent" title={labels.blockTransformSettings}>
         <TbArrowsHorizontal className="w-3 h-3" />
       </Button>
     );
@@ -135,7 +137,7 @@ export const BlockActionBar: React.FC<BlockActionBarProps> = ({ capabilities, co
           const currentRotation = content.transform?.rotation ?? 0;
           callbacks.onTransform?.(content.id, { rotation: (currentRotation + 90) % 360 });
         }}
-        title="旋转 90°"
+        title={labels.blockRotate90}
       >
         <TbRotate className="w-3 h-3" />
       </Button>
@@ -154,7 +156,7 @@ export const BlockActionBar: React.FC<BlockActionBarProps> = ({ capabilities, co
           e.stopPropagation();
           callbacks.onRestore?.(content.id);
         }}
-        title="恢复片段"
+        title={labels.blockRestore}
       >
         <TbRestore className="w-3 h-3" />
       </Button>
@@ -173,7 +175,7 @@ export const BlockActionBar: React.FC<BlockActionBarProps> = ({ capabilities, co
           e.stopPropagation();
           callbacks.onMergePrev?.(content.id);
         }}
-        title="合并到上一条"
+        title={labels.blockMergePrev}
       >
         <TbArrowMerge className="-rotate-90 w-3 h-3" />
       </Button>
@@ -192,7 +194,7 @@ export const BlockActionBar: React.FC<BlockActionBarProps> = ({ capabilities, co
           e.stopPropagation();
           callbacks.onDelete?.(content.id);
         }}
-        title="删除"
+        title={labels.blockDelete}
       >
         <TbTrash className="w-3 h-3" />
       </Button>

@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import React, { useCallback, useState } from 'react';
+import { useLabels } from '../../context/TimelineContext';
 
 export interface PendingSegmentRange {
   startTime: number;
@@ -29,10 +30,11 @@ export const InlinePendingSegmentInput: React.FC<InlinePendingSegmentInputProps>
   top,
   height,
   minWidth = 150,
-  placeholder = '输入内容，enter 确认，esc 取消',
+  placeholder,
   onConfirm,
   onCancel
 }) => {
+  const labels = useLabels();
   const [inputValue, setInputValue] = useState('');
 
   const handleBlur = useCallback(() => {
@@ -72,7 +74,7 @@ export const InlinePendingSegmentInput: React.FC<InlinePendingSegmentInputProps>
           'placeholder:text-muted-foreground'
         )}
         style={{ minHeight: height }}
-        placeholder={placeholder}
+        placeholder={placeholder ?? labels.inlineInputPlaceholder}
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
         onBlur={handleBlur}

@@ -4,6 +4,8 @@ import { TbLoader2, TbPlayerPause, TbPlayerPlay, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
+import { useLabels } from '../../context/TimelineContext';
+
 /** 单行文本的状态 */
 export interface TextLineStatus {
   text: string;
@@ -66,6 +68,7 @@ export const TTSBatchTextInputPanel: React.FC<TTSBatchTextInputPanelProps> = ({
   synthesizedCount = 0,
   className
 }) => {
+  const labels = useLabels();
   const [textLines, setTextLines] = useState<TextLineStatus[]>([]);
   const [rawText, setRawText] = useState('');
   const [isLocalSynthesizing, setIsLocalSynthesizing] = useState(false);
@@ -209,7 +212,7 @@ export const TTSBatchTextInputPanel: React.FC<TTSBatchTextInputPanelProps> = ({
           <h3 className="text-sm font-medium truncate">{trackLabel}</h3>
 
           <Button variant="outline" size="sm" onClick={handleClear} disabled={isLocalSynthesizing || rawText.length === 0}>
-            清空文本
+            {labels.ttsBatchClearText}
           </Button>
         </div>
         <Button variant="ghost" size="sm" className="w-6 h-6 p-0 shrink-0" onClick={handleClose}>
@@ -220,7 +223,7 @@ export const TTSBatchTextInputPanel: React.FC<TTSBatchTextInputPanelProps> = ({
       {/* 配置状态提示 */}
       {!config && (
         <div className="px-3 py-2 bg-yellow-500/10 border-b shrink-0">
-          <p className="text-xs text-yellow-600 dark:text-yellow-400">请先配置 TTS 语音设置</p>
+          <p className="text-xs text-yellow-600 dark:text-yellow-400">{labels.ttsBatchConfigWarning}</p>
         </div>
       )}
 
@@ -228,11 +231,11 @@ export const TTSBatchTextInputPanel: React.FC<TTSBatchTextInputPanelProps> = ({
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* 文本输入框 */}
         <div className="flex-1 p-3 overflow-hidden flex flex-col">
-          <label className="text-xs font-medium text-foreground mb-2">输入文本（每行一句）</label>
+          <label className="text-xs font-medium text-foreground mb-2">{labels.ttsBatchInputLabel}</label>
           <textarea
             ref={textareaRef}
             className="flex-1 w-full p-2 text-sm border rounded-md resize-none bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-            placeholder="在此粘贴文本，一行为一句&#10;&#10;例如：&#10;这是第一句话&#10;这是第二句话&#10;这是第三句话"
+            placeholder={`${labels.ttsBatchPlaceholder}\n\n${labels.ttsBatchPlaceholderLine1}\n${labels.ttsBatchPlaceholderLine2}\n${labels.ttsBatchPlaceholderLine3}`}
             value={rawText}
             onChange={(e) => setRawText(e.target.value)}
             disabled={isLocalSynthesizing}
@@ -243,7 +246,7 @@ export const TTSBatchTextInputPanel: React.FC<TTSBatchTextInputPanelProps> = ({
         {textLines.length > 0 && (
           <div className="border-t max-h-40 overflow-y-auto">
             <div className="px-3 py-1.5 bg-muted/30 text-xs text-muted-foreground sticky top-0">
-              预览 ({stats.completed}/{stats.total} 已完成)
+              {`${labels.ttsBatchPreviewLabel} (${stats.completed}/${stats.total} ${labels.ttsBatchCompleted})`}
             </div>
             <div className="px-3 py-2 space-y-1">
               {textLines.map((line, index) => (
@@ -277,7 +280,7 @@ export const TTSBatchTextInputPanel: React.FC<TTSBatchTextInputPanelProps> = ({
       {isLocalSynthesizing && (
         <div className="px-3 py-2 border-t shrink-0">
           <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-            <span>合成中...</span>
+            <span>{labels.ttsBatchSynthesizing}</span>
             <span>{synthesisProgress}%</span>
           </div>
           <div className="h-1.5 bg-muted rounded-full overflow-hidden">
@@ -292,12 +295,12 @@ export const TTSBatchTextInputPanel: React.FC<TTSBatchTextInputPanelProps> = ({
           {isLocalSynthesizing ? (
             <Button variant="destructive" size="sm" className="flex-1" onClick={handleStopSynthesis}>
               <TbPlayerPause className="w-4 h-4 mr-1" />
-              停止合成
+              {labels.ttsBatchStopSynthesis}
             </Button>
           ) : (
             <Button variant="default" size="sm" className="flex-1" onClick={handleStartSynthesis} disabled={!config || textLines.length === 0 || stats.pending === 0}>
               <TbPlayerPlay className="w-4 h-4 mr-1" />
-              依次合成 ({stats.pending} 句)
+              {`${labels.ttsBatchStartSynthesis} (${stats.pending})`}
             </Button>
           )}
         </div>

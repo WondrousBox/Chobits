@@ -116,6 +116,7 @@ export interface IdGeneratorAdapter {
  * All labels have built-in defaults (Chinese), override to localize
  */
 export interface TimelineLabels {
+  // --- Toolbar ---
   /** Zoom out button tooltip */
   zoomOut?: string;
   /** Zoom in button tooltip */
@@ -142,6 +143,155 @@ export interface TimelineLabels {
   defaultTrackLabels?: string[];
   /** Fallback track label template, use {index} as placeholder */
   trackLabelTemplate?: string;
+
+  // --- Common ---
+  cancel?: string;
+  delete?: string;
+  settings?: string;
+  show?: string;
+  hide?: string;
+  deleteTrack?: string;
+  deleteConfirmTitle?: string;
+  /** use {label} as placeholder for track name */
+  deleteConfirmDescription?: string;
+  comingSoon?: string;
+  annotationDefaultLabel?: string;
+
+  // --- Inline input ---
+  inlineInputPlaceholder?: string;
+
+  // --- Track add menu ---
+  trackAddButtonLabel?: string;
+  trackAddSubtitle?: string;
+  trackAddTTS?: string;
+  trackAddMedia?: string;
+
+  // --- Block actions ---
+  blockEdit?: string;
+  blockPause?: string;
+  blockPlay?: string;
+  blockMoveUp?: string;
+  blockMoveDown?: string;
+  blockDragEdgeSpeed?: string;
+  blockTransformSettings?: string;
+  blockRotate90?: string;
+  blockRestore?: string;
+  blockMergePrev?: string;
+  blockDelete?: string;
+  /** use {maxLength} as placeholder */
+  blockValidationEmpty?: string;
+  blockValidationControlChar?: string;
+  blockValidationArrow?: string;
+  /** use {maxLength} as placeholder */
+  blockValidationMaxLength?: string;
+  blockValidationInvalid?: string;
+  blockEditHint?: string;
+  blockWaveformLoading?: string;
+
+  // --- Block handles ---
+  blockHandlesDragSpeed?: string;
+  blockHandlesDragTime?: string;
+
+  // --- Block order ---
+  /** use {order} as placeholder */
+  blockOrderPlayback?: string;
+
+  // --- Block status ---
+  blockStatusSynthesizing?: string;
+  blockStatusSynthesisFailed?: string;
+  blockStatusPending?: string;
+
+  // --- Media import ---
+  mediaImportNoValidFiles?: string;
+  mediaImportProcessError?: string;
+  mediaImportDragDropPathError?: string;
+  mediaImportOpenDialogError?: string;
+  mediaImportTitle?: string;
+  mediaImportProcessing?: string;
+  mediaImportDragDropHint?: string;
+  mediaImportSelectFiles?: string;
+  /** use {count} as placeholder */
+  mediaImportSelectedFiles?: string;
+  mediaImportAddToTrack?: string;
+  mediaImportNewTrack?: string;
+  mediaImportClearSelection?: string;
+  /** use {count} as placeholder */
+  mediaImportConfirm?: string;
+
+  // --- Media track ---
+  mediaTrackHide?: string;
+  mediaTrackShow?: string;
+  mediaTrackDelete?: string;
+  mediaTrackDeleteConfirmTitle?: string;
+  /** use {label} as placeholder */
+  mediaTrackDeleteConfirmDescription?: string;
+
+  // --- Media quick add ---
+  mediaQuickAddDropToRelease?: string;
+  mediaQuickAddProcessing?: string;
+  mediaQuickAddMenuTitle?: string;
+  mediaQuickAddSelectFile?: string;
+  mediaQuickAddFromLibrary?: string;
+
+  // --- Media transform ---
+  mediaTransformTitle?: string;
+  mediaTransformQuickActions?: string;
+  mediaTransformCenter?: string;
+  mediaTransformFitScreen?: string;
+  mediaTransformFit?: string;
+  mediaTransformFillScreen?: string;
+  mediaTransformFill?: string;
+  mediaTransformPositionX?: string;
+  mediaTransformPositionY?: string;
+  mediaTransformScale?: string;
+  mediaTransformRotation?: string;
+  mediaTransformOpacity?: string;
+  mediaTransformFlip?: string;
+  mediaTransformFlipHorizontal?: string;
+  mediaTransformFlipVertical?: string;
+  mediaTransformReset?: string;
+
+  // --- Media transition ---
+  transitionTypeNone?: string;
+  transitionTypeNoneDesc?: string;
+  transitionTypeFade?: string;
+  transitionTypeFadeDesc?: string;
+  transitionTypeDissolve?: string;
+  transitionTypeDissolveDesc?: string;
+  transitionTypeWipeLeft?: string;
+  transitionTypeWipeLeftDesc?: string;
+  transitionTypeWipeRight?: string;
+  transitionTypeWipeRightDesc?: string;
+  transitionIn?: string;
+  transitionOut?: string;
+  transitionLabel?: string;
+  transitionDuration?: string;
+  transitionRemove?: string;
+  /** use {position} (入场/出场) as placeholder */
+  transitionAddIn?: string;
+  transitionAddOut?: string;
+
+  // --- Thumbnail ---
+  thumbnailLoading?: string;
+  thumbnailNoPreview?: string;
+  /** use {index} as placeholder */
+  thumbnailAlt?: string;
+
+  // --- TTS batch ---
+  ttsBatchClearText?: string;
+  ttsBatchConfigWarning?: string;
+  ttsBatchInputLabel?: string;
+  ttsBatchPlaceholder?: string;
+  ttsBatchPlaceholderLine1?: string;
+  ttsBatchPlaceholderLine2?: string;
+  ttsBatchPlaceholderLine3?: string;
+  /** use {completed} and {total} as placeholders */
+  ttsBatchPreviewLabel?: string;
+  ttsBatchCompleted?: string;
+  ttsBatchSynthesizing?: string;
+  ttsBatchStopSynthesis?: string;
+  /** use {pending} as placeholder */
+  ttsBatchStartSynthesis?: string;
 }
 
 /**

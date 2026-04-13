@@ -3,6 +3,7 @@ import React from 'react';
 
 import type { MediaThumbnail } from '../../types';
 import { MEDIA_CONFIG } from '../../types';
+import { useLabels } from '../../context/TimelineContext';
 
 interface ThumbnailStripProps {
   /** 缩略图列表 */
@@ -23,6 +24,7 @@ interface ThumbnailStripProps {
  * 在媒体片段中显示视频关键帧缩略图条或图片缩略图
  */
 export const ThumbnailStrip: React.FC<ThumbnailStripProps> = ({ thumbnails, width, height, loading = false, className }) => {
+  const labels = useLabels();
   // 没有缩略图时显示占位
   if (!thumbnails || thumbnails.length === 0) {
     return (
@@ -30,10 +32,10 @@ export const ThumbnailStrip: React.FC<ThumbnailStripProps> = ({ thumbnails, widt
         {loading ? (
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-            <span>加载中...</span>
+            <span>{labels.thumbnailLoading}</span>
           </div>
         ) : (
-          <span className="text-xs text-muted-foreground">无预览</span>
+          <span className="text-xs text-muted-foreground">{labels.thumbnailNoPreview}</span>
         )}
       </div>
     );
@@ -47,7 +49,7 @@ export const ThumbnailStrip: React.FC<ThumbnailStripProps> = ({ thumbnails, widt
     <div className={clsx('absolute inset-0 flex overflow-hidden', className)}>
       {thumbnails.map((thumb, index) => (
         <div key={`${thumb.timeOffset}-${index}`} className="relative flex-shrink-0 h-full" style={{ width: thumbnailWidth }}>
-          <img src={thumb.url} alt={`缩略图 ${index + 1}`} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+          <img src={thumb.url} alt={labels.thumbnailAlt.replace('{index}', String(index + 1))} className="w-full h-full object-cover" loading="lazy" decoding="async" />
         </div>
       ))}
 

@@ -15,6 +15,13 @@ import { ClipTool, DEFAULT_CONFIG, SubtitleTimelineProps, TRACK_COLORS, Viewport
 import { parseSegmentId } from './utils';
 
 const audioWaveformHeight = 40;
+
+function isEditableElement(element: Element | null): boolean {
+  if (!(element instanceof HTMLElement)) return false;
+  const tagName = element.tagName.toLowerCase();
+
+  return element.isContentEditable || tagName === 'input' || tagName === 'textarea' || tagName === 'select';
+}
 /** 波形+剪辑叠加时的轨道高度 */
 const overlayTrackHeight = Math.max(audioWaveformHeight, DEFAULT_CONFIG.CLIP_TRACK_HEIGHT);
 
@@ -367,8 +374,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     if (!hasSubtitleTarget && !hasTTSTarget && !hasClipTarget && !hasMediaTarget) return;
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key !== 'Delete' && e.key !== 'Backspace') return;
-      const target = document.activeElement as HTMLElement | null;
-      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
+      if (isEditableElement(document.activeElement)) return;
       if (hasClipTarget && selectedClipId) {
         e.preventDefault();
         clipCallbacks?.onClipDelete?.(selectedClipId);
@@ -403,6 +409,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onDeleteSegment, selectedSegmentId, tracksWithColors, onDeleteTTSSegment, selectedTTS, clipCallbacks, selectedClipId, mediaCallbacks, selectedMediaSegmentId]);
+
 
   // 监听容器尺寸变化
   useEffect(() => {
@@ -704,7 +711,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                   index={0}
                   track={{
                     id: annotationTrackData.id,
-                    label: annotationTrackData.label || '标注',
+                    label: annotationTrackData.label || labels.annotationDefaultLabel,
                     color: '#eab308',
                     visible: annotationTrackEnabled,
                     selected: selectedTrackId === annotationTrackData.id,
