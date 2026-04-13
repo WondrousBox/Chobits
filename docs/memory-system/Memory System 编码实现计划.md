@@ -19,7 +19,7 @@ OpenClaw 生态的记忆系统核心模式可供参考：
 
 - Phase 1 DB Schema：已完成。`memory_notes` 已持久化 `domain`，并包含 `timeRange`、`parentTopicId`、`relatedTopicIds`、`aliases`、`entities` 等 note 级字段。
 - Phase 2 Repository：已完成。除 `MemoryTopicRepo.applyHeatDecay()`、`MemorySyncJobRepo.findByWorkspace()/getAll()` 外，还包含 `MemoryEdgeRepo.addEntityFact()/invalidateEntityFact()/queryEntityFacts()/entityTimeline()`、`MemoryTopicRepo.findByDomain()/findByDomainType()`。FTS 已拆为独立的 `memory-fts.ts` / `memory-fts-repo.ts`，当前采用 note-scoped 增量维护，并在启动时把旧 contentless FTS 自动迁移为 row-mutable FTS。
-- Phase 3 Extraction Service：已完成。`conversation_close` 主链路、队列、worker、merge/write、`daily_extraction`、漏跑补偿、Open Loop 智能合并、`Recall Cues`、`Source Excerpts`、实体关系写边、`fileChecksum` / `timeRange` / `sections.keywords` 均已落地。`memory-config.json` 中的 `minNewMessagesForExtraction`、`extractionCooldownMinutes`、`maxTokensPerExtraction`、`periodicSaveInterval` 现已真实接到 runtime worker。
+- Phase 3 Extraction Service：已完成。`conversation_close` 主链路、队列、worker、merge/write、`daily_extraction`、漏跑补偿、Open Loop 智能合并、`Recall Cues`、`Source Excerpts`、实体关系写边、`fileChecksum` / `timeRange` / `sections.keywords` 均已落地。新增 canonical topic resolution：提取后先做本地 topic 归一化，再复用 workspace 内已有 canonical topic，并把原始表述写入 `aliases`、把 keyword 的 `primaryTopicId` 绑定到 canonical topic。`memory-config.json` 中的 `minNewMessagesForExtraction`、`extractionCooldownMinutes`、`maxTokensPerExtraction`、`periodicSaveInterval` 现已真实接到 runtime worker。
 - Phase 4 Retrieval Service：已完成。`search` / `get` / `browseTopics` / `searchWithContent` 已实现；`topicFilter`、LLM 查询分析、新会话预加载、Domain 过滤、实体事实扩展、LIKE fallback、broad recall fallback 均已接入。`entity_fact.evidenceNoteId` 当前通过 `factNoteIds` 直达 Stage 3 note 候选，不再混入 topic expansion。Electron auto-recall 与 Pi memory tools 的 retrieval deps 能力已对齐。
 - Phase 5 IPC Handlers：已完成，现包含 `memory:stats`、`memory:cleanupForConversations`、`memory:clearAll`、`memory:cancelSync`、`memory:getMetrics`、`memory:getConfig` / `memory:setConfig`、`memory:generateDailyIndex`、`memory:generateTopicArchives`、`memory:generateMemoryIndex`、`memory:backfillRecallCues` 等入口。
 - Phase 6 Agent Tools：已完成。实际代码位于 `packages/ai/runtime/pi/tools/`，当前注册了 5 个工具：`memorySearchTool`、`memoryGetTool`、`memoryTopicsTool`、`memorySaveTool`、`memoryDiaryTool`。其中前 4 个进入 `DEFAULT_SESSION_TOOL_IDS`；`memoryDiaryTool` 只完成注册与写文件，当前不是默认 session tool，也不进入检索闭环。
@@ -57,13 +57,14 @@ OpenClaw 生态的记忆系统核心模式可供参考：
 
 ## Phase 3: Extraction Service
 
-**目标**：实现 5 步提取流水线 \+ 任务队列
+**目标**：实现 6 步提取流水线 \+ 任务队列
 **文件结构**：
 
 - `packages/ai/services/memory-extraction-service.ts`（新）— 核心提取逻辑
   - `collect()` — 从 `chat_messages` 按 watermark 读取增量消息
   - `splitTopics()` — LLM 调用做主题拆分（prompt 定义在设计文档中）
   - `extractMemory()` — 对每个 TopicCluster 调用 LLM 结构化抽取
+  - `canonicalizeTopic()` — 本地 topic 归一化 + 复用已有 canonical topic + 回填 aliases
   - `mergeMemory()` — 与已有 note 合并（增量 frontmatter \+ section 合并）
   - `writeMemory()` — Markdown 写文件 \+ DB 事务（upsert notes/sections/topics/edges/keywords/FTS）
 - `electron/main/handlers/memory/extraction-queue.ts`（新）— 任务队列，参考 `EmbeddingQueue` 模式

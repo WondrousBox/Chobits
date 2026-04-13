@@ -5,6 +5,7 @@
 import { type AimSegments } from '@aim-packages/subtitle';
 import { JsonOutputParser } from '@langchain/core/output_parsers';
 
+import type { TokenUsage } from '../types';
 import { bindAbortControllerToSignal, createTaskRegistry, type ManagedTask } from './task-manager';
 
 /**
@@ -88,10 +89,12 @@ export type SummaryEvent =
  * 流式聊天事件类型
  */
 export interface ChatStreamEvent {
-  type: 'delta' | 'message_completed' | 'error';
+  type: 'delta' | 'thinking_delta' | 'message_completed' | 'error';
   data?: {
-    text?: string;
     message?: string;
+    rawUsage?: unknown;
+    text?: string;
+    usage?: TokenUsage;
   };
 }
 
@@ -111,6 +114,17 @@ export type ChatFunction = (
   /** 中止信号 */
   abortSignal?: AbortSignal
 ) => Promise<void>;
+
+export interface SummaryUsageEvent {
+  attemptIndex?: number;
+  completedAt?: number;
+  metadata?: Record<string, unknown>;
+  operationKey?: string;
+  rawUsage?: unknown;
+  startedAt?: number;
+  status: 'completed' | 'failed' | 'cancelled';
+  usage?: TokenUsage;
+}
 
 /**
  * 总结配置选项
@@ -154,6 +168,8 @@ export interface SummaryRequest {
   languageNames?: Record<string, string>;
   /** 元数据（可选，用于传递额外信息如 resourceId） */
   metadata?: Record<string, any>;
+  /** Usage 事件回调（可选，用于记录 provider 级消耗） */
+  onUsageEvent?: (event: SummaryUsageEvent) => void;
   /** 总结配置选项 */
   options?: SummaryOptions;
 }
@@ -277,7 +293,7 @@ export class SummaryService {
    * 执行总结
    */
   static async summarize(emit: SummaryEmitter, request: SummaryRequest, externalSignal?: AbortSignal): Promise<void> {
-    const { requestId, chatFn, providerId, model, taskLabel, content, targetLanguage, languageNames, metadata, options = {} } = request;
+    const { requestId, chatFn, providerId, model, taskLabel, content, targetLanguage, languageNames, metadata, onUsageEvent, options = {} } = request;
 
     const { maxChars = 5000, extractKeyPoints = true, extractTimeline = true, keywordCount = 3, promptTemplate } = options;
 
@@ -292,6 +308,10 @@ export class SummaryService {
       }
     });
     const cleanupExternalAbort = bindAbortControllerToSignal(abortController, externalSignal);
+    let hasEmittedError = false;
+    let hasReportedUsage = false;
+    let streamError: Error | undefined;
+    let llmCallStartedAt: number | undefined;
 
     try {
       emit({ type: 'connected' });
@@ -336,6 +356,7 @@ export class SummaryService {
 
       // 执行 AI 调用
       let fullResponse = '';
+      llmCallStartedAt = Date.now();
 
       const jsonParser = new JsonOutputParser<SummaryCompletedData>();
 
@@ -372,6 +393,18 @@ export class SummaryService {
                 // 解析失败，继续累积文本
               });
           } else if (event.type === 'message_completed') {
+            if (!hasReportedUsage) {
+              onUsageEvent?.({
+                completedAt: Date.now(),
+                operationKey: 'generate',
+                rawUsage: event.data?.rawUsage,
+                startedAt: llmCallStartedAt,
+                status: 'completed',
+                usage: event.data?.usage
+              });
+              hasReportedUsage = true;
+            }
+
             // 尝试最终解析
             jsonParser
               .parsePartialResult([{ text: fullResponse }])
@@ -403,6 +436,17 @@ export class SummaryService {
               });
           } else if (event.type === 'error') {
             const errorMessage = event.data?.message || '生成总结时出错';
+            hasEmittedError = true;
+            if (!hasReportedUsage) {
+              onUsageEvent?.({
+                completedAt: Date.now(),
+                operationKey: 'generate',
+                startedAt: llmCallStartedAt,
+                status: abortController.signal.aborted ? 'cancelled' : 'failed'
+              });
+              hasReportedUsage = true;
+            }
+            streamError = new Error(errorMessage);
             emit({
               type: 'error',
               data: { message: errorMessage }
@@ -411,6 +455,10 @@ export class SummaryService {
         },
         abortController.signal
       );
+
+      if (streamError) {
+        throw streamError;
+      }
 
       // 解析 JSON 响应
       emit({
@@ -444,18 +492,31 @@ export class SummaryService {
       summaryTasks.complete(requestId);
       emit({ type: 'done' });
     } catch (error: any) {
-      if (error.name === 'AbortError' || error.message === 'Aborted') {
+      const isAborted = error.name === 'AbortError' || error.message === 'Aborted' || abortController.signal.aborted;
+      if (!hasReportedUsage) {
+        onUsageEvent?.({
+          completedAt: Date.now(),
+          operationKey: 'generate',
+          startedAt: llmCallStartedAt,
+          status: isAborted ? 'cancelled' : 'failed'
+        });
+        hasReportedUsage = true;
+      }
+
+      if (isAborted) {
         summaryTasks.complete(requestId);
         emit({ type: 'done' });
       } else {
         const errorMessage = error?.message || '生成总结失败';
-        emit({
-          type: 'error',
-          data: {
-            message: errorMessage,
-            code: error?.code
-          }
-        });
+        if (!hasEmittedError) {
+          emit({
+            type: 'error',
+            data: {
+              message: errorMessage,
+              code: error?.code
+            }
+          });
+        }
         summaryTasks.complete(requestId);
         emit({ type: 'done' });
       }
@@ -482,17 +543,17 @@ export class SummaryService {
         keyPoints:
           extractKeyPoints && Array.isArray(parsed.keyPoints)
             ? parsed.keyPoints.map((kp: any) => ({
-              st: kp.st || '00:00:00.000',
-              title: kp.title || '',
-              content: kp.content || ''
-            }))
+                st: kp.st || '00:00:00.000',
+                title: kp.title || '',
+                content: kp.content || ''
+              }))
             : [],
         timeline:
           extractTimeline && Array.isArray(parsed.timeline)
             ? parsed.timeline.map((tl: any) => ({
-              st: tl.st || '00:00:00.000',
-              description: tl.description || ''
-            }))
+                st: tl.st || '00:00:00.000',
+                description: tl.description || ''
+              }))
             : []
       };
     } catch (error) {

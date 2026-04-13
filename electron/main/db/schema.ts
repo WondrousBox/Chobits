@@ -389,6 +389,85 @@ export type ChatMessageRow = InferSelectModel<typeof chat_messages>;
 export type NewChatMessage = InferInsertModel<typeof chat_messages>;
 
 /**
+ * ai_usage_events：AI 使用量事实表
+ * - 以单次 provider 调用为粒度记录 token / 费用 / 来源 / 分类 / 精度
+ */
+export const ai_usage_events = sqliteTable(
+  'ai_usage_events',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+    traceId: text('trace_id').notNull(),
+    parentEventId: text('parent_event_id'),
+    requestId: text('request_id').notNull(),
+    providerRequestId: text('provider_request_id'),
+    eventFingerprint: text('event_fingerprint').notNull(),
+    operationKey: text('operation_key').notNull(),
+    attemptIndex: integer('attempt_index').notNull().default(0),
+
+    conversationId: text('conversation_id').references(() => conversations.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+    resourceId: text('resource_id').references(() => resources.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+    sourceType: text('source_type').notNull(),
+    sourceId: text('source_id').notNull(),
+    sourceLabel: text('source_label'),
+
+    usageCategory: text('usage_category').notNull(),
+    usageFeature: text('usage_feature').notNull(),
+    usageStage: text('usage_stage').notNull(),
+
+    providerId: text('provider_id').notNull(),
+    providerPresetId: text('provider_preset_id'),
+    model: text('model').notNull(),
+    agentId: text('agent_id'),
+    status: text('status', { enum: ['completed', 'failed', 'cancelled'] }).notNull(),
+
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
+    cacheReadTokens: integer('cache_read_tokens'),
+    cacheWriteTokens: integer('cache_write_tokens'),
+    reasoningTokens: integer('reasoning_tokens'),
+    totalTokens: integer('total_tokens'),
+    billableInputTokens: integer('billable_input_tokens'),
+    billableOutputTokens: integer('billable_output_tokens'),
+    billableTotalTokens: integer('billable_total_tokens'),
+    estimatedCost: real('estimated_cost'),
+
+    meteringSource: text('metering_source').notNull(),
+    meteringAccuracy: text('metering_accuracy').notNull(),
+    billingEligible: integer('billing_eligible').notNull().default(0),
+
+    startedAt: integer('started_at'),
+    completedAt: integer('completed_at'),
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
+
+    metadata: text('metadata', { mode: 'json' }),
+    rawUsage: text('raw_usage', { mode: 'json' })
+  },
+  (t) => ({
+    uqAiUsageProviderReq: uniqueIndex('uq_ai_usage_provider_req').on(t.providerId, t.providerRequestId),
+    uqAiUsageFingerprint: uniqueIndex('uq_ai_usage_fingerprint').on(t.eventFingerprint),
+    idxAiUsageWorkspaceCreated: index('idx_ai_usage_workspace_created').on(t.workspaceId, t.createdAt),
+    idxAiUsageProviderCreated: index('idx_ai_usage_provider_created').on(t.providerId, t.createdAt),
+    idxAiUsageModelCreated: index('idx_ai_usage_model_created').on(t.model, t.createdAt),
+    idxAiUsageCategoryCreated: index('idx_ai_usage_category_created').on(t.usageCategory, t.createdAt),
+    idxAiUsageFeatureCreated: index('idx_ai_usage_feature_created').on(t.usageFeature, t.createdAt),
+    idxAiUsageSourceCreated: index('idx_ai_usage_source_created').on(t.sourceType, t.createdAt),
+    idxAiUsageRequest: index('idx_ai_usage_request').on(t.requestId),
+    idxAiUsageTrace: index('idx_ai_usage_trace').on(t.traceId),
+    idxAiUsageConversation: index('idx_ai_usage_conversation').on(t.conversationId),
+    idxAiUsageResource: index('idx_ai_usage_resource').on(t.resourceId),
+    idxAiUsageOperation: index('idx_ai_usage_operation').on(t.operationKey),
+    idxAiUsageStatusCreated: index('idx_ai_usage_status_created').on(t.status, t.createdAt)
+  })
+);
+
+export type AiUsageEventRow = InferSelectModel<typeof ai_usage_events>;
+export type NewAiUsageEvent = InferInsertModel<typeof ai_usage_events>;
+
+/**
  * automation_rules: 自动化规则表
  * - 定义资源事件、定时任务等触发的工作流或其他操作
  * - 支持工作空间隔离与全局规则

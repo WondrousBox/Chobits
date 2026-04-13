@@ -4,6 +4,7 @@
 
 import { type AimSegments } from '@aim-packages/subtitle';
 
+import type { TokenUsage } from '../types';
 import { bindAbortControllerToSignal, createTaskRegistry, type ManagedTask } from './task-manager';
 
 /**
@@ -66,10 +67,12 @@ export type MindmapEvent =
  * 流式聊天事件类型
  */
 export interface ChatStreamEvent {
-  type: 'delta' | 'message_completed' | 'error';
+  type: 'delta' | 'thinking_delta' | 'message_completed' | 'error';
   data?: {
-    text?: string;
     message?: string;
+    rawUsage?: unknown;
+    text?: string;
+    usage?: TokenUsage;
   };
 }
 
@@ -89,6 +92,17 @@ export type ChatFunction = (
   /** 中止信号 */
   abortSignal?: AbortSignal
 ) => Promise<void>;
+
+export interface MindmapUsageEvent {
+  attemptIndex?: number;
+  completedAt?: number;
+  metadata?: Record<string, unknown>;
+  operationKey?: string;
+  rawUsage?: unknown;
+  startedAt?: number;
+  status: 'completed' | 'failed' | 'cancelled';
+  usage?: TokenUsage;
+}
 
 /**
  * 脑图配置选项
@@ -129,6 +143,8 @@ export interface MindmapRequest {
   languageNames?: Record<string, string>;
   /** 元数据（可选，用于传递额外信息如 resourceId） */
   metadata?: Record<string, any>;
+  /** Usage 事件回调（可选，用于记录 provider 级消耗） */
+  onUsageEvent?: (event: MindmapUsageEvent) => void;
   /** 脑图配置选项 */
   options?: MindmapOptions;
 }
@@ -219,7 +235,7 @@ export class MindmapService {
    * 执行脑图生成
    */
   static async generateMindmap(emit: MindmapEmitter, request: MindmapRequest, externalSignal?: AbortSignal): Promise<void> {
-    const { requestId, chatFn, providerId, model, taskLabel, content, targetLanguage, languageNames, metadata, options = {} } = request;
+    const { requestId, chatFn, providerId, model, taskLabel, content, targetLanguage, languageNames, metadata, onUsageEvent, options = {} } = request;
 
     const { maxChars = 10000, maxDepth = 4, promptTemplate } = options;
 
@@ -234,6 +250,10 @@ export class MindmapService {
       }
     });
     const cleanupExternalAbort = bindAbortControllerToSignal(abortController, externalSignal);
+    let hasEmittedError = false;
+    let hasReportedUsage = false;
+    let streamError: Error | undefined;
+    let llmCallStartedAt: number | undefined;
 
     try {
       emit({ type: 'connected' });
@@ -271,6 +291,7 @@ export class MindmapService {
 
       // 执行 AI 调用
       let fullResponse = '';
+      llmCallStartedAt = Date.now();
 
       await chatFn(
         prompt,
@@ -289,6 +310,18 @@ export class MindmapService {
               }
             });
           } else if (event.type === 'message_completed') {
+            if (!hasReportedUsage) {
+              onUsageEvent?.({
+                completedAt: Date.now(),
+                operationKey: 'generate',
+                rawUsage: event.data?.rawUsage,
+                startedAt: llmCallStartedAt,
+                status: 'completed',
+                usage: event.data?.usage
+              });
+              hasReportedUsage = true;
+            }
+
             emit({
               type: 'progress',
               data: {
@@ -300,6 +333,17 @@ export class MindmapService {
             });
           } else if (event.type === 'error') {
             const errorMessage = event.data?.message || '生成脑图时出错';
+            hasEmittedError = true;
+            if (!hasReportedUsage) {
+              onUsageEvent?.({
+                completedAt: Date.now(),
+                operationKey: 'generate',
+                startedAt: llmCallStartedAt,
+                status: abortController.signal.aborted ? 'cancelled' : 'failed'
+              });
+              hasReportedUsage = true;
+            }
+            streamError = new Error(errorMessage);
             emit({
               type: 'error',
               data: { message: errorMessage }
@@ -308,6 +352,10 @@ export class MindmapService {
         },
         abortController.signal
       );
+
+      if (streamError) {
+        throw streamError;
+      }
 
       emit({
         type: 'progress',
@@ -332,18 +380,31 @@ export class MindmapService {
       mindmapTasks.complete(requestId);
       emit({ type: 'done' });
     } catch (error: any) {
-      if (error.name === 'AbortError' || error.message === 'Aborted') {
+      const isAborted = error.name === 'AbortError' || error.message === 'Aborted' || abortController.signal.aborted;
+      if (!hasReportedUsage) {
+        onUsageEvent?.({
+          completedAt: Date.now(),
+          operationKey: 'generate',
+          startedAt: llmCallStartedAt,
+          status: isAborted ? 'cancelled' : 'failed'
+        });
+        hasReportedUsage = true;
+      }
+
+      if (isAborted) {
         mindmapTasks.complete(requestId);
         emit({ type: 'done' });
       } else {
         const errorMessage = error?.message || '生成脑图失败';
-        emit({
-          type: 'error',
-          data: {
-            message: errorMessage,
-            code: error?.code
-          }
-        });
+        if (!hasEmittedError) {
+          emit({
+            type: 'error',
+            data: {
+              message: errorMessage,
+              code: error?.code
+            }
+          });
+        }
         mindmapTasks.complete(requestId);
         emit({ type: 'done' });
       }

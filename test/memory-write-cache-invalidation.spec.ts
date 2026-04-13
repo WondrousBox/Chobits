@@ -26,7 +26,7 @@ function createDbOps(): WriteDbOps {
   return {
     upsertNote: vi.fn(async (note: any) => note),
     rebuildSections: vi.fn(async () => []),
-    upsertTopic: vi.fn(async (topic: any) => topic),
+    upsertTopic: vi.fn(async (topic: any) => ({ id: `topic_${topic.slug}`, label: topic.label, slug: topic.slug, created: true })),
     upsertEdges: vi.fn(async () => 0),
     upsertKeywords: vi.fn(async () => 0),
     rebuildFTS: vi.fn()

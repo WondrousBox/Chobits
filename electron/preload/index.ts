@@ -30,6 +30,7 @@ import { themeIpcRenderer } from '../main/handlers/theme/ipc-renderer';
 import { trashIpcRenderer } from '../main/handlers/trash/ipc-renderer';
 import { workspaceIpcRenderer } from '../main/handlers/workspace/ipc-renderer';
 import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
+import { analyticsApi } from './apis/analytics';
 import { memoryApi } from './apis/memory';
 import { personaApi } from './apis/persona';
 import { shortcutsBridge } from './apis/shortcuts';
@@ -123,6 +124,7 @@ contextBridge.exposeInMainWorld('YUA', {
   annotation: createAnnotationIpcRenderer(ipcRenderer),
   media: mediaIpcRenderer,
   memory: memoryApi,
+  analytics: analyticsApi,
   userProfile: userProfileApi,
   messages: {
     on: (callback: (payload: MessageBridgePayload) => void) => {

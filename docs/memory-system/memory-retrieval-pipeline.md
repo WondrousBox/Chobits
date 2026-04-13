@@ -4,7 +4,7 @@
 > 核心策略：结构化元数据过滤 + FTS5 全文检索 + 主题图谱扩展 + 渐进式定点读取。
 > 向量检索仅作为未来可插拔增强层，不影响本文档描述的基础检索能力。
 
-## 当前实现状态（2026-04-12）
+## 当前实现状态（2026-04-13）
 
 - 已实现：`analyzeQuery`、`recallTopics`、`recallNotes`、`recallSections`、`targetedRead`、`assembleContext`、`search`、`get`、`browseTopics`、`searchWithContent`。
 - `search()` 是稳定的对外主入口，实际执行 Stage 1-3；当 `includeContent=true` 时，只补充 note 的 section 摘要，不自动执行 Stage 4-6。
@@ -12,6 +12,7 @@
 - 当前检索层已实现 `topicFilter`、LLM 辅助查询分析、LIKE fallback（弥补中文 FTS 分词不足）和 broad recall fallback（无有效搜索词时回退最近记忆）。
 - **检索词扩展已实现**（O1）：显式检索现在会在 FTS / LIKE fallback 前做轻量 query rewriting，包括中文 bigram 扩展、分隔词拆分和小范围同义词扩展，提升中文查询与证据型查询的召回率。
 - **检索能力对齐已完成**：Electron auto-recall 与 Pi memory tools 现已共享 `searchNotesByTerms`、`listRecentImportant` 等可选检索能力，避免入口间召回能力漂移。
+- **Canonical topic alias 写回已实现**：topic 归一化现在会把原始 topic 表述写入 `memory_topics.aliases` / `memory_notes.aliases`，并把 `memory_keywords.primaryTopicId` 绑定到 canonical topic；因此 Stage 2 的 topic recall 和 Route C 的 LIKE fallback 都能更稳定地命中近义 topic。
 - **O3 延迟优化已实现**：检索层现支持 `listNotesByIds` / `listSectionsByNoteIds` 批量读取；Stage 3/4 会优先走批量 note/section 加载，Stage 5 会缓存已读 Markdown 文件内容，降低 N+1 DB / 文件读取开销。
 - **Auto-recall analysis 复用已实现**：auto-recall 在关键词提取后会直接把已准备好的 `QueryAnalysisResult` 传给 `searchWithContent()`，避免对同一请求再做一轮查询分析。
 - **新会话预加载已实现**：`performAutoRecall()` 中当检测到首轮对话（`userMessages.length <= 1`）且 `db.listRecentImportant` 可用时，自动注入近 7 天高重要度（≥ 0.7）记忆摘要 + `MEMORY.md` 的 always-loaded layer（`Critical Facts` / `User Preferences` / `Active Projects`，5 分钟缓存 TTL），无需关键词搜索。

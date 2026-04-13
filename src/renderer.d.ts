@@ -19,6 +19,7 @@ import type { TrashIpcType } from '../electron/main/handlers/trash/ipc-renderer'
 import type { WorkspaceIpcType } from '../electron/main/handlers/workspace/ipc-renderer';
 import type { YtDlpIpcRendererType } from '../electron/main/handlers/ytdlp/ipc-renderer';
 import type { PluginResourceIpcType } from '../electron/main/plugins/ipc-renderer';
+import type { analyticsApi } from '../electron/preload/apis/analytics';
 import type { memoryApi } from '../electron/preload/apis/memory';
 import type { PersonaApiBridgeType } from '../electron/preload/apis/persona';
 import type { ShortcutsBridgeType } from '../electron/preload/apis/shortcuts';
@@ -76,6 +77,7 @@ declare global {
       annotation: AnnotationIpcRenderer;
       media: MediaIpcType;
       memory: typeof memoryApi;
+      analytics: typeof analyticsApi;
       userProfile: typeof userProfileApi;
       messages: {
         on: (callback: (payload: MessageBridgePayload) => void) => () => void;

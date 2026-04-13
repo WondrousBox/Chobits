@@ -1,10 +1,9 @@
 import { utils } from '@aim-packages/subtitle';
+import { TAGGING_SYSTEM_PROMPT } from '@packages/ai/runtime/pi/tasks/tag-prompt';
 import React, { useMemo, useRef, useState } from 'react';
 
-import { TAGGING_SYSTEM_PROMPT } from '@packages/ai/runtime/pi/tasks/tag-prompt';
-
-import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
+import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -72,6 +71,21 @@ const TaggingPage: React.FC = () => {
         { role: 'user', content: input }
       ],
       extras: {
+        analyticsUsage: {
+          metadata: {
+            inputLength: input.length,
+            maxLabels,
+            page: 'tagger',
+            segmentCount: segments.length,
+            startIndex
+          },
+          operationKey: 'tagging_stream',
+          sourceLabel: '文本打标',
+          sourceType: 'tagging',
+          usageCategory: 'content_processing',
+          usageFeature: 'tagging',
+          usageStage: 'classify'
+        },
         model: resolvedSelection.modelId,
         segments: segments.map((s) => s.content),
         maxLabels,

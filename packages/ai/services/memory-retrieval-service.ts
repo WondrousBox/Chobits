@@ -9,6 +9,7 @@ import * as path from 'node:path';
 
 import { formatMemoryDate, getRelativeMemoryDate } from './memory-date';
 import { readLines } from './memory-note-parser';
+import type { MemoryChatFn, MemoryUsageEvent } from './memory-types';
 
 // ━━ Types ━━
 
@@ -526,7 +527,7 @@ export async function recallTopics(analysis: QueryAnalysisResult, workspaceId: s
   }
 
   // Legacy serial expansion path kept inert below while the new parallelized path settles.
-  if (false && hitTopicIds.size > 0) {
+  if (ENABLE_LEGACY_SERIAL_EXPANSION && hitTopicIds.size > 0) {
     const hitIds = Array.from(hitTopicIds);
 
     // 子主题
@@ -554,12 +555,13 @@ export async function recallTopics(analysis: QueryAnalysisResult, workspaceId: s
 
   // Step 2d: Domain-based filtering (I-4)
   // If entityTerms match a "person:Name" or "project:Name" domain, pull in domain-scoped topics
-  if (false && db.findTopicsByDomain) {
+  const findTopicsByDomain = db.findTopicsByDomain;
+  if (ENABLE_DOMAIN_EXPANSION && findTopicsByDomain) {
     for (const term of analysis.entityTerms) {
       if (!term) continue;
       for (const prefix of ['person', 'project']) {
         const domainKey = `${prefix}:${term}`;
-        const domainTopics = await db.findTopicsByDomain(domainKey, workspaceId, 5);
+        const domainTopics = await findTopicsByDomain(domainKey, workspaceId, 5);
         for (const t of domainTopics) {
           if (!hitTopicIds.has(t.id)) {
             hitTopicIds.add(t.id);
@@ -572,10 +574,11 @@ export async function recallTopics(analysis: QueryAnalysisResult, workspaceId: s
 
   // Step 2e: Entity fact graph expansion (I-3)
   // If entityTerms match entity facts, pull in related notes via evidenceNoteId
-  if (false && db.queryEntityFacts) {
+  const queryEntityFacts = db.queryEntityFacts;
+  if (ENABLE_ENTITY_FACT_EXPANSION && queryEntityFacts) {
     for (const term of analysis.entityTerms) {
       if (!term) continue;
-      const facts = await db.queryEntityFacts(term, { workspaceId, limit: 10 });
+      const facts = await queryEntityFacts(term, { workspaceId, limit: 10 });
       for (const fact of facts) {
         const noteId = fact.evidenceNoteId || fact.evidence_note_id;
         if (noteId) {
@@ -1213,8 +1216,18 @@ const RETRIEVAL_SCORE_WEIGHTS: RetrievalScoreWeights = {
   action: 0.1
 };
 
+const ENABLE_LEGACY_SERIAL_EXPANSION = false;
+const ENABLE_DOMAIN_EXPANSION = false;
+const ENABLE_ENTITY_FACT_EXPANSION = false;
+
 /** LLM 辅助查询分析函数（可选增强） */
 export type LlmQueryAnalyzer = (query: string) => Promise<QueryAnalysisResult | null>;
+
+type LlmQueryAnalyzerUsageOptions = {
+  metadata?: Record<string, unknown>;
+  onUsageEvent?: (event: MemoryUsageEvent) => void | Promise<void>;
+  operationKey?: string;
+};
 
 const LLM_QUERY_ANALYSIS_PROMPT = `你是一个查询分析器。把用户的查询拆解为以下 JSON 格式：
 {
@@ -1238,10 +1251,11 @@ keywordTerms: 提取用于全文搜索的关键词
 /**
  * 创建 LLM 辅助查询分析器
  */
-export function createLlmQueryAnalyzer(chatFn: (prompt: string) => Promise<string>): LlmQueryAnalyzer {
+export function createLlmQueryAnalyzer(chatFn: MemoryChatFn, usageOptions?: LlmQueryAnalyzerUsageOptions): LlmQueryAnalyzer {
   return async (query: string): Promise<QueryAnalysisResult | null> => {
     try {
       const response = await chatFn(`${LLM_QUERY_ANALYSIS_PROMPT}${query}`);
+      await emitLlmQueryAnalyzerUsage(chatFn, usageOptions);
       const parsed = JSON.parse(
         response
           .replace(/```json?\n?/g, '')
@@ -1257,9 +1271,28 @@ export function createLlmQueryAnalyzer(chatFn: (prompt: string) => Promise<strin
         originalQuery: query
       };
     } catch {
+      await emitLlmQueryAnalyzerUsage(chatFn, usageOptions);
       return null; // 回退到规则解析
     }
   };
+}
+
+async function emitLlmQueryAnalyzerUsage(chatFn: MemoryChatFn, usageOptions?: LlmQueryAnalyzerUsageOptions): Promise<void> {
+  if (!usageOptions?.onUsageEvent) {
+    return;
+  }
+
+  const invocation = chatFn.consumeLastInvocation?.();
+  if (!invocation) {
+    return;
+  }
+
+  await usageOptions.onUsageEvent({
+    ...invocation,
+    metadata: usageOptions.metadata,
+    operationKey: usageOptions.operationKey || 'query_analysis',
+    usageStage: 'analyze'
+  });
 }
 
 function normalizeSearchWithContentOptions(options?: LlmQueryAnalyzer | SearchWithContentOptions): SearchWithContentOptions {

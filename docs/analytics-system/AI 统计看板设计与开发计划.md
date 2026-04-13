@@ -1,8 +1,31 @@
 # AI 统计看板设计与开发计划
 
-更新时间：2026-04-13
+更新时间：2026-04-14
 
 本文档用于指导项目内“AI 统计看板”的设计与落地。第一阶段目标不是只做一个“token 展示效果”，而是建立一套可长期演进的、尽可能精确的 AI 使用量计量体系：既能按服务商、模型统计，也必须能按业务用途分类统计，并为后续付费系统、额度系统、成本核算、组织级账单提供稳定基础。
+
+分类字典、事件粒度、计量精度与计费口径，另见配套规范文档：[AI 使用量分类与计量规范](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E5%88%86%E7%B1%BB%E4%B8%8E%E8%AE%A1%E9%87%8F%E8%A7%84%E8%8C%83.md)。
+
+具体实施顺序、文件落点与验收 checklist，另见：[AI 统计看板实施清单](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E7%BB%9F%E8%AE%A1%E7%9C%8B%E6%9D%BF%E5%AE%9E%E6%96%BD%E6%B8%85%E5%8D%95.md)。
+
+Phase 1 的字段级 schema 与 recorder 契约草案，另见：[AI 使用量事件 Schema 与 Recorder 契约草案](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E4%BA%8B%E4%BB%B6%20Schema%20%E4%B8%8E%20Recorder%20%E5%A5%91%E7%BA%A6%E8%8D%89%E6%A1%88.md)。
+
+当前实现进度（2026-04-14）：
+
+- Phase 1 基础设施已完成首轮落地。
+- `ai_usage_events` 表、Drizzle migration、analytics 共享类型、repository、usage recorder 已完成首轮落地。
+- 聊天主链路、对话标题生成、翻译、总结、思维导图、记忆提取已接入真实 usage 事件写入。
+- 记忆提取已按 `analyze / extract / merge` 分阶段落账，并补齐 topic 级稳定 `operationKey`。
+- `window.YUA.analytics` 首版查询桥已完成，可供 Renderer 读取 overview / timeline / breakdown / events 数据。
+- 资源页侧边栏已新增 `统计` 菜单，`AnalyticsPage` 首版已可查看 overview / timeline / ranking / recent events。
+- 历史聊天补录已完成首版落地：主进程可扫描 `chat_messages.metadata.aiUsage / piRawUsage`，通过 `window.YUA.analytics.backfillChatUsage` 回填 `message_backfilled` 事件。
+- 统计页已支持显式触发“补录历史聊天”，并展示扫描 / 写入 / 去重 / 跳过 / 失败结果。
+- 聊天实时事件在消息持久化成功后会补充 `metadata.assistantMessageId`，用于后续补录幂等与对账。
+- chat-derived 链路现已支持显式声明业务用途覆写；`/tagger` 页面发起的请求会按 `tagging/classify` 落账，不再误归到 `chat`。
+- 自动记忆召回已完成首个真实 usage 入口：`memory-auto-recall` 的 LLM 关键词提取会按 `memory_recall/analyze` 落账；`searchWithContent`、FTS、主题图谱、定向读取等纯本地检索步骤继续保持“不记 token”。
+- Pi task runtime 已把 `usage/rawUsage` 透传到任务 service，可支撑内容处理类链路统一接 recorder。
+- `providerRequestId` 仍待后续继续向 Pi/runtime 上游补采。
+- 更深入的筛选与付费口径收口仍在后续 phase。
 
 ## 1. 背景与现状
 
@@ -286,11 +309,18 @@ token 统计不能只按 Provider / Model 维度聚合，还必须知道“这�
 
 - `usageCategory` 用于大盘分布和模块级分析
 - `usageFeature` 用于用户真正关心的“token 用在哪里”
-- `usageStage` 用于未来拆分复杂链路，例如：
+- `usageStage` 用于表达功能内部阶段，而不是重试状态
+- retry 不写入 `usageStage`，统一通过 `attemptIndex` 表达
+- 建议首版冻结为：
   - `analyze`
+  - `retrieve`
   - `generate`
+  - `extract`
+  - `classify`
+  - `merge`
+  - `vectorize`
+  - `transcribe`
   - `postprocess`
-  - `retry`
   - `background`
 
 ### 6.1.2 计量精度字段
@@ -341,45 +371,47 @@ token 统计不能只按 Provider / Model 维度聚合，还必须知道“这�
 建议字段：
 
 ```ts
-ai_usage_events
-- id
-- workspaceId
-- traceId
-- parentEventId
-- requestId
-- providerRequestId
-- attemptIndex
-- conversationId
-- resourceId
-- sourceType
-- sourceId
-- sourceLabel
-- usageCategory
-- usageFeature
-- usageStage
-- providerId
-- providerPresetId
-- model
-- agentId
-- status
-- inputTokens
-- outputTokens
-- cacheReadTokens
-- cacheWriteTokens
-- reasoningTokens
-- totalTokens
-- billableInputTokens
-- billableOutputTokens
-- billableTotalTokens
-- estimatedCost
-- meteringSource
-- meteringAccuracy
-- billingEligible
-- startedAt
-- completedAt
-- createdAt
-- metadata
-- rawUsage
+ai_usage_events -
+  id -
+  workspaceId -
+  traceId -
+  parentEventId -
+  requestId -
+  providerRequestId -
+  eventFingerprint -
+  operationKey -
+  attemptIndex -
+  conversationId -
+  resourceId -
+  sourceType -
+  sourceId -
+  sourceLabel -
+  usageCategory -
+  usageFeature -
+  usageStage -
+  providerId -
+  providerPresetId -
+  model -
+  agentId -
+  status -
+  inputTokens -
+  outputTokens -
+  cacheReadTokens -
+  cacheWriteTokens -
+  reasoningTokens -
+  totalTokens -
+  billableInputTokens -
+  billableOutputTokens -
+  billableTotalTokens -
+  estimatedCost -
+  meteringSource -
+  meteringAccuracy -
+  billingEligible -
+  startedAt -
+  completedAt -
+  createdAt -
+  metadata -
+  rawUsage;
 ```
 
 说明：
@@ -404,6 +436,10 @@ ai_usage_events
   - 为未来费用系统保留，允许与展示口径分离
 - `providerRequestId`
   - 用于后续与 provider 侧日志或账单对账
+- `eventFingerprint`
+  - recorder 生成的稳定幂等键，用于无 providerRequestId 时去重
+- `operationKey`
+  - 同一 `requestId` 内的子操作标识，例如 `chunk:0003`、`topic:travel`、`query_analyzer`
 - `attemptIndex`
   - 同一功能的第几次 provider 调用，重试必须单独记账
 - `meteringSource` / `meteringAccuracy`
@@ -429,7 +465,9 @@ ai_usage_events
 - `sourceType + createdAt`
 - `conversationId`
 - `requestId`
-- `providerRequestId`
+- `providerId + providerRequestId`
+- `eventFingerprint`
+- `operationKey`
 - `traceId`
 
 ## 6.3 为什么不用 `chat_messages` 直接统计
@@ -448,17 +486,19 @@ ai_usage_events
 
 ## 6.4 历史数据兼容与补录
 
-由于聊天链路已经开始把 usage 写入消息 metadata，第一阶段可以提供一次性补录能力：
+由于聊天链路已经开始把 usage 写入消息 metadata，当前实现已经提供可重复执行的历史补录能力：
 
 - 从 `chat_messages`
 - 筛选 role = `assistant`
-- 读取 `metadata.aiUsage`
+- 优先读取 `metadata.aiUsage`
+- 缺少规范化 usage 时回退读取 `metadata.piRawUsage`
 - 按 conversation 生成 `ai_usage_events` 的历史补录记录
 
 注意：
 
 - 该补录仅用于聊天历史
 - 翻译、总结等历史数据不做强制回填，后续按各自链路逐步补齐
+- 补录前会先按 `metadata.assistantMessageId` / `requestId = messageId` 查重，并对已存在实时聊天事件做近邻匹配去重
 - 补录事件必须显式标记：
   - `meteringSource = message_backfilled`
   - `meteringAccuracy = medium` 或 `high`
@@ -629,6 +669,7 @@ recordAiUsageEvent({
   traceId,
   parentEventId,
   providerRequestId,
+  operationKey,
   attemptIndex,
   conversationId,
   resourceId,
@@ -651,22 +692,25 @@ recordAiUsageEvent({
   startedAt,
   completedAt,
   metadata
-})
+});
 ```
 
 要求：
 
-- 没有 usage 时不记录
+- 真实 AI provider 调用一旦发出，就应该记录事件
+- 如果没有 usage，token 字段留空，不得伪造为 `0`
 - 去重不能吞掉重试；重试必须作为独立事件记录
 - 优先使用 `providerRequestId` 去重
-- 如果没有 `providerRequestId`，则使用显式 `traceId + usageFeature + usageStage + attemptIndex + sourceId`
+- 如果没有 `providerRequestId`，则使用显式 `traceId + requestId + usageFeature + usageStage + operationKey + attemptIndex + sourceId`
 - 记录时由 recorder 自动补全 `totalTokens`
 - 如果 provider 返回更细 usage，必须保留到 `rawUsage`
 - 如果是历史补录或估算，必须显式降低 `meteringAccuracy` 并关闭 `billingEligible`
+- `failed` / `cancelled` 事件如果 provider 返回了精准 usage，允许进入可计费口径
 - recorder 负责统一计算：
   - 展示口径 tokens
   - 可计费口径 tokens
   - 精度等级
+  - `NULL` 与 `0` 的语义边界
 
 ## 10. 推荐开发顺序
 
@@ -679,6 +723,9 @@ recordAiUsageEvent({
 产出：
 
 - 本设计文档
+- [AI 使用量分类与计量规范](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E5%88%86%E7%B1%BB%E4%B8%8E%E8%AE%A1%E9%87%8F%E8%A7%84%E8%8C%83.md)
+- [AI 统计看板实施清单](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E7%BB%9F%E8%AE%A1%E7%9C%8B%E6%9D%BF%E5%AE%9E%E6%96%BD%E6%B8%85%E5%8D%95.md)
+- [AI 使用量事件 Schema 与 Recorder 契约草案](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E4%BA%8B%E4%BB%B6%20Schema%20%E4%B8%8E%20Recorder%20%E5%A5%91%E7%BA%A6%E8%8D%89%E6%A1%88.md)
 
 ## Phase 1：计量模型、分类字典与 recorder
 
@@ -778,8 +825,9 @@ recordAiUsageEvent({
 
 实现建议：
 
-- 一次性命令或 IPC 触发
-- 支持幂等
+- 通过 analytics IPC / preload 显式触发，不做启动时自动全量补录
+- 支持幂等，并返回扫描 / 写入 / 去重 / 跳过 / 失败统计
+- 对实时聊天事件优先使用 `assistantMessageId` 作为后续补录锚点
 
 验收标准：
 
@@ -889,8 +937,9 @@ recordAiUsageEvent({
 
 ## 14. 推荐下一步
 
-文档确认后，直接进入 Phase 1：
+文档确认后，如确认开始开发，再进入 Phase 1：
 
+- 先确认 [AI 使用量分类与计量规范](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E5%88%86%E7%B1%BB%E4%B8%8E%E8%AE%A1%E9%87%8F%E8%A7%84%E8%8C%83.md)
 - 冻结分类字典
 - 冻结精度等级与计费口径
 - 建表

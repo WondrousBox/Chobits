@@ -25,7 +25,7 @@ function createDbOps(): WriteDbOps & {
 } {
   const upsertNote = vi.fn(async (note: any) => note);
   const rebuildSections = vi.fn(async () => []);
-  const upsertTopic = vi.fn(async (topic: any) => topic);
+  const upsertTopic = vi.fn(async (topic: any) => ({ id: `topic_${topic.slug}`, label: topic.label, slug: topic.slug, created: true }));
   const upsertEdges = vi.fn(async (edges: any[]) => edges.length);
   const upsertKeywords = vi.fn(async (_noteId: string, keywords: string[]) => keywords.length);
   const rebuildFTS = vi.fn();
@@ -137,6 +137,86 @@ describe('memory extraction pipeline regression coverage', () => {
     expect(markdown).toContain(`> "${'a'.repeat(200)}`);
     expect(markdown).not.toContain(`> "${'a'.repeat(201)}`);
     expect((markdown.match(/^> "/gm) || []).length).toBe(3);
+  });
+
+  it('canonicalizes redundant topic labels before merge and stores the raw label as an alias', async () => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), 'chobits-memory-canonical-topic-'));
+    tempDirs.push(workspaceRoot);
+
+    let llmCall = 0;
+    const chatFn = vi.fn(async () => {
+      llmCall += 1;
+      if (llmCall === 1) {
+        return JSON.stringify({
+          topicClusters: [
+            {
+              topicLabel: '厦门美食推荐',
+              topicSlug: 'xiamen-food-recommendations',
+              description: 'Food picks in Xiamen',
+              messageRanges: [{ conversationId: 'conv-1', seqStart: 1, seqEnd: 1 }],
+              estimatedImportance: 0.82,
+              domain: 'general'
+            }
+          ]
+        });
+      }
+
+      return JSON.stringify({
+        topicLabel: '厦门美食推荐',
+        topicSlug: 'xiamen-food-recommendations',
+        summary: '整理厦门值得吃的本地美食。',
+        importance: 0.84,
+        stability: 0.79,
+        keywords: ['厦门', '美食', '推荐'],
+        sections: {
+          keyPoints: '- 沙茶面和海蛎煎值得优先尝试'
+        }
+      });
+    });
+
+    const canonicalizeTopic = vi.fn(async () => ({
+      label: '厦门美食',
+      slug: '厦门美食',
+      aliases: ['厦门美食推荐'],
+      confidence: 0.99
+    }));
+    const findExistingNote = vi.fn(async () => null);
+    const dbOps = createDbOps();
+
+    const result = await runExtractionPipeline(
+      { conversationIds: ['conv-1'] },
+      {
+        chatFn,
+        workspaceId: 'ws-1',
+        workspaceRoot,
+        date: '2026-04-12'
+      },
+      {
+        listMessages: async () => [{ role: 'user', content: '给我一些厦门美食推荐。', seq: 1, createdAt: Date.parse('2026-04-12T08:00:00Z') }],
+        getConversation: async () => ({ id: 'conv-1', title: '厦门旅行' }),
+        findExistingNote,
+        canonicalizeTopic,
+        dbOps
+      }
+    );
+
+    expect(result.failed).toEqual([]);
+    expect(result.succeeded).toEqual([{ topicSlug: '厦门美食', noteId: expect.any(String) }]);
+    expect(canonicalizeTopic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topicLabel: '厦门美食推荐',
+        topicSlug: 'xiamen-food-recommendations',
+        workspaceId: 'ws-1'
+      })
+    );
+    expect(findExistingNote).toHaveBeenCalledWith('2026-04-12', '厦门美食', 'ws-1');
+    expect(dbOps.upsertNote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filePath: path.join('memory', 'daily', '2026', '04', '2026-04-12-厦门美食.md'),
+        topics: JSON.stringify(['厦门美食']),
+        aliases: JSON.stringify(['厦门美食推荐'])
+      })
+    );
   });
 
   it('falls back to seq-range matching for a single conversation and trims high-importance excerpts', async () => {

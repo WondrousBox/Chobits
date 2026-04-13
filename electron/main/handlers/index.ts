@@ -13,6 +13,7 @@ import { initDailyCare } from '../daily';
 import { initScreenshotHandlers } from '../screenshot';
 import { initSkillTreeHandlers } from '../skillTreeWindow';
 import { getResourcePath } from '../utils/resources-path';
+import { initAnalyticsHandlers } from './analytics/ipc-main';
 import { initAnnotationHandlers } from './annotation/ipc-main';
 import { initAutomationHandlers } from './automation/ipc-main';
 import { initClipHandlers } from './clip/ipc-main';
@@ -30,8 +31,8 @@ import { getHttpProxy } from './proxy/proxy';
 import { initResourceHandlers } from './resource/ipc-main';
 import { initRssHandlers } from './rss/ipc-main';
 import { initShortcutsHandlers } from './shortcuts';
-import { SpriteSpontaneousUtteranceService } from './sprite/spontaneous-utterance-service';
 import { initSpleeterHandlers } from './spleeter/ipc-main';
+import { SpriteSpontaneousUtteranceService } from './sprite/spontaneous-utterance-service';
 import { initStatusHandlers } from './status';
 import { initSystemHandlers } from './system/ipc-main';
 import { initThemeHandlers } from './theme/ipc-main';
@@ -99,6 +100,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initAnnotationHandlers();
   initMediaHandlers(win);
   initMemoryHandlers();
+  initAnalyticsHandlers();
   initUserProfileHandlers();
   const spontaneousUtteranceService = new SpriteSpontaneousUtteranceService();
   await initSpriteManagerIPC(win, {

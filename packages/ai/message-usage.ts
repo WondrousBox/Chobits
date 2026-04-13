@@ -2,28 +2,43 @@ import type { ChatMessage, TokenUsage } from './types';
 
 export const CHAT_USAGE_METADATA_KEY = 'aiUsage';
 
-function toFinitePositiveNumber(value: unknown): number | undefined {
+function toFiniteNonNegativeNumber(value: unknown): number | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
-  return value > 0 ? value : undefined;
+  return value >= 0 ? value : undefined;
 }
 
 export function normalizeTokenUsage(value: unknown): TokenUsage | undefined {
   if (!value || typeof value !== 'object') return undefined;
 
   const record = value as Record<string, unknown>;
-  const inputTokens = toFinitePositiveNumber(record.inputTokens);
-  const outputTokens = toFinitePositiveNumber(record.outputTokens);
-  const explicitTotalTokens = toFinitePositiveNumber(record.totalTokens);
-  const totalTokens = explicitTotalTokens ?? (inputTokens || outputTokens ? (inputTokens ?? 0) + (outputTokens ?? 0) : undefined);
-  const cost = toFinitePositiveNumber(record.cost);
+  const inputTokens = toFiniteNonNegativeNumber(record.inputTokens);
+  const outputTokens = toFiniteNonNegativeNumber(record.outputTokens);
+  const cacheReadTokens = toFiniteNonNegativeNumber(record.cacheReadTokens);
+  const cacheWriteTokens = toFiniteNonNegativeNumber(record.cacheWriteTokens);
+  const reasoningTokens = toFiniteNonNegativeNumber(record.reasoningTokens);
+  const explicitTotalTokens = toFiniteNonNegativeNumber(record.totalTokens);
+  const hasTokenComponent = inputTokens !== undefined || outputTokens !== undefined || cacheReadTokens !== undefined || cacheWriteTokens !== undefined || reasoningTokens !== undefined;
+  const totalTokens = explicitTotalTokens ?? (hasTokenComponent ? (inputTokens ?? 0) + (outputTokens ?? 0) + (cacheReadTokens ?? 0) + (cacheWriteTokens ?? 0) + (reasoningTokens ?? 0) : undefined);
+  const cost = toFiniteNonNegativeNumber(record.cost);
 
-  if (inputTokens === undefined && outputTokens === undefined && totalTokens === undefined && cost === undefined) {
+  if (
+    inputTokens === undefined &&
+    outputTokens === undefined &&
+    cacheReadTokens === undefined &&
+    cacheWriteTokens === undefined &&
+    reasoningTokens === undefined &&
+    totalTokens === undefined &&
+    cost === undefined
+  ) {
     return undefined;
   }
 
   return {
     ...(inputTokens !== undefined ? { inputTokens } : {}),
     ...(outputTokens !== undefined ? { outputTokens } : {}),
+    ...(cacheReadTokens !== undefined ? { cacheReadTokens } : {}),
+    ...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {}),
+    ...(reasoningTokens !== undefined ? { reasoningTokens } : {}),
     ...(totalTokens !== undefined ? { totalTokens } : {}),
     ...(cost !== undefined ? { cost } : {})
   };
@@ -58,10 +73,16 @@ export function withChatMessageUsage(metadata: Record<string, any> | undefined, 
 export function sumTokenUsage(messages: Array<Pick<ChatMessage, 'metadata' | 'usage'> | null | undefined>): TokenUsage | undefined {
   let inputTokens = 0;
   let outputTokens = 0;
+  let cacheReadTokens = 0;
+  let cacheWriteTokens = 0;
+  let reasoningTokens = 0;
   let totalTokens = 0;
   let cost = 0;
   let hasInputTokens = false;
   let hasOutputTokens = false;
+  let hasCacheReadTokens = false;
+  let hasCacheWriteTokens = false;
+  let hasReasoningTokens = false;
   let hasTotalTokens = false;
   let hasCost = false;
 
@@ -79,6 +100,21 @@ export function sumTokenUsage(messages: Array<Pick<ChatMessage, 'metadata' | 'us
       hasOutputTokens = true;
     }
 
+    if (usage.cacheReadTokens !== undefined) {
+      cacheReadTokens += usage.cacheReadTokens;
+      hasCacheReadTokens = true;
+    }
+
+    if (usage.cacheWriteTokens !== undefined) {
+      cacheWriteTokens += usage.cacheWriteTokens;
+      hasCacheWriteTokens = true;
+    }
+
+    if (usage.reasoningTokens !== undefined) {
+      reasoningTokens += usage.reasoningTokens;
+      hasReasoningTokens = true;
+    }
+
     if (usage.totalTokens !== undefined) {
       totalTokens += usage.totalTokens;
       hasTotalTokens = true;
@@ -90,13 +126,16 @@ export function sumTokenUsage(messages: Array<Pick<ChatMessage, 'metadata' | 'us
     }
   }
 
-  if (!hasInputTokens && !hasOutputTokens && !hasTotalTokens && !hasCost) {
+  if (!hasInputTokens && !hasOutputTokens && !hasCacheReadTokens && !hasCacheWriteTokens && !hasReasoningTokens && !hasTotalTokens && !hasCost) {
     return undefined;
   }
 
   return {
     ...(hasInputTokens ? { inputTokens } : {}),
     ...(hasOutputTokens ? { outputTokens } : {}),
+    ...(hasCacheReadTokens ? { cacheReadTokens } : {}),
+    ...(hasCacheWriteTokens ? { cacheWriteTokens } : {}),
+    ...(hasReasoningTokens ? { reasoningTokens } : {}),
     ...(hasTotalTokens ? { totalTokens } : {}),
     ...(hasCost ? { cost } : {})
   };

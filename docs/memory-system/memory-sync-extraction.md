@@ -3,7 +3,7 @@
 > 本文档定义 Chobits 记忆系统的增量同步策略、记忆提取流水线、后台任务编排，以及观测与验证指标。
 > 核心约束：提取任务不阻塞聊天主链路，对话数据只进不出（幂等、可重试），Markdown 为最终事实源。
 
-## 当前实现状态（2026-04-12）
+## 当前实现状态（2026-04-13）
 
 - 已完成：主触发链路、提取队列与 worker、增量水位线、提取进度事件、手动触发同步、FTS 索引增量维护、对话删除后的记忆清理。
 - 当前主触发源是 `AppEvent.AGENT_LOOP_COMPLETE`；`AppEvent.SPRITE_AI_COMPLETE` 仅作为兼容旧路径保留。触发后会延迟 5 秒再做脏检查和入队。
@@ -13,6 +13,7 @@
 - 已实现：配置 UI（`MemoryManagementSettings` 中的记忆系统总开关、自动提取开关、自动召回开关），配置存储于 `memory-config.json`，并通过 `resolveExtractionRuntimeConfig()` 真正影响 worker 运行时行为。
 - 已实现：Open Loop 智能合并 — `mergeMemory()` 中对 "Open Items" section 使用 LLM 判断已有待办是否被新对话解决。
 - 已实现：note merge compaction — `mergeMemory()` 现在会刷新 `summary`，并对 `Key Points` / `Open Items` / `Recall Cues` 做去重压缩；有新 `Source Excerpts` 时直接覆盖旧摘录，避免长期 append 膨胀。
+- 已实现：canonical topic resolution — `extractMemory()` 之后会先做本地 topic 归一化，再查 workspace 内已有 topic 候选；命中已有 canonical topic 时复用其 label / slug，并把原始表述写入 note/topic `aliases`，同时把 note keywords 的 `primaryTopicId` 回填到 canonical topic。
 - 已实现：3 种边类型创建（`belongs_to_topic`、`related_to_topic`、`contains_section`）。
 - 已实现：`fileChecksum`（sha256）、`timeRange`（消息时间戳范围）、`sections.keywords`（段落级关键词）字段自动填充。
 - 已实现：heat 衰减（指数衰减因子 0.95，每日执行一次）。
@@ -350,6 +351,10 @@ interface ExtractionWatermark {
 }
 ```
 
+> 当前实际实现比上面的伪码多了一层 canonical topic 写回：
+> `upsert topics` 时会合并 `aliases` / `keywords`，`upsert keywords` 时会把 `primaryTopicId` 回填到主 canonical topic，
+> 并且 `topic→note` / `topic→topic` 边会优先使用真实 topic ID，而不是只依赖 `topic_${slug}` 约定。
+
 ---
 
 ## 4. 记忆提取流水线（Extraction Pipeline）
@@ -575,7 +580,42 @@ async function extractTopicMemory(cluster: TopicCluster, messages: ChatMessage[]
 }
 ```
 
-### 4.5 Step 4: Merge（合并去重）
+### 4.5 Step 4: Canonicalize Topic（主题归一化）
+
+**目标**：尽量把“概念相同但表述略有差异”的主题收敛到同一个 canonical topic，减少 topic graph 冗余，降低后续检索和汇总成本。
+
+当前实现采用“两段式、低 token”策略：
+
+1. **本地规则归一化**
+   - 清洗空白、括号等表面噪音
+   - 去掉明显的泛化后缀，如 `推荐`、`总结`、`指南`、`notes`、`summary`
+   - 示例：`厦门美食推荐` → `厦门美食`
+2. **小候选集复用**
+   - 不把全库 topic 喂给 LLM
+   - 只在当前 workspace（必要时同 domain）下查 `slug / label / aliases` 候选
+   - 若已有 topic 与 compact label 高置信匹配，则直接复用已有 canonical topic
+   - 若没有高置信候选，则创建新的 compact topic，并把原始表述写入 `aliases`
+
+```typescript
+const canonicalTopic = await canonicalizeTopic({
+  topicLabel: extraction.topicLabel,
+  topicSlug: extraction.topicSlug,
+  workspaceId,
+  domain
+});
+
+extraction.topicLabel = canonicalTopic.label;
+extraction.topicSlug = canonicalTopic.slug;
+extraction.topicAliases = canonicalTopic.aliases;
+```
+
+**这样做的原因**：
+
+- 比“先把所有已有 topic 发给 LLM 再判断”更快、更省 token
+- 可以在写入前就收敛 topic，避免同一天生成多个近义 note
+- 原始表述仍保存在 `aliases` 中，不会丢失检索入口
+
+### 4.6 Step 5: Merge（合并去重）
 
 **场景**：同一主题在不同日期可能已有 note，需要与已有内容合并。
 
@@ -688,7 +728,7 @@ const CONTRADICTION_CHECK_PROMPT = `
 - [decision_change] old: "之前说用 PostgreSQL" -> new: "现在改成 SQLite + FTS" (detected: 2026-04-12)
 ```
 
-### 4.6 Step 5: Write（落盘 + 建索引）
+### 4.7 Step 6: Write（落盘 + 建索引）
 
 ```
 MergedNote
@@ -703,15 +743,15 @@ MergedNote
     │   └── 解析 Markdown 标题树 → section 索引
     │
     ├── 5d. 更新 memory_topics 表
-    │   └── upsert 主题节点 + 更新 heat/noteCount + 写入 domain/domainType
+    │   └── upsert canonical 主题节点 + 合并 aliases/keywords + 更新 heat/noteCount + 写入 domain/domainType
     │
     ├── 5e. 更新 memory_edges 表
-    │   ├── 5e-1. topic→note, topic→topic, note→section 边
+    │   ├── 5e-1. 使用实际 topic ID 建立 topic→note, topic→topic, note→section 边
     │   └── 5e-2. 实体事实边（entity_fact / entity_attribute / entity_relation）
     │         └── 从 entities.relations 创建带 validFrom/validTo 时序字段的边
     │
     ├── 5f. 更新 memory_keywords / memory_note_keywords 表
-    │   └── 关键词/别名规范化 + 关联
+    │   └── 关键词/别名规范化 + 关联 + 把 primaryTopicId 绑定到 canonical topic
     │
     ├── 5g. 更新 FTS5 索引
     │   └── INSERT/REPLACE into memory_notes_fts

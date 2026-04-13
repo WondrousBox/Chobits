@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SidebarProvider } from '@/components/ui/sidebar';
+import AnalyticsPage from '@/pages/AnalyticsPage/AnalyticsPage';
 import ChatPage from '@/pages/ChatPage/ChatPage';
 import SettingsPage, { SettingsCategory } from '@/pages/SettingsPage/SettingsPage';
 
@@ -14,7 +15,6 @@ import { UIFolder } from './components/FolderSidebar';
 import ContentToolbar from './components/layout/ContentToolbar';
 import RenameFolderDialog from './components/layout/RenameFolderDialog';
 import ResourceContent from './components/layout/ResourceContent';
-import ResourceHeader from './components/layout/ResourceHeader';
 import ResourceSidebar from './components/layout/ResourceSidebar';
 import TaskList from './components/TaskList';
 import { useFolderImport } from './hooks/useFolderImport';
@@ -423,6 +423,7 @@ const ResourcePage: React.FC = () => {
           {/* 默认重定向到首页 */}
           <Route path="" element={<Navigate to="home" replace />} />
           <Route path="home" element={<ChatPage hideTitleBar />} />
+          <Route path="analytics" element={<AnalyticsPage workspaceId={wsFilter} />} />
           <Route path="tasks" element={<TaskList workspaceId={wsFilter} />} />
           <Route path="workflows" element={<WorkflowPage />} />
           <Route path="recycle" element={<RecycleBinPage hideTitleBar />} />

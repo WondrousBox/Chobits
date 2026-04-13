@@ -1,5 +1,5 @@
 import { normalizeProviderPreset, resolveProviderPresetId } from '../../provider-preset';
-import type { ChatRequest, ProviderScopedRequest } from '../../types';
+import type { ChatRequest, ProviderScopedRequest, TokenUsage } from '../../types';
 import type { ResolvedPiRequest } from './contracts';
 import { resolvePiRequest } from './model-resolver';
 import { buildPiModel, buildPiModelHeaders } from './provider-model';
@@ -12,7 +12,7 @@ type PiThinkingLevel = import('@mariozechner/pi-ai').ThinkingLevel;
 export type PiTaskChatEvent =
   | { type: 'delta'; data: { text: string } }
   | { type: 'thinking_delta'; data: { text: string } }
-  | { type: 'message_completed'; data?: { text?: string; thinking?: string } }
+  | { type: 'message_completed'; data?: { text?: string; thinking?: string; usage?: TokenUsage; rawUsage?: Record<string, unknown> } }
   | { type: 'error'; data: { message: string } };
 
 export type PiTaskChatFunction = (prompt: string, onEvent: (event: PiTaskChatEvent) => void, abortSignal?: AbortSignal) => Promise<void>;
@@ -41,6 +41,42 @@ function extractAssistantThinking(message: PiAssistantMessage): string {
     .filter((block): block is Extract<PiAssistantMessage['content'][number], { type: 'thinking' }> => block.type === 'thinking')
     .map((block) => block.thinking)
     .join('');
+}
+
+function extractPiTokenUsage(message: PiAssistantMessage): TokenUsage | undefined {
+  const inputTokens = typeof message.usage?.input === 'number' && Number.isFinite(message.usage.input) && message.usage.input >= 0 ? message.usage.input : undefined;
+  const outputTokens = typeof message.usage?.output === 'number' && Number.isFinite(message.usage.output) && message.usage.output >= 0 ? message.usage.output : undefined;
+  const cacheReadTokens = typeof message.usage?.cacheRead === 'number' && Number.isFinite(message.usage.cacheRead) && message.usage.cacheRead >= 0 ? message.usage.cacheRead : undefined;
+  const cacheWriteTokens = typeof message.usage?.cacheWrite === 'number' && Number.isFinite(message.usage.cacheWrite) && message.usage.cacheWrite >= 0 ? message.usage.cacheWrite : undefined;
+  const explicitTotalTokens = typeof message.usage?.totalTokens === 'number' && Number.isFinite(message.usage.totalTokens) && message.usage.totalTokens >= 0 ? message.usage.totalTokens : undefined;
+  const hasTokenComponent = inputTokens !== undefined || outputTokens !== undefined || cacheReadTokens !== undefined || cacheWriteTokens !== undefined;
+  const totalTokens = explicitTotalTokens ?? (hasTokenComponent ? (inputTokens ?? 0) + (outputTokens ?? 0) + (cacheReadTokens ?? 0) + (cacheWriteTokens ?? 0) : undefined);
+  const cost = typeof message.usage?.cost?.total === 'number' && Number.isFinite(message.usage.cost.total) && message.usage.cost.total >= 0 ? message.usage.cost.total : undefined;
+
+  if (inputTokens === undefined && outputTokens === undefined && cacheReadTokens === undefined && cacheWriteTokens === undefined && totalTokens === undefined && cost === undefined) {
+    return undefined;
+  }
+
+  return {
+    ...(inputTokens !== undefined ? { inputTokens } : {}),
+    ...(outputTokens !== undefined ? { outputTokens } : {}),
+    ...(cacheReadTokens !== undefined ? { cacheReadTokens } : {}),
+    ...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {}),
+    ...(totalTokens !== undefined ? { totalTokens } : {}),
+    ...(cost !== undefined ? { cost } : {})
+  };
+}
+
+function extractPiRawUsage(message: PiAssistantMessage): Record<string, unknown> | undefined {
+  if (!message.usage || typeof message.usage !== 'object') {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(JSON.stringify(message.usage)) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
 }
 
 function resolveAbortMessage(signal: AbortSignal | undefined, fallback: string): string {
@@ -143,7 +179,9 @@ export async function createPiTaskChatRuntime(resolved: ResolvedPiRequest): Prom
                 type: 'message_completed',
                 data: {
                   text: extractAssistantText(event.message),
-                  thinking: extractAssistantThinking(event.message)
+                  thinking: extractAssistantThinking(event.message),
+                  usage: extractPiTokenUsage(event.message),
+                  rawUsage: extractPiRawUsage(event.message)
                 }
               });
               return;

@@ -8,20 +8,23 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
+import type { RecordAiUsageEventInput } from '../../../../packages/ai/analytics/types';
 import { createPiTaskChatRuntimeFromRequest, type PiTaskChatFunction } from '../../../../packages/ai/runtime/pi/task-chat';
 import { buildNonReasoningTaskRuntimeRequest, resolveNonReasoningTaskModel } from '../../../../packages/ai/runtime/pi/task-model-policy';
-import { buildWriteDbOps } from '../../../../packages/ai/runtime/pi/tools/memory-db-deps';
+import { buildTopicCanonicalizer, buildWriteDbOps } from '../../../../packages/ai/runtime/pi/tools/memory-db-deps';
 import { formatMemoryDate, getNextMemoryDate, getRelativeMemoryDate, getTodayMemoryDate } from '../../../../packages/ai/services/memory-date';
 import { runExtractionPipeline } from '../../../../packages/ai/services/memory-extraction-service';
 import { parseFrontmatter } from '../../../../packages/ai/services/memory-note-parser';
 import { backfillRecallCues, findRecallCueBackfillCandidates, type RecallCueBackfillNoteRow } from '../../../../packages/ai/services/memory-recall-cue-backfill';
 import { logMemoryTrace, shortTraceId } from '../../../../packages/ai/services/memory-trace';
-import type { AgentLoopCompletePayload, ExtractionResult, MemoryChatFn, MemoryNoteFrontmatter } from '../../../../packages/ai/services/memory-types';
-import { createManagedTaskChatFn, LONG_TASK_CHAT_TIMEOUTS } from '../../../../packages/ai/services/task-chat-runner';
+import type { AgentLoopCompletePayload, ExtractionResult, MemoryChatFn, MemoryChatInvocation, MemoryNoteFrontmatter, MemoryUsageEvent } from '../../../../packages/ai/services/memory-types';
+import { createActivityAwareTaskTimeoutController, LONG_TASK_CHAT_TIMEOUTS } from '../../../../packages/ai/services/task-chat-runner';
+import type { TokenUsage } from '../../../../packages/ai/types';
 import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
 import { MemoryNoteRepo, MemorySyncJobRepo, MemoryTopicRepo } from '../../db/memory-repositories';
 import { ChatRepo, WorkspacesRepo } from '../../db/repositories';
+import { recordAiUsageEvent } from '../analytics/usage-recorder';
 import { memoryExtractionQueue, type QueuedJob } from './extraction-queue';
 import { evaluateExtractionTrigger, getCooldownState, resolveExtractionRuntimeConfig } from './extraction-runtime-config';
 import { getMemoryConfig, type MemoryConfig } from './memory-config';
@@ -42,6 +45,94 @@ const pendingTrailingRun = new Set<string>();
 /** 已经安排了延迟检查的 conversation set。 */
 const scheduledConversationChecks = new Set<string>();
 
+function toAnalyticsUsage(usage?: TokenUsage): RecordAiUsageEventInput['usage'] | undefined {
+  if (!usage) {
+    return undefined;
+  }
+
+  return {
+    cacheReadTokens: usage.cacheReadTokens,
+    cacheWriteTokens: usage.cacheWriteTokens,
+    estimatedCost: usage.cost,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    reasoningTokens: usage.reasoningTokens,
+    totalTokens: usage.totalTokens
+  };
+}
+
+async function recordMemoryUsageEventSafely(input: RecordAiUsageEventInput): Promise<void> {
+  try {
+    const result = await recordAiUsageEvent(input);
+    if (!result.ok) {
+      console.warn('[MemoryWorker:usage] Failed to record AI usage event:', {
+        code: result.code,
+        message: result.message,
+        requestId: input.requestId,
+        warnings: result.warnings
+      });
+      return;
+    }
+
+    if (result.warnings?.length) {
+      console.warn('[MemoryWorker:usage] AI usage event recorded with warnings:', {
+        eventId: result.eventId,
+        requestId: input.requestId,
+        warnings: result.warnings
+      });
+    }
+  } catch (error) {
+    console.warn('[MemoryWorker:usage] Unexpected AI usage recording error:', error);
+  }
+}
+
+function createMemoryExtractionUsageRecorder(params: {
+  attemptIndex: number;
+  conversationIds: string[];
+  date: string;
+  jobId: string;
+  jobType: string;
+  model: string;
+  modelSelection: string;
+  providerId: string;
+  providerPresetId?: string;
+  workspaceId: string;
+}): (event: MemoryUsageEvent) => Promise<void> {
+  return (event) => {
+    return recordMemoryUsageEventSafely({
+      workspaceId: params.workspaceId,
+      traceId: params.jobId,
+      requestId: params.jobId,
+      operationKey: event.operationKey,
+      attemptIndex: event.attemptIndex ?? params.attemptIndex,
+      sourceType: 'memory',
+      sourceId: params.jobId,
+      sourceLabel: '记忆提取',
+      usageCategory: 'memory',
+      usageFeature: 'memory_extraction',
+      usageStage: event.usageStage,
+      providerId: params.providerId,
+      providerPresetId: params.providerPresetId,
+      model: params.model,
+      agentId: 'memory-extraction',
+      status: event.status,
+      usage: toAnalyticsUsage(event.usage),
+      rawUsage: event.rawUsage,
+      meteringSource: 'provider_reported',
+      startedAt: event.startedAt,
+      completedAt: event.completedAt,
+      metadata: {
+        conversationIds: params.conversationIds,
+        date: params.date,
+        jobType: params.jobType,
+        modelSelection: params.modelSelection,
+        runtime: 'pi',
+        ...(event.metadata || {})
+      }
+    });
+  };
+}
+
 // ━━ chatFn Adapter ━━
 
 /**
@@ -49,18 +140,68 @@ const scheduledConversationChecks = new Set<string>();
  * 必须正确处理 error 事件，否则 LLM 失败时会静默返回空字符串。
  */
 function adaptChatFn(piChatFn: PiTaskChatFunction): MemoryChatFn {
-  const runChat = createManagedTaskChatFn(piChatFn, {
-    tag: '[MemoryWorker:chatFn]',
-    timeouts: LONG_TASK_CHAT_TIMEOUTS
-  });
+  let lastInvocation: MemoryChatInvocation | undefined;
 
-  return async (prompt: string, signal?: AbortSignal): Promise<string> => {
+  const chatFn: MemoryChatFn = async (prompt: string, signal?: AbortSignal): Promise<string> => {
     const TAG = '[MemoryWorker:chatFn]';
     const callStart = Date.now();
+    let errorMessage: string | undefined;
+    let fullText = '';
+    let rawUsage: unknown;
+    let usage: TokenUsage | undefined;
+    const timeoutController = createActivityAwareTaskTimeoutController({
+      externalSignal: signal,
+      tag: TAG,
+      timeouts: LONG_TASK_CHAT_TIMEOUTS
+    });
     console.log(`${TAG} 🧠📤 Calling LLM (prompt ${prompt.length} chars)...`);
 
     try {
-      const fullText = await runChat(prompt, signal);
+      await piChatFn(
+        prompt,
+        (event) => {
+          if (event.type === 'delta') {
+            timeoutController.noteActivity('answer');
+            if (event.data.text) {
+              fullText += event.data.text;
+            }
+            return;
+          }
+
+          if (event.type === 'thinking_delta') {
+            timeoutController.noteActivity('thinking');
+            return;
+          }
+
+          if (event.type === 'message_completed') {
+            timeoutController.noteActivity('completed');
+            if (event.data?.text && event.data.text.length >= fullText.length) {
+              fullText = event.data.text;
+            }
+            usage = event.data?.usage;
+            rawUsage = event.data?.rawUsage;
+            return;
+          }
+
+          if (event.type === 'error') {
+            errorMessage = event.data.message;
+          }
+        },
+        timeoutController.signal
+      );
+
+      lastInvocation = {
+        completedAt: Date.now(),
+        rawUsage,
+        startedAt: callStart,
+        status: timeoutController.signal.aborted ? 'cancelled' : errorMessage ? 'failed' : 'completed',
+        usage
+      };
+
+      if (errorMessage) {
+        throw new Error(`LLM call failed: ${errorMessage}`);
+      }
+
       const callElapsed = ((Date.now() - callStart) / 1000).toFixed(1);
       if (!fullText) {
         console.warn(`${TAG} 🧠⚠️ LLM returned empty response (0 chars) [${callElapsed}s]`);
@@ -69,14 +210,31 @@ function adaptChatFn(piChatFn: PiTaskChatFunction): MemoryChatFn {
       }
       return fullText;
     } catch (error) {
+      lastInvocation = {
+        completedAt: Date.now(),
+        rawUsage,
+        startedAt: callStart,
+        status: timeoutController.signal.aborted ? 'cancelled' : 'failed',
+        usage
+      };
       const message = error instanceof Error ? error.message : String(error);
       console.error(`${TAG} LLM call failed: ${message}`);
       console.error(`${TAG} === FAILED PROMPT START (${prompt.length} chars) ===`);
       console.error(prompt);
       console.error(`${TAG} === FAILED PROMPT END ===`);
       throw error;
+    } finally {
+      timeoutController.dispose();
     }
   };
+
+  chatFn.consumeLastInvocation = () => {
+    const invocation = lastInvocation;
+    lastInvocation = undefined;
+    return invocation;
+  };
+
+  return chatFn;
 }
 
 // ━━ findExistingNote ━━
@@ -429,6 +587,7 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
       return conv ? { id: conv.id, title: conv.title } : undefined;
     },
     findExistingNote,
+    canonicalizeTopic: buildTopicCanonicalizer(),
     dbOps: buildWriteDbOps()
   };
 
@@ -437,7 +596,7 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
    * @param model 指定模型名，undefined 表示使用 provider 默认模型
    * @param label 日志标签（如 "fast" 或 "fallback"）
    */
-  const runWithModel = async (model: string | undefined, label: string): Promise<ExtractionResult> => {
+  const runWithModel = async (model: string | undefined, label: string, attemptIndex: number): Promise<ExtractionResult> => {
     console.log(`${TAG} 🧠⚙️ [${label}] Creating LLM runtime: provider=${providerId}, preset=${providerPresetId || '(default)'}, model=${model || '(provider default)'}`);
     const runtime = await createPiTaskChatRuntimeFromRequest(
       buildNonReasoningTaskRuntimeRequest({
@@ -449,6 +608,18 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
       })
     );
     const chatFn = adaptChatFn(runtime.chatFn);
+    const usageRecorder = createMemoryExtractionUsageRecorder({
+      attemptIndex,
+      conversationIds,
+      date,
+      jobId: job.id,
+      jobType: job.jobType,
+      model: runtime.modelId,
+      modelSelection: label,
+      providerId: providerId!,
+      providerPresetId,
+      workspaceId: job.workspaceId
+    });
     console.log(`${TAG} 🧠✅ [${label}] LLM runtime ready, model: ${runtime.modelId}`);
 
     const ctx = {
@@ -457,7 +628,8 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
       workspaceRoot: ws!.rootPath,
       date,
       signal,
-      onProgress: makeProgressHandler()
+      onProgress: makeProgressHandler(),
+      onUsageEvent: usageRecorder
     };
 
     return runExtractionPipeline({ conversationIds, watermarks }, ctx, pipelineDeps);
@@ -480,16 +652,16 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
 
     if (fastModel) {
       try {
-        result = await runWithModel(fastModel, 'fast');
+        result = await runWithModel(fastModel, 'fast', 0);
       } catch (fastErr: any) {
         // 快速模型失败（安全策略、模型能力不足等），回退到对话原始模型
         console.warn(`${TAG} ⚠️ 快速模型 ${fastModel} 提取失败: ${fastErr?.message || fastErr}`);
         console.warn(`${TAG} ⚠️ 正在切换为对话原始模型重试记忆提取...`);
-        result = await runWithModel(undefined, 'fallback');
+        result = await runWithModel(undefined, 'fallback', 1);
         console.log(`${TAG} ✓ 使用对话原始模型重试成功`);
       }
     } else {
-      result = await runWithModel(undefined, 'default');
+      result = await runWithModel(undefined, 'default', 0);
     }
 
     console.log(`${TAG} 🧠🏁 Pipeline completed: succeeded=${result.succeeded.length}, failed=${result.failed.length}, stats=${JSON.stringify(result.stats)}`);
@@ -602,9 +774,7 @@ function onAgentLoopComplete(payload: AgentLoopCompletePayload): void {
 
   const cooldown = getCooldownState(lastTriggerTime.get(conversationId), Date.now(), runtimeConfig);
   if (cooldown.active) {
-    console.log(
-      `${TAG} Cooldown: conv ${conversationId} was triggered ${Math.round(cooldown.elapsedMs / 1000)}s ago, wait ${Math.round(cooldown.remainingMs / 1000)}s more`
-    );
+    console.log(`${TAG} Cooldown: conv ${conversationId} was triggered ${Math.round(cooldown.elapsedMs / 1000)}s ago, wait ${Math.round(cooldown.remainingMs / 1000)}s more`);
     return;
   }
 
@@ -1042,9 +1212,7 @@ export function initMemoryExtractionWorker(): void {
     30 * 60 * 1000
   );
 
-  console.log(
-    `[MemoryWorker] Extraction worker initialized (agent-loop-complete + legacy + daily-maintenance); effectiveConfig=${JSON.stringify(runtimeConfig)}`
-  );
+  console.log(`[MemoryWorker] Extraction worker initialized (agent-loop-complete + legacy + daily-maintenance); effectiveConfig=${JSON.stringify(runtimeConfig)}`);
 }
 
 // ━━ Helpers ━━

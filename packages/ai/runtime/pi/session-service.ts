@@ -188,22 +188,39 @@ function extractThinkingBlocks(message: PiAssistantMessage): Array<{ type: 'thin
 }
 
 function extractPiTokenUsage(message: PiAssistantMessage): TokenUsage | undefined {
-  const inputTokens = typeof message.usage?.input === 'number' && Number.isFinite(message.usage.input) && message.usage.input > 0 ? message.usage.input : undefined;
-  const outputTokens = typeof message.usage?.output === 'number' && Number.isFinite(message.usage.output) && message.usage.output > 0 ? message.usage.output : undefined;
-  const explicitTotalTokens = typeof message.usage?.totalTokens === 'number' && Number.isFinite(message.usage.totalTokens) && message.usage.totalTokens > 0 ? message.usage.totalTokens : undefined;
-  const totalTokens = explicitTotalTokens ?? (inputTokens || outputTokens ? (inputTokens ?? 0) + (outputTokens ?? 0) : undefined);
-  const cost = typeof message.usage?.cost?.total === 'number' && Number.isFinite(message.usage.cost.total) && message.usage.cost.total > 0 ? message.usage.cost.total : undefined;
+  const inputTokens = typeof message.usage?.input === 'number' && Number.isFinite(message.usage.input) && message.usage.input >= 0 ? message.usage.input : undefined;
+  const outputTokens = typeof message.usage?.output === 'number' && Number.isFinite(message.usage.output) && message.usage.output >= 0 ? message.usage.output : undefined;
+  const cacheReadTokens = typeof message.usage?.cacheRead === 'number' && Number.isFinite(message.usage.cacheRead) && message.usage.cacheRead >= 0 ? message.usage.cacheRead : undefined;
+  const cacheWriteTokens = typeof message.usage?.cacheWrite === 'number' && Number.isFinite(message.usage.cacheWrite) && message.usage.cacheWrite >= 0 ? message.usage.cacheWrite : undefined;
+  const explicitTotalTokens = typeof message.usage?.totalTokens === 'number' && Number.isFinite(message.usage.totalTokens) && message.usage.totalTokens >= 0 ? message.usage.totalTokens : undefined;
+  const hasTokenComponent = inputTokens !== undefined || outputTokens !== undefined || cacheReadTokens !== undefined || cacheWriteTokens !== undefined;
+  const totalTokens = explicitTotalTokens ?? (hasTokenComponent ? (inputTokens ?? 0) + (outputTokens ?? 0) + (cacheReadTokens ?? 0) + (cacheWriteTokens ?? 0) : undefined);
+  const cost = typeof message.usage?.cost?.total === 'number' && Number.isFinite(message.usage.cost.total) && message.usage.cost.total >= 0 ? message.usage.cost.total : undefined;
 
-  if (inputTokens === undefined && outputTokens === undefined && totalTokens === undefined && cost === undefined) {
+  if (inputTokens === undefined && outputTokens === undefined && cacheReadTokens === undefined && cacheWriteTokens === undefined && totalTokens === undefined && cost === undefined) {
     return undefined;
   }
 
   return {
     ...(inputTokens !== undefined ? { inputTokens } : {}),
     ...(outputTokens !== undefined ? { outputTokens } : {}),
+    ...(cacheReadTokens !== undefined ? { cacheReadTokens } : {}),
+    ...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {}),
     ...(totalTokens !== undefined ? { totalTokens } : {}),
     ...(cost !== undefined ? { cost } : {})
   };
+}
+
+function extractPiRawUsage(message: PiAssistantMessage): Record<string, unknown> | undefined {
+  if (!message.usage || typeof message.usage !== 'object') {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(JSON.stringify(message.usage)) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
 }
 
 function mapChatHistoryMessage(message: ChatRequest['messages'][number], model: PiModel): PiMessage | undefined {
@@ -507,6 +524,7 @@ function ensurePiCompletion(message: PiAssistantMessage): PiAssistantMessage {
 
 function toChatResponse(message: PiAssistantMessage, resolved: ResolvedPiRequest): ChatResponse {
   const usage = extractPiTokenUsage(message);
+  const rawUsage = extractPiRawUsage(message);
   return {
     agentId: resolved.profile.id,
     message: {
@@ -514,7 +532,8 @@ function toChatResponse(message: PiAssistantMessage, resolved: ResolvedPiRequest
       createdAt: message.timestamp || Date.now(),
       metadata: {
         piProvider: message.provider,
-        piStopReason: message.stopReason
+        piStopReason: message.stopReason,
+        ...(rawUsage ? { piRawUsage: rawUsage } : {})
       },
       ...(usage ? { usage } : {}),
       role: 'assistant'
@@ -523,7 +542,8 @@ function toChatResponse(message: PiAssistantMessage, resolved: ResolvedPiRequest
       model: resolved.model.modelId || message.model,
       profileId: resolved.profile.id,
       providerId: resolved.model.providerId,
-      runtime: 'pi'
+      runtime: 'pi',
+      ...(rawUsage ? { rawUsage } : {})
     },
     providerId: resolved.model.providerId,
     ...(usage ? { usage } : {})
@@ -957,6 +977,7 @@ export class PiSessionService {
 
     const thinkingBlocks = extractThinkingBlocks(message);
     const usage = extractPiTokenUsage(message);
+    const rawUsage = extractPiRawUsage(message);
     legacy.complete(
       createLegacyAssistantMessage(
         extractAssistantText(message),
@@ -965,6 +986,7 @@ export class PiSessionService {
           piProvider: message.provider,
           piStopReason: message.stopReason,
           runtime: 'pi',
+          ...(rawUsage ? { piRawUsage: rawUsage } : {}),
           ...(thinkingBlocks ? { thinkingBlocks } : {})
         },
         usage
@@ -1008,6 +1030,7 @@ export class PiSessionService {
       case 'done': {
         const thinkingBlocks = extractThinkingBlocks(event.message);
         const usage = extractPiTokenUsage(event.message);
+        const rawUsage = extractPiRawUsage(event.message);
         legacy.complete(
           createLegacyAssistantMessage(
             extractAssistantText(event.message),
@@ -1016,6 +1039,7 @@ export class PiSessionService {
               piProvider: event.message.provider,
               piStopReason: event.reason,
               runtime: 'pi',
+              ...(rawUsage ? { piRawUsage: rawUsage } : {}),
               ...(thinkingBlocks ? { thinkingBlocks } : {})
             },
             usage
