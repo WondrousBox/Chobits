@@ -3,6 +3,13 @@ import type { AimSegments } from '@aim-packages/subtitle';
 // Core message primitives
 export type Role = 'system' | 'user' | 'assistant' | 'tool';
 
+export type TokenUsage = {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  cost?: number;
+};
+
 export type ChatMessage = {
   id?: string;
   role: Role;
@@ -10,6 +17,7 @@ export type ChatMessage = {
   name?: string;
   toolCallId?: string;
   metadata?: Record<string, any>;
+  usage?: TokenUsage;
   createdAt?: number;
 };
 
@@ -94,7 +102,7 @@ export interface UserChoiceResponse {
 export type StreamEvent =
   | { type: 'connected' }
   | { type: 'delta'; data: { text?: string; toolCall?: any } }
-  | { type: 'message_completed'; data: { message: ChatMessage } }
+  | { type: 'message_completed'; data: { message: ChatMessage; usage?: TokenUsage } }
   | { type: 'tool_call'; data: { name: string; args: any; callId: string; label?: string } }
   | { type: 'tool_result'; data: { callId: string; result: any } }
   | { type: 'tool_progress'; data: { callId: string; progress: number; message?: string } }
@@ -106,7 +114,7 @@ export type StreamEvent =
 
 export type ChatResponse = {
   message: ChatMessage;
-  usage?: { inputTokens?: number; outputTokens?: number; cost?: number };
+  usage?: TokenUsage;
   providerId?: string;
   agentId?: string;
   metadata?: Record<string, any>;

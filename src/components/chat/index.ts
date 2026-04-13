@@ -8,6 +8,7 @@ export { default as ChatFooterActions } from './ChatFooterActions';
 export type { ChatInputWithServiceProps } from './ChatInputWithService';
 export { default as ChatInputWithService } from './ChatInputWithService';
 export { default as ChatMessageRenderer } from './ChatMessageRenderer';
+export { default as ChatTokenUsage } from './ChatTokenUsage';
 export type { CodingWorkspaceButtonProps } from './CodingWorkspaceButton';
 export { default as CodingWorkspaceButton } from './CodingWorkspaceButton';
 export type { SpeechInputButtonProps } from './SpeechInputButton';

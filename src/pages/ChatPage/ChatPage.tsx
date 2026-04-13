@@ -1,9 +1,11 @@
 import { buildConversationPlaceholderTitle } from '@packages/ai/conversation-title';
+import { getChatMessageUsage, sumTokenUsage } from '@packages/ai/message-usage';
+import type { TokenUsage } from '@packages/ai/types';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TbArrowDown, TbChevronRight, TbDots, TbEdit, TbHistory, TbLoader2, TbPin, TbPlus, TbRefresh, TbShare, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
-import { ChatInputWithService, ChatMessageRenderer } from '@/components/chat';
+import { ChatInputWithService, ChatMessageRenderer, ChatTokenUsage } from '@/components/chat';
 import ThinkingActivity from '@/components/chat/ThinkingActivity';
 import type { ToolActivity } from '@/components/chat/ToolCallActivity';
 import ToolCallActivity from '@/components/chat/ToolCallActivity';
@@ -22,9 +24,19 @@ interface ChatPageProps {
   hideTitleBar?: boolean;
 }
 
+interface ChatUiMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt?: number;
+  activities?: ToolActivity[];
+  thinking?: string;
+  isThinking?: boolean;
+  usage?: TokenUsage;
+}
+
 export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.Element {
   const { providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, setProviderId, setModelId, setPresetId, setAgentId, setCodingWorkspace } = useChatSelection();
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; createdAt?: number; activities?: ToolActivity[]; thinking?: string; isThinking?: boolean }>>([]);
+  const [messages, setMessages] = useState<ChatUiMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
   const disposerRef = useRef<{ dispose: () => void; cancel: () => Promise<any> } | null>(null);
@@ -47,6 +59,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
   const [deletingConvId, setDeletingConvId] = useState<string | null>(null);
 
   const currentConversation = useMemo(() => conversations.find((c) => c.id === conversationId) || null, [conversations, conversationId]);
+  const conversationUsage = useMemo(() => sumTokenUsage(messages), [messages]);
 
   // Load conversations list
   const loadConversations = async (): Promise<void> => {
@@ -78,9 +91,11 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
       const rows = await window.YUA.ai.listMessages(id, 2000, 0);
       const mapped = (rows || []).map((r: any) => {
         let activities: ToolActivity[] | undefined;
+        let usage: TokenUsage | undefined;
         if (r.metadata) {
           try {
             const meta = typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata;
+            usage = getChatMessageUsage({ metadata: meta });
             if (Array.isArray(meta?.toolCalls)) {
               activities = meta.toolCalls.map((tc: any) => {
                 const base: ToolActivity = { callId: tc.callId, name: tc.name, args: tc.args, status: 'done' as const, result: tc.result };
@@ -108,7 +123,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
             /* ignore parse errors */
           }
         }
-        return { role: r.role, content: r.content, createdAt: r.createdAt, ...(activities ? { activities } : {}) };
+        return { role: r.role, content: r.content, createdAt: r.createdAt, ...(activities ? { activities } : {}), ...(usage ? { usage } : {}) };
       });
       setMessages(mapped);
     } catch {
@@ -417,12 +432,13 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
         if (ev?.type === 'message_completed' && ev.data?.message?.content) {
           // Ensure final content reflected, in case no deltas were sent
           const full: string = ev.data.message.content;
+          const usage = getChatMessageUsage(ev.data.message);
           setMessages((prev) => {
             const idx = assistantIndexRef.current;
             if (idx < 0 || idx >= prev.length) return prev;
             const copy = prev.slice();
             const m = copy[idx];
-            copy[idx] = { ...m, content: full, createdAt: ev.data.message.createdAt || m.createdAt, isThinking: false };
+            copy[idx] = { ...m, content: full, createdAt: ev.data.message.createdAt || m.createdAt, isThinking: false, ...(usage ? { usage } : {}) };
             return copy;
           });
           setLoading(false);
@@ -684,6 +700,11 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
             <>
               <div ref={scrollContainerRef} className="flex-1 overflow-auto p-2 min-h-0">
                 <div className="flex flex-col gap-2">
+                  {conversationUsage && (
+                    <div className="flex justify-center pt-2">
+                      <ChatTokenUsage usage={conversationUsage} label="会话累计" variant="conversation" />
+                    </div>
+                  )}
                   {messages.map((m, i) => (
                     <div key={i} className={`${m.role === 'user' ? 'flex justify-end' : 'flex justify-start'} ${i === messages.length - 1 ? 'mb-24' : ''}`}>
                       <div
@@ -698,6 +719,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
                             {m.thinking && <ThinkingActivity thinking={m.thinking} isThinking={!!m.isThinking} />}
                             {m.activities && m.activities.length > 0 && <ToolCallActivity activities={m.activities} onUserChoiceSubmit={handleUserChoiceSubmit} />}
                             {m.content || (loading && i === messages.length - 1) ? <ChatMessageRenderer content={m.content || ''} compactCards /> : null}
+                            {m.usage && <ChatTokenUsage usage={m.usage} label="本轮" className="mt-2" />}
                             {!m.content && loading && i === messages.length - 1 && (!m.activities || m.activities.length === 0) && (
                               <span className="inline-flex items-center gap-2 text-muted-foreground">
                                 <TbLoader2 className="h-4 w-4 animate-spin" /> 正在思考...
