@@ -1,3 +1,5 @@
+import { getChatMessageUsage, sumTokenUsage } from '@packages/ai/message-usage';
+import type { TokenUsage } from '@packages/ai/types';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TbAt, TbClock, TbDotsVertical, TbLoader2, TbPhoto, TbPlayerStop, TbPlus, TbWorld } from 'react-icons/tb';
 import ReactMarkdown from 'react-markdown';
@@ -8,6 +10,7 @@ import { toast } from 'sonner';
 import {
   ChatAgentSelect,
   ChatFooterActions,
+  ChatTokenUsage,
   CodingWorkspaceButton,
   mergeTranscriptWithInput,
   type ToolActivity,
@@ -31,6 +34,7 @@ interface Message {
   activities?: ToolActivity[];
   thinking?: string;
   isThinking?: boolean;
+  usage?: TokenUsage;
 }
 
 interface Conversation {
@@ -93,6 +97,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
   const disposerRef = useRef<{ dispose: () => void; cancel: () => Promise<any> } | null>(null);
 
   const isCoder = agentId === 'coder';
+  const conversationUsage = React.useMemo(() => sumTokenUsage(messages), [messages]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.providerId, providerId);
@@ -167,6 +172,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
       const mapped = (rows || []).map((row: any) => {
         let activities: ToolActivity[] | undefined;
         const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata || '{}') : row.metadata;
+        const usage: TokenUsage | undefined = getChatMessageUsage({ metadata: meta });
         if (meta && Array.isArray(meta?.toolCalls)) {
           activities = meta.toolCalls.map((tc: any) => ({ callId: tc.callId, name: tc.name, args: tc.args, status: 'done' as const, result: tc.result }));
         }
@@ -174,7 +180,8 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
           role: row.role,
           content: row.content,
           createdAt: row.createdAt,
-          ...(activities ? { activities } : {})
+          ...(activities ? { activities } : {}),
+          ...(usage ? { usage } : {})
         };
       });
       setMessages(mapped);
@@ -382,6 +389,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
 
           if (event?.type === 'message_completed' && event.data?.message?.content) {
             const full = String(event.data.message.content);
+            const usage = getChatMessageUsage(event.data.message);
             setMessages((prev) => {
               const idx = assistantIndexRef.current;
               if (idx < 0 || idx >= prev.length) return prev;
@@ -392,7 +400,8 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
                 ...message,
                 content: full,
                 createdAt: event.data.message.createdAt || message.createdAt,
-                isThinking: false
+                isThinking: false,
+                ...(usage ? { usage } : {})
               };
               return copy;
             });
@@ -493,6 +502,11 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
           <div className="h-full" />
         ) : (
           <div className="flex flex-col gap-3 p-4">
+            {conversationUsage && (
+              <div className="flex justify-center">
+                <ChatTokenUsage usage={conversationUsage} label="会话累计" variant="conversation" />
+              </div>
+            )}
             {messages.map((message, index) => (
               <div key={index} className={message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
                 <div className={`max-w-[90%] rounded-xl px-3 py-2 ${message.role === 'user' ? 'bg-primary text-primary-foreground text-sm' : 'bg-muted text-foreground'}`}>
@@ -501,7 +515,10 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
                       {message.thinking && <ThinkingActivity thinking={message.thinking} isThinking={!!message.isThinking} />}
                       {message.activities && message.activities.length > 0 && <ToolCallActivity activities={message.activities} />}
                       {message.content ? (
-                        <MarkdownMessage content={message.content} />
+                        <>
+                          <MarkdownMessage content={message.content} />
+                          {message.usage && <ChatTokenUsage usage={message.usage} label="本轮" className="mt-2" />}
+                        </>
                       ) : loading && index === messages.length - 1 ? (
                         !message.activities?.length && (
                           <div className="inline-flex items-center gap-2 text-muted-foreground text-sm">

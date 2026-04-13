@@ -1,4 +1,5 @@
-import type { ChatMessage, StreamEvent, UserChoiceRequest } from '../../types';
+import { getChatMessageUsage, normalizeTokenUsage } from '../../message-usage';
+import type { ChatMessage, StreamEvent, TokenUsage, UserChoiceRequest } from '../../types';
 import { resolveToolLabel } from './tool-labels';
 
 type UnknownPiEvent = {
@@ -42,12 +43,12 @@ export function createLegacyStreamEmitter(emit: (event: StreamEvent) => void, op
       const parsedArgs =
         typeof args === 'string'
           ? (() => {
-            try {
-              return JSON.parse(args);
-            } catch {
-              return {};
-            }
-          })()
+              try {
+                return JSON.parse(args);
+              } catch {
+                return {};
+              }
+            })()
           : (args ?? {});
       const label = resolveToolLabel(name, parsedArgs, 'calling', useCharacterLabels);
       console.log(`[AI Tool] 调用工具: ${name} → ${label}`, { callId, args: typeof args === 'string' ? args.slice(0, 200) : args });
@@ -67,7 +68,8 @@ export function createLegacyStreamEmitter(emit: (event: StreamEvent) => void, op
       emit({ type: 'user_choice_request', data: request });
     },
     complete(message: ChatMessage) {
-      emit({ type: 'message_completed', data: { message } });
+      const usage = getChatMessageUsage(message);
+      emit({ type: 'message_completed', data: usage ? { message, usage } : { message } });
     },
     error(error: { message: string; code?: string; cause?: any }) {
       emit({ type: 'error', data: error });
@@ -78,11 +80,12 @@ export function createLegacyStreamEmitter(emit: (event: StreamEvent) => void, op
   };
 }
 
-export function createLegacyAssistantMessage(content: string, metadata?: Record<string, any>): ChatMessage {
+export function createLegacyAssistantMessage(content: string, metadata?: Record<string, any>, usage?: TokenUsage): ChatMessage {
   return {
     content,
     createdAt: Date.now(),
     metadata,
+    ...(usage ? { usage } : {}),
     role: 'assistant'
   };
 }
@@ -135,10 +138,13 @@ export function coercePiEventToLegacy(event: UnknownPiEvent): StreamEvent | unde
     };
   }
   if (eventType === 'message.completed' || eventType === 'message_completed' || eventType === 'completed') {
+    const usage = normalizeTokenUsage(data.usage);
+    const message = createLegacyAssistantMessage(String(data.text || data.content || ''), data.metadata, usage);
     return {
       type: 'message_completed',
       data: {
-        message: createLegacyAssistantMessage(String(data.text || data.content || ''), data.metadata)
+        ...(usage ? { usage } : {}),
+        message
       }
     };
   }

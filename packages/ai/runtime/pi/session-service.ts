@@ -2,9 +2,9 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
-import type { ChatRequest, ChatResponse, StreamEvent } from '../../types';
-import { waitForUserChoice } from '../../user-choice-registry';
 import { logMemoryTrace, shortTraceId } from '../../services/memory-trace';
+import type { ChatRequest, ChatResponse, StreamEvent, TokenUsage } from '../../types';
+import { waitForUserChoice } from '../../user-choice-registry';
 import type { PiRuntimeAvailability, PiRuntimePreview, ResolvedPiRequest } from './contracts';
 import { resolvePiRequest } from './model-resolver';
 import { buildPiModel, buildPiModelHeaders } from './provider-model';
@@ -136,11 +136,11 @@ function createAssistantHistoryMessage(model: PiModel, content: string, createdA
     api: model.api,
     content: content
       ? [
-        {
-          text: normalizePiText(content),
-          type: 'text'
-        }
-      ]
+          {
+            text: normalizePiText(content),
+            type: 'text'
+          }
+        ]
       : [],
     model: model.id,
     provider: model.provider,
@@ -187,6 +187,25 @@ function extractThinkingBlocks(message: PiAssistantMessage): Array<{ type: 'thin
   return blocks.length > 0 ? blocks : undefined;
 }
 
+function extractPiTokenUsage(message: PiAssistantMessage): TokenUsage | undefined {
+  const inputTokens = typeof message.usage?.input === 'number' && Number.isFinite(message.usage.input) && message.usage.input > 0 ? message.usage.input : undefined;
+  const outputTokens = typeof message.usage?.output === 'number' && Number.isFinite(message.usage.output) && message.usage.output > 0 ? message.usage.output : undefined;
+  const explicitTotalTokens = typeof message.usage?.totalTokens === 'number' && Number.isFinite(message.usage.totalTokens) && message.usage.totalTokens > 0 ? message.usage.totalTokens : undefined;
+  const totalTokens = explicitTotalTokens ?? (inputTokens || outputTokens ? (inputTokens ?? 0) + (outputTokens ?? 0) : undefined);
+  const cost = typeof message.usage?.cost?.total === 'number' && Number.isFinite(message.usage.cost.total) && message.usage.cost.total > 0 ? message.usage.cost.total : undefined;
+
+  if (inputTokens === undefined && outputTokens === undefined && totalTokens === undefined && cost === undefined) {
+    return undefined;
+  }
+
+  return {
+    ...(inputTokens !== undefined ? { inputTokens } : {}),
+    ...(outputTokens !== undefined ? { outputTokens } : {}),
+    ...(totalTokens !== undefined ? { totalTokens } : {}),
+    ...(cost !== undefined ? { cost } : {})
+  };
+}
+
 function mapChatHistoryMessage(message: ChatRequest['messages'][number], model: PiModel): PiMessage | undefined {
   const rawContent = message.content as unknown;
   const textContent = extractTextContent(rawContent);
@@ -215,11 +234,11 @@ function mapChatHistoryMessage(message: ChatRequest['messages'][number], model: 
     return {
       content: textContent
         ? [
-          {
-            text: textContent,
-            type: 'text'
-          }
-        ]
+            {
+              text: textContent,
+              type: 'text'
+            }
+          ]
         : [],
       details: message.metadata,
       isError: false,
@@ -487,6 +506,7 @@ function ensurePiCompletion(message: PiAssistantMessage): PiAssistantMessage {
 }
 
 function toChatResponse(message: PiAssistantMessage, resolved: ResolvedPiRequest): ChatResponse {
+  const usage = extractPiTokenUsage(message);
   return {
     agentId: resolved.profile.id,
     message: {
@@ -496,6 +516,7 @@ function toChatResponse(message: PiAssistantMessage, resolved: ResolvedPiRequest
         piProvider: message.provider,
         piStopReason: message.stopReason
       },
+      ...(usage ? { usage } : {}),
       role: 'assistant'
     },
     metadata: {
@@ -505,11 +526,7 @@ function toChatResponse(message: PiAssistantMessage, resolved: ResolvedPiRequest
       runtime: 'pi'
     },
     providerId: resolved.model.providerId,
-    usage: {
-      cost: message.usage?.cost?.total,
-      inputTokens: message.usage?.input,
-      outputTokens: message.usage?.output
-    }
+    ...(usage ? { usage } : {})
   };
 }
 
@@ -939,14 +956,19 @@ export class PiSessionService {
     }
 
     const thinkingBlocks = extractThinkingBlocks(message);
+    const usage = extractPiTokenUsage(message);
     legacy.complete(
-      createLegacyAssistantMessage(extractAssistantText(message), {
-        model: resolved.model.modelId || message.model,
-        piProvider: message.provider,
-        piStopReason: message.stopReason,
-        runtime: 'pi',
-        ...(thinkingBlocks ? { thinkingBlocks } : {})
-      })
+      createLegacyAssistantMessage(
+        extractAssistantText(message),
+        {
+          model: resolved.model.modelId || message.model,
+          piProvider: message.provider,
+          piStopReason: message.stopReason,
+          runtime: 'pi',
+          ...(thinkingBlocks ? { thinkingBlocks } : {})
+        },
+        usage
+      )
     );
     legacy.done();
   }
@@ -985,14 +1007,19 @@ export class PiSessionService {
         return 'continue';
       case 'done': {
         const thinkingBlocks = extractThinkingBlocks(event.message);
+        const usage = extractPiTokenUsage(event.message);
         legacy.complete(
-          createLegacyAssistantMessage(extractAssistantText(event.message), {
-            model: resolved.model.modelId || event.message.model,
-            piProvider: event.message.provider,
-            piStopReason: event.reason,
-            runtime: 'pi',
-            ...(thinkingBlocks ? { thinkingBlocks } : {})
-          })
+          createLegacyAssistantMessage(
+            extractAssistantText(event.message),
+            {
+              model: resolved.model.modelId || event.message.model,
+              piProvider: event.message.provider,
+              piStopReason: event.reason,
+              runtime: 'pi',
+              ...(thinkingBlocks ? { thinkingBlocks } : {})
+            },
+            usage
+          )
         );
         legacy.done();
         return 'done';

@@ -6,6 +6,7 @@ import { ChatRepo, WorkspacesRepo } from '../common/db';
 import { eventManager } from '../event';
 import { AppEvent } from '../event/events';
 import { buildConversationPlaceholderTitle, normalizeGeneratedConversationTitle } from './conversation-title';
+import { getChatMessageUsage, withChatMessageUsage } from './message-usage';
 import { normalizeProviderPreset, resolveProviderPresetId } from './provider-preset';
 import { getProviderDefinitionSchema } from './providers/service';
 import { PiExecutionService } from './runtime/pi/execution-service';
@@ -340,10 +341,11 @@ ${JSON.stringify(forcePiRuntime(req), null, 2)}
   }
 
   private async persistConversationMessage(conversationId: string, message: ChatMessage): Promise<void> {
+    const metadata = withChatMessageUsage(message.metadata, getChatMessageUsage(message));
     await ChatRepo.addMessage(conversationId, {
       content: message.content,
       createdAt: message.createdAt || Date.now(),
-      metadata: message.metadata ? (JSON.stringify(message.metadata) as any) : null,
+      metadata: metadata ? (JSON.stringify(metadata) as any) : null,
       name: message.name,
       role: message.role,
       toolCallId: message.toolCallId
@@ -398,12 +400,15 @@ ${JSON.stringify(forcePiRuntime(req), null, 2)}
           }
         }
 
+        const usage = getChatMessageUsage({ metadata });
+
         return {
           content: row.content,
           createdAt: row.createdAt ?? undefined,
           metadata,
           name: row.name ?? undefined,
           role: row.role as ChatMessage['role'],
+          ...(usage ? { usage } : {}),
           toolCallId: row.toolCallId ?? undefined
         };
       });
