@@ -90,6 +90,7 @@ export interface SpriteVideoConfig {
   playbackScale: number;
   padding: number;
   movement: SpriteMovementConfig;
+  autoIdle: boolean;
   eventType?: string;
   title?: string;
 }
@@ -205,6 +206,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
 
   // 窗口移动配置
   const [movement, setMovement] = useState<SpriteMovementConfig>(initialConfig?.movement || { ...DEFAULT_MOVEMENT });
+  const [autoIdle, setAutoIdle] = useState<boolean>(initialConfig?.autoIdle ?? true);
   // 精灵窗口 padding
   const [padding, setPadding] = useState<number>(initialConfig?.padding ?? DEFAULT_PADDING);
 
@@ -278,11 +280,12 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
         playbackScale,
         padding,
         movement,
+        autoIdle,
         eventType,
         title
       });
     }
-  }, [inputPath, segments, chromaKey, speeds, output, playbackScale, padding, movement, eventType, title, onConfigChange]);
+  }, [inputPath, segments, chromaKey, speeds, output, playbackScale, padding, movement, autoIdle, eventType, title, onConfigChange]);
 
   // 视频加载完成
   const handleLoadedMetadata = useCallback(() => {
@@ -321,7 +324,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
       video.pause();
       setIsPlaying(false);
     } else {
-      video.play().catch(() => { });
+      video.play().catch(() => {});
       setIsPlaying(true);
     }
   }, [isPlaying]);
@@ -463,7 +466,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
 
     video.currentTime = segments.loopStart / 1000;
     video.playbackRate = speeds.loop;
-    video.play().catch(() => { });
+    video.play().catch(() => {});
     setIsPlaying(true);
 
     const checkLoop = () => {
@@ -487,7 +490,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
 
     video.currentTime = segments.start / 1000;
     video.playbackRate = hasLoop ? speeds.intro : speeds.intro;
-    video.play().catch(() => { });
+    video.play().catch(() => {});
     setIsPlaying(true);
 
     if (!hasLoop) {
@@ -744,6 +747,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
           loopStartMs: adjustedLoopStart,
           loopEndMs: adjustedLoopEnd,
           durationMs: trimmedDuration,
+          autoIdle,
           width: playbackWidth,
           height: playbackHeight,
           padding,
@@ -752,7 +756,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
       } else {
         // FFmpeg 路径：裁剪 + 倍速 + 转码 WebM VP9
         if (onProcess) {
-          await onProcess({ inputPath, segments, chromaKey, speeds, output, playbackScale, padding, movement, eventType, title });
+          await onProcess({ inputPath, segments, chromaKey, speeds, output, playbackScale, padding, movement, autoIdle, eventType, title });
           return; // onProcess 负责后续流程
         }
         // Fallback: 直接调用 FFmpeg + 注册
@@ -773,6 +777,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
           loopStartMs: adjustedLoopStart,
           loopEndMs: adjustedLoopEnd,
           durationMs: trimmedDuration,
+          autoIdle,
           movement: movement.enabled ? movement : undefined,
           meta: {
             id,
@@ -804,6 +809,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
     playbackScale,
     playbackWidth,
     playbackHeight,
+    autoIdle,
     stopThreePhasePreview,
     recordCanvasWithChromaKey,
     onProcess,
@@ -845,8 +851,9 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
                   {previewPhase !== 'idle' && (
                     <div className="absolute top-2 left-2 z-20 flex items-center gap-1">
                       <span
-                        className={`px-2 py-0.5 rounded text-xs font-semibold text-white ${previewPhase === 'intro' ? 'bg-green-500' : previewPhase === 'loop' ? 'bg-blue-500' : previewPhase === 'outro' ? 'bg-red-500' : 'bg-gray-500'
-                          }`}
+                        className={`px-2 py-0.5 rounded text-xs font-semibold text-white ${
+                          previewPhase === 'intro' ? 'bg-green-500' : previewPhase === 'loop' ? 'bg-blue-500' : previewPhase === 'outro' ? 'bg-red-500' : 'bg-gray-500'
+                        }`}
                       >
                         {previewPhase === 'intro' ? 'Intro' : previewPhase === 'loop' ? `Loop ${loopCount}/3` : previewPhase === 'outro' ? 'Outro' : ''}
                       </span>
@@ -1538,6 +1545,13 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
       <div className="flex items-center w-full gap-2 border-t pt-4">
         {inputPath && (
           <>
+            <div className="flex items-center gap-2 rounded-md border px-3 py-2 shrink-0">
+              <Switch checked={autoIdle} onCheckedChange={setAutoIdle} />
+              <div className="leading-tight">
+                <div className="text-xs font-medium">播完回到 Idle</div>
+                <div className="text-[10px] text-muted-foreground">默认开启，关闭后会停在动画结尾</div>
+              </div>
+            </div>
             <Input className="flex-1" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="动画名称" />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

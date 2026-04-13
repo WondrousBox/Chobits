@@ -93,9 +93,7 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
     const effectiveEnd = loopEndMs ?? durationMs;
     const hasCustomLoop = loopStartMs != null || loopEndMs != null;
 
-    const shouldLoop = hasCustomLoop
-      ? playback?.loop !== false
-      : (playback?.loop ?? false);
+    const shouldLoop = hasCustomLoop ? playback?.loop !== false : (playback?.loop ?? false);
 
     // Handle three-phase animation
     if (loopStartMs != null && loopEndMs != null) {
@@ -117,9 +115,8 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
         } else {
           phaseRef.current = 'idle';
           v.pause();
-          const autoIdle = playback?.autoIdle ?? true;
-          if (autoIdle && animId) {
-            // 上报动画完成
+          if (animId) {
+            // 无论是否自动回到 idle，都统一上报完成，由主进程决定后续行为
             window.YUA.sprite.animComplete(animId, 'outro');
           }
         }

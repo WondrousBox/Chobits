@@ -116,7 +116,7 @@ export default function SpriteManager({ className }: { className?: string }): JS
     window.YUA.sprite
       .getDebugOverlay()
       .then(setDebugOverlay)
-      .catch(() => { });
+      .catch(() => {});
   }, []);
 
   const toggleDebugOverlay = useCallback(async () => {
@@ -317,6 +317,7 @@ export default function SpriteManager({ className }: { className?: string }): JS
                     loopStartMs: hasLoop ? introDur : undefined,
                     loopEndMs: hasLoop ? introDur + loopDur : undefined,
                     durationMs: introDur + loopDur + outroDur,
+                    autoIdle: config.autoIdle,
                     movement: config.movement.enabled ? config.movement : undefined,
                     meta: {
                       id,

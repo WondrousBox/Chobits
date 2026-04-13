@@ -303,16 +303,16 @@ export class SpriteManager {
         source: anim.source,
         playback: anim.playback
           ? {
-            width: anim.playback.width,
-            height: anim.playback.height,
-            padding: anim.playback.padding,
-            loop: anim.playback.loop,
-            loopStartMs: anim.playback.loopStartMs,
-            loopEndMs: anim.playback.loopEndMs,
-            durationMs: options?.durationMs ?? anim.playback.durationMs,
-            autoIdle: anim.playback.autoIdle ?? true,
-            movement: anim.playback.movement
-          }
+              width: anim.playback.width,
+              height: anim.playback.height,
+              padding: anim.playback.padding,
+              loop: anim.playback.loop,
+              loopStartMs: anim.playback.loopStartMs,
+              loopEndMs: anim.playback.loopEndMs,
+              durationMs: options?.durationMs ?? anim.playback.durationMs,
+              autoIdle: anim.playback.autoIdle ?? true,
+              movement: anim.playback.movement
+            }
           : { durationMs: options?.durationMs ?? 2000, autoIdle: true }
       };
 
@@ -352,16 +352,16 @@ export class SpriteManager {
       source: anim.source,
       playback: anim.playback
         ? {
-          width: anim.playback.width,
-          height: anim.playback.height,
-          padding: anim.playback.padding,
-          loop: anim.playback.loop,
-          loopStartMs: anim.playback.loopStartMs,
-          loopEndMs: anim.playback.loopEndMs,
-          durationMs: options?.durationMs ?? anim.playback.durationMs,
-          autoIdle: anim.playback.autoIdle ?? true,
-          movement: anim.playback.movement
-        }
+            width: anim.playback.width,
+            height: anim.playback.height,
+            padding: anim.playback.padding,
+            loop: anim.playback.loop,
+            loopStartMs: anim.playback.loopStartMs,
+            loopEndMs: anim.playback.loopEndMs,
+            durationMs: options?.durationMs ?? anim.playback.durationMs,
+            autoIdle: anim.playback.autoIdle ?? true,
+            movement: anim.playback.movement
+          }
         : { durationMs: options?.durationMs ?? 2000, autoIdle: true }
     };
 
@@ -438,7 +438,7 @@ export class SpriteManager {
     // 自动朗读：非静默类别 且 非来自 speak() 的调用
     if (!this._speakGuard && !SpriteManager.MUTE_CATEGORIES.has(options?.category ?? '')) {
       if (resolvedContent) {
-        this.speakService.speak(resolvedContent).catch(() => { });
+        this.speakService.speak(resolvedContent).catch(() => {});
       }
     }
   }
@@ -458,7 +458,7 @@ export class SpriteManager {
 
     // 自动朗读通知内容
     if (content && !this._speakGuard) {
-      this.speakService.speak(content).catch(() => { });
+      this.speakService.speak(content).catch(() => {});
     }
   }
 
@@ -900,18 +900,27 @@ export class SpriteManager {
       this.stopAutoMove();
     }
 
-    if ((phase === 'outro' || phase === 'full') && this._pendingIdleAfterOutro) {
-      this._pendingIdleAfterOutro = false;
-      this.resolveAndSendAnimation(this.getState(), this.getSubState());
+    if (phase !== 'outro' && phase !== 'full') {
       return;
     }
 
-    if (phase === 'full' || phase === 'outro') {
-      const state = this.getState();
-      if (state === 'reacting') {
-        this.transitionTo('idle');
-      }
+    const autoIdle = this.shouldAutoIdleAfterComplete(animId);
+    const isCurrentAnimation = this.currentAnimation?.animationId === animId;
+
+    if (!autoIdle) {
+      this._pendingIdleAfterOutro = false;
+      return;
     }
+
+    if (!isCurrentAnimation && !this._pendingIdleAfterOutro) {
+      return;
+    }
+
+    if (this._pendingIdleAfterOutro) {
+      this._pendingIdleAfterOutro = false;
+    }
+
+    this.transitionToIdleAnimation();
   }
 
   /** 处理文件拖放 */
@@ -992,14 +1001,17 @@ export class SpriteManager {
   /** 状态机变化回调 */
   private onStateChange(newState: SpriteState, _oldState: SpriteState, subState: SpriteSubState | null): void {
     if (newState === 'idle' && _oldState !== 'idle' && this.currentAnimation?.playback?.loopStartMs != null && this.currentAnimation?.playback?.loopEndMs != null) {
-      this._pendingIdleAfterOutro = true;
+      const autoIdle = this.currentAnimation?.playback?.autoIdle ?? true;
+      this._pendingIdleAfterOutro = autoIdle;
       this.broadcastState();
-      setTimeout(() => {
-        if (this._pendingIdleAfterOutro) {
-          this._pendingIdleAfterOutro = false;
-          this.resolveAndSendAnimation(this.getState(), this.getSubState());
-        }
-      }, 3000);
+      if (autoIdle) {
+        setTimeout(() => {
+          if (this._pendingIdleAfterOutro) {
+            this._pendingIdleAfterOutro = false;
+            this.transitionToIdleAnimation();
+          }
+        }, 3000);
+      }
       return;
     }
 
@@ -1007,6 +1019,19 @@ export class SpriteManager {
     this.resolveAndSendAnimation(newState, subState);
 
     this.broadcastState();
+  }
+
+  private shouldAutoIdleAfterComplete(animId: string): boolean {
+    if (this.currentAnimation?.animationId === animId) {
+      return this.currentAnimation.playback?.autoIdle ?? true;
+    }
+
+    return this.animationRegistry.get(animId)?.playback?.autoIdle ?? true;
+  }
+
+  private transitionToIdleAnimation(): void {
+    const isAlreadyIdle = this.getState() === 'idle' && this.getSubState() == null;
+    this.transitionTo('idle', { force: isAlreadyIdle });
   }
 
   /** 根据当前状态解析并发送动画指令到渲染进程 */
@@ -1023,16 +1048,16 @@ export class SpriteManager {
         source: animEntry.source,
         playback: animEntry.playback
           ? {
-            width: animEntry.playback.width,
-            height: animEntry.playback.height,
-            padding: animEntry.playback.padding,
-            loop: animEntry.playback.loop,
-            loopStartMs: animEntry.playback.loopStartMs,
-            loopEndMs: animEntry.playback.loopEndMs,
-            durationMs: animEntry.playback.durationMs,
-            autoIdle: animEntry.playback.autoIdle,
-            movement: animEntry.playback.movement
-          }
+              width: animEntry.playback.width,
+              height: animEntry.playback.height,
+              padding: animEntry.playback.padding,
+              loop: animEntry.playback.loop,
+              loopStartMs: animEntry.playback.loopStartMs,
+              loopEndMs: animEntry.playback.loopEndMs,
+              durationMs: animEntry.playback.durationMs,
+              autoIdle: animEntry.playback.autoIdle,
+              movement: animEntry.playback.movement
+            }
           : undefined
       };
 
