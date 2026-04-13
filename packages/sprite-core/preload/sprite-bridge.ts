@@ -34,6 +34,7 @@ export type SpriteBridgeType = {
     loopStartMs?: number;
     loopEndMs?: number;
     durationMs?: number;
+    autoIdle?: boolean;
     width?: number;
     height?: number;
     padding?: number;

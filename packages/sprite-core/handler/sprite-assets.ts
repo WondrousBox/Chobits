@@ -83,7 +83,7 @@ async function readIndex(dir: string): Promise<SpriteIndex> {
       });
       return { version: 1, items };
     }
-  } catch { }
+  } catch {}
   return { version: 1, items: [] };
 }
 
@@ -237,13 +237,14 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
         loopStartMs?: number;
         loopEndMs?: number;
         durationMs?: number;
+        autoIdle?: boolean;
         width?: number;
         height?: number;
         padding?: number;
         movement?: SpriteAnimation['movement'];
       }
     ) => {
-      const { data, meta, loopStartMs, loopEndMs, durationMs, width, height, padding, movement } = payload || ({} as any);
+      const { data, meta, loopStartMs, loopEndMs, durationMs, autoIdle, width, height, padding, movement } = payload || ({} as any);
       if (!data || !(data instanceof ArrayBuffer || Buffer.isBuffer(data))) {
         throw new Error('[sprite:registerFromData] data is required (ArrayBuffer or Buffer)');
       }
@@ -274,7 +275,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
         muted: true,
         playsInline: true,
         loop: false,
-        autoIdle: true,
+        autoIdle: autoIdle ?? true,
         loopStartMs,
         loopEndMs,
         durationMs,
@@ -307,10 +308,10 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
         const p = path.resolve(removed.source.localPath);
         const root = path.resolve(userDir);
         if (p === root || p.startsWith(root + path.sep)) {
-          await fs.unlink(p).catch(() => { });
+          await fs.unlink(p).catch(() => {});
         }
       }
-    } catch { }
+    } catch {}
     return { ok: true };
   });
 
