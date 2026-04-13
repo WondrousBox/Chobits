@@ -8,6 +8,7 @@ import clsx from 'clsx';
 import React from 'react';
 import { TbLoader2, TbAlertCircle } from 'react-icons/tb';
 
+import { useLabels } from '../../../context/TimelineContext';
 import type { BlockContent, BlockStatusBadgeProps } from '../types';
 
 /**
@@ -31,11 +32,13 @@ function getStatusStyle(status: BlockContent['status']): string {
  * BlockStatusBadge 组件
  */
 export const BlockStatusBadge: React.FC<BlockStatusBadgeProps> = ({ status, errorMessage }) => {
+  const labels = useLabels();
+
   if (status === 'synthesizing') {
     return (
       <div className="flex items-center gap-1">
         <TbLoader2 className="h-3 w-3 shrink-0 animate-spin text-blue-500" />
-        <span className="text-[10px] text-blue-600 truncate">合成中</span>
+        <span className="text-[10px] text-blue-600 truncate">{labels.blockStatusSynthesizing}</span>
       </div>
     );
   }
@@ -45,7 +48,7 @@ export const BlockStatusBadge: React.FC<BlockStatusBadgeProps> = ({ status, erro
       <div className="flex items-center gap-1">
         <TbAlertCircle className="h-3 w-3 shrink-0 text-red-500" />
         <span className="text-[10px] text-red-600 truncate" title={errorMessage}>
-          {errorMessage ?? '合成失败'}
+          {errorMessage ?? labels.blockStatusSynthesisFailed}
         </span>
       </div>
     );
@@ -58,7 +61,7 @@ export const BlockStatusBadge: React.FC<BlockStatusBadgeProps> = ({ status, erro
   // pending 状态
   return (
     <span className={clsx('text-[10px] px-1.5 py-0.5 rounded', getStatusStyle(status))}>
-      等待
+      {labels.blockStatusPending}
     </span>
   );
 };

@@ -9,31 +9,33 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { WordTimestamp } from '../../../types';
 import type { BlockCapabilities, BlockContentProps } from '../types';
+import type { TimelineLabels } from '../../../adapters/types';
+import { useLabels } from '../../../context/TimelineContext';
 
 /**
  * 校验文本内容
  */
-function validateText(text: string, capabilities: BlockCapabilities): { valid: boolean; message?: string } {
+function validateText(text: string, capabilities: BlockCapabilities, labels: Required<TimelineLabels>): { valid: boolean; message?: string } {
   const trimmed = text.trim();
   if (trimmed.length === 0) {
-    return { valid: false, message: '内容不能为空' };
+    return { valid: false, message: labels.blockValidationEmpty };
   }
 
   // 控制字符
   const hasControlChar = /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(text);
   if (hasControlChar) {
-    return { valid: false, message: '不能包含控制字符' };
+    return { valid: false, message: labels.blockValidationControlChar };
   }
 
   // SRT 时间轴分隔符
   if (trimmed.includes('-->')) {
-    return { valid: false, message: '不能包含 "-->"' };
+    return { valid: false, message: labels.blockValidationArrow };
   }
 
   // 长度限制
   const maxLength = capabilities.text?.maxLength;
   if (maxLength && trimmed.length > maxLength) {
-    return { valid: false, message: `内容不能超过 ${maxLength} 字符` };
+    return { valid: false, message: labels.blockValidationMaxLength.replace('{maxLength}', String(maxLength)) };
   }
 
   return { valid: true };
@@ -80,6 +82,7 @@ export const BlockContent: React.FC<BlockContentProps> = ({
   onEditCancel
 }) => {
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const labels = useLabels();
   const [validationError, setValidationError] = useState(false);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
@@ -95,9 +98,9 @@ export const BlockContent: React.FC<BlockContentProps> = ({
   const tryCommitEdit = useCallback(() => {
     if (!isEditing) return;
 
-    const result = validateText(editText, capabilities);
+    const result = validateText(editText, capabilities, labels);
     if (!result.valid) {
-      setValidationMessage(result.message ?? '内容无效');
+      setValidationMessage(result.message ?? labels.blockValidationInvalid);
       setValidationError(true);
       return;
     }
@@ -170,7 +173,7 @@ export const BlockContent: React.FC<BlockContentProps> = ({
             validationError ? 'text-destructive font-medium' : 'text-muted-foreground'
           )}
         >
-          {validationError ? validationMessage : '回车确定，Esc 取消'}
+          {validationError ? validationMessage : labels.blockEditHint}
         </div>
       </div>
     );
@@ -208,7 +211,7 @@ export const BlockContent: React.FC<BlockContentProps> = ({
           {/* 波形会在这里渲染 */}
           {content.waveform?.loading && (
             <div className="flex items-center justify-center h-full">
-              <span className="text-[10px] text-muted-foreground">加载波形...</span>
+              <span className="text-[10px] text-muted-foreground">{labels.blockWaveformLoading}</span>
             </div>
           )}
         </div>

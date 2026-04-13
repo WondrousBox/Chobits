@@ -5,10 +5,12 @@ import { TbEye, TbEyeOff, TbSettings, TbTrash } from 'react-icons/tb';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 
+import { useLabels } from '../../context/TimelineContext';
 import type { TrackLabelProps } from '../../types';
 import { DEFAULT_CONFIG } from '../../types';
 
 export const CommonTrackLabel: React.FC<TrackLabelProps> = ({ track, icon, onDelete, onToggleEnabled, onOpenSettings, onLabelClick, onSelect }) => {
+  const labels = useLabels();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const handleLabelClick = useCallback(
@@ -51,7 +53,7 @@ export const CommonTrackLabel: React.FC<TrackLabelProps> = ({ track, icon, onDel
               e.stopPropagation();
               onOpenSettings(track.id);
             }}
-            title="设置"
+            title={labels.settings}
           >
             <TbSettings className="w-3 h-3" />
           </button>
@@ -66,7 +68,7 @@ export const CommonTrackLabel: React.FC<TrackLabelProps> = ({ track, icon, onDel
               e.stopPropagation();
               onToggleEnabled(track.id);
             }}
-            title={track.visible !== false ? '隐藏' : '显示'}
+            title={track.visible !== false ? labels.hide : labels.show}
           >
             {track.visible !== false ? <TbEye className="w-3 h-3" /> : <TbEyeOff className="w-3 h-3" />}
           </button>
@@ -83,20 +85,20 @@ export const CommonTrackLabel: React.FC<TrackLabelProps> = ({ track, icon, onDel
           <ContextMenuContent>
             <ContextMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteDialogOpen(true)}>
               <TbTrash className="w-4 h-4 mr-2" />
-              删除轨道
+              {labels.deleteTrack}
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <AlertDialogContent className="w-96">
             <AlertDialogHeader>
-              <AlertDialogTitle>确定删除「{track.label}」吗？</AlertDialogTitle>
-              <AlertDialogDescription>将永久删除该轨道内所有内容，无法恢复。</AlertDialogDescription>
+              <AlertDialogTitle>{labels.deleteConfirmTitle.replace('{label}', track.label || '')}</AlertDialogTitle>
+              <AlertDialogDescription>{labels.deleteConfirmDescription}</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogCancel>{labels.cancel}</AlertDialogCancel>
               <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => onDelete(track.id)}>
-                删除
+                {labels.delete}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

@@ -5,6 +5,7 @@ import { TbEye, TbEyeOff, TbTrash, TbVideo } from 'react-icons/tb';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 
+import { useLabels } from '../../context/TimelineContext';
 import type { MediaTrackData, TrackLabelProps } from '../../types';
 import { MEDIA_CONFIG } from '../../types';
 
@@ -23,6 +24,7 @@ export interface MediaTrackLabelProps extends TrackLabelProps {
  * 显示轨道名称、颜色、启用/禁用切换按钮，右键菜单支持删除
  */
 export const MediaTrackLabel: React.FC<MediaTrackLabelProps> = ({ track, onSelect, onToggleEnabled, onDelete }) => {
+  const labels = useLabels();
   const height = track?.height ?? MEDIA_CONFIG.DEFAULT_TRACK_HEIGHT;
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
@@ -72,7 +74,7 @@ export const MediaTrackLabel: React.FC<MediaTrackLabelProps> = ({ track, onSelec
               e.stopPropagation();
               onToggleEnabled(track.id);
             }}
-            title={isVisible ? '隐藏轨道' : '显示轨道'}
+            title={isVisible ? labels.mediaTrackHide : labels.mediaTrackShow}
           >
             {isVisible ? <TbEye className="w-3 h-3" /> : <TbEyeOff className="w-3 h-3" />}
           </button>
@@ -90,7 +92,7 @@ export const MediaTrackLabel: React.FC<MediaTrackLabelProps> = ({ track, onSelec
           <ContextMenuContent>
             <ContextMenuItem className="text-destructive focus:text-destructive" onClick={() => setShowDeleteDialog(true)}>
               <TbTrash className="w-4 h-4 mr-2" />
-              删除轨道
+              {labels.mediaTrackDelete}
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
@@ -98,11 +100,11 @@ export const MediaTrackLabel: React.FC<MediaTrackLabelProps> = ({ track, onSelec
         <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>删除轨道</AlertDialogTitle>
-              <AlertDialogDescription>确定要删除轨道「{track.label}」吗？此操作将永久删除该资源，无法恢复。</AlertDialogDescription>
+              <AlertDialogTitle>{labels.mediaTrackDeleteConfirmTitle}</AlertDialogTitle>
+              <AlertDialogDescription>{labels.mediaTrackDeleteConfirmDescription.replace('{label}', track.label || '')}</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogCancel>{labels.cancel}</AlertDialogCancel>
               <AlertDialogAction
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 onClick={() => {
@@ -110,7 +112,7 @@ export const MediaTrackLabel: React.FC<MediaTrackLabelProps> = ({ track, onSelec
                   onDelete(track.id);
                 }}
               >
-                删除
+                {labels.delete}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

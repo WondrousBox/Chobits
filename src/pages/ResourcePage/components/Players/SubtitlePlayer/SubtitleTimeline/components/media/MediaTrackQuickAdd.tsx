@@ -5,6 +5,7 @@ import { TbFileImport, TbUpload, TbVideo } from 'react-icons/tb';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 
 import { useConfigAdapter, useIdGeneratorAdapter, useMediaAdapter } from '../../context';
+import { useLabels } from '../../context/TimelineContext';
 import type { MediaSegment, MediaSource } from '../../types';
 import { DEFAULT_TRANSFORM } from '../../types';
 
@@ -31,6 +32,7 @@ interface MediaTrackQuickAddProps {
  * 2. 拖拽文件到轨道
  */
 export const MediaTrackQuickAdd: React.FC<MediaTrackQuickAddProps> = ({ children, trackId, clickTime, disabled = false, onImport, onOpenChange }) => {
+  const labels = useLabels();
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -216,7 +218,7 @@ export const MediaTrackQuickAdd: React.FC<MediaTrackQuickAddProps> = ({ children
             <div className="absolute inset-0 bg-emerald-500/20 border-2 border-dashed border-emerald-400 flex items-center justify-center z-20 pointer-events-none">
               <div className="flex flex-col items-center gap-1 bg-background/90 px-3 py-2 rounded-lg shadow">
                 <TbUpload className="w-5 h-5 text-emerald-500" />
-                <span className="text-xs text-emerald-600">释放以添加媒体</span>
+                <span className="text-xs text-emerald-600">{labels.mediaQuickAddDropToRelease}</span>
               </div>
             </div>
           )}
@@ -225,24 +227,24 @@ export const MediaTrackQuickAdd: React.FC<MediaTrackQuickAddProps> = ({ children
             <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-30">
               <div className="flex items-center gap-2 bg-background px-3 py-2 rounded-lg shadow">
                 <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                <span className="text-xs">处理中...</span>
+                <span className="text-xs">{labels.mediaQuickAddProcessing}</span>
               </div>
             </div>
           )}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-56">
-        <ContextMenuLabel>添加媒体</ContextMenuLabel>
+        <ContextMenuLabel>{labels.mediaQuickAddMenuTitle}</ContextMenuLabel>
         <ContextMenuSeparator />
         <ContextMenuItem onClick={handleSelectFile} disabled={loading}>
           <TbFileImport className="w-4 h-4 mr-2" />
-          选择文件...
+          {labels.mediaQuickAddSelectFile}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem disabled className="text-muted-foreground">
           <TbVideo className="w-4 h-4 mr-2" />
-          从资源库选择
-          <span className="ml-auto text-[10px]">即将推出</span>
+          {labels.mediaQuickAddFromLibrary}
+          <span className="ml-auto text-[10px]">{labels.comingSoon}</span>
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

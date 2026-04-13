@@ -7,6 +7,7 @@
 import clsx from 'clsx';
 import React from 'react';
 
+import { useLabels } from '../../../context/TimelineContext';
 import type { BlockCapabilities, BlockDragMode, BlockHandlesProps } from '../types';
 
 /**
@@ -20,25 +21,18 @@ function getHandleColor(capabilities: BlockCapabilities): string {
 }
 
 /**
- * 获取手柄提示文本
- */
-function getHandleTitle(capabilities: BlockCapabilities): string {
-  if (capabilities.drag?.edgeResize === 'speed') {
-    return '拖拽调整速度';
-  }
-  return '拖拽调整时间';
-}
-
-/**
  * BlockHandles 组件
  */
 export const BlockHandles: React.FC<BlockHandlesProps> = ({ capabilities, dragMode, disabled }) => {
+  const labels = useLabels();
   if (disabled || capabilities.drag?.edgeResize === 'none') {
     return null;
   }
 
   const handleColor = getHandleColor(capabilities);
-  const handleTitle = getHandleTitle(capabilities);
+  const handleTitle = capabilities.drag?.edgeResize === 'speed'
+    ? labels.blockHandlesDragSpeed
+    : labels.blockHandlesDragTime;
   const isActive = dragMode === 'resize-start' || dragMode === 'resize-end';
 
   return (

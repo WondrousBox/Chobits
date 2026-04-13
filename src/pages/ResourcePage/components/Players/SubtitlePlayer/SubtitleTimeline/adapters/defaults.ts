@@ -1,3 +1,4 @@
+import { zhCN as ZH_CN_LABELS } from './locales';
 import type { AnnotationType, TimelineAdapters, TimelineLabels } from './types';
 
 // ========== Default Constants ==========
@@ -50,21 +51,7 @@ const defaultIdGeneratorAdapter = {
   generateMediaSourceId: (): string => `media-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 };
 
-export const DEFAULT_LABELS: Required<TimelineLabels> = {
-  zoomOut: '缩小',
-  zoomIn: '放大',
-  zoomLevel: '缩放级别: {value} px/s',
-  selectTool: '选择工具',
-  cutTool: '裁剪工具',
-  importMedia: '导入媒体',
-  trackCount: '{count} 轨道',
-  segmentCount: '{count} 片段',
-  waveform: '波形',
-  waveformClip: '波形/剪辑',
-  clip: '剪辑',
-  defaultTrackLabels: ['原文', '译文', '轨道 3', '轨道 4', '轨道 5', '轨道 6'],
-  trackLabelTemplate: '轨道 {index}'
-};
+export const DEFAULT_LABELS: Required<TimelineLabels> = ZH_CN_LABELS;
 
 /**
  * Default configuration adapter

@@ -5,6 +5,7 @@ import { TbFileImport, TbPhoto, TbUpload, TbVideo, TbX } from 'react-icons/tb';
 import { Button } from '@/components/ui/button';
 
 import { useConfigAdapter, useIdGeneratorAdapter, useMediaAdapter } from '../../context';
+import { useLabels } from '../../context/TimelineContext';
 import type { MediaSegment, MediaSource, MediaTrackData } from '../../types';
 import { DEFAULT_TRANSFORM } from '../../types';
 
@@ -29,6 +30,7 @@ export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({ open, onClos
   const [loading, setLoading] = useState(false);
   const [targetTrackId, setTargetTrackId] = useState<string | 'new'>('new');
   const [error, setError] = useState<string | null>(null);
+  const labels = useLabels();
 
   // Get adapters from context
   const mediaAdapter = useMediaAdapter();
@@ -107,11 +109,11 @@ export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({ open, onClos
         if (mediaSources.length > 0) {
           setSelectedFiles((prev) => [...prev, ...mediaSources]);
         } else {
-          setError('没有找到有效的媒体文件（支持视频和图片)');
+          setError(labels.mediaImportNoValidFiles);
         }
       } catch (err) {
         console.error('Error processing files:', err);
-        setError(err instanceof Error ? err.message : '处理文件时出错');
+        setError(err instanceof Error ? err.message : labels.mediaImportProcessError);
       } finally {
         setLoading(false);
       }
@@ -143,7 +145,7 @@ export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({ open, onClos
       }
 
       if (filePaths.length === 0) {
-        setError('无法获取文件路径，请使用"选择文件"按钮');
+        setError(labels.mediaImportDragDropPathError);
         return;
       }
 
@@ -173,7 +175,7 @@ export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({ open, onClos
       }
     } catch (err) {
       console.error('Error opening file dialog:', err);
-      setError(err instanceof Error ? err.message : '打开文件对话框失败');
+      setError(err instanceof Error ? err.message : labels.mediaImportOpenDialogError);
     }
   }, [mediaAdapter, videoExtensions, imageExtensions, processFilePaths]);
 
@@ -218,7 +220,7 @@ export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({ open, onClos
       <div className="bg-background border rounded-lg shadow-lg w-full max-w-lg mx-4">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b">
-          <h3 className="text-sm font-medium">导入媒体文件</h3>
+          <h3 className="text-sm font-medium">{labels.mediaImportTitle}</h3>
           <Button variant="ghost" size="sm" className="w-7 h-7 p-0" onClick={onClose}>
             <TbX className="w-4 h-4" />
           </Button>
@@ -239,15 +241,15 @@ export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({ open, onClos
           {loading ? (
             <div className="flex flex-col items-center gap-2">
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              <span className="text-sm text-muted-foreground">正在处理文件...</span>
+              <span className="text-sm text-muted-foreground">{labels.mediaImportProcessing}</span>
             </div>
           ) : (
             <>
               <TbUpload className="w-10 h-10 mx-auto mb-2 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground mb-2">拖拽视频或图片文件到此处</p>
+              <p className="text-sm text-muted-foreground mb-2">{labels.mediaImportDragDropHint}</p>
               <Button variant="outline" size="sm" onClick={openFileDialog}>
                 <TbFileImport className="w-4 h-4 mr-1" />
-                选择文件
+                {labels.mediaImportSelectFiles}
               </Button>
             </>
           )}
@@ -259,7 +261,7 @@ export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({ open, onClos
         {/* Selected files */}
         {selectedFiles.length > 0 && (
           <div className="mx-4 mb-4">
-            <div className="text-xs text-muted-foreground mb-2">已选择的文件 ({selectedFiles.length})</div>
+            <div className="text-xs text-muted-foreground mb-2">{labels.mediaImportSelectedFiles.replace('{count}', String(selectedFiles.length))}</div>
             <div className="max-h-40 overflow-y-auto space-y-1">
               {selectedFiles.map((file) => (
                 <div key={file.id} className="flex items-center justify-between px-2 py-1.5 bg-muted/30 rounded text-xs">
@@ -279,9 +281,9 @@ export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({ open, onClos
 
         {/* Track selector */}
         <div className="mx-4 mb-4">
-          <div className="text-xs text-muted-foreground mb-2">添加到轨道</div>
+          <div className="text-xs text-muted-foreground mb-2">{labels.mediaImportAddToTrack}</div>
           <select value={targetTrackId} onChange={(e) => setTargetTrackId(e.target.value)} className="w-full px-3 py-2 text-sm border rounded bg-background">
-            <option value="new">新建轨道</option>
+            <option value="new">{labels.mediaImportNewTrack}</option>
             {tracks.map((track) => (
               <option key={track.id} value={track.id}>
                 {track.label}
@@ -293,14 +295,14 @@ export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({ open, onClos
         {/* Footer */}
         <div className="flex items-center justify-between px-4 py-3 border-t bg-muted/30">
           <Button variant="ghost" size="sm" onClick={handleClear} disabled={selectedFiles.length === 0}>
-            清空选择
+            {labels.mediaImportClearSelection}
           </Button>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={onClose}>
-              取消
+              {labels.cancel}
             </Button>
             <Button size="sm" onClick={handleImport} disabled={selectedFiles.length === 0 || loading}>
-              导入 ({selectedFiles.length})
+              {labels.mediaImportConfirm.replace('{count}', String(selectedFiles.length))}
             </Button>
           </div>
         </div>

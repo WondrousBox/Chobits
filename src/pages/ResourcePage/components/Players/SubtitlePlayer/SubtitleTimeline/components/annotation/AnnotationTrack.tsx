@@ -118,7 +118,7 @@ export const AnnotationTrack: React.FC<AnnotationTrackProps> = ({ annotations, w
                     <button
                       onClick={() => callbacks.onAnnotationDelete?.(annotation.id)}
                       className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors shrink-0"
-                      title="删除标注"
+                      title="Delete annotation"
                     >
                       <TbTrash className="w-3 h-3" />
                     </button>

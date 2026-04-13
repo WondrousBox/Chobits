@@ -5,6 +5,7 @@ import { TbArrowsHorizontal, TbArrowsVertical, TbColorFilter, TbFlipHorizontal, 
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 
+import { useLabels } from '../../context/TimelineContext';
 import type { MediaSegment, MediaSource, MediaTransform } from '../../types';
 import { DEFAULT_TRANSFORM } from '../../types';
 
@@ -34,6 +35,7 @@ interface MediaTransformPanelProps {
  * - 翻转
  */
 export const MediaTransformPanel: React.FC<MediaTransformPanelProps> = ({ open, onClose, segment, source, onTransformChange, className }) => {
+  const labels = useLabels();
   const transform = segment?.transform ?? DEFAULT_TRANSFORM;
 
   // Reset to defaults
@@ -137,7 +139,7 @@ export const MediaTransformPanel: React.FC<MediaTransformPanelProps> = ({ open, 
     <div className={clsx('absolute right-0 top-0 bottom-0 w-64 bg-background border-l shadow-lg z-50 flex flex-col', className)}>
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b">
-        <h3 className="text-sm font-medium">变换设置</h3>
+        <h3 className="text-sm font-medium">{labels.mediaTransformTitle}</h3>
         <Button variant="ghost" size="sm" className="w-6 h-6 p-0" onClick={onClose}>
           <TbX className="w-4 h-4" />
         </Button>
@@ -162,19 +164,19 @@ export const MediaTransformPanel: React.FC<MediaTransformPanelProps> = ({ open, 
 
         {/* Quick actions */}
         <div className="space-y-2">
-          <div className="text-xs font-medium text-foreground">快速操作</div>
+          <div className="text-xs font-medium text-foreground">{labels.mediaTransformQuickActions}</div>
           <div className="grid grid-cols-3 gap-1">
-            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleCenter} title="居中">
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleCenter} title={labels.mediaTransformCenter}>
               <TbArrowsHorizontal className="w-3 h-3 mr-1" />
-              居中
+              {labels.mediaTransformCenter}
             </Button>
-            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleFitToScreen} title="适应屏幕">
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleFitToScreen} title={labels.mediaTransformFitScreen}>
               <TbZoomOut className="w-3 h-3 mr-1" />
-              适应
+              {labels.mediaTransformFit}
             </Button>
-            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleFillScreen} title="填充屏幕">
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleFillScreen} title={labels.mediaTransformFillScreen}>
               <TbZoomIn className="w-3 h-3 mr-1" />
-              填充
+              {labels.mediaTransformFill}
             </Button>
           </div>
         </div>
@@ -184,7 +186,7 @@ export const MediaTransformPanel: React.FC<MediaTransformPanelProps> = ({ open, 
           <div className="flex items-center justify-between">
             <label className="text-xs font-medium text-foreground flex items-center gap-1">
               <TbArrowsHorizontal className="w-3 h-3" />
-              水平位置 (X)
+              {labels.mediaTransformPositionX}
             </label>
             <span className="text-xs text-muted-foreground font-mono">{transform.x.toFixed(1)}%</span>
           </div>
@@ -196,7 +198,7 @@ export const MediaTransformPanel: React.FC<MediaTransformPanelProps> = ({ open, 
           <div className="flex items-center justify-between">
             <label className="text-xs font-medium text-foreground flex items-center gap-1">
               <TbArrowsVertical className="w-3 h-3" />
-              垂直位置 (Y)
+              {labels.mediaTransformPositionY}
             </label>
             <span className="text-xs text-muted-foreground font-mono">{transform.y.toFixed(1)}%</span>
           </div>
@@ -208,7 +210,7 @@ export const MediaTransformPanel: React.FC<MediaTransformPanelProps> = ({ open, 
           <div className="flex items-center justify-between">
             <label className="text-xs font-medium text-foreground flex items-center gap-1">
               <TbZoomIn className="w-3 h-3" />
-              缩放
+              {labels.mediaTransformScale}
             </label>
             <span className="text-xs text-muted-foreground font-mono">{(transform.scale * 100).toFixed(0)}%</span>
           </div>
@@ -220,7 +222,7 @@ export const MediaTransformPanel: React.FC<MediaTransformPanelProps> = ({ open, 
           <div className="flex items-center justify-between">
             <label className="text-xs font-medium text-foreground flex items-center gap-1">
               <TbRefresh className="w-3 h-3" />
-              旋转
+              {labels.mediaTransformRotation}
             </label>
             <span className="text-xs text-muted-foreground font-mono">{transform.rotation.toFixed(0)}°</span>
           </div>
@@ -240,7 +242,7 @@ export const MediaTransformPanel: React.FC<MediaTransformPanelProps> = ({ open, 
           <div className="flex items-center justify-between">
             <label className="text-xs font-medium text-foreground flex items-center gap-1">
               <TbColorFilter className="w-3 h-3" />
-              不透明度
+              {labels.mediaTransformOpacity}
             </label>
             <span className="text-xs text-muted-foreground font-mono">{(transform.opacity * 100).toFixed(0)}%</span>
           </div>
@@ -249,15 +251,15 @@ export const MediaTransformPanel: React.FC<MediaTransformPanelProps> = ({ open, 
 
         {/* Flip */}
         <div className="space-y-1.5">
-          <div className="text-xs font-medium text-foreground">翻转</div>
+          <div className="text-xs font-medium text-foreground">{labels.mediaTransformFlip}</div>
           <div className="flex gap-2">
             <Button variant={transform.flipX ? 'secondary' : 'outline'} size="sm" className="h-8 flex-1 text-xs" onClick={handleFlipX}>
               <TbFlipHorizontal className="w-4 h-4 mr-1" />
-              水平翻转
+              {labels.mediaTransformFlipHorizontal}
             </Button>
             <Button variant={transform.flipY ? 'secondary' : 'outline'} size="sm" className="h-8 flex-1 text-xs" onClick={handleFlipY}>
               <TbFlipVertical className="w-4 h-4 mr-1" />
-              垂直翻转
+              {labels.mediaTransformFlipVertical}
             </Button>
           </div>
         </div>
@@ -266,7 +268,7 @@ export const MediaTransformPanel: React.FC<MediaTransformPanelProps> = ({ open, 
       {/* Footer */}
       <div className="border-t p-2">
         <Button variant="outline" size="sm" className="w-full h-7 text-xs" onClick={handleReset}>
-          重置为默认值
+          {labels.mediaTransformReset}
         </Button>
       </div>
     </div>

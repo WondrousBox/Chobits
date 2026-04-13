@@ -24,7 +24,9 @@ export type {
   TimelineSegment,
   TimelineTrack,
   TrackProps,
-  ViewportState
+  ViewportState,
+  WaveformData,
+  WaveformState
 } from './types';
 export { DEFAULT_CONFIG, DEFAULT_TRANSFORM, MEDIA_CONFIG, TRACK_COLORS } from './types';
 

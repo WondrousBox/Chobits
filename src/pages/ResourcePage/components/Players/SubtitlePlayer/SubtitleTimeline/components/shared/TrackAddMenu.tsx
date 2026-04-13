@@ -4,6 +4,7 @@ import { TbFileText, TbPlus, TbVideo, TbWaveSawTool } from 'react-icons/tb';
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
+import { useLabels } from '../../context/TimelineContext';
 import { MEDIA_CONFIG } from '../../types';
 
 export interface TrackAddMenuProps {
@@ -17,6 +18,7 @@ export interface TrackAddMenuProps {
  * TrackAddMenu - 添加轨道按钮（点击弹出菜单选择轨道类型）
  */
 export const TrackAddMenu: React.FC<TrackAddMenuProps> = ({ onAddMediaTrack, onAddSubtitleTrack, onAddTTSTrack, disabled = false }) => {
+  const labels = useLabels();
   const hasAnyCallback = onAddMediaTrack || onAddSubtitleTrack || onAddTTSTrack;
 
   if (!hasAnyCallback || disabled) {
@@ -28,7 +30,7 @@ export const TrackAddMenu: React.FC<TrackAddMenuProps> = ({ onAddMediaTrack, onA
         disabled
       >
         <TbPlus className="w-3.5 h-3.5 text-muted-foreground" />
-        <span className="text-xs text-muted-foreground">添加轨道</span>
+        <span className="text-xs text-muted-foreground">{labels.trackAddButtonLabel}</span>
       </button>
     );
   }
@@ -42,26 +44,26 @@ export const TrackAddMenu: React.FC<TrackAddMenuProps> = ({ onAddMediaTrack, onA
           style={{ height: MEDIA_CONFIG.DEFAULT_TRACK_HEIGHT + 4 }}
         >
           <TbPlus className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">添加轨道</span>
+          <span className="text-xs text-muted-foreground">{labels.trackAddButtonLabel}</span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" side="right">
         {onAddSubtitleTrack && (
           <DropdownMenuItem onClick={onAddSubtitleTrack}>
             <TbFileText />
-            字幕
+            {labels.trackAddSubtitle}
           </DropdownMenuItem>
         )}
         {onAddTTSTrack && (
           <DropdownMenuItem onClick={onAddTTSTrack}>
             <TbWaveSawTool />
-            语音合成
+            {labels.trackAddTTS}
           </DropdownMenuItem>
         )}
         {onAddMediaTrack && (
           <DropdownMenuItem onClick={onAddMediaTrack}>
             <TbVideo />
-            图片和视频
+            {labels.trackAddMedia}
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>
