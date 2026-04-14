@@ -8,6 +8,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
+import { emitAiUsageObservedEvent } from '../../../../packages/ai/analytics/events';
 import type { RecordAiUsageEventInput } from '../../../../packages/ai/analytics/types';
 import { createPiTaskChatRuntimeFromRequest, type PiTaskChatFunction } from '../../../../packages/ai/runtime/pi/task-chat';
 import { buildNonReasoningTaskRuntimeRequest, resolveNonReasoningTaskModel } from '../../../../packages/ai/runtime/pi/task-model-policy';
@@ -24,7 +25,6 @@ import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
 import { MemoryNoteRepo, MemorySyncJobRepo, MemoryTopicRepo } from '../../db/memory-repositories';
 import { ChatRepo, WorkspacesRepo } from '../../db/repositories';
-import { recordAiUsageEvent } from '../analytics/usage-recorder';
 import { memoryExtractionQueue, type QueuedJob } from './extraction-queue';
 import { evaluateExtractionTrigger, getCooldownState, resolveExtractionRuntimeConfig } from './extraction-runtime-config';
 import { getMemoryConfig, type MemoryConfig } from './memory-config';
@@ -51,6 +51,9 @@ function toAnalyticsUsage(usage?: TokenUsage): RecordAiUsageEventInput['usage'] 
   }
 
   return {
+    billableInputTokens: usage.billableInputTokens,
+    billableOutputTokens: usage.billableOutputTokens,
+    billableTotalTokens: usage.billableTotalTokens,
     cacheReadTokens: usage.cacheReadTokens,
     cacheWriteTokens: usage.cacheWriteTokens,
     estimatedCost: usage.cost,
@@ -62,28 +65,7 @@ function toAnalyticsUsage(usage?: TokenUsage): RecordAiUsageEventInput['usage'] 
 }
 
 async function recordMemoryUsageEventSafely(input: RecordAiUsageEventInput): Promise<void> {
-  try {
-    const result = await recordAiUsageEvent(input);
-    if (!result.ok) {
-      console.warn('[MemoryWorker:usage] Failed to record AI usage event:', {
-        code: result.code,
-        message: result.message,
-        requestId: input.requestId,
-        warnings: result.warnings
-      });
-      return;
-    }
-
-    if (result.warnings?.length) {
-      console.warn('[MemoryWorker:usage] AI usage event recorded with warnings:', {
-        eventId: result.eventId,
-        requestId: input.requestId,
-        warnings: result.warnings
-      });
-    }
-  } catch (error) {
-    console.warn('[MemoryWorker:usage] Unexpected AI usage recording error:', error);
-  }
+  await emitAiUsageObservedEvent(input, { producer: 'MemoryExtractionWorker' });
 }
 
 function createMemoryExtractionUsageRecorder(params: {

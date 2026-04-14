@@ -2,7 +2,7 @@ import OpenAI, { toFile } from 'openai';
 import type { Uploadable } from 'openai/core/uploads';
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions';
 
-import type { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent, TranscribeOptions } from '../types';
+import type { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent, TokenUsage, TranscribeOptions, TranscriptionResponse } from '../types';
 import { listProviderRuntimeModels } from './service';
 
 export type OpenAIRuntimeSecrets = {
@@ -234,10 +234,62 @@ export async function executeOpenAIEmbedding(options: OpenAIEmbeddingRuntimeOpti
   });
   const vectors = response.data.map((item: any) => item.embedding as number[]);
   const dim = vectors[0]?.length || 0;
-  return { vectors, dim, model, providerId: options.providerId };
+  const usage = normalizeOpenAIEmbeddingUsage(response?.usage);
+
+  return {
+    vectors,
+    dim,
+    model,
+    providerId: options.providerId,
+    ...(response?.usage ? { rawUsage: response.usage } : {}),
+    ...(usage ? { usage } : {})
+  };
 }
 
-export async function executeOpenAITranscription(options: OpenAITranscriptionRuntimeOptions): Promise<{ text: string }> {
+function normalizeOpenAIEmbeddingUsage(usage: any): TokenUsage | undefined {
+  const inputTokens = typeof usage?.prompt_tokens === 'number' && Number.isFinite(usage.prompt_tokens) && usage.prompt_tokens >= 0 ? usage.prompt_tokens : undefined;
+  const totalTokens = typeof usage?.total_tokens === 'number' && Number.isFinite(usage.total_tokens) && usage.total_tokens >= 0 ? usage.total_tokens : undefined;
+
+  if (inputTokens === undefined && totalTokens === undefined) {
+    return undefined;
+  }
+
+  return {
+    ...(inputTokens !== undefined ? { inputTokens } : {}),
+    ...(totalTokens !== undefined ? { totalTokens } : {}),
+    ...(inputTokens !== undefined ? { billableInputTokens: inputTokens } : {}),
+    ...(totalTokens !== undefined ? { billableTotalTokens: totalTokens } : {})
+  };
+}
+
+function normalizeOpenAITranscriptionUsage(usage: any): TokenUsage | undefined {
+  if (!usage || typeof usage !== 'object') {
+    return undefined;
+  }
+
+  if (usage.type !== 'tokens') {
+    return undefined;
+  }
+
+  const inputTokens = typeof usage.input_tokens === 'number' && Number.isFinite(usage.input_tokens) && usage.input_tokens >= 0 ? usage.input_tokens : undefined;
+  const outputTokens = typeof usage.output_tokens === 'number' && Number.isFinite(usage.output_tokens) && usage.output_tokens >= 0 ? usage.output_tokens : undefined;
+  const totalTokens = typeof usage.total_tokens === 'number' && Number.isFinite(usage.total_tokens) && usage.total_tokens >= 0 ? usage.total_tokens : undefined;
+
+  if (inputTokens === undefined && outputTokens === undefined && totalTokens === undefined) {
+    return undefined;
+  }
+
+  return {
+    ...(inputTokens !== undefined ? { inputTokens } : {}),
+    ...(outputTokens !== undefined ? { outputTokens } : {}),
+    ...(totalTokens !== undefined ? { totalTokens } : {}),
+    ...(inputTokens !== undefined ? { billableInputTokens: inputTokens } : {}),
+    ...(outputTokens !== undefined ? { billableOutputTokens: outputTokens } : {}),
+    ...(totalTokens !== undefined ? { billableTotalTokens: totalTokens } : {})
+  };
+}
+
+export async function executeOpenAITranscription(options: OpenAITranscriptionRuntimeOptions): Promise<TranscriptionResponse> {
   const model = resolveOpenAITranscriptionModel(options.options, options.defaultModel);
   const response = await options.client.audio.transcriptions.create({
     file: await normalizeOpenAIAudioFile(options.file),
@@ -245,9 +297,14 @@ export async function executeOpenAITranscription(options: OpenAITranscriptionRun
     language: options.options?.language,
     prompt: options.options?.prompt
   });
+  const usage = normalizeOpenAITranscriptionUsage(response?.usage);
 
   return {
-    text: response.text || ''
+    text: response.text || '',
+    model,
+    providerId: options.providerId,
+    ...(response?.usage ? { rawUsage: response.usage } : {}),
+    ...(usage ? { usage } : {})
   };
 }
 

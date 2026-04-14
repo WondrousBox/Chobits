@@ -13,6 +13,7 @@
 
 import { createHash } from 'node:crypto';
 
+import { emitAiUsageObservedEvent } from '../../../../packages/ai/analytics/events';
 import type { RecordAiUsageEventInput } from '../../../../packages/ai/analytics/types';
 import type { PiTaskChatFunction } from '../../../../packages/ai/runtime/pi/task-chat';
 import { buildNonReasoningTaskRuntimeRequest, resolveNonReasoningTaskModel } from '../../../../packages/ai/runtime/pi/task-model-policy';
@@ -23,7 +24,6 @@ import type { MemoryChatFn, MemoryChatInvocation, MemoryUsageEvent } from '../..
 import { registerSystemPromptEnricher } from '../../../../packages/ai/system-prompt-enricher';
 import type { ChatRequest, TokenUsage } from '../../../../packages/ai/types';
 import { ChatRepo, WorkspacesRepo } from '../../db/repositories';
-import { recordAiUsageEvent } from '../analytics/usage-recorder';
 
 const TAG = '[MemoryAutoRecall:Enricher] 🧠🔍';
 
@@ -46,6 +46,9 @@ function toAnalyticsUsage(usage?: TokenUsage): RecordAiUsageEventInput['usage'] 
   }
 
   return {
+    billableInputTokens: usage.billableInputTokens,
+    billableOutputTokens: usage.billableOutputTokens,
+    billableTotalTokens: usage.billableTotalTokens,
     cacheReadTokens: usage.cacheReadTokens,
     cacheWriteTokens: usage.cacheWriteTokens,
     estimatedCost: usage.cost,
@@ -57,28 +60,7 @@ function toAnalyticsUsage(usage?: TokenUsage): RecordAiUsageEventInput['usage'] 
 }
 
 async function recordMemoryRecallUsageEventSafely(input: RecordAiUsageEventInput): Promise<void> {
-  try {
-    const result = await recordAiUsageEvent(input);
-    if (!result.ok) {
-      console.warn('[MemoryAutoRecall:usage] Failed to record AI usage event:', {
-        code: result.code,
-        message: result.message,
-        requestId: input.requestId,
-        warnings: result.warnings
-      });
-      return;
-    }
-
-    if (result.warnings?.length) {
-      console.warn('[MemoryAutoRecall:usage] AI usage event recorded with warnings:', {
-        eventId: result.eventId,
-        requestId: input.requestId,
-        warnings: result.warnings
-      });
-    }
-  } catch (error) {
-    console.warn('[MemoryAutoRecall:usage] Unexpected AI usage recording error:', error);
-  }
+  await emitAiUsageObservedEvent(input, { producer: 'MemoryAutoRecallEnricher' });
 }
 
 function resolveAutoRecallRequestId(request: ChatRequest): string {

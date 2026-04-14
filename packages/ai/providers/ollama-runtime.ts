@@ -1,4 +1,4 @@
-import type { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent } from '../types';
+import type { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent, TokenUsage } from '../types';
 import { createAssistantMessage, finalizeStreamingTextResponse, listProviderModelsFromCuratedOrFallback } from './provider-runtime-utils';
 
 export type OllamaRuntimeSecrets = {
@@ -154,12 +154,34 @@ export async function executeOllamaEmbedding(options: OllamaEmbeddingRuntimeOpti
   const data: any = await response.json();
   const vectors = (data?.embeddings || data?.data || []).map((item: any) => item?.embedding || item).filter(Boolean);
   const dim = vectors[0]?.length || 0;
+  const usage = normalizeOllamaEmbeddingUsage(data);
+  const rawUsage = usage
+    ? {
+        prompt_eval_count: data?.prompt_eval_count,
+        total_duration: data?.total_duration
+      }
+    : undefined;
 
   return {
     vectors,
     dim,
     model,
-    providerId: options.providerId
+    providerId: options.providerId,
+    ...(rawUsage ? { rawUsage } : {}),
+    ...(usage ? { usage } : {})
+  };
+}
+
+function normalizeOllamaEmbeddingUsage(data: any): TokenUsage | undefined {
+  const inputTokens = typeof data?.prompt_eval_count === 'number' && Number.isFinite(data.prompt_eval_count) && data.prompt_eval_count >= 0 ? data.prompt_eval_count : undefined;
+
+  if (inputTokens === undefined) {
+    return undefined;
+  }
+
+  return {
+    inputTokens,
+    totalTokens: inputTokens
   };
 }
 

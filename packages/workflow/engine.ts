@@ -93,7 +93,7 @@ export class WorkflowEngine extends EngineEmitter {
     if (this.baseCtx.getResourceProjectDirs) {
       const originalFn = this.baseCtx.getResourceProjectDirs;
       ctx.getResourceProjectDirs = (taskType: string) => {
-        return originalFn(taskType, { resourceId: ctx.resourceId, workspaceId: ctx.workspaceId });
+        return originalFn(taskType);
       };
     }
 
@@ -331,6 +331,9 @@ runId: ${runId}
     }
 
     const ctx = this.buildCtx();
+    ctx.workflowId = def.id;
+    ctx.workflowName = def.name;
+    ctx.workflowRunId = runId;
 
     // 从 metadata 或 initialInput 中提取工作空间和文件夹信息
     // metadata 中可能有 workspaceId 和 folderId
@@ -364,7 +367,7 @@ runId: ${runId}
     // 存储执行上下文，以便在运行时更新
     this.runContexts.set(runId, ctx);
 
-    await fsPromises.mkdir(ctx.tmpDir, { recursive: true }).catch(() => { });
+    await fsPromises.mkdir(ctx.tmpDir, { recursive: true }).catch(() => {});
 
     // Prepare plugins once per run
     const prepared = new Set<string>();
@@ -527,7 +530,18 @@ runId: ${runId}
             this.emit(ev, payloadWithRunId);
           }
         };
-        const out = await handler.run({ input, config: inst.config, ctx, emit: nodeEmit, getPlugin: getPluginFn });
+        const out = await handler.run({
+          input,
+          config: inst.config,
+          ctx: {
+            ...ctx,
+            workflowNodeId: nodeId,
+            workflowNodeLabel: inst.name || handler.spec.label || inst.type,
+            workflowNodeType: inst.type
+          },
+          emit: nodeEmit,
+          getPlugin: getPluginFn
+        });
         const duration = now() - startTime;
         nodesState[nodeId] = { ...nodesState[nodeId], status: 'completed', finishedAt: now(), output: out };
         nodeOutput.set(nodeId, out);

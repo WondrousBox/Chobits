@@ -1,5 +1,6 @@
+import { getChatMessageUsage } from '../../../message-usage';
 import { normalizeProviderPreset, resolveProviderPresetId } from '../../../provider-preset';
-import type { ChatMessage, ChatRequest, ProviderScopedRequest } from '../../../types';
+import type { ChatMessage, ChatRequest, ProviderScopedRequest, TokenUsage } from '../../../types';
 import { PiExecutionService } from '../execution-service';
 import { buildTaggingUserPrompt, TAGGING_SYSTEM_PROMPT } from './tag-prompt';
 
@@ -8,6 +9,15 @@ let piExecutionService: PiExecutionService | undefined;
 export interface GeneratePiTagsOptions extends ProviderScopedRequest {
   model?: string;
   segment: string;
+}
+
+export interface GeneratePiTagsResult {
+  model?: string;
+  providerId?: string;
+  rawUsage?: unknown;
+  runtime?: string;
+  tags: string[];
+  usage?: TokenUsage;
 }
 
 export function parseTagListFromResponse(txt: string): string[] {
@@ -42,7 +52,7 @@ function getPiExecutionService(): PiExecutionService {
   return piExecutionService;
 }
 
-export async function generatePiTagsForSegment(options: GeneratePiTagsOptions): Promise<string[]> {
+export async function generatePiTagsForSegment(options: GeneratePiTagsOptions): Promise<GeneratePiTagsResult> {
   const { model, providerId, segment } = options;
   const providerPresetId = resolveProviderPresetId(options);
   const messages: ChatMessage[] = [
@@ -60,8 +70,8 @@ export async function generatePiTagsForSegment(options: GeneratePiTagsOptions): 
     agentId: 'chat',
     extras: model
       ? {
-        model
-      }
+          model
+        }
       : undefined,
     maxTokens: 256,
     messages,
@@ -71,5 +81,16 @@ export async function generatePiTagsForSegment(options: GeneratePiTagsOptions): 
     temperature: 0.2
   });
 
-  return parseTagListFromResponse(await getPiExecutionService().completeText(request)).slice(0, 5);
+  const response = await getPiExecutionService().chatEphemeral(request);
+  const responseMetadata = response.metadata as Record<string, unknown> | undefined;
+  const messageMetadata = response.message?.metadata as Record<string, unknown> | undefined;
+
+  return {
+    model: typeof responseMetadata?.model === 'string' ? responseMetadata.model : model,
+    providerId: response.providerId || providerId,
+    rawUsage: messageMetadata?.piRawUsage ?? responseMetadata?.rawUsage,
+    runtime: typeof responseMetadata?.runtime === 'string' ? responseMetadata.runtime : 'pi',
+    tags: parseTagListFromResponse(response.message?.content || '').slice(0, 5),
+    usage: response.usage || getChatMessageUsage(response.message)
+  };
 }

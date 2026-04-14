@@ -2,10 +2,10 @@ import { randomUUID } from 'node:crypto';
 
 import { BrowserWindow, ipcMain, WebContents } from 'electron';
 
-import { recordAiUsageEvent } from '../../electron/main/handlers/analytics/usage-recorder';
 import { ChatRepo, WorkspacesRepo } from '../common/db';
 import { eventManager } from '../event';
 import { AppEvent } from '../event/events';
+import { emitAiUsageObservedEvent } from './analytics/events';
 import { AI_USAGE_CATEGORIES, AI_USAGE_FEATURES, AI_USAGE_SOURCE_TYPES, AI_USAGE_STAGES, type RecordAiUsageEventInput } from './analytics/types';
 import { buildConversationPlaceholderTitle, normalizeGeneratedConversationTitle } from './conversation-title';
 import { getChatMessageUsage, withChatMessageUsage } from './message-usage';
@@ -602,28 +602,7 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
   }
 
   private async recordUsageEventSafely(input: RecordAiUsageEventInput): Promise<void> {
-    try {
-      const result = await recordAiUsageEvent(input);
-      if (!result.ok) {
-        console.warn('[ChatService] Failed to record AI usage event:', {
-          code: result.code,
-          message: result.message,
-          requestId: input.requestId,
-          warnings: result.warnings
-        });
-        return;
-      }
-
-      if (result.warnings?.length) {
-        console.warn('[ChatService] AI usage event recorded with warnings:', {
-          eventId: result.eventId,
-          requestId: input.requestId,
-          warnings: result.warnings
-        });
-      }
-    } catch (error) {
-      console.warn('[ChatService] Unexpected AI usage recording error:', error);
-    }
+    await emitAiUsageObservedEvent(input, { producer: 'ChatService' });
   }
 
   private async recordChatUsageEvent(params: {
@@ -663,6 +642,9 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
       status: params.status,
       usage: params.usage
         ? {
+            billableInputTokens: params.usage.billableInputTokens,
+            billableOutputTokens: params.usage.billableOutputTokens,
+            billableTotalTokens: params.usage.billableTotalTokens,
             cacheReadTokens: params.usage.cacheReadTokens,
             cacheWriteTokens: params.usage.cacheWriteTokens,
             estimatedCost: params.usage.cost,
@@ -718,6 +700,9 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
       status: params.status,
       usage: params.usage
         ? {
+            billableInputTokens: params.usage.billableInputTokens,
+            billableOutputTokens: params.usage.billableOutputTokens,
+            billableTotalTokens: params.usage.billableTotalTokens,
             cacheReadTokens: params.usage.cacheReadTokens,
             cacheWriteTokens: params.usage.cacheWriteTokens,
             estimatedCost: params.usage.cost,

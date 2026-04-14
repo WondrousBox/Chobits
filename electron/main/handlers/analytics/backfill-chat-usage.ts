@@ -157,6 +157,9 @@ function resolveModel(metadata?: Record<string, unknown>): { model?: string; sou
 
 function toAiUsageNumbers(usage: TokenUsage): AiUsageNumbers {
   return {
+    billableInputTokens: usage.billableInputTokens,
+    billableOutputTokens: usage.billableOutputTokens,
+    billableTotalTokens: usage.billableTotalTokens,
     cacheReadTokens: usage.cacheReadTokens,
     cacheWriteTokens: usage.cacheWriteTokens,
     estimatedCost: usage.cost,

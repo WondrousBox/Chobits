@@ -141,15 +141,21 @@ export type AiUsageQueryFilter = {
   meteringSource?: AiMeteringSource;
   meteringAccuracy?: AiMeteringAccuracy;
   billingEligible?: boolean;
+  workflowRunId?: string;
+  workflowNodeId?: string;
+  workflowNodeType?: string;
+  providerUsageType?: string;
   createdAtFrom?: number;
   createdAtTo?: number;
 };
 
-export const AI_USAGE_BREAKDOWN_DIMENSIONS = ['provider', 'model', 'category', 'feature', 'sourceType', 'stage', 'status'] as const;
+export const AI_USAGE_BREAKDOWN_DIMENSIONS = ['provider', 'model', 'category', 'feature', 'sourceType', 'stage', 'status', 'workflowNodeType'] as const;
 export const AI_USAGE_TIMELINE_BUCKETS = ['day', 'hour'] as const;
+export const AI_USAGE_OUTBOX_STATUSES = ['pending', 'processed', 'failed'] as const;
 
 export type AiUsageBreakdownDimension = (typeof AI_USAGE_BREAKDOWN_DIMENSIONS)[number];
 export type AiUsageTimelineBucket = (typeof AI_USAGE_TIMELINE_BUCKETS)[number];
+export type AiUsageOutboxStatus = (typeof AI_USAGE_OUTBOX_STATUSES)[number];
 
 export type AiUsageOverview = {
   totalEvents: number;
@@ -199,6 +205,42 @@ export type AiUsageBreakdownRow = {
   estimatedCost: number;
 };
 
+export type AiUsageOutboxHealth = {
+  failedCount: number;
+  lastEmittedAt: number | null;
+  maxPendingAttemptCount: number;
+  newestFailedAt: number | null;
+  newestProcessedAt: number | null;
+  oldestPendingCreatedAt: number | null;
+  pendingCount: number;
+  processedCount: number;
+  retryingCount: number;
+};
+
+export type AiUsageOutboxEventSummary = {
+  attemptCount: number;
+  createdAt: number | null;
+  emittedAt: number;
+  eventFingerprint: string;
+  eventType: string;
+  id: string;
+  lastAttemptAt: number | null;
+  lastError: string | null;
+  model: string;
+  operationKey: string;
+  processedAt: number | null;
+  producer: string | null;
+  providerId: string;
+  requestId: string;
+  sourceId: string;
+  sourceType: string;
+  status: AiUsageOutboxStatus;
+  traceId: string;
+  updatedAt: number | null;
+  usageFeature: string;
+  usageStage: string;
+};
+
 export type AiUsageOverviewQuery = {
   filter?: AiUsageQueryFilter;
 };
@@ -219,6 +261,29 @@ export type AiUsageEventsQuery = {
   filter?: AiUsageQueryFilter;
   limit?: number;
   offset?: number;
+};
+
+export type AiUsageOutboxHealthQuery = Record<string, never>;
+
+export type AiUsageOutboxEventsQuery = {
+  limit?: number;
+  status?: AiUsageOutboxStatus;
+};
+
+export type AiUsageOutboxRetryQuery = {
+  limit?: number;
+};
+
+export type AiUsageOutboxRetryResult = {
+  limit: number;
+  resetCount: number;
+  scheduled: boolean;
+};
+
+export type AiUsageOutboxDrainQuery = Record<string, never>;
+
+export type AiUsageOutboxDrainResult = {
+  scheduled: boolean;
 };
 
 export type AiChatUsageBackfillQuery = {

@@ -11,35 +11,13 @@ import type {
   ProviderDefaultModels,
   ProviderSecrets,
   StreamEvent,
-  TranscribeOptions
+  TranscribeOptions,
+  TranscriptionResponse
 } from '../../types';
-import {
-  createAnthropicClient,
-  executeAnthropicChat,
-  listAnthropicModels,
-  type AnthropicRuntimeSecrets
-} from '../anthropic-runtime';
-import {
-  createGeminiClient,
-  executeGeminiChat,
-  listGeminiModels,
-  type GeminiRuntimeSecrets
-} from '../gemini-runtime';
-import {
-  createOllamaClient,
-  executeOllamaChat,
-  executeOllamaEmbedding,
-  listOllamaModels,
-  type OllamaRuntimeSecrets
-} from '../ollama-runtime';
-import {
-  createOpenAIClient,
-  executeOpenAIChat,
-  executeOpenAIEmbedding,
-  executeOpenAITranscription,
-  listOpenAIModels,
-  type OpenAIRuntimeSecrets
-} from '../openai-runtime';
+import { type AnthropicRuntimeSecrets, createAnthropicClient, executeAnthropicChat, listAnthropicModels } from '../anthropic-runtime';
+import { createGeminiClient, executeGeminiChat, type GeminiRuntimeSecrets, listGeminiModels } from '../gemini-runtime';
+import { createOllamaClient, executeOllamaChat, executeOllamaEmbedding, listOllamaModels, type OllamaRuntimeSecrets } from '../ollama-runtime';
+import { createOpenAIClient, executeOpenAIChat, executeOpenAIEmbedding, executeOpenAITranscription, listOpenAIModels, type OpenAIRuntimeSecrets } from '../openai-runtime';
 import type { ProviderDefinition, ProviderRuntimeModule, ProviderRuntimeModuleExport } from '../types';
 
 const OPENAI_DRIVER_CAPABILITIES: ProviderCapabilities = {
@@ -262,7 +240,7 @@ class OpenAIStylePluginProvider extends DefinitionBackedPluginProvider {
     });
   }
 
-  async transcribe(file: File | Blob | Buffer | ArrayBuffer, options?: TranscribeOptions): Promise<{ text: string }> {
+  async transcribe(file: File | Blob | Buffer | ArrayBuffer, options?: TranscribeOptions): Promise<TranscriptionResponse> {
     this.requireCapability('transcribe');
     const defaultModel = resolveDefaultModel(this.definition, 'transcribe');
     if (!defaultModel) {
@@ -566,9 +544,7 @@ export async function createPluginProviderAdapter(definition: ProviderDefinition
   const warnings: string[] = [];
   const unsupportedCapabilities = listUnsupportedCapabilities(definition.capabilities, driverCapabilities);
   if (unsupportedCapabilities.length > 0) {
-    warnings.push(
-      `plugin provider "${definition.id}" declares capabilities not supported by the ${definition.protocol.kind} driver: ${unsupportedCapabilities.join(', ')}`
-    );
+    warnings.push(`plugin provider "${definition.id}" declares capabilities not supported by the ${definition.protocol.kind} driver: ${unsupportedCapabilities.join(', ')}`);
   }
 
   switch (definition.protocol.kind) {

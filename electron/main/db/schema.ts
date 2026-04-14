@@ -468,6 +468,57 @@ export type AiUsageEventRow = InferSelectModel<typeof ai_usage_events>;
 export type NewAiUsageEvent = InferInsertModel<typeof ai_usage_events>;
 
 /**
+ * ai_usage_event_outbox：AI usage 事件耐久队列表
+ * - AI 域只负责发事件；analytics 侧先写 outbox，再异步 drain 到 ai_usage_events
+ */
+export const ai_usage_event_outbox = sqliteTable(
+  'ai_usage_event_outbox',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+
+    eventType: text('event_type').notNull(),
+    eventFingerprint: text('event_fingerprint').notNull(),
+    producer: text('producer'),
+
+    traceId: text('trace_id').notNull(),
+    requestId: text('request_id').notNull(),
+    providerId: text('provider_id').notNull(),
+    model: text('model').notNull(),
+    sourceType: text('source_type').notNull(),
+    sourceId: text('source_id').notNull(),
+    usageFeature: text('usage_feature').notNull(),
+    usageStage: text('usage_stage').notNull(),
+    operationKey: text('operation_key').notNull(),
+    attemptIndex: integer('attempt_index').notNull().default(0),
+
+    emittedAt: integer('emitted_at').notNull(),
+    payload: text('payload', { mode: 'json' }).notNull(),
+
+    status: text('status', { enum: ['pending', 'processed', 'failed'] })
+      .notNull()
+      .default('pending'),
+    attemptCount: integer('attempt_count').notNull().default(0),
+    lastError: text('last_error'),
+    lastAttemptAt: integer('last_attempt_at'),
+    processedAt: integer('processed_at'),
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
+    updatedAt: integer('updated_at').default(sql`(unixepoch('now')*1000)`)
+  },
+  (t) => ({
+    uqAiUsageOutboxEventFingerprint: uniqueIndex('uq_ai_usage_outbox_event_fingerprint').on(t.eventType, t.eventFingerprint),
+    idxAiUsageOutboxStatusCreated: index('idx_ai_usage_outbox_status_created').on(t.status, t.createdAt),
+    idxAiUsageOutboxFingerprint: index('idx_ai_usage_outbox_fingerprint').on(t.eventFingerprint),
+    idxAiUsageOutboxTrace: index('idx_ai_usage_outbox_trace').on(t.traceId),
+    idxAiUsageOutboxRequest: index('idx_ai_usage_outbox_request').on(t.requestId)
+  })
+);
+
+export type AiUsageEventOutboxRow = InferSelectModel<typeof ai_usage_event_outbox>;
+export type NewAiUsageEventOutbox = InferInsertModel<typeof ai_usage_event_outbox>;
+
+/**
  * automation_rules: 自动化规则表
  * - 定义资源事件、定时任务等触发的工作流或其他操作
  * - 支持工作空间隔离与全局规则

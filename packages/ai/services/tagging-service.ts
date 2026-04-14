@@ -1,7 +1,12 @@
+import { randomUUID } from 'node:crypto';
+
 import { utils } from '@aim-packages/subtitle';
 import { ipcMain } from 'electron';
 
+import { emitAiUsageObservedEvent } from '../analytics/events';
+import type { RecordAiUsageEventInput } from '../analytics/types';
 import { ChatService } from '../chat-service';
+import { getChatMessageUsage } from '../message-usage';
 import { getPresetSecrets, listPresets } from '../preset-service';
 import { listProviderSecretKeys, listRequiredProviderSecretKeys, supportsProviderCapability } from '../providers/service';
 import { getProvider } from '../registry';
@@ -9,7 +14,7 @@ import { PiExecutionService } from '../runtime/pi/execution-service';
 import { generatePiTagsForSegment, parseTagListFromResponse } from '../runtime/pi/tasks/tag';
 import { buildTaggingUserPrompt, TAGGING_SYSTEM_PROMPT } from '../runtime/pi/tasks/tag-prompt';
 import { isFreeProvider, loadSelectionStrategy, scoreCandidate } from '../selection-strategy';
-import type { ChatRequest, ChatResponse } from '../types';
+import type { ChatRequest, ChatResponse, TokenUsage } from '../types';
 
 export type BestPreset = {
   providerId: string;
@@ -18,9 +23,48 @@ export type BestPreset = {
 };
 
 type Candidate = { providerId: string; presetId: string; updatedAt: number; weight: number; secrets?: Record<string, string> };
+type TaggingInvocationResult = {
+  model?: string;
+  providerId?: string;
+  rawUsage?: unknown;
+  runtime?: string;
+  tags: string[];
+  usage?: TokenUsage;
+};
 
 let piExecutionService: PiExecutionService | undefined;
 let legacyTagChatServicePromise: Promise<{ chatEphemeral(win: undefined, req: ChatRequest): Promise<ChatResponse> }> | undefined;
+
+function safeUuid(): string {
+  try {
+    return randomUUID();
+  } catch {
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+}
+
+function toAnalyticsUsage(usage?: TokenUsage): RecordAiUsageEventInput['usage'] | undefined {
+  if (!usage) {
+    return undefined;
+  }
+
+  return {
+    billableInputTokens: usage.billableInputTokens,
+    billableOutputTokens: usage.billableOutputTokens,
+    billableTotalTokens: usage.billableTotalTokens,
+    cacheReadTokens: usage.cacheReadTokens,
+    cacheWriteTokens: usage.cacheWriteTokens,
+    estimatedCost: usage.cost,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    reasoningTokens: usage.reasoningTokens,
+    totalTokens: usage.totalTokens
+  };
+}
+
+async function recordTaggingUsageEventSafely(input: RecordAiUsageEventInput): Promise<void> {
+  await emitAiUsageObservedEvent(input, { producer: 'TaggingService' });
+}
 
 function getPiExecutionService(): PiExecutionService {
   piExecutionService ||= new PiExecutionService();
@@ -102,39 +146,120 @@ export const TaggingService = {
     return parseTagListFromResponse(txt);
   },
 
-  async tagOneSegmentLegacy(segment: string, best: BestPreset): Promise<string[]> {
-    try {
-      const response = await (
-        await getLegacyTagChatService()
-      ).chatEphemeral(undefined, {
-        agentId: 'chat',
-        maxTokens: 256,
-        messages: [
-          {
-            role: 'system',
-            content: TAGGING_SYSTEM_PROMPT
-          },
-          {
-            role: 'user',
-            content: buildTaggingUserPrompt(segment)
-          }
-        ],
-        persist: false,
-        providerId: best.providerId,
-        providerPresetId: best.presetId,
-        temperature: 0.2
-      });
-
-      const txt = response?.message?.content || '';
-      return this.parseTagsFromText(txt).slice(0, 5);
-    } catch {
-      return [];
+  async tagOneSegmentLegacy(
+    segment: string,
+    best: BestPreset,
+    context: {
+      requestId: string;
+      segmentCount: number;
+      segmentIndex: number;
+      textChars: number;
     }
+  ): Promise<TaggingInvocationResult> {
+    const response = await (
+      await getLegacyTagChatService()
+    ).chatEphemeral(undefined, {
+      agentId: 'chat',
+      extras: {
+        analyticsUsage: {
+          metadata: {
+            requestKind: 'auto_tag_text',
+            runtime: 'legacy_ephemeral',
+            segmentChars: segment.length,
+            segmentCount: context.segmentCount,
+            segmentIndex: context.segmentIndex,
+            textChars: context.textChars
+          },
+          operationKey: `segment:${context.segmentIndex}`,
+          sourceId: context.requestId,
+          sourceLabel: '自动打标',
+          sourceType: 'tagging',
+          usageCategory: 'content_processing',
+          usageFeature: 'tagging',
+          usageStage: 'classify'
+        }
+      },
+      maxTokens: 256,
+      messages: [
+        {
+          role: 'system',
+          content: TAGGING_SYSTEM_PROMPT
+        },
+        {
+          role: 'user',
+          content: buildTaggingUserPrompt(segment)
+        }
+      ],
+      persist: false,
+      providerId: best.providerId,
+      providerPresetId: best.presetId,
+      temperature: 0.2
+    });
+
+    const responseMetadata = response.metadata as Record<string, unknown> | undefined;
+    const messageMetadata = response.message?.metadata as Record<string, unknown> | undefined;
+
+    return {
+      model: typeof responseMetadata?.model === 'string' ? responseMetadata.model : undefined,
+      providerId: response.providerId || best.providerId,
+      rawUsage: messageMetadata?.piRawUsage ?? responseMetadata?.rawUsage,
+      runtime: typeof responseMetadata?.runtime === 'string' ? responseMetadata.runtime : 'legacy_ephemeral',
+      tags: this.parseTagsFromText(response?.message?.content || '').slice(0, 5),
+      usage: response.usage || getChatMessageUsage(response.message)
+    };
+  },
+
+  async recordSegmentUsage(params: {
+    best: BestPreset;
+    completedAt: number;
+    errorMessage?: string;
+    invocation?: Omit<TaggingInvocationResult, 'tags'>;
+    requestId: string;
+    segment: string;
+    segmentCount: number;
+    segmentIndex: number;
+    startedAt: number;
+    status: 'completed' | 'failed';
+    tagCount?: number;
+    textChars: number;
+  }): Promise<void> {
+    await recordTaggingUsageEventSafely({
+      traceId: params.requestId,
+      requestId: params.requestId,
+      operationKey: `segment:${params.segmentIndex}`,
+      sourceType: 'tagging',
+      sourceId: params.requestId,
+      sourceLabel: '自动打标',
+      usageCategory: 'content_processing',
+      usageFeature: 'tagging',
+      usageStage: 'classify',
+      providerId: params.invocation?.providerId || params.best.providerId,
+      providerPresetId: params.best.presetId,
+      model: params.invocation?.model || 'unknown',
+      agentId: 'tagging-service',
+      status: params.status,
+      usage: toAnalyticsUsage(params.invocation?.usage),
+      rawUsage: params.invocation?.rawUsage,
+      meteringSource: 'provider_reported',
+      startedAt: params.startedAt,
+      completedAt: params.completedAt,
+      metadata: {
+        errorMessage: params.errorMessage,
+        requestKind: 'auto_tag_text',
+        runtime: params.invocation?.runtime || 'unknown',
+        segmentChars: params.segment.length,
+        segmentCount: params.segmentCount,
+        segmentIndex: params.segmentIndex,
+        tagCount: params.tagCount,
+        textChars: params.textChars
+      }
+    });
   },
 
   async autoTagText(text: string, opts?: { maxLabels?: number }): Promise<string[]> {
     const textStr = (text || '').trim();
     if (!textStr) return [];
+    const requestId = safeUuid();
 
     // Chunk long text for better tagging
     let segments = [textStr];
@@ -177,24 +302,87 @@ export const TaggingService = {
     const usePi = !legacyFallbackAllowed;
 
     // 处理每个片段
-    for (const segment of segments) {
+    for (const [segmentIndex, segment] of segments.entries()) {
       let tags: string[] = [];
+      const startedAt = Date.now();
 
       if (usePi) {
         try {
-          tags = await generatePiTagsForSegment({
+          const result = await generatePiTagsForSegment({
             providerId: best.providerId,
             providerPresetId: best.presetId,
             segment
           });
+          tags = result.tags;
+          await this.recordSegmentUsage({
+            best,
+            completedAt: Date.now(),
+            invocation: result,
+            requestId,
+            segment,
+            segmentCount: segments.length,
+            segmentIndex,
+            startedAt,
+            status: 'completed',
+            tagCount: tags.length,
+            textChars: textStr.length
+          });
         } catch (error) {
           console.warn('[TaggingService] Pi tagging failed:', error);
+          await this.recordSegmentUsage({
+            best,
+            completedAt: Date.now(),
+            errorMessage: error instanceof Error ? error.message : String(error),
+            requestId,
+            segment,
+            segmentCount: segments.length,
+            segmentIndex,
+            startedAt,
+            status: 'failed',
+            textChars: textStr.length
+          });
           continue;
         }
       }
 
       if (!tags.length && legacyFallbackAllowed) {
-        tags = await this.tagOneSegmentLegacy(segment, best);
+        try {
+          const result = await this.tagOneSegmentLegacy(segment, best, {
+            requestId,
+            segmentCount: segments.length,
+            segmentIndex,
+            textChars: textStr.length
+          });
+          tags = result.tags;
+          await this.recordSegmentUsage({
+            best,
+            completedAt: Date.now(),
+            invocation: result,
+            requestId,
+            segment,
+            segmentCount: segments.length,
+            segmentIndex,
+            startedAt,
+            status: 'completed',
+            tagCount: tags.length,
+            textChars: textStr.length
+          });
+        } catch (error) {
+          console.warn('[TaggingService] Legacy tagging failed:', error);
+          await this.recordSegmentUsage({
+            best,
+            completedAt: Date.now(),
+            errorMessage: error instanceof Error ? error.message : String(error),
+            requestId,
+            segment,
+            segmentCount: segments.length,
+            segmentIndex,
+            startedAt,
+            status: 'failed',
+            textChars: textStr.length
+          });
+          continue;
+        }
       }
 
       for (const t of tags) uniqPush(t, 1);
