@@ -220,6 +220,30 @@ export const AnalyticsRepo = {
       .run(processedAt, processedAt, processedAt, id);
   },
 
+  async deleteProcessedAiUsageOutboxBefore(cutoff: number, limit = 200): Promise<number> {
+    const rawDb = getDB();
+    if (!rawDb) return 0;
+
+    const result = rawDb
+      .prepare(
+        `
+          DELETE FROM ai_usage_event_outbox
+          WHERE id IN (
+            SELECT id
+            FROM ai_usage_event_outbox
+            WHERE status = 'processed'
+              AND processed_at IS NOT NULL
+              AND processed_at < ?
+            ORDER BY processed_at ASC, updated_at ASC, created_at ASC
+            LIMIT ?
+          )
+        `
+      )
+      .run(cutoff, limit);
+
+    return Number(result.changes ?? 0);
+  },
+
   async markAiUsageEventOutboxPendingRetry(id: string, lastError: string, attemptedAt = Date.now()): Promise<void> {
     const rawDb = getDB();
     if (!rawDb) return;

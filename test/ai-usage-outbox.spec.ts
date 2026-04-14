@@ -4,6 +4,7 @@ import type { RecordAiUsageEventInput } from '../packages/ai/analytics/types';
 
 const { analyticsRepoMocks, recordAiUsageEventMock } = vi.hoisted(() => ({
   analyticsRepoMocks: {
+    deleteProcessedAiUsageOutboxBefore: vi.fn(),
     findAiUsageEventOutboxByFingerprint: vi.fn(),
     insertAiUsageEventOutbox: vi.fn(),
     listPendingAiUsageEventOutbox: vi.fn(),
@@ -58,6 +59,7 @@ describe('ai usage outbox recovery flow', () => {
     analyticsRepoMocks.findAiUsageEventOutboxByFingerprint.mockResolvedValue(undefined);
     analyticsRepoMocks.insertAiUsageEventOutbox.mockResolvedValue(undefined);
     analyticsRepoMocks.listPendingAiUsageEventOutbox.mockResolvedValue([]);
+    analyticsRepoMocks.deleteProcessedAiUsageOutboxBefore.mockResolvedValue(0);
     analyticsRepoMocks.markAiUsageEventOutboxFailed.mockResolvedValue(undefined);
     analyticsRepoMocks.markAiUsageEventOutboxPendingRetry.mockResolvedValue(undefined);
     analyticsRepoMocks.markAiUsageEventOutboxProcessed.mockResolvedValue(undefined);

@@ -963,7 +963,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ workspaceId }) => {
                       <TbStethoscope className="h-4 w-4" />
                       采集链路健康
                     </CardTitle>
-                    <CardDescription>这部分展示 analytics outbox 的全局健康状态，不受上方业务筛选影响。</CardDescription>
+                    <CardDescription>这部分展示 analytics outbox 的全局健康状态，不受上方业务筛选影响。已处理记录默认只保留最近 7 天。</CardDescription>
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-2">
                     <Badge variant={outboxHealthBadgeVariant(outboxHealthStatus.level)}>{outboxHealthStatus.label}</Badge>
@@ -1007,7 +1007,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ workspaceId }) => {
                         <div className="mt-1 font-medium">{formatInteger(outboxHealth?.retryingCount)}</div>
                       </div>
                       <div className="rounded-lg border px-3 py-2">
-                        <div className="text-xs text-muted-foreground">累计处理</div>
+                        <div className="text-xs text-muted-foreground">保留已处理</div>
                         <div className="mt-1 font-medium">{formatInteger(outboxHealth?.processedCount)}</div>
                       </div>
                       <div className="rounded-lg border px-3 py-2">
