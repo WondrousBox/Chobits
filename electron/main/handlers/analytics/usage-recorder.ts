@@ -218,6 +218,10 @@ export function shouldMarkBillingEligible(input: {
     return input.billingEligible;
   }
 
+  const hasPositiveBillableUsage =
+    (input.usage.billableInputTokens ?? 0) > 0 || (input.usage.billableOutputTokens ?? 0) > 0 || (input.usage.billableTotalTokens ?? 0) > 0;
+  const hasPositiveEstimatedCost = (input.usage.estimatedCost ?? 0) > 0;
+
   return (
     input.meteringSource === 'provider_reported' &&
     input.meteringAccuracy === 'exact' &&
@@ -225,7 +229,7 @@ export function shouldMarkBillingEligible(input: {
     !!input.model &&
     input.rawUsage !== undefined &&
     input.rawUsage !== null &&
-    (input.usage.billableInputTokens !== null || input.usage.billableOutputTokens !== null || input.usage.billableTotalTokens !== null || input.usage.estimatedCost !== null)
+    (hasPositiveBillableUsage || hasPositiveEstimatedCost)
   );
 }
 

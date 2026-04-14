@@ -5,10 +5,14 @@ import { recordAiUsageEvent } from './usage-recorder';
 
 const TAG = '[analytics][usage-event-listener]';
 const OUTBOX_DRAIN_BATCH_SIZE = 100;
+const PROCESSED_OUTBOX_PRUNE_BATCH_SIZE = 200;
+const PROCESSED_OUTBOX_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const PROCESSED_OUTBOX_PRUNE_INTERVAL_MS = 5 * 60 * 1000;
 
 let stopWriting: (() => void) | undefined;
 let drainInFlight: Promise<void> | undefined;
 let drainRequested = false;
+let lastProcessedOutboxPruneAt = 0;
 
 function formatError(error: unknown): string {
   if (error instanceof Error) {
@@ -55,10 +59,24 @@ async function appendAiUsageEventToOutbox(event: AiUsageObservedEvent): Promise<
   };
 
   try {
-    await AnalyticsRepo.insertAiUsageEventOutbox(rowToInsert);
+    const inserted = await AnalyticsRepo.insertAiUsageEventOutbox(rowToInsert);
+    console.info(`${TAG} Outbox event enqueued:`, {
+      eventFingerprint: event.eventFingerprint,
+      outboxId: inserted?.id,
+      producer: event.producer,
+      requestId: event.input.requestId,
+      usageFeature: event.input.usageFeature,
+      usageStage: event.input.usageStage
+    });
   } catch (error) {
     const existing = await AnalyticsRepo.findAiUsageEventOutboxByFingerprint(event.type, event.eventFingerprint);
     if (existing) {
+      console.info(`${TAG} Duplicate outbox event skipped:`, {
+        eventFingerprint: event.eventFingerprint,
+        outboxId: existing.id,
+        producer: event.producer,
+        requestId: event.input.requestId
+      });
       return;
     }
     throw error;
@@ -110,6 +128,16 @@ async function processOutboxEntry(entry: AiUsageEventOutboxRow): Promise<void> {
     }
 
     await AnalyticsRepo.markAiUsageEventOutboxProcessed(entry.id);
+    console.info(`${TAG} Outbox event processed:`, {
+      dedupeStrategy: result.dedupeStrategy,
+      deduped: result.deduped,
+      eventId: result.eventId,
+      outboxId: entry.id,
+      producer: entry.producer,
+      requestId: entry.requestId,
+      usageFeature: entry.usageFeature,
+      usageStage: entry.usageStage
+    });
 
     if (result.warnings?.length) {
       console.warn(`${TAG} AI usage event processed with warnings:`, {
@@ -150,6 +178,36 @@ async function drainAiUsageEventOutbox(): Promise<void> {
   }
 }
 
+async function pruneProcessedAiUsageEventOutbox(now = Date.now()): Promise<void> {
+  if (now - lastProcessedOutboxPruneAt < PROCESSED_OUTBOX_PRUNE_INTERVAL_MS) {
+    return;
+  }
+
+  lastProcessedOutboxPruneAt = now;
+  const cutoff = now - PROCESSED_OUTBOX_RETENTION_MS;
+  let deletedCount = 0;
+
+  while (true) {
+    const deleted = await AnalyticsRepo.deleteProcessedAiUsageOutboxBefore(cutoff, PROCESSED_OUTBOX_PRUNE_BATCH_SIZE);
+    if (deleted <= 0) {
+      break;
+    }
+
+    deletedCount += deleted;
+    if (deleted < PROCESSED_OUTBOX_PRUNE_BATCH_SIZE) {
+      break;
+    }
+  }
+
+  if (deletedCount > 0) {
+    console.info(`${TAG} Pruned processed outbox events:`, {
+      cutoff,
+      deletedCount,
+      retentionDays: PROCESSED_OUTBOX_RETENTION_MS / (24 * 60 * 60 * 1000)
+    });
+  }
+}
+
 function scheduleOutboxDrain(): void {
   if (drainInFlight) {
     drainRequested = true;
@@ -159,6 +217,7 @@ function scheduleOutboxDrain(): void {
   drainInFlight = (async () => {
     try {
       await drainAiUsageEventOutbox();
+      await pruneProcessedAiUsageEventOutbox();
     } catch (error) {
       console.warn(`${TAG} Outbox drain crashed:`, error);
     }
@@ -193,5 +252,6 @@ export function initAiUsageAnalyticsListener(): void {
     scheduleOutboxDrain();
   });
 
+  console.info(`${TAG} Analytics writer registered.`);
   scheduleOutboxDrain();
 }
