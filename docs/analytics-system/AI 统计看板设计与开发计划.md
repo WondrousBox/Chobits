@@ -18,11 +18,24 @@ Phase 1 的字段级 schema 与 recorder 契约草案，另见：[AI 使用量�
 - 记忆提取已按 `analyze / extract / merge` 分阶段落账，并补齐 topic 级稳定 `operationKey`。
 - `window.YUA.analytics` 首版查询桥已完成，可供 Renderer 读取 overview / timeline / breakdown / events 数据。
 - 资源页侧边栏已新增 `统计` 菜单，`AnalyticsPage` 首版已可查看 overview / timeline / ranking / recent events。
+- analytics 查询层已补齐第二轮扩展：除基础列过滤外，现已支持 `workflowRunId / workflowNodeId / workflowNodeType / providerUsageType` 等 metadata 维度过滤，并支持 `workflowNodeType` breakdown。
+- AI usage 采集链路已开始按“事件发布 / 监听消费”重构：AI 模块不再要求直接依赖 analytics recorder，而是统一发出 `ai usage observed` 事件；analytics 模块通过 listener 挂载式接入并负责真正落库。
+- AI usage 事件耐久层已完成首版落地：analytics 模块在接入时会先把 `ai usage observed` 事件写入 `ai_usage_event_outbox`，再异步 drain 到 `ai_usage_events`；pending 事件可跨主进程重启继续消费，避免 emit 后崩溃导致丢账。
 - 历史聊天补录已完成首版落地：主进程可扫描 `chat_messages.metadata.aiUsage / piRawUsage`，通过 `window.YUA.analytics.backfillChatUsage` 回填 `message_backfilled` 事件。
 - 统计页已支持显式触发“补录历史聊天”，并展示扫描 / 写入 / 去重 / 跳过 / 失败结果。
+- 统计页查询/UI 已完成第二轮扩展：顶部筛选已补齐 `Provider / Model / usageCategory / status / meteringAccuracy / billingEligible`，并新增执行阶段、工作流 AI 节点榜单与更完整的最近事件上下文展示。
+- `window.YUA.analytics` 已补齐 `outboxHealth / outboxEvents` 查询；统计页现可直接展示 outbox 的 pending / failed / retrying / 最近失败队列，用于观察事件驱动统计链路是否堵塞。
+- `window.YUA.analytics` 已补齐 `retryOutboxEvents / drainOutbox` 动作；统计页现可直接触发“立即消费队列”和“重试失败队列”，把 outbox 可视化扩展到可恢复操作。
+- outbox 恢复闭环已补齐自动化回归：`test/ai-usage-outbox.spec.ts` 已覆盖自动消费、手动消费 pending 队列、手动重试 failed 队列三条关键路径。
+- 最近调用明细现已额外展示 `billableTotalTokens`、`requestId / traceId / providerRequestId`、workflow run/node metadata、`providerUsageType` 等排查字段；缺失 token usage 的事件在 UI 中明确显示为 `-`，不再伪造 `0`。
 - 聊天实时事件在消息持久化成功后会补充 `metadata.assistantMessageId`，用于后续补录幂等与对账。
 - chat-derived 链路现已支持显式声明业务用途覆写；`/tagger` 页面发起的请求会按 `tagging/classify` 落账，不再误归到 `chat`。
+- `TaggingService.autoTagText` 已接入统一 recorder；Pi one-shot 与 legacy ephemeral 两条打标签路径都会按 `tagging/classify` 分段落账。
 - 自动记忆召回已完成首个真实 usage 入口：`memory-auto-recall` 的 LLM 关键词提取会按 `memory_recall/analyze` 落账；`searchWithContent`、FTS、主题图谱、定向读取等纯本地检索步骤继续保持“不记 token”。
+- `PiExecutionService.embed(...)` 已接入统一 recorder；默认按 `embedding/vectorize` 记账，并支持通过 `extras.analyticsUsage` 显式覆写到如 `memory` 等业务归类。
+- `PiExecutionService.transcribe(...)` 已接入统一 recorder；默认按 `transcription/transcribe` 记账，也支持通过 `extras.analyticsUsage` 显式覆写业务归类。provider 返回 token 型 usage 时会同步写入 display/billable token；若返回 duration 型 usage，则只保留 `rawUsage` 与时长 metadata，token 保持 `NULL`。
+- `PiExecutionService.generateImage(...)` 已接入统一 recorder；默认按 `image_generation/generate` 记账，也支持通过 `extras.analyticsUsage` 显式覆写业务归类。provider 返回 token 型 usage 时会同步写入 display/billable token；若 provider 未返回 usage，则事件照样记录，但 token 保持 `NULL`。
+- workflow 已补齐首批 `workflow_ai` 归类：`ai/chat`、`ai/prompt-optimizer`、`image/image-understand`、`image/image-generate` 会把 workflow run / node 信息带入统计；Pi chat 路径通过 `analyticsUsage` 统一改类，legacy chat fallback 也会走统一 recorder。
 - Pi task runtime 已把 `usage/rawUsage` 透传到任务 service，可支撑内容处理类链路统一接 recorder。
 - `providerRequestId` 仍待后续继续向 Pi/runtime 上游补采。
 - 更深入的筛选与付费口径收口仍在后续 phase。
@@ -135,7 +148,10 @@ Phase 1 的字段级 schema 与 recorder 契约草案，另见：[AI 使用量�
    - 用途分类
    - 具体功能
    - 来源类型
+   - 调用状态
    - 计量精度
+   - 计费口径
+   - 后续可继续透传 workflow metadata 过滤
 
 2. 总览卡片区
    - 总请求次数
@@ -159,10 +175,13 @@ Phase 1 的字段级 schema 与 recorder 契约草案，另见：[AI 使用量�
    - Model 排行
    - 用途分类排行
    - 具体功能排行
+   - 执行阶段排行
+   - 工作流 AI 节点排行
 
 6. 明细区
    - 最近调用记录
    - 支持按 Provider / Model / 用途 / 来源 / 时间查看
+   - 需要能看到 request/trace/providerRequest、workflow 上下文、计费口径与 provider usage 提示
 
 ## 4.4 第二阶段后的页面扩展方式
 
@@ -206,11 +225,25 @@ Phase 1 的字段级 schema 与 recorder 契约草案，另见：[AI 使用量�
 
 不能让聊天、翻译、总结各自用各自的统计方式。
 
-必须建立统一采集接口，例如：
+必须建立统一采集机制，而且要拆成三层：
 
-- `recordAiUsageEvent(...)`
+- AI/业务层统一发标准事件，例如：
+  - `emitAiUsageObservedEvent(...)`
+- analytics 统计层按需挂载 durable writer，例如：
+  - `registerAiUsageObservedEventWriter(...)`
+  - writer 内部先写入 `ai_usage_event_outbox`
+- analytics 统计层再异步 drain outbox，例如：
+  - `initAiUsageAnalyticsListener()`
+  - drain pending outbox rows
+  - drain 内部再调用 `recordAiUsageEvent(...)`
 
-所有 AI 子链路只负责在调用完成后把标准字段交给采集器，不直接关心最终页面展示逻辑。
+约束：
+
+- AI 模块只知道“发布 usage 事件”，不知道 recorder、数据库和看板查询实现。
+- analytics 模块是一个可插拔消费者；不接入时 AI 也能独立工作，接入时先落 outbox 再消费。
+- `ai_usage_event_outbox` 负责提供跨重启的 pending 队列，避免事件发出后因进程异常而直接丢失。
+- `recordAiUsageEvent(...)` 退居 analytics 内部实现细节，不再成为所有 AI 子链路的直接依赖。
+- 历史补录、手工 backfill、对账修复等 analytics 内部流程可以继续直接调用 recorder，因为它们本来就属于统计域内部逻辑。
 
 ### 5.4 首版先做“可信”，再做“花哨”
 

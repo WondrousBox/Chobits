@@ -6,6 +6,11 @@ import type {
   AiUsageBreakdownQuery,
   AiUsageBreakdownRow,
   AiUsageEventRow,
+  AiUsageOutboxDrainResult,
+  AiUsageOutboxEventSummary,
+  AiUsageOutboxHealth,
+  AiUsageOutboxRetryResult,
+  AiUsageOutboxStatus,
   AiUsageOverview,
   AiUsageQueryFilter,
   AiUsageTimelineBucket,
@@ -29,6 +34,14 @@ export const analyticsApi = {
   getUsageByFeature: (filter?: AiUsageQueryFilter, limit?: number): Promise<AiUsageBreakdownRow[]> => ipcRenderer.invoke('analytics:breakdown', { dimension: 'feature', filter, limit }),
 
   listUsageEvents: (filter?: AiUsageQueryFilter, limit?: number, offset?: number): Promise<AiUsageEventRow[]> => ipcRenderer.invoke('analytics:events', { filter, limit, offset }),
+
+  getOutboxHealth: (): Promise<AiUsageOutboxHealth> => ipcRenderer.invoke('analytics:outboxHealth'),
+
+  listOutboxEvents: (status?: AiUsageOutboxStatus, limit?: number): Promise<AiUsageOutboxEventSummary[]> => ipcRenderer.invoke('analytics:outboxEvents', { limit, status }),
+
+  retryOutboxEvents: (limit?: number): Promise<AiUsageOutboxRetryResult> => ipcRenderer.invoke('analytics:retryOutboxEvents', { limit }),
+
+  drainOutbox: (): Promise<AiUsageOutboxDrainResult> => ipcRenderer.invoke('analytics:drainOutbox'),
 
   backfillChatUsage: (params?: AiChatUsageBackfillQuery): Promise<AiChatUsageBackfillResult> => ipcRenderer.invoke('analytics:backfillChatUsage', params)
 };

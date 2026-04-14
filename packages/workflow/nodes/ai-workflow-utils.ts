@@ -1,13 +1,16 @@
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { emitAiUsageObservedEvent } from '../../ai/analytics/events';
+import type { RecordAiUsageEventInput } from '../../ai/analytics/types';
 import { getPreset, getPresetSecrets, listPresets } from '../../ai/preset-service';
 import { normalizeProviderPreset, resolveProviderPresetId } from '../../ai/provider-preset';
 import { getProviderCapabilities, listProviderDefinitions, listProviderRuntimeModels, listProviderSecretKeys } from '../../ai/providers/service';
 import { PiExecutionService } from '../../ai/runtime/pi/execution-service';
 import { getAllSecrets, getFirstApiKey } from '../../ai/settings-store';
-import type { ChatMessage, ChatRequest, ImageGenerationRequest, ProviderAdapter, ProviderCapabilityKey, ProviderPresetFields, ProviderSecrets } from '../../ai/types';
-import type { NodeConfig, PortSchema } from '../types';
+import type { ChatMessage, ChatRequest, ChatResponse, ImageGenerationRequest, ProviderAdapter, ProviderCapabilityKey, ProviderPresetFields, ProviderSecrets, TokenUsage } from '../../ai/types';
+import type { ExecutionContext, NodeConfig, PortSchema } from '../types';
 
 type ModelRecord = {
   capabilities?: Record<string, any>;
@@ -54,6 +57,7 @@ export interface ExecuteWorkflowTextRequestOptions extends ProviderPresetFields 
   onDelta?: (delta: string, accumulated: string) => void;
   providerId: string;
   temperature?: number;
+  workflowAiUsage?: WorkflowAiUsageContext;
 }
 
 export interface ExecuteWorkflowChatRequestOptions extends ProviderPresetFields {
@@ -64,10 +68,25 @@ export interface ExecuteWorkflowChatRequestOptions extends ProviderPresetFields 
   onDelta?: (delta: string, accumulated: string) => void;
   providerId: string;
   temperature?: number;
+  workflowAiUsage?: WorkflowAiUsageContext;
 }
 
 export interface ExecuteWorkflowImageGenerationRequestOptions extends ImageGenerationRequest {
   emit?: WorkflowEmit;
+  workflowAiUsage?: WorkflowAiUsageContext;
+}
+
+export type WorkflowAiUsageStage = 'analyze' | 'generate' | 'classify' | 'extract' | 'merge' | 'postprocess';
+
+export interface WorkflowAiUsageContext {
+  operationKey: string;
+  usageStage: WorkflowAiUsageStage;
+  workflowId?: string;
+  workflowName?: string;
+  workflowNodeId?: string;
+  workflowNodeLabel?: string;
+  workflowNodeType?: string;
+  workflowRunId?: string;
 }
 
 let piExecutionService: PiExecutionService | undefined;
@@ -75,6 +94,123 @@ let piExecutionService: PiExecutionService | undefined;
 function getPiExecutionService(): PiExecutionService {
   piExecutionService ||= new PiExecutionService();
   return piExecutionService;
+}
+
+function safeUuid(): string {
+  try {
+    return randomUUID();
+  } catch {
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+}
+
+function toAnalyticsUsage(usage?: TokenUsage): RecordAiUsageEventInput['usage'] | undefined {
+  if (!usage) {
+    return undefined;
+  }
+
+  return {
+    billableInputTokens: usage.billableInputTokens,
+    billableOutputTokens: usage.billableOutputTokens,
+    billableTotalTokens: usage.billableTotalTokens,
+    cacheReadTokens: usage.cacheReadTokens,
+    cacheWriteTokens: usage.cacheWriteTokens,
+    estimatedCost: usage.cost,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    reasoningTokens: usage.reasoningTokens,
+    totalTokens: usage.totalTokens
+  };
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function buildWorkflowAnalyticsUsage(context?: WorkflowAiUsageContext): Record<string, unknown> | undefined {
+  if (!context) {
+    return undefined;
+  }
+
+  const sourceId = context.workflowNodeId || context.workflowNodeType || context.workflowRunId || 'workflow-ai';
+  const sourceLabel = context.workflowNodeLabel || context.workflowNodeType || '工作流 AI';
+
+  return {
+    metadata: {
+      workflowId: context.workflowId || null,
+      workflowName: context.workflowName || null,
+      workflowNodeId: context.workflowNodeId || null,
+      workflowNodeLabel: context.workflowNodeLabel || null,
+      workflowNodeType: context.workflowNodeType || null,
+      workflowRunId: context.workflowRunId || null
+    },
+    operationKey: context.operationKey,
+    sourceId,
+    sourceLabel,
+    sourceType: 'workflow',
+    usageCategory: 'workflow',
+    usageFeature: 'workflow_ai',
+    usageStage: context.usageStage
+  };
+}
+
+function buildWorkflowRequestId(context?: WorkflowAiUsageContext): string | undefined {
+  if (!context) {
+    return undefined;
+  }
+
+  const parts = [context.workflowRunId, context.workflowNodeId || context.workflowNodeType, context.operationKey].filter((part): part is string => typeof part === 'string' && part.trim().length > 0);
+
+  return parts.length ? parts.join(':') : undefined;
+}
+
+function extractWorkflowRawUsage(response?: ChatResponse): unknown {
+  const metadata = response?.metadata;
+  if (isPlainRecord(metadata)) {
+    if ('rawUsage' in metadata) {
+      return metadata.rawUsage;
+    }
+    if ('piRawUsage' in metadata) {
+      return metadata.piRawUsage;
+    }
+  }
+
+  const messageMetadata = response?.message?.metadata;
+  if (isPlainRecord(messageMetadata)) {
+    if ('rawUsage' in messageMetadata) {
+      return messageMetadata.rawUsage;
+    }
+    if ('piRawUsage' in messageMetadata) {
+      return messageMetadata.piRawUsage;
+    }
+  }
+
+  return undefined;
+}
+
+async function recordWorkflowUsageEventSafely(input: RecordAiUsageEventInput): Promise<void> {
+  await emitAiUsageObservedEvent(input, { producer: 'WorkflowAI' });
+}
+
+export function buildWorkflowAiUsageContext(
+  ctx: Pick<ExecutionContext, 'workflowId' | 'workflowName' | 'workflowNodeId' | 'workflowNodeLabel' | 'workflowNodeType' | 'workflowRunId'>,
+  defaults: {
+    nodeLabel: string;
+    nodeType: string;
+    operationKey: string;
+    usageStage: WorkflowAiUsageStage;
+  }
+): WorkflowAiUsageContext {
+  return {
+    operationKey: defaults.operationKey,
+    usageStage: defaults.usageStage,
+    workflowId: ctx.workflowId,
+    workflowName: ctx.workflowName,
+    workflowNodeId: ctx.workflowNodeId,
+    workflowNodeLabel: ctx.workflowNodeLabel || defaults.nodeLabel,
+    workflowNodeType: ctx.workflowNodeType || defaults.nodeType,
+    workflowRunId: ctx.workflowRunId
+  };
 }
 
 export function getWorkflowProviderPresetId(config?: NodeConfig): string | undefined {
@@ -234,20 +370,22 @@ export async function executeWorkflowTextRequest(options: ExecuteWorkflowTextReq
 
 export async function executeWorkflowChatRequest(options: ExecuteWorkflowChatRequestOptions): Promise<{ runtime: 'legacy' | 'pi'; text: string }> {
   const normalizedOptions = normalizeProviderPreset(options);
-  const { emit, maxTokens, messages, model, onDelta, providerId, temperature } = normalizedOptions;
+  const { emit, maxTokens, messages, model, onDelta, providerId, temperature, workflowAiUsage } = normalizedOptions;
   const resolvedProviderPresetId = resolveProviderPresetId(normalizedOptions);
+  const analyticsUsage = buildWorkflowAnalyticsUsage(workflowAiUsage);
+  const requestId = buildWorkflowRequestId(workflowAiUsage);
   const request: ChatRequest = normalizeProviderPreset({
     agentId: 'chat',
-    extras: model
-      ? {
-          model
-        }
-      : undefined,
+    extras: {
+      ...(model ? { model } : {}),
+      ...(analyticsUsage ? { analyticsUsage } : {})
+    },
     maxTokens,
     messages: messages as ChatMessage[],
     persist: false,
     providerId,
     providerPresetId: resolvedProviderPresetId,
+    requestId,
     temperature
   });
   const availability = getPiExecutionService().getAvailability(request);
@@ -275,43 +413,122 @@ export async function executeWorkflowChatRequest(options: ExecuteWorkflowChatReq
   }
 
   let accumulatedText = '';
-  const response = await provider.chat(
-    {
-      ...request,
-      extras: {
-        ...(request.extras || {}),
-        secrets
-      },
-      messages: messages.map((message) => ({
-        ...message,
-        content: toLegacyMessageContent(message.content)
-      })) as ChatMessage[],
-      stream: Boolean(onDelta)
-    },
-    onDelta
-      ? (event) => {
-          if (event.type === 'delta' && event.data.text) {
-            accumulatedText += event.data.text;
-            onDelta(event.data.text, accumulatedText);
-          }
-        }
-      : undefined
-  );
+  const legacyRequestId = request.requestId || safeUuid();
+  const startedAt = Date.now();
 
-  return {
-    runtime: 'legacy',
-    text: response.message?.content || accumulatedText
-  };
+  try {
+    const response = await provider.chat(
+      {
+        ...request,
+        extras: {
+          ...(request.extras || {}),
+          secrets
+        },
+        messages: messages.map((message) => ({
+          ...message,
+          content: toLegacyMessageContent(message.content)
+        })) as ChatMessage[],
+        requestId: legacyRequestId,
+        stream: Boolean(onDelta)
+      },
+      onDelta
+        ? (event) => {
+            if (event.type === 'delta' && event.data.text) {
+              accumulatedText += event.data.text;
+              onDelta(event.data.text, accumulatedText);
+            }
+          }
+        : undefined
+    );
+
+    if (workflowAiUsage) {
+      await recordWorkflowUsageEventSafely({
+        traceId: workflowAiUsage.workflowRunId || legacyRequestId,
+        requestId: legacyRequestId,
+        operationKey: workflowAiUsage.operationKey,
+        sourceType: 'workflow',
+        sourceId: workflowAiUsage.workflowNodeId || workflowAiUsage.workflowNodeType || legacyRequestId,
+        sourceLabel: workflowAiUsage.workflowNodeLabel || workflowAiUsage.workflowNodeType || '工作流 AI',
+        usageCategory: 'workflow',
+        usageFeature: 'workflow_ai',
+        usageStage: workflowAiUsage.usageStage,
+        providerId: response.providerId || provider.id,
+        providerPresetId: resolvedProviderPresetId,
+        model: model || 'unknown',
+        agentId: 'workflow',
+        status: 'completed',
+        usage: toAnalyticsUsage(response.usage),
+        rawUsage: extractWorkflowRawUsage(response),
+        meteringSource: 'provider_reported',
+        startedAt,
+        completedAt: Date.now(),
+        metadata: {
+          runtime: 'legacy',
+          workflowId: workflowAiUsage.workflowId || null,
+          workflowName: workflowAiUsage.workflowName || null,
+          workflowNodeId: workflowAiUsage.workflowNodeId || null,
+          workflowNodeLabel: workflowAiUsage.workflowNodeLabel || null,
+          workflowNodeType: workflowAiUsage.workflowNodeType || null,
+          workflowRunId: workflowAiUsage.workflowRunId || null
+        }
+      });
+    }
+
+    return {
+      runtime: 'legacy',
+      text: response.message?.content || accumulatedText
+    };
+  } catch (error) {
+    if (workflowAiUsage) {
+      await recordWorkflowUsageEventSafely({
+        traceId: workflowAiUsage.workflowRunId || legacyRequestId,
+        requestId: legacyRequestId,
+        operationKey: workflowAiUsage.operationKey,
+        sourceType: 'workflow',
+        sourceId: workflowAiUsage.workflowNodeId || workflowAiUsage.workflowNodeType || legacyRequestId,
+        sourceLabel: workflowAiUsage.workflowNodeLabel || workflowAiUsage.workflowNodeType || '工作流 AI',
+        usageCategory: 'workflow',
+        usageFeature: 'workflow_ai',
+        usageStage: workflowAiUsage.usageStage,
+        providerId: provider.id,
+        providerPresetId: resolvedProviderPresetId,
+        model: model || 'unknown',
+        agentId: 'workflow',
+        status: 'failed',
+        meteringSource: 'provider_reported',
+        startedAt,
+        completedAt: Date.now(),
+        metadata: {
+          errorMessage: error instanceof Error ? error.message : String(error),
+          runtime: 'legacy',
+          workflowId: workflowAiUsage.workflowId || null,
+          workflowName: workflowAiUsage.workflowName || null,
+          workflowNodeId: workflowAiUsage.workflowNodeId || null,
+          workflowNodeLabel: workflowAiUsage.workflowNodeLabel || null,
+          workflowNodeType: workflowAiUsage.workflowNodeType || null,
+          workflowRunId: workflowAiUsage.workflowRunId || null
+        }
+      });
+    }
+
+    throw error;
+  }
 }
 
 export async function executeWorkflowImageGenerationRequest(options: ExecuteWorkflowImageGenerationRequestOptions): Promise<{ imageUrl: string }> {
   const normalizedOptions = normalizeProviderPreset(options);
-  const { emit, model, prompt, providerId, quality, size } = normalizedOptions;
+  const { emit, model, prompt, providerId, quality, size, workflowAiUsage } = normalizedOptions;
   const resolvedProviderPresetId = resolveProviderPresetId(normalizedOptions);
+  const analyticsUsage = buildWorkflowAnalyticsUsage(workflowAiUsage);
+  const requestId = buildWorkflowRequestId(workflowAiUsage);
 
   try {
     return await getPiExecutionService().generateImage(
       normalizeProviderPreset({
+        extras: {
+          ...(analyticsUsage ? { analyticsUsage } : {}),
+          ...(requestId ? { requestId } : {})
+        },
         model,
         prompt,
         providerId,

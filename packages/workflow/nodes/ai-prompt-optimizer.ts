@@ -1,5 +1,5 @@
 import { NodeConfig, NodeHandler, PortSchema } from '../types';
-import { executeWorkflowTextRequest, getDynamicModelConfig, getWorkflowProviderPresetId } from './ai-workflow-utils';
+import { buildWorkflowAiUsageContext, executeWorkflowTextRequest, getDynamicModelConfig, getWorkflowProviderPresetId } from './ai-workflow-utils';
 
 async function getDynamicConfig(providerId?: string, providerPresetId?: string): Promise<PortSchema[]> {
   return getDynamicModelConfig({
@@ -54,7 +54,7 @@ export const AiPromptOptimizerNode: NodeHandler = {
     const providerPresetId = getWorkflowProviderPresetId(config);
     return getDynamicConfig(providerId, providerPresetId);
   },
-  async run({ input, config, emit }) {
+  async run({ input, config, ctx, emit }) {
     const prompt = String(input.prompt || '').trim();
     if (!prompt) throw new Error('缺少原始提示词');
 
@@ -97,7 +97,13 @@ export const AiPromptOptimizerNode: NodeHandler = {
       ],
       model,
       providerId,
-      providerPresetId
+      providerPresetId,
+      workflowAiUsage: buildWorkflowAiUsageContext(ctx, {
+        nodeLabel: 'AI提示词优化',
+        nodeType: 'ai/prompt-optimizer',
+        operationKey: 'optimize_prompt',
+        usageStage: 'generate'
+      })
     });
 
     emit('node:progress', { progress: 90, message: '处理优化结果...' });

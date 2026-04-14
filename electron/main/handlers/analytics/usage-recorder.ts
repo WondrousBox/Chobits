@@ -1,5 +1,4 @@
-import { createHash } from 'node:crypto';
-
+import { buildAiUsageEventFingerprint } from '../../../../packages/ai/analytics/fingerprint';
 import {
   AI_METERING_SOURCE_ALLOWED_ACCURACIES,
   AI_USAGE_CATEGORIES,
@@ -230,25 +229,6 @@ export function shouldMarkBillingEligible(input: {
   );
 }
 
-export function buildAiUsageFingerprint(
-  input: Pick<RecordAiUsageEventInput, 'traceId' | 'requestId' | 'sourceType' | 'sourceId' | 'usageFeature' | 'usageStage' | 'operationKey' | 'attemptIndex' | 'providerId' | 'model'>
-): string {
-  const payload = JSON.stringify({
-    attemptIndex: input.attemptIndex ?? 0,
-    model: input.model,
-    operationKey: input.operationKey,
-    providerId: input.providerId,
-    requestId: input.requestId,
-    sourceId: input.sourceId,
-    sourceType: input.sourceType,
-    traceId: input.traceId,
-    usageFeature: input.usageFeature,
-    usageStage: input.usageStage
-  });
-
-  return createHash('sha256').update(payload).digest('hex');
-}
-
 export async function recordAiUsageEvent(input: RecordAiUsageEventInput): Promise<RecordAiUsageEventResult> {
   const warnings: string[] = [];
 
@@ -383,7 +363,7 @@ export async function recordAiUsageEvent(input: RecordAiUsageEventInput): Promis
   const providerPresetId = trimOptionalString(input.providerPresetId) ?? null;
   const agentId = trimOptionalString(input.agentId) ?? null;
 
-  const eventFingerprint = buildAiUsageFingerprint({
+  const eventFingerprint = buildAiUsageEventFingerprint({
     attemptIndex,
     model,
     operationKey,

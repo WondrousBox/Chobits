@@ -427,24 +427,24 @@
 
 下表用于指导首轮接入，不代表这些文件内部所有步骤都一定调用了 AI，但只要发生真实 provider 调用，就应按下列口径记录。
 
-| 代码入口                                                                         | usageFeature         | usageStage     | 备注                                                               |
-| -------------------------------------------------------------------------------- | -------------------- | -------------- | ------------------------------------------------------------------ |
-| `packages/ai/chat-service.ts`                                                    | `chat`               | `generate`     | 普通对话主链路                                                     |
-| `packages/ai/runtime/pi/tasks/title.ts`                                          | `conversation_title` | `generate`     | 标题生成单独记账                                                   |
-| `packages/ai/services/translation-service.ts`                                    | `translation`        | `generate`     | 每个 chunk 单独记；重试靠 `attemptIndex`                           |
-| `packages/ai/services/summary-service.ts`                                        | `summary`            | `generate`     | 单次总结调用                                                       |
-| `packages/ai/services/mindmap-service.ts`                                        | `mindmap`            | `generate`     | 单次脑图调用                                                       |
-| `packages/ai/services/memory-extraction-service.ts` `splitTopics`                | `memory_extraction`  | `analyze`      | 话题拆分                                                           |
-| `packages/ai/services/memory-extraction-service.ts` `extractMemory`              | `memory_extraction`  | `extract`      | 单 topic 提取                                                      |
-| `packages/ai/services/memory-extraction-service.ts` `mergeMemory` 及相关冲突判断 | `memory_extraction`  | `merge`        | 合并已有记忆                                                       |
-| `packages/ai/services/memory-auto-recall.ts` `extractRecallKeywords`             | `memory_recall`      | `analyze`      | 自动记忆召回的 LLM 关键词提取；后续纯本地 recall search 不记 token |
-| `packages/ai/services/memory-retrieval-service.ts` `createLlmQueryAnalyzer`      | `memory_recall`      | `analyze`      | 仅 LLM 查询分析记事件                                              |
-| `packages/ai/services/tagging-service.ts`                                        | `tagging`            | `classify`     | 按段或按块打标                                                     |
-| `packages/ai/runtime/pi/tasks/tag.ts`                                            | `tagging`            | `classify`     | Pi runtime 打标                                                    |
-| `packages/ai/runtime/pi/execution-service.ts` `embed`                            | `embedding`          | `vectorize`    | 若明确用于记忆索引，分类可写 `memory`                              |
-| `packages/ai/runtime/pi/execution-service.ts` `transcribe`                       | `transcription`      | `transcribe`   | 可能没有 token usage，也要记事件                                   |
-| `packages/ai/runtime/pi/image-generation-service.ts`                             | `image_generation`   | `generate`     | 可能没有 token usage，也要记事件                                   |
-| workflow AI 节点                                                                 | `workflow_ai`        | 按节点语义填写 | `workflowNodeId` 必须进入 metadata                                 |
+| 代码入口                                                                         | usageFeature         | usageStage     | 备注                                                                        |
+| -------------------------------------------------------------------------------- | -------------------- | -------------- | --------------------------------------------------------------------------- |
+| `packages/ai/chat-service.ts`                                                    | `chat`               | `generate`     | 普通对话主链路                                                              |
+| `packages/ai/runtime/pi/tasks/title.ts`                                          | `conversation_title` | `generate`     | 标题生成单独记账                                                            |
+| `packages/ai/services/translation-service.ts`                                    | `translation`        | `generate`     | 每个 chunk 单独记；重试靠 `attemptIndex`                                    |
+| `packages/ai/services/summary-service.ts`                                        | `summary`            | `generate`     | 单次总结调用                                                                |
+| `packages/ai/services/mindmap-service.ts`                                        | `mindmap`            | `generate`     | 单次脑图调用                                                                |
+| `packages/ai/services/memory-extraction-service.ts` `splitTopics`                | `memory_extraction`  | `analyze`      | 话题拆分                                                                    |
+| `packages/ai/services/memory-extraction-service.ts` `extractMemory`              | `memory_extraction`  | `extract`      | 单 topic 提取                                                               |
+| `packages/ai/services/memory-extraction-service.ts` `mergeMemory` 及相关冲突判断 | `memory_extraction`  | `merge`        | 合并已有记忆                                                                |
+| `packages/ai/services/memory-auto-recall.ts` `extractRecallKeywords`             | `memory_recall`      | `analyze`      | 自动记忆召回的 LLM 关键词提取；后续纯本地 recall search 不记 token          |
+| `packages/ai/services/memory-retrieval-service.ts` `createLlmQueryAnalyzer`      | `memory_recall`      | `analyze`      | 仅 LLM 查询分析记事件                                                       |
+| `packages/ai/services/tagging-service.ts`                                        | `tagging`            | `classify`     | 按段或按块打标；`autoTagText` 当前按 `segment:${index}` 落账                |
+| `packages/ai/runtime/pi/tasks/tag.ts`                                            | `tagging`            | `classify`     | Pi runtime 打标                                                             |
+| `packages/ai/runtime/pi/execution-service.ts` `embed`                            | `embedding`          | `vectorize`    | 默认归类为 `embedding`；若明确用于记忆索引，可通过 override 改写到 `memory` |
+| `packages/ai/runtime/pi/execution-service.ts` `transcribe`                       | `transcription`      | `transcribe`   | 已接入统一 recorder；token 型 usage 写 token/billable，duration 型只保留 rawUsage/metadata |
+| `packages/ai/runtime/pi/image-generation-service.ts`                             | `image_generation`   | `generate`     | 已接入统一 recorder；token 型 usage 写 token/billable，缺失 usage 时 token 保持 `NULL` |
+| workflow AI 节点                                                                 | `workflow_ai`        | 按节点语义填写 | 已完成首批接入；`workflowNodeId / workflowRunId / workflowNodeType` 进入 metadata |
 
 ## 8. 典型场景示例
 

@@ -1,15 +1,6 @@
-import {
-  ChatRequest,
-  ChatResponse,
-  EmbeddingRequest,
-  EmbeddingResponse,
-  ProviderAdapter,
-  ProviderSecrets,
-  StreamEvent,
-  TranscribeOptions
-} from '../types';
-import { getBuiltinProviderDefinitionOrThrow, getRequiredBuiltinProviderDefaultModel } from './service';
+import { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ProviderAdapter, ProviderSecrets, StreamEvent, TranscribeOptions, TranscriptionResponse } from '../types';
 import { createOpenAIClient, executeOpenAIChat, executeOpenAIEmbedding, executeOpenAITranscription, listOpenAIModels, type OpenAIRuntimeSecrets } from './openai-runtime';
+import { getBuiltinProviderDefinitionOrThrow, getRequiredBuiltinProviderDefaultModel } from './service';
 
 type OpenAISecrets = OpenAIRuntimeSecrets;
 
@@ -76,7 +67,7 @@ export class OpenAIProvider implements ProviderAdapter {
     });
   }
 
-  async transcribe(file: File | Blob | Buffer | ArrayBuffer, options?: TranscribeOptions): Promise<{ text: string }> {
+  async transcribe(file: File | Blob | Buffer | ArrayBuffer, options?: TranscribeOptions): Promise<TranscriptionResponse> {
     return executeOpenAITranscription({
       client: this.client(options?.secrets as Partial<OpenAISecrets> | undefined),
       file,

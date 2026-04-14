@@ -9,7 +9,7 @@
 - `ai_usage_events` 的字段级设计
 - `recordAiUsageEvent(...)` 的入参、返回值、去重、校验与标准化契约
 
-本文档仍然作为 Phase 1 的设计基线。当前代码状态（2026-04-14）是：`schema.ts`、Drizzle migration、analytics repository、`usage-recorder.ts`、聊天主链路，以及 `conversation_title / translation / summary / mindmap / memory_extraction` 首批接入已按本文首轮落地；其中 `memory_extraction` 已按 `analyze / extract / merge` 分阶段记录。Phase 7 也已开始落地：`/tagger` 页面可覆写为 `tagging/classify`，自动记忆召回中的 LLM 关键词提取会按 `memory_recall/analyze` 记录。Pi task runtime 也已补齐 `usage/rawUsage` 透传；历史聊天补录也已落地，可把 `chat_messages.metadata.aiUsage / piRawUsage` 回填为 `message_backfilled` 事件。后续如果实现与本文发生偏离，应先回写本文档，再调整代码。
+本文档仍然作为 Phase 1 的设计基线。当前代码状态（2026-04-14）是：`schema.ts`、Drizzle migration、analytics repository、`usage-recorder.ts`、聊天主链路，以及 `conversation_title / translation / summary / mindmap / memory_extraction` 首批接入已按本文首轮落地；其中 `memory_extraction` 已按 `analyze / extract / merge` 分阶段记录。Phase 7 也已开始落地：`/tagger` 页面可覆写为 `tagging/classify`，`TaggingService.autoTagText` 也会按分段 provider 调用写入 `tagging/classify`，自动记忆召回中的 LLM 关键词提取会按 `memory_recall/analyze` 记录，`PiExecutionService.embed(...)` 会按真实 provider 调用写入 `embedding/vectorize`，`PiExecutionService.transcribe(...)` 会按真实 provider 调用写入 `transcription/transcribe`，`PiExecutionService.generateImage(...)` 会按真实 provider 调用写入 `image_generation/generate`；workflow 已知 AI node 也会按 `workflow_ai` 归类，其中 Pi chat/image 路径通过 `analyticsUsage` 覆写，legacy chat fallback 直接走统一 recorder。Pi task runtime 也已补齐 `usage/rawUsage` 透传；历史聊天补录也已落地，可把 `chat_messages.metadata.aiUsage / piRawUsage` 回填为 `message_backfilled` 事件。当前还新增了 `packages/ai/analytics/events.ts` 与 `packages/ai/analytics/fingerprint.ts` 作为 AI 域 usage 事件契约与共享幂等 helper；AI 业务链路会优先发出 `emitAiUsageObservedEvent(...)`，analytics 模块接入后会先把事件写入 `ai_usage_event_outbox`，再由 listener/drain 调用 recorder；同时 `window.YUA.analytics` 已暴露 outbox 健康摘要、失败队列查询、手动重试 failed outbox 与手动触发 drain 的动作，便于看板直接观察并恢复统计链路健康度。后续如果实现与本文发生偏离，应先回写本文档，再调整代码。
 
 ## 1. 本轮冻结的补充决策
 
@@ -20,6 +20,9 @@
 - `sourceId` 在 recorder 入参中升级为必填，不再允许隐式缺失。
 - `operationKey` 在 recorder 入参中升级为必填，不再仅是推荐字段。
 - `metadata` 与 `rawUsage` 均按 JSON 文本落库，优先可追溯，不先做列爆炸。
+- AI 业务链路不直接依赖 recorder；对外统一发布 `ai usage observed` 领域事件，analytics listener 再消费并落到 recorder。
+- `buildAiUsageEventFingerprint(...)` 升级为共享 helper，由 event bus、outbox、recorder 复用同一幂等键算法。
+- analytics listener 接入时必须先写 `ai_usage_event_outbox`，再异步 drain 到 `ai_usage_events`。
 - Phase 1 只设计单条写入接口 `recordAiUsageEvent`，批量写入后续再扩展。
 - 聊天实时事件在消息持久化成功后，`metadata` 中补充 `assistantMessageId`，作为历史补录与去重的辅助锚点。
 - 历史聊天补录在 recorder 之外，额外优先按 `metadata.assistantMessageId` 与 `requestId = messageId` 查重；命中已有实时事件时不再重复写库。
@@ -200,6 +203,43 @@ export type NewAiUsageEvent = InferInsertModel<typeof ai_usage_events>;
 
 同时在 `packages/ai/analytics/types.ts` 定义业务侧类型，不直接把 DB Row 暴露给所有调用方。
 
+## 2.6 `ai_usage_event_outbox` 草案
+
+为满足“AI 模块只发事件、analytics 模块插拔监听”且仍尽量避免丢账，当前实现已经补充 outbox 层。
+
+建议字段最少包含：
+
+- `eventType`
+- `eventFingerprint`
+- `producer`
+- `traceId`
+- `requestId`
+- `providerId`
+- `model`
+- `sourceType`
+- `sourceId`
+- `usageFeature`
+- `usageStage`
+- `operationKey`
+- `attemptIndex`
+- `emittedAt`
+- `payload`
+- `status`
+- `attemptCount`
+- `lastError`
+- `lastAttemptAt`
+- `processedAt`
+- `createdAt`
+- `updatedAt`
+
+当前约束：
+
+- writer 先按 `eventType + eventFingerprint` 去重写 outbox。
+- `payload` 保存完整 `AiUsageObservedEvent`，用于后续重放、排查与恢复。
+- drain 只消费 `status = pending` 的记录。
+- recorder 成功后标记 `processed`；可重试错误保留 `pending`；不可重试错误标记 `failed`。
+- `failed` 事件不自动伪造为成功，后续由修复脚本或人工对账介入。
+
 ## 3. 索引与唯一性策略
 
 ## 3.1 双层幂等策略
@@ -267,6 +307,12 @@ sha256(
 
 ## 4. recorder 入参契约草案
 
+说明：
+
+- `recordAiUsageEvent(...)` 是 analytics 域内部的标准化落库契约。
+- AI / workflow / memory 等业务域的直接接入契约，优先是 `emitAiUsageObservedEvent(...)`。
+- 只有 analytics 内部流程，例如 backfill、修复脚本、对账重放，才允许直接调 recorder。
+
 ## 4.1 入口函数
 
 首版统一使用：
@@ -278,6 +324,12 @@ recordAiUsageEvent(input: RecordAiUsageEventInput): Promise<RecordAiUsageEventRe
 建议放在：
 
 - [usage-recorder.ts](/Users/yuqian/Documents/projects/chobits/electron/main/handlers/analytics/usage-recorder.ts)
+- [events.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/analytics/events.ts)
+  - AI 域发布 usage 观察事件
+- [fingerprint.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/analytics/fingerprint.ts)
+  - AI 域与 analytics 域共享 usage 事件幂等指纹算法
+- [usage-event-listener.ts](/Users/yuqian/Documents/projects/chobits/electron/main/handlers/analytics/usage-event-listener.ts)
+  - analytics 域注册 durable writer，把事件先写入 outbox，再 drain 到 recorder
 
 ## 4.2 入参类型草案
 
@@ -589,6 +641,8 @@ await recordAiUsageEvent({
 
 当前实际落地的 `memory_extraction` `operationKey` 口径是：`split_topics` 对应 `analyze`，`topic:${topicSlug}:extract` 对应 `extract`，`topic:${topicSlug}:open_items` 与 `topic:${topicSlug}:contradiction` 对应 `merge`。
 
+补充说明：当前实际落地的 `tagging` `operationKey` 口径是：`/tagger` 页面通过 chat 主链路发起的请求继续沿聊天主请求 ID，但会通过 `analyticsUsage` 显式归类到 `tagging/classify`；`TaggingService.autoTagText` 当前按 `segment:${index}` 为每次 provider 调用单独落账。
+
 ## 7.4 自动记忆召回关键词提取
 
 ```ts
@@ -623,6 +677,148 @@ await recordAiUsageEvent({
 ```
 
 当前实际落地的 `memory_recall` 首轮口径是：自动记忆召回中的 LLM 关键词提取记为 `operationKey = keyword_extraction`、`usageStage = analyze`；后续 `searchWithContent`、FTS、topic graph、targeted read 等纯本地检索步骤不记 token。`createLlmQueryAnalyzer(...)` 已补齐同口径 usage 回调能力，后续如果真实业务链路接入，可沿 `operationKey = query_analysis`、`usageStage = analyze` 继续落账。
+
+## 7.5 向量化
+
+```ts
+await recordAiUsageEvent({
+  traceId: requestId,
+  requestId,
+  operationKey: 'vectorize',
+  sourceType: 'embedding',
+  sourceId: requestId,
+  sourceLabel: '向量化',
+  usageCategory: 'system',
+  usageFeature: 'embedding',
+  usageStage: 'vectorize',
+  providerId,
+  providerPresetId,
+  model,
+  agentId: 'pi-execution',
+  status: 'completed',
+  usage,
+  rawUsage,
+  meteringSource: 'provider_reported',
+  metadata: {
+    runtime: 'pi',
+    textCount,
+    totalInputChars,
+    normalize,
+    vectorCount,
+    vectorDim
+  }
+});
+```
+
+当前实际落地的 `embedding` 首轮口径是：`PiExecutionService.embed(...)` 默认记为 `operationKey = vectorize`、`sourceType = embedding`、`usageCategory = system`、`usageFeature = embedding`、`usageStage = vectorize`。如果调用方明确知道该次向量化属于某个业务域，可通过 `EmbeddingRequest.extras.analyticsUsage` 显式覆写分类与 `sourceId / sourceLabel / operationKey / metadata`；例如记忆索引场景可以覆写到 `usageCategory = memory`。
+
+## 7.6 转写
+
+```ts
+await recordAiUsageEvent({
+  traceId: requestId,
+  requestId,
+  operationKey: 'transcribe',
+  sourceType: 'transcription',
+  sourceId: requestId,
+  sourceLabel: '转写',
+  usageCategory: 'media',
+  usageFeature: 'transcription',
+  usageStage: 'transcribe',
+  providerId,
+  providerPresetId,
+  model,
+  agentId: 'pi-execution',
+  status: 'completed',
+  usage,
+  rawUsage,
+  meteringSource: 'provider_reported',
+  metadata: {
+    runtime: 'pi',
+    audioBytes,
+    language,
+    promptChars,
+    textChars,
+    providerUsageType,
+    providerBilledSeconds
+  }
+});
+```
+
+当前实际落地的 `transcription` 首轮口径是：`PiExecutionService.transcribe(...)` 默认记为 `operationKey = transcribe`、`sourceType = transcription`、`usageCategory = media`、`usageFeature = transcription`、`usageStage = transcribe`。如果调用方明确知道该次转写属于某个业务域，可通过 `TranscriptionRequest.extras.analyticsUsage` 显式覆写分类与 `sourceId / sourceLabel / operationKey / metadata`。provider 返回 token 型 usage 时，会同步写入标准 token 字段与 `billable*` 字段；如果 provider 返回的是 duration 型 usage，则只保留 `rawUsage` 与 `metadata.providerBilledSeconds`，token 保持 `NULL`，不伪造 `0`。
+
+## 7.7 图片生成
+
+```ts
+await recordAiUsageEvent({
+  traceId: requestId,
+  requestId,
+  operationKey: 'generate',
+  sourceType: 'image_generation',
+  sourceId: requestId,
+  sourceLabel: '图片生成',
+  usageCategory: 'media',
+  usageFeature: 'image_generation',
+  usageStage: 'generate',
+  providerId,
+  providerPresetId,
+  model,
+  agentId: 'pi-execution',
+  status: 'completed',
+  usage,
+  rawUsage,
+  meteringSource: 'provider_reported',
+  metadata: {
+    runtime: 'pi',
+    promptChars,
+    quality,
+    size,
+    imageCount,
+    revisedPromptChars,
+    providerInputImageTokens,
+    providerInputTextTokens,
+    providerOutputImageTokens,
+    providerOutputTextTokens
+  }
+});
+```
+
+当前实际落地的 `image_generation` 首轮口径是：`PiExecutionService.generateImage(...)` 默认记为 `operationKey = generate`、`sourceType = image_generation`、`usageCategory = media`、`usageFeature = image_generation`、`usageStage = generate`。如果调用方明确知道该次图片生成属于某个业务域，可通过 `ImageGenerationRequest.extras.analyticsUsage` 显式覆写分类与 `sourceId / sourceLabel / operationKey / metadata`。provider 返回 token 型 usage 时，会同步写入标准 token 字段与 `billable*` 字段；如果 provider 未返回 usage，则事件仍然入库，但 token 保持 `NULL`，不伪造 `0`。
+
+## 7.8 Workflow AI
+
+```ts
+await recordAiUsageEvent({
+  traceId: workflowRunId || requestId,
+  requestId,
+  operationKey: 'understand_image',
+  sourceType: 'workflow',
+  sourceId: workflowNodeId,
+  sourceLabel: workflowNodeLabel,
+  usageCategory: 'workflow',
+  usageFeature: 'workflow_ai',
+  usageStage: 'analyze',
+  providerId,
+  providerPresetId,
+  model,
+  agentId: 'workflow',
+  status: 'completed',
+  usage,
+  rawUsage,
+  meteringSource: 'provider_reported',
+  metadata: {
+    runtime: 'pi' | 'legacy',
+    workflowId,
+    workflowName,
+    workflowRunId,
+    workflowNodeId,
+    workflowNodeType,
+    workflowNodeLabel
+  }
+});
+```
+
+当前实际落地的 `workflow_ai` 首轮口径是：workflow 内 `ai/chat`、`ai/prompt-optimizer`、`image/image-understand`、`image/image-generate` 已接入 `workflow_ai`。其中 Pi chat / image 路径通过 `analyticsUsage` 覆写到 workflow 分类；legacy chat fallback 在 utility 层直接走统一 recorder。当前已要求把 `workflowId / workflowName / workflowRunId / workflowNodeId / workflowNodeType / workflowNodeLabel` 带入 metadata，便于后续看板按 workflow 维度做筛选与对账。
 
 ## 8. 对文档与实现清单的影响
 

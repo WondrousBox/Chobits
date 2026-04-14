@@ -33,18 +33,18 @@ export type PortSchema = {
   searchable?: boolean;
   // UI input type (for config fields)
   inputType?:
-  | 'file'
-  | 'url'
-  | 'folder'
-  | 'text'
-  | 'select'
-  | 'select-multiple'
-  | 'number'
-  | 'textarea'
-  | 'condition-list'
-  | 'port-list'
-  // 带描述、子菜单和搜索的下拉菜单
-  | 'select-menu';
+    | 'file'
+    | 'url'
+    | 'folder'
+    | 'text'
+    | 'select'
+    | 'select-multiple'
+    | 'number'
+    | 'textarea'
+    | 'condition-list'
+    | 'port-list'
+    // 带描述、子菜单和搜索的下拉菜单
+    | 'select-menu';
   // Options for select input type
   // Can be flat array of options or grouped options
   options?: SelectOptions;
@@ -167,6 +167,13 @@ export type WorkflowRunLogEntry = {
 export type ExecutionContext = {
   // root temp directory to generate files
   tmpDir: string;
+  // 当前工作流定义 ID / 名称与运行实例信息
+  workflowId?: string;
+  workflowName?: string;
+  workflowRunId?: string;
+  workflowNodeId?: string;
+  workflowNodeType?: string;
+  workflowNodeLabel?: string;
   // workspace ID for resource operations (required)
   workspaceId?: string;
   // folder ID for resource operations (optional)

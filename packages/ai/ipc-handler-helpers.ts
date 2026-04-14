@@ -5,9 +5,9 @@ import { BrowserWindow } from 'electron';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
-import { recordAiUsageEvent } from '../../electron/main/handlers/analytics/usage-recorder';
 import { ResourcesRepo, WorkspacesRepo } from '../common/db';
 import { sendAppBusyEnd, sendAppBusyProgress, sendAppBusyStart } from '../event';
+import { emitAiUsageObservedEvent } from './analytics/events';
 import type { RecordAiUsageEventInput } from './analytics/types';
 import { normalizeProviderPreset, resolveProviderPresetId } from './provider-preset';
 import { PiSessionService } from './runtime/pi/session-service';
@@ -693,6 +693,9 @@ function toAnalyticsUsage(usage?: TokenUsage): RecordAiUsageEventInput['usage'] 
   }
 
   return {
+    billableInputTokens: usage.billableInputTokens,
+    billableOutputTokens: usage.billableOutputTokens,
+    billableTotalTokens: usage.billableTotalTokens,
     cacheReadTokens: usage.cacheReadTokens,
     cacheWriteTokens: usage.cacheWriteTokens,
     estimatedCost: usage.cost,
@@ -704,28 +707,7 @@ function toAnalyticsUsage(usage?: TokenUsage): RecordAiUsageEventInput['usage'] 
 }
 
 async function recordTaskUsageEventSafely(input: RecordAiUsageEventInput, context: string): Promise<void> {
-  try {
-    const result = await recordAiUsageEvent(input);
-    if (!result.ok) {
-      console.warn(`[${context}] Failed to record AI usage event:`, {
-        code: result.code,
-        message: result.message,
-        requestId: input.requestId,
-        warnings: result.warnings
-      });
-      return;
-    }
-
-    if (result.warnings?.length) {
-      console.warn(`[${context}] AI usage event recorded with warnings:`, {
-        eventId: result.eventId,
-        requestId: input.requestId,
-        warnings: result.warnings
-      });
-    }
-  } catch (error) {
-    console.warn(`[${context}] Unexpected AI usage recording error:`, error);
-  }
+  await emitAiUsageObservedEvent(input, { producer: context });
 }
 
 type TaskUsageEventPayload = {

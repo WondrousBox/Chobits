@@ -1,5 +1,5 @@
 import { NodeConfig, NodeHandler, PortSchema } from '../types';
-import { executeWorkflowImageGenerationRequest, getDynamicModelConfig, getWorkflowProviderPresetId } from './ai-workflow-utils';
+import { buildWorkflowAiUsageContext, executeWorkflowImageGenerationRequest, getDynamicModelConfig, getWorkflowProviderPresetId } from './ai-workflow-utils';
 
 async function getDynamicConfig(providerId?: string, providerPresetId?: string): Promise<PortSchema[]> {
   const config = await getDynamicModelConfig({
@@ -67,7 +67,7 @@ export const ImageGenerateNode: NodeHandler = {
     const providerPresetId = getWorkflowProviderPresetId(config);
     return getDynamicConfig(providerId, providerPresetId);
   },
-  async run({ input, config, emit }) {
+  async run({ input, config, ctx, emit }) {
     const prompt = String(input.prompt || '').trim();
     if (!prompt) throw new Error('缺少提示词');
 
@@ -88,7 +88,13 @@ export const ImageGenerateNode: NodeHandler = {
       model,
       prompt,
       quality,
-      size
+      size,
+      workflowAiUsage: buildWorkflowAiUsageContext(ctx, {
+        nodeLabel: '图像生成',
+        nodeType: 'image/image-generate',
+        operationKey: 'generate_image',
+        usageStage: 'generate'
+      })
     });
     emit('node:progress', { progress: 70, message: '解析图片生成结果...' });
 

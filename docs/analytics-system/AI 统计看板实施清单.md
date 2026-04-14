@@ -21,14 +21,27 @@
 - [x] `ai_usage_events` 已在 `schema.ts` 中真实建表
 - [x] Drizzle migration 已生成
 - [x] analytics repository / recorder 已完成首版实现
+- [x] `ai_usage_event_outbox` 已在 `schema.ts` 中真实建表，并已生成对应 Drizzle migration
+- [x] AI usage 事件总线已升级为“事件发布 + durable outbox”模式：AI 业务链路统一发出 `ai usage observed` 事件，analytics 接入后先写 outbox，再异步 drain 到 recorder
 - [x] 聊天主链路已开始写入首批 usage 事件
 - [x] `conversation_title / translation / summary / mindmap / memory_extraction` 已完成首轮 usage 接入
 - [x] `window.YUA.analytics` 首版查询桥已完成
 - [x] 统计页面与侧边栏入口已完成首版落地
+- [x] 统计查询/UI 已完成第二轮扩展：筛选区已补齐 `Provider / Model / usageCategory / status / meteringAccuracy / billingEligible`
+- [x] analytics 查询层已支持 `workflowRunId / workflowNodeId / workflowNodeType / providerUsageType` metadata 过滤与 `workflowNodeType` breakdown
+- [x] analytics 查询层已补齐 outbox 健康摘要与失败队列接口，统计页已可展示 pending / failed / retrying / 最近失败事件
+- [x] analytics 查询/动作层已补齐 `retryOutboxEvents / drainOutbox`，统计页已可直接触发失败队列重试与 pending 队列消费
+- [x] outbox 恢复链路已补齐自动化回归：`test/ai-usage-outbox.spec.ts` 已覆盖自动消费、手动消费、失败重试三条路径
+- [x] 统计页最近调用明细已补齐 `billableTotalTokens / requestId / traceId / providerRequestId / workflow metadata / providerUsageType` 展示，并对缺失 token 保持 `-`，不伪造 `0`
 - [x] 历史聊天 usage 补录能力已完成首版落地
 - [x] 统计页已支持显式触发“补录历史聊天”并展示结果
 - [x] Phase 7 首条链路已开始落地：`/tagger` 页请求可按 `tagging/classify` 单独记账
 - [x] Phase 7 已补齐 `memory_recall` 首个真实 usage 入口：自动记忆召回里的 LLM 关键词提取会按 `memory_recall/analyze` 单独记账
+- [x] Phase 7 已补齐 `tagging` service 链路：`TaggingService.autoTagText` 会按分段 provider 调用写入 `tagging/classify`
+- [x] Phase 7 已补齐 `embedding` 统一执行链路：`PiExecutionService.embed(...)` 会按真实 provider 调用写入 `embedding/vectorize`
+- [x] Phase 7 已补齐 `transcription` 统一执行链路：`PiExecutionService.transcribe(...)` 会按真实 provider 调用写入 `transcription/transcribe`
+- [x] Phase 7 已补齐 `image_generation` 统一执行链路：`PiExecutionService.generateImage(...)` 会按真实 provider 调用写入 `image_generation/generate`
+- [x] Phase 7 已补齐首批 `workflow_ai` 链路：workflow 内已知 AI node 会按 `workflow_ai` 单独归类
 
 ## 1. 已冻结的实施决策
 
@@ -39,6 +52,7 @@
 - 分类、精度、计费口径以规范文档为准，不在具体业务代码里临时发明新枚举。
 - 首版统计 API 单独挂到 `window.YUA.analytics`，不混入 `window.YUA.ai`。
 - recorder 放在主进程侧，统一负责标准化、去重、精度判断和落库。
+- AI 模块与统计模块之间通过 usage 领域事件解耦；AI 侧不直接依赖 recorder。
 - 首版查询只通过 IPC 获取，不让 Renderer 直接碰数据库。
 - 历史聊天补录已经在页面交付后进入实现，并继续沿用统一 recorder / analytics API 口径。
 
@@ -201,14 +215,27 @@ Phase 1 验收：
 
 目标：建立统一落库入口，后续所有链路只接 recorder，不各自手写 SQL。
 
+补充说明：
+
+- 当前实施口径已经升级为“业务链路发事件，analytics listener 消费并调 recorder”。
+- 当前实现已进一步升级为“业务链路发事件，analytics writer 先写 outbox，listener/drain 再调 recorder”。
+- 因此业务代码的推荐接入点不再是直接 `recordAiUsageEvent(...)`，而是 `emitAiUsageObservedEvent(...)`。
+- recorder 继续作为 analytics 内部标准化与落库边界存在。
+
 建议新增文件：
 
 - [usage-recorder.ts](/Users/yuqian/Documents/projects/chobits/electron/main/handlers/analytics/usage-recorder.ts)
+- [events.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/analytics/events.ts)
+- [fingerprint.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/analytics/fingerprint.ts)
+- [usage-event-listener.ts](/Users/yuqian/Documents/projects/chobits/electron/main/handlers/analytics/usage-event-listener.ts)
 
 推荐能力：
 
 - [x] `recordAiUsageEvent(input)`
-- [x] `buildAiUsageFingerprint(input)`
+- [x] `emitAiUsageObservedEvent(input)`
+- [x] `initAiUsageAnalyticsListener()`
+- [x] `registerAiUsageObservedEventWriter(writer)`
+- [x] `buildAiUsageEventFingerprint(input)`
 - [x] `normalizeProviderUsage(rawUsage)`
 - [x] `computeDisplayTokens(normalizedUsage)`
 - [x] `computeBillableTokens(normalizedUsage, providerId, model)`
@@ -226,6 +253,9 @@ Phase 1 验收：
 - [x] `billableTotalTokens` 不能盲目等于 `totalTokens`
 - [x] 历史补录和估算数据自动关闭 `billingEligible`
 - [x] `failed` / `cancelled` 事件如果 provider usage 精确，允许 `billingEligible = 1`
+- [x] AI 业务链路已开始从“直连 recorder”切换为“发 usage 事件，由 analytics listener 监听并落库”
+- [x] analytics 模块接入后必须先写 `ai_usage_event_outbox`，再异步 drain 到 recorder
+- [x] pending outbox 事件在主进程重启后仍可继续消费，避免 emit 后崩溃直接丢账
 
 推荐额外输出：
 
@@ -382,6 +412,12 @@ Phase 3 验收：
 - [x] 首版已暴露 `getUsageOverview / getUsageTimeline / getUsageByProvider / getUsageByModel / getUsageByCategory / getUsageByFeature / listUsageEvents`
 - [x] `backfillChatUsage` 已通过 analytics IPC / preload 暴露
 - [x] API 已统一支持 `workspaceId / createdAtFrom / createdAtTo / providerId / model / usageCategory / usageFeature / sourceType / billingEligible / meteringAccuracy`
+- [x] 查询层已支持 workflow metadata 过滤：
+  - `workflowRunId`
+  - `workflowNodeId`
+  - `workflowNodeType`
+  - `providerUsageType`
+- [x] breakdown 已支持 `workflowNodeType`
 
 建议：
 
@@ -414,13 +450,19 @@ Phase 4 验收：
 - [x] 菜单高亮规则覆盖 `/resources/analytics`
 - [x] 在 `ResourcePage.tsx` 增加路由入口
 - [x] 首版页面已包含过滤区、总览卡片、趋势图、Provider 排行、Model 排行、用途分类排行、具体功能排行、最近调用明细
+- [x] 统计页已新增 outbox 健康视图，能够展示 pending / failed / retrying / 最近失败队列
+- [x] 统计页已支持“立即消费队列”和“重试失败队列”两个恢复动作
 - [x] 明细列表已展示 `时间 / Provider / Model / usageFeature / usageStage / status / input / output / total / billingEligible / meteringAccuracy`
+- [x] 筛选区已补齐 `Provider / Model / usageCategory / status / billingEligible / meteringAccuracy`
+- [x] 页面已新增 `stage` 与 `workflowNodeType` 两组扩展榜单
+- [x] 最近调用明细已展示 `billableTotalTokens / requestId / traceId / providerRequestId / workflow metadata / providerUsageType`
+- [x] 最近调用明细对缺失 token usage 的事件显示 `-`，不伪造 `0`
 
 建议首版简化项：
 
 - [x] 先用基础表格和图表，不先做复杂拖拽布局
 - [x] 首版先支持日趋势，不先做小时级钻取
-- [ ] 首版先把精度过滤放进顶部筛选，不做复杂图例系统
+- [x] 首版先把精度过滤放进顶部筛选，不做复杂图例系统
 - [x] 统计页已支持显式触发历史聊天补录，并展示扫描 / 写入 / 去重 / 跳过 / 失败结果
 
 Phase 5 验收：
@@ -476,11 +518,25 @@ Phase 6 验收：
       后续补齐：若后面把 `createLlmQueryAnalyzer` 真正接入某条业务链路，继续沿同一 recorder 输出 `query_analysis/analyze`
 - [x] `tagging`
       当前完成范围：`/tagger` 页面通过 `chat` 主链路发起的请求，已支持显式覆写到 `tagging/classify`
-      后续补齐：`TaggingService.autoTagText` 等非聊天派生路径
-- [ ] `embedding`
-- [ ] `transcription`
-- [ ] `image_generation`
-- [ ] `workflow_ai`
+      当前完成范围补充：`TaggingService.autoTagText` 已接入统一 recorder；Pi one-shot 与 legacy ephemeral 路径都会按 `segment:${index}` 写入 `tagging/classify`
+      当前已知 tagging 入口已完成首轮接入
+- [x] `embedding`
+      当前完成范围：`PiExecutionService.embed(...)` 已接入统一 recorder；默认按 `embedding/vectorize` 落账，缺失 usage 时 token 记 `NULL`
+      分类覆写：支持通过 `EmbeddingRequest.extras.analyticsUsage` 显式改写 `sourceType / usageCategory / usageFeature / usageStage`
+      当前完成入口：`ai:embed` 以及所有走 `PiExecutionService.embed(...)` 的内部调用
+- [x] `transcription`
+      当前完成范围：`PiExecutionService.transcribe(...)` 已接入统一 recorder；默认按 `transcription/transcribe` 落账，缺失 usage 时 token 记 `NULL`
+      分类覆写：支持通过 `TranscriptionRequest.extras.analyticsUsage` 显式改写 `sourceType / usageCategory / usageFeature / usageStage`
+      精度补充：provider 返回 token 型 usage 时会同步写入 display / billable token；若返回 duration 型 usage，则只保留 `rawUsage` 与 `metadata.providerBilledSeconds`，不伪造 token
+- [x] `image_generation`
+      当前完成范围：`PiExecutionService.generateImage(...)` 与 `PiImageGenerationService.generateImageFromRequest(...)` 已接入统一 recorder；默认按 `image_generation/generate` 落账，缺失 usage 时 token 记 `NULL`
+      分类覆写：支持通过 `ImageGenerationRequest.extras.analyticsUsage` 显式改写 `sourceType / usageCategory / usageFeature / usageStage`
+      精度补充：provider 返回 token 型 usage 时会同步写入 display / billable token；若 provider 未返回 usage，则只保留事件与 `rawUsage`/metadata，不伪造 token
+- [x] `workflow_ai`
+      当前完成范围：`ai/chat`、`ai/prompt-optimizer`、`image/image-understand`、`image/image-generate` 已接入 `workflow_ai`
+      Pi 路径：通过 `analyticsUsage` 覆写到 `sourceType = workflow / usageCategory = workflow / usageFeature = workflow_ai`
+      legacy chat fallback：仍沿统一 recorder 写事件，缺失 usage 时 token 记 `NULL`
+      metadata：当前会带 `workflowId / workflowName / workflowRunId / workflowNodeId / workflowNodeType / workflowNodeLabel`
 
 对应入口：
 
@@ -493,6 +549,11 @@ Phase 6 验收：
 ## 11. 验证矩阵
 
 开发完成后，至少手工验证以下样例：
+
+- [x] 自动化回归：`test/ai-usage-outbox.spec.ts`
+  - 已覆盖 `emit -> append outbox -> auto drain -> processed`
+  - 已覆盖 `triggerAiUsageOutboxDrain()` 手动消费 pending 队列
+  - 已覆盖 `retryFailedAiUsageOutboxEvents()` 手动重试 failed 队列并重新消费
 
 - [ ] 聊天单轮回复：
   - 预期 1 条 `chat/generate`
@@ -516,6 +577,34 @@ Phase 6 验收：
 - [ ] `/tagger` 页面发起 1 次打标签请求：
   - 预期 1 条 `tagging/classify`
   - 不再落进 `chat/generate`
+- [ ] `window.YUA.ai.autoTagText(...)` 触发 3 段文本自动打标签：
+  - 预期 3 条 `tagging/classify`
+  - `operationKey` 分别为 `segment:0`、`segment:1`、`segment:2`
+  - `metadata.requestKind = auto_tag_text`
+- [ ] `window.YUA.ai.embed(...)` 触发 1 次向量化：
+  - 预期 1 条 `embedding/vectorize`
+  - `metadata.textCount` 与 `metadata.totalInputChars` 正确
+  - 若 provider 返回 usage，则 `meteringAccuracy = exact`
+  - 若通过 `extras.analyticsUsage` 指定为记忆索引，则应落入覆写后的分类桶
+- [ ] `window.YUA.ai.transcribe(...)` 触发 1 次 token 型转写：
+  - 预期 1 条 `transcription/transcribe`
+  - `metadata.audioBytes` 与 `metadata.textChars` 正确
+  - 若 provider 返回 token 型 usage，则 `usage.*` 与 `billable*` 同步落账，`meteringAccuracy = exact`
+- [ ] `window.YUA.ai.transcribe(...)` 触发 1 次 duration 型转写：
+  - 预期仍有 1 条事件
+  - `rawUsage.type = duration`
+  - token 字段保持 `NULL`，`metadata.providerBilledSeconds` 正确
+- [ ] `window.YUA.ai.generateImage(...)` 触发 1 次 token 型图片生成：
+  - 预期 1 条 `image_generation/generate`
+  - `metadata.promptChars`、`metadata.quality`、`metadata.size` 正确
+  - 若 provider 返回 token 型 usage，则 `usage.*` 与 `billable*` 同步落账
+- [ ] workflow 执行 1 次 `ai/chat` 节点：
+  - 预期 1 条 `workflow_ai/generate`
+  - `sourceType = workflow`
+  - `metadata.workflowRunId / workflowNodeId / workflowNodeType` 正确
+- [ ] workflow 执行 1 次 `image/image-understand` 节点：
+  - 预期 1 条 `workflow_ai/analyze`
+  - `operationKey = understand_image`
 - [ ] provider 未返回 usage 的图片生成：
   - 预期仍有事件，但 token 字段为 `NULL`
 - [ ] 一个失败请求拿到 provider 精确 usage：

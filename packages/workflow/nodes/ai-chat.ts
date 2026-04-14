@@ -1,5 +1,5 @@
 import { NodeConfig, NodeHandler, PortSchema } from '../types';
-import { executeWorkflowTextRequest, getDynamicModelConfig, getWorkflowProviderPresetId } from './ai-workflow-utils';
+import { buildWorkflowAiUsageContext, executeWorkflowTextRequest, getDynamicModelConfig, getWorkflowProviderPresetId } from './ai-workflow-utils';
 
 async function getDynamicConfig(providerId?: string, providerPresetId?: string): Promise<PortSchema[]> {
   return getDynamicModelConfig({
@@ -34,7 +34,7 @@ export const AiChatNode: NodeHandler = {
     const providerPresetId = getWorkflowProviderPresetId(config);
     return getDynamicConfig(providerId, providerPresetId);
   },
-  async run({ input, config, emit }) {
+  async run({ input, config, ctx, emit }) {
     const message = String(input.message || '');
     if (!message) throw new Error('缺少对话内容');
 
@@ -69,7 +69,13 @@ export const AiChatNode: NodeHandler = {
         emit('node:progress', { progress: 50, detail: accumulatedText });
       },
       providerId,
-      providerPresetId
+      providerPresetId,
+      workflowAiUsage: buildWorkflowAiUsageContext(ctx, {
+        nodeLabel: '大模型对话',
+        nodeType: 'ai/chat',
+        operationKey: 'chat',
+        usageStage: 'generate'
+      })
     });
 
     emit('node:progress', { progress: 90, message: '处理回复...' });

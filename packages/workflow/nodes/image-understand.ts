@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 
 import { NodeConfig, NodeHandler, PortSchema } from '../types';
-import { executeWorkflowChatRequest, getDynamicModelConfig, getWorkflowProviderPresetId, readImageAsRichContent } from './ai-workflow-utils';
+import { buildWorkflowAiUsageContext, executeWorkflowChatRequest, getDynamicModelConfig, getWorkflowProviderPresetId, readImageAsRichContent } from './ai-workflow-utils';
 
 async function getDynamicConfig(providerId?: string, providerPresetId?: string): Promise<PortSchema[]> {
   return getDynamicModelConfig({
@@ -75,7 +75,7 @@ export const ImageUnderstandNode: NodeHandler = {
     const providerPresetId = getWorkflowProviderPresetId(config);
     return getDynamicConfig(providerId, providerPresetId);
   },
-  async run({ input, config, emit }) {
+  async run({ input, config, ctx, emit }) {
     const imagePath = String(input.image || '');
     if (!imagePath) throw new Error('缺少图片路径');
     if (!fs.existsSync(imagePath)) throw new Error(`图片不存在: ${imagePath}`);
@@ -136,7 +136,13 @@ export const ImageUnderstandNode: NodeHandler = {
       ],
       model,
       providerId,
-      providerPresetId
+      providerPresetId,
+      workflowAiUsage: buildWorkflowAiUsageContext(ctx, {
+        nodeLabel: '图片理解',
+        nodeType: 'image/image-understand',
+        operationKey: 'understand_image',
+        usageStage: 'analyze'
+      })
     });
 
     emit('node:progress', { progress: 90, message: '解析结果...' });

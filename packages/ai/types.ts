@@ -10,6 +10,9 @@ export type TokenUsage = {
   cacheWriteTokens?: number;
   reasoningTokens?: number;
   totalTokens?: number;
+  billableInputTokens?: number;
+  billableOutputTokens?: number;
+  billableTotalTokens?: number;
   cost?: number;
 };
 
@@ -130,24 +133,48 @@ export type EmbeddingRequest = OptionalProviderScopedRequest & {
   normalize?: boolean;
   extras?: Record<string, any>;
 };
-export type EmbeddingResponse = { vectors: number[][]; dim: number; model?: string; providerId?: string };
+export type EmbeddingResponse = {
+  vectors: number[][];
+  dim: number;
+  model?: string;
+  providerId?: string;
+  usage?: TokenUsage;
+  rawUsage?: unknown;
+};
 export type TranscribeOptions = {
   model?: string;
   language?: string;
   prompt?: string;
   secrets?: ProviderSecrets;
 };
+export type TranscriptionResponse = {
+  text: string;
+  model?: string;
+  providerId?: string;
+  usage?: TokenUsage;
+  rawUsage?: unknown;
+};
 export type TranscriptionRequest = ProviderScopedRequest & {
   file: File | Blob | Buffer | ArrayBuffer;
   model?: string;
   language?: string;
   prompt?: string;
+  extras?: Record<string, any>;
 };
 export type ImageGenerationRequest = ProviderScopedRequest & {
   model: string;
   prompt: string;
   size?: string;
   quality?: string;
+  extras?: Record<string, any>;
+};
+export type ImageGenerationResponse = {
+  imageUrl: string;
+  model?: string;
+  providerId?: string;
+  revisedPrompt?: string;
+  usage?: TokenUsage;
+  rawUsage?: unknown;
 };
 export type TranslateRequest = ProviderScopedRequest & {
   model: string;
@@ -323,7 +350,7 @@ export interface ProviderAdapter {
   // Models: return id + optional metadata; UI will use label if provided
   listModels?(opts?: { secrets?: ProviderSecrets }): Promise<Array<{ id: string; label?: string; [k: string]: any }>>;
   // ASR
-  transcribe?(file: File | Blob | Buffer | ArrayBuffer, options?: TranscribeOptions): Promise<{ text: string }>;
+  transcribe?(file: File | Blob | Buffer | ArrayBuffer, options?: TranscribeOptions): Promise<TranscriptionResponse>;
 }
 
 // Agent contracts are now represented by Pi profiles and provider adapters.
@@ -389,8 +416,8 @@ export type AIApi = {
   getAllTranslationHistory(
     resourceId: string
   ): Promise<Array<{ id: string; language?: string; title?: string; filePath?: string; segments?: Array<{ index: number; text: string }>; createdAt?: number; updatedAt?: number }>>;
-  transcribe(payload: TranscriptionRequest): Promise<{ text: string }>;
-  generateImage(payload: ImageGenerationRequest): Promise<{ imageUrl: string }>;
+  transcribe(payload: TranscriptionRequest): Promise<TranscriptionResponse>;
+  generateImage(payload: ImageGenerationRequest): Promise<ImageGenerationResponse>;
   embed(payload: EmbeddingRequest): Promise<{ vectors: number[][]; dim: number }>;
   // Presets
   listPresets(providerId?: string): Promise<ProviderPresetRecord[]>;

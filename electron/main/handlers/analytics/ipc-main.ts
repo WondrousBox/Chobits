@@ -1,9 +1,18 @@
 import { ipcMain } from 'electron';
 
-import type { AiChatUsageBackfillQuery, AiUsageBreakdownQuery, AiUsageEventsQuery, AiUsageOverviewQuery, AiUsageTimelineQuery } from '../../../../packages/ai/analytics/types';
-import { AI_USAGE_BREAKDOWN_DIMENSIONS, AI_USAGE_TIMELINE_BUCKETS } from '../../../../packages/ai/analytics/types';
+import type {
+  AiChatUsageBackfillQuery,
+  AiUsageBreakdownQuery,
+  AiUsageEventsQuery,
+  AiUsageOutboxEventsQuery,
+  AiUsageOutboxRetryQuery,
+  AiUsageOverviewQuery,
+  AiUsageTimelineQuery
+} from '../../../../packages/ai/analytics/types';
+import { AI_USAGE_BREAKDOWN_DIMENSIONS, AI_USAGE_OUTBOX_STATUSES, AI_USAGE_TIMELINE_BUCKETS } from '../../../../packages/ai/analytics/types';
 import { AnalyticsRepo } from '../../db/analytics-repositories';
 import { backfillChatUsage } from './backfill-chat-usage';
+import { initAiUsageAnalyticsListener, retryFailedAiUsageOutboxEvents, triggerAiUsageOutboxDrain } from './usage-event-listener';
 
 function clampLimit(value: unknown, fallback: number, max: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
@@ -19,6 +28,8 @@ function clampOffset(value: unknown): number {
 }
 
 export function initAnalyticsHandlers(): void {
+  initAiUsageAnalyticsListener();
+
   ipcMain.handle('analytics:overview', async (_event, params?: AiUsageOverviewQuery) => {
     try {
       return await AnalyticsRepo.getAiUsageOverview(params?.filter);
@@ -55,6 +66,55 @@ export function initAnalyticsHandlers(): void {
       return await AnalyticsRepo.listAiUsageEvents(params?.filter, clampLimit(params?.limit, 100, 500), clampOffset(params?.offset));
     } catch (error) {
       console.error('[Analytics] events failed:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('analytics:outboxHealth', async () => {
+    try {
+      return await AnalyticsRepo.getAiUsageOutboxHealth();
+    } catch (error) {
+      console.error('[Analytics] outboxHealth failed:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('analytics:outboxEvents', async (_event, params?: AiUsageOutboxEventsQuery) => {
+    try {
+      const status = params?.status && AI_USAGE_OUTBOX_STATUSES.includes(params.status) ? params.status : undefined;
+      return await AnalyticsRepo.listAiUsageOutboxEvents({
+        limit: clampLimit(params?.limit, 10, 100),
+        status
+      });
+    } catch (error) {
+      console.error('[Analytics] outboxEvents failed:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('analytics:retryOutboxEvents', async (_event, params?: AiUsageOutboxRetryQuery) => {
+    try {
+      const limit = clampLimit(params?.limit, 20, 200);
+      const resetCount = await retryFailedAiUsageOutboxEvents(limit);
+      return {
+        limit,
+        resetCount,
+        scheduled: resetCount > 0
+      };
+    } catch (error) {
+      console.error('[Analytics] retryOutboxEvents failed:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('analytics:drainOutbox', async () => {
+    try {
+      triggerAiUsageOutboxDrain();
+      return {
+        scheduled: true
+      };
+    } catch (error) {
+      console.error('[Analytics] drainOutbox failed:', error);
       throw error;
     }
   });

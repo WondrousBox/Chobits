@@ -1,6 +1,6 @@
-import type { ProviderSecrets, TranscribeOptions } from '../types';
-import { getRequiredBuiltinProviderDefaultModel } from './service';
+import type { ProviderSecrets, TranscribeOptions, TranscriptionResponse } from '../types';
 import { OpenAICompatibleProvider } from './openai-compatible';
+import { getRequiredBuiltinProviderDefaultModel } from './service';
 
 function resolveZhipuAudioTranscriptionUrl(baseUrl?: string): string {
   const normalizedBaseUrl = String(baseUrl || 'https://open.bigmodel.cn/api/paas/v4/')
@@ -14,7 +14,7 @@ export class ZhipuProvider extends OpenAICompatibleProvider {
     super('zhipu');
   }
 
-  async transcribe(file: File | Blob | Buffer | ArrayBuffer, options?: TranscribeOptions): Promise<{ text: string }> {
+  async transcribe(file: File | Blob | Buffer | ArrayBuffer, options?: TranscribeOptions): Promise<TranscriptionResponse> {
     const providerSecrets = (await this.getSecrets()) as ProviderSecrets;
     const secrets = {
       ...providerSecrets,
