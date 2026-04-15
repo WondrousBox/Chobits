@@ -92,6 +92,7 @@ export interface ChatStreamEvent {
   type: 'delta' | 'thinking_delta' | 'message_completed' | 'error';
   data?: {
     message?: string;
+    providerRequestId?: string;
     rawUsage?: unknown;
     text?: string;
     usage?: TokenUsage;
@@ -120,6 +121,7 @@ export interface SummaryUsageEvent {
   completedAt?: number;
   metadata?: Record<string, unknown>;
   operationKey?: string;
+  providerRequestId?: string;
   rawUsage?: unknown;
   startedAt?: number;
   status: 'completed' | 'failed' | 'cancelled';
@@ -312,6 +314,7 @@ export class SummaryService {
     let hasReportedUsage = false;
     let streamError: Error | undefined;
     let llmCallStartedAt: number | undefined;
+    let contentLength = 0;
 
     try {
       emit({ type: 'connected' });
@@ -335,6 +338,7 @@ export class SummaryService {
       if (contentText.length > maxChars) {
         contentText = contentText.slice(0, maxChars);
       }
+      contentLength = contentText.length;
 
       // 获取语言名称
       const languageName = languageNames?.[targetLanguage] || targetLanguage;
@@ -396,7 +400,11 @@ export class SummaryService {
             if (!hasReportedUsage) {
               onUsageEvent?.({
                 completedAt: Date.now(),
+                metadata: {
+                  contentLength
+                },
                 operationKey: 'generate',
+                providerRequestId: event.data?.providerRequestId,
                 rawUsage: event.data?.rawUsage,
                 startedAt: llmCallStartedAt,
                 status: 'completed',
@@ -440,6 +448,9 @@ export class SummaryService {
             if (!hasReportedUsage) {
               onUsageEvent?.({
                 completedAt: Date.now(),
+                metadata: {
+                  contentLength
+                },
                 operationKey: 'generate',
                 startedAt: llmCallStartedAt,
                 status: abortController.signal.aborted ? 'cancelled' : 'failed'
@@ -496,6 +507,9 @@ export class SummaryService {
       if (!hasReportedUsage) {
         onUsageEvent?.({
           completedAt: Date.now(),
+          metadata: {
+            contentLength
+          },
           operationKey: 'generate',
           startedAt: llmCallStartedAt,
           status: isAborted ? 'cancelled' : 'failed'

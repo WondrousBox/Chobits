@@ -172,11 +172,11 @@ export type AiUsageOverview = {
   distinctProviderCount: number;
   distinctModelCount: number;
   distinctFeatureCount: number;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  billableTotalTokens: number;
-  estimatedCost: number;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+  billableTotalTokens: number | null;
+  estimatedCost: number | null;
   firstEventAt: number | null;
   lastEventAt: number | null;
 };
@@ -186,11 +186,11 @@ export type AiUsageTimelinePoint = {
   bucketStartAt: number;
   bucketEndAt: number;
   eventCount: number;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  billableTotalTokens: number;
-  estimatedCost: number;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+  billableTotalTokens: number | null;
+  estimatedCost: number | null;
 };
 
 export type AiUsageBreakdownRow = {
@@ -198,11 +198,11 @@ export type AiUsageBreakdownRow = {
   value: string;
   label: string;
   eventCount: number;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  billableTotalTokens: number;
-  estimatedCost: number;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+  billableTotalTokens: number | null;
+  estimatedCost: number | null;
 };
 
 export type AiUsageOutboxHealth = {

@@ -12,6 +12,7 @@ import { getChatMessageUsage, withChatMessageUsage } from './message-usage';
 import { normalizeProviderPreset, resolveProviderPresetId } from './provider-preset';
 import { getProviderDefinitionSchema } from './providers/service';
 import { PiExecutionService } from './runtime/pi/execution-service';
+import { readProviderRequestId } from './runtime/pi/provider-request-id';
 import { PiSessionService } from './runtime/pi/session-service';
 import { generatePiConversationTitle } from './runtime/pi/tasks/title';
 import type { AgentLoopCompletePayload } from './services/memory-types';
@@ -195,6 +196,7 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
       model: String(resp.metadata?.model || preview.resolved.model.modelId),
       providerId: resp.providerId || preview.resolved.model.providerId,
       providerPresetId,
+      providerRequestId: this.getProviderRequestId(resp.message?.metadata) ?? this.getProviderRequestId(resp.metadata),
       rawUsage: this.getMessageRawUsage(resp.message) ?? resp.metadata?.rawUsage,
       requestId: runtimeReq.requestId!,
       startedAt,
@@ -359,6 +361,7 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
       model: preview.resolved.model.modelId,
       providerId: preview.resolved.model.providerId,
       providerPresetId,
+      providerRequestId: this.getProviderRequestId(finalMessage?.metadata),
       rawUsage: this.getMessageRawUsage(finalMessage),
       requestId,
       startedAt,
@@ -559,6 +562,10 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
     return (message.metadata as Record<string, unknown>).piRawUsage;
   }
 
+  private getProviderRequestId(value?: unknown): string | undefined {
+    return readProviderRequestId(value);
+  }
+
   private resolveUsageOverride(req: ChatRequest): ChatUsageOverride | undefined {
     const rawOverride = req.extras?.analyticsUsage;
     if (!isPlainRecord(rawOverride)) {
@@ -615,6 +622,7 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
     model: string;
     agentId?: string;
     status: 'completed' | 'failed' | 'cancelled';
+    providerRequestId?: string;
     usage?: ChatResponse['usage'];
     rawUsage?: unknown;
     startedAt: number;
@@ -637,6 +645,7 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
       usageStage: usageOverride?.usageStage || 'generate',
       providerId: params.providerId,
       providerPresetId: params.providerPresetId,
+      providerRequestId: params.providerRequestId,
       model: params.model,
       agentId: params.agentId,
       status: params.status,
@@ -675,6 +684,7 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
     providerPresetId?: string;
     model: string;
     status: 'completed' | 'failed' | 'cancelled';
+    providerRequestId?: string;
     usage?: ChatResponse['usage'];
     rawUsage?: unknown;
     startedAt: number;
@@ -695,6 +705,7 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
       usageStage: 'generate',
       providerId: params.providerId,
       providerPresetId: params.providerPresetId,
+      providerRequestId: params.providerRequestId,
       model: params.model,
       agentId: 'chat',
       status: params.status,
@@ -769,6 +780,7 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
       const shouldFallbackToLegacy = !this.piSessionService.getAvailability(titleReq).available;
       let titleUsage: {
         model?: string;
+        providerRequestId?: string;
         providerId?: string;
         rawUsage?: unknown;
         runtime?: string;
@@ -786,6 +798,7 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
         title = titleResult.title;
         titleUsage = {
           model: titleResult.model,
+          providerRequestId: titleResult.providerRequestId,
           providerId: titleResult.providerId,
           rawUsage: titleResult.rawUsage,
           runtime: titleResult.runtime,
@@ -801,6 +814,7 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
         title = normalizeGeneratedConversationTitle(resp?.message?.content || '');
         titleUsage = {
           model: typeof resp.metadata?.model === 'string' ? resp.metadata.model : (resolved.extras?.model as string | undefined),
+          providerRequestId: this.getProviderRequestId(resp.message?.metadata) ?? this.getProviderRequestId(resp.metadata),
           providerId: resp.providerId || resolved.providerId,
           rawUsage: this.getMessageRawUsage(resp.message) ?? resp.metadata?.rawUsage,
           runtime: typeof resp.metadata?.runtime === 'string' ? resp.metadata.runtime : 'pi',
@@ -814,6 +828,7 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
         model: titleUsage.model || (resolved.extras?.model as string | undefined) || 'unknown',
         providerId: titleUsage.providerId || resolved.providerId,
         providerPresetId,
+        providerRequestId: titleUsage.providerRequestId,
         rawUsage: titleUsage.rawUsage,
         requestId: titleRequestId,
         runtime: titleUsage.runtime,

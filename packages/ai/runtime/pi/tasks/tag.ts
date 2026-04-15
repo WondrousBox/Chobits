@@ -2,6 +2,7 @@ import { getChatMessageUsage } from '../../../message-usage';
 import { normalizeProviderPreset, resolveProviderPresetId } from '../../../provider-preset';
 import type { ChatMessage, ChatRequest, ProviderScopedRequest, TokenUsage } from '../../../types';
 import { PiExecutionService } from '../execution-service';
+import { readProviderRequestId } from '../provider-request-id';
 import { buildTaggingUserPrompt, TAGGING_SYSTEM_PROMPT } from './tag-prompt';
 
 let piExecutionService: PiExecutionService | undefined;
@@ -13,6 +14,7 @@ export interface GeneratePiTagsOptions extends ProviderScopedRequest {
 
 export interface GeneratePiTagsResult {
   model?: string;
+  providerRequestId?: string;
   providerId?: string;
   rawUsage?: unknown;
   runtime?: string;
@@ -87,6 +89,7 @@ export async function generatePiTagsForSegment(options: GeneratePiTagsOptions): 
 
   return {
     model: typeof responseMetadata?.model === 'string' ? responseMetadata.model : model,
+    providerRequestId: readProviderRequestId(messageMetadata) ?? readProviderRequestId(responseMetadata),
     providerId: response.providerId || providerId,
     rawUsage: messageMetadata?.piRawUsage ?? responseMetadata?.rawUsage,
     runtime: typeof responseMetadata?.runtime === 'string' ? responseMetadata.runtime : 'pi',

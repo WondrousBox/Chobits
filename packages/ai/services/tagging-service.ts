@@ -11,6 +11,7 @@ import { getPresetSecrets, listPresets } from '../preset-service';
 import { listProviderSecretKeys, listRequiredProviderSecretKeys, supportsProviderCapability } from '../providers/service';
 import { getProvider } from '../registry';
 import { PiExecutionService } from '../runtime/pi/execution-service';
+import { readProviderRequestId } from '../runtime/pi/provider-request-id';
 import { generatePiTagsForSegment, parseTagListFromResponse } from '../runtime/pi/tasks/tag';
 import { buildTaggingUserPrompt, TAGGING_SYSTEM_PROMPT } from '../runtime/pi/tasks/tag-prompt';
 import { isFreeProvider, loadSelectionStrategy, scoreCandidate } from '../selection-strategy';
@@ -25,6 +26,7 @@ export type BestPreset = {
 type Candidate = { providerId: string; presetId: string; updatedAt: number; weight: number; secrets?: Record<string, string> };
 type TaggingInvocationResult = {
   model?: string;
+  providerRequestId?: string;
   providerId?: string;
   rawUsage?: unknown;
   runtime?: string;
@@ -201,6 +203,7 @@ export const TaggingService = {
 
     return {
       model: typeof responseMetadata?.model === 'string' ? responseMetadata.model : undefined,
+      providerRequestId: readProviderRequestId(messageMetadata) ?? readProviderRequestId(responseMetadata),
       providerId: response.providerId || best.providerId,
       rawUsage: messageMetadata?.piRawUsage ?? responseMetadata?.rawUsage,
       runtime: typeof responseMetadata?.runtime === 'string' ? responseMetadata.runtime : 'legacy_ephemeral',
@@ -235,6 +238,7 @@ export const TaggingService = {
       usageStage: 'classify',
       providerId: params.invocation?.providerId || params.best.providerId,
       providerPresetId: params.best.presetId,
+      providerRequestId: params.invocation?.providerRequestId,
       model: params.invocation?.model || 'unknown',
       agentId: 'tagging-service',
       status: params.status,

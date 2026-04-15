@@ -134,11 +134,11 @@ function emptyOverview(): AiUsageOverview {
     distinctProviderCount: 0,
     distinctModelCount: 0,
     distinctFeatureCount: 0,
-    inputTokens: 0,
-    outputTokens: 0,
-    totalTokens: 0,
-    billableTotalTokens: 0,
-    estimatedCost: 0,
+    inputTokens: null,
+    outputTokens: null,
+    totalTokens: null,
+    billableTotalTokens: null,
+    estimatedCost: null,
     firstEventAt: null,
     lastEventAt: null
   };
@@ -370,11 +370,11 @@ export const AnalyticsRepo = {
             COUNT(DISTINCT provider_id) AS distinctProviderCount,
             COUNT(DISTINCT model) AS distinctModelCount,
             COUNT(DISTINCT usage_feature) AS distinctFeatureCount,
-            COALESCE(SUM(input_tokens), 0) AS inputTokens,
-            COALESCE(SUM(output_tokens), 0) AS outputTokens,
-            COALESCE(SUM(total_tokens), 0) AS totalTokens,
-            COALESCE(SUM(billable_total_tokens), 0) AS billableTotalTokens,
-            COALESCE(SUM(estimated_cost), 0) AS estimatedCost,
+            SUM(input_tokens) AS inputTokens,
+            SUM(output_tokens) AS outputTokens,
+            SUM(total_tokens) AS totalTokens,
+            SUM(billable_total_tokens) AS billableTotalTokens,
+            SUM(estimated_cost) AS estimatedCost,
             MIN(created_at) AS firstEventAt,
             MAX(created_at) AS lastEventAt
           FROM ai_usage_events
@@ -400,11 +400,11 @@ export const AnalyticsRepo = {
       distinctProviderCount: toNumber(row.distinctProviderCount),
       distinctModelCount: toNumber(row.distinctModelCount),
       distinctFeatureCount: toNumber(row.distinctFeatureCount),
-      inputTokens: toNumber(row.inputTokens),
-      outputTokens: toNumber(row.outputTokens),
-      totalTokens: toNumber(row.totalTokens),
-      billableTotalTokens: toNumber(row.billableTotalTokens),
-      estimatedCost: toNumber(row.estimatedCost),
+      inputTokens: toNullableNumber(row.inputTokens),
+      outputTokens: toNullableNumber(row.outputTokens),
+      totalTokens: toNullableNumber(row.totalTokens),
+      billableTotalTokens: toNullableNumber(row.billableTotalTokens),
+      estimatedCost: toNullableNumber(row.estimatedCost),
       firstEventAt: toNullableNumber(row.firstEventAt),
       lastEventAt: toNullableNumber(row.lastEventAt)
     };
@@ -424,11 +424,11 @@ export const AnalyticsRepo = {
             MIN(created_at) AS bucketStartAt,
             MAX(created_at) AS bucketEndAt,
             COUNT(*) AS eventCount,
-            COALESCE(SUM(input_tokens), 0) AS inputTokens,
-            COALESCE(SUM(output_tokens), 0) AS outputTokens,
-            COALESCE(SUM(total_tokens), 0) AS totalTokens,
-            COALESCE(SUM(billable_total_tokens), 0) AS billableTotalTokens,
-            COALESCE(SUM(estimated_cost), 0) AS estimatedCost
+            SUM(input_tokens) AS inputTokens,
+            SUM(output_tokens) AS outputTokens,
+            SUM(total_tokens) AS totalTokens,
+            SUM(billable_total_tokens) AS billableTotalTokens,
+            SUM(estimated_cost) AS estimatedCost
           FROM ai_usage_events
           ${clause}
           GROUP BY bucket
@@ -443,11 +443,11 @@ export const AnalyticsRepo = {
       bucketStartAt: toNumber(row.bucketStartAt),
       bucketEndAt: toNumber(row.bucketEndAt),
       eventCount: toNumber(row.eventCount),
-      inputTokens: toNumber(row.inputTokens),
-      outputTokens: toNumber(row.outputTokens),
-      totalTokens: toNumber(row.totalTokens),
-      billableTotalTokens: toNumber(row.billableTotalTokens),
-      estimatedCost: toNumber(row.estimatedCost)
+      inputTokens: toNullableNumber(row.inputTokens),
+      outputTokens: toNullableNumber(row.outputTokens),
+      totalTokens: toNullableNumber(row.totalTokens),
+      billableTotalTokens: toNullableNumber(row.billableTotalTokens),
+      estimatedCost: toNullableNumber(row.estimatedCost)
     }));
   },
 
@@ -464,11 +464,11 @@ export const AnalyticsRepo = {
             ${column} AS value,
             ${column} AS label,
             COUNT(*) AS eventCount,
-            COALESCE(SUM(input_tokens), 0) AS inputTokens,
-            COALESCE(SUM(output_tokens), 0) AS outputTokens,
-            COALESCE(SUM(total_tokens), 0) AS totalTokens,
-            COALESCE(SUM(billable_total_tokens), 0) AS billableTotalTokens,
-            COALESCE(SUM(estimated_cost), 0) AS estimatedCost
+            SUM(input_tokens) AS inputTokens,
+            SUM(output_tokens) AS outputTokens,
+            SUM(total_tokens) AS totalTokens,
+            SUM(billable_total_tokens) AS billableTotalTokens,
+            SUM(estimated_cost) AS estimatedCost
           FROM ai_usage_events
           ${clause}
           GROUP BY ${column}
@@ -486,11 +486,11 @@ export const AnalyticsRepo = {
         value,
         label,
         eventCount: toNumber(row.eventCount),
-        inputTokens: toNumber(row.inputTokens),
-        outputTokens: toNumber(row.outputTokens),
-        totalTokens: toNumber(row.totalTokens),
-        billableTotalTokens: toNumber(row.billableTotalTokens),
-        estimatedCost: toNumber(row.estimatedCost)
+        inputTokens: toNullableNumber(row.inputTokens),
+        outputTokens: toNullableNumber(row.outputTokens),
+        totalTokens: toNullableNumber(row.totalTokens),
+        billableTotalTokens: toNullableNumber(row.billableTotalTokens),
+        estimatedCost: toNullableNumber(row.estimatedCost)
       };
     });
   },

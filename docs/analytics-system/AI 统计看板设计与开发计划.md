@@ -1,6 +1,6 @@
 # AI 统计看板设计与开发计划
 
-更新时间：2026-04-14
+更新时间：2026-04-15
 
 本文档用于指导项目内“AI 统计看板”的设计与落地。第一阶段目标不是只做一个“token 展示效果”，而是建立一套可长期演进的、尽可能精确的 AI 使用量计量体系：既能按服务商、模型统计，也必须能按业务用途分类统计，并为后续付费系统、额度系统、成本核算、组织级账单提供稳定基础。
 
@@ -28,6 +28,7 @@ Phase 1 的字段级 schema 与 recorder 契约草案，另见：[AI 使用量�
 - `window.YUA.analytics` 已补齐 `retryOutboxEvents / drainOutbox` 动作；统计页现可直接触发“立即消费队列”和“重试失败队列”，把 outbox 可视化扩展到可恢复操作。
 - outbox 恢复闭环已补齐自动化回归：`test/ai-usage-outbox.spec.ts` 已覆盖自动消费、手动消费 pending 队列、手动重试 failed 队列三条关键路径。
 - 最近调用明细现已额外展示 `billableTotalTokens`、`requestId / traceId / providerRequestId`、workflow run/node metadata、`providerUsageType` 等排查字段；缺失 token usage 的事件在 UI 中明确显示为 `-`，不再伪造 `0`。
+- overview / timeline / breakdown 的 token / cost 聚合现已保持 `NULL` 语义：命中事件全部缺失 usage 时不再强行显示为 `0`，统计页会继续统计请求数，但聚合值显示为 `-`。
 - 聊天实时事件在消息持久化成功后会补充 `metadata.assistantMessageId`，用于后续补录幂等与对账。
 - chat-derived 链路现已支持显式声明业务用途覆写；`/tagger` 页面发起的请求会按 `tagging/classify` 落账，不再误归到 `chat`。
 - `TaggingService.autoTagText` 已接入统一 recorder；Pi one-shot 与 legacy ephemeral 两条打标签路径都会按 `tagging/classify` 分段落账。
@@ -36,8 +37,9 @@ Phase 1 的字段级 schema 与 recorder 契约草案，另见：[AI 使用量�
 - `PiExecutionService.transcribe(...)` 已接入统一 recorder；默认按 `transcription/transcribe` 记账，也支持通过 `extras.analyticsUsage` 显式覆写业务归类。provider 返回 token 型 usage 时会同步写入 display/billable token；若返回 duration 型 usage，则只保留 `rawUsage` 与时长 metadata，token 保持 `NULL`。
 - `PiExecutionService.generateImage(...)` 已接入统一 recorder；默认按 `image_generation/generate` 记账，也支持通过 `extras.analyticsUsage` 显式覆写业务归类。provider 返回 token 型 usage 时会同步写入 display/billable token；若 provider 未返回 usage，则事件照样记录，但 token 保持 `NULL`。
 - workflow 已补齐首批 `workflow_ai` 归类：`ai/chat`、`ai/prompt-optimizer`、`image/image-understand`、`image/image-generate` 会把 workflow run / node 信息带入统计；Pi chat 路径通过 `analyticsUsage` 统一改类，legacy chat fallback 也会走统一 recorder。
-- Pi task runtime 已把 `usage/rawUsage` 透传到任务 service，可支撑内容处理类链路统一接 recorder。
-- `providerRequestId` 仍待后续继续向 Pi/runtime 上游补采。
+- Pi task runtime 已把 `usage/rawUsage` 透传到任务 service，可支撑内容处理类链路统一接 recorder；同时已补齐 `providerRequestId` 的 best-effort 透传，summary / translation / mindmap / tagging / title / chat 主链路都会继续向 recorder 传递 runtime 已暴露的 provider 请求标识。
+- 总结任务 usage metadata 已补齐 `contentLength`，并按实际送入模型的截断后文本长度记录。
+- `providerRequestId` 的更深层补采仍依赖 Pi/runtime 与 provider SDK 暴露原始响应 / 请求标识；当前代码已完成“有则透传，无则保持为空，不伪造”的口径。
 - 更深入的筛选与付费口径收口仍在后续 phase。
 
 ## 1. 背景与现状

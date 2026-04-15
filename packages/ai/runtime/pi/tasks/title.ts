@@ -3,6 +3,7 @@ import { getChatMessageUsage } from '../../../message-usage';
 import { normalizeProviderPreset, resolveProviderPresetId } from '../../../provider-preset';
 import type { ChatMessage, ChatRequest, ProviderScopedRequest, TokenUsage } from '../../../types';
 import { PiExecutionService } from '../execution-service';
+import { readProviderRequestId } from '../provider-request-id';
 
 const TITLE_SYSTEM_PROMPT = '你是一个标题生成助手。请根据以下用户和AI的对话内容，生成一个简洁的对话标题（不超过20个字）。只输出标题本身，不要加引号、前缀或解释。';
 let piExecutionService: PiExecutionService | undefined;
@@ -16,6 +17,7 @@ export interface GeneratePiConversationTitleOptions extends ProviderScopedReques
 
 export interface GeneratePiConversationTitleResult {
   model?: string;
+  providerRequestId?: string;
   providerId?: string;
   rawUsage?: unknown;
   runtime?: string;
@@ -57,6 +59,7 @@ export async function generatePiConversationTitle(options: GeneratePiConversatio
 
   return {
     model: typeof responseMetadata?.model === 'string' ? responseMetadata.model : model,
+    providerRequestId: readProviderRequestId(messageMetadata) ?? readProviderRequestId(responseMetadata),
     providerId: response.providerId || providerId,
     rawUsage: messageMetadata?.piRawUsage ?? responseMetadata?.rawUsage,
     runtime: typeof responseMetadata?.runtime === 'string' ? responseMetadata.runtime : 'pi',

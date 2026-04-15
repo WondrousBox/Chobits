@@ -221,6 +221,11 @@ function formatCost(value: number | null | undefined): string {
   return normalized.toFixed(2);
 }
 
+function formatMaybeCost(value: number | null | undefined): string {
+  if (value === undefined || value === null) return '-';
+  return formatCost(value);
+}
+
 function formatDateTime(value: number | null | undefined): string {
   if (!value) return '-';
   return new Intl.DateTimeFormat('zh-CN', {
@@ -358,7 +363,7 @@ function localizeBreakdownRows(rows: AiUsageBreakdownRow[]): AiUsageBreakdownRow
 }
 
 function TopListCard(props: { description: string; rows: AiUsageBreakdownRow[]; title: string }): JSX.Element {
-  const maxTokens = Math.max(1, ...props.rows.map((row) => row.totalTokens));
+  const maxTokens = Math.max(1, ...props.rows.map((row) => row.totalTokens ?? 0));
 
   return (
     <Card className="border-border/70">
@@ -376,16 +381,16 @@ function TopListCard(props: { description: string; rows: AiUsageBreakdownRow[]; 
                 <div className="min-w-0">
                   <div className="truncate font-medium">{row.label}</div>
                   <div className="text-xs text-muted-foreground">
-                    {formatInteger(row.eventCount)} 次调用 · 可计费 {formatInteger(row.billableTotalTokens)}
+                    {formatInteger(row.eventCount)} 次调用 · 可计费 {formatMaybeInteger(row.billableTotalTokens)}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-medium">{formatInteger(row.totalTokens)}</div>
+                  <div className="font-medium">{formatMaybeInteger(row.totalTokens)}</div>
                   <div className="text-xs text-muted-foreground">tokens</div>
                 </div>
               </div>
               <div className="h-2 rounded-full bg-muted">
-                <div className="h-2 rounded-full bg-primary/80" style={{ width: `${Math.max(6, (row.totalTokens / maxTokens) * 100)}%` }} />
+                <div className="h-2 rounded-full bg-primary/80" style={{ width: row.totalTokens === null ? '0%' : `${Math.max(6, ((row.totalTokens ?? 0) / maxTokens) * 100)}%` }} />
               </div>
             </div>
           ))
@@ -526,7 +531,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ workspaceId }) => {
     };
   }, [billingFilter, categoryFilter, deferredModelFilter, deferredProviderFilter, featureFilter, meteringAccuracyFilter, rangeDays, refreshToken, sourceTypeFilter, statusFilter, workspaceId]);
 
-  const maxTimelineTokens = Math.max(1, ...timeline.map((point) => point.totalTokens));
+  const maxTimelineTokens = Math.max(1, ...timeline.map((point) => point.totalTokens ?? 0));
   const outboxHealthStatus = resolveOutboxHealthLevel(outboxHealth);
   const canResetFilters =
     rangeDays !== DEFAULT_STORED_FILTERS.rangeDays ||
@@ -856,13 +861,13 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ workspaceId }) => {
                     description: `${formatInteger(overview?.completedEvents)} 完成 / ${formatInteger(overview?.failedEvents)} 失败 / ${formatInteger(overview?.cancelledEvents)} 取消`,
                     icon: <TbBolt className="h-4 w-4" />,
                     title: '总 tokens',
-                    value: formatInteger(overview?.totalTokens)
+                    value: formatMaybeInteger(overview?.totalTokens)
                   },
                   {
-                    description: `${formatInteger(overview?.inputTokens)} 输入 / ${formatInteger(overview?.outputTokens)} 输出`,
+                    description: `${formatMaybeInteger(overview?.inputTokens)} 输入 / ${formatMaybeInteger(overview?.outputTokens)} 输出`,
                     icon: <TbCoins className="h-4 w-4" />,
                     title: '可计费 tokens',
-                    value: formatInteger(overview?.billableTotalTokens)
+                    value: formatMaybeInteger(overview?.billableTotalTokens)
                   },
                   {
                     description: `${formatInteger(overview?.distinctRequestCount)} 个 request / ${formatInteger(overview?.distinctTraceCount)} 条 trace`,
@@ -906,9 +911,12 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ workspaceId }) => {
                     <div key={point.bucket} className="grid grid-cols-[80px_1fr_88px] items-center gap-3">
                       <div className="text-xs text-muted-foreground">{point.bucket}</div>
                       <div className="h-2.5 rounded-full bg-muted">
-                        <div className="h-2.5 rounded-full bg-primary/80" style={{ width: `${Math.max(4, (point.totalTokens / maxTimelineTokens) * 100)}%` }} />
+                        <div
+                          className="h-2.5 rounded-full bg-primary/80"
+                          style={{ width: point.totalTokens === null ? '0%' : `${Math.max(4, ((point.totalTokens ?? 0) / maxTimelineTokens) * 100)}%` }}
+                        />
                       </div>
-                      <div className="text-right text-xs font-medium">{formatInteger(point.totalTokens)}</div>
+                      <div className="text-right text-xs font-medium">{formatMaybeInteger(point.totalTokens)}</div>
                     </div>
                   ))
                 )}
@@ -949,7 +957,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ workspaceId }) => {
                     <div className="mt-1 font-medium">{formatInteger(overview?.lowAccuracyEvents)}</div>
                   </div>
                 </div>
-                <div className="text-xs text-muted-foreground">预计成本约 {formatCost(overview?.estimatedCost)}</div>
+                <div className="text-xs text-muted-foreground">预计成本约 {formatMaybeCost(overview?.estimatedCost)}</div>
               </CardContent>
             </Card>
           </div>
