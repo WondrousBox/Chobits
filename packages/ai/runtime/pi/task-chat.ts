@@ -3,6 +3,7 @@ import type { ChatRequest, ProviderScopedRequest, TokenUsage } from '../../types
 import type { ResolvedPiRequest } from './contracts';
 import { resolvePiRequest } from './model-resolver';
 import { buildPiModel, buildPiModelHeaders } from './provider-model';
+import { extractPiProviderRequestId } from './provider-request-id';
 
 type PiAiModule = typeof import('@mariozechner/pi-ai');
 type PiAssistantMessage = import('@mariozechner/pi-ai').AssistantMessage;
@@ -12,7 +13,7 @@ type PiThinkingLevel = import('@mariozechner/pi-ai').ThinkingLevel;
 export type PiTaskChatEvent =
   | { type: 'delta'; data: { text: string } }
   | { type: 'thinking_delta'; data: { text: string } }
-  | { type: 'message_completed'; data?: { text?: string; thinking?: string; usage?: TokenUsage; rawUsage?: Record<string, unknown> } }
+  | { type: 'message_completed'; data?: { text?: string; thinking?: string; usage?: TokenUsage; rawUsage?: Record<string, unknown>; providerRequestId?: string } }
   | { type: 'error'; data: { message: string } };
 
 export type PiTaskChatFunction = (prompt: string, onEvent: (event: PiTaskChatEvent) => void, abortSignal?: AbortSignal) => Promise<void>;
@@ -178,6 +179,7 @@ export async function createPiTaskChatRuntime(resolved: ResolvedPiRequest): Prom
               onEvent({
                 type: 'message_completed',
                 data: {
+                  providerRequestId: extractPiProviderRequestId(event.message),
                   text: extractAssistantText(event.message),
                   thinking: extractAssistantThinking(event.message),
                   usage: extractPiTokenUsage(event.message),

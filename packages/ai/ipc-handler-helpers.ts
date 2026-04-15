@@ -715,6 +715,7 @@ type TaskUsageEventPayload = {
   completedAt?: number;
   metadata?: Record<string, unknown>;
   operationKey?: string;
+  providerRequestId?: string;
   rawUsage?: unknown;
   startedAt?: number;
   status: 'completed' | 'failed' | 'cancelled';
@@ -743,6 +744,7 @@ function createTaskUsageRecorder(params: {
         workspaceId: params.workspaceId,
         traceId: params.requestId,
         requestId: params.requestId,
+        providerRequestId: event.providerRequestId,
         operationKey: event.operationKey || 'generate',
         attemptIndex: event.attemptIndex,
         resourceId: params.resourceId,

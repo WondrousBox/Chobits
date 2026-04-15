@@ -1,6 +1,6 @@
 # AI 统计看板实施清单
 
-更新时间：2026-04-14
+更新时间：2026-04-15
 
 本文档用于把“设计方案”和“分类计量规范”转换成可直接开工的实施 checklist。当前阶段已经进入代码实现，Phase 1 核心底座与聊天主链路首批埋点已完成第一轮落地；后续继续按本文顺序推进即可。
 
@@ -33,8 +33,11 @@
 - [x] analytics 查询/动作层已补齐 `retryOutboxEvents / drainOutbox`，统计页已可直接触发失败队列重试与 pending 队列消费
 - [x] outbox 恢复链路已补齐自动化回归：`test/ai-usage-outbox.spec.ts` 已覆盖自动消费、手动消费、失败重试三条路径
 - [x] 统计页最近调用明细已补齐 `billableTotalTokens / requestId / traceId / providerRequestId / workflow metadata / providerUsageType` 展示，并对缺失 token 保持 `-`，不伪造 `0`
+- [x] overview / timeline / breakdown 已回到 `NULL` 聚合语义：命中事件都缺失 usage 时不再把 token / cost 强行显示为 `0`
 - [x] 历史聊天 usage 补录能力已完成首版落地
 - [x] 统计页已支持显式触发“补录历史聊天”并展示结果
+- [x] `session-service` 与 Pi task runtime 已补齐 `providerRequestId` 的 best-effort 透传；chat / title / tagging / translation / summary / mindmap 会继续向 recorder 传递 runtime 已暴露的 provider 请求标识
+- [x] 总结任务 usage metadata 已补齐 `contentLength`
 - [x] Phase 7 首条链路已开始落地：`/tagger` 页请求可按 `tagging/classify` 单独记账
 - [x] Phase 7 已补齐 `memory_recall` 首个真实 usage 入口：自动记忆召回里的 LLM 关键词提取会按 `memory_recall/analyze` 单独记账
 - [x] Phase 7 已补齐 `tagging` service 链路：`TaggingService.autoTagText` 会按分段 provider 调用写入 `tagging/classify`
@@ -178,7 +181,7 @@
 注意事项：
 
 - [x] 查询层必须显式区分“展示总 token”与“可计费 token”
-- [ ] 对 `NULL` token 的事件，overview 中请求数要统计，但 token 聚合不能强行按 0 处理
+- [x] 对 `NULL` token 的事件，overview 中请求数要统计，但 token 聚合不能强行按 0 处理
 - [x] 明细列表必须能直接定位 `providerRequestId` / `requestId` / `traceId`
 
 ### 4.3 共享类型
@@ -285,7 +288,7 @@ Phase 2 验收：
 - [x] 非流式 `chatWithPi()` 成功后记录 1 条 `chat/generate`
 - [x] 流式 `chatStreamWithPi()` 在最终 `message_completed` 后记录 1 条 `chat/generate`
 - [x] 如果会话消息持久化失败，不影响 usage 事件写入
-- [ ] 从 `session-service` 继续把 `providerRequestId`、标准化 usage、原始 usage 透传到可记录位置
+- [x] 从 `session-service` 继续把 `providerRequestId`、标准化 usage、原始 usage 透传到可记录位置
 - [x] `sourceType = chat`
 - [x] `usageCategory = conversation`
 - [x] `usageFeature = chat`
@@ -349,7 +352,7 @@ Phase 2 验收：
 - [x] `usageFeature = summary`
 - [x] `usageStage = generate`
 - [x] `operationKey = generate`
-- [ ] `metadata` 下一步补齐 `contentLength`；当前首轮已带 `resourceId`、`targetLanguage`、`contentType`
+- [x] `metadata` 已补齐 `contentLength`；当前已带 `resourceId`、`targetLanguage`、`contentType`
 
 ### 6.5 思维导图
 

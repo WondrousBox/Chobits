@@ -178,6 +178,7 @@ export interface ChatStreamEvent {
   type: 'delta' | 'thinking_delta' | 'message_completed' | 'error';
   data?: {
     message?: string;
+    providerRequestId?: string;
     rawUsage?: unknown;
     text?: string;
     usage?: TokenUsage;
@@ -207,6 +208,7 @@ export interface TranslationUsageEvent {
   completedAt?: number;
   metadata?: Record<string, unknown>;
   operationKey?: string;
+  providerRequestId?: string;
   rawUsage?: unknown;
   startedAt?: number;
   status: 'completed' | 'failed' | 'cancelled';
@@ -904,6 +906,7 @@ Now translate the following into **{targetLanguage}** and only show me the trans
                       totalChunks
                     },
                     operationKey: `chunk:${chunkIndex}`,
+                    providerRequestId: event.data?.providerRequestId,
                     rawUsage: event.data?.rawUsage,
                     startedAt: llmCallStartedAt,
                     status: 'completed',

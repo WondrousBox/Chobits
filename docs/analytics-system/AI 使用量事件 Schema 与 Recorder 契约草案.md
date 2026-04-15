@@ -1,6 +1,6 @@
 # AI 使用量事件 Schema 与 Recorder 契约草案
 
-更新时间：2026-04-14
+更新时间：2026-04-15
 
 本文档是 Phase 1 的技术草案，用于把 [AI 统计看板设计与开发计划](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E7%BB%9F%E8%AE%A1%E7%9C%8B%E6%9D%BF%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%BC%80%E5%8F%91%E8%AE%A1%E5%88%92.md) 与 [AI 使用量分类与计量规范](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E5%88%86%E7%B1%BB%E4%B8%8E%E8%AE%A1%E9%87%8F%E8%A7%84%E8%8C%83.md) 细化成可直接编码的 schema 草案与 recorder 契约。
 
@@ -9,7 +9,7 @@
 - `ai_usage_events` 的字段级设计
 - `recordAiUsageEvent(...)` 的入参、返回值、去重、校验与标准化契约
 
-本文档仍然作为 Phase 1 的设计基线。当前代码状态（2026-04-14）是：`schema.ts`、Drizzle migration、analytics repository、`usage-recorder.ts`、聊天主链路，以及 `conversation_title / translation / summary / mindmap / memory_extraction` 首批接入已按本文首轮落地；其中 `memory_extraction` 已按 `analyze / extract / merge` 分阶段记录。Phase 7 也已开始落地：`/tagger` 页面可覆写为 `tagging/classify`，`TaggingService.autoTagText` 也会按分段 provider 调用写入 `tagging/classify`，自动记忆召回中的 LLM 关键词提取会按 `memory_recall/analyze` 记录，`PiExecutionService.embed(...)` 会按真实 provider 调用写入 `embedding/vectorize`，`PiExecutionService.transcribe(...)` 会按真实 provider 调用写入 `transcription/transcribe`，`PiExecutionService.generateImage(...)` 会按真实 provider 调用写入 `image_generation/generate`；workflow 已知 AI node 也会按 `workflow_ai` 归类，其中 Pi chat/image 路径通过 `analyticsUsage` 覆写，legacy chat fallback 直接走统一 recorder。Pi task runtime 也已补齐 `usage/rawUsage` 透传；历史聊天补录也已落地，可把 `chat_messages.metadata.aiUsage / piRawUsage` 回填为 `message_backfilled` 事件。当前还新增了 `packages/ai/analytics/events.ts` 与 `packages/ai/analytics/fingerprint.ts` 作为 AI 域 usage 事件契约与共享幂等 helper；AI 业务链路会优先发出 `emitAiUsageObservedEvent(...)`，analytics 模块接入后会先把事件写入 `ai_usage_event_outbox`，再由 listener/drain 调用 recorder；同时 `window.YUA.analytics` 已暴露 outbox 健康摘要、失败队列查询、手动重试 failed outbox 与手动触发 drain 的动作，便于看板直接观察并恢复统计链路健康度。后续如果实现与本文发生偏离，应先回写本文档，再调整代码。
+本文档仍然作为 Phase 1 的设计基线。当前代码状态（2026-04-15）是：`schema.ts`、Drizzle migration、analytics repository、`usage-recorder.ts`、聊天主链路，以及 `conversation_title / translation / summary / mindmap / memory_extraction` 首批接入已按本文首轮落地；其中 `memory_extraction` 已按 `analyze / extract / merge` 分阶段记录。Phase 7 也已开始落地：`/tagger` 页面可覆写为 `tagging/classify`，`TaggingService.autoTagText` 也会按分段 provider 调用写入 `tagging/classify`，自动记忆召回中的 LLM 关键词提取会按 `memory_recall/analyze` 记录，`PiExecutionService.embed(...)` 会按真实 provider 调用写入 `embedding/vectorize`，`PiExecutionService.transcribe(...)` 会按真实 provider 调用写入 `transcription/transcribe`，`PiExecutionService.generateImage(...)` 会按真实 provider 调用写入 `image_generation/generate`；workflow 已知 AI node 也会按 `workflow_ai` 归类，其中 Pi chat/image 路径通过 `analyticsUsage` 覆写，legacy chat fallback 直接走统一 recorder。Pi task runtime 也已补齐 `usage/rawUsage` 透传，并向 summary / translation / mindmap 等 recorder 链路继续透传 runtime 已暴露的 `providerRequestId`；聊天主链路、标题生成与 tagging 也已补齐同一透传口径。总结任务的 usage metadata 已按实际截断后输入补齐 `contentLength`。历史聊天补录也已落地，可把 `chat_messages.metadata.aiUsage / piRawUsage` 回填为 `message_backfilled` 事件。当前还新增了 `packages/ai/analytics/events.ts` 与 `packages/ai/analytics/fingerprint.ts` 作为 AI 域 usage 事件契约与共享幂等 helper；AI 业务链路会优先发出 `emitAiUsageObservedEvent(...)`，analytics 模块接入后会先把事件写入 `ai_usage_event_outbox`，再由 listener/drain 调用 recorder；同时 `window.YUA.analytics` 已暴露 outbox 健康摘要、失败队列查询、手动重试 failed outbox 与手动触发 drain 的动作，便于看板直接观察并恢复统计链路健康度。overview / timeline / breakdown 对 token / cost 聚合也已回到 `NULL` 语义：命中事件全部缺失 usage 时不再强制写成 `0`。后续如果实现与本文发生偏离，应先回写本文档，再调整代码。
 
 ## 1. 本轮冻结的补充决策
 
@@ -26,6 +26,7 @@
 - Phase 1 只设计单条写入接口 `recordAiUsageEvent`，批量写入后续再扩展。
 - 聊天实时事件在消息持久化成功后，`metadata` 中补充 `assistantMessageId`，作为历史补录与去重的辅助锚点。
 - 历史聊天补录在 recorder 之外，额外优先按 `metadata.assistantMessageId` 与 `requestId = messageId` 查重；命中已有实时事件时不再重复写库。
+- 聚合查询不再把 `SUM(...)` 的 `NULL` 结果强制 `COALESCE` 成 `0`；overview / timeline / breakdown 在全部命中事件都缺失该 usage 字段时，应继续返回 `NULL`。
 
 ## 2. `ai_usage_events` 表字段草案
 

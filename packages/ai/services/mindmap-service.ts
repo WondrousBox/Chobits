@@ -70,6 +70,7 @@ export interface ChatStreamEvent {
   type: 'delta' | 'thinking_delta' | 'message_completed' | 'error';
   data?: {
     message?: string;
+    providerRequestId?: string;
     rawUsage?: unknown;
     text?: string;
     usage?: TokenUsage;
@@ -98,6 +99,7 @@ export interface MindmapUsageEvent {
   completedAt?: number;
   metadata?: Record<string, unknown>;
   operationKey?: string;
+  providerRequestId?: string;
   rawUsage?: unknown;
   startedAt?: number;
   status: 'completed' | 'failed' | 'cancelled';
@@ -314,6 +316,7 @@ export class MindmapService {
               onUsageEvent?.({
                 completedAt: Date.now(),
                 operationKey: 'generate',
+                providerRequestId: event.data?.providerRequestId,
                 rawUsage: event.data?.rawUsage,
                 startedAt: llmCallStartedAt,
                 status: 'completed',

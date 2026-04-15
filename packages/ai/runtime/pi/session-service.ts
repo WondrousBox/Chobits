@@ -8,6 +8,7 @@ import { waitForUserChoice } from '../../user-choice-registry';
 import type { PiRuntimeAvailability, PiRuntimePreview, ResolvedPiRequest } from './contracts';
 import { resolvePiRequest } from './model-resolver';
 import { buildPiModel, buildPiModelHeaders } from './provider-model';
+import { extractPiProviderRequestId } from './provider-request-id';
 import { isPiRuntimeRequested } from './runtime-switch';
 import { PiSessionFactory } from './session-factory';
 import { createLegacyAssistantMessage, createLegacyStreamEmitter, normalizePiError } from './stream-adapter';
@@ -525,6 +526,7 @@ function ensurePiCompletion(message: PiAssistantMessage): PiAssistantMessage {
 function toChatResponse(message: PiAssistantMessage, resolved: ResolvedPiRequest): ChatResponse {
   const usage = extractPiTokenUsage(message);
   const rawUsage = extractPiRawUsage(message);
+  const providerRequestId = extractPiProviderRequestId(message);
   return {
     agentId: resolved.profile.id,
     message: {
@@ -533,6 +535,7 @@ function toChatResponse(message: PiAssistantMessage, resolved: ResolvedPiRequest
       metadata: {
         piProvider: message.provider,
         piStopReason: message.stopReason,
+        ...(providerRequestId ? { providerRequestId } : {}),
         ...(rawUsage ? { piRawUsage: rawUsage } : {})
       },
       ...(usage ? { usage } : {}),
@@ -543,6 +546,7 @@ function toChatResponse(message: PiAssistantMessage, resolved: ResolvedPiRequest
       profileId: resolved.profile.id,
       providerId: resolved.model.providerId,
       runtime: 'pi',
+      ...(providerRequestId ? { providerRequestId } : {}),
       ...(rawUsage ? { rawUsage } : {})
     },
     providerId: resolved.model.providerId,
@@ -978,6 +982,7 @@ export class PiSessionService {
     const thinkingBlocks = extractThinkingBlocks(message);
     const usage = extractPiTokenUsage(message);
     const rawUsage = extractPiRawUsage(message);
+    const providerRequestId = extractPiProviderRequestId(message);
     legacy.complete(
       createLegacyAssistantMessage(
         extractAssistantText(message),
@@ -985,6 +990,7 @@ export class PiSessionService {
           model: resolved.model.modelId || message.model,
           piProvider: message.provider,
           piStopReason: message.stopReason,
+          ...(providerRequestId ? { providerRequestId } : {}),
           runtime: 'pi',
           ...(rawUsage ? { piRawUsage: rawUsage } : {}),
           ...(thinkingBlocks ? { thinkingBlocks } : {})
@@ -1031,6 +1037,7 @@ export class PiSessionService {
         const thinkingBlocks = extractThinkingBlocks(event.message);
         const usage = extractPiTokenUsage(event.message);
         const rawUsage = extractPiRawUsage(event.message);
+        const providerRequestId = extractPiProviderRequestId(event.message);
         legacy.complete(
           createLegacyAssistantMessage(
             extractAssistantText(event.message),
@@ -1038,6 +1045,7 @@ export class PiSessionService {
               model: resolved.model.modelId || event.message.model,
               piProvider: event.message.provider,
               piStopReason: event.reason,
+              ...(providerRequestId ? { providerRequestId } : {}),
               runtime: 'pi',
               ...(rawUsage ? { piRawUsage: rawUsage } : {}),
               ...(thinkingBlocks ? { thinkingBlocks } : {})
