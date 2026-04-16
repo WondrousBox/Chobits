@@ -6,6 +6,7 @@ export * from './profile-registry';
 export * from './runtime-switch';
 export * from './session-factory';
 export * from './session-service';
+export * from './skills';
 export * from './stream-adapter';
 export * from './task-chat';
 export * from './tool-context';

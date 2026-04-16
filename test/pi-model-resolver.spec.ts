@@ -196,4 +196,44 @@ describe('resolvePiRequest', () => {
     expect(resolved.model.modelId).toBe('gpt-default');
     expect(resolved.model.source).toBe('provider');
   });
+
+  it('normalizes structured explicit skill invocation input from request extras', async () => {
+    getPresetMock.mockReturnValue(undefined);
+    getPresetSecretsMock.mockResolvedValue({});
+    getProviderMock.mockReturnValue({
+      id: 'openai',
+      label: 'OpenAI',
+      getSecrets: () => ({})
+    });
+    getAllSecretsMock.mockResolvedValue({});
+    getPiAgentProfileMock.mockReturnValue({
+      id: 'assistant',
+      label: 'Agent模式',
+      description: 'Assistant mode',
+      executionMode: 'session',
+      supportsToolCalls: true,
+      instructions: 'skill profile',
+      defaultToolIds: ['toolbox-lookup', 'ask-user', 'skill-search', 'skill-use']
+    });
+
+    const resolved = await resolvePiRequest({
+      providerId: 'openai',
+      agentId: 'assistant',
+      messages: [{ role: 'user', content: 'Translate this subtitle' }],
+      extras: {
+        explicitSkillInvocation: {
+          matchedReference: ' subtitle-translate ',
+          remainingQuery: ' translate this subtitle into English ',
+          source: 'slash-command'
+        }
+      }
+    } as any);
+
+    expect(resolved.requestedSkillInvocation).toEqual({
+      matchedReference: 'subtitle-translate',
+      remainingQuery: 'translate this subtitle into English',
+      source: 'slash-command'
+    });
+    expect(resolved.messages).toEqual([{ role: 'user', content: 'Translate this subtitle' }]);
+  });
 });

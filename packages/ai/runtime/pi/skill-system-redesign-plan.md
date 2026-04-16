@@ -1,6 +1,6 @@
 # Chobits Skill System 改造方案
 
-更新时间：2026-04-15
+更新时间：2026-04-16
 
 本文档用于为 Chobits 设计一套全新的 skill 系统。设计优先参考本地 `claude-code` 项目的 skill 架构，其次参考 Pi / Agent Skills 的兼容约定。目标不是把现有 `toolbox.md` 小修小补，而是把 skill 升级为运行时中的一等资源。
 
@@ -20,30 +20,44 @@ Chobits 的 skill 系统应采用下面这条路线：
 2. 自己实现一套 `SkillRegistry + SkillDiscovery + SkillUseTool` 运行时。
 3. 把 Claude Code 的多来源加载、frontmatter 契约、skill listing、skill discovery、SkillTool 执行模式借过来。
 4. 把 Pi 的 `SKILL.md` 目录结构、渐进加载、`baseDir` 兼容约定借过来。
-5. 让现有 `toolbox.md` 在过渡期变成兼容层，最终迁移为 bundled skills，而不是继续作为唯一事实源。
+5. 让现有 `toolbox.md` 在过渡期变成兼容层；是否迁移成 first-party bundled skills，等后续明确需要时再决定。
 
 一句话概括：
 
 Chobits 应该做的是一个“Claude Code 风格的自有 skill runtime”，而不是“把 Pi skill 开关打开”。
 
+## 当前 rollout 约束（2026-04-16 修订）
+
+为避免 skill 影响原有 tools 机制，当前实现与后续实现都应遵守下面几条约束：
+
+- 默认 assistant session 现在会启用 `skill-search` / `skill-use`，并接入 skill listing、skill discovery、explicit skill prompt。
+- 上述 skill protocol 仍是增量能力；`toolboxTool` 继续保持原有职责，不把 skill registry 结果混入 toolbox 主行为。
+- 默认 assistant session 现在接入 instruction files（`AGENTS.md` / `CLAUDE.md`）与显式 skill invocation，但 legacy toolbox workflow 仍保持可用。
+- 仓库默认不内置任何 tool-wrapper bundled skills；`packages/ai/runtime/pi/skills/bundled/` 目录保留为空壳，仅为未来 first-party skills 预留。
+- synthetic toolbox skills 不进入当前默认 skill runtime；只有未来明确推进 tool-to-skill 迁移时再启用。
+
+这意味着：当前 skill 系统是“已落地的新增能力基础层”，但不是“已经替代原 tools 工作流的主链路”。
+
 ## 现状与问题
 
 ### 当前已有能力
 
-- `packages/ai/runtime/pi/toolbox.md` 是当前能力说明的 Markdown 真相源。
-- `packages/ai/runtime/pi/toolbox.ts` 能把 `toolbox.md` 解析成技能章节，并做轻量搜索和排序。
-- `packages/ai/runtime/pi/tools/toolbox-lookup.ts` 能按搜索结果自动激活相关工具。
-- `packages/ai/runtime/pi/profiles.md` 已经把 `assistant` profile 的工作流定义成“先查工具箱，再调用真实工具”。
+- `packages/ai/runtime/pi/skills/frontmatter.ts` 已实现 `SKILL.md` frontmatter 解析，支持 `allowed-tools`、`activation-tools`、`arguments`、`argument-hint`、`when_to_use`、`user-invocable`、`paths`、`model`、`effort`、`context` 等字段。
+- `packages/ai/runtime/pi/skills/source-loader.ts` + `registry.ts` 已实现多来源 skill 扫描、去重和优先级覆盖，可从 `user` / `project` / `plugin` 等来源建立 registry。
+- `packages/ai/runtime/pi/tools/skill-search.ts` 与 `packages/ai/runtime/pi/tools/skill-use.ts` 已经是可运行的 skill 执行面，不只是 metadata 占位。
+- `packages/ai/runtime/pi/session-service.ts` 已把 skill listing、skill discovery、instruction files、explicit skill invocation 接入默认 `assistant`。
+- Chat 输入层已经有 skill picker、slash invocation、`Tab` 补全、参数提示、上下键切换与回车确认。
+- `packages/ai/runtime/pi/toolbox.md` / `toolbox.ts` / `toolbox-lookup.ts` 仍保持原有 toolbox 工作流，并继续承担兼容路径。
 
-### 当前缺失的关键层
+### 当前仍未闭合的关键层
 
-- 没有真正的 `SKILL.md` 目录扫描和多来源加载。
-- 没有 skill frontmatter 契约，现有系统没有 `name` / `description` / `when_to_use` / `arguments` 这类结构化字段。
-- 没有 skill registry，skill 不是一等资源，只是 `toolbox.md` 的一个章节。
-- 没有 skill discovery attachment，也没有 turn 级 skill surfacing。
-- 没有专门的 skill use 执行面，命中后只是激活工具，不是加载 skill 本身。
-- 没有把 `CLAUDE.md` / `AGENTS.md` 这一类长期上下文文件和 `SKILL.md` 分层。
-- 当前 `session-factory.ts` 明确关闭了 Pi 原生 skills、extensions、prompt templates、themes 和 agents files，因此即使写了 `SKILL.md`，现链路也不会真正使用它们。
+- 仓库默认仍没有任何 first-party bundled skills；`packages/ai/runtime/pi/skills/bundled/` 目前只有空壳目录。
+- 默认 assistant skill runtime 明确关闭了 `includeBundled` 和 `includeSyntheticToolbox`，说明 toolbox -> bundled skill 迁移尚未启动。
+- `toolbox.md` 仍然是实际可运行的能力说明真相源之一，`toolboxTool` 仍走 legacy markdown 主流程，而不是仅剩兼容壳。
+- plugin skills 目前只有“扫描/加载”层，尚未形成完整的安装、治理、来源可视化与运行约束闭环。
+- 远程 skill marketplace、MCP skills、remote install 等 Claude Code 更远一层的生态能力并未进入当前实现。
+- 虽然已有 fork / model / effort 的部分运行时能力，但高级执行层仍未完全闭环，尤其不是一个完整的多 agent / plugin skill 执行体系。
+- `session-factory.ts` 仍明确关闭 Pi 原生 skills、extensions、prompt templates、themes 和 agents files；当前路线仍是 Chobits 自有 skill runtime，而不是复用 Pi 原生 skill runtime。
 
 ### 当前设计的优点
 
@@ -396,7 +410,7 @@ packages/ai/runtime/pi/skills/
 - `instruction-loader.ts`
   - 加载 `AGENTS.md` / `CLAUDE.md` / `.chobits/AGENTS.md`
 - `registry.ts`
-  - 建立 skill registry，处理去重、覆盖优先级、缓存
+  - 建立 skill registry，处理去重和覆盖优先级
 - `matcher.ts`
   - 本地 skill 搜索和排序
 - `discovery.ts`
@@ -544,9 +558,15 @@ interface SkillSessionState {
 2. 作为 `toolboxTool` 的兼容 fallback。
 3. 作为搜索词和 trigger 的历史语料来源。
 
+按当前代码现状，这个迁移桥虽然已经存在，但默认 runtime 仍明确关闭：
+
+- `synthetic-toolbox.ts` 已能把 `toolbox.md` 转成 synthetic skills。
+- 但默认 assistant skill runtime 仍设置 `includeSyntheticToolbox: false`。
+- `toolboxTool` 当前仍是 legacy 主流程，而不是仅剩兼容入口。
+
 ### 迁移建议
 
-建议把 `toolbox.md` 里的每个章节逐步迁成 bundled skill 目录：
+未来如果明确要做 first-party skills，再考虑把 `toolbox.md` 里的章节逐步迁成 bundled skill 目录：
 
 ```text
 packages/ai/runtime/pi/skills/bundled/
@@ -558,7 +578,7 @@ packages/ai/runtime/pi/skills/bundled/
     └── SKILL.md
 ```
 
-迁移完成后：
+如果未来走这条迁移路径，完成后：
 
 - `toolbox.md` 不再是主 authoring surface
 - `toolboxTool` 只保留兼容入口
@@ -697,7 +717,7 @@ v1 明确不做：
 - `packages/ai/runtime/pi/skills/prompt.ts`
 - `packages/ai/runtime/pi/skills/discovery.ts`
 
-### Phase 4：`toolbox` 迁移为 Bundled Skills
+### Phase 4：可选的 `toolbox` -> Bundled Skills 迁移
 
 目标：
 
@@ -748,6 +768,49 @@ v1 明确不做：
 - skill 自动执行脚本
 - 在第一阶段就引入复杂 UI 管理面
 
+## 当前阶段判断（2026-04-16 修订）
+
+按上面的分期定义，当前最合适的判断是：
+
+- `Phase 1`：已完成
+  - `skills/` 基础模块、frontmatter、loader、registry、matcher、executor 已存在
+- `Phase 2`：已完成，并进入默认 assistant session
+  - `skillSearchTool` / `skillUseTool` 已存在
+  - 它们是默认 assistant 的新增能力，但不替代 toolbox 主链路
+- `Phase 3`：已完成，并已注入默认 assistant
+  - `assistant` 会开启 skill listing / discovery / explicit invocation
+  - `assistant` 仍保持 toolbox 可用，skill 只是新增协议
+- `Phase 4`：未开始，且当前明确暂缓
+  - `skills/bundled/` 目前仍为空壳目录，没有 first-party bundled skills
+  - `synthetic-toolbox.ts` 迁移桥已存在，但默认 assistant runtime 显式关闭 `includeSyntheticToolbox`
+  - 默认 assistant runtime 也显式关闭 `includeBundled`
+  - `toolboxTool` 仍保持 legacy markdown 主行为，并有兼容测试保护
+  - 因此当前状态不是“迁移进行中”，而是“桥接代码存在，但迁移动作尚未启动”
+- `Phase 5`：已完成默认 assistant 的基础接入
+  - `assistant` 已接入 instruction files 链路
+  - 请求层已预留结构化 `explicitSkillInvocation` 协议，便于后续 UI / slash menu / skill picker 直接接入
+  - 主聊天页与资源页 AI 侧栏已开始发送这类结构化 skill invocation
+  - `assistant` 输入框已开始提供可见的 skill picker / slash 触发入口
+  - picker 已开始展示 `whenToUse` / `argumentHint`，并提示当前命中的 skill
+  - `assistant` 输入框已支持 `Tab` 补全 skill，并在缺少参数时提示 argument hint
+  - `assistant` slash menu 已支持上下键切换候选、回车确认
+  - `assistant` 已把 `/skill-name ...` 收口为结构化输入预处理，再进入 prompt / session 链路
+  - 当前 slash 文本解析已退化为 fallback，而不是唯一入口
+- `Phase 6`：仅保留预研代码，不作为当前阶段完成项
+  - 已有 `context: fork` 的真实运行时入口，`skill-use` 能触发 fork child session
+  - `model` / `effort` override 已可透传到 child session
+  - 但 plugin skill 生态与更完整的高级执行体系仍未闭环，因此整体仍不算完成项
+
+## 按代码现状的总判断
+
+如果只看当前代码，而不看目标文档，现状更接近下面这个判断：
+
+- Chobits 已经拥有一套可运行的本地自研 skill runtime，而不是停留在设计稿阶段。
+- 默认 `assistant` 已经正式接入 `SKILL.md` protocol、instruction files、skill discovery 与显式 skill invocation。
+- 这套实现仍以“新增能力”方式叠加在现有 toolbox / tools 之上，而不是替代它们。
+- `toolbox -> bundled skills` 迁移尚未开始；当前只是预留了 synthetic bridge 和空的 bundled 目录。
+- 高级执行能力已有部分真实落点，但还不足以视为完整的 Phase 6 能力闭环。
+
 ## 设计后的目标状态
 
 改造完成后，Chobits 的 skill system 应达到下面的状态：
@@ -775,4 +838,3 @@ v1 明确不做：
 - `packages/ai/runtime/pi/tools/skill-use.ts`
 
 这批文件完成后，就已经能把 Chobits 从“toolbox 说明书”推进到“真正的 skill runtime”。
-

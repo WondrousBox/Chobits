@@ -1,4 +1,5 @@
 import { getChatMessageUsage, sumTokenUsage } from '@packages/ai/message-usage';
+import { extractThinkingTextFromMetadata } from '@packages/ai/thinking-content';
 import type { TokenUsage } from '@packages/ai/types';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TbAt, TbClock, TbDotsVertical, TbLoader2, TbPhoto, TbPlayerStop, TbPlus, TbWorld } from 'react-icons/tb';
@@ -24,6 +25,7 @@ import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { resolveModelFirstSelection } from '@/lib/ai-model-first';
+import { buildExplicitSkillInvocationInput } from '@/lib/chat-explicit-skill-invocation';
 import { pickCodingWorkspace } from '@/lib/coding-workspace';
 import { formatRelativeTime } from '@/lib/time';
 
@@ -173,6 +175,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
         let activities: ToolActivity[] | undefined;
         const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata || '{}') : row.metadata;
         const usage: TokenUsage | undefined = getChatMessageUsage({ metadata: meta });
+        const thinking = extractThinkingTextFromMetadata(meta);
         if (meta && Array.isArray(meta?.toolCalls)) {
           activities = meta.toolCalls.map((tc: any) => ({ callId: tc.callId, name: tc.name, args: tc.args, status: 'done' as const, result: tc.result }));
         }
@@ -181,6 +184,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
           content: row.content,
           createdAt: row.createdAt,
           ...(activities ? { activities } : {}),
+          ...(thinking ? { thinking, isThinking: false } : {}),
           ...(usage ? { usage } : {})
         };
       });
@@ -289,6 +293,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
       content: message.content,
       createdAt: message.createdAt
     }));
+    const explicitSkillInvocation = buildExplicitSkillInvocationInput(agentId, content);
 
     try {
       const disposer = await window.YUA.ai.chatStream(
@@ -301,6 +306,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
           stream: true,
           extras: {
             model: resolvedSelection.modelId,
+            ...(explicitSkillInvocation ? { explicitSkillInvocation } : {}),
             ...(workspaceId ? { workspaceId } : {}),
             ...(isCoder && codingWorkspaceRoot
               ? {
@@ -390,6 +396,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
           if (event?.type === 'message_completed' && event.data?.message?.content) {
             const full = String(event.data.message.content);
             const usage = getChatMessageUsage(event.data.message);
+            const finalThinking = extractThinkingTextFromMetadata(event.data.message.metadata);
             setMessages((prev) => {
               const idx = assistantIndexRef.current;
               if (idx < 0 || idx >= prev.length) return prev;
@@ -401,6 +408,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
                 content: full,
                 createdAt: event.data.message.createdAt || message.createdAt,
                 isThinking: false,
+                ...(!message.thinking && finalThinking ? { thinking: finalThinking } : {}),
                 ...(usage ? { usage } : {})
               };
               return copy;

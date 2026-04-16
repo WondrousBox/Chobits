@@ -16,6 +16,7 @@ import { readProviderRequestId } from './runtime/pi/provider-request-id';
 import { PiSessionService } from './runtime/pi/session-service';
 import { generatePiConversationTitle } from './runtime/pi/tasks/title';
 import type { AgentLoopCompletePayload } from './services/memory-types';
+import { createThinkingTagStreamParser, extractThinkingTextFromMetadata, readThinkingBlocksFromMetadata, splitThinkingTagsFromText, type ThinkingMetadataBlock } from './thinking-content';
 import { ChatMessage, ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent } from './types';
 
 // local UUID fallback if uuid not present
@@ -46,6 +47,49 @@ type ChatUsageOverride = Partial<Pick<RecordAiUsageEventInput, 'operationKey' | 
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function shouldNormalizeInlineThinkingTags(providerId?: string): boolean {
+  return providerId === 'minimax';
+}
+
+function toThinkingBlocks(thinking: string): ThinkingMetadataBlock[] | undefined {
+  if (!thinking.trim()) {
+    return undefined;
+  }
+
+  return [{ type: 'thinking', thinking }];
+}
+
+function normalizeAssistantThinkingMessage(
+  message: ChatMessage | undefined,
+  options: {
+    fallbackContent?: string;
+    fallbackThinking?: string;
+    providerId?: string;
+  }
+): ChatMessage | undefined {
+  if (!message) {
+    return undefined;
+  }
+
+  const metadata = isPlainRecord(message.metadata) ? message.metadata : undefined;
+  const existingBlocks = readThinkingBlocksFromMetadata(metadata);
+  const metadataThinking = extractThinkingTextFromMetadata(metadata);
+  const inlineThinking = typeof message.content === 'string' && shouldNormalizeInlineThinkingTags(options.providerId) ? splitThinkingTagsFromText(message.content) : undefined;
+  const normalizedContent = options.fallbackContent ?? (inlineThinking?.hadThinkingTags ? inlineThinking.content : message.content);
+  const normalizedThinking = options.fallbackThinking ?? metadataThinking ?? inlineThinking?.thinking;
+  const normalizedBlocks = existingBlocks || (normalizedThinking ? toThinkingBlocks(normalizedThinking) : undefined);
+
+  if (normalizedContent === message.content && normalizedBlocks === existingBlocks) {
+    return message;
+  }
+
+  return {
+    ...message,
+    content: normalizedContent,
+    ...(normalizedBlocks ? { metadata: { ...(metadata || {}), thinkingBlocks: normalizedBlocks } } : metadata ? { metadata } : {})
+  };
 }
 
 export class ChatService {
@@ -179,6 +223,18 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
       throw error;
     }
 
+    resp = {
+      ...resp,
+      ...(resp.message
+        ? {
+            message:
+              normalizeAssistantThinkingMessage(resp.message, {
+                providerId: preview.resolved.model.canonicalProviderId
+              }) || resp.message
+          }
+        : {})
+    };
+
     let assistantMessageId: string | undefined;
     if (resp.message) {
       try {
@@ -272,6 +328,7 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
     let errorMessage: string | undefined;
     const startedAt = Date.now();
     const collectedToolCalls: Array<{ callId: string; name: string; args?: any; result?: any }> = [];
+    const inlineThinkingParser = shouldNormalizeInlineThinkingTags(preview.resolved.model.canonicalProviderId) ? createThinkingTagStreamParser() : undefined;
 
     eventManager.emit(AppEvent.SPRITE_AI_START, { message: '思考中...' });
 
@@ -279,12 +336,32 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
       await this.piSessionService.chatStream(
         streamRequest,
         (event) => {
+          const emitInlineThinkingSegments = (segments: Array<{ kind: 'text' | 'thinking'; text: string }>): void => {
+            for (const segment of segments) {
+              if (!segment.text) continue;
+
+              if (segment.kind === 'thinking') {
+                thinkingText += segment.text;
+                emit({ type: 'thinking_delta', data: { text: segment.text } });
+                continue;
+              }
+
+              fullText += segment.text;
+              emit({ type: 'delta', data: { text: segment.text } });
+            }
+          };
+
           if (event.type === 'connected') {
             emit(event);
             if (conv && !emittedConversationMetadata) {
               emit({ type: 'metadata', data: { conversationId: conv.id, title: conv.title || null } });
               emittedConversationMetadata = true;
             }
+            return;
+          }
+
+          if (event.type === 'delta' && event.data?.text && inlineThinkingParser) {
+            emitInlineThinkingSegments(inlineThinkingParser.push(event.data.text));
             return;
           }
 
@@ -297,10 +374,34 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
           }
 
           if (event.type === 'message_completed' && event.data?.message) {
-            finalMessage = event.data.message;
-            if (!fullText && event.data.message.content) {
-              fullText = event.data.message.content;
+            if (inlineThinkingParser) {
+              emitInlineThinkingSegments(inlineThinkingParser.flush());
             }
+
+            finalMessage =
+              normalizeAssistantThinkingMessage(event.data.message, {
+                fallbackContent: fullText || undefined,
+                fallbackThinking: thinkingText || undefined,
+                providerId: preview.resolved.model.canonicalProviderId
+              }) || event.data.message;
+
+            const metadataThinking = extractThinkingTextFromMetadata(finalMessage.metadata);
+            if (!thinkingText && metadataThinking) {
+              thinkingText = metadataThinking;
+            }
+
+            if (!fullText && finalMessage.content) {
+              fullText = finalMessage.content;
+            }
+
+            emit({
+              ...event,
+              data: {
+                ...(event.data || {}),
+                message: finalMessage
+              }
+            });
+            return;
           }
 
           if (event.type === 'tool_call' && event.data) {
@@ -338,6 +439,16 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
       throw error;
     }
 
+    if (!finalMessage && inlineThinkingParser) {
+      for (const segment of inlineThinkingParser.flush()) {
+        if (segment.kind === 'thinking') {
+          thinkingText += segment.text;
+        } else {
+          fullText += segment.text;
+        }
+      }
+    }
+
     if (!finalMessage && fullText) {
       finalMessage = {
         content: fullText,
@@ -346,6 +457,13 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
         ...(thinkingText ? { metadata: { thinkingBlocks: [{ type: 'thinking', thinking: thinkingText }] } } : {})
       };
     }
+
+    finalMessage =
+      normalizeAssistantThinkingMessage(finalMessage, {
+        fallbackContent: fullText || undefined,
+        fallbackThinking: thinkingText || undefined,
+        providerId: preview.resolved.model.canonicalProviderId
+      }) || finalMessage;
 
     if (finalMessage && collectedToolCalls.length > 0) {
       finalMessage = { ...finalMessage, metadata: { ...finalMessage.metadata, toolCalls: collectedToolCalls } };

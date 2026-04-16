@@ -1,5 +1,6 @@
 import { buildConversationPlaceholderTitle } from '@packages/ai/conversation-title';
 import { getChatMessageUsage, sumTokenUsage } from '@packages/ai/message-usage';
+import { extractThinkingTextFromMetadata } from '@packages/ai/thinking-content';
 import type { TokenUsage } from '@packages/ai/types';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TbArrowDown, TbChevronRight, TbDots, TbEdit, TbHistory, TbLoader2, TbPin, TbPlus, TbRefresh, TbShare, TbTrash } from 'react-icons/tb';
@@ -16,6 +17,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { useAutoScroll } from '@/hooks/useAutoScroll';
+import { buildExplicitSkillInvocationInput } from '@/lib/chat-explicit-skill-invocation';
 import { formatDateTime, formatRelativeTime } from '@/lib/time';
 
 import { useChatSelection } from './context/ChatSelectionContext';
@@ -96,6 +98,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
           try {
             const meta = typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata;
             usage = getChatMessageUsage({ metadata: meta });
+            const thinking = extractThinkingTextFromMetadata(meta);
             if (Array.isArray(meta?.toolCalls)) {
               activities = meta.toolCalls.map((tc: any) => {
                 const base: ToolActivity = { callId: tc.callId, name: tc.name, args: tc.args, status: 'done' as const, result: tc.result };
@@ -119,6 +122,15 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
                 return base;
               });
             }
+
+            return {
+              role: r.role,
+              content: r.content,
+              createdAt: r.createdAt,
+              ...(activities ? { activities } : {}),
+              ...(thinking ? { thinking, isThinking: false } : {}),
+              ...(usage ? { usage } : {})
+            };
           } catch {
             /* ignore parse errors */
           }
@@ -290,6 +302,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
     const selectedAgentId = params.agentId || agentId;
     const selectedCodingWorkspaceRoot = params.codingWorkspaceRoot || codingWorkspaceRoot;
     const selectedCodingWorkspaceLabel = params.codingWorkspaceLabel || codingWorkspaceLabel;
+    const explicitSkillInvocation = buildExplicitSkillInvocationInput(selectedAgentId, content);
 
     if (!content.trim() || !selectedProviderId || !selectedModelId) return;
 
@@ -334,6 +347,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
         stream: true,
         extras: {
           model: selectedModelId,
+          ...(explicitSkillInvocation ? { explicitSkillInvocation } : {}),
           ...(params.webSearchEnabled ? { webSearchEnabled: true } : {}),
           ...(params.characterPersonaEnabled ? { characterPersonaEnabled: true } : {}),
           ...(selectedAgentId === 'coder' && selectedCodingWorkspaceRoot
@@ -433,12 +447,20 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
           // Ensure final content reflected, in case no deltas were sent
           const full: string = ev.data.message.content;
           const usage = getChatMessageUsage(ev.data.message);
+          const finalThinking = extractThinkingTextFromMetadata(ev.data.message.metadata);
           setMessages((prev) => {
             const idx = assistantIndexRef.current;
             if (idx < 0 || idx >= prev.length) return prev;
             const copy = prev.slice();
             const m = copy[idx];
-            copy[idx] = { ...m, content: full, createdAt: ev.data.message.createdAt || m.createdAt, isThinking: false, ...(usage ? { usage } : {}) };
+            copy[idx] = {
+              ...m,
+              content: full,
+              createdAt: ev.data.message.createdAt || m.createdAt,
+              isThinking: false,
+              ...(!m.thinking && finalThinking ? { thinking: finalThinking } : {}),
+              ...(usage ? { usage } : {})
+            };
             return copy;
           });
           setLoading(false);

@@ -7,6 +7,7 @@ import type { ChatMessage, ChatRequest, ProviderPresetRecord } from '../../types
 import type { PiCodingWorkspaceContext, ResolvedPiModelConfig, ResolvedPiRequest } from './contracts';
 import { getPiAgentProfile } from './profile-registry';
 import { isPiRuntimeRequested } from './runtime-switch';
+import { normalizeRequestedSkillInvocation } from './skills';
 import { normalizePiToolIds } from './tool-registry';
 
 type SecretValues = Record<string, string | undefined>;
@@ -104,10 +105,12 @@ export async function resolvePiRequest(req: ChatRequest): Promise<ResolvedPiRequ
   const profile = getPiAgentProfile(req.agentId || 'assistant');
   const { preset, model } = await resolvePiModelConfig(req);
   const messages = prependSystemPrompt(req.messages || [], preset?.systemPrompt);
+  const requestedSkillInvocation = normalizeRequestedSkillInvocation(req.extras?.explicitSkillInvocation);
 
   return {
     coding: resolveCodingWorkspace(req),
     enabledToolIds: resolveEnabledToolIds(req, preset, profile.defaultToolIds),
+    ...(requestedSkillInvocation ? { requestedSkillInvocation } : {}),
     messages,
     model,
     preset,

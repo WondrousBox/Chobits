@@ -217,6 +217,16 @@ export function getProviderDefinitionPiBaseUrl(providerId?: string, fallbackProv
   return fallbackDefinition?.protocol.piBaseUrl || fallbackDefinition?.protocol.baseUrl;
 }
 
+export function getProviderDefinitionModel(providerId?: string, modelId?: string): ProviderModelDefinition | undefined {
+  const definition = getProviderDefinition(providerId);
+  const normalizedModelId = normalizeProviderId(modelId);
+  if (!definition || !normalizedModelId) {
+    return undefined;
+  }
+
+  return listModelsForDefinition(definition).find((model) => normalizeProviderId(model.id) === normalizedModelId);
+}
+
 export function toCanonicalProviderId(providerId?: string): string {
   const normalized = normalizeProviderId(providerId);
   if (!normalized) return 'openai';
@@ -287,10 +297,6 @@ export function getProviderDefaultModels(providerId?: string, provider?: Provide
     imageGeneration: providerDefaults?.imageGeneration ?? defaultModels?.imageGeneration,
     transcribe: providerDefaults?.transcribe ?? defaultModels?.transcribe
   };
-}
-
-function listBuiltinProviderDefinitions(): BuiltinProviderDefinition[] {
-  return listProviderDefinitions().filter(isBuiltinProviderDefinition);
 }
 
 function getBuiltinProviderDefinition(providerId?: string): BuiltinProviderDefinition | undefined {

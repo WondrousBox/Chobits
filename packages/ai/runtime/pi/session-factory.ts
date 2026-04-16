@@ -5,7 +5,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { AgentSession } from '@mariozechner/pi-coding-agent';
 
 import type { ResolvedPiRequest } from './contracts';
+import { createSkillRegistry, createSkillSessionState, type SkillRegistry, type SkillSessionState } from './skills';
 import { createPiSessionToolContext, type PiSessionToolContext } from './tool-context';
+import { resolvePiToolId } from './tool-registry';
 import { createPiCustomTools, listPiReadyToolIds } from './tools';
 
 type PiModel = import('@mariozechner/pi-ai').Model<any>;
@@ -52,6 +54,8 @@ type PiCodingCoreModules = {
 export interface CreatePiCodingSessionOptions {
   model: PiModel;
   resolved: ResolvedPiRequest;
+  skillRegistry?: SkillRegistry;
+  skillSessionState?: SkillSessionState;
   systemPrompt?: string;
   thinkingLevel?: PiAgentThinkingLevel;
 }
@@ -118,6 +122,11 @@ function seedRuntimeApiKeys(authStorage: PiCodingAuthStorage, resolved: Resolved
   }
 }
 
+function hasSkillToolsEnabled(resolved: ResolvedPiRequest): boolean {
+  const enabledToolIds = new Set(resolved.enabledToolIds.map((toolId) => resolvePiToolId(toolId) || toolId));
+  return enabledToolIds.has('skill-search') && enabledToolIds.has('skill-use');
+}
+
 export class PiSessionFactory {
   async createCodingSession(options: CreatePiCodingSessionOptions): Promise<PiCodingSessionHandle> {
     const { AuthStorage, DefaultResourceLoader, ModelRegistry, SessionManager, SettingsManager, createAgentSession } = await loadPiCodingCore();
@@ -125,6 +134,28 @@ export class PiSessionFactory {
     const authStorage = AuthStorage.inMemory();
     seedRuntimeApiKeys(authStorage, options.resolved, options.model);
     const toolContext = createPiSessionToolContext(options.resolved);
+
+    const shouldAttachSkillRuntime = Boolean(options.skillRegistry || options.skillSessionState || hasSkillToolsEnabled(options.resolved));
+    if (shouldAttachSkillRuntime) {
+      const skillRegistry =
+        options.skillRegistry ||
+        (await createSkillRegistry({
+          discoverPluginRoots: true,
+          includeBundled: false,
+          includeSyntheticToolbox: false,
+          workspaceRoot: cwd
+        }));
+
+      toolContext.skillRegistry = skillRegistry;
+      toolContext.skillSessionState = options.skillSessionState || createSkillSessionState();
+
+      if (skillRegistry.issues.length > 0) {
+        console.warn('[PiSession] skill registry issues:', skillRegistry.issues.slice(0, 5));
+        if (skillRegistry.issues.length > 5) {
+          console.warn('[PiSession] skill registry issues truncated:', skillRegistry.issues.length - 5);
+        }
+      }
+    }
 
     // Register ALL tools into the session registry (so they can be dynamically activated later)
     const allToolIds = listPiReadyToolIds();

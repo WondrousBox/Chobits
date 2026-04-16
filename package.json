@@ -67,7 +67,7 @@
     "@langchain/community": "^0.3.57",
     "@langchain/core": "^0.3.78",
     "@langchain/openai": "^0.6.16",
-    "@lobehub/icons-static-svg": "^1.73.0",
+    "@lobehub/icons-static-svg": "^1.86.0",
     "@mariozechner/pi-agent-core": "^0.57.1",
     "@mariozechner/pi-ai": "^0.57.1",
     "@mariozechner/pi-coding-agent": "^0.57.1",
