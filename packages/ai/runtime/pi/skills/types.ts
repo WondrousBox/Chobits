@@ -2,6 +2,25 @@ export type SkillSource = 'bundled' | 'user' | 'project' | 'plugin' | 'synthetic
 export type InstructionSource = 'user' | 'project'
 export type SkillExecutionContext = 'inline' | 'fork'
 export type SkillEffortLevel = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+export type SkillTrustLevel = 'trusted' | 'workspace' | 'plugin' | 'compatibility'
+export type SkillSourcePolicyRiskLevel = 'normal' | 'caution' | 'guarded'
+
+export interface SkillSourceInfo {
+  detail?: string
+  label: string
+  trustNote?: string
+  trustLevel: SkillTrustLevel
+}
+
+export interface SkillSourcePolicy {
+  message: string
+  recommendedMode: 'inline' | 'preview'
+  requiresExplicitUserIntent: boolean
+  requiresPreviewBeforeInline: boolean
+  riskLevel: SkillSourcePolicyRiskLevel
+  sensitiveToolCategories: string[]
+  sensitiveToolIds: string[]
+}
 
 export interface SkillRecord {
   name: string
@@ -20,18 +39,22 @@ export interface SkillRecord {
   effort?: SkillEffortLevel
   paths?: string[]
   source: SkillSource
+  sourcePolicy?: SkillSourcePolicy
+  sourceInfo?: SkillSourceInfo
+  sourceRootDir?: string
   skillDir: string
   skillFilePath: string
   contentHash: string
 }
 
-export interface ParsedSkillMetadata extends Omit<SkillRecord, 'source' | 'skillDir' | 'skillFilePath' | 'contentHash'> {
+export interface ParsedSkillMetadata extends Omit<SkillRecord, 'source' | 'sourceInfo' | 'sourceRootDir' | 'skillDir' | 'skillFilePath' | 'contentHash'> {
   rawFrontmatter: Record<string, unknown>
 }
 
 export interface SkillSessionState {
   activeSkillNames: Set<string>
   activatedToolNames: Set<string>
+  approvedGuardedSkillNames: Set<string>
   discoveredSkillNames: Set<string>
   lastDiscoveryAt?: number
   loadedSkillNames: Set<string>
@@ -151,6 +174,11 @@ export interface ExplicitSkillInvocation {
   model?: string
   remainingQuery?: string
   skillName: string
+  source: SkillSource
+  sourceLabel?: string
+  sourcePolicy?: SkillSourcePolicy
+  trustLevel: SkillTrustLevel
+  trustNote?: string
 }
 
 export interface RequestedSkillInvocation {

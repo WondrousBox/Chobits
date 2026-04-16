@@ -1,6 +1,7 @@
 import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
 import { Type } from '@sinclair/typebox';
 
+import { resolveGuardedToolExecution } from '../skills';
 import { PiWorkspaceFileService } from '../coding/file-service';
 import type { PiSessionToolContext } from '../tool-context';
 import { createJsonToolResult } from './result';
@@ -21,11 +22,17 @@ export function createPiFileEditTool(toolContext: PiSessionToolContext): ToolDef
     label: 'fileEditTool',
     description: 'Edit a text file inside the selected coding workspace by replacing exact text.',
     parameters: fileEditParameters,
-    async execute(_toolCallId, input) {
+    async execute(toolCallId, input) {
       try {
+        const guardResolution = await resolveGuardedToolExecution(toolContext, toolCallId, 'file-edit');
+        if (guardResolution?.kind === 'blocked' || guardResolution?.kind === 'cancel') {
+          return createJsonToolResult(guardResolution.details);
+        }
+
         const result = await fileService.edit(input);
         return createJsonToolResult({
           success: true,
+          ...(guardResolution?.warning ? { warning: guardResolution.warning } : {}),
           ...result
         });
       } catch (error: any) {

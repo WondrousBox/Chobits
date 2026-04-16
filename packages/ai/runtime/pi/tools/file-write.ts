@@ -1,6 +1,7 @@
 import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
 import { Type } from '@sinclair/typebox';
 
+import { resolveGuardedToolExecution } from '../skills';
 import { PiWorkspaceFileService } from '../coding/file-service';
 import type { PiSessionToolContext } from '../tool-context';
 import { createJsonToolResult } from './result';
@@ -20,11 +21,17 @@ export function createPiFileWriteTool(toolContext: PiSessionToolContext): ToolDe
     label: 'fileWriteTool',
     description: 'Write a text file inside the selected coding workspace.',
     parameters: fileWriteParameters,
-    async execute(_toolCallId, input) {
+    async execute(toolCallId, input) {
       try {
+        const guardResolution = await resolveGuardedToolExecution(toolContext, toolCallId, 'file-write');
+        if (guardResolution?.kind === 'blocked' || guardResolution?.kind === 'cancel') {
+          return createJsonToolResult(guardResolution.details);
+        }
+
         const result = await fileService.write(input);
         return createJsonToolResult({
           success: true,
+          ...(guardResolution?.warning ? { warning: guardResolution.warning } : {}),
           ...result
         });
       } catch (error: any) {

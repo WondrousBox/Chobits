@@ -6,6 +6,7 @@ import { getTodayMemoryDate } from '../../../services/memory-date';
 import { writeMemory } from '../../../services/memory-extraction-service';
 import { buildNotePath, generateNoteId } from '../../../services/memory-note-writer';
 import type { MemoryNoteFrontmatter, MergedNote } from '../../../services/memory-types';
+import { resolveGuardedToolExecution } from '../skills';
 import type { PiSessionToolContext } from '../tool-context';
 import { buildTopicCanonicalizer, buildWriteDbOps, resolveWorkspaceId } from './memory-db-deps';
 import { createJsonToolResult } from './result';
@@ -26,8 +27,13 @@ export function createPiMemorySaveTool(toolContext: PiSessionToolContext): ToolD
       '将重要信息保存到长期记忆。两种使用场景：1) 用户明确要求记住（说"记住"、"帮我记一下"等）；2) 对话中出现了值得长期记录的重要内容（如用户偏好、重要决策、项目计划、技术方案等），应主动保存。不要保存临时闲聊或通用知识问答。',
     parameters: memorySaveParameters,
 
-    async execute(_toolCallId, input) {
+    async execute(toolCallId, input) {
       try {
+        const guardResolution = await resolveGuardedToolExecution(toolContext, toolCallId, 'memory-save');
+        if (guardResolution?.kind === 'blocked' || guardResolution?.kind === 'cancel') {
+          return createJsonToolResult(guardResolution.details);
+        }
+
         const workspaceId = await resolveWorkspaceId(toolContext);
         if (!workspaceId) {
           return createJsonToolResult({ success: false, error: 'No active workspace' });
@@ -87,6 +93,7 @@ export function createPiMemorySaveTool(toolContext: PiSessionToolContext): ToolD
           noteId: merged.noteId,
           topic: topicLabel,
           filePath,
+          ...(guardResolution?.warning ? { warning: guardResolution.warning } : {}),
           message: `记忆已保存：${topicLabel}`
         });
       } catch (error: any) {

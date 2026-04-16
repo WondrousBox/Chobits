@@ -17,6 +17,7 @@ import {
   shouldEnableSkillPicker
 } from '@/lib/chat-skill-picker';
 import { pickCodingWorkspace } from '@/lib/coding-workspace';
+import { getSkillTrustPresentation } from '@/lib/skill-trust';
 import { useChatSelection } from '@/pages/ChatPage/context/ChatSelectionContext';
 
 import ChatAgentSelect from './ChatAgentSelect';
@@ -74,6 +75,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, footer
   const slashSuggestions = useMemo(() => listSkillSuggestions(draft, skills).slice(0, 8), [draft, skills]);
   const slashMenuActive = skillPickerEnabled && isTypingSlashSkillQuery(draft) && slashSuggestions.length > 0;
   const highlightedSkillInfo = slashSuggestions[highlightedSkillIndex] || slashSuggestions[0];
+  const activeSkillTrust = useMemo(() => (activeSkillInfo ? getSkillTrustPresentation(activeSkillInfo) : undefined), [activeSkillInfo]);
 
   useEffect(() => {
     if (!skillPickerEnabled) {
@@ -255,6 +257,11 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, footer
                   <Badge variant="secondary" className="shrink-0 rounded-full px-1.5 py-0 text-[10px]">
                     Skill
                   </Badge>
+                  {activeSkillTrust && (
+                    <Badge variant="outline" className={`shrink-0 rounded-full px-1.5 py-0 text-[10px] ${activeSkillTrust.badgeClassName}`}>
+                      {activeSkillTrust.badgeLabel}
+                    </Badge>
+                  )}
                   <span className="truncate">/{activeSkillInfo.name}</span>
                   <span className="truncate text-muted-foreground/80">{activeSkillInfo.argumentHint || activeSkillInfo.description}</span>
                 </div>
@@ -264,6 +271,13 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, footer
                 <p>{activeSkillInfo.description}</p>
                 {activeSkillInfo.whenToUse && <p className="mt-1 text-xs text-muted-foreground">{activeSkillInfo.whenToUse}</p>}
                 {activeSkillInfo.argumentHint && <p className="mt-1 text-xs text-muted-foreground">参数提示: {activeSkillInfo.argumentHint}</p>}
+                {(activeSkillInfo.sourceLabel || activeSkillInfo.sourceDetail) && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    来源: {activeSkillInfo.sourceLabel || activeSkillInfo.source}
+                    {activeSkillInfo.sourceDetail ? ` · ${activeSkillInfo.sourceDetail}` : ''}
+                  </p>
+                )}
+                {activeSkillTrust?.note && <p className="mt-1 text-xs text-muted-foreground">{activeSkillTrust.note}</p>}
               </TooltipContent>
             </Tooltip>
           )}

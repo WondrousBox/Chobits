@@ -6,6 +6,7 @@ import { WorkspacesRepo } from '@packages/common/db';
 import { Type } from '@sinclair/typebox';
 
 import { getTodayMemoryDate } from '../../../services/memory-date';
+import { resolveGuardedToolExecution } from '../skills';
 import type { PiSessionToolContext } from '../tool-context';
 import { resolveWorkspaceId } from './memory-db-deps';
 import { createJsonToolResult } from './result';
@@ -28,8 +29,13 @@ export function createPiMemoryDiaryTool(toolContext: PiSessionToolContext): Tool
       '写入 AI 助手日志。在对话中有值得记录的观察、学到的经验、处理策略时使用。该工具只会追加写入 `memory/diary/YYYY-MM-DD.md` 日志文件，不会进入长期记忆检索或自动召回。不要在每次对话都写，只在有真正洞察时才写。',
     parameters: memoryDiaryParameters,
 
-    async execute(_toolCallId, input) {
+    async execute(toolCallId, input) {
       try {
+        const guardResolution = await resolveGuardedToolExecution(toolContext, toolCallId, 'memory-diary');
+        if (guardResolution?.kind === 'blocked' || guardResolution?.kind === 'cancel') {
+          return createJsonToolResult(guardResolution.details);
+        }
+
         const workspaceId = await resolveWorkspaceId(toolContext);
         if (!workspaceId) {
           return createJsonToolResult({ success: false, error: 'No active workspace' });
@@ -72,6 +78,7 @@ export function createPiMemoryDiaryTool(toolContext: PiSessionToolContext): Tool
           recallable: false,
           date,
           file: `memory/diary/${date}.md`,
+          ...(guardResolution?.warning ? { warning: guardResolution.warning } : {}),
           message: '日志已记录（不会进入长期记忆检索）'
         });
       } catch (error: any) {

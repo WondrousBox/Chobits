@@ -1,6 +1,6 @@
 # Chobits Skill System 改造方案
 
-更新时间：2026-04-16
+更新时间：2026-04-17
 
 本文档用于为 Chobits 设计一套全新的 skill 系统。设计优先参考本地 `claude-code` 项目的 skill 架构，其次参考 Pi / Agent Skills 的兼容约定。目标不是把现有 `toolbox.md` 小修小补，而是把 skill 升级为运行时中的一等资源。
 
@@ -45,6 +45,10 @@ Chobits 应该做的是一个“Claude Code 风格的自有 skill runtime”，�
 - `packages/ai/runtime/pi/skills/frontmatter.ts` 已实现 `SKILL.md` frontmatter 解析，支持 `allowed-tools`、`activation-tools`、`arguments`、`argument-hint`、`when_to_use`、`user-invocable`、`paths`、`model`、`effort`、`context` 等字段。
 - `packages/ai/runtime/pi/skills/source-loader.ts` + `registry.ts` 已实现多来源 skill 扫描、去重和优先级覆盖，可从 `user` / `project` / `plugin` 等来源建立 registry。
 - `packages/ai/runtime/pi/tools/skill-search.ts` 与 `packages/ai/runtime/pi/tools/skill-use.ts` 已经是可运行的 skill 执行面，不只是 metadata 占位。
+- skill prompt 链路已开始把来源与信任信息前移到模型侧：listing / discovery / explicit invocation 会带上 `sourceLabel` 与 plugin / compatibility caution，`skillUseTool` 也会在高风险来源上返回显式 warning。
+- 更高风险的 plugin / compatibility skill 现在已开始生成结构化 `sourcePolicy`；当它们同时涉及高影响工具类别或 `context: fork` 时，`skillUseTool` 会要求先 `preview`，并在 `inline` 前要求显式确认（如 `acknowledgeRisk` 或用户显式 skill invocation）。
+- 在支持交互式选项卡的 runtime 中，上述 guarded skill 已开始接入 ask-user 确认闭环：可以直接询问用户选择“先预览 / 确认执行 / 取消”，而不是只把阻断结果抛回模型。
+- 对 `shell-exec` / `file-write` / `file-edit` / `push-card` / `workflow-run` / `memory-save` / `memory-diary` / `memory-refresh-critical` / `persona-update` / `youtube-download` / `youtube-subscribe`，上述 guarded flow 也已开始下沉到真实 tool 执行入口：当高风险 skill 仍处于未批准状态时，runtime 会在工具调用前再次阻断或触发确认，而不再只依赖 `skillUseTool` 入口层。
 - `packages/ai/runtime/pi/session-service.ts` 已把 skill listing、skill discovery、instruction files、explicit skill invocation 接入默认 `assistant`。
 - Chat 输入层已经有 skill picker、slash invocation、`Tab` 补全、参数提示、上下键切换与回车确认。
 - `packages/ai/runtime/pi/toolbox.md` / `toolbox.ts` / `toolbox-lookup.ts` 仍保持原有 toolbox 工作流，并继续承担兼容路径。
@@ -54,7 +58,8 @@ Chobits 应该做的是一个“Claude Code 风格的自有 skill runtime”，�
 - 仓库默认仍没有任何 first-party bundled skills；`packages/ai/runtime/pi/skills/bundled/` 目前只有空壳目录。
 - 默认 assistant skill runtime 明确关闭了 `includeBundled` 和 `includeSyntheticToolbox`，说明 toolbox -> bundled skill 迁移尚未启动。
 - `toolbox.md` 仍然是实际可运行的能力说明真相源之一，`toolboxTool` 仍走 legacy markdown 主流程，而不是仅剩兼容壳。
-- plugin skills 目前只有“扫描/加载”层，尚未形成完整的安装、治理、来源可视化与运行约束闭环。
+- plugin skills 已经不再只有“扫描/加载”层；当前 `skillSearchTool` / `skillUseTool`、IPC `ai:listSkills` 与 chat skill picker 已开始透出 `sourceLabel` / `sourceDetail` / `trustLevel` / `trustNote`，但完整的安装、治理、权限约束与更系统化的来源可视化仍未闭环。
+- 当前 `sourcePolicy` / ask-user guard 已不再只停留在 `skillUseTool` 入口层：`shell-exec` / `file-write` / `file-edit` / `push-card` / `workflow-run` / `memory-save` / `memory-diary` / `memory-refresh-critical` / `persona-update` / `youtube-download` / `youtube-subscribe` 已开始接入 tool-level runtime guard；同时 `sourcePolicy.sensitiveToolIds` 也已收敛为真正需要二次确认的高影响工具，而不再泛化到 skill 的全部 allowed tools；但它仍未形成完整的 per-tool 覆盖、统一策略中心或插件级治理规则。
 - 远程 skill marketplace、MCP skills、remote install 等 Claude Code 更远一层的生态能力并未进入当前实现。
 - 虽然已有 fork / model / effort 的部分运行时能力，但高级执行层仍未完全闭环，尤其不是一个完整的多 agent / plugin skill 执行体系。
 - `session-factory.ts` 仍明确关闭 Pi 原生 skills、extensions、prompt templates、themes 和 agents files；当前路线仍是 Chobits 自有 skill runtime，而不是复用 Pi 原生 skill runtime。
@@ -451,6 +456,7 @@ packages/ai/runtime/pi/skills/
 - 每个 skill 的 metadata
 - 当前是否已加载
 - 当前是否路径匹配
+- 当前来源标签与信任提示（如 `sourceLabel` / `trustLevel` / `trustNote`）
 
 ### `skillUseTool` 输入输出建议
 
@@ -472,6 +478,10 @@ packages/ai/runtime/pi/skills/
 - `executionMode`
 - `source`
 - `pathsMatched`
+- `sourceLabel`
+- `trustLevel`
+- `trustNote`
+- `sourcePolicy`
 
 ### 为什么不用一个 `toolboxTool` 继续扩展
 
@@ -650,6 +660,19 @@ v1 明确不做：
 - `synthetic-toolbox`
   - 仅迁移兼容使用
 
+按当前代码现状，这一层已经有了第一批真实落点：
+
+- `source-loader.ts` 会把 `sourceInfo` 写入 `SkillRecord`
+- `skillSearchTool` / `skillUseTool` 会把来源标签与信任提示返回给模型
+- `ai:listSkills` 与 chat skill picker / active skill UI 会开始展示 plugin / workspace / compatibility 来源差异
+- 高风险 plugin / compatibility skill 会进一步生成 `sourcePolicy`，在 `skillUseTool(inline)` 前要求更明确的显式确认
+
+但这还不等于完整闭环；当前仍缺：
+
+- plugin skill 的安装与治理策略
+- 更明确的权限/风险提示策略
+- 更完整的来源可视化与设置项
+
 ## UI 与用户显式调用面
 
 ### v1 必需
@@ -796,10 +819,18 @@ v1 明确不做：
   - `assistant` slash menu 已支持上下键切换候选、回车确认
   - `assistant` 已把 `/skill-name ...` 收口为结构化输入预处理，再进入 prompt / session 链路
   - 当前 slash 文本解析已退化为 fallback，而不是唯一入口
-- `Phase 6`：仅保留预研代码，不作为当前阶段完成项
+- `Phase 6`：部分完成，但尚未闭环
   - 已有 `context: fork` 的真实运行时入口，`skill-use` 能触发 fork child session
   - `model` / `effort` override 已可透传到 child session
-  - 但 plugin skill 生态与更完整的高级执行体系仍未闭环，因此整体仍不算完成项
+  - fork child session 已开始向父级 skill 调用透传 tool trace 与 progress
+  - plugin skills 已具备自动发现与加载的基础能力
+  - plugin skills 也已开始透出 `sourceLabel` / `sourceDetail` / `trustLevel` / `trustNote`，并在 chat skill picker / active skill UI 显示来源差异
+  - skill prompt 注入与 `skillUseTool` 返回也已开始显式区分 plugin / compatibility 来源，并向模型前移风险提示
+  - 对高影响 plugin / compatibility skill，runtime 已开始落地第一层执行 guard：生成 `sourcePolicy`，优先要求 `preview`，并在 `inline` 前要求显式确认
+  - 在支持交互式选项卡的 runtime 中，guarded skill 已开始接入 ask-user 确认闭环，可直接走“预览 / 执行 / 取消”分支
+  - 第一批 tool-level runtime guard 已扩到 `shell-exec`、`file-write`、`file-edit`、`push-card`、`workflow-run`、`memory-save`、`memory-diary`、`memory-refresh-critical`、`persona-update`、`youtube-download`、`youtube-subscribe`，高风险 skill 即使已被 inline 加载，也需要在真实高影响工具执行前再次确认
+  - `sourcePolicy.sensitiveToolIds` 现在只记录真正的高影响工具，而不是整包 skill 的全部 allowed tools，这让后续 tool-level guard 变得更精确
+  - 但 plugin skill 生态治理、来源可视化完整 UI、其余高影响工具类别覆盖、统一策略中心，以及更完整的高级执行体系仍未完成，因此不能视为整体完成
 
 ## 按代码现状的总判断
 
@@ -809,7 +840,7 @@ v1 明确不做：
 - 默认 `assistant` 已经正式接入 `SKILL.md` protocol、instruction files、skill discovery 与显式 skill invocation。
 - 这套实现仍以“新增能力”方式叠加在现有 toolbox / tools 之上，而不是替代它们。
 - `toolbox -> bundled skills` 迁移尚未开始；当前只是预留了 synthetic bridge 和空的 bundled 目录。
-- 高级执行能力已有部分真实落点，但还不足以视为完整的 Phase 6 能力闭环。
+- 高级执行能力已有部分真实落点，但距离完整的 Phase 6 仍至少差这几块：剩余高影响工具覆盖补齐、统一 guard/policy 中心、plugin skill 治理与完整来源 UI。
 
 ## 设计后的目标状态
 

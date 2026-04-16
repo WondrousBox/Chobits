@@ -46,7 +46,12 @@ describe('SkillRegistry', () => {
 
     expect(registry.get('shared')).toMatchObject({
       description: 'plugin version',
-      source: 'plugin'
+      source: 'plugin',
+      sourceInfo: {
+        label: 'Plugin: demo-skill-pack',
+        trustNote: expect.stringContaining('Plugin-provided skill'),
+        trustLevel: 'plugin'
+      }
     })
     expect(registry.get('extra')).toMatchObject({
       description: 'workspace extra version',
@@ -81,11 +86,21 @@ describe('SkillRegistry', () => {
 
     expect(registry.get('shared')).toMatchObject({
       description: 'plugin version',
-      source: 'plugin'
+      source: 'plugin',
+      sourceInfo: {
+        label: 'Plugin: review-pack',
+        trustNote: expect.stringContaining('Plugin-provided skill'),
+        trustLevel: 'plugin'
+      }
     })
     expect(registry.get('helper-skill')).toMatchObject({
       description: 'plugin helper version',
-      source: 'plugin'
+      source: 'plugin',
+      sourceInfo: {
+        label: 'Plugin: helpers',
+        trustNote: expect.stringContaining('Plugin-provided skill'),
+        trustLevel: 'plugin'
+      }
     })
   })
 
