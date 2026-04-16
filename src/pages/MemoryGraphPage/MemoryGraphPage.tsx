@@ -196,8 +196,7 @@ const RELATION_COLORS: Record<string, string> = {
   entity_fact: 'rgba(245, 158, 11, 0.45)',
   entity_attribute: 'rgba(16, 185, 129, 0.45)',
   entity_relation: 'rgba(14, 165, 233, 0.45)',
-  note_has_keyword: 'rgba(34, 197, 94, 0.35)',
-  keyword_to_topic: 'rgba(139, 92, 246, 0.3)'
+  note_has_keyword: 'rgba(34, 197, 94, 0.35)'
 };
 
 function safeJsonParse(json: string | null | undefined, fallback: any[] = []): any[] {
@@ -359,21 +358,7 @@ function buildGraphData(
         color: RELATION_COLORS.note_has_keyword
       });
     }
-    // 添加 keyword → primaryTopic 关联边
-    for (const kw of keywordNodes) {
-      if (!kw.primaryTopicId) continue;
-      if (!validIds.has(kw.id) || !validIds.has(kw.primaryTopicId)) continue;
-      const key = `${kw.id}-${kw.primaryTopicId}-keyword_to_topic`;
-      if (seenLinks.has(key)) continue;
-      seenLinks.add(key);
-      links.push({
-        source: kw.id,
-        target: kw.primaryTopicId,
-        relationType: 'keyword_to_topic',
-        weight: 0.6,
-        color: RELATION_COLORS.keyword_to_topic
-      });
-    }
+    // Keep primaryTopicId in the data model, but do not render keyword -> topic edges in the graph UI.
   }
 
   return { nodes: filteredNodes, links };
@@ -1682,7 +1667,7 @@ export default function MemoryGraphPage(): React.ReactElement {
               linkDirectionalArrowLength={4}
               linkDirectionalArrowRelPos={0.85}
               d3AlphaDecay={0.03}
-              d3VelocityDecay={0.3}
+              d3VelocityDecay={0.45}
               warmupTicks={50}
               cooldownTicks={200}
               enableNodeDrag

@@ -1057,7 +1057,7 @@ Renderer 进程通过 IPC 访问记忆系统。
 | `memory:triggerSync`             | renderer → main | 手动触发记忆提取             |
 | `memory:rebuildIndex`            | renderer → main | 当前仅重建 FTS 索引          |
 | `memory:deleteNote`              | renderer → main | 删除记忆 note                |
-| `memory:graphData`               | renderer → main | 获取图谱数据（未来 UI 用）   |
+| `memory:graphData`               | renderer → main | 获取图谱数据（`MemoryGraphPage` 使用；UI 不再直连 `keyword -> topic`） |
 | `memory:stats`                   | renderer → main | 获取 note/topic/edge 统计    |
 | `memory:cleanupForConversations` | renderer → main | 按 conversation 清理相关记忆 |
 | `memory:clearAll`                | renderer → main | 清空记忆数据                 |
@@ -1075,7 +1075,7 @@ export const memoryApi = {
   triggerSync: (params?: { workspaceId?: string; date?: string; conversationIds?: string[]; force?: boolean }) => ipcRenderer.invoke('memory:triggerSync', params),
   rebuildIndex: () => ipcRenderer.invoke('memory:rebuildIndex'),
   deleteNote: (noteId: string) => ipcRenderer.invoke('memory:deleteNote', noteId),
-  graphData: (params?: { topicId?: string; workspaceId?: string; includeNotes?: boolean; maxTopics?: number; maxEdges?: number }) => ipcRenderer.invoke('memory:graphData', params),
+  graphData: (params?: { topicId?: string; workspaceId?: string; includeNotes?: boolean; includeKeywords?: boolean; maxTopics?: number; maxEdges?: number; maxKeywords?: number }) => ipcRenderer.invoke('memory:graphData', params),
   cleanupForConversations: (params: { conversationIds: string[] }) => ipcRenderer.invoke('memory:cleanupForConversations', params),
   clearAll: (params?: { workspaceId?: string }) => ipcRenderer.invoke('memory:clearAll', params),
   stats: (params?: { workspaceId?: string }) => ipcRenderer.invoke('memory:stats', params)
