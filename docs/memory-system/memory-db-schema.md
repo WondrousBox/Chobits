@@ -11,7 +11,7 @@
 - 当前提取写路径创建 `belongs_to_topic`、`related_to_topic`、`contains_section` 三种边；新增 `entity_fact`、`entity_attribute`、`entity_relation` 三种实体事实边类型（I-3: 时序实体知识图谱）。
 - `memory_edges` 新增时序字段：`valid_from`、`valid_to`、`confidence`，用于实体事实的时效管理。
 - `memory_topics` 新增领域命名空间字段：`domain`、`domain_type`，支持按 person/project/general 维度过滤（I-4: Domain 命名空间）。
-- 下列字段虽然已建模，但当前仍只部分填充：`parentTopicId`、`relatedTopicIds`。其余字段中，`fileChecksum`、`timeRangeStart` / `timeRangeEnd`、`memory_sections.keywords` 已进入稳定写路径；`memory_keywords.primaryTopicId` 现在会在 canonical topic 写入路径中回填。
+- 下列字段虽然已建模，但当前仍只部分填充：`parentTopicId`、`relatedTopicIds`。其余字段中，`fileChecksum`、`timeRangeStart` / `timeRangeEnd`、`memory_sections.keywords` 已进入稳定写路径；`memory_keywords.primaryTopicId` 现在会在 canonical topic 写入路径中回填。该字段保留给检索/归一化使用，当前 `MemoryGraphPage` 不再把它直接画成 `keyword -> topic` 连边。
 - FTS 的 `body` 字段当前实际写入的是摘要级文本（`note.summary` / `section.summary`），不是完整正文；完整正文仍回到 Markdown 做定点读取。
 - `uq_mem_notes_file_path` 当前是全局 `filePath` 唯一，不按 `workspaceId` 分区。
 
@@ -344,7 +344,7 @@ export type MemoryKeywordRow = InferSelectModel<typeof memory_keywords>;
 export type NewMemoryKeyword = InferInsertModel<typeof memory_keywords>;
 ```
 
-> 当前实现说明：`primaryTopicId` 已建模并建索引，当前 canonical topic 写路径会把 note keywords 绑定到该 note 的主 canonical topic；它不再只是预留字段。
+> 当前实现说明：`primaryTopicId` 已建模并建索引，当前 canonical topic 写路径会把 note keywords 绑定到该 note 的主 canonical topic；它不再只是预留字段。这个亲和关系仍会保存在数据层，但 `MemoryGraphPage` 已改为不直接绘制 `keyword -> topic`，避免图布局过度网状化。
 
 ### 2.6 memory_note_keywords — Note ↔ Keyword 关联表
 

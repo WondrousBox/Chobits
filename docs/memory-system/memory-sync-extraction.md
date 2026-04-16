@@ -13,7 +13,7 @@
 - 已实现：配置 UI（`MemoryManagementSettings` 中的记忆系统总开关、自动提取开关、自动召回开关），配置存储于 `memory-config.json`，并通过 `resolveExtractionRuntimeConfig()` 真正影响 worker 运行时行为。
 - 已实现：Open Loop 智能合并 — `mergeMemory()` 中对 "Open Items" section 使用 LLM 判断已有待办是否被新对话解决。
 - 已实现：note merge compaction — `mergeMemory()` 现在会刷新 `summary`，并对 `Key Points` / `Open Items` / `Recall Cues` 做去重压缩；有新 `Source Excerpts` 时直接覆盖旧摘录，避免长期 append 膨胀。
-- 已实现：canonical topic resolution — `extractMemory()` 之后会先做本地 topic 归一化，再查 workspace 内已有 topic 候选；命中已有 canonical topic 时复用其 label / slug，并把原始表述写入 note/topic `aliases`，同时把 note keywords 的 `primaryTopicId` 回填到 canonical topic。
+- 已实现：canonical topic resolution — `extractMemory()` 之后会先做本地 topic 归一化，再查 workspace 内已有 topic 候选；命中已有 canonical topic 时复用其 label / slug，并把原始表述写入 note/topic `aliases`，同时把 note keywords 的 `primaryTopicId` 回填到 canonical topic。该亲和关系保留在存储/检索层，`MemoryGraphPage` 可视化不再直接绘制 `keyword -> topic` 连边。
 - 已实现：3 种边类型创建（`belongs_to_topic`、`related_to_topic`、`contains_section`）。
 - 已实现：`fileChecksum`（sha256）、`timeRange`（消息时间戳范围）、`sections.keywords`（段落级关键词）字段自动填充。
 - 已实现：heat 衰减（指数衰减因子 0.95，每日执行一次）。
@@ -353,6 +353,7 @@ interface ExtractionWatermark {
 
 > 当前实际实现比上面的伪码多了一层 canonical topic 写回：
 > `upsert topics` 时会合并 `aliases` / `keywords`，`upsert keywords` 时会把 `primaryTopicId` 回填到主 canonical topic，
+> 该亲和关系主要用于 canonical topic 对齐与检索扩展；当前 `MemoryGraphPage` 只绘制 `note -> keyword`，不再直接绘制 `keyword -> topic`。
 > 并且 `topic→note` / `topic→topic` 边会优先使用真实 topic ID，而不是只依赖 `topic_${slug}` 约定。
 
 ---
@@ -1424,7 +1425,7 @@ DailyCareService.tick() 检查
 | `memory:rebuildIndex`            | 无                                                                               | `{ success: boolean, notesIndexed?, error? }` | 当前仅重建 FTS 索引        |
 | `memory:validateIndex`           | `{ workspaceId?, issueLimit? }`                                                  | `{ ok: boolean, report?, error? }`            | 基于 Markdown 的只读索引审计 |
 | `memory:deleteNote`              | `noteId`                                                                         | `{ success: boolean, error? }`                | 删除单条记忆 note          |
-| `memory:graphData`               | `{ topicId?, workspaceId?, includeNotes?, maxTopics?, maxEdges? }`               | `{ topics, edges, notes }`                    | 获取图谱数据               |
+| `memory:graphData`               | `{ topicId?, workspaceId?, includeNotes?, includeKeywords?, maxTopics?, maxEdges?, maxKeywords? }` | `{ topics, edges, notes, keywords, noteKeywords }` | 获取图谱数据               |
 | `memory:stats`                   | `{ workspaceId? }`                                                               | `{ noteCount, topicCount, edgeCount }`        | 获取基础统计               |
 | `memory:cleanupForConversations` | `{ conversationIds }`                                                            | `{ updated, deleted, errors }`                | 按对话清理相关记忆         |
 | `memory:clearAll`                | `{ workspaceId? }`                                                               | `{ tablesCleared, filesDeleted, errors }`     | 清空记忆数据               |
