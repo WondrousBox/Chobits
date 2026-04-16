@@ -39,7 +39,7 @@ import {
 } from './providers/service';
 import { getProvider, listAgents, listProviders } from './registry';
 import { PiExecutionService } from './runtime/pi/execution-service';
-import { createSkillRegistry } from './runtime/pi/skills';
+import { createSkillRegistry, getSkillSourceInfo } from './runtime/pi/skills';
 import { SummaryService } from './services/summary-service';
 import { TaggingService } from './services/tagging-service';
 import { TranslationService } from './services/translation-service';
@@ -211,14 +211,21 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
 
     return registry
       .listUserInvocable()
-      .map((record) => ({
-        aliases: [...record.aliases],
-        argumentHint: record.argumentHint,
-        description: record.description,
-        name: record.name,
-        source: record.source,
-        whenToUse: record.whenToUse
-      }))
+      .map((record) => {
+        const sourceInfo = getSkillSourceInfo(record);
+        return {
+          aliases: [...record.aliases],
+          argumentHint: record.argumentHint,
+          description: record.description,
+          name: record.name,
+          source: record.source,
+          sourceDetail: sourceInfo.detail,
+          sourceLabel: sourceInfo.label,
+          trustNote: sourceInfo.trustNote,
+          trustLevel: sourceInfo.trustLevel,
+          whenToUse: record.whenToUse
+        };
+      })
       .sort((left, right) => left.name.localeCompare(right.name, 'zh-Hans-CN'));
   });
 

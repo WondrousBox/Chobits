@@ -1,3 +1,5 @@
+import { getSkillSourceInfo, requiresSkillSourceCaution } from './source-info'
+import { getSkillSourcePolicy } from './source-policy'
 import type { SkillRegistry } from './registry'
 import type { SkillRecord } from './types'
 
@@ -31,6 +33,8 @@ export function buildSkillListingPrompt(registry: SkillRegistry, options: BuildS
 }
 
 function formatSkillListingLine(skill: SkillRecord): string {
+  const sourceInfo = getSkillSourceInfo(skill)
+  const sourcePolicy = getSkillSourcePolicy(skill)
   const parts = [`- \`${skill.name}\`: ${skill.description}`]
 
   if (skill.whenToUse) {
@@ -51,6 +55,16 @@ function formatSkillListingLine(skill: SkillRecord): string {
 
   if (skill.effort) {
     parts.push(`effort: ${skill.effort}`)
+  }
+
+  parts.push(`source: ${sourceInfo.label}`)
+
+  if (requiresSkillSourceCaution(sourceInfo.trustLevel) && sourceInfo.trustNote) {
+    parts.push(`caution: ${normalizeInlineText(sourceInfo.trustNote)}`)
+  }
+
+  if (sourcePolicy.riskLevel === 'guarded') {
+    parts.push(`guard: ${normalizeInlineText(sourcePolicy.message)}`)
   }
 
   return parts.join(' ')

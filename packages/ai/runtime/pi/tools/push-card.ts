@@ -2,15 +2,24 @@ import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
 import { Type } from '@sinclair/typebox';
 
 import type { ChatCardType } from '../../../types';
+import { resolveGuardedToolExecution } from '../skills';
 import type { PiSessionToolContext } from '../tool-context';
 import { createJsonToolResult } from './result';
 
 const pushCardParameters = Type.Object({
-  type: Type.Union([Type.Literal('resource'), Type.Literal('video'), Type.Literal('audio'), Type.Literal('image'), Type.Literal('document'), Type.Literal('link'), Type.Literal('file')]),
-  resourceId: Type.Optional(Type.String({ description: '数据库中的资源 ID' })),
+  type: Type.Union([
+    Type.Literal('resource'),
+    Type.Literal('video'),
+    Type.Literal('audio'),
+    Type.Literal('image'),
+    Type.Literal('document'),
+    Type.Literal('link'),
+    Type.Literal('file')
+  ]),
+  resourceId: Type.Optional(Type.String({ description: 'Resource ID from the database.' })),
   data: Type.Optional(
     Type.Object({
-      id: Type.String({ description: '临时卡片的唯一标识' }),
+      id: Type.String({ description: 'Stable identifier for the temporary card.' }),
       title: Type.Optional(Type.String()),
       description: Type.Optional(Type.String()),
       thumbnailPath: Type.Optional(Type.String()),
@@ -21,22 +30,22 @@ const pushCardParameters = Type.Object({
       domain: Type.Optional(Type.String())
     })
   ),
-  text: Type.Optional(Type.String({ description: '显示在卡片上方的说明文本' }))
+  text: Type.Optional(Type.String({ description: 'Optional text shown above the card.' }))
 });
 
 export function createPiPushCardTool(toolContext: PiSessionToolContext): ToolDefinition<typeof pushCardParameters> {
   return {
     name: 'pushCardTool',
     label: 'pushCardTool',
-    description: `在聊天里推送资源卡片。适合在你已经找到目标资源之后，把资源直接展示给用户点击查看。`,
+    description: 'Push a resource card into the chat UI after the target resource has been identified.',
     parameters: pushCardParameters,
-    async execute(_toolCallId, input) {
+    async execute(toolCallId, input) {
       const { data, resourceId, text, type } = input;
 
       if (!resourceId && !data) {
         return createJsonToolResult({
           success: false,
-          error: '必须提供 resourceId 或 data'
+          error: 'Either resourceId or data must be provided.'
         });
       }
 
@@ -44,12 +53,16 @@ export function createPiPushCardTool(toolContext: PiSessionToolContext): ToolDef
       if (!cardId) {
         return createJsonToolResult({
           success: false,
-          error: '必须提供 resourceId 或 data.id'
+          error: 'Either resourceId or data.id must be provided.'
         });
       }
 
       try {
-        // 推送卡片到其他窗口（如 sprite），聊天窗口通过 tool_call 事件内联显示
+        const guardResolution = await resolveGuardedToolExecution(toolContext, toolCallId, 'push-card');
+        if (guardResolution?.kind === 'blocked' || guardResolution?.kind === 'cancel') {
+          return createJsonToolResult(guardResolution.details);
+        }
+
         toolContext.pushCardToWindows(
           {
             conversationId: toolContext.conversationId,
@@ -61,17 +74,16 @@ export function createPiPushCardTool(toolContext: PiSessionToolContext): ToolDef
           toolContext.targetWindowId
         );
 
-        // 卡片数据已随 tool_call 的 args 持久化到 metadata.toolCalls
-        // 不再创建独立的 assistant 消息，避免重复
         return createJsonToolResult({
           success: true,
           cardId,
-          conversationId: toolContext.conversationId
+          conversationId: toolContext.conversationId,
+          ...(guardResolution?.warning ? { warning: guardResolution.warning } : {})
         });
       } catch (error: any) {
         return createJsonToolResult({
           success: false,
-          error: error?.message || '推送卡片失败'
+          error: error?.message || 'Failed to push chat card.'
         });
       }
     }

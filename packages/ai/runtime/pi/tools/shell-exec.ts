@@ -1,6 +1,7 @@
 import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
 import { Type } from '@sinclair/typebox';
 
+import { resolveGuardedToolExecution } from '../skills';
 import { PiWorkspaceShellService } from '../coding/shell-service';
 import type { PiSessionToolContext } from '../tool-context';
 import { createJsonToolResult } from './result';
@@ -23,11 +24,17 @@ export function createPiShellExecTool(toolContext: PiSessionToolContext): ToolDe
     label: 'shellExecTool',
     description: 'Run a restricted verification command inside the selected coding workspace.',
     parameters: shellExecParameters,
-    async execute(_toolCallId, input) {
+    async execute(toolCallId, input) {
       try {
+        const guardResolution = await resolveGuardedToolExecution(toolContext, toolCallId, 'shell-exec');
+        if (guardResolution?.kind === 'blocked' || guardResolution?.kind === 'cancel') {
+          return createJsonToolResult(guardResolution.details);
+        }
+
         const result = await shellService.run(input);
         return createJsonToolResult({
           success: true,
+          ...(guardResolution?.warning ? { warning: guardResolution.warning } : {}),
           ...result
         });
       } catch (error: any) {

@@ -377,6 +377,10 @@ export type SkillInfo = {
   argumentHint?: string;
   whenToUse?: string;
   source: string;
+  sourceDetail?: string;
+  sourceLabel?: string;
+  trustNote?: string;
+  trustLevel?: 'trusted' | 'workspace' | 'plugin' | 'compatibility';
 };
 
 // ==================== 卡片推送类型 ====================

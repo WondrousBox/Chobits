@@ -4,6 +4,7 @@ import https from 'node:https';
 import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
 import { Type } from '@sinclair/typebox';
 
+import { resolveGuardedToolExecution } from '../skills';
 import type { PiSessionToolContext } from '../tool-context';
 import { createJsonToolResult } from './result';
 
@@ -179,7 +180,7 @@ export function createPiYoutubeSubscribeTool(toolContext: PiSessionToolContext):
     label: 'youtubeSubscribeTool',
     description: '订阅 YouTube 频道并抓取最近的视频列表。会创建 RSS 资源，支持自动下载配置，并把最新视频缓存进本地数据库。',
     parameters: youtubeSubscribeParameters,
-    async execute(_toolCallId, input, signal) {
+    async execute(toolCallId, input, signal) {
       const { autoDownload = false, channelIdOrUrl, channelName, downloadQuality = 'best', folderId } = input;
 
       if (signal?.aborted) {
@@ -195,6 +196,11 @@ export function createPiYoutubeSubscribeTool(toolContext: PiSessionToolContext):
       }
 
       try {
+        const guardResolution = await resolveGuardedToolExecution(toolContext, toolCallId, 'youtube-subscribe');
+        if (guardResolution?.kind === 'blocked' || guardResolution?.kind === 'cancel') {
+          return createJsonToolResult(guardResolution.details);
+        }
+
         const normalizedTarget = await normalizeYoutubeChannelTarget(channelIdOrUrl.trim());
         const { repos, rssSourceRegistry } = await loadRssServices();
         const result = await rssSourceRegistry.extractChannelInfo(normalizedTarget.target);

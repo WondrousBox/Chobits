@@ -20,7 +20,20 @@ describe('explicit skill invocation helpers', () => {
       matchedReference: 'YouTube 下载',
       model: undefined,
       remainingQuery: 'https://youtu.be/demo',
-      skillName: 'YouTube 下载'
+      skillName: 'YouTube 下载',
+      source: 'bundled',
+      sourceLabel: 'Bundled',
+      sourcePolicy: {
+        message: 'This skill source is treated as normal within the current runtime guardrails.',
+        recommendedMode: 'inline',
+        requiresExplicitUserIntent: false,
+        requiresPreviewBeforeInline: false,
+        riskLevel: 'normal',
+        sensitiveToolCategories: [],
+        sensitiveToolIds: []
+      },
+      trustLevel: 'trusted',
+      trustNote: expect.stringContaining('Built-in skill')
     })
   })
 
@@ -60,7 +73,20 @@ describe('explicit skill invocation helpers', () => {
       matchedReference: 'download',
       model: undefined,
       remainingQuery: 'https://youtu.be/demo',
-      skillName: 'YouTube 下载'
+      skillName: 'YouTube 下载',
+      source: 'bundled',
+      sourceLabel: 'Bundled',
+      sourcePolicy: {
+        message: 'This skill source is treated as normal within the current runtime guardrails.',
+        recommendedMode: 'inline',
+        requiresExplicitUserIntent: false,
+        requiresPreviewBeforeInline: false,
+        riskLevel: 'normal',
+        sensitiveToolCategories: [],
+        sensitiveToolIds: []
+      },
+      trustLevel: 'trusted',
+      trustNote: expect.stringContaining('Built-in skill')
     })
   })
 
@@ -87,11 +113,27 @@ describe('explicit skill invocation helpers', () => {
       matchedReference: '字幕翻译',
       model: 'gpt-5.1',
       remainingQuery: '把这个字幕翻成英文',
-      skillName: '字幕翻译'
+      skillName: '字幕翻译',
+      source: 'plugin',
+      sourceLabel: 'Plugin: review-pack',
+      sourcePolicy: {
+        message: 'This skill comes from a higher-risk source and should be previewed before inline execution because it uses sensitive tool categories: shell and forked execution context.',
+        recommendedMode: 'preview',
+        requiresExplicitUserIntent: true,
+        requiresPreviewBeforeInline: true,
+        riskLevel: 'guarded',
+        sensitiveToolCategories: ['shell'],
+        sensitiveToolIds: ['shell-exec']
+      },
+      trustLevel: 'plugin',
+      trustNote: 'Plugin-provided skill. Verify the plugin source and requested actions before using it on sensitive tasks or repositories.'
     })
 
     expect(prompt).toContain('## Explicit Skill Invocation')
     expect(prompt).toContain("skillUseTool({ skill: '字幕翻译', mode: 'inline' })")
+    expect(prompt).toContain('Skill source: Plugin: review-pack.')
+    expect(prompt).toContain('Source caution: Plugin-provided skill.')
+    expect(prompt).toContain('Execution guard:')
     expect(prompt).toContain('context: fork')
     expect(prompt).toContain('gpt-5.1')
     expect(prompt).toContain('high')

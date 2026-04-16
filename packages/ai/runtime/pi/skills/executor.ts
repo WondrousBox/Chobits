@@ -49,6 +49,7 @@ export function createSkillSessionState(): SkillSessionState {
   return {
     activeSkillNames: new Set<string>(),
     activatedToolNames: new Set<string>(),
+    approvedGuardedSkillNames: new Set<string>(),
     discoveredSkillNames: new Set<string>(),
     loadedSkillNames: new Set<string>()
   }
@@ -65,6 +66,10 @@ export function markSkillLoaded(state: SkillSessionState, skillName: string): vo
 
 export function markSkillActive(state: SkillSessionState, skillName: string): void {
   state.activeSkillNames.add(skillName)
+}
+
+export function markGuardedSkillApproved(state: SkillSessionState, skillName: string): void {
+  state.approvedGuardedSkillNames.add(skillName)
 }
 
 async function loadSkillContent(entry: SkillRegistryEntry): Promise<string> {

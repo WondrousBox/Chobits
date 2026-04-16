@@ -1,6 +1,8 @@
 import { markSkillDiscovered } from './executor'
 import { searchSkills } from './matcher'
 import type { SkillRegistry } from './registry'
+import { getSkillSourceInfo, requiresSkillSourceCaution } from './source-info'
+import { getSkillSourcePolicy } from './source-policy'
 import type { SkillSearchResult, SkillSessionState } from './types'
 
 export interface BuildSkillDiscoveryPromptOptions {
@@ -46,6 +48,8 @@ export function discoverRelevantSkills(registry: SkillRegistry, options: BuildSk
 }
 
 function formatDiscoveryLine(match: SkillSearchResult): string {
+  const sourceInfo = getSkillSourceInfo(match.record)
+  const sourcePolicy = getSkillSourcePolicy(match.record)
   const whyParts: string[] = []
 
   if (match.record.whenToUse) {
@@ -54,6 +58,16 @@ function formatDiscoveryLine(match: SkillSearchResult): string {
 
   if (match.matchedFields.length > 0) {
     whyParts.push(`Matched on: ${match.matchedFields.join(', ')}`)
+  }
+
+  whyParts.push(`Source: ${sourceInfo.label}`)
+
+  if (requiresSkillSourceCaution(sourceInfo.trustLevel) && sourceInfo.trustNote) {
+    whyParts.push(`Caution: ${normalizeInlineText(sourceInfo.trustNote)}`)
+  }
+
+  if (sourcePolicy.riskLevel === 'guarded') {
+    whyParts.push(`Guard: ${normalizeInlineText(sourcePolicy.message)}`)
   }
 
   return `- \`${match.record.name}\`: ${match.record.description}${whyParts.length > 0 ? ` ${whyParts.join(' ')}` : ''}`

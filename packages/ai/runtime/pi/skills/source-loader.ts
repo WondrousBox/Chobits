@@ -6,6 +6,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { parseSkillMarkdown } from './frontmatter'
+import { buildSkillSourceInfo } from './source-info'
+import { buildSkillSourcePolicy } from './source-policy'
 import { loadSyntheticToolboxSkillEntries, SYNTHETIC_TOOLBOX_PRIORITY } from './synthetic-toolbox'
 import type { LoadSkillSourcesOptions, LoadSkillSourcesResult, SkillIssue, SkillRegistryEntry, SkillSource } from './types'
 
@@ -223,7 +225,19 @@ async function loadSkillFileCandidate(candidate: SkillFileCandidate): Promise<{ 
             contentHash: createHash('sha256').update(markdown).digest('hex'),
             skillDir: candidate.skillDir,
             skillFilePath: candidate.skillFilePath,
-            source: candidate.source
+            source: candidate.source,
+            sourcePolicy: buildSkillSourcePolicy({
+              activationToolIds: parsed.metadata.activationToolIds,
+              allowedToolIds: parsed.metadata.allowedToolIds,
+              executionContext: parsed.metadata.executionContext,
+              source: candidate.source
+            }),
+            sourceInfo: buildSkillSourceInfo({
+              skillDir: candidate.skillDir,
+              source: candidate.source,
+              sourceRootDir: candidate.rootDir
+            }),
+            sourceRootDir: candidate.rootDir
           }
         }
       ],

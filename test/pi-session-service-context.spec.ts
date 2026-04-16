@@ -194,7 +194,20 @@ user-invocable: true
       matchedReference: 'subtitle-translate',
       model: undefined,
       remainingQuery: 'translate this subtitle into English',
-      skillName: 'subtitle-translate'
+      skillName: 'subtitle-translate',
+      source: 'project',
+      sourceLabel: 'Project',
+      sourcePolicy: {
+        message: 'This skill source is treated as normal within the current runtime guardrails.',
+        recommendedMode: 'inline',
+        requiresExplicitUserIntent: false,
+        requiresPreviewBeforeInline: false,
+        riskLevel: 'normal',
+        sensitiveToolCategories: [],
+        sensitiveToolIds: []
+      },
+      trustLevel: 'workspace',
+      trustNote: expect.stringContaining('Workspace skill')
     })
     expect(capturedResolved.messages).toEqual([{ role: 'user', content: 'translate this subtitle into English' }])
     expect(capturedPrompt).toBe('translate this subtitle into English')
@@ -402,7 +415,20 @@ user-invocable: true
       matchedReference: 'translate-subtitle',
       model: undefined,
       remainingQuery: 'translate this subtitle into English',
-      skillName: 'subtitle-translate'
+      skillName: 'subtitle-translate',
+      source: 'project',
+      sourceLabel: 'Project',
+      sourcePolicy: {
+        message: 'This skill source is treated as normal within the current runtime guardrails.',
+        recommendedMode: 'inline',
+        requiresExplicitUserIntent: false,
+        requiresPreviewBeforeInline: false,
+        riskLevel: 'normal',
+        sensitiveToolCategories: [],
+        sensitiveToolIds: []
+      },
+      trustLevel: 'workspace',
+      trustNote: expect.stringContaining('Workspace skill')
     })
     expect(capturedResolved.messages).toEqual([{ role: 'user', content: 'translate this subtitle into English' }])
     expect(capturedPrompt).toBe('translate this subtitle into English')
@@ -514,7 +540,20 @@ user-invocable: true
       matchedReference: '字幕翻译',
       model: undefined,
       remainingQuery: 'translate this subtitle into English',
-      skillName: '字幕翻译'
+      skillName: '字幕翻译',
+      source: 'project',
+      sourceLabel: 'Project',
+      sourcePolicy: {
+        message: 'This skill source is treated as normal within the current runtime guardrails.',
+        recommendedMode: 'inline',
+        requiresExplicitUserIntent: false,
+        requiresPreviewBeforeInline: false,
+        riskLevel: 'normal',
+        sensitiveToolCategories: [],
+        sensitiveToolIds: []
+      },
+      trustLevel: 'workspace',
+      trustNote: expect.stringContaining('Workspace skill')
     })
     expect(capturedResolved.messages).toEqual([{ role: 'user', content: 'translate this subtitle into English' }])
     expect(capturedPrompt).toBe('translate this subtitle into English')
@@ -530,15 +569,31 @@ user-invocable: true
     let childOptions: any
     let capturedChildPrompt = ''
     let capturedChildHistory: any[] = []
+    let capturedForkResult: any
+    const forkProgressEvents: Array<{ callId: string; progress: number; message?: string }> = []
+    const forkToolCalls: Array<{ name: string; args: unknown; callId: string }> = []
+    const forkToolResults: Array<{ callId: string; result: unknown }> = []
+    let childSubscriber: ((event: any) => void) | undefined
 
     piSessionFactoryCreateCodingSessionMock
       .mockImplementationOnce(async () => {
         const sessionState = { messages: [] as any[] }
-        const toolContext: Record<string, any> = {}
+        const toolContext: Record<string, any> = {
+          emitToolCall: (name: string, args: unknown, callId: string) => {
+            forkToolCalls.push({ name, args, callId })
+          },
+          emitToolResult: (callId: string, result: unknown) => {
+            forkToolResults.push({ callId, result })
+          },
+          reportProgress: (callId: string, progress: number, message?: string) => {
+            forkProgressEvents.push({ callId, progress, message })
+          }
+        }
         const session = {
           agent: {
             prompt: vi.fn(async () => {
-              const forkResult = await toolContext.runForkedSkill?.({
+              capturedForkResult = await toolContext.runForkedSkill?.(
+                {
                 activatedToolNames: [],
                 activationToolIds: ['query-resources'],
                 allowedToolIds: ['query-resources', 'translate-subtitles'],
@@ -568,8 +623,10 @@ user-invocable: true
                 },
                 resolvedArgs: {},
                 source: 'project'
-              })
-              sessionState.messages.push(createAssistantMessage(forkResult?.content || 'missing fork result'))
+                },
+                { toolCallId: 'skill-call-1' }
+              )
+              sessionState.messages.push(createAssistantMessage(capturedForkResult?.content || 'missing fork result'))
             }),
             replaceMessages: vi.fn()
           },
@@ -589,6 +646,17 @@ user-invocable: true
           agent: {
             prompt: vi.fn(async (prompt: string) => {
               capturedChildPrompt = prompt
+              childSubscriber?.({
+                type: 'tool_execution_start',
+                toolCallId: 'child-1',
+                toolName: 'resourceQueryTool',
+                args: { query: 'demo' }
+              })
+              childSubscriber?.({
+                type: 'tool_execution_end',
+                toolCallId: 'child-1',
+                result: { ok: true }
+              })
               sessionState.messages.push(createAssistantMessage('forked child done'))
             }),
             replaceMessages: vi.fn((history: any[]) => {
@@ -596,6 +664,10 @@ user-invocable: true
             })
           },
           getActiveToolNames: () => ['resourceQueryTool', 'translationTool'],
+          subscribe: vi.fn((listener: (event: any) => void) => {
+            childSubscriber = listener
+            return vi.fn()
+          }),
           state: sessionState
         }
 
@@ -657,6 +729,37 @@ user-invocable: true
     expect(capturedChildPrompt).toContain('Please review this change carefully.')
     expect(capturedChildPrompt).toContain('Skill instructions:')
     expect(capturedChildPrompt).toContain('Review the target carefully.')
+    expect(capturedForkResult).toMatchObject({
+      activeToolNames: ['resourceQueryTool', 'translationTool'],
+      content: 'forked child done',
+      model: 'gpt-5.1',
+      thinkingLevel: 'high',
+      toolCalls: [
+        {
+          args: { query: 'demo' },
+          callId: 'skill-call-1:fork:child-1',
+          result: { ok: true },
+          toolName: 'resourceQueryTool'
+        }
+      ]
+    })
+    expect(forkToolCalls).toEqual([
+      {
+        args: { query: 'demo' },
+        callId: 'skill-call-1:fork:child-1',
+        name: 'resourceQueryTool'
+      }
+    ])
+    expect(forkToolResults).toEqual([
+      {
+        callId: 'skill-call-1:fork:child-1',
+        result: { ok: true }
+      }
+    ])
+    expect(forkProgressEvents).toHaveLength(6)
+    expect(forkProgressEvents.every((event) => event.callId === 'skill-call-1')).toBe(true)
+    expect(forkProgressEvents.at(0)?.message).toContain('Starting forked skill')
+    expect(forkProgressEvents.at(-1)?.progress).toBe(100)
   })
 })
 

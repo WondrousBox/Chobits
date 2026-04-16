@@ -1,3 +1,5 @@
+import { getSkillSourceInfo, requiresSkillSourceCaution } from './source-info'
+import { getSkillSourcePolicy } from './source-policy'
 import type { SkillRegistry } from './registry'
 import type { ExplicitSkillInvocation, RequestedSkillInvocation, SkillRecord } from './types'
 
@@ -57,6 +59,18 @@ export function buildExplicitSkillInvocationPrompt(invocation: ExplicitSkillInvo
     `The user explicitly invoked the user-invocable skill \`${invocation.skillName}\` via \`/${invocation.matchedReference}\`.`,
     `Treat this as a strong instruction: call \`skillUseTool({ skill: '${invocation.skillName}', mode: 'inline' })\` before switching to other workflow skills unless the user is only clarifying details.`
   ]
+
+  if (invocation.sourceLabel) {
+    lines.push(`Skill source: ${invocation.sourceLabel}.`)
+  }
+
+  if (requiresSkillSourceCaution(invocation.trustLevel) && invocation.trustNote) {
+    lines.push(`Source caution: ${invocation.trustNote}`)
+  }
+
+  if (invocation.sourcePolicy?.riskLevel === 'guarded') {
+    lines.push(`Execution guard: ${invocation.sourcePolicy.message}`)
+  }
 
   if (invocation.executionContext === 'fork') {
     lines.push('This skill prefers `context: fork`, so preserve that execution hint after loading the skill and do not assume its suggested tools belong in the current session.')
@@ -159,12 +173,19 @@ function toExplicitSkillInvocation(
   matchedReference: string,
   remainingQuery?: string
 ): ExplicitSkillInvocation {
+  const sourceInfo = getSkillSourceInfo(record)
+  const sourcePolicy = getSkillSourcePolicy(record)
   return {
     effort: record.effort,
     executionContext: record.executionContext,
     matchedReference,
     model: record.model,
     remainingQuery,
-    skillName: record.name
+    skillName: record.name,
+    source: record.source,
+    sourceLabel: sourceInfo.label,
+    sourcePolicy,
+    trustLevel: sourceInfo.trustLevel,
+    trustNote: sourceInfo.trustNote
   }
 }

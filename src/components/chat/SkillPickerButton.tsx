@@ -2,11 +2,13 @@ import type { SkillInfo } from '@packages/ai/types';
 import { useEffect, useMemo, useState } from 'react';
 import { TbSparkles } from 'react-icons/tb';
 
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { applySkillPickerSelection, deriveSkillPickerQuery, isTypingSlashSkillQuery, shouldEnableSkillPicker } from '@/lib/chat-skill-picker';
+import { getSkillTrustPresentation } from '@/lib/skill-trust';
 
 interface SkillPickerButtonProps {
   agentId: string;
@@ -87,25 +89,45 @@ export default function SkillPickerButton({ agentId, highlightedSkillName, loadi
             <CommandEmpty>{loading ? '正在加载 skills...' : '没有匹配的 skill'}</CommandEmpty>
             <CommandGroup heading="Available Skills">
               {pickerItems.map((skill) => (
-                <CommandItem
-                  key={skill.name}
-                  className={highlightedSkillName === skill.name ? 'bg-accent text-accent-foreground' : undefined}
-                  keywords={skill.keywords}
-                  value={[skill.name, ...skill.aliases, skill.description, skill.whenToUse || ''].join(' ')}
-                  onMouseEnter={() => onHighlightSkill?.(skill.name)}
-                  onSelect={() => {
-                    onSelect(applySkillPickerSelection(value, skill.name));
-                    setManualOpen(false);
-                  }}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">{skill.name}</div>
-                    <div className="truncate text-xs text-muted-foreground">{skill.description}</div>
-                    {skill.whenToUse && <div className="line-clamp-2 text-[11px] text-muted-foreground/90">{skill.whenToUse}</div>}
-                    {skill.argumentHint && <div className="truncate text-[11px] text-muted-foreground">args: {skill.argumentHint}</div>}
-                    {skill.aliases.length > 0 && <div className="truncate text-[11px] text-muted-foreground">aliases: {skill.aliases.join(', ')}</div>}
-                  </div>
-                </CommandItem>
+                (() => {
+                  const trust = getSkillTrustPresentation(skill);
+
+                  return (
+                    <CommandItem
+                      key={skill.name}
+                      className={highlightedSkillName === skill.name ? 'bg-accent text-accent-foreground' : undefined}
+                      keywords={skill.keywords}
+                      value={[skill.name, ...skill.aliases, skill.description, skill.whenToUse || ''].join(' ')}
+                      onMouseEnter={() => onHighlightSkill?.(skill.name)}
+                      onSelect={() => {
+                        onSelect(applySkillPickerSelection(value, skill.name));
+                        setManualOpen(false);
+                      }}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <div className="truncate font-medium">{skill.name}</div>
+                          {trust && (
+                            <Badge variant="outline" className={`shrink-0 rounded-full px-1.5 py-0 text-[10px] ${trust.badgeClassName}`}>
+                              {trust.badgeLabel}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="truncate text-xs text-muted-foreground">{skill.description}</div>
+                        {skill.whenToUse && <div className="line-clamp-2 text-[11px] text-muted-foreground/90">{skill.whenToUse}</div>}
+                        {skill.argumentHint && <div className="truncate text-[11px] text-muted-foreground">args: {skill.argumentHint}</div>}
+                        {(skill.sourceLabel || skill.sourceDetail) && (
+                          <div className="truncate text-[11px] text-muted-foreground">
+                            source: {skill.sourceLabel || skill.source}
+                            {skill.sourceDetail ? ` · ${skill.sourceDetail}` : ''}
+                          </div>
+                        )}
+                        {trust?.note && <div className="line-clamp-2 text-[11px] text-muted-foreground">{trust.note}</div>}
+                        {skill.aliases.length > 0 && <div className="truncate text-[11px] text-muted-foreground">aliases: {skill.aliases.join(', ')}</div>}
+                      </div>
+                    </CommandItem>
+                  );
+                })()
               ))}
             </CommandGroup>
           </CommandList>

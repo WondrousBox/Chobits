@@ -1,6 +1,7 @@
 import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
 import { Type } from '@sinclair/typebox';
 
+import { resolveGuardedToolExecution } from '../skills';
 import type { PiSessionToolContext } from '../tool-context';
 import { createJsonToolResult } from './result';
 
@@ -45,14 +46,12 @@ function resolveChannelId(videoInfo: YoutubeInfoLike): string | undefined {
 }
 
 export function createPiYoutubeDownloadTool(toolContext: PiSessionToolContext): ToolDefinition<typeof youtubeDownloadParameters> {
-  void toolContext;
-
   return {
     name: 'youtubeDownloadTool',
     label: 'youtubeDownloadTool',
     description: '下载 YouTube 视频到本地资源库。会先解析视频信息，再启动后台下载任务，并返回频道信息供后续提示订阅。',
     parameters: youtubeDownloadParameters,
-    async execute(_toolCallId, input, signal) {
+    async execute(toolCallId, input, signal) {
       const { filename, folderId, quality = 1, url } = input;
 
       if (signal?.aborted) {
@@ -68,6 +67,11 @@ export function createPiYoutubeDownloadTool(toolContext: PiSessionToolContext): 
       }
 
       try {
+        const guardResolution = await resolveGuardedToolExecution(toolContext, toolCallId, 'youtube-download');
+        if (guardResolution?.kind === 'blocked' || guardResolution?.kind === 'cancel') {
+          return createJsonToolResult(guardResolution.details);
+        }
+
         const { downloadManager, getVideoInfo } = await loadYoutubeDownloader();
         const videoInfo = (await getVideoInfo(url, 30000)) as YoutubeInfoLike;
 

@@ -223,7 +223,13 @@ effort: high
       activeToolNames: ['resourceQueryTool'],
       content: 'forked child finished',
       model: 'gpt-5.1',
-      thinkingLevel: 'high'
+      thinkingLevel: 'high',
+      toolCalls: [
+        {
+          callId: 'call-7:fork:child-1',
+          toolName: 'resourceQueryTool'
+        }
+      ]
     })
     const toolContext = createMockToolContext(workspaceRoot, registry, { runForkedSkill })
     const skillUseTool = createPiSkillUseTool(toolContext as any)
@@ -243,10 +249,207 @@ effort: high
       activeToolNames: ['resourceQueryTool'],
       content: 'forked child finished',
       model: 'gpt-5.1',
-      thinkingLevel: 'high'
+      thinkingLevel: 'high',
+      toolCalls: [
+        {
+          callId: 'call-7:fork:child-1',
+          toolName: 'resourceQueryTool'
+        }
+      ]
     })
     expect(useResult.warning).toBeUndefined()
     expect(toolContext.session.getActiveToolNames()).toEqual(['skillSearchTool', 'skillUseTool'])
+  })
+
+  it('surfaces plugin source metadata in skill search and use results', async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-skill-tools-plugin-source-'))
+    tempRoots.push(tempRoot)
+
+    const bundledRoot = path.join(tempRoot, 'bundled')
+    const homeDir = path.join(tempRoot, 'home')
+    const workspaceRoot = path.join(tempRoot, 'repo')
+    const pluginRoot = path.join(tempRoot, 'plugins', 'review-pack')
+
+    await fs.mkdir(path.join(workspaceRoot, '.git'), { recursive: true })
+    await writeSkill(
+      path.join(pluginRoot, 'review-pack', 'SKILL.md'),
+      `---
+name: review-pack
+description: Plugin-owned review workflow.
+user-invocable: true
+---
+1. Review the selected target.
+`
+    )
+
+    const registry = await createSkillRegistry({
+      bundledSkillRoot: bundledRoot,
+      homeDir,
+      includeSyntheticToolbox: false,
+      pluginSkillRoots: [pluginRoot],
+      workspaceRoot
+    })
+
+    const toolContext = createMockToolContext(workspaceRoot, registry)
+    const skillSearchTool = createPiSkillSearchTool(toolContext as any)
+    const skillUseTool = createPiSkillUseTool(toolContext as any)
+
+    const searchResult = (await executeTool(skillSearchTool, 'call-8', { action: 'get', query: 'review-pack' })).details as any
+    const useResult = (await executeTool(skillUseTool, 'call-9', { mode: 'preview', skill: 'review-pack' })).details as any
+
+    expect(searchResult.skill).toMatchObject({
+      name: 'review-pack',
+      source: 'plugin',
+      sourceLabel: 'Plugin: review-pack',
+      sourcePolicy: {
+        recommendedMode: 'preview',
+        requiresExplicitUserIntent: false,
+        requiresPreviewBeforeInline: false,
+        riskLevel: 'caution'
+      },
+      trustNote: expect.stringContaining('Plugin-provided skill'),
+      trustLevel: 'plugin'
+    })
+    expect(useResult).toMatchObject({
+      skill: 'review-pack',
+      source: 'plugin',
+      sourceLabel: 'Plugin: review-pack',
+      sourcePolicy: {
+        recommendedMode: 'preview',
+        requiresExplicitUserIntent: false,
+        requiresPreviewBeforeInline: false,
+        riskLevel: 'caution'
+      },
+      trustNote: expect.stringContaining('Plugin-provided skill'),
+      trustLevel: 'plugin'
+    })
+    expect(useResult.warning).toContain('Plugin-provided skill')
+  })
+
+  it('guards high-impact plugin skills unless inline execution is explicitly confirmed', async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-skill-tools-guarded-plugin-'))
+    tempRoots.push(tempRoot)
+
+    const bundledRoot = path.join(tempRoot, 'bundled')
+    const homeDir = path.join(tempRoot, 'home')
+    const workspaceRoot = path.join(tempRoot, 'repo')
+    const pluginRoot = path.join(tempRoot, 'plugins', 'review-pack')
+
+    await fs.mkdir(path.join(workspaceRoot, '.git'), { recursive: true })
+    await writeSkill(
+      path.join(pluginRoot, 'danger-review', 'SKILL.md'),
+      `---
+name: danger-review
+description: Plugin review workflow with shell access.
+user-invocable: true
+allowed-tools:
+  - shellExecTool
+---
+1. Run a careful verification workflow.
+`
+    )
+
+    const registry = await createSkillRegistry({
+      bundledSkillRoot: bundledRoot,
+      homeDir,
+      includeSyntheticToolbox: false,
+      pluginSkillRoots: [pluginRoot],
+      workspaceRoot
+    })
+
+    const toolContext = createMockToolContext(workspaceRoot, registry)
+    const skillUseTool = createPiSkillUseTool(toolContext as any)
+
+    const blockedResult = (await executeTool(skillUseTool, 'call-10', { mode: 'inline', skill: 'danger-review' })).details as any
+    expect(blockedResult).toMatchObject({
+      success: false,
+      confirmationOutcome: 'blocked',
+      requiresConfirmation: true,
+      skill: 'danger-review',
+      source: 'plugin',
+      sourceLabel: 'Plugin: review-pack',
+      sourcePolicy: {
+        recommendedMode: 'preview',
+        requiresExplicitUserIntent: true,
+        requiresPreviewBeforeInline: true,
+        riskLevel: 'guarded'
+      },
+      trustLevel: 'plugin'
+    })
+    expect(blockedResult.nextStep).toContain("mode: 'preview'")
+
+    const confirmedResult = (await executeTool(skillUseTool, 'call-11', { acknowledgeRisk: true, mode: 'inline', skill: 'danger-review' })).details as any
+    expect(confirmedResult.success).toBe(true)
+    expect(confirmedResult.sourcePolicy).toMatchObject({
+      requiresExplicitUserIntent: true,
+      riskLevel: 'guarded'
+    })
+    expect(confirmedResult.warning).toContain('Plugin-provided skill')
+  })
+
+  it('uses the ask-user interaction channel to resolve guarded skill execution when available', async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-skill-tools-guarded-plugin-choice-'))
+    tempRoots.push(tempRoot)
+
+    const bundledRoot = path.join(tempRoot, 'bundled')
+    const homeDir = path.join(tempRoot, 'home')
+    const workspaceRoot = path.join(tempRoot, 'repo')
+    const pluginRoot = path.join(tempRoot, 'plugins', 'review-pack')
+
+    await fs.mkdir(path.join(workspaceRoot, '.git'), { recursive: true })
+    await writeSkill(
+      path.join(pluginRoot, 'danger-review', 'SKILL.md'),
+      `---
+name: danger-review
+description: Plugin review workflow with shell access.
+user-invocable: true
+allowed-tools:
+  - shellExecTool
+---
+1. Run a careful verification workflow.
+`
+    )
+
+    const registry = await createSkillRegistry({
+      bundledSkillRoot: bundledRoot,
+      homeDir,
+      includeSyntheticToolbox: false,
+      pluginSkillRoots: [pluginRoot],
+      workspaceRoot
+    })
+
+    let choiceRequest: any
+    const toolContext = createMockToolContext(workspaceRoot, registry, {
+      emitUserChoiceRequest: (request: unknown) => {
+        choiceRequest = request
+      },
+      waitForUserChoiceResponse: async () => ({
+        answers: {
+          guarded_skill_execution: ['preview']
+        },
+        choiceId: 'choice-1'
+      })
+    })
+    const skillUseTool = createPiSkillUseTool(toolContext as any)
+
+    const previewedResult = (await executeTool(skillUseTool, 'call-12', { mode: 'inline', skill: 'danger-review' })).details as any
+
+    expect(choiceRequest.prompt).toContain('更严格的执行保护')
+    expect(choiceRequest.questions[0].options.map((option: any) => option.value)).toEqual(['preview', 'inline', 'cancel'])
+    expect(previewedResult).toMatchObject({
+      success: true,
+      confirmationOutcome: 'previewed',
+      executionMode: 'preview',
+      skill: 'danger-review',
+      source: 'plugin',
+      sourcePolicy: {
+        recommendedMode: 'preview',
+        requiresExplicitUserIntent: true,
+        riskLevel: 'guarded'
+      }
+    })
+    expect(previewedResult.activatedToolNames).toEqual([])
+    expect(previewedResult.warning).toContain('User chose to preview')
   })
 })
 

@@ -26,6 +26,7 @@ describe('skill prompt helpers', () => {
 
     expect(prompt).toContain('## Available Skills')
     expect(prompt).toContain('`subtitle-summary`')
+    expect(prompt).toContain('source: Bundled')
     expect(prompt).not.toContain('`internal-hidden`')
     expect(prompt).toContain('还有 1 个 skills 未展开')
   })
@@ -56,9 +57,41 @@ describe('skill prompt helpers', () => {
 
     expect(prompt).toContain('## Relevant Skills For This Request')
     expect(prompt).toContain('`subtitle-translate`')
+    expect(prompt).toContain('Source: Bundled')
     expect(prompt).not.toContain('`mobile-subtitle-translate`')
     expect(state.discoveredSkillNames.has('subtitle-translate')).toBe(true)
     expect(state.lastDiscoveryAt).toBeTypeOf('number')
+  })
+
+  it('adds source caution for plugin skills in listing and discovery prompts', () => {
+    const registry = SkillRegistry.fromEntries([
+      createEntry({
+        allowedToolIds: ['shell-exec'],
+        aliases: ['review'],
+        description: 'Plugin review workflow.',
+        name: 'review-pack',
+        source: 'plugin',
+        sourceInfo: {
+          label: 'Plugin: review-pack',
+          trustLevel: 'plugin',
+          trustNote: 'Plugin-provided skill. Verify the plugin source before sensitive use.'
+        },
+        whenToUse: 'Use when the user asks for a deeper review.'
+      })
+    ])
+
+    const listingPrompt = buildSkillListingPrompt(registry, { limit: 5 })
+    const discoveryPrompt = buildSkillDiscoveryPrompt(registry, {
+      query: 'please review this change',
+      workspaceRoot: '/repo'
+    })
+
+    expect(listingPrompt).toContain('source: Plugin: review-pack')
+    expect(listingPrompt).toContain('caution: Plugin-provided skill.')
+    expect(listingPrompt).toContain('guard:')
+    expect(discoveryPrompt).toContain('Source: Plugin: review-pack')
+    expect(discoveryPrompt).toContain('Caution: Plugin-provided skill.')
+    expect(discoveryPrompt).toContain('Guard:')
   })
 })
 

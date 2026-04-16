@@ -1,7 +1,7 @@
 import type { ToolDefinition } from '@mariozechner/pi-coding-agent'
 import { Type } from '@sinclair/typebox'
 
-import { createSkillSessionState, findSkillByReference, isSkillPathMatched, markSkillDiscovered, searchSkills } from '../skills'
+import { createSkillSessionState, findSkillByReference, getSkillSourceInfo, getSkillSourcePolicy, isSkillPathMatched, markSkillDiscovered, searchSkills } from '../skills'
 import type { PiSessionToolContext } from '../tool-context'
 import type { SkillRecord, SkillSessionState } from '../skills'
 import { createJsonToolResult } from './result'
@@ -100,6 +100,8 @@ function buildSkillMetadata(
   workspaceRoot: string,
   pathsMatched = isSkillPathMatched(record, workspaceRoot)
 ) {
+  const sourceInfo = getSkillSourceInfo(record)
+  const sourcePolicy = getSkillSourcePolicy(record)
   return {
     activationToolIds: record.activationToolIds,
     aliases: record.aliases,
@@ -118,7 +120,12 @@ function buildSkillMetadata(
     paths: record.paths,
     pathsMatched,
     source: record.source,
+    sourceDetail: sourceInfo.detail,
+    sourceLabel: sourceInfo.label,
+    sourcePolicy,
     tags: record.tags,
+    trustNote: sourceInfo.trustNote,
+    trustLevel: sourceInfo.trustLevel,
     userInvocable: record.userInvocable,
     whenToUse: record.whenToUse
   }
