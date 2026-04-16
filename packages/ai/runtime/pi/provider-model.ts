@@ -1,4 +1,4 @@
-import { getProviderDefinition, getProviderDefinitionDefaultModel, getProviderDefinitionPiBaseUrl } from '../../providers/service';
+import { getProviderDefinition, getProviderDefinitionDefaultModel, getProviderDefinitionModel, getProviderDefinitionPiBaseUrl } from '../../providers/service';
 import type { ResolvedPiModelConfig, ResolvedPiRequest } from './contracts';
 
 type PiAiModule = typeof import('@mariozechner/pi-ai');
@@ -20,7 +20,12 @@ export function resolvePiFallbackModelId(providerId: string, modelId?: string): 
 
 export function resolvePiFallbackBaseUrl(model: ResolvedPiModelConfig): string {
   const baseUrl = sanitizePiBaseUrl(model.baseUrl);
-  if (baseUrl) return baseUrl;
+  if (baseUrl) {
+    if (shouldUseMiniMaxAnthropicCompatibility(model, baseUrl)) {
+      return sanitizePiBaseUrl(getProviderDefinitionPiBaseUrl(model.canonicalProviderId, 'openai')) || 'https://api.minimaxi.com/anthropic';
+    }
+    return baseUrl;
+  }
 
   return sanitizePiBaseUrl(getProviderDefinitionPiBaseUrl(model.canonicalProviderId, 'openai')) || 'https://api.openai.com/v1';
 }
@@ -29,7 +34,43 @@ export function inferPiReasoningCapability(modelId: string): boolean {
   return /gpt-5|^o[134]|reason|thinking|claude.*4|gemini-2\.5/i.test(modelId);
 }
 
+function isMiniMaxOfficialOpenAIBaseUrl(baseUrl: string): boolean {
+  return /https:\/\/api\.(minimax\.io|minimaxi\.com)\/v1$/i.test(baseUrl);
+}
+
+function isMiniMaxAnthropicBaseUrl(baseUrl: string): boolean {
+  return /https:\/\/api\.(minimax\.io|minimaxi\.com)\/anthropic$/i.test(baseUrl);
+}
+
+function shouldUseMiniMaxAnthropicCompatibility(model: ResolvedPiModelConfig, baseUrl?: string): boolean {
+  if (model.canonicalProviderId !== 'minimax') {
+    return false;
+  }
+
+  const normalizedBaseUrl = sanitizePiBaseUrl(baseUrl);
+  if (!normalizedBaseUrl) {
+    return true;
+  }
+
+  return isMiniMaxOfficialOpenAIBaseUrl(normalizedBaseUrl) || isMiniMaxAnthropicBaseUrl(normalizedBaseUrl);
+}
+
+export function resolvePiModelReasoningCapability(model: ResolvedPiModelConfig): boolean {
+  const definitionModel = getProviderDefinitionModel(model.canonicalProviderId, model.modelId);
+  if (typeof definitionModel?.abilities?.reasoning === 'boolean') {
+    return definitionModel.abilities.reasoning;
+  }
+
+  return inferPiReasoningCapability(model.modelId);
+}
+
 export function resolvePiApi(model: ResolvedPiModelConfig): PiApi {
+  const baseUrl = sanitizePiBaseUrl(model.baseUrl);
+
+  if (shouldUseMiniMaxAnthropicCompatibility(model, baseUrl)) {
+    return 'anthropic-messages';
+  }
+
   const protocolKind = getProviderDefinition(model.canonicalProviderId)?.protocol.kind;
 
   switch (protocolKind) {
@@ -137,11 +178,11 @@ export async function buildPiModel(ai: PiAiModule, resolved: ResolvedPiRequest):
     maxTokens: resolved.request.maxTokens || 8192,
     name: fallbackModelId,
     provider: resolved.model.providerId || resolved.model.canonicalProviderId,
-    reasoning: inferPiReasoningCapability(fallbackModelId),
+    reasoning: resolvePiModelReasoningCapability(resolved.model),
     ...(api === 'openai-completions'
       ? {
-        compat: buildPiOpenAICompat(resolved.model)
-      }
+          compat: buildPiOpenAICompat(resolved.model)
+        }
       : {})
   } as PiModel;
 }

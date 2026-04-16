@@ -19,6 +19,8 @@ import { createPiPushCardTool } from './push-card';
 import { createPiReadSubtitleTool } from './read-subtitle';
 import { createPiResourceQueryTool } from './resource-query';
 import { createPiShellExecTool } from './shell-exec';
+import { createPiSkillSearchTool } from './skill-search';
+import { createPiSkillUseTool } from './skill-use';
 import { createPiSummaryTool } from './summary';
 import { createPiToolboxLookupTool } from './toolbox-lookup';
 import { createPiTranslationTool } from './translation';
@@ -42,6 +44,8 @@ const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
   'query-resources': createPiResourceQueryTool,
   'read-subtitle': createPiReadSubtitleTool,
   'shell-exec': createPiShellExecTool,
+  'skill-search': createPiSkillSearchTool,
+  'skill-use': createPiSkillUseTool,
   'summarize-content': createPiSummaryTool,
   'translate-subtitles': createPiTranslationTool,
   'web-read': createPiWebReadTool,
@@ -72,6 +76,8 @@ const COMPAT_NAME_TO_TOOL_ID: Record<string, string> = {
   resourceQueryTool: 'query-resources',
   readSubtitleTool: 'read-subtitle',
   shellExecTool: 'shell-exec',
+  skillSearchTool: 'skill-search',
+  skillUseTool: 'skill-use',
   summaryTool: 'summarize-content',
   translationTool: 'translate-subtitles',
   webReadTool: 'web-read',

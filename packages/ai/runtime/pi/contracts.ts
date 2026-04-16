@@ -1,4 +1,5 @@
 import type { ChatMessage, ChatRequest, ProviderPresetRecord } from '../../types';
+import type { ExplicitSkillInvocation, RequestedSkillInvocation } from './skills/types';
 
 export type PiRuntimeId = 'legacy' | 'pi';
 
@@ -66,6 +67,8 @@ export interface ResolvedPiRequest {
   enabledToolIds: string[];
   preset?: ProviderPresetRecord;
   coding?: PiCodingWorkspaceContext;
+  requestedSkillInvocation?: RequestedSkillInvocation;
+  explicitSkillInvocation?: ExplicitSkillInvocation;
 }
 
 export interface PiToolDescriptor {

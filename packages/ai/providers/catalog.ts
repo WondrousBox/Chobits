@@ -3,6 +3,7 @@ import type { ProviderAdapter } from '../types';
 import { AnthropicProvider } from './anthropic';
 import { DeepSeekProvider } from './deepseek';
 import { GeminiProvider } from './gemini';
+import { MiniMaxProvider } from './minimax';
 import { OllamaProvider } from './ollama';
 import { OpenAIProvider } from './openai';
 import { QwenProvider } from './qwen';
@@ -14,6 +15,7 @@ const BUILTIN_PROVIDER_FACTORIES: Record<BuiltinProviderId, () => ProviderAdapte
   anthropic: () => new AnthropicProvider(),
   deepseek: () => new DeepSeekProvider(),
   gemini: () => new GeminiProvider(),
+  minimax: () => new MiniMaxProvider(),
   ollama: () => new OllamaProvider(),
   openai: () => new OpenAIProvider(),
   qwen: () => new QwenProvider(),
@@ -21,7 +23,7 @@ const BUILTIN_PROVIDER_FACTORIES: Record<BuiltinProviderId, () => ProviderAdapte
   zhipu: () => new ZhipuProvider()
 };
 
-const BUILTIN_PROVIDER_ORDER: BuiltinProviderId[] = ['anthropic', 'deepseek', 'gemini', 'ollama', 'openai', 'qwen', 'zai', 'zhipu'];
+const BUILTIN_PROVIDER_ORDER: BuiltinProviderId[] = ['anthropic', 'deepseek', 'gemini', 'minimax', 'ollama', 'openai', 'qwen', 'zai', 'zhipu'];
 
 export function registerBuiltInProviders(): void {
   for (const providerId of BUILTIN_PROVIDER_ORDER) {

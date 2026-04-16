@@ -39,6 +39,7 @@ import {
 } from './providers/service';
 import { getProvider, listAgents, listProviders } from './registry';
 import { PiExecutionService } from './runtime/pi/execution-service';
+import { createSkillRegistry } from './runtime/pi/skills';
 import { SummaryService } from './services/summary-service';
 import { TaggingService } from './services/tagging-service';
 import { TranslationService } from './services/translation-service';
@@ -193,6 +194,32 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
   // 列出所有可用工具
   ipcMain.handle('ai:listTools', async () => {
     return listToolInfos();
+  });
+
+  ipcMain.handle('ai:listSkills', async (_e, payload?: { agentId?: string; workspaceRoot?: string }) => {
+    if (payload?.agentId !== 'assistant-skills') {
+      return [];
+    }
+
+    const workspaceRoot = typeof payload.workspaceRoot === 'string' && payload.workspaceRoot.trim() ? payload.workspaceRoot.trim() : process.cwd();
+    const registry = await createSkillRegistry({
+      discoverPluginRoots: true,
+      includeBundled: false,
+      includeSyntheticToolbox: false,
+      workspaceRoot
+    });
+
+    return registry
+      .listUserInvocable()
+      .map((record) => ({
+        aliases: [...record.aliases],
+        argumentHint: record.argumentHint,
+        description: record.description,
+        name: record.name,
+        source: record.source,
+        whenToUse: record.whenToUse
+      }))
+      .sort((left, right) => left.name.localeCompare(right.name, 'zh-Hans-CN'));
   });
 
   ipcMain.handle('ai:transcribe', async (_e, payload: TranscriptionRequest) => {

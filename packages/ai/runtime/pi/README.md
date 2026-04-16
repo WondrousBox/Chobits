@@ -3,7 +3,7 @@
 更新时间：2026-04-02
 
 `packages/ai/runtime/pi` 是当前 Chobits AI 运行时里负责 Pi 接入的主目录。它不再只是实验代码，而是已经参与真实聊天、任务执行、工具调用和 coder session 的正式模块。
-当前聊天 UI 只暴露 3 个用户可选模式：`chat`（对话模式）、`assistant`（Agent模式）和 `coder`（代码模式）。
+当前聊天 UI 现在暴露 3 个用户可选模式：`chat`（对话模式）、`assistant`（Agent模式）和 `coder`（代码模式）。
 
 ## 目录职责
 
@@ -147,5 +147,18 @@
 
 - Pi runtime 已承担主聊天、one-shot、workflow 和 tool execution 的核心职责。
 - `coder` profile 已经接入真实 Chat UI，而不是停留在独立 demo 组件。
+- 默认 `assistant` 现在已接入 `SKILL.md` protocol：
+  - 会接入 `AGENTS.md` / `CLAUDE.md` instruction files
+  - 会注入 skill listing / discovery / explicit invocation 提示
+  - 请求层已支持 `extras.explicitSkillInvocation` 这类结构化 skill 调用协议
+  - 主聊天页与资源页 AI 侧栏已在发送请求时注入这类结构化协议
+  - 输入框已提供 skill picker，并支持 `/foo` 触发的轻量 slash menu
+  - picker 会展示 `whenToUse` / `argumentHint`，输入框也会提示当前命中的 skill
+  - 输入 `/foo` 时已支持 `Tab` 补全匹配 skill；当参数尚未填写时，会显示 argument hint 提示
+  - slash menu 已支持上下键切换候选、回车确认当前高亮 skill
+  - 会在 session prompt 拆分前预处理 `/skill-name ...` 这类 user-invocable skill 输入
+  - 如果请求层没有提供结构化 skill 调用，再回退到 slash 文本解析
+- `toolboxTool` 和原有 tools 仍保持可用；skill 是新增协议，不替代 legacy toolbox workflow。
+- 仓库默认仍不内置 bundled tool-wrapper skills，`packages/ai/runtime/pi/skills/bundled/` 保持为空壳。
 - 用户现在可以在聊天页和资源页 AI 侧边栏中选择一个项目目录，并在该 workspace 内完成读、搜、写、精确编辑和受限验证命令执行。
 - 新增的 coding 服务已经有针对路径越界、文本编辑、搜索过滤和受限 shell 的单测保护。

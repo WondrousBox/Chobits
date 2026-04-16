@@ -2,8 +2,8 @@ import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
 import { Type } from '@sinclair/typebox';
 
 import type { PiSessionToolContext } from '../tool-context';
+import { listPiToolDescriptors } from '../tool-registry';
 import { getToolboxSkill, listToolboxSkills, searchToolbox } from '../toolbox';
-import { listAvailableToolNames } from './index';
 import { createJsonToolResult } from './result';
 
 const toolboxParameters = Type.Object({
@@ -126,7 +126,9 @@ export function createPiToolboxLookupTool(toolContext: PiSessionToolContext): To
           return createJsonToolResult({
             success: false,
             error: 'activate 需要提供 toolNames',
-            availableTools: listAvailableToolNames().map((t) => t.compatName)
+            availableTools: listPiToolDescriptors()
+              .map((tool) => tool.compatName || tool.name)
+              .filter(Boolean)
           });
         }
 

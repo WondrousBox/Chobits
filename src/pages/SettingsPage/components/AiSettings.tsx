@@ -224,130 +224,130 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
       <div className="h-full w-full flex">
         <div className="h-full w-60 overflow-y-auto border-ring p-2 box-border" style={{ borderRightWidth: 1, borderRightStyle: 'solid' }}>
           <div className="space-y-1">
-              {providers.map((p) => {
-                const loc = pickLocale(p.schema?.locales);
-                const label = loc?.label || p.label;
-                return (
-                  <Button
-                    key={p.id}
-                    variant={selectedProviderId === p.id ? 'default' : 'outline'}
-                    className="w-full"
-                    onClick={() => {
-                      setExpandedPresetId(null);
-                      setShowCreateForm(false);
-                      setErrors((prev) => ({ ...prev, __new__: {} }));
-                      setSelectedProviderId(p.id);
-                    }}
-                  >
-                    <div className="w-full flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        {p.schema?.icon && <TintableSvg src={p.schema?.icon || ''} alt={label} className="w-4 h-4" />}
-                        <span>{label}</span>
-                      </span>
-                      <span className={`text-xs ${p.configured ? 'text-green-600' : 'text-gray-400'}`}>{p.configured ? '预设可用' : '预设待配置'}</span>
-                    </div>
-                  </Button>
-                );
-              })}
-            </div>
+            {providers.map((p) => {
+              const loc = pickLocale(p.schema?.locales);
+              const label = loc?.label || p.label;
+              return (
+                <Button
+                  key={p.id}
+                  variant={selectedProviderId === p.id ? 'default' : 'outline'}
+                  className="w-full"
+                  onClick={() => {
+                    setExpandedPresetId(null);
+                    setShowCreateForm(false);
+                    setErrors((prev) => ({ ...prev, __new__: {} }));
+                    setSelectedProviderId(p.id);
+                  }}
+                >
+                  <div className="w-full flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      {p.schema?.icon && <TintableSvg src={p.schema?.icon || ''} alt={label} className="w-4 h-4" />}
+                      <span>{label}</span>
+                    </span>
+                    <span className={`text-xs ${p.configured ? 'text-green-600' : 'text-gray-400'}`}>{p.configured ? '已配置' : ''}</span>
+                  </div>
+                </Button>
+              );
+            })}
           </div>
-          {/* Right: Presets */}
-          <div className="h-full flex-1 px-2 overflow-y-auto">
-            {selectedProvider ? (
-              <div className="space-y-3">
-                <div className="text-xs text-muted-foreground">
-                  {presets.length > 0 ? '预设保存后会自动收起，只显示必要信息。需要新增时可以在下方继续追加表单。' : '先填写第一套预设，保存后会自动收起，后续可继续在下方新增。'}
-                </div>
+        </div>
+        {/* Right: Presets */}
+        <div className="h-full flex-1 px-2 overflow-y-auto">
+          {selectedProvider ? (
+            <div className="space-y-3">
+              <div className="text-xs text-muted-foreground">
+                {presets.length > 0 ? '预设保存后会自动收起，只显示必要信息。需要新增时可以在下方继续追加表单。' : '先填写第一套预设，保存后会自动收起，后续可继续在下方新增。'}
+              </div>
 
-                {presets.length > 0 && (
-                  <div className="grid gap-2">
-                    {presets.map((preset) => {
-                      const isExpanded = expandedPresetId === preset.id;
+              {presets.length > 0 && (
+                <div className="grid gap-2">
+                  {presets.map((preset) => {
+                    const isExpanded = expandedPresetId === preset.id;
 
-                      return (
-                        <div key={preset.id} className="rounded-xl border bg-background">
-                          <div className="flex items-start justify-between gap-3 p-3">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-medium">{preset.name}</span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={async () => {
-                                  if (isExpanded) {
-                                    setExpandedPresetId(null);
-                                    return;
-                                  }
-                                  if (!presetSecrets[preset.id]) await loadPresetSecrets(preset.id);
-                                  await refreshPresetModels(preset.id);
-                                  setShowCreateForm(false);
-                                  setExpandedPresetId(preset.id);
-                                }}
-                              >
-                                {isExpanded ? <TbChevronDown className="w-4 h-4" /> : <TbChevronRight className="w-4 h-4" />}
-                                {isExpanded ? '收起' : '编辑'}
-                              </Button>
-                              <Button size="sm" variant="outline" onClick={() => onQuickTest(preset)}>
-                                测试
-                              </Button>
+                    return (
+                      <div key={preset.id} className="rounded-xl border bg-background">
+                        <div className="flex items-start justify-between gap-3 p-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium">{preset.name}</span>
                             </div>
                           </div>
-
-                          {isExpanded && (
-                            <div className="border-t p-3">
-                              <PresetFormDialog
-                                title={`编辑预设 · ${preset.name}`}
-                                provider={selectedProvider}
-                                models={models[preset.providerId] || []}
-                                initialValues={presetFormValues(preset)}
-                                errors={errors[preset.id] || {}}
-                                submitLabel="保存预设"
-                                cancelLabel="收起"
-                                onCancel={() => setExpandedPresetId(null)}
-                                onDelete={() => void onDeletePreset(preset)}
-                                onSubmit={(vals) => onSavePreset(preset, vals)}
-                              />
-                            </div>
-                          )}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={async () => {
+                                if (isExpanded) {
+                                  setExpandedPresetId(null);
+                                  return;
+                                }
+                                if (!presetSecrets[preset.id]) await loadPresetSecrets(preset.id);
+                                await refreshPresetModels(preset.id);
+                                setShowCreateForm(false);
+                                setExpandedPresetId(preset.id);
+                              }}
+                            >
+                              {isExpanded ? <TbChevronDown className="w-4 h-4" /> : <TbChevronRight className="w-4 h-4" />}
+                              {isExpanded ? '收起' : '编辑'}
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => onQuickTest(preset)}>
+                              测试
+                            </Button>
+                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
 
-                {presets.length > 0 && !showCreateForm && (
-                  <Button size="sm" variant="outline" className="w-fit" onClick={openCreatePresetForm}>
-                    <TbPlus className="w-4 h-4" />
-                    新增预设
-                  </Button>
-                )}
+                        {isExpanded && (
+                          <div className="border-t p-3">
+                            <PresetFormDialog
+                              title={`编辑预设 · ${preset.name}`}
+                              provider={selectedProvider}
+                              models={models[preset.providerId] || []}
+                              initialValues={presetFormValues(preset)}
+                              errors={errors[preset.id] || {}}
+                              submitLabel="保存预设"
+                              cancelLabel="收起"
+                              onCancel={() => setExpandedPresetId(null)}
+                              onDelete={() => void onDeletePreset(preset)}
+                              onSubmit={(vals) => onSavePreset(preset, vals)}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
-                {showInlineCreateForm && (
-                  <PresetFormDialog
-                    key={`create-${selectedProvider.id}-${createFormKey}`}
-                    title="新增预设"
-                    provider={selectedProvider}
-                    models={providerModels}
-                    initialValues={emptyPresetValues()}
-                    errors={errors.__new__ || {}}
-                    submitLabel="保存预设"
-                    cancelLabel="取消新增"
-                    onCancel={
-                      presets.length > 0
-                        ? () => {
-                          setShowCreateForm(false);
-                          setErrors((prev) => ({ ...prev, __new__: {} }));
-                        }
-                        : undefined
-                    }
-                    onSubmit={onCreatePreset}
-                  />
-                )}
-              </div>
-            ) : (
+              {presets.length > 0 && !showCreateForm && (
+                <Button size="sm" variant="outline" className="w-fit" onClick={openCreatePresetForm}>
+                  <TbPlus className="w-4 h-4" />
+                  新增预设
+                </Button>
+              )}
+
+              {showInlineCreateForm && (
+                <PresetFormDialog
+                  key={`create-${selectedProvider.id}-${createFormKey}`}
+                  title="新增预设"
+                  provider={selectedProvider}
+                  models={providerModels}
+                  initialValues={emptyPresetValues()}
+                  errors={errors.__new__ || {}}
+                  submitLabel="保存预设"
+                  cancelLabel="取消新增"
+                  onCancel={
+                    presets.length > 0
+                      ? () => {
+                        setShowCreateForm(false);
+                        setErrors((prev) => ({ ...prev, __new__: {} }));
+                      }
+                      : undefined
+                  }
+                  onSubmit={onCreatePreset}
+                />
+              )}
+            </div>
+          ) : (
             <div>暂无服务商</div>
           )}
         </div>

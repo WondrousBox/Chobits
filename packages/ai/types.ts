@@ -27,6 +27,12 @@ export type ChatMessage = {
   createdAt?: number;
 };
 
+export type ExplicitSkillInvocationInput = {
+  matchedReference: string;
+  remainingQuery?: string;
+  source?: 'input' | 'slash-command';
+};
+
 export type ProviderPresetFields = {
   providerPresetId?: string;
 };
@@ -44,6 +50,7 @@ export type ChatRequestExtras = Record<string, any> & {
   codingWorkspaceLabel?: string;
   codingMode?: 'safe';
   workspaceId?: string;
+  explicitSkillInvocation?: ExplicitSkillInvocationInput;
 };
 
 export type ChatRequest = ProviderScopedRequest & {
@@ -363,6 +370,15 @@ export type ToolInfo = {
   description: string;
 };
 
+export type SkillInfo = {
+  name: string;
+  description: string;
+  aliases: string[];
+  argumentHint?: string;
+  whenToUse?: string;
+  source: string;
+};
+
 // ==================== 卡片推送类型 ====================
 
 /** 卡片类型 */
@@ -388,6 +404,7 @@ export type AIApi = {
   getProviders(): Promise<ProviderRecord[]>;
   getAgents(): Promise<any[]>;
   listTools(): Promise<ToolInfo[]>;
+  listSkills(payload?: { agentId?: string; workspaceRoot?: string }): Promise<SkillInfo[]>;
   listModels(providerId: string, presetId?: string): Promise<Array<{ id: string; label?: string; [k: string]: any }>>;
   getProviderSecrets(providerId: string): Promise<Record<string, string>>;
   setProviderSecrets(providerId: string, secrets: Record<string, string>): Promise<{ ok: boolean }>;

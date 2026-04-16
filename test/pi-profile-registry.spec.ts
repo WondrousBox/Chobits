@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { listPiAgentProfiles } from '../packages/ai/runtime/pi/profile-registry';
 
 describe('listPiAgentProfiles', () => {
-  it('only exposes the three supported chat modes', () => {
+  it('exposes the supported chat modes', () => {
     expect(
       listPiAgentProfiles().map((profile) => ({
         id: profile.id,

@@ -2,6 +2,28 @@ import { ChatRepo, ResourcesRepo } from '../../../common/db';
 import { pushCardToWindows } from '../../card-push';
 import type { UserChoiceRequest, UserChoiceResponse } from '../../types';
 import type { PiCodingWorkspaceContext, ResolvedPiRequest } from './contracts';
+import type { SkillExecutionResult, SkillSessionState, SkillRegistry } from './skills';
+
+type PiAgentThinkingLevel = import('@mariozechner/pi-agent-core').ThinkingLevel;
+
+export interface PiForkedSkillToolCall {
+  args?: unknown;
+  callId: string;
+  result?: unknown;
+  toolName: string;
+}
+
+export interface PiForkedSkillResult {
+  activeToolNames: string[];
+  content: string;
+  model?: string;
+  thinkingLevel: PiAgentThinkingLevel;
+  toolCalls: PiForkedSkillToolCall[];
+}
+
+export interface PiForkedSkillRunOptions {
+  toolCallId?: string;
+}
 
 export interface PiSessionToolContext {
   chatRepo: typeof ChatRepo;
@@ -12,6 +34,8 @@ export interface PiSessionToolContext {
   resolved: ResolvedPiRequest;
   resourcesRepo: typeof ResourcesRepo;
   targetWindowId?: number;
+  emitToolCall?: (name: string, args: unknown, callId: string) => void;
+  emitToolResult?: (callId: string, result: unknown) => void;
   /** Emit a user choice request to the stream (set by session-service) */
   emitUserChoiceRequest?: (request: UserChoiceRequest) => void;
   /** Wait for user's choice response (set by session-service, resolves when user responds) */
@@ -22,6 +46,9 @@ export interface PiSessionToolContext {
     setActiveToolsByName: (names: string[]) => void;
     getAllTools: () => Array<{ name: string; description: string }>;
   };
+  runForkedSkill?: (execution: SkillExecutionResult, options?: PiForkedSkillRunOptions) => Promise<PiForkedSkillResult>;
+  skillRegistry?: SkillRegistry;
+  skillSessionState?: SkillSessionState;
 }
 
 function resolveConversationId(resolved: ResolvedPiRequest): string | undefined {

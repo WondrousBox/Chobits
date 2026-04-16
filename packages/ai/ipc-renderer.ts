@@ -28,6 +28,9 @@ export const aiBridge = {
   async listTools(): Promise<Array<{ id: string; name: string; description: string }>> {
     return ipcRenderer.invoke('ai:listTools');
   },
+  async listSkills(payload?: { agentId?: string; workspaceRoot?: string }) {
+    return ipcRenderer.invoke('ai:listSkills', payload || {});
+  },
   async listModels(providerId: string, presetId?: string) {
     return ipcRenderer.invoke('ai:listModels', { presetId, providerId });
   },

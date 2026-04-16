@@ -59,6 +59,20 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
     name: 'shellExecTool',
     status: 'ready-for-pi-runtime'
   },
+  'skill-search': {
+    category: 'meta',
+    description: '搜索当前 session 中可用的 skills，并查看它们的 metadata',
+    compatName: 'skillSearchTool',
+    name: 'skillSearchTool',
+    status: 'ready-for-pi-runtime'
+  },
+  'skill-use': {
+    category: 'meta',
+    description: '加载并使用一个 skill，返回正文、约束，并在需要时激活相关工具',
+    compatName: 'skillUseTool',
+    name: 'skillUseTool',
+    status: 'ready-for-pi-runtime'
+  },
   'push-card': {
     category: 'ui-side-effect',
     description: '在聊天中推送资源卡片',
@@ -187,6 +201,9 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
   }
 };
 
+const TOOL_NAME_TO_ID = buildToolNameToIdMap();
+export const DEFAULT_SKILL_TOOL_IDS = ['skill-search', 'skill-use'];
+
 export const DEFAULT_CODER_TOOL_IDS = ['file-list', 'file-read', 'file-glob', 'file-grep', 'file-write', 'file-edit', 'shell-exec', 'ask-user'];
 
 /** All tools available to the assistant profile (registered into session registry) */
@@ -208,7 +225,9 @@ export const DEFAULT_SESSION_TOOL_IDS = [
   'workflow-run',
   'web-search',
   'web-read',
-  'ask-user'
+  'ask-user',
+  'skill-search',
+  'skill-use'
 ];
 
 /** Initially active tools for assistant profile (others activated on-demand via toolbox) */
@@ -226,6 +245,29 @@ function createToolDescriptor(toolId: string): PiToolDescriptor | undefined {
     status: meta.status,
     compatName: meta.compatName
   };
+}
+
+function buildToolNameToIdMap(): Map<string, string> {
+  const mapping = new Map<string, string>();
+
+  for (const [toolId, meta] of Object.entries(DEFAULT_TOOL_METADATA)) {
+    mapping.set(normalizeToolLookupValue(toolId), toolId);
+    mapping.set(normalizeToolLookupValue(meta.name), toolId);
+    if (meta.compatName) {
+      mapping.set(normalizeToolLookupValue(meta.compatName), toolId);
+    }
+  }
+
+  return mapping;
+}
+
+function normalizeToolLookupValue(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+export function resolvePiToolId(toolNameOrId?: string): string | undefined {
+  if (!toolNameOrId?.trim()) return undefined;
+  return TOOL_NAME_TO_ID.get(normalizeToolLookupValue(toolNameOrId));
 }
 
 export function listPiToolDescriptors(): PiToolDescriptor[] {
@@ -246,11 +288,11 @@ export function normalizePiToolIds(toolIds?: string[]): string[] {
 
   for (const toolId of toolIds) {
     if (!toolId) continue;
-    const descriptor = getPiToolDescriptor(toolId);
-    if (!descriptor) continue;
-    if (seen.has(descriptor.id)) continue;
-    seen.add(descriptor.id);
-    normalized.push(descriptor.id);
+    const resolvedToolId = resolvePiToolId(toolId);
+    if (!resolvedToolId) continue;
+    if (seen.has(resolvedToolId)) continue;
+    seen.add(resolvedToolId);
+    normalized.push(resolvedToolId);
   }
 
   return normalized;
