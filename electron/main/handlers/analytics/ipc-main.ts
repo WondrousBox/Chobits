@@ -61,6 +61,15 @@ export function initAnalyticsHandlers(): void {
     }
   });
 
+  ipcMain.handle('analytics:providerModelBreakdown', async (_event, params?: { filter?: AiUsageBreakdownQuery['filter']; providerLimit?: number }) => {
+    try {
+      return await AnalyticsRepo.getAiUsageProviderModelBreakdown(params?.filter, clampLimit(params?.providerLimit, 8, 50));
+    } catch (error) {
+      console.error('[Analytics] providerModelBreakdown failed:', error);
+      throw error;
+    }
+  });
+
   ipcMain.handle('analytics:events', async (_event, params?: AiUsageEventsQuery) => {
     try {
       return await AnalyticsRepo.listAiUsageEvents(params?.filter, clampLimit(params?.limit, 100, 500), clampOffset(params?.offset));

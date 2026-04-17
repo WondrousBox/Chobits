@@ -255,10 +255,6 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
         <div className="h-full flex-1 px-2 overflow-y-auto">
           {selectedProvider ? (
             <div className="space-y-3">
-              <div className="text-xs text-muted-foreground">
-                {presets.length > 0 ? '预设保存后会自动收起，只显示必要信息。需要新增时可以在下方继续追加表单。' : '先填写第一套预设，保存后会自动收起，后续可继续在下方新增。'}
-              </div>
-
               {presets.length > 0 && (
                 <div className="grid gap-2">
                   {presets.map((preset) => {

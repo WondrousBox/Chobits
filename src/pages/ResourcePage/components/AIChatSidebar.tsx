@@ -3,24 +3,28 @@ import { extractThinkingTextFromMetadata } from '@packages/ai/thinking-content';
 import type { TokenUsage } from '@packages/ai/types';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TbAt, TbClock, TbDotsVertical, TbLoader2, TbPhoto, TbPlayerStop, TbPlus, TbWorld } from 'react-icons/tb';
-import ReactMarkdown from 'react-markdown';
-import rehypeHighlight from 'rehype-highlight';
-import remarkGfm from 'remark-gfm';
 import { toast } from 'sonner';
 
 import {
+  appendTextPart,
+  appendThinkingPart,
+  appendToolPart,
+  AssistantMessageTimeline,
   ChatAgentSelect,
   ChatFooterActions,
+  type ChatMessageDisplayPart,
   ChatTokenUsage,
   CodingWorkspaceButton,
+  finalizeTimelineMessage,
+  hasTimelineContent,
   mergeTranscriptWithInput,
+  readDisplayPartsFromMetadata,
   type ToolActivity,
-  ToolCallActivity,
   UnifiedChatInput,
   type UnifiedChatInputHandle,
+  updateToolPart,
   useSpeechInput
 } from '@/components/chat';
-import ThinkingActivity from '@/components/chat/ThinkingActivity';
 import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -34,6 +38,7 @@ interface Message {
   content: string;
   createdAt?: number;
   activities?: ToolActivity[];
+  displayParts?: ChatMessageDisplayPart[];
   thinking?: string;
   isThinking?: boolean;
   usage?: TokenUsage;
@@ -54,16 +59,6 @@ interface Agent {
 interface AIChatSidebarProps {
   onClose: () => void;
   workspaceId?: string;
-}
-
-function MarkdownMessage({ content }: { content: string }): JSX.Element {
-  return (
-    <div className="prose prose-sm dark:prose-invert max-w-none text-sm">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[[rehypeHighlight, { detect: true }]]}>
-        {content}
-      </ReactMarkdown>
-    </div>
-  );
 }
 
 const STORAGE_KEYS = {
@@ -177,13 +172,15 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
         const usage: TokenUsage | undefined = getChatMessageUsage({ metadata: meta });
         const thinking = extractThinkingTextFromMetadata(meta);
         if (meta && Array.isArray(meta?.toolCalls)) {
-          activities = meta.toolCalls.map((tc: any) => ({ callId: tc.callId, name: tc.name, args: tc.args, status: 'done' as const, result: tc.result }));
+          activities = meta.toolCalls.map((tc: any) => ({ callId: tc.callId, name: tc.name, args: tc.args, status: 'done' as const, label: tc.label, result: tc.result }));
         }
+        const displayParts = readDisplayPartsFromMetadata(meta, activities);
         return {
           role: row.role,
           content: row.content,
           createdAt: row.createdAt,
           ...(activities ? { activities } : {}),
+          ...(displayParts ? { displayParts } : {}),
           ...(thinking ? { thinking, isThinking: false } : {}),
           ...(usage ? { usage } : {})
         };
@@ -338,9 +335,8 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
               if (idx < 0 || idx >= prev.length) return prev;
               const copy = prev.slice();
               const m = copy[idx];
-              const existing = m.activities || [];
-              const activity: ToolActivity = { callId: event.data.callId, name: event.data.name, args: event.data.args, status: 'calling' };
-              copy[idx] = { ...m, activities: [...existing, activity] };
+              const activity: ToolActivity = { callId: event.data.callId, name: event.data.name, args: event.data.args, status: 'calling', label: event.data.label };
+              copy[idx] = appendToolPart(m, activity);
               return copy;
             });
           }
@@ -351,8 +347,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
               if (idx < 0 || idx >= prev.length) return prev;
               const copy = prev.slice();
               const m = copy[idx];
-              const updated = (m.activities || []).map((a) => (a.callId === event.data.callId ? { ...a, status: 'done' as const, result: event.data.result } : a));
-              copy[idx] = { ...m, activities: updated };
+              copy[idx] = updateToolPart(m, event.data.callId, (activity) => ({ ...activity, status: 'done' as const, result: event.data.result }));
               return copy;
             });
           }
@@ -363,8 +358,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
               if (idx < 0 || idx >= prev.length) return prev;
               const copy = prev.slice();
               const m = copy[idx];
-              const updated = (m.activities || []).map((a) => (a.callId === event.data.callId ? { ...a, progress: event.data.progress, progressMessage: event.data.message } : a));
-              copy[idx] = { ...m, activities: updated };
+              copy[idx] = updateToolPart(m, event.data.callId, (activity) => ({ ...activity, progress: event.data.progress, progressMessage: event.data.message }));
               return copy;
             });
           }
@@ -375,7 +369,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
               if (idx < 0 || idx >= prev.length) return prev;
               const copy = prev.slice();
               const m = copy[idx];
-              copy[idx] = { ...m, thinking: (m.thinking || '') + event.data.text, isThinking: true };
+              copy[idx] = appendThinkingPart(m, event.data.text);
               return copy;
             });
           }
@@ -388,13 +382,13 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
 
               const copy = prev.slice();
               const message = copy[idx];
-              copy[idx] = { ...message, content: (message.content || '') + delta, isThinking: false };
+              copy[idx] = appendTextPart(message, delta);
               return copy;
             });
           }
 
-          if (event?.type === 'message_completed' && event.data?.message?.content) {
-            const full = String(event.data.message.content);
+          if (event?.type === 'message_completed' && event.data?.message) {
+            const full = String(event.data.message.content || '');
             const usage = getChatMessageUsage(event.data.message);
             const finalThinking = extractThinkingTextFromMetadata(event.data.message.metadata);
             setMessages((prev) => {
@@ -404,11 +398,8 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
               const copy = prev.slice();
               const message = copy[idx];
               copy[idx] = {
-                ...message,
-                content: full,
+                ...finalizeTimelineMessage(message, { content: full, thinking: finalThinking }),
                 createdAt: event.data.message.createdAt || message.createdAt,
-                isThinking: false,
-                ...(!message.thinking && finalThinking ? { thinking: finalThinking } : {}),
                 ...(usage ? { usage } : {})
               };
               return copy;
@@ -430,7 +421,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
 
               const copy = prev.slice();
               const message = copy[idx];
-              copy[idx] = { ...message, content: `${message.content || ''}\n[错误] ${event.data?.message || ''}` };
+              copy[idx] = appendTextPart(message, `\n[错误] ${event.data?.message || ''}`);
               return copy;
             });
             setLoading(false);
@@ -520,30 +511,23 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
                 <div className={`max-w-[90%] rounded-xl px-3 py-2 ${message.role === 'user' ? 'bg-primary text-primary-foreground text-sm' : 'bg-muted text-foreground'}`}>
                   {message.role === 'assistant' ? (
                     <>
-                      {message.thinking && <ThinkingActivity thinking={message.thinking} isThinking={!!message.isThinking} />}
-                      {message.activities && message.activities.length > 0 && <ToolCallActivity activities={message.activities} />}
-                      {message.content ? (
-                        <>
-                          <MarkdownMessage content={message.content} />
-                          {message.usage && <ChatTokenUsage usage={message.usage} label="本轮" className="mt-2" />}
-                        </>
-                      ) : loading && index === messages.length - 1 ? (
-                        !message.activities?.length && (
-                          <div className="inline-flex items-center gap-2 text-muted-foreground text-sm">
-                            <TbLoader2 className="h-4 w-4 animate-spin" /> 正在思考...
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void handleStop();
-                              }}
-                              className="ml-2 p-1 rounded hover:bg-background/50 transition-colors"
-                              title="停止生成"
-                            >
-                              <TbPlayerStop className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        )
+                      <AssistantMessageTimeline message={message} compactCards />
+                      {message.usage && <ChatTokenUsage usage={message.usage} label="本轮" className="mt-2" />}
+                      {!hasTimelineContent(message) && loading && index === messages.length - 1 ? (
+                        <div className="inline-flex items-center gap-2 text-muted-foreground text-sm">
+                          <TbLoader2 className="h-4 w-4 animate-spin" /> 正在思考...
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void handleStop();
+                            }}
+                            className="ml-2 p-1 rounded hover:bg-background/50 transition-colors"
+                            title="停止生成"
+                          >
+                            <TbPlayerStop className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       ) : null}
                     </>
                   ) : (

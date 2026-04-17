@@ -1,3 +1,4 @@
+export { default as AssistantMessageTimeline } from './AssistantMessageTimeline';
 export { ResourceCard } from './cards';
 export type { ChatAgentSelectOption, ChatAgentSelectProps } from './ChatAgentSelect';
 export { default as ChatAgentSelect } from './ChatAgentSelect';
@@ -11,6 +12,8 @@ export { default as ChatMessageRenderer } from './ChatMessageRenderer';
 export { default as ChatTokenUsage } from './ChatTokenUsage';
 export type { CodingWorkspaceButtonProps } from './CodingWorkspaceButton';
 export { default as CodingWorkspaceButton } from './CodingWorkspaceButton';
+export type { ChatMessageDisplayPart, TimelineMessage } from './message-timeline';
+export { appendTextPart, appendThinkingPart, appendToolPart, finalizeTimelineMessage, hasTimelineContent, readDisplayPartsFromMetadata, updateToolPart } from './message-timeline';
 export type { SpeechInputButtonProps } from './SpeechInputButton';
 export { default as SpeechInputButton } from './SpeechInputButton';
 export type { ToolActivity } from './ToolCallActivity';

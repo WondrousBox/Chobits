@@ -27,6 +27,10 @@ export type ChatMessage = {
   createdAt?: number;
 };
 
+export const CHAT_MESSAGE_DISPLAY_PARTS_METADATA_KEY = 'displayParts';
+
+export type ChatMessageDisplayPart = { type: 'text'; text: string } | { type: 'thinking'; thinking: string } | { type: 'tool'; callId: string };
+
 export type ExplicitSkillInvocationInput = {
   matchedReference: string;
   remainingQuery?: string;

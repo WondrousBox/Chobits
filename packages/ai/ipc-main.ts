@@ -197,7 +197,8 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
   });
 
   ipcMain.handle('ai:listSkills', async (_e, payload?: { agentId?: string; workspaceRoot?: string }) => {
-    if (payload?.agentId !== 'assistant-skills') {
+    const agentId = typeof payload?.agentId === 'string' ? payload.agentId.trim() : '';
+    if (agentId !== 'assistant' && agentId !== 'assistant-skills') {
       return [];
     }
 

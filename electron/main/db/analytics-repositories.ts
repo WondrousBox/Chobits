@@ -7,6 +7,7 @@ import type {
   AiUsageOutboxHealth,
   AiUsageOutboxStatus,
   AiUsageOverview,
+  AiUsageProviderModelBreakdownRow,
   AiUsageQueryFilter,
   AiUsageTimelineBucket,
   AiUsageTimelinePoint
@@ -485,6 +486,70 @@ export const AnalyticsRepo = {
         dimension,
         value,
         label,
+        eventCount: toNumber(row.eventCount),
+        inputTokens: toNullableNumber(row.inputTokens),
+        outputTokens: toNullableNumber(row.outputTokens),
+        totalTokens: toNullableNumber(row.totalTokens),
+        billableTotalTokens: toNullableNumber(row.billableTotalTokens),
+        estimatedCost: toNullableNumber(row.estimatedCost)
+      };
+    });
+  },
+
+  async getAiUsageProviderModelBreakdown(filter: AiUsageQueryFilter = {}, providerLimit = 8): Promise<AiUsageProviderModelBreakdownRow[]> {
+    const rawDb = getDB();
+    if (!rawDb) return [];
+
+    const { clause, params } = buildAiUsageSqlFilter(filter);
+    const rows = rawDb
+      .prepare(
+        `
+          WITH filtered AS (
+            SELECT
+              provider_id,
+              model,
+              input_tokens,
+              output_tokens,
+              total_tokens,
+              billable_total_tokens,
+              estimated_cost
+            FROM ai_usage_events
+            ${clause}
+          ),
+          top_providers AS (
+            SELECT
+              provider_id,
+              SUM(total_tokens) AS provider_total_tokens
+            FROM filtered
+            GROUP BY provider_id
+            ORDER BY provider_total_tokens DESC, provider_id ASC
+            LIMIT ?
+          )
+          SELECT
+            f.provider_id AS providerId,
+            f.model AS model,
+            COUNT(*) AS eventCount,
+            SUM(f.input_tokens) AS inputTokens,
+            SUM(f.output_tokens) AS outputTokens,
+            SUM(f.total_tokens) AS totalTokens,
+            SUM(f.billable_total_tokens) AS billableTotalTokens,
+            SUM(f.estimated_cost) AS estimatedCost
+          FROM filtered f
+          INNER JOIN top_providers p ON p.provider_id = f.provider_id
+          GROUP BY f.provider_id, f.model
+          ORDER BY p.provider_total_tokens DESC, totalTokens DESC, f.model ASC
+        `
+      )
+      .all(...params, providerLimit) as Array<Record<string, unknown>>;
+
+    return rows.map((row) => {
+      const providerId = String(row.providerId ?? '').trim() || '未标记';
+      const model = String(row.model ?? '').trim() || '未标记模型';
+      return {
+        providerId,
+        providerLabel: providerId,
+        model,
+        modelLabel: model,
         eventCount: toNumber(row.eventCount),
         inputTokens: toNullableNumber(row.inputTokens),
         outputTokens: toNullableNumber(row.outputTokens),

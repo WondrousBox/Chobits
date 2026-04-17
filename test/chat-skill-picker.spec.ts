@@ -3,8 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { applySkillPickerSelection, deriveSkillPickerQuery, extractSkillCommandArgs, isTypingSlashSkillQuery, listSkillSuggestions, resolveActiveSkillInfo, resolveSuggestedSkillInfo, shouldEnableSkillPicker } from '../src/lib/chat-skill-picker';
 
 describe('chat skill picker helpers', () => {
-  it('only enables the picker for the default assistant', () => {
+  it('only enables the picker for assistant skill-enabled agents', () => {
     expect(shouldEnableSkillPicker('assistant')).toBe(true);
+    expect(shouldEnableSkillPicker('assistant-skills')).toBe(true);
     expect(shouldEnableSkillPicker('chat')).toBe(false);
   });
 

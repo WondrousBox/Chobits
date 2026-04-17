@@ -6,10 +6,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TbArrowDown, TbChevronRight, TbDots, TbEdit, TbHistory, TbLoader2, TbPin, TbPlus, TbRefresh, TbShare, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
-import { ChatInputWithService, ChatMessageRenderer, ChatTokenUsage } from '@/components/chat';
-import ThinkingActivity from '@/components/chat/ThinkingActivity';
-import type { ToolActivity } from '@/components/chat/ToolCallActivity';
-import ToolCallActivity from '@/components/chat/ToolCallActivity';
+import {
+  appendTextPart,
+  appendThinkingPart,
+  appendToolPart,
+  AssistantMessageTimeline,
+  ChatInputWithService,
+  type ChatMessageDisplayPart,
+  ChatTokenUsage,
+  finalizeTimelineMessage,
+  hasTimelineContent,
+  readDisplayPartsFromMetadata,
+  type ToolActivity,
+  updateToolPart
+} from '@/components/chat';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
@@ -31,6 +41,7 @@ interface ChatUiMessage {
   content: string;
   createdAt?: number;
   activities?: ToolActivity[];
+  displayParts?: ChatMessageDisplayPart[];
   thinking?: string;
   isThinking?: boolean;
   usage?: TokenUsage;
@@ -101,7 +112,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
             const thinking = extractThinkingTextFromMetadata(meta);
             if (Array.isArray(meta?.toolCalls)) {
               activities = meta.toolCalls.map((tc: any) => {
-                const base: ToolActivity = { callId: tc.callId, name: tc.name, args: tc.args, status: 'done' as const, result: tc.result };
+                const base: ToolActivity = { callId: tc.callId, name: tc.name, args: tc.args, status: 'done' as const, label: tc.label, result: tc.result };
                 // Reconstruct choiceRequest/choiceAnswers for askUserTool from persisted args/result
                 if (tc.name === 'askUserTool' || tc.name === 'ask-user') {
                   const parsedArgs = typeof tc.args === 'string' ? JSON.parse(tc.args) : tc.args;
@@ -122,12 +133,14 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
                 return base;
               });
             }
+            const displayParts = readDisplayPartsFromMetadata(meta, activities);
 
             return {
               role: r.role,
               content: r.content,
               createdAt: r.createdAt,
               ...(activities ? { activities } : {}),
+              ...(displayParts ? { displayParts } : {}),
               ...(thinking ? { thinking, isThinking: false } : {}),
               ...(usage ? { usage } : {})
             };
@@ -382,9 +395,8 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
             if (idx < 0 || idx >= prev.length) return prev;
             const copy = prev.slice();
             const m = copy[idx];
-            const existing = m.activities || [];
             const activity: ToolActivity = { callId: ev.data.callId, name: ev.data.name, args: ev.data.args, status: 'calling', label: ev.data.label };
-            copy[idx] = { ...m, activities: [...existing, activity] };
+            copy[idx] = appendToolPart(m, activity);
             return copy;
           });
         }
@@ -394,8 +406,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
             if (idx < 0 || idx >= prev.length) return prev;
             const copy = prev.slice();
             const m = copy[idx];
-            const updated = (m.activities || []).map((a) => (a.callId === ev.data.callId ? { ...a, status: 'done' as const, result: ev.data.result } : a));
-            copy[idx] = { ...m, activities: updated };
+            copy[idx] = updateToolPart(m, ev.data.callId, (activity) => ({ ...activity, status: 'done' as const, result: ev.data.result }));
             return copy;
           });
         }
@@ -405,8 +416,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
             if (idx < 0 || idx >= prev.length) return prev;
             const copy = prev.slice();
             const m = copy[idx];
-            const updated = (m.activities || []).map((a) => (a.callId === ev.data.callId ? { ...a, progress: ev.data.progress, progressMessage: ev.data.message } : a));
-            copy[idx] = { ...m, activities: updated };
+            copy[idx] = updateToolPart(m, ev.data.callId, (activity) => ({ ...activity, progress: ev.data.progress, progressMessage: ev.data.message }));
             return copy;
           });
         }
@@ -417,8 +427,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
             if (idx < 0 || idx >= prev.length) return prev;
             const copy = prev.slice();
             const m = copy[idx];
-            const updated = (m.activities || []).map((a) => (a.callId === ev.data.toolCallId ? { ...a, choiceRequest: ev.data } : a));
-            copy[idx] = { ...m, activities: updated };
+            copy[idx] = updateToolPart(m, ev.data.toolCallId, (activity) => ({ ...activity, choiceRequest: ev.data }));
             return copy;
           });
         }
@@ -428,7 +437,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
             if (idx < 0 || idx >= prev.length) return prev;
             const copy = prev.slice();
             const m = copy[idx];
-            copy[idx] = { ...m, thinking: (m.thinking || '') + ev.data.text, isThinking: true };
+            copy[idx] = appendThinkingPart(m, ev.data.text);
             return copy;
           });
         }
@@ -439,13 +448,13 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
             if (idx < 0 || idx >= prev.length) return prev;
             const copy = prev.slice();
             const m = copy[idx];
-            copy[idx] = { ...m, content: (m.content || '') + delta, isThinking: false };
+            copy[idx] = appendTextPart(m, delta);
             return copy;
           });
         }
-        if (ev?.type === 'message_completed' && ev.data?.message?.content) {
+        if (ev?.type === 'message_completed' && ev.data?.message) {
           // Ensure final content reflected, in case no deltas were sent
-          const full: string = ev.data.message.content;
+          const full: string = ev.data.message.content || '';
           const usage = getChatMessageUsage(ev.data.message);
           const finalThinking = extractThinkingTextFromMetadata(ev.data.message.metadata);
           setMessages((prev) => {
@@ -454,11 +463,8 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
             const copy = prev.slice();
             const m = copy[idx];
             copy[idx] = {
-              ...m,
-              content: full,
+              ...finalizeTimelineMessage(m, { content: full, thinking: finalThinking }),
               createdAt: ev.data.message.createdAt || m.createdAt,
-              isThinking: false,
-              ...(!m.thinking && finalThinking ? { thinking: finalThinking } : {}),
               ...(usage ? { usage } : {})
             };
             return copy;
@@ -481,7 +487,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
             if (idx < 0 || idx >= prev.length) return prev;
             const copy = prev.slice();
             const m = copy[idx];
-            copy[idx] = { ...m, content: (m.content || '') + `\n[错误] ${ev.data?.message || ''}` };
+            copy[idx] = appendTextPart(m, `\n[错误] ${ev.data?.message || ''}`);
             return copy;
           });
           setLoading(false);
@@ -500,7 +506,10 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
       const copy = prev.slice();
       const m = copy[idx];
       const updated = (m.activities || []).map((a) => (a.choiceRequest?.choiceId === choiceId ? { ...a, choiceAnswers: answers } : a));
-      copy[idx] = { ...m, activities: updated };
+      const displayParts = m.displayParts?.map((part) =>
+        part.type === 'tool' && part.activity.choiceRequest?.choiceId === choiceId ? { ...part, activity: { ...part.activity, choiceAnswers: answers } } : part
+      );
+      copy[idx] = { ...m, activities: updated, ...(displayParts ? { displayParts } : {}) };
       return copy;
     });
     // Send response to main process to unblock the tool
@@ -738,11 +747,9 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
                       >
                         {m.role === 'assistant' ? (
                           <>
-                            {m.thinking && <ThinkingActivity thinking={m.thinking} isThinking={!!m.isThinking} />}
-                            {m.activities && m.activities.length > 0 && <ToolCallActivity activities={m.activities} onUserChoiceSubmit={handleUserChoiceSubmit} />}
-                            {m.content || (loading && i === messages.length - 1) ? <ChatMessageRenderer content={m.content || ''} compactCards /> : null}
+                            <AssistantMessageTimeline message={m} compactCards onUserChoiceSubmit={handleUserChoiceSubmit} />
                             {m.usage && <ChatTokenUsage usage={m.usage} label="本轮" className="mt-2" />}
-                            {!m.content && loading && i === messages.length - 1 && (!m.activities || m.activities.length === 0) && (
+                            {!hasTimelineContent(m) && loading && i === messages.length - 1 && (
                               <span className="inline-flex items-center gap-2 text-muted-foreground">
                                 <TbLoader2 className="h-4 w-4 animate-spin" /> 正在思考...
                               </span>
