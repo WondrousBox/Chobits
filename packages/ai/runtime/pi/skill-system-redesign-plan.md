@@ -780,6 +780,204 @@ v1 明确不做：
 - `packages/ai/runtime/pi/skills/executor.ts`
 - 可能新增 sub-agent / fork 相关运行时
 
+### Phase 6 工程化拆分
+
+为避免 `Phase 6` 继续停留在“方向正确但范围过大”的状态，建议把它拆成下面 4 个可单独推进、可单独验收的工程包。
+
+#### Phase 6A：Fork Runtime 与 Child Session Contract
+
+目标：
+
+- 把 `context: fork` 从“能触发 child session”推进到“有稳定 contract 的高级执行模式”
+- 明确 parent / child 之间的 prompt、tool scope、progress、tool trace 和结果回传语义
+- 让 fork skill 成为可持续扩展的运行时能力，而不是一次性特判
+
+核心工作项：
+
+- 固化 fork child session 的输入 contract
+  - skill purpose
+  - original user request
+  - resolved args
+  - preferred tool scope
+  - source / trust / policy metadata
+- 固化 fork child session 的输出 contract
+  - assistant summary
+  - tool trace
+  - progress timeline
+  - completion / failure reason
+  - 是否需要用户接力或父会话继续
+- 区分 inline skill 与 fork skill 的 session state 影响范围
+  - inline skill 激活当前 session tools
+  - fork skill 不污染父 session active tools
+- 为 fork execution 增加更明确的失败语义
+  - child session 启动失败
+  - child session 中途失败
+  - child session 成功但无最终 assistant result
+- 为后续 sub-agent / fork profile 预留清晰扩展点，而不是把逻辑继续堆进 `skillUseTool`
+
+建议修改文件：
+
+- `packages/ai/runtime/pi/skills/executor.ts`
+- `packages/ai/runtime/pi/tools/skill-use.ts`
+- `packages/ai/runtime/pi/session-service.ts`
+- `packages/ai/runtime/pi/tool-context.ts`
+- 可能新增 `packages/ai/runtime/pi/skills/fork-runtime.ts`
+
+完成标准：
+
+- `context: fork` 的 parent / child 输入输出 contract 在代码中有显式结构，而不是散落在字符串拼接里
+- child session 成功、失败、无结果三类分支都能稳定回传
+- fork skill 的 tool trace / progress / result 在 UI 与 runtime 中有一致语义
+- 新增一个 fork skill 时，不需要复制粘贴已有 skill 的特判逻辑
+
+#### Phase 6B：Model / Effort Override Policy
+
+目标：
+
+- 把 `model` / `effort` 从“metadata 能透传”推进到“运行时行为清晰且可解释”
+- 统一 inline / fork 两种模式下的 override 语义
+- 为 provider 不支持、降级、fallback 建立稳定规则
+
+核心工作项：
+
+- 统一 skill override 解析顺序
+  - session default
+  - request level override
+  - skill frontmatter override
+  - runtime fallback
+- 定义 inline 场景下 `model` / `effort` 的行为
+  - 仅提示模型
+  - 仅作为 planner hint
+  - 或允许在后续真正切换执行路径
+- 定义 fork 场景下 `model` / `effort` 的行为
+  - child session 是否强制采用 skill override
+  - provider / preset 不兼容时如何回退
+- 对 override 失败或降级增加显式反馈
+  - result warning
+  - runtime log
+  - 可选的 metadata 回传
+- 为未来 `agent` / `profile` 级 skill frontmatter 扩展预留统一入口
+
+建议修改文件：
+
+- `packages/ai/runtime/pi/skills/frontmatter.ts`
+- `packages/ai/runtime/pi/skills/types.ts`
+- `packages/ai/runtime/pi/skills/executor.ts`
+- `packages/ai/runtime/pi/session-service.ts`
+- 可能新增 `packages/ai/runtime/pi/skills/execution-policy.ts`
+
+完成标准：
+
+- inline / fork 两种模式下，`model` / `effort` 的处理规则是明确文档化的
+- provider 不支持 skill override 时会走可预期 fallback，而不是静默失效
+- `skillUseTool` / fork runtime 的返回结果能说明 override 是否真正生效
+- 测试覆盖 override 生效、降级、fallback 与不支持场景
+
+#### Phase 6C：Plugin Skill 治理与来源可视化
+
+目标：
+
+- 把 plugin skill 从“可发现、可显示、可警告”推进到“可治理、可设置、可审计”
+- 让用户真正知道一个 plugin skill 来自哪里、当前是否可信、是否允许执行
+- 为后续 plugin 生态扩展打下稳定治理基础
+
+核心工作项：
+
+- 补 plugin skill 设置面
+  - 是否加载 plugin skills
+  - 是否加载某个 plugin 的 skills
+  - 是否允许 guarded plugin skill 默认只 preview
+- 补 plugin skill 可视化信息
+  - plugin 名称
+  - skill 来源目录
+  - trust level
+  - 风险提示
+  - 可选的安装来源 / 版本 / 更新时间
+- 补 plugin skill 审批状态
+  - 本次会话已确认
+  - 当前 workspace 已确认
+  - 全局仍不信任
+- 补冲突 / 覆盖可见性
+  - plugin skill 覆盖 project skill
+  - project skill 覆盖 plugin skill
+  - 当前命中的 skill 来源为什么是它
+- 保持 plugin skills 与 user / project / bundled skills 在 picker、search、active skill UI 中的展示一致性
+
+建议修改文件：
+
+- `packages/ai/runtime/pi/skills/source-loader.ts`
+- `packages/ai/runtime/pi/skills/source-info.ts`
+- `packages/ai/runtime/pi/skills/source-policy.ts`
+- `packages/ai/ipc-main.ts`
+- `packages/ai/types.ts`
+- `src/components/chat/SkillPickerButton.tsx`
+- `src/components/chat/ChatInputWithService.tsx`
+- 可能新增插件技能设置页或扩展现有设置页
+
+完成标准：
+
+- 用户可以在 UI 中看见 plugin skill 的完整来源与风险信息
+- plugin skill 的启用 / 停用 / 信任策略不再只能依赖代码默认值
+- skill 覆盖关系至少在 debug 或设置层面可解释
+- plugin skill 的治理已经形成可持续扩展的入口，而不是 scattered warnings
+
+#### Phase 6D：统一策略中心与 Tool-Level Guard 完整覆盖
+
+目标：
+
+- 把当前分散在 `source-policy.ts`、`skill-use.ts`、`runtime-guard.ts` 和各 tool 入口里的高级执行策略收拢成统一中心
+- 让 `allowed-tools`、source trust、guarded flow、tool confirmation 在运行时具有一致语义
+- 降低新增工具或新增 skill source 时遗漏 guard 的风险
+
+核心工作项：
+
+- 抽象统一的 execution policy / guard resolution
+  - source-based policy
+  - tool-based policy
+  - execution-context policy
+  - preview / inline / fork 决策
+- 让 `allowed-tools` 更接近真正的 runtime constraint，而不只是 metadata 返回
+- 继续扩高影响工具覆盖范围
+  - 当前已覆盖的一批 tool 保持不退化
+  - 新增高影响 tool 时走统一接入点
+- 统一 ask-user、acknowledgeRisk、tool-level confirm 的行为
+- 统一 result metadata
+  - why blocked
+  - why preview required
+  - why inline allowed
+  - 哪些 tool 被判定为 sensitive
+
+建议修改文件：
+
+- `packages/ai/runtime/pi/skills/source-policy.ts`
+- `packages/ai/runtime/pi/skills/runtime-guard.ts`
+- `packages/ai/runtime/pi/tools/skill-use.ts`
+- `packages/ai/runtime/pi/tool-registry.ts`
+- 多个高影响工具入口
+- 可能新增 `packages/ai/runtime/pi/skills/policy-center.ts`
+
+完成标准：
+
+- source / tool / execution mode 的决策逻辑有统一入口
+- `allowed-tools` 在高级执行路径中具备明确 runtime 语义
+- 新增高影响工具时有标准接入 guard 的位置，不再靠人工记忆
+- 被阻断、降级、要求 preview 的原因在 runtime 返回里是可解释的
+
+### Phase 6 推荐推进顺序
+
+建议按下面顺序推进：
+
+1. `Phase 6A`
+   - 先把 fork contract 固化，否则后续 override 和治理很难稳定落地
+2. `Phase 6B`
+   - 再把 `model` / `effort` 语义做清楚，避免 fork runtime 继续绑定隐式规则
+3. `Phase 6D`
+   - 然后统一策略中心，减少 guard 继续分散扩张
+4. `Phase 6C`
+   - 最后把 plugin 治理和设置面补齐，形成用户可见闭环
+
+如果团队需要更快看到用户侧收益，也可以把 `6C` 中的“来源可视化”部分提前，与 `6A` 并行推进。
+
 ## 非目标
 
 当前这次改造不把下面几件事纳入 v1：
@@ -809,16 +1007,17 @@ v1 明确不做：
   - 默认 assistant runtime 也显式关闭 `includeBundled`
   - `toolboxTool` 仍保持 legacy markdown 主行为，并有兼容测试保护
   - 因此当前状态不是“迁移进行中”，而是“桥接代码存在，但迁移动作尚未启动”
-- `Phase 5`：已完成默认 assistant 的基础接入
+- `Phase 5`：已完成
   - `assistant` 已接入 instruction files 链路
-  - 请求层已预留结构化 `explicitSkillInvocation` 协议，便于后续 UI / slash menu / skill picker 直接接入
-  - 主聊天页与资源页 AI 侧栏已开始发送这类结构化 skill invocation
-  - `assistant` 输入框已开始提供可见的 skill picker / slash 触发入口
-  - picker 已开始展示 `whenToUse` / `argumentHint`，并提示当前命中的 skill
+  - 请求层已具备结构化 `explicitSkillInvocation` 协议，UI 可以直接把显式 skill 调用送入 runtime
+  - 主聊天页与资源页 AI 侧栏都会发送这类结构化 skill invocation
+  - `assistant` 输入框已提供可见的 skill picker / slash 触发入口
+  - picker 已展示 `whenToUse` / `argumentHint`，并透出来源与信任信息
   - `assistant` 输入框已支持 `Tab` 补全 skill，并在缺少参数时提示 argument hint
   - `assistant` slash menu 已支持上下键切换候选、回车确认
-  - `assistant` 已把 `/skill-name ...` 收口为结构化输入预处理，再进入 prompt / session 链路
-  - 当前 slash 文本解析已退化为 fallback，而不是唯一入口
+  - 请求层对 `/skill-name ...` 的结构化预处理已不再局限于 ASCII 风格 skill 名，中文等非 ASCII user-invocable skill 也会直接走结构化协议
+  - `ai:listSkills` / chat skill picker 的 agent 入口已与默认 `assistant` 对齐，不再依赖额外的前端约定 id
+  - slash 文本解析现在只作为 request-layer 结构化输入缺失或失配时的 fallback，而不是主入口
 - `Phase 6`：部分完成，但尚未闭环
   - 已有 `context: fork` 的真实运行时入口，`skill-use` 能触发 fork child session
   - `model` / `effort` override 已可透传到 child session
@@ -831,6 +1030,11 @@ v1 明确不做：
   - 第一批 tool-level runtime guard 已扩到 `shell-exec`、`file-write`、`file-edit`、`push-card`、`workflow-run`、`memory-save`、`memory-diary`、`memory-refresh-critical`、`persona-update`、`youtube-download`、`youtube-subscribe`，高风险 skill 即使已被 inline 加载，也需要在真实高影响工具执行前再次确认
   - `sourcePolicy.sensitiveToolIds` 现在只记录真正的高影响工具，而不是整包 skill 的全部 allowed tools，这让后续 tool-level guard 变得更精确
   - 但 plugin skill 生态治理、来源可视化完整 UI、其余高影响工具类别覆盖、统一策略中心，以及更完整的高级执行体系仍未完成，因此不能视为整体完成
+  - 如果按上面的工程拆分跟踪，当前更接近：
+    - `Phase 6A`：已启动，但 contract 尚未固化
+    - `Phase 6B`：已启动，但 override policy 尚未统一
+    - `Phase 6C`：已启动，但治理与设置面尚未形成闭环
+    - `Phase 6D`：方向明确，但仍缺统一策略中心与完整 guard 覆盖
 
 ## 按代码现状的总判断
 
@@ -838,9 +1042,10 @@ v1 明确不做：
 
 - Chobits 已经拥有一套可运行的本地自研 skill runtime，而不是停留在设计稿阶段。
 - 默认 `assistant` 已经正式接入 `SKILL.md` protocol、instruction files、skill discovery 与显式 skill invocation。
+- `Phase 5` 所定义的 instruction files 与 slash / picker 基础接入现已闭合，可按“已完成”判断。
 - 这套实现仍以“新增能力”方式叠加在现有 toolbox / tools 之上，而不是替代它们。
 - `toolbox -> bundled skills` 迁移尚未开始；当前只是预留了 synthetic bridge 和空的 bundled 目录。
-- 高级执行能力已有部分真实落点，但距离完整的 Phase 6 仍至少差这几块：剩余高影响工具覆盖补齐、统一 guard/policy 中心、plugin skill 治理与完整来源 UI。
+- 高级执行能力已有部分真实落点，但距离完整的 `Phase 6A` / `6B` / `6C` / `6D` 仍至少差这些闭环：fork contract 固化、override policy 统一、plugin skill 治理与完整来源 UI、统一策略中心与更完整的高影响工具覆盖。
 
 ## 设计后的目标状态
 

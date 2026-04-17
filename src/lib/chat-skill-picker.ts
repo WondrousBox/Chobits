@@ -1,9 +1,9 @@
 import type { SkillInfo } from '@packages/ai/types';
 
-const SKILL_PICKER_AGENT_ID = 'assistant';
+const SKILL_PICKER_AGENT_IDS = new Set(['assistant', 'assistant-skills']);
 
 export function shouldEnableSkillPicker(agentId: string | undefined): boolean {
-  return agentId === SKILL_PICKER_AGENT_ID;
+  return !!agentId && SKILL_PICKER_AGENT_IDS.has(agentId);
 }
 
 export function isTypingSlashSkillQuery(content: string): boolean {

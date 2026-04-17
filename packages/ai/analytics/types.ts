@@ -205,6 +205,19 @@ export type AiUsageBreakdownRow = {
   estimatedCost: number | null;
 };
 
+export type AiUsageProviderModelBreakdownRow = {
+  providerId: string;
+  providerLabel: string;
+  model: string;
+  modelLabel: string;
+  eventCount: number;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+  billableTotalTokens: number | null;
+  estimatedCost: number | null;
+};
+
 export type AiUsageOutboxHealth = {
   failedCount: number;
   lastEmittedAt: number | null;

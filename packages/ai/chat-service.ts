@@ -17,7 +17,7 @@ import { PiSessionService } from './runtime/pi/session-service';
 import { generatePiConversationTitle } from './runtime/pi/tasks/title';
 import type { AgentLoopCompletePayload } from './services/memory-types';
 import { createThinkingTagStreamParser, extractThinkingTextFromMetadata, readThinkingBlocksFromMetadata, splitThinkingTagsFromText, type ThinkingMetadataBlock } from './thinking-content';
-import { ChatMessage, ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent } from './types';
+import { CHAT_MESSAGE_DISPLAY_PARTS_METADATA_KEY, ChatMessage, ChatMessageDisplayPart, ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent } from './types';
 
 // local UUID fallback if uuid not present
 function safeUuid(): string {
@@ -59,6 +59,107 @@ function toThinkingBlocks(thinking: string): ThinkingMetadataBlock[] | undefined
   }
 
   return [{ type: 'thinking', thinking }];
+}
+
+function appendTextDisplayPart(parts: ChatMessageDisplayPart[], text: string): void {
+  const last = parts[parts.length - 1];
+  if (last?.type === 'text') {
+    last.text += text;
+    return;
+  }
+
+  parts.push({ text, type: 'text' });
+}
+
+function appendThinkingDisplayPart(parts: ChatMessageDisplayPart[], thinking: string): void {
+  const last = parts[parts.length - 1];
+  if (last?.type === 'thinking') {
+    last.thinking += thinking;
+    return;
+  }
+
+  parts.push({ thinking, type: 'thinking' });
+}
+
+function appendToolDisplayPart(parts: ChatMessageDisplayPart[], callId: string): void {
+  if (!callId || parts.some((part) => part.type === 'tool' && part.callId === callId)) {
+    return;
+  }
+
+  parts.push({ callId, type: 'tool' });
+}
+
+function normalizeDisplayParts(parts: ChatMessageDisplayPart[]): ChatMessageDisplayPart[] | undefined {
+  const normalized = parts.filter((part) => {
+    if (part.type === 'text') return !!part.text;
+    if (part.type === 'thinking') return !!part.thinking;
+    return !!part.callId;
+  });
+
+  if (!normalized.length || isLegacyEquivalentDisplayParts(normalized)) {
+    return undefined;
+  }
+
+  return normalized;
+}
+
+function isLegacyEquivalentDisplayParts(parts: ChatMessageDisplayPart[]): boolean {
+  let phase: 'thinking' | 'tool' | 'text' = 'thinking';
+
+  for (const part of parts) {
+    if (part.type === 'thinking') {
+      if (phase !== 'thinking') return false;
+      continue;
+    }
+
+    if (part.type === 'tool') {
+      if (phase === 'text') return false;
+      phase = 'tool';
+      continue;
+    }
+
+    phase = 'text';
+  }
+
+  return true;
+}
+
+function attachDisplayParts(message: ChatMessage, parts: ChatMessageDisplayPart[]): ChatMessage {
+  const displayParts = normalizeDisplayParts(parts);
+  if (!displayParts) {
+    return message;
+  }
+
+  return {
+    ...message,
+    metadata: {
+      ...(message.metadata || {}),
+      [CHAT_MESSAGE_DISPLAY_PARTS_METADATA_KEY]: displayParts
+    }
+  };
+}
+
+function finalizeDisplayParts(parts: ChatMessageDisplayPart[], message?: ChatMessage): ChatMessageDisplayPart[] {
+  const next = parts.slice();
+
+  if (message) {
+    const thinking = extractThinkingTextFromMetadata(message.metadata);
+    const thinkingPartIndexes = next.flatMap((part, index) => (part.type === 'thinking' && part.thinking ? [index] : []));
+    if (thinkingPartIndexes.length === 1 && thinking) {
+      next[thinkingPartIndexes[0]] = { thinking, type: 'thinking' };
+    } else if (thinkingPartIndexes.length === 0 && thinking) {
+      next.unshift({ thinking, type: 'thinking' });
+    }
+
+    const textPartIndexes = next.flatMap((part, index) => (part.type === 'text' && part.text ? [index] : []));
+    if (textPartIndexes.length === 1 && message.content) {
+      next[textPartIndexes[0]] = { text: message.content, type: 'text' };
+    } else if (textPartIndexes.length === 0 && message.content) {
+      next.push({ text: message.content, type: 'text' });
+    }
+  }
+
+  return normalizeDisplayParts(next) || [];
 }
 
 function normalizeAssistantThinkingMessage(
@@ -327,7 +428,8 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
     let thinkingText = '';
     let errorMessage: string | undefined;
     const startedAt = Date.now();
-    const collectedToolCalls: Array<{ callId: string; name: string; args?: any; result?: any }> = [];
+    const collectedToolCalls: Array<{ callId: string; name: string; args?: any; label?: string; result?: any }> = [];
+    const displayParts: ChatMessageDisplayPart[] = [];
     const inlineThinkingParser = shouldNormalizeInlineThinkingTags(preview.resolved.model.canonicalProviderId) ? createThinkingTagStreamParser() : undefined;
 
     eventManager.emit(AppEvent.SPRITE_AI_START, { message: '思考中...' });
@@ -342,11 +444,13 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
 
               if (segment.kind === 'thinking') {
                 thinkingText += segment.text;
+                appendThinkingDisplayPart(displayParts, segment.text);
                 emit({ type: 'thinking_delta', data: { text: segment.text } });
                 continue;
               }
 
               fullText += segment.text;
+              appendTextDisplayPart(displayParts, segment.text);
               emit({ type: 'delta', data: { text: segment.text } });
             }
           };
@@ -367,10 +471,12 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
 
           if (event.type === 'delta' && event.data?.text) {
             fullText += event.data.text;
+            appendTextDisplayPart(displayParts, event.data.text);
           }
 
           if (event.type === 'thinking_delta' && event.data?.text) {
             thinkingText += event.data.text;
+            appendThinkingDisplayPart(displayParts, event.data.text);
           }
 
           if (event.type === 'message_completed' && event.data?.message) {
@@ -394,6 +500,8 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
               fullText = finalMessage.content;
             }
 
+            finalMessage = attachDisplayParts(finalMessage, finalizeDisplayParts(displayParts, finalMessage));
+
             emit({
               ...event,
               data: {
@@ -405,7 +513,8 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
           }
 
           if (event.type === 'tool_call' && event.data) {
-            collectedToolCalls.push({ callId: event.data.callId, name: event.data.name, args: event.data.args });
+            collectedToolCalls.push({ callId: event.data.callId, name: event.data.name, args: event.data.args, label: event.data.label });
+            appendToolDisplayPart(displayParts, event.data.callId);
           }
 
           if (event.type === 'tool_result' && event.data) {
@@ -464,6 +573,10 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
         fallbackThinking: thinkingText || undefined,
         providerId: preview.resolved.model.canonicalProviderId
       }) || finalMessage;
+
+    if (finalMessage) {
+      finalMessage = attachDisplayParts(finalMessage, finalizeDisplayParts(displayParts, finalMessage));
+    }
 
     if (finalMessage && collectedToolCalls.length > 0) {
       finalMessage = { ...finalMessage, metadata: { ...finalMessage.metadata, toolCalls: collectedToolCalls } };

@@ -151,7 +151,7 @@ export function PresetFormDialog(props: {
           className="flex w-full items-center justify-between px-2 py-2 text-sm text-muted-foreground hover:text-foreground"
           onClick={() => setModelsExpanded((expanded) => !expanded)}
         >
-          <span>支持的 Provider 模型 ({filteredSortedModels.length})</span>
+          <span>可用模型 ({filteredSortedModels.length})</span>
           <span className="flex items-center gap-1 text-xs">
             {modelsExpanded ? <TbChevronDown className="w-4 h-4" /> : <TbChevronRight className="w-4 h-4" />}
             {modelsExpanded ? '收起' : '展开'}

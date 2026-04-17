@@ -7,13 +7,17 @@ import type {
   AiUsageOutboxHealth,
   AiUsageOutboxRetryResult,
   AiUsageOverview,
+  AiUsageProviderModelBreakdownRow,
   AiUsageQueryFilter,
   AiUsageTimelinePoint
 } from '@packages/ai/analytics/types';
 import { AI_METERING_ACCURACIES, AI_USAGE_CATEGORIES, AI_USAGE_FEATURES, AI_USAGE_SOURCE_TYPES, AI_USAGE_STATUSES } from '@packages/ai/analytics/types';
-import React, { startTransition, useDeferredValue, useEffect, useState } from 'react';
+import React, { startTransition, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { TbAlertTriangle, TbBolt, TbChartBar, TbCoins, TbDatabase, TbFilter, TbPlugConnected, TbRefresh, TbStethoscope } from 'react-icons/tb';
 
+import { DonutPieCard } from '@/components/charts/DonutPie';
+import { StackedVerticalBarCard } from '@/components/charts/StackedVerticalBar';
+import { VerticalBarCard } from '@/components/charts/VerticalBar';
 import PageToolbar from '@/components/common/PageToolbar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -420,9 +424,9 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ workspaceId }) => {
   const [overview, setOverview] = useState<AiUsageOverview | null>(null);
   const [timeline, setTimeline] = useState<AiUsageTimelinePoint[]>([]);
   const [providerRows, setProviderRows] = useState<AiUsageBreakdownRow[]>([]);
-  const [modelRows, setModelRows] = useState<AiUsageBreakdownRow[]>([]);
   const [categoryRows, setCategoryRows] = useState<AiUsageBreakdownRow[]>([]);
   const [featureRows, setFeatureRows] = useState<AiUsageBreakdownRow[]>([]);
+  const [providerModelRows, setProviderModelRows] = useState<AiUsageProviderModelBreakdownRow[]>([]);
   const [stageRows, setStageRows] = useState<AiUsageBreakdownRow[]>([]);
   const [workflowNodeRows, setWorkflowNodeRows] = useState<AiUsageBreakdownRow[]>([]);
   const [events, setEvents] = useState<AiUsageEventRow[]>([]);
@@ -438,6 +442,95 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ workspaceId }) => {
 
   const deferredProviderFilter = useDeferredValue(providerFilter.trim());
   const deferredModelFilter = useDeferredValue(modelFilter.trim());
+
+  const featurePieSlices = useMemo(
+    () =>
+      featureRows.map((row) => ({
+        id: `${row.dimension}:${row.value}`,
+        label: row.label,
+        value: row.totalTokens ?? 0,
+        tooltipLines: [`${formatInteger(row.eventCount)} 次调用 · 可计费 ${formatMaybeInteger(row.billableTotalTokens)}`]
+      })),
+    [featureRows]
+  );
+  const categoryPieSlices = useMemo(
+    () =>
+      categoryRows.map((row) => ({
+        id: `${row.dimension}:${row.value}`,
+        label: row.label,
+        value: row.totalTokens ?? 0,
+        tooltipLines: [`${formatInteger(row.eventCount)} 次调用 · 可计费 ${formatMaybeInteger(row.billableTotalTokens)}`]
+      })),
+    [categoryRows]
+  );
+  const providerBarData = useMemo(
+    () =>
+      providerRows.map((row) => ({
+        id: `${row.dimension}:${row.value}`,
+        label: row.label,
+        value: row.totalTokens ?? 0,
+        tooltipLines: [`${formatInteger(row.eventCount)} 次调用 · 可计费 ${formatMaybeInteger(row.billableTotalTokens)}`]
+      })),
+    [providerRows]
+  );
+  const providerModelStackedData = useMemo(() => {
+    if (providerModelRows.length === 0) return [];
+
+    const providerLabels = new Map(providerRows.map((row) => [row.value, row.label]));
+    const providerModelMap = new Map<string, Map<string, number>>();
+    const modelTotals = new Map<string, number>();
+
+    providerModelRows.forEach((row) => {
+      const providerId = row.providerId || '未标记';
+      const model = row.model || '未标记模型';
+      const totalTokens = row.totalTokens ?? 0;
+      if (totalTokens <= 0) return;
+
+      const modelMap = providerModelMap.get(providerId) ?? new Map<string, number>();
+      modelMap.set(model, (modelMap.get(model) ?? 0) + totalTokens);
+      providerModelMap.set(providerId, modelMap);
+      modelTotals.set(model, (modelTotals.get(model) ?? 0) + totalTokens);
+    });
+
+    const topModels = [...modelTotals.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([model]) => model);
+    const topModelSet = new Set(topModels);
+
+    const providersInOrder = [...providerRows.map((row) => row.value), ...providerModelMap.keys()].filter((provider, index, arr) => provider && arr.indexOf(provider) === index);
+
+    return providersInOrder
+      .map((providerId) => {
+        const modelMap = providerModelMap.get(providerId);
+        if (!modelMap) return null;
+
+        const segments = topModels
+          .map((model) => ({
+            key: model,
+            label: model,
+            value: modelMap.get(model) ?? 0
+          }))
+          .filter((segment) => segment.value > 0);
+
+        const otherTotal = [...modelMap.entries()].reduce((sum, [model, value]) => (topModelSet.has(model) ? sum : sum + value), 0);
+        if (otherTotal > 0) {
+          segments.push({
+            key: '__other_models__',
+            label: '其他模型',
+            value: otherTotal
+          });
+        }
+
+        if (segments.length === 0) return null;
+        return {
+          id: providerId,
+          label: providerLabels.get(providerId) ?? providerId,
+          segments
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  }, [providerModelRows, providerRows]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -484,14 +577,14 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ workspaceId }) => {
       };
 
       try {
-        const [nextOverview, nextTimeline, nextProviders, nextModels, nextCategories, nextFeatures, nextStages, nextWorkflowNodes, nextEvents, nextOutboxHealth, nextFailedOutboxEvents] =
+        const [nextOverview, nextTimeline, nextProviders, nextCategories, nextFeatures, nextProviderModelRows, nextStages, nextWorkflowNodes, nextEvents, nextOutboxHealth, nextFailedOutboxEvents] =
           await Promise.all([
             window.YUA.analytics.getUsageOverview(filter),
             window.YUA.analytics.getUsageTimeline(filter, 'day', Math.max(7, rangeDays)),
             window.YUA.analytics.getUsageByProvider(filter, 8),
-            window.YUA.analytics.getUsageByModel(filter, 8),
             window.YUA.analytics.getUsageByCategory(filter, 8),
             window.YUA.analytics.getUsageByFeature(filter, 8),
+            window.YUA.analytics.getUsageProviderModelBreakdown(filter, 8),
             window.YUA.analytics.getUsageBreakdown({ dimension: 'stage', filter, limit: 8 }),
             window.YUA.analytics.getUsageBreakdown({ dimension: 'workflowNodeType', filter, limit: 8 }),
             window.YUA.analytics.listUsageEvents(filter, 15, 0),
@@ -505,9 +598,9 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ workspaceId }) => {
           setOverview(nextOverview);
           setTimeline(nextTimeline);
           setProviderRows(localizeBreakdownRows(nextProviders));
-          setModelRows(localizeBreakdownRows(nextModels));
           setCategoryRows(localizeBreakdownRows(nextCategories));
           setFeatureRows(localizeBreakdownRows(nextFeatures));
+          setProviderModelRows(nextProviderModelRows);
           setStageRows(localizeBreakdownRows(nextStages));
           setWorkflowNodeRows(localizeBreakdownRows(nextWorkflowNodes));
           setEvents(nextEvents);
@@ -857,42 +950,42 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ workspaceId }) => {
             {loading && !overview
               ? Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-32 rounded-xl" />)
               : [
-                  {
-                    description: `${formatInteger(overview?.completedEvents)} 完成 / ${formatInteger(overview?.failedEvents)} 失败 / ${formatInteger(overview?.cancelledEvents)} 取消`,
-                    icon: <TbBolt className="h-4 w-4" />,
-                    title: '总 tokens',
-                    value: formatMaybeInteger(overview?.totalTokens)
-                  },
-                  {
-                    description: `${formatMaybeInteger(overview?.inputTokens)} 输入 / ${formatMaybeInteger(overview?.outputTokens)} 输出`,
-                    icon: <TbCoins className="h-4 w-4" />,
-                    title: '可计费 tokens',
-                    value: formatMaybeInteger(overview?.billableTotalTokens)
-                  },
-                  {
-                    description: `${formatInteger(overview?.distinctRequestCount)} 个 request / ${formatInteger(overview?.distinctTraceCount)} 条 trace`,
-                    icon: <TbDatabase className="h-4 w-4" />,
-                    title: '总调用数',
-                    value: formatInteger(overview?.totalEvents)
-                  },
-                  {
-                    description: `精准 ${formatPercent(overview?.exactEvents, overview?.totalEvents)} / 可计费 ${formatPercent(overview?.billingEligibleEvents, overview?.totalEvents)}`,
-                    icon: <TbPlugConnected className="h-4 w-4" />,
-                    title: '模型数 / Provider 数',
-                    value: `${formatInteger(overview?.distinctModelCount)} / ${formatInteger(overview?.distinctProviderCount)}`
-                  }
-                ].map((item) => (
-                  <Card key={item.title} className="border-border/70">
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center justify-between text-muted-foreground">
-                        <CardDescription>{item.title}</CardDescription>
-                        {item.icon}
-                      </div>
-                      <CardTitle className="text-3xl">{item.value}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-0 text-sm text-muted-foreground">{item.description}</CardContent>
-                  </Card>
-                ))}
+                {
+                  description: `${formatInteger(overview?.completedEvents)} 完成 / ${formatInteger(overview?.failedEvents)} 失败 / ${formatInteger(overview?.cancelledEvents)} 取消`,
+                  icon: <TbBolt className="h-4 w-4" />,
+                  title: '总 tokens',
+                  value: formatMaybeInteger(overview?.totalTokens)
+                },
+                {
+                  description: `${formatMaybeInteger(overview?.inputTokens)} 输入 / ${formatMaybeInteger(overview?.outputTokens)} 输出`,
+                  icon: <TbCoins className="h-4 w-4" />,
+                  title: '可计费 tokens',
+                  value: formatMaybeInteger(overview?.billableTotalTokens)
+                },
+                {
+                  description: `${formatInteger(overview?.distinctRequestCount)} 个 request / ${formatInteger(overview?.distinctTraceCount)} 条 trace`,
+                  icon: <TbDatabase className="h-4 w-4" />,
+                  title: '总调用数',
+                  value: formatInteger(overview?.totalEvents)
+                },
+                {
+                  description: `精准 ${formatPercent(overview?.exactEvents, overview?.totalEvents)} / 可计费 ${formatPercent(overview?.billingEligibleEvents, overview?.totalEvents)}`,
+                  icon: <TbPlugConnected className="h-4 w-4" />,
+                  title: '模型数 / Provider 数',
+                  value: `${formatInteger(overview?.distinctModelCount)} / ${formatInteger(overview?.distinctProviderCount)}`
+                }
+              ].map((item) => (
+                <Card key={item.title} className="border-border/70">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <CardDescription>{item.title}</CardDescription>
+                      {item.icon}
+                    </div>
+                    <CardTitle className="text-3xl">{item.value}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0 text-sm text-muted-foreground">{item.description}</CardContent>
+                </Card>
+              ))}
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
@@ -1100,13 +1193,43 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ workspaceId }) => {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <TopListCard title="Provider 排行" description="按 total tokens 排序，可同时观察可计费 tokens。" rows={providerRows} />
-            <TopListCard title="模型排行" description="按 total tokens 排序，用于识别主力模型与热门消耗点。" rows={modelRows} />
+            <VerticalBarCard
+              title="服务提供商"
+              description="按 total tokens 排序，可同时观察可计费 tokens。"
+              data={providerBarData}
+              emptyMessage="当前筛选下还没有可展示的数据。"
+              valueLabel="tokens"
+              formatValue={formatInteger}
+            />
+            <StackedVerticalBarCard
+              title="模型分布（按服务商）"
+              description="横轴是服务商，柱子按模型堆叠，合计即该服务商总 token。"
+              data={providerModelStackedData}
+              emptyMessage="当前筛选下还没有可展示的数据。"
+              valueLabel="tokens"
+              formatValue={formatInteger}
+            />
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <TopListCard title="用途分类" description="按业务分类观察资源分布，例如对话、媒体、记忆与工作流。" rows={categoryRows} />
-            <TopListCard title="具体功能" description="区分翻译、总结、记忆提取、转写、图像生成等真实用途。" rows={featureRows} />
+            <DonutPieCard
+              title="用途分类"
+              description="按业务分类观察资源分布，例如对话、媒体、记忆与工作流。"
+              slices={categoryPieSlices}
+              emptyMessage="当前筛选下还没有可展示的数据。"
+              emptyWhenAllValuesZeroMessage="当前筛选下各分类 tokens 均为 0，暂无占比可展示。"
+              valueLabel="tokens"
+              formatValue={formatInteger}
+            />
+            <DonutPieCard
+              title="具体功能"
+              description="按 total tokens 观察翻译、总结、记忆提取、转写、图像生成等用途占比。"
+              slices={featurePieSlices}
+              emptyMessage="当前筛选下还没有可展示的数据。"
+              emptyWhenAllValuesZeroMessage="当前筛选下各功能 tokens 均为 0，暂无占比可展示。"
+              valueLabel="tokens"
+              formatValue={formatInteger}
+            />
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
@@ -1159,8 +1282,9 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ workspaceId }) => {
                           <TableCell className="whitespace-nowrap align-top text-xs text-muted-foreground">{formatDateTime(event.createdAt)}</TableCell>
 
                           <TableCell className="align-top">
-                            <div className="font-medium">{event.providerId}</div>
-                            <div className="text-xs text-muted-foreground">{event.model}</div>
+                            <div className="font-medium">
+                              {event.providerId} / <span className="text-xs text-muted-foreground">{event.model}</span>
+                            </div>
                             <div className="mt-1 flex flex-wrap gap-1">
                               {event.providerPresetId ? <Badge variant="outline">{event.providerPresetId}</Badge> : null}
                               {metadata.providerUsageType ? <Badge variant="secondary">{metadata.providerUsageType}</Badge> : null}

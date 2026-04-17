@@ -1,0 +1,49 @@
+import type { FC } from 'react';
+
+import ChatMessageRenderer from './ChatMessageRenderer';
+import { hasTimelineContent, type TimelineMessage } from './message-timeline';
+import ThinkingActivity from './ThinkingActivity';
+import type { ToolActivity } from './ToolCallActivity';
+import ToolCallActivity from './ToolCallActivity';
+
+interface AssistantMessageTimelineProps {
+  compactCards?: boolean;
+  message: TimelineMessage;
+  onUserChoiceSubmit?: (choiceId: string, answers: Record<string, string[]>) => void;
+}
+
+const AssistantMessageTimeline: FC<AssistantMessageTimelineProps> = ({ compactCards = false, message, onUserChoiceSubmit }) => {
+  if (message.displayParts?.length) {
+    return (
+      <>
+        {message.displayParts.map((part) => {
+          if (part.type === 'thinking') {
+            return <ThinkingActivity key={part.id} thinking={part.thinking} isThinking={!!part.isThinking} />;
+          }
+
+          if (part.type === 'tool') {
+            return <ToolCallActivity key={part.id} activities={[part.activity]} onUserChoiceSubmit={onUserChoiceSubmit} />;
+          }
+
+          return <ChatMessageRenderer key={part.id} content={part.content} compactCards={compactCards} />;
+        })}
+      </>
+    );
+  }
+
+  if (!hasTimelineContent(message)) {
+    return null;
+  }
+
+  const activities: ToolActivity[] = message.activities || [];
+
+  return (
+    <>
+      {message.thinking && <ThinkingActivity thinking={message.thinking} isThinking={!!message.isThinking} />}
+      {activities.length > 0 && <ToolCallActivity activities={activities} onUserChoiceSubmit={onUserChoiceSubmit} />}
+      {message.content ? <ChatMessageRenderer content={message.content} compactCards={compactCards} /> : null}
+    </>
+  );
+};
+
+export default AssistantMessageTimeline;

@@ -12,6 +12,7 @@ import type {
   AiUsageOutboxRetryResult,
   AiUsageOutboxStatus,
   AiUsageOverview,
+  AiUsageProviderModelBreakdownRow,
   AiUsageQueryFilter,
   AiUsageTimelineBucket,
   AiUsageTimelinePoint
@@ -32,6 +33,9 @@ export const analyticsApi = {
   getUsageByCategory: (filter?: AiUsageQueryFilter, limit?: number): Promise<AiUsageBreakdownRow[]> => ipcRenderer.invoke('analytics:breakdown', { dimension: 'category', filter, limit }),
 
   getUsageByFeature: (filter?: AiUsageQueryFilter, limit?: number): Promise<AiUsageBreakdownRow[]> => ipcRenderer.invoke('analytics:breakdown', { dimension: 'feature', filter, limit }),
+
+  getUsageProviderModelBreakdown: (filter?: AiUsageQueryFilter, providerLimit?: number): Promise<AiUsageProviderModelBreakdownRow[]> =>
+    ipcRenderer.invoke('analytics:providerModelBreakdown', { filter, providerLimit }),
 
   listUsageEvents: (filter?: AiUsageQueryFilter, limit?: number, offset?: number): Promise<AiUsageEventRow[]> => ipcRenderer.invoke('analytics:events', { filter, limit, offset }),
 

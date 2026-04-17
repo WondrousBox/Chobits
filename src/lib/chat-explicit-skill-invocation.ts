@@ -1,10 +1,9 @@
 import type { ExplicitSkillInvocationInput } from '@packages/ai/types';
 
-const EXPLICIT_SKILL_AGENT_ID = 'assistant';
-const COMMAND_STYLE_REFERENCE_RE = /^[a-z0-9][a-z0-9._-]*$/i;
+const EXPLICIT_SKILL_AGENT_IDS = new Set(['assistant', 'assistant-skills']);
 
 export function buildExplicitSkillInvocationInput(agentId: string | undefined, content: string): ExplicitSkillInvocationInput | undefined {
-  if (agentId !== EXPLICIT_SKILL_AGENT_ID) {
+  if (!agentId || !EXPLICIT_SKILL_AGENT_IDS.has(agentId)) {
     return undefined;
   }
 
@@ -24,7 +23,7 @@ export function buildExplicitSkillInvocationInput(agentId: string | undefined, c
   }
 
   const matchedReference = match[1].trim();
-  if (!matchedReference || !COMMAND_STYLE_REFERENCE_RE.test(matchedReference)) {
+  if (!matchedReference) {
     return undefined;
   }
 
