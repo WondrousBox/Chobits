@@ -44,6 +44,35 @@ export interface RssApi {
   }>;
 
   /**
+   * 忽略 RSS 条目（从当前订阅列表隐藏）
+   */
+  ignoreItem: (params: { rssResourceId: string; itemId: string }) => Promise<{ success: boolean; data?: RssFeedItem; error?: string }>;
+
+  /**
+   * 批量忽略 RSS 条目
+   */
+  batchIgnoreItems: (params: { rssResourceId: string; itemIds: string[] }) => Promise<{ success: boolean; data?: { count: number }; error?: string }>;
+
+  /**
+   * 恢复已忽略的 RSS 条目
+   */
+  unignoreItem: (params: { rssResourceId: string; itemId: string }) => Promise<{ success: boolean; data?: RssFeedItem; error?: string }>;
+
+  /**
+   * 恢复所有已忽略的 RSS 条目
+   */
+  restoreAllIgnored: (params: { rssResourceId: string }) => Promise<{ success: boolean; data?: { count: number }; error?: string }>;
+
+  /**
+   * 获取已忽略的 RSS 条目列表
+   */
+  getIgnoredItems: (params: { rssResourceId: string; limit?: number; offset?: number }) => Promise<{
+    success: boolean;
+    data?: { items: RssFeedItem[]; totalCount: number };
+    error?: string;
+  }>;
+
+  /**
    * 列出所有 RSS 资源
    */
   list: (params?: { workspaceId?: string }) => Promise<{ success: boolean; data?: ResourceRow[]; error?: string }>;
@@ -54,9 +83,9 @@ export interface RssApi {
    * @param params.id - 资源 ID
    * @param params.hardDelete - 是否硬删除（彻底删除，默认 false 为软删除）
    */
-  delete: (params: { id: string; hardDelete?: boolean }) => Promise<{
+  delete: (params: { id: string; hardDelete?: boolean; deleteDownloadedResources?: boolean }) => Promise<{
     success: boolean;
-    data?: { id: string; deletedFeedCount: number } | ResourceRow;
+    data?: { id: string; deletedFeedCount: number; deletedDownloadedResourceCount?: number; keptDownloadedResourceCount?: number } | ResourceRow;
     error?: string;
   }>;
 
@@ -98,6 +127,11 @@ export function createRssApi(ipcRenderer: Electron.IpcRenderer): RssApi {
     getCachedFeed: (params) => ipcRenderer.invoke('rss:getCachedFeed', params),
     fetchFeed: (params) => ipcRenderer.invoke('rss:fetchFeed', params),
     downloadItem: (params) => ipcRenderer.invoke('rss:downloadItem', params),
+    ignoreItem: (params) => ipcRenderer.invoke('rss:ignoreItem', params),
+    batchIgnoreItems: (params) => ipcRenderer.invoke('rss:batchIgnoreItems', params),
+    unignoreItem: (params) => ipcRenderer.invoke('rss:unignoreItem', params),
+    restoreAllIgnored: (params) => ipcRenderer.invoke('rss:restoreAllIgnored', params),
+    getIgnoredItems: (params) => ipcRenderer.invoke('rss:getIgnoredItems', params),
     list: (params) => ipcRenderer.invoke('rss:list', params),
     delete: (params) => ipcRenderer.invoke('rss:delete', params),
     checkAllUpdates: () => ipcRenderer.invoke('rss:checkAllUpdates'),

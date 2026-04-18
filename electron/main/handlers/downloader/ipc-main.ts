@@ -1,10 +1,168 @@
 import { windowManager } from '@aim-packages/window-manager';
 import { BrowserWindow, ipcMain, screen } from 'electron';
 
+import { RssFeedItemsRepo } from '../../db/repositories';
 import { getMainWindow } from '../../index';
-import { downloadManager, getThumbnail, getVideoInfo, subscriptionManager } from '.';
+import { downloadManager, getThumbnail, getVideoInfo, subscriptionManager, type DownloadTask } from '.';
+import type { RssDownloadErrorCode, RssDownloadStatus } from '../rss/types';
 import { cookieManager } from './cookie-manager';
 import { SubscriptionManager } from './subscription-manager';
+
+const RSS_DOWNLOAD_PROGRESS_WRITE_INTERVAL_MS = 1500;
+const rssDownloadProgressWrites = new Map<string, { at: number; percent: number }>();
+
+type RssDownloadStatusPatch = {
+  downloaded?: boolean;
+  localResourceId?: string | null;
+  downloadStatus?: RssDownloadStatus;
+  downloadProgress?: number | null;
+  downloadErrorCode?: RssDownloadErrorCode | null;
+  downloadError?: string | null;
+  downloadErrorAt?: number | null;
+  lastDownloadAt?: number | null;
+};
+
+function getStringMetadataValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function getRssTaskLink(payload: { parentResourceId?: string; metadata?: Record<string, unknown> }): { rssResourceId: string; itemId: string } | null {
+  const metadata = payload.metadata || {};
+  const itemId = getStringMetadataValue(metadata.itemId);
+  const rssResourceId = getStringMetadataValue(metadata.rssResourceId) || getStringMetadataValue(metadata.parentResourceId) || payload.parentResourceId;
+
+  if (!rssResourceId || !itemId) {
+    return null;
+  }
+
+  return { rssResourceId, itemId };
+}
+
+function getRssTaskKey(link: { rssResourceId: string; itemId: string }): string {
+  return `${link.rssResourceId}:${link.itemId}`;
+}
+
+function normalizeProgressPercent(percent?: number): number | undefined {
+  if (typeof percent !== 'number' || !Number.isFinite(percent)) {
+    return undefined;
+  }
+
+  return Math.max(0, Math.min(100, Math.round(percent)));
+}
+
+function shouldPersistRssProgress(link: { rssResourceId: string; itemId: string }, percent?: number): percent is number {
+  if (percent === undefined) {
+    return false;
+  }
+
+  const key = getRssTaskKey(link);
+  const now = Date.now();
+  const previous = rssDownloadProgressWrites.get(key);
+
+  if (!previous || percent === 100 || now - previous.at >= RSS_DOWNLOAD_PROGRESS_WRITE_INTERVAL_MS || Math.abs(percent - previous.percent) >= 5) {
+    rssDownloadProgressWrites.set(key, { at: now, percent });
+    return true;
+  }
+
+  return false;
+}
+
+async function updateRssDownloadStatus(
+  payload: { parentResourceId?: string; metadata?: Record<string, unknown> },
+  patch: RssDownloadStatusPatch
+): Promise<void> {
+  const link = getRssTaskLink(payload);
+  if (!link) {
+    return;
+  }
+
+  try {
+    await RssFeedItemsRepo.updateDownloadStatus(link.rssResourceId, link.itemId, patch);
+  } catch (error) {
+    console.warn('[VideoDownload] Failed to update RSS download status:', error);
+  }
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) {
+    return error.message || fallback;
+  }
+  if (typeof error === 'string' && error.trim()) {
+    return error.trim();
+  }
+  return fallback;
+}
+
+function createRssDownloadActivePatch(status: Extract<RssDownloadStatus, 'pending' | 'downloading'>, progress = 0): RssDownloadStatusPatch {
+  return {
+    downloaded: false,
+    localResourceId: null,
+    downloadStatus: status,
+    downloadProgress: progress,
+    downloadErrorCode: null,
+    downloadError: null,
+    downloadErrorAt: null
+  };
+}
+
+function createRssDownloadFailurePatch(code: RssDownloadErrorCode, message: string): RssDownloadStatusPatch {
+  return {
+    downloaded: false,
+    localResourceId: null,
+    downloadStatus: 'error',
+    downloadProgress: null,
+    downloadErrorCode: code,
+    downloadError: message,
+    downloadErrorAt: Date.now()
+  };
+}
+
+function createRssDownloadCancelledPatch(): RssDownloadStatusPatch {
+  return {
+    downloaded: false,
+    localResourceId: null,
+    downloadStatus: 'cancelled',
+    downloadProgress: null,
+    downloadErrorCode: null,
+    downloadError: null,
+    downloadErrorAt: null
+  };
+}
+
+function createRssDownloadCompletedPatch(localResourceId?: string): RssDownloadStatusPatch {
+  return {
+    ...(localResourceId ? { downloaded: true, localResourceId } : {}),
+    downloadStatus: 'completed',
+    downloadProgress: 100,
+    downloadErrorCode: null,
+    downloadError: null,
+    downloadErrorAt: null,
+    lastDownloadAt: Date.now()
+  };
+}
+
+async function updateRssDownloadProgress(task: DownloadTask): Promise<void> {
+  const link = getRssTaskLink(task);
+  if (!link) {
+    return;
+  }
+
+  const percent = normalizeProgressPercent(task.progress?.percent);
+  if (!shouldPersistRssProgress(link, percent)) {
+    return;
+  }
+
+  await updateRssDownloadStatus(task, {
+    downloadProgress: percent
+  });
+}
+
+function clearRssProgressWriteState(task: DownloadTask): void {
+  const link = getRssTaskLink(task);
+  if (link) {
+    rssDownloadProgressWrites.delete(getRssTaskKey(link));
+  }
+}
 
 export function initDownloadHandlers(win: BrowserWindow): void {
   console.log('[VideoDownload] Initializing video download handlers');
@@ -23,7 +181,6 @@ export function initDownloadHandlers(win: BrowserWindow): void {
     }
   });
 
-  // 获取缩略图
   ipcMain.handle('video-downloader:get-thumbnail', async (event, url: string) => {
     try {
       const thumbnail = await getThumbnail(url);
@@ -37,7 +194,6 @@ export function initDownloadHandlers(win: BrowserWindow): void {
     }
   });
 
-  // 开始下载视频
   ipcMain.handle('video-downloader:download', async (event, options) => {
     try {
       // 如果没有提供videoInfo，先获取视频信息
@@ -50,10 +206,13 @@ export function initDownloadHandlers(win: BrowserWindow): void {
         }
       }
 
+      await updateRssDownloadStatus(options, createRssDownloadActivePatch('pending', 0));
+
       const taskId = await downloadManager.addTask(options);
       return { success: true, data: { taskId } };
     } catch (error) {
       console.error('[VideoDownload] Failed to start download:', error);
+      await updateRssDownloadStatus(options, createRssDownloadFailurePatch('download_queue_failed', getErrorMessage(error, '启动下载失败')));
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error)
@@ -123,6 +282,8 @@ export function initDownloadHandlers(win: BrowserWindow): void {
   });
 
   downloadManager.on('taskStarted', async (task) => {
+    await updateRssDownloadStatus(task, createRssDownloadActivePatch('downloading', 0));
+    win.webContents.send('video-downloader:task-started', task);
     console.log('[VideoDownload] 任务已开始:', task.id);
     try {
       const mainWindow = getMainWindow();
@@ -162,10 +323,9 @@ export function initDownloadHandlers(win: BrowserWindow): void {
   });
 
   downloadManager.on('taskProgress', (task) => {
-    // 发送进度到渲染进程（用于其他UI更新）
+    void updateRssDownloadProgress(task);
     win.webContents.send('video-downloader:task-progress', task);
 
-    // 发送进度到下载悬浮窗
     const downloadWindow = windowManager.get('downloadFloating');
     if (downloadWindow && !downloadWindow.isDestroyed()) {
       downloadWindow.webContents.send('video-downloader:task-progress', task);
@@ -183,15 +343,41 @@ export function initDownloadHandlers(win: BrowserWindow): void {
     }
   });
 
-  downloadManager.on('taskCompleted', (task) => {
+  downloadManager.on('taskCompleted', async (task) => {
     console.log('[VideoDownload] 任务已完成:', task.id);
+    const rssLink = getRssTaskLink(task);
+    const resourceId = task.result?.resourceId || (task.result?.resource as any)?.id;
+    if (rssLink && !resourceId) {
+      task.status = 'failed';
+      task.error = 'Download finished but the resource could not be added to the library';
+      await updateRssDownloadStatus(task, createRssDownloadFailurePatch('library_import_failed', task.error));
+      clearRssProgressWriteState(task);
+      try {
+        win.webContents.send('video-downloader:task-failed', task);
+        const mainWindow = getMainWindow();
+        if (mainWindow) {
+          mainWindow.setProgressBar(-1);
+        }
+
+        const downloadWindow = windowManager.get('downloadFloating');
+        if (downloadWindow && !downloadWindow.isDestroyed()) {
+          downloadWindow.webContents.send('video-downloader:task-failed', task);
+        }
+      } catch (error) {
+        console.warn('[VideoDownload] 重置进度条失败:', error);
+      }
+      return;
+    }
+
+    await updateRssDownloadStatus(task, createRssDownloadCompletedPatch(resourceId));
+    clearRssProgressWriteState(task);
     try {
+      win.webContents.send('video-downloader:task-completed', task);
       const mainWindow = getMainWindow();
       if (mainWindow) {
         mainWindow.setProgressBar(-1);
       }
 
-      // 发送完成事件到下载悬浮窗
       const downloadWindow = windowManager.get('downloadFloating');
       if (downloadWindow && !downloadWindow.isDestroyed()) {
         downloadWindow.webContents.send('video-downloader:task-completed', task);
@@ -201,15 +387,17 @@ export function initDownloadHandlers(win: BrowserWindow): void {
     }
   });
 
-  downloadManager.on('taskFailed', (task) => {
+  downloadManager.on('taskFailed', async (task) => {
     console.log('[VideoDownload] 任务失败:', task.id, task.error);
+    await updateRssDownloadStatus(task, createRssDownloadFailurePatch('download_failed', getErrorMessage(task.error, '下载失败')));
+    clearRssProgressWriteState(task);
     try {
+      win.webContents.send('video-downloader:task-failed', task);
       const mainWindow = getMainWindow();
       if (mainWindow) {
         mainWindow.setProgressBar(-1);
       }
 
-      // 发送失败事件到下载悬浮窗
       const downloadWindow = windowManager.get('downloadFloating');
       if (downloadWindow && !downloadWindow.isDestroyed()) {
         downloadWindow.webContents.send('video-downloader:task-failed', task);
@@ -219,12 +407,20 @@ export function initDownloadHandlers(win: BrowserWindow): void {
     }
   });
 
-  downloadManager.on('taskCancelled', (task) => {
+  downloadManager.on('taskCancelled', async (task) => {
     console.log('[VideoDownload] 任务已取消:', task.id);
+    await updateRssDownloadStatus(task, createRssDownloadCancelledPatch());
+    clearRssProgressWriteState(task);
     try {
+      win.webContents.send('video-downloader:task-cancelled', task);
       const mainWindow = getMainWindow();
       if (mainWindow) {
         mainWindow.setProgressBar(-1);
+      }
+
+      const downloadWindow = windowManager.get('downloadFloating');
+      if (downloadWindow && !downloadWindow.isDestroyed()) {
+        downloadWindow.webContents.send('video-downloader:task-cancelled', task);
       }
     } catch (error) {
       console.warn('[VideoDownload] 重置进度条失败:', error);
@@ -232,7 +428,6 @@ export function initDownloadHandlers(win: BrowserWindow): void {
   });
 
   // 订阅管理相关 handlers
-  // 获取所有订阅
   ipcMain.handle('video-downloader:get-subscriptions', async () => {
     try {
       const subscriptions = subscriptionManager.getAllSubscriptions();
@@ -314,7 +509,6 @@ export function initDownloadHandlers(win: BrowserWindow): void {
     }
   });
 
-  // 检查订阅（手动触发）
   ipcMain.handle('video-downloader:check-subscription', async (event, id: string) => {
     try {
       const subscription = subscriptionManager.getSubscription(id);
@@ -326,12 +520,11 @@ export function initDownloadHandlers(win: BrowserWindow): void {
       }
 
       await subscriptionManager.checkSubscription(subscription, (sub, videoId, videoUrl) => {
-        // 自动下载新视频
         if (sub.autoDownload) {
           downloadManager
             .addTask({
               url: videoUrl,
-              videoInfo: undefined // 将在下载时获取
+              videoInfo: undefined
             })
             .then((taskId) => {
               console.log(`[VideoDownload] Auto-downloading video from subscription ${sub.channelName}: ${taskId}`);
@@ -353,11 +546,9 @@ export function initDownloadHandlers(win: BrowserWindow): void {
     }
   });
 
-  // 检查所有订阅
   ipcMain.handle('video-downloader:check-all-subscriptions', async () => {
     try {
       await subscriptionManager.checkAllSubscriptions((sub, videoId, videoUrl) => {
-        // 自动下载新视频
         if (sub.autoDownload) {
           downloadManager
             .addTask({
@@ -384,11 +575,9 @@ export function initDownloadHandlers(win: BrowserWindow): void {
     }
   });
 
-  // 启动定期检查
   ipcMain.handle('video-downloader:start-periodic-check', async (event, intervalMinutes: number = 60) => {
     try {
       subscriptionManager.startPeriodicCheck(intervalMinutes, (sub, videoId, videoUrl) => {
-        // 自动下载新视频
         if (sub.autoDownload) {
           downloadManager
             .addTask({
@@ -415,7 +604,6 @@ export function initDownloadHandlers(win: BrowserWindow): void {
     }
   });
 
-  // 停止定期检查
   ipcMain.handle('video-downloader:stop-periodic-check', async () => {
     try {
       subscriptionManager.stopPeriodicCheck();
@@ -451,7 +639,6 @@ export function initDownloadHandlers(win: BrowserWindow): void {
     }
   });
 
-  // 获取 YouTube Cookie 状态
   ipcMain.handle('video-downloader:get-cookie-status', async () => {
     try {
       return {
@@ -502,7 +689,6 @@ export function initDownloadHandlers(win: BrowserWindow): void {
     }
   });
 
-  // 启动时自动开始定期检查
   subscriptionManager.startPeriodicCheck(60, (sub, videoId, videoUrl) => {
     if (sub.autoDownload) {
       downloadManager

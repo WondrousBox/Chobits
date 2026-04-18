@@ -26,7 +26,7 @@ async function getSharp(): Promise<SharpModule | null> {
 
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.tiff', '.svg']);
 const VIDEO_EXT = new Set(['.mp4', '.mov', '.mkv', '.webm', '.avi']);
-const AUDIO_EXT = new Set(['.mp3', '.wav', '.flac', '.aac', '.m4a', '.ogg']);
+const AUDIO_EXT = new Set(['.mp3', '.wav', '.flac', '.aac', '.m4a', '.ogg', '.opus', '.wma']);
 const SUBTITLE_EXT = new Set(['.srt', '.vtt', '.ass', '.ssa']);
 const TEXT_FILE_EXT = new Set([
   '.txt',

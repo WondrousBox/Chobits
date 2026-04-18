@@ -707,9 +707,17 @@ export const rss_feed_items = sqliteTable(
     // 对应的本地资源 ID（如果已下载）
     localResourceId: text('local_resource_id').references(() => resources.id, { onDelete: 'set null', onUpdate: 'cascade' }),
     // 下载状态
-    downloadStatus: text('download_status', { enum: ['pending', 'downloading', 'completed', 'error'] }),
+    downloadStatus: text('download_status', { enum: ['pending', 'downloading', 'completed', 'error', 'cancelled'] }),
     // 下载进度（0-100）
     downloadProgress: integer('download_progress'),
+    // 下载错误码
+    downloadErrorCode: text('download_error_code'),
+    // 下载错误信息
+    downloadError: text('download_error'),
+    // 下载错误时间
+    downloadErrorAt: integer('download_error_at'),
+    // 最近一次下载完成时间
+    lastDownloadAt: integer('last_download_at'),
     // 额外元数据（JSON字符串）
     metadata: text('metadata'),
     // 创建时间（入库时间）

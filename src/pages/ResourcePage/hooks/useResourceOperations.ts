@@ -18,7 +18,7 @@ export const useResourceOperations = (
 
         if (item?.type === 'rss') {
           // RSS 资源使用专用删除方法，同时删除关联的 feed 记录
-          await window.YUA.rss.delete({ id, hardDelete: true });
+          await window.YUA.rss.delete({ id, hardDelete: true, deleteDownloadedResources: false });
         } else {
           await window.YUA.resource.deleteResource({ id });
         }
@@ -62,7 +62,7 @@ export const useResourceOperations = (
 
         // 逐个删除 RSS 资源（同时删除关联的 feed 记录）
         for (const id of rssIds) {
-          await window.YUA.rss.delete({ id, hardDelete: true });
+          await window.YUA.rss.delete({ id, hardDelete: true, deleteDownloadedResources: false });
         }
 
         setList((prev) => prev.filter((i) => !ids.includes(i.id)));

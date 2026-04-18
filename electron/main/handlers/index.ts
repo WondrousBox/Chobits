@@ -45,6 +45,8 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   console.log(process.versions);
 
   initWindowHandlers(win);
+  // Load proxy settings before any handlers that trigger startup network requests.
+  await initProxyHandlers(win);
   initFFmpegHandlers(win);
   initVectorHandlers(win);
   initResourceHandlers();
@@ -89,7 +91,6 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
       }
     }
   });
-  initProxyHandlers(win);
   initThemeHandlers();
   initScreenshotHandlers();
   initSpleeterHandlers(win);

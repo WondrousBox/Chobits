@@ -8,16 +8,26 @@ import { app, BrowserWindow } from 'electron';
 
 import ytdlpStatic from '../../../../packages/common/libs/ytdlp-static';
 import { isUnsupportedOptionError, UnsupportedOptionError, ytdlpService } from '../../../../packages/ytdlp';
-import { ResourcesRepo, WorkspacesRepo } from '../../db/repositories';
+import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from '../../db/repositories';
 import { binPathLog } from '../../logger';
+import { findUniqueFileName } from '../../utils';
 import { getResourcePath } from '../../utils/resources-path';
-import { generateThumbnailForResource } from '../../utils/thumbnail';
+import { detectBasicType, generateThumbnailForResource } from '../../utils/thumbnail';
 import { ensureDailyFolder } from '../resource';
 
-// 默认文件夹配置
 const DEFAULT_FOLDERS = {
   download: './downloads'
 };
+
+const QUALITY_MODE_FORMATS: Record<string, string> = {
+  best: 'bestvideo+bestaudio/best',
+  '1080p': 'bv*[height<=1080]+ba/b[height<=1080]',
+  '720p': 'bv*[height<=720]+ba/b[height<=720]',
+  '480p': 'bv*[height<=480]+ba/b[height<=480]/wv*+ba/w',
+  audio: 'bestaudio/best'
+};
+
+const MEDIA_OUTPUT_EXTENSIONS = new Set(['.mp3', '.wav', '.flac', '.aac', '.m4a', '.ogg', '.opus', '.wma', '.mp4', '.mkv', '.mov', '.webm', '.avi', '.ogv']);
 
 function isFunction(fn: any): fn is Function {
   return typeof fn === 'function';
@@ -30,6 +40,131 @@ function sendMainWindowError(data: any): void {
 
 function cleanDownloadUrl(url: string): string {
   return url.trim();
+}
+
+function normalizeQualityMode(qualityMode?: string, quality?: number | string): string | undefined {
+  const raw = qualityMode ?? quality;
+
+  if (typeof raw === 'number') {
+    if (raw <= 1) return 'best';
+    if (raw === 2) return '720p';
+    if (raw >= 3) return 'audio';
+    return undefined;
+  }
+
+  if (typeof raw !== 'string') {
+    return undefined;
+  }
+
+  const normalized = raw.trim().toLowerCase();
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (normalized === '1') return 'best';
+  if (normalized === '2') return '720p';
+  if (normalized === '3') return 'audio';
+
+  return QUALITY_MODE_FORMATS[normalized] ? normalized : undefined;
+}
+
+function buildQualityArgs(qualityMode?: string, quality?: number | string): string[] {
+  const resolvedQualityMode = normalizeQualityMode(qualityMode, quality);
+  const formatSelector = resolvedQualityMode ? QUALITY_MODE_FORMATS[resolvedQualityMode] : undefined;
+  const args = formatSelector ? ['--format', formatSelector] : [];
+
+  if (resolvedQualityMode === 'audio') {
+    args.push('--extract-audio', '--audio-format', 'mp3', '--audio-quality', '0');
+  }
+
+  return args;
+}
+
+function areSamePath(a: string, b: string): boolean {
+  const resolvedA = path.resolve(a);
+  const resolvedB = path.resolve(b);
+  return process.platform === 'win32' ? resolvedA.toLowerCase() === resolvedB.toLowerCase() : resolvedA === resolvedB;
+}
+
+function extractDestinationPath(eventData: string): string | undefined {
+  const match = eventData.trim().match(/^Destination:\s+(.+)$/);
+  if (!match) return undefined;
+
+  const candidate = match[1].trim();
+  if (!candidate) return undefined;
+
+  if (candidate.startsWith('"') && candidate.endsWith('"')) {
+    return candidate.slice(1, -1);
+  }
+
+  return candidate;
+}
+
+function appendReportedOutputPath(paths: string[], candidate?: string): void {
+  if (!candidate) return;
+  if (!paths.includes(candidate)) {
+    paths.push(candidate);
+  }
+}
+
+function findFallbackDownloadedOutputs(directory: string, baseName: string): string[] {
+  try {
+    return fs
+      .readdirSync(directory)
+      .filter((entry) => entry.startsWith(`${baseName}.`))
+      .filter((entry) => {
+        const lower = entry.toLowerCase();
+        return !lower.endsWith('.part') && !lower.endsWith('.ytdl');
+      })
+      .filter((entry) => MEDIA_OUTPUT_EXTENSIONS.has(path.extname(entry).toLowerCase()))
+      .map((entry) => path.join(directory, entry))
+      .sort((a, b) => {
+        try {
+          return fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs;
+        } catch {
+          return 0;
+        }
+      });
+  } catch {
+    return [];
+  }
+}
+
+function resolveDownloadedOutputPath(options: { mergeFile?: string; actualDestination: string; tempName: string; reportedOutputPaths: string[] }): string | undefined {
+  const { mergeFile, actualDestination, tempName, reportedOutputPaths } = options;
+
+  if (mergeFile && fs.existsSync(mergeFile)) {
+    return mergeFile;
+  }
+
+  for (let index = reportedOutputPaths.length - 1; index >= 0; index--) {
+    const candidate = reportedOutputPaths[index];
+    if (candidate && fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return findFallbackDownloadedOutputs(actualDestination, tempName)[0];
+}
+
+function moveDownloadedFile(source: string, destination: string): string {
+  if (!fs.existsSync(source)) {
+    return source;
+  }
+
+  if (areSamePath(source, destination)) {
+    return source;
+  }
+
+  const uniqueDestination = findUniqueFileName(destination);
+
+  try {
+    fs.renameSync(source, uniqueDestination);
+    return uniqueDestination;
+  } catch (error) {
+    console.error('[VideoDownloader] Failed to rename file:', error);
+    return source;
+  }
 }
 
 // Windows 保留文件名（设备名等），不区分大小写
@@ -70,18 +205,15 @@ const WINDOWS_RESERVED_NAMES = new Set([
 function sanitizeFilename(filename: string): string {
   if (!filename) return filename;
 
-  // 先去掉扩展名，只处理主文件名（调用方会再追加 .mp4）
   const ext = path.extname(filename);
   const base = ext ? filename.slice(0, -ext.length) : filename;
 
-  // 替换各平台非法字符（取 Windows 集合，兼容 Linux/macOS）
   let cleaned = base
     .replace(/[<>:"/\\|?*]/g, '_')
     .replace(/^\.+/, '_')
     .replace(/\s+/g, ' ')
     .trim();
 
-  // 移除控制字符 0x00-0x1F、0x7F(DEL)、0x80-0x9F（C1 控制字符）
   cleaned = cleaned
     .split('')
     .filter((char) => {
@@ -124,12 +256,10 @@ async function downloadImageFromUrl(url: string, filename: string, folder: strin
     const actualDestination = destination || process.cwd();
     const thumbnailsDir = path.join(actualDestination, '.thumbs');
 
-    // 确保缩略图目录存在
     if (!fs.existsSync(thumbnailsDir)) {
       fs.mkdirSync(thumbnailsDir, { recursive: true });
     }
 
-    // 确定文件扩展名
     const urlPath = new URL(url).pathname;
     const urlExt = path.extname(urlPath).toLowerCase();
     const validExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
@@ -169,7 +299,7 @@ async function downloadImageFromUrl(url: string, filename: string, folder: strin
         });
 
         fileStream.on('error', (err) => {
-          fs.unlink(thumbnailPath, () => { }); // 删除部分下载的文件
+          fs.unlink(thumbnailPath, () => { });
           reject(err);
         });
       });
@@ -189,18 +319,16 @@ async function downloadImageFromUrl(url: string, filename: string, folder: strin
   }
 }
 
-// 使用ffmpeg生成视频封面图
-async function generateVideoThumbnail(videoPath: string, filename: string, destination?: string): Promise<string> {
+async function generateMediaThumbnail(filePath: string, filename: string, destination?: string): Promise<string> {
   try {
-    if (!fs.existsSync(videoPath)) {
-      console.warn('[VideoDownloader] Video file does not exist:', videoPath);
+    if (!fs.existsSync(filePath)) {
+      console.warn('[VideoDownloader] Media file does not exist:', filePath);
       return '';
     }
 
     const actualDestination = destination || process.cwd();
     const thumbnailsDir = path.join(actualDestination, '.thumbs');
 
-    // 确保缩略图目录存在
     if (!fs.existsSync(thumbnailsDir)) {
       fs.mkdirSync(thumbnailsDir, { recursive: true });
     }
@@ -214,8 +342,7 @@ async function generateVideoThumbnail(videoPath: string, filename: string, desti
       return thumbnailPath;
     }
 
-    // 使用现有的generateThumbnailForResource函数生成缩略图
-    const thumbnailBuffer = await generateThumbnailForResource({ filePath: videoPath, type: 'video', title: filename }, { size: 512, frameAtSeconds: 1.0 });
+    const thumbnailBuffer = await generateThumbnailForResource({ filePath, title: filename }, { size: 512, frameAtSeconds: 1.0 });
 
     if (thumbnailBuffer) {
       fs.writeFileSync(thumbnailPath, thumbnailBuffer);
@@ -246,7 +373,6 @@ async function getCurrentWorkspaceResourcePath(): Promise<string> {
     console.warn('[VideoDownloader] Failed to get workspace resource path:', error);
   }
 
-  // 如果获取工作空间失败，回退到默认下载目录
   const fallbackPath = path.join(process.cwd(), DEFAULT_FOLDERS.download);
   if (!fs.existsSync(fallbackPath)) {
     fs.mkdirSync(fallbackPath, { recursive: true });
@@ -255,19 +381,75 @@ async function getCurrentWorkspaceResourcePath(): Promise<string> {
 }
 
 // 将下载的文件添加到资源数据库
-async function addDownloadedFileToResources(filePath: string, videoInfo: any, workspaceId?: string, thumbnailPath?: string, folderId?: string): Promise<any> {
+async function resolveDownloadTarget(folderId?: string): Promise<{
+  destinationPath: string;
+  workspaceId?: string;
+  folderId?: string;
+}> {
+  if (folderId) {
+    try {
+      const folder = await FoldersRepo.getById(folderId);
+      if (folder?.workspaceId) {
+        const workspace = await WorkspacesRepo.getById(folder.workspaceId);
+        if (workspace?.rootPath) {
+          const folderPath = path.join(workspace.rootPath, 'resources', 'folders', folderId);
+          if (!fs.existsSync(folderPath)) {
+            fs.mkdirSync(folderPath, { recursive: true });
+          }
+          return {
+            destinationPath: folderPath,
+            workspaceId: workspace.id,
+            folderId
+          };
+        }
+      }
+    } catch (error) {
+      console.warn('[VideoDownloader] Failed to resolve target folder, falling back to default path:', error);
+    }
+  }
+
+  let workspaceResourcePath = await getCurrentWorkspaceResourcePath();
+  let dailyFolderId: string | undefined;
+  let workspaceId: string | undefined;
+
+  try {
+    const workspace = await WorkspacesRepo.getDefault();
+    if (workspace?.id && workspace?.rootPath) {
+      workspaceId = workspace.id;
+      dailyFolderId = await ensureDailyFolder(workspace.id, workspace.rootPath);
+      workspaceResourcePath = path.join(workspace.rootPath, 'resources', 'folders', dailyFolderId);
+      if (!fs.existsSync(workspaceResourcePath)) {
+        fs.mkdirSync(workspaceResourcePath, { recursive: true });
+      }
+    }
+  } catch (error) {
+    console.warn('[VideoDownloader] Failed to resolve daily folder, using default resource path:', error);
+  }
+
+  return {
+    destinationPath: workspaceResourcePath,
+    workspaceId,
+    folderId: dailyFolderId
+  };
+}
+
+async function addDownloadedFileToResources(
+  filePath: string,
+  videoInfo: any,
+  workspaceId?: string,
+  thumbnailPath?: string,
+  folderId?: string,
+  options?: {
+    parentResourceId?: string;
+    metadata?: Record<string, unknown>;
+    qualityMode?: string;
+  }
+): Promise<any> {
   try {
     const stats = fs.statSync(filePath);
     const filename = path.basename(filePath);
-    const ext = path.extname(filePath).toLowerCase();
-
-    // 确定文件类型
-    let type = 'video';
-    if (['.mp3', '.wav', '.flac', '.aac'].includes(ext)) {
-      type = 'audio';
-    } else if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
-      type = 'image';
-    }
+    const detected = detectBasicType(filePath);
+    const type = options?.qualityMode === 'audio' ? 'audio' : detected.type === 'file' ? 'video' : detected.type;
 
     // 获取当前工作空间ID
     let currentWorkspaceId = workspaceId;
@@ -288,12 +470,14 @@ async function addDownloadedFileToResources(filePath: string, videoInfo: any, wo
       filePath,
       sizeBytes: stats.size,
       durationMs: videoInfo?.duration ? Math.round(videoInfo.duration * 1000) : undefined,
-      width: videoInfo?.width || undefined,
-      height: videoInfo?.height || undefined,
-      mimeType: videoInfo?.mime_type || undefined,
+      width: type === 'audio' ? undefined : videoInfo?.width || undefined,
+      height: type === 'audio' ? undefined : videoInfo?.height || undefined,
+      mimeType: type === 'audio' ? detected.mimeType || videoInfo?.mime_type || undefined : videoInfo?.mime_type || detected.mimeType || undefined,
       thumbnailPath: thumbnailPath || undefined,
       workspaceId: currentWorkspaceId,
       folderId: folderId || undefined,
+      parentResourceId: options?.parentResourceId || undefined,
+      metadata: options?.metadata ? JSON.stringify(options.metadata) : undefined,
       collectedAt: Date.now()
     } as any);
 
@@ -324,17 +508,6 @@ function changeFileName(originalName: string, newName: string): string {
   return newName + ext;
 }
 
-function compareAndRenameFiles(source: string, dest: string): void {
-  try {
-    if (fs.existsSync(source)) {
-      fs.renameSync(source, dest);
-    }
-  } catch (error) {
-    console.error('[VideoDownloader] Failed to rename file:', error);
-  }
-}
-
-// 下载器接口
 export interface Downloader {
   download(options: DownloadOptions): Promise<void>;
   cancel(): void;
@@ -346,8 +519,12 @@ export interface DownloadOptions {
   filename?: string;
   destination?: string;
   thumbnailUrl?: string;
-  quality?: number;
-  videoInfo?: any; // 视频信息，用于添加到资源数据库
+  quality?: number | string;
+  qualityMode?: string;
+  folderId?: string;
+  parentResourceId?: string;
+  metadata?: Record<string, unknown>;
+  videoInfo?: any;
   onProgress?: (progress: DownloadProgress) => void;
   onError?: (error: Error) => void;
   onCompleted?: (result: DownloadCompletionResult) => void;
@@ -425,22 +602,26 @@ export class VideoDownloader implements Downloader {
     this.controller = new AbortController();
     const { signal } = this.controller;
 
-    const { url, filename, destination, thumbnailUrl, videoInfo, onProgress, onError, onCompleted } = options;
+    const { url, filename, destination, thumbnailUrl, quality, qualityMode, videoInfo, folderId, parentResourceId, metadata, onProgress, onError, onCompleted } = options;
 
     // 获取当前工作空间的资源文件夹路径
-    let workspaceResourcePath = await getCurrentWorkspaceResourcePath();
-    let dailyFolderId: string | undefined;
-
-    // 如果没有指定 destination，默认使用当天的文件夹
-    if (!destination) {
+    const resolvedTarget = destination
+      ? {
+        destinationPath: destination,
+        workspaceId: undefined,
+        folderId
+      }
+      : await resolveDownloadTarget(folderId);
+    const actualDestination = resolvedTarget.destinationPath;
+    if (false) {
       try {
         const workspace = await WorkspacesRepo.getDefault();
         if (workspace?.id && workspace?.rootPath) {
-          dailyFolderId = await ensureDailyFolder(workspace.id, workspace.rootPath);
-          workspaceResourcePath = path.join(workspace.rootPath, 'resources', 'folders', dailyFolderId);
+          void workspace;
+          void resolvedTarget;
           // 确保目录存在
-          if (!fs.existsSync(workspaceResourcePath)) {
-            fs.mkdirSync(workspaceResourcePath, { recursive: true });
+          if (false) {
+            void 0;
           }
         }
       } catch (error) {
@@ -448,17 +629,14 @@ export class VideoDownloader implements Downloader {
       }
     }
 
-    const actualDestination = destination || workspaceResourcePath;
-
-    const quality: string[] = [];
+    const qualityArgs = buildQualityArgs(qualityMode, quality);
+    const resolvedQualityMode = normalizeQualityMode(qualityMode, quality);
     const tempName = DEFAULT_FOLDERS.download + '_' + generateUUID();
     // 清理文件名，移除系统不支持的特殊字符
     const sanitizedFilename = filename ? sanitizeFilename(filename) : undefined;
-    // 临时文件始终使用固定的 UUID 名 + .mp4 扩展名，不从视频标题中提取扩展名
-    // （视频标题可能包含点号，path.extname 会错误地将其解析为扩展名）
-    const tempFile = tempName + '.mp4';
-    const downloadPath = resolve(actualDestination, tempFile);
-    const destPath = resolve(actualDestination, (sanitizedFilename || tempName) + '.mp4');
+    const tempFileTemplate = tempName + '.%(ext)s';
+    const downloadPath = resolve(actualDestination, tempFileTemplate);
+    const destBasePath = resolve(actualDestination, sanitizedFilename || tempName);
 
     // 保存thumbnailUrl供后续使用
     const videoThumbnailUrl = thumbnailUrl;
@@ -470,25 +648,32 @@ url: ${url}
 filename: ${filename}
 destination: ${destination}
 thumbnailUrl: ${thumbnailUrl}
+quality: ${quality}
+qualityMode: ${qualityMode}
+resolvedQualityMode: ${resolvedQualityMode}
 
 --- paths ---------------------------------------------------
 ffmpegPath: ${this.ffmpegPath}
 yt-dlpPath: ${ytdlpService.getCurrentBinaryPath()}
-workspaceResourcePath: ${workspaceResourcePath}
+workspaceId: ${resolvedTarget.workspaceId}
+folderId: ${resolvedTarget.folderId}
 sanitizedFilename: ${sanitizedFilename}
 actualDestination: ${actualDestination}
-tempFile: ${tempFile}
+tempFileTemplate: ${tempFileTemplate}
 
 --- output --------------------------------------------------
 downloadPath: ${downloadPath}
-destPath: ${destPath}
+destBasePath: ${destBasePath}
 =============================================================
       `);
 
-    const baseArgs = [cleanDownloadUrl(url), ...quality, '-o', downloadPath, '--ffmpeg-location', this.ffmpegPath];
+    const baseArgs = [cleanDownloadUrl(url), '--prefer-free-formats', '-o', downloadPath, '--ffmpeg-location', this.ffmpegPath];
 
     // 使用 ytdlpService 构建完整参数（包含配置文件、代理、cookie）
     const args = await ytdlpService.buildArgsAsync(baseArgs);
+    if (qualityArgs.length > 0) {
+      args.push(...qualityArgs);
+    }
 
     console.log('[VideoDownloader] --> args: ', args);
 
@@ -497,11 +682,14 @@ destPath: ${destPath}
     const dl = ytdlpStatic.exec(args, undefined, signal);
     const downloadRegex = /\s*([\s\S]*%)\s*of\s*([\s\S]*)\s*at\s*([\s\S]*s)\s*ETA\s*([\s\S]*)\s*/;
     const mergeRegex = /Merging formats into "([\s\S]*)"/;
+    const reportedOutputPaths: string[] = [];
     let mergeFile = '';
     let isAborted = false;
 
     dl.on('ytDlpEvent', (eventType: string, eventData: string) => {
       console.log(eventData);
+
+      appendReportedOutputPath(reportedOutputPaths, extractDestinationPath(eventData));
 
       if (eventType === 'Merger') {
         const match = eventData.match(mergeRegex);
@@ -574,41 +762,53 @@ destPath: ${destPath}
         }
         console.log('[VideoDownloader] ✅️ all done, code:', code);
 
-        if (mergeFile) {
-          if (!fs.existsSync(mergeFile)) {
-            console.log('[VideoDownloader] merged file not found, try to guess the path');
-            const parsedDest = path.parse(mergeFile);
-            const guessPath = path.join(path.parse(downloadPath).dir, parsedDest.name + parsedDest.ext);
-            console.log('guessPath:', guessPath);
+        if (mergeFile && !fs.existsSync(mergeFile)) {
+          console.log('[VideoDownloader] merged file not found, try to guess the path');
+          const parsedDest = path.parse(mergeFile);
+          const guessPath = path.join(path.parse(downloadPath).dir, parsedDest.name + parsedDest.ext);
+          console.log('guessPath:', guessPath);
 
-            if (fs.existsSync(guessPath)) {
-              mergeFile = guessPath;
-            }
+          if (fs.existsSync(guessPath)) {
+            mergeFile = guessPath;
           }
-          console.log(`
-[VideoDownloader] rename merged file
-${mergeFile}
--->
-${destPath}
-`);
-
-          compareAndRenameFiles(mergeFile, destPath);
-        } else {
-          console.log(`
-[VideoDownloader] rename file
-${downloadPath}
--->
-${destPath}
-`);
-          compareAndRenameFiles(downloadPath, destPath);
         }
+
+        const outputPath = resolveDownloadedOutputPath({
+          mergeFile,
+          actualDestination,
+          tempName,
+          reportedOutputPaths
+        });
+
+        if (!outputPath) {
+          const error = new Error('Downloaded file was not found after yt-dlp finished');
+          console.error('[VideoDownloader] Failed to resolve output file:', {
+            actualDestination,
+            tempName,
+            reportedOutputPaths
+          });
+          isFunction(onError) && onError(error);
+          return;
+        }
+
+        const targetPath = changeFileName(outputPath, destBasePath);
+        console.log(`
+[VideoDownloader] finalize file
+${outputPath}
+-->
+${targetPath}
+`);
+        const finalFilePath = moveDownloadedFile(outputPath, targetPath);
 
         // 先将下载的文件添加到资源数据库（不包含缩略图路径）
         let resourceId = '';
         let downloadedResource: any = null;
         try {
-          const workspace = await WorkspacesRepo.getDefault();
-          const resource = await addDownloadedFileToResources(destPath, videoInfo, workspace?.id, undefined, dailyFolderId);
+          const resource = await addDownloadedFileToResources(finalFilePath, videoInfo, resolvedTarget.workspaceId, undefined, resolvedTarget.folderId, {
+            parentResourceId,
+            metadata,
+            qualityMode: resolvedQualityMode
+          });
           resourceId = resource?.id || '';
           downloadedResource = resource || null;
         } catch (error) {
@@ -628,7 +828,7 @@ ${destPath}
 
             // 如果没有成功下载封面图，尝试使用ffmpeg生成
             if (!finalThumbnailPath) {
-              finalThumbnailPath = await generateVideoThumbnail(destPath, resourceId, actualDestination);
+              finalThumbnailPath = await generateMediaThumbnail(finalFilePath, resourceId, actualDestination);
               console.log(`[VideoDownloader] Generated thumbnail: ${finalThumbnailPath}`);
             }
 
@@ -658,7 +858,7 @@ ${destPath}
 
         isFunction(onCompleted) &&
           onCompleted({
-            files: [destPath],
+            files: [finalFilePath],
             thumbnails: [finalThumbnailPath].filter(Boolean),
             ...(resourceId ? { resourceId } : {}),
             ...(downloadedResource ? { resource: downloadedResource } : {})

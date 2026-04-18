@@ -12,6 +12,9 @@ export interface DownloadTask {
   id: string;
   url: string;
   filename?: string;
+  folderId?: string;
+  parentResourceId?: string;
+  metadata?: Record<string, unknown>;
   status: 'queued' | 'downloading' | 'completed' | 'failed' | 'cancelled';
   progress: DownloadProgress;
   error?: string;
