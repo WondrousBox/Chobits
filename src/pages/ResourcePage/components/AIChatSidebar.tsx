@@ -172,7 +172,25 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
         const usage: TokenUsage | undefined = getChatMessageUsage({ metadata: meta });
         const thinking = extractThinkingTextFromMetadata(meta);
         if (meta && Array.isArray(meta?.toolCalls)) {
-          activities = meta.toolCalls.map((tc: any) => ({ callId: tc.callId, name: tc.name, args: tc.args, status: 'done' as const, label: tc.label, result: tc.result }));
+          activities = meta.toolCalls.map((tc: any) => {
+            const base: ToolActivity = { callId: tc.callId, name: tc.name, args: tc.args, status: 'done' as const, label: tc.label, result: tc.result };
+            if (tc.name === 'askUserTool' || tc.name === 'ask-user') {
+              const parsedArgs = typeof tc.args === 'string' ? JSON.parse(tc.args) : tc.args;
+              const resultDetails = tc.result?.details || tc.result;
+              if (parsedArgs?.questions && resultDetails?.choiceId) {
+                base.choiceRequest = {
+                  choiceId: resultDetails.choiceId,
+                  toolCallId: tc.callId,
+                  questions: parsedArgs.questions,
+                  prompt: parsedArgs.prompt
+                };
+                if (resultDetails.answers) {
+                  base.choiceAnswers = resultDetails.answers;
+                }
+              }
+            }
+            return base;
+          });
         }
         const displayParts = readDisplayPartsFromMetadata(meta, activities);
         return {
@@ -363,6 +381,17 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
             });
           }
 
+          if (event?.type === 'user_choice_request' && event.data) {
+            setMessages((prev) => {
+              const idx = assistantIndexRef.current;
+              if (idx < 0 || idx >= prev.length) return prev;
+              const copy = prev.slice();
+              const m = copy[idx];
+              copy[idx] = updateToolPart(m, event.data.toolCallId, (activity) => ({ ...activity, choiceRequest: event.data }));
+              return copy;
+            });
+          }
+
           if (event?.type === 'thinking_delta' && event.data?.text) {
             setMessages((prev) => {
               const idx = assistantIndexRef.current;
@@ -434,6 +463,38 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
       console.error('Failed to send sidebar chat message:', error);
       setLoading(false);
       toast.error('发送消息失败');
+    }
+  };
+
+  const handleUserChoiceSubmit = async (choiceId: string, answers: Record<string, string[]>): Promise<void> => {
+    setMessages((prev) =>
+      prev.map((message) => {
+        const hasActivityMatch = message.activities?.some((activity) => activity.choiceRequest?.choiceId === choiceId) ?? false;
+        const hasDisplayPartMatch =
+          message.displayParts?.some((part) => part.type === 'tool' && part.activity.choiceRequest?.choiceId === choiceId) ?? false;
+
+        if (!hasActivityMatch && !hasDisplayPartMatch) {
+          return message;
+        }
+
+        const activities = message.activities?.map((activity) => (activity.choiceRequest?.choiceId === choiceId ? { ...activity, choiceAnswers: answers } : activity));
+        const displayParts = message.displayParts?.map((part) =>
+          part.type === 'tool' && part.activity.choiceRequest?.choiceId === choiceId ? { ...part, activity: { ...part.activity, choiceAnswers: answers } } : part
+        );
+
+        return {
+          ...message,
+          ...(activities ? { activities } : {}),
+          ...(displayParts ? { displayParts } : {})
+        };
+      })
+    );
+
+    try {
+      await window.YUA.ai.sendUserChoiceResponse({ choiceId, answers });
+    } catch (error) {
+      console.error('[AIChatSidebar] Failed to send user choice response:', error);
+      toast.error('提交选择失败');
     }
   };
 
@@ -511,7 +572,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
                 <div className={`max-w-[90%] rounded-xl px-3 py-2 ${message.role === 'user' ? 'bg-primary text-primary-foreground text-sm' : 'bg-muted text-foreground'}`}>
                   {message.role === 'assistant' ? (
                     <>
-                      <AssistantMessageTimeline message={message} compactCards />
+                      <AssistantMessageTimeline message={message} compactCards onUserChoiceSubmit={handleUserChoiceSubmit} />
                       {message.usage && <ChatTokenUsage usage={message.usage} label="本轮" className="mt-2" />}
                       {!hasTimelineContent(message) && loading && index === messages.length - 1 ? (
                         <div className="inline-flex items-center gap-2 text-muted-foreground text-sm">

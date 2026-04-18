@@ -12,7 +12,7 @@ interface ThinkingActivityProps {
   isThinking: boolean;
 }
 
-const ThinkingActivity: React.FC<ThinkingActivityProps> = ({ thinking, isThinking }) => {
+const ThinkingActivity: React.FC<ThinkingActivityProps> = ({ thinking, isThinking }: ThinkingActivityProps) => {
   const [expanded, setExpanded] = useState(false);
 
   if (!thinking && !isThinking) return null;
@@ -33,7 +33,7 @@ const ThinkingActivity: React.FC<ThinkingActivityProps> = ({ thinking, isThinkin
       </button>
       {expanded && thinking && (
         <div className="px-2.5 py-1.5 bg-muted/30 border-t border-border/50 max-h-64 overflow-auto">
-          <pre className="text-[11px] whitespace-pre-wrap break-words text-muted-foreground/80 leading-relaxed">{thinking}</pre>
+          <pre className="text-[11px] whitespace-pre-wrap break-words text-muted-foreground/80 leading-relaxed select-text">{thinking}</pre>
         </div>
       )}
     </div>

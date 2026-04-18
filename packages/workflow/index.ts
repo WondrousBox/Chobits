@@ -47,32 +47,58 @@ import {
 import { FastWhisperPlugin, FfmpegPlugin, FunASRPlugin, ParakeetPlugin, TesseractPlugin, WhisperPlugin } from './plugins';
 import { getNode, listNodes, listPlugins, registerNode, registerPlugin } from './registry';
 import { WorkflowStore } from './store';
-import type { NodeConfig, WorkflowDefinition, WorkflowRunRecord } from './types';
+import type { NodeConfig, ResourceProjectContext, WorkflowDefinition, WorkflowRunRecord } from './types';
 
 // 存储获取插件配置文件路径的方法
 let getWorkflowDefinitionsPathFn: () => string;
 let globalEngine: WorkflowEngine | undefined;
 
+export interface WorkflowRunHandle {
+  runId: string;
+  workflowId: string;
+  completionPromise: Promise<WorkflowRunRecord>;
+}
+
 export async function runWorkflow(def: WorkflowDefinition, input?: any, metadata?: Record<string, any>, onProgress?: (progress: number, message?: string) => void): Promise<WorkflowRunRecord> {
+  return startWorkflow(def, input, metadata, onProgress).completionPromise;
+}
+
+export function startWorkflow(def: WorkflowDefinition, input?: any, metadata?: Record<string, any>, onProgress?: (progress: number, message?: string) => void): WorkflowRunHandle {
   if (!globalEngine) throw new Error('Workflow engine not initialized');
 
+  let capturedRunId: string | undefined;
   let handler: ((rec: WorkflowRunRecord) => void) | undefined;
-  if (onProgress) {
+  {
     handler = (rec: WorkflowRunRecord) => {
-      if (rec.workflowId === def.id && rec.progress !== undefined) {
-        onProgress(rec.progress, rec.progressMessage);
+      if (!capturedRunId && rec.workflowId === def.id && rec.status === 'queued') {
+        capturedRunId = rec.runId;
+      }
+      if (capturedRunId && rec.runId === capturedRunId && rec.progress !== undefined) {
+        onProgress?.(rec.progress, rec.progressMessage);
       }
     };
     globalEngine.onTyped('run:status', handler);
   }
 
-  try {
-    return await globalEngine.run(def, input || {}, metadata);
-  } finally {
+  const completionPromise = globalEngine.run(def, input || {}, metadata).finally(() => {
     if (handler && globalEngine) {
       globalEngine.off('run:status', handler);
     }
+  });
+
+  if (!capturedRunId) {
+    if (handler && globalEngine) {
+      globalEngine.off('run:status', handler);
+    }
+    void completionPromise.catch(() => undefined);
+    throw new Error(`Failed to capture workflow run id for "${def.id}"`);
   }
+
+  return {
+    runId: capturedRunId,
+    workflowId: def.id,
+    completionPromise
+  };
 }
 
 export async function getWorkflow(id: string): Promise<WorkflowDefinition | undefined> {
@@ -144,7 +170,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
   // 项目文件夹使用 .resproject 后缀，以便将来 macOS 可以将其注册为自定义包类型
   const PROJECT_FOLDER_SUFFIX = '.resproject';
 
-  const getResourceProjectDirs = async (taskType: string, context: { resourceId?: string; workspaceId?: string }) => {
+  const getResourceProjectDirs = async (taskType: string, context: ResourceProjectContext = {}) => {
     const { resourceId, workspaceId } = context;
 
     // 如果没有 resourceId 或 workspaceId，返回 null 表示不是资源任务
@@ -188,7 +214,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
     ffmpegPath,
     ffprobePath,
     // 类型断言：内部函数接受2个参数，engine.ts会包装成只接受1个参数的版本
-    getResourceProjectDirs: getResourceProjectDirs as any
+    getResourceProjectDirs
   });
   globalEngine = engine;
   // expose engine via closure only (no global)

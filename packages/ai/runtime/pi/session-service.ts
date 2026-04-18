@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { logMemoryTrace, shortTraceId } from '../../services/memory-trace';
 import type { ChatRequest, ChatResponse, StreamEvent, TokenUsage } from '../../types';
-import { waitForUserChoice } from '../../user-choice-registry';
+import { cancelPendingChoice, waitForUserChoice } from '../../user-choice-registry';
 import type { PiRuntimeAvailability, PiRuntimePreview, ResolvedPiRequest } from './contracts';
 import { resolvePiRequest } from './model-resolver';
 import { buildPiModel, buildPiModelHeaders } from './provider-model';
@@ -1055,6 +1055,7 @@ export class PiSessionService {
     toolContext.emitToolResult = options.toolContext.emitToolResult;
     toolContext.emitUserChoiceRequest = options.toolContext.emitUserChoiceRequest;
     toolContext.waitForUserChoiceResponse = options.toolContext.waitForUserChoiceResponse;
+    toolContext.cancelUserChoiceRequest = options.toolContext.cancelUserChoiceRequest;
     const toolCalls = new Map<string, { args?: unknown; callId: string; result?: unknown; toolName: string }>();
     let progress = 5;
 
@@ -1170,6 +1171,7 @@ export class PiSessionService {
       legacy.userChoiceRequest(request);
     };
     toolContext.waitForUserChoiceResponse = (choiceId) => waitForUserChoice(choiceId);
+    toolContext.cancelUserChoiceRequest = (choiceId) => cancelPendingChoice(choiceId);
     this.attachForkedSkillRunner({
       model,
       promptState,

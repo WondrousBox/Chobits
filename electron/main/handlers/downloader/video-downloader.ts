@@ -350,7 +350,7 @@ export interface DownloadOptions {
   videoInfo?: any; // 视频信息，用于添加到资源数据库
   onProgress?: (progress: DownloadProgress) => void;
   onError?: (error: Error) => void;
-  onCompleted?: (files: string[], thumbnails: string[]) => void;
+  onCompleted?: (result: DownloadCompletionResult) => void;
 }
 
 // 下载进度接口
@@ -360,6 +360,13 @@ export interface DownloadProgress {
   downloadSpeed?: string;
   eta?: string;
   statusText?: string;
+}
+
+export interface DownloadCompletionResult {
+  files: string[];
+  thumbnails: string[];
+  resource?: any;
+  resourceId?: string;
 }
 
 // 视频信息接口
@@ -598,10 +605,12 @@ ${destPath}
 
         // 先将下载的文件添加到资源数据库（不包含缩略图路径）
         let resourceId = '';
+        let downloadedResource: any = null;
         try {
           const workspace = await WorkspacesRepo.getDefault();
           const resource = await addDownloadedFileToResources(destPath, videoInfo, workspace?.id, undefined, dailyFolderId);
           resourceId = resource?.id || '';
+          downloadedResource = resource || null;
         } catch (error) {
           console.warn('[VideoDownloader] Failed to add file to resources:', error);
         }
@@ -626,6 +635,7 @@ ${destPath}
             // 更新资源记录，添加缩略图路径
             if (finalThumbnailPath) {
               const updated = await ResourcesRepo.update(resourceId, { thumbnailPath: finalThumbnailPath } as any);
+              downloadedResource = updated || downloadedResource;
               console.log(`[VideoDownloader] Updated resource with thumbnail: ${finalThumbnailPath}`);
               // Broadcast change so UI can reflect new thumbnail
               try {
@@ -646,7 +656,13 @@ ${destPath}
           }
         }
 
-        isFunction(onCompleted) && onCompleted([destPath], [finalThumbnailPath]);
+        isFunction(onCompleted) &&
+          onCompleted({
+            files: [destPath],
+            thumbnails: [finalThumbnailPath].filter(Boolean),
+            ...(resourceId ? { resourceId } : {}),
+            ...(downloadedResource ? { resource: downloadedResource } : {})
+          });
       });
   }
 

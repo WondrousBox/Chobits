@@ -164,6 +164,12 @@ export type WorkflowRunLogEntry = {
   timestamp: number;
 };
 
+export type ResourceProjectContext = {
+  resourceId?: string;
+  workspaceId?: string;
+  folderId?: string;
+};
+
 export type ExecutionContext = {
   // root temp directory to generate files
   tmpDir: string;
@@ -187,7 +193,7 @@ export type ExecutionContext = {
   ffprobePath?: string;
   // 可选：获取资源项目目录的回调函数
   // 自动使用上下文中的 resourceId、workspaceId 来获取项目目录
-  getResourceProjectDirs?: (taskType: string) => Promise<{
+  getResourceProjectDirs?: (taskType: string, context?: ResourceProjectContext) => Promise<{
     isResource: boolean;
     resourceId?: string;
     workspaceId?: string;

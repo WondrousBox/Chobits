@@ -40,6 +40,8 @@ export interface PiSessionToolContext {
   emitUserChoiceRequest?: (request: UserChoiceRequest) => void;
   /** Wait for user's choice response (set by session-service, resolves when user responds) */
   waitForUserChoiceResponse?: (choiceId: string) => Promise<UserChoiceResponse>;
+  /** Cancel a pending user choice request (set by session-service) */
+  cancelUserChoiceRequest?: (choiceId: string) => void;
   /** Session handle for dynamic tool activation (set after session creation) */
   session?: {
     getActiveToolNames: () => string[];

@@ -162,3 +162,11 @@
 - 仓库默认仍不内置 bundled tool-wrapper skills，`packages/ai/runtime/pi/skills/bundled/` 保持为空壳。
 - 用户现在可以在聊天页和资源页 AI 侧边栏中选择一个项目目录，并在该 workspace 内完成读、搜、写、精确编辑和受限验证命令执行。
 - 新增的 coding 服务已经有针对路径越界、文本编辑、搜索过滤和受限 shell 的单测保护。
+## Long-running tool waits
+
+Updated: 2026-04-17
+
+- `translationTool`、`summaryTool`、`youtubeDownloadTool`、`workflowRunTool` 现在支持 wait-with-progress 流程。
+- 在等待模式下，工具会通过 `tool_progress` 持续推送进度百分比和状态文本。
+- 等待中的长任务会额外发出 `user_choice_request`，前端可以让用户把当前等待切到后台执行。
+- 资源页侧边栏和主聊天页都已接入这套 user choice 提交流程，因此长任务等待体验保持一致。

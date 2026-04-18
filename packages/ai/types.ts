@@ -116,6 +116,9 @@ export interface UserChoiceResponse {
   answers: Record<string, string[]>;
 }
 
+export const LONG_TASK_BACKGROUND_CHOICE_QUESTION_ID = '__long_task_background__';
+export const LONG_TASK_BACKGROUND_CHOICE_VALUE = '__background__';
+
 export type StreamEvent =
   | { type: 'connected' }
   | { type: 'delta'; data: { text?: string; toolCall?: any } }
