@@ -14,13 +14,16 @@ export type StackedVerticalBarDatum = {
   id: string;
   label: string;
   segments: readonly StackedVerticalBarSegment[];
+  /** 显示在 tooltip 中、模型明细下方的补充说明（例如调用次数、可计费 tokens）。 */
+  tooltipLines?: readonly string[];
 };
 
 type InternalChartDatum = {
   id: string;
   label: string;
   __segments: readonly StackedVerticalBarSegment[];
-  [segmentKey: string]: string | number | readonly StackedVerticalBarSegment[];
+  tooltipLines?: readonly string[];
+  [segmentKey: string]: string | number | readonly StackedVerticalBarSegment[] | readonly string[] | undefined;
 };
 
 type SeriesMeta = {
@@ -51,7 +54,8 @@ export function StackedVerticalBarChart(props: StackedVerticalBarChartProps): JS
       const row: InternalChartDatum = {
         id: item.id,
         label: item.label,
-        __segments: item.segments
+        __segments: item.segments,
+        tooltipLines: item.tooltipLines
       };
 
       item.segments.forEach((segment) => {
@@ -109,6 +113,13 @@ export function StackedVerticalBarChart(props: StackedVerticalBarChartProps): JS
                       </div>
                     ))}
                   </div>
+                  {datum.tooltipLines && datum.tooltipLines.length > 0 ? (
+                    <div className="mt-2 space-y-0.5 border-t border-border pt-2 text-muted-foreground">
+                      {datum.tooltipLines.map((line, index) => (
+                        <div key={index}>{line}</div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               );
             }}
