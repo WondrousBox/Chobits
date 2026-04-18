@@ -14,7 +14,9 @@ import { PiSessionService } from './runtime/pi/session-service';
 import { createPiTaskChatRuntimeFromRequest, type PiTaskChatFunction as ChatFunction } from './runtime/pi/task-chat';
 import { MindmapService } from './services/mindmap-service';
 import { SummaryService } from './services/summary-service';
+import type { SummaryCompletedData, SummaryEvent } from './services/summary-service';
 import { TranslationService } from './services/translation-service';
+import type { TranslationCompletedData, TranslationEvent } from './services/translation-service';
 import type { MindmapRequest, ProviderScopedRequest, SummarizeRequest, TokenUsage, TranslateRequest } from './types';
 
 // ==================== 项目文件夹常量 ====================
@@ -657,6 +659,22 @@ export type SummarizePayload = SummarizeRequest & {
   abortSignal?: AbortSignal;
 };
 
+export interface TranslationTaskHandle {
+  requestId: string;
+  eventsChannel: string;
+  completionPromise: Promise<TranslationCompletedData>;
+}
+
+export interface SummaryTaskHandle {
+  requestId: string;
+  eventsChannel: string;
+  completionPromise: Promise<SummaryCompletedData>;
+}
+
+interface TaskStartOptions<TEvent> {
+  onEvent?: (event: TEvent) => void;
+}
+
 export type MindmapPayload = MindmapRequest & {
   requestId?: string;
   taskLabel?: string;
@@ -1259,7 +1277,7 @@ export async function deleteTranslationSegment(opts: { subtitleResourceId: strin
  * @param payload 翻译参数
  * @returns 返回 requestId 和 eventsChannel
  */
-export async function executeSubtitleTranslation(payload: TranslatePayload): Promise<{ requestId: string; eventsChannel: string }> {
+export async function startSubtitleTranslationTask(payload: TranslatePayload, taskStartOptions?: TaskStartOptions<TranslationEvent>): Promise<TranslationTaskHandle> {
   const normalizedPayload = normalizeProviderPreset(payload);
   const {
     abortSignal,
@@ -1363,8 +1381,15 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
   // 步骤4: 创建事件发射器，处理翻译回调
   const accumulatedTranslations: Array<{ index: number; text: string }> = [];
   let translationJsonPath: string | undefined;
+  let resolveCompletion!: (data: TranslationCompletedData) => void;
+  let rejectCompletion!: (error: Error) => void;
+  const completionPromise = new Promise<TranslationCompletedData>((resolve, reject) => {
+    resolveCompletion = resolve;
+    rejectCompletion = reject;
+  });
+  void completionPromise.catch(() => undefined);
 
-  const emit = createEventEmitter({
+  const broadcastEvent = createEventEmitter({
     requestId,
     eventType: 'subtitle:translate',
     busyMessage: '开始翻译字幕...',
@@ -1431,6 +1456,25 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
   });
 
   // 步骤5: 异步处理翻译
+  const emit = (event: TranslationEvent): void => {
+    broadcastEvent(event);
+    taskStartOptions?.onEvent?.(event);
+
+    if (event.type === 'completed') {
+      resolveCompletion(event.data);
+      return;
+    }
+
+    if (event.type === 'error') {
+      rejectCompletion(new Error(event.data?.message || 'Translation task failed'));
+      return;
+    }
+
+    if (event.type === 'done') {
+      rejectCompletion(new Error('Translation task finished before emitting a completed event'));
+    }
+  };
+
   TranslationService.translateSubtitles(
     {
       requestId,
@@ -1450,14 +1494,23 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
     abortSignal
   ).catch((err: any) => {
     console.error('翻译失败:', err);
-    const errorResourceId = getMetadataResourceId(effectiveMetadata);
     if (err.message === 'Aborted') {
-      emit({ type: 'done', data: { resourceId: errorResourceId } });
+      emit({ type: 'done' });
     } else {
-      emit({ type: 'error', data: { message: err?.message || '翻译失败', resourceId: errorResourceId } });
+      emit({ type: 'error', data: { message: err?.message || '翻译失败' } });
     }
   });
 
+  return { requestId, eventsChannel, completionPromise };
+}
+
+export async function executeSubtitleTranslation(payload: TranslatePayload): Promise<{ requestId: string; eventsChannel: string }> {
+  const { requestId, eventsChannel } = await startSubtitleTranslationTask(payload);
+  return { requestId, eventsChannel };
+}
+
+export async function executeSummarize(payload: SummarizePayload): Promise<{ requestId: string; eventsChannel: string }> {
+  const { requestId, eventsChannel } = await startSummarizeTask(payload);
   return { requestId, eventsChannel };
 }
 
@@ -1466,7 +1519,7 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
  * @param payload 总结参数
  * @returns 返回 requestId 和 eventsChannel
  */
-export async function executeSummarize(payload: SummarizePayload): Promise<{ requestId: string; eventsChannel: string }> {
+export async function startSummarizeTask(payload: SummarizePayload, taskStartOptions?: TaskStartOptions<SummaryEvent>): Promise<SummaryTaskHandle> {
   const normalizedPayload = normalizeProviderPreset(payload);
   const {
     abortSignal,
@@ -1565,7 +1618,15 @@ export async function executeSummarize(payload: SummarizePayload): Promise<{ req
   // 步骤4: 创建事件发射器
   const startTimestamp = Date.now();
 
-  const emit = createEventEmitter({
+  let resolveCompletion!: (data: SummaryCompletedData) => void;
+  let rejectCompletion!: (error: Error) => void;
+  const completionPromise = new Promise<SummaryCompletedData>((resolve, reject) => {
+    resolveCompletion = resolve;
+    rejectCompletion = reject;
+  });
+  void completionPromise.catch(() => undefined);
+
+  const broadcastEvent = createEventEmitter({
     requestId,
     eventType: 'summary',
     busyMessage: '开始总结内容...',
@@ -1588,6 +1649,25 @@ export async function executeSummarize(payload: SummarizePayload): Promise<{ req
   });
 
   // 步骤5: 异步处理总结
+  const emit = (event: SummaryEvent): void => {
+    broadcastEvent(event);
+    taskStartOptions?.onEvent?.(event);
+
+    if (event.type === 'completed') {
+      resolveCompletion(event.data);
+      return;
+    }
+
+    if (event.type === 'error') {
+      rejectCompletion(new Error(event.data?.message || 'Summary task failed'));
+      return;
+    }
+
+    if (event.type === 'done') {
+      rejectCompletion(new Error('Summary task finished before emitting a completed event'));
+    }
+  };
+
   SummaryService.summarize(
     emit,
     {
@@ -1613,7 +1693,7 @@ export async function executeSummarize(payload: SummarizePayload): Promise<{ req
     }
   });
 
-  return { requestId, eventsChannel };
+  return { requestId, eventsChannel, completionPromise };
 }
 
 /**

@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 
 import { subscriptionManager, type YouTubeSubscription } from './subscription-manager';
-import { type DownloadOptions, type DownloadProgress, getThumbnail, getVideoInfo, VideoDownloader, type VideoInfo } from './video-downloader';
+import { type DownloadCompletionResult, type DownloadOptions, type DownloadProgress, getThumbnail, getVideoInfo, VideoDownloader, type VideoInfo } from './video-downloader';
 
 function generateUUID(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -27,6 +27,7 @@ export interface DownloadTask {
   startTime?: number;
   endTime?: number;
   downloader?: VideoDownloader;
+  result?: DownloadCompletionResult;
 }
 
 // 下载管理器类
@@ -130,9 +131,10 @@ export class DownloadManager extends EventEmitter {
           this.emit('taskFailed', task);
           this.processQueue(); // 处理下一个任务
         },
-        onCompleted: () => {
+        onCompleted: (result) => {
           task.status = 'completed';
           task.endTime = Date.now();
+          task.result = result;
           this.running.delete(task.id);
           this.emit('taskCompleted', task);
           this.processQueue(); // 处理下一个任务

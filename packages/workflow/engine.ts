@@ -93,7 +93,11 @@ export class WorkflowEngine extends EngineEmitter {
     if (this.baseCtx.getResourceProjectDirs) {
       const originalFn = this.baseCtx.getResourceProjectDirs;
       ctx.getResourceProjectDirs = (taskType: string) => {
-        return originalFn(taskType);
+        return originalFn(taskType, {
+          resourceId: ctx.resourceId,
+          workspaceId: ctx.workspaceId,
+          folderId: ctx.folderId
+        });
       };
     }
 

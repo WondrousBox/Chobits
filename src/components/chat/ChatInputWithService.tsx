@@ -300,18 +300,16 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, footer
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  type="button"
-                  variant={characterPersonaEnabled ? 'default' : 'outline'}
-                  size="sm"
-                  className={`h-8 rounded-full text-xs ${characterPersonaEnabled ? 'bg-violet-600 hover:bg-violet-700 text-white' : ''}`}
+                  variant={characterPersonaEnabled ? 'default' : 'ghost'}
+                  size="icon"
+                  className={`h-8 w-8 shrink-0 rounded-full ${characterPersonaEnabled ? 'bg-violet-600 hover:bg-violet-700 text-white' : ''}`}
                   onClick={() => setCharacterPersonaEnabled(!characterPersonaEnabled)}
                 >
                   <TbRobot />
-                  {characterPersonaEnabled ? '角色已注入' : '注入角色'}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>{characterPersonaEnabled ? '已注入角色人格到对话中，AI 将以角色身份回复' : '点击注入角色人格，AI 将根据好感度和心情调整说话风格'}</p>
+                <p>{characterPersonaEnabled ? '角色已注入' : '注入人格，好感度和心情会影响说话风格'}</p>
               </TooltipContent>
             </Tooltip>
           )}
