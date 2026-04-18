@@ -17,7 +17,7 @@ import { TbAlertTriangle, TbBolt, TbChartBar, TbCoins, TbDatabase, TbFilter, TbP
 
 import { DonutPieCard } from '@/components/charts/DonutPie';
 import { StackedVerticalBarCard } from '@/components/charts/StackedVerticalBar';
-import { VerticalBarCard } from '@/components/charts/VerticalBar';
+import { TimelineLineChart } from '@/components/charts/TimelineLineChart';
 import PageToolbar from '@/components/common/PageToolbar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -25,8 +25,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { cn } from '@/lib/utils';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ANALYTICS_FILTERS_STORAGE_KEY = 'analytics-dashboard-filters:v2';
@@ -419,6 +421,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ workspaceId }) => {
   const [billingFilter, setBillingFilter] = useState<BillingFilterValue>(savedFilters.billingFilter);
   const [providerFilter, setProviderFilter] = useState<string>(savedFilters.providerFilter);
   const [modelFilter, setModelFilter] = useState<string>(savedFilters.modelFilter);
+  const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
   const [overview, setOverview] = useState<AiUsageOverview | null>(null);
@@ -463,20 +466,16 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ workspaceId }) => {
       })),
     [categoryRows]
   );
-  const providerBarData = useMemo(
-    () =>
-      providerRows.map((row) => ({
-        id: `${row.dimension}:${row.value}`,
-        label: row.label,
-        value: row.totalTokens ?? 0,
-        tooltipLines: [`${formatInteger(row.eventCount)} 次调用 · 可计费 ${formatMaybeInteger(row.billableTotalTokens)}`]
-      })),
-    [providerRows]
-  );
   const providerModelStackedData = useMemo(() => {
     if (providerModelRows.length === 0) return [];
 
     const providerLabels = new Map(providerRows.map((row) => [row.value, row.label]));
+    const providerTooltipById = new Map(
+      providerRows.map((row) => [
+        row.value,
+        `${formatInteger(row.eventCount)} 次调用 · 可计费 ${formatMaybeInteger(row.billableTotalTokens)}`
+      ])
+    );
     const providerModelMap = new Map<string, Map<string, number>>();
     const modelTotals = new Map<string, number>();
 
@@ -523,10 +522,12 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ workspaceId }) => {
         }
 
         if (segments.length === 0) return null;
+        const extraLine = providerTooltipById.get(providerId);
         return {
           id: providerId,
           label: providerLabels.get(providerId) ?? providerId,
-          segments
+          segments,
+          tooltipLines: extraLine ? [extraLine] : undefined
         };
       })
       .filter((item): item is NonNullable<typeof item> => Boolean(item));
@@ -624,29 +625,19 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ workspaceId }) => {
     };
   }, [billingFilter, categoryFilter, deferredModelFilter, deferredProviderFilter, featureFilter, meteringAccuracyFilter, rangeDays, refreshToken, sourceTypeFilter, statusFilter, workspaceId]);
 
-  const maxTimelineTokens = Math.max(1, ...timeline.map((point) => point.totalTokens ?? 0));
   const outboxHealthStatus = resolveOutboxHealthLevel(outboxHealth);
-  const canResetFilters =
-    rangeDays !== DEFAULT_STORED_FILTERS.rangeDays ||
-    featureFilter !== DEFAULT_STORED_FILTERS.featureFilter ||
-    sourceTypeFilter !== DEFAULT_STORED_FILTERS.sourceTypeFilter ||
-    categoryFilter !== DEFAULT_STORED_FILTERS.categoryFilter ||
-    statusFilter !== DEFAULT_STORED_FILTERS.statusFilter ||
-    meteringAccuracyFilter !== DEFAULT_STORED_FILTERS.meteringAccuracyFilter ||
-    billingFilter !== DEFAULT_STORED_FILTERS.billingFilter ||
-    providerFilter.trim() !== DEFAULT_STORED_FILTERS.providerFilter ||
-    modelFilter.trim() !== DEFAULT_STORED_FILTERS.modelFilter;
-
-  const activeFilterCount = [
-    featureFilter !== 'all',
-    sourceTypeFilter !== 'all',
-    categoryFilter !== 'all',
-    statusFilter !== 'all',
-    meteringAccuracyFilter !== 'all',
-    billingFilter !== 'all',
-    deferredProviderFilter.length > 0,
-    deferredModelFilter.length > 0
+  const nonDefaultFilterCount = [
+    rangeDays !== DEFAULT_STORED_FILTERS.rangeDays,
+    featureFilter !== DEFAULT_STORED_FILTERS.featureFilter,
+    sourceTypeFilter !== DEFAULT_STORED_FILTERS.sourceTypeFilter,
+    categoryFilter !== DEFAULT_STORED_FILTERS.categoryFilter,
+    statusFilter !== DEFAULT_STORED_FILTERS.statusFilter,
+    meteringAccuracyFilter !== DEFAULT_STORED_FILTERS.meteringAccuracyFilter,
+    billingFilter !== DEFAULT_STORED_FILTERS.billingFilter,
+    providerFilter.trim() !== DEFAULT_STORED_FILTERS.providerFilter,
+    modelFilter.trim() !== DEFAULT_STORED_FILTERS.modelFilter
   ].filter(Boolean).length;
+  const canResetFilters = nonDefaultFilterCount > 0;
 
   const handleBackfillChatUsage = async (): Promise<void> => {
     setBackfillRunning(true);
@@ -715,6 +706,20 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ workspaceId }) => {
         leftExtra={<Badge variant="outline">{workspaceId ? '当前工作空间' : '全部工作空间'}</Badge>}
         actions={
           <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className={cn(
+                'h-8 w-8 shrink-0',
+                canResetFilters && 'border-primary/60 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+              )}
+              aria-label="查询筛选"
+              title="查询筛选"
+              onClick={() => setFiltersSheetOpen(true)}
+            >
+              <TbFilter className="h-4 w-4" />
+            </Button>
             <div className="hidden gap-1 md:flex">
               {RANGE_OPTIONS.map((option) => (
                 <Button key={option.value} size="sm" variant={rangeDays === option.value ? 'default' : 'outline'} onClick={() => setRangeDays(option.value)}>
@@ -752,140 +757,6 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ workspaceId }) => {
               </CardHeader>
             </Card>
           ) : null}
-
-          <Card className="border-border/70">
-            <CardHeader className="pb-3">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <TbFilter className="h-4 w-4" />
-                    查询筛选
-                  </CardTitle>
-                  <CardDescription>筛选条件会同时作用于总览、趋势、排行和明细，便于按业务用途、计费口径和模型定位消耗来源。</CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">{activeFilterCount} 项已启用</Badge>
-                  {canResetFilters ? (
-                    <Button size="sm" variant="outline" onClick={resetFilters}>
-                      重置筛选
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <div className="space-y-1.5">
-                <div className="text-xs text-muted-foreground">具体功能</div>
-                <Select value={featureFilter} onValueChange={setFeatureFilter}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="全部功能" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部功能</SelectItem>
-                    {AI_USAGE_FEATURES.map((feature) => (
-                      <SelectItem key={feature} value={feature}>
-                        {formatLabel(feature, USAGE_FEATURE_LABELS)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="text-xs text-muted-foreground">来源类型</div>
-                <Select value={sourceTypeFilter} onValueChange={setSourceTypeFilter}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="全部来源" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部来源</SelectItem>
-                    {AI_USAGE_SOURCE_TYPES.map((sourceType) => (
-                      <SelectItem key={sourceType} value={sourceType}>
-                        {formatLabel(sourceType, USAGE_SOURCE_TYPE_LABELS)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="text-xs text-muted-foreground">业务分类</div>
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="全部分类" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部分类</SelectItem>
-                    {AI_USAGE_CATEGORIES.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {formatLabel(category, USAGE_CATEGORY_LABELS)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="text-xs text-muted-foreground">调用状态</div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="全部状态" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部状态</SelectItem>
-                    {AI_USAGE_STATUSES.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {formatLabel(status, USAGE_STATUS_LABELS)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="text-xs text-muted-foreground">计量精度</div>
-                <Select value={meteringAccuracyFilter} onValueChange={setMeteringAccuracyFilter}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="全部精度" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部精度</SelectItem>
-                    {AI_METERING_ACCURACIES.map((accuracy) => (
-                      <SelectItem key={accuracy} value={accuracy}>
-                        {formatLabel(accuracy, METERING_ACCURACY_LABELS)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="text-xs text-muted-foreground">计费口径</div>
-                <Select value={billingFilter} onValueChange={(value) => setBillingFilter(value as BillingFilterValue)}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="全部计费口径" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {BILLING_FILTER_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="text-xs text-muted-foreground">Provider</div>
-                <Input value={providerFilter} onChange={(event) => setProviderFilter(event.target.value)} placeholder="精确匹配 providerId，例如 openai" />
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="text-xs text-muted-foreground">模型</div>
-                <Input value={modelFilter} onChange={(event) => setModelFilter(event.target.value)} placeholder="精确匹配模型，例如 gpt-4.1-mini" />
-              </div>
-            </CardContent>
-          </Card>
 
           {backfillResult ? (
             <Card className="border-border/70">
@@ -992,26 +863,18 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ workspaceId }) => {
             <Card className="border-border/70">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">趋势</CardTitle>
-                <CardDescription>按天汇总最近 {rangeDays} 天 total tokens，用于观察整体消耗波动。</CardDescription>
+                <CardDescription>按天汇总最近 {rangeDays} 天 total tokens；横轴为日期，纵轴为用量，曲线便于观察波动。</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent>
                 {loading && timeline.length === 0 ? (
-                  Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-8 rounded-lg" />)
-                ) : timeline.length === 0 ? (
-                  <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">当前时间范围内还没有 AI 调用事件。</div>
+                  <Skeleton className="h-[min(22rem,calc(100vw-4rem))] min-h-[240px] w-full rounded-lg sm:min-h-[280px]" />
                 ) : (
-                  timeline.map((point) => (
-                    <div key={point.bucket} className="grid grid-cols-[80px_1fr_88px] items-center gap-3">
-                      <div className="text-xs text-muted-foreground">{point.bucket}</div>
-                      <div className="h-2.5 rounded-full bg-muted">
-                        <div
-                          className="h-2.5 rounded-full bg-primary/80"
-                          style={{ width: point.totalTokens === null ? '0%' : `${Math.max(4, ((point.totalTokens ?? 0) / maxTimelineTokens) * 100)}%` }}
-                        />
-                      </div>
-                      <div className="text-right text-xs font-medium">{formatMaybeInteger(point.totalTokens)}</div>
-                    </div>
-                  ))
+                  <TimelineLineChart
+                    data={timeline}
+                    emptyMessage="当前时间范围内还没有 AI 调用事件。"
+                    valueLabel="total tokens"
+                    formatValue={formatInteger}
+                  />
                 )}
               </CardContent>
             </Card>
@@ -1192,24 +1055,14 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ workspaceId }) => {
             </Card>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <VerticalBarCard
-              title="服务提供商"
-              description="按 total tokens 排序，可同时观察可计费 tokens。"
-              data={providerBarData}
-              emptyMessage="当前筛选下还没有可展示的数据。"
-              valueLabel="tokens"
-              formatValue={formatInteger}
-            />
-            <StackedVerticalBarCard
-              title="模型分布（按服务商）"
-              description="横轴是服务商，柱子按模型堆叠，合计即该服务商总 token。"
-              data={providerModelStackedData}
-              emptyMessage="当前筛选下还没有可展示的数据。"
-              valueLabel="tokens"
-              formatValue={formatInteger}
-            />
-          </div>
+          <StackedVerticalBarCard
+            title="服务提供商与模型分布"
+            description="横轴为服务商，堆叠色块为各模型用量，柱高合计即该服务商 total tokens；悬浮可查看各模型明细、调用次数与可计费 tokens。"
+            data={providerModelStackedData}
+            emptyMessage="当前筛选下还没有可展示的数据。"
+            valueLabel="tokens"
+            formatValue={formatInteger}
+          />
 
           <div className="grid gap-4 lg:grid-cols-2">
             <DonutPieCard
@@ -1350,6 +1203,144 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ workspaceId }) => {
           </Card>
         </div>
       </ScrollArea>
+
+      <Sheet open={filtersSheetOpen} onOpenChange={setFiltersSheetOpen}>
+        <SheetContent side="right" className="flex w-full flex-col gap-4 overflow-y-auto sm:max-w-xl md:max-w-2xl">
+          <SheetHeader>
+            <div className="flex flex-wrap items-start justify-between gap-3 pr-8">
+              <div className="space-y-2 text-left">
+                <SheetTitle>查询筛选</SheetTitle>
+                <SheetDescription>筛选条件会同时作用于总览、趋势、排行和明细，便于按业务用途、计费口径和模型定位消耗来源。</SheetDescription>
+              </div>
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                {canResetFilters ? (
+                  <>
+                    <Badge variant="outline">{nonDefaultFilterCount} 项非默认</Badge>
+                    <Button size="sm" variant="outline" onClick={resetFilters}>
+                      重置筛选
+                    </Button>
+                  </>
+                ) : (
+                  <span className="text-xs text-muted-foreground">当前为默认配置</span>
+                )}
+              </div>
+            </div>
+          </SheetHeader>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-1.5">
+              <div className="text-xs text-muted-foreground">具体功能</div>
+              <Select value={featureFilter} onValueChange={setFeatureFilter}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="全部功能" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部功能</SelectItem>
+                  {AI_USAGE_FEATURES.map((feature) => (
+                    <SelectItem key={feature} value={feature}>
+                      {formatLabel(feature, USAGE_FEATURE_LABELS)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="text-xs text-muted-foreground">来源类型</div>
+              <Select value={sourceTypeFilter} onValueChange={setSourceTypeFilter}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="全部来源" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部来源</SelectItem>
+                  {AI_USAGE_SOURCE_TYPES.map((sourceType) => (
+                    <SelectItem key={sourceType} value={sourceType}>
+                      {formatLabel(sourceType, USAGE_SOURCE_TYPE_LABELS)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="text-xs text-muted-foreground">业务分类</div>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="全部分类" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部分类</SelectItem>
+                  {AI_USAGE_CATEGORIES.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {formatLabel(category, USAGE_CATEGORY_LABELS)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="text-xs text-muted-foreground">调用状态</div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="全部状态" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部状态</SelectItem>
+                  {AI_USAGE_STATUSES.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {formatLabel(status, USAGE_STATUS_LABELS)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="text-xs text-muted-foreground">计量精度</div>
+              <Select value={meteringAccuracyFilter} onValueChange={setMeteringAccuracyFilter}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="全部精度" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部精度</SelectItem>
+                  {AI_METERING_ACCURACIES.map((accuracy) => (
+                    <SelectItem key={accuracy} value={accuracy}>
+                      {formatLabel(accuracy, METERING_ACCURACY_LABELS)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="text-xs text-muted-foreground">计费口径</div>
+              <Select value={billingFilter} onValueChange={(value) => setBillingFilter(value as BillingFilterValue)}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="全部计费口径" />
+                </SelectTrigger>
+                <SelectContent>
+                  {BILLING_FILTER_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5 md:col-span-2">
+              <div className="text-xs text-muted-foreground">Provider</div>
+              <Input value={providerFilter} onChange={(event) => setProviderFilter(event.target.value)} placeholder="精确匹配 providerId，例如 openai" />
+            </div>
+
+            <div className="space-y-1.5 md:col-span-2">
+              <div className="text-xs text-muted-foreground">模型</div>
+              <Input value={modelFilter} onChange={(event) => setModelFilter(event.target.value)} placeholder="精确匹配模型，例如 gpt-4.1-mini" />
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };
