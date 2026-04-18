@@ -1937,10 +1937,10 @@ export const RssFeedItemsRepo = {
   async countByResourceId(rssResourceId: string): Promise<number> {
     const db = getOrm();
     const rows = await db
-      .select({ count: rss_feed_items.id })
+      .select({ count: sql<number>`count(*)` })
       .from(rss_feed_items)
       .where(and(eq(rss_feed_items.rssResourceId, rssResourceId), isNull(rss_feed_items.deletedAt)));
-    return rows[0]?.count ?? 0;
+    return Number(rows[0]?.count ?? 0);
   },
 
   /**
@@ -1958,6 +1958,130 @@ export const RssFeedItemsRepo = {
     return rows[0]?.itemId ?? null;
   },
 
+  async getByResourceAndItemId(rssResourceId: string, itemId: string): Promise<RssFeedItemRow | undefined> {
+    const db = getOrm();
+    const rows = await db
+      .select()
+      .from(rss_feed_items)
+      .where(and(eq(rss_feed_items.rssResourceId, rssResourceId), eq(rss_feed_items.itemId, itemId)))
+      .limit(1);
+    return rows[0];
+  },
+
+  /**
+   * 软删除单个 RSS 条目，用于“忽略/隐藏”不再处理的内容
+   * @param rssResourceId RSS 资源 ID
+   * @param itemId 条目 ID（来源平台的 ID）
+   */
+  async softDeleteByResourceAndItemId(rssResourceId: string, itemId: string): Promise<RssFeedItemRow | undefined> {
+    const db = getOrm();
+    await db
+      .update(rss_feed_items)
+      .set({ deletedAt: Date.now() } as any)
+      .where(and(eq(rss_feed_items.rssResourceId, rssResourceId), eq(rss_feed_items.itemId, itemId)))
+      .run();
+    const rows = await db
+      .select()
+      .from(rss_feed_items)
+      .where(and(eq(rss_feed_items.rssResourceId, rssResourceId), eq(rss_feed_items.itemId, itemId)))
+      .limit(1);
+    return rows[0];
+  },
+
+  /**
+   * 批量软删除 RSS 条目
+   */
+  async batchSoftDelete(rssResourceId: string, itemIds: string[]): Promise<number> {
+    if (!itemIds.length) return 0;
+    const db = getOrm();
+    const now = Date.now();
+    let count = 0;
+    for (const itemId of itemIds) {
+      const res = await db
+        .update(rss_feed_items)
+        .set({ deletedAt: now } as any)
+        .where(and(eq(rss_feed_items.rssResourceId, rssResourceId), eq(rss_feed_items.itemId, itemId), isNull(rss_feed_items.deletedAt)))
+        .run();
+      count += (res as any).changes ?? 0;
+    }
+    return count;
+  },
+
+  /**
+   * 恢复单个已忽略的 RSS 条目
+   */
+  async restoreByResourceAndItemId(rssResourceId: string, itemId: string): Promise<RssFeedItemRow | undefined> {
+    const db = getOrm();
+    await db
+      .update(rss_feed_items)
+      .set({ deletedAt: null } as any)
+      .where(and(eq(rss_feed_items.rssResourceId, rssResourceId), eq(rss_feed_items.itemId, itemId)))
+      .run();
+    const rows = await db
+      .select()
+      .from(rss_feed_items)
+      .where(and(eq(rss_feed_items.rssResourceId, rssResourceId), eq(rss_feed_items.itemId, itemId)))
+      .limit(1);
+    return rows[0];
+  },
+
+  /**
+   * 批量恢复已忽略的 RSS 条目
+   */
+  async batchRestore(rssResourceId: string, itemIds: string[]): Promise<number> {
+    if (!itemIds.length) return 0;
+    const db = getOrm();
+    let count = 0;
+    for (const itemId of itemIds) {
+      const res = await db
+        .update(rss_feed_items)
+        .set({ deletedAt: null } as any)
+        .where(and(eq(rss_feed_items.rssResourceId, rssResourceId), eq(rss_feed_items.itemId, itemId), isNotNull(rss_feed_items.deletedAt)))
+        .run();
+      count += (res as any).changes ?? 0;
+    }
+    return count;
+  },
+
+  /**
+   * 恢复某 RSS 资源下所有已忽略的条目
+   */
+  async restoreAllByResourceId(rssResourceId: string): Promise<number> {
+    const db = getOrm();
+    const res = await db
+      .update(rss_feed_items)
+      .set({ deletedAt: null } as any)
+      .where(and(eq(rss_feed_items.rssResourceId, rssResourceId), isNotNull(rss_feed_items.deletedAt)))
+      .run();
+    return (res as any).changes ?? 0;
+  },
+
+  /**
+   * 列出某 RSS 资源下已忽略（软删除）的条目
+   */
+  async listIgnoredByResourceId(rssResourceId: string, limit = 100, offset = 0): Promise<RssFeedItemRow[]> {
+    const db = getOrm();
+    return db
+      .select()
+      .from(rss_feed_items)
+      .where(and(eq(rss_feed_items.rssResourceId, rssResourceId), isNotNull(rss_feed_items.deletedAt)))
+      .orderBy(desc(rss_feed_items.publishedAt))
+      .limit(limit)
+      .offset(offset);
+  },
+
+  /**
+   * 统计某 RSS 资源下已忽略的条目数量
+   */
+  async countIgnoredByResourceId(rssResourceId: string): Promise<number> {
+    const db = getOrm();
+    const rows = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(rss_feed_items)
+      .where(and(eq(rss_feed_items.rssResourceId, rssResourceId), isNotNull(rss_feed_items.deletedAt)));
+    return Number(rows[0]?.count ?? 0);
+  },
+
   /**
    * 更新条目的下载状态
    * @param rssResourceId RSS 资源 ID
@@ -1967,7 +2091,16 @@ export const RssFeedItemsRepo = {
   async updateDownloadStatus(
     rssResourceId: string,
     itemId: string,
-    patch: { downloaded?: boolean; localResourceId?: string | null; downloadStatus?: string; downloadProgress?: number }
+    patch: {
+      downloaded?: boolean;
+      localResourceId?: string | null;
+      downloadStatus?: string;
+      downloadProgress?: number | null;
+      downloadErrorCode?: string | null;
+      downloadError?: string | null;
+      downloadErrorAt?: number | null;
+      lastDownloadAt?: number | null;
+    }
   ): Promise<RssFeedItemRow | undefined> {
     const db = getOrm();
     await db
@@ -1992,11 +2125,12 @@ export const RssFeedItemsRepo = {
   async batchUpdateDownloadStatus(rssResourceId: string, downloadedItemIds: string[], localResourceMap: Map<string, string>): Promise<void> {
     if (!downloadedItemIds.length) return;
     const db = getOrm();
+    const now = Date.now();
     for (const itemId of downloadedItemIds) {
       const localResourceId = localResourceMap.get(itemId);
       await db
         .update(rss_feed_items)
-        .set({ downloaded: true, localResourceId, downloadStatus: 'completed' } as any)
+        .set({ downloaded: true, localResourceId, downloadStatus: 'completed', downloadErrorCode: null, downloadError: null, downloadErrorAt: null, lastDownloadAt: now } as any)
         .where(and(eq(rss_feed_items.rssResourceId, rssResourceId), eq(rss_feed_items.itemId, itemId)))
         .run();
     }

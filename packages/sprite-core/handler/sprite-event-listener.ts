@@ -391,7 +391,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     handler: (data) => {
       mgr.clearBusy();
       mgr.showToast(data?.message || getSpriteEventText('memoryExtractComplete'), { category: 'success', duration: 2000 });
-      mgr.playOnce('celebrate', { durationMs: 1500 });
+      mgr.playOnce('write');
       grantActivityReward('memory-extraction-completed');
     }
   });

@@ -11,7 +11,6 @@ function generateUUID(): string {
   });
 }
 
-// 下载任务状态
 export type DownloadStatus = 'queued' | 'downloading' | 'completed' | 'failed' | 'cancelled';
 
 // 下载任务接口
@@ -20,6 +19,11 @@ export interface DownloadTask {
   url: string;
   filename?: string;
   destination?: string;
+  quality?: number | string;
+  qualityMode?: string;
+  folderId?: string;
+  parentResourceId?: string;
+  metadata?: Record<string, unknown>;
   videoInfo?: any; // 视频信息
   status: DownloadStatus;
   progress: DownloadProgress;
@@ -48,6 +52,11 @@ export class DownloadManager extends EventEmitter {
       url: options.url,
       filename: options.filename,
       destination: options.destination,
+      quality: options.quality,
+      qualityMode: options.qualityMode,
+      folderId: options.folderId,
+      parentResourceId: options.parentResourceId,
+      metadata: options.metadata,
       videoInfo: options.videoInfo,
       status: 'queued',
       progress: {}
@@ -83,7 +92,6 @@ export class DownloadManager extends EventEmitter {
     return this.tasks.get(taskId);
   }
 
-  // 获取所有任务
   getAllTasks(): DownloadTask[] {
     return Array.from(this.tasks.values());
   }
@@ -101,7 +109,6 @@ export class DownloadManager extends EventEmitter {
     }
   }
 
-  // 开始下载
   private async startDownload(task: DownloadTask): Promise<void> {
     if (this.running.has(task.id)) return;
 
@@ -118,6 +125,11 @@ export class DownloadManager extends EventEmitter {
         url: task.url,
         filename: task.filename,
         destination: task.destination,
+        quality: task.quality,
+        qualityMode: task.qualityMode,
+        folderId: task.folderId,
+        parentResourceId: task.parentResourceId,
+        metadata: task.metadata,
         videoInfo: task.videoInfo,
         onProgress: (progress) => {
           task.progress = progress;
@@ -129,7 +141,7 @@ export class DownloadManager extends EventEmitter {
           task.endTime = Date.now();
           this.running.delete(task.id);
           this.emit('taskFailed', task);
-          this.processQueue(); // 处理下一个任务
+          this.processQueue();
         },
         onCompleted: (result) => {
           task.status = 'completed';
@@ -137,7 +149,7 @@ export class DownloadManager extends EventEmitter {
           task.result = result;
           this.running.delete(task.id);
           this.emit('taskCompleted', task);
-          this.processQueue(); // 处理下一个任务
+          this.processQueue();
         }
       });
     } catch (error) {
@@ -146,7 +158,7 @@ export class DownloadManager extends EventEmitter {
       task.endTime = Date.now();
       this.running.delete(task.id);
       this.emit('taskFailed', task);
-      this.processQueue(); // 处理下一个任务
+      this.processQueue();
     }
   }
 
@@ -167,7 +179,6 @@ export class DownloadManager extends EventEmitter {
   }
 }
 
-// 创建全局下载管理器实例
 export const downloadManager = new DownloadManager();
 
 // 导出函数供 IPC 使用

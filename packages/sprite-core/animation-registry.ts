@@ -139,6 +139,9 @@ export class AnimationRegistry {
 
     // 获取所有匹配此事件类型的动画
     const ids = this.eventIndex.get(eventType);
+
+    console.log('===========event type', eventType, ids);
+
     if (!ids || ids.size === 0) {
       // fallback 到 idle
       if (allowFallback && eventType !== 'idle') {

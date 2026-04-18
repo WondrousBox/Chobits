@@ -1,352 +1,46 @@
-import http from 'node:http';
-import https from 'node:https';
-
-import { AppEvent, eventManager } from '@packages/event';
+﻿import { AppEvent, eventManager } from '@packages/event';
 import { ipcMain } from 'electron';
 
 import { ResourcesRepo, RssFeedItemsRepo, WorkspacesRepo } from '../../db/repositories';
-import type { NewRssFeedItem, RssFeedItemRow } from '../../db/schema';
-import { getHttpProxy as getSystemHttpProxy } from '../proxy/proxy';
+import type { NewRssFeedItem } from '../../db/schema';
+import { deleteRssResource } from './rss-delete-service';
+import { prepareDownloadTarget } from './rss-download-bridge';
+import { detectSourceType, parseRssFeed } from './rss-feed-parser';
 import { rssSourceRegistry } from './rss-source-registry';
-import type { CreateRssResourceParams, DownloadRssItemParams, FetchRssFeedParams, RssFeed, RssFeedItem, RssMetadata, RssSourceType, UpdateRssResourceParams } from './types';
+import {
+  applyRssSyncSuccessMetadata,
+  buildCachedRssFeed,
+  dbRowToFeedItem,
+  parseResourceMetadata,
+  recordRssSyncError,
+  startRssAutoCheck,
+  syncRssResource
+} from './rss-sync-service';
+import type {
+  CreateRssResourceParams,
+  DownloadRssItemParams,
+  FetchRssFeedParams,
+  RssFeedItem,
+  RssMetadata,
+  UpdateRssResourceParams
+} from './types';
 
 /**
- * 解析 RSS/Atom Feed
+ * RSS IPC adapter layer.
+ * Only: parameter validation, service delegation, unified response structure.
  */
-async function parseRssFeed(feedUrl: string, sourceType?: RssSourceType): Promise<RssFeed> {
-  return new Promise((resolve, reject) => {
-    const client = feedUrl.startsWith('https:') ? https : http;
-    const agent = getSystemHttpProxy();
 
-    const options: https.RequestOptions | http.RequestOptions = {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
-    };
+const RSS_FEED_VIEW_LIMIT = 100;
 
-    if (agent) {
-      options.agent = agent as any;
-    }
-
-    const req = client.get(feedUrl, options, (res) => {
-      if (res.statusCode !== 200) {
-        reject(new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`));
-        return;
-      }
-
-      let data = '';
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
-
-      res.on('end', () => {
-        try {
-          const feed = parseXmlFeed(data, feedUrl, sourceType);
-          resolve(feed);
-        } catch (error) {
-          reject(error);
-        }
-      });
-    });
-
-    req.on('error', reject);
-    req.setTimeout(30000, () => {
-      req.destroy();
-      reject(new Error('RSS feed 请求超时'));
-    });
-  });
-}
-
-/**
- * 解析 XML Feed（支持 RSS 2.0 和 Atom）
- */
-function parseXmlFeed(xml: string, feedUrl: string, sourceType?: RssSourceType): RssFeed {
-  const items: RssFeedItem[] = [];
-  const handler = sourceType ? rssSourceRegistry.getHandler(sourceType) : null;
-
-  // 检测是 Atom 还是 RSS
-  const isAtom = xml.includes('<feed') && xml.includes('xmlns="http://www.w3.org/2005/Atom"');
-
-  if (isAtom) {
-    // 解析 Atom feed
-    const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
-    let match;
-
-    while ((match = entryRegex.exec(xml)) !== null) {
-      const entry = match[1];
-
-      const titleMatch = entry.match(/<title[^>]*>([\s\S]*?)<\/title>/);
-      const title = titleMatch ? decodeXmlEntities(titleMatch[1].trim()) : '';
-
-      const linkMatch = entry.match(/<link[^>]*href=["']([^"']+)["']/);
-      const link = linkMatch ? linkMatch[1] : '';
-
-      const publishedMatch = entry.match(/<published[^>]*>([\s\S]*?)<\/published>/);
-      const published = publishedMatch ? new Date(publishedMatch[1].trim()).getTime() : Date.now();
-
-      const updatedMatch = entry.match(/<updated[^>]*>([\s\S]*?)<\/updated>/);
-      const updated = updatedMatch ? new Date(updatedMatch[1].trim()).getTime() : undefined;
-
-      // 提取描述
-      const descMatch = entry.match(/<media:description[^>]*>([\s\S]*?)<\/media:description>/);
-      const description = descMatch ? decodeXmlEntities(descMatch[1].trim()) : undefined;
-
-      // 提取作者
-      const authorMatch = entry.match(/<author>\s*<name[^>]*>([\s\S]*?)<\/name>/);
-      const author = authorMatch ? decodeXmlEntities(authorMatch[1].trim()) : undefined;
-
-      // 基础条目
-      let item: RssFeedItem = {
-        id: link,
-        title,
-        description,
-        link,
-        publishedAt: published,
-        updatedAt: updated,
-        author,
-        mediaType: 'article'
-      };
-
-      // 使用处理器增强条目（如果可用）
-      if (handler?.enhanceFeedItem) {
-        item = handler.enhanceFeedItem(item, entry);
-      } else {
-        // 默认处理：提取缩略图和观看次数
-        const thumbnailMatch = entry.match(/<media:thumbnail[^>]*url=["']([^"']+)["']/);
-        if (thumbnailMatch) {
-          item.thumbnail = thumbnailMatch[1];
-        }
-
-        const viewsMatch = entry.match(/<media:statistics[^>]*views=["'](\d+)["']/);
-        if (viewsMatch) {
-          item.viewCount = parseInt(viewsMatch[1], 10);
-        }
-      }
-
-      items.push(item);
-    }
-
-    // 提取 feed 元信息
-    const feedTitleMatch = xml.match(/<feed[^>]*>[\s\S]*?<title[^>]*>([\s\S]*?)<\/title>/);
-    const feedTitle = feedTitleMatch ? decodeXmlEntities(feedTitleMatch[1].trim()) : '';
-
-    const feedAuthorMatch = xml.match(/<feed[^>]*>[\s\S]*?<author>\s*<name[^>]*>([\s\S]*?)<\/name>/);
-    const feedAuthor = feedAuthorMatch ? decodeXmlEntities(feedAuthorMatch[1].trim()) : undefined;
-
-    let feed: RssFeed = {
-      title: feedTitle,
-      author: feedAuthor,
-      feedUrl,
-      items,
-      totalItems: items.length
-    };
-
-    // 使用处理器增强 Feed（如果可用）
-    if (handler?.enhanceFeed) {
-      feed = handler.enhanceFeed(feed, xml);
-    }
-
-    return feed;
-  } else {
-    // 解析 RSS 2.0 feed
-    const itemRegex = /<item>([\s\S]*?)<\/item>/g;
-    let match;
-
-    while ((match = itemRegex.exec(xml)) !== null) {
-      const item = match[1];
-
-      const titleMatch = item.match(/<title[^>]*>([\s\S]*?)<\/title>/);
-      const title = titleMatch ? decodeXmlEntities(titleMatch[1].trim()) : '';
-
-      const linkMatch = item.match(/<link[^>]*>([\s\S]*?)<\/link>/);
-      const link = linkMatch ? linkMatch[1].trim() : '';
-
-      const pubDateMatch = item.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/);
-      const published = pubDateMatch ? new Date(pubDateMatch[1].trim()).getTime() : Date.now();
-
-      const descMatch = item.match(/<description[^>]*>([\s\S]*?)<\/description>/);
-      const description = descMatch ? decodeXmlEntities(descMatch[1].trim()) : undefined;
-
-      const authorMatch = item.match(/<author[^>]*>([\s\S]*?)<\/author>/) || item.match(/<dc:creator[^>]*>([\s\S]*?)<\/dc:creator>/);
-      const author = authorMatch ? decodeXmlEntities(authorMatch[1].trim()) : undefined;
-
-      // 提取 enclosure（音频/视频）
-      const enclosureMatch = item.match(/<enclosure[^>]*url=["']([^"']+)["'][^>]*type=["']([^"']+)["'][^>]*length=["'](\d+)["']/);
-      let mediaUrl: string | undefined;
-      let mediaFormat: string | undefined;
-      let sizeBytes: number | undefined;
-      let mediaType: RssFeedItem['mediaType'] = 'article';
-
-      if (enclosureMatch) {
-        mediaUrl = enclosureMatch[1];
-        mediaFormat = enclosureMatch[2];
-        sizeBytes = parseInt(enclosureMatch[3], 10);
-        if (mediaFormat.startsWith('audio/')) mediaType = 'audio';
-        else if (mediaFormat.startsWith('video/')) mediaType = 'video';
-        else if (mediaFormat.startsWith('image/')) mediaType = 'image';
-      }
-
-      // 提取 itunes:duration（播客时长）
-      const durationMatch = item.match(/<itunes:duration[^>]*>([\s\S]*?)<\/itunes:duration>/);
-      let durationMs: number | undefined;
-      if (durationMatch) {
-        const durStr = durationMatch[1].trim();
-        const parts = durStr.split(':').map(Number);
-        if (parts.length === 3) {
-          durationMs = (parts[0] * 3600 + parts[1] * 60 + parts[2]) * 1000;
-        } else if (parts.length === 2) {
-          durationMs = (parts[0] * 60 + parts[1]) * 1000;
-        } else if (parts.length === 1) {
-          durationMs = parts[0] * 1000;
-        }
-      }
-
-      // 提取缩略图
-      const imageMatch = item.match(/<itunes:image[^>]*href=["']([^"']+)["']/) || item.match(/<media:thumbnail[^>]*url=["']([^"']+)["']/);
-      const thumbnail = imageMatch ? imageMatch[1] : undefined;
-
-      // 生成唯一 ID
-      const guidMatch = item.match(/<guid[^>]*>([\s\S]*?)<\/guid>/);
-      const id = guidMatch ? guidMatch[1].trim() : link;
-
-      items.push({
-        id,
-        title,
-        description,
-        link,
-        publishedAt: published,
-        author,
-        thumbnail,
-        mediaType,
-        mediaUrl,
-        mediaFormat,
-        sizeBytes,
-        durationMs
-      });
-    }
-
-    // 提取 channel 元信息
-    const channelTitleMatch = xml.match(/<channel>[\s\S]*?<title[^>]*>([\s\S]*?)<\/title>/);
-    const feedTitle = channelTitleMatch ? decodeXmlEntities(channelTitleMatch[1].trim()) : '';
-
-    const channelDescMatch = xml.match(/<channel>[\s\S]*?<description[^>]*>([\s\S]*?)<\/description>/);
-    const feedDesc = channelDescMatch ? decodeXmlEntities(channelDescMatch[1].trim()) : undefined;
-
-    const channelImageMatch = xml.match(/<channel>[\s\S]*?<image>[\s\S]*?<url[^>]*>([\s\S]*?)<\/url>/);
-    const feedImage = channelImageMatch ? channelImageMatch[1].trim() : undefined;
-
-    return {
-      title: feedTitle,
-      description: feedDesc,
-      image: feedImage,
-      feedUrl,
-      items,
-      totalItems: items.length
-    };
-  }
-}
-
-/**
- * 解码 XML 实体
- */
-function decodeXmlEntities(str: string): string {
-  return str
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1');
-}
-
-/**
- * 将 RssFeedItem 转换为数据库行格式
- */
-function feedItemToDbRow(rssResourceId: string, item: RssFeedItem): NewRssFeedItem {
-  return {
-    rssResourceId,
-    itemId: item.id,
-    title: item.title,
-    description: item.description,
-    link: item.link,
-    publishedAt: item.publishedAt,
-    updatedAt: item.updatedAt,
-    author: item.author,
-    thumbnail: item.thumbnail,
-    durationMs: item.durationMs,
-    viewCount: item.viewCount,
-    likeCount: item.likeCount,
-    commentCount: item.commentCount,
-    mediaType: item.mediaType,
-    mediaUrl: item.mediaUrl,
-    mediaFormat: item.mediaFormat,
-    sizeBytes: item.sizeBytes,
-    categories: item.categories ? JSON.stringify(item.categories) : undefined,
-    downloaded: item.downloaded ?? false,
-    localResourceId: item.localResourceId,
-    downloadStatus: item.downloadStatus,
-    downloadProgress: item.downloadProgress,
-    metadata: item.metadata ? JSON.stringify(item.metadata) : undefined
-  };
-}
-
-/**
- * 将数据库行转换为 RssFeedItem
- */
-function dbRowToFeedItem(row: RssFeedItemRow): RssFeedItem {
-  return {
-    id: row.itemId,
-    title: row.title,
-    description: row.description ?? undefined,
-    link: row.link,
-    publishedAt: row.publishedAt,
-    updatedAt: row.updatedAt ?? undefined,
-    author: row.author ?? undefined,
-    thumbnail: row.thumbnail ?? undefined,
-    durationMs: row.durationMs ?? undefined,
-    viewCount: row.viewCount ?? undefined,
-    likeCount: row.likeCount ?? undefined,
-    commentCount: row.commentCount ?? undefined,
-    mediaType: row.mediaType as RssFeedItem['mediaType'],
-    mediaUrl: row.mediaUrl ?? undefined,
-    mediaFormat: row.mediaFormat ?? undefined,
-    sizeBytes: row.sizeBytes ?? undefined,
-    categories: row.categories ? JSON.parse(row.categories) : undefined,
-    downloaded: row.downloaded ?? false,
-    localResourceId: row.localResourceId ?? undefined,
-    downloadStatus: row.downloadStatus as RssFeedItem['downloadStatus'],
-    downloadProgress: row.downloadProgress ?? undefined,
-    metadata: row.metadata ? JSON.parse(row.metadata) : undefined
-  };
-}
-
-/**
- * 检测 RSS 来源类型
- */
-function detectSourceType(url: string): RssSourceType {
-  const handler = rssSourceRegistry.detectHandler(url);
-  if (handler) {
-    return handler.sourceType;
-  }
-
-  // 回退到基于 URL 的检测
-  if (url.includes('bilibili.com')) {
-    return 'bilibili';
-  }
-  if (url.includes('twitter.com') || url.includes('x.com')) {
-    return 'twitter';
-  }
-  // 检测是否是播客
-  if (url.includes('podcast') || url.includes('anchor.fm') || url.includes('spotify.com')) {
-    return 'podcast';
-  }
-  return 'custom';
+function parseFeedPageParams(params: FetchRssFeedParams): { limit: number; offset: number } {
+  const limit = Math.max(1, Math.min(params.pageSize || RSS_FEED_VIEW_LIMIT, RSS_FEED_VIEW_LIMIT));
+  const offset = Math.max(0, Number.parseInt(params.pageToken || '0', 10) || 0);
+  return { limit, offset };
 }
 
 export function initRssHandlers(): void {
-  /**
-   * 创建 RSS 资源
-   */
+  startRssAutoCheck();
+
   ipcMain.handle('rss:create', async (_event, params: CreateRssResourceParams) => {
     try {
       const { channelIdOrUrl, title, autoDownload, downloadQuality, folderId, workspaceId } = params;
@@ -356,41 +50,28 @@ export function initRssHandlers(): void {
       let resourceDescription: string | undefined;
       let thumbnailUrl: string | undefined;
 
-      // 尝试使用处理器提取频道信息
       const result = await rssSourceRegistry.extractChannelInfo(channelIdOrUrl);
 
       if (result) {
-        // 使用处理器提取的信息
         const { handler, channelInfo } = result;
-
-        metadata = handler.createMetadata(channelInfo, {
-          autoDownload,
-          downloadQuality,
-          downloadFolderId: folderId
-        });
-
+        metadata = handler.createMetadata(channelInfo, { autoDownload, downloadQuality, downloadFolderId: folderId });
+        metadata.lastSyncStatus = metadata.lastSyncStatus || 'idle';
         resourceTitle = title || channelInfo.title || channelInfo.channelId || '未命名订阅';
         resourceDescription = channelInfo.description;
         thumbnailUrl = channelInfo.thumbnail;
       } else {
-        // 通用 RSS（没有匹配的处理器）
         const detectedType = detectSourceType(channelIdOrUrl);
-
         metadata = {
-          sourceType: detectedType,
-          feedUrl: channelIdOrUrl,
-          autoDownload: autoDownload ?? false,
-          downloadQuality: downloadQuality ?? 'best',
-          downloadFolderId: folderId,
-          enabled: true
+          sourceType: detectedType, feedUrl: channelIdOrUrl,
+          autoDownload: autoDownload ?? false, downloadQuality: downloadQuality ?? 'best',
+          downloadFolderId: folderId, enabled: true, lastSyncStatus: 'idle'
         };
-
-        // 尝试获取 feed 信息
         try {
           const feed = await parseRssFeed(channelIdOrUrl, detectedType);
           resourceTitle = title || feed.title || '未命名订阅';
           resourceDescription = feed.description;
           thumbnailUrl = feed.image;
+          metadata = applyRssSyncSuccessMetadata(metadata, Date.now());
           metadata.itemCount = feed.totalItems;
           if (feed.items.length > 0) {
             metadata.latestItemId = feed.items[0].id;
@@ -402,29 +83,18 @@ export function initRssHandlers(): void {
         }
       }
 
-      // 获取工作空间
       let wsId = workspaceId;
-      if (!wsId) {
-        const ws = await WorkspacesRepo.getDefault();
-        wsId = ws?.id;
-      }
+      if (!wsId) { const ws = await WorkspacesRepo.getDefault(); wsId = ws?.id; }
 
       const now = Date.now();
       const resource = await ResourcesRepo.upsert({
-        type: 'rss',
-        title: resourceTitle,
-        description: resourceDescription,
+        type: 'rss', title: resourceTitle, description: resourceDescription,
         url: metadata.channelUrl || metadata.feedUrl,
         domain: metadata.feedUrl ? new URL(metadata.feedUrl).hostname : undefined,
         sourceName: metadata.sourceType === 'youtube' ? 'YouTube' : metadata.sourceType || 'RSS',
-        previewUrl: thumbnailUrl,
-        metadata: JSON.stringify(metadata),
-        workspaceId: wsId,
-        folderId,
-        status: 'ready',
-        collectedAt: now,
-        createdAt: now,
-        updatedAt: now
+        previewUrl: thumbnailUrl, metadata: JSON.stringify(metadata),
+        workspaceId: wsId, folderId, status: 'ready',
+        collectedAt: now, createdAt: now, updatedAt: now
       } as any);
 
       return { success: true, data: resource };
@@ -434,25 +104,13 @@ export function initRssHandlers(): void {
     }
   });
 
-  /**
-   * 更新 RSS 资源
-   */
   ipcMain.handle('rss:update', async (_event, params: UpdateRssResourceParams) => {
     try {
       const { id, ...updates } = params;
       const resource = await ResourcesRepo.getById(id);
-      if (!resource) {
-        return { success: false, error: '资源不存在' };
-      }
+      if (!resource) return { success: false, error: '资源不存在' };
 
-      let currentMetadata: Partial<RssMetadata> = {};
-      try {
-        currentMetadata = JSON.parse((resource as any).metadata || '{}');
-      } catch {
-        // ignore parse error
-      }
-
-      // 更新 metadata
+      const currentMetadata = parseResourceMetadata(resource);
       const newMetadata: RssMetadata = {
         ...currentMetadata,
         ...(updates.enabled !== undefined && { enabled: updates.enabled }),
@@ -465,8 +123,7 @@ export function initRssHandlers(): void {
       const updated = await ResourcesRepo.update(id, {
         ...(updates.title !== undefined && { title: updates.title }),
         ...(updates.description !== undefined && { description: updates.description }),
-        metadata: JSON.stringify(newMetadata),
-        updatedAt: Date.now()
+        metadata: JSON.stringify(newMetadata), updatedAt: Date.now()
       } as any);
 
       return { success: true, data: updated };
@@ -476,298 +133,153 @@ export function initRssHandlers(): void {
     }
   });
 
-  /**
-   * 获取缓存的 RSS Feed 内容（从数据库读取）
-   * 用于快速展示已缓存的条目，无需等待网络请求
-   */
   ipcMain.handle('rss:getCachedFeed', async (_event, params: { resourceId: string; limit?: number; offset?: number }) => {
     try {
       const { resourceId, limit = 100, offset = 0 } = params;
       const resource = await ResourcesRepo.getById(resourceId);
-      if (!resource || (resource as any).type !== 'rss') {
-        return { success: false, error: '资源不存在或不是 RSS 类型' };
-      }
+      if (!resource || (resource as any).type !== 'rss') return { success: false, error: '资源不存在或不是 RSS 类型' };
 
-      let metadata: RssMetadata;
-      try {
-        metadata = JSON.parse((resource as any).metadata || '{}');
-      } catch {
-        return { success: false, error: '无法解析资源元数据' };
-      }
-
-      // 从数据库获取缓存的条目
-      const cachedRows = await RssFeedItemsRepo.listByResourceId(resourceId, limit, offset);
-      const totalItems = await RssFeedItemsRepo.countByResourceId(resourceId);
-
-      // 转换为 RssFeedItem 格式
-      const items = cachedRows.map(dbRowToFeedItem);
-
-      const feed: RssFeed = {
-        title: (resource as any).title || '',
-        description: (resource as any).description,
-        feedUrl: metadata.feedUrl || '',
-        image: (resource as any).previewUrl,
-        author: (resource as any).authorName,
-        items,
-        totalItems,
-        hasMore: offset + items.length < totalItems
-      };
-
-      return {
-        success: true,
-        data: feed,
-        cached: true,
-        lastFetchedAt: metadata.lastFetchedAt
-      };
+      const metadata = parseResourceMetadata(resource);
+      const feed = await buildCachedRssFeed(resource, metadata, limit, offset);
+      return { success: true, data: feed, cached: true, lastFetchedAt: metadata.lastFetchedAt };
     } catch (error: any) {
       console.error('[rss:getCachedFeed] 获取缓存失败:', error);
       return { success: false, error: error?.message || '获取缓存失败' };
     }
   });
 
-  /**
-   * 获取 RSS Feed 内容（从网络获取最新数据并更新缓存）
-   */
   ipcMain.handle('rss:fetchFeed', async (_event, params: FetchRssFeedParams) => {
     eventManager.emit(AppEvent.SPRITE_RSS_REFRESH);
+    const { limit, offset } = parseFeedPageParams(params);
     try {
       const { resourceId, forceRefresh } = params;
       const resource = await ResourcesRepo.getById(resourceId);
-      if (!resource || (resource as any).type !== 'rss') {
-        return { success: false, error: '资源不存在或不是 RSS 类型' };
-      }
+      if (!resource || (resource as any).type !== 'rss') return { success: false, error: '资源不存在或不是 RSS 类型' };
 
-      let metadata: RssMetadata;
-      try {
-        metadata = JSON.parse((resource as any).metadata || '{}');
-      } catch {
-        return { success: false, error: '无法解析资源元数据' };
-      }
+      const metadata = parseResourceMetadata(resource);
+      if (!metadata.feedUrl) return { success: false, error: '缺少 Feed URL' };
 
-      if (!metadata.feedUrl) {
-        return { success: false, error: '缺少 Feed URL' };
-      }
-
-      // 检查是否需要刷新
       const now = Date.now();
-      const fetchInterval = (metadata.fetchInterval || 60) * 60 * 1000; // 默认 60 分钟
+      const fetchInterval = (metadata.fetchInterval || 60) * 60 * 1000;
       if (!forceRefresh && metadata.lastFetchedAt && now - metadata.lastFetchedAt < fetchInterval) {
-        // 如果在刷新间隔内，返回缓存数据（包含所有历史数据）
-        const cachedRows = await RssFeedItemsRepo.listByResourceId(resourceId, 1000, 0);
-        if (cachedRows.length > 0) {
-          const items = cachedRows.map(dbRowToFeedItem);
-          const feed: RssFeed = {
-            title: (resource as any).title || '',
-            description: (resource as any).description,
-            feedUrl: metadata.feedUrl,
-            image: (resource as any).previewUrl,
-            author: (resource as any).authorName,
-            items,
-            totalItems: items.length
-          };
-          return { success: true, data: feed, cached: true };
-        }
+        const cachedFeed = await buildCachedRssFeed(resource, metadata, limit, offset);
+        if (cachedFeed.items.length > 0) return { success: true, data: cachedFeed, cached: true };
       }
 
-      // 获取 feed
-      const feed = await parseRssFeed(metadata.feedUrl, metadata.sourceType);
+      await syncRssResource(resource, { ignoreEnabled: true, ignoreFetchInterval: true, queueAutoDownload: false });
 
-      // 检查已下载的资源
-      const downloadedResources = await ResourcesRepo.listChildren(resourceId, 1000, 0);
-      const downloadedMap = new Map<string, string>();
-      const downloadedIds = new Set<string>();
-
-      downloadedResources.forEach((r: any) => {
-        try {
-          const m = JSON.parse(r.metadata || '{}');
-          if (m.itemId) {
-            downloadedIds.add(m.itemId);
-            downloadedMap.set(m.itemId, r.id);
-          }
-        } catch {
-          // ignore parse error
-        }
-      });
-
-      // 标记已下载状态
-      feed.items = feed.items.map((item) => ({
-        ...item,
-        downloaded: downloadedIds.has(item.id),
-        localResourceId: downloadedMap.get(item.id)
-      }));
-
-      // 将条目保存到数据库缓存
-      if (feed.items.length > 0) {
-        const dbRows = feed.items.map((item) => feedItemToDbRow(resourceId, item));
-        await RssFeedItemsRepo.bulkUpsert(dbRows);
-
-        // 批量更新已下载状态
-        if (downloadedIds.size > 0) {
-          await RssFeedItemsRepo.batchUpdateDownloadStatus(resourceId, Array.from(downloadedIds), downloadedMap);
-        }
-      }
-
-      // 更新资源元数据
-      const updatedMetadata: RssMetadata = {
-        ...metadata,
-        lastFetchedAt: now,
-        itemCount: feed.totalItems,
-        lastError: undefined,
-        lastErrorAt: undefined
-      };
-
-      if (feed.items.length > 0) {
-        updatedMetadata.latestItemId = feed.items[0].id;
-        updatedMetadata.latestItemPublishedAt = feed.items[0].publishedAt;
-      }
-
-      await ResourcesRepo.update(resourceId, {
-        metadata: JSON.stringify(updatedMetadata),
-        updatedAt: now
-      } as any);
-
-      // 从数据库读取所有条目（包括历史数据），而不是只返回 RSS 中的数据
-      const allCachedRows = await RssFeedItemsRepo.listByResourceId(resourceId, 1000, 0);
-      const allItems = allCachedRows.map(dbRowToFeedItem);
-
-      // 重新构建完整的 feed 数据
-      const completeFeed: RssFeed = {
-        ...feed,
-        items: allItems,
-        totalItems: allItems.length
-      };
-
-      // 通知精灵有新内容
-      if (feed.items.length > 0) {
-        eventManager.emit(AppEvent.SPRITE_RSS_NEW_CONTENT, { message: `RSS 更新了 ${feed.items.length} 条内容` });
-      }
-
+      const refreshedResource = (await ResourcesRepo.getById(resourceId)) || resource;
+      const refreshedMetadata = parseResourceMetadata(refreshedResource);
+      const completeFeed = await buildCachedRssFeed(refreshedResource, refreshedMetadata, limit, offset);
       return { success: true, data: completeFeed, cached: false };
     } catch (error: any) {
       console.error('[rss:fetchFeed] 获取失败:', error);
-
-      // 记录错误
+      await recordRssSyncError(params.resourceId, error);
       try {
         const resource = await ResourcesRepo.getById(params.resourceId);
         if (resource) {
-          let metadata: Partial<RssMetadata> = {};
-          try {
-            metadata = JSON.parse((resource as any).metadata || '{}');
-          } catch {
-            // ignore parse error
-          }
-
-          metadata.lastError = error?.message || '获取失败';
-          metadata.lastErrorAt = Date.now();
-
-          await ResourcesRepo.update(params.resourceId, {
-            metadata: JSON.stringify(metadata)
-          } as any);
+          const metadata = parseResourceMetadata(resource);
+          const feed = await buildCachedRssFeed(resource, metadata, limit, offset);
+          if (feed.items.length === 0) return { success: false, error: error?.message || '获取失败' };
+          return { success: true, data: feed, cached: true, error: error?.message || '网络获取失败，返回缓存数据' };
         }
-      } catch {
-        // ignore error logging failure
-      }
-
-      // 如果网络获取失败，尝试返回缓存数据（包含所有历史数据）
-      try {
-        const cachedRows = await RssFeedItemsRepo.listByResourceId(params.resourceId, 1000, 0);
-        if (cachedRows.length > 0) {
-          const items = cachedRows.map(dbRowToFeedItem);
-          const resource = await ResourcesRepo.getById(params.resourceId);
-          let metadata: RssMetadata = {};
-          try {
-            metadata = JSON.parse((resource as any)?.metadata || '{}');
-          } catch {
-            // ignore
-          }
-          const feed: RssFeed = {
-            title: (resource as any)?.title || '',
-            description: (resource as any)?.description,
-            feedUrl: metadata.feedUrl || '',
-            image: (resource as any)?.previewUrl,
-            author: (resource as any)?.authorName,
-            items,
-            totalItems: items.length
-          };
-          return {
-            success: true,
-            data: feed,
-            cached: true,
-            error: error?.message || '网络获取失败，返回缓存数据'
-          };
-        }
-      } catch {
-        // ignore cache fallback error
-      }
-
+      } catch { /* ignore cache fallback error */ }
       return { success: false, error: error?.message || '获取失败' };
     }
   });
 
-  /**
-   * 下载 RSS 条目
-   */
   ipcMain.handle('rss:downloadItem', async (_event, params: DownloadRssItemParams) => {
     try {
-      const { rssResourceId, itemId, itemUrl, quality, folderId } = params;
-
-      // 获取 RSS 资源
-      const rssResource = await ResourcesRepo.getById(rssResourceId);
-      if (!rssResource || (rssResource as any).type !== 'rss') {
-        return { success: false, error: 'RSS 资源不存在' };
-      }
-
-      let metadata: RssMetadata;
-      try {
-        metadata = JSON.parse((rssResource as any).metadata || '{}');
-      } catch {
-        return { success: false, error: '无法解析资源元数据' };
-      }
-
-      // 确定下载质量和目标文件夹
-      const downloadQuality = quality || metadata.downloadQuality || 'best';
-      const targetFolderId = folderId || metadata.downloadFolderId || (rssResource as any).folderId;
-
-      // 调用下载器（这里需要调用 video-downloader 的接口）
-      // 由于这是一个独立的模块，我们通过事件或直接调用来实现
-      // 这里返回下载任务信息，让前端通过 videoDownloader 接口来下载
-
-      return {
-        success: true,
-        data: {
-          url: itemUrl,
-          quality: downloadQuality,
-          folderId: targetFolderId,
-          parentResourceId: rssResourceId,
-          metadata: {
-            itemId,
-            rssResourceId
-          }
-        }
-      };
+      return await prepareDownloadTarget(params);
     } catch (error: any) {
       console.error('[rss:downloadItem] 下载失败:', error);
       return { success: false, error: error?.message || '下载失败' };
     }
   });
 
-  /**
-   * 列出所有 RSS 资源
-   */
+  ipcMain.handle('rss:ignoreItem', async (_event, params: { rssResourceId: string; itemId: string }) => {
+    try {
+      const { rssResourceId, itemId } = params;
+      const rssResource = await ResourcesRepo.getById(rssResourceId);
+      if (!rssResource || (rssResource as any).type !== 'rss') return { success: false, error: 'RSS 资源不存在' };
+
+      const rssItemRow = await RssFeedItemsRepo.softDeleteByResourceAndItemId(rssResourceId, itemId);
+      if (!rssItemRow) return { success: false, error: 'RSS 条目不存在' };
+
+      return { success: true, data: dbRowToFeedItem(rssItemRow) };
+    } catch (error: any) {
+      console.error('[rss:ignoreItem] 忽略失败:', error);
+      return { success: false, error: error?.message || '忽略失败' };
+    }
+  });
+
+  ipcMain.handle('rss:batchIgnoreItems', async (_event, params: { rssResourceId: string; itemIds: string[] }) => {
+    try {
+      const { rssResourceId, itemIds } = params;
+      if (!itemIds.length) return { success: true, data: { count: 0 } };
+
+      const rssResource = await ResourcesRepo.getById(rssResourceId);
+      if (!rssResource || (rssResource as any).type !== 'rss') return { success: false, error: 'RSS 资源不存在' };
+
+      const count = await RssFeedItemsRepo.batchSoftDelete(rssResourceId, itemIds);
+      return { success: true, data: { count } };
+    } catch (error: any) {
+      console.error('[rss:batchIgnoreItems] 批量忽略失败:', error);
+      return { success: false, error: error?.message || '批量忽略失败' };
+    }
+  });
+
+  ipcMain.handle('rss:unignoreItem', async (_event, params: { rssResourceId: string; itemId: string }) => {
+    try {
+      const { rssResourceId, itemId } = params;
+      const rssResource = await ResourcesRepo.getById(rssResourceId);
+      if (!rssResource || (rssResource as any).type !== 'rss') return { success: false, error: 'RSS 资源不存在' };
+
+      const rssItemRow = await RssFeedItemsRepo.restoreByResourceAndItemId(rssResourceId, itemId);
+      if (!rssItemRow) return { success: false, error: 'RSS 条目不存在' };
+
+      return { success: true, data: dbRowToFeedItem(rssItemRow) };
+    } catch (error: any) {
+      console.error('[rss:unignoreItem] 恢复失败:', error);
+      return { success: false, error: error?.message || '恢复失败' };
+    }
+  });
+
+  ipcMain.handle('rss:restoreAllIgnored', async (_event, params: { rssResourceId: string }) => {
+    try {
+      const { rssResourceId } = params;
+      const rssResource = await ResourcesRepo.getById(rssResourceId);
+      if (!rssResource || (rssResource as any).type !== 'rss') return { success: false, error: 'RSS 资源不存在' };
+
+      const count = await RssFeedItemsRepo.restoreAllByResourceId(rssResourceId);
+      return { success: true, data: { count } };
+    } catch (error: any) {
+      console.error('[rss:restoreAllIgnored] 恢复失败:', error);
+      return { success: false, error: error?.message || '恢复失败' };
+    }
+  });
+
+  ipcMain.handle('rss:getIgnoredItems', async (_event, params: { rssResourceId: string; limit?: number; offset?: number }) => {
+    try {
+      const { rssResourceId, limit = 100, offset = 0 } = params;
+      const rssResource = await ResourcesRepo.getById(rssResourceId);
+      if (!rssResource || (rssResource as any).type !== 'rss') return { success: false, error: 'RSS 资源不存在' };
+
+      const rows = await RssFeedItemsRepo.listIgnoredByResourceId(rssResourceId, limit, offset);
+      const totalCount = await RssFeedItemsRepo.countIgnoredByResourceId(rssResourceId);
+      const items = rows.map(dbRowToFeedItem);
+      return { success: true, data: { items, totalCount } };
+    } catch (error: any) {
+      console.error('[rss:getIgnoredItems] 获取已忽略条目失败:', error);
+      return { success: false, error: error?.message || '获取已忽略条目失败' };
+    }
+  });
+
   ipcMain.handle('rss:list', async (_event, params?: { workspaceId?: string }) => {
     try {
       let wsId = params?.workspaceId;
-      if (!wsId) {
-        const ws = await WorkspacesRepo.getDefault();
-        wsId = ws?.id;
-      }
-
-      const resources = await ResourcesRepo.list({
-        type: 'rss',
-        workspaceId: wsId,
-        deletedAt: 0
-      } as any);
-
+      if (!wsId) { const ws = await WorkspacesRepo.getDefault(); wsId = ws?.id; }
+      const resources = await ResourcesRepo.list({ type: 'rss', workspaceId: wsId, deletedAt: 0 } as any);
       return { success: true, data: resources };
     } catch (error: any) {
       console.error('[rss:list] 列出失败:', error);
@@ -775,91 +287,31 @@ export function initRssHandlers(): void {
     }
   });
 
-  /**
-   * 删除 RSS 资源（取消订阅）
-   * 同时删除关联的所有 feed 记录
-   */
-  ipcMain.handle('rss:delete', async (_event, params: { id: string; hardDelete?: boolean }) => {
+  ipcMain.handle('rss:delete', async (_event, params: { id: string; hardDelete?: boolean; deleteDownloadedResources?: boolean }) => {
     try {
-      const { id, hardDelete = false } = params;
-
-      // 先删除关联的所有 feed 记录
-      const deletedFeedCount = await RssFeedItemsRepo.deleteByResourceId(id);
-      console.log(`[rss:delete] 已删除 ${deletedFeedCount} 条关联的 feed 记录`);
-
-      if (hardDelete) {
-        // 硬删除：直接从数据库删除资源
-        await ResourcesRepo.deleteById(id);
-        return { success: true, data: { id, deletedFeedCount } };
-      } else {
-        // 软删除：标记 deletedAt
-        const updated = await ResourcesRepo.update(id, { deletedAt: Date.now() } as any);
-        return { success: true, data: { ...updated, deletedFeedCount } };
-      }
+      const { id, hardDelete = false, deleteDownloadedResources = false } = params;
+      const result = await deleteRssResource(id, hardDelete, deleteDownloadedResources);
+      return { success: true, data: result };
     } catch (error: any) {
       console.error('[rss:delete] 删除失败:', error);
       return { success: false, error: error?.message || '删除失败' };
     }
   });
 
-  /**
-   * 检查所有 RSS 订阅的更新
-   */
   ipcMain.handle('rss:checkAllUpdates', async () => {
     try {
       const ws = await WorkspacesRepo.getDefault();
-      const resources = await ResourcesRepo.list({
-        type: 'rss',
-        workspaceId: ws?.id,
-        deletedAt: 0
-      } as any);
-
+      const resources = await ResourcesRepo.list({ type: 'rss', workspaceId: ws?.id, deletedAt: 0 } as any);
       const results: Array<{ id: string; hasUpdate: boolean; newItems: number; error?: string }> = [];
-
       for (const resource of resources) {
         try {
-          let metadata: RssMetadata;
-          try {
-            metadata = JSON.parse((resource as any).metadata || '{}');
-          } catch {
-            continue;
-          }
-
-          if (!metadata.enabled || !metadata.feedUrl) {
-            continue;
-          }
-
-          const feed = await parseRssFeed(metadata.feedUrl, metadata.sourceType);
-          const hasUpdate = feed.items.length > 0 && feed.items[0].id !== metadata.latestItemId;
-
-          let newItems = 0;
-          if (hasUpdate && metadata.latestItemId) {
-            const latestIdx = feed.items.findIndex((item) => item.id === metadata.latestItemId);
-            newItems = latestIdx === -1 ? feed.items.length : latestIdx;
-          }
-
-          results.push({ id: resource.id, hasUpdate, newItems });
-
-          // 更新元数据
-          if (hasUpdate) {
-            const updatedMetadata: RssMetadata = {
-              ...metadata,
-              lastFetchedAt: Date.now(),
-              itemCount: feed.totalItems,
-              latestItemId: feed.items[0].id,
-              latestItemPublishedAt: feed.items[0].publishedAt
-            };
-
-            await ResourcesRepo.update(resource.id, {
-              metadata: JSON.stringify(updatedMetadata),
-              updatedAt: Date.now()
-            } as any);
-          }
+          const result = await syncRssResource(resource, { ignoreFetchInterval: true, queueAutoDownload: true });
+          results.push({ id: resource.id, hasUpdate: result.hasUpdate, newItems: result.newItems });
         } catch (error: any) {
+          await recordRssSyncError(resource.id, error);
           results.push({ id: resource.id, hasUpdate: false, newItems: 0, error: error?.message });
         }
       }
-
       return { success: true, data: results };
     } catch (error: any) {
       console.error('[rss:checkAllUpdates] 检查失败:', error);
@@ -867,134 +319,67 @@ export function initRssHandlers(): void {
     }
   });
 
-  /**
-   * 获取 YouTube 频道的历史视频列表
-   * 使用 yt-dlp 绕过 RSS 只返回 15 个视频的限制
-   * 支持分页加载和存储到数据库
-   */
   ipcMain.handle(
     'rss:fetchYouTubeHistory',
-    async (
-      _event,
-      params: {
-        resourceId: string;
-        limit?: number;
-        offset?: number;
-        detailed?: boolean;
-      }
-    ) => {
+    async (_event, params: { resourceId: string; limit?: number; offset?: number; detailed?: boolean }) => {
       try {
         const { resourceId, limit = 50, offset = 0, detailed = false } = params;
-
-        // 获取资源信息
         const resource = await ResourcesRepo.getById(resourceId);
-        if (!resource) {
-          throw new Error('资源不存在');
-        }
+        if (!resource) throw new Error('资源不存在');
 
-        // 解析 metadata
-        let metadata: RssMetadata;
-        try {
-          metadata = JSON.parse((resource as any).metadata || '{}');
-        } catch {
-          metadata = {};
-        }
-
-        if (metadata.sourceType !== 'youtube') {
-          throw new Error('仅支持 YouTube 订阅');
-        }
+        const metadata = parseResourceMetadata(resource);
+        if (metadata.sourceType !== 'youtube') throw new Error('仅支持 YouTube 订阅');
 
         const channelUrl = metadata.channelUrl || metadata.channelId;
-        if (!channelUrl) {
-          throw new Error('无法获取频道信息');
-        }
+        if (!channelUrl) throw new Error('无法获取频道信息');
 
-        // 获取 YouTube 处理器
         const handler = rssSourceRegistry.getHandler('youtube');
-        if (!handler) {
-          throw new Error('YouTube 处理器未注册');
-        }
+        if (!handler) throw new Error('YouTube 处理器未注册');
 
-        // 使用类型断言来访问 YouTubeHandler 特有的方法
         const youtubeHandler = handler as any;
-
-        // 计算实际的 playlist-end 参数（offset + limit）
         const playlistEnd = offset + limit;
 
         let items: RssFeedItem[];
         if (detailed) {
-          items = await youtubeHandler.fetchChannelVideosDetailed(channelUrl, playlistEnd);
-          // 如果有 offset，只取后面的部分
-          if (offset > 0) {
-            items = items.slice(offset);
-          }
+          items = await youtubeHandler.fetchChannelVideosDetailed(channelUrl, { playlistStart: offset + 1, playlistEnd });
         } else {
-          // 使用 yt-dlp 的 playlist-start 和 playlist-end 参数
-          items = await youtubeHandler.fetchChannelHistory(channelUrl, {
-            limit: playlistEnd,
-            playlistStart: offset + 1 // yt-dlp 的 playlist-start 是 1-based
-          });
+          items = await youtubeHandler.fetchChannelHistory(channelUrl, { playlistEnd, playlistStart: offset + 1 });
         }
 
         if (items.length === 0) {
-          return {
-            success: true,
-            data: {
-              items: [],
-              hasMore: false,
-              nextOffset: offset,
-              totalLoaded: metadata.historyLoadedCount || 0
-            }
-          };
+          return { success: true, data: { items: [], hasMore: false, nextOffset: offset, totalLoaded: metadata.historyLoadedCount || 0 } };
         }
 
-        // 将获取到的视频存入数据库
         const dbItems: NewRssFeedItem[] = items.map((item) => ({
-          rssResourceId: resourceId,
-          itemId: item.id,
-          title: item.title,
-          description: item.description,
-          link: item.link,
-          publishedAt: item.publishedAt,
-          updatedAt: item.updatedAt,
-          author: item.author,
-          thumbnail: item.thumbnail,
-          durationMs: item.durationMs,
-          viewCount: item.viewCount,
-          likeCount: item.likeCount,
-          commentCount: item.commentCount,
+          rssResourceId: resourceId, itemId: item.id, title: item.title,
+          description: item.description, link: item.link,
+          publishedAt: item.publishedAt, updatedAt: item.updatedAt,
+          author: item.author, thumbnail: item.thumbnail,
+          durationMs: item.durationMs, viewCount: item.viewCount,
+          likeCount: item.likeCount, commentCount: item.commentCount,
           mediaType: item.mediaType,
           categories: item.categories?.length ? JSON.stringify(item.categories) : undefined,
-          downloaded: false,
-          downloadStatus: undefined
+          downloaded: false, downloadStatus: undefined,
+          metadata: item.metadata ? JSON.stringify(item.metadata) : undefined
         }));
 
         await RssFeedItemsRepo.bulkUpsert(dbItems);
 
-        // 更新 metadata 中的分页位置
         const newLoadedCount = offset + items.length;
         const oldestItem = items.reduce((oldest, item) => (item.publishedAt < oldest.publishedAt ? item : oldest), items[0]);
-
         const updatedMetadata: RssMetadata = {
           ...metadata,
           historyLoadedCount: Math.max(metadata.historyLoadedCount || 0, newLoadedCount),
-          oldestHistoryPublishedAt: metadata.oldestHistoryPublishedAt ? Math.min(metadata.oldestHistoryPublishedAt, oldestItem.publishedAt) : oldestItem.publishedAt
+          oldestHistoryPublishedAt: metadata.oldestHistoryPublishedAt
+            ? Math.min(metadata.oldestHistoryPublishedAt, oldestItem.publishedAt)
+            : oldestItem.publishedAt
         };
 
-        await ResourcesRepo.update(resourceId, {
-          metadata: JSON.stringify(updatedMetadata),
-          updatedAt: Date.now()
-        } as any);
+        await ResourcesRepo.update(resourceId, { metadata: JSON.stringify(updatedMetadata), updatedAt: Date.now() } as any);
 
-        // 返回结果
         return {
           success: true,
-          data: {
-            items,
-            hasMore: items.length >= limit,
-            nextOffset: offset + items.length,
-            totalLoaded: newLoadedCount
-          }
+          data: { items, hasMore: items.length >= limit, nextOffset: offset + items.length, totalLoaded: newLoadedCount }
         };
       } catch (error: any) {
         console.error('[rss:fetchYouTubeHistory] 获取历史失败:', error);

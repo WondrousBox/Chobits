@@ -1,10 +1,11 @@
 import type { RssMetadata } from '@main/handlers/rss/types';
 import { clsx } from 'clsx';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { TbLoader2, TbRss, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,52 +22,54 @@ interface EditRssSettingsDialogProps {
   onDelete?: () => void;
 }
 
+type RssDeleteResultData = {
+  id: string;
+  deletedFeedCount: number;
+  deletedDownloadedResourceCount?: number;
+  keptDownloadedResourceCount?: number;
+};
+
 const EditRssSettingsDialog: React.FC<EditRssSettingsDialogProps> = ({ open, onOpenChange, item, onSuccess, onDelete }) => {
   const [title, setTitle] = useState('');
   const [autoDownload, setAutoDownload] = useState(false);
   const [downloadQuality, setDownloadQuality] = useState('1080p');
   const [enabled, setEnabled] = useState(true);
+  const [fetchInterval, setFetchInterval] = useState(60);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteDownloadedResources, setDeleteDownloadedResources] = useState(false);
 
-  // 解析 metadata
-  const metadata: RssMetadata = useState(() => {
+  const metadata: RssMetadata = useMemo(() => {
     try {
       return JSON.parse(item?.metadata || '{}');
     } catch {
-      return {};
+      return {} as RssMetadata;
     }
-  })[0];
+  }, [item?.metadata]);
 
-  // 当对话框打开或 item 变化时，更新表单数据
   useEffect(() => {
-    if (open && item) {
-      setTitle(item.title || '');
-      setAutoDownload(metadata.autoDownload || false);
-      setDownloadQuality(metadata.downloadQuality || '1080p');
-      setEnabled(metadata.enabled !== false);
-    }
+    if (!open || !item) return;
+
+    setTitle(item.title || '');
+    setAutoDownload(metadata.autoDownload || false);
+    setDownloadQuality(metadata.downloadQuality || '1080p');
+    setEnabled(metadata.enabled !== false);
+    setFetchInterval(metadata.fetchInterval || 60);
+    setDeleteDownloadedResources(false);
   }, [open, item, metadata]);
 
-  // 保存设置
   const handleSave = useCallback(async () => {
     if (!item) return;
 
     setSaving(true);
     try {
-      const newMetadata: RssMetadata = {
-        ...metadata,
+      const result = await window.YUA.rss.update({
+        id: item.id,
+        title: title.trim() || undefined,
+        enabled,
         autoDownload,
         downloadQuality,
-        enabled
-      };
-
-      const result = await window.YUA.rss.update({
-        resourceId: item.id,
-        updates: {
-          title: title.trim() || undefined,
-          metadata: JSON.stringify(newMetadata)
-        }
+        fetchInterval
       });
 
       if (result.success) {
@@ -81,18 +84,42 @@ const EditRssSettingsDialog: React.FC<EditRssSettingsDialogProps> = ({ open, onO
     } finally {
       setSaving(false);
     }
-  }, [item, title, autoDownload, downloadQuality, enabled, metadata, onOpenChange, onSuccess]);
+  }, [item, title, enabled, autoDownload, downloadQuality, fetchInterval, onOpenChange, onSuccess]);
 
-  // 删除订阅
   const handleDelete = useCallback(async () => {
     if (!item) return;
 
+    if (deleteDownloadedResources) {
+      const confirmed = window.confirm('这会同时删除该订阅下已下载的内容，且操作不可恢复。确定继续吗？');
+      if (!confirmed) {
+        return;
+      }
+    }
+
     setDeleting(true);
     try {
-      const result = await window.YUA.resource.deleteResources({ ids: [item.id] });
+      const result = await window.YUA.rss.delete({
+        id: item.id,
+        hardDelete: true,
+        deleteDownloadedResources
+      });
 
-      if (result.ok || result.success) {
-        toast.success('订阅已删除');
+      if (result.success) {
+        const deleteStats =
+          result.data && 'deletedFeedCount' in result.data ? (result.data as RssDeleteResultData) : undefined;
+
+        if (deleteDownloadedResources) {
+          const deletedCount = deleteStats?.deletedDownloadedResourceCount ?? 0;
+          toast.success('订阅及已下载内容已删除', {
+            description: deletedCount > 0 ? `同时删除了 ${deletedCount} 个已下载资源` : '没有关联的已下载资源需要删除'
+          });
+        } else {
+          const keptCount = deleteStats?.keptDownloadedResourceCount ?? 0;
+          toast.success('已取消订阅', {
+            description: keptCount > 0 ? `已保留 ${keptCount} 个已下载资源` : '已下载内容会保留在资源库中'
+          });
+        }
+
         onOpenChange(false);
         onDelete?.();
       } else {
@@ -103,46 +130,42 @@ const EditRssSettingsDialog: React.FC<EditRssSettingsDialogProps> = ({ open, onO
     } finally {
       setDeleting(false);
     }
-  }, [item, onOpenChange, onDelete]);
+  }, [deleteDownloadedResources, item, onDelete, onOpenChange]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <TbRss className="w-5 h-5 text-orange-500" />
+            <TbRss className="h-5 w-5 text-orange-500" />
             订阅设置
           </DialogTitle>
-          <DialogDescription>管理 RSS 订阅的设置和选项</DialogDescription>
+          <DialogDescription>管理 RSS 订阅设置。默认删除只会移除订阅和缓存，已下载内容会保留在资源库中。</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 mt-4">
-          {/* 标题 */}
+        <div className="mt-4 space-y-4">
           <div className="space-y-2">
             <Label>订阅标题</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="输入订阅标题" />
           </div>
 
-          {/* 启用状态 */}
           <div className="flex items-center justify-between">
             <div>
               <Label>启用订阅</Label>
-              <p className="text-xs text-muted-foreground">关闭后将暂停获取此订阅的内容</p>
+              <p className="text-xs text-muted-foreground">关闭后将暂停获取这个订阅的新内容。</p>
             </div>
             <Switch checked={enabled} onCheckedChange={setEnabled} />
           </div>
 
-          {/* 自动下载 */}
           <div className="flex items-center justify-between">
             <div>
               <Label>自动下载</Label>
-              <p className="text-xs text-muted-foreground">自动下载新发布的内容</p>
+              <p className="text-xs text-muted-foreground">自动下载新发布的内容。</p>
             </div>
             <Switch checked={autoDownload} onCheckedChange={setAutoDownload} />
           </div>
 
-          {/* 下载质量 */}
-          {autoDownload && (
+          {autoDownload ? (
             <div className="space-y-2">
               <Label>下载质量</Label>
               <Select value={downloadQuality} onValueChange={setDownloadQuality}>
@@ -158,23 +181,56 @@ const EditRssSettingsDialog: React.FC<EditRssSettingsDialogProps> = ({ open, onO
                 </SelectContent>
               </Select>
             </div>
-          )}
+          ) : null}
+
+          <div className="space-y-2">
+            <Label>检查间隔（分钟）</Label>
+            <Input
+              type="number"
+              min={5}
+              max={1440}
+              value={fetchInterval}
+              onChange={(e) => setFetchInterval(parseInt(e.target.value, 10) || 60)}
+            />
+          </div>
+
+          <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3">
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="rss-delete-downloaded-resources"
+                checked={deleteDownloadedResources}
+                onCheckedChange={(checked) => setDeleteDownloadedResources(checked === true)}
+                disabled={saving || deleting}
+                className="mt-0.5 border-destructive/50 data-[state=checked]:bg-destructive data-[state=checked]:text-destructive-foreground"
+              />
+              <div className="space-y-1">
+                <Label htmlFor="rss-delete-downloaded-resources" className="cursor-pointer">
+                  同时删除已下载内容
+                </Label>
+                <p className="text-xs text-muted-foreground">默认只会取消订阅并清理 RSS 缓存，已下载的内容会保留在资源库中。</p>
+                {deleteDownloadedResources ? (
+                  <p className="text-xs text-destructive">勾选后会连同该订阅下的已下载资源一起删除，执行后不可恢复。</p>
+                ) : null}
+              </div>
+            </div>
+          </div>
         </div>
 
-        <DialogFooter className="mt-6 flex-col sm:flex-row gap-2">
+        <DialogFooter className="mt-6 flex-col gap-2 sm:flex-row">
           <Button variant="destructive" onClick={handleDelete} disabled={deleting || saving} className={clsx('sm:mr-auto', deleting && 'cursor-wait')}>
             {deleting ? (
               <>
-                <TbLoader2 className="w-4 h-4 mr-2 animate-spin" />
+                <TbLoader2 className="mr-2 h-4 w-4 animate-spin" />
                 删除中...
               </>
             ) : (
               <>
-                <TbTrash className="w-4 h-4 mr-2" />
-                删除订阅
+                <TbTrash className="mr-2 h-4 w-4" />
+                {deleteDownloadedResources ? '删除订阅及已下载内容' : '删除订阅'}
               </>
             )}
           </Button>
+
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving || deleting}>
               取消
@@ -182,7 +238,7 @@ const EditRssSettingsDialog: React.FC<EditRssSettingsDialogProps> = ({ open, onO
             <Button onClick={handleSave} disabled={saving || deleting} className={clsx(saving && 'cursor-wait')}>
               {saving ? (
                 <>
-                  <TbLoader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <TbLoader2 className="mr-2 h-4 w-4 animate-spin" />
                   保存中...
                 </>
               ) : (

@@ -10,6 +10,12 @@
  */
 export type RssSourceType = 'youtube' | 'podcast' | 'blog' | 'bilibili' | 'twitter' | 'custom';
 
+export type RssSyncStatus = 'idle' | 'success' | 'error';
+
+export type RssDownloadStatus = 'pending' | 'downloading' | 'completed' | 'error' | 'cancelled';
+
+export type RssDownloadErrorCode = 'download_no_url' | 'download_queue_failed' | 'download_failed' | 'library_import_failed';
+
 /**
  * RSS 资源的 metadata 结构
  * 存储在 resources.metadata 字段中（JSON 格式）
@@ -25,6 +31,14 @@ export interface RssMetadata {
   channelUrl?: string;
   /** 最后一次拉取 Feed 的时间（毫秒时间戳） */
   lastFetchedAt?: number;
+  /** 最近一次尝试同步的时间 */
+  lastCheckedAt?: number;
+  /** 最近一次同步成功的时间 */
+  lastSucceededAt?: number;
+  /** 最近一次同步失败的时间 */
+  lastFailedAt?: number;
+  /** 最近一次同步状态 */
+  lastSyncStatus?: RssSyncStatus;
   /** 拉取间隔（分钟），默认 60 */
   fetchInterval?: number;
   /** Feed 中的条目数量 */
@@ -105,9 +119,17 @@ export interface RssFeedItem {
   /** 对应的本地资源 ID（如果已下载） */
   localResourceId?: string;
   /** 下载状态 */
-  downloadStatus?: 'pending' | 'downloading' | 'completed' | 'error';
+  downloadStatus?: RssDownloadStatus;
   /** 下载进度（0-100） */
   downloadProgress?: number;
+  /** 下载错误码 */
+  downloadErrorCode?: RssDownloadErrorCode;
+  /** 下载错误信息 */
+  downloadError?: string;
+  /** 下载错误时间 */
+  downloadErrorAt?: number;
+  /** 最近一次下载完成时间 */
+  lastDownloadAt?: number;
   /** 额外元数据 */
   metadata?: Record<string, unknown>;
 }
@@ -235,7 +257,6 @@ export interface DownloadRssItemParams {
   /** 条目 ID */
   itemId: string;
   /** 条目 URL */
-  itemUrl: string;
   /** 下载质量（可选，否则使用 RSS 资源的默认设置） */
   quality?: string;
   /** 保存到的文件夹 ID（可选） */

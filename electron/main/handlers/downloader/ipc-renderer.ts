@@ -9,7 +9,16 @@ const downloaderIpcRenderer = {
   getThumbnail: (url: string) => ipcRenderer.invoke('video-downloader:get-thumbnail', url),
 
   // 开始下载视频
-  downloadVideo: (options: { url: string; filename?: string; destination?: string; quality?: number }) => ipcRenderer.invoke('video-downloader:download', options),
+  downloadVideo: (options: {
+    url: string;
+    filename?: string;
+    destination?: string;
+    quality?: number | string;
+    qualityMode?: string;
+    folderId?: string;
+    parentResourceId?: string;
+    metadata?: Record<string, unknown>;
+  }) => ipcRenderer.invoke('video-downloader:download', options),
 
   // 取消下载
   cancelDownload: (taskId: string) => ipcRenderer.invoke('video-downloader:cancel', taskId),

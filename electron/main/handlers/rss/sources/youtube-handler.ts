@@ -278,32 +278,18 @@ export class YouTubeHandler implements RssSourceHandler {
     options?: {
       limit?: number;
       playlistStart?: number;
+      playlistEnd?: number;
       dateAfter?: string;
       dateBefore?: string;
     }
   ): Promise<RssFeedItem[]> {
-    const limit = options?.limit ?? 50;
-    const playlistStart = options?.playlistStart ?? 1;
+    const playlistStart = Math.max(1, options?.playlistStart ?? 1);
+    const playlistEnd = Math.max(playlistStart, options?.playlistEnd ?? options?.limit ?? playlistStart + 49);
 
-    // 构建频道视频页面 URL
-    let targetUrl = channelUrl;
-    if (channelUrl.startsWith('UC') && channelUrl.length === 24) {
-      targetUrl = `https://www.youtube.com/channel/${channelUrl}/videos`;
-    } else if (channelUrl.startsWith('@')) {
-      targetUrl = `https://www.youtube.com/${channelUrl}/videos`;
-    } else if (channelUrl.includes('youtube.com') && !channelUrl.includes('/videos')) {
-      targetUrl = channelUrl.replace(/\/?$/, '/videos');
-    }
+    // Build the channel videos page URL
+    const targetUrl = this.resolveChannelVideosUrl(channelUrl);
 
-    const baseArgs: string[] = [
-      targetUrl,
-      '--flat-playlist', // 只获取播放列表信息，不下载
-      '--dump-json',
-      '--playlist-start',
-      String(playlistStart),
-      '--playlist-end',
-      String(limit)
-    ];
+    const baseArgs: string[] = [targetUrl, '--flat-playlist', '--dump-json', '--playlist-start', String(playlistStart), '--playlist-end', String(playlistEnd)];
 
     // 添加日期过滤
     if (options?.dateAfter) {
@@ -322,19 +308,26 @@ export class YouTubeHandler implements RssSourceHandler {
       // yt-dlp 在 flat-playlist 模式下每行输出一个 JSON 对象
       const lines = output.trim().split('\n').filter(Boolean);
 
-      for (const line of lines) {
+      for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+        const line = lines[lineIndex];
         try {
           const video = JSON.parse(line);
+          const playlistIndex = playlistStart + lineIndex;
+          const published = this.resolveYtdlpPublishedAt(video, playlistIndex);
 
           const item: RssFeedItem = {
             id: video.id,
             title: video.title || 'Untitled',
             link: `https://www.youtube.com/watch?v=${video.id}`,
-            publishedAt: video.timestamp ? video.timestamp * 1000 : Date.now(),
+            publishedAt: published.value,
             thumbnail: video.thumbnail || `https://i.ytimg.com/vi/${video.id}/hqdefault.jpg`,
             mediaType: 'video',
             durationMs: video.duration ? video.duration * 1000 : undefined,
-            viewCount: video.view_count
+            viewCount: video.view_count,
+            metadata: {
+              playlistIndex,
+              ...(published.estimated && { publishedAtEstimated: true })
+            }
           };
 
           items.push(item);
@@ -357,19 +350,17 @@ export class YouTubeHandler implements RssSourceHandler {
    * @param channelUrl 频道 URL 或频道 ID
    * @param limit 最大获取数量（默认 50）
    */
-  async fetchChannelVideosDetailed(channelUrl: string, limit: number = 50): Promise<RssFeedItem[]> {
+  async fetchChannelVideosDetailed(
+    channelUrl: string,
+    options: number | { playlistStart?: number; playlistEnd?: number } = 50
+  ): Promise<RssFeedItem[]> {
+    const playlistStart = Math.max(1, typeof options === 'number' ? 1 : options.playlistStart ?? 1);
+    const playlistEnd = Math.max(playlistStart, typeof options === 'number' ? options : options.playlistEnd ?? playlistStart + 49);
     // 构建频道视频页面 URL
-    let targetUrl = channelUrl;
-    if (channelUrl.startsWith('UC') && channelUrl.length === 24) {
-      targetUrl = `https://www.youtube.com/channel/${channelUrl}/videos`;
-    } else if (channelUrl.startsWith('@')) {
-      targetUrl = `https://www.youtube.com/${channelUrl}/videos`;
-    } else if (channelUrl.includes('youtube.com') && !channelUrl.includes('/videos')) {
-      targetUrl = channelUrl.replace(/\/?$/, '/videos');
-    }
+    const targetUrl = this.resolveChannelVideosUrl(channelUrl);
 
     try {
-      const baseArgs = [targetUrl, '--playlist-end', String(limit)];
+      const baseArgs = [targetUrl, '--playlist-start', String(playlistStart), '--playlist-end', String(playlistEnd)];
       const args = ytdlpService.buildArgs(baseArgs);
       const playlistInfo = await ytdlpService.getExecutor().getPlaylistInfo(targetUrl, args.filter((a) => a !== targetUrl));
 
@@ -377,18 +368,27 @@ export class YouTubeHandler implements RssSourceHandler {
         return [];
       }
 
-      const items: RssFeedItem[] = playlistInfo.entries.map((video: any) => ({
-        id: video.id,
-        title: video.title || 'Untitled',
-        description: video.description,
-        link: `https://www.youtube.com/watch?v=${video.id}`,
-        publishedAt: video.timestamp ? video.timestamp * 1000 : video.upload_date ? this.parseYtdlpDate(video.upload_date) : Date.now(),
-        thumbnail: video.thumbnail || `https://i.ytimg.com/vi/${video.id}/hqdefault.jpg`,
-        author: video.uploader || video.channel,
-        mediaType: 'video' as const,
-        durationMs: video.duration ? video.duration * 1000 : undefined,
-        viewCount: video.view_count
-      }));
+      const items: RssFeedItem[] = playlistInfo.entries.map((video: any, index: number) => {
+        const playlistIndex = playlistStart + index;
+        const published = this.resolveYtdlpPublishedAt(video, playlistIndex);
+
+        return {
+          id: video.id,
+          title: video.title || 'Untitled',
+          description: video.description,
+          link: `https://www.youtube.com/watch?v=${video.id}`,
+          publishedAt: published.value,
+          thumbnail: video.thumbnail || `https://i.ytimg.com/vi/${video.id}/hqdefault.jpg`,
+          author: video.uploader || video.channel,
+          mediaType: 'video' as const,
+          durationMs: video.duration ? video.duration * 1000 : undefined,
+          viewCount: video.view_count,
+          metadata: {
+            playlistIndex,
+            ...(published.estimated && { publishedAtEstimated: true })
+          }
+        };
+      });
 
       return items;
     } catch (error) {
@@ -400,13 +400,58 @@ export class YouTubeHandler implements RssSourceHandler {
   /**
    * 解析 yt-dlp 的日期格式 (YYYYMMDD)
    */
-  private parseYtdlpDate(dateStr: string): number {
-    if (!dateStr || dateStr.length !== 8) {
-      return Date.now();
+  private resolveChannelVideosUrl(channelUrl: string): string {
+    if (channelUrl.startsWith('UC') && channelUrl.length === 24) {
+      return `https://www.youtube.com/channel/${channelUrl}/videos`;
     }
-    const year = dateStr.slice(0, 4);
-    const month = dateStr.slice(4, 6);
-    const day = dateStr.slice(6, 8);
-    return new Date(`${year}-${month}-${day}`).getTime();
+    if (channelUrl.startsWith('@')) {
+      return `https://www.youtube.com/${channelUrl}/videos`;
+    }
+    if (channelUrl.includes('youtube.com') && !channelUrl.includes('/videos')) {
+      return channelUrl.replace(/\/?$/, '/videos');
+    }
+
+    return channelUrl;
+  }
+
+  private parseYtdlpDate(dateStr?: string): number | undefined {
+    if (!dateStr || !/^\d{8}$/.test(dateStr)) {
+      return undefined;
+    }
+
+    const year = Number(dateStr.slice(0, 4));
+    const month = Number(dateStr.slice(4, 6));
+    const day = Number(dateStr.slice(6, 8));
+    const timestamp = Date.UTC(year, month - 1, day);
+
+    return Number.isFinite(timestamp) ? timestamp : undefined;
+  }
+
+  private parseYtdlpTimestamp(value: unknown): number | undefined {
+    const seconds = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
+    if (!Number.isFinite(seconds) || seconds <= 0) {
+      return undefined;
+    }
+
+    return seconds * 1000;
+  }
+
+  private resolveYtdlpPublishedAt(video: any, playlistIndex?: number): { value: number; estimated: boolean } {
+    const timestamp =
+      this.parseYtdlpTimestamp(video.timestamp) ??
+      this.parseYtdlpTimestamp(video.release_timestamp) ??
+      this.parseYtdlpTimestamp(video.modified_timestamp);
+
+    if (timestamp !== undefined) {
+      return { value: timestamp, estimated: false };
+    }
+
+    const date = this.parseYtdlpDate(video.upload_date) ?? this.parseYtdlpDate(video.release_date) ?? this.parseYtdlpDate(video.modified_date);
+    if (date !== undefined) {
+      return { value: date, estimated: false };
+    }
+
+    const stableOffset = Math.max(0, (playlistIndex || 1) - 1) * 1000;
+    return { value: Date.now() - stableOffset, estimated: true };
   }
 }

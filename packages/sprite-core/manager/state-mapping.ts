@@ -37,6 +37,8 @@ export function mapStateToEventType(state: SpriteState, subState: SpriteSubState
           return 'sleep';
         case 'celebrate':
           return 'celebrate';
+        case 'write':
+          return 'write';
         case 'emotion':
           return 'happy';
         default:

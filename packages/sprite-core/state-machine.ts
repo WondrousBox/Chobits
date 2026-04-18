@@ -26,7 +26,7 @@ export type SpriteState =
   | 'bored';
 
 /** 精灵子状态（reacting 的细分） */
-export type SpriteSubState = 'click' | 'hold' | 'drop' | 'file-drag-over' | 'file-drop' | 'sleepy' | 'emotion' | 'celebrate' | 'custom';
+export type SpriteSubState = 'click' | 'hold' | 'drop' | 'file-drag-over' | 'file-drop' | 'sleepy' | 'emotion' | 'celebrate' | 'write' | 'custom';
 
 /** 状态转换配置 */
 export interface StateTransition {

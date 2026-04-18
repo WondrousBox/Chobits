@@ -3,19 +3,17 @@ import { BrowserWindow, ipcMain } from 'electron';
 import { getSystemProxy, testProxy } from './proxy';
 import { type CustomProxy, type ProxyConfig, ProxyStore } from './proxy-store';
 
-export function initProxyHandlers(win: BrowserWindow): void {
+export async function initProxyHandlers(win: BrowserWindow): Promise<void> {
   // 应用启动时，如果配置为系统代理，自动获取系统代理
-  (async () => {
-    const config = ProxyStore.getConfig();
-    if (config.type === 'system') {
-      try {
-        await getSystemProxy(win);
-        console.log('[Proxy] system proxy loaded on startup');
-      } catch (error) {
-        console.warn('[Proxy] failed to load system proxy on startup', error);
-      }
+  const config = ProxyStore.getConfig();
+  if (config.type === 'system') {
+    try {
+      await getSystemProxy(win);
+      console.log('[Proxy] system proxy loaded on startup');
+    } catch (error) {
+      console.warn('[Proxy] failed to load system proxy on startup', error);
     }
-  })();
+  }
 
   // 获取代理配置
   ipcMain.handle('proxy:getConfig', async () => {
