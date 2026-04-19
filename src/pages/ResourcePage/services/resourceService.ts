@@ -7,6 +7,12 @@ export type Resource = {
   type: 'image' | 'video' | 'audio' | 'text' | 'link' | 'file' | 'document' | 'other';
   workspaceId?: string;
   folderId?: string;
+  originType?: 'workspace' | 'linked';
+  linkedMountId?: string | null;
+  relativePath?: string | null;
+  externalMtimeMs?: number;
+  externalSizeBytes?: number;
+  syncState?: 'synced' | 'missing' | 'conflict';
   parentResourceId?: string; // 父资源ID（用于记录资源来源关系）
   title?: string;
   description?: string;

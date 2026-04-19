@@ -59,7 +59,18 @@ export const useResourceData = (
         setFoldersLoading(true);
         const wsId = workspaceId || wsFilter || undefined;
         const rows = await folderAPI['folder.list']({ workspaceId: wsId, deletedAt: 0 });
-        setFolders((rows || []).map((r: any) => ({ id: r.id, name: r.name, parentId: r.parentId || null, workspaceId: r.workspaceId, rank: r.rank })));
+        setFolders(
+          (rows || []).map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            parentId: r.parentId || null,
+            workspaceId: r.workspaceId,
+            originType: r.originType,
+            linkedMountId: r.linkedMountId ?? null,
+            relativePath: r.relativePath ?? null,
+            rank: r.rank
+          }))
+        );
       } catch (e) {
         console.warn('load folders failed', e);
       } finally {

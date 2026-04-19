@@ -24,6 +24,12 @@ export type Resource = {
   | 'other';
   workspaceId?: string;
   folderId?: string;
+  originType?: 'workspace' | 'linked';
+  linkedMountId?: string | null;
+  relativePath?: string | null;
+  externalMtimeMs?: number;
+  externalSizeBytes?: number;
+  syncState?: 'synced' | 'missing' | 'conflict';
   parentResourceId?: string; // 父资源ID（用于记录资源来源关系）
   title?: string;
   description?: string;
@@ -58,7 +64,7 @@ export type Resource = {
 };
 
 export type ResourceIpcParams = {
-  'resource:add': IpcParams<[{ resource: PartialByKey<Resource, 'id' | 'type'> }], { success: true; data: Resource }>;
+  'resource:add': IpcParams<[{ resource: PartialByKey<Resource, 'id' | 'type'> }], { success: boolean; data: Resource | null; error?: string }>;
   'resource:list': IpcParams<[{ workspaceId?: string; deletedAt?: number }?], Resource[]>;
   /** 按父资源 ID 查询子资源列表 */
   'resource:listChildren': IpcParams<[{ parentResourceId: string; limit?: number; offset?: number }], Resource[]>;
@@ -69,14 +75,14 @@ export type ResourceIpcParams = {
   /** 删除数据库中现有的 segments 类型资源（迁移到项目文件夹后清理旧数据） */
   'resource:cleanupSegmentsResources': IpcParams<[{ subtitleResourceId?: string }], { success: boolean; deletedCount?: number; error?: string }>;
   getResource: IpcParams<[{ id: string }], Resource | undefined>;
-  'resource:update': IpcParams<[{ id: string; patch: any }], { success: boolean; data?: any }>;
-  deleteResource: IpcParams<[{ id: string }], { success: true }>;
-  deleteResources: IpcParams<[{ ids: string[] }], { success: true }>;
+  'resource:update': IpcParams<[{ id: string; patch: any }], { success: boolean; data?: any; error?: string }>;
+  deleteResource: IpcParams<[{ id: string }], { success: boolean; data?: Resource; error?: string }>;
+  deleteResources: IpcParams<[{ ids: string[] }], { success: boolean; deleted?: number; data?: Resource[]; error?: string }>;
   /** 永久删除资源（不经过回收站） */
-  deleteResourcePermanently: IpcParams<[{ id: string }], { success: true; deleted: number }>;
+  deleteResourcePermanently: IpcParams<[{ id: string }], { success: boolean; deleted: number; error?: string }>;
   revealResource: IpcParams<[{ id: string }], { success: boolean }>;
-  renameResource: IpcParams<[{ id: string; newName: string; renameFile?: boolean }], { success: boolean; fileRenamed?: boolean; newPath?: string }>;
-  moveResourcesToWorkspace: IpcParams<[{ ids: string[]; workspaceId: string }], { moved: number }>;
+  renameResource: IpcParams<[{ id: string; newName: string; renameFile?: boolean }], { success: boolean; fileRenamed?: boolean; newPath?: string; data?: Resource; error?: string }>;
+  moveResourcesToWorkspace: IpcParams<[{ ids: string[]; workspaceId: string }], { success?: boolean; moved: number; data?: Resource[]; error?: string }>;
   /** 批量移动资源到指定文件夹（或移出文件夹）。包含跨工作空间校验。 */
   'resource:moveToFolder': IpcParams<[{ ids: string[]; folderId: string | null; workspaceId?: string }], { success: boolean; moved?: number; invalid?: string[]; error?: string }>;
   rebuildResourceThumbnail: IpcParams<[{ id: string; size?: number; force?: boolean }], { success: boolean; data?: Resource; error?: string }>;
@@ -99,9 +105,9 @@ export type ResourceIpcParams = {
   /** 从 resources.tags 回填 resource_tags（默认按当前默认工作空间） */
   'tags:backfill': IpcParams<[{ workspaceId?: string }], { success: boolean; processed: number }>;
   /** 导入本地文件（仅文件，支持多选） */
-  'resource:importLocalFiles': IpcParams<[{ workspaceId?: string; folderId?: string }], { canceled: boolean; success?: boolean }>;
+  'resource:importLocalFiles': IpcParams<[{ workspaceId?: string; folderId?: string }], { canceled: boolean; success?: boolean; error?: string }>;
   /** 导入本地文件夹（仅文件夹，支持多选） */
-  'resource:importLocalFolders': IpcParams<[{ workspaceId?: string; folderId?: string }], { canceled: boolean; success?: boolean }>;
+  'resource:importLocalFolders': IpcParams<[{ workspaceId?: string; folderId?: string }], { canceled: boolean; success?: boolean; error?: string }>;
   /** 保存截图：主进程创建/查找截图文件夹、写入文件、创建资源记录；渲染进程只传 data 与上下文 */
   'resource:saveScreenshot': IpcParams<
     [

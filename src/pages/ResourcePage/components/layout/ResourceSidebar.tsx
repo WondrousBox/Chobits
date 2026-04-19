@@ -25,6 +25,8 @@ interface ResourceSidebarProps {
   loadFolders: (wsId?: string) => Promise<void>;
   handleRenameFolder: (id: string) => void;
   handleDeleteFolder: (id: string) => void;
+  handleRescanLinkedFolder: (id: string) => Promise<void>;
+  handleUnlinkLinkedFolder: (id: string) => Promise<void>;
   folderAPI: any;
   onOpenSettings: (category?: string) => void;
 }
@@ -47,6 +49,8 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
   loadFolders,
   handleRenameFolder,
   handleDeleteFolder,
+  handleRescanLinkedFolder,
+  handleUnlinkLinkedFolder,
   folderAPI,
   onOpenSettings
 }) => {
@@ -216,6 +220,8 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
           }}
           onRename={handleRenameFolder}
           onDelete={handleDeleteFolder}
+          onRescanLinkedFolder={handleRescanLinkedFolder}
+          onUnlinkLinkedFolder={handleUnlinkLinkedFolder}
         />
       </SidebarContent>
       <SidebarFooter>

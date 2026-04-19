@@ -450,19 +450,16 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
 
   const handleRevealCurrentFolder = useCallback(async () => {
     try {
-      const ws = await (window as any).YUA?.workspace['workspace:getDefault']();
-      const isWin = (window as any).YUA?.isWindows;
-      const sep = isWin ? '\\' : '/';
-      const base: string = ws?.rootPath || '';
-      if (!base) return;
-      const needsSep = base.endsWith(sep) ? '' : sep;
-      // 没有 folderId 时，打开 resources 根目录；有 folderId 时，打开对应子目录
-      const folderPath = folderId ? `${base}${needsSep}resources${sep}folders${sep}${folderId}` : `${base}${needsSep}resources`;
+      const folderApi: any = (window as any).YUA?.folder;
+      if (!folderApi?.['folder.getResolvedPath']) return;
+      const resolved = await folderApi['folder.getResolvedPath']({ id: folderId ?? null, workspaceId: workspaceId || undefined });
+      const folderPath: string | undefined = resolved?.success ? resolved.path : undefined;
+      if (!folderPath) return;
       await (window as any).YUA?.file['file:openPath'](folderPath);
     } catch (err) {
       console.warn('open current folder path failed', err);
     }
-  }, [folderId]);
+  }, [folderId, workspaceId]);
 
   const handleCreateSubfolder = useCallback(async () => {
     try {

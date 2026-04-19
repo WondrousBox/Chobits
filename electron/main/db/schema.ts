@@ -95,6 +95,9 @@ export const folders = sqliteTable(
     description: text('description'),
     parentId: text('parent_id').references((): AnySQLiteColumn => folders.id, { onDelete: 'set null', onUpdate: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+    originType: text('origin_type', { enum: ['workspace', 'linked'] }).notNull().default('workspace'),
+    linkedMountId: text('linked_mount_id').references(() => linked_folder_mounts.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+    relativePath: text('relative_path'),
     metadata: text('metadata'),
     createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
     updatedAt: integer('updated_at').default(sql`(unixepoch('now')*1000)`),
@@ -104,13 +107,45 @@ export const folders = sqliteTable(
   (t) => ({
     idxFoldersParent: index('idx_folders_parent').on(t.parentId),
     idxFoldersWorkspace: index('idx_folders_workspace').on(t.workspaceId),
+    idxFoldersOrigin: index('idx_folders_origin').on(t.originType),
+    idxFoldersLinkedMount: index('idx_folders_linked_mount').on(t.linkedMountId),
     idxFoldersCreated: index('idx_folders_created').on(t.createdAt),
-    idxFoldersRank: index('idx_folders_rank').on(t.rank)
+    idxFoldersRank: index('idx_folders_rank').on(t.rank),
+    uqFoldersLinkedMountRelativePath: uniqueIndex('uq_folders_linked_mount_relative_path').on(t.linkedMountId, t.relativePath)
   })
 );
 
 export type FolderRow = InferSelectModel<typeof folders>;
 export type NewFolder = InferInsertModel<typeof folders>;
+
+export const linked_folder_mounts = sqliteTable(
+  'linked_folder_mounts',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    rootFolderId: text('root_folder_id'),
+    absolutePath: text('absolute_path').notNull(),
+    displayName: text('display_name').notNull(),
+    authorizedAt: integer('authorized_at'),
+    status: text('status', { enum: ['active', 'disconnected'] }).notNull().default('active'),
+    lastScanAt: integer('last_scan_at'),
+    watchEnabled: integer('watch_enabled').default(0),
+    metadata: text('metadata'),
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
+    updatedAt: integer('updated_at').default(sql`(unixepoch('now')*1000)`)
+  },
+  (t) => ({
+    idxLinkedFolderMountsWorkspace: index('idx_linked_folder_mounts_workspace').on(t.workspaceId),
+    idxLinkedFolderMountsRootFolder: index('idx_linked_folder_mounts_root_folder').on(t.rootFolderId),
+    idxLinkedFolderMountsStatus: index('idx_linked_folder_mounts_status').on(t.status),
+    uqLinkedFolderMountsWorkspacePath: uniqueIndex('uq_linked_folder_mounts_workspace_path').on(t.workspaceId, t.absolutePath)
+  })
+);
+
+export type LinkedFolderMountRow = InferSelectModel<typeof linked_folder_mounts>;
+export type NewLinkedFolderMount = InferInsertModel<typeof linked_folder_mounts>;
 
 // A rich, extensible resources table for internet content (images, videos, audio, text, links, files, documents, etc.)
 export const resources = sqliteTable(
@@ -189,17 +224,26 @@ export const resources = sqliteTable(
     workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
     // 归属文件夹（可为空，表示在根目录）
     folderId: text('folder_id').references(() => folders.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+    originType: text('origin_type', { enum: ['workspace', 'linked'] }).notNull().default('workspace'),
+    linkedMountId: text('linked_mount_id').references(() => linked_folder_mounts.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+    relativePath: text('relative_path'),
+    externalMtimeMs: integer('external_mtime_ms'),
+    externalSizeBytes: integer('external_size_bytes'),
+    syncState: text('sync_state', { enum: ['synced', 'missing', 'conflict'] }).default('synced'),
     // 父资源ID（用于记录资源来源，如字幕由视频生成、截图由视频生成等）
     parentResourceId: text('parent_resource_id').references((): AnySQLiteColumn => resources.id, { onDelete: 'set null', onUpdate: 'cascade' })
   },
   (t) => ({
     idxResourcesWorkspace: index('idx_resources_workspace').on(t.workspaceId),
     idxResourcesFolder: index('idx_resources_folder').on(t.folderId),
+    idxResourcesOrigin: index('idx_resources_origin').on(t.originType),
+    idxResourcesLinkedMount: index('idx_resources_linked_mount').on(t.linkedMountId),
     idxResourcesParent: index('idx_resources_parent').on(t.parentResourceId),
     idxResourcesType: index('idx_resources_type').on(t.type),
     idxResourcesStatus: index('idx_resources_status').on(t.status),
     idxResourcesCreated: index('idx_resources_created').on(t.createdAt),
-    idxResourcesFavorite: index('idx_resources_favorite').on(t.favorite)
+    idxResourcesFavorite: index('idx_resources_favorite').on(t.favorite),
+    uqResourcesLinkedMountRelativePath: uniqueIndex('uq_resources_linked_mount_relative_path').on(t.linkedMountId, t.relativePath)
   })
 );
 

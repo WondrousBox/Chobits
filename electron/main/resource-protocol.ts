@@ -43,6 +43,14 @@ export function addAllowedResourceRoot(root: string): void {
   }
 }
 
+export function removeAllowedResourceRoot(root: string): void {
+  const real = path.resolve(root);
+  const index = allowedRoots.findIndex((item) => item === real);
+  if (index >= 0) {
+    allowedRoots.splice(index, 1);
+  }
+}
+
 export function addWorkspaceResourceRoot(workspaceId: string, root: string): void {
   try {
     const real = path.resolve(root);

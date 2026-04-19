@@ -104,6 +104,7 @@ packages/                   # Shared packages (monorepo-style)
 - `resources` - File metadata (videos, docs, images, etc.)
 - `documents` - Text content with embeddings (semantic search)
 - `folders` - Hierarchical organization
+- `linked_folder_mounts` - External folder mounts managed by DB index while content stays on disk
 - `workspaces` - Multi-workspace support
 - `tags` / `resource_tags` - Tagging system
 - `conversations` / `chat_messages` - AI chat history
@@ -112,6 +113,12 @@ packages/                   # Shared packages (monorepo-style)
 - `automation_rules` - Workflow automation triggers
 
 **Repository pattern**: Always use repository methods (e.g., `ResourcesRepo.getById()`) instead of raw queries. Access via IPC from renderer.
+
+**Resource storage model**:
+
+- `folders.originType` / `resources.originType` distinguish `workspace` vs `linked` storage.
+- `linkedMountId` + `relativePath` are the stable DB-side identity for linked-folder scanning and re-sync.
+- Linked folders are expected to keep original files in place; AI/project outputs still belong under workspace `projects/<resourceId>.resproject/`.
 
 **Vector search**: `sqlite-vec` for similarity search with embeddings from multiple providers.
 
@@ -136,7 +143,7 @@ Events broadcast to all windows via IPC for cross-window state synchronization.
 - Absolute path: `res://local/<encodeURIComponent(absolutePath)>`
 - Workspace relative: `res://ws/<workspaceId>/<relative/path>`
 
-Only files in allowed roots (workspace resources, app resources) are accessible. Setup in `electron/main/resource-protocol.ts`.
+Only files in allowed roots (workspace resources, app resources, and any explicitly registered linked-folder roots) are accessible. Setup in `electron/main/resource-protocol.ts`.
 
 ### AI Service Architecture
 

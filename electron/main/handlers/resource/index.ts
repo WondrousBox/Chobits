@@ -10,11 +10,19 @@ import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
 import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from '../../db/repositories';
 import { detectBasicType, generateThumbnailForResource } from '../../utils/thumbnail';
+import { ensureUniquePath, getLinkedFolderContext, getRelativePathWithinMount } from '../folder/linked-utils';
 import type { Resource } from './ipc-renderer';
 import { moveFileToProjectDataSubDir, type ProjectSegmentEntry, readProjectMeta, writeProjectMeta } from './resource-project';
 
 const SCREENSHOT_FOLDER_NAME = '截图';
 const AUDIO_FOLDER_NAME = '录音';
+
+function sanitizeFileName(name: string, fallback: string): string {
+  const next = String(name || '')
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ')
+    .trim();
+  return next || fallback;
+}
 
 /**
  * 查找字幕文件的伴随 segments.json 文件路径。
@@ -188,7 +196,7 @@ export async function ensureDailyFolder(workspaceId: string, rootPath: string): 
   return newFolder.id;
 }
 
-export async function addResource(r: { resource: Resource }): Promise<{ success: boolean; data: Resource | null }> {
+export async function addResource(r: { resource: Resource }): Promise<{ success: boolean; data: Resource | null; error?: string }> {
   const res = r.resource || {};
   console.log(res);
 
@@ -201,8 +209,22 @@ export async function addResource(r: { resource: Resource }): Promise<{ success:
   // Attach workspace: copy local file into default workspace if available
   let workspaceId = res.workspaceId;
   let filePath = res.filePath as string | undefined;
+  let linkedFolderContext: Awaited<ReturnType<typeof getLinkedFolderContext>> | null = null;
+  let folderId = res.folderId;
   const originalFilePath = filePath; // 记录原始路径，用于查找伴随文件（如 .segments.json）
   let folderId = res.folderId;
+
+  if (folderId) {
+    const targetFolder = await FoldersRepo.getById(folderId);
+    if (!targetFolder) {
+      return { success: false, data: null, error: 'folder-not-found' };
+    }
+    if (targetFolder.originType === 'linked') {
+      linkedFolderContext = await getLinkedFolderContext(targetFolder);
+      workspaceId = targetFolder.workspaceId || workspaceId;
+      res.workspaceId = workspaceId;
+    }
+  }
 
   try {
     let ws;
@@ -214,7 +236,52 @@ export async function addResource(r: { resource: Resource }): Promise<{ success:
     }
 
     // 统一：只要有工作空间根目录且未显式指定 folderId，就默认放到当天的文件夹下
-    if (ws && ws.id && ws.rootPath) {
+    if (linkedFolderContext) {
+      const targetDir = linkedFolderContext.folderPath;
+      await fs.mkdir(targetDir, { recursive: true });
+
+      if (filePath) {
+        const incomingPath = path.resolve(filePath);
+        const isAlreadyInTargetDir = path.resolve(path.dirname(incomingPath)) === path.resolve(targetDir);
+        if (!isAlreadyInTargetDir) {
+          const target = await ensureUniquePath(path.join(targetDir, sanitizeFileName(path.basename(filePath), 'resource')));
+          if (incomingPath !== path.resolve(target)) {
+            await fs.copyFile(filePath, target);
+          }
+          filePath = target;
+        } else {
+          filePath = incomingPath;
+        }
+      } else if (typeof res.contentText === 'string') {
+        const baseName = sanitizeFileName(res.title || 'Untitled', 'Untitled');
+        const ext = path.extname(baseName);
+        const target = await ensureUniquePath(path.join(targetDir, ext ? baseName : `${baseName}.txt`));
+        await fs.writeFile(target, res.contentText, 'utf8');
+        filePath = target;
+        res.type = res.type || 'text';
+        res.mimeType = res.mimeType || 'text/plain';
+        res.sizeBytes = Buffer.byteLength(res.contentText, 'utf8');
+        if (!res.title) {
+          res.title = path.basename(target);
+        }
+      } else {
+        return { success: false, data: null, error: 'linked-folder-requires-physical-content' };
+      }
+
+      const stat = await fs.stat(filePath);
+      const linkedRelativePath = getRelativePathWithinMount(linkedFolderContext.mount, filePath);
+      const existingLinked = await ResourcesRepo.getByLinkedRelativePath(linkedFolderContext.mount.id, linkedRelativePath);
+      if (existingLinked?.id && !res.id) {
+        res.id = existingLinked.id;
+      }
+      res.originType = 'linked';
+      res.linkedMountId = linkedFolderContext.mount.id;
+      res.relativePath = linkedRelativePath;
+      res.externalMtimeMs = stat.mtimeMs;
+      res.externalSizeBytes = stat.size;
+      res.syncState = 'synced';
+      res.sizeBytes = stat.size;
+    } else if (ws && ws.id && ws.rootPath) {
       if (!folderId) {
         try {
           folderId = await ensureDailyFolder(ws.id, ws.rootPath);
@@ -271,6 +338,9 @@ export async function addResource(r: { resource: Resource }): Promise<{ success:
     }
   } catch (e) {
     console.warn('[addResource] add resource failed', e);
+    if (linkedFolderContext) {
+      return { success: false, data: null, error: 'linked-folder-write-failed' };
+    }
   }
 
   // 渲染进程不负责维护时间字段，避免覆盖数据库默认值
@@ -351,7 +421,7 @@ export async function addResource(r: { resource: Resource }): Promise<{ success:
   // 生成缩略图
   if (row && !row.thumbnailPath) {
     try {
-      const ws = await WorkspacesRepo.getDefault();
+      const ws = row?.workspaceId ? await WorkspacesRepo.getById(row.workspaceId) : await WorkspacesRepo.getDefault();
       const baseDir = ws?.rootPath ? path.join(ws.rootPath, 'resources', '.thumbs') : path.join(process.cwd(), 'uploads', '.thumbs');
       await fs.mkdir(baseDir, { recursive: true });
 

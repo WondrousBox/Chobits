@@ -647,17 +647,16 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
   // 打开当前文件夹
   const handleRevealCurrentFolder = useCallback(async () => {
     try {
-      const ws = await (window as any).YUA?.workspace['workspace:getDefault']();
-      const sep = isWin ? '\\' : '/';
-      const base: string = ws?.rootPath || '';
-      if (!base) return;
-      const needsSep = base.endsWith(sep) ? '' : sep;
-      const folderPath = folderId ? `${base}${needsSep}resources${sep}folders${sep}${folderId}` : `${base}${needsSep}resources`;
+      const folderApi: any = (window as any).YUA?.folder;
+      if (!folderApi?.['folder.getResolvedPath']) return;
+      const resolved = await folderApi['folder.getResolvedPath']({ id: folderId ?? null, workspaceId: workspaceId || undefined });
+      const folderPath: string | undefined = resolved?.success ? resolved.path : undefined;
+      if (!folderPath) return;
       await (window as any).YUA?.file['file:openPath'](folderPath);
     } catch (err) {
       console.warn('open current folder path failed', err);
     }
-  }, [folderId, isWin]);
+  }, [folderId, workspaceId]);
 
   // 创建子文件夹
   const handleCreateSubfolder = useCallback(async () => {

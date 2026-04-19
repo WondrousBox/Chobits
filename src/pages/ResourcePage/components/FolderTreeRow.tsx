@@ -1,7 +1,8 @@
 import React from 'react';
-import { TbChevronDown, TbChevronRight, TbDots, TbFolder, TbFolderOpen, TbFolderPlus, TbPencil, TbTrash } from 'react-icons/tb';
+import { TbChevronDown, TbChevronRight, TbDots, TbFolder, TbFolderOpen, TbFolderPlus, TbPencil, TbRefresh, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
+import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { SidebarMenuAction, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
@@ -12,6 +13,9 @@ export type UIFolder = {
   name: string;
   parentId?: string | null;
   workspaceId?: string;
+  originType?: 'workspace' | 'linked';
+  linkedMountId?: string | null;
+  relativePath?: string | null;
   children?: UIFolder[];
   rank?: number;
 };
@@ -37,7 +41,9 @@ const FolderTreeRow = ({
   setDraggingFolderId,
   parentMap,
   index,
-  siblings
+  siblings,
+  onRescanLinkedFolder,
+  onUnlinkLinkedFolder
 }: {
   node: UIFolder;
   depth: number;
@@ -55,12 +61,13 @@ const FolderTreeRow = ({
   inlineEditId?: string | null;
   setInlineEditId?: (id: string | null) => void;
   onInlineRename?: (id: string, name: string) => Promise<void>;
-  // drag & drop helpers
   draggingFolderId?: string | null;
   setDraggingFolderId?: (id: string | null) => void;
   parentMap?: Map<string, string | null>;
   index?: number;
   siblings?: UIFolder[];
+  onRescanLinkedFolder?: (folderId: string) => Promise<void>;
+  onUnlinkLinkedFolder?: (folderId: string) => Promise<void>;
 }): React.ReactElement => {
   const isActive = selectedId === node.id;
   const [over, setOver] = React.useState(false);
@@ -74,9 +81,12 @@ const FolderTreeRow = ({
   const [nameDraft, setNameDraft] = React.useState(node.name);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const isMac = (window as any).YUA?.isMac;
-  const shortcutCreate = isMac ? '⌘⇧N' : 'Ctrl+Shift+N';
+  const shortcutCreate = isMac ? 'Cmd+Shift+N' : 'Ctrl+Shift+N';
   const shortcutRename = 'F2';
   const shortcutDelete = 'Delete';
+  const isLinkedFolder = node.originType === 'linked';
+  const isLinkedRoot = isLinkedFolder && (node.relativePath || '') === '';
+  void onRename;
 
   React.useEffect(() => {
     setNameDraft(node.name);
@@ -84,18 +94,22 @@ const FolderTreeRow = ({
 
   React.useEffect(() => {
     if (isEditing && inputRef.current) {
-      // focus and select all
       inputRef.current.focus();
       try {
         inputRef.current.select();
       } catch {
-        /* ignore select error */
+        /* ignore */
       }
     }
   }, [isEditing]);
 
   const commitRename = async (): Promise<void> => {
     if (!isEditing) return;
+    if (isLinkedRoot) {
+      setInlineEditId?.(null);
+      toast.error('Linked folders are read-only right now');
+      return;
+    }
     const newName = nameDraft.trim();
     const oldName = node.name;
     setInlineEditId?.(null);
@@ -104,13 +118,13 @@ const FolderTreeRow = ({
       if (onInlineRename) {
         await onInlineRename(node.id, newName);
       } else {
-        // fallback: call API directly
         await (window as any).YUA?.folder['folder.rename']({ id: node.id, name: newName });
       }
     } catch (e) {
       console.warn('inline rename failed', e);
     }
   };
+
   const isAncestor = React.useCallback(
     (ancestorId: string, descendantId: string): boolean => {
       if (!parentMap) return false;
@@ -127,11 +141,23 @@ const FolderTreeRow = ({
     [parentMap]
   );
 
+  const handleOpenLocation = React.useCallback(async () => {
+    try {
+      const folderApi: any = (window as any).YUA?.folder;
+      if (!folderApi?.['folder.getResolvedPath']) return;
+      const resolved = await folderApi['folder.getResolvedPath']({ id: node.id });
+      const folderPath: string | undefined = resolved?.success ? resolved.path : undefined;
+      if (!folderPath) return;
+      await (window as any).YUA?.file['file:openPath'](folderPath);
+    } catch (err) {
+      console.warn('open folder path failed', err);
+    }
+  }, [node.id]);
+
   const commonDnD = {
     onDragOver: (e: React.DragEvent) => {
       const types = Array.from((e.dataTransfer?.types as any) || []);
       const draggingFolder = draggingFolderId || (types.includes('application/x-folder-id') ? null : null);
-      // When dragging a folder, validate target
       if (draggingFolder) {
         const invalid = draggingFolder === node.id || isAncestor(draggingFolder, node.id);
         setOverInvalid(invalid);
@@ -141,7 +167,6 @@ const FolderTreeRow = ({
           setOver(true);
           e.dataTransfer.dropEffect = 'move';
 
-          // Calculate position
           const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
           const y = e.clientY - rect.top;
           const h = rect.height;
@@ -149,14 +174,13 @@ const FolderTreeRow = ({
           else if (y > h * 0.75) setDropPos('bottom');
           else setDropPos('middle');
         } else {
-          // disallow drop
           setOver(false);
           e.dataTransfer.dropEffect = 'none';
           setTipOpen(true);
         }
         return;
       }
-      // dragging resources by default allowed
+
       e.preventDefault();
       e.stopPropagation();
       setOver(true);
@@ -179,7 +203,6 @@ const FolderTreeRow = ({
       setDropPos('middle');
 
       try {
-        // 1) folder -> folder move
         const fid = e.dataTransfer.getData('application/x-folder-id');
         if (fid) {
           if (fid !== node.id && !isAncestor(fid, node.id)) {
@@ -187,9 +210,7 @@ const FolderTreeRow = ({
             let prevRank: number | undefined;
             let nextRank: number | undefined;
 
-            if (currentDropPos === 'middle') {
-              targetParentId = node.id;
-            } else {
+            if (currentDropPos !== 'middle') {
               targetParentId = node.parentId ?? null;
               if (Array.isArray(siblings) && typeof index === 'number') {
                 if (currentDropPos === 'top') {
@@ -210,23 +231,28 @@ const FolderTreeRow = ({
               const msg = String((err as any)?.message || err || '');
               const isUnique = /UNIQUE|constraint/i.test(msg);
               if (isUnique) {
-                toast.error('移动文件夹失败', { description: '目标文件夹内已存在同名文件夹' });
+                toast.error('Folder move failed', { description: 'A folder with the same name already exists in the target location.' });
+              } else if (msg === 'linked-root-readonly') {
+                toast.error('Linked root folders cannot be moved');
+              } else if (msg === 'cross-origin-folder-move-not-supported') {
+                toast.error('Cannot move folders between linked and workspace storage');
+              } else if (msg === 'cross-linked-mount-folder-move-not-supported') {
+                toast.error('Cannot move folders across linked mounts');
               } else {
-                toast.error('移动文件夹失败');
+                toast.error('Folder move failed');
               }
             }
           } else {
-            // invalid drop feedback
             setTipOpen(true);
             setTimeout(() => setTipOpen(false), 1200);
           }
           return;
         }
       } catch {
-        /* ignore folder move */
+        /* ignore */
       }
+
       try {
-        // 2) resources -> folder
         const raw = e.dataTransfer.getData('application/x-resource-ids');
         if (!raw) return;
         const ids: string[] = JSON.parse(raw);
@@ -237,20 +263,19 @@ const FolderTreeRow = ({
     }
   } as const;
 
-  const MenuButton = (
+  const menuButton = (
     <SidebarMenuButton
       isActive={isActive}
       className={`${over ? (overInvalid ? 'ring-1 ring-destructive/60 bg-destructive/10' : dropPos === 'middle' ? 'ring-1 ring-primary/50 bg-primary/5' : '') : ''}`}
       onClick={() => {
         if (isEditing) return;
         onSelect(node.id);
-        // 点击行：只在收起时自动展开，避免已展开文件夹在切换选中时出现“先收起再展开”的闪动
         if (hasChildren && !expanded) onToggleExpand(node.id);
       }}
       style={{ paddingLeft: 8 + depth * 12 }}
-      draggable={!isEditing}
+      draggable={!isEditing && !isLinkedRoot}
       onDragStart={(e) => {
-        // begin dragging current folder
+        if (isLinkedRoot) return;
         try {
           e.dataTransfer.setData('application/x-folder-id', node.id);
           e.dataTransfer.effectAllowed = 'move';
@@ -290,7 +315,14 @@ const FolderTreeRow = ({
           className="outline-none border-0 pl-0 h-7"
         />
       ) : (
-        <span className="truncate">{node.name}</span>
+        <span className="truncate flex items-center gap-2 min-w-0">
+          <span className="truncate">{node.name}</span>
+          {isLinkedRoot ? (
+            <Badge variant="outline" className="h-4 px-1.5 py-0 text-[10px] shrink-0 text-amber-700 border-amber-300/60">
+              Linked
+            </Badge>
+          ) : null}
+        </span>
       )}
     </SidebarMenuButton>
   );
@@ -301,8 +333,8 @@ const FolderTreeRow = ({
         {over && !overInvalid && dropPos === 'top' && <div className="absolute top-0 right-0 h-0.5 bg-primary z-50 pointer-events-none" style={{ left: 8 + depth * 12 }} />}
         {over && !overInvalid && dropPos === 'bottom' && <div className="absolute bottom-0 right-0 h-0.5 bg-primary z-50 pointer-events-none" style={{ left: 8 + depth * 12 }} />}
         <Tooltip open={overInvalid || tipOpen}>
-          <TooltipTrigger asChild>{MenuButton}</TooltipTrigger>
-          <TooltipContent side="right">不能移动到自己的子文件夹中</TooltipContent>
+          <TooltipTrigger asChild>{menuButton}</TooltipTrigger>
+          <TooltipContent side="right">Cannot move a folder into itself or its descendants.</TooltipContent>
         </Tooltip>
         {count > 0 && <SidebarMenuBadge className="group-hover:opacity-0 opacity-100">{count}</SidebarMenuBadge>}
         <DropdownMenu>
@@ -312,67 +344,88 @@ const FolderTreeRow = ({
             </SidebarMenuAction>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" sideOffset={4} onClick={(e) => e.stopPropagation()}>
-            <DropdownMenuItem
-              onClick={async (e) => {
-                e.stopPropagation();
-                // 在当前文件夹下新建子文件夹
-                try {
-                  const newId = await onCreate(node.id);
-                  if (newId) {
-                    setInlineEditId?.(newId);
-                    // 展开当前节点以确保可见
-                    if (!expanded) onToggleExpand(node.id);
-                    onSelect(newId);
+            {!isLinkedRoot ? (
+              <DropdownMenuItem
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    const newId = await onCreate(node.id);
+                    if (newId) {
+                      setInlineEditId?.(newId);
+                      if (!expanded) onToggleExpand(node.id);
+                      onSelect(newId);
+                    }
+                  } catch {
+                    /* ignore */
                   }
-                } catch {
-                  /* ignore */
-                }
-              }}
-            >
-              <TbFolderPlus /> 新建文件夹
-              <span className="ml-auto text-xs text-muted-foreground">{shortcutCreate}</span>
-            </DropdownMenuItem>
+                }}
+              >
+                <TbFolderPlus className="mr-2" /> New folder
+                <span className="ml-auto text-xs text-muted-foreground">{shortcutCreate}</span>
+              </DropdownMenuItem>
+            ) : null}
+
             <DropdownMenuItem
               onClick={async (e) => {
                 e.stopPropagation();
-                try {
-                  const ws = await (window as any).YUA?.workspace['workspace:getDefault']();
-                  const isWin = (window as any).YUA?.isWindows;
-                  const sep = isWin ? '\\' : '/';
-                  const base: string = ws?.rootPath || '';
-                  if (!base) return;
-                  const needsSep = base.endsWith(sep) ? '' : sep;
-                  const folderPath = `${base}${needsSep}resources${sep}folders${sep}${node.id}`;
-                  await (window as any).YUA?.file['file:openPath'](folderPath);
-                } catch (err) {
-                  console.warn('open folder path failed', err);
-                }
+                await handleOpenLocation();
               }}
             >
-              <TbFolderOpen /> 打开所在位置
+              <TbFolderOpen className="mr-2" /> Open location
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                // 切换为内联重命名：选中并进入编辑态
-                setInlineEditId?.(node.id);
-                onSelect(node.id);
-              }}
-            >
-              <TbPencil /> 重命名
-              <span className="ml-auto text-xs text-muted-foreground">{shortcutRename}</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(node.id);
-              }}
-            >
-              <TbTrash /> 删除
-              <span className="ml-auto text-xs text-muted-foreground">{shortcutDelete}</span>
-            </DropdownMenuItem>
+
+            {isLinkedRoot ? (
+              <>
+                <DropdownMenuItem
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!onRescanLinkedFolder) return;
+                    await onRescanLinkedFolder(node.id);
+                  }}
+                >
+                  <TbRefresh className="mr-2" /> Rescan
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!onUnlinkLinkedFolder) return;
+                    await onUnlinkLinkedFolder(node.id);
+                  }}
+                >
+                  <TbTrash className="mr-2" /> Unlink
+                </DropdownMenuItem>
+              </>
+            ) : (
+              <>
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setInlineEditId?.(node.id);
+                    onSelect(node.id);
+                  }}
+                >
+                  <TbPencil className="mr-2" /> Rename
+                  <span className="ml-auto text-xs text-muted-foreground">{shortcutRename}</span>
+                </DropdownMenuItem>
+                {!isLinkedFolder ? (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(node.id);
+                      }}
+                    >
+                      <TbTrash className="mr-2" /> Delete
+                      <span className="ml-auto text-xs text-muted-foreground">{shortcutDelete}</span>
+                    </DropdownMenuItem>
+                  </>
+                ) : null}
+              </>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>
@@ -402,6 +455,8 @@ const FolderTreeRow = ({
             draggingFolderId={draggingFolderId}
             setDraggingFolderId={setDraggingFolderId}
             parentMap={parentMap}
+            onRescanLinkedFolder={onRescanLinkedFolder}
+            onUnlinkLinkedFolder={onUnlinkLinkedFolder}
           />
         ))}
     </>
