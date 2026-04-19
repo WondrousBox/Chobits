@@ -1,6 +1,6 @@
 import { AppEvent } from '@packages/event/events';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
@@ -33,6 +33,7 @@ import { mergeVideoWithSubtitles } from './utils/subtitleUtils';
 import WorkflowPage from './WorkflowPage';
 
 const ResourcePage: React.FC = () => {
+  const navigate = useNavigate();
   // 当前页面不再提供空间切换，始终使用"当前选中的默认空间"进行筛选
   const [wsFilter, setWsFilter] = useState<string | undefined>(undefined);
   const [tagFilter, setTagFilter] = useState<string>(''); // '' means all
@@ -163,6 +164,77 @@ const ResourcePage: React.FC = () => {
       }
     },
     [getCurrentFolderKey]
+  );
+
+  const handleLinkLocalFolder = useCallback(async () => {
+    try {
+      const result = await folderAPI?.['folder.linkLocalDirectory']?.({ workspaceId: wsFilter });
+      if (result?.canceled) return;
+      if (!result?.success) {
+        toast.error('Link local folder failed', { description: result?.error || 'unknown' });
+        return;
+      }
+
+      await Promise.all([load(), loadFolders(wsFilter), loadTags(wsFilter)]);
+
+      const rootFolderId = result?.data?.rootFolderId;
+      if (rootFolderId) {
+        setFavoriteFilter(false);
+        setFolderFilter(rootFolderId);
+        saveCurrentFolder(rootFolderId);
+        navigate('/resources/browse', { replace: true });
+      }
+
+      const resourceCount = result?.data?.stats?.resourceCount ?? 0;
+      toast.success('Local folder linked', { description: `${resourceCount} files indexed` });
+    } catch (error: any) {
+      toast.error('Link local folder failed', { description: error?.message || String(error) });
+    }
+  }, [folderAPI, wsFilter, load, loadFolders, loadTags, saveCurrentFolder, navigate]);
+
+  const handleRescanLinkedFolder = useCallback(
+    async (folderId: string) => {
+      try {
+        const result = await folderAPI?.['folder.rescanLinkedDirectory']?.({ rootFolderId: folderId });
+        if (!result?.success) {
+          toast.error('Rescan failed', { description: result?.error || 'unknown' });
+          return;
+        }
+
+        await Promise.all([load(), loadFolders(wsFilter), loadTags(wsFilter)]);
+        const resourceCount = result?.data?.stats?.resourceCount ?? 0;
+        toast.success('Linked folder rescanned', { description: `${resourceCount} files available` });
+      } catch (error: any) {
+        toast.error('Rescan failed', { description: error?.message || String(error) });
+      }
+    },
+    [folderAPI, load, loadFolders, loadTags, wsFilter]
+  );
+
+  const handleUnlinkLinkedFolder = useCallback(
+    async (folderId: string) => {
+      try {
+        const result = await folderAPI?.['folder.unlinkLocalDirectory']?.({ rootFolderId: folderId });
+        if (result?.canceled) return;
+        if (!result?.success) {
+          toast.error('Unlink failed', { description: result?.error || 'unknown' });
+          return;
+        }
+
+        if (folderFilter === folderId) {
+          setFavoriteFilter(false);
+          setFolderFilter('');
+          saveCurrentFolder('');
+          navigate('/resources/browse', { replace: true });
+        }
+
+        await Promise.all([load(), loadFolders(wsFilter), loadTags(wsFilter)]);
+        toast.success('Linked folder unlinked');
+      } catch (error: any) {
+        toast.error('Unlink failed', { description: error?.message || String(error) });
+      }
+    },
+    [folderAPI, folderFilter, load, loadFolders, loadTags, navigate, saveCurrentFolder, wsFilter]
   );
 
   const hasFavorites = useMemo(() => {
@@ -377,6 +449,7 @@ const ResourcePage: React.FC = () => {
             setSearchQuery={setSearchQuery}
             viewMode={viewMode}
             handleViewModeChange={handleViewModeChange}
+            onLinkLocalFolder={handleLinkLocalFolder}
             load={load}
             loadTags={() => loadTags(wsFilter)}
             folderFilter={folderFilter}
@@ -415,6 +488,8 @@ const ResourcePage: React.FC = () => {
           loadFolders={loadFolders}
           handleRenameFolder={handleRenameFolder}
           handleDeleteFolder={handleDeleteFolder}
+          handleRescanLinkedFolder={handleRescanLinkedFolder}
+          handleUnlinkLinkedFolder={handleUnlinkLinkedFolder}
           folderAPI={folderAPI}
           onOpenSettings={(category) => setSettingsModalCategory((category as SettingsCategory) || 'preferences')}
         />

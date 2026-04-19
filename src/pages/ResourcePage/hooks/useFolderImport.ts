@@ -64,6 +64,11 @@ export function useFolderImport({ folderFilter, wsFilter, load, loadFolders, sho
       });
 
       if (res?.canceled) return;
+      if (!res?.success) {
+        const message = res?.error === 'linked-folder-readonly' ? 'Linked folders are read-only right now' : 'Failed to start import';
+        toast.error(message);
+        return;
+      }
 
       setImportProgress({ visible: true, current: 0, total: 0, percent: 0, message: '准备导入...' });
     } catch (err) {
@@ -80,6 +85,11 @@ export function useFolderImport({ folderFilter, wsFilter, load, loadFolders, sho
       });
 
       if (res?.canceled) return;
+      if (!res?.success) {
+        const message = res?.error === 'linked-folder-readonly' ? 'Linked folders are read-only right now' : 'Failed to start import';
+        toast.error(message);
+        return;
+      }
 
       setImportProgress({ visible: true, current: 0, total: 0, percent: 0, message: '准备导入...' });
     } catch (err) {

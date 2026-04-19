@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { toast } from 'sonner';
 
 import { ResourceItem } from '../types';
 
@@ -10,6 +11,8 @@ export const useResourceOperations = (
   selectedItems: Set<string>,
   setSelectedItems: React.Dispatch<React.SetStateAction<Set<string>>>
 ) => {
+  void selectedItems;
+
   const handleDelete = useCallback(
     async (id: string): Promise<void> => {
       try {
@@ -20,7 +23,12 @@ export const useResourceOperations = (
           // RSS 资源使用专用删除方法，同时删除关联的 feed 记录
           await window.YUA.rss.delete({ id, hardDelete: true, deleteDownloadedResources: false });
         } else {
-          await window.YUA.resource.deleteResource({ id });
+          const result = await window.YUA.resource.deleteResource({ id });
+          if (!result?.success) {
+            const message = result?.error === 'linked-resource-readonly' ? 'Linked resources are read-only right now' : 'Delete failed';
+            toast.error(message);
+            return;
+          }
         }
 
         setList((prev) => prev.filter((i) => i.id !== id));
@@ -57,7 +65,12 @@ export const useResourceOperations = (
 
         // 删除普通资源
         if (normalIds.length > 0) {
-          await window.YUA.resource.deleteResources({ ids: normalIds });
+          const result = await window.YUA.resource.deleteResources({ ids: normalIds });
+          if (!result?.success) {
+            const message = result?.error === 'linked-resource-readonly' ? 'Linked resources are read-only right now' : 'Delete failed';
+            toast.error(message);
+            return;
+          }
         }
 
         // 逐个删除 RSS 资源（同时删除关联的 feed 记录）

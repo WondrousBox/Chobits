@@ -216,13 +216,22 @@ app.whenReady().then(async () => {
   updateSplashStatus('正在加载工作区');
   updateSplashLog('loading default workspace');
   try {
-    const { WorkspacesRepo } = await import('./db/repositories');
+    const { LinkedFolderMountsRepo, WorkspacesRepo } = await import('./db/repositories');
     const ws = await WorkspacesRepo.getDefault();
     if (ws?.rootPath) {
       const resRoot = path.join(ws.rootPath, 'resources');
       addAllowedResourceRoot(resRoot);
       addWorkspaceResourceRoot(ws.id, resRoot);
       updateSplashLog(`workspace root: ${ws.rootPath}`);
+    }
+    const activeMounts = await LinkedFolderMountsRepo.list({ status: 'active' } as any, 10000, 0);
+    for (const mount of activeMounts) {
+      if (mount.absolutePath) {
+        addAllowedResourceRoot(mount.absolutePath);
+      }
+    }
+    if (activeMounts.length > 0) {
+      updateSplashLog(`linked roots restored: ${activeMounts.length}`);
     }
   } catch (e) {
     console.warn('[protocol res] add workspace root failed', e);

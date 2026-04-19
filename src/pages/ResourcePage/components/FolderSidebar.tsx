@@ -12,6 +12,9 @@ export type UIFolder = {
   name: string;
   parentId?: string | null;
   workspaceId?: string;
+  originType?: 'workspace' | 'linked';
+  linkedMountId?: string | null;
+  relativePath?: string | null;
   children?: UIFolder[];
   rank?: number;
 };
@@ -54,6 +57,8 @@ interface FolderSidebarProps {
   allCount?: number;
   onInlineRename?: (id: string, name: string) => Promise<void>;
   workspaceId?: string;
+  onRescanLinkedFolder?: (folderId: string) => Promise<void>;
+  onUnlinkLinkedFolder?: (folderId: string) => Promise<void>;
 }
 
 const FolderSidebar = ({
@@ -69,7 +74,9 @@ const FolderSidebar = ({
   counts,
   allCount,
   onInlineRename,
-  workspaceId
+  workspaceId,
+  onRescanLinkedFolder,
+  onUnlinkLinkedFolder
 }: FolderSidebarProps): React.ReactElement => {
   const tree = React.useMemo(() => buildTree(folders), [folders]);
   const parentMap = React.useMemo(() => {
@@ -231,6 +238,11 @@ const FolderSidebar = ({
   const handleCreate = React.useCallback(
     async (parentId?: string | null): Promise<void> => {
       try {
+        const parentFolder = parentId ? folders.find((folder) => folder.id === parentId) : undefined;
+        const isLinkedRoot = parentFolder?.originType === 'linked' && (parentFolder.relativePath || '') === '';
+        if (isLinkedRoot) {
+          return;
+        }
         const newId = await onCreate(parentId);
         if (newId) {
           if (parentId) {
@@ -243,7 +255,7 @@ const FolderSidebar = ({
         console.warn('create folder failed', e);
       }
     },
-    [onCreate, onSelect]
+    [folders, onCreate, onSelect]
   );
 
   // 快捷键：Ctrl/Cmd+Shift+N 新建（内联重命名），Delete 删除当前选中
@@ -365,6 +377,8 @@ const FolderSidebar = ({
                 draggingFolderId={draggingFolderId}
                 setDraggingFolderId={setDraggingFolderId}
                 parentMap={parentMap}
+                onRescanLinkedFolder={onRescanLinkedFolder}
+                onUnlinkLinkedFolder={onUnlinkLinkedFolder}
               />
             ))}
           </SidebarMenu>

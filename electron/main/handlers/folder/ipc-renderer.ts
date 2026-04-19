@@ -8,6 +8,9 @@ export type Folder = {
   description?: string;
   parentId?: string | null;
   workspaceId?: string;
+  originType?: 'workspace' | 'linked';
+  linkedMountId?: string | null;
+  relativePath?: string | null;
   metadata?: string; // JSON
   createdAt?: number;
   updatedAt?: number;
@@ -20,6 +23,66 @@ export type FolderIpcParams = {
   'folder.rename': IpcParams<[{ id: string; name: string }], { success: boolean; data?: Folder; error?: string }>;
   'folder.move': IpcParams<[{ id: string; parentId: string | null; prevRank?: number; nextRank?: number }], { success: boolean; data?: Folder; error?: string }>;
   'folder.get': IpcParams<[{ id: string }], Folder | undefined>;
+  'folder.getResolvedPath': IpcParams<
+    [{ id?: string | null; workspaceId?: string }],
+    { success: boolean; path?: string; originType?: 'workspace' | 'linked'; linkedMountId?: string; error?: string }
+  >;
+  'folder.linkLocalDirectory': IpcParams<
+    [{ workspaceId?: string }],
+    {
+      success: boolean;
+      canceled?: boolean;
+      error?: string;
+      data?: {
+        rootFolderId: string;
+        mountId: string;
+        stats: {
+          folderCount: number;
+          resourceCount: number;
+          restoredFolderCount: number;
+          restoredResourceCount: number;
+          hiddenFolderCount: number;
+          hiddenResourceCount: number;
+          thumbnailCount: number;
+        };
+        reactivated: boolean;
+        alreadyLinked: boolean;
+      };
+    }
+  >;
+  'folder.rescanLinkedDirectory': IpcParams<
+    [{ rootFolderId: string }],
+    {
+      success: boolean;
+      error?: string;
+      data?: {
+        rootFolderId: string;
+        mountId: string;
+        stats: {
+          folderCount: number;
+          resourceCount: number;
+          restoredFolderCount: number;
+          restoredResourceCount: number;
+          hiddenFolderCount: number;
+          hiddenResourceCount: number;
+          thumbnailCount: number;
+        };
+      };
+    }
+  >;
+  'folder.unlinkLocalDirectory': IpcParams<
+    [{ rootFolderId: string }],
+    {
+      success: boolean;
+      canceled?: boolean;
+      error?: string;
+      data?: {
+        mountId: string;
+        hiddenFolderCount: number;
+        hiddenResourceCount: number;
+      };
+    }
+  >;
   'folder.list': IpcParams<[{ workspaceId?: string; parentId?: string | null; deletedAt?: 0 | 1 }], Folder[]>;
   'folder.softDelete': IpcParams<[{ ids: string[] }], { success: boolean; data: Folder[] }>;
   'folder.restore': IpcParams<[{ ids: string[] }], { success: boolean; data: Folder[] }>;
@@ -33,6 +96,10 @@ const methods: Array<keyof FolderIpcParams> = [
   'folder.rename',
   'folder.move',
   'folder.get',
+  'folder.getResolvedPath',
+  'folder.linkLocalDirectory',
+  'folder.rescanLinkedDirectory',
+  'folder.unlinkLocalDirectory',
   'folder.list',
   'folder.softDelete',
   'folder.restore',

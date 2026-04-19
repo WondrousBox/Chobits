@@ -32,7 +32,7 @@ export const useFolderOperations = (
       // 如果主进程执行失败（例如 UNIQUE 约束），invoke 会 reject，让上层捕获并提示
       const r = await folderAPI['folder.move']({ id, parentId: targetPid, prevRank, nextRank });
       if (!(r as any)?.success) {
-        throw new Error('folder-move-failed');
+        throw new Error((r as any)?.error || 'folder-move-failed');
       }
       await loadFolders(wsFilter || undefined);
     },
@@ -41,13 +41,9 @@ export const useFolderOperations = (
 
   const handleOpenFolderLocation = useCallback(async (id: string) => {
     try {
-      const ws = await (window as any).YUA?.workspace['workspace:getDefault']();
-      const isWin = (window as any).YUA?.isWindows;
-      const sep = isWin ? '\\' : '/';
-      const base: string = ws?.rootPath || '';
-      if (!base) return;
-      const needsSep = base.endsWith(sep) ? '' : sep;
-      const folderPath = `${base}${needsSep}resources${sep}folders${sep}${id}`;
+      const resolved = await (window as any).YUA?.folder?.['folder.getResolvedPath']({ id });
+      const folderPath: string | undefined = resolved?.success ? resolved.path : undefined;
+      if (!folderPath) return;
       await (window as any).YUA?.file['file:openPath'](folderPath);
     } catch (err) {
       console.warn('open folder path failed', err);
@@ -153,6 +149,12 @@ export const useFolderOperations = (
           const invalidCount = Array.isArray((res as any)?.invalid) ? (res as any).invalid.length : 0;
           if (invalidCount > 0) {
             toast.error(`有 ${invalidCount} 个资源不属于当前空间，已阻止移动`);
+          } else if ((res as any)?.error === 'linked-folder-readonly' || (res as any)?.error === 'linked-resource-readonly') {
+            toast.error('关联目录当前为只读模式');
+          } else if ((res as any)?.error === 'cross-linked-mount-resource-move-not-supported') {
+            toast.error('Cannot move resources across linked mounts');
+          } else if ((res as any)?.error === 'linked-folder-requires-physical-content') {
+            toast.error('Linked folders only accept physical files');
           } else {
             toast.error('移动失败');
           }

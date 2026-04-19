@@ -19,11 +19,14 @@ import {
   documents,
   type FolderRow,
   folders,
+  linked_folder_mounts,
+  type LinkedFolderMountRow,
   type NewAutomationRule,
   type NewChatMessage,
   type NewConversation,
   type NewDocument,
   type NewFolder,
+  type NewLinkedFolderMount,
   type NewRecycleBin,
   type NewRssFeedItem,
   type NewWorkspace,
@@ -570,6 +573,12 @@ export const ResourcesRepo = {
         deletedAt: resources.deletedAt,
         workspaceId: resources.workspaceId,
         folderId: resources.folderId,
+        originType: resources.originType,
+        linkedMountId: resources.linkedMountId,
+        relativePath: resources.relativePath,
+        externalMtimeMs: resources.externalMtimeMs,
+        externalSizeBytes: resources.externalSizeBytes,
+        syncState: resources.syncState,
         parentResourceId: resources.parentResourceId
       })
       .from(resources)
@@ -619,6 +628,16 @@ export const ResourcesRepo = {
     const db = getOrm();
     const rows = await db.select().from(resources).where(eq(resources.id, id)).limit(1);
     return !!rows.length;
+  },
+  /** 按关联目录与相对路径定位资源 */
+  async getByLinkedRelativePath(linkedMountId: string, relativePath: string): Promise<ResourceRow | undefined> {
+    const db = getOrm();
+    const rows = await db
+      .select()
+      .from(resources)
+      .where(and(eq(resources.linkedMountId, linkedMountId), eq(resources.relativePath, relativePath)))
+      .limit(1);
+    return rows[0];
   },
   /** 更新资源（部分字段） */
   async update(id: string, patch: Partial<NewResource>): Promise<ResourceRow | undefined> {
@@ -1006,6 +1025,12 @@ export const ResourcesRepo = {
         deletedAt: resources.deletedAt,
         workspaceId: resources.workspaceId,
         folderId: resources.folderId,
+        originType: resources.originType,
+        linkedMountId: resources.linkedMountId,
+        relativePath: resources.relativePath,
+        externalMtimeMs: resources.externalMtimeMs,
+        externalSizeBytes: resources.externalSizeBytes,
+        syncState: resources.syncState,
         parentResourceId: resources.parentResourceId
       })
       .from(resources);
@@ -1015,6 +1040,10 @@ export const ResourcesRepo = {
     if ((filter as any).visibility) wheres.push(eq(resources.visibility, (filter as any).visibility));
     if ((filter as any).tags) wheres.push(like(resources.tags, `%${(filter as any).tags}%`));
     if ((filter as any).workspaceId) wheres.push(eq(resources.workspaceId, (filter as any).workspaceId));
+    if ((filter as any).originType) wheres.push(eq(resources.originType, (filter as any).originType));
+    if ((filter as any).linkedMountId) wheres.push(eq(resources.linkedMountId, (filter as any).linkedMountId));
+    if ((filter as any).relativePath) wheres.push(eq(resources.relativePath, (filter as any).relativePath));
+    if ((filter as any).syncState) wheres.push(eq(resources.syncState, (filter as any).syncState));
     if ((filter as any).folderId !== undefined) {
       if ((filter as any).folderId === null) {
         wheres.push(isNull(resources.folderId));
@@ -1043,6 +1072,10 @@ export const ResourcesRepo = {
     if ((filter as any).status) wheres.push(eq(resources.status, (filter as any).status));
     if ((filter as any).visibility) wheres.push(eq(resources.visibility, (filter as any).visibility));
     if ((filter as any).workspaceId) wheres.push(eq(resources.workspaceId, (filter as any).workspaceId));
+    if ((filter as any).originType) wheres.push(eq(resources.originType, (filter as any).originType));
+    if ((filter as any).linkedMountId) wheres.push(eq(resources.linkedMountId, (filter as any).linkedMountId));
+    if ((filter as any).relativePath) wheres.push(eq(resources.relativePath, (filter as any).relativePath));
+    if ((filter as any).syncState) wheres.push(eq(resources.syncState, (filter as any).syncState));
     if ((filter as any).folderId !== undefined) {
       if ((filter as any).folderId === null) {
         wheres.push(isNull(resources.folderId));
@@ -1181,6 +1214,16 @@ function safeParseTags(v: unknown): string[] | null {
  * - 支持 upsert、批量 upsert、查询、软删/恢复、重命名、移动（变更 parentId）
  */
 export const FoldersRepo = {
+  /** 按关联目录与相对路径定位文件夹 */
+  async getByLinkedRelativePath(linkedMountId: string, relativePath: string): Promise<FolderRow | undefined> {
+    const db = getOrm();
+    const rows = await db
+      .select()
+      .from(folders)
+      .where(and(eq(folders.linkedMountId, linkedMountId), eq(folders.relativePath, relativePath)))
+      .limit(1);
+    return rows[0];
+  },
   /** 新增文件夹（自动生成 rank） */
   async create(folder: NewFolder): Promise<FolderRow> {
     const db = getOrm();
@@ -1266,6 +1309,9 @@ export const FoldersRepo = {
       wheres.push(isNull(folders.deletedAt));
 
       if ((filter as any).workspaceId) wheres.push(eq(folders.workspaceId, (filter as any).workspaceId));
+      if ((filter as any).originType) wheres.push(eq(folders.originType, (filter as any).originType));
+      if ((filter as any).linkedMountId) wheres.push(eq(folders.linkedMountId, (filter as any).linkedMountId));
+      if ((filter as any).relativePath) wheres.push(eq(folders.relativePath, (filter as any).relativePath));
       if ((filter as any).parentId === null) wheres.push(isNull(folders.parentId));
       if ((filter as any).parentId) wheres.push(eq(folders.parentId, (filter as any).parentId));
 
@@ -1287,6 +1333,9 @@ export const FoldersRepo = {
     let query = db.select().from(folders);
     const wheres: any[] = [];
     if ((filter as any).workspaceId) wheres.push(eq(folders.workspaceId, (filter as any).workspaceId));
+    if ((filter as any).originType) wheres.push(eq(folders.originType, (filter as any).originType));
+    if ((filter as any).linkedMountId) wheres.push(eq(folders.linkedMountId, (filter as any).linkedMountId));
+    if ((filter as any).relativePath) wheres.push(eq(folders.relativePath, (filter as any).relativePath));
     if ((filter as any).parentId === null) wheres.push(isNull(folders.parentId));
     if ((filter as any).parentId) wheres.push(eq(folders.parentId, (filter as any).parentId));
     if ((filter as any).deletedAt === 0) wheres.push(isNull(folders.deletedAt));
@@ -1327,6 +1376,9 @@ export const FoldersRepo = {
       wheres.push(isNull(folders.deletedAt));
 
       if ((filter as any).workspaceId) wheres.push(eq(folders.workspaceId, (filter as any).workspaceId));
+      if ((filter as any).originType) wheres.push(eq(folders.originType, (filter as any).originType));
+      if ((filter as any).linkedMountId) wheres.push(eq(folders.linkedMountId, (filter as any).linkedMountId));
+      if ((filter as any).relativePath) wheres.push(eq(folders.relativePath, (filter as any).relativePath));
       if ((filter as any).parentId === null) wheres.push(isNull(folders.parentId));
       if ((filter as any).parentId) wheres.push(eq(folders.parentId, (filter as any).parentId));
 
@@ -1349,6 +1401,9 @@ export const FoldersRepo = {
     let query = db.select({ count: folders.id }).from(folders);
     const wheres: any[] = [];
     if ((filter as any).workspaceId) wheres.push(eq(folders.workspaceId, (filter as any).workspaceId));
+    if ((filter as any).originType) wheres.push(eq(folders.originType, (filter as any).originType));
+    if ((filter as any).linkedMountId) wheres.push(eq(folders.linkedMountId, (filter as any).linkedMountId));
+    if ((filter as any).relativePath) wheres.push(eq(folders.relativePath, (filter as any).relativePath));
     if ((filter as any).parentId === null) wheres.push(isNull(folders.parentId));
     if ((filter as any).parentId) wheres.push(eq(folders.parentId, (filter as any).parentId));
     if ((filter as any).deletedAt === 0) wheres.push(isNull(folders.deletedAt));
@@ -1441,6 +1496,66 @@ export const FoldersRepo = {
  * 工作空间表操作空间
  * - 负责增删改查、默认空间设置、软删/恢复
  */
+export const LinkedFolderMountsRepo = {
+  async create(mount: NewLinkedFolderMount): Promise<LinkedFolderMountRow> {
+    const db = getOrm();
+    const rows = await db
+      .insert(linked_folder_mounts)
+      .values(mount as any)
+      .returning()
+      .all();
+    return rows[0];
+  },
+  async upsert(mount: NewLinkedFolderMount): Promise<LinkedFolderMountRow | undefined> {
+    const db = getOrm();
+    const rows = await db
+      .insert(linked_folder_mounts)
+      .values(mount as any)
+      .onConflictDoUpdate({ target: linked_folder_mounts.id, set: omitId(mount as any) })
+      .returning()
+      .all();
+    return rows[0];
+  },
+  async getById(id: string): Promise<LinkedFolderMountRow | undefined> {
+    const db = getOrm();
+    const rows = await db.select().from(linked_folder_mounts).where(eq(linked_folder_mounts.id, id)).limit(1);
+    return rows[0];
+  },
+  async getByRootFolderId(rootFolderId: string): Promise<LinkedFolderMountRow | undefined> {
+    const db = getOrm();
+    const rows = await db
+      .select()
+      .from(linked_folder_mounts)
+      .where(eq(linked_folder_mounts.rootFolderId, rootFolderId))
+      .limit(1);
+    return rows[0];
+  },
+  async list(filter: Partial<LinkedFolderMountRow> = {}, limit = 100, offset = 0): Promise<LinkedFolderMountRow[]> {
+    const db = getOrm();
+    let query = db.select().from(linked_folder_mounts);
+    const wheres: any[] = [];
+    if ((filter as any).workspaceId) wheres.push(eq(linked_folder_mounts.workspaceId, (filter as any).workspaceId));
+    if ((filter as any).rootFolderId) wheres.push(eq(linked_folder_mounts.rootFolderId, (filter as any).rootFolderId));
+    if ((filter as any).status) wheres.push(eq(linked_folder_mounts.status, (filter as any).status));
+    if ((filter as any).absolutePath) wheres.push(eq(linked_folder_mounts.absolutePath, (filter as any).absolutePath));
+    if (wheres.length) query = query.where(and(...wheres));
+    return query.orderBy(desc(linked_folder_mounts.updatedAt)).limit(limit).offset(offset);
+  },
+  async update(id: string, patch: Partial<NewLinkedFolderMount>): Promise<LinkedFolderMountRow | undefined> {
+    const db = getOrm();
+    await db
+      .update(linked_folder_mounts)
+      .set({ ...patch, updatedAt: Date.now() } as any)
+      .where(eq(linked_folder_mounts.id, id))
+      .run();
+    const rows = await db.select().from(linked_folder_mounts).where(eq(linked_folder_mounts.id, id)).limit(1);
+    return rows[0];
+  },
+  async disconnect(id: string): Promise<LinkedFolderMountRow | undefined> {
+    return this.update(id, { status: 'disconnected' } as any);
+  }
+};
+
 export const WorkspacesRepo = {
   /** 新增或更新工作空间 */
   async upsert(ws: NewWorkspace): Promise<WorkspaceRow | undefined> {
