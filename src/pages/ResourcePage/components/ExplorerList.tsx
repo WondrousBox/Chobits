@@ -27,9 +27,11 @@ import {
   recreateLinkedMissingDirectory
 } from '../utils/linkedFolderState';
 import {
+  getLinkedResourceDiskInfo,
   getLinkedResourceSyncIssue,
   getLinkedResourceSyncIssueDescription,
   getResolveLinkedResourceConflictErrorMessage,
+  type LinkedResourceDiskInfo,
   openContainingFolderForResource,
   rescanLinkedResourceRoot,
   resolveLinkedResourceConflict
@@ -43,6 +45,13 @@ type Rect = { left: number; top: number; right: number; bottom: number };
 
 function rectsIntersect(a: Rect, b: Rect): boolean {
   return !(a.left > b.right || a.right < b.left || a.top > b.bottom || a.bottom < b.top);
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
 // 表头组件
@@ -603,7 +612,7 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
       .then((defs: any[]) => {
         setWorkflows(defs || []);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // 获取第一个选中的资源
@@ -612,6 +621,20 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
   const selectedSyncIssue = getLinkedResourceSyncIssue(firstSelectedItem);
   const canRepairSelected = selectedItems.size === 1 && !!selectedSyncIssue;
   const canRevealSelected = !!firstSelectedItem?.filePath && !canRepairSelected;
+
+  const [conflictDiffInfo, setConflictDiffInfo] = useState<LinkedResourceDiskInfo | null>(null);
+  const [conflictDiffOpen, setConflictDiffOpen] = useState(false);
+
+  const handleViewConflictDiff = useCallback(async () => {
+    if (!firstSelectedItem) return;
+    const result = await getLinkedResourceDiskInfo(firstSelectedItem);
+    if (result.success && result.data) {
+      setConflictDiffInfo(result.data);
+      setConflictDiffOpen(true);
+    } else {
+      toast.error('无法获取文件差异信息');
+    }
+  }, [firstSelectedItem]);
 
   // 获取工作流的开始节点输入模式
   const getWorkflowInputMode = useCallback((wf: any): 'resource' | 'text' | 'url' | 'file' | 'folder' => {
@@ -948,6 +971,7 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
                   <div className="px-2 pb-1 text-xs text-muted-foreground">{getLinkedResourceSyncIssueDescription(selectedSyncIssue)}</div>
                   {selectedSyncIssue === 'conflict' ? (
                     <>
+                      <ContextMenuItem onSelect={handleViewConflictDiff}>查看差异</ContextMenuItem>
                       <ContextMenuItem onSelect={() => handleResolveSelectedConflict('accept-disk')}>采用磁盘版本</ContextMenuItem>
                       <ContextMenuItem onSelect={() => handleResolveSelectedConflict('copy-disk-snapshot')}>另存磁盘副本并确认</ContextMenuItem>
                     </>
@@ -1151,6 +1175,41 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
             <Button size="sm" className="w-20" onClick={handleRenameConfirm} disabled={!renameValue.trim()}>
               确定
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={conflictDiffOpen} onOpenChange={setConflictDiffOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>文件冲突差异</DialogTitle>
+          </DialogHeader>
+          {conflictDiffInfo && (
+            <div className="space-y-3 text-sm">
+              <div className="truncate text-xs text-muted-foreground">{conflictDiffInfo.db.filePath}</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-md border p-3 space-y-2">
+                  <div className="font-medium text-muted-foreground">数据库快照</div>
+                  <div>大小: {conflictDiffInfo.db.sizeBytes != null ? formatBytes(conflictDiffInfo.db.sizeBytes) : '未知'}</div>
+                  <div>修改时间: {conflictDiffInfo.db.mtimeMs ? new Date(conflictDiffInfo.db.mtimeMs).toLocaleString() : '未知'}</div>
+                </div>
+                <div className="rounded-md border p-3 space-y-2 border-amber-500/50">
+                  <div className="font-medium text-amber-600">当前磁盘</div>
+                  {conflictDiffInfo.disk.exists ? (
+                    <>
+                      <div>大小: {conflictDiffInfo.disk.sizeBytes != null ? formatBytes(conflictDiffInfo.disk.sizeBytes) : '未知'}</div>
+                      <div>修改时间: {conflictDiffInfo.disk.mtimeMs ? new Date(conflictDiffInfo.disk.mtimeMs).toLocaleString() : '未知'}</div>
+                    </>
+                  ) : (
+                    <div className="text-destructive">文件不存在</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button size="sm" variant="outline" onClick={() => setConflictDiffOpen(false)}>关闭</Button>
+            <Button size="sm" onClick={() => { setConflictDiffOpen(false); handleResolveSelectedConflict('accept-disk'); }}>采用磁盘版本</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

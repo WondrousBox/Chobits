@@ -29,9 +29,11 @@ import {
   recreateLinkedMissingDirectory
 } from '../utils/linkedFolderState';
 import {
+  getLinkedResourceDiskInfo,
   getLinkedResourceSyncIssue,
   getLinkedResourceSyncIssueDescription,
   getResolveLinkedResourceConflictErrorMessage,
+  type LinkedResourceDiskInfo,
   openContainingFolderForResource,
   rescanLinkedResourceRoot,
   resolveLinkedResourceConflict
@@ -41,6 +43,14 @@ import { ResourceItemWithSubtitles } from '../utils/subtitleUtils';
 import type { UIFolder } from './FolderSidebar';
 import ResourceGalleryItem from './ResourceGalleryItem';
 import RssSubscriptionCard from './RssSubscriptionCard';
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
 // Inline folder tile for grid view to avoid cross-file resolution issues
 const GridFolderTile: React.FC<{
   folder: UIFolder;
@@ -73,180 +83,179 @@ const GridFolderTile: React.FC<{
   onRecreateMissingFolder,
   onIgnoreMissingFolder
 }) => {
-  const [over, setOver] = React.useState(false);
-  const [overInvalid, setOverInvalid] = React.useState(false);
-  const [tipOpen, setTipOpen] = React.useState(false);
-  const isWin = (window as any).YUA?.isWindows;
-  const revealLabel = isWin ? '在资源管理器中显示' : '在 Finder 中显示';
-  const linkedFolderState = getLinkedFolderState(folder);
-  const linkedFolderIssueBadge = getLinkedFolderIssueBadge(linkedFolderState);
-  const linkedFolderIssueDescription = getLinkedFolderStateDescription(linkedFolderState);
-  const canRecreateLinkedFolder = isLinkedFolderMissing(linkedFolderState);
-  const isAncestor = React.useCallback(
-    (ancestorId: string, descendantId: string): boolean => {
-      if (!parentMap) return false;
-      let cur: string | null | undefined = descendantId;
-      const guard = new Set<string>();
-      while (cur) {
-        if (cur === ancestorId) return true;
-        if (guard.has(cur)) break;
-        guard.add(cur);
-        cur = parentMap.get(cur) ?? null;
-      }
-      return false;
-    },
-    [parentMap]
-  );
-  return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <Tooltip open={overInvalid || tipOpen}>
-          <TooltipTrigger asChild>
-            <div
-              data-explorer-folder
-              onContextMenu={(e) => e.stopPropagation()}
-              className={`group relative aspect-video w-full overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm transition-all cursor-pointer select-none ${
-                over
+    const [over, setOver] = React.useState(false);
+    const [overInvalid, setOverInvalid] = React.useState(false);
+    const [tipOpen, setTipOpen] = React.useState(false);
+    const isWin = (window as any).YUA?.isWindows;
+    const revealLabel = isWin ? '在资源管理器中显示' : '在 Finder 中显示';
+    const linkedFolderState = getLinkedFolderState(folder);
+    const linkedFolderIssueBadge = getLinkedFolderIssueBadge(linkedFolderState);
+    const linkedFolderIssueDescription = getLinkedFolderStateDescription(linkedFolderState);
+    const canRecreateLinkedFolder = isLinkedFolderMissing(linkedFolderState);
+    const isAncestor = React.useCallback(
+      (ancestorId: string, descendantId: string): boolean => {
+        if (!parentMap) return false;
+        let cur: string | null | undefined = descendantId;
+        const guard = new Set<string>();
+        while (cur) {
+          if (cur === ancestorId) return true;
+          if (guard.has(cur)) break;
+          guard.add(cur);
+          cur = parentMap.get(cur) ?? null;
+        }
+        return false;
+      },
+      [parentMap]
+    );
+    return (
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <Tooltip open={overInvalid || tipOpen}>
+            <TooltipTrigger asChild>
+              <div
+                data-explorer-folder
+                onContextMenu={(e) => e.stopPropagation()}
+                className={`group relative aspect-video w-full overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm transition-all cursor-pointer select-none ${over
                   ? overInvalid
                     ? 'ring-2 ring-destructive border-destructive/50 bg-destructive/10'
                     : 'ring-2 ring-primary border-primary/50 bg-primary/5'
                   : 'hover:shadow-md hover:border-primary/30'
-              } bg-gradient-to-br from-background to-muted flex items-center justify-center`}
-              onClick={() => onOpen?.()}
-              draggable
-              onDragStart={(e: any) => {
-                try {
-                  e.dataTransfer.setData('application/x-folder-id', folder.id);
-                  e.dataTransfer.effectAllowed = 'move';
-                } catch {
-                  /* noop */
-                }
-                setDraggingFolderId?.(folder.id);
-              }}
-              onDragEnd={() => setDraggingFolderId?.(null)}
-              onDragOver={(e) => {
-                const types = Array.from((e.dataTransfer?.types as any) || []);
-                const dragging = draggingFolderId || (types.includes('application/x-folder-id') ? null : null);
-                if (dragging) {
-                  const invalid = dragging === folder.id || isAncestor(dragging, folder.id);
-                  setOverInvalid(invalid);
-                  if (!invalid) {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                    setOver(true);
-                  } else {
-                    setOver(false);
-                    e.dataTransfer.dropEffect = 'none';
+                  } bg-gradient-to-br from-background to-muted flex items-center justify-center`}
+                onClick={() => onOpen?.()}
+                draggable
+                onDragStart={(e: any) => {
+                  try {
+                    e.dataTransfer.setData('application/x-folder-id', folder.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                  } catch {
+                    /* noop */
                   }
-                  return;
-                }
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-                setOver(true);
-              }}
-              onDragLeave={() => {
-                setOver(false);
-                setOverInvalid(false);
-                setTipOpen(false);
-              }}
-              onDrop={async (e) => {
-                setOver(false);
-                setOverInvalid(false);
-                setTipOpen(false);
-                try {
-                  const fid = e.dataTransfer.getData('application/x-folder-id');
-                  if (fid) {
-                    if (fid !== folder.id && !isAncestor(fid, folder.id)) {
-                      try {
-                        if (onMoveFolder) await onMoveFolder(fid, folder.id);
-                      } catch (err) {
-                        const msg = String((err as any)?.message || err || '');
-                        const isUnique = /UNIQUE|constraint/i.test(msg);
-                        if (isUnique) {
-                          toast.error('移动文件夹失败', { description: '目标文件夹内已存在同名文件夹' });
-                        } else {
-                          toast.error('移动文件夹失败');
-                        }
-                      }
+                  setDraggingFolderId?.(folder.id);
+                }}
+                onDragEnd={() => setDraggingFolderId?.(null)}
+                onDragOver={(e) => {
+                  const types = Array.from((e.dataTransfer?.types as any) || []);
+                  const dragging = draggingFolderId || (types.includes('application/x-folder-id') ? null : null);
+                  if (dragging) {
+                    const invalid = dragging === folder.id || isAncestor(dragging, folder.id);
+                    setOverInvalid(invalid);
+                    if (!invalid) {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      setOver(true);
                     } else {
-                      setTipOpen(true);
-                      setTimeout(() => setTipOpen(false), 1200);
+                      setOver(false);
+                      e.dataTransfer.dropEffect = 'none';
                     }
                     return;
                   }
-                } catch {
-                  /* ignore folder move */
-                }
-                try {
-                  const raw = e.dataTransfer.getData('application/x-resource-ids');
-                  if (!raw) return;
-                  const ids: string[] = JSON.parse(raw);
-                  if (Array.isArray(ids) && ids.length) onDropResources?.(ids);
-                } catch {
-                  /* ignore */
-                }
-              }}
-            >
-              <div className="text-center relative">
-                <div className="text-5xl text-muted-foreground/80 mb-2">
-                  <TbFolderFilled />
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  setOver(true);
+                }}
+                onDragLeave={() => {
+                  setOver(false);
+                  setOverInvalid(false);
+                  setTipOpen(false);
+                }}
+                onDrop={async (e) => {
+                  setOver(false);
+                  setOverInvalid(false);
+                  setTipOpen(false);
+                  try {
+                    const fid = e.dataTransfer.getData('application/x-folder-id');
+                    if (fid) {
+                      if (fid !== folder.id && !isAncestor(fid, folder.id)) {
+                        try {
+                          if (onMoveFolder) await onMoveFolder(fid, folder.id);
+                        } catch (err) {
+                          const msg = String((err as any)?.message || err || '');
+                          const isUnique = /UNIQUE|constraint/i.test(msg);
+                          if (isUnique) {
+                            toast.error('移动文件夹失败', { description: '目标文件夹内已存在同名文件夹' });
+                          } else {
+                            toast.error('移动文件夹失败');
+                          }
+                        }
+                      } else {
+                        setTipOpen(true);
+                        setTimeout(() => setTipOpen(false), 1200);
+                      }
+                      return;
+                    }
+                  } catch {
+                    /* ignore folder move */
+                  }
+                  try {
+                    const raw = e.dataTransfer.getData('application/x-resource-ids');
+                    if (!raw) return;
+                    const ids: string[] = JSON.parse(raw);
+                    if (Array.isArray(ids) && ids.length) onDropResources?.(ids);
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+              >
+                <div className="text-center relative">
+                  <div className="text-5xl text-muted-foreground/80 mb-2">
+                    <TbFolderFilled />
+                  </div>
+                  <div className="text-sm font-medium truncate max-w-[90%] mx-auto">{folder.name}</div>
+                  {linkedFolderIssueBadge ? (
+                    <span className={`mt-1 inline-flex h-5 items-center rounded border px-1.5 text-[10px] ${linkedFolderIssueBadge.className}`} title={linkedFolderIssueDescription}>
+                      {linkedFolderIssueBadge.label}
+                    </span>
+                  ) : null}
+                  {typeof count === 'number' && <span className="absolute top-1 right-1 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full shadow">{count}</span>}
                 </div>
-                <div className="text-sm font-medium truncate max-w-[90%] mx-auto">{folder.name}</div>
-                {linkedFolderIssueBadge ? (
-                  <span className={`mt-1 inline-flex h-5 items-center rounded border px-1.5 text-[10px] ${linkedFolderIssueBadge.className}`} title={linkedFolderIssueDescription}>
-                    {linkedFolderIssueBadge.label}
-                  </span>
-                ) : null}
-                {typeof count === 'number' && <span className="absolute top-1 right-1 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full shadow">{count}</span>}
               </div>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent side="top">不能移动到自己的子文件夹中</TooltipContent>
-        </Tooltip>
-      </ContextMenuTrigger>
-      <ContextMenuContent className="min-w-[200px]" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-        {linkedFolderIssueDescription ? (
-          <>
-            <ContextMenuItem disabled className="h-auto whitespace-normal py-2 text-xs leading-relaxed opacity-100">
-              {linkedFolderIssueDescription}
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-          </>
-        ) : null}
-        {canRecreateLinkedFolder ? (
-          <>
-            <ContextMenuItem className="flex items-center gap-2" onSelect={() => onReconnectMissingFolder?.()}>
-              <TbFolderOpen /> 选择新路径重连
-            </ContextMenuItem>
-            <ContextMenuItem className="flex items-center gap-2" onSelect={() => onRecreateMissingFolder?.()}>
-              <TbFolderPlus /> 在原位置重建目录
-            </ContextMenuItem>
-            <ContextMenuItem className="flex items-center gap-2" onSelect={() => onIgnoreMissingFolder?.()}>
-              <TbEyeOff /> 忽略缺失目录
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-          </>
-        ) : null}
-        <ContextMenuItem onSelect={onOpen}>打开</ContextMenuItem>
-        <ContextMenuItem
-          className="flex items-center gap-2"
-          onSelect={() => {
-            onOpenLocation?.();
-          }}
-        >
-          <TbFolderOpen /> {revealLabel}
-        </ContextMenuItem>
-        <ContextMenuItem className="flex items-center gap-2" onSelect={() => onRename?.()}>
-          <TbPencil /> 重命名
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem className="flex items-center gap-2 text-destructive" onSelect={() => onDelete?.()}>
-          <TbTrash /> 删除
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
-  );
-};
+            </TooltipTrigger>
+            <TooltipContent side="top">不能移动到自己的子文件夹中</TooltipContent>
+          </Tooltip>
+        </ContextMenuTrigger>
+        <ContextMenuContent className="min-w-[200px]" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+          {linkedFolderIssueDescription ? (
+            <>
+              <ContextMenuItem disabled className="h-auto whitespace-normal py-2 text-xs leading-relaxed opacity-100">
+                {linkedFolderIssueDescription}
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+            </>
+          ) : null}
+          {canRecreateLinkedFolder ? (
+            <>
+              <ContextMenuItem className="flex items-center gap-2" onSelect={() => onReconnectMissingFolder?.()}>
+                <TbFolderOpen /> 选择新路径重连
+              </ContextMenuItem>
+              <ContextMenuItem className="flex items-center gap-2" onSelect={() => onRecreateMissingFolder?.()}>
+                <TbFolderPlus /> 在原位置重建目录
+              </ContextMenuItem>
+              <ContextMenuItem className="flex items-center gap-2" onSelect={() => onIgnoreMissingFolder?.()}>
+                <TbEyeOff /> 忽略缺失目录
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+            </>
+          ) : null}
+          <ContextMenuItem onSelect={onOpen}>打开</ContextMenuItem>
+          <ContextMenuItem
+            className="flex items-center gap-2"
+            onSelect={() => {
+              onOpenLocation?.();
+            }}
+          >
+            <TbFolderOpen /> {revealLabel}
+          </ContextMenuItem>
+          <ContextMenuItem className="flex items-center gap-2" onSelect={() => onRename?.()}>
+            <TbPencil /> 重命名
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem className="flex items-center gap-2 text-destructive" onSelect={() => onDelete?.()}>
+            <TbTrash /> 删除
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    );
+  };
 
 export interface ExplorerGridProps {
   items: ResourceItem[] | ResourceItemWithSubtitles[];
@@ -507,6 +516,21 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   const selectedSyncIssue = getLinkedResourceSyncIssue(firstSelectedItem);
   const canRepairSelected = selectedCount === 1 && !!selectedSyncIssue;
   const canRevealSelected = !!firstSelectedItem?.filePath && !canRepairSelected;
+
+  const [conflictDiffInfo, setConflictDiffInfo] = useState<LinkedResourceDiskInfo | null>(null);
+  const [conflictDiffOpen, setConflictDiffOpen] = useState(false);
+
+  const handleViewConflictDiff = useCallback(async () => {
+    if (!firstSelectedItem) return;
+    const result = await getLinkedResourceDiskInfo(firstSelectedItem);
+    if (result.success && result.data) {
+      setConflictDiffInfo(result.data);
+      setConflictDiffOpen(true);
+    } else {
+      toast.error('无法获取文件差异信息');
+    }
+  }, [firstSelectedItem]);
+
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameValue, setRenameValue] = useState('');
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -764,7 +788,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
       .then((defs: any[]) => {
         setWorkflows(defs || []);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // 获取工作流的开始节点输入模式
@@ -816,266 +840,372 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   );
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <div className="flex flex-col min-h-full">
-          <div
-            ref={containerRef}
-            className="relative grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2 p-2 outline-none flex-1 content-start box-border"
-            tabIndex={0}
-            onPointerDown={handleBackgroundPointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={endDrag}
-            onKeyDown={handleKeyDown}
-            onContextMenu={handleContextMenu}
-          >
-            {/* 先渲染子文件夹 */}
-            {(folders || []).map((f) => (
-              <GridFolderTile
-                key={`folder-${f.id}`}
-                folder={f}
-                count={counts?.[f.id]}
-                onOpen={() => onOpenFolder?.(f.id)}
-                onDropResources={(ids: string[]) => onDropResourcesToFolder?.(f.id, ids)}
-                onMoveFolder={(id, newPid) => onMoveFolder?.(id, newPid)}
-                parentMap={parentMap}
-                draggingFolderId={draggingFolderId}
-                setDraggingFolderId={setDraggingFolderId}
-                onRename={() => onRenameFolder?.(f.id)}
-                onDelete={() => onDeleteFolder?.(f.id)}
-                onOpenLocation={() => onOpenFolderLocation?.(f.id)}
-                onReconnectMissingFolder={() => handleReconnectLinkedMissingFolder(f.id)}
-                onRecreateMissingFolder={() => handleRecreateLinkedMissingFolder(f.id)}
-                onIgnoreMissingFolder={() => handleIgnoreLinkedMissingFolder(f.id)}
-              />
-            ))}
+    <>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <div className="flex flex-col min-h-full">
+            <div
+              ref={containerRef}
+              className="relative grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2 p-2 outline-none flex-1 content-start box-border"
+              tabIndex={0}
+              onPointerDown={handleBackgroundPointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={endDrag}
+              onKeyDown={handleKeyDown}
+              onContextMenu={handleContextMenu}
+            >
+              {/* 先渲染子文件夹 */}
+              {(folders || []).map((f) => (
+                <GridFolderTile
+                  key={`folder-${f.id}`}
+                  folder={f}
+                  count={counts?.[f.id]}
+                  onOpen={() => onOpenFolder?.(f.id)}
+                  onDropResources={(ids: string[]) => onDropResourcesToFolder?.(f.id, ids)}
+                  onMoveFolder={(id, newPid) => onMoveFolder?.(id, newPid)}
+                  parentMap={parentMap}
+                  draggingFolderId={draggingFolderId}
+                  setDraggingFolderId={setDraggingFolderId}
+                  onRename={() => onRenameFolder?.(f.id)}
+                  onDelete={() => onDeleteFolder?.(f.id)}
+                  onOpenLocation={() => onOpenFolderLocation?.(f.id)}
+                  onReconnectMissingFolder={() => handleReconnectLinkedMissingFolder(f.id)}
+                  onRecreateMissingFolder={() => handleRecreateLinkedMissingFolder(f.id)}
+                  onIgnoreMissingFolder={() => handleIgnoreLinkedMissingFolder(f.id)}
+                />
+              ))}
 
-            {/* 再渲染资源项 */}
-            {mergedItems.map((item, idx) => {
-              const isSelected = selected.has(item.id);
-              const isNew = highlightedIds?.has(item.id);
+              {/* 再渲染资源项 */}
+              {mergedItems.map((item, idx) => {
+                const isSelected = selected.has(item.id);
+                const isNew = highlightedIds?.has(item.id);
 
-              // RSS 类型资源使用专门的卡片
-              if (item.type === 'rss') {
+                // RSS 类型资源使用专门的卡片
+                if (item.type === 'rss') {
+                  return (
+                    <div key={item.id} className="aspect-video w-full">
+                      <RssSubscriptionCard
+                        item={item}
+                        selected={isSelected}
+                        innerRef={updateItemRef(item.id)}
+                        onClick={(e) => handleItemClick(e, item.id, idx)}
+                        onToggleFavorite={onToggleFavorite}
+                        onOpenFeed={() => navigate(`/resources/rss/${item.id}`)}
+                      />
+                    </div>
+                  );
+                }
+
                 return (
                   <div key={item.id} className="aspect-video w-full">
-                    <RssSubscriptionCard
+                    <ResourceGalleryItem
                       item={item}
                       selected={isSelected}
+                      isNew={!!isNew}
                       innerRef={updateItemRef(item.id)}
                       onClick={(e) => handleItemClick(e, item.id, idx)}
                       onToggleFavorite={onToggleFavorite}
-                      onOpenFeed={() => navigate(`/resources/rss/${item.id}`)}
+                      onToggleVisibility={onToggleVisibility}
+                      taskStatus={taskStatuses[item.id]}
+                      onPreview={() => {
+                        const current = mergedItems[idx];
+                        if (!current) return;
+                        // 使用父组件传入的 onPreview 回调（侧边面板预览）
+                        if (onPreview) {
+                          onPreview(current);
+                        } else {
+                          // 如果没有传入回调，则使用独立窗口预览（后备方案）
+                          window.YUA.window['window:open'](
+                            'resourcePreview',
+                            {
+                              current,
+                              list: mergedItems,
+                              index: idx
+                            },
+                            {
+                              sameDisplayAsSender: true
+                            }
+                          );
+                        }
+                      }}
+                      draggable
+                      onDragStart={(e: React.DragEvent) => {
+                        // 如果当前 item 已在多选中，则拖拽这些被选中的；否则仅拖该项
+                        const ids = selected.has(item.id) && selected.size > 0 ? Array.from(selected) : [item.id];
+                        try {
+                          e.dataTransfer.setData('application/x-resource-ids', JSON.stringify(ids));
+                          e.dataTransfer.effectAllowed = 'move';
+                          e.dataTransfer.dropEffect = 'move';
+                        } catch {
+                          /* ignore */
+                        }
+                      }}
+                      fillContainer
                     />
                   </div>
                 );
-              }
+              })}
 
-              return (
-                <div key={item.id} className="aspect-video w-full">
-                  <ResourceGalleryItem
-                    item={item}
-                    selected={isSelected}
-                    isNew={!!isNew}
-                    innerRef={updateItemRef(item.id)}
-                    onClick={(e) => handleItemClick(e, item.id, idx)}
-                    onToggleFavorite={onToggleFavorite}
-                    onToggleVisibility={onToggleVisibility}
-                    taskStatus={taskStatuses[item.id]}
-                    onPreview={() => {
-                      const current = mergedItems[idx];
-                      if (!current) return;
-                      // 使用父组件传入的 onPreview 回调（侧边面板预览）
-                      if (onPreview) {
-                        onPreview(current);
-                      } else {
-                        // 如果没有传入回调，则使用独立窗口预览（后备方案）
-                        window.YUA.window['window:open'](
-                          'resourcePreview',
-                          {
-                            current,
-                            list: mergedItems,
-                            index: idx
-                          },
-                          {
-                            sameDisplayAsSender: true
-                          }
-                        );
-                      }
+              {isDragging && selectionRect && (
+                <div
+                  className="absolute pointer-events-none border-2 border-primary/60 bg-primary/10 rounded"
+                  style={{
+                    left: selectionRect.left,
+                    top: selectionRect.top,
+                    width: selectionRect.right - selectionRect.left,
+                    height: selectionRect.bottom - selectionRect.top
+                  }}
+                />
+              )}
+            </div>
+
+            {/* 底部统计信息 */}
+            <div className="flex items-center h-8 text-xs text-muted-foreground justify-end px-4 shrink-0">
+              <span>
+                共 {mergedItems.length}/{totalCount} 个资源
+              </span>
+            </div>
+          </div>
+        </ContextMenuTrigger>
+
+        <ContextMenuContent className="min-w-[220px]">
+          {selectedCount > 0 ? (
+            <>
+              <div className="px-2 py-1.5 text-sm text-muted-foreground">已选择 {selectedCount} 项</div>
+              <ContextMenuSeparator />
+              {canRepairSelected && (
+                <>
+                  <div className="px-2 pb-1 text-xs text-muted-foreground">{getLinkedResourceSyncIssueDescription(selectedSyncIssue)}</div>
+                  {selectedSyncIssue === 'conflict' ? (
+                    <>
+                      <ContextMenuItem onSelect={handleViewConflictDiff}>查看差异</ContextMenuItem>
+                      <ContextMenuItem onSelect={() => handleResolveSelectedConflict('accept-disk')}>采用磁盘版本</ContextMenuItem>
+                      <ContextMenuItem onSelect={() => handleResolveSelectedConflict('copy-disk-snapshot')}>另存磁盘副本并确认</ContextMenuItem>
+                    </>
+                  ) : null}
+                  <ContextMenuItem onSelect={handleRescanSelectedLinkedResource}>重新扫描关联目录</ContextMenuItem>
+                  <ContextMenuItem onSelect={handleOpenSelectedContainingFolder}>打开所在目录</ContextMenuItem>
+                  <ContextMenuSeparator />
+                </>
+              )}
+              {canRevealSelected && (
+                <>
+                  <ContextMenuItem
+                    onSelect={async () => {
+                      if (!firstSelected) return;
+                      await window.YUA.resource.revealResource({ id: firstSelected });
                     }}
-                    draggable
-                    onDragStart={(e: React.DragEvent) => {
-                      // 如果当前 item 已在多选中，则拖拽这些被选中的；否则仅拖该项
-                      const ids = selected.has(item.id) && selected.size > 0 ? Array.from(selected) : [item.id];
+                  >
+                    {(window as any).YUA?.isWindows ? '在资源管理器中显示' : '在 Finder 中显示'}
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                </>
+              )}
+
+              {/* RSS 订阅专属选项 */}
+              {firstSelectedItem?.type === 'rss' && (
+                <>
+                  <ContextMenuItem
+                    onSelect={async () => {
+                      if (!firstSelected || !firstSelectedItem) return;
                       try {
-                        e.dataTransfer.setData('application/x-resource-ids', JSON.stringify(ids));
-                        e.dataTransfer.effectAllowed = 'move';
-                        e.dataTransfer.dropEffect = 'move';
-                      } catch {
-                        /* ignore */
+                        const result = await window.YUA.rss.fetchFeed({ resourceId: firstSelected, forceRefresh: true });
+                        if (result.success) {
+                          toast.success('刷新成功', { description: `获取到 ${result.data?.items.length || 0} 条内容` });
+                          onRefreshRss?.(firstSelected);
+                        } else {
+                          toast.error('刷新失败', { description: result.error });
+                        }
+                      } catch (error: any) {
+                        toast.error('刷新失败', { description: error?.message });
                       }
                     }}
-                    fillContainer
-                  />
-                </div>
-              );
-            })}
-
-            {isDragging && selectionRect && (
-              <div
-                className="absolute pointer-events-none border-2 border-primary/60 bg-primary/10 rounded"
-                style={{
-                  left: selectionRect.left,
-                  top: selectionRect.top,
-                  width: selectionRect.right - selectionRect.left,
-                  height: selectionRect.bottom - selectionRect.top
-                }}
-              />
-            )}
-          </div>
-
-          {/* 底部统计信息 */}
-          <div className="flex items-center h-8 text-xs text-muted-foreground justify-end px-4 shrink-0">
-            <span>
-              共 {mergedItems.length}/{totalCount} 个资源
-            </span>
-          </div>
-        </div>
-      </ContextMenuTrigger>
-
-      <ContextMenuContent className="min-w-[220px]">
-        {selectedCount > 0 ? (
-          <>
-            <div className="px-2 py-1.5 text-sm text-muted-foreground">已选择 {selectedCount} 项</div>
-            <ContextMenuSeparator />
-            {canRepairSelected && (
-              <>
-                <div className="px-2 pb-1 text-xs text-muted-foreground">{getLinkedResourceSyncIssueDescription(selectedSyncIssue)}</div>
-                {selectedSyncIssue === 'conflict' ? (
-                  <>
-                    <ContextMenuItem onSelect={() => handleResolveSelectedConflict('accept-disk')}>采用磁盘版本</ContextMenuItem>
-                    <ContextMenuItem onSelect={() => handleResolveSelectedConflict('copy-disk-snapshot')}>另存磁盘副本并确认</ContextMenuItem>
-                  </>
-                ) : null}
-                <ContextMenuItem onSelect={handleRescanSelectedLinkedResource}>重新扫描关联目录</ContextMenuItem>
-                <ContextMenuItem onSelect={handleOpenSelectedContainingFolder}>打开所在目录</ContextMenuItem>
-                <ContextMenuSeparator />
-              </>
-            )}
-            {canRevealSelected && (
-              <>
-                <ContextMenuItem
-                  onSelect={async () => {
-                    if (!firstSelected) return;
-                    await window.YUA.resource.revealResource({ id: firstSelected });
-                  }}
-                >
-                  {(window as any).YUA?.isWindows ? '在资源管理器中显示' : '在 Finder 中显示'}
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-              </>
-            )}
-
-            {/* RSS 订阅专属选项 */}
-            {firstSelectedItem?.type === 'rss' && (
-              <>
-                <ContextMenuItem
-                  onSelect={async () => {
-                    if (!firstSelected || !firstSelectedItem) return;
-                    try {
-                      const result = await window.YUA.rss.fetchFeed({ resourceId: firstSelected, forceRefresh: true });
-                      if (result.success) {
-                        toast.success('刷新成功', { description: `获取到 ${result.data?.items.length || 0} 条内容` });
-                        onRefreshRss?.(firstSelected);
-                      } else {
-                        toast.error('刷新失败', { description: result.error });
+                  >
+                    <TbRefresh className="mr-2 w-4 h-4" />
+                    刷新订阅
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    onSelect={() => {
+                      if (!firstSelectedItem) return;
+                      // 解析 metadata 获取 channelUrl
+                      const metadata = firstSelectedItem.metadata ? JSON.parse(firstSelectedItem.metadata) : {};
+                      const url = metadata.channelUrl || firstSelectedItem.url;
+                      if (url) {
+                        window.open(url, '_blank');
                       }
-                    } catch (error: any) {
-                      toast.error('刷新失败', { description: error?.message });
-                    }
-                  }}
-                >
-                  <TbRefresh className="mr-2 w-4 h-4" />
-                  刷新订阅
-                </ContextMenuItem>
-                <ContextMenuItem
-                  onSelect={() => {
-                    if (!firstSelectedItem) return;
-                    // 解析 metadata 获取 channelUrl
-                    const metadata = firstSelectedItem.metadata ? JSON.parse(firstSelectedItem.metadata) : {};
-                    const url = metadata.channelUrl || firstSelectedItem.url;
-                    if (url) {
-                      window.open(url, '_blank');
-                    }
-                  }}
-                >
-                  <TbExternalLink className="mr-2 w-4 h-4" />
-                  打开原始页面
-                </ContextMenuItem>
-                <ContextMenuItem
-                  onSelect={() => {
-                    if (!firstSelectedItem) return;
-                    onOpenRssSettings?.(firstSelectedItem);
-                  }}
-                >
-                  <TbSettings className="mr-2 w-4 h-4" />
-                  订阅设置
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-              </>
-            )}
+                    }}
+                  >
+                    <TbExternalLink className="mr-2 w-4 h-4" />
+                    打开原始页面
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    onSelect={() => {
+                      if (!firstSelectedItem) return;
+                      onOpenRssSettings?.(firstSelectedItem);
+                    }}
+                  >
+                    <TbSettings className="mr-2 w-4 h-4" />
+                    订阅设置
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                </>
+              )}
 
-            <ContextMenuSub>
-              <ContextMenuSubTrigger>
-                <TbLine className="mr-2" /> 执行任务
-              </ContextMenuSubTrigger>
-              <ContextMenuSubContent className="w-48">
-                {(() => {
-                  // 选中资源时，根据资源类型 + start.resourceKinds 过滤可用工作流
-                  // 同时过滤掉空白工作流
-                  // 只显示输入模式为 resource 的工作流
-                  const visibleWorkflows = workflows.filter((wf) => {
-                    // 过滤空白工作流
-                    if (wf.id === 'blank') return false;
-                    const inputMode = getWorkflowInputMode(wf);
-                    // 只保留 resource 模式的工作流
-                    if (inputMode !== 'resource') return false;
-                    if (!firstSelected) return false;
-                    const item = mergedItems.find((i) => i.id === firstSelected);
-                    if (!item) return false;
-                    const kind = getResourceKind(item);
-                    const kinds = getWorkflowResourceKinds(wf);
-                    if (!kinds || kinds.length === 0 || kinds.includes('any')) return true;
-                    return kinds.includes(kind);
-                  });
-
-                  return visibleWorkflows.length > 0 ? (
-                    visibleWorkflows.map((wf) => {
+              <ContextMenuSub>
+                <ContextMenuSubTrigger>
+                  <TbLine className="mr-2" /> 执行任务
+                </ContextMenuSubTrigger>
+                <ContextMenuSubContent className="w-48">
+                  {(() => {
+                    // 选中资源时，根据资源类型 + start.resourceKinds 过滤可用工作流
+                    // 同时过滤掉空白工作流
+                    // 只显示输入模式为 resource 的工作流
+                    const visibleWorkflows = workflows.filter((wf) => {
+                      // 过滤空白工作流
+                      if (wf.id === 'blank') return false;
                       const inputMode = getWorkflowInputMode(wf);
-                      return (
-                        <ContextMenuItem
-                          key={wf.id}
-                          onSelect={async () => {
-                            if (inputMode === 'resource') {
-                              // 资源模式需要选中资源
-                              if (!firstSelected) return;
-                              const item = mergedItems.find((i) => i.id === firstSelected);
-                              if (item) {
+                      // 只保留 resource 模式的工作流
+                      if (inputMode !== 'resource') return false;
+                      if (!firstSelected) return false;
+                      const item = mergedItems.find((i) => i.id === firstSelected);
+                      if (!item) return false;
+                      const kind = getResourceKind(item);
+                      const kinds = getWorkflowResourceKinds(wf);
+                      if (!kinds || kinds.length === 0 || kinds.includes('any')) return true;
+                      return kinds.includes(kind);
+                    });
+
+                    return visibleWorkflows.length > 0 ? (
+                      visibleWorkflows.map((wf) => {
+                        const inputMode = getWorkflowInputMode(wf);
+                        return (
+                          <ContextMenuItem
+                            key={wf.id}
+                            onSelect={async () => {
+                              if (inputMode === 'resource') {
+                                // 资源模式需要选中资源
+                                if (!firstSelected) return;
+                                const item = mergedItems.find((i) => i.id === firstSelected);
+                                if (item) {
+                                  await runWorkflow({
+                                    defId: wf.id,
+                                    input: { resource: item, resourceId: item.id },
+                                    metadata: {
+                                      resourceId: item.id,
+                                      resourceName: item.title || 'Unknown',
+                                      thumbnailPath: item.thumbnailPath,
+                                      workspaceId: item.workspaceId
+                                    },
+                                    onSuccess: () => {
+                                      toast.success(`已开始执行工作流: ${wf.name}`);
+                                    }
+                                  });
+                                }
+                              } else {
+                                // 其他模式（text/url/file）不需要资源，直接执行
+                                // 引擎会自动检测并弹出输入窗口
                                 await runWorkflow({
                                   defId: wf.id,
-                                  input: { resource: item, resourceId: item.id },
+                                  input: {},
                                   metadata: {
-                                    resourceId: item.id,
-                                    resourceName: item.title || 'Unknown',
-                                    thumbnailPath: item.thumbnailPath,
-                                    workspaceId: item.workspaceId
+                                    workspaceId,
+                                    folderId
                                   },
                                   onSuccess: () => {
                                     toast.success(`已开始执行工作流: ${wf.name}`);
                                   }
                                 });
                               }
-                            } else {
+                            }}
+                          >
+                            <div className="flex items-center gap-2">
+                              {wf.icon ? <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center" dangerouslySetInnerHTML={{ __html: wf.icon }} /> : null}
+                              <span>{wf.name}</span>
+                            </div>
+                          </ContextMenuItem>
+                        );
+                      })
+                    ) : (
+                      <ContextMenuItem disabled>无可用工作流</ContextMenuItem>
+                    );
+                  })()}
+                </ContextMenuSubContent>
+              </ContextMenuSub>
+              {/* Spleeter 音频分离 - 仅对单个音频文件显示 */}
+              {selectedCount === 1 && firstSelectedItem?.filePath && isAudioFile(firstSelectedItem.filePath) && (
+                <>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem onSelect={handleSpleeterSeparate}>
+                    <TbMusic className="mr-2 w-4 h-4" />
+                    音频背景分离…
+                  </ContextMenuItem>
+                </>
+              )}
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                onSelect={() => {
+                  if (!firstSelected) return;
+                  const item = mergedItems.find((i) => i.id === firstSelected);
+                  setRenameValue(item?.title || item?.filePath || item?.url || '');
+                  setRenamingId(firstSelected);
+                  setRenameDialogOpen(true);
+                }}
+              >
+                重命名…
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                className="flex items-center gap-2 text-destructive"
+                onSelect={() => {
+                  const ids = Array.from(selected);
+                  if (ids.length === 0) return;
+                  // 优先使用父组件传递的删除函数，确保本地状态同步更新
+                  if (onDeleteMany) {
+                    onDeleteMany(ids);
+                  } else if (onDelete) {
+                    ids.forEach((id) => onDelete(id));
+                  } else if (window?.YUA?.resource?.deleteResources) {
+                    // 如果没有传递删除函数，则直接调用主进程 API（不推荐）
+                    window.YUA.resource.deleteResources({ ids });
+                  }
+                }}
+              >
+                <TbTrash /> 删除
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem onSelect={() => setSelected(new Set(mergedItems.map((i) => i.id)))}>全选</ContextMenuItem>
+              <ContextMenuItem onSelect={() => clearSelection()}>取消选择</ContextMenuItem>
+            </>
+          ) : (
+            <>
+              <ContextMenuItem
+                onSelect={async () => {
+                  await handleRevealCurrentFolder();
+                }}
+              >
+                {(window as any).YUA?.isWindows ? '在资源管理器中显示' : '在 Finder 中显示'}
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuSub>
+                <ContextMenuSubTrigger>
+                  <TbLine className="mr-2" /> 执行任务
+                </ContextMenuSubTrigger>
+                <ContextMenuSubContent className="w-48">
+                  {(() => {
+                    // 只显示不需要资源的工作流，并过滤掉空白工作流
+                    const visibleWorkflows = workflows.filter((wf) => {
+                      // 过滤空白工作流
+                      if (wf.id === 'blank') return false;
+                      // 只显示不需要资源的工作流
+                      return !workflowRequiresResource(wf);
+                    });
+
+                    return visibleWorkflows.length > 0 ? (
+                      visibleWorkflows.map((wf) => {
+                        return (
+                          <ContextMenuItem
+                            key={wf.id}
+                            onSelect={async () => {
                               // 其他模式（text/url/file）不需要资源，直接执行
                               // 引擎会自动检测并弹出输入窗口
                               await runWorkflow({
@@ -1089,230 +1219,163 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                                   toast.success(`已开始执行工作流: ${wf.name}`);
                                 }
                               });
-                            }
-                          }}
-                        >
-                          <div className="flex items-center gap-2">
-                            {wf.icon ? <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center" dangerouslySetInnerHTML={{ __html: wf.icon }} /> : null}
-                            <span>{wf.name}</span>
-                          </div>
-                        </ContextMenuItem>
-                      );
-                    })
-                  ) : (
-                    <ContextMenuItem disabled>无可用工作流</ContextMenuItem>
-                  );
-                })()}
-              </ContextMenuSubContent>
-            </ContextMenuSub>
-            {/* Spleeter 音频分离 - 仅对单个音频文件显示 */}
-            {selectedCount === 1 && firstSelectedItem?.filePath && isAudioFile(firstSelectedItem.filePath) && (
-              <>
-                <ContextMenuSeparator />
-                <ContextMenuItem onSelect={handleSpleeterSeparate}>
-                  <TbMusic className="mr-2 w-4 h-4" />
-                  音频背景分离…
-                </ContextMenuItem>
-              </>
-            )}
-            <ContextMenuSeparator />
-            <ContextMenuItem
-              onSelect={() => {
-                if (!firstSelected) return;
-                const item = mergedItems.find((i) => i.id === firstSelected);
-                setRenameValue(item?.title || item?.filePath || item?.url || '');
-                setRenamingId(firstSelected);
-                setRenameDialogOpen(true);
-              }}
-            >
-              重命名…
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem
-              className="flex items-center gap-2 text-destructive"
-              onSelect={() => {
-                const ids = Array.from(selected);
-                if (ids.length === 0) return;
-                // 优先使用父组件传递的删除函数，确保本地状态同步更新
-                if (onDeleteMany) {
-                  onDeleteMany(ids);
-                } else if (onDelete) {
-                  ids.forEach((id) => onDelete(id));
-                } else if (window?.YUA?.resource?.deleteResources) {
-                  // 如果没有传递删除函数，则直接调用主进程 API（不推荐）
-                  window.YUA.resource.deleteResources({ ids });
-                }
-              }}
-            >
-              <TbTrash /> 删除
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem onSelect={() => setSelected(new Set(mergedItems.map((i) => i.id)))}>全选</ContextMenuItem>
-            <ContextMenuItem onSelect={() => clearSelection()}>取消选择</ContextMenuItem>
-          </>
-        ) : (
-          <>
-            <ContextMenuItem
-              onSelect={async () => {
-                await handleRevealCurrentFolder();
-              }}
-            >
-              {(window as any).YUA?.isWindows ? '在资源管理器中显示' : '在 Finder 中显示'}
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuSub>
-              <ContextMenuSubTrigger>
-                <TbLine className="mr-2" /> 执行任务
-              </ContextMenuSubTrigger>
-              <ContextMenuSubContent className="w-48">
-                {(() => {
-                  // 只显示不需要资源的工作流，并过滤掉空白工作流
-                  const visibleWorkflows = workflows.filter((wf) => {
-                    // 过滤空白工作流
-                    if (wf.id === 'blank') return false;
-                    // 只显示不需要资源的工作流
-                    return !workflowRequiresResource(wf);
-                  });
-
-                  return visibleWorkflows.length > 0 ? (
-                    visibleWorkflows.map((wf) => {
-                      return (
-                        <ContextMenuItem
-                          key={wf.id}
-                          onSelect={async () => {
-                            // 其他模式（text/url/file）不需要资源，直接执行
-                            // 引擎会自动检测并弹出输入窗口
-                            await runWorkflow({
-                              defId: wf.id,
-                              input: {},
-                              metadata: {
-                                workspaceId,
-                                folderId
-                              },
-                              onSuccess: () => {
-                                toast.success(`已开始执行工作流: ${wf.name}`);
-                              }
-                            });
-                          }}
-                        >
-                          <div className="flex items-center gap-2">
-                            {wf.icon ? <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center" dangerouslySetInnerHTML={{ __html: wf.icon }} /> : null}
-                            <span>{wf.name}</span>
-                          </div>
-                        </ContextMenuItem>
-                      );
-                    })
-                  ) : (
-                    <ContextMenuItem disabled>无可用工作流</ContextMenuItem>
-                  );
-                })()}
-              </ContextMenuSubContent>
-            </ContextMenuSub>
-            <ContextMenuSeparator />
-            <ContextMenuItem
-              onSelect={async () => {
-                await handleCreateSubfolder();
-              }}
-            >
-              <TbFolderPlus className="mr-2" /> 新建文件夹
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem onSelect={() => setSelected(new Set(mergedItems.map((i) => i.id)))}>全选</ContextMenuItem>
-          </>
-        )}
-      </ContextMenuContent>
-      <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>重命名资源</DialogTitle>
-          </DialogHeader>
-          <div className="py-2">
-            <Input
-              autoFocus
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleRenameConfirm();
-                }
-              }}
-              placeholder="输入新名称"
-            />
-          </div>
-          <DialogFooter>
-            <Button size="sm" variant="outline" className="w-20" onClick={() => setRenameDialogOpen(false)}>
-              取消
-            </Button>
-            <Button size="sm" className="w-20" onClick={handleRenameConfirm} disabled={!renameValue.trim()}>
-              确定
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Spleeter 音频分离对话框 */}
-      <Dialog open={spleeterDialogOpen} onOpenChange={setSpleeterDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <TbMusic className="w-5 h-5" />
-              音频背景分离
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            {spleeterStatus === 'processing' ? (
-              <div className="flex flex-col items-center gap-4">
-                <TbLoader2 className="w-12 h-12 text-primary animate-spin" />
-                <div className="text-center">
-                  <div className="text-sm font-medium">正在处理音频...</div>
-                  <div className="text-xs text-muted-foreground mt-1">{spleeterProgress.toFixed(0)}%</div>
-                </div>
-                <Progress value={spleeterProgress} className="w-full" />
-              </div>
-            ) : spleeterStatus === 'success' ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-green-600">
-                  <TbRefresh className="w-5 h-5" />
-                  <span className="font-medium">分离完成</span>
-                </div>
-                {spleeterResult && (
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center justify-between p-2 bg-muted rounded">
-                      <span>伴奏文件</span>
-                      <span className="font-mono text-xs text-muted-foreground truncate max-w-[200px]">{spleeterResult.accompaniment}</span>
-                    </div>
-                    <div className="flex items-center justify-between p-2 bg-muted rounded">
-                      <span>人声文件</span>
-                      <span className="font-mono text-xs text-muted-foreground truncate max-w-[200px]">{spleeterResult.vocals}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : spleeterStatus === 'error' ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-destructive">
-                  <TbTrash className="w-5 h-5" />
-                  <span className="font-medium">处理失败</span>
-                </div>
-                <div className="text-sm text-muted-foreground">{spleeterError}</div>
-              </div>
-            ) : null}
-          </div>
-          <DialogFooter>
-            {spleeterStatus === 'success' || spleeterStatus === 'error' ? (
-              <Button size="sm" className="w-20" onClick={handleSpleeterDialogClose}>
-                关闭
-              </Button>
-            ) : (
-              <Button size="sm" variant="outline" className="w-20" onClick={handleSpleeterDialogClose} disabled={spleeterStatus === 'processing'}>
+                            }}
+                          >
+                            <div className="flex items-center gap-2">
+                              {wf.icon ? <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center" dangerouslySetInnerHTML={{ __html: wf.icon }} /> : null}
+                              <span>{wf.name}</span>
+                            </div>
+                          </ContextMenuItem>
+                        );
+                      })
+                    ) : (
+                      <ContextMenuItem disabled>无可用工作流</ContextMenuItem>
+                    );
+                  })()}
+                </ContextMenuSubContent>
+              </ContextMenuSub>
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                onSelect={async () => {
+                  await handleCreateSubfolder();
+                }}
+              >
+                <TbFolderPlus className="mr-2" /> 新建文件夹
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem onSelect={() => setSelected(new Set(mergedItems.map((i) => i.id)))}>全选</ContextMenuItem>
+            </>
+          )}
+        </ContextMenuContent>
+        <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>重命名资源</DialogTitle>
+            </DialogHeader>
+            <div className="py-2">
+              <Input
+                autoFocus
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleRenameConfirm();
+                  }
+                }}
+                placeholder="输入新名称"
+              />
+            </div>
+            <DialogFooter>
+              <Button size="sm" variant="outline" className="w-20" onClick={() => setRenameDialogOpen(false)}>
                 取消
               </Button>
-            )}
+              <Button size="sm" className="w-20" onClick={handleRenameConfirm} disabled={!renameValue.trim()}>
+                确定
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Spleeter 音频分离对话框 */}
+        <Dialog open={spleeterDialogOpen} onOpenChange={setSpleeterDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <TbMusic className="w-5 h-5" />
+                音频背景分离
+              </DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              {spleeterStatus === 'processing' ? (
+                <div className="flex flex-col items-center gap-4">
+                  <TbLoader2 className="w-12 h-12 text-primary animate-spin" />
+                  <div className="text-center">
+                    <div className="text-sm font-medium">正在处理音频...</div>
+                    <div className="text-xs text-muted-foreground mt-1">{spleeterProgress.toFixed(0)}%</div>
+                  </div>
+                  <Progress value={spleeterProgress} className="w-full" />
+                </div>
+              ) : spleeterStatus === 'success' ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-green-600">
+                    <TbRefresh className="w-5 h-5" />
+                    <span className="font-medium">分离完成</span>
+                  </div>
+                  {spleeterResult && (
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center justify-between p-2 bg-muted rounded">
+                        <span>伴奏文件</span>
+                        <span className="font-mono text-xs text-muted-foreground truncate max-w-[200px]">{spleeterResult.accompaniment}</span>
+                      </div>
+                      <div className="flex items-center justify-between p-2 bg-muted rounded">
+                        <span>人声文件</span>
+                        <span className="font-mono text-xs text-muted-foreground truncate max-w-[200px]">{spleeterResult.vocals}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : spleeterStatus === 'error' ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-destructive">
+                    <TbTrash className="w-5 h-5" />
+                    <span className="font-medium">处理失败</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">{spleeterError}</div>
+                </div>
+              ) : null}
+            </div>
+            <DialogFooter>
+              {spleeterStatus === 'success' || spleeterStatus === 'error' ? (
+                <Button size="sm" className="w-20" onClick={handleSpleeterDialogClose}>
+                  关闭
+                </Button>
+              ) : (
+                <Button size="sm" variant="outline" className="w-20" onClick={handleSpleeterDialogClose} disabled={spleeterStatus === 'processing'}>
+                  取消
+                </Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </ContextMenu>
+
+      <Dialog open={conflictDiffOpen} onOpenChange={setConflictDiffOpen}>
+
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>文件冲突差异</DialogTitle>
+          </DialogHeader>
+          {conflictDiffInfo && (
+            <div className="space-y-3 text-sm">
+              <div className="truncate text-xs text-muted-foreground">{conflictDiffInfo.db.filePath}</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-md border p-3 space-y-2">
+                  <div className="font-medium text-muted-foreground">数据库快照</div>
+                  <div>大小: {conflictDiffInfo.db.sizeBytes != null ? formatBytes(conflictDiffInfo.db.sizeBytes) : '未知'}</div>
+                  <div>修改时间: {conflictDiffInfo.db.mtimeMs ? new Date(conflictDiffInfo.db.mtimeMs).toLocaleString() : '未知'}</div>
+                </div>
+                <div className="rounded-md border p-3 space-y-2 border-amber-500/50">
+                  <div className="font-medium text-amber-600">当前磁盘</div>
+                  {conflictDiffInfo.disk.exists ? (
+                    <>
+                      <div>大小: {conflictDiffInfo.disk.sizeBytes != null ? formatBytes(conflictDiffInfo.disk.sizeBytes) : '未知'}</div>
+                      <div>修改时间: {conflictDiffInfo.disk.mtimeMs ? new Date(conflictDiffInfo.disk.mtimeMs).toLocaleString() : '未知'}</div>
+                    </>
+                  ) : (
+                    <div className="text-destructive">文件不存在</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button size="sm" variant="outline" onClick={() => setConflictDiffOpen(false)}>关闭</Button>
+            <Button size="sm" onClick={() => { setConflictDiffOpen(false); handleResolveSelectedConflict('accept-disk'); }}>采用磁盘版本</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </ContextMenu>
+    </>
   );
 };
 

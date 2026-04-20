@@ -60,6 +60,8 @@ interface FolderSidebarProps {
   workspaceId?: string;
   onRescanLinkedFolder?: (folderId: string) => Promise<void>;
   onUnlinkLinkedFolder?: (folderId: string) => Promise<void>;
+  onDeleteLinkedRoot?: (folderId: string) => Promise<void>;
+  onToggleLinkedWatcher?: (folderId: string, enabled: boolean) => Promise<void>;
 }
 
 const FolderSidebar = ({
@@ -77,7 +79,9 @@ const FolderSidebar = ({
   onInlineRename,
   workspaceId,
   onRescanLinkedFolder,
-  onUnlinkLinkedFolder
+  onUnlinkLinkedFolder,
+  onDeleteLinkedRoot,
+  onToggleLinkedWatcher
 }: FolderSidebarProps): React.ReactElement => {
   const tree = React.useMemo(() => buildTree(folders), [folders]);
   const parentMap = React.useMemo(() => {
@@ -375,6 +379,8 @@ const FolderSidebar = ({
                 parentMap={parentMap}
                 onRescanLinkedFolder={onRescanLinkedFolder}
                 onUnlinkLinkedFolder={onUnlinkLinkedFolder}
+                onDeleteLinkedRoot={onDeleteLinkedRoot}
+                onToggleLinkedWatcher={onToggleLinkedWatcher}
               />
             ))}
           </SidebarMenu>

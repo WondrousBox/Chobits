@@ -5,23 +5,23 @@ import type { IpcParams, PartialByKey } from '../types';
 export type Resource = {
   id: string;
   type:
-    | 'image'
-    | 'video'
-    | 'audio'
-    | 'text'
-    | 'link'
-    | 'file'
-    | 'document'
-    | 'translation'
-    | 'summary'
-    | 'mindmap'
-    | 'note'
-    | 'screenshot'
-    | 'segments'
-    | 'subtitle-edit'
-    | 'tts-track'
-    | 'media-track'
-    | 'other';
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'text'
+  | 'link'
+  | 'file'
+  | 'document'
+  | 'translation'
+  | 'summary'
+  | 'mindmap'
+  | 'note'
+  | 'screenshot'
+  | 'segments'
+  | 'subtitle-edit'
+  | 'tts-track'
+  | 'media-track'
+  | 'other';
   workspaceId?: string;
   folderId?: string;
   originType?: 'workspace' | 'linked';
@@ -85,6 +85,10 @@ export type ResourceIpcParams = {
   resolveLinkedResourceConflict: IpcParams<
     [{ id: string; action: 'accept-disk' | 'copy-disk-snapshot' }],
     { success: boolean; data?: { resource?: Resource; copy?: Resource | null }; error?: string }
+  >;
+  getLinkedResourceDiskInfo: IpcParams<
+    [{ id: string }],
+    { success: boolean; data?: { db: { sizeBytes?: number | null; mtimeMs?: number | null; title?: string | null; filePath?: string | null }; disk: { sizeBytes?: number; mtimeMs?: number; exists: boolean } }; error?: string }
   >;
   moveResourcesToWorkspace: IpcParams<[{ ids: string[]; workspaceId: string }], { success?: boolean; moved: number; data?: Resource[]; error?: string }>;
   /** 批量移动资源到指定文件夹（或移出文件夹）。包含跨工作空间校验。 */
@@ -274,6 +278,7 @@ const methods: Array<keyof ResourceIpcParams> = [
   'revealResource',
   'renameResource',
   'resolveLinkedResourceConflict',
+  'getLinkedResourceDiskInfo',
   'moveResourcesToWorkspace',
   'resource:moveToFolder',
   'rebuildResourceThumbnail',

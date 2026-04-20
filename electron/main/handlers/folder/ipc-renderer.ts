@@ -155,6 +155,19 @@ export type FolderIpcParams = {
   'folder.softDelete': IpcParams<[{ ids: string[] }], { success: boolean; data: Folder[] }>;
   'folder.restore': IpcParams<[{ ids: string[] }], { success: boolean; data: Folder[] }>;
   'folder.delete': IpcParams<[{ ids: string[]; deleteChildren?: boolean }], { success: boolean; deleted: number }>;
+  'folder.toggleLinkedMountWatcher': IpcParams<
+    [{ rootFolderId: string; enabled: boolean }],
+    { success: boolean; error?: string; data?: { watchEnabled: boolean } }
+  >;
+  'folder.deleteLinkedRoot': IpcParams<
+    [{ rootFolderId: string }],
+    {
+      success: boolean;
+      canceled?: boolean;
+      error?: string;
+      data?: { mountId: string; deletedFolderCount: number; deletedResourceCount: number };
+    }
+  >;
   'folder.getMasonryLayout': IpcParams<[{ folderId: string }], { success: boolean; data?: any; error?: string }>;
   'folder.saveMasonryLayout': IpcParams<[{ folderId: string; layout: any }], { success: boolean; error?: string }>;
 };
@@ -175,6 +188,8 @@ const methods: Array<keyof FolderIpcParams> = [
   'folder.softDelete',
   'folder.restore',
   'folder.delete',
+  'folder.toggleLinkedMountWatcher',
+  'folder.deleteLinkedRoot',
   'folder.getMasonryLayout',
   'folder.saveMasonryLayout'
 ];

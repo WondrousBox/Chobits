@@ -6,6 +6,13 @@ import { Button } from '@/components/ui/button';
 import { BroadcastChannelManager, CHANNEL_NAMES, type MediaSyncMessage } from '@/utils/broadcastChannels';
 
 import type { ResourceItem } from '../types';
+import {
+  getLinkedResourceSyncIssue,
+  getLinkedResourceSyncIssueDescription,
+  getLinkedResourceSyncIssueLabel,
+  openContainingFolderForResource,
+  rescanLinkedResourceRoot
+} from '../utils/linkedResourceSync';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '../utils/resourceProtocol';
 import { isSubtitleFile } from '../utils/subtitleUtils';
 import { AnnotationAlertOverlay, ImagePlayer, MediaPlayer, SubtitleOverlay } from './Players';
@@ -165,6 +172,7 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
 
   const title = data.title || data.filePath || data.url || data.id;
   const fileSrc = data.filePath ? makeResSrc(data.filePath) : data.url;
+  const syncIssue = getLinkedResourceSyncIssue(data);
 
   // 渲染主要内容（播放器）- 仅用于视频、音频、图片等媒体类型
   // 文本类型（字幕、JSON、TXT等）将在"内容"Tab 中显示
@@ -290,8 +298,38 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
 
       {/* 主内容区 + 标签区 */}
       <div className="flex-1 overflow-hidden flex flex-col">
-        {/* 播放器区域 - 仅用于视频、音频、图片等媒体类型 */}
-        {(isVideo || isAudio || isImage) && <div className="shrink-0">{renderMainContent()}</div>}
+        {/* linked 资源同步问题提示 */}
+        {syncIssue && (
+          <div className={`shrink-0 px-4 py-3 text-sm flex flex-col gap-2 ${syncIssue === 'missing' ? 'bg-destructive/10 text-destructive' : 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400'}`}>
+            <div className="font-medium">{getLinkedResourceSyncIssueLabel(syncIssue)}</div>
+            <div className="text-xs opacity-80">{getLinkedResourceSyncIssueDescription(syncIssue)}</div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs h-7"
+                onClick={async () => {
+                  await rescanLinkedResourceRoot(data);
+                }}
+              >
+                重新扫描关联目录
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs h-7"
+                onClick={async () => {
+                  await openContainingFolderForResource(data);
+                }}
+              >
+                打开所在目录
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* 播放器区域 - 仅用于视频、音频、图片等媒体类型；缺失的 linked 资源跳过播放器 */}
+        {(isVideo || isAudio || isImage) && syncIssue !== 'missing' && <div className="shrink-0">{renderMainContent()}</div>}
 
         {/* 功能标签区域 */}
         <ResourceTabs

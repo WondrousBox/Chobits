@@ -27,6 +27,8 @@ interface ResourceSidebarProps {
   handleDeleteFolder: (id: string) => void;
   handleRescanLinkedFolder: (id: string) => Promise<void>;
   handleUnlinkLinkedFolder: (id: string) => Promise<void>;
+  handleDeleteLinkedRoot: (id: string) => Promise<void>;
+  handleToggleLinkedWatcher: (id: string, enabled: boolean) => Promise<void>;
   folderAPI: any;
   onOpenSettings: (category?: string) => void;
 }
@@ -51,6 +53,8 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
   handleDeleteFolder,
   handleRescanLinkedFolder,
   handleUnlinkLinkedFolder,
+  handleDeleteLinkedRoot,
+  handleToggleLinkedWatcher,
   folderAPI,
   onOpenSettings
 }) => {
@@ -222,6 +226,8 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
           onDelete={handleDeleteFolder}
           onRescanLinkedFolder={handleRescanLinkedFolder}
           onUnlinkLinkedFolder={handleUnlinkLinkedFolder}
+          onDeleteLinkedRoot={handleDeleteLinkedRoot}
+          onToggleLinkedWatcher={handleToggleLinkedWatcher}
         />
       </SidebarContent>
       <SidebarFooter>

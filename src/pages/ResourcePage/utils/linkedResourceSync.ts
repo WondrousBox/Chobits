@@ -101,6 +101,24 @@ export function getResolveLinkedResourceConflictErrorMessage(error?: string | nu
   }
 }
 
+export type LinkedResourceDiskInfo = {
+  db: { sizeBytes?: number | null; mtimeMs?: number | null; title?: string | null; filePath?: string | null };
+  disk: { sizeBytes?: number; mtimeMs?: number; exists: boolean };
+};
+
+export async function getLinkedResourceDiskInfo(
+  item: Pick<ResourceItem, 'id' | 'originType'>
+): Promise<{ success: boolean; data?: LinkedResourceDiskInfo; error?: string }> {
+  if (item.originType !== 'linked') {
+    return { success: false, error: 'linked-resource-required' };
+  }
+  const resourceApi: any = window.YUA?.resource;
+  if (!resourceApi?.getLinkedResourceDiskInfo) {
+    return { success: false, error: 'unsupported' };
+  }
+  return resourceApi.getLinkedResourceDiskInfo({ id: item.id });
+}
+
 export async function findLinkedRootFolderId(startFolderId?: string | null): Promise<string | null> {
   const folderApi: any = window.YUA?.folder;
   if (!startFolderId || !folderApi?.['folder.get']) return null;

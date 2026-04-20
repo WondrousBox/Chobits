@@ -254,6 +254,51 @@ const ResourcePage: React.FC = () => {
     [folderAPI, folderFilter, load, loadFolders, loadTags, navigate, saveCurrentFolder, wsFilter]
   );
 
+  const handleDeleteLinkedRoot = useCallback(
+    async (folderId: string) => {
+      try {
+        const result = await folderAPI?.['folder.deleteLinkedRoot']?.({ rootFolderId: folderId });
+        if ((result as any)?.canceled) return;
+        if (!result?.success) {
+          toast.error('Delete failed', { description: (result as any)?.error || 'unknown' });
+          return;
+        }
+
+        if (folderFilter === folderId) {
+          setFavoriteFilter(false);
+          setFolderFilter('');
+          saveCurrentFolder('');
+          navigate('/resources/browse', { replace: true });
+        }
+
+        await Promise.all([load(), loadFolders(wsFilter), loadTags(wsFilter)]);
+        toast.success('Linked folder deleted', {
+          description: `${(result as any)?.data?.deletedResourceCount ?? 0} resources removed`
+        });
+      } catch (error: any) {
+        toast.error('Delete failed', { description: error?.message || String(error) });
+      }
+    },
+    [folderAPI, folderFilter, load, loadFolders, loadTags, navigate, saveCurrentFolder, wsFilter]
+  );
+
+  const handleToggleLinkedWatcher = useCallback(
+    async (folderId: string, enabled: boolean) => {
+      try {
+        const result = await folderAPI?.['folder.toggleLinkedMountWatcher']?.({ rootFolderId: folderId, enabled });
+        if (!result?.success) {
+          toast.error('Toggle watcher failed', { description: (result as any)?.error || 'unknown' });
+          return;
+        }
+        await loadFolders(wsFilter);
+        toast.success(enabled ? 'Watcher enabled' : 'Watcher disabled');
+      } catch (error: any) {
+        toast.error('Toggle watcher failed', { description: error?.message || String(error) });
+      }
+    },
+    [folderAPI, loadFolders, wsFilter]
+  );
+
   const hasFavorites = useMemo(() => {
     if (!wsFilter) return false;
     const rows = list.filter((r: any) => r.workspaceId === wsFilter);
@@ -512,6 +557,8 @@ const ResourcePage: React.FC = () => {
           handleDeleteFolder={handleDeleteFolder}
           handleRescanLinkedFolder={handleRescanLinkedFolder}
           handleUnlinkLinkedFolder={handleUnlinkLinkedFolder}
+          handleDeleteLinkedRoot={handleDeleteLinkedRoot}
+          handleToggleLinkedWatcher={handleToggleLinkedWatcher}
           folderAPI={folderAPI}
           onOpenSettings={(category) => setSettingsModalCategory((category as SettingsCategory) || 'preferences')}
         />

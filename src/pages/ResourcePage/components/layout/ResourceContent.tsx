@@ -124,6 +124,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
   // AI 侧边对话栏状态
   const [aiChatOpen, setAiChatOpen] = useState(false);
   const [missingRepairOpen, setMissingRepairOpen] = useState(false);
+  const [bulkRepairProgress, setBulkRepairProgress] = useState<{ total: number; done: number; action: string } | null>(null);
 
   // 工作流列表（提升到父组件，避免 SelectionActionBar 每次挂载时重新加载）
   const [workflows, setWorkflows] = useState<any[]>([]);
@@ -133,7 +134,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
       .then((defs: any[]) => {
         setWorkflows(defs || []);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // 预览面板状态
@@ -274,20 +275,26 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
 
   const handleBulkRecreateMissingFolders = useCallback(async (): Promise<void> => {
     let repaired = 0;
+    setBulkRepairProgress({ total: missingLinkedFolders.length, done: 0, action: 'recreate' });
     for (const folder of missingLinkedFolders) {
       const result = await recreateLinkedMissingDirectory(folder.id);
       if (result?.success) repaired += 1;
+      setBulkRepairProgress((prev) => (prev ? { ...prev, done: (prev.done || 0) + 1 } : null));
     }
+    setBulkRepairProgress(null);
     await refreshAfterFolderRepair();
     toast.success('批量重建完成', { description: `已处理 ${repaired}/${missingLinkedFolders.length} 个缺失目录。` });
   }, [missingLinkedFolders, refreshAfterFolderRepair]);
 
   const handleBulkIgnoreMissingFolders = useCallback(async (): Promise<void> => {
     let repaired = 0;
+    setBulkRepairProgress({ total: missingLinkedFolders.length, done: 0, action: 'ignore' });
     for (const folder of missingLinkedFolders) {
       const result = await ignoreLinkedMissingDirectory(folder.id);
       if (result?.success) repaired += 1;
+      setBulkRepairProgress((prev) => (prev ? { ...prev, done: (prev.done || 0) + 1 } : null));
     }
+    setBulkRepairProgress(null);
     await refreshAfterFolderRepair();
     toast.success('批量忽略完成', { description: `已处理 ${repaired}/${missingLinkedFolders.length} 个缺失目录。` });
   }, [missingLinkedFolders, refreshAfterFolderRepair]);
@@ -615,43 +622,59 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
         </div>
       </div>
 
-      <Dialog open={missingRepairOpen} onOpenChange={setMissingRepairOpen}>
+      <Dialog open={missingRepairOpen} onOpenChange={(open) => { if (!bulkRepairProgress) setMissingRepairOpen(open); }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>缺失关联目录</DialogTitle>
           </DialogHeader>
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-sm text-muted-foreground">共 {missingLinkedFolders.length} 个目录需要处理</div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={handleBulkRecreateMissingFolders}>
-                <TbFolderPlus className="h-4 w-4" /> 全部重建
-              </Button>
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={handleBulkIgnoreMissingFolders}>
-                <TbEyeOff className="h-4 w-4" /> 全部忽略
-              </Button>
+          {bulkRepairProgress ? (
+            <div className="space-y-3 py-2">
+              <div className="text-sm text-muted-foreground">
+                正在{bulkRepairProgress.action === 'recreate' ? '重建' : '忽略'}... {bulkRepairProgress.done}/{bulkRepairProgress.total}
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full bg-primary transition-all duration-200"
+                  style={{ width: `${(bulkRepairProgress.done / bulkRepairProgress.total) * 100}%` }}
+                />
+              </div>
             </div>
-          </div>
-          <div className="max-h-[50vh] overflow-auto rounded-md border">
-            {missingLinkedFolders.map((folder) => (
-              <div key={folder.id} className="flex items-center gap-3 border-b px-3 py-2 last:border-b-0">
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">{folder.name}</div>
-                  <div className="truncate text-xs text-muted-foreground">{folder.relativePath || folder.id}</div>
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <Button variant="ghost" size="icon" className="h-8 w-8" title="选择新路径重连" onClick={() => handleReconnectMissingFolder(folder.id)}>
-                    <TbFolderOpen className="h-4 w-4" />
+          ) : (
+            <>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm text-muted-foreground">共 {missingLinkedFolders.length} 个目录需要处理</div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={handleBulkRecreateMissingFolders}>
+                    <TbFolderPlus className="h-4 w-4" /> 全部重建
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" title="在原位置重建目录" onClick={() => handleRecreateMissingFolder(folder.id)}>
-                    <TbFolderPlus className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" title="忽略缺失目录" onClick={() => handleIgnoreMissingFolder(folder.id)}>
-                    <TbEyeOff className="h-4 w-4" />
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={handleBulkIgnoreMissingFolders}>
+                    <TbEyeOff className="h-4 w-4" /> 全部忽略
                   </Button>
                 </div>
               </div>
-            ))}
-          </div>
+              <div className="max-h-[50vh] overflow-auto rounded-md border">
+                {missingLinkedFolders.map((folder) => (
+                  <div key={folder.id} className="flex items-center gap-3 border-b px-3 py-2 last:border-b-0">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">{folder.name}</div>
+                      <div className="truncate text-xs text-muted-foreground">{folder.relativePath || folder.id}</div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title="选择新路径重连" onClick={() => handleReconnectMissingFolder(folder.id)}>
+                        <TbFolderOpen className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title="在原位置重建目录" onClick={() => handleRecreateMissingFolder(folder.id)}>
+                        <TbFolderPlus className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title="忽略缺失目录" onClick={() => handleIgnoreMissingFolder(folder.id)}>
+                        <TbEyeOff className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -789,7 +812,7 @@ const SelectionActionBar: React.FC<SelectionActionBarProps> = ({ selectedItems, 
             thumbnailPath: item.thumbnailPath,
             workspaceId: item.workspaceId
           },
-          onSuccess: () => {}
+          onSuccess: () => { }
         });
       }
       toast.success(`已开始对 ${selectedResources.length} 个资源执行工作流: ${wf.name}`);
