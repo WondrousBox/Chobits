@@ -8,8 +8,8 @@ import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
 import { getOrm } from '../../db';
 import { FoldersRepo, LinkedFolderMountsRepo, RecycleBinRepo, ResourcesRepo, WorkspacesRepo } from '../../db/repositories';
-import { folders, type LinkedFolderMountRow, recycle_bin, resources } from '../../db/schema';
-import { linkLocalDirectory, rescanLinkedDirectoryByFolderId, unlinkLinkedDirectoryByFolderId } from './linked-sync';
+import { folders, linked_folder_mounts, type LinkedFolderMountRow, recycle_bin, resources } from '../../db/schema';
+import { linkLocalDirectory, rescanLinkedDirectoryByFolderId, startLinkedMountWatcher, stopLinkedMountWatcher, unlinkLinkedDirectoryByFolderId } from './linked-sync';
 import { ensureUniqueEntryName, getLinkedFolderContext, joinRelativePath, movePathSafe, normalizeRelativePath, replaceRelativePathPrefix } from './linked-utils';
 import { getWorkspaceFoldersRoot, resolveFolderLayoutPath, resolveFolderPath, resolveWorkspaceResourcesPath } from './storage';
 
@@ -637,7 +637,76 @@ export function initFolderHandlers(): void {
       const targetContext = await getLinkedFolderContext(targetFolder!);
       if (currentContext.isRoot) return { success: false, error: 'linked-root-readonly' };
       if (currentContext.mount.id !== targetContext.mount.id) {
-        return { success: false, error: 'cross-linked-mount-folder-move-not-supported' };
+        // Cross-mount move: copy directory tree to new mount, then remove from source
+        const siblings = await FoldersRepo.list({ workspaceId: targetFolder?.workspaceId, parentId: targetFolder?.id ?? null } as any, 2000, 0);
+        const siblingNames = siblings.filter((folder) => folder.id !== id && !folder.deletedAt).map((folder) => folder.name || '');
+        const candidate = await ensureUniqueEntryName(targetContext.folderPath, currentFolder?.name || '', siblingNames);
+        const nextFolderPath = path.join(targetContext.folderPath, candidate);
+
+        // Copy directory recursively to destination mount
+        await fs.cp(currentContext.folderPath, nextFolderPath, { recursive: true });
+        // Remove source directory
+        try {
+          await fs.rm(currentContext.folderPath, { recursive: true, force: true });
+        } catch {
+          /* best-effort */
+        }
+
+        // Update DB: switch mount and recalculate paths
+        const movedRow = await FoldersRepo.move(id, parentId ?? null, prevRank, nextRank);
+        const newRelativePath = joinRelativePath(targetContext.relativePath, candidate);
+
+        // Update this folder's mount and relativePath
+        const db = getOrm();
+        await db
+          .update(folders)
+          .set({
+            linkedMountId: targetContext.mount.id,
+            relativePath: newRelativePath,
+            name: candidate
+          } as any)
+          .where(eq(folders.id, id))
+          .run();
+
+        // Update all descendant folders: switch mount + rewrite relativePath prefix
+        const allFolders = await FoldersRepo.list({ linkedMountId: currentContext.mount.id } as any, LINKED_LIST_LIMIT, 0);
+        for (const f of allFolders) {
+          const rel = normalizeRelativePath(f.relativePath);
+          if (rel && isRelativePathWithin(rel, currentContext.relativePath) && f.id !== id) {
+            const newRel = replaceRelativePathPrefix(rel, currentContext.relativePath, newRelativePath);
+            await db
+              .update(folders)
+              .set({ linkedMountId: targetContext.mount.id, relativePath: newRel } as any)
+              .where(eq(folders.id, f.id))
+              .run();
+          }
+        }
+
+        // Update all descendant resources: switch mount + rewrite relativePath/filePath
+        const allResources = await ResourcesRepo.list({ linkedMountId: currentContext.mount.id } as any, LINKED_LIST_LIMIT, 0);
+        for (const r of allResources) {
+          const rel = normalizeRelativePath((r as any).relativePath);
+          if (rel && isRelativePathWithin(rel, currentContext.relativePath)) {
+            const newRel = replaceRelativePathPrefix(rel, currentContext.relativePath, newRelativePath);
+            const newFilePath = path.join(targetContext.mount.absolutePath, ...newRel.split('/'));
+            await db
+              .update(resources)
+              .set({
+                linkedMountId: targetContext.mount.id,
+                relativePath: newRel,
+                filePath: newFilePath,
+                syncState: 'synced'
+              } as any)
+              .where(eq(resources.id, r.id))
+              .run();
+          }
+        }
+
+        const row = await FoldersRepo.getById(id);
+        if (row) {
+          eventManager.emit(AppEvent.FOLDER_MOVED, row);
+        }
+        return { success: true, data: row };
       }
 
       if ((currentFolder?.parentId ?? null) === (targetFolder?.id ?? null)) {
@@ -820,13 +889,13 @@ export function initFolderHandlers(): void {
       const win = BrowserWindow.getFocusedWindow();
       const pickResult = win
         ? await dialog.showOpenDialog(win, {
-            properties: ['openDirectory'],
-            title: '选择要重连的关联目录'
-          })
+          properties: ['openDirectory'],
+          title: '选择要重连的关联目录'
+        })
         : await dialog.showOpenDialog({
-            properties: ['openDirectory'],
-            title: '选择要重连的关联目录'
-          });
+          properties: ['openDirectory'],
+          title: '选择要重连的关联目录'
+        });
       if (pickResult.canceled || pickResult.filePaths.length === 0) {
         return { success: false, canceled: true };
       }
@@ -972,6 +1041,119 @@ export function initFolderHandlers(): void {
           mountId: result.mount.id,
           hiddenFolderCount: result.hiddenFolderCount,
           hiddenResourceCount: result.hiddenResourceCount
+        }
+      };
+    } catch (error: any) {
+      return { success: false, error: error?.message || 'unknown' };
+    }
+  });
+
+  // 切换 linked mount 的 watcher 开关
+  ipcMain.handle('folder.toggleLinkedMountWatcher', async (_event, payload: { rootFolderId: string; enabled: boolean }) => {
+    const rootFolderId = payload?.rootFolderId;
+    const enabled = !!payload?.enabled;
+    if (!rootFolderId) return { success: false, error: 'invalid-root-folder-id' };
+    try {
+      const folder = await FoldersRepo.getById(rootFolderId);
+      if (!folder || !isLinkedRootFolder(folder)) return { success: false, error: 'not-linked-root' };
+      const mount = await LinkedFolderMountsRepo.getById(folder.linkedMountId!);
+      if (!mount) return { success: false, error: 'linked-mount-not-found' };
+      if (mount.status !== 'active') return { success: false, error: 'linked-mount-not-active' };
+
+      if (enabled) {
+        await startLinkedMountWatcher(mount.id, { syncOnStart: true });
+      } else {
+        await stopLinkedMountWatcher(mount.id);
+      }
+
+      eventManager.emit(AppEvent.FOLDER_UPDATED, await enrichLinkedFolderRow(folder));
+      return { success: true, data: { watchEnabled: enabled } };
+    } catch (error: any) {
+      return { success: false, error: error?.message || 'unknown' };
+    }
+  });
+
+  // 删除 linked root（彻底移除，不保留索引）
+  ipcMain.handle('folder.deleteLinkedRoot', async (_event, payload: { rootFolderId: string }) => {
+    const rootFolderId = payload?.rootFolderId;
+    if (!rootFolderId) return { success: false, error: 'invalid-root-folder-id' };
+    try {
+      const folder = await FoldersRepo.getById(rootFolderId);
+      if (!folder || !isLinkedRootFolder(folder)) return { success: false, error: 'not-linked-root' };
+      const mount = await LinkedFolderMountsRepo.getById(folder.linkedMountId!);
+      if (!mount) return { success: false, error: 'linked-mount-not-found' };
+
+      const win = BrowserWindow.getFocusedWindow();
+      const confirmOptions: MessageBoxOptions = {
+        type: 'warning',
+        buttons: ['Delete', 'Cancel'],
+        defaultId: 1,
+        cancelId: 1,
+        title: 'Delete Linked Folder',
+        message: 'Permanently remove this linked folder from the app?',
+        detail: 'This will remove all indexed data, derived files (transcription, translation, etc.), and recycle bin entries for this folder. Original files on disk will NOT be deleted.'
+      };
+      const confirmResult = win ? await dialog.showMessageBox(win, confirmOptions) : await dialog.showMessageBox(confirmOptions);
+      if (confirmResult.response !== 0) {
+        return { success: false, canceled: true };
+      }
+
+      // 1) Unlink first (hides indexes, stops watcher, removes protocol root)
+      const unlinkResult = await unlinkLinkedDirectoryByFolderId(rootFolderId);
+
+      // 2) Collect all linked resources to delete their project dirs
+      const linkedResources = await ResourcesRepo.list({ linkedMountId: mount.id } as any, LINKED_LIST_LIMIT, 0);
+      const ws = await WorkspacesRepo.getById(mount.workspaceId || '');
+      if (ws?.rootPath) {
+        // Clean up .resproject directories
+        for (const res of linkedResources) {
+          const projectDir = path.join(ws.rootPath, 'projects', `${res.id}.resproject`);
+          try {
+            const stat = await fs.stat(projectDir).catch(() => null);
+            if (stat?.isDirectory()) {
+              await fs.rm(projectDir, { recursive: true, force: true });
+            }
+          } catch {
+            /* best-effort */
+          }
+        }
+
+        // Clean up linked trash files
+        const linkedTrashBase = path.join(ws.rootPath, 'resources', '.linked-trash', 'resources');
+        for (const res of linkedResources) {
+          const trashDir = path.join(linkedTrashBase, res.id);
+          try {
+            const stat = await fs.stat(trashDir).catch(() => null);
+            if (stat?.isDirectory()) {
+              await fs.rm(trashDir, { recursive: true, force: true });
+            }
+          } catch {
+            /* best-effort */
+          }
+        }
+      }
+
+      // 3) Hard-delete DB records (folders + resources + recycle_bin)
+      const db = getOrm();
+      const allFolderIds = (await FoldersRepo.list({ linkedMountId: mount.id } as any, LINKED_LIST_LIMIT, 0)).map((f) => f.id);
+      const allResourceIds = linkedResources.map((r) => r.id);
+      if (allResourceIds.length) {
+        await ResourcesRepo.deleteByIds(allResourceIds);
+      }
+      if (allFolderIds.length) {
+        await FoldersRepo.deleteByIds(allFolderIds);
+      }
+
+      // 4) Delete mount record
+      await db.delete(linked_folder_mounts).where(eq(linked_folder_mounts.id, mount.id)).run();
+
+      eventManager.emit(AppEvent.FOLDER_DELETED, { id: rootFolderId });
+      return {
+        success: true,
+        data: {
+          mountId: mount.id,
+          deletedFolderCount: allFolderIds.length,
+          deletedResourceCount: allResourceIds.length
         }
       };
     } catch (error: any) {

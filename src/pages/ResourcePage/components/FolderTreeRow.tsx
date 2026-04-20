@@ -1,5 +1,5 @@
 import React from 'react';
-import { TbChevronDown, TbChevronRight, TbDots, TbEyeOff, TbFolder, TbFolderOpen, TbFolderPlus, TbPencil, TbRefresh, TbTrash } from 'react-icons/tb';
+import { TbChevronDown, TbChevronRight, TbDots, TbEye, TbEyeOff, TbFolder, TbFolderOpen, TbFolderPlus, TbFolderX, TbPencil, TbRefresh, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -63,7 +63,9 @@ const FolderTreeRow = ({
   index,
   siblings,
   onRescanLinkedFolder,
-  onUnlinkLinkedFolder
+  onUnlinkLinkedFolder,
+  onDeleteLinkedRoot,
+  onToggleLinkedWatcher
 }: {
   node: UIFolder;
   depth: number;
@@ -88,6 +90,8 @@ const FolderTreeRow = ({
   siblings?: UIFolder[];
   onRescanLinkedFolder?: (folderId: string) => Promise<void>;
   onUnlinkLinkedFolder?: (folderId: string) => Promise<void>;
+  onDeleteLinkedRoot?: (folderId: string) => Promise<void>;
+  onToggleLinkedWatcher?: (folderId: string, enabled: boolean) => Promise<void>;
 }): React.ReactElement => {
   const isActive = selectedId === node.id;
   const [over, setOver] = React.useState(false);
@@ -514,9 +518,25 @@ const FolderTreeRow = ({
                 >
                   <TbRefresh className="mr-2" /> Rescan
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!onToggleLinkedWatcher) return;
+                    await onToggleLinkedWatcher(node.id, !linkedRootState?.watchEnabled);
+                  }}
+                >
+                  {linkedRootState?.watchEnabled ? (
+                    <>
+                      <TbEyeOff className="mr-2" /> Disable watcher
+                    </>
+                  ) : (
+                    <>
+                      <TbEye className="mr-2" /> Enable watcher
+                    </>
+                  )}
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
                   onClick={async (e) => {
                     e.stopPropagation();
                     if (!onUnlinkLinkedFolder) return;
@@ -524,6 +544,16 @@ const FolderTreeRow = ({
                   }}
                 >
                   <TbTrash className="mr-2" /> Unlink
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!onDeleteLinkedRoot) return;
+                    await onDeleteLinkedRoot(node.id);
+                  }}
+                >
+                  <TbFolderX className="mr-2" /> Delete
                 </DropdownMenuItem>
               </>
             ) : (
@@ -584,6 +614,8 @@ const FolderTreeRow = ({
             parentMap={parentMap}
             onRescanLinkedFolder={onRescanLinkedFolder}
             onUnlinkLinkedFolder={onUnlinkLinkedFolder}
+            onDeleteLinkedRoot={onDeleteLinkedRoot}
+            onToggleLinkedWatcher={onToggleLinkedWatcher}
           />
         ))}
     </>

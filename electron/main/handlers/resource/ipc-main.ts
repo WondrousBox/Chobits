@@ -412,9 +412,6 @@ export function initResourceHandlers(): void {
   ipcMain.handle('deleteResourcePermanently', async (_event, payload: { id: string }) => {
     const current = await ResourcesRepo.getById(payload.id);
     if (!current) return { success: false, deleted: 0, error: 'not-found' };
-    if (isLinkedResourceRow(current)) {
-      return { success: false, deleted: 0, error: 'linked-resource-readonly' };
-    }
     const deleted = await ResourcesRepo.deleteById(payload.id);
     if (deleted > 0) {
       eventManager.emit(AppEvent.RESOURCE_DELETED, { id: payload.id });
@@ -487,6 +484,27 @@ export function initResourceHandlers(): void {
     } catch (e: any) {
       console.warn('[thumbnail] rebuild failed', e);
       return { success: false, error: e?.message || 'unknown' };
+    }
+  });
+
+  ipcMain.handle('getLinkedResourceDiskInfo', async (_event, payload: { id: string }) => {
+    const { id } = payload || ({} as any);
+    if (!id) return { success: false, error: 'invalid-resource-id' };
+    try {
+      const row = await ResourcesRepo.getById(id);
+      if (!row) return { success: false, error: 'resource-not-found' };
+      if (!isLinkedResourceRow(row)) return { success: false, error: 'linked-resource-required' };
+      if (!row.filePath) return { success: false, error: 'linked-resource-path-missing' };
+      const stat = await fs.stat(row.filePath).catch(() => null);
+      return {
+        success: true,
+        data: {
+          db: { sizeBytes: row.sizeBytes, mtimeMs: row.externalMtimeMs, title: row.title, filePath: row.filePath },
+          disk: stat ? { sizeBytes: stat.size, mtimeMs: stat.mtimeMs, exists: true } : { exists: false }
+        }
+      };
+    } catch (error: any) {
+      return { success: false, error: error?.message || 'unknown' };
     }
   });
 
@@ -671,8 +689,26 @@ export function initResourceHandlers(): void {
               return { success: false, error: 'linked-resource-folder-not-found' };
             }
             const sourceContext = await getLinkedFolderContext(sourceFolder);
+            // Cross-mount move: copy file to destination mount, then remove from source
             if (sourceContext.mount.id !== destination.linkedContext?.mount.id) {
-              return { success: false, error: 'cross-linked-mount-resource-move-not-supported' };
+              if (!row.filePath) {
+                return { success: false, error: 'linked-folder-requires-physical-content' };
+              }
+              const desiredPath = path.join(destination.baseDir, path.basename(row.filePath));
+              const targetPath = await ensureUniquePath(desiredPath);
+              await fs.copyFile(row.filePath, targetPath);
+              try {
+                await fs.unlink(row.filePath);
+              } catch {
+                /* best-effort: source cleanup */
+              }
+              const patch = await buildLinkedResourcePatch(destination.linkedContext!, targetPath, destination.folderId!);
+              const updated = await ResourcesRepo.update(row.id, patch);
+              if (updated) {
+                movedRows.push(updated);
+                eventManager.emit(AppEvent.RESOURCE_MOVED, updated);
+              }
+              continue;
             }
           }
           if (destination.originType === 'linked' && !row.filePath && typeof row.contentText !== 'string') {
@@ -1188,7 +1224,7 @@ export function initResourceHandlers(): void {
       if (stream) {
         try {
           stream.writeStream.destroy();
-          await fs.unlink(stream.filePath).catch(() => {});
+          await fs.unlink(stream.filePath).catch(() => { });
         } catch {
           /* ignore */
         }
@@ -1950,7 +1986,7 @@ async function runImportTask(win: BrowserWindow, filePaths: string[], workspaceI
                 await ResourcesRepo.update(row.id, { thumbnailPath: thumbPath } as any);
               }
             })
-            .catch(() => {});
+            .catch(() => { });
         }
       } catch (e) {
         console.error('Import file failed', task.path, e);

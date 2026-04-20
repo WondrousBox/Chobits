@@ -12,6 +12,13 @@ import type { MediaPlayerRef } from './components/Players/MediaPlayer/MediaPlaye
 import ResourceTabs from './components/ResourceTabs';
 import { CrossPanelDndProvider } from './components/tabs/CrossPanelDndProvider';
 import type { ResourceItem } from './types';
+import {
+  getLinkedResourceSyncIssue,
+  getLinkedResourceSyncIssueDescription,
+  getLinkedResourceSyncIssueLabel,
+  openContainingFolderForResource,
+  rescanLinkedResourceRoot
+} from './utils/linkedResourceSync';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from './utils/resourceProtocol';
 import { isSubtitleFile } from './utils/subtitleUtils';
 
@@ -352,32 +359,67 @@ const ResourcePreviewWindow: React.FC = () => {
 
   const title = data.title || data.filePath || data.url || data.id;
   const fileSrc = data.filePath ? makeResSrc(data.filePath) : data.url;
+  const syncIssue = getLinkedResourceSyncIssue(data);
 
   // 渲染主要内容
   const renderMainContent = (): React.ReactNode => (
-    <div className="h-full relative flex items-center justify-center overflow-hidden">
-      {isImageFile(data.filePath) && fileSrc && <ImagePlayer src={fileSrc} title={title} className="w-full h-full rounded-md shadow" />}
-      {(isVideoFile(data.filePath) || isAudioFile(data.filePath)) && fileSrc && (
-        <MediaPlayer
-          ref={mediaPlayerRef}
-          src={fileSrc}
-          type={isVideoFile(data.filePath) ? 'video' : 'audio'}
-          title={title}
-          autoPlay={true}
-          className="w-full h-full"
-          onTimeUpdate={setCurrentTime}
-          onDurationChange={setMediaDuration}
-          onPlay={handlePlay}
-          onPause={handlePause}
-          onStop={handleStop}
-          onScreenshot={isVideoFile(data.filePath) ? handleScreenshot : undefined}
-        >
-          <SubtitleOverlay />
-          <AnnotationAlertOverlay />
-        </MediaPlayer>
+    <div className="h-full relative flex flex-col overflow-hidden">
+      {/* linked 资源同步问题提示 */}
+      {syncIssue && (
+        <div className={`shrink-0 px-4 py-3 text-sm flex flex-col gap-2 ${syncIssue === 'missing' ? 'bg-destructive/10 text-destructive' : 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400'}`}>
+          <div className="font-medium">{getLinkedResourceSyncIssueLabel(syncIssue)}</div>
+          <div className="text-xs opacity-80">{getLinkedResourceSyncIssueDescription(syncIssue)}</div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-xs h-7"
+              onClick={async () => {
+                await rescanLinkedResourceRoot(data);
+              }}
+            >
+              重新扫描关联目录
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-xs h-7"
+              onClick={async () => {
+                await openContainingFolderForResource(data);
+              }}
+            >
+              打开所在目录
+            </Button>
+          </div>
+        </div>
       )}
-      {isSubtitleFile(data.filePath) && <ResourceSubtitlePlayer resource={data} />}
-      {!isImageFile(data.filePath) && !isVideoFile(data.filePath) && !isAudioFile(data.filePath) && !isSubtitleFile(data.filePath) && <TextPlayer resource={data} />}
+      {/* 缺失的 linked 资源不渲染播放器 */}
+      {syncIssue !== 'missing' && (
+        <div className="flex-1 flex items-center justify-center">
+          {isImageFile(data.filePath) && fileSrc && <ImagePlayer src={fileSrc} title={title} className="w-full h-full rounded-md shadow" />}
+          {(isVideoFile(data.filePath) || isAudioFile(data.filePath)) && fileSrc && (
+            <MediaPlayer
+              ref={mediaPlayerRef}
+              src={fileSrc}
+              type={isVideoFile(data.filePath) ? 'video' : 'audio'}
+              title={title}
+              autoPlay={true}
+              className="w-full h-full"
+              onTimeUpdate={setCurrentTime}
+              onDurationChange={setMediaDuration}
+              onPlay={handlePlay}
+              onPause={handlePause}
+              onStop={handleStop}
+              onScreenshot={isVideoFile(data.filePath) ? handleScreenshot : undefined}
+            >
+              <SubtitleOverlay />
+              <AnnotationAlertOverlay />
+            </MediaPlayer>
+          )}
+          {isSubtitleFile(data.filePath) && <ResourceSubtitlePlayer resource={data} />}
+          {!isImageFile(data.filePath) && !isVideoFile(data.filePath) && !isAudioFile(data.filePath) && !isSubtitleFile(data.filePath) && <TextPlayer resource={data} />}
+        </div>
+      )}
     </div>
   );
 
