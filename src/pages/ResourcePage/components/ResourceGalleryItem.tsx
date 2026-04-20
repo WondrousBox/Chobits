@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 
 import { ResourceTaskStatus } from '../hooks/useResourceTaskStatus';
 import { ResourceItem } from '../types';
+import { getLinkedResourceSyncIssue, getLinkedResourceSyncIssueLabel } from '../utils/linkedResourceSync';
 import { isAudioFile, isImageFile, isPreviewableFile, isVideoFile, makeResSrc } from '../utils/resourceProtocol';
 import { formatDuration, getFileCoverByPath, getResourceSummary, getStatusColor } from '../utils/resourceUtils';
 import { isSubtitleFile, ResourceItemWithSubtitles } from '../utils/subtitleUtils';
@@ -53,6 +54,8 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({
   const summary = getResourceSummary(item);
   const thumbSrc = item.thumbnailPath ? makeResSrc(item.thumbnailPath) : undefined;
   const fileCover = getFileCoverByPath(item.filePath);
+  const syncIssue = getLinkedResourceSyncIssue(item);
+  const syncIssueLabel = getLinkedResourceSyncIssueLabel(syncIssue);
   const itemWithSubtitles = item as ResourceItemWithSubtitles;
   const subtitleCount = itemWithSubtitles.subtitles?.length || 0;
 
@@ -63,6 +66,7 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({
   const isSubtitle = isSubtitleFile(item.filePath);
   // 是否为应用内可直接预览的文件类型（图片、视频、音频、PDF）
   const isPreviewable = isPreviewableFile(item.filePath);
+  const imagePreviewSrc = syncIssue ? thumbSrc : item.filePath ? makeResSrc(item.filePath) : thumbSrc;
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
@@ -150,6 +154,17 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({
         {/* 顶部状态栏 */}
         <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/40 to-transparent px-2 py-1.5">
           <div className="flex items-center gap-1">
+            {syncIssue && (
+              <span
+                className={clsx(
+                  'rounded px-1.5 py-0.5 text-[8px] font-medium',
+                  syncIssue === 'missing' && 'bg-amber-400/90 text-amber-950',
+                  syncIssue === 'conflict' && 'bg-red-400/90 text-red-950'
+                )}
+              >
+                {syncIssueLabel}
+              </span>
+            )}
             {/* 来源信息 */}
             {(item.domain || item.sourceName || item.authorName) && (
               <div className="mt-1 flex items-center gap-1 text-[9px] text-white/70">
@@ -208,10 +223,10 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({
         {/* 媒体内容区域 */}
         <div className="relative h-full w-full">
           {/* 图片资源 - 直接显示 */}
-          {isImageFile(item.filePath) && <img src={item.filePath ? makeResSrc(item.filePath) : ''} alt={summary.title} className="h-full w-full object-cover" draggable={false} />}
+          {isImageFile(item.filePath) && imagePreviewSrc && <img src={imagePreviewSrc} alt={summary.title} className="h-full w-full object-cover" draggable={false} />}
 
           {/* 其他资源类型 - 尝试使用缩略图，其次使用基于后缀的封面，最后回退到类型图标 */}
-          {!isImageFile(item.filePath) &&
+          {(!isImageFile(item.filePath) || !imagePreviewSrc) &&
             (thumbSrc ? (
               <img src={thumbSrc} alt={summary.title} className="h-full w-full object-cover" draggable={false} />
             ) : (
@@ -230,6 +245,20 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({
               >
                 {(item.type === 'audio' || item.type === 'video') && <TbPlayerPlay />}
               </Button>
+            </div>
+          )}
+
+          {syncIssue && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/35 text-white">
+              <span
+                className={clsx(
+                  'rounded-full px-3 py-1 text-xs font-medium backdrop-blur-sm',
+                  syncIssue === 'missing' && 'bg-amber-500/85 text-amber-950',
+                  syncIssue === 'conflict' && 'bg-red-500/85 text-red-50'
+                )}
+              >
+                {syncIssueLabel}
+              </span>
             </div>
           )}
         </div>

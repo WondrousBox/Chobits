@@ -51,6 +51,7 @@ interface UploadStream {
 const uploadStreams = new Map<string, UploadStream>();
 const TEXT_FILE_EXT_RE = /\.(txt|md|log|json|csv|ts|js|tsx|jsx|py|go|rs|java|c|cpp|yml|yaml|toml|ini)$/i;
 const SUBTITLE_FILE_EXT_RE = /\.(srt|vtt|ass|ssa)$/i;
+const INVALID_FILENAME_CHARS = '<>:"/\\|?*';
 
 function isLinkedFolderRow(folder: { originType?: string } | undefined | null): boolean {
   return folder?.originType === 'linked';
@@ -68,8 +69,9 @@ async function getWritableFolder(folderId?: string | null): Promise<{ folder: an
 }
 
 function sanitizeFileName(name: string, fallback: string): string {
-  const next = String(name || '')
-    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ')
+  const next = Array.from(String(name || ''))
+    .map((char) => (char.charCodeAt(0) < 32 || INVALID_FILENAME_CHARS.includes(char) ? ' ' : char))
+    .join('')
     .trim();
   return next || fallback;
 }
@@ -92,11 +94,7 @@ type FolderDestination = {
   linkedContext?: Awaited<ReturnType<typeof getLinkedFolderContext>>;
 };
 
-async function resolveFolderDestination(
-  folderId?: string | null,
-  workspaceId?: string | null,
-  options: { ensureDailyFolder?: boolean } = {}
-): Promise<FolderDestination> {
+async function resolveFolderDestination(folderId?: string | null, workspaceId?: string | null, options: { ensureDailyFolder?: boolean } = {}): Promise<FolderDestination> {
   let resolvedFolderId = folderId ?? null;
   let folder = resolvedFolderId ? await FoldersRepo.getById(resolvedFolderId) : null;
   if (resolvedFolderId && !folder) {
@@ -170,11 +168,7 @@ async function getFileStatSnapshot(filePath?: string | null): Promise<{ size: nu
   }
 }
 
-async function buildLinkedResourcePatch(
-  linkedContext: Awaited<ReturnType<typeof getLinkedFolderContext>>,
-  filePath: string,
-  folderId: string
-): Promise<any> {
+async function buildLinkedResourcePatch(linkedContext: Awaited<ReturnType<typeof getLinkedFolderContext>>, filePath: string, folderId: string): Promise<any> {
   const stat = await fs.stat(filePath);
   return {
     folderId,
@@ -394,9 +388,6 @@ export function initResourceHandlers(): void {
   ipcMain.handle('deleteResource', async (_event, payload: { id: string }) => {
     const current = await ResourcesRepo.getById(payload.id);
     if (!current) return { success: false, error: 'not-found' };
-    if (isLinkedResourceRow(current)) {
-      return { success: false, error: 'linked-resource-readonly' };
-    }
 
     // Soft delete: mark deletedAt, create recycle_bin entry, and move file to .trash/
     const rows = await ResourcesRepo.softDelete([payload.id]);
@@ -410,10 +401,6 @@ export function initResourceHandlers(): void {
   ipcMain.handle('deleteResources', async (_event, payload: { ids: string[] }) => {
     const ids = payload.ids || [];
     if (!ids.length) return { success: true, deleted: 0, data: [] };
-    const rows = await Promise.all(ids.map((id) => ResourcesRepo.getById(id)));
-    if (rows.some((row) => isLinkedResourceRow(row))) {
-      return { success: false, error: 'linked-resource-readonly' };
-    }
     const deleted = await ResourcesRepo.softDelete(ids);
     if (deleted.length > 0) {
       eventManager.emit(AppEvent.RESOURCE_BATCH_DELETED, deleted);
@@ -503,6 +490,72 @@ export function initResourceHandlers(): void {
     }
   });
 
+  ipcMain.handle('resolveLinkedResourceConflict', async (_event, payload: { id: string; action: 'accept-disk' | 'copy-disk-snapshot' }) => {
+    const { id, action } = payload || ({} as any);
+    if (!id) return { success: false, error: 'invalid-resource-id' };
+    if (action !== 'accept-disk' && action !== 'copy-disk-snapshot') {
+      return { success: false, error: 'invalid-conflict-action' };
+    }
+
+    try {
+      const row = await ResourcesRepo.getById(id);
+      if (!row) return { success: false, error: 'resource-not-found' };
+      if (!isLinkedResourceRow(row)) return { success: false, error: 'linked-resource-required' };
+      if (row.syncState !== 'conflict') return { success: false, error: 'linked-resource-not-conflict' };
+      if (!row.filePath) return { success: false, error: 'linked-resource-path-missing' };
+
+      const stat = await fs.stat(row.filePath).catch(() => null);
+      if (!stat?.isFile()) {
+        return { success: false, error: 'linked-resource-file-missing' };
+      }
+
+      let copy: Resource | null = null;
+      if (action === 'copy-disk-snapshot') {
+        const copyResult = await addResource({
+          resource: {
+            filePath: row.filePath,
+            title: `${row.title || path.basename(row.filePath)} (磁盘副本)`,
+            workspaceId: row.workspaceId || undefined,
+            folderId: null
+          } as any
+        });
+        if (!copyResult.success) {
+          return { success: false, error: copyResult.error || 'linked-resource-copy-failed' };
+        }
+        copy = copyResult.data;
+      }
+
+      const updated = await ResourcesRepo.update(id, {
+        sizeBytes: stat.size,
+        externalMtimeMs: stat.mtimeMs,
+        externalSizeBytes: stat.size,
+        syncState: 'synced',
+        deletedAt: null
+      } as any);
+      if (updated) {
+        eventManager.emit(AppEvent.RESOURCE_UPDATED, updated);
+      }
+
+      const sourceFolder = row.folderId ? await FoldersRepo.getById(row.folderId) : null;
+      if (sourceFolder && isLinkedFolderRow(sourceFolder)) {
+        const linkedContext = await getLinkedFolderContext(sourceFolder);
+        if (linkedContext.mount.rootFolderId) {
+          await rescanLinkedDirectoryByFolderId(linkedContext.mount.rootFolderId);
+        }
+      }
+
+      return {
+        success: true,
+        data: {
+          resource: updated,
+          copy
+        }
+      };
+    } catch (error: any) {
+      return { success: false, error: error?.message || 'unknown' };
+    }
+  });
+
   // 清理默认工作空间下 .thumbs 中的孤儿缩略图（无对应资源）
   ipcMain.handle('cleanupThumbnails', async () => {
     try {
@@ -586,55 +639,6 @@ export function initResourceHandlers(): void {
       eventManager.emit(AppEvent.RESOURCE_UPDATED, nextUpdated);
     }
     return { success: true, data: nextUpdated };
-
-    // 如果本次更新包含字幕内容，需要写入文件（支持 srt、vtt、ass、ssa 格式）
-    if (typeof patch.subtitleContent === 'string') {
-      try {
-        // 获取当前资源信息
-        if (current.filePath && isSubtitlePath(current.filePath)) {
-          // 检查是否是字幕文件
-            // 确保目录存在
-            const dir = path.dirname(current.filePath);
-            await fs.mkdir(dir, { recursive: true });
-            // 写入文件
-            await fs.writeFile(current.filePath, patch.subtitleContent, 'utf8');
-            const stat = await getFileStatSnapshot(current.filePath);
-            if (stat) {
-              patch.sizeBytes = stat.size;
-              if (isLinkedResourceRow(current)) {
-                patch.externalMtimeMs = stat.mtimeMs;
-                patch.externalSizeBytes = stat.size;
-                patch.syncState = 'synced';
-              }
-            }
-            // 更新文件大小
-              // 忽略计算失败，不阻塞更新
-            }
-          }
-        }
-        // 移除 subtitleContent，不保存到数据库
-        delete patch.subtitleContent;
-      } catch (e: any) {
-        console.error('[resource:update] 写入字幕文件失败:', e);
-        // 不阻塞更新，继续执行数据库更新
-      }
-    }
-
-    // 如果本次更新包含文本内容，则同步更新 sizeBytes，保证纯文本资源也有合理的大小
-    if (typeof patch.contentText === 'string') {
-      try {
-        const buf = Buffer.from(patch.contentText, 'utf8');
-        patch.sizeBytes = buf.byteLength;
-      } catch {
-        // 忽略计算失败，不阻塞更新
-      }
-    }
-
-    const updated = await ResourcesRepo.update(id, patch);
-    if (updated) {
-      eventManager.emit(AppEvent.RESOURCE_UPDATED, updated);
-    }
-    return { success: true, data: updated };
   });
 
   // 批量移动资源到文件夹（或移出文件夹），并进行跨工作空间校验
@@ -722,101 +726,6 @@ export function initResourceHandlers(): void {
 
         return { success: true, moved: movedRows.length };
       }
-
-      // 目标工作空间：来自目标文件夹，或调用方提供，或默认空间
-      let targetWorkspaceId: string | undefined = payload?.workspaceId;
-      if (targetFolderId) {
-        const folder = await FoldersRepo.getById(targetFolderId);
-        if (!folder) return { success: false, error: 'folder-not-found' };
-        if (isLinkedFolderRow(folder)) return { success: false, error: 'linked-folder-readonly' };
-        targetWorkspaceId = folder.workspaceId || undefined;
-      }
-      if (!targetWorkspaceId) {
-        const ws = await WorkspacesRepo.getDefault();
-        targetWorkspaceId = ws?.id || undefined;
-      }
-      if (!targetWorkspaceId) return { success: false, error: 'no-workspace' };
-
-      const wsObj = await WorkspacesRepo.getById(targetWorkspaceId);
-      const wsRoot = wsObj?.rootPath;
-      if (!wsRoot) return { success: false, error: 'workspace-no-root' };
-
-      // 校验所有资源均属于目标工作空间
-      const invalid: string[] = [];
-      const rows: any[] = [];
-      for (const id of ids) {
-        const r = await ResourcesRepo.getById(id);
-        if (!r || (r as any).workspaceId !== targetWorkspaceId) invalid.push(id);
-        else if (isLinkedResourceRow(r)) return { success: false, error: 'linked-resource-readonly' };
-        else rows.push(r);
-      }
-      if (invalid.length) {
-        return { success: false, invalid };
-      }
-
-      // 执行更新
-      // 小工具：跨分区时用 copy + unlink 兜底
-      const moveFileSafe = async (src: string, dest: string): Promise<void> => {
-        try {
-          await fs.rename(src, dest);
-        } catch (e: any) {
-          if (e?.code === 'EXDEV') {
-            // 跨分区，改为 copy + unlink
-            const data = await fs.readFile(src);
-            await fs.writeFile(dest, data);
-            await fs.unlink(src);
-          } else {
-            throw e;
-          }
-        }
-      };
-
-      let moved = 0;
-      for (const r of rows as any[]) {
-        try {
-          let newPath: string | undefined;
-          const hasFile = !!r.filePath;
-          if (hasFile) {
-            const baseName = path.basename(r.filePath as string);
-            const targetDir = targetFolderId ? path.join(wsRoot, 'resources', 'folders', targetFolderId) : path.join(wsRoot, 'resources');
-            await fs.mkdir(targetDir, { recursive: true });
-            let targetPath = path.join(targetDir, baseName);
-            if (r.filePath !== targetPath) {
-              // 同名处理：若存在则追加 (n)
-              if (fscb.existsSync(targetPath)) {
-                const ext = path.extname(baseName);
-                const stem = path.basename(baseName, ext);
-                let i = 1;
-                while (fscb.existsSync(targetPath)) {
-                  targetPath = path.join(targetDir, `${stem}(${i})${ext}`);
-                  i += 1;
-                }
-              }
-              await moveFileSafe(r.filePath as string, targetPath);
-              newPath = targetPath;
-            }
-          }
-
-          const updated = await ResourcesRepo.update(r.id, { folderId: targetFolderId ?? null, ...(newPath ? { filePath: newPath } : {}) } as any);
-          if (updated) {
-            moved += 1;
-            eventManager.emit(AppEvent.RESOURCE_MOVED, updated);
-          }
-        } catch {
-          // 单条失败，继续下一条
-        }
-      }
-      // Ideally we should emit BATCH_MOVED but here we emit one by one or collect them.
-      // Let's just rely on individual updates or maybe I should collect them.
-      // For now, individual updates are fine or I can emit a batch event if I collected them.
-      // But I didn't collect them in the loop.
-      // Let's just emit a generic update event or rely on the loop.
-      // Actually, I should probably collect them to be efficient.
-      // But the loop structure makes it a bit hard without refactoring.
-      // I'll just emit RESOURCE_UPDATED for now inside the loop?
-      // Wait, I added RESOURCE_MOVED above.
-
-      return { success: true, moved };
     } catch (e: any) {
       return { success: false, error: e?.message || 'unknown' };
     }
@@ -870,32 +779,6 @@ export function initResourceHandlers(): void {
       eventManager.emit(AppEvent.RESOURCE_UPDATED, updatedRow);
     }
     return { success: true, fileRenamed, newPath, data: updatedRow };
-    if (isLinkedResourceRow(res)) {
-      return { success: false, error: 'linked-resource-readonly' };
-    }
-
-    let fileRenamed = false;
-    let newPath: string | undefined;
-    if (renameFile && res.filePath) {
-      const dir = path.dirname(res.filePath);
-      const oldBase = path.basename(res.filePath);
-      const ext = path.extname(oldBase);
-      const targetBase = newName.includes('.') ? newName : `${newName}${ext}`;
-      newPath = path.join(dir, targetBase);
-      if (newPath !== res.filePath) {
-        await fs.rename(res.filePath, newPath);
-        fileRenamed = true;
-      }
-    }
-
-    const updated = await ResourcesRepo.update(id, {
-      title: newName,
-      ...(newPath ? { filePath: newPath } : {})
-    } as any);
-    if (updated) {
-      eventManager.emit(AppEvent.RESOURCE_UPDATED, updated);
-    }
-    return { success: true, fileRenamed, newPath, data: updated };
   });
 
   // 列出标签（默认按当前默认工作空间聚合；若 scope=global 则全局聚合）
@@ -957,8 +840,6 @@ export function initResourceHandlers(): void {
       // 发送繁忙状态开始
       sendAppBusyStart(0, `上传中: ${fileName}`);
 
-      sendAppBusyStart(0, `涓婁紶涓? ${fileName}`);
-
       const destination = await resolveFolderDestination(folderId, workspaceId, { ensureDailyFolder: false });
       await fs.mkdir(destination.baseDir, { recursive: true });
 
@@ -975,73 +856,6 @@ export function initResourceHandlers(): void {
 
       await fs.writeFile(target, incomingBuffer);
 
-      sendAppBusyProgress(100, `涓婁紶瀹屾垚: ${fileName}`);
-      sendAppBusyEnd();
-
-      return { success: true, filePath: target, hash: incomingHash };
-
-      let ws;
-      if (workspaceId) {
-        ws = await WorkspacesRepo.getById(workspaceId);
-      } else {
-        ws = await WorkspacesRepo.getDefault();
-      }
-
-      let baseDir;
-      if (ws?.rootPath) {
-        if (folderId) {
-          baseDir = path.join(ws.rootPath, 'resources', 'folders', folderId);
-        } else {
-          baseDir = path.join(ws.rootPath, 'resources');
-        }
-      } else {
-        baseDir = path.join(process.cwd(), 'uploads');
-      }
-
-      console.log(folderId, workspaceId, baseDir);
-
-      await fs.mkdir(baseDir, { recursive: true });
-
-      const incomingBuffer = Buffer.from(data as any);
-      const incomingHash = createHash('sha256').update(incomingBuffer).digest('hex');
-
-      let target = path.join(baseDir, fileName);
-      const ext = path.extname(fileName);
-      const nameNoExt = path.basename(fileName, ext);
-
-      // 若存在同名文件，检查 hash；相同则视为重复直接返回
-      // if (fscb.existsSync(target)) {
-      //   try {
-      //     const existHash = await new Promise<string>((resolve, reject) => {
-      //       const h = createHash('sha256');
-      //       const rs = fscb.createReadStream(target);
-      //       rs.on('error', reject);
-      //       rs.on('data', (chunk) => h.update(chunk));
-      //       rs.on('end', () => resolve(h.digest('hex')));
-      //     });
-      //     if (existHash === incomingHash) {
-      //       sendSpriteBusyEnd(); // 重复文件时结束繁忙状态
-      //       sendSpriteNotice({
-      //         message: `「${fileName}」已存在，已跳过上传`,
-      //         level: 'warning'
-      //       });
-      //       return { success: false, duplicate: true, filePath: target, hash: incomingHash, error: 'duplicate' };
-      //     }
-      //   } catch {
-      //     /* ignore hash errors and proceed to rename */
-      //   }
-      // }
-
-      // 仅当同名但不同 hash，执行重命名逻辑避免覆盖
-      let counter = 1;
-      while (fscb.existsSync(target)) {
-        target = path.join(baseDir, `${nameNoExt}(${counter})${ext}`);
-        counter++;
-      }
-
-      await fs.writeFile(target, incomingBuffer);
-
-      // 发送完成进度和结束
       sendAppBusyProgress(100, `上传完成: ${fileName}`);
       sendAppBusyEnd();
 
@@ -1086,7 +900,7 @@ export function initResourceHandlers(): void {
         await fs.mkdir(baseDir, { recursive: true });
 
         const now = new Date();
-        const pad = (n: number) => n.toString().padStart(2, '0');
+        const pad = (n: number): string => n.toString().padStart(2, '0');
         const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
         const baseName = (parentTitle || 'screenshot').replace(/[\\/]+/g, '-').slice(0, 80) || 'screenshot';
         const fileName = `${baseName}-${ts}.png`;
@@ -1161,7 +975,7 @@ export function initResourceHandlers(): void {
         await fs.mkdir(baseDir, { recursive: true });
 
         const now = new Date();
-        const pad = (n: number) => n.toString().padStart(2, '0');
+        const pad = (n: number): string => n.toString().padStart(2, '0');
         const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
         const baseName = (title || 'recording').replace(/[\\/]+/g, '-').slice(0, 80) || 'recording';
         const fileName = `${baseName}-${ts}.wav`;
@@ -1210,7 +1024,7 @@ export function initResourceHandlers(): void {
     ) => {
       try {
         const { fileName, totalSize } = payload || { fileName: '', totalSize: 0 };
-        let { folderId, workspaceId } = payload;
+        const { folderId, workspaceId } = payload;
         console.log(folderId, workspaceId);
         if (!fileName || totalSize <= 0) return { success: false, error: 'invalid-params' };
         const folderCheck = await getWritableFolder(folderId);
@@ -1246,68 +1060,6 @@ export function initResourceHandlers(): void {
 
         uploadStreams.set(uploadId, stream);
         sendAppBusyStart(0, `上传中: ${fileName}`);
-        return { success: true, uploadId };
-
-        let ws;
-        if (workspaceId) {
-          ws = await WorkspacesRepo.getById(workspaceId);
-        } else {
-          ws = await WorkspacesRepo.getDefault();
-          if (ws) workspaceId = ws.id;
-        }
-
-        if (ws?.rootPath && !folderId) {
-          try {
-            folderId = await ensureDailyFolder(ws.id, ws.rootPath);
-          } catch (e) {
-            console.warn('Failed to ensure daily folder', e);
-          }
-        }
-
-        let baseDir;
-        if (ws?.rootPath) {
-          if (folderId) {
-            baseDir = path.join(ws.rootPath, 'resources', 'folders', folderId);
-          } else {
-            baseDir = path.join(ws.rootPath, 'resources');
-          }
-        } else {
-          baseDir = path.join(process.cwd(), 'uploads');
-        }
-        console.log(baseDir);
-
-        await fs.mkdir(baseDir, { recursive: true });
-
-        const ext = path.extname(fileName);
-        const nameNoExt = path.basename(fileName, ext);
-        let target = path.join(baseDir, fileName);
-
-        // 处理同名文件（先不检查 hash，等上传完成后再检查）
-        let counter = 1;
-        while (fscb.existsSync(target)) {
-          target = path.join(baseDir, `${nameNoExt}(${counter})${ext}`);
-          counter++;
-        }
-
-        const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        const writeStream = fscb.createWriteStream(target);
-        const hash = createHash('sha256');
-
-        const stream: UploadStream = {
-          fileName,
-          filePath: target,
-          writeStream,
-          hash,
-          totalSize,
-          receivedSize: 0,
-          chunkIndices: new Set()
-        };
-
-        uploadStreams.set(uploadId, stream);
-
-        // 发送繁忙状态开始
-        sendAppBusyStart(0, `上传中: ${fileName}`);
-
         return { success: true, uploadId };
       } catch (e: any) {
         console.warn('uploadResourceFileStreamStart failed', e);
@@ -1436,7 +1188,7 @@ export function initResourceHandlers(): void {
       if (stream) {
         try {
           stream.writeStream.destroy();
-          await fs.unlink(stream.filePath).catch(() => { });
+          await fs.unlink(stream.filePath).catch(() => {});
         } catch {
           /* ignore */
         }
@@ -2198,7 +1950,7 @@ async function runImportTask(win: BrowserWindow, filePaths: string[], workspaceI
                 await ResourcesRepo.update(row.id, { thumbnailPath: thumbPath } as any);
               }
             })
-            .catch(() => { });
+            .catch(() => {});
         }
       } catch (e) {
         console.error('Import file failed', task.path, e);

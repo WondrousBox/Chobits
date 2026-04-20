@@ -280,19 +280,91 @@ export const RecycleBinRepo = {
     const items = (await db.select().from(recycle_bin).where(inArray(recycle_bin.id, ids))) as any[];
     if (!items.length) return 0;
     const docIds = items.filter((i) => i.entityType === 'document').map((i) => i.entityId);
-    const resIds = items.filter((i) => i.entityType === 'resource').map((i) => i.entityId);
+    const requestedResourceIds = Array.from(new Set(items.filter((i) => i.entityType === 'resource').map((i) => i.entityId as string)));
+    const resourceIdSet = new Set(requestedResourceIds);
     const convIds = items.filter((i) => i.entityType === 'conversation').map((i) => i.entityId);
-    const folderIds = items.filter((i) => i.entityType === 'folder').map((i) => i.entityId);
+    const requestedFolderIdSet = new Set(items.filter((i) => i.entityType === 'folder').map((i) => i.entityId as string));
+    const folderIdSet = new Set<string>();
+
+    const collectDeletedAncestorFolderIds = async (seedIds: Iterable<string>): Promise<void> => {
+      let frontier = Array.from(new Set(Array.from(seedIds).filter((id): id is string => !!id)));
+      const visited = new Set<string>();
+      while (frontier.length) {
+        const rows = (await db
+          .select({ id: folders.id, parentId: folders.parentId, deletedAt: folders.deletedAt })
+          .from(folders)
+          .where(inArray(folders.id, frontier))) as Array<{ id: string; parentId: string | null; deletedAt: number | null }>;
+        const next: string[] = [];
+        for (const row of rows) {
+          if (visited.has(row.id)) continue;
+          visited.add(row.id);
+          if (!row.deletedAt) continue;
+          folderIdSet.add(row.id);
+          if (row.parentId && !visited.has(row.parentId)) {
+            next.push(row.parentId);
+          }
+        }
+        frontier = Array.from(new Set(next));
+      }
+    };
+
+    const requestedResourceRows = requestedResourceIds.length
+      ? ((await db
+          .select({ id: resources.id, folderId: resources.folderId })
+          .from(resources)
+          .where(inArray(resources.id, requestedResourceIds))) as Array<{ id: string; folderId: string | null }>)
+      : [];
+
+    await collectDeletedAncestorFolderIds([
+      ...Array.from(requestedFolderIdSet),
+      ...requestedResourceRows.map((row) => row.folderId).filter((folderId): folderId is string => !!folderId)
+    ]);
+
+    if (requestedFolderIdSet.size) {
+      const subtreeFolderIdSet = new Set<string>(Array.from(requestedFolderIdSet));
+      let frontier = Array.from(requestedFolderIdSet);
+      while (frontier.length) {
+        const childFolders = (await db
+          .select({ id: folders.id })
+          .from(folders)
+          .where(and(inArray(folders.parentId as any, frontier), isNotNull(folders.deletedAt)))) as Array<{ id: string }>;
+        const next: string[] = [];
+        for (const row of childFolders) {
+          if (!subtreeFolderIdSet.has(row.id)) {
+            subtreeFolderIdSet.add(row.id);
+            next.push(row.id);
+          }
+        }
+        frontier = next;
+      }
+
+      subtreeFolderIdSet.forEach((folderId) => folderIdSet.add(folderId));
+
+      const folderResourceRows = (await db
+        .select({ id: resources.id })
+        .from(resources)
+        .where(and(inArray(resources.folderId as any, Array.from(subtreeFolderIdSet)), isNotNull(resources.deletedAt)))) as Array<{ id: string }>;
+      for (const row of folderResourceRows) {
+        resourceIdSet.add(row.id);
+      }
+    }
     let restored = 0;
     if (docIds.length) restored += (await DocumentsRepo.restore(docIds)).length;
-    if (resIds.length) restored += (await ResourcesRepo.restore(resIds)).length;
+    if (folderIdSet.size) {
+      await ensureLinkedFolderDirectoriesExist(Array.from(folderIdSet));
+    }
+    if (resourceIdSet.size) restored += (await ResourcesRepo.restore(Array.from(resourceIdSet))).length;
     if (convIds.length) {
       for (const id of convIds) {
         const row = await ChatRepo.restoreConversation(id);
         if (row) restored += 1;
       }
     }
-    if (folderIds.length) restored += (await FoldersRepo.restore(folderIds)).length;
+    if (folderIdSet.size) restored += (await FoldersRepo.restore(Array.from(folderIdSet))).length;
+    const recycleEntityIdsToClear = Array.from(new Set([...docIds, ...Array.from(resourceIdSet), ...convIds, ...Array.from(folderIdSet)]));
+    if (recycleEntityIdsToClear.length) {
+      await db.delete(recycle_bin).where(inArray(recycle_bin.entityId, recycleEntityIdsToClear)).run();
+    }
     return restored;
   },
   /** 根据回收站ID彻底删除实体（文档/资源），并同步清理回收站索引 */
@@ -347,6 +419,12 @@ export const RecycleBinRepo = {
     if (conversationIds.length) deleted += await ChatRepo.deleteConversations(conversationIds);
     if (allFolderIds.size) {
       const toDeleteIds = Array.from(allFolderIds);
+      const recycleFolderItems = (await db
+        .select()
+        .from(recycle_bin)
+        .where(and(eq(recycle_bin.entityType, 'folder'), inArray(recycle_bin.entityId, toDeleteIds)))) as Array<{
+        payload: string | null;
+      }>;
       // 4) Delete folder rows (DB)
       if (toDeleteIds.length) deleted += await FoldersRepo.deleteByIds(toDeleteIds);
       // Also cleanup recycle_bin indices for these folders
@@ -393,6 +471,33 @@ export const RecycleBinRepo = {
             /* ignore */
           }
         };
+        const linkedFolderPaths = recycleFolderItems
+          .map((item) => {
+            try {
+              const payload = JSON.parse(item.payload || '{}');
+              return typeof payload?.originalFolderPath === 'string' ? payload.originalFolderPath : null;
+            } catch {
+              return null;
+            }
+          })
+          .filter(Boolean) as string[];
+        if (linkedFolderPaths.length) {
+          const tryRmEmptyDir = async (abs?: string): Promise<void> => {
+            if (!abs) return;
+            try {
+              if (!fscb.existsSync(abs)) return;
+              const stat = await fs.stat(abs);
+              if (!stat.isDirectory()) return;
+              const remaining = await fs.readdir(abs);
+              if (remaining.length === 0) {
+                await fs.rmdir(abs);
+              }
+            } catch {
+              /* ignore */
+            }
+          };
+          await Promise.all(linkedFolderPaths.sort((left, right) => right.length - left.length).map((folderPath) => tryRmEmptyDir(folderPath)));
+        }
         // If we couldn't map specific workspaces, try default workspace root
         if (!wsMap.size) {
           // Fallback: attempt removing under any known roots (best-effort)
@@ -439,22 +544,126 @@ export const RecycleBinRepo = {
  * 返回新的 trash 路径；若文件不存在或移动失败则返回 null。
  */
 async function moveResourceFileToTrash(filePath: string, resourceId: string, workspaceRoot: string): Promise<string | null> {
-  if (!filePath || !fscb.existsSync(filePath)) return null;
+  if (!filePath) return null;
   const trashDir = path.join(workspaceRoot, 'resources', '.trash', resourceId);
-  await fs.mkdir(trashDir, { recursive: true });
   const fileName = path.basename(filePath);
-  const trashPath = path.join(trashDir, fileName);
+  return movePathToManagedTrash(filePath, path.join(trashDir, fileName));
+}
+
+function getLinkedResourceTrashPath(workspaceRoot: string, resourceId: string, filePath: string): string {
+  return path.join(workspaceRoot, 'resources', '.linked-trash', 'resources', resourceId, path.basename(filePath));
+}
+
+function normalizeLinkedRelativePath(relativePath?: string | null): string {
+  return String(relativePath || '')
+    .replace(/\\/g, '/')
+    .replace(/^\/+|\/+$/g, '');
+}
+
+function getRelativePathWithinMountPath(mountAbsolutePath: string, absolutePath: string): string | null {
+  const relativePath = path.relative(mountAbsolutePath, absolutePath);
+  if (!relativePath || relativePath === '.') return '';
+  const normalized = normalizeLinkedRelativePath(relativePath);
+  if (normalized === '..' || normalized.startsWith('../')) {
+    return null;
+  }
+  return normalized;
+}
+
+function resolveLinkedFolderAbsolutePath(mountAbsolutePath: string, relativePath?: string | null): string {
+  const normalized = normalizeLinkedRelativePath(relativePath);
+  return normalized ? path.join(mountAbsolutePath, ...normalized.split('/')) : mountAbsolutePath;
+}
+
+async function ensureLinkedFolderDirectoriesExist(folderIds: string[]): Promise<void> {
+  if (!folderIds.length) return;
+  const db = getOrm();
+  const folderRows = (await db
+    .select({
+      id: folders.id,
+      originType: folders.originType,
+      linkedMountId: folders.linkedMountId,
+      relativePath: folders.relativePath
+    })
+    .from(folders)
+    .where(inArray(folders.id, folderIds))) as Array<{
+    id: string;
+    originType: string | null;
+    linkedMountId: string | null;
+    relativePath: string | null;
+  }>;
+  const linkedFolderRows = folderRows.filter((row) => row.originType === 'linked' && !!row.linkedMountId);
+  if (!linkedFolderRows.length) return;
+
+  const recycleRows = (await db
+    .select({ entityId: recycle_bin.entityId, payload: recycle_bin.payload })
+    .from(recycle_bin)
+    .where(and(eq(recycle_bin.entityType, 'folder'), inArray(recycle_bin.entityId, linkedFolderRows.map((row) => row.id))))) as Array<{
+    entityId: string;
+    payload: string | null;
+  }>;
+  const originalPathMap = new Map<string, string>();
+  for (const row of recycleRows) {
+    try {
+      const payload = JSON.parse(row.payload || '{}');
+      if (typeof payload?.originalFolderPath === 'string' && payload.originalFolderPath) {
+        originalPathMap.set(row.entityId, payload.originalFolderPath);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const mountIds = Array.from(new Set(linkedFolderRows.map((row) => row.linkedMountId).filter((id): id is string => !!id)));
+  const mountRows = mountIds.length
+    ? ((await db
+        .select({ id: linked_folder_mounts.id, absolutePath: linked_folder_mounts.absolutePath })
+        .from(linked_folder_mounts)
+        .where(inArray(linked_folder_mounts.id, mountIds))) as Array<{ id: string; absolutePath: string | null }>)
+    : [];
+  const mountPathMap = new Map(mountRows.filter((row): row is { id: string; absolutePath: string } => !!row.absolutePath).map((row) => [row.id, row.absolutePath]));
+
+  const targetPaths = Array.from(
+    new Set(
+      linkedFolderRows
+        .map((row) => {
+          const originalPath = originalPathMap.get(row.id);
+          if (originalPath) return originalPath;
+          const mountAbsolutePath = row.linkedMountId ? mountPathMap.get(row.linkedMountId) : undefined;
+          return mountAbsolutePath ? resolveLinkedFolderAbsolutePath(mountAbsolutePath, row.relativePath) : null;
+        })
+        .filter((folderPath): folderPath is string => !!folderPath)
+    )
+  ).sort((left, right) => left.length - right.length);
+
+  for (const folderPath of targetPaths) {
+    try {
+      await fs.mkdir(folderPath, { recursive: true });
+    } catch (e) {
+      console.warn('[ensureLinkedFolderDirectoriesExist] mkdir failed for', folderPath, e);
+    }
+  }
+}
+
+async function movePathToManagedTrash(sourcePath: string, targetPath: string): Promise<string | null> {
+  if (!sourcePath || !fscb.existsSync(sourcePath)) return null;
+  await fs.mkdir(path.dirname(targetPath), { recursive: true });
   try {
-    await fs.rename(filePath, trashPath);
-    return trashPath;
+    await fs.rename(sourcePath, targetPath);
+    return targetPath;
   } catch (e: any) {
     if (e?.code === 'EXDEV') {
-      // 跨分区：copy + unlink
-      await fs.copyFile(filePath, trashPath);
-      await fs.unlink(filePath);
-      return trashPath;
+      const stat = await fs.stat(sourcePath);
+      if (stat.isDirectory()) {
+        await fs.cp(sourcePath, targetPath, { recursive: true, force: false, errorOnExist: true });
+        await fs.rm(sourcePath, { recursive: true, force: true });
+      } else {
+        await fs.copyFile(sourcePath, targetPath);
+        await fs.unlink(sourcePath);
+      }
+      return targetPath;
     }
-    console.warn('[moveResourceFileToTrash] failed:', e);
+    console.warn('[movePathToManagedTrash] failed:', e);
     return null;
   }
 }
@@ -894,11 +1103,15 @@ export const ResourcesRepo = {
       try {
         const ws = await WorkspacesRepo.getById(row.workspaceId);
         if (!ws?.rootPath) continue;
-        const trashPath = await moveResourceFileToTrash(row.filePath, row.id, ws.rootPath);
+        const trashPath =
+          row.originType === 'linked'
+            ? await movePathToManagedTrash(row.filePath, getLinkedResourceTrashPath(ws.rootPath, row.id, row.filePath))
+            : await moveResourceFileToTrash(row.filePath, row.id, ws.rootPath);
         if (trashPath) {
           // 更新 DB 中的 filePath 指向 .trash/ 位置
+          const patch: any = { filePath: trashPath };
           db.update(resources)
-            .set({ filePath: trashPath } as any)
+            .set(patch)
             .where(eq(resources.id, row.id))
             .run();
         }
@@ -957,6 +1170,24 @@ export const ResourcesRepo = {
 
     // 2) 预取当前资源行以获取当前 filePath（可能在 .trash/ 中）
     const currentRows = await db.select().from(resources).where(inArray(resources.id, expandedIds));
+    const linkedMountIds = Array.from(
+      new Set(
+        (currentRows as any[])
+          .filter((row: any) => row.originType === 'linked' && row.linkedMountId)
+          .map((row: any) => row.linkedMountId as string)
+      )
+    );
+    const linkedMounts: Array<{ id: string; absolutePath: string | null }> = linkedMountIds.length
+      ? await db
+          .select({ id: linked_folder_mounts.id, absolutePath: linked_folder_mounts.absolutePath })
+          .from(linked_folder_mounts)
+          .where(inArray(linked_folder_mounts.id, linkedMountIds))
+      : [];
+    const linkedMountMap = new Map<string, string>(
+      linkedMounts
+        .filter((mount): mount is { id: string; absolutePath: string } => !!mount.absolutePath)
+        .map((mount) => [mount.id, mount.absolutePath])
+    );
 
     let rows: any[] = [];
     (db as any).transaction((tx: any) => {
@@ -970,12 +1201,34 @@ export const ResourcesRepo = {
       const originalPath = originalPathMap.get(row.id);
       if (!row.filePath || !originalPath) continue;
       // 仅当文件确实在 .trash/ 目录中才恢复
-      if (!row.filePath.includes(`${path.sep}.trash${path.sep}`) && !row.filePath.includes('/.trash/')) continue;
+      if (
+        !row.filePath.includes(`${path.sep}.trash${path.sep}`) &&
+        !row.filePath.includes('/.trash/') &&
+        !row.filePath.includes(`${path.sep}.linked-trash${path.sep}`) &&
+        !row.filePath.includes('/.linked-trash/')
+      ) {
+        continue;
+      }
       try {
         const restoredPath = await restoreResourceFileFromTrash(row.filePath, originalPath, row.id);
         if (restoredPath && restoredPath !== row.filePath) {
+          const patch: any = { filePath: restoredPath };
+          if (row.originType === 'linked' && row.linkedMountId) {
+            const mountAbsolutePath = linkedMountMap.get(row.linkedMountId);
+            const nextRelativePath = mountAbsolutePath ? getRelativePathWithinMountPath(mountAbsolutePath, restoredPath) : null;
+            const stat = await fs.stat(restoredPath).catch(() => null);
+            if (nextRelativePath !== null) {
+              patch.relativePath = nextRelativePath;
+            }
+            if (stat?.isFile()) {
+              patch.sizeBytes = stat.size;
+              patch.externalMtimeMs = stat.mtimeMs;
+              patch.externalSizeBytes = stat.size;
+            }
+            patch.syncState = 'synced';
+          }
           db.update(resources)
-            .set({ filePath: restoredPath } as any)
+            .set(patch)
             .where(eq(resources.id, row.id))
             .run();
         }

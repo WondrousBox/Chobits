@@ -197,13 +197,30 @@ const ResourcePage: React.FC = () => {
       try {
         const result = await folderAPI?.['folder.rescanLinkedDirectory']?.({ rootFolderId: folderId });
         if (!result?.success) {
-          toast.error('Rescan failed', { description: result?.error || 'unknown' });
+          const description =
+            result?.error === 'linked-directory-not-found'
+              ? '原始目录不存在或暂时不可访问，请检查磁盘位置后重试。'
+              : result?.error || 'unknown';
+          toast.error('Rescan failed', { description });
           return;
         }
 
         await Promise.all([load(), loadFolders(wsFilter), loadTags(wsFilter)]);
         const resourceCount = result?.data?.stats?.resourceCount ?? 0;
-        toast.success('Linked folder rescanned', { description: `${resourceCount} files available` });
+        const hiddenFolderCount = result?.data?.stats?.hiddenFolderCount ?? 0;
+        const hiddenResourceCount = result?.data?.stats?.hiddenResourceCount ?? 0;
+        const conflictCount = result?.data?.stats?.conflictCount ?? 0;
+        const descriptionParts = [`${resourceCount} files available`];
+        if (hiddenFolderCount > 0) {
+          descriptionParts.push(`${hiddenFolderCount} folders missing`);
+        }
+        if (hiddenResourceCount > 0) {
+          descriptionParts.push(`${hiddenResourceCount} files missing`);
+        }
+        if (conflictCount > 0) {
+          descriptionParts.push(`${conflictCount} conflicts`);
+        }
+        toast.success('Linked folder rescanned', { description: descriptionParts.join(' · ') });
       } catch (error: any) {
         toast.error('Rescan failed', { description: error?.message || String(error) });
       }
@@ -325,6 +342,11 @@ const ResourcePage: React.FC = () => {
         case AppEvent.FOLDER_DELETED:
         case AppEvent.FOLDER_MOVED:
           loadFolders(wsFilter);
+          break;
+        case AppEvent.LINKED_DIRECTORY_SYNCED:
+          load();
+          loadFolders(wsFilter);
+          loadTags(wsFilter);
           break;
         case AppEvent.WORKSPACE_UPDATED:
         case AppEvent.WORKSPACE_CREATED:
@@ -517,6 +539,7 @@ const ResourcePage: React.FC = () => {
                 filtered={filtered}
                 viewMode={viewMode}
                 folderCounts={folderCounts}
+                folders={folders}
                 folderParentMap={folderParentMap}
                 selectedItems={selectedItems}
                 folderFilter={folderFilter}

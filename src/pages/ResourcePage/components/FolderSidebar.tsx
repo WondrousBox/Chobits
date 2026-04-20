@@ -15,6 +15,7 @@ export type UIFolder = {
   originType?: 'workspace' | 'linked';
   linkedMountId?: string | null;
   relativePath?: string | null;
+  metadata?: string | null;
   children?: UIFolder[];
   rank?: number;
 };
@@ -238,11 +239,6 @@ const FolderSidebar = ({
   const handleCreate = React.useCallback(
     async (parentId?: string | null): Promise<void> => {
       try {
-        const parentFolder = parentId ? folders.find((folder) => folder.id === parentId) : undefined;
-        const isLinkedRoot = parentFolder?.originType === 'linked' && (parentFolder.relativePath || '') === '';
-        if (isLinkedRoot) {
-          return;
-        }
         const newId = await onCreate(parentId);
         if (newId) {
           if (parentId) {

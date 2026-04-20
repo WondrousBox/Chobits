@@ -90,7 +90,7 @@ export const useFolderOperations = (
         const r = await folderAPI['folder.softDelete']({ ids: [id] });
         if ((r as any)?.success) {
           if (folderFilter === id) setFolderFilter(nextSelectId);
-          await loadFolders(wsFilter || undefined);
+          await Promise.all([loadFolders(wsFilter || undefined), load()]);
           toast.success('文件夹已删除', {
             description: '已移动到回收站',
             action: {
@@ -100,7 +100,7 @@ export const useFolderOperations = (
                   const rr = await folderAPI['folder.restore']({ ids: [id] });
                   if ((rr as any)?.success) {
                     toast.success('已撤回删除');
-                    await loadFolders(wsFilter || undefined);
+                    await Promise.all([loadFolders(wsFilter || undefined), load()]);
                   } else {
                     toast.error('撤回失败');
                   }
@@ -110,6 +110,10 @@ export const useFolderOperations = (
               }
             }
           });
+        } else if ((r as any)?.error === 'linked-root-readonly') {
+          toast.error('关联根目录不能删除', { description: '根目录请使用 Unlink；普通子目录可以进入回收站。' });
+        } else {
+          toast.error('删除文件夹失败');
         }
       } catch (e) {
         console.warn('delete folder failed', e);
@@ -150,11 +154,11 @@ export const useFolderOperations = (
           if (invalidCount > 0) {
             toast.error(`有 ${invalidCount} 个资源不属于当前空间，已阻止移动`);
           } else if ((res as any)?.error === 'linked-folder-readonly' || (res as any)?.error === 'linked-resource-readonly') {
-            toast.error('关联目录当前为只读模式');
+            toast.error('关联资源暂不支持这个移动目标');
           } else if ((res as any)?.error === 'cross-linked-mount-resource-move-not-supported') {
-            toast.error('Cannot move resources across linked mounts');
+            toast.error('不能跨关联目录移动资源');
           } else if ((res as any)?.error === 'linked-folder-requires-physical-content') {
-            toast.error('Linked folders only accept physical files');
+            toast.error('关联目录需要可写入的真实文件内容');
           } else {
             toast.error('移动失败');
           }

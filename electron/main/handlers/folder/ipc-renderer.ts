@@ -23,10 +23,7 @@ export type FolderIpcParams = {
   'folder.rename': IpcParams<[{ id: string; name: string }], { success: boolean; data?: Folder; error?: string }>;
   'folder.move': IpcParams<[{ id: string; parentId: string | null; prevRank?: number; nextRank?: number }], { success: boolean; data?: Folder; error?: string }>;
   'folder.get': IpcParams<[{ id: string }], Folder | undefined>;
-  'folder.getResolvedPath': IpcParams<
-    [{ id?: string | null; workspaceId?: string }],
-    { success: boolean; path?: string; originType?: 'workspace' | 'linked'; linkedMountId?: string; error?: string }
-  >;
+  'folder.getResolvedPath': IpcParams<[{ id?: string | null; workspaceId?: string }], { success: boolean; path?: string; originType?: 'workspace' | 'linked'; linkedMountId?: string; error?: string }>;
   'folder.linkLocalDirectory': IpcParams<
     [{ workspaceId?: string }],
     {
@@ -43,6 +40,7 @@ export type FolderIpcParams = {
           restoredResourceCount: number;
           hiddenFolderCount: number;
           hiddenResourceCount: number;
+          conflictCount: number;
           thumbnailCount: number;
         };
         reactivated: boolean;
@@ -65,6 +63,7 @@ export type FolderIpcParams = {
           restoredResourceCount: number;
           hiddenFolderCount: number;
           hiddenResourceCount: number;
+          conflictCount: number;
           thumbnailCount: number;
         };
       };
@@ -80,6 +79,75 @@ export type FolderIpcParams = {
         mountId: string;
         hiddenFolderCount: number;
         hiddenResourceCount: number;
+      };
+    }
+  >;
+  'folder.recreateLinkedMissingDirectory': IpcParams<
+    [{ folderId: string }],
+    {
+      success: boolean;
+      error?: string;
+      data?: {
+        folderId: string;
+        path: string;
+        rootFolderId: string;
+        stats: {
+          folderCount: number;
+          resourceCount: number;
+          restoredFolderCount: number;
+          restoredResourceCount: number;
+          hiddenFolderCount: number;
+          hiddenResourceCount: number;
+          conflictCount: number;
+          thumbnailCount: number;
+        };
+      };
+    }
+  >;
+  'folder.reconnectLinkedMissingDirectory': IpcParams<
+    [{ folderId: string }],
+    {
+      success: boolean;
+      canceled?: boolean;
+      error?: string;
+      data?: {
+        folderId: string;
+        rootFolderId: string;
+        relativePath: string;
+        path: string;
+        stats: {
+          folderCount: number;
+          resourceCount: number;
+          restoredFolderCount: number;
+          restoredResourceCount: number;
+          hiddenFolderCount: number;
+          hiddenResourceCount: number;
+          conflictCount: number;
+          thumbnailCount: number;
+        };
+      };
+    }
+  >;
+  'folder.ignoreLinkedMissingDirectory': IpcParams<
+    [{ folderId: string }],
+    {
+      success: boolean;
+      error?: string;
+      data?: {
+        folderId: string;
+        rootFolderId: string;
+        hiddenFolderCount: number;
+        rescanError?: string;
+        stats?: {
+          folderCount: number;
+          resourceCount: number;
+          restoredFolderCount: number;
+          restoredResourceCount: number;
+          hiddenFolderCount: number;
+          hiddenResourceCount: number;
+          conflictCount: number;
+          thumbnailCount: number;
+        };
       };
     }
   >;
@@ -100,6 +168,9 @@ const methods: Array<keyof FolderIpcParams> = [
   'folder.linkLocalDirectory',
   'folder.rescanLinkedDirectory',
   'folder.unlinkLocalDirectory',
+  'folder.recreateLinkedMissingDirectory',
+  'folder.reconnectLinkedMissingDirectory',
+  'folder.ignoreLinkedMissingDirectory',
   'folder.list',
   'folder.softDelete',
   'folder.restore',

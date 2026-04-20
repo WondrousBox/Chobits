@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbArrowDown, TbArrowUp, TbCalendar, TbChevronRight, TbFile, TbFolderFilled, TbFolderOpen, TbFolderPlus, TbLine, TbPencil, TbStack2, TbTrash, TbTypography } from 'react-icons/tb';
+import { TbArrowDown, TbArrowUp, TbCalendar, TbChevronRight, TbEyeOff, TbFile, TbFolderFilled, TbFolderOpen, TbFolderPlus, TbLine, TbPencil, TbStack2, TbTrash, TbTypography } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,29 @@ import { cn } from '@/lib/utils';
 import { runWorkflow } from '@/lib/workflow-runner';
 
 import { ResourceItem, SortField, SortOrder } from '../types';
+import {
+  getIgnoreLinkedMissingDirectoryErrorMessage,
+  getIgnoreLinkedMissingDirectorySuccessMessage,
+  getLinkedFolderIssueBadge,
+  getLinkedFolderState,
+  getLinkedFolderStateDescription,
+  getReconnectLinkedMissingDirectoryErrorMessage,
+  getReconnectLinkedMissingDirectorySuccessMessage,
+  getRecreateLinkedMissingDirectoryErrorMessage,
+  getRecreateLinkedMissingDirectorySuccessMessage,
+  ignoreLinkedMissingDirectory,
+  isLinkedFolderMissing,
+  reconnectLinkedMissingDirectory,
+  recreateLinkedMissingDirectory
+} from '../utils/linkedFolderState';
+import {
+  getLinkedResourceSyncIssue,
+  getLinkedResourceSyncIssueDescription,
+  getResolveLinkedResourceConflictErrorMessage,
+  openContainingFolderForResource,
+  rescanLinkedResourceRoot,
+  resolveLinkedResourceConflict
+} from '../utils/linkedResourceSync';
 import type { UIFolder } from './FolderSidebar';
 import ResourceListItem from './ResourceListItem';
 
@@ -29,30 +52,17 @@ interface TableHeaderProps {
   onSort: (field: SortField) => void;
 }
 
-const TableHeader: React.FC<TableHeaderProps> = ({
-  sortField,
-  sortOrder,
-  onSort
-}) => {
+const TableHeader: React.FC<TableHeaderProps> = ({ sortField, sortOrder, onSort }) => {
   // 渲染排序图标
-  const renderSortIcon = (field: SortField) => {
+  const renderSortIcon = (field: SortField): React.ReactNode => {
     if (sortField !== field) return null;
-    return sortOrder === 'asc' ? (
-      <TbArrowUp className="w-3 h-3" />
-    ) : (
-      <TbArrowDown className="w-3 h-3" />
-    );
+    return sortOrder === 'asc' ? <TbArrowUp className="w-3 h-3" /> : <TbArrowDown className="w-3 h-3" />;
   };
 
   return (
-    <div
-      className="flex items-center h-8 border-b border-border/50 text-xs text-muted-foreground sticky top-0 z-10 bg-background"
-    >
+    <div className="flex items-center h-8 border-b border-border/50 text-xs text-muted-foreground sticky top-0 z-10 bg-background">
       {/* 名称列 */}
-      <div
-        className="flex-1 min-w-0 h-full flex items-center border-r border-border/30 cursor-pointer hover:bg-muted/50 transition-colors"
-        onClick={() => onSort('title')}
-      >
+      <div className="flex-1 min-w-0 h-full flex items-center border-r border-border/30 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => onSort('title')}>
         <div className="flex items-center gap-1.5 px-2">
           <TbTypography className="w-3.5 h-3.5 text-muted-foreground/70" />
           <span>名称</span>
@@ -61,10 +71,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
       </div>
 
       {/* 类型列 */}
-      <div
-        className="w-24 shrink-0 h-full flex items-center border-r border-border/30 cursor-pointer hover:bg-muted/50 transition-colors"
-        onClick={() => onSort('type')}
-      >
+      <div className="w-24 shrink-0 h-full flex items-center border-r border-border/30 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => onSort('type')}>
         <div className="flex items-center gap-1.5 px-2">
           <TbFile className="w-3.5 h-3.5 text-muted-foreground/70" />
           <span>类型</span>
@@ -73,10 +80,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
       </div>
 
       {/* 大小列 */}
-      <div
-        className="w-20 shrink-0 h-full flex items-center border-r border-border/30 cursor-pointer hover:bg-muted/50 transition-colors"
-        onClick={() => onSort('sizeBytes')}
-      >
+      <div className="w-20 shrink-0 h-full flex items-center border-r border-border/30 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => onSort('sizeBytes')}>
         <div className="flex items-center gap-1.5 px-2">
           <TbStack2 className="w-3.5 h-3.5 text-muted-foreground/70" />
           <span>大小</span>
@@ -85,10 +89,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
       </div>
 
       {/* 时间列 */}
-      <div
-        className="w-28 shrink-0 h-full flex items-center border-r border-border/30 cursor-pointer hover:bg-muted/50 transition-colors"
-        onClick={() => onSort('collectedAt')}
-      >
+      <div className="w-28 shrink-0 h-full flex items-center border-r border-border/30 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => onSort('collectedAt')}>
         <div className="flex items-center gap-1.5 px-2">
           <TbCalendar className="w-3.5 h-3.5 text-muted-foreground/70" />
           <span>收集时间</span>
@@ -113,12 +114,19 @@ const ListFolderRow: React.FC<{
   onRename?: () => void;
   onDelete?: () => void;
   onOpenLocation?: () => void;
-}> = ({ folder, count, folderParentMap, onOpen, onDropResources, onMoveFolder, onRename, onDelete, onOpenLocation }) => {
+  onReconnectMissingFolder?: () => void | Promise<void>;
+  onRecreateMissingFolder?: () => void | Promise<void>;
+  onIgnoreMissingFolder?: () => void | Promise<void>;
+}> = ({ folder, count, folderParentMap, onOpen, onDropResources, onMoveFolder, onRename, onDelete, onOpenLocation, onReconnectMissingFolder, onRecreateMissingFolder, onIgnoreMissingFolder }) => {
   const [over, setOver] = useState(false);
   const [overInvalid, setOverInvalid] = useState(false);
   const [tipOpen, setTipOpen] = useState(false);
   const isWin = (window as any).YUA?.isWindows;
   const revealLabel = isWin ? '在资源管理器中显示' : '在 Finder 中显示';
+  const linkedFolderState = getLinkedFolderState(folder);
+  const linkedFolderIssueBadge = getLinkedFolderIssueBadge(linkedFolderState);
+  const linkedFolderIssueDescription = getLinkedFolderStateDescription(linkedFolderState);
+  const canRecreateLinkedFolder = isLinkedFolderMissing(linkedFolderState);
 
   // 检查是否为祖先文件夹（防止循环移动）
   const isAncestor = (ancestorId: string, descendantId: string): boolean => {
@@ -236,6 +244,11 @@ const ListFolderRow: React.FC<{
               <div className="flex-1 min-w-0 h-full flex items-center px-2 border-r border-border/20 gap-2">
                 <TbFolderFilled className="w-4 h-4 text-primary/70 shrink-0" />
                 <span className="text-sm truncate">{folder.name}</span>
+                {linkedFolderIssueBadge ? (
+                  <span className={`inline-flex h-5 shrink-0 items-center rounded border px-1.5 text-[10px] ${linkedFolderIssueBadge.className}`} title={linkedFolderIssueDescription}>
+                    {linkedFolderIssueBadge.label}
+                  </span>
+                ) : null}
               </div>
 
               {/* 类型列 - 显示"文件夹" */}
@@ -261,6 +274,28 @@ const ListFolderRow: React.FC<{
         </Tooltip>
       </ContextMenuTrigger>
       <ContextMenuContent className="min-w-[200px]" onClick={(e) => e.stopPropagation()}>
+        {linkedFolderIssueDescription ? (
+          <>
+            <ContextMenuItem disabled className="h-auto whitespace-normal py-2 text-xs leading-relaxed opacity-100">
+              {linkedFolderIssueDescription}
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        ) : null}
+        {canRecreateLinkedFolder ? (
+          <>
+            <ContextMenuItem className="flex items-center gap-2" onSelect={() => onReconnectMissingFolder?.()}>
+              <TbFolderOpen /> 选择新路径重连
+            </ContextMenuItem>
+            <ContextMenuItem className="flex items-center gap-2" onSelect={() => onRecreateMissingFolder?.()}>
+              <TbFolderPlus /> 在原位置重建目录
+            </ContextMenuItem>
+            <ContextMenuItem className="flex items-center gap-2" onSelect={() => onIgnoreMissingFolder?.()}>
+              <TbEyeOff /> 忽略缺失目录
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        ) : null}
         <ContextMenuItem onSelect={() => onOpen?.()}>打开</ContextMenuItem>
         <ContextMenuItem className="flex items-center gap-2" onSelect={() => onOpenLocation?.()}>
           <TbFolderOpen /> {revealLabel}
@@ -574,7 +609,9 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
   // 获取第一个选中的资源
   const firstSelectedId = selectedItems.size > 0 ? Array.from(selectedItems)[0] : undefined;
   const firstSelectedItem = useMemo(() => (firstSelectedId ? items.find((i) => i.id === firstSelectedId) : undefined), [items, firstSelectedId]);
-  const canRevealSelected = !!firstSelectedItem?.filePath;
+  const selectedSyncIssue = getLinkedResourceSyncIssue(firstSelectedItem);
+  const canRepairSelected = selectedItems.size === 1 && !!selectedSyncIssue;
+  const canRevealSelected = !!firstSelectedItem?.filePath && !canRepairSelected;
 
   // 获取工作流的开始节点输入模式
   const getWorkflowInputMode = useCallback((wf: any): 'resource' | 'text' | 'url' | 'file' | 'folder' => {
@@ -621,14 +658,14 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
   );
 
   // 右键菜单处理：如果点击的项目不在选中列表中，则选中该项目
-  const handleContextMenu = (e: React.MouseEvent, item: ResourceItem) => {
+  const handleContextMenu = (e: React.MouseEvent, item: ResourceItem): void => {
     if (!selectedItems.has(item.id)) {
       onItemClick(e, item);
     }
   };
 
   // 删除选中的资源
-  const handleDeleteSelected = () => {
+  const handleDeleteSelected = (): void => {
     const ids = Array.from(selectedItems);
     if (ids.length === 0) return;
     if (onDeleteMany) {
@@ -639,10 +676,111 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
   };
 
   // 在 Finder 中显示
-  const handleRevealSelected = async () => {
+  const handleRevealSelected = async (): Promise<void> => {
     if (!firstSelectedId) return;
     await window.YUA.resource.revealResource({ id: firstSelectedId });
   };
+
+  const handleRescanSelectedLinkedResource = useCallback(async () => {
+    if (!firstSelectedItem) return;
+    try {
+      const result = await rescanLinkedResourceRoot(firstSelectedItem);
+      if (!result.success) {
+        toast.error('重新扫描失败', { description: result.error || 'unknown' });
+        return;
+      }
+      toast.success('已重新扫描关联目录', {
+        description: `已检查 ${result.resourceCount ?? 0} 个文件`
+      });
+      await onFolderCreated?.();
+    } catch (error: any) {
+      toast.error('重新扫描失败', { description: error?.message || String(error) });
+    }
+  }, [firstSelectedItem, onFolderCreated]);
+
+  const handleOpenSelectedContainingFolder = useCallback(async () => {
+    if (!firstSelectedItem) return;
+    try {
+      const result = await openContainingFolderForResource(firstSelectedItem);
+      if (!result.success) {
+        toast.error('打开所在目录失败', { description: result.error || 'unknown' });
+      }
+    } catch (error: any) {
+      toast.error('打开所在目录失败', { description: error?.message || String(error) });
+    }
+  }, [firstSelectedItem]);
+
+  const handleResolveSelectedConflict = useCallback(
+    async (action: 'accept-disk' | 'copy-disk-snapshot') => {
+      if (!firstSelectedItem) return;
+      try {
+        const result = await resolveLinkedResourceConflict(firstSelectedItem, action);
+        if (!result?.success) {
+          toast.error('处理冲突失败', { description: getResolveLinkedResourceConflictErrorMessage(result?.error) });
+          return;
+        }
+        toast.success(action === 'accept-disk' ? '已采用磁盘版本' : '已另存磁盘副本', {
+          description: action === 'accept-disk' ? '关联资源已恢复为已同步状态。' : '磁盘当前版本已复制到工作区，原关联资源已确认磁盘版本。'
+        });
+        await onFolderCreated?.();
+      } catch (error: any) {
+        toast.error('处理冲突失败', { description: error?.message || String(error) });
+      }
+    },
+    [firstSelectedItem, onFolderCreated]
+  );
+
+  const handleRecreateLinkedMissingFolder = useCallback(
+    async (targetFolderId: string) => {
+      try {
+        const result = await recreateLinkedMissingDirectory(targetFolderId);
+        if (!result?.success) {
+          toast.error('重建目录失败', { description: getRecreateLinkedMissingDirectoryErrorMessage(result?.error) });
+          return;
+        }
+        toast.success('已在原位置重建目录', { description: getRecreateLinkedMissingDirectorySuccessMessage(result) });
+        await onFolderCreated?.();
+      } catch (error: any) {
+        toast.error('重建目录失败', { description: error?.message || String(error) });
+      }
+    },
+    [onFolderCreated]
+  );
+
+  const handleReconnectLinkedMissingFolder = useCallback(
+    async (targetFolderId: string) => {
+      try {
+        const result = await reconnectLinkedMissingDirectory(targetFolderId);
+        if (result?.canceled) return;
+        if (!result?.success) {
+          toast.error('重连目录失败', { description: getReconnectLinkedMissingDirectoryErrorMessage(result?.error) });
+          return;
+        }
+        toast.success('已重连缺失目录', { description: getReconnectLinkedMissingDirectorySuccessMessage(result) });
+        await onFolderCreated?.();
+      } catch (error: any) {
+        toast.error('重连目录失败', { description: error?.message || String(error) });
+      }
+    },
+    [onFolderCreated]
+  );
+
+  const handleIgnoreLinkedMissingFolder = useCallback(
+    async (targetFolderId: string) => {
+      try {
+        const result = await ignoreLinkedMissingDirectory(targetFolderId);
+        if (!result?.success) {
+          toast.error('忽略目录失败', { description: getIgnoreLinkedMissingDirectoryErrorMessage(result?.error) });
+          return;
+        }
+        toast.success('已忽略缺失目录', { description: getIgnoreLinkedMissingDirectorySuccessMessage(result) });
+        await onFolderCreated?.();
+      } catch (error: any) {
+        toast.error('忽略目录失败', { description: error?.message || String(error) });
+      }
+    },
+    [onFolderCreated]
+  );
 
   // 打开当前文件夹
   const handleRevealCurrentFolder = useCallback(async () => {
@@ -684,15 +822,25 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
   }, [folderId, workspaceId, onFolderCreated]);
 
   // 重命名确认
-  const handleRenameConfirm = useCallback(() => {
+  const handleRenameConfirm = useCallback(async () => {
     const id = renamingId || firstSelectedId;
     const val = renameValue.trim();
     if (!id || !val) {
       setRenameDialogOpen(false);
       return;
     }
-    window.YUA.resource.renameResource({ id, newName: val, renameFile: true });
-    setRenameDialogOpen(false);
+    try {
+      const result = await window.YUA.resource.renameResource({ id, newName: val, renameFile: true });
+      if (!result?.success) {
+        toast.error('重命名失败', { description: result?.error || 'unknown' });
+        return;
+      }
+      toast.success('已重命名');
+    } catch (error: any) {
+      toast.error('重命名失败', { description: error?.message || String(error) });
+    } finally {
+      setRenameDialogOpen(false);
+    }
   }, [renamingId, firstSelectedId, renameValue]);
 
   // 全选
@@ -716,11 +864,7 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
             onPointerUp={endDrag}
           >
             {/* 表头 */}
-            <TableHeader
-              sortField={sortField}
-              sortOrder={sortOrder}
-              onSort={handleSort}
-            />
+            <TableHeader sortField={sortField} sortOrder={sortOrder} onSort={handleSort} />
 
             {/* 列表内容 */}
             <div className="flex-1">
@@ -737,18 +881,15 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
                   onRename={() => onRenameFolder?.(f.id)}
                   onDelete={() => onDeleteFolder?.(f.id)}
                   onOpenLocation={() => onOpenFolderLocation?.(f.id)}
+                  onReconnectMissingFolder={() => handleReconnectLinkedMissingFolder(f.id)}
+                  onRecreateMissingFolder={() => handleRecreateLinkedMissingFolder(f.id)}
+                  onIgnoreMissingFolder={() => handleIgnoreLinkedMissingFolder(f.id)}
                 />
-                ))}
+              ))}
 
               {/* 再渲染资源列表条目 */}
               {items.map((item, idx) => (
-                <div
-                  key={item.id}
-                  ref={updateItemRef(item.id)}
-                  data-explorer-item
-                  data-id={item.id}
-                  onContextMenu={(e) => handleContextMenu(e, item)}
-                >
+                <div key={item.id} ref={updateItemRef(item.id)} data-explorer-item data-id={item.id} onContextMenu={(e) => handleContextMenu(e, item)}>
                   <ResourceListItem
                     item={item}
                     selected={selectedItems.has(item.id)}
@@ -760,11 +901,7 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
                       if (onPreview) {
                         onPreview(current);
                       } else {
-                        window.YUA.window['window:open'](
-                          'resourcePreview',
-                          { current, list: items, index: idx },
-                          { sameDisplayAsSender: true }
-                        );
+                        window.YUA.window['window:open']('resourcePreview', { current, list: items, index: idx }, { sameDisplayAsSender: true });
                       }
                     }}
                     draggable
@@ -806,6 +943,20 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
             <>
               <div className="px-2 py-1.5 text-sm text-muted-foreground">已选择 {selectedItems.size} 项</div>
               <ContextMenuSeparator />
+              {canRepairSelected && (
+                <>
+                  <div className="px-2 pb-1 text-xs text-muted-foreground">{getLinkedResourceSyncIssueDescription(selectedSyncIssue)}</div>
+                  {selectedSyncIssue === 'conflict' ? (
+                    <>
+                      <ContextMenuItem onSelect={() => handleResolveSelectedConflict('accept-disk')}>采用磁盘版本</ContextMenuItem>
+                      <ContextMenuItem onSelect={() => handleResolveSelectedConflict('copy-disk-snapshot')}>另存磁盘副本并确认</ContextMenuItem>
+                    </>
+                  ) : null}
+                  <ContextMenuItem onSelect={handleRescanSelectedLinkedResource}>重新扫描关联目录</ContextMenuItem>
+                  <ContextMenuItem onSelect={handleOpenSelectedContainingFolder}>打开所在目录</ContextMenuItem>
+                  <ContextMenuSeparator />
+                </>
+              )}
               {canRevealSelected && (
                 <>
                   <ContextMenuItem onSelect={handleRevealSelected}>

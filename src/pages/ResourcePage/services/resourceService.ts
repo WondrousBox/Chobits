@@ -213,8 +213,8 @@ export async function addResourcesFromSelectedFiles(files: SelectedResourceFileT
     };
     try {
       const res = await window.YUA.resource['resource:add']({ resource });
-      if (res.success) {
-        resources.push(res.data);
+      if (res.success && res.data) {
+        resources.push(res.data as Resource);
       }
     } catch (error) {
       console.error('addResourcesFromSelectedFiles error', error);

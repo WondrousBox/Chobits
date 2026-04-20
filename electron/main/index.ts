@@ -217,6 +217,7 @@ app.whenReady().then(async () => {
   updateSplashLog('loading default workspace');
   try {
     const { LinkedFolderMountsRepo, WorkspacesRepo } = await import('./db/repositories');
+    const { restoreLinkedMountWatchers } = await import('./handlers/folder/linked-sync');
     const ws = await WorkspacesRepo.getDefault();
     if (ws?.rootPath) {
       const resRoot = path.join(ws.rootPath, 'resources');
@@ -232,6 +233,9 @@ app.whenReady().then(async () => {
     }
     if (activeMounts.length > 0) {
       updateSplashLog(`linked roots restored: ${activeMounts.length}`);
+    }
+    if (activeMounts.length > 0) {
+      void restoreLinkedMountWatchers({ syncOnStart: true });
     }
   } catch (e) {
     console.warn('[protocol res] add workspace root failed', e);

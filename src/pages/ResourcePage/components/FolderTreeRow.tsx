@@ -1,5 +1,5 @@
 import React from 'react';
-import { TbChevronDown, TbChevronRight, TbDots, TbFolder, TbFolderOpen, TbFolderPlus, TbPencil, TbRefresh, TbTrash } from 'react-icons/tb';
+import { TbChevronDown, TbChevronRight, TbDots, TbEyeOff, TbFolder, TbFolderOpen, TbFolderPlus, TbPencil, TbRefresh, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -7,6 +7,25 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Input } from '@/components/ui/input';
 import { SidebarMenuAction, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+
+import {
+  getIgnoreLinkedMissingDirectoryErrorMessage,
+  getIgnoreLinkedMissingDirectorySuccessMessage,
+  getLinkedFolderIssueBadge,
+  getLinkedFolderState,
+  getLinkedFolderStateDescription,
+  getLinkedRootIssueBadge,
+  getLinkedRootState,
+  getLinkedRootStateDescription,
+  getReconnectLinkedMissingDirectoryErrorMessage,
+  getReconnectLinkedMissingDirectorySuccessMessage,
+  getRecreateLinkedMissingDirectoryErrorMessage,
+  getRecreateLinkedMissingDirectorySuccessMessage,
+  ignoreLinkedMissingDirectory,
+  isLinkedFolderMissing,
+  reconnectLinkedMissingDirectory,
+  recreateLinkedMissingDirectory
+} from '../utils/linkedFolderState';
 
 export type UIFolder = {
   id: string;
@@ -16,6 +35,7 @@ export type UIFolder = {
   originType?: 'workspace' | 'linked';
   linkedMountId?: string | null;
   relativePath?: string | null;
+  metadata?: string | null;
   children?: UIFolder[];
   rank?: number;
 };
@@ -86,6 +106,13 @@ const FolderTreeRow = ({
   const shortcutDelete = 'Delete';
   const isLinkedFolder = node.originType === 'linked';
   const isLinkedRoot = isLinkedFolder && (node.relativePath || '') === '';
+  const linkedRootState = getLinkedRootState(node);
+  const linkedRootIssueBadge = getLinkedRootIssueBadge(linkedRootState);
+  const linkedRootIssueDescription = getLinkedRootStateDescription(linkedRootState);
+  const linkedFolderState = getLinkedFolderState(node);
+  const linkedFolderIssueBadge = getLinkedFolderIssueBadge(linkedFolderState);
+  const linkedFolderIssueDescription = getLinkedFolderStateDescription(linkedFolderState);
+  const canRecreateLinkedFolder = isLinkedFolderMissing(linkedFolderState);
   void onRename;
 
   React.useEffect(() => {
@@ -107,7 +134,7 @@ const FolderTreeRow = ({
     if (!isEditing) return;
     if (isLinkedRoot) {
       setInlineEditId?.(null);
-      toast.error('Linked folders are read-only right now');
+      toast.error('关联根目录不能重命名');
       return;
     }
     const newName = nameDraft.trim();
@@ -148,11 +175,60 @@ const FolderTreeRow = ({
       const resolved = await folderApi['folder.getResolvedPath']({ id: node.id });
       const folderPath: string | undefined = resolved?.success ? resolved.path : undefined;
       if (!folderPath) return;
-      await (window as any).YUA?.file['file:openPath'](folderPath);
+      const result = await (window as any).YUA?.file['file:openPath'](folderPath);
+      if (!result?.ok) {
+        toast.error('打开目录失败', { description: result?.error || 'unknown' });
+      }
     } catch (err) {
       console.warn('open folder path failed', err);
     }
   }, [node.id]);
+
+  const handleRecreateLinkedMissingDirectory = React.useCallback(async () => {
+    try {
+      const result = await recreateLinkedMissingDirectory(node.id);
+      if (!result?.success) {
+        toast.error('重建目录失败', { description: getRecreateLinkedMissingDirectoryErrorMessage(result?.error) });
+        return;
+      }
+
+      toast.success('已在原位置重建目录', { description: getRecreateLinkedMissingDirectorySuccessMessage(result) });
+    } catch (error: any) {
+      toast.error('重建目录失败', { description: error?.message || String(error) });
+    }
+  }, [node.id]);
+
+  const handleReconnectLinkedMissingDirectory = React.useCallback(async () => {
+    try {
+      const result = await reconnectLinkedMissingDirectory(node.id);
+      if (result?.canceled) return;
+      if (!result?.success) {
+        toast.error('重连目录失败', { description: getReconnectLinkedMissingDirectoryErrorMessage(result?.error) });
+        return;
+      }
+
+      toast.success('已重连缺失目录', { description: getReconnectLinkedMissingDirectorySuccessMessage(result) });
+    } catch (error: any) {
+      toast.error('重连目录失败', { description: error?.message || String(error) });
+    }
+  }, [node.id]);
+
+  const handleIgnoreLinkedMissingDirectory = React.useCallback(async () => {
+    try {
+      const result = await ignoreLinkedMissingDirectory(node.id);
+      if (!result?.success) {
+        toast.error('忽略目录失败', { description: getIgnoreLinkedMissingDirectoryErrorMessage(result?.error) });
+        return;
+      }
+
+      toast.success('已忽略缺失目录', { description: getIgnoreLinkedMissingDirectorySuccessMessage(result) });
+      if (selectedId === node.id) {
+        onSelect(node.parentId || '');
+      }
+    } catch (error: any) {
+      toast.error('忽略目录失败', { description: error?.message || String(error) });
+    }
+  }, [node.id, node.parentId, onSelect, selectedId]);
 
   const commonDnD = {
     onDragOver: (e: React.DragEvent) => {
@@ -322,6 +398,16 @@ const FolderTreeRow = ({
               Linked
             </Badge>
           ) : null}
+          {isLinkedRoot && linkedRootIssueBadge ? (
+            <Badge variant="outline" className={`h-4 px-1.5 py-0 text-[10px] shrink-0 ${linkedRootIssueBadge.className}`} title={linkedRootIssueDescription}>
+              {linkedRootIssueBadge.label}
+            </Badge>
+          ) : null}
+          {!isLinkedRoot && linkedFolderIssueBadge ? (
+            <Badge variant="outline" className={`h-4 px-1.5 py-0 text-[10px] shrink-0 ${linkedFolderIssueBadge.className}`} title={linkedFolderIssueDescription}>
+              {linkedFolderIssueBadge.label}
+            </Badge>
+          ) : null}
         </span>
       )}
     </SidebarMenuButton>
@@ -344,26 +430,69 @@ const FolderTreeRow = ({
             </SidebarMenuAction>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" sideOffset={4} onClick={(e) => e.stopPropagation()}>
-            {!isLinkedRoot ? (
-              <DropdownMenuItem
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  try {
-                    const newId = await onCreate(node.id);
-                    if (newId) {
-                      setInlineEditId?.(newId);
-                      if (!expanded) onToggleExpand(node.id);
-                      onSelect(newId);
-                    }
-                  } catch {
-                    /* ignore */
-                  }
-                }}
-              >
-                <TbFolderPlus className="mr-2" /> New folder
-                <span className="ml-auto text-xs text-muted-foreground">{shortcutCreate}</span>
-              </DropdownMenuItem>
+            {isLinkedRoot && linkedRootIssueDescription ? (
+              <>
+                <DropdownMenuItem disabled className="h-auto whitespace-normal py-2 text-xs leading-relaxed opacity-100">
+                  {linkedRootIssueDescription}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
             ) : null}
+            {!isLinkedRoot && linkedFolderIssueDescription ? (
+              <>
+                <DropdownMenuItem disabled className="h-auto whitespace-normal py-2 text-xs leading-relaxed opacity-100">
+                  {linkedFolderIssueDescription}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            ) : null}
+            {canRecreateLinkedFolder ? (
+              <>
+                <DropdownMenuItem
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    await handleReconnectLinkedMissingDirectory();
+                  }}
+                >
+                  <TbFolderOpen className="mr-2" /> 选择新路径重连
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    await handleRecreateLinkedMissingDirectory();
+                  }}
+                >
+                  <TbFolderPlus className="mr-2" /> 在原位置重建目录
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    await handleIgnoreLinkedMissingDirectory();
+                  }}
+                >
+                  <TbEyeOff className="mr-2" /> 忽略缺失目录
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            ) : null}
+            <DropdownMenuItem
+              onClick={async (e) => {
+                e.stopPropagation();
+                try {
+                  const newId = await onCreate(node.id);
+                  if (newId) {
+                    setInlineEditId?.(newId);
+                    if (!expanded) onToggleExpand(node.id);
+                    onSelect(newId);
+                  }
+                } catch {
+                  /* ignore */
+                }
+              }}
+            >
+              <TbFolderPlus className="mr-2" /> New folder
+              <span className="ml-auto text-xs text-muted-foreground">{shortcutCreate}</span>
+            </DropdownMenuItem>
 
             <DropdownMenuItem
               onClick={async (e) => {
@@ -409,23 +538,21 @@ const FolderTreeRow = ({
                   <TbPencil className="mr-2" /> Rename
                   <span className="ml-auto text-xs text-muted-foreground">{shortcutRename}</span>
                 </DropdownMenuItem>
-                {!isLinkedFolder ? (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      className="text-destructive focus:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete(node.id);
-                      }}
-                    >
-                      <TbTrash className="mr-2" /> Delete
-                      <span className="ml-auto text-xs text-muted-foreground">{shortcutDelete}</span>
-                    </DropdownMenuItem>
-                  </>
-                ) : null}
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(node.id);
+                    }}
+                  >
+                    <TbTrash className="mr-2" /> Delete
+                    <span className="ml-auto text-xs text-muted-foreground">{shortcutDelete}</span>
+                  </DropdownMenuItem>
+                </>
               </>
-            ) : null}
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

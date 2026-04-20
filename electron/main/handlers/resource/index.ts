@@ -212,7 +212,6 @@ export async function addResource(r: { resource: Resource }): Promise<{ success:
   let linkedFolderContext: Awaited<ReturnType<typeof getLinkedFolderContext>> | null = null;
   let folderId = res.folderId;
   const originalFilePath = filePath; // 记录原始路径，用于查找伴随文件（如 .segments.json）
-  let folderId = res.folderId;
 
   if (folderId) {
     const targetFolder = await FoldersRepo.getById(folderId);
