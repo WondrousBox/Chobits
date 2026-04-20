@@ -65,7 +65,12 @@ export function useFolderImport({ folderFilter, wsFilter, load, loadFolders, sho
 
       if (res?.canceled) return;
       if (!res?.success) {
-        const message = res?.error === 'linked-folder-readonly' ? 'Linked folders are read-only right now' : 'Failed to start import';
+        const message =
+          res?.error === 'linked-folder-readonly'
+            ? '关联目录暂不支持这个导入目标'
+            : res?.error === 'linked-folder-write-failed'
+              ? '写入关联目录失败，请检查本地文件夹权限'
+              : 'Failed to start import';
         toast.error(message);
         return;
       }
@@ -86,7 +91,12 @@ export function useFolderImport({ folderFilter, wsFilter, load, loadFolders, sho
 
       if (res?.canceled) return;
       if (!res?.success) {
-        const message = res?.error === 'linked-folder-readonly' ? 'Linked folders are read-only right now' : 'Failed to start import';
+        const message =
+          res?.error === 'linked-folder-readonly'
+            ? '关联目录暂不支持这个导入目标'
+            : res?.error === 'linked-folder-write-failed'
+              ? '写入关联目录失败，请检查本地文件夹权限'
+              : 'Failed to start import';
         toast.error(message);
         return;
       }

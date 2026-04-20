@@ -5,23 +5,23 @@ import type { IpcParams, PartialByKey } from '../types';
 export type Resource = {
   id: string;
   type:
-  | 'image'
-  | 'video'
-  | 'audio'
-  | 'text'
-  | 'link'
-  | 'file'
-  | 'document'
-  | 'translation'
-  | 'summary'
-  | 'mindmap'
-  | 'note'
-  | 'screenshot'
-  | 'segments'
-  | 'subtitle-edit'
-  | 'tts-track'
-  | 'media-track'
-  | 'other';
+    | 'image'
+    | 'video'
+    | 'audio'
+    | 'text'
+    | 'link'
+    | 'file'
+    | 'document'
+    | 'translation'
+    | 'summary'
+    | 'mindmap'
+    | 'note'
+    | 'screenshot'
+    | 'segments'
+    | 'subtitle-edit'
+    | 'tts-track'
+    | 'media-track'
+    | 'other';
   workspaceId?: string;
   folderId?: string;
   originType?: 'workspace' | 'linked';
@@ -82,6 +82,10 @@ export type ResourceIpcParams = {
   deleteResourcePermanently: IpcParams<[{ id: string }], { success: boolean; deleted: number; error?: string }>;
   revealResource: IpcParams<[{ id: string }], { success: boolean }>;
   renameResource: IpcParams<[{ id: string; newName: string; renameFile?: boolean }], { success: boolean; fileRenamed?: boolean; newPath?: string; data?: Resource; error?: string }>;
+  resolveLinkedResourceConflict: IpcParams<
+    [{ id: string; action: 'accept-disk' | 'copy-disk-snapshot' }],
+    { success: boolean; data?: { resource?: Resource; copy?: Resource | null }; error?: string }
+  >;
   moveResourcesToWorkspace: IpcParams<[{ ids: string[]; workspaceId: string }], { success?: boolean; moved: number; data?: Resource[]; error?: string }>;
   /** 批量移动资源到指定文件夹（或移出文件夹）。包含跨工作空间校验。 */
   'resource:moveToFolder': IpcParams<[{ ids: string[]; folderId: string | null; workspaceId?: string }], { success: boolean; moved?: number; invalid?: string[]; error?: string }>;
@@ -220,10 +224,7 @@ export type ResourceIpcParams = {
   'resource:deleteMediaTrack': IpcParams<[{ parentResourceId: string; trackId: string }], { success: boolean; error?: string }>;
   // ---- 资源项目目录管理 ----
   /** 获取资源项目目录路径（不创建目录） */
-  'resource:getProjectPath': IpcParams<
-    [{ resourceId: string; workspaceId: string }],
-    { success: boolean; path?: string | null; error?: string }
-  >;
+  'resource:getProjectPath': IpcParams<[{ resourceId: string; workspaceId: string }], { success: boolean; path?: string | null; error?: string }>;
   /** 确保资源项目目录存在（如果不存在则创建） */
   'resource:ensureProjectDir': IpcParams<
     [{ resourceId: string; workspaceId: string; subDirs?: Array<'outputs' | 'cache' | 'temp'> }],
@@ -235,10 +236,7 @@ export type ResourceIpcParams = {
     }
   >;
   /** 清空资源项目目录 */
-  'resource:clearProjectDir': IpcParams<
-    [{ resourceId: string; workspaceId: string; subDir?: 'outputs' | 'cache' | 'temp' }],
-    { success: boolean; error?: string }
-  >;
+  'resource:clearProjectDir': IpcParams<[{ resourceId: string; workspaceId: string; subDir?: 'outputs' | 'cache' | 'temp' }], { success: boolean; error?: string }>;
   /** 删除资源项目目录 */
   'resource:deleteProjectDir': IpcParams<[{ resourceId: string; workspaceId: string }], { success: boolean; error?: string }>;
   /** 获取资源项目目录统计信息 */
@@ -258,10 +256,7 @@ export type ResourceIpcParams = {
     }
   >;
   /** 在资源项目目录中创建自定义子目录 */
-  'resource:createProjectSubDir': IpcParams<
-    [{ resourceId: string; workspaceId: string; dirName: string }],
-    { success: boolean; path?: string; error?: string }
-  >;
+  'resource:createProjectSubDir': IpcParams<[{ resourceId: string; workspaceId: string; dirName: string }], { success: boolean; path?: string; error?: string }>;
 };
 
 const methods: Array<keyof ResourceIpcParams> = [
@@ -278,6 +273,7 @@ const methods: Array<keyof ResourceIpcParams> = [
   'deleteResourcePermanently',
   'revealResource',
   'renameResource',
+  'resolveLinkedResourceConflict',
   'moveResourcesToWorkspace',
   'resource:moveToFolder',
   'rebuildResourceThumbnail',

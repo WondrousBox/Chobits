@@ -1,6 +1,10 @@
 # sprite-core — 桌面精灵人格化核心引擎
 
-> 2026-04-08 补充：当前主进程统一运行时已经落地。`PersonaState` 持久化已补齐 `dimensions` 与历史快照兼容读取，`sprite:interact` typed contract 也已收口；剩余仍在继续收口的重点是动画 trigger 分类和配置入口。请结合 [sprite-runtime-unification-plan.md](./sprite-runtime-unification-plan.md) 一起阅读。
+> 2026-04-20 补充：桌面精灵当前已经具备较完整的 runtime 骨架，但动画 trigger、移动配置、成长规则、能力解锁的 authority 仍在继续收口。阅读顺序建议为：
+> - 先看 [sprite-runtime-unification-plan.md](./sprite-runtime-unification-plan.md) 了解原则与目标态
+> - 再看 [sprite-refactor-execution-roadmap.md](./sprite-refactor-execution-roadmap.md) 了解当前实施批次、验收标准与文档回填方式
+>
+> 2026-04-08 补充：当前主进程统一运行时已经落地。`PersonaState` 持久化已补齐 `dimensions` 与历史快照兼容读取，`sprite:interact` typed contract 也已收口；剩余仍在继续收口的重点是动画 trigger 分类和配置入口。
 
 ## 概览
 

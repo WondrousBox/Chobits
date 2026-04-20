@@ -10,6 +10,11 @@
 > - 2026-04-08 已完成 `R2`：导出共享 `PersonaSnapshot`、移除 `SpriteStateSnapshot` / `SpriteInitialState` 中的 `any`、状态页切换到共享 Persona DTO
 > - 2026-04-08 已完成 `R3`：统一 `sprite:interact` typed intent、补齐 hover/file-drag 语义、交互统计改为 EventBus 单源
 > - 当前下一步重点：`R4 Runtime State 与 Animation Trigger 分离`
+> - 2026-04-20 已新增配套执行单：[sprite-refactor-execution-roadmap.md](./sprite-refactor-execution-roadmap.md)
+
+> **执行说明**:
+>
+> 本文档继续负责“原则、问题模型、长期收口方向”；具体到批次拆分、文件范围、验收标准与后续回填，请同步维护 [sprite-refactor-execution-roadmap.md](./sprite-refactor-execution-roadmap.md)。
 
 ---
 

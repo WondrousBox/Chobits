@@ -1,17 +1,32 @@
 import { debounce } from 'lodash-es';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbBolt, TbChevronLeft, TbHome, TbPlayerPlay, TbSparkles, TbTrash, TbX } from 'react-icons/tb';
+import { TbAlertTriangle, TbChevronLeft, TbEyeOff, TbFolderOpen, TbFolderPlus, TbHome, TbPlayerPlay, TbTrash, TbX } from 'react-icons/tb';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import { toast } from 'sonner';
 
 import Dropzone from '@/components/common/Dropzone';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { runWorkflow } from '@/lib/workflow-runner';
 import { BroadcastChannelManager, CHANNEL_NAMES, type PreferencesMessage } from '@/utils/broadcastChannels';
 
 import { ResourceItem, ViewMode } from '../../types';
+import {
+  getIgnoreLinkedMissingDirectoryErrorMessage,
+  getIgnoreLinkedMissingDirectorySuccessMessage,
+  getLinkedFolderState,
+  getReconnectLinkedMissingDirectoryErrorMessage,
+  getReconnectLinkedMissingDirectorySuccessMessage,
+  getRecreateLinkedMissingDirectoryErrorMessage,
+  getRecreateLinkedMissingDirectorySuccessMessage,
+  ignoreLinkedMissingDirectory,
+  isLinkedFolderMissing,
+  reconnectLinkedMissingDirectory,
+  recreateLinkedMissingDirectory
+} from '../../utils/linkedFolderState';
+import { getLinkedResourceSyncIssue, getLinkedResourceSyncIssueDescription } from '../../utils/linkedResourceSync';
 import { mergeVideoWithSubtitles } from '../../utils/subtitleUtils';
 import AIChatSidebar from '../AIChatSidebar';
 import DefaultEmptyFolder from '../DefaultEmptyFolder';
@@ -35,6 +50,7 @@ interface ResourceContentProps {
   filtered: any[];
   viewMode: ViewMode;
   folderCounts: Record<string, number>;
+  folders: UIFolder[];
   folderParentMap: Map<string, string | null>;
   selectedItems: Set<string>;
   folderFilter: string;
@@ -73,6 +89,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
   filtered,
   viewMode,
   folderCounts,
+  folders,
   folderParentMap,
   selectedItems,
   folderFilter,
@@ -106,6 +123,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
 
   // AI 侧边对话栏状态
   const [aiChatOpen, setAiChatOpen] = useState(false);
+  const [missingRepairOpen, setMissingRepairOpen] = useState(false);
 
   // 工作流列表（提升到父组件，避免 SelectionActionBar 每次挂载时重新加载）
   const [workflows, setWorkflows] = useState<any[]>([]);
@@ -115,7 +133,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
       .then((defs: any[]) => {
         setWorkflows(defs || []);
       })
-      .catch(() => { });
+      .catch(() => {});
   }, []);
 
   // 预览面板状态
@@ -205,6 +223,75 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
     return filtered;
   }, [filtered, isCollapseMode]);
 
+  const missingLinkedFolders = useMemo(() => {
+    return (folders || []).filter((folder) => folder.workspaceId === wsFilter && isLinkedFolderMissing(getLinkedFolderState(folder)));
+  }, [folders, wsFilter]);
+
+  const refreshAfterFolderRepair = useCallback(async (): Promise<void> => {
+    await load();
+    await loadFolders(wsFilter || undefined);
+  }, [load, loadFolders, wsFilter]);
+
+  const handleReconnectMissingFolder = useCallback(
+    async (folderId: string): Promise<void> => {
+      const result = await reconnectLinkedMissingDirectory(folderId);
+      if (result?.canceled) return;
+      if (!result?.success) {
+        toast.error('重连目录失败', { description: getReconnectLinkedMissingDirectoryErrorMessage(result?.error) });
+        return;
+      }
+      toast.success('已重连缺失目录', { description: getReconnectLinkedMissingDirectorySuccessMessage(result) });
+      await refreshAfterFolderRepair();
+    },
+    [refreshAfterFolderRepair]
+  );
+
+  const handleRecreateMissingFolder = useCallback(
+    async (folderId: string): Promise<void> => {
+      const result = await recreateLinkedMissingDirectory(folderId);
+      if (!result?.success) {
+        toast.error('重建目录失败', { description: getRecreateLinkedMissingDirectoryErrorMessage(result?.error) });
+        return;
+      }
+      toast.success('已在原位置重建目录', { description: getRecreateLinkedMissingDirectorySuccessMessage(result) });
+      await refreshAfterFolderRepair();
+    },
+    [refreshAfterFolderRepair]
+  );
+
+  const handleIgnoreMissingFolder = useCallback(
+    async (folderId: string): Promise<void> => {
+      const result = await ignoreLinkedMissingDirectory(folderId);
+      if (!result?.success) {
+        toast.error('忽略目录失败', { description: getIgnoreLinkedMissingDirectoryErrorMessage(result?.error) });
+        return;
+      }
+      toast.success('已忽略缺失目录', { description: getIgnoreLinkedMissingDirectorySuccessMessage(result) });
+      await refreshAfterFolderRepair();
+    },
+    [refreshAfterFolderRepair]
+  );
+
+  const handleBulkRecreateMissingFolders = useCallback(async (): Promise<void> => {
+    let repaired = 0;
+    for (const folder of missingLinkedFolders) {
+      const result = await recreateLinkedMissingDirectory(folder.id);
+      if (result?.success) repaired += 1;
+    }
+    await refreshAfterFolderRepair();
+    toast.success('批量重建完成', { description: `已处理 ${repaired}/${missingLinkedFolders.length} 个缺失目录。` });
+  }, [missingLinkedFolders, refreshAfterFolderRepair]);
+
+  const handleBulkIgnoreMissingFolders = useCallback(async (): Promise<void> => {
+    let repaired = 0;
+    for (const folder of missingLinkedFolders) {
+      const result = await ignoreLinkedMissingDirectory(folder.id);
+      if (result?.success) repaired += 1;
+    }
+    await refreshAfterFolderRepair();
+    toast.success('批量忽略完成', { description: `已处理 ${repaired}/${missingLinkedFolders.length} 个缺失目录。` });
+  }, [missingLinkedFolders, refreshAfterFolderRepair]);
+
   // 新增资源高亮：在当前工作区/文件夹内，记录「最近出现」的资源 ID，并在短时间内高亮显示
   const [recentlyAddedIds, setRecentlyAddedIds] = useState<Set<string>>(new Set());
   const previousIdsRef = useRef<Set<string>>(new Set());
@@ -215,7 +302,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
   useEffect(() => {
     initializedRef.current = false;
     previousIdsRef.current = new Set();
-    setRecentlyAddedIds(new Set());
+    window.setTimeout(() => setRecentlyAddedIds(new Set()), 0);
     highlightTimeoutsRef.current.forEach((timeoutId) => {
       window.clearTimeout(timeoutId);
     });
@@ -275,9 +362,36 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
   }, [mergedItems]);
 
   // 处理预览资源
-  const handlePreview = useCallback((item: ResourceItem) => {
-    setPreviewResource(item);
-  }, []);
+  const handlePreview = useCallback(
+    (item: ResourceItem) => {
+      const syncIssue = getLinkedResourceSyncIssue(item);
+      if (syncIssue) {
+        toast.error('无法预览关联资源', {
+          description: getLinkedResourceSyncIssueDescription(syncIssue)
+        });
+        return;
+      }
+
+      if (previewMode === 'panel') {
+        setPreviewResource(item);
+        return;
+      }
+
+      const index = mergedItems.findIndex((entry) => entry.id === item.id);
+      window.YUA.window['window:open'](
+        'resourcePreview',
+        {
+          current: item,
+          list: mergedItems,
+          index: index >= 0 ? index : 0
+        },
+        {
+          sameDisplayAsSender: true
+        }
+      );
+    },
+    [mergedItems, previewMode]
+  );
 
   // 关闭预览面板
   const handleClosePreview = useCallback(() => {
@@ -286,11 +400,18 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
 
   // 切换预览的资源
   const handlePreviewResourceChange = useCallback((newResource: ResourceItem) => {
+    const syncIssue = getLinkedResourceSyncIssue(newResource);
+    if (syncIssue) {
+      toast.error('无法预览关联资源', {
+        description: getLinkedResourceSyncIssueDescription(syncIssue)
+      });
+      return;
+    }
     setPreviewResource(newResource);
   }, []);
 
   // 渲染资源列表内容
-  const renderResourceList = () => (
+  const renderResourceList = (): React.ReactNode => (
     <Dropzone
       className="w-full h-full overflow-y-auto relative"
       onDropFiles={onDropFiles}
@@ -348,7 +469,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
           onDeleteMany={handleDeleteMany}
           onToggleFavorite={handleToggleFavorite}
           onToggleVisibility={handleToggleVisibility}
-          onPreview={previewMode === 'window' ? undefined : handlePreview}
+          onPreview={handlePreview}
           onOpenRssSettings={onOpenRssSettings}
           onRefreshRss={onRefreshRss}
         />
@@ -373,7 +494,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
           onRenameFolder={handleRenameFolder}
           onDeleteFolder={handleDeleteFolder}
           onOpenFolderLocation={handleOpenFolderLocation}
-          onPreview={previewMode === 'window' ? undefined : handlePreview}
+          onPreview={handlePreview}
           onDelete={handleDelete}
           onDeleteMany={handleDeleteMany}
           onFolderCreated={async () => {
@@ -391,7 +512,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
           onItemClick={handleItemClick}
           onToggleFavorite={handleToggleFavorite}
           onToggleVisibility={handleToggleVisibility}
-          onPreview={previewMode === 'window' ? undefined : (item) => handlePreview(item)}
+          onPreview={(item) => handlePreview(item)}
           draggable
           onDragStart={(e, _item, ids) => {
             try {
@@ -472,6 +593,12 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
 
         {/* 右侧：功能按钮 */}
         <div className="pointer-events-auto flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          {missingLinkedFolders.length > 0 ? (
+            <Button variant="ghost" size="sm" className="h-8 gap-1.5 px-2 text-amber-700" onClick={() => setMissingRepairOpen(true)}>
+              <TbAlertTriangle className="h-4 w-4" />
+              <span className="text-xs">{missingLinkedFolders.length}</span>
+            </Button>
+          ) : null}
           {/* AI 助手按钮 */}
           {/* <button className={`p-1.5 rounded transition-colors ${aiChatOpen ? 'bg-muted text-primary' : 'hover:bg-muted'}`} onClick={() => setAiChatOpen((prev) => !prev)} title="AI 助手">
             <TbSparkles className="w-4 h-4" />
@@ -487,6 +614,46 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
           </button> */}
         </div>
       </div>
+
+      <Dialog open={missingRepairOpen} onOpenChange={setMissingRepairOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>缺失关联目录</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-sm text-muted-foreground">共 {missingLinkedFolders.length} 个目录需要处理</div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={handleBulkRecreateMissingFolders}>
+                <TbFolderPlus className="h-4 w-4" /> 全部重建
+              </Button>
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={handleBulkIgnoreMissingFolders}>
+                <TbEyeOff className="h-4 w-4" /> 全部忽略
+              </Button>
+            </div>
+          </div>
+          <div className="max-h-[50vh] overflow-auto rounded-md border">
+            {missingLinkedFolders.map((folder) => (
+              <div key={folder.id} className="flex items-center gap-3 border-b px-3 py-2 last:border-b-0">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">{folder.name}</div>
+                  <div className="truncate text-xs text-muted-foreground">{folder.relativePath || folder.id}</div>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button variant="ghost" size="icon" className="h-8 w-8" title="选择新路径重连" onClick={() => handleReconnectMissingFolder(folder.id)}>
+                    <TbFolderOpen className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" title="在原位置重建目录" onClick={() => handleRecreateMissingFolder(folder.id)}>
+                    <TbFolderPlus className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" title="忽略缺失目录" onClick={() => handleIgnoreMissingFolder(folder.id)}>
+                    <TbEyeOff className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="flex-1 overflow-hidden border-t">
         <ResizablePanelGroup direction="horizontal" className="h-full">
@@ -622,7 +789,7 @@ const SelectionActionBar: React.FC<SelectionActionBarProps> = ({ selectedItems, 
             thumbnailPath: item.thumbnailPath,
             workspaceId: item.workspaceId
           },
-          onSuccess: () => { }
+          onSuccess: () => {}
         });
       }
       toast.success(`已开始对 ${selectedResources.length} 个资源执行工作流: ${wf.name}`);

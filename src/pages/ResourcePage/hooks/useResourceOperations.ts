@@ -25,8 +25,7 @@ export const useResourceOperations = (
         } else {
           const result = await window.YUA.resource.deleteResource({ id });
           if (!result?.success) {
-            const message = result?.error === 'linked-resource-readonly' ? 'Linked resources are read-only right now' : 'Delete failed';
-            toast.error(message);
+            toast.error('Delete failed');
             return;
           }
         }
@@ -67,8 +66,7 @@ export const useResourceOperations = (
         if (normalIds.length > 0) {
           const result = await window.YUA.resource.deleteResources({ ids: normalIds });
           if (!result?.success) {
-            const message = result?.error === 'linked-resource-readonly' ? 'Linked resources are read-only right now' : 'Delete failed';
-            toast.error(message);
+            toast.error('Delete failed');
             return;
           }
         }

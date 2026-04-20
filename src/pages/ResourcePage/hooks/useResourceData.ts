@@ -68,6 +68,7 @@ export const useResourceData = (
             originType: r.originType,
             linkedMountId: r.linkedMountId ?? null,
             relativePath: r.relativePath ?? null,
+            metadata: r.metadata ?? null,
             rank: r.rank
           }))
         );

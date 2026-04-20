@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/time';
 
 import { ResourceItem } from '../types';
+import { getLinkedResourceSyncIssue, getLinkedResourceSyncIssueLabel } from '../utils/linkedResourceSync';
 
 // 类型标签配置（包含图标）
 const TYPE_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
@@ -88,6 +89,8 @@ const ResourceListItem: React.FC<ListItemProps> = ({
   const detailedType = getDetailedType(item);
   const typeConfig = TYPE_CONFIG[detailedType] || TYPE_CONFIG.other;
   const IconComponent = typeConfig.icon;
+  const syncIssue = getLinkedResourceSyncIssue(item);
+  const syncIssueLabel = getLinkedResourceSyncIssueLabel(syncIssue);
 
   // 点击行：选中资源，普通点击时触发预览
   const handleRowClick = useCallback(
@@ -117,13 +120,27 @@ const ResourceListItem: React.FC<ListItemProps> = ({
         // 未选中时 hover 效果
         !selected && 'hover:bg-muted/50',
         // 新增资源高亮
-        isNew && 'bg-amber-50/70 dark:bg-amber-950/40'
+        isNew && 'bg-amber-50/70 dark:bg-amber-950/40',
+        syncIssue === 'missing' && 'bg-amber-50/40 dark:bg-amber-950/20',
+        syncIssue === 'conflict' && 'bg-destructive/5'
       )}
     >
       {/* 名称列 - 弹性宽度 */}
       <div className="flex-1 min-w-0 h-full flex items-center px-2 border-r border-border/20 gap-2">
         <IconComponent className="w-4 h-4 shrink-0 text-muted-foreground" />
         <span className="text-sm truncate">{displayName}</span>
+        {syncIssue && (
+          <span
+            className={cn(
+              'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium',
+              syncIssue === 'missing' && 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+              syncIssue === 'conflict' && 'bg-destructive/15 text-destructive'
+            )}
+            title={syncIssueLabel}
+          >
+            {syncIssueLabel}
+          </span>
+        )}
       </div>
 
       {/* 类型列 - 固定宽度 */}
