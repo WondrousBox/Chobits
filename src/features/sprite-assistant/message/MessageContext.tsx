@@ -21,7 +21,7 @@ export function MessageProvider({ children }: MessageProviderProps): JSX.Element
 
       if (currentNotice?.routineId) {
         try {
-          await window.ipcRenderer?.invoke('dailyCare:handleButtonClick', currentNotice.routineId, button.id, button.action);
+          await window.YUA.dailyCare?.['dailyCare:handleButtonClick']?.(currentNotice.routineId, button.id, button.action);
         } catch (error) {
           console.warn('[MessageContext] handleButtonClick failed', error);
         }

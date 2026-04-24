@@ -13,6 +13,11 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+import type { SpriteAnimationCondition } from './animation-condition';
+import { resolvePackRelativeAssetPath } from './character-pack-paths';
+import { DEFAULT_CONVERSATION_REWARDS, mergeActivityRewards } from './config/persona-rules';
+import type { MoodType } from './persona-state';
+
 // ━━ Type Definitions ━━
 
 export interface CharacterIdentity {
@@ -72,7 +77,7 @@ export interface ConversationRewards {
   bonusConditions: ConversationBonusCondition[];
 }
 
-export type ActivityRewardId =
+export type BuiltinActivityRewardId =
   | 'workflow-complete'
   | 'resource-import-complete'
   | 'download-complete'
@@ -83,6 +88,8 @@ export type ActivityRewardId =
   | 'memory-extraction-completed'
   | 'user-persona-update-completed'
   | 'trash-restore';
+
+export type ActivityRewardId = BuiltinActivityRewardId | (string & {});
 
 export interface ActivityReward {
   xp: number;
@@ -104,6 +111,50 @@ export interface ConditionalToolLabel {
 export interface ToolLabelDefinition {
   default: ToolLabelTemplate;
   conditions?: ConditionalToolLabel[];
+}
+
+export interface CharacterXPSourceDefinition {
+  id: string;
+  event: string;
+  baseXP: number;
+  dailyLimit?: number;
+}
+
+export interface CharacterFavorModifierDefinition {
+  id: string;
+  event: string;
+  delta: number;
+  dailyLimit?: number;
+  cooldown?: number;
+}
+
+export interface CharacterMoodRuleDefinition {
+  id: string;
+  when: SpriteAnimationCondition;
+  targetMood: MoodType;
+  intensity: number;
+  priority: number;
+}
+
+export interface CharacterConversationBonusMatcherDefinition {
+  when: SpriteAnimationCondition;
+}
+
+export interface CharacterCapabilityPersonaFlagDefinition {
+  id: string;
+  when: SpriteAnimationCondition;
+}
+
+export interface CharacterCapabilityFlagsConfig {
+  featureFlags?: string[];
+  personaFlags?: CharacterCapabilityPersonaFlagDefinition[];
+}
+
+export interface CharacterPersonaRulesConfig {
+  xpSources?: CharacterXPSourceDefinition[];
+  favorModifiers?: CharacterFavorModifierDefinition[];
+  moodRules?: CharacterMoodRuleDefinition[];
+  conversationBonusMatchers?: Record<string, CharacterConversationBonusMatcherDefinition>;
 }
 
 export interface CharacterMeta {
@@ -131,102 +182,168 @@ export interface CharacterDefinition {
   };
   conversationRewards: ConversationRewards;
   activityRewards?: Partial<Record<ActivityRewardId, ActivityReward>>;
+  personaRules?: CharacterPersonaRulesConfig;
+  capabilityFlags?: CharacterCapabilityFlagsConfig;
   /** Per-tool display label overrides with placeholder support */
   toolLabels?: Record<string, ToolLabelDefinition>;
   meta: CharacterMeta;
 }
 
+export interface CharacterPackAssets {
+  character?: string;
+  animations?: string;
+  voices?: string;
+  preview?: {
+    avatar?: string;
+    gif?: string;
+    video?: string;
+  };
+}
+
+export interface CharacterPackCapabilities {
+  hasVoice?: boolean;
+  hasCustomAnimations?: boolean;
+  has3DModel?: boolean;
+  supportedLanguages?: string[];
+  dimensionExtensions?: string[];
+}
+
+export interface CharacterPackProvenance {
+  channel?: string;
+  publisher?: string;
+  homepage?: string;
+  repository?: string;
+  support?: string;
+  canonicalUrl?: string;
+}
+
+export interface CharacterPackSignature {
+  algorithm?: string;
+  keyId?: string;
+  digest?: string;
+  value?: string;
+}
+
+export interface CharacterPackDefinition {
+  formatVersion: number;
+  id: string;
+  name: string;
+  version: string;
+  author: string;
+  description: string;
+  license: string;
+  tags: string[];
+  minAppVersion?: string;
+  platform?: string[];
+  assets?: CharacterPackAssets;
+  capabilities?: CharacterPackCapabilities;
+  provenance?: CharacterPackProvenance;
+  signature?: CharacterPackSignature;
+}
+
 // ━━ Service ━━
 
 let cachedCharacter: CharacterDefinition | null = null;
+let cachedCharacterPack: CharacterPackDefinition | null = null;
 let characterFilePath: string | null = null;
+let characterPackFilePath: string | null = null;
 
-const DEFAULT_ACTIVITY_REWARDS: Record<ActivityRewardId, ActivityReward> = {
-  'workflow-complete': {
-    xp: 12,
-    favor: 0.4,
-    dimensionGrowth: {
-      'workflow-usage': 1.0,
-      'task-completion': 0.6
+function readJsonFile<T>(filePath: string | null, options: { label: string; warnMissing?: boolean }): T | null {
+  if (!filePath || !fs.existsSync(filePath)) {
+    if (options.warnMissing !== false) {
+      console.warn(`[CharacterService] ${options.label} not found at:`, filePath);
     }
-  },
-  'resource-import-complete': {
-    xp: 8,
-    favor: 0.2,
-    dimensionGrowth: {
-      'task-completion': 0.5
-    }
-  },
-  'download-complete': {
-    xp: 8,
-    favor: 0.2,
-    dimensionGrowth: {
-      'task-completion': 0.4
-    }
-  },
-  'plugin-install': {
-    xp: 10,
-    favor: 0.3,
-    dimensionGrowth: {
-      'tool-usage': 0.8,
-      'task-completion': 0.5
-    }
-  },
-  'plugin-update': {
-    xp: 6,
-    favor: 0.2,
-    dimensionGrowth: {
-      'tool-usage': 0.6,
-      'task-completion': 0.4
-    }
-  },
-  'plugin-remove': {
-    xp: 4,
-    favor: 0,
-    dimensionGrowth: {
-      'tool-usage': 0.4
-    }
-  },
-  'media-process-complete': {
-    xp: 9,
-    favor: 0.2,
-    dimensionGrowth: {
-      'task-completion': 0.5,
-      'tool-usage': 0.3
-    }
-  },
-  'memory-extraction-completed': {
-    xp: 3,
-    favor: 0.1,
-    dimensionGrowth: {
-      conversation: 0.3,
-      'task-completion': 0.2
-    }
-  },
-  'user-persona-update-completed': {
-    xp: 5,
-    favor: 0.3,
-    dimensionGrowth: {
-      conversation: 0.4,
-      'task-completion': 0.3
-    }
-  },
-  'trash-restore': {
-    xp: 4,
-    favor: 0.1,
-    dimensionGrowth: {
-      'task-completion': 0.2
-    }
+    return null;
   }
-};
+
+  try {
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    return JSON.parse(raw) as T;
+  } catch (e) {
+    console.error(`[CharacterService] Failed to load ${options.label}:`, e);
+    return null;
+  }
+}
+
+function getDefaultCharacterFilePathForPack(packFile: string): string {
+  return path.join(path.dirname(packFile), 'character.json');
+}
+
+function resolvePackRelativePath(packFile: string, candidate: unknown): string | null {
+  return resolvePackRelativeAssetPath(path.dirname(packFile), candidate);
+}
+
+function resolveCharacterFilePathFromPack(pack: CharacterPackDefinition | null | undefined, packFile: string | null): string | null {
+  if (!packFile) return null;
+  return resolvePackRelativePath(packFile, pack?.assets?.character) ?? getDefaultCharacterFilePathForPack(packFile);
+}
+
+function resolvePackAssetPath(pack: CharacterPackDefinition | null | undefined, packFile: string | null, asset: keyof CharacterPackAssets): string | null {
+  if (!packFile) return null;
+
+  const resolved = resolvePackRelativePath(packFile, pack?.assets?.[asset]);
+  if (resolved) {
+    return resolved;
+  }
+
+  if (asset === 'character') {
+    return getDefaultCharacterFilePathForPack(packFile);
+  }
+
+  return null;
+}
+
+export function setCharacterFilePath(filePath: string | null): void {
+  characterFilePath = filePath ? path.resolve(filePath) : null;
+  cachedCharacter = null;
+}
+
+export function setCharacterPackFilePath(filePath: string | null): void {
+  characterPackFilePath = filePath ? path.resolve(filePath) : null;
+  cachedCharacterPack = null;
+}
+
+export function getCharacterPackFilePath(): string | null {
+  return characterPackFilePath;
+}
+
+export function getCharacterPackRootDir(): string | null {
+  return characterPackFilePath ? path.dirname(characterPackFilePath) : null;
+}
 
 /**
  * Initialize the character service with the sprites directory path.
  * Call this once during app bootstrap (after sprite assets are initialized).
  */
 export function initCharacterService(spritesDir: string): void {
-  characterFilePath = path.join(spritesDir, 'character.json');
-  cachedCharacter = null; // force reload on next access
+  const resolvedSpritesDir = path.resolve(spritesDir);
+  setCharacterPackFilePath(path.join(resolvedSpritesDir, 'pack.json'));
+  const characterPath = resolveCharacterFilePathFromPack(getCharacterPackDefinition(), characterPackFilePath) ?? path.join(resolvedSpritesDir, 'character.json');
+  setCharacterFilePath(characterPath);
+}
+
+/**
+ * Load and return the current character pack definition.
+ * Returns null if pack.json doesn't exist or is invalid.
+ */
+export function getCharacterPackDefinition(): CharacterPackDefinition | null {
+  if (cachedCharacterPack) return cachedCharacterPack;
+
+  const pack = readJsonFile<CharacterPackDefinition>(characterPackFilePath, {
+    label: 'pack.json',
+    warnMissing: false
+  });
+  if (!pack) {
+    return null;
+  }
+
+  cachedCharacterPack = pack;
+  console.log(`[CharacterService] Loaded character pack: ${pack.name} (${pack.id})`);
+  return cachedCharacterPack;
+}
+
+export function getCharacterPackAssetPath(asset: keyof CharacterPackAssets): string | null {
+  return resolvePackAssetPath(getCharacterPackDefinition(), characterPackFilePath, asset);
 }
 
 /**
@@ -236,20 +353,16 @@ export function initCharacterService(spritesDir: string): void {
 export function getCharacterDefinition(): CharacterDefinition | null {
   if (cachedCharacter) return cachedCharacter;
 
-  if (!characterFilePath || !fs.existsSync(characterFilePath)) {
-    console.warn('[CharacterService] character.json not found at:', characterFilePath);
+  const character = readJsonFile<CharacterDefinition>(characterFilePath, {
+    label: 'character.json'
+  });
+  if (!character) {
     return null;
   }
 
-  try {
-    const raw = fs.readFileSync(characterFilePath, 'utf-8');
-    cachedCharacter = JSON.parse(raw) as CharacterDefinition;
-    console.log(`[CharacterService] Loaded character: ${cachedCharacter.name} (${cachedCharacter.id})`);
-    return cachedCharacter;
-  } catch (e) {
-    console.error('[CharacterService] Failed to load character.json:', e);
-    return null;
-  }
+  cachedCharacter = character;
+  console.log(`[CharacterService] Loaded character: ${cachedCharacter.name} (${cachedCharacter.id})`);
+  return cachedCharacter;
 }
 
 /**
@@ -259,14 +372,7 @@ export function getCharacterDefinition(): CharacterDefinition | null {
 export function getConversationRewards(): ConversationRewards {
   const char = getCharacterDefinition();
   if (char?.conversationRewards) return char.conversationRewards;
-
-  // Fallback defaults
-  return {
-    xpPerConversation: 15,
-    favorPerConversation: 1.5,
-    cooldownMs: 60_000,
-    bonusConditions: []
-  };
+  return { ...DEFAULT_CONVERSATION_REWARDS, bonusConditions: [...DEFAULT_CONVERSATION_REWARDS.bonusConditions] };
 }
 
 /**
@@ -275,25 +381,7 @@ export function getConversationRewards(): ConversationRewards {
  */
 export function getActivityRewards(): Record<ActivityRewardId, ActivityReward> {
   const char = getCharacterDefinition();
-  const overrides = char?.activityRewards ?? {};
-  const activityIds = Object.keys(DEFAULT_ACTIVITY_REWARDS) as ActivityRewardId[];
-
-  return activityIds.reduce(
-    (acc, activityId) => {
-      const base = DEFAULT_ACTIVITY_REWARDS[activityId];
-      const override = overrides[activityId];
-      acc[activityId] = {
-        ...base,
-        ...override,
-        dimensionGrowth: {
-          ...(base.dimensionGrowth ?? {}),
-          ...(override?.dimensionGrowth ?? {})
-        }
-      };
-      return acc;
-    },
-    {} as Record<ActivityRewardId, ActivityReward>
-  );
+  return mergeActivityRewards(char?.activityRewards);
 }
 
 /**
@@ -317,7 +405,23 @@ export function getDimensionSchema(): DimensionDef[] {
  */
 export function reloadCharacter(): CharacterDefinition | null {
   cachedCharacter = null;
+  cachedCharacterPack = null;
+  const resolvedCharacterPath = resolveCharacterFilePathFromPack(getCharacterPackDefinition(), characterPackFilePath);
+  if (resolvedCharacterPath) {
+    characterFilePath = resolvedCharacterPath;
+  }
   return getCharacterDefinition();
+}
+
+export function reloadCharacterPack(): CharacterPackDefinition | null {
+  cachedCharacterPack = null;
+  const pack = getCharacterPackDefinition();
+  const resolvedCharacterPath = resolveCharacterFilePathFromPack(pack, characterPackFilePath);
+  if (resolvedCharacterPath && resolvedCharacterPath !== characterFilePath) {
+    characterFilePath = resolvedCharacterPath;
+    cachedCharacter = null;
+  }
+  return pack;
 }
 
 // ━━ Persona Prompt Builder (Phase 2) ━━

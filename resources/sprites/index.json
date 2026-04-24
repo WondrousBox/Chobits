@@ -10,7 +10,7 @@
           "idle",
           "default"
         ],
-        "eventType": "idle"
+        "primaryTrigger": "idle"
       },
       "source": {
         "localPath": "./idle.webm",
@@ -33,7 +33,7 @@
           "walk",
           "default"
         ],
-        "eventType": "walk"
+        "primaryTrigger": "walk"
       },
       "source": {
         "localPath": "./walk.webm",
@@ -71,7 +71,7 @@
           "sleep",
           "default"
         ],
-        "eventType": "sleep"
+        "primaryTrigger": "sleep"
       },
       "source": {
         "localPath": "./sleep.webm",
@@ -93,7 +93,7 @@
       "meta": {
         "id": "fileDragOver-default",
         "title": "fileDragOver 默认",
-        "eventType": "fileDragOver"
+        "primaryTrigger": "fileDragOver"
       },
       "source": {
         "localPath": "./fileDragOver.webm",
@@ -114,7 +114,7 @@
         "title": "Thinking 思考中",
         "description": "AI 思考/处理中动画（占位）",
         "tags": ["thinking", "placeholder"],
-        "eventType": "thinking"
+        "primaryTrigger": "thinking"
       },
       "source": {
         "localPath": "./idle.webm",
@@ -134,7 +134,7 @@
         "title": "Success 成功",
         "description": "任务成功完成动画（占位）",
         "tags": ["success", "placeholder"],
-        "eventType": "success"
+        "primaryTrigger": "success"
       },
       "source": {
         "localPath": "./idle.webm",
@@ -154,7 +154,7 @@
         "title": "Error 错误",
         "description": "错误/失败动画（占位）",
         "tags": ["error", "placeholder"],
-        "eventType": "error"
+        "primaryTrigger": "error"
       },
       "source": {
         "localPath": "./idle.webm",
@@ -174,7 +174,7 @@
         "title": "Celebrate 庆祝",
         "description": "庆祝/完成任务动画（占位）",
         "tags": ["celebrate", "placeholder"],
-        "eventType": "celebrate"
+        "primaryTrigger": "celebrate"
       },
       "source": {
         "localPath": "./idle.webm",
@@ -194,7 +194,7 @@
         "title": "Processing 处理中",
         "description": "处理/加载中动画（占位）",
         "tags": ["processing", "loading", "placeholder"],
-        "eventType": "processing"
+        "primaryTrigger": "processing"
       },
       "source": {
         "localPath": "./idle.webm",
@@ -214,7 +214,7 @@
         "title": "Loading 加载中",
         "description": "加载中动画（占位）",
         "tags": ["loading", "placeholder"],
-        "eventType": "loading"
+        "primaryTrigger": "loading"
       },
       "source": {
         "localPath": "./idle.webm",
@@ -234,7 +234,7 @@
         "title": "Failure 失败",
         "description": "失败动画（占位）",
         "tags": ["failure", "placeholder"],
-        "eventType": "failure"
+        "primaryTrigger": "failure"
       },
       "source": {
         "localPath": "./idle.webm",
@@ -254,7 +254,7 @@
         "title": "Cancellation 取消",
         "description": "取消操作动画（占位）",
         "tags": ["cancel", "placeholder"],
-        "eventType": "cancellation"
+        "primaryTrigger": "cancellation"
       },
       "source": {
         "localPath": "./idle.webm",
@@ -272,7 +272,7 @@
       "meta": {
         "id": "welcome-default",
         "title": "welcome",
-        "eventType": "welcome",
+        "primaryTrigger": "welcome",
         "deletable": true
       },
       "source": {

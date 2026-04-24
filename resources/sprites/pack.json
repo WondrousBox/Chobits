@@ -1,0 +1,34 @@
+{
+  "formatVersion": 1,
+  "id": "yua-default",
+  "name": "YUA - 默认助手",
+  "version": "1.0.0",
+  "author": "Chobits",
+  "description": "温暖友善的桌面精灵伙伴",
+  "license": "MIT",
+  "tags": ["default", "friendly", "zh-CN"],
+  "minAppVersion": "1.0.0",
+  "platform": ["darwin", "win32", "linux"],
+  "assets": {
+    "character": "character.json",
+    "animations": "index.json"
+  },
+  "provenance": {
+    "channel": "builtin",
+    "publisher": "Chobits",
+    "repository": "https://gitee.com/yu-qian/chobits",
+    "canonicalUrl": "https://gitee.com/yu-qian/chobits"
+  },
+  "signature": {
+    "algorithm": "sha256",
+    "keyId": "builtin:yua-default",
+    "digest": "sha256:7148ea7769a576da2befa195ce3d99becb9bf3cfebb4a1b3e6207be7e4850d27"
+  },
+  "capabilities": {
+    "hasVoice": false,
+    "hasCustomAnimations": true,
+    "has3DModel": false,
+    "supportedLanguages": ["zh-CN"],
+    "dimensionExtensions": []
+  }
+}

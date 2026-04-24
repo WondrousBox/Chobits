@@ -1238,9 +1238,16 @@ export class PiSessionService {
       session.agent.replaceMessages(promptState.history as any);
 
       // ━━ Debug: dump full prompt context before sending to LLM ━━
-      console.log('\n[PiSession:DEBUG] ═══════════════ FULL PROMPT TO LLM ═══════════════');
-      console.log('[PiSession:DEBUG] System Prompt (%d chars):\n%s', session.systemPrompt.length, session.systemPrompt);
-      console.log('[PiSession:DEBUG] ─── Active Tools (%d) ───', session.getActiveToolNames().length);
+      console.log(`[PiSession:DEBUG]
+═══════════════ FULL PROMPT TO LLM ═══════════════
+
+System Prompt ${session.systemPrompt.length} chars:
+>>>
+${session.systemPrompt}
+<<<
+
+Active Tools (${session.getActiveToolNames().length}): ${session.getActiveToolNames().join(', ')}
+`);
       for (const tool of session.getAllTools().filter((t) => session.getActiveToolNames().includes(t.name))) {
         console.log('[PiSession:DEBUG]   • %s: %s [params: %s]', tool.name, tool.description?.slice(0, 80) || '(no desc)', JSON.stringify(Object.keys(tool.parameters?.properties || {})));
       }

@@ -1,150 +1,66 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useSpriteState } from '../context/hooks';
 import { resolveSpriteSrc } from '../utils/resource';
-
-/**
- * Animation playback phase for three-phase animations:
- * - 'intro': Playing the intro segment (0 ~ loopStartMs)
- * - 'loop': Playing the looping segment (loopStartMs ~ loopEndMs)
- * - 'outro': Playing the outro segment (loopEndMs ~ end)
- * - 'idle': Not actively playing, will loop intro or full video
- */
-type AnimationPhase = 'intro' | 'loop' | 'outro' | 'idle';
+import { isTimedPlaybackActive } from './video-playback';
+import { VideoSpriteDriver } from './video-sprite-driver';
 
 export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' | 'right' | null }): JSX.Element | null {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const { currentAnimation, spriteState } = useSpriteState();
+  const [driver] = useState(
+    () =>
+      new VideoSpriteDriver({
+        onAnimationComplete: (animationId, phase) => {
+          window.YUA.sprite.animComplete(animationId, phase);
+        }
+      })
+  );
 
   // 从 currentAnimation 的 sprite:play 指令提取播放参数
   const animId = currentAnimation?.animationId ?? null;
   const source = currentAnimation?.source;
   const playback = currentAnimation?.playback;
-
-  // Use ref instead of state to avoid cascading re-renders
-  const phaseRef = useRef<AnimationPhase>('idle');
-  const prevAnimIdRef = useRef<string | null>(null);
+  const playbackSession = currentAnimation?.playbackSession;
 
   // 判断是否为三段式动画
   const hasSegmentLoop = playback?.loopStartMs != null && playback?.loopEndMs != null;
+  const timedSessionActive = playbackSession?.mode === 'timed' ? isTimedPlaybackActive(playbackSession) : null;
 
-  // 判断是否正在活跃播放（非 idle 状态时视为 playing）
-  const isPlaying = spriteState !== 'idle';
+  // 判断是否正在活跃播放：优先使用播放命令自身的 timed session，再回退到 runtime state
+  const isPlaying = timedSessionActive ?? spriteState !== 'idle';
 
-  const prevIsPlayingRef = useRef(false);
+  useEffect(() => {
+    driver.syncPlaybackSession({
+      video: videoRef.current,
+      hasSegmentLoop,
+      playback,
+      playbackSession
+    });
+    return () => {
+      driver.clearPlaybackSessionTimer();
+    };
+  }, [animId, driver, hasSegmentLoop, playback, playbackSession]);
 
   // Reset video state when animation changes
   useLayoutEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    if (prevAnimIdRef.current === animId) return;
-    prevAnimIdRef.current = animId;
-
-    phaseRef.current = 'idle';
-    v.currentTime = 0;
-    v.play();
-  }, [animId]);
+    driver.resetForAnimation({
+      video: videoRef.current,
+      animId,
+      hasSegmentLoop,
+      playbackSession
+    });
+  }, [animId, driver, hasSegmentLoop, playbackSession, timedSessionActive]);
 
   // Handle isPlaying transitions for three-phase animations
   useLayoutEffect(() => {
-    const v = videoRef.current;
-    if (!v || !hasSegmentLoop) return;
-
-    const wasPlaying = prevIsPlayingRef.current;
-    prevIsPlayingRef.current = isPlaying;
-
-    if (isPlaying && !wasPlaying) {
-      v.currentTime = 0;
-      v.play();
-      phaseRef.current = 'intro';
-    } else if (!isPlaying && wasPlaying && phaseRef.current === 'loop') {
-      const loopEndSec = (playback?.loopEndMs ?? v.duration * 1000) / 1000;
-      v.currentTime = loopEndSec;
-      v.play();
-      phaseRef.current = 'outro';
-    }
-  }, [isPlaying, hasSegmentLoop, playback?.loopEndMs]);
-
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    const onCanPlay = (): void => {
-      v.play();
-    };
-    v.addEventListener('canplay', onCanPlay);
-    return () => {
-      v.removeEventListener('canplay', onCanPlay);
-    };
-  }, []);
-
-  const handleTimeUpdate = (): void => {
-    const v = videoRef.current;
-    if (!v) return;
-    const duration = v.duration;
-    if (!Number.isFinite(duration) || duration <= 0) return;
-
-    const loopStartMs = playback?.loopStartMs;
-    const loopEndMs = playback?.loopEndMs;
-    const currentTimeMs = v.currentTime * 1000;
-    const durationMs = duration * 1000;
-    const phase = phaseRef.current;
-
-    const effectiveStart = loopStartMs ?? 0;
-    const effectiveEnd = loopEndMs ?? durationMs;
-    const hasCustomLoop = loopStartMs != null || loopEndMs != null;
-
-    const shouldLoop = hasCustomLoop ? playback?.loop !== false : (playback?.loop ?? false);
-
-    // Handle three-phase animation
-    if (loopStartMs != null && loopEndMs != null) {
-      if (phase === 'intro' && currentTimeMs >= loopStartMs) {
-        phaseRef.current = 'loop';
-      } else if (phase === 'loop' && currentTimeMs >= loopEndMs - 50) {
-        if (shouldLoop) {
-          v.currentTime = loopStartMs / 1000;
-          v.play();
-        } else {
-          v.currentTime = loopEndMs / 1000;
-          phaseRef.current = 'outro';
-        }
-      } else if (phase === 'outro' && currentTimeMs >= durationMs - 50) {
-        if (shouldLoop && isPlaying) {
-          phaseRef.current = 'idle';
-          v.currentTime = 0;
-          v.play();
-        } else {
-          phaseRef.current = 'idle';
-          v.pause();
-          if (animId) {
-            // 无论是否自动回到 idle，都统一上报完成，由主进程决定后续行为
-            window.YUA.sprite.animComplete(animId, 'outro');
-          }
-        }
-      } else if (phase === 'idle') {
-        if (shouldLoop && isPlaying && currentTimeMs >= loopStartMs - 50) {
-          v.currentTime = 0;
-          v.play();
-        }
-      }
-      return;
-    }
-
-    // Handle simple loop
-    if (hasCustomLoop) {
-      if (currentTimeMs >= effectiveEnd - 50) {
-        if (shouldLoop) {
-          v.currentTime = effectiveStart / 1000;
-          v.play();
-        } else {
-          v.pause();
-          if (animId) {
-            window.YUA.sprite.animComplete(animId, 'full');
-          }
-        }
-      }
-      return;
-    }
-  };
+    driver.syncPlayingState({
+      video: videoRef.current,
+      isPlaying,
+      hasSegmentLoop,
+      playback
+    });
+  }, [driver, hasSegmentLoop, isPlaying, playback]);
 
   const computed = useMemo(() => {
     if (!source) return undefined;
@@ -162,6 +78,33 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
     };
   }, [source, playback]);
 
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const onCanPlay = (): void => {
+      driver.handleCanPlay(v);
+    };
+    v.addEventListener('canplay', onCanPlay);
+    return () => {
+      v.removeEventListener('canplay', onCanPlay);
+    };
+  }, [computed?.srcUrl, driver]);
+
+  useEffect(() => {
+    return () => {
+      driver.dispose();
+    };
+  }, [driver]);
+
+  const handleTimeUpdate = (): void => {
+    driver.handleTimeUpdate({
+      video: videoRef.current,
+      animId,
+      playback,
+      fallbackIsPlaying: spriteState !== 'idle'
+    });
+  };
+
   // 判断是否需要翻转：行走中且向右移动
   const shouldFlip = walkDirection === 'right' && spriteState === 'walking';
 
@@ -170,13 +113,10 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
 
   // 处理视频播放完成
   const handleEnded = (): void => {
-    if (!computed) return;
-    const hasCustomLoop = computed.loopStartMs != null || computed.loopEndMs != null;
-    const shouldLoop = hasCustomLoop ? computed.loop !== false : (computed.loop ?? false);
-    if (shouldLoop) return;
-    if (animId) {
-      window.YUA.sprite.animComplete(animId, 'full');
-    }
+    driver.handleEnded({
+      animId,
+      playback
+    });
   };
 
   return computed ? (

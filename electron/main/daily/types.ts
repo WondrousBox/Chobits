@@ -1,5 +1,7 @@
 import type { BrowserWindow } from 'electron';
 
+export const DAILY_CARE_SNAPSHOT_UPDATED_CHANNEL = 'dailyCare:snapshot-updated';
+
 export type RoutineKind = 'hydration' | 'movement' | 'vision' | 'posture' | 'nightGuard' | 'summary' | 'festival' | 'family' | 'birthday' | 'meeting' | 'custom';
 
 export type RoutineSeverity = 'gentle' | 'info' | 'warning' | 'urgent';

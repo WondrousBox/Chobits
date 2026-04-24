@@ -1,5 +1,7 @@
 import { BrowserWindow, ipcMain } from 'electron';
 
+import { notifySpriteCapabilityChanged } from '../../../packages/sprite-core/handler/capability-events';
+import { assertSpriteCapabilityUnlocked } from '../../../packages/sprite-core/capability-runtime';
 import {
   getShortcutSchema,
   loadShortcutEnabledConfig,
@@ -67,7 +69,13 @@ export function initShortcutsHandlers(win: BrowserWindow): void {
   // 设置快捷键启用状态配置
   ipcMain.handle('shortcuts:setEnabledConfig', (_evt, partial: Partial<ShortcutEnabledConfig>) => {
     try {
+      if (partial.screenshot === true) {
+        assertSpriteCapabilityUnlocked('screenshot');
+      }
       const next = saveShortcutEnabledConfig(partial);
+      if (typeof partial.screenshot === 'boolean') {
+        notifySpriteCapabilityChanged({ source: 'shortcuts.screenshot' });
+      }
       // notify renderers
       try {
         win?.webContents?.send('shortcuts-enabled-updated', next);

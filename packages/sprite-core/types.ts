@@ -5,7 +5,19 @@
  * 从 src/components/AIAssistant/types.ts 和 message/types.ts 迁移而来。
  */
 
+import { normalizeSpriteAnimationCondition, type SpriteAnimationCondition } from './animation-condition';
 import type { PersonaState as PersonaSnapshot } from './persona-state';
+
+export type {
+  SpriteAnimationCompareCondition,
+  SpriteAnimationCondition,
+  SpriteAnimationConditionGroup,
+  SpriteAnimationConditionOperator,
+  SpriteAnimationConditionScalar,
+  SpriteAnimationConditionValue,
+  SpriteAnimationNotCondition
+} from './animation-condition';
+export { compileSpriteAnimationCondition, matchesSpriteAnimationCondition, normalizeSpriteAnimationCondition } from './animation-condition';
 
 // ============================================================================
 // 消息分类
@@ -153,10 +165,61 @@ export const SpriteEventGroups = {
 } as const;
 
 export const SPRITE_EVENT_TYPES = Array.from(new Set(Object.values(SpriteEventGroups).flat())) as ReadonlyArray<string>;
+const SPRITE_EVENT_TYPE_SET = new Set<string>(SPRITE_EVENT_TYPES);
 
 export type SpriteEventType = (typeof SPRITE_EVENT_TYPES)[number] | 'custom';
+export type SpriteBuiltinAnimationTrigger = SpriteEventType;
+export type SpriteAnimationTrigger = SpriteBuiltinAnimationTrigger | (string & {});
+
+export function isBuiltinSpriteAnimationTrigger(value: string): value is SpriteBuiltinAnimationTrigger {
+  return SPRITE_EVENT_TYPE_SET.has(value);
+}
+
+export function isCustomSpriteAnimationTrigger(value: string): value is SpriteAnimationTrigger {
+  return value.length > 0 && !isBuiltinSpriteAnimationTrigger(value);
+}
+
+function normalizeSpriteAnimationTriggerValue(value?: string | null): SpriteAnimationTrigger | undefined {
+  const normalized = value?.trim() ?? '';
+  return normalized ? (normalized as SpriteAnimationTrigger) : undefined;
+}
+
+function dedupeSpriteAnimationTriggers(values: Array<string | null | undefined>): SpriteAnimationTrigger[] {
+  const normalized = values.map((value) => normalizeSpriteAnimationTriggerValue(value)).filter((value): value is SpriteAnimationTrigger => !!value);
+  return Array.from(new Set(normalized));
+}
+
+export interface SpriteTriggerOptions {
+  message?: string;
+  duration?: number;
+  durationMs?: number;
+  ctx?: any;
+  silent?: boolean;
+}
+
+export interface SpriteListByTriggerRequest {
+  trigger?: SpriteAnimationTrigger;
+}
+
+export interface SpriteTriggerRequest extends SpriteTriggerOptions {
+  trigger?: SpriteAnimationTrigger;
+}
 
 export type { PersonaSnapshot };
+export type {
+  CapabilityLevelUnlockDefinition,
+  SpriteCapabilityBranch,
+  SpriteCapabilityDefinition,
+  SpriteCapabilityLevelUnlockType,
+  SpriteCapabilityResolutionContext,
+  SpriteCapabilityShortcut,
+  SpriteCapabilitySignalMode,
+  SpriteCapabilitySnapshot,
+  SpriteCapabilityState,
+  SpriteCapabilityStatus,
+  SpriteCapabilityTier,
+  SpriteCapabilityTotals
+} from './capability-registry';
 
 // ============================================================================
 // 消息生产
@@ -244,6 +307,14 @@ export interface SpriteMovementConfig {
   verticalRange?: number;
 }
 
+/** movement preview 请求体 */
+export interface SpriteMovementPreviewConfig {
+  width: number;
+  height: number;
+  padding: number;
+  movement: SpriteMovementConfig;
+}
+
 // ============================================================================
 // 精灵动画定义
 // ============================================================================
@@ -262,20 +333,93 @@ export interface SpriteAnimation {
   loopEndMs?: number;
   /** 动画播放时的窗口移动配置 */
   movement?: SpriteMovementConfig;
-  meta: {
-    id: string;
-    title: string;
-    description?: string;
-    tags?: string[];
-    coverSrc?: string;
-    eventType?: SpriteEventType;
-    deletable?: boolean;
-  };
+  meta: SpriteAnimationMeta;
   source: {
     src?: string;
     localPath?: string;
     type?: string;
   };
+}
+
+export interface SpriteAnimationMeta {
+  id: string;
+  title: string;
+  description?: string;
+  tags?: string[];
+  coverSrc?: string;
+  /** 新结构的主触发器，作为单一真源 */
+  primaryTrigger?: SpriteAnimationTrigger;
+  /** 额外触发别名，同一动画可被多个业务 trigger 命中 */
+  triggerAliases?: SpriteAnimationTrigger[];
+  /** 同 trigger 多动画命中时的排序权重 */
+  priority?: number;
+  /** 持久化的 persona 条件规则，运行时会编译成 registry condition */
+  condition?: SpriteAnimationCondition;
+  deletable?: boolean;
+}
+
+export type SpriteAnimationMetaInput = Partial<SpriteAnimationMeta> & {
+  /** @deprecated 兼容旧资源结构输入，normalize 后会折叠到 primaryTrigger / triggerAliases */
+  eventType?: SpriteAnimationTrigger;
+};
+
+export type SpriteAnimationTriggerMetadata = Pick<SpriteAnimationMetaInput, 'eventType' | 'primaryTrigger' | 'triggerAliases'>;
+
+export function getPrimarySpriteAnimationTrigger(meta?: SpriteAnimationTriggerMetadata | null): SpriteAnimationTrigger | undefined {
+  return normalizeSpriteAnimationTriggerValue(meta?.primaryTrigger) ?? normalizeSpriteAnimationTriggerValue(meta?.eventType);
+}
+
+export function getSpriteAnimationTriggerAliases(meta?: SpriteAnimationTriggerMetadata | null): SpriteAnimationTrigger[] {
+  const primaryTrigger = getPrimarySpriteAnimationTrigger(meta);
+  const legacyTrigger = normalizeSpriteAnimationTriggerValue(meta?.eventType);
+  return dedupeSpriteAnimationTriggers([...(meta?.triggerAliases ?? []), legacyTrigger && primaryTrigger && legacyTrigger !== primaryTrigger ? legacyTrigger : undefined]).filter(
+    (trigger) => trigger !== primaryTrigger
+  );
+}
+
+export function getSpriteAnimationTriggers(meta?: SpriteAnimationTriggerMetadata | null): SpriteAnimationTrigger[] {
+  return dedupeSpriteAnimationTriggers([getPrimarySpriteAnimationTrigger(meta), ...getSpriteAnimationTriggerAliases(meta)]);
+}
+
+export function hasSpriteAnimationTrigger(meta: SpriteAnimationTriggerMetadata | null | undefined, trigger: string): boolean {
+  const normalizedTrigger = normalizeSpriteAnimationTriggerValue(trigger);
+  return !!normalizedTrigger && getSpriteAnimationTriggers(meta).includes(normalizedTrigger);
+}
+
+export function normalizeSpriteAnimationMeta<T extends Pick<SpriteAnimationMeta, 'id' | 'title'> & SpriteAnimationMetaInput>(meta: T): Omit<T, 'eventType'> & SpriteAnimationMeta {
+  const primaryTrigger = getPrimarySpriteAnimationTrigger(meta);
+  const triggerAliases = getSpriteAnimationTriggerAliases(meta);
+  const priority = typeof meta.priority === 'number' && Number.isFinite(meta.priority) ? meta.priority : undefined;
+  const condition = normalizeSpriteAnimationCondition(meta.condition);
+  const { eventType: _legacyEventType, ...rest } = meta;
+
+  return {
+    ...rest,
+    primaryTrigger,
+    triggerAliases: triggerAliases.length > 0 ? triggerAliases : undefined,
+    priority,
+    condition
+  } as Omit<T, 'eventType'> & SpriteAnimationMeta;
+}
+
+export function normalizeSpriteAnimationMetaPatch<T extends SpriteAnimationMetaInput>(meta: T): Omit<T, 'eventType'> & Partial<SpriteAnimationMeta> {
+  if (!Object.prototype.hasOwnProperty.call(meta, 'eventType')) {
+    return meta as Omit<T, 'eventType'> & Partial<SpriteAnimationMeta>;
+  }
+
+  const { eventType: _legacyEventType, ...rest } = meta;
+  const primaryTrigger = getPrimarySpriteAnimationTrigger(meta);
+  const triggerAliases = getSpriteAnimationTriggerAliases(meta);
+
+  return {
+    ...rest,
+    primaryTrigger,
+    ...(Object.prototype.hasOwnProperty.call(rest, 'triggerAliases') || triggerAliases.length > 0
+      ? {
+          triggerAliases: triggerAliases.length > 0 ? triggerAliases : undefined
+        }
+      : {})
+  } as Omit<T, 'eventType'> & Partial<SpriteAnimationMeta>;
 }
 
 // ============================================================================
@@ -358,15 +502,15 @@ export interface MessageBridgeClearPayload {
 
 export type MessageBridgePayload =
   | {
-    kind: 'show';
-    payload: MessageIPCPayload;
-    source: MessageBridgeSource;
-  }
+      kind: 'show';
+      payload: MessageIPCPayload;
+      source: MessageBridgeSource;
+    }
   | {
-    kind: 'clear';
-    payload: MessageBridgeClearPayload;
-    source: MessageBridgeSource;
-  };
+      kind: 'clear';
+      payload: MessageBridgeClearPayload;
+      source: MessageBridgeSource;
+    };
 
 export const MESSAGE_IPC_CHANNELS = {
   BRIDGE: 'app:message:bridge',
@@ -416,6 +560,11 @@ export interface SpriteStateSnapshot {
 export interface SpritePlayCommand {
   animationId: string;
   source?: { src?: string; localPath?: string; type?: string };
+  playbackSession?: {
+    mode: 'timed';
+    startedAtMs: number;
+    activeDurationMs: number;
+  };
   playback?: {
     width?: number;
     height?: number;
@@ -457,6 +606,8 @@ export interface SpriteConfig {
   width: number;
   height: number;
   padding: number;
+  /** 自动行走是否启用 */
+  autoWalkEnabled?: boolean;
   /** 是否显示调试辅助线 */
   showDebugOverlay?: boolean;
 }

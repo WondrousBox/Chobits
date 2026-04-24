@@ -22,30 +22,46 @@ import type { AnimationEntry } from '../animation-registry';
 import { AnimationRegistry } from '../animation-registry';
 import type { BehaviorContext, BehaviorDefinition } from '../behavior-engine';
 import { BehaviorEngine } from '../behavior-engine';
+import { getSpriteCapabilityRuntimeState } from '../capability-runtime';
 import { SpriteEventBus } from '../event-bus';
 import { SPRITE_INTERACTION_EVENT_BY_INTENT, type SpriteInteractionIntent, type SpriteInteractionPayload } from '../interaction-contract';
 import { InteractionTracker } from '../interaction-tracker';
 import Messages from '../messages/zh-CN';
 import { getSpriteEventText } from '../messages/zh-CN';
+import {
+  type ConversationRewardContext,
+  getConversationRewardEventRules,
+  getPersonaRulesSnapshot,
+  getResolvedConversationPersonaRewardBonus,
+  subscribePersonaRulesChanges,
+  type PersonaRewardGrant
+} from '../persona-rules';
 import type { MoodType, PersonaState } from '../persona-state';
 import { PersonaStateManager } from '../persona-state';
 import { SpeakService } from '../speak/speak-service';
 import type { SpeakResult, SpriteSpeakConfig, SpriteSpeakPayload } from '../speak/types';
-import type { SpriteState, SpriteSubState } from '../state-machine';
+import type { SpriteReactionState, SpriteState } from '../state-machine';
 import { SpriteStateMachine } from '../state-machine';
 import {
+  compileSpriteAnimationCondition,
+  getSpriteAnimationTriggers,
   MESSAGE_IPC_CHANNELS,
   type MessageBridgeClearPayload,
   type MessageBridgePayload,
   type MessageCategory,
   type MessageIPCPayload,
   type SpriteAnimation,
+  type SpriteAnimationTrigger,
   type SpriteConfig,
   type SpriteInitialState,
+  type SpriteMovementConfig,
+  type SpriteMovementPreviewConfig,
   type SpritePlayCommand,
-  type SpriteStateSnapshot
+  type SpriteStateSnapshot,
+  type SpriteTriggerOptions
 } from '../types';
 import { registerDefaultBehaviors } from './default-behaviors';
+import { MovementCoordinator } from './movement-coordinator';
 import { AutoWalkConfig, PersonaStatePersistence } from './persistence';
 import { mapStateToEventType } from './state-mapping';
 import type { PersonaStatePersistenceRow, SpriteManagerOptions, SpriteSpontaneousUtteranceExecutor, SpriteWindow } from './types';
@@ -76,10 +92,13 @@ export class SpriteManager {
   private win: SpriteWindow;
   private getScreenSize: () => { width: number; height: number };
   private spontaneousUtteranceExecutor?: SpriteSpontaneousUtteranceExecutor;
+  private activePersonaStateId = 'default';
+  private activePersonaIdentity: { name: string; description?: string };
 
   // 当前动画和配置
   private currentAnimation: SpritePlayCommand | null = null;
   private spriteConfig: SpriteConfig = { width: 200, height: 200, padding: 100, showDebugOverlay: false };
+  private movementCoordinator: MovementCoordinator;
 
   // 状态广播节流
   private lastStateBroadcast = 0;
@@ -99,6 +118,8 @@ export class SpriteManager {
 
   // 欢迎消息只在首次 rendererReady 时发送
   private _welcomeSent = false;
+  private lastConversationRewardTime = 0;
+  private unsubscribePersonaRulesChanges: (() => void) | null = null;
 
   // 单例
   private static instance: SpriteManager | null = null;
@@ -107,6 +128,9 @@ export class SpriteManager {
     this.win = options.win;
     this.getScreenSize = options.getScreenSize;
     this.spontaneousUtteranceExecutor = options.spontaneousUtteranceExecutor;
+    this.activePersonaIdentity = {
+      name: options.appName ?? 'Chobits'
+    };
 
     // 创建引擎实例
     this.eventBus = new SpriteEventBus();
@@ -116,6 +140,10 @@ export class SpriteManager {
       initialState: { name: options.appName ?? 'Chobits' },
       onStateChange: () => this.onPersonaStateChange()
     });
+    this.syncPersonaRules(getPersonaRulesSnapshot());
+    this.unsubscribePersonaRulesChanges = subscribePersonaRulesChanges((snapshot) => {
+      this.syncPersonaRules(snapshot);
+    });
     this.interactionTracker = new InteractionTracker({ eventBus: this.eventBus });
     this.behaviorEngine = new BehaviorEngine({
       eventBus: this.eventBus,
@@ -123,6 +151,32 @@ export class SpriteManager {
       tickIntervalMs: 1000
     });
     this.animationRegistry = new AnimationRegistry();
+    this.movementCoordinator = new MovementCoordinator({
+      canMove: () => !!this.windowController,
+      canUseMovement: () => {
+        const movementCapability = getSpriteCapabilityRuntimeState('movement');
+        return movementCapability !== null && movementCapability.status !== 'locked';
+      },
+      getScreenSize: () => this.getScreenSize(),
+      getPosition: () => this.getPosition(),
+      getSpriteConfig: () => this.getSpriteConfig(),
+      setSpriteMetrics: (metrics) => this.setSpriteMetrics(metrics),
+      setWindowSize: (width, height, padding) => {
+        this.windowController?.setSize?.(width, height, padding);
+      },
+      walkTo: (x, y, speed) => this.walkTo(x, y, speed),
+      stopWalk: () => this.stopWalk(),
+      startAutoMove: (movement) => {
+        this.windowController?.startAutoMove?.(movement);
+      },
+      stopAutoMove: () => {
+        this.windowController?.stopAutoMove?.();
+      },
+      isAutoMoving: () => this.windowController?.isAutoMoving?.() ?? false,
+      getAutoMoveDirection: () => this.windowController?.getAutoMoveDirection?.() ?? null,
+      emitWalkState: (payload) => this.sendToRenderer('sprite:walk', payload),
+      emitConfigChanged: () => this.emitConfigChanged()
+    });
 
     // 持久化
     this.persistence = new PersonaStatePersistence(options.dataDir);
@@ -176,15 +230,17 @@ export class SpriteManager {
 
   /** 启动引擎 */
   async start(): Promise<void> {
+    this.syncPersonaRules();
+
     // 1. 加载自动行走配置
     this.autoWalkConfig.load();
 
     // 2. 加载持久化的人格状态
-    const saved = await this.persistence.load();
+    const saved = await this.persistence.load(this.activePersonaStateId);
     if (saved) {
       this.personaState.loadState({
-        name: saved.name,
-        description: saved.description,
+        name: this.activePersonaIdentity.name,
+        ...(this.activePersonaIdentity.description !== undefined ? { description: this.activePersonaIdentity.description } : { description: saved.description }),
         xp: saved.xp,
         level: saved.level,
         favor: saved.favor,
@@ -199,6 +255,8 @@ export class SpriteManager {
         createdAt: saved.createdAt,
         updatedAt: saved.updatedAt
       });
+    } else {
+      this.personaState.loadState(this.buildDefaultPersonaState());
     }
 
     // 3. 启动自动保存
@@ -241,6 +299,8 @@ export class SpriteManager {
   /** 销毁并清理 */
   async destroy(): Promise<void> {
     this.stop();
+    this.unsubscribePersonaRulesChanges?.();
+    this.unsubscribePersonaRulesChanges = null;
 
     // 保存最终状态
     await this.persistence.save(this.getPersonaStateForPersistence());
@@ -265,13 +325,24 @@ export class SpriteManager {
   // ============================================================================
 
   /** 切换精灵状态 */
-  transitionTo(state: SpriteState, options?: { subState?: SpriteSubState; metadata?: Record<string, any>; force?: boolean }): boolean {
+  transitionTo(state: SpriteState, options?: { subState?: SpriteReactionState; metadata?: Record<string, any>; force?: boolean }): boolean {
     return this.stateMachine.transitionTo(state, options);
   }
 
   /** 播放一次临时状态 */
-  playOnce(subState: SpriteSubState, options?: { durationMs?: number; fallback?: SpriteState; metadata?: Record<string, any> }): boolean {
+  playOnce(subState: SpriteReactionState, options?: { durationMs?: number; fallback?: SpriteState; metadata?: Record<string, any> }): boolean {
     return this.stateMachine.playOnce(subState, options);
+  }
+
+  private buildPlaybackSession(playback: AnimationEntry['playback'] | undefined, durationMs: number | undefined, mode: 'state-bound' | 'trigger'): SpritePlayCommand['playbackSession'] | undefined {
+    if (mode !== 'trigger') return undefined;
+    if (playback?.loopStartMs == null && playback?.loopEndMs == null) return undefined;
+
+    return {
+      mode: 'timed',
+      startedAtMs: Date.now(),
+      activeDurationMs: Math.max(200, durationMs ?? playback?.durationMs ?? 2000)
+    };
   }
 
   // ============================================================================
@@ -281,26 +352,22 @@ export class SpriteManager {
   /**
    * 统一触发精灵事件
    *
-   * 根据 eventType 尝试播放对应动画 + 显示气泡文案。
+   * 根据 trigger 尝试播放对应动画 + 显示气泡文案。
    * 如果 AnimationRegistry 中没有匹配动画，则仅显示气泡文字。
    * 这是为所有 SpriteEventType 提供统一触发入口的核心方法。
    */
-  trigger(
-    eventType: string,
-    options?: {
-      message?: string;
-      duration?: number;
-      durationMs?: number;
-      ctx?: any;
-      silent?: boolean;
-    }
-  ): void {
+  trigger(trigger: SpriteAnimationTrigger, options?: SpriteTriggerOptions): void {
     // 1. 尝试查找并播放动画
-    const anim = this.animationRegistry.findByEvent({ eventType });
+    const anim = this.animationRegistry.findByTrigger({
+      trigger,
+      personaState: this.personaState.getState()
+    });
     if (anim) {
+      const resolvedDurationMs = options?.durationMs ?? anim.playback?.durationMs;
       this.currentAnimation = {
         animationId: anim.id,
         source: anim.source,
+        playbackSession: this.buildPlaybackSession(anim.playback, resolvedDurationMs, 'trigger'),
         playback: anim.playback
           ? {
               width: anim.playback.width,
@@ -309,7 +376,7 @@ export class SpriteManager {
               loop: anim.playback.loop,
               loopStartMs: anim.playback.loopStartMs,
               loopEndMs: anim.playback.loopEndMs,
-              durationMs: options?.durationMs ?? anim.playback.durationMs,
+              durationMs: resolvedDurationMs,
               autoIdle: anim.playback.autoIdle ?? true,
               movement: anim.playback.movement
             }
@@ -332,7 +399,7 @@ export class SpriteManager {
 
     // 2. 显示气泡文案（除非 silent）
     if (!options?.silent) {
-      const text = options?.message || getSpriteEventText(eventType, options?.ctx);
+      const text = options?.message || getSpriteEventText(trigger, options?.ctx);
       if (text) {
         this.showToast(text, { duration: options?.duration });
       }
@@ -341,15 +408,17 @@ export class SpriteManager {
 
   /**
    * 按动画 ID 直接播放指定动画（用于开发测试）。
-   * 不经过 eventType 查找，直接从 AnimationRegistry 取出并播放。
+   * 不经过 trigger 查找，直接从 AnimationRegistry 取出并播放。
    */
   triggerById(animationId: string, options?: { message?: string; duration?: number; durationMs?: number; silent?: boolean }): boolean {
     const anim = this.animationRegistry.get(animationId);
     if (!anim) return false;
 
+    const resolvedDurationMs = options?.durationMs ?? anim.playback?.durationMs;
     this.currentAnimation = {
       animationId: anim.id,
       source: anim.source,
+      playbackSession: this.buildPlaybackSession(anim.playback, resolvedDurationMs, 'trigger'),
       playback: anim.playback
         ? {
             width: anim.playback.width,
@@ -358,7 +427,7 @@ export class SpriteManager {
             loop: anim.playback.loop,
             loopStartMs: anim.playback.loopStartMs,
             loopEndMs: anim.playback.loopEndMs,
-            durationMs: options?.durationMs ?? anim.playback.durationMs,
+            durationMs: resolvedDurationMs,
             autoIdle: anim.playback.autoIdle ?? true,
             movement: anim.playback.movement
           }
@@ -394,7 +463,7 @@ export class SpriteManager {
   }
 
   /** 获取当前子状态 */
-  getSubState(): SpriteSubState | null {
+  getSubState(): SpriteReactionState | null {
     return this.stateMachine.getSubState();
   }
 
@@ -566,6 +635,43 @@ export class SpriteManager {
     return result;
   }
 
+  /** 统一应用 persona reward，收口 XP / favor / dimension 的业务结算入口 */
+  applyPersonaReward(reward: PersonaRewardGrant, source?: string): void {
+    if (reward.xp > 0) {
+      this.addXP(reward.xp, source);
+    }
+    if (reward.favor !== 0) {
+      this.changeFavor(reward.favor, source);
+    }
+    for (const dimension of reward.dimensions) {
+      if (dimension.delta !== 0) {
+        this.updateDimension(dimension.id, dimension.delta, dimension.maxValue);
+      }
+    }
+  }
+
+  /** 记录一次 AI 对话完成，让对话奖励重新回到 runtime event rule 主链路。 */
+  recordConversationEvent(context?: ConversationRewardContext): boolean {
+    const rulesSnapshot = getPersonaRulesSnapshot();
+    this.syncPersonaRules(rulesSnapshot);
+
+    const { cooldownMs } = getConversationRewardEventRules(rulesSnapshot);
+    const now = Date.now();
+    if (now - this.lastConversationRewardTime < cooldownMs) {
+      return false;
+    }
+
+    this.lastConversationRewardTime = now;
+    this.eventBus.emit('ai:message-sent', context, 'sprite-manager');
+
+    const bonusReward = getResolvedConversationPersonaRewardBonus(context, rulesSnapshot);
+    if (bonusReward.xp > 0 || bonusReward.favor !== 0 || bonusReward.dimensions.length > 0) {
+      this.applyPersonaReward(bonusReward, 'conversation');
+    }
+
+    return true;
+  }
+
   /** 设置心情 */
   setMood(mood: MoodType, intensity?: number): void {
     this.personaState.setMood(mood, intensity);
@@ -575,6 +681,49 @@ export class SpriteManager {
   /** 获取完整人格状态 */
   getPersonaState(): PersonaState {
     return this.personaState.getState();
+  }
+
+  /** 获取当前人格持久化 slot id */
+  getActivePersonaStateId(): string {
+    return this.activePersonaStateId;
+  }
+
+  /** 配置下一次加载/保存要使用的人格 slot 与角色身份信息 */
+  configurePersonaStateSlot(slotId: string, identity?: { name?: string; description?: string }): void {
+    this.activePersonaStateId = slotId.trim() || 'default';
+    this.activePersonaIdentity = {
+      name: identity?.name?.trim() || this.activePersonaIdentity.name,
+      ...(identity?.description !== undefined ? { description: identity.description } : {})
+    };
+  }
+
+  /** 切换到新的角色人格存档：先保存当前 slot，再恢复目标 slot。 */
+  async switchPersonaStateSlot(slotId: string, identity?: { name?: string; description?: string }): Promise<{ restored: boolean; state: PersonaState }> {
+    await this.persistence.save(this.getPersonaStateForPersistence());
+
+    this.configurePersonaStateSlot(slotId, identity);
+
+    const saved = await this.persistence.load(this.activePersonaStateId);
+    this.personaState.resetRuntimeCaches();
+    this.lastConversationRewardTime = 0;
+
+    if (saved) {
+      this.personaState.loadState({
+        ...saved,
+        name: identity?.name?.trim() || saved.name,
+        ...(identity?.description !== undefined ? { description: identity.description } : {})
+      });
+    } else {
+      this.personaState.loadState(this.buildDefaultPersonaState());
+    }
+
+    this.persistence.markDirty();
+    this.broadcastState();
+
+    return {
+      restored: !!saved,
+      state: this.personaState.getState()
+    };
   }
 
   /** 记录每日登录 */
@@ -650,14 +799,14 @@ export class SpriteManager {
       return;
     }
 
-    // file-drag-leave / file-drop → 从 file-drag-over 回到 idle
-    if ((type === 'file-drag-leave' || type === 'file-drop') && this.getState() === 'reacting' && this.getSubState() === 'file-drag-over') {
+    // file-drag-leave → 从 file-drag-over 回到 idle
+    if (type === 'file-drag-leave' && this.getState() === 'reacting' && this.getSubState() === 'file-drag-over') {
       this.transitionTo('idle', { force: true });
       return;
     }
 
     // 自动触发临时反应状态
-    const reactionMap: Partial<Record<SpriteInteractionIntent, SpriteSubState>> = {
+    const reactionMap: Partial<Record<SpriteInteractionIntent, SpriteReactionState>> = {
       click: 'click',
       'file-drop': 'file-drop'
     };
@@ -747,21 +896,24 @@ export class SpriteManager {
     return this.animationRegistry.getAll();
   }
 
-  /** 按事件类型查找最佳动画 */
-  findAnimationByEvent(eventType: string): AnimationEntry | undefined {
-    return this.animationRegistry.findByEvent({
-      eventType,
+  /** 按 trigger 查找最佳动画 */
+  findAnimationByTrigger(trigger: SpriteAnimationTrigger): AnimationEntry | undefined {
+    return this.animationRegistry.findByTrigger({
+      trigger,
       personaState: this.personaState.getState()
     });
   }
 
   /** 注册动画到 Registry */
   registerAnimation(anim: SpriteAnimation): void {
+    const eventTypes = getSpriteAnimationTriggers(anim.meta);
     this.animationRegistry.register({
       id: anim.meta.id,
       title: anim.meta.title,
       description: anim.meta.description,
-      eventTypes: [anim.meta.eventType ?? 'idle'],
+      eventTypes: eventTypes.length > 0 ? eventTypes : ['idle'],
+      priority: anim.meta.priority,
+      condition: compileSpriteAnimationCondition(anim.meta.condition),
       source: anim.source,
       playback: {
         width: anim.width,
@@ -787,6 +939,20 @@ export class SpriteManager {
     }
   }
 
+  /** 用一整组动画替换当前注册表，并按当前状态刷新播放态 */
+  replaceAnimations(anims: SpriteAnimation[], options?: { refreshCurrentState?: boolean }): void {
+    this.animationRegistry.clear();
+    this.currentAnimation = null;
+    this.registerAnimations(anims);
+
+    if (options?.refreshCurrentState !== false) {
+      this.transitionTo(this.getState(), {
+        subState: this.getSubState() ?? undefined,
+        force: true
+      });
+    }
+  }
+
   /** 注销动画 */
   unregisterAnimation(id: string): void {
     this.animationRegistry.unregister(id);
@@ -798,13 +964,23 @@ export class SpriteManager {
 
   /** 获取精灵配置 */
   getSpriteConfig(): SpriteConfig {
-    return { ...this.spriteConfig };
+    return {
+      ...this.spriteConfig,
+      autoWalkEnabled: this.autoWalkConfig.enabled
+    };
   }
 
   /** 设置精灵配置 */
   setSpriteConfig(config: Partial<SpriteConfig>): void {
-    Object.assign(this.spriteConfig, config);
-    this.sendToRenderer('sprite:config', this.spriteConfig);
+    const { autoWalkEnabled, ...restConfig } = config;
+    Object.assign(this.spriteConfig, restConfig);
+    if (typeof autoWalkEnabled === 'boolean') {
+      this.autoWalkConfig.enabled = autoWalkEnabled;
+      if (!autoWalkEnabled) {
+        this.stopWalk();
+      }
+    }
+    this.emitConfigChanged();
   }
 
   /** 自动行走是否启用 */
@@ -814,9 +990,13 @@ export class SpriteManager {
 
   /** 设置自动行走开关 */
   setAutoWalkEnabled(enabled: boolean): void {
+    const changed = this.autoWalkConfig.enabled !== enabled;
     this.autoWalkConfig.enabled = enabled;
     if (!enabled) {
       this.stopWalk();
+    }
+    if (changed) {
+      this.emitConfigChanged();
     }
   }
 
@@ -828,51 +1008,17 @@ export class SpriteManager {
   /** 设置调试辅助线开关 */
   setDebugOverlayEnabled(enabled: boolean): void {
     this.spriteConfig.showDebugOverlay = enabled;
-    this.sendToRenderer('sprite:config', this.spriteConfig);
+    this.emitConfigChanged();
   }
 
   /** 预览窗口移动效果（临时应用尺寸和移动配置） */
-  previewMovement(config: { width: number; height: number; padding: number; movement: import('../types').SpriteMovementConfig }): void {
-    // 更新窗口尺寸
-    this.spriteConfig.width = config.width;
-    this.spriteConfig.height = config.height;
-    this.spriteConfig.padding = config.padding;
-    this.sendToRenderer('sprite:config', this.spriteConfig);
-
-    if (this.windowController) {
-      this.windowController.setSize(config.width, config.height, config.padding);
-    }
-
-    // 预览时直接启动移动，忽略 trigger 和 mode 限制
-    this.stopAutoMove();
-    if (config.movement?.enabled && this.windowController) {
-      const mode = config.movement.mode ?? 'direction';
-      if (mode === 'walkTo') {
-        // walkTo 模式预览：随机选一个目标位置行走
-        const pos = this.getPosition();
-        const screen = this.getScreenSize();
-        const verticalRange = config.movement.verticalRange ?? 0.1;
-        const minX = -config.padding;
-        const maxX = screen.width - config.width - config.padding;
-        const targetX = Math.random() * (maxX - minX) + minX;
-        const yRange = screen.height * verticalRange;
-        const yMin = Math.max(-config.padding, pos[1] - yRange);
-        const yMax = Math.min(screen.height - config.height - config.padding, pos[1] + yRange);
-        const targetY = Math.random() * (yMax - yMin) + yMin;
-        this.walkTo(targetX, targetY, config.movement.speed);
-      } else {
-        this.windowController.startAutoMove(config.movement);
-        const dir = this.windowController.getAutoMoveDirection?.();
-        if (dir) {
-          this.sendToRenderer('sprite:walk', { active: true, direction: dir });
-        }
-      }
-    }
+  previewMovement(config: SpriteMovementPreviewConfig): void {
+    this.movementCoordinator.previewMovement(config);
   }
 
   /** 停止移动预览 */
   stopMovementPreview(): void {
-    this.stopAutoMove();
+    this.movementCoordinator.stopMovementPreview();
   }
 
   /** 获取初始全量状态 */
@@ -994,12 +1140,17 @@ export class SpriteManager {
     this.windowController = controller;
   }
 
+  /** 统一 behavior movement 入口 */
+  runBehaviorMovement(movement?: SpriteMovementConfig, options?: { hasSegmentLoop?: boolean }): Promise<boolean> {
+    return this.movementCoordinator.runBehaviorMovement(movement, options);
+  }
+
   // ============================================================================
   // 内部方法
   // ============================================================================
 
   /** 状态机变化回调 */
-  private onStateChange(newState: SpriteState, _oldState: SpriteState, subState: SpriteSubState | null): void {
+  private onStateChange(newState: SpriteState, _oldState: SpriteState, subState: SpriteReactionState | null): void {
     if (newState === 'idle' && _oldState !== 'idle' && this.currentAnimation?.playback?.loopStartMs != null && this.currentAnimation?.playback?.loopEndMs != null) {
       const autoIdle = this.currentAnimation?.playback?.autoIdle ?? true;
       this._pendingIdleAfterOutro = autoIdle;
@@ -1035,11 +1186,12 @@ export class SpriteManager {
   }
 
   /** 根据当前状态解析并发送动画指令到渲染进程 */
-  private resolveAndSendAnimation(state: SpriteState, subState: SpriteSubState | null): void {
-    const eventType = mapStateToEventType(state, subState);
-    const animEntry = this.animationRegistry.findByEvent({
-      eventType,
-      personaState: this.personaState.getState()
+  private resolveAndSendAnimation(state: SpriteState, subState: SpriteReactionState | null): void {
+    const trigger = mapStateToEventType(state, subState);
+    const animEntry = this.animationRegistry.findByTrigger({
+      trigger,
+      personaState: this.personaState.getState(),
+      allowFallback: true
     });
 
     if (animEntry) {
@@ -1106,37 +1258,30 @@ export class SpriteManager {
   }
 
   /** 处理动画播放时的窗口自动移动 */
-  private handleAnimationMovement(movement?: import('../types').SpriteMovementConfig): void {
-    // 先停止之前的自动移动
-    this.stopAutoMove();
-
-    if (!movement?.enabled || !this.windowController) return;
-
-    // trigger='behavior' 模式下，移动由 BehaviorEngine 调度，不在动画播放时自动启动
-    // trigger='animation' (默认) 模式下，动画播放时自动启动移动
-    const trigger = movement.trigger ?? 'animation';
-    if (trigger === 'behavior') return;
-
-    // mode='walkTo' 模式下，不使用 startAutoMove（这由 walkTo() 路径行走实现）
-    const mode = movement.mode ?? 'direction';
-    if (mode === 'walkTo') return;
-
-    // mode='direction'：沿固定方向恒速移动
-    this.windowController.startAutoMove(movement);
-
-    // 通知渲染进程移动方向（用于精灵翻转）
-    const dir = this.windowController.getAutoMoveDirection?.();
-    if (dir) {
-      this.sendToRenderer('sprite:walk', { active: true, direction: dir });
-    }
+  private handleAnimationMovement(movement?: SpriteMovementConfig): void {
+    this.movementCoordinator.applyAnimationMovement(movement);
   }
 
   /** 停止自动移动 */
   private stopAutoMove(): void {
-    if (this.windowController?.isAutoMoving?.()) {
-      this.windowController.stopAutoMove();
-      this.sendToRenderer('sprite:walk', { active: false });
-    }
+    this.movementCoordinator.stopAutoMove();
+  }
+
+  private syncPersonaRules(snapshot = getPersonaRulesSnapshot()): void {
+    this.personaState.setXPSources(snapshot.xpSources);
+    this.personaState.setFavorModifiers(snapshot.favorModifiers);
+    this.personaState.setMoodRules(snapshot.moodRules);
+  }
+
+  private setSpriteMetrics(metrics: Pick<SpriteConfig, 'width' | 'height' | 'padding'>): void {
+    this.spriteConfig.width = metrics.width;
+    this.spriteConfig.height = metrics.height;
+    this.spriteConfig.padding = metrics.padding;
+  }
+
+  /** 发送统一配置快照 */
+  private emitConfigChanged(): void {
+    this.sendToRenderer('sprite:config', this.getSpriteConfig());
   }
 
   /** 安全发送 IPC 到渲染进程 */
@@ -1169,7 +1314,7 @@ export class SpriteManager {
   private getPersonaStateForPersistence(): PersonaStatePersistenceRow {
     const state = this.personaState.getState();
     return {
-      id: 'default',
+      id: this.activePersonaStateId,
       version: 2,
       name: state.name,
       description: state.description,
@@ -1186,6 +1331,29 @@ export class SpriteManager {
       dimensions: { ...state.dimensions },
       createdAt: state.createdAt,
       updatedAt: state.updatedAt
+    };
+  }
+
+  private buildDefaultPersonaState(): Partial<PersonaState> {
+    const now = Date.now();
+    return {
+      name: this.activePersonaIdentity.name,
+      ...(this.activePersonaIdentity.description !== undefined ? { description: this.activePersonaIdentity.description } : {}),
+      xp: 0,
+      level: 1,
+      xpToNextLevel: 100,
+      favor: 50,
+      favorLevel: 'friend',
+      mood: 'neutral',
+      moodIntensity: 50,
+      totalInteractions: 0,
+      totalSessionTime: 0,
+      loginStreak: 0,
+      lastLoginDate: '',
+      achievements: [],
+      dimensions: {},
+      createdAt: now,
+      updatedAt: now
     };
   }
 }

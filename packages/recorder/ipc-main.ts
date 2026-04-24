@@ -1,59 +1,116 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { app, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 
+import { assertSpriteCapabilityUnlocked } from '../sprite-core/capability-runtime';
+import { notifySpriteCapabilityChanged } from '../sprite-core/handler/capability-events';
+import { disableASRRuntime } from '../sherpa/ipc-main';
 import { recorderServer } from './index';
 
 export type RecorderConfig = {
   enabled?: boolean;
 };
 
-export function initRecorderHandlers(): void {
-  // Recorder config persistence
-  const defaultConfig: RecorderConfig = {
-    enabled: false
-  };
-  const configDir = app.getPath('userData');
-  const configFile = path.join(configDir, 'data', 'recorder-config.json');
-  let recorderConfig: RecorderConfig = defaultConfig;
+const defaultConfig: RecorderConfig = {
+  enabled: false
+};
 
-  // Load config on startup
+let recorderConfig: RecorderConfig = defaultConfig;
+let recorderConfigLoaded = false;
+
+function getRecorderConfigFile(): string {
+  const configDir = app.getPath('userData');
+  return path.join(configDir, 'data', 'recorder-config.json');
+}
+
+function ensureRecorderConfigLoaded(): void {
+  if (recorderConfigLoaded) return;
+
+  const configFile = getRecorderConfigFile();
   try {
     if (fs.existsSync(configFile)) {
       const txt = fs.readFileSync(configFile, 'utf8');
       const parsed = JSON.parse(txt);
       recorderConfig = { ...defaultConfig, ...parsed };
+    } else {
+      recorderConfig = defaultConfig;
     }
   } catch {
     recorderConfig = defaultConfig;
   }
+  recorderConfigLoaded = true;
+}
 
-  function saveConfig(): void {
-    try {
-      const dir = path.dirname(configFile);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      fs.writeFileSync(configFile, JSON.stringify(recorderConfig, null, 2), 'utf8');
-    } catch {
-      //
+function saveRecorderConfig(): void {
+  const configFile = getRecorderConfigFile();
+  try {
+    const dir = path.dirname(configFile);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
     }
+    fs.writeFileSync(configFile, JSON.stringify(recorderConfig, null, 2), 'utf8');
+  } catch {
+    //
+  }
+}
+
+export function getRecorderConfigSnapshot(): RecorderConfig {
+  ensureRecorderConfigLoaded();
+  return { ...recorderConfig };
+}
+
+export function getRecorderStatusSnapshot(): { running: boolean } {
+  return { running: recorderServer.isRunning() };
+}
+
+function broadcastRecorderStatus(): void {
+  const payload = getRecorderStatusSnapshot();
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win || win.isDestroyed()) continue;
+    try {
+      win.webContents.send('recorder-status-updated', payload);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  notifySpriteCapabilityChanged({ source: 'recorder.status' });
+}
+
+export function initRecorderHandlers(): void {
+  ensureRecorderConfigLoaded();
+
+  if (!recorderConfig.enabled) {
+    disableASRRuntime({ disableConfig: true });
+    broadcastRecorderStatus();
   }
 
   // Auto-start recorder if enabled
   if (recorderConfig.enabled) {
-    recorderServer.start().catch((error) => {
-      console.error('[Recorder] Failed to auto-start recorder:', error);
-    });
+    recorderServer
+      .start()
+      .then(() => {
+        broadcastRecorderStatus();
+      })
+      .catch((error) => {
+        console.error('[Recorder] Failed to auto-start recorder:', error);
+        broadcastRecorderStatus();
+      });
   }
 
   ipcMain.handle('recorder:start', async (_, port?: number) => {
-    return recorderServer.start(port);
+    assertSpriteCapabilityUnlocked('microphone');
+    const started = await recorderServer.start(port);
+    broadcastRecorderStatus();
+    return started;
   });
 
   ipcMain.handle('recorder:stop', async () => {
-    return recorderServer.stop();
+    const stopped = await recorderServer.stop();
+    disableASRRuntime({ disableConfig: true });
+    broadcastRecorderStatus();
+    return stopped;
   });
 
   ipcMain.handle('recorder:status', async () => {
@@ -61,12 +118,19 @@ export function initRecorderHandlers(): void {
   });
 
   ipcMain.handle('recorder:getConfig', () => {
-    return recorderConfig;
+    return getRecorderConfigSnapshot();
   });
 
   ipcMain.handle('recorder:updateConfig', (_, partial: Partial<RecorderConfig>) => {
+    if (partial.enabled === true) {
+      assertSpriteCapabilityUnlocked('microphone');
+    }
     recorderConfig = { ...recorderConfig, ...partial };
-    saveConfig();
-    return recorderConfig;
+    saveRecorderConfig();
+    if (recorderConfig.enabled === false) {
+      disableASRRuntime({ disableConfig: true });
+      broadcastRecorderStatus();
+    }
+    return getRecorderConfigSnapshot();
   });
 }

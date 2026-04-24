@@ -1,13 +1,13 @@
 /**
  * 状态→事件映射
  *
- * 将精灵状态机的 SpriteState + SpriteSubState 映射到
- * AnimationRegistry 使用的 eventType 字符串。
+ * 将精灵状态机的 `SpriteState + SpriteReactionState`
+ * 映射到 AnimationRegistry 使用的 eventType 字符串。
  */
 
-import type { SpriteState, SpriteSubState } from '../state-machine';
+import type { SpriteReactionState, SpriteState } from '../state-machine';
 
-export function mapStateToEventType(state: SpriteState, subState: SpriteSubState | null): string {
+export function mapStateToEventType(state: SpriteState, subState: SpriteReactionState | null): string {
   switch (state) {
     case 'idle':
       return 'idle';
@@ -35,12 +35,6 @@ export function mapStateToEventType(state: SpriteState, subState: SpriteSubState
           return 'fileDrop';
         case 'sleepy':
           return 'sleep';
-        case 'celebrate':
-          return 'celebrate';
-        case 'write':
-          return 'write';
-        case 'emotion':
-          return 'happy';
         default:
           return 'idle';
       }

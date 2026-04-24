@@ -9,7 +9,7 @@
  * - PersonaStateManager: 人格状态管理器 —— 经验值/等级/好感度/心情
  * - InteractionTracker: 交互追踪器 —— 记录并量化用户交互
  * - BehaviorEngine: 行为引擎 —— 可扩展、条件驱动的自主行为调度
- * - AnimationRegistry: 动画注册表 —— 统一索引与按事件查询
+ * - AnimationRegistry: 动画注册表 —— 统一索引与按 trigger 查询
  *
  * 设计原则：
  * 1. 纯逻辑层，不依赖 React / Electron —— 便于测试和跨环境复用
@@ -39,6 +39,15 @@ export type {
   NoticeMessage,
   PersonaSnapshot,
   SpriteAnimation,
+  SpriteAnimationCondition,
+  SpriteAnimationConditionGroup,
+  SpriteAnimationConditionOperator,
+  SpriteAnimationConditionScalar,
+  SpriteAnimationConditionValue,
+  SpriteAnimationMeta,
+  SpriteAnimationTrigger,
+  SpriteAnimationTriggerMetadata,
+  SpriteBuiltinAnimationTrigger,
   SpriteConfig,
   SpriteEventType,
   SpriteInitialState,
@@ -50,20 +59,125 @@ export type {
   SpritePersonaStateResult,
   SpritePlayCommand,
   SpriteStateSnapshot,
+  SpriteTriggerOptions,
+  SpriteTriggerRequest,
   SpriteWalkState,
   ToastInput,
   ToastMessage
 } from './types';
-export { DEFAULT_DURATION, MESSAGE_IPC_CHANNELS, MESSAGE_PRIORITY, SPRITE_EVENT_TYPES, SpriteEventGroups } from './types';
+export {
+  compileSpriteAnimationCondition,
+  DEFAULT_DURATION,
+  getPrimarySpriteAnimationTrigger,
+  getSpriteAnimationTriggerAliases,
+  getSpriteAnimationTriggers,
+  hasSpriteAnimationTrigger,
+  isBuiltinSpriteAnimationTrigger,
+  isCustomSpriteAnimationTrigger,
+  matchesSpriteAnimationCondition,
+  MESSAGE_IPC_CHANNELS,
+  MESSAGE_PRIORITY,
+  normalizeSpriteAnimationCondition,
+  normalizeSpriteAnimationMeta,
+  normalizeSpriteAnimationMetaPatch,
+  SPRITE_EVENT_TYPES,
+  SpriteEventGroups
+} from './types';
 
 // ----- Modules -----
 export { AnimationRegistry } from './animation-registry';
 export type { BehaviorCondition, BehaviorContext, BehaviorDefinition, BehaviorPriority } from './behavior-engine';
 export { BehaviorEngine, createAutoWalkBehavior, createBoredBehavior, createFavorDecayBehavior, createRandomMessageBehavior, createSleepyBehavior } from './behavior-engine';
 export type {
+  CapabilityLevelUnlockDefinition,
+  SpriteCapabilityBranch,
+  SpriteCapabilityDefinition,
+  SpriteCapabilityLevelUnlockType,
+  SpriteCapabilityResolutionContext,
+  SpriteCapabilityShortcut,
+  SpriteCapabilitySignalMode,
+  SpriteCapabilitySnapshot,
+  SpriteCapabilityState,
+  SpriteCapabilityStatus,
+  SpriteCapabilityTier,
+  SpriteCapabilityTotals
+} from './capability-registry';
+export { CapabilityRegistry, DEFAULT_SPRITE_CAPABILITY_DEFINITIONS, DEFAULT_SPRITE_CAPABILITY_REGISTRY, getSpriteCapabilityLevelUnlocks, SPRITE_CAPABILITY_SIGNALS } from './capability-registry';
+export type { SpriteCapabilityRuntimeResolver } from './capability-runtime';
+export {
+  assertSpriteCapabilityActive,
+  assertSpriteCapabilityUnlocked,
+  getSpriteCapabilityRuntimeState,
+  getSpriteCapabilitySnapshot,
+  hasSpriteCapabilityRuntime,
+  initSpriteCapabilityRuntime,
+  resetSpriteCapabilityRuntime
+} from './capability-runtime';
+export type { CharacterCapabilityContextFlags } from './character-capability-flags';
+export type { CharacterPackDigestVerification, CharacterPackDigestVerificationStatus } from './character-pack-integrity';
+export { assessCharacterPackDigest, calculateCharacterPackPayloadDigest, verifyCharacterPackDigest } from './character-pack-integrity';
+export type {
+  CharacterPackActivationResult,
+  CharacterPackImportBlockingError,
+  CharacterPackImportCompatibility,
+  CharacterPackImportInspection,
+  CharacterPackImportPreview,
+  CharacterPackImportSourceType,
+  CharacterPackImportWarning,
+  CharacterPackInstallOptions,
+  CharacterPackInstallResult,
+  CharacterPackManagerOptions,
+  CharacterPackRemovalResult,
+  CharacterPackSource,
+  CharacterPackSummary,
+  CharacterPackTrustAssessment,
+  CharacterPackTrustLevel,
+  CharacterPackTrustLink,
+  CharacterPackTrustLinkLabel,
+  CharacterPackTrustVerificationStatus,
+  ResolvedCharacterPackAssets
+} from './character-pack-manager';
+export {
+  activateCharacterPack,
+  getActiveCharacterPack,
+  getActiveCharacterPackRootDir,
+  getCharacterPackImportPreviewCacheRootDir,
+  initCharacterPackManager,
+  inspectCharacterPackFromArchive,
+  inspectCharacterPackFromDirectory,
+  installCharacterPackFromArchive,
+  installCharacterPackFromDirectory,
+  listCharacterPacks,
+  removeCharacterPack,
+  resetCharacterPackManager
+} from './character-pack-manager';
+export type {
+  CharacterPackSignatureVerification,
+  CharacterPackSignatureVerificationStatus,
+  CharacterPackTrustedKey,
+  CharacterPackTrustedKeyAlgorithm,
+  CharacterPackTrustRoot
+} from './character-pack-signature';
+export { createCharacterPackSignaturePayload, loadCharacterPackTrustRoot, verifyCharacterPackSignature } from './character-pack-signature';
+export type { CharacterPersonaRuntimeSyncResult } from './character-runtime';
+export { reloadCharacterPersonaRuntime, syncCharacterPersonaRuntime } from './character-runtime';
+export type {
   ActivityReward,
   ActivityRewardId,
+  BuiltinActivityRewardId,
+  CharacterCapabilityFlagsConfig,
+  CharacterCapabilityPersonaFlagDefinition,
+  CharacterConversationBonusMatcherDefinition,
   CharacterDefinition,
+  CharacterFavorModifierDefinition,
+  CharacterMoodRuleDefinition,
+  CharacterPackAssets,
+  CharacterPackCapabilities,
+  CharacterPackDefinition,
+  CharacterPackProvenance,
+  CharacterPackSignature,
+  CharacterPersonaRulesConfig,
+  CharacterXPSourceDefinition,
   ConditionalToolLabel,
   ConversationRewards,
   DimensionDef,
@@ -76,14 +190,22 @@ export type {
 export {
   buildCharacterPersonaPrompt,
   getActivityRewards,
+  getCharacterCapabilityContextFlags,
   getCharacterDefinition,
   getCharacterInfo,
+  getCharacterPackAssetPath,
+  getCharacterPackDefinition,
+  getCharacterPackFilePath,
+  getCharacterPackRootDir,
   getCharacterToolLabels,
   getConversationRewards,
   getDimensionSchema,
   getFavorPersonaOverlay,
   initCharacterService,
-  reloadCharacter
+  reloadCharacter,
+  reloadCharacterPack,
+  setCharacterFilePath,
+  setCharacterPackFilePath
 } from './character-service';
 export type { SpritePersonaEvent, SpritePersonaEventType } from './event-bus';
 export { SpriteEventBus } from './event-bus';
@@ -91,9 +213,29 @@ export type { SpriteInteractionEvent, SpriteInteractionIntent, SpriteInteraction
 export { isSpriteInteractionEvent, isSpriteInteractionIntent, SPRITE_INTERACTION_EVENT_BY_INTENT, SPRITE_INTERACTION_EVENTS, SPRITE_INTERACTION_INTENTS } from './interaction-contract';
 export type { InteractionEvent, InteractionStats, InteractionType } from './interaction-tracker';
 export { InteractionTracker } from './interaction-tracker';
+export type { ConversationBonusMatcher, ConversationRewardContext, PersonaDimensionReward, PersonaRewardGrant, PersonaRulesLayer, PersonaRulesProvider, PersonaRulesSnapshot } from './persona-rules';
+export {
+  clearPersonaRulesLayers,
+  getConversationRewardCooldownMs,
+  getConversationRewardEventRules,
+  getPersonaRuleDimensionSchema,
+  getPersonaRulesProvider,
+  getPersonaRulesSnapshot,
+  getResolvedActivityPersonaReward,
+  getResolvedConversationPersonaReward,
+  getResolvedConversationPersonaRewardBonus,
+  registerConversationBonusMatcher,
+  removePersonaRulesLayer,
+  resetPersonaRulesProvider,
+  resetPersonaRulesRuntime,
+  setPersonaRulesProvider,
+  subscribePersonaRulesChanges,
+  unregisterConversationBonusMatcher,
+  upsertPersonaRulesLayer
+} from './persona-rules';
 export type { FavorLevel, LevelConfig, MoodType, PersonaState } from './persona-state';
 export { PersonaStateManager } from './persona-state';
-export type { SpriteState, SpriteSubState, StateConfig, StateTransition } from './state-machine';
+export type { SpriteReactionState, SpriteState, SpriteSubState, StateConfig, StateTransition } from './state-machine';
 export { SpriteStateMachine } from './state-machine';
 
 // ----- Manager (主进程门面) -----
@@ -105,8 +247,14 @@ export type { WindowControllerOptions } from './window-controller';
 export { WindowController } from './window-controller';
 
 // ----- Config -----
-export type { TriggerConfig } from './config/trigger-mapping';
-export { TRIGGER_MAPPING } from './config/trigger-mapping';
-
-// ----- Helper -----
-export { spriteAI, spriteResource, spriteWorkflow, triggerSpriteAnimation } from './helper/trigger-animation';
+export {
+  DEFAULT_ACTIVITY_REWARDS,
+  DEFAULT_CONVERSATION_REWARDS,
+  DEFAULT_FAVOR_MODIFIERS,
+  DEFAULT_MOOD_RULES,
+  DEFAULT_XP_SOURCES,
+  mergeActivityRewards,
+  resolveActivityReward,
+  resolveConversationReward,
+  resolveDimensionRewards
+} from './config/persona-rules';

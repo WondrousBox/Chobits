@@ -1,6 +1,17 @@
+import type { SpriteAnimationCondition, SpriteAnimationTrigger } from '@packages/sprite-core/types';
 import { ipcRenderer } from 'electron';
 
 import { IpcParams } from '../types';
+
+type SpriteAnimationMetaInput = {
+  title?: string;
+  primaryTrigger?: SpriteAnimationTrigger;
+  triggerAliases?: SpriteAnimationTrigger[];
+  priority?: number;
+  condition?: SpriteAnimationCondition;
+  /** 兼容旧输入，等价于 primaryTrigger */
+  eventType?: SpriteAnimationTrigger;
+};
 
 type FFmpegIpcParams = {
   playSprite: IpcParams<[void], boolean>;
@@ -52,10 +63,7 @@ type FFmpegIpcParams = {
           width: number;
           height: number;
         };
-        meta?: {
-          eventType?: string;
-          title?: string;
-        };
+        meta?: SpriteAnimationMetaInput;
       }>
     ],
     string

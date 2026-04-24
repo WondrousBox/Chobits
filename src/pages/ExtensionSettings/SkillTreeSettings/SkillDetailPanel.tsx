@@ -1,7 +1,8 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import React, { useState } from 'react';
-import { TbEar, TbLock, TbMicrophone, TbPlayerStop, TbX } from 'react-icons/tb';
+import { TbLock, TbX } from 'react-icons/tb';
 
+import type { SpriteCapabilitySnapshot } from '@packages/sprite-core/capability-registry';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
@@ -9,22 +10,23 @@ import { Switch } from '@/components/ui/switch';
 import DailyCareSettings from '../DailyCareSettings';
 import MovementSettings from '../MovementSettings';
 import RecorderSettings from '../RecorderSettings';
+import ScreenshotSettings from '../ScreenshotSettings';
 import SpeakSettings from '../SpeakSettings';
+import SpeechRecognitionSettings from '../SpeechRecognitionSettings';
 import SpriteSettings from '../SpriteSettings';
 import ShortcutKeyDisplay from './ShortcutKeyDisplay';
 import SkillActivationAnimation from './SkillActivationAnimation';
-import { canUnlockSkill, getNodeColors, getTierConfig, SkillStatus, skillTreeNodes } from './skillTreeData';
+import { getNodeColors, getTierConfig, type SkillStatus, skillTreeNodeMap } from './skillTreeData';
 
 interface SkillDetailPanelProps {
   selectedSkillId: string | null;
-  skillStatuses: Record<string, SkillStatus>;
-  personaLevel?: number;
+  capabilitySnapshot: SpriteCapabilitySnapshot | null;
   onClose: () => void;
-  onToggleSkill: (skillId: string, enabled: boolean) => void;
+  onToggleSkill: (skillId: string, enabled: boolean) => void | Promise<void>;
 }
 
-const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, skillStatuses, personaLevel = 1, onClose, onToggleSkill }) => {
-  const selectedNode = skillTreeNodes.find((n) => n.id === selectedSkillId);
+const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, capabilitySnapshot, onClose, onToggleSkill }) => {
+  const selectedNode = selectedSkillId ? skillTreeNodeMap.get(selectedSkillId) : undefined;
   const [shortcutVerified, setShortcutVerified] = useState(false);
   const [showActivationAnimation, setShowActivationAnimation] = useState(false);
   const prevStatusRef = React.useRef<SkillStatus>('locked');
@@ -34,20 +36,14 @@ const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, sk
     return null;
   }
 
-  // 计算活跃技能集合
-  const activeSkills = new Set(
-    Object.entries(skillStatuses)
-      .filter(([, status]) => status === 'active')
-      .map(([id]) => id)
-  );
-
+  const personaLevel = capabilitySnapshot?.personaLevel ?? 1;
+  const selectedCapability = capabilitySnapshot?.capabilities[selectedNode.id];
   const colors = getNodeColors(selectedNode.branch);
   const tierConfig = getTierConfig(selectedNode.tier);
-  const status = skillStatuses[selectedNode.id] || 'locked';
-  const isActive = status === 'active';
-  const isUnlocked = status === 'unlocked' || status === 'active';
-  const canUnlock = canUnlockSkill(selectedNode.id, activeSkills, personaLevel);
-  const meetsLevelRequirement = !selectedNode.requiredLevel || personaLevel >= selectedNode.requiredLevel;
+  const status = selectedCapability?.status ?? 'locked';
+  const isActive = selectedCapability?.active ?? status === 'active';
+  const canUnlock = selectedCapability?.unlockReady ?? false;
+  const meetsLevelRequirement = selectedCapability?.meetsLevelRequirement ?? (!selectedNode.requiredLevel || personaLevel >= selectedNode.requiredLevel);
   const Icon = selectedNode.icon;
   const hasRequiredShortcut = !!selectedNode.requiredShortcut;
 
@@ -106,8 +102,8 @@ const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, sk
 
   // 获取前置技能信息
   const prerequisites = selectedNode.prerequisites.map((prereqId) => {
-    const prereqNode = skillTreeNodes.find((n) => n.id === prereqId);
-    const prereqStatus = skillStatuses[prereqId] || 'locked';
+    const prereqNode = skillTreeNodeMap.get(prereqId);
+    const prereqStatus = capabilitySnapshot?.capabilities[prereqId]?.status ?? 'locked';
     return {
       id: prereqId,
       name: prereqNode?.name || prereqId,
@@ -117,70 +113,21 @@ const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, sk
 
   // 根据 settingsKey 渲染对应的设置组件
   const renderSettingsContent = (): React.ReactNode => {
-    // 麦克风技能：显示打开录制窗口按钮
-    if (selectedSkillId === 'microphone') {
-      return (
-        <div className="space-y-4">
-          <div className="text-sm text-slate-300">
-            <p>开启麦克风录音后，会显示一个悬浮录制窗口。</p>
-            <p className="mt-2">点击停止按钮后，录音会自动保存为音频资源。</p>
-          </div>
-          <Button
-            onClick={() => window.YUA.window['window:open']('webRecorder')}
-            className="w-full gap-2"
-            style={{
-              backgroundColor: colors.color,
-              borderColor: colors.color
-            }}
-          >
-            <TbMicrophone className="w-4 h-4" />
-            打开麦克风录制窗口
-          </Button>
-        </div>
-      );
-    }
-
-    // 语音识别技能：显示 ASR 服务控制
-    if (selectedSkillId === 'speechRecognition') {
-      return (
-        <div className="space-y-4">
-          <div className="text-sm text-slate-300">
-            <p>启动实时语音识别服务后，可将麦克风或系统音频实时转为文字。</p>
-            <p className="mt-2">服务独立运行，关闭录音窗口不会停止服务。可通过右键菜单或此处控制。</p>
-          </div>
-          {isActive ? (
-            <Button variant="destructive" onClick={() => onToggleSkill(selectedNode.id, false)} className="w-full gap-2">
-              <TbPlayerStop className="w-4 h-4" />
-              停止语音识别服务
-            </Button>
-          ) : (
-            <Button
-              onClick={() => onToggleSkill(selectedNode.id, true)}
-              className="w-full gap-2"
-              style={{
-                backgroundColor: colors.color,
-                borderColor: colors.color
-              }}
-            >
-              <TbEar className="w-4 h-4" />
-              打开语音识别配置
-            </Button>
-          )}
-        </div>
-      );
-    }
-
     switch (selectedNode.settingsKey) {
       case 'movement':
-        return <MovementSettings />;
+        return <MovementSettings capability={selectedCapability ?? null} />;
       case 'speak':
         return <SpeakSettings />;
       case 'dailyCare':
-        return <DailyCareSettings />;
+        return <DailyCareSettings capability={selectedCapability ?? null} />;
       case 'sprite':
         return <SpriteSettings />;
       case 'recorder':
-        return <RecorderSettings />;
+        return <RecorderSettings capability={selectedCapability ?? null} />;
+      case 'speechRecognition':
+        return <SpeechRecognitionSettings capability={selectedCapability ?? null} />;
+      case 'screenshot':
+        return <ScreenshotSettings capability={selectedCapability ?? null} />;
       default:
         return (
           <div className="text-center text-slate-400 py-8">
@@ -301,7 +248,7 @@ const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, sk
                 border: `1px solid ${colors.color}40`
               }}
             >
-              {skillTreeNodes.find((n) => n.branch === selectedNode.branch)?.branch === selectedNode.branch ? getNodeColors(selectedNode.branch).name || selectedNode.branch : selectedNode.branch}
+              {colors.name || selectedNode.branch}
             </span>
           </div>
 

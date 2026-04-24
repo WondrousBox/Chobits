@@ -8,6 +8,8 @@
  * - feature: 功能特性
  */
 
+import { getSpriteCapabilityLevelUnlocks } from '@packages/sprite-core/capability-registry';
+
 export type UnlockType = 'animation' | 'behavior' | 'skill' | 'feature';
 
 export interface LevelUnlock {
@@ -25,10 +27,7 @@ export interface LevelUnlock {
   icon?: string;
 }
 
-/**
- * 等级解锁内容列表
- */
-export const levelUnlocks: LevelUnlock[] = [
+const staticLevelUnlocks: LevelUnlock[] = [
   // Lv.3 - 庆祝动画
   {
     level: 3,
@@ -37,15 +36,6 @@ export const levelUnlocks: LevelUnlock[] = [
     name: '庆祝动画',
     description: '精灵学会了庆祝动作',
     icon: '🎉'
-  },
-  // Lv.5 - 自由移动技能
-  {
-    level: 5,
-    type: 'skill',
-    id: 'movement',
-    name: '自由移动',
-    description: '解锁精灵自由移动技能',
-    icon: '🏃'
   },
   // Lv.7 - 主动问候行为
   {
@@ -56,15 +46,6 @@ export const levelUnlocks: LevelUnlock[] = [
     description: '精灵会主动向你打招呼',
     icon: '👋'
   },
-  // Lv.10 - 外观定制
-  {
-    level: 10,
-    type: 'feature',
-    id: 'customAppearance',
-    name: '外观定制',
-    description: '解锁精灵外观定制功能',
-    icon: '🎨'
-  },
   // Lv.12 - 舞蹈动画
   {
     level: 12,
@@ -73,24 +54,6 @@ export const levelUnlocks: LevelUnlock[] = [
     name: '舞蹈动画',
     description: '精灵学会了跳舞',
     icon: '💃'
-  },
-  // Lv.15 - 情感表达
-  {
-    level: 15,
-    type: 'feature',
-    id: 'emotionExpression',
-    name: '情感表达',
-    description: '精灵可以根据对话展示情感',
-    icon: '✨'
-  },
-  // Lv.20 - 智能提醒
-  {
-    level: 20,
-    type: 'skill',
-    id: 'smartReminder',
-    name: '智能提醒',
-    description: '解锁智能提醒技能',
-    icon: '🔔'
   },
   // Lv.25 - 隐藏彩蛋
   {
@@ -120,6 +83,23 @@ export const levelUnlocks: LevelUnlock[] = [
     icon: '👑'
   }
 ];
+
+const capabilityLevelUnlocks: LevelUnlock[] = getSpriteCapabilityLevelUnlocks().map((unlock) => ({
+  level: unlock.level,
+  type: unlock.type,
+  id: unlock.id,
+  name: unlock.name,
+  description: unlock.description,
+  icon: unlock.icon
+}));
+
+/**
+ * 等级解锁内容列表
+ */
+export const levelUnlocks: LevelUnlock[] = [...staticLevelUnlocks, ...capabilityLevelUnlocks].sort((left, right) => {
+  if (left.level !== right.level) return left.level - right.level;
+  return left.id.localeCompare(right.id);
+});
 
 /**
  * 获取指定等级解锁的内容

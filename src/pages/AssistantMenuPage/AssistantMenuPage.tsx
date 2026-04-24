@@ -1,4 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
+
+import { getFirstLockedSpriteCapability, getSpriteCapabilityLockedReason } from '@/features/sprite-assistant/capability-ui';
+import { useSpriteCapabilitySnapshot } from '@/features/sprite-assistant/hooks/useSpriteCapabilitySnapshot';
 
 import RadialMenu, { RadialMenuItem } from '../../components/common/RadialMenu/RadialMenu';
 
@@ -16,6 +20,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
   const [isClosing, setIsClosing] = useState(false);
   // ASR 服务运行状态
   const [isASRRunning, setIsASRRunning] = useState(false);
+  const { snapshot: capabilitySnapshot, refresh: refreshCapabilitySnapshot } = useSpriteCapabilitySnapshot({ enabled: isOpen });
 
   // 查询 ASR 服务状态
   const checkASRStatus = useCallback(async () => {
@@ -27,6 +32,15 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
       setIsASRRunning(false);
     }
   }, []);
+
+  const showLockedCapabilityToast = useCallback((label: string, capabilityIds: string[]) => {
+    const lockedCapability = getFirstLockedSpriteCapability(capabilitySnapshot, capabilityIds);
+    if (!lockedCapability) return;
+
+    toast.info(`${label} 尚未解锁`, {
+      description: getSpriteCapabilityLockedReason(lockedCapability)
+    });
+  }, [capabilitySnapshot]);
 
   const menuItems: RadialMenuItem[] = useMemo(
     () => [
@@ -57,6 +71,8 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
             label: isASRRunning ? '停止识别服务' : '启动识别服务',
             icon: isASRRunning ? '⏹️' : '🧠',
             shortcut: 's',
+            disabled: Boolean(getFirstLockedSpriteCapability(capabilitySnapshot, ['speechRecognition'])),
+            onDisabledAction: () => showLockedCapabilityToast('语音识别服务', ['speechRecognition']),
             action: async () => {
               if (isASRRunning) {
                 // 停止 ASR 服务
@@ -64,6 +80,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
                   await window.YUA.sherpa.freeInstance();
                   await window.YUA.sherpa.saveASRConfig({ enabled: false });
                   setIsASRRunning(false);
+                  await refreshCapabilitySnapshot();
                 } catch (error) {
                   console.error('停止 ASR 服务失败:', error);
                 }
@@ -78,6 +95,8 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
             label: '麦克风识别',
             icon: '🎤',
             shortcut: 'm',
+            disabled: Boolean(getFirstLockedSpriteCapability(capabilitySnapshot, ['speechRecognition'])),
+            onDisabledAction: () => showLockedCapabilityToast('麦克风识别', ['speechRecognition']),
             action: () => {
               window.YUA.window['window:open']('asr' as any, { audioSource: 'microphone' });
             }
@@ -87,6 +106,8 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
             label: '电脑声音识别',
             icon: '🔉',
             shortcut: 'e',
+            disabled: Boolean(getFirstLockedSpriteCapability(capabilitySnapshot, ['systemAudio', 'speechRecognition'])),
+            onDisabledAction: () => showLockedCapabilityToast('电脑声音识别', ['systemAudio', 'speechRecognition']),
             action: () => {
               window.YUA.window['window:open']('asr' as any, { audioSource: 'system-audio' });
             }
@@ -96,6 +117,8 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
             label: '纯录制',
             icon: '🎙️',
             shortcut: 'p',
+            disabled: Boolean(getFirstLockedSpriteCapability(capabilitySnapshot, ['microphone'])),
+            onDisabledAction: () => showLockedCapabilityToast('纯录制', ['microphone']),
             action: () => {
               window.YUA.window['window:open']('webRecorder');
             }
@@ -164,7 +187,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         icon: '🌳',
         shortcut: 'k',
         action: () => {
-          window.ipcRenderer.invoke('skillTree:open');
+          window.YUA.window['window:open']('skillTree');
         }
       },
       // {
@@ -193,7 +216,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         }
       }
     ],
-    [isASRRunning]
+    [capabilitySnapshot, isASRRunning, refreshCapabilitySnapshot, showLockedCapabilityToast]
   );
 
   // 处理菜单关闭请求（播放退出动画后关闭窗口）
@@ -222,6 +245,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
       if (data.visible) {
         // 窗口显示时，查询 ASR 状态并播放入场动画
         checkASRStatus();
+        void refreshCapabilitySnapshot();
         setIsOpen(true);
         setIsClosing(false);
       }
@@ -233,7 +257,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
     return () => {
       window.ipcRenderer?.off('window:visibility-changed', handleVisibilityChange);
     };
-  }, [checkASRStatus]);
+  }, [checkASRStatus, refreshCapabilitySnapshot]);
 
   // 监听窗口失焦事件（替代 closeOnBlur 配置）
   useEffect(() => {

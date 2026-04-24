@@ -11,7 +11,7 @@ import { ipcRenderer } from 'electron';
 import type { SpriteInteractionIntent, SpriteInteractionPayload } from '../interaction-contract';
 import type { SpriteSpontaneousUtteranceHistoryItem, SpriteSpontaneousUtteranceHistoryQuery, SpriteSpontaneousUtterancePreferences } from '../manager';
 import type { SpeakResult, SpriteSpeakConfig } from '../speak/types';
-import type { MessageBridgePayload, MessageIPCPayload, SpriteAnimation } from '../types';
+import type { MessageBridgePayload, MessageIPCPayload, SpriteAnimation, SpriteAnimationTrigger, SpriteMovementPreviewConfig, SpriteTriggerOptions } from '../types';
 import { MESSAGE_IPC_CHANNELS } from '../types';
 
 function onMessageBridge(cb: (payload: MessageBridgePayload) => void): () => void {
@@ -25,7 +25,7 @@ function onMessageBridge(cb: (payload: MessageBridgePayload) => void): () => voi
 export type SpriteBridgeType = {
   // 动画管理 (原有)
   list(): Promise<SpriteAnimation[]>;
-  listByEvent(eventType?: string): Promise<SpriteAnimation[]>;
+  listByTrigger(trigger?: SpriteAnimationTrigger): Promise<SpriteAnimation[]>;
   get(id: string): Promise<SpriteAnimation | undefined>;
   register(anim: Partial<SpriteAnimation> & { filePath?: string }): Promise<SpriteAnimation>;
   registerFromData(payload: {
@@ -72,7 +72,7 @@ export type SpriteBridgeType = {
   listSpontaneousUtteranceHistory(query?: SpriteSpontaneousUtteranceHistoryQuery): Promise<SpriteSpontaneousUtteranceHistoryItem[]>;
 
   // 窗口移动预览
-  previewMovement(config: { width: number; height: number; padding: number; movement: any }): Promise<void>;
+  previewMovement(config: SpriteMovementPreviewConfig): Promise<void>;
   stopMovementPreview(): Promise<void>;
 
   // 语音合成 (Speak)
@@ -81,7 +81,7 @@ export type SpriteBridgeType = {
   getSpeakConfig(): Promise<SpriteSpeakConfig>;
 
   // 统一事件触发
-  trigger(eventType: string, options?: { message?: string; duration?: number; durationMs?: number; ctx?: any; silent?: boolean }): Promise<void>;
+  trigger(trigger: SpriteAnimationTrigger, options?: SpriteTriggerOptions): Promise<void>;
   // 按动画 ID 测试播放（开发调试用）
   testAnimation(animationId: string, options?: { message?: string; duration?: number; durationMs?: number; silent?: boolean }): Promise<boolean>;
 
@@ -107,7 +107,7 @@ export type SpriteBridgeType = {
 export const spriteBridge: SpriteBridgeType = {
   // ── 动画管理 (原有) ──────────────────────────────────────
   list: () => ipcRenderer.invoke('sprite:list'),
-  listByEvent: (eventType) => ipcRenderer.invoke('sprite:listByEvent', { eventType }),
+  listByTrigger: (trigger) => ipcRenderer.invoke('sprite:listByTrigger', { trigger }),
   get: (id) => ipcRenderer.invoke('sprite:get', { id }),
   register: (anim) => ipcRenderer.invoke('sprite:register', anim),
   registerFromData: (payload) => ipcRenderer.invoke('sprite:registerFromData', payload),
@@ -159,7 +159,7 @@ export const spriteBridge: SpriteBridgeType = {
   clearSpeakCache: () => ipcRenderer.invoke('sprite:speak:clearCache'),
 
   // ── 统一事件触发 ───────────────────────────────────────
-  trigger: (eventType, options) => ipcRenderer.invoke('sprite:trigger', { eventType, ...options }),
+  trigger: (trigger, options) => ipcRenderer.invoke('sprite:trigger', { trigger, ...options }),
   testAnimation: (animationId, options) => ipcRenderer.invoke('sprite:triggerById', { animationId, ...options }),
 
   // ── 临时资源根目录 ──────────────────────────────────────

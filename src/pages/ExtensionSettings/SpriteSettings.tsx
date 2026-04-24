@@ -1,6 +1,7 @@
 import React from 'react';
 import { TbMoodKid } from 'react-icons/tb';
 
+import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
 import { cn } from '@/lib/utils';
 
 import SpriteManager from './SpriteManager';
@@ -25,13 +26,15 @@ export const SpriteItem: React.FC<{
     </div>
     <div className="flex-1 min-w-0">
       <div className="text-sm font-medium text-foreground">精灵管理</div>
-      <div className="text-xs text-muted-foreground line-clamp-1">导入/删除动画，设为当前精灵</div>
+      <div className="text-xs text-muted-foreground line-clamp-1">管理角色包、切换角色与维护动画资源</div>
     </div>
   </div>
 );
 
 /* ─── Right-panel detail ─── */
-export const SpriteDetailContent: React.FC<{ state: SpriteSettingsState }> = () => <SpriteManager />;
+export const SpriteDetailContent: React.FC<{ state: SpriteSettingsState; actionChoreographyCapability?: SpriteCapabilityState | null; onBlocked?: (capability: SpriteCapabilityState) => void }> = ({ actionChoreographyCapability, onBlocked }) => (
+  <SpriteManager actionChoreographyCapability={actionChoreographyCapability} onCapabilityBlocked={onBlocked} />
+);
 
 /* ─── Default: self-contained detail (for SkillDetailPanel) ─── */
 const SpriteSettings: React.FC = () => <SpriteManager />;

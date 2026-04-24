@@ -6,6 +6,7 @@ import type { DownloadProgress } from '../../../packages/plugins';
 import { initPluginResourceHandlers } from '../../../packages/plugins/ipc-main';
 import { initRecorderHandlers } from '../../../packages/recorder/ipc-main';
 import { initSherpaHandlers } from '../../../packages/sherpa/ipc-main';
+import { assertSpriteCapabilityUnlocked } from '../../../packages/sprite-core/capability-runtime';
 import { initSpriteHandlers, initSpriteManagerIPC } from '../../../packages/sprite-core/handler';
 import { initTTSHandlers } from '../../../packages/tts/ipc-main';
 import { initYtDlpIpcHandlers } from '../../../packages/ytdlp';
@@ -60,7 +61,8 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initDownloadHandlers(win);
   initSpriteHandlers({
     addAllowedResourceRoot: (await import('../resource-protocol')).addAllowedResourceRoot,
-    getResourcePath
+    getResourcePath,
+    assertCapabilityUnlocked: assertSpriteCapabilityUnlocked
   });
   initDailyCare(() => {
     if (win && !win.isDestroyed()) return win;

@@ -8,7 +8,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import { type Camera, type RenderData, SkillTreeRenderer } from './SkillTreeCanvasRenderer';
-import { canUnlockSkill, type SkillStatus, skillTreeNodes } from './skillTreeData';
+import { type SkillStatus } from './skillTreeData';
 
 interface SkillTreeCanvasProps {
   skillStatuses: Record<string, SkillStatus>;
@@ -37,26 +37,6 @@ const SkillTreeCanvas: React.FC<SkillTreeCanvasProps> = ({ skillStatuses, select
     stateRef.current.selectedSkill = selectedSkill;
     stateRef.current.hoveredSkill = hoveredSkill;
   }, [skillStatuses, selectedSkill, hoveredSkill]);
-
-  // --- Resolve display statuses (unlock hint) ---
-  const resolvedStatuses = useRef<Record<string, SkillStatus>>({});
-  useEffect(() => {
-    const activeSet = new Set<string>();
-    for (const [id, s] of Object.entries(skillStatuses)) {
-      if (s === 'active') activeSet.add(id);
-    }
-    const resolved: Record<string, SkillStatus> = {};
-    for (const node of skillTreeNodes) {
-      const raw = skillStatuses[node.id] || 'locked';
-      if (raw === 'locked' && canUnlockSkill(node.id, activeSet)) {
-        resolved[node.id] = 'unlocked';
-      } else {
-        resolved[node.id] = raw;
-      }
-    }
-    resolvedStatuses.current = resolved;
-    stateRef.current.skillStatuses = resolved;
-  }, [skillStatuses]);
 
   // --- Initialize renderer & canvas ---
   useEffect(() => {

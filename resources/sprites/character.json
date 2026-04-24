@@ -313,6 +313,30 @@
     }
   },
 
+  "capabilityFlags": {
+    "featureFlags": ["character:default-pack", "character:has-custom-appearance"],
+    "personaFlags": [
+      {
+        "id": "persona:bonded",
+        "when": {
+          "type": "compare",
+          "field": "favor",
+          "operator": "gte",
+          "value": 60
+        }
+      },
+      {
+        "id": "persona:advanced-level",
+        "when": {
+          "type": "compare",
+          "field": "level",
+          "operator": "gte",
+          "value": 15
+        }
+      }
+    ]
+  },
+
   "meta": {
     "author": "Chobits",
     "version": "1.0.0",

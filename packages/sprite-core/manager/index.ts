@@ -10,6 +10,7 @@
  */
 
 export { registerDefaultBehaviors } from './default-behaviors';
+export { MovementCoordinator } from './movement-coordinator';
 export { AutoWalkConfig, PersonaStatePersistence } from './persistence';
 export { SpriteManager } from './sprite-manager';
 export { mapStateToEventType } from './state-mapping';

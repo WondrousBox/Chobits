@@ -1,12 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { TbActivity, TbLoader2, TbMicrophone, TbPlayerPlay, TbPlayerStop, TbPlugConnected, TbPlugX } from 'react-icons/tb';
 
+import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { SpriteCapabilityLockedNotice, ensureSpriteCapabilityAccessible, type SpriteCapabilityGuardOptions } from '@/features/sprite-assistant/capability-ui';
 import { cn } from '@/lib/utils';
 
 /* ─── Hook ─── */
-export function useRecorderSettings() {
+export function useRecorderSettings(options?: SpriteCapabilityGuardOptions) {
   const [recorderConfig, setRecorderConfig] = useState<{ enabled?: boolean } | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -82,6 +84,9 @@ export function useRecorderSettings() {
   const enabled = recorderConfig?.enabled !== false;
 
   const handleToggle = async (checked: boolean): Promise<void> => {
+    if (checked && !ensureSpriteCapabilityAccessible(options?.capability, options?.onBlocked)) {
+      return;
+    }
     setRecorderConfig((prev) => ({ ...prev, enabled: checked }));
     setLoading(true);
 
@@ -107,10 +112,11 @@ export function useRecorderSettings() {
       }
     } finally {
       setLoading(false);
+      await options?.afterChange?.();
     }
   };
 
-  return { enabled, isRunning, loading, recorderConfig, handleToggle, checkStatus };
+  return { enabled, isRunning, loading, recorderConfig, capability: options?.capability ?? null, handleToggle, checkStatus };
 }
 
 export type RecorderSettingsState = ReturnType<typeof useRecorderSettings>;
@@ -118,10 +124,14 @@ export type RecorderSettingsState = ReturnType<typeof useRecorderSettings>;
 /* ─── Left-panel item ─── */
 export const RecorderItem: React.FC<{
   state: RecorderSettingsState;
+  capability?: SpriteCapabilityState | null;
   selected: boolean;
   onSelect: () => void;
-}> = ({ state, selected, onSelect }) => (
-  <div onClick={onSelect} className={cn('flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors hover:bg-accent/50', selected && 'bg-accent ring-1 ring-primary/30')}>
+}> = ({ state, capability, selected, onSelect }) => (
+  <div
+    onClick={onSelect}
+    className={cn('flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors hover:bg-accent/50', selected && 'bg-accent ring-1 ring-primary/30', capability?.status === 'locked' && 'opacity-70')}
+  >
     <div className={cn('flex h-10 w-10 items-center justify-center rounded-full shrink-0 transition-colors', state.enabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')}>
       <TbMicrophone className="h-5 w-5" />
     </div>
@@ -131,13 +141,17 @@ export const RecorderItem: React.FC<{
     </div>
     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
       {state.loading && <TbLoader2 className="animate-spin h-4 w-4 text-muted-foreground" />}
-      <Switch checked={state.enabled} onCheckedChange={state.handleToggle} disabled={state.loading || !state.recorderConfig} />
+      <Switch checked={state.enabled} onCheckedChange={state.handleToggle} disabled={state.loading || !state.recorderConfig || capability?.status === 'locked'} />
     </div>
   </div>
 );
 
 /* ─── Right-panel detail (WebSocket test UI lives here) ─── */
-export const RecorderDetailContent: React.FC<{ state: RecorderSettingsState }> = ({ state }) => {
+export const RecorderDetailContent: React.FC<{ state: RecorderSettingsState; capability?: SpriteCapabilityState | null }> = ({ state, capability }) => {
+  if (capability?.status === 'locked') {
+    return <SpriteCapabilityLockedNotice capability={capability} hint="录音服务入口现在受 capability runtime 管控，解锁后才能启用实际录音进程。" />;
+  }
+
   const { enabled, isRunning } = state;
 
   const [isConnected, setIsConnected] = useState(false);
@@ -383,9 +397,9 @@ export const RecorderDetailContent: React.FC<{ state: RecorderSettingsState }> =
 };
 
 /* ─── Default: self-contained detail (for SkillDetailPanel) ─── */
-const RecorderSettings: React.FC = () => {
-  const state = useRecorderSettings();
-  return <RecorderDetailContent state={state} />;
+const RecorderSettings: React.FC<{ capability?: SpriteCapabilityState | null }> = ({ capability }) => {
+  const state = useRecorderSettings({ capability });
+  return <RecorderDetailContent state={state} capability={capability} />;
 };
 
 export default RecorderSettings;

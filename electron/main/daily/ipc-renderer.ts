@@ -1,7 +1,7 @@
 import { ipcRenderer } from 'electron';
 
 import type { IPCParams } from '../../preload/type';
-import type { CustomReminderConfig, CustomReminderInput, DailyCareSnapshot, UpdateSettingsPayload } from './types';
+import { DAILY_CARE_SNAPSHOT_UPDATED_CHANNEL, type CustomReminderConfig, type CustomReminderInput, type DailyCareSnapshot, type UpdateSettingsPayload } from './types';
 
 export type DailyCareBridgeParams = {
   'dailyCare:getSnapshot': IPCParams<[], DailyCareSnapshot>;
@@ -23,11 +23,18 @@ const methods: Array<keyof DailyCareBridgeParams> = [
 
 export type DailyCareBridgeType = {
   [K in keyof DailyCareBridgeParams]: (...args: DailyCareBridgeParams[K]['request']) => Promise<DailyCareBridgeParams[K]['response']>;
+} & {
+  onSnapshotUpdated: (callback: (snapshot: DailyCareSnapshot) => void) => () => void;
 };
 
 const bridge: Partial<DailyCareBridgeType> = {};
 methods.forEach((method) => {
   (bridge as any)[method] = (...args: any[]) => ipcRenderer.invoke(method as string, ...args);
 });
+(bridge as DailyCareBridgeType).onSnapshotUpdated = (callback: (snapshot: DailyCareSnapshot) => void) => {
+  const handler = (_event: any, snapshot: DailyCareSnapshot): void => callback(snapshot);
+  ipcRenderer.on(DAILY_CARE_SNAPSHOT_UPDATED_CHANNEL, handler);
+  return () => ipcRenderer.off(DAILY_CARE_SNAPSHOT_UPDATED_CHANNEL, handler);
+};
 
 export const dailyCareBridge = bridge as DailyCareBridgeType;

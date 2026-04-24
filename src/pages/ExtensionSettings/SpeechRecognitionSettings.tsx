@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { TbEar, TbLoader2, TbPlayerPlay, TbPlayerStop, TbSettings } from 'react-icons/tb';
 
+import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { SpriteCapabilityLockedNotice, ensureSpriteCapabilityAccessible, type SpriteCapabilityGuardOptions } from '@/features/sprite-assistant/capability-ui';
 import { cn } from '@/lib/utils';
 
 /* ─── Hook ─── */
-export function useSpeechRecognitionSettings() {
+export function useSpeechRecognitionSettings(options?: SpriteCapabilityGuardOptions) {
   const [isRunning, setIsRunning] = useState(false);
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -46,6 +48,9 @@ export function useSpeechRecognitionSettings() {
   }, []);
 
   const handleToggle = async (checked: boolean): Promise<void> => {
+    if (checked && !ensureSpriteCapabilityAccessible(options?.capability, options?.onBlocked)) {
+      return;
+    }
     setLoading(true);
     try {
       if (checked) {
@@ -59,10 +64,11 @@ export function useSpeechRecognitionSettings() {
       console.error('切换 ASR 服务失败:', error);
     } finally {
       setLoading(false);
+      await options?.afterChange?.();
     }
   };
 
-  return { isRunning, loading, checking, handleToggle, checkStatus };
+  return { isRunning, loading, checking, capability: options?.capability ?? null, handleToggle, checkStatus };
 }
 
 export type SpeechRecognitionSettingsState = ReturnType<typeof useSpeechRecognitionSettings>;
@@ -70,10 +76,14 @@ export type SpeechRecognitionSettingsState = ReturnType<typeof useSpeechRecognit
 /* ─── Left-panel item ─── */
 export const SpeechRecognitionItem: React.FC<{
   state: SpeechRecognitionSettingsState;
+  capability?: SpriteCapabilityState | null;
   selected: boolean;
   onSelect: () => void;
-}> = ({ state, selected, onSelect }) => (
-  <div onClick={onSelect} className={cn('flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors hover:bg-accent/50', selected && 'bg-accent ring-1 ring-primary/30')}>
+}> = ({ state, capability, selected, onSelect }) => (
+  <div
+    onClick={onSelect}
+    className={cn('flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors hover:bg-accent/50', selected && 'bg-accent ring-1 ring-primary/30', capability?.status === 'locked' && 'opacity-70')}
+  >
     <div className={cn('flex h-10 w-10 items-center justify-center rounded-full shrink-0 transition-colors', state.isRunning ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')}>
       <TbEar className="h-5 w-5" />
     </div>
@@ -83,13 +93,17 @@ export const SpeechRecognitionItem: React.FC<{
     </div>
     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
       {(state.loading || state.checking) && <TbLoader2 className="animate-spin h-4 w-4 text-muted-foreground" />}
-      <Switch checked={state.isRunning} onCheckedChange={state.handleToggle} disabled={state.loading || state.checking} />
+      <Switch checked={state.isRunning} onCheckedChange={state.handleToggle} disabled={state.loading || state.checking || capability?.status === 'locked'} />
     </div>
   </div>
 );
 
 /* ─── Right-panel detail ─── */
-export const SpeechRecognitionDetailContent: React.FC<{ state: SpeechRecognitionSettingsState }> = ({ state }) => {
+export const SpeechRecognitionDetailContent: React.FC<{ state: SpeechRecognitionSettingsState; capability?: SpriteCapabilityState | null }> = ({ state, capability }) => {
+  if (capability?.status === 'locked') {
+    return <SpriteCapabilityLockedNotice capability={capability} hint="语音识别属于成长型能力，解锁后才会允许打开配置页和启动运行态服务。" />;
+  }
+
   const { isRunning, loading, handleToggle } = state;
 
   return (
@@ -114,7 +128,7 @@ export const SpeechRecognitionDetailContent: React.FC<{ state: SpeechRecognition
             <TbPlayerPlay /> 启动服务
           </Button>
         )}
-        <Button size="sm" variant="outline" onClick={() => window.YUA.window['window:open']('asrConfig')} className="gap-2">
+        <Button size="sm" variant="outline" onClick={() => window.YUA.window['window:open']('asrConfig')} className="gap-2" disabled={loading}>
           <TbSettings /> 识别配置
         </Button>
       </div>
@@ -123,9 +137,9 @@ export const SpeechRecognitionDetailContent: React.FC<{ state: SpeechRecognition
 };
 
 /* ─── Default: self-contained detail (for SkillDetailPanel) ─── */
-const SpeechRecognitionSettings: React.FC = () => {
-  const state = useSpeechRecognitionSettings();
-  return <SpeechRecognitionDetailContent state={state} />;
+const SpeechRecognitionSettings: React.FC<{ capability?: SpriteCapabilityState | null }> = ({ capability }) => {
+  const state = useSpeechRecognitionSettings({ capability });
+  return <SpeechRecognitionDetailContent state={state} capability={capability} />;
 };
 
 export default SpeechRecognitionSettings;

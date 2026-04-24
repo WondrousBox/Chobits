@@ -1,18 +1,19 @@
 # 角色人格系统 (Persona Character System) 设计文档
 
-> **版本**: v1.4 - Phase 3.5 工具标签人格化
-> **日期**: 2026-04-02
-> **状态**: Phase 1 ✅ | Phase 2 ✅ | Phase 3 ✅ | Phase 3.5 ✅ | Phase 4-5 RFC
+> **版本**: v1.5 - 当前代码态校准
+> **日期**: 2026-04-23
+> **状态**: Phase 1 ✅ | Phase 2 ✅ | Phase 3 ✅ | Phase 3.5 ✅ | Phase 4 主链 ✅ | Phase 5 RFC
 >
-> 2026-04-08 实现校准补充：本设计文档中的 Phase 3 目标大体已经接入代码，本轮已完成以下收口：
+> 2026-04-23 当前代码态校准：
 >
-> - `PersonaState.dimensions` 已纳入 `persona-state.json` 持久化，并增加历史快照兼容读取
-> - `persona:dimension-updated` 已补入 EventBus 类型定义
-> - 精灵主界面已补齐 XP / 好感度增长的前端反馈通路：主进程转发 `persona:xp-gained`、`persona:favor-changed`，视频精灵可显示飘字与爱心动画
-> - `recordDailyLogin()` 现已直接兑现登录 / 连续登录奖励，不再只返回 `xpBonus` 而遗漏实际状态变更
-> - `character.json` 新增 `activityRewards`，用于配置工作流、导入、下载、插件、媒体处理、记忆提取、用户画像更新、回收站恢复等完成态事件的 XP / 好感度 / 维度成长奖励
+> - 对话奖励已经接入主链路：`chat-service.ts` 发出 `SPRITE_AI_COMPLETE` 后，`sprite-event-listener.ts` 会调用 `mgr.recordConversationEvent()`，由 `PersonaRulesProvider` / `PersonaRulesLayer` 和 `SpriteManager.applyPersonaReward()` 统一结算 XP / 好感度 / 维度奖励
+> - `character.json` 已进入运行时主链路：`CharacterService` 负责人格、好感度 overlay、心情表达、维度 schema、工具标签与 `capabilityFlags` 的解析
+> - 对话人格注入已经通过 `SystemPromptEnricher` 注册表接入 `buildPiContext()`；ChatPage 侧也已有 `characterPersonaEnabled` 开关
+> - 角色包 lifecycle 已落地：`CharacterPackManager` 已支持扫描、安装、archive 导入、激活、卸载/替换冲突处理、preview cache、installability assessment 与 trust-root 公钥验签
+> - `PersonaStatePersistence` 已升级为按角色 slot 持久化；角色切换会保存旧 slot 并恢复目标 slot
+> - 2026-04-24 收尾：sprite runtime / persona reward / capability 消费主线本轮已冻结；当前剩余工作仅作为后续 backlog，主要包括 trust-root 扩容与 key rotation / revocation、`customAppearance` 明确产品入口后的细分 capability 消费、`WindowController` 执行边界收薄，以及 legacy persona mutation IPC / 兼容层下线评估
 >
-> 运行时统一收口方案见 `docs/sprite-core/sprite-runtime-unification-plan.md`
+> 本文档同时保留原始设计推演与当前实现说明；若历史设计描述与当前代码冲突，以 `docs/sprite-core/sprite-runtime-unification-plan.md` 和实际实现为准。
 
 ---
 
@@ -25,7 +26,7 @@
 
 ### 1.1 当前架构概览
 
-当前系统已经具备了一个较完整的"精灵助手"基础设施，但**角色人格**层面尚未形成闭环：
+当前系统已经形成了较完整的角色人格主链路，"对话奖励 → 角色人格 → 角色包 → capability / persona slot" 已能贯穿主进程 runtime。当前更准确的判断不是“角色人格尚未形成闭环”，而是“主链已完成，剩余是少量收尾和产品化补完”：
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -39,23 +40,23 @@
 │ ✅ 好感度 (0-100)    │ ✅ 工具调用框架                │
 │ ✅ 心情系统 (9 moods)│ ✅ 流式对话                    │
 │ ✅ 行为引擎          │ ✅ 记忆系统                    │
-│ ✅ 动画注册表        │ ❌ 对话不影响好感度/XP          │
-│ ✅ 交互追踪          │ ❌ 无角色人格注入               │
-│ ✅ 12 种动画事件     │ ❌ 无角色性格描述文件           │
-│ ✅ 消息系统          │ ❌ 系统提示词无人格维度          │
-│ ❌ 角色包系统        │ ❌ 无多角色切换                 │
+│ ✅ 动画注册表        │ ✅ 对话奖励已进入 runtime 主链   │
+│ ✅ 交互追踪          │ ✅ 角色人格注入已接入 prompt enricher |
+│ ✅ `character.json`  │ ✅ ChatPage 角色注入开关         │
+│ ✅ 维度系统 / slot 持久化 │ ✅ 工具标签人格化              │
+│ ✅ 角色包系统        │ ✅ 多角色切换 / pack 激活        │
 └─────────────────────┴───────────────────────────────┘
 ```
 
 ### 1.2 关键缺口
 
-| 缺口                     | 说明                                                                                                                                                    |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **对话不产生好感度/XP**  | `chat-service.ts` 在对话完成后发出 `SPRITE_AI_COMPLETE` 事件，但 `persona-state.ts` 的 XP 源 `conversation` 需要外部调用 `addXP()` 才能生效，目前未连通 |
-| **无角色性格文件**       | 精灵的动画、行为都有配置，但"她是谁、怎么说话、什么性格"没有结构化描述                                                                                  |
-| **系统提示词与角色脱耦** | `profiles.md`（经 `profile-descriptors` 加载）中的 `instructions` 是功能性的（工具使用规则），不包含角色人格                                            |
-| **好感度不影响对话**     | 好感度分了 6 档（stranger→soulmate），但对话风格不随好感度变化                                                                                          |
-| **无角色包概念**         | 动画文件在 `resources/sprites/`，但没有"角色包"抽象来打包动画+性格+语音                                                                                 |
+| 当前剩余项 | 说明 |
+| ---------- | ---- |
+| **默认 capability 定义进入尾项** | `actionChoreography` 已覆盖动画 authoring 写入口与设置页 UI，`emotionExpression` 已覆盖闲置情感表达；`customAppearance` 暂无明确独立产品入口，待入口明确后再细分消费 |
+| **角色人格直写入口进入兼容期** | runtime 已有 `recordConversationEvent()` / `applyPersonaReward()` 主链；渲染层新增 `sprite:persona:grantReward`，preload 的 `addXP()` / `changeFavor()` / `unlockAchievement()` 已默认转发到统一 reward entry，旧 IPC 仅作为兼容 wrapper 保留 |
+| **WindowController 仍偏胖** | 路径采样、拖拽轮询、边界约束、平台执行仍在同一模块，后续适合继续拆薄 |
+| **Trust-root 进入第二阶段** | 真实公钥验签已落地，剩余重点转为 publisher key 扩充、rotation / revocation 与发布流程 |
+| **少量产品化补完仍在 backlog** | preview poster / hover、多媒体展示策略、部分高阶 timed media / preview bridge 场景仍待补强 |
 
 ### 1.3 已有的优秀基础
 
@@ -349,6 +350,32 @@ resources/sprites/
     }
   },
 
+  // ======== Capability 上下文注入 ========
+  // 供技能树 / runtime capability snapshot 使用；后续 pack switch 会一起切换这部分声明
+  "capabilityFlags": {
+    "featureFlags": ["character:default-pack", "character:has-custom-appearance"],
+    "personaFlags": [
+      {
+        "id": "persona:bonded",
+        "when": {
+          "type": "compare",
+          "field": "favor",
+          "operator": "gte",
+          "value": 60
+        }
+      },
+      {
+        "id": "persona:advanced-level",
+        "when": {
+          "type": "compare",
+          "field": "level",
+          "operator": "gte",
+          "value": 15
+        }
+      }
+    ]
+  },
+
   // ======== 元数据 ========
   "meta": {
     "author": "Chobits",
@@ -365,6 +392,8 @@ resources/sprites/
 ---
 
 ## 四、角色包系统 (Character Pack)
+
+> 2026-04-23 代码状态补充：`packages/sprite-core/character-pack-manager.ts` 已经把角色包 lifecycle 接到主链路。当前主进程已支持 builtin / installed pack 扫描、active pack 持久化、目录安装、`.chobits-character` / `.zip` 压缩包导入、激活、卸载/替换冲突处理，以及通过 `sprite-manager-ipc` 真实切换 `character-service`、默认动画根目录、persona slot、capability runtime，并广播 `persona:character-switched`。设置页也已在现有 `ExtensionSettings -> SpriteManager` 中接入第一批角色管理 UI，并补上目录/压缩包导入前 inspection、冲突/active 影响提示、缺失资源与平台 warning、确认安装/切换弹窗。当前 inspection 还已升级为共享 installability assessment：`formatVersion` / `minAppVersion` 会进入 `blockingErrors + compatibility`，真实安装流程也会复用同一套校验；目录与 archive 导入的 preview 资产也已改走稳定 cache root，设置页列表与导入弹窗可以稳定显示 preview avatar 与 manifest/compatibility 摘要。最新一轮又补上了 `pack.json.provenance / signature` 声明与共享 `trust` assessment、`pack.json.preview.video` 的缓存与展示支持，以及基于 `resources/sprites/trust-root.json` 的真实公钥验签：内置角色包会被标记为 `verificationStatus='builtin-bundled'`，外部包在受信 key 验签通过时显示 `signature-verified`，受信 key mismatch 会阻止安装，未知 key 则显示 `signature-untrusted` warning。当前剩余工作主要转向 trust-root 扩容、publisher key rotation / revocation 与 preview 展示细节打磨。
 
 ### 4.1 角色包结构
 
@@ -386,7 +415,8 @@ character-packs/
 │   │   └── ...
 │   └── preview/                    ← 预览图（商店展示用）
 │       ├── avatar.png
-│       └── preview.gif
+│       ├── preview.gif
+│       └── preview.webm            ← 可选：更丰富的动态预览
 │
 ├── miku-tech/                      ← 示例：科技风酷妹角色包
 │   ├── pack.json
@@ -424,8 +454,23 @@ character-packs/
     "voices": "voices/", // 可选
     "preview": {
       "avatar": "preview/avatar.png",
-      "gif": "preview/preview.gif"
+      "gif": "preview/preview.gif",
+      "video": "preview/preview.webm" // 可选
     }
+  },
+
+  // 来源与信任声明（当前版本已支持 trust-root 公钥验签）
+  "provenance": {
+    "channel": "builtin",
+    "publisher": "Chobits",
+    "repository": "https://gitee.com/yu-qian/chobits",
+    "canonicalUrl": "https://gitee.com/yu-qian/chobits"
+  },
+  "signature": {
+    "algorithm": "ed25519",
+    "keyId": "builtin:yua-default",
+    "digest": "sha256:<pack-payload-digest>",
+    "value": "base64:<ed25519-signature>" // 可选；存在且 keyId 受 trust-root 信任时会执行公钥验签
   },
 
   // 角色包能力声明
@@ -438,6 +483,18 @@ character-packs/
   }
 }
 ```
+
+当前代码实现说明：
+
+- `pack.json` 中的 `provenance / signature` 负责声明来源、发布者、链接与签名元数据
+- `packages/sprite-core/character-pack-manager.ts` 会统一把这些声明归一化成 `trust` assessment
+- `SpritePackManager` 设置页会展示 `trust.level / verificationStatus / note / links`
+- builtin source 的角色包当前会显示为 `verificationStatus='builtin-bundled'`，表示来源已由本地应用包路径确认
+- 应用当前会从 `resources/sprites/trust-root.json` 读取 trust-root，并对声明了 `signature.value` 的角色包执行公钥验签
+- 当 `keyId` 命中受信公钥且签名匹配时，外部角色包会显示为 `verificationStatus='signature-verified'`
+- 当受信 key 的签名校验失败时，会进入 blocking error 并阻止安装
+- 当 `keyId` 未被当前 trust-root 收录时，角色包仍可导入，但会显示为 `verificationStatus='signature-untrusted'` warning，而不是伪装成“已验证”
+- 当前剩余工作主要收敛到 trust-root 扩充、publisher key rotation / revocation，以及 preview poster / hover / 多媒体展示策略细化
 
 ### 4.3 角色包生命周期
 
@@ -453,11 +510,20 @@ character-packs/
 
 **一键安装流程**：
 
-1. 用户选择 `.chobits-character` 文件（zip 格式打包的角色包）
-2. 解压到 `<userData>/character-packs/<packId>/`
-3. 验证 `pack.json` 格式和兼容性
-4. 注册到角色包列表
-5. 可选：立即激活
+1. 当前已支持：从本地目录安装到 `<userData>/character-packs/<packId>/`
+2. 当前已支持：验证 `pack.json` 基本格式并注册到角色包列表
+3. 当前已支持：可选立即激活，并触发 runtime pack switch
+4. 当前已支持：用户直接选择 `.chobits-character` / `.zip` 文件导入，并自动解析解压后的 pack root
+5. 当前已支持：replaceExisting 冲突替换、installed pack 卸载，以及 active pack 删除时自动切回 fallback pack
+6. 当前已支持：在现有 `ExtensionSettings -> SpriteManager` 中完成第一批角色管理 UI 接入
+7. 当前已支持：更细粒度的导入前校验，包括 manifest inspection、冲突/active 影响提示、缺失资源与平台 warning、确认安装/切换弹窗
+8. 当前已支持：`formatVersion` / `minAppVersion` 的 installability / compatibility assessment，真实安装流程也会阻止不兼容角色包
+9. 当前已支持：目录 / archive 导入 preview 资产走稳定 cache root，设置页可稳定展示导入预览
+10. 当前已支持：设置页展示 installed preview avatar、manifest badge 与 compatibility 摘要
+11. 当前已支持：`pack.json.provenance / signature` 声明与共享 `trust` assessment，设置页会统一展示来源摘要、来源链接与签名状态
+12. 当前已支持：builtin source 的角色包会显示 `verificationStatus='builtin-bundled'`，可与外部导入包区分
+13. 当前已支持：`resources/sprites/trust-root.json` 作为应用内置信任根，外部导入角色包在声明 `signature.value` 且 `keyId` 命中受信公钥时会执行真实公钥验签；mismatch 会阻止安装，未知 key 则保留为 warning
+14. 待补：trust-root 扩充、publisher key rotation / revocation，以及 preview poster / hover / 多媒体展示策略的进一步细化
 
 **角色切换流程**：
 
@@ -586,63 +652,53 @@ function buildCharacterPersonaPrompt(): string {
 
 ---
 
-## 六、对话产生好感度和经验值
+## 六、对话奖励当前实现
 
 ### 6.1 事件连通
 
-当前 `chat-service.ts` 已经在对话完成时发出 `SPRITE_AI_COMPLETE` 事件。需要在 `SpriteManager` 中监听此事件并调用 `addXP()` 和 `changeFavor()`：
+当前 `chat-service.ts` 仍会在对话完成时发出 `SPRITE_AI_COMPLETE` 事件，但运行时实现已经不再是“在 manager 里手写 `addXP()` / `changeFavor()`”，而是统一走下面这条链路：
 
-```typescript
-// sprite-manager.ts 中新增
-private setupConversationRewards() {
-  eventManager.on(AppEvent.SPRITE_AI_COMPLETE, (data) => {
-    // 1. 基础奖励
-    this.persona.addXP(
-      character.conversationRewards.xpPerConversation,
-      'conversation'
-    );
-    this.persona.changeFavor(
-      character.conversationRewards.favorPerConversation,
-      'conversation'
-    );
-
-    // 2. 条件奖励
-    if (data.messageCount >= 5) {
-      // 长对话奖励
-      this.persona.addXP(10, 'long-conversation');
-      this.persona.changeFavor(0.5, 'long-conversation');
-    }
-    if (data.toolCallCount > 0) {
-      // 工具使用奖励
-      this.persona.addXP(5, 'tool-usage');
-      this.persona.changeFavor(0.3, 'tool-usage');
-    }
-
-    // 3. 更新维度值
-    this.updateDimension('professionalism', data);
-    this.updateDimension('reliability', data);
-  });
-}
 ```
+chat-service.ts
+  └─ emit(AppEvent.SPRITE_AI_COMPLETE, { assistantContentLength, toolCallCount, ... })
+      ↓
+sprite-event-listener.ts
+  └─ mgr.recordConversationEvent({ assistantContentLength, toolCallCount })
+      ↓
+SpriteManager.recordConversationEvent()
+  ├─ 读取 PersonaRulesSnapshot / conversationRewards
+  ├─ 执行 cooldown gate
+  ├─ emit('ai:message-sent') 进入 runtime reward 主链
+  ├─ 解析 bonus conditions
+  └─ applyPersonaReward() 统一结算 XP / favor / dimensions
+```
+
+当前实现的关键点：
+
+- `sprite-event-listener.ts` 负责把 `SPRITE_AI_COMPLETE` 这样的业务事件翻译成 sprite runtime 事件
+- `SpriteManager.recordConversationEvent()` 负责 conversation 奖励的统一入口
+- `SpriteManager.applyPersonaReward()` 负责 XP / 好感度 / 维度的统一落账
+- 奖励规则优先来自 `PersonaRulesProvider` / `PersonaRulesLayer`，而不是散落在业务层硬编码
+- `character.json` 的 `conversationRewards` 与 `activityRewards` 会在启动 / reload 时装配到 runtime snapshot
 
 ### 6.2 奖励策略
 
-| 触发条件             | XP奖励    | 好感度变化 | 冷却时间 |
-| -------------------- | --------- | ---------- | -------- |
-| 每次对话完成         | +15       | +1.5       | 60s      |
-| 长对话（≥5轮）       | +10 bonus | +0.5       | -        |
-| 使用工具完成任务     | +5 bonus  | +0.3       | -        |
-| 用户正面反馈（👍）   | +8 bonus  | +1.0       | -        |
-| 每日首次对话         | +20 bonus | +2.0       | 每日1次  |
-| 连续对话（同日3次+） | +5 bonus  | +0.5       | -        |
+| 默认触发条件（`resources/sprites/character.json`） | XP奖励 | 好感度变化 | 备注 |
+| -------------------------------------------------- | ------ | ---------- | ---- |
+| 每次对话完成 | +15 | +1.5 | `cooldownMs = 60000` |
+| 长回复 bonus（`assistantContentLength` 较长） | +10 | +0.5 | 默认 `long-conversation` |
+| 使用工具完成任务 | +5 | +0.3 | 默认 `tool-usage` |
 
-### 6.3 惩罚/衰减机制
+这些值不是固定写死在 `SpriteManager` 里，而是来自当前角色的 `conversationRewards` 配置，并可被 runtime rule layer 覆盖。
 
-| 条件         | 效果                     |
-| ------------ | ------------------------ |
-| 3天未登录    | 好感度每天 -1            |
-| AI 产生错误  | 好感度 -0.5              |
-| 用户中断对话 | 无惩罚（不鼓励无效对话） |
+### 6.3 其他相关成长链路
+
+| 链路 | 当前状态 |
+| ---- | -------- |
+| `recordDailyLogin()` | 已实现，登录 / 连续登录奖励直接兑现 |
+| `activityRewards` | 已实现，工作流、导入、下载、插件等完成态事件可统一发放 XP / favor / 维度奖励 |
+| `favor-decay` | 已实现，默认行为层会在满足条件时触发 idle-decay |
+| 对话惩罚 / 更复杂负反馈 | 仍主要属于后续策略设计，不建议回到业务层分散硬编码 |
 
 ---
 
@@ -722,7 +778,7 @@ function calculateDimensionGrowth(dimensionId: string, event: string, currentVal
 **对话 → XP/好感度 连通** ✅
 
 1. ✅ 在 `sprite-event-listener.ts` 的 `SPRITE_AI_COMPLETE` 处理器中添加奖励逻辑（含 60s 冷却）
-2. ✅ 调用 `mgr.addXP()` 和 `mgr.changeFavor()` 产生奖励
+2. ✅ 当前已升级为调用 `mgr.recordConversationEvent()`，并由 runtime reward entry 统一结算奖励；必要 bonus 再经 `applyPersonaReward()` 下沉
 3. ✅ 将 `SPRITE_AI_COMPLETE` 事件的 payload 中添加 `messageCount`、`toolCallCount`、`assistantContentLength`
 4. ✅ 奖励参数从 `character.json` 的 `conversationRewards` 配置读取，不再硬编码
 
@@ -744,7 +800,9 @@ function calculateDimensionGrowth(dimensionId: string, event: string, currentVal
 | `resources/sprites/character.json`                      | 新建     | 默认角色 YUA 人格定义                         |
 | `packages/sprite-core/character-service.ts`             | 新建     | 角色配置加载、缓存、查询服务                  |
 | `packages/sprite-core/index.ts`                         | 修改     | 导出 CharacterService 类型和函数              |
-| `packages/sprite-core/handler/sprite-event-listener.ts` | 修改     | 添加对话奖励逻辑 + 冷却机制                   |
+| `packages/sprite-core/handler/sprite-event-listener.ts` | 修改     | 添加 `SPRITE_AI_COMPLETE -> recordConversationEvent()` 链路 |
+| `packages/sprite-core/manager/sprite-manager.ts`        | 修改     | 新增 `recordConversationEvent()` / `applyPersonaReward()` 统一入口 |
+| `packages/sprite-core/persona-rules.ts`                | 修改     | conversation rewards / bonus conditions 统一解析 |
 | `packages/sprite-core/handler/sprite-manager-ipc.ts`    | 修改     | 初始化 CharacterService                       |
 | `packages/sprite-core/handler/sprite-assets.ts`         | 修改     | 导出 `getDefaultSpritesDir()`                 |
 | `packages/sprite-core/handler/index.ts`                 | 修改     | 导出 `getDefaultSpritesDir`                   |
@@ -854,14 +912,18 @@ effective = delta × (1 + level × 0.01) × (1 - currentValue/maxValue × 0.5)
 
 1. 定义 `pack.json` 格式规范
 2. 实现角色包安装/卸载/切换逻辑
+当前状态：目录安装、`.chobits-character` / `.zip` 导入、卸载/冲突替换、导入前 inspection，以及 `formatVersion` / `minAppVersion` 兼容阻塞校验均已完成
 3. 角色选择 UI
+当前状态：已在 `ExtensionSettings -> SpriteManager` 落地第一版角色管理 UI；独立角色页 / 商店化入口仍待补
 4. 独立的 PersonaState 存储（每个角色独立）
+当前状态：已完成
 
 **涉及文件**：
 
 - `packages/sprite-core/character-pack-manager.ts` — 新建
-- `electron/main/handlers/character/` — 新建 IPC handlers
-- `src/pages/CharacterPage/` — 新建角色管理页面
+- `packages/sprite-core/handler/sprite-manager-ipc.ts` — 角色包 IPC handlers（当前已落地）
+- `src/pages/ExtensionSettings/SpritePackManager.tsx` — 已落地的角色管理设置页入口
+- `src/pages/CharacterPage/` — 若后续拆独立角色页，再单独新增
 
 ### Phase 5: 高级功能（远期）
 

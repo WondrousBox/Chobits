@@ -8,6 +8,8 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 
 import { ResourcesRepo, WorkspacesRepo } from '../../electron/main/db/repositories';
 import { ensureDailyFolder } from '../../electron/main/handlers/resource';
+import { assertSpriteCapabilityActive, assertSpriteCapabilityUnlocked } from '../sprite-core/capability-runtime';
+import { notifySpriteCapabilityChanged } from '../sprite-core/handler/capability-events';
 import { getASRInstance } from './asr-instance-manager';
 import { AllModels, CommonConfig } from './common';
 import { ASR_createInstance, ASR_freeInstance, ASR_sendData, TTS_createInstance, TTS_freeInstance, TTS_generateSpeech } from './index';
@@ -94,44 +96,121 @@ const SCENE_COMMON_CONFIGS: Record<string, CommonConfig> = {
   }
 };
 
-export function initSherpaHandlers(): void {
-  // ASR config persistence
-  const defaultASRConfig: ASRConfig = {
-    enabled: false,
-    backend: 'local',
-    local: { scene: 'meeting', model: '', language: 'zh', punctuationModel: '' },
-    cloud: { providerId: '', providerPresetId: '', modelId: '' }
-  };
-  const configDir = app.getPath('userData');
-  const asrConfigFile = path.join(configDir, 'data', 'asr-config.json');
-  let asrConfig: ASRConfig = defaultASRConfig;
+const DEFAULT_ASR_CONFIG: ASRConfig = {
+  enabled: false,
+  backend: 'local',
+  local: { scene: 'meeting', model: '', language: 'zh', punctuationModel: '' },
+  cloud: { providerId: '', providerPresetId: '', modelId: '' }
+};
 
-  // Load config on startup
+let asrConfig: ASRConfig = { ...DEFAULT_ASR_CONFIG, local: { ...DEFAULT_ASR_CONFIG.local }, cloud: { ...DEFAULT_ASR_CONFIG.cloud } };
+let asrConfigLoaded = false;
+
+function cloneASRConfig(config: ASRConfig): ASRConfig {
+  return {
+    ...config,
+    local: { ...config.local },
+    cloud: { ...config.cloud }
+  };
+}
+
+function getASRConfigFile(): string {
+  const configDir = app.getPath('userData');
+  return path.join(configDir, 'data', 'asr-config.json');
+}
+
+function ensureASRConfigLoaded(): void {
+  if (asrConfigLoaded) return;
+
+  const asrConfigFile = getASRConfigFile();
   try {
     if (fscb.existsSync(asrConfigFile)) {
       const txt = fscb.readFileSync(asrConfigFile, 'utf8');
       const parsed = JSON.parse(txt);
-      asrConfig = { ...defaultASRConfig, ...parsed, local: { ...defaultASRConfig.local, ...(parsed.local || {}) }, cloud: { ...defaultASRConfig.cloud, ...(parsed.cloud || {}) } };
+      asrConfig = {
+        ...DEFAULT_ASR_CONFIG,
+        ...parsed,
+        local: { ...DEFAULT_ASR_CONFIG.local, ...(parsed.local || {}) },
+        cloud: { ...DEFAULT_ASR_CONFIG.cloud, ...(parsed.cloud || {}) }
+      };
+    } else {
+      asrConfig = cloneASRConfig(DEFAULT_ASR_CONFIG);
     }
   } catch {
-    asrConfig = defaultASRConfig;
+    asrConfig = cloneASRConfig(DEFAULT_ASR_CONFIG);
   }
 
-  function saveASRConfig(): void {
+  asrConfigLoaded = true;
+}
+
+function persistASRConfig(): void {
+  const asrConfigFile = getASRConfigFile();
+  try {
+    const dir = path.dirname(asrConfigFile);
+    if (!fscb.existsSync(dir)) {
+      fscb.mkdirSync(dir, { recursive: true });
+    }
+    fscb.writeFileSync(asrConfigFile, JSON.stringify(asrConfig, null, 2), 'utf8');
+  } catch {
+    //
+  }
+}
+
+export function getASRConfigSnapshot(): ASRConfig {
+  ensureASRConfigLoaded();
+  return cloneASRConfig(asrConfig);
+}
+
+export function updateASRConfigSnapshot(partial: Partial<ASRConfig>): ASRConfig {
+  ensureASRConfigLoaded();
+  asrConfig = {
+    ...asrConfig,
+    ...partial,
+    local: { ...asrConfig.local, ...(partial.local || {}) },
+    cloud: { ...asrConfig.cloud, ...(partial.cloud || {}) }
+  };
+  persistASRConfig();
+  return getASRConfigSnapshot();
+}
+
+function broadcastASRStatus(): void {
+  const payload = getASRStatusSnapshot();
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win || win.isDestroyed()) continue;
     try {
-      const dir = path.dirname(asrConfigFile);
-      if (!fscb.existsSync(dir)) {
-        fscb.mkdirSync(dir, { recursive: true });
-      }
-      fscb.writeFileSync(asrConfigFile, JSON.stringify(asrConfig, null, 2), 'utf8');
+      win.webContents.send('sherpa-status-updated', payload);
     } catch {
-      //
+      /* ignore */
     }
   }
 
+  notifySpriteCapabilityChanged({ source: 'speechRecognition.status' });
+}
+
+export function disableASRRuntime(options?: { disableConfig?: boolean }): void {
+  ASR_freeInstance({
+    uuid: 'stream'
+  });
+
+  if (options?.disableConfig) {
+    updateASRConfigSnapshot({ enabled: false });
+  }
+
+  broadcastASRStatus();
+}
+
+export function getASRStatusSnapshot(): { running: boolean } {
+  const instance = getASRInstance('stream');
+  return { running: !!instance };
+}
+
+export function initSherpaHandlers(): void {
+  ensureASRConfigLoaded();
+  const currentASRConfig = getASRConfigSnapshot();
+
   // Auto-start ASR if enabled (fire-and-forget)
-  if (asrConfig.enabled && asrConfig.local.model) {
-    const { scene, model, language, punctuationModel } = asrConfig.local;
+  if (currentASRConfig.enabled && currentASRConfig.local.model) {
+    const { scene, model, language, punctuationModel } = currentASRConfig.local;
     const commonConfig = SCENE_COMMON_CONFIGS[scene];
     console.log('[ASR] Auto-starting with saved config, scene:', scene, 'model:', model);
     ASR_createInstance({
@@ -155,33 +234,33 @@ export function initSherpaHandlers(): void {
             });
           };
           console.log('[ASR] Auto-start succeeded');
+          broadcastASRStatus();
         } else {
           console.warn('[ASR] Auto-start returned null instance');
+          broadcastASRStatus();
         }
       })
       .catch((error) => {
         console.error('[ASR] Auto-start failed:', error);
+        broadcastASRStatus();
       });
   }
 
   // IPC: get ASR config
   ipcMain.handle('sherpa:getASRConfig', () => {
-    return asrConfig;
+    return getASRConfigSnapshot();
   });
 
   // IPC: save ASR config
   ipcMain.handle('sherpa:saveASRConfig', (_, partial: Partial<ASRConfig>) => {
-    asrConfig = {
-      ...asrConfig,
-      ...partial,
-      local: { ...asrConfig.local, ...(partial.local || {}) },
-      cloud: { ...asrConfig.cloud, ...(partial.cloud || {}) }
-    };
-    saveASRConfig();
-    return asrConfig;
+    if (partial.enabled === true) {
+      assertSpriteCapabilityUnlocked('speechRecognition');
+    }
+    return updateASRConfigSnapshot(partial);
   });
 
   ipcMain.handle('sherpa:createInstance', async (_, data: { model?: AllModels; punctuationModel?: string; language?: string; type?: 'online' | 'offline' | 'vad'; commonConfig?: CommonConfig }) => {
+    assertSpriteCapabilityUnlocked('speechRecognition');
     const ins = await ASR_createInstance({
       uuid: 'stream',
       model: data.model,
@@ -204,28 +283,28 @@ export function initSherpaHandlers(): void {
         });
       };
 
+      broadcastASRStatus();
       return true;
     }
 
+    broadcastASRStatus();
     return false;
   });
 
   ipcMain.handle('sherpa:freeInstance', async () => {
-    ASR_freeInstance({
-      uuid: 'stream'
-    });
+    disableASRRuntime();
     return true;
   });
 
   // 查询 ASR 引擎状态
   ipcMain.handle('sherpa:getStatus', async () => {
-    const instance = getASRInstance('stream');
-    return { running: !!instance };
+    return getASRStatusSnapshot();
   });
 
   // 开始录音存储（同时创建音频和字幕流）
   ipcMain.handle('sherpa:startRecording', async (_, data: { workspaceId?: string; folderId?: string }) => {
     try {
+      assertSpriteCapabilityActive('speechRecognition');
       console.log('[Sherpa] 收到开始录音请求，data:', data);
       let { workspaceId, folderId } = data;
 
@@ -342,6 +421,7 @@ export function initSherpaHandlers(): void {
   // 继续之前的录音（追加模式打开已有文件）
   ipcMain.handle('sherpa:resumeRecording', async (_, data: { resourceId: string }) => {
     try {
+      assertSpriteCapabilityActive('speechRecognition');
       console.log('[Sherpa] 收到继续录音请求，resourceId:', data.resourceId);
 
       // 检查是否已有活动的录音流
@@ -528,7 +608,7 @@ export function initSherpaHandlers(): void {
               } else {
                 // 字幕文件为空，删除它
                 console.log('[Sherpa] 字幕文件为空，删除它');
-                await fs.unlink(stream.subtitleFilePath).catch(() => { });
+                await fs.unlink(stream.subtitleFilePath).catch(() => {});
               }
             } catch (error) {
               console.log('[Sherpa] 字幕文件不存在或无法访问:', error);
@@ -704,6 +784,7 @@ export function initSherpaHandlers(): void {
         ];
       }
     ) => {
+      assertSpriteCapabilityActive('speechRecognition');
       ASR_sendData({ uuid: 'stream' }, data.data);
 
       // 如果启用了保存，将音频数据写入文件流

@@ -491,7 +491,10 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
   },
   skillTree: {
     routeHash: 'skill-tree',
-    showOnReady: false,
+    // trueFullscreen 需要在 ready-to-show 时立即 show，
+    // 这样 window-manager 才会在 macOS 上补 setAlwaysOnTop(..., 'screen-saver')
+    // 去覆盖 Dock / 菜单栏；若延后手动 show，会丢失这一步。
+    showOnReady: true,
     openDevTools: false,
     trueFullscreen: true,
     options: {
