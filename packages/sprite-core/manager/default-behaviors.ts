@@ -19,7 +19,7 @@ import {
   createSeasonalBehavior,
   createSleepyBehavior
 } from '../behavior-engine';
-import type { SpriteMovementConfig } from '../types';
+import { getSpriteCapabilityRuntimeState } from '../capability-runtime';
 import type { SpriteManager } from './sprite-manager';
 import type { SpriteSpontaneousUtteranceActionSource, SpriteSpontaneousUtteranceResult } from './types';
 
@@ -66,63 +66,21 @@ async function reportIdleActionExecution(
   }
 }
 
-/**
- * 根据 walk 动画的 movement 配置计算随机行走目标位置
- */
-function computeWalkTarget(mgr: SpriteManager, movementConfig?: SpriteMovementConfig): { targetX: number; targetY: number } | null {
-  const pos = mgr.getPosition();
-  const screen = (mgr as any).getScreenSize();
-  const config = mgr.getSpriteConfig();
-
-  const minX = -config.padding;
-  const maxX = screen.width - config.width - config.padding;
-  const targetX = Math.random() * (maxX - minX) + minX;
-
-  // 竖直范围：优先使用配置中的 verticalRange，默认 0.1（屏幕高度的 10%）
-  const verticalRange = movementConfig?.verticalRange ?? 0.1;
-  const yRange = screen.height * verticalRange;
-  const yMin = Math.max(-config.padding, pos[1] - yRange);
-  const yMax = Math.min(screen.height - config.height - config.padding, pos[1] + yRange);
-  const targetY = Math.random() * (yMax - yMin) + yMin;
-
-  return { targetX, targetY };
-}
-
 /** 注册所有默认行为到 SpriteManager */
 export function registerDefaultBehaviors(mgr: SpriteManager): void {
   // 自动行走：从 walk 动画的 movement 配置读取参数
-  const walkAnim = mgr.findAnimationByEvent('walk');
+  const walkAnim = mgr.findAnimationByTrigger('walk');
   const walkMovement = walkAnim?.playback?.movement;
 
   // 根据 movement 配置构建 auto-walk 行为
   const autoWalkDef = createAutoWalkBehavior(async (_ctx) => {
     if (!mgr.isAutoWalkEnabled()) return;
-    if (!(mgr as any).windowController) return;
 
     // 重新查找以获取最新配置
-    const currentWalkAnim = mgr.findAnimationByEvent('walk');
+    const currentWalkAnim = mgr.findAnimationByTrigger('walk');
     const movement = currentWalkAnim?.playback?.movement;
-
-    const mode = movement?.mode ?? 'walkTo';
-    const walkSpeed = movement?.speed;
-
-    if (mode === 'walkTo') {
-      // walkTo 模式：随机选取屏幕位置，沿贝塞尔曲线行走
-      // 需要动画具备 loopStartMs/loopEndMs 循环片段
-      const hasLoop = currentWalkAnim?.playback?.loopStartMs != null && currentWalkAnim?.playback?.loopEndMs != null;
-      if (!hasLoop) return;
-
-      const target = computeWalkTarget(mgr, movement);
-      if (!target) return;
-
-      await mgr.walkTo(target.targetX, target.targetY, walkSpeed);
-    } else {
-      // direction 模式：也使用 walkTo 路径行走
-      const target = computeWalkTarget(mgr, movement);
-      if (!target) return;
-
-      await mgr.walkTo(target.targetX, target.targetY, walkSpeed);
-    }
+    const hasLoop = currentWalkAnim?.playback?.loopStartMs != null && currentWalkAnim?.playback?.loopEndMs != null;
+    await mgr.runBehaviorMovement(movement, { hasSegmentLoop: hasLoop });
   });
 
   // 使用 walk 动画配置中的 behaviorSchedule 覆盖默认调度参数
@@ -187,6 +145,9 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
   // ===== 情感自发行为 =====
   const emotionDef = createEmotionBehavior();
   emotionDef.action = (ctx: BehaviorContext) => {
+    const emotionCapability = getSpriteCapabilityRuntimeState('emotionExpression');
+    if (emotionCapability?.status === 'locked') return;
+
     const favor = ctx.personaState.favor;
     const highFavorEmotions = ['happy', 'joy', 'excited', 'proud', 'curious'];
     const midFavorEmotions = ['curious', 'surprised', 'shy', 'thinking'];

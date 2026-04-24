@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { TbCamera, TbKey, TbLoader2 } from 'react-icons/tb';
 
+import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
 import { Switch } from '@/components/ui/switch';
+import { SpriteCapabilityLockedNotice, ensureSpriteCapabilityAccessible, type SpriteCapabilityGuardOptions } from '@/features/sprite-assistant/capability-ui';
 import { cn } from '@/lib/utils';
 
 type PlatformKey = 'darwin' | 'win32' | 'linux';
@@ -11,7 +13,7 @@ type ShortcutEnabledConfig = {
 };
 
 /* ─── Hook ─── */
-export function useScreenshotSettings() {
+export function useScreenshotSettings(options?: SpriteCapabilityGuardOptions) {
   const [shortcutConfig, setShortcutConfig] = useState<string>('');
   const [shortcutLoading, setShortcutLoading] = useState(true);
   const [enabled, setEnabled] = useState(false);
@@ -108,6 +110,9 @@ export function useScreenshotSettings() {
   };
 
   const handleToggle = async (checked: boolean): Promise<void> => {
+    if (checked && !ensureSpriteCapabilityAccessible(options?.capability, options?.onBlocked)) {
+      return;
+    }
     if (toggling) return;
     setToggling(true);
     try {
@@ -121,10 +126,11 @@ export function useScreenshotSettings() {
       console.warn('切换截图功能失败:', error);
     } finally {
       setToggling(false);
+      await options?.afterChange?.();
     }
   };
 
-  return { enabled, enabledLoading, toggling, shortcutConfig, shortcutLoading, handleToggle, formatShortcut };
+  return { enabled, enabledLoading, toggling, shortcutConfig, shortcutLoading, capability: options?.capability ?? null, handleToggle, formatShortcut };
 }
 
 export type ScreenshotSettingsState = ReturnType<typeof useScreenshotSettings>;
@@ -132,10 +138,14 @@ export type ScreenshotSettingsState = ReturnType<typeof useScreenshotSettings>;
 /* ─── Left-panel item ─── */
 export const ScreenshotItem: React.FC<{
   state: ScreenshotSettingsState;
+  capability?: SpriteCapabilityState | null;
   selected: boolean;
   onSelect: () => void;
-}> = ({ state, selected, onSelect }) => (
-  <div onClick={onSelect} className={cn('flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors hover:bg-accent/50', selected && 'bg-accent ring-1 ring-primary/30')}>
+}> = ({ state, capability, selected, onSelect }) => (
+  <div
+    onClick={onSelect}
+    className={cn('flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors hover:bg-accent/50', selected && 'bg-accent ring-1 ring-primary/30', capability?.status === 'locked' && 'opacity-70')}
+  >
     <div className={cn('flex h-10 w-10 items-center justify-center rounded-full shrink-0 transition-colors', state.enabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')}>
       <TbCamera className="h-5 w-5" />
     </div>
@@ -144,13 +154,17 @@ export const ScreenshotItem: React.FC<{
       <div className="text-xs text-muted-foreground line-clamp-1">使用快捷键进行屏幕截图。</div>
     </div>
     <div onClick={(e) => e.stopPropagation()}>
-      {state.enabledLoading ? <TbLoader2 className="animate-spin h-4 w-4 text-muted-foreground" /> : <Switch checked={state.enabled} onCheckedChange={state.handleToggle} disabled={state.toggling} />}
+      {state.enabledLoading ? <TbLoader2 className="animate-spin h-4 w-4 text-muted-foreground" /> : <Switch checked={state.enabled} onCheckedChange={state.handleToggle} disabled={state.toggling || capability?.status === 'locked'} />}
     </div>
   </div>
 );
 
 /* ─── Right-panel detail ─── */
-export const ScreenshotDetailContent: React.FC<{ state: ScreenshotSettingsState }> = ({ state }) => {
+export const ScreenshotDetailContent: React.FC<{ state: ScreenshotSettingsState; capability?: SpriteCapabilityState | null }> = ({ state, capability }) => {
+  if (capability?.status === 'locked') {
+    return <SpriteCapabilityLockedNotice capability={capability} hint="截图入口现在受 capability runtime 管控，解锁后才允许注册快捷键。" />;
+  }
+
   const { enabled, shortcutConfig, shortcutLoading, formatShortcut } = state;
 
   return (
@@ -188,9 +202,9 @@ export const ScreenshotDetailContent: React.FC<{ state: ScreenshotSettingsState 
 };
 
 /* ─── Default: self-contained detail (for SkillDetailPanel) ─── */
-const ScreenshotSettings: React.FC = () => {
-  const state = useScreenshotSettings();
-  return <ScreenshotDetailContent state={state} />;
+const ScreenshotSettings: React.FC<{ capability?: SpriteCapabilityState | null }> = ({ capability }) => {
+  const state = useScreenshotSettings({ capability });
+  return <ScreenshotDetailContent state={state} capability={capability} />;
 };
 
 export default ScreenshotSettings;

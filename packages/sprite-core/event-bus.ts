@@ -23,7 +23,7 @@ export type SpriteStateEvent = 'state:idle' | 'state:walking' | 'state:running' 
 export type SpriteAnimationEvent = 'anim:play' | 'anim:stop' | 'anim:complete' | 'anim:phase:intro' | 'anim:phase:loop' | 'anim:phase:outro';
 
 /** 行为/AI 事件 */
-export type SpriteBehaviorEvent = 'behavior:walk-triggered' | 'behavior:sleep-triggered' | 'behavior:bored-triggered' | 'behavior:message-triggered' | 'behavior:emotion-triggered';
+export type SpriteBehaviorEvent = 'behavior:walk-triggered' | 'behavior:sleep-triggered' | 'behavior:bored-triggered' | 'behavior:message-triggered' | 'behavior:emotion-triggered' | 'ai:message-sent';
 
 /** 人格成长事件 */
 export type SpritePersonaProgressEvent =
@@ -33,6 +33,7 @@ export type SpritePersonaProgressEvent =
   | 'persona:mood-changed'
   | 'persona:dimension-updated'
   | 'persona:achievement-unlocked'
+  | 'persona:character-switched'
   | 'persona:skill-unlocked'
   | 'persona:daily-login'
   | 'persona:streak-bonus';

@@ -1,0 +1,209 @@
+import type { SpriteConfig, SpriteMovementConfig, SpriteMovementDirection, SpriteMovementPreviewConfig, SpriteWalkState } from '../types';
+
+type SpriteSizeSnapshot = Pick<SpriteConfig, 'width' | 'height' | 'padding'>;
+
+const DIRECTION_VECTORS: Record<Exclude<SpriteMovementDirection, 'random'>, { dx: number; dy: number }> = {
+  left: { dx: -1, dy: 0 },
+  right: { dx: 1, dy: 0 },
+  up: { dx: 0, dy: -1 },
+  down: { dx: 0, dy: 1 },
+  'up-left': { dx: -1, dy: -1 },
+  'up-right': { dx: 1, dy: -1 },
+  'down-left': { dx: -1, dy: 1 },
+  'down-right': { dx: 1, dy: 1 }
+};
+
+const RESOLVABLE_DIRECTIONS = Object.keys(DIRECTION_VECTORS) as Array<keyof typeof DIRECTION_VECTORS>;
+
+export interface MovementCoordinatorDeps {
+  canMove: () => boolean;
+  canUseMovement: () => boolean;
+  getScreenSize: () => { width: number; height: number };
+  getPosition: () => [number, number];
+  getSpriteConfig: () => SpriteConfig;
+  setSpriteMetrics: (metrics: SpriteSizeSnapshot) => void;
+  setWindowSize: (width: number, height: number, padding: number) => void;
+  walkTo: (x: number, y: number, speed?: number) => Promise<void>;
+  stopWalk: () => void;
+  startAutoMove: (movement: SpriteMovementConfig) => void;
+  stopAutoMove: () => void;
+  isAutoMoving: () => boolean;
+  getAutoMoveDirection: () => SpriteWalkState['direction'] | null;
+  emitWalkState: (state: SpriteWalkState) => void;
+  emitConfigChanged: () => void;
+}
+
+export interface BehaviorMovementOptions {
+  hasSegmentLoop?: boolean;
+}
+
+export class MovementCoordinator {
+  private previewSnapshot: SpriteSizeSnapshot | null = null;
+
+  constructor(private readonly deps: MovementCoordinatorDeps) {}
+
+  previewMovement(config: SpriteMovementPreviewConfig): void {
+    if (!this.previewSnapshot) {
+      const liveConfig = this.deps.getSpriteConfig();
+      this.previewSnapshot = {
+        width: liveConfig.width,
+        height: liveConfig.height,
+        padding: liveConfig.padding
+      };
+    }
+
+    this.deps.setSpriteMetrics({
+      width: config.width,
+      height: config.height,
+      padding: config.padding
+    });
+    this.deps.emitConfigChanged();
+    this.deps.setWindowSize(config.width, config.height, config.padding);
+    this.stopAutoMove();
+
+    if (!config.movement?.enabled || !this.deps.canMove() || !this.deps.canUseMovement()) {
+      return;
+    }
+
+    const mode = config.movement.mode ?? 'direction';
+    if (mode === 'walkTo') {
+      const target = this.computeWalkTarget(config.movement);
+      if (!target) return;
+      void this.deps.walkTo(target.targetX, target.targetY, config.movement.speed);
+      return;
+    }
+
+    this.startDirectionalAutoMove(config.movement);
+  }
+
+  stopMovementPreview(): void {
+    this.deps.stopWalk();
+    this.stopAutoMove();
+
+    if (!this.previewSnapshot) {
+      return;
+    }
+
+    const snapshot = this.previewSnapshot;
+    this.previewSnapshot = null;
+    this.deps.setSpriteMetrics(snapshot);
+    this.deps.emitConfigChanged();
+    this.deps.setWindowSize(snapshot.width, snapshot.height, snapshot.padding);
+  }
+
+  applyAnimationMovement(movement?: SpriteMovementConfig): void {
+    this.stopAutoMove();
+
+    if (!movement?.enabled || !this.deps.canMove() || !this.deps.canUseMovement()) {
+      return;
+    }
+
+    const trigger = movement.trigger ?? 'animation';
+    if (trigger === 'behavior') {
+      return;
+    }
+
+    const mode = movement.mode ?? 'direction';
+    if (mode === 'walkTo') {
+      return;
+    }
+
+    this.startDirectionalAutoMove(movement);
+  }
+
+  async runBehaviorMovement(movement?: SpriteMovementConfig, options?: BehaviorMovementOptions): Promise<boolean> {
+    if (!movement?.enabled || !this.deps.canMove() || !this.deps.canUseMovement()) {
+      return false;
+    }
+
+    const mode = movement.mode ?? 'direction';
+    const target = mode === 'walkTo' ? this.computeWalkTarget(movement, options) : this.computeDirectionalWalkTarget(movement);
+    if (!target) {
+      return false;
+    }
+
+    await this.deps.walkTo(target.targetX, target.targetY, movement.speed);
+    return true;
+  }
+
+  stopAutoMove(): void {
+    if (!this.deps.isAutoMoving()) {
+      return;
+    }
+
+    this.deps.stopAutoMove();
+    this.deps.emitWalkState({ active: false });
+  }
+
+  private startDirectionalAutoMove(movement: SpriteMovementConfig): void {
+    this.deps.startAutoMove(movement);
+    const direction = this.deps.getAutoMoveDirection();
+    if (direction) {
+      this.deps.emitWalkState({ active: true, direction });
+    }
+  }
+
+  private computeWalkTarget(movement: SpriteMovementConfig, options?: BehaviorMovementOptions): { targetX: number; targetY: number } | null {
+    if (options && options.hasSegmentLoop === false) {
+      return null;
+    }
+
+    const [, currentY] = this.deps.getPosition();
+    const screen = this.deps.getScreenSize();
+    const config = this.deps.getSpriteConfig();
+
+    const minX = -config.padding;
+    const maxX = screen.width - config.width - config.padding;
+    const targetX = Math.random() * (maxX - minX) + minX;
+
+    const verticalRange = movement.verticalRange ?? 0.1;
+    const yRange = screen.height * verticalRange;
+    const minY = Math.max(-config.padding, currentY - yRange);
+    const maxY = Math.min(screen.height - config.height - config.padding, currentY + yRange);
+    const targetY = Math.random() * (maxY - minY) + minY;
+
+    return { targetX, targetY };
+  }
+
+  private computeDirectionalWalkTarget(movement: SpriteMovementConfig): { targetX: number; targetY: number } | null {
+    const [currentX, currentY] = this.deps.getPosition();
+    const screen = this.deps.getScreenSize();
+    const config = this.deps.getSpriteConfig();
+
+    const minX = -config.padding;
+    const maxX = screen.width - config.width - config.padding;
+    const minY = -config.padding;
+    const maxY = screen.height - config.height - config.padding;
+
+    const configuredDirection = movement.direction;
+    const resolvedDirection = configuredDirection && configuredDirection !== 'random' ? configuredDirection : RESOLVABLE_DIRECTIONS[Math.floor(Math.random() * RESOLVABLE_DIRECTIONS.length)];
+
+    const vector = DIRECTION_VECTORS[resolvedDirection];
+    if (!vector) {
+      return null;
+    }
+
+    const candidates: number[] = [];
+    if (vector.dx > 0) {
+      candidates.push((maxX - currentX) / vector.dx);
+    } else if (vector.dx < 0) {
+      candidates.push((minX - currentX) / vector.dx);
+    }
+
+    if (vector.dy > 0) {
+      candidates.push((maxY - currentY) / vector.dy);
+    } else if (vector.dy < 0) {
+      candidates.push((minY - currentY) / vector.dy);
+    }
+
+    const maxDistance = candidates.filter((value) => Number.isFinite(value) && value > 0).reduce((min, value) => Math.min(min, value), Number.POSITIVE_INFINITY);
+    if (!Number.isFinite(maxDistance)) {
+      return null;
+    }
+
+    return {
+      targetX: Math.max(minX, Math.min(maxX, currentX + vector.dx * maxDistance)),
+      targetY: Math.max(minY, Math.min(maxY, currentY + vector.dy * maxDistance))
+    };
+  }
+}

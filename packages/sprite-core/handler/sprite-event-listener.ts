@@ -7,9 +7,10 @@
 
 import { AppEvent, eventManager } from '@packages/event';
 
-import { type ActivityRewardId, getActivityRewards, getConversationRewards, getDimensionSchema } from '../character-service';
+import type { ActivityRewardId } from '../character-service';
 import type { SpriteManager } from '../manager';
 import { getSpriteEventText } from '../messages/zh-CN';
+import { getResolvedActivityPersonaReward } from '../persona-rules';
 
 export interface SpriteEventPayload {
   message?: string;
@@ -35,38 +36,8 @@ type SpriteHandler = (data?: SpriteEventPayload) => void;
 export function initSpriteEventListener(mgr: SpriteManager): () => void {
   const handlers: Array<{ event: AppEvent; handler: SpriteHandler }> = [];
 
-  // ===== 对话奖励冷却 =====
-  let lastRewardTime = 0;
-
-  const applyDimensionGrowth = (growthBySource: Record<string, number> | undefined): void => {
-    if (!growthBySource) return;
-    const dims = getDimensionSchema();
-    if (!dims.length) return;
-
-    for (const dim of dims) {
-      let growth = 0;
-      for (const [source, amount] of Object.entries(growthBySource)) {
-        if (amount > 0 && dim.growthSources.includes(source)) {
-          growth += amount;
-        }
-      }
-      if (growth > 0) {
-        mgr.updateDimension(dim.id, growth, dim.maxValue);
-      }
-    }
-  };
-
   const grantActivityReward = (activityId: ActivityRewardId): void => {
-    const reward = getActivityRewards()[activityId];
-    if (!reward) return;
-
-    if (reward.xp > 0) {
-      mgr.addXP(reward.xp, activityId);
-    }
-    if (reward.favor !== 0) {
-      mgr.changeFavor(reward.favor, activityId);
-    }
-    applyDimensionGrowth(reward.dimensionGrowth);
+    mgr.applyPersonaReward(getResolvedActivityPersonaReward(activityId), activityId);
   };
 
   // AI 聊天事件
@@ -74,7 +45,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.SPRITE_AI_START,
     handler: (data) => {
       mgr.showToast(data?.message || getSpriteEventText('aiThinking'), { category: 'loading' });
-      mgr.playOnce('emotion', { durationMs: 2000 });
+      mgr.trigger('thinking', { durationMs: 2000, silent: true });
     }
   });
 
@@ -82,37 +53,10 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.SPRITE_AI_COMPLETE,
     handler: (data) => {
       mgr.showToast(data?.message || getSpriteEventText('aiComplete'), { category: 'success', duration: 1500 });
-      mgr.playOnce('celebrate', { durationMs: 1500 });
-
-      // ===== 对话奖励：XP + 好感度 =====
-      const rewards = getConversationRewards();
-      const now = Date.now();
-      if (now - lastRewardTime < rewards.cooldownMs) return;
-      lastRewardTime = now;
-
-      let bonusXP = 0;
-      let bonusFavor = 0;
-
-      // 检查奖励条件
-      for (const cond of rewards.bonusConditions) {
-        if (cond.id === 'long-conversation' && data?.assistantContentLength && data.assistantContentLength >= 500) {
-          bonusXP += cond.xpBonus;
-          bonusFavor += cond.favorBonus;
-        }
-        if (cond.id === 'tool-usage' && data?.toolCallCount && data.toolCallCount > 0) {
-          bonusXP += cond.xpBonus;
-          bonusFavor += cond.favorBonus;
-        }
-      }
-
-      mgr.addXP(rewards.xpPerConversation + bonusXP, 'conversation');
-      mgr.changeFavor(rewards.favorPerConversation + bonusFavor, 'conversation');
-
-      // ===== 维度成长 =====
-      applyDimensionGrowth({
-        conversation: 1.0,
-        'tool-usage': data?.toolCallCount && data.toolCallCount > 0 ? 0.8 : 0,
-        'task-completion': data?.assistantContentLength && data.assistantContentLength >= 500 ? 0.5 : 0
+      mgr.trigger('celebrate', { durationMs: 1500, silent: true });
+      mgr.recordConversationEvent({
+        assistantContentLength: data?.assistantContentLength,
+        toolCallCount: data?.toolCallCount
       });
     }
   });
@@ -121,7 +65,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.SPRITE_AI_ERROR,
     handler: (data) => {
       mgr.showToast(data?.message || data?.error || getSpriteEventText('aiError'), { category: 'error', duration: 2000 });
-      mgr.playOnce('emotion', { durationMs: 1500 });
+      mgr.trigger('error', { durationMs: 1500, silent: true });
     }
   });
 
@@ -130,7 +74,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.SPRITE_WORKFLOW_START,
     handler: (data) => {
       mgr.showBusy(data?.message || data?.workflowName || getSpriteEventText('workflowStart'), 0);
-      mgr.playOnce('emotion', { durationMs: 1500 });
+      mgr.trigger('processing', { durationMs: 1500, silent: true });
     }
   });
 
@@ -148,7 +92,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     handler: (data) => {
       mgr.clearBusy();
       mgr.showToast(data?.message || getSpriteEventText('workflowComplete'), { category: 'celebrate', duration: 2000 });
-      mgr.playOnce('celebrate', { durationMs: 2000 });
+      mgr.trigger('celebrate', { durationMs: 2000, silent: true });
       grantActivityReward('workflow-complete');
     }
   });
@@ -158,7 +102,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     handler: (data) => {
       mgr.clearBusy();
       mgr.showToast(data?.message || data?.error || getSpriteEventText('workflowFail'), { category: 'error', duration: 2000 });
-      mgr.playOnce('emotion', { durationMs: 1500 });
+      mgr.trigger('failure', { durationMs: 1500, silent: true });
     }
   });
 
@@ -175,7 +119,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.SPRITE_RESOURCE_IMPORT_START,
     handler: (data) => {
       mgr.showBusy(data?.message || getSpriteEventText('importStart'), 0);
-      mgr.playOnce('emotion', { durationMs: 1500 });
+      mgr.trigger('loading', { durationMs: 1500, silent: true });
     }
   });
 
@@ -193,7 +137,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     handler: (data) => {
       mgr.clearBusy();
       mgr.showToast(data?.message || getSpriteEventText('importComplete', { count: data?.count }), { category: 'success', duration: 1500 });
-      mgr.playOnce('celebrate', { durationMs: 1500 });
+      mgr.trigger('celebrate', { durationMs: 1500, silent: true });
       grantActivityReward('resource-import-complete');
     }
   });
@@ -203,7 +147,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     handler: (data) => {
       mgr.clearBusy();
       mgr.showToast(data?.message || data?.error || getSpriteEventText('importError'), { category: 'error', duration: 2000 });
-      mgr.playOnce('emotion', { durationMs: 1500 });
+      mgr.trigger('error', { durationMs: 1500, silent: true });
     }
   });
 
@@ -391,7 +335,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     handler: (data) => {
       mgr.clearBusy();
       mgr.showToast(data?.message || getSpriteEventText('memoryExtractComplete'), { category: 'success', duration: 2000 });
-      mgr.playOnce('write');
+      mgr.trigger('write', { silent: true });
       grantActivityReward('memory-extraction-completed');
     }
   });
@@ -401,7 +345,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     handler: (data) => {
       mgr.clearBusy();
       mgr.showToast(data?.message || data?.error || getSpriteEventText('memoryExtractFail'), { category: 'error', duration: 2000 });
-      mgr.playOnce('emotion', { durationMs: 1500 });
+      mgr.trigger('error', { durationMs: 1500, silent: true });
     }
   });
 
@@ -419,7 +363,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.USER_PERSONA_UPDATE_COMPLETED,
     handler: (data) => {
       mgr.showToast(data?.message || getSpriteEventText('personaUpdateComplete'), { category: 'success', duration: 2000 });
-      mgr.playOnce('celebrate', { durationMs: 1500 });
+      mgr.trigger('celebrate', { durationMs: 1500, silent: true });
       grantActivityReward('user-persona-update-completed');
     }
   });
@@ -428,7 +372,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     event: AppEvent.USER_PERSONA_UPDATE_FAILED,
     handler: (data) => {
       mgr.showToast(data?.message || data?.error || getSpriteEventText('personaUpdateFail'), { category: 'error', duration: 2000 });
-      mgr.playOnce('emotion', { durationMs: 1500 });
+      mgr.trigger('error', { durationMs: 1500, silent: true });
     }
   });
 

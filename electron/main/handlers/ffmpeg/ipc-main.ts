@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { AppEvent, eventManager } from '@packages/event';
+import type { SpriteAnimationCondition, SpriteAnimationTrigger } from '@packages/sprite-core/types';
 import type { BrowserWindow } from 'electron';
 import { ipcMain } from 'electron';
 import { app } from 'electron';
@@ -16,6 +17,16 @@ import { executeExport } from './export-video';
 // ESM-safe __dirname/__filename
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+type SpriteAnimationMetaInput = {
+  title?: string;
+  primaryTrigger?: SpriteAnimationTrigger;
+  triggerAliases?: SpriteAnimationTrigger[];
+  priority?: number;
+  condition?: SpriteAnimationCondition;
+  /** 兼容旧输入，等价于 primaryTrigger */
+  eventType?: SpriteAnimationTrigger;
+};
 
 ffmpeg.setFfmpegPath(path.join(__dirname, '../../resources/ffmpeg', process.platform, process.arch, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'));
 ffmpeg.setFfprobePath(path.join(__dirname, '../../resources/ffmpeg', process.platform, process.arch, process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe'));
@@ -415,7 +426,7 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
    * @param arg.segments - 片段标记 { start, loopStart, loopEnd, end } (毫秒)
    * @param arg.speeds - 片段倍速 { intro, loop, outro } (1.0 = 原速)
    * @param arg.chromaKey - 色度键设置 { enabled, color, similarity, blend }
-   * @param arg.meta - 元数据 { eventType, title }
+   * @param arg.meta - 动画元数据 { primaryTrigger, triggerAliases, priority, condition, title }，旧 eventType 仅作兼容输入
    */
   ipcMain.handle(
     'convertToSpriteAnimation',
@@ -446,10 +457,7 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
           width: number;
           height: number;
         };
-        meta?: {
-          eventType?: string;
-          title?: string;
-        };
+        meta?: SpriteAnimationMetaInput;
       }
     ) => {
       const input = arg?.inputPath;

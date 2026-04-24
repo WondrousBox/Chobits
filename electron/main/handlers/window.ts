@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
@@ -10,36 +9,6 @@ import { app, screen } from 'electron';
 import defaultWindowConfigs from '../config/window';
 
 export function initWindowHandlers(win: BrowserWindow): void {
-  // 自动移动开关配置持久化
-  const configDir = app.getPath('userData');
-  const configFile = path.join(configDir, 'data', 'auto-walk-config.json');
-  const defaultAutoWalkEnabled = true; // 默认启用
-
-  // 加载配置
-  let autoWalkEnabled = defaultAutoWalkEnabled;
-  try {
-    if (fs.existsSync(configFile)) {
-      const txt = fs.readFileSync(configFile, 'utf8');
-      const parsed = JSON.parse(txt);
-      autoWalkEnabled = parsed.enabled ?? defaultAutoWalkEnabled;
-    }
-  } catch {
-    autoWalkEnabled = defaultAutoWalkEnabled;
-  }
-
-  // 保存配置函数
-  function saveAutoWalkConfig(): void {
-    try {
-      const dir = path.dirname(configFile);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      fs.writeFileSync(configFile, JSON.stringify({ enabled: autoWalkEnabled }, null, 2), 'utf8');
-    } catch {
-      // 忽略保存错误
-    }
-  }
-
   // 记录助手窗口的 padding（由渲染进程通过 IPC 动态设置）
   let assistantPadding = 100; // 默认值，等待渲染进程通过 setAssistantSize 设置
 
@@ -193,31 +162,6 @@ export function initWindowHandlers(win: BrowserWindow): void {
     onAfterFollowerHide: () => {
       startHoverMonitor();
     }
-  });
-
-  // ---------------- Auto Walk Control IPC --------------------
-  // 获取自动移动开关状态
-  ipcMain.handle('getAutoWalkEnabled', () => {
-    return autoWalkEnabled;
-  });
-
-  // 设置自动移动开关状态
-  ipcMain.handle('setAutoWalkEnabled', (_: IpcMainInvokeEvent, enabled: boolean) => {
-    autoWalkEnabled = enabled;
-    // 保存配置到文件
-    saveAutoWalkConfig();
-    // 广播状态变化
-    try {
-      win?.webContents.send('auto-walk-enabled-changed', enabled);
-    } catch {
-      /* ignore */
-    }
-    try {
-      windowManager.get('settings')?.webContents.send('auto-walk-enabled-changed', enabled);
-    } catch {
-      /* ignore */
-    }
-    return enabled;
   });
 
   // ---------------- Assistant Size IPC --------------------

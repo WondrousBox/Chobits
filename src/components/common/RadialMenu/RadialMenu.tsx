@@ -7,6 +7,8 @@ export interface RadialSubMenuItem {
   icon?: React.ReactNode;
   shortcut?: string;
   action: () => void;
+  disabled?: boolean;
+  onDisabledAction?: () => void;
 }
 
 export interface RadialMenuItem {
@@ -14,8 +16,10 @@ export interface RadialMenuItem {
   label: string;
   icon: React.ReactNode;
   shortcut?: string;
-  action: () => void;
+  action?: () => void;
   children?: RadialSubMenuItem[];
+  disabled?: boolean;
+  onDisabledAction?: () => void;
 }
 
 export interface RadialMenuProps {
@@ -262,22 +266,13 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
           const children = items[activeParentIndex].children ?? [];
           if (numKey >= 1 && numKey <= 9 && numKey <= children.length) {
             e.preventDefault();
-            children[numKey - 1].action();
-            onClose?.();
+            runChildAction(children[numKey - 1]);
             return;
           }
         } else {
           if (numKey >= 1 && numKey <= 9 && numKey <= items.length) {
             e.preventDefault();
-            const item = items[numKey - 1];
-            if (item.children && item.children.length > 0) {
-              setActiveParentIndex(numKey - 1);
-              setIsSubMenuOpen(true);
-              setSubSelectedIndex(0);
-            } else {
-              item.action();
-              onClose?.();
-            }
+            runItemAction(items[numKey - 1], numKey - 1);
             return;
           }
         }
@@ -305,19 +300,13 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
         if (isSubMenuOpen && activeParentIndex !== null) {
           const children = items[activeParentIndex].children ?? [];
           if (children.length > 0) {
-            children[subSelectedIndex]?.action();
-            onClose?.();
+            const child = children[subSelectedIndex];
+            if (child) {
+              runChildAction(child);
+            }
           }
         } else {
-          const item = items[selectedIndex];
-          if (item.children && item.children.length > 0) {
-            setActiveParentIndex(selectedIndex);
-            setIsSubMenuOpen(true);
-            setSubSelectedIndex(0);
-          } else {
-            item.action();
-            onClose?.();
-          }
+          runItemAction(items[selectedIndex], selectedIndex);
         }
       }
     };
@@ -344,6 +333,37 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
   const selectedPosition = getItemPosition(selectedIndex, items.length, level1);
   const activeChildren = activeParentIndex !== null ? (items[activeParentIndex].children ?? []) : [];
   const subSelectedPosition = isSubMenuOpen && activeChildren.length > 0 ? getItemPosition(subSelectedIndex, activeChildren.length, level2) : { x: 0, y: 0 };
+
+  const runItemAction = (item: RadialMenuItem, index: number): void => {
+    if (item.disabled) {
+      item.onDisabledAction?.();
+      return;
+    }
+
+    if (item.children && item.children.length > 0) {
+      setActiveParentIndex(index);
+      setIsSubMenuOpen(true);
+      setSubSelectedIndex(0);
+      return;
+    }
+
+    if (!item.action) {
+      return;
+    }
+
+    item.action();
+    onClose?.();
+  };
+
+  const runChildAction = (child: RadialSubMenuItem): void => {
+    if (child.disabled) {
+      child.onDisabledAction?.();
+      return;
+    }
+
+    child.action();
+    onClose?.();
+  };
 
   if (!open) return null;
 
@@ -425,11 +445,13 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
                       layoutId={`menu-item-${item.id}`}
                       className={`
                         absolute flex items-center justify-center
-                        cursor-pointer select-none rounded-full
+                        select-none rounded-full
                         w-16 h-16
-                        ${isSelected
-                          ? 'bg-primary text-primary-foreground shadow-[0_0_20px_rgba(var(--primary-rgb),0.5)] ring-2 ring-primary/50 z-10'
-                          : 'bg-card/90 text-foreground border border-border/50 hover:border-primary/30'
+                        ${item.disabled
+                          ? 'cursor-not-allowed opacity-45 bg-card/70 text-muted-foreground border border-border/40'
+                          : isSelected
+                            ? 'cursor-pointer bg-primary text-primary-foreground shadow-[0_0_20px_rgba(var(--primary-rgb),0.5)] ring-2 ring-primary/50 z-10'
+                            : 'cursor-pointer bg-card/90 text-foreground border border-border/50 hover:border-primary/30'
                         }
                       `}
                       style={{
@@ -448,14 +470,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (item.children && item.children.length > 0) {
-                          setActiveParentIndex(index);
-                          setIsSubMenuOpen(true);
-                          setSubSelectedIndex(0);
-                        } else {
-                          item.action();
-                          onClose?.();
-                        }
+                        runItemAction(item, index);
                       }}
                       onMouseEnter={() => setSelectedIndex(index)}
                       title={typeof item.label === 'string' ? item.label : undefined}
@@ -524,11 +539,13 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
                       key={child.id}
                       className={`
                         absolute flex items-center justify-center
-                        cursor-pointer select-none rounded-full
+                        select-none rounded-full
                         w-16 h-16
-                        ${isSelected
-                          ? 'bg-primary text-primary-foreground shadow-[0_0_20px_rgba(var(--primary-rgb),0.5)] ring-2 ring-primary/50 z-10'
-                          : 'bg-card/90 text-foreground border border-border/50 hover:border-primary/30'
+                        ${child.disabled
+                          ? 'cursor-not-allowed opacity-45 bg-card/70 text-muted-foreground border border-border/40'
+                          : isSelected
+                            ? 'cursor-pointer bg-primary text-primary-foreground shadow-[0_0_20px_rgba(var(--primary-rgb),0.5)] ring-2 ring-primary/50 z-10'
+                            : 'cursor-pointer bg-card/90 text-foreground border border-border/50 hover:border-primary/30'
                         }
                       `}
                       style={{
@@ -541,8 +558,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
                       transition={{ type: 'spring', stiffness: 400, damping: 25, delay: index * 0.02 }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        child.action();
-                        onClose?.();
+                        runChildAction(child);
                       }}
                       onMouseEnter={() => setSubSelectedIndex(index)}
                       title={typeof child.label === 'string' ? child.label : undefined}

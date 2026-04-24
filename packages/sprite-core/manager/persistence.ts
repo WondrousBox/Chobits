@@ -17,6 +17,11 @@ type LegacyPersonaStatePersistenceRow = Partial<Omit<PersonaStatePersistenceRow,
   dimensions?: unknown;
 };
 
+interface PersonaStatePersistenceStore {
+  version: 1;
+  slots: Record<string, PersonaStatePersistenceRow>;
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -86,6 +91,38 @@ function normalizeLoadedState(raw: unknown): PersonaStatePersistenceRow | null {
   };
 }
 
+function normalizeLoadedStore(raw: unknown): PersonaStatePersistenceStore | null {
+  if (!isPlainObject(raw)) return null;
+
+  if (isPlainObject(raw.slots)) {
+    const slots: Record<string, PersonaStatePersistenceRow> = {};
+    for (const [slotId, slotValue] of Object.entries(raw.slots)) {
+      const normalizedSlotId = normalizeString(slotId).trim();
+      const normalizedRow = normalizeLoadedState(slotValue);
+      if (!normalizedSlotId || !normalizedRow) continue;
+      slots[normalizedSlotId] = {
+        ...normalizedRow,
+        id: normalizedSlotId
+      };
+    }
+
+    return {
+      version: 1,
+      slots
+    };
+  }
+
+  const legacyRow = normalizeLoadedState(raw);
+  if (!legacyRow) return null;
+
+  return {
+    version: 1,
+    slots: {
+      [legacyRow.id]: legacyRow
+    }
+  };
+}
+
 // ============================================================================
 // 人格状态持久化
 // ============================================================================
@@ -101,11 +138,12 @@ export class PersonaStatePersistence {
     this.filePath = path.join(settingsDir, 'persona-state.json');
   }
 
-  /** 加载状态 */
-  async load(): Promise<PersonaStatePersistenceRow | null> {
+  /** 加载指定 slot 的状态 */
+  async load(id = 'default'): Promise<PersonaStatePersistenceRow | null> {
     try {
       const raw = await fsp.readFile(this.filePath, 'utf-8');
-      return normalizeLoadedState(JSON.parse(raw));
+      const store = normalizeLoadedStore(JSON.parse(raw));
+      return store?.slots[id] ?? null;
     } catch {
       return null;
     }
@@ -124,7 +162,12 @@ export class PersonaStatePersistence {
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
-      await fsp.writeFile(this.filePath, JSON.stringify(state, null, 2), 'utf-8');
+      const nextStore = await this.readStore();
+      nextStore.slots[state.id] = {
+        ...state,
+        id: state.id
+      };
+      await fsp.writeFile(this.filePath, JSON.stringify(nextStore, null, 2), 'utf-8');
       this.dirty = false;
     } catch (err) {
       console.error('[SpriteManager] Failed to save persona state:', err);
@@ -163,6 +206,15 @@ export class PersonaStatePersistence {
 
   isDirty(): boolean {
     return this.dirty;
+  }
+
+  private async readStore(): Promise<PersonaStatePersistenceStore> {
+    try {
+      const raw = await fsp.readFile(this.filePath, 'utf-8');
+      return normalizeLoadedStore(JSON.parse(raw)) ?? { version: 1, slots: {} };
+    } catch {
+      return { version: 1, slots: {} };
+    }
   }
 }
 

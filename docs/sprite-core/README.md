@@ -1,16 +1,40 @@
 # sprite-core — 桌面精灵人格化核心引擎
 
-> 2026-04-20 补充：桌面精灵当前已经具备较完整的 runtime 骨架，但动画 trigger、移动配置、成长规则、能力解锁的 authority 仍在继续收口。阅读顺序建议为：
-> - 先看 [sprite-runtime-unification-plan.md](./sprite-runtime-unification-plan.md) 了解原则与目标态
-> - 再看 [sprite-refactor-execution-roadmap.md](./sprite-refactor-execution-roadmap.md) 了解当前实施批次、验收标准与文档回填方式
+> **当前状态** (2026-04-24)：主进程统一运行时已全面落地，本轮收尾冻结；后续暂不继续修改 sprite runtime 主线。
 >
-> 2026-04-08 补充：当前主进程统一运行时已经落地。`PersonaState` 持久化已补齐 `dimensions` 与历史快照兼容读取，`sprite:interact` typed contract 也已收口；剩余仍在继续收口的重点是动画 trigger 分类和配置入口。
+> **已完成的主要子系统**：
+> - 主进程 `SpriteManager` 单例门面 + 渲染层退化为纯展示
+> - `PersonaState` 持久化（含按角色 slot 存档）、typed `sprite:interact`、统一 trigger metadata
+> - `PersonaRulesProvider` / `PersonaRulesLayer` 规则注入与 live sync
+> - `CapabilityRegistry` + `capability-runtime` + 主进程 capability guard（覆盖 movement / screenshot / recorder / ASR / dailyCare / sprite asset authoring）
+> - `CharacterPackManager`：角色包扫描 / 安装 / 激活 / 导入 / 卸载 / trust-root 公钥验签
+> - `MovementCoordinator`：preview / animation / behavior movement 统一策略
+> - AI 自发说话：`SpriteSpontaneousUtteranceService`（详见 [sprite-ai-spontaneous-utterance-design.md](./sprite-ai-spontaneous-utterance-design.md)）
+>
+> **后续 Backlog**（本轮不继续推进，详见 [sprite-runtime-unification-plan.md](./sprite-runtime-unification-plan.md) §4 剩余工作）：
+> - 更多 pack/character flags 的默认 capability 消费（avatar load-state / `smartAssistant` / sprite asset authoring 已接入，仍可继续扩展）
+> - 少量旧 metadata 输入 fallback 清理
+> - Trust-root publisher key rotation / 发布流程补强（revocation 已落地）
+> - `WindowController` 仅剩 timer orchestration / scheduler 抽象可继续收口
+> - `sprite:persona:addXP` / `changeFavor` / `unlockAchievement` 等 legacy 兼容入口后续可按调用面逐步下线
+> - 高阶 timed media / preview bridge follow-up
 
 ## 概览
 
 `sprite-core` 是 Chobits 桌面精灵的**纯逻辑层**，提供人格化核心引擎能力。它不依赖 React、Electron 或任何 UI 框架，可以独立测试和复用。
 
-2026-04-08 更新：`sprite:interact` 已统一为共享 `SpriteInteractionIntent` 契约，交互统计改为 EventBus 单源记账，renderer / preload / IPC / runtime 不再各自维护漂移的 hover/file-drag 语义。
+## 进度小结（2026-04-24）
+
+- 兼容层继续收口：`sprite:trigger` 请求字段已经只接受 `trigger`，动画 metadata normalize 输出也不再持久化 `eventType` 镜像，只保留旧输入 fallback。
+- trust-root 校验继续补强：已支持 revoked key 判定，撤销签名 key 会在 character pack 导入阶段被阻断，而不是等到运行时才暴露问题。
+- `WindowController` 继续瘦身：路径采样、边界约束、自动移动步进、平台访问、拖拽会话、行走会话、自动移动会话都已拆到独立 helper，控制器主体主要只剩 timer orchestration 与回调拼装。
+- capability 默认消费继续补强：`sprite:register` / `sprite:registerFromData` / `sprite:updateMeta` / `sprite:remove` 等动画资源 authoring 写入口现在会校验 `actionChoreography` capability，避免未解锁角色包能力时绕过运行时权威直接改动画资源。
+- 设置页 capability UI 已对齐：精灵管理页会读取 `actionChoreography` runtime 状态，未解锁时提前禁用视频导入、添加、删除和 metadata 编辑入口，并展示 locked notice；测试播放/查看现有动画仍可用。
+- `emotionExpression` 已开始进入运行时消费：闲置情感自发表达（`idle-emotion`）会读取 capability runtime，未解锁时不再自动触发表情动画；手动测试/显式 `trigger()` 不受影响。
+- persona mutation IPC 继续收口：新增 `sprite:persona:grantReward` 作为统一 reward entry，渲染层 `addXP()` / `changeFavor()` / `unlockAchievement()` 兼容方法已默认转发到该入口；旧 IPC 通道仍保留为兼容 wrapper。
+- 定向回归已覆盖：相关 `vitest` 已覆盖 metadata / pack import / IPC / `WindowController` model/platform/session 链路，当前这条主线已经比之前更接近 `freeze-safe`。
+- 当前更适合收尾冻结：主线 capability 消费与 persona mutation 收口已经形成闭环；后续只保留 trust-root publisher key rotation / 发布流程、少量 legacy metadata fallback 清理、legacy persona mutation IPC 下线评估，以及 timed media / preview follow-up。
+- 本轮结论：`sprite-core` 运行时统一、角色包 lifecycle、capability runtime、AI 自发说话、persona reward entry 与精灵管理 authoring guard 已完成可用闭环；除非后续出现明确产品入口或兼容下线窗口，本模块暂不继续修改。
 
 ## 架构
 
@@ -20,7 +44,12 @@ packages/sprite-core/
 ├── event-bus.ts                # 统一事件总线
 ├── state-machine.ts            # 精灵有限状态机
 ├── persona-state.ts            # 人格状态管理（XP/等级/好感度/心情）
+├── character-runtime.ts        # 角色声明 → runtime persona layer 桥接
+├── character-pack-manager.ts   # 角色包扫描 / 安装 / 激活 authority
+├── character-capability-flags.ts # 角色声明 / persona snapshot → capability flags 桥接
 ├── interaction-tracker.ts      # 交互追踪器
+├── persona-rules.ts            # persona reward runtime 统一解析入口
+├── capability-registry.ts      # capability 定义 / 解锁 / 激活快照统一入口
 ├── behavior-engine.ts          # 行为引擎（自主行为调度）
 ├── animation-registry.ts       # 动画注册表
 ├── character-service.ts        # 角色定义服务（人格模板、对话奖励、维度）
@@ -29,6 +58,7 @@ packages/sprite-core/
 ├── types.ts                    # 共享类型定义（150+ 事件类型）
 ├── manager/                    # SpriteManager 门面模块
 │   ├── index.ts                # barrel 导出
+│   ├── movement-coordinator.ts # movement 策略协调器
 │   ├── sprite-manager.ts       # SpriteManager 主类（单例门面）
 │   ├── types.ts                # 平台抽象接口/初始化选项
 │   ├── persistence.ts          # 人格状态持久化 + 自动行走配置
@@ -39,10 +69,8 @@ packages/sprite-core/
 │   ├── sprite-manager-ipc.ts   # SpriteManager IPC 绑定
 │   ├── sprite-event-listener.ts# AppEvent → 精灵动画触发
 │   └── sprite-assets.ts        # 动画资源文件管理
-├── helper/                     # 辅助函数
-│   └── trigger-animation.ts    # 业务触发动画的便捷函数
 ├── config/                     # 配置
-│   └── trigger-mapping.ts      # 场景→动画触发映射表
+│   ├── persona-rules.ts        # persona 默认规则与 reward resolver
 ├── messages/                   # 消息文案
 │   └── zh-CN.ts                # 中文气泡文案目录（53+ 类别 + 150+ 事件文案）
 ├── speak/                      # 语音合成模块
@@ -186,6 +214,7 @@ sprite.registerBehavior(myCustomBehavior);
 | 模块     | 文件                           | 职责                                                                 |
 | -------- | ------------------------------ | -------------------------------------------------------------------- |
 | 类型定义 | `manager/types.ts`             | `SpriteWindow`、`SpriteManagerOptions`、`PersonaStatePersistenceRow` |
+| 移动策略 | `manager/movement-coordinator.ts` | preview / animation / behavior movement 的统一策略分发             |
 | 持久化   | `manager/persistence.ts`       | `PersonaStatePersistence`（JSON 文件 + 自动保存）、`AutoWalkConfig`  |
 | 状态映射 | `manager/state-mapping.ts`     | `mapStateToEventType()` — 状态机 → AnimationRegistry 事件类型        |
 | 默认行为 | `manager/default-behaviors.ts` | 10 个内置自发行为的注册函数                                          |
@@ -242,14 +271,15 @@ sm.onChange((newState, oldState, ctx) => { ... });
 | `reacting`           | 临时反应（含子状态） |
 | `bored`              | 无聊                 |
 
-**子状态 (SpriteSubState)**:
-`click` | `hold` | `drop` | `file-drag-over` | `file-drop` | `sleepy` | `emotion` | `celebrate` | `custom`
+**子状态 (SpriteReactionState / legacy `SpriteSubState`)**:
+`click` | `hold` | `drop` | `file-drag-over` | `file-drop` | `sleepy` | `custom`
 
 说明：
 
-- `SpriteSubState` 表示 runtime 中 `reacting` 的子状态，不等于所有动画 trigger
-- `thinking`、`happy`、`surprised` 等更适合作为 animation trigger / eventType，而不是继续扩张状态机子状态
-- 当前代码里仍有少量业务事件直接 `playOnce('thinking')` 的历史写法，后续以 `trigger()` 收口为准
+- `SpriteReactionState` 是新的首选命名；`SpriteSubState` 仅保留为兼容别名
+- `SpriteSubState` / `SpriteReactionState` 表示 runtime 中 `reacting` 的子状态，不等于所有动画 trigger
+- `thinking`、`happy`、`surprised` 等更适合作为 animation trigger，而不是继续扩张状态机子状态
+- 业务事件动画已开始统一收口到 `trigger()`；`playOnce()` 仅保留给 click / file-drop / sleepy 这类真实 reaction
 
 ### 4. PersonaStateManager — 人格化状态管理
 
@@ -401,13 +431,18 @@ registry.register({
   playback: { width: 180, height: 240, loop: true }
 });
 
-const anim = registry.findByEvent({
-  eventType: 'idle',
+const anim = registry.findByTrigger({
+  trigger: 'idle',
   personaState: psm.getState()
 });
 ```
 
-主要方法: `register()`, `registerAll()`, `unregister()`, `get()`, `getAll()`, `findByEvent()`, `clear()`
+主要方法: `register()`, `registerAll()`, `unregister()`, `get()`, `getAll()`, `findByTrigger()`, `getTriggers()`, `clear()`
+
+说明：
+
+- `findByTrigger()` 默认做精确匹配
+- 只有状态机稳定态解析才应显式传 `allowFallback: true`，让缺失资源时兜底到 `idle`
 
 ### 8. CharacterService — 角色定义服务
 
@@ -430,6 +465,8 @@ import {
 ### 9. WindowController — 窗口控制器
 
 主进程中管理精灵窗口的位置移动，包括贝塞尔曲线路径行走、拖拽、自动移动、边界约束。
+
+当前实现里，路径采样、自动移动步进与边界约束的纯计算已经下沉到 `window-controller-model.ts`；拖拽、行走、自动移动会话以及窗口平台访问也分别拆到 `window-controller-drag-session.ts` / `window-controller-walk-session.ts` / `window-controller-auto-move-session.ts` / `window-controller-platform.ts`，`WindowController` 本体现在主要保留 timer orchestration 与回调拼装。
 
 ```typescript
 import { WindowController } from '@packages/sprite-core';
@@ -553,9 +590,9 @@ await sprite.clearSpeakCache();
     ↓
 mapStateToEventType(state, subState)    # manager/state-mapping.ts
     ↓
-事件类型 (eventType)
+触发器 (trigger)
     ↓
-AnimationRegistry.findByEvent({ eventType, personaState })
+AnimationRegistry.findByTrigger({ trigger, personaState })
     ↓
 动画配置 (AnimationEntry)
     ↓
@@ -611,11 +648,29 @@ IPC: sprite:play → 渲染进程播放
 
 ### 统一事件触发 trigger()
 
-`SpriteManager.trigger(eventType, options?)` 是所有事件类型的统一触发入口：
+`SpriteManager.trigger(trigger, options?)` 是所有事件类型的统一触发入口：
 
 - 查 AnimationRegistry → 有动画播动画+气泡，无动画仅气泡
 - 不走状态机重解析，直接发送 `sprite:play` 指令
 - 渲染端可通过 `window.YUA.sprite.trigger()` 调用
+- 共享契约已收口到 `SpriteAnimationTrigger` + `SpriteTriggerOptions`，主进程 / preload / helper / registry 使用同一套 trigger 类型
+- 显式 `trigger()` 默认不再 fallback 到 `idle`；只有状态机驱动的稳定态解析才保留 idle 兜底
+- 设置页与视频编辑器现在共用 `SpriteTriggerPicker`，内置 trigger 与自定义 trigger 走同一套 authoring 入口
+- 动画资源元数据开始升级为 `primaryTrigger + triggerAliases + priority`；旧 `meta.eventType` 仍兼容读取，但 normalize 输出不再持久化镜像字段
+- 视频编辑器现已支持直接写入 `triggerAliases` 与 `priority`，导入链会自动透传到 sprite metadata
+- 默认资源示例现已统一只写 `primaryTrigger`，设置页现有动画卡片与视频编辑器导入流也只 author `primaryTrigger + triggerAliases + priority`
+- `sprite:register` / `sprite:registerFromData` / `sprite:updateMeta` 现已统一走主进程 normalize 入口；旧 `eventType` 输入只作为兼容 fallback
+- `sprite:register` / `sprite:registerFromData` / `sprite:updateMeta` / `sprite:remove` 这些动画资源写入口现在受 `actionChoreography` capability guard 保护；未解锁时只能读取/触发现有动画，不能新增、导入、改 metadata 或删除用户动画
+- preload / IPC 公共查询命名现已统一为 `listByTrigger()`；`sprite:trigger` 也已只接受 `trigger`，`eventType` 兼容主要只剩旧输入 normalize fallback
+- 条件动画 schema 现已支持持久化到 `meta.condition`，并在 runtime 自动编译成 persona 条件选片规则；设置页 / 视频编辑器现已提供支持 nested group / NOT 的可视化 builder，并保留高级 JSON 兜底入口
+
+```typescript
+import type { SpriteAnimationTrigger, SpriteTriggerOptions } from '@packages/sprite-core';
+
+const trigger: SpriteAnimationTrigger = 'celebrate';
+const options: SpriteTriggerOptions = { message: '完成！', silent: false };
+sprite.trigger(trigger, options);
+```
 
 ### 消息文案查找机制
 
@@ -654,7 +709,9 @@ mgr.showToast(data?.message || '记忆整理完毕！', { category: 'success' })
         "id": "idle-default",
         "title": "Idle 默认站立",
         "tags": ["idle", "default"],
-        "eventType": "idle"
+        "primaryTrigger": "idle",
+        "triggerAliases": ["idle2"],
+        "priority": 10
       },
       "source": {
         "localPath": "./idle.webm",
@@ -795,16 +852,16 @@ eventManager.emit(AppEvent.SPRITE_AI_COMPLETE, { message: '生成完成！' });
 
 | 事件                                  | 触发时机     | 效果                                    | 文案来源                               |
 | ------------------------------------- | ------------ | --------------------------------------- | -------------------------------------- |
-| `SPRITE_AI_START`                     | AI 开始处理  | `playOnce('emotion')` + toast           | `spriteEventMessages.aiThinking`       |
-| `SPRITE_AI_COMPLETE`                  | AI 处理完成  | `playOnce('celebrate')` + toast         | `spriteEventMessages.aiComplete`       |
-| `SPRITE_AI_ERROR`                     | AI 处理出错  | `playOnce('emotion')` + toast           | `spriteEventMessages.aiError`          |
-| `SPRITE_WORKFLOW_START`               | 工作流开始   | `showBusy()` + `playOnce('emotion')`    | `spriteEventMessages.workflowStart`    |
-| `SPRITE_WORKFLOW_COMPLETE`            | 工作流完成   | `clearBusy()` + `playOnce('celebrate')` | `spriteEventMessages.workflowComplete` |
-| `SPRITE_WORKFLOW_FAIL`                | 工作流失败   | `clearBusy()` + `playOnce('emotion')`   | `spriteEventMessages.workflowFail`     |
+| `SPRITE_AI_START`                     | AI 开始处理  | `showToast()` + `trigger('thinking', { silent: true })`   | `spriteEventMessages.aiThinking`       |
+| `SPRITE_AI_COMPLETE`                  | AI 处理完成  | `showToast()` + `trigger('celebrate', { silent: true })`  | `spriteEventMessages.aiComplete`       |
+| `SPRITE_AI_ERROR`                     | AI 处理出错  | `showToast()` + `trigger('error', { silent: true })`      | `spriteEventMessages.aiError`          |
+| `SPRITE_WORKFLOW_START`               | 工作流开始   | `showBusy()` + `trigger('processing', { silent: true })`  | `spriteEventMessages.workflowStart`    |
+| `SPRITE_WORKFLOW_COMPLETE`            | 工作流完成   | `clearBusy()` + `trigger('celebrate', { silent: true })`  | `spriteEventMessages.workflowComplete` |
+| `SPRITE_WORKFLOW_FAIL`                | 工作流失败   | `clearBusy()` + `trigger('failure', { silent: true })`    | `spriteEventMessages.workflowFail`     |
 | `SPRITE_WORKFLOW_CANCEL`              | 工作流取消   | `clearBusy()` + toast                   | `spriteEventMessages.workflowCancel`   |
-| `SPRITE_RESOURCE_IMPORT_START`        | 资源导入开始 | `showBusy()`                            | `spriteEventMessages.importStart`      |
-| `SPRITE_RESOURCE_IMPORT_COMPLETE`     | 资源导入完成 | `clearBusy()` + `playOnce('celebrate')` | `spriteEventMessages.importComplete`   |
-| `SPRITE_RESOURCE_IMPORT_ERROR`        | 资源导入失败 | `clearBusy()` + `playOnce('emotion')`   | `spriteEventMessages.importError`      |
+| `SPRITE_RESOURCE_IMPORT_START`        | 资源导入开始 | `showBusy()` + `trigger('loading', { silent: true })`     | `spriteEventMessages.importStart`      |
+| `SPRITE_RESOURCE_IMPORT_COMPLETE`     | 资源导入完成 | `clearBusy()` + `trigger('celebrate', { silent: true })`  | `spriteEventMessages.importComplete`   |
+| `SPRITE_RESOURCE_IMPORT_ERROR`        | 资源导入失败 | `clearBusy()` + `trigger('error', { silent: true })`      | `spriteEventMessages.importError`      |
 | `SPRITE_DOWNLOAD_COMPLETE/FAIL`       | 插件下载     | toast                                   | `catalog.download/error`               |
 | `SPRITE_PLUGIN_INSTALL/REMOVE`        | 插件操作     | toast                                   | `catalog.install/remove`               |
 | `SPRITE_MEDIA_PROCESS_START/COMPLETE` | 媒体处理     | busy + toast                            | `trigger()` 自动查找                   |
@@ -815,18 +872,21 @@ eventManager.emit(AppEvent.SPRITE_AI_COMPLETE, { message: '生成完成！' });
 | `MEMORY_EXTRACTION_*`                 | 记忆提取     | toast + thinking/celebrate 动画         | `spriteEventMessages.memoryExtract*`   |
 | `USER_PERSONA_UPDATE_*`               | 用户画像更新 | toast + thinking/celebrate 动画         | `spriteEventMessages.personaUpdate*`   |
 
-### C. 配置驱动触发 (trigger-mapping)
+### C. 旧场景映射兼容层已移除
 
-`config/trigger-mapping.ts` 定义业务场景到事件类型的映射：
+旧的 `trigger-mapping.ts` / `trigger-animation.ts` 已从仓库移除；新的统一入口保持为 `SpriteManager.trigger()` 与 `sprite-event-listener`。
 
 ```typescript
-import { triggerSpriteAnimation } from '@packages/sprite-core';
+import { SpriteManager } from '@packages/sprite-core';
 
-triggerSpriteAnimation('ai:chat:complete');
-// → 查 TRIGGER_MAPPING → eventType: 'success' → SpriteManager.trigger('success')
+const sprite = SpriteManager.getInstance();
+sprite.trigger('success');
 ```
 
-预定义场景: `ai:chat:*`, `workflow:*`, `resource:import:*`, `file:process:*`, `transcribe:*`, `translate:*`, `download:*`, `plugin:*`, `system:*`, `network:*`
+当前如果要扩展事件触发能力，应优先：
+
+- 直接调用 `SpriteManager.trigger()`
+- 或通过业务事件进入 `sprite-event-listener` 的统一链路
 
 ### D. 自发行为触发 (BehaviorEngine)
 
@@ -858,7 +918,9 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 
 说明：
 
-- 当前代码仍保留少量兼容层事件与旧 handler，例如 `persona:level-up`、`auto-walk-enabled-changed`
+- 2026-04-21 更新：auto-walk 的正式配置入口已经收口到 `window.YUA.sprite.getAutoWalk()` / `setAutoWalk()`，`sprite:config` 快照现在会携带 `autoWalkEnabled`
+- 2026-04-22 更新：`electron/main/handlers/window.ts` 已不再持有本地 auto-walk 状态；legacy `window.YUA.window.getAutoWalkEnabled()` / `setAutoWalkEnabled()` bridge 也已从 preload / `sprite-manager-ipc.ts` 移除
+- 当前代码仍保留少量兼容层事件与旧 helper，例如 `persona:level-up` 与动画元数据里的旧 `eventType` 输入 fallback
 - 这些兼容通道用于平滑迁移，不应继续作为新的正式能力入口
 
 ### 上行（渲染进程 → 主进程）
@@ -872,18 +934,32 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 | `sprite:ready`                      | -                                                   | 渲染进程就绪       |
 | `sprite:get-initial-state`          | -                                                   | 获取初始全量状态   |
 | `sprite:persona:getState`           | -                                                   | 获取人格状态       |
-| `sprite:persona:addXP`              | `{ amount, source? }`                               | 增加经验           |
-| `sprite:persona:changeFavor`        | `{ delta, reason? }`                                | 修改好感度         |
+| `sprite:persona:grantReward`        | `{ xp?, favor?, dimensions?, source?, achievementId? }` | 统一应用人格奖励   |
+| `sprite:persona:addXP`              | `{ amount, source? }`                               | 增加经验（兼容 wrapper） |
+| `sprite:persona:changeFavor`        | `{ delta, reason? }`                                | 修改好感度（兼容 wrapper） |
 | `sprite:persona:recordLogin`        | -                                                   | 记录每日登录       |
-| `sprite:persona:unlockAchievement`  | `{ id }`                                            | 解锁成就           |
+| `sprite:persona:unlockAchievement`  | `{ id }`                                            | 解锁成就（兼容 wrapper） |
 | `sprite:persona:reset`              | -                                                   | 重置人格状态       |
+| `sprite:capabilities:getSnapshot`   | -                                                   | 获取 runtime capability snapshot |
 | `sprite:character:getInfo`          | -                                                   | 获取角色信息       |
 | `sprite:character:getPersonaPrompt` | `{ context }`                                       | 获取人格 prompt    |
+| `sprite:character:listPacks`        | -                                                   | 获取角色包列表     |
+| `sprite:character:getActivePack`    | -                                                   | 获取当前激活角色包 |
+| `sprite:character:activatePack`     | `{ packId, source? }`                               | 激活角色包         |
+| `sprite:character:inspectPackFromDirectory` | `{ sourceDir }`                               | 预检目录角色包     |
+| `sprite:character:installPackFromDirectory` | `{ sourceDir, replaceExisting?, activate? }` | 从目录安装角色包   |
+| `sprite:character:inspectPackFromArchive` | `{ archivePath }`                              | 预检压缩包角色包   |
+| `sprite:character:installPackFromArchive` | `{ archivePath, replaceExisting?, activate? }` | 从压缩包安装角色包 |
+| `sprite:character:removePack`       | `{ packId, source? }`                               | 删除已安装角色包   |
+| `sprite:character:reload`           | -                                                   | 重载角色并同步规则 |
 | `sprite:dimensions:get`             | -                                                   | 获取维度状态       |
 | `sprite:config:getAutoWalk`         | -                                                   | 获取自动行走开关   |
 | `sprite:config:setAutoWalk`         | `{ enabled }`                                       | 设置自动行走开关   |
 | `sprite:config:getDebugOverlay`     | -                                                   | 获取调试辅助线开关 |
 | `sprite:config:setDebugOverlay`     | `{ enabled }`                                       | 设置调试辅助线开关 |
+| `sprite:spontaneous:getPreferences` | -                                                   | 获取 AI 自发说话偏好 |
+| `sprite:spontaneous:updatePreferences` | `Partial<SpriteSpontaneousUtterancePreferences>` | 更新 AI 自发说话偏好 |
+| `sprite:spontaneous:listHistory`    | `{ limit?, query?, status?, intentCategory? }`      | 查询 AI 自发说话历史 |
 | `sprite:previewMovement`            | `{ width, height, padding, movement }`              | 预览窗口移动效果   |
 | `sprite:stopMovementPreview`        | -                                                   | 停止移动预览       |
 
@@ -895,30 +971,42 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 | `sprite:state`       | `SpriteStateSnapshot`    | 状态变化广播              |
 | `sprite:message`     | `MessageIPCPayload`      | 消息（toast/notice/busy） |
 | `sprite:walk`        | `{ active, direction? }` | 行走状态                  |
-| `sprite:config`      | `SpriteConfig`           | 配置变化                  |
+| `sprite:config`      | `SpriteConfig`           | 配置变化（含 `autoWalkEnabled`） |
 | `sprite:busy:update` | `{ progress, message? }` | 忙碌进度更新              |
 | `sprite:busy:clear`  | -                        | 清除忙碌状态              |
 | `sprite:speak`       | `SpriteSpeakPayload`     | 语音播放指令              |
 
 ### Preload 桥接 API
 
-通过 `window.YUA.sprite` 访问，完整 API 清单：
+当前相关 bridge 主要分布在 `window.YUA.sprite` 与 `window.YUA.persona`。
 
-**动画管理**: `list()`, `listByEvent()`, `get()`, `register()`, `registerFromData()`, `remove()`, `updateMeta()`
+**`window.YUA.sprite` / 动画管理**: `list()`, `listByTrigger()`, `get()`, `register()`, `registerFromData()`, `remove()`, `updateMeta()`
 
-**交互上报**: `interact(type: SpriteInteractionIntent)`, `dragStart()`, `dragEnd()`, `animComplete()`, `fileDrop()`
+**`window.YUA.sprite` / 交互上报**: `interact(type: SpriteInteractionIntent)`, `dragStart()`, `dragEnd()`, `animComplete()`, `fileDrop()`
 
-**状态与配置**: `getInitialState()`, `ready()`, `getAutoWalk()`, `setAutoWalk()`, `getDebugOverlay()`, `setDebugOverlay()`
+**`window.YUA.sprite` / 状态与配置**: `getInitialState()`, `ready()`, `getAutoWalk()`, `setAutoWalk()`, `getDebugOverlay()`, `setDebugOverlay()`, `getSpontaneousUtterancePreferences()`, `updateSpontaneousUtterancePreferences()`, `listSpontaneousUtteranceHistory()`
 
-**移动预览**: `previewMovement()`, `stopMovementPreview()`
+说明：
 
-**语音合成**: `speak()`, `synthesizeSpeech()`, `getSpeakConfig()`, `setSpeakConfig()`, `resetSpeakConfig()`, `getSpeakCacheStats()`, `clearSpeakCache()`
+- `getAutoWalk()` / `setAutoWalk()` 是当前正式的 auto-walk 配置入口
+- `onConfig()` 收到的 `SpriteConfig` 快照已包含 `autoWalkEnabled`
+- AI 自发说话偏好 / 历史当前通过 `window.YUA.sprite.*` 暴露，而不是挂在 `persona` bridge 下
 
-**事件触发**: `trigger()`, `testAnimation()`
+**`window.YUA.sprite` / 移动预览**: `previewMovement()`, `stopMovementPreview()`
 
-**资源管理**: `addTempResourceRoot()`
+**`window.YUA.sprite` / 语音合成**: `speak()`, `synthesizeSpeech()`, `getSpeakConfig()`, `setSpeakConfig()`, `resetSpeakConfig()`, `getSpeakCacheStats()`, `clearSpeakCache()`
 
-**事件订阅**: `onPlay()`, `onState()`, `onMessage()`, `onWalk()`, `onConfig()`, `onBusyUpdate()`, `onBusyClear()`, `onSpeak()`
+**`window.YUA.sprite` / 事件触发**: `trigger()`, `testAnimation()`
+
+**`window.YUA.sprite` / 资源管理**: `addTempResourceRoot()`
+
+**`window.YUA.sprite` / 事件订阅**: `onPlay()`, `onState()`, `onMessage()`, `onWalk()`, `onConfig()`, `onBusyUpdate()`, `onBusyClear()`, `onSpeak()`
+
+**`window.YUA.persona` / Persona 与 capability**: `getState()`, `addXP()`, `changeFavor()`, `recordLogin()`, `unlockAchievement()`, `resetState()`, `getCapabilitySnapshot()`
+
+**`window.YUA.persona` / 角色与角色包**: `getCharacterInfo()`, `getCharacterPersonaPrompt()`, `listCharacterPacks()`, `getActiveCharacterPack()`, `activateCharacterPack()`, `inspectCharacterPackFromDirectory()`, `installCharacterPackFromDirectory()`, `inspectCharacterPackFromArchive()`, `installCharacterPackFromArchive()`, `removeCharacterPack()`, `reloadCharacter()`, `getDimensions()`
+
+**`window.YUA.persona` / 事件订阅**: `onStateChanged()`, `onLevelUp()`, `onXPGained()`, `onFavorChanged()`, `onDailyLogin()`, `onAchievementUnlocked()`, `onCapabilityChanged()`, `onCharacterSwitched()`
 
 ---
 
@@ -966,11 +1054,14 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 | EventBus             | `packages/sprite-core/event-bus.ts`                            |
 | CharacterService     | `packages/sprite-core/character-service.ts`                    |
 | WindowController     | `packages/sprite-core/window-controller.ts`                    |
+| WindowController Model | `packages/sprite-core/window-controller-model.ts`            |
+| WindowController Platform | `packages/sprite-core/window-controller-platform.ts`      |
+| WindowController Drag Session | `packages/sprite-core/window-controller-drag-session.ts` |
+| WindowController Walk Session | `packages/sprite-core/window-controller-walk-session.ts` |
+| WindowController Auto Move Session | `packages/sprite-core/window-controller-auto-move-session.ts` |
 | IPC Handler          | `packages/sprite-core/handler/sprite-manager-ipc.ts`           |
 | Event Listener       | `packages/sprite-core/handler/sprite-event-listener.ts`        |
 | Sprite Assets        | `packages/sprite-core/handler/sprite-assets.ts`                |
-| Trigger Mapping      | `packages/sprite-core/config/trigger-mapping.ts`               |
-| Trigger Helper       | `packages/sprite-core/helper/trigger-animation.ts`             |
 | Messages Catalog     | `packages/sprite-core/messages/zh-CN.ts`                       |
 | SpeakService         | `packages/sprite-core/speak/speak-service.ts`                  |
 | Speak Types          | `packages/sprite-core/speak/types.ts`                          |
@@ -991,8 +1082,9 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 
 1. 在 `types.ts` 的 `SpriteEventGroups` 中添加类型名
 2. 在 `messages/zh-CN.ts` 添加对应文案（支持数组随机）
-3. （可选）在 `config/trigger-mapping.ts` 添加场景映射
-4. 调用：`SpriteManager.getInstance().trigger('myEvent')`
+3. 调用：`SpriteManager.getInstance().trigger('myEvent')`
+
+旧 `trigger-mapping` 兼容层已经删除，新事件不需要再新增场景映射。
 
 ### 添加新自发行为
 
@@ -1020,7 +1112,8 @@ sprite.registerAnimation({
   meta: {
     id: 'dance-happy',
     title: '开心跳舞',
-    eventType: 'dance',
+    primaryTrigger: 'dance',
+    triggerAliases: [],
     tags: ['action']
   },
   source: { localPath: '/path/to/dance.webm' },
@@ -1043,3 +1136,67 @@ stateMachine.addTransition({ from: 'idle', to: 'dancing' });
 // 3. 在 manager/state-mapping.ts 添加映射
 case 'dancing': return 'dance';
 ```
+
+---
+
+## 暂停开发前验收清单
+
+当前这轮 `sprite runtime` 重构已经接近“可冻结”状态：主链路 authority、角色包 lifecycle、capability runtime、movement coordinator 与 persona slot 切换已经落地，剩余工作主要是兼容层清理、少量执行入口继续下沉，以及高阶 preview / timed media follow-up。
+
+如果准备暂时停止继续开发，建议至少完成以下检查，再把当前状态标记为 `freeze-safe`。
+
+### 必跑自动化
+
+- `pnpm vitest run test/sprite-manager-regression.spec.ts test/sprite-manager-ipc.spec.ts test/movement-coordinator.spec.ts test/capability-registry.spec.ts test/capability-runtime-entrypoints.spec.ts test/capability-runtime-handlers.spec.ts test/character-pack-manager.spec.ts test/sprite-assets-pack.spec.ts`
+- `pnpm vitest run test/sprite-renderer-mount.spec.tsx test/video-sprite-driver.spec.ts test/sprite-bridge.spec.ts test/persona-dailycare-bridge.spec.ts test/recorder-ipc.spec.ts test/character-pack-service.spec.ts`
+
+### 必做手测
+
+- 角色包链路：
+  - 目录导入
+  - `.chobits-character` / `.zip` 导入
+  - 替换冲突处理
+  - 激活 pack 后 runtime reload
+  - 删除当前 active pack 后自动回退到 fallback pack
+- movement 链路：
+  - auto-walk 开关
+  - movement preview 开始 / 停止后尺寸与 padding 恢复
+  - `behavior + direction` 组合确实按配置方向移动
+- capability 链路：
+  - movement / dailyCare / screenshot / recorder / speechRecognition 分别关闭后，renderer 入口与主进程真实入口都被拒绝
+- persona 链路：
+  - XP 升级
+  - 好感度变更
+  - daily login
+  - achievement 解锁
+  - 切换角色后 persona slot 正确恢复，不串档
+- 动画链路：
+  - 条件动画 persona 命中
+  - 三段式 trigger 播放
+  - `file-drag-over -> file-drop` reaction
+  - pack 激活后动画资源真实切换
+
+### 满足以下条件即可先停
+
+- 上述自动化通过
+- 手测没有出现以下四类问题：
+  - capability 可以被绕过执行
+  - 切换角色 / pack 后 persona 串档
+  - movement preview 污染 live config
+  - 删除 active pack 后 runtime 失效或停在错误资源上
+- 文档状态可以记为：
+  - `In Progress`
+  - 或 `freeze-safe / 暂可冻结`
+
+### 暂时只记 backlog 的尾项
+
+- `packages/sprite-core/handler/sprite-manager-ipc.ts`
+  - `sprite:persona:grantReward` 已成为渲染层统一 reward entry；`addXP` / `changeFavor` / `unlockAchievement` 旧 IPC 仍保留为兼容 wrapper，后续可按调用面逐步下线
+- `packages/sprite-core/window-controller.ts`
+  - 路径采样 / 自动移动步进 / 边界约束已下沉到 `window-controller-model.ts`；拖拽 / 行走 / 自动移动会话与平台访问也已拆到独立 helper，当前主要只剩 timer orchestration 与回调拼装，若继续收口可再抽 scheduler 层
+- `packages/sprite-core/capability-registry.ts`
+  - 默认 capability 定义还可以继续深入消费 pack / character / persona flags（avatar load-state、`smartAssistant` 已接入；其余分支待补）
+- trigger / metadata 兼容别名
+  - `eventType` 旧输入 fallback 仍在，适合后续继续缩减兼容面
+- `packages/sprite-core/character-pack-manager.ts`
+  - trust-root 已支持 revoked key blocking；下一阶段工作转向 publisher key rotation 与更完整发布流程

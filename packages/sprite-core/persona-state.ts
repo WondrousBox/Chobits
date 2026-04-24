@@ -15,6 +15,7 @@
  * - 完全可配置的升级曲线和数值公式
  */
 
+import { DEFAULT_FAVOR_MODIFIERS, DEFAULT_MOOD_RULES, DEFAULT_XP_SOURCES } from './config/persona-rules';
 import { SpriteEventBus } from './event-bus';
 
 // ============ 类型定义 ============
@@ -138,65 +139,6 @@ const FAVOR_LEVEL_THRESHOLDS: { level: FavorLevel; min: number }[] = [
   { level: 'friend', min: 40 },
   { level: 'acquaintance', min: 20 },
   { level: 'stranger', min: 0 }
-];
-
-// ============ 默认 XP 来源 ============
-
-const DEFAULT_XP_SOURCES: XPSource[] = [
-  { id: 'click', event: 'interact:click', baseXP: 2, dailyLimit: 50 },
-  { id: 'drag', event: 'interact:drag:end', baseXP: 3, dailyLimit: 30 },
-  { id: 'file-drop', event: 'interact:file-drop', baseXP: 10, dailyLimit: 20 },
-  { id: 'conversation', event: 'ai:message-sent', baseXP: 15, dailyLimit: 100 },
-  { id: 'daily-login', event: 'persona:daily-login', baseXP: 50 },
-  { id: 'streak-bonus', event: 'persona:streak-bonus', baseXP: 25, multiplier: (s) => Math.min(s.loginStreak, 7) }
-];
-
-// ============ 默认好感度修改器 ============
-
-const DEFAULT_FAVOR_MODIFIERS: FavorModifier[] = [
-  { id: 'click', event: 'interact:click', delta: 0.5, dailyLimit: 10, cooldown: 5000 },
-  { id: 'drag-play', event: 'interact:drag:end', delta: 0.3, dailyLimit: 10 },
-  { id: 'file-share', event: 'interact:file-drop', delta: 1, dailyLimit: 5 },
-  { id: 'conversation', event: 'ai:message-sent', delta: 1.5, dailyLimit: 20 },
-  { id: 'daily-login', event: 'persona:daily-login', delta: 2 },
-  { id: 'long-absence', event: 'persona:long-absence', delta: -5 },
-  { id: 'ignored-reminder', event: 'reminder:dismissed', delta: -0.5, dailyLimit: 5 }
-];
-
-// ============ 默认心情规则 ============
-
-const DEFAULT_MOOD_RULES: MoodRule[] = [
-  {
-    id: 'night-sleepy',
-    trigger: () => {
-      const h = new Date().getHours();
-      return h >= 23 || h < 5;
-    },
-    targetMood: 'sleepy',
-    intensity: 70,
-    priority: 5
-  },
-  {
-    id: 'post-interaction-joy',
-    trigger: (state) => state.favor >= 60,
-    targetMood: 'joyful',
-    intensity: 60,
-    priority: 3
-  },
-  {
-    id: 'low-favor-sad',
-    trigger: (state) => state.favor < 20,
-    targetMood: 'sad',
-    intensity: 40,
-    priority: 4
-  },
-  {
-    id: 'idle-bored',
-    trigger: () => false, // 通过外部事件触发
-    targetMood: 'bored',
-    intensity: 50,
-    priority: 2
-  }
 ];
 
 // ============ PersonaStateManager 实现 ============
@@ -435,7 +377,6 @@ export class PersonaStateManager {
     this.state.updatedAt = Date.now();
 
     const dailyLoginXP = this.calculateXPGainForEvent('persona:daily-login');
-    this.eventBus?.emit('persona:daily-login', { streak: this.state.loginStreak }, 'persona-state');
 
     // 连续登录奖励
     let xpBonus = dailyLoginXP;
@@ -444,6 +385,8 @@ export class PersonaStateManager {
       this.eventBus?.emit('persona:streak-bonus', { streak: this.state.loginStreak }, 'persona-state');
       xpBonus += streakBonusXP;
     }
+
+    this.eventBus?.emit('persona:daily-login', { streak: this.state.loginStreak, xpBonus }, 'persona-state');
 
     this.notifyChange();
     return { isNewDay: true, streak: this.state.loginStreak, xpBonus };
@@ -538,8 +481,28 @@ export class PersonaStateManager {
     this.xpSources.push(source);
   }
 
+  /** 新增或更新 XP 来源 */
+  upsertXPSource(source: XPSource): void {
+    const index = this.xpSources.findIndex((item) => item.id === source.id);
+    if (index >= 0) {
+      this.xpSources[index] = source;
+      return;
+    }
+    this.xpSources.push(source);
+  }
+
   /** 注册新的好感度修改器 */
   registerFavorModifier(modifier: FavorModifier): void {
+    this.favorModifiers.push(modifier);
+  }
+
+  /** 新增或更新好感度修改器 */
+  upsertFavorModifier(modifier: FavorModifier): void {
+    const index = this.favorModifiers.findIndex((item) => item.id === modifier.id);
+    if (index >= 0) {
+      this.favorModifiers[index] = modifier;
+      return;
+    }
     this.favorModifiers.push(modifier);
   }
 
@@ -548,11 +511,41 @@ export class PersonaStateManager {
     this.moodRules.push(rule);
   }
 
+  /** 新增或更新心情规则 */
+  upsertMoodRule(rule: MoodRule): void {
+    const index = this.moodRules.findIndex((item) => item.id === rule.id);
+    if (index >= 0) {
+      this.moodRules[index] = rule;
+      return;
+    }
+    this.moodRules.push(rule);
+  }
+
+  /** 用完整规则集替换 XP 来源 */
+  setXPSources(sources: XPSource[]): void {
+    this.xpSources = sources.map((source) => ({ ...source }));
+  }
+
+  /** 用完整规则集替换好感度修改器 */
+  setFavorModifiers(modifiers: FavorModifier[]): void {
+    this.favorModifiers = modifiers.map((modifier) => ({ ...modifier }));
+  }
+
+  /** 用完整规则集替换心情规则 */
+  setMoodRules(rules: MoodRule[]): void {
+    this.moodRules = rules.map((rule) => ({ ...rule }));
+  }
+
+  /** 重置运行时计数与冷却缓存，供角色切换等跨 slot 场景复用 */
+  resetRuntimeCaches(): void {
+    this.dailyCounts.clear();
+    this.lastFavorTrigger.clear();
+  }
+
   /** 销毁 */
   destroy(): void {
     this.stopMoodDecay();
-    this.dailyCounts.clear();
-    this.lastFavorTrigger.clear();
+    this.resetRuntimeCaches();
   }
 
   // ============ 内部方法 ============

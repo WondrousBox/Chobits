@@ -25,8 +25,11 @@ export type SpriteState =
   | 'reacting' // 临时反应状态的容器
   | 'bored';
 
-/** 精灵子状态（reacting 的细分） */
-export type SpriteSubState = 'click' | 'hold' | 'drop' | 'file-drag-over' | 'file-drop' | 'sleepy' | 'emotion' | 'celebrate' | 'write' | 'custom';
+/** 精灵反应子状态（reacting 的细分，仅保留真实 runtime reaction） */
+export type SpriteReactionState = 'click' | 'hold' | 'drop' | 'file-drag-over' | 'file-drop' | 'sleepy' | 'custom';
+
+/** @deprecated 向后兼容别名，新代码请优先使用 SpriteReactionState。 */
+export type SpriteSubState = SpriteReactionState;
 
 /** 状态转换配置 */
 export interface StateTransition {
@@ -56,7 +59,7 @@ export interface StateConfig {
 export interface StateContext {
   currentState: SpriteState;
   previousState: SpriteState;
-  subState: SpriteSubState | null;
+  subState: SpriteReactionState | null;
   stateStartTime: number;
   metadata: Record<string, any>;
 }
@@ -135,7 +138,7 @@ const DEFAULT_STATE_CONFIGS: Record<SpriteState, StateConfig> = {
 
 export class SpriteStateMachine {
   private state: SpriteState = 'idle';
-  private subState: SpriteSubState | null = null;
+  private subState: SpriteReactionState | null = null;
   private previousStableState: SpriteState = 'idle';
   private stateStartTime: number = Date.now();
   private metadata: Record<string, any> = {};
@@ -166,7 +169,7 @@ export class SpriteStateMachine {
   }
 
   /** 获取当前子状态 */
-  getSubState(): SpriteSubState | null {
+  getSubState(): SpriteReactionState | null {
     return this.subState;
   }
 
@@ -193,7 +196,7 @@ export class SpriteStateMachine {
   transitionTo(
     target: SpriteState,
     options?: {
-      subState?: SpriteSubState;
+      subState?: SpriteReactionState;
       metadata?: Record<string, any>;
       force?: boolean;
     }
@@ -270,10 +273,10 @@ export class SpriteStateMachine {
   }
 
   /**
-   * 播放一次临时状态，完成后回退
+   * 播放一次临时 reaction，完成后回退
    * 相当于 transitionTo('reacting', { subState, ... }) 但更语义化
    */
-  playOnce(subState: SpriteSubState, options?: { durationMs?: number; fallback?: SpriteState; metadata?: Record<string, any> }): boolean {
+  playOnce(subState: SpriteReactionState, options?: { durationMs?: number; fallback?: SpriteState; metadata?: Record<string, any> }): boolean {
     const { durationMs, fallback, metadata } = options ?? {};
     const currentConfig = this.configs.get(this.state);
     const defaultFallback = this.state === 'reacting' || currentConfig?.ephemeral ? this.previousStableState : this.state;

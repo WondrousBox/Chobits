@@ -1,7 +1,14 @@
 import * as crypto from 'crypto';
 import fs from 'fs';
 
-import { unpack } from '../libs/7zip-min-electron';
+import { list, unpack } from '../libs/7zip-min-electron';
+
+export interface ArchiveListEntry {
+  name?: string;
+  attr?: string;
+  size?: string;
+  compressed?: string;
+}
 
 export function unzipFileWith7Z(
   zipFilePath: string,
@@ -35,6 +42,19 @@ export function unzipFileWith7Z(
       },
       x
     );
+  });
+}
+
+export function listArchiveEntriesWith7Z(archivePath: string): Promise<ArchiveListEntry[]> {
+  return new Promise<ArchiveListEntry[]>((resolve, reject) => {
+    list(archivePath, (err, result) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      resolve(Array.isArray(result) ? (result as ArchiveListEntry[]) : []);
+    });
   });
 }
 

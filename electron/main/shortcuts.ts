@@ -53,7 +53,9 @@ function applyRegistration(getMainWindow: GetMainWindow): void {
     },
     screenshot: () => {
       console.log('[shortcut] screenshot');
-      screenshotManager.start();
+      void screenshotManager.start().catch((error) => {
+        console.warn('[shortcut] screenshot start blocked', error);
+      });
     }
   };
 

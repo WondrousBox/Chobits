@@ -8,29 +8,22 @@
  * 4. 转码为 WebM（含透明通道）
  */
 
-import type { SpriteMovementConfig, SpriteMovementDirection, SpriteMovementMode, SpriteMovementTrigger } from '@packages/sprite-core/types';
-import { ChevronsUpDown } from 'lucide-react';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
+import type { SpriteAnimationCondition, SpriteAnimationTrigger, SpriteMovementConfig, SpriteMovementDirection, SpriteMovementMode, SpriteMovementTrigger } from '@packages/sprite-core/types';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TbPlayerPause, TbPlayerPlay, TbPlus, TbX, TbZoomIn, TbZoomOut } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
-import { SpriteEventGroups } from '@/features/sprite-assistant';
+import { SpriteCapabilityLockedNotice, ensureSpriteCapabilityAccessible } from '@/features/sprite-assistant/capability-ui';
+
+import { createSpriteAnimationMetaDraft, formatSpriteAnimationConditionInput, formatSpriteTriggerAliasesInput, parseSpriteAnimationConditionInput } from './components/sprite-animation-meta-utils';
+import SpriteAnimationConditionBuilder from './components/SpriteAnimationConditionBuilder';
+import SpriteTriggerPicker from './components/SpriteTriggerPicker';
 
 // 三段预览阶段
 type PreviewPhase = 'idle' | 'intro' | 'loop' | 'outro';
@@ -91,9 +84,17 @@ export interface SpriteVideoConfig {
   padding: number;
   movement: SpriteMovementConfig;
   autoIdle: boolean;
-  eventType?: string;
+  condition?: SpriteAnimationCondition;
+  primaryTrigger?: SpriteAnimationTrigger;
+  triggerAliases?: SpriteAnimationTrigger[];
+  priority?: number;
   title?: string;
 }
+
+type SpriteVideoConfigInput = Partial<SpriteVideoConfig> & {
+  /** 兼容旧输入，等价于 primaryTrigger */
+  eventType?: SpriteAnimationTrigger;
+};
 
 // 将文件路径转换为 res:// 协议URL
 function pathToResUrl(filePath: string): string {
@@ -130,7 +131,7 @@ function getEdgeAwareTransform(percent: number): string {
 const SPEED_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
 
 // 片段倍速选择行
-function SpeedRow({ label, color, originalDuration, speed, onChange }: { label: string; color: string; originalDuration: number; speed: number; onChange: (speed: number) => void }) {
+function SpeedRow({ label, color, originalDuration, speed, onChange }: { label: string; color: string; originalDuration: number; speed: number; onChange: (speed: number) => void }): JSX.Element {
   const adjusted = originalDuration > 0 ? originalDuration / speed : 0;
   return (
     <div className="flex items-center gap-2">
@@ -162,14 +163,16 @@ function getMarkerOpacity(markerKey: keyof SegmentMarkers, draggingMarker: keyof
 }
 
 interface SpriteVideoEditorProps {
-  initialConfig?: Partial<SpriteVideoConfig>;
+  actionChoreographyCapability?: SpriteCapabilityState | null;
+  initialConfig?: SpriteVideoConfigInput;
   onConfigChange?: (config: SpriteVideoConfig) => void;
+  onCapabilityBlocked?: (capability: SpriteCapabilityState) => void;
   onProcess?: (config: SpriteVideoConfig) => Promise<void>;
   onImportComplete?: () => void;
   isProcessing?: boolean;
 }
 
-export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, onImportComplete, isProcessing }: SpriteVideoEditorProps): JSX.Element {
+export function SpriteVideoEditor({ actionChoreographyCapability, initialConfig, onConfigChange, onCapabilityBlocked, onProcess, onImportComplete, isProcessing }: SpriteVideoEditorProps): JSX.Element {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -201,7 +204,10 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
   const [playbackScale, setPlaybackScale] = useState<number>(normalizePlaybackScale(initialConfig?.playbackScale));
 
   // 元数据
-  const [eventType, setEventType] = useState<string>(initialConfig?.eventType || '');
+  const [primaryTrigger, setPrimaryTrigger] = useState<SpriteAnimationTrigger | ''>(initialConfig?.primaryTrigger || initialConfig?.eventType || '');
+  const [triggerAliasesInput, setTriggerAliasesInput] = useState<string>(formatSpriteTriggerAliasesInput(initialConfig?.triggerAliases));
+  const [priorityInput, setPriorityInput] = useState<string>(initialConfig?.priority !== undefined ? String(initialConfig.priority) : '');
+  const [conditionInput, setConditionInput] = useState<string>(formatSpriteAnimationConditionInput(initialConfig?.condition));
   const [title, setTitle] = useState<string>(initialConfig?.title || '');
 
   // 窗口移动配置
@@ -231,6 +237,18 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
   const [internalProcessing, setInternalProcessing] = useState(false);
   const [processProgress, setProcessProgress] = useState(0);
   const processingFlag = isProcessing || internalProcessing;
+  const canAuthorAnimations = actionChoreographyCapability?.status !== 'locked';
+  const parsedCondition = useMemo(() => parseSpriteAnimationConditionInput(conditionInput), [conditionInput]);
+  const animationMeta = useMemo(
+    () =>
+      createSpriteAnimationMetaDraft({
+        conditionInput,
+        primaryTrigger,
+        triggerAliasesInput,
+        priority: priorityInput
+      }),
+    [conditionInput, primaryTrigger, priorityInput, triggerAliasesInput]
+  );
 
   // 时间轴悬停状态（用于添加循环片段）
   const [hoverPosition, setHoverPosition] = useState<number | null>(null);
@@ -281,11 +299,14 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
         padding,
         movement,
         autoIdle,
-        eventType,
+        condition: animationMeta.condition,
+        primaryTrigger: animationMeta.primaryTrigger,
+        triggerAliases: animationMeta.triggerAliases,
+        priority: animationMeta.priority,
         title
       });
     }
-  }, [inputPath, segments, chromaKey, speeds, output, playbackScale, padding, movement, autoIdle, eventType, title, onConfigChange]);
+  }, [inputPath, segments, chromaKey, speeds, output, playbackScale, padding, movement, autoIdle, animationMeta, title, onConfigChange]);
 
   // 视频加载完成
   const handleLoadedMetadata = useCallback(() => {
@@ -401,7 +422,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
 
     let animationId: number;
     let lastTime = -1;
-    const draw = () => {
+    const draw = (): void => {
       // 总是绘制（含暂停帧），但跳过重复帧
       const t = video.currentTime;
       if (t !== lastTime || lastTime < 0) {
@@ -469,7 +490,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
     video.play().catch(() => {});
     setIsPlaying(true);
 
-    const checkLoop = () => {
+    const checkLoop = (): void => {
       if (video.currentTime * 1000 >= segments.loopEnd) {
         video.currentTime = segments.loopStart / 1000;
       }
@@ -506,7 +527,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
     setLoopCount(0);
 
     const MAX_LOOPS = 3;
-    const check = () => {
+    const check = (): void => {
       if (!video || video.paused) {
         stopThreePhasePreview();
         return;
@@ -557,7 +578,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
       e.stopPropagation();
       setDraggingMarker(marker);
 
-      const onMouseMove = (ev: MouseEvent) => {
+      const onMouseMove = (ev: MouseEvent): void => {
         const tl = timelineRef.current;
         if (!tl) return;
         const rect = tl.getBoundingClientRect();
@@ -568,7 +589,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
         seekTo(Math.round(ms));
       };
 
-      const onMouseUp = () => {
+      const onMouseUp = (): void => {
         setDraggingMarker(null);
         window.removeEventListener('mousemove', onMouseMove);
         window.removeEventListener('mouseup', onMouseUp);
@@ -592,7 +613,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
     setOutput({ ...DEFAULT_OUTPUT });
     setPlaybackScale(DEFAULT_PLAYBACK_SCALE);
     setTitle('');
-    setEventType('');
+    setPrimaryTrigger('');
     setMovement({ ...DEFAULT_MOVEMENT });
     setPadding(DEFAULT_PADDING);
   }, [stopThreePhasePreview]);
@@ -660,7 +681,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
       video.playbackRate = speeds.intro;
       video.play().catch(reject);
 
-      const drawFrame = () => {
+      const drawFrame = (): void => {
         const currentMs = video.currentTime * 1000;
 
         // 根据当前位置动态调整倍速
@@ -716,6 +737,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
   // 处理并导入精灵动画
   const handleImport = useCallback(async () => {
     if (!inputPath || processingFlag) return;
+    if (!ensureSpriteCapabilityAccessible(actionChoreographyCapability, onCapabilityBlocked)) return;
     stopThreePhasePreview();
     setInternalProcessing(true);
     setProcessProgress(0);
@@ -742,7 +764,10 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
           meta: {
             id,
             title: title || '自定义动画',
-            eventType: (eventType as any) || undefined
+            primaryTrigger: animationMeta.primaryTrigger,
+            triggerAliases: animationMeta.triggerAliases,
+            priority: animationMeta.priority,
+            condition: animationMeta.condition
           },
           loopStartMs: adjustedLoopStart,
           loopEndMs: adjustedLoopEnd,
@@ -756,7 +781,22 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
       } else {
         // FFmpeg 路径：裁剪 + 倍速 + 转码 WebM VP9
         if (onProcess) {
-          await onProcess({ inputPath, segments, chromaKey, speeds, output, playbackScale, padding, movement, autoIdle, eventType, title });
+          await onProcess({
+            inputPath,
+            segments,
+            chromaKey,
+            speeds,
+            output,
+            playbackScale,
+            padding,
+            movement,
+            autoIdle,
+            condition: animationMeta.condition,
+            primaryTrigger: animationMeta.primaryTrigger,
+            triggerAliases: animationMeta.triggerAliases,
+            priority: animationMeta.priority,
+            title
+          });
           return; // onProcess 负责后续流程
         }
         // Fallback: 直接调用 FFmpeg + 注册
@@ -767,7 +807,14 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
           segments,
           speeds,
           output,
-          chromaKey: { enabled: false, color: '#00ff00', similarity: 0, blend: 0 }
+          chromaKey: { enabled: false, color: '#00ff00', similarity: 0, blend: 0 },
+          meta: {
+            title: title || '自定义动画',
+            primaryTrigger: animationMeta.primaryTrigger,
+            triggerAliases: animationMeta.triggerAliases,
+            priority: animationMeta.priority,
+            condition: animationMeta.condition
+          }
         });
         await window.YUA.sprite.register({
           filePath: outputPath,
@@ -782,7 +829,10 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
           meta: {
             id,
             title: title || '自定义动画',
-            eventType: (eventType as any) || undefined
+            primaryTrigger: animationMeta.primaryTrigger,
+            triggerAliases: animationMeta.triggerAliases,
+            priority: animationMeta.priority,
+            condition: animationMeta.condition
           }
         });
       }
@@ -801,7 +851,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
     speeds,
     output,
     chromaKey,
-    eventType,
+    animationMeta,
     title,
     hasLoop,
     padding,
@@ -810,8 +860,10 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
     playbackWidth,
     playbackHeight,
     autoIdle,
+    actionChoreographyCapability,
     stopThreePhasePreview,
     recordCanvasWithChromaKey,
+    onCapabilityBlocked,
     onProcess,
     onImportComplete
   ]);
@@ -1542,45 +1594,49 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
         )}
       </div>
       {/* 处理按钮 */}
-      <div className="flex items-center w-full gap-2 border-t pt-4">
+      <div className="flex w-full flex-col gap-3 border-t pt-4">
+        <SpriteCapabilityLockedNotice capability={actionChoreographyCapability} hint="动作编排尚未解锁时，可以调整参数和预览素材，但不能把视频导入为精灵动画。" />
         {inputPath && (
           <>
-            <div className="flex items-center gap-2 rounded-md border px-3 py-2 shrink-0">
-              <Switch checked={autoIdle} onCheckedChange={setAutoIdle} />
-              <div className="leading-tight">
-                <div className="text-xs font-medium">播完回到 Idle</div>
-                <div className="text-[10px] text-muted-foreground">默认开启，关闭后会停在动画结尾</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2 rounded-md border px-3 py-2 shrink-0">
+                <Switch checked={autoIdle} onCheckedChange={setAutoIdle} />
+                <div className="leading-tight">
+                  <div className="text-xs font-medium">播完回到 Idle</div>
+                  <div className="text-[10px] text-muted-foreground">默认开启，关闭后会停在动画结尾</div>
+                </div>
+              </div>
+              <Input className="min-w-[220px] flex-1" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="动画名称" />
+              <SpriteTriggerPicker value={primaryTrigger} onChange={setPrimaryTrigger} buttonClassName="w-[240px]" emptyLabel="未分类" />
+              <Button variant="default" onClick={handleImport} disabled={!canAuthorAnimations || processingFlag || !inputPath || !!parsedCondition.error}>
+                {processingFlag ? (chromaKey.enabled ? `录制中… ${Math.round(processProgress * 100)}%` : '处理中…') : chromaKey.enabled ? '录制并导入' : '转码并导入'}
+              </Button>
+            </div>
+            <div className="space-y-2 rounded-md border border-dashed px-3 py-3">
+              <div className="grid gap-2 md:grid-cols-[1fr_120px]">
+                <div className="min-w-0">
+                  <Label className="mb-1.5 block text-[11px] font-medium text-muted-foreground">别名 Trigger</Label>
+                  <Input
+                    value={triggerAliasesInput}
+                    onChange={(e) => setTriggerAliasesInput(e.target.value)}
+                    placeholder="多个 trigger 用逗号或换行分隔，例如 workflow:complete, persona:daily-login"
+                    className="h-8"
+                  />
+                  <div className="mt-1 text-[10px] text-muted-foreground">
+                    实际命中：
+                    {[animationMeta.primaryTrigger, ...(animationMeta.triggerAliases ?? [])].filter(Boolean).join(', ') || '未设置'}
+                  </div>
+                </div>
+                <div className="shrink-0">
+                  <Label className="mb-1.5 block text-[11px] font-medium text-muted-foreground">优先级</Label>
+                  <Input type="number" step="1" value={priorityInput} onChange={(e) => setPriorityInput(e.target.value)} placeholder="0" className="h-8 text-center" />
+                  <div className="mt-1 text-[10px] text-muted-foreground text-center">默认 0</div>
+                </div>
+              </div>
+              <div className="min-w-0">
+                <SpriteAnimationConditionBuilder conditionInput={conditionInput} onChange={setConditionInput} />
               </div>
             </div>
-            <Input className="flex-1" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="动画名称" />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline">
-                  {eventType || '选择分类…'}
-                  <ChevronsUpDown />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="max-h-[400px] overflow-y-auto">
-                <DropdownMenuItem onClick={() => setEventType('')}>未分类</DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>动画事件</DropdownMenuLabel>
-                {Object.entries(SpriteEventGroups).map(([group, items]) => (
-                  <DropdownMenuSub key={group}>
-                    <DropdownMenuSubTrigger>{group}</DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                      {items.map((ev) => (
-                        <DropdownMenuItem key={ev} onClick={() => setEventType(ev)}>
-                          {ev}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button variant="default" onClick={handleImport} disabled={processingFlag || !inputPath}>
-              {processingFlag ? (chromaKey.enabled ? `录制中… ${Math.round(processProgress * 100)}%` : '处理中…') : chromaKey.enabled ? '录制并导入' : '转码并导入'}
-            </Button>
           </>
         )}
       </div>

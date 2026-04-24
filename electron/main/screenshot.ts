@@ -10,6 +10,7 @@ import { BrowserWindow, desktopCapturer, dialog, ipcMain, screen, shell, systemP
 import pkg from '../../package.json';
 import { eventManager } from '../../packages/event';
 import { AppEvent } from '../../packages/event/events';
+import { assertSpriteCapabilityUnlocked } from '../../packages/sprite-core/capability-runtime';
 import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from './db/repositories';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -50,6 +51,8 @@ export class ScreenshotManager {
   }
 
   async start(): Promise<void> {
+    assertSpriteCapabilityUnlocked('screenshot');
+
     if (this.windows.length > 0) {
       this.windows.forEach((w) => w.focus());
       return;
@@ -199,6 +202,8 @@ export class ScreenshotManager {
 
   async save(dataURL: string): Promise<string> {
     try {
+      assertSpriteCapabilityUnlocked('screenshot');
+
       const base64Data = dataURL.replace(/^data:image\/png;base64,/, '');
       const buffer = Buffer.from(base64Data, 'base64');
 
@@ -248,6 +253,9 @@ export class ScreenshotManager {
 
       return filePath;
     } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Sprite capability locked:')) {
+        throw error;
+      }
       console.error('Failed to save screenshot:', error);
       throw error;
     } finally {

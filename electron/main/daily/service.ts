@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
 import dayjs from 'dayjs';
-import { powerMonitor } from 'electron';
+import { BrowserWindow, powerMonitor } from 'electron';
 
 import { type AppNoticeLevel, sendAppNotice } from '../../../packages/event';
+import { notifySpriteCapabilityChanged } from '../../../packages/sprite-core/handler/capability-events';
 import { DEFAULT_ROUTINES } from './constants';
 import { loadDailyCareState, saveDailyCareState } from './storage';
 import type {
@@ -21,6 +22,7 @@ import type {
   UpdateSettingsPayload,
   WindowResolver
 } from './types';
+import { DAILY_CARE_SNAPSHOT_UPDATED_CHANNEL } from './types';
 
 // === 调度基础常量 ===
 const MINUTE = 30 * 1000;
@@ -84,6 +86,7 @@ export class DailyCareService {
    * 更新全局/例程设置（启停、间隔等）
    */
   updateSettings(payload: UpdateSettingsPayload): DailyCareSnapshot {
+    const previousEnabled = this.state.enabled;
     if (typeof payload.enabled === 'boolean') {
       this.state.enabled = payload.enabled;
     }
@@ -98,7 +101,12 @@ export class DailyCareService {
     }
     saveDailyCareState(this.state);
     this.rebuildRuntimes();
-    return this.getSnapshot();
+    const snapshot = this.getSnapshot();
+    this.broadcastSnapshot(snapshot, {
+      capabilityChanged: previousEnabled !== this.state.enabled,
+      source: 'dailyCare.settings'
+    });
+    return snapshot;
   }
 
   /**
@@ -120,7 +128,9 @@ export class DailyCareService {
     }
     saveDailyCareState(this.state);
     this.rebuildRuntimes();
-    return { reminder: normalized, snapshot: this.getSnapshot() };
+    const snapshot = this.getSnapshot();
+    this.broadcastSnapshot(snapshot, { source: 'dailyCare.reminder' });
+    return { reminder: normalized, snapshot };
   }
 
   /**
@@ -131,7 +141,9 @@ export class DailyCareService {
     delete this.state.routines[`custom:${id}`];
     saveDailyCareState(this.state);
     this.rebuildRuntimes();
-    return this.getSnapshot();
+    const snapshot = this.getSnapshot();
+    this.broadcastSnapshot(snapshot, { source: 'dailyCare.reminder' });
+    return snapshot;
   }
 
   /**
@@ -174,6 +186,7 @@ export class DailyCareService {
         snoozedUntil: runtime.state.snoozedUntil
       };
       saveDailyCareState(this.state);
+      this.broadcastSnapshot(undefined, { source: 'dailyCare.snooze' });
       // 如果是常驻消息，清除常驻状态
       if (this.currentPersistentRoutineId === routineId) {
         this.currentPersistentRoutineId = null;
@@ -340,6 +353,22 @@ export class DailyCareService {
       lastTriggeredOn: runtime.state.lastTriggeredOn
     };
     saveDailyCareState(this.state);
+    this.broadcastSnapshot(undefined, { source: 'dailyCare.tick' });
+  }
+
+  private broadcastSnapshot(snapshot = this.getSnapshot(), options?: { capabilityChanged?: boolean; source?: string }): void {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win || win.isDestroyed()) continue;
+      try {
+        win.webContents.send(DAILY_CARE_SNAPSHOT_UPDATED_CHANNEL, snapshot);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    if (options?.capabilityChanged) {
+      notifySpriteCapabilityChanged({ source: options.source ?? 'dailyCare' });
+    }
   }
 
   /**

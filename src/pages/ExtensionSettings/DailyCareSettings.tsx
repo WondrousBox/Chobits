@@ -1,9 +1,11 @@
 import type { CustomReminderInput, DailyCareRoutineSnapshot, DailyCareSnapshot } from '@main/daily/types';
+import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
 import dayjs from 'dayjs';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { TbCalendarEvent, TbHeartbeat, TbRefresh, TbTrash, TbWand } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
+import { SpriteCapabilityLockedNotice, ensureSpriteCapabilityAccessible, type SpriteCapabilityGuardOptions } from '@/features/sprite-assistant/capability-ui';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -49,7 +51,7 @@ const formatLastTriggered = (label?: string | null): string => {
 };
 
 /* ─── Hook ─── */
-export function useDailyCareSettings() {
+export function useDailyCareSettings(options?: SpriteCapabilityGuardOptions) {
   const bridge = window.YUA.dailyCare;
   const [snapshot, setSnapshot] = useState<DailyCareSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
@@ -73,6 +75,19 @@ export function useDailyCareSettings() {
     fetchSnapshot();
   }, [fetchSnapshot]);
 
+  useEffect(() => {
+    const handleSnapshotUpdated = (): void => {
+      void fetchSnapshot();
+    };
+
+    if (!bridge?.onSnapshotUpdated) return;
+
+    const unsubscribe = bridge.onSnapshotUpdated(handleSnapshotUpdated);
+    return () => {
+      unsubscribe();
+    };
+  }, [bridge, fetchSnapshot]);
+
   const groupedRoutines = useMemo(() => {
     const buckets: Record<'core' | 'seasonal' | 'custom', DailyCareRoutineSnapshot[]> = {
       core: [],
@@ -94,6 +109,9 @@ export function useDailyCareSettings() {
   const enabled = snapshot?.enabled ?? false;
 
   const handleToggleGlobal = async (nextEnabled: boolean): Promise<void> => {
+    if (nextEnabled && !ensureSpriteCapabilityAccessible(options?.capability, options?.onBlocked)) {
+      return;
+    }
     if (!bridge) return;
     setGlobalPending(true);
     try {
@@ -103,10 +121,14 @@ export function useDailyCareSettings() {
       console.warn('[daily-care] failed to update global toggle', error);
     } finally {
       setGlobalPending(false);
+      await options?.afterChange?.();
     }
   };
 
   const handleRoutineToggle = async (id: string, nextEnabled: boolean): Promise<void> => {
+    if (nextEnabled && !ensureSpriteCapabilityAccessible(options?.capability, options?.onBlocked)) {
+      return;
+    }
     if (!bridge) return;
     setRoutinePendingId(id);
     try {
@@ -118,23 +140,33 @@ export function useDailyCareSettings() {
       console.warn('[daily-care] failed to toggle routine', error);
     } finally {
       setRoutinePendingId(null);
+      await options?.afterChange?.();
     }
   };
 
   const submitReminder = async (payload: CustomReminderInput): Promise<void> => {
+    if (!ensureSpriteCapabilityAccessible(options?.capability, options?.onBlocked)) {
+      return;
+    }
     if (!bridge) return;
     const { snapshot: nextSnapshot } = await bridge['dailyCare:upsertCustomReminder'](payload);
     setSnapshot(nextSnapshot);
+    await options?.afterChange?.();
   };
 
   const removeReminder = async (id: string): Promise<void> => {
+    if (!ensureSpriteCapabilityAccessible(options?.capability, options?.onBlocked)) {
+      return;
+    }
     if (!bridge) return;
     const next = await bridge['dailyCare:removeCustomReminder'](id);
     setSnapshot(next);
+    await options?.afterChange?.();
   };
 
   return {
     bridge,
+    capability: options?.capability ?? null,
     snapshot,
     loading,
     enabled,
@@ -154,10 +186,14 @@ export type DailyCareSettingsState = ReturnType<typeof useDailyCareSettings>;
 /* ─── Left-panel item ─── */
 export const DailyCareItem: React.FC<{
   state: DailyCareSettingsState;
+  capability?: SpriteCapabilityState | null;
   selected: boolean;
   onSelect: () => void;
-}> = ({ state, selected, onSelect }) => (
-  <div onClick={onSelect} className={cn('flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors hover:bg-accent/50', selected && 'bg-accent ring-1 ring-primary/30')}>
+}> = ({ state, capability, selected, onSelect }) => (
+  <div
+    onClick={onSelect}
+    className={cn('flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors hover:bg-accent/50', selected && 'bg-accent ring-1 ring-primary/30', capability?.status === 'locked' && 'opacity-70')}
+  >
     <div className={cn('flex h-10 w-10 items-center justify-center rounded-full shrink-0 transition-colors', state.enabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')}>
       <TbHeartbeat className="h-5 w-5" />
     </div>
@@ -166,16 +202,20 @@ export const DailyCareItem: React.FC<{
       <div className="text-xs text-muted-foreground line-clamp-1">健康提醒、节日彩蛋、自定义提醒。</div>
     </div>
     <div onClick={(e) => e.stopPropagation()}>
-      <Switch checked={state.enabled} onCheckedChange={state.handleToggleGlobal} disabled={state.globalPending} />
+      <Switch checked={state.enabled} onCheckedChange={state.handleToggleGlobal} disabled={state.globalPending || capability?.status === 'locked'} />
     </div>
   </div>
 );
 
 /* ─── Right-panel detail ─── */
-export const DailyCareDetailContent: React.FC<{ state: DailyCareSettingsState }> = ({ state }) => {
+export const DailyCareDetailContent: React.FC<{ state: DailyCareSettingsState; capability?: SpriteCapabilityState | null }> = ({ state, capability }) => {
   const { snapshot, loading, enabled, groupedRoutines, routinePendingId, handleRoutineToggle, submitReminder, removeReminder, fetchSnapshot, bridge } = state;
   const [formState, setFormState] = useState<ReminderFormState>(getDefaultForm);
   const [formPending, setFormPending] = useState(false);
+
+  if (capability?.status === 'locked') {
+    return <SpriteCapabilityLockedNotice capability={capability} hint="日常关心入口现在走 capability runtime，解锁后才允许真正启用提醒和自定义例程。" />;
+  }
 
   if (!bridge) {
     return <div className="rounded-xl border border-dashed border-amber-500/70 bg-amber-500/10 px-4 py-6 text-sm text-amber-900">当前版本暂未启用日常关心模块。请更新客户端或联系开发者。</div>;
@@ -353,9 +393,9 @@ export const DailyCareDetailContent: React.FC<{ state: DailyCareSettingsState }>
 };
 
 /* ─── Default: self-contained detail (for SkillDetailPanel) ─── */
-const DailyCareSettings: React.FC = () => {
-  const state = useDailyCareSettings();
-  return <DailyCareDetailContent state={state} />;
+const DailyCareSettings: React.FC<{ capability?: SpriteCapabilityState | null }> = ({ capability }) => {
+  const state = useDailyCareSettings({ capability });
+  return <DailyCareDetailContent state={state} capability={capability} />;
 };
 
 export default DailyCareSettings;
