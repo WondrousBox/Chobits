@@ -1,0 +1,358 @@
+import type { SpritePurpose, SpriteRoutine, SpriteRoutineStep, StartSpritePurposeRequest } from './types';
+
+export interface SpriteRoutinePresetDefinition {
+  id: string;
+  title: string;
+  purposeKind: string;
+  defaultPriority: number;
+  steps: SpriteRoutineStep[] | ((purpose: SpritePurpose) => SpriteRoutineStep[]);
+}
+
+function createRestReminderSteps(): SpriteRoutineStep[] {
+  return [
+    { id: 'go-center', type: 'walkTo', target: 'center', speed: 120, timeoutMs: 8000 },
+    { id: 'wave', type: 'playAnimation', trigger: 'wave', durationMs: 1200, waitFor: 'duration', silent: true },
+    { id: 'speak', type: 'speak', text: '差不多该休息一下了。', bubbleDuration: 3600 },
+    { id: 'pause', type: 'wait', durationMs: 800 },
+    { id: 'tired', type: 'playAnimation', trigger: 'tired', durationMs: 1800, waitFor: 'duration', silent: true },
+    { id: 'return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
+  ];
+}
+
+function createIdlePresenceSteps(): SpriteRoutineStep[] {
+  return [];
+}
+
+function createFileDropInviteSteps(): SpriteRoutineStep[] {
+  return [
+    { id: 'invite-go-center', type: 'walkTo', target: 'center', speed: 130, timeoutMs: 8000 },
+    { id: 'invite-ready', type: 'playAnimation', trigger: 'fileDragOver', durationMs: 900, waitFor: 'duration', silent: true },
+    {
+      id: 'wait-file-drop-or-leave',
+      type: 'loopUntil',
+      source: 'sprite-event-bus',
+      untilEvent: ['interact:file-drop', 'interact:file-drag-leave'],
+      maxDurationMs: 2 * 60 * 1000,
+      assignTo: 'dragResult',
+      body: [{ id: 'invite-wait-pulse', type: 'playAnimation', trigger: 'thinking', durationMs: 1200, waitFor: 'duration', silent: true }]
+    },
+    {
+      id: 'drag-result-branch',
+      type: 'branch',
+      by: 'dragResult.event.event',
+      cases: {
+        'interact:file-drag-leave': [
+          { id: 'invite-cancelled', type: 'playAnimation', trigger: 'confused', durationMs: 900, waitFor: 'duration', silent: true },
+          { id: 'invite-return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
+        ],
+        'interact:file-drop': [{ id: 'invite-drop-settle', type: 'wait', durationMs: 120 }]
+      },
+      default: [{ id: 'invite-default-return', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }]
+    }
+  ];
+}
+
+function getRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : undefined;
+}
+
+function createFileActionsMenuPayload(purpose: SpritePurpose): Record<string, unknown> {
+  const payload = getRecord(purpose.context?.fileActionsMenuPayload);
+  if (payload) {
+    return {
+      ...payload,
+      correlationId: purpose.correlationId ?? payload.correlationId
+    };
+  }
+
+  return {
+    files: Array.isArray(purpose.context?.files) ? purpose.context.files : [],
+    resources: Array.isArray(purpose.context?.resources) ? purpose.context.resources : [],
+    source: 'drop',
+    correlationId: purpose.correlationId
+  };
+}
+
+function createFileDropIntakeSteps(purpose: SpritePurpose): SpriteRoutineStep[] {
+  const match = purpose.correlationId ? { correlationId: purpose.correlationId } : undefined;
+  return [
+    { id: 'ack-drop', type: 'playAnimation', trigger: 'fileDrop', durationMs: 900, waitFor: 'duration', silent: true },
+    { id: 'thinking', type: 'playAnimation', trigger: 'thinking', durationMs: 1200, waitFor: 'duration', silent: true },
+    { id: 'prompt-action', type: 'showToast', content: '要怎么处理这个文件？', category: 'question', duration: 2600 },
+    { id: 'open-file-actions-menu', type: 'openWindow', window: 'fileActionsMenu', payload: createFileActionsMenuPayload(purpose), timeoutMs: 10000 },
+    { id: 'wait-menu-result', type: 'waitForEvent', source: 'purpose-event', event: 'fileAction:resolved', match, timeoutMs: 5 * 60 * 1000, assignTo: 'menuResult' },
+    {
+      id: 'result-branch',
+      type: 'branch',
+      by: 'menuResult.payload.outcome',
+      cases: {
+        selected: [
+          { id: 'selected-success', type: 'playAnimation', trigger: 'success', durationMs: 1200, waitFor: 'duration', silent: true },
+          { id: 'selected-toast', type: 'showToast', content: '交给我吧。', category: 'success', duration: 1800 }
+        ],
+        cancelled: [
+          { id: 'cancelled-confused', type: 'playAnimation', trigger: 'confused', durationMs: 1200, waitFor: 'duration', silent: true },
+          { id: 'cancelled-toast', type: 'showToast', content: '那我先不打扰你。', category: 'cancellation', duration: 1800 }
+        ],
+        failed: [
+          { id: 'failed-reaction', type: 'playAnimation', trigger: 'failure', durationMs: 1200, waitFor: 'duration', silent: true },
+          { id: 'failed-toast', type: 'showToast', content: '这里好像没处理成功。', category: 'failure', duration: 2200 }
+        ]
+      },
+      default: [{ id: 'default-done', type: 'playAnimation', trigger: 'success', durationMs: 900, waitFor: 'duration', silent: true }]
+    },
+    { id: 'return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
+  ];
+}
+
+function getPurposeContextString(purpose: SpritePurpose, key: string): string | undefined {
+  const value = purpose.context?.[key];
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function createWorkflowWaitingSteps(purpose: SpritePurpose): SpriteRoutineStep[] {
+  const workflowRunId = getPurposeContextString(purpose, 'workflowRunId') ?? getPurposeContextString(purpose, 'runId');
+  const workflowName = getPurposeContextString(purpose, 'workflowName') ?? '工作流';
+  const match = workflowRunId ? { runId: workflowRunId } : undefined;
+  return [
+    { id: 'busy-start', type: 'showBusy', content: `正在处理：${workflowName}`, progress: 0 },
+    {
+      id: 'wait-workflow-terminal',
+      type: 'loopUntil',
+      source: 'app-event',
+      untilEvent: ['SPRITE_WORKFLOW_COMPLETE', 'SPRITE_WORKFLOW_FAIL', 'SPRITE_WORKFLOW_CANCEL'],
+      match,
+      maxDurationMs: 30 * 60 * 1000,
+      assignTo: 'workflowResult',
+      body: [
+        {
+          id: 'wait-workflow-progress',
+          type: 'waitForEvent',
+          source: 'app-event',
+          event: 'SPRITE_WORKFLOW_PROGRESS',
+          match,
+          timeoutMs: 2500,
+          assignTo: 'workflowProgress',
+          optional: true,
+          ignoreHistory: true
+        },
+        {
+          id: 'busy-progress',
+          type: 'updateBusy',
+          progressFrom: 'workflowProgress.payload.progress',
+          contentFrom: 'workflowProgress.payload.message'
+        },
+        { id: 'waiting-thinking', type: 'playAnimation', trigger: 'thinking', durationMs: 2400, waitFor: 'duration', silent: true },
+        { id: 'waiting-pause', type: 'wait', durationMs: 5000 },
+        { id: 'waiting-speak', type: 'speak', text: `我还在等 ${workflowName} 完成。`, bubbleDuration: 2400, cooldownKey: 'workflow.waiting.progress', cooldownMs: 60_000 }
+      ]
+    },
+    { id: 'busy-clear', type: 'clearBusy' },
+    {
+      id: 'workflow-result-branch',
+      type: 'branch',
+      by: 'workflowResult.event.event',
+      cases: {
+        SPRITE_WORKFLOW_COMPLETE: [
+          { id: 'workflow-success', type: 'playAnimation', trigger: 'success', durationMs: 1500, waitFor: 'duration', silent: true },
+          { id: 'workflow-success-toast', type: 'showToast', content: '处理完成了。', category: 'success', duration: 2200 }
+        ],
+        SPRITE_WORKFLOW_FAIL: [
+          { id: 'workflow-failure', type: 'playAnimation', trigger: 'failure', durationMs: 1500, waitFor: 'duration', silent: true },
+          { id: 'workflow-failure-toast', type: 'showToast', content: '处理失败了，我把状态收起来了。', category: 'failure', duration: 2600 }
+        ],
+        SPRITE_WORKFLOW_CANCEL: [
+          { id: 'workflow-cancelled', type: 'playAnimation', trigger: 'confused', durationMs: 1200, waitFor: 'duration', silent: true },
+          { id: 'workflow-cancelled-toast', type: 'showToast', content: '任务已经取消。', category: 'cancellation', duration: 2200 }
+        ]
+      },
+      default: [{ id: 'workflow-default', type: 'playAnimation', trigger: 'success', durationMs: 1000, waitFor: 'duration', silent: true }]
+    },
+    { id: 'return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
+  ];
+}
+
+function createResourceImportWaitingSteps(purpose: SpritePurpose): SpriteRoutineStep[] {
+  const resourceId = getPurposeContextString(purpose, 'resourceId');
+  const workspaceId = getPurposeContextString(purpose, 'workspaceId');
+  const folderId = getPurposeContextString(purpose, 'folderId');
+  const match: Record<string, unknown> = {};
+  if (resourceId) match.resourceId = resourceId;
+  if (workspaceId) match.workspaceId = workspaceId;
+  if (folderId) match.folderId = folderId;
+  const effectiveMatch = Object.keys(match).length > 0 ? match : undefined;
+
+  return [
+    { id: 'busy-start', type: 'showBusy', content: '正在导入资源', progress: 0 },
+    {
+      id: 'wait-resource-terminal',
+      type: 'loopUntil',
+      source: 'app-event',
+      untilEvent: ['SPRITE_RESOURCE_IMPORT_COMPLETE', 'SPRITE_RESOURCE_IMPORT_ERROR'],
+      match: effectiveMatch,
+      maxDurationMs: 30 * 60 * 1000,
+      assignTo: 'resourceResult',
+      body: [
+        {
+          id: 'wait-resource-progress',
+          type: 'waitForEvent',
+          source: 'app-event',
+          event: 'SPRITE_RESOURCE_IMPORT_PROGRESS',
+          match: effectiveMatch,
+          timeoutMs: 2500,
+          assignTo: 'resourceProgress',
+          optional: true,
+          ignoreHistory: true
+        },
+        {
+          id: 'busy-progress',
+          type: 'updateBusy',
+          progressFrom: 'resourceProgress.payload.progress',
+          contentFrom: 'resourceProgress.payload.message'
+        },
+        { id: 'import-loading', type: 'playAnimation', trigger: 'loading', durationMs: 1800, waitFor: 'duration', silent: true },
+        { id: 'import-pause', type: 'wait', durationMs: 3500 }
+      ]
+    },
+    { id: 'busy-clear', type: 'clearBusy' },
+    {
+      id: 'resource-result-branch',
+      type: 'branch',
+      by: 'resourceResult.event.event',
+      cases: {
+        SPRITE_RESOURCE_IMPORT_COMPLETE: [
+          { id: 'resource-success', type: 'playAnimation', trigger: 'success', durationMs: 1400, waitFor: 'duration', silent: true },
+          { id: 'resource-success-toast', type: 'showToast', content: '资源导入完成。', category: 'success', duration: 1800 }
+        ],
+        SPRITE_RESOURCE_IMPORT_ERROR: [
+          { id: 'resource-error', type: 'playAnimation', trigger: 'error', durationMs: 1400, waitFor: 'duration', silent: true },
+          { id: 'resource-error-toast', type: 'showToast', content: '资源导入失败了。', category: 'error', duration: 2200 }
+        ]
+      },
+      default: [{ id: 'resource-default', type: 'playAnimation', trigger: 'success', durationMs: 1000, waitFor: 'duration', silent: true }]
+    },
+    { id: 'return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
+  ];
+}
+
+function getDailyCareReminderTrigger(purpose: SpritePurpose): string {
+  const routineKind = getPurposeContextString(purpose, 'routineKind');
+  const severity = getPurposeContextString(purpose, 'severity');
+  if (severity === 'urgent' || severity === 'warning' || routineKind === 'nightGuard') {
+    return 'tired';
+  }
+  if (routineKind === 'vision') {
+    return 'thinking';
+  }
+  return 'wave';
+}
+
+function createDailyCareReminderSteps(purpose: SpritePurpose): SpriteRoutineStep[] {
+  const message = getPurposeContextString(purpose, 'message') ?? purpose.reason;
+  const routineId = getPurposeContextString(purpose, 'routineId') ?? purpose.kind;
+  return [
+    { id: 'care-attention', type: 'playAnimation', trigger: getDailyCareReminderTrigger(purpose), durationMs: 1200, waitFor: 'duration', silent: true },
+    { id: 'care-speak', type: 'speak', text: message, bubbleDuration: 3200, cooldownKey: `daily.care.${routineId}`, cooldownMs: 10 * 60 * 1000 },
+    { id: 'care-settle', type: 'wait', durationMs: 300 }
+  ];
+}
+
+export const DEFAULT_SPRITE_ROUTINE_PRESETS: SpriteRoutinePresetDefinition[] = [
+  {
+    id: 'idle.presence',
+    title: '安静陪伴',
+    purposeKind: 'idle.presence',
+    defaultPriority: 10,
+    steps: createIdlePresenceSteps
+  },
+  {
+    id: 'file.drop.intake',
+    title: '文件投递接收',
+    purposeKind: 'file.drop.intake',
+    defaultPriority: 100,
+    steps: createFileDropIntakeSteps
+  },
+  {
+    id: 'file.drop.invite',
+    title: '文件投递等待',
+    purposeKind: 'file.drop.invite',
+    defaultPriority: 85,
+    steps: createFileDropInviteSteps
+  },
+  {
+    id: 'daily.rest-reminder',
+    title: '休息提醒',
+    purposeKind: 'daily.rest-reminder',
+    defaultPriority: 60,
+    steps: createRestReminderSteps
+  },
+  {
+    id: 'workflow.waiting',
+    title: '工作流等待',
+    purposeKind: 'workflow.waiting',
+    defaultPriority: 65,
+    steps: createWorkflowWaitingSteps
+  },
+  {
+    id: 'resource.import.waiting',
+    title: '资源导入等待',
+    purposeKind: 'resource.import.waiting',
+    defaultPriority: 65,
+    steps: createResourceImportWaitingSteps
+  },
+  {
+    id: 'daily.care.reminder',
+    title: '日常关怀提醒',
+    purposeKind: 'daily.care.reminder',
+    defaultPriority: 55,
+    steps: createDailyCareReminderSteps
+  }
+];
+
+export class SpriteRoutinePresetRegistry {
+  private presets = new Map<string, SpriteRoutinePresetDefinition>();
+
+  constructor(presets: SpriteRoutinePresetDefinition[] = DEFAULT_SPRITE_ROUTINE_PRESETS) {
+    this.registerAll(presets);
+  }
+
+  register(preset: SpriteRoutinePresetDefinition): void {
+    this.presets.set(preset.id, preset);
+  }
+
+  registerAll(presets: SpriteRoutinePresetDefinition[]): void {
+    for (const preset of presets) {
+      this.register(preset);
+    }
+  }
+
+  get(id: string): SpriteRoutinePresetDefinition | undefined {
+    return this.presets.get(id);
+  }
+
+  findForRequest(request: StartSpritePurposeRequest): SpriteRoutinePresetDefinition | undefined {
+    if (request.presetId) {
+      return this.get(request.presetId);
+    }
+    return Array.from(this.presets.values()).find((preset) => preset.purposeKind === request.kind);
+  }
+
+  createRoutine(purpose: SpritePurpose, preset: SpriteRoutinePresetDefinition, now = Date.now()): SpriteRoutine {
+    const steps = typeof preset.steps === 'function' ? preset.steps(purpose) : preset.steps;
+    return {
+      id: `routine-${purpose.id}`,
+      purposeId: purpose.id,
+      presetId: preset.id,
+      priority: purpose.priority,
+      source: 'preset',
+      status: 'queued',
+      steps: steps.map((step) => ({ ...step })),
+      cursor: 0,
+      createdAt: now
+    };
+  }
+
+  list(): SpriteRoutinePresetDefinition[] {
+    return Array.from(this.presets.values());
+  }
+}

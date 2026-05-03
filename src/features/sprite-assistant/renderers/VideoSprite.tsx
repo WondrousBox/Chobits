@@ -11,7 +11,11 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
   const [driver] = useState(
     () =>
       new VideoSpriteDriver({
-        onAnimationComplete: (animationId, phase) => {
+        onAnimationComplete: (animationId, phase, playId) => {
+          if (playId) {
+            window.YUA.sprite.animComplete(animationId, phase, playId);
+            return;
+          }
           window.YUA.sprite.animComplete(animationId, phase);
         }
       })
@@ -19,6 +23,7 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
 
   // 从 currentAnimation 的 sprite:play 指令提取播放参数
   const animId = currentAnimation?.animationId ?? null;
+  const playId = currentAnimation?.playId ?? null;
   const source = currentAnimation?.source;
   const playback = currentAnimation?.playback;
   const playbackSession = currentAnimation?.playbackSession;
@@ -100,6 +105,7 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
     driver.handleTimeUpdate({
       video: videoRef.current,
       animId,
+      playId,
       playback,
       fallbackIsPlaying: spriteState !== 'idle'
     });
@@ -115,6 +121,7 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
   const handleEnded = (): void => {
     driver.handleEnded({
       animId,
+      playId,
       playback
     });
   };

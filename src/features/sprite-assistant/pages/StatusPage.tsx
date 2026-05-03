@@ -1,10 +1,12 @@
+import type { SpritePurposeDailyRetrospective } from '@packages/sprite-core/purpose';
 import type { PersonaSnapshot } from '@packages/sprite-core/types';
 import React, { useEffect, useState } from 'react';
-import { TbHeartFilled, TbX } from 'react-icons/tb';
+import { TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
 import PersonaStatusPanel from '../ui/PersonaStatusPanel';
+import PurposeRetrospectivePanel from '../ui/PurposeRetrospectivePanel';
 import RadarChart, { RadarDimension } from '../ui/RadarChart';
 
 type RoleProfile = {
@@ -17,13 +19,22 @@ export const StatusPage: React.FC = () => {
   const [role, setRole] = useState<RoleProfile | null>(null);
   const [persona, setPersona] = useState<PersonaSnapshot | null>(null);
   const [dimensions, setDimensions] = useState<RadarDimension[] | null>(null);
+  const [purposeRetrospective, setPurposeRetrospective] = useState<SpritePurposeDailyRetrospective | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
     const load = async (): Promise<void> => {
       try {
-        const [roleRes, personaRes, dimsRes] = await Promise.all([window.YUA.status['status:getRole'](), window.YUA.persona.getState(), window.YUA.persona.getDimensions()]);
+        const [roleRes, personaRes, dimsRes, purposeRes] = await Promise.all([
+          window.YUA.status['status:getRole'](),
+          window.YUA.persona.getState(),
+          window.YUA.persona.getDimensions(),
+          window.YUA.sprite.getPurposeDailyRetrospective({ limit: 4 }).catch((error) => {
+            console.warn('[StatusPage] failed to load purpose retrospective', error);
+            return null;
+          })
+        ]);
 
         if (!mounted) return;
         setRole(roleRes?.role);
@@ -33,6 +44,7 @@ export const StatusPage: React.FC = () => {
         if (dimsRes) {
           setDimensions(dimsRes);
         }
+        setPurposeRetrospective(purposeRes);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -63,6 +75,9 @@ export const StatusPage: React.FC = () => {
 
       {/* 精灵状态面板 */}
       <PersonaStatusPanel persona={persona} />
+
+      {/* 今日目的复盘 */}
+      <PurposeRetrospectivePanel retrospective={purposeRetrospective} />
 
       {/* 维度雷达图 */}
       {dimensions && dimensions.length >= 3 && <RadarChart dimensions={dimensions} className="w-full" />}

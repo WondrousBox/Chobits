@@ -134,4 +134,13 @@ export interface DailyCareSnapshot {
   lastUpdated: number;
 }
 
+export interface DailyCareRoutineDispatch {
+  routine: DailyCareRoutineSnapshot;
+  message: string;
+  manual: boolean;
+  triggeredAt: number;
+}
+
+export type DailyCareRoutineDispatchListener = (event: DailyCareRoutineDispatch) => void | Promise<void>;
+
 export type WindowResolver = () => BrowserWindow | null;

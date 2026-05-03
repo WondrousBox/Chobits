@@ -713,6 +713,165 @@ describe('sprite manager IPC integration', () => {
     });
   });
 
+  it('forwards animation completion playId to SpriteManager', async () => {
+    listSpritesMock.mockResolvedValue([]);
+
+    const { initSpriteManagerIPC } = await import('../packages/sprite-core/handler/sprite-manager-ipc');
+    await initSpriteManagerIPC(windowStub.win as any, { addAllowedResourceRoot: vi.fn() });
+
+    const handleAnimComplete = electronState.handlers.get('sprite:anim-complete') as ((_: unknown, payload: { animId: string; phase: 'full'; playId?: string }) => void) | undefined;
+    const { SpriteManager } = await import('../packages/sprite-core/manager');
+    const mgr = SpriteManager.getInstance();
+    const completeSpy = vi.spyOn(mgr, 'handleAnimationComplete').mockImplementation(() => undefined);
+
+    expect(handleAnimComplete).toBeTypeOf('function');
+
+    handleAnimComplete?.({} as never, { animId: 'thinking-purpose', phase: 'full', playId: 'purpose-1:play-1' });
+
+    expect(completeSpy).toHaveBeenCalledWith('thinking-purpose', 'full', 'purpose-1:play-1');
+  });
+
+  it('registers purpose event and history IPC handlers', async () => {
+    listSpritesMock.mockResolvedValue([]);
+
+    const { initSpriteManagerIPC } = await import('../packages/sprite-core/handler/sprite-manager-ipc');
+    await initSpriteManagerIPC(windowStub.win as any, { addAllowedResourceRoot: vi.fn() });
+
+    const { SpriteManager } = await import('../packages/sprite-core/manager');
+    const mgr = SpriteManager.getInstance();
+    const eventSpy = vi.spyOn(mgr, 'emitPurposeEvent').mockReturnValue({ matched: 1 });
+    const historySpy = vi.spyOn(mgr, 'listPurposeHistory').mockResolvedValue([]);
+    const retrospectiveSpy = vi.spyOn(mgr, 'getPurposeDailyRetrospective').mockResolvedValue({
+      date: '2026-05-03',
+      generatedAt: 1,
+      totalPurposeCount: 0,
+      terminalPurposeCount: 0,
+      completedCount: 0,
+      cancelledCount: 0,
+      failedCount: 0,
+      kindCounts: {},
+      memoryCandidateCount: 0,
+      recallCues: [],
+      items: []
+    });
+
+    const handleEvent = electronState.handlers.get('sprite:purpose:event') as ((_: unknown, payload: { event: string; correlationId?: string }) => unknown) | undefined;
+    const handleHistory = electronState.handlers.get('sprite:purpose:listHistory') as ((_: unknown, payload: { kind?: string; limit?: number }) => unknown) | undefined;
+    const handleRetrospective = electronState.handlers.get('sprite:purpose:getDailyRetrospective') as ((_: unknown, payload: { date?: string; limit?: number }) => unknown) | undefined;
+
+    expect(handleEvent).toBeTypeOf('function');
+    expect(handleHistory).toBeTypeOf('function');
+    expect(handleRetrospective).toBeTypeOf('function');
+
+    expect(handleEvent?.({} as never, { event: 'fileAction:selected', correlationId: 'drop-1' })).toEqual({ matched: 1 });
+    await handleHistory?.({} as never, { kind: 'file.drop.intake', limit: 10 });
+    await handleRetrospective?.({} as never, { date: '2026-05-03', limit: 5 });
+
+    expect(eventSpy).toHaveBeenCalledWith({ event: 'fileAction:selected', correlationId: 'drop-1' });
+    expect(historySpy).toHaveBeenCalledWith({ kind: 'file.drop.intake', limit: 10 });
+    expect(retrospectiveSpy).toHaveBeenCalledWith({ date: '2026-05-03', limit: 5 });
+  });
+
+  it('bridges daily-care routine dispatches into sprite purposes', async () => {
+    listSpritesMock.mockResolvedValue([]);
+    let dispatchDailyCare: ((event: any) => void) | undefined;
+    const onRoutineDispatched = vi.fn((listener: (event: any) => void) => {
+      dispatchDailyCare = listener;
+      return vi.fn();
+    });
+    getDailyCareServiceMock.mockReturnValue({
+      getSnapshot: () => ({ enabled: true }),
+      onRoutineDispatched
+    });
+
+    const { initSpriteManagerIPC } = await import('../packages/sprite-core/handler/sprite-manager-ipc');
+    await initSpriteManagerIPC(windowStub.win as any, { addAllowedResourceRoot: vi.fn() });
+
+    const { SpriteManager } = await import('../packages/sprite-core/manager');
+    const mgr = SpriteManager.getInstance();
+    const startPurposeSpy = vi.spyOn(mgr, 'startPurpose').mockResolvedValue({
+      accepted: true,
+      status: 'started',
+      purpose: {
+        id: 'purpose-daily-care',
+        kind: 'daily.care.reminder',
+        title: 'Daily care',
+        reason: 'Drink water',
+        source: 'system-event',
+        status: 'active',
+        priority: 55,
+        interruptPolicy: 'interruptible'
+      }
+    });
+
+    expect(onRoutineDispatched).toHaveBeenCalledTimes(1);
+    dispatchDailyCare?.({
+      routine: {
+        id: 'care:hydration-hourly',
+        title: 'Hydration',
+        kind: 'hydration',
+        severity: 'gentle',
+        enabled: true,
+        scheduleLabel: 'hourly',
+        lastTriggeredAt: null,
+        lastTriggeredLabel: null,
+        source: 'default'
+      },
+      message: 'Drink water',
+      manual: false,
+      triggeredAt: 1000
+    });
+    dispatchDailyCare?.({
+      routine: {
+        id: 'care:midnight-guardian',
+        title: 'Night guard',
+        kind: 'nightGuard',
+        severity: 'urgent',
+        enabled: true,
+        scheduleLabel: '00:30',
+        lastTriggeredAt: null,
+        lastTriggeredLabel: null,
+        source: 'default'
+      },
+      message: 'Go rest',
+      manual: true,
+      triggeredAt: 2000
+    });
+
+    expect(startPurposeSpy.mock.calls).toEqual([
+      [
+        expect.objectContaining({
+          kind: 'daily.care.reminder',
+          presetId: 'daily.care.reminder',
+          reason: 'Drink water',
+          priority: 55,
+          coalesceKey: 'daily-care:care:hydration-hourly',
+          context: expect.objectContaining({
+            routineId: 'care:hydration-hourly',
+            routineKind: 'hydration',
+            message: 'Drink water',
+            manual: false
+          })
+        })
+      ],
+      [
+        expect.objectContaining({
+          kind: 'daily.rest-reminder',
+          presetId: 'daily.rest-reminder',
+          reason: 'Go rest',
+          priority: 90,
+          coalesceKey: 'daily-care:care:midnight-guardian',
+          context: expect.objectContaining({
+            routineId: 'care:midnight-guardian',
+            routineKind: 'nightGuard',
+            severity: 'urgent',
+            manual: true
+          })
+        })
+      ]
+    ]);
+  });
+
   it('builds capability snapshots from runtime authority instead of renderer-local state assembly', async () => {
     listSpritesMock.mockResolvedValue([]);
     getDailyCareServiceMock.mockReturnValue({
@@ -1537,15 +1696,9 @@ describe('sprite manager IPC integration', () => {
     const grantReward = electronState.handlers.get('sprite:persona:grantReward') as
       | ((_: unknown, payload: { xp?: number; favor?: number; source?: string; achievementId?: string }) => any)
       | undefined;
-    const addXP = electronState.handlers.get('sprite:persona:addXP') as
-      | ((_: unknown, payload: { amount: number; source?: string }) => any)
-      | undefined;
-    const changeFavor = electronState.handlers.get('sprite:persona:changeFavor') as
-      | ((_: unknown, payload: { delta: number; reason?: string }) => any)
-      | undefined;
-    const unlockAchievement = electronState.handlers.get('sprite:persona:unlockAchievement') as
-      | ((_: unknown, payload: { id: string }) => any)
-      | undefined;
+    const addXP = electronState.handlers.get('sprite:persona:addXP') as ((_: unknown, payload: { amount: number; source?: string }) => any) | undefined;
+    const changeFavor = electronState.handlers.get('sprite:persona:changeFavor') as ((_: unknown, payload: { delta: number; reason?: string }) => any) | undefined;
+    const unlockAchievement = electronState.handlers.get('sprite:persona:unlockAchievement') as ((_: unknown, payload: { id: string }) => any) | undefined;
 
     expect(grantReward).toBeTypeOf('function');
 

@@ -35,6 +35,7 @@
 import { app, BrowserWindow, ipcMain, screen } from 'electron';
 
 import { getDailyCareService } from '../../../electron/main/daily';
+import type { DailyCareRoutineDispatch } from '../../../electron/main/daily/types';
 import { loadShortcutEnabledConfig, saveShortcutEnabledConfig } from '../../../electron/main/shortcut-store';
 import { getRecorderStatusSnapshot } from '../../recorder/ipc-main';
 import { disableASRRuntime, getASRConfigSnapshot, getASRStatusSnapshot } from '../../sherpa/ipc-main';
@@ -56,29 +57,69 @@ import {
   removeCharacterPack
 } from '../character-pack-manager';
 import { type CharacterPersonaRuntimeSyncResult, reloadCharacterPersonaRuntime, syncCharacterPersonaRuntime } from '../character-runtime';
-import { buildCharacterPersonaPrompt, getCharacterDefinition, getCharacterInfo, getCharacterToolLabels, initCharacterService } from '../character-service';
+import { buildCharacterPersonaPrompt, getCharacterDefinition, getCharacterInfo, getCharacterToolLabels, initCharacterService, type ToolLabelDefinition } from '../character-service';
 import type { PersonaRewardGrant } from '../config/persona-rules';
 import { isSpriteInteractionIntent, type SpriteInteractionPayload } from '../interaction-contract';
-import type { SpriteSpontaneousUtteranceExecutor } from '../manager';
+import type { SpritePurposeRoutinePlanner, SpritePurposeWindowAdapter, SpriteSpontaneousUtteranceExecutor } from '../manager';
 import { SpriteManager } from '../manager';
 import { getPersonaRuleDimensionSchema } from '../persona-rules';
+import type { SpritePurposeHistoryQuery, SpritePurposeRetrospectiveQuery, SpritePurposeRuntimeEventInput, StartSpritePurposeRequest } from '../purpose';
 import type { SpeakRequest, SpriteSpeakConfig } from '../speak/types';
 import type { SpriteMovementPreviewConfig, SpriteTriggerRequest } from '../types';
 import { WindowController } from '../window-controller';
 import { notifySpriteCapabilityChanged } from './capability-events';
 import { listSprites } from './sprite-assets';
 import { getDefaultSpritesDir } from './sprite-assets';
-import { initSpriteEventListener } from './sprite-event-listener';
+import { initSpriteEventListener, type SpriteEventListenerOptions } from './sprite-event-listener';
 
 export interface SpriteManagerDeps {
   addAllowedResourceRoot: (root: string) => void;
+  registerCharacterPersonaPromptProvider?: (provider: () => string | null) => void | Promise<void>;
   spontaneousUtteranceExecutor?: SpriteSpontaneousUtteranceExecutor;
+  purposeWindowAdapter?: SpritePurposeWindowAdapter;
+  purposeRoutinePlanner?: SpritePurposeRoutinePlanner;
+  spriteEventListener?: SpriteEventListenerOptions;
+  syncCharacterToolLabels?: (labels: Record<string, ToolLabelDefinition> | undefined) => void | Promise<void>;
 }
 
 type SpritePersonaRewardGrantRequest = Partial<Pick<PersonaRewardGrant, 'xp' | 'favor' | 'dimensions'>> & {
   source?: string;
   achievementId?: string;
 };
+
+export function buildDailyCarePurposeRequest(event: DailyCareRoutineDispatch): StartSpritePurposeRequest {
+  const nightGuard = event.routine.kind === 'nightGuard';
+  const urgent = event.routine.severity === 'urgent';
+  const warning = event.routine.severity === 'warning';
+  const kind = nightGuard ? 'daily.rest-reminder' : 'daily.care.reminder';
+  return {
+    kind,
+    reason: event.message || event.routine.title,
+    source: 'system-event',
+    presetId: kind,
+    priority: nightGuard ? (urgent ? 90 : 75) : warning ? 70 : 55,
+    coalesceKey: `daily-care:${event.routine.id}`,
+    context: {
+      routineId: event.routine.id,
+      routineTitle: event.routine.title,
+      routineKind: event.routine.kind,
+      severity: event.routine.severity,
+      message: event.message,
+      manual: event.manual,
+      triggeredAt: event.triggeredAt,
+      tags: event.routine.tags,
+      metadata: event.routine.metadata,
+      source: event.routine.source
+    }
+  };
+}
+
+function bindDailyCarePurposeBridge(mgr: SpriteManager): void {
+  const dailyCareService = getDailyCareService();
+  dailyCareService?.onRoutineDispatched?.((event) => {
+    void mgr.startPurpose(buildDailyCarePurposeRequest(event));
+  });
+}
 
 export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManagerDeps): Promise<void> {
   // 初始化 SpriteManager
@@ -87,7 +128,9 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     dataDir: app.getPath('userData'),
     getScreenSize: () => screen.getPrimaryDisplay().workAreaSize,
     appName: 'Chobits',
-    spontaneousUtteranceExecutor: deps.spontaneousUtteranceExecutor
+    spontaneousUtteranceExecutor: deps.spontaneousUtteranceExecutor,
+    purposeWindowAdapter: deps.purposeWindowAdapter,
+    purposeRoutinePlanner: deps.purposeRoutinePlanner
   });
 
   // 初始化 WindowController 并注入
@@ -130,10 +173,9 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
 
   async function syncCharacterToolLabels(): Promise<void> {
     try {
-      const { setCharacterToolLabels } = await import('../../ai/runtime/pi/tool-labels');
-      setCharacterToolLabels(getCharacterToolLabels());
+      await deps.syncCharacterToolLabels?.(getCharacterToolLabels());
     } catch {
-      // AI runtime not available — skip tool label sync
+      // External tool label bridge not available — skip sync.
     }
   }
 
@@ -379,8 +421,8 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   });
 
   // 动画播放完成上报
-  ipcMain.handle('sprite:anim-complete', (_e, payload: { animId: string; phase: 'intro' | 'loop' | 'outro' | 'full' }) => {
-    mgr.handleAnimationComplete(payload.animId, payload.phase);
+  ipcMain.handle('sprite:anim-complete', (_e, payload: { animId: string; phase: 'intro' | 'loop' | 'outro' | 'full'; playId?: string }) => {
+    mgr.handleAnimationComplete(payload.animId, payload.phase, payload.playId);
   });
 
   // 文件拖放
@@ -404,7 +446,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     return { ok: true, state: mgr.getPersonaState() };
   });
 
-  function grantPersonaReward(payload: SpritePersonaRewardGrantRequest = {}) {
+  function grantPersonaReward(payload: SpritePersonaRewardGrantRequest = {}): { ok: boolean; [key: string]: unknown } {
     const source = typeof payload.source === 'string' && payload.source.trim() ? payload.source.trim() : 'persona:reward';
     const xp = typeof payload.xp === 'number' && Number.isFinite(payload.xp) ? payload.xp : 0;
     const favor = typeof payload.favor === 'number' && Number.isFinite(payload.favor) ? payload.favor : 0;
@@ -827,6 +869,31 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     });
   });
 
+  // ===== Purpose / Routine 编排 =====
+  ipcMain.handle('sprite:purpose:start', (_e, p: StartSpritePurposeRequest) => {
+    return mgr.startPurpose(p);
+  });
+
+  ipcMain.handle('sprite:purpose:cancel', (_e, p: { purposeId?: string; reason?: string } | undefined) => {
+    return mgr.cancelPurpose(p?.purposeId, p?.reason);
+  });
+
+  ipcMain.handle('sprite:purpose:getSnapshot', () => {
+    return mgr.getPurposeSnapshot();
+  });
+
+  ipcMain.handle('sprite:purpose:event', (_e, p: SpritePurposeRuntimeEventInput) => {
+    return mgr.emitPurposeEvent(p);
+  });
+
+  ipcMain.handle('sprite:purpose:listHistory', (_e, p: SpritePurposeHistoryQuery | undefined) => {
+    return mgr.listPurposeHistory(p);
+  });
+
+  ipcMain.handle('sprite:purpose:getDailyRetrospective', (_e, p: SpritePurposeRetrospectiveQuery | undefined) => {
+    return mgr.getPurposeDailyRetrospective(p);
+  });
+
   // ===== 启动引擎 =====
 
   // Initialize character pack authority first, then point CharacterService at the active pack root.
@@ -856,35 +923,28 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   initCharacterDimensions();
   enforceCapabilityBoundRuntime();
 
-  // Register character persona enricher into the AI module's generic extension point.
-  // The enricher is only active when extras.characterPersonaEnabled is set and agent is not 'coder'.
   try {
-    const { registerSystemPromptEnricher } = await import('../../ai/system-prompt-enricher');
-    registerSystemPromptEnricher({
-      id: 'character-persona',
-      resolve: (ctx) => {
-        if (!ctx.request.extras?.characterPersonaEnabled) return null;
-        if (ctx.request.agentId === 'coder') return null;
-        if (!getCharacterDefinition()) return null;
-        const persona = mgr.getPersonaState();
-        return buildCharacterPersonaPrompt({
-          favorLevel: persona.favorLevel,
-          mood: persona.mood,
-          level: persona.level
-        });
-      }
+    await deps.registerCharacterPersonaPromptProvider?.(() => {
+      if (!getCharacterDefinition()) return null;
+      const persona = mgr.getPersonaState();
+      return buildCharacterPersonaPrompt({
+        favorLevel: persona.favorLevel,
+        mood: persona.mood,
+        level: persona.level
+      });
     });
   } catch {
-    // AI module not available — skip enricher registration
+    // External prompt bridge not available — skip registration.
   }
 
-  // Register character tool labels into the tool-labels system
+  // Character tool labels are exposed through the optional external bridge above.
   if (getCharacterToolLabels()) {
     console.log('[SpriteManager] Character tool labels loaded:', Object.keys(getCharacterToolLabels() ?? {}).length, 'tools');
   }
 
   // ===== 初始化事件监听器（订阅业务事件触发动画） =====
-  initSpriteEventListener(mgr);
+  initSpriteEventListener(mgr, deps.spriteEventListener);
+  bindDailyCarePurposeBridge(mgr);
 
   // ===== 事件转发：persona:* → 主窗口 =====
   // 渲染进程负责打开窗口和处理数据

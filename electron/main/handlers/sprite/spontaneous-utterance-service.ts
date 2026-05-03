@@ -35,6 +35,14 @@ import type {
 import { ChatRepo, WorkspacesRepo } from '../../db/repositories';
 import { buildRetrievalDbDeps } from '../memory/retrieval-db-deps';
 import { getStoredRoleProfile } from '../status';
+import {
+  buildSpontaneousPurposeRetrospectiveContext,
+  formatSpontaneousPurposeRetrospectiveContext,
+  SPONTANEOUS_PURPOSE_RETROSPECTIVE_LIMIT,
+  SPONTANEOUS_PURPOSE_RETROSPECTIVE_MIN_WORTHINESS,
+  type SpontaneousPurposeRetrospectiveContext,
+  type SpontaneousPurposeRetrospectiveProvider
+} from './purpose-retrospective-context';
 import { buildSpontaneousUtteranceRuntimeRequest } from './spontaneous-utterance-runtime';
 
 const TAG = '[SpriteAIUtterance]';
@@ -117,6 +125,10 @@ type PersistentMemoryContext = {
   topicCount: number;
   source?: PersistentMemorySource;
 };
+
+export interface SpriteSpontaneousUtteranceServiceOptions {
+  purposeRetrospectiveProvider?: SpontaneousPurposeRetrospectiveProvider;
+}
 
 type ImportantDialogueDigest = {
   source: 'recent-chat' | 'memory-note';
@@ -624,6 +636,7 @@ function buildPrompt(
   roleSummary: string[],
   persistentMemory: PersistentMemoryContext,
   importantDialogueDigests: ImportantDialogueDigest[],
+  purposeRetrospective: SpontaneousPurposeRetrospectiveContext | null,
   preferences: SpriteSpontaneousUtterancePreferences
 ): string {
   const preset = ctx.providerPresetId ? getPreset(ctx.providerPresetId) : undefined;
@@ -688,6 +701,11 @@ ${formatPersistentMemoryContext(persistentMemory)}
 
 重要对话摘要:
 ${formatImportantDialogueDigests(importantDialogueDigests)}
+
+Sprite purpose retrospective:
+${formatSpontaneousPurposeRetrospectiveContext(purposeRetrospective)}
+
+Use the sprite purpose retrospective as quiet self-awareness about what you already helped with today. Do not mention internal purpose ids or technical routine names unless the user directly asked about implementation.
 `;
 }
 
@@ -885,7 +903,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
   private spontaneousUtterancePreferences = readPreferencesSync();
   private lastResolvedContextHint?: HistoryLogContext;
 
-  constructor() {
+  constructor(private readonly options: SpriteSpontaneousUtteranceServiceOptions = {}) {
     eventManager.on(AppEvent.AGENT_LOOP_COMPLETE, (payload: AgentLoopCompletePayload) => {
       if (!payload?.conversationId) return;
       this.activeHint = {
@@ -944,6 +962,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
     let persona: PersonaSummary = { snapshot: null, facts: [] };
     let persistentMemory = createEmptyMemoryContext();
     let importantDialogueDigests: ImportantDialogueDigest[] = [];
+    let purposeRetrospective: SpontaneousPurposeRetrospectiveContext | null = null;
 
     try {
       ctx = await this.resolveConversationContext();
@@ -957,14 +976,16 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
       const roleProfilePromise = getStoredRoleProfile();
       persona = await this.loadPersonaSummary(ctx.workspaceId);
       const db = buildRetrievalDbDeps();
-      const [roleProfile, resolvedMemory, resolvedDigests] = await Promise.all([
+      const [roleProfile, resolvedMemory, resolvedDigests, resolvedPurposeRetrospective] = await Promise.all([
         roleProfilePromise,
         this.collectPersistentMemoryContext(ctx, persona, db),
-        this.collectImportantDialogueDigests(ctx, db)
+        this.collectImportantDialogueDigests(ctx, db),
+        this.collectPurposeRetrospectiveContext()
       ]);
 
       persistentMemory = resolvedMemory;
       importantDialogueDigests = resolvedDigests;
+      purposeRetrospective = resolvedPurposeRetrospective;
 
       const roleSummary = [
         `- 当前角色名: ${roleProfile.name}`,
@@ -974,7 +995,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
         ...(roleProfile.description ? [`- 当前角色描述: ${truncateText(roleProfile.description, 300)}`] : [])
       ];
 
-      const prompt = buildPrompt(input, ctx, persona, roleSummary, persistentMemory, importantDialogueDigests, preferences);
+      const prompt = buildPrompt(input, ctx, persona, roleSummary, persistentMemory, importantDialogueDigests, purposeRetrospective, preferences);
       const runtime = await createPiTaskChatRuntimeFromRequest(
         buildSpontaneousUtteranceRuntimeRequest({
           providerId: ctx.providerId,
@@ -996,7 +1017,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
 
       console.log(raw);
 
-      const logContextDigest = this.buildContextDigest(ctx, persona, persistentMemory, importantDialogueDigests);
+      const logContextDigest = this.buildContextDigest(ctx, persona, persistentMemory, importantDialogueDigests, purposeRetrospective);
       const parsedPayload = safeParseJson<GeneratedUtterancePayload>(raw);
       const parsedIntent = normalizeIntentCategory(parsedPayload?.intentCategory);
       const normalized = normalizeGeneratedUtterance(parsedPayload, input, preferences);
@@ -1012,6 +1033,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
             contextDigest: logContextDigest,
             memoryKeywords: persistentMemory.keywords,
             importantDialogueDigests,
+            purposeRetrospective,
             raw
           }
         );
@@ -1024,6 +1046,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
           contextDigest: logContextDigest,
           memoryKeywords: persistentMemory.keywords,
           importantDialogueDigests,
+          purposeRetrospective,
           raw
         });
         return null;
@@ -1037,6 +1060,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
           contextDigest: logContextDigest,
           memoryKeywords: persistentMemory.keywords,
           importantDialogueDigests,
+          purposeRetrospective,
           raw
         });
         return null;
@@ -1080,6 +1104,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
         contextDigest: logContextDigest,
         memoryKeywords: persistentMemory.keywords,
         importantDialogueDigests,
+        ...(purposeRetrospective ? { purposeRetrospective } : {}),
         fallbackAction: input.fallbackAction,
         result
       });
@@ -1091,9 +1116,10 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
       console.warn(`${TAG} generation failed:`, generationAbortReason ? `${errorMessage} (${generationAbortReason})` : errorMessage);
       await this.appendSkippedGenerationLog(input, failureReason, {
         context: ctx,
-        contextDigest: this.buildContextDigest(ctx, persona, persistentMemory, importantDialogueDigests),
+        contextDigest: this.buildContextDigest(ctx, persona, persistentMemory, importantDialogueDigests, purposeRetrospective),
         memoryKeywords: persistentMemory.keywords,
-        importantDialogueDigests
+        importantDialogueDigests,
+        purposeRetrospective
       });
       return null;
     } finally {
@@ -1219,7 +1245,8 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
     ctx: ResolvedConversationContext | undefined,
     persona: PersonaSummary,
     persistentMemory: PersistentMemoryContext,
-    importantDialogueDigests: ImportantDialogueDigest[]
+    importantDialogueDigests: ImportantDialogueDigest[],
+    purposeRetrospective: SpontaneousPurposeRetrospectiveContext | null
   ): {
     personaUsed: boolean;
     recentMessageCount: number;
@@ -1229,6 +1256,9 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
     memoryTopicCount: number;
     memorySource?: PersistentMemorySource;
     importantDigestCount: number;
+    purposeRetrospectiveDate?: string;
+    purposeRetrospectiveMemoryCandidates?: number;
+    purposeRetrospectiveItemCount?: number;
   } {
     return {
       personaUsed: !!persona.snapshot || persona.facts.length > 0,
@@ -1238,7 +1268,14 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
       memoryNoteCount: persistentMemory.noteCount,
       memoryTopicCount: persistentMemory.topicCount,
       ...(persistentMemory.source ? { memorySource: persistentMemory.source } : {}),
-      importantDigestCount: importantDialogueDigests.length
+      importantDigestCount: importantDialogueDigests.length,
+      ...(purposeRetrospective
+        ? {
+            purposeRetrospectiveDate: purposeRetrospective.date,
+            purposeRetrospectiveMemoryCandidates: purposeRetrospective.memoryCandidateCount,
+            purposeRetrospectiveItemCount: purposeRetrospective.items.length
+          }
+        : {})
     };
   }
 
@@ -1488,6 +1525,39 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
     }
   }
 
+  private async collectPurposeRetrospectiveContext(): Promise<SpontaneousPurposeRetrospectiveContext | null> {
+    if (!this.options.purposeRetrospectiveProvider) {
+      return null;
+    }
+
+    try {
+      const retrospective = await this.options.purposeRetrospectiveProvider({
+        limit: SPONTANEOUS_PURPOSE_RETROSPECTIVE_LIMIT,
+        minMemoryWorthiness: SPONTANEOUS_PURPOSE_RETROSPECTIVE_MIN_WORTHINESS
+      });
+      const context = buildSpontaneousPurposeRetrospectiveContext(retrospective);
+      if (context) {
+        logMemoryTrace({
+          event: 'spontaneous_purpose.retrospective.result',
+          itemCount: context.items.length,
+          memoryCandidateCount: context.memoryCandidateCount,
+          purposeDate: context.date,
+          recallCueCount: context.recallCues.length
+        });
+      }
+      return context;
+    } catch (error) {
+      logMemoryTrace(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          event: 'spontaneous_purpose.retrospective.error'
+        },
+        'warn'
+      );
+      return null;
+    }
+  }
+
   private async resolveConversationContext(): Promise<ResolvedConversationContext> {
     const conversations = await ChatRepo.listConversations({}, 20, 0);
     const hintedConversation = this.activeHint?.conversationId ? conversations.find((item) => item.id === this.activeHint?.conversationId) : undefined;
@@ -1557,6 +1627,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
       contextDigest?: Record<string, unknown>;
       memoryKeywords?: string[];
       importantDialogueDigests?: ImportantDialogueDigest[];
+      purposeRetrospective?: SpontaneousPurposeRetrospectiveContext | null;
       raw?: string;
     } = {}
   ): Promise<void> {
@@ -1589,6 +1660,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
       ...(options.contextDigest ? { contextDigest: options.contextDigest } : {}),
       ...(options.memoryKeywords ? { memoryKeywords: options.memoryKeywords } : {}),
       ...(options.importantDialogueDigests ? { importantDialogueDigests: options.importantDialogueDigests } : {}),
+      ...(options.purposeRetrospective ? { purposeRetrospective: options.purposeRetrospective } : {}),
       ...(options.raw ? { raw: truncateText(options.raw, 300) } : {})
     });
   }

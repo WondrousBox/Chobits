@@ -12,6 +12,8 @@ import type {
   CareRoutineDefinition,
   CustomReminderConfig,
   CustomReminderInput,
+  DailyCareRoutineDispatch,
+  DailyCareRoutineDispatchListener,
   DailyCareRoutineSnapshot,
   DailyCareSnapshot,
   DailyCareStorage,
@@ -40,6 +42,7 @@ export class DailyCareService {
   private resumeCooldownUntil = 0;
   private powerMonitorBound = false;
   private currentPersistentRoutineId: string | null = null; // 当前常驻显示的提醒ID
+  private routineDispatchListeners = new Set<DailyCareRoutineDispatchListener>();
 
   constructor(private readonly windowResolver: WindowResolver) {
     this.state = loadDailyCareState();
@@ -156,6 +159,13 @@ export class DailyCareService {
     }
     this.dispatchRoutine(runtime, dayjs(), { manual: true });
     return { ok: true };
+  }
+
+  onRoutineDispatched(listener: DailyCareRoutineDispatchListener): () => void {
+    this.routineDispatchListeners.add(listener);
+    return () => {
+      this.routineDispatchListeners.delete(listener);
+    };
   }
 
   /**
@@ -338,6 +348,8 @@ export class DailyCareService {
       console.warn('[daily-care] send notice failed', error);
     }
 
+    this.emitRoutineDispatched(runtime, message, now, Boolean(meta?.manual));
+
     if (meta?.manual) {
       return;
     }
@@ -368,6 +380,31 @@ export class DailyCareService {
 
     if (options?.capabilityChanged) {
       notifySpriteCapabilityChanged({ source: options.source ?? 'dailyCare' });
+    }
+  }
+
+  private emitRoutineDispatched(runtime: RoutineRuntime, message: string, now: dayjs.Dayjs, manual: boolean): void {
+    if (this.routineDispatchListeners.size === 0) {
+      return;
+    }
+
+    const event: DailyCareRoutineDispatch = {
+      routine: this.toSnapshot(runtime),
+      message,
+      manual,
+      triggeredAt: now.valueOf()
+    };
+    for (const listener of this.routineDispatchListeners) {
+      try {
+        const result = listener(event);
+        if (result && typeof (result as Promise<void>).catch === 'function') {
+          (result as Promise<void>).catch((error) => {
+            console.warn('[daily-care] routine dispatch listener failed', error);
+          });
+        }
+      } catch (error) {
+        console.warn('[daily-care] routine dispatch listener failed', error);
+      }
     }
   }
 

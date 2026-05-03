@@ -12,7 +12,8 @@ const indexSyncMocks = vi.hoisted(() => ({
   })),
   getWorkspaceById: vi.fn(async () => ({ id: 'ws-1', rootPath: 'F:\\Develop\\chobits' })),
   logMemoryTrace: vi.fn(),
-  shortTraceId: vi.fn((value: string) => value)
+  shortTraceId: vi.fn((value: string) => value),
+  syncPurposeRetrospectiveToMemory: vi.fn(async () => ({ ok: true, skipped: true }))
 }));
 
 vi.mock('../packages/ai/services/memory-content-gen', () => ({
@@ -30,6 +31,10 @@ vi.mock('../packages/ai/services/memory-retrieval-service', () => ({
 vi.mock('../packages/ai/services/memory-trace', () => ({
   logMemoryTrace: indexSyncMocks.logMemoryTrace,
   shortTraceId: indexSyncMocks.shortTraceId
+}));
+
+vi.mock('../electron/main/handlers/memory/purpose-retrospective-memory-sync', () => ({
+  syncSpritePurposeRetrospectiveToMemory: indexSyncMocks.syncPurposeRetrospectiveToMemory
 }));
 
 vi.mock('../electron/main/db/memory-repositories', () => ({
@@ -57,6 +62,7 @@ beforeEach(() => {
   indexSyncMocks.generateMemoryIndex.mockClear();
   indexSyncMocks.getWorkspaceById.mockClear();
   indexSyncMocks.logMemoryTrace.mockClear();
+  indexSyncMocks.syncPurposeRetrospectiveToMemory.mockClear();
 });
 
 describe('memory index refresh cache invalidation', () => {
@@ -64,7 +70,20 @@ describe('memory index refresh cache invalidation', () => {
     const result = await refreshMemoryIndexForWorkspace('ws-1', { trigger: 'test' });
 
     expect(result.ok).toBe(true);
+    expect(indexSyncMocks.syncPurposeRetrospectiveToMemory).toHaveBeenCalledWith({ workspaceId: 'ws-1' });
     expect(indexSyncMocks.clearCriticalFactsCache).toHaveBeenCalledTimes(1);
     expect(indexSyncMocks.clearMemorySearchCache).toHaveBeenCalledWith('ws-1');
+  });
+
+  it('can sync a purpose retrospective for the extracted date before refresh', async () => {
+    await refreshMemoryIndexForWorkspace('ws-1', {
+      purposeRetrospectiveDate: '2026-05-02',
+      trigger: 'test'
+    });
+
+    expect(indexSyncMocks.syncPurposeRetrospectiveToMemory).toHaveBeenCalledWith({
+      date: '2026-05-02',
+      workspaceId: 'ws-1'
+    });
   });
 });

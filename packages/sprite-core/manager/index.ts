@@ -9,6 +9,27 @@
  * - sprite-manager.ts — SpriteManager 主类
  */
 
+export type {
+  SpritePurpose,
+  SpritePurposeDailyRetrospective,
+  SpritePurposeHistoryEntry,
+  SpritePurposeHistoryQuery,
+  SpritePurposeHistoryReader,
+  SpritePurposeHistoryWriter,
+  SpritePurposeRetrospectiveItem,
+  SpritePurposeRetrospectiveQuery,
+  SpritePurposeRuntimeEvent,
+  SpritePurposeRuntimeEventInput,
+  SpritePurposeRuntimeEventSource,
+  SpritePurposeSnapshot,
+  SpritePurposeStartResult,
+  SpritePurposeRoutinePlanner,
+  SpritePurposeRoutinePlannerContext,
+  SpriteRoutine,
+  SpriteRoutineStep,
+  SpriteRoutineStepResult,
+  StartSpritePurposeRequest
+} from '../purpose';
 export { registerDefaultBehaviors } from './default-behaviors';
 export { MovementCoordinator } from './movement-coordinator';
 export { AutoWalkConfig, PersonaStatePersistence } from './persistence';
@@ -17,6 +38,7 @@ export { mapStateToEventType } from './state-mapping';
 export type {
   PersonaStatePersistenceRow,
   SpriteManagerOptions,
+  SpritePurposeWindowAdapter,
   SpriteSpontaneousUtteranceActionSource,
   SpriteSpontaneousUtteranceExecutionReport,
   SpriteSpontaneousUtteranceExecutor,

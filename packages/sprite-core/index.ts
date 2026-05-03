@@ -235,11 +235,70 @@ export {
 } from './persona-rules';
 export type { FavorLevel, LevelConfig, MoodType, PersonaState } from './persona-state';
 export { PersonaStateManager } from './persona-state';
+export type {
+  SpritePurpose,
+  SpritePurposePlannerExecutor,
+  SpritePurposePlannerInput,
+  SpritePurposePlannerLastResult,
+  SpritePurposePlannerOutput,
+  SpritePurposePlannerPresetSummary,
+  SpritePurposePlannerPreferences,
+  SpritePurposePlannerScreenContext,
+  SpritePurposePlannerStatus,
+  SpritePurposePlannerStepSchemaEntry,
+  SpritePurposePlannerValidationOptions,
+  SpritePurposePlannerValidationResult,
+  SpritePurposePlannerValidationSummary,
+  SpritePurposeRoutinePlanner,
+  SpritePurposeRoutinePlannerContext,
+  SpritePurposeRuntimeEvent,
+  SpritePurposeRuntimeEventInput,
+  SpritePurposeRuntimeEventSource,
+  SpritePurposeDailyRetrospective,
+  SpritePurposeHistoryEntry,
+  SpritePurposeHistoryQuery,
+  SpritePurposeHistoryReader,
+  SpritePurposeHistoryWriter,
+  SpritePurposeInterruptPolicy,
+  SpritePurposeRetrospectiveItem,
+  SpritePurposeRetrospectiveQuery,
+  SpritePurposeSnapshot,
+  SpritePurposeSource,
+  SpritePurposeStartResult,
+  SpritePurposeStatus,
+  SpriteRoutineDraft,
+  SpriteRoutine,
+  SpriteRoutineRunResult,
+  SpriteRoutineSource,
+  SpriteRoutineStatus,
+  SpriteRoutineStep,
+  SpriteRoutineStepResult,
+  StartSpritePurposeRequest
+} from './purpose';
+export {
+  buildSpritePurposeDailyRetrospective,
+  createSpritePurposePlannerStepSchema,
+  createSpriteRoutineFromPlannerDraft,
+  DEFAULT_SPRITE_PURPOSE_PLANNER_PREFERENCES,
+  DEFAULT_SPRITE_PURPOSE_PLANNER_EVENTS,
+  DEFAULT_SPRITE_PURPOSE_PLANNER_STEP_TYPES,
+  DEFAULT_SPRITE_PURPOSE_PLANNER_WINDOWS,
+  DEFAULT_SPRITE_ROUTINE_PRESETS,
+  SpritePurposeEventWaiter,
+  SpritePurposeHistoryStore,
+  SpritePurposeManager,
+  SpriteRoutinePresetRegistry,
+  SpriteRoutineRunner,
+  normalizeSpritePurposePlannerPreferences,
+  summarizeSpriteRoutinePreset,
+  summarizeSpriteRoutinePresets,
+  validateSpritePurposePlannerOutput
+} from './purpose';
 export type { SpriteReactionState, SpriteState, SpriteSubState, StateConfig, StateTransition } from './state-machine';
 export { SpriteStateMachine } from './state-machine';
 
 // ----- Manager (主进程门面) -----
-export type { SpriteManagerOptions, SpriteWindow } from './manager';
+export type { SpriteManagerOptions, SpritePurposeWindowAdapter, SpriteWindow } from './manager';
 export { SpriteManager } from './manager';
 
 // ----- WindowController -----

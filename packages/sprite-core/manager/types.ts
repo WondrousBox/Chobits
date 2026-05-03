@@ -1,4 +1,5 @@
 import type { PersonaState } from '../persona-state';
+import type { SpritePurposeRoutinePlanner } from '../purpose';
 
 // ============================================================================
 // 平台抽象接口（由 Electron main process 注入）
@@ -15,6 +16,11 @@ export interface SpriteWindow {
   isDestroyed(): boolean;
 }
 
+export interface SpritePurposeWindowAdapter {
+  open(windowKey: string, payload?: Record<string, unknown>): Promise<void> | void;
+  close?(windowKey: string): Promise<void> | void;
+}
+
 /** SpriteManager 初始化选项 */
 export interface SpriteManagerOptions {
   /** 主窗口 */
@@ -27,6 +33,10 @@ export interface SpriteManagerOptions {
   appName?: string;
   /** AI 自发说话执行器（可选） */
   spontaneousUtteranceExecutor?: SpriteSpontaneousUtteranceExecutor;
+  /** Adapter injected by Electron main for Purpose/Routine window actions. */
+  purposeWindowAdapter?: SpritePurposeWindowAdapter;
+  /** Optional planner hook that can replace preset routines with validated AI routines. */
+  purposeRoutinePlanner?: SpritePurposeRoutinePlanner;
 }
 
 export interface SpriteSpontaneousUtteranceRequest {

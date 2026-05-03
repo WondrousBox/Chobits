@@ -4,6 +4,7 @@ import { clearMemorySearchCache } from '../../../../packages/ai/services/memory-
 import { logMemoryTrace, shortTraceId } from '../../../../packages/ai/services/memory-trace';
 import { MemoryNoteRepo, MemoryTopicRepo } from '../../db/memory-repositories';
 import { WorkspacesRepo } from '../../db/repositories';
+import { syncSpritePurposeRetrospectiveToMemory } from './purpose-retrospective-memory-sync';
 
 const TAG = '[MemoryIndexSync]';
 
@@ -11,6 +12,7 @@ export interface MemoryIndexRefreshOptions {
   trigger?: string;
   jobType?: string;
   conversationIds?: string[];
+  purposeRetrospectiveDate?: string;
 }
 
 export interface MemoryIndexRefreshResult {
@@ -59,6 +61,7 @@ export async function refreshMemoryIndexForWorkspace(workspaceId: string, option
   }
 
   try {
+    await syncPurposeRetrospectiveBeforeIndex(workspaceId, trigger, options.purposeRetrospectiveDate);
     const result = await generateMemoryIndex(ws.rootPath, contentGenDb, workspaceId);
     clearCriticalFactsCache();
     clearMemorySearchCache(workspaceId);
@@ -91,5 +94,17 @@ export async function refreshMemoryIndexForWorkspace(workspaceId: string, option
       'error'
     );
     return { ok: false, reason: 'generate_failed' };
+  }
+}
+
+async function syncPurposeRetrospectiveBeforeIndex(workspaceId: string, trigger: string, date?: string): Promise<void> {
+  try {
+    const result = await syncSpritePurposeRetrospectiveToMemory(date ? { date, workspaceId } : { workspaceId });
+    if (result.ok && !result.skipped) {
+      console.log(`${TAG} Synced sprite purpose retrospective note before index refresh: ws=${workspaceId}, date=${result.date}, action=${result.action}, path=${result.filePath}`);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`${TAG} Sprite purpose retrospective sync skipped before index refresh (trigger=${trigger}): ${message}`);
   }
 }

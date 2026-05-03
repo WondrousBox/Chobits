@@ -8,6 +8,7 @@ import { useSpriteCapabilitySnapshot } from '@/features/sprite-assistant/hooks/u
 
 import { DailyCareDetailContent, DailyCareItem, useDailyCareSettings } from './DailyCareSettings';
 import { MovementDetailContent, MovementItem } from './MovementSettings';
+import { PurposePlannerDetailContent, PurposePlannerItem } from './PurposePlannerSettings';
 import { RecorderDetailContent, RecorderItem, useRecorderSettings } from './RecorderSettings';
 import { ScreenshotDetailContent, ScreenshotItem, useScreenshotSettings } from './ScreenshotSettings';
 import { SpeakDetailContent, SpeakItem, useSpeakSettings } from './SpeakSettings';
@@ -15,9 +16,10 @@ import { SpeechRecognitionDetailContent, SpeechRecognitionItem, useSpeechRecogni
 import { SpontaneousUtteranceDetailContent, SpontaneousUtteranceItem } from './SpontaneousUtteranceSettings';
 import { SpriteDetailContent, SpriteItem, useSpriteSettings } from './SpriteSettings';
 import { useMovementSettings } from './useMovementSettings';
+import { usePurposePlannerSettings } from './usePurposePlannerSettings';
 import { useSpontaneousUtteranceSettings } from './useSpontaneousUtteranceSettings';
 
-type SkillKey = 'movement' | 'speak' | 'dailyCare' | 'sprite' | 'spontaneous' | 'recorder' | 'speechRecognition' | 'screenshot';
+type SkillKey = 'movement' | 'speak' | 'dailyCare' | 'sprite' | 'spontaneous' | 'purposePlanner' | 'recorder' | 'speechRecognition' | 'screenshot';
 
 const ExtensionSettings: React.FC = () => {
   const [selected, setSelected] = useState<SkillKey>('movement');
@@ -41,6 +43,7 @@ const ExtensionSettings: React.FC = () => {
   const dailyCareState = useDailyCareSettings({ capability: dailyCareCapability, onBlocked: handleCapabilityBlocked, afterChange: refreshCapabilitySnapshot });
   const spriteState = useSpriteSettings();
   const spontaneousUtteranceState = useSpontaneousUtteranceSettings();
+  const purposePlannerState = usePurposePlannerSettings();
   const recorderState = useRecorderSettings({ capability: recorderCapability, onBlocked: handleCapabilityBlocked, afterChange: refreshCapabilitySnapshot });
   const speechRecState = useSpeechRecognitionSettings({ capability: speechRecognitionCapability, onBlocked: handleCapabilityBlocked, afterChange: refreshCapabilitySnapshot });
   const screenshotState = useScreenshotSettings({ capability: screenshotCapability, onBlocked: handleCapabilityBlocked, afterChange: refreshCapabilitySnapshot });
@@ -57,6 +60,8 @@ const ExtensionSettings: React.FC = () => {
         return <SpriteDetailContent state={spriteState} actionChoreographyCapability={actionChoreographyCapability} onBlocked={handleCapabilityBlocked} />;
       case 'spontaneous':
         return <SpontaneousUtteranceDetailContent state={spontaneousUtteranceState} />;
+      case 'purposePlanner':
+        return <PurposePlannerDetailContent state={purposePlannerState} />;
       case 'recorder':
         return <RecorderDetailContent state={recorderState} capability={recorderCapability} />;
       case 'speechRecognition':
@@ -79,6 +84,7 @@ const ExtensionSettings: React.FC = () => {
             <DailyCareItem state={dailyCareState} capability={dailyCareCapability} selected={selected === 'dailyCare'} onSelect={() => setSelected('dailyCare')} />
             <SpriteItem state={spriteState} selected={selected === 'sprite'} onSelect={() => setSelected('sprite')} />
             <SpontaneousUtteranceItem state={spontaneousUtteranceState} selected={selected === 'spontaneous'} onSelect={() => setSelected('spontaneous')} />
+            <PurposePlannerItem state={purposePlannerState} selected={selected === 'purposePlanner'} onSelect={() => setSelected('purposePlanner')} />
             <RecorderItem state={recorderState} capability={recorderCapability} selected={selected === 'recorder'} onSelect={() => setSelected('recorder')} />
             <SpeechRecognitionItem state={speechRecState} capability={speechRecognitionCapability} selected={selected === 'speechRecognition'} onSelect={() => setSelected('speechRecognition')} />
             <ScreenshotItem state={screenshotState} capability={screenshotCapability} selected={selected === 'screenshot'} onSelect={() => setSelected('screenshot')} />
