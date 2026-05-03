@@ -1,7 +1,7 @@
 import * as crypto from 'crypto';
 import fs from 'fs';
 
-import { list, unpack } from '../libs/7zip-min-electron';
+import { list, packDirectoryContents, unpack } from '../libs/7zip-min-electron';
 
 export interface ArchiveListEntry {
   name?: string;
@@ -54,6 +54,19 @@ export function listArchiveEntriesWith7Z(archivePath: string): Promise<ArchiveLi
       }
 
       resolve(Array.isArray(result) ? (result as ArchiveListEntry[]) : []);
+    });
+  });
+}
+
+export function zipDirectoryContentsWith7Z(sourceFolderPath: string, zipFilePath: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    packDirectoryContents(sourceFolderPath, zipFilePath, (err: any) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      resolve();
     });
   });
 }

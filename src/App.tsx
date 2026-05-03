@@ -65,7 +65,7 @@ function App(): JSX.Element {
                           id: 'extensions',
                           label: '机能扩展',
                           icon: TbSparkles,
-                          description: '自由移动、日常关心',
+                          description: '自由移动、日常关怀、角色包和精灵能力',
                           component: <ExtensionSettings />
                         }
                       ]}

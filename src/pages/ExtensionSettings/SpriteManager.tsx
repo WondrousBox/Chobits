@@ -1,17 +1,17 @@
+import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
 import React, { useCallback, useEffect, useState } from 'react';
 import { TbBug, TbPlayerPlay, TbTools, TbTrash, TbX } from 'react-icons/tb';
 
-import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { SpriteAnimation, SpriteAnimationTrigger } from '@/features/sprite-assistant';
 import { getPrimarySpriteAnimationTrigger, getSpriteAnimationTriggerAliases, getSpriteAnimationTriggers, SPRITE_EVENT_TYPES } from '@/features/sprite-assistant';
-import { SpriteCapabilityLockedNotice, ensureSpriteCapabilityAccessible } from '@/features/sprite-assistant/capability-ui';
+import { ensureSpriteCapabilityAccessible, SpriteCapabilityLockedNotice } from '@/features/sprite-assistant/capability-ui';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
 import SpriteAnimationMetaPopover from './components/SpriteAnimationMetaPopover';
-import SpritePackManager from './SpritePackManager';
 import SpriteTriggerPicker from './components/SpriteTriggerPicker';
+import SpritePackManager from './SpritePackManager';
 import SpriteVideoEditor, { type SpriteVideoConfig } from './SpriteVideoEditor';
 
 function baseName(p: string): string {
@@ -87,7 +87,15 @@ function SpritePreview({ src, type, width, height }: { src: string; type: string
   );
 }
 
-export default function SpriteManager({ className, actionChoreographyCapability, onCapabilityBlocked }: { className?: string; actionChoreographyCapability?: SpriteCapabilityState | null; onCapabilityBlocked?: (capability: SpriteCapabilityState) => void }): JSX.Element {
+function SpriteAnimationManager({
+  className,
+  actionChoreographyCapability,
+  onCapabilityBlocked
+}: {
+  className?: string;
+  actionChoreographyCapability?: SpriteCapabilityState | null;
+  onCapabilityBlocked?: (capability: SpriteCapabilityState) => void;
+}): JSX.Element {
   const [list, setList] = useState<SpriteAnimation[]>([]);
   const [loading, setLoading] = useState(false);
   const [addingMap, setAddingMap] = useState<Record<string, boolean>>({}); // 某分类中的添加状态
@@ -107,7 +115,10 @@ export default function SpriteManager({ className, actionChoreographyCapability,
   const canAuthorAnimations = actionChoreographyCapability?.status !== 'locked';
   const authoringLockedTitle = actionChoreographyCapability?.status === 'locked' ? `${actionChoreographyCapability.name} 尚未解锁` : undefined;
 
-  const ensureCanAuthorAnimations = useCallback((): boolean => ensureSpriteCapabilityAccessible(actionChoreographyCapability, onCapabilityBlocked), [actionChoreographyCapability, onCapabilityBlocked]);
+  const ensureCanAuthorAnimations = useCallback(
+    (): boolean => ensureSpriteCapabilityAccessible(actionChoreographyCapability, onCapabilityBlocked),
+    [actionChoreographyCapability, onCapabilityBlocked]
+  );
 
   // 初始化读取调试辅助线状态
   useEffect(() => {
@@ -257,8 +268,6 @@ export default function SpriteManager({ className, actionChoreographyCapability,
 
   return (
     <div className={className}>
-      <SpritePackManager afterRuntimeChange={refresh} />
-
       <SpriteCapabilityLockedNotice capability={actionChoreographyCapability} hint="动作编排尚未解锁时，可以查看和测试现有动画，但不能导入、删除或编辑动画 metadata。" className="mx-2 mb-4" />
 
       <div className="flex justify-between items-center px-2 mb-4">
@@ -292,12 +301,12 @@ export default function SpriteManager({ className, actionChoreographyCapability,
           </div>
 
           <div className="overflow-hidden h-full w-full p-2 box-border" style={{ height: 'calc(100% - 52px)' }}>
-              <SpriteVideoEditor
-                initialConfig={spriteConfig}
-                onConfigChange={setSpriteConfig}
-                isProcessing={spriteProcessing}
-                actionChoreographyCapability={actionChoreographyCapability}
-                onCapabilityBlocked={onCapabilityBlocked}
+            <SpriteVideoEditor
+              initialConfig={spriteConfig}
+              onConfigChange={setSpriteConfig}
+              isProcessing={spriteProcessing}
+              actionChoreographyCapability={actionChoreographyCapability}
+              onCapabilityBlocked={onCapabilityBlocked}
               onImportComplete={async () => {
                 await refresh();
                 setToolOpen(false);
@@ -305,9 +314,9 @@ export default function SpriteManager({ className, actionChoreographyCapability,
               onProcess={async (config) => {
                 // FFmpeg 路径（无色度键时）
                 if (!config.inputPath) return;
-                  if (!ensureCanAuthorAnimations()) return;
+                if (!ensureCanAuthorAnimations()) return;
 
-                  const outputPath = config.inputPath.replace(/\.[^.\\/]+$/i, '') + '.sprite.webm';
+                const outputPath = config.inputPath.replace(/\.[^.\\/]+$/i, '') + '.sprite.webm';
                 setSpriteProcessing(true);
                 try {
                   await window.YUA.ffmpeg.convertToSpriteAnimation({
@@ -386,7 +395,13 @@ export default function SpriteManager({ className, actionChoreographyCapability,
                       测试
                     </Button>
                   )}
-                  <Button size="sm" variant="outline" onClick={() => onImport(cat === 'uncategorized' ? undefined : (cat as SpriteAnimationTrigger))} disabled={!canAuthorAnimations || addingMap[cat]} title={authoringLockedTitle}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onImport(cat === 'uncategorized' ? undefined : (cat as SpriteAnimationTrigger))}
+                    disabled={!canAuthorAnimations || addingMap[cat]}
+                    title={authoringLockedTitle}
+                  >
                     {addingMap[cat] ? '导入中…' : '添加'}
                   </Button>
                 </div>
@@ -463,7 +478,13 @@ export default function SpriteManager({ className, actionChoreographyCapability,
                       );
                     })}
                     {/* 分类尾部添加卡片 */}
-                    <Button className="h-[240px] w-[180px]" onClick={() => onImport(cat === 'uncategorized' ? undefined : (cat as SpriteAnimationTrigger))} disabled={!canAuthorAnimations || addingMap[cat]} variant="ghost" title={authoringLockedTitle}>
+                    <Button
+                      className="h-[240px] w-[180px]"
+                      onClick={() => onImport(cat === 'uncategorized' ? undefined : (cat as SpriteAnimationTrigger))}
+                      disabled={!canAuthorAnimations || addingMap[cat]}
+                      variant="ghost"
+                      title={authoringLockedTitle}
+                    >
                       + 添加
                     </Button>
                   </div>
@@ -475,6 +496,24 @@ export default function SpriteManager({ className, actionChoreographyCapability,
           <div className="text-center text-xs text-muted-foreground py-8">无匹配结果</div>
         )}
       </div>
+    </div>
+  );
+}
+
+export default function SpriteManager({
+  className,
+  actionChoreographyCapability,
+  onCapabilityBlocked
+}: {
+  className?: string;
+  actionChoreographyCapability?: SpriteCapabilityState | null;
+  onCapabilityBlocked?: (capability: SpriteCapabilityState) => void;
+}): JSX.Element {
+  return (
+    <div className={className}>
+      <SpritePackManager
+        editorExtra={<SpriteAnimationManager className="border-t border-border/60 pt-4" actionChoreographyCapability={actionChoreographyCapability} onCapabilityBlocked={onCapabilityBlocked} />}
+      />
     </div>
   );
 }

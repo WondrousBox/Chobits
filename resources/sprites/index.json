@@ -91,12 +91,12 @@
     },
     {
       "meta": {
-        "id": "fileDragOver-default",
-        "title": "fileDragOver 默认",
+        "id": "receive-default",
+        "title": "Receive 接收文件",
         "primaryTrigger": "fileDragOver"
       },
       "source": {
-        "localPath": "./fileDragOver.webm",
+        "localPath": "./receive.webm",
         "type": "video/webm"
       },
       "width": 180,
