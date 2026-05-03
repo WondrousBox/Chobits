@@ -311,12 +311,15 @@ describe('sprite assets pack manifest integration', () => {
       getResourcePath: () => rootDir
     });
 
-    const registerFromData = electronState.handlers.get('sprite:registerFromData') as ((_: unknown, payload: { data: Buffer; meta: Record<string, unknown> }) => Promise<any>) | undefined;
+    const registerFromData = electronState.handlers.get('sprite:registerFromData') as
+      | ((_: unknown, payload: { data: Buffer; meta: Record<string, unknown>; loop?: boolean }) => Promise<any>)
+      | undefined;
 
     expect(registerFromData).toBeDefined();
 
     const item = await registerFromData!(undefined, {
       data: Buffer.from('fake-webm'),
+      loop: true,
       meta: {
         id: 'legacy-event-type-only',
         title: 'Legacy Event Type Only',
@@ -331,6 +334,7 @@ describe('sprite assets pack manifest integration', () => {
       deletable: true
     });
     expect(item.meta).not.toHaveProperty('eventType');
+    expect(item.loop).toBe(true);
   });
 
   it('requires spriteManage capability for sprite asset authoring writes', async () => {

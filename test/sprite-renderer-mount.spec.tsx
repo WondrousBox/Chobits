@@ -140,6 +140,7 @@ describe('sprite renderer mount', () => {
     expect(video.style.width).toBe('320px');
     expect(video.style.height).toBe('240px');
     expect(video.style.transform).toBe('none');
+    expect(video.getAttribute('loop')).toBeNull();
 
     await act(async () => {
       harness.emitState({
@@ -155,7 +156,7 @@ describe('sprite renderer mount', () => {
           width: 280,
           height: 210,
           padding: 20,
-          loop: false
+          loop: true
         }
       });
       await Promise.resolve();
@@ -165,6 +166,7 @@ describe('sprite renderer mount', () => {
     expect(video.style.width).toBe('280px');
     expect(video.style.height).toBe('210px');
     expect(video.style.transform).toBe('scaleX(-1)');
+    expect(video.getAttribute('loop')).toBe('');
 
     await act(async () => {
       root.unmount();

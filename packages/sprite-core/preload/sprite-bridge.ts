@@ -11,11 +11,11 @@ import { ipcRenderer } from 'electron';
 import type { SpriteInteractionIntent, SpriteInteractionPayload } from '../interaction-contract';
 import type { SpriteSpontaneousUtteranceHistoryItem, SpriteSpontaneousUtteranceHistoryQuery, SpriteSpontaneousUtterancePreferences } from '../manager';
 import type {
+  SpritePurposeDailyRetrospective,
   SpritePurposeHistoryEntry,
   SpritePurposeHistoryQuery,
   SpritePurposePlannerPreferences,
   SpritePurposePlannerStatus,
-  SpritePurposeDailyRetrospective,
   SpritePurposeRetrospectiveQuery,
   SpritePurposeRuntimeEventInput,
   SpritePurposeSnapshot,
@@ -46,6 +46,7 @@ export type SpriteBridgeType = {
     loopStartMs?: number;
     loopEndMs?: number;
     durationMs?: number;
+    loop?: boolean;
     autoIdle?: boolean;
     width?: number;
     height?: number;
