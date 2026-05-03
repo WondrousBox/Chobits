@@ -50,6 +50,54 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     console.error('ErrorBoundary 捕获到错误:', error, errorInfo);
   }
 
+  private copyWithTextarea(text: string): boolean {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', 'true');
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    textarea.style.top = '0';
+    document.body.appendChild(textarea);
+
+    try {
+      textarea.select();
+      textarea.setSelectionRange(0, textarea.value.length);
+      return document.execCommand('copy');
+    } finally {
+      textarea.remove();
+    }
+  }
+
+  private copyText = async (text: string): Promise<void> => {
+    try {
+      let copied = false;
+
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(text);
+          copied = true;
+        } catch (err) {
+          console.warn('Clipboard API copy failed, falling back to textarea copy:', err);
+        }
+      }
+
+      if (!copied) {
+        copied = this.copyWithTextarea(text);
+      }
+
+      if (!copied) {
+        throw new Error('copy command returned false');
+      }
+
+      this.setState({ copied: true });
+      setTimeout(() => {
+        this.setState({ copied: false });
+      }, 2000);
+    } catch (err) {
+      console.error('复制失败:', err);
+    }
+  };
+
   render(): ReactNode {
     if (this.state.hasError) {
       if (this.props.fallback) {
@@ -66,18 +114,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
       const errorText = [`错误信息: ${errorMessage}`, errorStack && `\n堆栈信息:\n${errorStack}`, componentStack && `\n组件堆栈:\n${componentStack}`].filter(Boolean).join('\n');
 
-      const handleCopy = async (): Promise<void> => {
-        try {
-          await navigator.clipboard.writeText(errorText);
-          this.setState({ copied: true });
-          setTimeout(() => {
-            this.setState({ copied: false });
-          }, 2000);
-        } catch (err) {
-          console.error('复制失败:', err);
-        }
-      };
-
       const handleToggleExpand = (): void => {
         this.setState((prev) => ({ expanded: !prev.expanded }));
       };
@@ -85,20 +121,22 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       const errorTitle = this.props.title || '应用出错';
 
       return (
-        <div className="w-full h-full flex items-center justify-center p-4">
+        <div className="no-drag w-full h-full flex items-center justify-center p-4 select-text" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <div className="p-4 border border-destructive/50 rounded-lg bg-destructive/10 max-w-2xl w-full">
             <div className="flex items-start justify-between gap-2 mb-2">
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-destructive mb-1">{errorTitle}</div>
-                <div className="text-xs text-muted-foreground">{errorMessage}</div>
+                <div className="text-xs text-muted-foreground break-words">{errorMessage}</div>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                <Button variant="ghost" size="sm" onClick={handleCopy} className="h-8 w-8 p-0" title={this.state.copied ? '已复制' : '复制错误信息'}>
+                <Button variant="ghost" size="sm" onClick={() => void this.copyText(errorText)} className="h-8 px-2 no-drag" title={this.state.copied ? '已复制' : '复制错误信息'}>
                   {this.state.copied ? <TbCheck className="w-4 h-4" /> : <TbCopy className="w-4 h-4" />}
+                  <span className="ml-1 hidden sm:inline">{this.state.copied ? '已复制' : '复制'}</span>
                 </Button>
                 {(errorStack || componentStack) && (
-                  <Button variant="ghost" size="sm" onClick={handleToggleExpand} className="h-8 w-8 p-0" title={this.state.expanded ? '收起详情' : '展开详情'}>
+                  <Button variant="ghost" size="sm" onClick={handleToggleExpand} className="h-8 px-2 no-drag" title={this.state.expanded ? '收起详情' : '展开详情'}>
                     {this.state.expanded ? <TbChevronUp className="w-4 h-4" /> : <TbChevronDown className="w-4 h-4" />}
+                    <span className="ml-1 hidden sm:inline">{this.state.expanded ? '收起' : '详情'}</span>
                   </Button>
                 )}
               </div>
@@ -110,13 +148,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                   {errorStack && (
                     <div>
                       <div className="text-muted-foreground mb-1 font-semibold">堆栈信息:</div>
-                      <pre className="whitespace-pre-wrap break-words text-muted-foreground overflow-auto max-h-40">{errorStack}</pre>
+                      <pre className="whitespace-pre-wrap break-words text-muted-foreground overflow-auto max-h-64 select-text">{errorStack}</pre>
                     </div>
                   )}
                   {componentStack && (
                     <div>
                       <div className="text-muted-foreground mb-1 font-semibold">组件堆栈:</div>
-                      <pre className="whitespace-pre-wrap break-words text-muted-foreground overflow-auto max-h-40">{componentStack}</pre>
+                      <pre className="whitespace-pre-wrap break-words text-muted-foreground overflow-auto max-h-64 select-text">{componentStack}</pre>
                     </div>
                   )}
                 </div>
@@ -127,6 +165,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               <Button
                 variant="outline"
                 size="sm"
+                className="no-drag"
                 onClick={() => {
                   this.setState({
                     hasError: false,

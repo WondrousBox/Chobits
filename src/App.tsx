@@ -9,6 +9,7 @@ import { useWorkspaceCheck } from '@/hooks/useWorkspaceCheck';
 import { ChatSelectionProvider } from '@/pages/ChatPage/context/ChatSelectionContext';
 import ExtensionSettings from '@/pages/ExtensionSettings/ExtensionSettings';
 import SkillTreeSettings from '@/pages/ExtensionSettings/SkillTreeSettings';
+import SpritePackEditorWindow from '@/pages/ExtensionSettings/SpritePackEditorWindow';
 import FileActionsMenu from '@/pages/FileActionsMenu/FileActionsMenu';
 import WebRecorderWindow from '@/pages/RecordingPage/WebRecorderWindow';
 import ResourcePreviewWindow from '@/pages/ResourcePage/ResourcePreviewWindow';
@@ -92,6 +93,7 @@ function App(): JSX.Element {
                 <Route path="/level-up" element={<LevelUpPage />} />
                 <Route path="/web-recorder" element={<WebRecorderWindow />} />
                 <Route path="/memory-graph" element={<MemoryGraphPage />} />
+                <Route path="/character-pack-editor" element={<SpritePackEditorWindow />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
               <Toaster />

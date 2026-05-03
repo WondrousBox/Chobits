@@ -18,6 +18,8 @@ function createVideo(overrides?: Partial<VideoSpriteElementLike> & { duration?: 
 describe('video sprite driver', () => {
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('replays the current video when canplay fires', () => {
@@ -75,6 +77,51 @@ describe('video sprite driver', () => {
     expect(driver.getPhase()).toBe('outro');
     expect(video.currentTime).toBeCloseTo(0.9);
     expect(video.play).toHaveBeenCalled();
+  });
+
+  it('binds browser timer functions before scheduling timed sessions', () => {
+    const originalSetTimeout = globalThis.setTimeout;
+    const originalClearTimeout = globalThis.clearTimeout;
+    const setTimeoutSpy = vi.fn(function (this: typeof globalThis, handler: TimerHandler, timeout?: number, ...args: any[]) {
+      if (this !== globalThis) {
+        throw new TypeError('Illegal invocation');
+      }
+      return originalSetTimeout(handler, timeout, ...args);
+    }) as unknown as typeof globalThis.setTimeout;
+    const clearTimeoutSpy = vi.fn(function (this: typeof globalThis, timer?: ReturnType<typeof setTimeout>) {
+      if (this !== globalThis) {
+        throw new TypeError('Illegal invocation');
+      }
+      return originalClearTimeout(timer);
+    }) as unknown as typeof globalThis.clearTimeout;
+
+    vi.stubGlobal('setTimeout', setTimeoutSpy);
+    vi.stubGlobal('clearTimeout', clearTimeoutSpy);
+
+    const video = createVideo();
+    const driver = new VideoSpriteDriver({
+      now: () => 1000
+    });
+
+    expect(() => {
+      driver.syncPlaybackSession({
+        video,
+        hasSegmentLoop: true,
+        playback: {
+          loop: true,
+          loopStartMs: 300,
+          loopEndMs: 900
+        },
+        playbackSession: {
+          mode: 'timed',
+          startedAtMs: 1000,
+          activeDurationMs: 800
+        }
+      });
+    }).not.toThrow();
+
+    driver.dispose();
+    expect(setTimeoutSpy).toHaveBeenCalled();
   });
 
   it('loops bounded playback back to the effective start when custom loop is enabled', () => {

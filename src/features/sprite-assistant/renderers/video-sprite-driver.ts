@@ -32,8 +32,8 @@ export class VideoSpriteDriver {
 
   constructor(options: VideoSpriteDriverOptions = {}) {
     this.now = options.now ?? (() => Date.now());
-    this.scheduleTimeout = options.setTimeout ?? globalThis.setTimeout;
-    this.cancelTimeout = options.clearTimeout ?? globalThis.clearTimeout;
+    this.scheduleTimeout = options.setTimeout ?? globalThis.setTimeout.bind(globalThis);
+    this.cancelTimeout = options.clearTimeout ?? globalThis.clearTimeout.bind(globalThis);
     this.onAnimationComplete = options.onAnimationComplete;
   }
 
