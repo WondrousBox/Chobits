@@ -1173,8 +1173,7 @@ case 'dancing': return 'dance';
 ### 必做手测
 
 - 角色包链路：
-  - 目录导入
-  - `.chobits-character` / `.zip` 导入
+  - `.cbpk` / `.zip` 导入
   - 替换冲突处理
   - 激活 pack 后 runtime reload
   - 删除当前 active pack 后自动回退到 fallback pack

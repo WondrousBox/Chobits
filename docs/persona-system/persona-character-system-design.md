@@ -393,7 +393,7 @@ resources/sprites/
 
 ## 四、角色包系统 (Character Pack)
 
-> 2026-04-23 代码状态补充：`packages/sprite-core/character-pack-manager.ts` 已经把角色包 lifecycle 接到主链路。当前主进程已支持 builtin / installed pack 扫描、active pack 持久化、目录安装、`.chobits-character` / `.zip` 压缩包导入、激活、卸载/替换冲突处理，以及通过 `sprite-manager-ipc` 真实切换 `character-service`、默认动画根目录、persona slot、capability runtime，并广播 `persona:character-switched`。设置页也已在现有 `ExtensionSettings -> SpriteManager` 中接入第一批角色管理 UI，并补上目录/压缩包导入前 inspection、冲突/active 影响提示、缺失资源与平台 warning、确认安装/切换弹窗。当前 inspection 还已升级为共享 installability assessment：`formatVersion` / `minAppVersion` 会进入 `blockingErrors + compatibility`，真实安装流程也会复用同一套校验；目录与 archive 导入的 preview 资产也已改走稳定 cache root，设置页列表与导入弹窗可以稳定显示 preview avatar 与 manifest/compatibility 摘要。最新一轮又补上了 `pack.json.provenance / signature` 声明与共享 `trust` assessment、`pack.json.preview.video` 的缓存与展示支持，以及基于 `resources/sprites/trust-root.json` 的真实公钥验签：内置角色包会被标记为 `verificationStatus='builtin-bundled'`，外部包在受信 key 验签通过时显示 `signature-verified`，受信 key mismatch 会阻止安装，未知 key 则显示 `signature-untrusted` warning。当前剩余工作主要转向 trust-root 扩容、publisher key rotation / revocation 与 preview 展示细节打磨。
+> 2026-04-23 代码状态补充：`packages/sprite-core/character-pack-manager.ts` 已经把角色包 lifecycle 接到主链路。当前主进程已支持 builtin / installed pack 扫描、active pack 持久化、`.cbpk` / `.zip` 压缩包导入、激活、卸载/替换冲突处理，以及通过 `sprite-manager-ipc` 真实切换 `character-service`、默认动画根目录、persona slot、capability runtime，并广播 `persona:character-switched`。设置页也已在现有 `ExtensionSettings -> SpriteManager` 中接入第一批角色管理 UI，并补上压缩包导入前 inspection、冲突/active 影响提示、缺失资源与平台 warning、确认安装/切换弹窗。当前 inspection 还已升级为共享 installability assessment：`formatVersion` / `minAppVersion` 会进入 `blockingErrors + compatibility`，真实安装流程也会复用同一套校验；archive 导入的 preview 资产也已改走稳定 cache root，设置页列表与导入弹窗可以稳定显示 preview avatar 与 manifest/compatibility 摘要。最新一轮又补上了 `pack.json.provenance / signature` 声明与共享 `trust` assessment、`pack.json.preview.video` 的缓存与展示支持，以及基于 `resources/sprites/trust-root.json` 的真实公钥验签：内置角色包会被标记为 `verificationStatus='builtin-bundled'`，外部包在受信 key 验签通过时显示 `signature-verified`，受信 key mismatch 会阻止安装，未知 key 则显示 `signature-untrusted` warning。当前剩余工作主要转向 trust-root 扩容、publisher key rotation / revocation 与 preview 展示细节打磨。
 
 ### 4.1 角色包结构
 
@@ -510,15 +510,15 @@ character-packs/
 
 **一键安装流程**：
 
-1. 当前已支持：从本地目录安装到 `<userData>/character-packs/<packId>/`
+1. 当前已支持：从 `.cbpk` / `.zip` 导入到 `<userData>/character-packs/<packId>/`
 2. 当前已支持：验证 `pack.json` 基本格式并注册到角色包列表
 3. 当前已支持：可选立即激活，并触发 runtime pack switch
-4. 当前已支持：用户直接选择 `.chobits-character` / `.zip` 文件导入，并自动解析解压后的 pack root
+4. 当前已支持：用户直接选择 `.cbpk` / `.zip` 文件导入，并自动解析解压后的 pack root
 5. 当前已支持：replaceExisting 冲突替换、installed pack 卸载，以及 active pack 删除时自动切回 fallback pack
 6. 当前已支持：在现有 `ExtensionSettings -> SpriteManager` 中完成第一批角色管理 UI 接入
 7. 当前已支持：更细粒度的导入前校验，包括 manifest inspection、冲突/active 影响提示、缺失资源与平台 warning、确认安装/切换弹窗
 8. 当前已支持：`formatVersion` / `minAppVersion` 的 installability / compatibility assessment，真实安装流程也会阻止不兼容角色包
-9. 当前已支持：目录 / archive 导入 preview 资产走稳定 cache root，设置页可稳定展示导入预览
+9. 当前已支持：archive 导入 preview 资产走稳定 cache root，设置页可稳定展示导入预览
 10. 当前已支持：设置页展示 installed preview avatar、manifest badge 与 compatibility 摘要
 11. 当前已支持：`pack.json.provenance / signature` 声明与共享 `trust` assessment，设置页会统一展示来源摘要、来源链接与签名状态
 12. 当前已支持：builtin source 的角色包会显示 `verificationStatus='builtin-bundled'`，可与外部导入包区分
@@ -912,7 +912,7 @@ effective = delta × (1 + level × 0.01) × (1 - currentValue/maxValue × 0.5)
 
 1. 定义 `pack.json` 格式规范
 2. 实现角色包安装/卸载/切换逻辑
-当前状态：目录安装、`.chobits-character` / `.zip` 导入、卸载/冲突替换、导入前 inspection，以及 `formatVersion` / `minAppVersion` 兼容阻塞校验均已完成
+当前状态：`.cbpk` / `.zip` 导入、卸载/冲突替换、导入前 inspection，以及 `formatVersion` / `minAppVersion` 兼容阻塞校验均已完成
 3. 角色选择 UI
 当前状态：已在 `ExtensionSettings -> SpriteManager` 落地第一版角色管理 UI；独立角色页 / 商店化入口仍待补
 4. 独立的 PersonaState 存储（每个角色独立）

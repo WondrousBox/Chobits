@@ -291,11 +291,11 @@ describe('character pack manager', () => {
     });
   });
 
-  it('installs a pack from a .chobits-character archive and resolves the extracted pack root', async () => {
+  it('installs a pack from a .cbpk archive and resolves the extracted pack root', async () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const archiveSourceRoot = path.join(tempRoot, 'archive-source', 'nested-pack-root');
-    const archivePath = path.join(tempRoot, 'imports', 'pack-delta.chobits-character');
+    const archivePath = path.join(tempRoot, 'imports', 'pack-delta.cbpk');
     const userDataDir = path.join(tempRoot, 'user-data');
 
     writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
@@ -323,6 +323,27 @@ describe('character pack manager', () => {
       }
     });
     expect(existsSync(path.join(userDataDir, 'character-packs', 'pack-delta', 'pack.json'))).toBe(true);
+  });
+
+  it('rejects the legacy .chobits-character archive extension', async () => {
+    tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
+    const builtinRoot = path.join(tempRoot, 'builtin-pack');
+    const archiveSourceRoot = path.join(tempRoot, 'archive-source', 'nested-pack-root');
+    const archivePath = path.join(tempRoot, 'imports', 'pack-delta.chobits-character');
+    const userDataDir = path.join(tempRoot, 'user-data');
+
+    writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
+    writePack(archiveSourceRoot, 'pack-delta', 'Pack Delta');
+    createTestArchive(archivePath, path.join(tempRoot, 'archive-source'));
+
+    initCharacterPackManager({
+      userDataDir,
+      builtinPackRootDir: builtinRoot,
+      appVersion: '1.0.0'
+    });
+
+    await expect(inspectCharacterPackFromArchive(archivePath)).rejects.toThrow('Unsupported character pack archive extension');
+    await expect(installCharacterPackFromArchive(archivePath)).rejects.toThrow('Unsupported character pack archive extension');
   });
 
   it('exports a character pack as a complete zip archive payload', async () => {
@@ -363,10 +384,34 @@ describe('character pack manager', () => {
     );
   });
 
+  it('uses .cbpk when exporting without a supported archive extension', async () => {
+    tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
+    const builtinRoot = path.join(tempRoot, 'builtin-pack');
+    const userDataDir = path.join(tempRoot, 'user-data');
+    const installedRoot = path.join(userDataDir, 'character-packs', 'pack-beta');
+    const outputPath = path.join(tempRoot, 'exports', 'pack-beta');
+
+    writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
+    writePack(installedRoot, 'pack-beta', 'Pack Beta');
+
+    initCharacterPackManager({
+      userDataDir,
+      builtinPackRootDir: builtinRoot,
+      appVersion: '1.0.0'
+    });
+
+    const result = await exportCharacterPack('pack-beta', outputPath, {
+      source: 'installed'
+    });
+
+    expect(result?.outputPath).toBe(`${outputPath}.cbpk`);
+    expect(existsSync(`${outputPath}.cbpk`)).toBe(true);
+  });
+
   it('preflights archive entries before extraction and rejects path traversal', async () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
-    const archivePath = path.join(tempRoot, 'imports', 'pack-unsafe.chobits-character');
+    const archivePath = path.join(tempRoot, 'imports', 'pack-unsafe.cbpk');
     const userDataDir = path.join(tempRoot, 'user-data');
 
     writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
@@ -395,7 +440,7 @@ describe('character pack manager', () => {
   it('preflights archive entry count and expanded size before extraction', async () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
-    const archivePath = path.join(tempRoot, 'imports', 'pack-huge.chobits-character');
+    const archivePath = path.join(tempRoot, 'imports', 'pack-huge.cbpk');
     const userDataDir = path.join(tempRoot, 'user-data');
 
     writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
@@ -446,7 +491,7 @@ describe('character pack manager', () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const archiveSourceRoot = path.join(tempRoot, 'archive-source', 'nested-pack-root');
-    const archivePath = path.join(tempRoot, 'imports', 'pack-symlink.chobits-character');
+    const archivePath = path.join(tempRoot, 'imports', 'pack-symlink.cbpk');
     const userDataDir = path.join(tempRoot, 'user-data');
     const outsideTargetPath = path.join(tempRoot, 'outside-target.txt');
     const symlinkPath = path.join(archiveSourceRoot, 'linked-outside.txt');
@@ -477,8 +522,8 @@ describe('character pack manager', () => {
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const gammaArchiveSourceRoot = path.join(tempRoot, 'gamma-archive-source', 'nested-pack-root');
     const betaArchiveSourceRoot = path.join(tempRoot, 'beta-archive-source', 'nested-pack-root');
-    const gammaArchivePath = path.join(tempRoot, 'imports', 'pack-gamma.chobits-character');
-    const betaArchivePath = path.join(tempRoot, 'imports', 'pack-beta.chobits-character');
+    const gammaArchivePath = path.join(tempRoot, 'imports', 'pack-gamma.cbpk');
+    const betaArchivePath = path.join(tempRoot, 'imports', 'pack-beta.cbpk');
     const installedRoot = path.join(tempRoot, 'user-data', 'character-packs', 'pack-beta');
     const userDataDir = path.join(tempRoot, 'user-data');
 
@@ -589,8 +634,8 @@ describe('character pack manager', () => {
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const publisherDeclaredRoot = path.join(tempRoot, 'publisher-pack');
     const unsignedRoot = path.join(tempRoot, 'unsigned-pack');
-    const publisherArchivePath = path.join(tempRoot, 'imports', 'pack-publisher.chobits-character');
-    const unsignedArchivePath = path.join(tempRoot, 'imports', 'pack-unsigned.chobits-character');
+    const publisherArchivePath = path.join(tempRoot, 'imports', 'pack-publisher.cbpk');
+    const unsignedArchivePath = path.join(tempRoot, 'imports', 'pack-unsigned.cbpk');
     const userDataDir = path.join(tempRoot, 'user-data');
 
     writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
@@ -635,7 +680,7 @@ describe('character pack manager', () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const signedRoot = path.join(tempRoot, 'signed-pack');
-    const signedArchivePath = path.join(tempRoot, 'imports', 'pack-signed.chobits-character');
+    const signedArchivePath = path.join(tempRoot, 'imports', 'pack-signed.cbpk');
     const userDataDir = path.join(tempRoot, 'user-data');
     const { publicKey, privateKey } = generateKeyPairSync('ed25519');
 
@@ -683,7 +728,7 @@ describe('character pack manager', () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const signedRoot = path.join(tempRoot, 'signed-pack');
-    const signedArchivePath = path.join(tempRoot, 'imports', 'pack-signed.chobits-character');
+    const signedArchivePath = path.join(tempRoot, 'imports', 'pack-signed.cbpk');
     const userDataDir = path.join(tempRoot, 'user-data');
     const { publicKey, privateKey } = generateKeyPairSync('ed25519');
 
@@ -734,7 +779,7 @@ describe('character pack manager', () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const signedRoot = path.join(tempRoot, 'signed-pack');
-    const signedArchivePath = path.join(tempRoot, 'imports', 'pack-signed.chobits-character');
+    const signedArchivePath = path.join(tempRoot, 'imports', 'pack-signed.cbpk');
     const userDataDir = path.join(tempRoot, 'user-data');
     const { privateKey } = generateKeyPairSync('ed25519');
 
@@ -771,7 +816,7 @@ describe('character pack manager', () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const signedRoot = path.join(tempRoot, 'signed-pack');
-    const signedArchivePath = path.join(tempRoot, 'imports', 'pack-signed.chobits-character');
+    const signedArchivePath = path.join(tempRoot, 'imports', 'pack-signed.cbpk');
     const userDataDir = path.join(tempRoot, 'user-data');
     const { privateKey } = generateKeyPairSync('ed25519');
 
@@ -821,8 +866,8 @@ describe('character pack manager', () => {
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const verifiedRoot = path.join(tempRoot, 'verified-pack');
     const mismatchedRoot = path.join(tempRoot, 'mismatched-pack');
-    const verifiedArchivePath = path.join(tempRoot, 'imports', 'pack-verified.chobits-character');
-    const mismatchedArchivePath = path.join(tempRoot, 'imports', 'pack-mismatch.chobits-character');
+    const verifiedArchivePath = path.join(tempRoot, 'imports', 'pack-verified.cbpk');
+    const mismatchedArchivePath = path.join(tempRoot, 'imports', 'pack-mismatch.cbpk');
     const userDataDir = path.join(tempRoot, 'user-data');
 
     writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
@@ -876,7 +921,7 @@ describe('character pack manager', () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const importRoot = path.join(tempRoot, 'import-pack');
-    const importArchivePath = path.join(tempRoot, 'imports', 'pack-escape.chobits-character');
+    const importArchivePath = path.join(tempRoot, 'imports', 'pack-escape.cbpk');
     const outsideRoot = path.join(tempRoot, 'outside-assets');
     const userDataDir = path.join(tempRoot, 'user-data');
 
@@ -930,7 +975,7 @@ describe('character pack manager', () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const incompatibleRoot = path.join(tempRoot, 'incompatible-pack');
-    const incompatibleArchivePath = path.join(tempRoot, 'imports', 'pack-zeta.chobits-character');
+    const incompatibleArchivePath = path.join(tempRoot, 'imports', 'pack-zeta.cbpk');
     const userDataDir = path.join(tempRoot, 'user-data');
 
     writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');

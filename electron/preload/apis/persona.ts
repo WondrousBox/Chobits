@@ -142,13 +142,13 @@ export const personaApi = {
   /** 激活指定角色包 */
   activateCharacterPack: (packId: string, source?: CharacterPackSource) => ipcRenderer.invoke('sprite:character:activatePack', { packId, source }),
 
-  /** 预检 .chobits-character / zip 压缩包，返回 pack manifest 与冲突/警告信息 */
+  /** 预检 .cbpk / zip 压缩包，返回 pack manifest 与冲突/警告信息 */
   inspectCharacterPackFromArchive: (archivePath: string): Promise<CharacterPackImportInspection> =>
     ipcRenderer.invoke('sprite:character:inspectPackFromArchive', {
       archivePath
     }),
 
-  /** 从 .chobits-character / zip 压缩包导入角色包 */
+  /** 从 .cbpk / zip 压缩包导入角色包 */
   installCharacterPackFromArchive: (archivePath: string, options?: CharacterPackInstallOptions) =>
     ipcRenderer.invoke('sprite:character:installPackFromArchive', {
       archivePath,
@@ -156,7 +156,7 @@ export const personaApi = {
       activate: options?.activate
     }),
 
-  /** 将已安装/内置角色包完整导出为 zip 压缩包 */
+  /** 将已安装/内置角色包完整导出为 .cbpk / zip 压缩包 */
   exportCharacterPack: (
     packId: string,
     outputPath: string,

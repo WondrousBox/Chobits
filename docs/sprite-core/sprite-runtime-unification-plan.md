@@ -75,7 +75,7 @@
 ✅ 已完成：
 - `pack.json` manifest 解析与 `assets.animations` 驱动
 - 按角色 slot 的 persona 持久化与切换存档
-- `CharacterPackManager`：builtin/installed pack 扫描、active pack 持久化、目录安装、archive 导入
+- `CharacterPackManager`：builtin/installed pack 扫描、active pack 持久化、archive 导入
 - Installability assessment（`formatVersion` / `minAppVersion` → `blockingErrors + compatibility`）
 - Import preview 稳定 cache（含 `preview.video`）
 - Provenance / signature trust assessment（builtin-bundled / digest-verified / signature-verified / signature-untrusted）

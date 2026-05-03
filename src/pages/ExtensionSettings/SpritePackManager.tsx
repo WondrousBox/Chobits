@@ -1,4 +1,5 @@
-﻿import type {
+﻿import { CHARACTER_PACK_ARCHIVE_EXTENSION, CHARACTER_PACK_ARCHIVE_EXTENSION_NAME } from '@packages/sprite-core/character-pack-archive';
+import type {
   CharacterPackEditorDraft,
   CharacterPackEditorSaveOptions,
   CharacterPackExportResult,
@@ -327,7 +328,7 @@ function sanitizeExportFilenameSegment(value: string | undefined): string {
 }
 
 function buildCharacterPackExportFilename(pack: Pick<CharacterPackSummary, 'id' | 'version'>): string {
-  return `${sanitizeExportFilenameSegment(pack.id)}-${sanitizeExportFilenameSegment(pack.version)}.zip`;
+  return `${sanitizeExportFilenameSegment(pack.id)}-${sanitizeExportFilenameSegment(pack.version)}${CHARACTER_PACK_ARCHIVE_EXTENSION}`;
 }
 
 function getPackMetadataBadges(pack: Pick<CharacterPackSummary, 'formatVersion' | 'minAppVersion' | 'platform' | 'capabilities'>): string[] {
@@ -558,7 +559,7 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra }: S
   const handleImportArchive = useCallback(async (): Promise<void> => {
     const pick = await window.YUA.file['file:pickFile']({
       filters: [
-        { name: 'Chobits Character Pack', extensions: ['chobits-character'] },
+        { name: 'Chobits Character Pack', extensions: [CHARACTER_PACK_ARCHIVE_EXTENSION_NAME] },
         { name: 'Zip Archive', extensions: ['zip'] }
       ],
       multi: false
@@ -575,7 +576,10 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra }: S
     const save = await window.YUA.file['file:saveFile']({
       title: '导出角色包',
       defaultPath: buildCharacterPackExportFilename(pack),
-      filters: [{ name: 'Zip Archive', extensions: ['zip'] }]
+      filters: [
+        { name: 'Chobits Character Pack', extensions: [CHARACTER_PACK_ARCHIVE_EXTENSION_NAME] },
+        { name: 'Zip Archive', extensions: ['zip'] }
+      ]
     });
 
     if (save.canceled || !save.path) {

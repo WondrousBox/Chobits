@@ -1,0 +1,2 @@
+export const CHARACTER_PACK_ARCHIVE_EXTENSION_NAME = 'cbpk';
+export const CHARACTER_PACK_ARCHIVE_EXTENSION = '.cbpk';

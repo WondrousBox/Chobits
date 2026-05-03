@@ -114,6 +114,7 @@ export {
   resetSpriteCapabilityRuntime
 } from './capability-runtime';
 export type { CharacterCapabilityContextFlags } from './character-capability-flags';
+export { CHARACTER_PACK_ARCHIVE_EXTENSION, CHARACTER_PACK_ARCHIVE_EXTENSION_NAME } from './character-pack-archive';
 export type { CharacterPackDigestVerification, CharacterPackDigestVerificationStatus } from './character-pack-integrity';
 export { assessCharacterPackDigest, calculateCharacterPackPayloadDigest, verifyCharacterPackDigest } from './character-pack-integrity';
 export type {

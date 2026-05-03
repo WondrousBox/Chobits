@@ -113,16 +113,16 @@ describe('persona and daily-care preload bridges', () => {
       source: 'installed'
     });
 
-    await personaApi.inspectCharacterPackFromArchive('/tmp/pack-delta.chobits-character');
+    await personaApi.inspectCharacterPackFromArchive('/tmp/pack-delta.cbpk');
     expect(electronHarness.invoke).toHaveBeenNthCalledWith(4, 'sprite:character:inspectPackFromArchive', {
-      archivePath: '/tmp/pack-delta.chobits-character'
+      archivePath: '/tmp/pack-delta.cbpk'
     });
 
-    await personaApi.installCharacterPackFromArchive('/tmp/pack-delta.chobits-character', {
+    await personaApi.installCharacterPackFromArchive('/tmp/pack-delta.cbpk', {
       activate: true
     });
     expect(electronHarness.invoke).toHaveBeenNthCalledWith(5, 'sprite:character:installPackFromArchive', {
-      archivePath: '/tmp/pack-delta.chobits-character',
+      archivePath: '/tmp/pack-delta.cbpk',
       replaceExisting: undefined,
       activate: true
     });
