@@ -1,5 +1,5 @@
 import { windowManager } from '@aim-packages/window-manager';
-import { BrowserWindow } from 'electron';
+import { app, BrowserWindow, screen } from 'electron';
 
 import { initAIHandlers } from '../../../packages/ai/ipc-main';
 import type { DownloadProgress } from '../../../packages/plugins';
@@ -8,6 +8,8 @@ import { initRecorderHandlers } from '../../../packages/recorder/ipc-main';
 import { initSherpaHandlers } from '../../../packages/sherpa/ipc-main';
 import { assertSpriteCapabilityUnlocked } from '../../../packages/sprite-core/capability-runtime';
 import { initSpriteHandlers, initSpriteManagerIPC } from '../../../packages/sprite-core/handler';
+import { DEFAULT_SPRITE_ROUTINE_PRESETS, SpritePurposeHistoryStore } from '../../../packages/sprite-core/purpose';
+import { SPRITE_EVENT_TYPES } from '../../../packages/sprite-core/types';
 import { initTTSHandlers } from '../../../packages/tts/ipc-main';
 import { initYtDlpIpcHandlers } from '../../../packages/ytdlp';
 import { initDailyCare } from '../daily';
@@ -26,6 +28,7 @@ import { initFolderHandlers } from './folder/ipc-main';
 import { initMediaHandlers } from './media/ipc-main';
 import { initMediaTrackHandlers } from './mediaTrack/ipc-main';
 import { initMemoryHandlers } from './memory/ipc-main';
+import { registerPurposeRetrospectiveMemoryProvider } from './memory/purpose-retrospective-memory-sync';
 import { initPreferencesHandlers } from './preferences/ipc-main';
 import { initProxyHandlers } from './proxy/ipc-main';
 import { getHttpProxy } from './proxy/proxy';
@@ -33,6 +36,11 @@ import { initResourceHandlers } from './resource/ipc-main';
 import { initRssHandlers } from './rss/ipc-main';
 import { initShortcutsHandlers } from './shortcuts';
 import { initSpleeterHandlers } from './spleeter/ipc-main';
+import { SpritePurposePlannerRuntimeContextTracker } from './sprite/purpose-planner-context';
+import { initSpritePurposePlannerIPC } from './sprite/purpose-planner-ipc';
+import { SpritePurposePlannerPreferencesStore } from './sprite/purpose-planner-preferences';
+import { createSpritePurposePiPlannerExecutor } from './sprite/purpose-planner-runtime';
+import { createSpritePurposeRoutinePlanner, SpritePurposePlannerService } from './sprite/purpose-planner-service';
 import { SpriteSpontaneousUtteranceService } from './sprite/spontaneous-utterance-service';
 import { initStatusHandlers } from './status';
 import { initSystemHandlers } from './system/ipc-main';
@@ -105,9 +113,63 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initMemoryHandlers();
   initAnalyticsHandlers();
   initUserProfileHandlers();
-  const spontaneousUtteranceService = new SpriteSpontaneousUtteranceService();
+  const purposeHistoryStore = new SpritePurposeHistoryStore(app.getPath('userData'));
+  const purposeRetrospectiveProvider = (query?: Parameters<SpritePurposeHistoryStore['getDailyRetrospective']>[0]) => purposeHistoryStore.getDailyRetrospective(query);
+  registerPurposeRetrospectiveMemoryProvider(purposeRetrospectiveProvider);
+  const spontaneousUtteranceService = new SpriteSpontaneousUtteranceService({
+    purposeRetrospectiveProvider
+  });
+  const purposePlannerPreferencesStore = new SpritePurposePlannerPreferencesStore(app.getPath('userData'));
+  const purposePlannerContextTracker = new SpritePurposePlannerRuntimeContextTracker();
+  const purposePlannerService = new SpritePurposePlannerService({
+    preferences: purposePlannerPreferencesStore.read(),
+    executor: createSpritePurposePiPlannerExecutor({
+      context: () => purposePlannerContextTracker.resolve()
+    }),
+    presets: DEFAULT_SPRITE_ROUTINE_PRESETS,
+    animationTriggers: SPRITE_EVENT_TYPES,
+    history: purposeHistoryStore
+  });
+  initSpritePurposePlannerIPC(purposePlannerService, purposePlannerPreferencesStore);
   await initSpriteManagerIPC(win, {
     addAllowedResourceRoot: (await import('../resource-protocol')).addAllowedResourceRoot,
-    spontaneousUtteranceExecutor: spontaneousUtteranceService
+    registerCharacterPersonaPromptProvider: async (resolveCharacterPersonaPrompt) => {
+      const { registerSystemPromptEnricher } = await import('../../../packages/ai/system-prompt-enricher');
+      registerSystemPromptEnricher({
+        id: 'character-persona',
+        resolve: (ctx) => {
+          if (!ctx.request.extras?.characterPersonaEnabled) return null;
+          if (ctx.request.agentId === 'coder') return null;
+          return resolveCharacterPersonaPrompt();
+        }
+      });
+    },
+    spontaneousUtteranceExecutor: spontaneousUtteranceService,
+    syncCharacterToolLabels: async (labels) => {
+      const { setCharacterToolLabels } = await import('../../../packages/ai/runtime/pi/tool-labels');
+      setCharacterToolLabels(labels);
+    },
+    purposeWindowAdapter: {
+      async open(windowKey, payload) {
+        await windowManager.createOrShow(windowKey as any, payload);
+      },
+      async close(windowKey) {
+        await windowManager.close(windowKey as any);
+      }
+    },
+    purposeRoutinePlanner: createSpritePurposeRoutinePlanner(purposePlannerService, {
+      history: purposeHistoryStore,
+      getScreen: () => {
+        const screenSize = screen.getPrimaryDisplay().workAreaSize;
+        if (win.isDestroyed()) {
+          return { screenSize };
+        }
+        const bounds = win.getBounds();
+        return {
+          screenSize,
+          spritePosition: { x: bounds.x, y: bounds.y }
+        };
+      }
+    })
   });
 }

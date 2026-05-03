@@ -29,6 +29,7 @@ import { memoryExtractionQueue, type QueuedJob } from './extraction-queue';
 import { evaluateExtractionTrigger, getCooldownState, resolveExtractionRuntimeConfig } from './extraction-runtime-config';
 import { getMemoryConfig, type MemoryConfig } from './memory-config';
 import { refreshMemoryIndexForWorkspace } from './memory-index-sync';
+import { syncSpritePurposeRetrospectiveToMemory } from './purpose-retrospective-memory-sync';
 
 // ━━ Config ━━
 
@@ -693,6 +694,7 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
     await refreshMemoryIndexForWorkspace(job.workspaceId, {
       conversationIds,
       jobType: job.jobType,
+      purposeRetrospectiveDate: date,
       trigger: 'extraction_success'
     });
 
@@ -1146,6 +1148,9 @@ export async function memoryDailyMaintenanceTick(): Promise<void> {
     const { generateDailyIndex } = await import('../../../../packages/ai/services/memory-content-gen');
     const ws = await WorkspacesRepo.getDefault();
     if (ws?.rootPath) {
+      await syncSpritePurposeRetrospectiveToMemory({ date: yesterday, workspaceId: ws.id }).catch((error) => {
+        console.warn('[MemoryWorker] Sprite purpose retrospective sync before daily index failed:', error);
+      });
       const contentGenDb = {
         listNotesByDate: (date: string, workspaceId?: string) => MemoryNoteRepo.listByDate(date, workspaceId),
         listNotesByWorkspace: (workspaceId: string, limit?: number, offset?: number) => MemoryNoteRepo.listByWorkspace(workspaceId, limit, offset),

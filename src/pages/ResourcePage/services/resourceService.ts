@@ -64,10 +64,11 @@ const getLocationPatch = (options?: ResourceLocationOptions) => {
   return patch;
 };
 
-export async function addResourcesFromDataTransfer(dt: DataTransfer, options?: ResourceLocationOptions) {
+export async function addResourcesFromDataTransfer(dt: DataTransfer, options?: ResourceLocationOptions): Promise<Resource[]> {
   const items = Array.from(dt.items || []) as DataTransferItem[];
   const files = Array.from(dt.files || []) as File[];
   const fileListForIPC: Array<{ name: string; path: string; isDirectory: boolean }> = [];
+  const resources: Resource[] = [];
 
   items.forEach((item: DataTransferItem) => {
     if (item.kind === 'file') {
@@ -97,11 +98,15 @@ export async function addResourcesFromDataTransfer(dt: DataTransfer, options?: R
       ...getLocationPatch(options)
     };
     try {
-      await window.YUA.resource['resource:add']({ resource });
+      const res = await window.YUA.resource['resource:add']({ resource });
+      if (res.success && res.data) {
+        resources.push(res.data as Resource);
+      }
     } catch {
       /* noop */
     }
   }
+  return resources;
 }
 
 export type UploadProgressCallback = (currentFileIndex: number, totalFiles: number, currentFilePercent: number) => void;

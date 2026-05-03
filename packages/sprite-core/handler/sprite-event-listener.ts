@@ -13,9 +13,15 @@ import { getSpriteEventText } from '../messages/zh-CN';
 import { getResolvedActivityPersonaReward } from '../persona-rules';
 
 export interface SpriteEventPayload {
+  runId?: string;
+  workflowRunId?: string;
+  workflowId?: string;
   message?: string;
   progress?: number;
   workflowName?: string;
+  resourceId?: string;
+  workspaceId?: string;
+  folderId?: string;
   count?: number;
   error?: string;
   success?: boolean;
@@ -27,13 +33,122 @@ export interface SpriteEventPayload {
 }
 
 type SpriteHandler = (data?: SpriteEventPayload) => void;
+export type SpriteEventListenerRouteMode = 'auto' | 'trigger' | 'purpose';
+
+export interface SpriteEventListenerOptions {
+  workflow?: SpriteEventListenerRouteMode;
+  resourceImport?: SpriteEventListenerRouteMode;
+}
+
+interface ResolvedSpriteEventListenerOptions {
+  workflow: SpriteEventListenerRouteMode;
+  resourceImport: SpriteEventListenerRouteMode;
+}
+
+function resolveOptions(options?: SpriteEventListenerOptions): ResolvedSpriteEventListenerOptions {
+  return {
+    workflow: options?.workflow ?? 'auto',
+    resourceImport: options?.resourceImport ?? 'trigger'
+  };
+}
+
+function getWorkflowRunId(data?: SpriteEventPayload): string | undefined {
+  return data?.workflowRunId ?? data?.runId;
+}
+
+function getResourceImportCorrelationId(data?: SpriteEventPayload): string | undefined {
+  return data?.resourceId ?? data?.folderId ?? data?.workspaceId;
+}
+
+function getActiveWorkflowWaitingRunId(mgr: SpriteManager): string | undefined {
+  const current = mgr.getPurposeSnapshot().current;
+  if (current?.kind !== 'workflow.waiting') {
+    return undefined;
+  }
+
+  const workflowRunId = current.context?.workflowRunId ?? current.context?.runId;
+  return typeof workflowRunId === 'string' && workflowRunId.trim() ? workflowRunId : undefined;
+}
+
+function isWorkflowWaitingPurposeHandling(mgr: SpriteManager, data?: SpriteEventPayload): boolean {
+  const current = mgr.getPurposeSnapshot().current;
+  if (current?.kind !== 'workflow.waiting') {
+    return false;
+  }
+
+  const activeRunId = getActiveWorkflowWaitingRunId(mgr);
+  const eventRunId = getWorkflowRunId(data);
+  if (!activeRunId) {
+    return true;
+  }
+  if (!eventRunId) {
+    return false;
+  }
+  return activeRunId === eventRunId;
+}
+
+function isResourceImportPurposeHandling(mgr: SpriteManager, data?: SpriteEventPayload): boolean {
+  const current = mgr.getPurposeSnapshot().current;
+  if (current?.kind !== 'resource.import.waiting') {
+    return false;
+  }
+
+  const activeCorrelationId = getResourceImportCorrelationId(current.context as SpriteEventPayload | undefined);
+  const eventCorrelationId = getResourceImportCorrelationId(data);
+  if (!activeCorrelationId) {
+    return true;
+  }
+  if (!eventCorrelationId) {
+    return false;
+  }
+  return activeCorrelationId === eventCorrelationId;
+}
+
+function startWorkflowWaitingPurpose(mgr: SpriteManager, data?: SpriteEventPayload): boolean {
+  const workflowRunId = getWorkflowRunId(data);
+  if (!workflowRunId) {
+    return false;
+  }
+
+  void mgr.startPurpose({
+    kind: 'workflow.waiting',
+    reason: data?.message || data?.workflowName || 'Workflow started',
+    source: 'app-event',
+    presetId: 'workflow.waiting',
+    priority: 65,
+    correlationId: workflowRunId,
+    coalesceKey: `workflow:${workflowRunId}`,
+    context: {
+      ...data,
+      runId: workflowRunId,
+      workflowRunId
+    }
+  });
+  return true;
+}
+
+function startResourceImportPurpose(mgr: SpriteManager, data?: SpriteEventPayload): boolean {
+  const correlationId = getResourceImportCorrelationId(data) ?? `resource-import:${Date.now()}`;
+  void mgr.startPurpose({
+    kind: 'resource.import.waiting',
+    reason: data?.message || 'Resource import started',
+    source: 'app-event',
+    presetId: 'resource.import.waiting',
+    priority: 65,
+    correlationId,
+    coalesceKey: `resource-import:${correlationId}`,
+    context: data ? { ...data } : { correlationId }
+  });
+  return true;
+}
 
 /**
  * 初始化精灵事件监听器
  *
  * 订阅业务模块发送的精灵触发事件，并调用 SpriteManager 触发动画
  */
-export function initSpriteEventListener(mgr: SpriteManager): () => void {
+export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEventListenerOptions): () => void {
+  const routeMode = resolveOptions(options);
   const handlers: Array<{ event: AppEvent; handler: SpriteHandler }> = [];
 
   const grantActivityReward = (activityId: ActivityRewardId): void => {
@@ -73,6 +188,12 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.SPRITE_WORKFLOW_START,
     handler: (data) => {
+      if (routeMode.workflow === 'purpose' && startWorkflowWaitingPurpose(mgr, data)) {
+        return;
+      }
+      if (routeMode.workflow !== 'trigger' && isWorkflowWaitingPurposeHandling(mgr, data)) {
+        return;
+      }
       mgr.showBusy(data?.message || data?.workflowName || getSpriteEventText('workflowStart'), 0);
       mgr.trigger('processing', { durationMs: 1500, silent: true });
     }
@@ -81,6 +202,9 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.SPRITE_WORKFLOW_PROGRESS,
     handler: (data) => {
+      if (routeMode.workflow !== 'trigger' && isWorkflowWaitingPurposeHandling(mgr, data)) {
+        return;
+      }
       if (data?.progress !== undefined) {
         mgr.updateBusy(data.progress, data.message);
       }
@@ -90,6 +214,10 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.SPRITE_WORKFLOW_COMPLETE,
     handler: (data) => {
+      if (routeMode.workflow !== 'trigger' && isWorkflowWaitingPurposeHandling(mgr, data)) {
+        grantActivityReward('workflow-complete');
+        return;
+      }
       mgr.clearBusy();
       mgr.showToast(data?.message || getSpriteEventText('workflowComplete'), { category: 'celebrate', duration: 2000 });
       mgr.trigger('celebrate', { durationMs: 2000, silent: true });
@@ -100,6 +228,9 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.SPRITE_WORKFLOW_FAIL,
     handler: (data) => {
+      if (routeMode.workflow !== 'trigger' && isWorkflowWaitingPurposeHandling(mgr, data)) {
+        return;
+      }
       mgr.clearBusy();
       mgr.showToast(data?.message || data?.error || getSpriteEventText('workflowFail'), { category: 'error', duration: 2000 });
       mgr.trigger('failure', { durationMs: 1500, silent: true });
@@ -108,7 +239,10 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
 
   handlers.push({
     event: AppEvent.SPRITE_WORKFLOW_CANCEL,
-    handler: () => {
+    handler: (data) => {
+      if (routeMode.workflow !== 'trigger' && isWorkflowWaitingPurposeHandling(mgr, data)) {
+        return;
+      }
       mgr.clearBusy();
       mgr.showToast(getSpriteEventText('workflowCancel'), { category: 'info', duration: 1000 });
     }
@@ -118,6 +252,12 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.SPRITE_RESOURCE_IMPORT_START,
     handler: (data) => {
+      if (routeMode.resourceImport === 'purpose' && startResourceImportPurpose(mgr, data)) {
+        return;
+      }
+      if (routeMode.resourceImport !== 'trigger' && isResourceImportPurposeHandling(mgr, data)) {
+        return;
+      }
       mgr.showBusy(data?.message || getSpriteEventText('importStart'), 0);
       mgr.trigger('loading', { durationMs: 1500, silent: true });
     }
@@ -126,6 +266,9 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.SPRITE_RESOURCE_IMPORT_PROGRESS,
     handler: (data) => {
+      if (routeMode.resourceImport !== 'trigger' && isResourceImportPurposeHandling(mgr, data)) {
+        return;
+      }
       if (data?.progress !== undefined) {
         mgr.updateBusy(data.progress, data.message);
       }
@@ -135,6 +278,10 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.SPRITE_RESOURCE_IMPORT_COMPLETE,
     handler: (data) => {
+      if (routeMode.resourceImport !== 'trigger' && isResourceImportPurposeHandling(mgr, data)) {
+        grantActivityReward('resource-import-complete');
+        return;
+      }
       mgr.clearBusy();
       mgr.showToast(data?.message || getSpriteEventText('importComplete', { count: data?.count }), { category: 'success', duration: 1500 });
       mgr.trigger('celebrate', { durationMs: 1500, silent: true });
@@ -145,6 +292,9 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.SPRITE_RESOURCE_IMPORT_ERROR,
     handler: (data) => {
+      if (routeMode.resourceImport !== 'trigger' && isResourceImportPurposeHandling(mgr, data)) {
+        return;
+      }
       mgr.clearBusy();
       mgr.showToast(data?.message || data?.error || getSpriteEventText('importError'), { category: 'error', duration: 2000 });
       mgr.trigger('error', { durationMs: 1500, silent: true });
@@ -383,14 +533,26 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     }
   });
 
+  const subscriptions = handlers.map(({ event, handler }) => ({
+    event,
+    handler: (data?: SpriteEventPayload) => {
+      mgr.emitPurposeEvent?.({
+        source: 'app-event',
+        event,
+        payload: data as Record<string, unknown> | undefined
+      });
+      handler(data);
+    }
+  }));
+
   // 注册所有事件监听器
-  handlers.forEach(({ event, handler }) => {
+  subscriptions.forEach(({ event, handler }) => {
     eventManager.on(event, handler);
   });
 
   // 返回清理函数
   return () => {
-    handlers.forEach(({ event, handler }) => {
+    subscriptions.forEach(({ event, handler }) => {
       eventManager.off(event, handler);
     });
   };

@@ -80,6 +80,56 @@ describe('sprite preload bridge', () => {
     });
   });
 
+  it('forwards animation completion with an optional playId', async () => {
+    await spriteBridge.animComplete('thinking-purpose', 'full', 'purpose-1:play-1');
+
+    expect(electronHarness.invoke).toHaveBeenCalledTimes(1);
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:anim-complete', {
+      animId: 'thinking-purpose',
+      phase: 'full',
+      playId: 'purpose-1:play-1'
+    });
+  });
+
+  it('forwards purpose events and history queries', async () => {
+    await spriteBridge.emitPurposeEvent({
+      source: 'purpose-event',
+      event: 'fileAction:selected',
+      correlationId: 'drop-1',
+      payload: { actionId: 'summarize' }
+    });
+    await spriteBridge.listPurposeHistory({ kind: 'file.drop.intake', limit: 20 });
+    await spriteBridge.getPurposeDailyRetrospective({ date: '2026-05-03', limit: 5 });
+
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:purpose:event', {
+      source: 'purpose-event',
+      event: 'fileAction:selected',
+      correlationId: 'drop-1',
+      payload: { actionId: 'summarize' }
+    });
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(2, 'sprite:purpose:listHistory', {
+      kind: 'file.drop.intake',
+      limit: 20
+    });
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(3, 'sprite:purpose:getDailyRetrospective', {
+      date: '2026-05-03',
+      limit: 5
+    });
+  });
+
+  it('forwards purpose planner preferences and status IPC calls', async () => {
+    await spriteBridge.getPurposePlannerPreferences();
+    await spriteBridge.updatePurposePlannerPreferences({ enabled: true, historyLimit: 12 });
+    await spriteBridge.getPurposePlannerStatus();
+
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:purposePlanner:getPreferences');
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(2, 'sprite:purposePlanner:updatePreferences', {
+      enabled: true,
+      historyLimit: 12
+    });
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(3, 'sprite:purposePlanner:getStatus');
+  });
+
   it('subscribes to sprite:config and removes the same listener on cleanup', () => {
     const callback = vi.fn();
 

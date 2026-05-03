@@ -441,6 +441,10 @@ export function initMemoryHandlers(): void {
       if (!wsId) return { ok: false, error: 'no workspace' };
       const ws = await WorkspacesRepo.getById(wsId);
       if (!ws?.rootPath) return { ok: false, error: 'workspace has no root path' };
+      const { syncSpritePurposeRetrospectiveToMemory } = await import('./purpose-retrospective-memory-sync');
+      await syncSpritePurposeRetrospectiveToMemory({ date: params.date, workspaceId: wsId }).catch((error) => {
+        console.warn('[Memory] sprite purpose retrospective sync before daily index failed:', error);
+      });
       const result = await generateDailyIndex(params.date, ws.rootPath, contentGenDb, wsId);
       return { ok: true, ...result };
     } catch (e: any) {
@@ -471,6 +475,10 @@ export function initMemoryHandlers(): void {
       if (!wsId) return { ok: false, error: 'no workspace' };
       const ws = await WorkspacesRepo.getById(wsId);
       if (!ws?.rootPath) return { ok: false, error: 'workspace has no root path' };
+      const { syncSpritePurposeRetrospectiveToMemory } = await import('./purpose-retrospective-memory-sync');
+      await syncSpritePurposeRetrospectiveToMemory({ workspaceId: wsId }).catch((error) => {
+        console.warn('[Memory] sprite purpose retrospective sync before memory index failed:', error);
+      });
       const result = await generateMemoryIndex(ws.rootPath, contentGenDb, wsId);
       return { ok: true, ...result };
     } catch (e: any) {

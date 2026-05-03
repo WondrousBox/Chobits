@@ -104,4 +104,31 @@ describe('daily care service broadcasts', () => {
     });
     expect(notifySpriteCapabilityChangedMock).not.toHaveBeenCalled();
   });
+
+  it('emits routine dispatch events for sprite purpose bridging', async () => {
+    const { DailyCareService } = await import('../electron/main/daily/service');
+    const service = new DailyCareService(() => null);
+    const dispatched: Array<any> = [];
+    const cleanup = service.onRoutineDispatched((event) => {
+      dispatched.push(event);
+    });
+
+    expect(service.triggerRoutineById('care:hydration-hourly')).toEqual({ ok: true });
+
+    expect(dispatched).toHaveLength(1);
+    expect(dispatched[0]).toMatchObject({
+      routine: expect.objectContaining({
+        id: 'care:hydration-hourly',
+        kind: 'hydration',
+        severity: 'gentle'
+      }),
+      manual: true,
+      message: expect.any(String),
+      triggeredAt: expect.any(Number)
+    });
+
+    cleanup();
+    service.triggerRoutineById('care:hydration-hourly');
+    expect(dispatched).toHaveLength(1);
+  });
 });

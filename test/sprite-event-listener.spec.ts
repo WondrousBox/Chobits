@@ -114,6 +114,9 @@ function createManagerStub(): {
   addXP: ReturnType<typeof vi.fn>;
   changeFavor: ReturnType<typeof vi.fn>;
   updateDimension: ReturnType<typeof vi.fn>;
+  emitPurposeEvent: ReturnType<typeof vi.fn>;
+  startPurpose: ReturnType<typeof vi.fn>;
+  getPurposeSnapshot: ReturnType<typeof vi.fn>;
 } {
   return {
     showToast: vi.fn(),
@@ -126,7 +129,10 @@ function createManagerStub(): {
     applyPersonaReward: vi.fn(),
     addXP: vi.fn(),
     changeFavor: vi.fn(),
-    updateDimension: vi.fn()
+    updateDimension: vi.fn(),
+    emitPurposeEvent: vi.fn(() => ({ matched: 0 })),
+    startPurpose: vi.fn(async () => ({ accepted: true, status: 'started' })),
+    getPurposeSnapshot: vi.fn(() => ({ current: null, routine: null, queue: [] }))
   };
 }
 
@@ -193,6 +199,141 @@ describe('sprite event listener', () => {
     expect(mgr.addXP).not.toHaveBeenCalled();
     expect(mgr.changeFavor).not.toHaveBeenCalled();
     expect(mgr.updateDimension).not.toHaveBeenCalled();
+
+    cleanup();
+  });
+
+  it('lets an active workflow.waiting purpose own workflow busy presentation', () => {
+    const mgr = createManagerStub();
+    mgr.getPurposeSnapshot.mockReturnValue({
+      current: {
+        kind: 'workflow.waiting',
+        context: { workflowRunId: 'run-1' }
+      },
+      routine: null,
+      queue: []
+    });
+    const cleanup = initSpriteEventListener(mgr as any);
+
+    eventHarness.emit(AppEvent.SPRITE_WORKFLOW_START, { runId: 'run-1', workflowName: '转录' });
+    eventHarness.emit(AppEvent.SPRITE_WORKFLOW_PROGRESS, { runId: 'run-1', progress: 42, message: '转录中' });
+    eventHarness.emit(AppEvent.SPRITE_WORKFLOW_COMPLETE, { runId: 'run-1', message: '完成' });
+
+    expect(mgr.emitPurposeEvent.mock.calls).toEqual([
+      [
+        {
+          source: 'app-event',
+          event: AppEvent.SPRITE_WORKFLOW_START,
+          payload: { runId: 'run-1', workflowName: '转录' }
+        }
+      ],
+      [
+        {
+          source: 'app-event',
+          event: AppEvent.SPRITE_WORKFLOW_PROGRESS,
+          payload: { runId: 'run-1', progress: 42, message: '转录中' }
+        }
+      ],
+      [
+        {
+          source: 'app-event',
+          event: AppEvent.SPRITE_WORKFLOW_COMPLETE,
+          payload: { runId: 'run-1', message: '完成' }
+        }
+      ]
+    ]);
+    expect(mgr.showBusy).not.toHaveBeenCalled();
+    expect(mgr.updateBusy).not.toHaveBeenCalled();
+    expect(mgr.clearBusy).not.toHaveBeenCalled();
+    expect(mgr.showToast).not.toHaveBeenCalled();
+    expect(mgr.trigger).not.toHaveBeenCalled();
+    expect(mgr.applyPersonaReward).toHaveBeenCalledWith({ xp: 0, favor: 0, dimensions: [] }, 'workflow-complete');
+
+    cleanup();
+  });
+
+  it('keeps legacy workflow presentation for unmatched active workflow purposes', () => {
+    const mgr = createManagerStub();
+    mgr.getPurposeSnapshot.mockReturnValue({
+      current: {
+        kind: 'workflow.waiting',
+        context: { workflowRunId: 'run-1' }
+      },
+      routine: null,
+      queue: []
+    });
+    const cleanup = initSpriteEventListener(mgr as any);
+
+    eventHarness.emit(AppEvent.SPRITE_WORKFLOW_PROGRESS, { runId: 'run-2', progress: 64, message: '另一个任务' });
+    eventHarness.emit(AppEvent.SPRITE_WORKFLOW_PROGRESS, { progress: 70, message: '旧事件' });
+
+    expect(mgr.updateBusy.mock.calls).toEqual([
+      [64, '另一个任务'],
+      [70, '旧事件']
+    ]);
+
+    cleanup();
+  });
+
+  it('can route workflow start events into workflow.waiting purpose mode', () => {
+    const mgr = createManagerStub();
+    const cleanup = initSpriteEventListener(mgr as any, { workflow: 'purpose' });
+
+    eventHarness.emit(AppEvent.SPRITE_WORKFLOW_START, {
+      runId: 'run-purpose-1',
+      workflowId: 'wf-1',
+      workflowName: 'Transcribe'
+    });
+
+    expect(mgr.startPurpose).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'workflow.waiting',
+        presetId: 'workflow.waiting',
+        source: 'app-event',
+        priority: 65,
+        correlationId: 'run-purpose-1',
+        coalesceKey: 'workflow:run-purpose-1',
+        context: expect.objectContaining({
+          runId: 'run-purpose-1',
+          workflowRunId: 'run-purpose-1',
+          workflowId: 'wf-1',
+          workflowName: 'Transcribe'
+        })
+      })
+    );
+    expect(mgr.showBusy).not.toHaveBeenCalled();
+    expect(mgr.trigger).not.toHaveBeenCalled();
+
+    cleanup();
+  });
+
+  it('can route resource import start events into resource.import.waiting purpose mode', () => {
+    const mgr = createManagerStub();
+    const cleanup = initSpriteEventListener(mgr as any, { resourceImport: 'purpose' });
+
+    eventHarness.emit(AppEvent.SPRITE_RESOURCE_IMPORT_START, {
+      resourceId: 'resource-1',
+      workspaceId: 'workspace-1',
+      message: 'Importing resource'
+    });
+
+    expect(mgr.startPurpose).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'resource.import.waiting',
+        presetId: 'resource.import.waiting',
+        source: 'app-event',
+        priority: 65,
+        correlationId: 'resource-1',
+        coalesceKey: 'resource-import:resource-1',
+        context: expect.objectContaining({
+          resourceId: 'resource-1',
+          workspaceId: 'workspace-1',
+          message: 'Importing resource'
+        })
+      })
+    );
+    expect(mgr.showBusy).not.toHaveBeenCalled();
+    expect(mgr.trigger).not.toHaveBeenCalled();
 
     cleanup();
   });

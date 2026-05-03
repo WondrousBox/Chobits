@@ -1,0 +1,289 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import { installMiniDom } from './utils/minidom';
+
+type RadialMenuProps = {
+  items: Array<{ id: string; action?: () => void }>;
+  onClose?: () => void;
+};
+
+const radialHarness = vi.hoisted(() => ({
+  latestProps: undefined as RadialMenuProps | undefined
+}));
+
+vi.mock('../src/components/common/RadialMenu/RadialMenu', async () => {
+  const React = await import('react');
+  return {
+    default: (props: RadialMenuProps) => {
+      radialHarness.latestProps = props;
+      return React.createElement('div', { 'data-radial-menu': 'true' });
+    }
+  };
+});
+
+vi.mock('@/lib/ai-model-first', () => ({
+  resolveModelFirstSelection: vi.fn()
+}));
+
+vi.mock('@/lib/workflow-runner', () => ({
+  runWorkflow: vi.fn()
+}));
+
+async function waitFor(predicate: () => boolean, timeoutMs = 300): Promise<void> {
+  const startedAt = Date.now();
+  while (!predicate()) {
+    if (Date.now() - startedAt > timeoutMs) {
+      throw new Error('Timed out waiting for condition');
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+}
+
+async function flushPromises(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+function createMenuHarness(options: { openWindow?: () => Promise<void> | void; payload?: Record<string, unknown> } = {}) {
+  radialHarness.latestProps = undefined;
+  const env = installMiniDom();
+  const payload = options.payload ?? {
+    files: [{ name: 'notes.docx', path: 'F:/tmp/notes.docx' }],
+    resources: [{ id: 'resource-1', title: 'notes.docx', filePath: 'F:/tmp/notes.docx', workspaceId: 'workspace-1' }],
+    source: 'drop',
+    correlationId: 'drop-1'
+  };
+  const emitPurposeEvent = vi.fn(async () => ({ matched: 1 }));
+  const startPurpose = vi.fn(async () => ({ accepted: true, status: 'started' }));
+  const closeWindow = vi.fn(async () => undefined);
+  const openWindow = vi.fn(options.openWindow ?? (async () => undefined));
+  const payloadGet = vi.fn(async () => payload);
+
+  (env.window as any).ipcRenderer = {
+    on: vi.fn(),
+    off: vi.fn()
+  };
+  (env.window as any).YUA = {
+    sprite: {
+      emitPurposeEvent,
+      startPurpose
+    },
+    window: {
+      'window:payload:get': payloadGet,
+      'window:close': closeWindow,
+      'window:open': openWindow
+    }
+  };
+
+  return { env, emitPurposeEvent, startPurpose, closeWindow, openWindow, payloadGet };
+}
+
+describe('FileActionsMenu purpose events', () => {
+  it('resolves cancellation when the menu unmounts without an action', async () => {
+    const { act } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+    const { default: FileActionsMenu } = await import('../src/pages/FileActionsMenu/FileActionsMenu');
+
+    const harness = createMenuHarness();
+    const root = createRoot(harness.env.container as any);
+
+    await act(async () => {
+      root.render(<FileActionsMenu />);
+      await flushPromises();
+    });
+    await waitFor(() => Boolean(radialHarness.latestProps?.items.length));
+
+    await act(async () => {
+      root.unmount();
+      await flushPromises();
+    });
+    await waitFor(() => harness.emitPurposeEvent.mock.calls.length >= 2);
+
+    expect(harness.emitPurposeEvent.mock.calls[0][0]).toMatchObject({
+      event: 'fileAction:cancelled',
+      correlationId: 'drop-1',
+      payload: { reason: 'menu-unmounted', correlationId: 'drop-1', resourceId: 'resource-1' }
+    });
+    expect(harness.emitPurposeEvent.mock.calls[1][0]).toMatchObject({
+      event: 'fileAction:resolved',
+      correlationId: 'drop-1',
+      payload: { outcome: 'cancelled', reason: 'menu-unmounted', correlationId: 'drop-1', resourceId: 'resource-1' }
+    });
+    expect(harness.closeWindow).not.toHaveBeenCalled();
+
+    harness.env.cleanup();
+  });
+
+  it('does not let RadialMenu onClose close the window before action resolution', async () => {
+    const { act } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+    const { default: FileActionsMenu } = await import('../src/pages/FileActionsMenu/FileActionsMenu');
+
+    let releaseAssistantOpen: (() => void) | undefined;
+    const harness = createMenuHarness({
+      openWindow: () =>
+        new Promise<void>((resolve) => {
+          releaseAssistantOpen = resolve;
+        })
+    });
+    const root = createRoot(harness.env.container as any);
+
+    await act(async () => {
+      root.render(<FileActionsMenu />);
+      await flushPromises();
+    });
+    await waitFor(() => Boolean(radialHarness.latestProps?.items.length));
+
+    await act(async () => {
+      radialHarness.latestProps?.items[0]?.action?.();
+      radialHarness.latestProps?.onClose?.();
+      await flushPromises();
+    });
+
+    expect(harness.emitPurposeEvent.mock.calls[0][0]).toMatchObject({
+      event: 'fileAction:selected',
+      correlationId: 'drop-1',
+      payload: { actionId: 'doc-sum', correlationId: 'drop-1', resourceId: 'resource-1' }
+    });
+    expect(harness.closeWindow).not.toHaveBeenCalled();
+
+    releaseAssistantOpen?.();
+    await waitFor(() => harness.closeWindow.mock.calls.length === 1);
+
+    expect(harness.emitPurposeEvent.mock.calls.some(([event]) => event.event === 'fileAction:resolved' && event.payload?.outcome === 'selected')).toBe(true);
+
+    await act(async () => {
+      root.unmount();
+      await flushPromises();
+    });
+    harness.env.cleanup();
+  });
+
+  it('resolves failed when a workflow action reports an error', async () => {
+    const { act } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+    const { runWorkflow } = await import('@/lib/workflow-runner');
+    const { default: FileActionsMenu } = await import('../src/pages/FileActionsMenu/FileActionsMenu');
+
+    vi.mocked(runWorkflow).mockImplementationOnce(async (request: any) => {
+      request.onError(new Error('workflow exploded'));
+    });
+    const harness = createMenuHarness({
+      payload: {
+        files: [{ name: 'voice.mp3', path: 'F:/tmp/voice.mp3' }],
+        resources: [{ id: 'resource-audio', title: 'voice.mp3', filePath: 'F:/tmp/voice.mp3', workspaceId: 'workspace-1' }],
+        source: 'drop',
+        correlationId: 'drop-audio'
+      }
+    });
+    const root = createRoot(harness.env.container as any);
+
+    await act(async () => {
+      root.render(<FileActionsMenu />);
+      await flushPromises();
+    });
+    await waitFor(() => Boolean(radialHarness.latestProps?.items.some((item) => item.id === 'audio-stt')));
+
+    await act(async () => {
+      radialHarness.latestProps?.items.find((item) => item.id === 'audio-stt')?.action?.();
+      await flushPromises();
+    });
+    await waitFor(() => harness.closeWindow.mock.calls.length === 1);
+
+    const events = harness.emitPurposeEvent.mock.calls.map(([event]) => event);
+    expect(events[0]).toMatchObject({
+      event: 'fileAction:selected',
+      correlationId: 'drop-audio',
+      payload: { actionId: 'audio-stt', correlationId: 'drop-audio', resourceId: 'resource-audio' }
+    });
+    expect(events.some((event) => event.event === 'fileAction:failed' && event.payload?.actionPurpose === 'audio transcription' && event.payload?.workflowId === 'sample:transcribe')).toBe(true);
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event: 'fileAction:resolved',
+          correlationId: 'drop-audio',
+          payload: expect.objectContaining({ outcome: 'failed', correlationId: 'drop-audio', resourceId: 'resource-audio' })
+        })
+      ])
+    );
+
+    await act(async () => {
+      root.unmount();
+      await flushPromises();
+    });
+    harness.env.cleanup();
+  });
+
+  it('starts workflow.waiting when a workflow action reports a run id', async () => {
+    const { act } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+    const { runWorkflow } = await import('@/lib/workflow-runner');
+    const { default: FileActionsMenu } = await import('../src/pages/FileActionsMenu/FileActionsMenu');
+
+    vi.mocked(runWorkflow).mockImplementationOnce(async (request: any) => {
+      request.onSuccess('run-audio-1');
+    });
+    const harness = createMenuHarness({
+      payload: {
+        files: [{ name: 'voice.mp3', path: 'F:/tmp/voice.mp3' }],
+        resources: [{ id: 'resource-audio', title: 'voice.mp3', filePath: 'F:/tmp/voice.mp3', workspaceId: 'workspace-1' }],
+        source: 'drop',
+        correlationId: 'drop-audio'
+      }
+    });
+    const root = createRoot(harness.env.container as any);
+
+    await act(async () => {
+      root.render(<FileActionsMenu />);
+      await flushPromises();
+    });
+    await waitFor(() => Boolean(radialHarness.latestProps?.items.some((item) => item.id === 'audio-stt')));
+
+    await act(async () => {
+      radialHarness.latestProps?.items.find((item) => item.id === 'audio-stt')?.action?.();
+      await flushPromises();
+    });
+    await waitFor(() => harness.startPurpose.mock.calls.length === 1);
+    await waitFor(() => harness.closeWindow.mock.calls.length === 1);
+
+    expect(harness.startPurpose).toHaveBeenCalledWith({
+      kind: 'workflow.waiting',
+      reason: '等待文件操作工作流完成：audio transcription',
+      source: 'app-event',
+      presetId: 'workflow.waiting',
+      priority: 65,
+      correlationId: 'drop-audio',
+      context: {
+        workflowRunId: 'run-audio-1',
+        runId: 'run-audio-1',
+        workflowId: 'sample:transcribe',
+        workflowName: 'audio transcription',
+        resourceId: 'resource-audio'
+      }
+    });
+    expect(harness.emitPurposeEvent.mock.calls.map(([event]) => event)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event: 'fileAction:workflow-started',
+          correlationId: 'drop-audio',
+          payload: expect.objectContaining({
+            workflowRunId: 'run-audio-1',
+            runId: 'run-audio-1',
+            workflowId: 'sample:transcribe'
+          })
+        }),
+        expect.objectContaining({
+          event: 'fileAction:resolved',
+          correlationId: 'drop-audio',
+          payload: expect.objectContaining({ outcome: 'selected', resourceId: 'resource-audio' })
+        })
+      ])
+    );
+
+    await act(async () => {
+      root.unmount();
+      await flushPromises();
+    });
+    harness.env.cleanup();
+  });
+});

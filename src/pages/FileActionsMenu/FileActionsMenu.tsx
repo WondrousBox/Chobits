@@ -1,12 +1,19 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { resolveModelFirstSelection } from '@/lib/ai-model-first';
 import { runWorkflow as runWorkflowUtil } from '@/lib/workflow-runner';
 
-import { Resource } from '../../../electron/main/handlers/resource/ipc-renderer';
+import type { Resource } from '../../../electron/main/handlers/resource/ipc-renderer';
 import RadialMenu, { RadialMenuItem } from '../../components/common/RadialMenu/RadialMenu';
 
 type FileInfo = { name: string; path?: string; mime?: string };
+
+type FileActionsMenuPayload = {
+  files?: FileInfo[];
+  resources?: Resource[];
+  source?: string;
+  correlationId?: string;
+};
 
 type ActionItem = {
   id: string;
@@ -32,6 +39,8 @@ function guessKind(file: FileInfo): 'doc' | 'audio' | 'video' | 'image' | 'pdf' 
 
 const FileActionsMenu: React.FC = () => {
   const [resources, setResources] = useState<Resource[]>([]);
+  const [payloadMeta, setPayloadMeta] = useState<Omit<FileActionsMenuPayload, 'resources'>>({});
+  const actionTakenRef = useRef(false);
   const primary = resources[0];
   const kind = primary ? guessKind({ name: primary.title || '', path: primary.filePath }) : 'other';
 
@@ -39,6 +48,13 @@ const FileActionsMenu: React.FC = () => {
     // 接收主进程传来的文件数据
     const handler = (_: any, payload: any): void => {
       try {
+        if (payload && typeof payload === 'object') {
+          setPayloadMeta({
+            files: Array.isArray(payload.files) ? (payload.files as FileInfo[]) : undefined,
+            source: typeof payload.source === 'string' ? payload.source : undefined,
+            correlationId: typeof payload.correlationId === 'string' ? payload.correlationId : undefined
+          });
+        }
         if (payload?.resources && Array.isArray(payload.resources)) {
           setResources(payload.resources as Resource[]);
         }
@@ -51,6 +67,13 @@ const FileActionsMenu: React.FC = () => {
     (async () => {
       try {
         const data = await window.YUA.window['window:payload:get']('fileActionsMenu' as any);
+        if (data && typeof data === 'object') {
+          setPayloadMeta({
+            files: Array.isArray(data.files) ? (data.files as FileInfo[]) : undefined,
+            source: typeof data.source === 'string' ? data.source : undefined,
+            correlationId: typeof data.correlationId === 'string' ? data.correlationId : undefined
+          });
+        }
         if (data?.resources) setResources(data.resources as Resource[]);
       } catch (err) {
         console.warn('[FileActionsMenu] window:payload:get error', err);
@@ -65,14 +88,88 @@ const FileActionsMenu: React.FC = () => {
     };
   }, []);
 
+  const emitPurposeEvent = useCallback(
+    async (event: string, payload?: Record<string, unknown>): Promise<void> => {
+      try {
+        await window.YUA.sprite.emitPurposeEvent({
+          source: 'purpose-event',
+          event,
+          correlationId: payloadMeta.correlationId,
+          payload: {
+            correlationId: payloadMeta.correlationId,
+            source: payloadMeta.source,
+            fileCount: payloadMeta.files?.length,
+            resourceId: primary?.id,
+            resourceIds: resources.map((resource) => resource.id).filter(Boolean),
+            ...payload
+          }
+        });
+      } catch (err) {
+        console.warn('[FileActionsMenu] failed to emit purpose event', event, err);
+      }
+    },
+    [payloadMeta.correlationId, payloadMeta.files?.length, payloadMeta.source, primary?.id, resources]
+  );
+
+  const emitPurposeEventRef = useRef(emitPurposeEvent);
+  useEffect(() => {
+    emitPurposeEventRef.current = emitPurposeEvent;
+  }, [emitPurposeEvent]);
+
+  const closeWindow = useCallback(async (): Promise<void> => {
+    try {
+      await window.YUA.window['window:close']('fileActionsMenu' as any);
+    } catch (err) {
+      console.warn('[FileActionsMenu] close window error', err);
+    }
+  }, []);
+
+  const resolveCancellation = useCallback(
+    async (reason: string): Promise<void> => {
+      if (actionTakenRef.current) {
+        return;
+      }
+      actionTakenRef.current = true;
+      await emitPurposeEvent('fileAction:cancelled', { reason });
+      await emitPurposeEvent('fileAction:resolved', { outcome: 'cancelled', reason });
+    },
+    [emitPurposeEvent]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (actionTakenRef.current) {
+        return;
+      }
+      actionTakenRef.current = true;
+      const emit = emitPurposeEventRef.current;
+      void (async () => {
+        await emit('fileAction:cancelled', { reason: 'menu-unmounted' });
+        await emit('fileAction:resolved', { outcome: 'cancelled', reason: 'menu-unmounted' });
+      })();
+    };
+  }, []);
+
+  const handleClose = useCallback((): void => {
+    void (async () => {
+      if (actionTakenRef.current) {
+        return;
+      }
+      await resolveCancellation('menu-closed');
+      await closeWindow();
+    })();
+  }, [closeWindow, resolveCancellation]);
+
   const actions = useMemo<ActionItem[]>(() => {
     const list: ActionItem[] = [];
     const runWorkflow = async (defId: string, purpose: string): Promise<void> => {
       if (!primary) {
         console.warn(`[FileActionsMenu] no resource for ${purpose}`);
-        return;
+        await emitPurposeEvent('fileAction:failed', { reason: 'no-resource', actionPurpose: purpose, workflowId: defId });
+        throw new Error('no-resource');
       }
 
+      let runError: Error | null = null;
       await runWorkflowUtil({
         defId,
         input: { resource: primary, resourceId: primary.id },
@@ -84,21 +181,58 @@ const FileActionsMenu: React.FC = () => {
         },
         onSuccess: (runId) => {
           console.log(`[FileActionsMenu] ${purpose} started, runId:`, runId);
+          void window.YUA.sprite
+            .startPurpose({
+              kind: 'workflow.waiting',
+              reason: `等待文件操作工作流完成：${purpose}`,
+              source: 'app-event',
+              presetId: 'workflow.waiting',
+              priority: 65,
+              correlationId: payloadMeta.correlationId,
+              context: {
+                workflowRunId: runId,
+                runId,
+                workflowId: defId,
+                workflowName: purpose,
+                resourceId: primary.id
+              }
+            })
+            .catch((err) => {
+              console.warn('[FileActionsMenu] failed to start workflow waiting purpose', err);
+            });
+          void emitPurposeEvent('fileAction:workflow-started', {
+            actionPurpose: purpose,
+            workflowId: defId,
+            workflowRunId: runId,
+            runId
+          });
         },
-        onError: () => {
+        onError: (error) => {
           console.warn(`[FileActionsMenu] ${purpose} failed`);
+          runError = error instanceof Error ? error : new Error(String(error));
+          void emitPurposeEvent('fileAction:failed', {
+            actionPurpose: purpose,
+            workflowId: defId,
+            error: runError.message
+          });
         }
       });
+      if (runError) {
+        throw runError;
+      }
     };
     const closeAfter = async (fn: () => Promise<void> | void): Promise<void> => {
+      let outcome = 'selected';
       try {
         await fn();
+      } catch (err) {
+        outcome = 'failed';
+        await emitPurposeEvent('fileAction:failed', {
+          error: err instanceof Error ? err.message : String(err)
+        });
       } finally {
-        try {
-          await window.YUA.window['window:close']('fileActionsMenu' as any);
-        } catch (err) {
-          console.warn('[FileActionsMenu] close window error', err);
-        }
+        await emitPurposeEvent('fileAction:resolved', { outcome });
+        await closeWindow();
       }
     };
     const summarizeDoc = (): Promise<void> =>
@@ -299,17 +433,29 @@ const FileActionsMenu: React.FC = () => {
       // generic: already added
     }
     return list;
-  }, [kind, primary]);
+  }, [closeWindow, emitPurposeEvent, kind, primary]);
 
   // Build radial menu items from available actions
   const radialItems: RadialMenuItem[] = useMemo(() => {
-    return actions.map((a) => ({ id: a.id, label: a.label, icon: a.icon, action: () => a.run() }));
-  }, [actions]);
+    return actions.map((a) => ({
+      id: a.id,
+      label: a.label,
+      icon: a.icon,
+      action: () => {
+        actionTakenRef.current = true;
+        void emitPurposeEvent('fileAction:selected', {
+          actionId: a.id,
+          actionLabel: a.label
+        });
+        void a.run();
+      }
+    }));
+  }, [actions, emitPurposeEvent]);
 
   // If there are no actions yet (data not ready), don't render the menu
   if (radialItems.length === 0) return null;
 
-  return <RadialMenu items={radialItems} open onClose={() => window.YUA.window['window:close']('fileActionsMenu' as any)} />;
+  return <RadialMenu items={radialItems} open onClose={handleClose} />;
 };
 
 export default FileActionsMenu;

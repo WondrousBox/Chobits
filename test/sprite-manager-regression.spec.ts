@@ -5,11 +5,11 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { AnimationEntry } from '../packages/sprite-core/animation-registry';
+import { initSpriteCapabilityRuntime, resetSpriteCapabilityRuntime } from '../packages/sprite-core/capability-runtime';
 import { registerDefaultBehaviors } from '../packages/sprite-core/manager/default-behaviors';
 import { SpriteManager } from '../packages/sprite-core/manager/sprite-manager';
 import { mapStateToEventType } from '../packages/sprite-core/manager/state-mapping';
-import { resetPersonaRulesRuntime, setPersonaRulesProvider, upsertPersonaRulesLayer, removePersonaRulesLayer } from '../packages/sprite-core/persona-rules';
-import { initSpriteCapabilityRuntime, resetSpriteCapabilityRuntime } from '../packages/sprite-core/capability-runtime';
+import { removePersonaRulesLayer, resetPersonaRulesRuntime, setPersonaRulesProvider, upsertPersonaRulesLayer } from '../packages/sprite-core/persona-rules';
 import type { SpriteAnimation, SpriteMovementConfig } from '../packages/sprite-core/types';
 
 function createTestWindow(): {
@@ -40,7 +40,7 @@ function createTestWindow(): {
   return { win, sent };
 }
 
-function createManager(): {
+function createManager(options: { purposeWindowAdapter?: any } = {}): {
   mgr: SpriteManager;
   sent: Array<{ channel: string; payload: unknown }>;
   dataDir: string;
@@ -51,7 +51,8 @@ function createManager(): {
     win: win as any,
     dataDir,
     getScreenSize: () => ({ width: 1280, height: 720 }),
-    appName: 'SpriteTest'
+    appName: 'SpriteTest',
+    purposeWindowAdapter: options.purposeWindowAdapter
   });
 
   return { mgr, sent, dataDir };
@@ -214,6 +215,197 @@ describe('sprite manager regression coverage', () => {
       }
     });
     expect(mgr.getCurrentAnimation()?.playbackSession?.startedAtMs).toEqual(expect.any(Number));
+  });
+
+  it('purpose animation waits for the matching playId before continuing', async () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'thinking-purpose',
+      title: 'Thinking Purpose',
+      eventTypes: ['thinking'],
+      source: { localPath: './thinking.webm', type: 'video/webm' },
+      playback: {
+        durationMs: 200,
+        autoIdle: false
+      }
+    });
+
+    let settled = false;
+    const promise = (mgr as any)
+      .runPurposeAnimationStep({ id: 'play', type: 'playAnimation', trigger: 'thinking', waitFor: 'complete', timeoutMs: 200 }, new AbortController().signal, {
+        id: 'routine-purpose-1',
+        purposeId: 'purpose-1',
+        priority: 80,
+        source: 'preset',
+        status: 'running',
+        steps: [],
+        cursor: 0,
+        createdAt: Date.now()
+      })
+      .then(() => {
+        settled = true;
+      });
+
+    const playId = mgr.getCurrentAnimation()?.playId;
+    expect(playId).toEqual(expect.any(String));
+
+    mgr.handleAnimationComplete('thinking-purpose', 'full', 'other-play');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(settled).toBe(false);
+
+    mgr.handleAnimationComplete('thinking-purpose', 'full', playId);
+    await expect(promise).resolves.toBeUndefined();
+    expect(settled).toBe(true);
+  });
+
+  it('keeps low-priority ambient triggers from overriding a running purpose animation', async () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'thinking-purpose',
+      title: 'Thinking Purpose',
+      eventTypes: ['thinking'],
+      source: { localPath: './thinking.webm', type: 'video/webm' },
+      playback: { durationMs: 40 }
+    });
+    registry.register({
+      id: 'idle-ambient',
+      title: 'Idle Ambient',
+      eventTypes: ['idle'],
+      source: { localPath: './idle.webm', type: 'video/webm' },
+      playback: { durationMs: 40 }
+    });
+
+    const promise = (mgr as any).runPurposeAnimationStep({ id: 'play', type: 'playAnimation', trigger: 'thinking', waitFor: 'duration', durationMs: 20 }, new AbortController().signal, {
+      id: 'routine-purpose-1',
+      purposeId: 'purpose-1',
+      priority: 80,
+      source: 'preset',
+      status: 'running',
+      steps: [],
+      cursor: 0,
+      createdAt: Date.now()
+    });
+
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('thinking-purpose');
+    mgr.trigger('idle', { silent: true, priority: 10 });
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('thinking-purpose');
+
+    await promise;
+    mgr.trigger('idle', { silent: true, priority: 10 });
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('idle-ambient');
+  });
+
+  it('keeps state-driven animations behind the routine lifecycle presentation lock', () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'thinking-purpose',
+      title: 'Thinking Purpose',
+      eventTypes: ['thinking'],
+      source: { localPath: './thinking.webm', type: 'video/webm' },
+      playback: { durationMs: 100 }
+    });
+    registry.register({
+      id: 'click-state',
+      title: 'Click State',
+      eventTypes: ['click'],
+      source: { localPath: './click.webm', type: 'video/webm' },
+      playback: { durationMs: 100 }
+    });
+
+    mgr.trigger('thinking', { silent: true });
+    (mgr as any).acquireRoutinePresentationLock(
+      { id: 'purpose-1', priority: 80 },
+      {
+        id: 'routine-purpose-1',
+        purposeId: 'purpose-1',
+        priority: 80,
+        source: 'preset',
+        status: 'running',
+        steps: [{ id: 'wait', type: 'wait', durationMs: 1000 }],
+        cursor: 0,
+        createdAt: Date.now()
+      }
+    );
+
+    mgr.transitionTo('reacting', { subState: 'click', force: true });
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('thinking-purpose');
+
+    (mgr as any).releaseRoutinePresentationLock('purpose-1');
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('click-state');
+  });
+
+  it('allows routine-owned walk state animation while the lifecycle lock is active', async () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'thinking-purpose',
+      title: 'Thinking Purpose',
+      eventTypes: ['thinking'],
+      source: { localPath: './thinking.webm', type: 'video/webm' },
+      playback: { durationMs: 100 }
+    });
+    registry.register({
+      id: 'walk-purpose',
+      title: 'Walk Purpose',
+      eventTypes: ['walk'],
+      source: { localPath: './walk.webm', type: 'video/webm' },
+      playback: { durationMs: 100 }
+    });
+
+    mgr.trigger('thinking', { silent: true });
+    const routine = {
+      id: 'routine-purpose-1',
+      purposeId: 'purpose-1',
+      priority: 80,
+      source: 'preset',
+      status: 'running',
+      steps: [],
+      cursor: 0,
+      createdAt: Date.now()
+    };
+    (mgr as any).acquireRoutinePresentationLock({ id: 'purpose-1', priority: 80 }, routine);
+    mgr.setWindowController({
+      walkTo: vi.fn(() => {
+        mgr.transitionTo('walking', { force: true });
+        return Promise.resolve();
+      }),
+      stopWalk: vi.fn(),
+      getPosition: () => [0, 0]
+    });
+
+    await (mgr as any).runPurposeWalkStep({ id: 'walk', type: 'walkTo', target: 'center', timeoutMs: 1000 }, new AbortController().signal, routine);
+
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('walk-purpose');
+  });
+
+  it('opens routine windows through the injected purpose window adapter', async () => {
+    const opened: Array<{ windowKey: string; payload?: Record<string, unknown> }> = [];
+    const { mgr, dataDir } = createManager({
+      purposeWindowAdapter: {
+        open(windowKey: string, payload?: Record<string, unknown>) {
+          opened.push({ windowKey, payload });
+        }
+      }
+    });
+    dataDirs.add(dataDir);
+
+    await (mgr as any).runPurposeOpenWindowStep(
+      { id: 'open-menu', type: 'openWindow', window: 'fileActionsMenu', payload: { correlationId: 'drop-1' } },
+      new AbortController().signal
+    );
+
+    expect(opened).toEqual([{ windowKey: 'fileActionsMenu', payload: { correlationId: 'drop-1' } }]);
   });
 
   it('recordConversationEvent() routes base reward through the event bus and respects cooldown', () => {
@@ -558,7 +750,7 @@ describe('sprite manager regression coverage', () => {
       speed: 48
     };
 
-    const resolveWalkAnimation = () => ({
+    const resolveWalkAnimation = (): AnimationEntry => ({
       id: 'walk-default',
       title: 'walk',
       eventTypes: ['walk'],
@@ -583,6 +775,82 @@ describe('sprite manager regression coverage', () => {
 
     await autoWalk.action({} as any);
     expect(runBehaviorMovement).toHaveBeenCalledWith(movement, { hasSegmentLoop: false });
+  });
+
+  it('routes night sleepy behavior through the daily rest purpose', async () => {
+    const registered = new Map<string, any>();
+    const startPurpose = vi.fn(async () => ({ accepted: true, status: 'started' }));
+    const playOnce = vi.fn();
+    const showToast = vi.fn();
+    const fakeManager = {
+      findAnimationByTrigger: vi.fn(),
+      registerBehavior: (behavior: any) => {
+        registered.set(behavior.id, behavior);
+      },
+      isAutoWalkEnabled: () => false,
+      runBehaviorMovement: vi.fn(),
+      startPurpose,
+      playOnce,
+      showToast,
+      trigger: vi.fn(),
+      transitionTo: vi.fn(),
+      changeFavor: vi.fn(),
+      getSpontaneousUtteranceExecutor: vi.fn()
+    };
+
+    registerDefaultBehaviors(fakeManager as any);
+    const nightSleepy = registered.get('night-sleepy');
+    expect(nightSleepy).toBeTruthy();
+
+    await nightSleepy.action({ now: new Date('2026-05-03T23:00:00+08:00') } as any);
+
+    expect(startPurpose).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'daily.rest-reminder',
+        source: 'behavior',
+        presetId: 'daily.rest-reminder',
+        priority: 60,
+        coalesceKey: 'night-sleepy',
+        context: expect.objectContaining({
+          behaviorId: 'night-sleepy',
+          hour: 23
+        })
+      })
+    );
+    expect(playOnce).not.toHaveBeenCalled();
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it('keeps idle sleepy as a lightweight single reaction', async () => {
+    const registered = new Map<string, any>();
+    const startPurpose = vi.fn(async () => ({ accepted: true, status: 'started' }));
+    const playOnce = vi.fn();
+    const showToast = vi.fn();
+    const fakeManager = {
+      findAnimationByTrigger: vi.fn(),
+      registerBehavior: (behavior: any) => {
+        registered.set(behavior.id, behavior);
+      },
+      isAutoWalkEnabled: () => false,
+      runBehaviorMovement: vi.fn(),
+      startPurpose,
+      playOnce,
+      showToast,
+      trigger: vi.fn(),
+      transitionTo: vi.fn(),
+      changeFavor: vi.fn(),
+      getSpontaneousUtteranceExecutor: vi.fn()
+    };
+
+    registerDefaultBehaviors(fakeManager as any);
+    const idleSleepy = registered.get('idle-sleepy');
+    expect(idleSleepy).toBeTruthy();
+
+    await idleSleepy.action({} as any);
+
+    expect(startPurpose).not.toHaveBeenCalled();
+    expect(playOnce).toHaveBeenCalledWith('sleepy');
+    expect(showToast).toHaveBeenCalledWith('有点困了呢...', { category: 'info', duration: 2000 });
   });
 
   it('gates idle emotion behavior behind emotionExpression capability', () => {

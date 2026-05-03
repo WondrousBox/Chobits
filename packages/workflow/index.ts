@@ -527,19 +527,35 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
   // 跟踪工作流执行进度
   const workflowProgress = new Map<string, { totalNodes: number; workflowName: string }>();
 
+  const buildSpriteWorkflowPayload = (rec: WorkflowRunRecord): Record<string, any> => {
+    const resource = rec.input?.resource;
+    return {
+      runId: rec.runId,
+      workflowRunId: rec.runId,
+      workflowId: rec.workflowId,
+      workflowName: workflowProgress.get(rec.runId)?.workflowName || rec.metadata?.workflowName || rec.workflowId,
+      status: rec.status,
+      progress: rec.progress,
+      message: rec.progressMessage,
+      resourceId: rec.metadata?.resourceId ?? rec.input?.resourceId ?? resource?.id ?? resource?.resourceId,
+      workspaceId: rec.metadata?.workspaceId ?? rec.input?.workspaceId ?? resource?.workspaceId,
+      folderId: rec.metadata?.folderId ?? rec.input?.folderId ?? resource?.folderId
+    };
+  };
+
   engine.onTyped('run:status', async (rec) => {
     await WorkflowStore.updateRun(rec).catch(() => { });
     broadcast('wf:run-status', rec);
 
     // 触发精灵动画（通过事件解耦）
     if (rec.status === 'running' && !workflowProgress.has(rec.runId)) {
-      eventManager.emit(AppEvent.SPRITE_WORKFLOW_START);
+      eventManager.emit(AppEvent.SPRITE_WORKFLOW_START, buildSpriteWorkflowPayload(rec));
     } else if (rec.status === 'completed') {
-      eventManager.emit(AppEvent.SPRITE_WORKFLOW_COMPLETE);
+      eventManager.emit(AppEvent.SPRITE_WORKFLOW_COMPLETE, buildSpriteWorkflowPayload(rec));
     } else if (rec.status === 'failed') {
-      eventManager.emit(AppEvent.SPRITE_WORKFLOW_FAIL);
+      eventManager.emit(AppEvent.SPRITE_WORKFLOW_FAIL, buildSpriteWorkflowPayload(rec));
     } else if (rec.status === 'canceled') {
-      eventManager.emit(AppEvent.SPRITE_WORKFLOW_CANCEL);
+      eventManager.emit(AppEvent.SPRITE_WORKFLOW_CANCEL, buildSpriteWorkflowPayload(rec));
     }
 
     // 处理繁忙状态
@@ -612,6 +628,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
       rec.progressMessage = progressMessage;
       await WorkflowStore.updateRun(rec).catch(() => { });
       broadcast('wf:run-status', rec);
+      eventManager.emit(AppEvent.SPRITE_WORKFLOW_PROGRESS, buildSpriteWorkflowPayload(rec));
     }
   });
 
@@ -649,6 +666,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
           WorkflowStore.updateRun(rec).catch(() => { });
           // Broadcast run status update to UI
           broadcast('wf:run-status', rec);
+          eventManager.emit(AppEvent.SPRITE_WORKFLOW_PROGRESS, buildSpriteWorkflowPayload(rec));
 
           sendAppBusyProgress(overallProgress, `执行工作流: ${workflowProg.workflowName} - ${progressMessage}`);
         });
@@ -656,6 +674,9 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
       .catch(() => {
         // 如果获取节点信息失败，使用默认消息
         const progressMessage = message || `${nodeId} 执行中`;
+        rec.progress = progress;
+        rec.progressMessage = progressMessage;
+        eventManager.emit(AppEvent.SPRITE_WORKFLOW_PROGRESS, buildSpriteWorkflowPayload(rec));
         sendAppBusyProgress(progress, `执行工作流: ${workflowProg.workflowName} - ${progressMessage}`);
       });
   });

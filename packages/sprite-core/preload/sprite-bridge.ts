@@ -10,6 +10,18 @@ import { ipcRenderer } from 'electron';
 
 import type { SpriteInteractionIntent, SpriteInteractionPayload } from '../interaction-contract';
 import type { SpriteSpontaneousUtteranceHistoryItem, SpriteSpontaneousUtteranceHistoryQuery, SpriteSpontaneousUtterancePreferences } from '../manager';
+import type {
+  SpritePurposeHistoryEntry,
+  SpritePurposeHistoryQuery,
+  SpritePurposePlannerPreferences,
+  SpritePurposePlannerStatus,
+  SpritePurposeDailyRetrospective,
+  SpritePurposeRetrospectiveQuery,
+  SpritePurposeRuntimeEventInput,
+  SpritePurposeSnapshot,
+  SpritePurposeStartResult,
+  StartSpritePurposeRequest
+} from '../purpose';
 import type { SpeakResult, SpriteSpeakConfig } from '../speak/types';
 import type { MessageBridgePayload, MessageIPCPayload, SpriteAnimation, SpriteAnimationTrigger, SpriteMovementPreviewConfig, SpriteTriggerOptions } from '../types';
 import { MESSAGE_IPC_CHANNELS } from '../types';
@@ -51,7 +63,7 @@ export type SpriteBridgeType = {
   dragEnd(): Promise<void>;
 
   // 动画完成上报
-  animComplete(animId: string, phase: string): Promise<void>;
+  animComplete(animId: string, phase: string, playId?: string): Promise<void>;
 
   // 文件拖放
   fileDrop(files: any[]): Promise<void>;
@@ -85,6 +97,17 @@ export type SpriteBridgeType = {
   // 按动画 ID 测试播放（开发调试用）
   testAnimation(animationId: string, options?: { message?: string; duration?: number; durationMs?: number; silent?: boolean }): Promise<boolean>;
 
+  // Purpose / Routine 编排
+  startPurpose(request: StartSpritePurposeRequest): Promise<SpritePurposeStartResult>;
+  cancelPurpose(purposeId?: string, reason?: string): Promise<boolean>;
+  getPurposeSnapshot(): Promise<SpritePurposeSnapshot>;
+  emitPurposeEvent(event: SpritePurposeRuntimeEventInput): Promise<{ matched: number }>;
+  listPurposeHistory(query?: SpritePurposeHistoryQuery): Promise<SpritePurposeHistoryEntry[]>;
+  getPurposeDailyRetrospective(query?: SpritePurposeRetrospectiveQuery): Promise<SpritePurposeDailyRetrospective>;
+  getPurposePlannerPreferences(): Promise<SpritePurposePlannerPreferences>;
+  updatePurposePlannerPreferences(patch: Partial<SpritePurposePlannerPreferences>): Promise<SpritePurposePlannerPreferences>;
+  getPurposePlannerStatus(): Promise<SpritePurposePlannerStatus>;
+
   // 临时资源根目录（用于视频预览等场景）
   addTempResourceRoot(root: string): Promise<{ success: boolean }>;
   setSpeakConfig(config: Partial<SpriteSpeakConfig>): Promise<SpriteSpeakConfig>;
@@ -98,6 +121,7 @@ export type SpriteBridgeType = {
   onMessage(cb: (data: any) => void): () => void;
   onWalk(cb: (data: any) => void): () => void;
   onConfig(cb: (data: any) => void): () => void;
+  onPurposeState(cb: (data: SpritePurposeSnapshot) => void): () => void;
   onBusyUpdate(cb: (data: any) => void): () => void;
   onBusyClear(cb: () => void): () => void;
   /** 监听语音播放事件（主进程合成完成后触发） */
@@ -127,7 +151,7 @@ export const spriteBridge: SpriteBridgeType = {
   dragEnd: () => ipcRenderer.invoke('sprite:drag', { phase: 'end' }),
 
   // ── 动画完成上报 ─────────────────────────────────────────
-  animComplete: (animId, phase) => ipcRenderer.invoke('sprite:anim-complete', { animId, phase }),
+  animComplete: (animId, phase, playId) => ipcRenderer.invoke('sprite:anim-complete', { animId, phase, playId }),
 
   // ── 文件拖放 ─────────────────────────────────────────────
   fileDrop: (files) => ipcRenderer.invoke('sprite:file-drop', { files }),
@@ -161,6 +185,17 @@ export const spriteBridge: SpriteBridgeType = {
   // ── 统一事件触发 ───────────────────────────────────────
   trigger: (trigger, options) => ipcRenderer.invoke('sprite:trigger', { trigger, ...options }),
   testAnimation: (animationId, options) => ipcRenderer.invoke('sprite:triggerById', { animationId, ...options }),
+
+  // ── Purpose / Routine 编排 ──────────────────────────────
+  startPurpose: (request) => ipcRenderer.invoke('sprite:purpose:start', request),
+  cancelPurpose: (purposeId, reason) => ipcRenderer.invoke('sprite:purpose:cancel', { purposeId, reason }),
+  getPurposeSnapshot: () => ipcRenderer.invoke('sprite:purpose:getSnapshot'),
+  emitPurposeEvent: (event) => ipcRenderer.invoke('sprite:purpose:event', event),
+  listPurposeHistory: (query) => ipcRenderer.invoke('sprite:purpose:listHistory', query),
+  getPurposeDailyRetrospective: (query) => ipcRenderer.invoke('sprite:purpose:getDailyRetrospective', query),
+  getPurposePlannerPreferences: () => ipcRenderer.invoke('sprite:purposePlanner:getPreferences'),
+  updatePurposePlannerPreferences: (patch) => ipcRenderer.invoke('sprite:purposePlanner:updatePreferences', patch),
+  getPurposePlannerStatus: () => ipcRenderer.invoke('sprite:purposePlanner:getStatus'),
 
   // ── 临时资源根目录 ──────────────────────────────────────
   addTempResourceRoot: (root) => ipcRenderer.invoke('sprite:addTempResourceRoot', root),
@@ -197,6 +232,13 @@ export const spriteBridge: SpriteBridgeType = {
     ipcRenderer.on('sprite:config', handler);
     return () => {
       ipcRenderer.off('sprite:config', handler);
+    };
+  },
+  onPurposeState: (cb) => {
+    const handler = (_: any, data: SpritePurposeSnapshot): void => cb(data);
+    ipcRenderer.on('sprite:purpose:state', handler);
+    return () => {
+      ipcRenderer.off('sprite:purpose:state', handler);
     };
   },
   onBusyUpdate: (cb) =>

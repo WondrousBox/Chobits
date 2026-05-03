@@ -18,6 +18,17 @@
 > - `WindowController` 仅剩 timer orchestration / scheduler 抽象可继续收口
 > - `sprite:persona:addXP` / `changeFavor` / `unlockAchievement` 等 legacy 兼容入口后续可按调用面逐步下线
 > - 高阶 timed media / preview bridge follow-up
+> - Purpose + Routine 连续动作编排：详见 [设计文档](./sprite-purpose-routine-orchestration-plan.md) 与 [实施方案](./sprite-purpose-routine-implementation-plan.md)
+>
+> **2026-04-30 更新**：Purpose + Routine 已完成 Phase 1-2.5 第一版：基础目的/队列/routine 运行时、预设 routine、`sprite:purpose:*` IPC、`playId` 动画完成等待、routine 生命周期展示锁、状态机动画展示锁已接入。
+>
+> **2026-05-03 更新**：Purpose + Routine 已完成 Phase 3 基础版：`waitForEvent` step、`PurposeEventWaiter`、`sprite:purpose:event`、`sprite:purpose:listHistory`、JSONL 历史落盘、step 生命周期历史、SpriteEventBus/AppEvent 转 purpose event、workflow run payload correlation 已接入；Phase 4/5 已开始接入 `branch` / `loopUntil`、`file.drop.intake` 结果分支、拖文件启动 purpose、FileActionsMenu purpose event 回报、`openWindow(fileActionsMenu)` adapter、菜单关闭/卸载取消兜底、取消/失败分支测试、file-drop 端到端集成验收、`workflow.waiting` preset、workflow 进度事件消费/updateBusy、FileActionsMenu 启动 waiting purpose、active purpose 展示去重、UI/e2e 风格验收与低频 speak/cooldown。Phase 6 已完成：PurposeManager 已补基础 priority arbitration、同类 purpose coalesce、默认 `idle.presence` semantic purpose、`night-sleepy` -> `daily.rest-reminder` purpose、文件投递打断休息提醒与完成后恢复 idle 回归、current critical step defer interrupt、低优先级 reject 与 queue limit/evict 策略、workflow/resource listener 可配置 purpose 路由、DailyCare dispatch -> purpose bridge。Phase 7 已基本完成安全接入：已补 `SpritePurposePlannerExecutor` 接口、planner 输入/输出类型、step/window/event/时长/timeout allowlist 校验器、AI draft -> `SpriteRoutine(source: ai)` helper、主进程 `SpritePurposePlannerService` 骨架、planner prompt/output digest 与 `planner:planned` / `planner:fallback` 历史记录、`PurposeManager` / `SpriteManager` 的可注入 live planner routine 执行入口、Electron main 默认关闭的 planner service + adapter 接线、真实 Pi runtime executor/prompt、持久化 planner preferences + `sprite:purposePlanner:*` IPC/preload 入口，以及扩展设置页中的目的规划器设置、最近结果、planner 历史列表与手动试跑入口；默认仍关闭，启用后输出仍必须通过校验器，否则 fallback preset；若已通过校验的 AI routine 在执行期失败，也会记录执行期 `planner:fallback` 并转 preset routine 收尾。
+>
+> **2026-05-03 补充**：文件投递 routine 已补齐原始需求里的“拖入时先进入等待目的”：`file.drop.invite` 会在 `file-drag-over` 时走向屏幕中心并等待 `interact:file-drop` / `interact:file-drag-leave`；真正 drop 后继续由 `file.drop.intake` 接管菜单与处理链路。
+>
+> **2026-05-03 复盘层补充**：PurposeHistory 已新增每日 retrospective 摘要面：`getPurposeDailyRetrospective()` 会从 JSONL 历史汇总当天目的、完成/取消/失败统计、kind 分布、高价值 purpose 与 Memory-compatible recall cues，并通过 `sprite:purpose:getDailyRetrospective` / preload 暴露；状态页已接入“今日目的”展示；Memory index / daily index 生成前可通过主进程组合层注册的 retrospective provider 把高价值目的复盘写成 `Sprite Purpose Retrospective` Memory Note，Memory 模块不直接依赖 sprite-core。
+>
+> **2026-05-03 自发说话补充**：`SpriteSpontaneousUtteranceService` 现在通过构造注入的 retrospective provider 读取当天 purpose retrospective，把高价值目的与 recall cues 作为 prompt 中的安静自我感知上下文，避免逐 step 噪声进入闲置表达。
 
 ## 概览
 
@@ -51,6 +62,7 @@ packages/sprite-core/
 ├── persona-rules.ts            # persona reward runtime 统一解析入口
 ├── capability-registry.ts      # capability 定义 / 解锁 / 激活快照统一入口
 ├── behavior-engine.ts          # 行为引擎（自主行为调度）
+├── purpose/                    # Purpose/Routine 连续动作编排
 ├── animation-registry.ts       # 动画注册表
 ├── character-service.ts        # 角色定义服务（人格模板、对话奖励、维度）
 ├── interaction-contract.ts     # 交互输入 / EventBus 事件共享契约
@@ -893,7 +905,7 @@ sprite.trigger('success');
 | 行为 ID           | 触发条件                         | 动作                       |
 | ----------------- | -------------------------------- | -------------------------- |
 | `auto-walk`       | idle/bored，空闲 >5 秒，80% 概率 | 随机行走到屏幕某位置       |
-| `night-sleepy`    | 22:00-06:00 时间窗口             | `playOnce('sleepy')`       |
+| `night-sleepy`    | 22:00-06:00 时间窗口             | `startPurpose(daily.rest-reminder)` |
 | `idle-sleepy`     | 空闲 >100 秒                     | `playOnce('sleepy')`       |
 | `long-idle-bored` | 空闲 >2 分钟                     | `transitionTo('bored')`    |
 | `random-message`  | idle，空闲 >1 分钟               | `showToast(random tip)`    |
@@ -929,7 +941,7 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 | ----------------------------------- | --------------------------------------------------- | ------------------ |
 | `sprite:interact`                   | `{ type: SpriteInteractionIntent, data? }`          | 用户交互上报       |
 | `sprite:drag`                       | `{ phase, screenX?, screenY?, offsetX?, offsetY? }` | 拖拽事件           |
-| `sprite:anim-complete`              | `{ animId, phase }`                                 | 动画播放完成       |
+| `sprite:anim-complete`              | `{ animId, phase, playId? }`                        | 动画播放完成       |
 | `sprite:file-drop`                  | `{ files }`                                         | 文件拖放           |
 | `sprite:ready`                      | -                                                   | 渲染进程就绪       |
 | `sprite:get-initial-state`          | -                                                   | 获取初始全量状态   |
@@ -960,6 +972,15 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 | `sprite:spontaneous:getPreferences` | -                                                   | 获取 AI 自发说话偏好 |
 | `sprite:spontaneous:updatePreferences` | `Partial<SpriteSpontaneousUtterancePreferences>` | 更新 AI 自发说话偏好 |
 | `sprite:spontaneous:listHistory`    | `{ limit?, query?, status?, intentCategory? }`      | 查询 AI 自发说话历史 |
+| `sprite:purpose:start`              | `StartSpritePurposeRequest`                         | 启动 Purpose / Routine |
+| `sprite:purpose:cancel`             | `{ purposeId?, reason? }`                           | 取消当前或指定 Purpose |
+| `sprite:purpose:getSnapshot`        | -                                                   | 获取当前 Purpose / Routine 快照 |
+| `sprite:purpose:event`              | `SpritePurposeRuntimeEventInput`                    | 上报供 Routine 等待的 purpose event |
+| `sprite:purpose:listHistory`        | `{ limit?, kind?, status?, eventType? }`            | 查询目的 / planner 历史 |
+| `sprite:purpose:getDailyRetrospective` | `{ date?, limit?, includeIdle?, minMemoryWorthiness? }` | 查询每日目的复盘摘要 |
+| `sprite:purposePlanner:getPreferences` | -                                                | 获取 AI 目的规划偏好 |
+| `sprite:purposePlanner:updatePreferences` | `Partial<SpritePurposePlannerPreferences>`    | 更新 AI 目的规划偏好 |
+| `sprite:purposePlanner:getStatus`   | -                                                   | 查询 planner executor 与最近结果 |
 | `sprite:previewMovement`            | `{ width, height, padding, movement }`              | 预览窗口移动效果   |
 | `sprite:stopMovementPreview`        | -                                                   | 停止移动预览       |
 
@@ -972,6 +993,7 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 | `sprite:message`     | `MessageIPCPayload`      | 消息（toast/notice/busy） |
 | `sprite:walk`        | `{ active, direction? }` | 行走状态                  |
 | `sprite:config`      | `SpriteConfig`           | 配置变化（含 `autoWalkEnabled`） |
+| `sprite:purpose:state` | `SpritePurposeSnapshot` | Purpose / Routine 快照变化 |
 | `sprite:busy:update` | `{ progress, message? }` | 忙碌进度更新              |
 | `sprite:busy:clear`  | -                        | 清除忙碌状态              |
 | `sprite:speak`       | `SpriteSpeakPayload`     | 语音播放指令              |
@@ -984,13 +1006,13 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 
 **`window.YUA.sprite` / 交互上报**: `interact(type: SpriteInteractionIntent)`, `dragStart()`, `dragEnd()`, `animComplete()`, `fileDrop()`
 
-**`window.YUA.sprite` / 状态与配置**: `getInitialState()`, `ready()`, `getAutoWalk()`, `setAutoWalk()`, `getDebugOverlay()`, `setDebugOverlay()`, `getSpontaneousUtterancePreferences()`, `updateSpontaneousUtterancePreferences()`, `listSpontaneousUtteranceHistory()`
+**`window.YUA.sprite` / 状态、配置与目的编排**: `getInitialState()`, `ready()`, `getAutoWalk()`, `setAutoWalk()`, `getDebugOverlay()`, `setDebugOverlay()`, `getSpontaneousUtterancePreferences()`, `updateSpontaneousUtterancePreferences()`, `listSpontaneousUtteranceHistory()`, `startPurpose()`, `cancelPurpose()`, `getPurposeSnapshot()`, `emitPurposeEvent()`, `listPurposeHistory()`, `getPurposeDailyRetrospective()`, `getPurposePlannerPreferences()`, `updatePurposePlannerPreferences()`, `getPurposePlannerStatus()`
 
 说明：
 
 - `getAutoWalk()` / `setAutoWalk()` 是当前正式的 auto-walk 配置入口
 - `onConfig()` 收到的 `SpriteConfig` 快照已包含 `autoWalkEnabled`
-- AI 自发说话偏好 / 历史当前通过 `window.YUA.sprite.*` 暴露，而不是挂在 `persona` bridge 下
+- AI 自发说话偏好 / 历史、Purpose / Routine 编排、每日目的复盘、AI 目的规划器偏好 / 状态当前通过 `window.YUA.sprite.*` 暴露，而不是挂在 `persona` bridge 下
 
 **`window.YUA.sprite` / 移动预览**: `previewMovement()`, `stopMovementPreview()`
 
@@ -1000,7 +1022,7 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 
 **`window.YUA.sprite` / 资源管理**: `addTempResourceRoot()`
 
-**`window.YUA.sprite` / 事件订阅**: `onPlay()`, `onState()`, `onMessage()`, `onWalk()`, `onConfig()`, `onBusyUpdate()`, `onBusyClear()`, `onSpeak()`
+**`window.YUA.sprite` / 事件订阅**: `onPlay()`, `onState()`, `onMessage()`, `onWalk()`, `onConfig()`, `onPurposeState()`, `onBusyUpdate()`, `onBusyClear()`, `onSpeak()`
 
 **`window.YUA.persona` / Persona 与 capability**: `getState()`, `addXP()`, `changeFavor()`, `recordLogin()`, `unlockAchievement()`, `resetState()`, `getCapabilitySnapshot()`
 

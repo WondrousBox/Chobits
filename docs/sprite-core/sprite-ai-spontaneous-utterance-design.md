@@ -60,6 +60,7 @@ AI 生成当前由 activity-aware timeout controller 控制，绝对最长上限
 | 最近聊天 | `ChatRepo.listMessages()` | 最近 12-20 条，过滤工具噪音 |
 | 持久记忆 | `MemoryRetrievalService` + `MEMORY.md` | 轻量目标检索，3-5 条相关 note |
 | 重要对话 | 最近高信号片段 + 高重要度 note | 摘要格式 |
+| 目的复盘 | 主进程组合层注入的 retrospective provider | 当天高价值 purpose、recall cues，过滤 idle 噪声；自发说话服务不直接依赖 sprite-core store |
 | 精灵状态 | `BehaviorContext` + `SpriteManager` | mood / favor / level / idleDuration |
 
 ---

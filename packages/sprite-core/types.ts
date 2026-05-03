@@ -195,6 +195,10 @@ export interface SpriteTriggerOptions {
   durationMs?: number;
   ctx?: any;
   silent?: boolean;
+  playId?: string;
+  ownerPurposeId?: string;
+  priority?: number;
+  ignorePresentationLock?: boolean;
 }
 
 export interface SpriteListByTriggerRequest {
@@ -558,6 +562,7 @@ export interface SpriteStateSnapshot {
 
 /** 精灵播放指令 */
 export interface SpritePlayCommand {
+  playId?: string;
   animationId: string;
   source?: { src?: string; localPath?: string; type?: string };
   playbackSession?: {

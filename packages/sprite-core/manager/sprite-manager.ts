@@ -33,11 +33,30 @@ import {
   getConversationRewardEventRules,
   getPersonaRulesSnapshot,
   getResolvedConversationPersonaRewardBonus,
-  subscribePersonaRulesChanges,
-  type PersonaRewardGrant
+  type PersonaRewardGrant,
+  subscribePersonaRulesChanges
 } from '../persona-rules';
 import type { MoodType, PersonaState } from '../persona-state';
 import { PersonaStateManager } from '../persona-state';
+import {
+  SpritePresentationLock,
+  type SpritePurpose,
+  type SpritePurposeDailyRetrospective,
+  type SpritePurposeEventType,
+  type SpritePurposeHistoryEntry,
+  type SpritePurposeHistoryQuery,
+  SpritePurposeHistoryStore,
+  SpritePurposeManager,
+  type SpritePurposeRetrospectiveQuery,
+  type SpritePurposeRuntimeEventInput,
+  type SpritePurposeSnapshot,
+  type SpritePurposeStartResult,
+  type SpriteRoutine,
+  SpritePurposeEventWaiter,
+  SpriteRoutineRunner,
+  type SpriteRoutineStep,
+  type StartSpritePurposeRequest
+} from '../purpose';
 import { SpeakService } from '../speak/speak-service';
 import type { SpeakResult, SpriteSpeakConfig, SpriteSpeakPayload } from '../speak/types';
 import type { SpriteReactionState, SpriteState } from '../state-machine';
@@ -64,11 +83,23 @@ import { registerDefaultBehaviors } from './default-behaviors';
 import { MovementCoordinator } from './movement-coordinator';
 import { AutoWalkConfig, PersonaStatePersistence } from './persistence';
 import { mapStateToEventType } from './state-mapping';
-import type { PersonaStatePersistenceRow, SpriteManagerOptions, SpriteSpontaneousUtteranceExecutor, SpriteWindow } from './types';
+import type { PersonaStatePersistenceRow, SpriteManagerOptions, SpritePurposeWindowAdapter, SpriteSpontaneousUtteranceExecutor, SpriteWindow } from './types';
 
 // ============================================================================
 // SpriteManager 实现
 // ============================================================================
+
+type SpriteAnimationCompletionPhase = 'intro' | 'loop' | 'outro' | 'full';
+
+interface SpriteAnimationCompletionWaiter {
+  resolve: () => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
+interface SpritePresentationOwnerContext {
+  ownerId: string;
+  priority: number;
+}
 
 export class SpriteManager {
   // 内部引擎实例
@@ -78,6 +109,10 @@ export class SpriteManager {
   private interactionTracker: InteractionTracker;
   private behaviorEngine: BehaviorEngine;
   private animationRegistry: AnimationRegistry;
+  private purposeManager: SpritePurposeManager;
+  private purposeEventWaiter: SpritePurposeEventWaiter;
+  private purposeHistory: SpritePurposeHistoryStore;
+  private purposeWindowAdapter?: SpritePurposeWindowAdapter;
 
   // 内建持久化
   private persistence: PersonaStatePersistence;
@@ -97,6 +132,11 @@ export class SpriteManager {
 
   // 当前动画和配置
   private currentAnimation: SpritePlayCommand | null = null;
+  private animationPlayCounter = 0;
+  private animationCompletionWaiters = new Map<string, SpriteAnimationCompletionWaiter>();
+  private presentationLock = new SpritePresentationLock();
+  private activeRoutinePresentationOwner: SpritePresentationOwnerContext | null = null;
+  private stateDrivenPresentationOwner: SpritePresentationOwnerContext | null = null;
   private spriteConfig: SpriteConfig = { width: 200, height: 200, padding: 100, showDebugOverlay: false };
   private movementCoordinator: MovementCoordinator;
 
@@ -128,6 +168,7 @@ export class SpriteManager {
     this.win = options.win;
     this.getScreenSize = options.getScreenSize;
     this.spontaneousUtteranceExecutor = options.spontaneousUtteranceExecutor;
+    this.purposeWindowAdapter = options.purposeWindowAdapter;
     this.activePersonaIdentity = {
       name: options.appName ?? 'Chobits'
     };
@@ -151,6 +192,16 @@ export class SpriteManager {
       tickIntervalMs: 1000
     });
     this.animationRegistry = new AnimationRegistry();
+    this.purposeEventWaiter = new SpritePurposeEventWaiter();
+    this.purposeHistory = new SpritePurposeHistoryStore(options.dataDir);
+    this.eventBus.on('*', (event) => {
+      this.purposeEventWaiter.emit({
+        source: 'sprite-event-bus',
+        event: event.type,
+        payload: event.payload,
+        timestamp: event.timestamp
+      });
+    });
     this.movementCoordinator = new MovementCoordinator({
       canMove: () => !!this.windowController,
       canUseMovement: () => {
@@ -176,6 +227,44 @@ export class SpriteManager {
       getAutoMoveDirection: () => this.windowController?.getAutoMoveDirection?.() ?? null,
       emitWalkState: (payload) => this.sendToRenderer('sprite:walk', payload),
       emitConfigChanged: () => this.emitConfigChanged()
+    });
+    this.purposeManager = new SpritePurposeManager({
+      runner: new SpriteRoutineRunner({
+        playAnimation: (step, signal, routine) => this.runPurposeAnimationStep(step, signal, routine),
+        walkTo: (step, signal, routine) => this.runPurposeWalkStep(step, signal, routine),
+        waitForEvent: (step, signal, routine) => this.purposeEventWaiter.wait(step, routine, signal),
+        speak: (step) => this.speak(step.text, { showBubble: true, bubbleDuration: step.bubbleDuration }),
+        showToast: (step) => this.showToast(step.content, { category: step.category as MessageCategory | undefined, duration: step.duration }),
+        showBusy: (step) => this.showBusy(step.content, step.progress),
+        updateBusy: (step) => this.updateBusy(step.progress ?? 0, step.content),
+        clearBusy: () => this.clearBusy(),
+        openWindow: (step, signal) => this.runPurposeOpenWindowStep(step, signal),
+        onStepStart: (routine, step) => this.recordPurposeStepEvent('step:started', routine, step),
+        onStepComplete: (routine, step, result) => {
+          const eventType =
+            result.status === 'completed'
+              ? 'step:completed'
+              : result.status === 'cancelled'
+                ? 'step:cancelled'
+                : result.status === 'timeout'
+                  ? 'step:timeout'
+                  : result.status === 'skipped'
+                    ? 'step:skipped'
+                    : 'step:failed';
+          return this.recordPurposeStepEvent(eventType, routine, step, {
+            status: result.status,
+            elapsedMs: result.elapsedMs,
+            value: result.value as Record<string, unknown> | undefined,
+            error: result.error
+          });
+        }
+      }),
+      history: this.purposeHistory,
+      idlePresence: { enabled: true },
+      routinePlanner: options.purposeRoutinePlanner,
+      onRoutineStart: (purpose, routine) => this.acquireRoutinePresentationLock(purpose, routine),
+      onRoutineFinish: (purpose) => this.releaseRoutinePresentationLock(purpose.id),
+      onSnapshot: (snapshot) => this.sendToRenderer('sprite:purpose:state', snapshot)
     });
 
     // 持久化
@@ -301,6 +390,7 @@ export class SpriteManager {
     this.stop();
     this.unsubscribePersonaRulesChanges?.();
     this.unsubscribePersonaRulesChanges = null;
+    await this.purposeManager.waitForIdlePresence();
 
     // 保存最终状态
     await this.persistence.save(this.getPersonaStateForPersistence());
@@ -345,6 +435,35 @@ export class SpriteManager {
     };
   }
 
+  private canPresentAnimation(options?: SpriteTriggerOptions): boolean {
+    return this.presentationLock.shouldAllow({
+      ownerId: options?.ownerPurposeId,
+      priority: options?.priority,
+      ignoreLock: options?.ignorePresentationLock
+    });
+  }
+
+  private getStateDrivenPresentationOptions(): SpriteTriggerOptions | undefined {
+    if (!this.stateDrivenPresentationOwner) {
+      return undefined;
+    }
+
+    return {
+      ownerPurposeId: this.stateDrivenPresentationOwner.ownerId,
+      priority: this.stateDrivenPresentationOwner.priority
+    };
+  }
+
+  private withStateDrivenPresentationOwner<T>(owner: SpritePresentationOwnerContext, fn: () => T): T {
+    const previous = this.stateDrivenPresentationOwner;
+    this.stateDrivenPresentationOwner = owner;
+    try {
+      return fn();
+    } finally {
+      this.stateDrivenPresentationOwner = previous;
+    }
+  }
+
   // ============================================================================
   // 统一事件触发
   // ============================================================================
@@ -362,9 +481,10 @@ export class SpriteManager {
       trigger,
       personaState: this.personaState.getState()
     });
-    if (anim) {
+    if (anim && this.canPresentAnimation(options)) {
       const resolvedDurationMs = options?.durationMs ?? anim.playback?.durationMs;
       this.currentAnimation = {
+        playId: options?.playId,
         animationId: anim.id,
         source: anim.source,
         playbackSession: this.buildPlaybackSession(anim.playback, resolvedDurationMs, 'trigger'),
@@ -410,12 +530,14 @@ export class SpriteManager {
    * 按动画 ID 直接播放指定动画（用于开发测试）。
    * 不经过 trigger 查找，直接从 AnimationRegistry 取出并播放。
    */
-  triggerById(animationId: string, options?: { message?: string; duration?: number; durationMs?: number; silent?: boolean }): boolean {
+  triggerById(animationId: string, options?: SpriteTriggerOptions): boolean {
     const anim = this.animationRegistry.get(animationId);
     if (!anim) return false;
+    if (!this.canPresentAnimation(options)) return false;
 
     const resolvedDurationMs = options?.durationMs ?? anim.playback?.durationMs;
     this.currentAnimation = {
+      playId: options?.playId,
       animationId: anim.id,
       source: anim.source,
       playbackSession: this.buildPlaybackSession(anim.playback, resolvedDurationMs, 'trigger'),
@@ -1038,11 +1160,16 @@ export class SpriteManager {
   // ============================================================================
 
   /** 处理渲染进程上报的动画播放完成 */
-  handleAnimationComplete(animId: string, phase: 'intro' | 'loop' | 'outro' | 'full'): void {
-    this.eventBus.emit('anim:complete', { animId, phase }, 'renderer');
+  handleAnimationComplete(animId: string, phase: SpriteAnimationCompletionPhase, playId?: string): void {
+    this.eventBus.emit('anim:complete', { animId, phase, playId }, 'renderer');
+
+    if (playId && (phase === 'full' || phase === 'outro')) {
+      this.resolveAnimationCompletionWaiter(playId);
+    }
 
     // 动画播放完成时停止自动移动
-    if (phase === 'full' || phase === 'outro') {
+    const isCurrentAnimation = this.isCurrentAnimationCompletion(animId, playId);
+    if ((phase === 'full' || phase === 'outro') && isCurrentAnimation) {
       this.stopAutoMove();
     }
 
@@ -1050,15 +1177,20 @@ export class SpriteManager {
       return;
     }
 
-    const autoIdle = this.shouldAutoIdleAfterComplete(animId);
-    const isCurrentAnimation = this.currentAnimation?.animationId === animId;
+    const autoIdle = this.shouldAutoIdleAfterComplete(animId, playId);
 
     if (!autoIdle) {
-      this._pendingIdleAfterOutro = false;
+      if (isCurrentAnimation) {
+        this._pendingIdleAfterOutro = false;
+      }
       return;
     }
 
     if (!isCurrentAnimation && !this._pendingIdleAfterOutro) {
+      return;
+    }
+
+    if (!isCurrentAnimation && playId && this.currentAnimation?.playId && playId !== this.currentAnimation.playId) {
       return;
     }
 
@@ -1118,6 +1250,41 @@ export class SpriteManager {
   }
 
   // ============================================================================
+  // Purpose / Routine 编排
+  // ============================================================================
+
+  /** 启动一个目的。第一阶段用于预设 Routine，不接管 BehaviorEngine 调度。 */
+  startPurpose(request: StartSpritePurposeRequest): Promise<SpritePurposeStartResult> {
+    return this.purposeManager.start(request);
+  }
+
+  /** 取消当前或指定目的。 */
+  cancelPurpose(purposeId?: string, reason?: string): Promise<boolean> {
+    return this.purposeManager.cancel(purposeId, reason);
+  }
+
+  /** 获取当前目的与 routine 快照。 */
+  getPurposeSnapshot(): SpritePurposeSnapshot {
+    return this.purposeManager.getSnapshot();
+  }
+
+  /** 上报供 Routine 等待的 purpose event。 */
+  emitPurposeEvent(input: SpritePurposeRuntimeEventInput): { matched: number } {
+    const matched = this.purposeEventWaiter.emit(input);
+    return { matched };
+  }
+
+  /** 查询 Purpose/Routine 历史记录。 */
+  listPurposeHistory(query?: SpritePurposeHistoryQuery): Promise<SpritePurposeHistoryEntry[]> {
+    return this.purposeHistory.list(query);
+  }
+
+  /** 生成指定日期的 Purpose/Routine 复盘摘要。 */
+  getPurposeDailyRetrospective(query?: SpritePurposeRetrospectiveQuery): Promise<SpritePurposeDailyRetrospective> {
+    return this.purposeHistory.getDailyRetrospective(query);
+  }
+
+  // ============================================================================
   // 事件系统
   // ============================================================================
 
@@ -1167,14 +1334,26 @@ export class SpriteManager {
     }
 
     this._pendingIdleAfterOutro = false;
-    this.resolveAndSendAnimation(newState, subState);
+    this.resolveAndSendAnimation(newState, subState, this.getStateDrivenPresentationOptions());
 
     this.broadcastState();
   }
 
-  private shouldAutoIdleAfterComplete(animId: string): boolean {
-    if (this.currentAnimation?.animationId === animId) {
-      return this.currentAnimation.playback?.autoIdle ?? true;
+  private isCurrentAnimationCompletion(animId: string, playId?: string): boolean {
+    if (this.currentAnimation?.animationId !== animId) {
+      return false;
+    }
+
+    if (!playId || !this.currentAnimation.playId) {
+      return true;
+    }
+
+    return this.currentAnimation.playId === playId;
+  }
+
+  private shouldAutoIdleAfterComplete(animId: string, playId?: string): boolean {
+    if (this.isCurrentAnimationCompletion(animId, playId)) {
+      return this.currentAnimation?.playback?.autoIdle ?? true;
     }
 
     return this.animationRegistry.get(animId)?.playback?.autoIdle ?? true;
@@ -1186,7 +1365,7 @@ export class SpriteManager {
   }
 
   /** 根据当前状态解析并发送动画指令到渲染进程 */
-  private resolveAndSendAnimation(state: SpriteState, subState: SpriteReactionState | null): void {
+  private resolveAndSendAnimation(state: SpriteState, subState: SpriteReactionState | null, options?: SpriteTriggerOptions): void {
     const trigger = mapStateToEventType(state, subState);
     const animEntry = this.animationRegistry.findByTrigger({
       trigger,
@@ -1194,7 +1373,7 @@ export class SpriteManager {
       allowFallback: true
     });
 
-    if (animEntry) {
+    if (animEntry && this.canPresentAnimation(options)) {
       this.currentAnimation = {
         animationId: animEntry.id,
         source: animEntry.source,
@@ -1265,6 +1444,310 @@ export class SpriteManager {
   /** 停止自动移动 */
   private stopAutoMove(): void {
     this.movementCoordinator.stopAutoMove();
+  }
+
+  private createAnimationPlayId(ownerId: string): string {
+    this.animationPlayCounter += 1;
+    return `${ownerId}:play-${Date.now()}-${this.animationPlayCounter}`;
+  }
+
+  private resolveRoutinePriority(routine: SpriteRoutine): number {
+    const currentPurpose = this.purposeManager.getSnapshot().current;
+    if (currentPurpose?.id === routine.purposeId) {
+      return currentPurpose.priority;
+    }
+    return routine.priority ?? 50;
+  }
+
+  private acquireRoutinePresentationLock(purpose: SpritePurpose, routine: SpriteRoutine): void {
+    const ttlMs = this.estimateRoutinePresentationLockTtlMs(routine);
+    const acquired = this.presentationLock.acquire(purpose.id, purpose.priority, ttlMs, `routine:${routine.id}:lifecycle`);
+    if (!acquired) {
+      return;
+    }
+
+    this.activeRoutinePresentationOwner = {
+      ownerId: purpose.id,
+      priority: purpose.priority
+    };
+  }
+
+  private releaseRoutinePresentationLock(purposeId: string): void {
+    const released = this.presentationLock.release(purposeId);
+    if (this.activeRoutinePresentationOwner?.ownerId === purposeId) {
+      this.activeRoutinePresentationOwner = null;
+    }
+
+    if (released) {
+      const snapshot = this.purposeManager.getSnapshot();
+      if (snapshot.current && snapshot.routine && snapshot.current.id !== purposeId) {
+        this.acquireRoutinePresentationLock(snapshot.current, snapshot.routine);
+        return;
+      }
+
+      this.resolveAndSendAnimation(this.getState(), this.getSubState(), { ignorePresentationLock: true });
+    }
+  }
+
+  private estimateRoutinePresentationLockTtlMs(routine: SpriteRoutine): number {
+    const totalMs = routine.steps.reduce((sum, step) => sum + this.estimateRoutineStepPresentationMs(step), 0);
+    return Math.min(Math.max(totalMs + 2000, 1000), 10 * 60 * 1000);
+  }
+
+  private estimateRoutineStepPresentationMs(step: SpriteRoutineStep): number {
+    switch (step.type) {
+      case 'wait':
+        return step.durationMs;
+      case 'waitForEvent':
+        return step.timeoutMs ?? 30000;
+      case 'playAnimation':
+        return step.timeoutMs ?? step.durationMs ?? 3000;
+      case 'walkTo':
+        return step.timeoutMs ?? 10000;
+      case 'speak':
+        return step.timeoutMs ?? step.bubbleDuration ?? 4000;
+      case 'showToast':
+        return step.duration ?? 3000;
+      case 'showBusy':
+        return 10000;
+      case 'updateBusy':
+        return 500;
+      case 'clearBusy':
+        return 500;
+      case 'openWindow':
+        return step.timeoutMs ?? 30000;
+      case 'loopUntil':
+        return step.maxDurationMs ?? Math.max(1000, step.body.reduce((sum, child) => sum + this.estimateRoutineStepPresentationMs(child), 0));
+      case 'branch': {
+        const branches = [...Object.values(step.cases), step.default ?? []];
+        return Math.max(500, ...branches.map((steps) => steps.reduce((sum, child) => sum + this.estimateRoutineStepPresentationMs(child), 0)));
+      }
+      default:
+        return 1000;
+    }
+  }
+
+  private shouldAcquirePurposeStepLock(routine: SpriteRoutine): boolean {
+    return this.activeRoutinePresentationOwner?.ownerId !== routine.purposeId;
+  }
+
+  private async recordPurposeStepEvent(
+    eventType: Extract<SpritePurposeEventType, 'step:started' | 'step:completed' | 'step:timeout' | 'step:cancelled' | 'step:skipped' | 'step:failed'>,
+    routine: SpriteRoutine,
+    step: SpriteRoutineStep,
+    result?: {
+      status?: string;
+      elapsedMs?: number;
+      value?: unknown;
+      error?: string;
+    }
+  ): Promise<void> {
+    const currentPurpose = this.purposeManager.getSnapshot().current;
+    const resultPayload: Record<string, unknown> | undefined = result
+      ? {
+          elapsedMs: result.elapsedMs,
+          value: result.value,
+          stepType: step.type
+        }
+      : { stepType: step.type };
+
+    await this.purposeHistory.append({
+      timestamp: Date.now(),
+      eventType,
+      purposeId: routine.purposeId,
+      routineId: routine.id,
+      stepId: step.id,
+      purposeKind: currentPurpose?.id === routine.purposeId ? currentPurpose.kind : undefined,
+      priority: routine.priority,
+      source: routine.source,
+      status: result?.status ?? 'running',
+      result: resultPayload,
+      error: result?.error
+    });
+  }
+
+  private waitForAnimationCompletion(playId: string, timeoutMs: number, signal?: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(new Error('Routine cancelled'));
+        return;
+      }
+
+      let cleanup = (): void => undefined;
+      const onAbort = (): void => {
+        cleanup();
+        reject(new Error('Routine cancelled'));
+      };
+      const timer = setTimeout(
+        () => {
+          cleanup();
+          resolve();
+        },
+        Math.max(0, timeoutMs)
+      );
+
+      cleanup = (): void => {
+        clearTimeout(timer);
+        this.animationCompletionWaiters.delete(playId);
+        signal?.removeEventListener('abort', onAbort);
+      };
+
+      this.animationCompletionWaiters.set(playId, {
+        timer,
+        resolve: () => {
+          cleanup();
+          resolve();
+        }
+      });
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
+  }
+
+  private resolveAnimationCompletionWaiter(playId: string): void {
+    this.animationCompletionWaiters.get(playId)?.resolve();
+  }
+
+  private async runPurposeAnimationStep(step: Extract<SpriteRoutineStep, { type: 'playAnimation' }>, signal: AbortSignal, routine: SpriteRoutine): Promise<void> {
+    const playId = this.createAnimationPlayId(routine.purposeId);
+    const priority = this.resolveRoutinePriority(routine);
+    const waitBudgetMs = Math.max(0, step.timeoutMs ?? step.durationMs ?? 1200);
+    const lockAcquired = this.shouldAcquirePurposeStepLock(routine) ? this.presentationLock.acquire(routine.purposeId, priority, waitBudgetMs + 500, `routine:${routine.id}:${step.id}`) : false;
+
+    try {
+      if (step.animationId) {
+        this.triggerById(step.animationId, {
+          durationMs: step.durationMs,
+          silent: step.silent ?? true,
+          playId,
+          ownerPurposeId: routine.purposeId,
+          priority
+        });
+      } else if (step.trigger) {
+        this.trigger(step.trigger, {
+          durationMs: step.durationMs,
+          silent: step.silent ?? true,
+          playId,
+          ownerPurposeId: routine.purposeId,
+          priority
+        });
+      }
+
+      if (step.waitFor === 'none') {
+        return;
+      }
+
+      const played = this.currentAnimation?.playId === playId;
+      if (step.waitFor === 'complete' && played) {
+        await this.waitForAnimationCompletion(playId, waitBudgetMs, signal);
+        return;
+      }
+
+      const durationMs = Math.max(0, step.durationMs ?? step.timeoutMs ?? 1200);
+      await this.delayForPurpose(durationMs, signal);
+    } finally {
+      if (lockAcquired) {
+        this.presentationLock.release(routine.purposeId);
+      }
+    }
+  }
+
+  private async runPurposeWalkStep(step: Extract<SpriteRoutineStep, { type: 'walkTo' }>, signal: AbortSignal, routine: SpriteRoutine): Promise<void> {
+    const priority = this.resolveRoutinePriority(routine);
+    const lockTtlMs = Math.max(1000, step.timeoutMs ?? 8000);
+    const lockAcquired = this.shouldAcquirePurposeStepLock(routine) ? this.presentationLock.acquire(routine.purposeId, priority, lockTtlMs, `routine:${routine.id}:${step.id}`) : false;
+    const [x, y] = this.resolvePurposeWalkTarget(step.target);
+    try {
+      const walk = this.withStateDrivenPresentationOwner({ ownerId: routine.purposeId, priority }, () => this.walkTo(x, y, step.speed));
+      if (step.timeoutMs == null) {
+        await this.racePurposeSignal(walk, signal);
+        return;
+      }
+      await this.racePurposeSignal(
+        Promise.race([
+          walk,
+          this.delayForPurpose(step.timeoutMs, signal).then(() => {
+            this.stopWalk();
+            throw new Error('Walk step timed out');
+          })
+        ]),
+        signal
+      );
+    } finally {
+      if (lockAcquired) {
+        this.presentationLock.release(routine.purposeId);
+      }
+    }
+  }
+
+  private async runPurposeOpenWindowStep(step: Extract<SpriteRoutineStep, { type: 'openWindow' }>, signal: AbortSignal): Promise<void> {
+    if (!this.purposeWindowAdapter) {
+      throw new Error('Purpose window adapter is not configured');
+    }
+
+    await this.racePurposeSignal(Promise.resolve(this.purposeWindowAdapter.open(step.window, step.payload)), signal);
+  }
+
+  private resolvePurposeWalkTarget(target: Extract<SpriteRoutineStep, { type: 'walkTo' }>['target']): [number, number] {
+    if (typeof target === 'object') {
+      return [target.x, target.y];
+    }
+
+    if (target === 'previous') {
+      return this.getPosition();
+    }
+
+    const screen = this.getScreenSize();
+    const { width, height, padding } = this.getSpriteConfig();
+    const winWidth = width + padding * 2;
+    const winHeight = height + padding * 2;
+
+    if (target === 'center') {
+      return [Math.max(0, (screen.width - winWidth) / 2), Math.max(0, (screen.height - winHeight) / 2)];
+    }
+
+    return [Math.max(0, screen.width - winWidth - 20), Math.max(0, screen.height - winHeight - 40)];
+  }
+
+  private delayForPurpose(durationMs: number, signal?: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(new Error('Routine cancelled'));
+        return;
+      }
+
+      const timer = setTimeout(
+        () => {
+          cleanup();
+          resolve();
+        },
+        Math.max(0, durationMs)
+      );
+      const onAbort = (): void => {
+        cleanup();
+        reject(new Error('Routine cancelled'));
+      };
+      const cleanup = (): void => {
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', onAbort);
+      };
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
+  }
+
+  private racePurposeSignal<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+    if (!signal) {
+      return promise;
+    }
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        if (signal.aborted) {
+          reject(new Error('Routine cancelled'));
+          return;
+        }
+        signal.addEventListener('abort', () => reject(new Error('Routine cancelled')), { once: true });
+      })
+    ]);
   }
 
   private syncPersonaRules(snapshot = getPersonaRulesSnapshot()): void {

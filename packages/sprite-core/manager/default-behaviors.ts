@@ -107,9 +107,25 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
 
   // 困倦
   const sleepyDef = createSleepyBehavior();
-  sleepyDef.action = (_ctx: BehaviorContext) => {
-    mgr.playOnce('sleepy');
-    mgr.showToast(undefined, { category: 'reminder' });
+  sleepyDef.action = async (ctx: BehaviorContext) => {
+    const result = await mgr.startPurpose({
+      kind: 'daily.rest-reminder',
+      reason: '夜间时间窗口触发休息提醒',
+      source: 'behavior',
+      presetId: 'daily.rest-reminder',
+      priority: 60,
+      coalesceKey: 'night-sleepy',
+      context: {
+        behaviorId: sleepyDef.id,
+        triggeredAt: Date.now(),
+        hour: ctx.now.getHours()
+      }
+    });
+
+    if (!result.accepted) {
+      mgr.playOnce('sleepy');
+      mgr.showToast(undefined, { category: 'reminder' });
+    }
   };
   mgr.registerBehavior(sleepyDef);
 

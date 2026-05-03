@@ -16,7 +16,7 @@ export interface VideoSpriteDriverOptions {
   now?: () => number;
   setTimeout?: typeof globalThis.setTimeout;
   clearTimeout?: typeof globalThis.clearTimeout;
-  onAnimationComplete?: (animId: string, phase: 'outro' | 'full') => void;
+  onAnimationComplete?: (animId: string, phase: 'outro' | 'full', playId?: string) => void;
 }
 
 export class VideoSpriteDriver {
@@ -118,7 +118,7 @@ export class VideoSpriteDriver {
     video?.play();
   }
 
-  handleTimeUpdate(input: { video: VideoSpriteElementLike | null; animId: string | null; playback?: SpritePlayback; fallbackIsPlaying: boolean }): void {
+  handleTimeUpdate(input: { video: VideoSpriteElementLike | null; animId: string | null; playId?: string | null; playback?: SpritePlayback; fallbackIsPlaying: boolean }): void {
     const video = input.video;
     if (!video) return;
 
@@ -162,7 +162,7 @@ export class VideoSpriteDriver {
         video.play();
       }
       if (decision.completePhase && input.animId) {
-        this.onAnimationComplete?.(input.animId, decision.completePhase);
+        this.notifyAnimationComplete(input.animId, decision.completePhase, input.playId);
       }
       return;
     }
@@ -178,15 +178,23 @@ export class VideoSpriteDriver {
 
       video.pause();
       if (input.animId) {
-        this.onAnimationComplete?.(input.animId, 'full');
+        this.notifyAnimationComplete(input.animId, 'full', input.playId);
       }
     }
   }
 
-  handleEnded(input: { animId: string | null; playback?: SpritePlayback }): void {
+  handleEnded(input: { animId: string | null; playId?: string | null; playback?: SpritePlayback }): void {
     const hasCustomLoop = input.playback?.loopStartMs != null || input.playback?.loopEndMs != null;
     const shouldLoop = hasCustomLoop ? input.playback?.loop !== false : (input.playback?.loop ?? false);
     if (shouldLoop || !input.animId) return;
-    this.onAnimationComplete?.(input.animId, 'full');
+    this.notifyAnimationComplete(input.animId, 'full', input.playId);
+  }
+
+  private notifyAnimationComplete(animId: string, phase: 'outro' | 'full', playId?: string | null): void {
+    if (playId) {
+      this.onAnimationComplete?.(animId, phase, playId);
+      return;
+    }
+    this.onAnimationComplete?.(animId, phase);
   }
 }
