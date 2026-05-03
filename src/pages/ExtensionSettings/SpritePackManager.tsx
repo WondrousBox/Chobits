@@ -1,41 +1,39 @@
 ﻿import { CHARACTER_PACK_ARCHIVE_EXTENSION, CHARACTER_PACK_ARCHIVE_EXTENSION_NAME } from '@packages/sprite-core/character-pack-archive';
-import type {
-  CharacterPackEditorDraft,
-  CharacterPackEditorSaveOptions,
-  CharacterPackExportResult,
-  CharacterPackSummary,
-  CharacterPackTrustAssessment
-} from '@packages/sprite-core/character-pack-manager';
+import type { CharacterPackExportResult, CharacterPackSummary, CharacterPackTrustAssessment } from '@packages/sprite-core/character-pack-manager';
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
-import { TbArchive, TbCheck, TbCopy, TbDownload, TbFolderOpen, TbLoader2, TbPencil, TbPlus, TbRefresh, TbShieldX, TbTrash } from 'react-icons/tb';
+import { TbArchive, TbCheck, TbDownload, TbFolderOpen, TbLoader2, TbPencil, TbPlus, TbRefresh, TbShieldX, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 import { SettingGroup, SettingItem, SettingPath } from '@/pages/SettingsPage/components/SettingComponents';
+
+import { SpritePackEditorContent } from './SpritePackEditor';
+import {
+  buildCreateSpritePackEditorState,
+  getSpritePackEditorDescription,
+  getSpritePackEditorTitle,
+  loadSpritePackEditorStateForPack,
+  saveSpritePackEditorState,
+  SPRITE_PACK_EDITOR_WINDOW_KEY,
+  type SpritePackEditorPresentation,
+  type SpritePackEditorState,
+  type SpritePackEditorWindowPayload,
+  subscribeSpritePackEditorEvents
+} from './SpritePackEditorModel';
 
 interface SpritePackManagerProps {
   afterRuntimeChange?: () => Promise<void> | void;
   editorExtra?: ReactNode;
+  editorPresentation?: SpritePackEditorPresentation;
 }
 
 interface ImportPromptState {
   inspection: Awaited<ReturnType<typeof window.YUA.persona.inspectCharacterPackFromArchive>>;
   activateAfterInstall: boolean;
-}
-
-interface EditorState {
-  mode: 'create' | 'edit';
-  draft: CharacterPackEditorDraft;
-  basePack?: CharacterPackSummary;
-  targetPack?: CharacterPackSummary;
-  activateAfterSave: boolean;
 }
 
 interface CharacterPackMutationResult {
@@ -48,18 +46,13 @@ interface CharacterPackMutationResult {
   pack?: CharacterPackSummary;
   removedPack?: CharacterPackSummary;
   activePack?: CharacterPackSummary | null;
-  character?: CharacterInfoSummary | null;
+  character?: { id: string; name: string; nameAliases: string[]; tagline: string } | null;
   personaSlot?: {
     slotId: string;
     restored: boolean;
     switched: boolean;
   };
 }
-
-type CharacterPackEditorMutationResult = CharacterPackMutationResult & {
-  created?: boolean;
-  updated?: boolean;
-};
 
 type CharacterPackMutationOptions = {
   replaceExisting?: boolean;
@@ -343,113 +336,13 @@ function getPackMetadataBadges(pack: Pick<CharacterPackSummary, 'formatVersion' 
   ].filter((value): value is string => !!value);
 }
 
-function splitLines(value: string): string[] {
-  return value
-    .split(/\r?\n/)
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-}
-
-function joinLines(value: string[] | undefined): string {
-  return (value ?? []).join('\n');
-}
-
-function slugifyCharacterPackId(value: string): string {
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^[^a-z0-9]+/, '')
-    .replace(/[^a-z0-9]+$/, '');
-  return normalized || 'custom-character';
-}
-
-function getUniquePackId(candidate: string, packs: CharacterPackSummary[]): string {
-  const baseId = slugifyCharacterPackId(candidate);
-  const existingIds = new Set(packs.filter((pack) => pack.source === 'installed').map((pack) => pack.id));
-  if (!existingIds.has(baseId)) {
-    return baseId;
-  }
-
-  for (let index = 2; index < 1000; index += 1) {
-    const nextId = `${baseId}-${index}`;
-    if (!existingIds.has(nextId)) {
-      return nextId;
-    }
-  }
-
-  return `${baseId}-${Date.now().toString(36)}`;
-}
-
-function withEditorDraft(editor: EditorState | null, update: (draft: CharacterPackEditorDraft) => CharacterPackEditorDraft): EditorState | null {
-  if (!editor) return editor;
-  return {
-    ...editor,
-    draft: update(editor.draft)
-  };
-}
-
-function buildNewCharacterPackDraft(basePack: CharacterPackSummary | null | undefined, packs: CharacterPackSummary[]): CharacterPackEditorDraft {
-  const seed = basePack?.name ? `${basePack.name} 自定义版` : '我的自定义角色';
-  const id = getUniquePackId(`custom-${Date.now().toString(36)}`, packs);
-  return {
-    pack: {
-      id,
-      name: seed,
-      version: '1.0.0',
-      author: 'Local User',
-      description: '本地创建的自定义角色包',
-      license: 'Custom',
-      tags: ['custom'],
-      platform: [window.YUA.platform]
-    },
-    character: {
-      id,
-      name: seed,
-      nameAliases: [],
-      tagline: '我的桌面伙伴',
-      background: '你是一个居住在用户电脑桌面上的智能精灵，会陪伴用户工作、学习和生活。',
-      coreTraits: ['温暖真诚', '认真负责', '有一点自己的小个性'],
-      boundaries: ['真诚帮助，不表演。', '像人一样自然说话。', '遇到问题先尝试解决，实在卡住再询问用户。'],
-      speechTone: '温和、自然、略带活泼',
-      language: 'zh-CN',
-      firstPerson: '我',
-      addressUser: '你',
-      quirks: ['偶尔用轻快的语气回应', '完成任务时会简短确认结果'],
-      speechExamples: [
-        { situation: '打招呼', response: '嗨，今天想做点什么？' },
-        { situation: '完成任务', response: '搞定啦。' }
-      ],
-      metaDescription: '本地创建的自定义角色',
-      metaTags: ['custom', 'assistant']
-    }
-  };
-}
-
-function validateEditorDraft(draft: CharacterPackEditorDraft): string | null {
-  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(draft.pack.id.trim())) {
-    return '角色包 ID 只能使用小写字母、数字、点、横线或下划线。';
-  }
-  if (!draft.pack.name.trim()) return '角色包名称不能为空。';
-  if (!draft.pack.version.trim()) return '版本不能为空。';
-  if (!draft.pack.author.trim()) return '作者不能为空。';
-  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(draft.character.id.trim())) {
-    return '角色 ID 只能使用小写字母、数字、点、横线或下划线。';
-  }
-  if (!draft.character.name.trim()) return '角色名称不能为空。';
-  if (!draft.character.tagline.trim()) return '角色标语不能为空。';
-  if (!draft.character.background.trim()) return '角色背景不能为空。';
-  if (!draft.character.speechTone.trim()) return '说话语气不能为空。';
-  return null;
-}
-
-export default function SpritePackManager({ afterRuntimeChange, editorExtra }: SpritePackManagerProps): JSX.Element {
+export default function SpritePackManager({ afterRuntimeChange, editorExtra, editorPresentation = 'window' }: SpritePackManagerProps): JSX.Element {
   const [packs, setPacks] = useState<CharacterPackSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [importPrompt, setImportPrompt] = useState<ImportPromptState | null>(null);
   const [removeTarget, setRemoveTarget] = useState<CharacterPackSummary | null>(null);
-  const [editor, setEditor] = useState<EditorState | null>(null);
+  const [editor, setEditor] = useState<SpritePackEditorState | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -481,6 +374,12 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra }: S
     await refresh();
     await afterRuntimeChange?.();
   }, [afterRuntimeChange, refresh]);
+
+  useEffect(() => {
+    return subscribeSpritePackEditorEvents(() => {
+      void runAfterPackMutation();
+    });
+  }, [runAfterPackMutation]);
 
   const handleActivatePack = useCallback(
     async (pack: CharacterPackSummary): Promise<void> => {
@@ -643,76 +542,30 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra }: S
     }
   }, [removeTarget, runAfterPackMutation]);
 
+  const openEditorWindow = useCallback(async (payload: SpritePackEditorWindowPayload): Promise<void> => {
+    await window.YUA.window['window:open'](SPRITE_PACK_EDITOR_WINDOW_KEY as any, payload, { sameDisplayAsSender: true });
+  }, []);
+
   const handleCreatePack = useCallback((): void => {
+    if (editorPresentation === 'window') {
+      void openEditorWindow({ mode: 'create' });
+      return;
+    }
+
     const basePack = activePack ?? packs.find((pack) => pack.source === 'builtin') ?? packs[0] ?? undefined;
-    setEditor({
-      mode: 'create',
-      draft: buildNewCharacterPackDraft(basePack, packs),
-      basePack,
-      activateAfterSave: true
-    });
-  }, [activePack, packs]);
-
-  const handleClonePack = useCallback(
-    async (pack: CharacterPackSummary): Promise<void> => {
-      setBusyKey(getPackBusyKey('editor-draft', pack));
-      try {
-        const draft = await window.YUA.persona.getCharacterPackEditorDraft(pack.id, pack.source);
-        if (!draft) {
-          throw new Error(`读取角色包草稿失败: ${pack.name}`);
-        }
-
-        const nextId = getUniquePackId(`${draft.pack.id}-custom`, packs);
-        setEditor({
-          mode: 'create',
-          draft: {
-            ...draft,
-            pack: {
-              ...draft.pack,
-              id: nextId,
-              name: `${draft.pack.name} 自定义版`,
-              author: draft.pack.author || 'Local User'
-            },
-            character: {
-              ...draft.character,
-              id: getUniquePackId(`${draft.character.id}-custom`, packs),
-              name: `${draft.character.name} 自定义版`
-            }
-          },
-          basePack: pack,
-          activateAfterSave: true
-        });
-      } catch (error) {
-        console.error('Failed to clone character pack draft:', error);
-        toast.error(formatActionError('读取角色包草稿失败', error));
-      } finally {
-        setBusyKey(null);
-      }
-    },
-    [packs]
-  );
+    setEditor(buildCreateSpritePackEditorState(basePack, packs));
+  }, [activePack, editorPresentation, openEditorWindow, packs]);
 
   const handleEditPack = useCallback(
     async (pack: CharacterPackSummary): Promise<void> => {
-      if (pack.source !== 'installed') {
-        await handleClonePack(pack);
+      if (editorPresentation === 'window') {
+        await openEditorWindow({ mode: 'edit', packId: pack.id, source: pack.source });
         return;
       }
 
       setBusyKey(getPackBusyKey('editor-draft', pack));
       try {
-        const draft = await window.YUA.persona.getCharacterPackEditorDraft(pack.id, pack.source);
-        if (!draft) {
-          throw new Error(`读取角色包草稿失败: ${pack.name}`);
-        }
-
-        setEditor({
-          mode: 'edit',
-          draft,
-          targetPack: pack,
-          basePack: pack,
-          activateAfterSave: pack.isActive
-        });
+        setEditor(await loadSpritePackEditorStateForPack(pack, packs));
       } catch (error) {
         console.error('Failed to load character pack editor:', error);
         toast.error(formatActionError('读取角色包草稿失败', error));
@@ -720,101 +573,15 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra }: S
         setBusyKey(null);
       }
     },
-    [handleClonePack]
+    [editorPresentation, openEditorWindow, packs]
   );
-
-  const updateEditorPack = useCallback((patch: Partial<CharacterPackEditorDraft['pack']>): void => {
-    setEditor((current) =>
-      withEditorDraft(current, (draft) => ({
-        ...draft,
-        pack: {
-          ...draft.pack,
-          ...patch
-        }
-      }))
-    );
-  }, []);
-
-  const updateEditorCharacter = useCallback((patch: Partial<CharacterPackEditorDraft['character']>): void => {
-    setEditor((current) =>
-      withEditorDraft(current, (draft) => ({
-        ...draft,
-        character: {
-          ...draft.character,
-          ...patch
-        }
-      }))
-    );
-  }, []);
-
-  const updateEditorExample = useCallback((index: number, patch: Partial<CharacterPackEditorDraft['character']['speechExamples'][number]>): void => {
-    setEditor((current) =>
-      withEditorDraft(current, (draft) => {
-        const speechExamples = draft.character.speechExamples.map((entry, entryIndex) => (entryIndex === index ? { ...entry, ...patch } : entry));
-        return {
-          ...draft,
-          character: {
-            ...draft.character,
-            speechExamples
-          }
-        };
-      })
-    );
-  }, []);
-
-  const removeEditorExample = useCallback((index: number): void => {
-    setEditor((current) =>
-      withEditorDraft(current, (draft) => ({
-        ...draft,
-        character: {
-          ...draft.character,
-          speechExamples: draft.character.speechExamples.filter((_, entryIndex) => entryIndex !== index)
-        }
-      }))
-    );
-  }, []);
-
-  const addEditorExample = useCallback((): void => {
-    setEditor((current) =>
-      withEditorDraft(current, (draft) => ({
-        ...draft,
-        character: {
-          ...draft.character,
-          speechExamples: [...draft.character.speechExamples, { situation: '', response: '' }]
-        }
-      }))
-    );
-  }, []);
 
   const handleSaveEditor = useCallback(async (): Promise<void> => {
     if (!editor) return;
 
-    const validationError = validateEditorDraft(editor.draft);
-    if (validationError) {
-      toast.error(validationError);
-      return;
-    }
-
-    const idConflict = editor.mode === 'create' && packs.some((pack) => pack.source === 'installed' && pack.id === editor.draft.pack.id);
-    if (idConflict) {
-      toast.error('已存在同 ID 的本地角色包，请换一个角色包 ID。');
-      return;
-    }
-
-    const options: CharacterPackEditorSaveOptions = {
-      basePackId: editor.basePack?.id,
-      basePackSource: editor.basePack?.source,
-      replaceExisting: editor.mode === 'edit',
-      activate: editor.activateAfterSave
-    };
-
     setBusyKey('editor-save');
     try {
-      const result = (await window.YUA.persona.saveCharacterPackEditorDraft(editor.draft, options)) as CharacterPackEditorMutationResult | null;
-      if (!result?.ok) {
-        throw new Error(result?.error || '保存角色包失败');
-      }
-
+      const result = await saveSpritePackEditorState(editor, packs);
       setEditor(null);
       await runAfterPackMutation();
       toast.success(editor.activateAfterSave ? `${result.pack?.name ?? editor.draft.pack.name} 已保存并切换` : `${result.pack?.name ?? editor.draft.pack.name} 已保存`);
@@ -830,6 +597,13 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra }: S
   const importMetadataBadges = importPrompt ? getPackMetadataBadges(importPrompt.inspection.pack) : [];
   const importTrustBadges = importPrompt ? getPackTrustBadges(importPrompt.inspection.pack) : [];
   const importSignatureSummary = importPrompt ? formatSignatureSummary(importPrompt.inspection.pack) : null;
+  const editorUsesExpandedModal = editorPresentation === 'modal';
+  const editorDialogContentClassName = editorUsesExpandedModal
+    ? 'grid h-[min(92vh,900px)] w-[min(1180px,calc(100vw-32px))] max-w-none grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0'
+    : 'max-h-[88vh] max-w-4xl overflow-y-auto';
+  const editorHeaderClassName = editorUsesExpandedModal ? 'border-b border-border/60 px-6 py-5 pr-12' : undefined;
+  const editorBodyClassName = editorUsesExpandedModal ? 'min-h-0 overflow-y-auto px-6 py-5' : undefined;
+  const editorFooterClassName = editorUsesExpandedModal ? 'border-t border-border/60 px-6 py-4' : undefined;
 
   return (
     <>
@@ -886,14 +660,8 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra }: S
                         导出
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => void handleEditPack(pack)} disabled={packBusyState.active || busyKey === getPackBusyKey('editor-draft', pack)}>
-                        {busyKey === getPackBusyKey('editor-draft', pack) ? (
-                          <TbLoader2 className="h-4 w-4 animate-spin mr-1" />
-                        ) : pack.source === 'installed' ? (
-                          <TbPencil className="h-4 w-4 mr-1" />
-                        ) : (
-                          <TbCopy className="h-4 w-4 mr-1" />
-                        )}
-                        {pack.source === 'installed' ? '编辑' : '复制编辑'}
+                        {busyKey === getPackBusyKey('editor-draft', pack) ? <TbLoader2 className="h-4 w-4 animate-spin mr-1" /> : <TbPencil className="h-4 w-4 mr-1" />}
+                        编辑
                       </Button>
                       {pack.source === 'installed' && (
                         <Button size="sm" variant="destructive" onClick={() => setRemoveTarget(pack)} disabled={packBusyState.active}>
@@ -1136,151 +904,23 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra }: S
       </AlertDialog>
 
       <Dialog open={!!editor} onOpenChange={(open) => !open && setEditor(null)}>
-        <DialogContent className="max-h-[88vh] max-w-4xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editor?.mode === 'edit' ? '编辑角色包' : '创建自定义角色包'}</DialogTitle>
-            <DialogDescription>{editor?.basePack ? `动画和资源将继承自：${editor.basePack.name}` : '保存后会写入本地角色包目录。'}</DialogDescription>
+        <DialogContent className={editorDialogContentClassName}>
+          <DialogHeader className={editorHeaderClassName}>
+            <DialogTitle>{getSpritePackEditorTitle(editor)}</DialogTitle>
+            <DialogDescription>{getSpritePackEditorDescription(editor)}</DialogDescription>
           </DialogHeader>
 
-          {editor && (
-            <div className="space-y-5">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>角色包 ID</Label>
-                  <Input value={editor.draft.pack.id} onChange={(event) => updateEditorPack({ id: slugifyCharacterPackId(event.target.value) })} disabled={editor.mode === 'edit'} />
-                </div>
-                <div className="space-y-2">
-                  <Label>角色包名称</Label>
-                  <Input value={editor.draft.pack.name} onChange={(event) => updateEditorPack({ name: event.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>版本</Label>
-                  <Input value={editor.draft.pack.version} onChange={(event) => updateEditorPack({ version: event.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>作者</Label>
-                  <Input value={editor.draft.pack.author} onChange={(event) => updateEditorPack({ author: event.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>许可证</Label>
-                  <Input value={editor.draft.pack.license} onChange={(event) => updateEditorPack({ license: event.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>平台</Label>
-                  <Input value={editor.draft.pack.platform.join(', ')} onChange={(event) => updateEditorPack({ platform: splitLines(event.target.value.replace(/[,，]/g, '\n')) })} />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>角色包描述</Label>
-                  <Textarea className="min-h-20" value={editor.draft.pack.description} onChange={(event) => updateEditorPack({ description: event.target.value })} />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>标签</Label>
-                  <Input value={editor.draft.pack.tags.join(', ')} onChange={(event) => updateEditorPack({ tags: splitLines(event.target.value.replace(/[,，]/g, '\n')) })} />
-                </div>
-              </div>
+          <div className={editorBodyClassName}>
+            {editor && (
+              <SpritePackEditorContent
+                editor={editor}
+                setEditor={setEditor}
+                extra={editorExtra ? <div className={editorUsesExpandedModal ? 'mt-5 border-t border-border/60 pt-5' : 'mt-4'}>{editorExtra}</div> : undefined}
+              />
+            )}
+          </div>
 
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>角色 ID</Label>
-                  <Input value={editor.draft.character.id} onChange={(event) => updateEditorCharacter({ id: slugifyCharacterPackId(event.target.value) })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>角色名称</Label>
-                  <Input value={editor.draft.character.name} onChange={(event) => updateEditorCharacter({ name: event.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>角色标语</Label>
-                  <Input value={editor.draft.character.tagline} onChange={(event) => updateEditorCharacter({ tagline: event.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>别名</Label>
-                  <Input value={editor.draft.character.nameAliases.join(', ')} onChange={(event) => updateEditorCharacter({ nameAliases: splitLines(event.target.value.replace(/[,，]/g, '\n')) })} />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>角色背景</Label>
-                  <Textarea className="min-h-24" value={editor.draft.character.background} onChange={(event) => updateEditorCharacter({ background: event.target.value })} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>核心性格</Label>
-                  <Textarea className="min-h-32" value={joinLines(editor.draft.character.coreTraits)} onChange={(event) => updateEditorCharacter({ coreTraits: splitLines(event.target.value) })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>行为边界</Label>
-                  <Textarea className="min-h-32" value={joinLines(editor.draft.character.boundaries)} onChange={(event) => updateEditorCharacter({ boundaries: splitLines(event.target.value) })} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>说话语气</Label>
-                  <Input value={editor.draft.character.speechTone} onChange={(event) => updateEditorCharacter({ speechTone: event.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>语言</Label>
-                  <Input value={editor.draft.character.language} onChange={(event) => updateEditorCharacter({ language: event.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>自称</Label>
-                  <Input value={editor.draft.character.firstPerson} onChange={(event) => updateEditorCharacter({ firstPerson: event.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>称呼用户</Label>
-                  <Input value={editor.draft.character.addressUser} onChange={(event) => updateEditorCharacter({ addressUser: event.target.value })} />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>口癖和表达习惯</Label>
-                  <Textarea className="min-h-24" value={joinLines(editor.draft.character.quirks)} onChange={(event) => updateEditorCharacter({ quirks: splitLines(event.target.value) })} />
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label>对话示例</Label>
-                  <Button type="button" size="sm" variant="outline" onClick={addEditorExample}>
-                    <TbPlus className="h-4 w-4 mr-1" />
-                    添加示例
-                  </Button>
-                </div>
-                <div className="space-y-2">
-                  {editor.draft.character.speechExamples.map((example, index) => (
-                    <div key={index} className="grid grid-cols-1 gap-2 rounded-md border border-border/60 p-2 md:grid-cols-[1fr_2fr_auto]">
-                      <Input placeholder="场景" value={example.situation} onChange={(event) => updateEditorExample(index, { situation: event.target.value })} />
-                      <Input placeholder="回应" value={example.response} onChange={(event) => updateEditorExample(index, { response: event.target.value })} />
-                      <Button type="button" size="sm" variant="outline" onClick={() => removeEditorExample(index)}>
-                        <TbTrash className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>角色说明</Label>
-                  <Textarea className="min-h-24" value={editor.draft.character.metaDescription} onChange={(event) => updateEditorCharacter({ metaDescription: event.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>角色标签</Label>
-                  <Textarea className="min-h-24" value={joinLines(editor.draft.character.metaTags)} onChange={(event) => updateEditorCharacter({ metaTags: splitLines(event.target.value) })} />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between rounded-md border border-border/60 p-3">
-                <div className="space-y-1">
-                  <div className="text-sm font-medium text-foreground">保存后立即切换</div>
-                  <div className="text-xs text-muted-foreground">会刷新当前角色人格、能力状态和动画资源。</div>
-                </div>
-                <Switch checked={editor.activateAfterSave} onCheckedChange={(checked) => setEditor((current) => (current ? { ...current, activateAfterSave: checked } : current))} />
-              </div>
-            </div>
-          )}
-
-          {editor && editorExtra && <div className="mt-4">{editorExtra}</div>}
-
-          <DialogFooter>
+          <DialogFooter className={editorFooterClassName}>
             <Button variant="outline" onClick={() => setEditor(null)} disabled={busyKey === 'editor-save'}>
               取消
             </Button>

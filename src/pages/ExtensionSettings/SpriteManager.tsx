@@ -87,7 +87,7 @@ function SpritePreview({ src, type, width, height }: { src: string; type: string
   );
 }
 
-function SpriteAnimationManager({
+export function SpriteAnimationManager({
   className,
   actionChoreographyCapability,
   onCapabilityBlocked
@@ -512,6 +512,7 @@ export default function SpriteManager({
   return (
     <div className={className}>
       <SpritePackManager
+        editorPresentation="window"
         editorExtra={<SpriteAnimationManager className="border-t border-border/60 pt-4" actionChoreographyCapability={actionChoreographyCapability} onCapabilityBlocked={onCapabilityBlocked} />}
       />
     </div>
