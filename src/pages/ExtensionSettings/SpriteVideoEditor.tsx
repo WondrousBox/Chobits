@@ -84,6 +84,7 @@ export interface SpriteVideoConfig {
   padding: number;
   movement: SpriteMovementConfig;
   autoIdle: boolean;
+  loop: boolean;
   condition?: SpriteAnimationCondition;
   primaryTrigger?: SpriteAnimationTrigger;
   triggerAliases?: SpriteAnimationTrigger[];
@@ -214,6 +215,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
   const [movement, setMovement] = useState<SpriteMovementConfig>(initialConfig?.movement || { ...DEFAULT_MOVEMENT });
   const [autoIdle, setAutoIdle] = useState<boolean>(initialConfig?.autoIdle ?? true);
   // 精灵窗口 padding
+  const [loopWholeClip, setLoopWholeClip] = useState<boolean>(initialConfig?.loop ?? false);
   const [padding, setPadding] = useState<number>(initialConfig?.padding ?? DEFAULT_PADDING);
 
   const playbackWidth = getPlaybackDimension(output.width, playbackScale);
@@ -255,6 +257,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
 
   // 判断是否有循环片段
   const hasLoop = segments.loopEnd > segments.loopStart;
+  const playbackLoop = hasLoop || loopWholeClip;
 
   // 移除循环片段
   const removeLoop = useCallback(() => {
@@ -299,6 +302,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
         padding,
         movement,
         autoIdle,
+        loop: playbackLoop,
         condition: animationMeta.condition,
         primaryTrigger: animationMeta.primaryTrigger,
         triggerAliases: animationMeta.triggerAliases,
@@ -306,7 +310,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
         title
       });
     }
-  }, [inputPath, segments, chromaKey, speeds, output, playbackScale, padding, movement, autoIdle, animationMeta, title, onConfigChange]);
+  }, [inputPath, segments, chromaKey, speeds, output, playbackScale, padding, movement, autoIdle, playbackLoop, animationMeta, title, onConfigChange]);
 
   // 视频加载完成
   const handleLoadedMetadata = useCallback(() => {
@@ -408,6 +412,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
       setSegments({ start: 0, loopStart: 0, loopEnd: 0, end: 0 });
       setCurrentTime(0);
       setIsPlaying(false);
+      setLoopWholeClip(false);
     }
   }, [getDirPath]);
 
@@ -518,6 +523,27 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
       // 无循环段：直接播放 start → end
       previewPhaseRef.current = 'intro';
       setPreviewPhase('intro');
+      const checkWholeClip = (): void => {
+        if (!video || video.paused) {
+          stopThreePhasePreview();
+          return;
+        }
+
+        if (video.currentTime * 1000 >= segments.end - 30) {
+          if (loopWholeClip) {
+            video.currentTime = segments.start / 1000;
+            video.play().catch(() => {});
+          } else {
+            video.pause();
+            setIsPlaying(false);
+            stopThreePhasePreview();
+            return;
+          }
+        }
+
+        previewRafRef.current = requestAnimationFrame(checkWholeClip);
+      };
+      previewRafRef.current = requestAnimationFrame(checkWholeClip);
       return;
     }
 
@@ -563,7 +589,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
       previewRafRef.current = requestAnimationFrame(check);
     };
     previewRafRef.current = requestAnimationFrame(check);
-  }, [segments, speeds, stopThreePhasePreview]);
+  }, [loopWholeClip, segments, speeds, stopThreePhasePreview]);
 
   // 清理三段预览 RAF
   useEffect(() => {
@@ -608,6 +634,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
     setSegments({ start: 0, loopStart: 0, loopEnd: 0, end: 0 });
     setCurrentTime(0);
     setIsPlaying(false);
+    setLoopWholeClip(false);
     setChromaKey({ enabled: false, color: '#00ff00', similarity: 40, blend: 15 });
     setSpeeds({ intro: 1, loop: 1, outro: 1 });
     setOutput({ ...DEFAULT_OUTPUT });
@@ -773,6 +800,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
           loopEndMs: adjustedLoopEnd,
           durationMs: trimmedDuration,
           autoIdle,
+          loop: playbackLoop,
           width: playbackWidth,
           height: playbackHeight,
           padding,
@@ -791,6 +819,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
             padding,
             movement,
             autoIdle,
+            loop: playbackLoop,
             condition: animationMeta.condition,
             primaryTrigger: animationMeta.primaryTrigger,
             triggerAliases: animationMeta.triggerAliases,
@@ -825,6 +854,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
           loopEndMs: adjustedLoopEnd,
           durationMs: trimmedDuration,
           autoIdle,
+          loop: playbackLoop,
           movement: movement.enabled ? movement : undefined,
           meta: {
             id,
@@ -860,6 +890,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
     playbackWidth,
     playbackHeight,
     autoIdle,
+    playbackLoop,
     assetAuthoringCapability,
     stopThreePhasePreview,
     recordCanvasWithChromaKey,
@@ -948,10 +979,10 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
                     {formatTime(currentTime)} / {formatTime(duration)}
                   </span>
                   <div className="flex-1" />
-                  <Button size="sm" variant="outline" onClick={previewLoop} title="预览循环片段（无限循环）">
+                  <Button size="sm" variant="outline" onClick={previewLoop} disabled={!hasLoop} title={hasLoop ? '预览循环片段（无限循环）' : '未设置循环片段'}>
                     循环预览
                   </Button>
-                  <Button size="sm" variant="outline" onClick={previewFull} title="预览完整动画（循环3次后结束）">
+                  <Button size="sm" variant="outline" onClick={previewFull} title={hasLoop ? '预览完整动画（循环3次后结束）' : loopWholeClip ? '预览整段循环动画' : '预览开始/结束时间内的动画'}>
                     完整预览
                   </Button>
                   {movement.enabled && (
@@ -1606,6 +1637,15 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
                   <div className="text-[10px] text-muted-foreground">默认开启，关闭后会停在动画结尾</div>
                 </div>
               </div>
+              {!hasLoop && (
+                <div className="flex items-center gap-2 rounded-md border px-3 py-2 shrink-0">
+                  <Switch checked={loopWholeClip} onCheckedChange={setLoopWholeClip} />
+                  <div className="leading-tight">
+                    <div className="text-xs font-medium">整段循环</div>
+                    <div className="text-[10px] text-muted-foreground">按开始/结束时间循环截取片段</div>
+                  </div>
+                </div>
+              )}
               <Input className="min-w-[220px] flex-1" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="动画名称" />
               <SpriteTriggerPicker value={primaryTrigger} onChange={setPrimaryTrigger} buttonClassName="w-[240px]" emptyLabel="未分类" />
               <Button variant="default" onClick={handleImport} disabled={!canAuthorAnimations || processingFlag || !inputPath || !!parsedCondition.error}>

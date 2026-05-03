@@ -349,6 +349,7 @@ export function SpriteAnimationManager({
                     loopEndMs: hasLoop ? introDur + loopDur : undefined,
                     durationMs: introDur + loopDur + outroDur,
                     autoIdle: config.autoIdle,
+                    loop: config.loop,
                     movement: config.movement.enabled ? config.movement : undefined,
                     meta: {
                       id,

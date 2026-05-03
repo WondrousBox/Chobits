@@ -402,6 +402,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
         loopStartMs?: number;
         loopEndMs?: number;
         durationMs?: number;
+        loop?: boolean;
         autoIdle?: boolean;
         width?: number;
         height?: number;
@@ -411,7 +412,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
     ) => {
       ensureAssetAuthoringCapability();
 
-      const { data, meta, loopStartMs, loopEndMs, durationMs, autoIdle, width, height, padding, movement } = payload || ({} as any);
+      const { data, meta, loopStartMs, loopEndMs, durationMs, loop, autoIdle, width, height, padding, movement } = payload || ({} as any);
       if (!data || !(data instanceof ArrayBuffer || Buffer.isBuffer(data))) {
         throw new Error('[sprite:registerFromData] data is required (ArrayBuffer or Buffer)');
       }
@@ -441,7 +442,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
         autoplay: true,
         muted: true,
         playsInline: true,
-        loop: false,
+        loop: loop ?? false,
         autoIdle: autoIdle ?? true,
         loopStartMs,
         loopEndMs,
