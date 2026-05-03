@@ -1,4 +1,4 @@
-# sprite-core — 桌面精灵人格化核心引擎
+﻿# sprite-core — 桌面精灵人格化核心引擎
 
 > **当前状态** (2026-04-24)：主进程统一运行时已全面落地，本轮收尾冻结；后续暂不继续修改 sprite runtime 主线。
 >
@@ -958,8 +958,6 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 | `sprite:character:listPacks`        | -                                                   | 获取角色包列表     |
 | `sprite:character:getActivePack`    | -                                                   | 获取当前激活角色包 |
 | `sprite:character:activatePack`     | `{ packId, source? }`                               | 激活角色包         |
-| `sprite:character:inspectPackFromDirectory` | `{ sourceDir }`                               | 预检目录角色包     |
-| `sprite:character:installPackFromDirectory` | `{ sourceDir, replaceExisting?, activate? }` | 从目录安装角色包   |
 | `sprite:character:inspectPackFromArchive` | `{ archivePath }`                              | 预检压缩包角色包   |
 | `sprite:character:installPackFromArchive` | `{ archivePath, replaceExisting?, activate? }` | 从压缩包安装角色包 |
 | `sprite:character:removePack`       | `{ packId, source? }`                               | 删除已安装角色包   |
@@ -1026,7 +1024,7 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 
 **`window.YUA.persona` / Persona 与 capability**: `getState()`, `addXP()`, `changeFavor()`, `recordLogin()`, `unlockAchievement()`, `resetState()`, `getCapabilitySnapshot()`
 
-**`window.YUA.persona` / 角色与角色包**: `getCharacterInfo()`, `getCharacterPersonaPrompt()`, `listCharacterPacks()`, `getActiveCharacterPack()`, `activateCharacterPack()`, `inspectCharacterPackFromDirectory()`, `installCharacterPackFromDirectory()`, `inspectCharacterPackFromArchive()`, `installCharacterPackFromArchive()`, `removeCharacterPack()`, `reloadCharacter()`, `getDimensions()`
+**`window.YUA.persona` / 角色与角色包**: `getCharacterInfo()`, `getCharacterPersonaPrompt()`, `listCharacterPacks()`, `getActiveCharacterPack()`, `activateCharacterPack()`, `inspectCharacterPackFromArchive()`, `installCharacterPackFromArchive()`, `removeCharacterPack()`, `reloadCharacter()`, `getDimensions()`
 
 **`window.YUA.persona` / 事件订阅**: `onStateChanged()`, `onLevelUp()`, `onXPGained()`, `onFavorChanged()`, `onDailyLogin()`, `onAchievementUnlocked()`, `onCapabilityChanged()`, `onCharacterSwitched()`
 

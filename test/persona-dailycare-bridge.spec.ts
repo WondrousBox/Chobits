@@ -113,37 +113,22 @@ describe('persona and daily-care preload bridges', () => {
       source: 'installed'
     });
 
-    await personaApi.inspectCharacterPackFromDirectory('/tmp/pack-gamma');
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(4, 'sprite:character:inspectPackFromDirectory', {
-      sourceDir: '/tmp/pack-gamma'
-    });
-
-    await personaApi.installCharacterPackFromDirectory('/tmp/pack-gamma', {
-      activate: true,
-      replaceExisting: true
-    });
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(5, 'sprite:character:installPackFromDirectory', {
-      sourceDir: '/tmp/pack-gamma',
-      replaceExisting: true,
-      activate: true
-    });
-
     await personaApi.inspectCharacterPackFromArchive('/tmp/pack-delta.chobits-character');
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(6, 'sprite:character:inspectPackFromArchive', {
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(4, 'sprite:character:inspectPackFromArchive', {
       archivePath: '/tmp/pack-delta.chobits-character'
     });
 
     await personaApi.installCharacterPackFromArchive('/tmp/pack-delta.chobits-character', {
       activate: true
     });
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(7, 'sprite:character:installPackFromArchive', {
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(5, 'sprite:character:installPackFromArchive', {
       archivePath: '/tmp/pack-delta.chobits-character',
       replaceExisting: undefined,
       activate: true
     });
 
     await personaApi.removeCharacterPack('pack-delta', 'installed');
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(8, 'sprite:character:removePack', {
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(6, 'sprite:character:removePack', {
       packId: 'pack-delta',
       source: 'installed'
     });

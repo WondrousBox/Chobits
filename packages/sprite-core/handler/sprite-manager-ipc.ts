@@ -44,17 +44,20 @@ import { assertSpriteCapabilityUnlocked, getSpriteCapabilitySnapshot, initSprite
 import { getCharacterCapabilityContextFlags } from '../character-capability-flags';
 import {
   activateCharacterPack,
+  type CharacterPackEditorDraft,
+  type CharacterPackEditorSaveOptions,
   type CharacterPackSource,
   type CharacterPackSummary,
+  exportCharacterPack,
   getActiveCharacterPack,
+  getCharacterPackEditorDraft,
   getCharacterPackImportPreviewCacheRootDir,
   initCharacterPackManager,
   inspectCharacterPackFromArchive,
-  inspectCharacterPackFromDirectory,
   installCharacterPackFromArchive,
-  installCharacterPackFromDirectory,
   listCharacterPacks,
-  removeCharacterPack
+  removeCharacterPack,
+  saveCharacterPackEditorDraft
 } from '../character-pack-manager';
 import { type CharacterPersonaRuntimeSyncResult, reloadCharacterPersonaRuntime, syncCharacterPersonaRuntime } from '../character-runtime';
 import { buildCharacterPersonaPrompt, getCharacterDefinition, getCharacterInfo, getCharacterToolLabels, initCharacterService, type ToolLabelDefinition } from '../character-service';
@@ -579,24 +582,20 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     };
   });
 
-  ipcMain.handle('sprite:character:inspectPackFromDirectory', async (_e, payload: { sourceDir: string }) => {
-    return inspectCharacterPackFromDirectory(payload.sourceDir);
-  });
-
   ipcMain.handle('sprite:character:inspectPackFromArchive', async (_e, payload: { archivePath: string }) => {
     return inspectCharacterPackFromArchive(payload.archivePath);
   });
 
   type InstalledPackChangeResponse = {
     ok: true;
-  } & Awaited<ReturnType<typeof installCharacterPackFromDirectory>> & {
+  } & Awaited<ReturnType<typeof installCharacterPackFromArchive>> & {
       character?: ReturnType<typeof getCharacterInfo>;
       runtime?: CharacterPersonaRuntimeSyncResult;
       personaSlot?: { slotId: string; restored: boolean; switched: boolean };
     };
 
   async function finalizeInstalledPackChange(
-    result: Awaited<ReturnType<typeof installCharacterPackFromDirectory>>,
+    result: Awaited<ReturnType<typeof installCharacterPackFromArchive>>,
     options?: {
       previousPack?: CharacterPackSummary | null;
       previousCharacter?: ReturnType<typeof getCharacterInfo> | null;
@@ -634,21 +633,6 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     };
   }
 
-  ipcMain.handle('sprite:character:installPackFromDirectory', async (_e, payload: { sourceDir: string; replaceExisting?: boolean; activate?: boolean }) => {
-    const previousPack = payload.activate || payload.replaceExisting ? await getActiveCharacterPack() : null;
-    const previousCharacter = previousPack ? getCharacterInfo() : null;
-    const result = await installCharacterPackFromDirectory(payload.sourceDir, {
-      replaceExisting: payload.replaceExisting,
-      activate: payload.activate
-    });
-
-    return finalizeInstalledPackChange(result, {
-      previousPack,
-      previousCharacter,
-      capabilitySource: 'character.pack.install.directory'
-    });
-  });
-
   ipcMain.handle('sprite:character:installPackFromArchive', async (_e, payload: { archivePath: string; replaceExisting?: boolean; activate?: boolean }) => {
     const previousPack = payload.activate || payload.replaceExisting ? await getActiveCharacterPack() : null;
     const previousCharacter = previousPack ? getCharacterInfo() : null;
@@ -662,6 +646,21 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       previousCharacter,
       capabilitySource: 'character.pack.install.archive'
     });
+  });
+
+  ipcMain.handle('sprite:character:exportPack', async (_e, payload: { packId: string; outputPath: string; source?: CharacterPackSource }) => {
+    const result = await exportCharacterPack(payload.packId, payload.outputPath, {
+      source: payload.source
+    });
+
+    if (!result) {
+      throw new Error(`[sprite:character:exportPack] Pack not found: ${payload.packId}`);
+    }
+
+    return {
+      ok: true,
+      ...result
+    };
   });
 
   ipcMain.handle('sprite:character:removePack', async (_e, payload: { packId: string; source?: CharacterPackSource }) => {
@@ -725,6 +724,48 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     return {
       ok: true,
       ...removal
+    };
+  });
+
+  ipcMain.handle('sprite:character:getEditorDraft', async (_e, payload: { packId: string; source?: CharacterPackSource }) => {
+    return getCharacterPackEditorDraft(payload.packId, {
+      source: payload.source
+    });
+  });
+
+  ipcMain.handle('sprite:character:saveEditorDraft', async (_e, payload: { draft: CharacterPackEditorDraft; options?: CharacterPackEditorSaveOptions }) => {
+    const previousPack = await getActiveCharacterPack();
+    const previousCharacter = getCharacterInfo();
+    const result = await saveCharacterPackEditorDraft(payload.draft, payload.options);
+    const shouldReloadRuntime = result.activated || result.pack.isActive || (previousPack?.source === 'installed' && previousPack.id === result.pack.id);
+
+    if (!shouldReloadRuntime) {
+      return {
+        ok: true,
+        ...result
+      };
+    }
+
+    initCharacterService(result.pack.rootDir);
+    const reload = await reloadCharacterRuntimeChain({
+      notifyCapabilitySource: 'character.pack.editor'
+    });
+    const nextCharacter = getCharacterInfo();
+
+    emitCharacterSwitched({
+      previousPack,
+      nextPack: result.pack,
+      previousCharacter,
+      nextCharacter,
+      personaSlotId: reload.personaSlot.slotId
+    });
+
+    return {
+      ok: true,
+      ...result,
+      character: nextCharacter,
+      runtime: reload.runtime,
+      personaSlot: reload.personaSlot
     };
   });
 

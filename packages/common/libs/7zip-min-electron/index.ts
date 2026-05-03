@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, type SpawnOptionsWithoutStdio } from 'node:child_process';
 import path from 'node:path';
 
 import { app } from 'electron';
@@ -63,6 +63,12 @@ export function pack(pathToSrc: string, pathToDest: string, cb: CallbackFn): voi
   run(path7za, ['a', pathToDest, pathToSrc], cb, undefined);
 }
 
+export function packDirectoryContents(pathToSrcDir: string, pathToDest: string, cb: CallbackFn): void {
+  run(path7za, ['a', '-tzip', pathToDest, '.'], cb, undefined, {
+    cwd: pathToSrcDir
+  });
+}
+
 /**
  * Get an array with compressed file contents.
  * @param {string} pathToSrc - path to file its content you want to list.
@@ -94,10 +100,10 @@ function extractProgressAndIndex(str: string): { progress: number; index: number
   return { progress: -1, index: -1 };
 }
 
-function run(bin: string, args: string[], cb: CallbackFn, p?: ProgressFn): void {
+function run(bin: string, args: string[], cb: CallbackFn, p?: ProgressFn, options?: SpawnOptionsWithoutStdio): void {
   cb = onceify(cb);
   const runError = new Error(); // get full stack trace
-  const proc = spawn(bin, args, { windowsHide: true });
+  const proc = spawn(bin, args, { ...options, windowsHide: true });
   let output = '';
   proc.on('error', function (err) {
     cb(err);
@@ -178,8 +184,9 @@ function parseListOutput(str: string): ListItem[] {
       }
       const name = data[0].trim();
       const val = data[1].trim();
-      if (LIST_MAP[name]) {
-        if (LIST_MAP[name] === 'dateTime') {
+      const mappedKey = LIST_MAP[name];
+      if (mappedKey) {
+        if (mappedKey === 'dateTime') {
           const dtArr = val.split(' ');
           if (dtArr.length !== 2) {
             continue;
@@ -187,7 +194,7 @@ function parseListOutput(str: string): ListItem[] {
           obj['date'] = dtArr[0];
           obj['time'] = dtArr[1];
         } else {
-          obj[LIST_MAP[name]] = val;
+          obj[mappedKey] = val;
         }
       }
     }

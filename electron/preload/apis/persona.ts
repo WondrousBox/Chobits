@@ -11,6 +11,10 @@ import { ipcRenderer } from 'electron';
 import { SPRITE_CAPABILITY_CHANGED_CHANNEL, type SpriteCapabilityChangedPayload } from '../../../packages/sprite-core/capability-events';
 import type { SpriteCapabilitySnapshot } from '../../../packages/sprite-core/capability-registry';
 import type {
+  CharacterPackEditorDraft,
+  CharacterPackEditorSaveOptions,
+  CharacterPackEditorSaveResult,
+  CharacterPackExportResult,
   CharacterPackImportInspection,
   CharacterPackInstallOptions,
   CharacterPackRemovalResult,
@@ -138,20 +142,6 @@ export const personaApi = {
   /** 激活指定角色包 */
   activateCharacterPack: (packId: string, source?: CharacterPackSource) => ipcRenderer.invoke('sprite:character:activatePack', { packId, source }),
 
-  /** 预检本地目录角色包，返回 pack manifest 与冲突/警告信息 */
-  inspectCharacterPackFromDirectory: (sourceDir: string): Promise<CharacterPackImportInspection> =>
-    ipcRenderer.invoke('sprite:character:inspectPackFromDirectory', {
-      sourceDir
-    }),
-
-  /** 从本地目录安装角色包，可选安装后立即激活 */
-  installCharacterPackFromDirectory: (sourceDir: string, options?: CharacterPackInstallOptions) =>
-    ipcRenderer.invoke('sprite:character:installPackFromDirectory', {
-      sourceDir,
-      replaceExisting: options?.replaceExisting,
-      activate: options?.activate
-    }),
-
   /** 预检 .chobits-character / zip 压缩包，返回 pack manifest 与冲突/警告信息 */
   inspectCharacterPackFromArchive: (archivePath: string): Promise<CharacterPackImportInspection> =>
     ipcRenderer.invoke('sprite:character:inspectPackFromArchive', {
@@ -166,6 +156,18 @@ export const personaApi = {
       activate: options?.activate
     }),
 
+  /** 将已安装/内置角色包完整导出为 zip 压缩包 */
+  exportCharacterPack: (
+    packId: string,
+    outputPath: string,
+    source?: CharacterPackSource
+  ): Promise<
+    | (CharacterPackExportResult & {
+        ok: true;
+      })
+    | null
+  > => ipcRenderer.invoke('sprite:character:exportPack', { packId, outputPath, source }),
+
   /** 删除已安装角色包；若当前角色包正在使用，会先切回 fallback pack 再移除 */
   removeCharacterPack: (
     packId: string,
@@ -179,6 +181,23 @@ export const personaApi = {
       })
     | null
   > => ipcRenderer.invoke('sprite:character:removePack', { packId, source }),
+
+  /** 获取角色包制作/编辑表单草稿 */
+  getCharacterPackEditorDraft: (packId: string, source?: CharacterPackSource): Promise<CharacterPackEditorDraft | null> => ipcRenderer.invoke('sprite:character:getEditorDraft', { packId, source }),
+
+  /** 保存角色包制作/编辑表单草稿到本地 installed pack */
+  saveCharacterPackEditorDraft: (
+    draft: CharacterPackEditorDraft,
+    options?: CharacterPackEditorSaveOptions
+  ): Promise<
+    | (CharacterPackEditorSaveResult & {
+        ok: true;
+        character?: { id: string; name: string; nameAliases: string[]; tagline: string } | null;
+        runtime?: unknown;
+        personaSlot?: { slotId: string; restored: boolean; switched: boolean };
+      })
+    | null
+  > => ipcRenderer.invoke('sprite:character:saveEditorDraft', { draft, options }),
 
   /** 重新加载当前角色定义并同步 runtime persona rules */
   reloadCharacter: () => ipcRenderer.invoke('sprite:character:reload'),

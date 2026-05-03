@@ -4,11 +4,11 @@ import fsp from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { type ArchiveListEntry, listArchiveEntriesWith7Z, unzipFileWith7Z } from '../common/utils/file';
+import { type ArchiveListEntry, listArchiveEntriesWith7Z, unzipFileWith7Z, zipDirectoryContentsWith7Z } from '../common/utils/file';
 import { assessCharacterPackDigest, calculateCharacterPackPayloadDigest, type CharacterPackDigestVerification } from './character-pack-integrity';
 import { isPathContainedByRoot, isResolvedPathContainedByRoot, resolvePackRelativeAssetPath, resolvePackRelativeAssetPathWithDiagnostics } from './character-pack-paths';
 import { type CharacterPackSignatureVerification, type CharacterPackTrustRoot, loadCharacterPackTrustRoot, verifyCharacterPackSignature } from './character-pack-signature';
-import type { CharacterPackAssets, CharacterPackCapabilities, CharacterPackDefinition, CharacterPackProvenance, CharacterPackSignature } from './character-service';
+import type { CharacterDefinition, CharacterPackAssets, CharacterPackCapabilities, CharacterPackDefinition, CharacterPackProvenance, CharacterPackSignature, SpeechExample } from './character-service';
 
 export type CharacterPackSource = 'builtin' | 'installed';
 export type CharacterPackTrustLevel = 'unsigned' | 'publisher-declared' | 'signature-declared';
@@ -77,7 +77,13 @@ export interface CharacterPackInstallResult {
   pack: CharacterPackSummary;
 }
 
-export type CharacterPackImportSourceType = 'directory' | 'archive';
+export interface CharacterPackExportResult {
+  pack: CharacterPackSummary;
+  outputPath: string;
+  bytes: number;
+}
+
+export type CharacterPackImportSourceType = 'archive';
 
 export interface CharacterPackImportWarning {
   code:
@@ -135,6 +141,53 @@ export interface CharacterPackRemovalResult {
   switchedActivePack: boolean;
 }
 
+export interface CharacterPackEditorPackFields {
+  id: string;
+  name: string;
+  version: string;
+  author: string;
+  description: string;
+  license: string;
+  tags: string[];
+  minAppVersion?: string;
+  platform: string[];
+}
+
+export interface CharacterPackEditorCharacterFields {
+  id: string;
+  name: string;
+  nameAliases: string[];
+  tagline: string;
+  background: string;
+  coreTraits: string[];
+  boundaries: string[];
+  speechTone: string;
+  language: string;
+  firstPerson: string;
+  addressUser: string;
+  quirks: string[];
+  speechExamples: SpeechExample[];
+  metaDescription: string;
+  metaTags: string[];
+}
+
+export interface CharacterPackEditorDraft {
+  pack: CharacterPackEditorPackFields;
+  character: CharacterPackEditorCharacterFields;
+}
+
+export interface CharacterPackEditorSaveOptions {
+  basePackId?: string;
+  basePackSource?: CharacterPackSource;
+  replaceExisting?: boolean;
+  activate?: boolean;
+}
+
+export interface CharacterPackEditorSaveResult extends CharacterPackInstallResult {
+  created: boolean;
+  updated: boolean;
+}
+
 export interface CharacterPackManagerOptions {
   userDataDir: string;
   builtinPackRootDir: string;
@@ -153,6 +206,7 @@ const WINDOWS_ABSOLUTE_ARCHIVE_PATH_PATTERN = /^[a-zA-Z]:[\\/]/;
 const MAX_CHARACTER_PACK_ARCHIVE_ENTRIES = 2_000;
 const MAX_CHARACTER_PACK_ARCHIVE_ENTRY_SIZE_BYTES = 256 * 1024 * 1024;
 const MAX_CHARACTER_PACK_ARCHIVE_UNCOMPRESSED_SIZE_BYTES = 512 * 1024 * 1024;
+const CHARACTER_PACK_EXPORT_ARCHIVE_EXTENSIONS = new Set(['.zip', '.chobits-character']);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -1033,6 +1087,306 @@ async function resolveArchivePackRootDir(extractDir: string): Promise<string | n
   return path.dirname(packFiles[0]);
 }
 
+function resolveCharacterPackExportPath(outputPath: string): string {
+  const normalized = outputPath.trim();
+  if (!normalized) {
+    throw new Error('Character pack export path is empty');
+  }
+
+  const resolved = path.resolve(normalized);
+  const extension = path.extname(resolved).toLowerCase();
+  return extension && CHARACTER_PACK_EXPORT_ARCHIVE_EXTENSIONS.has(extension) ? resolved : `${resolved}.zip`;
+}
+
+function normalizeEditorId(value: unknown, label: string): string {
+  const normalized = normalizeString(value).trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(normalized)) {
+    throw new Error(`${label} 只能使用 1-64 位小写字母、数字、点、横线或下划线，并且必须以字母或数字开头`);
+  }
+  return normalized;
+}
+
+function normalizeEditorRequiredString(value: unknown, label: string, maxLength = 120): string {
+  const normalized = normalizeString(value).trim();
+  if (!normalized) {
+    throw new Error(`${label} 不能为空`);
+  }
+  if (normalized.length > maxLength) {
+    throw new Error(`${label} 不能超过 ${maxLength} 个字符`);
+  }
+  return normalized;
+}
+
+function normalizeEditorOptionalString(value: unknown, maxLength = 300): string | undefined {
+  const normalized = normalizeString(value).trim();
+  if (!normalized) {
+    return undefined;
+  }
+  return normalized.slice(0, maxLength);
+}
+
+function normalizeEditorList(value: unknown, options?: { maxItems?: number; maxLength?: number }): string[] {
+  const maxItems = options?.maxItems ?? 32;
+  const maxLength = options?.maxLength ?? 120;
+  const source = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/[\n,，]/) : [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const item of source) {
+    const normalized = normalizeString(item).trim().slice(0, maxLength);
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    result.push(normalized);
+    if (result.length >= maxItems) {
+      break;
+    }
+  }
+
+  return result;
+}
+
+function normalizeEditorSpeechExamples(value: unknown): SpeechExample[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      if (!isPlainObject(entry)) {
+        return null;
+      }
+
+      const situation = normalizeString(entry.situation).trim().slice(0, 80);
+      const response = normalizeString(entry.response).trim().slice(0, 300);
+      return situation && response ? { situation, response } : null;
+    })
+    .filter((entry): entry is SpeechExample => !!entry)
+    .slice(0, 12);
+}
+
+function sanitizeEditorDraft(draft: CharacterPackEditorDraft): CharacterPackEditorDraft {
+  const minAppVersion = normalizeEditorOptionalString(draft.pack.minAppVersion, 40);
+
+  return {
+    pack: {
+      id: normalizeEditorId(draft.pack.id, '角色包 ID'),
+      name: normalizeEditorRequiredString(draft.pack.name, '角色包名称'),
+      version: normalizeEditorRequiredString(draft.pack.version, '角色包版本', 40),
+      author: normalizeEditorRequiredString(draft.pack.author, '作者', 80),
+      description: normalizeString(draft.pack.description).trim().slice(0, 500),
+      license: normalizeString(draft.pack.license).trim().slice(0, 80) || 'Custom',
+      tags: normalizeEditorList(draft.pack.tags, { maxItems: 24, maxLength: 40 }),
+      ...(minAppVersion ? { minAppVersion } : {}),
+      platform: normalizeEditorList(draft.pack.platform, { maxItems: 8, maxLength: 20 })
+    },
+    character: {
+      id: normalizeEditorId(draft.character.id, '角色 ID'),
+      name: normalizeEditorRequiredString(draft.character.name, '角色名称'),
+      nameAliases: normalizeEditorList(draft.character.nameAliases, { maxItems: 12, maxLength: 40 }),
+      tagline: normalizeEditorRequiredString(draft.character.tagline, '角色标语', 120),
+      background: normalizeEditorRequiredString(draft.character.background, '角色背景', 1200),
+      coreTraits: normalizeEditorList(draft.character.coreTraits, { maxItems: 16, maxLength: 180 }),
+      boundaries: normalizeEditorList(draft.character.boundaries, { maxItems: 16, maxLength: 220 }),
+      speechTone: normalizeEditorRequiredString(draft.character.speechTone, '说话语气', 160),
+      language: normalizeString(draft.character.language).trim().slice(0, 24) || 'zh-CN',
+      firstPerson: normalizeString(draft.character.firstPerson).trim().slice(0, 24) || '我',
+      addressUser: normalizeString(draft.character.addressUser).trim().slice(0, 24) || '你',
+      quirks: normalizeEditorList(draft.character.quirks, { maxItems: 16, maxLength: 160 }),
+      speechExamples: normalizeEditorSpeechExamples(draft.character.speechExamples),
+      metaDescription: normalizeString(draft.character.metaDescription).trim().slice(0, 500),
+      metaTags: normalizeEditorList(draft.character.metaTags, { maxItems: 24, maxLength: 40 })
+    }
+  };
+}
+
+function createFallbackCharacterDefinition(draft: CharacterPackEditorDraft): CharacterDefinition {
+  return {
+    version: 1,
+    id: draft.character.id,
+    name: draft.character.name,
+    nameAliases: draft.character.nameAliases,
+    identity: {
+      tagline: draft.character.tagline,
+      background: draft.character.background,
+      coreTraits: draft.character.coreTraits,
+      boundaries: draft.character.boundaries
+    },
+    speechStyle: {
+      tone: draft.character.speechTone,
+      language: draft.character.language,
+      firstPerson: draft.character.firstPerson,
+      addressUser: draft.character.addressUser,
+      examples: draft.character.speechExamples,
+      quirks: draft.character.quirks
+    },
+    favorPersona: {
+      stranger: {
+        range: [0, 19],
+        style: '礼貌但有些拘谨',
+        systemPromptOverlay: '你和用户刚认识，说话时保持友善但不过于亲密。'
+      },
+      friend: {
+        range: [20, 79],
+        style: '自然友善',
+        systemPromptOverlay: '你和用户已经熟悉了，说话自然随意，可以主动分享你的想法。'
+      },
+      soulmate: {
+        range: [80, 100],
+        style: '亲密信赖',
+        systemPromptOverlay: '你和用户非常亲近，说话可以更有默契，也会主动关心用户的状态。'
+      }
+    },
+    moodExpressions: {
+      neutral: { animation: 'idle', messageStyle: '正常语气' },
+      joyful: { animation: 'idle', messageStyle: '语气更积极' },
+      curious: { animation: 'idle', messageStyle: '语气好奇，会适当追问' }
+    },
+    dimensions: {
+      schema: [],
+      extensible: true
+    },
+    conversationRewards: {
+      xpPerConversation: 15,
+      favorPerConversation: 1,
+      cooldownMs: 60000,
+      bonusConditions: []
+    },
+    meta: {
+      author: draft.pack.author,
+      version: draft.pack.version,
+      license: draft.pack.license,
+      description: draft.character.metaDescription || draft.pack.description,
+      tags: draft.character.metaTags.length > 0 ? draft.character.metaTags : draft.pack.tags,
+      createdAt: new Date().toISOString().slice(0, 10),
+      updatedAt: new Date().toISOString().slice(0, 10)
+    }
+  };
+}
+
+function applyEditorDraftToCharacter(baseCharacter: CharacterDefinition | null, draft: CharacterPackEditorDraft): CharacterDefinition {
+  const fallback = createFallbackCharacterDefinition(draft);
+  const base = baseCharacter ?? fallback;
+  const nowDate = new Date().toISOString().slice(0, 10);
+  const baseMeta = base.meta ?? fallback.meta;
+
+  return {
+    ...base,
+    version: typeof base.version === 'number' ? base.version : 1,
+    id: draft.character.id,
+    name: draft.character.name,
+    nameAliases: draft.character.nameAliases,
+    identity: {
+      ...(base.identity ?? fallback.identity),
+      tagline: draft.character.tagline,
+      background: draft.character.background,
+      coreTraits: draft.character.coreTraits,
+      boundaries: draft.character.boundaries
+    },
+    speechStyle: {
+      ...(base.speechStyle ?? fallback.speechStyle),
+      tone: draft.character.speechTone,
+      language: draft.character.language,
+      firstPerson: draft.character.firstPerson,
+      addressUser: draft.character.addressUser,
+      examples: draft.character.speechExamples,
+      quirks: draft.character.quirks
+    },
+    meta: {
+      ...baseMeta,
+      author: draft.pack.author,
+      version: draft.pack.version,
+      license: draft.pack.license,
+      description: draft.character.metaDescription || draft.pack.description || baseMeta.description,
+      tags: draft.character.metaTags.length > 0 ? draft.character.metaTags : draft.pack.tags,
+      createdAt: baseMeta.createdAt || nowDate,
+      updatedAt: nowDate
+    }
+  };
+}
+
+function buildEditorPackDefinition(basePack: CharacterPackSummary | null, draft: CharacterPackEditorDraft): CharacterPackDefinition {
+  const language = draft.character.language.trim();
+  const supportedLanguages = Array.from(new Set([...(basePack?.capabilities?.supportedLanguages ?? []), ...(language ? [language] : [])]));
+  const assets: CharacterPackAssets = {
+    ...(basePack?.assets ?? {}),
+    character: 'character.json',
+    animations: basePack?.assets?.animations ?? 'index.json'
+  };
+
+  return {
+    formatVersion: SUPPORTED_CHARACTER_PACK_FORMAT_VERSION,
+    id: draft.pack.id,
+    name: draft.pack.name,
+    version: draft.pack.version,
+    author: draft.pack.author,
+    description: draft.pack.description,
+    license: draft.pack.license,
+    tags: draft.pack.tags,
+    ...(draft.pack.minAppVersion ? { minAppVersion: draft.pack.minAppVersion } : {}),
+    platform: draft.pack.platform.length > 0 ? draft.pack.platform : [process.platform],
+    assets,
+    provenance: {
+      channel: 'local',
+      publisher: draft.pack.author
+    },
+    capabilities: {
+      ...(basePack?.capabilities ?? {}),
+      hasCustomAnimations: basePack?.capabilities?.hasCustomAnimations ?? true,
+      ...(supportedLanguages.length > 0 ? { supportedLanguages } : {})
+    }
+  };
+}
+
+function buildEditorDraftFromDefinitions(pack: CharacterPackSummary, character: CharacterDefinition | null): CharacterPackEditorDraft {
+  const fallbackDraft: CharacterPackEditorDraft = {
+    pack: {
+      id: pack.id,
+      name: pack.name,
+      version: pack.version,
+      author: pack.author,
+      description: pack.description,
+      license: pack.license || 'Custom',
+      tags: pack.tags ?? [],
+      ...(pack.minAppVersion ? { minAppVersion: pack.minAppVersion } : {}),
+      platform: pack.platform ?? [process.platform]
+    },
+    character: {
+      id: character?.id ?? pack.id,
+      name: character?.name ?? pack.name,
+      nameAliases: character?.nameAliases ?? [],
+      tagline: character?.identity?.tagline ?? pack.description ?? pack.name,
+      background: character?.identity?.background ?? `你是 ${pack.name}，一个陪伴用户工作的桌面精灵。`,
+      coreTraits: character?.identity?.coreTraits ?? [],
+      boundaries: character?.identity?.boundaries ?? [],
+      speechTone: character?.speechStyle?.tone ?? '温和、自然',
+      language: character?.speechStyle?.language ?? 'zh-CN',
+      firstPerson: character?.speechStyle?.firstPerson ?? '我',
+      addressUser: character?.speechStyle?.addressUser ?? '你',
+      quirks: character?.speechStyle?.quirks ?? [],
+      speechExamples: character?.speechStyle?.examples ?? [],
+      metaDescription: character?.meta?.description ?? pack.description ?? '',
+      metaTags: character?.meta?.tags ?? pack.tags ?? []
+    }
+  };
+
+  return sanitizeEditorDraft(fallbackDraft);
+}
+
+async function readCharacterDefinitionForPack(pack: CharacterPackSummary): Promise<CharacterDefinition | null> {
+  const characterPath = pack.resolvedAssets.character ?? path.join(pack.rootDir, 'character.json');
+  try {
+    return JSON.parse(await fsp.readFile(characterPath, 'utf-8')) as CharacterDefinition;
+  } catch {
+    return null;
+  }
+}
+
+async function writeJsonFile(filePath: string, value: unknown): Promise<void> {
+  await fsp.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf-8');
+}
+
 export class CharacterPackManager {
   private readonly builtinPackRootDir: string;
   private readonly installedPacksDir: string;
@@ -1119,30 +1473,7 @@ export class CharacterPackManager {
     };
   }
 
-  async inspectDirectory(sourceDir: string): Promise<CharacterPackImportInspection> {
-    const normalizedSourceDir = path.resolve(sourceDir);
-    await assertCharacterPackDirectorySafe(normalizedSourceDir);
-    const sourcePack = await readCharacterPackAtRoot(normalizedSourceDir, 'installed', {
-      trustRoot: await this.getTrustRoot()
-    });
-    if (!sourcePack) {
-      throw new Error(`Invalid character pack directory: ${normalizedSourceDir}`);
-    }
-    const previewAssets = await this.cacheImportPreviewAssets({
-      sourceType: 'directory',
-      sourcePath: normalizedSourceDir,
-      sourcePack
-    });
-
-    return this.buildImportInspection({
-      sourceType: 'directory',
-      sourcePath: normalizedSourceDir,
-      sourcePack,
-      previewAssets
-    });
-  }
-
-  async installFromDirectory(sourceDir: string, options?: CharacterPackInstallOptions): Promise<CharacterPackInstallResult> {
+  private async installPreparedPackDirectory(sourceDir: string, options?: CharacterPackInstallOptions): Promise<CharacterPackInstallResult> {
     const normalizedSourceDir = path.resolve(sourceDir);
     await assertCharacterPackDirectorySafe(normalizedSourceDir);
     const trustRoot = await this.getTrustRoot();
@@ -1217,7 +1548,7 @@ export class CharacterPackManager {
         throw new Error(`Unable to resolve extracted character pack root: ${normalizedArchivePath}`);
       }
 
-      return await this.installFromDirectory(extractedPackRootDir, options);
+      return await this.installPreparedPackDirectory(extractedPackRootDir, options);
     } finally {
       await fsp.rm(tempExtractDir, { recursive: true, force: true }).catch(() => undefined);
     }
@@ -1243,7 +1574,6 @@ export class CharacterPackManager {
         throw new Error(`Invalid character pack archive: ${normalizedArchivePath}`);
       }
       const previewAssets = await this.cacheImportPreviewAssets({
-        sourceType: 'archive',
         sourcePath: normalizedArchivePath,
         sourcePack
       });
@@ -1256,6 +1586,54 @@ export class CharacterPackManager {
       });
     } finally {
       await fsp.rm(tempExtractDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  }
+
+  async exportPack(packId: string, outputPath: string, options?: { source?: CharacterPackSource }): Promise<CharacterPackExportResult | null> {
+    const normalizedId = packId.trim();
+    if (!normalizedId) {
+      return null;
+    }
+
+    const packs = await this.listPacks();
+    const targetPack = this.resolvePackById(packs, normalizedId, options?.source);
+    if (!targetPack) {
+      return null;
+    }
+
+    const normalizedOutputPath = resolveCharacterPackExportPath(outputPath);
+    if (isPathContainedByRoot(path.resolve(targetPack.rootDir), normalizedOutputPath)) {
+      throw new Error(`Character pack export path must be outside the pack directory: ${targetPack.rootDir}`);
+    }
+
+    await assertCharacterPackDirectorySafe(targetPack.rootDir);
+    await fsp.mkdir(path.dirname(normalizedOutputPath), { recursive: true });
+    try {
+      const existingOutput = await fsp.stat(normalizedOutputPath);
+      if (existingOutput.isDirectory()) {
+        throw new Error(`Character pack export path points to a directory: ${normalizedOutputPath}`);
+      }
+      await fsp.rm(normalizedOutputPath, { force: true });
+    } catch (error: any) {
+      if (error?.code !== 'ENOENT') {
+        throw error;
+      }
+    }
+
+    const tempExportDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'character-pack-export-'));
+    try {
+      const stagingPackDir = path.join(tempExportDir, 'pack');
+      await this.copyPackDirectory(targetPack.rootDir, stagingPackDir);
+      await zipDirectoryContentsWith7Z(stagingPackDir, normalizedOutputPath);
+      const outputStats = await fsp.stat(normalizedOutputPath);
+
+      return {
+        pack: targetPack,
+        outputPath: normalizedOutputPath,
+        bytes: outputStats.size
+      };
+    } finally {
+      await fsp.rm(tempExportDir, { recursive: true, force: true }).catch(() => undefined);
     }
   }
 
@@ -1287,6 +1665,100 @@ export class CharacterPackManager {
       removedPack: targetPack,
       activePack,
       switchedActivePack: false
+    };
+  }
+
+  async getEditorDraft(packId: string, options?: { source?: CharacterPackSource }): Promise<CharacterPackEditorDraft | null> {
+    const normalizedId = packId.trim();
+    if (!normalizedId) {
+      return null;
+    }
+
+    const packs = await this.listPacks();
+    const pack = this.resolvePackById(packs, normalizedId, options?.source);
+    if (!pack) {
+      return null;
+    }
+
+    return buildEditorDraftFromDefinitions(pack, await readCharacterDefinitionForPack(pack));
+  }
+
+  async saveEditorDraft(draft: CharacterPackEditorDraft, options?: CharacterPackEditorSaveOptions): Promise<CharacterPackEditorSaveResult> {
+    const sanitizedDraft = sanitizeEditorDraft(draft);
+    await fsp.mkdir(this.installedPacksDir, { recursive: true });
+
+    const packs = await this.listPacks();
+    const existingInstalledPack = this.resolvePackById(packs, sanitizedDraft.pack.id, 'installed');
+    const destinationRootDir = path.join(this.installedPacksDir, sanitizedDraft.pack.id);
+    const destinationExists = fs.existsSync(destinationRootDir);
+    const replaceExisting = options?.replaceExisting === true;
+    if ((existingInstalledPack || destinationExists) && !replaceExisting) {
+      throw new Error(`Character pack already exists: ${sanitizedDraft.pack.id}`);
+    }
+
+    const requestedBasePack = options?.basePackId?.trim() ? this.resolvePackById(packs, options.basePackId.trim(), options.basePackSource) : null;
+    const activePack = packs.find((pack) => pack.isActive) ?? null;
+    const basePack = requestedBasePack ?? existingInstalledPack ?? activePack ?? packs.find((pack) => pack.source === 'builtin') ?? packs[0] ?? null;
+    if (!basePack) {
+      throw new Error('No character pack can be used as an editing base');
+    }
+
+    const tempDraftDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'character-pack-editor-'));
+    const stagingRootDir = path.join(tempDraftDir, 'pack');
+    try {
+      await this.copyPackDirectory(basePack.rootDir, stagingRootDir);
+
+      const characterDefinition = applyEditorDraftToCharacter(await readCharacterDefinitionForPack(basePack), sanitizedDraft);
+      const packDefinition = buildEditorPackDefinition(basePack, sanitizedDraft);
+      await writeJsonFile(path.join(stagingRootDir, 'pack.json'), packDefinition);
+      await writeJsonFile(path.join(stagingRootDir, 'character.json'), characterDefinition);
+      await assertCharacterPackDirectorySafe(stagingRootDir);
+
+      const stagingPack = await readCharacterPackAtRoot(stagingRootDir, 'installed', {
+        trustRoot: await this.getTrustRoot()
+      });
+      if (!stagingPack) {
+        throw new Error(`Generated character pack is invalid: ${sanitizedDraft.pack.id}`);
+      }
+      this.assertPackInstallable(stagingPack);
+
+      if (destinationExists) {
+        await fsp.rm(destinationRootDir, { recursive: true, force: true });
+      }
+      await this.copyPackDirectory(stagingRootDir, destinationRootDir);
+    } finally {
+      await fsp.rm(tempDraftDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+
+    const installedPack = await readCharacterPackAtRoot(destinationRootDir, 'installed', {
+      trustRoot: await this.getTrustRoot()
+    });
+    if (!installedPack) {
+      throw new Error(`Saved character pack is invalid: ${destinationRootDir}`);
+    }
+
+    let activated = false;
+    let finalPack = installedPack;
+    if (options?.activate) {
+      const activation = await this.activatePack(installedPack.id, { source: 'installed' });
+      if (activation) {
+        activated = true;
+        finalPack = activation.pack;
+      }
+    } else {
+      const active = await this.getActivePack();
+      finalPack = {
+        ...installedPack,
+        isActive: !!active && active.id === installedPack.id && active.source === installedPack.source
+      };
+    }
+
+    return {
+      created: !destinationExists,
+      updated: destinationExists,
+      replaced: destinationExists,
+      activated,
+      pack: finalPack
     };
   }
 
@@ -1381,7 +1853,6 @@ export class CharacterPackManager {
   }
 
   private async cacheImportPreviewAssets(options: {
-    sourceType: CharacterPackImportSourceType;
     sourcePath: string;
     sourcePack: CharacterPackSummary;
   }): Promise<{ avatar?: string; gif?: string; video?: string }> {
@@ -1415,23 +1886,16 @@ export class CharacterPackManager {
     };
   }
 
-  private async buildImportPreviewCacheKey(options: { sourceType: CharacterPackImportSourceType; sourcePath: string; sourcePack: CharacterPackSummary }): Promise<string> {
+  private async buildImportPreviewCacheKey(options: { sourcePath: string; sourcePack: CharacterPackSummary }): Promise<string> {
     const hash = createHash('sha1');
-    hash.update(options.sourceType);
+    hash.update('archive');
     hash.update('\0');
     hash.update(path.resolve(options.sourcePath));
     hash.update('\0');
     hash.update(options.sourcePack.id);
     hash.update('\0');
     hash.update(options.sourcePack.version);
-
     await this.appendImportPreviewCacheStat(hash, options.sourcePath);
-    if (options.sourceType === 'directory') {
-      await this.appendImportPreviewCacheStat(hash, options.sourcePack.packFile);
-      await this.appendImportPreviewCacheStat(hash, options.sourcePack.resolvedAssets.preview?.avatar);
-      await this.appendImportPreviewCacheStat(hash, options.sourcePack.resolvedAssets.preview?.gif);
-      await this.appendImportPreviewCacheStat(hash, options.sourcePack.resolvedAssets.preview?.video);
-    }
 
     return hash.digest('hex').slice(0, 20);
   }
@@ -1583,14 +2047,6 @@ export async function activateCharacterPack(packId: string, options?: { source?:
   return getManager().activatePack(packId, options);
 }
 
-export async function inspectCharacterPackFromDirectory(sourceDir: string): Promise<CharacterPackImportInspection> {
-  return getManager().inspectDirectory(sourceDir);
-}
-
-export async function installCharacterPackFromDirectory(sourceDir: string, options?: CharacterPackInstallOptions): Promise<CharacterPackInstallResult> {
-  return getManager().installFromDirectory(sourceDir, options);
-}
-
 export async function inspectCharacterPackFromArchive(archivePath: string): Promise<CharacterPackImportInspection> {
   return getManager().inspectArchive(archivePath);
 }
@@ -1599,8 +2055,20 @@ export async function installCharacterPackFromArchive(archivePath: string, optio
   return getManager().installFromArchive(archivePath, options);
 }
 
+export async function exportCharacterPack(packId: string, outputPath: string, options?: { source?: CharacterPackSource }): Promise<CharacterPackExportResult | null> {
+  return getManager().exportPack(packId, outputPath, options);
+}
+
 export async function removeCharacterPack(packId: string, options?: { source?: CharacterPackSource }): Promise<CharacterPackRemovalResult | null> {
   return getManager().removePack(packId, options);
+}
+
+export async function getCharacterPackEditorDraft(packId: string, options?: { source?: CharacterPackSource }): Promise<CharacterPackEditorDraft | null> {
+  return getManager().getEditorDraft(packId, options);
+}
+
+export async function saveCharacterPackEditorDraft(draft: CharacterPackEditorDraft, options?: CharacterPackEditorSaveOptions): Promise<CharacterPackEditorSaveResult> {
+  return getManager().saveEditorDraft(draft, options);
 }
 
 export async function getActiveCharacterPackRootDir(): Promise<string | null> {

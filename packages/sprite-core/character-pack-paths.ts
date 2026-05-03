@@ -10,30 +10,44 @@ export interface ContainedRelativeAssetPathResolution {
   error?: ContainedRelativeAssetPathResolutionError;
 }
 
+function normalizeWindowsNamespacePath(value: string): string {
+  if (value.startsWith('\\\\?\\UNC\\')) {
+    return `\\\\${value.slice('\\\\?\\UNC\\'.length)}`;
+  }
+
+  if (value.startsWith('\\\\?\\')) {
+    return value.slice('\\\\?\\'.length);
+  }
+
+  return value;
+}
+
 export function isPathContainedByRoot(rootDir: string, candidatePath: string): boolean {
-  const relative = path.relative(rootDir, candidatePath);
+  const relative = path.relative(normalizeWindowsNamespacePath(rootDir), normalizeWindowsNamespacePath(candidatePath));
   return relative === '' || (!!relative && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
 }
 
-function isExistingPathContainedByRoot(rootDir: string, candidatePath: string): boolean {
+function isExistingPathContainedByRoot(rootDir: string, candidatePath: string): boolean | null {
   let realRootDir: string;
   try {
     realRootDir = fs.realpathSync(rootDir);
   } catch {
-    return true;
+    return null;
   }
 
   try {
     return isPathContainedByRoot(realRootDir, fs.realpathSync(candidatePath));
   } catch {
-    return true;
+    return null;
   }
 }
 
 export function isResolvedPathContainedByRoot(rootDir: string, candidatePath: string): boolean {
-  const normalizedRootDir = path.resolve(rootDir);
-  const resolved = path.resolve(candidatePath);
-  return isPathContainedByRoot(normalizedRootDir, resolved) && isExistingPathContainedByRoot(normalizedRootDir, resolved);
+  const normalizedRootDir = path.resolve(normalizeWindowsNamespacePath(rootDir));
+  const resolved = path.resolve(normalizeWindowsNamespacePath(candidatePath));
+  const lexicalContained = isPathContainedByRoot(normalizedRootDir, resolved);
+  const realContained = isExistingPathContainedByRoot(normalizedRootDir, resolved);
+  return lexicalContained ? realContained !== false : realContained === true;
 }
 
 export function resolveContainedRelativeAssetPathWithDiagnostics(baseDir: string, candidate: unknown, containmentRootDir = baseDir): ContainedRelativeAssetPathResolution {

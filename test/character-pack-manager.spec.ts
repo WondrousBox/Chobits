@@ -51,19 +51,23 @@ vi.mock('../packages/common/utils/file', () => ({
         recursive: true
       });
     }
+  }),
+  zipDirectoryContentsWith7Z: vi.fn(async (sourceFolderPath: string, zipFilePath: string) => {
+    mkdirSync(path.dirname(zipFilePath), { recursive: true });
+    writeFileSync(zipFilePath, JSON.stringify(collectArchiveListEntries(sourceFolderPath), null, 2), 'utf-8');
   })
 }));
 
-import { unzipFileWith7Z } from '../packages/common/utils/file';
+import { unzipFileWith7Z, zipDirectoryContentsWith7Z } from '../packages/common/utils/file';
 import { calculateCharacterPackPayloadDigest } from '../packages/sprite-core/character-pack-integrity';
 import {
+  activateCharacterPack,
+  exportCharacterPack,
   getActiveCharacterPack,
   getCharacterPackImportPreviewCacheRootDir,
   initCharacterPackManager,
   inspectCharacterPackFromArchive,
-  inspectCharacterPackFromDirectory,
   installCharacterPackFromArchive,
-  installCharacterPackFromDirectory,
   listCharacterPacks,
   removeCharacterPack,
   resetCharacterPackManager
@@ -190,6 +194,13 @@ async function writePackWithPayloadDigest(rootDir: string, packId: string, name:
   return digest;
 }
 
+function createTestArchive(archivePath: string, sourceDir: string): string {
+  mkdirSync(path.dirname(archivePath), { recursive: true });
+  writeFileSync(archivePath, 'fake archive payload', 'utf-8');
+  archiveExtractMap.set(archivePath, sourceDir);
+  return archivePath;
+}
+
 async function signPackWithTrustedKey(
   rootDir: string,
   privateKeyPem: string,
@@ -225,6 +236,7 @@ describe('character pack manager', () => {
     archiveExtractMap.clear();
     archiveEntryMap.clear();
     vi.mocked(unzipFileWith7Z).mockClear();
+    vi.mocked(zipDirectoryContentsWith7Z).mockClear();
     resetCharacterPackManager();
     if (tempRoot) {
       rmSync(tempRoot, { recursive: true, force: true });
@@ -279,44 +291,6 @@ describe('character pack manager', () => {
     });
   });
 
-  it('installs a pack from a directory and can activate it immediately', async () => {
-    tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
-    const builtinRoot = path.join(tempRoot, 'builtin-pack');
-    const importRoot = path.join(tempRoot, 'import-pack');
-    const userDataDir = path.join(tempRoot, 'user-data');
-
-    writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
-    writePack(importRoot, 'pack-gamma', 'Pack Gamma');
-
-    initCharacterPackManager({
-      userDataDir,
-      builtinPackRootDir: builtinRoot,
-      appVersion: '1.0.0'
-    });
-
-    const result = await installCharacterPackFromDirectory(importRoot, {
-      activate: true
-    });
-
-    expect(result).toMatchObject({
-      replaced: false,
-      activated: true,
-      pack: {
-        id: 'pack-gamma',
-        source: 'installed',
-        isActive: true
-      }
-    });
-    expect(existsSync(path.join(userDataDir, 'character-packs', 'pack-gamma', 'pack.json'))).toBe(true);
-
-    const activePack = await getActiveCharacterPack();
-    expect(activePack).toMatchObject({
-      id: 'pack-gamma',
-      source: 'installed',
-      isActive: true
-    });
-  });
-
   it('installs a pack from a .chobits-character archive and resolves the extracted pack root', async () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
@@ -349,6 +323,44 @@ describe('character pack manager', () => {
       }
     });
     expect(existsSync(path.join(userDataDir, 'character-packs', 'pack-delta', 'pack.json'))).toBe(true);
+  });
+
+  it('exports a character pack as a complete zip archive payload', async () => {
+    tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
+    const builtinRoot = path.join(tempRoot, 'builtin-pack');
+    const userDataDir = path.join(tempRoot, 'user-data');
+    const installedRoot = path.join(userDataDir, 'character-packs', 'pack-beta');
+    const outputPath = path.join(tempRoot, 'exports', 'pack-beta.zip');
+
+    writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
+    writePack(installedRoot, 'pack-beta', 'Pack Beta');
+    writeJsonFile(path.join(installedRoot, 'character.json'), { id: 'beta', name: 'Beta' });
+    writeFileSync(path.join(installedRoot, 'notes.md'), '# Pack Notes', 'utf-8');
+
+    initCharacterPackManager({
+      userDataDir,
+      builtinPackRootDir: builtinRoot,
+      appVersion: '1.0.0'
+    });
+
+    const result = await exportCharacterPack('pack-beta', outputPath, {
+      source: 'installed'
+    });
+
+    expect(result).toMatchObject({
+      outputPath,
+      pack: {
+        id: 'pack-beta',
+        source: 'installed'
+      }
+    });
+    expect(result?.bytes).toBeGreaterThan(0);
+    expect(zipDirectoryContentsWith7Z).toHaveBeenCalledTimes(1);
+
+    const archivedEntries = JSON.parse(readFileSync(outputPath, 'utf-8')) as Array<{ name: string }>;
+    expect(archivedEntries.map((entry) => entry.name).sort()).toEqual(
+      expect.arrayContaining(['character.json', 'notes.md', 'pack.json', 'preview/avatar.png', 'preview/preview.gif', 'preview/preview.webm'])
+    );
   });
 
   it('preflights archive entries before extraction and rejects path traversal', async () => {
@@ -460,22 +472,22 @@ describe('character pack manager', () => {
     expect(existsSync(path.join(userDataDir, 'character-packs', 'pack-symlink'))).toBe(false);
   });
 
-  it('inspects directory and archive imports before installation, including conflict and warning metadata', async () => {
+  it('inspects archive imports before installation, including conflict and warning metadata', async () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
-    const importRoot = path.join(tempRoot, 'import-pack');
-    const archiveSourceRoot = path.join(tempRoot, 'archive-source', 'nested-pack-root');
-    const archivePath = path.join(tempRoot, 'imports', 'pack-beta.chobits-character');
+    const gammaArchiveSourceRoot = path.join(tempRoot, 'gamma-archive-source', 'nested-pack-root');
+    const betaArchiveSourceRoot = path.join(tempRoot, 'beta-archive-source', 'nested-pack-root');
+    const gammaArchivePath = path.join(tempRoot, 'imports', 'pack-gamma.chobits-character');
+    const betaArchivePath = path.join(tempRoot, 'imports', 'pack-beta.chobits-character');
     const installedRoot = path.join(tempRoot, 'user-data', 'character-packs', 'pack-beta');
     const userDataDir = path.join(tempRoot, 'user-data');
 
     writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
-    writePack(importRoot, 'pack-gamma', 'Pack Gamma');
+    writePack(gammaArchiveSourceRoot, 'pack-gamma', 'Pack Gamma');
     writePack(installedRoot, 'pack-beta', 'Pack Beta');
-    writePack(archiveSourceRoot, 'pack-beta', 'Pack Beta Archive');
-    mkdirSync(path.dirname(archivePath), { recursive: true });
-    writeFileSync(archivePath, 'fake archive payload', 'utf-8');
-    archiveExtractMap.set(archivePath, path.join(tempRoot, 'archive-source'));
+    writePack(betaArchiveSourceRoot, 'pack-beta', 'Pack Beta Archive');
+    createTestArchive(gammaArchivePath, path.join(tempRoot, 'gamma-archive-source'));
+    createTestArchive(betaArchivePath, path.join(tempRoot, 'beta-archive-source'));
 
     initCharacterPackManager({
       userDataDir,
@@ -483,15 +495,15 @@ describe('character pack manager', () => {
       appVersion: '1.2.0'
     });
 
-    await installCharacterPackFromDirectory(installedRoot, {
-      activate: true
+    await activateCharacterPack('pack-beta', {
+      source: 'installed'
     });
     const previewCacheRoot = getCharacterPackImportPreviewCacheRootDir();
 
-    const directoryInspection = await inspectCharacterPackFromDirectory(importRoot);
-    expect(directoryInspection).toMatchObject({
-      sourceType: 'directory',
-      sourcePath: importRoot,
+    const gammaArchiveInspection = await inspectCharacterPackFromArchive(gammaArchivePath);
+    expect(gammaArchiveInspection).toMatchObject({
+      sourceType: 'archive',
+      sourcePath: gammaArchivePath,
       pack: {
         id: 'pack-gamma',
         name: 'Pack Gamma'
@@ -514,28 +526,28 @@ describe('character pack manager', () => {
         formatVersionSupported: true
       }
     });
-    expect(directoryInspection.pack.previewAvatarPath).toBeTruthy();
-    expect(directoryInspection.pack.previewGifPath).toBeTruthy();
-    expect(directoryInspection.pack.previewVideoPath).toBeTruthy();
-    expect(directoryInspection.pack.previewAvatarPath?.startsWith(previewCacheRoot + path.sep)).toBe(true);
-    expect(directoryInspection.pack.previewGifPath?.startsWith(previewCacheRoot + path.sep)).toBe(true);
-    expect(directoryInspection.pack.previewVideoPath?.startsWith(previewCacheRoot + path.sep)).toBe(true);
-    expect(existsSync(directoryInspection.pack.previewAvatarPath!)).toBe(true);
-    expect(existsSync(directoryInspection.pack.previewGifPath!)).toBe(true);
-    expect(existsSync(directoryInspection.pack.previewVideoPath!)).toBe(true);
-    expect(directoryInspection.pack.trust).toMatchObject({
+    expect(gammaArchiveInspection.pack.previewAvatarPath).toBeTruthy();
+    expect(gammaArchiveInspection.pack.previewGifPath).toBeTruthy();
+    expect(gammaArchiveInspection.pack.previewVideoPath).toBeTruthy();
+    expect(gammaArchiveInspection.pack.previewAvatarPath?.startsWith(previewCacheRoot + path.sep)).toBe(true);
+    expect(gammaArchiveInspection.pack.previewGifPath?.startsWith(previewCacheRoot + path.sep)).toBe(true);
+    expect(gammaArchiveInspection.pack.previewVideoPath?.startsWith(previewCacheRoot + path.sep)).toBe(true);
+    expect(existsSync(gammaArchiveInspection.pack.previewAvatarPath!)).toBe(true);
+    expect(existsSync(gammaArchiveInspection.pack.previewGifPath!)).toBe(true);
+    expect(existsSync(gammaArchiveInspection.pack.previewVideoPath!)).toBe(true);
+    expect(gammaArchiveInspection.pack.trust).toMatchObject({
       level: 'signature-declared',
       publisher: 'Test Publisher',
       channel: 'community',
       signatureDeclared: true,
       verificationStatus: 'declared-unverified'
     });
-    expect(directoryInspection.warnings.map((warning) => warning.code)).toEqual(['missing-character-asset', 'missing-animation-asset']);
+    expect(gammaArchiveInspection.warnings.map((warning) => warning.code)).toEqual(['missing-character-asset', 'missing-animation-asset']);
 
-    const archiveInspection = await inspectCharacterPackFromArchive(archivePath);
-    expect(archiveInspection).toMatchObject({
+    const betaArchiveInspection = await inspectCharacterPackFromArchive(betaArchivePath);
+    expect(betaArchiveInspection).toMatchObject({
       sourceType: 'archive',
-      sourcePath: archivePath,
+      sourcePath: betaArchivePath,
       pack: {
         id: 'pack-beta',
         name: 'Pack Beta Archive'
@@ -561,15 +573,15 @@ describe('character pack manager', () => {
         formatVersionSupported: true
       }
     });
-    expect(archiveInspection.pack.previewAvatarPath).toBeTruthy();
-    expect(archiveInspection.pack.previewGifPath).toBeTruthy();
-    expect(archiveInspection.pack.previewVideoPath).toBeTruthy();
-    expect(archiveInspection.pack.previewAvatarPath?.startsWith(previewCacheRoot + path.sep)).toBe(true);
-    expect(archiveInspection.pack.previewGifPath?.startsWith(previewCacheRoot + path.sep)).toBe(true);
-    expect(archiveInspection.pack.previewVideoPath?.startsWith(previewCacheRoot + path.sep)).toBe(true);
-    expect(existsSync(archiveInspection.pack.previewAvatarPath!)).toBe(true);
-    expect(existsSync(archiveInspection.pack.previewGifPath!)).toBe(true);
-    expect(existsSync(archiveInspection.pack.previewVideoPath!)).toBe(true);
+    expect(betaArchiveInspection.pack.previewAvatarPath).toBeTruthy();
+    expect(betaArchiveInspection.pack.previewGifPath).toBeTruthy();
+    expect(betaArchiveInspection.pack.previewVideoPath).toBeTruthy();
+    expect(betaArchiveInspection.pack.previewAvatarPath?.startsWith(previewCacheRoot + path.sep)).toBe(true);
+    expect(betaArchiveInspection.pack.previewGifPath?.startsWith(previewCacheRoot + path.sep)).toBe(true);
+    expect(betaArchiveInspection.pack.previewVideoPath?.startsWith(previewCacheRoot + path.sep)).toBe(true);
+    expect(existsSync(betaArchiveInspection.pack.previewAvatarPath!)).toBe(true);
+    expect(existsSync(betaArchiveInspection.pack.previewGifPath!)).toBe(true);
+    expect(existsSync(betaArchiveInspection.pack.previewVideoPath!)).toBe(true);
   });
 
   it('classifies unsigned and publisher-declared packs without pretending they are verified', async () => {
@@ -577,6 +589,8 @@ describe('character pack manager', () => {
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const publisherDeclaredRoot = path.join(tempRoot, 'publisher-pack');
     const unsignedRoot = path.join(tempRoot, 'unsigned-pack');
+    const publisherArchivePath = path.join(tempRoot, 'imports', 'pack-publisher.chobits-character');
+    const unsignedArchivePath = path.join(tempRoot, 'imports', 'pack-unsigned.chobits-character');
     const userDataDir = path.join(tempRoot, 'user-data');
 
     writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
@@ -594,7 +608,10 @@ describe('character pack manager', () => {
       appVersion: '1.2.0'
     });
 
-    const publisherInspection = await inspectCharacterPackFromDirectory(publisherDeclaredRoot);
+    createTestArchive(publisherArchivePath, publisherDeclaredRoot);
+    createTestArchive(unsignedArchivePath, unsignedRoot);
+
+    const publisherInspection = await inspectCharacterPackFromArchive(publisherArchivePath);
     expect(publisherInspection.pack.trust).toMatchObject({
       level: 'publisher-declared',
       publisher: 'Test Publisher',
@@ -604,7 +621,7 @@ describe('character pack manager', () => {
     });
     expect(publisherInspection.pack.trust.note).toContain('不会自动校验来源真实性');
 
-    const unsignedInspection = await inspectCharacterPackFromDirectory(unsignedRoot);
+    const unsignedInspection = await inspectCharacterPackFromArchive(unsignedArchivePath);
     expect(unsignedInspection.pack.trust).toMatchObject({
       level: 'unsigned',
       signatureDeclared: false,
@@ -618,6 +635,7 @@ describe('character pack manager', () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const signedRoot = path.join(tempRoot, 'signed-pack');
+    const signedArchivePath = path.join(tempRoot, 'imports', 'pack-signed.chobits-character');
     const userDataDir = path.join(tempRoot, 'user-data');
     const { publicKey, privateKey } = generateKeyPairSync('ed25519');
 
@@ -645,7 +663,9 @@ describe('character pack manager', () => {
       appVersion: '1.2.0'
     });
 
-    const inspection = await inspectCharacterPackFromDirectory(signedRoot);
+    createTestArchive(signedArchivePath, signedRoot);
+
+    const inspection = await inspectCharacterPackFromArchive(signedArchivePath);
     expect(inspection.installable).toBe(true);
     expect(inspection.blockingErrors).toEqual([]);
     expect(inspection.pack.trust).toMatchObject({
@@ -663,6 +683,7 @@ describe('character pack manager', () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const signedRoot = path.join(tempRoot, 'signed-pack');
+    const signedArchivePath = path.join(tempRoot, 'imports', 'pack-signed.chobits-character');
     const userDataDir = path.join(tempRoot, 'user-data');
     const { publicKey, privateKey } = generateKeyPairSync('ed25519');
 
@@ -694,7 +715,9 @@ describe('character pack manager', () => {
       appVersion: '1.2.0'
     });
 
-    const inspection = await inspectCharacterPackFromDirectory(signedRoot);
+    createTestArchive(signedArchivePath, signedRoot);
+
+    const inspection = await inspectCharacterPackFromArchive(signedArchivePath);
     expect(inspection.installable).toBe(false);
     expect(inspection.pack.trust).toMatchObject({
       verificationStatus: 'signature-mismatch',
@@ -704,13 +727,14 @@ describe('character pack manager', () => {
       }
     });
     expect(inspection.blockingErrors.map((error) => error.code)).toContain('signature-verification-failed');
-    await expect(installCharacterPackFromDirectory(signedRoot)).rejects.toThrow('可信公钥签名校验失败');
+    await expect(installCharacterPackFromArchive(signedArchivePath)).rejects.toThrow('可信公钥签名校验失败');
   });
 
   it('marks signed packs with unknown key ids as untrusted instead of verified', async () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const signedRoot = path.join(tempRoot, 'signed-pack');
+    const signedArchivePath = path.join(tempRoot, 'imports', 'pack-signed.chobits-character');
     const userDataDir = path.join(tempRoot, 'user-data');
     const { privateKey } = generateKeyPairSync('ed25519');
 
@@ -729,7 +753,9 @@ describe('character pack manager', () => {
       appVersion: '1.2.0'
     });
 
-    const inspection = await inspectCharacterPackFromDirectory(signedRoot);
+    createTestArchive(signedArchivePath, signedRoot);
+
+    const inspection = await inspectCharacterPackFromArchive(signedArchivePath);
     expect(inspection.installable).toBe(true);
     expect(inspection.pack.trust).toMatchObject({
       verificationStatus: 'signature-untrusted',
@@ -745,22 +771,19 @@ describe('character pack manager', () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const signedRoot = path.join(tempRoot, 'signed-pack');
+    const signedArchivePath = path.join(tempRoot, 'imports', 'pack-signed.chobits-character');
     const userDataDir = path.join(tempRoot, 'user-data');
     const { privateKey } = generateKeyPairSync('ed25519');
 
     writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
-    writeTrustRoot(
-      builtinRoot,
-      [],
-      {
-        revocations: [
-          {
-            keyId: 'trusted:test-publisher',
-            reason: 'rotated to trusted:test-publisher:v2'
-          }
-        ]
-      }
-    );
+    writeTrustRoot(builtinRoot, [], {
+      revocations: [
+        {
+          keyId: 'trusted:test-publisher',
+          reason: 'rotated to trusted:test-publisher:v2'
+        }
+      ]
+    });
 
     writePack(signedRoot, 'pack-signed', 'Pack Signed', {
       signature: {
@@ -776,7 +799,9 @@ describe('character pack manager', () => {
       appVersion: '1.2.0'
     });
 
-    const inspection = await inspectCharacterPackFromDirectory(signedRoot);
+    createTestArchive(signedArchivePath, signedRoot);
+
+    const inspection = await inspectCharacterPackFromArchive(signedArchivePath);
     expect(inspection.installable).toBe(false);
     expect(inspection.pack.trust).toMatchObject({
       verificationStatus: 'signature-revoked',
@@ -788,7 +813,7 @@ describe('character pack manager', () => {
     });
     expect(inspection.pack.trust.note).toContain('已被当前应用信任根撤销');
     expect(inspection.blockingErrors.map((error) => error.code)).toContain('signature-key-revoked');
-    await expect(installCharacterPackFromDirectory(signedRoot)).rejects.toThrow('已被当前应用信任根撤销');
+    await expect(installCharacterPackFromArchive(signedArchivePath)).rejects.toThrow('已被当前应用信任根撤销');
   });
 
   it('verifies declared sha256 pack payload digests and blocks mismatches', async () => {
@@ -796,6 +821,8 @@ describe('character pack manager', () => {
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const verifiedRoot = path.join(tempRoot, 'verified-pack');
     const mismatchedRoot = path.join(tempRoot, 'mismatched-pack');
+    const verifiedArchivePath = path.join(tempRoot, 'imports', 'pack-verified.chobits-character');
+    const mismatchedArchivePath = path.join(tempRoot, 'imports', 'pack-mismatch.chobits-character');
     const userDataDir = path.join(tempRoot, 'user-data');
 
     writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
@@ -814,7 +841,10 @@ describe('character pack manager', () => {
       appVersion: '1.2.0'
     });
 
-    const verifiedInspection = await inspectCharacterPackFromDirectory(verifiedRoot);
+    createTestArchive(verifiedArchivePath, verifiedRoot);
+    createTestArchive(mismatchedArchivePath, mismatchedRoot);
+
+    const verifiedInspection = await inspectCharacterPackFromArchive(verifiedArchivePath);
     expect(verifiedInspection.installable).toBe(true);
     expect(verifiedInspection.pack.trust).toMatchObject({
       level: 'signature-declared',
@@ -829,7 +859,7 @@ describe('character pack manager', () => {
     expect(verifiedInspection.pack.trust.note).toContain('内容摘要已校验');
     expect(verifiedInspection.pack.trust.note).toContain('未形成受信签名结论');
 
-    const mismatchedInspection = await inspectCharacterPackFromDirectory(mismatchedRoot);
+    const mismatchedInspection = await inspectCharacterPackFromArchive(mismatchedArchivePath);
     expect(mismatchedInspection.installable).toBe(false);
     expect(mismatchedInspection.pack.trust).toMatchObject({
       verificationStatus: 'digest-mismatch',
@@ -839,13 +869,14 @@ describe('character pack manager', () => {
       }
     });
     expect(mismatchedInspection.blockingErrors.map((error) => error.code)).toContain('signature-digest-mismatch');
-    await expect(installCharacterPackFromDirectory(mismatchedRoot)).rejects.toThrow('SHA-256 digest');
+    await expect(installCharacterPackFromArchive(mismatchedArchivePath)).rejects.toThrow('SHA-256 digest');
   });
 
   it('does not resolve or cache pack assets outside the pack root', async () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const importRoot = path.join(tempRoot, 'import-pack');
+    const importArchivePath = path.join(tempRoot, 'imports', 'pack-escape.chobits-character');
     const outsideRoot = path.join(tempRoot, 'outside-assets');
     const userDataDir = path.join(tempRoot, 'user-data');
 
@@ -875,7 +906,9 @@ describe('character pack manager', () => {
       appVersion: '1.2.0'
     });
 
-    const inspection = await inspectCharacterPackFromDirectory(importRoot);
+    createTestArchive(importArchivePath, importRoot);
+
+    const inspection = await inspectCharacterPackFromArchive(importArchivePath);
 
     expect(inspection.installable).toBe(false);
     expect(inspection.pack.previewAvatarPath).toBeUndefined();
@@ -890,39 +923,14 @@ describe('character pack manager', () => {
     expect(inspection.warnings[0].message).toContain(`preview.gif=${path.join(outsideRoot, 'preview.gif')}`);
     expect(inspection.warnings[0].message).toContain('preview.video=../outside-assets/preview.webm');
 
-    await expect(installCharacterPackFromDirectory(importRoot)).rejects.toThrow('核心资源路径越过角色包目录');
-  });
-
-  it('rejects directory pack symbolic links before copying installed files', async () => {
-    tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
-    const builtinRoot = path.join(tempRoot, 'builtin-pack');
-    const importRoot = path.join(tempRoot, 'import-pack');
-    const userDataDir = path.join(tempRoot, 'user-data');
-    const outsideTargetPath = path.join(tempRoot, 'outside-target.txt');
-    const symlinkPath = path.join(importRoot, 'linked-outside.txt');
-
-    writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
-    writePack(importRoot, 'pack-symlink', 'Pack Symlink');
-    writeFileSync(outsideTargetPath, 'outside', 'utf-8');
-    if (!tryCreateSymlink(outsideTargetPath, symlinkPath)) {
-      return;
-    }
-
-    initCharacterPackManager({
-      userDataDir,
-      builtinPackRootDir: builtinRoot,
-      appVersion: '1.2.0'
-    });
-
-    await expect(inspectCharacterPackFromDirectory(importRoot)).rejects.toThrow('unsupported symbolic link');
-    await expect(installCharacterPackFromDirectory(importRoot)).rejects.toThrow('unsupported symbolic link');
-    expect(existsSync(path.join(userDataDir, 'character-packs', 'pack-symlink'))).toBe(false);
+    await expect(installCharacterPackFromArchive(importArchivePath)).rejects.toThrow('核心资源路径越过角色包目录');
   });
 
   it('marks incompatible packs as non-installable and blocks install when format or app version requirements are not satisfied', async () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const incompatibleRoot = path.join(tempRoot, 'incompatible-pack');
+    const incompatibleArchivePath = path.join(tempRoot, 'imports', 'pack-zeta.chobits-character');
     const userDataDir = path.join(tempRoot, 'user-data');
 
     writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
@@ -937,7 +945,9 @@ describe('character pack manager', () => {
       appVersion: '1.2.0'
     });
 
-    const inspection = await inspectCharacterPackFromDirectory(incompatibleRoot);
+    createTestArchive(incompatibleArchivePath, incompatibleRoot);
+
+    const inspection = await inspectCharacterPackFromArchive(incompatibleArchivePath);
     expect(inspection).toMatchObject({
       installable: false,
       compatibility: {
@@ -952,7 +962,7 @@ describe('character pack manager', () => {
     expect(inspection.blockingErrors.map((entry) => entry.code)).toEqual(['unsupported-format-version', 'min-app-version-not-satisfied']);
 
     await expect(
-      installCharacterPackFromDirectory(incompatibleRoot, {
+      installCharacterPackFromArchive(incompatibleArchivePath, {
         activate: true
       })
     ).rejects.toThrow(/formatVersion <= 1/);

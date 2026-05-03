@@ -134,79 +134,6 @@ vi.mock('../packages/sprite-core/character-pack-manager', () => ({
       pack: characterPackManagerState.activePack
     };
   }),
-  inspectCharacterPackFromDirectory: vi.fn(async (sourceDir: string) => {
-    const normalizedId = path.basename(sourceDir);
-    const existingPack = characterPackManagerState.packs.find((pack) => pack.id === normalizedId && pack.source === 'installed') ?? null;
-
-    return {
-      sourceType: 'directory',
-      sourcePath: sourceDir,
-      pack: {
-        formatVersion: 1,
-        id: normalizedId,
-        name: normalizedId,
-        version: '1.0.0',
-        author: 'test',
-        description: `${normalizedId} description`,
-        license: 'MIT',
-        tags: ['test'],
-        previewAvatarPath: path.join('/tmp/character-pack-import-previews', `${normalizedId}-avatar.png`),
-        previewGifPath: path.join('/tmp/character-pack-import-previews', `${normalizedId}-preview.gif`),
-        previewVideoPath: path.join('/tmp/character-pack-import-previews', `${normalizedId}-preview.webm`)
-      },
-      existingPack,
-      activePack: characterPackManagerState.activePack,
-      requiresReplace: !!existingPack,
-      willReplaceActive: !!existingPack?.isActive,
-      installable: true,
-      blockingErrors: [],
-      warnings: [],
-      compatibility: {
-        currentPlatform: process.platform,
-        currentAppVersion: '1.0.0',
-        minAppVersion: '1.0.0',
-        appVersionSatisfied: true,
-        supportedFormatVersion: 1,
-        formatVersionSupported: true
-      }
-    };
-  }),
-  installCharacterPackFromDirectory: vi.fn(async (sourceDir: string, options?: { activate?: boolean; replaceExisting?: boolean }) => {
-    const normalizedId = path.basename(sourceDir);
-    const isAlreadyActive = !!characterPackManagerState.activePack && characterPackManagerState.activePack.id === normalizedId && characterPackManagerState.activePack.source === 'installed';
-    const pack = {
-      id: normalizedId,
-      name: normalizedId,
-      version: '1.0.0',
-      author: 'test',
-      description: `${normalizedId} description`,
-      license: 'MIT',
-      tags: ['test'],
-      source: 'installed',
-      rootDir: sourceDir,
-      packFile: path.join(sourceDir, 'pack.json'),
-      isActive: false,
-      resolvedAssets: {}
-    };
-
-    characterPackManagerState.packs = [...characterPackManagerState.packs.filter((entry) => !(entry.id === pack.id && entry.source === 'installed')), pack];
-
-    if (options?.activate) {
-      characterPackManagerState.activePack = {
-        ...pack,
-        isActive: true
-      };
-    }
-
-    return {
-      replaced: options?.replaceExisting ?? false,
-      activated: options?.activate ?? false,
-      pack: {
-        ...pack,
-        isActive: (options?.activate ?? false) || isAlreadyActive
-      }
-    };
-  }),
   inspectCharacterPackFromArchive: vi.fn(async (archivePath: string) => {
     const normalizedId = path.basename(archivePath).replace(/\.(chobits-character|zip)$/i, '');
     const existingPack = characterPackManagerState.packs.find((pack) => pack.id === normalizedId && pack.source === 'installed') ?? null;
@@ -279,6 +206,19 @@ vi.mock('../packages/sprite-core/character-pack-manager', () => ({
         ...pack,
         isActive: (options?.activate ?? false) || isAlreadyActive
       }
+    };
+  }),
+  exportCharacterPack: vi.fn(async (packId: string, outputPath: string, options?: { source?: 'builtin' | 'installed' }) => {
+    const target =
+      characterPackManagerState.packs.find((pack) => pack.id === packId && (!options?.source || pack.source === options.source)) ?? characterPackManagerState.packs.find((pack) => pack.id === packId);
+    if (!target) {
+      return null;
+    }
+
+    return {
+      pack: target,
+      outputPath,
+      bytes: 42
     };
   }),
   removeCharacterPack: vi.fn(async (packId: string, options?: { source?: 'builtin' | 'installed' }) => {
@@ -1200,7 +1140,7 @@ describe('sprite manager IPC integration', () => {
     });
   });
 
-  it('inspects directory and archive character pack imports through IPC before installation', async () => {
+  it('inspects character pack archive imports through IPC before installation', async () => {
     listSpritesMock.mockResolvedValueOnce([]);
 
     characterPackManagerState.packs = [
@@ -1229,26 +1169,7 @@ describe('sprite manager IPC integration', () => {
     const { initSpriteManagerIPC } = await import('../packages/sprite-core/handler/sprite-manager-ipc');
     await initSpriteManagerIPC(windowStub.win as any, { addAllowedResourceRoot: vi.fn() });
 
-    const inspectDirectory = electronState.handlers.get('sprite:character:inspectPackFromDirectory') as ((_: unknown, payload: { sourceDir: string }) => Promise<any>) | undefined;
     const inspectArchive = electronState.handlers.get('sprite:character:inspectPackFromArchive') as ((_: unknown, payload: { archivePath: string }) => Promise<any>) | undefined;
-
-    await expect(inspectDirectory?.({} as never, { sourceDir: '/tmp/pack-gamma' })).resolves.toMatchObject({
-      sourceType: 'directory',
-      sourcePath: '/tmp/pack-gamma',
-      pack: {
-        id: 'pack-gamma',
-        name: 'pack-gamma'
-      },
-      existingPack: null,
-      activePack: {
-        id: 'pack-delta',
-        source: 'installed'
-      },
-      requiresReplace: false,
-      willReplaceActive: false,
-      installable: true,
-      blockingErrors: []
-    });
 
     await expect(inspectArchive?.({} as never, { archivePath: '/tmp/pack-delta.chobits-character' })).resolves.toMatchObject({
       sourceType: 'archive',
@@ -1269,58 +1190,6 @@ describe('sprite manager IPC integration', () => {
       willReplaceActive: true,
       installable: true,
       blockingErrors: []
-    });
-  });
-
-  it('installs and activates a character pack through IPC', async () => {
-    listSpritesMock.mockResolvedValueOnce([]).mockResolvedValueOnce([
-      {
-        meta: { id: 'idle-pack-gamma', title: 'Idle Gamma', primaryTrigger: 'idle' },
-        source: { localPath: './idle-pack-gamma.webm', type: 'video/webm' }
-      }
-    ]);
-
-    const characterService = await import('../packages/sprite-core/character-service');
-    const builtinCharacter = createCharacterPayload('character-alpha', 'Alpha', 'alpha');
-    const gammaCharacter = createCharacterPayload('character-gamma', 'Gamma', 'gamma');
-    characterServiceState.currentCharacter = builtinCharacter;
-    vi.mocked(characterService.reloadCharacter).mockImplementation(() => {
-      characterServiceState.currentCharacter = gammaCharacter;
-      return gammaCharacter as any;
-    });
-
-    const { initSpriteManagerIPC } = await import('../packages/sprite-core/handler/sprite-manager-ipc');
-    await initSpriteManagerIPC(windowStub.win as any, { addAllowedResourceRoot: vi.fn() });
-
-    const installPack = electronState.handlers.get('sprite:character:installPackFromDirectory') as
-      | ((_: unknown, payload: { sourceDir: string; activate?: boolean; replaceExisting?: boolean }) => Promise<any>)
-      | undefined;
-    expect(installPack).toBeTypeOf('function');
-
-    await expect(installPack?.({} as never, { sourceDir: '/tmp/pack-gamma', activate: true })).resolves.toMatchObject({
-      ok: true,
-      replaced: false,
-      activated: true,
-      pack: {
-        id: 'pack-gamma',
-        source: 'installed',
-        isActive: true
-      },
-      character: {
-        id: 'character-gamma',
-        name: 'Gamma'
-      },
-      personaSlot: {
-        slotId: 'character:character-gamma'
-      }
-    });
-
-    expect(vi.mocked(characterService.initCharacterService)).toHaveBeenLastCalledWith('/tmp/pack-gamma');
-    expect(windowStub.sent).toContainEqual({
-      channel: 'sprite:play',
-      payload: expect.objectContaining({
-        animationId: 'idle-pack-gamma'
-      })
     });
   });
 
