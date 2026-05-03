@@ -52,7 +52,7 @@
 
 | 当前剩余项 | 说明 |
 | ---------- | ---- |
-| **默认 capability 定义进入尾项** | `actionChoreography` 已覆盖动画 authoring 写入口与设置页 UI，`emotionExpression` 已覆盖闲置情感表达；`customAppearance` 暂无明确独立产品入口，待入口明确后再细分消费 |
+| **默认 capability 定义进入尾项** | 动画 authoring 写入口与设置页 UI 由基础 `spriteManage` 保护，预设角色可通过用户覆盖层添加/编辑自己的精灵视频动画；`actionChoreography` 保留为更高级动作编排能力，`emotionExpression` 已覆盖闲置情感表达；`customAppearance` 暂无明确独立产品入口，待入口明确后再细分消费 |
 | **角色人格直写入口进入兼容期** | runtime 已有 `recordConversationEvent()` / `applyPersonaReward()` 主链；渲染层新增 `sprite:persona:grantReward`，preload 的 `addXP()` / `changeFavor()` / `unlockAchievement()` 已默认转发到统一 reward entry，旧 IPC 仅作为兼容 wrapper 保留 |
 | **WindowController 仍偏胖** | 路径采样、拖拽轮询、边界约束、平台执行仍在同一模块，后续适合继续拆薄 |
 | **Trust-root 进入第二阶段** | 真实公钥验签已落地，剩余重点转为 publisher key 扩充、rotation / revocation 与发布流程 |

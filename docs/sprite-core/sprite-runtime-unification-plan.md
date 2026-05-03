@@ -106,8 +106,8 @@
 - 兼容层继续收口：`sprite:trigger` 的 `eventType` 请求字段兼容已移除，规范请求路径已经统一到 `trigger`；动画 metadata normalize 输出也已停止持久化 `eventType` 镜像。
 - trust-root 校验补强：character pack trust-root 现在已支持 revoked key 判定，撤销 key 会在导入期被标记并阻断安装。
 - `WindowController` 边界继续下沉：纯计算层、平台访问、拖拽会话、行走会话、自动移动会话均已独立，顶层控制器当前主要只剩 timer / scheduler glue 与少量回调编排。
-- 2026-04-24 补充：动画资源 authoring 写入口（`sprite:register` / `sprite:registerFromData` / `sprite:updateMeta` / `sprite:remove`）已接入 `actionChoreography` capability guard，pack/character flags 不再只影响解锁展示，也开始约束默认写入口。
-- 2026-04-24 补充：精灵管理设置页已消费 `actionChoreography` capability 状态，未解锁时前端会禁用导入 / 添加 / 删除 / metadata 编辑入口并展示 locked notice，与主进程 guard 形成闭环。
+- 2026-05-04 补充：动画资源 authoring 写入口（`sprite:register` / `sprite:registerFromData` / `sprite:updateMeta` / `sprite:remove`）已改为接入基础 `spriteManage` capability guard。预设角色资源本体仍只读，但角色加载后允许通过用户覆盖层添加和编辑用户自己的精灵视频动画。
+- 2026-05-04 补充：精灵管理设置页已消费 `spriteManage` capability 状态，未解锁时前端会禁用导入 / 添加 / 删除 / metadata 编辑入口并展示 locked notice，与主进程 guard 形成闭环。
 - 2026-04-24 补充：渲染层 persona mutation 已新增统一 `sprite:persona:grantReward` 入口，preload 的 `addXP()` / `changeFavor()` / `unlockAchievement()` 默认转发到 reward entry；旧 IPC 通道仅作为兼容 wrapper 保留。
 - 2026-04-24 补充：`emotionExpression` 已消费到闲置情感自发表达（`idle-emotion`），未解锁时不会由默认行为自动触发表情动画；显式 `trigger()` 与测试播放仍保持可用。
 - 当前主线判断：`sprite runtime` 已进一步逼近 `freeze-safe`，后续更像 backlog 尾项清理，而不是新的架构重做。
@@ -115,7 +115,7 @@
 
 ### 高优先级
 
-- 更多 pack/character flags 的默认 capability 定义消费（`actionChoreography` 已覆盖动画资源 authoring 写入口与设置页 UI，`emotionExpression` 已覆盖 idle emotion 默认行为；`customAppearance` 及更细分 UI/运行时分支待补）
+- 更多 pack/character flags 的默认 capability 定义消费（动画资源 authoring 写入口与设置页 UI 已改由基础 `spriteManage` 保护，`actionChoreography` 继续保留为更高级动作编排能力，`emotionExpression` 已覆盖 idle emotion 默认行为；`customAppearance` 及更细分 UI/运行时分支待补）
 - 少量旧 metadata 输入 fallback 继续收口（如 `eventType` legacy 输入）
 
 ### 中优先级

@@ -42,9 +42,11 @@ vi.mock('electron', () => ({
 
 const listSpritesMock = vi.fn();
 const getDefaultSpritesDirMock = vi.fn(async () => '/tmp/test-sprites');
+const setSpriteAssetsChangeHandlerMock = vi.fn();
 vi.mock('../packages/sprite-core/handler/sprite-assets', () => ({
   listSprites: listSpritesMock,
-  getDefaultSpritesDir: getDefaultSpritesDirMock
+  getDefaultSpritesDir: getDefaultSpritesDirMock,
+  setSpriteAssetsChangeHandler: setSpriteAssetsChangeHandlerMock
 }));
 
 const initSpriteEventListenerMock = vi.fn(() => () => undefined);
@@ -376,6 +378,7 @@ describe('sprite manager IPC integration', () => {
     ipcMainHandle.mockClear();
     ipcMainRemoveHandler.mockClear();
     listSpritesMock.mockReset();
+    setSpriteAssetsChangeHandlerMock.mockReset();
     initSpriteEventListenerMock.mockClear();
     electronState.handlers.clear();
     getDailyCareServiceMock.mockReset();

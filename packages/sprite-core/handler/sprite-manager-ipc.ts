@@ -71,8 +71,7 @@ import type { SpeakRequest, SpriteSpeakConfig } from '../speak/types';
 import type { SpriteMovementPreviewConfig, SpriteTriggerRequest } from '../types';
 import { WindowController } from '../window-controller';
 import { notifySpriteCapabilityChanged } from './capability-events';
-import { listSprites } from './sprite-assets';
-import { getDefaultSpritesDir } from './sprite-assets';
+import { getDefaultSpritesDir, listSprites, setSpriteAssetsChangeHandler } from './sprite-assets';
 import { initSpriteEventListener, type SpriteEventListenerOptions } from './sprite-event-listener';
 
 export interface SpriteManagerDeps {
@@ -239,6 +238,12 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     });
     return sprites.length;
   }
+
+  setSpriteAssetsChangeHandler((event) => {
+    void loadAndApplyRuntimeAnimations({ refreshCurrentState: true }).catch((err) => {
+      console.error('[SpriteManagerIPC] Failed to reload animations after sprite asset change:', event, err);
+    });
+  });
 
   async function reloadCharacterRuntimeChain(options?: { notifyCapabilitySource?: string }): Promise<{
     runtime: CharacterPersonaRuntimeSyncResult;

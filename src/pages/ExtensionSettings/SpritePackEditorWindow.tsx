@@ -100,7 +100,7 @@ export default function SpritePackEditorWindow(): JSX.Element {
 
   const title = useMemo(() => getSpritePackEditorTitle(editor), [editor]);
   const description = useMemo(() => getSpritePackEditorDescription(editor), [editor]);
-  const actionChoreographyCapability = useMemo(() => getSpriteCapabilityState(capabilitySnapshot, 'actionChoreography'), [capabilitySnapshot]);
+  const assetAuthoringCapability = useMemo(() => getSpriteCapabilityState(capabilitySnapshot, 'spriteManage'), [capabilitySnapshot]);
 
   const handleCapabilityBlocked = useCallback((capability: SpriteCapabilityState): void => {
     toast.warning(`${capability.name} 尚未解锁`, {
@@ -164,7 +164,7 @@ export default function SpritePackEditorWindow(): JSX.Element {
                 <SpritePackEditorContent editor={editor} setEditor={setEditor} />
               </TabsContent>
               <TabsContent value="animations" className="m-0 min-h-0 flex-1 overflow-y-auto px-4 py-5">
-                <SpriteAnimationManager actionChoreographyCapability={actionChoreographyCapability} onCapabilityBlocked={handleCapabilityBlocked} />
+                <SpriteAnimationManager assetAuthoringCapability={assetAuthoringCapability} onCapabilityBlocked={handleCapabilityBlocked} />
               </TabsContent>
             </Tabs>
           ) : (

@@ -20,7 +20,14 @@ import { app, ipcMain } from 'electron';
 
 import { isResolvedPathContainedByRoot, resolveContainedRelativeAssetPath } from '../character-pack-paths';
 import { getCharacterPackAssetPath, getCharacterPackRootDir } from '../character-service';
-import { hasSpriteAnimationTrigger, normalizeSpriteAnimationMeta, normalizeSpriteAnimationMetaPatch, type SpriteAnimation, type SpriteAnimationMetaInput, type SpriteListByTriggerRequest } from '../types';
+import {
+  hasSpriteAnimationTrigger,
+  normalizeSpriteAnimationMeta,
+  normalizeSpriteAnimationMetaPatch,
+  type SpriteAnimation,
+  type SpriteAnimationMetaInput,
+  type SpriteListByTriggerRequest
+} from '../types';
 
 type SpriteIndex = {
   version: 1;
@@ -36,6 +43,13 @@ interface SpriteIndexReadOptions {
   containmentRootDirs?: string[];
 }
 
+type SpriteAssetsChangeReason = 'register' | 'registerFromData' | 'remove' | 'updateMeta';
+
+export interface SpriteAssetsChangeEvent {
+  reason: SpriteAssetsChangeReason;
+  id?: string;
+}
+
 /** 外部依赖注入 */
 export interface SpriteAssetsDeps {
   /** 将目录加入 res:// 协议的白名单 */
@@ -47,14 +61,32 @@ export interface SpriteAssetsDeps {
 }
 
 let _deps: SpriteAssetsDeps | undefined;
+let spriteAssetsChangeHandler: ((event: SpriteAssetsChangeEvent) => void | Promise<void>) | null = null;
 
 function deps(): SpriteAssetsDeps {
   if (!_deps) throw new Error('[sprite-assets] Must call initSpriteHandlers(deps) first');
   return _deps;
 }
 
+export function setSpriteAssetsChangeHandler(handler: ((event: SpriteAssetsChangeEvent) => void | Promise<void>) | null): void {
+  spriteAssetsChangeHandler = handler;
+}
+
+function notifySpriteAssetsChanged(event: SpriteAssetsChangeEvent): void {
+  const handler = spriteAssetsChangeHandler;
+  if (!handler) return;
+
+  try {
+    void Promise.resolve(handler(event)).catch((err) => {
+      console.warn('[sprite-assets] sprite assets change handler failed', err);
+    });
+  } catch (err) {
+    console.warn('[sprite-assets] sprite assets change handler failed', err);
+  }
+}
+
 function ensureAssetAuthoringCapability(): void {
-  deps().assertCapabilityUnlocked?.('actionChoreography');
+  deps().assertCapabilityUnlocked?.('spriteManage');
 }
 
 async function ensureDirs(dir: string): Promise<void> {
@@ -248,7 +280,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
 
   ipcMain.handle('sprite:list', () => listSprites());
 
-  const handleListByTrigger = async (_e: unknown, payload: SpriteListByTriggerRequest = {}) => {
+  const handleListByTrigger = async (_e: unknown, payload: SpriteListByTriggerRequest = {}): Promise<SpriteAnimation[]> => {
     const trigger = payload.trigger;
     const all = await (ipcMain as any).invoke?.('sprite:list')?.catch?.(() => undefined);
     if (Array.isArray(all)) {
@@ -355,6 +387,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
     if (existedIdx >= 0) idx.items.splice(existedIdx, 1, newItem);
     else idx.items.push(newItem);
     await writeUserIndex(idx);
+    notifySpriteAssetsChanged({ reason: 'register', id });
     return normalizeSpriteAnimationItem(newItem);
   });
 
@@ -422,6 +455,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
       if (existedIdx >= 0) idx.items.splice(existedIdx, 1, newItem);
       else idx.items.push(newItem);
       await writeUserIndex(idx);
+      notifySpriteAssetsChanged({ reason: 'registerFromData', id });
       return normalizeSpriteAnimationItem(newItem);
     }
   );
@@ -440,6 +474,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
     }
     const [removed] = idx.items.splice(i, 1);
     await writeUserIndex(idx);
+    notifySpriteAssetsChanged({ reason: 'remove', id });
     try {
       if (deleteFile && removed?.source?.localPath) {
         const p = path.resolve(removed.source.localPath);
@@ -468,15 +503,19 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
     ]);
     const userIndexItem = userIdx.items.find((i) => i.meta.id === id);
     if (userIndexItem) {
-      userIndexItem.meta = normalizeIncomingSpriteMeta({
-        ...userIndexItem.meta,
-        ...normalizedMetaPatch
-      }, {
-        id: userIndexItem.meta.id,
-        title: normalizedMetaPatch.title ?? userIndexItem.meta.title,
-        deletable: true
-      });
+      userIndexItem.meta = normalizeIncomingSpriteMeta(
+        {
+          ...userIndexItem.meta,
+          ...normalizedMetaPatch
+        },
+        {
+          id: userIndexItem.meta.id,
+          title: normalizedMetaPatch.title ?? userIndexItem.meta.title,
+          deletable: true
+        }
+      );
       await writeUserIndex(userIdx);
+      notifySpriteAssetsChanged({ reason: 'updateMeta', id });
       return { ok: true, item: normalizeSpriteAnimationItem(userIndexItem) };
     }
     const defItem = defIdx.items.find((i) => i.meta.id === id);
@@ -484,20 +523,24 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
       // Create an override entry in user index (do not copy file; reference same localPath)
       const newItem: SpriteAnimation = {
         ...defItem,
-        meta: normalizeIncomingSpriteMeta({
-          ...defItem.meta,
-          ...normalizedMetaPatch
-        }, {
-          id: defItem.meta.id,
-          title: normalizedMetaPatch.title ?? defItem.meta.title,
-          deletable: true
-        })
+        meta: normalizeIncomingSpriteMeta(
+          {
+            ...defItem.meta,
+            ...normalizedMetaPatch
+          },
+          {
+            id: defItem.meta.id,
+            title: normalizedMetaPatch.title ?? defItem.meta.title,
+            deletable: true
+          }
+        )
       };
       const uIdx = await readIndex(userDir, { containmentRootDirs: userContainmentRootDirs });
       const existed = uIdx.items.findIndex((i) => i.meta.id === id);
       if (existed >= 0) uIdx.items.splice(existed, 1, newItem);
       else uIdx.items.push(newItem);
       await writeUserIndex(uIdx);
+      notifySpriteAssetsChanged({ reason: 'updateMeta', id });
       return { ok: true, item: normalizeSpriteAnimationItem(newItem) };
     }
     return { ok: false };

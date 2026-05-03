@@ -21,10 +21,10 @@ export const SpriteItem: React.FC<{
   </div>
 );
 
-export const SpriteDetailContent: React.FC<{ actionChoreographyCapability?: SpriteCapabilityState | null; onBlocked?: (capability: SpriteCapabilityState) => void }> = ({
-  actionChoreographyCapability,
+export const SpriteDetailContent: React.FC<{ assetAuthoringCapability?: SpriteCapabilityState | null; onBlocked?: (capability: SpriteCapabilityState) => void }> = ({
+  assetAuthoringCapability,
   onBlocked
-}) => <SpriteManager actionChoreographyCapability={actionChoreographyCapability} onCapabilityBlocked={onBlocked} />;
+}) => <SpriteManager assetAuthoringCapability={assetAuthoringCapability} onCapabilityBlocked={onBlocked} />;
 
 const SpriteSettings: React.FC = () => <SpriteManager />;
 

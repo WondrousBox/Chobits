@@ -19,7 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
-import { SpriteCapabilityLockedNotice, ensureSpriteCapabilityAccessible } from '@/features/sprite-assistant/capability-ui';
+import { ensureSpriteCapabilityAccessible, SpriteCapabilityLockedNotice } from '@/features/sprite-assistant/capability-ui';
 
 import { createSpriteAnimationMetaDraft, formatSpriteAnimationConditionInput, formatSpriteTriggerAliasesInput, parseSpriteAnimationConditionInput } from './components/sprite-animation-meta-utils';
 import SpriteAnimationConditionBuilder from './components/SpriteAnimationConditionBuilder';
@@ -163,7 +163,7 @@ function getMarkerOpacity(markerKey: keyof SegmentMarkers, draggingMarker: keyof
 }
 
 interface SpriteVideoEditorProps {
-  actionChoreographyCapability?: SpriteCapabilityState | null;
+  assetAuthoringCapability?: SpriteCapabilityState | null;
   initialConfig?: SpriteVideoConfigInput;
   onConfigChange?: (config: SpriteVideoConfig) => void;
   onCapabilityBlocked?: (capability: SpriteCapabilityState) => void;
@@ -172,7 +172,7 @@ interface SpriteVideoEditorProps {
   isProcessing?: boolean;
 }
 
-export function SpriteVideoEditor({ actionChoreographyCapability, initialConfig, onConfigChange, onCapabilityBlocked, onProcess, onImportComplete, isProcessing }: SpriteVideoEditorProps): JSX.Element {
+export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onConfigChange, onCapabilityBlocked, onProcess, onImportComplete, isProcessing }: SpriteVideoEditorProps): JSX.Element {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -237,7 +237,7 @@ export function SpriteVideoEditor({ actionChoreographyCapability, initialConfig,
   const [internalProcessing, setInternalProcessing] = useState(false);
   const [processProgress, setProcessProgress] = useState(0);
   const processingFlag = isProcessing || internalProcessing;
-  const canAuthorAnimations = actionChoreographyCapability?.status !== 'locked';
+  const canAuthorAnimations = assetAuthoringCapability?.status !== 'locked';
   const parsedCondition = useMemo(() => parseSpriteAnimationConditionInput(conditionInput), [conditionInput]);
   const animationMeta = useMemo(
     () =>
@@ -737,7 +737,7 @@ export function SpriteVideoEditor({ actionChoreographyCapability, initialConfig,
   // 处理并导入精灵动画
   const handleImport = useCallback(async () => {
     if (!inputPath || processingFlag) return;
-    if (!ensureSpriteCapabilityAccessible(actionChoreographyCapability, onCapabilityBlocked)) return;
+    if (!ensureSpriteCapabilityAccessible(assetAuthoringCapability, onCapabilityBlocked)) return;
     stopThreePhasePreview();
     setInternalProcessing(true);
     setProcessProgress(0);
@@ -860,7 +860,7 @@ export function SpriteVideoEditor({ actionChoreographyCapability, initialConfig,
     playbackWidth,
     playbackHeight,
     autoIdle,
-    actionChoreographyCapability,
+    assetAuthoringCapability,
     stopThreePhasePreview,
     recordCanvasWithChromaKey,
     onCapabilityBlocked,
@@ -1595,7 +1595,7 @@ export function SpriteVideoEditor({ actionChoreographyCapability, initialConfig,
       </div>
       {/* 处理按钮 */}
       <div className="flex w-full flex-col gap-3 border-t pt-4">
-        <SpriteCapabilityLockedNotice capability={actionChoreographyCapability} hint="动作编排尚未解锁时，可以调整参数和预览素材，但不能把视频导入为精灵动画。" />
+        <SpriteCapabilityLockedNotice capability={assetAuthoringCapability} hint="精灵资源管理尚未解锁时，可以调整参数和预览素材，但不能把视频导入为精灵动画。" />
         {inputPath && (
           <>
             <div className="flex flex-wrap items-center gap-2">
