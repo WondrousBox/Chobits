@@ -86,6 +86,9 @@ describe('sprite assets pack manifest integration', () => {
   });
 
   afterEach(async () => {
+    const spriteAssets = await import('../packages/sprite-core/handler/sprite-assets');
+    spriteAssets.setSpriteAssetsChangeHandler(null);
+
     const characterService = await import('../packages/sprite-core/character-service');
     characterService.setCharacterFilePath(null);
     characterService.setCharacterPackFilePath(null);
@@ -269,10 +272,10 @@ describe('sprite assets pack manifest integration', () => {
       addAllowedResourceRoot: vi.fn(),
       getResourcePath: () => rootDir
     });
+    const onAssetsChanged = vi.fn();
+    spriteAssets.setSpriteAssetsChangeHandler(onAssetsChanged);
 
-    const registerSprite = electronState.handlers.get('sprite:register') as
-      | ((_: unknown, payload: { filePath: string; meta: Record<string, unknown> }) => Promise<any>)
-      | undefined;
+    const registerSprite = electronState.handlers.get('sprite:register') as ((_: unknown, payload: { filePath: string; meta: Record<string, unknown> }) => Promise<any>) | undefined;
 
     expect(registerSprite).toBeDefined();
 
@@ -296,6 +299,7 @@ describe('sprite assets pack manifest integration', () => {
       deletable: true
     });
     expect(item.meta).not.toHaveProperty('eventType');
+    expect(onAssetsChanged).toHaveBeenCalledWith({ reason: 'register', id: 'primary-trigger-only' });
   });
 
   it('keeps legacy eventType-only input compatible on sprite:registerFromData without persisting a mirror field', async () => {
@@ -307,9 +311,7 @@ describe('sprite assets pack manifest integration', () => {
       getResourcePath: () => rootDir
     });
 
-    const registerFromData = electronState.handlers.get('sprite:registerFromData') as
-      | ((_: unknown, payload: { data: Buffer; meta: Record<string, unknown> }) => Promise<any>)
-      | undefined;
+    const registerFromData = electronState.handlers.get('sprite:registerFromData') as ((_: unknown, payload: { data: Buffer; meta: Record<string, unknown> }) => Promise<any>) | undefined;
 
     expect(registerFromData).toBeDefined();
 
@@ -331,7 +333,7 @@ describe('sprite assets pack manifest integration', () => {
     expect(item.meta).not.toHaveProperty('eventType');
   });
 
-  it('requires actionChoreography capability for sprite asset authoring writes', async () => {
+  it('requires spriteManage capability for sprite asset authoring writes', async () => {
     const rootDir = spritesRoot!;
     const sourcePath = path.join(rootDir, 'locked-authoring.webm');
     writeFileSync(sourcePath, 'fake-webm', 'utf-8');
@@ -346,24 +348,16 @@ describe('sprite assets pack manifest integration', () => {
       assertCapabilityUnlocked
     });
 
-    const registerSprite = electronState.handlers.get('sprite:register') as
-      | ((_: unknown, payload: { filePath: string; meta: Record<string, unknown> }) => Promise<any>)
-      | undefined;
-    const registerFromData = electronState.handlers.get('sprite:registerFromData') as
-      | ((_: unknown, payload: { data: Buffer; meta: Record<string, unknown> }) => Promise<any>)
-      | undefined;
-    const updateMeta = electronState.handlers.get('sprite:updateMeta') as
-      | ((_: unknown, payload: { id: string; meta: Record<string, unknown> }) => Promise<any>)
-      | undefined;
-    const removeSprite = electronState.handlers.get('sprite:remove') as
-      | ((_: unknown, payload: { id: string }) => Promise<any>)
-      | undefined;
+    const registerSprite = electronState.handlers.get('sprite:register') as ((_: unknown, payload: { filePath: string; meta: Record<string, unknown> }) => Promise<any>) | undefined;
+    const registerFromData = electronState.handlers.get('sprite:registerFromData') as ((_: unknown, payload: { data: Buffer; meta: Record<string, unknown> }) => Promise<any>) | undefined;
+    const updateMeta = electronState.handlers.get('sprite:updateMeta') as ((_: unknown, payload: { id: string; meta: Record<string, unknown> }) => Promise<any>) | undefined;
+    const removeSprite = electronState.handlers.get('sprite:remove') as ((_: unknown, payload: { id: string }) => Promise<any>) | undefined;
 
-    await expect(registerSprite!(undefined, { filePath: sourcePath, meta: { id: 'locked-authoring' } })).rejects.toThrow('locked:actionChoreography');
-    await expect(registerFromData!(undefined, { data: Buffer.from('fake-webm'), meta: { id: 'locked-from-data' } })).rejects.toThrow('locked:actionChoreography');
-    await expect(updateMeta!(undefined, { id: 'locked-authoring', meta: { title: 'Locked' } })).rejects.toThrow('locked:actionChoreography');
-    await expect(removeSprite!(undefined, { id: 'locked-authoring' })).rejects.toThrow('locked:actionChoreography');
+    await expect(registerSprite!(undefined, { filePath: sourcePath, meta: { id: 'locked-authoring' } })).rejects.toThrow('locked:spriteManage');
+    await expect(registerFromData!(undefined, { data: Buffer.from('fake-webm'), meta: { id: 'locked-from-data' } })).rejects.toThrow('locked:spriteManage');
+    await expect(updateMeta!(undefined, { id: 'locked-authoring', meta: { title: 'Locked' } })).rejects.toThrow('locked:spriteManage');
+    await expect(removeSprite!(undefined, { id: 'locked-authoring' })).rejects.toThrow('locked:spriteManage');
     expect(assertCapabilityUnlocked).toHaveBeenCalledTimes(4);
-    expect(assertCapabilityUnlocked).toHaveBeenCalledWith('actionChoreography');
+    expect(assertCapabilityUnlocked).toHaveBeenCalledWith('spriteManage');
   });
 });

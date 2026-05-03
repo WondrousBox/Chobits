@@ -39,8 +39,8 @@
 - 兼容层继续收口：`sprite:trigger` 请求字段已经只接受 `trigger`，动画 metadata normalize 输出也不再持久化 `eventType` 镜像，只保留旧输入 fallback。
 - trust-root 校验继续补强：已支持 revoked key 判定，撤销签名 key 会在 character pack 导入阶段被阻断，而不是等到运行时才暴露问题。
 - `WindowController` 继续瘦身：路径采样、边界约束、自动移动步进、平台访问、拖拽会话、行走会话、自动移动会话都已拆到独立 helper，控制器主体主要只剩 timer orchestration 与回调拼装。
-- capability 默认消费继续补强：`sprite:register` / `sprite:registerFromData` / `sprite:updateMeta` / `sprite:remove` 等动画资源 authoring 写入口现在会校验 `actionChoreography` capability，避免未解锁角色包能力时绕过运行时权威直接改动画资源。
-- 设置页 capability UI 已对齐：精灵管理页会读取 `actionChoreography` runtime 状态，未解锁时提前禁用视频导入、添加、删除和 metadata 编辑入口，并展示 locked notice；测试播放/查看现有动画仍可用。
+- capability 默认消费继续补强：`sprite:register` / `sprite:registerFromData` / `sprite:updateMeta` / `sprite:remove` 等动画资源 authoring 写入口现在会校验基础 `spriteManage` capability，允许预设角色通过用户覆盖层添加和编辑自己的精灵视频动画，同时避免角色未加载时绕过运行时权威直接改动画资源。
+- 设置页 capability UI 已对齐：精灵管理页会读取 `spriteManage` runtime 状态，未解锁时提前禁用视频导入、添加、删除和 metadata 编辑入口，并展示 locked notice；测试播放/查看现有动画仍可用。
 - `emotionExpression` 已开始进入运行时消费：闲置情感自发表达（`idle-emotion`）会读取 capability runtime，未解锁时不再自动触发表情动画；手动测试/显式 `trigger()` 不受影响。
 - persona mutation IPC 继续收口：新增 `sprite:persona:grantReward` 作为统一 reward entry，渲染层 `addXP()` / `changeFavor()` / `unlockAchievement()` 兼容方法已默认转发到该入口；旧 IPC 通道仍保留为兼容 wrapper。
 - 定向回归已覆盖：相关 `vitest` 已覆盖 metadata / pack import / IPC / `WindowController` model/platform/session 链路，当前这条主线已经比之前更接近 `freeze-safe`。
@@ -672,7 +672,7 @@ IPC: sprite:play → 渲染进程播放
 - 视频编辑器现已支持直接写入 `triggerAliases` 与 `priority`，导入链会自动透传到 sprite metadata
 - 默认资源示例现已统一只写 `primaryTrigger`，设置页现有动画卡片与视频编辑器导入流也只 author `primaryTrigger + triggerAliases + priority`
 - `sprite:register` / `sprite:registerFromData` / `sprite:updateMeta` 现已统一走主进程 normalize 入口；旧 `eventType` 输入只作为兼容 fallback
-- `sprite:register` / `sprite:registerFromData` / `sprite:updateMeta` / `sprite:remove` 这些动画资源写入口现在受 `actionChoreography` capability guard 保护；未解锁时只能读取/触发现有动画，不能新增、导入、改 metadata 或删除用户动画
+- `sprite:register` / `sprite:registerFromData` / `sprite:updateMeta` / `sprite:remove` 这些动画资源写入口现在受 `spriteManage` capability guard 保护；角色加载后即可通过用户覆盖层新增、导入、改 metadata 或删除用户动画，预设资源本体仍保持只读
 - preload / IPC 公共查询命名现已统一为 `listByTrigger()`；`sprite:trigger` 也已只接受 `trigger`，`eventType` 兼容主要只剩旧输入 normalize fallback
 - 条件动画 schema 现已支持持久化到 `meta.condition`，并在 runtime 自动编译成 persona 条件选片规则；设置页 / 视频编辑器现已提供支持 nested group / NOT 的可视化 builder，并保留高级 JSON 兜底入口
 

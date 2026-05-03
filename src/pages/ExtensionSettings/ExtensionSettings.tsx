@@ -36,7 +36,7 @@ const ExtensionSettings: React.FC = () => {
   const recorderCapability = getSpriteCapabilityState(capabilitySnapshot, 'microphone');
   const speechRecognitionCapability = getSpriteCapabilityState(capabilitySnapshot, 'speechRecognition');
   const screenshotCapability = getSpriteCapabilityState(capabilitySnapshot, 'screenshot');
-  const actionChoreographyCapability = getSpriteCapabilityState(capabilitySnapshot, 'actionChoreography');
+  const spriteManageCapability = getSpriteCapabilityState(capabilitySnapshot, 'spriteManage');
   const movementState = useMovementSettings({ capability: movementCapability, onBlocked: handleCapabilityBlocked, afterChange: refreshCapabilitySnapshot });
   const speakState = useSpeakSettings();
   const dailyCareState = useDailyCareSettings({ capability: dailyCareCapability, onBlocked: handleCapabilityBlocked, afterChange: refreshCapabilitySnapshot });
@@ -55,7 +55,7 @@ const ExtensionSettings: React.FC = () => {
       case 'dailyCare':
         return <DailyCareDetailContent state={dailyCareState} capability={dailyCareCapability} />;
       case 'sprite':
-        return <SpriteDetailContent actionChoreographyCapability={actionChoreographyCapability} onBlocked={handleCapabilityBlocked} />;
+        return <SpriteDetailContent assetAuthoringCapability={spriteManageCapability} onBlocked={handleCapabilityBlocked} />;
       case 'spontaneous':
         return <SpontaneousUtteranceDetailContent state={spontaneousUtteranceState} />;
       case 'purposePlanner':

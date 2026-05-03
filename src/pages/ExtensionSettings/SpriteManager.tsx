@@ -89,11 +89,11 @@ function SpritePreview({ src, type, width, height }: { src: string; type: string
 
 export function SpriteAnimationManager({
   className,
-  actionChoreographyCapability,
+  assetAuthoringCapability,
   onCapabilityBlocked
 }: {
   className?: string;
-  actionChoreographyCapability?: SpriteCapabilityState | null;
+  assetAuthoringCapability?: SpriteCapabilityState | null;
   onCapabilityBlocked?: (capability: SpriteCapabilityState) => void;
 }): JSX.Element {
   const [list, setList] = useState<SpriteAnimation[]>([]);
@@ -112,13 +112,10 @@ export function SpriteAnimationManager({
   const [debugOverlay, setDebugOverlay] = useState(false);
   // 默认的内置分类：使用全部预设事件类型（不包含 custom）
   const BUILTIN = React.useMemo(() => SPRITE_EVENT_TYPES.filter((c) => c !== 'custom'), []);
-  const canAuthorAnimations = actionChoreographyCapability?.status !== 'locked';
-  const authoringLockedTitle = actionChoreographyCapability?.status === 'locked' ? `${actionChoreographyCapability.name} 尚未解锁` : undefined;
+  const canAuthorAnimations = assetAuthoringCapability?.status !== 'locked';
+  const authoringLockedTitle = assetAuthoringCapability?.status === 'locked' ? `${assetAuthoringCapability.name} 尚未解锁` : undefined;
 
-  const ensureCanAuthorAnimations = useCallback(
-    (): boolean => ensureSpriteCapabilityAccessible(actionChoreographyCapability, onCapabilityBlocked),
-    [actionChoreographyCapability, onCapabilityBlocked]
-  );
+  const ensureCanAuthorAnimations = useCallback((): boolean => ensureSpriteCapabilityAccessible(assetAuthoringCapability, onCapabilityBlocked), [assetAuthoringCapability, onCapabilityBlocked]);
 
   // 初始化读取调试辅助线状态
   useEffect(() => {
@@ -268,7 +265,7 @@ export function SpriteAnimationManager({
 
   return (
     <div className={className}>
-      <SpriteCapabilityLockedNotice capability={actionChoreographyCapability} hint="动作编排尚未解锁时，可以查看和测试现有动画，但不能导入、删除或编辑动画 metadata。" className="mx-2 mb-4" />
+      <SpriteCapabilityLockedNotice capability={assetAuthoringCapability} hint="精灵资源管理尚未解锁时，可以查看和测试现有动画，但不能导入、删除或编辑动画 metadata。" className="mx-2 mb-4" />
 
       <div className="flex justify-between items-center px-2 mb-4">
         <div className="text-sm text-muted-foreground">已注册动画：{list.length}</div>
@@ -305,7 +302,7 @@ export function SpriteAnimationManager({
               initialConfig={spriteConfig}
               onConfigChange={setSpriteConfig}
               isProcessing={spriteProcessing}
-              actionChoreographyCapability={actionChoreographyCapability}
+              assetAuthoringCapability={assetAuthoringCapability}
               onCapabilityBlocked={onCapabilityBlocked}
               onImportComplete={async () => {
                 await refresh();
@@ -502,18 +499,18 @@ export function SpriteAnimationManager({
 
 export default function SpriteManager({
   className,
-  actionChoreographyCapability,
+  assetAuthoringCapability,
   onCapabilityBlocked
 }: {
   className?: string;
-  actionChoreographyCapability?: SpriteCapabilityState | null;
+  assetAuthoringCapability?: SpriteCapabilityState | null;
   onCapabilityBlocked?: (capability: SpriteCapabilityState) => void;
 }): JSX.Element {
   return (
     <div className={className}>
       <SpritePackManager
         editorPresentation="window"
-        editorExtra={<SpriteAnimationManager className="border-t border-border/60 pt-4" actionChoreographyCapability={actionChoreographyCapability} onCapabilityBlocked={onCapabilityBlocked} />}
+        editorExtra={<SpriteAnimationManager className="border-t border-border/60 pt-4" assetAuthoringCapability={assetAuthoringCapability} onCapabilityBlocked={onCapabilityBlocked} />}
       />
     </div>
   );
