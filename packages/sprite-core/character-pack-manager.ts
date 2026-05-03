@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { type ArchiveListEntry, listArchiveEntriesWith7Z, unzipFileWith7Z, zipDirectoryContentsWith7Z } from '../common/utils/file';
+import { CHARACTER_PACK_ARCHIVE_EXTENSION } from './character-pack-archive';
 import { assessCharacterPackDigest, calculateCharacterPackPayloadDigest, type CharacterPackDigestVerification } from './character-pack-integrity';
 import { isPathContainedByRoot, isResolvedPathContainedByRoot, resolvePackRelativeAssetPath, resolvePackRelativeAssetPathWithDiagnostics } from './character-pack-paths';
 import { type CharacterPackSignatureVerification, type CharacterPackTrustRoot, loadCharacterPackTrustRoot, verifyCharacterPackSignature } from './character-pack-signature';
@@ -206,7 +207,7 @@ const WINDOWS_ABSOLUTE_ARCHIVE_PATH_PATTERN = /^[a-zA-Z]:[\\/]/;
 const MAX_CHARACTER_PACK_ARCHIVE_ENTRIES = 2_000;
 const MAX_CHARACTER_PACK_ARCHIVE_ENTRY_SIZE_BYTES = 256 * 1024 * 1024;
 const MAX_CHARACTER_PACK_ARCHIVE_UNCOMPRESSED_SIZE_BYTES = 512 * 1024 * 1024;
-const CHARACTER_PACK_EXPORT_ARCHIVE_EXTENSIONS = new Set(['.zip', '.chobits-character']);
+const CHARACTER_PACK_ARCHIVE_EXTENSIONS = new Set(['.zip', CHARACTER_PACK_ARCHIVE_EXTENSION]);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -1095,7 +1096,14 @@ function resolveCharacterPackExportPath(outputPath: string): string {
 
   const resolved = path.resolve(normalized);
   const extension = path.extname(resolved).toLowerCase();
-  return extension && CHARACTER_PACK_EXPORT_ARCHIVE_EXTENSIONS.has(extension) ? resolved : `${resolved}.zip`;
+  return extension && CHARACTER_PACK_ARCHIVE_EXTENSIONS.has(extension) ? resolved : `${resolved}${CHARACTER_PACK_ARCHIVE_EXTENSION}`;
+}
+
+function assertCharacterPackArchiveExtension(archivePath: string): void {
+  const extension = path.extname(archivePath).toLowerCase();
+  if (!CHARACTER_PACK_ARCHIVE_EXTENSIONS.has(extension)) {
+    throw new Error(`Unsupported character pack archive extension: ${extension || '(none)'}. Expected ${CHARACTER_PACK_ARCHIVE_EXTENSION} or .zip`);
+  }
 }
 
 function normalizeEditorId(value: unknown, label: string): string {
@@ -1537,6 +1545,7 @@ export class CharacterPackManager {
 
   async installFromArchive(archivePath: string, options?: CharacterPackInstallOptions): Promise<CharacterPackInstallResult> {
     const normalizedArchivePath = path.resolve(archivePath);
+    assertCharacterPackArchiveExtension(normalizedArchivePath);
     await assertCharacterPackArchivePreflight(normalizedArchivePath);
     const tempExtractDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'character-pack-import-'));
 
@@ -1556,6 +1565,7 @@ export class CharacterPackManager {
 
   async inspectArchive(archivePath: string): Promise<CharacterPackImportInspection> {
     const normalizedArchivePath = path.resolve(archivePath);
+    assertCharacterPackArchiveExtension(normalizedArchivePath);
     await assertCharacterPackArchivePreflight(normalizedArchivePath);
     const tempExtractDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'character-pack-import-'));
 
@@ -1852,10 +1862,7 @@ export class CharacterPackManager {
     };
   }
 
-  private async cacheImportPreviewAssets(options: {
-    sourcePath: string;
-    sourcePack: CharacterPackSummary;
-  }): Promise<{ avatar?: string; gif?: string; video?: string }> {
+  private async cacheImportPreviewAssets(options: { sourcePath: string; sourcePack: CharacterPackSummary }): Promise<{ avatar?: string; gif?: string; video?: string }> {
     const avatarSourcePath = options.sourcePack.resolvedAssets.preview?.avatar;
     const gifSourcePath = options.sourcePack.resolvedAssets.preview?.gif;
     const videoSourcePath = options.sourcePack.resolvedAssets.preview?.video;

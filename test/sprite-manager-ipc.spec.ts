@@ -135,7 +135,7 @@ vi.mock('../packages/sprite-core/character-pack-manager', () => ({
     };
   }),
   inspectCharacterPackFromArchive: vi.fn(async (archivePath: string) => {
-    const normalizedId = path.basename(archivePath).replace(/\.(chobits-character|zip)$/i, '');
+    const normalizedId = path.basename(archivePath).replace(/\.(cbpk|zip)$/i, '');
     const existingPack = characterPackManagerState.packs.find((pack) => pack.id === normalizedId && pack.source === 'installed') ?? null;
 
     return {
@@ -172,7 +172,7 @@ vi.mock('../packages/sprite-core/character-pack-manager', () => ({
     };
   }),
   installCharacterPackFromArchive: vi.fn(async (archivePath: string, options?: { activate?: boolean; replaceExisting?: boolean }) => {
-    const normalizedId = path.basename(archivePath).replace(/\.(chobits-character|zip)$/i, '');
+    const normalizedId = path.basename(archivePath).replace(/\.(cbpk|zip)$/i, '');
     const rootDir = `/tmp/${normalizedId}`;
     const isAlreadyActive = !!characterPackManagerState.activePack && characterPackManagerState.activePack.id === normalizedId && characterPackManagerState.activePack.source === 'installed';
     const pack = {
@@ -1171,9 +1171,9 @@ describe('sprite manager IPC integration', () => {
 
     const inspectArchive = electronState.handlers.get('sprite:character:inspectPackFromArchive') as ((_: unknown, payload: { archivePath: string }) => Promise<any>) | undefined;
 
-    await expect(inspectArchive?.({} as never, { archivePath: '/tmp/pack-delta.chobits-character' })).resolves.toMatchObject({
+    await expect(inspectArchive?.({} as never, { archivePath: '/tmp/pack-delta.cbpk' })).resolves.toMatchObject({
       sourceType: 'archive',
-      sourcePath: '/tmp/pack-delta.chobits-character',
+      sourcePath: '/tmp/pack-delta.cbpk',
       pack: {
         id: 'pack-delta',
         name: 'pack-delta'
@@ -1218,7 +1218,7 @@ describe('sprite manager IPC integration', () => {
       | undefined;
     expect(installPackArchive).toBeTypeOf('function');
 
-    await expect(installPackArchive?.({} as never, { archivePath: '/tmp/pack-delta.chobits-character', activate: true })).resolves.toMatchObject({
+    await expect(installPackArchive?.({} as never, { archivePath: '/tmp/pack-delta.cbpk', activate: true })).resolves.toMatchObject({
       ok: true,
       activated: true,
       pack: {
