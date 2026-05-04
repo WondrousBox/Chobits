@@ -10,12 +10,10 @@ export interface SpriteRoutinePresetDefinition {
 
 function createRestReminderSteps(): SpriteRoutineStep[] {
   return [
-    { id: 'go-center', type: 'walkTo', target: 'center', speed: 120, timeoutMs: 8000 },
-    { id: 'wave', type: 'playAnimation', trigger: 'wave', durationMs: 1200, waitFor: 'duration', silent: true },
+    { id: 'attention', type: 'playAnimation', trigger: 'wave', durationMs: 1200, waitFor: 'duration', silent: true },
     { id: 'speak', type: 'speak', text: '差不多该休息一下了。', bubbleDuration: 3600 },
     { id: 'pause', type: 'wait', durationMs: 800 },
-    { id: 'tired', type: 'playAnimation', trigger: 'tired', durationMs: 1800, waitFor: 'duration', silent: true },
-    { id: 'return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
+    { id: 'tired', type: 'playAnimation', trigger: 'tired', durationMs: 1800, waitFor: 'duration', silent: true }
   ];
 }
 

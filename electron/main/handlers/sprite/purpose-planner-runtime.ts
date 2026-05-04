@@ -146,6 +146,7 @@ Your task:
 - Every loopUntil step must include maxDurationMs.
 - Every playAnimation step must include durationMs, timeoutMs, or waitFor:"none".
 - Keep text short, friendly, and non-intrusive.
+- Treat movement as optional expression, not as a fixed requirement. For rest reminders, do not walk to screen center by default; only add a walkTo step when the purpose/context clearly needs a spatial gesture.
 - Do not invent file paths, shell commands, IPC channels, hidden windows, or new runtime events.
 
 Output shape:

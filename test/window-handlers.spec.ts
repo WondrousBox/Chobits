@@ -4,6 +4,10 @@ const ipcHandlers = new Map<string, unknown>();
 const ipcMainHandle = vi.fn((channel: string, handler: unknown) => {
   ipcHandlers.set(channel, handler);
 });
+const ipcMainRemoveHandler = vi.fn((channel: string) => {
+  ipcHandlers.delete(channel);
+});
+const browserWindowFromWebContents = vi.fn();
 
 const windowManagerState = {
   init: vi.fn(),
@@ -36,9 +40,12 @@ vi.mock('electron', () => ({
   app: {
     getAppPath: () => '/app'
   },
-  BrowserWindow: vi.fn(),
+  BrowserWindow: Object.assign(vi.fn(), {
+    fromWebContents: (...args: unknown[]) => browserWindowFromWebContents(...args)
+  }),
   ipcMain: {
-    handle: ipcMainHandle
+    handle: ipcMainHandle,
+    removeHandler: ipcMainRemoveHandler
   },
   screen: {
     getCursorScreenPoint: () => ({ x: 0, y: 0 })
@@ -62,6 +69,8 @@ describe('window handlers', () => {
     vi.resetModules();
     ipcHandlers.clear();
     ipcMainHandle.mockClear();
+    ipcMainRemoveHandler.mockClear();
+    browserWindowFromWebContents.mockReset();
     Object.values(windowManagerState).forEach((mockFn) => mockFn.mockClear());
     process.env.APP_ROOT = '/app-root';
   });
@@ -87,5 +96,53 @@ describe('window handlers', () => {
     const [, windowManagerOptions] = windowManagerState.init.mock.calls[0] ?? [];
     expect(windowManagerOptions.windowConfigs.skillTree.trueFullscreen).toBe(true);
     expect(windowManagerOptions.windowConfigs.skillTree.showOnReady).toBe(true);
+  });
+
+  it('opens toggled devtools as a detached window for the invoking window', async () => {
+    const { initWindowHandlers } = await import('../electron/main/handlers/window');
+    const win = createWindowStub();
+    const sender = {};
+    const webContents = {
+      isDevToolsOpened: vi.fn(() => false),
+      openDevTools: vi.fn(),
+      closeDevTools: vi.fn()
+    };
+    const targetWindow = {
+      isDestroyed: vi.fn(() => false),
+      webContents
+    };
+
+    browserWindowFromWebContents.mockReturnValue(targetWindow);
+    initWindowHandlers(win);
+
+    expect(ipcMainRemoveHandler).toHaveBeenCalledWith('window:devtools:toggle');
+    const toggleDevTools = ipcHandlers.get('window:devtools:toggle') as (event: { sender: unknown }) => boolean;
+    expect(toggleDevTools({ sender })).toBe(true);
+
+    expect(browserWindowFromWebContents).toHaveBeenCalledWith(sender);
+    expect(webContents.openDevTools).toHaveBeenCalledWith({ mode: 'detach', activate: true });
+    expect(webContents.closeDevTools).not.toHaveBeenCalled();
+  });
+
+  it('closes toggled devtools when they are already open', async () => {
+    const { initWindowHandlers } = await import('../electron/main/handlers/window');
+    const win = createWindowStub();
+    const webContents = {
+      isDevToolsOpened: vi.fn(() => true),
+      openDevTools: vi.fn(),
+      closeDevTools: vi.fn()
+    };
+
+    browserWindowFromWebContents.mockReturnValue({
+      isDestroyed: vi.fn(() => false),
+      webContents
+    });
+    initWindowHandlers(win);
+
+    const toggleDevTools = ipcHandlers.get('window:devtools:toggle') as (event: { sender: unknown }) => boolean;
+    expect(toggleDevTools({ sender: {} })).toBe(true);
+
+    expect(webContents.closeDevTools).toHaveBeenCalledOnce();
+    expect(webContents.openDevTools).not.toHaveBeenCalled();
   });
 });

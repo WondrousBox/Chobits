@@ -212,6 +212,26 @@ export function initWindowHandlers(win: BrowserWindow): void {
   });
 
   initIpcMain(win);
+  ipcMain.removeHandler('window:devtools:toggle');
+  ipcMain.handle('window:devtools:toggle', (event) => {
+    try {
+      const targetWindow = BrowserWindow.fromWebContents(event.sender);
+      if (!targetWindow || targetWindow.isDestroyed()) {
+        return false;
+      }
+
+      const webContents = targetWindow.webContents;
+      if (webContents.isDevToolsOpened()) {
+        webContents.closeDevTools();
+      } else {
+        webContents.openDevTools({ mode: 'detach', activate: true });
+      }
+      return true;
+    } catch (error) {
+      console.warn('[window] toggle detached devtools failed:', error);
+      return false;
+    }
+  });
 
   // Pre-create menu window in hidden state for faster first-open
   // This reduces the loading delay when user right-clicks for the first time

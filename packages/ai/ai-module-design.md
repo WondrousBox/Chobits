@@ -264,6 +264,28 @@ Renderer → Preload → Main：
   - 在收到请求后写入用户最后一条消息；
   - 在对话结束后写入助手最终消息。
 
+### 5.1 Prompt Inspection
+
+所有 Pi runtime 最终发给模型的对话请求都应经过 `packages/ai/runtime/pi/prompt-inspector.ts` 统一观察，而不是在业务服务里散落 `console.log(prompt)`。
+
+覆盖入口：
+- `PiSessionService` 的 `pi-ai.completeSimple` / `pi-ai.streamSimple`
+- `PiSessionService` 的 `pi-coding-agent` session prompt
+- forked skill 子 session prompt
+- `createPiTaskChatRuntime()` 生成的后台任务 chatFn
+
+默认关闭，避免把用户对话、记忆、persona、系统提示词写入日志。需要完整查看实际发送内容时，直接修改 `packages/ai/runtime/pi/prompt-inspector-settings.ts`：
+
+```ts
+export const AI_PROMPT_INSPECTOR_SETTINGS = {
+  enabled: true,
+  keepRecent: true,
+  printToConsole: true
+};
+```
+
+也可以在单次 `ChatRequest.extras` 中传 `debugPrompt: true` / `inspectPrompt: true` / `showPrompt: true` 临时打开。输出会包含 system prompt、历史 messages、当前 prompt、transport、provider/model/profile，以及 coding session 的 active tools。
+
 ## 6. 服务商扩展（Provider）
 
 适配步骤（以 OpenAI 为例，当前已实现）：

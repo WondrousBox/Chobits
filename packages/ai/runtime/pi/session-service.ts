@@ -7,6 +7,7 @@ import type { ChatRequest, ChatResponse, StreamEvent, TokenUsage } from '../../t
 import { cancelPendingChoice, waitForUserChoice } from '../../user-choice-registry';
 import type { PiRuntimeAvailability, PiRuntimePreview, ResolvedPiRequest } from './contracts';
 import { resolvePiRequest } from './model-resolver';
+import { type AiPromptInspectionTool, createResolvedPromptInspectionContext, inspectAiPrompt } from './prompt-inspector';
 import { buildPiModel, buildPiModelHeaders } from './provider-model';
 import { extractPiProviderRequestId } from './provider-request-id';
 import { isPiRuntimeRequested } from './runtime-switch';
@@ -687,6 +688,61 @@ function splitSessionPrompt(messages: PiMessage[]): { history: PiMessage[]; prom
   };
 }
 
+function toInspectionMessages(messages: PiMessage[]): Array<{ content: unknown; name?: string; role: string; timestamp?: number; toolCallId?: string }> {
+  return messages.map((message) => ({
+    content: message.content,
+    role: message.role,
+    timestamp: message.timestamp,
+    ...('toolCallId' in message && typeof message.toolCallId === 'string' ? { toolCallId: message.toolCallId } : {}),
+    ...('toolName' in message && typeof message.toolName === 'string' ? { name: message.toolName } : {})
+  }));
+}
+
+function inspectPiAiPrompt(params: { context: PiContext; metadata?: Record<string, unknown>; resolved: ResolvedPiRequest; source: 'pi-session'; transport: string }): void {
+  inspectAiPrompt({
+    ...createResolvedPromptInspectionContext(params.resolved),
+    activeTools: params.resolved.enabledToolIds,
+    messages: toInspectionMessages(params.context.messages as PiMessage[]),
+    metadata: params.metadata,
+    source: params.source,
+    systemPrompt: params.context.systemPrompt,
+    transport: params.transport
+  });
+}
+
+function getActiveSessionTools(session: { getActiveToolNames(): string[]; getAllTools(): Array<{ description?: string; name: string; parameters?: unknown }> }): AiPromptInspectionTool[] {
+  const activeNames = new Set(session.getActiveToolNames());
+  return session
+    .getAllTools()
+    .filter((tool) => activeNames.has(tool.name))
+    .map((tool) => ({
+      description: tool.description,
+      name: tool.name,
+      parameters: tool.parameters
+    }));
+}
+
+function inspectCodingSessionPrompt(params: {
+  activeTools: AiPromptInspectionTool[];
+  metadata?: Record<string, unknown>;
+  promptState: { history: PiMessage[]; prompt: string };
+  resolved: ResolvedPiRequest;
+  source: 'pi-coding-session' | 'pi-forked-skill';
+  systemPrompt?: string;
+  transport: string;
+}): void {
+  inspectAiPrompt({
+    ...createResolvedPromptInspectionContext(params.resolved),
+    activeTools: params.activeTools,
+    messages: toInspectionMessages(params.promptState.history),
+    metadata: params.metadata,
+    prompt: params.promptState.prompt,
+    source: params.source,
+    systemPrompt: params.systemPrompt,
+    transport: params.transport
+  });
+}
+
 function resolveForkedSkillToolIds(resolved: ResolvedPiRequest, execution: SkillExecutionResult): string[] {
   const explicitToolIds = normalizePiToolIds([...execution.allowedToolIds, ...execution.activationToolIds]);
   return explicitToolIds.length > 0 ? explicitToolIds : resolved.enabledToolIds;
@@ -865,6 +921,12 @@ export class PiSessionService {
       }
     }
 
+    inspectPiAiPrompt({
+      context,
+      resolved: effectiveResolved,
+      source: 'pi-session',
+      transport: 'pi-ai.completeSimple'
+    });
     const completion = ensurePiCompletion(await ai.completeSimple(model, context, buildSimpleOptions(effectiveResolved)));
 
     return toChatResponse(completion, effectiveResolved);
@@ -975,6 +1037,12 @@ export class PiSessionService {
         }
       }
 
+      inspectPiAiPrompt({
+        context,
+        resolved: effectiveResolved,
+        source: 'pi-session',
+        transport: 'pi-ai.streamSimple'
+      });
       const stream = ai.streamSimple(model, context, buildSimpleOptions(effectiveResolved, signal));
       let accumulatedText = '';
 
@@ -1101,7 +1169,23 @@ export class PiSessionService {
     try {
       session.agent.replaceMessages(options.promptState.history as any);
       reportForkProgress(15, `Forked skill session ready with model ${childModel.id}.`);
-      await session.agent.prompt(buildForkedSkillPrompt(options.execution, options.promptState.prompt));
+      const forkedPrompt = buildForkedSkillPrompt(options.execution, options.promptState.prompt);
+      inspectCodingSessionPrompt({
+        activeTools: getActiveSessionTools(session),
+        metadata: {
+          parentToolCallId: options.parentToolCallId,
+          skillName: options.execution.record.name
+        },
+        promptState: {
+          history: options.promptState.history,
+          prompt: forkedPrompt
+        },
+        resolved: childResolved,
+        source: 'pi-forked-skill',
+        systemPrompt: session.systemPrompt,
+        transport: 'pi-coding-agent.forked-skill'
+      });
+      await session.agent.prompt(forkedPrompt);
       reportForkProgress(95, `Forked skill "${options.execution.record.name}" completed its child session.`);
 
       const assistant = findLastAssistantMessage(session.state.messages as PiMessage[]);
@@ -1236,29 +1320,14 @@ export class PiSessionService {
 
     try {
       session.agent.replaceMessages(promptState.history as any);
-
-      // ━━ Debug: dump full prompt context before sending to LLM ━━
-      console.log(`[PiSession:DEBUG]
-═══════════════ FULL PROMPT TO LLM ═══════════════
-
-System Prompt ${session.systemPrompt.length} chars:
->>>
-${session.systemPrompt}
-<<<
-
-Active Tools (${session.getActiveToolNames().length}): ${session.getActiveToolNames().join(', ')}
-`);
-      for (const tool of session.getAllTools().filter((t) => session.getActiveToolNames().includes(t.name))) {
-        console.log('[PiSession:DEBUG]   • %s: %s [params: %s]', tool.name, tool.description?.slice(0, 80) || '(no desc)', JSON.stringify(Object.keys(tool.parameters?.properties || {})));
-      }
-      console.log('[PiSession:DEBUG] ─── Messages (%d) ───', promptState.history.length + 1);
-      for (const msg of promptState.history) {
-        const text = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-        console.log('[PiSession:DEBUG]   [%s] %s', msg.role, text.slice(0, 200));
-      }
-      console.log('[PiSession:DEBUG]   [user] %s', typeof promptState.prompt === 'string' ? promptState.prompt.slice(0, 200) : JSON.stringify(promptState.prompt).slice(0, 200));
-      console.log('[PiSession:DEBUG] ═══════════════════════════════════════════════════\n');
-
+      inspectCodingSessionPrompt({
+        activeTools: getActiveSessionTools(session),
+        promptState,
+        resolved,
+        source: 'pi-coding-session',
+        systemPrompt: session.systemPrompt,
+        transport: 'pi-coding-agent.stream'
+      });
       await session.agent.prompt(promptState.prompt);
 
       if (!terminalEmitted) {
@@ -1330,6 +1399,14 @@ Active Tools (${session.getActiveToolNames().length}): ${session.getActiveToolNa
 
     try {
       session.agent.replaceMessages(promptState.history as any);
+      inspectCodingSessionPrompt({
+        activeTools: getActiveSessionTools(session),
+        promptState,
+        resolved,
+        source: 'pi-coding-session',
+        systemPrompt: session.systemPrompt,
+        transport: 'pi-coding-agent.complete'
+      });
       await session.agent.prompt(promptState.prompt);
 
       const assistant = findLastAssistantMessage(session.state.messages as PiMessage[]);
