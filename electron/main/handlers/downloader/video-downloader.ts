@@ -661,8 +661,9 @@ export class VideoDownloader implements Downloader {
     const qualityArgs = buildQualityArgs(qualityMode, quality);
     const resolvedQualityMode = normalizeQualityMode(qualityMode, quality);
     const tempName = DEFAULT_FOLDERS.download + '_' + generateUUID();
+    const resolvedFilename = filename || videoInfo?.title;
     // 清理文件名，移除系统不支持的特殊字符
-    const sanitizedFilename = filename ? sanitizeFilename(filename) : undefined;
+    const sanitizedFilename = resolvedFilename ? sanitizeFilename(resolvedFilename) : undefined;
     const tempFileTemplate = tempName + '.%(ext)s';
     const downloadPath = resolve(actualDestination, tempFileTemplate);
     const destBasePath = resolve(actualDestination, sanitizedFilename || tempName);
@@ -675,6 +676,7 @@ export class VideoDownloader implements Downloader {
 --- options -------------------------------------------------
 url: ${url}
 filename: ${filename}
+resolvedFilename: ${resolvedFilename}
 destination: ${destination}
 thumbnailUrl: ${thumbnailUrl}
 resolvedThumbnailUrls: ${videoThumbnailUrls.join(', ')}

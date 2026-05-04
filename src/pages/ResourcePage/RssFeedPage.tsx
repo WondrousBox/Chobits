@@ -364,7 +364,23 @@ const RssFeedPage: React.FC = () => {
           pageToken: '0'
         });
         if (result.success && result.data) {
-          setFeed(result.data);
+          if (forceRefresh) {
+            setFeed((prev) => {
+              if (!prev) return result.data!;
+
+              const incomingIds = new Set(result.data!.items.map((item) => item.id));
+              const preservedItems = prev.items.filter((item) => !incomingIds.has(item.id));
+
+              return {
+                ...result.data!,
+                hasMore: result.data!.hasMore || prev.hasMore,
+                totalItems: Math.max(result.data!.totalItems || 0, prev.totalItems || 0),
+                items: [...result.data!.items, ...preservedItems]
+              };
+            });
+          } else {
+            setFeed(result.data);
+          }
         } else {
           toast.error('加载失败', { description: result.error });
         }
@@ -599,6 +615,7 @@ const RssFeedPage: React.FC = () => {
         if (result.success && result.data) {
           const downloadResult = await window.YUA.videoDownloader.downloadVideo({
             url: result.data.url,
+            filename: result.data.filename || item.title,
             thumbnailUrl: result.data.thumbnailUrl,
             quality: Number.isFinite(parseInt(result.data.quality, 10)) ? parseInt(result.data.quality, 10) : undefined,
             qualityMode: result.data.quality,
@@ -1445,7 +1462,7 @@ const FeedItemCard: React.FC<FeedItemCardProps> = ({ item, downloading, download
   const isDownloading = downloading || item.downloadStatus === 'pending' || item.downloadStatus === 'downloading';
   const isRetryable = isRssItemRetryable(item);
   const progress = typeof item.downloadProgress === 'number' ? Math.max(0, Math.min(100, Math.round(item.downloadProgress))) : undefined;
-  const publishedTimeText = item.metadata?.publishedAtEstimated ? '时间未知' : formatTime(item.publishedAt);
+  const publishedTimeText = item.metadata?.publishedAtEstimated ? '时间未知' : item.publishedAt ? formatTime(item.publishedAt) : '时间未知';
   const mediaTypeLabel = getRssMediaTypeFilterLabel(item.mediaType ?? 'other');
   const failureMessage = getFeedItemDownloadFailureMessage(item, downloadError);
   const errorBadgeText = getRssDownloadFailureBadgeText(item.downloadStatus, failureMessage);

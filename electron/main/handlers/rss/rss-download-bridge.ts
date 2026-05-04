@@ -17,6 +17,7 @@ import type { DownloadRssItemParams, RssMetadata } from './types';
 
 export interface RssDownloadTarget {
   url: string;
+  filename?: string;
   quality: string;
   folderId?: string;
   thumbnailUrl?: string;
@@ -83,6 +84,7 @@ export async function prepareDownloadTarget(params: DownloadRssItemParams): Prom
     success: true,
     data: {
       url: downloadUrl,
+      filename: rssItem.title,
       quality: downloadQuality,
       folderId: targetFolderId,
       thumbnailUrl: rssItem.thumbnail,

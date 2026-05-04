@@ -37,6 +37,7 @@ export interface RssApi {
     success: boolean;
     data?: {
       url: string;
+      filename?: string;
       quality: string;
       folderId?: string;
       thumbnailUrl?: string;
