@@ -19,6 +19,7 @@ export interface DownloadTask {
   url: string;
   filename?: string;
   destination?: string;
+  thumbnailUrl?: string;
   quality?: number | string;
   qualityMode?: string;
   folderId?: string;
@@ -52,6 +53,7 @@ export class DownloadManager extends EventEmitter {
       url: options.url,
       filename: options.filename,
       destination: options.destination,
+      thumbnailUrl: options.thumbnailUrl,
       quality: options.quality,
       qualityMode: options.qualityMode,
       folderId: options.folderId,
@@ -121,10 +123,19 @@ export class DownloadManager extends EventEmitter {
     task.downloader = downloader;
 
     try {
+      if (!task.videoInfo) {
+        try {
+          task.videoInfo = await getVideoInfo(task.url);
+        } catch (error) {
+          console.warn('[VideoDownload] Failed to fetch video info before download, continuing without it:', error);
+        }
+      }
+
       await downloader.download({
         url: task.url,
         filename: task.filename,
         destination: task.destination,
+        thumbnailUrl: task.thumbnailUrl,
         quality: task.quality,
         qualityMode: task.qualityMode,
         folderId: task.folderId,

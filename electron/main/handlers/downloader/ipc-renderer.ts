@@ -13,11 +13,13 @@ const downloaderIpcRenderer = {
     url: string;
     filename?: string;
     destination?: string;
+    thumbnailUrl?: string;
     quality?: number | string;
     qualityMode?: string;
     folderId?: string;
     parentResourceId?: string;
     metadata?: Record<string, unknown>;
+    videoInfo?: any;
   }) => ipcRenderer.invoke('video-downloader:download', options),
 
   // 取消下载
