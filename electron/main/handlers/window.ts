@@ -232,6 +232,37 @@ export function initWindowHandlers(win: BrowserWindow): void {
       return false;
     }
   });
+  ipcMain.removeHandler('screen:work-area:get');
+  ipcMain.handle('screen:work-area:get', (event, windowKey?: string) => {
+    try {
+      const targetWindow = windowKey ? windowManager.get(windowKey as any) : BrowserWindow.fromWebContents(event.sender);
+      const display = targetWindow && !targetWindow.isDestroyed() ? screen.getDisplayMatching(targetWindow.getBounds()) : screen.getPrimaryDisplay();
+      const { x, y, width, height } = display.workArea;
+      return { x, y, width, height };
+    } catch {
+      const { x, y, width, height } = screen.getPrimaryDisplay().workArea;
+      return { x, y, width, height };
+    }
+  });
+  ipcMain.removeHandler('window:bounds:set');
+  ipcMain.handle('window:bounds:set', (event, windowKey: string | undefined, bounds: { x: number; y: number; width: number; height: number }) => {
+    try {
+      const targetWindow = windowKey ? windowManager.get(windowKey as any) : BrowserWindow.fromWebContents(event.sender);
+      if (!targetWindow || targetWindow.isDestroyed()) {
+        return { success: false, error: 'Window not found' };
+      }
+      const nextBounds = {
+        x: Math.round(bounds.x),
+        y: Math.round(bounds.y),
+        width: Math.max(1, Math.round(bounds.width)),
+        height: Math.max(1, Math.round(bounds.height))
+      };
+      targetWindow.setBounds(nextBounds);
+      return { success: true, bounds: targetWindow.getBounds() };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
 
   // Pre-create menu window in hidden state for faster first-open
   // This reduces the loading delay when user right-clicks for the first time

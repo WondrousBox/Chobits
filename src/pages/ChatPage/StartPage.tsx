@@ -6,6 +6,7 @@ import { ChatFooterActions, mergeTranscriptWithInput, UnifiedChatInput, UnifiedC
 import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
 
+import { CHAT_OVERLAY_SETTINGS } from './chat-overlay-settings';
 import { useChatSelection } from './context/ChatSelectionContext';
 
 const PLACEHOLDERS = [
@@ -99,11 +100,13 @@ const AssistantPage: React.FC = () => {
       }
 
       // 打开聊天独立窗口，传递初始消息数据
-      await window.YUA.window['window:open']('chat', {
+      const targetWindow = CHAT_OVERLAY_SETTINGS.enabledFromAssistantInput ? 'chatOverlay' : 'chat';
+      await window.YUA.window['window:open'](targetWindow as any, {
         initialMessage: content,
         providerId,
         modelId,
-        preferredPresetId: resolvedPreset.id
+        preferredPresetId: resolvedPreset.id,
+        ...(targetWindow === 'chatOverlay' ? { overlaySide: CHAT_OVERLAY_SETTINGS.side } : {})
       });
       setQuery('');
       // 关闭助手窗口

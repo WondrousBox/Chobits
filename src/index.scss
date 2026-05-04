@@ -143,6 +143,57 @@ body,
   -webkit-app-region: no-drag;
 }
 
+.chat-overlay-bubble {
+  position: relative;
+  isolation: isolate;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(18px) saturate(145%);
+  -webkit-backdrop-filter: blur(18px) saturate(145%);
+}
+
+.chat-overlay-bubble::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.24), transparent 34%, rgba(255, 255, 255, 0.08));
+}
+
+.chat-overlay-bubble-user {
+  background:
+    radial-gradient(circle at 12% 12%, rgba(255, 255, 255, 0.28), transparent 28%),
+    linear-gradient(135deg, rgba(37, 99, 235, 0.96), rgba(79, 70, 229, 0.9) 48%, rgba(14, 165, 233, 0.86));
+  box-shadow:
+    0 22px 52px rgba(15, 23, 42, 0.42),
+    0 10px 26px rgba(37, 99, 235, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+.chat-overlay-bubble-assistant {
+  color: hsl(var(--foreground));
+  background:
+    radial-gradient(circle at 18% 8%, rgba(125, 211, 252, 0.26), transparent 30%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(241, 245, 249, 0.84) 46%, rgba(236, 253, 245, 0.78));
+  border-color: rgba(148, 163, 184, 0.32);
+  box-shadow:
+    0 24px 58px rgba(15, 23, 42, 0.36),
+    0 8px 24px rgba(14, 116, 144, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.dark .chat-overlay-bubble-assistant {
+  background:
+    radial-gradient(circle at 16% 10%, rgba(34, 211, 238, 0.2), transparent 34%),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(30, 41, 59, 0.86) 52%, rgba(8, 47, 73, 0.76));
+  border-color: rgba(148, 163, 184, 0.24);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.52),
+    0 10px 28px rgba(8, 145, 178, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
 /* Hide ReactFlow attribution watermark */
 .react-flow__attribution {
   display: none !important;

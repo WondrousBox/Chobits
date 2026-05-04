@@ -11,6 +11,7 @@ declare module '@aim-packages/window-manager' {
     assistant: void;
     pluginManager: void;
     chat: void;
+    chatOverlay: void;
     resourcePreview: void;
     downloadFloating: void;
     pluginDownload: void;
@@ -70,6 +71,8 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       frame: false,
       transparent: true,
       resizable: false,
+      focusable: true,
+      acceptFirstMouse: true,
       alwaysOnTop: true,
       skipTaskbar: true,
       show: false,
@@ -266,6 +269,27 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
           frame: true
         }
       }
+    }
+  },
+  chatOverlay: {
+    routeHash: 'chat-overlay',
+    autoCenterOn: 'none',
+    showOnReady: false,
+    openDevTools: true,
+    hideOnClose: true,
+    options: {
+      width: 560,
+      height: 720,
+      frame: false,
+      transparent: true,
+      resizable: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      hasShadow: false,
+      backgroundColor: '#00000000',
+      show: false,
+      autoHideMenuBar: true,
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
     }
   },
   resourcePreview: {
