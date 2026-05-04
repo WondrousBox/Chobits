@@ -26,6 +26,8 @@ import type { CreateRssResourceParams, DownloadRssItemParams, FetchRssFeedParams
  */
 
 const RSS_FEED_VIEW_LIMIT = 200;
+const RSS_YOUTUBE_HISTORY_PAGE_LIMIT = 50;
+const RSS_YOUTUBE_DETAIL_HYDRATE_LIMIT = RSS_YOUTUBE_HISTORY_PAGE_LIMIT;
 
 function parseFeedPageParams(params: FetchRssFeedParams): { limit: number; offset: number } {
   const limit = Math.max(1, Math.min(params.pageSize || RSS_FEED_VIEW_LIMIT, RSS_FEED_VIEW_LIMIT));
@@ -152,14 +154,18 @@ async function cacheYouTubeHistoryPage(
 
   const youtubeHandler = handler as any;
   const safeOffset = Math.max(0, offset);
-  const safeLimit = Math.max(1, Math.min(limit, RSS_FEED_VIEW_LIMIT));
+  const safeLimit = Math.max(1, Math.min(limit, RSS_YOUTUBE_HISTORY_PAGE_LIMIT));
   const playlistEnd = safeOffset + safeLimit;
 
   let items: RssFeedItem[];
   if (detailed) {
     items = await youtubeHandler.fetchChannelVideosDetailed(channelUrl, { playlistStart: safeOffset + 1, playlistEnd });
   } else {
-    items = await youtubeHandler.fetchChannelHistory(channelUrl, { playlistEnd, playlistStart: safeOffset + 1 });
+    items = await youtubeHandler.fetchChannelHistory(channelUrl, {
+      playlistEnd,
+      playlistStart: safeOffset + 1,
+      hydrateDetails: Math.min(safeLimit, RSS_YOUTUBE_DETAIL_HYDRATE_LIMIT)
+    });
   }
 
   if (items.length > 0) {
@@ -367,13 +373,9 @@ export function initRssHandlers(): void {
 
       let refreshedResource = (await ResourcesRepo.getById(resourceId)) || resource;
       let refreshedMetadata = parseResourceMetadata(refreshedResource);
-      if (forceRefresh && refreshedMetadata.sourceType === 'youtube') {
-        const latestResult = await cacheYouTubeHistoryPage(refreshedResource, refreshedMetadata, 0, limit);
-        refreshedResource = (await ResourcesRepo.getById(resourceId)) || refreshedResource;
-        refreshedMetadata = parseResourceMetadata(refreshedResource);
-        const totalItems = await RssFeedItemsRepo.countByResourceId(resourceId);
-        const latestFeed = buildFeedResponseFromItems(refreshedResource, refreshedMetadata, latestResult.items, totalItems, latestResult.hasMore || totalItems > latestResult.items.length);
-        return { success: true, data: latestFeed, cached: false };
+      if (forceRefresh) {
+        const cachedFeed = await buildCachedRssFeed(refreshedResource, refreshedMetadata, limit, offset);
+        return { success: true, data: cachedFeed, cached: false };
       }
 
       const pageContext = await ensureYouTubeHistoryCachedForPage(refreshedResource, refreshedMetadata, offset, limit);

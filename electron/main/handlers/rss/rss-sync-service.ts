@@ -490,6 +490,7 @@ export async function syncRssResource(
       try {
         await downloadManager.addTask({
           url: downloadUrl,
+          filename: item.title,
           thumbnailUrl: item.thumbnail,
           qualityMode: metadata.downloadQuality || 'best',
           folderId: targetFolderId,
