@@ -584,6 +584,21 @@ describe('sprite manager IPC integration', () => {
     });
   });
 
+  it('updates sprite movement avoid regions through IPC and reclamps the sprite window', async () => {
+    listSpritesMock.mockResolvedValue([]);
+
+    const { initSpriteManagerIPC } = await import('../packages/sprite-core/handler/sprite-manager-ipc');
+    await initSpriteManagerIPC(windowStub.win as any, { addAllowedResourceRoot: vi.fn() });
+
+    const setAvoidRegions = electronState.handlers.get('sprite:movement:setAvoidRegions') as
+      | ((_: unknown, payload: { regions: Array<{ x: number; y: number; width: number; height: number }> }) => unknown)
+      | undefined;
+
+    expect(setAvoidRegions).toBeTypeOf('function');
+    expect(setAvoidRegions?.({} as never, { regions: [{ x: 0, y: 0, width: 400, height: 900 }] })).toEqual({ ok: true });
+    expect(windowStub.win.setPosition).toHaveBeenCalledWith(300, 0);
+  });
+
   it('guards movement preview through the shared movement capability', async () => {
     listSpritesMock.mockResolvedValue([]);
 

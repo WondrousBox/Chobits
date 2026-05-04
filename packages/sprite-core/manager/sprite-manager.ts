@@ -43,6 +43,7 @@ import {
   type SpritePurpose,
   type SpritePurposeDailyRetrospective,
   type SpritePurposeEventType,
+  SpritePurposeEventWaiter,
   type SpritePurposeHistoryEntry,
   type SpritePurposeHistoryQuery,
   SpritePurposeHistoryStore,
@@ -52,7 +53,6 @@ import {
   type SpritePurposeSnapshot,
   type SpritePurposeStartResult,
   type SpriteRoutine,
-  SpritePurposeEventWaiter,
   SpriteRoutineRunner,
   type SpriteRoutineStep,
   type StartSpritePurposeRequest
@@ -79,6 +79,7 @@ import {
   type SpriteStateSnapshot,
   type SpriteTriggerOptions
 } from '../types';
+import type { WindowControllerAvoidRegion } from '../window-controller-model';
 import { registerDefaultBehaviors } from './default-behaviors';
 import { MovementCoordinator } from './movement-coordinator';
 import { AutoWalkConfig, PersonaStatePersistence } from './persistence';
@@ -211,6 +212,7 @@ export class SpriteManager {
       getScreenSize: () => this.getScreenSize(),
       getPosition: () => this.getPosition(),
       getSpriteConfig: () => this.getSpriteConfig(),
+      getAvoidRegions: () => this.windowController?.getAvoidRegions?.() ?? [],
       setSpriteMetrics: (metrics) => this.setSpriteMetrics(metrics),
       setWindowSize: (width, height, padding) => {
         this.windowController?.setSize?.(width, height, padding);
@@ -1307,6 +1309,10 @@ export class SpriteManager {
     this.windowController = controller;
   }
 
+  setMovementAvoidRegions(regions: WindowControllerAvoidRegion[]): void {
+    this.windowController?.setAvoidRegions?.(regions);
+  }
+
   /** 统一 behavior movement 入口 */
   runBehaviorMovement(movement?: SpriteMovementConfig, options?: { hasSegmentLoop?: boolean }): Promise<boolean> {
     return this.movementCoordinator.runBehaviorMovement(movement, options);
@@ -1517,7 +1523,13 @@ export class SpriteManager {
       case 'openWindow':
         return step.timeoutMs ?? 30000;
       case 'loopUntil':
-        return step.maxDurationMs ?? Math.max(1000, step.body.reduce((sum, child) => sum + this.estimateRoutineStepPresentationMs(child), 0));
+        return (
+          step.maxDurationMs ??
+          Math.max(
+            1000,
+            step.body.reduce((sum, child) => sum + this.estimateRoutineStepPresentationMs(child), 0)
+          )
+        );
       case 'branch': {
         const branches = [...Object.values(step.cases), step.default ?? []];
         return Math.max(500, ...branches.map((steps) => steps.reduce((sum, child) => sum + this.estimateRoutineStepPresentationMs(child), 0)));

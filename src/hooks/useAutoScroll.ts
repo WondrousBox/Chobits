@@ -14,13 +14,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * caused by overlapping `scrollIntoView({ behavior: 'smooth' })` calls.
  */
 export function useAutoScroll(deps: unknown[]): {
-  containerRef: React.RefObject<HTMLDivElement>;
+  containerRef: React.RefCallback<HTMLDivElement>;
   shouldAutoScroll: boolean;
   showScrollButton: boolean;
   scrollToBottom: (smooth?: boolean) => void;
   resetAutoScroll: () => void;
 } {
-  const containerRef = useRef<HTMLDivElement>(null!);
+  const containerElementRef = useRef<HTMLDivElement | null>(null);
+  const [containerElement, setContainerElement] = useState<HTMLDivElement | null>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
   // Track whether the user is actively interacting (wheel / touch / pointer-drag on scrollbar)
@@ -37,9 +38,14 @@ export function useAutoScroll(deps: unknown[]): {
     shouldAutoScrollRef.current = shouldAutoScroll;
   }, [shouldAutoScroll]);
 
+  const containerRef = useCallback((node: HTMLDivElement | null): void => {
+    containerElementRef.current = node;
+    setContainerElement(node);
+  }, []);
+
   // ---------- scroll event handler ----------
   const handleScroll = useCallback(() => {
-    const el = containerRef.current;
+    const el = containerElementRef.current;
     if (!el) return;
 
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
@@ -62,7 +68,7 @@ export function useAutoScroll(deps: unknown[]): {
 
   // ---------- detect user-initiated scrolls ----------
   useEffect(() => {
-    const el = containerRef.current;
+    const el = containerElement;
     if (!el) return;
 
     // Mark user-initiated scrolling on wheel / touch events
@@ -105,12 +111,12 @@ export function useAutoScroll(deps: unknown[]): {
       el.removeEventListener('pointerdown', onPointerDown);
       if (resetTimer) clearTimeout(resetTimer);
     };
-  }, [handleScroll]);
+  }, [containerElement, handleScroll]);
 
   // ---------- auto-scroll on content change ----------
   useEffect(() => {
     if (!shouldAutoScrollRef.current) return;
-    const el = containerRef.current;
+    const el = containerElementRef.current;
     if (!el) return;
 
     // Use rAF so the DOM has settled before we measure / scroll.
@@ -123,7 +129,7 @@ export function useAutoScroll(deps: unknown[]): {
 
   // ---------- imperative helpers ----------
   const scrollToBottom = useCallback((smooth = true) => {
-    const el = containerRef.current;
+    const el = containerElementRef.current;
     if (!el) return;
     setShouldAutoScroll(true);
     if (smooth) {
@@ -136,7 +142,7 @@ export function useAutoScroll(deps: unknown[]): {
   /** Call this when the user sends a new message to force auto-scroll on. */
   const resetAutoScroll = useCallback(() => {
     setShouldAutoScroll(true);
-    const el = containerRef.current;
+    const el = containerElementRef.current;
     if (el) {
       requestAnimationFrame(() => {
         el.scrollTop = el.scrollHeight;

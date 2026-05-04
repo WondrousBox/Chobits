@@ -25,6 +25,7 @@ import type {
 import type { SpeakResult, SpriteSpeakConfig } from '../speak/types';
 import type { MessageBridgePayload, MessageIPCPayload, SpriteAnimation, SpriteAnimationTrigger, SpriteMovementPreviewConfig, SpriteTriggerOptions } from '../types';
 import { MESSAGE_IPC_CHANNELS } from '../types';
+import type { WindowControllerAvoidRegion } from '../window-controller-model';
 
 function onMessageBridge(cb: (payload: MessageBridgePayload) => void): () => void {
   const handler = (_: any, payload: MessageBridgePayload): void => cb(payload);
@@ -87,6 +88,7 @@ export type SpriteBridgeType = {
   // 窗口移动预览
   previewMovement(config: SpriteMovementPreviewConfig): Promise<void>;
   stopMovementPreview(): Promise<void>;
+  setMovementAvoidRegions(regions: WindowControllerAvoidRegion[]): Promise<{ ok: boolean }>;
 
   // 语音合成 (Speak)
   speak(text: string, options?: { showBubble?: boolean; bubbleDuration?: number }): Promise<SpeakResult>;
@@ -173,6 +175,7 @@ export const spriteBridge: SpriteBridgeType = {
   listSpontaneousUtteranceHistory: (query) => ipcRenderer.invoke('sprite:spontaneous:listHistory', query),
   previewMovement: (config) => ipcRenderer.invoke('sprite:previewMovement', config),
   stopMovementPreview: () => ipcRenderer.invoke('sprite:stopMovementPreview'),
+  setMovementAvoidRegions: (regions) => ipcRenderer.invoke('sprite:movement:setAvoidRegions', { regions }),
 
   // ── 语音合成 (Speak) ──────────────────────────────────────
   speak: (text, options) => ipcRenderer.invoke('sprite:speak', { text, showBubble: options?.showBubble, bubbleDuration: options?.bubbleDuration }),
