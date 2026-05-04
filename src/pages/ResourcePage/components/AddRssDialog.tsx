@@ -25,6 +25,7 @@ const AddRssDialog: React.FC<AddRssDialogProps> = ({ open, onOpenChange, onSucce
   const [customTitle, setCustomTitle] = useState('');
   const [autoDownload, setAutoDownload] = useState(false);
   const [downloadQuality, setDownloadQuality] = useState('1080p');
+  const [downloadIntervalSeconds, setDownloadIntervalSeconds] = useState(30);
   const [adding, setAdding] = useState(false);
 
   // 重置表单
@@ -33,6 +34,7 @@ const AddRssDialog: React.FC<AddRssDialogProps> = ({ open, onOpenChange, onSucce
     setCustomTitle('');
     setAutoDownload(false);
     setDownloadQuality('1080p');
+    setDownloadIntervalSeconds(30);
   }, []);
 
   // 添加订阅
@@ -50,6 +52,7 @@ const AddRssDialog: React.FC<AddRssDialogProps> = ({ open, onOpenChange, onSucce
         title: customTitle.trim() || undefined,
         autoDownload,
         downloadQuality,
+        downloadIntervalSeconds,
         folderId,
         workspaceId
       });
@@ -67,7 +70,7 @@ const AddRssDialog: React.FC<AddRssDialogProps> = ({ open, onOpenChange, onSucce
     } finally {
       setAdding(false);
     }
-  }, [sourceType, channelInput, customTitle, autoDownload, downloadQuality, folderId, workspaceId, resetForm, onOpenChange, onSuccess]);
+  }, [sourceType, channelInput, customTitle, autoDownload, downloadQuality, downloadIntervalSeconds, folderId, workspaceId, resetForm, onOpenChange, onSuccess]);
 
   // 获取输入提示
   const getInputPlaceholder = useCallback(() => {
@@ -181,6 +184,20 @@ const AddRssDialog: React.FC<AddRssDialogProps> = ({ open, onOpenChange, onSucce
                   <SelectItem value="audio">仅音频</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          )}
+
+          {autoDownload && (
+            <div className="space-y-2">
+              <Label>下载间隔（秒）</Label>
+              <Input
+                type="number"
+                min={5}
+                max={3600}
+                value={downloadIntervalSeconds}
+                onChange={(e) => setDownloadIntervalSeconds(parseInt(e.target.value, 10) || 30)}
+              />
+              <p className="text-xs text-muted-foreground">一个视频下载完成后，等待这个时间再启动下一个。</p>
             </div>
           )}
         </div>

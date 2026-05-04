@@ -136,6 +136,7 @@ export class YouTubeHandler implements RssSourceHandler {
     options?: {
       autoDownload?: boolean;
       downloadQuality?: string;
+      downloadIntervalSeconds?: number;
       downloadFolderId?: string;
       fetchInterval?: number;
     }
@@ -147,6 +148,7 @@ export class YouTubeHandler implements RssSourceHandler {
       channelUrl: channelInfo.channelUrl,
       autoDownload: options?.autoDownload ?? false,
       downloadQuality: options?.downloadQuality ?? '1080p',
+      downloadIntervalSeconds: options?.downloadIntervalSeconds,
       downloadFolderId: options?.downloadFolderId,
       enabled: true,
       fetchInterval: options?.fetchInterval,

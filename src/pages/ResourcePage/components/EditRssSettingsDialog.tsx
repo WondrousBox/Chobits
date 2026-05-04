@@ -33,6 +33,7 @@ const EditRssSettingsDialog: React.FC<EditRssSettingsDialogProps> = ({ open, onO
   const [title, setTitle] = useState('');
   const [autoDownload, setAutoDownload] = useState(false);
   const [downloadQuality, setDownloadQuality] = useState('1080p');
+  const [downloadIntervalSeconds, setDownloadIntervalSeconds] = useState(30);
   const [enabled, setEnabled] = useState(true);
   const [fetchInterval, setFetchInterval] = useState(60);
   const [saving, setSaving] = useState(false);
@@ -53,6 +54,7 @@ const EditRssSettingsDialog: React.FC<EditRssSettingsDialogProps> = ({ open, onO
     setTitle(item.title || '');
     setAutoDownload(metadata.autoDownload || false);
     setDownloadQuality(metadata.downloadQuality || '1080p');
+    setDownloadIntervalSeconds(metadata.downloadIntervalSeconds || 30);
     setEnabled(metadata.enabled !== false);
     setFetchInterval(metadata.fetchInterval || 60);
     setDeleteDownloadedResources(false);
@@ -69,6 +71,7 @@ const EditRssSettingsDialog: React.FC<EditRssSettingsDialogProps> = ({ open, onO
         enabled,
         autoDownload,
         downloadQuality,
+        downloadIntervalSeconds,
         fetchInterval
       });
 
@@ -84,7 +87,7 @@ const EditRssSettingsDialog: React.FC<EditRssSettingsDialogProps> = ({ open, onO
     } finally {
       setSaving(false);
     }
-  }, [item, title, enabled, autoDownload, downloadQuality, fetchInterval, onOpenChange, onSuccess]);
+  }, [item, title, enabled, autoDownload, downloadQuality, downloadIntervalSeconds, fetchInterval, onOpenChange, onSuccess]);
 
   const handleDelete = useCallback(async () => {
     if (!item) return;
@@ -180,6 +183,20 @@ const EditRssSettingsDialog: React.FC<EditRssSettingsDialogProps> = ({ open, onO
                   <SelectItem value="audio">仅音频</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          ) : null}
+
+          {autoDownload ? (
+            <div className="space-y-2">
+              <Label>下载间隔（秒）</Label>
+              <Input
+                type="number"
+                min={5}
+                max={3600}
+                value={downloadIntervalSeconds}
+                onChange={(e) => setDownloadIntervalSeconds(parseInt(e.target.value, 10) || 30)}
+              />
+              <p className="text-xs text-muted-foreground">一个视频下载完成后，等待这个时间再启动下一个。</p>
             </div>
           ) : null}
 

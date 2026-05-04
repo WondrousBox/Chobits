@@ -324,6 +324,7 @@ const RssFeedPage: React.FC = () => {
     enabled: true,
     autoDownload: false,
     downloadQuality: '1080p',
+    downloadIntervalSeconds: 30,
     fetchInterval: 60
   });
 
@@ -340,6 +341,7 @@ const RssFeedPage: React.FC = () => {
             enabled: meta.enabled !== false,
             autoDownload: meta.autoDownload || false,
             downloadQuality: meta.downloadQuality || '1080p',
+            downloadIntervalSeconds: meta.downloadIntervalSeconds || 30,
             fetchInterval: meta.fetchInterval || 60
           });
         } catch {
@@ -834,6 +836,7 @@ const RssFeedPage: React.FC = () => {
         enabled: settingsForm.enabled,
         autoDownload: settingsForm.autoDownload,
         downloadQuality: settingsForm.downloadQuality,
+        downloadIntervalSeconds: settingsForm.downloadIntervalSeconds,
         fetchInterval: settingsForm.fetchInterval
       });
 
@@ -848,6 +851,13 @@ const RssFeedPage: React.FC = () => {
       toast.error('保存失败', { description: error?.message });
     }
   }, [resourceId, settingsForm, loadResource]);
+
+  const handleOpenLocalResource = useCallback(
+    (localResourceId: string) => {
+      navigate(`/resources/preview/${encodeURIComponent(localResourceId)}`);
+    },
+    [navigate]
+  );
 
   const hasActiveItemFilters = searchQuery.trim().length > 0 || statusFilter !== 'all' || mediaTypeFilter !== 'all';
 
@@ -1320,6 +1330,7 @@ const RssFeedPage: React.FC = () => {
                 downloading={downloadingItems.has(item.id) || item.downloadStatus === 'pending' || item.downloadStatus === 'downloading'}
                 downloadError={downloadErrors[item.id]}
                 isIgnoredView={statusFilter === 'ignored'}
+                onOpenLocalResource={handleOpenLocalResource}
                 onDownload={() => handleDownloadItem(item)}
                 onIgnore={() => handleIgnoreItem(item)}
                 onRestore={() => handleUnignoreItem(item)}
@@ -1421,6 +1432,18 @@ const RssFeedPage: React.FC = () => {
             </div>
 
             <div className="space-y-2">
+              <Label>下载间隔（秒）</Label>
+              <Input
+                type="number"
+                min={5}
+                max={3600}
+                value={settingsForm.downloadIntervalSeconds}
+                onChange={(e) => setSettingsForm((prev) => ({ ...prev, downloadIntervalSeconds: parseInt(e.target.value, 10) || 30 }))}
+              />
+              <p className="text-xs text-muted-foreground">一个 RSS 自动下载任务完成后，等待这个时间再启动下一个。</p>
+            </div>
+
+            <div className="space-y-2">
               <Label>检查间隔（分钟）</Label>
               <Input type="number" min={5} max={1440} value={settingsForm.fetchInterval} onChange={(e) => setSettingsForm((prev) => ({ ...prev, fetchInterval: parseInt(e.target.value) || 60 }))} />
               <p className="text-xs text-muted-foreground">设置自动检查更新的时间间隔</p>
@@ -1445,6 +1468,7 @@ interface FeedItemCardProps {
   downloading: boolean;
   downloadError?: string;
   isIgnoredView?: boolean;
+  onOpenLocalResource: (resourceId: string) => void;
   onDownload: () => void;
   onIgnore: () => void;
   onRestore?: () => void;
@@ -1453,23 +1477,43 @@ interface FeedItemCardProps {
   formatNumber: (num?: number) => string;
 }
 
-const FeedItemCard: React.FC<FeedItemCardProps> = ({ item, downloading, downloadError, isIgnoredView, onDownload, onIgnore, onRestore, formatTime, formatDuration, formatNumber }) => {
+const FeedItemCard: React.FC<FeedItemCardProps> = ({
+  item,
+  downloading,
+  downloadError,
+  isIgnoredView,
+  onOpenLocalResource,
+  onDownload,
+  onIgnore,
+  onRestore,
+  formatTime,
+  formatDuration,
+  formatNumber
+}) => {
   const handleOpenExternal = useCallback(() => {
     if (item.link) {
       window.open(item.link, '_blank');
     }
   }, [item.link]);
+  const handleOpenItem = useCallback(() => {
+    if (item.downloaded && item.localResourceId) {
+      onOpenLocalResource(item.localResourceId);
+      return;
+    }
+
+    handleOpenExternal();
+  }, [handleOpenExternal, item.downloaded, item.localResourceId, onOpenLocalResource]);
   const isDownloading = downloading || item.downloadStatus === 'pending' || item.downloadStatus === 'downloading';
   const isRetryable = isRssItemRetryable(item);
   const progress = typeof item.downloadProgress === 'number' ? Math.max(0, Math.min(100, Math.round(item.downloadProgress))) : undefined;
-  const publishedTimeText = item.metadata?.publishedAtEstimated ? '时间未知' : item.publishedAt ? formatTime(item.publishedAt) : '时间未知';
+  const publishedTimeText = item.publishedAt ? formatTime(item.publishedAt) : item.metadata?.publishedAtEstimated ? item.metadata?.publishedAtEstimated : '未发布';
   const mediaTypeLabel = getRssMediaTypeFilterLabel(item.mediaType ?? 'other');
   const failureMessage = getFeedItemDownloadFailureMessage(item, downloadError);
   const errorBadgeText = getRssDownloadFailureBadgeText(item.downloadStatus, failureMessage);
   const downloadActionLabel = isRetryable ? '重试下载' : '下载';
 
   return (
-    <div className="group flex gap-3 p-3 rounded-lg bg-card hover:bg-accent/50 transition-colors cursor-pointer" onClick={handleOpenExternal}>
+    <div className="group flex gap-3 p-3 rounded-lg bg-card hover:bg-accent/50 transition-colors cursor-pointer" onClick={handleOpenItem}>
       {/* 缩略图 */}
       <div className="relative w-40 h-24 rounded-md overflow-hidden bg-muted flex-shrink-0">
         {item.thumbnail ? (

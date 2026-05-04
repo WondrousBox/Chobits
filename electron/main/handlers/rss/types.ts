@@ -51,6 +51,8 @@ export interface RssMetadata {
   autoDownload?: boolean;
   /** 自动下载的质量设置 */
   downloadQuality?: string;
+  /** 自动下载任务之间的间隔，单位秒 */
+  downloadIntervalSeconds?: number;
   /** 下载保存的文件夹 ID */
   downloadFolderId?: string;
   /** 是否启用订阅 */
@@ -180,6 +182,8 @@ export interface CreateRssResourceParams {
   autoDownload?: boolean;
   /** 下载质量 */
   downloadQuality?: string;
+  /** 自动下载任务之间的间隔，单位秒 */
+  downloadIntervalSeconds?: number;
   /** 保存到的文件夹 ID */
   folderId?: string;
   /** 工作空间 ID */
@@ -202,6 +206,8 @@ export interface UpdateRssResourceParams {
   autoDownload?: boolean;
   /** 下载质量 */
   downloadQuality?: string;
+  /** 自动下载任务之间的间隔，单位秒 */
+  downloadIntervalSeconds?: number;
   /** 拉取间隔（分钟） */
   fetchInterval?: number;
   /** 下载保存的文件夹 ID */

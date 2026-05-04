@@ -2,7 +2,7 @@ import { AppEvent, eventManager } from '@packages/event';
 
 import { ResourcesRepo, RssFeedItemsRepo } from '../../db/repositories';
 import type { NewRssFeedItem, RssFeedItemRow } from '../../db/schema';
-import { downloadManager } from '../downloader';
+import { downloadManager, type DownloadOptions, type DownloadTask } from '../downloader';
 import { getErrorMessage } from './rss-errors';
 import { parseRssFeed } from './rss-feed-parser';
 import type { RssDownloadErrorCode, RssDownloadStatus, RssFeed, RssFeedItem, RssMetadata } from './types';
@@ -25,6 +25,184 @@ import type { RssDownloadErrorCode, RssDownloadStatus, RssFeed, RssFeedItem, Rss
 // ── Constants ────────────────────────────────────────────────
 
 const RSS_FOLDER_RESOURCE_PAGE_SIZE = 1000;
+const RSS_AUTO_DOWNLOAD_INTERVAL_MS = 30_000;
+const RSS_AUTO_DOWNLOAD_MIN_INTERVAL_SECONDS = 5;
+const RSS_AUTO_DOWNLOAD_MAX_INTERVAL_SECONDS = 3600;
+const RSS_AUTO_DOWNLOAD_BACKFILL_PAGE_SIZE = 200;
+
+type RssAutoDownloadQueueItem = {
+  key: string;
+  rssResourceId: string;
+  itemId: string;
+  title: string;
+  intervalMs: number;
+  options: DownloadOptions;
+};
+
+const rssAutoDownloadQueue: RssAutoDownloadQueueItem[] = [];
+const rssAutoDownloadQueuedKeys = new Set<string>();
+let rssAutoDownloadActiveTaskId: string | null = null;
+let rssAutoDownloadActiveIntervalMs = RSS_AUTO_DOWNLOAD_INTERVAL_MS;
+let rssAutoDownloadStarting = false;
+let rssAutoDownloadTimer: NodeJS.Timeout | null = null;
+
+function getRssAutoDownloadKey(rssResourceId: string, itemId: string): string {
+  return `${rssResourceId}:${itemId}`;
+}
+
+function isRssAutoDownloadTask(task: DownloadTask): boolean {
+  return task.metadata?.rssAutoDownload === true;
+}
+
+function getRssAutoDownloadIntervalMs(metadata: RssMetadata): number {
+  const seconds = Number(metadata.downloadIntervalSeconds);
+  if (!Number.isFinite(seconds)) {
+    return RSS_AUTO_DOWNLOAD_INTERVAL_MS;
+  }
+
+  return Math.max(RSS_AUTO_DOWNLOAD_MIN_INTERVAL_SECONDS, Math.min(RSS_AUTO_DOWNLOAD_MAX_INTERVAL_SECONDS, Math.round(seconds))) * 1000;
+}
+
+function scheduleNextRssAutoDownload(delayMs = RSS_AUTO_DOWNLOAD_INTERVAL_MS): void {
+  if (rssAutoDownloadTimer || rssAutoDownloadActiveTaskId || rssAutoDownloadStarting || rssAutoDownloadQueue.length === 0) {
+    return;
+  }
+
+  rssAutoDownloadTimer = setTimeout(() => {
+    rssAutoDownloadTimer = null;
+    void startNextRssAutoDownload();
+  }, delayMs);
+  rssAutoDownloadTimer.unref?.();
+}
+
+async function startNextRssAutoDownload(): Promise<void> {
+  if (rssAutoDownloadActiveTaskId || rssAutoDownloadStarting || rssAutoDownloadQueue.length === 0) {
+    return;
+  }
+
+  rssAutoDownloadStarting = true;
+  const queueItem = rssAutoDownloadQueue.shift();
+  if (!queueItem) {
+    rssAutoDownloadStarting = false;
+    return;
+  }
+
+  let shouldScheduleNext = false;
+  let retryDelayMs = RSS_AUTO_DOWNLOAD_INTERVAL_MS;
+  try {
+    const taskId = await downloadManager.addTask(queueItem.options);
+    rssAutoDownloadActiveTaskId = taskId;
+    rssAutoDownloadActiveIntervalMs = queueItem.intervalMs;
+    console.log('[rss:autoDownload] Queued throttled RSS auto-download:', {
+      taskId,
+      rssResourceId: queueItem.rssResourceId,
+      itemId: queueItem.itemId,
+      title: queueItem.title,
+      intervalMs: queueItem.intervalMs,
+      remaining: rssAutoDownloadQueue.length
+    });
+  } catch (error) {
+    rssAutoDownloadQueuedKeys.delete(queueItem.key);
+    await RssFeedItemsRepo.updateDownloadStatus(queueItem.rssResourceId, queueItem.itemId, createRssDownloadFailurePatch('download_queue_failed', getErrorMessage(error, '加入下载队列失败')));
+    console.error('[rss:autoDownload] Failed to start queued RSS item:', queueItem.rssResourceId, queueItem.itemId, error);
+    shouldScheduleNext = true;
+    retryDelayMs = queueItem.intervalMs;
+  } finally {
+    rssAutoDownloadStarting = false;
+    if (shouldScheduleNext) {
+      scheduleNextRssAutoDownload(retryDelayMs);
+    }
+  }
+}
+
+async function enqueueRssAutoDownload(queueItem: Omit<RssAutoDownloadQueueItem, 'key'>): Promise<boolean> {
+  const key = getRssAutoDownloadKey(queueItem.rssResourceId, queueItem.itemId);
+  if (rssAutoDownloadQueuedKeys.has(key)) {
+    return false;
+  }
+
+  rssAutoDownloadQueuedKeys.add(key);
+  rssAutoDownloadQueue.push({ ...queueItem, key });
+  await RssFeedItemsRepo.updateDownloadStatus(queueItem.rssResourceId, queueItem.itemId, createRssDownloadPendingPatch());
+  console.log('[rss:autoDownload] Added item to throttled RSS auto-download queue:', {
+    rssResourceId: queueItem.rssResourceId,
+    itemId: queueItem.itemId,
+    title: queueItem.title,
+    queueLength: rssAutoDownloadQueue.length
+  });
+  void startNextRssAutoDownload();
+  return true;
+}
+
+function handleRssAutoDownloadTaskFinished(task: DownloadTask): void {
+  if (!isRssAutoDownloadTask(task) || task.id !== rssAutoDownloadActiveTaskId) {
+    return;
+  }
+
+  const key = getRssAutoDownloadKey(String(task.metadata?.rssResourceId || task.parentResourceId || ''), String(task.metadata?.itemId || ''));
+  if (key !== ':') {
+    rssAutoDownloadQueuedKeys.delete(key);
+  }
+
+  const nextDelayMs = rssAutoDownloadActiveIntervalMs;
+  rssAutoDownloadActiveTaskId = null;
+  rssAutoDownloadActiveIntervalMs = RSS_AUTO_DOWNLOAD_INTERVAL_MS;
+  scheduleNextRssAutoDownload(nextDelayMs);
+}
+
+downloadManager.on('taskCompleted', handleRssAutoDownloadTaskFinished);
+downloadManager.on('taskFailed', handleRssAutoDownloadTaskFinished);
+downloadManager.on('taskCancelled', handleRssAutoDownloadTaskFinished);
+
+async function queueRssItemsForAutoDownload(resource: any, metadata: RssMetadata, items: RssFeedItem[], downloadedMap?: Map<string, string>): Promise<number> {
+  const targetFolderId = resource.folderId || metadata.downloadFolderId;
+  const intervalMs = getRssAutoDownloadIntervalMs(metadata);
+  let queuedItems = 0;
+
+  for (const item of [...items].reverse()) {
+    const itemVideoId = getRssItemYouTubeVideoId(item);
+    if (itemVideoId && downloadedMap?.has(itemVideoId)) {
+      continue;
+    }
+
+    if (item.downloaded && item.localResourceId) {
+      continue;
+    }
+
+    const downloadUrl = resolveRssItemDownloadUrl(item);
+    if (!downloadUrl) {
+      await RssFeedItemsRepo.updateDownloadStatus(resource.id, item.id, createRssDownloadFailurePatch('download_no_url', '该 RSS 条目缺少可下载地址'));
+      console.warn('[rss:autoDownload] Missing download URL for RSS item:', resource.id, item.id);
+      continue;
+    }
+
+    const queued = await enqueueRssAutoDownload({
+      rssResourceId: resource.id,
+      itemId: item.id,
+      title: item.title,
+      intervalMs,
+      options: {
+        url: downloadUrl,
+        filename: item.title,
+        thumbnailUrl: item.thumbnail,
+        qualityMode: metadata.downloadQuality || 'best',
+        folderId: targetFolderId,
+        parentResourceId: resource.id,
+        metadata: {
+          itemId: item.id,
+          rssResourceId: resource.id,
+          rssAutoDownload: true,
+          thumbnailUrl: item.thumbnail
+        }
+      }
+    });
+    if (queued) {
+      queuedItems += 1;
+    }
+  }
+
+  return queuedItems;
+}
 
 // ── Status Patch Helpers ─────────────────────────────────────
 
@@ -470,42 +648,7 @@ export async function syncRssResource(
   } as any);
 
   if (options.queueAutoDownload && metadata.autoDownload && newFeedItems.length > 0) {
-    const targetFolderId = resource.folderId || metadata.downloadFolderId;
-
-    for (const item of [...newFeedItems].reverse()) {
-      const itemVideoId = getRssItemYouTubeVideoId(item);
-      if (itemVideoId && downloadedMap.has(itemVideoId)) {
-        continue;
-      }
-
-      const downloadUrl = resolveRssItemDownloadUrl(item);
-      if (!downloadUrl) {
-        await RssFeedItemsRepo.updateDownloadStatus(resource.id, item.id, createRssDownloadFailurePatch('download_no_url', '该 RSS 条目缺少可下载地址'));
-        console.warn('[rss:autoDownload] Missing download URL for RSS item:', resource.id, item.id);
-        continue;
-      }
-
-      await RssFeedItemsRepo.updateDownloadStatus(resource.id, item.id, createRssDownloadPendingPatch());
-
-      try {
-        await downloadManager.addTask({
-          url: downloadUrl,
-          filename: item.title,
-          thumbnailUrl: item.thumbnail,
-          qualityMode: metadata.downloadQuality || 'best',
-          folderId: targetFolderId,
-          parentResourceId: resource.id,
-          metadata: {
-            itemId: item.id,
-            rssResourceId: resource.id,
-            thumbnailUrl: item.thumbnail
-          }
-        });
-      } catch (error) {
-        await RssFeedItemsRepo.updateDownloadStatus(resource.id, item.id, createRssDownloadFailurePatch('download_queue_failed', getErrorMessage(error, '加入下载队列失败')));
-        console.error('[rss:autoDownload] Failed to queue RSS item:', resource.id, item.id, error);
-      }
-    }
+    await queueRssItemsForAutoDownload(resource, metadata, newFeedItems, downloadedMap);
   }
 
   if (newFeedItems.length > 0) {
@@ -519,6 +662,38 @@ export async function syncRssResource(
 }
 
 // ── Background Auto-Check ────────────────────────────────────
+
+export async function queueUndownloadedRssItemsForAutoDownload(resource: any): Promise<{ checkedItems: number; queuedItems: number; skipped?: boolean }> {
+  const metadata = parseResourceMetadata(resource);
+  if (metadata.enabled === false || metadata.autoDownload !== true || !metadata.feedUrl) {
+    return { checkedItems: 0, queuedItems: 0, skipped: true };
+  }
+
+  const totalItems = await RssFeedItemsRepo.countByResourceId(resource.id);
+  let checkedItems = 0;
+  let queuedItems = 0;
+
+  for (let offset = 0; offset < totalItems; offset += RSS_AUTO_DOWNLOAD_BACKFILL_PAGE_SIZE) {
+    const rows = await RssFeedItemsRepo.listByResourceId(resource.id, RSS_AUTO_DOWNLOAD_BACKFILL_PAGE_SIZE, offset);
+    if (rows.length === 0) {
+      break;
+    }
+
+    const items = await markDownloadedRssItemsInSameFolder(resource, rows.map(dbRowToFeedItem), { persist: true });
+    queuedItems += await queueRssItemsForAutoDownload(resource, metadata, items);
+    checkedItems += rows.length;
+  }
+
+  if (checkedItems > 0) {
+    console.log('[rss:autoDownload] Checked cached RSS items for auto-download:', {
+      rssResourceId: resource.id,
+      checkedItems,
+      queuedItems
+    });
+  }
+
+  return { checkedItems, queuedItems };
+}
 
 const RSS_BACKGROUND_CHECK_INTERVAL_MS = 60 * 1000;
 
