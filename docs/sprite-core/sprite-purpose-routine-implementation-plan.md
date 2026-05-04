@@ -791,6 +791,19 @@ walkTo(corner)
 | Memory index / daily index 触发 | 通过注册的 provider 先同步固定路径 `Sprite Purpose Retrospective` Memory Note，重复触发更新同一 note |
 | 自发说话生成 | 通过构造注入的 provider 读取当天 retrospective 作为 prompt 的安静自我感知，不暴露 purpose id / routine 内部噪声 |
 
+## 8.1 2026-05-04 Rest Reminder Movement Correction
+
+`daily.rest-reminder` no longer treats walking to the screen center as a fixed fallback preset step. The default preset should express the rest reminder in place: attention animation, short speech, brief pause, and tired animation.
+
+The original "walk to center to remind the user to rest" wording is a planning example: spatial distance can be chosen by the AI planner or by a more specific routine when the context calls for it. It is not a hard requirement for every rest reminder.
+
+Implementation notes:
+
+- Removed `walkTo(center)` and `walkTo(corner)` from the default `daily.rest-reminder` preset.
+- Updated the AI planner prompt so movement is optional expression, not a default requirement for rest reminders.
+- Added regression coverage that `daily.rest-reminder` fallback routines contain no `walkTo` steps.
+- `file.drop.invite` still walks to center because the center position is the explicit drop target affordance for that interaction.
+
 ## 9. 推荐开工顺序
 
 最稳的顺序是：

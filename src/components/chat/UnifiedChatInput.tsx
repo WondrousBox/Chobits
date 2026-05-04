@@ -212,7 +212,7 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
   const hasContent = (text || '').trim().length > 0;
 
   return (
-    <div ref={containerRef} className={clsx('relative box-border my-2 mx-2 max-w-[800px] w-[calc(100%-1rem)]', className)}>
+    <div ref={containerRef} className={clsx('relative box-border my-2 mx-2 max-w-[800px] w-[calc(100%-1rem)] no-drag', className)}>
       <Textarea
         ref={textareaRef}
         rows={1}

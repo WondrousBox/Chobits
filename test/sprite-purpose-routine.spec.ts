@@ -703,6 +703,30 @@ describe('SpritePurposeManager', () => {
 });
 
 describe('SpriteRoutinePresetRegistry', () => {
+  it('keeps rest reminders in-place unless a planner explicitly chooses movement', () => {
+    const registry = new SpriteRoutinePresetRegistry();
+    const preset = registry.get('daily.rest-reminder');
+    expect(preset).toBeDefined();
+
+    const routine = registry.createRoutine(
+      {
+        id: 'purpose-rest',
+        kind: 'daily.rest-reminder',
+        title: 'rest reminder',
+        reason: 'time to rest',
+        source: 'behavior',
+        status: 'active',
+        priority: 60,
+        interruptPolicy: 'interruptible'
+      },
+      preset!,
+      1000
+    );
+
+    expect(routine.steps.map((step) => step.id)).toEqual(['attention', 'speak', 'pause', 'tired']);
+    expect(routine.steps.some((step) => step.type === 'walkTo')).toBe(false);
+  });
+
   it('creates file drop invite routines that walk to center and wait for drop or leave', () => {
     const registry = new SpriteRoutinePresetRegistry();
     const preset = registry.get('file.drop.invite');
