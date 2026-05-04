@@ -78,6 +78,7 @@ function App(): JSX.Element {
                 <Route path="/workspace" element={<WorkspacePage />} />
                 <Route path="/assistant" element={<AssistantPage />} />
                 <Route path="/chat" element={<ChatPage />} />
+                <Route path="/chat-overlay" element={<ChatPage presentation="overlay" payloadWindowKey="chatOverlay" />} />
                 <Route path="/plugin-manager" element={<PluginPage />} />
                 <Route path="/plugin-download" element={<PluginDownloadPage />} />
                 <Route path="/workflow" element={<WorkflowBuilderPage />} />

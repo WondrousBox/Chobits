@@ -1,3 +1,4 @@
+import { useSize } from 'ahooks';
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { TbBookmark, TbLoader2, TbSend, TbSquare } from 'react-icons/tb';
@@ -64,6 +65,7 @@ export interface UnifiedChatInputHandle {
 }
 
 const DEFAULT_PLACEHOLDERS = ['输入问题，开始对话...', '让我帮你分析一段文字', '帮我把这段中文翻译成英文', '写一个代码示例', '检索资源库中的内容'];
+const SHORTCUT_HINT_MIN_WIDTH = 640;
 
 const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInputProps>(function UnifiedChatInput(
   {
@@ -129,6 +131,8 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [showScrollbar, setShowScrollbar] = useState(false);
+  const containerSize = useSize(containerRef);
+  const showShortcutHint = (containerSize?.width ?? SHORTCUT_HINT_MIN_WIDTH) >= SHORTCUT_HINT_MIN_WIDTH;
 
   useImperativeHandle(
     ref,
@@ -212,19 +216,20 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
   const hasContent = (text || '').trim().length > 0;
 
   return (
-    <div ref={containerRef} className={clsx('relative box-border my-2 mx-2 max-w-[800px] w-[calc(100%-1rem)] no-drag', className)}>
+    <div ref={containerRef} className={clsx('relative box-border my-2 mx-2 max-w-[800px] w-[calc(100%-1rem)] no-drag pointer-events-auto', className)}>
       <Textarea
         ref={textareaRef}
         rows={1}
         disabled={disabled}
         className={clsx(
-          'resize-none min-h-0 pr-24 pb-14 box-border rounded-2xl text-foreground bg-muted transition-all',
+          'resize-none min-h-0 pr-24 pb-14 box-border rounded-2xl text-foreground bg-muted transition-all no-drag pointer-events-auto select-text cursor-text',
           showScrollbar ? 'overflow-y-auto' : 'overflow-y-hidden',
           disabled ? 'opacity-60 cursor-not-allowed' : ''
         )}
         style={{ maxHeight: `${maxHeight}px` }}
         value={text}
         onChange={(e) => setText(e.target.value)}
+        onMouseDown={() => textareaRef.current?.focus()}
         placeholder=""
         onKeyDown={(e) => {
           onKeyDown?.(e, text);
@@ -242,12 +247,12 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
       )}
 
       {/* 底部工具栏 */}
-      <div className="absolute bottom-2 flex items-center gap-2 overflow-x-auto w-[calc(100%-1rem)] px-2">
+      <div className="absolute bottom-2 flex items-center gap-2 overflow-x-auto w-[calc(100%-1rem)] px-2 no-drag pointer-events-auto">
         {/* 左侧额外内容 */}
         {footerLeft}
 
         {/* 提示文字 */}
-        <div className="shrink-0 flex-1 text-xs text-muted-foreground drag-region select-none">Enter 发送，Shift+Enter 换行</div>
+        <div className="shrink-0 flex-1 text-xs text-muted-foreground no-drag select-none">{showShortcutHint && <span>Enter 发送，Shift+Enter 换行</span>}</div>
 
         {/* 右侧额外内容 */}
         {footerRightExtra}

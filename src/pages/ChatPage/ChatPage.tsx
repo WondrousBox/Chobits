@@ -3,7 +3,7 @@ import { getChatMessageUsage, sumTokenUsage } from '@packages/ai/message-usage';
 import { extractThinkingTextFromMetadata } from '@packages/ai/thinking-content';
 import type { TokenUsage } from '@packages/ai/types';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbArrowDown, TbChevronRight, TbDots, TbEdit, TbHistory, TbLoader2, TbPin, TbPlus, TbRefresh, TbShare, TbTrash } from 'react-icons/tb';
+import { TbArrowDown, TbChevronLeft, TbChevronRight, TbDots, TbEdit, TbHistory, TbLoader2, TbPin, TbPlus, TbRefresh, TbShare, TbTrash, TbX } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import {
@@ -30,10 +30,13 @@ import { useAutoScroll } from '@/hooks/useAutoScroll';
 import { buildExplicitSkillInvocationInput } from '@/lib/chat-explicit-skill-invocation';
 import { formatDateTime, formatRelativeTime } from '@/lib/time';
 
+import { CHAT_OVERLAY_SETTINGS, type ChatOverlaySide, resolveChatOverlaySide } from './chat-overlay-settings';
 import { useChatSelection } from './context/ChatSelectionContext';
 
 interface ChatPageProps {
   hideTitleBar?: boolean;
+  presentation?: 'standard' | 'overlay';
+  payloadWindowKey?: 'chat' | 'chatOverlay';
 }
 
 interface ChatUiMessage {
@@ -47,7 +50,8 @@ interface ChatUiMessage {
   usage?: TokenUsage;
 }
 
-export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.Element {
+export default function ChatPage({ hideTitleBar = false, presentation = 'standard', payloadWindowKey = 'chat' }: ChatPageProps): JSX.Element {
+  const isOverlay = presentation === 'overlay';
   const { providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, setProviderId, setModelId, setPresetId, setAgentId, setCodingWorkspace } = useChatSelection();
   const [messages, setMessages] = useState<ChatUiMessage[]>([]);
   const [loading, setLoading] = useState(false);
@@ -70,9 +74,13 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
   // 删除确认弹窗状态
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingConvId, setDeletingConvId] = useState<string | null>(null);
+  const [overlaySide, setOverlaySide] = useState<ChatOverlaySide>(CHAT_OVERLAY_SETTINGS.side);
+  const [overlayExpanded, setOverlayExpanded] = useState(!isOverlay);
+  const overlayCollapseTimerRef = useRef<number | null>(null);
 
   const currentConversation = useMemo(() => conversations.find((c) => c.id === conversationId) || null, [conversations, conversationId]);
   const conversationUsage = useMemo(() => sumTokenUsage(messages), [messages]);
+  const showEmptyStart = !isOverlay && messages.length === 0;
 
   // Load conversations list
   const loadConversations = async (): Promise<void> => {
@@ -216,7 +224,18 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
     const handlePayload = (payload: any): void => {
       if (!payload?.initialMessage) return;
       // 清除缓存 payload，防止关闭后再次打开时重复触发
-      window.ipcRenderer?.invoke('window:payload:clear', 'chat').catch(() => {});
+      window.ipcRenderer?.invoke('window:payload:clear', payloadWindowKey).catch(() => {});
+      if (isOverlay) {
+        setOverlaySide(resolveChatOverlaySide(payload.overlaySide));
+        setOverlayExpanded(false);
+        window.setTimeout(() => setOverlayExpanded(true), 30);
+      }
+      if (disposerRef.current) {
+        void disposerRef.current.cancel().catch(() => {});
+        disposerRef.current.dispose?.();
+        disposerRef.current = null;
+        setLoading(false);
+      }
       // 重置为新对话状态
       newConversation();
       // 延迟一帧确保状态已重置，再发起对话
@@ -260,7 +279,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
       if (fallbackDone) return;
       fallbackDone = true;
       try {
-        const cached = await window.YUA.window['window:payload:get']('chat');
+        const cached = await window.YUA.window['window:payload:get'](payloadWindowKey);
         if (cached?.initialMessage) handlePayload(cached);
       } catch {
         /* noop */
@@ -271,7 +290,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
       window.ipcRenderer?.off('on:window:open:ready', ipcHandler);
       clearTimeout(timer);
     };
-  }, [newConversation, setAgentId, setCodingWorkspace, setModelId, setPresetId, setProviderId]);
+  }, [isOverlay, newConversation, payloadWindowKey, setAgentId, setCodingWorkspace, setModelId, setPresetId, setProviderId]);
 
   // Listen for conversation title updates from main process
   useEffect(() => {
@@ -565,10 +584,125 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
   // Smart auto-scroll: only scrolls when user is at bottom
   const { containerRef: scrollContainerRef, showScrollButton, scrollToBottom, resetAutoScroll } = useAutoScroll([messages, loading]);
 
+  const clearOverlayCollapseTimer = useCallback((): void => {
+    if (overlayCollapseTimerRef.current) {
+      window.clearTimeout(overlayCollapseTimerRef.current);
+      overlayCollapseTimerRef.current = null;
+    }
+  }, []);
+
+  const positionOverlayWindow = useCallback(async (): Promise<void> => {
+    if (!isOverlay) return;
+    try {
+      const area = await window.YUA.window['screen:work-area:get'](payloadWindowKey);
+      const expandedWidth = Math.min(CHAT_OVERLAY_SETTINGS.expandedWidth, Math.max(CHAT_OVERLAY_SETTINGS.collapsedWidth, area.width));
+      const width = overlayExpanded ? expandedWidth : CHAT_OVERLAY_SETTINGS.collapsedWidth;
+      const height = area.height;
+      const x = overlaySide === 'right' ? area.x + area.width - width : area.x;
+      await window.YUA.window['window:bounds:set'](payloadWindowKey, { x, y: area.y, width, height });
+    } catch (error) {
+      console.warn('[ChatPage] failed to position overlay chat window:', error);
+    }
+  }, [isOverlay, overlayExpanded, overlaySide, payloadWindowKey]);
+
+  const scheduleOverlayCollapse = useCallback(
+    (delayMs = CHAT_OVERLAY_SETTINGS.autoCollapseDelayMs): void => {
+      if (!isOverlay || loading || !CHAT_OVERLAY_SETTINGS.autoCollapseEnabled) return;
+      clearOverlayCollapseTimer();
+      overlayCollapseTimerRef.current = window.setTimeout(() => {
+        setOverlayExpanded(false);
+      }, delayMs);
+    },
+    [clearOverlayCollapseTimer, isOverlay, loading]
+  );
+
+  const expandOverlay = useCallback((): void => {
+    if (!isOverlay) return;
+    clearOverlayCollapseTimer();
+    setOverlayExpanded(true);
+    scheduleOverlayCollapse();
+  }, [clearOverlayCollapseTimer, isOverlay, scheduleOverlayCollapse]);
+
+  const collapseOverlay = useCallback((): void => {
+    if (!isOverlay) return;
+    clearOverlayCollapseTimer();
+    setOverlayExpanded(false);
+  }, [clearOverlayCollapseTimer, isOverlay]);
+
+  const closeOverlayWindow = useCallback(async (): Promise<void> => {
+    if (!isOverlay) return;
+    clearOverlayCollapseTimer();
+    try {
+      await disposerRef.current?.cancel();
+    } catch {
+      // Closing should not be blocked by stream cancellation failures.
+    }
+    disposerRef.current?.dispose?.();
+    disposerRef.current = null;
+    setLoading(false);
+    await window.YUA.window['window:close'](payloadWindowKey as any);
+  }, [clearOverlayCollapseTimer, isOverlay, payloadWindowKey]);
+
+  useEffect(() => {
+    void positionOverlayWindow();
+  }, [positionOverlayWindow]);
+
+  useEffect(() => {
+    if (!isOverlay) return;
+    const onResize = (): void => {
+      void positionOverlayWindow();
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [isOverlay, positionOverlayWindow]);
+
+  useEffect(() => {
+    if (!isOverlay || !overlayExpanded || loading || messages.length === 0) return;
+    scheduleOverlayCollapse();
+  }, [isOverlay, loading, messages.length, overlayExpanded, scheduleOverlayCollapse]);
+
+  useEffect(() => clearOverlayCollapseTimer, [clearOverlayCollapseTimer]);
+
   return (
-    <div className="w-full h-full bg-background text-foreground overflow-hidden flex flex-col">
+    <div
+      className={
+        isOverlay ? 'relative w-full h-full bg-transparent text-foreground overflow-hidden flex flex-col' : 'relative w-full h-full bg-background text-foreground overflow-hidden flex flex-col'
+      }
+    >
+      {isOverlay && !overlayExpanded && (
+        <>
+          <div className={`absolute inset-y-3 ${overlaySide === 'right' ? 'right-1' : 'left-1'} w-1 rounded-full bg-primary/45 shadow-[0_0_18px_rgba(96,165,250,0.5)]`} />
+          <Button
+            aria-label="展开对话"
+            className={`no-drag pointer-events-auto absolute top-1/2 z-30 h-7 w-7 -translate-y-1/2 rounded-full bg-background/90 shadow-lg backdrop-blur ${overlaySide === 'right' ? 'right-0' : 'left-0'}`}
+            size="icon"
+            title="展开对话"
+            variant="outline"
+            onClick={expandOverlay}
+          >
+            {overlaySide === 'right' ? <TbChevronLeft className="h-4 w-4" /> : <TbChevronRight className="h-4 w-4" />}
+          </Button>
+        </>
+      )}
+      {isOverlay && overlayExpanded && (
+        <div className={`no-drag pointer-events-auto absolute top-3 z-30 flex items-center gap-2 ${overlaySide === 'right' ? 'right-3' : 'left-3'}`}>
+          <Button
+            aria-label="关闭对话"
+            className="h-8 w-8 rounded-full bg-background/80 shadow-lg backdrop-blur"
+            size="icon"
+            title="关闭对话"
+            variant="outline"
+            onClick={() => void closeOverlayWindow()}
+          >
+            <TbX className="h-4 w-4" />
+          </Button>
+          <Button aria-label="收起对话" className="h-8 w-8 rounded-full bg-background/80 shadow-lg backdrop-blur" size="icon" title="收起对话" variant="outline" onClick={collapseOverlay}>
+            {overlaySide === 'right' ? <TbChevronRight className="h-4 w-4" /> : <TbChevronLeft className="h-4 w-4" />}
+          </Button>
+        </div>
+      )}
       {/* 顶部可拖拽导航栏 - 根据 hideTitleBar 控制显示 */}
-      {!hideTitleBar && (
+      {!isOverlay && !hideTitleBar && (
         <DragAbleTitle
           title={
             <div className="flex items-center gap-2 w-full">
@@ -582,7 +716,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
       {/* 主体：左侧历史列表（可折叠） + 右侧聊天区 */}
       <div className="flex-1 min-h-0 flex overflow-hidden">
         {/* 左侧：历史会话（可折叠，默认隐藏） */}
-        {showHistory && (
+        {!isOverlay && showHistory && (
           <div className="w-64 border-r shrink-0 flex flex-col bg-muted">
             <div className="p-2 flex items-center gap-1 shrink-0">
               <Button size="icon" variant="outline" className="w-8 h-8 rounded-full" onClick={loadConversations} title="刷新列表">
@@ -673,82 +807,90 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
         )}
 
         {/* 右侧：聊天窗口 */}
-        <div className="flex-1 min-w-0 flex flex-col overflow-hidden relative">
+        <div
+          className={`flex-1 min-w-0 flex flex-col overflow-hidden relative transition-all ease-out ${isOverlay ? (overlayExpanded ? 'no-drag pointer-events-auto opacity-100 translate-x-0' : overlaySide === 'right' ? 'opacity-0 translate-x-6 pointer-events-none' : 'opacity-0 -translate-x-6 pointer-events-none') : ''}`}
+          style={isOverlay ? { transitionDuration: `${CHAT_OVERLAY_SETTINGS.entryAnimationMs}ms` } : undefined}
+        >
           {/* 展开/收起历史按钮 */}
-          <div className="absolute top-2 left-2 z-10">
-            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setShowHistory(!showHistory)} title={showHistory ? '收起历史' : '展开历史'}>
-              {showHistory ? <TbChevronRight className="w-4 h-4" /> : <TbHistory className="w-4 h-4" />}
-            </Button>
-          </div>
-          {!messages ||
-            (messages.length === 0 && (
-              <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
-                <div className="text-center text-lg mb-4">今天有什么能帮到你？</div>
-                {/* 固定的常用应用卡片（防止被误删，先放这里） */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 w-full max-w-3xl px-4">
-                  {/* 视频转写 */}
-                  <button
-                    type="button"
-                    className="group flex flex-col items-start justify-between rounded-xl border bg-card text-card-foreground p-4 text-left hover:shadow-sm hover:bg-accent/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">🎙️</div>
-                      <div>
-                        <div className="font-medium text-sm">视频转写</div>
-                        <div className="text-xs text-muted-foreground">将视频语音转换为带时间轴的字幕文本</div>
-                      </div>
+          {!isOverlay && (
+            <div className="absolute top-2 left-2 z-10">
+              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setShowHistory(!showHistory)} title={showHistory ? '收起历史' : '展开历史'}>
+                {showHistory ? <TbChevronRight className="w-4 h-4" /> : <TbHistory className="w-4 h-4" />}
+              </Button>
+            </div>
+          )}
+          {showEmptyStart && (
+            <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+              <div className="text-center text-lg mb-4">今天有什么能帮到你？</div>
+              {/* 固定的常用应用卡片（防止被误删，先放这里） */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 w-full max-w-3xl px-4">
+                {/* 视频转写 */}
+                <button
+                  type="button"
+                  className="group flex flex-col items-start justify-between rounded-xl border bg-card text-card-foreground p-4 text-left hover:shadow-sm hover:bg-accent/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">🎙️</div>
+                    <div>
+                      <div className="font-medium text-sm">视频转写</div>
+                      <div className="text-xs text-muted-foreground">将视频语音转换为带时间轴的字幕文本</div>
                     </div>
-                    <div className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
-                      <span>支持多语言</span>
-                      <span className="mx-1">·</span>
-                      <span>适合长视频整理</span>
-                    </div>
-                  </button>
+                  </div>
+                  <div className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <span>支持多语言</span>
+                    <span className="mx-1">·</span>
+                    <span>适合长视频整理</span>
+                  </div>
+                </button>
 
-                  {/* 字幕翻译 */}
-                  <button
-                    type="button"
-                    className="group flex flex-col items-start justify-between rounded-xl border bg-card text-card-foreground p-4 text-left hover:shadow-sm hover:bg-accent/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="p-2 rounded-lg bg-green-500/10 text-green-500">🌐</div>
-                      <div>
-                        <div className="font-medium text-sm">字幕翻译</div>
-                        <div className="text-xs text-muted-foreground">一键翻译现有字幕到多种目标语言</div>
-                      </div>
+                {/* 字幕翻译 */}
+                <button
+                  type="button"
+                  className="group flex flex-col items-start justify-between rounded-xl border bg-card text-card-foreground p-4 text-left hover:shadow-sm hover:bg-accent/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 rounded-lg bg-green-500/10 text-green-500">🌐</div>
+                    <div>
+                      <div className="font-medium text-sm">字幕翻译</div>
+                      <div className="text-xs text-muted-foreground">一键翻译现有字幕到多种目标语言</div>
                     </div>
-                    <div className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
-                      <span>保留时间轴</span>
-                      <span className="mx-1">·</span>
-                      <span>适合多语言发布</span>
-                    </div>
-                  </button>
-                </div>
-                <ChatInputWithService loading={loading} onStart={start} onStop={stop} />
+                  </div>
+                  <div className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <span>保留时间轴</span>
+                    <span className="mx-1">·</span>
+                    <span>适合多语言发布</span>
+                  </div>
+                </button>
               </div>
-            ))}
+              <ChatInputWithService loading={loading} onStart={start} onStop={stop} />
+            </div>
+          )}
           {messages.length > 0 && (
             <>
-              <div ref={scrollContainerRef} className="flex-1 overflow-auto p-2 min-h-0">
-                <div className="flex flex-col gap-2">
-                  {conversationUsage && (
+              <div ref={scrollContainerRef} className={isOverlay ? 'flex-1 overflow-auto min-h-0 px-3 py-4' : 'flex-1 overflow-auto p-2 min-h-0'}>
+                <div className={isOverlay ? 'flex min-h-full flex-col justify-end gap-3 pb-28' : 'flex flex-col gap-2'}>
+                  {!isOverlay && conversationUsage && (
                     <div className="flex justify-center pt-2">
                       <ChatTokenUsage usage={conversationUsage} label="会话累计" variant="conversation" />
                     </div>
                   )}
                   {messages.map((m, i) => (
-                    <div key={i} className={`${m.role === 'user' ? 'flex justify-end' : 'flex justify-start'} ${i === messages.length - 1 ? 'mb-24' : ''}`}>
+                    <div key={i} className={`${m.role === 'user' ? 'flex justify-end' : 'flex justify-start'} ${!isOverlay && i === messages.length - 1 ? 'mb-24' : ''}`}>
                       <div
                         className={
-                          m.role === 'user'
-                            ? 'max-w-[80%] rounded-2xl px-3 py-2 break-words bg-primary text-primary-foreground whitespace-pre-wrap'
-                            : 'w-full rounded-2xl px-3 py-2 break-words text-foreground'
+                          isOverlay
+                            ? m.role === 'user'
+                              ? 'chat-overlay-bubble chat-overlay-bubble-user max-w-[88%] rounded-3xl rounded-br-md px-4 py-2.5 break-words text-primary-foreground whitespace-pre-wrap'
+                              : 'chat-overlay-bubble chat-overlay-bubble-assistant max-w-[94%] rounded-3xl rounded-bl-md px-4 py-3 break-words text-foreground'
+                            : m.role === 'user'
+                              ? 'max-w-[80%] rounded-2xl px-3 py-2 break-words bg-primary text-primary-foreground whitespace-pre-wrap'
+                              : 'w-full rounded-2xl px-3 py-2 break-words text-foreground'
                         }
                       >
                         {m.role === 'assistant' ? (
                           <>
                             <AssistantMessageTimeline message={m} compactCards onUserChoiceSubmit={handleUserChoiceSubmit} />
-                            {m.usage && <ChatTokenUsage usage={m.usage} label="本轮" className="mt-2" />}
+                            {!isOverlay && m.usage && <ChatTokenUsage usage={m.usage} label="本轮" className="mt-2" />}
                             {!hasTimelineContent(m) && loading && i === messages.length - 1 && (
                               <span className="inline-flex items-center gap-2 text-muted-foreground">
                                 <TbLoader2 className="h-4 w-4 animate-spin" /> 正在思考...
@@ -773,15 +915,15 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
               {/* Scroll-to-bottom button */}
               {showScrollButton && (
                 <button
-                  className="absolute bottom-24 right-6 z-20 flex items-center justify-center w-9 h-9 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-opacity"
+                  className={`${isOverlay ? 'absolute bottom-28 right-4' : 'absolute bottom-24 right-6'} z-20 flex items-center justify-center w-9 h-9 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-opacity`}
                   onClick={() => scrollToBottom(true)}
                   title="滚动到底部"
                 >
                   <TbArrowDown className="w-5 h-5" />
                 </button>
               )}
-              <div className="absolute bottom-0 left-0 right-0 flex justify-center">
-                <ChatInputWithService loading={loading} onStart={start} onStop={stop} />
+              <div className={isOverlay ? 'no-drag pointer-events-auto absolute bottom-3 left-2 right-2 flex justify-center' : 'absolute bottom-0 left-0 right-0 flex justify-center'}>
+                <ChatInputWithService loading={loading} onStart={start} onStop={stop} className={isOverlay ? 'mx-0 w-full max-w-none drop-shadow-2xl' : undefined} />
               </div>
             </>
           )}
