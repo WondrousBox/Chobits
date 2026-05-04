@@ -34,10 +34,12 @@ export interface RssApi {
       url: string;
       quality: string;
       folderId?: string;
+      thumbnailUrl?: string;
       parentResourceId: string;
       metadata: {
         itemId: string;
         rssResourceId: string;
+        thumbnailUrl?: string;
       };
     };
     error?: string;

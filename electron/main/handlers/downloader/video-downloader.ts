@@ -1,10 +1,8 @@
 import fs from 'node:fs';
-import http from 'node:http';
-import https from 'node:https';
-import path from 'node:path';
-import { resolve } from 'node:path';
+import path, { resolve } from 'node:path';
 
-import { app, BrowserWindow } from 'electron';
+import { BrowserWindow } from 'electron';
+import fetch from 'node-fetch';
 
 import ytdlpStatic from '../../../../packages/common/libs/ytdlp-static';
 import { isUnsupportedOptionError, UnsupportedOptionError, ytdlpService } from '../../../../packages/ytdlp';
@@ -13,6 +11,7 @@ import { binPathLog } from '../../logger';
 import { findUniqueFileName } from '../../utils';
 import { getResourcePath } from '../../utils/resources-path';
 import { detectBasicType, generateThumbnailForResource } from '../../utils/thumbnail';
+import { getHttpProxy } from '../proxy/proxy';
 import { ensureDailyFolder } from '../resource';
 
 const DEFAULT_FOLDERS = {
@@ -29,7 +28,7 @@ const QUALITY_MODE_FORMATS: Record<string, string> = {
 
 const MEDIA_OUTPUT_EXTENSIONS = new Set(['.mp3', '.wav', '.flac', '.aac', '.m4a', '.ogg', '.opus', '.wma', '.mp4', '.mkv', '.mov', '.webm', '.avi', '.ogv']);
 
-function isFunction(fn: any): fn is Function {
+function isFunction(fn: any): fn is (...args: any[]) => any {
   return typeof fn === 'function';
 }
 
@@ -260,11 +259,6 @@ async function downloadImageFromUrl(url: string, filename: string, folder: strin
       fs.mkdirSync(thumbnailsDir, { recursive: true });
     }
 
-    const urlPath = new URL(url).pathname;
-    const urlExt = path.extname(urlPath).toLowerCase();
-    const validExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-    const ext = validExts.includes(urlExt) ? urlExt : '.jpg';
-
     const thumbnailFilename = `${filename}.png`;
     const thumbnailPath = path.join(thumbnailsDir, thumbnailFilename);
 
@@ -274,45 +268,50 @@ async function downloadImageFromUrl(url: string, filename: string, folder: strin
       return thumbnailPath;
     }
 
-    return new Promise((resolve, reject) => {
-      const client = url.startsWith('https:') ? https : http;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-      const request = client.get(url, (response) => {
-        if (response.statusCode !== 200) {
-          reject(new Error(`HTTP ${response.statusCode}: ${response.statusMessage}`));
-          return;
-        }
+    try {
+      const response = await fetch(url, {
+        agent: getHttpProxy() as any,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        signal: controller.signal
+      });
 
-        const contentType = response.headers['content-type'];
-        if (!contentType || !contentType.startsWith('image/')) {
-          reject(new Error(`Invalid content type: ${contentType}`));
-          return;
-        }
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
 
+      const contentType = response.headers.get('content-type');
+      if (contentType && !contentType.startsWith('image/')) {
+        throw new Error(`Invalid content type: ${contentType}`);
+      }
+
+      if (!response.body) {
+        throw new Error('Empty thumbnail response body');
+      }
+
+      await new Promise<void>((resolve, reject) => {
         const fileStream = fs.createWriteStream(thumbnailPath);
-        response.pipe(fileStream);
-
+        response.body!.pipe(fileStream);
+        response.body!.on('error', reject);
         fileStream.on('finish', () => {
           fileStream.close();
-          console.log(`[VideoDownloader] Downloaded thumbnail: ${thumbnailPath}`);
-          resolve(thumbnailPath);
+          resolve();
         });
-
-        fileStream.on('error', (err) => {
-          fs.unlink(thumbnailPath, () => { });
-          reject(err);
-        });
+        fileStream.on('error', reject);
       });
 
-      request.on('error', (err) => {
-        reject(err);
-      });
-
-      request.setTimeout(30000, () => {
-        request.destroy();
-        reject(new Error('Download timeout'));
-      });
-    });
+      console.log(`[VideoDownloader] Downloaded thumbnail: ${thumbnailPath}`);
+      return thumbnailPath;
+    } catch (error) {
+      fs.unlink(thumbnailPath, () => {});
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   } catch (error) {
     console.warn('[VideoDownloader] Failed to download image:', error);
     return '';
@@ -508,6 +507,45 @@ function changeFileName(originalName: string, newName: string): string {
   return newName + ext;
 }
 
+function toHttpThumbnailUrl(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.startsWith('//')) return `https:${trimmed}`;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return undefined;
+}
+
+function scoreThumbnailCandidate(value: any, index: number): number {
+  const preference = typeof value?.preference === 'number' ? value.preference : 0;
+  const width = typeof value?.width === 'number' ? value.width : 0;
+  const height = typeof value?.height === 'number' ? value.height : 0;
+  return preference * 100000000 + width * height + index;
+}
+
+function collectThumbnailUrls(thumbnailUrl?: string, videoInfo?: any, metadata?: Record<string, unknown>): string[] {
+  const candidates: Array<{ url: string; score: number }> = [];
+  const add = (value: unknown, score: number): void => {
+    const url = toHttpThumbnailUrl(value);
+    if (url && !candidates.some((candidate) => candidate.url === url)) {
+      candidates.push({ url, score });
+    }
+  };
+
+  add(thumbnailUrl, Number.MAX_SAFE_INTEGER);
+  add(metadata?.thumbnailUrl, Number.MAX_SAFE_INTEGER - 1);
+  add(metadata?.thumbnail, Number.MAX_SAFE_INTEGER - 2);
+  add(videoInfo?.thumbnail, Number.MAX_SAFE_INTEGER - 3);
+
+  if (Array.isArray(videoInfo?.thumbnails)) {
+    videoInfo.thumbnails.forEach((thumbnail: any, index: number) => {
+      add(thumbnail?.url, scoreThumbnailCandidate(thumbnail, index));
+    });
+  }
+
+  return candidates.sort((a, b) => b.score - a.score).map((candidate) => candidate.url);
+}
+
 export interface Downloader {
   download(options: DownloadOptions): Promise<void>;
   cancel(): void;
@@ -607,28 +645,12 @@ export class VideoDownloader implements Downloader {
     // 获取当前工作空间的资源文件夹路径
     const resolvedTarget = destination
       ? {
-        destinationPath: destination,
-        workspaceId: undefined,
-        folderId
-      }
+          destinationPath: destination,
+          workspaceId: undefined,
+          folderId
+        }
       : await resolveDownloadTarget(folderId);
     const actualDestination = resolvedTarget.destinationPath;
-    if (false) {
-      try {
-        const workspace = await WorkspacesRepo.getDefault();
-        if (workspace?.id && workspace?.rootPath) {
-          void workspace;
-          void resolvedTarget;
-          // 确保目录存在
-          if (false) {
-            void 0;
-          }
-        }
-      } catch (error) {
-        console.warn('[VideoDownloader] Failed to get daily folder, using default resource path:', error);
-      }
-    }
-
     const qualityArgs = buildQualityArgs(qualityMode, quality);
     const resolvedQualityMode = normalizeQualityMode(qualityMode, quality);
     const tempName = DEFAULT_FOLDERS.download + '_' + generateUUID();
@@ -638,8 +660,8 @@ export class VideoDownloader implements Downloader {
     const downloadPath = resolve(actualDestination, tempFileTemplate);
     const destBasePath = resolve(actualDestination, sanitizedFilename || tempName);
 
-    // 保存thumbnailUrl供后续使用
-    const videoThumbnailUrl = thumbnailUrl;
+    // 优先下载平台返回的真实封面；全部失败后再截取视频帧。
+    const videoThumbnailUrls = collectThumbnailUrls(thumbnailUrl, videoInfo, metadata);
 
     console.log(`
 =============== VideoDownloader =============================
@@ -648,6 +670,7 @@ url: ${url}
 filename: ${filename}
 destination: ${destination}
 thumbnailUrl: ${thumbnailUrl}
+resolvedThumbnailUrls: ${videoThumbnailUrls.join(', ')}
 quality: ${quality}
 qualityMode: ${qualityMode}
 resolvedQualityMode: ${resolvedQualityMode}
@@ -821,12 +844,16 @@ ${targetPath}
         // 如果有资源ID，尝试生成缩略图
         if (resourceId) {
           try {
-            // 先尝试下载封面图
-            if (videoThumbnailUrl) {
-              finalThumbnailPath = await downloadImageFromUrl(videoThumbnailUrl, resourceId, DEFAULT_FOLDERS.download, actualDestination);
+            // 先尝试下载真实封面图。
+            for (const candidateUrl of videoThumbnailUrls) {
+              finalThumbnailPath = await downloadImageFromUrl(candidateUrl, resourceId, DEFAULT_FOLDERS.download, actualDestination);
+              if (finalThumbnailPath) {
+                console.log(`[VideoDownloader] Downloaded thumbnail from source: ${candidateUrl}`);
+                break;
+              }
             }
 
-            // 如果没有成功下载封面图，尝试使用ffmpeg生成
+            // 如果没有成功下载真实封面图，再使用 ffmpeg 截帧。
             if (!finalThumbnailPath) {
               finalThumbnailPath = await generateMediaThumbnail(finalFilePath, resourceId, actualDestination);
               console.log(`[VideoDownloader] Generated thumbnail: ${finalThumbnailPath}`);

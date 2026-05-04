@@ -537,6 +537,7 @@ const RssFeedPage: React.FC = () => {
         if (result.success && result.data) {
           const downloadResult = await window.YUA.videoDownloader.downloadVideo({
             url: result.data.url,
+            thumbnailUrl: result.data.thumbnailUrl,
             quality: Number.isFinite(parseInt(result.data.quality, 10)) ? parseInt(result.data.quality, 10) : undefined,
             qualityMode: result.data.quality,
             folderId: result.data.folderId,
@@ -689,6 +690,37 @@ const RssFeedPage: React.FC = () => {
     }
   }, [resourceId, restoringAll, loadCachedFeed]);
 
+  const filteredItems = useMemo(() => {
+    if (statusFilter === 'ignored') {
+      const query = searchQuery.trim().toLowerCase();
+      if (!query) return ignoredItems;
+      return ignoredItems.filter(
+        (item) => item.title.toLowerCase().includes(query) || item.description?.toLowerCase().includes(query) || item.author?.toLowerCase().includes(query)
+      );
+    }
+
+    const items = feed?.items || [];
+    if (items.length === 0) return [];
+    const query = searchQuery.trim().toLowerCase();
+    const visibleItems = items.filter((item) => {
+      if (!matchesRssItemFilter(item, statusFilter)) {
+        return false;
+      }
+
+      if (!matchesRssMediaTypeFilter(item, mediaTypeFilter)) {
+        return false;
+      }
+
+      if (!query) {
+        return true;
+      }
+
+      return item.title.toLowerCase().includes(query) || item.description?.toLowerCase().includes(query) || item.author?.toLowerCase().includes(query);
+    });
+
+    return sortRssItems(visibleItems, sortBy);
+  }, [feed?.items, ignoredItems, mediaTypeFilter, searchQuery, sortBy, statusFilter]);
+
   const handleBatchIgnore = useCallback(async () => {
     if (!resourceId) return;
     const ignorableItems = filteredItems.filter((item) => !item.downloaded && !downloadingItems.has(item.id));
@@ -739,37 +771,6 @@ const RssFeedPage: React.FC = () => {
       toast.error('保存失败', { description: error?.message });
     }
   }, [resourceId, settingsForm, loadResource]);
-
-  const filteredItems = useMemo(() => {
-    if (statusFilter === 'ignored') {
-      const query = searchQuery.trim().toLowerCase();
-      if (!query) return ignoredItems;
-      return ignoredItems.filter(
-        (item) => item.title.toLowerCase().includes(query) || item.description?.toLowerCase().includes(query) || item.author?.toLowerCase().includes(query)
-      );
-    }
-
-    const items = feed?.items || [];
-    if (items.length === 0) return [];
-    const query = searchQuery.trim().toLowerCase();
-    const visibleItems = items.filter((item) => {
-      if (!matchesRssItemFilter(item, statusFilter)) {
-        return false;
-      }
-
-      if (!matchesRssMediaTypeFilter(item, mediaTypeFilter)) {
-        return false;
-      }
-
-      if (!query) {
-        return true;
-      }
-
-      return item.title.toLowerCase().includes(query) || item.description?.toLowerCase().includes(query) || item.author?.toLowerCase().includes(query);
-    });
-
-    return sortRssItems(visibleItems, sortBy);
-  }, [feed?.items, ignoredItems, mediaTypeFilter, searchQuery, sortBy, statusFilter]);
 
   const hasActiveItemFilters = searchQuery.trim().length > 0 || statusFilter !== 'all' || mediaTypeFilter !== 'all';
 
@@ -936,7 +937,7 @@ const RssFeedPage: React.FC = () => {
       return { itemId, relatedResourceId };
     };
 
-    const handleTaskStarted = (_: unknown, task: DownloadTaskEvent) => {
+    const handleTaskStarted = (_: unknown, task: DownloadTaskEvent): void => {
       const context = getTaskContext(task);
       if (!context) return;
 
@@ -957,7 +958,7 @@ const RssFeedPage: React.FC = () => {
       });
     };
 
-    const handleTaskProgress = (_: unknown, task: DownloadTaskEvent) => {
+    const handleTaskProgress = (_: unknown, task: DownloadTaskEvent): void => {
       const context = getTaskContext(task);
       if (!context) return;
 
@@ -968,7 +969,7 @@ const RssFeedPage: React.FC = () => {
       });
     };
 
-    const handleTaskTerminal = (_: unknown, task: DownloadTaskEvent) => {
+    const handleTaskTerminal = (_: unknown, task: DownloadTaskEvent): void => {
       const context = getTaskContext(task);
       if (!context) return;
 
