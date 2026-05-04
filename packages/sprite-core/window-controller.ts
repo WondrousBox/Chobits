@@ -2,7 +2,7 @@ import type { SpriteWindow } from './manager';
 import type { SpriteMovementConfig } from './types';
 import { WindowControllerAutoMoveSession } from './window-controller-auto-move-session';
 import { WindowControllerDragSession } from './window-controller-drag-session';
-import { clampWindowPosition, type WindowControllerViewport } from './window-controller-model';
+import { clampWindowPosition, type WindowControllerAvoidRegion, type WindowControllerViewport } from './window-controller-model';
 import { WindowControllerPlatform } from './window-controller-platform';
 import { WindowControllerWalkSession } from './window-controller-walk-session';
 
@@ -27,6 +27,7 @@ export class WindowController {
   private walkTimer: ReturnType<typeof setInterval> | null = null;
   private dragTimer: ReturnType<typeof setInterval> | null = null;
   private autoMoveTimer: ReturnType<typeof setInterval> | null = null;
+  private avoidRegions: WindowControllerAvoidRegion[] = [];
 
   constructor(options: WindowControllerOptions) {
     this.opts = options;
@@ -51,11 +52,18 @@ export class WindowController {
     const bounds = this.platform.getBounds();
     if (!bounds) return Promise.resolve();
 
+    const viewport = this.getViewport();
+    const start = clampWindowPosition({ x: bounds.x, y: bounds.y }, viewport);
+    const target = clampWindowPosition({ x: targetX, y: targetY }, viewport);
+    if (start.x !== bounds.x || start.y !== bounds.y) {
+      this.platform.setPoint(start);
+    }
+
     const walkPromise = this.walkSession.start({
-      startX: bounds.x,
-      startY: bounds.y,
-      targetX,
-      targetY,
+      startX: start.x,
+      startY: start.y,
+      targetX: target.x,
+      targetY: target.y,
       speed
     });
 
@@ -93,7 +101,8 @@ export class WindowController {
   }
 
   setPosition(x: number, y: number): void {
-    this.platform.setPosition(x, y);
+    const nextPosition = clampWindowPosition({ x, y }, this.getViewport());
+    this.platform.setPosition(nextPosition.x, nextPosition.y);
   }
 
   startDrag(offsetX: number, offsetY: number): void {
@@ -137,6 +146,7 @@ export class WindowController {
 
   setSize(width: number, height: number, padding: number): void {
     this.platform.setSize(width + padding * 2, height + padding * 2);
+    this.clampToScreen();
   }
 
   clampToScreen(): void {
@@ -147,6 +157,17 @@ export class WindowController {
     if (nextPosition.x !== bounds.x || nextPosition.y !== bounds.y) {
       this.platform.setPoint(nextPosition);
     }
+  }
+
+  setAvoidRegions(regions: WindowControllerAvoidRegion[] = []): void {
+    this.avoidRegions = regions
+      .filter((region) => Number.isFinite(region.x) && Number.isFinite(region.y) && Number.isFinite(region.width) && Number.isFinite(region.height) && region.width > 0 && region.height > 0)
+      .map((region) => ({ ...region }));
+    this.clampToScreen();
+  }
+
+  getAvoidRegions(): WindowControllerAvoidRegion[] {
+    return this.avoidRegions.map((region) => ({ ...region }));
   }
 
   destroy(): void {
@@ -194,7 +215,8 @@ export class WindowController {
 
   private walkTick(): void {
     const result = this.walkSession.tick(this.platform.isAvailable());
-    if (result.position && !this.platform.setPoint(result.position)) {
+    const position = result.position ? clampWindowPosition(result.position, this.getViewport()) : null;
+    if (position && !this.platform.setPoint(position)) {
       this.finishWalk();
       return;
     }
@@ -212,7 +234,8 @@ export class WindowController {
       screenHeight: screen.height,
       spriteWidth: sprite.width,
       spriteHeight: sprite.height,
-      padding: this.opts.getPadding()
+      padding: this.opts.getPadding(),
+      avoidRegions: this.avoidRegions
     };
   }
 

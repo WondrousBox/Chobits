@@ -1,4 +1,5 @@
 import type { SpriteConfig, SpriteMovementConfig, SpriteMovementDirection, SpriteMovementPreviewConfig, SpriteWalkState } from '../types';
+import { clampWindowPosition, getWindowClampBounds, type WindowControllerAvoidRegion, type WindowControllerViewport } from '../window-controller-model';
 
 type SpriteSizeSnapshot = Pick<SpriteConfig, 'width' | 'height' | 'padding'>;
 
@@ -21,6 +22,7 @@ export interface MovementCoordinatorDeps {
   getScreenSize: () => { width: number; height: number };
   getPosition: () => [number, number];
   getSpriteConfig: () => SpriteConfig;
+  getAvoidRegions?: () => WindowControllerAvoidRegion[];
   setSpriteMetrics: (metrics: SpriteSizeSnapshot) => void;
   setWindowSize: (width: number, height: number, padding: number) => void;
   walkTo: (x: number, y: number, speed?: number) => Promise<void>;
@@ -151,29 +153,34 @@ export class MovementCoordinator {
     const [, currentY] = this.deps.getPosition();
     const screen = this.deps.getScreenSize();
     const config = this.deps.getSpriteConfig();
+    const viewport = this.getViewport(screen, config);
+    const bounds = getWindowClampBounds(viewport);
 
-    const minX = -config.padding;
-    const maxX = screen.width - config.width - config.padding;
+    const minX = bounds.minX;
+    const maxX = bounds.maxX;
     const targetX = Math.random() * (maxX - minX) + minX;
 
     const verticalRange = movement.verticalRange ?? 0.1;
     const yRange = screen.height * verticalRange;
-    const minY = Math.max(-config.padding, currentY - yRange);
-    const maxY = Math.min(screen.height - config.height - config.padding, currentY + yRange);
+    const minY = Math.max(bounds.minY, currentY - yRange);
+    const maxY = Math.min(bounds.maxY, currentY + yRange);
     const targetY = Math.random() * (maxY - minY) + minY;
+    const target = clampWindowPosition({ x: targetX, y: targetY }, viewport);
 
-    return { targetX, targetY };
+    return { targetX: target.x, targetY: target.y };
   }
 
   private computeDirectionalWalkTarget(movement: SpriteMovementConfig): { targetX: number; targetY: number } | null {
     const [currentX, currentY] = this.deps.getPosition();
     const screen = this.deps.getScreenSize();
     const config = this.deps.getSpriteConfig();
+    const viewport = this.getViewport(screen, config);
+    const bounds = getWindowClampBounds(viewport);
 
-    const minX = -config.padding;
-    const maxX = screen.width - config.width - config.padding;
-    const minY = -config.padding;
-    const maxY = screen.height - config.height - config.padding;
+    const minX = bounds.minX;
+    const maxX = bounds.maxX;
+    const minY = bounds.minY;
+    const maxY = bounds.maxY;
 
     const configuredDirection = movement.direction;
     const resolvedDirection = configuredDirection && configuredDirection !== 'random' ? configuredDirection : RESOLVABLE_DIRECTIONS[Math.floor(Math.random() * RESOLVABLE_DIRECTIONS.length)];
@@ -201,9 +208,25 @@ export class MovementCoordinator {
       return null;
     }
 
+    const target = clampWindowPosition(
+      {
+        x: Math.max(minX, Math.min(maxX, currentX + vector.dx * maxDistance)),
+        y: Math.max(minY, Math.min(maxY, currentY + vector.dy * maxDistance))
+      },
+      viewport
+    );
+
+    return { targetX: target.x, targetY: target.y };
+  }
+
+  private getViewport(screen: { width: number; height: number }, config: SpriteSizeSnapshot): WindowControllerViewport {
     return {
-      targetX: Math.max(minX, Math.min(maxX, currentX + vector.dx * maxDistance)),
-      targetY: Math.max(minY, Math.min(maxY, currentY + vector.dy * maxDistance))
+      screenWidth: screen.width,
+      screenHeight: screen.height,
+      spriteWidth: config.width,
+      spriteHeight: config.height,
+      padding: config.padding,
+      avoidRegions: this.deps.getAvoidRegions?.() ?? []
     };
   }
 }

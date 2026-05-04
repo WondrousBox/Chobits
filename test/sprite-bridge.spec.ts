@@ -80,6 +80,15 @@ describe('sprite preload bridge', () => {
     });
   });
 
+  it('forwards movement avoid regions through the movement IPC contract', async () => {
+    const regions = [{ x: 720, y: 0, width: 560, height: 720 }];
+
+    await spriteBridge.setMovementAvoidRegions(regions);
+
+    expect(electronHarness.invoke).toHaveBeenCalledTimes(1);
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:movement:setAvoidRegions', { regions });
+  });
+
   it('forwards animation completion with an optional playId', async () => {
     await spriteBridge.animComplete('thinking-purpose', 'full', 'purpose-1:play-1');
 

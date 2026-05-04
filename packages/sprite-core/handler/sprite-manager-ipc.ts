@@ -70,6 +70,7 @@ import type { SpritePurposeHistoryQuery, SpritePurposeRetrospectiveQuery, Sprite
 import type { SpeakRequest, SpriteSpeakConfig } from '../speak/types';
 import type { SpriteMovementPreviewConfig, SpriteTriggerRequest } from '../types';
 import { WindowController } from '../window-controller';
+import type { WindowControllerAvoidRegion } from '../window-controller-model';
 import { notifySpriteCapabilityChanged } from './capability-events';
 import { getDefaultSpritesDir, listSprites, setSpriteAssetsChangeHandler } from './sprite-assets';
 import { initSpriteEventListener, type SpriteEventListenerOptions } from './sprite-event-listener';
@@ -824,6 +825,11 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   ipcMain.handle('sprite:config:setDebugOverlay', (_e, p: { enabled: boolean }) => {
     mgr.setDebugOverlayEnabled(p.enabled);
     return p.enabled;
+  });
+
+  ipcMain.handle('sprite:movement:setAvoidRegions', (_e, p: { regions?: WindowControllerAvoidRegion[] } | undefined) => {
+    mgr.setMovementAvoidRegions(Array.isArray(p?.regions) ? p.regions : []);
+    return { ok: true };
   });
 
   ipcMain.handle('sprite:spontaneous:getPreferences', async () => {

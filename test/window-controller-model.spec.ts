@@ -27,6 +27,36 @@ describe('window controller model helpers', () => {
     });
   });
 
+  it('pushes sprite content out of active avoid regions', () => {
+    expect(
+      clampWindowPosition(
+        { x: 620, y: 200 },
+        {
+          ...viewport,
+          avoidRegions: [{ x: 600, y: 0, width: 200, height: 600 }]
+        }
+      )
+    ).toEqual({
+      x: 456,
+      y: 200
+    });
+  });
+
+  it('keeps positions that do not intersect an avoid region', () => {
+    expect(
+      clampWindowPosition(
+        { x: 620, y: 200 },
+        {
+          ...viewport,
+          avoidRegions: [{ x: 600, y: 0, width: 200, height: 120 }]
+        }
+      )
+    ).toEqual({
+      x: 620,
+      y: 200
+    });
+  });
+
   it('derives drag positions from cursor coordinates before clamping', () => {
     expect(resolveDragWindowPosition({ x: 100, y: 120 }, { x: 20, y: 30 }, viewport)).toEqual({
       x: 80,
@@ -64,6 +94,24 @@ describe('window controller model helpers', () => {
       })
     ).toEqual({
       x: 656,
+      y: 200,
+      hitBoundary: true
+    });
+  });
+
+  it('reports auto-move completion when an avoid region blocks movement', () => {
+    expect(
+      computeAutoMoveStep({
+        position: { x: 540, y: 200 },
+        velocity: { x: 100, y: 0 },
+        elapsedMs: 1000,
+        viewport: {
+          ...viewport,
+          avoidRegions: [{ x: 600, y: 0, width: 200, height: 600 }]
+        }
+      })
+    ).toEqual({
+      x: 456,
       y: 200,
       hitBoundary: true
     });

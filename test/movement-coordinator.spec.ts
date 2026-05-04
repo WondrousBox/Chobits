@@ -2,8 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { MovementCoordinator } from '../packages/sprite-core/manager/movement-coordinator';
 import type { SpriteConfig, SpriteMovementConfig } from '../packages/sprite-core/types';
+import type { WindowControllerAvoidRegion } from '../packages/sprite-core/window-controller-model';
 
-function createCoordinatorHarness(options?: { canUseMovement?: () => boolean }): {
+function createCoordinatorHarness(options?: { canUseMovement?: () => boolean; getAvoidRegions?: () => WindowControllerAvoidRegion[] }): {
   coordinator: MovementCoordinator;
   getConfig: () => SpriteConfig;
   walkTo: ReturnType<typeof vi.fn>;
@@ -50,6 +51,7 @@ function createCoordinatorHarness(options?: { canUseMovement?: () => boolean }):
     getScreenSize: () => ({ width: 1280, height: 720 }),
     getPosition: () => [320, 240],
     getSpriteConfig: () => config,
+    getAvoidRegions: options?.getAvoidRegions,
     setSpriteMetrics: (metrics) => {
       config = { ...config, ...metrics };
     },
@@ -143,6 +145,26 @@ describe('MovementCoordinator', () => {
     expect(targetX).toBeLessThan(320);
     expect(targetY).toBe(240);
     expect(speed).toBe(60);
+  });
+
+  it('keeps behavior movement targets outside active avoid regions', async () => {
+    const harness = createCoordinatorHarness({
+      getAvoidRegions: () => [{ x: 640, y: 0, width: 640, height: 720 }]
+    });
+
+    const moved = await harness.coordinator.runBehaviorMovement({
+      enabled: true,
+      trigger: 'behavior',
+      mode: 'direction',
+      direction: 'right',
+      speed: 60
+    });
+
+    expect(moved).toBe(true);
+    expect(harness.walkTo).toHaveBeenCalledOnce();
+    const [targetX, targetY] = harness.walkTo.mock.calls[0];
+    expect(targetX).toBe(340);
+    expect(targetY).toBe(240);
   });
 
   it('keeps movement capability as the shared gate for preview, animation and behavior movement', async () => {

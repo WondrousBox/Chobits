@@ -5,6 +5,8 @@ export const CHAT_OVERLAY_SETTINGS = {
   side: 'right' as ChatOverlaySide,
   expandedWidth: 560,
   collapsedWidth: 28,
+  spriteAvoidGap: 16,
+  hideMessageScrollbar: true,
   autoCollapseEnabled: false,
   autoCollapseDelayMs: 7000,
   entryAnimationMs: 260

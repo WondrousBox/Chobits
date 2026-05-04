@@ -2,6 +2,7 @@ import { buildConversationPlaceholderTitle } from '@packages/ai/conversation-tit
 import { getChatMessageUsage, sumTokenUsage } from '@packages/ai/message-usage';
 import { extractThinkingTextFromMetadata } from '@packages/ai/thinking-content';
 import type { TokenUsage } from '@packages/ai/types';
+import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TbArrowDown, TbChevronLeft, TbChevronRight, TbDots, TbEdit, TbHistory, TbLoader2, TbPin, TbPlus, TbRefresh, TbShare, TbTrash, TbX } from 'react-icons/tb';
 import { toast } from 'sonner';
@@ -224,14 +225,14 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     const handlePayload = (payload: any): void => {
       if (!payload?.initialMessage) return;
       // 清除缓存 payload，防止关闭后再次打开时重复触发
-      window.ipcRenderer?.invoke('window:payload:clear', payloadWindowKey).catch(() => {});
+      window.ipcRenderer?.invoke('window:payload:clear', payloadWindowKey).catch(() => { });
       if (isOverlay) {
         setOverlaySide(resolveChatOverlaySide(payload.overlaySide));
         setOverlayExpanded(false);
         window.setTimeout(() => setOverlayExpanded(true), 30);
       }
       if (disposerRef.current) {
-        void disposerRef.current.cancel().catch(() => {});
+        void disposerRef.current.cancel().catch(() => { });
         disposerRef.current.dispose?.();
         disposerRef.current = null;
         setLoading(false);
@@ -384,9 +385,9 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
           ...(params.characterPersonaEnabled ? { characterPersonaEnabled: true } : {}),
           ...(selectedAgentId === 'coder' && selectedCodingWorkspaceRoot
             ? {
-                codingWorkspaceRoot: selectedCodingWorkspaceRoot,
-                codingWorkspaceLabel: selectedCodingWorkspaceLabel || undefined
-              }
+              codingWorkspaceRoot: selectedCodingWorkspaceRoot,
+              codingWorkspaceLabel: selectedCodingWorkspaceLabel || undefined
+            }
             : {})
         }
       },
@@ -591,6 +592,15 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     }
   }, []);
 
+  const clearOverlaySpriteAvoidRegion = useCallback(async (): Promise<void> => {
+    if (!isOverlay) return;
+    try {
+      await window.YUA.sprite.setMovementAvoidRegions([]);
+    } catch (error) {
+      console.warn('[ChatPage] failed to clear overlay sprite avoid region:', error);
+    }
+  }, [isOverlay]);
+
   const positionOverlayWindow = useCallback(async (): Promise<void> => {
     if (!isOverlay) return;
     try {
@@ -599,11 +609,21 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
       const width = overlayExpanded ? expandedWidth : CHAT_OVERLAY_SETTINGS.collapsedWidth;
       const height = area.height;
       const x = overlaySide === 'right' ? area.x + area.width - width : area.x;
-      await window.YUA.window['window:bounds:set'](payloadWindowKey, { x, y: area.y, width, height });
+      const targetBounds = { x, y: area.y, width, height };
+      const result = await window.YUA.window['window:bounds:set'](payloadWindowKey, targetBounds);
+      if (!overlayExpanded) {
+        await clearOverlaySpriteAvoidRegion();
+        return;
+      }
+
+      const appliedBounds = result.bounds ?? targetBounds;
+      const gap = CHAT_OVERLAY_SETTINGS.spriteAvoidGap;
+      const avoidRegion = overlaySide === 'right' ? { ...appliedBounds, x: appliedBounds.x - gap, width: appliedBounds.width + gap } : { ...appliedBounds, width: appliedBounds.width + gap };
+      await window.YUA.sprite.setMovementAvoidRegions([avoidRegion]);
     } catch (error) {
       console.warn('[ChatPage] failed to position overlay chat window:', error);
     }
-  }, [isOverlay, overlayExpanded, overlaySide, payloadWindowKey]);
+  }, [clearOverlaySpriteAvoidRegion, isOverlay, overlayExpanded, overlaySide, payloadWindowKey]);
 
   const scheduleOverlayCollapse = useCallback(
     (delayMs = CHAT_OVERLAY_SETTINGS.autoCollapseDelayMs): void => {
@@ -640,8 +660,9 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     disposerRef.current?.dispose?.();
     disposerRef.current = null;
     setLoading(false);
+    await clearOverlaySpriteAvoidRegion();
     await window.YUA.window['window:close'](payloadWindowKey as any);
-  }, [clearOverlayCollapseTimer, isOverlay, payloadWindowKey]);
+  }, [clearOverlayCollapseTimer, clearOverlaySpriteAvoidRegion, isOverlay, payloadWindowKey]);
 
   useEffect(() => {
     void positionOverlayWindow();
@@ -662,6 +683,13 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
   }, [isOverlay, loading, messages.length, overlayExpanded, scheduleOverlayCollapse]);
 
   useEffect(() => clearOverlayCollapseTimer, [clearOverlayCollapseTimer]);
+
+  useEffect(() => {
+    if (!isOverlay) return;
+    return () => {
+      void clearOverlaySpriteAvoidRegion();
+    };
+  }, [clearOverlaySpriteAvoidRegion, isOverlay]);
 
   return (
     <div
@@ -867,55 +895,68 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
           )}
           {messages.length > 0 && (
             <>
-              <div ref={scrollContainerRef} className={isOverlay ? 'flex-1 overflow-auto min-h-0 px-3 py-4' : 'flex-1 overflow-auto p-2 min-h-0'}>
-                <div className={isOverlay ? 'flex min-h-full flex-col justify-end gap-3 pb-28' : 'flex flex-col gap-2'}>
-                  {!isOverlay && conversationUsage && (
-                    <div className="flex justify-center pt-2">
-                      <ChatTokenUsage usage={conversationUsage} label="会话累计" variant="conversation" />
-                    </div>
-                  )}
-                  {messages.map((m, i) => (
-                    <div key={i} className={`${m.role === 'user' ? 'flex justify-end' : 'flex justify-start'} ${!isOverlay && i === messages.length - 1 ? 'mb-24' : ''}`}>
-                      <div
-                        className={
-                          isOverlay
-                            ? m.role === 'user'
-                              ? 'chat-overlay-bubble chat-overlay-bubble-user max-w-[88%] rounded-3xl rounded-br-md px-4 py-2.5 break-words text-primary-foreground whitespace-pre-wrap'
-                              : 'chat-overlay-bubble chat-overlay-bubble-assistant max-w-[94%] rounded-3xl rounded-bl-md px-4 py-3 break-words text-foreground'
-                            : m.role === 'user'
-                              ? 'max-w-[80%] rounded-2xl px-3 py-2 break-words bg-primary text-primary-foreground whitespace-pre-wrap'
-                              : 'w-full rounded-2xl px-3 py-2 break-words text-foreground'
-                        }
-                      >
-                        {m.role === 'assistant' ? (
-                          <>
-                            <AssistantMessageTimeline message={m} compactCards onUserChoiceSubmit={handleUserChoiceSubmit} />
-                            {!isOverlay && m.usage && <ChatTokenUsage usage={m.usage} label="本轮" className="mt-2" />}
-                            {!hasTimelineContent(m) && loading && i === messages.length - 1 && (
+              <ScrollAreaPrimitive.Root className="relative flex-1 min-h-0 w-full overflow-hidden">
+                <ScrollAreaPrimitive.Viewport ref={scrollContainerRef} className={isOverlay ? 'h-full w-full px-3 pb-4 pt-14 box-border' : 'h-full w-full p-2'}>
+                  <div className={isOverlay ? 'flex min-h-full flex-col justify-end gap-3 pb-44' : 'flex flex-col gap-2'}>
+                    {!isOverlay && conversationUsage && (
+                      <div className="flex justify-center pt-2">
+                        <ChatTokenUsage usage={conversationUsage} label="会话累计" variant="conversation" />
+                      </div>
+                    )}
+                    {messages.map((m, i) => (
+                      <div key={i} className={`${m.role === 'user' ? 'flex justify-end' : 'flex justify-start'} ${!isOverlay && i === messages.length - 1 ? 'mb-24' : ''}`}>
+                        <div
+                          className={
+                            isOverlay
+                              ? m.role === 'user'
+                                ? 'chat-overlay-bubble chat-overlay-bubble-user max-w-[88%] rounded-3xl rounded-br-md px-4 py-2.5 break-words text-primary-foreground whitespace-pre-wrap'
+                                : 'chat-overlay-bubble chat-overlay-bubble-assistant max-w-[94%] rounded-3xl rounded-bl-md px-4 py-3 break-words text-foreground'
+                              : m.role === 'user'
+                                ? 'max-w-[80%] rounded-2xl px-3 py-2 break-words bg-primary text-primary-foreground whitespace-pre-wrap'
+                                : 'w-full rounded-2xl px-3 py-2 break-words text-foreground'
+                          }
+                        >
+                          {m.role === 'assistant' ? (
+                            <>
+                              <AssistantMessageTimeline message={m} compactCards onUserChoiceSubmit={handleUserChoiceSubmit} />
+                              {!isOverlay && m.usage && <ChatTokenUsage usage={m.usage} label="本轮" className="mt-2" />}
+                              {!hasTimelineContent(m) && loading && i === messages.length - 1 && (
+                                <span className="inline-flex items-center gap-2 text-muted-foreground">
+                                  <TbLoader2 className="h-4 w-4 animate-spin" /> 正在思考...
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            m.content ||
+                            (loading && i === messages.length - 1 ? (
                               <span className="inline-flex items-center gap-2 text-muted-foreground">
                                 <TbLoader2 className="h-4 w-4 animate-spin" /> 正在思考...
                               </span>
-                            )}
-                          </>
-                        ) : (
-                          m.content ||
-                          (loading && i === messages.length - 1 ? (
-                            <span className="inline-flex items-center gap-2 text-muted-foreground">
-                              <TbLoader2 className="h-4 w-4 animate-spin" /> 正在思考...
-                            </span>
-                          ) : (
-                            ''
-                          ))
-                        )}
+                            ) : (
+                              ''
+                            ))
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                    ))}
+                  </div>
+                </ScrollAreaPrimitive.Viewport>
+                <ScrollAreaPrimitive.ScrollAreaScrollbar
+                  className={
+                    isOverlay && CHAT_OVERLAY_SETTINGS.hideMessageScrollbar
+                      ? 'flex h-full w-2.5 touch-none select-none border-l border-l-transparent p-[1px] opacity-0 pointer-events-none'
+                      : 'flex h-full w-2.5 touch-none select-none border-l border-l-transparent p-[1px] transition-colors'
+                  }
+                  orientation="vertical"
+                >
+                  <ScrollAreaPrimitive.ScrollAreaThumb className="relative flex-1 rounded-full bg-border" />
+                </ScrollAreaPrimitive.ScrollAreaScrollbar>
+                <ScrollAreaPrimitive.Corner />
+              </ScrollAreaPrimitive.Root>
               {/* Scroll-to-bottom button */}
               {showScrollButton && (
                 <button
-                  className={`${isOverlay ? 'absolute bottom-28 right-4' : 'absolute bottom-24 right-6'} z-20 flex items-center justify-center w-9 h-9 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-opacity`}
+                  className={`${isOverlay ? 'absolute bottom-40 right-4' : 'absolute bottom-24 right-6'} z-20 flex items-center justify-center w-9 h-9 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-opacity`}
                   onClick={() => scrollToBottom(true)}
                   title="滚动到底部"
                 >
