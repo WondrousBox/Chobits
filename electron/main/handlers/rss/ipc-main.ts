@@ -14,6 +14,7 @@ import {
   feedItemToDbRow,
   markDownloadedRssItemsInSameFolder,
   parseResourceMetadata,
+  queueUndownloadedRssItemsForAutoDownload,
   recordRssSyncError,
   startRssAutoCheck,
   syncRssResource
@@ -28,6 +29,24 @@ import type { CreateRssResourceParams, DownloadRssItemParams, FetchRssFeedParams
 const RSS_FEED_VIEW_LIMIT = 200;
 const RSS_YOUTUBE_HISTORY_PAGE_LIMIT = 50;
 const RSS_YOUTUBE_DETAIL_HYDRATE_LIMIT = RSS_YOUTUBE_HISTORY_PAGE_LIMIT;
+
+function kickRssAutoDownloadCheck(resource: any, reason: string): void {
+  startRssAutoCheck();
+  void (async () => {
+    try {
+      await syncRssResource(resource, { ignoreFetchInterval: true, queueAutoDownload: true });
+    } catch (error) {
+      console.error(`[rss:${reason}] 自动下载刷新失败，继续检查缓存:`, resource.id, error);
+      await recordRssSyncError(resource.id, error);
+    }
+
+    const refreshedResource = (await ResourcesRepo.getById(resource.id)) || resource;
+    await queueUndownloadedRssItemsForAutoDownload(refreshedResource);
+  })().catch(async (error) => {
+    console.error(`[rss:${reason}] 自动下载检查失败:`, resource.id, error);
+    await recordRssSyncError(resource.id, error);
+  });
+}
 
 function parseFeedPageParams(params: FetchRssFeedParams): { limit: number; offset: number } {
   const limit = Math.max(1, Math.min(params.pageSize || RSS_FEED_VIEW_LIMIT, RSS_FEED_VIEW_LIMIT));
@@ -231,7 +250,7 @@ export function initRssHandlers(): void {
 
   ipcMain.handle('rss:create', async (_event, params: CreateRssResourceParams) => {
     try {
-      const { channelIdOrUrl, title, autoDownload, downloadQuality, folderId, workspaceId } = params;
+      const { channelIdOrUrl, title, autoDownload, downloadQuality, downloadIntervalSeconds, folderId, workspaceId } = params;
 
       let metadata: RssMetadata;
       let resourceTitle = title;
@@ -242,7 +261,7 @@ export function initRssHandlers(): void {
 
       if (result) {
         const { handler, channelInfo } = result;
-        metadata = handler.createMetadata(channelInfo, { autoDownload, downloadQuality, downloadFolderId: folderId });
+        metadata = handler.createMetadata(channelInfo, { autoDownload, downloadQuality, downloadIntervalSeconds, downloadFolderId: folderId });
         metadata.lastSyncStatus = metadata.lastSyncStatus || 'idle';
         resourceTitle = title || channelInfo.title || channelInfo.channelId || '未命名订阅';
         resourceDescription = channelInfo.description;
@@ -254,6 +273,7 @@ export function initRssHandlers(): void {
           feedUrl: channelIdOrUrl,
           autoDownload: autoDownload ?? false,
           downloadQuality: downloadQuality ?? 'best',
+          downloadIntervalSeconds,
           downloadFolderId: folderId,
           enabled: true,
           lastSyncStatus: 'idle'
@@ -317,6 +337,7 @@ export function initRssHandlers(): void {
         ...(updates.enabled !== undefined && { enabled: updates.enabled }),
         ...(updates.autoDownload !== undefined && { autoDownload: updates.autoDownload }),
         ...(updates.downloadQuality !== undefined && { downloadQuality: updates.downloadQuality }),
+        ...(updates.downloadIntervalSeconds !== undefined && { downloadIntervalSeconds: updates.downloadIntervalSeconds }),
         ...(updates.fetchInterval !== undefined && { fetchInterval: updates.fetchInterval }),
         ...(updates.downloadFolderId !== undefined && { downloadFolderId: updates.downloadFolderId })
       };
@@ -327,6 +348,12 @@ export function initRssHandlers(): void {
         metadata: JSON.stringify(newMetadata),
         updatedAt: Date.now()
       } as any);
+
+      const wasAutoDownloadActive = currentMetadata.autoDownload === true && currentMetadata.enabled !== false;
+      const isAutoDownloadActive = newMetadata.autoDownload === true && newMetadata.enabled !== false;
+      if (updated && isAutoDownloadActive && (updates.autoDownload !== undefined || updates.enabled !== undefined || !wasAutoDownloadActive)) {
+        kickRssAutoDownloadCheck(updated, 'autoDownloadEnabled');
+      }
 
       return { success: true, data: updated };
     } catch (error: any) {

@@ -72,6 +72,7 @@ export interface RssSourceHandler {
     options?: {
       autoDownload?: boolean;
       downloadQuality?: string;
+      downloadIntervalSeconds?: number;
       downloadFolderId?: string;
       fetchInterval?: number;
     }
