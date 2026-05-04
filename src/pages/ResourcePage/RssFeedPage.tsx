@@ -1,7 +1,25 @@
 import type { RssFeed, RssFeedItem, RssMetadata } from '@main/handlers/rss/types';
 import type { RssFeedResponse } from '@main/handlers/rss/types';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbArrowLeft, TbCheck, TbClock, TbDownload, TbExternalLink, TbEye, TbEyeOff, TbHistory, TbLoader2, TbPlayerPlay, TbRefresh, TbRestore, TbRss, TbSearch, TbSettings, TbUsers } from 'react-icons/tb';
+import {
+  TbArrowLeft,
+  TbCheck,
+  TbClock,
+  TbDownload,
+  TbExternalLink,
+  TbEye,
+  TbEyeOff,
+  TbHistory,
+  TbLoader2,
+  TbPlayerPlay,
+  TbRefresh,
+  TbReload,
+  TbRestore,
+  TbRss,
+  TbSearch,
+  TbSettings,
+  TbUsers
+} from 'react-icons/tb';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -52,7 +70,7 @@ interface DownloadTaskEvent {
   };
 }
 
-const RSS_FEED_PAGE_SIZE = 100;
+const RSS_FEED_PAGE_SIZE = 200;
 
 type RssItemFilter = 'all' | 'undownloaded' | 'downloading' | 'downloaded' | 'failed' | 'cancelled' | 'ignored';
 type RssMediaTypeFilter = 'all' | NonNullable<RssFeedItem['mediaType']>;
@@ -274,6 +292,7 @@ const RssFeedPage: React.FC = () => {
   const [feed, setFeed] = useState<RssFeed | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [reloading, setReloading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<RssItemFilter>('all');
   const [mediaTypeFilter, setMediaTypeFilter] = useState<RssMediaTypeFilter>('all');
@@ -362,30 +381,35 @@ const RssFeedPage: React.FC = () => {
     [resourceId, loadResource]
   );
 
-  const loadCachedFeed = useCallback(async (): Promise<boolean> => {
-    if (!resourceId) return false;
+  const loadCachedFeed = useCallback(
+    async (options: { keepLoading?: boolean } = {}): Promise<boolean> => {
+      if (!resourceId) return false;
 
-    try {
-      const result = await window.YUA.rss.getCachedFeed({
-        resourceId,
-        limit: RSS_FEED_PAGE_SIZE,
-        offset: 0
-      });
+      try {
+        const result = await window.YUA.rss.getCachedFeed({
+          resourceId,
+          limit: RSS_FEED_PAGE_SIZE,
+          offset: 0
+        });
 
-      if (result.success && result.data) {
-        const hasMeaningfulCache = (result.data.items?.length || 0) > 0 || !!result.lastFetchedAt;
-        if (hasMeaningfulCache) {
-          setFeed(result.data);
-          setLoading(false);
-          return true;
+        if (result.success && result.data) {
+          const hasMeaningfulCache = (result.data.items?.length || 0) > 0 || !!result.lastFetchedAt;
+          if (hasMeaningfulCache) {
+            setFeed(result.data);
+            if (!options.keepLoading) {
+              setLoading(false);
+            }
+            return true;
+          }
         }
+      } catch (error) {
+        console.warn('Failed to load cached RSS feed:', error);
       }
-    } catch (error) {
-      console.warn('Failed to load cached RSS feed:', error);
-    }
 
-    return false;
-  }, [resourceId]);
+      return false;
+    },
+    [resourceId]
+  );
 
   const refreshFeedInBackground = useCallback(async () => {
     if (!resourceId) return;
@@ -469,6 +493,41 @@ const RssFeedPage: React.FC = () => {
     toast.success('刷新成功');
   }, [loadFeed]);
 
+  const handleReloadSubscription = useCallback(async () => {
+    if (!resourceId || reloading) return;
+    const confirmed = window.confirm('重载订阅会清空这个订阅的条目缓存并重新拉取列表，不会删除已下载的视频资源。继续吗？');
+    if (!confirmed) return;
+
+    setReloading(true);
+    setLoading(true);
+    try {
+      const result = await window.YUA.rss.reload({
+        resourceId,
+        pageSize: RSS_FEED_PAGE_SIZE
+      });
+
+      if (result.success && result.data) {
+        setFeed(result.data);
+        setIgnoredItems([]);
+        setIgnoredCount(0);
+        setStatusFilter('all');
+        setHistoryOffset(result.data.totalItems || result.data.items.length || 0);
+        setHasMoreHistory(result.data.hasMore !== false);
+        toast.success('重载完成', {
+          description: `已移除 ${result.deletedFeedCount || 0} 条订阅缓存并重新拉取列表`
+        });
+      } else {
+        toast.error('重载失败', { description: result.error });
+      }
+    } catch (error: any) {
+      toast.error('重载失败', { description: error?.message });
+    } finally {
+      await loadResource();
+      setLoading(false);
+      setReloading(false);
+    }
+  }, [resourceId, reloading, loadResource]);
+
   // 加载历史视频（仅 YouTube）
   // 获取到的数据会自动存入数据库，下次进入页面时会从缓存加载
   const handleLoadHistory = useCallback(
@@ -482,10 +541,11 @@ const RssFeedPage: React.FC = () => {
 
       setLoadingHistory(true);
       try {
+        const nextHistoryOffset = Math.max(historyOffset, metadata.historyLoadedCount || 0, feed?.totalItems || 0, feed?.items.length || 0);
         const result = await window.YUA.rss.fetchYouTubeHistory({
           resourceId,
           limit,
-          offset: historyOffset
+          offset: nextHistoryOffset
         });
 
         if (result.success && result.data) {
@@ -493,10 +553,12 @@ const RssFeedPage: React.FC = () => {
 
           if (items.length > 0) {
             await loadCachedFeed();
+            await loadResource();
             setHistoryOffset(nextOffset);
             setHasMoreHistory(hasMore);
             toast.success(`已加载 ${items.length} 个历史视频，共 ${totalLoaded} 条`);
           } else {
+            await loadResource();
             setHasMoreHistory(false);
             toast.info('没有更多历史视频了');
           }
@@ -509,7 +571,7 @@ const RssFeedPage: React.FC = () => {
         setLoadingHistory(false);
       }
     },
-    [resourceId, metadata.sourceType, historyOffset, hasMoreHistory, loadCachedFeed]
+    [resourceId, metadata.sourceType, metadata.historyLoadedCount, feed?.totalItems, feed?.items.length, historyOffset, hasMoreHistory, loadCachedFeed, loadResource]
   );
 
   const startDownloadForItem = useCallback(
@@ -694,9 +756,7 @@ const RssFeedPage: React.FC = () => {
     if (statusFilter === 'ignored') {
       const query = searchQuery.trim().toLowerCase();
       if (!query) return ignoredItems;
-      return ignoredItems.filter(
-        (item) => item.title.toLowerCase().includes(query) || item.description?.toLowerCase().includes(query) || item.author?.toLowerCase().includes(query)
-      );
+      return ignoredItems.filter((item) => item.title.toLowerCase().includes(query) || item.description?.toLowerCase().includes(query) || item.author?.toLowerCase().includes(query));
     }
 
     const items = feed?.items || [];
@@ -906,7 +966,7 @@ const RssFeedPage: React.FC = () => {
   useEffect(() => {
     void loadResource();
     void (async () => {
-      await loadCachedFeed();
+      await loadCachedFeed({ keepLoading: true });
       await refreshFeedInBackground();
     })();
     // Load ignored count so we can show the badge
@@ -915,10 +975,12 @@ const RssFeedPage: React.FC = () => {
 
   // 当 metadata 变化时，同步历史分页位置
   useEffect(() => {
-    if (metadata.historyLoadedCount) {
-      setHistoryOffset(metadata.historyLoadedCount);
+    const loadedCount = Math.max(metadata.historyLoadedCount || 0, feed?.totalItems || 0, feed?.items.length || 0);
+    if (loadedCount > 0) {
+      setHistoryOffset(loadedCount);
     }
-  }, [metadata.historyLoadedCount]);
+    setHasMoreHistory(metadata.historyFullyLoaded !== true);
+  }, [metadata.historyFullyLoaded, metadata.historyLoadedCount, feed?.totalItems, feed?.items.length]);
 
   useEffect(() => {
     if (!resourceId) return;
@@ -1077,17 +1139,26 @@ const RssFeedPage: React.FC = () => {
         <div className="flex items-center gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="outline" size="icon" className="w-8 h-8" onClick={handleRefresh} disabled={refreshing}>
+              <Button variant="outline" size="icon" className="w-8 h-8" onClick={handleRefresh} disabled={refreshing || reloading}>
                 {refreshing ? <TbLoader2 className="w-4 h-4 animate-spin" /> : <TbRefresh className="w-4 h-4" />}
               </Button>
             </TooltipTrigger>
             <TooltipContent>刷新</TooltipContent>
           </Tooltip>
 
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="icon" className="w-8 h-8" onClick={handleReloadSubscription} disabled={refreshing || reloading}>
+                {reloading ? <TbLoader2 className="w-4 h-4 animate-spin" /> : <TbReload className="w-4 h-4" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>重载订阅</TooltipContent>
+          </Tooltip>
+
           {isYouTube && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" className="w-8 h-8" onClick={() => handleLoadHistory(100)} disabled={loadingHistory}>
+                <Button variant="outline" size="icon" className="w-8 h-8" onClick={() => handleLoadHistory(RSS_FEED_PAGE_SIZE)} disabled={loadingHistory || reloading}>
                   {loadingHistory ? <TbLoader2 className="w-4 h-4 animate-spin" /> : <TbHistory className="w-4 h-4" />}
                 </Button>
               </TooltipTrigger>
@@ -1268,7 +1339,7 @@ const RssFeedPage: React.FC = () => {
             {isYouTube && !searchQuery && !feed?.hasMore && (
               <div className="flex flex-col items-center gap-2 py-4">
                 {hasMoreHistory ? (
-                  <Button variant="outline" size="sm" onClick={() => handleLoadHistory(50)} disabled={loadingHistory} className="gap-2">
+                  <Button variant="outline" size="sm" onClick={() => handleLoadHistory(RSS_FEED_PAGE_SIZE)} disabled={loadingHistory} className="gap-2">
                     {loadingHistory ? (
                       <>
                         <TbLoader2 className="w-4 h-4 animate-spin" />

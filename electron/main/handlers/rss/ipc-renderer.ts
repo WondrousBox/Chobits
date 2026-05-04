@@ -25,6 +25,11 @@ export interface RssApi {
   fetchFeed: (params: FetchRssFeedParams) => Promise<RssFeedResponse>;
 
   /**
+   * 清空某个订阅的 RSS 条目缓存，并重新拉取订阅列表
+   */
+  reload: (params: { resourceId: string; pageSize?: number }) => Promise<RssFeedResponse & { deletedFeedCount?: number }>;
+
+  /**
    * 下载 RSS 条目
    * 返回下载任务信息，需要通过 videoDownloader 接口来执行下载
    */
@@ -128,6 +133,7 @@ export function createRssApi(ipcRenderer: Electron.IpcRenderer): RssApi {
     update: (params) => ipcRenderer.invoke('rss:update', params),
     getCachedFeed: (params) => ipcRenderer.invoke('rss:getCachedFeed', params),
     fetchFeed: (params) => ipcRenderer.invoke('rss:fetchFeed', params),
+    reload: (params) => ipcRenderer.invoke('rss:reload', params),
     downloadItem: (params) => ipcRenderer.invoke('rss:downloadItem', params),
     ignoreItem: (params) => ipcRenderer.invoke('rss:ignoreItem', params),
     batchIgnoreItems: (params) => ipcRenderer.invoke('rss:batchIgnoreItems', params),

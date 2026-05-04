@@ -2,7 +2,6 @@
 import { ipcMain } from 'electron';
 
 import { ResourcesRepo, RssFeedItemsRepo, WorkspacesRepo } from '../../db/repositories';
-import type { NewRssFeedItem } from '../../db/schema';
 import { deleteRssResource } from './rss-delete-service';
 import { prepareDownloadTarget } from './rss-download-bridge';
 import { detectSourceType, parseRssFeed } from './rss-feed-parser';
@@ -12,31 +11,213 @@ import {
   applyRssSyncSuccessMetadata,
   buildCachedRssFeed,
   dbRowToFeedItem,
+  feedItemToDbRow,
+  markDownloadedRssItemsInSameFolder,
   parseResourceMetadata,
   recordRssSyncError,
   startRssAutoCheck,
   syncRssResource
 } from './rss-sync-service';
-import type {
-  CreateRssResourceParams,
-  DownloadRssItemParams,
-  FetchRssFeedParams,
-  RssFeedItem,
-  RssMetadata,
-  UpdateRssResourceParams
-} from './types';
+import type { CreateRssResourceParams, DownloadRssItemParams, FetchRssFeedParams, RssFeed, RssFeedItem, RssMetadata, UpdateRssResourceParams } from './types';
 
 /**
  * RSS IPC adapter layer.
  * Only: parameter validation, service delegation, unified response structure.
  */
 
-const RSS_FEED_VIEW_LIMIT = 100;
+const RSS_FEED_VIEW_LIMIT = 200;
 
 function parseFeedPageParams(params: FetchRssFeedParams): { limit: number; offset: number } {
   const limit = Math.max(1, Math.min(params.pageSize || RSS_FEED_VIEW_LIMIT, RSS_FEED_VIEW_LIMIT));
   const offset = Math.max(0, Number.parseInt(params.pageToken || '0', 10) || 0);
   return { limit, offset };
+}
+
+function buildFeedResponseFromItems(resource: any, metadata: RssMetadata, items: RssFeedItem[], totalItems: number, hasMore: boolean): RssFeed {
+  return {
+    title: resource.title || '',
+    description: resource.description,
+    feedUrl: metadata.feedUrl || '',
+    image: resource.previewUrl,
+    author: resource.authorName,
+    items,
+    totalItems,
+    hasMore
+  };
+}
+
+function resetRssFeedCacheMetadata(metadata: RssMetadata): RssMetadata {
+  const next: RssMetadata = {
+    ...metadata,
+    lastSyncStatus: 'idle'
+  };
+
+  delete next.lastFetchedAt;
+  delete next.lastCheckedAt;
+  delete next.lastSucceededAt;
+  delete next.lastFailedAt;
+  delete next.latestItemId;
+  delete next.latestItemPublishedAt;
+  delete next.itemCount;
+  delete next.historyLoadedCount;
+  delete next.historyFullyLoaded;
+  delete next.oldestHistoryPublishedAt;
+  delete next.lastError;
+  delete next.lastErrorAt;
+
+  return next;
+}
+
+async function getYouTubeHistoryCoverage(resourceId: string, metadata: RssMetadata): Promise<number> {
+  const cachedItemCount = await RssFeedItemsRepo.countByResourceId(resourceId);
+  return Math.max(metadata.historyLoadedCount || 0, cachedItemCount);
+}
+
+function getDownloadedItemResourceMap(items: RssFeedItem[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const item of items) {
+    if (item.downloaded && item.localResourceId) {
+      map.set(item.id, item.localResourceId);
+    }
+  }
+  return map;
+}
+
+function isPublishedAtEstimated(item: RssFeedItem): boolean {
+  return item.metadata?.publishedAtEstimated === true;
+}
+
+function withPrecisePublishedAt(item: RssFeedItem, cachedItem: RssFeedItem): RssFeedItem {
+  const metadata = { ...(item.metadata || {}) };
+  delete metadata.publishedAtEstimated;
+
+  return {
+    ...item,
+    publishedAt: cachedItem.publishedAt,
+    updatedAt: cachedItem.updatedAt ?? item.updatedAt,
+    metadata
+  };
+}
+
+function getPlaylistIndex(item: RssFeedItem): number | undefined {
+  const value = item.metadata?.playlistIndex;
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+async function preserveOfficialPublishedTimes(resourceId: string, items: RssFeedItem[]): Promise<RssFeedItem[]> {
+  const merged: RssFeedItem[] = [];
+  let lastPreciseAnchor: { playlistIndex: number; publishedAt: number } | undefined;
+
+  for (const item of items) {
+    let nextItem = item;
+
+    if (isPublishedAtEstimated(item)) {
+      const cachedRow = await RssFeedItemsRepo.getByResourceAndItemId(resourceId, item.id);
+      if (cachedRow) {
+        const cachedItem = dbRowToFeedItem(cachedRow);
+        if (!isPublishedAtEstimated(cachedItem)) {
+          nextItem = withPrecisePublishedAt(item, cachedItem);
+        }
+      }
+    }
+
+    const playlistIndex = getPlaylistIndex(nextItem);
+    if (!isPublishedAtEstimated(nextItem) && playlistIndex !== undefined) {
+      lastPreciseAnchor = { playlistIndex, publishedAt: nextItem.publishedAt };
+    } else if (isPublishedAtEstimated(nextItem) && playlistIndex !== undefined && lastPreciseAnchor && playlistIndex > lastPreciseAnchor.playlistIndex) {
+      nextItem = {
+        ...nextItem,
+        publishedAt: lastPreciseAnchor.publishedAt - (playlistIndex - lastPreciseAnchor.playlistIndex) * 1000
+      };
+    }
+
+    merged.push(nextItem);
+  }
+
+  return merged;
+}
+
+async function cacheYouTubeHistoryPage(
+  resource: any,
+  metadata: RssMetadata,
+  offset: number,
+  limit: number,
+  detailed = false
+): Promise<{ items: RssFeedItem[]; hasMore: boolean; nextOffset: number; totalLoaded: number; metadata: RssMetadata }> {
+  const channelUrl = metadata.channelUrl || metadata.channelId;
+  if (!channelUrl) throw new Error('无法获取频道信息');
+
+  const handler = rssSourceRegistry.getHandler('youtube');
+  if (!handler) throw new Error('YouTube 处理器未注册');
+
+  const youtubeHandler = handler as any;
+  const safeOffset = Math.max(0, offset);
+  const safeLimit = Math.max(1, Math.min(limit, RSS_FEED_VIEW_LIMIT));
+  const playlistEnd = safeOffset + safeLimit;
+
+  let items: RssFeedItem[];
+  if (detailed) {
+    items = await youtubeHandler.fetchChannelVideosDetailed(channelUrl, { playlistStart: safeOffset + 1, playlistEnd });
+  } else {
+    items = await youtubeHandler.fetchChannelHistory(channelUrl, { playlistEnd, playlistStart: safeOffset + 1 });
+  }
+
+  if (items.length > 0) {
+    items = await preserveOfficialPublishedTimes(resource.id, items);
+    items = await markDownloadedRssItemsInSameFolder(resource, items);
+    await RssFeedItemsRepo.bulkUpsert(items.map((item) => feedItemToDbRow(resource.id, item)));
+
+    const downloadedMap = getDownloadedItemResourceMap(items);
+    if (downloadedMap.size > 0) {
+      await RssFeedItemsRepo.batchUpdateDownloadStatus(resource.id, Array.from(downloadedMap.keys()), downloadedMap);
+    }
+  }
+
+  const now = Date.now();
+  const totalLoaded = safeOffset + items.length;
+  const cachedItemCount = await RssFeedItemsRepo.countByResourceId(resource.id);
+  const oldestItem = items.length > 0 ? items.reduce((oldest, item) => (item.publishedAt < oldest.publishedAt ? item : oldest), items[0]) : undefined;
+  const latestItem = safeOffset === 0 ? items[0] : undefined;
+  const updatedMetadata: RssMetadata = {
+    ...applyRssSyncSuccessMetadata(metadata, now),
+    historyLoadedCount: Math.max(metadata.historyLoadedCount || 0, totalLoaded, cachedItemCount),
+    historyFullyLoaded: items.length < safeLimit,
+    itemCount: Math.max(metadata.itemCount || 0, cachedItemCount),
+    ...(latestItem && {
+      latestItemId: latestItem.id,
+      latestItemPublishedAt: latestItem.publishedAt
+    }),
+    ...(oldestItem && {
+      oldestHistoryPublishedAt: metadata.oldestHistoryPublishedAt ? Math.min(metadata.oldestHistoryPublishedAt, oldestItem.publishedAt) : oldestItem.publishedAt
+    })
+  };
+
+  await ResourcesRepo.update(resource.id, { metadata: JSON.stringify(updatedMetadata), updatedAt: Date.now() } as any);
+
+  const nextOffset = Math.max(totalLoaded, cachedItemCount);
+  return {
+    items,
+    hasMore: items.length >= safeLimit,
+    nextOffset,
+    totalLoaded: nextOffset,
+    metadata: updatedMetadata
+  };
+}
+
+async function ensureYouTubeHistoryCachedForPage(resource: any, metadata: RssMetadata, offset: number, limit: number): Promise<{ resource: any; metadata: RssMetadata }> {
+  if (metadata.sourceType !== 'youtube' || metadata.historyFullyLoaded || (!metadata.channelUrl && !metadata.channelId)) {
+    return { resource, metadata };
+  }
+
+  const requiredCount = offset + limit;
+  const coveredCount = await getYouTubeHistoryCoverage(resource.id, metadata);
+  if (coveredCount >= requiredCount) {
+    return { resource, metadata };
+  }
+
+  await cacheYouTubeHistoryPage(resource, metadata, coveredCount, requiredCount - coveredCount);
+  const refreshedResource = (await ResourcesRepo.getById(resource.id)) || resource;
+  return { resource: refreshedResource, metadata: parseResourceMetadata(refreshedResource) };
 }
 
 export function initRssHandlers(): void {
@@ -63,9 +244,13 @@ export function initRssHandlers(): void {
       } else {
         const detectedType = detectSourceType(channelIdOrUrl);
         metadata = {
-          sourceType: detectedType, feedUrl: channelIdOrUrl,
-          autoDownload: autoDownload ?? false, downloadQuality: downloadQuality ?? 'best',
-          downloadFolderId: folderId, enabled: true, lastSyncStatus: 'idle'
+          sourceType: detectedType,
+          feedUrl: channelIdOrUrl,
+          autoDownload: autoDownload ?? false,
+          downloadQuality: downloadQuality ?? 'best',
+          downloadFolderId: folderId,
+          enabled: true,
+          lastSyncStatus: 'idle'
         };
         try {
           const feed = await parseRssFeed(channelIdOrUrl, detectedType);
@@ -91,13 +276,20 @@ export function initRssHandlers(): void {
 
       const now = Date.now();
       const resource = await ResourcesRepo.upsert({
-        type: 'rss', title: resourceTitle, description: resourceDescription,
+        type: 'rss',
+        title: resourceTitle,
+        description: resourceDescription,
         url: metadata.channelUrl || metadata.feedUrl,
         domain: metadata.feedUrl ? new URL(metadata.feedUrl).hostname : undefined,
         sourceName: metadata.sourceType === 'youtube' ? 'YouTube' : metadata.sourceType || 'RSS',
-        previewUrl: thumbnailUrl, metadata: JSON.stringify(metadata),
-        workspaceId: wsId, folderId: targetFolderId, status: 'ready',
-        collectedAt: now, createdAt: now, updatedAt: now
+        previewUrl: thumbnailUrl,
+        metadata: JSON.stringify(metadata),
+        workspaceId: wsId,
+        folderId: targetFolderId,
+        status: 'ready',
+        collectedAt: now,
+        createdAt: now,
+        updatedAt: now
       } as any);
 
       return { success: true, data: resource };
@@ -126,7 +318,8 @@ export function initRssHandlers(): void {
       const updated = await ResourcesRepo.update(id, {
         ...(updates.title !== undefined && { title: updates.title }),
         ...(updates.description !== undefined && { description: updates.description }),
-        metadata: JSON.stringify(newMetadata), updatedAt: Date.now()
+        metadata: JSON.stringify(newMetadata),
+        updatedAt: Date.now()
       } as any);
 
       return { success: true, data: updated };
@@ -138,7 +331,7 @@ export function initRssHandlers(): void {
 
   ipcMain.handle('rss:getCachedFeed', async (_event, params: { resourceId: string; limit?: number; offset?: number }) => {
     try {
-      const { resourceId, limit = 100, offset = 0 } = params;
+      const { resourceId, limit = RSS_FEED_VIEW_LIMIT, offset = 0 } = params;
       const resource = await ResourcesRepo.getById(resourceId);
       if (!resource || (resource as any).type !== 'rss') return { success: false, error: '资源不存在或不是 RSS 类型' };
 
@@ -165,14 +358,27 @@ export function initRssHandlers(): void {
       const now = Date.now();
       const fetchInterval = (metadata.fetchInterval || 60) * 60 * 1000;
       if (!forceRefresh && metadata.lastFetchedAt && now - metadata.lastFetchedAt < fetchInterval) {
-        const cachedFeed = await buildCachedRssFeed(resource, metadata, limit, offset);
+        const pageContext = await ensureYouTubeHistoryCachedForPage(resource, metadata, offset, limit);
+        const cachedFeed = await buildCachedRssFeed(pageContext.resource, pageContext.metadata, limit, offset);
         if (cachedFeed.items.length > 0) return { success: true, data: cachedFeed, cached: true };
       }
 
       await syncRssResource(resource, { ignoreEnabled: true, ignoreFetchInterval: true, queueAutoDownload: false });
 
-      const refreshedResource = (await ResourcesRepo.getById(resourceId)) || resource;
-      const refreshedMetadata = parseResourceMetadata(refreshedResource);
+      let refreshedResource = (await ResourcesRepo.getById(resourceId)) || resource;
+      let refreshedMetadata = parseResourceMetadata(refreshedResource);
+      if (forceRefresh && refreshedMetadata.sourceType === 'youtube') {
+        const latestResult = await cacheYouTubeHistoryPage(refreshedResource, refreshedMetadata, 0, limit);
+        refreshedResource = (await ResourcesRepo.getById(resourceId)) || refreshedResource;
+        refreshedMetadata = parseResourceMetadata(refreshedResource);
+        const totalItems = await RssFeedItemsRepo.countByResourceId(resourceId);
+        const latestFeed = buildFeedResponseFromItems(refreshedResource, refreshedMetadata, latestResult.items, totalItems, latestResult.hasMore || totalItems > latestResult.items.length);
+        return { success: true, data: latestFeed, cached: false };
+      }
+
+      const pageContext = await ensureYouTubeHistoryCachedForPage(refreshedResource, refreshedMetadata, offset, limit);
+      refreshedResource = pageContext.resource;
+      refreshedMetadata = pageContext.metadata;
       const completeFeed = await buildCachedRssFeed(refreshedResource, refreshedMetadata, limit, offset);
       return { success: true, data: completeFeed, cached: false };
     } catch (error: any) {
@@ -186,8 +392,63 @@ export function initRssHandlers(): void {
           if (feed.items.length === 0) return { success: false, error: error?.message || '获取失败' };
           return { success: true, data: feed, cached: true, error: error?.message || '网络获取失败，返回缓存数据' };
         }
-      } catch { /* ignore cache fallback error */ }
+      } catch {
+        /* ignore cache fallback error */
+      }
       return { success: false, error: error?.message || '获取失败' };
+    }
+  });
+
+  ipcMain.handle('rss:reload', async (_event, params: { resourceId: string; pageSize?: number }) => {
+    eventManager.emit(AppEvent.SPRITE_RSS_REFRESH);
+    const limit = Math.max(1, Math.min(params.pageSize || RSS_FEED_VIEW_LIMIT, RSS_FEED_VIEW_LIMIT));
+
+    try {
+      const { resourceId } = params;
+      const resource = await ResourcesRepo.getById(resourceId);
+      if (!resource || (resource as any).type !== 'rss') return { success: false, error: '资源不存在或不是 RSS 类型' };
+
+      const metadata = parseResourceMetadata(resource);
+      if (!metadata.feedUrl) return { success: false, error: '缺少 Feed URL' };
+
+      const deletedFeedCount = await RssFeedItemsRepo.deleteByResourceId(resourceId);
+      const resetMetadata = resetRssFeedCacheMetadata(metadata);
+      await ResourcesRepo.update(resourceId, {
+        metadata: JSON.stringify(resetMetadata),
+        updatedAt: Date.now()
+      } as any);
+
+      const resetResource = {
+        ...resource,
+        metadata: JSON.stringify(resetMetadata)
+      };
+
+      if (resetMetadata.sourceType === 'youtube') {
+        await syncRssResource(resetResource, { ignoreEnabled: true, ignoreFetchInterval: true, queueAutoDownload: false });
+        const syncedResource = (await ResourcesRepo.getById(resourceId)) || resetResource;
+        const syncedMetadata = parseResourceMetadata(syncedResource);
+        const latestResult = await cacheYouTubeHistoryPage(syncedResource, syncedMetadata, 0, limit);
+        const refreshedResource = (await ResourcesRepo.getById(resourceId)) || syncedResource;
+        const refreshedMetadata = parseResourceMetadata(refreshedResource);
+        const totalItems = await RssFeedItemsRepo.countByResourceId(resourceId);
+        const feed = buildFeedResponseFromItems(refreshedResource, refreshedMetadata, latestResult.items, totalItems, latestResult.hasMore || totalItems > latestResult.items.length);
+        return { success: true, data: feed, cached: false, deletedFeedCount };
+      }
+
+      await syncRssResource(resetResource, { ignoreEnabled: true, ignoreFetchInterval: true, queueAutoDownload: false });
+
+      let refreshedResource = (await ResourcesRepo.getById(resourceId)) || resetResource;
+      let refreshedMetadata = parseResourceMetadata(refreshedResource);
+      const pageContext = await ensureYouTubeHistoryCachedForPage(refreshedResource, refreshedMetadata, 0, limit);
+      refreshedResource = pageContext.resource;
+      refreshedMetadata = pageContext.metadata;
+
+      const feed = await buildCachedRssFeed(refreshedResource, refreshedMetadata, limit, 0);
+      return { success: true, data: feed, cached: false, deletedFeedCount };
+    } catch (error: any) {
+      console.error('[rss:reload] 重载失败:', error);
+      await recordRssSyncError(params.resourceId, error);
+      return { success: false, error: error?.message || '重载失败' };
     }
   });
 
@@ -264,7 +525,7 @@ export function initRssHandlers(): void {
 
   ipcMain.handle('rss:getIgnoredItems', async (_event, params: { rssResourceId: string; limit?: number; offset?: number }) => {
     try {
-      const { rssResourceId, limit = 100, offset = 0 } = params;
+      const { rssResourceId, limit = RSS_FEED_VIEW_LIMIT, offset = 0 } = params;
       const rssResource = await ResourcesRepo.getById(rssResourceId);
       if (!rssResource || (rssResource as any).type !== 'rss') return { success: false, error: 'RSS 资源不存在' };
 
@@ -281,7 +542,10 @@ export function initRssHandlers(): void {
   ipcMain.handle('rss:list', async (_event, params?: { workspaceId?: string }) => {
     try {
       let wsId = params?.workspaceId;
-      if (!wsId) { const ws = await WorkspacesRepo.getDefault(); wsId = ws?.id; }
+      if (!wsId) {
+        const ws = await WorkspacesRepo.getDefault();
+        wsId = ws?.id;
+      }
       const resources = await ResourcesRepo.list({ type: 'rss', workspaceId: wsId, deletedAt: 0 } as any);
       return { success: true, data: resources };
     } catch (error: any) {
@@ -322,72 +586,34 @@ export function initRssHandlers(): void {
     }
   });
 
-  ipcMain.handle(
-    'rss:fetchYouTubeHistory',
-    async (_event, params: { resourceId: string; limit?: number; offset?: number; detailed?: boolean }) => {
-      try {
-        const { resourceId, limit = 50, offset = 0, detailed = false } = params;
-        const resource = await ResourcesRepo.getById(resourceId);
-        if (!resource) throw new Error('资源不存在');
+  ipcMain.handle('rss:fetchYouTubeHistory', async (_event, params: { resourceId: string; limit?: number; offset?: number; detailed?: boolean }) => {
+    try {
+      const { resourceId, limit = RSS_FEED_VIEW_LIMIT, offset = 0, detailed = false } = params;
+      const resource = await ResourcesRepo.getById(resourceId);
+      if (!resource) throw new Error('资源不存在');
 
-        const metadata = parseResourceMetadata(resource);
-        if (metadata.sourceType !== 'youtube') throw new Error('仅支持 YouTube 订阅');
+      const metadata = parseResourceMetadata(resource);
+      if (metadata.sourceType !== 'youtube') throw new Error('仅支持 YouTube 订阅');
 
-        const channelUrl = metadata.channelUrl || metadata.channelId;
-        if (!channelUrl) throw new Error('无法获取频道信息');
-
-        const handler = rssSourceRegistry.getHandler('youtube');
-        if (!handler) throw new Error('YouTube 处理器未注册');
-
-        const youtubeHandler = handler as any;
-        const playlistEnd = offset + limit;
-
-        let items: RssFeedItem[];
-        if (detailed) {
-          items = await youtubeHandler.fetchChannelVideosDetailed(channelUrl, { playlistStart: offset + 1, playlistEnd });
-        } else {
-          items = await youtubeHandler.fetchChannelHistory(channelUrl, { playlistEnd, playlistStart: offset + 1 });
-        }
-
-        if (items.length === 0) {
-          return { success: true, data: { items: [], hasMore: false, nextOffset: offset, totalLoaded: metadata.historyLoadedCount || 0 } };
-        }
-
-        const dbItems: NewRssFeedItem[] = items.map((item) => ({
-          rssResourceId: resourceId, itemId: item.id, title: item.title,
-          description: item.description, link: item.link,
-          publishedAt: item.publishedAt, updatedAt: item.updatedAt,
-          author: item.author, thumbnail: item.thumbnail,
-          durationMs: item.durationMs, viewCount: item.viewCount,
-          likeCount: item.likeCount, commentCount: item.commentCount,
-          mediaType: item.mediaType,
-          categories: item.categories?.length ? JSON.stringify(item.categories) : undefined,
-          downloaded: false, downloadStatus: undefined,
-          metadata: item.metadata ? JSON.stringify(item.metadata) : undefined
-        }));
-
-        await RssFeedItemsRepo.bulkUpsert(dbItems);
-
-        const newLoadedCount = offset + items.length;
-        const oldestItem = items.reduce((oldest, item) => (item.publishedAt < oldest.publishedAt ? item : oldest), items[0]);
-        const updatedMetadata: RssMetadata = {
-          ...metadata,
-          historyLoadedCount: Math.max(metadata.historyLoadedCount || 0, newLoadedCount),
-          oldestHistoryPublishedAt: metadata.oldestHistoryPublishedAt
-            ? Math.min(metadata.oldestHistoryPublishedAt, oldestItem.publishedAt)
-            : oldestItem.publishedAt
-        };
-
-        await ResourcesRepo.update(resourceId, { metadata: JSON.stringify(updatedMetadata), updatedAt: Date.now() } as any);
-
-        return {
-          success: true,
-          data: { items, hasMore: items.length >= limit, nextOffset: offset + items.length, totalLoaded: newLoadedCount }
-        };
-      } catch (error: any) {
-        console.error('[rss:fetchYouTubeHistory] 获取历史失败:', error);
-        return { success: false, error: error?.message || '获取 YouTube 频道历史视频失败' };
+      const coveredCount = await getYouTubeHistoryCoverage(resourceId, metadata);
+      const effectiveOffset = Math.max(offset, coveredCount);
+      if (metadata.historyFullyLoaded) {
+        return { success: true, data: { items: [], hasMore: false, nextOffset: effectiveOffset, totalLoaded: effectiveOffset } };
       }
+
+      const result = await cacheYouTubeHistoryPage(resource, metadata, effectiveOffset, limit, detailed);
+      return {
+        success: true,
+        data: {
+          items: result.items,
+          hasMore: result.hasMore,
+          nextOffset: result.nextOffset,
+          totalLoaded: result.totalLoaded
+        }
+      };
+    } catch (error: any) {
+      console.error('[rss:fetchYouTubeHistory] 获取历史失败:', error);
+      return { success: false, error: error?.message || '获取 YouTube 频道历史视频失败' };
     }
-  );
+  });
 }

@@ -449,6 +449,13 @@ async function addDownloadedFileToResources(
     const filename = path.basename(filePath);
     const detected = detectBasicType(filePath);
     const type = options?.qualityMode === 'audio' ? 'audio' : detected.type === 'file' ? 'video' : detected.type;
+    const resourceMetadata: Record<string, unknown> = { ...(options?.metadata || {}) };
+    if (videoInfo?.id && !resourceMetadata.videoId) {
+      resourceMetadata.videoId = videoInfo.id;
+    }
+    if (videoInfo?.webpage_url && !resourceMetadata.webpage_url) {
+      resourceMetadata.webpage_url = videoInfo.webpage_url;
+    }
 
     // 获取当前工作空间ID
     let currentWorkspaceId = workspaceId;
@@ -476,7 +483,7 @@ async function addDownloadedFileToResources(
       workspaceId: currentWorkspaceId,
       folderId: folderId || undefined,
       parentResourceId: options?.parentResourceId || undefined,
-      metadata: options?.metadata ? JSON.stringify(options.metadata) : undefined,
+      metadata: Object.keys(resourceMetadata).length > 0 ? JSON.stringify(resourceMetadata) : undefined,
       collectedAt: Date.now()
     } as any);
 
