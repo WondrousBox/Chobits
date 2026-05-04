@@ -6,6 +6,7 @@ import type { NewRssFeedItem } from '../../db/schema';
 import { deleteRssResource } from './rss-delete-service';
 import { prepareDownloadTarget } from './rss-download-bridge';
 import { detectSourceType, parseRssFeed } from './rss-feed-parser';
+import { resolveRssResourceDestination } from './rss-resource-destination';
 import { rssSourceRegistry } from './rss-source-registry';
 import {
   applyRssSyncSuccessMetadata,
@@ -83,8 +84,10 @@ export function initRssHandlers(): void {
         }
       }
 
-      let wsId = workspaceId;
-      if (!wsId) { const ws = await WorkspacesRepo.getDefault(); wsId = ws?.id; }
+      const destination = await resolveRssResourceDestination({ workspaceId, folderId });
+      const wsId = destination.workspaceId;
+      const targetFolderId = destination.folderId;
+      metadata.downloadFolderId = targetFolderId;
 
       const now = Date.now();
       const resource = await ResourcesRepo.upsert({
@@ -93,7 +96,7 @@ export function initRssHandlers(): void {
         domain: metadata.feedUrl ? new URL(metadata.feedUrl).hostname : undefined,
         sourceName: metadata.sourceType === 'youtube' ? 'YouTube' : metadata.sourceType || 'RSS',
         previewUrl: thumbnailUrl, metadata: JSON.stringify(metadata),
-        workspaceId: wsId, folderId, status: 'ready',
+        workspaceId: wsId, folderId: targetFolderId, status: 'ready',
         collectedAt: now, createdAt: now, updatedAt: now
       } as any);
 

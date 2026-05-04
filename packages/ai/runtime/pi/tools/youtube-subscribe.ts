@@ -40,12 +40,18 @@ type RssServices = typeof import('../../../../../electron/main/db/repositories')
 
 async function loadRssServices(): Promise<{
   repos: RssServices;
+  resolveRssResourceDestination: typeof import('../../../../../electron/main/handlers/rss/rss-resource-destination').resolveRssResourceDestination;
   rssSourceRegistry: typeof import('../../../../../electron/main/handlers/rss/rss-source-registry').rssSourceRegistry;
 }> {
-  const [repos, registryModule] = await Promise.all([import('../../../../../electron/main/db/repositories'), import('../../../../../electron/main/handlers/rss/rss-source-registry')]);
+  const [repos, registryModule, destinationModule] = await Promise.all([
+    import('../../../../../electron/main/db/repositories'),
+    import('../../../../../electron/main/handlers/rss/rss-source-registry'),
+    import('../../../../../electron/main/handlers/rss/rss-resource-destination')
+  ]);
 
   return {
     repos: repos as RssServices,
+    resolveRssResourceDestination: destinationModule.resolveRssResourceDestination,
     rssSourceRegistry: registryModule.rssSourceRegistry
   };
 }
@@ -202,7 +208,7 @@ export function createPiYoutubeSubscribeTool(toolContext: PiSessionToolContext):
         }
 
         const normalizedTarget = await normalizeYoutubeChannelTarget(channelIdOrUrl.trim());
-        const { repos, rssSourceRegistry } = await loadRssServices();
+        const { repos, resolveRssResourceDestination, rssSourceRegistry } = await loadRssServices();
         const result = await rssSourceRegistry.extractChannelInfo(normalizedTarget.target);
 
         if (!result || result.handler.sourceType !== 'youtube') {
@@ -214,14 +220,16 @@ export function createPiYoutubeSubscribeTool(toolContext: PiSessionToolContext):
         }
 
         const { channelInfo, handler } = result;
+        const requestedWorkspaceId = getWorkspaceIdFromRequest(toolContext);
+        const destination = await resolveRssResourceDestination({ workspaceId: requestedWorkspaceId, folderId });
+        const workspaceId = destination.workspaceId;
+        const targetFolderId = destination.folderId;
         const metadata = handler.createMetadata(channelInfo, {
           autoDownload,
           downloadQuality,
-          downloadFolderId: folderId
+          downloadFolderId: targetFolderId
         });
 
-        const requestedWorkspaceId = getWorkspaceIdFromRequest(toolContext);
-        const workspaceId = requestedWorkspaceId || (await repos.WorkspacesRepo.getDefault())?.id;
         const now = Date.now();
         const resource = await repos.ResourcesRepo.upsert({
           type: 'rss',
@@ -233,7 +241,7 @@ export function createPiYoutubeSubscribeTool(toolContext: PiSessionToolContext):
           previewUrl: channelInfo.thumbnail,
           metadata: JSON.stringify(metadata),
           workspaceId,
-          folderId,
+          folderId: targetFolderId,
           status: 'ready',
           collectedAt: now,
           createdAt: now,
