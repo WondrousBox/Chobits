@@ -31,6 +31,8 @@ async function createRssAdapter(params: any): Promise<any> {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { ResourcesRepo } = require('../../../electron/main/db/repositories');
     // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { resolveRssResourceDestination } = require('../../../electron/main/handlers/rss/rss-resource-destination');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { rssSourceRegistry } = require('../../../electron/main/handlers/rss/rss-source-registry');
 
     const handler = rssSourceRegistry.getHandler(params.sourceType);
@@ -45,6 +47,9 @@ async function createRssAdapter(params: any): Promise<any> {
     }
 
     // 创建资源记录
+    const destination = await resolveRssResourceDestination({ workspaceId: params.workspaceId, folderId: params.folderId });
+    const targetFolderId = destination.folderId;
+
     const resource = await ResourcesRepo.upsert({
       type: 'rss',
       title: params.title || channelInfo.title,
@@ -61,12 +66,12 @@ async function createRssAdapter(params: any): Promise<any> {
         avatarUrl: channelInfo.avatarUrl,
         autoDownload: params.autoDownload || false,
         downloadQuality: params.downloadQuality || 'best',
-        downloadFolderId: params.folderId,
+        downloadFolderId: targetFolderId,
         enabled: true,
         lastFetchedAt: Date.now()
       },
-      workspaceId: params.workspaceId,
-      folderId: params.folderId,
+      workspaceId: destination.workspaceId,
+      folderId: targetFolderId,
       collectedAt: Date.now()
     } as any);
 
