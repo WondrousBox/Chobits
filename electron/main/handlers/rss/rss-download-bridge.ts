@@ -1,5 +1,5 @@
 import { ResourcesRepo, RssFeedItemsRepo } from '../../db/repositories';
-import { createRssDownloadFailurePatch, dbRowToFeedItem, resolveRssItemDownloadUrl } from './rss-sync-service';
+import { createRssDownloadFailurePatch, dbRowToFeedItem, findDownloadedResourceForRssItem, resolveRssItemDownloadUrl } from './rss-sync-service';
 import type { DownloadRssItemParams, RssMetadata } from './types';
 
 /**
@@ -50,7 +50,7 @@ export async function prepareDownloadTarget(params: DownloadRssItemParams): Prom
   }
 
   const downloadQuality = quality || metadata.downloadQuality || 'best';
-  const targetFolderId = folderId || metadata.downloadFolderId || (rssResource as any).folderId;
+  const targetFolderId = folderId || (rssResource as any).folderId || metadata.downloadFolderId;
 
   const rssItemRow = await RssFeedItemsRepo.getByResourceAndItemId(rssResourceId, itemId);
   if (!rssItemRow) {
@@ -58,6 +58,21 @@ export async function prepareDownloadTarget(params: DownloadRssItemParams): Prom
   }
 
   const rssItem = dbRowToFeedItem(rssItemRow);
+  const existingResourceId = await findDownloadedResourceForRssItem(rssResource, rssItem);
+  if (existingResourceId) {
+    await RssFeedItemsRepo.updateDownloadStatus(rssResourceId, itemId, {
+      downloaded: true,
+      localResourceId: existingResourceId,
+      downloadStatus: 'completed',
+      downloadProgress: 100,
+      downloadErrorCode: null,
+      downloadError: null,
+      downloadErrorAt: null,
+      lastDownloadAt: Date.now()
+    });
+    return { success: false, error: '该条目已在当前订阅所在文件夹下载' };
+  }
+
   const downloadUrl = resolveRssItemDownloadUrl(rssItem);
   if (!downloadUrl) {
     await RssFeedItemsRepo.updateDownloadStatus(rssResourceId, itemId, createRssDownloadFailurePatch('download_no_url', '该 RSS 条目缺少可下载地址'));

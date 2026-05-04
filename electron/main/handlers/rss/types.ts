@@ -71,6 +71,8 @@ export interface RssMetadata {
   lastErrorAt?: number;
   /** 已加载的历史视频数量（用于分页继续加载） */
   historyLoadedCount?: number;
+  /** YouTube 历史列表是否已经加载到底 */
+  historyFullyLoaded?: boolean;
   /** 最早的历史视频发布时间（用于判断加载范围） */
   oldestHistoryPublishedAt?: number;
 }
