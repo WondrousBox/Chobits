@@ -896,7 +896,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
           {messages.length > 0 && (
             <>
               <ScrollAreaPrimitive.Root className="relative flex-1 min-h-0 w-full overflow-hidden">
-                <ScrollAreaPrimitive.Viewport ref={scrollContainerRef} className={isOverlay ? 'h-full w-full px-3 pb-4 pt-14 box-border' : 'h-full w-full p-2'}>
+                <ScrollAreaPrimitive.Viewport ref={scrollContainerRef} className={isOverlay ? 'h-full w-full px-3 pb-4 pt-14 box-border' : 'h-full w-full p-2 box-border'}>
                   <div className={isOverlay ? 'flex min-h-full flex-col justify-end gap-3 pb-44' : 'flex flex-col gap-2'}>
                     {!isOverlay && conversationUsage && (
                       <div className="flex justify-center pt-2">

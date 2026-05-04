@@ -200,6 +200,68 @@ async function buildWorkspaceResourcePatch(destination: FolderDestination, fileP
   };
 }
 
+function normalizePathForCompare(filePath: string): string {
+  const resolved = path.resolve(filePath);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
+function isSamePath(left: string, right: string): boolean {
+  return normalizePathForCompare(left) === normalizePathForCompare(right);
+}
+
+function isPathInsideDirectory(filePath: string, directoryPath: string): boolean {
+  const relative = path.relative(normalizePathForCompare(directoryPath), normalizePathForCompare(filePath));
+  return relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+async function resolveWorkspaceThumbDir(destination: FolderDestination): Promise<string> {
+  if (destination.workspace?.rootPath) {
+    return path.join(destination.workspace.rootPath, 'resources', '.thumbs');
+  }
+  if (destination.workspaceId) {
+    const workspace = await WorkspacesRepo.getById(destination.workspaceId);
+    if (workspace?.rootPath) {
+      return path.join(workspace.rootPath, 'resources', '.thumbs');
+    }
+  }
+  return path.join(process.cwd(), 'uploads', '.thumbs');
+}
+
+async function moveFolderLocalThumbnail(row: any, sourceFolder: any | null, destination: FolderDestination): Promise<string | undefined> {
+  const thumbnailPath = typeof row?.thumbnailPath === 'string' ? row.thumbnailPath : '';
+  if (!thumbnailPath || !path.isAbsolute(thumbnailPath) || !sourceFolder) {
+    return undefined;
+  }
+
+  try {
+    const sourceBaseDir = await resolveFolderPathFromRow(sourceFolder);
+    if (!sourceBaseDir) return undefined;
+
+    const sourceThumbDir = path.join(sourceBaseDir, '.thumbs');
+    if (!isPathInsideDirectory(thumbnailPath, sourceThumbDir)) {
+      return undefined;
+    }
+
+    const stat = await fs.stat(thumbnailPath).catch(() => null);
+    if (!stat?.isFile()) {
+      return undefined;
+    }
+
+    const targetThumbDir = destination.originType === 'linked' ? await resolveWorkspaceThumbDir(destination) : path.join(destination.baseDir, '.thumbs');
+    await fs.mkdir(targetThumbDir, { recursive: true });
+
+    const desiredPath = path.join(targetThumbDir, path.basename(thumbnailPath));
+    const targetPath = isSamePath(thumbnailPath, desiredPath) ? thumbnailPath : await ensureUniquePath(desiredPath);
+    if (!isSamePath(thumbnailPath, targetPath)) {
+      await movePathSafe(thumbnailPath, targetPath);
+    }
+    return targetPath;
+  } catch (error) {
+    console.warn('[resource:moveToFolder] move thumbnail failed', row?.id, error);
+    return undefined;
+  }
+}
+
 export function initResourceHandlers(): void {
   // 导入本地文件（仅文件）
   ipcMain.handle('resource:importLocalFiles', async (_event, payload: { workspaceId?: string; folderId?: string }) => {
@@ -702,7 +764,11 @@ export function initResourceHandlers(): void {
               } catch {
                 /* best-effort: source cleanup */
               }
+              const movedThumbnailPath = await moveFolderLocalThumbnail(row, sourceFolder, destination);
               const patch = await buildLinkedResourcePatch(destination.linkedContext!, targetPath, destination.folderId!);
+              if (movedThumbnailPath) {
+                patch.thumbnailPath = movedThumbnailPath;
+              }
               const updated = await ResourcesRepo.update(row.id, patch);
               if (updated) {
                 movedRows.push(updated);
@@ -733,7 +799,11 @@ export function initResourceHandlers(): void {
               nextFilePath = targetPath;
             }
 
+            const movedThumbnailPath = await moveFolderLocalThumbnail(row, sourceFolder, destination);
             const patch = await buildLinkedResourcePatch(destination.linkedContext!, nextFilePath!, destination.folderId!);
+            if (movedThumbnailPath) {
+              patch.thumbnailPath = movedThumbnailPath;
+            }
             const updated = await ResourcesRepo.update(row.id, patch);
             if (updated) {
               movedRows.push(updated);
@@ -752,7 +822,11 @@ export function initResourceHandlers(): void {
             nextFilePath = targetPath;
           }
 
+          const movedThumbnailPath = await moveFolderLocalThumbnail(row, sourceFolder, destination);
           const patch = await buildWorkspaceResourcePatch(destination, nextFilePath, targetFolderId ?? null);
+          if (movedThumbnailPath) {
+            patch.thumbnailPath = movedThumbnailPath;
+          }
           const updated = await ResourcesRepo.update(row.id, patch);
           if (updated) {
             movedRows.push(updated);
@@ -1224,7 +1298,7 @@ export function initResourceHandlers(): void {
       if (stream) {
         try {
           stream.writeStream.destroy();
-          await fs.unlink(stream.filePath).catch(() => { });
+          await fs.unlink(stream.filePath).catch(() => {});
         } catch {
           /* ignore */
         }
@@ -1986,7 +2060,7 @@ async function runImportTask(win: BrowserWindow, filePaths: string[], workspaceI
                 await ResourcesRepo.update(row.id, { thumbnailPath: thumbPath } as any);
               }
             })
-            .catch(() => { });
+            .catch(() => {});
         }
       } catch (e) {
         console.error('Import file failed', task.path, e);
