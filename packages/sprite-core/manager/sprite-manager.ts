@@ -493,16 +493,16 @@ export class SpriteManager {
         playbackSession: this.buildPlaybackSession(anim.playback, resolvedDurationMs, 'trigger'),
         playback: anim.playback
           ? {
-              width: anim.playback.width,
-              height: anim.playback.height,
-              padding: anim.playback.padding,
-              loop: anim.playback.loop,
-              loopStartMs: anim.playback.loopStartMs,
-              loopEndMs: anim.playback.loopEndMs,
-              durationMs: resolvedDurationMs,
-              autoIdle: anim.playback.autoIdle ?? true,
-              movement: anim.playback.movement
-            }
+            width: anim.playback.width,
+            height: anim.playback.height,
+            padding: anim.playback.padding,
+            loop: anim.playback.loop,
+            loopStartMs: anim.playback.loopStartMs,
+            loopEndMs: anim.playback.loopEndMs,
+            durationMs: resolvedDurationMs,
+            autoIdle: anim.playback.autoIdle ?? true,
+            movement: anim.playback.movement
+          }
           : { durationMs: options?.durationMs ?? 2000, autoIdle: true }
       };
 
@@ -546,16 +546,16 @@ export class SpriteManager {
       playbackSession: this.buildPlaybackSession(anim.playback, resolvedDurationMs, 'trigger'),
       playback: anim.playback
         ? {
-            width: anim.playback.width,
-            height: anim.playback.height,
-            padding: anim.playback.padding,
-            loop: anim.playback.loop,
-            loopStartMs: anim.playback.loopStartMs,
-            loopEndMs: anim.playback.loopEndMs,
-            durationMs: resolvedDurationMs,
-            autoIdle: anim.playback.autoIdle ?? true,
-            movement: anim.playback.movement
-          }
+          width: anim.playback.width,
+          height: anim.playback.height,
+          padding: anim.playback.padding,
+          loop: anim.playback.loop,
+          loopStartMs: anim.playback.loopStartMs,
+          loopEndMs: anim.playback.loopEndMs,
+          durationMs: resolvedDurationMs,
+          autoIdle: anim.playback.autoIdle ?? true,
+          movement: anim.playback.movement
+        }
         : { durationMs: options?.durationMs ?? 2000, autoIdle: true }
     };
 
@@ -632,7 +632,7 @@ export class SpriteManager {
     // 自动朗读：非静默类别 且 非来自 speak() 的调用
     if (!this._speakGuard && !SpriteManager.MUTE_CATEGORIES.has(options?.category ?? '')) {
       if (resolvedContent) {
-        this.speakService.speak(resolvedContent).catch(() => {});
+        this.speakService.speak(resolvedContent).catch(() => { });
       }
     }
   }
@@ -652,7 +652,7 @@ export class SpriteManager {
 
     // 自动朗读通知内容
     if (content && !this._speakGuard) {
-      this.speakService.speak(content).catch(() => {});
+      this.speakService.speak(content).catch(() => { });
     }
   }
 
@@ -1408,16 +1408,16 @@ export class SpriteManager {
         source: animEntry.source,
         playback: animEntry.playback
           ? {
-              width: animEntry.playback.width,
-              height: animEntry.playback.height,
-              padding: animEntry.playback.padding,
-              loop: animEntry.playback.loop,
-              loopStartMs: animEntry.playback.loopStartMs,
-              loopEndMs: animEntry.playback.loopEndMs,
-              durationMs: animEntry.playback.durationMs,
-              autoIdle: animEntry.playback.autoIdle,
-              movement: animEntry.playback.movement
-            }
+            width: animEntry.playback.width,
+            height: animEntry.playback.height,
+            padding: animEntry.playback.padding,
+            loop: animEntry.playback.loop,
+            loopStartMs: animEntry.playback.loopStartMs,
+            loopEndMs: animEntry.playback.loopEndMs,
+            durationMs: animEntry.playback.durationMs,
+            autoIdle: animEntry.playback.autoIdle,
+            movement: animEntry.playback.movement
+          }
           : undefined
       };
 
@@ -1580,10 +1580,10 @@ export class SpriteManager {
     const currentPurpose = this.purposeManager.getSnapshot().current;
     const resultPayload: Record<string, unknown> | undefined = result
       ? {
-          elapsedMs: result.elapsedMs,
-          value: result.value,
-          stepType: step.type
-        }
+        elapsedMs: result.elapsedMs,
+        value: result.value,
+        stepType: step.type
+      }
       : { stepType: step.type };
 
     await this.purposeHistory.append({
