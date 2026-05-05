@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { app, ipcMain } from 'electron';
 
 import { isResolvedPathContainedByRoot, resolveContainedRelativeAssetPath } from '../character-pack-paths';
-import { getCharacterPackAssetPath, getCharacterPackRootDir } from '../character-service';
+import { type CharacterPackRuntimeSource, getCharacterPackAssetPath, getCharacterPackRootDir, getCharacterPackSource } from '../character-service';
 import {
   hasSpriteAnimationTrigger,
   normalizeSpriteAnimationMeta,
@@ -37,6 +37,8 @@ type SpriteIndex = {
 interface SpriteIndexTarget {
   indexPath: string;
   containmentRootDir: string;
+  source: CharacterPackRuntimeSource | 'user' | 'resource-fallback';
+  writable: boolean;
 }
 
 interface SpriteIndexReadOptions {
@@ -119,17 +121,22 @@ async function getDefaultSpritesIndexTarget(): Promise<SpriteIndexTarget> {
   const packAnimationsPath = getCharacterPackAssetPath('animations');
   if (packAnimationsPath) {
     const containmentRootDir = getCharacterPackRootDir() ?? path.dirname(normalizeSpriteIndexPath(packAnimationsPath));
+    const source = getCharacterPackSource() ?? 'resource-fallback';
     deps().addAllowedResourceRoot(containmentRootDir);
     return {
       indexPath: normalizeSpriteIndexPath(packAnimationsPath),
-      containmentRootDir
+      containmentRootDir,
+      source,
+      writable: source === 'installed'
     };
   }
 
   const spritesDir = await getDefaultSpritesDir();
   return {
     indexPath: path.join(spritesDir, 'index.json'),
-    containmentRootDir: spritesDir
+    containmentRootDir: spritesDir,
+    source: 'resource-fallback',
+    writable: false
   };
 }
 
@@ -138,6 +145,16 @@ async function getUserSpritesDir(): Promise<string> {
   await ensureDirs(userDir);
   deps().addAllowedResourceRoot(userDir);
   return userDir;
+}
+
+async function getUserSpritesIndexTarget(): Promise<SpriteIndexTarget> {
+  const userDir = await getUserSpritesDir();
+  return {
+    indexPath: path.join(userDir, 'index.json'),
+    containmentRootDir: userDir,
+    source: 'user',
+    writable: true
+  };
 }
 
 function normalizeContainmentRoots(rootDirs: string[] | undefined): string[] {
@@ -237,9 +254,61 @@ function normalizeIncomingSpriteMeta(meta: SpriteAnimationMetaInput | undefined,
 }
 
 async function writeUserIndex(index: SpriteIndex): Promise<void> {
-  const dir = await getUserSpritesDir();
-  const idxPath = path.join(dir, 'index.json');
-  await fs.writeFile(idxPath, JSON.stringify(index, null, 2), 'utf-8');
+  await writeSpriteIndex(await getUserSpritesIndexTarget(), index, {
+    portableLocalPaths: false
+  });
+}
+
+function serializeSpriteLocalPathForTarget(localPath: string, target: SpriteIndexTarget): string {
+  const trimmed = localPath.trim();
+  if (!trimmed) return localPath;
+
+  const urlLikeMatch = /^([a-zA-Z][a-zA-Z\d+.-]*):\/\//.exec(trimmed);
+  if (urlLikeMatch && urlLikeMatch[1]?.toLowerCase() !== 'file') {
+    return localPath;
+  }
+
+  if (!path.isAbsolute(trimmed)) {
+    return localPath;
+  }
+
+  const resolved = path.resolve(trimmed);
+  if (!isResolvedPathContainedByRoot(target.containmentRootDir, resolved)) {
+    return localPath;
+  }
+
+  const relativePath = path.relative(path.dirname(target.indexPath), resolved).split(path.sep).join('/');
+  return relativePath || path.basename(resolved);
+}
+
+function serializeSpriteIndexForTarget(index: SpriteIndex, target: SpriteIndexTarget, options: { portableLocalPaths: boolean }): SpriteIndex {
+  if (!options.portableLocalPaths) {
+    return index;
+  }
+
+  return {
+    version: 1,
+    items: index.items.map((item) => {
+      const localPath = item.source?.localPath;
+      return typeof localPath === 'string'
+        ? {
+            ...item,
+            source: {
+              ...item.source,
+              localPath: serializeSpriteLocalPathForTarget(localPath, target)
+            }
+          }
+        : item;
+    })
+  };
+}
+
+async function writeSpriteIndex(target: SpriteIndexTarget, index: SpriteIndex, options?: { portableLocalPaths?: boolean }): Promise<void> {
+  await ensureDirs(path.dirname(target.indexPath));
+  const serialized = serializeSpriteIndexForTarget(index, target, {
+    portableLocalPaths: options?.portableLocalPaths ?? target.source !== 'user'
+  });
+  await fs.writeFile(target.indexPath, JSON.stringify(serialized, null, 2), 'utf-8');
 }
 
 function inferMimeFromExt(ext: string): string | undefined {
@@ -257,17 +326,74 @@ function inferMimeFromExt(ext: string): string | undefined {
   }
 }
 
-/** 从磁盘加载全部精灵动画（默认 + 用户），供 IPC 和 SpriteManager 共用 */
-export async function listSprites(): Promise<SpriteAnimation[]> {
-  const [defaultIndex, userDir] = await Promise.all([getDefaultSpritesIndexTarget(), getUserSpritesDir()]);
-  const userContainmentRootDirs = [userDir, defaultIndex.containmentRootDir];
-  const [defIdx, userIdx] = await Promise.all([
+function shouldIncludeUserSprites(defaultIndex: SpriteIndexTarget): boolean {
+  return defaultIndex.source !== 'installed';
+}
+
+function getUserIndexContainmentRoots(userTarget: SpriteIndexTarget, defaultIndex: SpriteIndexTarget): string[] {
+  return [userTarget.containmentRootDir, defaultIndex.containmentRootDir];
+}
+
+function getWritableIndexContainmentRoots(writableTarget: SpriteIndexTarget, defaultIndex: SpriteIndexTarget): string[] {
+  return writableTarget.source === 'user' ? getUserIndexContainmentRoots(writableTarget, defaultIndex) : [writableTarget.containmentRootDir];
+}
+
+async function getWritableSpritesIndexTarget(defaultIndex?: SpriteIndexTarget): Promise<SpriteIndexTarget> {
+  const activeIndex = defaultIndex ?? (await getDefaultSpritesIndexTarget());
+  if (activeIndex.writable) {
+    await ensureDirs(path.dirname(activeIndex.indexPath));
+    deps().addAllowedResourceRoot(activeIndex.containmentRootDir);
+    return activeIndex;
+  }
+
+  return getUserSpritesIndexTarget();
+}
+
+async function readVisibleSpriteIndexes(): Promise<{
+  defaultIndex: SpriteIndexTarget;
+  defaultSprites: SpriteIndex;
+  userIndex: SpriteIndexTarget | null;
+  userSprites: SpriteIndex;
+}> {
+  const defaultIndex = await getDefaultSpritesIndexTarget();
+  const userIndex = shouldIncludeUserSprites(defaultIndex) ? await getUserSpritesIndexTarget() : null;
+  const [defaultSprites, userSprites] = await Promise.all([
     readIndex(defaultIndex.indexPath, { containmentRootDirs: [defaultIndex.containmentRootDir] }),
-    readIndex(userDir, { containmentRootDirs: userContainmentRootDirs })
+    userIndex ? readIndex(userIndex.indexPath, { containmentRootDirs: getUserIndexContainmentRoots(userIndex, defaultIndex) }) : Promise.resolve({ version: 1, items: [] } satisfies SpriteIndex)
   ]);
+
+  return {
+    defaultIndex,
+    defaultSprites,
+    userIndex,
+    userSprites
+  };
+}
+
+function withDeletableFlag(item: SpriteAnimation, deletable: boolean): SpriteAnimation {
+  return normalizeSpriteAnimationItem({
+    ...item,
+    meta: {
+      ...item.meta,
+      deletable
+    } as SpriteAnimation['meta']
+  });
+}
+
+function isLocalPathStillReferenced(index: SpriteIndex, localPath: string): boolean {
+  const resolvedLocalPath = path.resolve(localPath);
+  return index.items.some((item) => {
+    const candidate = item.source?.localPath;
+    return typeof candidate === 'string' && path.resolve(candidate) === resolvedLocalPath;
+  });
+}
+
+/** 从磁盘加载当前可见的精灵动画（内置包会合并全局用户动画，已安装角色包使用包内动画索引） */
+export async function listSprites(): Promise<SpriteAnimation[]> {
+  const { defaultIndex, defaultSprites, userSprites } = await readVisibleSpriteIndexes();
   // tag origin and deletable
-  const withFlagsDefault = defIdx.items.map((it) => normalizeSpriteAnimationItem({ ...it, meta: { ...it.meta, deletable: false } as SpriteAnimation['meta'] }));
-  const withFlagsUser = userIdx.items.map((it) => normalizeSpriteAnimationItem({ ...it, meta: { ...it.meta, deletable: true } as SpriteAnimation['meta'] }));
+  const withFlagsDefault = defaultSprites.items.map((it) => withDeletableFlag(it, defaultIndex.writable));
+  const withFlagsUser = userSprites.items.map((it) => withDeletableFlag(it, true));
   // Merge: user overrides default on same id
   const map = new Map<string, SpriteAnimation>();
   for (const it of withFlagsDefault) map.set(it.meta.id, it);
@@ -282,38 +408,18 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
 
   const handleListByTrigger = async (_e: unknown, payload: SpriteListByTriggerRequest = {}): Promise<SpriteAnimation[]> => {
     const trigger = payload.trigger;
-    const all = await (ipcMain as any).invoke?.('sprite:list')?.catch?.(() => undefined);
-    if (Array.isArray(all)) {
-      if (!trigger) return all;
-      return all.filter((s: SpriteAnimation) => hasSpriteAnimationTrigger(s.meta, trigger));
-    }
-    // fallback manual list
-    const [defaultIndex, userDir] = await Promise.all([getDefaultSpritesIndexTarget(), getUserSpritesDir()]);
-    const userContainmentRootDirs = [userDir, defaultIndex.containmentRootDir];
-    const [defIdx, userIdx] = await Promise.all([
-      readIndex(defaultIndex.indexPath, { containmentRootDirs: [defaultIndex.containmentRootDir] }),
-      readIndex(userDir, { containmentRootDirs: userContainmentRootDirs })
-    ]);
-    const map = new Map<string, SpriteAnimation>();
-    for (const it of defIdx.items) map.set(it.meta.id, it);
-    for (const it of userIdx.items) map.set(it.meta.id, it);
-    const arr = Array.from(map.values()).map((item) => normalizeSpriteAnimationItem(item));
-    return trigger ? arr.filter((a) => hasSpriteAnimationTrigger(a.meta, trigger)) : arr;
+    const all = await listSprites();
+    return trigger ? all.filter((a) => hasSpriteAnimationTrigger(a.meta, trigger)) : all;
   };
 
   ipcMain.handle('sprite:listByTrigger', handleListByTrigger);
 
   ipcMain.handle('sprite:get', async (_e, payload: { id: string }) => {
-    const [defaultIndex, userDir] = await Promise.all([getDefaultSpritesIndexTarget(), getUserSpritesDir()]);
-    const userContainmentRootDirs = [userDir, defaultIndex.containmentRootDir];
-    const [defIdx, userIdx] = await Promise.all([
-      readIndex(defaultIndex.indexPath, { containmentRootDirs: [defaultIndex.containmentRootDir] }),
-      readIndex(userDir, { containmentRootDirs: userContainmentRootDirs })
-    ]);
-    const foundUser = userIdx.items.find((i) => i.meta.id === payload.id);
-    if (foundUser) return normalizeSpriteAnimationItem({ ...foundUser, meta: { ...foundUser.meta, deletable: true } } as SpriteAnimation);
-    const foundDef = defIdx.items.find((i) => i.meta.id === payload.id);
-    return foundDef ? normalizeSpriteAnimationItem({ ...foundDef, meta: { ...foundDef.meta, deletable: false } } as SpriteAnimation) : undefined;
+    const { defaultIndex, defaultSprites, userSprites } = await readVisibleSpriteIndexes();
+    const foundUser = userSprites.items.find((i) => i.meta.id === payload.id);
+    if (foundUser) return withDeletableFlag(foundUser, true);
+    const foundDef = defaultSprites.items.find((i) => i.meta.id === payload.id);
+    return foundDef ? withDeletableFlag(foundDef, defaultIndex.writable) : undefined;
   });
 
   ipcMain.handle('sprite:register', async (_e, payload: (Partial<SpriteAnimation> & { filePath?: string }) | { animation?: Partial<SpriteAnimation> & { filePath?: string } }) => {
@@ -324,7 +430,9 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
     const srcPath = anim.filePath;
     const id = anim.meta?.id || randomUUID();
     const title = anim.meta?.title || id;
-    const spritesDir = await getUserSpritesDir();
+    const defaultIndex = await getDefaultSpritesIndexTarget();
+    const writableIndex = await getWritableSpritesIndexTarget(defaultIndex);
+    const spritesDir = path.dirname(writableIndex.indexPath);
 
     let finalPath: string | undefined;
     let type = anim.source?.type;
@@ -340,13 +448,13 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
       await fs.copyFile(srcPath, finalPath);
       type = type || inferMimeFromExt(ext) || 'video/webm';
     } else if (anim.source?.localPath) {
-      // trust provided localPath ONLY if it is inside user spritesDir
+      // Trust provided localPath only when it already belongs to the writable sprite asset root.
       const provided = path.resolve(anim.source.localPath);
-      const userRoot = path.resolve(spritesDir);
-      if (provided === userRoot || provided.startsWith(userRoot + path.sep)) {
+      const writableRoot = path.resolve(writableIndex.containmentRootDir);
+      if (provided === writableRoot || isResolvedPathContainedByRoot(writableRoot, provided)) {
         finalPath = provided;
       } else {
-        // reject by copying into user dir instead of referencing external location
+        // Reject by copying into the writable animation directory instead of referencing external locations.
         try {
           const ext = path.extname(provided) || '.webm';
           const baseName = `${id}${ext}`;
@@ -381,12 +489,11 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
       movement: anim.movement
     };
 
-    const defaultIndex = await getDefaultSpritesIndexTarget();
-    const idx = await readIndex(spritesDir, { containmentRootDirs: [spritesDir, defaultIndex.containmentRootDir] });
+    const idx = await readIndex(writableIndex.indexPath, { containmentRootDirs: getWritableIndexContainmentRoots(writableIndex, defaultIndex) });
     const existedIdx = idx.items.findIndex((i) => i.meta.id === id);
     if (existedIdx >= 0) idx.items.splice(existedIdx, 1, newItem);
     else idx.items.push(newItem);
-    await writeUserIndex(idx);
+    await writeSpriteIndex(writableIndex, idx);
     notifySpriteAssetsChanged({ reason: 'register', id });
     return normalizeSpriteAnimationItem(newItem);
   });
@@ -419,7 +526,9 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
 
       const id = meta?.id || randomUUID();
       const title = meta?.title || id;
-      const spritesDir = await getUserSpritesDir();
+      const defaultIndex = await getDefaultSpritesIndexTarget();
+      const writableIndex = await getWritableSpritesIndexTarget(defaultIndex);
+      const spritesDir = path.dirname(writableIndex.indexPath);
 
       const baseName = `${id}.webm`;
       let finalPath = path.join(spritesDir, baseName);
@@ -450,12 +559,11 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
         movement
       };
 
-      const defaultIndex = await getDefaultSpritesIndexTarget();
-      const idx = await readIndex(spritesDir, { containmentRootDirs: [spritesDir, defaultIndex.containmentRootDir] });
+      const idx = await readIndex(writableIndex.indexPath, { containmentRootDirs: getWritableIndexContainmentRoots(writableIndex, defaultIndex) });
       const existedIdx = idx.items.findIndex((i) => i.meta.id === id);
       if (existedIdx >= 0) idx.items.splice(existedIdx, 1, newItem);
       else idx.items.push(newItem);
-      await writeUserIndex(idx);
+      await writeSpriteIndex(writableIndex, idx);
       notifySpriteAssetsChanged({ reason: 'registerFromData', id });
       return normalizeSpriteAnimationItem(newItem);
     }
@@ -465,22 +573,22 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
     ensureAssetAuthoringCapability();
 
     const { id, deleteFile } = payload || ({} as any);
-    const userDir = await getUserSpritesDir();
     const defaultIndex = await getDefaultSpritesIndexTarget();
-    const idx = await readIndex(userDir, { containmentRootDirs: [userDir, defaultIndex.containmentRootDir] });
+    const writableIndex = await getWritableSpritesIndexTarget(defaultIndex);
+    const idx = await readIndex(writableIndex.indexPath, { containmentRootDirs: getWritableIndexContainmentRoots(writableIndex, defaultIndex) });
     const i = idx.items.findIndex((a) => a.meta.id === id);
     if (i === -1) {
       // Not removable (likely a default sprite)
       return { ok: false };
     }
     const [removed] = idx.items.splice(i, 1);
-    await writeUserIndex(idx);
+    await writeSpriteIndex(writableIndex, idx);
     notifySpriteAssetsChanged({ reason: 'remove', id });
     try {
       if (deleteFile && removed?.source?.localPath) {
         const p = path.resolve(removed.source.localPath);
-        const root = path.resolve(userDir);
-        if (p === root || p.startsWith(root + path.sep)) {
+        const root = path.resolve(writableIndex.containmentRootDir);
+        if ((p === root || isResolvedPathContainedByRoot(root, p)) && !isLocalPathStillReferenced(idx, p)) {
           await fs.unlink(p).catch(() => {});
         }
       }
@@ -496,13 +604,31 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
     const { id, meta } = payload || ({} as any);
     if (!id || !meta) return { ok: false };
     const normalizedMetaPatch = normalizeSpriteAnimationMetaPatch(meta);
-    const [defaultIndex, userDir] = await Promise.all([getDefaultSpritesIndexTarget(), getUserSpritesDir()]);
-    const userContainmentRootDirs = [userDir, defaultIndex.containmentRootDir];
-    const [defIdx, userIdx] = await Promise.all([
-      readIndex(defaultIndex.indexPath, { containmentRootDirs: [defaultIndex.containmentRootDir] }),
-      readIndex(userDir, { containmentRootDirs: userContainmentRootDirs })
-    ]);
-    const userIndexItem = userIdx.items.find((i) => i.meta.id === id);
+    const { defaultIndex, defaultSprites, userIndex, userSprites } = await readVisibleSpriteIndexes();
+
+    if (defaultIndex.writable) {
+      const defaultIndexItem = defaultSprites.items.find((i) => i.meta.id === id);
+      if (!defaultIndexItem) {
+        return { ok: false };
+      }
+
+      defaultIndexItem.meta = normalizeIncomingSpriteMeta(
+        {
+          ...defaultIndexItem.meta,
+          ...normalizedMetaPatch
+        },
+        {
+          id: defaultIndexItem.meta.id,
+          title: normalizedMetaPatch.title ?? defaultIndexItem.meta.title,
+          deletable: true
+        }
+      );
+      await writeSpriteIndex(defaultIndex, defaultSprites);
+      notifySpriteAssetsChanged({ reason: 'updateMeta', id });
+      return { ok: true, item: normalizeSpriteAnimationItem(defaultIndexItem) };
+    }
+
+    const userIndexItem = userSprites.items.find((i) => i.meta.id === id);
     if (userIndexItem) {
       userIndexItem.meta = normalizeIncomingSpriteMeta(
         {
@@ -515,11 +641,11 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
           deletable: true
         }
       );
-      await writeUserIndex(userIdx);
+      await writeUserIndex(userSprites);
       notifySpriteAssetsChanged({ reason: 'updateMeta', id });
       return { ok: true, item: normalizeSpriteAnimationItem(userIndexItem) };
     }
-    const defItem = defIdx.items.find((i) => i.meta.id === id);
+    const defItem = defaultSprites.items.find((i) => i.meta.id === id);
     if (defItem) {
       // Create an override entry in user index (do not copy file; reference same localPath)
       const newItem: SpriteAnimation = {
@@ -536,7 +662,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
           }
         )
       };
-      const uIdx = await readIndex(userDir, { containmentRootDirs: userContainmentRootDirs });
+      const uIdx = userIndex ? await readIndex(userIndex.indexPath, { containmentRootDirs: getUserIndexContainmentRoots(userIndex, defaultIndex) }) : ({ version: 1, items: [] } satisfies SpriteIndex);
       const existed = uIdx.items.findIndex((i) => i.meta.id === id);
       if (existed >= 0) uIdx.items.splice(existed, 1, newItem);
       else uIdx.items.push(newItem);

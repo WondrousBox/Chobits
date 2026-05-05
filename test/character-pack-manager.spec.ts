@@ -70,7 +70,8 @@ import {
   installCharacterPackFromArchive,
   listCharacterPacks,
   removeCharacterPack,
-  resetCharacterPackManager
+  resetCharacterPackManager,
+  saveCharacterPackEditorDraft
 } from '../packages/sprite-core/character-pack-manager';
 import { createCharacterPackSignaturePayload } from '../packages/sprite-core/character-pack-signature';
 
@@ -1011,6 +1012,99 @@ describe('character pack manager', () => {
         activate: true
       })
     ).rejects.toThrow(/formatVersion <= 1/);
+  });
+
+  it('creates editor packs with a fresh empty animation index instead of copying builtin animations', async () => {
+    tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
+    const builtinRoot = path.join(tempRoot, 'builtin-pack');
+    const userDataDir = path.join(tempRoot, 'user-data');
+
+    writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
+    writeJsonFile(path.join(builtinRoot, 'animations/index.json'), {
+      version: 1,
+      items: [
+        {
+          meta: {
+            id: 'builtin-idle',
+            title: 'Builtin Idle',
+            primaryTrigger: 'idle'
+          },
+          source: {
+            localPath: 'idle.webm',
+            type: 'video/webm'
+          }
+        }
+      ]
+    });
+    writeFileSync(path.join(builtinRoot, 'animations/idle.webm'), 'builtin-idle', 'utf-8');
+
+    initCharacterPackManager({
+      userDataDir,
+      builtinPackRootDir: builtinRoot,
+      appVersion: '1.0.0'
+    });
+
+    const result = await saveCharacterPackEditorDraft(
+      {
+        pack: {
+          id: 'custom-alpha',
+          name: 'Custom Alpha',
+          version: '1.0.0',
+          author: 'test',
+          description: 'custom alpha',
+          license: 'Custom',
+          tags: ['custom'],
+          platform: [process.platform]
+        },
+        character: {
+          id: 'custom-alpha',
+          name: 'Custom Alpha',
+          nameAliases: [],
+          tagline: 'Custom tagline',
+          background: 'Custom background',
+          coreTraits: ['warm'],
+          boundaries: ['kind'],
+          speechTone: 'gentle',
+          language: 'zh-CN',
+          firstPerson: '我',
+          addressUser: '你',
+          quirks: [],
+          speechExamples: [],
+          metaDescription: 'custom alpha',
+          metaTags: ['custom']
+        }
+      },
+      {
+        basePackId: 'pack-alpha',
+        basePackSource: 'builtin',
+        activate: true
+      }
+    );
+
+    const installedRoot = path.join(userDataDir, 'character-packs', 'custom-alpha');
+    const pack = readPack(installedRoot);
+    const animationIndex = JSON.parse(readFileSync(path.join(installedRoot, 'animations/index.json'), 'utf-8'));
+
+    expect(result).toMatchObject({
+      created: true,
+      activated: true,
+      pack: {
+        id: 'custom-alpha',
+        source: 'installed',
+        isActive: true
+      }
+    });
+    expect(pack.assets).toMatchObject({
+      character: 'character.json',
+      animations: 'animations/index.json'
+    });
+    expect(pack.assets.preview).toBeUndefined();
+    expect(animationIndex).toEqual({
+      version: 1,
+      items: []
+    });
+    expect(existsSync(path.join(installedRoot, 'animations/idle.webm'))).toBe(false);
+    expect(existsSync(path.join(installedRoot, 'index.json'))).toBe(false);
   });
 
   it('removes an inactive installed pack and keeps the current active pack unchanged', async () => {

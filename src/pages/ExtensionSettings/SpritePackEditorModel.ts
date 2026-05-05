@@ -187,10 +187,10 @@ export function getSpritePackEditorDescription(editor: SpritePackEditorState | n
   }
 
   if (editor.intent === 'edit' && editor.basePack) {
-    return `内置角色包会保存为本地可编辑版本，动画和资源继承自：${editor.basePack.name}`;
+    return `内置角色包会保存为本地可编辑版本，动画会使用新的独立动画包。来源：${editor.basePack.name}`;
   }
 
-  return editor.basePack ? `动画和资源将继承自：${editor.basePack.name}` : '保存后会写入本地角色包目录。';
+  return editor.basePack ? `将基于 ${editor.basePack.name} 创建角色，动画会使用新的独立动画包。` : '保存后会写入本地角色包目录。';
 }
 
 export async function saveSpritePackEditorState(

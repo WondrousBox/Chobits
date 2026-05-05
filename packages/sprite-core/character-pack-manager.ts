@@ -203,6 +203,7 @@ interface ActiveCharacterPackState {
 
 const SUPPORTED_CHARACTER_PACK_FORMAT_VERSION = 1;
 const IMPORT_PREVIEW_CACHE_LIMIT = 24;
+const EDITOR_ANIMATION_INDEX_PATH = 'animations/index.json';
 const WINDOWS_ABSOLUTE_ARCHIVE_PATH_PATTERN = /^[a-zA-Z]:[\\/]/;
 const MAX_CHARACTER_PACK_ARCHIVE_ENTRIES = 2_000;
 const MAX_CHARACTER_PACK_ARCHIVE_ENTRY_SIZE_BYTES = 256 * 1024 * 1024;
@@ -1314,13 +1315,14 @@ function applyEditorDraftToCharacter(baseCharacter: CharacterDefinition | null, 
   };
 }
 
-function buildEditorPackDefinition(basePack: CharacterPackSummary | null, draft: CharacterPackEditorDraft): CharacterPackDefinition {
+function buildEditorPackDefinition(basePack: CharacterPackSummary | null, draft: CharacterPackEditorDraft, options: { resetAnimations?: boolean } = {}): CharacterPackDefinition {
   const language = draft.character.language.trim();
   const supportedLanguages = Array.from(new Set([...(basePack?.capabilities?.supportedLanguages ?? []), ...(language ? [language] : [])]));
+  const baseAssets = options.resetAnimations ? undefined : basePack?.assets;
   const assets: CharacterPackAssets = {
-    ...(basePack?.assets ?? {}),
+    ...(baseAssets ?? {}),
     character: 'character.json',
-    animations: basePack?.assets?.animations ?? 'index.json'
+    animations: options.resetAnimations ? EDITOR_ANIMATION_INDEX_PATH : (baseAssets?.animations ?? EDITOR_ANIMATION_INDEX_PATH)
   };
 
   return {
@@ -1392,7 +1394,36 @@ async function readCharacterDefinitionForPack(pack: CharacterPackSummary): Promi
 }
 
 async function writeJsonFile(filePath: string, value: unknown): Promise<void> {
+  await fsp.mkdir(path.dirname(filePath), { recursive: true });
   await fsp.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf-8');
+}
+
+function normalizeAnimationIndexPath(rootDir: string, declaredPath: string): string {
+  const resolvedPath = resolvePackRelativeAssetPath(rootDir, declaredPath);
+  if (!resolvedPath) {
+    throw new Error(`Animation index path must stay inside character pack: ${declaredPath}`);
+  }
+
+  return path.extname(resolvedPath).toLowerCase() === '.json' ? resolvedPath : path.join(resolvedPath, 'index.json');
+}
+
+async function ensureEmptyAnimationIndex(rootDir: string, declaredPath: string): Promise<void> {
+  await writeJsonFile(normalizeAnimationIndexPath(rootDir, declaredPath), {
+    version: 1,
+    items: []
+  });
+}
+
+async function ensureAnimationIndexExists(rootDir: string, declaredPath: string): Promise<void> {
+  const indexPath = normalizeAnimationIndexPath(rootDir, declaredPath);
+  if (fs.existsSync(indexPath)) {
+    return;
+  }
+
+  await writeJsonFile(indexPath, {
+    version: 1,
+    items: []
+  });
 }
 
 export class CharacterPackManager {
@@ -1702,6 +1733,7 @@ export class CharacterPackManager {
     const destinationRootDir = path.join(this.installedPacksDir, sanitizedDraft.pack.id);
     const destinationExists = fs.existsSync(destinationRootDir);
     const replaceExisting = options?.replaceExisting === true;
+    const isUpdatingExistingPack = !!existingInstalledPack && replaceExisting;
     if ((existingInstalledPack || destinationExists) && !replaceExisting) {
       throw new Error(`Character pack already exists: ${sanitizedDraft.pack.id}`);
     }
@@ -1716,12 +1748,25 @@ export class CharacterPackManager {
     const tempDraftDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'character-pack-editor-'));
     const stagingRootDir = path.join(tempDraftDir, 'pack');
     try {
-      await this.copyPackDirectory(basePack.rootDir, stagingRootDir);
+      if (isUpdatingExistingPack) {
+        await this.copyPackDirectory(basePack.rootDir, stagingRootDir);
+      } else {
+        await fsp.mkdir(stagingRootDir, { recursive: true });
+      }
 
       const characterDefinition = applyEditorDraftToCharacter(await readCharacterDefinitionForPack(basePack), sanitizedDraft);
-      const packDefinition = buildEditorPackDefinition(basePack, sanitizedDraft);
+      const packDefinition = buildEditorPackDefinition(basePack, sanitizedDraft, {
+        resetAnimations: !isUpdatingExistingPack
+      });
       await writeJsonFile(path.join(stagingRootDir, 'pack.json'), packDefinition);
       await writeJsonFile(path.join(stagingRootDir, 'character.json'), characterDefinition);
+      if (packDefinition.assets?.animations) {
+        if (isUpdatingExistingPack) {
+          await ensureAnimationIndexExists(stagingRootDir, packDefinition.assets.animations);
+        } else {
+          await ensureEmptyAnimationIndex(stagingRootDir, packDefinition.assets.animations);
+        }
+      }
       await assertCharacterPackDirectorySafe(stagingRootDir);
 
       const stagingPack = await readCharacterPackAtRoot(stagingRootDir, 'installed', {

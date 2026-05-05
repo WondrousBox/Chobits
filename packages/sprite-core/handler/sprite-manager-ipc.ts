@@ -566,7 +566,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       throw new Error(`[sprite:character:activatePack] Pack not found: ${payload.packId}`);
     }
 
-    initCharacterService(activation.pack.rootDir);
+    initCharacterService(activation.pack.rootDir, { source: activation.pack.source });
     const reload = await reloadCharacterRuntimeChain({
       notifyCapabilitySource: 'character.pack.activate'
     });
@@ -618,7 +618,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       };
     }
 
-    initCharacterService(result.pack.rootDir);
+    initCharacterService(result.pack.rootDir, { source: result.pack.source });
     const reload = await reloadCharacterRuntimeChain({
       notifyCapabilitySource: options?.capabilitySource
     });
@@ -697,7 +697,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
         throw new Error(`[sprite:character:removePack] Failed to activate fallback pack: ${fallbackPack.id}`);
       }
 
-      initCharacterService(fallbackActivation.pack.rootDir);
+      initCharacterService(fallbackActivation.pack.rootDir, { source: fallbackActivation.pack.source });
       const reload = await reloadCharacterRuntimeChain({
         notifyCapabilitySource: 'character.pack.remove'
       });
@@ -754,7 +754,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       };
     }
 
-    initCharacterService(result.pack.rootDir);
+    initCharacterService(result.pack.rootDir, { source: result.pack.source });
     const reload = await reloadCharacterRuntimeChain({
       notifyCapabilitySource: 'character.pack.editor'
     });
@@ -959,7 +959,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   });
   deps.addAllowedResourceRoot(getCharacterPackImportPreviewCacheRootDir());
   const activePack = await getActiveCharacterPack();
-  initCharacterService(activePack?.rootDir ?? spritesDir);
+  initCharacterService(activePack?.rootDir ?? spritesDir, { source: activePack?.source ?? 'builtin' });
   await syncCharacterRuntime();
   const initialPersonaSlot = resolveActivePersonaSlot();
   mgr.configurePersonaStateSlot(initialPersonaSlot.id, initialPersonaSlot.identity);

@@ -241,12 +241,15 @@ export interface CharacterPackDefinition {
   signature?: CharacterPackSignature;
 }
 
+export type CharacterPackRuntimeSource = 'builtin' | 'installed';
+
 // ━━ Service ━━
 
 let cachedCharacter: CharacterDefinition | null = null;
 let cachedCharacterPack: CharacterPackDefinition | null = null;
 let characterFilePath: string | null = null;
 let characterPackFilePath: string | null = null;
+let characterPackSource: CharacterPackRuntimeSource | null = null;
 
 function readJsonFile<T>(filePath: string | null, options: { label: string; warnMissing?: boolean }): T | null {
   if (!filePath || !fs.existsSync(filePath)) {
@@ -301,10 +304,21 @@ export function setCharacterFilePath(filePath: string | null): void {
 export function setCharacterPackFilePath(filePath: string | null): void {
   characterPackFilePath = filePath ? path.resolve(filePath) : null;
   cachedCharacterPack = null;
+  if (!filePath) {
+    characterPackSource = null;
+  }
 }
 
 export function getCharacterPackFilePath(): string | null {
   return characterPackFilePath;
+}
+
+export function setCharacterPackSource(source: CharacterPackRuntimeSource | null | undefined): void {
+  characterPackSource = source ?? null;
+}
+
+export function getCharacterPackSource(): CharacterPackRuntimeSource | null {
+  return characterPackSource;
 }
 
 export function getCharacterPackRootDir(): string | null {
@@ -315,9 +329,10 @@ export function getCharacterPackRootDir(): string | null {
  * Initialize the character service with the sprites directory path.
  * Call this once during app bootstrap (after sprite assets are initialized).
  */
-export function initCharacterService(spritesDir: string): void {
+export function initCharacterService(spritesDir: string, options: { source?: CharacterPackRuntimeSource | null } = {}): void {
   const resolvedSpritesDir = path.resolve(spritesDir);
   setCharacterPackFilePath(path.join(resolvedSpritesDir, 'pack.json'));
+  setCharacterPackSource(options.source);
   const characterPath = resolveCharacterFilePathFromPack(getCharacterPackDefinition(), characterPackFilePath) ?? path.join(resolvedSpritesDir, 'character.json');
   setCharacterFilePath(characterPath);
 }

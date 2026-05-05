@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -260,6 +260,108 @@ describe('sprite assets pack manifest integration', () => {
     expect(sprites.map((sprite) => sprite.meta.id)).toEqual(['pack-safe', 'pack-sibling']);
     expect(sprites[0].source.localPath).toBe(path.join(rootDir, 'animations/idle/safe.webm'));
     expect(sprites[1].source.localPath).toBe(path.join(rootDir, 'shared/sibling.webm'));
+  });
+
+  it('writes sprite authoring into the active installed pack animation index', async () => {
+    const builtinRoot = path.join(spritesRoot!, 'builtin-pack');
+    const installedRoot = path.join(userDataDir!, 'character-packs', 'pack-custom');
+
+    writeJsonFile(path.join(builtinRoot, 'pack.json'), {
+      formatVersion: 1,
+      id: 'pack-builtin',
+      name: 'Builtin Pack',
+      version: '1.0.0',
+      author: 'test',
+      description: 'builtin pack',
+      license: 'MIT',
+      tags: ['test'],
+      assets: {
+        character: 'character.json',
+        animations: 'animations/index.json'
+      }
+    });
+    writeJsonFile(path.join(builtinRoot, 'character.json'), createCharacterPayload('character-builtin'));
+    writeJsonFile(path.join(builtinRoot, 'animations/index.json'), {
+      version: 1,
+      items: [
+        {
+          meta: {
+            id: 'builtin-idle',
+            title: 'Builtin Idle',
+            primaryTrigger: 'idle'
+          },
+          source: {
+            localPath: 'idle.webm',
+            type: 'video/webm'
+          }
+        }
+      ]
+    });
+    writeFileSync(path.join(builtinRoot, 'animations/idle.webm'), 'builtin-idle', 'utf-8');
+
+    writeJsonFile(path.join(installedRoot, 'pack.json'), {
+      formatVersion: 1,
+      id: 'pack-custom',
+      name: 'Custom Pack',
+      version: '1.0.0',
+      author: 'test',
+      description: 'custom pack',
+      license: 'MIT',
+      tags: ['test'],
+      assets: {
+        character: 'character.json',
+        animations: 'animations/index.json'
+      }
+    });
+    writeJsonFile(path.join(installedRoot, 'character.json'), createCharacterPayload('character-custom'));
+    writeJsonFile(path.join(installedRoot, 'animations/index.json'), {
+      version: 1,
+      items: []
+    });
+
+    const characterService = await import('../packages/sprite-core/character-service');
+    characterService.initCharacterService(installedRoot, { source: 'installed' });
+
+    const spriteAssets = await import('../packages/sprite-core/handler/sprite-assets');
+    spriteAssets.initSpriteHandlers({
+      addAllowedResourceRoot: vi.fn(),
+      getResourcePath: () => builtinRoot
+    });
+
+    const registerFromData = electronState.handlers.get('sprite:registerFromData') as ((_: unknown, payload: { data: Buffer; meta: Record<string, unknown> }) => Promise<any>) | undefined;
+    const removeSprite = electronState.handlers.get('sprite:remove') as ((_: unknown, payload: { id: string; deleteFile?: boolean }) => Promise<any>) | undefined;
+
+    expect(registerFromData).toBeDefined();
+    expect(removeSprite).toBeDefined();
+
+    const item = await registerFromData!(undefined, {
+      data: Buffer.from('custom-webm'),
+      meta: {
+        id: 'custom-wave',
+        title: 'Custom Wave',
+        primaryTrigger: 'wave'
+      }
+    });
+
+    expect(item.source.localPath).toBe(path.join(installedRoot, 'animations/custom-wave.webm'));
+    expect(item.meta.deletable).toBe(true);
+
+    const storedIndex = JSON.parse(readFileSync(path.join(installedRoot, 'animations/index.json'), 'utf-8'));
+    expect(storedIndex.items).toHaveLength(1);
+    expect(storedIndex.items[0].source.localPath).toBe('custom-wave.webm');
+    expect(existsSync(path.join(userDataDir!, 'data', 'sprites', 'index.json'))).toBe(false);
+
+    const sprites = await spriteAssets.listSprites();
+    expect(sprites.map((sprite) => sprite.meta.id)).toEqual(['custom-wave']);
+    expect(sprites[0].meta.deletable).toBe(true);
+
+    const removed = await removeSprite!(undefined, {
+      id: 'custom-wave',
+      deleteFile: true
+    });
+    expect(removed).toEqual({ ok: true });
+    expect(JSON.parse(readFileSync(path.join(installedRoot, 'animations/index.json'), 'utf-8')).items).toEqual([]);
+    expect(existsSync(path.join(installedRoot, 'animations/custom-wave.webm'))).toBe(false);
   });
 
   it('normalizes primaryTrigger-only metadata on sprite:register', async () => {
