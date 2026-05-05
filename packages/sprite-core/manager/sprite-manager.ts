@@ -1332,7 +1332,8 @@ export class SpriteManager {
 
       const result = await this.behaviorEngine.tryRunBehavior(behaviorId, {
         now: context.triggeredAt,
-        ignoreSchedule: true
+        ignoreSchedule: true,
+        force: context.force === true
       });
       if (result.error) {
         return { status: 'failed' as const, error: result.error };

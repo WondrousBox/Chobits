@@ -153,9 +153,9 @@ describe('daily care service broadcasts', () => {
     const runtime = (service as any).routines.find((candidate: any) => candidate.definition.id === 'care:stretch-standing');
 
     expect(runtime).toBeTruthy();
-    expect((service as any).shouldTrigger(runtime, dayjs('2026-05-05T09:44:59+08:00'))).toBeNull();
-    expect((service as any).shouldTrigger(runtime, dayjs('2026-05-05T10:29:59+08:00'))).toBeNull();
-    expect((service as any).shouldTrigger(runtime, dayjs('2026-05-05T10:30:00+08:00'))).toEqual({});
+    expect((service as any).shouldTrigger(runtime, dayjs('2026-05-05T09:44:59+08:00'))).toEqual({ skipReason: 'interval-not-elapsed' });
+    expect((service as any).shouldTrigger(runtime, dayjs('2026-05-05T10:29:59+08:00'))).toEqual({ skipReason: 'interval-not-elapsed' });
+    expect((service as any).shouldTrigger(runtime, dayjs('2026-05-05T10:30:00+08:00'))).toEqual({ meta: {} });
   });
 
   it('registers routines with the main scheduler instead of owning a global interval', async () => {
@@ -236,6 +236,52 @@ describe('daily care service broadcasts', () => {
       null
     );
     expect(scheduler.getJob('dailyCare:care:morning-brief:fixed:09-15')?.runtime.lastStatus).toBe('success');
+
+    service.stop();
+  });
+
+  it('separates rule-based and force trigger semantics for daily-care scheduler jobs', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 4, 5, 9, 1, 0));
+    scheduleJobMock.mockReturnValue({
+      cancel: vi.fn(),
+      nextInvocation: () => new Date(2026, 4, 5, 9, 15, 0)
+    });
+    const { DailyCareService } = await import('../electron/main/daily/service');
+    const { MainSchedulerService } = await import('../electron/main/scheduler');
+    const scheduler = new MainSchedulerService({
+      stateStore: {
+        load: () => ({}),
+        save: vi.fn()
+      }
+    });
+    const service = new DailyCareService(() => null, { scheduler });
+    const jobId = 'dailyCare:care:morning-brief:fixed:09-15';
+
+    service.start();
+    sendAppNoticeMock.mockClear();
+
+    await scheduler.triggerNow(jobId);
+
+    expect(sendAppNoticeMock).not.toHaveBeenCalled();
+    expect(scheduler.getJob(jobId)?.runtime).toMatchObject({
+      lastStatus: 'skipped',
+      lastSkipReason: 'fixed-time-not-matched'
+    });
+
+    await scheduler.triggerNow(jobId, { force: true });
+
+    expect(sendAppNoticeMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        routineId: 'care:morning-brief',
+        level: 'info'
+      }),
+      null
+    );
+    expect(scheduler.getJob(jobId)?.runtime).toMatchObject({
+      lastStatus: 'success',
+      lastSkipReason: undefined
+    });
 
     service.stop();
   });

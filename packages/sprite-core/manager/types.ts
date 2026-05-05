@@ -5,7 +5,7 @@ import type { SpritePurposeRoutinePlanner } from '../purpose';
 // 主进程调度器抽象（由 Electron main 注入，避免 sprite-core 反向依赖 Electron）
 // ============================================================================
 
-export type SpriteSchedulerRunTrigger = 'scheduled' | 'manual' | 'misfire';
+export type SpriteSchedulerRunTrigger = 'scheduled' | 'manual' | 'event' | 'misfire';
 
 export type SpriteSchedulerScheduleSpec = { kind: 'interval'; everyMs: number } | { kind: 'randomInterval'; minMs: number; maxMs: number };
 
@@ -36,6 +36,7 @@ export interface SpriteSchedulerRunContext<TPayload = unknown> {
   scheduledFor: number;
   triggeredAt: number;
   trigger: SpriteSchedulerRunTrigger;
+  force?: boolean;
 }
 
 export interface SpriteSchedulerGateContext<TPayload = unknown> {

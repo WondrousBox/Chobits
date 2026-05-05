@@ -76,6 +76,8 @@ export interface BehaviorRunOptions {
   now?: number;
   /** Scheduler adapters can set this when they already woke the behavior at its due time. */
   ignoreSchedule?: boolean;
+  /** Debug/ops trigger that bypasses behavior-level due filters while keeping safety guards. */
+  force?: boolean;
 }
 
 export interface BehaviorRunAttemptResult {
@@ -505,7 +507,8 @@ export class BehaviorEngine {
     }
 
     return this.tryRunRuntime(runtime, ctx, options?.now ?? Date.now(), {
-      ignoreSchedule: options?.ignoreSchedule
+      ignoreSchedule: options?.ignoreSchedule,
+      force: options?.force
     });
   }
 
@@ -538,14 +541,15 @@ export class BehaviorEngine {
     };
   }
 
-  private async tryRunRuntime(runtime: BehaviorRuntime, ctx: BehaviorContext, now: number, options?: { ignoreSchedule?: boolean }): Promise<BehaviorRunAttemptResult> {
+  private async tryRunRuntime(runtime: BehaviorRuntime, ctx: BehaviorContext, now: number, options?: { ignoreSchedule?: boolean; force?: boolean }): Promise<BehaviorRunAttemptResult> {
     const def = runtime.definition;
+    const force = options?.force === true;
 
     if (!def.enabled) return this.skip(runtime, 'disabled');
     if (runtime.isRunning) return this.skip(runtime, 'already-running');
 
     // 检查时间
-    if (!options?.ignoreSchedule && now < runtime.nextRunAt) return this.skip(runtime, 'not-due');
+    if (!force && !options?.ignoreSchedule && now < runtime.nextRunAt) return this.skip(runtime, 'not-due');
 
     // 重置每日计数
     const today = new Date(now).toISOString().slice(0, 10);
@@ -569,7 +573,7 @@ export class BehaviorEngine {
     if (def.minLevel != null && ctx.personaState.level < def.minLevel) return this.skip(runtime, 'min-level');
 
     // 时间窗口
-    if (def.schedule.timeWindow) {
+    if (!force && def.schedule.timeWindow) {
       const h = ctx.now.getHours();
       const { startHour, endHour } = def.schedule.timeWindow;
       const inWindow = startHour < endHour ? h >= startHour && h < endHour : h >= startHour || h < endHour; // 跨午夜
@@ -577,26 +581,28 @@ export class BehaviorEngine {
     }
 
     // 条件检查
-    let conditionsMet = true;
-    for (const cond of def.conditions) {
-      try {
-        if (!cond(ctx)) {
+    if (!force) {
+      let conditionsMet = true;
+      for (const cond of def.conditions) {
+        try {
+          if (!cond(ctx)) {
+            conditionsMet = false;
+            break;
+          }
+        } catch {
           conditionsMet = false;
           break;
         }
-      } catch {
-        conditionsMet = false;
-        break;
       }
-    }
-    if (!conditionsMet) {
-      // 条件不满足，重新调度
-      runtime.nextRunAt = this.computeNextRun(def, now);
-      return this.skip(runtime, 'condition-failed');
+      if (!conditionsMet) {
+        // 条件不满足，重新调度
+        runtime.nextRunAt = this.computeNextRun(def, now);
+        return this.skip(runtime, 'condition-failed');
+      }
     }
 
     // 概率过滤
-    if (def.probability != null && Math.random() > def.probability) {
+    if (!force && def.probability != null && Math.random() > def.probability) {
       runtime.nextRunAt = this.computeNextRun(def, now);
       return this.skip(runtime, 'probability');
     }

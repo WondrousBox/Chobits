@@ -12,6 +12,10 @@ export interface VideoSpriteElementLike {
   pause(): void;
 }
 
+function hasCatchHandler(value: unknown): value is Promise<void> {
+  return !!value && typeof (value as Promise<void>).catch === 'function';
+}
+
 export interface VideoSpriteDriverOptions {
   now?: () => number;
   setTimeout?: typeof globalThis.setTimeout;
@@ -75,7 +79,7 @@ export class VideoSpriteDriver {
       if (!video || !input.hasSegmentLoop || this.phase !== 'loop') return;
       const loopEndSec = (input.playback?.loopEndMs ?? video.duration * 1000) / 1000;
       video.currentTime = loopEndSec;
-      video.play();
+      this.requestPlay(video);
       this.phase = 'outro';
     }, remainingMs);
   }
@@ -89,7 +93,7 @@ export class VideoSpriteDriver {
     this.sessionActive = input.playbackSession?.mode === 'timed' ? isTimedPlaybackActive(input.playbackSession, this.now()) : null;
     this.phase = input.hasSegmentLoop && input.playbackSession?.mode === 'timed' ? 'intro' : 'idle';
     video.currentTime = 0;
-    video.play();
+    this.requestPlay(video);
   }
 
   syncPlayingState(input: { video: VideoSpriteElementLike | null; isPlaying: boolean; hasSegmentLoop: boolean; playback?: SpritePlayback }): void {
@@ -101,7 +105,7 @@ export class VideoSpriteDriver {
 
     if (input.isPlaying && !wasPlaying) {
       video.currentTime = 0;
-      video.play();
+      this.requestPlay(video);
       this.phase = 'intro';
       return;
     }
@@ -109,13 +113,13 @@ export class VideoSpriteDriver {
     if (!input.isPlaying && wasPlaying && this.phase === 'loop') {
       const loopEndSec = (input.playback?.loopEndMs ?? video.duration * 1000) / 1000;
       video.currentTime = loopEndSec;
-      video.play();
+      this.requestPlay(video);
       this.phase = 'outro';
     }
   }
 
   handleCanPlay(video: VideoSpriteElementLike | null): void {
-    video?.play();
+    this.requestPlay(video);
   }
 
   handleTimeUpdate(input: { video: VideoSpriteElementLike | null; animId: string | null; playId?: string | null; playback?: SpritePlayback; fallbackIsPlaying: boolean }): void {
@@ -159,7 +163,7 @@ export class VideoSpriteDriver {
         video.pause();
       }
       if (decision.shouldPlay) {
-        video.play();
+        this.requestPlay(video);
       }
       if (decision.completePhase && input.animId) {
         this.notifyAnimationComplete(input.animId, decision.completePhase, input.playId);
@@ -172,7 +176,7 @@ export class VideoSpriteDriver {
     if (currentTimeMs >= effectiveEnd - 50) {
       if (shouldLoop) {
         video.currentTime = effectiveStart / 1000;
-        video.play();
+        this.requestPlay(video);
         return;
       }
 
@@ -196,5 +200,19 @@ export class VideoSpriteDriver {
       return;
     }
     this.onAnimationComplete?.(animId, phase);
+  }
+
+  private requestPlay(video: VideoSpriteElementLike | null): void {
+    if (!video) return;
+    try {
+      const result = video.play();
+      if (hasCatchHandler(result)) {
+        void result.catch(() => {
+          // Browser may reject play() when silent background video is paused to save power.
+        });
+      }
+    } catch {
+      // Treat synchronous play() failures the same as rejected play promises.
+    }
   }
 }

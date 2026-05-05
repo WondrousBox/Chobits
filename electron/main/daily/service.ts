@@ -248,6 +248,13 @@ export class DailyCareService {
       if (!routineId) {
         return { status: 'skipped' as const, reason: 'missing-routine-id' };
       }
+      if (context.force) {
+        const result = this.triggerRoutineById(routineId);
+        if (!result.ok) {
+          return { status: 'skipped' as const, reason: 'routine-not-found' };
+        }
+        return { status: 'success' as const };
+      }
       const result = this.dispatchRoutineByIdIfDue(routineId, dayjs(context.triggeredAt));
       if (!result.dispatched) {
         return { status: 'skipped' as const, reason: result.reason ?? 'not-dispatched' };
@@ -395,9 +402,7 @@ export class DailyCareService {
       return { skipReason: 'resume-cooldown' };
     }
 
-    const dueMeta = this.shouldTrigger(runtime, now);
-    if (!dueMeta) return { skipReason: 'not-due' };
-    return { meta: dueMeta };
+    return this.shouldTrigger(runtime, now);
   }
 
   // --- Internal helpers below ---
@@ -405,56 +410,56 @@ export class DailyCareService {
   /**
    * 判断某个例程在当前时间点是否应该触发，返回幂等 key
    */
-  private shouldTrigger(runtime: RoutineRuntime, now: dayjs.Dayjs): { key?: string } | null {
+  private shouldTrigger(runtime: RoutineRuntime, now: dayjs.Dayjs): RoutineDispatchPlan {
     const schedule = runtime.definition.schedule;
-    if (runtime.state.snoozedUntil && runtime.state.snoozedUntil > now.valueOf()) return null;
+    if (runtime.state.snoozedUntil && runtime.state.snoozedUntil > now.valueOf()) return { skipReason: 'snoozed' };
 
     if (schedule.kind === 'interval') {
-      if (schedule.daysOfWeek && !schedule.daysOfWeek.includes(now.day())) return null;
-      if (!this.isWithinActiveWindow(schedule, now)) return null;
+      if (schedule.daysOfWeek && !schedule.daysOfWeek.includes(now.day())) return { skipReason: 'outside-days-of-week' };
+      if (!this.isWithinActiveWindow(schedule, now)) return { skipReason: 'outside-active-window' };
       const minutes = runtime.state.customIntervalMinutes || schedule.minutes;
 
       if (schedule.alignToStart) {
         const totalMinutes = now.hour() * 60 + now.minute();
         if (totalMinutes % minutes === 0) {
           const key = now.format('YYYY-MM-DD HH:mm');
-          if (runtime.state.lastTriggeredOn === key) return null;
-          return { key };
+          if (runtime.state.lastTriggeredOn === key) return { skipReason: 'already-triggered' };
+          return { meta: { key } };
         }
-        return null;
+        return { skipReason: 'interval-not-aligned' };
       }
 
       const baseline = runtime.state.lastTriggeredAt ?? this.bootedAt;
-      if (now.valueOf() - baseline < minutes * MINUTE) return null;
+      if (now.valueOf() - baseline < minutes * MINUTE) return { skipReason: 'interval-not-elapsed' };
       if (runtime.definition.oncePerDay) {
         const key = now.format('YYYY-MM-DD');
-        if (runtime.state.lastTriggeredOn === key) return null;
-        return { key };
+        if (runtime.state.lastTriggeredOn === key) return { skipReason: 'once-per-day' };
+        return { meta: { key } };
       }
-      return {};
+      return { meta: {} };
     }
 
     if (schedule.kind === 'fixed') {
-      if (schedule.daysOfWeek && !schedule.daysOfWeek.includes(now.day())) return null;
+      if (schedule.daysOfWeek && !schedule.daysOfWeek.includes(now.day())) return { skipReason: 'outside-days-of-week' };
       for (const time of schedule.times) {
         if (!this.isSameMinute(now, time)) continue;
         const key = `${now.format('YYYY-MM-DD')}@${time}`;
-        if (runtime.state.lastTriggeredOn === key) return null;
-        return { key };
+        if (runtime.state.lastTriggeredOn === key) return { skipReason: 'already-triggered' };
+        return { meta: { key } };
       }
-      return null;
+      return { skipReason: 'fixed-time-not-matched' };
     }
 
     if (schedule.kind === 'calendar') {
       const occurrence = this.resolveCalendarOccurrence(schedule, now);
-      if (!occurrence) return null;
-      if (Math.abs(now.diff(occurrence, 'minute')) > 0) return null;
+      if (!occurrence) return { skipReason: 'calendar-date-not-matched' };
+      if (Math.abs(now.diff(occurrence, 'minute')) > 0) return { skipReason: 'calendar-time-not-matched' };
       const key = `${occurrence.format('YYYY-MM-DDTHH:mm')}:${schedule.leadMinutes || 0}`;
-      if (runtime.state.lastTriggeredOn === key) return null;
-      return { key };
+      if (runtime.state.lastTriggeredOn === key) return { skipReason: 'already-triggered' };
+      return { meta: { key } };
     }
 
-    return null;
+    return { skipReason: 'unsupported-schedule' };
   }
 
   /**
