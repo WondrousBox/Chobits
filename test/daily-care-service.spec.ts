@@ -10,6 +10,8 @@ const electronState = {
 };
 
 const notifySpriteCapabilityChangedMock = vi.fn();
+const scheduleJobMock = vi.hoisted(() => vi.fn());
+const sendAppNoticeMock = vi.hoisted(() => vi.fn());
 
 vi.mock('electron', () => ({
   app: {
@@ -25,8 +27,14 @@ vi.mock('electron', () => ({
   }
 }));
 
+vi.mock('node-schedule', () => ({
+  default: {
+    scheduleJob: scheduleJobMock
+  }
+}));
+
 vi.mock('../packages/event', () => ({
-  sendAppNotice: vi.fn()
+  sendAppNotice: sendAppNoticeMock
 }));
 
 vi.mock('../packages/sprite-core/handler/capability-events', () => ({
@@ -40,6 +48,8 @@ describe('daily care service broadcasts', () => {
   beforeEach(async () => {
     vi.resetModules();
     notifySpriteCapabilityChangedMock.mockReset();
+    scheduleJobMock.mockReset();
+    sendAppNoticeMock.mockReset();
     dataDir = mkdtempSync(path.join(os.tmpdir(), 'daily-care-service-'));
     electronState.userDataDir = dataDir;
     sent = [];
@@ -56,6 +66,7 @@ describe('daily care service broadcasts', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     rmSync(dataDir, { recursive: true, force: true });
   });
 
@@ -130,5 +141,102 @@ describe('daily care service broadcasts', () => {
     cleanup();
     service.triggerRoutineById('care:hydration-hourly');
     expect(dispatched).toHaveLength(1);
+  });
+
+  it('uses real minutes for interval routine scheduling', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-05T09:00:00+08:00'));
+
+    const dayjs = (await import('dayjs')).default;
+    const { DailyCareService } = await import('../electron/main/daily/service');
+    const service = new DailyCareService(() => null);
+    const runtime = (service as any).routines.find((candidate: any) => candidate.definition.id === 'care:stretch-standing');
+
+    expect(runtime).toBeTruthy();
+    expect((service as any).shouldTrigger(runtime, dayjs('2026-05-05T09:44:59+08:00'))).toBeNull();
+    expect((service as any).shouldTrigger(runtime, dayjs('2026-05-05T10:29:59+08:00'))).toBeNull();
+    expect((service as any).shouldTrigger(runtime, dayjs('2026-05-05T10:30:00+08:00'))).toEqual({});
+  });
+
+  it('registers routines with the main scheduler instead of owning a global interval', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 4, 5, 9, 1, 0));
+    scheduleJobMock.mockReturnValue({
+      cancel: vi.fn(),
+      nextInvocation: () => new Date(2026, 4, 5, 9, 15, 0)
+    });
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
+    const { DailyCareService } = await import('../electron/main/daily/service');
+    const { MainSchedulerService } = await import('../electron/main/scheduler');
+    const scheduler = new MainSchedulerService({
+      stateStore: {
+        load: () => ({}),
+        save: vi.fn()
+      }
+    });
+    const service = new DailyCareService(() => null, { scheduler });
+
+    service.start();
+
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+    expect(scheduler.listJobs()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          definition: expect.objectContaining({
+            id: 'dailyCare:care:hydration-hourly:interval',
+            owner: 'dailyCare',
+            schedule: { kind: 'interval', everyMs: 60_000 }
+          })
+        }),
+        expect.objectContaining({
+          definition: expect.objectContaining({
+            id: 'dailyCare:care:morning-brief:fixed:09-15',
+            owner: 'dailyCare',
+            schedule: { kind: 'cron', expression: '15 9 * * *' }
+          })
+        })
+      ])
+    );
+
+    service.stop();
+    setIntervalSpy.mockRestore();
+  });
+
+  it('dispatches fixed routines through the scheduler callback', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 4, 5, 9, 14, 0));
+    const callbacks = new Map<string, (fireDate: Date) => Promise<void>>();
+    scheduleJobMock.mockImplementation((spec, callback) => {
+      callbacks.set(String(spec), callback);
+      return {
+        cancel: vi.fn(),
+        nextInvocation: () => new Date(2026, 4, 5, 9, 15, 0)
+      };
+    });
+    const { DailyCareService } = await import('../electron/main/daily/service');
+    const { MainSchedulerService } = await import('../electron/main/scheduler');
+    const scheduler = new MainSchedulerService({
+      stateStore: {
+        load: () => ({}),
+        save: vi.fn()
+      }
+    });
+    const service = new DailyCareService(() => null, { scheduler });
+
+    service.start();
+    sendAppNoticeMock.mockClear();
+    vi.setSystemTime(new Date(2026, 4, 5, 9, 15, 0));
+    await callbacks.get('15 9 * * *')?.(new Date(2026, 4, 5, 9, 15, 0));
+
+    expect(sendAppNoticeMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        routineId: 'care:morning-brief',
+        level: 'info'
+      }),
+      null
+    );
+    expect(scheduler.getJob('dailyCare:care:morning-brief:fixed:09-15')?.runtime.lastStatus).toBe('success');
+
+    service.stop();
   });
 });

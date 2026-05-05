@@ -12,13 +12,15 @@
 
 目标不是把业务都塞进同一个类里，而是做一个主进程的统一调度基础设施：时间与触发统一，业务判断与执行仍留在各自领域服务里。
 
-## 现状结论
+## 当前实现结论
 
 ### 精灵自主行为
 
 `BehaviorDefinition.schedule` 已经定义了 `interval`、`random`、`cron-like`，并带有条件、概率、冷却、每日上限、状态约束、等级和好感度约束。
 
-当前 `BehaviorEngine.start()` 使用 `setInterval(() => this.tick(), this.tickInterval)` 每秒轮询。`SpriteManager` 在 Electron main 的 `initSpriteManagerIPC()` 中初始化并启动，所以日志里的：
+当前 Electron main 会在 `initSpriteManagerIPC()` 中把 `getMainSchedulerService()` 注入 `SpriteManager`，因此默认行为会注册为 `sprite.behavior:*` scheduler jobs。scheduler 到点后调用 `BehaviorEngine.tryRunBehavior(id, { ignoreSchedule: true })`，行为条件、概率、状态、等级、冷却、每日上限仍由 `BehaviorEngine` 判断。
+
+`BehaviorEngine.start()` 的 legacy polling 仍保留给测试或非 Electron main 注入场景；在主应用里，有 scheduler 注入时不再启动这套全局轮询。日志里的：
 
 ```text
 behavior triggered: ❤❤❤❤❤ 自动行走 ❤❤❤❤❤
@@ -27,33 +29,29 @@ behavior completed: ❤❤❤❤❤ 自动行走 ❤❤❤❤❤
 
 是主进程里的 `BehaviorEngine` 打出来的，不是 renderer 定时器。renderer 只是通过 IPC 上报 click、hover、context-menu 等交互。
 
-已存在的右键菜单处理也符合这个方向：`AssistantMenuPage` 打开菜单时上报 `sprite.interact('context-menu', { open: true })`，`SpriteManager.reportInteraction()` 将 `context-menu` 放入 `movementSuspensionReasons`，`MovementCoordinator.canUseMovement()` 会因此阻止自动移动。后续统一调度系统应把它抽象成“调度准入条件”，而不是只在自动行走里补一个 if。
+右键菜单处理已经进入 scheduler admission：`AssistantMenuPage` 打开菜单时上报 `sprite.interact('context-menu', { open: true })`，`SpriteManager.reportInteraction()` 将 `context-menu` 放入 `movementSuspensionReasons`，自动行走 job 的 `sprite.canAutoMove` gate 会返回 `movement-suspended`，不会触发行走。
 
 ### 日常关心模式
 
-`DailyCareService` 是 Electron main 单例，由 `initDailyCare()` 创建。它自己维护：
+`DailyCareService` 是 Electron main 单例，由 `initDailyCare()` 创建。当前它不再维护全局 `setInterval`，而是在 `start()` 后把 routine 注册到 `MainSchedulerService`：
 
-- `setInterval(() => this.tick(), MINUTE)`
-- 系统 idle 判断
-- resume/unlock 冷却
-- `interval`、`fixed`、`calendar` 三类日程
-- snooze、lastTriggeredAt、lastTriggeredOn、persistent notice
-- daily-care 事件到 Sprite Purpose 的桥接
+- interval routine 注册为每分钟唤醒一次，再由 daily-care 自己判断具体分钟间隔、active window、oncePerDay、snooze。
+- fixed routine 转成 cron，例如 `09:15` -> `15 9 * * *`。
+- calendar routine 转成每日 cron 唤醒，具体日期、提前提醒、年度重复仍由 daily-care 语义判断。
+- 系统 idle、resume/unlock 冷却、persistent notice、daily-care 到 Sprite Purpose 的桥接仍保留在 `DailyCareService`。
 
-需要注意一个现存问题：`MINUTE = 30 * 1000`，但 schedule 字段语义是“分钟”。这会让 `minutes * MINUTE` 的真实间隔变成配置值的一半。无论这是调试残留还是刻意加速，迁移时都必须明确恢复为真实分钟，或者提供开发模式倍率。
+`MINUTE` 已恢复为真实 `60 * 1000`。如果后续需要开发加速，应单独做 dev timeScale，而不是混在业务分钟语义里。
 
 ### 工作流自动化
 
-仓库已经有 `node-schedule`，当前只被 `electron/main/handlers/scheduler.ts` 使用：
+工作流自动化现在通过 `electron/main/handlers/scheduler.ts` 作为 automation adapter 接入 `MainSchedulerService`：
 
-- 启动时读取 `automation_rules`
-- 只注册 `triggerType === 'schedule'` 且 enabled 的规则
-- 用 `triggerConfig.cron` 建 `schedule.scheduleJob()`
-- 到点后直接 `runWorkflow()`
+- 启动时读取 enabled automation rules。
+- schedule rule 注册为 `cron` job。
+- manual/resource_event/system_event rule 注册为无排期的 `manual` / `event` job，调度中心可见但 `active=false`。
+- cron、manual、resource_event、system_event 都通过 scheduler handler 进入 `executeAutomationRule()`，从而统一 owner pause、并发控制、runtime state 和 audit log。
 
-自动化的 `manual`、`resource_event`、`system_event` 不走这个 scheduler，而是在 `automation/ipc-main.ts` 里分别处理。也就是说现在工作流自动化已经有“定时调度器”，但它只覆盖 cron，缺少统一执行入口、运行状态、重试、冲突控制和审计。
-
-当前实现还有一个风险：`automation:updateRule` 调用 `scheduleRule(updated)`，但 `scheduleRule()` 一开始就因为 disabled 或 triggerType 不是 schedule 而 return，旧 job 不会被取消。规则从 enabled 改成 disabled，或从 schedule 改成 resource_event 时，旧 cron job 可能继续存在。统一调度后这类启停应由 registry 的 upsert/remove 保证。
+`automation:create/update/delete/toggle` 仍调用 `scheduleRule/unscheduleRule` 这个兼容命名的 adapter API，但内部已经先 remove 旧 job，再按新 triggerType upsert 新 job，因此 disabled 或 triggerType 改变不会留下旧 cron job。
 
 ## 设计原则
 
@@ -100,10 +98,15 @@ flowchart TD
 
 - 注册、更新、移除调度 job
 - 把不同 schedule 类型转换到底层 `node-schedule` 或一次性 Date job
-- 统一处理 app 启动、休眠、唤醒、锁屏、解锁
-- 统一处理 enabled、pause、cooldown、dailyLimit、singleton、coalesce
-- 统一执行记录和错误日志
-- 提供 IPC 查询调度状态，方便以后做“调度中心”界面
+- 统一处理 enabled、job pause、owner pause、cooldown、dailyLimit、singleton、maxConcurrent
+- 统一执行记录、错误日志和 audit log
+- 提供 IPC 查询和控制调度状态，支撑“调度中心”界面
+
+尚未统一到 scheduler 核心的职责：
+
+- app 启动依赖、workflow ready、sprite runtime ready 等 dependency gate
+- 休眠、唤醒、锁屏、解锁这类生命周期信号的统一调度策略
+- retry/backoff、coalesce、interval window/daysOfWeek 的核心执行语义
 
 不负责：
 
@@ -114,19 +117,19 @@ flowchart TD
 
 ### ScheduleSpec
 
-统一 schedule DSL 可以覆盖当前三类业务：
+当前已经落地的 schedule DSL 是：
 
 ```ts
 type ScheduleSpec =
   | { kind: 'cron'; expression: string; timezone?: string }
   | { kind: 'date'; at: number; timezone?: string }
-  | { kind: 'interval'; everyMs: number; alignTo?: 'start-of-minute' | 'start-of-hour'; window?: TimeWindow; daysOfWeek?: number[] }
+  | { kind: 'interval'; everyMs: number; window?: TimeWindow; daysOfWeek?: number[] }
   | { kind: 'randomInterval'; minMs: number; maxMs: number; window?: TimeWindow; daysOfWeek?: number[] }
-  | { kind: 'fixedTime'; times: string[]; timezone?: string; daysOfWeek?: number[] }
-  | { kind: 'calendar'; repeat: 'once' | 'yearly'; time: string; date?: CalendarDate; nthWeekday?: NthWeekday; leadMs?: number; timezone?: string }
   | { kind: 'event'; eventType: string }
   | { kind: 'manual' };
 ```
+
+注意：`fixedTime` 和 `calendar` 没有进入 scheduler 核心 DSL，而是在 daily-care adapter 层转换成 cron 唤醒；日期语义仍留在 daily-care 内部。这个边界更清晰，也避免 scheduler 变成业务日历引擎。
 
 映射关系：
 
@@ -134,10 +137,10 @@ type ScheduleSpec =
 | --- | --- | --- |
 | BehaviorEngine | `schedule.type = interval` | `interval` |
 | BehaviorEngine | `schedule.type = random` | `randomInterval` |
-| BehaviorEngine | `schedule.type = cron-like` | 第一阶段废弃或显式转为 `cron` |
+| BehaviorEngine | `schedule.type = cron-like` | 暂未正式映射；当前 adapter 会按 interval 兜底 |
 | DailyCare | `RoutineSchedule.interval` | `interval` |
-| DailyCare | `RoutineSchedule.fixed` | `fixedTime` |
-| DailyCare | `RoutineSchedule.calendar` | `calendar` |
+| DailyCare | `RoutineSchedule.fixed` | adapter 转成 `cron` |
+| DailyCare | `RoutineSchedule.calendar` | adapter 转成每日 `cron`，业务日期仍由 daily-care 判断 |
 | Automation | `triggerConfig.cron` | `cron` |
 | Automation | `resource_event/system_event/manual` | `event` / `manual` |
 
@@ -153,7 +156,6 @@ interface SchedulerJobDefinition<TPayload = unknown> {
   payload: TPayload;
   runPolicy?: {
     singletonKey?: string;
-    coalesceKey?: string;
     cooldownMs?: number;
     dailyLimit?: number;
     maxConcurrent?: number;
@@ -161,10 +163,6 @@ interface SchedulerJobDefinition<TPayload = unknown> {
     retry?: { maxAttempts: number; backoffMs: number };
   };
   admission?: {
-    skipWhenSystemIdle?: boolean;
-    allowWhenLocked?: boolean;
-    resumeCooldownMs?: number;
-    requiredCapability?: string;
     customGate?: string;
   };
 }
@@ -296,17 +294,16 @@ interface SchedulerRuntimeState {
 
 1. 自由移动 1 级解锁：这是 capability 定义问题，不应由 scheduler 决定等级。scheduler 只读取 capability runtime 的结果做准入。
 2. 右键菜单打开不自由行走：这是 scheduler admission 的典型场景。context-menu open 进入 `movementSuspensionReasons`，移动类 job 到点时 skip。
-3. 精灵视频编辑器拖动首尾滑块后不要误添加中间 loop：这是 renderer 编辑器的 pointer intent 问题，不属于主进程调度。正确设计是区分 `drag-handle` 与 `click-middle`，只有明确点击中间轨道才创建 loop segment；拖拽结束只提交 start/end 边界。
 
 ## 分阶段实施
 
-### Phase 0：补齐安全修复
+### Phase 0：补齐安全修复（已完成）
 
 - 修复 automation rule disabled/type change 后旧 cron job 不取消的问题。
 - 明确 daily-care `MINUTE = 30 * 1000` 是否是调试倍率；如果不是，改成真实分钟。
 - 给 `BehaviorEngine` 增加 `tryRunBehavior(id, options?)`，先复用现有 tick 内部逻辑。
 
-### Phase 1：建立主进程调度基础设施
+### Phase 1：建立主进程调度基础设施（已完成）
 
 - 新增 `electron/main/scheduler/`
 - 封装 `node-schedule`
@@ -315,33 +312,84 @@ interface SchedulerRuntimeState {
 - 支持 `scheduler-state.json`
 - 新增基础测试：注册、更新、取消、disabled、random reschedule、cron invalid
 
-### Phase 2：迁移工作流自动化
+### Phase 2：迁移工作流自动化（已完成）
 
 - 将 `electron/main/handlers/scheduler.ts` 改为 adapter 或删除旧 jobs map。
 - `automation:create/update/delete/toggle` 走 scheduler registry。
 - 统一 `AutomationExecutor.runRule()`，manual/resource/system/schedule 共用。
 - 加测试覆盖 disabled 后不再触发。
 
-### Phase 3：迁移 daily-care
+### Phase 3：迁移 daily-care（已完成）
 
 - `DailyCareService.start()` 不再创建全局 interval。
-- `rebuildRuntimes()` 后 upsert routine jobs。
-- 到点触发 `dispatchIfDue()`。
+- `rebuildRuntimes()` 后 upsert routine jobs，并在设置/自定义提醒变更后重建注册。
+- 到点后由 `MainSchedulerService` 通过 `dailyCare` owner handler 触发原有 dispatch 逻辑。
 - 保留 daily-care storage 和 IPC API。
-- 修复真实分钟语义或引入 dev timeScale。
+- 已修复真实分钟语义；后续如需要开发加速，应单独引入 dev timeScale。
 
-### Phase 4：迁移 sprite behavior
+当前实现说明：
 
-- `BehaviorEngine.start()` 支持 legacy polling 与 scheduler mode。
-- `SpriteBehaviorSchedulerAdapter` 注册所有 behavior jobs。
-- 自动行走、idle-action、emotion、ambient 等都由 scheduler 唤醒，再由 BehaviorEngine 做领域判断。
-- 移动类行为统一使用 `sprite.canAutoMove` gate。
+- interval routine 由主进程 scheduler 每分钟唤醒对应 routine，再由 `DailyCareService` 检查原有 interval、active window、snooze、idle、resume cooldown 与 oncePerDay 规则。
+- fixed routine 映射为 cron job，例如 `09:15` 映射为 `15 9 * * *`。
+- calendar routine 映射为每日一次的 cron 唤醒，实际是否命中日期仍由 daily-care 的 calendar 语义判断，避免把节日、生日、提前提醒等业务规则塞进 scheduler。
+- automation 与 daily-care 现在共用同一个 `MainSchedulerService` 单例，scheduler 仍只负责时间、注册、准入和运行态。
 
-### Phase 5：可视化和运维
+### Phase 4：迁移 sprite behavior（已完成）
 
-- 增加主进程 IPC：`scheduler:listJobs`、`scheduler:getJob`、`scheduler:triggerNow`、`scheduler:pauseJob`。
-- 设置页或调试页展示 job、nextRunAt、lastStatus、skipReason。
+- `BehaviorEngine.start()` 保留 legacy polling；`SpriteManager` 注入主进程 scheduler 时改走 scheduler mode。
+- `SpriteManager` 将所有默认 behavior 注册为 `sprite.behavior:*` jobs。
+- 自动行走、idle-action、emotion、ambient、seasonal 等都由 scheduler 唤醒，再由 `BehaviorEngine.tryRunBehavior()` 做领域判断。
+- 自动行走使用 `sprite.canAutoMove` gate，右键菜单打开、movement capability 锁定、自动行走关闭或窗口控制器不可用时直接 skip。
+
+当前实现说明：
+
+- `sprite-core` 只定义 scheduler 抽象接口，由 Electron main 的 `getMainSchedulerService()` 注入，避免业务包反向依赖 Electron scheduler 实现。
+- scheduler 负责唤醒行为 job；行为是否满足状态、idle、概率、每日上限、冷却、等级等条件仍由 `BehaviorEngine` 判断。
+- 没有注入 scheduler 的测试或非 Electron 场景仍保留 `BehaviorEngine.start()` 轮询模式，方便低耦合使用。
+
+### Phase 5：可视化和运维（基础已完成，运维增强继续推进）
+
+- 增加主进程 IPC：`scheduler:listJobs`、`scheduler:getJob`、`scheduler:getRuntimeState`、`scheduler:triggerNow`。
+- 增加主进程控制 IPC：`scheduler:pauseJob`、`scheduler:resumeJob`、`scheduler:pauseOwner`、`scheduler:resumeOwner`、`scheduler:getOwnerPauseState`。
+- 增加主进程历史 IPC：`scheduler:listAuditLog`。
+- 扩展设置页增加“调度中心”，展示 job、nextRunAt、lastStatus、skipReason、owner pause state 与 audit log。
 - 将运行历史从 state 扩展为 audit log。
+
+当前实现说明：
+
+- scheduler handler 可以显式返回 `success` / `skipped` / `failed`，业务内部不满足条件时不会再被误记为成功。
+- IPC 返回的 job snapshot 会隐藏 payload，避免把 automation rule inputs 等业务负载直接暴露给调试页面。
+- `triggerNow` 走同一套 admission + handler + runtime state 记录，因此可以用于统一调试 automation、daily-care 与 sprite behavior；它不是强制绕过业务语义的执行入口。
+- 对 daily-care 来说，调度中心的立即触发按钮仍会经过 `dailyCare.canDispatch` gate 和 `DailyCareService.shouldTrigger()`。因此在当前分钟不命中 fixed time、interval 未到间隔、active window 不匹配、snooze/oncePerDay 命中等场景下，最近结果会显示 `skipped` / `not-due`。这说明 scheduler 正常唤醒并记录了业务拒绝，而不是 job 没有排期。
+- 单个 job 支持 paused runtime state，暂停后取消当前排期，恢复后按 scheduler 统一重新排期。
+- owner 级暂停支持阻断某个业务域，例如一次性暂停 `sprite.behavior` 下所有自由行为；该状态已写入 `scheduler-state.json`，应用重启后仍会恢复。
+- audit log 记录 run/control 事件，包含 trigger、status、reason/error、开始/结束时间和 job 元信息，不记录 payload。
+- audit log 使用按天 JSONL 文件，默认保留 30 天且最多保留 60 个文件，写入与 scheduler 初始化时都会执行清理。
+- renderer 通过 `window.YUA.scheduler` 访问主进程调度 IPC；调度中心只消费 sanitized snapshot，不接触 job payload。
+
+调度中心当前已经具备：
+
+- jobs 列表：展示 owner、job id、active/paused、nextRunAt、lastStatus、lastSkipReason/lastError。
+- owner 控制：支持暂停/恢复某个 owner，并持久化 owner pause state。
+- job 控制：支持单 job 暂停/恢复，以及按当前 admission 规则触发一次。
+- 历史审计：支持按 owner、eventType、status 过滤 run/control 记录。
+
+调度中心仍可增强：
+
+- 区分“按规则触发一次”和“强制绕过业务 due gate 触发一次”。后者若需要，应由各业务 adapter 显式支持，避免 scheduler 私自破坏领域语义。
+- 为 skipped reason 增加更细粒度的人类可读解释，例如 daily-care 的 `not-due` 可以进一步拆成 `outside-active-window`、`interval-not-elapsed`、`fixed-time-not-matched`、`snoozed` 等。
+- 增加 job 详情页/弹窗，展示脱敏后的 schedule、runPolicy、admission gate、owner pause 来源和最近 N 次运行记录。
+- 增加自动刷新或事件推送，避免调度中心依赖手动刷新查看最新状态。
+- 为 audit log 增加导出、时间范围筛选和清理入口。
+
+## 当前未完成清单
+
+1. Scheduler lifecycle/dependency gate：目前 workflow 初始化在 scheduler 初始化前完成，但 scheduler 没有显式的 `workflow-ready`、`sprite-ready`、`booting-paused` 状态。后续需要把依赖状态变成 scheduler admission 的一部分。
+2. 统一休眠/恢复策略：daily-care 仍直接监听 Electron `powerMonitor` 处理 resume/suspend/lock/unlock。后续应让 scheduler 接收这些生命周期事件，业务只提供自己的 skip/run-once 策略。
+3. Retry/backoff：`SchedulerRunPolicy.retry` 已在类型层预留，但 `MainSchedulerService.runEntry()` 目前只记录失败，不执行重试。
+4. Interval window/daysOfWeek：`interval` 和 `randomInterval` 类型上已有 `window`、`daysOfWeek`，但核心调度目前只按间隔计算下一次运行。daily-care 的 active window 仍在业务 gate 中判断。
+5. Behavior `cron-like`：默认 sprite behavior 当前主要使用 interval/random；`cron-like` 尚未正式映射到 scheduler cron，需要后续决定弃用还是转换。
+6. 更长期的存储演进：当前运行态和 audit log 存在 userData JSON/JSONL。若要跨 workspace 查询、做长期统计或更强审计，需要迁移到 SQLite。
 
 ## 测试策略
 

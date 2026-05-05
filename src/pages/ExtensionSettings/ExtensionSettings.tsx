@@ -10,6 +10,7 @@ import { DailyCareDetailContent, DailyCareItem, useDailyCareSettings } from './D
 import { MovementDetailContent, MovementItem } from './MovementSettings';
 import { PurposePlannerDetailContent, PurposePlannerItem } from './PurposePlannerSettings';
 import { RecorderDetailContent, RecorderItem, useRecorderSettings } from './RecorderSettings';
+import { SchedulerDebugDetailContent, SchedulerDebugItem } from './SchedulerDebugSettings';
 import { ScreenshotDetailContent, ScreenshotItem, useScreenshotSettings } from './ScreenshotSettings';
 import { SpeakDetailContent, SpeakItem, useSpeakSettings } from './SpeakSettings';
 import { SpeechRecognitionDetailContent, SpeechRecognitionItem, useSpeechRecognitionSettings } from './SpeechRecognitionSettings';
@@ -19,7 +20,7 @@ import { useMovementSettings } from './useMovementSettings';
 import { usePurposePlannerSettings } from './usePurposePlannerSettings';
 import { useSpontaneousUtteranceSettings } from './useSpontaneousUtteranceSettings';
 
-type SkillKey = 'movement' | 'speak' | 'dailyCare' | 'sprite' | 'spontaneous' | 'purposePlanner' | 'recorder' | 'speechRecognition' | 'screenshot';
+type SkillKey = 'movement' | 'speak' | 'dailyCare' | 'sprite' | 'spontaneous' | 'purposePlanner' | 'scheduler' | 'recorder' | 'speechRecognition' | 'screenshot';
 
 const ExtensionSettings: React.FC = () => {
   const [selected, setSelected] = useState<SkillKey>('movement');
@@ -60,6 +61,8 @@ const ExtensionSettings: React.FC = () => {
         return <SpontaneousUtteranceDetailContent state={spontaneousUtteranceState} />;
       case 'purposePlanner':
         return <PurposePlannerDetailContent state={purposePlannerState} />;
+      case 'scheduler':
+        return <SchedulerDebugDetailContent />;
       case 'recorder':
         return <RecorderDetailContent state={recorderState} capability={recorderCapability} />;
       case 'speechRecognition':
@@ -82,6 +85,7 @@ const ExtensionSettings: React.FC = () => {
             <SpriteItem selected={selected === 'sprite'} onSelect={() => setSelected('sprite')} />
             <SpontaneousUtteranceItem state={spontaneousUtteranceState} selected={selected === 'spontaneous'} onSelect={() => setSelected('spontaneous')} />
             <PurposePlannerItem state={purposePlannerState} selected={selected === 'purposePlanner'} onSelect={() => setSelected('purposePlanner')} />
+            <SchedulerDebugItem selected={selected === 'scheduler'} onSelect={() => setSelected('scheduler')} />
             <RecorderItem state={recorderState} capability={recorderCapability} selected={selected === 'recorder'} onSelect={() => setSelected('recorder')} />
             <SpeechRecognitionItem state={speechRecState} capability={speechRecognitionCapability} selected={selected === 'speechRecognition'} onSelect={() => setSelected('speechRecognition')} />
             <ScreenshotItem state={screenshotState} capability={screenshotCapability} selected={selected === 'screenshot'} onSelect={() => setSelected('screenshot')} />

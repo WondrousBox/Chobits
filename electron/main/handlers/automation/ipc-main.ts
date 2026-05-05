@@ -2,10 +2,9 @@ import { ipcMain } from 'electron';
 
 import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
-import { getWorkflow, runWorkflow } from '../../../../packages/workflow';
 import { AutomationRulesRepo } from '../../db/repositories';
 import { NewAutomationRule } from '../../db/schema';
-import { scheduleRule, unscheduleRule } from '../scheduler';
+import { runAutomationRule, scheduleRule, unscheduleRule } from '../scheduler';
 
 export function initAutomationHandlers(): void {
   // IPC Handlers for Automation Rules
@@ -37,23 +36,7 @@ export function initAutomationHandlers(): void {
     if (!rule) return;
 
     console.log(`[Automation] Manually triggering rule ${rule.name} (${rule.id})`);
-    if (rule.actionType === 'workflow') {
-      const config = rule.actionConfig as any;
-      if (!config || !config.workflowId) {
-        console.warn(`[Automation] Invalid workflow config for rule ${rule.id}`);
-        return;
-      }
-
-      const workflowDef = await getWorkflow(config.workflowId);
-      if (!workflowDef) {
-        console.warn(`[Automation] Workflow ${config.workflowId} not found for rule ${rule.id}`);
-        return;
-      }
-
-      // Run workflow
-      const inputs = { ...(config.inputs || {}), triggerType: 'manual' };
-      await runWorkflow(workflowDef, inputs);
-    }
+    return runAutomationRule(rule, { type: 'manual' });
   });
 
   // Event Listeners
@@ -78,25 +61,7 @@ async function handleSystemEvent(eventType: string): Promise<void> {
 
   for (const rule of rules) {
     try {
-      if (rule.actionType === 'workflow') {
-        const config = rule.actionConfig as any;
-        if (!config || !config.workflowId) {
-          console.warn(`[Automation] Invalid workflow config for rule ${rule.id}`);
-          continue;
-        }
-
-        const workflowDef = await getWorkflow(config.workflowId);
-        if (!workflowDef) {
-          console.warn(`[Automation] Workflow ${config.workflowId} not found for rule ${rule.id}`);
-          continue;
-        }
-
-        console.log(`[Automation] Triggering workflow ${workflowDef.name} for system event ${eventType}`);
-
-        // Run workflow
-        const inputs = { ...(config.inputs || {}), eventType };
-        await runWorkflow(workflowDef, inputs);
-      }
+      await runAutomationRule(rule, { type: 'system_event', eventType });
     } catch (error) {
       console.error(`[Automation] Error executing rule ${rule.id}:`, error);
     }
@@ -114,28 +79,7 @@ async function handleResourceEvent(resource: any, eventType: string): Promise<vo
 
   for (const rule of rules) {
     try {
-      if (rule.actionType === 'workflow') {
-        const config = rule.actionConfig as any;
-        if (!config || !config.workflowId) {
-          console.warn(`[Automation] Invalid workflow config for rule ${rule.id}`);
-          continue;
-        }
-
-        const workflowDef = await getWorkflow(config.workflowId);
-        if (!workflowDef) {
-          console.warn(`[Automation] Workflow ${config.workflowId} not found for rule ${rule.id}`);
-          continue;
-        }
-
-        console.log(`[Automation] Triggering workflow ${workflowDef.name} for resource ${resource.id}`);
-
-        // Run workflow
-        // Pass inputs from config if any, plus resourceId
-        const inputs = { ...(config.inputs || {}), resourceId: resource.id, resource };
-        await runWorkflow(workflowDef, inputs);
-      } else {
-        console.warn(`[Automation] Unsupported action type ${rule.actionType} for rule ${rule.id}`);
-      }
+      await runAutomationRule(rule, { type: 'resource_event', eventType, resource });
     } catch (error) {
       console.error(`[Automation] Error executing rule ${rule.id}:`, error);
     }

@@ -13,6 +13,7 @@ import { SPRITE_EVENT_TYPES } from '../../../packages/sprite-core/types';
 import { initTTSHandlers } from '../../../packages/tts/ipc-main';
 import { initYtDlpIpcHandlers } from '../../../packages/ytdlp';
 import { initDailyCare } from '../daily';
+import { initSchedulerIPC } from '../scheduler';
 import { initScreenshotHandlers } from '../screenshot';
 import { initSkillTreeHandlers } from '../skillTreeWindow';
 import { getResourcePath } from '../utils/resources-path';
@@ -66,6 +67,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initWorkspaceHandlers();
   initFileHandlers(win);
   initSystemHandlers();
+  initSchedulerIPC();
   initDownloadHandlers(win);
   initSpriteHandlers({
     addAllowedResourceRoot: (await import('../resource-protocol')).addAllowedResourceRoot,
@@ -114,7 +116,9 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initAnalyticsHandlers();
   initUserProfileHandlers();
   const purposeHistoryStore = new SpritePurposeHistoryStore(app.getPath('userData'));
-  const purposeRetrospectiveProvider = (query?: Parameters<SpritePurposeHistoryStore['getDailyRetrospective']>[0]) => purposeHistoryStore.getDailyRetrospective(query);
+  const purposeRetrospectiveProvider = (
+    query?: Parameters<SpritePurposeHistoryStore['getDailyRetrospective']>[0]
+  ): ReturnType<SpritePurposeHistoryStore['getDailyRetrospective']> => purposeHistoryStore.getDailyRetrospective(query);
   registerPurposeRetrospectiveMemoryProvider(purposeRetrospectiveProvider);
   const spontaneousUtteranceService = new SpriteSpontaneousUtteranceService({
     purposeRetrospectiveProvider

@@ -2,6 +2,62 @@ import type { PersonaState } from '../persona-state';
 import type { SpritePurposeRoutinePlanner } from '../purpose';
 
 // ============================================================================
+// 主进程调度器抽象（由 Electron main 注入，避免 sprite-core 反向依赖 Electron）
+// ============================================================================
+
+export type SpriteSchedulerRunTrigger = 'scheduled' | 'manual' | 'misfire';
+
+export type SpriteSchedulerScheduleSpec = { kind: 'interval'; everyMs: number } | { kind: 'randomInterval'; minMs: number; maxMs: number };
+
+export interface SpriteSchedulerJobDefinition<TPayload = unknown> {
+  id: string;
+  owner: string;
+  name: string;
+  enabled: boolean;
+  schedule: SpriteSchedulerScheduleSpec;
+  payload?: TPayload;
+  runPolicy?: {
+    singletonKey?: string;
+    maxConcurrent?: number;
+    misfire?: 'skip' | 'run-once' | 'catch-up';
+  };
+  admission?: {
+    customGate?: string;
+  };
+}
+
+export type SpriteSchedulerRuntimeJob<TPayload = unknown> = Omit<SpriteSchedulerJobDefinition<TPayload>, 'schedule'> & {
+  schedule: unknown;
+};
+
+export interface SpriteSchedulerRunContext<TPayload = unknown> {
+  job: SpriteSchedulerRuntimeJob<TPayload>;
+  payload: TPayload | undefined;
+  scheduledFor: number;
+  triggeredAt: number;
+  trigger: SpriteSchedulerRunTrigger;
+}
+
+export interface SpriteSchedulerGateContext<TPayload = unknown> {
+  job: SpriteSchedulerRuntimeJob<TPayload>;
+  payload: TPayload | undefined;
+  scheduledFor: number;
+  triggeredAt: number;
+}
+
+export type SpriteSchedulerGateResult = boolean | { accepted: boolean; reason?: string };
+
+export type SpriteSchedulerJobHandlerResult = void | { status: 'success' | 'skipped' | 'failed'; reason?: string; error?: string };
+
+export interface SpriteBehaviorScheduler {
+  registerHandler<TPayload = unknown>(owner: string, handler: (context: SpriteSchedulerRunContext<TPayload>) => SpriteSchedulerJobHandlerResult | Promise<SpriteSchedulerJobHandlerResult>): () => void;
+  registerGate<TPayload = unknown>(id: string, handler: (context: SpriteSchedulerGateContext<TPayload>) => SpriteSchedulerGateResult | Promise<SpriteSchedulerGateResult>): () => void;
+  upsert<TPayload = unknown>(definition: SpriteSchedulerJobDefinition<TPayload>): unknown;
+  remove(id: string): boolean;
+  start(): void;
+}
+
+// ============================================================================
 // 平台抽象接口（由 Electron main process 注入）
 // ============================================================================
 
@@ -37,6 +93,8 @@ export interface SpriteManagerOptions {
   purposeWindowAdapter?: SpritePurposeWindowAdapter;
   /** Optional planner hook that can replace preset routines with validated AI routines. */
   purposeRoutinePlanner?: SpritePurposeRoutinePlanner;
+  /** Shared main-process scheduler for autonomous sprite behaviors. */
+  behaviorScheduler?: SpriteBehaviorScheduler;
 }
 
 export interface SpriteSpontaneousUtteranceRequest {

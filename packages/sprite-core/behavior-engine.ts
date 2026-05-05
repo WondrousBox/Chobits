@@ -55,6 +55,38 @@ export type BehaviorCondition = (ctx: BehaviorContext) => boolean;
 /** 行为动作函数 */
 export type BehaviorAction = (ctx: BehaviorContext) => void | Promise<void>;
 
+export type BehaviorRunSkipReason =
+  | 'not-found'
+  | 'context-unavailable'
+  | 'disabled'
+  | 'already-running'
+  | 'not-due'
+  | 'daily-limit'
+  | 'cooldown'
+  | 'state-not-allowed'
+  | 'state-blocked'
+  | 'min-favor'
+  | 'min-level'
+  | 'time-window'
+  | 'condition-failed'
+  | 'probability';
+
+export interface BehaviorRunOptions {
+  context?: BehaviorContext;
+  now?: number;
+  /** Scheduler adapters can set this when they already woke the behavior at its due time. */
+  ignoreSchedule?: boolean;
+}
+
+export interface BehaviorRunAttemptResult {
+  behaviorId: string;
+  name?: string;
+  triggered: boolean;
+  skippedReason?: BehaviorRunSkipReason;
+  nextRunAt?: number;
+  error?: string;
+}
+
 /** 行为定义 */
 export interface BehaviorDefinition {
   /** 唯一标识 */
@@ -401,6 +433,11 @@ export class BehaviorEngine {
     }));
   }
 
+  /** 获取所有行为定义，供主进程调度 adapter 注册 job */
+  getDefinitions(): BehaviorDefinition[] {
+    return Array.from(this.behaviors.values()).map((r) => r.definition);
+  }
+
   /** 设置上下文提供器 */
   setContextProvider(provider: () => BehaviorContext | Promise<BehaviorContext>): void {
     this.contextProvider = provider;
@@ -422,17 +459,10 @@ export class BehaviorEngine {
 
   /** 手动执行一次 tick */
   async tick(): Promise<void> {
-    if (!this.contextProvider) return;
-
-    let ctx: BehaviorContext;
-    try {
-      ctx = await this.contextProvider();
-    } catch {
-      return;
-    }
+    const ctx = await this.resolveContext();
+    if (!ctx) return;
 
     const now = Date.now();
-    const today = new Date().toISOString().slice(0, 10);
 
     // 按优先级排序，高优先级先评估
     const sorted = Array.from(this.behaviors.values())
@@ -442,86 +472,41 @@ export class BehaviorEngine {
     for (const runtime of sorted) {
       const def = runtime.definition;
 
-      // 检查时间
-      if (now < runtime.nextRunAt) continue;
-
-      // 重置每日计数
-      if (runtime.dailyResetDate !== today) {
-        runtime.dailyRunCount = 0;
-        runtime.dailyResetDate = today;
-      }
-
-      // 每日上限
-      if (def.dailyLimit != null && runtime.dailyRunCount >= def.dailyLimit) continue;
-
-      // 冷却检查
-      if (def.cooldownMs && now - runtime.lastRunAt < def.cooldownMs) continue;
-
-      // 状态约束
-      if (def.allowedStates && !def.allowedStates.includes(ctx.spriteState)) continue;
-      if (def.blockedStates && def.blockedStates.includes(ctx.spriteState)) continue;
-
-      // 游戏化约束
-      if (def.minFavor != null && ctx.personaState.favor < def.minFavor) continue;
-      if (def.minLevel != null && ctx.personaState.level < def.minLevel) continue;
-
-      // 时间窗口
-      if (def.schedule.timeWindow) {
-        const h = ctx.now.getHours();
-        const { startHour, endHour } = def.schedule.timeWindow;
-        const inWindow = startHour < endHour ? h >= startHour && h < endHour : h >= startHour || h < endHour; // 跨午夜
-        if (!inWindow) continue;
-      }
-
-      // 条件检查
-      let conditionsMet = true;
-      for (const cond of def.conditions) {
-        try {
-          if (!cond(ctx)) {
-            conditionsMet = false;
-            break;
-          }
-        } catch {
-          conditionsMet = false;
-          break;
-        }
-      }
-      if (!conditionsMet) {
-        // 条件不满足，重新调度
-        runtime.nextRunAt = this.computeNextRun(def, now);
-        continue;
-      }
-
-      // 概率过滤
-      if (def.probability != null && Math.random() > def.probability) {
-        runtime.nextRunAt = this.computeNextRun(def, now);
-        continue;
-      }
-
-      // 执行行为
-      runtime.isRunning = true;
-      runtime.lastRunAt = now;
-      runtime.dailyRunCount += 1;
-
-      // 通过事件通知
-      this.eventBus?.emit(`behavior:${def.id.replace(/[^a-z0-9-]/g, '-')}-triggered` as any, { behaviorId: def.id, name: def.name }, 'behavior-engine');
-
-      try {
-        console.log('behavior triggered: ❤❤❤❤❤', def.name, '❤❤❤❤❤');
-        await def.action(ctx);
-        console.log('behavior completed: ❤❤❤❤❤', def.name, '❤❤❤❤❤');
-      } catch (err) {
-        console.error(`[BehaviorEngine] Action failed for ${def.id}:`, err);
-      } finally {
-        runtime.isRunning = false;
-        runtime.nextRunAt = this.computeNextRun(def, now);
-      }
+      const result = await this.tryRunRuntime(runtime, ctx, now);
+      if (!result.triggered) continue;
 
       // 高优先级行为执行后，跳过本轮其余低优先级行为
       if (def.priority === 'urgent' || def.priority === 'high') {
         break;
       }
     }
+  }
+
+  /** 尝试执行某个指定行为，供后续主进程统一调度器按 job 唤醒使用 */
+  async tryRunBehavior(id: string, options?: BehaviorRunOptions): Promise<BehaviorRunAttemptResult> {
+    const runtime = this.behaviors.get(id);
+    if (!runtime) {
+      return {
+        behaviorId: id,
+        triggered: false,
+        skippedReason: 'not-found'
+      };
+    }
+
+    const ctx = await this.resolveContext(options?.context);
+    if (!ctx) {
+      return {
+        behaviorId: id,
+        name: runtime.definition.name,
+        triggered: false,
+        skippedReason: 'context-unavailable',
+        nextRunAt: runtime.nextRunAt
+      };
+    }
+
+    return this.tryRunRuntime(runtime, ctx, options?.now ?? Date.now(), {
+      ignoreSchedule: options?.ignoreSchedule
+    });
   }
 
   /** 销毁 */
@@ -531,6 +516,120 @@ export class BehaviorEngine {
   }
 
   // ============ 内部方法 ============
+
+  private async resolveContext(provided?: BehaviorContext): Promise<BehaviorContext | null> {
+    if (provided) return provided;
+    if (!this.contextProvider) return null;
+
+    try {
+      return await this.contextProvider();
+    } catch {
+      return null;
+    }
+  }
+
+  private skip(runtime: BehaviorRuntime, reason: BehaviorRunSkipReason): BehaviorRunAttemptResult {
+    return {
+      behaviorId: runtime.definition.id,
+      name: runtime.definition.name,
+      triggered: false,
+      skippedReason: reason,
+      nextRunAt: runtime.nextRunAt
+    };
+  }
+
+  private async tryRunRuntime(runtime: BehaviorRuntime, ctx: BehaviorContext, now: number, options?: { ignoreSchedule?: boolean }): Promise<BehaviorRunAttemptResult> {
+    const def = runtime.definition;
+
+    if (!def.enabled) return this.skip(runtime, 'disabled');
+    if (runtime.isRunning) return this.skip(runtime, 'already-running');
+
+    // 检查时间
+    if (!options?.ignoreSchedule && now < runtime.nextRunAt) return this.skip(runtime, 'not-due');
+
+    // 重置每日计数
+    const today = new Date(now).toISOString().slice(0, 10);
+    if (runtime.dailyResetDate !== today) {
+      runtime.dailyRunCount = 0;
+      runtime.dailyResetDate = today;
+    }
+
+    // 每日上限
+    if (def.dailyLimit != null && runtime.dailyRunCount >= def.dailyLimit) return this.skip(runtime, 'daily-limit');
+
+    // 冷却检查
+    if (def.cooldownMs && now - runtime.lastRunAt < def.cooldownMs) return this.skip(runtime, 'cooldown');
+
+    // 状态约束
+    if (def.allowedStates && !def.allowedStates.includes(ctx.spriteState)) return this.skip(runtime, 'state-not-allowed');
+    if (def.blockedStates && def.blockedStates.includes(ctx.spriteState)) return this.skip(runtime, 'state-blocked');
+
+    // 游戏化约束
+    if (def.minFavor != null && ctx.personaState.favor < def.minFavor) return this.skip(runtime, 'min-favor');
+    if (def.minLevel != null && ctx.personaState.level < def.minLevel) return this.skip(runtime, 'min-level');
+
+    // 时间窗口
+    if (def.schedule.timeWindow) {
+      const h = ctx.now.getHours();
+      const { startHour, endHour } = def.schedule.timeWindow;
+      const inWindow = startHour < endHour ? h >= startHour && h < endHour : h >= startHour || h < endHour; // 跨午夜
+      if (!inWindow) return this.skip(runtime, 'time-window');
+    }
+
+    // 条件检查
+    let conditionsMet = true;
+    for (const cond of def.conditions) {
+      try {
+        if (!cond(ctx)) {
+          conditionsMet = false;
+          break;
+        }
+      } catch {
+        conditionsMet = false;
+        break;
+      }
+    }
+    if (!conditionsMet) {
+      // 条件不满足，重新调度
+      runtime.nextRunAt = this.computeNextRun(def, now);
+      return this.skip(runtime, 'condition-failed');
+    }
+
+    // 概率过滤
+    if (def.probability != null && Math.random() > def.probability) {
+      runtime.nextRunAt = this.computeNextRun(def, now);
+      return this.skip(runtime, 'probability');
+    }
+
+    // 执行行为
+    runtime.isRunning = true;
+    runtime.lastRunAt = now;
+    runtime.dailyRunCount += 1;
+
+    // 通过事件通知
+    this.eventBus?.emit(`behavior:${def.id.replace(/[^a-z0-9-]/g, '-')}-triggered` as any, { behaviorId: def.id, name: def.name }, 'behavior-engine');
+
+    let error: string | undefined;
+    try {
+      console.log('behavior triggered: ❤❤❤❤❤', def.name, '❤❤❤❤❤');
+      await def.action(ctx);
+      console.log('behavior completed: ❤❤❤❤❤', def.name, '❤❤❤❤❤');
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+      console.error(`[BehaviorEngine] Action failed for ${def.id}:`, err);
+    } finally {
+      runtime.isRunning = false;
+      runtime.nextRunAt = this.computeNextRun(def, now);
+    }
+
+    return {
+      behaviorId: def.id,
+      name: def.name,
+      triggered: true,
+      nextRunAt: runtime.nextRunAt,
+      ...(error ? { error } : {})
+    };
+  }
 
   private computeNextRun(def: BehaviorDefinition, now: number): number {
     switch (def.schedule.type) {
