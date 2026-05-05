@@ -777,6 +777,53 @@ describe('sprite manager regression coverage', () => {
     expect(runBehaviorMovement).toHaveBeenCalledWith(movement, { hasSegmentLoop: false });
   });
 
+  it('pauses movement while the assistant context menu is open without changing auto-walk settings', async () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    initSpriteCapabilityRuntime({
+      resolveContext: () => ({
+        personaLevel: 1,
+        activeSignals: {}
+      })
+    });
+
+    const walkTo = vi.fn(async () => undefined);
+    const stopWalk = vi.fn();
+    const stopAutoMove = vi.fn();
+    const isAutoMoving = vi.fn(() => true);
+    (mgr as any).windowController = {
+      getPosition: () => [100, 100],
+      walkTo,
+      stopWalk,
+      stopAutoMove,
+      isAutoMoving,
+      getAutoMoveDirection: () => 'left'
+    };
+
+    const movement: SpriteMovementConfig = {
+      enabled: true,
+      mode: 'direction',
+      direction: 'right',
+      speed: 48
+    };
+
+    expect(mgr.isAutoWalkEnabled()).toBe(true);
+
+    mgr.reportInteraction('context-menu', { open: true });
+
+    expect(mgr.isAutoWalkEnabled()).toBe(true);
+    expect(stopWalk).toHaveBeenCalledOnce();
+    expect(stopAutoMove).toHaveBeenCalledOnce();
+    await expect(mgr.runBehaviorMovement(movement, { hasSegmentLoop: true })).resolves.toBe(false);
+    expect(walkTo).not.toHaveBeenCalled();
+
+    isAutoMoving.mockReturnValue(false);
+    mgr.reportInteraction('context-menu', { open: false });
+
+    await expect(mgr.runBehaviorMovement(movement, { hasSegmentLoop: true })).resolves.toBe(true);
+    expect(walkTo).toHaveBeenCalledOnce();
+  });
+
   it('routes night sleepy behavior through the daily rest purpose', async () => {
     const registered = new Map<string, any>();
     const startPurpose = vi.fn(async () => ({ accepted: true, status: 'started' }));

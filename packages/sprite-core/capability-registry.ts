@@ -254,7 +254,7 @@ const DEFAULT_CAPABILITY_DEFINITIONS: SpriteCapabilityDefinition[] = [
     row: 6,
     prerequisites: [],
     settingsKey: 'movement',
-    requiredLevel: 5,
+    requiredLevel: 1,
     activationSignals: [SPRITE_CAPABILITY_SIGNALS.movementAutoWalk],
     levelUnlockType: 'skill',
     levelUnlockIcon: '🏃'

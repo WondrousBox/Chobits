@@ -118,6 +118,7 @@ export class SpriteManager {
   // 内建持久化
   private persistence: PersonaStatePersistence;
   private autoWalkConfig: AutoWalkConfig;
+  private movementSuspensionReasons = new Set<string>();
 
   // 语音合成服务
   private speakService: SpeakService;
@@ -207,7 +208,7 @@ export class SpriteManager {
       canMove: () => !!this.windowController,
       canUseMovement: () => {
         const movementCapability = getSpriteCapabilityRuntimeState('movement');
-        return movementCapability !== null && movementCapability.status !== 'locked';
+        return movementCapability !== null && movementCapability.status !== 'locked' && !this.isMovementSuspended();
       },
       getScreenSize: () => this.getScreenSize(),
       getPosition: () => this.getPosition(),
@@ -917,6 +918,10 @@ export class SpriteManager {
     const eventType = SPRITE_INTERACTION_EVENT_BY_INTENT[type];
     this.eventBus.emit(eventType, data, 'sprite-manager');
 
+    if (type === 'context-menu') {
+      this.setMovementSuspended('context-menu', data?.open !== false);
+    }
+
     // file-drag-over → 切换到 reacting/file-drag-over（持续到 drag-leave 或 file-drop）
     if (type === 'file-drag-over' && this.getState() !== 'dragging') {
       this.transitionTo('reacting', { subState: 'file-drag-over', force: true });
@@ -1110,6 +1115,24 @@ export class SpriteManager {
   /** 自动行走是否启用 */
   isAutoWalkEnabled(): boolean {
     return this.autoWalkConfig.enabled;
+  }
+
+  private isMovementSuspended(): boolean {
+    return this.movementSuspensionReasons.size > 0;
+  }
+
+  private setMovementSuspended(reason: string, suspended: boolean): void {
+    const hadReason = this.movementSuspensionReasons.has(reason);
+    if (suspended) {
+      this.movementSuspensionReasons.add(reason);
+    } else {
+      this.movementSuspensionReasons.delete(reason);
+    }
+
+    if (suspended && !hadReason) {
+      this.stopWalk();
+      this.stopAutoMove();
+    }
   }
 
   /** 设置自动行走开关 */

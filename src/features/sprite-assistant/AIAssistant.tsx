@@ -114,8 +114,8 @@ const AIAssistantInner: React.FC = () => {
 
   const handleContextMenu = (e: React.MouseEvent): void => {
     e.preventDefault();
-    window.YUA.sprite.interact('context-menu');
-    window.YUA.window['window:open']('menu');
+    void window.YUA.sprite.interact('context-menu', { open: true });
+    void window.YUA.window['window:open']('menu');
   };
 
   const handleDoubleClick = (): void => {

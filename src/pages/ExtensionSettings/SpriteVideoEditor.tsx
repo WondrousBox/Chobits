@@ -234,6 +234,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
   // 时间轴拖拽状态
   const [draggingMarker, setDraggingMarker] = useState<keyof SegmentMarkers | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
+  const suppressNextTimelineClickRef = useRef(false);
 
   // 内部处理状态
   const [internalProcessing, setInternalProcessing] = useState(false);
@@ -601,7 +602,9 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
   // 时间轴拖拽
   const handleTimelineMouseDown = useCallback(
     (marker: keyof SegmentMarkers, e: React.MouseEvent) => {
+      e.preventDefault();
       e.stopPropagation();
+      suppressNextTimelineClickRef.current = true;
       setDraggingMarker(marker);
 
       const onMouseMove = (ev: MouseEvent): void => {
@@ -619,6 +622,9 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
         setDraggingMarker(null);
         window.removeEventListener('mousemove', onMouseMove);
         window.removeEventListener('mouseup', onMouseUp);
+        window.setTimeout(() => {
+          suppressNextTimelineClickRef.current = false;
+        }, 0);
       };
 
       window.addEventListener('mousemove', onMouseMove);
@@ -1108,6 +1114,10 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
                   ref={timelineRef}
                   className="relative h-6 bg-muted rounded-lg overflow-hidden cursor-pointer"
                   onClick={(e) => {
+                    if (suppressNextTimelineClickRef.current) {
+                      suppressNextTimelineClickRef.current = false;
+                      return;
+                    }
                     if (draggingMarker) return;
                     const rect = e.currentTarget.getBoundingClientRect();
                     const x = e.clientX - rect.left;

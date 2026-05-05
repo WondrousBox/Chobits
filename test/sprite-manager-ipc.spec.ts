@@ -514,46 +514,12 @@ describe('sprite manager IPC integration', () => {
 
     const getAutoWalk = electronState.handlers.get('sprite:config:getAutoWalk') as (() => boolean) | undefined;
     const setAutoWalk = electronState.handlers.get('sprite:config:setAutoWalk') as ((_: unknown, payload: { enabled: boolean }) => boolean) | undefined;
-    const { SpriteManager } = await import('../packages/sprite-core/manager');
-    const mgr = SpriteManager.getInstance();
 
     expect(getAutoWalk).toBeTypeOf('function');
     expect(setAutoWalk).toBeTypeOf('function');
     expect(electronState.handlers.has('getAutoWalkEnabled')).toBe(false);
     expect(electronState.handlers.has('setAutoWalkEnabled')).toBe(false);
-    expect(getAutoWalk?.()).toBe(false);
-
-    expect(() => setAutoWalk?.({} as never, { enabled: true })).toThrow('Sprite capability locked: movement');
-
-    (mgr as any).personaState.loadState({ level: 10 });
-
-    expect(setAutoWalk?.({} as never, { enabled: true })).toBe(true);
     expect(getAutoWalk?.()).toBe(true);
-
-    expect(windowStub.sent).toContainEqual({
-      channel: 'sprite:config',
-      payload: {
-        width: 200,
-        height: 200,
-        padding: 100,
-        autoWalkEnabled: true,
-        showDebugOverlay: false
-      }
-    });
-    expect(auxWindow.sent).toContainEqual({
-      channel: 'sprite:config',
-      payload: {
-        width: 200,
-        height: 200,
-        padding: 100,
-        autoWalkEnabled: true,
-        showDebugOverlay: false
-      }
-    });
-    expect(auxWindow.sent).toContainEqual({
-      channel: 'sprite:capabilities:changed',
-      payload: { source: 'movement.autoWalk' }
-    });
 
     expect(setAutoWalk?.({} as never, { enabled: false })).toBe(false);
     expect(getAutoWalk?.()).toBe(false);
@@ -582,6 +548,34 @@ describe('sprite manager IPC integration', () => {
       channel: 'sprite:capabilities:changed',
       payload: { source: 'movement.autoWalk' }
     });
+
+    expect(setAutoWalk?.({} as never, { enabled: true })).toBe(true);
+    expect(getAutoWalk?.()).toBe(true);
+
+    expect(windowStub.sent).toContainEqual({
+      channel: 'sprite:config',
+      payload: {
+        width: 200,
+        height: 200,
+        padding: 100,
+        autoWalkEnabled: true,
+        showDebugOverlay: false
+      }
+    });
+    expect(auxWindow.sent).toContainEqual({
+      channel: 'sprite:config',
+      payload: {
+        width: 200,
+        height: 200,
+        padding: 100,
+        autoWalkEnabled: true,
+        showDebugOverlay: false
+      }
+    });
+    expect(auxWindow.sent).toContainEqual({
+      channel: 'sprite:capabilities:changed',
+      payload: { source: 'movement.autoWalk' }
+    });
   });
 
   it('updates sprite movement avoid regions through IPC and reclamps the sprite window', async () => {
@@ -599,7 +593,7 @@ describe('sprite manager IPC integration', () => {
     expect(windowStub.win.setPosition).toHaveBeenCalledWith(300, 0);
   });
 
-  it('guards movement preview through the shared movement capability', async () => {
+  it('allows movement preview through the shared movement capability at level 1', async () => {
     listSpritesMock.mockResolvedValue([]);
 
     const { initSpriteManagerIPC } = await import('../packages/sprite-core/handler/sprite-manager-ipc');
@@ -608,26 +602,8 @@ describe('sprite manager IPC integration', () => {
     const previewMovement = electronState.handlers.get('sprite:previewMovement') as
       | ((_: unknown, payload: { width: number; height: number; padding: number; movement?: { enabled?: boolean; mode?: string; direction?: string; speed?: number } }) => void)
       | undefined;
-    const { SpriteManager } = await import('../packages/sprite-core/manager');
-    const mgr = SpriteManager.getInstance();
 
     expect(previewMovement).toBeTypeOf('function');
-    expect(() =>
-      previewMovement?.({} as never, {
-        width: 320,
-        height: 260,
-        padding: 24,
-        movement: {
-          enabled: true,
-          mode: 'direction',
-          direction: 'right',
-          speed: 72
-        }
-      })
-    ).toThrow('Sprite capability locked: movement');
-
-    (mgr as any).personaState.loadState({ level: 10 });
-
     expect(() =>
       previewMovement?.({} as never, {
         width: 320,
@@ -955,7 +931,7 @@ describe('sprite manager IPC integration', () => {
     expect(snapshot.capabilities.smartAssistant.status).toBe('unlocked');
   });
 
-  it('turns auto-walk back off when persona reset drops movement below the unlock level', async () => {
+  it('keeps auto-walk on when persona reset returns to the level 1 movement unlock', async () => {
     listSpritesMock.mockResolvedValue([]);
 
     const auxWindow = createWindowStub();
@@ -980,8 +956,8 @@ describe('sprite manager IPC integration', () => {
         level: 1
       }
     });
-    expect(getAutoWalk?.()).toBe(false);
-    expect(auxWindow.sent).toContainEqual({
+    expect(getAutoWalk?.()).toBe(true);
+    expect(auxWindow.sent).not.toContainEqual({
       channel: 'sprite:config',
       payload: {
         width: 200,
