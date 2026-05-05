@@ -42,7 +42,7 @@ export interface BehaviorMovementOptions {
 export class MovementCoordinator {
   private previewSnapshot: SpriteSizeSnapshot | null = null;
 
-  constructor(private readonly deps: MovementCoordinatorDeps) {}
+  constructor(private readonly deps: MovementCoordinatorDeps) { }
 
   previewMovement(config: SpriteMovementPreviewConfig): void {
     if (!this.previewSnapshot) {
