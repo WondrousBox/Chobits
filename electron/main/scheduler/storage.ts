@@ -110,6 +110,7 @@ function normalizeAuditEntry(value: unknown): SchedulerAuditLogEntry | null {
     jobName: typeof raw.jobName === 'string' ? raw.jobName : undefined,
     action: raw.action,
     trigger: raw.trigger,
+    force: raw.force === true ? true : undefined,
     scheduledFor: typeof raw.scheduledFor === 'number' ? raw.scheduledFor : undefined,
     startedAt: raw.startedAt,
     finishedAt: raw.finishedAt,

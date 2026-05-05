@@ -192,6 +192,51 @@ describe('MainSchedulerService', () => {
     expect(service.getJob('job:gated')?.runtime.lastSkipReason).toBe('daily-limit');
   });
 
+  it('supports force trigger for bypassing custom admission gates while preserving audit metadata', async () => {
+    const { MainSchedulerService } = await import('../electron/main/scheduler');
+    const auditLogStore = new MemorySchedulerAuditLogStore();
+    const service = new MainSchedulerService({
+      stateStore: new MemorySchedulerStateStore(),
+      auditLogStore
+    });
+    const handler = vi.fn(() => ({ status: 'success' as const }));
+    const gate = vi.fn(() => ({ accepted: false, reason: 'blocked-for-test' }));
+
+    service.registerHandler('test.owner', handler);
+    service.registerGate('test.gate', gate);
+    service.upsert({
+      id: 'job:force-gated',
+      owner: 'test.owner',
+      name: 'Force Gated Job',
+      enabled: true,
+      schedule: { kind: 'manual' },
+      admission: { customGate: 'test.gate' }
+    });
+    service.start();
+
+    await service.triggerNow('job:force-gated');
+    expect(handler).not.toHaveBeenCalled();
+    expect(service.getJob('job:force-gated')?.runtime).toMatchObject({
+      lastStatus: 'skipped',
+      lastSkipReason: 'blocked-for-test'
+    });
+
+    await service.triggerNow('job:force-gated', { force: true });
+
+    expect(gate).toHaveBeenCalledOnce();
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ force: true }));
+    expect(service.getJob('job:force-gated')?.runtime).toMatchObject({
+      lastStatus: 'success',
+      lastSkipReason: undefined
+    });
+    expect(auditLogStore.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ jobId: 'job:force-gated', status: 'skipped', reason: 'blocked-for-test', force: undefined }),
+        expect.objectContaining({ jobId: 'job:force-gated', status: 'success', force: true })
+      ])
+    );
+  });
+
   it('records skipped and failed handler results without treating them as successful runs', async () => {
     const { MainSchedulerService } = await import('../electron/main/scheduler');
     const service = new MainSchedulerService({ stateStore: new MemorySchedulerStateStore() });

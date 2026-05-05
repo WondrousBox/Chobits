@@ -84,4 +84,43 @@ describe('BehaviorEngine', () => {
     });
     expect(action).toHaveBeenCalledOnce();
   });
+
+  it('force trigger bypasses behavior due filters but keeps core safety checks', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-05T09:00:00+08:00'));
+
+    const action = vi.fn();
+    const engine = new BehaviorEngine();
+    engine.register({
+      ...createBehavior(action),
+      conditions: [() => false],
+      probability: 0,
+      schedule: { type: 'interval', intervalMs: 10_000, timeWindow: { startHour: 22, endHour: 23 } }
+    });
+
+    const normal = await engine.tryRunBehavior('test-behavior', {
+      context: createContext(),
+      now: Date.now() + 10_000,
+      ignoreSchedule: true
+    });
+
+    expect(normal).toMatchObject({
+      behaviorId: 'test-behavior',
+      triggered: false,
+      skippedReason: 'time-window'
+    });
+
+    const forced = await engine.tryRunBehavior('test-behavior', {
+      context: createContext(),
+      now: Date.now() + 10_000,
+      ignoreSchedule: true,
+      force: true
+    });
+
+    expect(forced).toMatchObject({
+      behaviorId: 'test-behavior',
+      triggered: true
+    });
+    expect(action).toHaveBeenCalledOnce();
+  });
 });

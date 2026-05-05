@@ -1,13 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { SchedulerAuditLogEntry, SchedulerAuditLogQuery, SchedulerAuditLogStore, SchedulerRuntimeState, SchedulerStateStore } from '../electron/main/scheduler';
+import type { SchedulerAuditLogCleanupOptions, SchedulerAuditLogEntry, SchedulerAuditLogQuery, SchedulerAuditLogStore, SchedulerRuntimeState, SchedulerStateStore } from '../electron/main/scheduler';
 
 const ipcHandlers = vi.hoisted(() => new Map<string, (...args: any[]) => any>());
 const scheduleJobMock = vi.hoisted(() => vi.fn());
+const schedulerWindowEvents = vi.hoisted((): Array<{ channel: string; payload: any }> => []);
 
 vi.mock('electron', () => ({
   app: {
     getPath: () => '/tmp/chobits-scheduler-ipc-test'
+  },
+  BrowserWindow: {
+    getAllWindows: () => [
+      {
+        isDestroyed: () => false,
+        webContents: {
+          send: (channel: string, payload: any) => {
+            schedulerWindowEvents.push({ channel, payload });
+          }
+        }
+      }
+    ]
   },
   ipcMain: {
     handle: (channel: string, handler: (...args: any[]) => any) => {
@@ -36,6 +49,7 @@ class MemorySchedulerStateStore implements SchedulerStateStore {
 
 class MemorySchedulerAuditLogStore implements SchedulerAuditLogStore {
   entries: SchedulerAuditLogEntry[] = [];
+  cleanup = vi.fn((options?: SchedulerAuditLogCleanupOptions) => ({ deletedFiles: options?.retentionDays === 7 ? ['scheduler-audit-old.jsonl'] : [] }));
 
   append(entry: SchedulerAuditLogEntry): void {
     this.entries.push({ ...entry });
@@ -60,6 +74,7 @@ describe('scheduler IPC', () => {
   beforeEach(() => {
     vi.resetModules();
     ipcHandlers.clear();
+    schedulerWindowEvents.length = 0;
     scheduleJobMock.mockReset();
   });
 
@@ -73,12 +88,14 @@ describe('scheduler IPC', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-05-05T09:00:00Z'));
 
-    const { MainSchedulerService, resetMainSchedulerServiceForTest } = await import('../electron/main/scheduler');
+    const { MainSchedulerService, SCHEDULER_UPDATED_CHANNEL, resetMainSchedulerServiceForTest } = await import('../electron/main/scheduler');
+    const auditLogStore = new MemorySchedulerAuditLogStore();
     const service = new MainSchedulerService({
       stateStore: new MemorySchedulerStateStore(),
-      auditLogStore: new MemorySchedulerAuditLogStore()
+      auditLogStore
     });
-    service.registerHandler('automation', () => ({ status: 'success' }));
+    const automationHandler = vi.fn(() => ({ status: 'success' as const }));
+    service.registerHandler('automation', automationHandler);
     service.registerHandler('dailyCare', () => ({ status: 'skipped', reason: 'not-due' }));
     service.registerHandler('sprite.behavior', () => ({ status: 'skipped', reason: 'movement-suspended' }));
     resetMainSchedulerServiceForTest(service);
@@ -118,6 +135,7 @@ describe('scheduler IPC', () => {
     const resumeOwner = ipcHandlers.get('scheduler:resumeOwner');
     const getOwnerPauseState = ipcHandlers.get('scheduler:getOwnerPauseState');
     const listAuditLog = ipcHandlers.get('scheduler:listAuditLog');
+    const cleanupAuditLog = ipcHandlers.get('scheduler:cleanupAuditLog');
 
     const jobs = await listJobs?.({});
     expect(jobs.map((job: any) => job.definition.owner)).toEqual(['automation', 'dailyCare', 'sprite.behavior']);
@@ -127,6 +145,20 @@ describe('scheduler IPC', () => {
       jobId: 'sprite.behavior:auto-walk',
       lastStatus: 'skipped',
       lastSkipReason: 'movement-suspended'
+    });
+
+    await expect(triggerNow?.({}, 'automation:rule-1', { force: true })).resolves.toMatchObject({
+      jobId: 'automation:rule-1',
+      lastStatus: 'success'
+    });
+    expect(automationHandler).toHaveBeenCalledWith(expect.objectContaining({ force: true }));
+    expect(schedulerWindowEvents).toContainEqual({
+      channel: SCHEDULER_UPDATED_CHANNEL,
+      payload: expect.objectContaining({
+        reason: 'runtime',
+        jobId: 'automation:rule-1',
+        owner: 'automation'
+      })
     });
 
     await expect(Promise.resolve(getJob?.({}, 'sprite.behavior:auto-walk'))).resolves.toMatchObject({
@@ -189,5 +221,14 @@ describe('scheduler IPC', () => {
       expect.objectContaining({ eventType: 'control', action: 'pause-owner', status: 'paused' }),
       expect.objectContaining({ eventType: 'run', status: 'skipped', reason: 'movement-suspended' })
     ]);
+
+    await expect(Promise.resolve(cleanupAuditLog?.({}, { retentionDays: 7 }))).resolves.toEqual({ deletedFiles: ['scheduler-audit-old.jsonl'] });
+    expect(auditLogStore.cleanup).toHaveBeenCalledWith(expect.objectContaining({ retentionDays: 7, now: expect.any(Number) }));
+    expect(schedulerWindowEvents).toContainEqual({
+      channel: SCHEDULER_UPDATED_CHANNEL,
+      payload: expect.objectContaining({
+        reason: 'audit'
+      })
+    });
   });
 });

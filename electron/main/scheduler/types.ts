@@ -78,16 +78,22 @@ export interface SchedulerRunContext<TPayload = unknown> {
   scheduledFor: number;
   triggeredAt: number;
   trigger: SchedulerRunTrigger;
+  force?: boolean;
 }
 
 export type SchedulerJobHandlerResult = void | { status: SchedulerLastStatus; reason?: string; error?: string };
 
 export type SchedulerJobHandler<TPayload = unknown> = (context: SchedulerRunContext<TPayload>) => SchedulerJobHandlerResult | Promise<SchedulerJobHandlerResult>;
 
+export interface SchedulerTriggerNowOptions {
+  force?: boolean;
+}
+
 export interface SchedulerAdHocRunOptions<TPayload = unknown> {
   trigger?: SchedulerRunTrigger;
   payload?: TPayload;
   scheduledFor?: number;
+  force?: boolean;
 }
 
 export interface SchedulerGateContext<TPayload = unknown> {
@@ -95,6 +101,7 @@ export interface SchedulerGateContext<TPayload = unknown> {
   payload: TPayload | undefined;
   scheduledFor: number;
   triggeredAt: number;
+  force?: boolean;
 }
 
 export type SchedulerGateResult = boolean | { accepted: boolean; reason?: string };
@@ -158,6 +165,7 @@ export interface SchedulerAuditLogEntry {
   jobName?: string;
   action?: SchedulerControlAction;
   trigger?: SchedulerRunTrigger;
+  force?: boolean;
   scheduledFor?: number;
   startedAt: number;
   finishedAt: number;
@@ -190,4 +198,15 @@ export interface SchedulerAuditLogCleanupOptions {
 
 export interface SchedulerAuditLogCleanupResult {
   deletedFiles: string[];
+}
+
+export const SCHEDULER_UPDATED_CHANNEL = 'scheduler:updated';
+
+export type SchedulerUpdateReason = 'jobs' | 'runtime' | 'control' | 'audit';
+
+export interface SchedulerUpdatedEvent {
+  reason: SchedulerUpdateReason;
+  jobId?: string;
+  owner?: string;
+  at: number;
 }

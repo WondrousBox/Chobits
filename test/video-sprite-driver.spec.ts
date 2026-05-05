@@ -31,6 +31,21 @@ describe('video sprite driver', () => {
     expect(video.play).toHaveBeenCalledTimes(1);
   });
 
+  it('absorbs browser play interruption rejections', async () => {
+    const playError = Object.assign(new Error('The play() request was interrupted because video-only background media was paused to save power.'), {
+      name: 'AbortError'
+    });
+    const video = createVideo({
+      play: vi.fn(() => Promise.reject(playError))
+    });
+    const driver = new VideoSpriteDriver();
+
+    driver.handleCanPlay(video);
+    await Promise.resolve();
+
+    expect(video.play).toHaveBeenCalledTimes(1);
+  });
+
   it('expires a timed segmented session into outro after loop becomes active', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-21T12:00:00.000Z'));

@@ -2,6 +2,7 @@ export { initSchedulerIPC } from './ipc-main';
 export { MainSchedulerService } from './service';
 export { getMainSchedulerService, resetMainSchedulerServiceForTest } from './singleton';
 export { FileSchedulerAuditLogStore, FileSchedulerStateStore, getSchedulerStateFilePath } from './storage';
+export { SCHEDULER_UPDATED_CHANNEL } from './types';
 export type {
   CronScheduleSpec,
   DateScheduleSpec,
@@ -35,5 +36,8 @@ export type {
   SchedulerRunTrigger,
   SchedulerStateStore,
   SchedulerTimeWindow,
+  SchedulerTriggerNowOptions,
+  SchedulerUpdatedEvent,
+  SchedulerUpdateReason,
   ScheduleSpec
 } from './types';

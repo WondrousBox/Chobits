@@ -86,4 +86,32 @@ describe('scheduler storage', () => {
         .sort()
     ).toEqual(['scheduler-audit-2026-05-01.jsonl', 'scheduler-audit-2026-05-02.jsonl']);
   });
+
+  it('preserves the force marker when listing scheduler audit logs', async () => {
+    const { FileSchedulerAuditLogStore } = await import('../electron/main/scheduler');
+    const store = new FileSchedulerAuditLogStore();
+    const timestamp = Date.parse('2026-05-05T09:00:00Z');
+
+    store.append({
+      id: 'audit-force',
+      eventType: 'run',
+      owner: 'dailyCare',
+      jobId: 'dailyCare:care:morning-brief:fixed:09-15',
+      jobName: 'Morning Brief',
+      trigger: 'manual',
+      force: true,
+      scheduledFor: timestamp,
+      startedAt: timestamp,
+      finishedAt: timestamp + 10,
+      status: 'success'
+    });
+
+    expect(store.list({ limit: 1 })).toEqual([
+      expect.objectContaining({
+        id: 'audit-force',
+        force: true,
+        status: 'success'
+      })
+    ]);
+  });
 });

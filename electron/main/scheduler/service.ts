@@ -4,6 +4,7 @@ import { FileSchedulerAuditLogStore, FileSchedulerStateStore } from './storage';
 import type {
   SchedulerAdHocRunOptions,
   SchedulerAuditLogCleanupOptions,
+  SchedulerAuditLogCleanupResult,
   SchedulerAuditLogEntry,
   SchedulerAuditLogQuery,
   SchedulerAuditLogStore,
@@ -17,7 +18,10 @@ import type {
   SchedulerOwnerPauseState,
   SchedulerRuntimeState,
   SchedulerRunTrigger,
-  SchedulerStateStore
+  SchedulerStateStore,
+  SchedulerTriggerNowOptions,
+  SchedulerUpdatedEvent,
+  SchedulerUpdateReason
 } from './types';
 
 type TimerHandle = ReturnType<typeof setTimeout>;
@@ -62,6 +66,7 @@ export class MainSchedulerService {
   private readonly entries = new Map<string, SchedulerEntry>();
   private readonly handlers = new Map<string, SchedulerJobHandler>();
   private readonly gateHandlers = new Map<string, SchedulerGateHandler>();
+  private readonly changeListeners = new Set<(event: SchedulerUpdatedEvent) => void>();
   private readonly ownerPauseState = new Map<string, SchedulerOwnerPauseState>();
   private readonly runningSingletons = new Set<string>();
   private runtimeState: Record<string, SchedulerRuntimeState>;
@@ -99,6 +104,13 @@ export class MainSchedulerService {
     };
   }
 
+  onChanged(listener: (event: SchedulerUpdatedEvent) => void): () => void {
+    this.changeListeners.add(listener);
+    return () => {
+      this.changeListeners.delete(listener);
+    };
+  }
+
   upsert<TPayload = unknown>(definition: SchedulerJobDefinition<TPayload>): SchedulerJobSnapshot<TPayload> {
     this.cancelJob(definition.id);
     const entry: SchedulerEntry<TPayload> = {
@@ -115,11 +127,13 @@ export class MainSchedulerService {
     if (!definition.enabled) {
       state.nextRunAt = undefined;
       this.persist();
+      this.emitChanged('jobs', definition);
       return this.snapshotEntry(entry);
     }
 
     this.scheduleEntry(entry);
     this.persist();
+    this.emitChanged('jobs', definition);
     return this.snapshotEntry(entry);
   }
 
@@ -129,6 +143,7 @@ export class MainSchedulerService {
     this.entries.delete(id);
     delete this.runtimeState[id];
     this.persist();
+    this.emitChanged('jobs', { id });
     return existed;
   }
 
@@ -139,6 +154,7 @@ export class MainSchedulerService {
       this.scheduleEntry(entry);
     }
     this.persist();
+    this.emitChanged('jobs');
   }
 
   stop(): void {
@@ -147,12 +163,13 @@ export class MainSchedulerService {
       this.cancelJob(id);
     }
     this.started = false;
+    this.emitChanged('jobs');
   }
 
-  async triggerNow(id: string): Promise<SchedulerRuntimeState | null> {
+  async triggerNow(id: string, options: SchedulerTriggerNowOptions = {}): Promise<SchedulerRuntimeState | null> {
     const entry = this.entries.get(id);
     if (!entry) return null;
-    await this.runEntry(entry, this.now(), 'manual');
+    await this.runEntry(entry, this.now(), 'manual', undefined, { force: options.force === true });
     return this.runtimeState[id] ? { ...this.runtimeState[id] } : null;
   }
 
@@ -177,7 +194,7 @@ export class MainSchedulerService {
     state.enabled = definition.enabled;
     state.owner = definition.owner;
     state.updatedAt = this.now();
-    await this.runEntry(entry, options.scheduledFor ?? this.now(), options.trigger ?? 'manual', options.payload);
+    await this.runEntry(entry, options.scheduledFor ?? this.now(), options.trigger ?? 'manual', options.payload, { force: options.force === true });
     return { ...this.ensureState(entry.definition) };
   }
 
@@ -195,6 +212,7 @@ export class MainSchedulerService {
     this.cancelEntryHandle(entry);
     this.appendControlAudit(entry.definition, 'pause-job', 'paused', reason, updatedAt, updatedAt);
     this.persist();
+    this.emitChanged('control', entry.definition);
     return this.snapshotEntry(entry);
   }
 
@@ -214,6 +232,7 @@ export class MainSchedulerService {
     }
     this.appendControlAudit(entry.definition, 'resume-job', 'resumed', reason, updatedAt, this.now());
     this.persist();
+    this.emitChanged('control', entry.definition);
     return this.snapshotEntry(entry);
   }
 
@@ -239,6 +258,7 @@ export class MainSchedulerService {
 
     this.appendOwnerControlAudit(owner, 'pause-owner', 'paused', reason, updatedAt, this.now());
     this.persist();
+    this.emitChanged('control', { owner });
     return snapshots;
   }
 
@@ -258,6 +278,7 @@ export class MainSchedulerService {
 
     this.appendOwnerControlAudit(owner, 'resume-owner', 'resumed', previous?.pauseReason, updatedAt, this.now());
     this.persist();
+    this.emitChanged('control', { owner });
     return snapshots;
   }
 
@@ -280,6 +301,12 @@ export class MainSchedulerService {
 
   listAuditLog(query?: SchedulerAuditLogQuery): SchedulerAuditLogEntry[] {
     return this.auditLogStore.list(query);
+  }
+
+  cleanupAuditLog(options?: SchedulerAuditLogCleanupOptions): SchedulerAuditLogCleanupResult {
+    const result = this.auditLogStore.cleanup?.({ ...options, now: options?.now ?? this.now() }) ?? { deletedFiles: [] };
+    this.emitChanged('audit');
+    return result;
   }
 
   private snapshotEntry<TPayload>(entry: SchedulerEntry<TPayload>): SchedulerJobSnapshot<TPayload> {
@@ -448,6 +475,7 @@ export class MainSchedulerService {
       state.nextRunAt = job ? this.getNodeJobNextRunAt(job) : undefined;
       state.updatedAt = this.now();
       this.persist();
+      this.emitChanged('runtime', entry.definition);
       return;
     }
 
@@ -456,19 +484,22 @@ export class MainSchedulerService {
     state.updatedAt = this.now();
     this.scheduleEntry(entry);
     this.persist();
+    this.emitChanged('runtime', entry.definition);
   }
 
-  private async runEntry(entry: SchedulerEntry, scheduledFor: number, trigger: SchedulerRunTrigger, payloadOverride?: unknown): Promise<void> {
+  private async runEntry(entry: SchedulerEntry, scheduledFor: number, trigger: SchedulerRunTrigger, payloadOverride?: unknown, options: { force?: boolean } = {}): Promise<void> {
     const definition = entry.definition;
     const state = this.ensureState(definition);
     const startedAt = this.now();
-    const skipReason = await this.getSkipReason(entry, scheduledFor, startedAt);
+    const force = options.force === true;
+    const skipReason = await this.getSkipReason(entry, scheduledFor, startedAt, { force });
     if (skipReason) {
       state.lastStatus = 'skipped';
       state.lastSkipReason = skipReason;
       state.updatedAt = this.now();
-      this.appendRunAudit(definition, trigger, scheduledFor, startedAt, state.updatedAt, 'skipped', skipReason);
+      this.appendRunAudit(definition, trigger, scheduledFor, startedAt, state.updatedAt, 'skipped', skipReason, undefined, force);
       this.persist();
+      this.emitChanged('runtime', definition);
       return;
     }
 
@@ -477,8 +508,9 @@ export class MainSchedulerService {
       state.lastStatus = 'skipped';
       state.lastSkipReason = 'no-handler';
       state.updatedAt = this.now();
-      this.appendRunAudit(definition, trigger, scheduledFor, startedAt, state.updatedAt, 'skipped', 'no-handler');
+      this.appendRunAudit(definition, trigger, scheduledFor, startedAt, state.updatedAt, 'skipped', 'no-handler', undefined, force);
       this.persist();
+      this.emitChanged('runtime', definition);
       return;
     }
 
@@ -499,7 +531,8 @@ export class MainSchedulerService {
         payload: payloadOverride ?? definition.payload,
         scheduledFor,
         triggeredAt: startedAt,
-        trigger
+        trigger,
+        force
       });
       this.applyHandlerResult(state, result);
     } catch (error) {
@@ -514,8 +547,9 @@ export class MainSchedulerService {
       }
       state.lastFinishedAt = this.now();
       state.updatedAt = state.lastFinishedAt;
-      this.appendRunAudit(definition, trigger, scheduledFor, startedAt, state.lastFinishedAt, state.lastStatus ?? 'failed', state.lastSkipReason, state.lastError);
+      this.appendRunAudit(definition, trigger, scheduledFor, startedAt, state.lastFinishedAt, state.lastStatus ?? 'failed', state.lastSkipReason, state.lastError, force);
       this.persist();
+      this.emitChanged('runtime', definition);
     }
   }
 
@@ -542,7 +576,7 @@ export class MainSchedulerService {
     state.consecutiveFailures = (state.consecutiveFailures ?? 0) + 1;
   }
 
-  private async getSkipReason(entry: SchedulerEntry, scheduledFor: number, triggeredAt: number): Promise<string | null> {
+  private async getSkipReason(entry: SchedulerEntry, scheduledFor: number, triggeredAt: number, options: { force?: boolean } = {}): Promise<string | null> {
     const definition = entry.definition;
     const state = this.ensureState(definition);
     if (!definition.enabled) return 'disabled';
@@ -564,6 +598,7 @@ export class MainSchedulerService {
 
     const gateId = definition.admission?.customGate;
     if (gateId) {
+      if (options.force) return null;
       const gate = this.gateHandlers.get(gateId);
       if (!gate) return `missing-gate:${gateId}`;
       const result = await gate({
@@ -624,7 +659,8 @@ export class MainSchedulerService {
     finishedAt: number,
     status: SchedulerAuditStatus,
     reason?: string,
-    error?: string
+    error?: string,
+    force?: boolean
   ): void {
     this.auditLogStore.append({
       id: this.createAuditId(finishedAt),
@@ -633,6 +669,7 @@ export class MainSchedulerService {
       jobId: definition.id,
       jobName: definition.name,
       trigger,
+      force: force === true ? true : undefined,
       scheduledFor,
       startedAt,
       finishedAt,
@@ -680,6 +717,22 @@ export class MainSchedulerService {
   private createAuditId(timestamp: number): string {
     this.auditSequence += 1;
     return `${timestamp}-${this.auditSequence}`;
+  }
+
+  private emitChanged(reason: SchedulerUpdateReason, target?: { id?: string; owner?: string }): void {
+    const event: SchedulerUpdatedEvent = {
+      reason,
+      jobId: target?.id,
+      owner: target?.owner,
+      at: this.now()
+    };
+    for (const listener of this.changeListeners) {
+      try {
+        listener(event);
+      } catch (error) {
+        console.warn('[scheduler] Change listener failed', error);
+      }
+    }
   }
 
   private persist(): void {
