@@ -8,7 +8,7 @@ describe('capability registry', () => {
     resetSpriteCapabilityRuntime();
   });
 
-  it('keeps locked capabilities inactive even if a runtime signal is already on', () => {
+  it('unlocks movement at level 1 and activates it when auto-walk is on', () => {
     const snapshot = DEFAULT_SPRITE_CAPABILITY_REGISTRY.resolveSnapshot({
       personaLevel: 1,
       activeSignals: {
@@ -16,9 +16,10 @@ describe('capability registry', () => {
       }
     });
 
-    expect(snapshot.capabilities.movement.status).toBe('locked');
-    expect(snapshot.capabilities.movement.active).toBe(false);
-    expect(snapshot.capabilities.movement.unlockReady).toBe(false);
+    expect(snapshot.capabilities.movement.requiredLevel).toBe(1);
+    expect(snapshot.capabilities.movement.status).toBe('active');
+    expect(snapshot.capabilities.movement.active).toBe(true);
+    expect(snapshot.capabilities.movement.unlockReady).toBe(true);
   });
 
   it('treats passive prerequisites as unlocked while runtime-bound prerequisites still require active signals', () => {

@@ -230,6 +230,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
       // 等待退出动画完成后再关闭窗口
       setTimeout(() => {
         window.YUA.window['window:close']('menu');
+        void window.YUA.sprite.interact('context-menu', { open: false });
         setIsClosing(false);
       }, EXIT_ANIMATION_DURATION);
     },
@@ -244,10 +245,13 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
 
       if (data.visible) {
         // 窗口显示时，查询 ASR 状态并播放入场动画
+        void window.YUA.sprite.interact('context-menu', { open: true });
         checkASRStatus();
         void refreshCapabilitySnapshot();
         setIsOpen(true);
         setIsClosing(false);
+      } else {
+        void window.YUA.sprite.interact('context-menu', { open: false });
       }
       // 注意：隐藏事件在窗口已经隐藏后发送，此时无法播放动画
       // 关闭动画通过 onClose 回调触发
@@ -258,6 +262,12 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
       window.ipcRenderer?.off('window:visibility-changed', handleVisibilityChange);
     };
   }, [checkASRStatus, refreshCapabilitySnapshot]);
+
+  useEffect(() => {
+    return () => {
+      void window.YUA.sprite.interact('context-menu', { open: false });
+    };
+  }, []);
 
   // 监听窗口失焦事件（替代 closeOnBlur 配置）
   useEffect(() => {
