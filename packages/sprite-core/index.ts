@@ -86,7 +86,7 @@ export {
 
 // ----- Modules -----
 export { AnimationRegistry } from './animation-registry';
-export type { BehaviorCondition, BehaviorContext, BehaviorDefinition, BehaviorPriority } from './behavior-engine';
+export type { BehaviorCondition, BehaviorContext, BehaviorDefinition, BehaviorPriority, BehaviorRunAttemptResult, BehaviorRunOptions, BehaviorRunSkipReason } from './behavior-engine';
 export { BehaviorEngine, createAutoWalkBehavior, createBoredBehavior, createFavorDecayBehavior, createRandomMessageBehavior, createSleepyBehavior } from './behavior-engine';
 export type {
   CapabilityLevelUnlockDefinition,

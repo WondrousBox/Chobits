@@ -36,6 +36,7 @@ import { app, BrowserWindow, ipcMain, screen } from 'electron';
 
 import { getDailyCareService } from '../../../electron/main/daily';
 import type { DailyCareRoutineDispatch } from '../../../electron/main/daily/types';
+import { getMainSchedulerService } from '../../../electron/main/scheduler';
 import { loadShortcutEnabledConfig, saveShortcutEnabledConfig } from '../../../electron/main/shortcut-store';
 import { getRecorderStatusSnapshot } from '../../recorder/ipc-main';
 import { disableASRRuntime, getASRConfigSnapshot, getASRStatusSnapshot } from '../../sherpa/ipc-main';
@@ -133,7 +134,8 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     appName: 'Chobits',
     spontaneousUtteranceExecutor: deps.spontaneousUtteranceExecutor,
     purposeWindowAdapter: deps.purposeWindowAdapter,
-    purposeRoutinePlanner: deps.purposeRoutinePlanner
+    purposeRoutinePlanner: deps.purposeRoutinePlanner,
+    behaviorScheduler: getMainSchedulerService()
   });
 
   // 初始化 WindowController 并注入

@@ -84,7 +84,15 @@ import { registerDefaultBehaviors } from './default-behaviors';
 import { MovementCoordinator } from './movement-coordinator';
 import { AutoWalkConfig, PersonaStatePersistence } from './persistence';
 import { mapStateToEventType } from './state-mapping';
-import type { PersonaStatePersistenceRow, SpriteManagerOptions, SpritePurposeWindowAdapter, SpriteSpontaneousUtteranceExecutor, SpriteWindow } from './types';
+import type {
+  PersonaStatePersistenceRow,
+  SpriteBehaviorScheduler,
+  SpriteManagerOptions,
+  SpritePurposeWindowAdapter,
+  SpriteSchedulerScheduleSpec,
+  SpriteSpontaneousUtteranceExecutor,
+  SpriteWindow
+} from './types';
 
 // ============================================================================
 // SpriteManager 实现
@@ -102,6 +110,13 @@ interface SpritePresentationOwnerContext {
   priority: number;
 }
 
+interface SpriteBehaviorSchedulerPayload {
+  behaviorId: string;
+}
+
+const SPRITE_BEHAVIOR_SCHEDULER_OWNER = 'sprite.behavior';
+const SPRITE_AUTO_MOVE_SCHEDULER_GATE = 'sprite.canAutoMove';
+
 export class SpriteManager {
   // 内部引擎实例
   private eventBus: SpriteEventBus;
@@ -109,6 +124,11 @@ export class SpriteManager {
   private personaState: PersonaStateManager;
   private interactionTracker: InteractionTracker;
   private behaviorEngine: BehaviorEngine;
+  private behaviorScheduler?: SpriteBehaviorScheduler;
+  private behaviorSchedulerStarted = false;
+  private behaviorSchedulerJobIds = new Set<string>();
+  private unbindBehaviorSchedulerHandler: (() => void) | null = null;
+  private unbindBehaviorSchedulerGate: (() => void) | null = null;
   private animationRegistry: AnimationRegistry;
   private purposeManager: SpritePurposeManager;
   private purposeEventWaiter: SpritePurposeEventWaiter;
@@ -193,6 +213,7 @@ export class SpriteManager {
       stateMachine: this.stateMachine,
       tickIntervalMs: 1000
     });
+    this.behaviorScheduler = options.behaviorScheduler;
     this.animationRegistry = new AnimationRegistry();
     this.purposeEventWaiter = new SpritePurposeEventWaiter();
     this.purposeHistory = new SpritePurposeHistoryStore(options.dataDir);
@@ -207,8 +228,7 @@ export class SpriteManager {
     this.movementCoordinator = new MovementCoordinator({
       canMove: () => !!this.windowController,
       canUseMovement: () => {
-        const movementCapability = getSpriteCapabilityRuntimeState('movement');
-        return movementCapability !== null && movementCapability.status !== 'locked' && !this.isMovementSuspended();
+        return this.canUseMovement();
       },
       getScreenSize: () => this.getScreenSize(),
       getPosition: () => this.getPosition(),
@@ -287,6 +307,7 @@ export class SpriteManager {
 
     // 设置 BehaviorEngine 上下文提供器
     this.behaviorEngine.setContextProvider(() => this.buildBehaviorContext());
+    this.bindBehaviorScheduler();
   }
 
   // ============================================================================
@@ -360,8 +381,12 @@ export class SpriteManager {
     // 5. 初始化语音合成服务
     await this.speakService.init();
 
-    // 6. 启动行为引擎
-    this.behaviorEngine.start();
+    // 6. 启动行为调度。主进程统一 scheduler 可用时使用共享调度器，否则保留 legacy polling。
+    if (this.behaviorScheduler) {
+      this.startBehaviorScheduler();
+    } else {
+      this.behaviorEngine.start();
+    }
 
     // 7. 启动心情衰减
     this.personaState.startMoodDecay();
@@ -379,6 +404,7 @@ export class SpriteManager {
 
   /** 停止引擎 */
   stop(): void {
+    this.stopBehaviorScheduler();
     this.behaviorEngine.stop();
     this.personaState.stopMoodDecay();
     this.persistence.stopAutoSave();
@@ -400,6 +426,10 @@ export class SpriteManager {
 
     // 清理所有子系统
     this.behaviorEngine.destroy();
+    this.unbindBehaviorSchedulerHandler?.();
+    this.unbindBehaviorSchedulerHandler = null;
+    this.unbindBehaviorSchedulerGate?.();
+    this.unbindBehaviorSchedulerGate = null;
     this.interactionTracker.destroy();
     this.personaState.destroy();
     this.stateMachine.destroy();
@@ -1117,6 +1147,20 @@ export class SpriteManager {
     return this.autoWalkConfig.enabled;
   }
 
+  private canUseMovement(): boolean {
+    const movementCapability = getSpriteCapabilityRuntimeState('movement');
+    return movementCapability !== null && movementCapability.status !== 'locked' && !this.isMovementSuspended();
+  }
+
+  private getAutoWalkBlockReason(): string | null {
+    if (!this.autoWalkConfig.enabled) return 'auto-walk-disabled';
+    if (!this.windowController) return 'window-controller-unavailable';
+    const movementCapability = getSpriteCapabilityRuntimeState('movement');
+    if (!movementCapability || movementCapability.status === 'locked') return 'movement-locked';
+    if (this.isMovementSuspended()) return 'movement-suspended';
+    return null;
+  }
+
   private isMovementSuspended(): boolean {
     return this.movementSuspensionReasons.size > 0;
   }
@@ -1268,6 +1312,120 @@ export class SpriteManager {
   /** 注册自定义行为 */
   registerBehavior(behavior: BehaviorDefinition): void {
     this.behaviorEngine.register(behavior);
+    if (this.behaviorSchedulerStarted) {
+      this.scheduleBehavior(behavior);
+    }
+  }
+
+  /** 注销自定义行为 */
+  unregisterBehavior(id: string): void {
+    this.behaviorEngine.unregister(id);
+    this.unscheduleBehavior(id);
+  }
+
+  private bindBehaviorScheduler(): void {
+    if (!this.behaviorScheduler) return;
+
+    this.unbindBehaviorSchedulerHandler = this.behaviorScheduler.registerHandler<SpriteBehaviorSchedulerPayload>(SPRITE_BEHAVIOR_SCHEDULER_OWNER, async (context) => {
+      const behaviorId = context.payload?.behaviorId;
+      if (!behaviorId) return;
+
+      const result = await this.behaviorEngine.tryRunBehavior(behaviorId, {
+        now: context.triggeredAt,
+        ignoreSchedule: true
+      });
+      if (result.error) {
+        return { status: 'failed' as const, error: result.error };
+      }
+      if (!result.triggered) {
+        return { status: 'skipped' as const, reason: result.skippedReason ?? 'behavior-skipped' };
+      }
+      return { status: 'success' as const };
+    });
+
+    this.unbindBehaviorSchedulerGate = this.behaviorScheduler.registerGate<SpriteBehaviorSchedulerPayload>(SPRITE_AUTO_MOVE_SCHEDULER_GATE, () => {
+      const reason = this.getAutoWalkBlockReason();
+      return reason ? { accepted: false, reason } : true;
+    });
+  }
+
+  private startBehaviorScheduler(): void {
+    if (!this.behaviorScheduler) return;
+
+    this.behaviorSchedulerStarted = true;
+    this.behaviorScheduler.start();
+    for (const definition of this.behaviorEngine.getDefinitions()) {
+      this.scheduleBehavior(definition);
+    }
+  }
+
+  private stopBehaviorScheduler(): void {
+    if (!this.behaviorSchedulerStarted) return;
+    this.behaviorSchedulerStarted = false;
+
+    for (const jobId of this.behaviorSchedulerJobIds) {
+      this.behaviorScheduler?.remove(jobId);
+    }
+    this.behaviorSchedulerJobIds.clear();
+  }
+
+  private scheduleBehavior(definition: BehaviorDefinition): void {
+    if (!this.behaviorScheduler) return;
+
+    const schedule = this.toSchedulerSpec(definition);
+    if (!schedule) return;
+
+    const jobId = this.buildBehaviorSchedulerJobId(definition.id);
+    this.behaviorSchedulerJobIds.add(jobId);
+    this.behaviorScheduler.upsert<SpriteBehaviorSchedulerPayload>({
+      id: jobId,
+      owner: SPRITE_BEHAVIOR_SCHEDULER_OWNER,
+      name: definition.name,
+      enabled: definition.enabled,
+      schedule,
+      payload: {
+        behaviorId: definition.id
+      },
+      runPolicy: {
+        singletonKey: jobId,
+        maxConcurrent: 1,
+        misfire: 'skip'
+      },
+      ...(definition.id === 'auto-walk'
+        ? {
+            admission: {
+              customGate: SPRITE_AUTO_MOVE_SCHEDULER_GATE
+            }
+          }
+        : {})
+    });
+  }
+
+  private unscheduleBehavior(id: string): void {
+    if (!this.behaviorScheduler) return;
+    const jobId = this.buildBehaviorSchedulerJobId(id);
+    this.behaviorScheduler.remove(jobId);
+    this.behaviorSchedulerJobIds.delete(jobId);
+  }
+
+  private toSchedulerSpec(definition: BehaviorDefinition): SpriteSchedulerScheduleSpec | null {
+    const schedule = definition.schedule;
+    if (schedule.type === 'random') {
+      return {
+        kind: 'randomInterval',
+        minMs: Math.max(1, schedule.minMs ?? 1000),
+        maxMs: Math.max(schedule.minMs ?? 1000, schedule.maxMs ?? schedule.minMs ?? 1000)
+      };
+    }
+
+    return {
+      kind: 'interval',
+      everyMs: Math.max(1, schedule.intervalMs ?? 60_000)
+    };
+  }
+
+  private buildBehaviorSchedulerJobId(behaviorId: string): string {
+    return `sprite.behavior:${behaviorId}`;
   }
 
   getSpontaneousUtteranceExecutor(): SpriteSpontaneousUtteranceExecutor | undefined {

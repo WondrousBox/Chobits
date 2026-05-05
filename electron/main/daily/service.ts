@@ -5,6 +5,7 @@ import { BrowserWindow, powerMonitor } from 'electron';
 
 import { type AppNoticeLevel, sendAppNotice } from '../../../packages/event';
 import { notifySpriteCapabilityChanged } from '../../../packages/sprite-core/handler/capability-events';
+import { getMainSchedulerService, type MainSchedulerService, type SchedulerRunContext, type ScheduleSpec } from '../scheduler';
 import { DEFAULT_ROUTINES } from './constants';
 import { loadDailyCareState, saveDailyCareState } from './storage';
 import type {
@@ -27,16 +28,35 @@ import type {
 import { DAILY_CARE_SNAPSHOT_UPDATED_CHANNEL } from './types';
 
 // === 调度基础常量 ===
-const MINUTE = 30 * 1000;
+const MINUTE = 60 * 1000;
 // 当系统闲置超过该秒数，认为用户暂时离开，不推送非紧急提醒
 const IDLE_SKIP_SECONDS = 120;
 // 从系统恢复（唤醒/解锁）到允许普通提醒之间的冷却时间
 const RESUME_COOLDOWN_MS = 60 * 1000;
+const DAILY_CARE_OWNER = 'dailyCare';
+const DAILY_CARE_GATE = 'dailyCare.canDispatch';
+
+interface DailyCareServiceOptions {
+  scheduler?: MainSchedulerService | null;
+}
+
+interface DailyCareSchedulerPayload {
+  routineId: string;
+  scheduleKind: RoutineSchedule['kind'];
+  time?: string;
+}
+
+interface RoutineDispatchPlan {
+  meta?: { key?: string };
+  skipReason?: string;
+}
 
 export class DailyCareService {
   private state: DailyCareStorage;
   private routines: RoutineRuntime[] = [];
-  private timer: NodeJS.Timeout | null = null;
+  private readonly scheduler: MainSchedulerService | null;
+  private schedulerStarted = false;
+  private readonly scheduledRoutineJobIds = new Set<string>();
   private bootedAt = Date.now();
   private wasSystemIdle = false;
   private resumeCooldownUntil = 0;
@@ -44,32 +64,34 @@ export class DailyCareService {
   private currentPersistentRoutineId: string | null = null; // 当前常驻显示的提醒ID
   private routineDispatchListeners = new Set<DailyCareRoutineDispatchListener>();
 
-  constructor(private readonly windowResolver: WindowResolver) {
+  constructor(
+    private readonly windowResolver: WindowResolver,
+    options?: DailyCareServiceOptions
+  ) {
+    this.scheduler = options?.scheduler === undefined ? getMainSchedulerService() : options.scheduler;
     this.state = loadDailyCareState();
     this.rebuildRuntimes();
+    this.bindScheduler();
     this.bindPowerMonitor();
   }
 
   /**
-   * 启动服务：刷新基准时间、开启每分钟 tick
+   * 启动服务：刷新基准时间，并把每个 routine 注册到主进程统一调度器。
    */
   start(): void {
     this.bootedAt = Date.now();
-    if (this.timer) {
-      clearInterval(this.timer);
-    }
-    this.timer = setInterval(() => this.tick(), MINUTE);
-    this.tick();
+    this.schedulerStarted = true;
+    this.scheduler?.start();
+    this.dispatchDueRoutines(dayjs());
+    this.rescheduleRoutineJobs();
   }
 
   /**
    * 停止服务并解绑系统事件
    */
   stop(): void {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
+    this.schedulerStarted = false;
+    this.unscheduleRoutineJobs();
     this.unbindPowerMonitor();
   }
 
@@ -104,6 +126,7 @@ export class DailyCareService {
     }
     saveDailyCareState(this.state);
     this.rebuildRuntimes();
+    this.rescheduleRoutineJobs();
     const snapshot = this.getSnapshot();
     this.broadcastSnapshot(snapshot, {
       capabilityChanged: previousEnabled !== this.state.enabled,
@@ -131,6 +154,7 @@ export class DailyCareService {
     }
     saveDailyCareState(this.state);
     this.rebuildRuntimes();
+    this.rescheduleRoutineJobs();
     const snapshot = this.getSnapshot();
     this.broadcastSnapshot(snapshot, { source: 'dailyCare.reminder' });
     return { reminder: normalized, snapshot };
@@ -144,6 +168,7 @@ export class DailyCareService {
     delete this.state.routines[`custom:${id}`];
     saveDailyCareState(this.state);
     this.rebuildRuntimes();
+    this.rescheduleRoutineJobs();
     const snapshot = this.getSnapshot();
     this.broadcastSnapshot(snapshot, { source: 'dailyCare.reminder' });
     return snapshot;
@@ -215,38 +240,164 @@ export class DailyCareService {
     return { ok: true };
   }
 
-  /**
-   * 每分钟调度入口：结合系统 idle 态、冷却窗口决定是否触发例程
-   */
-  private tick(): void {
-    if (!this.state.enabled) return;
-    const idleSeconds = this.getSystemIdleSeconds();
-    console.log('idleSeconds', idleSeconds);
+  private bindScheduler(): void {
+    if (!this.scheduler) return;
 
-    const systemIdle = idleSeconds >= IDLE_SKIP_SECONDS;
-    const justResumed = this.wasSystemIdle && !systemIdle;
-    if (justResumed) {
-      this.bootedAt = Date.now();
-      this.resumeCooldownUntil = Date.now() + RESUME_COOLDOWN_MS;
-    }
-    this.wasSystemIdle = systemIdle;
-
-    if (systemIdle && idleSeconds > IDLE_SKIP_SECONDS * 5) {
-      this.resumeCooldownUntil = 0;
-    }
-
-    const now = dayjs();
-    this.routines.forEach((runtime) => {
-      if (runtime.state.enabled === false) return;
-      if (this.shouldSkipForIdle(runtime, idleSeconds)) return;
-      const underCooldown = this.resumeCooldownUntil > Date.now();
-      if (underCooldown && runtime.definition.kind !== 'nightGuard' && runtime.definition.severity !== 'urgent') {
-        return;
+    this.scheduler.registerHandler<DailyCareSchedulerPayload>(DAILY_CARE_OWNER, async (context: SchedulerRunContext<DailyCareSchedulerPayload>) => {
+      const routineId = context.payload?.routineId;
+      if (!routineId) {
+        return { status: 'skipped' as const, reason: 'missing-routine-id' };
       }
-      const dueMeta = this.shouldTrigger(runtime, now);
-      if (!dueMeta) return;
-      this.dispatchRoutine(runtime, now, dueMeta);
+      const result = this.dispatchRoutineByIdIfDue(routineId, dayjs(context.triggeredAt));
+      if (!result.dispatched) {
+        return { status: 'skipped' as const, reason: result.reason ?? 'not-dispatched' };
+      }
+      return { status: 'success' as const };
     });
+
+    this.scheduler.registerGate<DailyCareSchedulerPayload>(DAILY_CARE_GATE, (context) => {
+      const routineId = context.payload?.routineId;
+      const runtime = routineId ? this.routines.find((r) => r.definition.id === routineId) : null;
+      if (!runtime) {
+        return { accepted: false, reason: 'routine-not-found' };
+      }
+
+      const plan = this.createDispatchPlan(runtime, dayjs(context.triggeredAt), this.refreshIdleState());
+      if (plan.meta) return true;
+      return { accepted: false, reason: plan.skipReason ?? 'not-due' };
+    });
+  }
+
+  private rescheduleRoutineJobs(): void {
+    if (!this.scheduler || !this.schedulerStarted) return;
+
+    this.unscheduleRoutineJobs();
+    if (!this.state.enabled) return;
+
+    for (const runtime of this.routines) {
+      if (runtime.state.enabled === false) continue;
+      this.scheduleRoutine(runtime);
+    }
+  }
+
+  private unscheduleRoutineJobs(): void {
+    if (!this.scheduler) return;
+    for (const jobId of this.scheduledRoutineJobIds) {
+      this.scheduler.remove(jobId);
+    }
+    this.scheduledRoutineJobIds.clear();
+  }
+
+  private scheduleRoutine(runtime: RoutineRuntime): void {
+    const schedule = runtime.definition.schedule;
+    if (schedule.kind === 'interval') {
+      this.upsertRoutineJob(runtime, 'interval', {
+        kind: 'interval',
+        everyMs: MINUTE
+      });
+      return;
+    }
+
+    if (schedule.kind === 'fixed') {
+      for (const time of schedule.times) {
+        this.upsertRoutineJob(runtime, `fixed:${time.replace(':', '-')}`, {
+          kind: 'cron',
+          expression: this.buildDailyCronExpression(time, schedule.daysOfWeek)
+        });
+      }
+      return;
+    }
+
+    this.upsertRoutineJob(runtime, 'calendar', {
+      kind: 'cron',
+      expression: this.buildDailyCronExpression(this.getCalendarDispatchTime(schedule))
+    });
+  }
+
+  private upsertRoutineJob(runtime: RoutineRuntime, suffix: string, schedule: ScheduleSpec): void {
+    if (!this.scheduler) return;
+    const jobId = `dailyCare:${runtime.definition.id}:${suffix}`;
+    this.scheduledRoutineJobIds.add(jobId);
+    this.scheduler.upsert<DailyCareSchedulerPayload>({
+      id: jobId,
+      owner: DAILY_CARE_OWNER,
+      name: runtime.definition.title,
+      enabled: this.state.enabled && runtime.state.enabled !== false,
+      schedule,
+      payload: {
+        routineId: runtime.definition.id,
+        scheduleKind: runtime.definition.schedule.kind,
+        time: suffix.startsWith('fixed:') ? suffix.slice('fixed:'.length).replace('-', ':') : undefined
+      },
+      runPolicy: {
+        singletonKey: jobId,
+        maxConcurrent: 1,
+        misfire: 'skip'
+      },
+      admission: {
+        customGate: DAILY_CARE_GATE
+      }
+    });
+  }
+
+  private buildDailyCronExpression(time: string, daysOfWeek?: number[]): string {
+    const [hour, minute] = this.parseTime(time);
+    const daySpec = daysOfWeek?.length ? daysOfWeek.join(',') : '*';
+    return `${minute} ${hour} * * ${daySpec}`;
+  }
+
+  private getCalendarDispatchTime(schedule: CalendarSchedule): string {
+    const [hour, minute] = this.parseTime(schedule.time);
+    const lead = schedule.leadMinutes || 0;
+    const total = (hour * 60 + minute - lead + 24 * 60) % (24 * 60);
+    const dispatchHour = Math.floor(total / 60);
+    const dispatchMinute = total % 60;
+    return `${String(dispatchHour).padStart(2, '0')}:${String(dispatchMinute).padStart(2, '0')}`;
+  }
+
+  /**
+   * 调度入口：结合系统 idle 态、冷却窗口决定是否触发例程。
+   * 现在由 MainSchedulerService 或启动补偿调用，不再由本类维护全局 setInterval。
+   */
+  private dispatchDueRoutines(now: dayjs.Dayjs): void {
+    if (!this.state.enabled) return;
+    const idleSeconds = this.refreshIdleState();
+    this.routines.forEach((runtime) => {
+      const plan = this.createDispatchPlan(runtime, now, idleSeconds);
+      if (plan.meta) {
+        this.dispatchRoutine(runtime, now, plan.meta);
+      }
+    });
+  }
+
+  private dispatchRoutineByIdIfDue(routineId: string, now: dayjs.Dayjs): { dispatched: boolean; reason?: string } {
+    const runtime = this.routines.find((r) => r.definition.id === routineId);
+    if (!runtime) {
+      return { dispatched: false, reason: 'routine-not-found' };
+    }
+
+    const plan = this.createDispatchPlan(runtime, now, this.refreshIdleState());
+    if (!plan.meta) {
+      return { dispatched: false, reason: plan.skipReason ?? 'not-due' };
+    }
+
+    this.dispatchRoutine(runtime, now, plan.meta);
+    return { dispatched: true };
+  }
+
+  private createDispatchPlan(runtime: RoutineRuntime, now: dayjs.Dayjs, idleSeconds: number): RoutineDispatchPlan {
+    if (!this.state.enabled) return { skipReason: 'daily-care-disabled' };
+    if (runtime.state.enabled === false) return { skipReason: 'routine-disabled' };
+    if (this.shouldSkipForIdle(runtime, idleSeconds)) return { skipReason: 'system-idle' };
+
+    const underCooldown = this.resumeCooldownUntil > now.valueOf();
+    if (underCooldown && runtime.definition.kind !== 'nightGuard' && runtime.definition.severity !== 'urgent') {
+      return { skipReason: 'resume-cooldown' };
+    }
+
+    const dueMeta = this.shouldTrigger(runtime, now);
+    if (!dueMeta) return { skipReason: 'not-due' };
+    return { meta: dueMeta };
   }
 
   // --- Internal helpers below ---
@@ -687,6 +838,23 @@ export class DailyCareService {
     return true;
   }
 
+  private refreshIdleState(): number {
+    const idleSeconds = this.getSystemIdleSeconds();
+    const systemIdle = idleSeconds >= IDLE_SKIP_SECONDS;
+    const justResumed = this.wasSystemIdle && !systemIdle;
+    if (justResumed) {
+      this.bootedAt = Date.now();
+      this.resumeCooldownUntil = Date.now() + RESUME_COOLDOWN_MS;
+    }
+    this.wasSystemIdle = systemIdle;
+
+    if (systemIdle && idleSeconds > IDLE_SKIP_SECONDS * 5) {
+      this.resumeCooldownUntil = 0;
+    }
+
+    return idleSeconds;
+  }
+
   /**
    * 读取系统闲置时长，若 Electron API 不可用则返回 0
    */
@@ -707,24 +875,15 @@ export class DailyCareService {
    */
   private readonly handleSystemResume = (): void => {
     this.bootedAt = Date.now();
-    console.log('handleSystemResume');
-    console.log('bootedAt', this.bootedAt);
-    console.log('resumeCooldownUntil', this.resumeCooldownUntil);
-    console.log('wasSystemIdle', this.wasSystemIdle);
-    console.log('resumeCooldownUntil', this.resumeCooldownUntil);
     this.wasSystemIdle = false;
     this.resumeCooldownUntil = Date.now() + RESUME_COOLDOWN_MS;
+    this.rescheduleRoutineJobs();
   };
 
   /**
    * 系统休眠/锁屏：标记为 idle，立即停止普通提醒
    */
   private readonly handleSystemSuspend = (): void => {
-    console.log('handleSystemSuspend');
-    console.log('bootedAt', this.bootedAt);
-    console.log('resumeCooldownUntil', this.resumeCooldownUntil);
-    console.log('wasSystemIdle', this.wasSystemIdle);
-    console.log('resumeCooldownUntil', this.resumeCooldownUntil);
     this.wasSystemIdle = true;
     this.resumeCooldownUntil = 0;
   };

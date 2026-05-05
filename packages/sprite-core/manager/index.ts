@@ -37,8 +37,17 @@ export { SpriteManager } from './sprite-manager';
 export { mapStateToEventType } from './state-mapping';
 export type {
   PersonaStatePersistenceRow,
+  SpriteBehaviorScheduler,
   SpriteManagerOptions,
   SpritePurposeWindowAdapter,
+  SpriteSchedulerGateContext,
+  SpriteSchedulerGateResult,
+  SpriteSchedulerJobDefinition,
+  SpriteSchedulerJobHandlerResult,
+  SpriteSchedulerRunContext,
+  SpriteSchedulerRunTrigger,
+  SpriteSchedulerRuntimeJob,
+  SpriteSchedulerScheduleSpec,
   SpriteSpontaneousUtteranceActionSource,
   SpriteSpontaneousUtteranceExecutionReport,
   SpriteSpontaneousUtteranceExecutor,

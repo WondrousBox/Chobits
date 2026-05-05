@@ -1,84 +1,274 @@
-import schedule from 'node-schedule';
-
 import { getWorkflow, runWorkflow } from '../../../packages/workflow';
 import { AutomationRulesRepo } from '../db/repositories';
 import { AutomationRuleRow } from '../db/schema';
+import { getMainSchedulerService, type MainSchedulerService, type SchedulerJobDefinition, type SchedulerRunContext, type SchedulerRunTrigger, type ScheduleSpec } from '../scheduler';
 
-const jobs = new Map<string, schedule.Job>();
+const AUTOMATION_OWNER = 'automation';
+const automationScheduler = getMainSchedulerService();
+
+export type AutomationRuleTrigger =
+  | { type: 'schedule'; scheduledFor?: number; triggeredAt?: number }
+  | { type: 'manual' }
+  | { type: 'system_event'; eventType: string }
+  | { type: 'resource_event'; eventType: string; resource: any };
+
+export interface AutomationRuleExecutionResult {
+  ok: boolean;
+  reason?: string;
+}
+
+interface AutomationSchedulerPayload {
+  rule: AutomationRuleRow;
+  trigger?: AutomationRuleTrigger;
+}
+
+automationScheduler.registerHandler(AUTOMATION_OWNER, async (context: SchedulerRunContext<AutomationSchedulerPayload>) => {
+  const result = await executeAutomationRule(
+    context.payload?.rule,
+    context.payload?.trigger ?? {
+      type: 'schedule',
+      scheduledFor: context.scheduledFor,
+      triggeredAt: context.triggeredAt
+    }
+  );
+  if (!result.ok) {
+    return {
+      status: 'failed' as const,
+      reason: result.reason ?? 'automation-rule-execution-failed'
+    };
+  }
+  return { status: 'success' as const };
+});
 
 export async function initScheduler(): Promise<void> {
   console.log('[Scheduler] Initializing...');
   const rules = await AutomationRulesRepo.list();
-  const scheduleRules = rules.filter((r) => r.enabled && r.triggerType === 'schedule');
+  const enabledRules = rules.filter((r) => r.enabled);
 
-  console.log(`[Scheduler] Found ${scheduleRules.length} scheduled rules.`);
+  console.log(`[Scheduler] Found ${enabledRules.length} enabled automation rules.`);
 
-  for (const rule of scheduleRules) {
+  for (const rule of enabledRules) {
     scheduleRule(rule);
   }
+
+  automationScheduler.start();
 }
 
 export function scheduleRule(rule: AutomationRuleRow): void {
-  if (!rule.enabled || rule.triggerType !== 'schedule') return;
+  unscheduleRule(rule.id);
 
-  const config = rule.triggerConfig as any;
-  if (!config || !config.cron) {
-    console.warn(`[Scheduler] Rule ${rule.id} has no cron config.`);
+  if (!rule.enabled) return;
+
+  const definition = buildAutomationSchedulerDefinition(rule);
+  if (!definition) {
     return;
   }
 
-  // Cancel existing job if any (e.g. update)
-  if (jobs.has(rule.id)) {
-    jobs.get(rule.id)?.cancel();
+  automationScheduler.start();
+  const snapshot = automationScheduler.upsert<AutomationSchedulerPayload>(definition);
+
+  if (snapshot.runtime.lastStatus === 'failed') {
+    console.error(`[Scheduler] Failed to schedule rule ${rule.id}: ${snapshot.runtime.lastError ?? 'unknown error'}`);
+    return;
   }
 
-  try {
-    const job = schedule.scheduleJob(config.cron, async () => {
-      console.log(`[Scheduler] Triggering rule ${rule.name} (${rule.id})`);
-      await executeRuleAction(rule);
-    });
-
-    if (job) {
-      jobs.set(rule.id, job);
-      console.log(`[Scheduler] Scheduled rule ${rule.name} with cron: ${config.cron}`);
-    }
-  } catch (error) {
-    console.error(`[Scheduler] Failed to schedule rule ${rule.id}:`, error);
+  if (definition.schedule.kind === 'cron') {
+    console.log(`[Scheduler] Scheduled rule ${rule.name} with cron: ${definition.schedule.expression}`);
+  } else {
+    console.log(`[Scheduler] Registered ${definition.schedule.kind} rule ${rule.name}`);
   }
 }
 
 export function unscheduleRule(ruleId: string): void {
-  if (jobs.has(ruleId)) {
-    jobs.get(ruleId)?.cancel();
-    jobs.delete(ruleId);
+  if (automationScheduler.remove(buildAutomationSchedulerJobId(ruleId))) {
     console.log(`[Scheduler] Unscheduled rule ${ruleId}`);
   }
 }
 
-async function executeRuleAction(rule: AutomationRuleRow): Promise<void> {
+export async function executeAutomationRule(rule: AutomationRuleRow | undefined, trigger: AutomationRuleTrigger): Promise<AutomationRuleExecutionResult> {
+  if (!rule) {
+    return { ok: false, reason: 'missing-rule' };
+  }
+
   if (rule.actionType === 'workflow') {
     const config = rule.actionConfig as any;
     if (!config || !config.workflowId) {
       console.warn(`[Scheduler] Rule ${rule.id} has no workflow config.`);
-      return;
+      return { ok: false, reason: 'missing-workflow-config' };
     }
 
     try {
       const workflow = await getWorkflow(config.workflowId);
       if (!workflow) {
         console.error(`[Scheduler] Workflow ${config.workflowId} not found for rule ${rule.id}`);
-        return;
+        return { ok: false, reason: 'workflow-not-found' };
       }
 
       console.log(`[Scheduler] Running workflow ${workflow.name} for rule ${rule.id}`);
-      // Scheduled tasks might not have a specific resource context, or we might need to define what inputs they get.
-      // For now, we pass empty inputs or static inputs from config.
-      const inputs = config.inputs || {};
+      const inputs = buildWorkflowInputs(config.inputs || {}, trigger);
       await runWorkflow(workflow, inputs);
+      return { ok: true };
     } catch (error) {
       console.error(`[Scheduler] Error executing workflow for rule ${rule.id}:`, error);
+      return { ok: false, reason: 'workflow-execution-failed' };
     }
   } else {
     console.warn(`[Scheduler] Unsupported action type ${rule.actionType} for rule ${rule.id}`);
+    return { ok: false, reason: 'unsupported-action-type' };
   }
+}
+
+export async function runAutomationRule(rule: AutomationRuleRow | undefined, trigger: AutomationRuleTrigger): Promise<AutomationRuleExecutionResult> {
+  if (!rule) {
+    return { ok: false, reason: 'missing-rule' };
+  }
+
+  const definition = buildAutomationSchedulerDefinition(rule, trigger);
+  if (!definition) {
+    return { ok: false, reason: 'unsupported-trigger' };
+  }
+
+  const state = await automationScheduler.runAdHoc<AutomationSchedulerPayload>(definition, {
+    trigger: toSchedulerRunTrigger(trigger),
+    scheduledFor: trigger.type === 'schedule' ? trigger.scheduledFor : undefined,
+    payload: { rule, trigger }
+  });
+
+  if (state.lastStatus === 'success') {
+    return { ok: true };
+  }
+
+  return {
+    ok: false,
+    reason: state.lastError ?? state.lastSkipReason ?? 'automation-rule-execution-failed'
+  };
+}
+
+export function getAutomationSchedulerSnapshot(): ReturnType<MainSchedulerService['listJobs']> {
+  return automationScheduler.listJobs();
+}
+
+function buildAutomationSchedulerJobId(ruleId: string): string {
+  return `automation:${ruleId}`;
+}
+
+function buildAutomationSchedulerDefinition(rule: AutomationRuleRow, trigger?: AutomationRuleTrigger): SchedulerJobDefinition<AutomationSchedulerPayload> | null {
+  const schedule = trigger ? buildAutomationScheduleForTrigger(rule, trigger) : buildAutomationScheduleForRule(rule);
+  if (!schedule) {
+    return null;
+  }
+
+  const jobId = buildAutomationSchedulerJobId(rule.id);
+  return {
+    id: jobId,
+    owner: AUTOMATION_OWNER,
+    name: rule.name,
+    enabled: rule.enabled !== 0,
+    schedule,
+    payload: { rule },
+    runPolicy: {
+      singletonKey: jobId,
+      maxConcurrent: 1,
+      misfire: 'skip'
+    }
+  };
+}
+
+function buildAutomationScheduleForRule(rule: AutomationRuleRow): ScheduleSpec | null {
+  if (rule.triggerType === 'schedule') {
+    const config = rule.triggerConfig as any;
+    if (!config || !config.cron) {
+      console.warn(`[Scheduler] Rule ${rule.id} has no cron config.`);
+      return null;
+    }
+    return {
+      kind: 'cron',
+      expression: config.cron
+    };
+  }
+
+  if (rule.triggerType === 'manual') {
+    return { kind: 'manual' };
+  }
+
+  if (rule.triggerType === 'system_event') {
+    const config = rule.triggerConfig as any;
+    return {
+      kind: 'event',
+      eventType: config?.event ?? 'system_event'
+    };
+  }
+
+  if (rule.triggerType === 'resource_event') {
+    const config = rule.triggerConfig as any;
+    const eventType = config?.event ? `resource_${config.event}` : 'resource_event';
+    return {
+      kind: 'event',
+      eventType
+    };
+  }
+
+  return null;
+}
+
+function buildAutomationScheduleForTrigger(rule: AutomationRuleRow, trigger: AutomationRuleTrigger): ScheduleSpec {
+  if (trigger.type === 'manual') {
+    return { kind: 'manual' };
+  }
+
+  if (trigger.type === 'system_event') {
+    return {
+      kind: 'event',
+      eventType: trigger.eventType
+    };
+  }
+
+  if (trigger.type === 'resource_event') {
+    return {
+      kind: 'event',
+      eventType: trigger.eventType
+    };
+  }
+
+  return buildAutomationScheduleForRule(rule) ?? { kind: 'manual' };
+}
+
+function toSchedulerRunTrigger(trigger: AutomationRuleTrigger): SchedulerRunTrigger {
+  if (trigger.type === 'manual') return 'manual';
+  if (trigger.type === 'schedule') return 'scheduled';
+  return 'event';
+}
+
+function buildWorkflowInputs(baseInputs: Record<string, unknown>, trigger: AutomationRuleTrigger): Record<string, unknown> {
+  if (trigger.type === 'schedule') {
+    return {
+      ...baseInputs,
+      triggerType: 'schedule',
+      scheduledFor: trigger.scheduledFor,
+      triggeredAt: trigger.triggeredAt
+    };
+  }
+
+  if (trigger.type === 'manual') {
+    return {
+      ...baseInputs,
+      triggerType: 'manual'
+    };
+  }
+
+  if (trigger.type === 'system_event') {
+    return {
+      ...baseInputs,
+      triggerType: 'system_event',
+      eventType: trigger.eventType
+    };
+  }
+
+  return {
+    ...baseInputs,
+    triggerType: 'resource_event',
+    eventType: trigger.eventType,
+    resourceId: trigger.resource?.id,
+    resource: trigger.resource
+  };
 }

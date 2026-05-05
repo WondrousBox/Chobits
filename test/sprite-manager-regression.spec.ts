@@ -40,7 +40,7 @@ function createTestWindow(): {
   return { win, sent };
 }
 
-function createManager(options: { purposeWindowAdapter?: any } = {}): {
+function createManager(options: { purposeWindowAdapter?: any; behaviorScheduler?: any } = {}): {
   mgr: SpriteManager;
   sent: Array<{ channel: string; payload: unknown }>;
   dataDir: string;
@@ -52,10 +52,54 @@ function createManager(options: { purposeWindowAdapter?: any } = {}): {
     dataDir,
     getScreenSize: () => ({ width: 1280, height: 720 }),
     appName: 'SpriteTest',
-    purposeWindowAdapter: options.purposeWindowAdapter
+    purposeWindowAdapter: options.purposeWindowAdapter,
+    behaviorScheduler: options.behaviorScheduler
   });
 
   return { mgr, sent, dataDir };
+}
+
+function createBehaviorSchedulerHarness(): {
+  scheduler: {
+    handlers: Map<string, any>;
+    gates: Map<string, any>;
+    jobs: Map<string, any>;
+    started: boolean;
+    registerHandler: ReturnType<typeof vi.fn>;
+    registerGate: ReturnType<typeof vi.fn>;
+    upsert: ReturnType<typeof vi.fn>;
+    remove: ReturnType<typeof vi.fn>;
+    start: ReturnType<typeof vi.fn>;
+  };
+} {
+  const scheduler = {
+    handlers: new Map<string, any>(),
+    gates: new Map<string, any>(),
+    jobs: new Map<string, any>(),
+    started: false,
+    registerHandler: vi.fn((owner: string, handler: any) => {
+      scheduler.handlers.set(owner, handler);
+      return () => scheduler.handlers.delete(owner);
+    }),
+    registerGate: vi.fn((id: string, handler: any) => {
+      scheduler.gates.set(id, handler);
+      return () => scheduler.gates.delete(id);
+    }),
+    upsert: vi.fn((job: any) => {
+      scheduler.jobs.set(job.id, job);
+      return { definition: job, runtime: {}, active: true, runningCount: 0 };
+    }),
+    remove: vi.fn((id: string) => {
+      const existed = scheduler.jobs.has(id);
+      scheduler.jobs.delete(id);
+      return existed;
+    }),
+    start: vi.fn(() => {
+      scheduler.started = true;
+    })
+  };
+
+  return { scheduler };
 }
 
 async function destroyManager(dataDir?: string): Promise<void> {
@@ -822,6 +866,79 @@ describe('sprite manager regression coverage', () => {
 
     await expect(mgr.runBehaviorMovement(movement, { hasSegmentLoop: true })).resolves.toBe(true);
     expect(walkTo).toHaveBeenCalledOnce();
+  });
+
+  it('registers sprite behaviors with the injected main scheduler instead of legacy polling', async () => {
+    const { scheduler } = createBehaviorSchedulerHarness();
+    const { mgr, dataDir } = createManager({ behaviorScheduler: scheduler });
+    dataDirs.add(dataDir);
+    const legacyStart = vi.spyOn((mgr as any).behaviorEngine, 'start');
+
+    await mgr.start();
+
+    expect(scheduler.start).toHaveBeenCalledOnce();
+    expect(legacyStart).not.toHaveBeenCalled();
+    expect(scheduler.registerHandler).toHaveBeenCalledWith('sprite.behavior', expect.any(Function));
+    expect(scheduler.registerGate).toHaveBeenCalledWith('sprite.canAutoMove', expect.any(Function));
+    expect(scheduler.jobs.get('sprite.behavior:auto-walk')).toMatchObject({
+      id: 'sprite.behavior:auto-walk',
+      owner: 'sprite.behavior',
+      name: '自动行走',
+      enabled: true,
+      schedule: {
+        kind: 'randomInterval',
+        minMs: 20_000,
+        maxMs: 60_000
+      },
+      payload: {
+        behaviorId: 'auto-walk'
+      },
+      admission: {
+        customGate: 'sprite.canAutoMove'
+      }
+    });
+  });
+
+  it('blocks scheduled auto-walk while the assistant context menu is open', async () => {
+    const { scheduler } = createBehaviorSchedulerHarness();
+    const { mgr, dataDir } = createManager({ behaviorScheduler: scheduler });
+    dataDirs.add(dataDir);
+    initSpriteCapabilityRuntime({
+      resolveContext: () => ({
+        personaLevel: 1,
+        activeSignals: {}
+      })
+    });
+    (mgr as any).windowController = {
+      stopWalk: vi.fn(),
+      stopAutoMove: vi.fn(),
+      isAutoMoving: () => false
+    };
+
+    await mgr.start();
+    const gate = scheduler.gates.get('sprite.canAutoMove');
+
+    await expect(
+      Promise.resolve(
+        gate({
+          payload: { behaviorId: 'auto-walk' },
+          scheduledFor: Date.now(),
+          triggeredAt: Date.now()
+        })
+      )
+    ).resolves.toBe(true);
+
+    mgr.reportInteraction('context-menu', { open: true });
+
+    await expect(
+      Promise.resolve(
+        gate({
+          payload: { behaviorId: 'auto-walk' },
+          scheduledFor: Date.now(),
+          triggeredAt: Date.now()
+        })
+      )
+    ).resolves.toEqual({ accepted: false, reason: 'movement-suspended' });
   });
 
   it('routes night sleepy behavior through the daily rest purpose', async () => {

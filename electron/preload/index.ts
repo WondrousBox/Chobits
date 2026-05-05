@@ -29,6 +29,7 @@ import { systemIpcRenderer } from '../main/handlers/system/ipc-renderer';
 import { themeIpcRenderer } from '../main/handlers/theme/ipc-renderer';
 import { trashIpcRenderer } from '../main/handlers/trash/ipc-renderer';
 import { workspaceIpcRenderer } from '../main/handlers/workspace/ipc-renderer';
+import { schedulerBridge } from '../main/scheduler/ipc-renderer';
 import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
 import { analyticsApi } from './apis/analytics';
 import { memoryApi } from './apis/memory';
@@ -110,6 +111,7 @@ contextBridge.exposeInMainWorld('YUA', {
   ai: aiBridge,
   recorder: recorderIpcRenderer,
   dailyCare: dailyCareBridge,
+  scheduler: schedulerBridge,
   pluginResource: pluginResourceIpcRenderer,
   proxy: proxyIpcRenderer,
   theme: themeIpcRenderer,

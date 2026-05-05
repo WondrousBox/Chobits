@@ -23,7 +23,7 @@
 
 - `DailyCareService`（主进程单例）
   - 维护 `CareRoutine` 列表（默认 + 自定义）
-  - 基于 `setInterval`（1 分钟）轮询各 Routine 的 Schedule
+  - 通过主进程 `MainSchedulerService` 为各 Routine 注册调度 job
   - 触发后调用 `sendSpriteNotice`，并将 `lastTriggeredAt/On` 持久化
 - `daily-care/storage.ts`
   - 文件 `~/.chobits/daily-care.json` 存储：模式开关、Routine 覆盖、上次触发、用户自定义提醒
