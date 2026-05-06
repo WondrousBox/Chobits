@@ -328,6 +328,18 @@ describe('sprite assets pack manifest integration', () => {
       getResourcePath: () => builtinRoot
     });
 
+    const fallbackSprites = await spriteAssets.listSprites();
+    expect(fallbackSprites.map((sprite) => sprite.meta.id)).toEqual(['builtin-idle']);
+    expect(fallbackSprites[0]).toMatchObject({
+      meta: {
+        deletable: false,
+        primaryTrigger: 'idle'
+      },
+      source: {
+        localPath: path.join(builtinRoot, 'animations/idle.webm')
+      }
+    });
+
     const registerFromData = electronState.handlers.get('sprite:registerFromData') as ((_: unknown, payload: { data: Buffer; meta: Record<string, unknown> }) => Promise<any>) | undefined;
     const removeSprite = electronState.handlers.get('sprite:remove') as ((_: unknown, payload: { id: string; deleteFile?: boolean }) => Promise<any>) | undefined;
 
@@ -352,8 +364,9 @@ describe('sprite assets pack manifest integration', () => {
     expect(existsSync(path.join(userDataDir!, 'data', 'sprites', 'index.json'))).toBe(false);
 
     const sprites = await spriteAssets.listSprites();
-    expect(sprites.map((sprite) => sprite.meta.id)).toEqual(['custom-wave']);
+    expect(sprites.map((sprite) => sprite.meta.id)).toEqual(['custom-wave', 'builtin-idle']);
     expect(sprites[0].meta.deletable).toBe(true);
+    expect(sprites[1].meta.deletable).toBe(false);
 
     const removed = await removeSprite!(undefined, {
       id: 'custom-wave',
@@ -362,6 +375,17 @@ describe('sprite assets pack manifest integration', () => {
     expect(removed).toEqual({ ok: true });
     expect(JSON.parse(readFileSync(path.join(installedRoot, 'animations/index.json'), 'utf-8')).items).toEqual([]);
     expect(existsSync(path.join(installedRoot, 'animations/custom-wave.webm'))).toBe(false);
+    expect((await spriteAssets.listSprites()).map((sprite) => sprite.meta.id)).toEqual(['builtin-idle']);
+
+    await registerFromData!(undefined, {
+      data: Buffer.from('custom-idle-webm'),
+      meta: {
+        id: 'custom-idle',
+        title: 'Custom Idle',
+        primaryTrigger: 'idle'
+      }
+    });
+    expect((await spriteAssets.listSprites()).map((sprite) => sprite.meta.id)).toEqual(['custom-idle']);
   });
 
   it('normalizes primaryTrigger-only metadata on sprite:register', async () => {

@@ -87,6 +87,7 @@ describe('sprite state runtime helpers', () => {
         width: 180,
         height: 240,
         padding: 100,
+        animationPlaylistMode: 'list-loop',
         autoWalkEnabled: true,
         showDebugOverlay: false
       },
@@ -108,6 +109,7 @@ describe('sprite state runtime helpers', () => {
         width: 260,
         height: 220,
         padding: 48,
+        animationPlaylistMode: 'list-loop',
         autoWalkEnabled: false,
         showDebugOverlay: true
       }
@@ -128,6 +130,7 @@ describe('sprite state runtime helpers', () => {
       width: 200,
       height: 180,
       padding: 12,
+      animationPlaylistMode: 'single-once',
       autoWalkEnabled: true,
       showDebugOverlay: false
     });
@@ -142,6 +145,7 @@ describe('sprite state runtime helpers', () => {
         width: 200,
         height: 180,
         padding: 12,
+        animationPlaylistMode: 'single-once',
         autoWalkEnabled: true,
         showDebugOverlay: false
       },
@@ -167,6 +171,7 @@ describe('SpriteStateRuntimeController', () => {
           width: 200,
           height: 220,
           padding: 80,
+          animationPlaylistMode: 'list-loop',
           autoWalkEnabled: false,
           showDebugOverlay: true
         }
@@ -190,6 +195,7 @@ describe('SpriteStateRuntimeController', () => {
         width: 200,
         height: 220,
         padding: 80,
+        animationPlaylistMode: 'list-loop',
         autoWalkEnabled: false,
         showDebugOverlay: true
       },
@@ -211,6 +217,7 @@ describe('SpriteStateRuntimeController', () => {
       width: 188,
       height: 244,
       padding: 16,
+      animationPlaylistMode: 'list-once',
       autoWalkEnabled: true,
       showDebugOverlay: false
     });
@@ -225,6 +232,7 @@ describe('SpriteStateRuntimeController', () => {
         width: 188,
         height: 244,
         padding: 16,
+        animationPlaylistMode: 'list-once',
         autoWalkEnabled: true,
         showDebugOverlay: false
       }
@@ -275,6 +283,7 @@ describe('SpriteStateRuntimeController', () => {
         width: 200,
         height: 200,
         padding: 20,
+        animationPlaylistMode: 'list-loop',
         autoWalkEnabled: true,
         showDebugOverlay: false
       }

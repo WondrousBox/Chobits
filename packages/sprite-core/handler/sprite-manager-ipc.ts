@@ -69,7 +69,7 @@ import { SpriteManager } from '../manager';
 import { getPersonaRuleDimensionSchema } from '../persona-rules';
 import type { SpritePurposeHistoryQuery, SpritePurposeRetrospectiveQuery, SpritePurposeRuntimeEventInput, StartSpritePurposeRequest } from '../purpose';
 import type { SpeakRequest, SpriteSpeakConfig } from '../speak/types';
-import type { SpriteMovementPreviewConfig, SpriteTriggerRequest } from '../types';
+import type { SpriteAnimationPlaylistMode, SpriteAnimationTrigger, SpriteMovementPreviewConfig, SpriteTriggerRequest } from '../types';
 import { WindowController } from '../window-controller';
 import type { WindowControllerAvoidRegion } from '../window-controller-model';
 import { notifySpriteCapabilityChanged } from './capability-events';
@@ -827,6 +827,14 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   ipcMain.handle('sprite:config:setDebugOverlay', (_e, p: { enabled: boolean }) => {
     mgr.setDebugOverlayEnabled(p.enabled);
     return p.enabled;
+  });
+
+  ipcMain.handle('sprite:config:getAnimationPlaylistMode', (_e, p?: { trigger?: SpriteAnimationTrigger }) => {
+    return mgr.getAnimationPlaylistMode(p?.trigger);
+  });
+
+  ipcMain.handle('sprite:config:setAnimationPlaylistMode', (_e, p: { mode: SpriteAnimationPlaylistMode; trigger?: SpriteAnimationTrigger }) => {
+    return mgr.setAnimationPlaylistMode(p.mode, p.trigger);
   });
 
   ipcMain.handle('sprite:movement:setAvoidRegions', (_e, p: { regions?: WindowControllerAvoidRegion[] } | undefined) => {

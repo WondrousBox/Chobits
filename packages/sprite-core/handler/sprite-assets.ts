@@ -21,6 +21,7 @@ import { app, ipcMain } from 'electron';
 import { isResolvedPathContainedByRoot, resolveContainedRelativeAssetPath } from '../character-pack-paths';
 import { type CharacterPackRuntimeSource, getCharacterPackAssetPath, getCharacterPackRootDir, getCharacterPackSource } from '../character-service';
 import {
+  getSpriteAnimationTriggers,
   hasSpriteAnimationTrigger,
   normalizeSpriteAnimationMeta,
   normalizeSpriteAnimationMetaPatch,
@@ -117,6 +118,20 @@ function normalizeSpriteIndexPath(candidate: string): string {
   return path.extname(resolved).toLowerCase() === '.json' ? resolved : path.join(resolved, 'index.json');
 }
 
+function readDeclaredAnimationsIndexPath(rootDir: string): string | null {
+  try {
+    const pack = JSON.parse(fscb.readFileSync(path.join(rootDir, 'pack.json'), 'utf-8')) as { assets?: { animations?: unknown } };
+    if (typeof pack.assets?.animations !== 'string') {
+      return null;
+    }
+
+    const resolved = resolveContainedRelativeAssetPath(rootDir, pack.assets.animations, rootDir);
+    return resolved ? normalizeSpriteIndexPath(resolved) : null;
+  } catch {
+    return null;
+  }
+}
+
 async function getDefaultSpritesIndexTarget(): Promise<SpriteIndexTarget> {
   const packAnimationsPath = getCharacterPackAssetPath('animations');
   if (packAnimationsPath) {
@@ -134,6 +149,16 @@ async function getDefaultSpritesIndexTarget(): Promise<SpriteIndexTarget> {
   const spritesDir = await getDefaultSpritesDir();
   return {
     indexPath: path.join(spritesDir, 'index.json'),
+    containmentRootDir: spritesDir,
+    source: 'resource-fallback',
+    writable: false
+  };
+}
+
+async function getBuiltinSpritesIndexTarget(): Promise<SpriteIndexTarget> {
+  const spritesDir = await getDefaultSpritesDir();
+  return {
+    indexPath: readDeclaredAnimationsIndexPath(spritesDir) ?? path.join(spritesDir, 'index.json'),
     containmentRootDir: spritesDir,
     source: 'resource-fallback',
     writable: false
@@ -388,15 +413,41 @@ function isLocalPathStillReferenced(index: SpriteIndex, localPath: string): bool
   });
 }
 
+function isIdleLikeSpriteAnimation(item: SpriteAnimation): boolean {
+  const triggers = getSpriteAnimationTriggers(item.meta);
+  return triggers.length === 0 || triggers.includes('idle');
+}
+
+async function readBuiltinIdleFallbackSprites(defaultIndex: SpriteIndexTarget, defaultSprites: SpriteIndex): Promise<SpriteAnimation[]> {
+  if (defaultIndex.source !== 'installed' || defaultSprites.items.some(isIdleLikeSpriteAnimation)) {
+    return [];
+  }
+
+  const builtinIndex = await getBuiltinSpritesIndexTarget();
+  if (path.resolve(builtinIndex.indexPath) === path.resolve(defaultIndex.indexPath)) {
+    return [];
+  }
+
+  const builtinSprites = await readIndex(builtinIndex.indexPath, {
+    containmentRootDirs: [builtinIndex.containmentRootDir]
+  });
+  const idleFallback = builtinSprites.items.find((item) => hasSpriteAnimationTrigger(item.meta, 'idle')) ?? builtinSprites.items.find(isIdleLikeSpriteAnimation);
+  return idleFallback ? [withDeletableFlag(idleFallback, false)] : [];
+}
+
 /** 从磁盘加载当前可见的精灵动画（内置包会合并全局用户动画，已安装角色包使用包内动画索引） */
 export async function listSprites(): Promise<SpriteAnimation[]> {
   const { defaultIndex, defaultSprites, userSprites } = await readVisibleSpriteIndexes();
   // tag origin and deletable
   const withFlagsDefault = defaultSprites.items.map((it) => withDeletableFlag(it, defaultIndex.writable));
+  const withFallbackIdle = await readBuiltinIdleFallbackSprites(defaultIndex, defaultSprites);
   const withFlagsUser = userSprites.items.map((it) => withDeletableFlag(it, true));
   // Merge: user overrides default on same id
   const map = new Map<string, SpriteAnimation>();
   for (const it of withFlagsDefault) map.set(it.meta.id, it);
+  for (const it of withFallbackIdle) {
+    if (!map.has(it.meta.id)) map.set(it.meta.id, it);
+  }
   for (const it of withFlagsUser) map.set(it.meta.id, it);
   return Array.from(map.values());
 }
@@ -415,11 +466,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
   ipcMain.handle('sprite:listByTrigger', handleListByTrigger);
 
   ipcMain.handle('sprite:get', async (_e, payload: { id: string }) => {
-    const { defaultIndex, defaultSprites, userSprites } = await readVisibleSpriteIndexes();
-    const foundUser = userSprites.items.find((i) => i.meta.id === payload.id);
-    if (foundUser) return withDeletableFlag(foundUser, true);
-    const foundDef = defaultSprites.items.find((i) => i.meta.id === payload.id);
-    return foundDef ? withDeletableFlag(foundDef, defaultIndex.writable) : undefined;
+    return (await listSprites()).find((item) => item.meta.id === payload.id);
   });
 
   ipcMain.handle('sprite:register', async (_e, payload: (Partial<SpriteAnimation> & { filePath?: string }) | { animation?: Partial<SpriteAnimation> & { filePath?: string } }) => {

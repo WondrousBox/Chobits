@@ -530,6 +530,7 @@ describe('sprite manager IPC integration', () => {
         width: 200,
         height: 200,
         padding: 100,
+        animationPlaylistMode: 'list-loop',
         autoWalkEnabled: false,
         showDebugOverlay: false
       }
@@ -540,6 +541,7 @@ describe('sprite manager IPC integration', () => {
         width: 200,
         height: 200,
         padding: 100,
+        animationPlaylistMode: 'list-loop',
         autoWalkEnabled: false,
         showDebugOverlay: false
       }
@@ -558,6 +560,7 @@ describe('sprite manager IPC integration', () => {
         width: 200,
         height: 200,
         padding: 100,
+        animationPlaylistMode: 'list-loop',
         autoWalkEnabled: true,
         showDebugOverlay: false
       }
@@ -568,6 +571,7 @@ describe('sprite manager IPC integration', () => {
         width: 200,
         height: 200,
         padding: 100,
+        animationPlaylistMode: 'list-loop',
         autoWalkEnabled: true,
         showDebugOverlay: false
       }
@@ -575,6 +579,50 @@ describe('sprite manager IPC integration', () => {
     expect(auxWindow.sent).toContainEqual({
       channel: 'sprite:capabilities:changed',
       payload: { source: 'movement.autoWalk' }
+    });
+  });
+
+  it('exposes animation playlist mode IPC handlers and broadcasts the shared config snapshot', async () => {
+    listSpritesMock.mockResolvedValue([]);
+
+    const { initSpriteManagerIPC } = await import('../packages/sprite-core/handler/sprite-manager-ipc');
+    await initSpriteManagerIPC(windowStub.win as any, { addAllowedResourceRoot: vi.fn() });
+
+    const getMode = electronState.handlers.get('sprite:config:getAnimationPlaylistMode') as ((_: unknown, payload?: { trigger?: string }) => string) | undefined;
+    const setMode = electronState.handlers.get('sprite:config:setAnimationPlaylistMode') as ((_: unknown, payload: { mode: string; trigger?: string }) => string) | undefined;
+
+    expect(getMode).toBeTypeOf('function');
+    expect(setMode).toBeTypeOf('function');
+    expect(getMode?.({} as never)).toBe('list-loop');
+    expect(setMode?.({} as never, { mode: 'single-loop' })).toBe('single-loop');
+    expect(getMode?.({} as never)).toBe('single-loop');
+    expect(windowStub.sent).toContainEqual({
+      channel: 'sprite:config',
+      payload: {
+        width: 200,
+        height: 200,
+        padding: 100,
+        animationPlaylistMode: 'single-loop',
+        autoWalkEnabled: true,
+        showDebugOverlay: false
+      }
+    });
+    expect(setMode?.({} as never, { mode: 'list-once', trigger: 'idle' })).toBe('list-once');
+    expect(getMode?.({} as never, { trigger: 'idle' })).toBe('list-once');
+    expect(getMode?.({} as never, { trigger: 'success' })).toBe('single-loop');
+    expect(windowStub.sent).toContainEqual({
+      channel: 'sprite:config',
+      payload: {
+        width: 200,
+        height: 200,
+        padding: 100,
+        animationPlaylistMode: 'single-loop',
+        animationPlaylistModes: {
+          idle: 'list-once'
+        },
+        autoWalkEnabled: true,
+        showDebugOverlay: false
+      }
     });
   });
 
@@ -963,6 +1011,7 @@ describe('sprite manager IPC integration', () => {
         width: 200,
         height: 200,
         padding: 100,
+        animationPlaylistMode: 'list-loop',
         autoWalkEnabled: false,
         showDebugOverlay: false
       }

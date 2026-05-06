@@ -170,6 +170,11 @@ const SPRITE_EVENT_TYPE_SET = new Set<string>(SPRITE_EVENT_TYPES);
 export type SpriteEventType = (typeof SPRITE_EVENT_TYPES)[number] | 'custom';
 export type SpriteBuiltinAnimationTrigger = SpriteEventType;
 export type SpriteAnimationTrigger = SpriteBuiltinAnimationTrigger | (string & {});
+export const SPRITE_ANIMATION_PLAYLIST_MODES = ['single-loop', 'list-loop', 'single-once', 'list-once'] as const;
+export type SpriteAnimationPlaylistMode = (typeof SPRITE_ANIMATION_PLAYLIST_MODES)[number];
+export type SpriteAnimationPlaylistModeMap = Record<string, SpriteAnimationPlaylistMode>;
+export const DEFAULT_SPRITE_ANIMATION_PLAYLIST_MODE: SpriteAnimationPlaylistMode = 'list-loop';
+const SPRITE_ANIMATION_PLAYLIST_MODE_SET = new Set<string>(SPRITE_ANIMATION_PLAYLIST_MODES);
 
 export function isBuiltinSpriteAnimationTrigger(value: string): value is SpriteBuiltinAnimationTrigger {
   return SPRITE_EVENT_TYPE_SET.has(value);
@@ -177,6 +182,23 @@ export function isBuiltinSpriteAnimationTrigger(value: string): value is SpriteB
 
 export function isCustomSpriteAnimationTrigger(value: string): value is SpriteAnimationTrigger {
   return value.length > 0 && !isBuiltinSpriteAnimationTrigger(value);
+}
+
+export function normalizeSpriteAnimationPlaylistMode(value?: string | null): SpriteAnimationPlaylistMode {
+  return value && SPRITE_ANIMATION_PLAYLIST_MODE_SET.has(value) ? (value as SpriteAnimationPlaylistMode) : DEFAULT_SPRITE_ANIMATION_PLAYLIST_MODE;
+}
+
+export function normalizeSpriteAnimationPlaylistModeMap(value?: Record<string, unknown> | null): SpriteAnimationPlaylistModeMap {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  return Object.entries(value).reduce<SpriteAnimationPlaylistModeMap>((acc, [trigger, mode]) => {
+    const normalizedTrigger = trigger.trim();
+    if (!normalizedTrigger) return acc;
+    acc[normalizedTrigger] = normalizeSpriteAnimationPlaylistMode(typeof mode === 'string' ? mode : undefined);
+    return acc;
+  }, {});
 }
 
 function normalizeSpriteAnimationTriggerValue(value?: string | null): SpriteAnimationTrigger | undefined {
@@ -395,7 +417,8 @@ export function normalizeSpriteAnimationMeta<T extends Pick<SpriteAnimationMeta,
   const triggerAliases = getSpriteAnimationTriggerAliases(meta);
   const priority = typeof meta.priority === 'number' && Number.isFinite(meta.priority) ? meta.priority : undefined;
   const condition = normalizeSpriteAnimationCondition(meta.condition);
-  const { eventType: _legacyEventType, ...rest } = meta;
+  const rest = { ...meta };
+  delete (rest as Partial<SpriteAnimationMetaInput>).eventType;
 
   return {
     ...rest,
@@ -411,7 +434,8 @@ export function normalizeSpriteAnimationMetaPatch<T extends SpriteAnimationMetaI
     return meta as Omit<T, 'eventType'> & Partial<SpriteAnimationMeta>;
   }
 
-  const { eventType: _legacyEventType, ...rest } = meta;
+  const rest = { ...meta };
+  delete (rest as Partial<SpriteAnimationMetaInput>).eventType;
   const primaryTrigger = getPrimarySpriteAnimationTrigger(meta);
   const triggerAliases = getSpriteAnimationTriggerAliases(meta);
 
@@ -611,6 +635,10 @@ export interface SpriteConfig {
   width: number;
   height: number;
   padding: number;
+  /** 同 trigger 多动画时的默认播放列表模式 */
+  animationPlaylistMode?: SpriteAnimationPlaylistMode;
+  /** 按 trigger/动画类型分别设置的播放列表模式 */
+  animationPlaylistModes?: SpriteAnimationPlaylistModeMap;
   /** 自动行走是否启用 */
   autoWalkEnabled?: boolean;
   /** 是否显示调试辅助线 */

@@ -60,13 +60,159 @@ export interface OutputSettings {
 
 // 默认输出设置
 const DEFAULT_OUTPUT: OutputSettings = { fps: 8, width: 360, height: 480 };
+const DEFAULT_SEGMENTS: SegmentMarkers = { start: 0, loopStart: 0, loopEnd: 0, end: 0 };
+const DEFAULT_CHROMA_KEY: ChromaKeySettings = { enabled: false, color: '#00ff00', similarity: 40, blend: 15 };
+const DEFAULT_SPEEDS: SegmentSpeeds = { intro: 1, loop: 1, outro: 1 };
 const DEFAULT_PLAYBACK_SCALE = 1;
 const DEFAULT_PADDING = 100;
 const DEFAULT_MOVEMENT: SpriteMovementConfig = { enabled: false, mode: 'direction', direction: 'random', speed: 60 };
+const SPRITE_VIDEO_EDITOR_FORM_STORAGE_KEY = 'sprite-video-editor-form-settings:v1';
+const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
+const SPRITE_MOVEMENT_MODE_SET = new Set<SpriteMovementMode>(['direction', 'walkTo']);
+const SPRITE_MOVEMENT_DIRECTION_SET = new Set<SpriteMovementDirection>(['left', 'right', 'up', 'down', 'up-left', 'up-right', 'down-left', 'down-right', 'random']);
+const SPRITE_MOVEMENT_TRIGGER_SET = new Set<SpriteMovementTrigger>(['animation', 'behavior']);
+
+type SpriteVideoEditorStoredFormSettings = {
+  chromaKey?: ChromaKeySettings;
+  speeds?: SegmentSpeeds;
+  output?: OutputSettings;
+  playbackScale?: number;
+  padding?: number;
+  movement?: SpriteMovementConfig;
+  autoIdle?: boolean;
+  loopWholeClip?: boolean;
+  primaryTrigger?: SpriteAnimationTrigger | '';
+  triggerAliasesInput?: string;
+  priorityInput?: string;
+  conditionInput?: string;
+};
 
 function normalizePlaybackScale(scale?: number): number {
   if (!Number.isFinite(scale)) return DEFAULT_PLAYBACK_SCALE;
   return Math.max(1, scale ?? DEFAULT_PLAYBACK_SCALE);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function readNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+function clampNumber(value: unknown, fallback: number, min?: number, max?: number): number {
+  const parsed = readNumber(value) ?? fallback;
+  const minBounded = min === undefined ? parsed : Math.max(min, parsed);
+  return max === undefined ? minBounded : Math.min(max, minBounded);
+}
+
+function normalizeChromaKeySettings(value: unknown): ChromaKeySettings {
+  if (!isRecord(value)) return { ...DEFAULT_CHROMA_KEY };
+  return {
+    enabled: typeof value.enabled === 'boolean' ? value.enabled : DEFAULT_CHROMA_KEY.enabled,
+    color: typeof value.color === 'string' && HEX_COLOR_PATTERN.test(value.color) ? value.color : DEFAULT_CHROMA_KEY.color,
+    similarity: clampNumber(value.similarity, DEFAULT_CHROMA_KEY.similarity, 1, 100),
+    blend: clampNumber(value.blend, DEFAULT_CHROMA_KEY.blend, 1, 50)
+  };
+}
+
+function normalizeSegmentSpeeds(value: unknown): SegmentSpeeds {
+  if (!isRecord(value)) return { ...DEFAULT_SPEEDS };
+  return {
+    intro: clampNumber(value.intro, DEFAULT_SPEEDS.intro, 0.1, 10),
+    loop: clampNumber(value.loop, DEFAULT_SPEEDS.loop, 0.1, 10),
+    outro: clampNumber(value.outro, DEFAULT_SPEEDS.outro, 0.1, 10)
+  };
+}
+
+function normalizeOutputSettings(value: unknown): OutputSettings {
+  if (!isRecord(value)) return { ...DEFAULT_OUTPUT };
+  return {
+    fps: clampNumber(value.fps, DEFAULT_OUTPUT.fps, 1, 60),
+    width: clampNumber(value.width, DEFAULT_OUTPUT.width, 1),
+    height: clampNumber(value.height, DEFAULT_OUTPUT.height, 1)
+  };
+}
+
+function normalizeMovementSettings(value: unknown): SpriteMovementConfig {
+  if (!isRecord(value)) return { ...DEFAULT_MOVEMENT };
+
+  const mode = typeof value.mode === 'string' && SPRITE_MOVEMENT_MODE_SET.has(value.mode as SpriteMovementMode) ? (value.mode as SpriteMovementMode) : DEFAULT_MOVEMENT.mode;
+  const direction =
+    typeof value.direction === 'string' && SPRITE_MOVEMENT_DIRECTION_SET.has(value.direction as SpriteMovementDirection) ? (value.direction as SpriteMovementDirection) : DEFAULT_MOVEMENT.direction;
+  const trigger = typeof value.trigger === 'string' && SPRITE_MOVEMENT_TRIGGER_SET.has(value.trigger as SpriteMovementTrigger) ? (value.trigger as SpriteMovementTrigger) : undefined;
+  const next: SpriteMovementConfig = {
+    ...DEFAULT_MOVEMENT,
+    enabled: typeof value.enabled === 'boolean' ? value.enabled : DEFAULT_MOVEMENT.enabled,
+    mode,
+    direction,
+    speed: clampNumber(value.speed, DEFAULT_MOVEMENT.speed ?? 60, 1)
+  };
+
+  if (trigger) {
+    next.trigger = trigger;
+  }
+
+  if (value.verticalRange !== undefined) {
+    next.verticalRange = clampNumber(value.verticalRange, 0.1, 0.01, 1);
+  }
+
+  if (isRecord(value.behaviorSchedule)) {
+    const type = value.behaviorSchedule.type === 'interval' ? 'interval' : 'random';
+    next.behaviorSchedule = {
+      type,
+      intervalMs: clampNumber(value.behaviorSchedule.intervalMs, 15000, 1000),
+      minMs: clampNumber(value.behaviorSchedule.minMs, 10000, 1000),
+      maxMs: clampNumber(value.behaviorSchedule.maxMs, 25000, 1000),
+      probability: clampNumber(value.behaviorSchedule.probability, 0.8, 0, 1),
+      minIdleMs: clampNumber(value.behaviorSchedule.minIdleMs, 5000, 0)
+    };
+  }
+
+  return next;
+}
+
+function loadSpriteVideoEditorStoredFormSettings(): SpriteVideoEditorStoredFormSettings | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = window.localStorage.getItem(SPRITE_VIDEO_EDITOR_FORM_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed)) return null;
+
+    return {
+      chromaKey: parsed.chromaKey === undefined ? undefined : normalizeChromaKeySettings(parsed.chromaKey),
+      speeds: parsed.speeds === undefined ? undefined : normalizeSegmentSpeeds(parsed.speeds),
+      output: parsed.output === undefined ? undefined : normalizeOutputSettings(parsed.output),
+      playbackScale: parsed.playbackScale === undefined ? undefined : normalizePlaybackScale(readNumber(parsed.playbackScale)),
+      padding: parsed.padding === undefined ? undefined : clampNumber(parsed.padding, DEFAULT_PADDING, 0),
+      movement: parsed.movement === undefined ? undefined : normalizeMovementSettings(parsed.movement),
+      autoIdle: typeof parsed.autoIdle === 'boolean' ? parsed.autoIdle : undefined,
+      loopWholeClip: typeof parsed.loopWholeClip === 'boolean' ? parsed.loopWholeClip : undefined,
+      primaryTrigger: typeof parsed.primaryTrigger === 'string' ? (parsed.primaryTrigger as SpriteAnimationTrigger | '') : undefined,
+      triggerAliasesInput: typeof parsed.triggerAliasesInput === 'string' ? parsed.triggerAliasesInput : undefined,
+      priorityInput: typeof parsed.priorityInput === 'string' ? parsed.priorityInput : undefined,
+      conditionInput: typeof parsed.conditionInput === 'string' ? parsed.conditionInput : undefined
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveSpriteVideoEditorStoredFormSettings(settings: SpriteVideoEditorStoredFormSettings): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.setItem(SPRITE_VIDEO_EDITOR_FORM_STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    // Ignore storage quota/privacy mode failures; the editor should keep working.
+  }
 }
 
 function getPlaybackDimension(outputSize: number, playbackScale: number): number {
@@ -176,6 +322,7 @@ interface SpriteVideoEditorProps {
 export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onConfigChange, onCapabilityBlocked, onProcess, onImportComplete, isProcessing }: SpriteVideoEditorProps): JSX.Element {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const storedFormSettings = useMemo(() => loadSpriteVideoEditorStoredFormSettings(), []);
 
   // 视频状态
   const [inputPath, setInputPath] = useState<string>(initialConfig?.inputPath || '');
@@ -185,38 +332,35 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
   const [zoomLevel, setZoomLevel] = useState<number>(1);
 
   // 片段标记
-  const [segments, setSegments] = useState<SegmentMarkers>(initialConfig?.segments || { start: 0, loopStart: 0, loopEnd: 0, end: 0 });
+  const [segments, setSegments] = useState<SegmentMarkers>(initialConfig?.segments || { ...DEFAULT_SEGMENTS });
 
   // 背景抠图设置
-  const [chromaKey, setChromaKey] = useState<ChromaKeySettings>(
-    initialConfig?.chromaKey || {
-      enabled: false,
-      color: '#00ff00', // 默认绿色
-      similarity: 40,
-      blend: 15
-    }
-  );
+  const [chromaKey, setChromaKey] = useState<ChromaKeySettings>(initialConfig?.chromaKey || storedFormSettings?.chromaKey || { ...DEFAULT_CHROMA_KEY });
 
   // 片段倍速
-  const [speeds, setSpeeds] = useState<SegmentSpeeds>(initialConfig?.speeds || { intro: 1, loop: 1, outro: 1 });
+  const [speeds, setSpeeds] = useState<SegmentSpeeds>(initialConfig?.speeds || storedFormSettings?.speeds || { ...DEFAULT_SPEEDS });
 
   // 输出设置
-  const [output, setOutput] = useState<OutputSettings>(initialConfig?.output || { ...DEFAULT_OUTPUT });
-  const [playbackScale, setPlaybackScale] = useState<number>(normalizePlaybackScale(initialConfig?.playbackScale));
+  const [output, setOutput] = useState<OutputSettings>(initialConfig?.output || storedFormSettings?.output || { ...DEFAULT_OUTPUT });
+  const [playbackScale, setPlaybackScale] = useState<number>(normalizePlaybackScale(initialConfig?.playbackScale ?? storedFormSettings?.playbackScale));
 
   // 元数据
-  const [primaryTrigger, setPrimaryTrigger] = useState<SpriteAnimationTrigger | ''>(initialConfig?.primaryTrigger || initialConfig?.eventType || '');
-  const [triggerAliasesInput, setTriggerAliasesInput] = useState<string>(formatSpriteTriggerAliasesInput(initialConfig?.triggerAliases));
-  const [priorityInput, setPriorityInput] = useState<string>(initialConfig?.priority !== undefined ? String(initialConfig.priority) : '');
-  const [conditionInput, setConditionInput] = useState<string>(formatSpriteAnimationConditionInput(initialConfig?.condition));
+  const [primaryTrigger, setPrimaryTrigger] = useState<SpriteAnimationTrigger | ''>(initialConfig?.primaryTrigger ?? initialConfig?.eventType ?? storedFormSettings?.primaryTrigger ?? '');
+  const [triggerAliasesInput, setTriggerAliasesInput] = useState<string>(
+    initialConfig?.triggerAliases !== undefined ? formatSpriteTriggerAliasesInput(initialConfig.triggerAliases) : (storedFormSettings?.triggerAliasesInput ?? '')
+  );
+  const [priorityInput, setPriorityInput] = useState<string>(initialConfig?.priority !== undefined ? String(initialConfig.priority) : (storedFormSettings?.priorityInput ?? ''));
+  const [conditionInput, setConditionInput] = useState<string>(
+    initialConfig?.condition !== undefined ? formatSpriteAnimationConditionInput(initialConfig.condition) : (storedFormSettings?.conditionInput ?? '')
+  );
   const [title, setTitle] = useState<string>(initialConfig?.title || '');
 
   // 窗口移动配置
-  const [movement, setMovement] = useState<SpriteMovementConfig>(initialConfig?.movement || { ...DEFAULT_MOVEMENT });
-  const [autoIdle, setAutoIdle] = useState<boolean>(initialConfig?.autoIdle ?? true);
+  const [movement, setMovement] = useState<SpriteMovementConfig>(initialConfig?.movement || storedFormSettings?.movement || { ...DEFAULT_MOVEMENT });
+  const [autoIdle, setAutoIdle] = useState<boolean>(initialConfig?.autoIdle ?? storedFormSettings?.autoIdle ?? true);
   // 精灵窗口 padding
-  const [loopWholeClip, setLoopWholeClip] = useState<boolean>(initialConfig?.loop ?? false);
-  const [padding, setPadding] = useState<number>(initialConfig?.padding ?? DEFAULT_PADDING);
+  const [loopWholeClip, setLoopWholeClip] = useState<boolean>(initialConfig?.loop ?? storedFormSettings?.loopWholeClip ?? false);
+  const [padding, setPadding] = useState<number>(initialConfig?.padding ?? storedFormSettings?.padding ?? DEFAULT_PADDING);
 
   const playbackWidth = getPlaybackDimension(output.width, playbackScale);
   const playbackHeight = getPlaybackDimension(output.height, playbackScale);
@@ -259,6 +403,23 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
   // 判断是否有循环片段
   const hasLoop = segments.loopEnd > segments.loopStart;
   const playbackLoop = hasLoop || loopWholeClip;
+
+  useEffect(() => {
+    saveSpriteVideoEditorStoredFormSettings({
+      chromaKey,
+      speeds,
+      output,
+      playbackScale,
+      padding,
+      movement,
+      autoIdle,
+      loopWholeClip,
+      primaryTrigger,
+      triggerAliasesInput,
+      priorityInput,
+      conditionInput
+    });
+  }, [autoIdle, chromaKey, conditionInput, loopWholeClip, movement, output, padding, playbackScale, primaryTrigger, priorityInput, speeds, triggerAliasesInput]);
 
   // 移除循环片段
   const removeLoop = useCallback(() => {
@@ -410,10 +571,9 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
       const name = pick.path.replace(/\\/g, '/').split('/').pop() || '';
       setTitle(name.replace(/\.[^.]+$/, ''));
       // 重置状态
-      setSegments({ start: 0, loopStart: 0, loopEnd: 0, end: 0 });
+      setSegments({ ...DEFAULT_SEGMENTS });
       setCurrentTime(0);
       setIsPlaying(false);
-      setLoopWholeClip(false);
     }
   }, [getDirPath]);
 
@@ -637,18 +797,10 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
   const handleClearVideo = useCallback(() => {
     stopThreePhasePreview();
     setInputPath('');
-    setSegments({ start: 0, loopStart: 0, loopEnd: 0, end: 0 });
+    setSegments({ ...DEFAULT_SEGMENTS });
     setCurrentTime(0);
     setIsPlaying(false);
-    setLoopWholeClip(false);
-    setChromaKey({ enabled: false, color: '#00ff00', similarity: 40, blend: 15 });
-    setSpeeds({ intro: 1, loop: 1, outro: 1 });
-    setOutput({ ...DEFAULT_OUTPUT });
-    setPlaybackScale(DEFAULT_PLAYBACK_SCALE);
     setTitle('');
-    setPrimaryTrigger('');
-    setMovement({ ...DEFAULT_MOVEMENT });
-    setPadding(DEFAULT_PADDING);
   }, [stopThreePhasePreview]);
 
   // Canvas 录制导出：播放视频并实时应用色度键，通过 MediaRecorder 录制为 WebM VP9 with Alpha

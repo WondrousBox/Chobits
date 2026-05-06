@@ -4,8 +4,15 @@ import { TbBug, TbPlayerPlay, TbTools, TbTrash, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import type { SpriteAnimation, SpriteAnimationTrigger } from '@/features/sprite-assistant';
-import { getPrimarySpriteAnimationTrigger, getSpriteAnimationTriggerAliases, getSpriteAnimationTriggers, SPRITE_EVENT_TYPES } from '@/features/sprite-assistant';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { SpriteAnimation, SpriteAnimationPlaylistMode, SpriteAnimationPlaylistModeMap, SpriteAnimationTrigger } from '@/features/sprite-assistant';
+import {
+  getPrimarySpriteAnimationTrigger,
+  getSpriteAnimationTriggerAliases,
+  getSpriteAnimationTriggers,
+  normalizeSpriteAnimationPlaylistModeMap,
+  SPRITE_EVENT_TYPES
+} from '@/features/sprite-assistant';
 import { ensureSpriteCapabilityAccessible, SpriteCapabilityLockedNotice } from '@/features/sprite-assistant/capability-ui';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
@@ -23,6 +30,13 @@ function baseName(p: string): string {
 function getPlaybackSize(outputSize: number, playbackScale?: number): number {
   return Math.max(1, Math.round(outputSize / Math.max(1, playbackScale || 1)));
 }
+
+const PLAYLIST_MODE_OPTIONS: Array<{ value: SpriteAnimationPlaylistMode; label: string }> = [
+  { value: 'single-loop', label: '单个循环' },
+  { value: 'list-loop', label: '列表循环' },
+  { value: 'single-once', label: '单个播放' },
+  { value: 'list-once', label: '列表播放' }
+];
 
 // 小型预览组件：只有在 hover 时才真正挂载 <video>，离开时卸载，避免同时占用大量资源
 // 精灵预览：静止首帧，hover 播放循环
@@ -110,6 +124,8 @@ export function SpriteAnimationManager({
   const [spriteConfig, setSpriteConfig] = useState<Partial<SpriteVideoConfig>>({});
   const [spriteProcessing, setSpriteProcessing] = useState(false);
   const [debugOverlay, setDebugOverlay] = useState(false);
+  const [defaultAnimationPlaylistMode, setDefaultAnimationPlaylistMode] = useState<SpriteAnimationPlaylistMode>('list-loop');
+  const [animationPlaylistModes, setAnimationPlaylistModes] = useState<SpriteAnimationPlaylistModeMap>({});
   // 默认的内置分类：使用全部预设事件类型（不包含 custom）
   const BUILTIN = React.useMemo(() => SPRITE_EVENT_TYPES.filter((c) => c !== 'custom'), []);
   const canAuthorAnimations = assetAuthoringCapability?.status !== 'locked';
@@ -123,6 +139,29 @@ export function SpriteAnimationManager({
       .getDebugOverlay()
       .then(setDebugOverlay)
       .catch(() => {});
+
+    window.YUA.sprite
+      .getAnimationPlaylistMode()
+      .then(setDefaultAnimationPlaylistMode)
+      .catch(() => {});
+
+    window.YUA.sprite
+      .getInitialState()
+      .then((state) => {
+        const config = state?.config;
+        if (config?.animationPlaylistMode) {
+          setDefaultAnimationPlaylistMode(config.animationPlaylistMode);
+        }
+        setAnimationPlaylistModes(normalizeSpriteAnimationPlaylistModeMap(config?.animationPlaylistModes));
+      })
+      .catch(() => {});
+
+    return window.YUA.sprite.onConfig((config) => {
+      if (config.animationPlaylistMode) {
+        setDefaultAnimationPlaylistMode(config.animationPlaylistMode);
+      }
+      setAnimationPlaylistModes(normalizeSpriteAnimationPlaylistModeMap(config.animationPlaylistModes));
+    });
   }, []);
 
   const toggleDebugOverlay = useCallback(async () => {
@@ -130,6 +169,27 @@ export function SpriteAnimationManager({
     setDebugOverlay(next);
     await window.YUA.sprite.setDebugOverlay(next);
   }, [debugOverlay]);
+
+  const updateAnimationPlaylistMode = useCallback(async (mode: SpriteAnimationPlaylistMode, trigger?: SpriteAnimationTrigger) => {
+    if (trigger) {
+      setAnimationPlaylistModes((prev) => ({ ...prev, [trigger]: mode }));
+      const next = await window.YUA.sprite.setAnimationPlaylistMode(mode, trigger);
+      setAnimationPlaylistModes((prev) => ({ ...prev, [trigger]: next }));
+      return;
+    }
+
+    setDefaultAnimationPlaylistMode(mode);
+    const next = await window.YUA.sprite.setAnimationPlaylistMode(mode);
+    setDefaultAnimationPlaylistMode(next);
+  }, []);
+
+  const getCategoryPlaylistMode = useCallback(
+    (cat: string): SpriteAnimationPlaylistMode => {
+      if (cat === 'uncategorized') return defaultAnimationPlaylistMode;
+      return animationPlaylistModes[cat] ?? defaultAnimationPlaylistMode;
+    },
+    [animationPlaylistModes, defaultAnimationPlaylistMode]
+  );
 
   const refresh = React.useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -269,9 +329,21 @@ export function SpriteAnimationManager({
 
       <div className="flex justify-between items-center px-2 mb-4">
         <div className="text-sm text-muted-foreground">已注册动画：{list.length}</div>
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-wrap gap-2 items-center justify-end">
           <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索 (名称 / ID / 分类 / 标签)" className="h-8 w-48" />
           <SpriteTriggerPicker value={globalCat} onChange={setGlobalCat} buttonSize="sm" buttonClassName="w-[220px]" emptyLabel="未分类" />
+          <Select value={defaultAnimationPlaylistMode} onValueChange={(value) => void updateAnimationPlaylistMode(value as SpriteAnimationPlaylistMode)}>
+            <SelectTrigger className="h-8 w-[132px]" title="默认播放列表模式">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PLAYLIST_MODE_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button size="sm" onClick={() => onImport(globalCat || undefined)} disabled={!canAuthorAnimations || !!addingMap[globalCat || '']} title={authoringLockedTitle}>
             {addingMap[globalCat || ''] ? '导入中…' : '导入视频'}
           </Button>
@@ -387,6 +459,20 @@ export function SpriteAnimationManager({
                   <div className="text-[10px] text-muted-foreground/70">({grouped[cat]?.length || 0})</div>
                 </div>
                 <div className="flex items-center gap-2">
+                  {cat !== 'uncategorized' && (
+                    <Select value={getCategoryPlaylistMode(cat)} onValueChange={(value) => void updateAnimationPlaylistMode(value as SpriteAnimationPlaylistMode, cat as SpriteAnimationTrigger)}>
+                      <SelectTrigger className="h-8 w-[120px]" title={`${cat} 播放列表模式`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PLAYLIST_MODE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                   {cat !== 'uncategorized' && (
                     <Button size="sm" variant="ghost" onClick={() => window.YUA.sprite.trigger(cat)} title={`触发 ${cat} 事件：播放动画 + 显示气泡`}>
                       <TbPlayerPlay className="h-3 w-3 mr-1" />

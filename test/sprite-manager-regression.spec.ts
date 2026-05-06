@@ -166,6 +166,139 @@ describe('sprite manager regression coverage', () => {
     expect(mgr.getCurrentAnimation()?.animationId).toBe('celebrate-high-favor');
   });
 
+  it('trigger() advances list-loop playlists in priority order and wraps', () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'idle-low',
+      title: 'Idle Low',
+      eventTypes: ['idle'],
+      priority: 1,
+      source: { localPath: './idle-low.webm', type: 'video/webm' },
+      playback: { durationMs: 800, loop: true }
+    });
+    registry.register({
+      id: 'idle-high',
+      title: 'Idle High',
+      eventTypes: ['idle'],
+      priority: 10,
+      source: { localPath: './idle-high.webm', type: 'video/webm' },
+      playback: { durationMs: 800, loop: true }
+    });
+    registry.register({
+      id: 'idle-mid',
+      title: 'Idle Mid',
+      eventTypes: ['idle'],
+      priority: 5,
+      source: { localPath: './idle-mid.webm', type: 'video/webm' },
+      playback: { durationMs: 800, loop: true }
+    });
+
+    mgr.setAnimationPlaylistMode('list-loop');
+    mgr.trigger('idle', { silent: true });
+
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('idle-high');
+    expect(mgr.getCurrentAnimation()?.playback?.loop).toBe(false);
+
+    mgr.handleAnimationComplete('idle-high', 'full');
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('idle-mid');
+
+    mgr.handleAnimationComplete('idle-mid', 'full');
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('idle-low');
+
+    mgr.handleAnimationComplete('idle-low', 'full');
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('idle-high');
+  });
+
+  it('uses per-trigger playlist modes before the global fallback', () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'idle-high',
+      title: 'Idle High',
+      eventTypes: ['idle'],
+      priority: 10,
+      source: { localPath: './idle-high.webm', type: 'video/webm' },
+      playback: { durationMs: 800, loop: true }
+    });
+    registry.register({
+      id: 'idle-low',
+      title: 'Idle Low',
+      eventTypes: ['idle'],
+      priority: 1,
+      source: { localPath: './idle-low.webm', type: 'video/webm' },
+      playback: { durationMs: 800, loop: true }
+    });
+    registry.register({
+      id: 'success-high',
+      title: 'Success High',
+      eventTypes: ['success'],
+      priority: 10,
+      source: { localPath: './success-high.webm', type: 'video/webm' },
+      playback: { durationMs: 800, loop: true }
+    });
+    registry.register({
+      id: 'success-low',
+      title: 'Success Low',
+      eventTypes: ['success'],
+      priority: 1,
+      source: { localPath: './success-low.webm', type: 'video/webm' },
+      playback: { durationMs: 800, loop: true }
+    });
+
+    mgr.setAnimationPlaylistMode('single-once');
+    mgr.setAnimationPlaylistMode('list-loop', 'idle');
+
+    expect(mgr.getAnimationPlaylistMode()).toBe('single-once');
+    expect(mgr.getAnimationPlaylistMode('idle')).toBe('list-loop');
+    expect(mgr.getAnimationPlaylistMode('success')).toBe('single-once');
+
+    mgr.trigger('idle', { silent: true });
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('idle-high');
+    mgr.handleAnimationComplete('idle-high', 'full');
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('idle-low');
+
+    mgr.trigger('success', { silent: true });
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('success-high');
+    mgr.handleAnimationComplete('success-high', 'full');
+    expect(mgr.getCurrentAnimation()?.animationId).not.toBe('success-low');
+  });
+
+  it('playlist mode never disables a per-animation segment loop', () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'idle-segmented',
+      title: 'Idle Segmented',
+      eventTypes: ['idle'],
+      source: { localPath: './idle-segmented.webm', type: 'video/webm' },
+      playback: {
+        loop: false,
+        loopStartMs: 300,
+        loopEndMs: 900,
+        durationMs: 1500
+      }
+    });
+
+    mgr.setAnimationPlaylistMode('single-once');
+    mgr.trigger('idle', { silent: true });
+
+    expect(mgr.getCurrentAnimation()).toMatchObject({
+      animationId: 'idle-segmented',
+      playback: {
+        loop: true,
+        loopStartMs: 300,
+        loopEndMs: 900
+      }
+    });
+  });
+
   it('registerAnimation() resolves primary trigger aliases through the registry', () => {
     const { mgr, dataDir } = createManager();
     dataDirs.add(dataDir);
@@ -444,10 +577,7 @@ describe('sprite manager regression coverage', () => {
     });
     dataDirs.add(dataDir);
 
-    await (mgr as any).runPurposeOpenWindowStep(
-      { id: 'open-menu', type: 'openWindow', window: 'fileActionsMenu', payload: { correlationId: 'drop-1' } },
-      new AbortController().signal
-    );
+    await (mgr as any).runPurposeOpenWindowStep({ id: 'open-menu', type: 'openWindow', window: 'fileActionsMenu', payload: { correlationId: 'drop-1' } }, new AbortController().signal);
 
     expect(opened).toEqual([{ windowKey: 'fileActionsMenu', payload: { correlationId: 'drop-1' } }]);
   });
@@ -686,6 +816,7 @@ describe('sprite manager regression coverage', () => {
       width: 200,
       height: 200,
       padding: 100,
+      animationPlaylistMode: 'list-loop',
       autoWalkEnabled: true,
       showDebugOverlay: false
     });
@@ -700,6 +831,7 @@ describe('sprite manager regression coverage', () => {
       width: 320,
       height: 260,
       padding: 24,
+      animationPlaylistMode: 'list-loop',
       autoWalkEnabled: true,
       showDebugOverlay: false
     });
@@ -711,6 +843,7 @@ describe('sprite manager regression coverage', () => {
       width: 200,
       height: 200,
       padding: 100,
+      animationPlaylistMode: 'list-loop',
       autoWalkEnabled: true,
       showDebugOverlay: false
     });
@@ -731,6 +864,7 @@ describe('sprite manager regression coverage', () => {
         width: 200,
         height: 200,
         padding: 100,
+        animationPlaylistMode: 'list-loop',
         autoWalkEnabled: false,
         showDebugOverlay: false
       }

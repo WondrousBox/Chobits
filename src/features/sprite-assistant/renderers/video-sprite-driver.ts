@@ -91,7 +91,7 @@ export class VideoSpriteDriver {
 
     this.prevAnimId = input.animId;
     this.sessionActive = input.playbackSession?.mode === 'timed' ? isTimedPlaybackActive(input.playbackSession, this.now()) : null;
-    this.phase = input.hasSegmentLoop && input.playbackSession?.mode === 'timed' ? 'intro' : 'idle';
+    this.phase = input.hasSegmentLoop ? 'intro' : 'idle';
     video.currentTime = 0;
     this.requestPlay(video);
   }
@@ -136,9 +136,10 @@ export class VideoSpriteDriver {
 
     const effectiveStart = loopStartMs ?? 0;
     const effectiveEnd = loopEndMs ?? durationMs;
+    const hasSegmentLoop = loopStartMs != null && loopEndMs != null;
     const hasCustomLoop = loopStartMs != null || loopEndMs != null;
     const activePlayback = this.sessionActive ?? input.fallbackIsPlaying;
-    const shouldLoop = hasCustomLoop ? input.playback?.loop !== false : (input.playback?.loop ?? false);
+    const shouldLoop = hasSegmentLoop ? true : hasCustomLoop ? input.playback?.loop !== false : (input.playback?.loop ?? false);
 
     if (loopStartMs != null && loopEndMs != null) {
       const decision = resolveSegmentPlaybackStep({
@@ -188,8 +189,9 @@ export class VideoSpriteDriver {
   }
 
   handleEnded(input: { animId: string | null; playId?: string | null; playback?: SpritePlayback }): void {
+    const hasSegmentLoop = input.playback?.loopStartMs != null && input.playback?.loopEndMs != null;
     const hasCustomLoop = input.playback?.loopStartMs != null || input.playback?.loopEndMs != null;
-    const shouldLoop = hasCustomLoop ? input.playback?.loop !== false : (input.playback?.loop ?? false);
+    const shouldLoop = hasSegmentLoop ? true : hasCustomLoop ? input.playback?.loop !== false : (input.playback?.loop ?? false);
     if (shouldLoop || !input.animId) return;
     this.notifyAnimationComplete(input.animId, 'full', input.playId);
   }

@@ -63,13 +63,17 @@ import type { SpriteReactionState, SpriteState } from '../state-machine';
 import { SpriteStateMachine } from '../state-machine';
 import {
   compileSpriteAnimationCondition,
+  DEFAULT_SPRITE_ANIMATION_PLAYLIST_MODE,
   getSpriteAnimationTriggers,
   MESSAGE_IPC_CHANNELS,
   type MessageBridgeClearPayload,
   type MessageBridgePayload,
   type MessageCategory,
   type MessageIPCPayload,
+  normalizeSpriteAnimationPlaylistMode,
+  normalizeSpriteAnimationPlaylistModeMap,
   type SpriteAnimation,
+  type SpriteAnimationPlaylistMode,
   type SpriteAnimationTrigger,
   type SpriteConfig,
   type SpriteInitialState,
@@ -108,6 +112,27 @@ interface SpriteAnimationCompletionWaiter {
 interface SpritePresentationOwnerContext {
   ownerId: string;
   priority: number;
+}
+
+type SpriteListPlaylistMode = Extract<SpriteAnimationPlaylistMode, 'list-loop' | 'list-once'>;
+
+interface ActiveAnimationPlaylist {
+  trigger: SpriteAnimationTrigger;
+  mode: SpriteListPlaylistMode;
+  entries: AnimationEntry[];
+  currentIndex: number;
+  sessionMode: 'state-bound' | 'trigger';
+  durationMs?: number;
+}
+
+interface PlayAnimationEntryOptions {
+  trigger?: SpriteAnimationTrigger;
+  playlistMode: SpriteAnimationPlaylistMode;
+  playlistEntries?: AnimationEntry[];
+  playlistIndex?: number;
+  sessionMode: 'state-bound' | 'trigger';
+  durationMs?: number;
+  playId?: string;
 }
 
 interface SpriteBehaviorSchedulerPayload {
@@ -154,12 +179,13 @@ export class SpriteManager {
 
   // 当前动画和配置
   private currentAnimation: SpritePlayCommand | null = null;
+  private activeAnimationPlaylist: ActiveAnimationPlaylist | null = null;
   private animationPlayCounter = 0;
   private animationCompletionWaiters = new Map<string, SpriteAnimationCompletionWaiter>();
   private presentationLock = new SpritePresentationLock();
   private activeRoutinePresentationOwner: SpritePresentationOwnerContext | null = null;
   private stateDrivenPresentationOwner: SpritePresentationOwnerContext | null = null;
-  private spriteConfig: SpriteConfig = { width: 200, height: 200, padding: 100, showDebugOverlay: false };
+  private spriteConfig: SpriteConfig = { width: 200, height: 200, padding: 100, animationPlaylistMode: DEFAULT_SPRITE_ANIMATION_PLAYLIST_MODE, showDebugOverlay: false };
   private movementCoordinator: MovementCoordinator;
 
   // 状态广播节流
@@ -468,6 +494,94 @@ export class SpriteManager {
     };
   }
 
+  private hasSegmentLoop(playback: AnimationEntry['playback'] | SpritePlayCommand['playback'] | undefined): boolean {
+    return playback?.loopStartMs != null && playback?.loopEndMs != null;
+  }
+
+  private resolveAnimationPlaylistMode(trigger?: SpriteAnimationTrigger, options?: SpriteTriggerOptions): SpriteAnimationPlaylistMode {
+    if (options?.playId) {
+      return 'single-once';
+    }
+    const normalizedTrigger = typeof trigger === 'string' ? trigger.trim() : '';
+    if (normalizedTrigger) {
+      const animationPlaylistModes = normalizeSpriteAnimationPlaylistModeMap(this.spriteConfig.animationPlaylistModes);
+      const triggerMode = animationPlaylistModes[normalizedTrigger];
+      if (triggerMode) {
+        return triggerMode;
+      }
+    }
+    return normalizeSpriteAnimationPlaylistMode(this.spriteConfig.animationPlaylistMode);
+  }
+
+  private shouldUseListPlaylist(mode: SpriteAnimationPlaylistMode): mode is SpriteListPlaylistMode {
+    return mode === 'list-loop' || mode === 'list-once';
+  }
+
+  private resolvePlaybackLoop(playback: AnimationEntry['playback'] | undefined, mode: SpriteAnimationPlaylistMode): boolean {
+    if (this.hasSegmentLoop(playback)) {
+      return true;
+    }
+
+    if (mode === 'single-loop') {
+      return true;
+    }
+
+    return false;
+  }
+
+  private selectAnimationFromCandidates(candidates: AnimationEntry[]): { anim: AnimationEntry; index: number } | null {
+    if (candidates.length === 0) return null;
+    return { anim: candidates[0], index: 0 };
+  }
+
+  private playAnimationEntry(anim: AnimationEntry, options: PlayAnimationEntryOptions): void {
+    const resolvedDurationMs = options.durationMs ?? anim.playback?.durationMs;
+    const playbackLoop = this.resolvePlaybackLoop(anim.playback, options.playlistMode);
+
+    this.currentAnimation = {
+      playId: options.playId,
+      animationId: anim.id,
+      source: anim.source,
+      playbackSession: this.buildPlaybackSession(anim.playback, resolvedDurationMs, options.sessionMode),
+      playback: anim.playback
+        ? {
+            width: anim.playback.width,
+            height: anim.playback.height,
+            padding: anim.playback.padding,
+            loop: playbackLoop,
+            loopStartMs: anim.playback.loopStartMs,
+            loopEndMs: anim.playback.loopEndMs,
+            durationMs: resolvedDurationMs,
+            autoIdle: anim.playback.autoIdle ?? true,
+            movement: anim.playback.movement
+          }
+        : { durationMs: options.durationMs ?? 2000, loop: playbackLoop, autoIdle: true }
+    };
+
+    if (anim.playback) {
+      const pb = anim.playback;
+      if (pb.width != null) this.spriteConfig.width = pb.width;
+      if (pb.height != null) this.spriteConfig.height = pb.height;
+      if (pb.padding != null) this.spriteConfig.padding = pb.padding;
+    }
+
+    if (options.trigger && this.shouldUseListPlaylist(options.playlistMode) && options.playlistEntries?.length) {
+      this.activeAnimationPlaylist = {
+        trigger: options.trigger,
+        mode: options.playlistMode,
+        entries: options.playlistEntries,
+        currentIndex: options.playlistIndex ?? 0,
+        sessionMode: options.sessionMode,
+        durationMs: options.durationMs
+      };
+    } else {
+      this.activeAnimationPlaylist = null;
+    }
+
+    this.sendToRenderer('sprite:play', this.currentAnimation);
+    this.handleAnimationMovement(anim.playback?.movement);
+  }
+
   private canPresentAnimation(options?: SpriteTriggerOptions): boolean {
     return this.presentationLock.shouldAllow({
       ownerId: options?.ownerPurposeId,
@@ -509,45 +623,23 @@ export class SpriteManager {
    * 这是为所有 SpriteEventType 提供统一触发入口的核心方法。
    */
   trigger(trigger: SpriteAnimationTrigger, options?: SpriteTriggerOptions): void {
-    // 1. 尝试查找并播放动画
-    const anim = this.animationRegistry.findByTrigger({
+    // 1. Try to find and play a matching animation.
+    const playlistMode = this.resolveAnimationPlaylistMode(trigger, options);
+    const candidates = this.animationRegistry.findCandidatesByTrigger({
       trigger,
       personaState: this.personaState.getState()
     });
-    if (anim && this.canPresentAnimation(options)) {
-      const resolvedDurationMs = options?.durationMs ?? anim.playback?.durationMs;
-      this.currentAnimation = {
-        playId: options?.playId,
-        animationId: anim.id,
-        source: anim.source,
-        playbackSession: this.buildPlaybackSession(anim.playback, resolvedDurationMs, 'trigger'),
-        playback: anim.playback
-          ? {
-            width: anim.playback.width,
-            height: anim.playback.height,
-            padding: anim.playback.padding,
-            loop: anim.playback.loop,
-            loopStartMs: anim.playback.loopStartMs,
-            loopEndMs: anim.playback.loopEndMs,
-            durationMs: resolvedDurationMs,
-            autoIdle: anim.playback.autoIdle ?? true,
-            movement: anim.playback.movement
-          }
-          : { durationMs: options?.durationMs ?? 2000, autoIdle: true }
-      };
-
-      // 同步更新精灵尺寸配置
-      if (anim.playback) {
-        const pb = anim.playback;
-        if (pb.width != null) this.spriteConfig.width = pb.width;
-        if (pb.height != null) this.spriteConfig.height = pb.height;
-        if (pb.padding != null) this.spriteConfig.padding = pb.padding;
-      }
-
-      this.sendToRenderer('sprite:play', this.currentAnimation);
-
-      // 启动自动移动
-      this.handleAnimationMovement(anim.playback?.movement);
+    const selected = this.selectAnimationFromCandidates(candidates);
+    if (selected && this.canPresentAnimation(options)) {
+      this.playAnimationEntry(selected.anim, {
+        trigger,
+        playlistMode,
+        playlistEntries: candidates,
+        playlistIndex: selected.index,
+        sessionMode: 'trigger',
+        durationMs: options?.durationMs,
+        playId: options?.playId
+      });
     }
 
     // 2. 显示气泡文案（除非 silent）
@@ -568,38 +660,12 @@ export class SpriteManager {
     if (!anim) return false;
     if (!this.canPresentAnimation(options)) return false;
 
-    const resolvedDurationMs = options?.durationMs ?? anim.playback?.durationMs;
-    this.currentAnimation = {
-      playId: options?.playId,
-      animationId: anim.id,
-      source: anim.source,
-      playbackSession: this.buildPlaybackSession(anim.playback, resolvedDurationMs, 'trigger'),
-      playback: anim.playback
-        ? {
-          width: anim.playback.width,
-          height: anim.playback.height,
-          padding: anim.playback.padding,
-          loop: anim.playback.loop,
-          loopStartMs: anim.playback.loopStartMs,
-          loopEndMs: anim.playback.loopEndMs,
-          durationMs: resolvedDurationMs,
-          autoIdle: anim.playback.autoIdle ?? true,
-          movement: anim.playback.movement
-        }
-        : { durationMs: options?.durationMs ?? 2000, autoIdle: true }
-    };
-
-    if (anim.playback) {
-      const pb = anim.playback;
-      if (pb.width != null) this.spriteConfig.width = pb.width;
-      if (pb.height != null) this.spriteConfig.height = pb.height;
-      if (pb.padding != null) this.spriteConfig.padding = pb.padding;
-    }
-
-    this.sendToRenderer('sprite:play', this.currentAnimation);
-
-    // 启动自动移动
-    this.handleAnimationMovement(anim.playback?.movement);
+    this.playAnimationEntry(anim, {
+      playlistMode: this.resolveAnimationPlaylistMode(anim.eventTypes?.[0], options),
+      sessionMode: 'trigger',
+      durationMs: options?.durationMs,
+      playId: options?.playId
+    });
 
     if (!options?.silent) {
       const eventType = anim.eventTypes?.[0];
@@ -662,7 +728,7 @@ export class SpriteManager {
     // 自动朗读：非静默类别 且 非来自 speak() 的调用
     if (!this._speakGuard && !SpriteManager.MUTE_CATEGORIES.has(options?.category ?? '')) {
       if (resolvedContent) {
-        this.speakService.speak(resolvedContent).catch(() => { });
+        this.speakService.speak(resolvedContent).catch(() => {});
       }
     }
   }
@@ -682,7 +748,7 @@ export class SpriteManager {
 
     // 自动朗读通知内容
     if (content && !this._speakGuard) {
-      this.speakService.speak(content).catch(() => { });
+      this.speakService.speak(content).catch(() => {});
     }
   }
 
@@ -1102,6 +1168,7 @@ export class SpriteManager {
   replaceAnimations(anims: SpriteAnimation[], options?: { refreshCurrentState?: boolean }): void {
     this.animationRegistry.clear();
     this.currentAnimation = null;
+    this.activeAnimationPlaylist = null;
     this.registerAnimations(anims);
 
     if (options?.refreshCurrentState !== false) {
@@ -1123,16 +1190,32 @@ export class SpriteManager {
 
   /** 获取精灵配置 */
   getSpriteConfig(): SpriteConfig {
+    const { animationPlaylistModes: rawAnimationPlaylistModes, ...restConfig } = this.spriteConfig;
+    const animationPlaylistModes = normalizeSpriteAnimationPlaylistModeMap(rawAnimationPlaylistModes);
     return {
-      ...this.spriteConfig,
+      ...restConfig,
+      animationPlaylistMode: normalizeSpriteAnimationPlaylistMode(this.spriteConfig.animationPlaylistMode),
+      ...(Object.keys(animationPlaylistModes).length > 0 ? { animationPlaylistModes } : {}),
       autoWalkEnabled: this.autoWalkConfig.enabled
     };
   }
 
   /** 设置精灵配置 */
   setSpriteConfig(config: Partial<SpriteConfig>): void {
-    const { autoWalkEnabled, ...restConfig } = config;
+    const { autoWalkEnabled, animationPlaylistMode, animationPlaylistModes, ...restConfig } = config;
     Object.assign(this.spriteConfig, restConfig);
+    if (animationPlaylistMode !== undefined) {
+      this.spriteConfig.animationPlaylistMode = normalizeSpriteAnimationPlaylistMode(animationPlaylistMode);
+    }
+    if (animationPlaylistModes !== undefined) {
+      const normalizedAnimationPlaylistModes = normalizeSpriteAnimationPlaylistModeMap(animationPlaylistModes);
+      if (Object.keys(normalizedAnimationPlaylistModes).length > 0) {
+        this.spriteConfig.animationPlaylistModes = normalizedAnimationPlaylistModes;
+      } else {
+        delete this.spriteConfig.animationPlaylistModes;
+      }
+      this.activeAnimationPlaylist = null;
+    }
     if (typeof autoWalkEnabled === 'boolean') {
       this.autoWalkConfig.enabled = autoWalkEnabled;
       if (!autoWalkEnabled) {
@@ -1202,6 +1285,42 @@ export class SpriteManager {
     this.emitConfigChanged();
   }
 
+  /** 获取动画播放列表模式 */
+  getAnimationPlaylistMode(trigger?: SpriteAnimationTrigger): SpriteAnimationPlaylistMode {
+    const normalizedTrigger = typeof trigger === 'string' ? trigger.trim() : '';
+    if (normalizedTrigger) {
+      const animationPlaylistModes = normalizeSpriteAnimationPlaylistModeMap(this.spriteConfig.animationPlaylistModes);
+      const triggerMode = animationPlaylistModes[normalizedTrigger];
+      if (triggerMode) return triggerMode;
+    }
+    return normalizeSpriteAnimationPlaylistMode(this.spriteConfig.animationPlaylistMode);
+  }
+
+  /** 设置动画播放列表模式 */
+  setAnimationPlaylistMode(mode: SpriteAnimationPlaylistMode, trigger?: SpriteAnimationTrigger): SpriteAnimationPlaylistMode {
+    const nextMode = normalizeSpriteAnimationPlaylistMode(mode);
+    const normalizedTrigger = typeof trigger === 'string' ? trigger.trim() : '';
+    if (normalizedTrigger) {
+      const animationPlaylistModes = normalizeSpriteAnimationPlaylistModeMap(this.spriteConfig.animationPlaylistModes);
+      if (animationPlaylistModes[normalizedTrigger] !== nextMode) {
+        this.spriteConfig.animationPlaylistModes = {
+          ...animationPlaylistModes,
+          [normalizedTrigger]: nextMode
+        };
+        this.activeAnimationPlaylist = null;
+        this.emitConfigChanged();
+      }
+      return nextMode;
+    }
+
+    if (this.spriteConfig.animationPlaylistMode !== nextMode) {
+      this.spriteConfig.animationPlaylistMode = nextMode;
+      this.activeAnimationPlaylist = null;
+      this.emitConfigChanged();
+    }
+    return nextMode;
+  }
+
   /** 预览窗口移动效果（临时应用尺寸和移动配置） */
   previewMovement(config: SpriteMovementPreviewConfig): void {
     this.movementCoordinator.previewMovement(config);
@@ -1244,6 +1363,16 @@ export class SpriteManager {
 
     if (phase !== 'outro' && phase !== 'full') {
       return;
+    }
+
+    if (isCurrentAnimation && !this._pendingIdleAfterOutro) {
+      const playlistResult = this.advanceAnimationPlaylist(animId);
+      if (playlistResult === 'advanced') {
+        return;
+      }
+      if (playlistResult === 'completed' && this.getState() === 'idle' && this.getSubState() == null) {
+        return;
+      }
     }
 
     const autoIdle = this.shouldAutoIdleAfterComplete(animId, playId);
@@ -1547,6 +1676,51 @@ export class SpriteManager {
     return this.animationRegistry.get(animId)?.playback?.autoIdle ?? true;
   }
 
+  private advanceAnimationPlaylist(animId: string): 'advanced' | 'completed' | 'none' {
+    const playlist = this.activeAnimationPlaylist;
+    if (!playlist) return 'none';
+    if (playlist.entries[playlist.currentIndex]?.id !== animId) return 'none';
+
+    const nextIndex = playlist.currentIndex + 1;
+    if (nextIndex >= playlist.entries.length) {
+      if (playlist.mode === 'list-once') {
+        this.activeAnimationPlaylist = null;
+        return 'completed';
+      }
+
+      const nextEntry = playlist.entries[0];
+      if (!nextEntry) {
+        this.activeAnimationPlaylist = null;
+        return 'completed';
+      }
+      this.playAnimationEntry(nextEntry, {
+        trigger: playlist.trigger,
+        playlistMode: playlist.mode,
+        playlistEntries: playlist.entries,
+        playlistIndex: 0,
+        sessionMode: playlist.sessionMode,
+        durationMs: playlist.durationMs
+      });
+      return 'advanced';
+    }
+
+    const nextEntry = playlist.entries[nextIndex];
+    if (!nextEntry) {
+      this.activeAnimationPlaylist = null;
+      return 'completed';
+    }
+
+    this.playAnimationEntry(nextEntry, {
+      trigger: playlist.trigger,
+      playlistMode: playlist.mode,
+      playlistEntries: playlist.entries,
+      playlistIndex: nextIndex,
+      sessionMode: playlist.sessionMode,
+      durationMs: playlist.durationMs
+    });
+    return 'advanced';
+  }
+
   private transitionToIdleAnimation(): void {
     const isAlreadyIdle = this.getState() === 'idle' && this.getSubState() == null;
     this.transitionTo('idle', { force: isAlreadyIdle });
@@ -1555,42 +1729,29 @@ export class SpriteManager {
   /** 根据当前状态解析并发送动画指令到渲染进程 */
   private resolveAndSendAnimation(state: SpriteState, subState: SpriteReactionState | null, options?: SpriteTriggerOptions): void {
     const trigger = mapStateToEventType(state, subState);
-    const animEntry = this.animationRegistry.findByTrigger({
+    const playlistMode = this.resolveAnimationPlaylistMode(trigger, options);
+    const candidates = this.animationRegistry.findCandidatesByTrigger({
       trigger,
       personaState: this.personaState.getState(),
       allowFallback: true
     });
+    const selected = this.selectAnimationFromCandidates(candidates);
 
-    if (animEntry && this.canPresentAnimation(options)) {
-      this.currentAnimation = {
-        animationId: animEntry.id,
-        source: animEntry.source,
-        playback: animEntry.playback
-          ? {
-            width: animEntry.playback.width,
-            height: animEntry.playback.height,
-            padding: animEntry.playback.padding,
-            loop: animEntry.playback.loop,
-            loopStartMs: animEntry.playback.loopStartMs,
-            loopEndMs: animEntry.playback.loopEndMs,
-            durationMs: animEntry.playback.durationMs,
-            autoIdle: animEntry.playback.autoIdle,
-            movement: animEntry.playback.movement
-          }
-          : undefined
-      };
+    if (!selected) {
+      this.activeAnimationPlaylist = null;
+      return;
+    }
 
-      if (animEntry.playback) {
-        const pb = animEntry.playback;
-        if (pb.width != null) this.spriteConfig.width = pb.width;
-        if (pb.height != null) this.spriteConfig.height = pb.height;
-        if (pb.padding != null) this.spriteConfig.padding = pb.padding;
-      }
-
-      this.sendToRenderer('sprite:play', this.currentAnimation);
-
-      // 启动自动移动
-      this.handleAnimationMovement(animEntry.playback?.movement);
+    if (this.canPresentAnimation(options)) {
+      this.playAnimationEntry(selected.anim, {
+        trigger,
+        playlistMode,
+        playlistEntries: candidates,
+        playlistIndex: selected.index,
+        sessionMode: 'state-bound',
+        durationMs: options?.durationMs,
+        playId: options?.playId
+      });
     }
   }
 
@@ -1739,10 +1900,10 @@ export class SpriteManager {
     const currentPurpose = this.purposeManager.getSnapshot().current;
     const resultPayload: Record<string, unknown> | undefined = result
       ? {
-        elapsedMs: result.elapsedMs,
-        value: result.value,
-        stepType: step.type
-      }
+          elapsedMs: result.elapsedMs,
+          value: result.value,
+          stepType: step.type
+        }
       : { stepType: step.type };
 
     await this.purposeHistory.append({

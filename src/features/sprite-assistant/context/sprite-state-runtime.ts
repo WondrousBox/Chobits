@@ -66,7 +66,10 @@ export function applySpriteWalkState(value: SpriteStateContextValue, data: Sprit
 export function applySpriteConfig(value: SpriteStateContextValue, data: SpriteConfig): SpriteStateContextValue {
   return {
     ...value,
-    spriteConfig: data
+    spriteConfig: resolveInitialSpriteConfig({
+      config: { ...value.spriteConfig, ...data },
+      currentAnimation: value.currentAnimation
+    })
   };
 }
 
