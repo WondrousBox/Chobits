@@ -282,14 +282,76 @@ describe('character pack manager', () => {
       source: 'builtin',
       isActive: true
     });
+    expect(typeof packs[0].companionSince).toBe('number');
+    expect(activePack?.companionSince).toBe(packs[0].companionSince);
+    expect(packs[1].companionSince).toBeUndefined();
 
     const stateFile = path.join(userDataDir, 'data', 'active-character-pack.json');
     expect(existsSync(stateFile)).toBe(true);
-    expect(JSON.parse(readFileSync(stateFile, 'utf-8'))).toEqual({
+    const state = JSON.parse(readFileSync(stateFile, 'utf-8'));
+    expect(state).toMatchObject({
       version: 1,
       id: 'pack-alpha',
       source: 'builtin'
     });
+    expect(state.firstUsedAtByPack).toEqual({
+      'builtin:pack-alpha': packs[0].companionSince
+    });
+  });
+
+  it('tracks companion start timestamps per pack and keeps them on reactivation', async () => {
+    tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
+    const builtinRoot = path.join(tempRoot, 'builtin-pack');
+    const userDataDir = path.join(tempRoot, 'user-data');
+    const installedRoot = path.join(userDataDir, 'character-packs', 'pack-beta');
+    const stateFile = path.join(userDataDir, 'data', 'active-character-pack.json');
+    const alphaSince = 1700000000000;
+
+    writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
+    writePack(installedRoot, 'pack-beta', 'Pack Beta');
+    writeJsonFile(stateFile, {
+      version: 1,
+      id: 'pack-alpha',
+      source: 'builtin',
+      firstUsedAtByPack: {
+        'builtin:pack-alpha': alphaSince
+      }
+    });
+
+    initCharacterPackManager({
+      userDataDir,
+      builtinPackRootDir: builtinRoot,
+      appVersion: '1.0.0'
+    });
+
+    const activation = await activateCharacterPack('pack-beta', { source: 'installed' });
+    const betaSince = activation?.pack.companionSince;
+
+    expect(activation).toMatchObject({
+      changed: true,
+      pack: {
+        id: 'pack-beta',
+        source: 'installed',
+        isActive: true
+      }
+    });
+    expect(typeof betaSince).toBe('number');
+    const betaCompanionSince = betaSince!;
+    expect(betaCompanionSince).toBeGreaterThan(0);
+
+    const packs = await listCharacterPacks();
+    expect(packs.find((pack) => pack.id === 'pack-alpha')?.companionSince).toBe(alphaSince);
+    expect(packs.find((pack) => pack.id === 'pack-beta')?.companionSince).toBe(betaCompanionSince);
+
+    const persistedState = JSON.parse(readFileSync(stateFile, 'utf-8'));
+    expect(persistedState.firstUsedAtByPack).toEqual({
+      'builtin:pack-alpha': alphaSince,
+      'installed:pack-beta': betaCompanionSince
+    });
+
+    const reactivation = await activateCharacterPack('pack-beta', { source: 'installed' });
+    expect(reactivation?.changed).toBe(false);
+    expect(reactivation?.pack.companionSince).toBe(betaCompanionSince);
   });
 
   it('installs a pack from a .cbpk archive and resolves the extracted pack root', async () => {
