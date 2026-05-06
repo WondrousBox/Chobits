@@ -45,6 +45,8 @@ export type {
   SpriteAnimationConditionScalar,
   SpriteAnimationConditionValue,
   SpriteAnimationMeta,
+  SpriteAnimationPlaylistMode,
+  SpriteAnimationPlaylistModeMap,
   SpriteAnimationTrigger,
   SpriteAnimationTriggerMetadata,
   SpriteBuiltinAnimationTrigger,
@@ -68,6 +70,7 @@ export type {
 export {
   compileSpriteAnimationCondition,
   DEFAULT_DURATION,
+  DEFAULT_SPRITE_ANIMATION_PLAYLIST_MODE,
   getPrimarySpriteAnimationTrigger,
   getSpriteAnimationTriggerAliases,
   getSpriteAnimationTriggers,
@@ -80,6 +83,9 @@ export {
   normalizeSpriteAnimationCondition,
   normalizeSpriteAnimationMeta,
   normalizeSpriteAnimationMetaPatch,
+  normalizeSpriteAnimationPlaylistMode,
+  normalizeSpriteAnimationPlaylistModeMap,
+  SPRITE_ANIMATION_PLAYLIST_MODES,
   SPRITE_EVENT_TYPES,
   SpriteEventGroups
 } from './types';

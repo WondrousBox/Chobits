@@ -89,6 +89,18 @@ describe('sprite preload bridge', () => {
     expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:movement:setAvoidRegions', { regions });
   });
 
+  it('forwards animation playlist mode config calls', async () => {
+    await spriteBridge.getAnimationPlaylistMode();
+    await spriteBridge.setAnimationPlaylistMode('list-loop');
+    await spriteBridge.getAnimationPlaylistMode('idle');
+    await spriteBridge.setAnimationPlaylistMode('single-once', 'idle');
+
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:config:getAnimationPlaylistMode');
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(2, 'sprite:config:setAnimationPlaylistMode', { mode: 'list-loop' });
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(3, 'sprite:config:getAnimationPlaylistMode', { trigger: 'idle' });
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(4, 'sprite:config:setAnimationPlaylistMode', { mode: 'single-once', trigger: 'idle' });
+  });
+
   it('forwards animation completion with an optional playId', async () => {
     await spriteBridge.animComplete('thinking-purpose', 'full', 'purpose-1:play-1');
 

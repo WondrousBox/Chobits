@@ -97,6 +97,7 @@ describe('sprite renderer mount', () => {
         width: 200,
         height: 220,
         padding: 80,
+        animationPlaylistMode: 'list-loop',
         autoWalkEnabled: false,
         showDebugOverlay: true
       }
@@ -200,6 +201,7 @@ describe('sprite renderer mount', () => {
         width: 240,
         height: 240,
         padding: 16,
+        animationPlaylistMode: 'list-loop',
         autoWalkEnabled: true,
         showDebugOverlay: false
       }

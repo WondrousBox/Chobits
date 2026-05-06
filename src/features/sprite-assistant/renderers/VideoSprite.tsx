@@ -31,9 +31,10 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
   // 判断是否为三段式动画
   const hasSegmentLoop = playback?.loopStartMs != null && playback?.loopEndMs != null;
   const timedSessionActive = playbackSession?.mode === 'timed' ? isTimedPlaybackActive(playbackSession) : null;
+  const segmentLoopActive = hasSegmentLoop && playback?.loop === true;
 
   // 判断是否正在活跃播放：优先使用播放命令自身的 timed session，再回退到 runtime state
-  const isPlaying = timedSessionActive ?? spriteState !== 'idle';
+  const isPlaying = timedSessionActive ?? (segmentLoopActive ? true : spriteState !== 'idle');
 
   useEffect(() => {
     driver.syncPlaybackSession({
@@ -107,7 +108,7 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
       animId,
       playId,
       playback,
-      fallbackIsPlaying: spriteState !== 'idle'
+      fallbackIsPlaying: segmentLoopActive ? true : spriteState !== 'idle'
     });
   };
 

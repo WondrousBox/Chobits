@@ -23,7 +23,7 @@ import type {
   StartSpritePurposeRequest
 } from '../purpose';
 import type { SpeakResult, SpriteSpeakConfig } from '../speak/types';
-import type { MessageBridgePayload, MessageIPCPayload, SpriteAnimation, SpriteAnimationTrigger, SpriteMovementPreviewConfig, SpriteTriggerOptions } from '../types';
+import type { MessageBridgePayload, MessageIPCPayload, SpriteAnimation, SpriteAnimationPlaylistMode, SpriteAnimationTrigger, SpriteMovementPreviewConfig, SpriteTriggerOptions } from '../types';
 import { MESSAGE_IPC_CHANNELS } from '../types';
 import type { WindowControllerAvoidRegion } from '../window-controller-model';
 
@@ -81,6 +81,8 @@ export type SpriteBridgeType = {
   setAutoWalk(enabled: boolean): Promise<boolean>;
   getDebugOverlay(): Promise<boolean>;
   setDebugOverlay(enabled: boolean): Promise<boolean>;
+  getAnimationPlaylistMode(trigger?: SpriteAnimationTrigger): Promise<SpriteAnimationPlaylistMode>;
+  setAnimationPlaylistMode(mode: SpriteAnimationPlaylistMode, trigger?: SpriteAnimationTrigger): Promise<SpriteAnimationPlaylistMode>;
   getSpontaneousUtterancePreferences(): Promise<SpriteSpontaneousUtterancePreferences | null>;
   updateSpontaneousUtterancePreferences(patch: Partial<SpriteSpontaneousUtterancePreferences>): Promise<SpriteSpontaneousUtterancePreferences | null>;
   listSpontaneousUtteranceHistory(query?: SpriteSpontaneousUtteranceHistoryQuery): Promise<SpriteSpontaneousUtteranceHistoryItem[]>;
@@ -170,6 +172,8 @@ export const spriteBridge: SpriteBridgeType = {
   setAutoWalk: (enabled) => ipcRenderer.invoke('sprite:config:setAutoWalk', { enabled }),
   getDebugOverlay: () => ipcRenderer.invoke('sprite:config:getDebugOverlay'),
   setDebugOverlay: (enabled) => ipcRenderer.invoke('sprite:config:setDebugOverlay', { enabled }),
+  getAnimationPlaylistMode: (trigger) => (trigger ? ipcRenderer.invoke('sprite:config:getAnimationPlaylistMode', { trigger }) : ipcRenderer.invoke('sprite:config:getAnimationPlaylistMode')),
+  setAnimationPlaylistMode: (mode, trigger) => ipcRenderer.invoke('sprite:config:setAnimationPlaylistMode', trigger ? { mode, trigger } : { mode }),
   getSpontaneousUtterancePreferences: () => ipcRenderer.invoke('sprite:spontaneous:getPreferences'),
   updateSpontaneousUtterancePreferences: (patch) => ipcRenderer.invoke('sprite:spontaneous:updatePreferences', patch),
   listSpontaneousUtteranceHistory: (query) => ipcRenderer.invoke('sprite:spontaneous:listHistory', query),

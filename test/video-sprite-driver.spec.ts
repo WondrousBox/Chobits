@@ -189,4 +189,44 @@ describe('video sprite driver', () => {
     expect(onAnimationComplete).toHaveBeenCalledTimes(1);
     expect(onAnimationComplete).toHaveBeenCalledWith('success-ended', 'full');
   });
+
+  it('keeps a full segment loop active even when playback loop is false', () => {
+    const onAnimationComplete = vi.fn();
+    const video = createVideo({ duration: 1.5, currentTime: 0.92 });
+    const driver = new VideoSpriteDriver({ onAnimationComplete });
+
+    driver.resetForAnimation({
+      video,
+      animId: 'idle-segmented',
+      hasSegmentLoop: true
+    });
+    video.currentTime = 0.32;
+    driver.handleTimeUpdate({
+      video,
+      animId: 'idle-segmented',
+      playback: {
+        loop: false,
+        loopStartMs: 300,
+        loopEndMs: 900
+      },
+      fallbackIsPlaying: true
+    });
+
+    expect(driver.getPhase()).toBe('loop');
+
+    video.currentTime = 0.92;
+    driver.handleTimeUpdate({
+      video,
+      animId: 'idle-segmented',
+      playback: {
+        loop: false,
+        loopStartMs: 300,
+        loopEndMs: 900
+      },
+      fallbackIsPlaying: true
+    });
+
+    expect(video.currentTime).toBeCloseTo(0.3);
+    expect(onAnimationComplete).not.toHaveBeenCalled();
+  });
 });

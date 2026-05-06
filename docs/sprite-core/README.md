@@ -211,6 +211,10 @@ sprite.isAutoWalkEnabled();
 sprite.setAutoWalkEnabled(true);
 sprite.isDebugOverlayEnabled();
 sprite.setDebugOverlayEnabled(true);
+sprite.getAnimationPlaylistMode();
+sprite.setAnimationPlaylistMode('list-loop');
+sprite.getAnimationPlaylistMode('idle');
+sprite.setAnimationPlaylistMode('single-loop', 'idle');
 
 // ===== 事件 =====
 const off = sprite.on('persona:level-up', handler);
@@ -449,11 +453,12 @@ const anim = registry.findByTrigger({
 });
 ```
 
-主要方法: `register()`, `registerAll()`, `unregister()`, `get()`, `getAll()`, `findByTrigger()`, `getTriggers()`, `clear()`
+主要方法: `register()`, `registerAll()`, `unregister()`, `get()`, `getAll()`, `findByTrigger()`, `findAllByTrigger()`, `getTriggers()`, `clear()`
 
 说明：
 
 - `findByTrigger()` 默认做精确匹配
+- 同一个 trigger 可注册多个动画，Registry 会先按 persona 条件过滤，再按 `priority` 从高到低组成候选列表；单个播放模式只取列表第一项，列表播放模式会按这个候选列表顺序播放
 - 只有状态机稳定态解析才应显式传 `allowFallback: true`，让缺失资源时兜底到 `idle`
 
 ### 8. CharacterService — 角色定义服务
@@ -650,6 +655,33 @@ IPC: sprite:play → 渲染进程播放
   "loopEndMs": 2500
 }
 ```
+
+### 播放列表模式
+
+当同一个 trigger 下注册了多个动画时，播放层会把它们当作一个列表来处理，默认模式为 `list-loop`。不同动画类型通常需要不同策略，例如 `idle` 更适合列表循环，而反馈类动画可能只需要单次播放。`sprite` 配置支持两层播放列表模式：
+
+- `animationPlaylistMode`：默认模式，未单独配置的 trigger 使用它
+- `animationPlaylistModes`：按 trigger/动画类型覆盖，例如 `{ idle: 'list-loop', success: 'single-once' }`
+
+可选模式：
+
+- `single-loop`：只播放当前优先级最高的动画；如果该动画没有循环片段，则整段循环
+- `list-loop`：按列表顺序依次播放，到最后一条后回到第一条
+- `single-once`：只播放当前优先级最高的动画一次
+- `list-once`：按列表顺序各播一次，播完后回到 idle
+
+Preload 也可以直接读写单个 trigger：
+
+```ts
+await window.YUA.sprite.setAnimationPlaylistMode('list-loop', 'idle');
+await window.YUA.sprite.setAnimationPlaylistMode('single-once', 'success');
+const idleMode = await window.YUA.sprite.getAnimationPlaylistMode('idle');
+```
+
+优先级规则：
+
+- 单个动画如果配置了 `loopStartMs` / `loopEndMs` 循环片段，则始终优先进入该片段循环
+- 只有当动画本身没有循环片段时，才由播放列表模式决定是单个循环、列表循环、单个播放还是列表播放
 
 ### playOnce vs transitionTo
 
@@ -967,6 +999,8 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 | `sprite:config:setAutoWalk`         | `{ enabled }`                                       | 设置自动行走开关   |
 | `sprite:config:getDebugOverlay`     | -                                                   | 获取调试辅助线开关 |
 | `sprite:config:setDebugOverlay`     | `{ enabled }`                                       | 设置调试辅助线开关 |
+| `sprite:config:getAnimationPlaylistMode` | `{ trigger? }`                                | 获取默认或指定 trigger 的动画列表播放模式 |
+| `sprite:config:setAnimationPlaylistMode` | `{ mode, trigger? }`                          | 设置默认或指定 trigger 的动画列表播放模式 |
 | `sprite:spontaneous:getPreferences` | -                                                   | 获取 AI 自发说话偏好 |
 | `sprite:spontaneous:updatePreferences` | `Partial<SpriteSpontaneousUtterancePreferences>` | 更新 AI 自发说话偏好 |
 | `sprite:spontaneous:listHistory`    | `{ limit?, query?, status?, intentCategory? }`      | 查询 AI 自发说话历史 |
@@ -990,7 +1024,7 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 | `sprite:state`       | `SpriteStateSnapshot`    | 状态变化广播              |
 | `sprite:message`     | `MessageIPCPayload`      | 消息（toast/notice/busy） |
 | `sprite:walk`        | `{ active, direction? }` | 行走状态                  |
-| `sprite:config`      | `SpriteConfig`           | 配置变化（含 `autoWalkEnabled`） |
+| `sprite:config`      | `SpriteConfig`           | 配置变化（含 `autoWalkEnabled`、`animationPlaylistMode`、`animationPlaylistModes`） |
 | `sprite:purpose:state` | `SpritePurposeSnapshot` | Purpose / Routine 快照变化 |
 | `sprite:busy:update` | `{ progress, message? }` | 忙碌进度更新              |
 | `sprite:busy:clear`  | -                        | 清除忙碌状态              |
@@ -1004,12 +1038,12 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 
 **`window.YUA.sprite` / 交互上报**: `interact(type: SpriteInteractionIntent)`, `dragStart()`, `dragEnd()`, `animComplete()`, `fileDrop()`
 
-**`window.YUA.sprite` / 状态、配置与目的编排**: `getInitialState()`, `ready()`, `getAutoWalk()`, `setAutoWalk()`, `getDebugOverlay()`, `setDebugOverlay()`, `getSpontaneousUtterancePreferences()`, `updateSpontaneousUtterancePreferences()`, `listSpontaneousUtteranceHistory()`, `startPurpose()`, `cancelPurpose()`, `getPurposeSnapshot()`, `emitPurposeEvent()`, `listPurposeHistory()`, `getPurposeDailyRetrospective()`, `getPurposePlannerPreferences()`, `updatePurposePlannerPreferences()`, `getPurposePlannerStatus()`
+**`window.YUA.sprite` / 状态、配置与目的编排**: `getInitialState()`, `ready()`, `getAutoWalk()`, `setAutoWalk()`, `getDebugOverlay()`, `setDebugOverlay()`, `getAnimationPlaylistMode()`, `setAnimationPlaylistMode()`, `getSpontaneousUtterancePreferences()`, `updateSpontaneousUtterancePreferences()`, `listSpontaneousUtteranceHistory()`, `startPurpose()`, `cancelPurpose()`, `getPurposeSnapshot()`, `emitPurposeEvent()`, `listPurposeHistory()`, `getPurposeDailyRetrospective()`, `getPurposePlannerPreferences()`, `updatePurposePlannerPreferences()`, `getPurposePlannerStatus()`
 
 说明：
 
 - `getAutoWalk()` / `setAutoWalk()` 是当前正式的 auto-walk 配置入口
-- `onConfig()` 收到的 `SpriteConfig` 快照已包含 `autoWalkEnabled`
+- `onConfig()` 收到的 `SpriteConfig` 快照已包含 `autoWalkEnabled`、默认 `animationPlaylistMode` 与按 trigger 覆盖的 `animationPlaylistModes`
 - AI 自发说话偏好 / 历史、Purpose / Routine 编排、每日目的复盘、AI 目的规划器偏好 / 状态当前通过 `window.YUA.sprite.*` 暴露，而不是挂在 `persona` bridge 下
 
 **`window.YUA.sprite` / 移动预览**: `previewMovement()`, `stopMovementPreview()`

@@ -135,8 +135,13 @@ export class AnimationRegistry {
 
   /** 按 trigger 查找最佳动画 */
   findByTrigger(query: AnimationQuery): AnimationEntry | undefined {
+    return this.findCandidatesByTrigger(query)[0];
+  }
+
+  /** 按 trigger 查找全部候选动画，按优先级和注册顺序排序 */
+  findCandidatesByTrigger(query: AnimationQuery): AnimationEntry[] {
     const trigger = query.trigger;
-    if (!trigger) return undefined;
+    if (!trigger) return [];
 
     const { personaState, allowFallback = false } = query;
 
@@ -146,13 +151,14 @@ export class AnimationRegistry {
     if (!ids || ids.size === 0) {
       // fallback 到 idle
       if (allowFallback && trigger !== 'idle') {
-        return this.findByTrigger({ ...query, trigger: 'idle', allowFallback: false });
+        return this.findCandidatesByTrigger({ ...query, trigger: 'idle', allowFallback: false });
       }
-      return undefined;
+      return [];
     }
 
     // 过滤并排序
-    const candidates: AnimationEntry[] = [];
+    const candidates: Array<{ entry: AnimationEntry; index: number }> = [];
+    let index = 0;
     for (const id of ids) {
       const entry = this.animations.get(id);
       if (!entry) continue;
@@ -162,29 +168,25 @@ export class AnimationRegistry {
         if (!entry.condition(personaState)) continue;
       }
 
-      candidates.push(entry);
+      candidates.push({ entry, index });
+      index += 1;
     }
 
     if (candidates.length === 0) {
       if (allowFallback && trigger !== 'idle') {
-        return this.findByTrigger({ ...query, trigger: 'idle', allowFallback: false });
+        return this.findCandidatesByTrigger({ ...query, trigger: 'idle', allowFallback: false });
       }
-      return undefined;
+      return [];
     }
 
     // 按优先级排序（高优先级在前）
-    candidates.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
-    return candidates[0];
+    candidates.sort((a, b) => (b.entry.priority ?? 0) - (a.entry.priority ?? 0) || a.index - b.index);
+    return candidates.map((candidate) => candidate.entry);
   }
 
   /** 按 trigger 查找所有匹配动画（不只是最佳） */
   findAllByTrigger(trigger: SpriteAnimationTrigger): AnimationEntry[] {
-    const ids = this.triggerIndex.get(trigger);
-    if (!ids) return [];
-    return Array.from(ids)
-      .map((id) => this.animations.get(id))
-      .filter((e): e is AnimationEntry => !!e)
-      .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+    return this.findCandidatesByTrigger({ trigger });
   }
 
   /** 获取所有已注册的 trigger */

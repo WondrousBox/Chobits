@@ -82,6 +82,7 @@ describe('sprite config authority', () => {
       width: 260,
       height: 210,
       padding: 40,
+      animationPlaylistMode: 'list-loop',
       autoWalkEnabled: false,
       showDebugOverlay: true
     });
@@ -91,6 +92,7 @@ describe('sprite config authority', () => {
         width: 260,
         height: 210,
         padding: 40,
+        animationPlaylistMode: 'list-loop',
         autoWalkEnabled: false,
         showDebugOverlay: true
       }
@@ -109,6 +111,7 @@ describe('sprite config authority', () => {
       width: 200,
       height: 200,
       padding: 100,
+      animationPlaylistMode: 'list-loop',
       autoWalkEnabled: false,
       showDebugOverlay: false
     });

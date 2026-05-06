@@ -31,6 +31,7 @@ describe('sprite state sync helpers', () => {
       width: 200,
       height: 220,
       padding: 80,
+      animationPlaylistMode: 'list-loop',
       autoWalkEnabled: false,
       showDebugOverlay: false
     });
@@ -57,6 +58,7 @@ describe('sprite state sync helpers', () => {
       width: 300,
       height: 280,
       padding: 32,
+      animationPlaylistMode: 'list-loop',
       autoWalkEnabled: true,
       showDebugOverlay: true
     });
@@ -67,6 +69,7 @@ describe('sprite state sync helpers', () => {
       width: 180,
       height: 240,
       padding: 100,
+      animationPlaylistMode: 'list-loop',
       autoWalkEnabled: false,
       showDebugOverlay: true
     };
@@ -83,6 +86,7 @@ describe('sprite state sync helpers', () => {
       width: 260,
       height: 240,
       padding: 48,
+      animationPlaylistMode: 'list-loop',
       autoWalkEnabled: false,
       showDebugOverlay: true
     });
