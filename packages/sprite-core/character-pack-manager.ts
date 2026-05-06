@@ -59,6 +59,7 @@ export interface CharacterPackSummary extends CharacterPackDefinition {
   rootDir: string;
   packFile: string;
   isActive: boolean;
+  companionSince?: number;
   resolvedAssets: ResolvedCharacterPackAssets;
 }
 
@@ -199,6 +200,7 @@ interface ActiveCharacterPackState {
   version: 1;
   id: string;
   source: CharacterPackSource;
+  firstUsedAtByPack?: Record<string, number>;
 }
 
 const SUPPORTED_CHARACTER_PACK_FORMAT_VERSION = 1;
@@ -693,6 +695,74 @@ function matchesPackState(pack: Pick<CharacterPackSummary, 'id' | 'source'>, sta
   return !!state && pack.id === state.id && pack.source === state.source;
 }
 
+function normalizeTimestamp(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return undefined;
+  }
+  return Math.trunc(value);
+}
+
+function normalizePackUsageMap(value: unknown): Record<string, number> | undefined {
+  if (!isPlainObject(value)) {
+    return undefined;
+  }
+
+  const normalized = Object.entries(value).reduce<Record<string, number>>((acc, [key, timestamp]) => {
+    const normalizedKey = key.trim();
+    const normalizedTimestamp = normalizeTimestamp(timestamp);
+    if (normalizedKey && normalizedTimestamp !== undefined) {
+      acc[normalizedKey] = normalizedTimestamp;
+    }
+    return acc;
+  }, {});
+
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+function getPackUsageKey(pack: Pick<CharacterPackSummary, 'id' | 'source'>): string {
+  return `${pack.source}:${pack.id}`;
+}
+
+function getPackCompanionSince(pack: Pick<CharacterPackSummary, 'id' | 'source'>, state: ActiveCharacterPackState | null | undefined): number | undefined {
+  return normalizeTimestamp(state?.firstUsedAtByPack?.[getPackUsageKey(pack)]);
+}
+
+function withPackCompanionSince(pack: CharacterPackSummary, state: ActiveCharacterPackState | null | undefined): CharacterPackSummary {
+  const companionSince = getPackCompanionSince(pack, state);
+  return {
+    ...pack,
+    ...(companionSince !== undefined ? { companionSince } : {})
+  };
+}
+
+function buildActivePackState(pack: Pick<CharacterPackSummary, 'id' | 'source'>, previousState?: ActiveCharacterPackState | null): ActiveCharacterPackState {
+  return {
+    version: 1,
+    id: pack.id,
+    source: pack.source,
+    ...(previousState?.firstUsedAtByPack ? { firstUsedAtByPack: previousState.firstUsedAtByPack } : {})
+  };
+}
+
+function ensurePackFirstUsedAt(state: ActiveCharacterPackState, pack: Pick<CharacterPackSummary, 'id' | 'source'>, now = Date.now()): { state: ActiveCharacterPackState; changed: boolean } {
+  const usageKey = getPackUsageKey(pack);
+  const firstUsedAtByPack = state.firstUsedAtByPack ?? {};
+  if (normalizeTimestamp(firstUsedAtByPack[usageKey]) !== undefined) {
+    return { state, changed: false };
+  }
+
+  return {
+    state: {
+      ...state,
+      firstUsedAtByPack: {
+        ...firstUsedAtByPack,
+        [usageKey]: Math.max(1, Math.trunc(now))
+      }
+    },
+    changed: true
+  };
+}
+
 function buildCharacterPackImportPreview(
   pack: CharacterPackSummary,
   options?: {
@@ -703,11 +773,12 @@ function buildCharacterPackImportPreview(
     };
   }
 ): CharacterPackImportPreview {
-  const { source, rootDir, packFile, isActive, resolvedAssets, ...definition } = pack;
+  const { source, rootDir, packFile, isActive, companionSince, resolvedAssets, ...definition } = pack;
   void source;
   void rootDir;
   void packFile;
   void isActive;
+  void companionSince;
 
   const previewAvatarPath = options?.previewAssets?.avatar ?? (resolvedAssets.preview?.avatar && fs.existsSync(resolvedAssets.preview.avatar) ? resolvedAssets.preview.avatar : undefined);
   const previewGifPath = options?.previewAssets?.gif ?? (resolvedAssets.preview?.gif && fs.existsSync(resolvedAssets.preview.gif) ? resolvedAssets.preview.gif : undefined);
@@ -1458,30 +1529,27 @@ export class CharacterPackManager {
         return left.name.localeCompare(right.name, 'zh-CN');
       });
 
-    const resolvedActive = this.resolveActiveState(packs, activeState);
+    let resolvedActive = this.resolveActiveState(packs, activeState);
+    if (resolvedActive) {
+      const activePack = packs.find((pack) => matchesPackState(pack, resolvedActive));
+      if (activePack) {
+        const usage = ensurePackFirstUsedAt(resolvedActive, activePack);
+        resolvedActive = usage.state;
+        if (usage.changed || !matchesPackState(activePack, activeState)) {
+          await this.writeActiveState(resolvedActive);
+        }
+      }
+    }
+
     return packs.map((pack) => ({
-      ...pack,
+      ...withPackCompanionSince(pack, resolvedActive),
       isActive: matchesPackState(pack, resolvedActive)
     }));
   }
 
   async getActivePack(): Promise<CharacterPackSummary | null> {
     const packs = await this.listPacks();
-    const activePack = packs.find((pack) => pack.isActive) ?? null;
-    if (!activePack) {
-      return null;
-    }
-
-    const persistedState = await this.readActiveState();
-    if (!matchesPackState(activePack, persistedState)) {
-      await this.writeActiveState({
-        version: 1,
-        id: activePack.id,
-        source: activePack.source
-      });
-    }
-
-    return activePack;
+    return packs.find((pack) => pack.isActive) ?? null;
   }
 
   async activatePack(packId: string, options?: { source?: CharacterPackSource }): Promise<CharacterPackActivationResult | null> {
@@ -1497,18 +1565,19 @@ export class CharacterPackManager {
       return null;
     }
 
-    await this.writeActiveState({
-      version: 1,
-      id: targetPack.id,
-      source: targetPack.source
-    });
+    const currentState = await this.readActiveState();
+    const usage = ensurePackFirstUsedAt(buildActivePackState(targetPack, currentState), targetPack);
+    await this.writeActiveState(usage.state);
 
     return {
       changed: !targetPack.isActive,
-      pack: {
-        ...targetPack,
-        isActive: true
-      }
+      pack: withPackCompanionSince(
+        {
+          ...targetPack,
+          isActive: true
+        },
+        usage.state
+      )
     };
   }
 
@@ -2021,11 +2090,7 @@ export class CharacterPackManager {
 
     const builtinPack = packs.find((pack) => pack.source === 'builtin');
     if (builtinPack) {
-      return {
-        version: 1,
-        id: builtinPack.id,
-        source: builtinPack.source
-      };
+      return buildActivePackState(builtinPack, persistedState);
     }
 
     const firstPack = packs[0];
@@ -2033,11 +2098,7 @@ export class CharacterPackManager {
       return null;
     }
 
-    return {
-      version: 1,
-      id: firstPack.id,
-      source: firstPack.source
-    };
+    return buildActivePackState(firstPack, persistedState);
   }
 
   private async readActiveState(): Promise<ActiveCharacterPackState | null> {
@@ -2053,10 +2114,12 @@ export class CharacterPackManager {
         return null;
       }
 
+      const firstUsedAtByPack = normalizePackUsageMap(raw.firstUsedAtByPack);
       return {
         version: 1,
         id,
-        source
+        source,
+        ...(firstUsedAtByPack ? { firstUsedAtByPack } : {})
       };
     } catch {
       return null;
@@ -2064,8 +2127,13 @@ export class CharacterPackManager {
   }
 
   private async writeActiveState(state: ActiveCharacterPackState): Promise<void> {
-    await fsp.mkdir(path.dirname(this.activePackStateFile), { recursive: true });
-    await fsp.writeFile(this.activePackStateFile, JSON.stringify(state, null, 2), 'utf-8');
+    const firstUsedAtByPack = normalizePackUsageMap(state.firstUsedAtByPack);
+    await writeJsonFile(this.activePackStateFile, {
+      version: 1,
+      id: state.id,
+      source: state.source,
+      ...(firstUsedAtByPack ? { firstUsedAtByPack } : {})
+    });
   }
 }
 
