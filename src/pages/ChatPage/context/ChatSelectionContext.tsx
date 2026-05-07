@@ -12,6 +12,7 @@ export interface ChatSelectionContextValue {
   codingWorkspaceRoot: string;
   codingWorkspaceLabel: string;
   webSearchEnabled: boolean;
+  emojiPacksEnabled: boolean;
   characterPersonaEnabled: boolean;
   setProviderId: (id: string) => void;
   setModelId: (id: string) => void;
@@ -19,6 +20,7 @@ export interface ChatSelectionContextValue {
   setAgentId: (id: string) => void;
   setCodingWorkspace: (workspace: { root: string; label?: string } | null) => void;
   setWebSearchEnabled: (enabled: boolean) => void;
+  setEmojiPacksEnabled: (enabled: boolean) => void;
   setCharacterPersonaEnabled: (enabled: boolean) => void;
   refresh: () => Promise<void>;
 }
@@ -33,6 +35,7 @@ const LS_KEYS = {
   codingWorkspaceRoot: 'chat.sel.codingWorkspaceRoot',
   codingWorkspaceLabel: 'chat.sel.codingWorkspaceLabel',
   webSearchEnabled: 'chat.sel.webSearchEnabled',
+  emojiPacksEnabled: 'chat.sel.emojiPacksEnabled',
   characterPersonaEnabled: 'chat.sel.characterPersonaEnabled'
 };
 
@@ -46,6 +49,7 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
   const [codingWorkspaceRoot, setCodingWorkspaceRootState] = useState<string>(() => localStorage.getItem(LS_KEYS.codingWorkspaceRoot) || '');
   const [codingWorkspaceLabel, setCodingWorkspaceLabelState] = useState<string>(() => localStorage.getItem(LS_KEYS.codingWorkspaceLabel) || '');
   const [webSearchEnabled, setWebSearchEnabledState] = useState<boolean>(() => localStorage.getItem(LS_KEYS.webSearchEnabled) === 'true');
+  const [emojiPacksEnabled, setEmojiPacksEnabledState] = useState<boolean>(() => localStorage.getItem(LS_KEYS.emojiPacksEnabled) === 'true');
   const [characterPersonaEnabled, setCharacterPersonaEnabledState] = useState<boolean>(() => localStorage.getItem(LS_KEYS.characterPersonaEnabled) === 'true');
 
   // Persist selections
@@ -123,6 +127,14 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
       /* noop */
     }
   }, [webSearchEnabled]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS_KEYS.emojiPacksEnabled, emojiPacksEnabled ? 'true' : 'false');
+    } catch {
+      /* noop */
+    }
+  }, [emojiPacksEnabled]);
 
   useEffect(() => {
     try {
@@ -219,6 +231,10 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
     setWebSearchEnabledState(enabled);
   }, []);
 
+  const setEmojiPacksEnabled = useCallback((enabled: boolean) => {
+    setEmojiPacksEnabledState(enabled);
+  }, []);
+
   const setCharacterPersonaEnabled = useCallback((enabled: boolean) => {
     setCharacterPersonaEnabledState(enabled);
   }, []);
@@ -233,6 +249,7 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
       codingWorkspaceRoot,
       codingWorkspaceLabel,
       webSearchEnabled,
+      emojiPacksEnabled,
       characterPersonaEnabled,
       setProviderId,
       setModelId,
@@ -240,6 +257,7 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
       setAgentId,
       setCodingWorkspace,
       setWebSearchEnabled,
+      setEmojiPacksEnabled,
       setCharacterPersonaEnabled,
       refresh
     }),
@@ -252,11 +270,13 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
       codingWorkspaceRoot,
       codingWorkspaceLabel,
       webSearchEnabled,
+      emojiPacksEnabled,
       characterPersonaEnabled,
       setProviderId,
       setPresetId,
       setCodingWorkspace,
       setWebSearchEnabled,
+      setEmojiPacksEnabled,
       setCharacterPersonaEnabled,
       refresh
     ]

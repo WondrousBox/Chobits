@@ -14,8 +14,10 @@ import {
   AssistantMessageTimeline,
   ChatInputWithService,
   type ChatMessageDisplayPart,
+  ChatMessageRenderer,
   ChatTokenUsage,
   finalizeTimelineMessage,
+  hasRenderableRichContent,
   hasTimelineContent,
   readDisplayPartsFromMetadata,
   type ToolActivity,
@@ -225,14 +227,14 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     const handlePayload = (payload: any): void => {
       if (!payload?.initialMessage) return;
       // 清除缓存 payload，防止关闭后再次打开时重复触发
-      window.ipcRenderer?.invoke('window:payload:clear', payloadWindowKey).catch(() => { });
+      window.ipcRenderer?.invoke('window:payload:clear', payloadWindowKey).catch(() => {});
       if (isOverlay) {
         setOverlaySide(resolveChatOverlaySide(payload.overlaySide));
         setOverlayExpanded(false);
         window.setTimeout(() => setOverlayExpanded(true), 30);
       }
       if (disposerRef.current) {
-        void disposerRef.current.cancel().catch(() => { });
+        void disposerRef.current.cancel().catch(() => {});
         disposerRef.current.dispose?.();
         disposerRef.current = null;
         setLoading(false);
@@ -327,6 +329,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     codingWorkspaceLabel?: string;
     webSearchEnabled?: boolean;
     characterPersonaEnabled?: boolean;
+    emojiPacksEnabled?: boolean;
   }): Promise<void> => {
     const content = params.content;
     const selectedProviderId = params.providerId || providerId;
@@ -383,11 +386,12 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
           ...(explicitSkillInvocation ? { explicitSkillInvocation } : {}),
           ...(params.webSearchEnabled ? { webSearchEnabled: true } : {}),
           ...(params.characterPersonaEnabled ? { characterPersonaEnabled: true } : {}),
+          ...(params.emojiPacksEnabled ? { emojiPacksEnabled: true } : {}),
           ...(selectedAgentId === 'coder' && selectedCodingWorkspaceRoot
             ? {
-              codingWorkspaceRoot: selectedCodingWorkspaceRoot,
-              codingWorkspaceLabel: selectedCodingWorkspaceLabel || undefined
-            }
+                codingWorkspaceRoot: selectedCodingWorkspaceRoot,
+                codingWorkspaceLabel: selectedCodingWorkspaceLabel || undefined
+              }
             : {})
         }
       },
@@ -926,6 +930,8 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
                                 </span>
                               )}
                             </>
+                          ) : hasRenderableRichContent(m.content) ? (
+                            <ChatMessageRenderer content={m.content} />
                           ) : (
                             m.content ||
                             (loading && i === messages.length - 1 ? (

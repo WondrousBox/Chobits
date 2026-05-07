@@ -15,6 +15,7 @@ import { createAnnotationIpcRenderer } from '../main/handlers/annotation/ipc-ren
 import { createClipIpcRenderer } from '../main/handlers/clip/ipc-renderer';
 import downloaderIpcRenderer from '../main/handlers/downloader/ipc-renderer';
 import { vectorIpcRenderer } from '../main/handlers/embedding/ipc-renderer';
+import { emojiPacksIpcRenderer } from '../main/handlers/emoji-packs/ipc-renderer';
 import { ffmpegIpcRenderer } from '../main/handlers/ffmpeg/ipc-renderer';
 import { fileIpcRenderer } from '../main/handlers/file/ipc-renderer';
 import { folderIpcRenderer } from '../main/handlers/folder/ipc-renderer';
@@ -112,6 +113,7 @@ contextBridge.exposeInMainWorld('YUA', {
   recorder: recorderIpcRenderer,
   dailyCare: dailyCareBridge,
   scheduler: schedulerBridge,
+  emojiPacks: emojiPacksIpcRenderer,
   pluginResource: pluginResourceIpcRenderer,
   proxy: proxyIpcRenderer,
   theme: themeIpcRenderer,

@@ -4,6 +4,7 @@ import type { DailyCareBridgeType } from '../electron/main/daily/ipc-renderer';
 import type { AnnotationIpcRenderer } from '../electron/main/handlers/annotation/ipc-renderer';
 import type { ClipIpcRenderer } from '../electron/main/handlers/clip/ipc-renderer';
 import type { DownloaderIpcRendererType } from '../electron/main/handlers/downloader/ipc-renderer';
+import type { EmojiPacksIpcType } from '../electron/main/handlers/emoji-packs/ipc-renderer';
 import type { FFmpegIpcType } from '../electron/main/handlers/ffmpeg/ipc-renderer';
 import type { FileIpcType } from '../electron/main/handlers/file/ipc-renderer';
 import type { FolderIpcType } from '../electron/main/handlers/folder/ipc-renderer';
@@ -63,6 +64,7 @@ declare global {
       pluginResource: PluginResourceIpcType;
       dailyCare: DailyCareBridgeType;
       scheduler: SchedulerBridgeType;
+      emojiPacks: EmojiPacksIpcType;
       recorder: RecorderIpcRendererType;
       proxy: ProxyIpcType;
       theme: ThemeIpcType;

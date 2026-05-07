@@ -23,6 +23,7 @@ import { useChatSelection } from '@/pages/ChatPage/context/ChatSelectionContext'
 import ChatAgentSelect from './ChatAgentSelect';
 import ChatFooterActions from './ChatFooterActions';
 import CodingWorkspaceButton from './CodingWorkspaceButton';
+import EmojiPackButton from './EmojiPackButton';
 import SkillPickerButton from './SkillPickerButton';
 import UnifiedChatInput, { UnifiedChatInputHandle, UnifiedChatInputProps } from './UnifiedChatInput';
 import { mergeTranscriptWithInput, useSpeechInput } from './useSpeechInput';
@@ -39,6 +40,7 @@ export interface ChatInputWithServiceProps extends Omit<UnifiedChatInputProps, '
     codingWorkspaceLabel?: string;
     webSearchEnabled?: boolean;
     characterPersonaEnabled?: boolean;
+    emojiPacksEnabled?: boolean;
   }) => void | Promise<void>;
   onMenuOpenChange?: (open: boolean) => void;
 }
@@ -53,12 +55,14 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, footer
     codingWorkspaceRoot,
     codingWorkspaceLabel,
     webSearchEnabled,
+    emojiPacksEnabled,
     characterPersonaEnabled,
     setProviderId,
     setModelId,
     setAgentId,
     setCodingWorkspace,
     setWebSearchEnabled,
+    setEmojiPacksEnabled,
     setCharacterPersonaEnabled
   } = useChatSelection();
   const inputRef = useRef<UnifiedChatInputHandle>(null);
@@ -79,13 +83,19 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, footer
 
   useEffect(() => {
     if (!skillPickerEnabled) {
-      setSkills([]);
-      setSkillsLoading(false);
-      return;
+      const timer = window.setTimeout(() => {
+        setSkills([]);
+        setSkillsLoading(false);
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
 
     let cancelled = false;
-    setSkillsLoading(true);
+    const loadingTimer = window.setTimeout(() => {
+      if (!cancelled) {
+        setSkillsLoading(true);
+      }
+    }, 0);
 
     window.YUA.ai
       .listSkills({
@@ -110,16 +120,20 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, footer
 
     return () => {
       cancelled = true;
+      window.clearTimeout(loadingTimer);
     };
   }, [agentId, codingWorkspaceRoot, skillPickerEnabled]);
 
   useEffect(() => {
     if (!slashMenuActive) {
-      setHighlightedSkillIndex(0);
-      return;
+      const timer = window.setTimeout(() => setHighlightedSkillIndex(0), 0);
+      return () => window.clearTimeout(timer);
     }
 
-    setHighlightedSkillIndex((currentIndex) => Math.min(currentIndex, Math.max(slashSuggestions.length - 1, 0)));
+    const timer = window.setTimeout(() => {
+      setHighlightedSkillIndex((currentIndex) => Math.min(currentIndex, Math.max(slashSuggestions.length - 1, 0)));
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [slashMenuActive, slashSuggestions]);
 
   const handlePickWorkspace = async (): Promise<void> => {
@@ -147,11 +161,12 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, footer
       agentId,
       webSearchEnabled,
       characterPersonaEnabled,
+      emojiPacksEnabled,
       ...(isCoder && codingWorkspaceRoot
         ? {
-          codingWorkspaceRoot,
-          codingWorkspaceLabel: codingWorkspaceLabel || undefined
-        }
+            codingWorkspaceRoot,
+            codingWorkspaceLabel: codingWorkspaceLabel || undefined
+          }
         : {})
     });
   };
@@ -296,6 +311,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, footer
             </Tooltip>
           )}
           <WebSearchToggle enabled={webSearchEnabled} onToggle={setWebSearchEnabled} />
+          {!isCoder && <EmojiPackButton enabled={emojiPacksEnabled} onEnabledChange={setEmojiPacksEnabled} />}
           {!isCoder && (
             <Tooltip>
               <TooltipTrigger asChild>

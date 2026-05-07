@@ -8,7 +8,7 @@ import type { PiCodingWorkspaceContext, ResolvedPiModelConfig, ResolvedPiRequest
 import { getPiAgentProfile } from './profile-registry';
 import { isPiRuntimeRequested } from './runtime-switch';
 import { normalizeRequestedSkillInvocation } from './skills';
-import { normalizePiToolIds } from './tool-registry';
+import { EMOJI_PACK_TOOL_IDS, normalizePiToolIds } from './tool-registry';
 
 type SecretValues = Record<string, string | undefined>;
 
@@ -38,6 +38,13 @@ function resolveEnabledToolIds(req: ChatRequest, preset: ProviderPresetRecord | 
   if (req.extras?.webSearchEnabled) {
     const existing = new Set(toolIds);
     for (const id of WEB_SEARCH_TOOL_IDS) {
+      if (!existing.has(id)) toolIds.push(id);
+    }
+  }
+
+  if (req.extras?.emojiPacksEnabled) {
+    const existing = new Set(toolIds);
+    for (const id of EMOJI_PACK_TOOL_IDS) {
       if (!existing.has(id)) toolIds.push(id);
     }
   }
