@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 const TAVILY_PROVIDER_ID = 'tavily';
@@ -78,22 +79,26 @@ export default function WebSearchToggle({ enabled, onToggle }: WebSearchTogglePr
 
   return (
     <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className={cn('h-8 rounded-full text-xs gap-1', enabled && 'text-primary bg-primary/10')}
-          onClick={(e) => {
-            e.preventDefault();
-            void handleToggle();
-          }}
-          title={enabled ? '关闭联网搜索' : '开启联网搜索'}
-        >
-          <TbWorldSearch className="w-4 h-4" />
-          <span className="hidden sm:inline">{enabled ? '联网' : '联网'}</span>
-        </Button>
-      </PopoverTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={cn('h-8 w-8 rounded-full', enabled && 'bg-primary/10 text-primary')}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleToggle();
+              }}
+              aria-label={enabled ? '关闭联网搜索' : '开启联网搜索'}
+            >
+              <TbWorldSearch className="h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent>{enabled ? '关闭联网搜索' : '开启联网搜索'}</TooltipContent>
+      </Tooltip>
       <PopoverContent align="start" className="w-80">
         <div className="space-y-3">
           <div>

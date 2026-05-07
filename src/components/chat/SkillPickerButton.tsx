@@ -71,9 +71,8 @@ export default function SkillPickerButton({ agentId, highlightedSkillName, loadi
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button type="button" variant={open ? 'default' : 'outline'} size="sm" className="h-8 rounded-full text-xs">
+            <Button type="button" variant={open ? 'default' : 'outline'} size="icon" className="h-8 w-8 rounded-full" aria-label="选择 Skill">
               <TbSparkles />
-              Skills
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
@@ -88,7 +87,7 @@ export default function SkillPickerButton({ agentId, highlightedSkillName, loadi
           <CommandList>
             <CommandEmpty>{loading ? '正在加载 skills...' : '没有匹配的 skill'}</CommandEmpty>
             <CommandGroup heading="Available Skills">
-              {pickerItems.map((skill) => (
+              {pickerItems.map((skill) =>
                 (() => {
                   const trust = getSkillTrustPresentation(skill);
 
@@ -128,7 +127,7 @@ export default function SkillPickerButton({ agentId, highlightedSkillName, loadi
                     </CommandItem>
                   );
                 })()
-              ))}
+              )}
             </CommandGroup>
           </CommandList>
         </Command>
