@@ -10,14 +10,13 @@ import PersonaStatusPanel from '../ui/PersonaStatusPanel';
 import PurposeRetrospectivePanel from '../ui/PurposeRetrospectivePanel';
 import RadarChart, { RadarDimension } from '../ui/RadarChart';
 
-type RoleProfile = {
+type CharacterHeaderProfile = {
   name: string;
-  mood?: string;
-  description?: string;
+  tagline?: string;
 };
 
 export const StatusPage: React.FC = () => {
-  const [role, setRole] = useState<RoleProfile | null>(null);
+  const [role, setRole] = useState<CharacterHeaderProfile | null>(null);
   const [persona, setPersona] = useState<PersonaSnapshot | null>(null);
   const [activePack, setActivePack] = useState<CharacterPackSummary | null>(null);
   const [dimensions, setDimensions] = useState<RadarDimension[] | null>(null);
@@ -28,8 +27,15 @@ export const StatusPage: React.FC = () => {
     let mounted = true;
     const load = async (): Promise<void> => {
       try {
-        const [roleRes, personaRes, dimsRes, activePackRes, purposeRes] = await Promise.all([
-          window.YUA.status['status:getRole'](),
+        const [characterInfo, roleRes, personaRes, dimsRes, activePackRes, purposeRes] = await Promise.all([
+          window.YUA.persona.getCharacterInfo().catch((error) => {
+            console.warn('[StatusPage] failed to load character info', error);
+            return null;
+          }),
+          window.YUA.status['status:getRole']().catch((error) => {
+            console.warn('[StatusPage] failed to load role profile', error);
+            return null;
+          }),
           window.YUA.persona.getState(),
           window.YUA.persona.getDimensions(),
           window.YUA.persona.getActiveCharacterPack().catch((error) => {
@@ -43,7 +49,7 @@ export const StatusPage: React.FC = () => {
         ]);
 
         if (!mounted) return;
-        setRole(roleRes?.role);
+        setRole(characterInfo ?? (activePackRes ? { name: activePackRes.name, tagline: activePackRes.description } : null) ?? roleRes?.role ?? null);
         if (personaRes?.ok && personaRes.state) {
           setPersona(personaRes.state);
         }
