@@ -44,15 +44,27 @@ export interface ParsedCardToken {
   raw: string;
 }
 
+/** 图片标记解析结果：[image:url|alt] */
+export interface ParsedImageToken {
+  type: 'image';
+  url: string;
+  alt?: string;
+  raw: string;
+}
+
 /** 消息内容解析结果 */
 export interface ParsedContent {
-  type: 'text' | 'card';
+  type: 'text' | 'card' | 'image';
   content?: string;
   card?: ParsedCardToken;
+  image?: ParsedImageToken;
 }
 
 /** 卡片正则表达式匹配模式：[card:type:id] */
 export const CARD_TOKEN_REGEX = /\[card:(resource|video|audio|image|document|link|file):([a-zA-Z0-9_-]+)\]/g;
+export const IMAGE_TOKEN_REGEX = /\[image:([^\]|]+)(?:\|([^\]]+))?\]/g;
+const CONTENT_TOKEN_REGEX = /\[card:(resource|video|audio|image|document|link|file):([a-zA-Z0-9_-]+)\]|\[image:([^\]|]+)(?:\|([^\]]+))?\]/g;
+const MARKDOWN_IMAGE_REGEX = /!\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)/;
 
 /**
  * 解析消息内容中的卡片标记
@@ -64,10 +76,9 @@ export function parseMessageContent(content: string): ParsedContent[] {
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
-  // 重置正则表达式的 lastIndex
-  CARD_TOKEN_REGEX.lastIndex = 0;
+  CONTENT_TOKEN_REGEX.lastIndex = 0;
 
-  while ((match = CARD_TOKEN_REGEX.exec(content)) !== null) {
+  while ((match = CONTENT_TOKEN_REGEX.exec(content)) !== null) {
     // 添加卡片之前的文本
     if (match.index > lastIndex) {
       const textContent = content.slice(lastIndex, match.index);
@@ -76,16 +87,28 @@ export function parseMessageContent(content: string): ParsedContent[] {
       }
     }
 
-    // 添加卡片标记
-    result.push({
-      type: 'card',
-      card: {
+    if (match[1] && match[2]) {
+      // 添加卡片标记
+      result.push({
         type: 'card',
-        cardType: match[1],
-        id: match[2],
-        raw: match[0]
-      }
-    });
+        card: {
+          type: 'card',
+          cardType: match[1],
+          id: match[2],
+          raw: match[0]
+        }
+      });
+    } else if (match[3]) {
+      result.push({
+        type: 'image',
+        image: {
+          alt: match[4]?.trim() || undefined,
+          raw: match[0],
+          type: 'image',
+          url: match[3].trim()
+        }
+      });
+    }
 
     lastIndex = match.index + match[0].length;
   }
@@ -104,4 +127,10 @@ export function parseMessageContent(content: string): ParsedContent[] {
   }
 
   return result;
+}
+
+export function hasRenderableRichContent(content: string): boolean {
+  CARD_TOKEN_REGEX.lastIndex = 0;
+  IMAGE_TOKEN_REGEX.lastIndex = 0;
+  return CARD_TOKEN_REGEX.test(content) || IMAGE_TOKEN_REGEX.test(content) || MARKDOWN_IMAGE_REGEX.test(content);
 }

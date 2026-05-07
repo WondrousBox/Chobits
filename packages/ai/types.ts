@@ -55,6 +55,7 @@ export type ChatRequestExtras = Record<string, any> & {
   codingMode?: 'safe';
   workspaceId?: string;
   explicitSkillInvocation?: ExplicitSkillInvocationInput;
+  emojiPacksEnabled?: boolean;
 };
 
 export type ChatRequest = ProviderScopedRequest & {

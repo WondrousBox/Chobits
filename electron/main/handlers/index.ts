@@ -23,6 +23,7 @@ import { initAutomationHandlers } from './automation/ipc-main';
 import { initClipHandlers } from './clip/ipc-main';
 import { initDownloadHandlers } from './downloader/ipc-main';
 import { initVectorHandlers } from './embedding/ipc-main';
+import { initEmojiPackHandlers } from './emoji-packs/ipc-main';
 import { initFFmpegHandlers } from './ffmpeg/ipc-main';
 import { initFileHandlers } from './file/ipc-main';
 import { initFolderHandlers } from './folder/ipc-main';
@@ -60,6 +61,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initFFmpegHandlers(win);
   initVectorHandlers(win);
   initResourceHandlers();
+  await initEmojiPackHandlers();
   initRssHandlers();
   initAutomationHandlers();
   initFolderHandlers?.();
@@ -81,6 +83,10 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   });
   initStatusHandlers(win);
   await initAIHandlers(win);
+  {
+    const { registerEmojiPackPromptEnricher } = await import('./emoji-packs/prompt');
+    registerEmojiPackPromptEnricher();
+  }
   initRecorderHandlers();
   initSherpaHandlers();
   initTTSHandlers();
@@ -116,9 +122,8 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initAnalyticsHandlers();
   initUserProfileHandlers();
   const purposeHistoryStore = new SpritePurposeHistoryStore(app.getPath('userData'));
-  const purposeRetrospectiveProvider = (
-    query?: Parameters<SpritePurposeHistoryStore['getDailyRetrospective']>[0]
-  ): ReturnType<SpritePurposeHistoryStore['getDailyRetrospective']> => purposeHistoryStore.getDailyRetrospective(query);
+  const purposeRetrospectiveProvider = (query?: Parameters<SpritePurposeHistoryStore['getDailyRetrospective']>[0]): ReturnType<SpritePurposeHistoryStore['getDailyRetrospective']> =>
+    purposeHistoryStore.getDailyRetrospective(query);
   registerPurposeRetrospectiveMemoryProvider(purposeRetrospectiveProvider);
   const spontaneousUtteranceService = new SpriteSpontaneousUtteranceService({
     purposeRetrospectiveProvider

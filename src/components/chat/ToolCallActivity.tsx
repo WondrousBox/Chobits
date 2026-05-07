@@ -1,14 +1,11 @@
+/* eslint-disable react/prop-types */
 /**
  * 工具调用活动指示器
  * 在 AI 回复时展示工具调用状态（调用中 / 已完成），支持折叠查看参数和结果。
  * pushCardTool 的调用会直接渲染为资源卡片。
  */
 
-import {
-  LONG_TASK_BACKGROUND_CHOICE_QUESTION_ID,
-  LONG_TASK_BACKGROUND_CHOICE_VALUE,
-  type UserChoiceRequest
-} from '@packages/ai/types';
+import { LONG_TASK_BACKGROUND_CHOICE_QUESTION_ID, LONG_TASK_BACKGROUND_CHOICE_VALUE, type UserChoiceRequest } from '@packages/ai/types';
 import { useState } from 'react';
 import { TbCheck, TbChevronDown, TbChevronRight, TbClock, TbLoader2, TbTool } from 'react-icons/tb';
 
@@ -35,6 +32,7 @@ interface ToolCallActivityProps {
 
 const CARD_TOOL_NAMES = new Set(['pushCardTool', 'push-card']);
 const ASK_USER_TOOL_NAMES = new Set(['askUserTool', 'ask-user']);
+const EMOJI_SEND_TOOL_NAMES = new Set(['emojiSendTool', 'emoji-send']);
 
 const ToolCallActivity: React.FC<ToolCallActivityProps> = ({ activities, onUserChoiceSubmit }) => {
   if (activities.length === 0) return null;
@@ -52,9 +50,29 @@ function formatValue(val: any, max = 2000): { text: string; lang?: string } {
   const s = typeof val === 'string' ? val : JSON.stringify(val, null, 2);
   const truncated = s.length > max ? `${s.slice(0, max)}...` : s;
   if (typeof val === 'object' && val !== null) return { text: truncated, lang: 'json' };
-  if (typeof val === 'string' && /^[\[{]/.test(val.trim())) return { text: truncated, lang: 'json' };
+  if (typeof val === 'string' && /^[{[]/.test(val.trim())) return { text: truncated, lang: 'json' };
   if (typeof val === 'string' && /(function |=>|import |const |let |var |class |def |#include)/.test(val)) return { text: truncated, lang: '' };
   return { text: truncated };
+}
+
+function parseToolArgs(args: any): any {
+  if (typeof args !== 'string') return args;
+  try {
+    return JSON.parse(args);
+  } catch {
+    return undefined;
+  }
+}
+
+function readToolDetails(result: any): any {
+  return result?.details || result;
+}
+
+function allowToolImageUrl(url: string): string {
+  const trimmed = String(url || '').trim();
+  if (/^(https?:|res:|blob:)/i.test(trimmed)) return trimmed;
+  if (/^data:image\/(png|jpe?g|gif|webp|bmp);base64,/i.test(trimmed)) return trimmed;
+  return '';
 }
 
 function getToolDisplayName(activity: ToolActivity): string {
@@ -64,11 +82,7 @@ function getToolDisplayName(activity: ToolActivity): string {
 
 function isLongTaskChoiceRequest(request?: UserChoiceRequest): boolean {
   if (!request) return false;
-  return request.questions.some(
-    (question) =>
-      question.id === LONG_TASK_BACKGROUND_CHOICE_QUESTION_ID &&
-      question.options.some((option) => option.value === LONG_TASK_BACKGROUND_CHOICE_VALUE)
-  );
+  return request.questions.some((question) => question.id === LONG_TASK_BACKGROUND_CHOICE_QUESTION_ID && question.options.some((option) => option.value === LONG_TASK_BACKGROUND_CHOICE_VALUE));
 }
 
 function isBackgroundExecutionResult(result: any): boolean {
@@ -76,13 +90,43 @@ function isBackgroundExecutionResult(result: any): boolean {
 }
 
 const CardToolItem: React.FC<{ activity: ToolActivity }> = ({ activity }) => {
-  const args = typeof activity.args === 'string' ? JSON.parse(activity.args) : activity.args;
+  const args = parseToolArgs(activity.args);
   if (!args) return null;
 
   return (
     <div className="py-0.5">
       {args.text && <div className="mb-1 text-xs text-muted-foreground">{args.text}</div>}
       <ResourceCard resourceId={args.resourceId} data={args.data} cardType={args.type} compact />
+    </div>
+  );
+};
+
+const EmojiSendToolItem: React.FC<{ activity: ToolActivity }> = ({ activity }) => {
+  const args = parseToolArgs(activity.args) || {};
+  const details = readToolDetails(activity.result) || {};
+  const emoji = details.emoji;
+  const imageUrl = allowToolImageUrl(emoji?.url || '');
+  const title = emoji?.title || args.caption || args.relativePath || '表情包';
+
+  if (activity.status === 'calling') {
+    return (
+      <div className="inline-flex items-center gap-2 py-1 text-xs text-muted-foreground">
+        <TbLoader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />
+        <span>挑选表情包...</span>
+      </div>
+    );
+  }
+
+  if (!imageUrl) {
+    return <div className="py-1 text-xs text-muted-foreground">{details.error || '没有找到可展示的表情包'}</div>;
+  }
+
+  return (
+    <div className="py-1">
+      {(details.caption || args.caption) && <div className="mb-1 text-xs text-muted-foreground">{details.caption || args.caption}</div>}
+      <div className="inline-block max-w-full overflow-hidden rounded-lg border border-border/60 bg-muted/30">
+        <img src={imageUrl} alt={title} loading="lazy" className="block max-h-[260px] max-w-full object-contain" />
+      </div>
     </div>
   );
 };
@@ -139,10 +183,12 @@ const LongTaskChoiceItem: React.FC<{ activity: ToolActivity; onSubmit?: (choiceI
 };
 
 const ToolCallItem: React.FC<{ activity: ToolActivity; onUserChoiceSubmit?: (choiceId: string, answers: Record<string, string[]>) => void }> = ({ activity, onUserChoiceSubmit }) => {
+  const [expanded, setExpanded] = useState(false);
+
   if (CARD_TOOL_NAMES.has(activity.name)) return <CardToolItem activity={activity} />;
   if (ASK_USER_TOOL_NAMES.has(activity.name)) return <AskUserToolItem activity={activity} onSubmit={onUserChoiceSubmit} />;
+  if (EMOJI_SEND_TOOL_NAMES.has(activity.name)) return <EmojiSendToolItem activity={activity} />;
 
-  const [expanded, setExpanded] = useState(false);
   const displayName = getToolDisplayName(activity);
   const isBackgroundExecution = activity.status === 'done' && isBackgroundExecutionResult(activity.result);
   const hasProgress = activity.status === 'calling' && typeof activity.progress === 'number' && activity.progress > 0;
