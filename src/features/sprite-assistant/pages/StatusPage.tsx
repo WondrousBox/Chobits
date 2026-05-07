@@ -85,12 +85,12 @@ export const StatusPage: React.FC = () => {
         <PersonaStatusPanel persona={persona} companionSince={activePack?.companionSince} />
       </div>
 
-      {/* 今日目的复盘 */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <PurposeRetrospectivePanel retrospective={purposeRetrospective} />
-
         {/* 维度雷达图 */}
         {dimensions && dimensions.length >= 3 && <RadarChart dimensions={dimensions} className="w-full" />}
+
+        {/* 今日目的复盘 */}
+        <PurposeRetrospectivePanel retrospective={purposeRetrospective} />
       </div>
     </div>
   );

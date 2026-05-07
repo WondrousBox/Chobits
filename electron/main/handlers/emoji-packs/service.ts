@@ -513,14 +513,39 @@ export async function listEmojiPackNodes(payload: { packId: string; relativePath
   };
 }
 
+function tokenizeSearchQuery(query: string): string[] {
+  return Array.from(new Set(query.trim().toLowerCase().split(/\s+/).filter(Boolean)));
+}
+
+function computeSearchTermScore(file: EmojiPackTreeFile, term: string): number {
+  const title = file.title.toLowerCase();
+  const name = file.name.toLowerCase();
+  const text = `${file.title} ${file.name} ${file.relativePath}`.toLowerCase();
+  if (title === term) return 100;
+  if (title.startsWith(term)) return 80;
+  if (name.includes(term)) return 60;
+  return text.includes(term) ? 40 : 0;
+}
+
 function computeSearchScore(file: EmojiPackTreeFile, query: string): number {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return 1;
-  const text = `${file.title} ${file.name} ${file.relativePath}`.toLowerCase();
-  if (file.title.toLowerCase() === normalized) return 100;
-  if (file.title.toLowerCase().startsWith(normalized)) return 80;
-  if (file.name.toLowerCase().includes(normalized)) return 60;
-  return text.includes(normalized) ? 40 : 0;
+
+  const phraseScore = computeSearchTermScore(file, normalized);
+  const terms = tokenizeSearchQuery(normalized);
+  if (terms.length <= 1) {
+    return Math.max(phraseScore, terms[0] ? computeSearchTermScore(file, terms[0]) : 0);
+  }
+
+  const termScores = terms.map((term) => computeSearchTermScore(file, term));
+  if (termScores.some((score) => score <= 0)) {
+    return phraseScore;
+  }
+
+  const averageTermScore = termScores.reduce((total, score) => total + score, 0) / termScores.length;
+  const keywordScore = Math.min(70, 30 + Math.round(averageTermScore / 2));
+  const boostedPhraseScore = phraseScore > 0 ? Math.min(100, phraseScore + 10) : 0;
+  return Math.max(boostedPhraseScore, keywordScore);
 }
 
 export async function searchEmojiPacks(payload: { packId?: string; query: string; limit?: number }): Promise<EmojiPackSearchResult[]> {
