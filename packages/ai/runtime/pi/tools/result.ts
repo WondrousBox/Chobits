@@ -8,11 +8,12 @@ function stringifyDetails(details: unknown): string {
   }
 }
 
-export function createJsonToolResult<TDetails>(details: TDetails): AgentToolResult<TDetails> {
+export function createJsonToolResult<TDetails>(details: TDetails, options?: { content?: unknown }): AgentToolResult<TDetails> {
+  const content = options && 'content' in options ? options.content : details;
   return {
     content: [
       {
-        text: stringifyDetails(details),
+        text: typeof content === 'string' ? content : stringifyDetails(content),
         type: 'text'
       }
     ],

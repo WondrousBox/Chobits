@@ -7,7 +7,7 @@
 
 import { LONG_TASK_BACKGROUND_CHOICE_QUESTION_ID, LONG_TASK_BACKGROUND_CHOICE_VALUE, type UserChoiceRequest } from '@packages/ai/types';
 import { useState } from 'react';
-import { TbCheck, TbChevronDown, TbChevronRight, TbClock, TbLoader2, TbTool } from 'react-icons/tb';
+import { TbCheck, TbChevronDown, TbChevronRight, TbClock, TbCopy, TbLoader2, TbTool } from 'react-icons/tb';
 
 import { ResourceCard } from './cards';
 import UserChoiceCard from './UserChoiceCard';
@@ -46,8 +46,53 @@ const ToolCallActivity: React.FC<ToolCallActivityProps> = ({ activities, onUserC
   );
 };
 
+function stringifyValue(val: any): string {
+  if (typeof val === 'string') return val;
+  try {
+    const json = JSON.stringify(val, null, 2);
+    if (typeof json === 'string') return json;
+  } catch {
+    // Fall back to a best-effort string representation for non-JSON values.
+  }
+  return String(val);
+}
+
+async function copyValueToClipboard(text: string): Promise<boolean> {
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall through to the legacy path below.
+    }
+  }
+
+  if (typeof document === 'undefined' || typeof document.createElement !== 'function' || !document.body) {
+    return false;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', 'true');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  textarea.style.top = '0';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+
+  try {
+    textarea.select();
+    const legacyDocument = document as Document & { execCommand?: (command: string) => boolean };
+    return legacyDocument.execCommand?.('copy') ?? false;
+  } catch {
+    return false;
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
+
 function formatValue(val: any, max = 2000): { text: string; lang?: string } {
-  const s = typeof val === 'string' ? val : JSON.stringify(val, null, 2);
+  const s = stringifyValue(val);
   const truncated = s.length > max ? `${s.slice(0, max)}...` : s;
   if (typeof val === 'object' && val !== null) return { text: truncated, lang: 'json' };
   if (typeof val === 'string' && /^[{[]/.test(val.trim())) return { text: truncated, lang: 'json' };
@@ -101,32 +146,62 @@ const CardToolItem: React.FC<{ activity: ToolActivity }> = ({ activity }) => {
   );
 };
 
+function getEmojiArgSummary(args: any): string | undefined {
+  const candidateId = typeof args?.candidateId === 'string' ? args.candidateId.trim() : '';
+  const packId = typeof args?.packId === 'string' ? args.packId.trim() : '';
+  const path = typeof args?.relativePath === 'string' ? args.relativePath.trim() : typeof args?.path === 'string' ? args.path.trim() : '';
+
+  if (candidateId) return `candidateId: ${candidateId}`;
+  if (packId && path) return `${packId} / ${path}`;
+  if (path) return `path: ${path}`;
+  if (packId) return `packId: ${packId}`;
+  return undefined;
+}
+
 const EmojiSendToolItem: React.FC<{ activity: ToolActivity }> = ({ activity }) => {
+  const [expanded, setExpanded] = useState(false);
   const args = parseToolArgs(activity.args) || {};
   const details = readToolDetails(activity.result) || {};
   const emoji = details.emoji;
   const imageUrl = allowToolImageUrl(emoji?.url || '');
   const title = emoji?.title || args.caption || args.relativePath || '表情包';
-
-  if (activity.status === 'calling') {
-    return (
-      <div className="inline-flex items-center gap-2 py-1 text-xs text-muted-foreground">
-        <TbLoader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />
-        <span>挑选表情包...</span>
-      </div>
-    );
-  }
-
-  if (!imageUrl) {
-    return <div className="py-1 text-xs text-muted-foreground">{details.error || '没有找到可展示的表情包'}</div>;
-  }
+  const argSummary = getEmojiArgSummary(args);
+  const statusText = activity.status === 'calling' ? '发送表情包...' : details.error && !imageUrl ? '表情包发送失败' : '发送表情包完成';
 
   return (
-    <div className="py-1">
-      {(details.caption || args.caption) && <div className="mb-1 text-xs text-muted-foreground">{details.caption || args.caption}</div>}
-      <div className="inline-block max-w-full overflow-hidden rounded-lg border border-border/60 bg-muted/30">
-        <img src={imageUrl} alt={title} loading="lazy" className="block max-h-[260px] max-w-full object-contain" />
-      </div>
+    <div className="overflow-hidden rounded-lg border border-border/50 text-xs">
+      <button type="button" className="flex max-w-full items-center gap-1.5 px-2 py-1 text-left transition-colors hover:bg-muted/50" onClick={() => setExpanded(!expanded)}>
+        {activity.status === 'calling' ? <TbLoader2 className="h-3 w-3 shrink-0 animate-spin text-blue-500" /> : <TbCheck className="h-3 w-3 shrink-0 text-green-500" />}
+        <TbTool className="h-3 w-3 shrink-0 text-muted-foreground" />
+        <span className="truncate text-muted-foreground">{statusText}</span>
+        {expanded ? <TbChevronDown className="h-3 w-3" /> : <TbChevronRight className="h-3 w-3" />}
+      </button>
+
+      {argSummary && !expanded && (
+        <div className="border-t border-border/30 bg-muted/20 px-2 py-1 text-[11px] text-muted-foreground">
+          <span className="break-all">{argSummary}</span>
+        </div>
+      )}
+
+      {expanded && (
+        <div className="max-h-64 space-y-1 overflow-auto border-t border-border/50 bg-muted/30 px-2 py-1">
+          {activity.args != null && <DetailBlock label="参数" value={activity.args} />}
+          {activity.status === 'done' && activity.result != null && <DetailBlock label="结果" value={activity.result} />}
+        </div>
+      )}
+
+      {activity.status === 'done' && (
+        <div className="border-t border-border/30 px-2 py-2">
+          {(details.caption || args.caption) && <div className="mb-1 text-xs text-muted-foreground">{details.caption || args.caption}</div>}
+          {imageUrl ? (
+            <div className="inline-block max-w-full overflow-hidden rounded-lg border border-border/60 bg-muted/30">
+              <img src={imageUrl} alt={title} loading="lazy" className="block max-h-[260px] max-w-full object-contain" />
+            </div>
+          ) : (
+            <div className="text-xs text-muted-foreground">{details.error || '没有找到可展示的表情包'}</div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -264,10 +339,39 @@ const CircularProgress: React.FC<{ size: number; progress: number }> = ({ size, 
 };
 
 const DetailBlock: React.FC<{ label: string; value: any }> = ({ label, value }) => {
+  const [copied, setCopied] = useState(false);
   const { text, lang } = formatValue(value);
+  const canCopy =
+    typeof document !== 'undefined' &&
+    ((typeof navigator !== 'undefined' && Boolean(navigator.clipboard?.writeText)) || typeof (document as Document & { execCommand?: unknown }).execCommand === 'function');
+
+  const handleCopy = async (): Promise<void> => {
+    if (!canCopy) return;
+    try {
+      const copiedText = await copyValueToClipboard(stringifyValue(value));
+      if (!copiedText) return;
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      setCopied(false);
+    }
+  };
+
   return (
     <div>
-      <div className="mb-0.5 text-[10px] font-medium text-muted-foreground">{label}</div>
+      <div className="mb-0.5 flex items-center justify-between gap-2">
+        <div className="text-[10px] font-medium text-muted-foreground">{label}</div>
+        <button
+          type="button"
+          className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-transparent text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+          onClick={handleCopy}
+          disabled={!canCopy}
+          title={canCopy ? (copied ? `${label}已复制` : `复制${label}`) : '当前环境不支持复制'}
+          aria-label={copied ? `${label}已复制` : `复制${label}`}
+        >
+          {copied ? <TbCheck className="h-3 w-3 text-green-500" /> : <TbCopy className="h-3 w-3" />}
+        </button>
+      </div>
       {lang !== undefined ? (
         <pre className="overflow-x-auto rounded border border-border/30 bg-background/60 p-1.5 text-[11px] whitespace-pre-wrap break-all text-foreground/90">
           <code>{text}</code>
