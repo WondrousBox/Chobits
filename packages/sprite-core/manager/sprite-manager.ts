@@ -711,7 +711,7 @@ export class SpriteManager {
   }
 
   /** 轻量提示 */
-  showToast(content?: string, options?: { category?: MessageCategory; duration?: number; level?: string; ctx?: any }): void {
+  showToast(content?: string, options?: { category?: MessageCategory; duration?: number; level?: string; ctx?: any; speak?: boolean }): void {
     // 如果只传了 category 没有 content，先获取文本以确保显示和朗读一致
     const resolvedContent = content ?? (options?.category ? Messages.t(options.category, options?.ctx) : undefined);
 
@@ -726,7 +726,7 @@ export class SpriteManager {
     this.sendRendererMessage(payload);
 
     // 自动朗读：非静默类别 且 非来自 speak() 的调用
-    if (!this._speakGuard && !SpriteManager.MUTE_CATEGORIES.has(options?.category ?? '')) {
+    if (options?.speak !== false && !this._speakGuard && !SpriteManager.MUTE_CATEGORIES.has(options?.category ?? '')) {
       if (resolvedContent) {
         this.speakService.speak(resolvedContent).catch(() => {});
       }
