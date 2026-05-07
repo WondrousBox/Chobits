@@ -1,10 +1,20 @@
-import { BrowserWindow, ipcMain } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { BrowserWindow, ipcMain } from 'electron';
+
+import { AppEvent, eventManager } from '../event';
+import type { YtDlpConfig, YtDlpDownloadProgress, YtDlpReleaseInfo } from './types';
 import { checkYtDlpUpdate, downloadAndInstallVersion, ensureYtdlpBinaryPath } from './updater';
 import { ytdlpService } from './ytdlp-service';
-import type { YtDlpConfig, YtDlpDownloadProgress, YtDlpReleaseInfo } from './types';
+
+const YTDLP_DOWNLOAD_TASK_ID = 'yt-dlp-binary';
+
+function normalizeDownloadProgress(progress: YtDlpDownloadProgress): number | undefined {
+  if (progress.status === 'completed') return 100;
+  if (typeof progress.percent !== 'number' || !Number.isFinite(progress.percent)) return undefined;
+  return Math.max(0, Math.min(100, Math.round(progress.percent * 100)));
+}
 
 /**
  * 初始化 yt-dlp 相关的 IPC handlers
@@ -35,16 +45,48 @@ export function initYtDlpIpcHandlers(win: BrowserWindow): void {
   ipcMain.handle('ytdlp:download-version', async (_event, release?: YtDlpReleaseInfo) => {
     try {
       console.log('[yt-dlp] Starting download', release?.tag_name || 'latest');
+      eventManager.emit(AppEvent.SPRITE_DOWNLOAD_START, {
+        taskId: YTDLP_DOWNLOAD_TASK_ID,
+        progress: 0,
+        message: '下载 yt-dlp 更新'
+      });
 
+      let emittedComplete = false;
       const result = await downloadAndInstallVersion(release, (p: YtDlpDownloadProgress) => {
         win.webContents.send('ytdlp:download-progress', p);
+        const progress = normalizeDownloadProgress(p);
+        if (progress !== undefined && progress < 100) {
+          eventManager.emit(AppEvent.SPRITE_DOWNLOAD_PROGRESS, {
+            taskId: YTDLP_DOWNLOAD_TASK_ID,
+            progress,
+            message: p.message || '下载 yt-dlp 更新'
+          });
+        } else if (p.status === 'completed') {
+          emittedComplete = true;
+          eventManager.emit(AppEvent.SPRITE_DOWNLOAD_COMPLETE, {
+            taskId: YTDLP_DOWNLOAD_TASK_ID,
+            progress: 100,
+            message: 'yt-dlp 更新下载完成'
+          });
+        }
       });
 
       console.log('[yt-dlp] Download completed', result);
+      if (!emittedComplete) {
+        eventManager.emit(AppEvent.SPRITE_DOWNLOAD_COMPLETE, {
+          taskId: YTDLP_DOWNLOAD_TASK_ID,
+          progress: 100,
+          message: 'yt-dlp 更新下载完成'
+        });
+      }
 
       return { success: true, data: result };
     } catch (error) {
       console.error('[yt-dlp] Failed to download:', error);
+      eventManager.emit(AppEvent.SPRITE_DOWNLOAD_FAIL, {
+        taskId: YTDLP_DOWNLOAD_TASK_ID,
+        message: error instanceof Error ? error.message : String(error)
+      });
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error)

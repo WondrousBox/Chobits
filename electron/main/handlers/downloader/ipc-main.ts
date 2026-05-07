@@ -1,10 +1,11 @@
 import { windowManager } from '@aim-packages/window-manager';
+import { AppEvent, eventManager } from '@packages/event';
 import { BrowserWindow, ipcMain, screen } from 'electron';
 
 import { RssFeedItemsRepo } from '../../db/repositories';
 import { getMainWindow } from '../../index';
-import { downloadManager, getThumbnail, getVideoInfo, subscriptionManager, type DownloadTask } from '.';
 import type { RssDownloadErrorCode, RssDownloadStatus } from '../rss/types';
+import { downloadManager, type DownloadTask, getThumbnail, getVideoInfo, subscriptionManager } from '.';
 import { cookieManager } from './cookie-manager';
 import { SubscriptionManager } from './subscription-manager';
 
@@ -67,10 +68,7 @@ function shouldPersistRssProgress(link: { rssResourceId: string; itemId: string 
   return false;
 }
 
-async function updateRssDownloadStatus(
-  payload: { parentResourceId?: string; metadata?: Record<string, unknown> },
-  patch: RssDownloadStatusPatch
-): Promise<void> {
+async function updateRssDownloadStatus(payload: { parentResourceId?: string; metadata?: Record<string, unknown> }, patch: RssDownloadStatusPatch): Promise<void> {
   const link = getRssTaskLink(payload);
   if (!link) {
     return;
@@ -162,6 +160,20 @@ function clearRssProgressWriteState(task: DownloadTask): void {
   if (link) {
     rssDownloadProgressWrites.delete(getRssTaskKey(link));
   }
+}
+
+function getDownloadTaskLabel(task: DownloadTask): string {
+  const label = task.filename || task.videoInfo?.title || task.url;
+  return typeof label === 'string' && label.trim() ? label.trim() : '任务';
+}
+
+function emitDownloadSpriteEvent(event: AppEvent, task: DownloadTask, message: string, progress?: number): void {
+  eventManager.emit(event, {
+    taskId: task.id,
+    resourceId: task.result?.resourceId || (task.result?.resource as any)?.id,
+    progress,
+    message
+  });
 }
 
 export function initDownloadHandlers(win: BrowserWindow): void {
@@ -283,6 +295,7 @@ export function initDownloadHandlers(win: BrowserWindow): void {
 
   downloadManager.on('taskStarted', async (task) => {
     await updateRssDownloadStatus(task, createRssDownloadActivePatch('downloading', 0));
+    emitDownloadSpriteEvent(AppEvent.SPRITE_DOWNLOAD_START, task, `下载中: ${getDownloadTaskLabel(task)}`, 0);
     win.webContents.send('video-downloader:task-started', task);
     console.log('[VideoDownload] 任务已开始:', task.id);
     try {
@@ -324,6 +337,10 @@ export function initDownloadHandlers(win: BrowserWindow): void {
 
   downloadManager.on('taskProgress', (task) => {
     void updateRssDownloadProgress(task);
+    const percent = normalizeProgressPercent(task.progress?.percent);
+    if (percent !== undefined) {
+      emitDownloadSpriteEvent(AppEvent.SPRITE_DOWNLOAD_PROGRESS, task, `下载中: ${getDownloadTaskLabel(task)}`, percent);
+    }
     win.webContents.send('video-downloader:task-progress', task);
 
     const downloadWindow = windowManager.get('downloadFloating');
@@ -352,6 +369,7 @@ export function initDownloadHandlers(win: BrowserWindow): void {
       task.error = 'Download finished but the resource could not be added to the library';
       await updateRssDownloadStatus(task, createRssDownloadFailurePatch('library_import_failed', task.error));
       clearRssProgressWriteState(task);
+      emitDownloadSpriteEvent(AppEvent.SPRITE_DOWNLOAD_FAIL, task, `下载失败: ${getDownloadTaskLabel(task)}`);
       try {
         win.webContents.send('video-downloader:task-failed', task);
         const mainWindow = getMainWindow();
@@ -371,6 +389,7 @@ export function initDownloadHandlers(win: BrowserWindow): void {
 
     await updateRssDownloadStatus(task, createRssDownloadCompletedPatch(resourceId));
     clearRssProgressWriteState(task);
+    emitDownloadSpriteEvent(AppEvent.SPRITE_DOWNLOAD_COMPLETE, task, `下载完成: ${getDownloadTaskLabel(task)}`, 100);
     try {
       win.webContents.send('video-downloader:task-completed', task);
       const mainWindow = getMainWindow();
@@ -391,6 +410,7 @@ export function initDownloadHandlers(win: BrowserWindow): void {
     console.log('[VideoDownload] 任务失败:', task.id, task.error);
     await updateRssDownloadStatus(task, createRssDownloadFailurePatch('download_failed', getErrorMessage(task.error, '下载失败')));
     clearRssProgressWriteState(task);
+    emitDownloadSpriteEvent(AppEvent.SPRITE_DOWNLOAD_FAIL, task, `下载失败: ${getDownloadTaskLabel(task)}`);
     try {
       win.webContents.send('video-downloader:task-failed', task);
       const mainWindow = getMainWindow();
@@ -411,6 +431,7 @@ export function initDownloadHandlers(win: BrowserWindow): void {
     console.log('[VideoDownload] 任务已取消:', task.id);
     await updateRssDownloadStatus(task, createRssDownloadCancelledPatch());
     clearRssProgressWriteState(task);
+    emitDownloadSpriteEvent(AppEvent.SPRITE_DOWNLOAD_FAIL, task, `下载已取消: ${getDownloadTaskLabel(task)}`);
     try {
       win.webContents.send('video-downloader:task-cancelled', task);
       const mainWindow = getMainWindow();

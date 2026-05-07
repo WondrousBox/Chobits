@@ -9,6 +9,7 @@ import { AppEvent, eventManager } from '@packages/event';
 
 import type { ActivityRewardId } from '../character-service';
 import type { SpriteManager } from '../manager';
+import { ProgressSpeechAnnouncer, type ProgressSpeechKind } from '../manager/progress-speech-announcer';
 import { getSpriteEventText } from '../messages/zh-CN';
 import { getResolvedActivityPersonaReward } from '../persona-rules';
 
@@ -19,12 +20,14 @@ export interface SpriteEventPayload {
   message?: string;
   progress?: number;
   workflowName?: string;
+  taskId?: string;
   resourceId?: string;
   workspaceId?: string;
   folderId?: string;
   count?: number;
   error?: string;
   success?: boolean;
+  operationKind?: ProgressSpeechKind;
   // AI conversation reward fields
   conversationId?: string;
   messageCount?: number;
@@ -58,6 +61,14 @@ function getWorkflowRunId(data?: SpriteEventPayload): string | undefined {
 
 function getResourceImportCorrelationId(data?: SpriteEventPayload): string | undefined {
   return data?.resourceId ?? data?.folderId ?? data?.workspaceId;
+}
+
+function getProgressSpeechId(scope: string, id?: string): string {
+  return `${scope}:${id || 'global'}`;
+}
+
+function getDownloadProgressSpeechId(data?: SpriteEventPayload): string {
+  return getProgressSpeechId('download', data?.taskId ?? data?.resourceId);
 }
 
 function getActiveWorkflowWaitingRunId(mgr: SpriteManager): string | undefined {
@@ -150,6 +161,11 @@ function startResourceImportPurpose(mgr: SpriteManager, data?: SpriteEventPayloa
 export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEventListenerOptions): () => void {
   const routeMode = resolveOptions(options);
   const handlers: Array<{ event: AppEvent; handler: SpriteHandler }> = [];
+  const progressSpeech = new ProgressSpeechAnnouncer({
+    speak: (text) => {
+      void mgr.speak(text, { showBubble: false }).catch(() => {});
+    }
+  });
 
   const grantActivityReward = (activityId: ActivityRewardId): void => {
     mgr.applyPersonaReward(getResolvedActivityPersonaReward(activityId), activityId);
@@ -194,6 +210,12 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
       if (routeMode.workflow !== 'trigger' && isWorkflowWaitingPurposeHandling(mgr, data)) {
         return;
       }
+      progressSpeech.start({
+        id: getProgressSpeechId('workflow', getWorkflowRunId(data)),
+        kind: 'workflow',
+        progress: data?.progress ?? 0,
+        message: data?.message || data?.workflowName
+      });
       mgr.showBusy(data?.message || data?.workflowName || getSpriteEventText('workflowStart'), 0);
       mgr.trigger('processing', { durationMs: 1500, silent: true });
     }
@@ -206,6 +228,12 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
         return;
       }
       if (data?.progress !== undefined) {
+        progressSpeech.update({
+          id: getProgressSpeechId('workflow', getWorkflowRunId(data)),
+          kind: data.operationKind,
+          progress: data.progress,
+          message: data.message
+        });
         mgr.updateBusy(data.progress, data.message);
       }
     }
@@ -218,8 +246,13 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
         grantActivityReward('workflow-complete');
         return;
       }
+      progressSpeech.complete({
+        id: getProgressSpeechId('workflow', getWorkflowRunId(data)),
+        kind: data?.operationKind,
+        message: data?.message || data?.workflowName
+      });
       mgr.clearBusy();
-      mgr.showToast(data?.message || getSpriteEventText('workflowComplete'), { category: 'celebrate', duration: 2000 });
+      mgr.showToast(data?.message || getSpriteEventText('workflowComplete'), { category: 'celebrate', duration: 2000, speak: false });
       mgr.trigger('celebrate', { durationMs: 2000, silent: true });
       grantActivityReward('workflow-complete');
     }
@@ -231,6 +264,7 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
       if (routeMode.workflow !== 'trigger' && isWorkflowWaitingPurposeHandling(mgr, data)) {
         return;
       }
+      progressSpeech.reset(getProgressSpeechId('workflow', getWorkflowRunId(data)));
       mgr.clearBusy();
       mgr.showToast(data?.message || data?.error || getSpriteEventText('workflowFail'), { category: 'error', duration: 2000 });
       mgr.trigger('failure', { durationMs: 1500, silent: true });
@@ -243,6 +277,7 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
       if (routeMode.workflow !== 'trigger' && isWorkflowWaitingPurposeHandling(mgr, data)) {
         return;
       }
+      progressSpeech.reset(getProgressSpeechId('workflow', getWorkflowRunId(data)));
       mgr.clearBusy();
       mgr.showToast(getSpriteEventText('workflowCancel'), { category: 'info', duration: 1000 });
     }
@@ -258,6 +293,12 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
       if (routeMode.resourceImport !== 'trigger' && isResourceImportPurposeHandling(mgr, data)) {
         return;
       }
+      progressSpeech.start({
+        id: getProgressSpeechId('import', getResourceImportCorrelationId(data)),
+        kind: 'import',
+        progress: data?.progress ?? 0,
+        message: data?.message
+      });
       mgr.showBusy(data?.message || getSpriteEventText('importStart'), 0);
       mgr.trigger('loading', { durationMs: 1500, silent: true });
     }
@@ -270,6 +311,12 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
         return;
       }
       if (data?.progress !== undefined) {
+        progressSpeech.update({
+          id: getProgressSpeechId('import', getResourceImportCorrelationId(data)),
+          kind: 'import',
+          progress: data.progress,
+          message: data.message
+        });
         mgr.updateBusy(data.progress, data.message);
       }
     }
@@ -282,8 +329,13 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
         grantActivityReward('resource-import-complete');
         return;
       }
+      progressSpeech.complete({
+        id: getProgressSpeechId('import', getResourceImportCorrelationId(data)),
+        kind: 'import',
+        message: data?.message
+      });
       mgr.clearBusy();
-      mgr.showToast(data?.message || getSpriteEventText('importComplete', { count: data?.count }), { category: 'success', duration: 1500 });
+      mgr.showToast(data?.message || getSpriteEventText('importComplete', { count: data?.count }), { category: 'success', duration: 1500, speak: false });
       mgr.trigger('celebrate', { durationMs: 1500, silent: true });
       grantActivityReward('resource-import-complete');
     }
@@ -295,6 +347,7 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
       if (routeMode.resourceImport !== 'trigger' && isResourceImportPurposeHandling(mgr, data)) {
         return;
       }
+      progressSpeech.reset(getProgressSpeechId('import', getResourceImportCorrelationId(data)));
       mgr.clearBusy();
       mgr.showToast(data?.message || data?.error || getSpriteEventText('importError'), { category: 'error', duration: 2000 });
       mgr.trigger('error', { durationMs: 1500, silent: true });
@@ -306,14 +359,44 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
   handlers.push({
     event: AppEvent.SPRITE_DOWNLOAD_START,
     handler: (data) => {
-      mgr.trigger('download', { message: data?.message || '下载中...' });
+      progressSpeech.start({
+        id: getDownloadProgressSpeechId(data),
+        kind: 'download',
+        progress: data?.progress ?? 0,
+        message: data?.message
+      });
+      mgr.showBusy(data?.message || '下载中...', data?.progress ?? 0);
+      mgr.trigger('download', { silent: true });
+    }
+  });
+
+  handlers.push({
+    event: AppEvent.SPRITE_DOWNLOAD_PROGRESS,
+    handler: (data) => {
+      if (data?.progress === undefined) {
+        return;
+      }
+      progressSpeech.update({
+        id: getDownloadProgressSpeechId(data),
+        kind: 'download',
+        progress: data.progress,
+        message: data.message
+      });
+      mgr.updateBusy(data.progress, data.message || '下载中...');
     }
   });
 
   handlers.push({
     event: AppEvent.SPRITE_DOWNLOAD_COMPLETE,
     handler: (data) => {
-      mgr.trigger('success', { message: data?.message || '下载完成！' });
+      progressSpeech.complete({
+        id: getDownloadProgressSpeechId(data),
+        kind: 'download',
+        message: data?.message
+      });
+      mgr.clearBusy();
+      mgr.trigger('success', { silent: true });
+      mgr.showToast(data?.message || '下载完成！', { category: 'success', duration: 1500, speak: false });
       grantActivityReward('download-complete');
     }
   });
@@ -321,6 +404,8 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
   handlers.push({
     event: AppEvent.SPRITE_DOWNLOAD_FAIL,
     handler: (data) => {
+      progressSpeech.reset(getDownloadProgressSpeechId(data));
+      mgr.clearBusy();
       mgr.trigger('error', { message: data?.message || data?.error || '下载失败' });
     }
   });
@@ -555,5 +640,6 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
     subscriptions.forEach(({ event, handler }) => {
       eventManager.off(event, handler);
     });
+    progressSpeech.reset();
   };
 }
