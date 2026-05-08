@@ -44,32 +44,28 @@ const PointerLine: React.FC<{
   ty: number;
   id: string;
 }> = ({ cx, cy, tx, ty, id }) => {
-  // Calculate angle for gradient direction
   const angle = Math.atan2(ty - cy, tx - cx);
-
-  // Perpendicular offsets for polygon shape (thick end = 5px, thin end = 1.5px)
   const perpX = Math.sin(angle);
   const perpY = -Math.cos(angle);
-
   const thickWidth = 5;
   const thinWidth = 1.5;
-
-  // Four corners of the tapered line
   const points = [
     [cx + perpX * thickWidth, cy + perpY * thickWidth],
     [cx - perpX * thickWidth, cy - perpY * thickWidth],
     [tx - perpX * thinWidth, ty - perpY * thinWidth],
     [tx + perpX * thinWidth, ty + perpY * thinWidth]
   ];
+  const gradientId = `${id}-grad`;
+  const glowId = `${id}-glow`;
 
   return (
     <g>
       <defs>
-        <linearGradient id={`${id}-grad`} x1={cx} y1={cy} x2={tx} y2={ty} gradientUnits="userSpaceOnUse">
+        <linearGradient id={gradientId} x1={cx} y1={cy} x2={tx} y2={ty} gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor="white" stopOpacity="1" />
           <stop offset="100%" stopColor="white" stopOpacity="0.6" />
         </linearGradient>
-        <filter id={`${id}-glow`} x="-50%" y="-50%" width="200%" height="200%">
+        <filter id={glowId} x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation="2" result="blur" />
           <feMerge>
             <feMergeNode in="blur" />
@@ -77,9 +73,8 @@ const PointerLine: React.FC<{
           </feMerge>
         </filter>
       </defs>
-      {/* Main pointer with glow */}
-      <polygon points={points.map((p) => p.join(',')).join(' ')} fill={`url(#${id}-grad)`} filter={`url(#${id}-glow)`} />
-      {/* Bright center highlight */}
+
+      <polygon points={points.map((p) => p.join(',')).join(' ')} fill={`url(#${gradientId})`} filter={`url(#${glowId})`} />
       <circle cx={cx} cy={cy} r={3} fill="white" />
     </g>
   );
@@ -243,6 +238,43 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
   }, [anchor, size]);
 
   // Keyboard navigation
+  const runItemAction = React.useCallback(
+    (item: RadialMenuItem, index: number): void => {
+      if (item.disabled) {
+        item.onDisabledAction?.();
+        return;
+      }
+
+      if (item.children && item.children.length > 0) {
+        setActiveParentIndex(index);
+        setIsSubMenuOpen(true);
+        setSubSelectedIndex(0);
+        return;
+      }
+
+      if (!item.action) {
+        return;
+      }
+
+      item.action();
+      onClose?.();
+    },
+    [onClose]
+  );
+
+  const runChildAction = React.useCallback(
+    (child: RadialSubMenuItem): void => {
+      if (child.disabled) {
+        child.onDisabledAction?.();
+        return;
+      }
+
+      child.action();
+      onClose?.();
+    },
+    [onClose]
+  );
+
   useEffect(() => {
     if (!open) return;
 
@@ -313,7 +345,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [open, selectedIndex, subSelectedIndex, isSubMenuOpen, activeParentIndex, items, onClose]);
+  }, [activeParentIndex, isSubMenuOpen, items, open, runChildAction, runItemAction, selectedIndex, subSelectedIndex, onClose]);
 
   // Reset the one-shot flag after level-1 is shown again
   useEffect(() => {
@@ -334,54 +366,22 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
   const activeChildren = activeParentIndex !== null ? (items[activeParentIndex].children ?? []) : [];
   const subSelectedPosition = isSubMenuOpen && activeChildren.length > 0 ? getItemPosition(subSelectedIndex, activeChildren.length, level2) : { x: 0, y: 0 };
 
-  const runItemAction = (item: RadialMenuItem, index: number): void => {
-    if (item.disabled) {
-      item.onDisabledAction?.();
-      return;
-    }
-
-    if (item.children && item.children.length > 0) {
-      setActiveParentIndex(index);
-      setIsSubMenuOpen(true);
-      setSubSelectedIndex(0);
-      return;
-    }
-
-    if (!item.action) {
-      return;
-    }
-
-    item.action();
-    onClose?.();
-  };
-
-  const runChildAction = (child: RadialSubMenuItem): void => {
-    if (child.disabled) {
-      child.onDisabledAction?.();
-      return;
-    }
-
-    child.action();
-    onClose?.();
-  };
-
-  if (!open) return null;
-
   return (
     <AnimatePresence>
       <motion.div
         ref={containerRef}
-        className={`fixed inset-0 pointer-events-auto z-[10000] bg-transparent ${className ?? ''}`}
+        className={`fixed inset-0 z-[10000] bg-transparent ${className ?? ''}`}
         style={{
           left: resolvedAnchor.x - size / 2,
           top: resolvedAnchor.y - size / 2,
           width: size,
-          height: size
+          height: size,
+          pointerEvents: open ? 'auto' : 'none'
         }}
         initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+        animate={{ opacity: open ? 1 : 0 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
+        transition={{ duration: open ? 0.2 : 0.35 }}
         onClick={() => {
           if (isSubMenuOpen) {
             setSkipL1Stagger(true);
@@ -405,9 +405,9 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
             }
           }}
           initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
+          animate={{ opacity: open ? 1 : 0 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: open ? 0.2 : 0.35 }}
         />
 
         <LayoutGroup>
@@ -447,24 +447,23 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
                         absolute flex items-center justify-center
                         select-none rounded-full
                         w-16 h-16
-                        ${item.disabled
-                          ? 'cursor-not-allowed opacity-45 bg-card/70 text-muted-foreground border border-border/40'
-                          : isSelected
-                            ? 'cursor-pointer bg-primary text-primary-foreground shadow-[0_0_20px_rgba(var(--primary-rgb),0.5)] ring-2 ring-primary/50 z-10'
-                            : 'cursor-pointer bg-card/90 text-foreground border border-border/50 hover:border-primary/30'
+                        ${
+                          item.disabled
+                            ? 'cursor-not-allowed opacity-45 bg-card/70 text-muted-foreground border border-border/40'
+                            : isSelected
+                              ? 'cursor-pointer bg-primary text-primary-foreground shadow-[0_0_20px_rgba(var(--primary-rgb),0.5)] ring-2 ring-primary/50 z-10'
+                              : 'cursor-pointer bg-card/90 text-foreground border border-border/50 hover:border-primary/30'
                         }
                       `}
                       style={{
                         left: `calc(50% + ${position.x}px - 32px)`,
                         top: `calc(50% + ${position.y}px - 32px)`
                       }}
-                      initial={{ scale: 0, opacity: 0 }}
-                      animate={{ scale: isSelected ? 1.1 : 1, opacity: 1 }}
-                      exit={{ scale: 0, opacity: 0 }}
+                      initial={skipL1Stagger ? false : { x: -position.x, y: -position.y, scale: 0.25, opacity: 0 }}
+                      animate={open ? { x: 0, y: 0, scale: isSelected ? 1.1 : 1, opacity: 1 } : { x: -position.x, y: -position.y, scale: 0.25, opacity: 0 }}
+                      exit={{ x: -position.x, y: -position.y, scale: 0.25, opacity: 0 }}
                       transition={{
-                        type: 'spring',
-                        stiffness: 400,
-                        damping: 25,
+                        ...(open ? { type: 'spring', stiffness: 400, damping: 25 } : { duration: 0.22, ease: 'easeInOut' }),
                         delay: skipL1Stagger ? 0 : index * 0.02,
                         layout: { duration: 0.2 }
                       }}
@@ -541,21 +540,25 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
                         absolute flex items-center justify-center
                         select-none rounded-full
                         w-16 h-16
-                        ${child.disabled
-                          ? 'cursor-not-allowed opacity-45 bg-card/70 text-muted-foreground border border-border/40'
-                          : isSelected
-                            ? 'cursor-pointer bg-primary text-primary-foreground shadow-[0_0_20px_rgba(var(--primary-rgb),0.5)] ring-2 ring-primary/50 z-10'
-                            : 'cursor-pointer bg-card/90 text-foreground border border-border/50 hover:border-primary/30'
+                        ${
+                          child.disabled
+                            ? 'cursor-not-allowed opacity-45 bg-card/70 text-muted-foreground border border-border/40'
+                            : isSelected
+                              ? 'cursor-pointer bg-primary text-primary-foreground shadow-[0_0_20px_rgba(var(--primary-rgb),0.5)] ring-2 ring-primary/50 z-10'
+                              : 'cursor-pointer bg-card/90 text-foreground border border-border/50 hover:border-primary/30'
                         }
                       `}
                       style={{
                         left: `calc(50% + ${position.x}px - 32px)`,
                         top: `calc(50% + ${position.y}px - 32px)`
                       }}
-                      initial={{ scale: 0, opacity: 0 }}
-                      animate={{ scale: isSelected ? 1.1 : 1, opacity: 1 }}
-                      exit={{ scale: 0, opacity: 0 }}
-                      transition={{ type: 'spring', stiffness: 400, damping: 25, delay: index * 0.02 }}
+                      initial={{ x: -position.x, y: -position.y, scale: 0.25, opacity: 0 }}
+                      animate={open ? { x: 0, y: 0, scale: isSelected ? 1.1 : 1, opacity: 1 } : { x: -position.x, y: -position.y, scale: 0.25, opacity: 0 }}
+                      exit={{ x: -position.x, y: -position.y, scale: 0.25, opacity: 0 }}
+                      transition={{
+                        ...(open ? { type: 'spring', stiffness: 400, damping: 25 } : { duration: 0.22, ease: 'easeInOut' }),
+                        delay: index * 0.02
+                      }}
                       onClick={(e) => {
                         e.stopPropagation();
                         runChildAction(child);

@@ -51,6 +51,11 @@ export type {
   SpriteAnimationTriggerMetadata,
   SpriteBuiltinAnimationTrigger,
   SpriteConfig,
+  SpriteEffectBridgePayload,
+  SpriteEffectBridgeSource,
+  SpriteEffectClearPayload,
+  SpriteEffectPayload,
+  SpriteEffectSurface,
   SpriteEventType,
   SpriteInitialState,
   SpriteMessageData,
@@ -86,6 +91,7 @@ export {
   normalizeSpriteAnimationPlaylistMode,
   normalizeSpriteAnimationPlaylistModeMap,
   SPRITE_ANIMATION_PLAYLIST_MODES,
+  SPRITE_EFFECT_IPC_CHANNELS,
   SPRITE_EVENT_TYPES,
   SpriteEventGroups
 } from './types';

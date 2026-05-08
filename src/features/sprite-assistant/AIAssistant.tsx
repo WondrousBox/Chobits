@@ -6,10 +6,10 @@
  * - 通过 IPC 上报用户交互到主进程
  * - 不再实例化任何 sprite-core 引擎
  */
+import { isBubbleWindowMode } from '@packages/sprite-core/types';
 import React, { useEffect, useRef } from 'react';
 
 import Dropzone from '@/components/common/Dropzone';
-import { isBubbleWindowMode } from '@packages/sprite-core/types';
 
 import { useSpriteState } from './context/hooks';
 import { useDragCollector } from './hooks/useDragCollector';
@@ -21,7 +21,7 @@ import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
 import PersonaGainEffects from './ui/PersonaGainEffects';
 import StatusIndicator from './ui/StatusIndicator';
 
-const showBlock = true; // 开发时显示
+const showBlock = false; // 开发时显示
 
 /** 内部组件：包含实际逻辑 */
 const AIAssistantInner: React.FC = () => {

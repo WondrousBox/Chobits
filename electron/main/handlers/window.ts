@@ -10,6 +10,7 @@ import defaultWindowConfigs from '../config/window';
 
 const SPRITE_BUBBLE_WINDOW_KEYS = ['spriteBubble', 'spriteBubbleFixedTop'] as const;
 type SpriteBubbleWindowKey = (typeof SPRITE_BUBBLE_WINDOW_KEYS)[number];
+const SPRITE_EFFECT_WINDOW_KEY = 'spriteEffect' as const;
 
 export function initWindowHandlers(win: BrowserWindow): void {
   // 记录助手窗口的 padding（由渲染进程通过 IPC 动态设置）
@@ -305,6 +306,46 @@ export function initWindowHandlers(win: BrowserWindow): void {
     }
   });
 
+  // 调整特效独立窗口的尺寸，并保持其居中跟随主精灵窗口。
+  ipcMain.removeHandler('sprite:effect:resize');
+  ipcMain.handle('sprite:effect:resize', async (_event, payload: { width: number; height: number }) => {
+    try {
+      const effectWindow = await ensureSpriteEffectWindow();
+      if (!effectWindow || effectWindow.isDestroyed()) {
+        return { success: false, error: 'spriteEffect window not available' };
+      }
+      const width = Math.max(120, Math.round(payload?.width ?? 0));
+      const height = Math.max(80, Math.round(payload?.height ?? 0));
+      effectWindow.setSize(width, height, false);
+      updateSpriteEffectPosition();
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.removeHandler('sprite:effect:setVisible');
+  ipcMain.handle('sprite:effect:setVisible', async (_event, payload: { visible: boolean }) => {
+    try {
+      const effectWindow = payload?.visible ? await ensureSpriteEffectWindow() : resolveSpriteEffectWindow();
+      if (!effectWindow) {
+        if (!payload?.visible) {
+          return { success: true };
+        }
+        return { success: false, error: 'spriteEffect window not available' };
+      }
+      configureSpriteEffectWindow(effectWindow);
+      if (payload?.visible) {
+        configureSpriteEffectWindow(await windowManager.show(SPRITE_EFFECT_WINDOW_KEY));
+      } else {
+        configureSpriteEffectWindow(await windowManager.hide(SPRITE_EFFECT_WINDOW_KEY));
+      }
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
   // Pre-create menu window in hidden state for faster first-open
   // This reduces the loading delay when user right-clicks for the first time
   windowManager.create('menu');
@@ -312,6 +353,12 @@ export function initWindowHandlers(win: BrowserWindow): void {
   // 以及固定在主窗口上方的跟随窗口；需要时由渲染进程调 sprite:bubble:setVisible 显示。
   windowManager.create('spriteBubble');
   windowManager.create('spriteBubbleFixedTop');
+  void windowManager
+    .create(SPRITE_EFFECT_WINDOW_KEY)
+    .then((effectWindow) => {
+      configureSpriteEffectWindow(effectWindow);
+    })
+    .catch(() => undefined);
 
   function resolveSpriteBubbleEventTarget(event: IpcMainInvokeEvent): { key: SpriteBubbleWindowKey; window: BrowserWindow } | null {
     const senderWindow = BrowserWindow.fromWebContents(event.sender);
@@ -335,6 +382,36 @@ export function initWindowHandlers(win: BrowserWindow): void {
   }
 
   function updateSpriteBubblePosition(): void {
+    try {
+      windowManager.updateFollowerPositionsManually();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function resolveSpriteEffectWindow(): BrowserWindow | null {
+    const effectWindow = windowManager.get(SPRITE_EFFECT_WINDOW_KEY);
+    return effectWindow && !effectWindow.isDestroyed() ? effectWindow : null;
+  }
+
+  async function ensureSpriteEffectWindow(): Promise<BrowserWindow | null> {
+    const existing = resolveSpriteEffectWindow();
+    if (existing) return existing;
+    const created = await windowManager.create(SPRITE_EFFECT_WINDOW_KEY);
+    configureSpriteEffectWindow(created);
+    return created;
+  }
+
+  function configureSpriteEffectWindow(effectWindow: BrowserWindow | null): void {
+    if (!effectWindow || effectWindow.isDestroyed()) return;
+    try {
+      effectWindow.setIgnoreMouseEvents(true, { forward: true });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function updateSpriteEffectPosition(): void {
     try {
       windowManager.updateFollowerPositionsManually();
     } catch {

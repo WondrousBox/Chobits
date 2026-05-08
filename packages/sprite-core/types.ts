@@ -550,6 +550,52 @@ export const MESSAGE_IPC_CHANNELS = {
   LEGACY_BUSY_PROGRESS: 'app:busy:progress'
 } as const;
 
+// ============================================================================
+// 特效桥接类型
+// ============================================================================
+
+export interface SpriteEffectSurface {
+  width?: number;
+  height?: number;
+}
+
+export interface SpriteEffectPayload {
+  id?: string;
+  type: string;
+  variant?: string;
+  amount?: number;
+  title?: string;
+  content?: string;
+  duration?: number;
+  surface?: SpriteEffectSurface;
+  data?: Record<string, unknown>;
+}
+
+export interface SpriteEffectClearPayload {
+  id?: string;
+  type?: string | 'all';
+}
+
+export type SpriteEffectBridgeSource = 'app' | 'sprite';
+
+export type SpriteEffectBridgePayload =
+  | {
+      kind: 'show';
+      payload: SpriteEffectPayload;
+      source: SpriteEffectBridgeSource;
+    }
+  | {
+      kind: 'clear';
+      payload: SpriteEffectClearPayload;
+      source: SpriteEffectBridgeSource;
+    };
+
+export const SPRITE_EFFECT_IPC_CHANNELS = {
+  BRIDGE: 'sprite:effect:bridge',
+  SHOW: 'sprite:effect:show',
+  CLEAR: 'sprite:effect:clear'
+} as const;
+
 export interface MessageQueueState {
   current: SpriteMessageData | null;
   queue: SpriteMessageData[];

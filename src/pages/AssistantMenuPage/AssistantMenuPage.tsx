@@ -6,12 +6,12 @@ import { useSpriteCapabilitySnapshot } from '@/features/sprite-assistant/hooks/u
 
 import RadialMenu, { RadialMenuItem } from '../../components/common/RadialMenu/RadialMenu';
 
-interface AssistantMenuPageProps { }
+interface AssistantMenuPageProps {}
 
 const characterPosition: { x: number; y: number } = { x: 300, y: 300 };
 
 /** 退出动画时长 (ms) */
-const EXIT_ANIMATION_DURATION = 250;
+const EXIT_ANIMATION_DURATION = 450;
 
 const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
   // 控制菜单显示状态，初始为 false，等待窗口显示事件后再展开
@@ -33,14 +33,17 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
     }
   }, []);
 
-  const showLockedCapabilityToast = useCallback((label: string, capabilityIds: string[]) => {
-    const lockedCapability = getFirstLockedSpriteCapability(capabilitySnapshot, capabilityIds);
-    if (!lockedCapability) return;
+  const showLockedCapabilityToast = useCallback(
+    (label: string, capabilityIds: string[]) => {
+      const lockedCapability = getFirstLockedSpriteCapability(capabilitySnapshot, capabilityIds);
+      if (!lockedCapability) return;
 
-    toast.info(`${label} 尚未解锁`, {
-      description: getSpriteCapabilityLockedReason(lockedCapability)
-    });
-  }, [capabilitySnapshot]);
+      toast.info(`${label} 尚未解锁`, {
+        description: getSpriteCapabilityLockedReason(lockedCapability)
+      });
+    },
+    [capabilitySnapshot]
+  );
 
   const menuItems: RadialMenuItem[] = useMemo(
     () => [

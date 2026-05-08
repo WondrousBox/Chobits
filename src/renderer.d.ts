@@ -33,7 +33,7 @@ import type { AppEventPayload } from '../packages/event/events';
 import type { RecorderIpcRendererType } from '../packages/recorder/ipc-renderer';
 import type { SherpaIpcRendererType } from '../packages/sherpa/ipc-renderer';
 import type { SpriteBridgeType } from '../packages/sprite-core/preload';
-import type { MessageBridgePayload } from '../packages/sprite-core/types';
+import type { MessageBridgePayload, SpriteEffectBridgePayload, SpriteEffectClearPayload, SpriteEffectPayload } from '../packages/sprite-core/types';
 import type { TTSIpcRenderer } from '../packages/tts/ipc-renderer';
 
 declare global {
@@ -85,6 +85,11 @@ declare global {
       userProfile: typeof userProfileApi;
       messages: {
         on: (callback: (payload: MessageBridgePayload) => void) => () => void;
+      };
+      effects: {
+        on: (callback: (payload: SpriteEffectBridgePayload) => void) => () => void;
+        show: (payload: SpriteEffectPayload) => Promise<{ success: boolean; error?: string }>;
+        clear: (payload?: SpriteEffectClearPayload) => Promise<{ success: boolean; error?: string }>;
       };
       events: {
         on: (callback: (payload: AppEventPayload) => void) => () => void;

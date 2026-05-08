@@ -137,6 +137,11 @@ contextBridge.exposeInMainWorld('YUA', {
       return () => ipcRenderer.off(MESSAGE_IPC_CHANNELS.BRIDGE, subscription);
     }
   },
+  effects: {
+    on: spriteBridge.onEffect,
+    show: spriteBridge.effectShow,
+    clear: spriteBridge.effectClear
+  },
   events: {
     on: (callback: (payload: AppEventPayload) => void) => {
       const subscription = (_event: any, payload: AppEventPayload): void => callback(payload);

@@ -30,10 +30,13 @@ import type {
   SpriteAnimationPlaylistMode,
   SpriteAnimationTrigger,
   SpriteBubbleMode,
+  SpriteEffectBridgePayload,
+  SpriteEffectClearPayload,
+  SpriteEffectPayload,
   SpriteMovementPreviewConfig,
   SpriteTriggerOptions
 } from '../types';
-import { MESSAGE_IPC_CHANNELS } from '../types';
+import { MESSAGE_IPC_CHANNELS, SPRITE_EFFECT_IPC_CHANNELS } from '../types';
 import type { WindowControllerAvoidRegion } from '../window-controller-model';
 
 function onMessageBridge(cb: (payload: MessageBridgePayload) => void): () => void {
@@ -41,6 +44,14 @@ function onMessageBridge(cb: (payload: MessageBridgePayload) => void): () => voi
   ipcRenderer.on(MESSAGE_IPC_CHANNELS.BRIDGE, handler);
   return () => {
     ipcRenderer.off(MESSAGE_IPC_CHANNELS.BRIDGE, handler);
+  };
+}
+
+function onEffectBridge(cb: (payload: SpriteEffectBridgePayload) => void): () => void {
+  const handler = (_: any, payload: SpriteEffectBridgePayload): void => cb(payload);
+  ipcRenderer.on(SPRITE_EFFECT_IPC_CHANNELS.BRIDGE, handler);
+  return () => {
+    ipcRenderer.off(SPRITE_EFFECT_IPC_CHANNELS.BRIDGE, handler);
   };
 }
 
@@ -98,6 +109,12 @@ export type SpriteBridgeType = {
   // 气泡跟随窗口控制
   bubbleResize(width: number, height: number): Promise<{ success: boolean; error?: string }>;
   bubbleSetVisible(visible: boolean): Promise<{ success: boolean; error?: string }>;
+
+  // 特效跟随窗口与桥接事件
+  effectResize(width: number, height: number): Promise<{ success: boolean; error?: string }>;
+  effectSetVisible(visible: boolean): Promise<{ success: boolean; error?: string }>;
+  effectShow(payload: SpriteEffectPayload): Promise<{ success: boolean; error?: string }>;
+  effectClear(payload?: SpriteEffectClearPayload): Promise<{ success: boolean; error?: string }>;
   getSpontaneousUtterancePreferences(): Promise<SpriteSpontaneousUtterancePreferences | null>;
   updateSpontaneousUtterancePreferences(patch: Partial<SpriteSpontaneousUtterancePreferences>): Promise<SpriteSpontaneousUtterancePreferences | null>;
   listSpontaneousUtteranceHistory(query?: SpriteSpontaneousUtteranceHistoryQuery): Promise<SpriteSpontaneousUtteranceHistoryItem[]>;
@@ -139,6 +156,7 @@ export type SpriteBridgeType = {
   onPlay(cb: (data: any) => void): () => void;
   onState(cb: (data: any) => void): () => void;
   onMessage(cb: (data: any) => void): () => void;
+  onEffect(cb: (data: SpriteEffectBridgePayload) => void): () => void;
   onWalk(cb: (data: any) => void): () => void;
   onConfig(cb: (data: any) => void): () => void;
   onPurposeState(cb: (data: SpritePurposeSnapshot) => void): () => void;
@@ -195,6 +213,12 @@ export const spriteBridge: SpriteBridgeType = {
   // 气泡跟随窗口控制
   bubbleResize: (width, height) => ipcRenderer.invoke('sprite:bubble:resize', { width, height }),
   bubbleSetVisible: (visible) => ipcRenderer.invoke('sprite:bubble:setVisible', { visible }),
+
+  // 特效跟随窗口与桥接事件
+  effectResize: (width, height) => ipcRenderer.invoke('sprite:effect:resize', { width, height }),
+  effectSetVisible: (visible) => ipcRenderer.invoke('sprite:effect:setVisible', { visible }),
+  effectShow: (payload) => ipcRenderer.invoke(SPRITE_EFFECT_IPC_CHANNELS.SHOW, payload),
+  effectClear: (payload) => ipcRenderer.invoke(SPRITE_EFFECT_IPC_CHANNELS.CLEAR, payload ?? { type: 'all' }),
   getSpontaneousUtterancePreferences: () => ipcRenderer.invoke('sprite:spontaneous:getPreferences'),
   updateSpontaneousUtterancePreferences: (patch) => ipcRenderer.invoke('sprite:spontaneous:updatePreferences', patch),
   listSpontaneousUtteranceHistory: (query) => ipcRenderer.invoke('sprite:spontaneous:listHistory', query),
@@ -249,6 +273,7 @@ export const spriteBridge: SpriteBridgeType = {
       if (event.source !== 'sprite' || event.kind !== 'show') return;
       cb(event.payload as MessageIPCPayload);
     }),
+  onEffect: (cb) => onEffectBridge(cb),
   onWalk: (cb) => {
     const handler = (_: any, data: any): void => cb(data);
     ipcRenderer.on('sprite:walk', handler);
