@@ -169,8 +169,9 @@ export class SpriteManager {
   private bubbleModeConfig: BubbleModeConfig;
   private movementSuspensionReasons = new Set<string>();
 
-  // 额外消息接收方（如 spriteBubble 跟随窗口）
+  // 额外消息/配置接收方（如 spriteBubble / spriteEffect 跟随窗口）
   private getMessageRecipients?: () => Array<SpriteWindow | null | undefined>;
+  private getConfigRecipients?: () => Array<SpriteWindow | null | undefined>;
 
   // 语音合成服务
   private speakService: SpeakService;
@@ -330,6 +331,7 @@ export class SpriteManager {
 
     // 额外消息接收方
     this.getMessageRecipients = options.getMessageRecipients;
+    this.getConfigRecipients = options.getConfigRecipients;
 
     // 语音合成服务
     this.speakService = new SpeakService(options.dataDir);
@@ -2192,7 +2194,7 @@ export class SpriteManager {
       return;
     }
 
-    const recipients = this.getMessageRecipients?.();
+    const recipients = channel === 'sprite:config' ? (this.getConfigRecipients?.() ?? this.getMessageRecipients?.()) : this.getMessageRecipients?.();
     if (!recipients || recipients.length === 0) return;
 
     for (const recipient of recipients) {

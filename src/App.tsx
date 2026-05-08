@@ -5,6 +5,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { DownloadFloating } from '@/features/download';
 import { AIAssistant, LevelUpPage, StatusPage } from '@/features/sprite-assistant';
 import { SpriteBubblePage } from '@/features/sprite-bubble';
+import { SpriteEffectPage } from '@/features/sprite-effect';
 import { useAIProviderConfig } from '@/hooks/useAIProviderConfig';
 import { useWorkspaceCheck } from '@/hooks/useWorkspaceCheck';
 import { ChatSelectionProvider } from '@/pages/ChatPage/context/ChatSelectionContext';
@@ -97,6 +98,7 @@ function App(): JSX.Element {
                 <Route path="/memory-graph" element={<MemoryGraphPage />} />
                 <Route path="/character-pack-editor" element={<SpritePackEditorWindow />} />
                 <Route path="/sprite-bubble" element={<SpriteBubblePage />} />
+                <Route path="/sprite-effect" element={<SpriteEffectPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
               <Toaster />

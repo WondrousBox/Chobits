@@ -69,8 +69,17 @@ import { SpriteManager } from '../manager';
 import { getPersonaRuleDimensionSchema } from '../persona-rules';
 import type { SpritePurposeHistoryQuery, SpritePurposeRetrospectiveQuery, SpritePurposeRuntimeEventInput, StartSpritePurposeRequest } from '../purpose';
 import type { SpeakRequest, SpriteSpeakConfig } from '../speak/types';
-import { MESSAGE_IPC_CHANNELS } from '../types';
-import type { SpriteAnimationPlaylistMode, SpriteAnimationTrigger, SpriteBubbleMode, SpriteMovementPreviewConfig, SpriteTriggerRequest } from '../types';
+import { isBubbleWindowMode, MESSAGE_IPC_CHANNELS, SPRITE_EFFECT_IPC_CHANNELS } from '../types';
+import type {
+  SpriteAnimationPlaylistMode,
+  SpriteAnimationTrigger,
+  SpriteBubbleMode,
+  SpriteEffectBridgePayload,
+  SpriteEffectClearPayload,
+  SpriteEffectPayload,
+  SpriteMovementPreviewConfig,
+  SpriteTriggerRequest
+} from '../types';
 import { WindowController } from '../window-controller';
 import type { WindowControllerAvoidRegion } from '../window-controller-model';
 import { notifySpriteCapabilityChanged } from './capability-events';
@@ -94,11 +103,13 @@ type SpritePersonaRewardGrantRequest = Partial<Pick<PersonaRewardGrant, 'xp' | '
 
 type SpriteBubbleWindowManager = {
   get: (key: string) => BrowserWindow | null;
+  create: (key: string) => Promise<BrowserWindow | null>;
   hide: (key: string) => Promise<BrowserWindow | null>;
 };
 
 const SPRITE_BUBBLE_WINDOW_KEYS = ['spriteBubble', 'spriteBubbleFixedTop'] as const;
 type SpriteBubbleWindowKey = (typeof SPRITE_BUBBLE_WINDOW_KEYS)[number];
+const SPRITE_EFFECT_WINDOW_KEY = 'spriteEffect';
 
 function getSpriteBubbleWindowKeyForMode(mode: SpriteBubbleMode): SpriteBubbleWindowKey | null {
   if (mode === 'external') return 'spriteBubble';
@@ -110,6 +121,19 @@ function clearSpriteBubbleWindow(window: BrowserWindow | null): void {
   if (!window || window.isDestroyed()) return;
   try {
     window.webContents.send(MESSAGE_IPC_CHANNELS.BRIDGE, { kind: 'clear', payload: { type: 'all' } });
+  } catch {
+    /* ignore */
+  }
+}
+
+function clearSpriteEffectWindow(window: BrowserWindow | null): void {
+  if (!window || window.isDestroyed()) return;
+  try {
+    window.webContents.send(SPRITE_EFFECT_IPC_CHANNELS.BRIDGE, {
+      kind: 'clear',
+      payload: { type: 'all' },
+      source: 'app'
+    });
   } catch {
     /* ignore */
   }
@@ -127,6 +151,14 @@ function syncSpriteBubbleWindows(windowManager: SpriteBubbleWindowManager | null
     if (clearAll || !activeKey || key !== activeKey) {
       void windowManager.hide(key).catch(() => undefined);
     }
+  }
+
+  const effectWindow = windowManager.get(SPRITE_EFFECT_WINDOW_KEY);
+  if (clearAll) {
+    clearSpriteEffectWindow(effectWindow);
+  }
+  if (clearAll || !isBubbleWindowMode(activeMode)) {
+    void windowManager.hide(SPRITE_EFFECT_WINDOW_KEY).catch(() => undefined);
   }
 }
 
@@ -187,13 +219,30 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     purposeWindowAdapter: deps.purposeWindowAdapter,
     purposeRoutinePlanner: deps.purposeRoutinePlanner,
     behaviorScheduler: getMainSchedulerService(),
-    // 额外接收消息桥/配置广播的窗口：当前气泡窗口模式对应的独立窗口。
+    // 额外接收消息桥的窗口：当前气泡窗口模式对应的独立窗口。
     getMessageRecipients: () => {
       const mode = spriteManagerRef?.getBubbleMode() ?? 'inline';
       const key = getSpriteBubbleWindowKeyForMode(mode);
       if (!key) return [];
       const bubble = spriteBubbleWindowManager?.get(key) ?? null;
       return bubble && !bubble.isDestroyed() ? [bubble as any] : [];
+    },
+    getConfigRecipients: () => {
+      const recipients: BrowserWindow[] = [];
+      const mode = spriteManagerRef?.getBubbleMode() ?? 'inline';
+      const bubbleKey = getSpriteBubbleWindowKeyForMode(mode);
+      if (bubbleKey) {
+        const bubble = spriteBubbleWindowManager?.get(bubbleKey) ?? null;
+        if (bubble && !bubble.isDestroyed()) {
+          recipients.push(bubble);
+        }
+      }
+
+      const effectWindow = spriteBubbleWindowManager?.get(SPRITE_EFFECT_WINDOW_KEY) ?? null;
+      if (effectWindow && !effectWindow.isDestroyed()) {
+        recipients.push(effectWindow);
+      }
+      return recipients as any[];
     }
   });
   spriteManagerRef = mgr;
@@ -509,6 +558,55 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   // 获取初始状态
   ipcMain.handle('sprite:get-initial-state', () => {
     return mgr.getInitialState();
+  });
+
+  async function getSpriteEffectTargetWindow(): Promise<BrowserWindow | null> {
+    const useWindowMode = isBubbleWindowMode(mgr.getBubbleMode());
+    if (useWindowMode) {
+      const effectWindow = spriteBubbleWindowManager?.get(SPRITE_EFFECT_WINDOW_KEY) ?? null;
+      if (effectWindow && !effectWindow.isDestroyed()) return effectWindow;
+      const created = (await spriteBubbleWindowManager?.create(SPRITE_EFFECT_WINDOW_KEY)) ?? null;
+      return created && !created.isDestroyed() ? created : null;
+    }
+    return win && !win.isDestroyed() ? win : null;
+  }
+
+  async function sendSpriteEffectBridge(payload: SpriteEffectBridgePayload): Promise<{ success: boolean; error?: string }> {
+    try {
+      const target = await getSpriteEffectTargetWindow();
+      if (!target || target.isDestroyed()) {
+        return { success: false, error: 'sprite effect target window not available' };
+      }
+      target.webContents.send(SPRITE_EFFECT_IPC_CHANNELS.BRIDGE, payload);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  }
+
+  ipcMain.removeHandler(SPRITE_EFFECT_IPC_CHANNELS.SHOW);
+  ipcMain.handle(SPRITE_EFFECT_IPC_CHANNELS.SHOW, (_e, payload: SpriteEffectPayload) => {
+    if (!payload || typeof payload.type !== 'string' || !payload.type.trim()) {
+      return { success: false, error: 'effect type is required' };
+    }
+
+    return sendSpriteEffectBridge({
+      kind: 'show',
+      payload: {
+        ...payload,
+        type: payload.type.trim()
+      },
+      source: 'sprite'
+    });
+  });
+
+  ipcMain.removeHandler(SPRITE_EFFECT_IPC_CHANNELS.CLEAR);
+  ipcMain.handle(SPRITE_EFFECT_IPC_CHANNELS.CLEAR, (_e, payload?: SpriteEffectClearPayload) => {
+    return sendSpriteEffectBridge({
+      kind: 'clear',
+      payload: payload ?? { type: 'all' },
+      source: 'sprite'
+    });
   });
 
   // ===== 人格化 API =====

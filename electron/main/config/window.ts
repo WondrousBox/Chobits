@@ -28,6 +28,7 @@ declare module '@aim-packages/window-manager' {
     characterPackEditor: void;
     spriteBubble: void;
     spriteBubbleFixedTop: void;
+    spriteEffect: void;
   }
 }
 
@@ -680,6 +681,38 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     options: {
       width: 260,
       height: 80,
+      frame: false,
+      transparent: true,
+      resizable: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      focusable: false,
+      hasShadow: false,
+      show: false,
+      backgroundColor: '#00000000',
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
+    },
+    platformOverlays: {
+      darwin: { options: { hasShadow: false } }
+    }
+  },
+  spriteEffect: {
+    routeHash: 'sprite-effect',
+    followMain: true,
+    followerPreferMode: 'overlap-center',
+    enableOverlapTransparency: true,
+    forceCenterAlignment: true,
+    preferShowInactive: true,
+    suspendHoverMonitorOnShow: false,
+    parent: 'main',
+    hideOnClose: true,
+    showOnReady: false,
+    openDevTools: false,
+    options: {
+      width: 420,
+      height: 260,
+      minWidth: 360,
+      minHeight: 220,
       frame: false,
       transparent: true,
       resizable: true,

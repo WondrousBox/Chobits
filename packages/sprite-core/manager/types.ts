@@ -96,11 +96,13 @@ export interface SpriteManagerOptions {
   purposeRoutinePlanner?: SpritePurposeRoutinePlanner;
   /** Shared main-process scheduler for autonomous sprite behaviors. */
   behaviorScheduler?: SpriteBehaviorScheduler;
-  /**
-   * 额外接收 `app:message:bridge` / `sprite:config` 广播的窗口。
-   * 主要用于独立气泡窗口同步气泡消息与配置。
-   */
+  /** 额外接收 `app:message:bridge` 广播的窗口，主要用于独立气泡窗口同步气泡消息。 */
   getMessageRecipients?: () => Array<SpriteWindow | null | undefined>;
+  /**
+   * 额外接收 `sprite:config` 广播的窗口。
+   * 主要用于独立气泡、特效等跟随窗口同步配置开关。
+   */
+  getConfigRecipients?: () => Array<SpriteWindow | null | undefined>;
 }
 
 export interface SpriteSpontaneousUtteranceRequest {
