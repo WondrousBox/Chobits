@@ -60,6 +60,7 @@ export const ollamaDefinition: BuiltinProviderDefinition = {
     embeddings: true,
     imageGeneration: false,
     modelListing: true,
+    musicGeneration: false,
     transcribe: false
   },
   defaults: {

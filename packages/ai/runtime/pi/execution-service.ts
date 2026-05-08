@@ -13,12 +13,15 @@ import type {
   EmbeddingResponse,
   ImageGenerationRequest,
   ImageGenerationResponse,
+  MusicGenerationRequest,
+  MusicGenerationResponse,
   TokenUsage,
   TranscriptionRequest,
   TranscriptionResponse
 } from '../../types';
 import type { PiRuntimeAvailability } from './contracts';
 import { PiImageGenerationService } from './image-generation-service';
+import { PiMusicGenerationService } from './music-generation-service';
 import { resolvePiModelConfig } from './model-resolver';
 import { PiSessionService } from './session-service';
 
@@ -72,7 +75,7 @@ function toAnalyticsUsage(usage?: TokenUsage): RecordAiUsageEventInput['usage'] 
   };
 }
 
-async function recordExecutionUsageEventSafely(context: 'embed' | 'transcribe' | 'generateImage', input: RecordAiUsageEventInput): Promise<void> {
+async function recordExecutionUsageEventSafely(context: 'embed' | 'transcribe' | 'generateImage' | 'generateMusic', input: RecordAiUsageEventInput): Promise<void> {
   await emitAiUsageObservedEvent(input, { producer: `PiExecutionService:${context}` });
 }
 
@@ -195,6 +198,7 @@ function extractProviderUsageMetadata(rawUsage: unknown): Record<string, unknown
 export class PiExecutionService {
   private readonly sessionService = new PiSessionService();
   private readonly imageGenerationService = new PiImageGenerationService();
+  private readonly musicGenerationService = new PiMusicGenerationService();
 
   getAvailability(req?: Pick<ChatRequest, 'extras'>): PiRuntimeAvailability {
     return this.sessionService.getAvailability(req);
@@ -506,6 +510,107 @@ export class PiExecutionService {
           quality: payload.quality || null,
           size: payload.size || null,
           imageCount: 1,
+          ...(usageOverride?.metadata || {})
+        }
+      });
+      throw error;
+    }
+  }
+
+  async generateMusic(payload: MusicGenerationRequest): Promise<MusicGenerationResponse> {
+    const providerPresetId = resolveProviderPresetId(payload);
+    const resolved = await this.resolveProviderCapability(payload.providerId, providerPresetId);
+
+    if (!supportsProviderCapability(resolved.provider.id, 'musicGeneration', resolved.provider) || !resolved.provider.generateMusic) {
+      throw new Error(`Provider ${resolved.provider.id} does not support music generation`);
+    }
+
+    const requestId = resolveExecutionRequestId(payload);
+    const usageOverride = resolveExecutionUsageOverride(payload);
+    const startedAt = Date.now();
+    const request = normalizeProviderPreset({
+      ...payload,
+      extras: {
+        ...(payload.extras || {}),
+        secrets: resolved.model.secrets
+      },
+      providerId: resolved.provider.id,
+      providerPresetId: resolved.model.presetId || providerPresetId
+    });
+
+    try {
+      const response = await resolved.provider.generateMusic(request);
+      const requestExtras = request.extras as Record<string, any> | undefined;
+      const materializedResponse = await this.musicGenerationService.materializeMusicResponse(response, {
+        outputDir: typeof requestExtras?.outputDir === 'string' ? requestExtras.outputDir : undefined,
+        request,
+        requestId
+      });
+      const providerUsageMetadata = extractProviderUsageMetadata(materializedResponse.rawUsage);
+      const firstArtifact = materializedResponse.artifacts[0];
+
+      await recordExecutionUsageEventSafely('generateMusic', {
+        traceId: requestId,
+        requestId,
+        operationKey: usageOverride?.operationKey || 'generate',
+        sourceType: usageOverride?.sourceType || 'music_generation',
+        sourceId: usageOverride?.sourceId || requestId,
+        sourceLabel: usageOverride?.sourceLabel || '音乐生成',
+        usageCategory: usageOverride?.usageCategory || 'media',
+        usageFeature: usageOverride?.usageFeature || 'music_generation',
+        usageStage: usageOverride?.usageStage || 'generate',
+        providerId: materializedResponse.providerId || resolved.provider.id,
+        providerPresetId: resolved.model.presetId || providerPresetId,
+        model: materializedResponse.model || payload.model || getProviderDefinitionDefaultModel(resolved.provider.id, 'musicGeneration', resolved.provider.id) || 'unknown',
+        agentId: 'pi-execution',
+        status: 'completed',
+        usage: toAnalyticsUsage(materializedResponse.usage),
+        rawUsage: materializedResponse.rawUsage,
+        meteringSource: 'provider_reported',
+        startedAt,
+        completedAt: Date.now(),
+        metadata: {
+          artifactCount: materializedResponse.artifacts.length,
+          audioBase64: materializedResponse.audioBase64 ? true : null,
+          audioUrl: materializedResponse.audioUrl || null,
+          durationMs: firstArtifact?.durationMs ?? null,
+          filePath: firstArtifact?.filePath || null,
+          lyricsChars: payload.lyrics?.length ?? null,
+          mode: payload.mode || null,
+          outputFormat: payload.outputFormat || null,
+          promptChars: payload.prompt.length,
+          sizeBytes: firstArtifact?.sizeBytes ?? null,
+          ...(providerUsageMetadata || {}),
+          ...(usageOverride?.metadata || {})
+        }
+      });
+
+      return materializedResponse;
+    } catch (error) {
+      await recordExecutionUsageEventSafely('generateMusic', {
+        traceId: requestId,
+        requestId,
+        operationKey: usageOverride?.operationKey || 'generate',
+        sourceType: usageOverride?.sourceType || 'music_generation',
+        sourceId: usageOverride?.sourceId || requestId,
+        sourceLabel: usageOverride?.sourceLabel || '音乐生成',
+        usageCategory: usageOverride?.usageCategory || 'media',
+        usageFeature: usageOverride?.usageFeature || 'music_generation',
+        usageStage: usageOverride?.usageStage || 'generate',
+        providerId: resolved.provider.id,
+        providerPresetId: resolved.model.presetId || providerPresetId,
+        model: payload.model || getProviderDefinitionDefaultModel(resolved.provider.id, 'musicGeneration', resolved.provider.id) || 'unknown',
+        agentId: 'pi-execution',
+        status: 'failed',
+        meteringSource: 'provider_reported',
+        startedAt,
+        completedAt: Date.now(),
+        metadata: {
+          errorMessage: error instanceof Error ? error.message : String(error),
+          promptChars: payload.prompt.length,
+          lyricsChars: payload.lyrics?.length ?? null,
+          mode: payload.mode || null,
+          outputFormat: payload.outputFormat || null,
           ...(usageOverride?.metadata || {})
         }
       });

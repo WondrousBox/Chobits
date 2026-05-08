@@ -53,6 +53,7 @@ export const qwenDefinition: BuiltinProviderDefinition = {
     embeddings: true,
     imageGeneration: false,
     modelListing: true,
+    musicGeneration: false,
     transcribe: false
   },
   defaults: {

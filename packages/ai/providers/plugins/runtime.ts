@@ -25,6 +25,7 @@ const OPENAI_DRIVER_CAPABILITIES: ProviderCapabilities = {
   embeddings: true,
   imageGeneration: true,
   modelListing: true,
+  musicGeneration: false,
   transcribe: true
 };
 
@@ -33,6 +34,7 @@ const ANTHROPIC_DRIVER_CAPABILITIES: ProviderCapabilities = {
   embeddings: false,
   imageGeneration: false,
   modelListing: true,
+  musicGeneration: false,
   transcribe: false
 };
 
@@ -41,6 +43,7 @@ const GEMINI_DRIVER_CAPABILITIES: ProviderCapabilities = {
   embeddings: false,
   imageGeneration: false,
   modelListing: true,
+  musicGeneration: false,
   transcribe: false
 };
 
@@ -49,6 +52,7 @@ const OLLAMA_DRIVER_CAPABILITIES: ProviderCapabilities = {
   embeddings: true,
   imageGeneration: false,
   modelListing: true,
+  musicGeneration: false,
   transcribe: false
 };
 
@@ -90,6 +94,7 @@ function cloneCapabilities(capabilities: ProviderCapabilities): ProviderCapabili
     embeddings: Boolean(capabilities.embeddings),
     imageGeneration: Boolean(capabilities.imageGeneration),
     modelListing: Boolean(capabilities.modelListing),
+    musicGeneration: Boolean(capabilities.musicGeneration),
     transcribe: Boolean(capabilities.transcribe)
   };
 }
@@ -99,6 +104,7 @@ function cloneDefaultModels(defaults?: ProviderDefaultModels): ProviderDefaultMo
     chat: defaults?.chat,
     embeddings: defaults?.embeddings,
     imageGeneration: defaults?.imageGeneration,
+    musicGeneration: defaults?.musicGeneration,
     transcribe: defaults?.transcribe
   };
 }
@@ -109,12 +115,13 @@ function intersectCapabilities(left: ProviderCapabilities, right: ProviderCapabi
     embeddings: Boolean(left.embeddings && right.embeddings),
     imageGeneration: Boolean(left.imageGeneration && right.imageGeneration),
     modelListing: Boolean(left.modelListing && right.modelListing),
+    musicGeneration: Boolean(left.musicGeneration && right.musicGeneration),
     transcribe: Boolean(left.transcribe && right.transcribe)
   };
 }
 
 function listUnsupportedCapabilities(declared: ProviderCapabilities, supported: ProviderCapabilities): ProviderCapabilityKey[] {
-  const keys: ProviderCapabilityKey[] = ['chat', 'embeddings', 'imageGeneration', 'modelListing', 'transcribe'];
+  const keys: ProviderCapabilityKey[] = ['chat', 'embeddings', 'imageGeneration', 'modelListing', 'musicGeneration', 'transcribe'];
   return keys.filter((key) => declared[key] && !supported[key]);
 }
 

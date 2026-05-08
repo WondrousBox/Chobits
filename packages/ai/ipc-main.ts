@@ -56,7 +56,7 @@ import {
   updateApiKey
 } from './settings-store';
 import { listToolInfos } from './tools';
-import type { ImageGenerationRequest, ProviderPresetCreatePayload, ProviderPresetUpdatePatch, PushedCard, TranscriptionRequest } from './types';
+import type { ImageGenerationRequest, MusicGenerationRequest, ProviderPresetCreatePayload, ProviderPresetUpdatePatch, PushedCard, TranscriptionRequest } from './types';
 import { registerUserChoiceIpc } from './user-choice-registry';
 
 async function hasUsablePreset(providerId: string): Promise<boolean> {
@@ -202,7 +202,7 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
       return [];
     }
 
-    const workspaceRoot = typeof payload.workspaceRoot === 'string' && payload.workspaceRoot.trim() ? payload.workspaceRoot.trim() : process.cwd();
+    const workspaceRoot = typeof payload?.workspaceRoot === 'string' && payload.workspaceRoot.trim() ? payload.workspaceRoot.trim() : process.cwd();
     const registry = await createSkillRegistry({
       discoverPluginRoots: true,
       includeBundled: false,
@@ -236,6 +236,10 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
 
   ipcMain.handle('ai:generateImage', async (_e, payload: ImageGenerationRequest) => {
     return piExecutionService.generateImage(normalizeProviderPreset(payload));
+  });
+
+  ipcMain.handle('ai:generateMusic', async (_e, payload: MusicGenerationRequest) => {
+    return piExecutionService.generateMusic(normalizeProviderPreset(payload));
   });
 
   ipcMain.handle('ai:listModels', async (_e, payload: { providerId: string; presetId?: string }) => {

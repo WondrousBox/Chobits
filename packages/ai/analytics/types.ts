@@ -11,6 +11,7 @@ export const AI_USAGE_SOURCE_TYPES = [
   'embedding',
   'transcription',
   'image_generation',
+  'music_generation',
   'workflow',
   'system',
   'other'
@@ -31,6 +32,7 @@ export const AI_USAGE_FEATURES = [
   'embedding',
   'transcription',
   'image_generation',
+  'music_generation',
   'workflow_ai',
   'other'
 ] as const;
@@ -71,6 +73,7 @@ export const AI_USAGE_FEATURE_ALLOWED_STAGES: Record<AiUsageFeature, readonly Ai
   embedding: ['vectorize'],
   transcription: ['transcribe'],
   image_generation: ['generate'],
+  music_generation: ['generate'],
   workflow_ai: ['analyze', 'generate', 'classify', 'extract', 'merge', 'postprocess'],
   other: ALL_USAGE_STAGES
 };
