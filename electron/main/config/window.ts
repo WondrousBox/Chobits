@@ -26,6 +26,8 @@ declare module '@aim-packages/window-manager' {
     webRecorder: void;
     memoryGraph: void;
     characterPackEditor: void;
+    spriteBubble: void;
+    spriteBubbleFixedTop: void;
   }
 }
 
@@ -635,6 +637,62 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
           frame: true
         }
       }
+    }
+  },
+  spriteBubble: {
+    routeHash: 'sprite-bubble',
+    followMain: true,
+    followerPreferMode: 'prefer-top',
+    preferShowInactive: true,
+    suspendHoverMonitorOnShow: false,
+    parent: 'main',
+    hideOnClose: true,
+    showOnReady: false,
+    openDevTools: false,
+    options: {
+      width: 260,
+      height: 80,
+      frame: false,
+      transparent: true,
+      resizable: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      focusable: false,
+      hasShadow: false,
+      show: false,
+      backgroundColor: '#00000000',
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
+    },
+    platformOverlays: {
+      darwin: { options: { hasShadow: false } }
+    }
+  },
+  spriteBubbleFixedTop: {
+    routeHash: 'sprite-bubble',
+    followMain: true,
+    followerPreferMode: 'fixed-top' as any,
+    preferShowInactive: true,
+    suspendHoverMonitorOnShow: false,
+    parent: 'main',
+    hideOnClose: true,
+    showOnReady: false,
+    openDevTools: false,
+    options: {
+      width: 260,
+      height: 80,
+      frame: false,
+      transparent: true,
+      resizable: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      focusable: false,
+      hasShadow: false,
+      show: false,
+      backgroundColor: '#00000000',
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
+    },
+    platformOverlays: {
+      darwin: { options: { hasShadow: false } }
     }
   }
 };

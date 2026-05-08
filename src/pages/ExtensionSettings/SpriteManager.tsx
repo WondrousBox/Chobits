@@ -16,6 +16,7 @@ import {
 import { ensureSpriteCapabilityAccessible, SpriteCapabilityLockedNotice } from '@/features/sprite-assistant/capability-ui';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
+import BubbleModeSettings from './BubbleModeSettings';
 import SpriteAnimationMetaPopover from './components/SpriteAnimationMetaPopover';
 import SpriteTriggerPicker from './components/SpriteTriggerPicker';
 import SpritePackManager from './SpritePackManager';
@@ -138,12 +139,12 @@ export function SpriteAnimationManager({
     window.YUA.sprite
       .getDebugOverlay()
       .then(setDebugOverlay)
-      .catch(() => {});
+      .catch(() => { });
 
     window.YUA.sprite
       .getAnimationPlaylistMode()
       .then(setDefaultAnimationPlaylistMode)
-      .catch(() => {});
+      .catch(() => { });
 
     window.YUA.sprite
       .getInitialState()
@@ -154,7 +155,7 @@ export function SpriteAnimationManager({
         }
         setAnimationPlaylistModes(normalizeSpriteAnimationPlaylistModeMap(config?.animationPlaylistModes));
       })
-      .catch(() => {});
+      .catch(() => { });
 
     return window.YUA.sprite.onConfig((config) => {
       if (config.animationPlaylistMode) {
@@ -350,6 +351,7 @@ export function SpriteAnimationManager({
           <Button size="sm" variant="outline" onClick={refresh} disabled={loading}>
             刷新
           </Button>
+          <BubbleModeSettings />
           <Button size="sm" variant={debugOverlay ? 'default' : 'outline'} onClick={toggleDebugOverlay} title="调试辅助线">
             <TbBug />
           </Button>

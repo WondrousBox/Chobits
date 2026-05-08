@@ -4,6 +4,7 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
 import { DownloadFloating } from '@/features/download';
 import { AIAssistant, LevelUpPage, StatusPage } from '@/features/sprite-assistant';
+import { SpriteBubblePage } from '@/features/sprite-bubble';
 import { useAIProviderConfig } from '@/hooks/useAIProviderConfig';
 import { useWorkspaceCheck } from '@/hooks/useWorkspaceCheck';
 import { ChatSelectionProvider } from '@/pages/ChatPage/context/ChatSelectionContext';
@@ -95,6 +96,7 @@ function App(): JSX.Element {
                 <Route path="/web-recorder" element={<WebRecorderWindow />} />
                 <Route path="/memory-graph" element={<MemoryGraphPage />} />
                 <Route path="/character-pack-editor" element={<SpritePackEditorWindow />} />
+                <Route path="/sprite-bubble" element={<SpriteBubblePage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
               <Toaster />

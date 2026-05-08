@@ -84,7 +84,8 @@ describe('sprite config authority', () => {
       padding: 40,
       animationPlaylistMode: 'list-loop',
       autoWalkEnabled: false,
-      showDebugOverlay: true
+      showDebugOverlay: true,
+      bubbleMode: 'fixed-top'
     });
     expect(first.sent).toContainEqual({
       channel: 'sprite:config',
@@ -94,7 +95,8 @@ describe('sprite config authority', () => {
         padding: 40,
         animationPlaylistMode: 'list-loop',
         autoWalkEnabled: false,
-        showDebugOverlay: true
+        showDebugOverlay: true,
+        bubbleMode: 'fixed-top'
       }
     });
 
@@ -113,10 +115,28 @@ describe('sprite config authority', () => {
       padding: 100,
       animationPlaylistMode: 'list-loop',
       autoWalkEnabled: false,
-      showDebugOverlay: false
+      showDebugOverlay: false,
+      bubbleMode: 'fixed-top'
     });
 
     await second.mgr.destroy();
+    rmSync(dataDir, { recursive: true, force: true });
+  });
+
+  it('uses fixed-top by default and persists it after a mode change', async () => {
+    const dataDir = mkdtempSync(path.join(os.tmpdir(), 'sprite-bubble-mode-test-'));
+
+    const first = createManager(dataDir);
+    expect(first.mgr.getBubbleMode()).toBe('fixed-top');
+    expect(first.mgr.getEffectivePadding()).toBe(0);
+    expect(first.mgr.getSpriteConfig().bubbleMode).toBe('fixed-top');
+    expect(first.mgr.setBubbleMode('external')).toBe('external');
+    expect(first.mgr.setBubbleMode('fixed-top')).toBe('fixed-top');
+
+    const bubbleModeFile = JSON.parse(readFileSync(path.join(dataDir, 'data', 'sprite-bubble-mode.json'), 'utf8'));
+    expect(bubbleModeFile).toEqual({ mode: 'fixed-top' });
+
+    await first.mgr.destroy();
     rmSync(dataDir, { recursive: true, force: true });
   });
 });

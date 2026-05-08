@@ -9,6 +9,8 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 
+import type { SpriteBubbleMode } from '../types';
+import { DEFAULT_SPRITE_BUBBLE_MODE, normalizeSpriteBubbleMode } from '../types';
 import type { PersonaStatePersistenceRow } from './types';
 
 type LegacyPersonaStatePersistenceRow = Partial<Omit<PersonaStatePersistenceRow, 'version' | 'achievements' | 'dimensions'>> & {
@@ -258,6 +260,50 @@ export class AutoWalkConfig {
 
   set enabled(v: boolean) {
     this._enabled = v;
+    this.save();
+  }
+}
+
+// ============================================================================
+// 气泡展示模式持久化
+// ============================================================================
+
+export class BubbleModeConfig {
+  private filePath: string;
+  private _mode: SpriteBubbleMode = DEFAULT_SPRITE_BUBBLE_MODE;
+
+  constructor(dataDir: string) {
+    this.filePath = path.join(dataDir, 'data', 'sprite-bubble-mode.json');
+  }
+
+  load(): void {
+    try {
+      if (fs.existsSync(this.filePath)) {
+        const txt = fs.readFileSync(this.filePath, 'utf8');
+        const parsed = JSON.parse(txt);
+        this._mode = normalizeSpriteBubbleMode(parsed?.mode);
+      }
+    } catch {
+      this._mode = DEFAULT_SPRITE_BUBBLE_MODE;
+    }
+  }
+
+  save(): void {
+    try {
+      const dir = path.dirname(this.filePath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(this.filePath, JSON.stringify({ mode: this._mode }, null, 2), 'utf8');
+    } catch {
+      /* ignore */
+    }
+  }
+
+  get mode(): SpriteBubbleMode {
+    return this._mode;
+  }
+
+  set mode(v: SpriteBubbleMode) {
+    this._mode = normalizeSpriteBubbleMode(v);
     this.save();
   }
 }

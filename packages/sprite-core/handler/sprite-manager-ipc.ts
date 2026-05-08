@@ -69,7 +69,8 @@ import { SpriteManager } from '../manager';
 import { getPersonaRuleDimensionSchema } from '../persona-rules';
 import type { SpritePurposeHistoryQuery, SpritePurposeRetrospectiveQuery, SpritePurposeRuntimeEventInput, StartSpritePurposeRequest } from '../purpose';
 import type { SpeakRequest, SpriteSpeakConfig } from '../speak/types';
-import type { SpriteAnimationPlaylistMode, SpriteAnimationTrigger, SpriteMovementPreviewConfig, SpriteTriggerRequest } from '../types';
+import { MESSAGE_IPC_CHANNELS } from '../types';
+import type { SpriteAnimationPlaylistMode, SpriteAnimationTrigger, SpriteBubbleMode, SpriteMovementPreviewConfig, SpriteTriggerRequest } from '../types';
 import { WindowController } from '../window-controller';
 import type { WindowControllerAvoidRegion } from '../window-controller-model';
 import { notifySpriteCapabilityChanged } from './capability-events';
@@ -90,6 +91,53 @@ type SpritePersonaRewardGrantRequest = Partial<Pick<PersonaRewardGrant, 'xp' | '
   source?: string;
   achievementId?: string;
 };
+
+type SpriteBubbleWindowManager = {
+  get: (key: string) => BrowserWindow | null;
+  hide: (key: string) => Promise<BrowserWindow | null>;
+};
+
+const SPRITE_BUBBLE_WINDOW_KEYS = ['spriteBubble', 'spriteBubbleFixedTop'] as const;
+type SpriteBubbleWindowKey = (typeof SPRITE_BUBBLE_WINDOW_KEYS)[number];
+
+function getSpriteBubbleWindowKeyForMode(mode: SpriteBubbleMode): SpriteBubbleWindowKey | null {
+  if (mode === 'external') return 'spriteBubble';
+  if (mode === 'fixed-top') return 'spriteBubbleFixedTop';
+  return null;
+}
+
+function clearSpriteBubbleWindow(window: BrowserWindow | null): void {
+  if (!window || window.isDestroyed()) return;
+  try {
+    window.webContents.send(MESSAGE_IPC_CHANNELS.BRIDGE, { kind: 'clear', payload: { type: 'all' } });
+  } catch {
+    /* ignore */
+  }
+}
+
+function syncSpriteBubbleWindows(windowManager: SpriteBubbleWindowManager | null, activeMode: SpriteBubbleMode, clearAll: boolean): void {
+  if (!windowManager) return;
+  const activeKey = getSpriteBubbleWindowKeyForMode(activeMode);
+
+  for (const key of SPRITE_BUBBLE_WINDOW_KEYS) {
+    const window = windowManager.get(key);
+    if (clearAll) {
+      clearSpriteBubbleWindow(window);
+    }
+    if (clearAll || !activeKey || key !== activeKey) {
+      void windowManager.hide(key).catch(() => undefined);
+    }
+  }
+}
+
+async function resolveSpriteBubbleWindowManager(): Promise<SpriteBubbleWindowManager | null> {
+  try {
+    const mod = await import('@aim-packages/window-manager');
+    return mod.windowManager as unknown as SpriteBubbleWindowManager;
+  } catch {
+    return null;
+  }
+}
 
 export function buildDailyCarePurposeRequest(event: DailyCareRoutineDispatch): StartSpritePurposeRequest {
   const nightGuard = event.routine.kind === 'nightGuard';
@@ -126,6 +174,9 @@ function bindDailyCarePurposeBridge(mgr: SpriteManager): void {
 }
 
 export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManagerDeps): Promise<void> {
+  const spriteBubbleWindowManager = await resolveSpriteBubbleWindowManager();
+  let spriteManagerRef: SpriteManager | null = null;
+
   // 初始化 SpriteManager
   const mgr = SpriteManager.init({
     win: win as any,
@@ -135,15 +186,24 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     spontaneousUtteranceExecutor: deps.spontaneousUtteranceExecutor,
     purposeWindowAdapter: deps.purposeWindowAdapter,
     purposeRoutinePlanner: deps.purposeRoutinePlanner,
-    behaviorScheduler: getMainSchedulerService()
+    behaviorScheduler: getMainSchedulerService(),
+    // 额外接收消息桥/配置广播的窗口：当前气泡窗口模式对应的独立窗口。
+    getMessageRecipients: () => {
+      const mode = spriteManagerRef?.getBubbleMode() ?? 'inline';
+      const key = getSpriteBubbleWindowKeyForMode(mode);
+      if (!key) return [];
+      const bubble = spriteBubbleWindowManager?.get(key) ?? null;
+      return bubble && !bubble.isDestroyed() ? [bubble as any] : [];
+    }
   });
+  spriteManagerRef = mgr;
 
   // 初始化 WindowController 并注入
   const windowCtrl = new WindowController({
     getWindow: () => (win.isDestroyed() ? null : (win as any)),
     getScreenSize: () => screen.getPrimaryDisplay().workAreaSize,
     getCursorScreenPoint: () => screen.getCursorScreenPoint(),
-    getPadding: () => mgr.getSpriteConfig().padding,
+    getPadding: () => mgr.getEffectivePadding(),
     getSpriteSize: () => {
       const cfg = mgr.getSpriteConfig();
       return { width: cfg.width, height: cfg.height };
@@ -835,6 +895,18 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
 
   ipcMain.handle('sprite:config:setAnimationPlaylistMode', (_e, p: { mode: SpriteAnimationPlaylistMode; trigger?: SpriteAnimationTrigger }) => {
     return mgr.setAnimationPlaylistMode(p.mode, p.trigger);
+  });
+
+  ipcMain.handle('sprite:config:getBubbleMode', () => {
+    return mgr.getBubbleMode();
+  });
+
+  ipcMain.handle('sprite:config:setBubbleMode', (_e, p: { mode: SpriteBubbleMode }) => {
+    const prev = mgr.getBubbleMode();
+    const next = mgr.setBubbleMode(p?.mode ?? 'inline');
+    // 切换模式时清空并隐藏气泡窗口，避免旧承载窗口残留或之后恢复出过期消息。
+    syncSpriteBubbleWindows(spriteBubbleWindowManager, next, prev !== next);
+    return next;
   });
 
   ipcMain.handle('sprite:movement:setAvoidRegions', (_e, p: { regions?: WindowControllerAvoidRegion[] } | undefined) => {
