@@ -45,6 +45,7 @@ export const zhipuDefinition: BuiltinProviderDefinition = {
     embeddings: true,
     imageGeneration: true,
     modelListing: true,
+    musicGeneration: false,
     transcribe: true
   },
   defaults: {

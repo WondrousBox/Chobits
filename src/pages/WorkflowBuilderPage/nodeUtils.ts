@@ -1,5 +1,5 @@
 import React from 'react';
-import { TbEdit, TbFile, TbFileDownload, TbFilePencil, TbFilePlus, TbFolderOpen, TbLetterT, TbPhoto, TbPlayerPlay, TbRobot, TbScan, TbSquare } from 'react-icons/tb';
+import { TbEdit, TbFile, TbFileDownload, TbFilePencil, TbFilePlus, TbFolderOpen, TbLetterT, TbMusic, TbPhoto, TbPlayerPlay, TbRobot, TbScan, TbSquare } from 'react-icons/tb';
 import { VscJson } from 'react-icons/vsc';
 
 /**
@@ -15,6 +15,7 @@ import { VscJson } from 'react-icons/vsc';
 export const iconMap: Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = {
   TbEdit,
   TbFolderOpen,
+  TbMusic,
   TbPhoto,
   TbPlayerPlay,
   TbRobot,

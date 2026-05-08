@@ -19,6 +19,7 @@ type ProviderRow = {
     embeddings: boolean;
     imageGeneration: boolean;
     modelListing: boolean;
+    musicGeneration: boolean;
     transcribe: boolean;
   };
   kind?: string;
@@ -27,6 +28,7 @@ type ProviderRow = {
     chat?: string;
     embeddings?: string;
     imageGeneration?: string;
+    musicGeneration?: string;
     transcribe?: string;
   };
   schema?: {
@@ -89,6 +91,8 @@ const typeDisplay = (t?: string): string => {
       return '视觉';
     case 'image':
       return '图像';
+    case 'text2music':
+      return '音乐';
     case 'video':
       return '视频';
     case 'audio':
@@ -114,6 +118,8 @@ const typeColorClasses = (t?: string): string => {
       return 'bg-purple-100 text-purple-700 border-purple-200';
     case 'image':
       return 'bg-rose-100 text-rose-700 border-rose-200';
+    case 'text2music':
+      return 'bg-emerald-100 text-emerald-700 border-emerald-200';
     case 'video':
       return 'bg-amber-100 text-amber-700 border-amber-200';
     case 'audio':
@@ -168,6 +174,7 @@ const resolveDefaultModelFromTypes = (provider: ProviderRow | undefined, modelTy
     if (type === 'embedding' && defaults.embeddings) return defaults.embeddings;
     if (type === 'audio' && defaults.transcribe) return defaults.transcribe;
     if (type === 'image' && defaults.imageGeneration) return defaults.imageGeneration;
+    if (type === 'text2music' && defaults.musicGeneration) return defaults.musicGeneration;
     if ((type === 'chat' || type === 'vision' || type === 'realtime' || type === 'tool' || type === 'tooling' || type === 'video') && defaults.chat) {
       return defaults.chat;
     }

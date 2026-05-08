@@ -1,10 +1,10 @@
-import type { ChatProviderModelCard } from '../../model-types';
+import type { ProviderModelDefinition } from '../../model-types';
 
 // MiniMax Token Plan 套餐模型
 // ref: https://platform.minimaxi.com/docs/token-plan/intro
 // endpoint: https://api.minimaxi.com/v1
 
-const minimaxChatModels: ChatProviderModelCard[] = [
+const minimaxChatModels: ProviderModelDefinition[] = [
   {
     abilities: {
       functionCall: true,
@@ -49,6 +49,43 @@ const minimaxChatModels: ChatProviderModelCard[] = [
   }
 ];
 
-export const allModels = [...minimaxChatModels];
+const minimaxMusicModels: ProviderModelDefinition[] = [
+  {
+    description: 'MiniMax 音乐生成模型，支持根据提示词和歌词生成完整音乐。',
+    displayName: 'Music 2.6',
+    enabled: true,
+    id: 'music-2.6',
+    tags: ['music', 'text-to-music'],
+    type: 'text2music'
+  },
+  {
+    description: 'MiniMax 音乐生成免费模型，适合低成本验证音乐生成链路。',
+    displayName: 'Music 2.6 Free',
+    enabled: true,
+    free: true,
+    id: 'music-2.6-free',
+    tags: ['free', 'music', 'text-to-music'],
+    type: 'text2music'
+  },
+  {
+    description: 'MiniMax 翻唱/参考音频音乐模型，适合 cover 类生成。',
+    displayName: 'Music Cover',
+    enabled: true,
+    id: 'music-cover',
+    tags: ['cover', 'music'],
+    type: 'text2music'
+  },
+  {
+    description: 'MiniMax 翻唱/参考音频免费模型，适合验证 cover 类音乐生成。',
+    displayName: 'Music Cover Free',
+    enabled: true,
+    free: true,
+    id: 'music-cover-free',
+    tags: ['cover', 'free', 'music'],
+    type: 'text2music'
+  }
+];
+
+export const allModels = [...minimaxChatModels, ...minimaxMusicModels];
 
 export default allModels;

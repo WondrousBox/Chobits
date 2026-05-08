@@ -9,7 +9,19 @@ import { normalizeProviderPreset, resolveProviderPresetId } from '../../ai/provi
 import { getProviderCapabilities, listProviderDefinitions, listProviderRuntimeModels, listProviderSecretKeys } from '../../ai/providers/service';
 import { PiExecutionService } from '../../ai/runtime/pi/execution-service';
 import { getAllSecrets, getFirstApiKey } from '../../ai/settings-store';
-import type { ChatMessage, ChatRequest, ChatResponse, ImageGenerationRequest, ProviderAdapter, ProviderCapabilityKey, ProviderPresetFields, ProviderSecrets, TokenUsage } from '../../ai/types';
+import type {
+  ChatMessage,
+  ChatRequest,
+  ChatResponse,
+  ImageGenerationRequest,
+  MusicGenerationRequest,
+  MusicGenerationResponse,
+  ProviderAdapter,
+  ProviderCapabilityKey,
+  ProviderPresetFields,
+  ProviderSecrets,
+  TokenUsage
+} from '../../ai/types';
 import type { ExecutionContext, NodeConfig, PortSchema } from '../types';
 
 type ModelRecord = {
@@ -72,6 +84,11 @@ export interface ExecuteWorkflowChatRequestOptions extends ProviderPresetFields 
 }
 
 export interface ExecuteWorkflowImageGenerationRequestOptions extends ImageGenerationRequest {
+  emit?: WorkflowEmit;
+  workflowAiUsage?: WorkflowAiUsageContext;
+}
+
+export interface ExecuteWorkflowMusicGenerationRequestOptions extends MusicGenerationRequest {
   emit?: WorkflowEmit;
   workflowAiUsage?: WorkflowAiUsageContext;
 }
@@ -535,6 +552,37 @@ export async function executeWorkflowImageGenerationRequest(options: ExecuteWork
         providerPresetId: resolvedProviderPresetId,
         quality,
         size
+      })
+    );
+  } catch (error) {
+    if (isMissingWorkflowProviderConfigError(error)) {
+      await resolveWorkflowProviderContext({ emit, providerId, providerPresetId: resolvedProviderPresetId }).catch(() => undefined);
+    }
+
+    throw error;
+  }
+}
+
+export async function executeWorkflowMusicGenerationRequest(options: ExecuteWorkflowMusicGenerationRequestOptions): Promise<MusicGenerationResponse> {
+  const normalizedOptions = normalizeProviderPreset(options);
+  const { emit, model, prompt, providerId, workflowAiUsage } = normalizedOptions;
+  const resolvedProviderPresetId = resolveProviderPresetId(normalizedOptions);
+  const analyticsUsage = buildWorkflowAnalyticsUsage(workflowAiUsage);
+  const requestId = buildWorkflowRequestId(workflowAiUsage);
+
+  try {
+    return await getPiExecutionService().generateMusic(
+      normalizeProviderPreset({
+        ...normalizedOptions,
+        extras: {
+          ...(normalizedOptions.extras || {}),
+          ...(analyticsUsage ? { analyticsUsage } : {}),
+          ...(requestId ? { requestId } : {})
+        },
+        model,
+        prompt,
+        providerId,
+        providerPresetId: resolvedProviderPresetId
       })
     );
   } catch (error) {

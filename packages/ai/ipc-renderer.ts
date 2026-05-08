@@ -6,6 +6,7 @@ import type {
   ConversationRecord,
   EmbeddingRequest,
   ImageGenerationRequest,
+  MusicGenerationRequest,
   MindmapRequest,
   ProviderPresetCreatePayload,
   ProviderPresetUpdatePatch,
@@ -78,6 +79,9 @@ export const aiBridge = {
   },
   async generateImage(payload: ImageGenerationRequest) {
     return ipcRenderer.invoke('ai:generateImage', normalizeProviderPreset(payload));
+  },
+  async generateMusic(payload: MusicGenerationRequest) {
+    return ipcRenderer.invoke('ai:generateMusic', normalizeProviderPreset(payload));
   },
   async chat(payload: any) {
     return ipcRenderer.invoke('ai:chat', normalizeProviderPreset(payload));

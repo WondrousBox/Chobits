@@ -6,7 +6,7 @@ import type { BuiltinProviderDefinition, BuiltinProviderId, ProviderDefinition }
 import { isBuiltinProviderDefinition } from './types';
 
 let builtinDefinitionsRegistered = false;
-type ProviderCapabilitySource = Pick<ProviderAdapter, 'chat' | 'embed' | 'getCapabilities' | 'getDefaultModels' | 'listModels' | 'transcribe'> & { id?: string };
+type ProviderCapabilitySource = Pick<ProviderAdapter, 'chat' | 'embed' | 'generateMusic' | 'getCapabilities' | 'getDefaultModels' | 'listModels' | 'transcribe'> & { id?: string };
 
 export interface ProviderRuntimeModelInfo {
   id: string;
@@ -135,6 +135,7 @@ function resolveRuntimeModelCapabilities(providerId: string, model: ProviderMode
   if (model.abilities?.imageOutput) capabilities.imageOutput = true;
   if (model.abilities?.structuredOutput) capabilities.json = true;
   if (type === 'image') capabilities.image_generation = true;
+  if (type === 'text2music') capabilities.music_generation = true;
   if (
     String(model.type || '')
       .trim()
@@ -264,6 +265,7 @@ function createProviderCapabilities(capabilities?: Partial<ProviderCapabilities>
     embeddings: false,
     imageGeneration: false,
     modelListing: true,
+    musicGeneration: false,
     transcribe: false,
     ...capabilities
   };
@@ -279,6 +281,7 @@ export function getProviderCapabilities(providerId?: string, provider?: Provider
     embeddings: providerCapabilities?.embeddings ?? definitionCapabilities?.embeddings ?? Boolean(provider?.embed),
     imageGeneration: providerCapabilities?.imageGeneration ?? definitionCapabilities?.imageGeneration ?? false,
     modelListing: providerCapabilities?.modelListing ?? definitionCapabilities?.modelListing ?? Boolean(provider?.listModels),
+    musicGeneration: providerCapabilities?.musicGeneration ?? definitionCapabilities?.musicGeneration ?? Boolean(provider?.generateMusic),
     transcribe: providerCapabilities?.transcribe ?? definitionCapabilities?.transcribe ?? Boolean(provider?.transcribe)
   };
 }
@@ -295,6 +298,7 @@ export function getProviderDefaultModels(providerId?: string, provider?: Provide
     chat: providerDefaults?.chat || defaultModels?.chat,
     embeddings: providerDefaults?.embeddings ?? defaultModels?.embeddings,
     imageGeneration: providerDefaults?.imageGeneration ?? defaultModels?.imageGeneration,
+    musicGeneration: providerDefaults?.musicGeneration ?? defaultModels?.musicGeneration,
     transcribe: providerDefaults?.transcribe ?? defaultModels?.transcribe
   };
 }

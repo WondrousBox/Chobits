@@ -66,6 +66,7 @@ export const geminiDefinition: BuiltinProviderDefinition = {
     embeddings: false,
     imageGeneration: false,
     modelListing: true,
+    musicGeneration: false,
     transcribe: false
   },
   defaults: {

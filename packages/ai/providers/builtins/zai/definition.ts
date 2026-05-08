@@ -45,6 +45,7 @@ export const zaiDefinition: BuiltinProviderDefinition = {
         embeddings: false,
         imageGeneration: false,
         modelListing: true,
+        musicGeneration: false,
         transcribe: false
     },
     defaults: {

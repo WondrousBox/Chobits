@@ -191,6 +191,57 @@ export type ImageGenerationResponse = {
   usage?: TokenUsage;
   rawUsage?: unknown;
 };
+export type GeneratedAudioArtifact = {
+  audioUrl?: string;
+  audioBase64?: string;
+  filePath?: string;
+  mimeType?: string;
+  format?: string;
+  durationMs?: number;
+  sampleRate?: number;
+  bitrate?: number;
+  channels?: number;
+  sizeBytes?: number;
+  title?: string;
+  seed?: number;
+  metadata?: Record<string, any>;
+};
+export type MusicGenerationMode = 'text-to-music' | 'lyrics-to-song' | 'instrumental' | 'cover';
+export type MusicGenerationAudioSetting = {
+  sampleRate?: number;
+  bitrate?: number;
+  format?: string;
+};
+export type MusicGenerationRequest = ProviderScopedRequest & {
+  model: string;
+  prompt: string;
+  lyrics?: string;
+  mode?: MusicGenerationMode;
+  durationMs?: number;
+  negativePrompt?: string;
+  seed?: number;
+  sampleCount?: number;
+  outputFormat?: 'url' | 'hex' | string;
+  stream?: boolean;
+  audioSetting?: MusicGenerationAudioSetting;
+  isInstrumental?: boolean;
+  lyricsOptimizer?: boolean;
+  referenceAudioUrl?: string;
+  referenceAudioBase64?: string;
+  coverFeatureId?: string;
+  extras?: Record<string, any>;
+};
+export type MusicGenerationResponse = {
+  artifacts: GeneratedAudioArtifact[];
+  audioUrl?: string;
+  audioBase64?: string;
+  filePath?: string;
+  model?: string;
+  providerId?: string;
+  usage?: TokenUsage;
+  rawUsage?: unknown;
+  rawResponse?: unknown;
+};
 export type TranslateRequest = ProviderScopedRequest & {
   model: string;
   segments?: AimSegments[];
@@ -304,13 +355,14 @@ export type ConversationRecord = {
   updatedAt?: number | null;
   deletedAt?: number | null;
 };
-export type ProviderCapabilityKey = 'chat' | 'modelListing' | 'embeddings' | 'transcribe' | 'imageGeneration';
+export type ProviderCapabilityKey = 'chat' | 'modelListing' | 'embeddings' | 'transcribe' | 'imageGeneration' | 'musicGeneration';
 export type ProviderCapabilities = Record<ProviderCapabilityKey, boolean>;
 export type ProviderDefaultModels = {
   chat?: string;
   embeddings?: string;
   transcribe?: string;
   imageGeneration?: string;
+  musicGeneration?: string;
 };
 export type ProviderRecord = {
   id: string;
@@ -366,6 +418,8 @@ export interface ProviderAdapter {
   listModels?(opts?: { secrets?: ProviderSecrets }): Promise<Array<{ id: string; label?: string; [k: string]: any }>>;
   // ASR
   transcribe?(file: File | Blob | Buffer | ArrayBuffer, options?: TranscribeOptions): Promise<TranscriptionResponse>;
+  // Music generation
+  generateMusic?(req: MusicGenerationRequest, signal?: AbortSignal): Promise<MusicGenerationResponse>;
 }
 
 // Agent contracts are now represented by Pi profiles and provider adapters.
@@ -447,6 +501,7 @@ export type AIApi = {
   ): Promise<Array<{ id: string; language?: string; title?: string; filePath?: string; segments?: Array<{ index: number; text: string }>; createdAt?: number; updatedAt?: number }>>;
   transcribe(payload: TranscriptionRequest): Promise<TranscriptionResponse>;
   generateImage(payload: ImageGenerationRequest): Promise<ImageGenerationResponse>;
+  generateMusic(payload: MusicGenerationRequest): Promise<MusicGenerationResponse>;
   embed(payload: EmbeddingRequest): Promise<{ vectors: number[][]; dim: number }>;
   // Presets
   listPresets(providerId?: string): Promise<ProviderPresetRecord[]>;

@@ -14,6 +14,7 @@ export { ImageGenerateNode } from './image-generate';
 export { ImageUnderstandNode } from './image-understand';
 export { JsonParseNode } from './json-parse';
 export { JsonStringifyNode } from './json-stringify';
+export { MusicGenerateNode } from './music-generate';
 export { OCRNode } from './ocr';
 export { ResourceCreateNode } from './resource-create';
 export { ResourceLoadNode } from './resource-load';
