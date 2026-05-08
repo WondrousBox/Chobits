@@ -23,7 +23,16 @@ import type {
   StartSpritePurposeRequest
 } from '../purpose';
 import type { SpeakResult, SpriteSpeakConfig } from '../speak/types';
-import type { MessageBridgePayload, MessageIPCPayload, SpriteAnimation, SpriteAnimationPlaylistMode, SpriteAnimationTrigger, SpriteMovementPreviewConfig, SpriteTriggerOptions } from '../types';
+import type {
+  MessageBridgePayload,
+  MessageIPCPayload,
+  SpriteAnimation,
+  SpriteAnimationPlaylistMode,
+  SpriteAnimationTrigger,
+  SpriteBubbleMode,
+  SpriteMovementPreviewConfig,
+  SpriteTriggerOptions
+} from '../types';
 import { MESSAGE_IPC_CHANNELS } from '../types';
 import type { WindowControllerAvoidRegion } from '../window-controller-model';
 
@@ -83,6 +92,12 @@ export type SpriteBridgeType = {
   setDebugOverlay(enabled: boolean): Promise<boolean>;
   getAnimationPlaylistMode(trigger?: SpriteAnimationTrigger): Promise<SpriteAnimationPlaylistMode>;
   setAnimationPlaylistMode(mode: SpriteAnimationPlaylistMode, trigger?: SpriteAnimationTrigger): Promise<SpriteAnimationPlaylistMode>;
+  getBubbleMode(): Promise<SpriteBubbleMode>;
+  setBubbleMode(mode: SpriteBubbleMode): Promise<SpriteBubbleMode>;
+
+  // 气泡跟随窗口控制
+  bubbleResize(width: number, height: number): Promise<{ success: boolean; error?: string }>;
+  bubbleSetVisible(visible: boolean): Promise<{ success: boolean; error?: string }>;
   getSpontaneousUtterancePreferences(): Promise<SpriteSpontaneousUtterancePreferences | null>;
   updateSpontaneousUtterancePreferences(patch: Partial<SpriteSpontaneousUtterancePreferences>): Promise<SpriteSpontaneousUtterancePreferences | null>;
   listSpontaneousUtteranceHistory(query?: SpriteSpontaneousUtteranceHistoryQuery): Promise<SpriteSpontaneousUtteranceHistoryItem[]>;
@@ -174,6 +189,12 @@ export const spriteBridge: SpriteBridgeType = {
   setDebugOverlay: (enabled) => ipcRenderer.invoke('sprite:config:setDebugOverlay', { enabled }),
   getAnimationPlaylistMode: (trigger) => (trigger ? ipcRenderer.invoke('sprite:config:getAnimationPlaylistMode', { trigger }) : ipcRenderer.invoke('sprite:config:getAnimationPlaylistMode')),
   setAnimationPlaylistMode: (mode, trigger) => ipcRenderer.invoke('sprite:config:setAnimationPlaylistMode', trigger ? { mode, trigger } : { mode }),
+  getBubbleMode: () => ipcRenderer.invoke('sprite:config:getBubbleMode'),
+  setBubbleMode: (mode) => ipcRenderer.invoke('sprite:config:setBubbleMode', { mode }),
+
+  // 气泡跟随窗口控制
+  bubbleResize: (width, height) => ipcRenderer.invoke('sprite:bubble:resize', { width, height }),
+  bubbleSetVisible: (visible) => ipcRenderer.invoke('sprite:bubble:setVisible', { visible }),
   getSpontaneousUtterancePreferences: () => ipcRenderer.invoke('sprite:spontaneous:getPreferences'),
   updateSpontaneousUtterancePreferences: (patch) => ipcRenderer.invoke('sprite:spontaneous:updatePreferences', patch),
   listSpontaneousUtteranceHistory: (query) => ipcRenderer.invoke('sprite:spontaneous:listHistory', query),

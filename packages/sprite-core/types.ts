@@ -630,6 +630,25 @@ export interface SpriteWalkState {
   direction?: 'left' | 'right';
 }
 
+/**
+ * 气泡展示模式
+ * - 'inline': 传统模式，气泡渲染在主精灵窗口内（沿用 padding 撑出的空白区域）
+ * - 'external': 跟随窗口模式，使用独立的 spriteBubble 跟随窗口承载气泡，主窗口 padding 在运行期视为 0
+ * - 'fixed-top': 顶部悬浮模式，使用独立窗口固定在主窗口上方并跟随主窗口移动，主窗口 padding 在运行期视为 0
+ */
+export type SpriteBubbleMode = 'inline' | 'external' | 'fixed-top';
+
+/** 默认气泡展示模式 */
+export const DEFAULT_SPRITE_BUBBLE_MODE: SpriteBubbleMode = 'fixed-top';
+
+export function normalizeSpriteBubbleMode(value: unknown): SpriteBubbleMode {
+  return value === 'external' || value === 'fixed-top' || value === 'inline' ? value : DEFAULT_SPRITE_BUBBLE_MODE;
+}
+
+export function isBubbleWindowMode(mode?: SpriteBubbleMode | null): boolean {
+  return mode === 'external' || mode === 'fixed-top';
+}
+
 /** 精灵配置 */
 export interface SpriteConfig {
   width: number;
@@ -643,4 +662,6 @@ export interface SpriteConfig {
   autoWalkEnabled?: boolean;
   /** 是否显示调试辅助线 */
   showDebugOverlay?: boolean;
+  /** 气泡展示模式（默认 'fixed-top'） */
+  bubbleMode?: SpriteBubbleMode;
 }

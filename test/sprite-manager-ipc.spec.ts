@@ -532,7 +532,8 @@ describe('sprite manager IPC integration', () => {
         padding: 100,
         animationPlaylistMode: 'list-loop',
         autoWalkEnabled: false,
-        showDebugOverlay: false
+        showDebugOverlay: false,
+        bubbleMode: 'fixed-top'
       }
     });
     expect(auxWindow.sent).toContainEqual({
@@ -543,7 +544,8 @@ describe('sprite manager IPC integration', () => {
         padding: 100,
         animationPlaylistMode: 'list-loop',
         autoWalkEnabled: false,
-        showDebugOverlay: false
+        showDebugOverlay: false,
+        bubbleMode: 'fixed-top'
       }
     });
     expect(auxWindow.sent).toContainEqual({
@@ -562,7 +564,8 @@ describe('sprite manager IPC integration', () => {
         padding: 100,
         animationPlaylistMode: 'list-loop',
         autoWalkEnabled: true,
-        showDebugOverlay: false
+        showDebugOverlay: false,
+        bubbleMode: 'fixed-top'
       }
     });
     expect(auxWindow.sent).toContainEqual({
@@ -573,7 +576,8 @@ describe('sprite manager IPC integration', () => {
         padding: 100,
         animationPlaylistMode: 'list-loop',
         autoWalkEnabled: true,
-        showDebugOverlay: false
+        showDebugOverlay: false,
+        bubbleMode: 'fixed-top'
       }
     });
     expect(auxWindow.sent).toContainEqual({
@@ -604,7 +608,8 @@ describe('sprite manager IPC integration', () => {
         padding: 100,
         animationPlaylistMode: 'single-loop',
         autoWalkEnabled: true,
-        showDebugOverlay: false
+        showDebugOverlay: false,
+        bubbleMode: 'fixed-top'
       }
     });
     expect(setMode?.({} as never, { mode: 'list-once', trigger: 'idle' })).toBe('list-once');
@@ -621,7 +626,8 @@ describe('sprite manager IPC integration', () => {
           idle: 'list-once'
         },
         autoWalkEnabled: true,
-        showDebugOverlay: false
+        showDebugOverlay: false,
+        bubbleMode: 'fixed-top'
       }
     });
   });

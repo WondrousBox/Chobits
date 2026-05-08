@@ -17,6 +17,7 @@ import type { ToastMessage } from '../types';
 interface ToastRendererProps {
   message: ToastMessage;
   className?: string;
+  placement?: 'inline' | 'external';
 }
 
 /** 等级样式映射 */
@@ -27,7 +28,7 @@ const levelStyles: Record<string, string> = {
   error: 'bg-rose-50/95 text-rose-800 border border-rose-200/50'
 };
 
-export function ToastRenderer({ message, className }: ToastRendererProps): JSX.Element {
+export function ToastRenderer({ message, className, placement = 'inline' }: ToastRendererProps): JSX.Element {
   // 计算显示文案
   const displayText = React.useMemo(() => {
     // 优先使用自定义内容
@@ -48,8 +49,8 @@ export function ToastRenderer({ message, className }: ToastRendererProps): JSX.E
       className={clsx(
         // 基础样式
         'rounded-xl shadow-lg backdrop-blur-sm',
-        'px-4 py-2 text-xs',
-        'max-w-[280px] w-48 whitespace-normal break-words text-center',
+        'px-4 py-2 text-xs text-center',
+        placement === 'external' ? 'min-w-48 w-fit max-w-[440px] whitespace-normal break-words leading-relaxed' : 'max-w-[280px] w-48 whitespace-normal break-words',
         // 等级样式
         levelStyles[level],
         className

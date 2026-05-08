@@ -8,6 +8,9 @@ import { app, screen } from 'electron';
 
 import defaultWindowConfigs from '../config/window';
 
+const SPRITE_BUBBLE_WINDOW_KEYS = ['spriteBubble', 'spriteBubbleFixedTop'] as const;
+type SpriteBubbleWindowKey = (typeof SPRITE_BUBBLE_WINDOW_KEYS)[number];
+
 export function initWindowHandlers(win: BrowserWindow): void {
   // 记录助手窗口的 padding（由渲染进程通过 IPC 动态设置）
   let assistantPadding = 100; // 默认值，等待渲染进程通过 setAssistantSize 设置
@@ -264,7 +267,78 @@ export function initWindowHandlers(win: BrowserWindow): void {
     }
   });
 
+  // ---------------- Sprite Bubble Window IPC --------------------
+  // 调整气泡独立窗口的尺寸，并触发对应的跟随定位刷新。
+  ipcMain.removeHandler('sprite:bubble:resize');
+  ipcMain.handle('sprite:bubble:resize', (event, payload: { width: number; height: number }) => {
+    try {
+      const target = resolveSpriteBubbleEventTarget(event);
+      if (!target || target.window.isDestroyed()) {
+        return { success: false, error: 'spriteBubble window not available' };
+      }
+      const bubble = target.window;
+      const width = Math.max(40, Math.round(payload?.width ?? 0));
+      const height = Math.max(24, Math.round(payload?.height ?? 0));
+      bubble.setSize(width, height, false);
+      updateSpriteBubblePosition();
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.removeHandler('sprite:bubble:setVisible');
+  ipcMain.handle('sprite:bubble:setVisible', async (event, payload: { visible: boolean }) => {
+    try {
+      const target = resolveSpriteBubbleEventTarget(event);
+      if (!target) {
+        return { success: false, error: 'spriteBubble window not available' };
+      }
+      if (payload?.visible) {
+        await windowManager.show(target.key);
+      } else {
+        await windowManager.hide(target.key);
+      }
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
   // Pre-create menu window in hidden state for faster first-open
   // This reduces the loading delay when user right-clicks for the first time
   windowManager.create('menu');
+  // 预创建 spriteBubble 跟随窗口，保持隐藏状态。
+  // 以及固定在主窗口上方的跟随窗口；需要时由渲染进程调 sprite:bubble:setVisible 显示。
+  windowManager.create('spriteBubble');
+  windowManager.create('spriteBubbleFixedTop');
+
+  function resolveSpriteBubbleEventTarget(event: IpcMainInvokeEvent): { key: SpriteBubbleWindowKey; window: BrowserWindow } | null {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    if (senderWindow && !senderWindow.isDestroyed()) {
+      const senderKey = getSpriteBubbleWindowKey(senderWindow);
+      if (senderKey) return { key: senderKey, window: senderWindow };
+    }
+
+    const fallback = windowManager.get('spriteBubble');
+    return fallback && !fallback.isDestroyed() ? { key: 'spriteBubble', window: fallback } : null;
+  }
+
+  function getSpriteBubbleWindowKey(targetWindow: BrowserWindow): SpriteBubbleWindowKey | null {
+    for (const key of SPRITE_BUBBLE_WINDOW_KEYS) {
+      const candidate = windowManager.get(key);
+      if (candidate && !candidate.isDestroyed() && candidate.id === targetWindow.id) {
+        return key;
+      }
+    }
+    return null;
+  }
+
+  function updateSpriteBubblePosition(): void {
+    try {
+      windowManager.updateFollowerPositionsManually();
+    } catch {
+      /* ignore */
+    }
+  }
 }

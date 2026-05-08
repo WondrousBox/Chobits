@@ -33,7 +33,8 @@ describe('sprite state sync helpers', () => {
       padding: 80,
       animationPlaylistMode: 'list-loop',
       autoWalkEnabled: false,
-      showDebugOverlay: false
+      showDebugOverlay: false,
+      bubbleMode: 'fixed-top'
     });
   });
 
@@ -60,8 +61,22 @@ describe('sprite state sync helpers', () => {
       padding: 32,
       animationPlaylistMode: 'list-loop',
       autoWalkEnabled: true,
-      showDebugOverlay: true
+      showDebugOverlay: true,
+      bubbleMode: 'fixed-top'
     });
+  });
+
+  it('preserves the fixed-top bubble mode from the initial config', () => {
+    const initial = {
+      config: {
+        width: 180,
+        height: 240,
+        padding: 100,
+        bubbleMode: 'fixed-top'
+      }
+    } as Pick<SpriteInitialState, 'config' | 'currentAnimation'>;
+
+    expect(resolveInitialSpriteConfig(initial).bubbleMode).toBe('fixed-top');
   });
 
   it('merges playback metrics into an existing sprite config without clobbering flags', () => {

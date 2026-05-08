@@ -9,6 +9,7 @@
 import React, { useEffect, useRef } from 'react';
 
 import Dropzone from '@/components/common/Dropzone';
+import { isBubbleWindowMode } from '@packages/sprite-core/types';
 
 import { useSpriteState } from './context/hooks';
 import { useDragCollector } from './hooks/useDragCollector';
@@ -20,12 +21,16 @@ import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
 import PersonaGainEffects from './ui/PersonaGainEffects';
 import StatusIndicator from './ui/StatusIndicator';
 
-const showBlock = false; // 开发时显示
+const showBlock = true; // 开发时显示
 
 /** 内部组件：包含实际逻辑 */
 const AIAssistantInner: React.FC = () => {
   const { currentAnimation, walkDirection, isWalking, spriteConfig, ready } = useSpriteState();
-  const { width, height, padding } = spriteConfig;
+  const { width, height, padding, bubbleMode } = spriteConfig;
+
+  // 独立窗口气泡模式下运行期 padding 强制为 0（不修改持久化的原 padding）
+  const isBubbleWindow = isBubbleWindowMode(bubbleMode);
+  const effectivePadding = isBubbleWindow ? 0 : padding;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const { onMouseDown, isDragging, isDragReady } = useDragCollector();
@@ -65,8 +70,8 @@ const AIAssistantInner: React.FC = () => {
     const positionWindow = async (): Promise<void> => {
       try {
         const screenSize = await window.YUA.window['screen:size:get']();
-        const winWidth = width + padding * 2;
-        const winHeight = height + padding * 2;
+        const winWidth = width + effectivePadding * 2;
+        const winHeight = height + effectivePadding * 2;
 
         if (isInitialMountRef.current) {
           isInitialMountRef.current = false;
@@ -79,25 +84,29 @@ const AIAssistantInner: React.FC = () => {
       }
     };
     positionWindow();
-  }, [ready, width, height, padding]);
+  }, [ready, width, height, effectivePadding]);
 
-  // 当动画切换时，设置窗口大小
+  // 当动画切换、尺寸或气泡模式变化时，同步到主进程调整主窗口尺寸。
   useEffect(() => {
-    if (!currentAnimation?.playback) return;
-    const p = currentAnimation.playback;
+    if (!ready) return;
+    const playback = currentAnimation?.playback;
+    const targetWidth = playback?.width ?? width;
+    const targetHeight = playback?.height ?? height;
+    const rawPadding = playback?.padding ?? padding;
+    const targetPadding = isBubbleWindow ? 0 : rawPadding;
     const setSize = async (): Promise<void> => {
       try {
         await window.YUA.window.setAssistantSize({
-          width: p.width ?? width,
-          height: p.height ?? height,
-          padding: p.padding ?? padding
+          width: targetWidth,
+          height: targetHeight,
+          padding: targetPadding
         });
       } catch (error) {
         console.error('Failed to set assistant size:', error);
       }
     };
     setSize();
-  }, [currentAnimation, width, height, padding]);
+  }, [ready, currentAnimation, width, height, padding, isBubbleWindow]);
 
   // 交互采集
   const handleClick = (): void => {
@@ -128,7 +137,7 @@ const AIAssistantInner: React.FC = () => {
   return (
     <div
       ref={containerRef}
-      style={{ width, height, left: padding, top: padding }}
+      style={{ width, height, left: effectivePadding, top: effectivePadding }}
       className={`fixed select-none z-[9999] pointer-events-auto
         ${isDragReady ? 'cursor-grabbing opacity-80' : 'cursor-grab'}
         ${showBlock ? 'opacity-10' : ''}
@@ -140,9 +149,9 @@ const AIAssistantInner: React.FC = () => {
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
     >
-      <PaddingDebugOverlay padding={padding} />
-      {/* 统一消息组件 */}
-      <SpriteMessage />
+      {!isBubbleWindow && <PaddingDebugOverlay padding={padding} />}
+      {/* inline 模式下才在主窗口内嵌入气泡；独立窗口模式交给气泡窗口 */}
+      {!isBubbleWindow && <SpriteMessage />}
       <PersonaGainEffects />
       <Dropzone
         onDragEnter={handleDragEnter}
@@ -160,14 +169,14 @@ const AIAssistantInner: React.FC = () => {
       {window.YUA.isDev && showBlock && (
         <div
           style={{
-            left: padding,
-            top: padding,
-            bottom: padding,
-            right: padding
+            left: effectivePadding,
+            top: effectivePadding,
+            bottom: effectivePadding,
+            right: effectivePadding
           }}
           className="text-xs bg-background fixed rounded-md border border-solid border-ring"
         >
-          {padding} {width} {height}
+          {effectivePadding} {width} {height}
         </div>
       )}
     </div>

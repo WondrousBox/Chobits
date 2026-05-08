@@ -14,18 +14,20 @@ import type { BusyMessage } from '../types';
 interface BusyRendererProps {
   message: BusyMessage;
   className?: string;
+  placement?: 'inline' | 'external';
 }
 
-export function BusyRenderer({ message, className }: BusyRendererProps): JSX.Element {
+export function BusyRenderer({ message, className, placement = 'inline' }: BusyRendererProps): JSX.Element {
   const showProgress = message.progress !== undefined;
   const progressValue = showProgress ? Math.max(0, Math.min(100, message.progress!)) : 0;
+  const external = placement === 'external';
 
   return (
-    <div className={clsx('w-52 pointer-events-none', className)}>
+    <div className={clsx(external ? 'min-w-52 w-fit max-w-[440px] pointer-events-none' : 'w-52 pointer-events-none', className)}>
       {/* 进度条容器 */}
       <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-lg border border-indigo-200/50 p-2">
         {/* 消息文本 */}
-        {message.content && <div className="text-xs text-gray-700 mb-1 text-center font-medium truncate">{message.content}</div>}
+        {message.content && <div className={clsx('text-xs text-gray-700 mb-1 text-center font-medium', external ? 'whitespace-normal break-words leading-snug' : 'truncate')}>{message.content}</div>}
 
         {/* 进度条 */}
         {showProgress && (

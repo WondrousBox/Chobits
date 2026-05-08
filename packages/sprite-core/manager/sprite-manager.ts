@@ -65,6 +65,7 @@ import {
   compileSpriteAnimationCondition,
   DEFAULT_SPRITE_ANIMATION_PLAYLIST_MODE,
   getSpriteAnimationTriggers,
+  isBubbleWindowMode,
   MESSAGE_IPC_CHANNELS,
   type MessageBridgeClearPayload,
   type MessageBridgePayload,
@@ -75,18 +76,20 @@ import {
   type SpriteAnimation,
   type SpriteAnimationPlaylistMode,
   type SpriteAnimationTrigger,
+  type SpriteBubbleMode,
   type SpriteConfig,
   type SpriteInitialState,
   type SpriteMovementConfig,
   type SpriteMovementPreviewConfig,
   type SpritePlayCommand,
   type SpriteStateSnapshot,
+  normalizeSpriteBubbleMode,
   type SpriteTriggerOptions
 } from '../types';
 import type { WindowControllerAvoidRegion } from '../window-controller-model';
 import { registerDefaultBehaviors } from './default-behaviors';
 import { MovementCoordinator } from './movement-coordinator';
-import { AutoWalkConfig, PersonaStatePersistence } from './persistence';
+import { AutoWalkConfig, BubbleModeConfig, PersonaStatePersistence } from './persistence';
 import { mapStateToEventType } from './state-mapping';
 import type {
   PersonaStatePersistenceRow,
@@ -163,7 +166,11 @@ export class SpriteManager {
   // 内建持久化
   private persistence: PersonaStatePersistence;
   private autoWalkConfig: AutoWalkConfig;
+  private bubbleModeConfig: BubbleModeConfig;
   private movementSuspensionReasons = new Set<string>();
+
+  // 额外消息接收方（如 spriteBubble 跟随窗口）
+  private getMessageRecipients?: () => Array<SpriteWindow | null | undefined>;
 
   // 语音合成服务
   private speakService: SpeakService;
@@ -319,6 +326,10 @@ export class SpriteManager {
     // 持久化
     this.persistence = new PersonaStatePersistence(options.dataDir);
     this.autoWalkConfig = new AutoWalkConfig(options.dataDir);
+    this.bubbleModeConfig = new BubbleModeConfig(options.dataDir);
+
+    // 额外消息接收方
+    this.getMessageRecipients = options.getMessageRecipients;
 
     // 语音合成服务
     this.speakService = new SpeakService(options.dataDir);
@@ -371,8 +382,10 @@ export class SpriteManager {
   async start(): Promise<void> {
     this.syncPersonaRules();
 
-    // 1. 加载自动行走配置
+    // 1. 加载自动行走配置 + 气泡模式
     this.autoWalkConfig.load();
+    this.bubbleModeConfig.load();
+    this.spriteConfig.bubbleMode = this.bubbleModeConfig.mode;
 
     // 2. 加载持久化的人格状态
     const saved = await this.persistence.load(this.activePersonaStateId);
@@ -1196,13 +1209,41 @@ export class SpriteManager {
       ...restConfig,
       animationPlaylistMode: normalizeSpriteAnimationPlaylistMode(this.spriteConfig.animationPlaylistMode),
       ...(Object.keys(animationPlaylistModes).length > 0 ? { animationPlaylistModes } : {}),
-      autoWalkEnabled: this.autoWalkConfig.enabled
+      autoWalkEnabled: this.autoWalkConfig.enabled,
+      bubbleMode: this.bubbleModeConfig.mode
     };
+  }
+
+  /**
+   * 获取运行期生效的 padding
+   * - 独立窗口气泡模式下 padding 被视为 0（不修改持久化的 spriteConfig.padding）
+   * - inline 模式下返回真实 padding
+   */
+  getEffectivePadding(): number {
+    return isBubbleWindowMode(this.bubbleModeConfig.mode) ? 0 : this.spriteConfig.padding;
+  }
+
+  /** 获取气泡展示模式 */
+  getBubbleMode(): SpriteBubbleMode {
+    return this.bubbleModeConfig.mode;
+  }
+
+  /** 设置气泡展示模式并广播 */
+  setBubbleMode(mode: SpriteBubbleMode): SpriteBubbleMode {
+    const normalized = normalizeSpriteBubbleMode(mode);
+    if (this.bubbleModeConfig.mode !== normalized) {
+      this.bubbleModeConfig.mode = normalized;
+      this.spriteConfig.bubbleMode = normalized;
+      this.emitConfigChanged();
+    } else {
+      this.spriteConfig.bubbleMode = normalized;
+    }
+    return normalized;
   }
 
   /** 设置精灵配置 */
   setSpriteConfig(config: Partial<SpriteConfig>): void {
-    const { autoWalkEnabled, animationPlaylistMode, animationPlaylistModes, ...restConfig } = config;
+    const { autoWalkEnabled, animationPlaylistMode, animationPlaylistModes, bubbleMode, ...restConfig } = config;
     Object.assign(this.spriteConfig, restConfig);
     if (animationPlaylistMode !== undefined) {
       this.spriteConfig.animationPlaylistMode = normalizeSpriteAnimationPlaylistMode(animationPlaylistMode);
@@ -1221,6 +1262,13 @@ export class SpriteManager {
       if (!autoWalkEnabled) {
         this.stopWalk();
       }
+    }
+    if (bubbleMode !== undefined) {
+      const normalized = normalizeSpriteBubbleMode(bubbleMode);
+      if (this.bubbleModeConfig.mode !== normalized) {
+        this.bubbleModeConfig.mode = normalized;
+      }
+      this.spriteConfig.bubbleMode = normalized;
     }
     this.emitConfigChanged();
   }
@@ -2052,7 +2100,8 @@ export class SpriteManager {
     }
 
     const screen = this.getScreenSize();
-    const { width, height, padding } = this.getSpriteConfig();
+    const { width, height } = this.getSpriteConfig();
+    const padding = this.getEffectivePadding();
     const winWidth = width + padding * 2;
     const winHeight = height + padding * 2;
 
@@ -2117,6 +2166,9 @@ export class SpriteManager {
     this.spriteConfig.padding = metrics.padding;
   }
 
+  /** 仅需广播到气泡窗口的频道（消息桥与配置） */
+  private static BROADCAST_CHANNELS: ReadonlySet<string> = new Set<string>([MESSAGE_IPC_CHANNELS.BRIDGE, 'sprite:config']);
+
   /** 发送统一配置快照 */
   private emitConfigChanged(): void {
     this.sendToRenderer('sprite:config', this.getSpriteConfig());
@@ -2130,6 +2182,27 @@ export class SpriteManager {
       }
     } catch {
       /* ignore */
+    }
+
+    if (!SpriteManager.BROADCAST_CHANNELS.has(channel)) {
+      return;
+    }
+
+    if (channel === MESSAGE_IPC_CHANNELS.BRIDGE && !isBubbleWindowMode(this.bubbleModeConfig.mode)) {
+      return;
+    }
+
+    const recipients = this.getMessageRecipients?.();
+    if (!recipients || recipients.length === 0) return;
+
+    for (const recipient of recipients) {
+      if (!recipient || recipient === this.win) continue;
+      try {
+        if (recipient.isDestroyed()) continue;
+        recipient.webContents.send(channel, data);
+      } catch {
+        /* ignore */
+      }
     }
   }
 

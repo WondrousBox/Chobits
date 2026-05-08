@@ -93,6 +93,8 @@ packages/                   # Shared packages (monorepo-style)
 
 **Handler domains** (25+): `resource`, `ai`, `ffmpeg`, `folder`, `workspace`, `file`, `system`, `preferences`, `proxy`, `theme`, `shortcuts`, `sprite`, `status`, `trash`, `ytdlp`, `rss`, `automation`, `downloader`, `embedding`, `clip`, `annotation`, `spleeter`, `window`, `memory`
 
+**Sprite bubble windows** (`spriteBubble`, `spriteBubbleFixedTop`): Pre-created independent windows registered in `electron/main/config/window.ts` and `electron/main/handlers/window.ts` that host toast/notice/busy bubbles when `bubbleMode` is a window mode. `external` uses the adaptive follower window above the sprite; `fixed-top` is the default and uses window-manager follower mode `fixed-top` to keep the bubble fixed above the main sprite window while still following main-window movement. SpriteManager broadcasts `app:message:bridge` and `sprite:config` to the active bubble window via the `getMessageRecipients` hook (`packages/sprite-core/manager/sprite-manager.ts`). The renderer page lives at `src/features/sprite-bubble/SpriteBubblePage.tsx`; it uses `ResizeObserver` to push window size via `sprite:bubble:resize` and toggles visibility via `sprite:bubble:setVisible`. In window modes the main sprite window's `padding` is overridden to `0` at runtime (the persisted padding is preserved); `bubbleMode` is persisted via `BubbleModeConfig` (`userData/data/sprite-bubble-mode.json`) and exposed in `SpriteConfig`.
+
 ### Database Architecture
 
 **ORM**: Drizzle ORM with SQLite

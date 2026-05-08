@@ -1,7 +1,12 @@
-import type { SpriteConfig, SpriteMovementConfig, SpriteMovementDirection, SpriteMovementPreviewConfig, SpriteWalkState } from '../types';
+import type { SpriteBubbleMode, SpriteConfig, SpriteMovementConfig, SpriteMovementDirection, SpriteMovementPreviewConfig, SpriteWalkState } from '../types';
+import { isBubbleWindowMode } from '../types';
 import { clampWindowPosition, getWindowClampBounds, type WindowControllerAvoidRegion, type WindowControllerViewport } from '../window-controller-model';
 
 type SpriteSizeSnapshot = Pick<SpriteConfig, 'width' | 'height' | 'padding'>;
+
+function resolveEffectivePadding(padding: number, mode?: SpriteBubbleMode): number {
+  return isBubbleWindowMode(mode) ? 0 : padding;
+}
 
 const DIRECTION_VECTORS: Record<Exclude<SpriteMovementDirection, 'random'>, { dx: number; dy: number }> = {
   left: { dx: -1, dy: 0 },
@@ -60,7 +65,8 @@ export class MovementCoordinator {
       padding: config.padding
     });
     this.deps.emitConfigChanged();
-    this.deps.setWindowSize(config.width, config.height, config.padding);
+    const effectivePadding = resolveEffectivePadding(config.padding, this.deps.getSpriteConfig().bubbleMode);
+    this.deps.setWindowSize(config.width, config.height, effectivePadding);
     this.stopAutoMove();
 
     if (!config.movement?.enabled || !this.deps.canMove() || !this.deps.canUseMovement()) {
@@ -90,7 +96,8 @@ export class MovementCoordinator {
     this.previewSnapshot = null;
     this.deps.setSpriteMetrics(snapshot);
     this.deps.emitConfigChanged();
-    this.deps.setWindowSize(snapshot.width, snapshot.height, snapshot.padding);
+    const effectivePadding = resolveEffectivePadding(snapshot.padding, this.deps.getSpriteConfig().bubbleMode);
+    this.deps.setWindowSize(snapshot.width, snapshot.height, effectivePadding);
   }
 
   applyAnimationMovement(movement?: SpriteMovementConfig): void {
@@ -220,12 +227,13 @@ export class MovementCoordinator {
   }
 
   private getViewport(screen: { width: number; height: number }, config: SpriteSizeSnapshot): WindowControllerViewport {
+    const liveConfig = this.deps.getSpriteConfig();
     return {
       screenWidth: screen.width,
       screenHeight: screen.height,
       spriteWidth: config.width,
       spriteHeight: config.height,
-      padding: config.padding,
+      padding: resolveEffectivePadding(config.padding, liveConfig.bubbleMode),
       avoidRegions: this.deps.getAvoidRegions?.() ?? []
     };
   }
