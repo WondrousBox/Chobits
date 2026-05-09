@@ -101,6 +101,13 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
     name: 'pushCardTool',
     status: 'ready-for-pi-runtime'
   },
+  'resource-create': {
+    category: 'content',
+    description: '从本地文件、URL 或文本创建资源库条目',
+    compatName: 'resourceCreateTool',
+    name: 'resourceCreateTool',
+    status: 'ready-for-pi-runtime'
+  },
   'query-resources': {
     category: 'query',
     description: '智能查询资源库中的内容',
@@ -185,6 +192,13 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
     name: 'memoryRefreshCriticalTool',
     status: 'ready-for-pi-runtime'
   },
+  'music-generate': {
+    category: 'integration',
+    description: 'Generate music with MiniMax from prompt, lyrics, or reference audio.',
+    compatName: 'musicGenerateTool',
+    name: 'musicGenerateTool',
+    status: 'ready-for-pi-runtime'
+  },
   'persona-update': {
     category: 'content',
     description: '主动更新用户画像，将对话中发现的用户偏好、目标、活动等立即写入 USER_PERSONA.md',
@@ -236,6 +250,7 @@ export const DEFAULT_SESSION_TOOL_IDS = [
   'translate-subtitles',
   'summarize-content',
   'push-card',
+  'resource-create',
   'youtube-download',
   'youtube-subscribe',
   'memory-search',
@@ -243,6 +258,7 @@ export const DEFAULT_SESSION_TOOL_IDS = [
   'memory-topics',
   'memory-save',
   'memory-refresh-critical',
+  'music-generate',
   'persona-update',
   'toolbox-lookup',
   'workflow-run',
