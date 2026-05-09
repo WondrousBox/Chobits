@@ -1,3 +1,4 @@
+import { Bug, BugOff } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -20,6 +21,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
   const [isClosing, setIsClosing] = useState(false);
   // ASR 服务运行状态
   const [isASRRunning, setIsASRRunning] = useState(false);
+  const [debugOverlay, setDebugOverlay] = useState(false);
   const { snapshot: capabilitySnapshot, refresh: refreshCapabilitySnapshot } = useSpriteCapabilitySnapshot({ enabled: isOpen });
 
   // 查询 ASR 服务状态
@@ -44,6 +46,28 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
     },
     [capabilitySnapshot]
   );
+
+  const checkDebugOverlay = useCallback(async () => {
+    try {
+      setDebugOverlay(await window.YUA.sprite.getDebugOverlay());
+    } catch (error) {
+      console.error('查询调试线框状态失败:', error);
+      setDebugOverlay(false);
+    }
+  }, []);
+
+  const toggleDebugOverlay = useCallback(async () => {
+    const next = !debugOverlay;
+    setDebugOverlay(next);
+    try {
+      const applied = await window.YUA.sprite.setDebugOverlay(next);
+      setDebugOverlay(applied);
+      toast.success(applied ? '调试线框已开启' : '调试线框已关闭');
+    } catch (error) {
+      setDebugOverlay(debugOverlay);
+      toast.error('切换调试线框失败', { description: error instanceof Error ? error.message : String(error) });
+    }
+  }, [debugOverlay]);
 
   const menuItems: RadialMenuItem[] = useMemo(
     () => [
@@ -210,6 +234,13 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         }
       },
       {
+        id: 'debug-overlay',
+        label: debugOverlay ? '关闭线框' : '调试线框',
+        icon: debugOverlay ? <BugOff className="h-6 w-6" /> : <Bug className="h-6 w-6" />,
+        shortcut: 'd',
+        action: toggleDebugOverlay
+      },
+      {
         id: 'settings',
         label: '设置',
         icon: '⚙️',
@@ -219,7 +250,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         }
       }
     ],
-    [capabilitySnapshot, isASRRunning, refreshCapabilitySnapshot, showLockedCapabilityToast]
+    [capabilitySnapshot, debugOverlay, isASRRunning, refreshCapabilitySnapshot, showLockedCapabilityToast, toggleDebugOverlay]
   );
 
   // 处理菜单关闭请求（播放退出动画后关闭窗口）
@@ -250,6 +281,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         // 窗口显示时，查询 ASR 状态并播放入场动画
         void window.YUA.sprite.interact('context-menu', { open: true });
         checkASRStatus();
+        checkDebugOverlay();
         void refreshCapabilitySnapshot();
         setIsOpen(true);
         setIsClosing(false);
@@ -264,7 +296,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
     return () => {
       window.ipcRenderer?.off('window:visibility-changed', handleVisibilityChange);
     };
-  }, [checkASRStatus, refreshCapabilitySnapshot]);
+  }, [checkASRStatus, checkDebugOverlay, refreshCapabilitySnapshot]);
 
   useEffect(() => {
     return () => {

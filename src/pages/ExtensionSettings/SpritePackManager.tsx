@@ -8,6 +8,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { maskPath } from '@/lib/helpers';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 import { SettingGroup, SettingItem, SettingPath } from '@/pages/SettingsPage/components/SettingComponents';
 
@@ -73,6 +75,21 @@ type PreviewMedia = {
   kind: 'image' | 'video';
   src: string;
 };
+
+function PackActionButton({ label, disabled, onClick, className, children }: { label: string; disabled?: boolean; onClick?: () => void; className?: string; children: ReactNode }): JSX.Element {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex">
+          <Button type="button" size="icon" variant="ghost" className={`h-8 w-8 ${className ?? ''}`} disabled={disabled} onClick={onClick} aria-label={label}>
+            {children}
+          </Button>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 type CharacterPackDigestStatus = NonNullable<CharacterPackTrustAssessment['digest']>['status'];
 type CharacterPackSignatureStatus = NonNullable<CharacterPackTrustAssessment['signatureVerification']>['status'];
@@ -639,37 +656,38 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra, edi
                   title={pack.name}
                   description={`${formatPackSource(pack.source)} · v${pack.version}${pack.description ? ` · ${pack.description}` : ''}`}
                   action={
-                    <div className="flex items-center gap-2">
-                      {pack.isActive ? (
-                        <Button size="sm" variant="secondary" disabled>
-                          <TbCheck className="h-4 w-4 mr-1" />
-                          当前使用
-                        </Button>
-                      ) : (
-                        <Button size="sm" onClick={() => void handleActivatePack(pack)} disabled={packBusyState.active}>
-                          {packBusyState.key === getPackBusyKey('activate', pack) ? <TbLoader2 className="h-4 w-4 animate-spin mr-1" /> : <TbCheck className="h-4 w-4 mr-1" />}
-                          切换
-                        </Button>
-                      )}
-                      <Button size="sm" variant="outline" onClick={() => void window.YUA.file['file:openPath'](pack.rootDir)}>
-                        <TbFolderOpen className="h-4 w-4 mr-1" />
-                        打开
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => void handleExportPack(pack)} disabled={packBusyState.active}>
-                        {packBusyState.key === getPackBusyKey('export', pack) ? <TbLoader2 className="h-4 w-4 animate-spin mr-1" /> : <TbDownload className="h-4 w-4 mr-1" />}
-                        导出
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => void handleEditPack(pack)} disabled={packBusyState.active || busyKey === getPackBusyKey('editor-draft', pack)}>
-                        {busyKey === getPackBusyKey('editor-draft', pack) ? <TbLoader2 className="h-4 w-4 animate-spin mr-1" /> : <TbPencil className="h-4 w-4 mr-1" />}
-                        编辑
-                      </Button>
-                      {pack.source === 'installed' && (
-                        <Button size="sm" variant="destructive" onClick={() => setRemoveTarget(pack)} disabled={packBusyState.active}>
-                          {packBusyState.key === getPackBusyKey('remove', pack) ? <TbLoader2 className="h-4 w-4 animate-spin mr-1" /> : <TbTrash className="h-4 w-4 mr-1" />}
-                          删除
-                        </Button>
-                      )}
-                    </div>
+                    <TooltipProvider delayDuration={120}>
+                      <div className="flex items-center gap-1">
+                        {pack.isActive ? (
+                          <PackActionButton label="当前使用" disabled>
+                            <TbCheck className="h-4 w-4" />
+                          </PackActionButton>
+                        ) : (
+                          <PackActionButton label="切换" onClick={() => void handleActivatePack(pack)} disabled={packBusyState.active}>
+                            {packBusyState.key === getPackBusyKey('activate', pack) ? <TbLoader2 className="h-4 w-4 animate-spin" /> : <TbCheck className="h-4 w-4" />}
+                          </PackActionButton>
+                        )}
+                        <PackActionButton label="打开" onClick={() => void window.YUA.file['file:openPath'](pack.rootDir)}>
+                          <TbFolderOpen className="h-4 w-4" />
+                        </PackActionButton>
+                        <PackActionButton label="导出" onClick={() => void handleExportPack(pack)} disabled={packBusyState.active}>
+                          {packBusyState.key === getPackBusyKey('export', pack) ? <TbLoader2 className="h-4 w-4 animate-spin" /> : <TbDownload className="h-4 w-4" />}
+                        </PackActionButton>
+                        <PackActionButton label="编辑" onClick={() => void handleEditPack(pack)} disabled={packBusyState.active || busyKey === getPackBusyKey('editor-draft', pack)}>
+                          {busyKey === getPackBusyKey('editor-draft', pack) ? <TbLoader2 className="h-4 w-4 animate-spin" /> : <TbPencil className="h-4 w-4" />}
+                        </PackActionButton>
+                        {pack.source === 'installed' && (
+                          <PackActionButton
+                            label="删除"
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => setRemoveTarget(pack)}
+                            disabled={packBusyState.active}
+                          >
+                            {packBusyState.key === getPackBusyKey('remove', pack) ? <TbLoader2 className="h-4 w-4 animate-spin" /> : <TbTrash className="h-4 w-4" />}
+                          </PackActionButton>
+                        )}
+                      </div>
+                    </TooltipProvider>
                   }
                 >
                   <div className="flex items-start gap-3">
@@ -683,7 +701,7 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra, edi
                       <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-muted text-[11px] text-muted-foreground">无预览</div>
                     )}
                     <div className="min-w-0 flex-1 space-y-2">
-                      <SettingPath path={pack.rootDir} />
+                      <SettingPath path={maskPath(pack.rootDir)} />
                       {(pack.tags.length > 0 || packMetadataBadges.length > 0 || packTrustBadges.length > 0) && (
                         <div className="flex flex-wrap gap-1">
                           {packMetadataBadges.map((badge) => (
@@ -895,7 +913,7 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra, edi
               {removeTarget?.isActive ? `当前正在使用 ${removeTarget?.name}。删除前会先切回其他可用角色包，再移除此安装包。` : `将从本地移除 ${removeTarget?.name} 的安装目录。`}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {removeTarget && <SettingPath path={removeTarget.rootDir} />}
+          {removeTarget && <SettingPath path={maskPath(removeTarget.rootDir)} />}
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={() => void handleRemovePack()}>确认删除</AlertDialogAction>

@@ -9,8 +9,11 @@ import {
   TbAlignBoxTopCenter,
   TbAlignBoxTopLeft,
   TbAlignBoxTopRight,
+  TbCheck,
   TbChevronDown,
   TbChevronRight,
+  TbCopy,
+  TbJson,
   TbPlayerPlay,
   TbPlayerStop,
   TbPlus,
@@ -20,8 +23,9 @@ import {
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -36,15 +40,7 @@ import type {
   WindowAnimationPlacement,
   WindowAnimationTimeline
 } from '../../../electron/preload/apis/window';
-import {
-  createWindowAnimationPresetFrames,
-  isWindowAnimationPresetId,
-  WINDOW_ANIMATION_PRESET_CATEGORIES,
-  WINDOW_ANIMATION_PRESET_DIRECTIONS,
-  WINDOW_ANIMATION_PRESETS,
-  type WindowAnimationPresetDirection,
-  type WindowAnimationPresetId
-} from './window-animation-presets';
+import { createWindowAnimationPresetFrames, isWindowAnimationPresetId, type WindowAnimationPresetDirection, type WindowAnimationPresetId } from './window-animation-presets';
 
 type EditableKeyframe = Required<Pick<WindowAnimationKeyframe, 'x' | 'y' | 'width' | 'height'>> &
   Pick<WindowAnimationKeyframe, 'duration' | 'easing' | 'curve' | 'control1' | 'control2' | 'opacity' | 'placement'>;
@@ -52,7 +48,6 @@ type EditableKeyframe = Required<Pick<WindowAnimationKeyframe, 'x' | 'y' | 'widt
 type ResizeCorner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
 type DragOperation = { type: 'move'; index: number } | { type: 'resize'; index: number; corner: ResizeCorner };
-type PresetSelection = WindowAnimationPresetId | 'custom';
 type WindowAnimationEditorPayload = {
   presetId?: unknown;
 };
@@ -360,10 +355,8 @@ export default function WindowAnimationEditor(): JSX.Element {
   const [coordinateSpaceEnabled, setCoordinateSpaceEnabled] = useState(true);
   const [positionAnchor, setPositionAnchor] = useState<WindowAnimationAnchor>(DEFAULT_POSITION_ANCHOR);
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [presetSelection, setPresetSelection] = useState<PresetSelection>('custom');
-  const [presetDirection, setPresetDirection] = useState<WindowAnimationPresetDirection>('left');
-  const [presetDuration, setPresetDuration] = useState(DEFAULT_PRESET_DURATION);
-  const [presetBaseFrame, setPresetBaseFrame] = useState<EditableKeyframe | null>(null);
+  const [jsonDialogOpen, setJsonDialogOpen] = useState(false);
+  const [jsonCopied, setJsonCopied] = useState(false);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const loadPresetRef = useRef<(presetId: WindowAnimationPresetId) => void>(() => undefined);
 
@@ -385,12 +378,6 @@ export default function WindowAnimationEditor(): JSX.Element {
     [clampToWorkArea, frames, normalizedCoordinateSpace, positionAnchor, targetWindow]
   );
   const timelineJson = useMemo(() => JSON.stringify(timeline, null, 2), [timeline]);
-  const selectedPreset = useMemo(() => (presetSelection === 'custom' ? undefined : WINDOW_ANIMATION_PRESETS.find((preset) => preset.id === presetSelection)), [presetSelection]);
-
-  const markCustomEditing = useCallback(() => {
-    setPresetSelection('custom');
-    setPresetBaseFrame(null);
-  }, []);
 
   const updateFrame = useCallback(
     (index: number, patch: Partial<EditableKeyframe>) => {
@@ -412,7 +399,6 @@ export default function WindowAnimationEditor(): JSX.Element {
 
   const setFramePlacement = useCallback(
     (anchor: WindowAnimationAnchor) => {
-      markCustomEditing();
       setFrames((prev) =>
         prev.map((frame, frameIndex) => {
           if (frameIndex !== selectedIndex) return frame;
@@ -427,12 +413,11 @@ export default function WindowAnimationEditor(): JSX.Element {
         })
       );
     },
-    [markCustomEditing, positionAnchor, selectedIndex]
+    [positionAnchor, selectedIndex]
   );
 
   const updateFramePlacement = useCallback(
     (patch: Partial<WindowAnimationPlacement>) => {
-      markCustomEditing();
       setFrames((prev) =>
         prev.map((frame, frameIndex) => {
           if (frameIndex !== selectedIndex || !frame.placement) return frame;
@@ -442,13 +427,12 @@ export default function WindowAnimationEditor(): JSX.Element {
         })
       );
     },
-    [markCustomEditing, positionAnchor, selectedIndex]
+    [positionAnchor, selectedIndex]
   );
 
   const clearFramePlacement = useCallback(() => {
-    markCustomEditing();
     updateFrame(selectedIndex, { placement: undefined });
-  }, [markCustomEditing, selectedIndex, updateFrame]);
+  }, [selectedIndex, updateFrame]);
 
   const loadPreset = useCallback(
     (
@@ -459,14 +443,10 @@ export default function WindowAnimationEditor(): JSX.Element {
         duration?: number;
       } = {}
     ) => {
-      const baseFrame = options.baseFrame || presetBaseFrame || selectedFrame;
+      const baseFrame = options.baseFrame || selectedFrame;
       if (!baseFrame) return;
-      const direction = options.direction || presetDirection;
-      const duration = options.duration ?? presetDuration;
-      setPresetSelection(nextPresetId);
-      setPresetDirection(direction);
-      setPresetDuration(duration);
-      setPresetBaseFrame(baseFrame);
+      const direction = options.direction || 'left';
+      const duration = options.duration ?? DEFAULT_PRESET_DURATION;
       const nextFrames = createWindowAnimationPresetFrames({
         presetId: nextPresetId,
         baseFrame,
@@ -478,7 +458,7 @@ export default function WindowAnimationEditor(): JSX.Element {
       setFrames(nextFrames);
       setSelectedIndex(Math.max(0, nextFrames.length - 1));
     },
-    [positionAnchor, presetBaseFrame, presetDirection, presetDuration, selectedFrame]
+    [positionAnchor, selectedFrame]
   );
 
   loadPresetRef.current = loadPreset;
@@ -520,43 +500,7 @@ export default function WindowAnimationEditor(): JSX.Element {
     };
   }, []);
 
-  const handlePresetChange = useCallback(
-    (value: string) => {
-      if (value === 'custom') {
-        setPresetSelection('custom');
-        setPresetBaseFrame(null);
-        return;
-      }
-      if (!isWindowAnimationPresetId(value)) return;
-      loadPreset(value, { baseFrame: presetBaseFrame || selectedFrame });
-    },
-    [loadPreset, presetBaseFrame, selectedFrame]
-  );
-
-  const handlePresetDirectionChange = useCallback(
-    (direction: WindowAnimationPresetDirection) => {
-      if (presetSelection === 'custom') {
-        setPresetDirection(direction);
-        return;
-      }
-      loadPreset(presetSelection, { direction });
-    },
-    [loadPreset, presetSelection]
-  );
-
-  const handlePresetDurationChange = useCallback(
-    (duration: number) => {
-      if (presetSelection === 'custom') {
-        setPresetDuration(duration);
-        return;
-      }
-      loadPreset(presetSelection, { duration });
-    },
-    [loadPreset, presetSelection]
-  );
-
   const addFrame = useCallback(() => {
-    markCustomEditing();
     setFrames((prev) => {
       const last = prev[prev.length - 1] || createDefaultFrames()[0];
       const next: EditableKeyframe = {
@@ -570,14 +514,13 @@ export default function WindowAnimationEditor(): JSX.Element {
       setSelectedIndex(prev.length);
       return [...prev, next];
     });
-  }, [markCustomEditing]);
+  }, []);
 
   const removeFrame = useCallback(() => {
     if (frames.length <= 1) return;
-    markCustomEditing();
     setFrames((prev) => prev.filter((_, index) => index !== selectedIndex));
     setSelectedIndex((index) => Math.max(0, Math.min(index, frames.length - 2)));
-  }, [frames.length, markCustomEditing, selectedIndex]);
+  }, [frames.length, selectedIndex]);
 
   const handlePointerMove = useCallback(
     (event: React.PointerEvent<SVGSVGElement>) => {
@@ -586,8 +529,6 @@ export default function WindowAnimationEditor(): JSX.Element {
       const designPoint = toDesignAreaPoint(canvasPoint);
       const frame = frames[dragOperation.index];
       if (!frame) return;
-
-      markCustomEditing();
 
       if (dragOperation.type === 'move') {
         updateFrame(dragOperation.index, { ...designPoint, placement: undefined });
@@ -601,7 +542,7 @@ export default function WindowAnimationEditor(): JSX.Element {
         updateFrame(dragOperation.index, bounds);
       }
     },
-    [dragOperation, frames, markCustomEditing, positionAnchor, updateFrame]
+    [dragOperation, frames, positionAnchor, updateFrame]
   );
 
   const handlePointerUp = useCallback((event: React.PointerEvent<SVGSVGElement>) => {
@@ -625,15 +566,25 @@ export default function WindowAnimationEditor(): JSX.Element {
   const updateNumeric = useCallback(
     (key: keyof EditableKeyframe, value: string) => {
       if (!selectedFrame) return;
-      markCustomEditing();
       const patch = { [key]: toNumber(value, Number(selectedFrame[key] ?? 0)) } as Partial<EditableKeyframe>;
       if (key === 'x' || key === 'y') {
         patch.placement = undefined;
       }
       updateFrame(selectedIndex, patch);
     },
-    [markCustomEditing, selectedFrame, selectedIndex, updateFrame]
+    [selectedFrame, selectedIndex, updateFrame]
   );
+
+  const copyTimelineJson = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(timelineJson);
+      setJsonCopied(true);
+      toast.success('JSON 已复制');
+      window.setTimeout(() => setJsonCopied(false), 1800);
+    } catch (error) {
+      toast.error('复制失败', { description: error instanceof Error ? error.message : String(error) });
+    }
+  }, [timelineJson]);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background text-foreground">
@@ -683,6 +634,10 @@ export default function WindowAnimationEditor(): JSX.Element {
             <Button size="sm" variant="ghost" onClick={removeFrame} disabled={frames.length <= 1}>
               <TbTrash />
               删除
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setJsonDialogOpen(true)}>
+              <TbJson />
+              JSON
             </Button>
             <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
               <input type="checkbox" checked={clampToWorkArea} onChange={(event) => setClampToWorkArea(event.target.checked)} />
@@ -786,7 +741,7 @@ export default function WindowAnimationEditor(): JSX.Element {
             </svg>
           </div>
 
-          <Textarea value={timelineJson} readOnly className="h-40 resize-none font-mono text-xs" />
+          <KeyframeTimeline frames={frames} selectedIndex={selectedIndex} onSelect={setSelectedIndex} />
         </section>
 
         <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto border-l pl-4">
@@ -796,16 +751,6 @@ export default function WindowAnimationEditor(): JSX.Element {
           </div>
 
           <CoordinateSpaceEditor enabled={coordinateSpaceEnabled} onEnabledChange={setCoordinateSpaceEnabled} />
-
-          <PresetEditor
-            presetSelection={presetSelection}
-            direction={presetDirection}
-            duration={presetDuration}
-            supportsDirection={selectedPreset?.supportsDirection ?? false}
-            onPresetChange={handlePresetChange}
-            onDirectionChange={handlePresetDirectionChange}
-            onDurationChange={handlePresetDurationChange}
-          />
 
           <PlacementEditor placement={selectedFrame.placement} onSelectAnchor={setFramePlacement} onChange={updateFramePlacement} onClear={clearFramePlacement} />
 
@@ -828,7 +773,6 @@ export default function WindowAnimationEditor(): JSX.Element {
                     <Select
                       value={positionAnchor}
                       onValueChange={(value) => {
-                        markCustomEditing();
                         setPositionAnchor(value as WindowAnimationAnchor);
                       }}
                     >
@@ -858,7 +802,6 @@ export default function WindowAnimationEditor(): JSX.Element {
                     <Select
                       value={selectedFrame.curve || 'line'}
                       onValueChange={(value) => {
-                        markCustomEditing();
                         updateFrame(selectedIndex, { curve: value as WindowAnimationCurve });
                       }}
                     >
@@ -879,7 +822,6 @@ export default function WindowAnimationEditor(): JSX.Element {
                     <Select
                       value={selectedFrame.easing || 'ease-in-out'}
                       onValueChange={(value) => {
-                        markCustomEditing();
                         updateFrame(selectedIndex, { easing: value as WindowAnimationEasing });
                       }}
                     >
@@ -903,7 +845,6 @@ export default function WindowAnimationEditor(): JSX.Element {
                   disabled={selectedFrame.curve === 'line'}
                   fallback={{ x: selectedFrame.x - 80, y: selectedFrame.y - 80 }}
                   onChange={(control1) => {
-                    markCustomEditing();
                     updateFrame(selectedIndex, { control1 });
                   }}
                 />
@@ -913,38 +854,39 @@ export default function WindowAnimationEditor(): JSX.Element {
                   disabled={selectedFrame.curve !== 'cubic'}
                   fallback={{ x: selectedFrame.x + 80, y: selectedFrame.y - 80 }}
                   onChange={(control2) => {
-                    markCustomEditing();
                     updateFrame(selectedIndex, { control2 });
                   }}
                 />
               </div>
             )}
           </div>
-
-          <div className="space-y-2">
-            {frames.map((frame, index) => (
-              <button
-                key={index}
-                type="button"
-                onClick={() => setSelectedIndex(index)}
-                className={cn('w-full rounded-md border px-3 py-2 text-left text-xs transition-colors hover:bg-accent', selectedIndex === index && 'border-primary bg-primary/10')}
-              >
-                <div className="font-medium">
-                  #{index + 1} ({frame.x}, {frame.y})
-                </div>
-                <div className="text-muted-foreground">
-                  {frame.width} x {frame.height} · {index === 0 ? '起点' : `${frame.duration ?? 0}ms`}
-                </div>
-                {frame.placement && (
-                  <div className="text-primary">
-                    {getPlacementLabel(frame.placement)} · {frame.placement.display || 'current'}
-                  </div>
-                )}
-              </button>
-            ))}
-          </div>
         </aside>
       </main>
+
+      <Dialog open={jsonDialogOpen} onOpenChange={setJsonDialogOpen}>
+        <DialogContent className="flex max-h-[82vh] w-[min(920px,calc(100vw-48px))] max-w-4xl flex-col overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>窗口动画 JSON</DialogTitle>
+            <DialogDescription>当前时间线数据，可复制用于调试或复用。</DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end">
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={copyTimelineJson}>
+              {jsonCopied ? (
+                <>
+                  <TbCheck className="h-3.5 w-3.5" />
+                  已复制
+                </>
+              ) : (
+                <>
+                  <TbCopy className="h-3.5 w-3.5" />
+                  复制
+                </>
+              )}
+            </Button>
+          </div>
+          <Textarea value={timelineJson} readOnly className="min-h-[420px] flex-1 resize-none bg-muted/50 font-mono text-xs" onClick={(event) => event.currentTarget.select()} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -955,6 +897,50 @@ function Field({ label, value, step = '1', disabled, onChange }: { label: string
       <span className="text-xs text-muted-foreground">{label}</span>
       <Input type="number" step={step} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} className="h-8" />
     </label>
+  );
+}
+
+function KeyframeTimeline({ frames, selectedIndex, onSelect }: { frames: EditableKeyframe[]; selectedIndex: number; onSelect: (index: number) => void }): JSX.Element {
+  return (
+    <div className="shrink-0 rounded-md border bg-background p-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="text-xs font-medium">窗口关键帧</div>
+        <div className="text-xs text-muted-foreground">{frames.length} 帧</div>
+      </div>
+      <div className="overflow-x-auto pb-1">
+        <div className="flex min-w-max items-center">
+          {frames.map((frame, index) => {
+            const active = selectedIndex === index;
+            const durationLabel = index === 0 ? '起点' : `${frame.duration ?? 0}ms`;
+            return (
+              <React.Fragment key={index}>
+                <button
+                  type="button"
+                  onClick={() => onSelect(index)}
+                  className={cn(
+                    'flex h-20 w-40 shrink-0 flex-col justify-between rounded-md border px-3 py-2 text-left text-xs transition-colors hover:bg-accent',
+                    active && 'border-primary bg-primary/10 text-primary'
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">#{index + 1}</span>
+                    <span className={cn('text-[11px]', active ? 'text-primary' : 'text-muted-foreground')}>{durationLabel}</span>
+                  </div>
+                  <div className={cn('truncate', active ? 'text-primary' : 'text-foreground')}>
+                    ({Math.round(frame.x)}, {Math.round(frame.y)})
+                  </div>
+                  <div className={cn('truncate', active ? 'text-primary/80' : 'text-muted-foreground')}>
+                    {Math.round(frame.width)} x {Math.round(frame.height)}
+                  </div>
+                  {frame.placement && <div className="truncate text-[11px] text-primary">{getPlacementLabel(frame.placement)}</div>}
+                </button>
+                {index < frames.length - 1 && <div className="h-px w-8 shrink-0 bg-border" />}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -970,76 +956,6 @@ function CoordinateSpaceEditor({ enabled, onEnabledChange }: { enabled: boolean;
           <input type="checkbox" checked={enabled} onChange={(event) => onEnabledChange(event.target.checked)} />
           适配
         </label>
-      </div>
-    </div>
-  );
-}
-
-function PresetEditor({
-  presetSelection,
-  direction,
-  duration,
-  supportsDirection,
-  onPresetChange,
-  onDirectionChange,
-  onDurationChange
-}: {
-  presetSelection: PresetSelection;
-  direction: WindowAnimationPresetDirection;
-  duration: number;
-  supportsDirection: boolean;
-  onPresetChange: (presetId: PresetSelection) => void;
-  onDirectionChange: (direction: WindowAnimationPresetDirection) => void;
-  onDurationChange: (duration: number) => void;
-}): JSX.Element {
-  return (
-    <div className="space-y-3 rounded-md border p-3">
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <div className="text-xs font-medium">动画预设</div>
-          <div className="text-xs text-muted-foreground">选择后立即载入画布</div>
-        </div>
-      </div>
-
-      <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">效果</label>
-        <Select value={presetSelection} onValueChange={(value) => onPresetChange(value as PresetSelection)}>
-          <SelectTrigger className="h-8">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="custom">自定义关键帧</SelectItem>
-            {WINDOW_ANIMATION_PRESET_CATEGORIES.map((group) => (
-              <SelectGroup key={group.category}>
-                <SelectLabel className="px-2 py-1.5 text-[11px]">{group.label}</SelectLabel>
-                {WINDOW_ANIMATION_PRESETS.filter((preset) => preset.category === group.category).map((preset) => (
-                  <SelectItem key={preset.id} value={preset.id}>
-                    {preset.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">方向</label>
-          <Select value={direction} disabled={!supportsDirection} onValueChange={(value) => onDirectionChange(value as WindowAnimationPresetDirection)}>
-            <SelectTrigger className="h-8">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {WINDOW_ANIMATION_PRESET_DIRECTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <Field label="时长 ms" value={duration} onChange={(value) => onDurationChange(Math.max(1, Math.round(toNumber(value, duration))))} />
       </div>
     </div>
   );

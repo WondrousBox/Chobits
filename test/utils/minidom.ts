@@ -382,7 +382,7 @@ export function installMiniDom(): MiniDomEnvironment {
   const previous = {
     window: globalThis.window,
     document: globalThis.document,
-    navigator: globalThis.navigator,
+    navigatorDescriptor: Object.getOwnPropertyDescriptor(globalThis, 'navigator'),
     HTMLElement: (globalThis as any).HTMLElement,
     HTMLVideoElement: (globalThis as any).HTMLVideoElement,
     HTMLIFrameElement: (globalThis as any).HTMLIFrameElement,
@@ -419,7 +419,11 @@ export function installMiniDom(): MiniDomEnvironment {
 
   (globalThis as any).window = window;
   (globalThis as any).document = document;
-  (globalThis as any).navigator = window.navigator;
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: window.navigator,
+    writable: true
+  });
   (globalThis as any).HTMLElement = FakeHTMLElement;
   (globalThis as any).HTMLVideoElement = FakeHTMLVideoElement;
   (globalThis as any).HTMLIFrameElement = FakeHTMLIFrameElement;
@@ -441,7 +445,11 @@ export function installMiniDom(): MiniDomEnvironment {
       document.body.removeChild(container);
       (globalThis as any).window = previous.window;
       (globalThis as any).document = previous.document;
-      (globalThis as any).navigator = previous.navigator;
+      if (previous.navigatorDescriptor) {
+        Object.defineProperty(globalThis, 'navigator', previous.navigatorDescriptor);
+      } else {
+        delete (globalThis as any).navigator;
+      }
       (globalThis as any).HTMLElement = previous.HTMLElement;
       (globalThis as any).HTMLVideoElement = previous.HTMLVideoElement;
       (globalThis as any).HTMLIFrameElement = previous.HTMLIFrameElement;

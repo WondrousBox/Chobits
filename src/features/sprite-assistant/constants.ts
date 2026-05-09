@@ -17,7 +17,7 @@ export const DEFAULT_ASSISTANT_PADDING = 100;
 
 // Debug overlay is now controlled at runtime via sprite:config:setDebugOverlay IPC
 // (Previously: export const SHOW_PADDING_DEBUG = false)
-export const SHOW_PADDING_DEBUG = true;
+export const SHOW_PADDING_DEBUG = false;
 
 // Renderer mode toggle: 'video' (current sprite videos) or 'three' (3D demo)
 export type AssistantRendererMode = 'video' | 'three';

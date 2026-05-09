@@ -21,7 +21,7 @@ import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
 import PersonaGainEffects from './ui/PersonaGainEffects';
 import StatusIndicator from './ui/StatusIndicator';
 
-const showBlock = true; // 开发时显示
+const showBlock = false; // 开发时显示
 
 /** 内部组件：包含实际逻辑 */
 const AIAssistantInner: React.FC = () => {
@@ -149,7 +149,7 @@ const AIAssistantInner: React.FC = () => {
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
     >
-      {!isBubbleWindow && <PaddingDebugOverlay padding={padding} />}
+      <PaddingDebugOverlay padding={effectivePadding} />
       {/* inline 模式下才在主窗口内嵌入气泡；独立窗口模式交给气泡窗口 */}
       {!isBubbleWindow && <SpriteMessage />}
       <PersonaGainEffects />
