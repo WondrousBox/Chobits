@@ -8,7 +8,7 @@ import { app, screen } from 'electron';
 
 import defaultWindowConfigs from '../config/window';
 
-const SPRITE_BUBBLE_WINDOW_KEYS = ['spriteBubble', 'spriteBubbleFixedTop'] as const;
+const SPRITE_BUBBLE_WINDOW_KEYS = ['spriteBubbleFixedTop'] as const;
 type SpriteBubbleWindowKey = (typeof SPRITE_BUBBLE_WINDOW_KEYS)[number];
 const SPRITE_EFFECT_WINDOW_KEY = 'spriteEffect' as const;
 
@@ -275,7 +275,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
     try {
       const target = resolveSpriteBubbleEventTarget(event);
       if (!target || target.window.isDestroyed()) {
-        return { success: false, error: 'spriteBubble window not available' };
+        return { success: false, error: 'spriteBubbleFixedTop window not available' };
       }
       const bubble = target.window;
       const width = Math.max(40, Math.round(payload?.width ?? 0));
@@ -293,7 +293,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
     try {
       const target = resolveSpriteBubbleEventTarget(event);
       if (!target) {
-        return { success: false, error: 'spriteBubble window not available' };
+        return { success: false, error: 'spriteBubbleFixedTop window not available' };
       }
       if (payload?.visible) {
         await windowManager.show(target.key);
@@ -349,9 +349,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
   // Pre-create menu window in hidden state for faster first-open
   // This reduces the loading delay when user right-clicks for the first time
   windowManager.create('menu');
-  // 预创建 spriteBubble 跟随窗口，保持隐藏状态。
-  // 以及固定在主窗口上方的跟随窗口；需要时由渲染进程调 sprite:bubble:setVisible 显示。
-  windowManager.create('spriteBubble');
+  // 预创建固定在主窗口上方的气泡窗口；需要时由渲染进程调 sprite:bubble:setVisible 显示。
   windowManager.create('spriteBubbleFixedTop');
   void windowManager
     .create(SPRITE_EFFECT_WINDOW_KEY)
@@ -367,8 +365,8 @@ export function initWindowHandlers(win: BrowserWindow): void {
       if (senderKey) return { key: senderKey, window: senderWindow };
     }
 
-    const fallback = windowManager.get('spriteBubble');
-    return fallback && !fallback.isDestroyed() ? { key: 'spriteBubble', window: fallback } : null;
+    const fallback = windowManager.get('spriteBubbleFixedTop');
+    return fallback && !fallback.isDestroyed() ? { key: 'spriteBubbleFixedTop', window: fallback } : null;
   }
 
   function getSpriteBubbleWindowKey(targetWindow: BrowserWindow): SpriteBubbleWindowKey | null {

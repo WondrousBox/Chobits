@@ -69,7 +69,6 @@ import { SpriteManager } from '../manager';
 import { getPersonaRuleDimensionSchema } from '../persona-rules';
 import type { SpritePurposeHistoryQuery, SpritePurposeRetrospectiveQuery, SpritePurposeRuntimeEventInput, StartSpritePurposeRequest } from '../purpose';
 import type { SpeakRequest, SpriteSpeakConfig } from '../speak/types';
-import { isBubbleWindowMode, MESSAGE_IPC_CHANNELS, SPRITE_EFFECT_IPC_CHANNELS } from '../types';
 import type {
   SpriteAnimationPlaylistMode,
   SpriteAnimationTrigger,
@@ -80,6 +79,7 @@ import type {
   SpriteMovementPreviewConfig,
   SpriteTriggerRequest
 } from '../types';
+import { isBubbleWindowMode, MESSAGE_IPC_CHANNELS, SPRITE_EFFECT_IPC_CHANNELS } from '../types';
 import { WindowController } from '../window-controller';
 import type { WindowControllerAvoidRegion } from '../window-controller-model';
 import { notifySpriteCapabilityChanged } from './capability-events';
@@ -107,12 +107,11 @@ type SpriteBubbleWindowManager = {
   hide: (key: string) => Promise<BrowserWindow | null>;
 };
 
-const SPRITE_BUBBLE_WINDOW_KEYS = ['spriteBubble', 'spriteBubbleFixedTop'] as const;
+const SPRITE_BUBBLE_WINDOW_KEYS = ['spriteBubbleFixedTop'] as const;
 type SpriteBubbleWindowKey = (typeof SPRITE_BUBBLE_WINDOW_KEYS)[number];
 const SPRITE_EFFECT_WINDOW_KEY = 'spriteEffect';
 
 function getSpriteBubbleWindowKeyForMode(mode: SpriteBubbleMode): SpriteBubbleWindowKey | null {
-  if (mode === 'external') return 'spriteBubble';
   if (mode === 'fixed-top') return 'spriteBubbleFixedTop';
   return null;
 }

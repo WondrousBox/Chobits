@@ -74,7 +74,7 @@ function createSpriteBridgeHarness(initialState: SpriteInitialState): {
 }
 
 describe('sprite renderer mount', () => {
-  it('renders the debug overlay from the external switch with the effective runtime padding', async () => {
+  it('renders the debug overlay from the context-menu switch with the effective runtime padding', async () => {
     const { act } = await import('react');
     const { createRoot } = await import('react-dom/client');
 
