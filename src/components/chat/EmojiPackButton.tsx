@@ -1,3 +1,4 @@
+import type * as PopoverPrimitive from '@radix-ui/react-popover';
 import { Archive, FolderOpen, FolderPlus, ImagePlus, Loader2, PackageOpen, SmilePlus } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
@@ -16,6 +17,9 @@ interface EmojiPackButtonProps {
   enabled: boolean;
   onEnabledChange: (enabled: boolean) => void;
   onOpenChange?: (open: boolean) => void;
+  contentSide?: PopoverPrimitive.PopoverContentProps['side'];
+  contentAlign?: PopoverPrimitive.PopoverContentProps['align'];
+  avoidCollisions?: PopoverPrimitive.PopoverContentProps['avoidCollisions'];
 }
 
 function extractDroppedPaths(files: File[]): string[] {
@@ -44,7 +48,7 @@ function hasSuccessfulImport(results: EmojiPackImportResult[]): boolean {
   return results.some((item) => item.ok);
 }
 
-export default function EmojiPackButton({ enabled, onEnabledChange, onOpenChange }: EmojiPackButtonProps): JSX.Element {
+export default function EmojiPackButton({ enabled, contentSide, contentAlign = 'start', avoidCollisions, onEnabledChange, onOpenChange }: EmojiPackButtonProps): JSX.Element {
   const [open, setOpen] = useState(false);
   const [packs, setPacks] = useState<EmojiPackSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -176,7 +180,7 @@ export default function EmojiPackButton({ enabled, onEnabledChange, onOpenChange
           <TooltipContent>{enabled ? '表情包回复已开启' : '表情包回复已关闭'}</TooltipContent>
         </Tooltip>
       </div>
-      <PopoverContent align="start" className="w-80 p-0">
+      <PopoverContent align={contentAlign} side={contentSide} avoidCollisions={avoidCollisions} className="no-drag pointer-events-auto w-80 p-0">
         <div className="px-3 py-3">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">

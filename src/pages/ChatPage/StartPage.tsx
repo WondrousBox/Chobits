@@ -17,6 +17,7 @@ const PLACEHOLDERS = [
   '分析这个网页并输出摘要',
   '检索资源库中关于「会议纪要」的内容'
 ];
+const MENU_RESERVE_HEIGHT = 360;
 
 type AssistantStartParams = Parameters<ChatInputWithServiceProps['onStart']>[0];
 
@@ -28,6 +29,8 @@ const AssistantPage: React.FC = () => {
   const inputBlockRef = useRef<HTMLDivElement | null>(null);
   // 控制当模型下拉展开时，暂停自动尺寸调整
   const modelMenuOpenRef = useRef<boolean>(false);
+  const openMenuCountRef = useRef<number>(0);
+  const menuResizeResumeTimerRef = useRef<number | null>(null);
 
   const { setPresetId } = useChatSelection();
 
@@ -127,6 +130,27 @@ const AssistantPage: React.FC = () => {
     }
   }, []);
 
+  const resizeForOpenMenu = useCallback(async () => {
+    try {
+      const html = document.documentElement;
+      const blockEl = inputBlockRef.current;
+      const blockRect = blockEl?.getBoundingClientRect();
+      const extraMargin = 12;
+      const contentHeight = Math.ceil((blockRect?.bottom ?? window.innerHeight) + extraMargin);
+      const currentWidth = window.innerWidth || html.clientWidth;
+      const screen = await window.YUA.window['screen:size:get']();
+      const maxW = screen.width;
+      const maxH = screen.height;
+      const minW = 360;
+      const minH = 100;
+      const desiredWidth = Math.max(minW, Math.min(currentWidth, maxW));
+      const desiredHeight = Math.max(minH, Math.min(contentHeight + MENU_RESERVE_HEIGHT, maxH));
+      await window.YUA.window['window:size:set']('assistant', desiredWidth, desiredHeight);
+    } catch {
+      //
+    }
+  }, []);
+
   // 根据内容高度动态调整窗口大小
   useEffect(() => {
     let disposed = false;
@@ -174,24 +198,49 @@ const AssistantPage: React.FC = () => {
   const handleMenuOpenChange = useCallback(
     async (open: boolean) => {
       try {
-        modelMenuOpenRef.current = open;
-        const html = document.documentElement;
-        const currentWidth = window.innerWidth || html.clientWidth;
-        const screen = await window.YUA.window['screen:size:get']();
-        const maxH = screen.height;
-        if (open) {
-          const extra = 360;
-          const desiredHeight = Math.min(Math.max(window.innerHeight + extra, 420), maxH);
-          await window.YUA.window['window:size:set']('assistant', currentWidth, desiredHeight);
-        } else {
-          await resizeToContent();
+        if (menuResizeResumeTimerRef.current) {
+          window.clearTimeout(menuResizeResumeTimerRef.current);
+          menuResizeResumeTimerRef.current = null;
         }
+        if (open) {
+          openMenuCountRef.current += 1;
+          modelMenuOpenRef.current = true;
+        } else {
+          openMenuCountRef.current = Math.max(0, openMenuCountRef.current - 1);
+          menuResizeResumeTimerRef.current = window.setTimeout(() => {
+            menuResizeResumeTimerRef.current = null;
+            if (openMenuCountRef.current > 0) {
+              return;
+            }
+            modelMenuOpenRef.current = false;
+            void resizeToContent();
+          }, 120);
+          return;
+        }
+
+        await resizeForOpenMenu();
       } catch {
         //
       }
     },
-    [resizeToContent]
+    [resizeForOpenMenu, resizeToContent]
   );
+
+  const handleInputHeightChange = useCallback(() => {
+    if (modelMenuOpenRef.current) {
+      return;
+    }
+    void resizeToContent();
+  }, [resizeToContent]);
+
+  const handleMenuOpenPrepare = useCallback(() => {
+    modelMenuOpenRef.current = true;
+    if (menuResizeResumeTimerRef.current) {
+      window.clearTimeout(menuResizeResumeTimerRef.current);
+      menuResizeResumeTimerRef.current = null;
+    }
+    void resizeForOpenMenu();
+  }, [resizeForOpenMenu]);
 
   return (
     <div ref={contentRootRef} className="w-full h-full font-sans pointer-events-auto select-none relative drag-region">
@@ -200,11 +249,20 @@ const AssistantPage: React.FC = () => {
           <TbX />
         </Button>
 
-        <div className="drag-region space-y-2">
+        <div className="no-drag pointer-events-auto space-y-2">
           {/* 常用功能快捷入口 */}
           <div ref={inputBlockRef} className="flex items-start gap-3 relative">
             <div className="flex-1 relative">
-              <ChatInputWithService placeholders={PLACEHOLDERS} autoFocus loading={loading} onStart={handleSend} onHeightChange={() => resizeToContent()} onMenuOpenChange={handleMenuOpenChange} />
+              <ChatInputWithService
+                placeholders={PLACEHOLDERS}
+                autoFocus
+                loading={loading}
+                menuPlacement="assistant-floating"
+                onStart={handleSend}
+                onHeightChange={handleInputHeightChange}
+                onMenuOpenChange={handleMenuOpenChange}
+                onMenuOpenPrepare={handleMenuOpenPrepare}
+              />
             </div>
           </div>
         </div>

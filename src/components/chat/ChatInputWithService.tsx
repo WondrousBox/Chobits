@@ -43,9 +43,11 @@ export interface ChatInputWithServiceProps extends Omit<UnifiedChatInputProps, '
     emojiPacksEnabled?: boolean;
   }) => void | Promise<void>;
   onMenuOpenChange?: (open: boolean) => void;
+  onMenuOpenPrepare?: () => void;
+  menuPlacement?: 'auto' | 'assistant-floating';
 }
 
-export default function ChatInputWithService({ onStart, onMenuOpenChange, footerRightExtra, disabled, ...rest }: ChatInputWithServiceProps): JSX.Element {
+export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenuOpenPrepare, footerRightExtra, disabled, menuPlacement = 'auto', ...rest }: ChatInputWithServiceProps): JSX.Element {
   const {
     agents,
     providerId,
@@ -80,6 +82,9 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, footer
   const slashMenuActive = skillPickerEnabled && isTypingSlashSkillQuery(draft) && slashSuggestions.length > 0;
   const highlightedSkillInfo = slashSuggestions[highlightedSkillIndex] || slashSuggestions[0];
   const activeSkillTrust = useMemo(() => (activeSkillInfo ? getSkillTrustPresentation(activeSkillInfo) : undefined), [activeSkillInfo]);
+  const floatingMenuProps = menuPlacement === 'assistant-floating' ? ({ contentSide: 'bottom' as const, contentAlign: 'start' as const, avoidCollisions: false } as const) : undefined;
+  const floatingModelMenuProps =
+    menuPlacement === 'assistant-floating' ? ({ menuSide: 'bottom' as const, menuAlign: 'start' as const, subMenuSide: 'right' as const, avoidCollisions: false } as const) : undefined;
 
   useEffect(() => {
     if (!skillPickerEnabled) {
@@ -229,7 +234,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, footer
       showSaveButton={false}
       footerLeft={
         <div className="flex items-center gap-1 shrink-0 no-drag">
-          <ChatAgentSelect agents={agents} value={agentId} onValueChange={setAgentId} onOpenChange={onMenuOpenChange} />
+          <ChatAgentSelect agents={agents} value={agentId} onValueChange={setAgentId} onOpenChange={onMenuOpenChange} onOpenPrepare={onMenuOpenPrepare} {...floatingMenuProps} />
           <ProviderModelSelect
             providerId={providerId}
             presetId={presetId || undefined}
@@ -244,6 +249,8 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, footer
             autoLoadFirst
             modelTypes={['chat']}
             onOpenChange={onMenuOpenChange}
+            onOpenPrepare={onMenuOpenPrepare}
+            {...floatingModelMenuProps}
           />
           <SkillPickerButton
             agentId={agentId}
@@ -259,6 +266,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, footer
             suggestions={slashSuggestions}
             value={draft}
             onOpenChange={onMenuOpenChange}
+            {...floatingMenuProps}
             onSelect={(nextValue) => {
               setDraft(nextValue);
               window.setTimeout(() => {
@@ -311,8 +319,8 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, footer
               </TooltipContent>
             </Tooltip>
           )}
-          <WebSearchToggle enabled={webSearchEnabled} onToggle={setWebSearchEnabled} onOpenChange={onMenuOpenChange} />
-          {!isCoder && <EmojiPackButton enabled={emojiPacksEnabled} onEnabledChange={setEmojiPacksEnabled} onOpenChange={onMenuOpenChange} />}
+          <WebSearchToggle enabled={webSearchEnabled} onToggle={setWebSearchEnabled} onOpenChange={onMenuOpenChange} {...floatingMenuProps} />
+          {!isCoder && <EmojiPackButton enabled={emojiPacksEnabled} onEnabledChange={setEmojiPacksEnabled} onOpenChange={onMenuOpenChange} {...floatingMenuProps} />}
           {!isCoder && (
             <Tooltip>
               <TooltipTrigger asChild>

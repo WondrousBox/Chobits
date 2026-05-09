@@ -1,6 +1,9 @@
+import type * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
 import type { ReactNode } from 'react';
+import { TbChevronDown } from 'react-icons/tb';
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
 export interface ChatAgentSelectOption {
@@ -18,6 +21,10 @@ export interface ChatAgentSelectProps {
   contentClassName?: string;
   disabled?: boolean;
   onOpenChange?: (open: boolean) => void;
+  onOpenPrepare?: () => void;
+  contentSide?: DropdownMenuPrimitive.DropdownMenuContentProps['side'];
+  contentAlign?: DropdownMenuPrimitive.DropdownMenuContentProps['align'];
+  avoidCollisions?: DropdownMenuPrimitive.DropdownMenuContentProps['avoidCollisions'];
 }
 
 export default function ChatAgentSelect({
@@ -29,21 +36,37 @@ export default function ChatAgentSelect({
   triggerClassName,
   contentClassName,
   disabled = false,
-  onOpenChange
+  onOpenChange,
+  onOpenPrepare,
+  contentSide,
+  contentAlign = 'start',
+  avoidCollisions
 }: ChatAgentSelectProps): JSX.Element {
+  const selectedAgent = agents.find((agent) => agent.id === value);
+  const label = selectedAgent?.label || placeholder;
+
   return (
-    <Select disabled={disabled} value={value} onValueChange={onValueChange} onOpenChange={onOpenChange}>
-      <SelectTrigger className={cn('h-8 max-w-32 rounded-full text-xs text-muted-foreground', prefix ? 'gap-1' : undefined, triggerClassName)}>
-        {prefix ? <span className="shrink-0">{prefix}</span> : null}
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent className={cn('text-xs', contentClassName)}>
+    <DropdownMenu onOpenChange={onOpenChange}>
+      <DropdownMenuTrigger asChild disabled={disabled}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={cn('h-8 max-w-32 justify-between gap-1 rounded-full border-0 text-xs text-muted-foreground shadow-none', triggerClassName)}
+          onPointerDown={() => onOpenPrepare?.()}
+        >
+          {prefix ? <span className="shrink-0">{prefix}</span> : null}
+          <span className="min-w-0 truncate">{label}</span>
+          <TbChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align={contentAlign} side={contentSide} avoidCollisions={avoidCollisions} className={cn('no-drag pointer-events-auto min-w-[8rem] text-xs', contentClassName)}>
         {agents.map((agent) => (
-          <SelectItem key={agent.id} value={agent.id}>
+          <DropdownMenuItem key={agent.id} onSelect={() => onValueChange(agent.id)}>
             {agent.label}
-          </SelectItem>
+          </DropdownMenuItem>
         ))}
-      </SelectContent>
-    </Select>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
