@@ -130,8 +130,10 @@ describe('sprite config authority', () => {
     expect(first.mgr.getBubbleMode()).toBe('fixed-top');
     expect(first.mgr.getEffectivePadding()).toBe(0);
     expect(first.mgr.getSpriteConfig().bubbleMode).toBe('fixed-top');
-    expect(first.mgr.setBubbleMode('external')).toBe('external');
+    expect(first.mgr.setBubbleMode('inline')).toBe('inline');
+    expect(first.mgr.getEffectivePadding()).toBe(100);
     expect(first.mgr.setBubbleMode('fixed-top')).toBe('fixed-top');
+    expect(first.mgr.getEffectivePadding()).toBe(0);
 
     const bubbleModeFile = JSON.parse(readFileSync(path.join(dataDir, 'data', 'sprite-bubble-mode.json'), 'utf8'));
     expect(bubbleModeFile).toEqual({ mode: 'fixed-top' });

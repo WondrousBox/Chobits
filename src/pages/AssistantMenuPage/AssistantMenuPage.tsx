@@ -1,4 +1,5 @@
-import { Bug, BugOff } from 'lucide-react';
+import type { SpriteBubbleMode } from '@packages/sprite-core/types';
+import { Bug, BugOff, MessageSquare, PanelTop } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -22,6 +23,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
   // ASR 服务运行状态
   const [isASRRunning, setIsASRRunning] = useState(false);
   const [debugOverlay, setDebugOverlay] = useState(false);
+  const [bubbleMode, setBubbleMode] = useState<SpriteBubbleMode>('fixed-top');
   const { snapshot: capabilitySnapshot, refresh: refreshCapabilitySnapshot } = useSpriteCapabilitySnapshot({ enabled: isOpen });
 
   // 查询 ASR 服务状态
@@ -55,6 +57,28 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
       setDebugOverlay(false);
     }
   }, []);
+
+  const checkBubbleMode = useCallback(async () => {
+    try {
+      setBubbleMode(await window.YUA.sprite.getBubbleMode());
+    } catch (error) {
+      console.error('查询气泡模式失败:', error);
+      setBubbleMode('fixed-top');
+    }
+  }, []);
+
+  const setSpriteBubbleMode = useCallback(
+    async (mode: SpriteBubbleMode) => {
+      setBubbleMode(mode);
+      try {
+        const applied = await window.YUA.sprite.setBubbleMode(mode);
+        setBubbleMode(applied);
+      } catch {
+        void checkBubbleMode();
+      }
+    },
+    [checkBubbleMode]
+  );
 
   const toggleDebugOverlay = useCallback(async () => {
     const next = !debugOverlay;
@@ -234,11 +258,25 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         }
       },
       {
-        id: 'debug-overlay',
-        label: debugOverlay ? '关闭线框' : '调试线框',
-        icon: debugOverlay ? <BugOff className="h-6 w-6" /> : <Bug className="h-6 w-6" />,
-        shortcut: 'd',
-        action: toggleDebugOverlay
+        id: 'debug-test',
+        label: '调试测试',
+        icon: <Bug className="h-6 w-6" />,
+        children: [
+          {
+            id: 'debug-overlay',
+            label: debugOverlay ? '关闭线框' : '调试线框',
+            icon: debugOverlay ? <BugOff className="h-6 w-6" /> : <Bug className="h-6 w-6" />,
+            shortcut: 'd',
+            action: toggleDebugOverlay
+          },
+          {
+            id: 'bubble-mode',
+            label: bubbleMode === 'inline' ? '顶部气泡' : '内嵌气泡',
+            icon: bubbleMode === 'inline' ? <PanelTop className="h-6 w-6" /> : <MessageSquare className="h-6 w-6" />,
+            shortcut: 'b',
+            action: () => void setSpriteBubbleMode(bubbleMode === 'inline' ? 'fixed-top' : 'inline')
+          }
+        ]
       },
       {
         id: 'settings',
@@ -250,7 +288,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         }
       }
     ],
-    [capabilitySnapshot, debugOverlay, isASRRunning, refreshCapabilitySnapshot, showLockedCapabilityToast, toggleDebugOverlay]
+    [bubbleMode, capabilitySnapshot, debugOverlay, isASRRunning, refreshCapabilitySnapshot, setSpriteBubbleMode, showLockedCapabilityToast, toggleDebugOverlay]
   );
 
   // 处理菜单关闭请求（播放退出动画后关闭窗口）
@@ -282,6 +320,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         void window.YUA.sprite.interact('context-menu', { open: true });
         checkASRStatus();
         checkDebugOverlay();
+        checkBubbleMode();
         void refreshCapabilitySnapshot();
         setIsOpen(true);
         setIsClosing(false);
@@ -296,7 +335,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
     return () => {
       window.ipcRenderer?.off('window:visibility-changed', handleVisibilityChange);
     };
-  }, [checkASRStatus, checkDebugOverlay, refreshCapabilitySnapshot]);
+  }, [checkASRStatus, checkBubbleMode, checkDebugOverlay, refreshCapabilitySnapshot]);
 
   useEffect(() => {
     return () => {

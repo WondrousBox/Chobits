@@ -73,6 +73,7 @@ import {
   type MessageIPCPayload,
   normalizeSpriteAnimationPlaylistMode,
   normalizeSpriteAnimationPlaylistModeMap,
+  normalizeSpriteBubbleMode,
   type SpriteAnimation,
   type SpriteAnimationPlaylistMode,
   type SpriteAnimationTrigger,
@@ -83,7 +84,6 @@ import {
   type SpriteMovementPreviewConfig,
   type SpritePlayCommand,
   type SpriteStateSnapshot,
-  normalizeSpriteBubbleMode,
   type SpriteTriggerOptions
 } from '../types';
 import type { WindowControllerAvoidRegion } from '../window-controller-model';
@@ -169,7 +169,7 @@ export class SpriteManager {
   private bubbleModeConfig: BubbleModeConfig;
   private movementSuspensionReasons = new Set<string>();
 
-  // 额外消息/配置接收方（如 spriteBubble / spriteEffect 跟随窗口）
+  // 额外消息/配置接收方（如顶部气泡 / spriteEffect 窗口）
   private getMessageRecipients?: () => Array<SpriteWindow | null | undefined>;
   private getConfigRecipients?: () => Array<SpriteWindow | null | undefined>;
 

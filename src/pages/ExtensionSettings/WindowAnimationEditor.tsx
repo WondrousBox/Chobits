@@ -55,7 +55,6 @@ type WindowAnimationEditorPayload = {
 const TARGET_WINDOWS = [
   { key: 'main', label: '主精灵窗口' },
   { key: 'spriteBubbleFixedTop', label: '顶部气泡窗口' },
-  { key: 'spriteBubble', label: '跟随气泡窗口' },
   { key: 'spriteEffect', label: '精灵特效窗口' },
   { key: 'menu', label: '精灵菜单窗口' }
 ];

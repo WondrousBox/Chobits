@@ -1,6 +1,6 @@
 import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
 import React, { useCallback, useEffect, useState } from 'react';
-import { TbBug, TbPlayerPlay, TbTools, TbTrash, TbX } from 'react-icons/tb';
+import { TbPlayerPlay, TbTools, TbTrash, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,6 @@ import {
 import { ensureSpriteCapabilityAccessible, SpriteCapabilityLockedNotice } from '@/features/sprite-assistant/capability-ui';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
-import BubbleModeSettings from './BubbleModeSettings';
 import SpriteAnimationMetaPopover from './components/SpriteAnimationMetaPopover';
 import SpriteTriggerPicker from './components/SpriteTriggerPicker';
 import SpritePackManager from './SpritePackManager';
@@ -124,7 +123,6 @@ export function SpriteAnimationManager({
   // 精灵导入状态
   const [spriteConfig, setSpriteConfig] = useState<Partial<SpriteVideoConfig>>({});
   const [spriteProcessing, setSpriteProcessing] = useState(false);
-  const [debugOverlay, setDebugOverlay] = useState(false);
   const [defaultAnimationPlaylistMode, setDefaultAnimationPlaylistMode] = useState<SpriteAnimationPlaylistMode>('list-loop');
   const [animationPlaylistModes, setAnimationPlaylistModes] = useState<SpriteAnimationPlaylistModeMap>({});
   // 默认的内置分类：使用全部预设事件类型（不包含 custom）
@@ -134,17 +132,12 @@ export function SpriteAnimationManager({
 
   const ensureCanAuthorAnimations = useCallback((): boolean => ensureSpriteCapabilityAccessible(assetAuthoringCapability, onCapabilityBlocked), [assetAuthoringCapability, onCapabilityBlocked]);
 
-  // 初始化读取调试辅助线状态
+  // 初始化读取播放列表状态
   useEffect(() => {
-    window.YUA.sprite
-      .getDebugOverlay()
-      .then(setDebugOverlay)
-      .catch(() => { });
-
     window.YUA.sprite
       .getAnimationPlaylistMode()
       .then(setDefaultAnimationPlaylistMode)
-      .catch(() => { });
+      .catch(() => {});
 
     window.YUA.sprite
       .getInitialState()
@@ -155,7 +148,7 @@ export function SpriteAnimationManager({
         }
         setAnimationPlaylistModes(normalizeSpriteAnimationPlaylistModeMap(config?.animationPlaylistModes));
       })
-      .catch(() => { });
+      .catch(() => {});
 
     return window.YUA.sprite.onConfig((config) => {
       if (config.animationPlaylistMode) {
@@ -164,12 +157,6 @@ export function SpriteAnimationManager({
       setAnimationPlaylistModes(normalizeSpriteAnimationPlaylistModeMap(config.animationPlaylistModes));
     });
   }, []);
-
-  const toggleDebugOverlay = useCallback(async () => {
-    const next = !debugOverlay;
-    setDebugOverlay(next);
-    await window.YUA.sprite.setDebugOverlay(next);
-  }, [debugOverlay]);
 
   const updateAnimationPlaylistMode = useCallback(async (mode: SpriteAnimationPlaylistMode, trigger?: SpriteAnimationTrigger) => {
     if (trigger) {
@@ -350,10 +337,6 @@ export function SpriteAnimationManager({
           </Button>
           <Button size="sm" variant="outline" onClick={refresh} disabled={loading}>
             刷新
-          </Button>
-          <BubbleModeSettings />
-          <Button size="sm" variant={debugOverlay ? 'default' : 'outline'} onClick={toggleDebugOverlay} title="调试辅助线">
-            <TbBug />
           </Button>
           <Button size="sm" variant="outline" onClick={() => (ensureCanAuthorAnimations() ? setToolOpen(true) : undefined)} disabled={!canAuthorAnimations} title={authoringLockedTitle}>
             <TbTools />
