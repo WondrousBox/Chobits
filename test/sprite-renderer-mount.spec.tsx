@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { SpriteConfig, SpriteInitialState, SpritePlayCommand, SpriteStateSnapshot, SpriteWalkState } from '../packages/sprite-core/types';
+import type { SpriteStateContextValue } from '../src/features/sprite-assistant/context/sprite-state-context';
 import { installMiniDom, isFakeVideoElement } from './utils/minidom';
 
 vi.mock('@/pages/ResourcePage/utils/resourceProtocol', () => ({
@@ -73,6 +74,60 @@ function createSpriteBridgeHarness(initialState: SpriteInitialState): {
 }
 
 describe('sprite renderer mount', () => {
+  it('renders the debug overlay from the external switch with the effective runtime padding', async () => {
+    const { act } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+
+    const env = installMiniDom();
+
+    const { SpriteStateContext } = await import('../src/features/sprite-assistant/context/sprite-state-context');
+    const { default: PaddingDebugOverlay } = await import('../src/features/sprite-assistant/ui/PaddingDebugOverlay');
+
+    const state = {
+      spriteState: 'idle',
+      subState: null,
+      personaState: null,
+      currentAnimation: null,
+      walkDirection: null,
+      isWalking: false,
+      ready: true,
+      spriteConfig: {
+        width: 180,
+        height: 240,
+        padding: 100,
+        animationPlaylistMode: 'list-loop',
+        autoWalkEnabled: true,
+        showDebugOverlay: true,
+        bubbleMode: 'fixed-top'
+      }
+    } satisfies SpriteStateContextValue;
+
+    const root = createRoot(env.container as any);
+
+    await act(async () => {
+      root.render(
+        <SpriteStateContext.Provider value={state}>
+          <PaddingDebugOverlay padding={0} />
+        </SpriteStateContext.Provider>
+      );
+      await Promise.resolve();
+    });
+
+    const overlay = env.container.firstChild as any;
+
+    expect(overlay).not.toBeNull();
+    expect(overlay.style.left).toBe('0');
+    expect(overlay.style.top).toBe('0');
+    expect(overlay.style.width).toBe('180px');
+    expect(overlay.style.height).toBe('240px');
+
+    await act(async () => {
+      root.unmount();
+      await Promise.resolve();
+    });
+    env.cleanup();
+  });
+
   it('mounts SpriteStateProvider and rerenders VideoSprite from bridge events', async () => {
     const { act } = await import('react');
     const { createRoot } = await import('react-dom/client');

@@ -13,7 +13,7 @@ export const PaddingDebugOverlay: React.FC<{ padding: number }> = ({ padding }) 
 
   const width = spriteConfig.width;
   const height = spriteConfig.height;
-  const actualPadding = spriteConfig.padding ?? padding;
+  const actualPadding = padding;
   const show = spriteConfig.showDebugOverlay ?? SHOW_PADDING_DEBUG;
 
   return show ? (
