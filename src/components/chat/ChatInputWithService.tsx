@@ -229,7 +229,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, footer
       showSaveButton={false}
       footerLeft={
         <div className="flex items-center gap-1 shrink-0 no-drag">
-          <ChatAgentSelect agents={agents} value={agentId} onValueChange={setAgentId} />
+          <ChatAgentSelect agents={agents} value={agentId} onValueChange={setAgentId} onOpenChange={onMenuOpenChange} />
           <ProviderModelSelect
             providerId={providerId}
             presetId={presetId || undefined}
@@ -258,6 +258,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, footer
             skills={skills}
             suggestions={slashSuggestions}
             value={draft}
+            onOpenChange={onMenuOpenChange}
             onSelect={(nextValue) => {
               setDraft(nextValue);
               window.setTimeout(() => {
@@ -310,8 +311,8 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, footer
               </TooltipContent>
             </Tooltip>
           )}
-          <WebSearchToggle enabled={webSearchEnabled} onToggle={setWebSearchEnabled} />
-          {!isCoder && <EmojiPackButton enabled={emojiPacksEnabled} onEnabledChange={setEmojiPacksEnabled} />}
+          <WebSearchToggle enabled={webSearchEnabled} onToggle={setWebSearchEnabled} onOpenChange={onMenuOpenChange} />
+          {!isCoder && <EmojiPackButton enabled={emojiPacksEnabled} onEnabledChange={setEmojiPacksEnabled} onOpenChange={onMenuOpenChange} />}
           {!isCoder && (
             <Tooltip>
               <TooltipTrigger asChild>

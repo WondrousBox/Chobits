@@ -13,9 +13,10 @@ const TAVILY_PROVIDER_ID = 'tavily';
 interface WebSearchToggleProps {
   enabled: boolean;
   onToggle: (enabled: boolean) => void;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export default function WebSearchToggle({ enabled, onToggle }: WebSearchToggleProps): JSX.Element {
+export default function WebSearchToggle({ enabled, onOpenChange, onToggle }: WebSearchToggleProps): JSX.Element {
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [loaded, setLoaded] = useState(false);
@@ -40,6 +41,10 @@ export default function WebSearchToggle({ enabled, onToggle }: WebSearchTogglePr
   useEffect(() => {
     void loadApiKey();
   }, []);
+
+  useEffect(() => {
+    onOpenChange?.(popoverOpen);
+  }, [onOpenChange, popoverOpen]);
 
   const handleToggle = async (): Promise<void> => {
     if (!enabled) {
@@ -78,7 +83,12 @@ export default function WebSearchToggle({ enabled, onToggle }: WebSearchTogglePr
   };
 
   return (
-    <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+    <Popover
+      open={popoverOpen}
+      onOpenChange={(open) => {
+        setPopoverOpen(open);
+      }}
+    >
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>

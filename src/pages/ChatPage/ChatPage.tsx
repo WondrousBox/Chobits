@@ -55,7 +55,22 @@ interface ChatUiMessage {
 
 export default function ChatPage({ hideTitleBar = false, presentation = 'standard', payloadWindowKey = 'chat' }: ChatPageProps): JSX.Element {
   const isOverlay = presentation === 'overlay';
-  const { providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, setProviderId, setModelId, setPresetId, setAgentId, setCodingWorkspace } = useChatSelection();
+  const {
+    providerId,
+    modelId,
+    presetId,
+    agentId,
+    codingWorkspaceRoot,
+    codingWorkspaceLabel,
+    setProviderId,
+    setModelId,
+    setPresetId,
+    setAgentId,
+    setCodingWorkspace,
+    setWebSearchEnabled,
+    setEmojiPacksEnabled,
+    setCharacterPersonaEnabled
+  } = useChatSelection();
   const [messages, setMessages] = useState<ChatUiMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
@@ -219,7 +234,18 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
   // 使用 ref 保存 start 函数引用，供 IPC 回调使用
   const startRef =
     useRef<
-      (params: { content: string; providerId?: string; modelId?: string; preferredPresetId?: string; agentId?: string; codingWorkspaceRoot?: string; codingWorkspaceLabel?: string }) => Promise<void>
+      (params: {
+        content: string;
+        providerId?: string;
+        modelId?: string;
+        preferredPresetId?: string;
+        agentId?: string;
+        codingWorkspaceRoot?: string;
+        codingWorkspaceLabel?: string;
+        webSearchEnabled?: boolean;
+        characterPersonaEnabled?: boolean;
+        emojiPacksEnabled?: boolean;
+      }) => Promise<void>
     >();
 
   // Listen for initial message from assistant window (on:window:open:ready)
@@ -261,6 +287,15 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
             label: typeof payload.codingWorkspaceLabel === 'string' ? payload.codingWorkspaceLabel : undefined
           });
         }
+        if (typeof payload.webSearchEnabled === 'boolean') {
+          setWebSearchEnabled(payload.webSearchEnabled);
+        }
+        if (typeof payload.emojiPacksEnabled === 'boolean') {
+          setEmojiPacksEnabled(payload.emojiPacksEnabled);
+        }
+        if (typeof payload.characterPersonaEnabled === 'boolean') {
+          setCharacterPersonaEnabled(payload.characterPersonaEnabled);
+        }
         startRef.current?.({
           content: payload.initialMessage,
           providerId: payload.providerId,
@@ -268,7 +303,10 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
           preferredPresetId: payload.preferredPresetId || payload.presetId,
           agentId: payload.agentId,
           codingWorkspaceRoot: payload.codingWorkspaceRoot,
-          codingWorkspaceLabel: payload.codingWorkspaceLabel
+          codingWorkspaceLabel: payload.codingWorkspaceLabel,
+          webSearchEnabled: payload.webSearchEnabled,
+          characterPersonaEnabled: payload.characterPersonaEnabled,
+          emojiPacksEnabled: payload.emojiPacksEnabled
         });
       }, 50);
     };
@@ -293,7 +331,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
       window.ipcRenderer?.off('on:window:open:ready', ipcHandler);
       clearTimeout(timer);
     };
-  }, [isOverlay, newConversation, payloadWindowKey, setAgentId, setCodingWorkspace, setModelId, setPresetId, setProviderId]);
+  }, [isOverlay, newConversation, payloadWindowKey, setAgentId, setCharacterPersonaEnabled, setCodingWorkspace, setEmojiPacksEnabled, setModelId, setPresetId, setProviderId, setWebSearchEnabled]);
 
   // Listen for conversation title updates from main process
   useEffect(() => {
