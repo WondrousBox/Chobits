@@ -12,6 +12,7 @@ import { ChatSelectionProvider } from '@/pages/ChatPage/context/ChatSelectionCon
 import ExtensionSettings from '@/pages/ExtensionSettings/ExtensionSettings';
 import SkillTreeSettings from '@/pages/ExtensionSettings/SkillTreeSettings';
 import SpritePackEditorWindow from '@/pages/ExtensionSettings/SpritePackEditorWindow';
+import WindowAnimationEditor from '@/pages/ExtensionSettings/WindowAnimationEditor';
 import FileActionsMenu from '@/pages/FileActionsMenu/FileActionsMenu';
 import WebRecorderWindow from '@/pages/RecordingPage/WebRecorderWindow';
 import ResourcePreviewWindow from '@/pages/ResourcePage/ResourcePreviewWindow';
@@ -97,6 +98,7 @@ function App(): JSX.Element {
                 <Route path="/web-recorder" element={<WebRecorderWindow />} />
                 <Route path="/memory-graph" element={<MemoryGraphPage />} />
                 <Route path="/character-pack-editor" element={<SpritePackEditorWindow />} />
+                <Route path="/window-animation-editor" element={<WindowAnimationEditor />} />
                 <Route path="/sprite-bubble" element={<SpriteBubblePage />} />
                 <Route path="/sprite-effect" element={<SpriteEffectPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
