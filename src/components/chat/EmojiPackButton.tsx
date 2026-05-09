@@ -15,6 +15,7 @@ import type { EmojiPackImportResult, EmojiPackSummary } from '../../../electron/
 interface EmojiPackButtonProps {
   enabled: boolean;
   onEnabledChange: (enabled: boolean) => void;
+  onOpenChange?: (open: boolean) => void;
 }
 
 function extractDroppedPaths(files: File[]): string[] {
@@ -43,7 +44,7 @@ function hasSuccessfulImport(results: EmojiPackImportResult[]): boolean {
   return results.some((item) => item.ok);
 }
 
-export default function EmojiPackButton({ enabled, onEnabledChange }: EmojiPackButtonProps): JSX.Element {
+export default function EmojiPackButton({ enabled, onEnabledChange, onOpenChange }: EmojiPackButtonProps): JSX.Element {
   const [open, setOpen] = useState(false);
   const [packs, setPacks] = useState<EmojiPackSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -66,6 +67,10 @@ export default function EmojiPackButton({ enabled, onEnabledChange }: EmojiPackB
   useEffect(() => {
     void refreshPacks();
   }, [refreshPacks]);
+
+  useEffect(() => {
+    onOpenChange?.(open);
+  }, [onOpenChange, open]);
 
   const setEnabled = useCallback(
     (nextEnabled: boolean): void => {
@@ -147,7 +152,12 @@ export default function EmojiPackButton({ enabled, onEnabledChange }: EmojiPackB
   }, [hasPacks, loading, packCount]);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+      }}
+    >
       <div className="inline-flex h-8 shrink-0 overflow-hidden rounded-full border border-border/70 bg-background/70">
         <Tooltip>
           <TooltipTrigger asChild>

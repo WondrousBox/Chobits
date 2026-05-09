@@ -19,9 +19,20 @@ interface SkillPickerButtonProps {
   suggestions?: SkillInfo[];
   skills: SkillInfo[];
   value: string;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export default function SkillPickerButton({ agentId, highlightedSkillName, loading = false, onHighlightSkill, onSelect, suggestions, skills, value }: SkillPickerButtonProps): JSX.Element | null {
+export default function SkillPickerButton({
+  agentId,
+  highlightedSkillName,
+  loading = false,
+  onHighlightSkill,
+  onOpenChange,
+  onSelect,
+  suggestions,
+  skills,
+  value
+}: SkillPickerButtonProps): JSX.Element | null {
   const enabled = shouldEnableSkillPicker(agentId);
   const autoOpen = enabled && isTypingSlashSkillQuery(value);
   const [manualOpen, setManualOpen] = useState(false);
@@ -30,16 +41,23 @@ export default function SkillPickerButton({ agentId, highlightedSkillName, loadi
   const open = enabled && (manualOpen || autoOpen);
 
   useEffect(() => {
+    onOpenChange?.(open);
+  }, [onOpenChange, open]);
+
+  useEffect(() => {
     if (!enabled) {
-      setManualOpen(false);
-      return;
+      const timer = window.setTimeout(() => setManualOpen(false), 0);
+      return () => window.clearTimeout(timer);
     }
 
-    if (autoOpen) {
-      setQuery(deriveSkillPickerQuery(value));
-    } else if (!manualOpen) {
-      setQuery('');
-    }
+    const timer = window.setTimeout(() => {
+      if (autoOpen) {
+        setQuery(deriveSkillPickerQuery(value));
+      } else if (!manualOpen) {
+        setQuery('');
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [autoOpen, enabled, manualOpen, value]);
 
   const pickerItems = useMemo(

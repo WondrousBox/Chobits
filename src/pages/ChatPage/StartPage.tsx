@@ -2,8 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TbX } from 'react-icons/tb';
 import { toast } from 'sonner';
 
-import { ChatFooterActions, mergeTranscriptWithInput, UnifiedChatInput, UnifiedChatInputHandle, useSpeechInput } from '@/components/chat';
-import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
+import { ChatInputWithService, type ChatInputWithServiceProps } from '@/components/chat';
 import { Button } from '@/components/ui/button';
 
 import { CHAT_OVERLAY_SETTINGS } from './chat-overlay-settings';
@@ -19,32 +18,18 @@ const PLACEHOLDERS = [
   '检索资源库中关于「会议纪要」的内容'
 ];
 
+type AssistantStartParams = Parameters<ChatInputWithServiceProps['onStart']>[0];
+
 const AssistantPage: React.FC = () => {
-  const [query, setQuery] = useState('');
   const [opening, setOpening] = useState(true);
   const [closing, setClosing] = useState(false);
   const [loading, setLoading] = useState(false);
   const contentRootRef = useRef<HTMLDivElement | null>(null);
   const inputBlockRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<UnifiedChatInputHandle>(null);
   // 控制当模型下拉展开时，暂停自动尺寸调整
   const modelMenuOpenRef = useRef<boolean>(false);
 
-  const { providerId, modelId, presetId, setProviderId, setModelId, setPresetId } = useChatSelection();
-
-  const handleTranscriptFinal = useCallback((text: string): void => {
-    const input = inputRef.current;
-    if (!input) {
-      return;
-    }
-
-    input.setValue(mergeTranscriptWithInput(input.getValue(), text));
-    input.focus();
-  }, []);
-
-  const speechInput = useSpeechInput({
-    onTranscriptFinal: handleTranscriptFinal
-  });
+  const { setPresetId } = useChatSelection();
 
   // 进场动画结束标记
   useEffect(() => {
@@ -70,32 +55,28 @@ const AssistantPage: React.FC = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, [close]);
 
-  // 保存内容为资源
-  const handleSave = async (content: string): Promise<void> => {
-    if (!content.trim()) return;
-    try {
-      const res = await window.YUA.resource['resource:add']({ resource: { contentText: content } });
-      if (res.success) {
-        toast.success('已保存为资源');
-        setQuery('');
-      }
-    } catch (e) {
-      console.warn('[resource] save text failed', e);
-      toast.error('保存失败');
-    }
-  };
-
   // 发送消息：打开聊天独立窗口并传递初始消息
-  const handleSend = async (content: string): Promise<void> => {
+  const handleSend = async ({
+    content,
+    providerId,
+    modelId,
+    preferredPresetId,
+    agentId,
+    codingWorkspaceRoot,
+    codingWorkspaceLabel,
+    webSearchEnabled,
+    characterPersonaEnabled,
+    emojiPacksEnabled
+  }: AssistantStartParams): Promise<void> => {
     if (!content.trim() || !providerId || !modelId) return;
     setLoading(true);
     try {
-      const resolvedPreset = await window.YUA.ai.resolveUsablePreset(providerId, presetId || undefined);
+      const resolvedPreset = await window.YUA.ai.resolveUsablePreset(providerId, preferredPresetId);
       if (!resolvedPreset?.id) {
         toast.error('当前服务商还没有可用预设，请先到 AI 设置中完成配置');
         return;
       }
-      if (resolvedPreset.id !== presetId) {
+      if (resolvedPreset.id !== preferredPresetId) {
         setPresetId(resolvedPreset.id);
       }
 
@@ -106,9 +87,14 @@ const AssistantPage: React.FC = () => {
         providerId,
         modelId,
         preferredPresetId: resolvedPreset.id,
+        agentId,
+        codingWorkspaceRoot,
+        codingWorkspaceLabel,
+        webSearchEnabled,
+        characterPersonaEnabled,
+        emojiPacksEnabled,
         ...(targetWindow === 'chatOverlay' ? { overlaySide: CHAT_OVERLAY_SETTINGS.side } : {})
       });
-      setQuery('');
       // 关闭助手窗口
       setTimeout(() => close(), 150);
     } catch (e) {
@@ -218,49 +204,7 @@ const AssistantPage: React.FC = () => {
           {/* 常用功能快捷入口 */}
           <div ref={inputBlockRef} className="flex items-start gap-3 relative">
             <div className="flex-1 relative">
-              <UnifiedChatInput
-                ref={inputRef}
-                value={query}
-                onChange={setQuery}
-                placeholders={PLACEHOLDERS}
-                autoFocus
-                loading={loading}
-                onSend={handleSend}
-                onSave={handleSave}
-                showSendButton={true}
-                showSaveButton={true}
-                onHeightChange={() => resizeToContent()}
-                footerLeft={
-                  <div className="shrink-0">
-                    <ProviderModelSelect
-                      providerId={providerId}
-                      presetId={presetId || undefined}
-                      modelId={modelId || undefined}
-                      onChange={(pid, nextModelId) => {
-                        setProviderId(pid);
-                        setModelId(nextModelId);
-                      }}
-                      buttonVariant="outline"
-                      buttonSize="sm"
-                      placeholder="选择模型"
-                      autoLoadFirst
-                      modelTypes={['chat']}
-                      onOpenChange={handleMenuOpenChange}
-                    />
-                  </div>
-                }
-                footerRightExtra={
-                  <ChatFooterActions
-                    speechInput={{
-                      disabled: loading,
-                      interimText: speechInput.interimText,
-                      isBusy: speechInput.isBusy,
-                      isListening: speechInput.isListening,
-                      onToggle: speechInput.toggle
-                    }}
-                  />
-                }
-              />
+              <ChatInputWithService placeholders={PLACEHOLDERS} autoFocus loading={loading} onStart={handleSend} onHeightChange={() => resizeToContent()} onMenuOpenChange={handleMenuOpenChange} />
             </div>
           </div>
         </div>

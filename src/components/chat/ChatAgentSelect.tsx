@@ -17,11 +17,22 @@ export interface ChatAgentSelectProps {
   triggerClassName?: string;
   contentClassName?: string;
   disabled?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export default function ChatAgentSelect({ agents, value, onValueChange, placeholder = '选择模式', prefix, triggerClassName, contentClassName, disabled = false }: ChatAgentSelectProps): JSX.Element {
+export default function ChatAgentSelect({
+  agents,
+  value,
+  onValueChange,
+  placeholder = '选择模式',
+  prefix,
+  triggerClassName,
+  contentClassName,
+  disabled = false,
+  onOpenChange
+}: ChatAgentSelectProps): JSX.Element {
   return (
-    <Select disabled={disabled} value={value} onValueChange={onValueChange}>
+    <Select disabled={disabled} value={value} onValueChange={onValueChange} onOpenChange={onOpenChange}>
       <SelectTrigger className={cn('h-8 max-w-32 rounded-full text-xs text-muted-foreground', prefix ? 'gap-1' : undefined, triggerClassName)}>
         {prefix ? <span className="shrink-0">{prefix}</span> : null}
         <SelectValue placeholder={placeholder} />
