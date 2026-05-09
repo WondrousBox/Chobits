@@ -1,3 +1,4 @@
+import type * as PopoverPrimitive from '@radix-ui/react-popover';
 import { useEffect, useState } from 'react';
 import { TbCheck, TbExternalLink, TbLoader2, TbWorldSearch } from 'react-icons/tb';
 
@@ -14,9 +15,12 @@ interface WebSearchToggleProps {
   enabled: boolean;
   onToggle: (enabled: boolean) => void;
   onOpenChange?: (open: boolean) => void;
+  contentSide?: PopoverPrimitive.PopoverContentProps['side'];
+  contentAlign?: PopoverPrimitive.PopoverContentProps['align'];
+  avoidCollisions?: PopoverPrimitive.PopoverContentProps['avoidCollisions'];
 }
 
-export default function WebSearchToggle({ enabled, onOpenChange, onToggle }: WebSearchToggleProps): JSX.Element {
+export default function WebSearchToggle({ enabled, contentSide, contentAlign = 'start', avoidCollisions, onOpenChange, onToggle }: WebSearchToggleProps): JSX.Element {
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [loaded, setLoaded] = useState(false);
@@ -109,7 +113,7 @@ export default function WebSearchToggle({ enabled, onOpenChange, onToggle }: Web
         </TooltipTrigger>
         <TooltipContent>{enabled ? '关闭联网搜索' : '开启联网搜索'}</TooltipContent>
       </Tooltip>
-      <PopoverContent align="start" className="w-80">
+      <PopoverContent align={contentAlign} side={contentSide} avoidCollisions={avoidCollisions} className="no-drag pointer-events-auto w-80">
         <div className="space-y-3">
           <div>
             <h4 className="text-sm font-medium">联网搜索配置</h4>

@@ -1,4 +1,5 @@
 import type { SkillInfo } from '@packages/ai/types';
+import type * as PopoverPrimitive from '@radix-ui/react-popover';
 import { useEffect, useMemo, useState } from 'react';
 import { TbSparkles } from 'react-icons/tb';
 
@@ -20,12 +21,18 @@ interface SkillPickerButtonProps {
   skills: SkillInfo[];
   value: string;
   onOpenChange?: (open: boolean) => void;
+  contentSide?: PopoverPrimitive.PopoverContentProps['side'];
+  contentAlign?: PopoverPrimitive.PopoverContentProps['align'];
+  avoidCollisions?: PopoverPrimitive.PopoverContentProps['avoidCollisions'];
 }
 
 export default function SkillPickerButton({
   agentId,
   highlightedSkillName,
   loading = false,
+  contentSide,
+  contentAlign = 'start',
+  avoidCollisions,
   onHighlightSkill,
   onOpenChange,
   onSelect,
@@ -99,7 +106,7 @@ export default function SkillPickerButton({
         </TooltipContent>
       </Tooltip>
 
-      <PopoverContent align="start" className="w-96 p-0" onOpenAutoFocus={(event) => event.preventDefault()}>
+      <PopoverContent align={contentAlign} side={contentSide} avoidCollisions={avoidCollisions} className="no-drag pointer-events-auto w-96 p-0" onOpenAutoFocus={(event) => event.preventDefault()}>
         <Command shouldFilter>
           <CommandInput placeholder="搜索 skills..." value={query} onValueChange={setQuery} />
           <CommandList>

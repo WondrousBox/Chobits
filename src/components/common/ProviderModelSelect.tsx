@@ -68,6 +68,11 @@ export interface ProviderModelSelectProps {
   autoLoadFirst?: boolean;
   // 当菜单打开/关闭时的回调
   onOpenChange?: (open: boolean) => void;
+  onOpenPrepare?: () => void;
+  menuSide?: React.ComponentPropsWithoutRef<typeof DropdownMenuContent>['side'];
+  menuAlign?: React.ComponentPropsWithoutRef<typeof DropdownMenuContent>['align'];
+  avoidCollisions?: React.ComponentPropsWithoutRef<typeof DropdownMenuContent>['avoidCollisions'];
+  subMenuSide?: React.ComponentPropsWithoutRef<typeof DropdownMenuSubContent>['side'];
   // 筛选的模型类型（数组），如果为空则不筛选
   modelTypes?: ModelType[];
   // 是否在二级菜单中显示模型的详细信息（描述、价格、是否免费、上下文大小等）
@@ -207,6 +212,11 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
       className,
       autoLoadFirst = true,
       onOpenChange,
+      onOpenPrepare,
+      menuSide,
+      menuAlign,
+      avoidCollisions,
+      subMenuSide,
       modelTypes,
       showModelDetails = false,
       onProvidersLoaded,
@@ -486,12 +496,12 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
         }}
       >
         <DropdownMenuTrigger asChild>
-          <Button variant={buttonVariant} size={buttonSize} className={`flex items-center justify-between gap-2 ${className || ''}`}>
+          <Button variant={buttonVariant} size={buttonSize} className={`flex items-center justify-between gap-2 ${className || ''}`} onPointerDown={() => onOpenPrepare?.()}>
             <span className="flex items-center gap-2 flex-1 min-w-0">{displayLabel}</span>
             <TbChevronDown className="w-4 h-4 opacity-50 flex-shrink-0" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="min-w-[240px]">
+        <DropdownMenuContent side={menuSide} align={menuAlign} avoidCollisions={avoidCollisions} className="no-drag pointer-events-auto min-w-[240px]">
           {/* 搜索输入框 */}
           <div className="p-2 border-b">
             <Input
@@ -544,7 +554,11 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
                       <span>{provider.label || provider.id}</span>
                     </span>
                   </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className={showModelDetails ? 'min-w-[320px] max-h-60 overflow-y-auto' : 'max-h-60 overflow-y-auto'}>
+                  <DropdownMenuSubContent
+                    side={subMenuSide}
+                    avoidCollisions={avoidCollisions}
+                    className={showModelDetails ? 'no-drag pointer-events-auto min-w-[320px] max-h-60 overflow-y-auto' : 'no-drag pointer-events-auto max-h-60 overflow-y-auto'}
+                  >
                     {isLoading ? (
                       <div className="px-2 py-1.5 text-xs text-muted-foreground">加载中...</div>
                     ) : providerModels.length > 0 ? (
