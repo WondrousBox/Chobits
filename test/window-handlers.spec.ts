@@ -13,7 +13,7 @@ const windowManagerState = {
   init: vi.fn(),
   destroyAll: vi.fn(),
   get: vi.fn(),
-  create: vi.fn(),
+  create: vi.fn(() => Promise.resolve(null)),
   adjustMainWindowForPadding: vi.fn(),
   setAnchorWidth: vi.fn(),
   setAnchorHeight: vi.fn()

@@ -19,8 +19,9 @@ import { SpriteDetailContent, SpriteItem } from './SpriteSettings';
 import { useMovementSettings } from './useMovementSettings';
 import { usePurposePlannerSettings } from './usePurposePlannerSettings';
 import { useSpontaneousUtteranceSettings } from './useSpontaneousUtteranceSettings';
+import { WindowAnimationDetailContent, WindowAnimationItem } from './WindowAnimationSettings';
 
-type SkillKey = 'movement' | 'speak' | 'dailyCare' | 'sprite' | 'spontaneous' | 'purposePlanner' | 'scheduler' | 'recorder' | 'speechRecognition' | 'screenshot';
+type SkillKey = 'movement' | 'speak' | 'dailyCare' | 'sprite' | 'windowAnimation' | 'spontaneous' | 'purposePlanner' | 'scheduler' | 'recorder' | 'speechRecognition' | 'screenshot';
 
 const ExtensionSettings: React.FC = () => {
   const [selected, setSelected] = useState<SkillKey>('movement');
@@ -57,6 +58,8 @@ const ExtensionSettings: React.FC = () => {
         return <DailyCareDetailContent state={dailyCareState} capability={dailyCareCapability} />;
       case 'sprite':
         return <SpriteDetailContent assetAuthoringCapability={spriteManageCapability} onBlocked={handleCapabilityBlocked} />;
+      case 'windowAnimation':
+        return <WindowAnimationDetailContent />;
       case 'spontaneous':
         return <SpontaneousUtteranceDetailContent state={spontaneousUtteranceState} />;
       case 'purposePlanner':
@@ -83,6 +86,7 @@ const ExtensionSettings: React.FC = () => {
             <SpeakItem state={speakState} selected={selected === 'speak'} onSelect={() => setSelected('speak')} />
             <DailyCareItem state={dailyCareState} capability={dailyCareCapability} selected={selected === 'dailyCare'} onSelect={() => setSelected('dailyCare')} />
             <SpriteItem selected={selected === 'sprite'} onSelect={() => setSelected('sprite')} />
+            <WindowAnimationItem selected={selected === 'windowAnimation'} onSelect={() => setSelected('windowAnimation')} />
             <SpontaneousUtteranceItem state={spontaneousUtteranceState} selected={selected === 'spontaneous'} onSelect={() => setSelected('spontaneous')} />
             <PurposePlannerItem state={purposePlannerState} selected={selected === 'purposePlanner'} onSelect={() => setSelected('purposePlanner')} />
             <SchedulerDebugItem selected={selected === 'scheduler'} onSelect={() => setSelected('scheduler')} />
