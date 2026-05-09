@@ -517,7 +517,7 @@ export class PiExecutionService {
     }
   }
 
-  async generateMusic(payload: MusicGenerationRequest): Promise<MusicGenerationResponse> {
+  async generateMusic(payload: MusicGenerationRequest, signal?: AbortSignal): Promise<MusicGenerationResponse> {
     const providerPresetId = resolveProviderPresetId(payload);
     const resolved = await this.resolveProviderCapability(payload.providerId, providerPresetId);
 
@@ -539,12 +539,13 @@ export class PiExecutionService {
     });
 
     try {
-      const response = await resolved.provider.generateMusic(request);
+      const response = await resolved.provider.generateMusic(request, signal);
       const requestExtras = request.extras as Record<string, any> | undefined;
       const materializedResponse = await this.musicGenerationService.materializeMusicResponse(response, {
         outputDir: typeof requestExtras?.outputDir === 'string' ? requestExtras.outputDir : undefined,
         request,
-        requestId
+        requestId,
+        signal
       });
       const providerUsageMetadata = extractProviderUsageMetadata(materializedResponse.rawUsage);
       const firstArtifact = materializedResponse.artifacts[0];

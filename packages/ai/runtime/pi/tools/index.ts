@@ -15,9 +15,11 @@ import { createPiMemoryRefreshCriticalTool } from './memory-refresh-critical';
 import { createPiMemorySaveTool } from './memory-save';
 import { createPiMemorySearchTool } from './memory-search';
 import { createPiMemoryTopicsTool } from './memory-topics';
+import { createPiMusicGenerateTool } from './music-generate';
 import { createPiPersonaUpdateTool } from './persona-update';
 import { createPiPushCardTool } from './push-card';
 import { createPiReadSubtitleTool } from './read-subtitle';
+import { createPiResourceCreateTool } from './resource-create';
 import { createPiResourceQueryTool } from './resource-query';
 import { createPiShellExecTool } from './shell-exec';
 import { createPiSkillSearchTool } from './skill-search';
@@ -45,6 +47,7 @@ const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
   'file-read': createPiFileReadTool,
   'file-write': createPiFileWriteTool,
   'push-card': createPiPushCardTool,
+  'resource-create': createPiResourceCreateTool,
   'query-resources': createPiResourceQueryTool,
   'read-subtitle': createPiReadSubtitleTool,
   'shell-exec': createPiShellExecTool,
@@ -62,6 +65,7 @@ const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
   'memory-topics': createPiMemoryTopicsTool,
   'memory-diary': createPiMemoryDiaryTool,
   'memory-refresh-critical': createPiMemoryRefreshCriticalTool,
+  'music-generate': createPiMusicGenerateTool,
   'persona-update': createPiPersonaUpdateTool,
   'toolbox-lookup': createPiToolboxLookupTool,
   'workflow-run': createPiWorkflowRunTool
@@ -80,6 +84,7 @@ const COMPAT_NAME_TO_TOOL_ID: Record<string, string> = {
   fileReadTool: 'file-read',
   fileWriteTool: 'file-write',
   pushCardTool: 'push-card',
+  resourceCreateTool: 'resource-create',
   resourceQueryTool: 'query-resources',
   readSubtitleTool: 'read-subtitle',
   shellExecTool: 'shell-exec',
@@ -97,6 +102,7 @@ const COMPAT_NAME_TO_TOOL_ID: Record<string, string> = {
   memoryTopicsTool: 'memory-topics',
   memoryDiaryTool: 'memory-diary',
   memoryRefreshCriticalTool: 'memory-refresh-critical',
+  musicGenerateTool: 'music-generate',
   personaUpdateTool: 'persona-update',
   toolboxTool: 'toolbox-lookup',
   workflowRunTool: 'workflow-run'

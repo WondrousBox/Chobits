@@ -56,6 +56,10 @@ const DEFAULT_TOOL_LABELS: Record<string, ToolLabelDefinition> = {
   pushCardTool: {
     default: { calling: '推送卡片', done: '推送卡片完成' }
   },
+  resourceCreateTool: {
+    default: { calling: '创建资源：{title}', done: '资源已创建' },
+    conditions: [{ when: { mediaKind: 'music' }, calling: '保存音乐资源：{title}', done: '音乐资源已保存' }]
+  },
   translationTool: {
     default: { calling: '翻译字幕', done: '翻译字幕完成' }
   },
@@ -88,6 +92,14 @@ const DEFAULT_TOOL_LABELS: Record<string, ToolLabelDefinition> = {
   },
   memoryRefreshCriticalTool: {
     default: { calling: '刷新关键记忆', done: '关键记忆已刷新' }
+  },
+  musicGenerateTool: {
+    default: { calling: '生成音乐：{prompt}', done: '音乐生成完成' },
+    conditions: [
+      { when: { mode: 'instrumental' }, calling: '生成纯音乐：{prompt}', done: '纯音乐生成完成' },
+      { when: { mode: 'lyrics-to-song' }, calling: '根据歌词生成歌曲：{prompt}', done: '歌曲生成完成' },
+      { when: { mode: 'cover' }, calling: '生成翻唱/参考音频：{prompt}', done: '翻唱/参考音频生成完成' }
+    ]
   },
   personaUpdateTool: {
     default: { calling: '更新用户画像', done: '用户画像已更新' }

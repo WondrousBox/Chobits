@@ -5,15 +5,16 @@
 
 ## 资源查询与推送
 
-**触发词：** 查找资源、找视频、找音频、找字幕、有没有、给我看看、最新的、查询
+**触发词：** 查找资源、创建资源、保存资源、导入资源、找视频、找音频、找字幕、有没有、给我看看、最新的、查询
 
-**涉及工具：** resourceQueryTool, pushCardTool
+**涉及工具：** resourceQueryTool, resourceCreateTool, pushCardTool
 
 **工作流程：**
 
-1. 用 resourceQueryTool 查询资源（获取 resourceId 和资源信息）
-2. 用 pushCardTool 推送资源卡片到聊天窗口，让用户可以直接点击查看
-3. 推送卡片时，附带简短的文字说明（text 参数）
+1. 用户要找资源时，用 resourceQueryTool 查询资源（获取 resourceId 和资源信息）。
+2. 用户要把本地文件、URL 或文本保存到资源库时，用 resourceCreateTool 创建资源。
+3. 创建或查询到资源后，用 pushCardTool 推送资源卡片到聊天窗口，让用户可以直接点击查看。
+4. 推送卡片时，附带简短的文字说明（text 参数）。
 
 **pushCardTool 示例：**
 
@@ -24,6 +25,7 @@
 
 - 当用户询问资源或想要查看资源时，务必推送资源卡片，不要只用文字描述
 - resourceQueryTool 支持按类型、时间、关键词等多种条件查询
+- resourceCreateTool 的 `mediaKind: "music"` 会把资源标记为音乐：资源类型仍是 `audio`，但 metadata 中会写入 `mediaKind/kind: "music"`，并添加 music 标签/分类
 
 ---
 
@@ -243,6 +245,30 @@
 - 工作流执行是异步的，返回 runId 不代表执行完成
 - 如果不确定用哪个工作流，先用 list 列出所有工作流查看描述
 - 如果有多个类似工作流（如多种转写引擎），可以根据描述选择合适的
+
+---
+
+## 音乐生成
+
+**触发词：** 音乐生成、生成音乐、做歌、配乐、写歌、作曲、music、song
+
+**涉及工具：** musicGenerateTool, resourceCreateTool
+
+**工作流程：**
+
+1. 当用户想生成歌曲、配乐、纯音乐或参考音频翻唱时，先用 musicGenerateTool。
+2. prompt 里尽量包含曲风、情绪、乐器、速度、人声、编曲方向；如果用户给了歌词，把歌词放到 lyrics。
+3. 如果用户要求纯音乐，传 `mode: "instrumental"` 或 `isInstrumental: true`。
+4. 如果用户给了参考音频或要求翻唱，使用 `mode: "cover"`，并传入 `referenceAudioUrl`、`referenceAudioBase64` 或 `coverFeatureId`。
+5. 工具会等待生成完成，把音频先写入当前工作空间 `.cache/music-generation`，再默认创建音频资源并推送资源卡片。
+
+**注意：**
+
+- 默认使用 MiniMax `music-2.6`；cover 场景默认使用 `music-cover`。
+- 需要 MiniMax 音乐生成能力和可用 API Key。
+- 这是生成音乐的工具，不是转写或提取音频工具。
+- 生成的资源会标记 `mediaKind: "music"` / `kind: "music"`，并带有 `music`、`ai-generated` 等标签，后续播放器或桌面精灵可以据此识别音乐并触发跳舞等动作。
+
 ## 长任务等待与进度
 
 **适用工具：** `translationTool`、`summaryTool`、`youtubeDownloadTool`、`workflowRunTool`
