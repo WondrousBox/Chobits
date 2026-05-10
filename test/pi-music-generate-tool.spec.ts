@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { listPiToolDescriptors, resolvePiToolId } from '../packages/ai/runtime/pi/tool-registry';
+import { INITIAL_ACTIVE_SESSION_TOOL_IDS, listPiToolDescriptors, resolvePiToolId } from '../packages/ai/runtime/pi/tool-registry';
 import { searchToolbox } from '../packages/ai/runtime/pi/toolbox';
 import { createPiMusicGenerateTool } from '../packages/ai/runtime/pi/tools/music-generate';
-import type { MusicGenerationRequest } from '../packages/ai/types';
+import { createPiMusicLyricsTool } from '../packages/ai/runtime/pi/tools/music-lyrics';
+import type { LyricsGenerationRequest, MusicGenerationRequest } from '../packages/ai/types';
 
 function createToolContext() {
   return {
@@ -30,10 +31,17 @@ function createToolContext() {
 describe('musicGenerateTool', () => {
   it('is registered and discoverable through toolbox search', () => {
     expect(resolvePiToolId('musicGenerateTool')).toBe('music-generate');
+    expect(resolvePiToolId('musicLyricsTool')).toBe('music-lyrics');
     expect(listPiToolDescriptors().some((tool) => tool.id === 'music-generate')).toBe(true);
+    expect(listPiToolDescriptors().some((tool) => tool.id === 'music-lyrics')).toBe(true);
+    expect(INITIAL_ACTIVE_SESSION_TOOL_IDS).not.toContain('music-lyrics');
 
-    const results = searchToolbox('音乐生成');
-    expect(results.some((skill) => skill.name === '音乐生成' && skill.tools.includes('musicGenerateTool'))).toBe(true);
+    const results = searchToolbox('music generation');
+    expect(results.some((skill) => skill.tools.includes('musicGenerateTool'))).toBe(true);
+    expect(results.some((skill) => skill.tools.includes('musicLyricsTool'))).toBe(true);
+
+    const lyricsResults = searchToolbox('lyrics');
+    expect(lyricsResults.some((skill) => skill.tools.includes('musicLyricsTool'))).toBe(true);
   });
 
   it('generates music and pushes an audio card', async () => {
@@ -136,7 +144,48 @@ describe('musicGenerateTool', () => {
       cardId: 'music-call-music-1',
       isMusic: true,
       mode: 'lyrics-to-song',
+      resourceStorage: {
+        ensured: true
+      },
       resourceId: 'resource-music-1',
+      success: true
+    });
+  });
+
+  it('generates lyrics for later music generation', async () => {
+    const toolContext = createToolContext();
+    const requests: LyricsGenerationRequest[] = [];
+    const executionService = {
+      generateLyrics: vi.fn(async (request: LyricsGenerationRequest) => {
+        requests.push(request);
+        return {
+          lyrics: '[Verse]\nhello rain\n[Chorus]\nshine again',
+          providerId: request.providerId,
+          songTitle: 'Rain Again',
+          styleTags: 'city pop, hopeful'
+        };
+      })
+    };
+
+    const tool = createPiMusicLyricsTool(toolContext, { executionService });
+    const result = await tool.execute('call-lyrics-1', {
+      prompt: 'Write a Chinese pop song about a city after rain'
+    });
+
+    expect(executionService.generateLyrics).toHaveBeenCalledOnce();
+    expect(requests[0]).toMatchObject({
+      mode: 'write_full_song',
+      prompt: 'Write a Chinese pop song about a city after rain',
+      providerId: 'minimax',
+      providerPresetId: 'preset-minimax'
+    });
+    expect(requests[0].extras?.requestId).toBe('call-lyrics-1');
+    expect((result.details as any)).toMatchObject({
+      lyrics: '[Verse]\nhello rain\n[Chorus]\nshine again',
+      musicPrompt: expect.stringContaining('city pop, hopeful'),
+      nextStep: expect.stringContaining('musicGenerateTool'),
+      providerId: 'minimax',
+      songTitle: 'Rain Again',
       success: true
     });
   });
@@ -162,5 +211,40 @@ describe('musicGenerateTool', () => {
       success: false,
       error: 'Music generation completed but did not return a usable audio artifact.'
     });
+  });
+
+  it('tells the assistant to create a resource when resource saving is disabled', async () => {
+    const toolContext = createToolContext();
+    const executionService = {
+      generateMusic: vi.fn(async (request: MusicGenerationRequest) => ({
+        artifacts: [
+          {
+            filePath: 'C:\\tmp\\generated-song.mp3',
+            mimeType: 'audio/mpeg'
+          }
+        ],
+        filePath: 'C:\\tmp\\generated-song.mp3',
+        model: request.model,
+        providerId: request.providerId
+      }))
+    };
+
+    const tool = createPiMusicGenerateTool(toolContext, { executionService, resolveMusicOutputDir: async () => '/workspace/.cache/music-generation' });
+    const result = await tool.execute('call-music-no-resource', {
+      prompt: 'ambient piano',
+      saveToResourceLibrary: false
+    });
+
+    expect((result.details as any)).toMatchObject({
+      audioPath: 'C:\\tmp\\generated-song.mp3',
+      resourceId: undefined,
+      resourceStorage: {
+        ensured: false,
+        nextStep: expect.stringContaining('resourceCreateTool')
+      },
+      success: true
+    });
+    expect(result.content[0].text).toContain('resourceCreateTool');
+    expect(result.content[0].text).toContain('mediaKind="music"');
   });
 });

@@ -103,4 +103,43 @@ describe('MiniMax music generation provider', () => {
     expect(response.artifacts[0].audioBase64).toBe(Buffer.from('ff0001', 'hex').toString('base64'));
     expect(response.artifacts[0].audioUrl).toBeUndefined();
   });
+
+  it('generates lyrics through the MiniMax lyrics endpoint', async () => {
+    const fetchMock = mockFetchJson({
+      base_resp: { status_code: 0, status_msg: '' },
+      lyrics: '[Verse]\nNeon rain\n[Chorus]\nWe keep dancing',
+      song_title: 'Neon Rain',
+      style_tags: 'city pop, upbeat',
+      trace_id: 'trace-lyrics'
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const provider = new MiniMaxProvider();
+    provider.setSecrets({ apiKey: 'test-key', baseUrl: 'https://api.minimaxi.com/v1' });
+
+    const response = await provider.generateLyrics({
+      mode: 'write_full_song',
+      prompt: 'Write a city pop song about late-night rain',
+      providerId: 'minimax'
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.minimaxi.com/v1/lyrics_generation');
+    expect(init.headers).toMatchObject({ Authorization: 'Bearer test-key' });
+
+    const body = JSON.parse(String(init.body));
+    expect(body).toMatchObject({
+      mode: 'write_full_song',
+      prompt: 'Write a city pop song about late-night rain'
+    });
+    expect(body.model).toBeUndefined();
+
+    expect(response).toMatchObject({
+      lyrics: '[Verse]\nNeon rain\n[Chorus]\nWe keep dancing',
+      providerId: 'minimax',
+      songTitle: 'Neon Rain',
+      styleTags: 'city pop, upbeat'
+    });
+  });
 });

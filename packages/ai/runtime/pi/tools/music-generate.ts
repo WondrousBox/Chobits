@@ -117,6 +117,14 @@ function buildAudioValue(response: MusicGenerationResponse): string {
   return audioPath || audioUrl || (audioBase64 ? `data:${artifact?.mimeType || 'audio/mpeg'};base64,${audioBase64}` : '');
 }
 
+function buildSuccessContent(resourceId: string | undefined, audioPath: string | undefined, audioUrl: string | undefined): string {
+  if (resourceId) {
+    return `Music generation completed and saved as an audio resource: ${resourceId}`;
+  }
+
+  return `Music generation completed and returned audio: ${audioPath || audioUrl || 'base64 audio'}. Call resourceCreateTool to save it as an audio resource with mediaKind="music".`;
+}
+
 function pushGeneratedAudioCard(
   toolContext: PiSessionToolContext,
   toolCallId: string,
@@ -312,13 +320,21 @@ export function createPiMusicGenerateTool(toolContext: PiSessionToolContext, bin
           providerId: response.providerId || 'minimax',
           resource: createdResource,
           resourceId,
+          resourceStorage: resourceId
+            ? {
+                ensured: true,
+                message: 'Generated music has been saved as an audio resource.'
+              }
+            : {
+                ensured: false,
+                nextStep:
+                  'Call resourceCreateTool with type="audio", mediaKind="music", aiGenerated=true, filePath=audioPath, and a music title so the generated song is stored in the resource library.'
+              },
           success: true,
           ...(guardResolution?.warning ? { warning: guardResolution.warning } : {})
         };
 
-        return createJsonToolResult(details, {
-          content: resourceId ? `音乐生成完成，已创建音频资源：${resourceId}` : `音乐生成完成，已返回音频：${details.audioPath || details.audioUrl || 'base64 audio'}`
-        });
+        return createJsonToolResult(details, { content: buildSuccessContent(resourceId, details.audioPath, details.audioUrl) });
       } catch (error: any) {
         return createJsonToolResult({
           error: error?.message || 'MiniMax music generation failed.',

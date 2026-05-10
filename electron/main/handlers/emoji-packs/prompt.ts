@@ -25,12 +25,11 @@ export async function buildEmojiPackPromptSegment(request: ChatRequest): Promise
     .join('\n');
 
   return [
-    '## 表情包回复能力',
-    '用户已开启表情包回复模式。普通闲聊、庆祝、调侃、共鸣时，可以用表情包工具找一张贴切表情随回复发送。',
-    '优先用 `emojiSearchTool` 按当前语义/情绪搜索少量候选；需要浏览目录时，用 `emojiListTool` 渐进式发现：先列包/一级目录，再进入相关目录。不要为了猜关键词反复调用工具。',
-    '每轮最多发送 1 张表情包；严肃、敏感、用户不想要图片，或回复只需极短确认时可以不发。只能用工具结果或下方概览中出现的 packId，并且必须原样传入工具。',
+    '## 主动尝试发送表情包',
+    '必须从下面挑一个合适目录，直接用 `emojiListTool({ packId, relativePath })` 列出该目录候选，再用 `emojiSendTool({ candidateId })` 发送。',
+    '只能用工具结果或下方概览中出现的 packId，并且必须原样传入工具。',
     preferredPackId ? `优先表情包 packId：${preferredPackId}` : '',
-    '已导入表情包概览：',
+    '表情包概览：',
     packHints
   ]
     .filter(Boolean)

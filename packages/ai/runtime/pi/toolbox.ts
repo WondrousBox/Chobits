@@ -376,6 +376,17 @@ export function searchToolbox(query: string, maxResults = 3): ToolboxSkillEntry[
     return { skill, score };
   });
 
+  const exactMatches = scored.filter(({ skill }) => {
+    const nameLower = skill.name.toLowerCase();
+    return queryLower === nameLower || skill.triggers.some((trigger) => queryLower === trigger.toLowerCase());
+  });
+  if (exactMatches.length) {
+    return exactMatches
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maxResults)
+      .map((s) => s.skill);
+  }
+
   return scored
     .filter((s) => s.score > 0)
     .sort((a, b) => b.score - a.score)

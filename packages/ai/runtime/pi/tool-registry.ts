@@ -199,6 +199,13 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
     name: 'musicGenerateTool',
     status: 'ready-for-pi-runtime'
   },
+  'music-lyrics': {
+    category: 'integration',
+    description: 'Generate or rewrite song lyrics with MiniMax before music generation.',
+    compatName: 'musicLyricsTool',
+    name: 'musicLyricsTool',
+    status: 'ready-for-pi-runtime'
+  },
   'persona-update': {
     category: 'content',
     description: '主动更新用户画像，将对话中发现的用户偏好、目标、活动等立即写入 USER_PERSONA.md',
@@ -236,7 +243,8 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
   }
 };
 
-export const EMOJI_PACK_TOOL_IDS = ['emoji-list', 'emoji-search', 'emoji-send'];
+export const DEFAULT_EMOJI_PACK_TOOL_IDS = ['emoji-list', 'emoji-send'];
+export const EMOJI_PACK_TOOL_IDS = [...DEFAULT_EMOJI_PACK_TOOL_IDS, 'emoji-search'];
 
 const TOOL_NAME_TO_ID = buildToolNameToIdMap();
 export const DEFAULT_SKILL_TOOL_IDS = ['skill-search', 'skill-use'];
@@ -259,6 +267,7 @@ export const DEFAULT_SESSION_TOOL_IDS = [
   'memory-save',
   'memory-refresh-critical',
   'music-generate',
+  'music-lyrics',
   'persona-update',
   'toolbox-lookup',
   'workflow-run',

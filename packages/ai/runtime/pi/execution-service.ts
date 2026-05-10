@@ -13,6 +13,8 @@ import type {
   EmbeddingResponse,
   ImageGenerationRequest,
   ImageGenerationResponse,
+  LyricsGenerationRequest,
+  LyricsGenerationResponse,
   MusicGenerationRequest,
   MusicGenerationResponse,
   TokenUsage,
@@ -75,7 +77,10 @@ function toAnalyticsUsage(usage?: TokenUsage): RecordAiUsageEventInput['usage'] 
   };
 }
 
-async function recordExecutionUsageEventSafely(context: 'embed' | 'transcribe' | 'generateImage' | 'generateMusic', input: RecordAiUsageEventInput): Promise<void> {
+async function recordExecutionUsageEventSafely(
+  context: 'embed' | 'transcribe' | 'generateImage' | 'generateLyrics' | 'generateMusic',
+  input: RecordAiUsageEventInput
+): Promise<void> {
   await emitAiUsageObservedEvent(input, { producer: `PiExecutionService:${context}` });
 }
 
@@ -612,6 +617,95 @@ export class PiExecutionService {
           lyricsChars: payload.lyrics?.length ?? null,
           mode: payload.mode || null,
           outputFormat: payload.outputFormat || null,
+          ...(usageOverride?.metadata || {})
+        }
+      });
+      throw error;
+    }
+  }
+
+  async generateLyrics(payload: LyricsGenerationRequest, signal?: AbortSignal): Promise<LyricsGenerationResponse> {
+    const providerPresetId = resolveProviderPresetId(payload);
+    const resolved = await this.resolveProviderCapability(payload.providerId, providerPresetId);
+
+    if (!supportsProviderCapability(resolved.provider.id, 'musicGeneration', resolved.provider) || !resolved.provider.generateLyrics) {
+      throw new Error(`Provider ${resolved.provider.id} does not support lyrics generation`);
+    }
+
+    const requestId = resolveExecutionRequestId(payload);
+    const usageOverride = resolveExecutionUsageOverride(payload);
+    const startedAt = Date.now();
+    const request = normalizeProviderPreset({
+      ...payload,
+      extras: {
+        ...(payload.extras || {}),
+        secrets: resolved.model.secrets
+      },
+      providerId: resolved.provider.id,
+      providerPresetId: resolved.model.presetId || providerPresetId
+    });
+
+    try {
+      const response = await resolved.provider.generateLyrics(request, signal);
+      const providerUsageMetadata = extractProviderUsageMetadata(response.rawUsage);
+
+      await recordExecutionUsageEventSafely('generateLyrics', {
+        traceId: requestId,
+        requestId,
+        operationKey: usageOverride?.operationKey || 'generate',
+        sourceType: usageOverride?.sourceType || 'music_generation',
+        sourceId: usageOverride?.sourceId || requestId,
+        sourceLabel: usageOverride?.sourceLabel || '歌词生成',
+        usageCategory: usageOverride?.usageCategory || 'media',
+        usageFeature: usageOverride?.usageFeature || 'music_generation',
+        usageStage: usageOverride?.usageStage || 'generate',
+        providerId: response.providerId || resolved.provider.id,
+        providerPresetId: resolved.model.presetId || providerPresetId,
+        model: response.model || payload.model || 'lyrics_generation',
+        agentId: 'pi-execution',
+        status: 'completed',
+        usage: toAnalyticsUsage(response.usage),
+        rawUsage: response.rawUsage,
+        meteringSource: 'provider_reported',
+        startedAt,
+        completedAt: Date.now(),
+        metadata: {
+          lyricsChars: response.lyrics.length,
+          mode: payload.mode || null,
+          promptChars: payload.prompt?.length ?? null,
+          sourceLyricsChars: payload.lyrics?.length ?? null,
+          styleTags: response.styleTags || null,
+          title: response.songTitle || null,
+          ...(providerUsageMetadata || {}),
+          ...(usageOverride?.metadata || {})
+        }
+      });
+
+      return response;
+    } catch (error) {
+      await recordExecutionUsageEventSafely('generateLyrics', {
+        traceId: requestId,
+        requestId,
+        operationKey: usageOverride?.operationKey || 'generate',
+        sourceType: usageOverride?.sourceType || 'music_generation',
+        sourceId: usageOverride?.sourceId || requestId,
+        sourceLabel: usageOverride?.sourceLabel || '歌词生成',
+        usageCategory: usageOverride?.usageCategory || 'media',
+        usageFeature: usageOverride?.usageFeature || 'music_generation',
+        usageStage: usageOverride?.usageStage || 'generate',
+        providerId: resolved.provider.id,
+        providerPresetId: resolved.model.presetId || providerPresetId,
+        model: payload.model || 'lyrics_generation',
+        agentId: 'pi-execution',
+        status: 'failed',
+        meteringSource: 'provider_reported',
+        startedAt,
+        completedAt: Date.now(),
+        metadata: {
+          errorMessage: error instanceof Error ? error.message : String(error),
+          mode: payload.mode || null,
+          promptChars: payload.prompt?.length ?? null,
+          sourceLyricsChars: payload.lyrics?.length ?? null,
           ...(usageOverride?.metadata || {})
         }
       });

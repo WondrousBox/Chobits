@@ -218,6 +218,27 @@
 
 ---
 
+## 表情包搜索
+
+**触发词：** 表情包搜索、搜索表情包、查找表情包、找表情包、emoji search、meme search
+
+**涉及工具：** emojiSearchTool
+
+**工作流程：**
+
+1. 只有当已开启表情包回复、默认的目录浏览难以找到候选，或用户明确要求按关键词找表情包时，才搜索表情包；需要发现这个工具时，用 `toolboxTool({ action: 'search', query: '表情包搜索' })`。
+2. 用 emojiSearchTool 按文件名或目录名关键词搜索少量候选。
+3. 找到候选后，用 emojiSendTool 发送其中一张贴切的 candidateId。
+4. 如果搜索结果弱或为空，不要反复猜关键词，回到 emojiListTool 浏览表情包目录。
+
+**注意：**
+
+- 表情包模式默认已直接提供 emojiListTool 和 emojiSendTool；emojiSearchTool 是按需搜索工具。
+- emojiSearchTool 是文件名/目录名搜索，不是语义搜索。
+- 每轮最多发送 1 张表情包。
+
+---
+
 ## 工作流执行
 
 **触发词：** 转写、提取字幕、OCR、文字识别、提取音频、提取关键帧、生成图片、理解图片、工作流
@@ -250,20 +271,23 @@
 
 ## 音乐生成
 
-**触发词：** 音乐生成、生成音乐、做歌、配乐、写歌、作曲、music、song
+**触发词：** 音乐生成、生成音乐、做歌、配乐、写歌、作曲、歌词、生成歌词、music、song、lyrics
 
-**涉及工具：** musicGenerateTool, resourceCreateTool
+**涉及工具：** musicLyricsTool, musicGenerateTool, resourceCreateTool
 
 **工作流程：**
 
-1. 当用户想生成歌曲、配乐、纯音乐或参考音频翻唱时，先用 musicGenerateTool。
-2. prompt 里尽量包含曲风、情绪、乐器、速度、人声、编曲方向；如果用户给了歌词，把歌词放到 lyrics。
-3. 如果用户要求纯音乐，传 `mode: "instrumental"` 或 `isInstrumental: true`。
-4. 如果用户给了参考音频或要求翻唱，使用 `mode: "cover"`，并传入 `referenceAudioUrl`、`referenceAudioBase64` 或 `coverFeatureId`。
-5. 工具会等待生成完成，把音频先写入当前工作空间 `.cache/music-generation`，再默认创建音频资源并推送资源卡片。
+1. 当用户只要歌词、想先写词，或要生成有人声歌曲但没有提供歌词时，先用 musicLyricsTool 生成完整歌词。
+2. 当用户想生成歌曲、配乐、纯音乐或参考音频翻唱时，再用 musicGenerateTool。
+3. prompt 里尽量包含曲风、情绪、乐器、速度、人声、编曲方向；如果 musicLyricsTool 或用户给了歌词，把歌词放到 `lyrics`，并使用 `mode: "lyrics-to-song"`。
+4. 如果用户要求纯音乐，传 `mode: "instrumental"` 或 `isInstrumental: true`，不要先生成歌词。
+5. 如果用户给了参考音频或要求翻唱，使用 `mode: "cover"`，并传入 `referenceAudioUrl`、`referenceAudioBase64` 或 `coverFeatureId`。
+6. musicGenerateTool 会等待生成完成，把音频先写入当前工作空间 `.cache/music-generation`，并默认创建音频资源和推送资源卡片。
+7. 如果 musicGenerateTool 的结果没有 `resourceId`，必须继续调用 resourceCreateTool，把生成的 `audioPath` 保存为 `type: "audio"`、`mediaKind: "music"`、`aiGenerated: true` 的资源。
 
 **注意：**
 
+- musicLyricsTool 对应 MiniMax `POST /v1/lyrics_generation`，只在 toolbox 搜索到音乐/歌词能力后使用，不是默认启用工具。
 - 默认使用 MiniMax `music-2.6`；cover 场景默认使用 `music-cover`。
 - 需要 MiniMax 音乐生成能力和可用 API Key。
 - 这是生成音乐的工具，不是转写或提取音频工具。

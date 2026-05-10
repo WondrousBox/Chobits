@@ -168,4 +168,52 @@ describe('ToolCallActivity', () => {
     });
     env.cleanup();
   });
+
+  it('renders content-only emoji send calls without tool call chrome', async () => {
+    const { act } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+    const { default: ToolCallActivity } = await import('../src/components/chat/ToolCallActivity');
+
+    const env = installMiniDom();
+    const root = createRoot(env.container as any);
+
+    await act(async () => {
+      root.render(
+        <ToolCallActivity
+          activities={[
+            {
+              args: { candidateId: 'emoji-candidate-9' },
+              callId: 'emoji-call-3',
+              display: { mode: 'content-only' },
+              name: 'emojiSendTool',
+              result: {
+                details: {
+                  caption: 'content only',
+                  emoji: {
+                    title: 'hello',
+                    url: 'res://ws/test/emoji-content-only.jpg'
+                  },
+                  success: true
+                }
+              },
+              status: 'done'
+            }
+          ]}
+        />
+      );
+      await flushPromises();
+    });
+
+    const img = env.container.querySelector('img');
+    expect(env.container.textContent).toContain('content only');
+    expect(env.container.textContent).not.toContain('candidateId: emoji-candidate-9');
+    expect(env.container.textContent).not.toContain('鍙戦€佽〃鎯呭寘瀹屾垚');
+    expect(img?.getAttribute('src')).toBe('res://ws/test/emoji-content-only.jpg');
+
+    await act(async () => {
+      root.unmount();
+      await flushPromises();
+    });
+    env.cleanup();
+  });
 });

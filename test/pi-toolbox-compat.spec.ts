@@ -64,6 +64,20 @@ describe('toolbox compatibility layer', () => {
     expect(searchResult.activatedTools).toEqual(expect.arrayContaining(['resourceQueryTool', 'translationTool']))
     expect(toolContext.session.getActiveToolNames()).toEqual(expect.arrayContaining(['toolboxTool', 'resourceQueryTool', 'translationTool']))
   })
+
+  it('can discover and activate emoji search through toolbox search', async () => {
+    const toolContext = createMockToolContext(process.cwd())
+    const toolboxTool = createPiToolboxLookupTool(toolContext as any)
+
+    const searchResult = (await toolboxTool.execute('call-emoji-search', { action: 'search', query: '表情包搜索' })).details as any
+
+    expect(searchResult.success).toBe(true)
+    expect(searchResult.results[0].name).toBe('表情包搜索')
+    expect(searchResult.results.map((result: any) => result.name)).toEqual(['表情包搜索'])
+    expect(searchResult.results[0].content).toContain('emojiSearchTool')
+    expect(searchResult.activatedTools).toEqual(['emojiSearchTool'])
+    expect(toolContext.session.getActiveToolNames()).toEqual(['toolboxTool', 'emojiSearchTool'])
+  })
 })
 
 function createMockToolContext(workspaceRoot: string, skillRegistry?: Awaited<ReturnType<typeof createSkillRegistry>>) {

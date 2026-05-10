@@ -64,6 +64,7 @@ vi.mock('../packages/ai/runtime/pi/runtime-switch', () => ({
 }));
 
 vi.mock('../packages/ai/runtime/pi/tool-registry', () => ({
+  DEFAULT_EMOJI_PACK_TOOL_IDS: ['emoji-list', 'emoji-send'],
   normalizePiToolIds: normalizePiToolIdsMock
 }));
 
@@ -235,5 +236,37 @@ describe('resolvePiRequest', () => {
       source: 'slash-command'
     });
     expect(resolved.messages).toEqual([{ role: 'user', content: 'Translate this subtitle' }]);
+  });
+
+  it('enables emoji list and send by default while leaving emoji search for toolbox discovery', async () => {
+    getPresetMock.mockReturnValue(undefined);
+    getPresetSecretsMock.mockResolvedValue({});
+    getProviderMock.mockReturnValue({
+      id: 'openai',
+      label: 'OpenAI',
+      getSecrets: () => ({})
+    });
+    getAllSecretsMock.mockResolvedValue({});
+    getPiAgentProfileMock.mockReturnValue({
+      id: 'assistant',
+      label: 'Agent模式',
+      description: 'Assistant mode',
+      executionMode: 'session',
+      supportsToolCalls: true,
+      instructions: 'emoji profile',
+      defaultToolIds: ['toolbox-lookup', 'ask-user']
+    });
+
+    const resolved = await resolvePiRequest({
+      providerId: 'openai',
+      agentId: 'assistant',
+      messages: [{ role: 'user', content: '哈哈这个太离谱了' }],
+      extras: {
+        emojiPacksEnabled: true
+      }
+    } as any);
+
+    expect(resolved.enabledToolIds).toEqual(['toolbox-lookup', 'ask-user', 'emoji-list', 'emoji-send']);
+    expect(resolved.enabledToolIds).not.toContain('emoji-search');
   });
 });

@@ -173,7 +173,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
         const thinking = extractThinkingTextFromMetadata(meta);
         if (meta && Array.isArray(meta?.toolCalls)) {
           activities = meta.toolCalls.map((tc: any) => {
-            const base: ToolActivity = { callId: tc.callId, name: tc.name, args: tc.args, status: 'done' as const, label: tc.label, result: tc.result };
+            const base: ToolActivity = { callId: tc.callId, name: tc.name, args: tc.args, status: 'done' as const, label: tc.label, display: tc.display, result: tc.result };
             if (tc.name === 'askUserTool' || tc.name === 'ask-user') {
               const parsedArgs = typeof tc.args === 'string' ? JSON.parse(tc.args) : tc.args;
               const resultDetails = tc.result?.details || tc.result;
@@ -353,7 +353,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
               if (idx < 0 || idx >= prev.length) return prev;
               const copy = prev.slice();
               const m = copy[idx];
-              const activity: ToolActivity = { callId: event.data.callId, name: event.data.name, args: event.data.args, status: 'calling', label: event.data.label };
+              const activity: ToolActivity = { callId: event.data.callId, name: event.data.name, args: event.data.args, status: 'calling', label: event.data.label, display: event.data.display };
               copy[idx] = appendToolPart(m, activity);
               return copy;
             });

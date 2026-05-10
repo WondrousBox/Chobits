@@ -56,7 +56,7 @@ import {
   updateApiKey
 } from './settings-store';
 import { listToolInfos } from './tools';
-import type { ImageGenerationRequest, MusicGenerationRequest, ProviderPresetCreatePayload, ProviderPresetUpdatePatch, PushedCard, TranscriptionRequest } from './types';
+import type { ImageGenerationRequest, LyricsGenerationRequest, MusicGenerationRequest, ProviderPresetCreatePayload, ProviderPresetUpdatePatch, PushedCard, TranscriptionRequest } from './types';
 import { registerUserChoiceIpc } from './user-choice-registry';
 
 async function hasUsablePreset(providerId: string): Promise<boolean> {
@@ -240,6 +240,10 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
 
   ipcMain.handle('ai:generateMusic', async (_e, payload: MusicGenerationRequest) => {
     return piExecutionService.generateMusic(normalizeProviderPreset(payload));
+  });
+
+  ipcMain.handle('ai:generateLyrics', async (_e, payload: LyricsGenerationRequest) => {
+    return piExecutionService.generateLyrics(normalizeProviderPreset(payload));
   });
 
   ipcMain.handle('ai:listModels', async (_e, payload: { providerId: string; presetId?: string }) => {

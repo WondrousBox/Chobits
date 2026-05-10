@@ -5,7 +5,7 @@
  * pushCardTool 的调用会直接渲染为资源卡片。
  */
 
-import { LONG_TASK_BACKGROUND_CHOICE_QUESTION_ID, LONG_TASK_BACKGROUND_CHOICE_VALUE, type UserChoiceRequest } from '@packages/ai/types';
+import { LONG_TASK_BACKGROUND_CHOICE_QUESTION_ID, LONG_TASK_BACKGROUND_CHOICE_VALUE, type ToolCallDisplay, type UserChoiceRequest } from '@packages/ai/types';
 import { useState } from 'react';
 import { TbCheck, TbChevronDown, TbChevronRight, TbClock, TbCopy, TbLoader2, TbTool } from 'react-icons/tb';
 
@@ -21,6 +21,7 @@ export interface ToolActivity {
   result?: any;
   progress?: number;
   progressMessage?: string;
+  display?: ToolCallDisplay;
   choiceRequest?: UserChoiceRequest;
   choiceAnswers?: Record<string, string[]>;
 }
@@ -35,16 +36,23 @@ const ASK_USER_TOOL_NAMES = new Set(['askUserTool', 'ask-user']);
 const EMOJI_SEND_TOOL_NAMES = new Set(['emojiSendTool', 'emoji-send']);
 
 const ToolCallActivity: React.FC<ToolCallActivityProps> = ({ activities, onUserChoiceSubmit }) => {
-  if (activities.length === 0) return null;
+  const visibleActivities = activities.filter(isRenderableToolActivity);
+  if (visibleActivities.length === 0) return null;
 
   return (
     <div className="mb-1 flex flex-col gap-1">
-      {activities.map((activity) => (
+      {visibleActivities.map((activity) => (
         <ToolCallItem key={activity.callId} activity={activity} onUserChoiceSubmit={onUserChoiceSubmit} />
       ))}
     </div>
   );
 };
+
+function isRenderableToolActivity(activity: ToolActivity): boolean {
+  if (activity.display?.mode === 'hidden') return false;
+  if (activity.display?.mode === 'content-only' && EMOJI_SEND_TOOL_NAMES.has(activity.name) && activity.status !== 'done') return false;
+  return true;
+}
 
 function stringifyValue(val: any): string {
   if (typeof val === 'string') return val;
@@ -168,12 +176,25 @@ const EmojiSendToolItem: React.FC<{ activity: ToolActivity }> = ({ activity }) =
   const argSummary = getEmojiArgSummary(args);
   const statusText = activity.status === 'calling' ? '发送表情包...' : details.error && !imageUrl ? '表情包发送失败' : '发送表情包完成';
 
+  if (activity.display?.mode === 'content-only') {
+    if (activity.status !== 'done' || !imageUrl) return null;
+
+    return (
+      <div className="py-1">
+        {(details.caption || args.caption) && <div className="mb-1 text-xs text-muted-foreground">{details.caption || args.caption}</div>}
+        <div className="inline-block max-w-full overflow-hidden rounded-lg border border-border/60 bg-muted/30">
+          <img src={imageUrl} alt={title} loading="lazy" className="block max-h-[260px] max-w-full object-contain" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="overflow-hidden rounded-lg border border-border/50 text-xs">
       <button type="button" className="flex max-w-full items-center gap-1.5 px-2 py-1 text-left transition-colors hover:bg-muted/50" onClick={() => setExpanded(!expanded)}>
         {activity.status === 'calling' ? <TbLoader2 className="h-3 w-3 shrink-0 animate-spin text-blue-500" /> : <TbCheck className="h-3 w-3 shrink-0 text-green-500" />}
         <TbTool className="h-3 w-3 shrink-0 text-muted-foreground" />
-        <span className="truncate text-muted-foreground">{statusText}</span>
+        <span className="truncate text-muted-foreground max-w-52">{statusText}</span>
         {expanded ? <TbChevronDown className="h-3 w-3" /> : <TbChevronRight className="h-3 w-3" />}
       </button>
 
@@ -297,7 +318,7 @@ const ToolCallItem: React.FC<{ activity: ToolActivity; onUserChoiceSubmit?: (cho
           <TbCheck className="h-3 w-3 shrink-0 text-green-500" />
         )}
         <TbTool className="h-3 w-3 shrink-0 text-muted-foreground" />
-        <span className="truncate text-muted-foreground">{statusText}</span>
+        <span className="truncate text-muted-foreground max-w-52">{statusText}</span>
         {expanded ? <TbChevronDown className="h-3 w-3" /> : <TbChevronRight className="h-3 w-3" />}
       </button>
 

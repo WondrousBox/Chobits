@@ -6,7 +6,9 @@ import type { BuiltinProviderDefinition, BuiltinProviderId, ProviderDefinition }
 import { isBuiltinProviderDefinition } from './types';
 
 let builtinDefinitionsRegistered = false;
-type ProviderCapabilitySource = Pick<ProviderAdapter, 'chat' | 'embed' | 'generateMusic' | 'getCapabilities' | 'getDefaultModels' | 'listModels' | 'transcribe'> & { id?: string };
+type ProviderCapabilitySource = Pick<ProviderAdapter, 'chat' | 'embed' | 'generateLyrics' | 'generateMusic' | 'getCapabilities' | 'getDefaultModels' | 'listModels' | 'transcribe'> & {
+  id?: string;
+};
 
 export interface ProviderRuntimeModelInfo {
   id: string;
@@ -281,7 +283,7 @@ export function getProviderCapabilities(providerId?: string, provider?: Provider
     embeddings: providerCapabilities?.embeddings ?? definitionCapabilities?.embeddings ?? Boolean(provider?.embed),
     imageGeneration: providerCapabilities?.imageGeneration ?? definitionCapabilities?.imageGeneration ?? false,
     modelListing: providerCapabilities?.modelListing ?? definitionCapabilities?.modelListing ?? Boolean(provider?.listModels),
-    musicGeneration: providerCapabilities?.musicGeneration ?? definitionCapabilities?.musicGeneration ?? Boolean(provider?.generateMusic),
+    musicGeneration: providerCapabilities?.musicGeneration ?? definitionCapabilities?.musicGeneration ?? Boolean(provider?.generateMusic || provider?.generateLyrics),
     transcribe: providerCapabilities?.transcribe ?? definitionCapabilities?.transcribe ?? Boolean(provider?.transcribe)
   };
 }
