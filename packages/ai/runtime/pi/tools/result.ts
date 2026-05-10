@@ -1,5 +1,7 @@
 import type { AgentToolResult } from '@mariozechner/pi-agent-core';
 
+import { attachToolSpeechToDetails, type ToolSpeechInput } from '../../../tool-speech';
+
 function stringifyDetails(details: unknown): string {
   try {
     return JSON.stringify(details, null, 2);
@@ -8,7 +10,8 @@ function stringifyDetails(details: unknown): string {
   }
 }
 
-export function createJsonToolResult<TDetails>(details: TDetails, options?: { content?: unknown }): AgentToolResult<TDetails> {
+export function createJsonToolResult<TDetails>(details: TDetails, options?: { content?: unknown; speech?: ToolSpeechInput }): AgentToolResult<TDetails> {
+  const resultDetails = attachToolSpeechToDetails(details, options?.speech);
   const content = options && 'content' in options ? options.content : details;
   return {
     content: [
@@ -17,6 +20,6 @@ export function createJsonToolResult<TDetails>(details: TDetails, options?: { co
         type: 'text'
       }
     ],
-    details
+    details: resultDetails
   };
 }

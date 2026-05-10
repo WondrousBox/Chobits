@@ -32,6 +32,7 @@ import { resolveModelFirstSelection } from '@/lib/ai-model-first';
 import { buildExplicitSkillInvocationInput } from '@/lib/chat-explicit-skill-invocation';
 import { pickCodingWorkspace } from '@/lib/coding-workspace';
 import { formatRelativeTime } from '@/lib/time';
+import { speakToolResultSpeech } from '@/lib/tool-speech';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -325,9 +326,9 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
             ...(workspaceId ? { workspaceId } : {}),
             ...(isCoder && codingWorkspaceRoot
               ? {
-                  codingWorkspaceRoot,
-                  codingWorkspaceLabel: codingWorkspaceLabel || undefined
-                }
+                codingWorkspaceRoot,
+                codingWorkspaceLabel: codingWorkspaceLabel || undefined
+              }
               : {})
           }
         },
@@ -360,6 +361,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
           }
 
           if (event?.type === 'tool_result' && event.data) {
+            speakToolResultSpeech(event.data);
             setMessages((prev) => {
               const idx = assistantIndexRef.current;
               if (idx < 0 || idx >= prev.length) return prev;
@@ -470,8 +472,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
     setMessages((prev) =>
       prev.map((message) => {
         const hasActivityMatch = message.activities?.some((activity) => activity.choiceRequest?.choiceId === choiceId) ?? false;
-        const hasDisplayPartMatch =
-          message.displayParts?.some((part) => part.type === 'tool' && part.activity.choiceRequest?.choiceId === choiceId) ?? false;
+        const hasDisplayPartMatch = message.displayParts?.some((part) => part.type === 'tool' && part.activity.choiceRequest?.choiceId === choiceId) ?? false;
 
         if (!hasActivityMatch && !hasDisplayPartMatch) {
           return message;

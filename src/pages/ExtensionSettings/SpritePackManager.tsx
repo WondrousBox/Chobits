@@ -629,14 +629,14 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra, edi
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={handleCreatePack} disabled={busyKey === 'editor-save'}>
               <TbPlus />
-              创建角色
+              创建
             </Button>
-            <Button size="sm" onClick={() => void handleImportArchive()} disabled={busyKey === 'inspect-archive' || busyKey === 'install-archive'}>
+            <Button variant={'outline'} size="sm" onClick={() => void handleImportArchive()} disabled={busyKey === 'inspect-archive' || busyKey === 'install-archive'}>
               {busyKey === 'inspect-archive' || busyKey === 'install-archive' ? <TbLoader2 className="animate-spin" /> : <TbArchive />}
-              导入角色
+              导入
             </Button>
-            <Button size="sm" variant="outline" onClick={() => void refresh()} disabled={loading}>
-              {loading ? <TbLoader2 className="h-4 w-4 animate-spin" /> : <TbRefresh className="h-4 w-4" />}
+            <Button size="icon" className="w-8 h-8" variant="ghost" onClick={() => void refresh()} disabled={loading}>
+              {loading ? <TbLoader2 className="animate-spin" /> : <TbRefresh />}
             </Button>
           </div>
         </div>
@@ -701,7 +701,6 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra, edi
                       <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-muted text-[11px] text-muted-foreground">无预览</div>
                     )}
                     <div className="min-w-0 flex-1 space-y-2">
-                      <SettingPath path={maskPath(pack.rootDir)} />
                       {(pack.tags.length > 0 || packMetadataBadges.length > 0 || packTrustBadges.length > 0) && (
                         <div className="flex flex-wrap gap-1">
                           {packMetadataBadges.map((badge) => (

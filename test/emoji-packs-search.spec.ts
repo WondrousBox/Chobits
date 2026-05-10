@@ -209,6 +209,10 @@ describe('emoji pack search', () => {
     const firstSend = (await sendTool.execute('call-send-1', { candidateId })).details as any;
     expect(firstSend.success).toBe(true);
     expect(firstSend.emoji.url).toContain('res://');
+    expect(firstSend.speech).toEqual({
+      showBubble: false,
+      text: firstSend.emoji.title
+    });
 
     const duplicateSend = (await sendTool.execute('call-send-2', { candidateId })).details as any;
     expect(duplicateSend.success).toBe(false);

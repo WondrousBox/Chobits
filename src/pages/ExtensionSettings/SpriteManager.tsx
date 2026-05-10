@@ -137,7 +137,7 @@ export function SpriteAnimationManager({
     window.YUA.sprite
       .getAnimationPlaylistMode()
       .then(setDefaultAnimationPlaylistMode)
-      .catch(() => {});
+      .catch(() => { });
 
     window.YUA.sprite
       .getInitialState()
@@ -148,7 +148,7 @@ export function SpriteAnimationManager({
         }
         setAnimationPlaylistModes(normalizeSpriteAnimationPlaylistModeMap(config?.animationPlaylistModes));
       })
-      .catch(() => {});
+      .catch(() => { });
 
     return window.YUA.sprite.onConfig((config) => {
       if (config.animationPlaylistMode) {
@@ -524,7 +524,7 @@ export function SpriteAnimationManager({
 
                               {item.meta.deletable !== false && (
                                 <Button size="icon" variant="destructive" className="w-8 h-8" onClick={() => onRemove(item.meta.id)} disabled={!canAuthorAnimations} title={authoringLockedTitle}>
-                                  <TbTrash className="h-4 w-4" />
+                                  <TbTrash />
                                 </Button>
                               )}
                             </div>
