@@ -8,6 +8,7 @@ import { useSpriteCapabilitySnapshot } from '@/features/sprite-assistant/hooks/u
 
 import { DailyCareDetailContent, DailyCareItem, useDailyCareSettings } from './DailyCareSettings';
 import { MovementDetailContent, MovementItem } from './MovementSettings';
+import { MovToWebmConverterDetailContent, MovToWebmConverterItem } from './MovToWebmConverterSettings';
 import { PurposePlannerDetailContent, PurposePlannerItem } from './PurposePlannerSettings';
 import { RecorderDetailContent, RecorderItem, useRecorderSettings } from './RecorderSettings';
 import { SchedulerDebugDetailContent, SchedulerDebugItem } from './SchedulerDebugSettings';
@@ -21,7 +22,7 @@ import { usePurposePlannerSettings } from './usePurposePlannerSettings';
 import { useSpontaneousUtteranceSettings } from './useSpontaneousUtteranceSettings';
 import { WindowAnimationDetailContent, WindowAnimationItem } from './WindowAnimationSettings';
 
-type SkillKey = 'movement' | 'speak' | 'dailyCare' | 'sprite' | 'windowAnimation' | 'spontaneous' | 'purposePlanner' | 'scheduler' | 'recorder' | 'speechRecognition' | 'screenshot';
+type SkillKey = 'movement' | 'speak' | 'dailyCare' | 'sprite' | 'movToWebm' | 'windowAnimation' | 'spontaneous' | 'purposePlanner' | 'scheduler' | 'recorder' | 'speechRecognition' | 'screenshot';
 
 const ExtensionSettings: React.FC = () => {
   const [selected, setSelected] = useState<SkillKey>('movement');
@@ -58,6 +59,8 @@ const ExtensionSettings: React.FC = () => {
         return <DailyCareDetailContent state={dailyCareState} capability={dailyCareCapability} />;
       case 'sprite':
         return <SpriteDetailContent assetAuthoringCapability={spriteManageCapability} onBlocked={handleCapabilityBlocked} />;
+      case 'movToWebm':
+        return <MovToWebmConverterDetailContent />;
       case 'windowAnimation':
         return <WindowAnimationDetailContent />;
       case 'spontaneous':
@@ -86,6 +89,7 @@ const ExtensionSettings: React.FC = () => {
             <SpeakItem state={speakState} selected={selected === 'speak'} onSelect={() => setSelected('speak')} />
             <DailyCareItem state={dailyCareState} capability={dailyCareCapability} selected={selected === 'dailyCare'} onSelect={() => setSelected('dailyCare')} />
             <SpriteItem selected={selected === 'sprite'} onSelect={() => setSelected('sprite')} />
+            <MovToWebmConverterItem selected={selected === 'movToWebm'} onSelect={() => setSelected('movToWebm')} />
             <WindowAnimationItem selected={selected === 'windowAnimation'} onSelect={() => setSelected('windowAnimation')} />
             <SpontaneousUtteranceItem state={spontaneousUtteranceState} selected={selected === 'spontaneous'} onSelect={() => setSelected('spontaneous')} />
             <PurposePlannerItem state={purposePlannerState} selected={selected === 'purposePlanner'} onSelect={() => setSelected('purposePlanner')} />

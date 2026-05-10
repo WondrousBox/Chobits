@@ -167,6 +167,27 @@ describe('MovementCoordinator', () => {
     expect(targetY).toBe(240);
   });
 
+  it('allows walkTo behavior movement without requiring a segmented loop animation', async () => {
+    const harness = createCoordinatorHarness();
+
+    const moved = await harness.coordinator.runBehaviorMovement({
+      enabled: true,
+      trigger: 'behavior',
+      mode: 'walkTo',
+      speed: 60,
+      verticalRange: 0.1
+    });
+
+    expect(moved).toBe(true);
+    expect(harness.walkTo).toHaveBeenCalledOnce();
+    const [targetX, targetY, speed] = harness.walkTo.mock.calls[0];
+    expect(targetX).toBeGreaterThanOrEqual(-200);
+    expect(targetX).toBeLessThanOrEqual(1080);
+    expect(targetY).toBeGreaterThanOrEqual(168);
+    expect(targetY).toBeLessThanOrEqual(312);
+    expect(speed).toBe(60);
+  });
+
   it('keeps movement capability as the shared gate for preview, animation and behavior movement', async () => {
     const harness = createCoordinatorHarness({ canUseMovement: () => false });
 

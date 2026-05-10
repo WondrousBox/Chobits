@@ -40,14 +40,10 @@ export interface MovementCoordinatorDeps {
   emitConfigChanged: () => void;
 }
 
-export interface BehaviorMovementOptions {
-  hasSegmentLoop?: boolean;
-}
-
 export class MovementCoordinator {
   private previewSnapshot: SpriteSizeSnapshot | null = null;
 
-  constructor(private readonly deps: MovementCoordinatorDeps) { }
+  constructor(private readonly deps: MovementCoordinatorDeps) {}
 
   previewMovement(config: SpriteMovementPreviewConfig): void {
     if (!this.previewSnapshot) {
@@ -120,13 +116,13 @@ export class MovementCoordinator {
     this.startDirectionalAutoMove(movement);
   }
 
-  async runBehaviorMovement(movement?: SpriteMovementConfig, options?: BehaviorMovementOptions): Promise<boolean> {
+  async runBehaviorMovement(movement?: SpriteMovementConfig): Promise<boolean> {
     if (!movement?.enabled || !this.deps.canMove() || !this.deps.canUseMovement()) {
       return false;
     }
 
     const mode = movement.mode ?? 'direction';
-    const target = mode === 'walkTo' ? this.computeWalkTarget(movement, options) : this.computeDirectionalWalkTarget(movement);
+    const target = mode === 'walkTo' ? this.computeWalkTarget(movement) : this.computeDirectionalWalkTarget(movement);
     if (!target) {
       return false;
     }
@@ -152,11 +148,7 @@ export class MovementCoordinator {
     }
   }
 
-  private computeWalkTarget(movement: SpriteMovementConfig, options?: BehaviorMovementOptions): { targetX: number; targetY: number } | null {
-    if (options && options.hasSegmentLoop === false) {
-      return null;
-    }
-
+  private computeWalkTarget(movement: SpriteMovementConfig): { targetX: number; targetY: number } | null {
     const [, currentY] = this.deps.getPosition();
     const screen = this.deps.getScreenSize();
     const config = this.deps.getSpriteConfig();
