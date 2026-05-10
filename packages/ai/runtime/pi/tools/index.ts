@@ -16,6 +16,7 @@ import { createPiMemorySaveTool } from './memory-save';
 import { createPiMemorySearchTool } from './memory-search';
 import { createPiMemoryTopicsTool } from './memory-topics';
 import { createPiMusicGenerateTool } from './music-generate';
+import { createPiMusicLyricsTool } from './music-lyrics';
 import { createPiPersonaUpdateTool } from './persona-update';
 import { createPiPushCardTool } from './push-card';
 import { createPiReadSubtitleTool } from './read-subtitle';
@@ -66,6 +67,7 @@ const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
   'memory-diary': createPiMemoryDiaryTool,
   'memory-refresh-critical': createPiMemoryRefreshCriticalTool,
   'music-generate': createPiMusicGenerateTool,
+  'music-lyrics': createPiMusicLyricsTool,
   'persona-update': createPiPersonaUpdateTool,
   'toolbox-lookup': createPiToolboxLookupTool,
   'workflow-run': createPiWorkflowRunTool
@@ -103,6 +105,7 @@ const COMPAT_NAME_TO_TOOL_ID: Record<string, string> = {
   memoryDiaryTool: 'memory-diary',
   memoryRefreshCriticalTool: 'memory-refresh-critical',
   musicGenerateTool: 'music-generate',
+  musicLyricsTool: 'music-lyrics',
   personaUpdateTool: 'persona-update',
   toolboxTool: 'toolbox-lookup',
   workflowRunTool: 'workflow-run'

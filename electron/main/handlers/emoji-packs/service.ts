@@ -538,12 +538,14 @@ function computeSearchScore(file: EmojiPackTreeFile, query: string): number {
   }
 
   const termScores = terms.map((term) => computeSearchTermScore(file, term));
-  if (termScores.some((score) => score <= 0)) {
+  const matchedScores = termScores.filter((score) => score > 0);
+  if (!matchedScores.length) {
     return phraseScore;
   }
 
-  const averageTermScore = termScores.reduce((total, score) => total + score, 0) / termScores.length;
-  const keywordScore = Math.min(70, 30 + Math.round(averageTermScore / 2));
+  const coverage = matchedScores.length / terms.length;
+  const averageMatchedScore = matchedScores.reduce((total, score) => total + score, 0) / matchedScores.length;
+  const keywordScore = Math.min(95, Math.round(averageMatchedScore * (0.35 + coverage * 0.65)));
   const boostedPhraseScore = phraseScore > 0 ? Math.min(100, phraseScore + 10) : 0;
   return Math.max(boostedPhraseScore, keywordScore);
 }

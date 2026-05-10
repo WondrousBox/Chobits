@@ -14,6 +14,8 @@ import type {
   ChatRequest,
   ChatResponse,
   ImageGenerationRequest,
+  LyricsGenerationRequest,
+  LyricsGenerationResponse,
   MusicGenerationRequest,
   MusicGenerationResponse,
   ProviderAdapter,
@@ -89,6 +91,11 @@ export interface ExecuteWorkflowImageGenerationRequestOptions extends ImageGener
 }
 
 export interface ExecuteWorkflowMusicGenerationRequestOptions extends MusicGenerationRequest {
+  emit?: WorkflowEmit;
+  workflowAiUsage?: WorkflowAiUsageContext;
+}
+
+export interface ExecuteWorkflowLyricsGenerationRequestOptions extends LyricsGenerationRequest {
   emit?: WorkflowEmit;
   workflowAiUsage?: WorkflowAiUsageContext;
 }
@@ -580,6 +587,37 @@ export async function executeWorkflowMusicGenerationRequest(options: ExecuteWork
           ...(requestId ? { requestId } : {})
         },
         model,
+        prompt,
+        providerId,
+        providerPresetId: resolvedProviderPresetId
+      })
+    );
+  } catch (error) {
+    if (isMissingWorkflowProviderConfigError(error)) {
+      await resolveWorkflowProviderContext({ emit, providerId, providerPresetId: resolvedProviderPresetId }).catch(() => undefined);
+    }
+
+    throw error;
+  }
+}
+
+export async function executeWorkflowLyricsGenerationRequest(options: ExecuteWorkflowLyricsGenerationRequestOptions): Promise<LyricsGenerationResponse> {
+  const normalizedOptions = normalizeProviderPreset(options);
+  const { emit, lyrics, mode, prompt, providerId, workflowAiUsage } = normalizedOptions;
+  const resolvedProviderPresetId = resolveProviderPresetId(normalizedOptions);
+  const analyticsUsage = buildWorkflowAnalyticsUsage(workflowAiUsage);
+  const requestId = buildWorkflowRequestId(workflowAiUsage);
+
+  try {
+    return await getPiExecutionService().generateLyrics(
+      normalizeProviderPreset({
+        extras: {
+          ...(normalizedOptions.extras || {}),
+          ...(analyticsUsage ? { analyticsUsage } : {}),
+          ...(requestId ? { requestId } : {})
+        },
+        lyrics,
+        mode,
         prompt,
         providerId,
         providerPresetId: resolvedProviderPresetId

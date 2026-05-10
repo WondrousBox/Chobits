@@ -4,6 +4,7 @@ import { Type } from '@sinclair/typebox';
 import { listEmojiPackNodes, listEmojiPacks, resolveEmojiFromPack, searchEmojiPacks } from '../../../../../electron/main/handlers/emoji-packs/service';
 import type { EmojiPackSearchResult } from '../../../../../electron/main/handlers/emoji-packs/types';
 import type { PiSessionToolContext } from '../tool-context';
+import { PI_CONTENT_ONLY_TOOL_DISPLAY, PI_HIDDEN_TOOL_DISPLAY, type PiChatDisplayToolConfig } from './display';
 import { createJsonToolResult } from './result';
 
 const DEFAULT_EMOJI_SEARCH_LIMIT = 8;
@@ -22,7 +23,9 @@ const emojiListParameters = Type.Object({
 const emojiSearchParameters = Type.Object({
   limit: Type.Optional(Type.Number({ description: 'Maximum number of image matches. Default 8, max 24.' })),
   packId: Type.Optional(Type.String({ description: 'Optional emoji pack id to constrain search.' })),
-  query: Type.String({ description: 'Short mood/topic keyword. Space-separated words are matched as required keywords.' })
+  query: Type.String({
+    description: 'Short literal filename/folder keyword. Space-separated words are ranked separately; exact phrases and all-word matches are boosted, but partial matches can still be returned.'
+  })
 });
 
 const emojiSendParameters = Type.Object({
@@ -74,7 +77,10 @@ function getEmojiConversationState(toolContext?: PiSessionToolContext): EmojiCon
 
 function emojiKey(packId?: string, relativePath?: string): string | undefined {
   const normalizedPackId = packId?.trim();
-  const normalizedPath = relativePath?.trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  const normalizedPath = relativePath
+    ?.trim()
+    .replace(/\\/g, '/')
+    .replace(/^\/+|\/+$/g, '');
   return normalizedPackId && normalizedPath ? `${normalizedPackId}\n${normalizedPath}` : undefined;
 }
 
@@ -255,42 +261,43 @@ function compactListNodeDetails(nodes: Awaited<ReturnType<typeof listEmojiPackNo
   return nodes.map((node) =>
     node.kind === 'folder'
       ? {
-          childFolderCount: node.childFolderCount,
-          fileCount: node.fileCount,
+        childFolderCount: node.childFolderCount,
+        fileCount: node.fileCount,
+        kind: node.kind,
+        name: node.name,
+        packId: node.packId,
+        relativePath: node.relativePath,
+        totalFileCount: node.totalFileCount
+      }
+      : (() => {
+        const candidateId = rememberSearchCandidate(state, {
+          mimeType: node.mimeType,
+          packId: node.packId,
+          packName: node.packName,
+          relativePath: node.relativePath,
+          title: node.title,
+          url: node.url
+        });
+        const key = emojiKey(node.packId, node.relativePath);
+        return {
+          candidateId,
           kind: node.kind,
+          mimeType: node.mimeType,
           name: node.name,
           packId: node.packId,
           relativePath: node.relativePath,
-          totalFileCount: node.totalFileCount
-        }
-      : (() => {
-          const candidateId = rememberSearchCandidate(state, {
-            mimeType: node.mimeType,
-            packId: node.packId,
-            packName: node.packName,
-            relativePath: node.relativePath,
-            title: node.title,
-            url: node.url
-          });
-          const key = emojiKey(node.packId, node.relativePath);
-          return {
-            candidateId,
-            kind: node.kind,
-            mimeType: node.mimeType,
-            name: node.name,
-            packId: node.packId,
-            relativePath: node.relativePath,
-            sentBefore: key && state.sentKeys.has(key) ? true : undefined,
-            title: node.title
-          };
-        })()
+          sentBefore: key && state.sentKeys.has(key) ? true : undefined,
+          title: node.title
+        };
+      })()
   );
 }
 
-export function createPiEmojiListTool(toolContext?: PiSessionToolContext): ToolDefinition<typeof emojiListParameters> {
+export function createPiEmojiListTool(toolContext?: PiSessionToolContext): ToolDefinition<typeof emojiListParameters> & PiChatDisplayToolConfig {
   return {
+    chatDisplay: PI_HIDDEN_TOOL_DISPLAY,
     description:
-      'List imported meme/emoji packs or one folder level inside a pack. File nodes include candidateId values for emojiSendTool. Use this progressively and use returned packId values exactly: list packs, choose a relevant top-level folder, then list that folder before sending an image.',
+      'List imported meme/emoji packs or one folder level inside a pack. File nodes include candidateId values for emojiSendTool. In emoji mode, casual chat should usually continue from a relevant list result to emojiSendTool instead of stopping at text-only replies.',
     label: 'emojiListTool',
     name: 'emojiListTool',
     parameters: emojiListParameters,
@@ -299,7 +306,9 @@ export function createPiEmojiListTool(toolContext?: PiSessionToolContext): ToolD
         const packs = await listEmojiPacks();
         const details = {
           mode: 'packs',
-          nextStep: packs.length ? 'Pick a packId and call emojiListTool with that packId to inspect one level.' : 'Import an emoji pack before using emojiSendTool.',
+          nextStep: packs.length
+            ? 'Pick a relevant packId/folder from this overview, then call emojiListTool again; in casual chat, continue until you can send one file candidate.'
+            : 'Import an emoji pack before using emojiSendTool.',
           packs: packs.map((pack) => ({
             id: pack.id,
             name: pack.name,
@@ -351,10 +360,10 @@ export function createPiEmojiListTool(toolContext?: PiSessionToolContext): ToolD
         nodes,
         pack: result.pack
           ? {
-              id: result.pack.id,
-              name: result.pack.name,
-              totalFileCount: result.pack.totalFileCount
-            }
+            id: result.pack.id,
+            name: result.pack.name,
+            totalFileCount: result.pack.totalFileCount
+          }
           : undefined,
         success: true
       };
@@ -365,7 +374,9 @@ export function createPiEmojiListTool(toolContext?: PiSessionToolContext): ToolD
           `emoji list ${details.pack?.id || input.packId}${input.relativePath ? `/${input.relativePath}` : ''}: ${details.nodes.length} items.`,
           folders.length ? `folders: ${folders.join('; ')}` : '',
           files.length ? `files: ${files.join('; ')}` : '',
-          'Send a file with emojiSendTool({ candidateId }). List a folder with emojiListTool({ packId, relativePath }).'
+          files.length
+            ? 'Emoji mode is on: send one fitting file with emojiSendTool({ candidateId }) unless this reply should avoid images.'
+            : 'List a relevant folder with emojiListTool({ packId, relativePath }) until file candidates appear.'
         ]
           .filter(Boolean)
           .join('\n')
@@ -377,7 +388,7 @@ export function createPiEmojiListTool(toolContext?: PiSessionToolContext): ToolD
 export function createPiEmojiSearchTool(toolContext?: PiSessionToolContext): ToolDefinition<typeof emojiSearchParameters> {
   return {
     description:
-      'Search imported meme/emoji image filenames and paths by mood or topic. Space-separated words are matched as required keywords. Returns compact candidateId entries without image URLs; call emojiSendTool with candidateId. When emoji mode is enabled, use this proactively for most replies to find a small candidate set before sending one image.',
+      'Search imported meme/emoji image filenames and folder paths with literal keywords. Returns compact candidateId entries without image URLs. In emoji mode, if results are suitable for a casual reply, continue to emojiSendTool instead of replying text-only. If the prompt overview already shows a relevant pack/folder category, prefer emojiListTool for that folder instead of guessing many searches. Do not repeatedly search with synonyms after one weak/empty result.',
     label: 'emojiSearchTool',
     name: 'emojiSearchTool',
     parameters: emojiSearchParameters,
@@ -422,9 +433,9 @@ export function createPiEmojiSearchTool(toolContext?: PiSessionToolContext): Too
       const details = {
         nextStep: compactResults.length
           ? hasUnsentResult
-            ? 'Call emojiSendTool with candidateId. Prefer results without sentBefore.'
+            ? 'Emoji mode is on: call emojiSendTool with a fitting candidateId unless this reply should avoid images. Prefer results without sentBefore.'
             : 'All close matches were already sent in this conversation. Try a different query.'
-          : 'Try a different query or list a nearby folder with emojiListTool.',
+          : 'Do not keep guessing search keywords. Use emojiListTool with a relevant packId/folder from the emoji pack overview.',
         query: input.query,
         results: compactResults,
         success: true
@@ -446,10 +457,11 @@ export function createPiEmojiSearchTool(toolContext?: PiSessionToolContext): Too
   };
 }
 
-export function createPiEmojiSendTool(toolContext?: PiSessionToolContext): ToolDefinition<typeof emojiSendParameters> {
+export function createPiEmojiSendTool(toolContext?: PiSessionToolContext): ToolDefinition<typeof emojiSendParameters> & PiChatDisplayToolConfig {
   return {
+    chatDisplay: PI_CONTENT_ONLY_TOOL_DISPLAY,
     description:
-      'Send one selected meme/emoji image into the chat bubble. Prefer using candidateId from emojiSearchTool or emojiListTool. Call this only after emojiListTool or emojiSearchTool returned the image. Prefer exactly one well-matched image per reply when emoji mode is enabled.',
+      'Send one selected meme/emoji image into the chat bubble. Prefer using candidateId from emojiSearchTool or emojiListTool. In emoji mode, casual chat should usually call this once after a suitable candidate appears; do not stop after listing/searching candidates unless the reply should avoid images.',
     label: 'emojiSendTool',
     name: 'emojiSendTool',
     parameters: emojiSendParameters,

@@ -1,5 +1,5 @@
 import { getChatMessageUsage, normalizeTokenUsage } from '../../message-usage';
-import type { ChatMessage, StreamEvent, TokenUsage, UserChoiceRequest } from '../../types';
+import type { ChatMessage, StreamEvent, TokenUsage, ToolCallDisplay, UserChoiceRequest } from '../../types';
 import { resolveToolLabel } from './tool-labels';
 
 type UnknownPiEvent = {
@@ -12,7 +12,7 @@ type LegacyStreamEmitter = {
   connected: () => void;
   delta: (text: string) => void;
   metadata: (data: Record<string, any>) => void;
-  toolCall: (name: string, args: any, callId: string) => void;
+  toolCall: (name: string, args: any, callId: string, display?: ToolCallDisplay) => void;
   toolResult: (callId: string, result: any) => void;
   toolProgress: (callId: string, progress: number, message?: string) => void;
   thinkingDelta: (text: string) => void;
@@ -39,7 +39,7 @@ export function createLegacyStreamEmitter(emit: (event: StreamEvent) => void, op
     metadata(data: Record<string, any>) {
       emit({ type: 'metadata', data });
     },
-    toolCall(name: string, args: any, callId: string) {
+    toolCall(name: string, args: any, callId: string, display?: ToolCallDisplay) {
       const parsedArgs =
         typeof args === 'string'
           ? (() => {
@@ -52,7 +52,7 @@ export function createLegacyStreamEmitter(emit: (event: StreamEvent) => void, op
           : (args ?? {});
       const label = resolveToolLabel(name, parsedArgs, 'calling', useCharacterLabels);
       console.log(`[AI Tool] 调用工具: ${name} → ${label}`, { callId, args: typeof args === 'string' ? args.slice(0, 200) : args });
-      emit({ type: 'tool_call', data: { args, callId, label, name } });
+      emit({ type: 'tool_call', data: { args, callId, label, name, ...(display ? { display } : {}) } });
     },
     toolResult(callId: string, result: any) {
       console.log(`[AI Tool] 工具返回: ${callId}`, typeof result === 'object' ? { success: result?.success, error: result?.error } : result);
@@ -124,6 +124,7 @@ export function coercePiEventToLegacy(event: UnknownPiEvent): StreamEvent | unde
       data: {
         args: data.args,
         callId: String(data.callId || data.id || ''),
+        ...(data.display ? { display: data.display } : {}),
         name: String(data.name || '')
       }
     };

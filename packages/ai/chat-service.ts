@@ -17,7 +17,7 @@ import { PiSessionService } from './runtime/pi/session-service';
 import { generatePiConversationTitle } from './runtime/pi/tasks/title';
 import type { AgentLoopCompletePayload } from './services/memory-types';
 import { createThinkingTagStreamParser, extractThinkingTextFromMetadata, readThinkingBlocksFromMetadata, splitThinkingTagsFromText, type ThinkingMetadataBlock } from './thinking-content';
-import { CHAT_MESSAGE_DISPLAY_PARTS_METADATA_KEY, ChatMessage, ChatMessageDisplayPart, ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent } from './types';
+import { CHAT_MESSAGE_DISPLAY_PARTS_METADATA_KEY, ChatMessage, ChatMessageDisplayPart, ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent, type ToolCallDisplay } from './types';
 
 // local UUID fallback if uuid not present
 function safeUuid(): string {
@@ -87,6 +87,10 @@ function appendToolDisplayPart(parts: ChatMessageDisplayPart[], callId: string):
   }
 
   parts.push({ callId, type: 'tool' });
+}
+
+function shouldAppendToolDisplayPart(display?: ToolCallDisplay): boolean {
+  return display?.mode !== 'hidden';
 }
 
 function normalizeDisplayParts(parts: ChatMessageDisplayPart[]): ChatMessageDisplayPart[] | undefined {
@@ -428,7 +432,7 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
     let thinkingText = '';
     let errorMessage: string | undefined;
     const startedAt = Date.now();
-    const collectedToolCalls: Array<{ callId: string; name: string; args?: any; label?: string; result?: any }> = [];
+    const collectedToolCalls: Array<{ callId: string; name: string; args?: any; label?: string; display?: ToolCallDisplay; result?: any }> = [];
     const displayParts: ChatMessageDisplayPart[] = [];
     const inlineThinkingParser = shouldNormalizeInlineThinkingTags(preview.resolved.model.canonicalProviderId) ? createThinkingTagStreamParser() : undefined;
 
@@ -513,8 +517,10 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
           }
 
           if (event.type === 'tool_call' && event.data) {
-            collectedToolCalls.push({ callId: event.data.callId, name: event.data.name, args: event.data.args, label: event.data.label });
-            appendToolDisplayPart(displayParts, event.data.callId);
+            collectedToolCalls.push({ callId: event.data.callId, name: event.data.name, args: event.data.args, label: event.data.label, display: event.data.display });
+            if (shouldAppendToolDisplayPart(event.data.display)) {
+              appendToolDisplayPart(displayParts, event.data.callId);
+            }
           }
 
           if (event.type === 'tool_result' && event.data) {

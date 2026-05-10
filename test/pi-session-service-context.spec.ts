@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   buildPiModelHeadersMock,
   buildPiModelMock,
+  createPiEmojiListToolMock,
+  createPiEmojiSendToolMock,
   isPiRuntimeRequestedMock,
   piSessionFactoryCreateCodingSessionMock,
   resolvePiRequestMock,
@@ -14,6 +16,8 @@ const {
 } = vi.hoisted(() => ({
   buildPiModelHeadersMock: vi.fn(),
   buildPiModelMock: vi.fn(),
+  createPiEmojiListToolMock: vi.fn(),
+  createPiEmojiSendToolMock: vi.fn(),
   isPiRuntimeRequestedMock: vi.fn(),
   piSessionFactoryCreateCodingSessionMock: vi.fn(),
   resolvePiRequestMock: vi.fn(),
@@ -47,6 +51,11 @@ vi.mock('../packages/ai/runtime/pi/session-factory', () => ({
   }
 }))
 
+vi.mock('../packages/ai/runtime/pi/tools/emoji-packs', () => ({
+  createPiEmojiListTool: createPiEmojiListToolMock,
+  createPiEmojiSendTool: createPiEmojiSendToolMock
+}))
+
 vi.mock('../packages/ai/system-prompt-enricher', () => ({
   preWarmEnrichers: vi.fn(),
   resolveSystemPromptEnrichments: vi.fn().mockResolvedValue([])
@@ -75,6 +84,21 @@ describe('PiSessionService context building', () => {
       provider: 'openai'
     }))
     isPiRuntimeRequestedMock.mockReturnValue(true)
+    createPiEmojiListToolMock.mockImplementation(() => ({
+      execute: vi.fn(async () => ({
+        details: {
+          packs: [],
+          success: true
+        }
+      }))
+    }))
+    createPiEmojiSendToolMock.mockImplementation(() => ({
+      execute: vi.fn(async () => ({
+        details: {
+          success: false
+        }
+      }))
+    }))
     resolvePiToolDescriptorsMock.mockReturnValue([
       {
         id: 'skill-search',
@@ -760,6 +784,194 @@ user-invocable: true
     expect(forkProgressEvents.every((event) => event.callId === 'skill-call-1')).toBe(true)
     expect(forkProgressEvents.at(0)?.message).toContain('Starting forked skill')
     expect(forkProgressEvents.at(-1)?.progress).toBe(100)
+  })
+
+  it('auto-sends an emoji before stream completion when emoji mode is enabled and the model did not send one', async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-session-emoji-fallback-'))
+    tempRoots.push(tempRoot)
+
+    const listExecuteMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        details: {
+          packs: [
+            {
+              id: 'pack-1',
+              totalFileCount: 1
+            }
+          ],
+          success: true
+        }
+      })
+      .mockResolvedValueOnce({
+        details: {
+          mode: 'nodes',
+          nodes: [
+            {
+              candidateId: 'e1',
+              kind: 'file',
+              packId: 'pack-1',
+              relativePath: 'hello.png',
+              title: 'hello'
+            }
+          ],
+          pack: {
+            id: 'pack-1'
+          },
+          success: true
+        }
+      })
+    const sendExecuteMock = vi.fn(async () => ({
+      details: {
+        emoji: {
+          mimeType: 'image/png',
+          packId: 'pack-1',
+          packName: 'pack',
+          relativePath: 'hello.png',
+          title: 'hello',
+          url: 'res://emoji/hello.png'
+        },
+        markdown: '![hello](res://emoji/hello.png)',
+        success: true
+      }
+    }))
+
+    createPiEmojiListToolMock.mockReturnValue({ execute: listExecuteMock })
+    createPiEmojiSendToolMock.mockReturnValue({ execute: sendExecuteMock })
+
+    let subscriber: ((event: any) => void) | undefined
+    const sessionState = { messages: [] as any[] }
+    piSessionFactoryCreateCodingSessionMock.mockImplementation(async () => {
+      const session = {
+        agent: {
+          prompt: vi.fn(async () => {
+            const assistant = createAssistantMessage('你好呀')
+            sessionState.messages.push(assistant)
+            subscriber?.({
+              message: assistant,
+              type: 'message_end'
+            })
+            subscriber?.({
+              messages: sessionState.messages,
+              type: 'agent_end'
+            })
+          }),
+          replaceMessages: vi.fn()
+        },
+        getActiveToolNames: () => ['toolboxTool', 'emojiListTool', 'emojiSendTool'],
+        getAllTools: () => [
+          { name: 'toolboxTool' },
+          { name: 'emojiListTool' },
+          { name: 'emojiSendTool' }
+        ],
+        state: sessionState,
+        subscribe: vi.fn((listener: (event: any) => void) => {
+          subscriber = listener
+          return vi.fn()
+        })
+      }
+
+      return {
+        dispose: vi.fn(),
+        session,
+        toolContext: {}
+      }
+    })
+
+    resolvePiToolDescriptorsMock.mockReturnValue([
+      {
+        id: 'emoji-list',
+        name: 'emojiListTool',
+        description: 'List emoji packs',
+        category: 'emoji',
+        status: 'ready-for-pi-runtime'
+      },
+      {
+        id: 'emoji-send',
+        name: 'emojiSendTool',
+        description: 'Send emoji',
+        category: 'emoji',
+        status: 'ready-for-pi-runtime'
+      }
+    ])
+
+    resolvePiRequestMock.mockResolvedValue({
+      runtime: 'pi',
+      runtimeRequested: true,
+      request: {
+        agentId: 'assistant',
+        extras: {
+          emojiPacksEnabled: true
+        },
+        messages: [{ role: 'user', content: '你好' }],
+        providerId: 'openai'
+      },
+      profile: {
+        defaultToolIds: ['toolbox-lookup', 'ask-user', 'emoji-list', 'emoji-send'],
+        executionMode: 'session',
+        id: 'assistant',
+        instructions: 'emoji profile',
+        label: 'Assistant',
+        supportsToolCalls: true,
+        toolInjectionMode: 'dynamic'
+      },
+      model: {
+        canonicalProviderId: 'openai',
+        modelId: 'gpt-5',
+        providerId: 'openai',
+        secrets: {},
+        source: 'provider'
+      },
+      messages: [{ role: 'user', content: '你好' }],
+      enabledToolIds: ['toolbox-lookup', 'ask-user', 'emoji-list', 'emoji-send'],
+      coding: {
+        label: 'repo',
+        mode: 'safe',
+        rootPath: tempRoot,
+        source: 'manual'
+      }
+    })
+
+    const events: Array<{ type: string; data?: any }> = []
+    const service = new PiSessionService()
+    await service.chatStream(
+      {
+        agentId: 'assistant',
+        extras: {
+          emojiPacksEnabled: true
+        },
+        messages: [{ role: 'user', content: '你好' }],
+        providerId: 'openai'
+      } as any,
+      (event) => {
+        events.push(event)
+      }
+    )
+
+    expect(events.map((event) => event.type)).toEqual(['connected', 'metadata', 'tool_call', 'tool_result', 'tool_call', 'tool_result', 'message_completed', 'done'])
+    expect(events[2].data).toMatchObject({
+      name: 'emojiListTool',
+      display: {
+        mode: 'hidden'
+      },
+      args: {
+        limit: 48,
+        packId: 'pack-1'
+      }
+    })
+    expect(events[4].data).toMatchObject({
+      name: 'emojiSendTool',
+      display: {
+        mode: 'content-only'
+      },
+      args: {
+        candidateId: 'e1'
+      }
+    })
+    expect((events[5].data?.result as any)?.details?.emoji?.url).toBe('res://emoji/hello.png')
+    expect(events[6].data?.message?.content).toBe('你好呀')
+    expect(listExecuteMock).toHaveBeenCalledTimes(2)
+    expect(sendExecuteMock).toHaveBeenCalledWith(expect.stringMatching(/^emoji-fallback-send-/), { candidateId: 'e1' })
   })
 })
 

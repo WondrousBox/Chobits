@@ -31,6 +31,12 @@ export const CHAT_MESSAGE_DISPLAY_PARTS_METADATA_KEY = 'displayParts';
 
 export type ChatMessageDisplayPart = { type: 'text'; text: string } | { type: 'thinking'; thinking: string } | { type: 'tool'; callId: string };
 
+export type ToolCallDisplayMode = 'default' | 'hidden' | 'content-only';
+
+export type ToolCallDisplay = {
+  mode?: ToolCallDisplayMode;
+};
+
 export type ExplicitSkillInvocationInput = {
   matchedReference: string;
   remainingQuery?: string;
@@ -124,7 +130,7 @@ export type StreamEvent =
   | { type: 'connected' }
   | { type: 'delta'; data: { text?: string; toolCall?: any } }
   | { type: 'message_completed'; data: { message: ChatMessage; usage?: TokenUsage } }
-  | { type: 'tool_call'; data: { name: string; args: any; callId: string; label?: string } }
+  | { type: 'tool_call'; data: { name: string; args: any; callId: string; label?: string; display?: ToolCallDisplay } }
   | { type: 'tool_result'; data: { callId: string; result: any } }
   | { type: 'tool_progress'; data: { callId: string; progress: number; message?: string } }
   | { type: 'thinking_delta'; data: { text: string } }
@@ -236,6 +242,24 @@ export type MusicGenerationResponse = {
   audioUrl?: string;
   audioBase64?: string;
   filePath?: string;
+  model?: string;
+  providerId?: string;
+  usage?: TokenUsage;
+  rawUsage?: unknown;
+  rawResponse?: unknown;
+};
+export type LyricsGenerationMode = 'write_full_song' | 'edit';
+export type LyricsGenerationRequest = ProviderScopedRequest & {
+  mode?: LyricsGenerationMode;
+  model?: string;
+  prompt?: string;
+  lyrics?: string;
+  extras?: Record<string, any>;
+};
+export type LyricsGenerationResponse = {
+  lyrics: string;
+  songTitle?: string;
+  styleTags?: string;
   model?: string;
   providerId?: string;
   usage?: TokenUsage;
@@ -420,6 +444,7 @@ export interface ProviderAdapter {
   transcribe?(file: File | Blob | Buffer | ArrayBuffer, options?: TranscribeOptions): Promise<TranscriptionResponse>;
   // Music generation
   generateMusic?(req: MusicGenerationRequest, signal?: AbortSignal): Promise<MusicGenerationResponse>;
+  generateLyrics?(req: LyricsGenerationRequest, signal?: AbortSignal): Promise<LyricsGenerationResponse>;
 }
 
 // Agent contracts are now represented by Pi profiles and provider adapters.
@@ -502,6 +527,7 @@ export type AIApi = {
   transcribe(payload: TranscriptionRequest): Promise<TranscriptionResponse>;
   generateImage(payload: ImageGenerationRequest): Promise<ImageGenerationResponse>;
   generateMusic(payload: MusicGenerationRequest): Promise<MusicGenerationResponse>;
+  generateLyrics(payload: LyricsGenerationRequest): Promise<LyricsGenerationResponse>;
   embed(payload: EmbeddingRequest): Promise<{ vectors: number[][]; dim: number }>;
   // Presets
   listPresets(providerId?: string): Promise<ProviderPresetRecord[]>;

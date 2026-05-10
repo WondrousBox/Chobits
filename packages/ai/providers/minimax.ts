@@ -1,5 +1,13 @@
 import { OpenAICompatibleProvider } from './openai-compatible';
-import type { GeneratedAudioArtifact, MusicGenerationAudioSetting, MusicGenerationRequest, MusicGenerationResponse, ProviderSecrets } from '../types';
+import type {
+  GeneratedAudioArtifact,
+  LyricsGenerationRequest,
+  LyricsGenerationResponse,
+  MusicGenerationAudioSetting,
+  MusicGenerationRequest,
+  MusicGenerationResponse,
+  ProviderSecrets
+} from '../types';
 
 type MiniMaxMusicResponse = {
   base_resp?: {
@@ -9,6 +17,27 @@ type MiniMaxMusicResponse = {
   data?: {
     audio?: string;
     status?: number;
+    [key: string]: any;
+  };
+  extra_info?: Record<string, any>;
+  trace_id?: string;
+  [key: string]: any;
+};
+
+type MiniMaxLyricsResponse = {
+  base_resp?: {
+    status_code?: number;
+    status_msg?: string;
+  };
+  lyrics?: string;
+  song_title?: string;
+  style_tags?: string;
+  title?: string;
+  data?: {
+    lyrics?: string;
+    song_title?: string;
+    style_tags?: string;
+    title?: string;
     [key: string]: any;
   };
   extra_info?: Record<string, any>;
@@ -36,6 +65,11 @@ function toEndpointUrl(baseUrl: string | undefined, endpoint: string): string {
 
 function stripUndefined<T extends Record<string, any>>(value: T): T {
   return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined && item !== null && item !== '')) as T;
+}
+
+function trimString(value: unknown): string | undefined {
+  const text = typeof value === 'string' ? value.trim() : '';
+  return text || undefined;
 }
 
 function normalizeFormat(format?: string): string {
@@ -72,22 +106,73 @@ function hexToBase64(hex: string): string | undefined {
   return Buffer.from(normalized, 'hex').toString('base64');
 }
 
-async function readJsonResponse(response: Response): Promise<MiniMaxMusicResponse> {
+async function readJsonResponse<T extends Record<string, any>>(response: Response): Promise<T> {
   const text = await response.text();
   if (!text.trim()) {
-    return {};
+    return {} as T;
   }
 
   try {
-    return JSON.parse(text) as MiniMaxMusicResponse;
+    return JSON.parse(text) as T;
   } catch {
-    return { error: text };
+    return { error: text } as unknown as T;
   }
 }
 
 export class MiniMaxProvider extends OpenAICompatibleProvider {
   constructor() {
     super('minimax');
+  }
+
+  async generateLyrics(req: LyricsGenerationRequest, signal?: AbortSignal): Promise<LyricsGenerationResponse> {
+    const overrideSecrets = (req.extras as any)?.secrets as Partial<ProviderSecrets> | undefined;
+    const secrets = this.resolveSecrets(overrideSecrets as any);
+    const apiKey = String(secrets.apiKey || '').trim();
+
+    if (!apiKey) {
+      throw new Error('MiniMax lyrics generation requires an API key');
+    }
+
+    const minimaxExtras = isRecord(req.extras?.minimax) ? req.extras.minimax : {};
+    const body = this.buildLyricsRequestBody(req, minimaxExtras);
+    const response = await fetch(toEndpointUrl(secrets.baseUrl, '/lyrics_generation'), {
+      body: JSON.stringify(body),
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      method: 'POST',
+      signal
+    });
+    const payload = await readJsonResponse<MiniMaxLyricsResponse>(response);
+
+    if (!response.ok) {
+      const message = payload.base_resp?.status_msg || payload.error || response.statusText || 'MiniMax lyrics generation failed';
+      throw new Error(`MiniMax lyrics generation failed (${response.status}): ${message}`);
+    }
+
+    const statusCode = toFiniteNumber(payload.base_resp?.status_code);
+    if (statusCode !== undefined && statusCode !== 0) {
+      throw new Error(`MiniMax lyrics generation failed (${statusCode}): ${payload.base_resp?.status_msg || 'unknown error'}`);
+    }
+
+    const lyrics = this.extractLyrics(payload);
+    if (!lyrics) {
+      throw new Error('MiniMax lyrics generation failed: response did not include lyrics');
+    }
+
+    const songTitle = trimString(payload.song_title || payload.title || payload.data?.song_title || payload.data?.title);
+    const styleTags = trimString(payload.style_tags || payload.data?.style_tags);
+
+    return stripUndefined({
+      lyrics,
+      model: req.model,
+      providerId: this.id,
+      rawResponse: payload,
+      ...(payload.extra_info ? { rawUsage: payload.extra_info } : {}),
+      songTitle,
+      styleTags
+    });
   }
 
   async generateMusic(req: MusicGenerationRequest, signal?: AbortSignal): Promise<MusicGenerationResponse> {
@@ -122,7 +207,7 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
       method: 'POST',
       signal
     });
-    const payload = await readJsonResponse(response);
+    const payload = await readJsonResponse<MiniMaxMusicResponse>(response);
 
     if (!response.ok) {
       const message = payload.base_resp?.status_msg || payload.error || response.statusText || 'MiniMax music generation failed';
@@ -183,6 +268,39 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
       prompt: req.prompt,
       stream: false
     });
+  }
+
+  private buildLyricsRequestBody(req: LyricsGenerationRequest, minimaxExtras: Record<string, any>): Record<string, any> {
+    const mode = req.mode || minimaxExtras.mode || (trimString(req.lyrics) ? 'edit' : 'write_full_song');
+    const prompt = trimString(req.prompt) || trimString(minimaxExtras.prompt);
+    const lyrics = trimString(req.lyrics) || trimString(minimaxExtras.lyrics);
+
+    if (!prompt && !lyrics) {
+      throw new Error('MiniMax lyrics generation requires prompt or lyrics');
+    }
+
+    return stripUndefined({
+      ...minimaxExtras,
+      lyrics,
+      mode,
+      prompt
+    });
+  }
+
+  private extractLyrics(payload: MiniMaxLyricsResponse): string | undefined {
+    const direct = trimString(payload.lyrics);
+    if (direct) return direct;
+
+    const dataLyrics = trimString(payload.data?.lyrics);
+    if (dataLyrics) return dataLyrics;
+
+    const candidates = [payload.data?.result, payload.data?.text, payload.result, payload.text];
+    for (const candidate of candidates) {
+      const text = trimString(candidate);
+      if (text) return text;
+    }
+
+    return undefined;
   }
 
   private toAudioArtifact(

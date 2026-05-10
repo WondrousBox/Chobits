@@ -144,7 +144,7 @@ describe('emoji pack search', () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it('matches space-separated keywords as required terms while keeping phrase matching', async () => {
+  it('ranks space-separated keyword matches without requiring every term', async () => {
     const { searchEmojiPacks } = await import('../electron/main/handlers/emoji-packs/service');
 
     const results = await searchEmojiPacks({
@@ -153,12 +153,22 @@ describe('emoji pack search', () => {
       query: '斗图 嚣张'
     });
 
-    expect(results).toHaveLength(1);
+    expect(results.length).toBeGreaterThan(1);
     expect(results[0]).toMatchObject({
       packId: 'EmojiPackage-1778160720970',
       relativePath: '斗图/嚣张/嚣张登场.gif',
       title: '嚣张登场'
     });
+    expect(results.some((item) => item.relativePath === '斗图/普通微笑.png')).toBe(true);
+    expect(results.some((item) => item.relativePath === '可爱/嚣张猫.gif')).toBe(true);
+
+    const partialResults = await searchEmojiPacks({
+      limit: 12,
+      packId: 'EmojiPackage-1778160720970',
+      query: '斗图 可爱'
+    });
+
+    expect(partialResults.map((item) => item.relativePath).sort()).toEqual(['可爱/嚣张猫.gif', '斗图/普通微笑.png', '斗图/嚣张/嚣张登场.gif'].sort());
 
     const phraseResults = await searchEmojiPacks({
       limit: 12,
@@ -301,5 +311,29 @@ describe('emoji pack search', () => {
     const sendResult = (await sendTool.execute('call-send-history', { candidateId: 'e42' })).details as any;
     expect(sendResult.success).toBe(true);
     expect(sendResult.emoji.relativePath).toBe('斗图/普通微笑.png');
+  });
+
+  it('instructs the model to use list and send when emoji mode is enabled', async () => {
+    const { buildEmojiPackPromptSegment } = await import('../electron/main/handlers/emoji-packs/prompt');
+
+    const prompt = await buildEmojiPackPromptSegment({
+      conversationId: 'conv-prompt',
+      extras: {
+        emojiPacksEnabled: true
+      },
+      messages: [
+        {
+          content: '哈哈这个也太离谱了',
+          role: 'user'
+        }
+      ],
+      providerId: 'test'
+    });
+
+    expect(prompt).toContain('## 主动尝试发送表情包');
+    expect(prompt).toContain('emojiListTool({ packId, relativePath })');
+    expect(prompt).toContain('emojiSendTool({ candidateId })');
+    expect(prompt).toContain('表情包概览');
+    expect(prompt).not.toContain('emojiSearchTool');
   });
 });

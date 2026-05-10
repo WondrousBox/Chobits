@@ -101,6 +101,10 @@ const DEFAULT_TOOL_LABELS: Record<string, ToolLabelDefinition> = {
       { when: { mode: 'cover' }, calling: '生成翻唱/参考音频：{prompt}', done: '翻唱/参考音频生成完成' }
     ]
   },
+  musicLyricsTool: {
+    default: { calling: '生成歌词：{prompt}', done: '歌词生成完成' },
+    conditions: [{ when: { mode: 'edit' }, calling: '修改歌词', done: '歌词修改完成' }]
+  },
   personaUpdateTool: {
     default: { calling: '更新用户画像', done: '用户画像已更新' }
   },

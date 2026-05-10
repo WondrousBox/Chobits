@@ -27,6 +27,7 @@ import {
 } from './skills';
 import { createLegacyAssistantMessage, createLegacyStreamEmitter, normalizePiError } from './stream-adapter';
 import type { PiSessionToolContext } from './tool-context';
+import { getPiToolChatDisplayByName } from './tools/display';
 import { normalizePiToolIds, resolvePiToolDescriptors, resolvePiToolId } from './tool-registry';
 
 const require = createRequire(import.meta.url);
@@ -49,6 +50,17 @@ type PiSkillRuntimeContext = {
   registry: SkillRegistry;
   state: SkillSessionState;
   workspaceRoot: string;
+};
+type EmojiFallbackListArgs = {
+  limit?: number;
+  packId?: string;
+  relativePath?: string;
+};
+type EmojiFallbackCandidate = {
+  allowRepeat?: boolean;
+  candidateId: string;
+  listArgs: EmojiFallbackListArgs;
+  listResult: unknown;
 };
 
 function hasPackage(pkg: string): boolean {
@@ -710,7 +722,14 @@ function inspectPiAiPrompt(params: { context: PiContext; metadata?: Record<strin
   });
 }
 
-function getActiveSessionTools(session: { getActiveToolNames(): string[]; getAllTools(): Array<{ description?: string; name: string; parameters?: unknown }> }): AiPromptInspectionTool[] {
+function getActiveSessionTools(session: {
+  getActiveToolNames?: () => string[];
+  getAllTools?: () => Array<{ description?: string; name: string; parameters?: unknown }>;
+}): AiPromptInspectionTool[] {
+  if (typeof session.getActiveToolNames !== 'function' || typeof session.getAllTools !== 'function') {
+    return [];
+  }
+
   const activeNames = new Set(session.getActiveToolNames());
   return session
     .getAllTools()
@@ -790,6 +809,130 @@ function ensurePiCompletion(message: PiAssistantMessage): PiAssistantMessage {
     throw new Error(message.errorMessage || 'Pi runtime execution failed');
   }
   return message;
+}
+
+function isSuccessfulEmojiSendResult(result: unknown): boolean {
+  const details = (result as any)?.details || result;
+  return Boolean((details as any)?.success && (details as any)?.emoji);
+}
+
+function isEmojiSendToolName(name: string | undefined): boolean {
+  return name === 'emojiSendTool' || name === 'emoji-send';
+}
+
+function findEmojiFallbackFileNode(details: any): any | undefined {
+  return Array.isArray(details?.nodes) ? details.nodes.find((node: any) => node?.kind === 'file' && typeof node.candidateId === 'string' && !node.sentBefore) : undefined;
+}
+
+function findAnyEmojiFallbackFileNode(details: any): any | undefined {
+  return Array.isArray(details?.nodes) ? details.nodes.find((node: any) => node?.kind === 'file' && typeof node.candidateId === 'string') : undefined;
+}
+
+function findEmojiFallbackFolderNodes(details: any): any[] {
+  return Array.isArray(details?.nodes) ? details.nodes.filter((node: any) => node?.kind === 'folder' && typeof node.relativePath === 'string' && node.totalFileCount > 0) : [];
+}
+
+function findEmojiFallbackPack(details: any): any | undefined {
+  return Array.isArray(details?.packs) ? details.packs.find((pack: any) => typeof pack?.id === 'string' && pack.totalFileCount > 0) : undefined;
+}
+
+function shouldRunEmojiFallback(resolved: ResolvedPiRequest): boolean {
+  return Boolean(resolved.request.extras?.emojiPacksEnabled);
+}
+
+function resolveToolCallDisplay(toolContext: PiSessionToolContext | undefined, toolName: string | undefined) {
+  return getPiToolChatDisplayByName(toolName, toolContext?.session?.getAllTools());
+}
+
+async function resolveEmojiFallbackCandidate(toolContext: PiSessionToolContext): Promise<EmojiFallbackCandidate | undefined> {
+  const { createPiEmojiListTool } = await import('./tools/emoji-packs');
+  const listTool = createPiEmojiListTool(toolContext);
+  const listLimit = 48;
+
+  const runList = async (args: EmojiFallbackListArgs): Promise<unknown> =>
+    (listTool.execute as (toolCallId: string, input: EmojiFallbackListArgs) => Promise<unknown>)(`emoji-fallback-probe-${Date.now()}`, args);
+  const overviewResult = await runList({ limit: listLimit });
+  const overviewDetails = (overviewResult as any)?.details || overviewResult;
+  const pack = findEmojiFallbackPack(overviewDetails);
+  if (!pack?.id) return undefined;
+
+  const visited = new Set<string>();
+  const queue: EmojiFallbackListArgs[] = [{ limit: listLimit, packId: String(pack.id) }];
+  let repeatCandidate: EmojiFallbackCandidate | undefined;
+
+  for (let index = 0; index < queue.length && index < 12; index += 1) {
+    const listArgs = queue[index];
+    const key = `${listArgs.packId || ''}\n${listArgs.relativePath || ''}`;
+    if (visited.has(key)) continue;
+    visited.add(key);
+
+    const listResult = await runList(listArgs);
+    const details = (listResult as any)?.details || listResult;
+    const fileNode = findEmojiFallbackFileNode(details);
+    if (fileNode?.candidateId) {
+      return {
+        candidateId: String(fileNode.candidateId),
+        listArgs,
+        listResult
+      };
+    }
+
+    const repeatedFileNode = findAnyEmojiFallbackFileNode(details);
+    if (!repeatCandidate && repeatedFileNode?.candidateId) {
+      repeatCandidate = {
+        allowRepeat: true,
+        candidateId: String(repeatedFileNode.candidateId),
+        listArgs,
+        listResult
+      };
+    }
+
+    for (const folder of findEmojiFallbackFolderNodes(details)) {
+      queue.push({
+        limit: listLimit,
+        packId: String(folder.packId || listArgs.packId),
+        relativePath: String(folder.relativePath)
+      });
+    }
+  }
+
+  return repeatCandidate;
+}
+
+async function runEmojiFallbackSend(toolContext: PiSessionToolContext): Promise<
+  | {
+      list: { args: EmojiFallbackListArgs; callId: string; result: unknown };
+      send: { args: { allowRepeat?: boolean; candidateId: string }; callId: string; result: unknown };
+    }
+  | undefined
+> {
+  const candidate = await resolveEmojiFallbackCandidate(toolContext);
+  if (!candidate) return undefined;
+
+  const { createPiEmojiSendTool } = await import('./tools/emoji-packs');
+  const sendTool = createPiEmojiSendTool(toolContext);
+  const sendArgs = {
+    ...(candidate.allowRepeat ? { allowRepeat: true } : {}),
+    candidateId: candidate.candidateId
+  };
+  const sendCallId = `emoji-fallback-send-${Date.now()}`;
+  const sendResult = await (sendTool.execute as (toolCallId: string, input: typeof sendArgs) => Promise<unknown>)(sendCallId, sendArgs);
+  if (!isSuccessfulEmojiSendResult(sendResult)) {
+    return undefined;
+  }
+
+  return {
+    list: {
+      args: candidate.listArgs,
+      callId: `emoji-fallback-list-${Date.now()}`,
+      result: candidate.listResult
+    },
+    send: {
+      args: sendArgs,
+      callId: sendCallId,
+      result: sendResult
+    }
+  };
 }
 
 function toChatResponse(message: PiAssistantMessage, resolved: ResolvedPiRequest): ChatResponse {
@@ -1245,7 +1388,7 @@ export class PiSessionService {
       legacy.toolProgress(callId, progress, message);
     };
     toolContext.emitToolCall = (name, args, callId) => {
-      legacy.toolCall(name, args, callId);
+      legacy.toolCall(name, args, callId, resolveToolCallDisplay(toolContext, name));
     };
     toolContext.emitToolResult = (callId, result) => {
       legacy.toolResult(callId, result);
@@ -1264,11 +1407,33 @@ export class PiSessionService {
       toolContext
     });
     const emittedToolCalls = new Set<string>();
+    const toolCallNames = new Map<string, string>();
     let sawEvents = false;
+    let terminalPromise: Promise<void> | undefined;
     let terminalEmitted = false;
+    let emojiSendCompleted = false;
     let lastAssistant: PiAssistantMessage | undefined;
 
-    const emitTerminalFromAssistant = (assistant?: PiAssistantMessage): void => {
+    const emitEmojiFallbackIfNeeded = async (assistant?: PiAssistantMessage): Promise<void> => {
+      if (emojiSendCompleted || !assistant || assistant.stopReason === 'error' || assistant.stopReason === 'aborted' || !shouldRunEmojiFallback(resolved)) {
+        return;
+      }
+      emojiSendCompleted = true;
+
+      try {
+        const fallback = await runEmojiFallbackSend(toolContext);
+        if (!fallback) return;
+
+        legacy.toolCall('emojiListTool', fallback.list.args, fallback.list.callId, resolveToolCallDisplay(toolContext, 'emojiListTool'));
+        legacy.toolResult(fallback.list.callId, fallback.list.result);
+        legacy.toolCall('emojiSendTool', fallback.send.args, fallback.send.callId, resolveToolCallDisplay(toolContext, 'emojiSendTool'));
+        legacy.toolResult(fallback.send.callId, fallback.send.result);
+      } catch (error) {
+        console.warn('[PiSessionService] Emoji fallback skipped:', error);
+      }
+    };
+
+    const emitTerminalFromAssistant = async (assistant?: PiAssistantMessage): Promise<void> => {
       if (terminalEmitted) return;
 
       if (!assistant) {
@@ -1277,8 +1442,14 @@ export class PiSessionService {
         return;
       }
 
+      await emitEmojiFallbackIfNeeded(assistant);
       this.completeFromAssistantMessage(assistant, legacy, resolved);
       terminalEmitted = true;
+    };
+
+    const scheduleTerminalFromAssistant = (assistant?: PiAssistantMessage): Promise<void> => {
+      terminalPromise ||= emitTerminalFromAssistant(assistant);
+      return terminalPromise;
     };
 
     const unsubscribe = session.subscribe((event) => {
@@ -1286,15 +1457,19 @@ export class PiSessionService {
 
       switch (event.type) {
         case 'message_update':
-          this.handleCodingSessionMessageUpdate(event, legacy, emittedToolCalls);
+          this.handleCodingSessionMessageUpdate(event, legacy, emittedToolCalls, toolCallNames, toolContext);
           return;
         case 'tool_execution_start':
+          toolCallNames.set(event.toolCallId, event.toolName);
           if (!emittedToolCalls.has(event.toolCallId)) {
             emittedToolCalls.add(event.toolCallId);
-            legacy.toolCall(event.toolName, event.args, event.toolCallId);
+            legacy.toolCall(event.toolName, event.args, event.toolCallId, resolveToolCallDisplay(toolContext, event.toolName));
           }
           return;
         case 'tool_execution_end':
+          if (isEmojiSendToolName(toolCallNames.get(event.toolCallId)) && isSuccessfulEmojiSendResult(event.result)) {
+            emojiSendCompleted = true;
+          }
           legacy.toolResult(event.toolCallId, event.result);
           return;
         case 'message_end':
@@ -1303,7 +1478,7 @@ export class PiSessionService {
           }
           return;
         case 'agent_end':
-          emitTerminalFromAssistant(lastAssistant || findLastAssistantMessage(event.messages as PiMessage[]));
+          void scheduleTerminalFromAssistant(lastAssistant || findLastAssistantMessage(event.messages as PiMessage[]));
           return;
         default:
           return;
@@ -1330,13 +1505,27 @@ export class PiSessionService {
       });
       await session.agent.prompt(promptState.prompt);
 
-      if (!terminalEmitted) {
-        emitTerminalFromAssistant(lastAssistant || findLastAssistantMessage(session.state.messages as PiMessage[]));
+      if (terminalPromise) {
+        await terminalPromise;
+      } else if (!terminalEmitted) {
+        await scheduleTerminalFromAssistant(lastAssistant || findLastAssistantMessage(session.state.messages as PiMessage[]));
       }
 
       return { usedSession: true };
     } catch (error) {
       if (sawEvents) {
+        if (terminalPromise) {
+          await terminalPromise.catch((terminalError) => {
+            console.warn('[PiSessionService] Terminal stream emission failed:', terminalError);
+            if (!terminalEmitted) {
+              legacy.error(normalizePiError(terminalError));
+              legacy.done();
+              terminalEmitted = true;
+            }
+          });
+          return { usedSession: true };
+        }
+
         if (!terminalEmitted) {
           legacy.error(normalizePiError(error));
           legacy.done();
@@ -1464,7 +1653,13 @@ export class PiSessionService {
     legacy.done();
   }
 
-  private handleCodingSessionMessageUpdate(event: Extract<PiAgentSessionEvent, { type: 'message_update' }>, legacy: ReturnType<typeof createLegacyStreamEmitter>, emittedToolCalls: Set<string>): void {
+  private handleCodingSessionMessageUpdate(
+    event: Extract<PiAgentSessionEvent, { type: 'message_update' }>,
+    legacy: ReturnType<typeof createLegacyStreamEmitter>,
+    emittedToolCalls: Set<string>,
+    toolCallNames?: Map<string, string>,
+    toolContext?: PiSessionToolContext
+  ): void {
     const assistantEvent = event.assistantMessageEvent;
 
     switch (assistantEvent.type) {
@@ -1475,9 +1670,10 @@ export class PiSessionService {
         legacy.thinkingDelta(assistantEvent.delta);
         return;
       case 'toolcall_end':
+        toolCallNames?.set(assistantEvent.toolCall.id, assistantEvent.toolCall.name);
         if (!emittedToolCalls.has(assistantEvent.toolCall.id)) {
           emittedToolCalls.add(assistantEvent.toolCall.id);
-          legacy.toolCall(assistantEvent.toolCall.name, assistantEvent.toolCall.arguments, assistantEvent.toolCall.id);
+          legacy.toolCall(assistantEvent.toolCall.name, assistantEvent.toolCall.arguments, assistantEvent.toolCall.id, resolveToolCallDisplay(toolContext, assistantEvent.toolCall.name));
         }
         return;
       default:

@@ -227,7 +227,7 @@ export class PiSessionFactory {
     toolContext.session = {
       getActiveToolNames: () => session.getActiveToolNames(),
       setActiveToolsByName: (names: string[]) => session.setActiveToolsByName(names),
-      getAllTools: () => session.getAllTools()
+      getAllTools: () => allTools as Array<{ name: string; description: string }>
     };
 
     return {
