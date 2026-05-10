@@ -742,7 +742,10 @@ mgr.showToast(data?.message || '记忆整理完毕！', { category: 'success' })
 ### 动画配置文件
 
 - 默认动画：`resources/sprites/index.json`
-- 用户动画：`{userData}/data/sprites/`
+- 角色包动画：`{userData}/data/character-packs/<packId>/animations/index.json`
+- 全局用户动画兜底：`{userData}/data/sprites/index.json`
+
+当当前激活的是 installed 角色包时，动画新增、删除与 metadata 更新会优先写入该角色包自己的 `animations/` 目录，并在 `pack.json.assets.animations` 指向的索引里记录相对路径。`{userData}/data/sprites/` 仍保留为全局用户动画兜底目录：主要用于没有可写 installed 角色包时，叠加在内置默认动画之上。
 
 ```json
 {

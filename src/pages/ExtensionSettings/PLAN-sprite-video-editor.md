@@ -45,9 +45,10 @@ VideoSprite (<video> 播放 + timeupdate 驱动阶段切换)
 ### 动画注册与存储
 
 - **默认精灵**：`resources/sprites/index.json` + `.webm` 文件（只读，`deletable: false`）
-- **用户精灵**：`$SETTINGS_DIR/data/sprites/index.json` + 复制的 `.webm` 文件（`deletable: true`）
+- **角色包精灵**：当前激活 installed 角色包的 `$USER_DATA/data/character-packs/<packId>/animations/index.json` + 包内动画文件（`deletable: true`）
+- **全局用户精灵兜底**：`$SETTINGS_DIR/data/sprites/index.json` + 复制的 `.webm` 文件；用于没有可写 installed 角色包时叠加到默认精灵上（`deletable: true`）
 - **SpriteAnimation 类型**包含 `loopStartMs`、`loopEndMs`、`durationMs`、`width`、`height`、`padding` 等播放配置
-- **注册流程**：渲染器 → `sprite:register` IPC → 复制文件到用户 sprites 目录 → 写入 user `index.json`
+- **注册流程**：渲染器 → `sprite:register` IPC → 优先写入当前 installed 角色包的 `animations/`；若当前动画索引不可写，则复制到全局用户 sprites 目录并写入 user `index.json`
 
 ### 动画分类体系
 

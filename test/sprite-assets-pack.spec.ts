@@ -264,7 +264,7 @@ describe('sprite assets pack manifest integration', () => {
 
   it('writes sprite authoring into the active installed pack animation index', async () => {
     const builtinRoot = path.join(spritesRoot!, 'builtin-pack');
-    const installedRoot = path.join(userDataDir!, 'character-packs', 'pack-custom');
+    const installedRoot = path.join(userDataDir!, 'data', 'character-packs', 'pack-custom');
 
     writeJsonFile(path.join(builtinRoot, 'pack.json'), {
       formatVersion: 1,

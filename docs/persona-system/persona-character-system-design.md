@@ -399,9 +399,11 @@ resources/sprites/
 
 未来每个角色是一个可安装的 **角色包 (Character Pack)**，完整打包角色的所有资产：
 
+installed 角色包当前落盘在 `<userData>/data/character-packs/<packId>/`；内置默认包仍随应用资源发布。
+
 ```
-character-packs/
-├── yua-default/                    ← 默认角色包
+<userData>/data/character-packs/
+├── yua-default/                    ← 示例角色包
 │   ├── pack.json                   ← 包元数据 + 安装信息
 │   ├── character.json              ← 角色人格定义
 │   ├── animations/                 ← 动画资产
@@ -510,7 +512,7 @@ character-packs/
 
 **一键安装流程**：
 
-1. 当前已支持：从 `.cbpk` / `.zip` 导入到 `<userData>/character-packs/<packId>/`
+1. 当前已支持：从 `.cbpk` / `.zip` 导入到 `<userData>/data/character-packs/<packId>/`
 2. 当前已支持：验证 `pack.json` 基本格式并注册到角色包列表
 3. 当前已支持：可选立即激活，并触发 runtime pack switch
 4. 当前已支持：用户直接选择 `.cbpk` / `.zip` 文件导入，并自动解析解压后的 pack root
