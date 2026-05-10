@@ -537,6 +537,10 @@ export class SpriteManager {
       return true;
     }
 
+    if (playback?.loop === true) {
+      return true;
+    }
+
     if (mode === 'single-loop') {
       return true;
     }
@@ -1415,19 +1419,19 @@ export class SpriteManager {
       return;
     }
 
-    if (isCurrentAnimation && !this._pendingIdleAfterOutro) {
-      const playlistResult = this.advanceAnimationPlaylist(animId);
-      if (playlistResult === 'advanced') {
-        return;
-      }
-      if (playlistResult === 'completed' && this.getState() === 'idle' && this.getSubState() == null) {
-        return;
-      }
-    }
-
     const autoIdle = this.shouldAutoIdleAfterComplete(animId, playId);
 
     if (!autoIdle) {
+      if (isCurrentAnimation && !this._pendingIdleAfterOutro) {
+        const playlistResult = this.advanceAnimationPlaylist(animId);
+        if (playlistResult === 'advanced') {
+          return;
+        }
+        if (playlistResult === 'completed' && this.getState() === 'idle' && this.getSubState() == null) {
+          return;
+        }
+      }
+
       if (isCurrentAnimation) {
         this._pendingIdleAfterOutro = false;
       }
@@ -1446,6 +1450,7 @@ export class SpriteManager {
       this._pendingIdleAfterOutro = false;
     }
 
+    this.activeAnimationPlaylist = null;
     this.transitionToIdleAnimation();
   }
 

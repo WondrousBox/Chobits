@@ -177,7 +177,7 @@ describe('sprite manager regression coverage', () => {
       eventTypes: ['idle'],
       priority: 1,
       source: { localPath: './idle-low.webm', type: 'video/webm' },
-      playback: { durationMs: 800, loop: true }
+      playback: { durationMs: 800, autoIdle: false }
     });
     registry.register({
       id: 'idle-high',
@@ -185,7 +185,7 @@ describe('sprite manager regression coverage', () => {
       eventTypes: ['idle'],
       priority: 10,
       source: { localPath: './idle-high.webm', type: 'video/webm' },
-      playback: { durationMs: 800, loop: true }
+      playback: { durationMs: 800, autoIdle: false }
     });
     registry.register({
       id: 'idle-mid',
@@ -193,7 +193,7 @@ describe('sprite manager regression coverage', () => {
       eventTypes: ['idle'],
       priority: 5,
       source: { localPath: './idle-mid.webm', type: 'video/webm' },
-      playback: { durationMs: 800, loop: true }
+      playback: { durationMs: 800, autoIdle: false }
     });
 
     mgr.setAnimationPlaylistMode('list-loop');
@@ -223,7 +223,7 @@ describe('sprite manager regression coverage', () => {
       eventTypes: ['idle'],
       priority: 10,
       source: { localPath: './idle-high.webm', type: 'video/webm' },
-      playback: { durationMs: 800, loop: true }
+      playback: { durationMs: 800, autoIdle: false }
     });
     registry.register({
       id: 'idle-low',
@@ -231,7 +231,7 @@ describe('sprite manager regression coverage', () => {
       eventTypes: ['idle'],
       priority: 1,
       source: { localPath: './idle-low.webm', type: 'video/webm' },
-      playback: { durationMs: 800, loop: true }
+      playback: { durationMs: 800, autoIdle: false }
     });
     registry.register({
       id: 'success-high',
@@ -297,6 +297,73 @@ describe('sprite manager regression coverage', () => {
         loopEndMs: 900
       }
     });
+  });
+
+  it('playlist mode never disables a per-animation whole-clip loop', () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'idle-looping',
+      title: 'Idle Looping',
+      eventTypes: ['idle'],
+      source: { localPath: './idle-looping.webm', type: 'video/webm' },
+      playback: {
+        loop: true,
+        durationMs: 1500
+      }
+    });
+
+    mgr.setAnimationPlaylistMode('single-once');
+    mgr.trigger('idle', { silent: true });
+
+    expect(mgr.getCurrentAnimation()).toMatchObject({
+      animationId: 'idle-looping',
+      playback: {
+        loop: true
+      }
+    });
+  });
+
+  it('autoIdle completes back to idle before advancing a list playlist', () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'idle-default',
+      title: 'Idle Default',
+      eventTypes: ['idle'],
+      source: { localPath: './idle.webm', type: 'video/webm' },
+      playback: { durationMs: 800, loop: true }
+    });
+    registry.register({
+      id: 'success-high',
+      title: 'Success High',
+      eventTypes: ['success'],
+      priority: 10,
+      source: { localPath: './success-high.webm', type: 'video/webm' },
+      playback: { durationMs: 800, autoIdle: true }
+    });
+    registry.register({
+      id: 'success-low',
+      title: 'Success Low',
+      eventTypes: ['success'],
+      priority: 1,
+      source: { localPath: './success-low.webm', type: 'video/webm' },
+      playback: { durationMs: 800, autoIdle: false }
+    });
+
+    mgr.setAnimationPlaylistMode('list-loop');
+    mgr.trigger('success', { silent: true });
+
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('success-high');
+
+    mgr.handleAnimationComplete('success-high', 'full');
+
+    expect(mgr.getState()).toBe('idle');
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('idle-default');
   });
 
   it('registerAnimation() resolves primary trigger aliases through the registry', () => {
@@ -818,6 +885,7 @@ describe('sprite manager regression coverage', () => {
       padding: 100,
       animationPlaylistMode: 'list-loop',
       autoWalkEnabled: true,
+      bubbleMode: 'fixed-top',
       showDebugOverlay: false
     });
 
@@ -833,18 +901,20 @@ describe('sprite manager regression coverage', () => {
       padding: 24,
       animationPlaylistMode: 'list-loop',
       autoWalkEnabled: true,
+      bubbleMode: 'fixed-top',
       showDebugOverlay: false
     });
 
     mgr.stopMovementPreview();
     expect(stopWalk).toHaveBeenCalledOnce();
-    expect(setSize).toHaveBeenLastCalledWith(200, 200, 100);
+    expect(setSize).toHaveBeenLastCalledWith(200, 200, 0);
     expect(mgr.getSpriteConfig()).toEqual({
       width: 200,
       height: 200,
       padding: 100,
       animationPlaylistMode: 'list-loop',
       autoWalkEnabled: true,
+      bubbleMode: 'fixed-top',
       showDebugOverlay: false
     });
   });
@@ -866,6 +936,7 @@ describe('sprite manager regression coverage', () => {
         padding: 100,
         animationPlaylistMode: 'list-loop',
         autoWalkEnabled: false,
+        bubbleMode: 'fixed-top',
         showDebugOverlay: false
       }
     });
