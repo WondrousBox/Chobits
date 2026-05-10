@@ -32,6 +32,7 @@ import { Input } from '@/components/ui/input';
 import { useAutoScroll } from '@/hooks/useAutoScroll';
 import { buildExplicitSkillInvocationInput } from '@/lib/chat-explicit-skill-invocation';
 import { formatDateTime, formatRelativeTime } from '@/lib/time';
+import { speakToolResultSpeech } from '@/lib/tool-speech';
 
 import { CHAT_OVERLAY_SETTINGS, type ChatOverlaySide, resolveChatOverlaySide } from './chat-overlay-settings';
 import { useChatSelection } from './context/ChatSelectionContext';
@@ -253,14 +254,14 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     const handlePayload = (payload: any): void => {
       if (!payload?.initialMessage) return;
       // 清除缓存 payload，防止关闭后再次打开时重复触发
-      window.ipcRenderer?.invoke('window:payload:clear', payloadWindowKey).catch(() => {});
+      window.ipcRenderer?.invoke('window:payload:clear', payloadWindowKey).catch(() => { });
       if (isOverlay) {
         setOverlaySide(resolveChatOverlaySide(payload.overlaySide));
         setOverlayExpanded(false);
         window.setTimeout(() => setOverlayExpanded(true), 30);
       }
       if (disposerRef.current) {
-        void disposerRef.current.cancel().catch(() => {});
+        void disposerRef.current.cancel().catch(() => { });
         disposerRef.current.dispose?.();
         disposerRef.current = null;
         setLoading(false);
@@ -427,9 +428,9 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
           ...(params.emojiPacksEnabled ? { emojiPacksEnabled: true } : {}),
           ...(selectedAgentId === 'coder' && selectedCodingWorkspaceRoot
             ? {
-                codingWorkspaceRoot: selectedCodingWorkspaceRoot,
-                codingWorkspaceLabel: selectedCodingWorkspaceLabel || undefined
-              }
+              codingWorkspaceRoot: selectedCodingWorkspaceRoot,
+              codingWorkspaceLabel: selectedCodingWorkspaceLabel || undefined
+            }
             : {})
         }
       },
@@ -463,6 +464,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
           });
         }
         if (ev?.type === 'tool_result' && ev.data) {
+          speakToolResultSpeech(ev.data);
           setMessages((prev) => {
             const idx = assistantIndexRef.current;
             if (idx < 0 || idx >= prev.length) return prev;

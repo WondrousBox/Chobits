@@ -1,4 +1,5 @@
 import { getChatMessageUsage, normalizeTokenUsage } from '../../message-usage';
+import { extractToolSpeechFromResult, normalizeToolSpeech } from '../../tool-speech';
 import type { ChatMessage, StreamEvent, TokenUsage, ToolCallDisplay, UserChoiceRequest } from '../../types';
 import { resolveToolLabel } from './tool-labels';
 
@@ -43,20 +44,21 @@ export function createLegacyStreamEmitter(emit: (event: StreamEvent) => void, op
       const parsedArgs =
         typeof args === 'string'
           ? (() => {
-              try {
-                return JSON.parse(args);
-              } catch {
-                return {};
-              }
-            })()
+            try {
+              return JSON.parse(args);
+            } catch {
+              return {};
+            }
+          })()
           : (args ?? {});
       const label = resolveToolLabel(name, parsedArgs, 'calling', useCharacterLabels);
       console.log(`[AI Tool] 调用工具: ${name} → ${label}`, { callId, args: typeof args === 'string' ? args.slice(0, 200) : args });
       emit({ type: 'tool_call', data: { args, callId, label, name, ...(display ? { display } : {}) } });
     },
     toolResult(callId: string, result: any) {
+      const speech = extractToolSpeechFromResult(result);
       console.log(`[AI Tool] 工具返回: ${callId}`, typeof result === 'object' ? { success: result?.success, error: result?.error } : result);
-      emit({ type: 'tool_result', data: { callId, result } });
+      emit({ type: 'tool_result', data: { callId, result, ...(speech ? { speech } : {}) } });
     },
     toolProgress(callId: string, progress: number, message?: string) {
       emit({ type: 'tool_progress', data: { callId, progress, message } });
@@ -130,11 +132,14 @@ export function coercePiEventToLegacy(event: UnknownPiEvent): StreamEvent | unde
     };
   }
   if (eventType === 'tool-result' || eventType === 'tool_result') {
+    const result = data.result;
+    const speech = normalizeToolSpeech(data.speech) || extractToolSpeechFromResult(result);
     return {
       type: 'tool_result',
       data: {
         callId: String(data.callId || data.id || ''),
-        result: data.result
+        result,
+        ...(speech ? { speech } : {})
       }
     };
   }

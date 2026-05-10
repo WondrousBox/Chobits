@@ -534,6 +534,10 @@ export function createPiEmojiSendTool(toolContext?: PiSessionToolContext): ToolD
           sentBefore: details.sentBefore,
           success: details.success,
           title: details.emoji.title
+        },
+        speech: {
+          showBubble: false,
+          text: details.emoji.title
         }
       });
     }

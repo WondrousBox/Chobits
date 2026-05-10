@@ -90,7 +90,7 @@ export default function SpriteTriggerPicker({
         </div>
 
         <Command shouldFilter>
-          <CommandInput placeholder="搜索内置 trigger..." value={query} onValueChange={setQuery} />
+          <CommandInput className="h-8 border-0" placeholder="搜索内置 trigger..." value={query} onValueChange={setQuery} />
           <CommandList className="max-h-[280px]">
             <CommandEmpty>没有匹配的内置 trigger</CommandEmpty>
             {SPRITE_TRIGGER_GROUP_OPTIONS.map((option) => (
