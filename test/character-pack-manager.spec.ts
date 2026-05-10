@@ -269,7 +269,7 @@ describe('character pack manager', () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const userDataDir = path.join(tempRoot, 'user-data');
-    const installedRoot = path.join(userDataDir, 'character-packs', 'pack-beta');
+    const installedRoot = path.join(userDataDir, 'data', 'character-packs', 'pack-beta');
 
     writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
     writePack(installedRoot, 'pack-beta', 'Pack Beta');
@@ -323,7 +323,7 @@ describe('character pack manager', () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const userDataDir = path.join(tempRoot, 'user-data');
-    const installedRoot = path.join(userDataDir, 'character-packs', 'pack-beta');
+    const installedRoot = path.join(userDataDir, 'data', 'character-packs', 'pack-beta');
     const stateFile = path.join(userDataDir, 'data', 'active-character-pack.json');
     const alphaSince = 1700000000000;
 
@@ -405,7 +405,7 @@ describe('character pack manager', () => {
         isActive: true
       }
     });
-    expect(existsSync(path.join(userDataDir, 'character-packs', 'pack-delta', 'pack.json'))).toBe(true);
+    expect(existsSync(path.join(userDataDir, 'data', 'character-packs', 'pack-delta', 'pack.json'))).toBe(true);
   });
 
   it('rejects the legacy .chobits-character archive extension', async () => {
@@ -433,7 +433,7 @@ describe('character pack manager', () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const userDataDir = path.join(tempRoot, 'user-data');
-    const installedRoot = path.join(userDataDir, 'character-packs', 'pack-beta');
+    const installedRoot = path.join(userDataDir, 'data', 'character-packs', 'pack-beta');
     const outputPath = path.join(tempRoot, 'exports', 'pack-beta.zip');
 
     writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
@@ -471,7 +471,7 @@ describe('character pack manager', () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const userDataDir = path.join(tempRoot, 'user-data');
-    const installedRoot = path.join(userDataDir, 'character-packs', 'pack-beta');
+    const installedRoot = path.join(userDataDir, 'data', 'character-packs', 'pack-beta');
     const outputPath = path.join(tempRoot, 'exports', 'pack-beta');
 
     writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
@@ -597,7 +597,7 @@ describe('character pack manager', () => {
 
     await expect(inspectCharacterPackFromArchive(archivePath)).rejects.toThrow('unsafe archive entries');
     await expect(installCharacterPackFromArchive(archivePath)).rejects.toThrow('unsafe archive entries');
-    expect(existsSync(path.join(userDataDir, 'character-packs', 'pack-symlink'))).toBe(false);
+    expect(existsSync(path.join(userDataDir, 'data', 'character-packs', 'pack-symlink'))).toBe(false);
   });
 
   it('inspects archive imports before installation, including conflict and warning metadata', async () => {
@@ -607,7 +607,7 @@ describe('character pack manager', () => {
     const betaArchiveSourceRoot = path.join(tempRoot, 'beta-archive-source', 'nested-pack-root');
     const gammaArchivePath = path.join(tempRoot, 'imports', 'pack-gamma.cbpk');
     const betaArchivePath = path.join(tempRoot, 'imports', 'pack-beta.cbpk');
-    const installedRoot = path.join(tempRoot, 'user-data', 'character-packs', 'pack-beta');
+    const installedRoot = path.join(tempRoot, 'user-data', 'data', 'character-packs', 'pack-beta');
     const userDataDir = path.join(tempRoot, 'user-data');
 
     writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
@@ -1163,7 +1163,7 @@ describe('character pack manager', () => {
       }
     );
 
-    const installedRoot = path.join(userDataDir, 'character-packs', 'custom-alpha');
+    const installedRoot = path.join(userDataDir, 'data', 'character-packs', 'custom-alpha');
     const pack = readPack(installedRoot);
     const character = readCharacter(installedRoot);
     const animationIndex = JSON.parse(readFileSync(path.join(installedRoot, 'animations/index.json'), 'utf-8'));
@@ -1265,7 +1265,7 @@ describe('character pack manager', () => {
       }
     );
 
-    const character = readCharacter(path.join(userDataDir, 'character-packs', 'custom-lines'));
+    const character = readCharacter(path.join(userDataDir, 'data', 'character-packs', 'custom-lines'));
 
     expect(character.messages.categories.welcome).toBe('自定义欢迎');
     expect(character.messages.categories.fileDrop).toBe('自定义收文件');
@@ -1280,7 +1280,7 @@ describe('character pack manager', () => {
   it('removes an inactive installed pack and keeps the current active pack unchanged', async () => {
     tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
-    const installedRoot = path.join(tempRoot, 'user-data', 'character-packs', 'pack-beta');
+    const installedRoot = path.join(tempRoot, 'user-data', 'data', 'character-packs', 'pack-beta');
     const userDataDir = path.join(tempRoot, 'user-data');
 
     writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');

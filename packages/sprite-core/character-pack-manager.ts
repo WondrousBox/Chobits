@@ -1661,7 +1661,7 @@ export class CharacterPackManager {
   constructor(options: CharacterPackManagerOptions) {
     const userDataDir = path.resolve(options.userDataDir);
     this.builtinPackRootDir = path.resolve(options.builtinPackRootDir);
-    this.installedPacksDir = path.join(userDataDir, 'character-packs');
+    this.installedPacksDir = path.join(userDataDir, 'data', 'character-packs');
     this.activePackStateFile = path.join(userDataDir, 'data', 'active-character-pack.json');
     this.importPreviewCacheDir = path.join(userDataDir, 'data', 'character-pack-import-previews');
     this.trustRootFile = path.join(this.builtinPackRootDir, 'trust-root.json');
