@@ -17,6 +17,7 @@ import type { SpriteAnimationCondition } from './animation-condition';
 import { resolvePackRelativeAssetPath } from './character-pack-paths';
 import { DEFAULT_CONVERSATION_REWARDS, mergeActivityRewards } from './config/persona-rules';
 import type { MoodType } from './persona-state';
+import type { MessageCategory } from './types';
 
 // ━━ Type Definitions ━━
 
@@ -113,6 +114,22 @@ export interface ToolLabelDefinition {
   conditions?: ConditionalToolLabel[];
 }
 
+export type CharacterMessageTemplateEntry = string | string[];
+
+export interface CharacterProgressMessagesConfig {
+  kindLabels?: Record<string, string>;
+  progress?: string;
+  almost?: string;
+  complete?: string;
+}
+
+export interface CharacterMessagesConfig {
+  categories?: Partial<Record<MessageCategory, CharacterMessageTemplateEntry>> & Record<string, CharacterMessageTemplateEntry | undefined>;
+  events?: Record<string, CharacterMessageTemplateEntry>;
+  routines?: Record<string, CharacterMessageTemplateEntry>;
+  progress?: CharacterProgressMessagesConfig;
+}
+
 export interface CharacterXPSourceDefinition {
   id: string;
   event: string;
@@ -184,6 +201,8 @@ export interface CharacterDefinition {
   activityRewards?: Partial<Record<ActivityRewardId, ActivityReward>>;
   personaRules?: CharacterPersonaRulesConfig;
   capabilityFlags?: CharacterCapabilityFlagsConfig;
+  /** Character-specific bubble/speech copy overrides for sprite reactions and routines */
+  messages?: CharacterMessagesConfig;
   /** Per-tool display label overrides with placeholder support */
   toolLabels?: Record<string, ToolLabelDefinition>;
   meta: CharacterMeta;
@@ -369,7 +388,8 @@ export function getCharacterDefinition(): CharacterDefinition | null {
   if (cachedCharacter) return cachedCharacter;
 
   const character = readJsonFile<CharacterDefinition>(characterFilePath, {
-    label: 'character.json'
+    label: 'character.json',
+    warnMissing: characterFilePath !== null
   });
   if (!character) {
     return null;

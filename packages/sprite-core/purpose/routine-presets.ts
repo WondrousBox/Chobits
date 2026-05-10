@@ -1,3 +1,4 @@
+import { getCharacterRoutineText } from '../messages/character';
 import type { SpritePurpose, SpriteRoutine, SpriteRoutineStep, StartSpritePurposeRequest } from './types';
 
 export interface SpriteRoutinePresetDefinition {
@@ -11,7 +12,7 @@ export interface SpriteRoutinePresetDefinition {
 function createRestReminderSteps(): SpriteRoutineStep[] {
   return [
     { id: 'attention', type: 'playAnimation', trigger: 'wave', durationMs: 1200, waitFor: 'duration', silent: true },
-    { id: 'speak', type: 'speak', text: '差不多该休息一下了。', bubbleDuration: 3600 },
+    { id: 'speak', type: 'speak', text: getCharacterRoutineText('daily.rest-reminder.speak', undefined, '差不多该休息一下了。'), bubbleDuration: 3600 },
     { id: 'pause', type: 'wait', durationMs: 800 },
     { id: 'tired', type: 'playAnimation', trigger: 'tired', durationMs: 1800, waitFor: 'duration', silent: true }
   ];
@@ -73,10 +74,16 @@ function createFileActionsMenuPayload(purpose: SpritePurpose): Record<string, un
 
 function createFileDropIntakeSteps(purpose: SpritePurpose): SpriteRoutineStep[] {
   const match = purpose.correlationId ? { correlationId: purpose.correlationId } : undefined;
+  const ctx = {
+    purposeKind: purpose.kind,
+    correlationId: purpose.correlationId,
+    files: purpose.context?.files,
+    resources: purpose.context?.resources
+  };
   return [
     { id: 'ack-drop', type: 'playAnimation', trigger: 'fileDrop', durationMs: 900, waitFor: 'duration', silent: true },
     { id: 'thinking', type: 'playAnimation', trigger: 'thinking', durationMs: 1200, waitFor: 'duration', silent: true },
-    { id: 'prompt-action', type: 'showToast', content: '要怎么处理这个文件？', category: 'question', duration: 2600 },
+    { id: 'prompt-action', type: 'showToast', content: getCharacterRoutineText('file.drop.intake.prompt', ctx, '要怎么处理这个文件？'), category: 'question', duration: 2600 },
     { id: 'open-file-actions-menu', type: 'openWindow', window: 'fileActionsMenu', payload: createFileActionsMenuPayload(purpose), timeoutMs: 10000 },
     { id: 'wait-menu-result', type: 'waitForEvent', source: 'purpose-event', event: 'fileAction:resolved', match, timeoutMs: 5 * 60 * 1000, assignTo: 'menuResult' },
     {
@@ -86,15 +93,15 @@ function createFileDropIntakeSteps(purpose: SpritePurpose): SpriteRoutineStep[] 
       cases: {
         selected: [
           { id: 'selected-success', type: 'playAnimation', trigger: 'success', durationMs: 1200, waitFor: 'duration', silent: true },
-          { id: 'selected-toast', type: 'showToast', content: '交给我吧。', category: 'success', duration: 1800 }
+          { id: 'selected-toast', type: 'showToast', content: getCharacterRoutineText('file.drop.intake.selected', ctx, '交给我吧。'), category: 'success', duration: 1800 }
         ],
         cancelled: [
           { id: 'cancelled-confused', type: 'playAnimation', trigger: 'confused', durationMs: 1200, waitFor: 'duration', silent: true },
-          { id: 'cancelled-toast', type: 'showToast', content: '那我先不打扰你。', category: 'cancellation', duration: 1800 }
+          { id: 'cancelled-toast', type: 'showToast', content: getCharacterRoutineText('file.drop.intake.cancelled', ctx, '那我先不打扰你。'), category: 'cancellation', duration: 1800 }
         ],
         failed: [
           { id: 'failed-reaction', type: 'playAnimation', trigger: 'failure', durationMs: 1200, waitFor: 'duration', silent: true },
-          { id: 'failed-toast', type: 'showToast', content: '这里好像没处理成功。', category: 'failure', duration: 2200 }
+          { id: 'failed-toast', type: 'showToast', content: getCharacterRoutineText('file.drop.intake.failed', ctx, '这里好像没处理成功。'), category: 'failure', duration: 2200 }
         ]
       },
       default: [{ id: 'default-done', type: 'playAnimation', trigger: 'success', durationMs: 900, waitFor: 'duration', silent: true }]
@@ -112,8 +119,13 @@ function createWorkflowWaitingSteps(purpose: SpritePurpose): SpriteRoutineStep[]
   const workflowRunId = getPurposeContextString(purpose, 'workflowRunId') ?? getPurposeContextString(purpose, 'runId');
   const workflowName = getPurposeContextString(purpose, 'workflowName') ?? '工作流';
   const match = workflowRunId ? { runId: workflowRunId } : undefined;
+  const ctx = {
+    purposeKind: purpose.kind,
+    workflowRunId,
+    workflowName
+  };
   return [
-    { id: 'busy-start', type: 'showBusy', content: `正在处理：${workflowName}`, progress: 0 },
+    { id: 'busy-start', type: 'showBusy', content: getCharacterRoutineText('workflow.waiting.busyStart', ctx, '正在处理：{workflowName}'), progress: 0 },
     {
       id: 'wait-workflow-terminal',
       type: 'loopUntil',
@@ -142,7 +154,14 @@ function createWorkflowWaitingSteps(purpose: SpritePurpose): SpriteRoutineStep[]
         },
         { id: 'waiting-thinking', type: 'playAnimation', trigger: 'thinking', durationMs: 2400, waitFor: 'duration', silent: true },
         { id: 'waiting-pause', type: 'wait', durationMs: 5000 },
-        { id: 'waiting-speak', type: 'speak', text: `我还在等 ${workflowName} 完成。`, bubbleDuration: 2400, cooldownKey: 'workflow.waiting.progress', cooldownMs: 60_000 }
+        {
+          id: 'waiting-speak',
+          type: 'speak',
+          text: getCharacterRoutineText('workflow.waiting.progressSpeak', ctx, '我还在等 {workflowName} 完成。'),
+          bubbleDuration: 2400,
+          cooldownKey: 'workflow.waiting.progress',
+          cooldownMs: 60_000
+        }
       ]
     },
     { id: 'busy-clear', type: 'clearBusy' },
@@ -153,15 +172,15 @@ function createWorkflowWaitingSteps(purpose: SpritePurpose): SpriteRoutineStep[]
       cases: {
         SPRITE_WORKFLOW_COMPLETE: [
           { id: 'workflow-success', type: 'playAnimation', trigger: 'success', durationMs: 1500, waitFor: 'duration', silent: true },
-          { id: 'workflow-success-toast', type: 'showToast', content: '处理完成了。', category: 'success', duration: 2200 }
+          { id: 'workflow-success-toast', type: 'showToast', content: getCharacterRoutineText('workflow.waiting.complete', ctx, '处理完成了。'), category: 'success', duration: 2200 }
         ],
         SPRITE_WORKFLOW_FAIL: [
           { id: 'workflow-failure', type: 'playAnimation', trigger: 'failure', durationMs: 1500, waitFor: 'duration', silent: true },
-          { id: 'workflow-failure-toast', type: 'showToast', content: '处理失败了，我把状态收起来了。', category: 'failure', duration: 2600 }
+          { id: 'workflow-failure-toast', type: 'showToast', content: getCharacterRoutineText('workflow.waiting.fail', ctx, '处理失败了，我把状态收起来了。'), category: 'failure', duration: 2600 }
         ],
         SPRITE_WORKFLOW_CANCEL: [
           { id: 'workflow-cancelled', type: 'playAnimation', trigger: 'confused', durationMs: 1200, waitFor: 'duration', silent: true },
-          { id: 'workflow-cancelled-toast', type: 'showToast', content: '任务已经取消。', category: 'cancellation', duration: 2200 }
+          { id: 'workflow-cancelled-toast', type: 'showToast', content: getCharacterRoutineText('workflow.waiting.cancel', ctx, '任务已经取消。'), category: 'cancellation', duration: 2200 }
         ]
       },
       default: [{ id: 'workflow-default', type: 'playAnimation', trigger: 'success', durationMs: 1000, waitFor: 'duration', silent: true }]
@@ -179,9 +198,15 @@ function createResourceImportWaitingSteps(purpose: SpritePurpose): SpriteRoutine
   if (workspaceId) match.workspaceId = workspaceId;
   if (folderId) match.folderId = folderId;
   const effectiveMatch = Object.keys(match).length > 0 ? match : undefined;
+  const ctx = {
+    purposeKind: purpose.kind,
+    resourceId,
+    workspaceId,
+    folderId
+  };
 
   return [
-    { id: 'busy-start', type: 'showBusy', content: '正在导入资源', progress: 0 },
+    { id: 'busy-start', type: 'showBusy', content: getCharacterRoutineText('resource.import.waiting.busyStart', ctx, '正在导入资源'), progress: 0 },
     {
       id: 'wait-resource-terminal',
       type: 'loopUntil',
@@ -220,11 +245,11 @@ function createResourceImportWaitingSteps(purpose: SpritePurpose): SpriteRoutine
       cases: {
         SPRITE_RESOURCE_IMPORT_COMPLETE: [
           { id: 'resource-success', type: 'playAnimation', trigger: 'success', durationMs: 1400, waitFor: 'duration', silent: true },
-          { id: 'resource-success-toast', type: 'showToast', content: '资源导入完成。', category: 'success', duration: 1800 }
+          { id: 'resource-success-toast', type: 'showToast', content: getCharacterRoutineText('resource.import.waiting.complete', ctx, '资源导入完成。'), category: 'success', duration: 1800 }
         ],
         SPRITE_RESOURCE_IMPORT_ERROR: [
           { id: 'resource-error', type: 'playAnimation', trigger: 'error', durationMs: 1400, waitFor: 'duration', silent: true },
-          { id: 'resource-error-toast', type: 'showToast', content: '资源导入失败了。', category: 'error', duration: 2200 }
+          { id: 'resource-error-toast', type: 'showToast', content: getCharacterRoutineText('resource.import.waiting.error', ctx, '资源导入失败了。'), category: 'error', duration: 2200 }
         ]
       },
       default: [{ id: 'resource-default', type: 'playAnimation', trigger: 'success', durationMs: 1000, waitFor: 'duration', silent: true }]

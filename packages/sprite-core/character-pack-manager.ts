@@ -9,7 +9,28 @@ import { CHARACTER_PACK_ARCHIVE_EXTENSION } from './character-pack-archive';
 import { assessCharacterPackDigest, calculateCharacterPackPayloadDigest, type CharacterPackDigestVerification } from './character-pack-integrity';
 import { isPathContainedByRoot, isResolvedPathContainedByRoot, resolvePackRelativeAssetPath, resolvePackRelativeAssetPathWithDiagnostics } from './character-pack-paths';
 import { type CharacterPackSignatureVerification, type CharacterPackTrustRoot, loadCharacterPackTrustRoot, verifyCharacterPackSignature } from './character-pack-signature';
-import type { CharacterDefinition, CharacterPackAssets, CharacterPackCapabilities, CharacterPackDefinition, CharacterPackProvenance, CharacterPackSignature, SpeechExample } from './character-service';
+import type {
+  CharacterDefinition,
+  CharacterMessageTemplateEntry,
+  CharacterMessagesConfig,
+  CharacterPackAssets,
+  CharacterPackCapabilities,
+  CharacterPackDefinition,
+  CharacterPackProvenance,
+  CharacterPackSignature,
+  CharacterProgressMessagesConfig,
+  SpeechExample
+} from './character-service';
+import {
+  buildDefaultCharacterMessageEditorFields,
+  buildDefaultCharacterMessages,
+  CHARACTER_MESSAGE_SPECS,
+  CHARACTER_PROGRESS_KIND_LABEL_SPECS,
+  CHARACTER_PROGRESS_MESSAGE_SPECS,
+  createCharacterMessageEditorFields,
+  type CharacterMessageSpec,
+  type CharacterPackEditorMessageFields
+} from './messages/default-character';
 
 export type CharacterPackSource = 'builtin' | 'installed';
 export type CharacterPackTrustLevel = 'unsigned' | 'publisher-declared' | 'signature-declared';
@@ -173,9 +194,12 @@ export interface CharacterPackEditorCharacterFields {
   metaTags: string[];
 }
 
+export type CharacterPackEditorMessagesFields = CharacterPackEditorMessageFields;
+
 export interface CharacterPackEditorDraft {
   pack: CharacterPackEditorPackFields;
   character: CharacterPackEditorCharacterFields;
+  messages?: CharacterPackEditorMessagesFields;
 }
 
 export interface CharacterPackEditorSaveOptions {
@@ -1246,8 +1270,125 @@ function normalizeEditorSpeechExamples(value: unknown): SpeechExample[] {
     .slice(0, 12);
 }
 
+function normalizeEditorMessageEntry(value: unknown, options?: { maxItems?: number; maxLength?: number }): string[] {
+  return normalizeEditorList(value, {
+    maxItems: options?.maxItems ?? 8,
+    maxLength: options?.maxLength ?? 180
+  });
+}
+
+function normalizeEditorMessageText(value: unknown, fallback: string, maxLength = 180): string {
+  const normalized = normalizeString(value).trim().slice(0, maxLength);
+  return normalized || fallback;
+}
+
+function sanitizeEditorMessages(value: unknown, fallback?: CharacterPackEditorMessagesFields): CharacterPackEditorMessagesFields {
+  const source: Record<string, unknown> = isPlainObject(value) ? value : {};
+  const fallbackFields = fallback ?? buildDefaultCharacterMessageEditorFields();
+  const progressKindLabelSource = isPlainObject(source.progressKindLabels) ? source.progressKindLabels : {};
+  const progressSource = isPlainObject(source.progress) ? source.progress : {};
+  const result = {
+    progressKindLabels: {},
+    progress: {}
+  } as CharacterPackEditorMessagesFields;
+
+  for (const spec of CHARACTER_MESSAGE_SPECS) {
+    const messageSpec = spec as CharacterMessageSpec;
+    const normalized = normalizeEditorMessageEntry(source[spec.field], {
+      maxItems: messageSpec.maxItems,
+      maxLength: messageSpec.maxLength
+    });
+    result[spec.field] = normalized.length ? normalized : fallbackFields[spec.field];
+  }
+
+  for (const spec of CHARACTER_PROGRESS_KIND_LABEL_SPECS) {
+    result.progressKindLabels[spec.key] = normalizeEditorMessageText(progressKindLabelSource[spec.key], fallbackFields.progressKindLabels[spec.key], 40);
+  }
+
+  for (const spec of CHARACTER_PROGRESS_MESSAGE_SPECS) {
+    result.progress[spec.key] = normalizeEditorMessageText(progressSource[spec.key], fallbackFields.progress[spec.key], 120);
+  }
+
+  return result;
+}
+
+function toMessageEntry(lines: string[]): CharacterMessageTemplateEntry | undefined {
+  const normalized = normalizeEditorMessageEntry(lines);
+  if (normalized.length === 0) {
+    return undefined;
+  }
+  return normalized.length === 1 ? normalized[0] : normalized;
+}
+
+function setMessageEntry(target: Record<string, CharacterMessageTemplateEntry>, key: string, lines: string[]): void {
+  const entry = toMessageEntry(lines);
+  if (entry !== undefined) {
+    target[key] = entry;
+  }
+}
+
+function collectDefinedMessageEntries(source: Record<string, CharacterMessageTemplateEntry | undefined> | undefined): Record<string, CharacterMessageTemplateEntry> {
+  const result: Record<string, CharacterMessageTemplateEntry> = {};
+  for (const [key, value] of Object.entries(source ?? {})) {
+    if (value !== undefined) {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+function mergeEditorMessages(
+  baseMessages: CharacterMessagesConfig | undefined,
+  draftMessages: CharacterPackEditorMessagesFields,
+  fallbackMessages: CharacterMessagesConfig
+): CharacterMessagesConfig {
+  const progress: CharacterProgressMessagesConfig | undefined = baseMessages?.progress ?? fallbackMessages.progress;
+  const categories: Record<string, CharacterMessageTemplateEntry> = {
+    ...collectDefinedMessageEntries(fallbackMessages.categories),
+    ...collectDefinedMessageEntries(baseMessages?.categories)
+  };
+  const events: Record<string, CharacterMessageTemplateEntry> = {
+    ...collectDefinedMessageEntries(fallbackMessages.events),
+    ...collectDefinedMessageEntries(baseMessages?.events)
+  };
+  const routines: Record<string, CharacterMessageTemplateEntry> = {
+    ...collectDefinedMessageEntries(fallbackMessages.routines),
+    ...collectDefinedMessageEntries(baseMessages?.routines)
+  };
+
+  for (const spec of CHARACTER_MESSAGE_SPECS) {
+    const target = spec.section === 'categories' ? categories : spec.section === 'events' ? events : routines;
+    setMessageEntry(target, spec.key, draftMessages[spec.field]);
+  }
+
+  const progressKindLabels: Record<string, string> = {
+    ...(fallbackMessages.progress?.kindLabels ?? {}),
+    ...(baseMessages?.progress?.kindLabels ?? {})
+  };
+  for (const spec of CHARACTER_PROGRESS_KIND_LABEL_SPECS) {
+    progressKindLabels[spec.key] = draftMessages.progressKindLabels[spec.key];
+  }
+
+  const mergedProgress: CharacterProgressMessagesConfig = {
+    ...(progress ?? {}),
+    kindLabels: progressKindLabels
+  };
+  for (const spec of CHARACTER_PROGRESS_MESSAGE_SPECS) {
+    mergedProgress[spec.key] = draftMessages.progress[spec.key];
+  }
+
+  return {
+    ...baseMessages,
+    categories,
+    events,
+    routines,
+    progress: mergedProgress
+  };
+}
+
 function sanitizeEditorDraft(draft: CharacterPackEditorDraft): CharacterPackEditorDraft {
   const minAppVersion = normalizeEditorOptionalString(draft.pack.minAppVersion, 40);
+  const fallbackMessages = buildDefaultCharacterMessageEditorFields(draft.character);
 
   return {
     pack: {
@@ -1277,11 +1418,14 @@ function sanitizeEditorDraft(draft: CharacterPackEditorDraft): CharacterPackEdit
       speechExamples: normalizeEditorSpeechExamples(draft.character.speechExamples),
       metaDescription: normalizeString(draft.character.metaDescription).trim().slice(0, 500),
       metaTags: normalizeEditorList(draft.character.metaTags, { maxItems: 24, maxLength: 40 })
-    }
+    },
+    messages: sanitizeEditorMessages(draft.messages, fallbackMessages)
   };
 }
 
 function createFallbackCharacterDefinition(draft: CharacterPackEditorDraft): CharacterDefinition {
+  const messages = mergeEditorMessages(undefined, draft.messages ?? sanitizeEditorMessages(undefined, buildDefaultCharacterMessageEditorFields(draft.character)), buildDefaultCharacterMessages(draft.character));
+
   return {
     version: 1,
     id: draft.character.id,
@@ -1333,6 +1477,7 @@ function createFallbackCharacterDefinition(draft: CharacterPackEditorDraft): Cha
       cooldownMs: 60000,
       bonusConditions: []
     },
+    messages,
     meta: {
       author: draft.pack.author,
       version: draft.pack.version,
@@ -1345,11 +1490,14 @@ function createFallbackCharacterDefinition(draft: CharacterPackEditorDraft): Cha
   };
 }
 
-function applyEditorDraftToCharacter(baseCharacter: CharacterDefinition | null, draft: CharacterPackEditorDraft): CharacterDefinition {
+function applyEditorDraftToCharacter(baseCharacter: CharacterDefinition | null, draft: CharacterPackEditorDraft, options: { preserveBaseMessages?: boolean } = {}): CharacterDefinition {
   const fallback = createFallbackCharacterDefinition(draft);
   const base = baseCharacter ?? fallback;
   const nowDate = new Date().toISOString().slice(0, 10);
   const baseMeta = base.meta ?? fallback.meta;
+  const generatedMessages = buildDefaultCharacterMessages(draft.character);
+  const baseMessages = options.preserveBaseMessages ? base.messages : undefined;
+  const draftMessages = draft.messages ?? createCharacterMessageEditorFields(baseMessages, generatedMessages);
 
   return {
     ...base,
@@ -1373,6 +1521,7 @@ function applyEditorDraftToCharacter(baseCharacter: CharacterDefinition | null, 
       examples: draft.character.speechExamples,
       quirks: draft.character.quirks
     },
+    messages: mergeEditorMessages(baseMessages, draftMessages, generatedMessages),
     meta: {
       ...baseMeta,
       author: draft.pack.author,
@@ -1421,6 +1570,8 @@ function buildEditorPackDefinition(basePack: CharacterPackSummary | null, draft:
 }
 
 function buildEditorDraftFromDefinitions(pack: CharacterPackSummary, character: CharacterDefinition | null): CharacterPackEditorDraft {
+  const generatedMessages = buildDefaultCharacterMessages(character ?? { name: pack.name });
+  const messageSource = pack.source === 'installed' ? character?.messages : undefined;
   const fallbackDraft: CharacterPackEditorDraft = {
     pack: {
       id: pack.id,
@@ -1449,7 +1600,8 @@ function buildEditorDraftFromDefinitions(pack: CharacterPackSummary, character: 
       speechExamples: character?.speechStyle?.examples ?? [],
       metaDescription: character?.meta?.description ?? pack.description ?? '',
       metaTags: character?.meta?.tags ?? pack.tags ?? []
-    }
+    },
+    messages: createCharacterMessageEditorFields(messageSource, generatedMessages)
   };
 
   return sanitizeEditorDraft(fallbackDraft);
@@ -1823,7 +1975,9 @@ export class CharacterPackManager {
         await fsp.mkdir(stagingRootDir, { recursive: true });
       }
 
-      const characterDefinition = applyEditorDraftToCharacter(await readCharacterDefinitionForPack(basePack), sanitizedDraft);
+      const characterDefinition = applyEditorDraftToCharacter(await readCharacterDefinitionForPack(basePack), sanitizedDraft, {
+        preserveBaseMessages: isUpdatingExistingPack || basePack.source === 'installed'
+      });
       const packDefinition = buildEditorPackDefinition(basePack, sanitizedDraft, {
         resetAnimations: !isUpdatingExistingPack
       });
