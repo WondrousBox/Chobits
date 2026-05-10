@@ -79,8 +79,7 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
     // 重新查找以获取最新配置
     const currentWalkAnim = mgr.findAnimationByTrigger('walk');
     const movement = currentWalkAnim?.playback?.movement;
-    const hasLoop = currentWalkAnim?.playback?.loopStartMs != null && currentWalkAnim?.playback?.loopEndMs != null;
-    await mgr.runBehaviorMovement(movement, { hasSegmentLoop: hasLoop });
+    await mgr.runBehaviorMovement(movement);
   });
 
   // 使用 walk 动画配置中的 behaviorSchedule 覆盖默认调度参数

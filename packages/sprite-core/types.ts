@@ -290,7 +290,7 @@ export interface SpriteMovementConfig {
   /**
    * 移动模式，默认 'direction'
    * - 'direction': 沿固定方向恒速移动（需配置 direction）
-   * - 'walkTo': 随机选取屏幕位置行走（方向由目标推导，需动画具备 loopStartMs/loopEndMs 循环片段）
+   * - 'walkTo': 随机选取屏幕位置行走（方向由目标推导，可配合单段循环或三段式动画）
    */
   mode?: SpriteMovementMode;
 

@@ -1680,8 +1680,8 @@ export class SpriteManager {
   }
 
   /** 统一 behavior movement 入口 */
-  runBehaviorMovement(movement?: SpriteMovementConfig, options?: { hasSegmentLoop?: boolean }): Promise<boolean> {
-    return this.movementCoordinator.runBehaviorMovement(movement, options);
+  runBehaviorMovement(movement?: SpriteMovementConfig): Promise<boolean> {
+    return this.movementCoordinator.runBehaviorMovement(movement);
   }
 
   // ============================================================================

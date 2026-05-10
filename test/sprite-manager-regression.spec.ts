@@ -1023,7 +1023,7 @@ describe('sprite manager regression coverage', () => {
     expect(autoWalk).toBeTruthy();
 
     await autoWalk.action({} as any);
-    expect(runBehaviorMovement).toHaveBeenCalledWith(movement, { hasSegmentLoop: false });
+    expect(runBehaviorMovement).toHaveBeenCalledWith(movement);
   });
 
   it('pauses movement while the assistant context menu is open without changing auto-walk settings', async () => {
@@ -1063,13 +1063,13 @@ describe('sprite manager regression coverage', () => {
     expect(mgr.isAutoWalkEnabled()).toBe(true);
     expect(stopWalk).toHaveBeenCalledOnce();
     expect(stopAutoMove).toHaveBeenCalledOnce();
-    await expect(mgr.runBehaviorMovement(movement, { hasSegmentLoop: true })).resolves.toBe(false);
+    await expect(mgr.runBehaviorMovement(movement)).resolves.toBe(false);
     expect(walkTo).not.toHaveBeenCalled();
 
     isAutoMoving.mockReturnValue(false);
     mgr.reportInteraction('context-menu', { open: false });
 
-    await expect(mgr.runBehaviorMovement(movement, { hasSegmentLoop: true })).resolves.toBe(true);
+    await expect(mgr.runBehaviorMovement(movement)).resolves.toBe(true);
     expect(walkTo).toHaveBeenCalledOnce();
   });
 
