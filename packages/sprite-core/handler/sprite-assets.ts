@@ -413,6 +413,20 @@ function isLocalPathStillReferenced(index: SpriteIndex, localPath: string): bool
   });
 }
 
+async function removeUnreferencedLocalFile(rootDir: string, index: SpriteIndex, localPath?: string): Promise<void> {
+  if (!localPath) return;
+
+  try {
+    const targetPath = path.resolve(localPath);
+    const root = path.resolve(rootDir);
+    if ((targetPath === root || isResolvedPathContainedByRoot(root, targetPath)) && !isLocalPathStillReferenced(index, targetPath)) {
+      await fs.unlink(targetPath).catch(() => {});
+    }
+  } catch {
+    /* ignore unlink failures */
+  }
+}
+
 function isIdleLikeSpriteAnimation(item: SpriteAnimation): boolean {
   const triggers = getSpriteAnimationTriggers(item.meta);
   return triggers.length === 0 || triggers.includes('idle');
@@ -485,14 +499,20 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
     let type = anim.source?.type;
     if (srcPath && fscb.existsSync(srcPath)) {
       const ext = path.extname(srcPath) || '.webm';
-      const baseName = `${id}${ext}`;
-      finalPath = path.join(spritesDir, baseName);
-      let counter = 1;
-      while (fscb.existsSync(finalPath)) {
-        finalPath = path.join(spritesDir, `${id}-${counter}${ext}`);
-        counter++;
+      const resolvedSourcePath = path.resolve(srcPath);
+      const writableRoot = path.resolve(writableIndex.containmentRootDir);
+      if (resolvedSourcePath === writableRoot || isResolvedPathContainedByRoot(writableRoot, resolvedSourcePath)) {
+        finalPath = resolvedSourcePath;
+      } else {
+        const baseName = `${id}${ext}`;
+        finalPath = path.join(spritesDir, baseName);
+        let counter = 1;
+        while (fscb.existsSync(finalPath)) {
+          finalPath = path.join(spritesDir, `${id}-${counter}${ext}`);
+          counter++;
+        }
+        await fs.copyFile(srcPath, finalPath);
       }
-      await fs.copyFile(srcPath, finalPath);
       type = type || inferMimeFromExt(ext) || 'video/webm';
     } else if (anim.source?.localPath) {
       // Trust provided localPath only when it already belongs to the writable sprite asset root.
@@ -538,9 +558,13 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
 
     const idx = await readIndex(writableIndex.indexPath, { containmentRootDirs: getWritableIndexContainmentRoots(writableIndex, defaultIndex) });
     const existedIdx = idx.items.findIndex((i) => i.meta.id === id);
+    const previousLocalPath = existedIdx >= 0 ? idx.items[existedIdx]?.source?.localPath : undefined;
     if (existedIdx >= 0) idx.items.splice(existedIdx, 1, newItem);
     else idx.items.push(newItem);
     await writeSpriteIndex(writableIndex, idx);
+    if (previousLocalPath && path.resolve(previousLocalPath) !== path.resolve(finalPath!)) {
+      await removeUnreferencedLocalFile(writableIndex.containmentRootDir, idx, previousLocalPath);
+    }
     notifySpriteAssetsChanged({ reason: 'register', id });
     return normalizeSpriteAnimationItem(newItem);
   });
@@ -608,9 +632,13 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
 
       const idx = await readIndex(writableIndex.indexPath, { containmentRootDirs: getWritableIndexContainmentRoots(writableIndex, defaultIndex) });
       const existedIdx = idx.items.findIndex((i) => i.meta.id === id);
+      const previousLocalPath = existedIdx >= 0 ? idx.items[existedIdx]?.source?.localPath : undefined;
       if (existedIdx >= 0) idx.items.splice(existedIdx, 1, newItem);
       else idx.items.push(newItem);
       await writeSpriteIndex(writableIndex, idx);
+      if (previousLocalPath && path.resolve(previousLocalPath) !== path.resolve(finalPath)) {
+        await removeUnreferencedLocalFile(writableIndex.containmentRootDir, idx, previousLocalPath);
+      }
       notifySpriteAssetsChanged({ reason: 'registerFromData', id });
       return normalizeSpriteAnimationItem(newItem);
     }
@@ -631,16 +659,8 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
     const [removed] = idx.items.splice(i, 1);
     await writeSpriteIndex(writableIndex, idx);
     notifySpriteAssetsChanged({ reason: 'remove', id });
-    try {
-      if (deleteFile && removed?.source?.localPath) {
-        const p = path.resolve(removed.source.localPath);
-        const root = path.resolve(writableIndex.containmentRootDir);
-        if ((p === root || isResolvedPathContainedByRoot(root, p)) && !isLocalPathStillReferenced(idx, p)) {
-          await fs.unlink(p).catch(() => {});
-        }
-      }
-    } catch {
-      /* ignore unlink failures */
+    if (deleteFile) {
+      await removeUnreferencedLocalFile(writableIndex.containmentRootDir, idx, removed?.source?.localPath);
     }
     return { ok: true };
   });

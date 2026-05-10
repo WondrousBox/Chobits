@@ -1,6 +1,6 @@
 import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
 import React, { useCallback, useEffect, useState } from 'react';
-import { TbPlayerPlay, TbTools, TbTrash, TbX } from 'react-icons/tb';
+import { TbPencil, TbPlayerPlay, TbTools, TbTrash, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,6 +29,53 @@ function baseName(p: string): string {
 
 function getPlaybackSize(outputSize: number, playbackScale?: number): number {
   return Math.max(1, Math.round(outputSize / Math.max(1, playbackScale || 1)));
+}
+
+function getOutputSize(playbackSize: number | undefined, playbackScale = 1): number {
+  return Math.max(1, Math.round((playbackSize || 1) * Math.max(1, playbackScale)));
+}
+
+function createEditorConfigFromSprite(item: SpriteAnimation): Partial<SpriteVideoConfig> | null {
+  const inputPath = item.source?.localPath;
+  if (!inputPath) return null;
+
+  const loopStart = item.loopStartMs ?? 0;
+  const loopEnd = item.loopEndMs ?? loopStart;
+  const duration = item.durationMs ?? Math.max(loopEnd, 0);
+  const primaryTrigger = getPrimarySpriteAnimationTrigger(item.meta);
+  const triggerAliases = getSpriteAnimationTriggerAliases(item.meta);
+
+  return {
+    animationId: item.meta.id,
+    inputPath,
+    title: item.meta.title,
+    primaryTrigger,
+    triggerAliases,
+    priority: item.meta.priority,
+    condition: item.meta.condition,
+    chromaKey: { enabled: false, color: '#00ff00', similarity: 40, blend: 15 },
+    speeds: {
+      intro: 1,
+      loop: 1,
+      outro: 1
+    },
+    output: {
+      fps: 8,
+      width: getOutputSize(item.width ?? 180, 1),
+      height: getOutputSize(item.height ?? 240, 1)
+    },
+    playbackScale: 1,
+    padding: item.padding ?? 100,
+    autoIdle: item.autoIdle ?? true,
+    loop: item.loop ?? loopEnd > loopStart,
+    movement: item.movement ?? { enabled: false, mode: 'direction', direction: 'random', speed: 60 },
+    segments: {
+      start: 0,
+      loopStart,
+      loopEnd,
+      end: duration > 0 ? duration : loopEnd
+    }
+  };
 }
 
 const PLAYLIST_MODE_OPTIONS: Array<{ value: SpriteAnimationPlaylistMode; label: string }> = [
@@ -285,6 +332,27 @@ export function SpriteAnimationManager({
     }
   };
 
+  const onEditSprite = useCallback(
+    async (item: SpriteAnimation): Promise<void> => {
+      if (!ensureCanAuthorAnimations()) return;
+
+      const nextConfig = createEditorConfigFromSprite(item);
+      if (!nextConfig) return;
+
+      const localPath = item.source?.localPath;
+      if (localPath) {
+        const normalized = localPath.replace(/\\/g, '/');
+        const lastSlash = normalized.lastIndexOf('/');
+        const root = lastSlash >= 0 ? localPath.slice(0, lastSlash) : localPath;
+        await window.YUA.sprite.addTempResourceRoot(root);
+      }
+
+      setSpriteConfig(nextConfig);
+      setToolOpen(true);
+    },
+    [ensureCanAuthorAnimations]
+  );
+
   // 按分类分组
   const filteredList = React.useMemo(() => {
     if (!query.trim()) return list;
@@ -338,7 +406,17 @@ export function SpriteAnimationManager({
           <Button size="sm" variant="outline" onClick={refresh} disabled={loading}>
             刷新
           </Button>
-          <Button size="sm" variant="outline" onClick={() => (ensureCanAuthorAnimations() ? setToolOpen(true) : undefined)} disabled={!canAuthorAnimations} title={authoringLockedTitle}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              if (!ensureCanAuthorAnimations()) return;
+              setSpriteConfig({});
+              setToolOpen(true);
+            }}
+            disabled={!canAuthorAnimations}
+            title={authoringLockedTitle}
+          >
             <TbTools />
             工具
           </Button>
@@ -348,8 +426,15 @@ export function SpriteAnimationManager({
       {toolOpen && (
         <div className="h-[100vh] w-[100vw] max-w-[unset] overflow-none fixed top-0 left-0 z-[40] bg-background">
           <div className="p-2 box-border flex justify-between items-center">
-            精灵视频导入
-            <Button size="icon" variant={'ghost'} onClick={() => setToolOpen(false)}>
+            {spriteConfig.animationId ? '编辑精灵视频' : '精灵视频导入'}
+            <Button
+              size="icon"
+              variant={'ghost'}
+              onClick={() => {
+                setToolOpen(false);
+                setSpriteConfig({});
+              }}
+            >
               <TbX />
             </Button>
           </div>
@@ -364,6 +449,7 @@ export function SpriteAnimationManager({
               onImportComplete={async () => {
                 await refresh();
                 setToolOpen(false);
+                setSpriteConfig({});
               }}
               onProcess={async (config) => {
                 // FFmpeg 路径（无色度键时）
@@ -389,7 +475,7 @@ export function SpriteAnimationManager({
                     }
                   });
                   // 注册精灵（根据倍速调整 loop 时间）
-                  const id = 'sprite-' + Math.random().toString(36).slice(2, 10);
+                  const id = config.animationId || 'sprite-' + Math.random().toString(36).slice(2, 10);
                   const hasLoop = config.segments.loopEnd > config.segments.loopStart;
                   const sp = config.speeds;
                   const introDur = hasLoop ? (config.segments.loopStart - config.segments.start) / sp.intro : (config.segments.end - config.segments.start) / sp.intro;
@@ -419,6 +505,7 @@ export function SpriteAnimationManager({
                   });
                   await refresh();
                   setToolOpen(false);
+                  setSpriteConfig({});
                 } catch (e: any) {
                   console.error('精灵导入失败:', e);
                 } finally {
@@ -522,6 +609,18 @@ export function SpriteAnimationManager({
                                 }}
                               />
 
+                              {item.meta.deletable !== false && item.source?.localPath && (
+                                <Button
+                                  size="icon"
+                                  variant="secondary"
+                                  className="w-8 h-8"
+                                  onClick={() => void onEditSprite(item)}
+                                  disabled={!canAuthorAnimations}
+                                  title={canAuthorAnimations ? '编辑此精灵视频' : authoringLockedTitle}
+                                >
+                                  <TbPencil className="h-4 w-4" />
+                                </Button>
+                              )}
                               {item.meta.deletable !== false && (
                                 <Button size="icon" variant="destructive" className="w-8 h-8" onClick={() => onRemove(item.meta.id)} disabled={!canAuthorAnimations} title={authoringLockedTitle}>
                                   <TbTrash />
