@@ -78,7 +78,7 @@ export const CHARACTER_MESSAGE_SPECS = [
     section: 'categories',
     key: 'hold',
     label: '拖动提示',
-    neutral: () => ['可以把我拖到合适的位置。']
+    neutral: () => ['嗯哼。', '好呀。', '挪一下。', '在呢。', '来啦。', '放这里？', '听你的。', '嗯。']
   },
   {
     field: 'drag',
