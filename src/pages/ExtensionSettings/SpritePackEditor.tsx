@@ -1,4 +1,13 @@
 import type { CharacterPackEditorDraft } from '@packages/sprite-core/character-pack-manager';
+import {
+  buildDefaultCharacterMessageEditorFields,
+  CHARACTER_MESSAGE_SPECS,
+  CHARACTER_PROGRESS_KIND_LABEL_SPECS,
+  CHARACTER_PROGRESS_MESSAGE_SPECS,
+  type CharacterPackEditorMessageField,
+  type CharacterProgressKindLabelKey,
+  type CharacterProgressMessageKey
+} from '@packages/sprite-core/messages/default-character';
 import { type Dispatch, type ReactNode, type SetStateAction, useCallback } from 'react';
 import { TbPlus, TbTrash } from 'react-icons/tb';
 
@@ -40,6 +49,26 @@ export function SpritePackEditorContent({ editor, setEditor, className, extra }:
           ...draft,
           character: {
             ...draft.character,
+            ...patch
+          }
+        }))
+      );
+    },
+    [setEditor]
+  );
+
+  const updateEditorMessages = useCallback(
+    (patch: Partial<NonNullable<CharacterPackEditorDraft['messages']>>): void => {
+      setEditor((current) =>
+        withSpritePackEditorDraft(current, (draft) => ({
+          ...draft,
+          messages: {
+            ...buildDefaultCharacterMessageEditorFields({
+              name: draft.character.name,
+              firstPerson: draft.character.firstPerson,
+              addressUser: draft.character.addressUser
+            }),
+            ...(draft.messages ?? {}),
             ...patch
           }
         }))
@@ -92,6 +121,45 @@ export function SpritePackEditorContent({ editor, setEditor, className, extra }:
       }))
     );
   }, [setEditor]);
+
+  const messages =
+    editor.draft.messages ??
+    buildDefaultCharacterMessageEditorFields({
+      name: editor.draft.character.name,
+      firstPerson: editor.draft.character.firstPerson,
+      addressUser: editor.draft.character.addressUser
+    });
+
+  const updateProgressKindLabel = useCallback(
+    (key: CharacterProgressKindLabelKey, value: string): void => {
+      updateEditorMessages({
+        progressKindLabels: {
+          ...messages.progressKindLabels,
+          [key]: value
+        }
+      });
+    },
+    [messages.progressKindLabels, updateEditorMessages]
+  );
+
+  const updateProgressMessage = useCallback(
+    (key: CharacterProgressMessageKey, value: string): void => {
+      updateEditorMessages({
+        progress: {
+          ...messages.progress,
+          [key]: value
+        }
+      });
+    },
+    [messages.progress, updateEditorMessages]
+  );
+
+  const renderMessageTextarea = (field: CharacterPackEditorMessageField, label: string, placeholder?: string): JSX.Element => (
+    <div key={field} className="space-y-2">
+      <Label>{label}</Label>
+      <Textarea className="min-h-20" placeholder={placeholder} value={joinEditorLines(messages[field])} onChange={(event) => updateEditorMessages({ [field]: splitEditorLines(event.target.value) })} />
+    </div>
+  );
 
   return (
     <div className={className}>
@@ -212,6 +280,37 @@ export function SpritePackEditorContent({ editor, setEditor, className, extra }:
                 <Button type="button" size="sm" variant="outline" onClick={() => removeEditorExample(index)}>
                   <TbTrash className="h-4 w-4" />
                 </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label>事件台词</Label>
+            <div className="text-xs text-muted-foreground">每行一条，会随机选一句。可使用 {'{workflowName}'}、{'{count}'}、{'{progress}'} 这类占位符。</div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {CHARACTER_MESSAGE_SPECS.map((spec) => renderMessageTextarea(spec.field, spec.label, 'placeholder' in spec ? spec.placeholder : undefined))}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label>进度播报</Label>
+            <div className="text-xs text-muted-foreground">用于下载、导入、转写和工作流等待时的语音播报。</div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {CHARACTER_PROGRESS_KIND_LABEL_SPECS.map((spec) => (
+              <div key={spec.key} className="space-y-2">
+                <Label>{spec.label}</Label>
+                <Input value={messages.progressKindLabels[spec.key]} onChange={(event) => updateProgressKindLabel(spec.key, event.target.value)} />
+              </div>
+            ))}
+            {CHARACTER_PROGRESS_MESSAGE_SPECS.map((spec) => (
+              <div key={spec.key} className="space-y-2">
+                <Label>{spec.label}</Label>
+                <Input value={messages.progress[spec.key]} onChange={(event) => updateProgressMessage(spec.key, event.target.value)} />
               </div>
             ))}
           </div>

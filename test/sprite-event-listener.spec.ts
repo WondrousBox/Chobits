@@ -83,6 +83,8 @@ vi.mock('@packages/event', () => ({
 
 vi.mock('../packages/sprite-core/character-service', () => ({
   getCharacterPackDefinition: () => null,
+  getCharacterDefinition: () => null,
+  getCharacterPackSource: () => null,
   getActivityRewards: () => ({
     'workflow-complete': { xp: 0, favor: 0, dimensionGrowth: undefined },
     'resource-import-complete': { xp: 0, favor: 0, dimensionGrowth: undefined },
@@ -108,6 +110,7 @@ function createManagerStub(): {
   updateBusy: ReturnType<typeof vi.fn>;
   clearBusy: ReturnType<typeof vi.fn>;
   trigger: ReturnType<typeof vi.fn>;
+  speak: ReturnType<typeof vi.fn>;
   playOnce: ReturnType<typeof vi.fn>;
   recordConversationEvent: ReturnType<typeof vi.fn>;
   applyPersonaReward: ReturnType<typeof vi.fn>;
@@ -124,6 +127,7 @@ function createManagerStub(): {
     updateBusy: vi.fn(),
     clearBusy: vi.fn(),
     trigger: vi.fn(),
+    speak: vi.fn(async () => ({ success: true })),
     playOnce: vi.fn(),
     recordConversationEvent: vi.fn(),
     applyPersonaReward: vi.fn(),

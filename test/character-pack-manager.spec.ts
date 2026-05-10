@@ -74,6 +74,22 @@ import {
   saveCharacterPackEditorDraft
 } from '../packages/sprite-core/character-pack-manager';
 import { createCharacterPackSignaturePayload } from '../packages/sprite-core/character-pack-signature';
+import { CHARACTER_MESSAGE_SPECS, CHARACTER_PROGRESS_KIND_LABEL_SPECS, CHARACTER_PROGRESS_MESSAGE_SPECS, getCharacterMessageTemplateLines } from '../packages/sprite-core/messages/default-character';
+
+function expectCharacterMessagesCoverSpecs(messages: Record<string, any>): void {
+  for (const spec of CHARACTER_MESSAGE_SPECS) {
+    const entry = messages[spec.section]?.[spec.key];
+    expect(getCharacterMessageTemplateLines(entry), `${spec.section}.${spec.key}`).not.toHaveLength(0);
+  }
+
+  for (const spec of CHARACTER_PROGRESS_KIND_LABEL_SPECS) {
+    expect(messages.progress?.kindLabels?.[spec.key], `progress.kindLabels.${spec.key}`).toBeTruthy();
+  }
+
+  for (const spec of CHARACTER_PROGRESS_MESSAGE_SPECS) {
+    expect(messages.progress?.[spec.key], `progress.${spec.key}`).toBeTruthy();
+  }
+}
 
 function writeJsonFile(filePath: string, payload: unknown): void {
   mkdirSync(path.dirname(filePath), { recursive: true });
@@ -128,6 +144,10 @@ function writePack(rootDir: string, packId: string, name: string, overrides?: Re
 
 function readPack(rootDir: string): Record<string, any> {
   return JSON.parse(readFileSync(path.join(rootDir, 'pack.json'), 'utf-8'));
+}
+
+function readCharacter(rootDir: string): Record<string, any> {
+  return JSON.parse(readFileSync(path.join(rootDir, 'character.json'), 'utf-8'));
 }
 
 function writeTrustRoot(
@@ -1145,6 +1165,7 @@ describe('character pack manager', () => {
 
     const installedRoot = path.join(userDataDir, 'character-packs', 'custom-alpha');
     const pack = readPack(installedRoot);
+    const character = readCharacter(installedRoot);
     const animationIndex = JSON.parse(readFileSync(path.join(installedRoot, 'animations/index.json'), 'utf-8'));
 
     expect(result).toMatchObject({
@@ -1167,6 +1188,93 @@ describe('character pack manager', () => {
     });
     expect(existsSync(path.join(installedRoot, 'animations/idle.webm'))).toBe(false);
     expect(existsSync(path.join(installedRoot, 'index.json'))).toBe(false);
+    expectCharacterMessagesCoverSpecs(character.messages);
+    expect(character.messages.categories.welcome).toEqual(['Custom Alpha上线了。', '你回来啦，今天想先处理什么？', '我在这里。']);
+    expect(character.messages.events.workflowComplete).toEqual(['任务完成了。', '工作流执行成功。']);
+    expect(character.messages.routines['workflow.waiting.progressSpeak']).toBe('我还在等 {workflowName} 完成。');
+  });
+
+  it('saves editor message overrides into custom character definitions', async () => {
+    tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
+    const builtinRoot = path.join(tempRoot, 'builtin-pack');
+    const userDataDir = path.join(tempRoot, 'user-data');
+
+    writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
+
+    initCharacterPackManager({
+      userDataDir,
+      builtinPackRootDir: builtinRoot,
+      appVersion: '1.0.0'
+    });
+
+    await saveCharacterPackEditorDraft(
+      {
+        pack: {
+          id: 'custom-lines',
+          name: 'Custom Lines',
+          version: '1.0.0',
+          author: 'test',
+          description: 'custom lines',
+          license: 'Custom',
+          tags: ['custom'],
+          platform: [process.platform]
+        },
+        character: {
+          id: 'custom-lines',
+          name: 'Custom Lines',
+          nameAliases: [],
+          tagline: 'Custom tagline',
+          background: 'Custom background',
+          coreTraits: ['warm'],
+          boundaries: ['kind'],
+          speechTone: 'gentle',
+          language: 'zh-CN',
+          firstPerson: '咱',
+          addressUser: '搭档',
+          quirks: [],
+          speechExamples: [],
+          metaDescription: 'custom lines',
+          metaTags: ['custom']
+        },
+        messages: {
+          welcome: ['自定义欢迎'],
+          click: ['自定义点击'],
+          reminder: ['自定义休息'],
+          tip: ['自定义提示'],
+          fileDrop: ['自定义收文件'],
+          aiThinking: ['自定义思考'],
+          aiComplete: ['自定义完成'],
+          aiError: ['自定义错误'],
+          workflowStart: ['自定义开始'],
+          workflowComplete: ['自定义流程完成 {workflowName}'],
+          workflowFail: ['自定义失败'],
+          importComplete: ['自定义导入 {count}'],
+          downloadComplete: ['自定义下载完成'],
+          memoryExtractComplete: ['自定义记忆'],
+          personaUpdateComplete: ['自定义画像'],
+          dailyRestReminder: ['自定义休息提醒'],
+          fileDropPrompt: ['自定义文件询问'],
+          workflowWaitingProgress: ['自定义等待 {workflowName}'],
+          workflowWaitingComplete: ['自定义等待完成']
+        }
+      },
+      {
+        basePackId: 'pack-alpha',
+        basePackSource: 'builtin',
+        activate: true
+      }
+    );
+
+    const character = readCharacter(path.join(userDataDir, 'character-packs', 'custom-lines'));
+
+    expect(character.messages.categories.welcome).toBe('自定义欢迎');
+    expect(character.messages.categories.fileDrop).toBe('自定义收文件');
+    expect(character.messages.events.aiThinking).toBe('自定义思考');
+    expect(character.messages.events.workflowComplete).toBe('自定义流程完成 {workflowName}');
+    expect(character.messages.routines['workflow.waiting.progressSpeak']).toBe('自定义等待 {workflowName}');
+    expect(getCharacterMessageTemplateLines(character.messages.events.appear)).toEqual(['咱来了。', '已经就位。']);
+    expect(character.messages.routines['file.drop.intake.selected']).toBe('交给我吧。');
+    expectCharacterMessagesCoverSpecs(character.messages);
   });
 
   it('removes an inactive installed pack and keeps the current active pack unchanged', async () => {

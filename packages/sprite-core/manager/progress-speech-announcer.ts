@@ -1,3 +1,5 @@
+import { getCharacterProgressSpeechText } from '../messages/character';
+
 export type ProgressSpeechKind = 'download' | 'transcribe' | 'import' | 'workflow' | 'generic';
 
 export interface ProgressSpeechUpdate {
@@ -96,13 +98,24 @@ function getKindLabel(kind: ProgressSpeechKind): string {
 function formatProgressSpeech(kind: ProgressSpeechKind, progress: number, checkpoint: ProgressCheckpoint): string {
   const label = getKindLabel(kind);
   if (checkpoint.type === 'almost') {
-    return `${label}快完成了。`;
+    return getCharacterProgressSpeechText('almost', {
+      kind,
+      fallbackKindLabel: label,
+      progress
+    });
   }
-  return `${label}进度 ${Math.round(progress)}%。`;
+  return getCharacterProgressSpeechText('progress', {
+    kind,
+    fallbackKindLabel: label,
+    progress
+  });
 }
 
 function formatCompleteSpeech(kind: ProgressSpeechKind): string {
-  return `${getKindLabel(kind)}完成了。`;
+  return getCharacterProgressSpeechText('complete', {
+    kind,
+    fallbackKindLabel: getKindLabel(kind)
+  });
 }
 
 export class ProgressSpeechAnnouncer {

@@ -1,4 +1,5 @@
 import type { CharacterPackEditorDraft, CharacterPackEditorSaveOptions, CharacterPackSource, CharacterPackSummary } from '@packages/sprite-core/character-pack-manager';
+import { buildDefaultCharacterMessageEditorFields } from '@packages/sprite-core/messages/default-character';
 
 export const SPRITE_PACK_EDITOR_WINDOW_KEY = 'characterPackEditor';
 export const SPRITE_PACK_EDITOR_EVENT_CHANNEL = 'chobits:sprite-pack-editor';
@@ -109,7 +110,12 @@ export function buildCreateSpritePackEditorState(basePack: CharacterPackSummary 
         ],
         metaDescription: '本地创建的自定义角色',
         metaTags: ['custom', 'assistant']
-      }
+      },
+      messages: buildDefaultCharacterMessageEditorFields({
+        name: seed,
+        firstPerson: '我',
+        addressUser: '你'
+      })
     },
     basePack: basePack ?? undefined,
     activateAfterSave: true

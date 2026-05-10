@@ -26,8 +26,7 @@ import { getSpriteCapabilityRuntimeState } from '../capability-runtime';
 import { SpriteEventBus } from '../event-bus';
 import { SPRITE_INTERACTION_EVENT_BY_INTENT, type SpriteInteractionIntent, type SpriteInteractionPayload } from '../interaction-contract';
 import { InteractionTracker } from '../interaction-tracker';
-import Messages from '../messages/zh-CN';
-import { getSpriteEventText } from '../messages/zh-CN';
+import { getCharacterCategoryText, getCharacterSpriteEventText } from '../messages/character';
 import {
   type ConversationRewardContext,
   getConversationRewardEventRules,
@@ -663,7 +662,7 @@ export class SpriteManager {
 
     // 2. 显示气泡文案（除非 silent）
     if (!options?.silent) {
-      const text = options?.message || getSpriteEventText(trigger, options?.ctx);
+      const text = options?.message || getCharacterSpriteEventText(trigger, options?.ctx);
       if (text) {
         this.showToast(text, { duration: options?.duration });
       }
@@ -688,7 +687,7 @@ export class SpriteManager {
 
     if (!options?.silent) {
       const eventType = anim.eventTypes?.[0];
-      const text = options?.message || (eventType ? getSpriteEventText(eventType) : undefined);
+      const text = options?.message || (eventType ? getCharacterSpriteEventText(eventType) : undefined);
       if (text) {
         this.showToast(text, { duration: options?.duration });
       }
@@ -732,7 +731,7 @@ export class SpriteManager {
   /** 轻量提示 */
   showToast(content?: string, options?: { category?: MessageCategory; duration?: number; level?: string; ctx?: any; speak?: boolean }): void {
     // 如果只传了 category 没有 content，先获取文本以确保显示和朗读一致
-    const resolvedContent = content ?? (options?.category ? Messages.t(options.category, options?.ctx) : undefined);
+    const resolvedContent = content ?? (options?.category ? getCharacterCategoryText(options.category, options?.ctx) : undefined);
 
     const payload: MessageIPCPayload = {
       type: 'toast',
