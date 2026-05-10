@@ -221,6 +221,7 @@ function getPlaybackDimension(outputSize: number, playbackScale: number): number
 
 // 编辑器配置
 export interface SpriteVideoConfig {
+  animationId?: string;
   inputPath: string;
   segments: SegmentMarkers;
   chromaKey: ChromaKeySettings;
@@ -323,6 +324,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const storedFormSettings = useMemo(() => loadSpriteVideoEditorStoredFormSettings(), []);
+  const animationId = initialConfig?.animationId;
 
   // 视频状态
   const [inputPath, setInputPath] = useState<string>(initialConfig?.inputPath || '');
@@ -455,6 +457,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
   useEffect(() => {
     if (onConfigChange) {
       onConfigChange({
+        animationId,
         inputPath,
         segments,
         chromaKey,
@@ -472,7 +475,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
         title
       });
     }
-  }, [inputPath, segments, chromaKey, speeds, output, playbackScale, padding, movement, autoIdle, playbackLoop, animationMeta, title, onConfigChange]);
+  }, [animationId, inputPath, segments, chromaKey, speeds, output, playbackScale, padding, movement, autoIdle, playbackLoop, animationMeta, title, onConfigChange]);
 
   // 视频加载完成
   const handleLoadedMetadata = useCallback(() => {
@@ -928,7 +931,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
     setProcessProgress(0);
 
     try {
-      const id = 'sprite-' + Math.random().toString(36).slice(2, 10);
+      const id = animationId || 'sprite-' + Math.random().toString(36).slice(2, 10);
 
       // 根据倍速计算调整后的时间点和持续时间
       const introDuration = hasLoop ? (segments.loopStart - segments.start) / speeds.intro : (segments.end - segments.start) / speeds.intro;
@@ -968,6 +971,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
         // FFmpeg 路径：裁剪 + 倍速 + 转码 WebM VP9
         if (onProcess) {
           await onProcess({
+            animationId,
             inputPath,
             segments,
             chromaKey,
@@ -1054,7 +1058,8 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
     recordCanvasWithChromaKey,
     onCapabilityBlocked,
     onProcess,
-    onImportComplete
+    onImportComplete,
+    animationId
   ]);
 
   return (

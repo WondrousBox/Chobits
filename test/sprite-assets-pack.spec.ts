@@ -358,9 +358,22 @@ describe('sprite assets pack manifest integration', () => {
     expect(item.source.localPath).toBe(path.join(installedRoot, 'animations/custom-wave.webm'));
     expect(item.meta.deletable).toBe(true);
 
+    const editedItem = await registerFromData!(undefined, {
+      data: Buffer.from('custom-webm-edited'),
+      meta: {
+        id: 'custom-wave',
+        title: 'Custom Wave Edited',
+        primaryTrigger: 'wave'
+      }
+    });
+    expect(editedItem.meta.title).toBe('Custom Wave Edited');
+    expect(editedItem.source.localPath).toBe(path.join(installedRoot, 'animations/custom-wave-1.webm'));
+
     const storedIndex = JSON.parse(readFileSync(path.join(installedRoot, 'animations/index.json'), 'utf-8'));
     expect(storedIndex.items).toHaveLength(1);
-    expect(storedIndex.items[0].source.localPath).toBe('custom-wave.webm');
+    expect(storedIndex.items[0].source.localPath).toBe('custom-wave-1.webm');
+    expect(existsSync(path.join(installedRoot, 'animations/custom-wave.webm'))).toBe(false);
+    expect(readFileSync(path.join(installedRoot, 'animations/custom-wave-1.webm'), 'utf-8')).toBe('custom-webm-edited');
     expect(existsSync(path.join(userDataDir!, 'data', 'sprites', 'index.json'))).toBe(false);
 
     const sprites = await spriteAssets.listSprites();
@@ -374,7 +387,7 @@ describe('sprite assets pack manifest integration', () => {
     });
     expect(removed).toEqual({ ok: true });
     expect(JSON.parse(readFileSync(path.join(installedRoot, 'animations/index.json'), 'utf-8')).items).toEqual([]);
-    expect(existsSync(path.join(installedRoot, 'animations/custom-wave.webm'))).toBe(false);
+    expect(existsSync(path.join(installedRoot, 'animations/custom-wave-1.webm'))).toBe(false);
     expect((await spriteAssets.listSprites()).map((sprite) => sprite.meta.id)).toEqual(['builtin-idle']);
 
     await registerFromData!(undefined, {
@@ -426,6 +439,58 @@ describe('sprite assets pack manifest integration', () => {
     });
     expect(item.meta).not.toHaveProperty('eventType');
     expect(onAssetsChanged).toHaveBeenCalledWith({ reason: 'register', id: 'primary-trigger-only' });
+  });
+
+  it('replaces same-id sprite:register entries and removes the previous local file', async () => {
+    const rootDir = spritesRoot!;
+    const firstSourcePath = path.join(rootDir, 'first-source.webm');
+    const secondSourcePath = path.join(rootDir, 'second-source.webm');
+    writeFileSync(firstSourcePath, 'first-webm', 'utf-8');
+    writeFileSync(secondSourcePath, 'second-webm', 'utf-8');
+
+    const spriteAssets = await import('../packages/sprite-core/handler/sprite-assets');
+    spriteAssets.initSpriteHandlers({
+      addAllowedResourceRoot: vi.fn(),
+      getResourcePath: () => rootDir
+    });
+
+    const registerSprite = electronState.handlers.get('sprite:register') as ((_: unknown, payload: { filePath: string; meta: Record<string, unknown> }) => Promise<any>) | undefined;
+
+    expect(registerSprite).toBeDefined();
+
+    const first = await registerSprite!(undefined, {
+      filePath: firstSourcePath,
+      meta: {
+        id: 'replace-me',
+        title: 'Replace Me',
+        primaryTrigger: 'wave'
+      }
+    });
+    const second = await registerSprite!(undefined, {
+      filePath: secondSourcePath,
+      meta: {
+        id: 'replace-me',
+        title: 'Replace Me Edited',
+        primaryTrigger: 'wave'
+      }
+    });
+
+    expect(first.source.localPath).toBe(path.join(userDataDir!, 'data', 'sprites', 'replace-me.webm'));
+    expect(second.source.localPath).toBe(path.join(userDataDir!, 'data', 'sprites', 'replace-me-1.webm'));
+    expect(existsSync(first.source.localPath)).toBe(false);
+    expect(readFileSync(second.source.localPath, 'utf-8')).toBe('second-webm');
+
+    const storedIndex = JSON.parse(readFileSync(path.join(userDataDir!, 'data', 'sprites', 'index.json'), 'utf-8'));
+    expect(storedIndex.items).toHaveLength(1);
+    expect(storedIndex.items[0]).toMatchObject({
+      meta: {
+        id: 'replace-me',
+        title: 'Replace Me Edited'
+      },
+      source: {
+        localPath: second.source.localPath
+      }
+    });
   });
 
   it('keeps legacy eventType-only input compatible on sprite:registerFromData without persisting a mirror field', async () => {
