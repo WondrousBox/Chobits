@@ -1,10 +1,14 @@
 import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
+import type { SpriteMovementConfig, SpriteMovementDirection, SpriteMovementMode, SpriteMovementTrigger } from '@packages/sprite-core/types';
 import React, { useCallback, useEffect, useState } from 'react';
 import { TbPencil, TbPlayerPlay, TbTools, TbTrash, TbX } from 'react-icons/tb';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import type { SpriteAnimation, SpriteAnimationPlaylistMode, SpriteAnimationPlaylistModeMap, SpriteAnimationTrigger } from '@/features/sprite-assistant';
 import {
   getPrimarySpriteAnimationTrigger,
@@ -16,13 +20,16 @@ import {
 import { ensureSpriteCapabilityAccessible, SpriteCapabilityLockedNotice } from '@/features/sprite-assistant/capability-ui';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
+import { createSpriteAnimationMetaDraft, formatSpriteAnimationConditionInput, formatSpriteTriggerAliasesInput, parseSpriteAnimationConditionInput } from './components/sprite-animation-meta-utils';
+import SpriteAnimationConditionBuilder from './components/SpriteAnimationConditionBuilder';
 import SpriteAnimationMetaPopover from './components/SpriteAnimationMetaPopover';
 import SpriteTriggerPicker from './components/SpriteTriggerPicker';
 import SpritePackManager from './SpritePackManager';
 import SpriteVideoEditor, { type SpriteVideoConfig } from './SpriteVideoEditor';
 
 function baseName(p: string): string {
-  const parts = p.replace(/\\/g, '/').split('/');
+  const withoutQuery = p.split(/[?#]/)[0] || p;
+  const parts = withoutQuery.replace(/\\/g, '/').split('/');
   const last = parts[parts.length - 1] || '';
   return last;
 }
@@ -31,51 +38,249 @@ function getPlaybackSize(outputSize: number, playbackScale?: number): number {
   return Math.max(1, Math.round(outputSize / Math.max(1, playbackScale || 1)));
 }
 
-function getOutputSize(playbackSize: number | undefined, playbackScale = 1): number {
-  return Math.max(1, Math.round((playbackSize || 1) * Math.max(1, playbackScale)));
+function getPositiveNumber(value: string, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(1, Math.round(parsed)) : fallback;
 }
 
-function createEditorConfigFromSprite(item: SpriteAnimation): Partial<SpriteVideoConfig> | null {
-  const inputPath = item.source?.localPath;
-  if (!inputPath) return null;
+function getNonNegativeNumber(value: string, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : fallback;
+}
 
-  const loopStart = item.loopStartMs ?? 0;
-  const loopEnd = item.loopEndMs ?? loopStart;
-  const duration = item.durationMs ?? Math.max(loopEnd, 0);
-  const primaryTrigger = getPrimarySpriteAnimationTrigger(item.meta);
-  const triggerAliases = getSpriteAnimationTriggerAliases(item.meta);
-
-  return {
-    animationId: item.meta.id,
-    inputPath,
-    title: item.meta.title,
+function SpriteAnimationConfigEditor({
+  animation,
+  assetAuthoringCapability,
+  onCapabilityBlocked,
+  onClose,
+  onSaved
+}: {
+  animation: SpriteAnimation;
+  assetAuthoringCapability?: SpriteCapabilityState | null;
+  onCapabilityBlocked?: (capability: SpriteCapabilityState) => void;
+  onClose: () => void;
+  onSaved: () => Promise<void> | void;
+}): JSX.Element {
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [title, setTitle] = useState(animation.meta.title || animation.meta.id);
+  const [primaryTrigger, setPrimaryTrigger] = useState<SpriteAnimationTrigger | ''>(getPrimarySpriteAnimationTrigger(animation.meta) || '');
+  const [triggerAliasesInput, setTriggerAliasesInput] = useState(formatSpriteTriggerAliasesInput(getSpriteAnimationTriggerAliases(animation.meta)));
+  const [priorityInput, setPriorityInput] = useState(animation.meta.priority !== undefined ? String(animation.meta.priority) : '');
+  const [conditionInput, setConditionInput] = useState(formatSpriteAnimationConditionInput(animation.meta.condition));
+  const [widthInput, setWidthInput] = useState(String(animation.width ?? 180));
+  const [heightInput, setHeightInput] = useState(String(animation.height ?? 240));
+  const [paddingInput, setPaddingInput] = useState(String(animation.padding ?? 100));
+  const [loop, setLoop] = useState(animation.loop ?? false);
+  const [autoIdle, setAutoIdle] = useState(animation.autoIdle ?? true);
+  const [movement, setMovement] = useState<SpriteMovementConfig>(animation.movement ?? { enabled: false, mode: 'direction', direction: 'random', speed: 60 });
+  const canAuthorAnimations = assetAuthoringCapability?.status !== 'locked';
+  const parsedCondition = parseSpriteAnimationConditionInput(conditionInput);
+  const metaDraft = createSpriteAnimationMetaDraft({
+    conditionInput,
     primaryTrigger,
-    triggerAliases,
-    priority: item.meta.priority,
-    condition: item.meta.condition,
-    chromaKey: { enabled: false, color: '#00ff00', similarity: 40, blend: 15 },
-    speeds: {
-      intro: 1,
-      loop: 1,
-      outro: 1
-    },
-    output: {
-      fps: 8,
-      width: getOutputSize(item.width ?? 180, 1),
-      height: getOutputSize(item.height ?? 240, 1)
-    },
-    playbackScale: 1,
-    padding: item.padding ?? 100,
-    autoIdle: item.autoIdle ?? true,
-    loop: item.loop ?? loopEnd > loopStart,
-    movement: item.movement ?? { enabled: false, mode: 'direction', direction: 'random', speed: 60 },
-    segments: {
-      start: 0,
-      loopStart,
-      loopEnd,
-      end: duration > 0 ? duration : loopEnd
+    triggerAliasesInput,
+    priority: priorityInput
+  });
+  const width = getPositiveNumber(widthInput, animation.width ?? 180);
+  const height = getPositiveNumber(heightInput, animation.height ?? 240);
+  const padding = getNonNegativeNumber(paddingInput, animation.padding ?? 100);
+  const sourceLabel = animation.source?.localPath ? baseName(animation.source.localPath) : animation.source?.src ? baseName(animation.source.src) : '';
+
+  const handleSave = async (): Promise<void> => {
+    if (saving || parsedCondition.error) return;
+    if (!ensureSpriteCapabilityAccessible(assetAuthoringCapability, onCapabilityBlocked)) return;
+
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const result = await window.YUA.sprite.updateConfig(animation.meta.id, {
+        width,
+        height,
+        padding,
+        loop,
+        autoIdle,
+        movement: movement.enabled ? movement : undefined,
+        meta: {
+          title: title.trim() || animation.meta.id,
+          primaryTrigger: metaDraft.primaryTrigger,
+          triggerAliases: metaDraft.triggerAliases,
+          priority: metaDraft.priority,
+          condition: metaDraft.condition
+        }
+      });
+      if (!result?.ok) {
+        const message = '保存精灵属性失败';
+        setSaveError(message);
+        toast.error(message);
+        return;
+      }
+      await onSaved();
+      onClose();
+      toast.success('精灵属性已保存');
+    } catch (error) {
+      const message = '保存精灵属性失败';
+      setSaveError(error instanceof Error ? error.message : message);
+      toast.error(message, { description: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setSaving(false);
     }
   };
+
+  return (
+    <div className="h-[100vh] w-[100vw] max-w-[unset] overflow-none fixed top-0 left-0 z-[40] bg-background">
+      <div className="p-2 box-border flex justify-between items-center">
+        编辑精灵属性
+        <Button size="icon" variant="ghost" onClick={onClose}>
+          <TbX />
+        </Button>
+      </div>
+      <div className="overflow-y-auto p-4 space-y-4" style={{ height: 'calc(100% - 52px)' }}>
+        <SpriteCapabilityLockedNotice capability={assetAuthoringCapability} hint="精灵资源管理尚未解锁时，可以查看现有动画，但不能保存精灵属性。" />
+        <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+          <div className="space-y-2">
+            <div className="rounded-md border p-2">
+              {animation.source?.localPath || animation.source?.src ? (
+                <video className="aspect-[3/4] w-full rounded bg-transparent object-contain" src={animation.source.localPath ? makeResSrc(animation.source.localPath) : animation.source.src} controls muted playsInline />
+              ) : (
+                <div className="aspect-[3/4] w-full rounded bg-muted" />
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground break-all">ID: {animation.meta.id}</div>
+            {sourceLabel && <div className="text-xs text-muted-foreground truncate" title={sourceLabel}>{sourceLabel}</div>}
+          </div>
+
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-[1fr_240px]">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">名称</Label>
+                <Input value={title} onChange={(event) => setTitle(event.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">主 Trigger</Label>
+                <SpriteTriggerPicker value={primaryTrigger} onChange={setPrimaryTrigger} buttonClassName="w-full" emptyLabel="未分类" />
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">宽度</Label>
+                <Input type="number" value={widthInput} onChange={(event) => setWidthInput(event.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">高度</Label>
+                <Input type="number" value={heightInput} onChange={(event) => setHeightInput(event.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">窗口 Padding</Label>
+                <Input type="number" value={paddingInput} onChange={(event) => setPaddingInput(event.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">优先级</Label>
+                <Input type="number" value={priorityInput} onChange={(event) => setPriorityInput(event.target.value)} placeholder="0" />
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="flex items-center justify-between rounded-md border px-3 py-2">
+                <div>
+                  <div className="text-sm font-medium">循环播放</div>
+                  <div className="text-xs text-muted-foreground">只修改播放配置，不重新裁剪视频</div>
+                </div>
+                <Switch checked={loop} onCheckedChange={setLoop} />
+              </div>
+              <div className="flex items-center justify-between rounded-md border px-3 py-2">
+                <div>
+                  <div className="text-sm font-medium">播完回到 Idle</div>
+                  <div className="text-xs text-muted-foreground">关闭后会停在动画结尾状态</div>
+                </div>
+                <Switch checked={autoIdle} onCheckedChange={setAutoIdle} />
+              </div>
+            </div>
+
+            <div className="space-y-2 rounded-md border px-3 py-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium">播放时窗口移动</div>
+                  <div className="text-xs text-muted-foreground">只修改移动配置，不改变视频文件</div>
+                </div>
+                <Switch checked={movement.enabled} onCheckedChange={(checked) => setMovement((prev) => ({ ...prev, enabled: checked }))} />
+              </div>
+              {movement.enabled && (
+                <div className="grid gap-3 md:grid-cols-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">模式</Label>
+                    <Select value={movement.mode ?? 'direction'} onValueChange={(value) => setMovement((prev) => ({ ...prev, mode: value as SpriteMovementMode }))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="direction">方向移动</SelectItem>
+                        <SelectItem value="walkTo">随机行走</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">方向</Label>
+                    <Select value={movement.direction ?? 'random'} onValueChange={(value) => setMovement((prev) => ({ ...prev, direction: value as SpriteMovementDirection }))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="left">向左</SelectItem>
+                        <SelectItem value="right">向右</SelectItem>
+                        <SelectItem value="up">向上</SelectItem>
+                        <SelectItem value="down">向下</SelectItem>
+                        <SelectItem value="up-left">左上</SelectItem>
+                        <SelectItem value="up-right">右上</SelectItem>
+                        <SelectItem value="down-left">左下</SelectItem>
+                        <SelectItem value="down-right">右下</SelectItem>
+                        <SelectItem value="random">随机</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">速度 px/s</Label>
+                    <Input type="number" value={movement.speed ?? 60} onChange={(event) => setMovement((prev) => ({ ...prev, speed: getPositiveNumber(event.target.value, 60) }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">触发</Label>
+                    <Select value={movement.trigger ?? 'animation'} onValueChange={(value) => setMovement((prev) => ({ ...prev, trigger: value as SpriteMovementTrigger }))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="animation">动画播放时</SelectItem>
+                        <SelectItem value="behavior">行为调度</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">别名 Trigger</Label>
+              <Input value={triggerAliasesInput} onChange={(event) => setTriggerAliasesInput(event.target.value)} placeholder="多个 trigger 用逗号或换行分隔" />
+            </div>
+
+            <SpriteAnimationConditionBuilder conditionInput={conditionInput} onChange={setConditionInput} />
+
+            {saveError && <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{saveError}</div>}
+
+            <div className="flex items-center justify-end gap-2 border-t pt-4">
+              <Button variant="ghost" onClick={onClose} disabled={saving}>
+                取消
+              </Button>
+              <Button onClick={() => void handleSave()} disabled={!canAuthorAnimations || saving || !!parsedCondition.error}>
+                {saving ? '保存中…' : '保存属性'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const PLAYLIST_MODE_OPTIONS: Array<{ value: SpriteAnimationPlaylistMode; label: string }> = [
@@ -168,6 +373,7 @@ export function SpriteAnimationManager({
   // 工具弹窗状态
   const [toolOpen, setToolOpen] = useState(false);
   // 精灵导入状态
+  const [editingSprite, setEditingSprite] = useState<SpriteAnimation | null>(null);
   const [spriteConfig, setSpriteConfig] = useState<Partial<SpriteVideoConfig>>({});
   const [spriteProcessing, setSpriteProcessing] = useState(false);
   const [defaultAnimationPlaylistMode, setDefaultAnimationPlaylistMode] = useState<SpriteAnimationPlaylistMode>('list-loop');
@@ -335,20 +541,7 @@ export function SpriteAnimationManager({
   const onEditSprite = useCallback(
     async (item: SpriteAnimation): Promise<void> => {
       if (!ensureCanAuthorAnimations()) return;
-
-      const nextConfig = createEditorConfigFromSprite(item);
-      if (!nextConfig) return;
-
-      const localPath = item.source?.localPath;
-      if (localPath) {
-        const normalized = localPath.replace(/\\/g, '/');
-        const lastSlash = normalized.lastIndexOf('/');
-        const root = lastSlash >= 0 ? localPath.slice(0, lastSlash) : localPath;
-        await window.YUA.sprite.addTempResourceRoot(root);
-      }
-
-      setSpriteConfig(nextConfig);
-      setToolOpen(true);
+      setEditingSprite(item);
     },
     [ensureCanAuthorAnimations]
   );
@@ -423,10 +616,19 @@ export function SpriteAnimationManager({
         </div>
       </div>
       {/* 精灵导入工具弹窗 */}
+      {editingSprite && (
+        <SpriteAnimationConfigEditor
+          animation={editingSprite}
+          assetAuthoringCapability={assetAuthoringCapability}
+          onCapabilityBlocked={onCapabilityBlocked}
+          onClose={() => setEditingSprite(null)}
+          onSaved={refresh}
+        />
+      )}
       {toolOpen && (
         <div className="h-[100vh] w-[100vw] max-w-[unset] overflow-none fixed top-0 left-0 z-[40] bg-background">
           <div className="p-2 box-border flex justify-between items-center">
-            {spriteConfig.animationId ? '编辑精灵视频' : '精灵视频导入'}
+            精灵视频导入
             <Button
               size="icon"
               variant={'ghost'}
@@ -475,7 +677,7 @@ export function SpriteAnimationManager({
                     }
                   });
                   // 注册精灵（根据倍速调整 loop 时间）
-                  const id = config.animationId || 'sprite-' + Math.random().toString(36).slice(2, 10);
+                  const id = 'sprite-' + Math.random().toString(36).slice(2, 10);
                   const hasLoop = config.segments.loopEnd > config.segments.loopStart;
                   const sp = config.speeds;
                   const introDur = hasLoop ? (config.segments.loopStart - config.segments.start) / sp.intro : (config.segments.end - config.segments.start) / sp.intro;
@@ -616,7 +818,7 @@ export function SpriteAnimationManager({
                                   className="w-8 h-8"
                                   onClick={() => void onEditSprite(item)}
                                   disabled={!canAuthorAnimations}
-                                  title={canAuthorAnimations ? '编辑此精灵视频' : authoringLockedTitle}
+                                  title={canAuthorAnimations ? '编辑此精灵属性' : authoringLockedTitle}
                                 >
                                   <TbPencil className="h-4 w-4" />
                                 </Button>

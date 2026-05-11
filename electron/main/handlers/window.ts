@@ -11,10 +11,31 @@ import defaultWindowConfigs from '../config/window';
 const SPRITE_BUBBLE_WINDOW_KEYS = ['spriteBubbleFixedTop'] as const;
 type SpriteBubbleWindowKey = (typeof SPRITE_BUBBLE_WINDOW_KEYS)[number];
 const SPRITE_EFFECT_WINDOW_KEY = 'spriteEffect' as const;
+type AssistantInteractiveRegion = { x: number; y: number; width: number; height: number };
+
+function normalizeInteractiveRegion(region: Partial<AssistantInteractiveRegion> | null | undefined): AssistantInteractiveRegion | null {
+  const x = Number(region?.x);
+  const y = Number(region?.y);
+  const width = Number(region?.width);
+  const height = Number(region?.height);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(width) || !Number.isFinite(height)) {
+    return null;
+  }
+  if (width <= 0 || height <= 0) {
+    return null;
+  }
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    width: Math.ceil(width),
+    height: Math.ceil(height)
+  };
+}
 
 export function initWindowHandlers(win: BrowserWindow): void {
   // 记录助手窗口的 padding（由渲染进程通过 IPC 动态设置）
   let assistantPadding = 100; // 默认值，等待渲染进程通过 setAssistantSize 设置
+  let assistantPaddingInitialized = false;
 
   // ---------------- Hover monitor to manage click-through ---------------
   // 在透明窗口上，为了让外部（Finder）拖拽能进入助手区域，我们需要在鼠标进入助手内层矩形时
@@ -26,6 +47,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
   // 初始值为 0，等待渲染进程通过 setAssistantSize 设置
   let assistantWidth = 0;
   let assistantHeight = 0;
+  let assistantInteractiveRegions: AssistantInteractiveRegion[] = [];
 
   // 缓存窗口边界，避免每次事件都调用 getBounds()
   let cachedBounds = win.getBounds();
@@ -40,16 +62,24 @@ export function initWindowHandlers(win: BrowserWindow): void {
   win.on('move', refreshBounds);
   win.on('resize', refreshBounds);
 
-  let lastInside = false;
+  let lastInside = true;
   function pointInside(x: number, y: number): boolean {
-    // 如果尺寸还未设置，返回 false（不认为在区域内）
-    if (assistantWidth <= 0 || assistantHeight <= 0) return false;
-    const padding = assistantPadding ?? 0;
-    const ax = cachedBounds.x + padding;
-    const ay = cachedBounds.y + padding;
-    const aw = assistantWidth;
-    const ah = assistantHeight;
-    return x >= ax && x <= ax + aw && y >= ay && y <= ay + ah;
+    if (assistantWidth > 0 && assistantHeight > 0) {
+      const padding = assistantPadding ?? 0;
+      const ax = cachedBounds.x + padding;
+      const ay = cachedBounds.y + padding;
+      const aw = assistantWidth;
+      const ah = assistantHeight;
+      if (x >= ax && x <= ax + aw && y >= ay && y <= ay + ah) {
+        return true;
+      }
+    }
+
+    return assistantInteractiveRegions.some((region) => {
+      const rx = cachedBounds.x + region.x;
+      const ry = cachedBounds.y + region.y;
+      return x >= rx && x <= rx + region.width && y >= ry && y <= ry + region.height;
+    });
   }
 
   function applyInsideState(inside: boolean): void {
@@ -88,6 +118,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
   // 全局钩子
   let uIOhook: any | null = null;
   let hookActive = false;
+  let hoverMonitorActive = false;
   function startHook(): void {
     stopHook();
     // macOS: 检查辅助功能授权，未授权时引导用户授权
@@ -126,28 +157,56 @@ export function initWindowHandlers(win: BrowserWindow): void {
     hookActive = false;
   }
 
+  function restoreMouseEvents(): void {
+    lastInside = true;
+    try {
+      win.setIgnoreMouseEvents(false, { forward: true });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function shouldRunHoverMonitor(): boolean {
+    return assistantPaddingInitialized && assistantPadding > 0;
+  }
+
   function startHoverMonitor(): void {
-    stopHoverMonitor();
+    if (!shouldRunHoverMonitor() || hoverMonitorActive) return;
+    hoverMonitorActive = true;
     try {
       startHook();
       if (!hookActive) startPolling();
     } catch {
       startPolling();
     }
+    pollOnce();
   }
-  function stopHoverMonitor(): void {
+  function stopHoverMonitor(options?: { restoreMouseEvents?: boolean }): void {
     stopHook();
     stopPolling();
+    hoverMonitorActive = false;
+    if (options?.restoreMouseEvents) {
+      restoreMouseEvents();
+    }
+  }
+
+  function syncHoverMonitor(): void {
+    if (shouldRunHoverMonitor()) {
+      startHoverMonitor();
+      if (hoverMonitorActive) {
+        pollOnce();
+      }
+      return;
+    }
+
+    stopHoverMonitor({ restoreMouseEvents: true });
   }
 
   // 主窗口关闭时统一销毁子窗口
   win.on('closed', () => {
     windowManager.destroyAll();
-    stopHoverMonitor();
+    stopHoverMonitor({ restoreMouseEvents: true });
   });
-
-  // 启动 hover 监控
-  startHoverMonitor();
 
   // Bootstrap WindowManager with main window context
   // 注意：anchorWidth 和 anchorHeight 初始为 0，会在 setAssistantSize 时更新
@@ -164,7 +223,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
       stopHoverMonitor();
     },
     onAfterFollowerHide: () => {
-      startHoverMonitor();
+      syncHoverMonitor();
     }
   });
 
@@ -177,6 +236,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
       // 更新记录的尺寸（这些值用于鼠标移动效果和窗口贴边等计算）
       assistantWidth = params.width;
       assistantHeight = params.height;
+      assistantPaddingInitialized = true;
 
       // 计算窗口总大小（助手尺寸 + padding * 2）
       const winWidth = params.width + params.padding * 2;
@@ -204,13 +264,28 @@ export function initWindowHandlers(win: BrowserWindow): void {
         // 更新窗口管理器的 padding（这个方法可能会调整窗口位置，但不会改变大小，因为我们已经设置了）
         windowManager.adjustMainWindowForPadding(oldPadding, params.padding);
       }
+      if (params.padding <= 0) {
+        assistantInteractiveRegions = [];
+      }
 
       // 刷新缓存边界
       refreshBounds();
+      syncHoverMonitor();
 
       return { success: true };
     } catch (error) {
       console.error('Failed to set assistant size:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('setAssistantInteractiveRegions', (_: IpcMainInvokeEvent, params: { regions?: Array<Partial<AssistantInteractiveRegion>> }) => {
+    try {
+      assistantInteractiveRegions = (params?.regions ?? []).map(normalizeInteractiveRegion).filter((region): region is AssistantInteractiveRegion => Boolean(region));
+      syncHoverMonitor();
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to set assistant interactive regions:', error);
       return { success: false, error: String(error) };
     }
   });

@@ -80,6 +80,34 @@ describe('sprite preload bridge', () => {
     });
   });
 
+  it('forwards sprite config updates without going through registration', async () => {
+    await spriteBridge.updateConfig('wave-1', {
+      width: 180,
+      height: 240,
+      padding: 80,
+      loop: true,
+      meta: {
+        title: 'Wave Edited',
+        primaryTrigger: 'wave'
+      }
+    });
+
+    expect(electronHarness.invoke).toHaveBeenCalledTimes(1);
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:updateConfig', {
+      id: 'wave-1',
+      patch: {
+        width: 180,
+        height: 240,
+        padding: 80,
+        loop: true,
+        meta: {
+          title: 'Wave Edited',
+          primaryTrigger: 'wave'
+        }
+      }
+    });
+  });
+
   it('forwards movement avoid regions through the movement IPC contract', async () => {
     const regions = [{ x: 720, y: 0, width: 560, height: 720 }];
 

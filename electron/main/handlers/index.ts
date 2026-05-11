@@ -8,6 +8,7 @@ import { initRecorderHandlers } from '../../../packages/recorder/ipc-main';
 import { initSherpaHandlers } from '../../../packages/sherpa/ipc-main';
 import { assertSpriteCapabilityUnlocked } from '../../../packages/sprite-core/capability-runtime';
 import { initSpriteHandlers, initSpriteManagerIPC } from '../../../packages/sprite-core/handler';
+import { SpriteManager } from '../../../packages/sprite-core/manager';
 import { DEFAULT_SPRITE_ROUTINE_PRESETS, SpritePurposeHistoryStore } from '../../../packages/sprite-core/purpose';
 import { SPRITE_EVENT_TYPES } from '../../../packages/sprite-core/types';
 import { initTTSHandlers } from '../../../packages/tts/ipc-main';
@@ -80,6 +81,8 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
     if (win && !win.isDestroyed()) return win;
     const existing = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
     return existing || null;
+  }, () => {
+    return SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
   });
   initStatusHandlers(win);
   await initAIHandlers(win);

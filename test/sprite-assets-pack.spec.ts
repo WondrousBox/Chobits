@@ -341,9 +341,11 @@ describe('sprite assets pack manifest integration', () => {
     });
 
     const registerFromData = electronState.handlers.get('sprite:registerFromData') as ((_: unknown, payload: { data: Buffer; meta: Record<string, unknown> }) => Promise<any>) | undefined;
+    const updateConfig = electronState.handlers.get('sprite:updateConfig') as ((_: unknown, payload: { id: string; patch: Record<string, unknown> }) => Promise<any>) | undefined;
     const removeSprite = electronState.handlers.get('sprite:remove') as ((_: unknown, payload: { id: string; deleteFile?: boolean }) => Promise<any>) | undefined;
 
     expect(registerFromData).toBeDefined();
+    expect(updateConfig).toBeDefined();
     expect(removeSprite).toBeDefined();
 
     const item = await registerFromData!(undefined, {
@@ -376,8 +378,57 @@ describe('sprite assets pack manifest integration', () => {
     expect(readFileSync(path.join(installedRoot, 'animations/custom-wave-1.webm'), 'utf-8')).toBe('custom-webm-edited');
     expect(existsSync(path.join(userDataDir!, 'data', 'sprites', 'index.json'))).toBe(false);
 
+    const configResult = await updateConfig!(undefined, {
+      id: 'custom-wave',
+      patch: {
+        width: 220,
+        height: 260,
+        padding: 72,
+        loop: true,
+        autoIdle: false,
+        movement: {
+          enabled: true,
+          mode: 'direction',
+          direction: 'left',
+          speed: 80
+        },
+        meta: {
+          title: 'Custom Wave Configured',
+          primaryTrigger: 'celebrate'
+        }
+      }
+    });
+    expect(configResult.ok).toBe(true);
+    expect(configResult.item).toMatchObject({
+      width: 220,
+      height: 260,
+      padding: 72,
+      loop: true,
+      autoIdle: false,
+      movement: {
+        enabled: true,
+        mode: 'direction',
+        direction: 'left',
+        speed: 80
+      },
+      meta: {
+        id: 'custom-wave',
+        title: 'Custom Wave Configured',
+        primaryTrigger: 'celebrate'
+      },
+      source: {
+        localPath: path.join(installedRoot, 'animations/custom-wave-1.webm')
+      }
+    });
+    const configuredIndex = JSON.parse(readFileSync(path.join(installedRoot, 'animations/index.json'), 'utf-8'));
+    expect(configuredIndex.items).toHaveLength(1);
+    expect(configuredIndex.items[0].source.localPath).toBe('custom-wave-1.webm');
+    expect(existsSync(path.join(installedRoot, 'animations/custom-wave-1.webm'))).toBe(true);
+    expect(readFileSync(path.join(installedRoot, 'animations/custom-wave-1.webm'), 'utf-8')).toBe('custom-webm-edited');
+
     const sprites = await spriteAssets.listSprites();
     expect(sprites.map((sprite) => sprite.meta.id)).toEqual(['custom-wave', 'builtin-idle']);
+    expect(sprites[0].meta.title).toBe('Custom Wave Configured');
     expect(sprites[0].meta.deletable).toBe(true);
     expect(sprites[1].meta.deletable).toBe(false);
 
@@ -439,6 +490,110 @@ describe('sprite assets pack manifest integration', () => {
     });
     expect(item.meta).not.toHaveProperty('eventType');
     expect(onAssetsChanged).toHaveBeenCalledWith({ reason: 'register', id: 'primary-trigger-only' });
+  });
+
+  it('stores config edits for readonly default sprites as user index overrides without touching the video file', async () => {
+    const rootDir = spritesRoot!;
+    writeJsonFile(path.join(rootDir, 'index.json'), {
+      version: 1,
+      items: [
+        {
+          meta: {
+            id: 'default-wave',
+            title: 'Default Wave',
+            primaryTrigger: 'wave'
+          },
+          source: {
+            localPath: 'default-wave.webm',
+            type: 'video/webm'
+          },
+          width: 180,
+          height: 240,
+          padding: 100,
+          loop: false,
+          autoIdle: true
+        }
+      ]
+    });
+    writeFileSync(path.join(rootDir, 'default-wave.webm'), 'default-wave-webm', 'utf-8');
+
+    const spriteAssets = await import('../packages/sprite-core/handler/sprite-assets');
+    spriteAssets.initSpriteHandlers({
+      addAllowedResourceRoot: vi.fn(),
+      getResourcePath: () => rootDir
+    });
+
+    const updateConfig = electronState.handlers.get('sprite:updateConfig') as ((_: unknown, payload: { id: string; patch: Record<string, unknown> }) => Promise<any>) | undefined;
+
+    expect(updateConfig).toBeDefined();
+
+    const result = await updateConfig!(undefined, {
+      id: 'default-wave',
+      patch: {
+        width: 210,
+        height: 250,
+        padding: 48,
+        loop: true,
+        autoIdle: false,
+        meta: {
+          title: 'Default Wave Configured',
+          primaryTrigger: 'celebrate',
+          triggerAliases: ['wave'],
+          priority: 4
+        }
+      }
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.item).toMatchObject({
+      width: 210,
+      height: 250,
+      padding: 48,
+      loop: true,
+      autoIdle: false,
+      meta: {
+        id: 'default-wave',
+        title: 'Default Wave Configured',
+        primaryTrigger: 'celebrate',
+        triggerAliases: ['wave'],
+        priority: 4,
+        deletable: true
+      },
+      source: {
+        localPath: path.join(rootDir, 'default-wave.webm')
+      }
+    });
+    expect(readFileSync(path.join(rootDir, 'default-wave.webm'), 'utf-8')).toBe('default-wave-webm');
+
+    const defaultIndex = JSON.parse(readFileSync(path.join(rootDir, 'index.json'), 'utf-8'));
+    expect(defaultIndex.items[0]).toMatchObject({
+      meta: {
+        title: 'Default Wave'
+      },
+      source: {
+        localPath: 'default-wave.webm'
+      }
+    });
+
+    const userIndex = JSON.parse(readFileSync(path.join(userDataDir!, 'data', 'sprites', 'index.json'), 'utf-8'));
+    expect(userIndex.items).toHaveLength(1);
+    expect(userIndex.items[0]).toMatchObject({
+      width: 210,
+      height: 250,
+      padding: 48,
+      loop: true,
+      autoIdle: false,
+      meta: {
+        id: 'default-wave',
+        title: 'Default Wave Configured',
+        primaryTrigger: 'celebrate',
+        triggerAliases: ['wave'],
+        priority: 4
+      },
+      source: {
+        localPath: path.join(rootDir, 'default-wave.webm')
+      }
+    });
   });
 
   it('replaces same-id sprite:register entries and removes the previous local file', async () => {
@@ -545,14 +700,16 @@ describe('sprite assets pack manifest integration', () => {
 
     const registerSprite = electronState.handlers.get('sprite:register') as ((_: unknown, payload: { filePath: string; meta: Record<string, unknown> }) => Promise<any>) | undefined;
     const registerFromData = electronState.handlers.get('sprite:registerFromData') as ((_: unknown, payload: { data: Buffer; meta: Record<string, unknown> }) => Promise<any>) | undefined;
+    const updateConfig = electronState.handlers.get('sprite:updateConfig') as ((_: unknown, payload: { id: string; patch: Record<string, unknown> }) => Promise<any>) | undefined;
     const updateMeta = electronState.handlers.get('sprite:updateMeta') as ((_: unknown, payload: { id: string; meta: Record<string, unknown> }) => Promise<any>) | undefined;
     const removeSprite = electronState.handlers.get('sprite:remove') as ((_: unknown, payload: { id: string }) => Promise<any>) | undefined;
 
     await expect(registerSprite!(undefined, { filePath: sourcePath, meta: { id: 'locked-authoring' } })).rejects.toThrow('locked:spriteManage');
     await expect(registerFromData!(undefined, { data: Buffer.from('fake-webm'), meta: { id: 'locked-from-data' } })).rejects.toThrow('locked:spriteManage');
+    await expect(updateConfig!(undefined, { id: 'locked-authoring', patch: { width: 200 } })).rejects.toThrow('locked:spriteManage');
     await expect(updateMeta!(undefined, { id: 'locked-authoring', meta: { title: 'Locked' } })).rejects.toThrow('locked:spriteManage');
     await expect(removeSprite!(undefined, { id: 'locked-authoring' })).rejects.toThrow('locked:spriteManage');
-    expect(assertCapabilityUnlocked).toHaveBeenCalledTimes(4);
+    expect(assertCapabilityUnlocked).toHaveBeenCalledTimes(5);
     expect(assertCapabilityUnlocked).toHaveBeenCalledWith('spriteManage');
   });
 });

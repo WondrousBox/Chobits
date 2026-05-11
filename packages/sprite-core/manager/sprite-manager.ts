@@ -752,7 +752,7 @@ export class SpriteManager {
   }
 
   /** 通知消息 */
-  showNotice(content: string, options?: { buttons?: any[]; duration?: number; persistent?: boolean; routineId?: string; level?: string }): void {
+  showNotice(content: string, options?: { buttons?: any[]; duration?: number; persistent?: boolean; routineId?: string; level?: string; speak?: boolean }): void {
     const payload: MessageIPCPayload = {
       type: 'notice',
       content,
@@ -765,7 +765,7 @@ export class SpriteManager {
     this.sendRendererMessage(payload);
 
     // 自动朗读通知内容
-    if (content && !this._speakGuard) {
+    if (options?.speak !== false && content && !this._speakGuard) {
       this.speakService.speak(content).catch(() => {});
     }
   }

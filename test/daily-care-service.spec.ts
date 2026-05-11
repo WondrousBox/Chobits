@@ -143,6 +143,30 @@ describe('daily care service broadcasts', () => {
     expect(dispatched).toHaveLength(1);
   });
 
+  it('dispatches routine notices through the sprite message channel when available', async () => {
+    const { DailyCareService } = await import('../electron/main/daily/service');
+    const showNotice = vi.fn();
+    const service = new DailyCareService(() => null, () => ({ showNotice }));
+
+    expect(service.triggerRoutineById('care:night-guardian')).toEqual({ ok: true });
+
+    expect(showNotice).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        level: 'warning',
+        persistent: true,
+        routineId: 'care:night-guardian',
+        duration: 0,
+        speak: false,
+        buttons: expect.arrayContaining([
+          expect.objectContaining({ id: 'know', action: 'dismiss' }),
+          expect.objectContaining({ id: 'snooze', action: 'snooze' })
+        ])
+      })
+    );
+    expect(sendAppNoticeMock).not.toHaveBeenCalled();
+  });
+
   it('uses real minutes for interval routine scheduling', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-05-05T09:00:00+08:00'));

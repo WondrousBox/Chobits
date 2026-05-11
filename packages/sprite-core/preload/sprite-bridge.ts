@@ -75,6 +75,12 @@ export type SpriteBridgeType = {
     movement?: SpriteAnimation['movement'];
   }): Promise<SpriteAnimation>;
   remove(id: string, deleteFile?: boolean): Promise<{ ok: boolean }>;
+  updateConfig(
+    id: string,
+    patch: Partial<Pick<SpriteAnimation, 'width' | 'height' | 'padding' | 'loop' | 'autoIdle' | 'durationMs' | 'loopStartMs' | 'loopEndMs' | 'movement'>> & {
+      meta?: Partial<SpriteAnimation['meta']>;
+    }
+  ): Promise<{ ok: boolean; item?: SpriteAnimation }>;
   updateMeta(id: string, meta: Partial<SpriteAnimation['meta']>): Promise<{ ok: boolean; item?: SpriteAnimation }>;
 
   // 交互上报
@@ -174,6 +180,7 @@ export const spriteBridge: SpriteBridgeType = {
   register: (anim) => ipcRenderer.invoke('sprite:register', anim),
   registerFromData: (payload) => ipcRenderer.invoke('sprite:registerFromData', payload),
   remove: (id, deleteFile) => ipcRenderer.invoke('sprite:remove', { id, deleteFile }),
+  updateConfig: (id, patch) => ipcRenderer.invoke('sprite:updateConfig', { id, patch }),
   updateMeta: (id, meta) => ipcRenderer.invoke('sprite:updateMeta', { id, meta }),
 
   // ── 交互上报 ─────────────────────────────────────────────
