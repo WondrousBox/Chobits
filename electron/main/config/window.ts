@@ -676,6 +676,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     routeHash: 'sprite-bubble',
     followMain: true,
     followerPreferMode: 'fixed-top' as any,
+    followerClampToWorkArea: false,
     preferShowInactive: true,
     suspendHoverMonitorOnShow: false,
     parent: 'main',

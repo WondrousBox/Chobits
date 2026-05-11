@@ -52,7 +52,7 @@
     "ws": "^8.19.0"
   },
   "devDependencies": {
-    "@aim-packages/window-manager": "^0.5.1",
+    "@aim-packages/window-manager": "^0.5.2",
     "@aim-packages/downloader": "^0.1.0",
     "@aim-packages/file-utils": "^0.2.0",
     "@aim-packages/subtitle": "^0.5.1",
