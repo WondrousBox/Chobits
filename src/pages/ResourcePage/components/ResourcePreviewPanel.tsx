@@ -74,11 +74,11 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
         return;
       }
       try {
-        const children: ResourceItem[] = await window.YUA.resource['resource:listChildren']({
+        const children = await window.YUA.resource['resource:listChildren']({
           parentResourceId: data.id,
           limit: 100,
           offset: 0
-        });
+        }) as ResourceItem[];
         const subs = (children || []).filter((item) => isSubtitleFile(item.filePath));
         setSubtitleList(subs);
         setActiveSubtitle((prev) => {

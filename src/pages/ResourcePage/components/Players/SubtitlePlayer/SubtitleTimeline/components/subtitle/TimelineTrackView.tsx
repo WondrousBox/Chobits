@@ -214,7 +214,7 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
       <div className="absolute inset-0 bg-background" role="presentation" onMouseDown={handleTrackBackgroundMouseDown} onClick={handleTrackBackgroundClick} />
 
       <InlinePendingSegmentInput
-        pendingSegment={pendingNewSegment}
+        pendingSegment={pendingNewSegment ?? null}
         pixelsPerSecond={pixelsPerSecond}
         top={DEFAULT_CONFIG.TRACK_GAP / 2}
         height={height + 20}

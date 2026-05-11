@@ -20,6 +20,7 @@ export function createDefaultSpriteStateContextValue(): SpriteStateContextValue 
     currentAnimation: null,
     walkDirection: null,
     isWalking: false,
+    isDragging: false,
     spriteConfig: DEFAULT_SPRITE_CONFIG,
     ready: false
   };
@@ -82,7 +83,7 @@ export class SpriteStateRuntimeController {
     private readonly bridge: SpriteStateRuntimeBridge,
     private readonly onChange: (value: SpriteStateContextValue) => void,
     private readonly onError?: (error: unknown) => void
-  ) {}
+  ) { }
 
   getSnapshot(): SpriteStateContextValue {
     return this.value;

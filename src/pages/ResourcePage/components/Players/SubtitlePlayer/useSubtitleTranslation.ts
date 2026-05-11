@@ -560,27 +560,30 @@ export function useSubtitleTranslation({ resourceId, subtitleEntriesRef, onTrans
                   }
                 }
                 if (item.summary && item.startIndex !== undefined && item.endIndex !== undefined) {
-                  for (let i = item.startIndex; i <= item.endIndex; i++) {
-                    newChunkSummaries.set(i, item.summary);
+                  const summaryVal = item.summary;
+                  const startIndexVal = item.startIndex;
+                  const endIndexVal = item.endIndex;
+                  for (let i = startIndexVal; i <= endIndexVal; i++) {
+                    newChunkSummaries.set(i, summaryVal);
                   }
                   setChunkSummaryInfoMap((prev) => {
                     const next = new Map(prev);
                     let foundChunkIndex = -1;
                     for (const [chunkIdx, info] of next) {
-                      if (info.startIndex === item.startIndex && info.endIndex === item.endIndex) {
+                      if (info.startIndex === startIndexVal && info.endIndex === endIndexVal) {
                         foundChunkIndex = chunkIdx;
                         break;
                       }
                     }
                     if (foundChunkIndex >= 0) {
-                      next.set(foundChunkIndex, { ...next.get(foundChunkIndex)!, summary: item.summary });
+                      next.set(foundChunkIndex, { ...next.get(foundChunkIndex)!, summary: summaryVal });
                     } else {
                       const newChunkIndex = next.size;
                       next.set(newChunkIndex, {
                         chunkIndex: newChunkIndex,
-                        summary: item.summary,
-                        startIndex: item.startIndex,
-                        endIndex: item.endIndex
+                        summary: summaryVal,
+                        startIndex: startIndexVal,
+                        endIndex: endIndexVal
                       });
                     }
                     return next;

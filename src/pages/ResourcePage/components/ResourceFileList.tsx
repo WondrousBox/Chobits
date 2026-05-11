@@ -31,7 +31,7 @@ const ResourceFileList: React.FC<ResourceFileListProps> = ({ currentResource, on
       setLoading(true);
       try {
         // 如果当前资源有 workspaceId，只查询该工作空间的资源，提高性能
-        const allResources: ResourceItem[] = await window.YUA.resource['resource:list'](currentResource.workspaceId ? { workspaceId: currentResource.workspaceId } : undefined);
+        const allResources = await window.YUA.resource['resource:list'](currentResource.workspaceId ? { workspaceId: currentResource.workspaceId } : undefined) as ResourceItem[];
         let filteredResources: ResourceItem[] = [];
 
         const visibleResources = (allResources || []).filter((r: any) => r.type !== 'screenshot');

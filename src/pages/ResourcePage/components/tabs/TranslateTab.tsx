@@ -284,7 +284,7 @@ const TranslateTab: React.FC = () => {
 
   const handleStopTranslation = useCallback(async () => {
     if (currentRequestId) {
-      await window.YUA.ai.cancelTranslation(currentRequestId);
+      await window.YUA.ai.cancelTranslate(currentRequestId);
       setCurrentRequestId(null);
     }
     setIsTranslating(false);

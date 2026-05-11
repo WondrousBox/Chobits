@@ -378,7 +378,7 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
         </div>
 
         <InlinePendingSegmentInput
-          pendingSegment={pendingNewSegment}
+          pendingSegment={pendingNewSegment ?? null}
           pixelsPerSecond={pixelsPerSecond}
           top={DEFAULT_CONFIG.TRACK_GAP / 2}
           height={DEFAULT_CONFIG.TRACK_HEIGHT + 20}

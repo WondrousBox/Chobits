@@ -46,7 +46,7 @@ const ResourceRunPopover: React.FC<ResourceRunPopoverProps> = ({ disabled, runni
     try {
       const list = await resourceApi['resource:list']();
       if (Array.isArray(list)) {
-        setResources(list);
+        setResources(list as ResourceItem[]);
       } else {
         setResources([]);
       }

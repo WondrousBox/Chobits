@@ -697,6 +697,7 @@ export type AIApi = {
 
   // ==================== 脑图相关 ====================
 
+  getResourceMindmap(resourceId: string): Promise<{ markdown: string } | null>;
   generateMindmap(payload: MindmapRequest): Promise<{ requestId: string }>;
   cancelMindmap(requestId: string): Promise<{ ok: boolean }>;
 

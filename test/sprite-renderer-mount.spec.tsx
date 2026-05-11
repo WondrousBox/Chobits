@@ -90,6 +90,7 @@ describe('sprite renderer mount', () => {
       currentAnimation: null,
       walkDirection: null,
       isWalking: false,
+      isDragging: false,
       ready: true,
       spriteConfig: {
         width: 180,
