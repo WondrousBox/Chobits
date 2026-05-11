@@ -13,7 +13,7 @@ import { MEDIA_CONFIG } from '../../types';
  * 媒体轨道标签组件 Props
  * 扩展自统一的 TrackLabelProps，添加媒体轨道特有属性
  */
-export interface MediaTrackLabelProps extends TrackLabelProps {
+export interface MediaTrackLabelProps extends Omit<TrackLabelProps, 'track'> {
   /** 轨道完整数据（用于获取额外信息如高度，可选） */
   track: MediaTrackData;
 }

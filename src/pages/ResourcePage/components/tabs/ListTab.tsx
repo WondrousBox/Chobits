@@ -12,7 +12,7 @@ const ListTab: React.FC = () => {
 
   return (
     <div className="h-full overflow-hidden">
-      <ResourceFileList currentResource={resource} onResourceChange={onResourceChange} />
+      <ResourceFileList currentResource={resource} onResourceChange={onResourceChange!} />
     </div>
   );
 };

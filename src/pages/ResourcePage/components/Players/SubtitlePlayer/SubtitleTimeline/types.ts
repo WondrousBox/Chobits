@@ -766,6 +766,8 @@ export interface MediaTrackCallbacks {
   onSegmentSelect?: (trackId: string, segmentId: string | null) => void;
   /** 请求生成缩略图 */
   onThumbnailRequest?: (trackId: string, segmentId: string) => void;
+  /** 工具切换回调 */
+  onToolChange?: (tool: MediaTool) => void;
 }
 
 /**

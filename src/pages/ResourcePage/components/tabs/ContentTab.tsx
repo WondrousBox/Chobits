@@ -60,7 +60,7 @@ const ContentTab: React.FC = () => {
           variant="outline"
           onClick={() => {
             // 使用系统默认程序打开文件
-            window.YUA.file['file:openInDefaultApp'](resource.filePath!);
+            window.YUA.file['file:openPath'](resource.filePath!);
           }}
         >
           <TbExternalLink className="w-4 h-4 mr-2" />

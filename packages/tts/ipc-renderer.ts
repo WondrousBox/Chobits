@@ -166,6 +166,16 @@ export interface TTSIpcRenderer {
    * @returns 取消监听的函数
    */
   onEvent: (callback: (event: TTSEventData) => void) => () => void;
+
+  /**
+   * 更新单条TTS片段的时间（st/et）
+   */
+  updateSegmentTimes: (params: { resourceId: string; trackId: TTSTrackId; configPrefix: string; md5: string; st: number; et: number }) => Promise<{ success: boolean }>;
+
+  /**
+   * 从历史记录中移除单个片段
+   */
+  removeSegmentFromHistory: (params: { resourceId: string; trackId: TTSTrackId; configPrefix: string; md5: string }) => Promise<{ success: boolean }>;
 }
 
 /**

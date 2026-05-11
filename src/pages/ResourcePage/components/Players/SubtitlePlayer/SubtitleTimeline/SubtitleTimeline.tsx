@@ -868,7 +868,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                     {hasTTSTrack && (
                       <TTSAudioTrack
                         key={`tts-${ttsTrackId}`}
-                        ttsTrackId={ttsTrackId}
+                        trackId={ttsTrackId}
                         items={ttsItems ?? []}
                         viewport={viewport}
                         totalDuration={duration}
@@ -904,7 +904,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                   return (
                     <TTSAudioTrack
                       key={`standalone-tts-content-${stt.id}`}
-                      ttsTrackId={stt.id}
+                      trackId={stt.id}
                       items={items}
                       viewport={viewport}
                       totalDuration={duration}

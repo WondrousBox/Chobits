@@ -271,7 +271,7 @@ const ResourceTabs: React.FC<ResourceTabsProps> = ({
       }
 
       const Component = tabComponent.component;
-      return <Component mediaPlayerRef={mediaPlayerRef} />;
+      return <Component />;
     },
     [mediaPlayerRef]
   );

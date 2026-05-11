@@ -31,6 +31,8 @@ type FFmpegIpcParams = {
       {
         inputPath: string;
         samplesCount?: number;
+        resourceId?: string;
+        workspaceId?: string;
       }
     ],
     { peaks: number[]; duration: number }

@@ -244,7 +244,7 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, resolveAudioUr
 
   /** 更新单条 TTS 的字幕时间（st/et）：立即更新本地状态，防抖后写回 history */
   const updateTTSSegmentTimes = useCallback(
-    (trackId: string, index: number, newStartTime: number, newEndTime: number) => {
+    async (trackId: string, index: number, newStartTime: number, newEndTime: number) => {
       const item = synthesizedItemsByTrack.get(trackId)?.get(index);
       const md5 = item?.md5;
       const configPrefix = lastConfigPrefixByTrackRef.current.get(trackId);
@@ -345,7 +345,7 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, resolveAudioUr
               return;
             }
             const audioPath = history.trimmedAudioMap[md5] || history.audioMap[md5];
-            const info = history.segmentInfoMap?.[md5];
+            const info = history.segmentInfoMap?.[md5] as { st?: number; et?: number; duration?: number; trimmedDuration?: number; text?: string } | undefined;
             const duration = info?.duration;
             const trimmedDuration = info?.trimmedDuration;
             const startTime = parseStEt(info?.st);
@@ -620,7 +620,7 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, resolveAudioUr
               const trackMap = prev.get(trackId) ?? new Map();
               const nextTrack = new Map(trackMap);
               for (const result of results) {
-                const info = result.md5 && segmentInfoMap?.[result.md5];
+                const info = result.md5 ? segmentInfoMap?.[result.md5] : undefined;
                 const startTime = parseStEt(info?.st);
                 const endTime = parseStEt(info?.et);
                 // 首次合成完成：存去静音路径、md5、st/et，与加载历史时一致，时间轴可实时更新

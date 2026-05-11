@@ -16,7 +16,8 @@ function TrackIcon({ type }: { type: ExportTrack['type'] }): JSX.Element {
     video: '🎬',
     audio: '🎵',
     subtitle: '📝',
-    'tts-audio': '🔊'
+    'tts-audio': '🔊',
+    annotation: '📌'
   };
   return <span className="text-base">{icons[type] || '📄'}</span>;
 }
@@ -27,7 +28,8 @@ export function TrackSelector({ tracks, selectedIds, onToggle, disabled }: Track
       video: '视频',
       audio: '音频',
       subtitle: '字幕',
-      'tts-audio': '语音'
+      'tts-audio': '语音',
+      annotation: '标注'
     };
     return labels[type];
   };

@@ -14,6 +14,8 @@ export interface SpriteStateContextValue {
   walkDirection: 'left' | 'right' | null;
   /** 是否正在行走 */
   isWalking: boolean;
+  /** 是否正在拖拽 */
+  isDragging: boolean;
   /** 精灵尺寸配置 */
   spriteConfig: SpriteConfig;
   /** 是否已就绪 */
