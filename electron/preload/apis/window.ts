@@ -6,6 +6,10 @@ import { IPCParams } from '../type';
 type WindowBridgeParams = {
   /** 设置助手窗口大小和 padding */
   setAssistantSize: IPCParams<[{ width: number; height: number; padding: number }], { success: boolean; error?: string }>;
+  setAssistantInteractiveRegions: IPCParams<
+    [{ regions: Array<{ x: number; y: number; width: number; height: number }> }],
+    { success: boolean; error?: string }
+  >;
   'screen:work-area:get': IPCParams<[string?], { x: number; y: number; width: number; height: number }>;
   'window:bounds:set': IPCParams<
     [string, { x: number; y: number; width: number; height: number }],
@@ -136,7 +140,15 @@ export interface WindowAnimationStopOptions {
   complete?: boolean;
 }
 
-const methods: Array<keyof WindowBridgeParams> = ['setAssistantSize', 'screen:work-area:get', 'window:bounds:set', 'window:animation:play', 'window:animation:stop', 'window:animation:state'];
+const methods: Array<keyof WindowBridgeParams> = [
+  'setAssistantSize',
+  'setAssistantInteractiveRegions',
+  'screen:work-area:get',
+  'window:bounds:set',
+  'window:animation:play',
+  'window:animation:stop',
+  'window:animation:state'
+];
 
 export type WindowBridgeType = {
   [K in keyof WindowBridgeParams]: (...args: WindowBridgeParams[K]['request']) => Promise<WindowBridgeParams[K]['response']>;

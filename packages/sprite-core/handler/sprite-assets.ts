@@ -7,6 +7,7 @@
  *   sprite:get         — 获取单个动画
  *   sprite:register    — 注册新动画
  *   sprite:remove      — 删除动画
+ *   sprite:updateConfig — 更新动画播放/触发配置
  *   sprite:updateMeta  — 更新元数据
  */
 
@@ -46,12 +47,18 @@ interface SpriteIndexReadOptions {
   containmentRootDirs?: string[];
 }
 
-type SpriteAssetsChangeReason = 'register' | 'registerFromData' | 'remove' | 'updateMeta';
+type SpriteAssetsChangeReason = 'register' | 'registerFromData' | 'remove' | 'updateConfig' | 'updateMeta';
 
 export interface SpriteAssetsChangeEvent {
   reason: SpriteAssetsChangeReason;
   id?: string;
 }
+
+type SpriteAnimationConfigPatch = Partial<
+  Pick<SpriteAnimation, 'width' | 'height' | 'padding' | 'loop' | 'autoIdle' | 'durationMs' | 'loopStartMs' | 'loopEndMs' | 'movement'>
+> & {
+  meta?: Partial<SpriteAnimation['meta']>;
+};
 
 /** 外部依赖注入 */
 export interface SpriteAssetsDeps {
@@ -276,6 +283,51 @@ function normalizeIncomingSpriteMeta(meta: SpriteAnimationMetaInput | undefined,
     title: normalizedMetaPatch.title ?? options.title,
     deletable: options.deletable
   }) as SpriteAnimation['meta'];
+}
+
+function applySpriteAnimationConfigPatch(item: SpriteAnimation, patch: SpriteAnimationConfigPatch): SpriteAnimation {
+  const next: SpriteAnimation = { ...item };
+
+  const numericKeys = ['width', 'height', 'padding', 'durationMs', 'loopStartMs', 'loopEndMs'] as const;
+  for (const key of numericKeys) {
+    if (Object.prototype.hasOwnProperty.call(patch, key)) {
+      const value = patch[key];
+      if (value === undefined) {
+        delete next[key];
+      } else if (typeof value === 'number' && Number.isFinite(value)) {
+        next[key] = value;
+      }
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'loop')) {
+    next.loop = patch.loop;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'autoIdle')) {
+    next.autoIdle = patch.autoIdle;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'movement')) {
+    next.movement = patch.movement;
+  }
+
+  if (patch.meta) {
+    const normalizedMetaPatch = normalizeSpriteAnimationMetaPatch(patch.meta);
+    next.meta = normalizeIncomingSpriteMeta(
+      {
+        ...next.meta,
+        ...normalizedMetaPatch
+      },
+      {
+        id: next.meta.id,
+        title: normalizedMetaPatch.title ?? next.meta.title,
+        deletable: true
+      }
+    );
+  }
+
+  return normalizeSpriteAnimationItem(next);
 }
 
 async function writeUserIndex(index: SpriteIndex): Promise<void> {
@@ -737,6 +789,51 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
       notifySpriteAssetsChanged({ reason: 'updateMeta', id });
       return { ok: true, item: normalizeSpriteAnimationItem(newItem) };
     }
+    return { ok: false };
+  });
+
+  ipcMain.handle('sprite:updateConfig', async (_e, payload: { id: string; patch: SpriteAnimationConfigPatch }) => {
+    ensureAssetAuthoringCapability();
+
+    const { id, patch } = payload || ({} as any);
+    if (!id || !patch) return { ok: false };
+
+    const { defaultIndex, defaultSprites, userIndex, userSprites } = await readVisibleSpriteIndexes();
+
+    if (defaultIndex.writable) {
+      const indexItemIndex = defaultSprites.items.findIndex((i) => i.meta.id === id);
+      if (indexItemIndex === -1) {
+        return { ok: false };
+      }
+
+      const nextItem = applySpriteAnimationConfigPatch(defaultSprites.items[indexItemIndex], patch);
+      defaultSprites.items.splice(indexItemIndex, 1, nextItem);
+      await writeSpriteIndex(defaultIndex, defaultSprites);
+      notifySpriteAssetsChanged({ reason: 'updateConfig', id });
+      return { ok: true, item: nextItem };
+    }
+
+    const userIndexItemIndex = userSprites.items.findIndex((i) => i.meta.id === id);
+    if (userIndexItemIndex >= 0) {
+      const nextItem = applySpriteAnimationConfigPatch(userSprites.items[userIndexItemIndex], patch);
+      userSprites.items.splice(userIndexItemIndex, 1, nextItem);
+      await writeUserIndex(userSprites);
+      notifySpriteAssetsChanged({ reason: 'updateConfig', id });
+      return { ok: true, item: nextItem };
+    }
+
+    const defaultIndexItem = defaultSprites.items.find((i) => i.meta.id === id);
+    if (defaultIndexItem) {
+      const nextItem = applySpriteAnimationConfigPatch(defaultIndexItem, patch);
+      const uIdx = userIndex ? await readIndex(userIndex.indexPath, { containmentRootDirs: getUserIndexContainmentRoots(userIndex, defaultIndex) }) : ({ version: 1, items: [] } satisfies SpriteIndex);
+      const existed = uIdx.items.findIndex((i) => i.meta.id === id);
+      if (existed >= 0) uIdx.items.splice(existed, 1, nextItem);
+      else uIdx.items.push(nextItem);
+      await writeUserIndex(uIdx);
+      notifySpriteAssetsChanged({ reason: 'updateConfig', id });
+      return { ok: true, item: nextItem };
+    }
+
     return { ok: false };
   });
 }

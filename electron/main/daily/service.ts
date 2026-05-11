@@ -19,6 +19,7 @@ import type {
   DailyCareSnapshot,
   DailyCareStorage,
   IntervalSchedule,
+  NoticeDispatcherResolver,
   RoutineRuntime,
   RoutineSchedule,
   RoutineState,
@@ -63,12 +64,16 @@ export class DailyCareService {
   private powerMonitorBound = false;
   private currentPersistentRoutineId: string | null = null; // 当前常驻显示的提醒ID
   private routineDispatchListeners = new Set<DailyCareRoutineDispatchListener>();
+  private readonly noticeDispatcherResolver?: NoticeDispatcherResolver;
 
   constructor(
     private readonly windowResolver: WindowResolver,
+    noticeDispatcherResolverOrOptions?: NoticeDispatcherResolver | DailyCareServiceOptions,
     options?: DailyCareServiceOptions
   ) {
-    this.scheduler = options?.scheduler === undefined ? getMainSchedulerService() : options.scheduler;
+    const resolvedOptions = typeof noticeDispatcherResolverOrOptions === 'function' || noticeDispatcherResolverOrOptions === undefined ? options : noticeDispatcherResolverOrOptions;
+    this.noticeDispatcherResolver = typeof noticeDispatcherResolverOrOptions === 'function' ? noticeDispatcherResolverOrOptions : undefined;
+    this.scheduler = resolvedOptions?.scheduler === undefined ? getMainSchedulerService() : resolvedOptions.scheduler;
     this.state = loadDailyCareState();
     this.rebuildRuntimes();
     this.bindScheduler();
@@ -488,20 +493,37 @@ export class DailyCareService {
 
     const message = this.composeMessage(runtime, now);
     const level = this.toNoticeLevel(runtime.definition.severity);
-    try {
-      sendAppNotice(
-        {
-          message,
+    const durationMs = isPersistent ? 0 : level === 'warning' || level === 'error' ? 8000 : undefined;
+    const noticeDispatcher = this.noticeDispatcherResolver?.();
+    if (noticeDispatcher) {
+      try {
+        noticeDispatcher.showNotice(message, {
           level,
-          durationMs: isPersistent ? 0 : level === 'warning' || level === 'error' ? 8000 : undefined,
+          duration: durationMs,
           persistent: isPersistent,
           routineId: runtime.definition.id,
-          buttons: runtime.definition.buttons
-        },
-        this.windowResolver()
-      );
-    } catch (error) {
-      console.warn('[daily-care] send notice failed', error);
+          buttons: runtime.definition.buttons,
+          speak: false
+        });
+      } catch (error) {
+        console.warn('[daily-care] sprite notice dispatch failed', error);
+      }
+    } else {
+      try {
+        sendAppNotice(
+          {
+            message,
+            level,
+            durationMs,
+            persistent: isPersistent,
+            routineId: runtime.definition.id,
+            buttons: runtime.definition.buttons
+          },
+          this.windowResolver()
+        );
+      } catch (error) {
+        console.warn('[daily-care] send notice failed', error);
+      }
     }
 
     this.emitRoutineDispatched(runtime, message, now, Boolean(meta?.manual));

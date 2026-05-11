@@ -8,7 +8,7 @@
  */
 
 import clsx from 'clsx';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useMessage } from './MessageContext';
 import { BusyRenderer, NoticeRenderer, ToastRenderer } from './renderers';
@@ -23,6 +23,7 @@ export function SpriteMessage({ className, placement = 'inline' }: SpriteMessage
   const { current, dismiss, handleButtonClick } = useMessage();
   const [visible, setVisible] = useState(false);
   const [displayMessage, setDisplayMessage] = useState(current);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   // 处理消息切换动画
   useEffect(() => {
@@ -70,6 +71,59 @@ export function SpriteMessage({ className, placement = 'inline' }: SpriteMessage
     };
   }, [current, displayMessage]);
 
+  useEffect(() => {
+    if (placement !== 'inline') return;
+    const setInteractiveRegions = window.YUA?.window?.setAssistantInteractiveRegions;
+    if (typeof setInteractiveRegions !== 'function') return;
+
+    if (!displayMessage || !visible) {
+      void setInteractiveRegions({ regions: [] }).catch(() => undefined);
+      return;
+    }
+
+    const node = containerRef.current;
+    if (!node) return;
+
+    let raf: number | null = null;
+
+    const publishRegion = (): void => {
+      const rect = node.getBoundingClientRect();
+      void setInteractiveRegions({
+        regions: [
+          {
+            x: rect.left,
+            y: rect.top,
+            width: rect.width,
+            height: rect.height
+          }
+        ]
+      })
+        .catch(() => undefined);
+    };
+
+    const schedule = (): void => {
+      if (raf != null) return;
+      raf = requestAnimationFrame(() => {
+        raf = null;
+        publishRegion();
+      });
+    };
+
+    schedule();
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(schedule) : null;
+    observer?.observe(node);
+    window.addEventListener('resize', schedule);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', schedule);
+      if (raf != null) {
+        cancelAnimationFrame(raf);
+      }
+      void setInteractiveRegions({ regions: [] }).catch(() => undefined);
+    };
+  }, [placement, displayMessage, visible]);
+
   // 如果没有消息要显示，返回 null
   if (!displayMessage) return null;
 
@@ -89,6 +143,12 @@ export function SpriteMessage({ className, placement = 'inline' }: SpriteMessage
 
   return (
     <div
+      ref={containerRef}
+      onClick={(event) => event.stopPropagation()}
+      onContextMenu={(event) => event.stopPropagation()}
+      onDoubleClick={(event) => event.stopPropagation()}
+      onMouseDown={(event) => event.stopPropagation()}
+      onMouseUp={(event) => event.stopPropagation()}
       className={clsx(
         // 定位
         placement === 'inline' ? 'absolute -top-[32px] left-1/2 -translate-x-1/2 z-10' : 'relative z-10 inline-flex max-w-full justify-center',

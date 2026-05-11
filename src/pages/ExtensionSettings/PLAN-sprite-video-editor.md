@@ -49,9 +49,9 @@ VideoSprite (<video> 播放 + timeupdate 驱动阶段切换)
 - **全局用户精灵兜底**：`$SETTINGS_DIR/data/sprites/index.json` + 复制的 `.webm` 文件；用于没有可写 installed 角色包时叠加到默认精灵上（`deletable: true`）
 - **SpriteAnimation 类型**包含 `loopStartMs`、`loopEndMs`、`durationMs`、`width`、`height`、`padding` 等播放配置
 - **注册流程**：渲染器 → `sprite:register` IPC → 优先写入当前 installed 角色包的 `animations/`；若当前动画索引不可写，则复制到全局用户 sprites 目录并写入 user `index.json`
-- **再次编辑流程**：动画卡片 hover 操作区提供编辑按钮；可写动画会用当前 `SpriteAnimation.source.localPath`、metadata、尺寸、padding、loop 与 movement 配置重新打开 `SpriteVideoEditor`，保存时复用原 `meta.id` 覆盖原条目。
-- **覆盖清理**：同 ID 重新注册后，旧 `localPath` 若位于当前可写动画根目录内且不再被索引引用，会被自动删除，避免角色包 `animations/` 目录累积废弃文件。
-- **当前边界**：再次编辑恢复的是已经持久化到 `SpriteAnimation` 的播放配置；原始未裁剪视频、色度键参数等工程态信息尚未写入动画条目，因此重新编辑会以当前已生成的 WebM 动画作为输入。
+- **再次编辑流程**：动画卡片 hover 操作区提供编辑按钮；可写动画会打开轻量属性编辑面板，只修改 `SpriteAnimation` 已登记的名称、trigger、尺寸、padding、loop、autoIdle、movement 与条件规则。
+- **属性保存**：再次编辑走 `sprite:updateConfig`，只更新当前动画索引里的 JSON 配置，不重新裁剪、不抠图、不录制、不转码，也不改动 `source.localPath` 指向的视频文件。
+- **覆盖清理**：导入/录制路径同 ID 重新注册时，旧 `localPath` 若位于当前可写动画根目录内且不再被索引引用，会被自动删除，避免角色包 `animations/` 目录累积废弃文件。
 
 ### 动画分类体系
 

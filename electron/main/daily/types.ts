@@ -144,3 +144,19 @@ export interface DailyCareRoutineDispatch {
 export type DailyCareRoutineDispatchListener = (event: DailyCareRoutineDispatch) => void | Promise<void>;
 
 export type WindowResolver = () => BrowserWindow | null;
+
+export interface DailyCareNoticeDispatcher {
+  showNotice(
+    content: string,
+    options?: {
+      buttons?: NoticeButton[];
+      duration?: number;
+      persistent?: boolean;
+      routineId?: string;
+      level?: string;
+      speak?: boolean;
+    }
+  ): void;
+}
+
+export type NoticeDispatcherResolver = () => DailyCareNoticeDispatcher | null;

@@ -8,6 +8,10 @@ const ipcMainRemoveHandler = vi.fn((channel: string) => {
   ipcHandlers.delete(channel);
 });
 const browserWindowFromWebContents = vi.fn();
+const dynamicRequireMock = vi.fn(() => {
+  throw new Error('uiohook unavailable in tests');
+});
+let cursorPoint = { x: 0, y: 0 };
 
 const windowManagerState = {
   init: vi.fn(),
@@ -33,9 +37,7 @@ vi.mock('@aim-packages/window-manager', () => ({
 }));
 
 vi.mock('node:module', () => ({
-  createRequire: () => () => {
-    throw new Error('uiohook unavailable in tests');
-  }
+  createRequire: () => dynamicRequireMock
 }));
 
 vi.mock('electron', () => ({
@@ -50,7 +52,7 @@ vi.mock('electron', () => ({
     removeHandler: ipcMainRemoveHandler
   },
   screen: {
-    getCursorScreenPoint: () => ({ x: 0, y: 0 }),
+    getCursorScreenPoint: () => cursorPoint,
     getDisplayMatching: vi.fn(() => ({ workArea: { x: 10, y: 20, width: 1280, height: 720 } })),
     getPrimaryDisplay: vi.fn(() => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }))
   }
@@ -75,6 +77,8 @@ describe('window handlers', () => {
     ipcMainHandle.mockClear();
     ipcMainRemoveHandler.mockClear();
     browserWindowFromWebContents.mockReset();
+    dynamicRequireMock.mockClear();
+    cursorPoint = { x: 0, y: 0 };
     Object.values(windowManagerState).forEach((mockFn) => mockFn.mockClear());
     process.env.APP_ROOT = '/app-root';
   });
@@ -100,6 +104,47 @@ describe('window handlers', () => {
     const [, windowManagerOptions] = windowManagerState.init.mock.calls[0] ?? [];
     expect(windowManagerOptions.windowConfigs.skillTree.trueFullscreen).toBe(true);
     expect(windowManagerOptions.windowConfigs.skillTree.showOnReady).toBe(true);
+    expect(win.setIgnoreMouseEvents).not.toHaveBeenCalled();
+    expect(dynamicRequireMock).not.toHaveBeenCalled();
+  });
+
+  it('does not start hover click-through when assistant padding is zero', async () => {
+    const { initWindowHandlers } = await import('../electron/main/handlers/window');
+    const win = createWindowStub();
+    initWindowHandlers(win);
+
+    const setAssistantSize = ipcHandlers.get('setAssistantSize') as (
+      event: unknown,
+      params: { width: number; height: number; padding: number }
+    ) => { success: boolean };
+
+    cursorPoint = { x: 400, y: 400 };
+    expect(setAssistantSize({}, { width: 120, height: 120, padding: 0 })).toEqual({ success: true });
+    expect(win.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false, { forward: true });
+    expect(win.setIgnoreMouseEvents).not.toHaveBeenCalledWith(true, { forward: true });
+    expect(dynamicRequireMock).not.toHaveBeenCalled();
+  });
+
+  it('stops hover click-through when padding switches back to zero', async () => {
+    const { initWindowHandlers } = await import('../electron/main/handlers/window');
+    const win = createWindowStub();
+    win.getBounds.mockReturnValue({ x: 100, y: 100, width: 320, height: 320 });
+    initWindowHandlers(win);
+
+    const setAssistantSize = ipcHandlers.get('setAssistantSize') as (
+      event: unknown,
+      params: { width: number; height: number; padding: number }
+    ) => { success: boolean };
+
+    cursorPoint = { x: 20, y: 20 };
+    expect(setAssistantSize({}, { width: 120, height: 120, padding: 100 })).toEqual({ success: true });
+    expect(dynamicRequireMock).toHaveBeenCalledWith('uiohook-napi');
+    expect(win.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true, { forward: true });
+
+    dynamicRequireMock.mockClear();
+    expect(setAssistantSize({}, { width: 120, height: 120, padding: 0 })).toEqual({ success: true });
+    expect(win.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false, { forward: true });
+    expect(dynamicRequireMock).not.toHaveBeenCalled();
   });
 
   it('opens toggled devtools as a detached window for the invoking window', async () => {
@@ -176,5 +221,31 @@ describe('window handlers', () => {
     });
     expect(windowManagerState.get).toHaveBeenCalledWith('chatOverlay');
     expect(targetWindow.setBounds).toHaveBeenCalledWith({ x: 10, y: 21, width: 560, height: 720 });
+  });
+
+  it('treats reported inline message regions as interactive for click-through', async () => {
+    const { initWindowHandlers } = await import('../electron/main/handlers/window');
+    const win = createWindowStub();
+    win.getBounds.mockReturnValue({ x: 100, y: 100, width: 400, height: 400 });
+    initWindowHandlers(win);
+
+    const setAssistantSize = ipcHandlers.get('setAssistantSize') as (
+      event: unknown,
+      params: { width: number; height: number; padding: number }
+    ) => { success: boolean };
+    const setAssistantInteractiveRegions = ipcHandlers.get('setAssistantInteractiveRegions') as (
+      event: unknown,
+      params: { regions: Array<{ x: number; y: number; width: number; height: number }> }
+    ) => { success: boolean };
+
+    cursorPoint = { x: 250, y: 130 };
+    expect(setAssistantSize({}, { width: 120, height: 120, padding: 100 })).toEqual({ success: true });
+    expect(win.setIgnoreMouseEvents).not.toHaveBeenCalledWith(false, { forward: true });
+
+    expect(setAssistantInteractiveRegions({}, { regions: [{ x: 140, y: 20, width: 160, height: 60 }] })).toEqual({ success: true });
+    expect(win.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false, { forward: true });
+
+    expect(setAssistantInteractiveRegions({}, { regions: [] })).toEqual({ success: true });
+    expect(win.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true, { forward: true });
   });
 });
