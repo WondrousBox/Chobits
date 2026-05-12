@@ -1,9 +1,11 @@
+import type { PluginConfig } from '@packages/plugins/plugin-config-store';
 import { isPluginCompatibleWithPlatform, isSystemPresetPlugin, PluginCategory, PluginDefinition } from '@packages/plugins/types';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { TbBox, TbDownload, TbFilter, TbLoader, TbPlug, TbSettings, TbWifi, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 
@@ -44,12 +46,60 @@ import type { InstalledResource } from './components/types';
 
 interface PluginPageProps { }
 
+type DownloadSettingKey =
+  | 'deletePartialDownloadOnCancel'
+  | 'deletePartialDownloadOnFailure'
+  | 'deleteDownloadedFileOnFailure'
+  | 'deleteArchiveAfterInstall'
+  | 'downloaderResumeValidation'
+  | 'downloaderDebug';
+
+const DOWNLOAD_SETTING_ITEMS: Array<{
+  key: DownloadSettingKey;
+  title: string;
+  description: string;
+}> = [
+    {
+      key: 'deletePartialDownloadOnCancel',
+      title: '取消后删除临时文件',
+      description: '关闭后，取消下载会保留 .download 文件，方便下次继续下载。'
+    },
+    {
+      key: 'deletePartialDownloadOnFailure',
+      title: '失败后删除临时文件',
+      description: '关闭后，下载失败时保留未完成的临时文件。'
+    },
+    {
+      key: 'deleteDownloadedFileOnFailure',
+      title: '失败后删除目标文件',
+      description: '控制非压缩资源下载失败时是否清理目标文件。'
+    },
+    {
+      key: 'deleteArchiveAfterInstall',
+      title: '安装后删除压缩包',
+      description: '开启后，解压安装完成会清理原始压缩包。'
+    },
+    {
+      key: 'downloaderResumeValidation',
+      title: '续传前校验远端资源',
+      description: '开启后，继续下载前会用 HEAD 校验资源是否变化。'
+    },
+    {
+      key: 'downloaderDebug',
+      title: '下载器 debug 日志',
+      description: '开启后打印 aim-downloader 的内部调试日志。'
+    }
+  ];
+
 const PluginPage: React.FC<PluginPageProps> = () => {
   const [supported, setSupported] = useState<PluginDefinition[]>([]);
   const [installed, setInstalled] = useState<InstalledResource[]>([]);
+  const [downloadConfig, setDownloadConfig] = useState<PluginConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [tabValue, setTabValue] = useState<'available' | 'installed'>('available');
   const [installing, setInstalling] = useState<string | null>(null);
+  const [installingIds, setInstallingIds] = useState<Set<string>>(() => new Set());
+  const installingIdsRef = useRef<Set<string>>(new Set());
   const [selectedPluginId, setSelectedPluginId] = useState<string | null>(null);
   const [showNetworkDialog, setShowNetworkDialog] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<PluginCategory | null>(null);
@@ -72,11 +122,15 @@ const PluginPage: React.FC<PluginPageProps> = () => {
       try {
         const sup = await window.YUA.pluginResource['plugin-resource:listSupported']();
         const inst = await window.YUA.pluginResource['plugin-resource:list']();
+        const configRes = await window.YUA.pluginResource['plugin-resource:getConfig']();
         if (!mounted) return;
         // 过滤掉不兼容当前平台的插件
         const compatibleSup = sup.filter((plugin: PluginDefinition) => isPluginCompatibleWithPlatform(plugin, window.YUA.platform, window.YUA.arch));
         setSupported(compatibleSup);
         setInstalled(inst);
+        if (configRes.ok && configRes.config) {
+          setDownloadConfig(configRes.config);
+        }
       } finally {
         if (mounted) setLoading(false);
       }
@@ -133,7 +187,10 @@ const PluginPage: React.FC<PluginPageProps> = () => {
   }, []);
 
   const install = async (pluginId: string, resourceId: string): Promise<void> => {
+    if (installingIdsRef.current.has(resourceId)) return;
+    installingIdsRef.current.add(resourceId);
     setInstalling(resourceId);
+    setInstallingIds((prev) => new Set(prev).add(resourceId));
     try {
       const res = await window.YUA.pluginResource['plugin-resource:install']({ pluginId, resourceId, deleteAfterInstall: true });
       if (res.ok && res.data) {
@@ -151,26 +208,41 @@ const PluginPage: React.FC<PluginPageProps> = () => {
       }
     } finally {
       setInstalling(null);
+      setInstallingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(resourceId);
+        return next;
+      });
+      installingIdsRef.current.delete(resourceId);
     }
   };
 
   const cancel = async (id: string): Promise<void> => {
-    const res = await window.YUA.pluginResource['plugin-resource:cancel']({ id });
-    if (res.ok) {
-      setInstalled((prev) => prev.map((m) => (m.id === id ? { ...m, status: 'cancelled' } : m)));
-    }
+    await window.YUA.pluginResource['plugin-resource:cancel']({ id });
   };
 
   const retry = async (id: string): Promise<void> => {
     const resource = installed.find((r) => r.id === id);
     if (!resource) return;
-    const res = await window.YUA.pluginResource['plugin-resource:install']({
-      pluginId: resource.pluginId,
-      resourceId: resource.resourceId,
-      deleteAfterInstall: true
-    });
-    if (res.ok) {
-      setInstalled((prev) => prev.map((m) => (m.id === id ? { ...m, status: 'queued', progressBytes: 0 } : m)));
+    if (installingIdsRef.current.has(resource.resourceId)) return;
+    installingIdsRef.current.add(resource.resourceId);
+    setInstallingIds((prev) => new Set(prev).add(resource.resourceId));
+    try {
+      const res = await window.YUA.pluginResource['plugin-resource:install']({
+        pluginId: resource.pluginId,
+        resourceId: resource.resourceId,
+        deleteAfterInstall: true
+      });
+      if (res.ok) {
+        setInstalled((prev) => prev.map((m) => (m.id === id ? { ...m, status: 'queued', progressBytes: 0 } : m)));
+      }
+    } finally {
+      setInstallingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(resource.resourceId);
+        return next;
+      });
+      installingIdsRef.current.delete(resource.resourceId);
     }
   };
 
@@ -179,6 +251,22 @@ const PluginPage: React.FC<PluginPageProps> = () => {
     if (res.ok) {
       setInstalled((prev) => prev.filter((m) => m.id !== id));
     }
+  };
+
+  const updateDownloadConfig = async (patch: Partial<PluginConfig>): Promise<void> => {
+    setDownloadConfig((prev) => ({ ...(prev || {}), ...patch }));
+    const res = await window.YUA.pluginResource['plugin-resource:setConfig'](patch);
+    if (res.ok && res.config) {
+      setDownloadConfig(res.config);
+    }
+  };
+
+  const getDownloadSettingChecked = (key: DownloadSettingKey): boolean => {
+    if (!downloadConfig) return false;
+    if (key === 'deleteArchiveAfterInstall') {
+      return downloadConfig.deleteArchiveAfterInstall ?? true;
+    }
+    return !!downloadConfig[key];
   };
 
   // 根据当前标签页和分类筛选要显示的资源列表
@@ -283,7 +371,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
 
   // 渲染资源列表项
   const renderResourceItem = (resource: PluginDefinition): React.ReactElement => {
-    const busy = installing === resource.id;
+    const busy = installing === resource.id || installingIds.has(resource.id);
     const rec = installed.find((m) => m.pluginId === resource.pluginId && m.name === resource.name && m.status !== 'removed');
     // 如果是系统预设插件，创建一个虚拟的已安装资源记录
     const isSystemPreset = isSystemPresetPlugin(resource);
@@ -314,7 +402,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
   return (
     <div className="h-full flex flex-col">
       {/* 顶部工具栏 */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+      <div className="flex items-center px-4 py-3 border-b border-border">
         <Tabs value={tabValue} onValueChange={(v) => setTabValue(v as 'available' | 'installed')} className="no-drag flex-1">
           <TabsList className="h-8">
             <TabsTrigger value="available" className="text-xs px-3">
@@ -329,7 +417,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
         {/* 分类筛选 */}
         <Popover>
           <PopoverTrigger asChild>
-            <Button size="sm" variant={selectedCategory ? 'default' : 'outline'} className="h-8 text-xs">
+            <Button size="sm" variant={selectedCategory ? 'default' : 'ghost'} className="h-8 text-xs">
               <TbFilter className="h-4 w-4 mr-1" />
               {selectedCategory ? CATEGORY_CONFIG.find((c) => c.value === selectedCategory)?.label : '分类'}
             </Button>
@@ -359,8 +447,8 @@ const PluginPage: React.FC<PluginPageProps> = () => {
 
         <Popover>
           <PopoverTrigger asChild>
-            <Button size="sm" variant="outline" className="h-8 text-xs" title="设置下载文件夹">
-              <TbSettings className="h-4 w-4 mr-1" />
+            <Button size="sm" variant="ghost" title="设置下载文件夹">
+              <TbSettings />
               存储位置
             </Button>
           </PopoverTrigger>
@@ -368,12 +456,44 @@ const PluginPage: React.FC<PluginPageProps> = () => {
             <SelectModelFolder />
           </PopoverContent>
         </Popover>
-        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => window.YUA.window['window:open']('pluginDownload')}>
-          <TbDownload className="h-4 w-4 mr-1" />
+        <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => window.YUA.window['window:open']('pluginDownload')}>
+          <TbDownload />
           下载管理
         </Button>
-        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowNetworkDialog(true)}>
-          <TbWifi className="h-4 w-4 mr-1" />
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button size="sm" variant="ghost" className="h-8 text-xs">
+              <TbSettings />
+              下载设置
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-96 p-0" align="end">
+            <div className="border-b border-border px-4 py-3">
+              <div className="text-sm font-medium">下载设置</div>
+              <div className="text-xs text-muted-foreground mt-1">控制下载取消、失败清理和续传校验行为。</div>
+            </div>
+            <div className="divide-y divide-border">
+              {DOWNLOAD_SETTING_ITEMS.map((item) => (
+                <div key={item.key} className="flex items-center gap-4 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm leading-5">{item.title}</div>
+                    <div className="text-xs leading-5 text-muted-foreground">{item.description}</div>
+                  </div>
+                  <Switch
+                    aria-label={item.title}
+                    checked={getDownloadSettingChecked(item.key)}
+                    disabled={!downloadConfig}
+                    onCheckedChange={(checked) => {
+                      void updateDownloadConfig({ [item.key]: checked });
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+        <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setShowNetworkDialog(true)}>
+          <TbWifi />
           网络测试
         </Button>
       </div>

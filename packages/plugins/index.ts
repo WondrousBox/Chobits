@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import type { Downloader, ProxyAgent } from '@aim-packages/downloader';
+import type { Downloader, DownloadOptions, ProxyAgent } from '@aim-packages/downloader';
 import { AppEvent, eventManager } from '@packages/event';
 import { app } from 'electron';
 
@@ -67,6 +67,12 @@ interface InternalTask {
   lastTickAt?: number;
   deleteAfterInstall?: boolean; // 是否在安装完成后删除下载文件
   proxyAgent?: ProxyAgent;
+}
+
+function isAbortLikeError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const maybeError = error as { name?: string; message?: string };
+  return maybeError.name === 'AbortError' || maybeError.name === 'DownloadCancelledError' || maybeError.message === 'Download cancelled';
 }
 
 /**
@@ -277,7 +283,13 @@ export class PluginResourceManager extends EventEmitter {
    * @param resource 资源对象
    * @param deleteAfterInstall 是否在安装完成后删除下载文件，默认为false
    */
-  enqueue(resource: PluginResource, deleteAfterInstall: boolean = false, options?: { proxyAgent?: ProxyAgent }): void {
+  enqueue(resource: PluginResource, deleteAfterInstall: boolean = false, options?: { proxyAgent?: ProxyAgent }): PluginResource {
+    const activeTask = this.getActiveTask(resource.id);
+    if (activeTask) {
+      console.log('[PluginDL] skip duplicate enqueue', { id: resource.id, status: activeTask.resource.status });
+      return activeTask.resource;
+    }
+
     // 保存到store
     PluginResourceStore.upsert(resource);
 
@@ -298,6 +310,15 @@ export class PluginResourceManager extends EventEmitter {
     this.queue.push(task);
     console.log('[PluginDL] enqueue', { id: resource.id, url: resource.sourceUrl, installPath: resource.installPath });
     this.kick();
+    return resource;
+  }
+
+  isActive(id: string): boolean {
+    return !!this.getActiveTask(id);
+  }
+
+  private getActiveTask(id: string): InternalTask | undefined {
+    return this.running.find((t) => t.resource.id === id) || this.queue.find((t) => t.resource.id === id);
   }
 
   /**
@@ -305,6 +326,8 @@ export class PluginResourceManager extends EventEmitter {
    */
   cancel(id: string): void {
     const inRun = this.running.find((t) => t.resource.id === id);
+    const inQueue = this.queue.find((t) => t.resource.id === id);
+    const existing = PluginResourceStore.get(id);
     if (inRun && inRun.controller) {
       try {
         inRun.controller.abort();
@@ -312,9 +335,15 @@ export class PluginResourceManager extends EventEmitter {
         // 忽略取消错误
       }
     }
-    this.queue = this.queue.filter((t) => t.resource.id !== id);
     console.warn('[PluginDL] cancel', { id });
-    this.emitProgress(id, { status: 'cancelled', doneBytes: 0 });
+    if (!inRun && (inQueue || existing)) {
+      const resource = inQueue?.resource || existing;
+      if (!resource) return;
+      resource.status = 'cancelled';
+      PluginResourceStore.patch(id, { status: 'cancelled', lastError: undefined });
+      this.emitProgress(id, { status: 'cancelled', doneBytes: 0 });
+    }
+    this.queue = this.queue.filter((t) => t.resource.id !== id);
   }
 
   /**
@@ -374,6 +403,7 @@ export class PluginResourceManager extends EventEmitter {
       throw new Error('DOWNLOADER_NOT_INITIALIZED');
     }
 
+    const pluginConfig = PluginConfigStore.getConfig();
     task.resource.status = 'downloading';
     task.startedAt = Date.now();
     task.lastTickAt = task.startedAt;
@@ -443,7 +473,7 @@ export class PluginResourceManager extends EventEmitter {
       if (!skipDownload) {
         console.log('[PluginDL] start download', { id: task.resource.id, url, finalFile });
         // 下载文件（下载器会自动添加 .download 后缀，并在下载完成后进行 hash 验证和重命名）
-        await this.downloader.download(url!, finalFile, {
+        const downloadOptions: DownloadOptions = {
           onProgress: (p) => {
             this.emitProgress(task.resource.id, {
               status: 'downloading',
@@ -457,7 +487,14 @@ export class PluginResourceManager extends EventEmitter {
           signal: task.controller?.signal,
           proxyAgent: task.proxyAgent,
           sha256: task.resource.sha256 // 如果提供了 sha256，下载器会自动验证
-        });
+        };
+        if (pluginConfig.downloaderResumeValidation !== undefined) {
+          downloadOptions.resumeValidation = pluginConfig.downloaderResumeValidation;
+        }
+        if (pluginConfig.downloaderDebug !== undefined) {
+          downloadOptions.debug = pluginConfig.downloaderDebug;
+        }
+        await this.downloader.download(url!, finalFile, downloadOptions);
       }
 
       // 第三步：根据类型处理
@@ -469,7 +506,8 @@ export class PluginResourceManager extends EventEmitter {
         await this.extractArchive(finalFile, installDir, archiveType, task.resource.extractTo, task);
 
         // 根据参数决定是否删除压缩包（默认不删除）
-        if (task.deleteAfterInstall && fs.existsSync(finalFile)) {
+        const deleteArchiveAfterInstall = pluginConfig.deleteArchiveAfterInstall ?? task.deleteAfterInstall;
+        if (deleteArchiveAfterInstall && fs.existsSync(finalFile)) {
           try {
             fs.unlinkSync(finalFile);
             console.log('[PluginDL] removed archive after install', { id: task.resource.id });
@@ -503,8 +541,10 @@ export class PluginResourceManager extends EventEmitter {
       console.log('[PluginDL] installed', { id: task.resource.id, installPath: task.resource.installPath });
       eventManager.emit(AppEvent.SPRITE_DOWNLOAD_COMPLETE, { name: task.resource.name || task.resource.id });
     } catch (err: any) {
-      if (err.name === 'AbortError') {
+      const isCancelled = isAbortLikeError(err);
+      if (isCancelled) {
         task.resource.status = 'cancelled';
+        PluginResourceStore.patch(task.resource.id, { status: 'cancelled', lastError: undefined });
         console.warn('[PluginDL] cancelled', { id: task.resource.id });
         this.emitProgress(task.resource.id, { status: 'cancelled' });
       } else {
@@ -518,9 +558,10 @@ export class PluginResourceManager extends EventEmitter {
         this.emitProgress(task.resource.id, { status: 'failed', error: task.resource.lastError });
         eventManager.emit(AppEvent.SPRITE_DOWNLOAD_FAIL, { name: task.resource.name || task.resource.id });
       }
-      // 清理临时的 .download 文件（下载中断时的临时文件）
+      // 根据配置决定是否清理临时的 .download 文件（下载中断时的临时文件）
       const tempFile = `${finalFile}.download`;
-      if (fs.existsSync(tempFile)) {
+      const shouldDeletePartialDownload = isCancelled ? pluginConfig.deletePartialDownloadOnCancel !== false : pluginConfig.deletePartialDownloadOnFailure !== false;
+      if (shouldDeletePartialDownload && fs.existsSync(tempFile)) {
         try {
           fs.unlinkSync(tempFile);
         } catch {
@@ -529,7 +570,7 @@ export class PluginResourceManager extends EventEmitter {
       }
       // 只在下载阶段失败时删除已下载的文件
       // 如果是解压阶段失败（文件已下载完成），保留文件以避免重新下载
-      if (archiveType === 'none' && fs.existsSync(finalFile)) {
+      if (archiveType === 'none' && pluginConfig.deleteDownloadedFileOnFailure !== false && fs.existsSync(finalFile)) {
         // 非压缩包类型，下载失败时清理不完整的文件
         try {
           fs.unlinkSync(finalFile);

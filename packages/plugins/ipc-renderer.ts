@@ -1,5 +1,7 @@
 import { ipcRenderer } from 'electron';
 
+import type { PluginConfig } from './plugin-config-store';
+
 export type PluginResourceIpcType = {
   'plugin-resource:listSupported': () => Promise<any[]>;
   'plugin-resource:listInstalledEngines': () => Promise<any[]>;
@@ -18,6 +20,8 @@ export type PluginResourceIpcType = {
   'plugin-resource:setPluginsDir': (payload: { dir: string }) => Promise<{ ok: boolean }>;
   'plugin-resource:getConcurrency': () => Promise<{ ok: boolean; concurrency?: number }>;
   'plugin-resource:setConcurrency': (payload: { concurrency: number }) => Promise<{ ok: boolean }>;
+  'plugin-resource:getConfig': () => Promise<{ ok: boolean; config?: PluginConfig }>;
+  'plugin-resource:setConfig': (payload: Partial<PluginConfig>) => Promise<{ ok: boolean; config?: PluginConfig }>;
   'plugin-resource:checkNetwork': () => Promise<{ ok: boolean; results: Array<{ name: string; url: string; success: boolean; error?: string }> }>;
 };
 
@@ -39,5 +43,7 @@ export const pluginResourceIpcRenderer: PluginResourceIpcType = {
   'plugin-resource:setPluginsDir': (payload) => ipcRenderer.invoke('plugin-resource:setPluginsDir', payload),
   'plugin-resource:getConcurrency': () => ipcRenderer.invoke('plugin-resource:getConcurrency'),
   'plugin-resource:setConcurrency': (payload) => ipcRenderer.invoke('plugin-resource:setConcurrency', payload),
+  'plugin-resource:getConfig': () => ipcRenderer.invoke('plugin-resource:getConfig'),
+  'plugin-resource:setConfig': (payload) => ipcRenderer.invoke('plugin-resource:setConfig', payload),
   'plugin-resource:checkNetwork': () => ipcRenderer.invoke('plugin-resource:checkNetwork')
 };
