@@ -11,7 +11,7 @@
 import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
 import type { SpriteAnimationCondition, SpriteAnimationTrigger, SpriteMovementConfig, SpriteMovementDirection, SpriteMovementMode, SpriteMovementTrigger } from '@packages/sprite-core/types';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbPlayerPause, TbPlayerPlay, TbPlus, TbX, TbZoomIn, TbZoomOut } from 'react-icons/tb';
+import { TbPlayerPause, TbPlayerPlay, TbX, TbZoomIn, TbZoomOut } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,17 +24,12 @@ import { ensureSpriteCapabilityAccessible, SpriteCapabilityLockedNotice } from '
 import { createSpriteAnimationMetaDraft, formatSpriteAnimationConditionInput, formatSpriteTriggerAliasesInput, parseSpriteAnimationConditionInput } from './components/sprite-animation-meta-utils';
 import SpriteAnimationConditionBuilder from './components/SpriteAnimationConditionBuilder';
 import SpriteTriggerPicker from './components/SpriteTriggerPicker';
+import { hasLoopSegment, isTimeInTrimmedSegment, normalizeSegmentMarkers, type SegmentMarkerKey, type SegmentMarkers, updateSegmentMarker } from './sprite-video-segments';
+
+export type { SegmentMarkers } from './sprite-video-segments';
 
 // 三段预览阶段
 type PreviewPhase = 'idle' | 'intro' | 'loop' | 'outro';
-
-// 片段标记类型
-export interface SegmentMarkers {
-  start: number; // 开始时间 (ms)
-  loopStart: number; // 循环开始时间 (ms)
-  loopEnd: number; // 循环结束时间 (ms)
-  end: number; // 结束时间 (ms)
-}
 
 // 片段倍速设置
 export interface SegmentSpeeds {
@@ -71,6 +66,7 @@ const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 const SPRITE_MOVEMENT_MODE_SET = new Set<SpriteMovementMode>(['direction', 'walkTo']);
 const SPRITE_MOVEMENT_DIRECTION_SET = new Set<SpriteMovementDirection>(['left', 'right', 'up', 'down', 'up-left', 'up-right', 'down-left', 'down-right', 'random']);
 const SPRITE_MOVEMENT_TRIGGER_SET = new Set<SpriteMovementTrigger>(['animation', 'behavior']);
+const VIDEO_READY_STATE_HAVE_CURRENT_DATA = 2;
 
 type SpriteVideoEditorStoredFormSettings = {
   chromaKey?: ChromaKeySettings;
@@ -304,7 +300,7 @@ function SpeedRow({ label, color, originalDuration, speed, onChange }: { label: 
 }
 
 // 计算拖拽时光标的透明度（拖拽时其他光标降低透明度）
-function getMarkerOpacity(markerKey: keyof SegmentMarkers, draggingMarker: keyof SegmentMarkers | null): number {
+function getMarkerOpacity(markerKey: SegmentMarkerKey, draggingMarker: SegmentMarkerKey | null): number {
   if (!draggingMarker) return 1;
   return markerKey === draggingMarker ? 1 : 0.3;
 }
@@ -326,6 +322,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
 
   // 视频状态
   const [inputPath, setInputPath] = useState<string>(initialConfig?.inputPath || '');
+  const [videoResourceVersion, setVideoResourceVersion] = useState(0);
   const [duration, setDuration] = useState<number>(0);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -376,7 +373,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
   const previewRafRef = useRef<number>(0);
 
   // 时间轴拖拽状态
-  const [draggingMarker, setDraggingMarker] = useState<keyof SegmentMarkers | null>(null);
+  const [draggingMarker, setDraggingMarker] = useState<SegmentMarkerKey | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
   const suppressNextTimelineClickRef = useRef(false);
 
@@ -401,7 +398,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
   const [hoverPosition, setHoverPosition] = useState<number | null>(null);
 
   // 判断是否有循环片段
-  const hasLoop = segments.loopEnd > segments.loopStart;
+  const hasLoop = hasLoopSegment(segments);
   const playbackLoop = hasLoop || loopWholeClip;
 
   useEffect(() => {
@@ -433,6 +430,8 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
   // 添加循环片段（在指定位置，默认在中间）
   const addLoop = useCallback(
     (position?: number) => {
+      if (position !== undefined && !isTimeInTrimmedSegment(segments, position, duration)) return;
+
       const loopDuration = Math.min(3000, (segments.end - segments.start) / 3); // 默认3秒或1/3时长
       const center = position ?? (segments.start + segments.end) / 2;
       const halfLoop = loopDuration / 2;
@@ -448,7 +447,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
         loopEnd
       }));
     },
-    [segments.start, segments.end]
+    [duration, segments]
   );
 
   // 更新配置
@@ -474,6 +473,58 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
     }
   }, [inputPath, segments, chromaKey, speeds, output, playbackScale, padding, movement, autoIdle, playbackLoop, animationMeta, title, onConfigChange]);
 
+  const drawChromaPreviewFrame = useCallback((): boolean => {
+    if (!previewChroma || !chromaKey.enabled) return false;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || video.readyState < VIDEO_READY_STATE_HAVE_CURRENT_DATA || !video.videoWidth || !video.videoHeight) return false;
+
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return false;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    try {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    } catch {
+      return false;
+    }
+
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+
+    const targetR = parseInt(chromaKey.color.slice(1, 3), 16);
+    const targetG = parseInt(chromaKey.color.slice(3, 5), 16);
+    const targetB = parseInt(chromaKey.color.slice(5, 7), 16);
+    const threshold = (chromaKey.similarity / 100) * 255;
+
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const distance = Math.sqrt((r - targetR) ** 2 + (g - targetG) ** 2 + (b - targetB) ** 2);
+
+      if (distance < threshold) {
+        data[i + 3] = 0;
+      } else if (distance < threshold + chromaKey.blend) {
+        const alpha = ((distance - threshold) / chromaKey.blend) * 255;
+        data[i + 3] = Math.min(data[i + 3], alpha);
+      }
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+    return true;
+  }, [chromaKey, previewChroma]);
+
+  const requestChromaPreviewFrame = useCallback(() => {
+    if (!previewChroma) return;
+    requestAnimationFrame(() => {
+      drawChromaPreviewFrame();
+    });
+  }, [drawChromaPreviewFrame, previewChroma]);
+
   // 视频加载完成
   const handleLoadedMetadata = useCallback(() => {
     const video = videoRef.current;
@@ -481,27 +532,17 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
     const dur = video.duration * 1000;
     setDuration(dur);
     // 初始化片段标记
-    setSegments((prev) => {
-      const start = Math.max(0, Math.min(prev.start, dur));
-      const end = prev.end > 0 ? Math.max(start, Math.min(prev.end, dur)) : dur;
-      const loopStart = Math.max(start, Math.min(prev.loopStart, end));
-      const loopEnd = prev.loopEnd > loopStart ? Math.min(prev.loopEnd, end) : loopStart;
-
-      return {
-        start,
-        loopStart,
-        loopEnd,
-        end
-      };
-    });
-  }, []);
+    setSegments((prev) => normalizeSegmentMarkers(prev, dur));
+    requestChromaPreviewFrame();
+  }, [requestChromaPreviewFrame]);
 
   // 时间更新
   const handleTimeUpdate = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
     setCurrentTime(video.currentTime * 1000);
-  }, []);
+    requestChromaPreviewFrame();
+  }, [requestChromaPreviewFrame]);
 
   // 播放/暂停
   const togglePlay = useCallback(() => {
@@ -525,25 +566,12 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
   }, []);
 
   // 设置片段标记（带约束：start <= loopStart <= loopEnd <= end）
-  const setMarker = useCallback((marker: keyof SegmentMarkers, value: number) => {
-    setSegments((prev) => {
-      const next = { ...prev, [marker]: value };
-      // 约束：start <= loopStart <= loopEnd <= end
-      if (next.start > next.loopStart) {
-        if (marker === 'start') next.loopStart = next.start;
-        else next.start = next.loopStart;
-      }
-      if (next.loopStart > next.loopEnd) {
-        if (marker === 'loopStart') next.loopEnd = next.loopStart;
-        else next.loopStart = next.loopEnd;
-      }
-      if (next.loopEnd > next.end) {
-        if (marker === 'loopEnd') next.end = next.loopEnd;
-        else next.loopEnd = next.end;
-      }
-      return next;
-    });
-  }, []);
+  const setMarker = useCallback(
+    (marker: SegmentMarkerKey, value: number) => {
+      setSegments((prev) => updateSegmentMarker(prev, marker, value, duration));
+    },
+    [duration]
+  );
 
   // 获取文件所在目录
   const getDirPath = useCallback((filePath: string): string => {
@@ -551,6 +579,30 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
     const lastSlash = normalized.lastIndexOf('/');
     return lastSlash >= 0 ? filePath.slice(0, lastSlash) : filePath;
   }, []);
+
+  useEffect(() => {
+    if (!inputPath) return;
+
+    let cancelled = false;
+    const dirPath = getDirPath(inputPath);
+
+    window.YUA.sprite
+      .addTempResourceRoot(dirPath)
+      .catch((error) => {
+        console.warn('精灵视频预览资源根注册失败:', error);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setVideoResourceVersion((version) => version + 1);
+        requestAnimationFrame(() => {
+          videoRef.current?.load();
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getDirPath, inputPath]);
 
   // 选择文件
   const handleSelectFile = useCallback(async () => {
@@ -579,57 +631,65 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
 
   // 色度键预览（始终跟随视频帧更新，含暂停帧）
   useEffect(() => {
-    if (!previewChroma || !chromaKey.enabled || !videoRef.current || !canvasRef.current) return;
+    if (!previewChroma || !chromaKey.enabled || !inputPath) return;
+
+    let animationId = 0;
+    let disposed = false;
+    let forceDraw = true;
+    let lastTime = -1;
+    let lastWidth = 0;
+    let lastHeight = 0;
 
     const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return;
+    const markDirty = (): void => {
+      forceDraw = true;
+    };
 
-    let animationId: number;
-    let lastTime = -1;
     const draw = (): void => {
-      // 总是绘制（含暂停帧），但跳过重复帧
-      const t = video.currentTime;
-      if (t !== lastTime || lastTime < 0) {
-        lastTime = t;
-        canvas.width = video.videoWidth || 320;
-        canvas.height = video.videoHeight || 240;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      if (disposed) return;
 
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
+      const currentVideo = videoRef.current;
+      if (currentVideo) {
+        const dimensionsChanged = currentVideo.videoWidth !== lastWidth || currentVideo.videoHeight !== lastHeight;
+        const timeChanged = currentVideo.currentTime !== lastTime;
 
-        const targetR = parseInt(chromaKey.color.slice(1, 3), 16);
-        const targetG = parseInt(chromaKey.color.slice(3, 5), 16);
-        const targetB = parseInt(chromaKey.color.slice(5, 7), 16);
-        const threshold = (chromaKey.similarity / 100) * 255;
-
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i];
-          const g = data[i + 1];
-          const b = data[i + 2];
-          const distance = Math.sqrt((r - targetR) ** 2 + (g - targetG) ** 2 + (b - targetB) ** 2);
-
-          if (distance < threshold) {
-            data[i + 3] = 0;
-          } else if (distance < threshold + chromaKey.blend) {
-            const alpha = ((distance - threshold) / chromaKey.blend) * 255;
-            data[i + 3] = Math.min(data[i + 3], alpha);
+        if (forceDraw || dimensionsChanged || timeChanged) {
+          const drawn = drawChromaPreviewFrame();
+          if (drawn) {
+            forceDraw = false;
+            lastTime = currentVideo.currentTime;
+            lastWidth = currentVideo.videoWidth;
+            lastHeight = currentVideo.videoHeight;
           }
         }
-
-        ctx.putImageData(imageData, 0, 0);
       }
+
       animationId = requestAnimationFrame(draw);
     };
 
-    draw();
+    if (video) {
+      video.preload = 'auto';
+      video.addEventListener('loadedmetadata', markDirty);
+      video.addEventListener('loadeddata', markDirty);
+      video.addEventListener('canplay', markDirty);
+      video.addEventListener('seeked', markDirty);
+      video.addEventListener('timeupdate', markDirty);
+    }
+
+    animationId = requestAnimationFrame(draw);
 
     return () => {
+      disposed = true;
       if (animationId) cancelAnimationFrame(animationId);
+      if (video) {
+        video.removeEventListener('loadedmetadata', markDirty);
+        video.removeEventListener('loadeddata', markDirty);
+        video.removeEventListener('canplay', markDirty);
+        video.removeEventListener('seeked', markDirty);
+        video.removeEventListener('timeupdate', markDirty);
+      }
     };
-  }, [previewChroma, chromaKey]);
+  }, [chromaKey.enabled, drawChromaPreviewFrame, inputPath, previewChroma, videoResourceVersion]);
 
   // 停止三段预览
   const stopThreePhasePreview = useCallback(() => {
@@ -761,7 +821,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
 
   // 时间轴拖拽
   const handleTimelineMouseDown = useCallback(
-    (marker: keyof SegmentMarkers, e: React.MouseEvent) => {
+    (marker: SegmentMarkerKey, e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
       suppressNextTimelineClickRef.current = true;
@@ -1105,11 +1165,15 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
                     className="max-h-full max-w-full"
                     src={pathToResUrl(inputPath)}
                     onLoadedMetadata={handleLoadedMetadata}
+                    onLoadedData={requestChromaPreviewFrame}
+                    onCanPlay={requestChromaPreviewFrame}
+                    onSeeked={requestChromaPreviewFrame}
                     onTimeUpdate={handleTimeUpdate}
                     onEnded={() => {
                       setIsPlaying(false);
                       stopThreePhasePreview();
                     }}
+                    preload="auto"
                     muted
                     playsInline
                   />
@@ -1264,7 +1328,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
                 {/* 中间时间轴 */}
                 <div
                   ref={timelineRef}
-                  className="relative h-6 bg-muted rounded-lg overflow-hidden cursor-pointer"
+                  className="relative h-6 bg-muted rounded-lg overflow-visible cursor-pointer"
                   onClick={(e) => {
                     if (suppressNextTimelineClickRef.current) {
                       suppressNextTimelineClickRef.current = false;
@@ -1277,7 +1341,9 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
                     // 如果没有循环片段，点击添加循环片段
                     if (!hasLoop && duration > 0) {
                       const clickTime = percent * duration;
-                      addLoop(clickTime);
+                      if (isTimeInTrimmedSegment(segments, clickTime, duration)) {
+                        addLoop(clickTime);
+                      }
                     } else {
                       seekTo(percent * duration);
                     }
@@ -1286,7 +1352,9 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
                     if (hasLoop) return;
                     const rect = e.currentTarget.getBoundingClientRect();
                     const x = e.clientX - rect.left;
-                    setHoverPosition(x / rect.width);
+                    const percent = Math.max(0, Math.min(1, x / rect.width));
+                    const hoverTime = percent * duration;
+                    setHoverPosition(duration > 0 && isTimeInTrimmedSegment(segments, hoverTime, duration) ? percent : null);
                   }}
                   onMouseLeave={() => setHoverPosition(null)}
                 >
@@ -1372,12 +1440,10 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
                     />
                   )}
 
-                  {/* 悬停时显示添加循环片段的图标 */}
+                  {/* 悬停时显示添加循环片段提示 */}
                   {!hasLoop && hoverPosition !== null && (
-                    <div className="absolute top-1/2 z-30 pointer-events-none" style={{ left: `${hoverPosition * 100}%`, transform: 'translate(-50%, -50%)' }}>
-                      <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs">
-                        <TbPlus />
-                      </div>
+                    <div className="absolute -top-7 z-30 pointer-events-none" style={{ left: `${hoverPosition * 100}%`, transform: 'translateX(-50%)' }}>
+                      <div className="whitespace-nowrap rounded bg-blue-500 px-2 py-0.5 text-[10px] font-medium text-white shadow-sm">添加循环片段</div>
                     </div>
                   )}
                 </div>
