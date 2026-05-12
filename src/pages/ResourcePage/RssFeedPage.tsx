@@ -1506,7 +1506,7 @@ const FeedItemCard: React.FC<FeedItemCardProps> = ({
   const isDownloading = downloading || item.downloadStatus === 'pending' || item.downloadStatus === 'downloading';
   const isRetryable = isRssItemRetryable(item);
   const progress = typeof item.downloadProgress === 'number' ? Math.max(0, Math.min(100, Math.round(item.downloadProgress))) : undefined;
-  const publishedTimeText = item.publishedAt ? formatTime(item.publishedAt) : item.metadata?.publishedAtEstimated ? item.metadata?.publishedAtEstimated : '未发布';
+  const publishedTimeText = item.publishedAt ? formatTime(item.publishedAt) : item.metadata?.publishedAtEstimated ? String(item.metadata.publishedAtEstimated) : '未发布';
   const mediaTypeLabel = getRssMediaTypeFilterLabel(item.mediaType ?? 'other');
   const failureMessage = getFeedItemDownloadFailureMessage(item, downloadError);
   const errorBadgeText = getRssDownloadFailureBadgeText(item.downloadStatus, failureMessage);

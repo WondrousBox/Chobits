@@ -195,7 +195,7 @@ export function loadShortcutEnabledConfig(): ShortcutEnabledConfig {
       const txt = fs.readFileSync(file, 'utf8');
       const parsed = JSON.parse(txt);
       cachedEnabled = { ...DEFAULT_ENABLED, ...parsed };
-      return cachedEnabled;
+      return cachedEnabled!;
     }
   } catch {
     // fallthrough to defaults

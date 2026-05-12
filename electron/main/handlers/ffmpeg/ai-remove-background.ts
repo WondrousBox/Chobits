@@ -40,16 +40,12 @@ export class AIRemoveBackground {
       // RMBG 模型是专门的背景移除模型，可能需要使用不同的 pipeline
       // 尝试使用 image-segmentation，如果失败则尝试其他方式
       try {
-        this.pipeline = await pipeline('image-segmentation', this.modelId, {
-          quantized: true // 使用量化模型以节省内存
-        });
+        this.pipeline = await pipeline('image-segmentation', this.modelId);
       } catch (e: any) {
         // 如果 image-segmentation 失败，尝试直接使用模型
         console.warn('[AI抠图] image-segmentation pipeline 失败，尝试其他方式:', e.message);
         // 某些模型可能需要使用 'image-to-image' 或其他 pipeline
-        this.pipeline = await pipeline('image-to-image', this.modelId, {
-          quantized: true
-        });
+        this.pipeline = await pipeline('image-to-image', this.modelId);
       }
       console.log('[AI抠图] 模型加载完成');
     } catch (error: any) {
@@ -159,7 +155,7 @@ export class AIRemoveBackground {
         raw: {
           width: maskWidth,
           height: maskHeight,
-          channels: channels
+          channels: channels as 1 | 2 | 3 | 4
         }
       })
         .resize(width, height, { fit: 'fill' })

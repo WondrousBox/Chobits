@@ -70,22 +70,22 @@ class Service {
     }
 
     this.connectionPromise = new Promise((resolve, reject) => {
-      
-    // const connectionId = randomBytes(16).toString("hex").toLowerCase();
-    // const url = `wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=${TRUSTED_CLIENT_TOKEN}&ConnectionId=${connectionId}`;
-    const url = `wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=${TRUSTED_CLIENT_TOKEN}&Sec-MS-GEC=${generateSecMsGecToken()}&Sec-MS-GEC-Version=1-${CHROMIUM_FULL_VERSION}`;
 
-    console.info("connecting to websocket server...");
-    const muid = randomBytes(16).toString("hex").toUpperCase();
-    const ws = new WebSocket(url, {
-      host: "speech.platform.bing.com",
-      origin: "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold",
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0',
-        'Cookie': `muid=${muid}`,
-      },
-      agent: proxy ? proxy : undefined,
-    });
+      // const connectionId = randomBytes(16).toString("hex").toLowerCase();
+      // const url = `wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=${TRUSTED_CLIENT_TOKEN}&ConnectionId=${connectionId}`;
+      const url = `wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=${TRUSTED_CLIENT_TOKEN}&Sec-MS-GEC=${generateSecMsGecToken()}&Sec-MS-GEC-Version=1-${CHROMIUM_FULL_VERSION}`;
+
+      console.info("connecting to websocket server...");
+      const muid = randomBytes(16).toString("hex").toUpperCase();
+      const ws = new WebSocket(url, {
+        host: "speech.platform.bing.com",
+        origin: "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold",
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0',
+          'Cookie': `muid=${muid}`,
+        },
+        agent: proxy ? proxy : undefined,
+      });
 
       ws.on("open", () => {
         this.ws = ws;
@@ -133,15 +133,15 @@ class Service {
           }
         } else if (isBinary) {
           const separator = "Path:audio\r\n";
-          const data = message;
+          const data = Buffer.isBuffer(message) ? message : Buffer.from(message as ArrayBuffer);
           const contentIndex = data.indexOf(separator) + separator.length;
 
           const headers = data.slice(2, contentIndex).toString();
           const matches = headers.match(pattern);
           const requestId = matches?.groups?.id;
 
-          const content = data.slice(contentIndex);
-          let buffer = this.bufferMap.get(requestId);
+          const content = data.slice(contentIndex) as Buffer;
+          let buffer = this.bufferMap.get(requestId) as Buffer | undefined;
           if (buffer) {
             buffer = Buffer.concat(
               [buffer, content],
@@ -163,7 +163,7 @@ class Service {
     return this.connectionPromise;
   }
 
-  async convert(ssml, format, proxy) {
+  async convert(ssml: string, format: string, proxy?: any): Promise<Buffer | null> {
     if (this.ws == null || this.ws.readyState !== WebSocket.OPEN) {
       await this.connect(proxy);
     }
@@ -238,7 +238,7 @@ class Service {
       }),
     ]);
 
-    return data;
+    return data as Buffer | null;
   }
 }
 
@@ -249,7 +249,7 @@ const retry = async function (
   errorFn: (index: number, error: any) => void,
   failedMessage: string,
 ) {
-  const reason = {
+  const reason: { message: string; errors: any[] } = {
     message: failedMessage ?? "多次尝试后失败",
     errors: [],
   };
@@ -291,11 +291,11 @@ export const ra = async (text: string, proxy?: any): Promise<{ success: true, da
       },
       "服务器多次尝试后转换失败",
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error(`发生错误, ${error.message}`);
 
     return { success: false, message: error.message + error.errors.join('\n'), data: null };
   }
 
-  return { success: true, data: result };
+  return { success: true, data: result as unknown as Buffer };
 };
