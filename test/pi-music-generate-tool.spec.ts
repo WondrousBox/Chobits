@@ -91,6 +91,7 @@ describe('musicGenerateTool', () => {
       {
         audioFormat: 'mp3',
         lyrics: 'hello world',
+        lyricsResourceId: 'resource-lyrics-1',
         lyricsOptimizer: true,
         prompt: 'upbeat city pop'
       },
@@ -122,11 +123,12 @@ describe('musicGenerateTool', () => {
     expect(JSON.parse(createdResources[0].metadata)).toMatchObject({
       aiGenerated: true,
       kind: 'music',
-      mediaKind: 'music',
-      musicGeneration: {
-        mode: 'lyrics-to-song',
-        prompt: 'upbeat city pop',
-        requestId: 'call-music-1'
+        mediaKind: 'music',
+        musicGeneration: {
+          lyricsResourceId: 'resource-lyrics-1',
+          mode: 'lyrics-to-song',
+          prompt: 'upbeat city pop',
+          requestId: 'call-music-1'
       }
     });
     expect(JSON.parse(createdResources[0].tags)).toEqual(expect.arrayContaining(['music', 'generated-music', 'ai-generated']));
@@ -143,6 +145,7 @@ describe('musicGenerateTool', () => {
       audioPath: '/workspace/resources/generated-song.mp3',
       cardId: 'music-call-music-1',
       isMusic: true,
+      lyricsResourceId: 'resource-lyrics-1',
       mode: 'lyrics-to-song',
       resourceStorage: {
         ensured: true
@@ -155,6 +158,7 @@ describe('musicGenerateTool', () => {
   it('generates lyrics for later music generation', async () => {
     const toolContext = createToolContext();
     const requests: LyricsGenerationRequest[] = [];
+    const createdResources: Record<string, any>[] = [];
     const executionService = {
       generateLyrics: vi.fn(async (request: LyricsGenerationRequest) => {
         requests.push(request);
@@ -166,8 +170,18 @@ describe('musicGenerateTool', () => {
         };
       })
     };
+    const resourceCreator = vi.fn(async (resource: Record<string, any>) => {
+      createdResources.push(resource);
+      return {
+        data: {
+          ...resource,
+          id: 'resource-lyrics-1'
+        },
+        success: true
+      };
+    });
 
-    const tool = createPiMusicLyricsTool(toolContext, { executionService });
+    const tool = createPiMusicLyricsTool(toolContext, { executionService, resourceCreator });
     const result = await tool.execute('call-lyrics-1', {
       prompt: 'Write a Chinese pop song about a city after rain'
     });
@@ -180,12 +194,76 @@ describe('musicGenerateTool', () => {
       providerPresetId: 'preset-minimax'
     });
     expect(requests[0].extras?.requestId).toBe('call-lyrics-1');
+
+    expect(resourceCreator).toHaveBeenCalledOnce();
+    expect(createdResources[0]).toMatchObject({
+      contentText: '[Verse]\nhello rain\n[Chorus]\nshine again',
+      sourceName: 'MiniMax',
+      title: 'Rain Again',
+      type: 'text',
+      workspaceId: 'workspace-1'
+    });
+    expect(JSON.parse(createdResources[0].metadata)).toMatchObject({
+      aiGenerated: true,
+      kind: 'lyrics',
+      lyricsGeneration: {
+        mode: 'write_full_song',
+        prompt: 'Write a Chinese pop song about a city after rain',
+        requestId: 'call-lyrics-1',
+        songTitle: 'Rain Again',
+        styleTags: 'city pop, hopeful'
+      }
+    });
+    expect(JSON.parse(createdResources[0].tags)).toEqual(expect.arrayContaining(['lyrics', 'generated-lyrics', 'ai-generated']));
+
+    expect(toolContext.pushCardToWindows).toHaveBeenCalledOnce();
+    expect(toolContext.pushCardToWindows.mock.calls[0][0]).toMatchObject({
+      conversationId: 'conversation-1',
+      resourceId: 'resource-lyrics-1',
+      type: 'resource'
+    });
+
     expect((result.details as any)).toMatchObject({
       lyrics: '[Verse]\nhello rain\n[Chorus]\nshine again',
+      lyricsResourceId: 'resource-lyrics-1',
       musicPrompt: expect.stringContaining('city pop, hopeful'),
       nextStep: expect.stringContaining('musicGenerateTool'),
       providerId: 'minimax',
+      resourceStorage: {
+        ensured: true
+      },
+      resourceId: 'resource-lyrics-1',
       songTitle: 'Rain Again',
+      success: true
+    });
+  });
+
+  it('can generate lyrics without saving a lyrics resource', async () => {
+    const toolContext = createToolContext();
+    const executionService = {
+      generateLyrics: vi.fn(async (request: LyricsGenerationRequest) => ({
+        lyrics: '[Verse]\nquiet neon',
+        providerId: request.providerId
+      }))
+    };
+    const resourceCreator = vi.fn();
+
+    const tool = createPiMusicLyricsTool(toolContext, { executionService, resourceCreator });
+    const result = await tool.execute('call-lyrics-no-resource', {
+      prompt: 'Write a short lyric',
+      saveToResourceLibrary: false
+    });
+
+    expect(executionService.generateLyrics).toHaveBeenCalledOnce();
+    expect(resourceCreator).not.toHaveBeenCalled();
+    expect(toolContext.pushCardToWindows).not.toHaveBeenCalled();
+    expect((result.details as any)).toMatchObject({
+      lyrics: '[Verse]\nquiet neon',
+      lyricsResourceId: undefined,
+      resourceStorage: {
+        ensured: false,
+        nextStep: expect.stringContaining('resourceCreateTool')
+      },
       success: true
     });
   });

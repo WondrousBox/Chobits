@@ -28,6 +28,7 @@ async function getDefaultExecutionService(): Promise<MusicGenerationExecutor> {
 const musicGenerateParameters = Type.Object({
   prompt: Type.String({ description: 'Music direction prompt, including genre, mood, instruments, tempo, vocals, and arrangement notes.' }),
   lyrics: Type.Optional(Type.String({ description: 'Optional lyrics for a vocal song.' })),
+  lyricsResourceId: Type.Optional(Type.String({ description: 'Optional resource ID of the saved lyrics text used for this song.' })),
   mode: Type.Optional(
     Type.Union([Type.Literal('text-to-music'), Type.Literal('lyrics-to-song'), Type.Literal('instrumental'), Type.Literal('cover')], {
       description: 'Generation mode. Defaults from the inputs: lyrics -> lyrics-to-song, reference audio -> cover, isInstrumental -> instrumental.'
@@ -284,7 +285,8 @@ export function createPiMusicGenerateTool(toolContext: PiSessionToolContext, bin
                   model: response.model || model,
                   prompt,
                   providerId: response.providerId || 'minimax',
-                  requestId: toolCallId
+                  requestId: toolCallId,
+                  lyricsResourceId: trimString(input.lyricsResourceId)
                 }
               },
               mimeType: artifact?.mimeType,
@@ -314,6 +316,7 @@ export function createPiMusicGenerateTool(toolContext: PiSessionToolContext, bin
           cardId,
           durationMs: artifact?.durationMs,
           isMusic: true,
+          lyricsResourceId: trimString(input.lyricsResourceId),
           mimeType: artifact?.mimeType,
           mode,
           model: response.model || model,
