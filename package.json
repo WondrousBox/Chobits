@@ -53,7 +53,7 @@
   },
   "devDependencies": {
     "@aim-packages/window-manager": "^0.5.2",
-    "@aim-packages/downloader": "^0.1.0",
+    "@aim-packages/downloader": "0.2.0",
     "@aim-packages/file-utils": "^0.2.0",
     "@aim-packages/subtitle": "^0.5.1",
     "@anthropic-ai/sdk": "^0.67.0",
@@ -152,7 +152,6 @@
     "mime": "^4.1.0",
     "mustache": "^4.2.0",
     "next-themes": "^0.4.6",
-    "node-downloader-helper": "^2.1.9",
     "node-fetch": "^3.3.2",
     "node-schedule": "^2.1.1",
     "postcss": "^8.4.49",

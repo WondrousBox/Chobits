@@ -6,6 +6,12 @@ import { app } from 'electron';
 export type PluginConfig = {
   pluginsDir?: string; // 插件资源目录（包含engine和models）
   concurrency?: number; // 下载并发数
+  deletePartialDownloadOnCancel?: boolean; // 取消下载时是否删除 .download 临时文件
+  deletePartialDownloadOnFailure?: boolean; // 下载失败时是否删除 .download 临时文件
+  deleteDownloadedFileOnFailure?: boolean; // 非压缩资源下载失败时是否删除目标文件
+  deleteArchiveAfterInstall?: boolean; // 覆盖安装完成后是否删除压缩包；未设置时沿用调用方传入的 deleteAfterInstall
+  downloaderResumeValidation?: boolean; // 是否启用 @aim-packages/downloader 的 HEAD 续传校验
+  downloaderDebug?: boolean; // 是否打印 @aim-packages/downloader 内部日志
 };
 
 type StoreShape = {
@@ -24,12 +30,47 @@ function getDefaultPluginsDir(): string {
   return path.join(pluginDataDir, 'plugins');
 }
 
+function getDefaultConfig(): PluginConfig {
+  return {
+    pluginsDir: getDefaultPluginsDir(),
+    concurrency: 2,
+    deletePartialDownloadOnCancel: true,
+    deletePartialDownloadOnFailure: true,
+    deleteDownloadedFileOnFailure: true,
+    downloaderResumeValidation: false,
+    downloaderDebug: false
+  };
+}
+
+function withDefaults(config?: PluginConfig): PluginConfig {
+  const defaults = getDefaultConfig();
+  return {
+    ...defaults,
+    ...config,
+    pluginsDir: config?.pluginsDir || defaults.pluginsDir,
+    concurrency: config?.concurrency ?? defaults.concurrency,
+    deletePartialDownloadOnCancel: config?.deletePartialDownloadOnCancel ?? defaults.deletePartialDownloadOnCancel,
+    deletePartialDownloadOnFailure: config?.deletePartialDownloadOnFailure ?? defaults.deletePartialDownloadOnFailure,
+    deleteDownloadedFileOnFailure: config?.deleteDownloadedFileOnFailure ?? defaults.deleteDownloadedFileOnFailure,
+    downloaderResumeValidation: config?.downloaderResumeValidation ?? defaults.downloaderResumeValidation,
+    downloaderDebug: config?.downloaderDebug ?? defaults.downloaderDebug
+  };
+}
+
+function hasMissingPersistedDefaults(config?: PluginConfig): boolean {
+  return (
+    config?.deletePartialDownloadOnCancel === undefined ||
+    config.deletePartialDownloadOnFailure === undefined ||
+    config.deleteDownloadedFileOnFailure === undefined ||
+    config.downloaderResumeValidation === undefined ||
+    config.downloaderDebug === undefined
+  );
+}
+
 function ensureStore(): void {
   if (!fs.existsSync(STORE_DIR)) fs.mkdirSync(STORE_DIR, { recursive: true });
   if (!fs.existsSync(STORE_FILE)) {
-    const defaultConfig: PluginConfig = {
-      pluginsDir: getDefaultPluginsDir()
-    };
+    const defaultConfig = getDefaultConfig();
     fs.writeFileSync(STORE_FILE, JSON.stringify({ config: defaultConfig } as StoreShape, null, 2));
   }
 }
@@ -39,16 +80,13 @@ function read(): StoreShape {
   try {
     const raw = fs.readFileSync(STORE_FILE, 'utf-8');
     const data = JSON.parse(raw);
-    const defaultDir = getDefaultPluginsDir();
-    return {
-      config: {
-        pluginsDir: data.config?.pluginsDir || defaultDir,
-        concurrency: data.config?.concurrency ?? 2, // 默认并发数为2
-        ...data.config
-      }
-    };
+    const config = withDefaults(data.config);
+    if (hasMissingPersistedDefaults(data.config)) {
+      write({ config });
+    }
+    return { config };
   } catch {
-    return { config: { pluginsDir: getDefaultPluginsDir(), concurrency: 2 } };
+    return { config: getDefaultConfig() };
   }
 }
 

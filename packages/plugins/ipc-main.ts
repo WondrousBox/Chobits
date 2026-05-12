@@ -19,6 +19,7 @@ let getHttpProxyFn: (() => ProxyAgent | undefined) | null = null;
 let getPluginDefinitionsPathFn: (() => string) | null = null;
 // 存储进度回调函数
 let onProgressFn: ((info: DownloadProgress) => void) | null = null;
+const pendingInstallRequests = new Map<string, Promise<{ ok: boolean; data?: any; error?: string; message?: string }>>();
 
 export interface InitOptions {
   getHttpProxy?: () => ProxyAgent | undefined;
@@ -169,22 +170,73 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
 
   // 安装资源（Engine或模型）
   ipcMain.handle('plugin-resource:install', async (event, payload: { pluginId: string; resourceId: string; deleteAfterInstall?: boolean }) => {
-    console.log('plugin-resource:install', payload);
-
-    if (!getPluginDefinitionsPathFn) {
-      return { ok: false, error: 'Plugin definitions path not configured' };
-    }
-    const definitions = await loadPluginDefinitions(getPluginDefinitionsPathFn());
-    const pluginDef = definitions.find((p) => p.id === payload.resourceId && p.pluginId === payload.pluginId);
-    console.log(pluginDef);
-
-    if (!pluginDef) {
-      return { ok: false, error: 'PLUGIN_NOT_FOUND' };
+    const requestKey = `${payload.pluginId}:${payload.resourceId}`;
+    const pending = pendingInstallRequests.get(requestKey);
+    if (pending) {
+      console.log('[pluginResource] reuse pending install request', payload);
+      return pending;
     }
 
-    // 如果是系统预设插件，直接返回已安装状态
-    if (isSystemPresetPlugin(pluginDef)) {
-      const deterministicId = `${pluginDef.pluginId}_${pluginDef.type}_${pluginDef.id}_${pluginDef.version}`;
+    const request = (async (): Promise<{ ok: boolean; data?: any; error?: string; message?: string }> => {
+      console.log('plugin-resource:install', payload);
+
+      if (!getPluginDefinitionsPathFn) {
+        return { ok: false, error: 'Plugin definitions path not configured' };
+      }
+      const definitions = await loadPluginDefinitions(getPluginDefinitionsPathFn());
+      const pluginDef = definitions.find((p) => p.id === payload.resourceId && p.pluginId === payload.pluginId);
+      console.log(pluginDef);
+
+      if (!pluginDef) {
+        return { ok: false, error: 'PLUGIN_NOT_FOUND' };
+      }
+
+      // 如果是系统预设插件，直接返回已安装状态
+      if (isSystemPresetPlugin(pluginDef)) {
+        const deterministicId = `${pluginDef.pluginId}_${pluginDef.type}_${pluginDef.id}_${pluginDef.version}`;
+        const resource: PluginResource = {
+          id: deterministicId,
+          pluginId: pluginDef.pluginId,
+          resourceId: pluginDef.id,
+          type: pluginDef.type,
+          name: pluginDef.name,
+          displayName: pluginDef.displayName,
+          version: pluginDef.version,
+          binaryName: pluginDef.binaryName,
+          archiveType: pluginDef.archiveType || 'none',
+          status: 'installed'
+        };
+        return { ok: true, data: resource, message: 'System preset plugin, already installed' };
+      }
+
+      const platformInfo = getPluginForCurrentPlatform(pluginDef);
+      console.log('platformInfo', platformInfo);
+
+      if (!platformInfo) {
+        return { ok: false, error: 'PLATFORM_NOT_SUPPORTED' };
+      }
+
+      // 构建确定性资源ID：pluginId_version[_sha256]
+      const deterministicId = `${pluginDef.pluginId}_${pluginDef.type}_${pluginDef.id}_${pluginDef.version}${platformInfo.sha256 ? `_${platformInfo.sha256}` : ''}`;
+      console.log('deterministicId', deterministicId);
+
+      // 如果已存在同ID资源，避免重复安装
+      const existing = PluginResourceStore.get(deterministicId);
+      console.log('existing', existing);
+      if (existing) {
+        // 已安装则直接返回
+        if (existing.status === 'installed' && pluginResourceManager.isInstalled(existing)) {
+          console.log('existing is installed and isInstalled', existing);
+          return { ok: true, data: existing, message: 'Resource already installed' };
+        }
+        // 正在处理中则直接返回
+        if (['queued', 'downloading', 'extracting', 'verifying'].includes(existing.status || '') && pluginResourceManager.isActive(existing.id)) {
+          console.log('existing is in progress', existing);
+          return { ok: true, data: existing, message: 'Resource already in progress' };
+        }
+      }
+
+      // 构建资源对象
       const resource: PluginResource = {
         id: deterministicId,
         pluginId: pluginDef.pluginId,
@@ -194,94 +246,61 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
         displayName: pluginDef.displayName,
         version: pluginDef.version,
         binaryName: pluginDef.binaryName,
-        archiveType: pluginDef.archiveType || 'none',
-        status: 'installed'
+        archiveType: pluginDef.archiveType || 'zip',
+        sourceUrl: platformInfo.sourceUrl,
+        sizeBytes: platformInfo.sizeBytes,
+        sha256: platformInfo.sha256,
+        status: 'queued'
       };
-      return { ok: true, data: resource, message: 'System preset plugin, already installed' };
-    }
 
-    const platformInfo = getPluginForCurrentPlatform(pluginDef);
-    console.log('platformInfo', platformInfo);
-
-    if (!platformInfo) {
-      return { ok: false, error: 'PLATFORM_NOT_SUPPORTED' };
-    }
-
-    // 构建确定性资源ID：pluginId_version[_sha256]
-    const deterministicId = `${pluginDef.pluginId}_${pluginDef.type}_${pluginDef.id}_${pluginDef.version}${platformInfo.sha256 ? `_${platformInfo.sha256}` : ''}`;
-    console.log('deterministicId', deterministicId);
-
-    // 如果已存在同ID资源，避免重复安装
-    const existing = PluginResourceStore.get(deterministicId);
-    console.log('existing', existing);
-    if (existing) {
-      // 已安装则直接返回
-      if (existing.status === 'installed' && pluginResourceManager.isInstalled(existing)) {
-        console.log('existing is installed and isInstalled', existing);
-        return { ok: true, data: existing, message: 'Resource already installed' };
-      }
-      // 正在处理中则直接返回
-      if (['queued', 'downloading', 'extracting', 'verifying'].includes(existing.status || '')) {
-        console.log('existing is in progress', existing);
-        return { ok: true, data: existing, message: 'Resource already in progress' };
-      }
-    }
-
-    // 构建资源对象
-    const resource: PluginResource = {
-      id: deterministicId,
-      pluginId: pluginDef.pluginId,
-      resourceId: pluginDef.id,
-      type: pluginDef.type,
-      name: pluginDef.name,
-      displayName: pluginDef.displayName,
-      version: pluginDef.version,
-      binaryName: pluginDef.binaryName,
-      archiveType: pluginDef.archiveType || 'zip',
-      sourceUrl: platformInfo.sourceUrl,
-      sizeBytes: platformInfo.sizeBytes,
-      sha256: platformInfo.sha256,
-      status: 'queued'
-    };
-
-    // 设置 installPath 以便正确检查是否已安装
-    if (resource.type === 'engine') {
-      resource.installPath = pluginResourceManager.getEnginePath(resource.pluginId, resource.binaryName || resource.name);
-    } else {
-      resource.installPath = pluginResourceManager.getModelPath(resource.pluginId, resource.name);
-    }
-
-    // 检查是否已安装（基于文件存在）
-    if (pluginResourceManager.isInstalled(resource)) {
-      // 同ID不存在但文件已存在时，标记为已安装并保存到 store
-      resource.status = 'installed';
-      resource.installedAt = Date.now();
-      PluginResourceStore.upsert(resource);
-      return { ok: true, data: resource, message: 'Resource already installed' };
-    }
-
-    console.log('resource', resource);
-    console.log('payload', payload);
-
-    // 加入下载队列，支持deleteAfterInstall参数（默认为false，不删除下载文件）
-    const proxyAgent = getHttpProxyFn ? getHttpProxyFn() : undefined;
-    pluginResourceManager.enqueue(resource, payload.deleteAfterInstall ?? false, { proxyAgent });
-
-    // 自动打开插件下载窗口
-    try {
-      const requester = BrowserWindow.fromWebContents(event.sender);
-      const display = requester ? screen.getDisplayMatching(requester.getBounds()) : null;
-      if (display) {
-        await windowManager.createOrShowOnDisplay('pluginDownload', display);
+      // 设置 installPath 以便正确检查是否已安装
+      if (resource.type === 'engine') {
+        resource.installPath = pluginResourceManager.getEnginePath(resource.pluginId, resource.binaryName || resource.name);
       } else {
-        await windowManager.createOrShow('pluginDownload');
+        resource.installPath = pluginResourceManager.getModelPath(resource.pluginId, resource.name);
       }
-    } catch (error) {
-      console.warn('[pluginResource] open download window failed', error);
-    }
 
-    eventManager.emit(AppEvent.SPRITE_PLUGIN_INSTALL, { name: resource.name || resource.id });
-    return { ok: true, data: resource };
+      // 检查是否已安装（基于文件存在）
+      if (pluginResourceManager.isInstalled(resource)) {
+        // 同ID不存在但文件已存在时，标记为已安装并保存到 store
+        resource.status = 'installed';
+        resource.installedAt = Date.now();
+        PluginResourceStore.upsert(resource);
+        return { ok: true, data: resource, message: 'Resource already installed' };
+      }
+
+      console.log('resource', resource);
+      console.log('payload', payload);
+
+      // 加入下载队列，支持deleteAfterInstall参数（默认为false，不删除下载文件）
+      const proxyAgent = getHttpProxyFn ? getHttpProxyFn() : undefined;
+      const queuedResource = pluginResourceManager.enqueue(resource, payload.deleteAfterInstall ?? false, { proxyAgent });
+
+      // 自动打开插件下载窗口
+      try {
+        const requester = BrowserWindow.fromWebContents(event.sender);
+        const display = requester ? screen.getDisplayMatching(requester.getBounds()) : null;
+        if (display) {
+          await windowManager.createOrShowOnDisplay('pluginDownload', display);
+        } else {
+          await windowManager.createOrShow('pluginDownload');
+        }
+      } catch (error) {
+        console.warn('[pluginResource] open download window failed', error);
+      }
+
+      eventManager.emit(AppEvent.SPRITE_PLUGIN_INSTALL, { name: queuedResource.name || queuedResource.id });
+      return { ok: true, data: queuedResource };
+    })();
+
+    pendingInstallRequests.set(requestKey, request);
+    try {
+      return await request;
+    } finally {
+      if (pendingInstallRequests.get(requestKey) === request) {
+        pendingInstallRequests.delete(requestKey);
+      }
+    }
   });
 
   // 取消下载
@@ -424,6 +443,20 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
   ipcMain.handle('plugin-resource:setConcurrency', async (_e, payload: { concurrency: number }) => {
     pluginResourceManager.setConcurrency(payload.concurrency);
     return { ok: true };
+  });
+
+  // 获取插件下载配置
+  ipcMain.handle('plugin-resource:getConfig', async () => {
+    return { ok: true, config: PluginConfigStore.getConfig() };
+  });
+
+  // 更新插件下载配置
+  ipcMain.handle('plugin-resource:setConfig', async (_e, payload: Partial<ReturnType<typeof PluginConfigStore.getConfig>>) => {
+    const config = PluginConfigStore.setConfig(payload);
+    if (typeof payload.concurrency === 'number') {
+      pluginResourceManager.setConcurrency(payload.concurrency);
+    }
+    return { ok: true, config };
   });
 
   // 检测网络连通性（使用系统代理设置，类似 electron-dl）
