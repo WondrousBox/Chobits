@@ -212,7 +212,7 @@ export const ResourceCard = Node.create({
     return {
       [STORAGE_KEY_UPLOAD]: undefined as ResourceUploadHandler | undefined,
       markdown: {
-        serialize(state: any, node: any) {
+        serialize(this: any, state: any, node: any) {
           if (!this.editor.storage.markdown?.options?.html) {
             const payload = buildPayload(node.attrs || {});
             state.write(`${RESOURCE_CARD_MARKER} ${JSON.stringify(payload)}`);
@@ -333,7 +333,7 @@ const updateResourceCardByTempId = (editor: Editor, tempId: string, attrs: Parti
     return;
   }
 
-  editor.view.dispatch(editor.state.tr.setNodeMarkup(foundPos, undefined, { ...foundAttrs, ...attrs }));
+  editor.view.dispatch(editor.state.tr.setNodeMarkup(foundPos, undefined, { ...(foundAttrs as ResourceCardAttrs), ...attrs }));
 };
 
 export const insertResourceCardFromFile = async (editor: Editor, file: File): Promise<void> => {

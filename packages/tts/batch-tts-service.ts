@@ -566,7 +566,7 @@ export const BatchTTSService = {
           }
           data.segmentInfoMap = segmentInfoMap;
         }
-        return historyPathsToAbsolute(data as BatchTTSHistory, outputDir);
+        return historyPathsToAbsolute(data as unknown as BatchTTSHistory, outputDir);
       }
     } catch (err) {
       console.error('[BatchTTS] 加载历史记录失败:', err);

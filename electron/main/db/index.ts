@@ -390,7 +390,7 @@ function rebuildMemoryFtsFromDerivedSources(): number {
   }
 
   const selectSections = db.prepare('SELECT * FROM memory_sections WHERE note_id = ? ORDER BY section_order');
-  const selectWorkspace = db.prepare('SELECT root_path FROM workspaces WHERE id = ? LIMIT 1');
+  const selectWorkspace = db.prepare('SELECT root_path FROM workspaces WHERE id = ? LIMIT 1') as { get: (workspaceId: string) => { root_path?: string | null } | undefined };
   const clearStmt = db.prepare(`DELETE FROM ${MEMORY_FTS_TABLE_NAME}`);
   const insertNoteStmt = db.prepare(
     `INSERT INTO ${MEMORY_FTS_TABLE_NAME}(entry_id, entry_type, note_id, title, summary, keywords, aliases, entities, body)

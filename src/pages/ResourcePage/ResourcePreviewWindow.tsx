@@ -416,7 +416,7 @@ const ResourcePreviewWindow: React.FC = () => {
               <AnnotationAlertOverlay />
             </MediaPlayer>
           )}
-          {isSubtitleFile(data.filePath) && <ResourceSubtitlePlayer resource={data} />}
+          {isSubtitleFile(data.filePath) && <ResourceSubtitlePlayer resource={data} mediaPlayerRef={{ current: null }} />}
           {!isImageFile(data.filePath) && !isVideoFile(data.filePath) && !isAudioFile(data.filePath) && !isSubtitleFile(data.filePath) && <TextPlayer resource={data} />}
         </div>
       )}

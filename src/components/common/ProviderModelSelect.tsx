@@ -72,7 +72,7 @@ export interface ProviderModelSelectProps {
   menuSide?: React.ComponentPropsWithoutRef<typeof DropdownMenuContent>['side'];
   menuAlign?: React.ComponentPropsWithoutRef<typeof DropdownMenuContent>['align'];
   avoidCollisions?: React.ComponentPropsWithoutRef<typeof DropdownMenuContent>['avoidCollisions'];
-  subMenuSide?: React.ComponentPropsWithoutRef<typeof DropdownMenuSubContent>['side'];
+  subMenuSide?: 'top' | 'right' | 'bottom' | 'left';
   // 筛选的模型类型（数组），如果为空则不筛选
   modelTypes?: ModelType[];
   // 是否在二级菜单中显示模型的详细信息（描述、价格、是否免费、上下文大小等）
@@ -555,7 +555,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
                     </span>
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent
-                    side={subMenuSide}
+                    {...(subMenuSide ? { side: subMenuSide as any } : {})}
                     avoidCollisions={avoidCollisions}
                     className={showModelDetails ? 'no-drag pointer-events-auto min-w-[320px] max-h-60 overflow-y-auto' : 'no-drag pointer-events-auto max-h-60 overflow-y-auto'}
                   >

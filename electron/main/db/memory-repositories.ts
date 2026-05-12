@@ -85,7 +85,7 @@ export const MemoryNoteRepo = {
       .select()
       .from(memory_notes)
       .where(and(inArray(memory_notes.id, ids), isNull(memory_notes.deletedAt)));
-    const byId = new Map(rows.map((row) => [row.id, row] as const));
+    const byId = new Map(rows.map((row: MemoryNoteRow) => [row.id, row] as const));
     return ids.map((id) => byId.get(id)).filter((row): row is MemoryNoteRow => !!row);
   },
 

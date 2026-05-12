@@ -162,34 +162,35 @@ async function generateImageThumbnail(sourcePath: string, width: number, height:
   return new Promise((resolve) => {
     const chunks: Buffer[] = [];
 
-    ffmpeg(sourcePath)
+    const command = ffmpeg(sourcePath)
       .format('image2pipe')
       .videoCodec('mjpeg')
-      .size(`${width}x${height}`)
-      .on('data', (chunk: Buffer) => {
-        chunks.push(chunk);
-      })
-      .on('end', () => {
-        if (chunks.length === 0) {
-          resolve(null);
-          return;
-        }
+      .size(`${width}x${height}`);
 
-        const buffer = Buffer.concat(chunks);
-        const dataUrl = `data:image/jpeg;base64,${buffer.toString('base64')}`;
-
-        resolve({
-          url: dataUrl,
-          timeOffset: 0,
-          width,
-          height
-        });
-      })
-      .on('error', (err) => {
-        console.error('[media] Image thumbnail error:', err);
+    const stream = command.pipe();
+    stream.on('data', (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
+    stream.on('end', () => {
+      if (chunks.length === 0) {
         resolve(null);
-      })
-      .run();
+        return;
+      }
+
+      const buffer = Buffer.concat(chunks);
+      const dataUrl = `data:image/jpeg;base64,${buffer.toString('base64')}`;
+
+      resolve({
+        url: dataUrl,
+        timeOffset: 0,
+        width,
+        height
+      });
+    });
+    stream.on('error', (err: Error) => {
+      console.error('[media] Image thumbnail error:', err);
+      resolve(null);
+    });
   });
 }
 
