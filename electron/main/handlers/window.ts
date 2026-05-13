@@ -10,8 +10,18 @@ import defaultWindowConfigs from '../config/window';
 
 const SPRITE_BUBBLE_WINDOW_KEYS = ['spriteBubbleFixedTop'] as const;
 type SpriteBubbleWindowKey = (typeof SPRITE_BUBBLE_WINDOW_KEYS)[number];
+const SPRITE_BUBBLE_MIN_WIDTH = 40;
+const SPRITE_BUBBLE_MIN_HEIGHT = 24;
+const SPRITE_BUBBLE_MAX_WIDTH = 504;
+const SPRITE_BUBBLE_MAX_HEIGHT = 392;
 const SPRITE_EFFECT_WINDOW_KEY = 'spriteEffect' as const;
 type AssistantInteractiveRegion = { x: number; y: number; width: number; height: number };
+
+function clampWindowDimension(value: number | undefined, min: number, max: number): number {
+  const numericValue = Number(value ?? 0);
+  const rounded = Number.isFinite(numericValue) ? Math.round(numericValue) : 0;
+  return Math.min(max, Math.max(min, rounded));
+}
 
 function normalizeInteractiveRegion(region: Partial<AssistantInteractiveRegion> | null | undefined): AssistantInteractiveRegion | null {
   const x = Number(region?.x);
@@ -353,8 +363,8 @@ export function initWindowHandlers(win: BrowserWindow): void {
         return { success: false, error: 'spriteBubbleFixedTop window not available' };
       }
       const bubble = target.window;
-      const width = Math.max(40, Math.round(payload?.width ?? 0));
-      const height = Math.max(24, Math.round(payload?.height ?? 0));
+      const width = clampWindowDimension(payload?.width, SPRITE_BUBBLE_MIN_WIDTH, SPRITE_BUBBLE_MAX_WIDTH);
+      const height = clampWindowDimension(payload?.height, SPRITE_BUBBLE_MIN_HEIGHT, SPRITE_BUBBLE_MAX_HEIGHT);
       bubble.setSize(width, height, false);
       updateSpriteBubblePosition();
       return { success: true };

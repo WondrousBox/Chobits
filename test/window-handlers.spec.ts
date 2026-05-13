@@ -20,7 +20,8 @@ const windowManagerState = {
   create: vi.fn(() => Promise.resolve(null)),
   adjustMainWindowForPadding: vi.fn(),
   setAnchorWidth: vi.fn(),
-  setAnchorHeight: vi.fn()
+  setAnchorHeight: vi.fn(),
+  updateFollowerPositionsManually: vi.fn()
 };
 
 vi.mock('@aim-packages/window-manager', () => ({
@@ -32,7 +33,8 @@ vi.mock('@aim-packages/window-manager', () => ({
     create: (...args: any[]) => windowManagerState.create(...args),
     adjustMainWindowForPadding: (...args: any[]) => windowManagerState.adjustMainWindowForPadding(...args),
     setAnchorWidth: (...args: any[]) => windowManagerState.setAnchorWidth(...args),
-    setAnchorHeight: (...args: any[]) => windowManagerState.setAnchorHeight(...args)
+    setAnchorHeight: (...args: any[]) => windowManagerState.setAnchorHeight(...args),
+    updateFollowerPositionsManually: (...args: any[]) => windowManagerState.updateFollowerPositionsManually(...args)
   }
 }));
 
@@ -221,6 +223,20 @@ describe('window handlers', () => {
     });
     expect(windowManagerState.get).toHaveBeenCalledWith('chatOverlay');
     expect(targetWindow.setBounds).toHaveBeenCalledWith({ x: 10, y: 21, width: 560, height: 720 });
+  });
+
+  it('clamps sprite bubble resize requests before updating the window', async () => {
+    const { initWindowHandlers } = await import('../electron/main/handlers/window');
+    const win = createWindowStub();
+    const bubbleWindow = createWindowStub();
+    windowManagerState.get.mockImplementation((key: string) => (key === 'spriteBubbleFixedTop' ? bubbleWindow : null));
+    initWindowHandlers(win);
+
+    const resizeBubble = ipcHandlers.get('sprite:bubble:resize') as (event: { sender: unknown }, payload: { width: number; height: number }) => { success: boolean };
+
+    expect(resizeBubble({ sender: {} }, { width: 9999, height: 9999 })).toEqual({ success: true });
+    expect(bubbleWindow.setSize).toHaveBeenCalledWith(504, 392, false);
+    expect(windowManagerState.updateFollowerPositionsManually).toHaveBeenCalledOnce();
   });
 
   it('treats reported inline message regions as interactive for click-through', async () => {
