@@ -3,8 +3,8 @@
  *
  * 职责：
  * 1. 订阅主进程消息桥（沿用 MessageProvider）渲染 toast/notice/busy 气泡。
- * 2. 通过 ResizeObserver 测量内容尺寸，节流后调用 `sprite:bubble:resize` 让主进程
- *    调整窗口大小，并触发对应的跟随/固定定位刷新。
+ * 2. 通过离屏测量层和 ResizeObserver 测量内容尺寸，节流后调用 `sprite:bubble:resize`
+ *    让主进程调整窗口大小，并触发对应的跟随/固定定位刷新。
  * 3. 根据当前是否有消息，调用 `sprite:bubble:setVisible` 显示/隐藏窗口；隐藏延迟到
  *    淡出动画结束之后，避免抖动。
  *
@@ -12,7 +12,7 @@
  */
 
 import { isBubbleWindowMode } from '@packages/sprite-core/types';
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { type CSSProperties, useEffect, useLayoutEffect, useRef } from 'react';
 
 import { useSpriteState } from '@/features/sprite-assistant/context/hooks';
 import { MessageProvider, SpriteMessage, useMessage } from '@/features/sprite-assistant/message';
@@ -23,11 +23,23 @@ const MIN_BUBBLE_HEIGHT = 48;
 const MAX_BUBBLE_WIDTH = 504;
 const MAX_BUBBLE_HEIGHT = 392;
 
+const MEASURE_LAYER_STYLE: CSSProperties = {
+  contain: 'layout style',
+  transform: 'translate3d(-10000px, -10000px, 0)'
+};
+
+function clampBubbleSize(width: number, height: number): { width: number; height: number } {
+  return {
+    width: Math.min(MAX_BUBBLE_WIDTH, Math.max(MIN_BUBBLE_WIDTH, Math.ceil(width))),
+    height: Math.min(MAX_BUBBLE_HEIGHT, Math.max(MIN_BUBBLE_HEIGHT, Math.ceil(height)))
+  };
+}
+
 function SpriteBubbleContent(): JSX.Element | null {
   const { current, clearAll } = useMessage();
   const { spriteConfig } = useSpriteState();
   const isWindowMode = isBubbleWindowMode(spriteConfig.bubbleMode);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const measureRef = useRef<HTMLDivElement | null>(null);
   const lastSizeRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
   const lastVisibleRef = useRef<boolean | null>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -81,7 +93,7 @@ function SpriteBubbleContent(): JSX.Element | null {
   // 监听内容尺寸变化，上报新窗口大小
   useLayoutEffect(() => {
     if (!isWindowMode || !current) return;
-    const node = containerRef.current;
+    const node = measureRef.current;
     if (!node) return;
 
     const pushSize = (): void => {
@@ -90,8 +102,7 @@ function SpriteBubbleContent(): JSX.Element | null {
       const rect = node.getBoundingClientRect();
       const measuredWidth = Math.max(rect.width, node.scrollWidth);
       const measuredHeight = Math.max(rect.height, node.scrollHeight);
-      const width = Math.min(MAX_BUBBLE_WIDTH, Math.max(MIN_BUBBLE_WIDTH, Math.ceil(measuredWidth + 2)));
-      const height = Math.min(MAX_BUBBLE_HEIGHT, Math.max(MIN_BUBBLE_HEIGHT, Math.ceil(measuredHeight + 4)));
+      const { width, height } = clampBubbleSize(measuredWidth, measuredHeight);
       const last = lastSizeRef.current;
       if (last.width === width && last.height === height) return;
       lastSizeRef.current = { width, height };
@@ -127,7 +138,15 @@ function SpriteBubbleContent(): JSX.Element | null {
 
   return (
     <div className="fixed inset-0 flex items-end justify-center overflow-visible pointer-events-none select-none">
-      <div ref={containerRef} className="inline-flex w-fit max-w-[504px] items-end justify-center overflow-visible px-3 pt-3 pb-2">
+      <div className="inline-flex w-full max-w-[504px] items-end justify-center overflow-visible px-3 pt-3 pb-2">
+        <SpriteMessage placement="external" />
+      </div>
+      <div
+        ref={measureRef}
+        aria-hidden="true"
+        className="invisible fixed left-0 top-0 inline-flex w-max max-w-[504px] items-end justify-center overflow-visible px-3 pt-3 pb-2 pointer-events-none select-none"
+        style={MEASURE_LAYER_STYLE}
+      >
         <SpriteMessage placement="external" />
       </div>
     </div>
