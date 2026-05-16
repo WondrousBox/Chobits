@@ -80,6 +80,25 @@ export function initSystemHandlers(): void {
     }
   });
 
+  ipcMain.handle('app:openExternalUrl', async (_event, url: string) => {
+    try {
+      const target = typeof url === 'string' ? url.trim() : '';
+      if (!target) {
+        return { ok: false, error: 'URL is required' } as const;
+      }
+
+      const parsed = new URL(target);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return { ok: false, error: 'Only HTTP(S) URLs can be opened externally' } as const;
+      }
+
+      await shell.openExternal(parsed.toString());
+      return { ok: true } as const;
+    } catch (error) {
+      return { ok: false, error: String(error) } as const;
+    }
+  });
+
   // ---------------- Logs ----------------
   ipcMain.handle('logs:getPath', async () => {
     try {

@@ -1025,13 +1025,20 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                     刷新订阅
                   </ContextMenuItem>
                   <ContextMenuItem
-                    onSelect={() => {
+                    onSelect={async () => {
                       if (!firstSelectedItem) return;
                       // 解析 metadata 获取 channelUrl
                       const metadata = firstSelectedItem.metadata ? JSON.parse(firstSelectedItem.metadata) : {};
                       const url = metadata.channelUrl || firstSelectedItem.url;
                       if (url) {
-                        window.open(url, '_blank');
+                        try {
+                          const result = await window.YUA.system['app:openExternalUrl'](url);
+                          if (!result.ok) {
+                            toast.error('打开失败', { description: result.error });
+                          }
+                        } catch (error: any) {
+                          toast.error('打开失败', { description: error?.message });
+                        }
                       }
                     }}
                   >

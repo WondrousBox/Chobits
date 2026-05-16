@@ -284,6 +284,21 @@ function sortRssItems(items: RssFeedItem[], sort: RssItemSort): RssFeedItem[] {
   });
 }
 
+function openExternalUrl(url?: string | null): void {
+  const target = url?.trim();
+  if (!target) return;
+
+  void window.YUA.system['app:openExternalUrl'](target)
+    .then((result) => {
+      if (!result.ok) {
+        toast.error('打开失败', { description: result.error });
+      }
+    })
+    .catch((error: unknown) => {
+      toast.error('打开失败', { description: error instanceof Error ? error.message : String(error) });
+    });
+}
+
 const RssFeedPage: React.FC = () => {
   const { resourceId } = useParams<{ resourceId: string }>();
   const navigate = useNavigate();
@@ -319,6 +334,10 @@ const RssFeedPage: React.FC = () => {
       return {} as RssMetadata;
     }
   }, [resource?.metadata]);
+
+  const handleOpenSourcePage = useCallback(() => {
+    openExternalUrl(metadata.channelUrl || resource?.url);
+  }, [metadata.channelUrl, resource?.url]);
 
   const [settingsForm, setSettingsForm] = useState({
     enabled: true,
@@ -1205,7 +1224,7 @@ const RssFeedPage: React.FC = () => {
           {(metadata.channelUrl || resource?.url) && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" className="w-8 h-8" onClick={() => window.open(metadata.channelUrl || resource?.url, '_blank')}>
+                <Button variant="outline" size="icon" className="w-8 h-8" onClick={handleOpenSourcePage}>
                   <TbExternalLink className="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
@@ -1491,9 +1510,7 @@ const FeedItemCard: React.FC<FeedItemCardProps> = ({
   formatNumber
 }) => {
   const handleOpenExternal = useCallback(() => {
-    if (item.link) {
-      window.open(item.link, '_blank');
-    }
+    openExternalUrl(item.link);
   }, [item.link]);
   const handleOpenItem = useCallback(() => {
     if (item.downloaded && item.localResourceId) {
