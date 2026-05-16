@@ -22,6 +22,7 @@ import PersonaGainEffects from './ui/PersonaGainEffects';
 import StatusIndicator from './ui/StatusIndicator';
 
 const showBlock = false; // 开发时显示
+const CLICK_INTERACTION_DEDUP_MS = 300;
 
 /** 内部组件：包含实际逻辑 */
 const AIAssistantInner: React.FC = () => {
@@ -35,6 +36,7 @@ const AIAssistantInner: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const { onMouseDown, isDragging, isDragReady } = useDragCollector();
   const { handleDragEnter, handleDragLeave, handleDropFiles } = useFileDropCollector();
+  const lastClickInteractionAtRef = useRef(0);
 
   // 全局语音播放
   useSpriteSpeak();
@@ -110,6 +112,11 @@ const AIAssistantInner: React.FC = () => {
 
   // 交互采集
   const handleClick = (): void => {
+    const now = Date.now();
+    if (now - lastClickInteractionAtRef.current < CLICK_INTERACTION_DEDUP_MS) {
+      return;
+    }
+    lastClickInteractionAtRef.current = now;
     window.YUA.sprite.interact('click');
   };
 
@@ -129,7 +136,15 @@ const AIAssistantInner: React.FC = () => {
 
   const handleDoubleClick = (): void => {
     window.YUA.sprite.interact('double-click');
-    window.YUA.window['window:open']('assistant');
+    void (async () => {
+      try {
+        const result = await window.YUA.preferences['preferences:getConfig']();
+        const targetWindow = result.ok && result.config?.assistantMiniWindowEnabled ? 'assistantMini' : 'assistant';
+        await window.YUA.window['window:open'](targetWindow);
+      } catch {
+        await window.YUA.window['window:open']('assistant');
+      }
+    })();
   };
 
   if (!ready) return null;

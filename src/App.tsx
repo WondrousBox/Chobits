@@ -80,6 +80,7 @@ function App(): JSX.Element {
                 <Route path="/resources/*" element={<ResourcePage />} />
                 <Route path="/workspace" element={<WorkspacePage />} />
                 <Route path="/assistant" element={<AssistantPage />} />
+                <Route path="/assistant-mini" element={<AssistantPage mode="mini" />} />
                 <Route path="/chat" element={<ChatPage />} />
                 <Route path="/chat-overlay" element={<ChatPage presentation="overlay" payloadWindowKey="chatOverlay" />} />
                 <Route path="/plugin-manager" element={<PluginPage />} />

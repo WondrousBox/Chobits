@@ -7,6 +7,7 @@ export type PreviewMode = 'window' | 'panel';
 export interface PreferencesConfig {
   previewMode: PreviewMode;
   webRecorderDeviceId?: string;
+  assistantMiniWindowEnabled: boolean;
 }
 
 export type PreferencesIpcType = typeof preferencesIpcRenderer;

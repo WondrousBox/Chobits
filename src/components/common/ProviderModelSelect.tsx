@@ -1,10 +1,11 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react';
-import { TbChevronDown } from 'react-icons/tb';
+import { TbChevronDown, TbCpu } from 'react-icons/tb';
 
 import TintableSvg from '@/components/common/TintableSvg';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { resolveProviderIdentity } from '@/lib/ai-provider-identity';
 
 // 支持的模型类型
@@ -63,6 +64,7 @@ export interface ProviderModelSelectProps {
   placeholder?: string;
   buttonVariant?: 'default' | 'outline' | 'ghost' | 'secondary' | 'destructive';
   buttonSize?: 'default' | 'sm' | 'lg' | 'icon';
+  triggerMode?: 'default' | 'icon';
   className?: string;
   // 是否自动加载第一个provider的模型
   autoLoadFirst?: boolean;
@@ -209,6 +211,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
       placeholder = '选择服务商 · 模型',
       buttonVariant = 'outline',
       buttonSize = 'sm',
+      triggerMode = 'default',
       className,
       autoLoadFirst = true,
       onOpenChange,
@@ -469,7 +472,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
       if (providerIcon) {
         return (
           <span className="flex items-center gap-2 truncate text-left text-xs">
-            <TintableSvg src={providerIcon} className="w-4 h-4 flex-shrink-0" alt={currentProvider?.label || providerId} />
+            <TintableSvg src={providerIcon} className="size-4 flex-shrink-0" alt={currentProvider?.label || providerId} />
             <span className="truncate">{modelLabel}</span>
           </span>
         );
@@ -479,6 +482,30 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
       const providerLabel = currentProvider?.label || resolvedProviderId;
       return <span className="truncate text-left text-xs">{`${providerLabel} · ${modelLabel}`}</span>;
     }, [resolvedProviderId, modelId, currentProvider, currentModel, placeholder, providerId]);
+
+    const currentProviderLabel = currentProvider?.label || resolvedProviderId || providerId || '';
+    const currentModelLabel = currentModel?.label || currentModel?.id || modelId || '';
+    const triggerTooltip = currentProviderLabel && currentModelLabel ? `${currentProviderLabel} · ${currentModelLabel}` : placeholder;
+    const triggerIcon = currentProvider?.schema?.icon ? <TintableSvg src={currentProvider.schema.icon} className="size-4 shrink-0" alt={currentProviderLabel || placeholder} /> : <TbCpu />;
+    const triggerButton = (
+      <Button
+        variant={buttonVariant}
+        size={buttonSize}
+        className={triggerMode === 'icon' ? className : `flex items-center justify-between gap-2 ${className || ''}`}
+        title={triggerTooltip}
+        aria-label={triggerMode === 'icon' ? triggerTooltip : undefined}
+        onPointerDown={() => onOpenPrepare?.()}
+      >
+        {triggerMode === 'icon' ? (
+          triggerIcon
+        ) : (
+          <>
+            <span className="flex items-center gap-2 flex-1 min-w-0">{displayLabel}</span>
+            <TbChevronDown className="opacity-50 flex-shrink-0" />
+          </>
+        )}
+      </Button>
+    );
 
     useEffect(() => {
       if (!resolvedProviderId) return;
@@ -495,12 +522,16 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
           onOpenChange?.(open);
         }}
       >
-        <DropdownMenuTrigger asChild>
-          <Button variant={buttonVariant} size={buttonSize} className={`flex items-center justify-between gap-2 ${className || ''}`} onPointerDown={() => onOpenPrepare?.()}>
-            <span className="flex items-center gap-2 flex-1 min-w-0">{displayLabel}</span>
-            <TbChevronDown className="w-4 h-4 opacity-50 flex-shrink-0" />
-          </Button>
-        </DropdownMenuTrigger>
+        {triggerMode === 'icon' ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>{triggerButton}</DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent>{triggerTooltip}</TooltipContent>
+          </Tooltip>
+        ) : (
+          <DropdownMenuTrigger asChild>{triggerButton}</DropdownMenuTrigger>
+        )}
         <DropdownMenuContent side={menuSide} align={menuAlign} avoidCollisions={avoidCollisions} className="no-drag pointer-events-auto min-w-[240px]">
           {/* 搜索输入框 */}
           <div className="p-2 border-b">
