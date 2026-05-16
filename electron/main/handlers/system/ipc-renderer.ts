@@ -15,6 +15,7 @@ export type SystemIpcParams = {
 
   // App
   'app:relaunch': IpcParams<[], { ok: boolean; error?: string }>;
+  'app:openExternalUrl': IpcParams<[url: string], { ok: boolean; error?: string }>;
 
   // Logs
   'logs:getPath': IpcParams<[], { ok: boolean; dir?: string; error?: string }>;
@@ -30,6 +31,7 @@ const methods: Array<keyof SystemIpcParams> = [
   'database:restoreBackup',
   'database:importBackup',
   'app:relaunch',
+  'app:openExternalUrl',
   'logs:getPath',
   'logs:openLocation'
 ];
