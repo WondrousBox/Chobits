@@ -1,4 +1,6 @@
 export { default as AssistantMessageTimeline } from './AssistantMessageTimeline';
+export type { AssistantMiniInputWithServiceProps } from './AssistantMiniInputWithService';
+export { default as AssistantMiniInputWithService } from './AssistantMiniInputWithService';
 export { ResourceCard } from './cards';
 export type { ChatAgentSelectOption, ChatAgentSelectProps } from './ChatAgentSelect';
 export { default as ChatAgentSelect } from './ChatAgentSelect';

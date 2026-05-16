@@ -9,6 +9,7 @@ declare module '@aim-packages/window-manager' {
     workspaceWizard: void;
     resources: void;
     assistant: void;
+    assistantMini: void;
     pluginManager: void;
     chat: void;
     chatOverlay: void;
@@ -213,6 +214,36 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       backgroundColor: '#00000000',
       show: false,
       webPreferences: { nodeIntegration: true, contextIsolation: true }
+    }
+  },
+  assistantMini: {
+    routeHash: 'assistant-mini',
+    followMain: true,
+    followerPreferMode: 'prefer-bottom',
+    followerClampToWorkArea: true,
+    preferShowInactive: false,
+    suspendHoverMonitorOnShow: true,
+    parent: 'main',
+    hideOnClose: true,
+    showOnReady: false,
+    openDevTools: false,
+    options: {
+      width: 360,
+      height: 56,
+      frame: false,
+      transparent: true,
+      resizable: false,
+      focusable: true,
+      acceptFirstMouse: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      hasShadow: false,
+      backgroundColor: '#00000000',
+      show: false,
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
+    },
+    platformOverlays: {
+      darwin: { options: { hasShadow: false } }
     }
   },
   pluginManager: {

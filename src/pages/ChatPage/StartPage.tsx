@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TbX } from 'react-icons/tb';
 import { toast } from 'sonner';
 
-import { ChatInputWithService, type ChatInputWithServiceProps } from '@/components/chat';
+import { AssistantMiniInputWithService, ChatInputWithService, type ChatInputWithServiceProps } from '@/components/chat';
 import { Button } from '@/components/ui/button';
 
 import { CHAT_OVERLAY_SETTINGS } from './chat-overlay-settings';
@@ -20,8 +20,15 @@ const PLACEHOLDERS = [
 const MENU_RESERVE_HEIGHT = 360;
 
 type AssistantStartParams = Parameters<ChatInputWithServiceProps['onStart']>[0];
+type AssistantWindowMode = 'standard' | 'mini';
 
-const AssistantPage: React.FC = () => {
+interface AssistantPageProps {
+  mode?: AssistantWindowMode;
+}
+
+const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
+  const isMini = mode === 'mini';
+  const windowKey = isMini ? 'assistantMini' : 'assistant';
   const [opening, setOpening] = useState(true);
   const [closing, setClosing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -31,6 +38,7 @@ const AssistantPage: React.FC = () => {
   const modelMenuOpenRef = useRef<boolean>(false);
   const openMenuCountRef = useRef<number>(0);
   const menuResizeResumeTimerRef = useRef<number | null>(null);
+  const visibilityOpenTimerRef = useRef<number | null>(null);
 
   const { setPresetId } = useChatSelection();
 
@@ -40,11 +48,35 @@ const AssistantPage: React.FC = () => {
     return () => clearTimeout(t);
   }, []);
 
+  useEffect(() => {
+    const handleVisibilityChange = (_event: any, data: { visible: boolean; key: string }): void => {
+      if (data.key !== windowKey || !data.visible) return;
+      if (visibilityOpenTimerRef.current) {
+        window.clearTimeout(visibilityOpenTimerRef.current);
+      }
+      setClosing(false);
+      setOpening(true);
+      visibilityOpenTimerRef.current = window.setTimeout(() => {
+        visibilityOpenTimerRef.current = null;
+        setOpening(false);
+      }, 180);
+    };
+
+    window.ipcRenderer?.on('window:visibility-changed', handleVisibilityChange);
+    return () => {
+      if (visibilityOpenTimerRef.current) {
+        window.clearTimeout(visibilityOpenTimerRef.current);
+        visibilityOpenTimerRef.current = null;
+      }
+      window.ipcRenderer?.off('window:visibility-changed', handleVisibilityChange);
+    };
+  }, [windowKey]);
+
   const close = useCallback(() => {
     if (closing) return;
     setClosing(true);
-    setTimeout(() => window.YUA.window['window:close']('assistant'), 160);
-  }, [closing]);
+    setTimeout(() => window.YUA.window['window:close'](windowKey), 160);
+  }, [closing, windowKey]);
 
   // ESC 关闭
   useEffect(() => {
@@ -120,15 +152,15 @@ const AssistantPage: React.FC = () => {
       const screen = await window.YUA.window['screen:size:get']();
       const maxW = screen.width;
       const maxH = screen.height;
-      const minW = 360;
-      const minH = 100;
+      const minW = isMini ? 320 : 360;
+      const minH = isMini ? 56 : 100;
       const desiredWidth = Math.max(minW, Math.min(currentWidth, maxW));
       const desiredHeight = Math.max(minH, Math.min(contentHeight, maxH));
-      await window.YUA.window['window:size:set']('assistant', desiredWidth, desiredHeight);
+      await window.YUA.window['window:size:set'](windowKey, desiredWidth, desiredHeight);
     } catch {
       //
     }
-  }, []);
+  }, [isMini, windowKey]);
 
   const resizeForOpenMenu = useCallback(async () => {
     try {
@@ -141,15 +173,15 @@ const AssistantPage: React.FC = () => {
       const screen = await window.YUA.window['screen:size:get']();
       const maxW = screen.width;
       const maxH = screen.height;
-      const minW = 360;
-      const minH = 100;
+      const minW = isMini ? 320 : 360;
+      const minH = isMini ? 56 : 100;
       const desiredWidth = Math.max(minW, Math.min(currentWidth, maxW));
       const desiredHeight = Math.max(minH, Math.min(contentHeight + MENU_RESERVE_HEIGHT, maxH));
-      await window.YUA.window['window:size:set']('assistant', desiredWidth, desiredHeight);
+      await window.YUA.window['window:size:set'](windowKey, desiredWidth, desiredHeight);
     } catch {
       //
     }
-  }, []);
+  }, [isMini, windowKey]);
 
   // 根据内容高度动态调整窗口大小
   useEffect(() => {
@@ -245,24 +277,37 @@ const AssistantPage: React.FC = () => {
   return (
     <div ref={contentRootRef} className="w-full h-full font-sans pointer-events-auto select-none relative drag-region">
       <div className={`w-full flex flex-col overflow-hidden transition-all duration-180 ${opening ? 'opacity-0 scale-95' : closing ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
-        <Button className="rounded-full no-drag absolute top-2 right-2 z-10" size={'icon'} variant={'ghost'} onClick={close}>
-          <TbX />
-        </Button>
+        {!isMini && (
+          <Button className="rounded-full no-drag absolute top-2 right-2 z-10" size={'icon'} variant={'ghost'} onClick={close}>
+            <TbX />
+          </Button>
+        )}
 
-        <div className="no-drag pointer-events-auto space-y-2">
+        <div className={isMini ? 'no-drag pointer-events-auto' : 'no-drag pointer-events-auto space-y-2'}>
           {/* 常用功能快捷入口 */}
           <div ref={inputBlockRef} className="flex items-start gap-3 relative">
             <div className="flex-1 relative">
-              <ChatInputWithService
-                placeholders={PLACEHOLDERS}
-                autoFocus
-                loading={loading}
-                menuPlacement="assistant-floating"
-                onStart={handleSend}
-                onHeightChange={handleInputHeightChange}
-                onMenuOpenChange={handleMenuOpenChange}
-                onMenuOpenPrepare={handleMenuOpenPrepare}
-              />
+              {isMini ? (
+                <AssistantMiniInputWithService
+                  autoFocus
+                  loading={loading}
+                  placeholder="问点什么..."
+                  onStart={handleSend}
+                  onMenuOpenChange={handleMenuOpenChange}
+                  onMenuOpenPrepare={handleMenuOpenPrepare}
+                />
+              ) : (
+                <ChatInputWithService
+                  placeholders={PLACEHOLDERS}
+                  autoFocus
+                  loading={loading}
+                  menuPlacement="assistant-floating"
+                  onStart={handleSend}
+                  onHeightChange={handleInputHeightChange}
+                  onMenuOpenChange={handleMenuOpenChange}
+                  onMenuOpenPrepare={handleMenuOpenPrepare}
+                />
+              )}
             </div>
           </div>
         </div>

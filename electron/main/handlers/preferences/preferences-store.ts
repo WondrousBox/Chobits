@@ -12,11 +12,13 @@ export interface PreferencesConfig {
   previewMode: PreviewMode;
   // WebRecorder 麦克风设备ID
   webRecorderDeviceId?: string;
+  assistantMiniWindowEnabled: boolean;
 }
 
 // 默认配置
 const DEFAULT_CONFIG: PreferencesConfig = {
-  previewMode: 'window'
+  previewMode: 'window',
+  assistantMiniWindowEnabled: false
 };
 
 type StoreShape = {
@@ -49,7 +51,8 @@ function read(): StoreShape {
     return {
       preferences: {
         previewMode: data.preferences?.previewMode || DEFAULT_CONFIG.previewMode,
-        webRecorderDeviceId: data.preferences?.webRecorderDeviceId
+        webRecorderDeviceId: data.preferences?.webRecorderDeviceId,
+        assistantMiniWindowEnabled: typeof data.preferences?.assistantMiniWindowEnabled === 'boolean' ? data.preferences.assistantMiniWindowEnabled : DEFAULT_CONFIG.assistantMiniWindowEnabled
       }
     };
   } catch (error) {
