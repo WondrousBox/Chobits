@@ -815,6 +815,48 @@ describe('sprite manager regression coverage', () => {
     expect(mgr.getCurrentAnimation()?.animationId).toBe('dance-default');
   });
 
+  it('allows music dance playId triggers to use the dance list-loop playlist', () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'dance-high',
+      title: 'Dance High',
+      eventTypes: ['dance'],
+      priority: 10,
+      source: { localPath: './dance-high.webm', type: 'video/webm' },
+      playback: { durationMs: 800, autoIdle: true }
+    });
+    registry.register({
+      id: 'dance-low',
+      title: 'Dance Low',
+      eventTypes: ['dance'],
+      priority: 1,
+      source: { localPath: './dance-low.webm', type: 'video/webm' },
+      playback: { durationMs: 800, autoIdle: true }
+    });
+
+    mgr.setAnimationPlaylistMode('single-once');
+    mgr.setAnimationPlaylistMode('list-loop', 'dance');
+
+    mgr.trigger('music:dance', {
+      silent: true,
+      playId: 'music-dance-test',
+      allowPlaylistWithPlayId: true
+    });
+
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('dance-high');
+    expect(mgr.getCurrentAnimation()?.playId).toBe('music-dance-test');
+
+    mgr.handleAnimationComplete('dance-high', 'full', 'music-dance-test');
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('dance-low');
+    expect(mgr.getCurrentAnimation()?.playId).toBe('music-dance-test');
+
+    mgr.handleAnimationComplete('dance-low', 'full', 'music-dance-test');
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('dance-high');
+  });
+
   it('keeps trigger() and playOnce() on separate runtime boundaries', () => {
     vi.useFakeTimers();
 
