@@ -143,6 +143,9 @@ interface SpriteBehaviorSchedulerPayload {
 
 const SPRITE_BEHAVIOR_SCHEDULER_OWNER = 'sprite.behavior';
 const SPRITE_AUTO_MOVE_SCHEDULER_GATE = 'sprite.canAutoMove';
+const SPRITE_TRIGGER_DEBUG_PREFIX = '[SpriteManager][trigger]';
+const MUSIC_DANCE_TRIGGER = 'music:dance' as SpriteAnimationTrigger;
+const MUSIC_DANCE_FALLBACK_TRIGGER = 'dance' as SpriteAnimationTrigger;
 
 export class SpriteManager {
   // 内部引擎实例
@@ -559,6 +562,8 @@ export class SpriteManager {
     this.currentAnimation = {
       playId: options.playId,
       animationId: anim.id,
+      trigger: options.trigger,
+      sessionMode: options.sessionMode,
       source: anim.source,
       playbackSession: this.buildPlaybackSession(anim.playback, resolvedDurationMs, options.sessionMode),
       playback: anim.playback
@@ -597,6 +602,18 @@ export class SpriteManager {
     }
 
     this.sendToRenderer('sprite:play', this.currentAnimation);
+    if (options.trigger && this.shouldLogTriggerDebug(options.trigger, { playId: options.playId })) {
+      this.logTriggerDebug('sprite:play sent', {
+        trigger: options.trigger,
+        animationId: anim.id,
+        title: anim.title,
+        playId: options.playId,
+        playlistMode: options.playlistMode,
+        sessionMode: options.sessionMode,
+        durationMs: resolvedDurationMs,
+        hasPlayback: Boolean(anim.playback)
+      });
+    }
     this.handleAnimationMovement(anim.playback?.movement);
   }
 
@@ -642,15 +659,76 @@ export class SpriteManager {
    */
   trigger(trigger: SpriteAnimationTrigger, options?: SpriteTriggerOptions): void {
     // 1. Try to find and play a matching animation.
-    const playlistMode = this.resolveAnimationPlaylistMode(trigger, options);
-    const candidates = this.animationRegistry.findCandidatesByTrigger({
+    let resolvedTrigger = trigger;
+    let candidates = this.animationRegistry.findCandidatesByTrigger({
       trigger,
       personaState: this.personaState.getState()
     });
+    const requestedCandidateCount = candidates.length;
+    let fallbackTrigger: SpriteAnimationTrigger | undefined;
+    if (candidates.length === 0 && this.shouldFallbackMusicDanceTrigger(trigger)) {
+      fallbackTrigger = MUSIC_DANCE_FALLBACK_TRIGGER;
+      resolvedTrigger = fallbackTrigger;
+      candidates = this.animationRegistry.findCandidatesByTrigger({
+        trigger: fallbackTrigger,
+        personaState: this.personaState.getState()
+      });
+    }
+    const playlistMode = this.resolveAnimationPlaylistMode(resolvedTrigger, options);
     const selected = this.selectAnimationFromCandidates(candidates);
-    if (selected && this.canPresentAnimation(options)) {
-      this.playAnimationEntry(selected.anim, {
+    const presentationAllowed = this.canPresentAnimation(options);
+    const shouldLogDebug = this.shouldLogTriggerDebug(trigger, options);
+    if (shouldLogDebug) {
+      this.logTriggerDebug('received trigger', {
         trigger,
+        resolvedTrigger,
+        fallbackTrigger,
+        playId: options?.playId,
+        silent: options?.silent,
+        priority: options?.priority,
+        ownerPurposeId: options?.ownerPurposeId,
+        ignorePresentationLock: options?.ignorePresentationLock,
+        playlistMode,
+        requestedCandidateCount,
+        candidateCount: candidates.length,
+        candidateIds: candidates.slice(0, 5).map((candidate) => candidate.id),
+        selectedAnimationId: selected?.anim.id,
+        selectedTitle: selected?.anim.title,
+        presentationAllowed,
+        presentationLock: this.presentationLock.getSnapshot()
+      });
+    }
+
+    if (!selected && shouldLogDebug) {
+      this.logTriggerDebug('no animation candidates', {
+        trigger,
+        resolvedTrigger,
+        fallbackTrigger,
+        playId: options?.playId,
+        availableTriggerSample: this.animationRegistry.getTriggers().slice(0, 30)
+      });
+    } else if (selected && !presentationAllowed && shouldLogDebug) {
+      this.logTriggerDebug('animation blocked by presentation lock', {
+        trigger,
+        resolvedTrigger,
+        fallbackTrigger,
+        playId: options?.playId,
+        selectedAnimationId: selected.anim.id,
+        presentationLock: this.presentationLock.getSnapshot()
+      });
+    }
+
+    if (selected && presentationAllowed) {
+      if (fallbackTrigger && shouldLogDebug) {
+        this.logTriggerDebug('using fallback trigger', {
+          requestedTrigger: trigger,
+          fallbackTrigger,
+          selectedAnimationId: selected.anim.id,
+          selectedTitle: selected.anim.title
+        });
+      }
+      this.playAnimationEntry(selected.anim, {
+        trigger: resolvedTrigger,
         playlistMode,
         playlistEntries: candidates,
         playlistIndex: selected.index,
@@ -1132,6 +1210,12 @@ export class SpriteManager {
   /** 获取当前动画 */
   getCurrentAnimation(): SpritePlayCommand | null {
     return this.currentAnimation;
+  }
+
+  /** 当前是否已回到空闲站立动画，可被低优先级环境触发接管。 */
+  isIdlePresentationActive(): boolean {
+    if (this.getState() !== 'idle' || this.getSubState() != null) return false;
+    return !this.currentAnimation || (this.currentAnimation.sessionMode === 'state-bound' && this.currentAnimation.trigger === 'idle');
   }
 
   /** 获取动画列表 (AnimationRegistry) */
@@ -2185,8 +2269,15 @@ export class SpriteManager {
     try {
       if (this.win && !this.win.isDestroyed()) {
         this.win.webContents.send(channel, data);
+      } else if (channel === 'sprite:play') {
+        this.logTriggerDebug('sprite:play skipped: main sprite window unavailable', {
+          isDestroyed: this.win?.isDestroyed?.()
+        });
       }
     } catch {
+      if (channel === 'sprite:play') {
+        this.logTriggerDebug('sprite:play send failed');
+      }
       /* ignore */
     }
 
@@ -2210,6 +2301,20 @@ export class SpriteManager {
         /* ignore */
       }
     }
+  }
+
+  private logTriggerDebug(message: string, details: Record<string, unknown> = {}): void {
+    console.info(SPRITE_TRIGGER_DEBUG_PREFIX, message, details);
+  }
+
+  private shouldLogTriggerDebug(trigger?: SpriteAnimationTrigger, options?: Pick<SpriteTriggerOptions, 'playId'>): boolean {
+    const normalizedTrigger = typeof trigger === 'string' ? trigger.trim() : '';
+    const playId = typeof options?.playId === 'string' ? options.playId : '';
+    return normalizedTrigger.startsWith('music:') || playId.startsWith('music-');
+  }
+
+  private shouldFallbackMusicDanceTrigger(trigger?: SpriteAnimationTrigger): boolean {
+    return typeof trigger === 'string' && trigger.trim() === MUSIC_DANCE_TRIGGER;
   }
 
   /** 构建行为引擎上下文 */

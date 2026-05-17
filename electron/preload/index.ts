@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
 // 使用当前的 AI IPC bridge
 import { aiBridge } from '../../packages/ai/ipc-renderer';
+import { musicReactivityIpcRenderer } from '../../packages/audio-reactivity/ipc-renderer';
 import { APP_EVENT_CHANNEL, AppEventPayload } from '../../packages/event/events';
 import { pluginResourceIpcRenderer } from '../../packages/plugins/ipc-renderer';
 import { recorderIpcRenderer } from '../../packages/recorder/ipc-renderer';
@@ -119,6 +120,7 @@ contextBridge.exposeInMainWorld('YUA', {
   theme: themeIpcRenderer,
   sherpa: sherpaIpcRenderer,
   preferences: preferencesIpcRenderer,
+  musicReactivity: musicReactivityIpcRenderer,
   ytdlp: ytdlpIpcRenderer,
   spleeter: spleeterIpcRenderer,
   rss: createRssApi(ipcRenderer),

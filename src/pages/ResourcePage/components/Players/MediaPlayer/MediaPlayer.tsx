@@ -2,6 +2,7 @@ import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef,
 
 import { CenterPlayButton } from './CenterPlayButton';
 import { MediaControls } from './MediaControls';
+import { useMusicReactivityAnalyzer } from './useMusicReactivityAnalyzer';
 
 interface MediaPlayerProps {
   src: string;
@@ -47,6 +48,8 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(
     useEffect(() => {
       lastReportedDurationRef.current = 0;
     }, [src]);
+
+    useMusicReactivityAnalyzer(mediaRef, isPlaying, type);
 
     // 更新时间信息
     const updateTime = useCallback(() => {
@@ -383,7 +386,7 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(
           onSeek={seekTo}
           onVolumeChange={changeVolume}
           onPlaybackRateChange={changePlaybackRate}
-          onToggleFullscreen={() => { }}
+          onToggleFullscreen={() => {}}
           type="audio"
         />
         {title && <div className="text-[11px] text-muted-foreground px-1">音频预览 - {title}</div>}

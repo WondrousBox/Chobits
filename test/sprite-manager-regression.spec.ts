@@ -798,6 +798,23 @@ describe('sprite manager regression coverage', () => {
     expect(mgr.findAnimationByTrigger('custom:missing')).toBeUndefined();
   });
 
+  it('falls back from music:dance to the built-in dance trigger', () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'dance-default',
+      title: 'Dance Default',
+      eventTypes: ['dance'],
+      source: { localPath: './dance.webm', type: 'video/webm' },
+      playback: { durationMs: 1200 }
+    });
+
+    mgr.trigger('music:dance', { silent: true, playId: 'music-dance-test' });
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('dance-default');
+  });
+
   it('keeps trigger() and playOnce() on separate runtime boundaries', () => {
     vi.useFakeTimers();
 

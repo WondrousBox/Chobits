@@ -2,6 +2,8 @@ import { windowManager } from '@aim-packages/window-manager';
 import { app, BrowserWindow, screen } from 'electron';
 
 import { initAIHandlers } from '../../../packages/ai/ipc-main';
+import { broadcastMusicReactivitySnapshot, initMusicReactivityHandlers } from '../../../packages/audio-reactivity/ipc-main';
+import { MusicReactivityService } from '../../../packages/audio-reactivity/music-reactivity-service';
 import type { DownloadProgress } from '../../../packages/plugins';
 import { initPluginResourceHandlers } from '../../../packages/plugins/ipc-main';
 import { initRecorderHandlers } from '../../../packages/recorder/ipc-main';
@@ -33,6 +35,7 @@ import { initMediaTrackHandlers } from './mediaTrack/ipc-main';
 import { initMemoryHandlers } from './memory/ipc-main';
 import { registerPurposeRetrospectiveMemoryProvider } from './memory/purpose-retrospective-memory-sync';
 import { initPreferencesHandlers } from './preferences/ipc-main';
+import { PreferencesStore } from './preferences/preferences-store';
 import { initProxyHandlers } from './proxy/ipc-main';
 import { getHttpProxy } from './proxy/proxy';
 import { initResourceHandlers } from './resource/ipc-main';
@@ -77,13 +80,16 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
     getResourcePath,
     assertCapabilityUnlocked: assertSpriteCapabilityUnlocked
   });
-  initDailyCare(() => {
-    if (win && !win.isDestroyed()) return win;
-    const existing = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
-    return existing || null;
-  }, () => {
-    return SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
-  });
+  initDailyCare(
+    () => {
+      if (win && !win.isDestroyed()) return win;
+      const existing = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
+      return existing || null;
+    },
+    () => {
+      return SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
+    }
+  );
   initStatusHandlers(win);
   await initAIHandlers(win);
   {
@@ -183,5 +189,15 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
         };
       }
     })
+  });
+  const musicReactivityService = new MusicReactivityService({
+    getSpriteManager: () => {
+      return SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
+    },
+    preferences: PreferencesStore.getMusicReactivity(),
+    onSnapshot: broadcastMusicReactivitySnapshot
+  });
+  initMusicReactivityHandlers(musicReactivityService, {
+    savePreferences: (preferences) => PreferencesStore.setMusicReactivity(preferences)
   });
 }

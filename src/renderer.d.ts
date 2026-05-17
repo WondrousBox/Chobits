@@ -18,7 +18,6 @@ import type { SystemIpcType } from '../electron/main/handlers/system/ipc-rendere
 import type { ThemeIpcType } from '../electron/main/handlers/theme/ipc-renderer';
 import type { TrashIpcType } from '../electron/main/handlers/trash/ipc-renderer';
 import type { WorkspaceIpcType } from '../electron/main/handlers/workspace/ipc-renderer';
-import type { YtDlpIpcRendererType } from '../electron/main/handlers/ytdlp/ipc-renderer';
 import type { PluginResourceIpcType } from '../electron/main/plugins/ipc-renderer';
 import type { SchedulerBridgeType } from '../electron/main/scheduler/ipc-renderer';
 import type { analyticsApi } from '../electron/preload/apis/analytics';
@@ -29,12 +28,14 @@ import type { StatusBridgeType } from '../electron/preload/apis/status';
 import type { userProfileApi } from '../electron/preload/apis/user-profile';
 import type { WindowBridgeType } from '../electron/preload/apis/window';
 import type { AIApi } from '../packages/ai/types';
+import type { MusicReactivityIpcRendererType } from '../packages/audio-reactivity/ipc-renderer';
 import type { AppEventPayload } from '../packages/event/events';
 import type { RecorderIpcRendererType } from '../packages/recorder/ipc-renderer';
 import type { SherpaIpcRendererType } from '../packages/sherpa/ipc-renderer';
 import type { SpriteBridgeType } from '../packages/sprite-core/preload';
 import type { MessageBridgePayload, SpriteEffectBridgePayload, SpriteEffectClearPayload, SpriteEffectPayload } from '../packages/sprite-core/types';
 import type { TTSIpcRenderer } from '../packages/tts/ipc-renderer';
+import type { YtDlpIpcRendererType } from '../packages/ytdlp/ipc-renderer';
 
 declare global {
   interface Window {
@@ -70,6 +71,7 @@ declare global {
       theme: ThemeIpcType;
       sherpa: SherpaIpcRendererType;
       preferences: PreferencesIpcType;
+      musicReactivity: MusicReactivityIpcRendererType;
       ytdlp: YtDlpIpcRendererType;
       spleeter: SpleeterIpcType & {
         onProgress: (callback: (data: { progress: number }) => void) => () => void;
