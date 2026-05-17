@@ -5,16 +5,18 @@
 
 ## 资源查询与推送
 
-**触发词：** 查找资源、创建资源、保存资源、导入资源、找视频、找音频、找字幕、有没有、给我看看、最新的、查询
+**触发词：** 查找资源、创建资源、保存资源、导入资源、找视频、找音频、找字幕、预览资源、打开资源、查看资源、播放资源、打开文件、预览文件、有没有、给我看看、最新的、查询
 
-**涉及工具：** resourceQueryTool, resourceCreateTool, pushCardTool
+**涉及工具：** resourceQueryTool, resourceCreateTool, pushCardTool, appWindowTool
 
 **工作流程：**
 
 1. 用户要找资源时，用 resourceQueryTool 查询资源（获取 resourceId 和资源信息）。
 2. 用户要把本地文件、URL 或文本保存到资源库时，用 resourceCreateTool 创建资源。
 3. 创建或查询到资源后，用 pushCardTool 推送资源卡片到聊天窗口，让用户可以直接点击查看。
-4. 推送卡片时，附带简短的文字说明（text 参数）。
+4. 如果用户明确说“打开/预览/查看/播放某个具体资源”，在拿到 resourceId 后搜索应用窗口能力：`toolboxTool({ action: 'search', query: '预览资源 打开资源' })`，再用 appWindowTool 打开 `resourcePreview` 并传 `{ resourceId }`。
+5. 如果用户想进入资源库浏览或管理资源，搜索应用窗口能力后用 appWindowTool 打开 `resources`。
+6. 推送卡片时，附带简短的文字说明（text 参数）。
 
 **pushCardTool 示例：**
 
@@ -24,6 +26,7 @@
 **注意：**
 
 - 当用户询问资源或想要查看资源时，务必推送资源卡片，不要只用文字描述
+- “给我看看有哪些资源/找一下资源”偏查询和卡片；“打开这个资源/预览这个视频/播放这段音频/查看这张图片”偏窗口预览，应使用 appWindowTool
 - resourceQueryTool 支持按类型、时间、关键词等多种条件查询
 - resourceCreateTool 的 `mediaKind: "music"` 会把资源标记为音乐：资源类型仍是 `audio`，但 metadata 中会写入 `mediaKind/kind: "music"`，并添加 music 标签/分类
 
@@ -292,6 +295,28 @@
 - 需要 MiniMax 音乐生成能力和可用 API Key。
 - 这是生成音乐的工具，不是转写或提取音频工具。
 - 生成的资源会标记 `mediaKind: "music"` / `kind: "music"`，并带有 `music`、`ai-generated` 等标签，后续播放器或桌面精灵可以据此识别音乐并触发跳舞等动作。
+
+## 应用窗口
+
+**触发词：** 打开窗口、打开设置、打开资源库、打开资源、预览资源、查看资源、播放资源、打开文件、预览文件、设置、资源库、聊天窗口、助手窗口、插件管理、窗口动画、window、settings、preview
+
+**涉及工具：** appWindowTool
+
+**工作流程：**
+
+1. 用户要求打开 chobits 内的业务窗口时，先用 appWindowTool 的 search 按自然语言查找窗口；不确定有哪些窗口时用 list。
+2. open 时只传 search/list 返回的 windowKey，不要猜内部窗口 key。
+3. payload 只能传该窗口说明中列出的字段；工具会自动丢弃未知或不合法字段。
+4. 打开设置页时优先传 `{ category: "ai" | "plugins" | "shortcuts" | ... }`；打开聊天类窗口时可传 `initialMessage`。
+5. 打开或预览具体资源时，先用 resourceQueryTool 找到 resourceId，再用 appWindowTool 打开 `resourcePreview`，payload 传 `{ resourceId }`。
+6. 进入资源库浏览/管理时打开 `resources`；预览单个资源时打开 `resourcePreview`，不要混用。
+
+**注意：**
+
+- 这个工具只开放业务窗口，不开放气泡、精灵特效、菜单浮层、下载浮窗等内部系统窗口。
+- 如果用户只是想查看窗口能力，用 list/search；只有明确要打开窗口时才 open。
+- appWindowTool 的 search/list 返回每个窗口能接收的 payload 字段，打开前先看返回说明。
+- 打开窗口属于 UI 副作用，来自高风险 skill 的调用需要按运行时确认机制处理。
 
 ## 长任务等待与进度
 

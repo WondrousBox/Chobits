@@ -40,6 +40,14 @@ export interface ToolLabelDefinition {
 // ━━ Default Labels ━━
 
 const DEFAULT_TOOL_LABELS: Record<string, ToolLabelDefinition> = {
+  appWindowTool: {
+    default: { calling: '打开应用窗口', done: '窗口已打开' },
+    conditions: [
+      { when: { action: 'list' }, calling: '列出应用窗口', done: '应用窗口列表完成' },
+      { when: { action: 'search' }, calling: '查找窗口：{query}', done: '查找窗口完成' },
+      { when: { action: 'open' }, calling: '打开窗口：{windowKey}', done: '窗口已打开' }
+    ]
+  },
   toolboxTool: {
     default: { calling: '查阅工具箱', done: '查阅工具箱完成' },
     conditions: [

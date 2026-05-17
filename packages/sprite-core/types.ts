@@ -634,6 +634,8 @@ export interface SpriteStateSnapshot {
 export interface SpritePlayCommand {
   playId?: string;
   animationId: string;
+  trigger?: SpriteAnimationTrigger;
+  sessionMode?: 'state-bound' | 'trigger';
   source?: { src?: string; localPath?: string; type?: string };
   playbackSession?: {
     mode: 'timed';

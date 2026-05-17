@@ -3,6 +3,13 @@ import type { PiToolDescriptor } from './contracts';
 type ToolSeed = Omit<PiToolDescriptor, 'id'>;
 
 const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
+  'app-window': {
+    category: 'ui-side-effect',
+    description: '列出、搜索并打开 chobits 应用窗口；适用于打开设置、资源库、资源预览、聊天等 UI 窗口，会清洗传入参数',
+    compatName: 'appWindowTool',
+    name: 'appWindowTool',
+    status: 'ready-for-pi-runtime'
+  },
   'ask-user': {
     category: 'ui-side-effect',
     description: '向用户展示交互式选项卡，等待用户做出选择',
@@ -269,6 +276,7 @@ export const DEFAULT_SESSION_TOOL_IDS = [
   'music-generate',
   'music-lyrics',
   'persona-update',
+  'app-window',
   'toolbox-lookup',
   'workflow-run',
   'web-search',

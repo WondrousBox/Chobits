@@ -3,6 +3,9 @@ import path from 'node:path';
 
 import { app } from 'electron';
 
+import type { MusicReactivityPreferences } from '../../../../packages/audio-reactivity/types';
+import { DEFAULT_MUSIC_REACTIVITY_PREFERENCES, normalizeMusicReactivityPreferences } from '../../../../packages/audio-reactivity/types';
+
 // 预览模式类型: 'window' 表示弹窗，'panel' 表示右侧面板
 export type PreviewMode = 'window' | 'panel';
 
@@ -13,12 +16,14 @@ export interface PreferencesConfig {
   // WebRecorder 麦克风设备ID
   webRecorderDeviceId?: string;
   assistantMiniWindowEnabled: boolean;
+  musicReactivity: MusicReactivityPreferences;
 }
 
 // 默认配置
 const DEFAULT_CONFIG: PreferencesConfig = {
   previewMode: 'window',
-  assistantMiniWindowEnabled: false
+  assistantMiniWindowEnabled: false,
+  musicReactivity: DEFAULT_MUSIC_REACTIVITY_PREFERENCES
 };
 
 type StoreShape = {
@@ -52,7 +57,8 @@ function read(): StoreShape {
       preferences: {
         previewMode: data.preferences?.previewMode || DEFAULT_CONFIG.previewMode,
         webRecorderDeviceId: data.preferences?.webRecorderDeviceId,
-        assistantMiniWindowEnabled: typeof data.preferences?.assistantMiniWindowEnabled === 'boolean' ? data.preferences.assistantMiniWindowEnabled : DEFAULT_CONFIG.assistantMiniWindowEnabled
+        assistantMiniWindowEnabled: typeof data.preferences?.assistantMiniWindowEnabled === 'boolean' ? data.preferences.assistantMiniWindowEnabled : DEFAULT_CONFIG.assistantMiniWindowEnabled,
+        musicReactivity: normalizeMusicReactivityPreferences(data.preferences?.musicReactivity)
       }
     };
   } catch (error) {
@@ -124,5 +130,24 @@ export const PreferencesStore = {
    */
   setWebRecorderDeviceId(deviceId: string | undefined): PreferencesConfig {
     return this.setConfig({ webRecorderDeviceId: deviceId });
+  },
+
+  /**
+   * 获取音乐响应配置
+   */
+  getMusicReactivity(): MusicReactivityPreferences {
+    return this.getConfig().musicReactivity;
+  },
+
+  /**
+   * 设置音乐响应配置
+   */
+  setMusicReactivity(config: Partial<MusicReactivityPreferences>): PreferencesConfig {
+    return this.setConfig({
+      musicReactivity: normalizeMusicReactivityPreferences({
+        ...this.getMusicReactivity(),
+        ...config
+      })
+    });
   }
 };

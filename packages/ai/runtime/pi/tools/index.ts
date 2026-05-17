@@ -1,6 +1,7 @@
 import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
 
 import type { PiSessionToolContext } from '../tool-context';
+import { createPiAppWindowTool } from './app-window';
 import { createPiAskUserTool } from './ask-user';
 import { createPiEmojiListTool, createPiEmojiSearchTool, createPiEmojiSendTool } from './emoji-packs';
 import { createPiFileEditTool } from './file-edit';
@@ -37,6 +38,7 @@ import { createPiYoutubeSubscribeTool } from './youtube-subscribe';
 type PiToolFactory = (toolContext: PiSessionToolContext) => ToolDefinition<any>;
 
 const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
+  'app-window': createPiAppWindowTool,
   'ask-user': createPiAskUserTool,
   'emoji-list': createPiEmojiListTool,
   'emoji-search': createPiEmojiSearchTool,
@@ -75,6 +77,7 @@ const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
 
 /** compatName → toolId 映射，供 toolbox proxy execute 按名称查找 */
 const COMPAT_NAME_TO_TOOL_ID: Record<string, string> = {
+  appWindowTool: 'app-window',
   askUserTool: 'ask-user',
   emojiListTool: 'emoji-list',
   emojiSearchTool: 'emoji-search',
