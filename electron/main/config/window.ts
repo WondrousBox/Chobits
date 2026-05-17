@@ -44,7 +44,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     preferShowInactive: true,
     parent: 'main',
     showOnReady: false,
-    openDevTools: true,
+    openDevTools: false,
     options: {
       width: 260,
       height: 320,
@@ -116,7 +116,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
   settings: {
     routeHash: 'settings',
     showOnReady: false,
-    openDevTools: true,
+    openDevTools: false,
     options: {
       width: 1200,
       height: 800,
@@ -146,7 +146,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     routeHash: 'workspace-wizard',
     autoCenterOn: 'parent-display',
     showOnReady: false,
-    openDevTools: true,
+    openDevTools: false,
     options: {
       width: 440,
       height: 440,
@@ -171,7 +171,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     routeHash: 'resources',
     autoCenterOn: 'parent-display',
     showOnReady: true,
-    openDevTools: true,
+    openDevTools: false,
     rememberState: true,
     options: {
       width: 1300,
@@ -201,7 +201,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     routeHash: 'assistant',
     autoCenterOn: 'none',
     showOnReady: false,
-    openDevTools: true,
+    openDevTools: false,
     fillWorkArea: false,
     options: {
       width: 800,
@@ -219,8 +219,8 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
   assistantMini: {
     routeHash: 'assistant-mini',
     followMain: true,
-    followerPreferMode: 'prefer-bottom',
-    followerClampToWorkArea: true,
+    followerPreferMode: 'fixed-bottom',
+    followerClampToWorkArea: false,
     preferShowInactive: false,
     suspendHoverMonitorOnShow: true,
     parent: 'main',
@@ -250,7 +250,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     routeHash: 'plugin-manager',
     autoCenterOn: 'parent-display',
     showOnReady: false,
-    openDevTools: true,
+    openDevTools: false,
     options: {
       width: 800,
       height: 600,
@@ -279,7 +279,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     routeHash: 'chat',
     autoCenterOn: 'parent-display',
     showOnReady: false,
-    openDevTools: true,
+    openDevTools: false,
     rememberState: true,
     options: {
       width: 1000,
@@ -309,7 +309,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     routeHash: 'chat-overlay',
     autoCenterOn: 'none',
     showOnReady: false,
-    openDevTools: true,
+    openDevTools: false,
     hideOnClose: true,
     options: {
       width: 560,
@@ -330,7 +330,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     routeHash: 'resource-preview',
     autoCenterOn: 'parent-display',
     showOnReady: false,
-    openDevTools: true,
+    openDevTools: false,
     rememberState: true,
     options: {
       width: 600,
@@ -381,7 +381,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     routeHash: 'plugin-download',
     autoCenterOn: 'parent-display',
     showOnReady: true,
-    openDevTools: true,
+    openDevTools: false,
     rememberState: true,
     options: {
       width: 600,
@@ -413,7 +413,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     routeHash: 'tagger',
     autoCenterOn: 'parent-display',
     showOnReady: false,
-    openDevTools: true,
+    openDevTools: false,
     rememberState: true,
     options: {
       width: 1100,
@@ -443,7 +443,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     routeHash: 'ai-provider-config',
     autoCenterOn: 'parent-display',
     showOnReady: false,
-    openDevTools: true,
+    openDevTools: false,
     options: {
       width: 420,
       height: 320,
@@ -493,7 +493,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     routeHash: 'asr',
     autoCenterOn: 'parent-display',
     showOnReady: true,
-    openDevTools: true,
+    openDevTools: false,
     options: {
       width: 500,
       height: 300,
@@ -531,7 +531,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     routeHash: 'tts',
     autoCenterOn: 'parent-display',
     showOnReady: true,
-    openDevTools: true,
+    openDevTools: false,
     options: {
       width: 500,
       height: 420,
@@ -595,7 +595,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     routeHash: 'web-recorder',
     autoCenterOn: 'parent-display',
     showOnReady: false,
-    openDevTools: true, // 开启调试面板，调试完成后改为 false
+    openDevTools: false, // 开启调试面板，调试完成后改为 false
     options: {
       width: 280,
       height: 48,
@@ -643,7 +643,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     routeHash: 'character-pack-editor',
     autoCenterOn: 'parent-display',
     showOnReady: false,
-    openDevTools: true,
+    openDevTools: false,
     rememberState: true,
     options: {
       width: 1180,
@@ -675,7 +675,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     routeHash: 'window-animation-editor',
     autoCenterOn: 'parent-display',
     showOnReady: false,
-    openDevTools: true,
+    openDevTools: false,
     rememberState: true,
     options: {
       width: 1180,

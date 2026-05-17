@@ -34,19 +34,8 @@ export default function AssistantMiniInputWithService({
   onMenuOpenChange,
   onMenuOpenPrepare
 }: AssistantMiniInputWithServiceProps): JSX.Element {
-  const {
-    providerId,
-    modelId,
-    presetId,
-    agentId,
-    codingWorkspaceRoot,
-    codingWorkspaceLabel,
-    webSearchEnabled,
-    emojiPacksEnabled,
-    characterPersonaEnabled,
-    setProviderId,
-    setModelId
-  } = useChatSelection();
+  const { providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, webSearchEnabled, emojiPacksEnabled, characterPersonaEnabled, setProviderId, setModelId } =
+    useChatSelection();
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLInputElement | null>(null);
   const isCoder = agentId === 'coder';
@@ -87,16 +76,16 @@ export default function AssistantMiniInputWithService({
       emojiPacksEnabled,
       ...(isCoder && codingWorkspaceRoot
         ? {
-            codingWorkspaceRoot,
-            codingWorkspaceLabel: codingWorkspaceLabel || undefined
-          }
+          codingWorkspaceRoot,
+          codingWorkspaceLabel: codingWorkspaceLabel || undefined
+        }
         : {})
     });
     setDraft('');
   }, [agentId, characterPersonaEnabled, codingWorkspaceLabel, codingWorkspaceRoot, disabled, draft, emojiPacksEnabled, isCoder, loading, modelId, onStart, presetId, providerId, webSearchEnabled]);
 
   return (
-    <div className={cn('no-drag pointer-events-auto m-1 flex h-12 w-[calc(100%-0.5rem)] items-center gap-1 rounded-full border bg-background/95 p-1 shadow-lg backdrop-blur', className)}>
+    <div className={cn('no-drag pointer-events-auto m-1 flex h-12 w-[calc(100%-0.5rem)] items-center gap-1 rounded-full border bg-background/95 p-1 shadow-lg backdrop-blur box-border', className)}>
       <ProviderModelSelect
         providerId={providerId}
         presetId={presetId || undefined}
