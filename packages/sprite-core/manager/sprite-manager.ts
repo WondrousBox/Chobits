@@ -125,6 +125,7 @@ interface ActiveAnimationPlaylist {
   currentIndex: number;
   sessionMode: 'state-bound' | 'trigger';
   durationMs?: number;
+  playId?: string;
 }
 
 interface PlayAnimationEntryOptions {
@@ -516,7 +517,7 @@ export class SpriteManager {
   }
 
   private resolveAnimationPlaylistMode(trigger?: SpriteAnimationTrigger, options?: SpriteTriggerOptions): SpriteAnimationPlaylistMode {
-    if (options?.playId) {
+    if (options?.playId && !options.allowPlaylistWithPlayId) {
       return 'single-once';
     }
     const normalizedTrigger = typeof trigger === 'string' ? trigger.trim() : '';
@@ -595,7 +596,8 @@ export class SpriteManager {
         entries: options.playlistEntries,
         currentIndex: options.playlistIndex ?? 0,
         sessionMode: options.sessionMode,
-        durationMs: options.durationMs
+        durationMs: options.durationMs,
+        playId: options.playId
       };
     } else {
       this.activeAnimationPlaylist = null;
@@ -1502,6 +1504,13 @@ export class SpriteManager {
       return;
     }
 
+    if (isCurrentAnimation && !this._pendingIdleAfterOutro && this.shouldAdvanceTrackedPlaylist(animId, playId)) {
+      const playlistResult = this.advanceAnimationPlaylist(animId);
+      if (playlistResult === 'advanced') {
+        return;
+      }
+    }
+
     const autoIdle = this.shouldAutoIdleAfterComplete(animId, playId);
 
     if (!autoIdle) {
@@ -1814,6 +1823,14 @@ export class SpriteManager {
     return this.animationRegistry.get(animId)?.playback?.autoIdle ?? true;
   }
 
+  private shouldAdvanceTrackedPlaylist(animId: string, playId?: string): boolean {
+    const playlist = this.activeAnimationPlaylist;
+    if (!playlist?.playId) return false;
+    if (playlist.entries[playlist.currentIndex]?.id !== animId) return false;
+    if (this.currentAnimation?.playId !== playlist.playId) return false;
+    return !playId || playId === playlist.playId;
+  }
+
   private advanceAnimationPlaylist(animId: string): 'advanced' | 'completed' | 'none' {
     const playlist = this.activeAnimationPlaylist;
     if (!playlist) return 'none';
@@ -1837,7 +1854,8 @@ export class SpriteManager {
         playlistEntries: playlist.entries,
         playlistIndex: 0,
         sessionMode: playlist.sessionMode,
-        durationMs: playlist.durationMs
+        durationMs: playlist.durationMs,
+        playId: playlist.playId
       });
       return 'advanced';
     }
@@ -1854,7 +1872,8 @@ export class SpriteManager {
       playlistEntries: playlist.entries,
       playlistIndex: nextIndex,
       sessionMode: playlist.sessionMode,
-      durationMs: playlist.durationMs
+      durationMs: playlist.durationMs,
+      playId: playlist.playId
     });
     return 'advanced';
   }

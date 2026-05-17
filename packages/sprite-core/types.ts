@@ -218,6 +218,7 @@ export interface SpriteTriggerOptions {
   ctx?: any;
   silent?: boolean;
   playId?: string;
+  allowPlaylistWithPlayId?: boolean;
   ownerPurposeId?: string;
   priority?: number;
   ignorePresentationLock?: boolean;
