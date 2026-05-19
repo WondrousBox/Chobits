@@ -27,6 +27,13 @@ import SpriteTriggerPicker from './components/SpriteTriggerPicker';
 import SpritePackManager from './SpritePackManager';
 import SpriteVideoEditor, { type SpriteVideoConfig } from './SpriteVideoEditor';
 
+type SpriteLoopMode = 'none' | 'finite' | 'infinite';
+
+function getInitialLoopMode(animation: Pick<SpriteAnimation, 'loop' | 'loopCount'>): SpriteLoopMode {
+  if (animation.loopCount != null && animation.loopCount > 0) return 'finite';
+  return animation.loop === true ? 'infinite' : 'none';
+}
+
 function baseName(p: string): string {
   const withoutQuery = p.split(/[?#]/)[0] || p;
   const parts = withoutQuery.replace(/\\/g, '/').split('/');
@@ -71,7 +78,8 @@ function SpriteAnimationConfigEditor({
   const [widthInput, setWidthInput] = useState(String(animation.width ?? 180));
   const [heightInput, setHeightInput] = useState(String(animation.height ?? 240));
   const [paddingInput, setPaddingInput] = useState(String(animation.padding ?? 100));
-  const [loop, setLoop] = useState(animation.loop ?? false);
+  const [loopMode, setLoopMode] = useState<SpriteLoopMode>(getInitialLoopMode(animation));
+  const [loopCountInput, setLoopCountInput] = useState(String(animation.loopCount ?? 1));
   const [autoIdle, setAutoIdle] = useState(animation.autoIdle ?? true);
   const [movement, setMovement] = useState<SpriteMovementConfig>(animation.movement ?? { enabled: false, mode: 'direction', direction: 'random', speed: 60 });
   const canAuthorAnimations = assetAuthoringCapability?.status !== 'locked';
@@ -85,6 +93,7 @@ function SpriteAnimationConfigEditor({
   const width = getPositiveNumber(widthInput, animation.width ?? 180);
   const height = getPositiveNumber(heightInput, animation.height ?? 240);
   const padding = getNonNegativeNumber(paddingInput, animation.padding ?? 100);
+  const loopCount = loopMode === 'finite' ? getPositiveNumber(loopCountInput, animation.loopCount ?? 1) : undefined;
   const sourceLabel = animation.source?.localPath ? baseName(animation.source.localPath) : animation.source?.src ? baseName(animation.source.src) : '';
 
   const handleSave = async (): Promise<void> => {
@@ -98,7 +107,8 @@ function SpriteAnimationConfigEditor({
         width,
         height,
         padding,
-        loop,
+        loop: loopMode !== 'none',
+        loopCount,
         autoIdle,
         movement: movement.enabled ? movement : undefined,
         meta: {
@@ -187,7 +197,19 @@ function SpriteAnimationConfigEditor({
                   <div className="text-sm font-medium">循环播放</div>
                   <div className="text-xs text-muted-foreground">只修改播放配置，不重新裁剪视频</div>
                 </div>
-                <Switch checked={loop} onCheckedChange={setLoop} />
+                <div className="grid min-w-[220px] gap-2 sm:grid-cols-[1fr_88px]">
+                  <Select value={loopMode} onValueChange={(value) => setLoopMode(value as SpriteLoopMode)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">不循环</SelectItem>
+                      <SelectItem value="finite">循环 N 次</SelectItem>
+                      <SelectItem value="infinite">无限循环</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input type="number" min={1} step={1} value={loopCountInput} onChange={(event) => setLoopCountInput(event.target.value)} disabled={loopMode !== 'finite'} />
+                </div>
               </div>
               <div className="flex items-center justify-between rounded-md border px-3 py-2">
                 <div>
@@ -695,6 +717,7 @@ export function SpriteAnimationManager({
                     durationMs: introDur + loopDur + outroDur,
                     autoIdle: config.autoIdle,
                     loop: config.loop,
+                    loopCount: config.loopCount,
                     movement: config.movement.enabled ? config.movement : undefined,
                     meta: {
                       id,

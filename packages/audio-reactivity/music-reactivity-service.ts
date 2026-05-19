@@ -41,6 +41,7 @@ export class MusicReactivityService {
   private lastDisabledLogAtMs = 0;
   private lastDanceRefreshWaitingLogAtMs = 0;
   private lastDanceStartedPlayback = false;
+  private activeDancePlayId: string | null = null;
 
   constructor(options: MusicReactivityServiceOptions) {
     this.getSpriteManager = options.getSpriteManager;
@@ -209,6 +210,7 @@ export class MusicReactivityService {
     this.candidateSinceMs = null;
     this.belowSinceMs = null;
     this.cooldownUntilMs = 0;
+    this.stopActiveDancePlayback(reason, { triggerStop: previousState === 'dancing' && reason === 'media-inactive' });
     this.lastDanceStartedPlayback = false;
     const snapshot = this.emitSnapshot(this.createSnapshot(now, input, reason));
     this.logStateTransition(previousState, snapshot);
@@ -231,6 +233,7 @@ export class MusicReactivityService {
 
     const currentAnimation = manager.getCurrentAnimation();
     if (currentAnimation?.playId?.startsWith(MUSIC_DANCE_PLAY_ID_PREFIX)) {
+      this.activeDancePlayId = currentAnimation.playId;
       return;
     }
 
@@ -296,6 +299,7 @@ export class MusicReactivityService {
     });
     const currentAnimation = manager.getCurrentAnimation();
     this.lastDanceStartedPlayback = currentAnimation?.playId === playId;
+    this.activeDancePlayId = this.lastDanceStartedPlayback ? playId : null;
     this.lastTriggerAtMs = timestampMs;
     this.log('dance trigger dispatched', {
       trigger,
@@ -324,6 +328,25 @@ export class MusicReactivityService {
       priority: 10
     });
     this.log('stop trigger dispatched', { trigger });
+  }
+
+  private stopActiveDancePlayback(reason: string, options: { triggerStop?: boolean } = {}): void {
+    const playId = this.activeDancePlayId;
+    this.activeDancePlayId = null;
+
+    if (playId) {
+      const manager = this.getSpriteManager();
+      if (manager) {
+        const stopped = manager.stopAnimationSession(playId);
+        this.log('dance playback stop requested', { playId, stopped, reason });
+      } else {
+        this.log('dance playback stop skipped: sprite manager unavailable', { playId, reason });
+      }
+    }
+
+    if (options.triggerStop) {
+      this.triggerStop();
+    }
   }
 
   private createSnapshot(timestampMs: number, input: MusicReactivityAnalysisInput, reason = input.reason): MusicReactivitySnapshot {

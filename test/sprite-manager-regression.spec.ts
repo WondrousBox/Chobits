@@ -311,6 +311,7 @@ describe('sprite manager regression coverage', () => {
       source: { localPath: './idle-looping.webm', type: 'video/webm' },
       playback: {
         loop: true,
+        autoIdle: false,
         durationMs: 1500
       }
     });
@@ -322,6 +323,79 @@ describe('sprite manager regression coverage', () => {
       animationId: 'idle-looping',
       playback: {
         loop: true
+      }
+    });
+  });
+
+  it('limits legacy looping animations when they are played inside a list playlist', () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'dance-looping',
+      title: 'Dance Looping',
+      eventTypes: ['dance'],
+      priority: 10,
+      source: { localPath: './dance-looping.webm', type: 'video/webm' },
+      playback: {
+        loop: true,
+        autoIdle: false,
+        durationMs: 1500
+      }
+    });
+    registry.register({
+      id: 'dance-once',
+      title: 'Dance Once',
+      eventTypes: ['dance'],
+      priority: 1,
+      source: { localPath: './dance-once.webm', type: 'video/webm' },
+      playback: {
+        autoIdle: false,
+        durationMs: 1500
+      }
+    });
+
+    mgr.setAnimationPlaylistMode('list-loop');
+    mgr.trigger('dance', { silent: true });
+
+    expect(mgr.getCurrentAnimation()).toMatchObject({
+      animationId: 'dance-looping',
+      playback: {
+        loop: true,
+        loopCount: 1
+      }
+    });
+
+    mgr.handleAnimationComplete('dance-looping', 'full');
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('dance-once');
+  });
+
+  it('preserves explicit loopCount when resolving playlist playback', () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'dance-two',
+      title: 'Dance Two',
+      eventTypes: ['dance'],
+      source: { localPath: './dance-two.webm', type: 'video/webm' },
+      playback: {
+        loop: true,
+        loopCount: 2,
+        durationMs: 1500
+      }
+    });
+
+    mgr.setAnimationPlaylistMode('list-loop');
+    mgr.trigger('dance', { silent: true });
+
+    expect(mgr.getCurrentAnimation()).toMatchObject({
+      animationId: 'dance-two',
+      playback: {
+        loop: true,
+        loopCount: 2
       }
     });
   });
@@ -855,6 +929,52 @@ describe('sprite manager regression coverage', () => {
 
     mgr.handleAnimationComplete('dance-low', 'full', 'music-dance-test');
     expect(mgr.getCurrentAnimation()?.animationId).toBe('dance-high');
+  });
+
+  it('stops only the matching tracked animation session', () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'idle-default',
+      title: 'Idle Default',
+      eventTypes: ['idle'],
+      source: { localPath: './idle.webm', type: 'video/webm' },
+      playback: { durationMs: 800, loop: true }
+    });
+    registry.register({
+      id: 'dance-high',
+      title: 'Dance High',
+      eventTypes: ['dance'],
+      priority: 10,
+      source: { localPath: './dance-high.webm', type: 'video/webm' },
+      playback: { durationMs: 800, autoIdle: true }
+    });
+    registry.register({
+      id: 'dance-low',
+      title: 'Dance Low',
+      eventTypes: ['dance'],
+      priority: 1,
+      source: { localPath: './dance-low.webm', type: 'video/webm' },
+      playback: { durationMs: 800, autoIdle: true }
+    });
+
+    mgr.setAnimationPlaylistMode('list-loop', 'dance');
+    mgr.trigger('dance', {
+      silent: true,
+      playId: 'music-dance-test',
+      allowPlaylistWithPlayId: true
+    });
+
+    expect(mgr.stopAnimationSession('other-play')).toBe(false);
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('dance-high');
+
+    expect(mgr.stopAnimationSession('music-dance-test')).toBe(true);
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('idle-default');
+
+    mgr.handleAnimationComplete('dance-high', 'full', 'music-dance-test');
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('idle-default');
   });
 
   it('keeps trigger() and playOnce() on separate runtime boundaries', () => {

@@ -658,7 +658,7 @@ describe('sprite assets pack manifest integration', () => {
     });
 
     const registerFromData = electronState.handlers.get('sprite:registerFromData') as
-      | ((_: unknown, payload: { data: Buffer; meta: Record<string, unknown>; loop?: boolean }) => Promise<any>)
+      | ((_: unknown, payload: { data: Buffer; meta: Record<string, unknown>; loop?: boolean; loopCount?: number }) => Promise<any>)
       | undefined;
 
     expect(registerFromData).toBeDefined();
@@ -666,6 +666,7 @@ describe('sprite assets pack manifest integration', () => {
     const item = await registerFromData!(undefined, {
       data: Buffer.from('fake-webm'),
       loop: true,
+      loopCount: 2,
       meta: {
         id: 'legacy-event-type-only',
         title: 'Legacy Event Type Only',
@@ -681,6 +682,7 @@ describe('sprite assets pack manifest integration', () => {
     });
     expect(item.meta).not.toHaveProperty('eventType');
     expect(item.loop).toBe(true);
+    expect(item.loopCount).toBe(2);
   });
 
   it('requires spriteManage capability for sprite asset authoring writes', async () => {

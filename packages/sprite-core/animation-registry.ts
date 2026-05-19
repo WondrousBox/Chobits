@@ -45,6 +45,7 @@ export interface AnimationEntry {
     height?: number;
     padding?: number;
     loop?: boolean;
+    loopCount?: number;
     loopStartMs?: number;
     loopEndMs?: number;
     durationMs?: number;

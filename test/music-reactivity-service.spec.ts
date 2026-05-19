@@ -12,9 +12,11 @@ interface TriggerCall {
 function createService(preferences: Partial<MusicReactivityPreferences> = {}): {
   service: MusicReactivityService;
   calls: TriggerCall[];
+  stoppedPlayIds: string[];
   manager: SpriteManager;
 } {
   const calls: TriggerCall[] = [];
+  const stoppedPlayIds: string[] = [];
   let currentAnimation: ReturnType<SpriteManager['getCurrentAnimation']> = null;
   const spriteState = 'idle';
   const spriteSubState: ReturnType<SpriteManager['getSubState']> = null;
@@ -29,6 +31,17 @@ function createService(preferences: Partial<MusicReactivityPreferences> = {}): {
       };
     },
     getCurrentAnimation: () => currentAnimation,
+    stopAnimationSession: (playId: string) => {
+      stoppedPlayIds.push(playId);
+      if (currentAnimation?.playId === playId) {
+        currentAnimation = {
+          animationId: 'idle-default',
+          trigger: 'idle',
+          sessionMode: 'state-bound'
+        };
+      }
+      return true;
+    },
     getState: () => spriteState,
     getSubState: () => spriteSubState,
     isIdlePresentationActive: () => {
@@ -45,6 +58,7 @@ function createService(preferences: Partial<MusicReactivityPreferences> = {}): {
       }
     }),
     calls,
+    stoppedPlayIds,
     manager
   };
 }
@@ -139,8 +153,8 @@ describe('MusicReactivityService', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('resets to idle on media inactivity without dispatching another dance', () => {
-    const { service, calls } = createService({ source: 'auto', sensitivity: 'medium' });
+  it('resets to idle on media inactivity and stops the active dance playback', () => {
+    const { service, calls, stoppedPlayIds } = createService({ source: 'auto', sensitivity: 'medium' });
 
     service.ingestAnalysis({
       source: 'app-media',
@@ -162,7 +176,11 @@ describe('MusicReactivityService', () => {
 
     expect(snapshot.state).toBe('idle');
     expect(snapshot.reason).toBe('media-inactive');
-    expect(calls).toHaveLength(1);
+    expect(stoppedPlayIds).toHaveLength(1);
+    expect(stoppedPlayIds[0]).toMatch(/^music-dance-/);
+    expect(calls).toHaveLength(2);
+    expect(calls[0].trigger).toBe('music:dance');
+    expect(calls[1].trigger).toBe('music:stop');
   });
 
   it('re-dispatches dance after the prior music animation returns to idle while music continues', () => {

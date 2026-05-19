@@ -354,6 +354,7 @@ export interface SpriteAnimation {
   muted?: boolean;
   playsInline?: boolean;
   loop?: boolean;
+  loopCount?: number;
   autoIdle?: boolean;
   durationMs?: number;
   loopStartMs?: number;
@@ -648,6 +649,7 @@ export interface SpritePlayCommand {
     height?: number;
     padding?: number;
     loop?: boolean;
+    loopCount?: number;
     loopStartMs?: number;
     loopEndMs?: number;
     durationMs?: number;

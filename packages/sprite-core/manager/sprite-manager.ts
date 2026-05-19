@@ -147,6 +147,7 @@ const SPRITE_AUTO_MOVE_SCHEDULER_GATE = 'sprite.canAutoMove';
 const SPRITE_TRIGGER_DEBUG_PREFIX = '[SpriteManager][trigger]';
 const MUSIC_DANCE_TRIGGER = 'music:dance' as SpriteAnimationTrigger;
 const MUSIC_DANCE_FALLBACK_TRIGGER = 'dance' as SpriteAnimationTrigger;
+const PLAYLIST_LOOP_FALLBACK_COUNT = 1;
 
 export class SpriteManager {
   // 内部引擎实例
@@ -540,6 +541,11 @@ export class SpriteManager {
       return true;
     }
 
+    const explicitLoopCount = playback?.loopCount;
+    if (typeof explicitLoopCount === 'number' && Number.isFinite(explicitLoopCount) && explicitLoopCount > 0) {
+      return true;
+    }
+
     if (playback?.loop === true) {
       return true;
     }
@@ -551,6 +557,23 @@ export class SpriteManager {
     return false;
   }
 
+  private resolvePlaybackLoopCount(playback: AnimationEntry['playback'] | undefined, mode: SpriteAnimationPlaylistMode): number | undefined {
+    const explicitLoopCount = playback?.loopCount;
+    if (typeof explicitLoopCount === 'number' && Number.isFinite(explicitLoopCount) && explicitLoopCount > 0) {
+      return Math.floor(explicitLoopCount);
+    }
+
+    if (!this.shouldUseListPlaylist(mode)) {
+      return undefined;
+    }
+
+    if (this.hasSegmentLoop(playback) || playback?.loop === true) {
+      return PLAYLIST_LOOP_FALLBACK_COUNT;
+    }
+
+    return undefined;
+  }
+
   private selectAnimationFromCandidates(candidates: AnimationEntry[]): { anim: AnimationEntry; index: number } | null {
     if (candidates.length === 0) return null;
     return { anim: candidates[0], index: 0 };
@@ -559,6 +582,7 @@ export class SpriteManager {
   private playAnimationEntry(anim: AnimationEntry, options: PlayAnimationEntryOptions): void {
     const resolvedDurationMs = options.durationMs ?? anim.playback?.durationMs;
     const playbackLoop = this.resolvePlaybackLoop(anim.playback, options.playlistMode);
+    const playbackLoopCount = this.resolvePlaybackLoopCount(anim.playback, options.playlistMode);
 
     this.currentAnimation = {
       playId: options.playId,
@@ -573,13 +597,14 @@ export class SpriteManager {
             height: anim.playback.height,
             padding: anim.playback.padding,
             loop: playbackLoop,
+            loopCount: playbackLoopCount,
             loopStartMs: anim.playback.loopStartMs,
             loopEndMs: anim.playback.loopEndMs,
             durationMs: resolvedDurationMs,
             autoIdle: anim.playback.autoIdle ?? true,
             movement: anim.playback.movement
           }
-        : { durationMs: options.durationMs ?? 2000, loop: playbackLoop, autoIdle: true }
+        : { durationMs: options.durationMs ?? 2000, loop: playbackLoop, loopCount: playbackLoopCount, autoIdle: true }
     };
 
     if (anim.playback) {
@@ -1221,6 +1246,28 @@ export class SpriteManager {
   }
 
   /** 获取动画列表 (AnimationRegistry) */
+  stopAnimationSession(playId: string): boolean {
+    const normalizedPlayId = playId.trim();
+    if (!normalizedPlayId) return false;
+
+    const currentMatches = this.currentAnimation?.playId === normalizedPlayId;
+    const playlistMatches = this.activeAnimationPlaylist?.playId === normalizedPlayId;
+    if (!currentMatches && !playlistMatches) return false;
+
+    if (playlistMatches) {
+      this.activeAnimationPlaylist = null;
+    }
+
+    if (currentMatches) {
+      this.currentAnimation = null;
+      this._pendingIdleAfterOutro = false;
+      this.stopAutoMove();
+      this.transitionToIdleAnimation();
+    }
+
+    return true;
+  }
+
   getAnimationList(): AnimationEntry[] {
     return this.animationRegistry.getAll();
   }
@@ -1249,6 +1296,7 @@ export class SpriteManager {
         height: anim.height,
         padding: anim.padding,
         loop: anim.loop,
+        loopCount: anim.loopCount,
         loopStartMs: anim.loopStartMs,
         loopEndMs: anim.loopEndMs,
         durationMs: anim.durationMs,

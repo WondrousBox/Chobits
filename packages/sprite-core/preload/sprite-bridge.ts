@@ -68,6 +68,7 @@ export type SpriteBridgeType = {
     loopEndMs?: number;
     durationMs?: number;
     loop?: boolean;
+    loopCount?: number;
     autoIdle?: boolean;
     width?: number;
     height?: number;
@@ -77,7 +78,7 @@ export type SpriteBridgeType = {
   remove(id: string, deleteFile?: boolean): Promise<{ ok: boolean }>;
   updateConfig(
     id: string,
-    patch: Partial<Pick<SpriteAnimation, 'width' | 'height' | 'padding' | 'loop' | 'autoIdle' | 'durationMs' | 'loopStartMs' | 'loopEndMs' | 'movement'>> & {
+    patch: Partial<Pick<SpriteAnimation, 'width' | 'height' | 'padding' | 'loop' | 'loopCount' | 'autoIdle' | 'durationMs' | 'loopStartMs' | 'loopEndMs' | 'movement'>> & {
       meta?: Partial<SpriteAnimation['meta']>;
     }
   ): Promise<{ ok: boolean; item?: SpriteAnimation }>;
