@@ -55,7 +55,7 @@ export interface SpriteAssetsChangeEvent {
 }
 
 type SpriteAnimationConfigPatch = Partial<
-  Pick<SpriteAnimation, 'width' | 'height' | 'padding' | 'loop' | 'autoIdle' | 'durationMs' | 'loopStartMs' | 'loopEndMs' | 'movement'>
+  Pick<SpriteAnimation, 'width' | 'height' | 'padding' | 'loop' | 'loopCount' | 'autoIdle' | 'durationMs' | 'loopStartMs' | 'loopEndMs' | 'movement'>
 > & {
   meta?: Partial<SpriteAnimation['meta']>;
 };
@@ -268,8 +268,10 @@ async function readIndex(indexPathOrDir: string, options: SpriteIndexReadOptions
 }
 
 function normalizeSpriteAnimationItem(item: SpriteAnimation): SpriteAnimation {
+  const rawLoopCount = typeof item.loopCount === 'number' && Number.isFinite(item.loopCount) ? Math.floor(item.loopCount) : undefined;
   return {
     ...item,
+    loopCount: rawLoopCount != null && rawLoopCount > 0 ? rawLoopCount : undefined,
     meta: normalizeSpriteAnimationMeta(item.meta)
   };
 }
@@ -296,6 +298,20 @@ function applySpriteAnimationConfigPatch(item: SpriteAnimation, patch: SpriteAni
         delete next[key];
       } else if (typeof value === 'number' && Number.isFinite(value)) {
         next[key] = value;
+      }
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'loopCount')) {
+    const value = patch.loopCount;
+    if (value === undefined) {
+      delete next.loopCount;
+    } else if (typeof value === 'number' && Number.isFinite(value)) {
+      const normalizedLoopCount = Math.floor(value);
+      if (normalizedLoopCount > 0) {
+        next.loopCount = normalizedLoopCount;
+      } else {
+        delete next.loopCount;
       }
     }
   }
@@ -601,6 +617,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
       muted: anim.muted ?? true,
       playsInline: anim.playsInline ?? true,
       loop: anim.loop ?? false,
+      loopCount: anim.loopCount,
       autoIdle: anim.autoIdle ?? true,
       loopStartMs: anim.loopStartMs,
       loopEndMs: anim.loopEndMs,
@@ -633,6 +650,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
         loopEndMs?: number;
         durationMs?: number;
         loop?: boolean;
+        loopCount?: number;
         autoIdle?: boolean;
         width?: number;
         height?: number;
@@ -642,7 +660,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
     ) => {
       ensureAssetAuthoringCapability();
 
-      const { data, meta, loopStartMs, loopEndMs, durationMs, loop, autoIdle, width, height, padding, movement } = payload || ({} as any);
+      const { data, meta, loopStartMs, loopEndMs, durationMs, loop, loopCount, autoIdle, width, height, padding, movement } = payload || ({} as any);
       if (!data || !(data instanceof ArrayBuffer || Buffer.isBuffer(data))) {
         throw new Error('[sprite:registerFromData] data is required (ArrayBuffer or Buffer)');
       }
@@ -675,6 +693,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
         muted: true,
         playsInline: true,
         loop: loop ?? false,
+        loopCount,
         autoIdle: autoIdle ?? true,
         loopStartMs,
         loopEndMs,

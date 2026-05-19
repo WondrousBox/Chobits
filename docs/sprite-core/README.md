@@ -444,7 +444,7 @@ registry.register({
   priority: 10,
   condition: (personaState) => personaState.favor >= 80,
   source: { localPath: '/sprites/idle-happy.webm' },
-  playback: { width: 180, height: 240, loop: true }
+  playback: { width: 180, height: 240, loop: true, loopCount: 2 }
 });
 
 const anim = registry.findByTrigger({
@@ -652,9 +652,17 @@ IPC: sprite:play → 渲染进程播放
 ```json
 {
   "loopStartMs": 500,
-  "loopEndMs": 2500
+  "loopEndMs": 2500,
+  "loopCount": 2
 }
 ```
+
+循环字段语义：
+
+- `loop: false` 或未设置 `loop`：默认播放一次
+- `loop: true`：允许循环；单动画播放时保持历史行为，表示无限循环
+- `loopCount: N`：有限循环 N 次后正常完成，适用于整段循环、`loopEndMs` 截止循环，以及 `loopStartMs`/`loopEndMs` 三段式 loop 片段
+- `loopCount` 只接受大于 0 的整数；不设置表示不限制次数
 
 ### 播放列表模式
 
@@ -681,6 +689,8 @@ const idleMode = await window.YUA.sprite.getAnimationPlaylistMode('idle');
 优先级规则：
 
 - 单个动画如果配置了 `loopStartMs` / `loopEndMs` 循环片段，则始终优先进入该片段循环
+- 如果动画配置了 `loopCount`，播放端会在完成指定循环次数后发出完成事件，播放列表可以继续前进
+- 在 `list-loop` / `list-once` 中，旧的 `loop: true` 或三段式循环动画如果没有显式 `loopCount`，运行时会按 `loopCount: 1` 处理，避免列表进入某个无限循环动画后卡住
 - 只有当动画本身没有循环片段时，才由播放列表模式决定是单个循环、列表循环、单个播放还是列表播放
 
 ### playOnce vs transitionTo
@@ -768,6 +778,7 @@ mgr.showToast(data?.message || '记忆整理完毕！', { category: 'success' })
       "height": 240,
       "padding": 100,
       "loop": true,
+      "loopCount": 2,
       "loopStartMs": 500,
       "loopEndMs": 2500,
       "movement": {
@@ -1176,7 +1187,8 @@ sprite.registerAnimation({
   source: { localPath: '/path/to/dance.webm' },
   width: 200,
   height: 280,
-  loop: false,
+  loop: true,
+  loopCount: 2,
   durationMs: 3000
 });
 ```

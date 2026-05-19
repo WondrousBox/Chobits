@@ -20,6 +20,7 @@
 - 资源页 `MediaPlayer` 已接入 Web Audio 分析节点，播放应用内音频/视频时会周期性上报 `app-media` 分析快照。
 - 媒体特征估算已抽到 `packages/audio-reactivity/analysis/media-feature-estimator.ts`，便于单测和后续替换模型。
 - 音频来源偏好已接入服务层过滤：`auto` 接受 `manual`、`app-media`、`system-loopback`，不会自动接受 `microphone-test`；显式选择某个来源时只接受该来源。
+- 舞蹈动画建议使用播放列表模式：单个动画需要循环时可配置 `loop: true` + `loopCount`。如果旧动画只有 `loop: true` 而没有 `loopCount`，列表播放运行时会临时按 1 次循环处理，避免音乐停止或列表切换时卡在某个无限循环动画上。
 - 已补充回归测试：静音、节奏音乐近似、语音近似，以及状态机来源过滤和持续触发。
 - 已补充关键链路日志，便于排查“播放了音视频但没有触发跳舞”的问题。
 - 设置页已补充 `danceTrigger` 对应动画数量检查；如果没有任何动画匹配 `music:dance`，会继续检查通用动作 trigger `dance` 并提示 fallback 状态。

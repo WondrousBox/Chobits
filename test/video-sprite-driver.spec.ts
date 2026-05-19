@@ -158,6 +158,56 @@ describe('video sprite driver', () => {
     expect(video.pause).not.toHaveBeenCalled();
   });
 
+  it('replays whole-clip finite loops and completes after the configured count', () => {
+    const onAnimationComplete = vi.fn();
+    const video = createVideo();
+    const driver = new VideoSpriteDriver({ onAnimationComplete });
+
+    driver.handleEnded({
+      video,
+      animId: 'dance-loop',
+      playback: {
+        loop: true,
+        loopCount: 2
+      }
+    });
+
+    expect(video.currentTime).toBe(0);
+    expect(video.play).toHaveBeenCalledTimes(1);
+    expect(onAnimationComplete).not.toHaveBeenCalled();
+
+    driver.handleEnded({
+      video,
+      animId: 'dance-loop',
+      playback: {
+        loop: true,
+        loopCount: 2
+      }
+    });
+
+    expect(onAnimationComplete).toHaveBeenCalledWith('dance-loop', 'full');
+  });
+
+  it('completes bounded custom loops after the configured count', () => {
+    const onAnimationComplete = vi.fn();
+    const video = createVideo({ duration: 1.2, currentTime: 0.91 });
+    const driver = new VideoSpriteDriver({ onAnimationComplete });
+
+    driver.handleTimeUpdate({
+      video,
+      animId: 'loading-loop',
+      playback: {
+        loop: true,
+        loopEndMs: 900,
+        loopCount: 1
+      },
+      fallbackIsPlaying: true
+    });
+
+    expect(video.pause).toHaveBeenCalledTimes(1);
+    expect(onAnimationComplete).toHaveBeenCalledWith('loading-loop', 'full');
+  });
+
   it('reports full completion for bounded non-loop playback and on ended', () => {
     const onAnimationComplete = vi.fn();
     const video = createVideo({ duration: 1.2, currentTime: 0.91 });
@@ -228,5 +278,52 @@ describe('video sprite driver', () => {
 
     expect(video.currentTime).toBeCloseTo(0.3);
     expect(onAnimationComplete).not.toHaveBeenCalled();
+  });
+
+  it('exits segmented finite loops through outro after the configured count', () => {
+    const onAnimationComplete = vi.fn();
+    const video = createVideo({ duration: 1.5 });
+    const driver = new VideoSpriteDriver({ onAnimationComplete });
+    const playback = {
+      loop: true,
+      loopStartMs: 300,
+      loopEndMs: 900,
+      loopCount: 1
+    };
+
+    driver.resetForAnimation({
+      video,
+      animId: 'thinking-segmented',
+      hasSegmentLoop: true
+    });
+
+    video.currentTime = 0.32;
+    driver.handleTimeUpdate({
+      video,
+      animId: 'thinking-segmented',
+      playback,
+      fallbackIsPlaying: true
+    });
+    expect(driver.getPhase()).toBe('loop');
+
+    video.currentTime = 0.91;
+    driver.handleTimeUpdate({
+      video,
+      animId: 'thinking-segmented',
+      playback,
+      fallbackIsPlaying: true
+    });
+    expect(driver.getPhase()).toBe('outro');
+    expect(video.currentTime).toBeCloseTo(0.9);
+
+    video.currentTime = 1.5;
+    driver.handleTimeUpdate({
+      video,
+      animId: 'thinking-segmented',
+      playback,
+      fallbackIsPlaying: true
+    });
+
+    expect(onAnimationComplete).toHaveBeenCalledWith('thinking-segmented', 'outro');
   });
 });

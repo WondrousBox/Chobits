@@ -86,6 +86,7 @@ describe('sprite preload bridge', () => {
       height: 240,
       padding: 80,
       loop: true,
+      loopCount: 2,
       meta: {
         title: 'Wave Edited',
         primaryTrigger: 'wave'
@@ -100,6 +101,7 @@ describe('sprite preload bridge', () => {
         height: 240,
         padding: 80,
         loop: true,
+        loopCount: 2,
         meta: {
           title: 'Wave Edited',
           primaryTrigger: 'wave'

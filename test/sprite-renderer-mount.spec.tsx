@@ -8,6 +8,14 @@ vi.mock('@/pages/ResourcePage/utils/resourceProtocol', () => ({
   makeResSrc: (absPath: string) => 'res://local/' + encodeURIComponent(absPath.replace(/\\/g, '/'))
 }));
 
+function getActiveVideo(root: any): any {
+  return root.querySelector('video[data-active="true"]');
+}
+
+function getInactiveVideo(root: any): any {
+  return root.querySelector('video[data-active="false"]');
+}
+
 function createSpriteBridgeHarness(initialState: SpriteInitialState): {
   bridge: {
     getInitialState: ReturnType<typeof import('vitest').vi.fn>;
@@ -187,7 +195,7 @@ describe('sprite renderer mount', () => {
     });
 
     const section = env.container.firstChild as any;
-    const video = section.querySelector('video');
+    let video = getActiveVideo(section);
 
     expect(section.getAttribute('data-ready')).toBe('yes');
     expect(harness.bridge.getInitialState).toHaveBeenCalledTimes(1);
@@ -196,7 +204,7 @@ describe('sprite renderer mount', () => {
     expect(video.src).toContain('res://local/');
     expect(video.style.width).toBe('320px');
     expect(video.style.height).toBe('240px');
-    expect(video.style.transform).toBe('none');
+    expect((section.firstChild as any).style.transform).toBe('none');
     expect(video.getAttribute('loop')).toBeNull();
 
     await act(async () => {
@@ -219,11 +227,47 @@ describe('sprite renderer mount', () => {
       await Promise.resolve();
     });
 
+    expect(getActiveVideo(section).src).toContain('idle');
+    expect(getInactiveVideo(section).src).toContain('walk-right');
+
+    await act(async () => {
+      getInactiveVideo(section).dispatchEvent({ type: 'loadeddata' });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    video = getActiveVideo(section);
     expect(video.src).toContain('walk-right');
     expect(video.style.width).toBe('280px');
     expect(video.style.height).toBe('210px');
-    expect(video.style.transform).toBe('scaleX(-1)');
+    expect((section.firstChild as any).style.transform).toBe('scaleX(-1)');
     expect(video.getAttribute('loop')).toBe('');
+
+    await act(async () => {
+      harness.emitPlay({
+        animationId: 'walk-right-finite',
+        source: { localPath: './walk-right-finite.webm', type: 'video/webm' },
+        playback: {
+          width: 280,
+          height: 210,
+          padding: 20,
+          loop: true,
+          loopCount: 2
+        }
+      });
+      await Promise.resolve();
+    });
+
+    expect(getActiveVideo(section).src).toContain('walk-right');
+    expect(getInactiveVideo(section).src).toContain('walk-right-finite');
+
+    await act(async () => {
+      getInactiveVideo(section).dispatchEvent({ type: 'loadeddata' });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    video = getActiveVideo(section);
+    expect(video.src).toContain('walk-right-finite');
+    expect(video.getAttribute('loop')).toBeNull();
 
     await act(async () => {
       root.unmount();
@@ -286,7 +330,7 @@ describe('sprite renderer mount', () => {
       await Promise.resolve();
     });
 
-    const video = env.container.querySelector('video');
+    const video = getActiveVideo(env.container);
     expect(isFakeVideoElement(video)).toBe(true);
 
     const playSpy = vi.fn(async () => undefined);

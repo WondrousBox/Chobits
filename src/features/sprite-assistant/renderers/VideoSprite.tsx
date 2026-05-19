@@ -1,3 +1,4 @@
+import type { SpritePlayCommand } from '@packages/sprite-core/types';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useSpriteState } from '../context/hooks';
@@ -5,9 +6,48 @@ import { resolveSpriteSrc } from '../utils/resource';
 import { isTimedPlaybackActive } from './video-playback';
 import { VideoSpriteDriver } from './video-sprite-driver';
 
+type VideoSlot = 'front' | 'back';
+
+interface VideoComputed {
+  srcUrl: string;
+  type: string;
+  width: number;
+  height: number;
+  padding: number;
+  loop: boolean;
+  loopCount?: number;
+  autoIdle: boolean;
+  loopStartMs?: number;
+  loopEndMs?: number;
+}
+
+interface VideoPresentation {
+  key: string;
+  animId: string | null;
+  playId: string | null;
+  playback: SpritePlayCommand['playback'];
+  playbackSession: SpritePlayCommand['playbackSession'];
+  computed: VideoComputed;
+}
+
+function getInactiveSlot(slot: VideoSlot): VideoSlot {
+  return slot === 'front' ? 'back' : 'front';
+}
+
+function getFiniteLoopCount(loopCount: unknown): number | undefined {
+  return typeof loopCount === 'number' && Number.isFinite(loopCount) && loopCount > 0 ? Math.floor(loopCount) : undefined;
+}
+
 export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' | 'right' | null }): JSX.Element | null {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const frontVideoRef = useRef<HTMLVideoElement | null>(null);
+  const backVideoRef = useRef<HTMLVideoElement | null>(null);
   const { currentAnimation, spriteState } = useSpriteState();
+  const [activeSlot, setActiveSlot] = useState<VideoSlot>('front');
+  const activeSlotRef = useRef<VideoSlot>('front');
+  const [slotPresentations, setSlotPresentations] = useState<Record<VideoSlot, VideoPresentation | null>>({ front: null, back: null });
+  const slotPresentationsRef = useRef<Record<VideoSlot, VideoPresentation | null>>({ front: null, back: null });
+  const [activePresentation, setActivePresentation] = useState<VideoPresentation | null>(null);
+  const pendingSwitchRef = useRef<{ slot: VideoSlot; key: string } | null>(null);
   const [driver] = useState(
     () =>
       new VideoSpriteDriver({
@@ -21,80 +61,69 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
       })
   );
 
-  // 从 currentAnimation 的 sprite:play 指令提取播放参数
-  const animId = currentAnimation?.animationId ?? null;
-  const playId = currentAnimation?.playId ?? null;
-  const source = currentAnimation?.source;
-  const playback = currentAnimation?.playback;
-  const playbackSession = currentAnimation?.playbackSession;
+  const desiredPresentation = useMemo<VideoPresentation | null>(() => {
+    const source = currentAnimation?.source;
+    if (!source) return null;
 
-  // 判断是否为三段式动画
-  const hasSegmentLoop = playback?.loopStartMs != null && playback?.loopEndMs != null;
-  const timedSessionActive = playbackSession?.mode === 'timed' ? isTimedPlaybackActive(playbackSession) : null;
-  const segmentLoopActive = hasSegmentLoop && playback?.loop === true;
-
-  // 判断是否正在活跃播放：优先使用播放命令自身的 timed session，再回退到 runtime state
-  const isPlaying = timedSessionActive ?? (segmentLoopActive ? true : spriteState !== 'idle');
-
-  useEffect(() => {
-    driver.syncPlaybackSession({
-      video: videoRef.current,
-      hasSegmentLoop,
-      playback,
-      playbackSession
-    });
-    return () => {
-      driver.clearPlaybackSessionTimer();
-    };
-  }, [animId, driver, hasSegmentLoop, playback, playbackSession]);
-
-  // Reset video state when animation changes
-  useLayoutEffect(() => {
-    driver.resetForAnimation({
-      video: videoRef.current,
-      animId,
-      hasSegmentLoop,
-      playbackSession
-    });
-  }, [animId, driver, hasSegmentLoop, playbackSession, timedSessionActive]);
-
-  // Handle isPlaying transitions for three-phase animations
-  useLayoutEffect(() => {
-    driver.syncPlayingState({
-      video: videoRef.current,
-      isPlaying,
-      hasSegmentLoop,
-      playback
-    });
-  }, [driver, hasSegmentLoop, isPlaying, playback]);
-
-  const computed = useMemo(() => {
-    if (!source) return undefined;
+    const playback = currentAnimation?.playback;
     const { url, type } = resolveSpriteSrc(source as any);
     return {
-      srcUrl: url,
-      type: type || 'video/webm',
-      width: playback?.width ?? 180,
-      height: playback?.height ?? 240,
-      padding: playback?.padding ?? 100,
-      loop: playback?.loop ?? false,
-      autoIdle: playback?.autoIdle ?? true,
-      loopStartMs: playback?.loopStartMs,
-      loopEndMs: playback?.loopEndMs
+      key: [currentAnimation?.animationId ?? '', currentAnimation?.playId ?? '', url].join('|'),
+      animId: currentAnimation?.animationId ?? null,
+      playId: currentAnimation?.playId ?? null,
+      playback,
+      playbackSession: currentAnimation?.playbackSession,
+      computed: {
+        srcUrl: url,
+        type: type || 'video/webm',
+        width: playback?.width ?? 180,
+        height: playback?.height ?? 240,
+        padding: playback?.padding ?? 100,
+        loop: playback?.loop ?? false,
+        loopCount: getFiniteLoopCount(playback?.loopCount),
+        autoIdle: playback?.autoIdle ?? true,
+        loopStartMs: playback?.loopStartMs,
+        loopEndMs: playback?.loopEndMs
+      }
     };
-  }, [source, playback]);
+  }, [currentAnimation]);
+
+  const getVideoForSlot = (slot: VideoSlot): HTMLVideoElement | null => (slot === 'front' ? frontVideoRef.current : backVideoRef.current);
 
   useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    const onCanPlay = (): void => {
-      driver.handleCanPlay(v);
-    };
-    v.addEventListener('canplay', onCanPlay);
-    return () => {
-      v.removeEventListener('canplay', onCanPlay);
-    };
-  }, [computed?.srcUrl, driver]);
+    activeSlotRef.current = activeSlot;
+  }, [activeSlot]);
+
+  useEffect(() => {
+    slotPresentationsRef.current = slotPresentations;
+  }, [slotPresentations]);
+
+  useLayoutEffect(() => {
+    if (!desiredPresentation) {
+      pendingSwitchRef.current = null;
+      setActivePresentation(null);
+      setSlotPresentations({ front: null, back: null });
+      return;
+    }
+
+    if (!activePresentation) {
+      pendingSwitchRef.current = null;
+      setActiveSlot('front');
+      setActivePresentation(desiredPresentation);
+      setSlotPresentations({ front: desiredPresentation, back: null });
+      return;
+    }
+
+    if (desiredPresentation.key === activePresentation.key) {
+      setActivePresentation(desiredPresentation);
+      setSlotPresentations((prev) => ({ ...prev, [activeSlot]: desiredPresentation }));
+      return;
+    }
+
+    const nextSlot = getInactiveSlot(activeSlot);
+    pendingSwitchRef.current = { slot: nextSlot, key: desiredPresentation.key };
+    setSlotPresentations((prev) => ({ ...prev, [nextSlot]: desiredPresentation }));
+  }, [activePresentation, activeSlot, desiredPresentation]);
 
   useEffect(() => {
     return () => {
@@ -102,51 +131,166 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
     };
   }, [driver]);
 
-  const handleTimeUpdate = (): void => {
+  const activePlayback = activePresentation?.playback;
+  const activePlaybackSession = activePresentation?.playbackSession;
+  const activeHasSegmentLoop = activePlayback?.loopStartMs != null && activePlayback?.loopEndMs != null;
+  const activeTimedSessionActive = activePlaybackSession?.mode === 'timed' ? isTimedPlaybackActive(activePlaybackSession) : null;
+  const activeSegmentLoopActive = activeHasSegmentLoop && activePlayback?.loop === true;
+  const activeIsPlaying = activeTimedSessionActive ?? (activeSegmentLoopActive ? true : spriteState !== 'idle');
+
+  useEffect(() => {
+    if (!activePresentation) return;
+    driver.syncPlaybackSession({
+      video: getVideoForSlot(activeSlot),
+      hasSegmentLoop: activeHasSegmentLoop,
+      playback: activePlayback,
+      playbackSession: activePlaybackSession
+    });
+    return () => {
+      driver.clearPlaybackSessionTimer();
+    };
+  }, [activePresentation?.key, activeSlot, driver, activeHasSegmentLoop, activePlayback, activePlaybackSession]);
+
+  useLayoutEffect(() => {
+    if (!activePresentation) return;
+    driver.resetForAnimation({
+      video: getVideoForSlot(activeSlot),
+      animId: activePresentation.animId,
+      hasSegmentLoop: activeHasSegmentLoop,
+      playbackSession: activePlaybackSession
+    });
+  }, [activePresentation?.key, activeSlot, driver, activeHasSegmentLoop, activePlaybackSession, activeTimedSessionActive]);
+
+  useLayoutEffect(() => {
+    if (!activePresentation) return;
+    driver.syncPlayingState({
+      video: getVideoForSlot(activeSlot),
+      isPlaying: activeIsPlaying,
+      hasSegmentLoop: activeHasSegmentLoop,
+      playback: activePlayback
+    });
+  }, [activePresentation?.key, activeSlot, driver, activeHasSegmentLoop, activeIsPlaying, activePlayback]);
+
+  const switchToReadySlot = (slot: VideoSlot, presentation: VideoPresentation): void => {
+    const previousSlot = activeSlotRef.current;
+    pendingSwitchRef.current = null;
+    setActiveSlot(slot);
+    setActivePresentation(presentation);
+    setSlotPresentations((prev) => ({ ...prev, [slot]: presentation }));
+
+    const previousVideo = getVideoForSlot(previousSlot);
+    if (previousVideo && previousSlot !== slot) {
+      requestAnimationFrame(() => previousVideo.pause());
+    }
+  };
+
+  const handleSlotReady = (slot: VideoSlot): void => {
+    const pending = pendingSwitchRef.current;
+    if (!pending || pending.slot !== slot) return;
+
+    const presentation = slotPresentationsRef.current[slot];
+    if (!presentation || presentation.key !== pending.key) return;
+
+    const video = getVideoForSlot(slot);
+    try {
+      void video?.play()?.catch?.(() => undefined);
+    } catch {
+      // Browser autoplay can race during hidden prebuffering; the driver retries after the swap.
+    }
+
+    const requestFrame =
+      video && typeof (video as any).requestVideoFrameCallback === 'function' ? (cb: () => void) => (video as any).requestVideoFrameCallback(cb) : requestAnimationFrame;
+    requestFrame(() => {
+      if (pendingSwitchRef.current?.slot === slot && pendingSwitchRef.current.key === presentation.key) {
+        switchToReadySlot(slot, presentation);
+      }
+    });
+  };
+
+  const handleCanPlay = (slot: VideoSlot): void => {
+    handleSlotReady(slot);
+    if (slot !== activeSlot || !activePresentation) return;
+    driver.handleCanPlay(getVideoForSlot(slot));
+  };
+
+  const handleTimeUpdate = (slot: VideoSlot): void => {
+    if (slot !== activeSlot || !activePresentation) return;
     driver.handleTimeUpdate({
-      video: videoRef.current,
-      animId,
-      playId,
-      playback,
-      fallbackIsPlaying: segmentLoopActive ? true : spriteState !== 'idle'
+      video: getVideoForSlot(slot),
+      animId: activePresentation.animId,
+      playId: activePresentation.playId,
+      playback: activePlayback,
+      fallbackIsPlaying: activeSegmentLoopActive ? true : spriteState !== 'idle'
     });
   };
 
-  // 判断是否需要翻转：行走中且向右移动
-  const shouldFlip = walkDirection === 'right' && spriteState === 'walking';
-
-  // 是否使用原生 loop 属性
-  const useNativeLoop = computed && computed.loop === true && computed.loopStartMs == null && computed.loopEndMs == null;
-
-  // 处理视频播放完成
-  const handleEnded = (): void => {
+  const handleEnded = (slot: VideoSlot): void => {
+    if (slot !== activeSlot || !activePresentation) return;
     driver.handleEnded({
-      animId,
-      playId,
-      playback
+      video: getVideoForSlot(slot),
+      animId: activePresentation.animId,
+      playId: activePresentation.playId,
+      playback: activePlayback
     });
   };
 
-  return computed ? (
-    <video
-      ref={videoRef}
+  const shouldFlip = walkDirection === 'right' && spriteState === 'walking';
+  const activeComputed = activePresentation?.computed;
+
+  const renderVideo = (slot: VideoSlot): JSX.Element => {
+    const presentation = slotPresentations[slot];
+    const slotComputed = presentation?.computed ?? activeComputed;
+    const isActive = slot === activeSlot && !!activePresentation;
+    const slotUsesNativeLoop =
+      isActive && slotComputed && slotComputed.loop === true && slotComputed.loopCount == null && slotComputed.loopStartMs == null && slotComputed.loopEndMs == null;
+
+    return (
+      <video
+        ref={slot === 'front' ? frontVideoRef : backVideoRef}
+        data-sprite-video-slot={slot}
+        data-active={isActive ? 'true' : 'false'}
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          width: slotComputed?.width ?? activeComputed?.width ?? 180,
+          height: slotComputed?.height ?? activeComputed?.height ?? 240,
+          userSelect: 'none',
+          opacity: isActive ? 1 : 0,
+          pointerEvents: 'none',
+          transition: 'opacity 60ms linear'
+        }}
+        autoPlay
+        muted
+        playsInline
+        loop={slotUsesNativeLoop}
+        onLoadedData={() => handleSlotReady(slot)}
+        onCanPlay={() => handleCanPlay(slot)}
+        onTimeUpdate={() => handleTimeUpdate(slot)}
+        onEnded={() => handleEnded(slot)}
+        src={presentation?.computed.srcUrl ?? ''}
+        onError={(e) => {
+          if (presentation?.computed.srcUrl) {
+            console.warn('Sprite video failed to load', presentation.computed.srcUrl, e);
+          }
+        }}
+      ></video>
+    );
+  };
+
+  return activeComputed ? (
+    <div
       style={{
-        width: computed.width ?? 180,
-        height: computed.height ?? 240,
+        position: 'relative',
+        width: activeComputed.width ?? 180,
+        height: activeComputed.height ?? 240,
         userSelect: 'none',
         transform: shouldFlip ? 'scaleX(-1)' : 'none',
         transformOrigin: 'center center'
       }}
-      autoPlay
-      muted
-      playsInline
-      loop={useNativeLoop}
-      onTimeUpdate={handleTimeUpdate}
-      onEnded={handleEnded}
-      src={computed.srcUrl}
-      onError={(e) => {
-        console.warn('Sprite video failed to load', computed.srcUrl, e);
-      }}
-    ></video>
+    >
+      {renderVideo('front')}
+      {renderVideo('back')}
+    </div>
   ) : null;
 }

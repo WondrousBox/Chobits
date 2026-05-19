@@ -216,14 +216,24 @@ class FakeElement extends FakeNode {
     return this.childNodes.some((child) => child === node || (child instanceof FakeElement && child.contains(node)));
   }
 
-  querySelector(tagName: string): FakeElement | null {
-    const normalized = tagName.toLowerCase();
+  querySelector(selector: string): FakeElement | null {
+    const normalized = selector.toLowerCase();
     for (const child of this.children) {
-      if (child.localName === normalized) return child;
+      if (matchesSelector(child, normalized)) return child;
       const nested = child.querySelector(normalized);
       if (nested) return nested;
     }
     return null;
+  }
+
+  querySelectorAll(selector: string): FakeElement[] {
+    const normalized = selector.toLowerCase();
+    const matches: FakeElement[] = [];
+    for (const child of this.children) {
+      if (matchesSelector(child, normalized)) matches.push(child);
+      matches.push(...child.querySelectorAll(normalized));
+    }
+    return matches;
   }
 
   focus(): void {
@@ -238,6 +248,16 @@ class FakeElement extends FakeNode {
 }
 
 class FakeHTMLElement extends FakeElement {}
+
+function matchesSelector(element: FakeElement, selector: string): boolean {
+  const attrMatch = selector.match(/^([a-z0-9-]+)\[([^=\]]+)="([^"]*)"\]$/);
+  if (attrMatch) {
+    const [, tagName, attrName, attrValue] = attrMatch;
+    return element.localName === tagName && element.getAttribute(attrName) === attrValue;
+  }
+
+  return element.localName === selector;
+}
 
 class FakeHTMLIFrameElement extends FakeHTMLElement {
   constructor(ownerDocument: FakeDocument | null) {
