@@ -485,14 +485,13 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
 
     const currentProviderLabel = currentProvider?.label || resolvedProviderId || providerId || '';
     const currentModelLabel = currentModel?.label || currentModel?.id || modelId || '';
-    const triggerTooltip = currentProviderLabel && currentModelLabel ? `${currentProviderLabel} · ${currentModelLabel}` : placeholder;
+    const triggerTooltip = currentProviderLabel && currentModelLabel ? `${currentModelLabel}` : placeholder;
     const triggerIcon = currentProvider?.schema?.icon ? <TintableSvg src={currentProvider.schema.icon} className="size-4 shrink-0" alt={currentProviderLabel || placeholder} /> : <TbCpu />;
     const triggerButton = (
       <Button
         variant={buttonVariant}
         size={buttonSize}
-        className={triggerMode === 'icon' ? className : `flex items-center justify-between gap-2 ${className || ''}`}
-        title={triggerTooltip}
+        className={triggerMode === 'icon' ? `rounded-full ${className}` : `flex items-center justify-between gap-2 rounded-full ${className || ''}`}
         aria-label={triggerMode === 'icon' ? triggerTooltip : undefined}
         onPointerDown={() => onOpenPrepare?.()}
       >
@@ -527,7 +526,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
             <TooltipTrigger asChild>
               <DropdownMenuTrigger asChild>{triggerButton}</DropdownMenuTrigger>
             </TooltipTrigger>
-            <TooltipContent>{triggerTooltip}</TooltipContent>
+            <TooltipContent side="right">{triggerTooltip}</TooltipContent>
           </Tooltip>
         ) : (
           <DropdownMenuTrigger asChild>{triggerButton}</DropdownMenuTrigger>
