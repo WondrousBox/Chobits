@@ -1,4 +1,4 @@
-import type { MusicReactivityPreferences, MusicReactivitySnapshot } from '@packages/audio-reactivity/types';
+import type { MusicReactivityAnalysisStatus, MusicReactivityCaptureSource, MusicReactivityPreferences, MusicReactivitySnapshot } from '@packages/audio-reactivity/types';
 import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
 import React, { useCallback, useEffect, useState } from 'react';
 import { TbActivityHeartbeat, TbAlertTriangle, TbMoodKid, TbPlayerPlay } from 'react-icons/tb';
@@ -127,6 +127,13 @@ const STATE_LABELS: Record<MusicReactivitySnapshot['state'], string> = {
   unavailable: '不可用'
 };
 
+const ANALYSIS_STATUS_LABELS: Record<MusicReactivityAnalysisStatus, string> = {
+  none: '未收到',
+  accepted: '正在喂入',
+  'source-filtered': '来源被过滤',
+  disabled: '服务已关闭'
+};
+
 const DEFAULT_MUSIC_PREFERENCES: MusicReactivityPreferences = {
   enabled: false,
   source: 'auto',
@@ -152,6 +159,44 @@ function formatDb(value?: number): string {
   return `${Math.round(value ?? 0)} dB`;
 }
 
+function formatAge(timestampMs?: number, now = Date.now()): string {
+  if (!Number.isFinite(timestampMs) || !timestampMs) return '无';
+  const ageMs = Math.max(0, now - timestampMs);
+  if (ageMs < 1500) return '刚刚';
+  if (ageMs < 60_000) return `${Math.round(ageMs / 1000)} 秒前`;
+  if (ageMs < 3_600_000) return `${Math.round(ageMs / 60_000)} 分钟前`;
+  return new Date(timestampMs).toLocaleTimeString();
+}
+
+function sourceLabel(source?: MusicReactivityPreferences['source'] | MusicReactivityCaptureSource | 'none'): string {
+  if (!source || source === 'none') return '无';
+  return SOURCE_LABELS[source] ?? source;
+}
+
+function getFeedSummary(snapshot: MusicReactivitySnapshot | null, preferences: MusicReactivityPreferences, now: number): { label: string; tone: 'ok' | 'warn' | 'muted' } {
+  if (!snapshot) return { label: '未连接快照', tone: 'muted' };
+  if (!preferences.enabled || !snapshot.running || snapshot.lastAnalysisStatus === 'disabled') return { label: '服务未启用', tone: 'muted' };
+  if (snapshot.lastAnalysisStatus === 'source-filtered') {
+    return { label: `${sourceLabel(snapshot.lastAnalysisSource)} 被过滤`, tone: 'warn' };
+  }
+  if (!snapshot.lastAnalysisAtMs) return { label: '当前没有来源喂数据', tone: 'warn' };
+
+  const ageMs = now - snapshot.lastAnalysisAtMs;
+  if (snapshot.lastAnalysisStatus === 'accepted' && ageMs <= 2_000) {
+    return { label: `${sourceLabel(snapshot.lastAnalysisSource)} 正在喂数据`, tone: 'ok' };
+  }
+  if (snapshot.lastAnalysisStatus === 'accepted') {
+    return { label: `${sourceLabel(snapshot.lastAnalysisSource)} ${formatAge(snapshot.lastAnalysisAtMs, now)}`, tone: ageMs <= 5_000 ? 'ok' : 'warn' };
+  }
+  return { label: ANALYSIS_STATUS_LABELS[snapshot.lastAnalysisStatus], tone: 'muted' };
+}
+
+function diagnosticPillClass(tone: 'ok' | 'warn' | 'muted'): string {
+  if (tone === 'ok') return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300';
+  if (tone === 'warn') return 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300';
+  return 'border-transparent bg-muted text-muted-foreground';
+}
+
 const MusicReactivitySettings: React.FC = () => {
   const [preferences, setPreferences] = useState<MusicReactivityPreferences>(DEFAULT_MUSIC_PREFERENCES);
   const [snapshot, setSnapshot] = useState<MusicReactivitySnapshot | null>(null);
@@ -160,10 +205,15 @@ const MusicReactivitySettings: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const danceTrigger = preferences.danceTrigger.trim() || DEFAULT_MUSIC_PREFERENCES.danceTrigger;
   const danceAnimationTotal = danceAnimationAvailability ? danceAnimationAvailability.primaryCount + danceAnimationAvailability.fallbackCount : null;
   const danceUsesFallback = danceAnimationAvailability ? danceAnimationAvailability.primaryCount === 0 && danceAnimationAvailability.fallbackCount > 0 : false;
   const fallbackTrigger = danceTrigger === DEFAULT_MUSIC_PREFERENCES.danceTrigger ? 'dance' : null;
+  const feedSummary = getFeedSummary(snapshot, preferences, now);
+  const analysisSnapshotAgeLabel = formatAge(snapshot?.lastAnalysisAtMs, now);
+  const acceptedSnapshotAgeLabel = formatAge(snapshot?.lastAcceptedAnalysisAtMs, now);
+  const resetAgeLabel = formatAge(snapshot?.lastReset?.timestampMs, now);
 
   const refreshDanceAnimationAvailability = useCallback(
     async (trigger = danceTrigger): Promise<void> => {
@@ -191,6 +241,13 @@ const MusicReactivitySettings: React.FC = () => {
     },
     [danceTrigger]
   );
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     let disposed = false;
@@ -376,7 +433,7 @@ const MusicReactivitySettings: React.FC = () => {
       </SettingItem>
       <SettingItem
         title="调试状态"
-        description={`状态：${snapshot ? STATE_LABELS[snapshot.state] : '-'} · 音乐 ${formatPercent(snapshot?.musicProbability)} · 音量 ${formatDb(snapshot?.energyDb)}`}
+        description={`状态：${snapshot ? STATE_LABELS[snapshot.state] : '-'} · 当前来源：${sourceLabel(snapshot?.source)} · 音乐 ${formatPercent(snapshot?.musicProbability)} · 音量 ${formatDb(snapshot?.energyDb)}`}
         action={
           <Button size="sm" variant="outline" onClick={() => void handleTestDance()} disabled={testing}>
             <TbPlayerPlay />
@@ -384,11 +441,22 @@ const MusicReactivitySettings: React.FC = () => {
           </Button>
         }
       >
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1">
+        <div className="grid gap-2 text-xs sm:grid-cols-2">
+          <div className={cn('flex items-center gap-2 rounded-md border px-2 py-1', diagnosticPillClass(feedSummary.tone))}>
             <TbActivityHeartbeat />
-            {snapshot?.source ?? 'none'}
-          </span>
+            <span>{feedSummary.label}</span>
+          </div>
+          <div className="rounded-md bg-muted px-2 py-1 text-muted-foreground">最近分析：{analysisSnapshotAgeLabel}</div>
+          <div className="rounded-md bg-muted px-2 py-1 text-muted-foreground">
+            接收来源：{sourceLabel(snapshot?.lastAcceptedAnalysisSource)} · {acceptedSnapshotAgeLabel}
+          </div>
+          <div className="rounded-md bg-muted px-2 py-1 text-muted-foreground">
+            reset：{snapshot?.lastReset ? `${snapshot.lastReset.reason} · ${STATE_LABELS[snapshot.lastReset.previousState]} -> ${STATE_LABELS[snapshot.lastReset.state]} · ${resetAgeLabel}` : '无'}
+          </div>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span className="rounded-md bg-muted px-2 py-1">偏好来源 {sourceLabel(snapshot?.preferredSource ?? preferences.source)}</span>
+          <span className="rounded-md bg-muted px-2 py-1">输入状态 {snapshot ? ANALYSIS_STATUS_LABELS[snapshot.lastAnalysisStatus] : '-'}</span>
           <span className="rounded-md bg-muted px-2 py-1">onset {formatPercent(snapshot?.onsetStrength)}</span>
           <span className="rounded-md bg-muted px-2 py-1">BPM {Number.isFinite(snapshot?.bpm) ? Math.round(snapshot?.bpm ?? 0) : '-'}</span>
         </div>

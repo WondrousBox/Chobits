@@ -2,6 +2,7 @@ export type MusicReactivityCaptureSource = 'manual' | 'app-media' | 'system-loop
 export type MusicReactivityPreferenceSource = 'auto' | MusicReactivityCaptureSource;
 export type MusicReactivitySensitivity = 'low' | 'medium' | 'high';
 export type MusicReactivityState = 'idle' | 'candidate' | 'dancing' | 'cooldown' | 'unavailable';
+export type MusicReactivityAnalysisStatus = 'none' | 'accepted' | 'source-filtered' | 'disabled';
 
 export const MUSIC_REACTIVITY_SNAPSHOT_CHANNEL = 'music-reactivity:snapshot';
 
@@ -38,8 +39,17 @@ export interface MusicReactivityAnalysisInput {
   reason?: string;
 }
 
+export interface MusicReactivityResetSnapshot {
+  timestampMs: number;
+  reason: string;
+  previousState: MusicReactivityState;
+  state: MusicReactivityState;
+  source: MusicReactivityCaptureSource | 'none';
+}
+
 export interface MusicReactivitySnapshot {
   running: boolean;
+  preferredSource: MusicReactivityPreferenceSource;
   source: MusicReactivityCaptureSource | 'none';
   timestampMs: number;
   energy: number;
@@ -52,6 +62,12 @@ export interface MusicReactivitySnapshot {
   beatTick?: boolean;
   state: MusicReactivityState;
   reason?: string;
+  lastAnalysisAtMs?: number;
+  lastAnalysisSource?: MusicReactivityCaptureSource | 'none';
+  lastAnalysisStatus: MusicReactivityAnalysisStatus;
+  lastAcceptedAnalysisAtMs?: number;
+  lastAcceptedAnalysisSource?: MusicReactivityCaptureSource | 'none';
+  lastReset?: MusicReactivityResetSnapshot;
 }
 
 export const DEFAULT_MUSIC_REACTIVITY_PREFERENCES: MusicReactivityPreferences = {
