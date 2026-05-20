@@ -68,6 +68,8 @@ export interface UseMessageQueueReturn {
   updateBusy: (progress: number, content?: string) => void;
   /** 清除 Busy 状态 */
   clearBusy: () => void;
+  /** 清除指定类型消息 */
+  clearByType: (type: SpriteMessage['type']) => void;
   /** 关闭指定消息（不传 id 则关闭当前消息） */
   dismiss: (id?: string) => void;
   /** 清除所有消息 */
@@ -238,6 +240,21 @@ export function useMessageQueue(): UseMessageQueueReturn {
     });
   }, []);
 
+  /** 清除指定类型消息 */
+  const clearByType = useCallback((type: SpriteMessage['type']) => {
+    setState((prev) => {
+      const newQueue = prev.queue.filter((m) => m.type !== type);
+      if (newQueue.length === prev.queue.length) {
+        return prev;
+      }
+
+      return {
+        current: newQueue[0] || null,
+        queue: newQueue
+      };
+    });
+  }, []);
+
   /** 关闭消息 */
   const dismiss = useCallback((id?: string) => {
     setState((prev) => {
@@ -292,6 +309,7 @@ export function useMessageQueue(): UseMessageQueueReturn {
     showBusy,
     updateBusy,
     clearBusy,
+    clearByType,
     dismiss,
     clearAll,
     currentNotice

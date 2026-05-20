@@ -5,6 +5,7 @@ import { app } from 'electron';
 
 import type { MusicReactivityPreferences } from '../../../../packages/audio-reactivity/types';
 import { DEFAULT_MUSIC_REACTIVITY_PREFERENCES, normalizeMusicReactivityPreferences } from '../../../../packages/audio-reactivity/types';
+import type { OnboardingState } from '../../../../packages/sprite-core/quest';
 
 // 预览模式类型: 'window' 表示弹窗，'panel' 表示右侧面板
 export type PreviewMode = 'window' | 'panel';
@@ -17,6 +18,8 @@ export interface PreferencesConfig {
   webRecorderDeviceId?: string;
   assistantMiniWindowEnabled: boolean;
   musicReactivity: MusicReactivityPreferences;
+  /** 新手引导 / Quest 系统状态（由 QuestEngine 持久化，结构由 sprite-core/quest 定义） */
+  onboardingState?: OnboardingState;
 }
 
 // 默认配置
@@ -58,7 +61,8 @@ function read(): StoreShape {
         previewMode: data.preferences?.previewMode || DEFAULT_CONFIG.previewMode,
         webRecorderDeviceId: data.preferences?.webRecorderDeviceId,
         assistantMiniWindowEnabled: typeof data.preferences?.assistantMiniWindowEnabled === 'boolean' ? data.preferences.assistantMiniWindowEnabled : DEFAULT_CONFIG.assistantMiniWindowEnabled,
-        musicReactivity: normalizeMusicReactivityPreferences(data.preferences?.musicReactivity)
+        musicReactivity: normalizeMusicReactivityPreferences(data.preferences?.musicReactivity),
+        onboardingState: data.preferences?.onboardingState
       }
     };
   } catch (error) {
@@ -149,5 +153,19 @@ export const PreferencesStore = {
         ...config
       })
     });
+  },
+
+  /**
+   * 获取新手引导/Quest 状态
+   */
+  getOnboardingState(): OnboardingState | undefined {
+    return this.getConfig().onboardingState;
+  },
+
+  /**
+   * 设置新手引导/Quest 状态（QuestEngine 持久化用）
+   */
+  setOnboardingState(state: OnboardingState): PreferencesConfig {
+    return this.setConfig({ onboardingState: state });
   }
 };

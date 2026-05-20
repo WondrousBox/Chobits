@@ -141,6 +141,27 @@ describe('usePurposePlannerSettings', () => {
     expect(probe.getAttribute('data-smoke')).toBe('started');
 
     await act(async () => {
+      await current?.runWorkspaceOnboardingPreset();
+      await Promise.resolve();
+    });
+
+    expect(startPurpose).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        kind: 'onboarding.workspace.create',
+        title: '工作空间引导预设测试',
+        source: 'manual',
+        presetId: 'onboarding.workspace.create',
+        priority: 72,
+        interruptPolicy: 'urgent',
+        context: expect.objectContaining({
+          routineKind: 'workspaceOnboardingPresetTest',
+          source: 'purpose-planner-settings',
+          manual: true
+        })
+      })
+    );
+
+    await act(async () => {
       root.unmount();
       await Promise.resolve();
     });

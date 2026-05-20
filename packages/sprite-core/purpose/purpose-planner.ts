@@ -137,6 +137,8 @@ export const DEFAULT_SPRITE_PURPOSE_PLANNER_STEP_TYPES = [
   'waitForEvent',
   'speak',
   'showToast',
+  'showNotice',
+  'clearMessage',
   'showBusy',
   'updateBusy',
   'clearBusy',
@@ -165,6 +167,8 @@ const STEP_SCHEMA_DESCRIPTIONS: Record<SpriteRoutineStepType, string> = {
   waitForEvent: 'Wait for an allowlisted runtime event; timeoutMs is required.',
   speak: 'Show a short speech bubble, optionally with cooldown metadata.',
   showToast: 'Show a short notice/toast.',
+  showNotice: 'Show a persistent notice with optional action buttons.',
+  clearMessage: 'Clear a toast, notice, busy message, or all sprite messages.',
   showBusy: 'Show busy/progress state.',
   updateBusy: 'Update busy/progress state from fixed values or assigned event paths.',
   clearBusy: 'Clear busy/progress state.',
@@ -364,6 +368,10 @@ function validateStep(step: unknown, path: string, state: ValidationState): numb
       return validateSpeakStep(record, path, state);
     case 'showToast':
       return validateBoundedOptionalDuration(record.duration, `${path}.duration`, state);
+    case 'showNotice':
+      return validateBoundedOptionalDuration(record.duration, `${path}.duration`, state);
+    case 'clearMessage':
+      return 0;
     case 'showBusy':
     case 'updateBusy':
     case 'clearBusy':
@@ -371,6 +379,9 @@ function validateStep(step: unknown, path: string, state: ValidationState): numb
     case 'openWindow':
       return validateOpenWindowStep(record, path, state);
     case 'loopUntil':
+      if (record.ignoreHistory !== undefined && typeof record.ignoreHistory !== 'boolean') {
+        state.errors.push(`${path}.ignoreHistory must be a boolean when provided`);
+      }
       return validateLoopUntilStep(record, path, state);
     case 'branch':
       return validateBranchStep(record, path, state);
@@ -406,6 +417,10 @@ function validateWalkToStep(record: Record<string, unknown>, path: string, state
   if (stringTarget && stringTarget !== 'center' && stringTarget !== 'corner' && stringTarget !== 'previous') {
     state.errors.push(`${path}.target string must be center, corner, or previous`);
   } else if (!stringTarget && pointTarget) {
+    if (typeof pointTarget.window === 'string') {
+      state.errors.push(`${path}.target cannot reference app windows in AI planned routines`);
+      return requireTimeout(record.timeoutMs, `${path}.timeoutMs`, state);
+    }
     if (getOptionalNonNegativeNumber(pointTarget.x) === undefined || getOptionalNonNegativeNumber(pointTarget.y) === undefined) {
       state.errors.push(`${path}.target point must include non-negative finite x and y`);
     }

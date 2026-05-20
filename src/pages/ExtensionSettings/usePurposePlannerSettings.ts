@@ -12,14 +12,18 @@ export type PurposePlannerSettingsState = {
   status: PurposePlannerStatus | null;
   history: PurposePlannerHistoryEntry[];
   lastSmokeResult: PurposePlannerSmokeResult | null;
+  lastPresetResult: PurposePlannerSmokeResult | null;
   smokeError: string | null;
+  presetError: string | null;
   loading: boolean;
   historyLoading: boolean;
   updating: boolean;
   smokeTesting: boolean;
+  presetTesting: boolean;
   refresh: () => Promise<void>;
   loadHistory: () => Promise<void>;
   runSmokeTest: () => Promise<void>;
+  runWorkspaceOnboardingPreset: () => Promise<void>;
   updatePreferences: (patch: Partial<PurposePlannerPreferences>) => Promise<void>;
 };
 
@@ -80,16 +84,42 @@ export function createPurposePlannerSmokeTestRequest(now = Date.now()): StartSpr
   };
 }
 
+export function createWorkspaceOnboardingPresetTestRequest(now = Date.now()): StartSpritePurposeRequest {
+  return {
+    kind: 'onboarding.workspace.create',
+    title: '工作空间引导预设测试',
+    reason: '手动执行现有工作空间引导预设',
+    source: 'manual',
+    presetId: 'onboarding.workspace.create',
+    priority: 72,
+    interruptPolicy: 'urgent',
+    coalesceKey: `workspace-onboarding-preset-test:${now}`,
+    plannerMode: 'preset-only',
+    context: {
+      purposeId: `workspace-onboarding-preset-test:${now}`,
+      routineId: 'workspace-onboarding-preset-test',
+      routineTitle: '工作空间引导预设测试',
+      routineKind: 'workspaceOnboardingPresetTest',
+      manual: true,
+      triggeredAt: now,
+      source: 'purpose-planner-settings'
+    }
+  };
+}
+
 export function usePurposePlannerSettings(): PurposePlannerSettingsState {
   const [preferences, setPreferences] = useState<PurposePlannerPreferences>(DEFAULT_PREFERENCES);
   const [status, setStatus] = useState<PurposePlannerStatus | null>(null);
   const [history, setHistory] = useState<PurposePlannerHistoryEntry[]>([]);
   const [lastSmokeResult, setLastSmokeResult] = useState<PurposePlannerSmokeResult | null>(null);
+  const [lastPresetResult, setLastPresetResult] = useState<PurposePlannerSmokeResult | null>(null);
   const [smokeError, setSmokeError] = useState<string | null>(null);
+  const [presetError, setPresetError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [smokeTesting, setSmokeTesting] = useState(false);
+  const [presetTesting, setPresetTesting] = useState(false);
 
   const fetchHistory = useCallback(async (): Promise<PurposePlannerHistoryEntry[]> => {
     return window.YUA.sprite.listPurposeHistory({
@@ -171,19 +201,39 @@ export function usePurposePlannerSettings(): PurposePlannerSettingsState {
     }
   }, [refresh]);
 
+  const runWorkspaceOnboardingPreset = useCallback(async (): Promise<void> => {
+    setPresetTesting(true);
+    setPresetError(null);
+    try {
+      const result = await window.YUA.sprite.startPurpose(createWorkspaceOnboardingPresetTestRequest());
+      setLastPresetResult(result);
+      await refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('工作空间引导预设测试失败:', error);
+      setPresetError(message);
+    } finally {
+      setPresetTesting(false);
+    }
+  }, [refresh]);
+
   return {
     preferences,
     status,
     history,
     lastSmokeResult,
+    lastPresetResult,
     smokeError,
+    presetError,
     loading,
     historyLoading,
     updating,
     smokeTesting,
+    presetTesting,
     refresh,
     loadHistory,
     runSmokeTest,
+    runWorkspaceOnboardingPreset,
     updatePreferences
   };
 }

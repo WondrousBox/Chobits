@@ -38,6 +38,7 @@ import { getDailyCareService } from '../../../electron/main/daily';
 import type { DailyCareRoutineDispatch } from '../../../electron/main/daily/types';
 import { getMainSchedulerService } from '../../../electron/main/scheduler';
 import { loadShortcutEnabledConfig, saveShortcutEnabledConfig } from '../../../electron/main/shortcut-store';
+import { AppEvent, eventManager } from '../../event';
 import { getRecorderStatusSnapshot } from '../../recorder/ipc-main';
 import { disableASRRuntime, getASRConfigSnapshot, getASRStatusSnapshot } from '../../sherpa/ipc-main';
 import { SPRITE_CAPABILITY_SIGNALS, type SpriteCapabilityResolutionContext } from '../capability-registry';
@@ -200,6 +201,9 @@ export function buildDailyCarePurposeRequest(event: DailyCareRoutineDispatch): S
 function bindDailyCarePurposeBridge(mgr: SpriteManager): void {
   const dailyCareService = getDailyCareService();
   dailyCareService?.onRoutineDispatched?.((event) => {
+    if (event.suppressed) {
+      return;
+    }
     void mgr.startPurpose(buildDailyCarePurposeRequest(event));
   });
 }
@@ -614,7 +618,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     return { ok: true, state: mgr.getPersonaState() };
   });
 
-  function grantPersonaReward(payload: SpritePersonaRewardGrantRequest = {}): { ok: boolean; [key: string]: unknown } {
+  function grantPersonaReward(payload: SpritePersonaRewardGrantRequest = {}): { ok: boolean;[key: string]: unknown } {
     const source = typeof payload.source === 'string' && payload.source.trim() ? payload.source.trim() : 'persona:reward';
     const xp = typeof payload.xp === 'number' && Number.isFinite(payload.xp) ? payload.xp : 0;
     const favor = typeof payload.favor === 'number' && Number.isFinite(payload.favor) ? payload.favor : 0;
@@ -622,11 +626,36 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     const reward: PersonaRewardGrant = { xp, favor, dimensions };
 
     const previousState = mgr.getPersonaState();
+
+    // 幂等：source 以 'quest:' 开头表示新手引导/任务奖励，重复发放则直接返回当前状态
+    // （包含 idempotent: true 标记，供 Quest Engine 区分新发放和重复请求）
+    const isQuestReward = source.startsWith('quest:');
+    if (isQuestReward && mgr.hasClaimedReward(source)) {
+      return {
+        ok: true,
+        source,
+        idempotent: true,
+        applied: { xp: 0, favor: 0, dimensions: [] },
+        xpGained: 0,
+        leveledUp: false,
+        oldFavor: previousState.favor,
+        newFavor: previousState.favor,
+        levelChanged: false,
+        favorChanged: false,
+        achievementUnlocked: false,
+        state: previousState
+      };
+    }
+
     mgr.applyPersonaReward(reward, source);
 
     let achievementUnlocked = false;
     if (typeof payload.achievementId === 'string' && payload.achievementId.trim()) {
       achievementUnlocked = mgr.unlockAchievement(payload.achievementId.trim());
+    }
+
+    if (isQuestReward) {
+      mgr.markRewardClaimed(source);
     }
 
     const state = mgr.getPersonaState();
@@ -754,10 +783,10 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   type InstalledPackChangeResponse = {
     ok: true;
   } & Awaited<ReturnType<typeof installCharacterPackFromArchive>> & {
-      character?: ReturnType<typeof getCharacterInfo>;
-      runtime?: CharacterPersonaRuntimeSyncResult;
-      personaSlot?: { slotId: string; restored: boolean; switched: boolean };
-    };
+    character?: ReturnType<typeof getCharacterInfo>;
+    runtime?: CharacterPersonaRuntimeSyncResult;
+    personaSlot?: { slotId: string; restored: boolean; switched: boolean };
+  };
 
   async function finalizeInstalledPackChange(
     result: Awaited<ReturnType<typeof installCharacterPackFromArchive>>,
@@ -1114,7 +1143,11 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   });
 
   ipcMain.handle('sprite:purpose:event', (_e, p: SpritePurposeRuntimeEventInput) => {
-    return mgr.emitPurposeEvent(p);
+    const result = mgr.emitPurposeEvent(p);
+    if (p?.source === 'app-event' && p.event === AppEvent.WORKSPACE_WIZARD_CLOSED) {
+      eventManager.emit(AppEvent.WORKSPACE_WIZARD_CLOSED, p.payload);
+    }
+    return result;
   });
 
   ipcMain.handle('sprite:purpose:listHistory', (_e, p: SpritePurposeHistoryQuery | undefined) => {

@@ -76,6 +76,7 @@ export interface SpriteWindow {
 export interface SpritePurposeWindowAdapter {
   open(windowKey: string, payload?: Record<string, unknown>): Promise<void> | void;
   close?(windowKey: string): Promise<void> | void;
+  getBounds?(windowKey: string): { x: number; y: number; width: number; height: number } | null;
 }
 
 /** SpriteManager 初始化选项 */
@@ -96,6 +97,8 @@ export interface SpriteManagerOptions {
   purposeRoutinePlanner?: SpritePurposeRoutinePlanner;
   /** Shared main-process scheduler for autonomous sprite behaviors. */
   behaviorScheduler?: SpriteBehaviorScheduler;
+  /** Suppresses autonomous chatter while a blocking onboarding flow needs focus. */
+  shouldSuppressAmbientMessages?: (context: SpriteAmbientMessageContext) => boolean;
   /** 额外接收 `app:message:bridge` 广播的窗口，主要用于独立气泡窗口同步气泡消息。 */
   getMessageRecipients?: () => Array<SpriteWindow | null | undefined>;
   /**
@@ -104,6 +107,8 @@ export interface SpriteManagerOptions {
    */
   getConfigRecipients?: () => Array<SpriteWindow | null | undefined>;
 }
+
+export type SpriteAmbientMessageContext = 'behavior' | 'welcome' | 'interaction';
 
 export interface SpriteSpontaneousUtteranceRequest {
   behaviorId: string;
@@ -220,6 +225,7 @@ export interface PersonaStatePersistenceRow {
   lastLoginDate: PersonaState['lastLoginDate'];
   achievements: PersonaState['achievements'];
   dimensions: PersonaState['dimensions'];
+  claimedRewards?: PersonaState['claimedRewards'];
   createdAt: PersonaState['createdAt'];
   updatedAt: PersonaState['updatedAt'];
 }

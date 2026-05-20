@@ -280,6 +280,176 @@ function createDailyCareReminderSteps(purpose: SpritePurpose): SpriteRoutineStep
   ];
 }
 
+const WORKSPACE_CREATE_NOTICE_ID = 'onboarding.workspace.create.invite';
+const WORKSPACE_CREATE_MANDATORY_REPROMPT_DELAY_MS = 5_000;
+const WORKSPACE_CREATE_NOTICE_WAIT_MS = 30 * 60 * 1000;
+const WORKSPACE_CREATE_WINDOW_HELPER_COOLDOWN_MS = 5 * 60 * 1000;
+
+/**
+ * 新手引导 — 引导用户创建工作空间。
+ *
+ * 流程概览：
+ * 1) 挥手吸引注意；
+ * 2) 展示带"立即创建"按钮的 NoticeMessage，气泡仍打开时只等待用户操作，不重复刷新；
+ * 3) 用户点击按钮后清掉邀请 notice，打开/聚焦 workspaceWizard，并走到创建窗口旁，说明工作空间用途与快速创建方式；
+ * 4) 用户手动关闭气泡后，短暂缓冲并继续提示；若未创建就关闭窗口，立即提醒并回到带按钮的提示态；
+ * 5) 创建成功 → 清理引导气泡并庆祝。QuestEngine 监听 AppEvent 决定是否标记完成和发奖。
+ */
+function createWorkspaceCreateRoutineSteps(): SpriteRoutineStep[] {
+  return [
+    { id: 'attention-wave', type: 'playAnimation', trigger: 'wave', durationMs: 1200, waitFor: 'duration', silent: true },
+    {
+      id: 'invite-notice',
+      type: 'showNotice',
+      messageId: WORKSPACE_CREATE_NOTICE_ID,
+      content: getCharacterRoutineText('onboarding.workspace.create.invite', undefined, '没有找到工作空间，点这里立即创建吧。'),
+      level: 'info',
+      persistent: true,
+      buttons: [{ id: 'focus-wizard', label: '立即创建', variant: 'default', purposeAction: 'open-wizard' }],
+      speak: true
+    },
+    {
+      id: 'workspace-onboarding-loop',
+      type: 'loopUntil',
+      source: 'app-event',
+      untilEvent: 'WORKSPACE_CREATED',
+      maxDurationMs: WORKSPACE_CREATE_NOTICE_WAIT_MS,
+      assignTo: 'workspaceCreatedEvent',
+      body: [
+        {
+          id: 'wait-create-bubble-event',
+          type: 'loopUntil',
+          source: 'purpose-event',
+          untilEvent: ['bubble:action', 'bubble:dismissed'],
+          match: { messageId: WORKSPACE_CREATE_NOTICE_ID },
+          maxDurationMs: WORKSPACE_CREATE_NOTICE_WAIT_MS,
+          assignTo: 'workspaceBubbleEvent',
+          ignoreHistory: true,
+          body: [{ id: 'wait-create-bubble-event-pause', type: 'wait', durationMs: 1000 }]
+        },
+        {
+          id: 'handle-bubble-event',
+          type: 'branch',
+          by: 'workspaceBubbleEvent.event.event',
+          cases: {
+            'bubble:action': [
+              {
+                id: 'open-wizard-after-click',
+                type: 'branch',
+                by: 'workspaceBubbleEvent.event.payload.purposeAction',
+                cases: {
+                  'open-wizard': [
+                    { id: 'clear-invite-after-click', type: 'clearMessage', messageId: WORKSPACE_CREATE_NOTICE_ID, messageType: 'notice' },
+                    { id: 'open-wizard', type: 'openWindow', window: 'workspaceWizard', timeoutMs: 10000 },
+                    { id: 'walk-near-wizard', type: 'walkTo', target: { window: 'workspaceWizard', placement: 'right', offset: 16 }, speed: 130, timeoutMs: 10000 },
+                    {
+                      id: 'await-wizard-result',
+                      type: 'loopUntil',
+                      source: 'app-event',
+                      untilEvent: ['WORKSPACE_CREATED', 'WORKSPACE_WIZARD_CLOSED'],
+                      maxDurationMs: WORKSPACE_CREATE_NOTICE_WAIT_MS,
+                      ignoreHistory: true,
+                      assignTo: 'workspaceWizardResult',
+                      body: [
+                        {
+                          id: 'speak-workspace-intro',
+                          type: 'speak',
+                          text: getCharacterRoutineText(
+                            'onboarding.workspace.create.workspace-intro',
+                            undefined,
+                            '工作空间会存放所有重要的数据。'
+                          ),
+                          bubbleDuration: 5200,
+                          cooldownKey: 'onboarding.workspace.create.workspace-intro',
+                          cooldownMs: WORKSPACE_CREATE_WINDOW_HELPER_COOLDOWN_MS
+                        },
+                        { id: 'workspace-intro-breath', type: 'wait', durationMs: 800 },
+                        {
+                          id: 'speak-workspace-quickstart-tip',
+                          type: 'speak',
+                          text: getCharacterRoutineText(
+                            'onboarding.workspace.create.quickstart-tip',
+                            undefined,
+                            '这里可以先用快速创建，默认目录就能开始；以后也可以再调整。'
+                          ),
+                          bubbleDuration: 4200,
+                          cooldownKey: 'onboarding.workspace.create.quickstart-tip',
+                          cooldownMs: WORKSPACE_CREATE_WINDOW_HELPER_COOLDOWN_MS
+                        },
+                        { id: 'await-wizard-result-pause', type: 'wait', durationMs: 1000 }
+                      ]
+                    },
+                    {
+                      id: 'wizard-result-branch',
+                      type: 'branch',
+                      by: 'workspaceWizardResult.event.event',
+                      cases: {
+                        WORKSPACE_WIZARD_CLOSED: [
+                          {
+                            id: 'closed-without-create',
+                            type: 'showNotice',
+                            messageId: WORKSPACE_CREATE_NOTICE_ID,
+                            content: getCharacterRoutineText('onboarding.workspace.create.closed-without-create', undefined, '还没有创建工作空间哦。先点这里创建一个吧。'),
+                            level: 'warning',
+                            persistent: true,
+                            buttons: [{ id: 'focus-wizard', label: '去创建', variant: 'default', purposeAction: 'open-wizard' }],
+                            speak: true
+                          }
+                        ]
+                      },
+                      default: []
+                    }
+                  ]
+                },
+                default: []
+              }
+            ],
+            'bubble:dismissed': [
+              { id: 'dismissed-mandatory-reprompt-pause', type: 'wait', durationMs: WORKSPACE_CREATE_MANDATORY_REPROMPT_DELAY_MS },
+              {
+                id: 'invite-notice-after-dismiss',
+                type: 'showNotice',
+                messageId: WORKSPACE_CREATE_NOTICE_ID,
+                content: getCharacterRoutineText('onboarding.workspace.create.invite', undefined, '没有找到工作空间，点这里立即创建吧。'),
+                level: 'info',
+                persistent: true,
+                buttons: [{ id: 'focus-wizard', label: '立即创建', variant: 'default', purposeAction: 'open-wizard' }],
+                speak: true
+              }
+            ]
+          },
+          default: []
+        }
+      ]
+    },
+    {
+      id: 'branch-result',
+      type: 'branch',
+      by: 'workspaceCreatedEvent.event.event',
+      cases: {
+        WORKSPACE_CREATED: [
+          { id: 'clear-invite-notice', type: 'clearMessage', messageId: WORKSPACE_CREATE_NOTICE_ID, messageType: 'notice' },
+          { id: 'play-celebrate', type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
+          {
+            id: 'speak-done',
+            type: 'speak',
+            text: getCharacterRoutineText('onboarding.workspace.create.done', undefined, '恭喜~工作空间建好啦！现在右键点我可以做更多事情啦。'),
+            bubbleDuration: 3600
+          }
+        ]
+      },
+      default: [
+        {
+          id: 'speak-not-yet',
+          type: 'speak',
+          text: getCharacterRoutineText('onboarding.workspace.create.closed-without-create', undefined, '没创建呀…要不再试一次？'),
+          bubbleDuration: 2800
+        }
+      ]
+    }
+  ];
+}
+
 export const DEFAULT_SPRITE_ROUTINE_PRESETS: SpriteRoutinePresetDefinition[] = [
   {
     id: 'idle.presence',
@@ -329,6 +499,13 @@ export const DEFAULT_SPRITE_ROUTINE_PRESETS: SpriteRoutinePresetDefinition[] = [
     purposeKind: 'daily.care.reminder',
     defaultPriority: 55,
     steps: createDailyCareReminderSteps
+  },
+  {
+    id: 'onboarding.workspace.create',
+    title: '新手引导：创建工作空间',
+    purposeKind: 'onboarding.workspace.create',
+    defaultPriority: 70,
+    steps: createWorkspaceCreateRoutineSteps
   }
 ];
 

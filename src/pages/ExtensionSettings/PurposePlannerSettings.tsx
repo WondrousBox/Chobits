@@ -229,7 +229,25 @@ export const PurposePlannerItem: React.FC<{
 );
 
 export const PurposePlannerDetailContent: React.FC<{ state: PurposePlannerSettingsState }> = ({ state }) => {
-  const { preferences, status, history, lastSmokeResult, smokeError, loading, historyLoading, updating, smokeTesting, refresh, loadHistory, runSmokeTest, updatePreferences } = state;
+  const {
+    preferences,
+    status,
+    history,
+    lastSmokeResult,
+    lastPresetResult,
+    smokeError,
+    presetError,
+    loading,
+    historyLoading,
+    updating,
+    smokeTesting,
+    presetTesting,
+    refresh,
+    loadHistory,
+    runSmokeTest,
+    runWorkspaceOnboardingPreset,
+    updatePreferences
+  } = state;
   const executorLabel = status?.hasExecutor ? 'runtime 已接入' : '缺少 executor';
   const lastResultSummary = useMemo(() => {
     if (!status?.lastResult) {
@@ -324,8 +342,24 @@ export const PurposePlannerDetailContent: React.FC<{ state: PurposePlannerSettin
             description={lastSmokeResult ? `${lastSmokeResult.status} · ${lastSmokeResult.purpose.kind}` : smokeError ? `失败：${smokeError}` : '触发一个低风险 daily.care.reminder purpose，便于验证 planner / fallback 链路。'}
             action={
               <Button variant="outline" size="sm" onClick={() => void runSmokeTest()} disabled={smokeTesting}>
-                {smokeTesting ? <TbLoader2 className="h-4 w-4 animate-spin" /> : <TbPlayerPlay className="h-4 w-4" />}
+                {smokeTesting ? <TbLoader2 className="animate-spin" /> : <TbPlayerPlay />}
                 试跑
+              </Button>
+            }
+          />
+          <SettingItem
+            title="工作空间引导预设"
+            description={
+              lastPresetResult
+                ? `${lastPresetResult.status} · ${lastPresetResult.purpose.kind}`
+                : presetError
+                  ? `失败：${presetError}`
+                  : '直接执行 onboarding.workspace.create preset，用来在已有工作空间的电脑上测试创建引导气泡和窗口聚焦。'
+            }
+            action={
+              <Button variant="outline" size="sm" onClick={() => void runWorkspaceOnboardingPreset()} disabled={presetTesting}>
+                {presetTesting ? <TbLoader2 className="animate-spin" /> : <TbSparkles />}
+                执行预设
               </Button>
             }
           />
@@ -334,7 +368,7 @@ export const PurposePlannerDetailContent: React.FC<{ state: PurposePlannerSettin
             description="重新读取 planner preferences 与最近结果。"
             action={
               <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={updating}>
-                <TbRefresh className={cn('h-4 w-4', updating && 'animate-spin')} />
+                <TbRefresh className={cn(updating && 'animate-spin')} />
                 刷新
               </Button>
             }
@@ -350,7 +384,7 @@ export const PurposePlannerDetailContent: React.FC<{ state: PurposePlannerSettin
             <div className="flex items-center justify-between gap-3">
               <div className="text-xs text-muted-foreground">最近 {history.length} 条 planner:planned / planner:fallback 记录。</div>
               <Button variant="outline" size="sm" onClick={() => void loadHistory()} disabled={historyLoading}>
-                <TbRefresh className={cn('h-4 w-4', historyLoading && 'animate-spin')} />
+                <TbRefresh className={cn(historyLoading && 'animate-spin')} />
                 刷新
               </Button>
             </div>

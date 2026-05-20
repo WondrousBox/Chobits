@@ -520,6 +520,7 @@ export interface MessageIPCPayload {
   persistent?: boolean;
   routineId?: string;
   category?: MessageCategory;
+  speak?: boolean;
   ctx?: any;
 }
 

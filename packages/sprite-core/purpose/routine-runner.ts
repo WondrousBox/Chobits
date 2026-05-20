@@ -13,6 +13,8 @@ export interface SpriteRoutineRunnerDeps {
   waitForEvent?: (step: Extract<SpriteRoutineStep, { type: 'waitForEvent' }>, signal: AbortSignal, routine: SpriteRoutine) => Promise<SpritePurposeRuntimeEvent> | SpritePurposeRuntimeEvent;
   speak: (step: Extract<SpriteRoutineStep, { type: 'speak' }>, signal: AbortSignal) => Promise<unknown> | unknown;
   showToast: (step: Extract<SpriteRoutineStep, { type: 'showToast' }>) => Promise<unknown> | unknown;
+  showNotice?: (step: Extract<SpriteRoutineStep, { type: 'showNotice' }>) => Promise<unknown> | unknown;
+  clearMessage?: (step: Extract<SpriteRoutineStep, { type: 'clearMessage' }>) => Promise<unknown> | unknown;
   showBusy?: (step: Extract<SpriteRoutineStep, { type: 'showBusy' }>) => Promise<unknown> | unknown;
   updateBusy?: (step: Extract<SpriteRoutineStep, { type: 'updateBusy' }>) => Promise<unknown> | unknown;
   clearBusy?: () => Promise<unknown> | unknown;
@@ -181,11 +183,11 @@ export class SpriteRoutineRunner {
   }
 
   private prepareStepSkip(step: SpriteRoutineStep, context: SpriteRoutineRunContext): Record<string, unknown> | null {
-    if (step.type !== 'speak' || step.cooldownMs == null) {
+    if ((step.type !== 'speak' && step.type !== 'showNotice') || step.cooldownMs == null) {
       return null;
     }
 
-    const cooldownKey = step.cooldownKey ?? `speak:${step.id}`;
+    const cooldownKey = step.cooldownKey ?? `${step.type}:${step.id}`;
     const now = this.now();
     const nextAllowedAt = context.cooldowns[cooldownKey] ?? 0;
     if (now < nextAllowedAt) {
@@ -218,6 +220,10 @@ export class SpriteRoutineRunner {
         return this.deps.speak(step, signal);
       case 'showToast':
         return this.deps.showToast(step);
+      case 'showNotice':
+        return this.deps.showNotice?.(step);
+      case 'clearMessage':
+        return this.deps.clearMessage?.(step);
       case 'showBusy':
         return this.deps.showBusy?.(step);
       case 'updateBusy':
@@ -343,6 +349,10 @@ export class SpriteRoutineRunner {
       controller.abort();
     };
     signal.addEventListener('abort', onAbort, { once: true });
+    const loopOptions: SpriteRoutineRunOptions = {
+      ...options,
+      signal: controller.signal
+    };
 
     const waitPromises = untilEvents.map((event) =>
       Promise.resolve(
@@ -353,6 +363,7 @@ export class SpriteRoutineRunner {
             event,
             source: step.source,
             match: step.match,
+            ignoreHistory: step.ignoreHistory,
             timeoutMs: step.maxDurationMs
           },
           controller.signal,
@@ -375,6 +386,7 @@ export class SpriteRoutineRunner {
     );
 
     try {
+      await Promise.resolve();
       while (!resolvedEvent) {
         this.throwIfAborted(signal);
         if (waitError) {
@@ -386,15 +398,36 @@ export class SpriteRoutineRunner {
 
         iterations += 1;
         if (step.body.length === 0) {
-          await this.delay(100, signal);
+          try {
+            await this.delay(100, controller.signal);
+          } catch (error) {
+            if (resolvedEvent && isCancelled(error)) {
+              break;
+            }
+            throw error;
+          }
           continue;
         }
 
         for (const child of step.body) {
           if (resolvedEvent) break;
-          const result = await this.runStep(routine, child, context, options, false);
+          const result = await this.runStep(routine, child, context, loopOptions, false);
           if (!result.ok) {
+            if (result.status === 'cancelled') {
+              await Promise.resolve();
+              if (resolvedEvent || (controller.signal.aborted && !signal.aborted)) {
+                break;
+              }
+              throw new SpriteRoutineCancelledError();
+            }
             throw new Error(result.error || `Loop step failed: ${child.id}`);
+          }
+        }
+
+        if (controller.signal.aborted && !signal.aborted) {
+          await Promise.resolve();
+          if (resolvedEvent) {
+            break;
           }
         }
       }
@@ -417,6 +450,9 @@ export class SpriteRoutineRunner {
       this.throwIfAborted(signal);
       const result = await this.runStep(routine, child, context, options, false);
       if (!result.ok) {
+        if (result.status === 'cancelled') {
+          throw new SpriteRoutineCancelledError();
+        }
         throw new Error(result.error || `Branch step failed: ${child.id}`);
       }
     }
@@ -426,6 +462,10 @@ export class SpriteRoutineRunner {
 
   private assignStepResult(step: SpriteRoutineStep, value: unknown, context: SpriteRoutineRunContext): void {
     if (!('assignTo' in step) || !step.assignTo) {
+      return;
+    }
+    if (step.type === 'waitForEvent' && value && typeof value === 'object' && (value as Record<string, unknown>).reason === 'timeout') {
+      delete context.variables[step.assignTo];
       return;
     }
     context.variables[step.assignTo] = value;

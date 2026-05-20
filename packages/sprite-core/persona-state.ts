@@ -80,6 +80,13 @@ export interface PersonaState {
   // 多维度能力值（雷达图）
   dimensions: Record<string, number>; // dimensionId → current value
 
+  /**
+   * 已发放的奖励来源（幂等键）
+   * key 是 grantReward 的 source 字段，例如 'quest:workspace.create'
+   * 用于支持 Quest / 新手引导任务的奖励幂等：同一 source 只发放一次。
+   */
+  claimedRewards?: Record<string, { at: number }>;
+
   // 时间戳
   createdAt: number;
   updatedAt: number;
@@ -409,6 +416,32 @@ export class PersonaStateManager {
   /** 检查成就是否已解锁 */
   hasAchievement(id: string): boolean {
     return this.state.achievements.includes(id);
+  }
+
+  // --- 奖励幂等（claimed rewards） ---
+
+  /**
+   * 检查指定来源的奖励是否已经发放过。
+   * 主要用于 Quest / 新手引导任务，确保同一 quest 的奖励只发放一次。
+   */
+  hasClaimedReward(source: string): boolean {
+    if (!source) return false;
+    return !!this.state.claimedRewards?.[source];
+  }
+
+  /**
+   * 标记一次奖励已发放。返回是否为本次新标记（true=新增，false=已存在）。
+   */
+  markRewardClaimed(source: string, at: number = Date.now()): boolean {
+    if (!source) return false;
+    if (!this.state.claimedRewards) {
+      this.state.claimedRewards = {};
+    }
+    if (this.state.claimedRewards[source]) return false;
+    this.state.claimedRewards[source] = { at };
+    this.state.updatedAt = at;
+    this.notifyChange();
+    return true;
   }
 
   // --- 统计 ---
