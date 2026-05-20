@@ -3,8 +3,10 @@ import type { SpriteManager } from '@packages/sprite-core/manager';
 import {
   MUSIC_REACTIVITY_THRESHOLDS,
   type MusicReactivityAnalysisInput,
+  type MusicReactivityAnalysisStatus,
   type MusicReactivityCaptureSource,
   type MusicReactivityPreferences,
+  type MusicReactivityResetSnapshot,
   type MusicReactivitySnapshot,
   type MusicReactivityState,
   normalizeMusicReactivityPreferences
@@ -42,6 +44,12 @@ export class MusicReactivityService {
   private lastDanceRefreshWaitingLogAtMs = 0;
   private lastDanceStartedPlayback = false;
   private activeDancePlayId: string | null = null;
+  private lastAnalysisAtMs: number | undefined;
+  private lastAnalysisSource: MusicReactivityCaptureSource | 'none' | undefined;
+  private lastAnalysisStatus: MusicReactivityAnalysisStatus = 'none';
+  private lastAcceptedAnalysisAtMs: number | undefined;
+  private lastAcceptedAnalysisSource: MusicReactivityCaptureSource | 'none' | undefined;
+  private lastReset: MusicReactivityResetSnapshot | undefined;
 
   constructor(options: MusicReactivityServiceOptions) {
     this.getSpriteManager = options.getSpriteManager;
@@ -79,7 +87,10 @@ export class MusicReactivityService {
   }
 
   getSnapshot(): MusicReactivitySnapshot {
-    return { ...this.snapshot };
+    return {
+      ...this.snapshot,
+      lastReset: this.snapshot.lastReset ? { ...this.snapshot.lastReset } : undefined
+    };
   }
 
   ingestAnalysis(input: MusicReactivityAnalysisInput): MusicReactivitySnapshot {
@@ -87,6 +98,7 @@ export class MusicReactivityService {
     const previousState = this.state;
 
     if (!this.preferences.enabled) {
+      this.recordAnalysis(now, input.source ?? this.source, 'disabled');
       if (now - this.lastDisabledLogAtMs >= DISABLED_LOG_INTERVAL_MS) {
         this.lastDisabledLogAtMs = now;
         this.log('analysis ignored: disabled', this.inputLogDetails(input));
@@ -96,6 +108,7 @@ export class MusicReactivityService {
 
     const incomingSource = input.source ?? this.source;
     if (!this.acceptsSource(incomingSource)) {
+      this.recordAnalysis(now, incomingSource, 'source-filtered');
       const snapshot = this.emitSnapshot(this.createSnapshot(now, input, `source-filtered:${this.preferences.source}`));
       if (now - this.lastFilteredLogAtMs >= FILTER_LOG_INTERVAL_MS) {
         this.lastFilteredLogAtMs = now;
@@ -109,6 +122,7 @@ export class MusicReactivityService {
     }
 
     this.source = incomingSource;
+    this.recordAnalysis(now, incomingSource, 'accepted');
 
     const thresholds = MUSIC_REACTIVITY_THRESHOLDS[this.preferences.sensitivity];
     const musicProbability = this.clamp01(input.musicProbability ?? 0);
@@ -196,6 +210,7 @@ export class MusicReactivityService {
       beatTick: true,
       reason: 'manual-test'
     };
+    this.recordAnalysis(now, 'manual', 'accepted');
     this.triggerDance(input, now);
     const snapshot = this.emitSnapshot(this.createSnapshot(now, input, 'manual-test'));
     this.log('manual test snapshot emitted', this.snapshotLogDetails(snapshot));
@@ -207,6 +222,13 @@ export class MusicReactivityService {
     const previousState = this.state;
     this.state = 'idle';
     this.source = input.source ?? 'none';
+    this.lastReset = {
+      timestampMs: now,
+      reason,
+      previousState,
+      state: this.state,
+      source: this.source
+    };
     this.candidateSinceMs = null;
     this.belowSinceMs = null;
     this.cooldownUntilMs = 0;
@@ -352,6 +374,7 @@ export class MusicReactivityService {
   private createSnapshot(timestampMs: number, input: MusicReactivityAnalysisInput, reason = input.reason): MusicReactivitySnapshot {
     return {
       running: this.preferences.enabled,
+      preferredSource: this.preferences.source,
       source: input.source ?? this.source,
       timestampMs,
       energy: this.clamp01(input.energy ?? 0),
@@ -363,7 +386,13 @@ export class MusicReactivityService {
       bpm: Number.isFinite(input.bpm) ? input.bpm : undefined,
       beatTick: input.beatTick,
       state: this.state,
-      reason
+      reason,
+      lastAnalysisAtMs: this.lastAnalysisAtMs,
+      lastAnalysisSource: this.lastAnalysisSource,
+      lastAnalysisStatus: this.lastAnalysisStatus,
+      lastAcceptedAnalysisAtMs: this.lastAcceptedAnalysisAtMs,
+      lastAcceptedAnalysisSource: this.lastAcceptedAnalysisSource,
+      lastReset: this.lastReset ? { ...this.lastReset } : undefined
     };
   }
 
@@ -383,6 +412,16 @@ export class MusicReactivityService {
     if (this.preferences.source !== 'auto') return false;
 
     return source === 'manual' || source === 'app-media' || source === 'system-loopback';
+  }
+
+  private recordAnalysis(timestampMs: number, source: MusicReactivityCaptureSource | 'none', status: MusicReactivityAnalysisStatus): void {
+    this.lastAnalysisAtMs = timestampMs;
+    this.lastAnalysisSource = source;
+    this.lastAnalysisStatus = status;
+    if (status === 'accepted') {
+      this.lastAcceptedAnalysisAtMs = timestampMs;
+      this.lastAcceptedAnalysisSource = source;
+    }
   }
 
   private logSignalSnapshot(
@@ -443,7 +482,12 @@ export class MusicReactivityService {
       musicProbability: this.round(snapshot.musicProbability),
       onsetStrength: this.round(snapshot.onsetStrength),
       bpm: this.round(snapshot.bpm),
-      reason: snapshot.reason
+      reason: snapshot.reason,
+      lastAnalysisStatus: snapshot.lastAnalysisStatus,
+      lastAnalysisSource: snapshot.lastAnalysisSource,
+      lastAnalysisAgeMs: snapshot.lastAnalysisAtMs ? Date.now() - snapshot.lastAnalysisAtMs : undefined,
+      lastAcceptedAnalysisSource: snapshot.lastAcceptedAnalysisSource,
+      lastResetReason: snapshot.lastReset?.reason
     };
   }
 

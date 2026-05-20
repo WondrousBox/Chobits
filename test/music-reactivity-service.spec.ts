@@ -81,6 +81,11 @@ describe('MusicReactivityService', () => {
     });
 
     expect(snapshot.state).toBe('dancing');
+    expect(snapshot.lastAnalysisStatus).toBe('accepted');
+    expect(snapshot.lastAnalysisAtMs).toBe(3600);
+    expect(snapshot.lastAnalysisSource).toBe('app-media');
+    expect(snapshot.lastAcceptedAnalysisAtMs).toBe(3600);
+    expect(snapshot.lastAcceptedAnalysisSource).toBe('app-media');
     expect(calls).toHaveLength(1);
     expect(calls[0].trigger).toBe('music:dance');
   });
@@ -129,6 +134,11 @@ describe('MusicReactivityService', () => {
 
     expect(snapshot.state).toBe('idle');
     expect(snapshot.reason).toBe('source-filtered:system-loopback');
+    expect(snapshot.preferredSource).toBe('system-loopback');
+    expect(snapshot.lastAnalysisStatus).toBe('source-filtered');
+    expect(snapshot.lastAnalysisAtMs).toBe(6000);
+    expect(snapshot.lastAnalysisSource).toBe('app-media');
+    expect(snapshot.lastAcceptedAnalysisAtMs).toBeUndefined();
     expect(calls).toHaveLength(0);
   });
 
@@ -176,6 +186,13 @@ describe('MusicReactivityService', () => {
 
     expect(snapshot.state).toBe('idle');
     expect(snapshot.reason).toBe('media-inactive');
+    expect(snapshot.lastReset).toEqual({
+      timestampMs: 4200,
+      reason: 'media-inactive',
+      previousState: 'dancing',
+      state: 'idle',
+      source: 'app-media'
+    });
     expect(stoppedPlayIds).toHaveLength(1);
     expect(stoppedPlayIds[0]).toMatch(/^music-dance-/);
     expect(calls).toHaveLength(2);
