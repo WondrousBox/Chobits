@@ -399,6 +399,44 @@ export const CHARACTER_MESSAGE_SPECS = [
     neutral: () => ['这里好像没处理成功。']
   },
   {
+    field: 'workspaceCreateInvite',
+    section: 'routines',
+    key: 'onboarding.workspace.create.invite',
+    label: '工作空间引导提示',
+    neutral: () => ['没有找到工作空间，点这里立即创建吧。']
+  },
+  {
+    field: 'workspaceCreateIntro',
+    section: 'routines',
+    key: 'onboarding.workspace.create.workspace-intro',
+    label: '工作空间用途介绍',
+    maxItems: 4,
+    maxLength: 240,
+    neutral: () => ['工作空间会存放所有重要的数据。']
+  },
+  {
+    field: 'workspaceCreateQuickstartTip',
+    section: 'routines',
+    key: 'onboarding.workspace.create.quickstart-tip',
+    label: '工作空间快速创建提示',
+    maxItems: 4,
+    neutral: () => ['这里可以先用快速创建，默认目录就能开始；以后也可以再调整。']
+  },
+  {
+    field: 'workspaceCreateDone',
+    section: 'routines',
+    key: 'onboarding.workspace.create.done',
+    label: '工作空间创建完成',
+    neutral: () => ['恭喜~工作空间建好啦！现在右键点我可以做更多事情啦。']
+  },
+  {
+    field: 'workspaceCreateClosedWithoutCreate',
+    section: 'routines',
+    key: 'onboarding.workspace.create.closed-without-create',
+    label: '工作空间关闭未创建',
+    neutral: () => ['还没有创建工作空间哦。先点这里创建一个吧。']
+  },
+  {
     field: 'workflowWaitingBusyStart',
     section: 'routines',
     key: 'workflow.waiting.busyStart',

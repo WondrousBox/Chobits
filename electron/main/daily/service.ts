@@ -37,8 +37,9 @@ const RESUME_COOLDOWN_MS = 60 * 1000;
 const DAILY_CARE_OWNER = 'dailyCare';
 const DAILY_CARE_GATE = 'dailyCare.canDispatch';
 
-interface DailyCareServiceOptions {
+export interface DailyCareServiceOptions {
   scheduler?: MainSchedulerService | null;
+  autoDispatchGate?: (runtime: RoutineRuntime, now: dayjs.Dayjs) => boolean | { accepted: boolean; reason?: string };
 }
 
 interface DailyCareSchedulerPayload {
@@ -65,6 +66,7 @@ export class DailyCareService {
   private currentPersistentRoutineId: string | null = null; // 当前常驻显示的提醒ID
   private routineDispatchListeners = new Set<DailyCareRoutineDispatchListener>();
   private readonly noticeDispatcherResolver?: NoticeDispatcherResolver;
+  private readonly autoDispatchGate?: DailyCareServiceOptions['autoDispatchGate'];
 
   constructor(
     private readonly windowResolver: WindowResolver,
@@ -74,6 +76,7 @@ export class DailyCareService {
     const resolvedOptions = typeof noticeDispatcherResolverOrOptions === 'function' || noticeDispatcherResolverOrOptions === undefined ? options : noticeDispatcherResolverOrOptions;
     this.noticeDispatcherResolver = typeof noticeDispatcherResolverOrOptions === 'function' ? noticeDispatcherResolverOrOptions : undefined;
     this.scheduler = resolvedOptions?.scheduler === undefined ? getMainSchedulerService() : resolvedOptions.scheduler;
+    this.autoDispatchGate = resolvedOptions?.autoDispatchGate;
     this.state = loadDailyCareState();
     this.rebuildRuntimes();
     this.bindScheduler();
@@ -400,6 +403,11 @@ export class DailyCareService {
   private createDispatchPlan(runtime: RoutineRuntime, now: dayjs.Dayjs, idleSeconds: number): RoutineDispatchPlan {
     if (!this.state.enabled) return { skipReason: 'daily-care-disabled' };
     if (runtime.state.enabled === false) return { skipReason: 'routine-disabled' };
+    const gate = this.autoDispatchGate?.(runtime, now);
+    if (gate === false) return { skipReason: 'auto-dispatch-gated' };
+    if (gate && typeof gate === 'object' && gate.accepted === false) {
+      return { skipReason: gate.reason ?? 'auto-dispatch-gated' };
+    }
     if (this.shouldSkipForIdle(runtime, idleSeconds)) return { skipReason: 'system-idle' };
 
     const underCooldown = this.resumeCooldownUntil > now.valueOf();
@@ -495,16 +503,17 @@ export class DailyCareService {
     const level = this.toNoticeLevel(runtime.definition.severity);
     const durationMs = isPersistent ? 0 : level === 'warning' || level === 'error' ? 8000 : undefined;
     const noticeDispatcher = this.noticeDispatcherResolver?.();
+    let suppressed = false;
     if (noticeDispatcher) {
       try {
-        noticeDispatcher.showNotice(message, {
+        suppressed = noticeDispatcher.showNotice(message, {
           level,
           duration: durationMs,
           persistent: isPersistent,
           routineId: runtime.definition.id,
           buttons: runtime.definition.buttons,
           speak: false
-        });
+        }) === false;
       } catch (error) {
         console.warn('[daily-care] sprite notice dispatch failed', error);
       }
@@ -526,7 +535,7 @@ export class DailyCareService {
       }
     }
 
-    this.emitRoutineDispatched(runtime, message, now, Boolean(meta?.manual));
+    this.emitRoutineDispatched(runtime, message, now, Boolean(meta?.manual), suppressed && !meta?.manual);
 
     if (meta?.manual) {
       return;
@@ -561,7 +570,7 @@ export class DailyCareService {
     }
   }
 
-  private emitRoutineDispatched(runtime: RoutineRuntime, message: string, now: dayjs.Dayjs, manual: boolean): void {
+  private emitRoutineDispatched(runtime: RoutineRuntime, message: string, now: dayjs.Dayjs, manual: boolean, suppressed: boolean): void {
     if (this.routineDispatchListeners.size === 0) {
       return;
     }
@@ -570,7 +579,8 @@ export class DailyCareService {
       routine: this.toSnapshot(runtime),
       message,
       manual,
-      triggeredAt: now.valueOf()
+      triggeredAt: now.valueOf(),
+      suppressed
     };
     for (const listener of this.routineDispatchListeners) {
       try {

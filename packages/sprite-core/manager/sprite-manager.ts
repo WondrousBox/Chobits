@@ -92,6 +92,7 @@ import { AutoWalkConfig, BubbleModeConfig, PersonaStatePersistence } from './per
 import { mapStateToEventType } from './state-mapping';
 import type {
   PersonaStatePersistenceRow,
+  SpriteAmbientMessageContext,
   SpriteBehaviorScheduler,
   SpriteManagerOptions,
   SpritePurposeWindowAdapter,
@@ -157,6 +158,7 @@ export class SpriteManager {
   private interactionTracker: InteractionTracker;
   private behaviorEngine: BehaviorEngine;
   private behaviorScheduler?: SpriteBehaviorScheduler;
+  private shouldSuppressAmbientMessages?: SpriteManagerOptions['shouldSuppressAmbientMessages'];
   private behaviorSchedulerStarted = false;
   private behaviorSchedulerJobIds = new Set<string>();
   private unbindBehaviorSchedulerHandler: (() => void) | null = null;
@@ -252,6 +254,7 @@ export class SpriteManager {
       tickIntervalMs: 1000
     });
     this.behaviorScheduler = options.behaviorScheduler;
+    this.shouldSuppressAmbientMessages = options.shouldSuppressAmbientMessages;
     this.animationRegistry = new AnimationRegistry();
     this.purposeEventWaiter = new SpritePurposeEventWaiter();
     this.purposeHistory = new SpritePurposeHistoryStore(options.dataDir);
@@ -296,6 +299,23 @@ export class SpriteManager {
         waitForEvent: (step, signal, routine) => this.purposeEventWaiter.wait(step, routine, signal),
         speak: (step) => this.speak(step.text, { showBubble: true, bubbleDuration: step.bubbleDuration }),
         showToast: (step) => this.showToast(step.content, { category: step.category as MessageCategory | undefined, duration: step.duration }),
+        showNotice: (step) =>
+          this.showNotice(step.content, {
+            id: step.messageId,
+            buttons: step.buttons?.map((b) => ({
+              id: b.id,
+              label: b.label,
+              variant: b.variant,
+              // 让按钮点击能在前端被识别为 purpose-action：约定 'purpose:<action>' 格式
+              action: b.purposeAction ? `purpose:${b.purposeAction}` : 'dismiss'
+            })),
+            duration: step.duration,
+            persistent: step.persistent,
+            routineId: step.routineId,
+            level: step.level,
+            speak: step.speak
+          }),
+        clearMessage: (step) => this.clearRendererMessage({ id: step.messageId, type: step.messageType ?? 'all' }),
         showBusy: (step) => this.showBusy(step.content, step.progress),
         updateBusy: (step) => this.updateBusy(step.progress ?? 0, step.content),
         clearBusy: () => this.clearBusy(),
@@ -410,6 +430,7 @@ export class SpriteManager {
         lastLoginDate: saved.lastLoginDate,
         achievements: saved.achievements,
         dimensions: saved.dimensions,
+        claimedRewards: saved.claimedRewards,
         createdAt: saved.createdAt,
         updatedAt: saved.updatedAt
       });
@@ -593,17 +614,17 @@ export class SpriteManager {
       playbackSession: this.buildPlaybackSession(anim.playback, resolvedDurationMs, options.sessionMode),
       playback: anim.playback
         ? {
-            width: anim.playback.width,
-            height: anim.playback.height,
-            padding: anim.playback.padding,
-            loop: playbackLoop,
-            loopCount: playbackLoopCount,
-            loopStartMs: anim.playback.loopStartMs,
-            loopEndMs: anim.playback.loopEndMs,
-            durationMs: resolvedDurationMs,
-            autoIdle: anim.playback.autoIdle ?? true,
-            movement: anim.playback.movement
-          }
+          width: anim.playback.width,
+          height: anim.playback.height,
+          padding: anim.playback.padding,
+          loop: playbackLoop,
+          loopCount: playbackLoopCount,
+          loopStartMs: anim.playback.loopStartMs,
+          loopEndMs: anim.playback.loopEndMs,
+          durationMs: resolvedDurationMs,
+          autoIdle: anim.playback.autoIdle ?? true,
+          movement: anim.playback.movement
+        }
         : { durationMs: options.durationMs ?? 2000, loop: playbackLoop, loopCount: playbackLoopCount, autoIdle: true }
     };
 
@@ -684,7 +705,7 @@ export class SpriteManager {
    * 如果 AnimationRegistry 中没有匹配动画，则仅显示气泡文字。
    * 这是为所有 SpriteEventType 提供统一触发入口的核心方法。
    */
-  trigger(trigger: SpriteAnimationTrigger, options?: SpriteTriggerOptions): void {
+  trigger(trigger: SpriteAnimationTrigger, options?: SpriteTriggerOptions & { ambientContext?: SpriteAmbientMessageContext }): void {
     // 1. Try to find and play a matching animation.
     let resolvedTrigger = trigger;
     let candidates = this.animationRegistry.findCandidatesByTrigger({
@@ -766,7 +787,7 @@ export class SpriteManager {
     }
 
     // 2. 显示气泡文案（除非 silent）
-    if (!options?.silent) {
+    if (!options?.silent && !this.shouldSuppressAmbientMessage(options?.ambientContext)) {
       const text = options?.message || getCharacterSpriteEventText(trigger, options?.ctx);
       if (text) {
         this.showToast(text, { duration: options?.duration });
@@ -834,7 +855,11 @@ export class SpriteManager {
   }
 
   /** 轻量提示 */
-  showToast(content?: string, options?: { category?: MessageCategory; duration?: number; level?: string; ctx?: any; speak?: boolean }): void {
+  showToast(content?: string, options?: { category?: MessageCategory; duration?: number; level?: string; ctx?: any; speak?: boolean; ambientContext?: SpriteAmbientMessageContext }): void {
+    if (this.shouldSuppressAmbientMessage(options?.ambientContext)) {
+      return;
+    }
+
     // 如果只传了 category 没有 content，先获取文本以确保显示和朗读一致
     const resolvedContent = content ?? (options?.category ? getCharacterCategoryText(options.category, options?.ctx) : undefined);
 
@@ -851,28 +876,35 @@ export class SpriteManager {
     // 自动朗读：非静默类别 且 非来自 speak() 的调用
     if (options?.speak !== false && !this._speakGuard && !SpriteManager.MUTE_CATEGORIES.has(options?.category ?? '')) {
       if (resolvedContent) {
-        this.speakService.speak(resolvedContent).catch(() => {});
+        this.speakService.speak(resolvedContent).catch(() => { });
       }
     }
   }
 
   /** 通知消息 */
-  showNotice(content: string, options?: { buttons?: any[]; duration?: number; persistent?: boolean; routineId?: string; level?: string; speak?: boolean }): void {
+  showNotice(content: string, options?: { id?: string; buttons?: any[]; duration?: number; persistent?: boolean; routineId?: string; level?: string; speak?: boolean; ambientContext?: SpriteAmbientMessageContext }): boolean {
+    if (this.shouldSuppressAmbientMessage(options?.ambientContext)) {
+      return false;
+    }
+
     const payload: MessageIPCPayload = {
       type: 'notice',
+      id: options?.id,
       content,
       buttons: options?.buttons,
       duration: options?.duration,
       persistent: options?.persistent,
       routineId: options?.routineId,
-      level: options?.level as any
+      level: options?.level as any,
+      speak: options?.speak
     };
     this.sendRendererMessage(payload);
 
     // 自动朗读通知内容
     if (options?.speak !== false && content && !this._speakGuard) {
-      this.speakService.speak(content).catch(() => {});
+      this.speakService.speak(content).catch(() => { });
     }
+    return true;
   }
 
   /** 显示忙碌状态 */
@@ -907,7 +939,11 @@ export class SpriteManager {
    * 让精灵说话
    * 同时显示文字气泡 + 合成并播放语音
    */
-  async speak(text: string, options?: { showBubble?: boolean; bubbleDuration?: number }): Promise<SpeakResult> {
+  async speak(text: string, options?: { showBubble?: boolean; bubbleDuration?: number; ambientContext?: SpriteAmbientMessageContext }): Promise<SpeakResult> {
+    if (this.shouldSuppressAmbientMessage(options?.ambientContext)) {
+      return { success: false, error: 'suppressed-by-onboarding' };
+    }
+
     const showBubble = options?.showBubble ?? true;
 
     this._speakGuard = true;
@@ -1089,6 +1125,20 @@ export class SpriteManager {
     return result;
   }
 
+  /** 检查指定 source 的奖励是否已经发放过（用于 Quest / 新手引导幂等） */
+  hasClaimedReward(source: string): boolean {
+    return this.personaState.hasClaimedReward(source);
+  }
+
+  /** 标记指定 source 的奖励已发放，返回是否为新增 */
+  markRewardClaimed(source: string, at?: number): boolean {
+    const result = this.personaState.markRewardClaimed(source, at);
+    if (result) {
+      this.persistence.markDirty();
+    }
+    return result;
+  }
+
   /** 更新维度值 */
   updateDimension(id: string, delta: number, maxValue?: number): { oldValue: number; newValue: number } {
     const result = this.personaState.updateDimension(id, delta, maxValue);
@@ -1120,6 +1170,7 @@ export class SpriteManager {
       lastLoginDate: '',
       achievements: [],
       dimensions: {},
+      claimedRewards: {},
       createdAt: now,
       updatedAt: now
     });
@@ -1624,7 +1675,7 @@ export class SpriteManager {
     if (!this._welcomeSent) {
       this._welcomeSent = true;
       setTimeout(() => {
-        this.trigger('welcome');
+        this.trigger('welcome', { ambientContext: 'welcome' });
       }, 500);
     }
   }
@@ -1718,10 +1769,10 @@ export class SpriteManager {
       },
       ...(definition.id === 'auto-walk'
         ? {
-            admission: {
-              customGate: SPRITE_AUTO_MOVE_SCHEDULER_GATE
-            }
+          admission: {
+            customGate: SPRITE_AUTO_MOVE_SCHEDULER_GATE
           }
+        }
         : {})
     });
   }
@@ -1774,6 +1825,14 @@ export class SpriteManager {
   /** 获取当前目的与 routine 快照。 */
   getPurposeSnapshot(): SpritePurposeSnapshot {
     return this.purposeManager.getSnapshot();
+  }
+
+  setSuppressAmbientMessagesHandler(handler?: SpriteManagerOptions['shouldSuppressAmbientMessages']): void {
+    this.shouldSuppressAmbientMessages = handler;
+  }
+
+  getSuppressAmbientMessagesHandler(): SpriteManagerOptions['shouldSuppressAmbientMessages'] | undefined {
+    return this.shouldSuppressAmbientMessages;
   }
 
   /** 上报供 Routine 等待的 purpose event。 */
@@ -2105,10 +2164,10 @@ export class SpriteManager {
     const currentPurpose = this.purposeManager.getSnapshot().current;
     const resultPayload: Record<string, unknown> | undefined = result
       ? {
-          elapsedMs: result.elapsedMs,
-          value: result.value,
-          stepType: step.type
-        }
+        elapsedMs: result.elapsedMs,
+        value: result.value,
+        stepType: step.type
+      }
       : { stepType: step.type };
 
     await this.purposeHistory.append({
@@ -2248,8 +2307,12 @@ export class SpriteManager {
   }
 
   private resolvePurposeWalkTarget(target: Extract<SpriteRoutineStep, { type: 'walkTo' }>['target']): [number, number] {
-    if (typeof target === 'object') {
+    if (typeof target === 'object' && 'x' in target) {
       return [target.x, target.y];
+    }
+
+    if (typeof target === 'object' && 'window' in target) {
+      return this.resolvePurposeWindowWalkTarget(target);
     }
 
     if (target === 'previous') {
@@ -2267,6 +2330,37 @@ export class SpriteManager {
     }
 
     return [Math.max(0, screen.width - winWidth - 20), Math.max(0, screen.height - winHeight - 40)];
+  }
+
+  private resolvePurposeWindowWalkTarget(target: Extract<Extract<SpriteRoutineStep, { type: 'walkTo' }>['target'], { window: string }>): [number, number] {
+    const bounds = this.purposeWindowAdapter?.getBounds?.(target.window);
+    if (!bounds) {
+      return this.resolvePurposeWalkTarget('center');
+    }
+
+    const screen = this.getScreenSize();
+    const { width, height } = this.getSpriteConfig();
+    const padding = this.getEffectivePadding();
+    const winWidth = width + padding * 2;
+    const winHeight = height + padding * 2;
+    const offset = Math.max(0, target.offset ?? 16);
+    const placement = target.placement ?? 'right';
+    const clampX = (x: number): number => Math.max(0, Math.min(Math.max(0, screen.width - winWidth), x));
+    const clampY = (y: number): number => Math.max(0, Math.min(Math.max(0, screen.height - winHeight), y));
+
+    switch (placement) {
+      case 'left':
+        return [clampX(bounds.x - winWidth - offset), clampY(bounds.y + (bounds.height - winHeight) / 2)];
+      case 'top':
+        return [clampX(bounds.x + (bounds.width - winWidth) / 2), clampY(bounds.y - winHeight - offset)];
+      case 'bottom':
+        return [clampX(bounds.x + (bounds.width - winWidth) / 2), clampY(bounds.y + bounds.height + offset)];
+      case 'center':
+        return [clampX(bounds.x + (bounds.width - winWidth) / 2), clampY(bounds.y + (bounds.height - winHeight) / 2)];
+      case 'right':
+      default:
+        return [clampX(bounds.x + bounds.width + offset), clampY(bounds.y + (bounds.height - winHeight) / 2)];
+    }
   }
 
   private delayForPurpose(durationMs: number, signal?: AbortSignal): Promise<void> {
@@ -2418,6 +2512,7 @@ export class SpriteManager {
       lastLoginDate: state.lastLoginDate,
       achievements: [...state.achievements],
       dimensions: { ...state.dimensions },
+      claimedRewards: state.claimedRewards ? { ...state.claimedRewards } : undefined,
       createdAt: state.createdAt,
       updatedAt: state.updatedAt
     };
@@ -2441,8 +2536,18 @@ export class SpriteManager {
       lastLoginDate: '',
       achievements: [],
       dimensions: {},
+      claimedRewards: {},
       createdAt: now,
       updatedAt: now
     };
+  }
+
+  private shouldSuppressAmbientMessage(context?: SpriteAmbientMessageContext): boolean {
+    if (!context) return false;
+    try {
+      return this.shouldSuppressAmbientMessages?.(context) === true;
+    } catch {
+      return false;
+    }
   }
 }

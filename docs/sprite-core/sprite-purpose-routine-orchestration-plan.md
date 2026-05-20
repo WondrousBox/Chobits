@@ -3,6 +3,18 @@
 > 状态：规划文档；Phase 1-8 基础闭环已按实施方案落地，剩余项进入后续强化 / 产品化 backlog
 > 日期：2026-05-03
 > 范围：桌面精灵动画播放、窗口移动、等待、消息、用户选择、后台任务与“行为目的”的统一编排。
+>
+> **2026-05-20 关联**：新手引导 / 任务系统（[docs/onboarding-system/README.md](../onboarding-system/README.md)）将复用本编排器作为执行层，并在此之上抽出 Quest 调度层。Onboarding 暴露出对本编排器的三项扩展需求：
+>
+> 1. 新增 `showNotice` step，承载带按钮气泡（数据层 `NoticeMessage.buttons` 与 UI 层 `NoticeRenderer` 已就绪）；
+> 2. 新增 `clearMessage` step，用于创建成功后清理常驻引导气泡；
+> 3. 气泡按钮点击需桥接为 `purpose-event`（约定 `bubble:action`，payload 携带 `messageId` / `actionId`），供 `waitForEvent` / `loopUntil` 解锁；
+> 4. 气泡手动关闭需桥接为 `purpose-event`（约定 `bubble:dismissed`），这样固定引导 routine 可以在气泡仍打开时不重复提示；对于工作空间这类必须完成的新手任务，关闭气泡只会触发短暂缓冲后的继续重提，不会让任务静默放弃。
+>
+> 这些扩展不破坏现有 preset/AI planner 接口，预设 routine 不受 `DEFAULT_SPRITE_PURPOSE_PLANNER_WINDOWS` 白名单约束，可直接 `openWindow: 'workspaceWizard'` 等。
+> 2026-05-20 追加：机能扩展里的“AI 目标规划 / 目的规划器”需要提供“执行现有目标预设”的诊断入口。当前已保留 `daily.care.reminder` planner/fallback 试跑，并新增 `onboarding.workspace.create` 预设执行按钮，用于在已有 workspace 的电脑上验证创建引导表现层，而不修改 quest 状态或发放 quest 奖励。
+>
+> 2026-05-20 校正：`onboarding.workspace.create` 不是 AI 目的规划用例，而是固定新手 Quest。它必须通过 `plannerMode: 'preset-only'` 绕过 LLM，按 preset routine 展示创建提示、按钮打开创建窗口、角色走到窗口旁、窗口打开期间讲解工作空间用途和快速创建方式、气泡打开时不重复提示、气泡关闭后短暂缓冲并继续提示、关闭向导未创建后立即继续提示、创建成功后庆祝并由 QuestEngine 幂等奖励。
 
 ## 0. 原始需求
 
@@ -618,6 +630,8 @@ AI planner 的入口也应优先来自现有行为体系。例如某个 Behavior
 - 三段式动画要明确 wait 策略：`duration`、`complete`、`none`。
 - purpose history 不应无限增长；需要按日期 JSONL、查询 limit、未来清理策略。
 - AI 规划必须是“建议计划”，执行前必须校验。
+- 固定 Quest（尤其 onboarding）不是 AI 规划建议。Quest 下发的 purpose 应明确使用 preset-only，避免目的规划器开关或 LLM 输出改变新手引导流程。
+- `walkTo` 除 `center/corner/previous/{x,y}` 外，预设 routine 可以使用 `{ window, placement, offset }` 目标，让角色走到已打开的应用窗口旁；AI planner 不允许生成 window-relative target。
 
 ## 11. 最小可用设计结论
 

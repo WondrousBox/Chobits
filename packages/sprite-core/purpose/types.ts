@@ -38,6 +38,8 @@ export interface StartSpritePurposeRequest {
   context?: Record<string, unknown>;
   correlationId?: string;
   coalesceKey?: string;
+  /** Fixed routines such as onboarding quests can force preset execution and bypass the AI routine planner. */
+  plannerMode?: 'auto' | 'preset-only';
 }
 
 export interface SpritePurpose {
@@ -58,77 +60,111 @@ export interface SpritePurpose {
   supersededBy?: string;
   context?: Record<string, unknown>;
   expectedOutcome?: string;
+  plannerMode?: 'auto' | 'preset-only';
 }
 
 export type SpriteRoutineStep =
   | {
-      id: string;
-      type: 'playAnimation';
-      trigger?: SpriteAnimationTrigger;
-      animationId?: string;
-      durationMs?: number;
-      waitFor?: 'complete' | 'duration' | 'none';
-      silent?: boolean;
-      timeoutMs?: number;
-      interruptible?: boolean;
-    }
+    id: string;
+    type: 'playAnimation';
+    trigger?: SpriteAnimationTrigger;
+    animationId?: string;
+    durationMs?: number;
+    waitFor?: 'complete' | 'duration' | 'none';
+    silent?: boolean;
+    timeoutMs?: number;
+    interruptible?: boolean;
+  }
   | {
-      id: string;
-      type: 'walkTo';
-      target: 'center' | 'corner' | 'previous' | { x: number; y: number };
-      speed?: number;
-      timeoutMs?: number;
-      interruptible?: boolean;
-    }
+    id: string;
+    type: 'walkTo';
+    target:
+      | 'center'
+      | 'corner'
+      | 'previous'
+      | { x: number; y: number }
+      | {
+          window: string;
+          placement?: 'left' | 'right' | 'top' | 'bottom' | 'center';
+          offset?: number;
+        };
+    speed?: number;
+    timeoutMs?: number;
+    interruptible?: boolean;
+  }
   | { id: string; type: 'wait'; durationMs: number; interruptible?: boolean }
   | {
-      id: string;
-      type: 'waitForEvent';
-      event: string;
-      source?: SpritePurposeRuntimeEventSource;
-      timeoutMs?: number;
-      match?: Record<string, unknown>;
-      assignTo?: string;
-      optional?: boolean;
-      ignoreHistory?: boolean;
-      interruptible?: boolean;
-    }
+    id: string;
+    type: 'waitForEvent';
+    event: string;
+    source?: SpritePurposeRuntimeEventSource;
+    timeoutMs?: number;
+    match?: Record<string, unknown>;
+    assignTo?: string;
+    optional?: boolean;
+    ignoreHistory?: boolean;
+    interruptible?: boolean;
+  }
   | { id: string; type: 'speak'; text: string; bubbleDuration?: number; timeoutMs?: number; cooldownMs?: number; cooldownKey?: string }
   | { id: string; type: 'showToast'; content?: string; category?: string; duration?: number }
+  | {
+    id: string;
+    type: 'showNotice';
+    messageId?: string;
+    content: string;
+    level?: 'info' | 'success' | 'warning' | 'error';
+    /** 按钮：button.action 以 'purpose:' 开头时点击会派发 purpose-event 'bubble:action' */
+    buttons?: Array<{
+      id: string;
+      label: string;
+      variant?: 'default' | 'secondary' | 'destructive';
+      /** 点击后触发 purpose-event 的 action 标识（不填则只关闭气泡） */
+      purposeAction?: string;
+    }>;
+    duration?: number;
+    persistent?: boolean;
+    /** 用于按钮回填 routineId 的关联键，会作为 routineId 透传给消息层 */
+    routineId?: string;
+    cooldownMs?: number;
+    cooldownKey?: string;
+    speak?: boolean;
+  }
+  | { id: string; type: 'clearMessage'; messageType?: 'toast' | 'notice' | 'busy' | 'all'; messageId?: string }
   | { id: string; type: 'showBusy'; content?: string; progress?: number }
   | { id: string; type: 'updateBusy'; content?: string; progress?: number; contentFrom?: string; progressFrom?: string }
   | { id: string; type: 'clearBusy' }
   | {
-      id: string;
-      type: 'openWindow';
-      window: string;
-      payload?: Record<string, unknown>;
-      waitForEvent?: string;
-      eventSource?: SpritePurposeRuntimeEventSource;
-      match?: Record<string, unknown>;
-      timeoutMs?: number;
-      assignTo?: string;
-      interruptible?: boolean;
-    }
+    id: string;
+    type: 'openWindow';
+    window: string;
+    payload?: Record<string, unknown>;
+    waitForEvent?: string;
+    eventSource?: SpritePurposeRuntimeEventSource;
+    match?: Record<string, unknown>;
+    timeoutMs?: number;
+    assignTo?: string;
+    interruptible?: boolean;
+  }
   | {
-      id: string;
-      type: 'loopUntil';
-      untilEvent: string | string[];
-      source?: SpritePurposeRuntimeEventSource;
-      match?: Record<string, unknown>;
-      body: SpriteRoutineStep[];
-      maxDurationMs?: number;
-      assignTo?: string;
-      interruptible?: boolean;
-    }
+    id: string;
+    type: 'loopUntil';
+    untilEvent: string | string[];
+    source?: SpritePurposeRuntimeEventSource;
+    match?: Record<string, unknown>;
+    ignoreHistory?: boolean;
+    body: SpriteRoutineStep[];
+    maxDurationMs?: number;
+    assignTo?: string;
+    interruptible?: boolean;
+  }
   | {
-      id: string;
-      type: 'branch';
-      by: string;
-      cases: Record<string, SpriteRoutineStep[]>;
-      default?: SpriteRoutineStep[];
-      interruptible?: boolean;
-    };
+    id: string;
+    type: 'branch';
+    by: string;
+    cases: Record<string, SpriteRoutineStep[]>;
+    default?: SpriteRoutineStep[];
+    interruptible?: boolean;
+  };
 
 export interface SpriteRoutine {
   id: string;

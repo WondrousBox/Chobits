@@ -167,6 +167,31 @@ describe('daily care service broadcasts', () => {
     expect(sendAppNoticeMock).not.toHaveBeenCalled();
   });
 
+  it('gates automatic routine dispatches without blocking manual triggers', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 4, 5, 9, 15, 0));
+    const dayjs = (await import('dayjs')).default;
+    const { DailyCareService } = await import('../electron/main/daily/service');
+    const service = new DailyCareService(() => null, {
+      scheduler: null,
+      autoDispatchGate: () => ({ accepted: false, reason: 'onboarding-workspace-required' })
+    });
+    const runtime = (service as any).routines.find((candidate: any) => candidate.definition.id === 'care:morning-brief');
+    const dispatched: Array<any> = [];
+    service.onRoutineDispatched((event) => dispatched.push(event));
+
+    expect((service as any).createDispatchPlan(runtime, dayjs('2026-05-05T09:15:00+08:00'), 0)).toEqual({
+      skipReason: 'onboarding-workspace-required'
+    });
+    expect(service.triggerRoutineById('care:morning-brief')).toEqual({ ok: true });
+
+    expect(dispatched).toHaveLength(1);
+    expect(dispatched[0]).toMatchObject({
+      routine: expect.objectContaining({ id: 'care:morning-brief' }),
+      manual: true
+    });
+  });
+
   it('uses real minutes for interval routine scheduling', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-05-05T09:00:00+08:00'));

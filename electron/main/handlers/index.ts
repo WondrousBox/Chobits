@@ -4,6 +4,7 @@ import { app, BrowserWindow, screen } from 'electron';
 import { initAIHandlers } from '../../../packages/ai/ipc-main';
 import { broadcastMusicReactivitySnapshot, initMusicReactivityHandlers } from '../../../packages/audio-reactivity/ipc-main';
 import { MusicReactivityService } from '../../../packages/audio-reactivity/music-reactivity-service';
+import { AppEvent, eventManager } from '../../../packages/event';
 import type { DownloadProgress } from '../../../packages/plugins';
 import { initPluginResourceHandlers } from '../../../packages/plugins/ipc-main';
 import { initRecorderHandlers } from '../../../packages/recorder/ipc-main';
@@ -12,11 +13,12 @@ import { assertSpriteCapabilityUnlocked } from '../../../packages/sprite-core/ca
 import { initSpriteHandlers, initSpriteManagerIPC } from '../../../packages/sprite-core/handler';
 import { SpriteManager } from '../../../packages/sprite-core/manager';
 import { DEFAULT_SPRITE_ROUTINE_PRESETS, SpritePurposeHistoryStore } from '../../../packages/sprite-core/purpose';
+import { createWorkspaceCreateQuest, QuestEngine, QuestRegistry } from '../../../packages/sprite-core/quest';
 import { SPRITE_EVENT_TYPES } from '../../../packages/sprite-core/types';
 import { initTTSHandlers } from '../../../packages/tts/ipc-main';
 import { initYtDlpIpcHandlers } from '../../../packages/ytdlp';
 import { initDailyCare } from '../daily';
-import { initSchedulerIPC } from '../scheduler';
+import { getMainSchedulerService, initSchedulerIPC } from '../scheduler';
 import { initScreenshotHandlers } from '../screenshot';
 import { initSkillTreeHandlers } from '../skillTreeWindow';
 import { getResourcePath } from '../utils/resources-path';
@@ -58,6 +60,30 @@ import { initWorkspaceHandlers } from './workspace/ipc-main';
 
 export async function initHandlers(win: BrowserWindow): Promise<void> {
   console.log(process.versions);
+  const { WorkspacesRepo } = await import('../db/repositories');
+  const countWorkspaces = async (): Promise<number> => {
+    try {
+      const list = await WorkspacesRepo.list({ deletedAt: 0 } as any, 1, 0);
+      return Array.isArray(list) ? list.length : 0;
+    } catch (err) {
+      console.warn('[QuestEngine] countWorkspaces failed', err);
+      return 0;
+    }
+  };
+  const hasNoWorkspace = async (): Promise<boolean> => (await countWorkspaces()) <= 0;
+  let onboardingFocusActive = await hasNoWorkspace();
+  const scheduler = getMainSchedulerService();
+
+  const setOnboardingFocus = (enabled: boolean): void => {
+    onboardingFocusActive = enabled;
+    if (enabled) {
+      scheduler.pauseOwner('dailyCare', 'onboarding-workspace-required');
+      return;
+    }
+    scheduler.resumeOwner('dailyCare');
+  };
+
+  setOnboardingFocus(onboardingFocusActive);
 
   initWindowHandlers(win);
   // Load proxy settings before any handlers that trigger startup network requests.
@@ -88,6 +114,10 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
     },
     () => {
       return SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
+    },
+    {
+      scheduler,
+      autoDispatchGate: () => onboardingFocusActive ? { accepted: false, reason: 'onboarding-workspace-required' } : true
     }
   );
   initStatusHandlers(win);
@@ -173,6 +203,11 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
       },
       async close(windowKey) {
         await windowManager.close(windowKey as any);
+      },
+      getBounds(windowKey) {
+        const target = windowManager.get(windowKey as any);
+        if (!target || target.isDestroyed()) return null;
+        return target.getBounds();
       }
     },
     purposeRoutinePlanner: createSpritePurposeRoutinePlanner(purposePlannerService, {
@@ -199,5 +234,111 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   });
   initMusicReactivityHandlers(musicReactivityService, {
     savePreferences: (preferences) => PreferencesStore.setMusicReactivity(preferences)
+  });
+
+  // ----------------------------------------------------------------------
+  // Quest / 新手引导系统
+  // ----------------------------------------------------------------------
+  await initOnboardingQuestEngine(win, {
+    countWorkspaces,
+    hasNoWorkspace,
+    setOnboardingFocus,
+    isOnboardingFocusActive: () => onboardingFocusActive
+  });
+}
+
+/**
+ * 初始化新手引导任务引擎（Quest）。挂在 initHandlers 末尾，依赖 SpriteManager 已就绪。
+ * - 监听 AppEvent.WORKSPACE_CREATED / APP_STARTED 驱动 tick；
+ * - 持久化 OnboardingState 到 PreferencesStore；
+ * - 奖励发放走 SpriteManager 内部的 applyPersonaReward + markRewardClaimed，等同 IPC grantReward 流程。
+ */
+async function initOnboardingQuestEngine(
+  _win: BrowserWindow,
+  deps: {
+    countWorkspaces: () => Promise<number>;
+    hasNoWorkspace: () => Promise<boolean>;
+    setOnboardingFocus: (enabled: boolean) => void;
+    isOnboardingFocusActive: () => boolean;
+  }
+): Promise<void> {
+  const registry = new QuestRegistry();
+  registry.register(
+    createWorkspaceCreateQuest({
+      countWorkspaces: deps.countWorkspaces
+    })
+  );
+
+  const previousSuppressAmbientMessages = SpriteManager.hasInstance() ? SpriteManager.getInstance().getSuppressAmbientMessagesHandler() : undefined;
+  if (SpriteManager.hasInstance()) {
+    SpriteManager.getInstance().setSuppressAmbientMessagesHandler((context) => {
+      if (deps.isOnboardingFocusActive() && (context === 'behavior' || context === 'welcome')) {
+        return true;
+      }
+      return previousSuppressAmbientMessages?.(context) === true;
+    });
+  }
+
+  deps.setOnboardingFocus(await deps.hasNoWorkspace());
+
+  const engine = new QuestEngine({
+    registry,
+    startPurpose: async (request) => {
+      const mgr = SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
+      if (!mgr) {
+        throw new Error('SpriteManager not initialized');
+      }
+      return mgr.startPurpose(request);
+    },
+    loadState: () => PreferencesStore.getOnboardingState() ?? null,
+    saveState: (state) => {
+      PreferencesStore.setOnboardingState(state);
+    },
+    grantReward: async (reward, source) => {
+      const mgr = SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
+      if (!mgr) return;
+      // 幂等：source 以 'quest:' 开头时会被 SpriteManager 跳过重复发放。
+      if (source.startsWith('quest:') && mgr.hasClaimedReward(source)) return;
+      mgr.applyPersonaReward(
+        {
+          xp: reward.xp ?? 0,
+          favor: reward.favor ?? 0,
+          dimensions: (reward.dimensions ?? []).map((dimension) => ({
+            id: dimension.id,
+            delta: dimension.delta,
+            maxValue: dimension.maxValue ?? 100
+          }))
+        },
+        source
+      );
+      if (reward.achievementId) {
+        mgr.unlockAchievement(reward.achievementId);
+      }
+      if (source.startsWith('quest:')) {
+        mgr.markRewardClaimed(source);
+      }
+    }
+  });
+
+  await engine.init();
+
+  // 事件驱动 tick：WORKSPACE_CREATED 立即完成 workspace.create quest；
+  // APP_STARTED 在启动时回放，处理"上一次启动就已经创建工作空间但 quest 还没标记 done"等场景。
+  eventManager.on(AppEvent.WORKSPACE_CREATED, (data) => {
+    deps.setOnboardingFocus(false);
+    const mgr = SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
+    mgr?.emitPurposeEvent({ source: 'app-event', event: 'WORKSPACE_CREATED', payload: data as Record<string, unknown> | undefined });
+    void engine.tick({ event: 'WORKSPACE_CREATED', eventPayload: data });
+  });
+  eventManager.on(AppEvent.WORKSPACE_WIZARD_CLOSED, (data) => {
+    const mgr = SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
+    mgr?.emitPurposeEvent({ source: 'app-event', event: 'WORKSPACE_WIZARD_CLOSED', payload: data as Record<string, unknown> | undefined });
+    void engine.tick({ event: 'WORKSPACE_WIZARD_CLOSED', eventPayload: data });
+  });
+  eventManager.on(AppEvent.APP_STARTED, () => {
+    void (async () => {
+      deps.setOnboardingFocus(await deps.hasNoWorkspace());
+      await engine.tick({ event: 'APP_STARTED' });
+    })();
   });
 }

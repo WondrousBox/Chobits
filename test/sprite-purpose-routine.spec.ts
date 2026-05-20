@@ -469,6 +469,49 @@ describe('SpriteRoutineRunner', () => {
     expect(result.steps.filter((step) => step.stepId === 'progress-speak').map((step) => step.status)).toEqual(['completed', 'skipped', 'completed']);
     expect(calls).toEqual(['wait:SPRITE_WORKFLOW_COMPLETE', 'speak:还在等。', 'tick:1', 'tick:2', 'speak:还在等。', 'tick:3']);
   });
+
+  it('passes ignoreHistory from loopUntil to terminal event waits', async () => {
+    const seen: Array<{ event: string; ignoreHistory?: boolean }> = [];
+    const runner = new SpriteRoutineRunner({
+      playAnimation: vi.fn(),
+      walkTo: vi.fn(),
+      waitForEvent: (step) => {
+        seen.push({ event: step.event, ignoreHistory: step.ignoreHistory });
+        return {
+          source: 'app-event',
+          event: step.event,
+          timestamp: Date.now()
+        };
+      },
+      speak: vi.fn(),
+      showToast: vi.fn()
+    });
+
+    const result = await runner.run({
+      id: 'routine-loop-ignore-history',
+      purposeId: 'purpose-loop-ignore-history',
+      source: 'preset',
+      status: 'queued',
+      steps: [
+        {
+          id: 'loop',
+          type: 'loopUntil',
+          source: 'app-event',
+          untilEvent: ['WORKSPACE_CREATED', 'WORKSPACE_WIZARD_CLOSED'],
+          ignoreHistory: true,
+          body: []
+        }
+      ],
+      cursor: 0,
+      createdAt: Date.now()
+    });
+
+    expect(result.ok).toBe(true);
+    expect(seen).toEqual([
+      { event: 'WORKSPACE_CREATED', ignoreHistory: true },
+      { event: 'WORKSPACE_WIZARD_CLOSED', ignoreHistory: true }
+    ]);
+  });
 });
 
 describe('SpritePurposeManager', () => {
@@ -1100,6 +1143,554 @@ describe('SpriteRoutinePresetRegistry', () => {
         type: 'wait'
       })
     ]);
+  });
+
+  it('creates workspace onboarding routines that repeatedly prompt and move near the wizard', () => {
+    const registry = new SpriteRoutinePresetRegistry();
+    const preset = registry.get('onboarding.workspace.create');
+    expect(preset).toBeDefined();
+
+    const routine = registry.createRoutine(
+      {
+        id: 'purpose-workspace-onboarding',
+        kind: 'onboarding.workspace.create',
+        title: 'workspace onboarding',
+        reason: 'no workspace',
+        source: 'system-event',
+        status: 'active',
+        priority: 70,
+        interruptPolicy: 'urgent'
+      },
+      preset!,
+      1000
+    );
+
+    expect(routine.steps.find((step) => step.id === 'workspace-onboarding-loop')).toMatchObject({
+      type: 'loopUntil',
+      source: 'app-event',
+      untilEvent: 'WORKSPACE_CREATED',
+      assignTo: 'workspaceCreatedEvent'
+    });
+    expect(routine.steps).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'invite-notice', type: 'showNotice', messageId: 'onboarding.workspace.create.invite' })]));
+    const loop = routine.steps.find((step) => step.id === 'workspace-onboarding-loop');
+    expect(loop).toMatchObject({
+      type: 'loopUntil',
+      body: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'wait-create-bubble-event',
+          type: 'loopUntil',
+          source: 'purpose-event',
+          untilEvent: ['bubble:action', 'bubble:dismissed'],
+          match: { messageId: 'onboarding.workspace.create.invite' }
+        })
+      ])
+    });
+    const handleBranch = loop && loop.type === 'loopUntil' ? loop.body.find((step) => step.id === 'handle-bubble-event') : undefined;
+    expect(handleBranch).toMatchObject({ type: 'branch', by: 'workspaceBubbleEvent.event.event' });
+    const actionBranch = handleBranch?.type === 'branch' ? handleBranch.cases['bubble:action']?.find((step) => step.id === 'open-wizard-after-click') : undefined;
+    expect(actionBranch).toMatchObject({ type: 'branch', by: 'workspaceBubbleEvent.event.payload.purposeAction' });
+    const openBranchSteps = actionBranch?.type === 'branch' ? actionBranch.cases['open-wizard'] : undefined;
+    expect(openBranchSteps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'clear-invite-after-click', type: 'clearMessage', messageId: 'onboarding.workspace.create.invite', messageType: 'notice' }),
+        expect.objectContaining({ id: 'open-wizard', type: 'openWindow', window: 'workspaceWizard' }),
+        expect.objectContaining({ id: 'walk-near-wizard', type: 'walkTo', target: { window: 'workspaceWizard', placement: 'right', offset: 16 } }),
+        expect.objectContaining({
+          id: 'await-wizard-result',
+          type: 'loopUntil',
+          untilEvent: ['WORKSPACE_CREATED', 'WORKSPACE_WIZARD_CLOSED'],
+          body: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'speak-workspace-intro',
+              type: 'speak',
+              text: '工作空间会存放所有重要的数据。',
+              cooldownKey: 'onboarding.workspace.create.workspace-intro'
+            }),
+            expect.objectContaining({
+              id: 'speak-workspace-quickstart-tip',
+              type: 'speak',
+              text: '这里可以先用快速创建，默认目录就能开始；以后也可以再调整。',
+              cooldownKey: 'onboarding.workspace.create.quickstart-tip'
+            })
+          ])
+        })
+      ])
+    );
+    expect(routine.steps.find((step) => step.id === 'branch-result')).toMatchObject({
+      type: 'branch',
+      by: 'workspaceCreatedEvent.event.event'
+    });
+  });
+
+  it('keeps the workspace onboarding loop alive after the wizard is closed without creation', async () => {
+    const registry = new SpriteRoutinePresetRegistry();
+    const preset = registry.get('onboarding.workspace.create');
+    expect(preset).toBeDefined();
+
+    const routine = registry.createRoutine(
+      {
+        id: 'purpose-workspace-onboarding',
+        kind: 'onboarding.workspace.create',
+        title: 'workspace onboarding',
+        reason: 'no workspace',
+        source: 'system-event',
+        status: 'active',
+        priority: 70,
+        interruptPolicy: 'urgent'
+      },
+      preset!,
+      1000
+    );
+    const calls: string[] = [];
+    let closeWaits = 0;
+    let clickCount = 0;
+    let workspaceCreatedResolvers: Array<(event: any) => void> = [];
+    const workspaceCreatedEvent = {
+      source: 'app-event' as const,
+      event: 'WORKSPACE_CREATED',
+      timestamp: Date.now(),
+      payload: { id: 'workspace-1' }
+    };
+    const pending = (signal?: AbortSignal): Promise<any> =>
+      new Promise((resolve, reject) => {
+        if (signal?.aborted) {
+          reject(new DOMException('Routine cancelled', 'AbortError'));
+          return;
+        }
+        signal?.addEventListener('abort', () => reject(new DOMException('Routine cancelled', 'AbortError')), { once: true });
+      });
+    const emitWorkspaceCreated = (): void => {
+      const resolvers = workspaceCreatedResolvers;
+      workspaceCreatedResolvers = [];
+      for (const resolve of resolvers) {
+        resolve(workspaceCreatedEvent);
+      }
+    };
+    const runner = new SpriteRoutineRunner({
+      playAnimation: (step) => {
+        calls.push(`play:${step.trigger ?? step.animationId}`);
+      },
+      walkTo: (step) => {
+        calls.push(`walk:${typeof step.target === 'string' ? step.target : 'window' in step.target ? step.target.window : 'point'}`);
+      },
+      speak: (step) => {
+        calls.push(`speak:${step.text}`);
+      },
+      showToast: vi.fn(),
+      showNotice: (step) => {
+        calls.push(`notice:${step.messageId}:${step.content}`);
+      },
+      clearMessage: (step) => {
+        calls.push(`clear:${step.messageId ?? step.messageType}`);
+      },
+      openWindow: (step) => {
+        calls.push(`open:${step.window}`);
+      },
+      waitForEvent: (step, signal) => {
+        if (step.event === 'bubble:action') {
+          clickCount += 1;
+          if (clickCount === 2) {
+            setTimeout(emitWorkspaceCreated, 0);
+          }
+          return {
+            source: 'purpose-event',
+            event: 'bubble:action',
+            timestamp: Date.now(),
+            payload: { messageId: 'onboarding.workspace.create.invite', purposeAction: 'open-wizard', actionId: 'focus-wizard' }
+          };
+        }
+        if (step.event === 'bubble:dismissed') {
+          return pending(signal);
+        }
+        if (step.event === 'WORKSPACE_WIZARD_CLOSED') {
+          closeWaits += 1;
+          if (closeWaits === 1) {
+            return {
+              source: 'app-event',
+              event: 'WORKSPACE_WIZARD_CLOSED',
+              timestamp: Date.now(),
+              payload: { reason: 'window-unmounted' }
+            };
+          }
+          return pending(signal);
+        }
+        if (step.event === 'WORKSPACE_CREATED') {
+          return new Promise((resolve, reject) => {
+            if (signal?.aborted) {
+              reject(new DOMException('Routine cancelled', 'AbortError'));
+              return;
+            }
+            signal?.addEventListener('abort', () => reject(new DOMException('Routine cancelled', 'AbortError')), { once: true });
+            workspaceCreatedResolvers.push(resolve);
+          });
+        }
+        return pending(signal);
+      },
+      setTimeout,
+      clearTimeout
+    });
+
+    const result = await runner.run(routine);
+
+    expect(result.ok).toBe(true);
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        'notice:onboarding.workspace.create.invite:没有找到工作空间，点这里立即创建吧。',
+        'open:workspaceWizard',
+        'walk:workspaceWizard',
+        'notice:onboarding.workspace.create.invite:还没有创建工作空间哦。先点这里创建一个吧。',
+        'clear:onboarding.workspace.create.invite',
+        'play:celebrate',
+        'speak:恭喜~工作空间建好啦！现在右键点我可以做更多事情啦。'
+      ])
+    );
+  });
+
+  it('speaks workspace purpose guidance while the creation wizard stays open', async () => {
+    const registry = new SpriteRoutinePresetRegistry();
+    const preset = registry.get('onboarding.workspace.create');
+    expect(preset).toBeDefined();
+
+    const routine = registry.createRoutine(
+      {
+        id: 'purpose-workspace-onboarding',
+        kind: 'onboarding.workspace.create',
+        title: 'workspace onboarding',
+        reason: 'no workspace',
+        source: 'system-event',
+        status: 'active',
+        priority: 70,
+        interruptPolicy: 'urgent'
+      },
+      preset!,
+      1000
+    );
+    const calls: string[] = [];
+    let clicked = false;
+    let workspaceCreatedResolvers: Array<(event: any) => void> = [];
+    const workspaceCreatedEvent = {
+      source: 'app-event' as const,
+      event: 'WORKSPACE_CREATED',
+      timestamp: Date.now(),
+      payload: { id: 'workspace-1' }
+    };
+    const pending = (signal?: AbortSignal): Promise<any> =>
+      new Promise((_, reject) => {
+        if (signal?.aborted) {
+          reject(new DOMException('Routine cancelled', 'AbortError'));
+          return;
+        }
+        signal?.addEventListener('abort', () => reject(new DOMException('Routine cancelled', 'AbortError')), { once: true });
+      });
+    const emitWorkspaceCreated = (): void => {
+      const resolvers = workspaceCreatedResolvers;
+      workspaceCreatedResolvers = [];
+      for (const resolve of resolvers) {
+        resolve(workspaceCreatedEvent);
+      }
+    };
+    const runner = new SpriteRoutineRunner({
+      playAnimation: vi.fn(),
+      walkTo: (step) => {
+        calls.push(`walk:${typeof step.target === 'string' ? step.target : 'window' in step.target ? step.target.window : 'point'}`);
+      },
+      speak: (step) => {
+        calls.push(`speak:${step.id}:${step.text}`);
+        if (step.id === 'speak-workspace-quickstart-tip') {
+          setTimeout(emitWorkspaceCreated, 0);
+        }
+      },
+      showToast: vi.fn(),
+      showNotice: (step) => {
+        calls.push(`notice:${step.messageId}:${step.content}`);
+      },
+      clearMessage: (step) => {
+        calls.push(`clear:${step.messageId ?? step.messageType}`);
+      },
+      openWindow: (step) => {
+        calls.push(`open:${step.window}`);
+      },
+      waitForEvent: (step, signal) => {
+        if (step.event === 'bubble:action' && !clicked) {
+          clicked = true;
+          return {
+            source: 'purpose-event',
+            event: 'bubble:action',
+            timestamp: Date.now(),
+            payload: { messageId: 'onboarding.workspace.create.invite', purposeAction: 'open-wizard', actionId: 'focus-wizard' }
+          };
+        }
+        if (step.event === 'WORKSPACE_CREATED') {
+          return new Promise((resolve, reject) => {
+            if (signal?.aborted) {
+              reject(new DOMException('Routine cancelled', 'AbortError'));
+              return;
+            }
+            signal?.addEventListener('abort', () => reject(new DOMException('Routine cancelled', 'AbortError')), { once: true });
+            workspaceCreatedResolvers.push(resolve);
+          });
+        }
+        return pending(signal);
+      },
+      setTimeout: (handler, timeout) => setTimeout(handler, timeout === 800 || timeout === 1000 ? 0 : timeout),
+      clearTimeout
+    });
+
+    const result = await runner.run(routine);
+
+    expect(result.ok, result.error).toBe(true);
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        'notice:onboarding.workspace.create.invite:没有找到工作空间，点这里立即创建吧。',
+        'open:workspaceWizard',
+        'walk:workspaceWizard',
+        'speak:speak-workspace-intro:工作空间会存放所有重要的数据。',
+        'speak:speak-workspace-quickstart-tip:这里可以先用快速创建，默认目录就能开始；以后也可以再调整。',
+        'clear:onboarding.workspace.create.invite',
+        'speak:speak-done:恭喜~工作空间建好啦！现在右键点我可以做更多事情啦。'
+      ])
+    );
+  });
+
+  it('does not re-prompt workspace onboarding while the invite bubble stays open', async () => {
+    const registry = new SpriteRoutinePresetRegistry();
+    const preset = registry.get('onboarding.workspace.create');
+    const routine = registry.createRoutine(
+      {
+        id: 'purpose-workspace-onboarding',
+        kind: 'onboarding.workspace.create',
+        title: 'workspace onboarding',
+        reason: 'no workspace',
+        source: 'system-event',
+        status: 'active',
+        priority: 70,
+        interruptPolicy: 'urgent'
+      },
+      preset!,
+      1000
+    );
+    const calls: string[] = [];
+    let workspaceCreatedResolver: ((event: any) => void) | undefined;
+    const timers: Array<{ timeout: number; handler: () => void }> = [];
+    const pendingWorkspaceCreated = (signal?: AbortSignal): Promise<any> =>
+      new Promise((resolve, reject) => {
+        if (signal?.aborted) {
+          reject(new DOMException('Routine cancelled', 'AbortError'));
+          return;
+        }
+        signal?.addEventListener('abort', () => reject(new DOMException('Routine cancelled', 'AbortError')), { once: true });
+        workspaceCreatedResolver ??= resolve;
+      });
+    const pendingEvent = (signal?: AbortSignal): Promise<any> =>
+      new Promise((_, reject) => {
+        if (signal?.aborted) {
+          reject(new DOMException('Routine cancelled', 'AbortError'));
+          return;
+        }
+        signal?.addEventListener('abort', () => reject(new DOMException('Routine cancelled', 'AbortError')), { once: true });
+      });
+    const runner = new SpriteRoutineRunner({
+      playAnimation: vi.fn(),
+      walkTo: vi.fn(),
+      speak: vi.fn(),
+      showToast: vi.fn(),
+      showNotice: (step) => {
+        calls.push(`notice:${step.messageId}`);
+      },
+      clearMessage: vi.fn(),
+      waitForEvent: (step, signal) => {
+        if (step.event === 'WORKSPACE_CREATED') {
+          return pendingWorkspaceCreated(signal);
+        }
+        return pendingEvent(signal);
+      },
+      setTimeout: ((handler: () => void, timeout: number) => {
+        timers.push({ timeout, handler });
+        return timers.length as any;
+      }) as any,
+      clearTimeout: vi.fn() as any
+    });
+
+    const runPromise = runner.run(routine);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(calls).toEqual(['notice:onboarding.workspace.create.invite']);
+    expect(timers.some((timer) => timer.timeout === 1000)).toBe(true);
+
+    workspaceCreatedResolver?.({
+      source: 'app-event',
+      event: 'WORKSPACE_CREATED',
+      timestamp: Date.now(),
+      payload: { id: 'workspace-1' }
+    });
+    const result = await runPromise;
+    expect(result.ok, result.error).toBe(true);
+  });
+
+  it('re-prompts mandatory workspace onboarding shortly after the bubble is dismissed', async () => {
+    const registry = new SpriteRoutinePresetRegistry();
+    const preset = registry.get('onboarding.workspace.create');
+    const routine = registry.createRoutine(
+      {
+        id: 'purpose-workspace-onboarding',
+        kind: 'onboarding.workspace.create',
+        title: 'workspace onboarding',
+        reason: 'no workspace',
+        source: 'system-event',
+        status: 'active',
+        priority: 70,
+        interruptPolicy: 'urgent'
+      },
+      preset!,
+      1000
+    );
+    const calls: string[] = [];
+    let dismissedResolved = false;
+    let workspaceCreatedResolver: ((event: any) => void) | undefined;
+    const pendingEvent = (signal?: AbortSignal): Promise<any> =>
+      new Promise((_, reject) => {
+        if (signal?.aborted) {
+          reject(new DOMException('Routine cancelled', 'AbortError'));
+          return;
+        }
+        signal?.addEventListener('abort', () => reject(new DOMException('Routine cancelled', 'AbortError')), { once: true });
+      });
+    const runner = new SpriteRoutineRunner({
+      playAnimation: vi.fn(),
+      walkTo: vi.fn(),
+      speak: vi.fn(),
+      showToast: vi.fn(),
+      showNotice: (step) => {
+        calls.push(`notice:${step.messageId}`);
+      },
+      clearMessage: vi.fn(),
+      waitForEvent: (step, signal) => {
+        if (step.event === 'bubble:action') {
+          return pendingEvent(signal);
+        }
+        if (step.event === 'bubble:dismissed' && !dismissedResolved) {
+          dismissedResolved = true;
+          return {
+            source: 'purpose-event',
+            event: 'bubble:dismissed',
+            timestamp: Date.now(),
+            payload: { messageId: 'onboarding.workspace.create.invite', reason: 'close' }
+          };
+        }
+        if (step.event === 'WORKSPACE_CREATED') {
+          return new Promise((resolve, reject) => {
+            if (signal?.aborted) {
+              reject(new DOMException('Routine cancelled', 'AbortError'));
+              return;
+            }
+            signal?.addEventListener('abort', () => reject(new DOMException('Routine cancelled', 'AbortError')), { once: true });
+            workspaceCreatedResolver = resolve;
+          });
+        }
+        return pendingEvent(signal);
+      },
+      setTimeout: (handler, timeout) => setTimeout(handler, timeout === 5000 ? 0 : timeout),
+      clearTimeout
+    });
+
+    const runPromise = runner.run(routine);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(calls).toEqual(['notice:onboarding.workspace.create.invite', 'notice:onboarding.workspace.create.invite']);
+    workspaceCreatedResolver?.({
+      source: 'app-event',
+      event: 'WORKSPACE_CREATED',
+      timestamp: Date.now(),
+      payload: { id: 'workspace-1' }
+    });
+    const result = await runPromise;
+    expect(result.ok, result.error).toBe(true);
+  });
+
+  it('keeps re-prompting mandatory workspace onboarding across repeated bubble dismissals until creation', async () => {
+    const registry = new SpriteRoutinePresetRegistry();
+    const preset = registry.get('onboarding.workspace.create');
+    const routine = registry.createRoutine(
+      {
+        id: 'purpose-workspace-onboarding',
+        kind: 'onboarding.workspace.create',
+        title: 'workspace onboarding',
+        reason: 'no workspace',
+        source: 'system-event',
+        status: 'active',
+        priority: 70,
+        interruptPolicy: 'urgent'
+      },
+      preset!,
+      1000
+    );
+    const calls: string[] = [];
+    let dismissedCount = 0;
+    let workspaceCreatedResolver: ((event: any) => void) | undefined;
+    const pendingEvent = (signal?: AbortSignal): Promise<any> =>
+      new Promise((_, reject) => {
+        if (signal?.aborted) {
+          reject(new DOMException('Routine cancelled', 'AbortError'));
+          return;
+        }
+        signal?.addEventListener('abort', () => reject(new DOMException('Routine cancelled', 'AbortError')), { once: true });
+      });
+    const runner = new SpriteRoutineRunner({
+      playAnimation: vi.fn(),
+      walkTo: vi.fn(),
+      speak: vi.fn(),
+      showToast: vi.fn(),
+      showNotice: (step) => {
+        calls.push(`notice:${step.messageId}`);
+      },
+      clearMessage: (step) => {
+        calls.push(`clear:${step.messageId}`);
+      },
+      waitForEvent: (step, signal) => {
+        if (step.event === 'bubble:action') {
+          return pendingEvent(signal);
+        }
+        if (step.event === 'bubble:dismissed' && dismissedCount < 2) {
+          dismissedCount += 1;
+          return {
+            source: 'purpose-event',
+            event: 'bubble:dismissed',
+            timestamp: Date.now(),
+            payload: { messageId: 'onboarding.workspace.create.invite', reason: 'close' }
+          };
+        }
+        if (step.event === 'WORKSPACE_CREATED') {
+          return new Promise((resolve, reject) => {
+            if (signal?.aborted) {
+              reject(new DOMException('Routine cancelled', 'AbortError'));
+              return;
+            }
+            signal?.addEventListener('abort', () => reject(new DOMException('Routine cancelled', 'AbortError')), { once: true });
+            workspaceCreatedResolver = resolve;
+          });
+        }
+        return pendingEvent(signal);
+      },
+      setTimeout: (handler, timeout) => setTimeout(handler, timeout === 5000 ? 0 : timeout),
+      clearTimeout
+    });
+
+    const runPromise = runner.run(routine);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(calls.filter((call) => call === 'notice:onboarding.workspace.create.invite')).toHaveLength(3);
+    workspaceCreatedResolver?.({
+      source: 'app-event',
+      event: 'WORKSPACE_CREATED',
+      timestamp: Date.now(),
+      payload: { id: 'workspace-1' }
+    });
+    const result = await runPromise;
+    expect(result.ok, result.error).toBe(true);
+    expect(calls).toContain('clear:onboarding.workspace.create.invite');
   });
 });
 

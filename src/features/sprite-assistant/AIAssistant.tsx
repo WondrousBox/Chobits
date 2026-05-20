@@ -130,8 +130,22 @@ const AIAssistantInner: React.FC = () => {
 
   const handleContextMenu = (e: React.MouseEvent): void => {
     e.preventDefault();
-    void window.YUA.sprite.interact('context-menu', { open: true });
-    void window.YUA.window['window:open']('menu');
+    // 新手引导期间（尚未创建工作空间）禁用右键菜单：避免在没有 workspace 的状态下进入需要 workspace 的功能。
+    // 改为引导用户先完成 onboarding.workspace.create quest。
+    void (async () => {
+      try {
+        const list = await window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 } as any, limit: 1, offset: 0 });
+        if (!Array.isArray(list) || list.length === 0) {
+          // 无工作空间：直接打开向导，由 quest routine 负责庆祝/发奖。
+          await window.YUA.window['window:open']('workspaceWizard');
+          return;
+        }
+      } catch {
+        // 查询失败时回退原行为。
+      }
+      void window.YUA.sprite.interact('context-menu', { open: true });
+      void window.YUA.window['window:open']('menu');
+    })();
   };
 
   const handleDoubleClick = (): void => {

@@ -121,6 +121,7 @@ export class SpritePurposeManager {
       presetId: request.presetId ?? preset?.id,
       correlationId: request.correlationId,
       coalesceKey: request.coalesceKey,
+      plannerMode: request.plannerMode,
       context: request.context
     };
 
@@ -635,7 +636,7 @@ export class SpritePurposeManager {
 
   private async resolveRoutineForPurpose(purpose: SpritePurpose, preset: SpriteRoutinePresetDefinition | undefined, now: number): Promise<SpriteRoutine | undefined> {
     const createPresetRoutine = (): SpriteRoutine | undefined => (preset ? this.presets.createRoutine(purpose, preset, now) : undefined);
-    if (!this.deps.routinePlanner) {
+    if (!this.deps.routinePlanner || purpose.plannerMode === 'preset-only') {
       return createPresetRoutine();
     }
 

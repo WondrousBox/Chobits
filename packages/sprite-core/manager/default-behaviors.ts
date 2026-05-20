@@ -124,7 +124,7 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
 
     if (!result.accepted) {
       mgr.playOnce('sleepy');
-      mgr.showToast(undefined, { category: 'reminder' });
+      mgr.showToast(undefined, { category: 'reminder', ambientContext: 'behavior' });
     }
   };
   mgr.registerBehavior(sleepyDef);
@@ -133,7 +133,7 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
   const idleSleepyDef = createIdleSleepyBehavior();
   idleSleepyDef.action = (_ctx: BehaviorContext) => {
     mgr.playOnce('sleepy');
-    mgr.showToast(getCharacterRoutineText('idle.sleepy.toast', undefined, '有点困了呢...'), { category: 'info', duration: 2000 });
+    mgr.showToast(getCharacterRoutineText('idle.sleepy.toast', undefined, '有点困了呢...'), { category: 'info', duration: 2000, ambientContext: 'behavior' });
   };
   mgr.registerBehavior(idleSleepyDef);
 
@@ -147,7 +147,7 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
   // 随机消息
   const msgDef = createRandomMessageBehavior();
   msgDef.action = (_ctx: BehaviorContext) => {
-    mgr.showToast(undefined, { category: 'tip' });
+    mgr.showToast(undefined, { category: 'tip', ambientContext: 'behavior' });
   };
   mgr.registerBehavior(msgDef);
 
@@ -178,7 +178,7 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
       pool = lowFavorEmotions;
     }
     const picked = pool[Math.floor(Math.random() * pool.length)];
-    mgr.trigger(picked);
+    mgr.trigger(picked, { ambientContext: 'behavior' });
   };
   mgr.registerBehavior(emotionDef);
 
@@ -219,7 +219,7 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
       });
 
       if (!utterance?.text?.trim()) {
-        mgr.trigger(fallbackAction);
+        mgr.trigger(fallbackAction, { ambientContext: 'behavior' });
         return;
       }
 
@@ -233,7 +233,7 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
 
       mgr.trigger(picked, { silent: true });
       actionTriggered = true;
-      const speakResult = await mgr.speak(utterance.text.trim(), { showBubble: true });
+      const speakResult = await mgr.speak(utterance.text.trim(), { showBubble: true, ambientContext: 'behavior' });
       await reportIdleActionExecution(mgr, utterance, {
         behaviorId: actionDef.id,
         triggeredAt,
@@ -245,7 +245,7 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
       });
     } catch (error) {
       if (!actionTriggered) {
-        mgr.trigger(fallbackAction);
+        mgr.trigger(fallbackAction, { ambientContext: 'behavior' });
       }
       await reportIdleActionExecution(mgr, utterance, {
         behaviorId: actionDef.id,
@@ -277,26 +277,26 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
     const day = now.getDate();
 
     if (month === 12 && day >= 24 && day <= 26) {
-      mgr.trigger('christmas');
+      mgr.trigger('christmas', { ambientContext: 'behavior' });
       return;
     }
     if (month === 10 && day === 31) {
-      mgr.trigger('halloween');
+      mgr.trigger('halloween', { ambientContext: 'behavior' });
       return;
     }
     if (month === 1 && day === 1) {
-      mgr.trigger('newYear');
+      mgr.trigger('newYear', { ambientContext: 'behavior' });
       return;
     }
 
     if (month >= 3 && month <= 5) {
-      mgr.trigger('spring');
+      mgr.trigger('spring', { ambientContext: 'behavior' });
     } else if (month >= 6 && month <= 8) {
-      mgr.trigger('summer');
+      mgr.trigger('summer', { ambientContext: 'behavior' });
     } else if (month >= 9 && month <= 11) {
-      mgr.trigger('autumn');
+      mgr.trigger('autumn', { ambientContext: 'behavior' });
     } else {
-      mgr.trigger('winter');
+      mgr.trigger('winter', { ambientContext: 'behavior' });
     }
   };
   mgr.registerBehavior(seasonalDef);

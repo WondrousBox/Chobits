@@ -1,6 +1,6 @@
 import type { Workspace } from '@main/handlers/workspace/ipc-renderer';
 import { AnimatePresence, motion } from 'framer-motion';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { TbArrowLeft, TbArrowRight, TbFolderOpen } from 'react-icons/tb';
 
 import SuccessResult from '@/components/common/SuccessResult';
@@ -18,6 +18,7 @@ const WorkspaceWizard: React.FC = () => {
   const [hint, setHint] = useState<string>('');
   const [showCreateForm, setShowCreateForm] = useState<boolean>(false);
   const [created, setCreated] = useState(false);
+  const createdRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -36,6 +37,17 @@ const WorkspaceWizard: React.FC = () => {
     })();
     return () => {
       mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (createdRef.current) return;
+      void window.YUA.sprite?.emitPurposeEvent?.({
+        source: 'app-event',
+        event: 'WORKSPACE_WIZARD_CLOSED',
+        payload: { reason: 'window-unmounted' }
+      });
     };
   }, []);
 
@@ -84,6 +96,7 @@ const WorkspaceWizard: React.FC = () => {
     console.log(res);
     if (res.success && res.data) {
       if (workspaces.length === 0) await window.YUA.workspace['workspace:setDefault']({ id: res.data.id });
+      createdRef.current = true;
       setCreated(true);
       // 300ms 动画 + 额外 1000ms 停留后关闭 (总 ~1300ms) 交由组件 autoClose 控制也可，这里保留旧逻辑以保持行为一致
       setTimeout(() => {

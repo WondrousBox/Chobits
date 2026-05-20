@@ -17,6 +17,7 @@ type LegacyPersonaStatePersistenceRow = Partial<Omit<PersonaStatePersistenceRow,
   version?: unknown;
   achievements?: unknown;
   dimensions?: unknown;
+  claimedRewards?: unknown;
 };
 
 interface PersonaStatePersistenceStore {
@@ -66,6 +67,21 @@ function normalizeDimensions(value: unknown): Record<string, number> {
   return dimensions;
 }
 
+function normalizeClaimedRewards(value: unknown): PersonaStatePersistenceRow['claimedRewards'] {
+  if (!isPlainObject(value)) return undefined;
+
+  const rewards: NonNullable<PersonaStatePersistenceRow['claimedRewards']> = {};
+  for (const [source, record] of Object.entries(value)) {
+    if (!source) continue;
+    const at = isPlainObject(record) ? normalizeNumber(record.at, 0) : 0;
+    if (at > 0) {
+      rewards[source] = { at };
+    }
+  }
+
+  return Object.keys(rewards).length > 0 ? rewards : undefined;
+}
+
 function normalizeLoadedState(raw: unknown): PersonaStatePersistenceRow | null {
   if (!isPlainObject(raw)) return null;
 
@@ -88,6 +104,7 @@ function normalizeLoadedState(raw: unknown): PersonaStatePersistenceRow | null {
     lastLoginDate: normalizeString(parsed.lastLoginDate, ''),
     achievements: normalizeAchievements(parsed.achievements),
     dimensions: normalizeDimensions(parsed.dimensions),
+    claimedRewards: normalizeClaimedRewards(parsed.claimedRewards),
     createdAt: normalizeNumber(parsed.createdAt, now),
     updatedAt: normalizeNumber(parsed.updatedAt, now)
   };

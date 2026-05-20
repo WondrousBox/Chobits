@@ -1,12 +1,12 @@
 import { initDailyCareIPC } from './ipc-main';
-import { DailyCareService } from './service';
+import { DailyCareService, type DailyCareServiceOptions } from './service';
 import type { NoticeDispatcherResolver, WindowResolver } from './types';
 
 let instance: DailyCareService | null = null;
 
-export function initDailyCare(windowResolver: WindowResolver, noticeDispatcherResolver?: NoticeDispatcherResolver): DailyCareService {
+export function initDailyCare(windowResolver: WindowResolver, noticeDispatcherResolver?: NoticeDispatcherResolver, options?: DailyCareServiceOptions): DailyCareService {
   if (!instance) {
-    instance = new DailyCareService(windowResolver, noticeDispatcherResolver);
+    instance = new DailyCareService(windowResolver, noticeDispatcherResolver, options);
     initDailyCareIPC(instance);
     instance.start();
   }

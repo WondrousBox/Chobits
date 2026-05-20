@@ -314,6 +314,23 @@ export {
   summarizeSpriteRoutinePresets,
   validateSpritePurposePlannerOutput
 } from './purpose';
+export type {
+  OnboardingPresetDeps,
+  OnboardingQuestDefinition,
+  OnboardingQuestReward,
+  OnboardingQuestRuntimeState,
+  OnboardingState,
+  QuestCategory,
+  QuestEngineDeps,
+  QuestPredicate,
+  QuestPredicateContext
+} from './quest';
+export {
+  createEmptyOnboardingState,
+  createWorkspaceCreateQuest,
+  QuestEngine,
+  QuestRegistry
+} from './quest';
 export type { SpriteReactionState, SpriteState, SpriteSubState, StateConfig, StateTransition } from './state-machine';
 export { SpriteStateMachine } from './state-machine';
 

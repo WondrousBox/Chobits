@@ -858,6 +858,26 @@ describe('sprite manager IPC integration', () => {
         })
       ]
     ]);
+
+    startPurposeSpy.mockClear();
+    dispatchDailyCare?.({
+      routine: {
+        id: 'care:hydration-hourly',
+        title: 'Hydration',
+        kind: 'hydration',
+        severity: 'gentle',
+        enabled: true,
+        scheduleLabel: 'hourly',
+        lastTriggeredAt: null,
+        lastTriggeredLabel: null,
+        source: 'default'
+      },
+      message: 'Suppressed water',
+      manual: false,
+      triggeredAt: 3000,
+      suppressed: true
+    });
+    expect(startPurposeSpy).not.toHaveBeenCalled();
   });
 
   it('builds capability snapshots from runtime authority instead of renderer-local state assembly', async () => {

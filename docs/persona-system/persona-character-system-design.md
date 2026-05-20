@@ -4,6 +4,8 @@
 > **日期**: 2026-04-23
 > **状态**: Phase 1 ✅ | Phase 2 ✅ | Phase 3 ✅ | Phase 3.5 ✅ | Phase 4 主链 ✅ | Phase 5 RFC
 >
+> **2026-05-20 关联**：新手引导/任务系统（[docs/onboarding-system/README.md](../onboarding-system/README.md)）将作为 `grantReward` 的主要 quest 类奖励来源。为支持其幂等性，本系统需扩展 `PersonaState.claimedRewards: Record<string, { at: number; reward }>`，并在 `sprite:persona:grantReward` 主进程处理器中按 `source` 字段做"已发放即跳过"。Quest 系统会以 `quest:{questId}` 作为 source，确保同一引导任务的奖励只发放一次。
+>
 > 2026-04-23 当前代码态校准：
 >
 > - 对话奖励已经接入主链路：`chat-service.ts` 发出 `SPRITE_AI_COMPLETE` 后，`sprite-event-listener.ts` 会调用 `mgr.recordConversationEvent()`，由 `PersonaRulesProvider` / `PersonaRulesLayer` 和 `SpriteManager.applyPersonaReward()` 统一结算 XP / 好感度 / 维度奖励
@@ -50,13 +52,13 @@
 
 ### 1.2 关键缺口
 
-| 当前剩余项 | 说明 |
-| ---------- | ---- |
+| 当前剩余项                       | 说明                                                                                                                                                                                                                                                                                                                                                                         |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **默认 capability 定义进入尾项** | 动画 authoring 写入口与设置页 UI 由基础 `spriteManage` 保护，预设角色可通过用户覆盖层添加/编辑自己的精灵视频动画；已有动画再次编辑走 `sprite:updateConfig` 维护索引 JSON 中的播放/触发属性，不重新转码或改动视频文件；`actionChoreography` 保留为更高级动作编排能力，`emotionExpression` 已覆盖闲置情感表达；`customAppearance` 暂无明确独立产品入口，待入口明确后再细分消费 |
-| **角色人格直写入口进入兼容期** | runtime 已有 `recordConversationEvent()` / `applyPersonaReward()` 主链；渲染层新增 `sprite:persona:grantReward`，preload 的 `addXP()` / `changeFavor()` / `unlockAchievement()` 已默认转发到统一 reward entry，旧 IPC 仅作为兼容 wrapper 保留 |
-| **WindowController 仍偏胖** | 路径采样、拖拽轮询、边界约束、平台执行仍在同一模块，后续适合继续拆薄 |
-| **Trust-root 进入第二阶段** | 真实公钥验签已落地，剩余重点转为 publisher key 扩充、rotation / revocation 与发布流程 |
-| **少量产品化补完仍在 backlog** | preview poster / hover、多媒体展示策略、部分高阶 timed media / preview bridge 场景仍待补强 |
+| **角色人格直写入口进入兼容期**   | runtime 已有 `recordConversationEvent()` / `applyPersonaReward()` 主链；渲染层新增 `sprite:persona:grantReward`，preload 的 `addXP()` / `changeFavor()` / `unlockAchievement()` 已默认转发到统一 reward entry，旧 IPC 仅作为兼容 wrapper 保留                                                                                                                                |
+| **WindowController 仍偏胖**      | 路径采样、拖拽轮询、边界约束、平台执行仍在同一模块，后续适合继续拆薄                                                                                                                                                                                                                                                                                                         |
+| **Trust-root 进入第二阶段**      | 真实公钥验签已落地，剩余重点转为 publisher key 扩充、rotation / revocation 与发布流程                                                                                                                                                                                                                                                                                        |
+| **少量产品化补完仍在 backlog**   | preview poster / hover、多媒体展示策略、部分高阶 timed media / preview bridge 场景仍待补强                                                                                                                                                                                                                                                                                   |
 
 ### 1.3 已有的优秀基础
 
@@ -685,22 +687,22 @@ SpriteManager.recordConversationEvent()
 
 ### 6.2 奖励策略
 
-| 默认触发条件（`resources/sprites/character.json`） | XP奖励 | 好感度变化 | 备注 |
-| -------------------------------------------------- | ------ | ---------- | ---- |
-| 每次对话完成 | +15 | +1.5 | `cooldownMs = 60000` |
-| 长回复 bonus（`assistantContentLength` 较长） | +10 | +0.5 | 默认 `long-conversation` |
-| 使用工具完成任务 | +5 | +0.3 | 默认 `tool-usage` |
+| 默认触发条件（`resources/sprites/character.json`） | XP奖励 | 好感度变化 | 备注                     |
+| -------------------------------------------------- | ------ | ---------- | ------------------------ |
+| 每次对话完成                                       | +15    | +1.5       | `cooldownMs = 60000`     |
+| 长回复 bonus（`assistantContentLength` 较长）      | +10    | +0.5       | 默认 `long-conversation` |
+| 使用工具完成任务                                   | +5     | +0.3       | 默认 `tool-usage`        |
 
 这些值不是固定写死在 `SpriteManager` 里，而是来自当前角色的 `conversationRewards` 配置，并可被 runtime rule layer 覆盖。
 
 ### 6.3 其他相关成长链路
 
-| 链路 | 当前状态 |
-| ---- | -------- |
-| `recordDailyLogin()` | 已实现，登录 / 连续登录奖励直接兑现 |
-| `activityRewards` | 已实现，工作流、导入、下载、插件等完成态事件可统一发放 XP / favor / 维度奖励 |
-| `favor-decay` | 已实现，默认行为层会在满足条件时触发 idle-decay |
-| 对话惩罚 / 更复杂负反馈 | 仍主要属于后续策略设计，不建议回到业务层分散硬编码 |
+| 链路                    | 当前状态                                                                     |
+| ----------------------- | ---------------------------------------------------------------------------- |
+| `recordDailyLogin()`    | 已实现，登录 / 连续登录奖励直接兑现                                          |
+| `activityRewards`       | 已实现，工作流、导入、下载、插件等完成态事件可统一发放 XP / favor / 维度奖励 |
+| `favor-decay`           | 已实现，默认行为层会在满足条件时触发 idle-decay                              |
+| 对话惩罚 / 更复杂负反馈 | 仍主要属于后续策略设计，不建议回到业务层分散硬编码                           |
 
 ---
 
@@ -797,18 +799,18 @@ function calculateDimensionGrowth(dimensionId: string, event: string, currentVal
 
 **实际涉及文件**：
 
-| 文件                                                    | 变更类型 | 说明                                          |
-| ------------------------------------------------------- | -------- | --------------------------------------------- |
-| `resources/sprites/character.json`                      | 新建     | 默认角色 YUA 人格定义                         |
-| `packages/sprite-core/character-service.ts`             | 新建     | 角色配置加载、缓存、查询服务                  |
-| `packages/sprite-core/index.ts`                         | 修改     | 导出 CharacterService 类型和函数              |
-| `packages/sprite-core/handler/sprite-event-listener.ts` | 修改     | 添加 `SPRITE_AI_COMPLETE -> recordConversationEvent()` 链路 |
+| 文件                                                    | 变更类型 | 说明                                                               |
+| ------------------------------------------------------- | -------- | ------------------------------------------------------------------ |
+| `resources/sprites/character.json`                      | 新建     | 默认角色 YUA 人格定义                                              |
+| `packages/sprite-core/character-service.ts`             | 新建     | 角色配置加载、缓存、查询服务                                       |
+| `packages/sprite-core/index.ts`                         | 修改     | 导出 CharacterService 类型和函数                                   |
+| `packages/sprite-core/handler/sprite-event-listener.ts` | 修改     | 添加 `SPRITE_AI_COMPLETE -> recordConversationEvent()` 链路        |
 | `packages/sprite-core/manager/sprite-manager.ts`        | 修改     | 新增 `recordConversationEvent()` / `applyPersonaReward()` 统一入口 |
-| `packages/sprite-core/persona-rules.ts`                | 修改     | conversation rewards / bonus conditions 统一解析 |
-| `packages/sprite-core/handler/sprite-manager-ipc.ts`    | 修改     | 初始化 CharacterService                       |
-| `packages/sprite-core/handler/sprite-assets.ts`         | 修改     | 导出 `getDefaultSpritesDir()`                 |
-| `packages/sprite-core/handler/index.ts`                 | 修改     | 导出 `getDefaultSpritesDir`                   |
-| `packages/ai/chat-service.ts`                           | 修改     | `SPRITE_AI_COMPLETE` 事件包含 messageCount 等 |
+| `packages/sprite-core/persona-rules.ts`                 | 修改     | conversation rewards / bonus conditions 统一解析                   |
+| `packages/sprite-core/handler/sprite-manager-ipc.ts`    | 修改     | 初始化 CharacterService                                            |
+| `packages/sprite-core/handler/sprite-assets.ts`         | 修改     | 导出 `getDefaultSpritesDir()`                                      |
+| `packages/sprite-core/handler/index.ts`                 | 修改     | 导出 `getDefaultSpritesDir`                                        |
+| `packages/ai/chat-service.ts`                           | 修改     | `SPRITE_AI_COMPLETE` 事件包含 messageCount 等                      |
 
 ### Phase 2: 对话人格注入 ✅
 
@@ -914,11 +916,11 @@ effective = delta × (1 + level × 0.01) × (1 - currentValue/maxValue × 0.5)
 
 1. 定义 `pack.json` 格式规范
 2. 实现角色包安装/卸载/切换逻辑
-当前状态：`.cbpk` / `.zip` 导入、卸载/冲突替换、导入前 inspection，以及 `formatVersion` / `minAppVersion` 兼容阻塞校验均已完成
+   当前状态：`.cbpk` / `.zip` 导入、卸载/冲突替换、导入前 inspection，以及 `formatVersion` / `minAppVersion` 兼容阻塞校验均已完成
 3. 角色选择 UI
-当前状态：已在 `ExtensionSettings -> SpriteManager` 落地第一版角色管理 UI；独立角色页 / 商店化入口仍待补
+   当前状态：已在 `ExtensionSettings -> SpriteManager` 落地第一版角色管理 UI；独立角色页 / 商店化入口仍待补
 4. 独立的 PersonaState 存储（每个角色独立）
-当前状态：已完成
+   当前状态：已完成
 
 **涉及文件**：
 

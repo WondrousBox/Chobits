@@ -139,6 +139,7 @@ export interface DailyCareRoutineDispatch {
   message: string;
   manual: boolean;
   triggeredAt: number;
+  suppressed?: boolean;
 }
 
 export type DailyCareRoutineDispatchListener = (event: DailyCareRoutineDispatch) => void | Promise<void>;
@@ -156,7 +157,7 @@ export interface DailyCareNoticeDispatcher {
       level?: string;
       speak?: boolean;
     }
-  ): void;
+  ): void | boolean;
 }
 
 export type NoticeDispatcherResolver = () => DailyCareNoticeDispatcher | null;
