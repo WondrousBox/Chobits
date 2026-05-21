@@ -1341,7 +1341,7 @@ describe('SpriteRoutinePresetRegistry', () => {
         'notice:onboarding.workspace.create.invite:还没有创建工作空间哦。先点这里创建一个吧。',
         'clear:onboarding.workspace.create.invite',
         'play:celebrate',
-        'speak:恭喜~工作空间建好啦！现在右键点我可以做更多事情啦。'
+        'speak:工作空间建好啦！我可以做更多事情啦。'
       ])
     );
   });
@@ -1447,7 +1447,7 @@ describe('SpriteRoutinePresetRegistry', () => {
         'speak:speak-workspace-intro:工作空间会存放所有重要的数据。',
         'speak:speak-workspace-quickstart-tip:这里可以先用快速创建，默认目录就能开始；以后也可以再调整。',
         'clear:onboarding.workspace.create.invite',
-        'speak:speak-done:恭喜~工作空间建好啦！现在右键点我可以做更多事情啦。'
+        'speak:speak-done:工作空间建好啦！我可以做更多事情啦。'
       ])
     );
   });

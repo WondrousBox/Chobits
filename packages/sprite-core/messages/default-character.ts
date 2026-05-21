@@ -1,4 +1,4 @@
-import type { CharacterMessageTemplateEntry, CharacterMessagesConfig, CharacterProgressMessagesConfig } from '../character-service';
+import type { CharacterMessagesConfig, CharacterMessageTemplateEntry, CharacterProgressMessagesConfig } from '../character-service';
 import type { MessageCategory } from '../types';
 
 export interface DefaultCharacterMessageProfile {
@@ -427,7 +427,7 @@ export const CHARACTER_MESSAGE_SPECS = [
     section: 'routines',
     key: 'onboarding.workspace.create.done',
     label: '工作空间创建完成',
-    neutral: () => ['恭喜~工作空间建好啦！现在右键点我可以做更多事情啦。']
+    neutral: () => ['工作空间建好啦！我可以做更多事情啦。']
   },
   {
     field: 'workspaceCreateClosedWithoutCreate',

@@ -2,7 +2,6 @@ export type { SpritePresentationLockSnapshot, SpritePresentationRequest } from '
 export { SpritePresentationLock } from './presentation-lock';
 export { SpritePurposeEventTimeoutError, SpritePurposeEventWaiter } from './purpose-event-waiter';
 export { SpritePurposeHistoryStore } from './purpose-history';
-export { buildSpritePurposeDailyRetrospective } from './purpose-retrospective';
 export type { SpritePurposeIdlePresenceOptions, SpritePurposeManagerDeps, SpritePurposeQueuePolicyOptions, SpritePurposeRoutinePlanner, SpritePurposeRoutinePlannerContext } from './purpose-manager';
 export { SpritePurposeManager } from './purpose-manager';
 export type {
@@ -10,22 +9,21 @@ export type {
   SpritePurposePlannerInput,
   SpritePurposePlannerLastResult,
   SpritePurposePlannerOutput,
-  SpritePurposePlannerPresetSummary,
   SpritePurposePlannerPreferences,
+  SpritePurposePlannerPresetSummary,
   SpritePurposePlannerScreenContext,
   SpritePurposePlannerStatus,
   SpritePurposePlannerStepSchemaEntry,
   SpritePurposePlannerValidationOptions,
   SpritePurposePlannerValidationResult,
   SpritePurposePlannerValidationSummary,
-  SpriteRoutineDraft,
-  SpriteRoutineStepType
+  SpriteRoutineDraft
 } from './purpose-planner';
 export {
   createSpritePurposePlannerStepSchema,
   createSpriteRoutineFromPlannerDraft,
-  DEFAULT_SPRITE_PURPOSE_PLANNER_PREFERENCES,
   DEFAULT_SPRITE_PURPOSE_PLANNER_EVENTS,
+  DEFAULT_SPRITE_PURPOSE_PLANNER_PREFERENCES,
   DEFAULT_SPRITE_PURPOSE_PLANNER_STEP_TYPES,
   DEFAULT_SPRITE_PURPOSE_PLANNER_WINDOWS,
   normalizeSpritePurposePlannerPreferences,
@@ -33,6 +31,7 @@ export {
   summarizeSpriteRoutinePresets,
   validateSpritePurposePlannerOutput
 } from './purpose-planner';
+export { buildSpritePurposeDailyRetrospective } from './purpose-retrospective';
 export type { SpriteRoutinePresetDefinition } from './routine-presets';
 export { DEFAULT_SPRITE_ROUTINE_PRESETS, SpriteRoutinePresetRegistry } from './routine-presets';
 export type { SpriteRoutineRunnerDeps, SpriteRoutineRunOptions } from './routine-runner';
@@ -61,5 +60,6 @@ export type {
   SpriteRoutineStatus,
   SpriteRoutineStep,
   SpriteRoutineStepResult,
+  SpriteRoutineStepType,
   StartSpritePurposeRequest
 } from './types';

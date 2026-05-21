@@ -1,15 +1,6 @@
 import type { SpriteAnimationTrigger } from '../types';
 import type { SpriteRoutinePresetDefinition } from './routine-presets';
-import type {
-  SpritePurpose,
-  SpritePurposeHistoryEntry,
-  SpritePurposeRuntimeEventSource,
-  SpriteRoutine,
-  SpriteRoutineStep,
-  StartSpritePurposeRequest
-} from './types';
-
-export type SpriteRoutineStepType = SpriteRoutineStep['type'];
+import type { SpritePurpose, SpritePurposeHistoryEntry, SpritePurposeRuntimeEventSource, SpriteRoutine, SpriteRoutineStep, SpriteRoutineStepType, StartSpritePurposeRequest } from './types';
 
 export interface SpritePurposePlannerPresetSummary {
   id: string;
@@ -102,21 +93,21 @@ export interface SpritePurposePlannerValidationSummary {
 
 export type SpritePurposePlannerValidationResult =
   | {
-      ok: true;
-      routineDraft: SpriteRoutineDraft;
-      whyThisPlan?: string;
-      fallbackPresetId?: string;
-      warnings: string[];
-      summary: SpritePurposePlannerValidationSummary;
-    }
+    ok: true;
+    routineDraft: SpriteRoutineDraft;
+    whyThisPlan?: string;
+    fallbackPresetId?: string;
+    warnings: string[];
+    summary: SpritePurposePlannerValidationSummary;
+  }
   | {
-      ok: false;
-      reason: string;
-      errors: string[];
-      whyThisPlan?: string;
-      fallbackPresetId?: string;
-      summary: SpritePurposePlannerValidationSummary;
-    };
+    ok: false;
+    reason: string;
+    errors: string[];
+    whyThisPlan?: string;
+    fallbackPresetId?: string;
+    summary: SpritePurposePlannerValidationSummary;
+  };
 
 const DEFAULT_MAX_STEPS = 24;
 const DEFAULT_MAX_DURATION_MS = 5 * 60 * 1000;
@@ -569,12 +560,7 @@ function validateBoundedOptionalDuration(value: unknown, path: string, state: Va
   return requireDuration(value, path, state);
 }
 
-function invalid(
-  errors: string[],
-  fallbackPresetId: string | undefined,
-  whyThisPlan: string | undefined,
-  summary: SpritePurposePlannerValidationSummary
-): SpritePurposePlannerValidationResult {
+function invalid(errors: string[], fallbackPresetId: string | undefined, whyThisPlan: string | undefined, summary: SpritePurposePlannerValidationSummary): SpritePurposePlannerValidationResult {
   return {
     ok: false,
     reason: 'planner-output-invalid',
