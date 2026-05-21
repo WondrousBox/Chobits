@@ -5,6 +5,9 @@ import type { StartSpritePurposeRequest } from '../purpose/types';
  */
 export type QuestCategory = 'onboarding' | 'daily' | 'achievement' | 'event';
 
+/** 显式启动 Quest 的来源。系统自动启动由 autoStartEvents 单独控制。 */
+export type QuestStartSource = 'task-list' | 'ai' | 'system';
+
 /**
  * Quest 奖励定义。
  * - xp / favor / achievementId 都是可选的；
@@ -52,6 +55,15 @@ export interface OnboardingQuestDefinition {
     id: string;
     category: QuestCategory;
     title: string;
+    /** 展示层说明文案。QuestEngine 不依赖该字段，任务列表等 UI 可读取。 */
+    description?: string;
+    /** 展示层配置。用于任务列表窗口，不参与完成判定。 */
+    display?: {
+        actionLabel?: string;
+        activeActionLabel?: string;
+        actionWindowKey?: string;
+        actionPurposeKind?: string;
+    };
     /** 不可重复完成；true=完成后永久标记 done */
     oneShot?: boolean;
     /** 触发条件（前置）：进入该 Quest 的前置谓词，全部满足才会激活并派发 startPurpose */
@@ -64,8 +76,12 @@ export interface OnboardingQuestDefinition {
     reward?: OnboardingQuestReward;
     /** 奖励 source key；默认为 `quest:<id>` */
     rewardSource?: string;
-    /** 监听的 AppEvent 名，命中时驱动 Quest tick；不监听则只靠显式 tick */
+    /** 监听的 AppEvent 名，命中时驱动 Quest tick；用于完成判定、状态恢复等，不等同于自动启动。 */
     triggerEvents?: string[];
+    /** 允许 pending Quest 自动启动引导的 AppEvent。未配置时只能通过 startQuest 等显式入口启动。 */
+    autoStartEvents?: string[];
+    /** 允许通过 startQuest 显式启动的来源；未配置时默认允许任务列表和 AI。 */
+    explicitStartSources?: QuestStartSource[];
     /** active 但尚未完成时，是否允许在指定事件上重新派发 purpose。用于启动恢复/关闭窗口后再次提醒。 */
     retriable?: boolean;
     /** retriable=true 时可重新派发的事件；默认只在 APP_STARTED 恢复。 */

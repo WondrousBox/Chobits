@@ -172,7 +172,9 @@ describe('file drop purpose integration', () => {
       priority: 85,
       coalesceKey: 'file-drop-invite',
       context: {
-        source: 'drag-enter'
+        source: 'drag-enter',
+        purposeSource: 'sprite-drop',
+        trigger: 'drag-enter'
       }
     });
     expect(inviteRequest.correlationId).toEqual(expect.stringMatching(/^file-drop-/));
@@ -187,6 +189,7 @@ describe('file drop purpose integration', () => {
     });
 
     expect(fileDrop).toHaveBeenCalledWith([{ name: 'draft.txt', path: 'F:/tmp/draft.txt' }]);
+    expect(resourceServiceMocks.addResourcesFromDataTransfer).toHaveBeenCalledWith(dataTransfer, { source: 'sprite-drop' });
     expect(startPurpose).toHaveBeenCalledTimes(2);
     const intakeRequest = startPurpose.mock.calls[1][0];
     expect(intakeRequest).toMatchObject({
@@ -195,6 +198,8 @@ describe('file drop purpose integration', () => {
       priority: 100,
       correlationId: inviteRequest.correlationId,
       context: {
+        source: 'drop',
+        purposeSource: 'sprite-drop',
         files: [{ name: 'draft.txt', path: 'F:/tmp/draft.txt' }],
         resources: [{ id: 'resource-draft', title: 'draft.txt', filePath: 'F:/tmp/draft.txt', workspaceId: 'workspace-1' }]
       }
@@ -273,6 +278,7 @@ describe('file drop purpose integration', () => {
     });
 
     expect(fileDrop).toHaveBeenCalledWith([{ name: 'draft.txt', path: 'F:/tmp/draft.txt' }]);
+    expect(resourceServiceMocks.addResourcesFromDataTransfer).toHaveBeenCalledWith(dataTransfer, { source: 'sprite-drop' });
     expect(startPurpose).toHaveBeenCalledTimes(2);
     expect(startPurpose.mock.calls[1][0]).toMatchObject({
       kind: 'file.drop.intake',
@@ -329,7 +335,7 @@ describe('file drop purpose integration', () => {
     });
 
     expect(fileDrop).toHaveBeenCalledWith([{ name: 'notes.docx', path: 'F:/tmp/notes.docx' }]);
-    expect(resourceServiceMocks.addResourcesFromSelectedFiles).toHaveBeenCalledWith([{ name: 'notes.docx', path: 'F:/tmp/notes.docx', size: 1234 }]);
+    expect(resourceServiceMocks.addResourcesFromSelectedFiles).toHaveBeenCalledWith([{ name: 'notes.docx', path: 'F:/tmp/notes.docx', size: 1234 }], { source: 'sprite-drop' });
     expect(startPurpose).toHaveBeenCalledTimes(1);
     const request = startPurpose.mock.calls[0][0];
     expect(request).toMatchObject({
@@ -338,6 +344,8 @@ describe('file drop purpose integration', () => {
       presetId: 'file.drop.intake',
       priority: 100,
       context: {
+        source: 'drop',
+        purposeSource: 'sprite-drop',
         files: [{ name: 'notes.docx', path: 'F:/tmp/notes.docx' }],
         resources: [{ id: 'resource-1', title: 'notes.docx', filePath: 'F:/tmp/notes.docx', workspaceId: 'workspace-1' }],
         fileActionsMenuPayload: {

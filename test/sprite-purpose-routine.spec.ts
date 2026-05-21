@@ -1222,6 +1222,193 @@ describe('SpriteRoutinePresetRegistry', () => {
     });
   });
 
+  it('creates first file drop onboarding routines that invite drag-to-sprite and wait for resource events', () => {
+    const registry = new SpriteRoutinePresetRegistry();
+    const preset = registry.get('onboarding.file.drop');
+    expect(preset).toBeDefined();
+
+    const routine = registry.createRoutine(
+      {
+        id: 'purpose-file-drop-onboarding',
+        kind: 'onboarding.file.drop',
+        title: 'file drop onboarding',
+        reason: 'first file drop',
+        source: 'system-event',
+        status: 'active',
+        priority: 68,
+        interruptPolicy: 'interruptible'
+      },
+      preset!,
+      1000
+    );
+
+    expect(preset!.defaultPriority).toBe(68);
+    expect(routine.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'walk-drop-target', type: 'walkTo', target: 'center' }),
+        expect.objectContaining({
+          id: 'invite-file-drop-notice',
+          type: 'showNotice',
+          messageId: 'onboarding.file.drop.invite',
+          content: '可以把文件拖拽给我存起来'
+        }),
+        expect.objectContaining({
+          id: 'wait-first-file-drop',
+          type: 'loopUntil',
+          source: 'app-event',
+          untilEvent: ['RESOURCE_CREATED', 'SPRITE_RESOURCE_IMPORT_COMPLETE'],
+          match: { purposeSource: 'sprite-drop' },
+          assignTo: 'firstFileDropResult'
+        }),
+        expect.objectContaining({
+          id: 'first-file-drop-result',
+          type: 'branch',
+          by: 'firstFileDropResult.event.event'
+        })
+      ])
+    );
+    const waitStep = routine.steps.find((step) => step.id === 'wait-first-file-drop');
+    expect(waitStep).toMatchObject({
+      type: 'loopUntil',
+      body: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'drop-intro-speak',
+          type: 'speak',
+          text: '拖给我的文件会进入资源库，之后就可以拿来整理、总结或继续处理。',
+          cooldownKey: 'onboarding.file.drop.intro'
+        })
+      ])
+    });
+  });
+
+  it('creates resource library onboarding routines that wait for right-click menu selection', () => {
+    const registry = new SpriteRoutinePresetRegistry();
+    const preset = registry.get('onboarding.resource.open-library');
+    expect(preset).toBeDefined();
+
+    const routine = registry.createRoutine(
+      {
+        id: 'purpose-open-library-onboarding',
+        kind: 'onboarding.resource.open-library',
+        title: 'open library onboarding',
+        reason: 'open resource library',
+        source: 'system-event',
+        status: 'active',
+        priority: 66,
+        interruptPolicy: 'interruptible'
+      },
+      preset!,
+      1000
+    );
+
+    expect(preset!.defaultPriority).toBe(66);
+    expect(routine.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'resource-menu-invite',
+          type: 'showNotice',
+          messageId: 'onboarding.resource.open-library.invite',
+          content: '右键点我，打开菜单里的资源库。'
+        }),
+        expect.objectContaining({
+          id: 'wait-context-menu-open',
+          type: 'waitForEvent',
+          source: 'sprite-event-bus',
+          event: 'interact:context-menu',
+          match: { 'payload.open': true }
+        }),
+        expect.objectContaining({
+          id: 'resource-menu-tip',
+          type: 'speak',
+          text: '现在点菜单里的「资源库」。'
+        }),
+        expect.objectContaining({
+          id: 'wait-resource-library-open',
+          type: 'waitForEvent',
+          source: 'app-event',
+          event: 'ASSISTANT_MENU_ITEM_SELECTED',
+          match: {
+            'payload.itemId': 'resources',
+            'payload.windowKey': 'resources',
+            'payload.source': 'assistant-context-menu'
+          }
+        }),
+        expect.objectContaining({ id: 'clear-resource-menu-notice', type: 'clearMessage', messageId: 'onboarding.resource.open-library.invite', messageType: 'notice' }),
+        expect.objectContaining({ id: 'resource-menu-celebrate', type: 'playAnimation', trigger: 'celebrate' })
+      ])
+    );
+  });
+
+  it('runs first file drop onboarding completion feedback when a resource is created', async () => {
+    const registry = new SpriteRoutinePresetRegistry();
+    const preset = registry.get('onboarding.file.drop');
+    expect(preset).toBeDefined();
+    const routine = registry.createRoutine(
+      {
+        id: 'purpose-file-drop-onboarding',
+        kind: 'onboarding.file.drop',
+        title: 'file drop onboarding',
+        reason: 'first file drop',
+        source: 'system-event',
+        status: 'active',
+        priority: 68,
+        interruptPolicy: 'interruptible'
+      },
+      preset!,
+      1000
+    );
+    const calls: string[] = [];
+    const runner = new SpriteRoutineRunner({
+      playAnimation: (step) => {
+        calls.push(`play:${step.trigger ?? step.animationId}`);
+      },
+      walkTo: (step) => {
+        calls.push(`walk:${typeof step.target === 'string' ? step.target : 'point'}`);
+      },
+      speak: (step) => {
+        calls.push(`speak:${step.id}:${step.text}`);
+      },
+      showToast: vi.fn(),
+      showNotice: (step) => {
+        calls.push(`notice:${step.messageId}:${step.content}`);
+      },
+      clearMessage: (step) => {
+        calls.push(`clear:${step.messageId}`);
+      },
+      waitForEvent: (step, signal) => {
+        if (step.event === 'RESOURCE_CREATED') {
+          return {
+            source: 'app-event',
+            event: 'RESOURCE_CREATED',
+            timestamp: Date.now(),
+            payload: { id: 'resource-1', purposeSource: 'sprite-drop', metadata: JSON.stringify({ source: 'sprite-drop' }) }
+          };
+        }
+        return new Promise((_, reject) => {
+          if (signal?.aborted) {
+            reject(new DOMException('Routine cancelled', 'AbortError'));
+            return;
+          }
+          signal?.addEventListener('abort', () => reject(new DOMException('Routine cancelled', 'AbortError')), { once: true });
+        });
+      }
+    });
+
+    const result = await runner.run(routine);
+
+    expect(result.ok, result.error).toBe(true);
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        'walk:center',
+        'notice:onboarding.file.drop.invite:可以把文件拖拽给我存起来',
+        'clear:onboarding.file.drop.invite',
+        'play:celebrate',
+        'speak:first-file-drop-done:收到啦！第一个文件已经进资源库了。',
+        'walk:corner'
+      ])
+    );
+  });
+
   it('keeps the workspace onboarding loop alive after the wizard is closed without creation', async () => {
     const registry = new SpriteRoutinePresetRegistry();
     const preset = registry.get('onboarding.workspace.create');

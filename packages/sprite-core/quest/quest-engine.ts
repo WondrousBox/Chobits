@@ -1,7 +1,7 @@
 import type { SpritePurposeStartResult, StartSpritePurposeRequest } from '../purpose/types';
 
 import type { QuestRegistry } from './quest-registry';
-import type { OnboardingQuestDefinition, OnboardingQuestReward, OnboardingState, QuestPredicateContext } from './types';
+import type { OnboardingQuestDefinition, OnboardingQuestReward, OnboardingState, QuestPredicateContext, QuestStartSource } from './types';
 import { createEmptyOnboardingState } from './types';
 
 export interface QuestEngineDeps {
@@ -20,9 +20,10 @@ export interface QuestEngineDeps {
 /**
  * Quest 引擎：
  * - 启动时载入 OnboardingState；
- * - 提供 `tick({ event, eventPayload })`，触发所有 pending quest 的 precondition / completion 重估；
+ * - 提供 `tick({ event, eventPayload })`，按 triggerEvents 触发 completion / precondition 重估；
  * - completion 满足时发奖、标记 done、持久化；
- * - precondition 满足且未 active 时，调用 purposeManager.start 派发 purpose；
+ * - precondition 满足且命中 autoStartEvents 时，调用 purposeManager.start 派发 purpose；
+ * - `startQuest(id)` 是任务列表/AI 等显式入口，不受 autoStartEvents 限制；
  * - 不依赖具体哪个 quest，所有 quest 都由 registry 注入。
  */
 export class QuestEngine {
@@ -62,6 +63,53 @@ export class QuestEngine {
         }
     }
 
+    /**
+     * 手动启动指定 Quest。用于任务列表窗口这类显式入口：
+     * - 仍会检查完成条件与前置条件；
+     * - active quest 可以被重新派发，用于“继续引导”；
+     * - 不绕过固定 preset-only purpose。
+     */
+    async startQuest(id: string, options: { source?: QuestStartSource } = {}): Promise<SpritePurposeStartResult | null> {
+        if (!this.loaded) await this.init();
+        if (this.state.skipped) {
+            throw new Error('Onboarding has been skipped');
+        }
+
+        const def = this.deps.registry.get(id);
+        if (!def) {
+            throw new Error(`Quest "${id}" is not registered`);
+        }
+
+        const source = options.source ?? 'task-list';
+        if (!this.canStartExplicitly(def, source)) {
+            throw new Error(`Quest "${id}" cannot be started by ${source}`);
+        }
+
+        const runtime = this.state.quests[def.id] ?? { status: 'pending' as const };
+        if (runtime.status === 'done' && def.oneShot !== false) {
+            throw new Error(`Quest "${id}" is already completed`);
+        }
+
+        const ctx: QuestPredicateContext = {
+            onboardingState: this.state
+        };
+
+        const completed = await Promise.resolve(def.completion.evaluate(ctx));
+        if (completed) {
+            await this.completeQuest(def);
+            return null;
+        }
+
+        if (def.precondition) {
+            const ok = await Promise.resolve(def.precondition.evaluate(ctx));
+            if (!ok) {
+                throw new Error(`Quest "${id}" precondition is not satisfied`);
+            }
+        }
+
+        return this.activateQuest(def);
+    }
+
     /** 用户主动跳过整个新手引导 */
     async skipAll(): Promise<void> {
         if (!this.loaded) await this.init();
@@ -95,7 +143,23 @@ export class QuestEngine {
             return; // 已派发 purpose，等结果
         }
 
+        if (runtime.status !== 'active' && !this.shouldAutoStartQuest(def, input.event)) {
+            return;
+        }
+
         await this.activateQuest(def);
+    }
+
+    private shouldAutoStartQuest(def: OnboardingQuestDefinition, event?: string): boolean {
+        if (!event) {
+            return false;
+        }
+        return def.autoStartEvents?.includes(event) === true;
+    }
+
+    private canStartExplicitly(def: OnboardingQuestDefinition, source: QuestStartSource): boolean {
+        const allowedSources = def.explicitStartSources ?? ['task-list', 'ai'];
+        return allowedSources.includes(source);
     }
 
     private shouldRetryActiveQuest(def: OnboardingQuestDefinition, event?: string): boolean {
@@ -110,7 +174,7 @@ export class QuestEngine {
         return event === 'APP_STARTED';
     }
 
-    private async activateQuest(def: OnboardingQuestDefinition): Promise<void> {
+    private async activateQuest(def: OnboardingQuestDefinition): Promise<SpritePurposeStartResult> {
         const request = def.toPurposeRequest();
         const result = await this.deps.startPurpose(request);
         const lastPurposeId = result.purpose?.id;
@@ -120,6 +184,7 @@ export class QuestEngine {
             lastPurposeId
         };
         await this.persist();
+        return result;
     }
 
     private async completeQuest(def: OnboardingQuestDefinition): Promise<void> {

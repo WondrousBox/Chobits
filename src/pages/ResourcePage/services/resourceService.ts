@@ -51,6 +51,27 @@ import type { SelectedResourceFileType } from '../types';
 type ResourceLocationOptions = {
   folderId?: string | null;
   workspaceId?: string | null;
+  source?: 'sprite-drop';
+};
+
+const mergeResourceMetadata = (resource: Partial<Resource>, metadata: Record<string, unknown>): Partial<Resource> => {
+  const existing = typeof resource.metadata === 'string' && resource.metadata.trim() ? resource.metadata : undefined;
+  if (!existing) {
+    return { ...resource, metadata: JSON.stringify(metadata) };
+  }
+
+  try {
+    return { ...resource, metadata: JSON.stringify({ ...JSON.parse(existing), ...metadata }) };
+  } catch {
+    return { ...resource, metadata: JSON.stringify(metadata) };
+  }
+};
+
+const withResourceSourceMetadata = (resource: Partial<Resource>, options?: ResourceLocationOptions): Partial<Resource> => {
+  if (options?.source !== 'sprite-drop') {
+    return resource;
+  }
+  return mergeResourceMetadata(resource, { source: 'sprite-drop' });
 };
 
 const getLocationPatch = (options?: ResourceLocationOptions) => {
@@ -98,7 +119,7 @@ export async function addResourcesFromDataTransfer(dt: DataTransfer, options?: R
       ...getLocationPatch(options)
     };
     try {
-      const res = await window.YUA.resource['resource:add']({ resource });
+      const res = await window.YUA.resource['resource:add']({ resource: withResourceSourceMetadata(resource, options) });
       if (res.success && res.data) {
         resources.push(res.data as Resource);
       }
@@ -217,7 +238,7 @@ export async function addResourcesFromSelectedFiles(files: SelectedResourceFileT
       ...(fileHash ? { metadata: JSON.stringify({ hashSha256: fileHash }) } : {})
     };
     try {
-      const res = await window.YUA.resource['resource:add']({ resource });
+      const res = await window.YUA.resource['resource:add']({ resource: withResourceSourceMetadata(resource, options) });
       if (res.success && res.data) {
         resources.push(res.data as Resource);
       }

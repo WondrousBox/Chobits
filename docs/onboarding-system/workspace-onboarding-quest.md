@@ -6,6 +6,7 @@
 > **Purpose Kind**：`onboarding.workspace.create`
 > **Purpose Priority**：70（高于 daily.care.reminder=55；启动期 onboarding focus 会暂停 daily care 并压制环境发言）
 > **开发试跑入口**：机能扩展 → AI 目标规划 / 目的规划器 → 观测 → 工作空间引导预设
+> **任务展示入口**：助手右键菜单 → 任务 → 新手任务“创建你的第一个工作空间”
 
 ## 1. 用户故事
 
@@ -21,8 +22,11 @@
 > 8. 如果用户关掉向导但没有创建，角色马上提示"还没有创建"，继续展示去创建按钮。
 > 9. 用户创建成功 → 清掉引导气泡，角色播 celebrate 动画，说"恭喜完成！现在右键我可以做更多了"。
 > 10. 发奖励：XP +20、好感度 +3、成就 `first-workspace`，且奖励 source 幂等。
+> 11. 同一任务会出现在任务列表窗口里，展示当前状态、进度和奖励；未完成时可从任务列表点击“开始引导/继续引导”。
 
-这个流程是固定新手任务，不属于 AI 目标规划生成。创建工作空间只是第一种 Quest，后续新手任务沿用同一模式：固定触发条件、固定 preset routine、固定完成事件、固定奖励。
+这个流程是固定新手任务，不属于 AI 目标规划生成。创建工作空间只是第一种 Quest，后续新手任务沿用同一模式：固定前置条件、固定启动方式、固定 preset routine、固定完成事件、固定奖励。
+
+`workspace.create` 的启动方式是启动期自动检测：命中 `APP_STARTED` 后，如果没有 workspace 且任务未完成，QuestEngine 自动启动引导。任务列表和未来 AI 也可以显式启动它，但显式启动仍会先检查是否已经创建过 workspace。
 
 ## 2. Quest 定义
 
@@ -35,23 +39,30 @@ export const workspaceCreateQuest: OnboardingQuestDefinition = {
   description: '为 Chobits 选择一个用来放资源/文件/对话历史的工作目录。',
   category: 'onboarding',
 
-  preconditions: [
-    async () => {
-      const list = await window.YUA.workspace['workspace:list']({
-        filter: { deletedAt: 0 } as any,
-        limit: 1,
-        offset: 0
-      });
-      return !Array.isArray(list) || list.length === 0;
+  precondition: {
+    id: 'no-workspace-exists',
+    evaluate: async () => {
+      const count = await countWorkspaces();
+      return count <= 0;
     }
-  ],
-
-  completionEvent: {
-    source: 'app-event',
-    event: 'WORKSPACE_CREATED'
   },
 
-  purposeRequest: {
+  completion: {
+    id: 'workspace-created-event',
+    evaluate: async (ctx) => {
+      if (ctx.event === 'WORKSPACE_CREATED') return true;
+      const count = await countWorkspaces();
+      return count > 0;
+    }
+  },
+
+  triggerEvents: ['WORKSPACE_CREATED', 'WORKSPACE_WIZARD_CLOSED', 'APP_STARTED'],
+  autoStartEvents: ['APP_STARTED'],
+  explicitStartSources: ['task-list', 'ai'],
+  retriable: true,
+  retryEvents: ['APP_STARTED'],
+
+  toPurposeRequest: () => ({
     kind: 'onboarding.workspace.create',
     presetId: 'onboarding.workspace.create',
     title: '引导创建工作空间',
@@ -61,18 +72,30 @@ export const workspaceCreateQuest: OnboardingQuestDefinition = {
     interruptPolicy: 'urgent',
     coalesceKey: 'onboarding.workspace.create',
     plannerMode: 'preset-only'
-  },
+  }),
 
   reward: {
     xp: 20,
     favor: 3,
     achievementId: 'first-workspace'
   },
-  rewardSource: 'quest:workspace.create',
-  retriable: true,
-  retryEvents: ['APP_STARTED']
+  rewardSource: 'quest:workspace.create'
 };
 ```
+
+## 2.1 任务列表展示
+
+`workspace.create` 在 `questList` 窗口中作为第一条新手引导任务展示：
+
+- 分类：`onboarding`
+- 标题：`创建你的第一个工作空间`
+- 描述：`建立资源、文件、对话和记忆索引的基础空间。`
+- 奖励：XP +20、好感 +3、成就 `first-workspace`
+- 未开始：显示“开始引导”
+- 进行中：显示“继续引导”
+- 已完成：隐藏操作按钮，显示完成状态
+
+任务列表按钮不会裸开 `workspaceWizard`。它调用 `quest:start({ id: 'workspace.create' })`，由 QuestEngine 检查是否仍需要引导，再启动 `onboarding.workspace.create` preset-only purpose。这样从任务窗口触发也会保持气泡按钮、角色走到窗口旁、窗口讲解、关闭未创建后继续提示和成功奖励的完整固定流程。
 
 ## 3. Preset Routine
 
@@ -306,6 +329,8 @@ window.YUA.sprite.startPurpose({
 - ✅ 已有 workspace 的开发机 → 设置页“工作空间引导预设”可直接执行现有 preset，无需删除真实空间
 - ✅ 关闭窗口但未创建 → active routine 立刻提示并继续展示去创建按钮
 - ✅ active 但未完成且重启应用 → `APP_STARTED` 会重新派发引导
+- ✅ 任务列表窗口展示 `workspace.create` 状态、奖励和操作按钮
+- ✅ 点击任务列表“开始引导/继续引导” → 走 `QuestEngine.startQuest`，不绕过固定 routine
 - ✅ 创建成功 → grantReward 发放一次，重复触发 WORKSPACE_CREATED 不重复发奖
 - ✅ 创建成功 → routine 收到 `WORKSPACE_CREATED`，清理 notice 并播放庆祝反馈
 - ✅ 右键菜单在 quest 完成前被阻断；完成后正常工作
@@ -326,4 +351,6 @@ window.YUA.sprite.startPurpose({
 - [x] `WORKSPACE_WIZARD_CLOSED` purpose event 由 routine 即时消费，未创建时继续展示去创建按钮；后续仍可扩展漏斗分析
 - [x] `walkTo` 支持 `{ window, placement, offset }` 目标，创建时角色可走到窗口旁
 - [x] onboarding purpose 使用 `plannerMode: 'preset-only'`，不受 AI planner 开关影响
+- [x] 独立 `questList` 窗口展示新手任务、奖励和状态
+- [x] `quest:list` / `quest:start` IPC 支持任务列表读取与显式启动 Quest
 - [x] 测试：onboarding quest、persona reward 幂等、daily care gate

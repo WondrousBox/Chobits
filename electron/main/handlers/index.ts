@@ -13,7 +13,7 @@ import { assertSpriteCapabilityUnlocked } from '../../../packages/sprite-core/ca
 import { initSpriteHandlers, initSpriteManagerIPC } from '../../../packages/sprite-core/handler';
 import { SpriteManager } from '../../../packages/sprite-core/manager';
 import { DEFAULT_SPRITE_ROUTINE_PRESETS, SpritePurposeHistoryStore } from '../../../packages/sprite-core/purpose';
-import { createWorkspaceCreateQuest, QuestEngine, QuestRegistry } from '../../../packages/sprite-core/quest';
+import { createOnboardingQuestRegistry, QuestEngine } from '../../../packages/sprite-core/quest';
 import { SPRITE_EVENT_TYPES } from '../../../packages/sprite-core/types';
 import { initTTSHandlers } from '../../../packages/tts/ipc-main';
 import { initYtDlpIpcHandlers } from '../../../packages/ytdlp';
@@ -39,6 +39,7 @@ import { registerPurposeRetrospectiveMemoryProvider } from './memory/purpose-ret
 import { initPreferencesHandlers } from './preferences/ipc-main';
 import { PreferencesStore } from './preferences/preferences-store';
 import { initProxyHandlers } from './proxy/ipc-main';
+import { initQuestHandlers } from './quest/ipc-main';
 import { getHttpProxy } from './proxy/proxy';
 import { initResourceHandlers } from './resource/ipc-main';
 import { initRssHandlers } from './rss/ipc-main';
@@ -262,12 +263,9 @@ async function initOnboardingQuestEngine(
     isOnboardingFocusActive: () => boolean;
   }
 ): Promise<void> {
-  const registry = new QuestRegistry();
-  registry.register(
-    createWorkspaceCreateQuest({
-      countWorkspaces: deps.countWorkspaces
-    })
-  );
+  const registry = createOnboardingQuestRegistry({
+    countWorkspaces: deps.countWorkspaces
+  });
 
   const previousSuppressAmbientMessages = SpriteManager.hasInstance() ? SpriteManager.getInstance().getSuppressAmbientMessagesHandler() : undefined;
   if (SpriteManager.hasInstance()) {
@@ -321,6 +319,7 @@ async function initOnboardingQuestEngine(
   });
 
   await engine.init();
+  initQuestHandlers({ registry, engine });
 
   // 事件驱动 tick：WORKSPACE_CREATED 立即完成 workspace.create quest；
   // APP_STARTED 在启动时回放，处理"上一次启动就已经创建工作空间但 quest 还没标记 done"等场景。
@@ -334,6 +333,22 @@ async function initOnboardingQuestEngine(
     const mgr = SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
     mgr?.emitPurposeEvent({ source: 'app-event', event: 'WORKSPACE_WIZARD_CLOSED', payload: data as Record<string, unknown> | undefined });
     void engine.tick({ event: 'WORKSPACE_WIZARD_CLOSED', eventPayload: data });
+  });
+  eventManager.on(AppEvent.RESOURCE_CREATED, (data) => {
+    const mgr = SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
+    const payload = data as Record<string, unknown> | undefined;
+    const purposePayload =
+      typeof payload?.metadata === 'string' && /"source"\s*:\s*"sprite-drop"/.test(payload.metadata)
+        ? { ...payload, purposeSource: 'sprite-drop' }
+        : payload;
+    mgr?.emitPurposeEvent({ source: 'app-event', event: 'RESOURCE_CREATED', payload: purposePayload });
+    void engine.tick({ event: 'RESOURCE_CREATED', eventPayload: data });
+  });
+  eventManager.on(AppEvent.SPRITE_RESOURCE_IMPORT_COMPLETE, (data) => {
+    void engine.tick({ event: 'SPRITE_RESOURCE_IMPORT_COMPLETE', eventPayload: data });
+  });
+  eventManager.on(AppEvent.ASSISTANT_MENU_ITEM_SELECTED, (data) => {
+    void engine.tick({ event: 'ASSISTANT_MENU_ITEM_SELECTED', eventPayload: data });
   });
   eventManager.on(AppEvent.APP_STARTED, () => {
     void (async () => {

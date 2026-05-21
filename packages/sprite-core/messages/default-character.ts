@@ -437,6 +437,50 @@ export const CHARACTER_MESSAGE_SPECS = [
     neutral: () => ['还没有创建工作空间哦。先点这里创建一个吧。']
   },
   {
+    field: 'onboardingFileDropInvite',
+    section: 'routines',
+    key: 'onboarding.file.drop.invite',
+    label: '首次拖拽文件引导',
+    neutral: () => ['可以把文件拖拽给我存起来']
+  },
+  {
+    field: 'onboardingFileDropIntro',
+    section: 'routines',
+    key: 'onboarding.file.drop.intro',
+    label: '首次拖拽文件说明',
+    maxItems: 4,
+    maxLength: 240,
+    neutral: () => ['拖给我的文件会进入资源库，之后就可以拿来整理、总结或继续处理。']
+  },
+  {
+    field: 'onboardingFileDropDone',
+    section: 'routines',
+    key: 'onboarding.file.drop.done',
+    label: '首次拖拽文件完成',
+    neutral: () => ['收到啦！第一个文件已经进资源库了。']
+  },
+  {
+    field: 'onboardingResourceOpenLibraryInvite',
+    section: 'routines',
+    key: 'onboarding.resource.open-library.invite',
+    label: '打开资源库引导',
+    neutral: () => ['右键点我，打开菜单里的资源库。']
+  },
+  {
+    field: 'onboardingResourceOpenLibraryMenuTip',
+    section: 'routines',
+    key: 'onboarding.resource.open-library.menu-tip',
+    label: '打开资源库菜单提示',
+    neutral: () => ['现在点菜单里的「资源库」。']
+  },
+  {
+    field: 'onboardingResourceOpenLibraryDone',
+    section: 'routines',
+    key: 'onboarding.resource.open-library.done',
+    label: '打开资源库完成',
+    neutral: () => ['打开啦！以后导入的文件都可以在资源库里整理。']
+  },
+  {
     field: 'workflowWaitingBusyStart',
     section: 'routines',
     key: 'workflow.waiting.busyStart',

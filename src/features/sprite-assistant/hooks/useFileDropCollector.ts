@@ -38,6 +38,8 @@ async function startFileDropPurpose(correlationId: string, files: FileDropPayloa
       priority: 100,
       correlationId,
       context: {
+        source: 'drop',
+        purposeSource: 'sprite-drop',
         files,
         resources: resources ?? [],
         fileActionsMenuPayload: menuPayload,
@@ -66,7 +68,9 @@ async function startFileDropInvitePurpose(correlationId: string): Promise<FileDr
       correlationId,
       coalesceKey: 'file-drop-invite',
       context: {
-        source: 'drag-enter'
+        source: 'drag-enter',
+        purposeSource: 'sprite-drop',
+        trigger: 'drag-enter'
       }
     });
     return {
@@ -157,7 +161,7 @@ export function useFileDropCollector(): {
     window.YUA.sprite.fileDrop(payload);
 
     // 资源导入（保留原有逻辑）
-    const resources = await addResourcesFromDataTransfer(e.dataTransfer!);
+    const resources = await addResourcesFromDataTransfer(e.dataTransfer!, { source: 'sprite-drop' });
     if (payload.length) {
       const started = await startFileDropPurpose(correlationId, payload, resources);
       if (!started) {
@@ -177,7 +181,7 @@ export function useFileDropCollector(): {
     window.YUA.sprite.fileDrop(payload);
 
     // 资源导入（保留原有逻辑）
-    const resources = await addResourcesFromSelectedFiles(files);
+    const resources = await addResourcesFromSelectedFiles(files, { source: 'sprite-drop' });
     if (resources) {
       const resPayload = resources.map((res) => ({
         name: res.title || (res.filePath ? res.filePath.split(/[/\\]/).pop() || '' : ''),

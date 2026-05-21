@@ -229,7 +229,25 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         icon: '📚',
         shortcut: 'r',
         action: () => {
+          void window.YUA.sprite.emitPurposeEvent({
+            source: 'app-event',
+            event: 'ASSISTANT_MENU_ITEM_SELECTED',
+            payload: {
+              itemId: 'resources',
+              windowKey: 'resources',
+              source: 'assistant-context-menu'
+            }
+          });
           window.YUA.window['window:open']('resources');
+        }
+      },
+      {
+        id: 'quests',
+        label: '任务',
+        icon: '🏆',
+        shortcut: 'j',
+        action: () => {
+          window.YUA.window['window:open']('questList' as any);
         }
       },
       {
