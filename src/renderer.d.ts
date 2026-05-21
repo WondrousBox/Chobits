@@ -11,6 +11,7 @@ import type { FolderIpcType } from '../electron/main/handlers/folder/ipc-rendere
 import type { MediaIpcType } from '../electron/main/handlers/media/ipc-renderer';
 import type { PreferencesIpcType } from '../electron/main/handlers/preferences/ipc-renderer';
 import type { ProxyIpcType } from '../electron/main/handlers/proxy/ipc-renderer';
+import type { QuestIpcType } from '../electron/main/handlers/quest/ipc-renderer';
 import type { ResourceIpcType } from '../electron/main/handlers/resource/ipc-renderer';
 import type { RssApi } from '../electron/main/handlers/rss/ipc-renderer';
 import type { SpleeterIpcType } from '../electron/main/handlers/spleeter/ipc-renderer';
@@ -71,6 +72,7 @@ declare global {
       theme: ThemeIpcType;
       sherpa: SherpaIpcRendererType;
       preferences: PreferencesIpcType;
+      quest: QuestIpcType;
       musicReactivity: MusicReactivityIpcRendererType;
       ytdlp: YtDlpIpcRendererType;
       spleeter: SpleeterIpcType & {

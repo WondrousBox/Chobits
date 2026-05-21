@@ -1147,6 +1147,9 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     if (p?.source === 'app-event' && p.event === AppEvent.WORKSPACE_WIZARD_CLOSED) {
       eventManager.emit(AppEvent.WORKSPACE_WIZARD_CLOSED, p.payload);
     }
+    if (p?.source === 'app-event' && p.event === AppEvent.ASSISTANT_MENU_ITEM_SELECTED) {
+      eventManager.emit(AppEvent.ASSISTANT_MENU_ITEM_SELECTED, p.payload);
+    }
     return result;
   });
 

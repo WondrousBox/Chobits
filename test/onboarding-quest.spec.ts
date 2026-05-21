@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createWorkspaceCreateQuest, QuestEngine, QuestRegistry } from '../packages/sprite-core/quest';
+import { createFirstFileDropQuest, createOnboardingQuestRegistry, createOpenResourceLibraryQuest, createQuestListSnapshot, createWorkspaceCreateQuest, QuestEngine, QuestRegistry } from '../packages/sprite-core/quest';
 import { createEmptyOnboardingState } from '../packages/sprite-core/quest/types';
 
 describe('QuestRegistry', () => {
@@ -13,6 +13,20 @@ describe('QuestRegistry', () => {
         expect(reg.list()).toHaveLength(1);
         expect(reg.byTriggerEvent('WORKSPACE_CREATED')).toContain(quest);
         expect(reg.byTriggerEvent('UNRELATED')).toHaveLength(0);
+    });
+
+    it('creates the default onboarding quest registry in fixed order', () => {
+        const reg = createOnboardingQuestRegistry({ countWorkspaces: () => 0 });
+
+        expect(reg.list().map((quest) => quest.id)).toEqual(['workspace.create', 'first-file-drop', 'open-resource-library']);
+        expect(reg.get('workspace.create')?.autoStartEvents).toEqual(['APP_STARTED']);
+        expect(reg.get('first-file-drop')?.autoStartEvents).toBeUndefined();
+        expect(reg.get('first-file-drop')?.explicitStartSources).toEqual(['task-list', 'ai']);
+        expect(reg.get('open-resource-library')?.autoStartEvents).toBeUndefined();
+        expect(reg.get('open-resource-library')?.explicitStartSources).toEqual(['task-list', 'ai']);
+        expect(reg.byTriggerEvent('RESOURCE_CREATED').map((quest) => quest.id)).toEqual(['first-file-drop']);
+        expect(reg.byTriggerEvent('ASSISTANT_MENU_ITEM_SELECTED').map((quest) => quest.id)).toEqual(['open-resource-library']);
+        expect(reg.byTriggerEvent('APP_STARTED').map((quest) => quest.id)).toEqual(['workspace.create']);
     });
 });
 
@@ -64,6 +78,87 @@ describe('QuestEngine — workspace.create happy path', () => {
         });
         expect(grantReward).not.toHaveBeenCalled();
         expect(saved.current?.quests['workspace.create'].status).toBe('active');
+    });
+
+    it('builds a quest list snapshot with reward and action metadata', () => {
+        const quest = createWorkspaceCreateQuest({ countWorkspaces: () => 0 });
+        const snapshot = createQuestListSnapshot({
+            definitions: [quest],
+            state: {
+                version: 1,
+                quests: {
+                    'workspace.create': {
+                        status: 'active',
+                        activatedAt: 1000
+                    }
+                }
+            }
+        });
+
+        expect(snapshot.summary).toMatchObject({ total: 1, active: 1, done: 0 });
+        expect(snapshot.items[0]).toMatchObject({
+            id: 'workspace.create',
+            category: 'onboarding',
+            title: '创建你的第一个工作空间',
+            status: 'active',
+            progressPercent: 50,
+            reward: { xp: 20, favor: 3, achievementId: 'first-workspace' },
+            rewardSource: 'quest:workspace.create',
+            action: {
+                kind: 'start-quest',
+                label: '继续引导',
+                questId: 'workspace.create',
+                windowKey: 'workspaceWizard',
+                purposeKind: 'onboarding.workspace.create'
+            }
+        });
+    });
+
+    it('starts an existing quest manually from the task list', async () => {
+        const wsCount = { value: 0 };
+        const { engine, startPurpose, saved } = makeDeps(wsCount);
+
+        const result = await engine.startQuest('workspace.create');
+
+        expect(result).toMatchObject({ accepted: true, status: 'started' });
+        expect(startPurpose).toHaveBeenCalledTimes(1);
+        expect(saved.current?.quests['workspace.create']).toMatchObject({ status: 'active', activatedAt: 1000 });
+    });
+
+    it('shows unfinished onboarding quests as skipped when onboarding is skipped', () => {
+        const quest = createWorkspaceCreateQuest({ countWorkspaces: () => 0 });
+        const snapshot = createQuestListSnapshot({
+            definitions: [quest],
+            state: {
+                version: 1,
+                skipped: true,
+                quests: {
+                    'workspace.create': {
+                        status: 'active',
+                        activatedAt: 1000
+                    }
+                }
+            }
+        });
+
+        expect(snapshot.items[0]).toMatchObject({
+            id: 'workspace.create',
+            status: 'skipped',
+            action: undefined
+        });
+        expect(snapshot.summary).toMatchObject({ skipped: 1, active: 0 });
+    });
+
+    it('marks a manually started quest done when completion is already satisfied', async () => {
+        const wsCount = { value: 1 };
+        const { engine, startPurpose, grantReward, saved } = makeDeps(wsCount);
+
+        const result = await engine.startQuest('workspace.create');
+
+        expect(result).toBeNull();
+        expect(startPurpose).not.toHaveBeenCalled();
+        expect(grantReward).toHaveBeenCalledTimes(1);
+        expect(saved.current?.quests['workspace.create'].status).toBe('done');
     });
 
     it('retries an active retriable quest on startup when the workspace is still missing', async () => {
@@ -133,5 +228,311 @@ describe('QuestEngine — workspace.create happy path', () => {
         await engine.tick({ event: 'APP_STARTED' });
 
         expect(startPurpose).not.toHaveBeenCalled();
+    });
+});
+
+describe('QuestEngine — first-file-drop onboarding quest', () => {
+    function makeFileDropDeps(counts: { workspaces: number }): {
+        engine: QuestEngine;
+        startPurpose: ReturnType<typeof vi.fn>;
+        grantReward: ReturnType<typeof vi.fn>;
+        saved: { current: ReturnType<typeof createEmptyOnboardingState> | null };
+    } {
+        const reg = new QuestRegistry();
+        reg.register(createFirstFileDropQuest({ countWorkspaces: () => counts.workspaces }));
+
+        const startPurpose = vi.fn(async () => ({
+            accepted: true as const,
+            purpose: { id: 'p-file-drop', kind: 'onboarding.file.drop', title: '', reason: '', source: 'system-event' as const, status: 'queued' as const, priority: 68, interruptPolicy: 'interruptible' as const },
+            status: 'started' as const
+        }));
+        const grantReward = vi.fn(async () => undefined);
+        const saved: { current: any } = {
+            current: {
+                version: 1,
+                quests: {
+                    'workspace.create': {
+                        status: 'done',
+                        completedAt: 900
+                    }
+                }
+            }
+        };
+
+        const engine = new QuestEngine({
+            registry: reg,
+            startPurpose,
+            grantReward,
+            loadState: () => saved.current,
+            saveState: (state) => {
+                saved.current = JSON.parse(JSON.stringify(state));
+            },
+            now: () => 1000
+        });
+
+        return { engine, startPurpose, grantReward, saved };
+    }
+
+    it('does not auto activate on app startup when workspace is ready', async () => {
+        const counts = { workspaces: 1 };
+        const { engine, startPurpose, saved } = makeFileDropDeps(counts);
+
+        await engine.tick({ event: 'APP_STARTED' });
+
+        expect(startPurpose).not.toHaveBeenCalled();
+        expect(saved.current?.quests['first-file-drop']).toBeUndefined();
+    });
+
+    it('does not auto activate when workspace creation completes', async () => {
+        const counts = { workspaces: 1 };
+        const { engine, startPurpose, saved } = makeFileDropDeps(counts);
+
+        await engine.tick({ event: 'WORKSPACE_CREATED' });
+
+        expect(startPurpose).not.toHaveBeenCalled();
+        expect(saved.current?.quests['first-file-drop']).toBeUndefined();
+    });
+
+    it('starts manually from the task list when workspace is ready', async () => {
+        const counts = { workspaces: 1 };
+        const { engine, startPurpose, saved } = makeFileDropDeps(counts);
+
+        const result = await engine.startQuest('first-file-drop', { source: 'task-list' });
+
+        expect(result).toMatchObject({ accepted: true, status: 'started' });
+        expect(startPurpose).toHaveBeenCalledTimes(1);
+        expect(startPurpose.mock.calls[0][0]).toMatchObject({
+            kind: 'onboarding.file.drop',
+            presetId: 'onboarding.file.drop',
+            priority: 68,
+            coalesceKey: 'onboarding.file.drop',
+            plannerMode: 'preset-only'
+        });
+        expect(saved.current?.quests['first-file-drop']).toMatchObject({ status: 'active', activatedAt: 1000 });
+    });
+
+    it('can be started explicitly by AI when workspace is ready', async () => {
+        const counts = { workspaces: 1 };
+        const { engine, startPurpose, saved } = makeFileDropDeps(counts);
+
+        const result = await engine.startQuest('first-file-drop', { source: 'ai' });
+
+        expect(result).toMatchObject({ accepted: true, status: 'started' });
+        expect(startPurpose).toHaveBeenCalledTimes(1);
+        expect(saved.current?.quests['first-file-drop']).toMatchObject({ status: 'active', activatedAt: 1000 });
+    });
+
+    it('does not activate before workspace is ready', async () => {
+        const counts = { workspaces: 0 };
+        const { engine, startPurpose } = makeFileDropDeps(counts);
+
+        await engine.tick({ event: 'APP_STARTED' });
+
+        expect(startPurpose).not.toHaveBeenCalled();
+    });
+
+    it('rejects manual start before workspace is ready', async () => {
+        const counts = { workspaces: 0 };
+        const { engine, startPurpose } = makeFileDropDeps(counts);
+
+        await expect(engine.startQuest('first-file-drop')).rejects.toThrow('precondition is not satisfied');
+
+        expect(startPurpose).not.toHaveBeenCalled();
+    });
+
+    it('builds a quest list item with first file drop rewards and action', () => {
+        const quest = createFirstFileDropQuest({ countWorkspaces: () => 1 });
+        const snapshot = createQuestListSnapshot({
+            definitions: [quest],
+            state: {
+                version: 1,
+                quests: {
+                    'workspace.create': {
+                        status: 'done',
+                        completedAt: 900
+                    },
+                    'first-file-drop': {
+                        status: 'pending'
+                    }
+                }
+            }
+        });
+
+        expect(snapshot.items[0]).toMatchObject({
+            id: 'first-file-drop',
+            category: 'onboarding',
+            title: '把第一个文件拖给我',
+            reward: { xp: 15, favor: 2, achievementId: 'first-import' },
+            rewardSource: 'quest:first-file-drop',
+            action: {
+                kind: 'start-quest',
+                label: '开始引导',
+                questId: 'first-file-drop',
+                purposeKind: 'onboarding.file.drop'
+            }
+        });
+    });
+
+    it('does not complete from a non sprite-drop RESOURCE_CREATED event', async () => {
+        const counts = { workspaces: 1 };
+        const { engine, grantReward, saved } = makeFileDropDeps(counts);
+
+        await engine.tick({ event: 'RESOURCE_CREATED', eventPayload: { id: 'resource-1', metadata: JSON.stringify({ source: 'manual' }) } });
+
+        expect(grantReward).not.toHaveBeenCalled();
+        expect(saved.current?.quests['first-file-drop']).toBeUndefined();
+    });
+
+    it('completes and rewards when a sprite-drop resource is created', async () => {
+        const counts = { workspaces: 1 };
+        const { engine, grantReward, saved } = makeFileDropDeps(counts);
+
+        await engine.tick({ event: 'RESOURCE_CREATED', eventPayload: { id: 'resource-1', metadata: JSON.stringify({ source: 'sprite-drop' }) } });
+
+        expect(grantReward).toHaveBeenCalledTimes(1);
+        expect(grantReward.mock.calls[0]).toEqual([{ xp: 15, favor: 2, achievementId: 'first-import' }, 'quest:first-file-drop']);
+        expect(saved.current?.quests['first-file-drop'].status).toBe('done');
+    });
+
+    it('completes and rewards when a sprite-drop import completion event fires', async () => {
+        const counts = { workspaces: 1 };
+        const { engine, grantReward, saved } = makeFileDropDeps(counts);
+
+        await engine.tick({ event: 'SPRITE_RESOURCE_IMPORT_COMPLETE', eventPayload: { count: 1, purposeSource: 'sprite-drop' } });
+
+        expect(grantReward).toHaveBeenCalledTimes(1);
+        expect(saved.current?.quests['first-file-drop'].status).toBe('done');
+    });
+
+    it('does not complete from a non sprite-drop import completion event', async () => {
+        const counts = { workspaces: 1 };
+        const { engine, grantReward, saved } = makeFileDropDeps(counts);
+
+        await engine.tick({ event: 'SPRITE_RESOURCE_IMPORT_COMPLETE', eventPayload: { count: 1 } });
+
+        expect(grantReward).not.toHaveBeenCalled();
+        expect(saved.current?.quests['first-file-drop']).toBeUndefined();
+    });
+});
+
+describe('QuestEngine — open-resource-library onboarding quest', () => {
+    function makeOpenResourceLibraryDeps(counts: { workspaces: number }): {
+        engine: QuestEngine;
+        startPurpose: ReturnType<typeof vi.fn>;
+        grantReward: ReturnType<typeof vi.fn>;
+        saved: { current: ReturnType<typeof createEmptyOnboardingState> | null };
+    } {
+        const reg = new QuestRegistry();
+        reg.register(createOpenResourceLibraryQuest({ countWorkspaces: () => counts.workspaces }));
+
+        const startPurpose = vi.fn(async () => ({
+            accepted: true as const,
+            purpose: { id: 'p-open-library', kind: 'onboarding.resource.open-library', title: '', reason: '', source: 'system-event' as const, status: 'queued' as const, priority: 66, interruptPolicy: 'interruptible' as const },
+            status: 'started' as const
+        }));
+        const grantReward = vi.fn(async () => undefined);
+        const saved: { current: any } = {
+            current: {
+                version: 1,
+                quests: {
+                    'workspace.create': {
+                        status: 'done',
+                        completedAt: 900
+                    }
+                }
+            }
+        };
+
+        const engine = new QuestEngine({
+            registry: reg,
+            startPurpose,
+            grantReward,
+            loadState: () => saved.current,
+            saveState: (state) => {
+                saved.current = JSON.parse(JSON.stringify(state));
+            },
+            now: () => 1000
+        });
+
+        return { engine, startPurpose, grantReward, saved };
+    }
+
+    it('does not auto activate on app startup when workspace is ready', async () => {
+        const counts = { workspaces: 1 };
+        const { engine, startPurpose, saved } = makeOpenResourceLibraryDeps(counts);
+
+        await engine.tick({ event: 'APP_STARTED' });
+
+        expect(startPurpose).not.toHaveBeenCalled();
+        expect(saved.current?.quests['open-resource-library']).toBeUndefined();
+    });
+
+    it('starts manually from the task list when workspace is ready', async () => {
+        const counts = { workspaces: 1 };
+        const { engine, startPurpose, saved } = makeOpenResourceLibraryDeps(counts);
+
+        const result = await engine.startQuest('open-resource-library', { source: 'task-list' });
+
+        expect(result).toMatchObject({ accepted: true, status: 'started' });
+        expect(startPurpose).toHaveBeenCalledTimes(1);
+        expect(startPurpose.mock.calls[0][0]).toMatchObject({
+            kind: 'onboarding.resource.open-library',
+            presetId: 'onboarding.resource.open-library',
+            priority: 66,
+            coalesceKey: 'onboarding.resource.open-library',
+            plannerMode: 'preset-only'
+        });
+        expect(saved.current?.quests['open-resource-library']).toMatchObject({ status: 'active', activatedAt: 1000 });
+    });
+
+    it('builds a quest list item with resource library rewards and action', () => {
+        const quest = createOpenResourceLibraryQuest({ countWorkspaces: () => 1 });
+        const snapshot = createQuestListSnapshot({
+            definitions: [quest],
+            state: {
+                version: 1,
+                quests: {
+                    'workspace.create': {
+                        status: 'done',
+                        completedAt: 900
+                    },
+                    'open-resource-library': {
+                        status: 'pending'
+                    }
+                }
+            }
+        });
+
+        expect(snapshot.items[0]).toMatchObject({
+            id: 'open-resource-library',
+            category: 'onboarding',
+            title: '打开资源库',
+            reward: { xp: 10, favor: 1, achievementId: 'first-resource-library-open' },
+            rewardSource: 'quest:open-resource-library',
+            action: {
+                kind: 'start-quest',
+                label: '开始引导',
+                questId: 'open-resource-library',
+                windowKey: 'resources',
+                purposeKind: 'onboarding.resource.open-library'
+            }
+        });
+    });
+
+    it('completes and rewards only when resources is selected from the assistant menu', async () => {
+        const counts = { workspaces: 1 };
+        const { engine, grantReward, saved } = makeOpenResourceLibraryDeps(counts);
+
+        await engine.tick({ event: 'ASSISTANT_MENU_ITEM_SELECTED', eventPayload: { itemId: 'chat', windowKey: 'chat', source: 'assistant-context-menu' } });
+        await engine.tick({ event: 'ASSISTANT_MENU_ITEM_SELECTED', eventPayload: { itemId: 'resources', windowKey: 'resources', source: 'ai' } });
+
+        expect(grantReward).not.toHaveBeenCalled();
+        expect(saved.current?.quests['open-resource-library']).toBeUndefined();
+
+        await engine.tick({ event: 'ASSISTANT_MENU_ITEM_SELECTED', eventPayload: { itemId: 'resources', windowKey: 'resources', source: 'assistant-context-menu' } });
+
+        expect(grantReward).toHaveBeenCalledTimes(1);
+        expect(grantReward.mock.calls[0]).toEqual([{ xp: 10, favor: 1, achievementId: 'first-resource-library-open' }, 'quest:open-resource-library']);
+        expect(saved.current?.quests['open-resource-library'].status).toBe('done');
     });
 });

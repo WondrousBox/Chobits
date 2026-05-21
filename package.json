@@ -47,15 +47,15 @@
     "keytar": "^7.9.0",
     "react-force-graph-2d": "^1.29.1",
     "sharp": "^0.34.4",
-    "sherpa-onnx-node": "^1.12.20",
+    "sherpa-onnx-node": "^1.13.2",
     "sqlite-vec": "0.1.7-alpha.2",
     "ws": "^8.19.0"
   },
   "devDependencies": {
-    "@aim-packages/window-manager": "^0.5.3",
     "@aim-packages/downloader": "0.2.0",
     "@aim-packages/file-utils": "^0.2.0",
     "@aim-packages/subtitle": "^0.5.1",
+    "@aim-packages/window-manager": "^0.5.3",
     "@anthropic-ai/sdk": "^0.67.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",

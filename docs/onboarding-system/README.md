@@ -4,6 +4,15 @@
 > **负责模块**：`packages/sprite-core/quest/` + 复用 `packages/sprite-core/purpose/`
 > **相关系统**：[Purpose & Routine](../sprite-core/sprite-purpose-routine-orchestration-plan.md) · [Persona Character](../persona-system/persona-character-system-design.md)
 
+## 0. 当前落地范围
+
+- 固定新手 Quest：`workspace.create`、`first-file-drop`、`open-resource-library`
+- 独立任务展示层：`questList` 窗口（路由 `#/quest-list`）
+- 任务数据 API：`quest:list` 返回 `QuestListSnapshot`，`quest:start` 从任务列表启动/继续固定 Quest
+- 入口：助手右键菜单中的“任务”，以及 AI app-window 工具目录中的 `questList`
+
+任务列表窗口只展示和启动 Quest，不生成流程、不调用 LLM。点击“开始引导/继续引导”会回到对应 Quest 的 preset-only routine，例如 `workspace.create` 会继续走气泡按钮、创建窗口陪同、窗口讲解、成功奖励这一套固定流程；`first-file-drop` 会让角色走到中心，提示用户把文件拖到角色身上，并在拖拽导入完成后结算奖励；`open-resource-library` 会引导用户右键助手，从菜单里打开资源库。
+
 ## 1. 背景与定位
 
 ### 1.1 2026-05-20 需求校正记录
@@ -21,12 +30,17 @@
 - 如果用户没有创建就关掉窗口，AI 要及时提示"还需要创建"，并继续展示"去创建"按钮。
 - 如果用户创建好了空间，AI 要有对应响应和奖励，奖励可以是经验和好感度。
 - 这是新手引导任务系统，`workspace.create` 只是第一种任务，后续还会有更多固定任务。
+- “拖拽文件到角色身上进行上传/导入”也必须作为新手任务补完整：任务列表展示、固定引导表现、资源事件完成判定和奖励都由 Quest 系统统一管理。
+- “右键点击助手打开资源库”也必须作为新手任务：任务列表展示、引导用户右键助手、提示选择菜单里的“资源库”，并只在用户确实从助手菜单打开资源库时结算。
+- Quest 必须设计“出发条件/启动方式”：`workspace.create` 属于启动后检测到未完成就自动触发；`first-file-drop` 属于用户准备执行时从任务列表点击“开始引导”触发，未来也可以由 AI 显式触发，但不应该在启动或刚创建工作空间后自动弹出。
 
 产品结论：
 
 - `workspace.create` 是 deterministic onboarding quest，不走 AI planner。
 - `Purpose/Routine` 只是任务的表现执行层，`QuestEngine` 才是任务状态、完成和奖励的调度层。
+- Quest 的事件语义拆成三类：`triggerEvents` 负责驱动完成/状态评估，`autoStartEvents` 负责允许系统自动启动，`explicitStartSources` 负责允许任务列表或 AI 这类显式入口启动。
 - 设置页的"工作空间引导预设"只是开发测试入口，不是核心触发方式。
+- “任务”窗口是正式的任务系统展示层，用于展示新手引导任务、状态和奖励；它不同于 AI 目标规划设置页。
 - 文档和代码必须同步保留这条原始需求，避免后续再次误解为"AI 目的规划生成"。
 
 ### 1.2 当前变更偏差分析
@@ -50,6 +64,10 @@
 - `workspaceWizard` 打开后，routine 在等待 `WORKSPACE_CREATED` / `WORKSPACE_WIZARD_CLOSED` 的同时讲解工作空间用途和快速创建提示；这些讲解有冷却，避免窗口保持打开时反复念。
 - 窗口未创建就关闭时，routine 立即替换 notice 文案并继续下一轮提示。
 - 创建成功时清理该 notice、播放庆祝动画并说成功文案；QuestEngine 负责幂等奖励。
+- `first-file-drop` 已补成第二个固定新手 Quest：前置为已有工作空间，启动 `onboarding.file.drop` preset-only routine；真实拖拽仍由已有 `file.drop.invite` / `file.drop.intake` 接管；拖给角色创建的资源携带 `metadata.source = 'sprite-drop'` 后触发任务完成与 XP/好感奖励。
+- `first-file-drop` 不配置 `autoStartEvents`，所以 `APP_STARTED` / `WORKSPACE_CREATED` 不会自动弹出拖拽引导；它通过任务列表 `quest:start` 或未来 AI 显式启动，并继续监听真实拖给角色的资源事件来结算。
+- 普通资源创建/导入事件没有 `sprite-drop` 业务来源时，不会激活或完成 `first-file-drop`，避免用户通过资源页上传文件时误结算“拖给角色”任务。
+- `open-resource-library` 已补成第三个固定新手 Quest：前置为已有工作空间，不配置 `autoStartEvents`；启动 `onboarding.resource.open-library` preset-only routine；右键菜单点击“资源库”会派发 `ASSISTANT_MENU_ITEM_SELECTED`，只有 payload 标记 `itemId=resources` 且 `source=assistant-context-menu` 时才结算。
 
 目的规划器（`SpritePurpose` + `Routine`）已经能驱动桌面助手完成"调 AI → 拿到一串连续步骤 → 按步骤引导用户交互"的闭环。但对**新手引导**这类**确定性、不需要 AI 生成**的引导流程：
 
@@ -79,7 +97,7 @@ Quest 定义（声明前置/完成事件/奖励）
 | -------- | --------------------------- | -------------------------------------------------------- |
 | 触发来源 | behavior / 用户 / 系统 / AI | Quest 引擎（监听条件后下发 purpose）                     |
 | 步骤定义 | preset routine 或 AI draft  | 强制使用 preset routine                                  |
-| 完成判定 | routine 末尾                | 独立 `completionEvent`（可在 routine 外）                |
+| 完成判定 | routine 末尾                | 独立 `completion` 谓词（可在 routine 外）                |
 | 奖励     | 无                          | 必须有，幂等                                             |
 | 持久化   | JSONL 历史                  | preferences `onboardingState` + persona `claimedRewards` |
 | 并发     | priority 仲裁               | 同时只允许一个 active quest                              |
@@ -91,13 +109,14 @@ Quest 定义（声明前置/完成事件/奖励）
 ### 3.1 Quest 定义
 
 ```ts
-export type QuestCategory = 'onboarding' | 'daily' | 'achievement';
+export type QuestCategory = 'onboarding' | 'daily' | 'achievement' | 'event';
+export type QuestStartSource = 'task-list' | 'ai' | 'system';
 
 export interface OnboardingQuestReward {
   xp?: number;
   favor?: number;
   achievementId?: string;
-  dimensions?: Record<string, number>;
+  dimensions?: Array<{ id: string; delta: number; maxValue?: number }>;
 }
 
 export interface OnboardingQuestDefinition {
@@ -105,28 +124,47 @@ export interface OnboardingQuestDefinition {
   title: string;
   description: string;
   category: QuestCategory;
-  /** 任务可激活前的条件，全部满足才会启动 */
-  preconditions: ReadonlyArray<QuestPredicate>;
-  /** 任务完成所等待的事件（与 routine 内部的 waitForEvent 可解耦） */
-  completionEvent: {
-    source: 'app-event' | 'purpose-event' | 'sprite-event-bus';
-    event: string;
-    match?: Record<string, unknown>;
-  };
+  /** 任务可激活前的条件，满足后才允许自动或显式启动 */
+  precondition?: QuestPredicate;
+  /** 任务完成条件：满足后发奖并标记 done */
+  completion: QuestPredicate;
+  /** 收到这些 AppEvent 时，QuestEngine 会重新评估完成/状态 */
+  triggerEvents?: string[];
+  /** 只有这些 AppEvent 可以让 pending Quest 自动启动引导 */
+  autoStartEvents?: string[];
+  /** 允许通过 quest:start 显式启动的来源；默认允许 task-list / ai */
+  explicitStartSources?: Array<'task-list' | 'ai' | 'system'>;
   /** 启动哪个 purpose / preset 来引导用户 */
-  purposeRequest: StartSpritePurposeRequest;
+  toPurposeRequest: () => StartSpritePurposeRequest;
   /** 完成后授予的奖励 */
-  reward: OnboardingQuestReward;
+  reward?: OnboardingQuestReward;
   /** grantReward 的 source 字段，同时作为幂等 claim key */
-  rewardSource: string; // 'quest:workspace.create'
+  rewardSource?: string; // 'quest:workspace.create'
   /** 失败/取消时是否允许后续重新启动 */
   retriable?: boolean;
   /** active 但未完成时，哪些事件允许重新派发 purpose；默认用于启动恢复 */
   retryEvents?: string[];
 }
 
-export type QuestPredicate = () => Promise<boolean>;
+interface QuestPredicateContext {
+  event?: string;
+  eventPayload?: unknown;
+  onboardingState: OnboardingState;
+}
+
+interface QuestPredicate {
+  id: string;
+  evaluate: (ctx: QuestPredicateContext) => Promise<boolean> | boolean;
+}
 ```
+
+触发语义必须拆开看：
+
+- `triggerEvents`：事件评估入口。命中后只代表 Quest 可以检查完成条件、前置条件或 active 重试，不代表一定会启动引导。
+- `autoStartEvents`：自动启动入口。只有 pending Quest 命中这里的事件，且前置条件满足，才会自动 `startPurpose`。
+- `explicitStartSources`：显式启动入口。任务列表点击“开始引导”和未来 AI 触发都走 `QuestEngine.startQuest`，不依赖 `autoStartEvents`。
+
+因此 `workspace.create` 配置 `autoStartEvents: ['APP_STARTED']`，启动后发现没有 workspace 就自动提示；`first-file-drop` 不配置 `autoStartEvents`，只监听资源事件用于完成结算，启动引导必须来自任务列表或 AI。
 
 ### 3.2 持久化字段
 
@@ -134,14 +172,16 @@ export type QuestPredicate = () => Promise<boolean>;
 
 ```ts
 interface OnboardingState {
-  /** 已完成的 quest id 列表（按完成顺序追加） */
-  completedQuests: string[];
-  /** 当前激活的 quest（最多 1 个） */
-  activeQuestId?: string;
-  /** 首次启动时间戳，用于按用户生命周期分桶 */
-  firstRunAt?: number;
-  /** 标记"已显式跳过引导"的 quest（用户主动放弃） */
-  skippedQuests?: string[];
+  version: 1;
+  /** 用户主动跳过整个新手引导 */
+  skipped?: boolean;
+  /** 每个 Quest 的运行时状态 */
+  quests: Record<string, {
+    status: 'pending' | 'active' | 'done' | 'skipped';
+    activatedAt?: number;
+    completedAt?: number;
+    lastPurposeId?: string;
+  }>;
 }
 ```
 
@@ -155,6 +195,50 @@ interface PersonaState {
 }
 ```
 
+### 3.3 Quest List Snapshot
+
+任务系统展示层不直接读取 `QuestEngine` 内部对象，而是通过纯函数生成快照：
+
+```ts
+interface QuestListSnapshot {
+  version: 1;
+  onboardingSkipped?: boolean;
+  items: QuestListItem[];
+  summary: {
+    total: number;
+    pending: number;
+    active: number;
+    done: number;
+    skipped: number;
+  };
+}
+
+interface QuestListItem {
+  id: string;
+  category: QuestCategory;
+  title: string;
+  description?: string;
+  status: 'pending' | 'active' | 'done' | 'skipped';
+  reward?: OnboardingQuestReward;
+  rewardSource: string;
+  progressPercent: number;
+  action?: {
+    kind: 'start-quest';
+    label: string;
+    questId: string;
+    windowKey?: string;
+    purposeKind?: string;
+  };
+}
+```
+
+当前实现位置：
+
+- 快照纯函数：[packages/sprite-core/quest/quest-list.ts](../../packages/sprite-core/quest/quest-list.ts)
+- 主进程 IPC：[electron/main/handlers/quest/ipc-main.ts](../../electron/main/handlers/quest/ipc-main.ts)
+- preload API：[electron/main/handlers/quest/ipc-renderer.ts](../../electron/main/handlers/quest/ipc-renderer.ts)
+- 窗口页面：[src/pages/QuestListPage/QuestListPage.tsx](../../src/pages/QuestListPage/QuestListPage.tsx)
+
 ## 4. 运行流程
 
 ```
@@ -162,28 +246,35 @@ interface PersonaState {
   │
   ├─→ QuestRegistry.loadDefinitions()       // 静态注册所有 quest
   │
-  ├─→ QuestEngine.tick()                    // 启动时跑一次，后续监听事件再 tick
+  ├─→ QuestEngine.tick({ event: 'APP_STARTED' })
   │
   ├─→ for each quest in registry:
   │     if quest.id in completedQuests → skip
-  │     if 已有 active quest 且不可重试 → skip
-  │     if 已有 active quest 且事件命中 retryEvents → 重新派发 purpose
-  │     if !await all preconditions      → skip
-  │     ─────────────────────────────────
-  │     activeQuestId = quest.id
-  │     PurposeManager.start(quest.purposeRequest)
-  │     EventBus.waitFor(quest.completionEvent) →
-  │         grantReward({ ...quest.reward, source: quest.rewardSource })
-  │         completedQuests.push(quest.id)
-  │         activeQuestId = undefined
-  │         tick()                          // 触发后续 quest
+  │     if completion(ctx) satisfied → grantReward + mark done
+  │     if !precondition(ctx)        → skip
+  │     if active:
+  │       if event in retryEvents    → PurposeManager.start(toPurposeRequest())
+  │       else                       → skip
+  │     if pending:
+  │       if event in autoStartEvents → PurposeManager.start(toPurposeRequest())
+  │       else                        → wait for quest:start / AI explicit start
+  │
+  └─→ 后续 AppEvent 命中 triggerEvents 时重复上面的评估
+
+任务列表 / AI 显式启动
+  │
+  └─→ QuestEngine.startQuest(id, { source })
+        if source not in explicitStartSources → reject
+        if completion already satisfied       → grantReward + mark done
+        if !precondition                      → reject
+        PurposeManager.start(toPurposeRequest())
 ```
 
 **关键不变量**
 
-- 同时最多 1 个 active quest（避免角色同时被两条引导话拉扯）
-- 完成事件**与 routine 解耦**：即使 routine 因为打断而结束，只要 `completionEvent` 触发，仍判定完成（例：用户没走 routine 内的"立即创建"按钮，而是从设置页直接创建了 workspace，也算完成）
-- routine 因打断结束但 `completionEvent` 未触发 → quest 在启动恢复或关闭向导等 retry event 上自动重启（条件还满足时）
+- 完成事件**与 routine 解耦**：即使 routine 因为打断而结束，只要 completion 谓词满足，仍判定完成（例：用户没走 routine 内的"立即创建"按钮，而是从设置页直接创建了 workspace，也算完成）。
+- `workspace.create` 这类必须完成的新手 Quest 才配置 `autoStartEvents` 和 `retryEvents`；关闭气泡/窗口后的即时重提示主要由 routine 循环承担。
+- `first-file-drop` 这类行动型 Quest 不配置 `autoStartEvents`，避免用户启动应用或刚建完 workspace 后被自动打断；但它的完成事件仍与 routine 解耦，用户真实把文件拖给角色即可结算。
 
 ## 5. 对目的规划器的扩展需求
 
@@ -297,6 +388,25 @@ const handleContextMenu = async (e: React.MouseEvent) => {
 
 更通用的方案：在 `OnboardingState` 里加 `interactionsLocked: { contextMenu: boolean }` 由 Quest 系统主动控制。
 
+## 6.1 任务列表窗口
+
+`questList` 是 Quest 系统的独立展示层，负责承载游戏化任务系统：
+
+- 显示新手引导任务、状态、进度和奖励。
+- `workspace.create` 显示 XP +20、好感 +3、成就 `first-workspace`。
+- `first-file-drop` 显示 XP +15、好感 +2、成就 `first-import`。
+- `open-resource-library` 显示 XP +10、好感 +1、成就 `first-resource-library-open`。
+- 未完成任务显示“开始引导/继续引导”按钮。
+- 按钮调用 `quest:start`，由 `QuestEngine.startQuest(id)` 重新检查前置/完成条件后启动固定 preset-only purpose。
+- 如果工作空间已经存在但状态尚未同步，`quest:start` 会先补完成状态和奖励，不再启动创建引导。
+
+窗口注册：
+
+- window key: `questList`
+- route: `#/quest-list`
+- config: [electron/main/config/window.ts](../../electron/main/config/window.ts)
+- app-window directory: [packages/ai/runtime/pi/app-window-directory.ts](../../packages/ai/runtime/pi/app-window-directory.ts)
+
 ## 7. 启动期焦点控制
 
 [src/hooks/useWorkspaceCheck.ts](../../src/hooks/useWorkspaceCheck.ts) 保留为 no-op 占位，不再由渲染层直接弹窗。启动时由 main 进程统一判断 workspace 状态：
@@ -316,14 +426,15 @@ const handleContextMenu = async (e: React.MouseEvent) => {
 
 ## 8. 默认 Quest 目录（首批）
 
-| Quest ID              | 触发条件                                   | 完成事件                                    | 奖励                                          |
-| --------------------- | ------------------------------------------ | ------------------------------------------- | --------------------------------------------- |
-| `workspace.create`    | 无 workspace                               | `app-event WORKSPACE_CREATED`               | xp 20, favor 3, achievement `first-workspace` |
-| `first-file-drop`     | 已完成 workspace.create 且无 resource 记录 | `app-event SPRITE_RESOURCE_IMPORT_COMPLETE` | xp 15, favor 2, achievement `first-import`    |
-| `first-chat`          | 已完成 workspace.create                    | `app-event SPRITE_CHAT_FIRST_REPLY`         | xp 15, favor 2                                |
-| `unlock-context-menu` | 完成 workspace.create                      | 自动（其他 quest 完成时触发）               | 解锁右键菜单                                  |
+| Quest ID              | 前置条件                                 | 启动方式                                  | 完成事件                                                                                         | 奖励                                          |
+| --------------------- | ---------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| `workspace.create`    | 无 workspace                             | `APP_STARTED` 自动启动；任务列表/AI 显式启动 | `app-event WORKSPACE_CREATED`                                                                    | xp 20, favor 3, achievement `first-workspace` |
+| `first-file-drop`     | 已完成 workspace.create 或已有 workspace | 任务列表/AI 显式启动，不随启动自动弹出      | `app-event RESOURCE_CREATED` 或 `SPRITE_RESOURCE_IMPORT_COMPLETE`，需业务来源 `sprite-drop` | xp 15, favor 2, achievement `first-import`    |
+| `open-resource-library` | 已完成 workspace.create 或已有 workspace | 任务列表/AI 显式启动，不随启动自动弹出      | `app-event ASSISTANT_MENU_ITEM_SELECTED`，需 `itemId=resources` 且来源为助手右键菜单              | xp 10, favor 1, achievement `first-resource-library-open` |
+| `first-chat`          | 已完成 workspace.create                  | 待定                                      | `app-event SPRITE_CHAT_FIRST_REPLY`                                                              | xp 15, favor 2                                |
+| `unlock-context-menu` | 完成 workspace.create                    | 自动（其他 quest 完成时触发）              | 自动                                                                                             | 解锁右键菜单                                  |
 
-详细 routine 见 [workspace-onboarding-quest.md](./workspace-onboarding-quest.md)。
+详细 routine 见 [workspace-onboarding-quest.md](./workspace-onboarding-quest.md)、[file-drop-onboarding-quest.md](./file-drop-onboarding-quest.md) 和 [open-resource-library-onboarding-quest.md](./open-resource-library-onboarding-quest.md)。
 
 ## 9. 任务推进顺序（建议）
 
@@ -331,14 +442,20 @@ const handleContextMenu = async (e: React.MouseEvent) => {
 2. **routine step 扩展**：`showNotice` + `clearMessage` + 按钮 → purpose-event 桥接
 3. **QuestRegistry / QuestEngine**（packages/sprite-core/quest/）
 4. **第一个 quest**：`workspace.create`（含 preset routine）
-5. **改造**：`useWorkspaceCheck`、右键菜单守卫
-6. **后续 quest 补全**
+5. **第二个 quest**：`first-file-drop`（复用已有文件拖拽目的链路，补任务层）
+6. **第三个 quest**：`open-resource-library`（引导用户发现助手右键菜单中的资源库入口）
+7. **改造**：`useWorkspaceCheck`、右键菜单守卫
+8. **后续 quest 补全**
 
 ## 10. 测试策略
 
-- `quest-registry.spec.ts`：preconditions 评估、active 互斥、幂等 reward
-- `onboarding-workspace-quest.spec.ts`：模拟 `APP_STARTED` 激活、active 未完成时启动重试、`WORKSPACE_WIZARD_CLOSED` 不重复启动 purpose、`WORKSPACE_CREATED` 完成、重复事件不重复发奖
+- `onboarding-quest.spec.ts`：registry 顺序、`triggerEvents` / `autoStartEvents` 拆分、任务列表快照、幂等 reward
+- `onboarding-quest.spec.ts`：模拟 `workspace.create` 在 `APP_STARTED` 自动激活、active 未完成时启动重试、`WORKSPACE_WIZARD_CLOSED` 不重复启动 purpose、`WORKSPACE_CREATED` 完成、重复事件不重复发奖
+- `onboarding-quest.spec.ts`：模拟 `first-file-drop` 不随 `APP_STARTED` / `WORKSPACE_CREATED` 自动激活，只能由任务列表或 AI 显式启动，同时仍能通过 `sprite-drop` 资源事件完成
+- `onboarding-quest.spec.ts`：模拟 `open-resource-library` 不随启动自动激活，只能由任务列表或 AI 显式启动，且只在助手右键菜单选择资源库时完成
 - `sprite-purpose-routine.spec.ts`：验证 `workspace.create` routine 持续提示、按钮进入创建、走到向导窗口旁、关闭未创建后继续提示、创建成功后清理 notice 并庆祝
+- `sprite-purpose-routine.spec.ts`：同时验证 `onboarding.file.drop` routine 会走到中心、提示拖拽文件、等待资源事件并在完成后庆祝
+- `file-drop-purpose.spec.tsx`：验证真实拖拽仍会启动 `file.drop.invite` / `file.drop.intake`，并给资源创建链路标记 `source: 'sprite-drop'`
 - `character-messages.spec.ts`：验证工作空间引导的 routine 文案 key 已进入共享规格与内置角色包，避免角色包文案漂移
 - `routine-show-notice.spec.ts`：notice step + 按钮点击 → purpose-event 解锁 waitForEvent
 - `persona-claim-idempotent.spec.ts`：重复 grantReward 不重复加 XP

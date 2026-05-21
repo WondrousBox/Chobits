@@ -239,6 +239,12 @@ export const APP_WINDOW_TOOL_DIRECTORY: AppWindowToolEntry[] = [
     aliases: ['工作空间向导', '创建工作空间', 'workspace wizard']
   },
   {
+    key: 'questList',
+    title: '任务列表',
+    description: '打开新手引导、奖励和任务进度窗口。',
+    aliases: ['任务', '任务列表', '新手任务', '新手引导任务', 'quest list']
+  },
+  {
     key: 'resourcePreview',
     title: '资源预览',
     description: '打开单个资源的预览窗口。适用于用户明确要求打开、查看、预览、播放某个具体资源时，可传 resourceId。',

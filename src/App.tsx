@@ -33,6 +33,7 @@ import WorkspacePage from './pages/SettingsPage/components/Workspace';
 import PluginDownloadPage from './pages/SettingsPage/PluginDownloadPage';
 import PluginPage from './pages/SettingsPage/PluginPage';
 import SettingsPage from './pages/SettingsPage/SettingsPage';
+import QuestListPage from './pages/QuestListPage/QuestListPage';
 import TaggingPage from './pages/TaggingPage/TaggingPage';
 import TTSConfigPage from './pages/TTSPage/TTSConfigPage';
 import TTSPage from './pages/TTSPage/TTSPage';
@@ -96,6 +97,7 @@ function App(): JSX.Element {
                 <Route path="/download" element={<DownloadFloating />} />
                 <Route path="/skill-tree" element={<SkillTreeSettings />} />
                 <Route path="/level-up" element={<LevelUpPage />} />
+                <Route path="/quest-list" element={<QuestListPage />} />
                 <Route path="/web-recorder" element={<WebRecorderWindow />} />
                 <Route path="/memory-graph" element={<MemoryGraphPage />} />
                 <Route path="/character-pack-editor" element={<SpritePackEditorWindow />} />

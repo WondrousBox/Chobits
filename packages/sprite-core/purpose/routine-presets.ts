@@ -284,6 +284,11 @@ const WORKSPACE_CREATE_NOTICE_ID = 'onboarding.workspace.create.invite';
 const WORKSPACE_CREATE_MANDATORY_REPROMPT_DELAY_MS = 5_000;
 const WORKSPACE_CREATE_NOTICE_WAIT_MS = 30 * 60 * 1000;
 const WORKSPACE_CREATE_WINDOW_HELPER_COOLDOWN_MS = 5 * 60 * 1000;
+const FIRST_FILE_DROP_NOTICE_ID = 'onboarding.file.drop.invite';
+const FIRST_FILE_DROP_WAIT_MS = 30 * 60 * 1000;
+const FIRST_FILE_DROP_HELP_COOLDOWN_MS = 60_000;
+const OPEN_RESOURCE_LIBRARY_NOTICE_ID = 'onboarding.resource.open-library.invite';
+const OPEN_RESOURCE_LIBRARY_WAIT_MS = 5 * 60 * 1000;
 
 /**
  * 新手引导 — 引导用户创建工作空间。
@@ -442,6 +447,143 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStep[] {
   ];
 }
 
+/**
+ * 新手引导 — 引导用户把第一个文件拖到角色身上。
+ *
+ * 真实导入仍由 useFileDropCollector + file.drop.invite/file.drop.intake 接管；
+ * 这里负责展示任务引导、说明拖拽价值，并等待资源创建事件后给出祝贺反馈。
+ */
+function createOnboardingFileDropRoutineSteps(): SpriteRoutineStep[] {
+  return [
+    { id: 'attention-wave', type: 'playAnimation', trigger: 'wave', durationMs: 900, waitFor: 'duration', silent: true },
+    { id: 'walk-drop-target', type: 'walkTo', target: 'center', speed: 130, timeoutMs: 8000 },
+    {
+      id: 'invite-file-drop-notice',
+      type: 'showNotice',
+      messageId: FIRST_FILE_DROP_NOTICE_ID,
+      content: getCharacterRoutineText('onboarding.file.drop.invite', undefined, '可以把文件拖拽给我存起来'),
+      level: 'info',
+      persistent: true,
+      speak: true
+    },
+    { id: 'await-wizard-result-pause', type: 'wait', durationMs: 1000 },
+    {
+      id: 'wait-first-file-drop',
+      type: 'loopUntil',
+      source: 'app-event',
+      untilEvent: ['RESOURCE_CREATED', 'SPRITE_RESOURCE_IMPORT_COMPLETE'],
+      match: { purposeSource: 'sprite-drop' },
+      maxDurationMs: FIRST_FILE_DROP_WAIT_MS,
+      assignTo: 'firstFileDropResult',
+      body: [
+        { id: 'drop-ready-pulse', type: 'playAnimation', trigger: 'fileDragOver', durationMs: 900, waitFor: 'duration', silent: true },
+        {
+          id: 'drop-intro-speak',
+          type: 'speak',
+          text: getCharacterRoutineText('onboarding.file.drop.intro', undefined, '拖给我的文件会进入资源库，之后就可以拿来整理、总结或继续处理。'),
+          bubbleDuration: 4200,
+          cooldownKey: 'onboarding.file.drop.intro',
+          cooldownMs: FIRST_FILE_DROP_HELP_COOLDOWN_MS
+        },
+        { id: 'drop-wait-pause', type: 'wait', durationMs: 5000 }
+      ]
+    },
+    {
+      id: 'first-file-drop-result',
+      type: 'branch',
+      by: 'firstFileDropResult.event.event',
+      cases: {
+        RESOURCE_CREATED: [
+          { id: 'clear-file-drop-notice', type: 'clearMessage', messageId: FIRST_FILE_DROP_NOTICE_ID, messageType: 'notice' },
+          { id: 'first-file-drop-celebrate', type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
+          {
+            id: 'first-file-drop-done',
+            type: 'speak',
+            text: getCharacterRoutineText('onboarding.file.drop.done', undefined, '收到啦！第一个文件已经进资源库了。'),
+            bubbleDuration: 3600
+          }
+        ],
+        SPRITE_RESOURCE_IMPORT_COMPLETE: [
+          { id: 'clear-file-drop-notice', type: 'clearMessage', messageId: FIRST_FILE_DROP_NOTICE_ID, messageType: 'notice' },
+          { id: 'first-file-drop-celebrate', type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
+          {
+            id: 'first-file-drop-done',
+            type: 'speak',
+            text: getCharacterRoutineText('onboarding.file.drop.done', undefined, '收到啦！第一个文件已经进资源库了。'),
+            bubbleDuration: 3600
+          }
+        ]
+      },
+      default: [
+        {
+          id: 'first-file-drop-timeout',
+          type: 'speak',
+          text: getCharacterRoutineText('onboarding.file.drop.invite', undefined, '可以把文件拖拽给我存起来'),
+          bubbleDuration: 3200
+        }
+      ]
+    },
+    { id: 'return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
+  ];
+}
+
+/**
+ * 新手引导 — 引导用户通过右键助手菜单打开资源库。
+ */
+function createOpenResourceLibraryRoutineSteps(): SpriteRoutineStep[] {
+  return [
+    { id: 'resource-menu-wave', type: 'playAnimation', trigger: 'wave', durationMs: 900, waitFor: 'duration', silent: true },
+    {
+      id: 'resource-menu-invite',
+      type: 'showNotice',
+      messageId: OPEN_RESOURCE_LIBRARY_NOTICE_ID,
+      content: getCharacterRoutineText('onboarding.resource.open-library.invite', undefined, '右键点我，打开菜单里的资源库。'),
+      level: 'info',
+      persistent: true,
+      speak: true
+    },
+    {
+      id: 'wait-context-menu-open',
+      type: 'waitForEvent',
+      source: 'sprite-event-bus',
+      event: 'interact:context-menu',
+      match: { 'payload.open': true },
+      timeoutMs: OPEN_RESOURCE_LIBRARY_WAIT_MS,
+      assignTo: 'contextMenuOpenEvent',
+      ignoreHistory: true
+    },
+    {
+      id: 'resource-menu-tip',
+      type: 'speak',
+      text: getCharacterRoutineText('onboarding.resource.open-library.menu-tip', undefined, '现在点菜单里的「资源库」。'),
+      bubbleDuration: 3600
+    },
+    {
+      id: 'wait-resource-library-open',
+      type: 'waitForEvent',
+      source: 'app-event',
+      event: 'ASSISTANT_MENU_ITEM_SELECTED',
+      match: {
+        'payload.itemId': 'resources',
+        'payload.windowKey': 'resources',
+        'payload.source': 'assistant-context-menu'
+      },
+      timeoutMs: OPEN_RESOURCE_LIBRARY_WAIT_MS,
+      assignTo: 'resourceLibraryOpenEvent',
+      ignoreHistory: true
+    },
+    { id: 'clear-resource-menu-notice', type: 'clearMessage', messageId: OPEN_RESOURCE_LIBRARY_NOTICE_ID, messageType: 'notice' },
+    { id: 'resource-menu-celebrate', type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
+    {
+      id: 'resource-menu-done',
+      type: 'speak',
+      text: getCharacterRoutineText('onboarding.resource.open-library.done', undefined, '打开啦！以后导入的文件都可以在资源库里整理。'),
+      bubbleDuration: 3800
+    },
+    { id: 'return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
+  ];
+}
+
 export const DEFAULT_SPRITE_ROUTINE_PRESETS: SpriteRoutinePresetDefinition[] = [
   {
     id: 'idle.presence',
@@ -498,6 +640,20 @@ export const DEFAULT_SPRITE_ROUTINE_PRESETS: SpriteRoutinePresetDefinition[] = [
     purposeKind: 'onboarding.workspace.create',
     defaultPriority: 70,
     steps: createWorkspaceCreateRoutineSteps
+  },
+  {
+    id: 'onboarding.file.drop',
+    title: '新手引导：拖拽导入文件',
+    purposeKind: 'onboarding.file.drop',
+    defaultPriority: 68,
+    steps: createOnboardingFileDropRoutineSteps
+  },
+  {
+    id: 'onboarding.resource.open-library',
+    title: '新手引导：打开资源库',
+    purposeKind: 'onboarding.resource.open-library',
+    defaultPriority: 66,
+    steps: createOpenResourceLibraryRoutineSteps
   }
 ];
 

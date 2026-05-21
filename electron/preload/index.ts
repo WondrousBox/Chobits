@@ -24,6 +24,7 @@ import { mediaIpcRenderer } from '../main/handlers/media/ipc-renderer';
 import { createMediaTrackIpcRenderer } from '../main/handlers/mediaTrack/ipc-renderer';
 import { preferencesIpcRenderer } from '../main/handlers/preferences/ipc-renderer';
 import { proxyIpcRenderer } from '../main/handlers/proxy/ipc-renderer';
+import { questIpcRenderer } from '../main/handlers/quest/ipc-renderer';
 import { resourceIpcRenderer } from '../main/handlers/resource/ipc-renderer';
 import { createRssApi } from '../main/handlers/rss/ipc-renderer';
 import { spleeterIpcRenderer } from '../main/handlers/spleeter/ipc-renderer';
@@ -120,6 +121,7 @@ contextBridge.exposeInMainWorld('YUA', {
   theme: themeIpcRenderer,
   sherpa: sherpaIpcRenderer,
   preferences: preferencesIpcRenderer,
+  quest: questIpcRenderer,
   musicReactivity: musicReactivityIpcRenderer,
   ytdlp: ytdlpIpcRenderer,
   spleeter: spleeterIpcRenderer,

@@ -24,6 +24,7 @@ declare module '@aim-packages/window-manager' {
     tts: void;
     skillTree: void;
     levelUp: void;
+    questList: void;
     webRecorder: void;
     memoryGraph: void;
     characterPackEditor: void;
@@ -589,6 +590,38 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       show: false,
       backgroundColor: '#00000000',
       webPreferences: { nodeIntegration: true, contextIsolation: true }
+    }
+  },
+  questList: {
+    routeHash: 'quest-list',
+    autoCenterOn: 'parent-display',
+    showOnReady: false,
+    openDevTools: false,
+    rememberState: true,
+    options: {
+      width: 520,
+      height: 640,
+      minWidth: 460,
+      minHeight: 420,
+      frame: false,
+      transparent: false,
+      resizable: true,
+      alwaysOnTop: false,
+      skipTaskbar: false,
+      show: false,
+      backgroundColor: '#ffffff',
+      autoHideMenuBar: true,
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
+    },
+    platformOverlays: {
+      darwin: {
+        options: {
+          titleBarStyle: 'hiddenInset',
+          titleBarOverlay: true,
+          trafficLightPosition: { x: 20, y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2 },
+          frame: true
+        }
+      }
     }
   },
   webRecorder: {
