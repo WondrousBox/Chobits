@@ -354,24 +354,16 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStep[] {
                         {
                           id: 'speak-workspace-intro',
                           type: 'speak',
-                          text: getCharacterRoutineText(
-                            'onboarding.workspace.create.workspace-intro',
-                            undefined,
-                            '工作空间会存放所有重要的数据。'
-                          ),
+                          text: getCharacterRoutineText('onboarding.workspace.create.workspace-intro', undefined, '工作空间会存放所有重要的数据。'),
                           bubbleDuration: 5200,
                           cooldownKey: 'onboarding.workspace.create.workspace-intro',
                           cooldownMs: WORKSPACE_CREATE_WINDOW_HELPER_COOLDOWN_MS
                         },
-                        { id: 'workspace-intro-breath', type: 'wait', durationMs: 800 },
+                        { id: 'workspace-intro-breath', type: 'wait', durationMs: 5000 },
                         {
                           id: 'speak-workspace-quickstart-tip',
                           type: 'speak',
-                          text: getCharacterRoutineText(
-                            'onboarding.workspace.create.quickstart-tip',
-                            undefined,
-                            '这里可以先用快速创建，默认目录就能开始；以后也可以再调整。'
-                          ),
+                          text: getCharacterRoutineText('onboarding.workspace.create.quickstart-tip', undefined, '这里可以先用快速创建，默认目录就能开始；以后也可以再调整。'),
                           bubbleDuration: 4200,
                           cooldownKey: 'onboarding.workspace.create.quickstart-tip',
                           cooldownMs: WORKSPACE_CREATE_WINDOW_HELPER_COOLDOWN_MS
@@ -433,7 +425,7 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStep[] {
           {
             id: 'speak-done',
             type: 'speak',
-            text: getCharacterRoutineText('onboarding.workspace.create.done', undefined, '恭喜~工作空间建好啦！现在右键点我可以做更多事情啦。'),
+            text: getCharacterRoutineText('onboarding.workspace.create.done', undefined, '工作空间建好啦！我可以做更多事情啦。'),
             bubbleDuration: 3600
           }
         ]

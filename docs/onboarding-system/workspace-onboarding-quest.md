@@ -212,7 +212,7 @@ export function createWorkspaceCreateRoutineSteps(_: SpritePurpose): SpriteRouti
           {
             id: 'speak-done',
             type: 'speak',
-            text: getCharacterRoutineText('onboarding.workspace.create.done', undefined, '恭喜~工作空间建好啦！现在右键点我可以做更多事情啦。'),
+            text: getCharacterRoutineText('onboarding.workspace.create.done', undefined, '工作空间建好啦！我可以做更多事情啦。'),
             bubbleDuration: 3600
           }
         ]
@@ -289,7 +289,7 @@ window.YUA.sprite.startPurpose({
 'onboarding.workspace.create.invite': '没有找到工作空间，点这里立即创建吧。',
 'onboarding.workspace.create.workspace-intro': '工作空间会存放所有重要的数据。',
 'onboarding.workspace.create.quickstart-tip': '这里可以先用快速创建，默认目录就能开始；以后也可以再调整。',
-'onboarding.workspace.create.done': '恭喜~工作空间建好啦！现在右键点我可以做更多事情啦。',
+'onboarding.workspace.create.done': '工作空间建好啦！我可以做更多事情啦。',
 'onboarding.workspace.create.closed-without-create': '还没有创建工作空间哦。先点这里创建一个吧。'
 ```
 
