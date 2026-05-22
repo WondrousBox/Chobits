@@ -17,7 +17,7 @@ import type { ToastMessage } from '../types';
 interface ToastRendererProps {
   message: ToastMessage;
   className?: string;
-  placement?: 'inline' | 'external';
+  placement?: 'inline' | 'fixed-top';
 }
 
 /** 等级样式映射 */
@@ -50,7 +50,7 @@ export function ToastRenderer({ message, className, placement = 'inline' }: Toas
         // 基础样式
         'rounded-xl shadow-lg backdrop-blur-sm',
         'px-4 py-2 text-xs text-center',
-        placement === 'external' ? 'min-w-48 w-fit max-w-[440px] whitespace-normal break-words leading-relaxed' : 'max-w-[280px] w-48 whitespace-normal break-words',
+        placement === 'fixed-top' ? 'min-w-48 w-fit max-w-[440px] whitespace-normal break-words leading-relaxed' : 'max-w-[280px] w-48 whitespace-normal break-words',
         // 等级样式
         levelStyles[level],
         className

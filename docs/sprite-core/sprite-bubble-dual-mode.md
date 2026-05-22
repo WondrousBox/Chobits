@@ -1,4 +1,4 @@
-# 桌面精灵多模式气泡展示系统
+# 桌面精灵双模式气泡展示系统
 
 ## 背景
 
@@ -7,14 +7,13 @@
 - 主窗口尺寸 = 精灵尺寸 + `padding*2`，带来大块透明/穿透区域
 - 气泡内容长度变化时只能受 `padding` 限制，气泡无法自由扩张
 
-为解决上述问题，引入了**多模式气泡展示**：保留传统 inline 模式，新增 external 自适应跟随窗口模式与默认的 fixed-top 顶部跟随模式。
+为解决上述问题，引入了**双模式气泡展示**：保留传统 inline 模式，并新增默认的 fixed-top 顶部跟随窗口模式。
 
-## 三种模式
+## 两种模式
 
 | 模式 | 说明 | padding 行为 | 气泡承载 |
 |------|------|-------------|---------|
 | `inline` | 气泡渲染在主精灵窗口内，沿用 `padding` 撑出的空白区域 | 使用持久化的真实 `padding` | 主窗口内的 `<SpriteMessage />` |
-| `external` | 气泡由独立的 `spriteBubble` 自适应跟随窗口承载，优先显示在主窗口上方，空间不足时可切换方向 | 运行期强制为 `0`，持久化原值保留 | 独立窗口的 `<SpriteMessage />` |
 | `fixed-top`（默认） | 气泡由独立的 `spriteBubbleFixedTop` 窗口承载，固定在主窗口上方并跟随主窗口移动 | 运行期强制为 `0`，持久化原值保留 | 独立窗口的 `<SpriteMessage />` |
 
 ## 架构概览
@@ -29,14 +28,13 @@
 │    ├── sendMessageBridge() → broadcasts to:           │
 │    │     ├── this.win (主精灵窗口)                     │
 │    │     └── getMessageRecipients()                    │
-│    │         (spriteBubble / spriteBubbleFixedTop)      │
+│    │         (spriteBubbleFixedTop)                     │
 │    └── emitConfigChanged() → 同上广播                  │
 │                                                       │
 │  WindowController / MovementCoordinator                │
 │    └── 使用 getEffectivePadding() 计算尺寸/视口        │
 │                                                       │
 │  windowManager                                        │
-│    ├── create('spriteBubble')                         │
 │    ├── create('spriteBubbleFixedTop')                 │
 │    └── updateFollowerPositionsManually()              │
 │                                                       │
@@ -84,8 +82,8 @@
 
 | 文件 | 变更内容 |
 |------|---------|
-| `electron/main/config/window.ts` | `CustomWindowKeys.spriteBubble`、`spriteBubbleFixedTop`；前者使用 `followMain: true` + `followerPreferMode: 'prefer-top'`，后者使用 `followMain: true` + `followerPreferMode: 'fixed-top'` |
-| `electron/main/handlers/window.ts` | 注册 `sprite:bubble:resize`、`sprite:bubble:setVisible` IPC；按发送方识别当前气泡窗口并触发 follower reposition；预创建两个气泡窗口 |
+| `electron/main/config/window.ts` | `CustomWindowKeys.spriteBubbleFixedTop`；使用 `followMain: true` + `followerPreferMode: 'fixed-top'` |
+| `electron/main/handlers/window.ts` | 注册 `sprite:bubble:resize`、`sprite:bubble:setVisible` IPC；按发送方识别当前气泡窗口并触发 follower reposition；预创建 `spriteBubbleFixedTop` |
 
 ### 渲染层
 
@@ -121,7 +119,7 @@ SpriteManager.emitConfigChanged()
 1. `SpriteBubblePage` 中 `ResizeObserver` 检测到内容尺寸变化
 2. 节流后调用 `window.YUA.sprite.bubbleResize(width, height)`
 3. 主进程 `sprite:bubble:resize` handler 根据发送方找到当前气泡窗口并调用 `setSize`
-4. 主进程触发 `updateFollowerPositionsManually()`；`external` 会按 `prefer-top` 自适应定位，`fixed-top` 会按 manager 的 `fixed-top` follower 模式固定在主窗口上方
+4. 主进程触发 `updateFollowerPositionsManually()`；`fixed-top` 会按 manager 的 `fixed-top` follower 模式固定在主窗口上方
 
 ### 可见性管理
 
@@ -180,19 +178,13 @@ const effectivePadding = isBubbleWindowMode(bubbleMode) ? 0 : padding;
 ## 验证清单
 
 - [ ] inline 模式下：现有 toast/notice/busy 行为不变；调试 overlay/拖拽热区一致
-- [ ] external 模式下：
-  - [ ] 启动时 `spriteBubble` 已存在但隐藏
-  - [ ] 触发 `showToast`/`speak` 后气泡窗口立即出现在精灵上方
-  - [ ] 长文本/多行内容下窗口宽高自适应且仍跟随
-  - [ ] 气泡消失后窗口隐藏
-  - [ ] 主精灵窗口尺寸缩到 `width × height`，padding 持久化值保留
 - [ ] fixed-top 模式下：
   - [ ] 启动时 `spriteBubbleFixedTop` 已存在但隐藏
   - [ ] 触发 `showToast`/`speak` 后气泡窗口固定在主窗口上方
   - [ ] 长文本/多行内容下窗口宽高自适应且仍保持在主窗口上方居中
   - [ ] 主精灵移动时气泡继续跟随，但不自动切换到左/右/下方
+  - [ ] 主精灵窗口尺寸缩到 `width × height`，padding 持久化值保留
 - [ ] 切换开关：
-  - [ ] inline → external：主窗口缩小、气泡窗口接管显示
-  - [ ] external → inline：主窗口恢复 padding 总尺寸、气泡窗口隐藏
-  - [ ] external ↔ fixed-top：旧气泡窗口隐藏，新模式收到后续气泡消息
+  - [ ] inline → fixed-top：主窗口缩小、气泡窗口接管显示
+  - [ ] fixed-top → inline：主窗口恢复 padding 总尺寸、气泡窗口隐藏
 - [ ] `pnpm test` 通过；TypeScript 编译无新增错误

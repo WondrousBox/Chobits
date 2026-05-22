@@ -242,6 +242,24 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         }
       },
       {
+        id: 'inventory',
+        label: '背包',
+        icon: '🎒',
+        shortcut: 'b',
+        action: () => {
+          void window.YUA.sprite.emitPurposeEvent({
+            source: 'app-event',
+            event: 'ASSISTANT_MENU_ITEM_SELECTED',
+            payload: {
+              itemId: 'inventory',
+              windowKey: 'inventory',
+              source: 'assistant-context-menu'
+            }
+          });
+          window.YUA.window['window:open']('inventory');
+        }
+      },
+      {
         id: 'quests',
         label: '任务',
         icon: '🏆',

@@ -434,7 +434,7 @@ export const CHARACTER_MESSAGE_SPECS = [
     section: 'routines',
     key: 'onboarding.workspace.create.closed-without-create',
     label: '工作空间关闭未创建',
-    neutral: () => ['还没有创建工作空间哦。先点这里创建一个吧。']
+    neutral: () => ['还没有创建工作空间哦。']
   },
   {
     field: 'onboardingFileDropInvite',

@@ -191,7 +191,7 @@ export function createWorkspaceCreateRoutineSteps(_: SpritePurpose): SpriteRouti
                             id: 'closed-without-create',
                             type: 'showNotice',
                             messageId: 'onboarding.workspace.create.invite',
-                            content: getCharacterRoutineText('onboarding.workspace.create.closed-without-create', undefined, '还没有创建工作空间哦。先点这里创建一个吧。'),
+                            content: getCharacterRoutineText('onboarding.workspace.create.closed-without-create', undefined, '还没有创建工作空间哦。'),
                             level: 'warning',
                             persistent: true,
                             buttons: [{ id: 'focus-wizard', label: '去创建', variant: 'default', purposeAction: 'open-wizard' }],
@@ -313,7 +313,7 @@ window.YUA.sprite.startPurpose({
 'onboarding.workspace.create.workspace-intro': '工作空间会存放所有重要的数据。',
 'onboarding.workspace.create.quickstart-tip': '这里可以先用快速创建，默认目录就能开始；以后也可以再调整。',
 'onboarding.workspace.create.done': '工作空间建好啦！我可以做更多事情啦。',
-'onboarding.workspace.create.closed-without-create': '还没有创建工作空间哦。先点这里创建一个吧。'
+'onboarding.workspace.create.closed-without-create': '还没有创建工作空间哦。'
 ```
 
 ## 8. 测试用例

@@ -30,6 +30,8 @@ const SETTINGS_CATEGORIES = new Set(['preferences', 'workspace', 'ai', 'user-pro
 const WINDOW_ANIMATION_PRESET_IDS = new Set(['fly-in', 'fade-in', 'zoom-in', 'fly-out', 'fade-out', 'zoom-out', 'pulse', 'shake']);
 const CHAT_AGENT_IDS = new Set(['assistant', 'chat', 'coder', 'assistant-skills']);
 const CJK_SEARCH_TERMS = [
+  '打开物品栏',
+  '打开背包',
   '打开资源库',
   '预览资源',
   '打开资源',
@@ -43,6 +45,8 @@ const CJK_SEARCH_TERMS = [
   '打开音频',
   '播放视频',
   '播放音频',
+  '物品栏',
+  '背包',
   '资源库',
   '设置',
   '资源',
@@ -187,6 +191,12 @@ export const APP_WINDOW_TOOL_DIRECTORY: AppWindowToolEntry[] = [
     title: '资源库',
     description: '打开资源管理窗口。适用于用户想浏览、查找、管理资源库时。',
     aliases: ['资源', '资源库', '文件库', '打开资源库', '浏览资源', '管理资源', 'resources']
+  },
+  {
+    key: 'inventory',
+    title: '背包',
+    description: '打开游戏化物品栏窗口，以纯网格方式浏览和管理资源库内容。',
+    aliases: ['背包', '物品栏', '道具栏', '打开背包', '打开物品栏', 'inventory']
   },
   {
     key: 'chat',
