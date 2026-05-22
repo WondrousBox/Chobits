@@ -1525,7 +1525,7 @@ describe('SpriteRoutinePresetRegistry', () => {
         'notice:onboarding.workspace.create.invite:没有找到工作空间，点这里立即创建吧。',
         'open:workspaceWizard',
         'walk:workspaceWizard',
-        'notice:onboarding.workspace.create.invite:还没有创建工作空间哦。先点这里创建一个吧。',
+        'notice:onboarding.workspace.create.invite:还没有创建工作空间哦。',
         'clear:onboarding.workspace.create.invite',
         'play:celebrate',
         'speak:工作空间建好啦！我可以做更多事情啦。'

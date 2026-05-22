@@ -8,6 +8,7 @@ declare module '@aim-packages/window-manager' {
     settings: void;
     workspaceWizard: void;
     resources: void;
+    inventory: void;
     assistant: void;
     assistantMini: void;
     pluginManager: void;
@@ -177,6 +178,38 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     options: {
       width: 1300,
       height: 720,
+      frame: false,
+      transparent: false,
+      resizable: true,
+      alwaysOnTop: false,
+      skipTaskbar: false,
+      backgroundColor: '#ffffff',
+      show: false,
+      autoHideMenuBar: true,
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
+    },
+    platformOverlays: {
+      darwin: {
+        options: {
+          titleBarStyle: 'hiddenInset',
+          titleBarOverlay: true,
+          trafficLightPosition: { x: 20, y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2 },
+          frame: true
+        }
+      }
+    }
+  },
+  inventory: {
+    routeHash: 'inventory',
+    autoCenterOn: 'parent-display',
+    showOnReady: true,
+    openDevTools: false,
+    rememberState: true,
+    options: {
+      width: 960,
+      height: 640,
+      minWidth: 520,
+      minHeight: 420,
       frame: false,
       transparent: false,
       resizable: true,

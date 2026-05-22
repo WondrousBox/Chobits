@@ -16,7 +16,7 @@ import type { BusyMessage, NoticeMessage, ToastMessage } from './types';
 
 interface SpriteMessageProps {
   className?: string;
-  placement?: 'inline' | 'external';
+  placement?: 'inline' | 'fixed-top';
 }
 
 export function SpriteMessage({ className, placement = 'inline' }: SpriteMessageProps): JSX.Element | null {

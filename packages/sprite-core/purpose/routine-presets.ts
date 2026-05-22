@@ -386,7 +386,7 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStep[] {
                             id: 'closed-without-create',
                             type: 'showNotice',
                             messageId: WORKSPACE_CREATE_NOTICE_ID,
-                            content: getCharacterRoutineText('onboarding.workspace.create.closed-without-create', undefined, '还没有创建工作空间哦。先点这里创建一个吧。'),
+                            content: getCharacterRoutineText('onboarding.workspace.create.closed-without-create', undefined, '还没有创建工作空间哦。'),
                             level: 'warning',
                             persistent: true,
                             buttons: [{ id: 'focus-wizard', label: '去创建', variant: 'default', purposeAction: 'open-wizard' }],

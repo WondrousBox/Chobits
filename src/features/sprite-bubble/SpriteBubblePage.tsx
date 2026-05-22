@@ -138,16 +138,16 @@ function SpriteBubbleContent(): JSX.Element | null {
 
   return (
     <div className="fixed inset-0 flex items-end justify-center overflow-visible pointer-events-none select-none">
-      <div className="inline-flex w-full max-w-[504px] items-end justify-center overflow-visible px-3 pt-3 pb-2">
-        <SpriteMessage placement="external" />
+      <div className="inline-flex w-full max-w-[504px] items-end justify-center overflow-visible px-3 pt-3 pb-0">
+        <SpriteMessage placement="fixed-top" />
       </div>
       <div
         ref={measureRef}
         aria-hidden="true"
-        className="invisible fixed left-0 top-0 inline-flex w-max max-w-[504px] items-end justify-center overflow-visible px-3 pt-3 pb-2 pointer-events-none select-none"
+        className="invisible fixed left-0 top-0 inline-flex w-max max-w-[504px] items-end justify-center overflow-visible px-3 pt-3 pb-0 pointer-events-none select-none"
         style={MEASURE_LAYER_STYLE}
       >
-        <SpriteMessage placement="external" />
+        <SpriteMessage placement="fixed-top" />
       </div>
     </div>
   );

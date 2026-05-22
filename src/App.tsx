@@ -23,6 +23,7 @@ import AiProviderConfigWindow from './pages/AiProviderConfigWindow/AiProviderCon
 import AssistantMenuPage from './pages/AssistantMenuPage/AssistantMenuPage';
 import ChatPage from './pages/ChatPage/ChatPage';
 import AssistantPage from './pages/ChatPage/StartPage';
+import InventoryPage from './pages/InventoryPage/InventoryPage';
 import MemoryGraphPage from './pages/MemoryGraphPage/MemoryGraphPage';
 import ASRConfigPage from './pages/RecordingPage/ASRConfigPage';
 import RecordingPage from './pages/RecordingPage/RecordingPage';
@@ -79,6 +80,7 @@ function App(): JSX.Element {
                 />
                 <Route path="/workspace-wizard" element={<WorkspaceWizard />} />
                 <Route path="/resources/*" element={<ResourcePage />} />
+                <Route path="/inventory" element={<InventoryPage />} />
                 <Route path="/workspace" element={<WorkspacePage />} />
                 <Route path="/assistant" element={<AssistantPage />} />
                 <Route path="/assistant-mini" element={<AssistantPage mode="mini" />} />
