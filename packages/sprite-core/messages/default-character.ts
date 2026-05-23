@@ -403,7 +403,7 @@ export const CHARACTER_MESSAGE_SPECS = [
     section: 'routines',
     key: 'onboarding.workspace.create.invite',
     label: '工作空间引导提示',
-    neutral: () => ['没有找到工作空间，点这里立即创建吧。']
+    neutral: () => ['没有找到工作空间，先创建吧。']
   },
   {
     field: 'workspaceCreateIntro',
@@ -420,7 +420,7 @@ export const CHARACTER_MESSAGE_SPECS = [
     key: 'onboarding.workspace.create.quickstart-tip',
     label: '工作空间快速创建提示',
     maxItems: 4,
-    neutral: () => ['这里可以先用快速创建，默认目录就能开始；以后也可以再调整。']
+    neutral: () => ['可以用快速创建就能开始，以后也可以再调整。']
   },
   {
     field: 'workspaceCreateDone',

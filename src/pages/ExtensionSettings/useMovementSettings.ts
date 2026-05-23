@@ -12,7 +12,7 @@ export function useMovementSettings(options?: SpriteCapabilityGuardOptions): {
   capability: SpriteCapabilityState | null;
   handleToggle: (checked: boolean) => Promise<void>;
 } {
-  const [enabled, setEnabled] = useState(true);
+  const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

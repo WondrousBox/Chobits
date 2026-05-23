@@ -519,39 +519,7 @@ describe('sprite manager IPC integration', () => {
     expect(setAutoWalk).toBeTypeOf('function');
     expect(electronState.handlers.has('getAutoWalkEnabled')).toBe(false);
     expect(electronState.handlers.has('setAutoWalkEnabled')).toBe(false);
-    expect(getAutoWalk?.()).toBe(true);
-
-    expect(setAutoWalk?.({} as never, { enabled: false })).toBe(false);
     expect(getAutoWalk?.()).toBe(false);
-
-    expect(windowStub.sent).toContainEqual({
-      channel: 'sprite:config',
-      payload: {
-        width: 200,
-        height: 200,
-        padding: 100,
-        animationPlaylistMode: 'list-loop',
-        autoWalkEnabled: false,
-        showDebugOverlay: false,
-        bubbleMode: 'fixed-top'
-      }
-    });
-    expect(auxWindow.sent).toContainEqual({
-      channel: 'sprite:config',
-      payload: {
-        width: 200,
-        height: 200,
-        padding: 100,
-        animationPlaylistMode: 'list-loop',
-        autoWalkEnabled: false,
-        showDebugOverlay: false,
-        bubbleMode: 'fixed-top'
-      }
-    });
-    expect(auxWindow.sent).toContainEqual({
-      channel: 'sprite:capabilities:changed',
-      payload: { source: 'movement.autoWalk' }
-    });
 
     expect(setAutoWalk?.({} as never, { enabled: true })).toBe(true);
     expect(getAutoWalk?.()).toBe(true);
@@ -584,6 +552,38 @@ describe('sprite manager IPC integration', () => {
       channel: 'sprite:capabilities:changed',
       payload: { source: 'movement.autoWalk' }
     });
+
+    expect(setAutoWalk?.({} as never, { enabled: false })).toBe(false);
+    expect(getAutoWalk?.()).toBe(false);
+
+    expect(windowStub.sent).toContainEqual({
+      channel: 'sprite:config',
+      payload: {
+        width: 200,
+        height: 200,
+        padding: 100,
+        animationPlaylistMode: 'list-loop',
+        autoWalkEnabled: false,
+        showDebugOverlay: false,
+        bubbleMode: 'fixed-top'
+      }
+    });
+    expect(auxWindow.sent).toContainEqual({
+      channel: 'sprite:config',
+      payload: {
+        width: 200,
+        height: 200,
+        padding: 100,
+        animationPlaylistMode: 'list-loop',
+        autoWalkEnabled: false,
+        showDebugOverlay: false,
+        bubbleMode: 'fixed-top'
+      }
+    });
+    expect(auxWindow.sent).toContainEqual({
+      channel: 'sprite:capabilities:changed',
+      payload: { source: 'movement.autoWalk' }
+    });
   });
 
   it('exposes animation playlist mode IPC handlers and broadcasts the shared config snapshot', async () => {
@@ -607,7 +607,7 @@ describe('sprite manager IPC integration', () => {
         height: 200,
         padding: 100,
         animationPlaylistMode: 'single-loop',
-        autoWalkEnabled: true,
+        autoWalkEnabled: false,
         showDebugOverlay: false,
         bubbleMode: 'fixed-top'
       }
@@ -625,7 +625,7 @@ describe('sprite manager IPC integration', () => {
         animationPlaylistModes: {
           idle: 'list-once'
         },
-        autoWalkEnabled: true,
+        autoWalkEnabled: false,
         showDebugOverlay: false,
         bubbleMode: 'fixed-top'
       }

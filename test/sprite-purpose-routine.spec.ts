@@ -1209,7 +1209,7 @@ describe('SpriteRoutinePresetRegistry', () => {
             expect.objectContaining({
               id: 'speak-workspace-quickstart-tip',
               type: 'speak',
-              text: '这里可以先用快速创建，默认目录就能开始；以后也可以再调整。',
+              text: '可以用快速创建就能开始，以后也可以再调整。',
               cooldownKey: 'onboarding.workspace.create.quickstart-tip'
             })
           ])
@@ -1522,7 +1522,7 @@ describe('SpriteRoutinePresetRegistry', () => {
     expect(result.ok).toBe(true);
     expect(calls).toEqual(
       expect.arrayContaining([
-        'notice:onboarding.workspace.create.invite:没有找到工作空间，点这里立即创建吧。',
+        'notice:onboarding.workspace.create.invite:没有找到工作空间，先创建吧。',
         'open:workspaceWizard',
         'walk:workspaceWizard',
         'notice:onboarding.workspace.create.invite:还没有创建工作空间哦。',
@@ -1628,11 +1628,11 @@ describe('SpriteRoutinePresetRegistry', () => {
     expect(result.ok, result.error).toBe(true);
     expect(calls).toEqual(
       expect.arrayContaining([
-        'notice:onboarding.workspace.create.invite:没有找到工作空间，点这里立即创建吧。',
+        'notice:onboarding.workspace.create.invite:没有找到工作空间，先创建吧。',
         'open:workspaceWizard',
         'walk:workspaceWizard',
         'speak:speak-workspace-intro:工作空间会存放所有重要的数据。',
-        'speak:speak-workspace-quickstart-tip:这里可以先用快速创建，默认目录就能开始；以后也可以再调整。',
+        'speak:speak-workspace-quickstart-tip:可以用快速创建就能开始，以后也可以再调整。',
         'clear:onboarding.workspace.create.invite',
         'speak:speak-done:工作空间建好啦！我可以做更多事情啦。'
       ])
