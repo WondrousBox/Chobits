@@ -1,5 +1,6 @@
 import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
 import { WorkspacesRepo } from '@packages/common/db';
+import { AppEvent, eventManager } from '@packages/event';
 import { Type } from '@sinclair/typebox';
 
 import { getTodayMemoryDate } from '../../../services/memory-date';
@@ -87,6 +88,16 @@ export function createPiMemorySaveTool(toolContext: PiSessionToolContext): ToolD
         };
 
         await writeMemory(merged, { workspaceRoot: ws.rootPath }, buildWriteDbOps());
+
+        eventManager.emit(AppEvent.MEMORY_SAVED, {
+          noteId: merged.noteId,
+          topic: topicLabel,
+          topicSlug,
+          conversationId,
+          workspaceId,
+          filePath,
+          source: 'memory-save-tool'
+        });
 
         return createJsonToolResult({
           success: true,

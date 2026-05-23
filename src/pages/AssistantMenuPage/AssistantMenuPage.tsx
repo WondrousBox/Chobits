@@ -80,6 +80,19 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
     [checkBubbleMode]
   );
 
+  const emitAssistantMenuItemSelected = useCallback((itemId: string, windowKey?: string, payload?: Record<string, unknown>) => {
+    void window.YUA.sprite.emitPurposeEvent({
+      source: 'app-event',
+      event: 'ASSISTANT_MENU_ITEM_SELECTED',
+      payload: {
+        itemId,
+        windowKey,
+        source: 'assistant-context-menu',
+        ...payload
+      }
+    });
+  }, []);
+
   const toggleDebugOverlay = useCallback(async () => {
     const next = !debugOverlay;
     setDebugOverlay(next);
@@ -126,6 +139,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
             onDisabledAction: () => showLockedCapabilityToast('语音识别服务', ['speechRecognition']),
             action: async () => {
               if (isASRRunning) {
+                emitAssistantMenuItemSelected('asr-service', undefined, { action: 'stop' });
                 // 停止 ASR 服务
                 try {
                   await window.YUA.sherpa.freeInstance();
@@ -137,6 +151,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
                 }
               } else {
                 // 打开 ASR 配置页面来启动服务
+                emitAssistantMenuItemSelected('asr-service', 'asrConfig', { action: 'start' });
                 window.YUA.window['window:open']('asrConfig');
               }
             }
@@ -149,6 +164,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
             disabled: Boolean(getFirstLockedSpriteCapability(capabilitySnapshot, ['speechRecognition'])),
             onDisabledAction: () => showLockedCapabilityToast('麦克风识别', ['speechRecognition']),
             action: () => {
+              emitAssistantMenuItemSelected('mic-recording', 'asr', { audioSource: 'microphone' });
               window.YUA.window['window:open']('asr' as any, { audioSource: 'microphone' });
             }
           },
@@ -160,6 +176,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
             disabled: Boolean(getFirstLockedSpriteCapability(capabilitySnapshot, ['systemAudio', 'speechRecognition'])),
             onDisabledAction: () => showLockedCapabilityToast('电脑声音识别', ['systemAudio', 'speechRecognition']),
             action: () => {
+              emitAssistantMenuItemSelected('system-audio-recording', 'asr', { audioSource: 'system-audio' });
               window.YUA.window['window:open']('asr' as any, { audioSource: 'system-audio' });
             }
           },
@@ -171,6 +188,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
             disabled: Boolean(getFirstLockedSpriteCapability(capabilitySnapshot, ['microphone'])),
             onDisabledAction: () => showLockedCapabilityToast('纯录制', ['microphone']),
             action: () => {
+              emitAssistantMenuItemSelected('web-recorder', 'webRecorder');
               window.YUA.window['window:open']('webRecorder');
             }
           },
@@ -180,6 +198,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
             icon: '🔊',
             shortcut: 'v',
             action: () => {
+              emitAssistantMenuItemSelected('tts-config', 'ttsConfig');
               window.YUA.window['window:open']('ttsConfig');
             }
           }
@@ -220,6 +239,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         icon: '🗨️',
         shortcut: 'c',
         action: () => {
+          emitAssistantMenuItemSelected('chat', 'chat');
           window.YUA.window['window:open']('chat');
         }
       },
@@ -229,15 +249,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         icon: '📚',
         shortcut: 'r',
         action: () => {
-          void window.YUA.sprite.emitPurposeEvent({
-            source: 'app-event',
-            event: 'ASSISTANT_MENU_ITEM_SELECTED',
-            payload: {
-              itemId: 'resources',
-              windowKey: 'resources',
-              source: 'assistant-context-menu'
-            }
-          });
+          emitAssistantMenuItemSelected('resources', 'resources');
           window.YUA.window['window:open']('resources');
         }
       },
@@ -247,15 +259,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         icon: '🎒',
         shortcut: 'b',
         action: () => {
-          void window.YUA.sprite.emitPurposeEvent({
-            source: 'app-event',
-            event: 'ASSISTANT_MENU_ITEM_SELECTED',
-            payload: {
-              itemId: 'inventory',
-              windowKey: 'inventory',
-              source: 'assistant-context-menu'
-            }
-          });
+          emitAssistantMenuItemSelected('inventory', 'inventory');
           window.YUA.window['window:open']('inventory');
         }
       },
@@ -265,6 +269,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         icon: '🏆',
         shortcut: 'j',
         action: () => {
+          emitAssistantMenuItemSelected('quests', 'questList');
           window.YUA.window['window:open']('questList' as any);
         }
       },
@@ -274,6 +279,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         icon: '🌳',
         shortcut: 'k',
         action: () => {
+          emitAssistantMenuItemSelected('skill-tree', 'skillTree');
           window.YUA.window['window:open']('skillTree');
         }
       },
@@ -290,6 +296,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         icon: '🧠',
         shortcut: 'g',
         action: () => {
+          emitAssistantMenuItemSelected('memory-graph', 'memoryGraph');
           window.YUA.window['window:open']('memoryGraph');
         }
       },
@@ -324,7 +331,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         }
       }
     ],
-    [bubbleMode, capabilitySnapshot, debugOverlay, isASRRunning, refreshCapabilitySnapshot, setSpriteBubbleMode, showLockedCapabilityToast, toggleDebugOverlay]
+    [bubbleMode, capabilitySnapshot, debugOverlay, emitAssistantMenuItemSelected, isASRRunning, refreshCapabilitySnapshot, setSpriteBubbleMode, showLockedCapabilityToast, toggleDebugOverlay]
   );
 
   // 处理菜单关闭请求（播放退出动画后关闭窗口）

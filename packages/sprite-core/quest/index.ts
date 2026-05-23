@@ -1,5 +1,13 @@
 export type { OnboardingPresetDeps } from './onboarding-presets';
-export { createFirstFileDropQuest, createOnboardingQuestRegistry, createOpenResourceLibraryQuest, createWorkspaceCreateQuest } from './onboarding-presets';
+export {
+  createFeatureIntroQuest,
+  createFeatureIntroQuests,
+  createFileVideoTranscriptionIntroQuest,
+  createFirstFileDropQuest,
+  createOnboardingQuestRegistry,
+  createOpenResourceLibraryQuest,
+  createWorkspaceCreateQuest
+} from './onboarding-presets';
 export type { QuestListAction, QuestListItem, QuestListItemStatus, QuestListReward, QuestListSnapshot } from './quest-list';
 export { createQuestListSnapshot } from './quest-list';
 export type { QuestEngineDeps } from './quest-engine';

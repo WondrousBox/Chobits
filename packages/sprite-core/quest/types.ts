@@ -1,9 +1,12 @@
 import type { StartSpritePurposeRequest } from '../purpose/types';
 
 /**
- * Quest 类别。目前只有新手引导（onboarding）；后续可扩展 daily / achievement / event 等。
+ * Quest 类别。
+ * - onboarding：必须或建议完成的新手引导；
+ * - feature-intro：系统介绍/功能自述，用固定流程介绍某个能力并引导用户试用；
+ * - daily / achievement / event：后续扩展。
  */
-export type QuestCategory = 'onboarding' | 'daily' | 'achievement' | 'event';
+export type QuestCategory = 'onboarding' | 'feature-intro' | 'daily' | 'achievement' | 'event';
 
 /** 显式启动 Quest 的来源。系统自动启动由 autoStartEvents 单独控制。 */
 export type QuestStartSource = 'task-list' | 'ai' | 'system';

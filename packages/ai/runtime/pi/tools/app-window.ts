@@ -1,5 +1,6 @@
 import type { WindowKey } from '@aim-packages/window-manager';
 import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
+import { AppEvent, eventManager } from '@packages/event';
 import { type Static, Type } from '@sinclair/typebox';
 
 import { getAppWindowToolEntry, listAppWindowSummaries, sanitizeAppWindowPayload, searchAppWindowSummaries } from '../app-window-directory';
@@ -31,6 +32,11 @@ export interface AppWindowToolBindings {
 async function openWindowWithManager(windowKey: WindowKey, payload?: Payload): Promise<void> {
   const { windowManager } = await import('@aim-packages/window-manager');
   await windowManager.createOrShow(windowKey, payload);
+  eventManager.emit(AppEvent.APP_WINDOW_OPENED, {
+    ...(payload ?? {}),
+    windowKey: String(windowKey),
+    source: 'ai-app-window-tool'
+  });
 }
 
 function normalizeWindowKey(value?: string): string | undefined {

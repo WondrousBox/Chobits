@@ -79,6 +79,38 @@ const ResourcePage: React.FC = () => {
 
   const workflowProgress = useWorkflowProgress();
 
+  const navigateByWindowPayload = useCallback(
+    (payload: unknown): void => {
+      if (!payload || typeof payload !== 'object') return;
+      const route = (payload as Record<string, unknown>).route;
+      if (typeof route !== 'string') return;
+      const normalizedRoute = route.replace(/^\/+/, '');
+      if (!['home', 'browse', 'analytics', 'tasks', 'workflows', 'recycle'].includes(normalizedRoute)) return;
+      navigate(`/resources/${normalizedRoute}`, { replace: true });
+    },
+    [navigate]
+  );
+
+  useEffect(() => {
+    const handler = (_event: unknown, payload: unknown): void => {
+      navigateByWindowPayload(payload);
+    };
+
+    window.ipcRenderer?.on('on:window:open:ready', handler);
+    void (async () => {
+      try {
+        const payload = await window.YUA.window['window:payload:get']('resources' as any);
+        navigateByWindowPayload(payload);
+      } catch (error) {
+        console.warn('[ResourcePage] window payload read failed', error);
+      }
+    })();
+
+    return () => {
+      window.ipcRenderer?.off('on:window:open:ready', handler as any);
+    };
+  }, [navigateByWindowPayload]);
+
   const { viewMode, handleViewModeChange } = useViewMode(folderFilter);
 
   const { filtered } = useResourceFilter({

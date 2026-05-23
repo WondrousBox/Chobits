@@ -1,3 +1,4 @@
+import { AppEvent } from '@packages/event/events';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { resolveModelFirstSelection } from '@/lib/ai-model-first';
@@ -21,6 +22,23 @@ type ActionItem = {
   icon: string;
   run: () => Promise<void> | void;
 };
+
+function mapFileActionPurposeEventToAppEvent(event: string): AppEvent | undefined {
+  switch (event) {
+    case 'fileAction:selected':
+      return AppEvent.FILE_ACTION_SELECTED;
+    case 'fileAction:workflow-started':
+      return AppEvent.FILE_ACTION_WORKFLOW_STARTED;
+    case 'fileAction:resolved':
+      return AppEvent.FILE_ACTION_RESOLVED;
+    case 'fileAction:failed':
+      return AppEvent.FILE_ACTION_FAILED;
+    case 'fileAction:cancelled':
+      return AppEvent.FILE_ACTION_CANCELLED;
+    default:
+      return undefined;
+  }
+}
 
 function extOf(name?: string): string {
   return (name?.split('.').pop() || '').toLowerCase();
@@ -90,22 +108,37 @@ const FileActionsMenu: React.FC = () => {
 
   const emitPurposeEvent = useCallback(
     async (event: string, payload?: Record<string, unknown>): Promise<void> => {
+      const eventPayload = {
+        correlationId: payloadMeta.correlationId,
+        source: payloadMeta.source,
+        fileCount: payloadMeta.files?.length,
+        resourceId: primary?.id,
+        resourceIds: resources.map((resource) => resource.id).filter(Boolean),
+        ...payload
+      };
       try {
         await window.YUA.sprite.emitPurposeEvent({
           source: 'purpose-event',
           event,
           correlationId: payloadMeta.correlationId,
-          payload: {
-            correlationId: payloadMeta.correlationId,
-            source: payloadMeta.source,
-            fileCount: payloadMeta.files?.length,
-            resourceId: primary?.id,
-            resourceIds: resources.map((resource) => resource.id).filter(Boolean),
-            ...payload
-          }
+          payload: eventPayload
         });
       } catch (err) {
         console.warn('[FileActionsMenu] failed to emit purpose event', event, err);
+      }
+
+      const appEvent = mapFileActionPurposeEventToAppEvent(event);
+      if (!appEvent) return;
+
+      try {
+        await window.YUA.sprite.emitPurposeEvent({
+          source: 'app-event',
+          event: appEvent,
+          correlationId: payloadMeta.correlationId,
+          payload: eventPayload
+        });
+      } catch (err) {
+        console.warn('[FileActionsMenu] failed to emit app event', appEvent, err);
       }
     },
     [payloadMeta.correlationId, payloadMeta.files?.length, payloadMeta.source, primary?.id, resources]
@@ -162,10 +195,10 @@ const FileActionsMenu: React.FC = () => {
 
   const actions = useMemo<ActionItem[]>(() => {
     const list: ActionItem[] = [];
-    const runWorkflow = async (defId: string, purpose: string): Promise<void> => {
+    const runWorkflow = async (defId: string, purpose: string, actionId: string): Promise<void> => {
       if (!primary) {
         console.warn(`[FileActionsMenu] no resource for ${purpose}`);
-        await emitPurposeEvent('fileAction:failed', { reason: 'no-resource', actionPurpose: purpose, workflowId: defId });
+        await emitPurposeEvent('fileAction:failed', { reason: 'no-resource', actionId, actionPurpose: purpose, workflowId: defId });
         throw new Error('no-resource');
       }
 
@@ -199,8 +232,9 @@ const FileActionsMenu: React.FC = () => {
             })
             .catch((err) => {
               console.warn('[FileActionsMenu] failed to start workflow waiting purpose', err);
-            });
+          });
           void emitPurposeEvent('fileAction:workflow-started', {
+            actionId,
             actionPurpose: purpose,
             workflowId: defId,
             workflowRunId: runId,
@@ -211,6 +245,7 @@ const FileActionsMenu: React.FC = () => {
           console.warn(`[FileActionsMenu] ${purpose} failed`);
           runError = error instanceof Error ? error : new Error(String(error));
           void emitPurposeEvent('fileAction:failed', {
+            actionId,
             actionPurpose: purpose,
             workflowId: defId,
             error: runError.message
@@ -254,32 +289,32 @@ const FileActionsMenu: React.FC = () => {
       });
     const transcribeAudio = (): Promise<void> =>
       closeAfter(async () => {
-        await runWorkflow('sample:transcribe', 'audio transcription');
+        await runWorkflow('sample:transcribe', 'audio transcription', 'audio-stt');
       });
     const convertAudio = (): Promise<void> =>
       closeAfter(async () => {
-        await runWorkflow('sample:audio-compress', 'audio transcode');
+        await runWorkflow('sample:transcode', 'audio transcode', 'audio-transcode');
       });
     const transcodeVideo = (): Promise<void> =>
       closeAfter(async () => {
-        await runWorkflow('sample:transcode', 'video transcode');
+        await runWorkflow('sample:transcode', 'video transcode', 'video-transcode');
       });
     const extractKeyframes = (): Promise<void> =>
       closeAfter(async () => {
-        await runWorkflow('sample:video-keyframes', 'video keyframes');
+        await runWorkflow('sample:video-keyframes', 'video keyframes', 'video-keyframes');
       });
 
     const transcribeVideo = (): Promise<void> =>
       closeAfter(async () => {
-        await runWorkflow('sample:transcribe', 'video transcription');
+        await runWorkflow('sample:transcribe', 'video transcription', 'video-stt');
       });
     const analyzeImage = (): Promise<void> =>
       closeAfter(async () => {
-        try {
-          await window.YUA.window['window:open']('assistant' as any);
-        } catch (err) {
-          console.warn('[FileActionsMenu] open assistant error', err);
-        }
+        await runWorkflow('sample:image-understand', 'image understand', 'image-analyze');
+      });
+    const ocrImage = (): Promise<void> =>
+      closeAfter(async () => {
+        await runWorkflow('sample:ocr', 'image ocr', 'image-ocr');
       });
     const parsePdf = (): Promise<void> =>
       closeAfter(async () => {
@@ -419,6 +454,7 @@ const FileActionsMenu: React.FC = () => {
       // already added
     } else if (kind === 'image') {
       list.push({ id: 'image-analyze', label: '图像理解', icon: '🧠', run: analyzeImage });
+      list.push({ id: 'image-ocr', label: '文字识别（OCR）', icon: '🔎', run: ocrImage });
       // already added
     } else if (kind === 'pdf') {
       list.push({ id: 'pdf-parse', label: '解析/总结 PDF', icon: '📄', run: parsePdf });
@@ -433,7 +469,7 @@ const FileActionsMenu: React.FC = () => {
       // generic: already added
     }
     return list;
-  }, [closeWindow, emitPurposeEvent, kind, primary]);
+  }, [closeWindow, emitPurposeEvent, kind, payloadMeta.correlationId, primary]);
 
   // Build radial menu items from available actions
   const radialItems: RadialMenuItem[] = useMemo(() => {

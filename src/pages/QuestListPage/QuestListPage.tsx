@@ -1,5 +1,5 @@
-import type { QuestListItem, QuestListItemStatus, QuestListSnapshot } from '@packages/sprite-core/quest';
 import { AppEvent } from '@packages/event/events';
+import type { QuestListItem, QuestListItemStatus, QuestListSnapshot } from '@packages/sprite-core/quest';
 import { CheckCircle2, Circle, Gift, Loader2, Play, RefreshCcw, Sparkles, Trophy, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
-type QuestFilter = 'onboarding' | 'all' | 'done';
+type QuestFilter = 'onboarding' | 'feature-intro' | 'all' | 'done';
 
 const statusLabels: Record<QuestListItemStatus, string> = {
   pending: '未开始',
@@ -30,6 +30,7 @@ const statusStyles: Record<QuestListItemStatus, string> = {
 
 const categoryLabels: Record<QuestListItem['category'], string> = {
   onboarding: '新手引导',
+  'feature-intro': '功能自述',
   daily: '日常',
   achievement: '成就',
   event: '活动'
@@ -47,6 +48,7 @@ function formatReward(item: QuestListItem): string[] {
 
 function filterQuestItems(items: QuestListItem[], filter: QuestFilter): QuestListItem[] {
   if (filter === 'onboarding') return items.filter((item) => item.category === 'onboarding');
+  if (filter === 'feature-intro') return items.filter((item) => item.category === 'feature-intro');
   if (filter === 'done') return items.filter((item) => item.status === 'done');
   return items;
 }
@@ -144,7 +146,22 @@ export default function QuestListPage(): JSX.Element {
 
   useEffect(() => {
     const unsubscribe = window.YUA.events.on((event) => {
-      if (event.type === AppEvent.WORKSPACE_CREATED || event.type === AppEvent.RESOURCE_CREATED || event.type === AppEvent.SPRITE_RESOURCE_IMPORT_COMPLETE) {
+      if (
+        event.type === AppEvent.WORKSPACE_CREATED ||
+        event.type === AppEvent.RESOURCE_CREATED ||
+        event.type === AppEvent.SPRITE_RESOURCE_IMPORT_COMPLETE ||
+        event.type === AppEvent.ASSISTANT_MENU_ITEM_SELECTED ||
+        event.type === AppEvent.FILE_ACTION_SELECTED ||
+        event.type === AppEvent.FILE_ACTION_WORKFLOW_STARTED ||
+        event.type === AppEvent.APP_WINDOW_OPENED ||
+        event.type === AppEvent.RESOURCE_PREVIEW_OPENED ||
+        event.type === AppEvent.SPRITE_AI_COMPLETE ||
+        event.type === AppEvent.SPRITE_WORKFLOW_START ||
+        event.type === AppEvent.SPRITE_DOWNLOAD_START ||
+        event.type === AppEvent.SPRITE_RSS_REFRESH ||
+        event.type === AppEvent.MEMORY_SAVED ||
+        event.type === AppEvent.MEMORY_EXTRACTION_COMPLETED
+      ) {
         void loadSnapshot();
       }
     });
@@ -178,9 +195,7 @@ export default function QuestListPage(): JSX.Element {
           <Trophy className="size-4 text-amber-600" />
           <div className="min-w-0">
             <h1 className="truncate text-sm font-semibold">任务</h1>
-            <p className="truncate text-[11px] text-muted-foreground">
-              {snapshot ? `${snapshot.summary.done}/${snapshot.summary.total} 已完成` : '读取任务进度'}
-            </p>
+            <p className="truncate text-[11px] text-muted-foreground">{snapshot ? `${snapshot.summary.done}/${snapshot.summary.total} 已完成` : '读取任务进度'}</p>
           </div>
         </div>
         <div className="no-drag flex items-center gap-1">
@@ -205,8 +220,9 @@ export default function QuestListPage(): JSX.Element {
 
       <div className="no-drag border-b px-4 py-3">
         <Tabs value={filter} onValueChange={(value) => setFilter(value as QuestFilter)}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="onboarding">新手</TabsTrigger>
+            <TabsTrigger value="feature-intro">功能</TabsTrigger>
             <TabsTrigger value="all">全部</TabsTrigger>
             <TabsTrigger value="done">已完成</TabsTrigger>
           </TabsList>

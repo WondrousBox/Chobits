@@ -481,6 +481,40 @@ export const CHARACTER_MESSAGE_SPECS = [
     neutral: () => ['打开啦！以后导入的文件都可以在资源库里整理。']
   },
   {
+    field: 'featureFileVideoTranscriptionInvite',
+    section: 'routines',
+    key: 'feature.file-video-transcription.invite',
+    label: '功能自述：文件转写邀请',
+    maxItems: 4,
+    maxLength: 240,
+    neutral: () => ['把视频或音频拖给我，我会先放进资源库，再让你选择转写等处理方式。']
+  },
+  {
+    field: 'featureFileVideoTranscriptionResourceIntro',
+    section: 'routines',
+    key: 'feature.file-video-transcription.resource-intro',
+    label: '功能自述：资源库说明',
+    maxItems: 4,
+    maxLength: 240,
+    neutral: () => ['拖进来的文件会保存到资源库，后续还能预览、管理，或者继续交给工作流处理。']
+  },
+  {
+    field: 'featureFileVideoTranscriptionActionTip',
+    section: 'routines',
+    key: 'feature.file-video-transcription.action-tip',
+    label: '功能自述：转写动作提示',
+    maxItems: 4,
+    maxLength: 240,
+    neutral: () => ['菜单弹出来后，视频请选择「视频转写」，音频请选择「识别文字（转写）」。']
+  },
+  {
+    field: 'featureFileVideoTranscriptionDone',
+    section: 'routines',
+    key: 'feature.file-video-transcription.done',
+    label: '功能自述：转写开始完成',
+    neutral: () => ['转写工作流已经开始啦。之后我会继续陪你等处理结果。']
+  },
+  {
     field: 'workflowWaitingBusyStart',
     section: 'routines',
     key: 'workflow.waiting.busyStart',
