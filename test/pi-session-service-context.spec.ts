@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   buildPiModelHeadersMock,
   buildPiModelMock,
-  createPiEmojiListToolMock,
   createPiEmojiSendToolMock,
   isPiRuntimeRequestedMock,
   piSessionFactoryCreateCodingSessionMock,
@@ -16,7 +15,6 @@ const {
 } = vi.hoisted(() => ({
   buildPiModelHeadersMock: vi.fn(),
   buildPiModelMock: vi.fn(),
-  createPiEmojiListToolMock: vi.fn(),
   createPiEmojiSendToolMock: vi.fn(),
   isPiRuntimeRequestedMock: vi.fn(),
   piSessionFactoryCreateCodingSessionMock: vi.fn(),
@@ -52,7 +50,6 @@ vi.mock('../packages/ai/runtime/pi/session-factory', () => ({
 }))
 
 vi.mock('../packages/ai/runtime/pi/tools/emoji-packs', () => ({
-  createPiEmojiListTool: createPiEmojiListToolMock,
   createPiEmojiSendTool: createPiEmojiSendToolMock
 }))
 
@@ -84,14 +81,6 @@ describe('PiSessionService context building', () => {
       provider: 'openai'
     }))
     isPiRuntimeRequestedMock.mockReturnValue(true)
-    createPiEmojiListToolMock.mockImplementation(() => ({
-      execute: vi.fn(async () => ({
-        details: {
-          packs: [],
-          success: true
-        }
-      }))
-    }))
     createPiEmojiSendToolMock.mockImplementation(() => ({
       execute: vi.fn(async () => ({
         details: {
@@ -618,35 +607,35 @@ user-invocable: true
             prompt: vi.fn(async () => {
               capturedForkResult = await toolContext.runForkedSkill?.(
                 {
-                activatedToolNames: [],
-                activationToolIds: ['query-resources'],
-                allowedToolIds: ['query-resources', 'translate-subtitles'],
-                content: '1. Review the target carefully.\n2. Report the key findings.',
-                effort: 'high',
-                executionContext: 'fork',
-                executionMode: 'inline',
-                model: 'gpt-5.1',
-                pathsMatched: true,
-                record: {
-                  aliases: [],
-                  allowedToolIds: ['query-resources', 'translate-subtitles'],
+                  activatedToolNames: [],
                   activationToolIds: ['query-resources'],
-                  argumentNames: [],
-                  contentHash: 'hash',
-                  description: 'Run a deeper review workflow.',
-                  disableModelInvocation: false,
-                  executionContext: 'fork',
-                  model: 'gpt-5.1',
+                  allowedToolIds: ['query-resources', 'translate-subtitles'],
+                  content: '1. Review the target carefully.\n2. Report the key findings.',
                   effort: 'high',
-                  name: 'forked-review',
-                  skillDir: path.join(workspaceRoot, '.chobits', 'skills', 'forked-review'),
-                  skillFilePath: path.join(workspaceRoot, '.chobits', 'skills', 'forked-review', 'SKILL.md'),
-                  source: 'project',
-                  tags: [],
-                  userInvocable: true
-                },
-                resolvedArgs: {},
-                source: 'project'
+                  executionContext: 'fork',
+                  executionMode: 'inline',
+                  model: 'gpt-5.1',
+                  pathsMatched: true,
+                  record: {
+                    aliases: [],
+                    allowedToolIds: ['query-resources', 'translate-subtitles'],
+                    activationToolIds: ['query-resources'],
+                    argumentNames: [],
+                    contentHash: 'hash',
+                    description: 'Run a deeper review workflow.',
+                    disableModelInvocation: false,
+                    executionContext: 'fork',
+                    model: 'gpt-5.1',
+                    effort: 'high',
+                    name: 'forked-review',
+                    skillDir: path.join(workspaceRoot, '.chobits', 'skills', 'forked-review'),
+                    skillFilePath: path.join(workspaceRoot, '.chobits', 'skills', 'forked-review', 'SKILL.md'),
+                    source: 'project',
+                    tags: [],
+                    userInvocable: true
+                  },
+                  resolvedArgs: {},
+                  source: 'project'
                 },
                 { toolCallId: 'skill-call-1' }
               )
@@ -790,37 +779,6 @@ user-invocable: true
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-session-emoji-fallback-'))
     tempRoots.push(tempRoot)
 
-    const listExecuteMock = vi
-      .fn()
-      .mockResolvedValueOnce({
-        details: {
-          packs: [
-            {
-              id: 'pack-1',
-              totalFileCount: 1
-            }
-          ],
-          success: true
-        }
-      })
-      .mockResolvedValueOnce({
-        details: {
-          mode: 'nodes',
-          nodes: [
-            {
-              candidateId: 'e1',
-              kind: 'file',
-              packId: 'pack-1',
-              relativePath: 'hello.png',
-              title: 'hello'
-            }
-          ],
-          pack: {
-            id: 'pack-1'
-          },
-          success: true
-        }
-      })
     const sendExecuteMock = vi.fn(async () => ({
       details: {
         emoji: {
@@ -836,7 +794,6 @@ user-invocable: true
       }
     }))
 
-    createPiEmojiListToolMock.mockReturnValue({ execute: listExecuteMock })
     createPiEmojiSendToolMock.mockReturnValue({ execute: sendExecuteMock })
 
     let subscriber: ((event: any) => void) | undefined
@@ -858,10 +815,9 @@ user-invocable: true
           }),
           replaceMessages: vi.fn()
         },
-        getActiveToolNames: () => ['toolboxTool', 'emojiListTool', 'emojiSendTool'],
+        getActiveToolNames: () => ['toolboxTool', 'emojiSendTool'],
         getAllTools: () => [
           { name: 'toolboxTool' },
-          { name: 'emojiListTool' },
           { name: 'emojiSendTool' }
         ],
         state: sessionState,
@@ -879,13 +835,6 @@ user-invocable: true
     })
 
     resolvePiToolDescriptorsMock.mockReturnValue([
-      {
-        id: 'emoji-list',
-        name: 'emojiListTool',
-        description: 'List emoji packs',
-        category: 'emoji',
-        status: 'ready-for-pi-runtime'
-      },
       {
         id: 'emoji-send',
         name: 'emojiSendTool',
@@ -907,7 +856,7 @@ user-invocable: true
         providerId: 'openai'
       },
       profile: {
-        defaultToolIds: ['toolbox-lookup', 'ask-user', 'emoji-list', 'emoji-send'],
+        defaultToolIds: ['toolbox-lookup', 'ask-user', 'emoji-send'],
         executionMode: 'session',
         id: 'assistant',
         instructions: 'emoji profile',
@@ -923,7 +872,7 @@ user-invocable: true
         source: 'provider'
       },
       messages: [{ role: 'user', content: '你好' }],
-      enabledToolIds: ['toolbox-lookup', 'ask-user', 'emoji-list', 'emoji-send'],
+      enabledToolIds: ['toolbox-lookup', 'ask-user', 'emoji-send'],
       coding: {
         label: 'repo',
         mode: 'safe',
@@ -948,30 +897,22 @@ user-invocable: true
       }
     )
 
-    expect(events.map((event) => event.type)).toEqual(['connected', 'metadata', 'tool_call', 'tool_result', 'tool_call', 'tool_result', 'message_completed', 'done'])
+    expect(events.map((event) => event.type)).toEqual(['connected', 'metadata', 'tool_call', 'tool_result', 'message_completed', 'done'])
     expect(events[2].data).toMatchObject({
-      name: 'emojiListTool',
-      display: {
-        mode: 'hidden'
-      },
-      args: {
-        limit: 48,
-        packId: 'pack-1'
-      }
-    })
-    expect(events[4].data).toMatchObject({
       name: 'emojiSendTool',
       display: {
         mode: 'content-only'
-      },
-      args: {
-        candidateId: 'e1'
       }
     })
-    expect((events[5].data?.result as any)?.details?.emoji?.url).toBe('res://emoji/hello.png')
-    expect(events[6].data?.message?.content).toBe('你好呀')
-    expect(listExecuteMock).toHaveBeenCalledTimes(2)
-    expect(sendExecuteMock).toHaveBeenCalledWith(expect.stringMatching(/^emoji-fallback-send-/), { candidateId: 'e1' })
+    expect(typeof (events[2].data as any)?.args?.query).toBe('string')
+    expect((events[2].data as any).args.query.length).toBeGreaterThan(0)
+    expect((events[3].data?.result as any)?.details?.emoji?.url).toBe('res://emoji/hello.png')
+    expect(events[4].data?.message?.content).toBe('你好呀')
+    expect(sendExecuteMock).toHaveBeenCalledTimes(1)
+    expect(sendExecuteMock).toHaveBeenCalledWith(
+      expect.stringMatching(/^emoji-fallback-send-/),
+      expect.objectContaining({ query: expect.any(String) })
+    )
   })
 })
 

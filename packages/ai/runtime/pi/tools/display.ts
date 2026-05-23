@@ -8,8 +8,6 @@ export const PI_HIDDEN_TOOL_DISPLAY = { mode: 'hidden' } satisfies ToolCallDispl
 export const PI_CONTENT_ONLY_TOOL_DISPLAY = { mode: 'content-only' } satisfies ToolCallDisplay;
 
 const TOOL_CHAT_DISPLAY_FALLBACKS: Record<string, ToolCallDisplay> = {
-  'emoji-list': PI_HIDDEN_TOOL_DISPLAY,
-  emojiListTool: PI_HIDDEN_TOOL_DISPLAY,
   'emoji-send': PI_CONTENT_ONLY_TOOL_DISPLAY,
   emojiSendTool: PI_CONTENT_ONLY_TOOL_DISPLAY
 };
