@@ -1,5 +1,6 @@
 import {
   DEFAULT_SPRITE_ANIMATION_PLAYLIST_MODE,
+  DEFAULT_SPRITE_AUTO_WALK_ENABLED,
   DEFAULT_SPRITE_BUBBLE_MODE,
   normalizeSpriteAnimationPlaylistMode,
   normalizeSpriteAnimationPlaylistModeMap,
@@ -15,7 +16,7 @@ export const DEFAULT_SPRITE_CONFIG: SpriteConfig = {
   height: 240,
   padding: 100,
   animationPlaylistMode: DEFAULT_SPRITE_ANIMATION_PLAYLIST_MODE,
-  autoWalkEnabled: true,
+  autoWalkEnabled: DEFAULT_SPRITE_AUTO_WALK_ENABLED,
   showDebugOverlay: false,
   bubbleMode: DEFAULT_SPRITE_BUBBLE_MODE
 };

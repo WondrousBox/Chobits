@@ -1063,7 +1063,7 @@ describe('sprite manager regression coverage', () => {
       height: 200,
       padding: 100,
       animationPlaylistMode: 'list-loop',
-      autoWalkEnabled: true,
+      autoWalkEnabled: false,
       bubbleMode: 'fixed-top',
       showDebugOverlay: false
     });
@@ -1079,7 +1079,7 @@ describe('sprite manager regression coverage', () => {
       height: 260,
       padding: 24,
       animationPlaylistMode: 'list-loop',
-      autoWalkEnabled: true,
+      autoWalkEnabled: false,
       bubbleMode: 'fixed-top',
       showDebugOverlay: false
     });
@@ -1092,7 +1092,7 @@ describe('sprite manager regression coverage', () => {
       height: 200,
       padding: 100,
       animationPlaylistMode: 'list-loop',
-      autoWalkEnabled: true,
+      autoWalkEnabled: false,
       bubbleMode: 'fixed-top',
       showDebugOverlay: false
     });
@@ -1102,7 +1102,23 @@ describe('sprite manager regression coverage', () => {
     const { mgr, dataDir, sent } = createManager();
     dataDirs.add(dataDir);
 
+    expect(mgr.getSpriteConfig().autoWalkEnabled).toBe(false);
+
+    mgr.setAutoWalkEnabled(true);
+
     expect(mgr.getSpriteConfig().autoWalkEnabled).toBe(true);
+    expect(sent).toContainEqual({
+      channel: 'sprite:config',
+      payload: {
+        width: 200,
+        height: 200,
+        padding: 100,
+        animationPlaylistMode: 'list-loop',
+        autoWalkEnabled: true,
+        bubbleMode: 'fixed-top',
+        showDebugOverlay: false
+      }
+    });
 
     mgr.setAutoWalkEnabled(false);
 
@@ -1235,6 +1251,7 @@ describe('sprite manager regression coverage', () => {
       speed: 48
     };
 
+    mgr.setAutoWalkEnabled(true);
     expect(mgr.isAutoWalkEnabled()).toBe(true);
 
     mgr.reportInteraction('context-menu', { open: true });
@@ -1298,6 +1315,7 @@ describe('sprite manager regression coverage', () => {
       stopAutoMove: vi.fn(),
       isAutoMoving: () => false
     };
+    mgr.setAutoWalkEnabled(true);
 
     await mgr.start();
     const gate = scheduler.gates.get('sprite.canAutoMove');

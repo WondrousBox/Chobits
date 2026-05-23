@@ -83,13 +83,15 @@ describe('sprite state runtime helpers', () => {
       currentAnimation: null,
       walkDirection: null,
       isWalking: false,
+      isDragging: false,
       spriteConfig: {
         width: 180,
         height: 240,
         padding: 100,
         animationPlaylistMode: 'list-loop',
-        autoWalkEnabled: true,
-        showDebugOverlay: false
+        autoWalkEnabled: false,
+        showDebugOverlay: false,
+        bubbleMode: 'fixed-top'
       },
       ready: false
     });

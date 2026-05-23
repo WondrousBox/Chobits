@@ -700,6 +700,9 @@ export function isBubbleWindowMode(mode?: SpriteBubbleMode | null): boolean {
   return mode === 'fixed-top';
 }
 
+/** 默认自动行走开关 */
+export const DEFAULT_SPRITE_AUTO_WALK_ENABLED = false;
+
 /** 精灵配置 */
 export interface SpriteConfig {
   width: number;

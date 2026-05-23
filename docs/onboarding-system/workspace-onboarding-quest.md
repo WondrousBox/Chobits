@@ -112,7 +112,7 @@ export function createWorkspaceCreateRoutineSteps(_: SpritePurpose): SpriteRouti
       id: 'invite-notice',
       type: 'showNotice',
       messageId: 'onboarding.workspace.create.invite',
-      content: getCharacterRoutineText('onboarding.workspace.create.invite', undefined, '没有找到工作空间，点这里立即创建吧。'),
+      content: getCharacterRoutineText('onboarding.workspace.create.invite', undefined, '没有找到工作空间，先创建吧。'),
       level: 'info',
       persistent: true,
       buttons: [{ id: 'focus-wizard', label: '立即创建', variant: 'default', purposeAction: 'open-wizard' }],
@@ -173,7 +173,7 @@ export function createWorkspaceCreateRoutineSteps(_: SpritePurpose): SpriteRouti
                         {
                           id: 'speak-workspace-quickstart-tip',
                           type: 'speak',
-                          text: getCharacterRoutineText('onboarding.workspace.create.quickstart-tip', undefined, '这里可以先用快速创建，默认目录就能开始；以后也可以再调整。'),
+                          text: getCharacterRoutineText('onboarding.workspace.create.quickstart-tip', undefined, '可以用快速创建就能开始，以后也可以再调整。'),
                           bubbleDuration: 4200,
                           cooldownKey: 'onboarding.workspace.create.quickstart-tip',
                           cooldownMs: 5 * 60 * 1000
@@ -212,7 +212,7 @@ export function createWorkspaceCreateRoutineSteps(_: SpritePurpose): SpriteRouti
                 id: 'invite-notice-after-dismiss',
                 type: 'showNotice',
                 messageId: 'onboarding.workspace.create.invite',
-                content: getCharacterRoutineText('onboarding.workspace.create.invite', undefined, '没有找到工作空间，点这里立即创建吧。'),
+                content: getCharacterRoutineText('onboarding.workspace.create.invite', undefined, '没有找到工作空间，先创建吧。'),
                 level: 'info',
                 persistent: true,
                 buttons: [{ id: 'focus-wizard', label: '立即创建', variant: 'default', purposeAction: 'open-wizard' }],
@@ -309,9 +309,9 @@ window.YUA.sprite.startPurpose({
 新增 i18n key（位置：[src/features/sprite-assistant/message/catalog/zh-CN.ts](../../src/features/sprite-assistant/message/catalog/zh-CN.ts) + 对应 routine-text）：
 
 ```ts
-'onboarding.workspace.create.invite': '没有找到工作空间，点这里立即创建吧。',
+'onboarding.workspace.create.invite': '没有找到工作空间，先创建吧。',
 'onboarding.workspace.create.workspace-intro': '工作空间会存放所有重要的数据。',
-'onboarding.workspace.create.quickstart-tip': '这里可以先用快速创建，默认目录就能开始；以后也可以再调整。',
+'onboarding.workspace.create.quickstart-tip': '可以用快速创建就能开始，以后也可以再调整。',
 'onboarding.workspace.create.done': '工作空间建好啦！我可以做更多事情啦。',
 'onboarding.workspace.create.closed-without-create': '还没有创建工作空间哦。'
 ```

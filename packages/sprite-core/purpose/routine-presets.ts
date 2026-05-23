@@ -307,7 +307,7 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStep[] {
       id: 'invite-notice',
       type: 'showNotice',
       messageId: WORKSPACE_CREATE_NOTICE_ID,
-      content: getCharacterRoutineText('onboarding.workspace.create.invite', undefined, '没有找到工作空间，点这里立即创建吧。'),
+      content: getCharacterRoutineText('onboarding.workspace.create.invite', undefined, '没有找到工作空间，先创建吧。'),
       level: 'info',
       persistent: true,
       buttons: [{ id: 'focus-wizard', label: '立即创建', variant: 'default', purposeAction: 'open-wizard' }],
@@ -368,7 +368,7 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStep[] {
                         {
                           id: 'speak-workspace-quickstart-tip',
                           type: 'speak',
-                          text: getCharacterRoutineText('onboarding.workspace.create.quickstart-tip', undefined, '这里可以先用快速创建，默认目录就能开始；以后也可以再调整。'),
+                          text: getCharacterRoutineText('onboarding.workspace.create.quickstart-tip', undefined, '可以用快速创建就能开始，以后也可以再调整。'),
                           bubbleDuration: 4200,
                           cooldownKey: 'onboarding.workspace.create.quickstart-tip',
                           cooldownMs: WORKSPACE_CREATE_WINDOW_HELPER_COOLDOWN_MS
@@ -407,7 +407,7 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStep[] {
                 id: 'invite-notice-after-dismiss',
                 type: 'showNotice',
                 messageId: WORKSPACE_CREATE_NOTICE_ID,
-                content: getCharacterRoutineText('onboarding.workspace.create.invite', undefined, '没有找到工作空间，点这里立即创建吧。'),
+                content: getCharacterRoutineText('onboarding.workspace.create.invite', undefined, '没有找到工作空间，先创建吧。'),
                 level: 'info',
                 persistent: true,
                 buttons: [{ id: 'focus-wizard', label: '立即创建', variant: 'default', purposeAction: 'open-wizard' }],
