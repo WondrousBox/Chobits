@@ -1,3 +1,4 @@
+import { FEATURE_INTRO_QUEST_CATALOG, type FeatureIntroQuestCatalogItem } from '../feature-intro-catalog';
 import { getCharacterRoutineText } from '../messages/character';
 import type { SpritePurpose, SpriteRoutine, SpriteRoutineStep, StartSpritePurposeRequest } from './types';
 
@@ -289,6 +290,8 @@ const FIRST_FILE_DROP_WAIT_MS = 30 * 60 * 1000;
 const FIRST_FILE_DROP_HELP_COOLDOWN_MS = 60_000;
 const OPEN_RESOURCE_LIBRARY_NOTICE_ID = 'onboarding.resource.open-library.invite';
 const OPEN_RESOURCE_LIBRARY_WAIT_MS = 5 * 60 * 1000;
+const FEATURE_INTRO_WAIT_MS = 30 * 60 * 1000;
+const FEATURE_INTRO_HELP_COOLDOWN_MS = 60_000;
 
 /**
  * 新手引导 — 引导用户创建工作空间。
@@ -542,16 +545,16 @@ function createOpenResourceLibraryRoutineSteps(): SpriteRoutineStep[] {
       persistent: true,
       speak: true
     },
-    {
-      id: 'wait-context-menu-open',
-      type: 'waitForEvent',
-      source: 'sprite-event-bus',
-      event: 'interact:context-menu',
-      match: { 'payload.open': true },
-      timeoutMs: OPEN_RESOURCE_LIBRARY_WAIT_MS,
-      assignTo: 'contextMenuOpenEvent',
-      ignoreHistory: true
-    },
+      {
+        id: 'wait-context-menu-open',
+        type: 'waitForEvent',
+        source: 'sprite-event-bus',
+        event: 'interact:context-menu',
+        match: { open: true },
+        timeoutMs: OPEN_RESOURCE_LIBRARY_WAIT_MS,
+        assignTo: 'contextMenuOpenEvent',
+        ignoreHistory: true
+      },
     {
       id: 'resource-menu-tip',
       type: 'speak',
@@ -564,9 +567,9 @@ function createOpenResourceLibraryRoutineSteps(): SpriteRoutineStep[] {
       source: 'app-event',
       event: 'ASSISTANT_MENU_ITEM_SELECTED',
       match: {
-        'payload.itemId': 'resources',
-        'payload.windowKey': 'resources',
-        'payload.source': 'assistant-context-menu'
+        itemId: 'resources',
+        windowKey: 'resources',
+        source: 'assistant-context-menu'
       },
       timeoutMs: OPEN_RESOURCE_LIBRARY_WAIT_MS,
       assignTo: 'resourceLibraryOpenEvent',
@@ -583,6 +586,188 @@ function createOpenResourceLibraryRoutineSteps(): SpriteRoutineStep[] {
     { id: 'return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
   ];
 }
+
+function getFeatureIntroDefaultPriority(priority: FeatureIntroQuestCatalogItem['priority']): number {
+  if (priority === 'P0') return 64;
+  if (priority === 'P1') return 62;
+  if (priority === 'P2') return 60;
+  return 58;
+}
+
+function buildFeatureIntroWaitSteps(item: FeatureIntroQuestCatalogItem): SpriteRoutineStep[] {
+  const routine = item.routine;
+  const waitEvents = routine.waitEvents ?? (routine.waitEvent ? [routine.waitEvent] : []);
+  const waitMatch = routine.waitMatch;
+  const waitId = `${item.id}.wait`;
+
+  if (routine.kind === 'assistant-menu') {
+    return [
+      {
+        id: `${waitId}.context-menu`,
+        type: 'waitForEvent',
+        source: 'sprite-event-bus',
+        event: 'interact:context-menu',
+        match: { open: true },
+        timeoutMs: FEATURE_INTRO_WAIT_MS,
+        assignTo: 'featureIntroMenuOpen',
+        ignoreHistory: true
+      },
+      {
+        id: `${waitId}.menu-tip`,
+        type: 'speak',
+        text: routine.instruction,
+        bubbleDuration: 4200
+      },
+      {
+        id: `${waitId}.selected`,
+        type: 'waitForEvent',
+        source: 'app-event',
+        event: 'ASSISTANT_MENU_ITEM_SELECTED',
+        match: {
+          itemId: routine.menuItemId,
+          ...(routine.menuWindowKey ? { windowKey: routine.menuWindowKey } : {}),
+          source: 'assistant-context-menu'
+        },
+        timeoutMs: FEATURE_INTRO_WAIT_MS,
+        assignTo: 'featureIntroResult',
+        ignoreHistory: true
+      }
+    ];
+  }
+
+  const steps: SpriteRoutineStep[] = [];
+  if (routine.windowKey && (routine.kind === 'window' || routine.kind === 'app-event')) {
+    steps.push({
+      id: `${item.id}.open-window`,
+      type: 'openWindow',
+      window: routine.windowKey,
+      payload: routine.windowPayload,
+      timeoutMs: 10000
+    });
+    steps.push({
+      id: `${item.id}.walk-to-window`,
+      type: 'walkTo',
+      target: { window: routine.windowKey, placement: 'right', offset: 16 },
+      speed: 120,
+      timeoutMs: 10000
+    });
+  }
+
+  if (routine.kind === 'file-workflow' || routine.kind === 'file-action') {
+    steps.push(
+      { id: `${item.id}.walk-drop-target`, type: 'walkTo', target: 'center', speed: 130, timeoutMs: 8000 },
+      {
+        id: `${item.id}.wait-file-action`,
+        type: 'loopUntil',
+        source: 'app-event',
+        untilEvent: waitEvents.length > 0 ? waitEvents : ['FILE_ACTION_SELECTED', 'FILE_ACTION_WORKFLOW_STARTED'],
+        match: waitMatch,
+        maxDurationMs: FEATURE_INTRO_WAIT_MS,
+        assignTo: 'featureIntroResult',
+        ignoreHistory: true,
+        body: [
+          {
+            id: `${item.id}.file-tip`,
+            type: 'speak',
+            text: routine.instruction,
+            bubbleDuration: 5200,
+            cooldownKey: `${item.id}.file-tip`,
+            cooldownMs: FEATURE_INTRO_HELP_COOLDOWN_MS
+          },
+          { id: `${item.id}.file-pulse`, type: 'playAnimation', trigger: 'thinking', durationMs: 1200, waitFor: 'duration', silent: true },
+          { id: `${item.id}.file-pause`, type: 'wait', durationMs: 5000 }
+        ]
+      }
+    );
+    return steps;
+  }
+
+  if (waitEvents.length > 1) {
+    steps.push({
+      id: `${item.id}.wait-events`,
+      type: 'loopUntil',
+      source: 'app-event',
+      untilEvent: waitEvents,
+      match: waitMatch,
+      maxDurationMs: FEATURE_INTRO_WAIT_MS,
+      assignTo: 'featureIntroResult',
+      ignoreHistory: true,
+      body: [
+        {
+          id: `${item.id}.progress-tip`,
+          type: 'speak',
+          text: routine.instruction,
+          bubbleDuration: 4600,
+          cooldownKey: `${item.id}.progress-tip`,
+          cooldownMs: FEATURE_INTRO_HELP_COOLDOWN_MS
+        },
+        { id: `${item.id}.progress-pause`, type: 'wait', durationMs: 5000 }
+      ]
+    });
+    return steps;
+  }
+
+  if (waitEvents.length === 1) {
+    steps.push({
+      id: `${item.id}.wait-event`,
+      type: 'waitForEvent',
+      source: 'app-event',
+      event: waitEvents[0],
+      match: waitMatch,
+      timeoutMs: FEATURE_INTRO_WAIT_MS,
+      assignTo: 'featureIntroResult',
+      ignoreHistory: waitEvents[0] === 'APP_WINDOW_OPENED' ? false : true
+    });
+  } else {
+    steps.push({ id: `${item.id}.settle`, type: 'wait', durationMs: 800 });
+  }
+
+  return steps;
+}
+
+function createFeatureIntroRoutineSteps(item: FeatureIntroQuestCatalogItem): SpriteRoutineStep[] {
+  const noticeId = `${item.id}.invite`;
+  return [
+    { id: `${item.id}.wave`, type: 'playAnimation', trigger: 'wave', durationMs: 900, waitFor: 'duration', silent: true },
+    {
+      id: `${item.id}.intro-notice`,
+      type: 'showNotice',
+      messageId: noticeId,
+      content: item.routine.intro,
+      level: 'info',
+      persistent: true,
+      speak: true
+    },
+    {
+      id: `${item.id}.instruction`,
+      type: 'speak',
+      text: item.routine.instruction,
+      bubbleDuration: 4600
+    },
+    ...buildFeatureIntroWaitSteps(item),
+    { id: `${item.id}.clear-notice`, type: 'clearMessage', messageId: noticeId, messageType: 'notice' },
+    { id: `${item.id}.celebrate`, type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
+    {
+      id: `${item.id}.done`,
+      type: 'speak',
+      text: item.routine.done,
+      bubbleDuration: 4200
+    },
+    { id: `${item.id}.return-corner`, type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
+  ];
+}
+
+function createFeatureIntroRoutinePreset(item: FeatureIntroQuestCatalogItem): SpriteRoutinePresetDefinition {
+  return {
+    id: item.id,
+    title: `功能自述：${item.title}`,
+    purposeKind: item.id,
+    defaultPriority: getFeatureIntroDefaultPriority(item.priority),
+    steps: () => createFeatureIntroRoutineSteps(item)
+  };
+}
+
+const FEATURE_INTRO_ROUTINE_PRESETS = FEATURE_INTRO_QUEST_CATALOG.map(createFeatureIntroRoutinePreset);
 
 export const DEFAULT_SPRITE_ROUTINE_PRESETS: SpriteRoutinePresetDefinition[] = [
   {
@@ -654,7 +839,8 @@ export const DEFAULT_SPRITE_ROUTINE_PRESETS: SpriteRoutinePresetDefinition[] = [
     purposeKind: 'onboarding.resource.open-library',
     defaultPriority: 66,
     steps: createOpenResourceLibraryRoutineSteps
-  }
+  },
+  ...FEATURE_INTRO_ROUTINE_PRESETS
 ];
 
 export class SpriteRoutinePresetRegistry {

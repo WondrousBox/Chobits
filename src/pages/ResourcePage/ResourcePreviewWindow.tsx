@@ -6,6 +6,7 @@ import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { BroadcastChannelManager, CHANNEL_NAMES, type MediaSyncMessage } from '@/utils/broadcastChannels';
+import { AppEvent } from '@packages/event/events';
 
 import { AnnotationAlertOverlay, ImagePlayer, MediaPlayer, ResourceSubtitlePlayer, SubtitleOverlay, TextPlayer } from './components/Players';
 import type { MediaPlayerRef } from './components/Players/MediaPlayer/MediaPlayer';
@@ -23,7 +24,8 @@ import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from './utils/resou
 import { isSubtitleFile } from './utils/subtitleUtils';
 
 interface IncomingPayload {
-  current: ResourceItem;
+  current?: ResourceItem;
+  resourceId?: string;
   list?: ResourceItem[];
   index?: number;
   startTime?: number; // 从指定时间开始播放（秒）
@@ -31,7 +33,7 @@ interface IncomingPayload {
 
 // 类型守卫：判断 payload 是否为 IncomingPayload
 function isIncomingPayload(payload: unknown): payload is IncomingPayload {
-  return typeof payload === 'object' && payload !== null && 'current' in payload;
+  return typeof payload === 'object' && payload !== null && ('current' in payload || 'resourceId' in payload);
 }
 
 const ResourcePreviewWindow: React.FC = () => {
@@ -65,6 +67,7 @@ const ResourcePreviewWindow: React.FC = () => {
   const [mediaDuration, setMediaDuration] = useState(0); // 媒体总时长（秒）
   const [pendingStartTime, setPendingStartTime] = useState<number | null>(null); // 待跳转的起始时间
   const mediaPlayerRef = useRef<MediaPlayerRef>(null); // 媒体播放器的 ref
+  const emittedPreviewResourceIdRef = useRef<string | null>(null);
 
   // 已移除 shouldCollapseBottomPanel 相关逻辑，统一展示底部面板
 
@@ -80,6 +83,24 @@ const ResourcePreviewWindow: React.FC = () => {
     }, 150);
     return () => clearTimeout(timer);
   }, [pendingStartTime]);
+
+  useEffect(() => {
+    if (!data?.id || emittedPreviewResourceIdRef.current === data.id) {
+      return;
+    }
+    emittedPreviewResourceIdRef.current = data.id;
+    void window.YUA.sprite?.emitPurposeEvent?.({
+      source: 'app-event',
+      event: AppEvent.RESOURCE_PREVIEW_OPENED,
+      payload: {
+        resourceId: data.id,
+        resourceTitle: data.title,
+        type: data.type,
+        filePath: data.filePath,
+        source: isRouteMode ? 'resource-preview-route' : 'resource-preview-window'
+      }
+    });
+  }, [data?.filePath, data?.id, data?.title, data?.type, isRouteMode]);
 
   // 切换 Tab 面板展开/收起
   const toggleTabsExpanded = useCallback(() => {
@@ -188,16 +209,17 @@ const ResourcePreviewWindow: React.FC = () => {
       // 标记已接收到数据
       hasReceivedDataRef.current = true;
 
-      let current: ResourceItem;
+      let current: ResourceItem | undefined;
       let startTime: number | undefined;
 
       // 使用类型守卫判断 payload 类型
       if (isIncomingPayload(payload)) {
-        current = payload.current;
+        current = payload.current ?? (payload.resourceId ? ({ id: payload.resourceId, type: 'file' } as ResourceItem) : undefined);
         startTime = payload.startTime;
       } else {
         current = payload;
       }
+      if (!current) return;
 
       // 获取完整资源信息
       if (current?.id) {
@@ -210,6 +232,7 @@ const ResourcePreviewWindow: React.FC = () => {
           console.warn('Failed to fetch full resource details:', error);
         }
       }
+      if (!current) return;
 
       setData(current);
       setCurrentTime(startTime ?? 0); // 设置初始播放时间

@@ -89,6 +89,43 @@ function appendToolDisplayPart(parts: ChatMessageDisplayPart[], callId: string):
   parts.push({ callId, type: 'tool' });
 }
 
+function extractResourceContextIds(req: ChatRequest, messages?: ChatMessage[], toolCalls?: Array<{ args?: any; name?: string; result?: any }>): string[] {
+  const ids = new Set<string>();
+  const visit = (value: unknown, hint?: string): void => {
+    if (!value) return;
+    if (typeof value === 'string') {
+      for (const match of value.matchAll(/\[card:(?:resource|video|audio|image|document|link|file):([a-zA-Z0-9_-]+)\]/g)) {
+        ids.add(match[1]);
+      }
+      if ((hint === 'resource-id' || hint === 'resource') && value.trim()) {
+        ids.add(value.trim());
+      }
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item) => visit(item, hint));
+      return;
+    }
+    if (typeof value !== 'object') return;
+    const record = value as Record<string, unknown>;
+    if (hint === 'resource' && typeof record.id === 'string' && record.id.trim()) {
+      ids.add(record.id.trim());
+    }
+    for (const key of ['resourceId', 'resourceIds']) {
+      visit(record[key], 'resource-id');
+    }
+    visit(record.resources, 'resource');
+    for (const key of ['content', 'text', 'parts', 'messages']) {
+      visit(record[key]);
+    }
+  };
+
+  visit(req.extras);
+  visit(messages ?? req.messages);
+  visit(toolCalls);
+  return Array.from(ids);
+}
+
 function shouldAppendToolDisplayPart(display?: ToolCallDisplay): boolean {
   return display?.mode !== 'hidden';
 }
@@ -617,11 +654,14 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
     if (errorMessage) {
       eventManager.emit(AppEvent.SPRITE_AI_ERROR, { message: errorMessage });
     } else {
+      const resourceContextIds = extractResourceContextIds(req, streamMessages, collectedToolCalls);
       eventManager.emit(AppEvent.SPRITE_AI_COMPLETE, {
         conversationId: conv?.id,
         messageCount: streamMessages.length,
         toolCallCount: collectedToolCalls.length,
-        assistantContentLength: fullText.length
+        assistantContentLength: fullText.length,
+        hasResourceContext: resourceContextIds.length > 0,
+        resourceIds: resourceContextIds
       });
 
       if (conv?.id) {

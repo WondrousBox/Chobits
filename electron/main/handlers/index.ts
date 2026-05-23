@@ -201,6 +201,12 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
     purposeWindowAdapter: {
       async open(windowKey, payload) {
         await windowManager.createOrShow(windowKey as any, payload);
+        const windowPayload = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
+        eventManager.emit(AppEvent.APP_WINDOW_OPENED, {
+          ...windowPayload,
+          windowKey: String(windowKey),
+          source: 'purpose-routine'
+        });
       },
       async close(windowKey) {
         await windowManager.close(windowKey as any);
@@ -344,12 +350,44 @@ async function initOnboardingQuestEngine(
     mgr?.emitPurposeEvent({ source: 'app-event', event: 'RESOURCE_CREATED', payload: purposePayload });
     void engine.tick({ event: 'RESOURCE_CREATED', eventPayload: data });
   });
-  eventManager.on(AppEvent.SPRITE_RESOURCE_IMPORT_COMPLETE, (data) => {
-    void engine.tick({ event: 'SPRITE_RESOURCE_IMPORT_COMPLETE', eventPayload: data });
-  });
-  eventManager.on(AppEvent.ASSISTANT_MENU_ITEM_SELECTED, (data) => {
-    void engine.tick({ event: 'ASSISTANT_MENU_ITEM_SELECTED', eventPayload: data });
-  });
+  const bridgeQuestEvent = (event: AppEvent, data: unknown): void => {
+    const mgr = SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
+    mgr?.emitPurposeEvent({
+      source: 'app-event',
+      event,
+      payload: data as Record<string, unknown> | undefined
+    });
+    void engine.tick({ event, eventPayload: data });
+  };
+
+  const questBridgeEvents: AppEvent[] = [
+    AppEvent.SPRITE_RESOURCE_IMPORT_COMPLETE,
+    AppEvent.SPRITE_RESOURCE_IMPORT_ERROR,
+    AppEvent.ASSISTANT_MENU_ITEM_SELECTED,
+    AppEvent.FILE_ACTION_SELECTED,
+    AppEvent.FILE_ACTION_WORKFLOW_STARTED,
+    AppEvent.FILE_ACTION_RESOLVED,
+    AppEvent.FILE_ACTION_FAILED,
+    AppEvent.FILE_ACTION_CANCELLED,
+    AppEvent.APP_WINDOW_OPENED,
+    AppEvent.RESOURCE_PREVIEW_OPENED,
+    AppEvent.SPRITE_AI_COMPLETE,
+    AppEvent.SPRITE_WORKFLOW_START,
+    AppEvent.SPRITE_WORKFLOW_PROGRESS,
+    AppEvent.SPRITE_WORKFLOW_COMPLETE,
+    AppEvent.SPRITE_WORKFLOW_FAIL,
+    AppEvent.SPRITE_WORKFLOW_CANCEL,
+    AppEvent.SPRITE_DOWNLOAD_START,
+    AppEvent.SPRITE_RSS_REFRESH,
+    AppEvent.MEMORY_SAVED,
+    AppEvent.MEMORY_EXTRACTION_COMPLETED
+  ];
+
+  for (const event of questBridgeEvents) {
+    eventManager.on(event, (data) => {
+      bridgeQuestEvent(event, data);
+    });
+  }
   eventManager.on(AppEvent.APP_STARTED, () => {
     void (async () => {
       deps.setOnboardingFocus(await deps.hasNoWorkspace());

@@ -53,7 +53,7 @@
 `onboarding.resource.open-library` 做四件事：
 
 - 展示常驻引导 notice，提示用户右键助手。
-- 等待 `sprite-event-bus` 的 `interact:context-menu` 且 `payload.open === true`。
+- 等待 `sprite-event-bus` 的 `interact:context-menu` 且 payload 内的 `open === true`。
 - 菜单打开后提示用户点击“资源库”。
 - 等待 `app-event` 的 `ASSISTANT_MENU_ITEM_SELECTED`，成功后清理 notice、庆祝并说完成文案。
 

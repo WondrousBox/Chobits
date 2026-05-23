@@ -1144,11 +1144,8 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
 
   ipcMain.handle('sprite:purpose:event', (_e, p: SpritePurposeRuntimeEventInput) => {
     const result = mgr.emitPurposeEvent(p);
-    if (p?.source === 'app-event' && p.event === AppEvent.WORKSPACE_WIZARD_CLOSED) {
-      eventManager.emit(AppEvent.WORKSPACE_WIZARD_CLOSED, p.payload);
-    }
-    if (p?.source === 'app-event' && p.event === AppEvent.ASSISTANT_MENU_ITEM_SELECTED) {
-      eventManager.emit(AppEvent.ASSISTANT_MENU_ITEM_SELECTED, p.payload);
+    if (p?.source === 'app-event' && Object.values(AppEvent).includes(p.event as AppEvent)) {
+      eventManager.emit(p.event as AppEvent, p.payload);
     }
     return result;
   });
