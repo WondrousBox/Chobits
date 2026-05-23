@@ -17,23 +17,9 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
     name: 'askUserTool',
     status: 'ready-for-pi-runtime'
   },
-  'emoji-list': {
-    category: 'query',
-    description: '逐层浏览已导入表情包：先列包与一级目录，再进入相关目录',
-    compatName: 'emojiListTool',
-    name: 'emojiListTool',
-    status: 'ready-for-pi-runtime'
-  },
-  'emoji-search': {
-    category: 'query',
-    description: '按聊天话题或情绪关键词搜索少量表情包候选图片',
-    compatName: 'emojiSearchTool',
-    name: 'emojiSearchTool',
-    status: 'ready-for-pi-runtime'
-  },
   'emoji-send': {
     category: 'ui-side-effect',
-    description: '在聊天气泡中发送一张已选择的表情包图片',
+    description: '根据关键词或情绪在已导入的表情包中随机挑选一张并发送到聊天气泡，留空 query 时随机抽取',
     compatName: 'emojiSendTool',
     name: 'emojiSendTool',
     status: 'ready-for-pi-runtime'
@@ -250,8 +236,7 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
   }
 };
 
-export const DEFAULT_EMOJI_PACK_TOOL_IDS = ['emoji-list', 'emoji-send'];
-export const EMOJI_PACK_TOOL_IDS = [...DEFAULT_EMOJI_PACK_TOOL_IDS, 'emoji-search'];
+export const DEFAULT_EMOJI_PACK_TOOL_IDS = ['emoji-send'];
 
 const TOOL_NAME_TO_ID = buildToolNameToIdMap();
 export const DEFAULT_SKILL_TOOL_IDS = ['skill-search', 'skill-use'];

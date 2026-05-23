@@ -51,17 +51,6 @@ type PiSkillRuntimeContext = {
   state: SkillSessionState;
   workspaceRoot: string;
 };
-type EmojiFallbackListArgs = {
-  limit?: number;
-  packId?: string;
-  relativePath?: string;
-};
-type EmojiFallbackCandidate = {
-  allowRepeat?: boolean;
-  candidateId: string;
-  listArgs: EmojiFallbackListArgs;
-  listResult: unknown;
-};
 
 function hasPackage(pkg: string): boolean {
   try {
@@ -820,22 +809,6 @@ function isEmojiSendToolName(name: string | undefined): boolean {
   return name === 'emojiSendTool' || name === 'emoji-send';
 }
 
-function findEmojiFallbackFileNode(details: any): any | undefined {
-  return Array.isArray(details?.nodes) ? details.nodes.find((node: any) => node?.kind === 'file' && typeof node.candidateId === 'string' && !node.sentBefore) : undefined;
-}
-
-function findAnyEmojiFallbackFileNode(details: any): any | undefined {
-  return Array.isArray(details?.nodes) ? details.nodes.find((node: any) => node?.kind === 'file' && typeof node.candidateId === 'string') : undefined;
-}
-
-function findEmojiFallbackFolderNodes(details: any): any[] {
-  return Array.isArray(details?.nodes) ? details.nodes.filter((node: any) => node?.kind === 'folder' && typeof node.relativePath === 'string' && node.totalFileCount > 0) : [];
-}
-
-function findEmojiFallbackPack(details: any): any | undefined {
-  return Array.isArray(details?.packs) ? details.packs.find((pack: any) => typeof pack?.id === 'string' && pack.totalFileCount > 0) : undefined;
-}
-
 function shouldRunEmojiFallback(resolved: ResolvedPiRequest): boolean {
   return Boolean(resolved.request.extras?.emojiPacksEnabled);
 }
@@ -844,89 +817,68 @@ function resolveToolCallDisplay(toolContext: PiSessionToolContext | undefined, t
   return getPiToolChatDisplayByName(toolName, toolContext?.session?.getAllTools());
 }
 
-async function resolveEmojiFallbackCandidate(toolContext: PiSessionToolContext): Promise<EmojiFallbackCandidate | undefined> {
-  const { createPiEmojiListTool } = await import('./tools/emoji-packs');
-  const listTool = createPiEmojiListTool(toolContext);
-  const listLimit = 48;
+const MAX_FALLBACK_QUERY_TOKENS = 16;
+const MAX_FALLBACK_QUERY_LENGTH = 160;
 
-  const runList = async (args: EmojiFallbackListArgs): Promise<unknown> =>
-    (listTool.execute as (toolCallId: string, input: EmojiFallbackListArgs) => Promise<unknown>)(`emoji-fallback-probe-${Date.now()}`, args);
-  const overviewResult = await runList({ limit: listLimit });
-  const overviewDetails = (overviewResult as any)?.details || overviewResult;
-  const pack = findEmojiFallbackPack(overviewDetails);
-  if (!pack?.id) return undefined;
+/** Extract a search-friendly token bag from natural-language text. Returns a space-joined query. */
+function buildEmojiFallbackQuery(text: string): string {
+  if (!text) return '';
+  const tokens = new Set<string>();
 
-  const visited = new Set<string>();
-  const queue: EmojiFallbackListArgs[] = [{ limit: listLimit, packId: String(pack.id) }];
-  let repeatCandidate: EmojiFallbackCandidate | undefined;
+  // English / digits / underscore — keep words of length >= 2.
+  for (const match of text.matchAll(/[A-Za-z0-9_]{2,}/g)) {
+    tokens.add(match[0].toLowerCase());
+  }
 
-  for (let index = 0; index < queue.length && index < 12; index += 1) {
-    const listArgs = queue[index];
-    const key = `${listArgs.packId || ''}\n${listArgs.relativePath || ''}`;
-    if (visited.has(key)) continue;
-    visited.add(key);
-
-    const listResult = await runList(listArgs);
-    const details = (listResult as any)?.details || listResult;
-    const fileNode = findEmojiFallbackFileNode(details);
-    if (fileNode?.candidateId) {
-      return {
-        candidateId: String(fileNode.candidateId),
-        listArgs,
-        listResult
-      };
+  // CJK runs: keep the whole run if short, plus 2-char sliding windows so the existing
+  // tokenizer (which only splits on whitespace) can still match unsegmented Chinese phrases.
+  for (const match of text.matchAll(/[\u3040-\u30ff\u4e00-\u9fff\uac00-\ud7af]+/g)) {
+    const run = match[0];
+    if (run.length === 1) {
+      // Single character is too noisy to add on its own.
+      continue;
     }
-
-    const repeatedFileNode = findAnyEmojiFallbackFileNode(details);
-    if (!repeatCandidate && repeatedFileNode?.candidateId) {
-      repeatCandidate = {
-        allowRepeat: true,
-        candidateId: String(repeatedFileNode.candidateId),
-        listArgs,
-        listResult
-      };
+    if (run.length <= 4) {
+      tokens.add(run);
     }
-
-    for (const folder of findEmojiFallbackFolderNodes(details)) {
-      queue.push({
-        limit: listLimit,
-        packId: String(folder.packId || listArgs.packId),
-        relativePath: String(folder.relativePath)
-      });
+    for (let index = 0; index + 2 <= run.length; index += 1) {
+      tokens.add(run.slice(index, index + 2));
     }
   }
 
-  return repeatCandidate;
+  const ordered = Array.from(tokens).slice(0, MAX_FALLBACK_QUERY_TOKENS);
+  const joined = ordered.join(' ');
+  return joined.length > MAX_FALLBACK_QUERY_LENGTH ? joined.slice(0, MAX_FALLBACK_QUERY_LENGTH) : joined;
 }
 
-async function runEmojiFallbackSend(toolContext: PiSessionToolContext): Promise<
-  | {
-      list: { args: EmojiFallbackListArgs; callId: string; result: unknown };
-      send: { args: { allowRepeat?: boolean; candidateId: string }; callId: string; result: unknown };
+function resolveLatestUserMessageText(resolved: ResolvedPiRequest): string {
+  const messages = resolved.messages;
+  if (!Array.isArray(messages)) return '';
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role === 'user' && typeof message.content === 'string') {
+      return message.content;
     }
+  }
+  return '';
+}
+
+async function runEmojiFallbackSend(toolContext: PiSessionToolContext, query: string): Promise<
+  | {
+    send: { args: Record<string, unknown>; callId: string; result: unknown };
+  }
   | undefined
 > {
-  const candidate = await resolveEmojiFallbackCandidate(toolContext);
-  if (!candidate) return undefined;
-
   const { createPiEmojiSendTool } = await import('./tools/emoji-packs');
   const sendTool = createPiEmojiSendTool(toolContext);
-  const sendArgs = {
-    ...(candidate.allowRepeat ? { allowRepeat: true } : {}),
-    candidateId: candidate.candidateId
-  };
+  const sendArgs: Record<string, unknown> = query ? { query } : {};
   const sendCallId = `emoji-fallback-send-${Date.now()}`;
-  const sendResult = await (sendTool.execute as (toolCallId: string, input: typeof sendArgs) => Promise<unknown>)(sendCallId, sendArgs);
+  const sendResult = await (sendTool.execute as (toolCallId: string, input: Record<string, unknown>) => Promise<unknown>)(sendCallId, sendArgs);
   if (!isSuccessfulEmojiSendResult(sendResult)) {
     return undefined;
   }
 
   return {
-    list: {
-      args: candidate.listArgs,
-      callId: `emoji-fallback-list-${Date.now()}`,
-      result: candidate.listResult
-    },
     send: {
       args: sendArgs,
       callId: sendCallId,
@@ -1421,11 +1373,13 @@ export class PiSessionService {
       emojiSendCompleted = true;
 
       try {
-        const fallback = await runEmojiFallbackSend(toolContext);
+        const assistantText = extractAssistantText(assistant);
+        const userText = resolveLatestUserMessageText(resolved);
+        const query = buildEmojiFallbackQuery(`${assistantText} ${userText}`);
+
+        const fallback = await runEmojiFallbackSend(toolContext, query);
         if (!fallback) return;
 
-        legacy.toolCall('emojiListTool', fallback.list.args, fallback.list.callId, resolveToolCallDisplay(toolContext, 'emojiListTool'));
-        legacy.toolResult(fallback.list.callId, fallback.list.result);
         legacy.toolCall('emojiSendTool', fallback.send.args, fallback.send.callId, resolveToolCallDisplay(toolContext, 'emojiSendTool'));
         legacy.toolResult(fallback.send.callId, fallback.send.result);
       } catch (error) {

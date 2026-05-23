@@ -91,7 +91,7 @@ describe('ToolCallActivity', () => {
         <ToolCallActivity
           activities={[
             {
-              args: { candidateId: 'emoji-candidate-7', caption: '嚣张一下' },
+              args: { query: '嚣张', caption: '嚣张一下' },
               callId: 'emoji-call-1',
               name: 'emojiSendTool',
               status: 'calling'
@@ -103,7 +103,7 @@ describe('ToolCallActivity', () => {
     });
 
     expect(env.container.textContent).toContain('发送表情包...');
-    expect(env.container.textContent).toContain('candidateId: emoji-candidate-7');
+    expect(env.container.textContent).toContain('query: 嚣张');
     expect(env.container.textContent).not.toContain('"caption": "嚣张一下"');
 
     await act(async () => {
@@ -134,7 +134,7 @@ describe('ToolCallActivity', () => {
         <ToolCallActivity
           activities={[
             {
-              args: { candidateId: 'emoji-candidate-8' },
+              args: { query: 'happy' },
               callId: 'emoji-call-2',
               name: 'emojiSendTool',
               result: {
@@ -157,7 +157,7 @@ describe('ToolCallActivity', () => {
 
     const img = env.container.querySelector('img');
     expect(env.container.textContent).toContain('发送表情包完成');
-    expect(env.container.textContent).toContain('candidateId: emoji-candidate-8');
+    expect(env.container.textContent).toContain('query: happy');
     expect(env.container.textContent).toContain('发这张');
     expect(img?.getAttribute('src')).toBe('res://ws/test/emoji.jpg');
     expect(img?.getAttribute('alt')).toBe('你这图不错');
@@ -182,7 +182,7 @@ describe('ToolCallActivity', () => {
         <ToolCallActivity
           activities={[
             {
-              args: { candidateId: 'emoji-candidate-9' },
+              args: { query: 'content-only-query' },
               callId: 'emoji-call-3',
               display: { mode: 'content-only' },
               name: 'emojiSendTool',
@@ -206,7 +206,7 @@ describe('ToolCallActivity', () => {
 
     const img = env.container.querySelector('img');
     expect(env.container.textContent).toContain('content only');
-    expect(env.container.textContent).not.toContain('candidateId: emoji-candidate-9');
+    expect(env.container.textContent).not.toContain('query: content-only-query');
     expect(env.container.textContent).not.toContain('鍙戦€佽〃鎯呭寘瀹屾垚');
     expect(img?.getAttribute('src')).toBe('res://ws/test/emoji-content-only.jpg');
 

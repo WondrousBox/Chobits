@@ -1,48 +1,30 @@
-import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
+﻿import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
 import { Type } from '@sinclair/typebox';
 
-import { listEmojiPackNodes, listEmojiPacks, resolveEmojiFromPack, searchEmojiPacks } from '../../../../../electron/main/handlers/emoji-packs/service';
+import { listEmojiPacks, resolveEmojiFromPack, searchEmojiPacks } from '../../../../../electron/main/handlers/emoji-packs/service';
 import type { EmojiPackSearchResult } from '../../../../../electron/main/handlers/emoji-packs/types';
 import type { PiSessionToolContext } from '../tool-context';
-import { PI_CONTENT_ONLY_TOOL_DISPLAY, PI_HIDDEN_TOOL_DISPLAY, type PiChatDisplayToolConfig } from './display';
+import { PI_CONTENT_ONLY_TOOL_DISPLAY, type PiChatDisplayToolConfig } from './display';
 import { createJsonToolResult } from './result';
 
-const DEFAULT_EMOJI_SEARCH_LIMIT = 8;
-const MAX_EMOJI_SEARCH_LIMIT = 24;
-const DEFAULT_EMOJI_LIST_LIMIT = 16;
-const MAX_EMOJI_LIST_LIMIT = 80;
-const MAX_STORED_EMOJI_CANDIDATES = 200;
 const MAX_STORED_SENT_EMOJIS = 500;
-
-const emojiListParameters = Type.Object({
-  limit: Type.Optional(Type.Number({ description: 'Maximum number of entries to return. Default 16, max 80.' })),
-  packId: Type.Optional(Type.String({ description: 'Emoji pack id. Omit to list imported packs.' })),
-  relativePath: Type.Optional(Type.String({ description: 'Folder relative path returned by a previous emojiListTool call.' }))
-});
-
-const emojiSearchParameters = Type.Object({
-  limit: Type.Optional(Type.Number({ description: 'Maximum number of image matches. Default 8, max 24.' })),
-  packId: Type.Optional(Type.String({ description: 'Optional emoji pack id to constrain search.' })),
-  query: Type.String({
-    description: 'Short literal filename/folder keyword. Space-separated words are ranked separately; exact phrases and all-word matches are boosted, but partial matches can still be returned.'
-  })
-});
+const MAX_SEARCH_CANDIDATES = 200;
+const RANDOM_FALLBACK_LIMIT = 200;
 
 const emojiSendParameters = Type.Object({
-  allowRepeat: Type.Optional(Type.Boolean({ description: 'Set true only when intentionally sending an emoji already used in this conversation.' })),
-  caption: Type.Optional(Type.String({ description: 'Optional short text to accompany the meme image.' })),
-  candidateId: Type.Optional(Type.String({ description: 'Compact candidateId returned by emojiSearchTool or emojiListTool.' })),
-  packId: Type.Optional(Type.String({ description: 'Emoji pack id from emojiListTool. Optional when candidateId is provided.' })),
-  relativePath: Type.Optional(Type.String({ description: 'Image relativePath from emojiListTool. Optional when candidateId is provided.' }))
+  allowRepeat: Type.Optional(Type.Boolean({ description: 'Set true to allow re-sending an emoji already used in this conversation.' })),
+  caption: Type.Optional(Type.String({ description: 'Optional short caption shown next to the meme image.' })),
+  packId: Type.Optional(Type.String({ description: 'Optional emoji pack id to restrict the candidate pool.' })),
+  query: Type.Optional(
+    Type.String({
+      description: 'Free-form keywords/emotion describing the desired meme (e.g. "开心 庆祝", "猫猫 哭"). Leave empty to pick a random emoji.'
+    })
+  )
 });
 
-type StoredEmojiCandidate = Pick<EmojiPackSearchResult, 'mimeType' | 'packId' | 'packName' | 'relativePath' | 'title' | 'url'>;
-
 interface EmojiConversationToolState {
-  candidates: Map<string, StoredEmojiCandidate>;
   loadedHistory: boolean;
   loadingHistory?: Promise<void>;
-  nextCandidateIndex: number;
   sentKeys: Set<string>;
   sentOrder: string[];
 }
@@ -64,9 +46,7 @@ function getEmojiConversationState(toolContext?: PiSessionToolContext): EmojiCon
   let state = emojiConversationStates.get(key);
   if (!state) {
     state = {
-      candidates: new Map(),
       loadedHistory: false,
-      nextCandidateIndex: 1,
       sentKeys: new Set(),
       sentOrder: []
     };
@@ -95,30 +75,6 @@ function rememberSentEmoji(state: EmojiConversationToolState, packId?: string, r
   }
 }
 
-function syncCandidateIndex(state: EmojiConversationToolState, candidateId: string): void {
-  const match = /^e(\d+)$/.exec(candidateId.trim());
-  if (!match) return;
-  const nextIndex = Number(match[1]) + 1;
-  if (Number.isFinite(nextIndex) && nextIndex > state.nextCandidateIndex) {
-    state.nextCandidateIndex = nextIndex;
-  }
-}
-
-function rememberSearchCandidateFromHistory(state: EmojiConversationToolState, candidateId: string | undefined, item: StoredEmojiCandidate): void {
-  if (!candidateId) return;
-  const normalizedCandidateId = candidateId.trim();
-  if (!normalizedCandidateId) return;
-
-  state.candidates.set(normalizedCandidateId, item);
-  syncCandidateIndex(state, normalizedCandidateId);
-
-  while (state.candidates.size > MAX_STORED_EMOJI_CANDIDATES) {
-    const oldest = state.candidates.keys().next().value;
-    if (!oldest) break;
-    state.candidates.delete(oldest);
-  }
-}
-
 function parseMaybeJson(value: unknown): any {
   if (typeof value !== 'string') return value;
   try {
@@ -137,39 +93,7 @@ function readEmojiSendToolCallIdentity(toolCall: any): { packId?: string; relati
       relativePath: String(emoji.relativePath)
     };
   }
-
-  const args = parseMaybeJson(toolCall?.args);
-  if (args?.packId && args?.relativePath) {
-    return {
-      packId: String(args.packId),
-      relativePath: String(args.relativePath)
-    };
-  }
-
   return undefined;
-}
-
-function readEmojiSearchToolCallCandidates(toolCall: any): Array<{ candidateId?: string; item: StoredEmojiCandidate }> {
-  const resultDetails = parseMaybeJson(toolCall?.result)?.details || parseMaybeJson(toolCall?.result);
-  const resultItems = Array.isArray(resultDetails?.results) ? resultDetails.results : [];
-  const nodeItems = Array.isArray(resultDetails?.nodes) ? resultDetails.nodes.filter((item: any) => item?.kind === 'file') : [];
-  const packName = typeof resultDetails?.pack?.name === 'string' ? resultDetails.pack.name : '';
-  return [...resultItems, ...nodeItems]
-    .map((item: any): { candidateId?: string; item: StoredEmojiCandidate } | undefined => {
-      if (!item?.packId || !item?.relativePath || !item?.title || !item?.mimeType) return undefined;
-      return {
-        candidateId: typeof item.candidateId === 'string' ? item.candidateId : undefined,
-        item: {
-          mimeType: String(item.mimeType),
-          packId: String(item.packId),
-          packName: typeof item.packName === 'string' ? String(item.packName) : packName,
-          relativePath: String(item.relativePath),
-          title: String(item.title),
-          url: typeof item.url === 'string' ? String(item.url) : ''
-        }
-      };
-    })
-    .filter((entry: { candidateId?: string; item: StoredEmojiCandidate } | undefined): entry is { candidateId?: string; item: StoredEmojiCandidate } => Boolean(entry));
 }
 
 async function ensureEmojiConversationHistoryLoaded(toolContext: PiSessionToolContext | undefined, state: EmojiConversationToolState): Promise<void> {
@@ -195,14 +119,6 @@ async function ensureEmojiConversationHistoryLoaded(toolContext: PiSessionToolCo
           const identity = readEmojiSendToolCallIdentity(toolCall);
           rememberSentEmoji(state, identity?.packId, identity?.relativePath);
         }
-
-        if (toolCall?.name === 'emojiSearchTool' || toolCall?.name === 'emoji-search' || toolCall?.name === 'emojiListTool' || toolCall?.name === 'emoji-list') {
-          for (const candidate of readEmojiSearchToolCallCandidates(toolCall)) {
-            if (candidate.candidateId) {
-              rememberSearchCandidateFromHistory(state, candidate.candidateId, candidate.item);
-            }
-          }
-        }
       }
     }
 
@@ -214,254 +130,49 @@ async function ensureEmojiConversationHistoryLoaded(toolContext: PiSessionToolCo
   await state.loadingHistory;
 }
 
-function resolveEmojiSearchLimit(limit?: number): number {
-  if (!Number.isFinite(limit)) return DEFAULT_EMOJI_SEARCH_LIMIT;
-  return Math.max(1, Math.min(Math.floor(limit || DEFAULT_EMOJI_SEARCH_LIMIT), MAX_EMOJI_SEARCH_LIMIT));
+function pickRandom<T>(items: T[]): T | undefined {
+  if (!items.length) return undefined;
+  const index = Math.floor(Math.random() * items.length);
+  return items[index];
 }
 
-function resolveEmojiListLimit(limit?: number): number {
-  if (!Number.isFinite(limit)) return DEFAULT_EMOJI_LIST_LIMIT;
-  return Math.max(1, Math.min(Math.floor(limit || DEFAULT_EMOJI_LIST_LIMIT), MAX_EMOJI_LIST_LIMIT));
+interface RankedEmojiCandidate extends EmojiPackSearchResult {
+  alreadySent: boolean;
 }
 
-function rememberSearchCandidate(state: EmojiConversationToolState, item: StoredEmojiCandidate): string {
-  const candidateId = `e${state.nextCandidateIndex++}`;
-  state.candidates.set(candidateId, item);
-  while (state.candidates.size > MAX_STORED_EMOJI_CANDIDATES) {
-    const oldest = state.candidates.keys().next().value;
-    if (!oldest) break;
-    state.candidates.delete(oldest);
+/** Bucket by score tier (>=80 / 60-79 / 40-59 / >0), keep the first non-empty tier, then random pick. */
+function pickTieredRandom(candidates: RankedEmojiCandidate[]): RankedEmojiCandidate | undefined {
+  if (!candidates.length) return undefined;
+  const tiers: RankedEmojiCandidate[][] = [[], [], [], []];
+  for (const candidate of candidates) {
+    if (candidate.score >= 80) tiers[0].push(candidate);
+    else if (candidate.score >= 60) tiers[1].push(candidate);
+    else if (candidate.score >= 40) tiers[2].push(candidate);
+    else if (candidate.score > 0) tiers[3].push(candidate);
   }
-  return candidateId;
-}
-
-function truncateToolText(value: string, maxLength = 28): string {
-  const normalized = value.trim();
-  return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}...` : normalized;
-}
-
-function compactPackForModel(pack: { id: string; name: string; topLevelFolders?: string[]; totalFileCount: number }) {
-  return {
-    folders: pack.topLevelFolders?.slice(0, 24),
-    id: pack.id,
-    name: pack.name,
-    total: pack.totalFileCount
-  };
-}
-
-function compactNodeForModel(node: ReturnType<typeof compactListNodeDetails>[number]) {
-  if (node.kind === 'folder') {
-    return `${node.relativePath || node.name} (${node.totalFileCount} files)`;
+  for (const tier of tiers) {
+    const picked = pickRandom(tier);
+    if (picked) return picked;
   }
-
-  return `${node.candidateId}: ${truncateToolText(node.title)}${node.sentBefore ? ' [sentBefore]' : ''}`;
+  return pickRandom(candidates);
 }
 
-function compactListNodeDetails(nodes: Awaited<ReturnType<typeof listEmojiPackNodes>>['nodes'], state: EmojiConversationToolState) {
-  return nodes.map((node) =>
-    node.kind === 'folder'
-      ? {
-        childFolderCount: node.childFolderCount,
-        fileCount: node.fileCount,
-        kind: node.kind,
-        name: node.name,
-        packId: node.packId,
-        relativePath: node.relativePath,
-        totalFileCount: node.totalFileCount
-      }
-      : (() => {
-        const candidateId = rememberSearchCandidate(state, {
-          mimeType: node.mimeType,
-          packId: node.packId,
-          packName: node.packName,
-          relativePath: node.relativePath,
-          title: node.title,
-          url: node.url
-        });
-        const key = emojiKey(node.packId, node.relativePath);
-        return {
-          candidateId,
-          kind: node.kind,
-          mimeType: node.mimeType,
-          name: node.name,
-          packId: node.packId,
-          relativePath: node.relativePath,
-          sentBefore: key && state.sentKeys.has(key) ? true : undefined,
-          title: node.title
-        };
-      })()
-  );
-}
-
-export function createPiEmojiListTool(toolContext?: PiSessionToolContext): ToolDefinition<typeof emojiListParameters> & PiChatDisplayToolConfig {
-  return {
-    chatDisplay: PI_HIDDEN_TOOL_DISPLAY,
-    description:
-      'List imported meme/emoji packs or one folder level inside a pack. File nodes include candidateId values for emojiSendTool. In emoji mode, casual chat should usually continue from a relevant list result to emojiSendTool instead of stopping at text-only replies.',
-    label: 'emojiListTool',
-    name: 'emojiListTool',
-    parameters: emojiListParameters,
-    async execute(_toolCallId, input) {
-      if (!input.packId) {
-        const packs = await listEmojiPacks();
-        const details = {
-          mode: 'packs',
-          nextStep: packs.length
-            ? 'Pick a relevant packId/folder from this overview, then call emojiListTool again; in casual chat, continue until you can send one file candidate.'
-            : 'Import an emoji pack before using emojiSendTool.',
-          packs: packs.map((pack) => ({
-            id: pack.id,
-            name: pack.name,
-            topLevelFolders: pack.topLevelFolders.slice(0, 48),
-            totalFileCount: pack.totalFileCount
-          })),
-          success: true
-        };
-        return createJsonToolResult(details, {
-          content: `emoji packs: ${details.packs
-            .map((pack) => {
-              const compactPack = compactPackForModel(pack);
-              return `${compactPack.id} (${compactPack.name}, ${compactPack.total} files${compactPack.folders?.length ? `, folders: ${compactPack.folders.join(', ')}` : ''})`;
-            })
-            .join('; ')}. ${details.nextStep}`
-        });
-      }
-
-      const result = await listEmojiPackNodes({
-        limit: resolveEmojiListLimit(input.limit),
-        packId: input.packId,
-        relativePath: input.relativePath
-      });
-
-      if (!result.pack) {
-        const packs = await listEmojiPacks();
-        const details = {
-          error: `Emoji packId not found: ${input.packId}`,
-          mode: 'packs',
-          nextStep: 'Use one of these packId values exactly, or call emojiSearchTool without packId.',
-          packs: packs.map((pack) => ({
-            id: pack.id,
-            name: pack.name,
-            topLevelFolders: pack.topLevelFolders.slice(0, 48),
-            totalFileCount: pack.totalFileCount
-          })),
-          success: false
-        };
-        return createJsonToolResult(details, {
-          content: `${details.error}. Available packs: ${details.packs.map((pack) => pack.id).join(', ')}. ${details.nextStep}`
-        });
-      }
-
-      const state = getEmojiConversationState(toolContext);
-      await ensureEmojiConversationHistoryLoaded(toolContext, state);
-      const nodes = compactListNodeDetails(result.nodes, state);
-      const details = {
-        mode: 'nodes',
-        nodes,
-        pack: result.pack
-          ? {
-            id: result.pack.id,
-            name: result.pack.name,
-            totalFileCount: result.pack.totalFileCount
-          }
-          : undefined,
-        success: true
-      };
-      const folders = details.nodes.filter((node) => node.kind === 'folder').map(compactNodeForModel);
-      const files = details.nodes.filter((node) => node.kind === 'file').map(compactNodeForModel);
-      return createJsonToolResult(details, {
-        content: [
-          `emoji list ${details.pack?.id || input.packId}${input.relativePath ? `/${input.relativePath}` : ''}: ${details.nodes.length} items.`,
-          folders.length ? `folders: ${folders.join('; ')}` : '',
-          files.length ? `files: ${files.join('; ')}` : '',
-          files.length
-            ? 'Emoji mode is on: send one fitting file with emojiSendTool({ candidateId }) unless this reply should avoid images.'
-            : 'List a relevant folder with emojiListTool({ packId, relativePath }) until file candidates appear.'
-        ]
-          .filter(Boolean)
-          .join('\n')
-      });
-    }
-  };
-}
-
-export function createPiEmojiSearchTool(toolContext?: PiSessionToolContext): ToolDefinition<typeof emojiSearchParameters> {
-  return {
-    description:
-      'Search imported meme/emoji image filenames and folder paths with literal keywords. Returns compact candidateId entries without image URLs. In emoji mode, if results are suitable for a casual reply, continue to emojiSendTool instead of replying text-only. If the prompt overview already shows a relevant pack/folder category, prefer emojiListTool for that folder instead of guessing many searches. Do not repeatedly search with synonyms after one weak/empty result.',
-    label: 'emojiSearchTool',
-    name: 'emojiSearchTool',
-    parameters: emojiSearchParameters,
-    async execute(_toolCallId, input) {
-      const state = getEmojiConversationState(toolContext);
-      await ensureEmojiConversationHistoryLoaded(toolContext, state);
-
-      const requestedLimit = resolveEmojiSearchLimit(input.limit);
-      const searchLimit = Math.max(requestedLimit, Math.min(MAX_EMOJI_SEARCH_LIMIT, requestedLimit + Math.min(state.sentKeys.size, requestedLimit * 2)));
-      const results = await searchEmojiPacks({
-        limit: searchLimit,
-        packId: input.packId,
-        query: input.query
-      });
-
-      const ranked = results
-        .map((item) => {
-          const candidateId = rememberSearchCandidate(state, {
-            mimeType: item.mimeType,
-            packId: item.packId,
-            packName: item.packName,
-            relativePath: item.relativePath,
-            title: item.title,
-            url: item.url
-          });
-          const searchKey = emojiKey(item.packId, item.relativePath);
-          const alreadySent = Boolean(searchKey && state.sentKeys.has(searchKey));
-          return { alreadySent, candidateId, item };
-        })
-        .sort((left, right) => Number(left.alreadySent) - Number(right.alreadySent));
-
-      const compactResults = ranked.slice(0, requestedLimit).map(({ alreadySent, candidateId, item }) => ({
-        candidateId,
-        mimeType: item.mimeType,
-        packId: item.packId,
-        relativePath: item.relativePath,
-        sentBefore: alreadySent ? true : undefined,
-        title: item.title
-      }));
-      const hasUnsentResult = compactResults.some((item) => !item.sentBefore);
-
-      const details = {
-        nextStep: compactResults.length
-          ? hasUnsentResult
-            ? 'Emoji mode is on: call emojiSendTool with a fitting candidateId unless this reply should avoid images. Prefer results without sentBefore.'
-            : 'All close matches were already sent in this conversation. Try a different query.'
-          : 'Do not keep guessing search keywords. Use emojiListTool with a relevant packId/folder from the emoji pack overview.',
-        query: input.query,
-        results: compactResults,
-        success: true
-      };
-
-      return createJsonToolResult(details, {
-        content: {
-          nextStep: details.nextStep,
-          query: details.query,
-          results: details.results.map((item) => ({
-            candidateId: item.candidateId,
-            sentBefore: item.sentBefore,
-            title: item.title
-          })),
-          success: details.success
-        }
-      });
-    }
-  };
+async function collectRandomFallbackCandidates(packId?: string): Promise<EmojiPackSearchResult[]> {
+  const packs = await listEmojiPacks();
+  if (!packs.length) return [];
+  const targetPackId = packId || packs[0].id;
+  // Empty query returns every file with score=1 (see service.computeSearchScore).
+  const results = await searchEmojiPacks({ limit: RANDOM_FALLBACK_LIMIT, packId: targetPackId, query: '' });
+  if (results.length) return results;
+  // Fall back to any pack if the requested pack is empty.
+  return searchEmojiPacks({ limit: RANDOM_FALLBACK_LIMIT, query: '' });
 }
 
 export function createPiEmojiSendTool(toolContext?: PiSessionToolContext): ToolDefinition<typeof emojiSendParameters> & PiChatDisplayToolConfig {
   return {
     chatDisplay: PI_CONTENT_ONLY_TOOL_DISPLAY,
     description:
-      'Send one selected meme/emoji image into the chat bubble. Prefer using candidateId from emojiSearchTool or emojiListTool. In emoji mode, casual chat should usually call this once after a suitable candidate appears; do not stop after listing/searching candidates unless the reply should avoid images.',
+      'Send one meme/emoji image into the chat bubble. Provide a short literal `query` describing keywords/emotion/scene (e.g. "开心 庆祝", "猫猫 哭"); the tool searches imported packs internally and randomly picks a suitable image. Omit `query` to pick a random emoji. Use only when an emoji actually fits the reply; do not call multiple times per turn.',
     label: 'emojiSendTool',
     name: 'emojiSendTool',
     parameters: emojiSendParameters,
@@ -469,43 +180,77 @@ export function createPiEmojiSendTool(toolContext?: PiSessionToolContext): ToolD
       const state = getEmojiConversationState(toolContext);
       await ensureEmojiConversationHistoryLoaded(toolContext, state);
 
-      const candidate = input.candidateId ? state.candidates.get(input.candidateId.trim()) : undefined;
-      const packId = candidate?.packId || input.packId?.trim();
-      const relativePath = candidate?.relativePath || input.relativePath?.trim();
-      const selectedKey = emojiKey(packId, relativePath);
-      const alreadySent = Boolean(selectedKey && state.sentKeys.has(selectedKey));
+      const query = (input.query || '').trim();
+      const packId = input.packId?.trim() || undefined;
+      const allowRepeat = Boolean(input.allowRepeat);
 
-      if (!packId || !relativePath) {
+      let rawCandidates: EmojiPackSearchResult[];
+      if (query) {
+        rawCandidates = await searchEmojiPacks({ limit: MAX_SEARCH_CANDIDATES, packId, query });
+        // No keyword match — fall back to a random pick from imported packs so we still try to send something.
+        if (!rawCandidates.length) {
+          rawCandidates = await collectRandomFallbackCandidates(packId);
+        }
+      } else {
+        rawCandidates = await collectRandomFallbackCandidates(packId);
+      }
+
+      if (!rawCandidates.length) {
         const details = {
-          error: 'Emoji image not found. Missing packId/relativePath or candidateId.',
+          error: 'No imported emoji packs available. Import an emoji pack before using emojiSendTool.',
           success: false
         };
         return createJsonToolResult(details);
       }
 
-      if (alreadySent && !input.allowRepeat) {
+      const ranked: RankedEmojiCandidate[] = rawCandidates.map((item) => {
+        const key = emojiKey(item.packId, item.relativePath);
+        return {
+          ...item,
+          alreadySent: Boolean(key && state.sentKeys.has(key))
+        };
+      });
+
+      const eligible = allowRepeat ? ranked : ranked.filter((item) => !item.alreadySent);
+
+      let selected = pickTieredRandom(eligible);
+
+      // If every match was already sent, fall back to a random unsent emoji from the preferred pack.
+      if (!selected && !allowRepeat) {
+        const fallbackRaw = await collectRandomFallbackCandidates(packId);
+        const fallbackUnsent = fallbackRaw.filter((item) => {
+          const key = emojiKey(item.packId, item.relativePath);
+          return !(key && state.sentKeys.has(key));
+        });
+        const fallback = pickRandom(fallbackUnsent);
+        if (fallback) {
+          selected = { ...fallback, alreadySent: false };
+        }
+      }
+
+      // Last resort: allow a repeat from the full ranked pool so we still send something.
+      if (!selected) {
+        const fallback = pickRandom(ranked);
+        if (fallback) selected = fallback;
+      }
+
+      if (!selected) {
         const details = {
-          error: 'This emoji was already sent in this conversation. Pick another candidate or set allowRepeat to true if you intentionally want to repeat it.',
-          packId,
-          relativePath,
+          error: 'No emoji candidate could be selected.',
+          query: query || undefined,
           success: false
         };
-        return createJsonToolResult(details, {
-          content: {
-            error: details.error,
-            success: details.success
-          }
-        });
+        return createJsonToolResult(details);
       }
 
       const emoji = await resolveEmojiFromPack({
-        packId,
-        relativePath
+        packId: selected.packId,
+        relativePath: selected.relativePath
       });
 
       if (!emoji) {
         const details = {
-          error: 'Emoji image not found.',
+          error: 'Emoji image not found after selection.',
           success: false
         };
         return createJsonToolResult(details);
@@ -524,13 +269,15 @@ export function createPiEmojiSendTool(toolContext?: PiSessionToolContext): ToolD
           url: emoji.url
         },
         markdown: `![${emoji.title}](${emoji.url})`,
-        sentBefore: alreadySent,
+        query: query || undefined,
+        sentBefore: selected.alreadySent,
         success: true
       };
 
       return createJsonToolResult(details, {
         content: {
           caption: details.caption,
+          query: details.query,
           sentBefore: details.sentBefore,
           success: details.success,
           title: details.emoji.title

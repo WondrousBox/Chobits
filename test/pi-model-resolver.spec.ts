@@ -64,7 +64,7 @@ vi.mock('../packages/ai/runtime/pi/runtime-switch', () => ({
 }));
 
 vi.mock('../packages/ai/runtime/pi/tool-registry', () => ({
-  DEFAULT_EMOJI_PACK_TOOL_IDS: ['emoji-list', 'emoji-send'],
+  DEFAULT_EMOJI_PACK_TOOL_IDS: ['emoji-send'],
   normalizePiToolIds: normalizePiToolIdsMock
 }));
 
@@ -238,7 +238,7 @@ describe('resolvePiRequest', () => {
     expect(resolved.messages).toEqual([{ role: 'user', content: 'Translate this subtitle' }]);
   });
 
-  it('enables emoji list and send by default while leaving emoji search for toolbox discovery', async () => {
+  it('enables emoji send by default when emoji mode is on', async () => {
     getPresetMock.mockReturnValue(undefined);
     getPresetSecretsMock.mockResolvedValue({});
     getProviderMock.mockReturnValue({
@@ -266,7 +266,8 @@ describe('resolvePiRequest', () => {
       }
     } as any);
 
-    expect(resolved.enabledToolIds).toEqual(['toolbox-lookup', 'ask-user', 'emoji-list', 'emoji-send']);
+    expect(resolved.enabledToolIds).toEqual(['toolbox-lookup', 'ask-user', 'emoji-send']);
     expect(resolved.enabledToolIds).not.toContain('emoji-search');
+    expect(resolved.enabledToolIds).not.toContain('emoji-list');
   });
 });

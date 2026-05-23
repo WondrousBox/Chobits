@@ -221,27 +221,6 @@
 
 ---
 
-## 表情包搜索
-
-**触发词：** 表情包搜索、搜索表情包、查找表情包、找表情包、emoji search、meme search
-
-**涉及工具：** emojiSearchTool
-
-**工作流程：**
-
-1. 只有当已开启表情包回复、默认的目录浏览难以找到候选，或用户明确要求按关键词找表情包时，才搜索表情包；需要发现这个工具时，用 `toolboxTool({ action: 'search', query: '表情包搜索' })`。
-2. 用 emojiSearchTool 按文件名或目录名关键词搜索少量候选。
-3. 找到候选后，用 emojiSendTool 发送其中一张贴切的 candidateId。
-4. 如果搜索结果弱或为空，不要反复猜关键词，回到 emojiListTool 浏览表情包目录。
-
-**注意：**
-
-- 表情包模式默认已直接提供 emojiListTool 和 emojiSendTool；emojiSearchTool 是按需搜索工具。
-- emojiSearchTool 是文件名/目录名搜索，不是语义搜索。
-- 每轮最多发送 1 张表情包。
-
----
-
 ## 工作流执行
 
 **触发词：** 转写、提取字幕、OCR、文字识别、提取音频、提取关键帧、生成图片、理解图片、工作流

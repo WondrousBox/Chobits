@@ -155,13 +155,12 @@ const CardToolItem: React.FC<{ activity: ToolActivity }> = ({ activity }) => {
 };
 
 function getEmojiArgSummary(args: any): string | undefined {
-  const candidateId = typeof args?.candidateId === 'string' ? args.candidateId.trim() : '';
+  const query = typeof args?.query === 'string' ? args.query.trim() : '';
   const packId = typeof args?.packId === 'string' ? args.packId.trim() : '';
-  const path = typeof args?.relativePath === 'string' ? args.relativePath.trim() : typeof args?.path === 'string' ? args.path.trim() : '';
+  const caption = typeof args?.caption === 'string' ? args.caption.trim() : '';
 
-  if (candidateId) return `candidateId: ${candidateId}`;
-  if (packId && path) return `${packId} / ${path}`;
-  if (path) return `path: ${path}`;
+  if (query) return `query: ${query}`;
+  if (caption) return `caption: ${caption}`;
   if (packId) return `packId: ${packId}`;
   return undefined;
 }
@@ -172,7 +171,7 @@ const EmojiSendToolItem: React.FC<{ activity: ToolActivity }> = ({ activity }) =
   const details = readToolDetails(activity.result) || {};
   const emoji = details.emoji;
   const imageUrl = allowToolImageUrl(emoji?.url || '');
-  const title = emoji?.title || args.caption || args.relativePath || '表情包';
+  const title = emoji?.title || args.caption || args.query || '表情包';
   const argSummary = getEmojiArgSummary(args);
   const statusText = activity.status === 'calling' ? '发送表情包...' : details.error && !imageUrl ? '表情包发送失败' : '发送表情包完成';
 

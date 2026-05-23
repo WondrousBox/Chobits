@@ -181,32 +181,17 @@ describe('emoji pack search', () => {
   });
 
   it('returns compact candidates and blocks duplicate sends in one conversation', async () => {
-    const { createPiEmojiSearchTool, createPiEmojiSendTool } = await import('../packages/ai/runtime/pi/tools/emoji-packs');
+    const { createPiEmojiSendTool } = await import('../packages/ai/runtime/pi/tools/emoji-packs');
     const toolContext = createToolContext(`conv-compact-${Date.now()}`);
-    const searchTool = createPiEmojiSearchTool(toolContext as any);
     const sendTool = createPiEmojiSendTool(toolContext as any);
 
-    const searchResult = (await searchTool.execute('call-search-1', {
-      limit: 2,
-      packId: 'EmojiPackage-1778160720970',
-      query: '嚣张'
-    })).details as any;
+    const firstSend = (
+      await sendTool.execute('call-send-1', {
+        packId: 'EmojiPackage-1778160720970',
+        query: '嚣张'
+      })
+    ).details as any;
 
-    expect(searchResult.success).toBe(true);
-    expect(searchResult.results).toHaveLength(2);
-    expect(searchResult.results[0].candidateId).toMatch(/^e\d+$/);
-    expect(searchResult.results[0]).not.toHaveProperty('url');
-    expect(searchResult.results[0]).not.toHaveProperty('packName');
-
-    const searchContextText = ((await searchTool.execute('call-search-2', {
-      limit: 1,
-      packId: 'EmojiPackage-1778160720970',
-      query: '斗图'
-    })).content?.[0] as any)?.text || '';
-    expect(searchContextText).not.toContain('res://');
-
-    const candidateId = searchResult.results[0].candidateId;
-    const firstSend = (await sendTool.execute('call-send-1', { candidateId })).details as any;
     expect(firstSend.success).toBe(true);
     expect(firstSend.emoji.url).toContain('res://');
     expect(firstSend.speech).toEqual({
@@ -214,76 +199,68 @@ describe('emoji pack search', () => {
       text: firstSend.emoji.title
     });
 
-    const duplicateSend = (await sendTool.execute('call-send-2', { candidateId })).details as any;
-    expect(duplicateSend.success).toBe(false);
-    expect(duplicateSend.error).toContain('already sent');
+    // Block-duplicate: forcing the same emoji to be picked again must respect sentBefore.
+    // We rely on the fact that the only top-tier "嚣张" hit was just sent, so the next
+    // call must select something else (random within remaining tier) or fall back.
+    const secondSend = (
+      await sendTool.execute('call-send-2', {
+        packId: 'EmojiPackage-1778160720970',
+        query: '嚣张'
+      })
+    ).details as any;
 
-    const nextSearch = (await searchTool.execute('call-search-3', {
-      limit: 2,
-      packId: 'EmojiPackage-1778160720970',
-      query: '嚣张'
-    })).details as any;
+    expect(secondSend.success).toBe(true);
+    expect(secondSend.emoji.relativePath).not.toBe(firstSend.emoji.relativePath);
 
-    expect(nextSearch.results[0].relativePath).not.toBe(firstSend.emoji.relativePath);
-    expect(nextSearch.results.find((item: any) => item.relativePath === firstSend.emoji.relativePath)?.sentBefore).toBe(true);
+    // allowRepeat lets the same emoji come back.
+    const repeatedSend = (
+      await sendTool.execute('call-send-3', {
+        allowRepeat: true,
+        packId: 'EmojiPackage-1778160720970',
+        query: '嚣张登场'
+      })
+    ).details as any;
+
+    expect(repeatedSend.success).toBe(true);
+    expect(repeatedSend.emoji.relativePath).toBe('斗图/嚣张/嚣张登场.gif');
+    expect(repeatedSend.sentBefore).toBe(true);
   });
 
-  it('keeps emoji list model content slimmer than structured details', async () => {
-    const { createPiEmojiListTool, createPiEmojiSendTool } = await import('../packages/ai/runtime/pi/tools/emoji-packs');
-    const toolContext = createToolContext(`conv-list-${Date.now()}`);
-    const listTool = createPiEmojiListTool(toolContext as any);
+  it('falls back to a random emoji when query has no match', async () => {
+    const { createPiEmojiSendTool } = await import('../packages/ai/runtime/pi/tools/emoji-packs');
+    const toolContext = createToolContext(`conv-no-match-${Date.now()}`);
     const sendTool = createPiEmojiSendTool(toolContext as any);
 
-    const result = await listTool.execute('call-list-1', {
-      limit: 2,
-      packId: 'EmojiPackage-1778160720970',
-      relativePath: '斗图'
-    });
-    const contentText = (result.content?.[0] as any)?.text || '';
+    const result = (
+      await sendTool.execute('call-no-match', {
+        packId: 'EmojiPackage-1778160720970',
+        query: 'no-such-keyword-xyz'
+      })
+    ).details as any;
 
-    const fileNode = (result.details as any).nodes.find((node: any) => node.kind === 'file');
-    expect(fileNode).toHaveProperty('packId');
-    expect(fileNode).toHaveProperty('mimeType');
-    expect(fileNode.candidateId).toMatch(/^e\d+$/);
-    expect(contentText).toContain(fileNode.candidateId);
-    expect(contentText).toContain('emojiSendTool({ candidateId })');
-    expect(contentText).not.toContain('"nodes"');
-    expect(contentText).not.toContain('"packId"');
-    expect(contentText).not.toContain('"mimeType"');
-    expect(contentText.length).toBeLessThan(JSON.stringify(result.details, null, 2).length);
+    expect(result.success).toBe(true);
+    expect(result.emoji.packId).toBe('EmojiPackage-1778160720970');
+  });
 
-    const sendResult = (await sendTool.execute('call-list-send-1', { candidateId: fileNode.candidateId })).details as any;
-    expect(sendResult.success).toBe(true);
-    expect(sendResult.emoji.relativePath).toBe(fileNode.relativePath);
+  it('picks a random emoji when query is omitted', async () => {
+    const { createPiEmojiSendTool } = await import('../packages/ai/runtime/pi/tools/emoji-packs');
+    const toolContext = createToolContext(`conv-random-${Date.now()}`);
+    const sendTool = createPiEmojiSendTool(toolContext as any);
+
+    const result = (await sendTool.execute('call-random', {})).details as any;
+
+    expect(result.success).toBe(true);
+    expect(result.emoji.packId).toBe('EmojiPackage-1778160720970');
+    expect(result.query).toBeUndefined();
   });
 
   it('loads previously sent emoji from persisted conversation tool calls', async () => {
-    const { createPiEmojiSearchTool, createPiEmojiSendTool } = await import('../packages/ai/runtime/pi/tools/emoji-packs');
+    const { createPiEmojiSendTool } = await import('../packages/ai/runtime/pi/tools/emoji-packs');
     const sentPath = '斗图/嚣张/嚣张登场.gif';
     const toolContext = createToolContext('conv-history', [
       {
         metadata: {
           toolCalls: [
-            {
-              name: 'emojiListTool',
-              result: {
-                details: {
-                  pack: {
-                    name: 'Test Pack'
-                  },
-                  nodes: [
-                    {
-                      candidateId: 'e42',
-                      kind: 'file',
-                      mimeType: 'image/png',
-                      packId: 'EmojiPackage-1778160720970',
-                      relativePath: '斗图/普通微笑.png',
-                      title: '普通微笑'
-                    }
-                  ]
-                }
-              }
-            },
             {
               name: 'emojiSendTool',
               result: {
@@ -300,24 +277,21 @@ describe('emoji pack search', () => {
       }
     ]);
 
-    const searchTool = createPiEmojiSearchTool(toolContext as any);
-    const result = (await searchTool.execute('call-search-history', {
-      limit: 2,
-      packId: 'EmojiPackage-1778160720970',
-      query: '嚣张'
-    })).details as any;
+    const sendTool = createPiEmojiSendTool(toolContext as any);
+    const result = (
+      await sendTool.execute('call-history', {
+        packId: 'EmojiPackage-1778160720970',
+        query: '嚣张'
+      })
+    ).details as any;
 
     expect(toolContext.chatRepo.listMessages).toHaveBeenCalledWith('conv-history', 2000, 0);
-    expect(result.results[0].relativePath).not.toBe(sentPath);
-    expect(result.results.find((item: any) => item.relativePath === sentPath)?.sentBefore).toBe(true);
-
-    const sendTool = createPiEmojiSendTool(toolContext as any);
-    const sendResult = (await sendTool.execute('call-send-history', { candidateId: 'e42' })).details as any;
-    expect(sendResult.success).toBe(true);
-    expect(sendResult.emoji.relativePath).toBe('斗图/普通微笑.png');
+    expect(result.success).toBe(true);
+    // The only top-tier "嚣张" hit was already sent in history, so the next call must pick something else.
+    expect(result.emoji.relativePath).not.toBe(sentPath);
   });
 
-  it('instructs the model to use list and send when emoji mode is enabled', async () => {
+  it('instructs the model to send emojis directly via emojiSendTool({ query })', async () => {
     const { buildEmojiPackPromptSegment } = await import('../electron/main/handlers/emoji-packs/prompt');
 
     const prompt = await buildEmojiPackPromptSegment({
@@ -335,9 +309,10 @@ describe('emoji pack search', () => {
     });
 
     expect(prompt).toContain('## 主动尝试发送表情包');
-    expect(prompt).toContain('emojiListTool({ packId, relativePath })');
-    expect(prompt).toContain('emojiSendTool({ candidateId })');
-    expect(prompt).toContain('表情包概览');
+    expect(prompt).toContain('emojiSendTool({ query })');
+    expect(prompt).toContain('关键词');
+    expect(prompt).not.toContain('emojiListTool');
     expect(prompt).not.toContain('emojiSearchTool');
+    expect(prompt).not.toContain('candidateId');
   });
 });
