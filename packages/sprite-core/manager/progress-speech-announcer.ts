@@ -151,8 +151,6 @@ export class ProgressSpeechAnnouncer {
     let session = this.sessions.get(update.id);
 
     if (session?.completed) {
-      // 会话已完成（complete() 已调用过），忽略后续进度更新，
-      // 防止因事件到达顺序不同导致 complete() 被重复调用而语音播报两次。
       return;
     }
 
@@ -163,11 +161,6 @@ export class ProgressSpeechAnnouncer {
 
     session.kind = inferKind(update.message, update.kind ?? session.kind);
     session.lastProgress = Math.max(session.lastProgress, progress);
-
-    if (progress >= 100) {
-      this.complete({ ...update, progress, now });
-      return;
-    }
 
     let crossedCount = 0;
     for (let index = session.nextCheckpointIndex; index < session.checkpoints.length; index += 1) {

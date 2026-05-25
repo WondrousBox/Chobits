@@ -41,6 +41,7 @@ export interface ChatInputWithServiceProps extends Omit<UnifiedChatInputProps, '
     webSearchEnabled?: boolean;
     characterPersonaEnabled?: boolean;
     emojiPacksEnabled?: boolean;
+    emojiPacksDisplayTarget?: 'chat' | 'sprite-bubble';
   }) => void | Promise<void>;
   onMenuOpenChange?: (open: boolean) => void;
   onMenuOpenPrepare?: () => void;
@@ -58,6 +59,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
     codingWorkspaceLabel,
     webSearchEnabled,
     emojiPacksEnabled,
+    emojiPacksDisplayTarget,
     characterPersonaEnabled,
     setProviderId,
     setModelId,
@@ -65,6 +67,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
     setCodingWorkspace,
     setWebSearchEnabled,
     setEmojiPacksEnabled,
+    setEmojiPacksDisplayTarget,
     setCharacterPersonaEnabled
   } = useChatSelection();
   const inputRef = useRef<UnifiedChatInputHandle>(null);
@@ -167,6 +170,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
       webSearchEnabled,
       characterPersonaEnabled,
       emojiPacksEnabled,
+      emojiPacksDisplayTarget,
       ...(isCoder && codingWorkspaceRoot
         ? {
             codingWorkspaceRoot,
@@ -320,7 +324,16 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
             </Tooltip>
           )}
           <WebSearchToggle enabled={webSearchEnabled} onToggle={setWebSearchEnabled} onOpenChange={onMenuOpenChange} {...floatingMenuProps} />
-          {!isCoder && <EmojiPackButton enabled={emojiPacksEnabled} onEnabledChange={setEmojiPacksEnabled} onOpenChange={onMenuOpenChange} {...floatingMenuProps} />}
+          {!isCoder && (
+            <EmojiPackButton
+              displayTarget={emojiPacksDisplayTarget}
+              enabled={emojiPacksEnabled}
+              onDisplayTargetChange={setEmojiPacksDisplayTarget}
+              onEnabledChange={setEmojiPacksEnabled}
+              onOpenChange={onMenuOpenChange}
+              {...floatingMenuProps}
+            />
+          )}
           {!isCoder && (
             <Tooltip>
               <TooltipTrigger asChild>

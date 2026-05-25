@@ -106,11 +106,17 @@ function appendReportedOutputPath(paths: string[], candidate?: string): void {
   }
 }
 
+function getOutputFileName(filePath: string): string {
+  return path.basename(filePath.replace(/\\/g, '/'));
+}
+
 function findFallbackDownloadedOutputs(directory: string, baseName: string): string[] {
+  const outputBaseName = getOutputFileName(baseName);
+
   try {
     return fs
       .readdirSync(directory)
-      .filter((entry) => entry.startsWith(`${baseName}.`))
+      .filter((entry) => entry.startsWith(`${outputBaseName}.`))
       .filter((entry) => {
         const lower = entry.toLowerCase();
         return !lower.endsWith('.part') && !lower.endsWith('.ytdl');
@@ -129,17 +135,33 @@ function findFallbackDownloadedOutputs(directory: string, baseName: string): str
   }
 }
 
+function resolveExistingOutputPath(candidate: string | undefined, actualDestination: string): string | undefined {
+  if (!candidate) return undefined;
+
+  if (fs.existsSync(candidate)) {
+    return candidate;
+  }
+
+  const repairedCandidate = path.join(actualDestination, getOutputFileName(candidate));
+  if (fs.existsSync(repairedCandidate)) {
+    return repairedCandidate;
+  }
+
+  return undefined;
+}
+
 function resolveDownloadedOutputPath(options: { mergeFile?: string; actualDestination: string; tempName: string; reportedOutputPaths: string[] }): string | undefined {
   const { mergeFile, actualDestination, tempName, reportedOutputPaths } = options;
 
-  if (mergeFile && fs.existsSync(mergeFile)) {
-    return mergeFile;
+  const resolvedMergeFile = resolveExistingOutputPath(mergeFile, actualDestination);
+  if (resolvedMergeFile) {
+    return resolvedMergeFile;
   }
 
   for (let index = reportedOutputPaths.length - 1; index >= 0; index--) {
-    const candidate = reportedOutputPaths[index];
-    if (candidate && fs.existsSync(candidate)) {
-      return candidate;
+    const resolvedCandidate = resolveExistingOutputPath(reportedOutputPaths[index], actualDestination);
+    if (resolvedCandidate) {
+      return resolvedCandidate;
     }
   }
 
@@ -660,7 +682,7 @@ export class VideoDownloader implements Downloader {
     const actualDestination = resolvedTarget.destinationPath;
     const qualityArgs = buildQualityArgs(qualityMode, quality);
     const resolvedQualityMode = normalizeQualityMode(qualityMode, quality);
-    const tempName = DEFAULT_FOLDERS.download + '_' + generateUUID();
+    const tempName = `${path.basename(DEFAULT_FOLDERS.download)}_${generateUUID()}`;
     const resolvedFilename = filename || videoInfo?.title;
     // 清理文件名，移除系统不支持的特殊字符
     const sanitizedFilename = resolvedFilename ? sanitizeFilename(resolvedFilename) : undefined;

@@ -346,7 +346,16 @@ export function createPiYoutubeDownloadTool(toolContext: PiSessionToolContext): 
           message: `视频下载完成：${videoInfo.title || url}`,
           files: waitOutcome.result.files,
           thumbnails: waitOutcome.result.thumbnails,
+          ...(waitOutcome.result.resourceId
+            ? {
+                next: {
+                  resourceId: waitOutcome.result.resourceId,
+                  resourceRole: 'video'
+                }
+              }
+            : {}),
           ...(waitOutcome.result.resourceId ? { resourceId: waitOutcome.result.resourceId } : {}),
+          ...(waitOutcome.result.resource ? { createdResource: waitOutcome.result.resource } : {}),
           ...(waitOutcome.result.resource ? { resource: waitOutcome.result.resource } : {})
         });
       } catch (error: any) {

@@ -2,7 +2,7 @@ import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
 import { Type } from '@sinclair/typebox';
 
 import { getWorkflow, listAllWorkflowDefinitions, startWorkflow } from '../../../../workflow';
-import type { WorkflowDefinition } from '../../../../workflow/types';
+import type { NodeRunState, WorkflowDefinition, WorkflowRunRecord } from '../../../../workflow/types';
 import { resolveGuardedToolExecution } from '../skills';
 import type { PiSessionToolContext } from '../tool-context';
 import { waitForLongTaskOrBackground } from './long-task-control';
@@ -49,6 +49,21 @@ interface WorkflowSummary {
   name: string;
 }
 
+interface ProducedResourceSummary {
+  ext?: string;
+  id: string;
+  kind?: string;
+  mime?: string;
+  name?: string;
+  nodeId?: string;
+  nodeLabel?: string;
+  nodeType?: string;
+  parentResourceId?: string;
+  path?: string;
+  resource?: Record<string, any>;
+  role?: 'subtitle' | 'resource';
+}
+
 function extractWorkflowSummary(definition: WorkflowDefinition): WorkflowSummary {
   const startNode = definition.nodes.find((node) => node.type === 'core/start');
   const inputMode = (startNode?.config?.inputMode as string) || 'resource';
@@ -65,6 +80,91 @@ function extractWorkflowSummary(definition: WorkflowDefinition): WorkflowSummary
     acceptedResourceKinds: acceptedResourceKinds.length > 0 ? acceptedResourceKinds : undefined,
     coreNodeTypes,
     isPreset: Boolean(definition.isPreset)
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, any> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function resolveResourceRole(resource: ProducedResourceSummary): ProducedResourceSummary['role'] {
+  const kind = resource.kind?.toLowerCase();
+  const ext = resource.ext?.toLowerCase();
+  const mime = resource.mime?.toLowerCase();
+  const type = typeof resource.resource?.type === 'string' ? resource.resource.type.toLowerCase() : undefined;
+
+  if (kind === 'subtitle' || type === 'subtitle' || ['.srt', '.vtt', '.ass', '.ssa'].includes(ext || '') || mime?.includes('subtitle')) {
+    return 'subtitle';
+  }
+
+  return 'resource';
+}
+
+function extractResourceSummary(value: unknown, node?: NodeRunState): ProducedResourceSummary | undefined {
+  if (!isRecord(value)) return undefined;
+
+  const resource = isRecord(value.resource) ? value.resource : undefined;
+  const id = typeof value.resourceId === 'string' ? value.resourceId : typeof value.id === 'string' ? value.id : typeof resource?.id === 'string' ? resource.id : undefined;
+  if (!id) return undefined;
+
+  const summary: ProducedResourceSummary = {
+    id,
+    ...(typeof value.ext === 'string' ? { ext: value.ext } : {}),
+    ...(typeof value.kind === 'string' ? { kind: value.kind } : {}),
+    ...(typeof value.mime === 'string' ? { mime: value.mime } : {}),
+    ...(typeof value.name === 'string' ? { name: value.name } : {}),
+    ...(typeof value.parentResourceId === 'string' ? { parentResourceId: value.parentResourceId } : {}),
+    ...(typeof value.path === 'string' ? { path: value.path } : {}),
+    ...(resource ? { resource } : {}),
+    ...(node
+      ? {
+          nodeId: node.nodeId,
+          ...(typeof node.input?.nodeLabel === 'string' ? { nodeLabel: node.input.nodeLabel } : {}),
+          ...(typeof node.input?.nodeType === 'string' ? { nodeType: node.input.nodeType } : {})
+        }
+      : {})
+  };
+
+  summary.role = resolveResourceRole(summary);
+  return summary;
+}
+
+function collectProducedResources(runRecord: WorkflowRunRecord): ProducedResourceSummary[] {
+  const resources = new Map<string, ProducedResourceSummary>();
+  const add = (resource: ProducedResourceSummary | undefined): void => {
+    if (!resource) return;
+    resources.set(resource.id, {
+      ...resources.get(resource.id),
+      ...resource
+    });
+  };
+
+  add(extractResourceSummary(runRecord.output));
+
+  for (const node of Object.values(runRecord.nodes || {})) {
+    add(extractResourceSummary(node.output, node));
+  }
+
+  return Array.from(resources.values());
+}
+
+function buildWorkflowOutputSummary(runRecord: WorkflowRunRecord): Record<string, any> {
+  const createdResources = collectProducedResources(runRecord);
+  if (createdResources.length === 0) {
+    return {};
+  }
+
+  const primary = createdResources.find((resource) => resource.role === 'subtitle') || createdResources[0];
+  return {
+    createdResources,
+    next: {
+      resourceId: primary.id,
+      resourceRole: primary.role
+    },
+    outputResource: primary.resource,
+    outputResourceId: primary.id,
+    outputResourceRole: primary.role,
+    producedResourceIds: createdResources.map((resource) => resource.id)
   };
 }
 
@@ -244,6 +344,7 @@ export function createPiWorkflowRunTool(toolContext: PiSessionToolContext): Tool
             if (runRecord.output && Object.keys(runRecord.output).length > 0) {
               result.output = runRecord.output;
             }
+            Object.assign(result, buildWorkflowOutputSummary(runRecord));
           } else if (runRecord.status === 'failed') {
             result.message = `Workflow "${definition.name}" failed.`;
             result.error = runRecord.error;

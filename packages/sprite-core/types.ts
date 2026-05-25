@@ -485,6 +485,11 @@ export interface ToastMessage extends BaseMessage {
   category?: MessageCategory;
   ctx?: any;
   duration?: number;
+  image?: {
+    alt?: string;
+    title?: string;
+    url: string;
+  };
   nextAction?: MessageButton;
 }
 
@@ -521,12 +526,18 @@ export interface MessageIPCPayload {
   persistent?: boolean;
   routineId?: string;
   category?: MessageCategory;
+  image?: {
+    alt?: string;
+    title?: string;
+    url: string;
+  };
   nextAction?: MessageButton;
   speak?: boolean;
   ctx?: any;
 }
 
 export type MessageBridgeSource = 'app' | 'sprite';
+export type MessageBridgeTarget = 'all' | 'sprite';
 
 export interface MessageBridgeClearPayload {
   id?: string;
@@ -538,11 +549,13 @@ export type MessageBridgePayload =
       kind: 'show';
       payload: MessageIPCPayload;
       source: MessageBridgeSource;
+      target?: MessageBridgeTarget;
     }
   | {
       kind: 'clear';
       payload: MessageBridgeClearPayload;
       source: MessageBridgeSource;
+      target?: MessageBridgeTarget;
     };
 
 export const MESSAGE_IPC_CHANNELS = {

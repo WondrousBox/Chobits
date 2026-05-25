@@ -160,6 +160,7 @@ export function useMessageQueue(): UseMessageQueueReturn {
         category: input.category,
         ctx: input.ctx,
         duration: input.duration ?? DEFAULT_DURATION.toast,
+        image: input.image,
         nextAction: input.nextAction,
         createdAt: Date.now()
       };

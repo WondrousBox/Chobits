@@ -3,13 +3,41 @@ import { Type } from '@sinclair/typebox';
 
 import { listEmojiPacks, resolveEmojiFromPack, searchEmojiPacks } from '../../../../../electron/main/handlers/emoji-packs/service';
 import type { EmojiPackSearchResult } from '../../../../../electron/main/handlers/emoji-packs/types';
+import { SpriteManager } from '../../../../sprite-core/manager';
+import type { EmojiPacksDisplayTarget } from '../../../types';
 import type { PiSessionToolContext } from '../tool-context';
-import { PI_CONTENT_ONLY_TOOL_DISPLAY, type PiChatDisplayToolConfig } from './display';
+import { PI_CONTENT_ONLY_TOOL_DISPLAY, PI_HIDDEN_TOOL_DISPLAY, type PiChatDisplayToolConfig } from './display';
 import { createJsonToolResult } from './result';
 
 const MAX_STORED_SENT_EMOJIS = 500;
 const MAX_SEARCH_CANDIDATES = 200;
 const RANDOM_FALLBACK_LIMIT = 200;
+const SPRITE_BUBBLE_EMOJI_DURATION_MS = 6000;
+
+function resolveEmojiDisplayTarget(toolContext?: PiSessionToolContext): EmojiPacksDisplayTarget {
+  return toolContext?.resolved?.request?.extras?.emojiPacksDisplayTarget === 'sprite-bubble' ? 'sprite-bubble' : 'chat';
+}
+
+function pushEmojiToSpriteBubble(toolCallId: string, emoji: { title: string; url: string }, caption?: string): void {
+  try {
+    SpriteManager.getInstance().sendBridgeMessage(
+      {
+        id: `emoji-send-${toolCallId}`,
+        type: 'toast',
+        duration: SPRITE_BUBBLE_EMOJI_DURATION_MS,
+        image: {
+          alt: emoji.title,
+          title: caption || emoji.title,
+          url: emoji.url
+        },
+        speak: false
+      },
+      { target: 'sprite' }
+    );
+  } catch (error) {
+    console.warn('[emoji-packs] failed to push emoji to sprite bubble:', error);
+  }
+}
 
 const emojiSendParameters = Type.Object({
   allowRepeat: Type.Optional(Type.Boolean({ description: 'Set true to allow re-sending an emoji already used in this conversation.' })),
@@ -169,10 +197,12 @@ async function collectRandomFallbackCandidates(packId?: string): Promise<EmojiPa
 }
 
 export function createPiEmojiSendTool(toolContext?: PiSessionToolContext): ToolDefinition<typeof emojiSendParameters> & PiChatDisplayToolConfig {
+  const displayTarget = resolveEmojiDisplayTarget(toolContext);
+
   return {
-    chatDisplay: PI_CONTENT_ONLY_TOOL_DISPLAY,
+    chatDisplay: displayTarget === 'sprite-bubble' ? PI_HIDDEN_TOOL_DISPLAY : PI_CONTENT_ONLY_TOOL_DISPLAY,
     description:
-      'Send one meme/emoji image into the chat bubble. Provide a short literal `query` describing keywords/emotion/scene (e.g. "开心 庆祝", "猫猫 哭"); the tool searches imported packs internally and randomly picks a suitable image. Omit `query` to pick a random emoji. Use only when an emoji actually fits the reply; do not call multiple times per turn.',
+      'Send one meme/emoji image to the configured display surface. Provide a short literal `query` describing keywords/emotion/scene (e.g. "开心 庆祝", "猫猫 哭"); the tool searches imported packs internally and randomly picks a suitable image. Omit `query` to pick a random emoji. Use only when an emoji actually fits the reply; do not call multiple times per turn.',
     label: 'emojiSendTool',
     name: 'emojiSendTool',
     parameters: emojiSendParameters,
@@ -258,8 +288,13 @@ export function createPiEmojiSendTool(toolContext?: PiSessionToolContext): ToolD
 
       rememberSentEmoji(state, emoji.packId, emoji.relativePath);
 
+      if (displayTarget === 'sprite-bubble') {
+        pushEmojiToSpriteBubble(_toolCallId, emoji, input.caption);
+      }
+
       const details = {
         caption: input.caption,
+        displayTarget,
         emoji: {
           mimeType: emoji.mimeType,
           packId: emoji.packId,
@@ -277,6 +312,7 @@ export function createPiEmojiSendTool(toolContext?: PiSessionToolContext): ToolD
       return createJsonToolResult(details, {
         content: {
           caption: details.caption,
+          displayTarget: details.displayTarget,
           query: details.query,
           sentBefore: details.sentBefore,
           success: details.success,

@@ -34,7 +34,7 @@ export default function AssistantMiniInputWithService({
   onMenuOpenChange,
   onMenuOpenPrepare
 }: AssistantMiniInputWithServiceProps): JSX.Element {
-  const { providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, webSearchEnabled, emojiPacksEnabled, characterPersonaEnabled, setProviderId, setModelId } =
+  const { providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, webSearchEnabled, emojiPacksEnabled, emojiPacksDisplayTarget, characterPersonaEnabled, setProviderId, setModelId } =
     useChatSelection();
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -74,6 +74,7 @@ export default function AssistantMiniInputWithService({
       webSearchEnabled,
       characterPersonaEnabled,
       emojiPacksEnabled,
+      emojiPacksDisplayTarget,
       ...(isCoder && codingWorkspaceRoot
         ? {
           codingWorkspaceRoot,
@@ -82,7 +83,23 @@ export default function AssistantMiniInputWithService({
         : {})
     });
     setDraft('');
-  }, [agentId, characterPersonaEnabled, codingWorkspaceLabel, codingWorkspaceRoot, disabled, draft, emojiPacksEnabled, isCoder, loading, modelId, onStart, presetId, providerId, webSearchEnabled]);
+  }, [
+    agentId,
+    characterPersonaEnabled,
+    codingWorkspaceLabel,
+    codingWorkspaceRoot,
+    disabled,
+    draft,
+    emojiPacksDisplayTarget,
+    emojiPacksEnabled,
+    isCoder,
+    loading,
+    modelId,
+    onStart,
+    presetId,
+    providerId,
+    webSearchEnabled
+  ]);
 
   return (
     <div className={cn('no-drag pointer-events-auto m-1 flex h-12 w-[calc(100%-0.5rem)] items-center gap-1 rounded-full border bg-background/95 p-1 shadow-lg backdrop-blur box-border', className)}>
