@@ -352,6 +352,10 @@ function validateStep(step: unknown, path: string, state: ValidationState): numb
     case 'walkTo':
       return validateWalkToStep(record, path, state);
     case 'wait':
+      validateRuntimeEventSource(record.interruptSource, `${path}.interruptSource`, state);
+      if (record.interruptEvent !== undefined) {
+        validateEventName(record.interruptEvent, `${path}.interruptEvent`, state);
+      }
       return requireDuration(record.durationMs, `${path}.durationMs`, state);
     case 'waitForEvent':
       return validateWaitForEventStep(record, path, state);
@@ -430,6 +434,14 @@ function validateWaitForEventStep(record: Record<string, unknown>, path: string,
 function validateSpeakStep(record: Record<string, unknown>, path: string, state: ValidationState): number {
   if (!getOptionalString(record.text)) {
     state.errors.push(`${path}.text must be a non-empty string`);
+  }
+  const nextAction = asRecord(record.nextAction);
+  if (record.nextAction !== undefined) {
+    if (!nextAction) {
+      state.errors.push(`${path}.nextAction must be an object when provided`);
+    } else if (!getOptionalString(nextAction.purposeAction)) {
+      state.errors.push(`${path}.nextAction.purposeAction must be a non-empty string`);
+    }
   }
   validateOptionalTimeout(record.timeoutMs, `${path}.timeoutMs`, state);
   validateBoundedOptionalDuration(record.bubbleDuration, `${path}.bubbleDuration`, state);

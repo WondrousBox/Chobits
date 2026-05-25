@@ -399,11 +399,27 @@ export const CHARACTER_MESSAGE_SPECS = [
     neutral: () => ['这里好像没处理成功。']
   },
   {
+    field: 'workspaceCreateAssistantIntro',
+    section: 'routines',
+    key: 'onboarding.workspace.create.assistant-intro',
+    label: '工作空间引导助手自我介绍',
+    maxItems: 4,
+    neutral: () => ['你好，我是你的专属桌面助手。']
+  },
+  {
+    field: 'workspaceCreateGrowthPromise',
+    section: 'routines',
+    key: 'onboarding.workspace.create.growth-promise',
+    label: '工作空间引导陪伴说明',
+    maxItems: 4,
+    neutral: () => ['我会陪伴你学习和工作，一起共同成长。']
+  },
+  {
     field: 'workspaceCreateInvite',
     section: 'routines',
     key: 'onboarding.workspace.create.invite',
     label: '工作空间引导提示',
-    neutral: () => ['没有找到工作空间，先创建吧。']
+    neutral: () => ['先创建工作空间吧']
   },
   {
     field: 'workspaceCreateIntro',
@@ -420,7 +436,7 @@ export const CHARACTER_MESSAGE_SPECS = [
     key: 'onboarding.workspace.create.quickstart-tip',
     label: '工作空间快速创建提示',
     maxItems: 4,
-    neutral: () => ['可以用快速创建就能开始，以后也可以再调整。']
+    neutral: () => ['快速开始会默认创建到文档文件夹。']
   },
   {
     field: 'workspaceCreateDone',

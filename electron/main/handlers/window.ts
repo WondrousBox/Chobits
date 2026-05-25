@@ -7,6 +7,7 @@ import { BrowserWindow, ipcMain } from 'electron';
 import { app, screen } from 'electron';
 
 import defaultWindowConfigs from '../config/window';
+import { emitWorkspaceWizardClosedIfStillEmpty } from './workspace/ipc-main';
 
 const SPRITE_BUBBLE_WINDOW_KEYS = ['spriteBubbleFixedTop'] as const;
 type SpriteBubbleWindowKey = (typeof SPRITE_BUBBLE_WINDOW_KEYS)[number];
@@ -16,6 +17,7 @@ const SPRITE_BUBBLE_MAX_WIDTH = 504;
 const SPRITE_BUBBLE_MAX_HEIGHT = 392;
 const SPRITE_EFFECT_WINDOW_KEY = 'spriteEffect' as const;
 type AssistantInteractiveRegion = { x: number; y: number; width: number; height: number };
+const WORKSPACE_WIZARD_WINDOW_KEY = 'workspaceWizard';
 
 function clampWindowDimension(value: number | undefined, min: number, max: number): number {
   const numericValue = Number(value ?? 0);
@@ -237,6 +239,16 @@ export function initWindowHandlers(win: BrowserWindow): void {
     }
   });
 
+  const attachWorkspaceWizardClosedReporter = (workspaceWindow: BrowserWindow | null): void => {
+    if (!workspaceWindow || workspaceWindow.isDestroyed()) return;
+    if ((workspaceWindow as any).__workspaceWizardClosedReporterAttached) return;
+    (workspaceWindow as any).__workspaceWizardClosedReporterAttached = true;
+    const sourceWindowId = workspaceWindow.webContents.id;
+    workspaceWindow.once('closed', () => {
+      void emitWorkspaceWizardClosedIfStillEmpty('window-closed', sourceWindowId);
+    });
+  };
+
   // ---------------- Assistant Size IPC --------------------
   // 渲染进程通过此接口设置窗口大小和 padding
   ipcMain.handle('setAssistantSize', (_: IpcMainInvokeEvent, params: { width: number; height: number; padding: number }) => {
@@ -318,6 +330,38 @@ export function initWindowHandlers(win: BrowserWindow): void {
       return true;
     } catch (error) {
       console.warn('[window] toggle detached devtools failed:', error);
+      return false;
+    }
+  });
+  ipcMain.removeHandler('window:open');
+  ipcMain.handle('window:open', async (event, windowKey, payload, options) => {
+    if (!win || win.isDestroyed()) return false;
+    try {
+      if (payload) {
+        (globalThis as any).__lastWindowPayload = (globalThis as any).__lastWindowPayload || {};
+        (globalThis as any).__lastWindowPayload[windowKey] = payload;
+      }
+
+      let opened: BrowserWindow | null = null;
+      try {
+        const opener = BrowserWindow.fromWebContents(event.sender) || null;
+        if (opener && !opener.isDestroyed()) {
+          windowManager.setOpener(windowKey, opener);
+        }
+        if (options?.sameDisplayAsSender && opener && !opener.isDestroyed()) {
+          const display = screen.getDisplayMatching(opener.getBounds());
+          opened = await windowManager.createOrShowOnDisplay(windowKey, display, payload);
+        }
+      } catch (error) {
+        console.warn('[window:open] failed to align new window to sender display', error);
+      }
+
+      opened = opened ?? (await windowManager.createOrShow(windowKey, payload));
+      if (windowKey === WORKSPACE_WIZARD_WINDOW_KEY) {
+        attachWorkspaceWizardClosedReporter(opened);
+      }
+      return true;
+    } catch {
       return false;
     }
   });

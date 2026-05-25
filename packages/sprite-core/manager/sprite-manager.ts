@@ -297,7 +297,18 @@ export class SpriteManager {
         playAnimation: (step, signal, routine) => this.runPurposeAnimationStep(step, signal, routine),
         walkTo: (step, signal, routine) => this.runPurposeWalkStep(step, signal, routine),
         waitForEvent: (step, signal, routine) => this.purposeEventWaiter.wait(step, routine, signal),
-        speak: (step) => this.speak(step.text, { showBubble: true, bubbleDuration: step.bubbleDuration }),
+        speak: (step) =>
+          this.speak(step.text, {
+            showBubble: true,
+            bubbleDuration: step.bubbleDuration,
+            nextAction: step.nextAction
+              ? {
+                  id: step.nextAction.id,
+                  label: step.nextAction.label ?? '下一句',
+                  action: `purpose:${step.nextAction.purposeAction}`
+                }
+              : undefined
+          }),
         showToast: (step) => this.showToast(step.content, { category: step.category as MessageCategory | undefined, duration: step.duration }),
         showNotice: (step) =>
           this.showNotice(step.content, {
@@ -855,7 +866,7 @@ export class SpriteManager {
   }
 
   /** 轻量提示 */
-  showToast(content?: string, options?: { category?: MessageCategory; duration?: number; level?: string; ctx?: any; speak?: boolean; ambientContext?: SpriteAmbientMessageContext }): void {
+  showToast(content?: string, options?: { category?: MessageCategory; duration?: number; level?: string; ctx?: any; speak?: boolean; ambientContext?: SpriteAmbientMessageContext; nextAction?: MessageIPCPayload['nextAction'] }): void {
     if (this.shouldSuppressAmbientMessage(options?.ambientContext)) {
       return;
     }
@@ -869,7 +880,8 @@ export class SpriteManager {
       category: options?.category,
       duration: options?.duration,
       level: options?.level as any,
-      ctx: options?.ctx
+      ctx: options?.ctx,
+      nextAction: options?.nextAction
     };
     this.sendRendererMessage(payload);
 
@@ -939,7 +951,7 @@ export class SpriteManager {
    * 让精灵说话
    * 同时显示文字气泡 + 合成并播放语音
    */
-  async speak(text: string, options?: { showBubble?: boolean; bubbleDuration?: number; ambientContext?: SpriteAmbientMessageContext }): Promise<SpeakResult> {
+  async speak(text: string, options?: { showBubble?: boolean; bubbleDuration?: number; ambientContext?: SpriteAmbientMessageContext; nextAction?: MessageIPCPayload['nextAction'] }): Promise<SpeakResult> {
     if (this.shouldSuppressAmbientMessage(options?.ambientContext)) {
       return { success: false, error: 'suppressed-by-onboarding' };
     }
@@ -950,7 +962,7 @@ export class SpriteManager {
     try {
       if (showBubble) {
         const bubbleDuration = options?.bubbleDuration ?? Math.max(3000, text.length * 200);
-        this.showToast(text, { duration: bubbleDuration, category: 'message' });
+        this.showToast(text, { duration: bubbleDuration, category: 'message', nextAction: options?.nextAction });
       }
       return await this.speakService.speak(text);
     } finally {

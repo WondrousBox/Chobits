@@ -9,13 +9,18 @@
 
 import Messages from '@packages/sprite-core/messages/zh-CN';
 import clsx from 'clsx';
+import { ChevronRight } from 'lucide-react';
 import React from 'react';
 
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
 import type { MessageCategory } from '../../types';
-import type { ToastMessage } from '../types';
+import type { MessageButton, ToastMessage } from '../types';
 
 interface ToastRendererProps {
   message: ToastMessage;
+  onButtonClick?: (button: MessageButton) => void;
   className?: string;
   placement?: 'inline' | 'fixed-top';
 }
@@ -28,7 +33,7 @@ const levelStyles: Record<string, string> = {
   error: 'bg-rose-50/95 text-rose-800 border border-rose-200/50'
 };
 
-export function ToastRenderer({ message, className, placement = 'inline' }: ToastRendererProps): JSX.Element {
+export function ToastRenderer({ message, onButtonClick, className, placement = 'inline' }: ToastRendererProps): JSX.Element {
   // 计算显示文案
   const displayText = React.useMemo(() => {
     // 优先使用自定义内容
@@ -50,13 +55,26 @@ export function ToastRenderer({ message, className, placement = 'inline' }: Toas
         // 基础样式
         'rounded-xl shadow-lg backdrop-blur-sm',
         'px-4 py-2 text-xs text-center',
+        message.nextAction && 'flex items-center gap-2 text-left',
         placement === 'fixed-top' ? 'min-w-48 w-fit max-w-[440px] whitespace-normal break-words leading-relaxed' : 'max-w-[280px] w-48 whitespace-normal break-words',
         // 等级样式
         levelStyles[level],
         className
       )}
     >
-      {displayText}
+      <span className={clsx(message.nextAction && 'min-w-0 flex-1')}>{displayText}</span>
+      {message.nextAction && (
+        <TooltipProvider delayDuration={120}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="sm" variant="ghost" className="w-8 h-8 shrink-0 rounded-full" onClick={() => onButtonClick?.(message.nextAction!)}>
+                <ChevronRight />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{message.nextAction.label || '下一句'}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
     </div>
   );
 }

@@ -206,7 +206,7 @@ export class SpriteRoutineRunner {
     const signal = options.signal ?? new AbortController().signal;
     switch (step.type) {
       case 'wait':
-        return this.delay(step.durationMs, signal);
+        return this.runWait(routine, step, signal);
       case 'waitForEvent':
         if (!this.deps.waitForEvent) {
           throw new Error('waitForEvent step is not supported by this runner');
@@ -238,6 +238,55 @@ export class SpriteRoutineRunner {
         return this.runBranch(routine, step, options, context);
       default:
         return undefined;
+    }
+  }
+
+  private async runWait(routine: SpriteRoutine, step: Extract<SpriteRoutineStep, { type: 'wait' }>, signal: AbortSignal): Promise<unknown> {
+    if (!step.interruptEvent) {
+      return this.delay(step.durationMs, signal);
+    }
+    if (!this.deps.waitForEvent) {
+      return this.delay(step.durationMs, signal);
+    }
+
+    const controller = new AbortController();
+    const onAbort = (): void => {
+      controller.abort();
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+
+    try {
+      const delayPromise = this.delay(step.durationMs, controller.signal).then(() => ({ reason: 'timeout' }));
+      const interruptPromise = Promise.resolve(
+        this.deps.waitForEvent(
+          {
+            id: `${step.id}:interrupt`,
+            type: 'waitForEvent',
+            event: step.interruptEvent,
+            source: step.interruptSource,
+            match: step.interruptMatch,
+            ignoreHistory: step.interruptIgnoreHistory,
+            timeoutMs: step.durationMs
+          },
+          controller.signal,
+          routine
+        )
+      )
+        .then((event) => ({ reason: 'event', event }))
+        .catch((error: unknown) => {
+          if (isTimeout(error)) {
+            return { reason: 'timeout' };
+          }
+          if (isCancelled(error) && controller.signal.aborted && !signal.aborted) {
+            return { reason: 'cancelled' };
+          }
+          throw error;
+        });
+      const result = await Promise.race([delayPromise, interruptPromise]);
+      controller.abort();
+      return result;
+    } finally {
+      signal.removeEventListener('abort', onAbort);
     }
   }
 

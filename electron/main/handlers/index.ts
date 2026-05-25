@@ -57,7 +57,7 @@ import { initThemeHandlers } from './theme/ipc-main';
 import { initTrashHandlers } from './trash/ipc-main';
 import { initUserProfileHandlers } from './user-profile/ipc-main';
 import { initWindowHandlers } from './window';
-import { initWorkspaceHandlers } from './workspace/ipc-main';
+import { emitWorkspaceWizardClosedIfStillEmpty, initWorkspaceHandlers } from './workspace/ipc-main';
 
 export async function initHandlers(win: BrowserWindow): Promise<void> {
   console.log(process.versions);
@@ -82,6 +82,15 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
       return;
     }
     scheduler.resumeOwner('dailyCare');
+  };
+  const attachWorkspaceWizardClosedReporter = (workspaceWindow: BrowserWindow | null): void => {
+    if (!workspaceWindow || workspaceWindow.isDestroyed()) return;
+    if ((workspaceWindow as any).__workspaceWizardClosedReporterAttached) return;
+    (workspaceWindow as any).__workspaceWizardClosedReporterAttached = true;
+    const sourceWindowId = workspaceWindow.webContents.id;
+    workspaceWindow.once('closed', () => {
+      void emitWorkspaceWizardClosedIfStillEmpty('window-closed', sourceWindowId);
+    });
   };
 
   setOnboardingFocus(onboardingFocusActive);
@@ -200,7 +209,10 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
     },
     purposeWindowAdapter: {
       async open(windowKey, payload) {
-        await windowManager.createOrShow(windowKey as any, payload);
+        const opened = await windowManager.createOrShow(windowKey as any, payload);
+        if (String(windowKey) === 'workspaceWizard') {
+          attachWorkspaceWizardClosedReporter(opened);
+        }
         const windowPayload = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
         eventManager.emit(AppEvent.APP_WINDOW_OPENED, {
           ...windowPayload,
