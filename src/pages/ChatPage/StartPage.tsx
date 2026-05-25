@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 
 import { AssistantMiniInputWithService, ChatInputWithService, type ChatInputWithServiceProps } from '@/components/chat';
 import { Button } from '@/components/ui/button';
+import { guideChatApiConfigIfNeeded } from '@/lib/chat-api-config-guide';
 
 import { CHAT_OVERLAY_SETTINGS } from './chat-overlay-settings';
 import { useChatSelection } from './context/ChatSelectionContext';
@@ -41,6 +42,10 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
   const visibilityOpenTimerRef = useRef<number | null>(null);
 
   const { setPresetId } = useChatSelection();
+
+  useEffect(() => {
+    void guideChatApiConfigIfNeeded({ trigger: 'assistant-window-open' });
+  }, []);
 
   // 进场动画结束标记
   useEffect(() => {
@@ -108,6 +113,7 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
     try {
       const resolvedPreset = await window.YUA.ai.resolveUsablePreset(providerId, preferredPresetId);
       if (!resolvedPreset?.id) {
+        void guideChatApiConfigIfNeeded({ providerId, preferredPresetId, trigger: 'chat-send', force: true });
         toast.error('当前服务商还没有可用预设，请先到 AI 设置中完成配置');
         return;
       }

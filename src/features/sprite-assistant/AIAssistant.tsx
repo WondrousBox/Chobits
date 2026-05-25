@@ -10,6 +10,7 @@ import { isBubbleWindowMode } from '@packages/sprite-core/types';
 import React, { useEffect, useRef } from 'react';
 
 import Dropzone from '@/components/common/Dropzone';
+import { guideChatApiConfigIfNeeded } from '@/lib/chat-api-config-guide';
 
 import { useSpriteState } from './context/hooks';
 import { useDragCollector } from './hooks/useDragCollector';
@@ -155,8 +156,10 @@ const AIAssistantInner: React.FC = () => {
         const result = await window.YUA.preferences['preferences:getConfig']();
         const targetWindow = result.ok && result.config?.assistantMiniWindowEnabled ? 'assistantMini' : 'assistant';
         await window.YUA.window['window:open'](targetWindow);
+        void guideChatApiConfigIfNeeded({ trigger: 'assistant-double-click' });
       } catch {
         await window.YUA.window['window:open']('assistant');
+        void guideChatApiConfigIfNeeded({ trigger: 'assistant-double-click' });
       }
     })();
   };
