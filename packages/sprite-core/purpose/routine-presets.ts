@@ -1,5 +1,6 @@
 import { FEATURE_INTRO_QUEST_CATALOG, type FeatureIntroQuestCatalogItem } from '../feature-intro-catalog';
 import { getCharacterRoutineText } from '../messages/character';
+import { CHAT_API_CONFIGURED_GUIDE_GOAL, WORKSPACE_EXISTS_GUIDE_GOAL, type SpriteRoutineGuideGoalDefinition } from './guide-goals';
 import type { SpritePurpose, SpriteRoutine, SpriteRoutineStep, StartSpritePurposeRequest } from './types';
 
 export interface SpriteRoutinePresetDefinition {
@@ -7,6 +8,11 @@ export interface SpriteRoutinePresetDefinition {
   title: string;
   purposeKind: string;
   defaultPriority: number;
+  /**
+   * Declarative goal this routine is trying to help the user achieve.
+   * Runtime layers can evaluate it before continuing a user action, e.g. block chat open until an API key is configured.
+   */
+  goal?: SpriteRoutineGuideGoalDefinition;
   steps: SpriteRoutineStep[] | ((purpose: SpritePurpose) => SpriteRoutineStep[]);
 }
 
@@ -292,7 +298,9 @@ const OPEN_RESOURCE_LIBRARY_NOTICE_ID = 'onboarding.resource.open-library.invite
 const OPEN_RESOURCE_LIBRARY_WAIT_MS = 5 * 60 * 1000;
 const FEATURE_INTRO_WAIT_MS = 30 * 60 * 1000;
 const FEATURE_INTRO_HELP_COOLDOWN_MS = 60_000;
-const CHAT_API_CONFIG_GUIDE_WAIT_MS = 10 * 60 * 1000;
+const CHAT_API_CONFIG_NOTICE_ID = 'chat.api-config-guide.invite';
+const CHAT_API_CONFIG_OPEN_SETTINGS_ACTION = 'open-ai-provider-settings';
+const CHAT_API_CONFIG_GUIDE_WAIT_MS = 30 * 60 * 1000;
 function createWorkspaceNextAction(purposeAction: string): Extract<SpriteRoutineStep, { type: 'speak' }>['nextAction'] {
   return {
     id: purposeAction,
@@ -630,10 +638,13 @@ function createChatApiConfigGuideSteps(purpose: SpritePurpose): SpriteRoutineSte
   const rawFields = purpose.context?.fields;
   const fields = Array.isArray(rawFields) ? rawFields.filter((field): field is string => typeof field === 'string' && field.trim().length > 0) : ['apiKey'];
   const hasPreset = typeof presetId === 'string' && presetId.trim().length > 0;
-  const targetWindow = hasPreset ? 'aiProviderConfig' : 'settings';
+  const settingsPayload = {
+    category: 'ai',
+    aiProviderId: providerId,
+    ...(hasPreset ? { aiPresetId: presetId, fields } : {})
+  };
 
   return [
-    { id: 'chat-api-config-wave', type: 'playAnimation', trigger: 'wave', durationMs: 900, waitFor: 'duration', silent: true },
     {
       id: 'chat-api-config-intro',
       type: 'speak',
@@ -641,32 +652,91 @@ function createChatApiConfigGuideSteps(purpose: SpritePurpose): SpriteRoutineSte
       bubbleDuration: 4200
     },
     {
-      id: 'chat-api-config-open',
-      type: 'openWindow',
-      window: targetWindow,
-      payload: hasPreset ? { providerId, presetId, fields } : { category: 'ai', aiProviderId: providerId },
-      timeoutMs: 10000
-    },
-    { id: 'chat-api-config-walk-to-window', type: 'walkTo', target: { window: targetWindow, placement: 'right', offset: 16 }, speed: 120, timeoutMs: 10000 },
-    {
-      id: 'chat-api-config-tip',
-      type: 'speak',
-      text: getCharacterRoutineText(
-        'chat.api-config-guide.tip',
-        { providerId },
-        hasPreset ? '我打开了当前模型预设的密钥配置，填好 API Key 后就可以开始聊天。' : '还没有可编辑的模型预设，先在 AI 设置里新增一个预设并填入 API Key。'
-      ),
-      bubbleDuration: 5200
+      id: 'chat-api-config-invite',
+      type: 'showNotice',
+      messageId: CHAT_API_CONFIG_NOTICE_ID,
+      content: getCharacterRoutineText('chat.api-config-guide.invite', { providerId }, '需要你确认后，我再打开模型服务配置页面。'),
+      level: 'info',
+      persistent: true,
+      buttons: [{ id: 'open-ai-provider-settings', label: '去配置', variant: 'default', purposeAction: CHAT_API_CONFIG_OPEN_SETTINGS_ACTION }],
+      speak: true
     },
     {
-      id: 'chat-api-config-wait-opened',
-      type: 'waitForEvent',
-      source: 'app-event',
-      event: 'APP_WINDOW_OPENED',
-      match: { windowKey: targetWindow },
-      timeoutMs: CHAT_API_CONFIG_GUIDE_WAIT_MS,
-      assignTo: 'chatApiConfigWindowOpened',
-      optional: true
+      id: 'chat-api-config-wait-invite-action',
+      type: 'loopUntil',
+      source: 'purpose-event',
+      untilEvent: ['bubble:action', 'bubble:dismissed'],
+      match: { messageId: CHAT_API_CONFIG_NOTICE_ID },
+      maxDurationMs: CHAT_API_CONFIG_GUIDE_WAIT_MS,
+      assignTo: 'chatApiConfigBubbleEvent',
+      ignoreHistory: true,
+      body: [{ id: 'chat-api-config-wait-invite-pause', type: 'wait', durationMs: 1000 }]
+    },
+    {
+      id: 'chat-api-config-handle-invite-action',
+      type: 'branch',
+      by: 'chatApiConfigBubbleEvent.event.event',
+      cases: {
+        'bubble:action': [
+          {
+            id: 'chat-api-config-open-after-click',
+            type: 'branch',
+            by: 'chatApiConfigBubbleEvent.event.payload.purposeAction',
+            cases: {
+              [CHAT_API_CONFIG_OPEN_SETTINGS_ACTION]: [
+                { id: 'chat-api-config-clear-invite', type: 'clearMessage', messageId: CHAT_API_CONFIG_NOTICE_ID, messageType: 'notice' },
+                {
+                  id: 'chat-api-config-open-settings',
+                  type: 'openWindow',
+                  window: 'settings',
+                  payload: settingsPayload,
+                  timeoutMs: 10000
+                },
+                { id: 'chat-api-config-walk-to-settings', type: 'walkTo', target: { window: 'settings', placement: 'right', offset: 16 }, speed: 120, timeoutMs: 10000 },
+                {
+                  id: 'chat-api-config-tip',
+                  type: 'speak',
+                  text: getCharacterRoutineText(
+                    'chat.api-config-guide.tip',
+                    { providerId },
+                    hasPreset ? '我已经打开 AI 设置，并定位到当前模型预设。填好 API Key 后就可以开始聊天。' : '我已经打开 AI 设置。先新增一个模型预设并填入 API Key，就可以开始聊天。'
+                  ),
+                  bubbleDuration: 5200
+                },
+                {
+                  id: 'chat-api-config-wait-updated',
+                  type: 'waitForEvent',
+                  source: 'app-event',
+                  event: 'AI_PROVIDER_CONFIG_UPDATED',
+                  match: { providerId },
+                  timeoutMs: CHAT_API_CONFIG_GUIDE_WAIT_MS,
+                  assignTo: 'chatApiConfigUpdated',
+                  optional: true
+                },
+                {
+                  id: 'chat-api-config-done-branch',
+                  type: 'branch',
+                  by: 'chatApiConfigUpdated.event.event',
+                  cases: {
+                    AI_PROVIDER_CONFIG_UPDATED: [
+                      {
+                        id: 'chat-api-config-done',
+                        type: 'speak',
+                        text: getCharacterRoutineText('chat.api-config-guide.done', { providerId }, '配置保存好了，现在可以开始聊天。'),
+                        bubbleDuration: 4200
+                      }
+                    ]
+                  },
+                  default: []
+                }
+              ]
+            },
+            default: []
+          }
+        ],
+        'bubble:dismissed': [{ id: 'chat-api-config-dismissed-settle', type: 'wait', durationMs: 300 }]
+      },
+      default: []
     },
     { id: 'chat-api-config-return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
   ];
@@ -909,6 +979,7 @@ export const DEFAULT_SPRITE_ROUTINE_PRESETS: SpriteRoutinePresetDefinition[] = [
     title: '聊天 API 配置引导',
     purposeKind: 'chat.api-config-guide',
     defaultPriority: 66,
+    goal: CHAT_API_CONFIGURED_GUIDE_GOAL,
     steps: createChatApiConfigGuideSteps
   },
   {
@@ -916,6 +987,7 @@ export const DEFAULT_SPRITE_ROUTINE_PRESETS: SpriteRoutinePresetDefinition[] = [
     title: '新手引导：创建工作空间',
     purposeKind: 'onboarding.workspace.create',
     defaultPriority: 70,
+    goal: WORKSPACE_EXISTS_GUIDE_GOAL,
     steps: createWorkspaceCreateRoutineSteps
   },
   {

@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain } from 'electron';
 
 import { cleanupMemoryForConversations as cleanupMemoryForDeletedConversations } from '../../electron/main/handlers/memory/memory-cleanup';
 import { ChatRepo } from '../common/db';
+import { AppEvent, eventManager } from '../event';
 import { pushCardToWindows } from './card-push';
 import { ChatService } from './chat-service';
 import { GlossaryStore } from './glossary-store';
@@ -126,6 +127,10 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     await setSecretsStore(payload.providerId, payload.secrets);
     const p = getProvider(payload.providerId);
     if (p?.setSecrets) await Promise.resolve(p.setSecrets(payload.secrets));
+    eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
+      providerId: payload.providerId,
+      action: 'provider-secrets-updated'
+    });
     return { ok: true };
   });
 
@@ -138,6 +143,10 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     // If the provider caches secrets, it might need a reload or re-fetch.
     // For now, we assume the provider fetches secrets when needed or we can set empty secrets.
     if (p?.setSecrets) await Promise.resolve(p.setSecrets({}));
+    eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
+      providerId: payload.providerId,
+      action: 'provider-secrets-cleared'
+    });
     return { ok: true };
   });
 
@@ -148,26 +157,51 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
 
   ipcMain.handle('ai:setProviderApiKeys', async (_e, payload: { providerId: string; key: string; keys: Array<{ name: string; value: string; isDefault?: boolean }> }) => {
     await setApiKeys(payload.providerId, payload.key, payload.keys);
+    eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
+      providerId: payload.providerId,
+      field: payload.key,
+      action: 'provider-api-keys-updated'
+    });
     return { ok: true };
   });
 
   ipcMain.handle('ai:addProviderApiKey', async (_e, payload: { providerId: string; key: string; apiKey: { name: string; value: string } }) => {
     await addApiKey(payload.providerId, payload.key, payload.apiKey);
+    eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
+      providerId: payload.providerId,
+      field: payload.key,
+      action: 'provider-api-key-added'
+    });
     return { ok: true };
   });
 
   ipcMain.handle('ai:updateProviderApiKey', async (_e, payload: { providerId: string; key: string; apiKeyName: string; updates: Partial<{ name: string; value: string; isDefault: boolean }> }) => {
     await updateApiKey(payload.providerId, payload.key, payload.apiKeyName, payload.updates);
+    eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
+      providerId: payload.providerId,
+      field: payload.key,
+      action: 'provider-api-key-updated'
+    });
     return { ok: true };
   });
 
   ipcMain.handle('ai:removeProviderApiKey', async (_e, payload: { providerId: string; key: string; apiKeyName: string }) => {
     await removeApiKey(payload.providerId, payload.key, payload.apiKeyName);
+    eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
+      providerId: payload.providerId,
+      field: payload.key,
+      action: 'provider-api-key-removed'
+    });
     return { ok: true };
   });
 
   ipcMain.handle('ai:setDefaultProviderApiKey', async (_e, payload: { providerId: string; key: string; apiKeyName: string }) => {
     await setDefaultApiKey(payload.providerId, payload.key, payload.apiKeyName);
+    eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
+      providerId: payload.providerId,
+      field: payload.key,
+      action: 'provider-api-key-default-updated'
+    });
     return { ok: true };
   });
 
@@ -274,19 +308,48 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     return (await resolveUsablePreset(payload.providerId, payload.preferredPresetId)) || null;
   });
   ipcMain.handle('ai:createPreset', async (_e, payload: ProviderPresetCreatePayload) => {
-    return createPreset(payload);
+    const preset = createPreset(payload);
+    eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
+      providerId: preset.providerId,
+      presetId: preset.id,
+      action: 'preset-created'
+    });
+    return preset;
   });
   ipcMain.handle('ai:updatePreset', async (_e, payload: { id: string; patch: ProviderPresetUpdatePatch }) => {
-    return updatePreset(payload.id, payload.patch);
+    const preset = updatePreset(payload.id, payload.patch);
+    if (preset) {
+      eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
+        providerId: preset.providerId,
+        presetId: preset.id,
+        action: 'preset-updated'
+      });
+    }
+    return preset;
   });
   ipcMain.handle('ai:deletePreset', async (_e, payload: { id: string }) => {
-    return { ok: await deletePreset(payload.id) };
+    const preset = getPreset(payload.id);
+    const ok = await deletePreset(payload.id);
+    if (ok) {
+      eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
+        ...(preset?.providerId ? { providerId: preset.providerId } : {}),
+        presetId: payload.id,
+        action: 'preset-deleted'
+      });
+    }
+    return { ok };
   });
   ipcMain.handle('ai:getPresetSecrets', async (_e, payload: { presetId: string }) => {
     return await getPresetSecrets(payload.presetId);
   });
   ipcMain.handle('ai:setPresetSecrets', async (_e, payload: { presetId: string; secrets: Record<string, string> }) => {
     await setPresetSecrets(payload.presetId, payload.secrets);
+    const preset = getPreset(payload.presetId);
+    eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
+      ...(preset?.providerId ? { providerId: preset.providerId } : {}),
+      presetId: payload.presetId,
+      action: 'preset-secrets-updated'
+    });
     return { ok: true };
   });
 

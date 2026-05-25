@@ -69,7 +69,7 @@ Routine 类型：
 | P2 | `feature.memory-graph` | 认识记忆图谱 | `ASSISTANT_MENU_ITEM_SELECTED`，`itemId=memory-graph` | XP +8, 好感 +1 |
 | P2 | `feature.memory-save-search` | 认识记忆保存与检索 | `MEMORY_SAVED` 或 `MEMORY_EXTRACTION_COMPLETED` | XP +8, 好感 +1 |
 | P2 | `feature.plugin-manager` | 认识插件管理器 | `APP_WINDOW_OPENED`，`windowKey=pluginManager` | XP +8, 好感 +1 |
-| P2 | `feature.ai-provider-config` | 认识 AI 提供商配置 | `APP_WINDOW_OPENED`，`windowKey=aiProviderConfig` | XP +8, 好感 +1 |
+| P2 | `feature.ai-provider-config` | 认识 AI 提供商配置 | `AI_PROVIDER_CONFIG_UPDATED` | XP +8, 好感 +1 |
 | P3 | `feature.window-animation-editor` | 认识窗口动画编辑器 | `APP_WINDOW_OPENED`，`windowKey=windowAnimationEditor` | XP +6, 好感 +1 |
 | P3 | `feature.character-pack-editor` | 认识角色包编辑器 | `APP_WINDOW_OPENED`，`windowKey=characterPackEditor` | XP +6, 好感 +1 |
 | P3 | `feature.skill-tree` | 认识技能树 | `ASSISTANT_MENU_ITEM_SELECTED`，`itemId=skill-tree` | XP +6, 好感 +1 |
@@ -82,6 +82,7 @@ Routine 类型：
 - `RESOURCE_PREVIEW_OPENED`：资源预览窗口加载资源后派发，payload 包含 `resourceId`、`type`、`filePath`。
 - `ASSISTANT_MENU_ITEM_SELECTED`：助手右键菜单的资源库、背包、任务、技能树、ASR、TTS、记忆图谱等入口统一派发。
 - `FILE_ACTION_SELECTED` / `FILE_ACTION_WORKFLOW_STARTED` / `FILE_ACTION_RESOLVED`：文件操作菜单统一桥接。
+- `AI_PROVIDER_CONFIG_UPDATED`：新增/更新/删除 provider preset、保存 provider secrets、保存 preset secrets 或更新多 API Key 后派发。
 - `MEMORY_SAVED`：显式记忆保存工具写入成功后派发。
 - `SPRITE_AI_COMPLETE`：AI 回复完成后派发，并附带 `hasResourceContext` / `resourceIds` 用于资源聊天自述任务。
 
@@ -89,7 +90,7 @@ Routine 类型：
 
 - `APP_WINDOW_OPENED` 当前保证覆盖 purpose routine 和 AI app-window 工具路径。普通页面里直接调用 `window:open` 的历史入口不一定全局派发，后续如需“用户自己打开也立即结算”，可以在窗口管理 IPC 层补全统一事件。
 - `feature.media-transcode` 当前复用已有 `sample:transcode` 预设。该预设实际是“提取音频 (MP3)”并允许 video/audio 输入；如果未来新增独立 `sample:audio-compress`，再把目录里的 `workflowIds` 扩展回来。
-- `feature.ai-provider-config` 当前以打开配置窗口作为完成事件。等 provider 保存链路有统一 `AI_PROVIDER_CONFIG_SAVED` 后，可以把完成判定升级为保存成功。
+- `feature.ai-provider-config` 以 `AI_PROVIDER_CONFIG_UPDATED` 为完成事件，避免只打开配置窗口就结算；其 routine 会先打开配置窗口，再等待保存/更新事件。
 - 字幕翻译/总结/朗读当前以文件菜单动作选择为完成事件。若后续补字幕任务完成事件，可以升级为“任务真正开始或完成”后结算。
 
 ## 5. 维护规则

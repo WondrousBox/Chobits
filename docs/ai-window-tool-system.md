@@ -112,7 +112,7 @@ appWindowTool({ action: 'open', windowKey: 'resourcePreview', payload: { resourc
 
 当前支持：
 
-- `settings`: `category`, `aiProviderId`
+- `settings`: `category`, `aiProviderId`, `aiPresetId`
 - `aiProviderConfig`: `providerId`, `presetId`, `fields`
 - `asr`: `mode`, `cloudProviderId`, `cloudProviderPresetId`, `cloudModelId`, `audioSource`
 - `chat` / `chatOverlay` / `assistant` / `assistantMini`: `initialMessage`, `providerId`, `modelId`, `preferredPresetId`, `presetId`, `agentId`, `codingWorkspaceRoot`, `codingWorkspaceLabel`, `webSearchEnabled`, `emojiPacksEnabled`, `characterPersonaEnabled`, `overlaySide`

@@ -188,6 +188,22 @@ interface SpritePurpose {
 Routine 是 Purpose 的执行计划，由 steps 组成。一个 Purpose 可以由预设 Routine 生成，也可以由 AI 生成。
 
 ```ts
+interface SpriteRoutineGuideGoalDefinition {
+  id: string;
+  kind: 'workspace.exists' | 'ai.chat-provider-configured' | string;
+  description: string;
+  blocking?: boolean;
+}
+
+interface SpriteRoutinePresetDefinition {
+  id: string;
+  title: string;
+  purposeKind: string;
+  defaultPriority: number;
+  goal?: SpriteRoutineGuideGoalDefinition;
+  steps: SpriteRoutineStep[] | ((purpose: SpritePurpose) => SpriteRoutineStep[]);
+}
+
 interface SpriteRoutine {
   id: string;
   purposeId: string;
@@ -212,6 +228,13 @@ Routine 可以理解为“成套行为方案”。它不是决定行为是否发
 轻量版本：BehaviorEngine action -> mgr.trigger('thinking')
 成套版本：BehaviorEngine action -> mgr.startPurpose('file.intake')
 ```
+
+`goal` 是 routine preset 的目标声明，不直接执行 IPC。它回答“这套引导最终希望用户达成什么状态”。渲染层或主进程适配器按 `goal.kind` 绑定真实检查函数，在阻断式入口先评估目标：
+
+- `workspace.exists`：至少有一个未删除 workspace。未达成时启动 `workspace.create` Quest，而不是裸开 `workspaceWizard`。
+- `ai.chat-provider-configured`：至少有一个可用于聊天的 provider preset 已配置 API Key；发送消息时收窄到当前 provider / preset。未达成时先运行 `chat.api-config-guide`，原聊天动作不继续。该 guide 先展示带“去配置”按钮的 notice，不直接打开设置页；用户点击后才打开 `settings` 并传入 `category: 'ai'`、`aiProviderId`、可选 `aiPresetId`，让页面定位到模型服务配置区。
+
+`goal` 与 Quest 的 `completion` 不冲突：Quest completion 负责任务状态和奖励结算，preset goal 负责入口放行和引导意图复用。一个 routine 可以既被 Quest 使用，也可以被普通入口作为阻断式 guide 使用。
 
 ### 3.3 Step：可等待、可取消的最小编排单元
 
@@ -631,6 +654,7 @@ AI planner 的入口也应优先来自现有行为体系。例如某个 Behavior
 - purpose history 不应无限增长；需要按日期 JSONL、查询 limit、未来清理策略。
 - AI 规划必须是“建议计划”，执行前必须校验。
 - 固定 Quest（尤其 onboarding）不是 AI 规划建议。Quest 下发的 purpose 应明确使用 preset-only，避免目的规划器开关或 LLM 输出改变新手引导流程。
+- 阻断式引导不要在打开业务窗口后才补提示。入口应先评估 preset `goal`；未达成时启动对应 guide purpose / quest，并停止原用户动作。已达成才继续打开聊天、菜单或其他业务窗口。若 guide 需要带用户跳到配置页，必须用 notice 按钮等待用户确认，不能在 routine 开始后自动跳转。
 - `walkTo` 除 `center/corner/previous/{x,y}` 外，预设 routine 可以使用 `{ window, placement, offset }` 目标，让角色走到已打开的应用窗口旁；AI planner 不允许生成 window-relative target。
 
 ## 11. 最小可用设计结论

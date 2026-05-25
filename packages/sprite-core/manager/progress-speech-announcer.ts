@@ -150,7 +150,13 @@ export class ProgressSpeechAnnouncer {
     const progress = clampProgress(update.progress);
     let session = this.sessions.get(update.id);
 
-    if (!session || session.completed || progress + 8 < session.lastProgress) {
+    if (session?.completed) {
+      // 会话已完成（complete() 已调用过），忽略后续进度更新，
+      // 防止因事件到达顺序不同导致 complete() 被重复调用而语音播报两次。
+      return;
+    }
+
+    if (!session || progress + 8 < session.lastProgress) {
       this.start({ ...update, progress, now });
       session = this.sessions.get(update.id)!;
     }

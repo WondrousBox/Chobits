@@ -7,6 +7,7 @@ export interface SpritePurposePlannerPresetSummary {
   title: string;
   purposeKind: string;
   defaultPriority: number;
+  goal?: SpriteRoutinePresetDefinition['goal'];
 }
 
 export interface SpritePurposePlannerStepSchemaEntry {
@@ -189,7 +190,8 @@ export function summarizeSpriteRoutinePreset(preset: SpriteRoutinePresetDefiniti
     id: preset.id,
     title: preset.title,
     purposeKind: preset.purposeKind,
-    defaultPriority: preset.defaultPriority
+    defaultPriority: preset.defaultPriority,
+    ...(preset.goal ? { goal: preset.goal } : {})
   };
 }
 

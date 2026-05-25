@@ -35,7 +35,7 @@ const createPresetSuffix = (): string => {
   return Math.random().toString(36).slice(2, 6).toUpperCase();
 };
 
-export default function AiSettings({ initialProviderId }: { initialProviderId?: string }): JSX.Element {
+export default function AiSettings({ initialProviderId, initialPresetId }: { initialProviderId?: string; initialPresetId?: string }): JSX.Element {
   const [providers, setProviders] = useState<ProviderRow[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [presets, setPresets] = useState<Preset[]>([]);
@@ -81,6 +81,12 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
     (async () => {
       const list = await window.YUA.ai.listPresets(selectedProviderId);
       setPresets(list || []);
+      const targetPreset = initialPresetId ? (list || []).find((preset) => preset.id === initialPresetId) : undefined;
+      if (targetPreset) {
+        setShowCreateForm(false);
+        setExpandedPresetId(targetPreset.id);
+        await loadPresetSecrets(targetPreset.id);
+      }
       try {
         const ms = await window.YUA.ai.listModels(selectedProviderId);
         if (Array.isArray(ms) && ms.length) setModels((prev) => ({ ...prev, [selectedProviderId]: ms }));
@@ -88,7 +94,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
         /* ignore */
       }
     })();
-  }, [selectedProviderId]);
+  }, [initialPresetId, selectedProviderId]);
 
   // duplicated declarations removed
 

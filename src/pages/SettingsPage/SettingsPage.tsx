@@ -103,6 +103,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = []
 
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>(defaultCategory || allCategories[0]?.id || 'preferences');
   const [initialAiProviderId, setInitialAiProviderId] = useState<string | null>(null);
+  const [initialAiPresetId, setInitialAiPresetId] = useState<string | null>(null);
 
   // 当 defaultCategory 变化时，更新 activeCategory
   useEffect(() => {
@@ -120,6 +121,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = []
           setActiveCategory(payload.category as SettingsCategory);
         }
         if (payload?.aiProviderId) setInitialAiProviderId(payload.aiProviderId);
+        if (payload?.aiPresetId) setInitialAiPresetId(payload.aiPresetId);
       } catch {
         // ignore
       }
@@ -142,7 +144,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = []
       case 'plugins':
         return <PluginPage />;
       case 'ai':
-        return <AiSettings initialProviderId={initialAiProviderId || undefined} />;
+        return <AiSettings initialProviderId={initialAiProviderId || undefined} initialPresetId={initialAiPresetId || undefined} />;
       case 'user-profile':
         return <UserProfileSettings />;
       case 'prompt':
