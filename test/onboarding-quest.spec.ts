@@ -46,8 +46,9 @@ describe('QuestRegistry', () => {
       expect.arrayContaining(['feature.file-video-transcription', 'feature.video-keyframes', 'feature.media-transcode', 'feature.image-understand', 'feature.ocr'])
     );
     expect(reg.byTriggerEvent('APP_WINDOW_OPENED').map((quest) => quest.id)).toEqual(
-      expect.arrayContaining(['feature.workflow-gallery', 'feature.plugin-manager', 'feature.ai-provider-config', 'feature.window-animation-editor', 'feature.character-pack-editor'])
+      expect.arrayContaining(['feature.workflow-gallery', 'feature.plugin-manager', 'feature.window-animation-editor', 'feature.character-pack-editor'])
     );
+    expect(reg.byTriggerEvent('AI_PROVIDER_CONFIG_UPDATED').map((quest) => quest.id)).toEqual(['feature.ai-provider-config']);
     expect(reg.byTriggerEvent('APP_STARTED').map((quest) => quest.id)).toEqual(['workspace.create']);
   });
 });
@@ -809,6 +810,11 @@ describe('QuestEngine — feature intro catalog quests', () => {
         id: 'feature.chat-with-resource',
         event: 'SPRITE_AI_COMPLETE',
         payload: { hasResourceContext: true, resourceIds: ['resource-1'] }
+      },
+      {
+        id: 'feature.ai-provider-config',
+        event: 'AI_PROVIDER_CONFIG_UPDATED',
+        payload: { providerId: 'openai', presetId: 'preset-openai', action: 'preset-secrets-updated' }
       }
     ];
 

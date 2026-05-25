@@ -101,6 +101,7 @@ function sanitizeSettingsPayload(payload: unknown): Payload | undefined {
   const category = readString(payload, 'category', { maxLength: 64 });
   if (category && SETTINGS_CATEGORIES.has(category)) next.category = category;
   pickString(payload, next, 'aiProviderId', { maxLength: 120 });
+  pickString(payload, next, 'aiPresetId', { maxLength: 160 });
   return emptyToUndefined(next);
 }
 
@@ -182,7 +183,8 @@ export const APP_WINDOW_TOOL_DIRECTORY: AppWindowToolEntry[] = [
     aliases: ['设置', '偏好设置', 'AI 设置', '插件设置', '快捷键', '代理设置', 'settings'],
     payloadFields: [
       { name: 'category', type: 'preferences | workspace | ai | user-profile | prompt | glossary | plugins | shortcuts | proxy', description: '设置分类' },
-      { name: 'aiProviderId', type: 'string', description: '打开 AI 设置时聚焦的提供商 ID' }
+      { name: 'aiProviderId', type: 'string', description: '打开 AI 设置时聚焦的提供商 ID' },
+      { name: 'aiPresetId', type: 'string', description: '打开 AI 设置时展开的提供商预设 ID' }
     ],
     sanitizePayload: sanitizeSettingsPayload
   },

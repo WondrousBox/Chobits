@@ -263,6 +263,8 @@ export type {
   SpritePurposeHistoryReader,
   SpritePurposeHistoryWriter,
   SpritePurposeInterruptPolicy,
+  SpriteRoutineGuideGoalDefinition,
+  SpriteRoutineGuideGoalKind,
   SpritePurposePlannerExecutor,
   SpritePurposePlannerInput,
   SpritePurposePlannerLastResult,
@@ -297,6 +299,7 @@ export type {
 } from './purpose';
 export {
   buildSpritePurposeDailyRetrospective,
+  CHAT_API_CONFIGURED_GUIDE_GOAL,
   createSpritePurposePlannerStepSchema,
   createSpriteRoutineFromPlannerDraft,
   DEFAULT_SPRITE_PURPOSE_PLANNER_EVENTS,
@@ -312,7 +315,8 @@ export {
   SpriteRoutineRunner,
   summarizeSpriteRoutinePreset,
   summarizeSpriteRoutinePresets,
-  validateSpritePurposePlannerOutput
+  validateSpritePurposePlannerOutput,
+  WORKSPACE_EXISTS_GUIDE_GOAL
 } from './purpose';
 export type {
   OnboardingPresetDeps,

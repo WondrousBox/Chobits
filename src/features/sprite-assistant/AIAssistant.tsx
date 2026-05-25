@@ -10,7 +10,8 @@ import { isBubbleWindowMode } from '@packages/sprite-core/types';
 import React, { useEffect, useRef } from 'react';
 
 import Dropzone from '@/components/common/Dropzone';
-import { guideChatApiConfigIfNeeded } from '@/lib/chat-api-config-guide';
+import { ensureChatApiConfigGoal } from '@/lib/chat-api-config-guide';
+import { ensureGuideGoal, WORKSPACE_EXISTS_GUIDE_GOAL } from '@/lib/guide-goals';
 
 import { useSpriteState } from './context/hooks';
 import { useDragCollector } from './hooks/useDragCollector';
@@ -131,18 +132,14 @@ const AIAssistantInner: React.FC = () => {
 
   const handleContextMenu = (e: React.MouseEvent): void => {
     e.preventDefault();
-    // 新手引导期间（尚未创建工作空间）禁用右键菜单：避免在没有 workspace 的状态下进入需要 workspace 的功能。
-    // 改为引导用户先完成 onboarding.workspace.create quest。
     void (async () => {
-      try {
-        const list = await window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 } as any, limit: 1, offset: 0 });
-        if (!Array.isArray(list) || list.length === 0) {
-          // 无工作空间：直接打开向导，由 quest routine 负责庆祝/发奖。
-          await window.YUA.window['window:open']('workspaceWizard');
-          return;
-        }
-      } catch {
-        // 查询失败时回退原行为。
+      const workspaceGoal = await ensureGuideGoal({
+        goal: WORKSPACE_EXISTS_GUIDE_GOAL,
+        trigger: 'workspace-entry',
+        forceGuide: true
+      });
+      if (!workspaceGoal.achieved) {
+        return;
       }
       void window.YUA.sprite.interact('context-menu', { open: true });
       void window.YUA.window['window:open']('menu');
@@ -152,14 +149,17 @@ const AIAssistantInner: React.FC = () => {
   const handleDoubleClick = (): void => {
     window.YUA.sprite.interact('double-click');
     void (async () => {
+      const guide = await ensureChatApiConfigGoal({ trigger: 'assistant-double-click' });
+      if (!guide.configured) {
+        return;
+      }
+
       try {
         const result = await window.YUA.preferences['preferences:getConfig']();
         const targetWindow = result.ok && result.config?.assistantMiniWindowEnabled ? 'assistantMini' : 'assistant';
         await window.YUA.window['window:open'](targetWindow);
-        void guideChatApiConfigIfNeeded({ trigger: 'assistant-double-click' });
       } catch {
         await window.YUA.window['window:open']('assistant');
-        void guideChatApiConfigIfNeeded({ trigger: 'assistant-double-click' });
       }
     })();
   };

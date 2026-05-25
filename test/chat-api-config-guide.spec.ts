@@ -8,16 +8,20 @@ function installGuideHarness(options: { providers?: any[]; presets?: any[]; usab
   listPresets: ReturnType<typeof vi.fn>;
   resolveUsablePreset: ReturnType<typeof vi.fn>;
   startPurpose: ReturnType<typeof vi.fn>;
+  startQuest: ReturnType<typeof vi.fn>;
+  listWorkspaces: ReturnType<typeof vi.fn>;
 } {
   const env = installMiniDom();
   const getProviders = vi.fn(async () => options.providers ?? []);
   const listPresets = vi.fn(async () => options.presets ?? []);
   const resolveUsablePreset = vi.fn(async () => options.usablePreset ?? null);
+  const listWorkspaces = vi.fn(async () => []);
   const startPurpose = vi.fn(async (request: any) => ({
     accepted: true,
     status: 'started',
     purpose: { id: 'purpose-chat-config', kind: request.kind, title: request.title, reason: request.reason, source: request.source, status: 'active', priority: request.priority, interruptPolicy: request.interruptPolicy }
   }));
+  const startQuest = vi.fn(async () => ({ ok: true, startResult: { accepted: true, status: 'started' } }));
 
   (env.window as any).YUA = {
     ai: {
@@ -25,12 +29,18 @@ function installGuideHarness(options: { providers?: any[]; presets?: any[]; usab
       listPresets,
       resolveUsablePreset
     },
+    workspace: {
+      'workspace:list': listWorkspaces
+    },
+    quest: {
+      'quest:start': startQuest
+    },
     sprite: {
       startPurpose
     }
   };
 
-  return { env, getProviders, listPresets, resolveUsablePreset, startPurpose };
+  return { env, getProviders, listPresets, resolveUsablePreset, startPurpose, startQuest, listWorkspaces };
 }
 
 describe('guideChatApiConfigIfNeeded', () => {
@@ -50,12 +60,12 @@ describe('guideChatApiConfigIfNeeded', () => {
 
     const result = await guideChatApiConfigIfNeeded({ trigger: 'chat-window-open' });
 
-    expect(result).toMatchObject({ guided: false, configured: true, providerId: 'qwen' });
+    expect(result).toMatchObject({ guided: false, configured: true, blocked: false, providerId: 'qwen' });
     expect(harness.startPurpose).not.toHaveBeenCalled();
     harness.env.cleanup();
   });
 
-  it('still checks the selected provider when sending a chat message', async () => {
+  it('blocks the selected provider when sending a chat message', async () => {
     const harness = installGuideHarness({
       providers: [
         { id: 'openai', label: 'OpenAI', configured: false, capabilities: { chat: true }, schema: { fields: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }] } },
@@ -63,12 +73,12 @@ describe('guideChatApiConfigIfNeeded', () => {
       ],
       presets: [{ id: 'preset-openai', providerId: 'openai', name: 'OpenAI' }]
     });
-    const { guideChatApiConfigIfNeeded, resetChatApiConfigGuideStateForTest } = await import('../src/lib/chat-api-config-guide');
+    const { ensureChatApiConfigGoal, resetChatApiConfigGuideStateForTest } = await import('../src/lib/chat-api-config-guide');
     resetChatApiConfigGuideStateForTest();
 
-    const result = await guideChatApiConfigIfNeeded({ providerId: 'openai', trigger: 'chat-send', force: true });
+    const result = await ensureChatApiConfigGoal({ providerId: 'openai', trigger: 'chat-send' });
 
-    expect(result).toMatchObject({ guided: true, configured: false, providerId: 'openai', presetId: 'preset-openai' });
+    expect(result).toMatchObject({ guided: true, configured: false, blocked: true, providerId: 'openai', presetId: 'preset-openai' });
     expect(harness.startPurpose).toHaveBeenCalledTimes(1);
     harness.env.cleanup();
   });
@@ -97,7 +107,7 @@ describe('guideChatApiConfigIfNeeded', () => {
 
     const result = await guideChatApiConfigIfNeeded({ providerId: 'openai-compatible', trigger: 'chat-send', force: true });
 
-    expect(result).toMatchObject({ guided: true, configured: false, providerId: 'openai', presetId: 'preset-openai' });
+    expect(result).toMatchObject({ guided: true, configured: false, blocked: true, providerId: 'openai', presetId: 'preset-openai' });
     expect(harness.resolveUsablePreset).toHaveBeenCalledWith('openai', undefined);
     expect(harness.startPurpose).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -115,6 +125,18 @@ describe('guideChatApiConfigIfNeeded', () => {
     harness.env.cleanup();
   });
 
+  it('returns missing-provider when no provider can be resolved for an open-time guide', async () => {
+    const harness = installGuideHarness();
+    const { guideChatApiConfigIfNeeded, resetChatApiConfigGuideStateForTest } = await import('../src/lib/chat-api-config-guide');
+    resetChatApiConfigGuideStateForTest();
+
+    const result = await guideChatApiConfigIfNeeded({ trigger: 'chat-window-open' });
+
+    expect(result).toMatchObject({ guided: false, configured: false, blocked: false, reason: 'missing-provider' });
+    expect(harness.startPurpose).not.toHaveBeenCalled();
+    harness.env.cleanup();
+  });
+
   it('uses cooldown for repeated open-time prompts', async () => {
     const harness = installGuideHarness({
       providers: [{ id: 'openai', label: 'OpenAI', configured: false, capabilities: { chat: true }, schema: { fields: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }] } }],
@@ -127,8 +149,22 @@ describe('guideChatApiConfigIfNeeded', () => {
     const second = await guideChatApiConfigIfNeeded({ providerId: 'openai', trigger: 'chat-window-focus' });
 
     expect(first.guided).toBe(true);
-    expect(second).toMatchObject({ guided: false, configured: false, providerId: 'openai', reason: 'cooldown' });
+    expect(second).toMatchObject({ guided: false, configured: false, blocked: false, providerId: 'openai', reason: 'cooldown' });
     expect(harness.startPurpose).toHaveBeenCalledTimes(1);
+    harness.env.cleanup();
+  });
+
+  it('evaluates the shared workspace goal and starts the workspace quest when missing', async () => {
+    const harness = installGuideHarness();
+    const { ensureGuideGoal, resetGuideGoalStateForTest, WORKSPACE_EXISTS_GUIDE_GOAL } = await import('../src/lib/guide-goals');
+    resetGuideGoalStateForTest();
+
+    const result = await ensureGuideGoal({ goal: WORKSPACE_EXISTS_GUIDE_GOAL, trigger: 'workspace-entry', forceGuide: true });
+
+    expect(result).toMatchObject({ achieved: false, guided: true, blocked: true, reason: 'missing-workspace' });
+    expect(harness.listWorkspaces).toHaveBeenCalledWith({ filter: { deletedAt: 0 }, limit: 1, offset: 0 });
+    expect(harness.startQuest).toHaveBeenCalledWith({ id: 'workspace.create', source: 'task-list' });
+    expect(harness.startPurpose).not.toHaveBeenCalled();
     harness.env.cleanup();
   });
 });

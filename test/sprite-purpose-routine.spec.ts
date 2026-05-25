@@ -5,7 +5,7 @@ import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import { FEATURE_INTRO_QUEST_CATALOG } from '../packages/sprite-core/feature-intro-catalog';
-import type { SpritePurposeHistoryEntry, SpriteRoutinePresetDefinition } from '../packages/sprite-core/purpose';
+import { CHAT_API_CONFIGURED_GUIDE_GOAL, WORKSPACE_EXISTS_GUIDE_GOAL, type SpritePurposeHistoryEntry, type SpriteRoutinePresetDefinition } from '../packages/sprite-core/purpose';
 import {
   createSpriteRoutineFromPlannerDraft,
   SpritePresentationLock,
@@ -1150,6 +1150,7 @@ describe('SpriteRoutinePresetRegistry', () => {
     const registry = new SpriteRoutinePresetRegistry();
     const preset = registry.get('onboarding.workspace.create');
     expect(preset).toBeDefined();
+    expect(preset?.goal).toEqual(WORKSPACE_EXISTS_GUIDE_GOAL);
 
     const routine = registry.createRoutine(
       {
@@ -1257,6 +1258,86 @@ describe('SpriteRoutinePresetRegistry', () => {
     expect(routine.steps.find((step) => step.id === 'branch-result')).toMatchObject({
       type: 'branch',
       by: 'workspaceCreatedEvent.event.event'
+    });
+  });
+
+  it('declares a blocking chat API config goal on the chat guide preset', () => {
+    const registry = new SpriteRoutinePresetRegistry();
+    const preset = registry.get('chat.api-config-guide');
+
+    expect(preset).toMatchObject({
+      id: 'chat.api-config-guide',
+      purposeKind: 'chat.api-config-guide',
+      goal: CHAT_API_CONFIGURED_GUIDE_GOAL
+    });
+
+    const routine = registry.createRoutine(
+      {
+        id: 'purpose-chat-api-config-guide',
+        kind: 'chat.api-config-guide',
+        title: 'chat api config guide',
+        reason: 'missing api key',
+        source: 'user-event',
+        status: 'active',
+        priority: 66,
+        interruptPolicy: 'interruptible',
+        context: {
+          providerId: 'openai',
+          presetId: 'preset-openai',
+          fields: ['apiKey']
+        }
+      },
+      preset!,
+      1000
+    );
+
+    expect(routine.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'chat-api-config-invite',
+          type: 'showNotice',
+          messageId: 'chat.api-config-guide.invite',
+          buttons: [expect.objectContaining({ label: '去配置', purposeAction: 'open-ai-provider-settings' })]
+        }),
+        expect.objectContaining({
+          id: 'chat-api-config-wait-invite-action',
+          type: 'loopUntil',
+          source: 'purpose-event',
+          untilEvent: ['bubble:action', 'bubble:dismissed'],
+          match: { messageId: 'chat.api-config-guide.invite' }
+        }),
+        expect.objectContaining({ id: 'chat-api-config-handle-invite-action', type: 'branch', by: 'chatApiConfigBubbleEvent.event.event' })
+      ])
+    );
+
+    const handleActionStep = routine.steps.find((step) => step.id === 'chat-api-config-handle-invite-action');
+    expect(handleActionStep).toMatchObject({
+      type: 'branch',
+      cases: {
+        'bubble:action': [
+          expect.objectContaining({
+            id: 'chat-api-config-open-after-click',
+            type: 'branch',
+            by: 'chatApiConfigBubbleEvent.event.payload.purposeAction'
+          })
+        ]
+      }
+    });
+    const openAfterClick = handleActionStep && handleActionStep.type === 'branch' ? handleActionStep.cases['bubble:action']?.[0] : undefined;
+    expect(openAfterClick).toMatchObject({
+      type: 'branch',
+      cases: {
+        'open-ai-provider-settings': expect.arrayContaining([
+          expect.objectContaining({
+            id: 'chat-api-config-open-settings',
+            type: 'openWindow',
+            window: 'settings',
+            payload: { category: 'ai', aiProviderId: 'openai', aiPresetId: 'preset-openai', fields: ['apiKey'] }
+          }),
+          expect.objectContaining({ id: 'chat-api-config-wait-updated', type: 'waitForEvent', source: 'app-event', event: 'AI_PROVIDER_CONFIG_UPDATED', match: { providerId: 'openai' } }),
+          expect.objectContaining({ id: 'chat-api-config-done-branch', type: 'branch', by: 'chatApiConfigUpdated.event.event' })
+        ])
+      }
     });
   });
 
@@ -1444,8 +1525,10 @@ describe('SpriteRoutinePresetRegistry', () => {
     const registry = new SpriteRoutinePresetRegistry();
     const menuPreset = registry.get('feature.skill-tree');
     const windowPreset = registry.get('feature.workflow-gallery');
+    const aiProviderPreset = registry.get('feature.ai-provider-config');
     expect(menuPreset).toBeDefined();
     expect(windowPreset).toBeDefined();
+    expect(aiProviderPreset).toBeDefined();
 
     const menuRoutine = registry.createRoutine(
       {
@@ -1516,6 +1599,38 @@ describe('SpriteRoutinePresetRegistry', () => {
         }),
         expect.objectContaining({ id: 'feature.workflow-gallery.clear-notice', type: 'clearMessage', messageId: 'feature.workflow-gallery.invite', messageType: 'notice' }),
         expect.objectContaining({ id: 'feature.workflow-gallery.celebrate', type: 'playAnimation', trigger: 'celebrate' })
+      ])
+    );
+
+    const aiProviderRoutine = registry.createRoutine(
+      {
+        id: 'purpose-feature-ai-provider-config',
+        kind: 'feature.ai-provider-config',
+        title: 'ai provider config feature intro',
+        reason: 'introduce ai provider config',
+        source: 'system-event',
+        status: 'active',
+        priority: 60,
+        interruptPolicy: 'interruptible'
+      },
+      aiProviderPreset!,
+      1000
+    );
+    expect(aiProviderRoutine.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'feature.ai-provider-config.open-window',
+          type: 'openWindow',
+          window: 'aiProviderConfig'
+        }),
+        expect.objectContaining({
+          id: 'feature.ai-provider-config.wait-event',
+          type: 'waitForEvent',
+          source: 'app-event',
+          event: 'AI_PROVIDER_CONFIG_UPDATED',
+          ignoreHistory: true
+        }),
+        expect.objectContaining({ id: 'feature.ai-provider-config.clear-notice', type: 'clearMessage', messageId: 'feature.ai-provider-config.invite', messageType: 'notice' })
       ])
     );
   });

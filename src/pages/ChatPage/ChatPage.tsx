@@ -30,7 +30,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { useAutoScroll } from '@/hooks/useAutoScroll';
-import { guideChatApiConfigIfNeeded } from '@/lib/chat-api-config-guide';
+import { ensureChatApiConfigGoal, guideChatApiConfigIfNeeded } from '@/lib/chat-api-config-guide';
 import { buildExplicitSkillInvocationInput } from '@/lib/chat-explicit-skill-invocation';
 import { formatDateTime, formatRelativeTime } from '@/lib/time';
 import { speakToolResultSpeech } from '@/lib/tool-speech';
@@ -406,7 +406,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     const resolvedPreset = await window.YUA.ai.resolveUsablePreset(selectedProviderId, preferredPresetId);
     if (!resolvedPreset?.id) {
       setPendingConversationTitle(null);
-      void guideChatApiConfigIfNeeded({ providerId: selectedProviderId, preferredPresetId, trigger: 'chat-send', force: true });
+      await ensureChatApiConfigGoal({ providerId: selectedProviderId, preferredPresetId, trigger: 'chat-send' });
       toast.error('当前服务商还没有可用预设，请先到 AI 设置中完成配置');
       return;
     }

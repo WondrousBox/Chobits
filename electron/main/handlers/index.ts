@@ -375,6 +375,7 @@ async function initOnboardingQuestEngine(
   const questBridgeEvents: AppEvent[] = [
     AppEvent.SPRITE_RESOURCE_IMPORT_COMPLETE,
     AppEvent.SPRITE_RESOURCE_IMPORT_ERROR,
+    AppEvent.AI_PROVIDER_CONFIG_UPDATED,
     AppEvent.ASSISTANT_MENU_ITEM_SELECTED,
     AppEvent.FILE_ACTION_SELECTED,
     AppEvent.FILE_ACTION_WORKFLOW_STARTED,

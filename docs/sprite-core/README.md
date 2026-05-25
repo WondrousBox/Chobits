@@ -29,6 +29,8 @@
 > **2026-05-03 复盘层补充**：PurposeHistory 已新增每日 retrospective 摘要面：`getPurposeDailyRetrospective()` 会从 JSONL 历史汇总当天目的、完成/取消/失败统计、kind 分布、高价值 purpose 与 Memory-compatible recall cues，并通过 `sprite:purpose:getDailyRetrospective` / preload 暴露；状态页已接入“今日目的”展示；Memory index / daily index 生成前可通过主进程组合层注册的 retrospective provider 把高价值目的复盘写成 `Sprite Purpose Retrospective` Memory Note，Memory 模块不直接依赖 sprite-core。
 >
 > **2026-05-03 自发说话补充**：`SpriteSpontaneousUtteranceService` 现在通过构造注入的 retrospective provider 读取当天 purpose retrospective，把高价值目的与 recall cues 作为 prompt 中的安静自我感知上下文，避免逐 step 噪声进入闲置表达。
+>
+> **2026-05-25 引导目标补充**：`SpriteRoutinePresetDefinition` 支持 `goal` 元数据，用于声明 preset routine 想达成的状态。当前内置 `workspace.exists`（`onboarding.workspace.create`）和 `ai.chat-provider-configured`（`chat.api-config-guide`）。阻断式入口会先评估 goal，未达成时启动对应 guide / Quest 并停止原动作；例如双击助手打开聊天前会先检查聊天 API Key，右键菜单会先检查 workspace 是否存在。`chat.api-config-guide` 不会自动跳转设置页，必须先展示“去配置”按钮，用户点击后才打开设置页 AI 分类并定位 provider / preset。
 
 ## 概览
 

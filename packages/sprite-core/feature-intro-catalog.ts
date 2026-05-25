@@ -543,24 +543,23 @@ export const FEATURE_INTRO_QUEST_CATALOG: FeatureIntroQuestCatalogItem[] = [
   {
     id: 'feature.ai-provider-config',
     title: '认识 AI 提供商配置',
-    description: '打开 AI 提供商配置窗口，了解模型 API Key 和预设如何配置。',
+    description: '打开 AI 提供商配置窗口，了解模型 API Key 和预设如何配置，并在保存配置后完成任务。',
     area: '设置 / AI',
     priority: 'P2',
     rewardXp: 8,
     rewardFavor: 1,
     achievementId: achievementFor('feature.ai-provider-config'),
     completion: {
-      kind: 'app-window-opened',
-      windowKey: 'aiProviderConfig'
+      kind: 'app-event',
+      events: ['AI_PROVIDER_CONFIG_UPDATED']
     },
     routine: {
       kind: 'window',
       intro: 'AI 提供商配置用于管理 API Key 和模型预设，是聊天、总结和图片理解的基础。',
       instruction: '我会打开配置窗口，你可以检查当前提供商需要的密钥字段。',
-      done: 'AI 提供商配置窗口打开啦。后续如果补保存事件，这个任务会升级为保存成功后完成。',
+      done: 'AI 提供商配置已经保存啦。聊天、总结和图片理解都可以使用这些模型配置。',
       windowKey: 'aiProviderConfig',
-      waitEvent: 'APP_WINDOW_OPENED',
-      waitMatch: { windowKey: 'aiProviderConfig' }
+      waitEvent: 'AI_PROVIDER_CONFIG_UPDATED'
     }
   },
   {

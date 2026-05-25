@@ -4,6 +4,7 @@
 > **状态**：已按固定新手 Quest 流程落地
 > **预设 Routine ID**：`onboarding.workspace.create`
 > **Purpose Kind**：`onboarding.workspace.create`
+> **Routine Goal**：`workspace.exists`（至少存在一个未删除工作空间，阻断式入口会先评估该目标）
 > **Purpose Priority**：70（高于 daily.care.reminder=55；启动期 onboarding focus 会暂停 daily care 并压制环境发言）
 > **开发试跑入口**：机能扩展 → AI 目标规划 / 目的规划器 → 观测 → 工作空间引导预设
 > **任务展示入口**：助手右键菜单 → 任务 → 新手任务“创建你的第一个工作空间”
@@ -95,7 +96,7 @@ export const workspaceCreateQuest: OnboardingQuestDefinition = {
 - 进行中：显示“继续引导”
 - 已完成：隐藏操作按钮，显示完成状态
 
-任务列表按钮不会裸开 `workspaceWizard`。它调用 `quest:start({ id: 'workspace.create' })`，由 QuestEngine 检查是否仍需要引导，再启动 `onboarding.workspace.create` preset-only purpose。这样从任务窗口触发也会保持气泡按钮、角色走到窗口旁、窗口讲解、关闭未创建后继续提示和成功奖励的完整固定流程。
+任务列表按钮不会裸开 `workspaceWizard`。它调用 `quest:start({ id: 'workspace.create' })`，由 QuestEngine 检查是否仍需要引导，再启动 `onboarding.workspace.create` preset-only purpose。右键菜单等需要 workspace 的入口也不会自己查完后裸开向导，而是复用 preset goal `workspace.exists`：未达成时启动同一个 Quest 并阻断原动作。这样从任务窗口或业务入口触发都会保持气泡按钮、角色走到窗口旁、窗口讲解、关闭未创建后继续提示和成功奖励的完整固定流程。
 
 ## 3. Preset Routine
 
