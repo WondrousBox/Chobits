@@ -40,17 +40,6 @@ const WorkspaceWizard: React.FC = () => {
     };
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (createdRef.current) return;
-      void window.YUA.sprite?.emitPurposeEvent?.({
-        source: 'app-event',
-        event: 'WORKSPACE_WIZARD_CLOSED',
-        payload: { reason: 'window-unmounted' }
-      });
-    };
-  }, []);
-
   const handleCreate = async (): Promise<void> => {
     const pick = await window.YUA.file['file:pickDir']({ allowCreate: true });
     if (pick.canceled || !pick.path) return;

@@ -292,6 +292,25 @@ const OPEN_RESOURCE_LIBRARY_NOTICE_ID = 'onboarding.resource.open-library.invite
 const OPEN_RESOURCE_LIBRARY_WAIT_MS = 5 * 60 * 1000;
 const FEATURE_INTRO_WAIT_MS = 30 * 60 * 1000;
 const FEATURE_INTRO_HELP_COOLDOWN_MS = 60_000;
+function createWorkspaceNextAction(purposeAction: string): Extract<SpriteRoutineStep, { type: 'speak' }>['nextAction'] {
+  return {
+    id: purposeAction,
+    label: '下一句',
+    purposeAction
+  };
+}
+
+function createWorkspaceGuideWaitStep(id: string, durationMs: number, purposeAction: string, ignoreHistory = false): SpriteRoutineStep {
+  return {
+    id,
+    type: 'wait',
+    durationMs,
+    interruptEvent: 'bubble:action',
+    interruptSource: 'purpose-event',
+    interruptMatch: { purposeAction },
+    interruptIgnoreHistory: ignoreHistory
+  };
+}
 
 /**
  * 新手引导 — 引导用户创建工作空间。
@@ -307,10 +326,26 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStep[] {
   return [
     { id: 'attention-wave', type: 'playAnimation', trigger: 'wave', durationMs: 1200, waitFor: 'duration', silent: true },
     {
+      id: 'speak-workspace-assistant-intro',
+      type: 'speak',
+      text: getCharacterRoutineText('onboarding.workspace.create.assistant-intro', undefined, '你好，我是你的专属桌面助手。'),
+      bubbleDuration: 3600,
+      nextAction: createWorkspaceNextAction('workspace-assistant-intro-next')
+    },
+    createWorkspaceGuideWaitStep('assistant-intro-breath', 3600, 'workspace-assistant-intro-next'),
+    {
+      id: 'speak-workspace-growth-promise',
+      type: 'speak',
+      text: getCharacterRoutineText('onboarding.workspace.create.growth-promise', undefined, '我会陪伴你学习和工作，一起共同成长。'),
+      bubbleDuration: 4200,
+      nextAction: createWorkspaceNextAction('workspace-growth-promise-next')
+    },
+    createWorkspaceGuideWaitStep('assistant-growth-breath', 4200, 'workspace-growth-promise-next'),
+    {
       id: 'invite-notice',
       type: 'showNotice',
       messageId: WORKSPACE_CREATE_NOTICE_ID,
-      content: getCharacterRoutineText('onboarding.workspace.create.invite', undefined, '没有找到工作空间，先创建吧。'),
+      content: getCharacterRoutineText('onboarding.workspace.create.invite', undefined, '先创建工作空间吧'),
       level: 'info',
       persistent: true,
       buttons: [{ id: 'focus-wizard', label: '立即创建', variant: 'default', purposeAction: 'open-wizard' }],
@@ -363,15 +398,16 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStep[] {
                           id: 'speak-workspace-intro',
                           type: 'speak',
                           text: getCharacterRoutineText('onboarding.workspace.create.workspace-intro', undefined, '工作空间会存放所有重要的数据。'),
-                          bubbleDuration: 5200,
+                          bubbleDuration: 4000,
+                          nextAction: createWorkspaceNextAction('workspace-intro-next'),
                           cooldownKey: 'onboarding.workspace.create.workspace-intro',
                           cooldownMs: WORKSPACE_CREATE_WINDOW_HELPER_COOLDOWN_MS
                         },
-                        { id: 'workspace-intro-breath', type: 'wait', durationMs: 5000 },
+                        createWorkspaceGuideWaitStep('workspace-intro-breath', 5000, 'workspace-intro-next', true),
                         {
                           id: 'speak-workspace-quickstart-tip',
                           type: 'speak',
-                          text: getCharacterRoutineText('onboarding.workspace.create.quickstart-tip', undefined, '可以用快速创建就能开始，以后也可以再调整。'),
+                          text: getCharacterRoutineText('onboarding.workspace.create.quickstart-tip', undefined, '快速开始会默认创建到文档文件夹。'),
                           bubbleDuration: 4200,
                           cooldownKey: 'onboarding.workspace.create.quickstart-tip',
                           cooldownMs: WORKSPACE_CREATE_WINDOW_HELPER_COOLDOWN_MS
@@ -410,7 +446,7 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStep[] {
                 id: 'invite-notice-after-dismiss',
                 type: 'showNotice',
                 messageId: WORKSPACE_CREATE_NOTICE_ID,
-                content: getCharacterRoutineText('onboarding.workspace.create.invite', undefined, '没有找到工作空间，先创建吧。'),
+                content: getCharacterRoutineText('onboarding.workspace.create.invite', undefined, '先创建工作空间吧'),
                 level: 'info',
                 persistent: true,
                 buttons: [{ id: 'focus-wizard', label: '立即创建', variant: 'default', purposeAction: 'open-wizard' }],
@@ -545,16 +581,16 @@ function createOpenResourceLibraryRoutineSteps(): SpriteRoutineStep[] {
       persistent: true,
       speak: true
     },
-      {
-        id: 'wait-context-menu-open',
-        type: 'waitForEvent',
-        source: 'sprite-event-bus',
-        event: 'interact:context-menu',
-        match: { open: true },
-        timeoutMs: OPEN_RESOURCE_LIBRARY_WAIT_MS,
-        assignTo: 'contextMenuOpenEvent',
-        ignoreHistory: true
-      },
+    {
+      id: 'wait-context-menu-open',
+      type: 'waitForEvent',
+      source: 'sprite-event-bus',
+      event: 'interact:context-menu',
+      match: { open: true },
+      timeoutMs: OPEN_RESOURCE_LIBRARY_WAIT_MS,
+      assignTo: 'contextMenuOpenEvent',
+      ignoreHistory: true
+    },
     {
       id: 'resource-menu-tip',
       type: 'speak',

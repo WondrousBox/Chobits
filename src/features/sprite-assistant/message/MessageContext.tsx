@@ -56,10 +56,10 @@ export function MessageProvider({ children }: MessageProviderProps): JSX.Element
             source: 'purpose-event',
             event: 'bubble:action',
             payload: {
-              messageId: currentNotice?.id,
+              messageId: current?.id,
               actionId: button.id,
               purposeAction,
-              routineId: currentNotice?.routineId
+              routineId: current?.type === 'notice' ? currentNotice?.routineId : undefined
             }
           });
           if (purposeAction === 'open-wizard') {
@@ -87,7 +87,7 @@ export function MessageProvider({ children }: MessageProviderProps): JSX.Element
         dismissMessage(undefined, 'button');
       }
     },
-    [currentNotice, dismissMessage]
+    [current, currentNotice, dismissMessage]
   );
 
   useEffect(() => {
@@ -104,6 +104,7 @@ export function MessageProvider({ children }: MessageProviderProps): JSX.Element
       persistent?: boolean;
       routineId?: string;
       category?: string;
+      nextAction?: MessageButton;
       ctx?: any;
     }): void => {
       if (!payload) return;
@@ -116,7 +117,8 @@ export function MessageProvider({ children }: MessageProviderProps): JSX.Element
             level: payload.level,
             category: payload.category as any,
             ctx: payload.ctx,
-            duration: payload.duration
+            duration: payload.duration,
+            nextAction: payload.nextAction
           });
           return;
         case 'notice':

@@ -25,6 +25,31 @@ function safeFolderName(name?: string): string {
   return n.length ? n : 'Workspace';
 }
 
+async function hasWorkspace(): Promise<boolean> {
+  const rows = await WorkspacesRepo.list({ deletedAt: 0 } as any, 1, 0);
+  return Array.isArray(rows) && rows.length > 0;
+}
+
+let lastWorkspaceWizardClosedEventAt = 0;
+
+export async function emitWorkspaceWizardClosedIfStillEmpty(reason: string, sourceWindowId?: number): Promise<{ success: boolean; emitted: boolean }> {
+  try {
+    const now = Date.now();
+    if (now - lastWorkspaceWizardClosedEventAt < 500) {
+      return { success: true, emitted: false };
+    }
+    if (await hasWorkspace()) {
+      return { success: true, emitted: false };
+    }
+    lastWorkspaceWizardClosedEventAt = now;
+    eventManager.emit(AppEvent.WORKSPACE_WIZARD_CLOSED, { reason }, sourceWindowId);
+    return { success: true, emitted: true };
+  } catch (error) {
+    console.warn('[workspace] failed to handle workspace wizard close', error);
+    return { success: false, emitted: false };
+  }
+}
+
 async function createWorkspace(workspace: PartialByKey<Workspace, 'id'>): Promise<{ success: boolean; data?: any }> {
   const ws = workspace || {};
   const data = await WorkspacesRepo.upsert({ ...ws });

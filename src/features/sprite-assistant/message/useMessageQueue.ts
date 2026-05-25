@@ -30,7 +30,7 @@ const sortByPriority = (messages: SpriteMessage[]): SpriteMessage[] => {
  * 生成消息的去重键
  * - Notice: 使用 routineId（如果有）或 content 作为去重键
  * - Busy: 使用 content 作为去重键
- * - Toast: 使用 category 或 content 作为去重键
+ * - Toast: 普通预设消息使用 category 去重；角色说话气泡按内容去重
  */
 const getDedupeKey = (message: SpriteMessage): string => {
   const { type } = message;
@@ -48,6 +48,9 @@ const getDedupeKey = (message: SpriteMessage): string => {
 
   if (type === 'toast') {
     const toast = message as ToastMessage;
+    if (toast.category === 'message') {
+      return `toast:message:${toast.content || toast.id}`;
+    }
     // 使用 category（预设文案类型）或 content 作为去重键
     return `toast:${toast.category || toast.content || 'default'}`;
   }
@@ -157,6 +160,7 @@ export function useMessageQueue(): UseMessageQueueReturn {
         category: input.category,
         ctx: input.ctx,
         duration: input.duration ?? DEFAULT_DURATION.toast,
+        nextAction: input.nextAction,
         createdAt: Date.now()
       };
       addMessage(message);

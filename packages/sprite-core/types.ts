@@ -485,6 +485,7 @@ export interface ToastMessage extends BaseMessage {
   category?: MessageCategory;
   ctx?: any;
   duration?: number;
+  nextAction?: MessageButton;
 }
 
 export interface NoticeMessage extends BaseMessage {
@@ -520,6 +521,7 @@ export interface MessageIPCPayload {
   persistent?: boolean;
   routineId?: string;
   category?: MessageCategory;
+  nextAction?: MessageButton;
   speak?: boolean;
   ctx?: any;
 }

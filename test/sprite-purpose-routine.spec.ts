@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { FEATURE_INTRO_QUEST_CATALOG } from '../packages/sprite-core/feature-intro-catalog';
 import type { SpritePurposeHistoryEntry, SpriteRoutinePresetDefinition } from '../packages/sprite-core/purpose';
 import {
   createSpriteRoutineFromPlannerDraft,
@@ -15,7 +16,6 @@ import {
   SpriteRoutinePresetRegistry,
   SpriteRoutineRunner
 } from '../packages/sprite-core/purpose';
-import { FEATURE_INTRO_QUEST_CATALOG } from '../packages/sprite-core/feature-intro-catalog';
 
 async function waitFor(predicate: () => boolean, timeoutMs = 200): Promise<void> {
   const startedAt = Date.now();
@@ -1172,6 +1172,34 @@ describe('SpriteRoutinePresetRegistry', () => {
       untilEvent: 'WORKSPACE_CREATED',
       assignTo: 'workspaceCreatedEvent'
     });
+    expect(routine.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'speak-workspace-assistant-intro',
+          type: 'speak',
+          text: '你好，我是你的专属桌面助手。',
+          nextAction: expect.objectContaining({ purposeAction: 'workspace-assistant-intro-next' })
+        }),
+        expect.objectContaining({
+          id: 'assistant-intro-breath',
+          type: 'wait',
+          interruptEvent: 'bubble:action',
+          interruptMatch: { purposeAction: 'workspace-assistant-intro-next' }
+        }),
+        expect.objectContaining({
+          id: 'speak-workspace-growth-promise',
+          type: 'speak',
+          text: '我会陪伴你学习和工作，一起共同成长。',
+          nextAction: expect.objectContaining({ purposeAction: 'workspace-growth-promise-next' })
+        }),
+        expect.objectContaining({
+          id: 'assistant-growth-breath',
+          type: 'wait',
+          interruptEvent: 'bubble:action',
+          interruptMatch: { purposeAction: 'workspace-growth-promise-next' }
+        })
+      ])
+    );
     expect(routine.steps).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'invite-notice', type: 'showNotice', messageId: 'onboarding.workspace.create.invite' })]));
     const loop = routine.steps.find((step) => step.id === 'workspace-onboarding-loop');
     expect(loop).toMatchObject({
@@ -1200,17 +1228,26 @@ describe('SpriteRoutinePresetRegistry', () => {
           id: 'await-wizard-result',
           type: 'loopUntil',
           untilEvent: ['WORKSPACE_CREATED', 'WORKSPACE_WIZARD_CLOSED'],
+          ignoreHistory: true,
           body: expect.arrayContaining([
             expect.objectContaining({
               id: 'speak-workspace-intro',
               type: 'speak',
               text: '工作空间会存放所有重要的数据。',
+              nextAction: expect.objectContaining({ purposeAction: 'workspace-intro-next' }),
               cooldownKey: 'onboarding.workspace.create.workspace-intro'
+            }),
+            expect.objectContaining({
+              id: 'workspace-intro-breath',
+              type: 'wait',
+              interruptEvent: 'bubble:action',
+              interruptMatch: { purposeAction: 'workspace-intro-next' },
+              interruptIgnoreHistory: true
             }),
             expect.objectContaining({
               id: 'speak-workspace-quickstart-tip',
               type: 'speak',
-              text: '可以用快速创建就能开始，以后也可以再调整。',
+              text: '快速开始会默认创建到文档文件夹。',
               cooldownKey: 'onboarding.workspace.create.quickstart-tip'
             })
           ])
@@ -1666,7 +1703,9 @@ describe('SpriteRoutinePresetRegistry', () => {
     expect(result.ok).toBe(true);
     expect(calls).toEqual(
       expect.arrayContaining([
-        'notice:onboarding.workspace.create.invite:没有找到工作空间，先创建吧。',
+        'speak:你好，我是你的专属桌面助手。',
+        'speak:我会陪伴你学习和工作，一起共同成长。',
+        'notice:onboarding.workspace.create.invite:先创建工作空间吧',
         'open:workspaceWizard',
         'walk:workspaceWizard',
         'notice:onboarding.workspace.create.invite:还没有创建工作空间哦。',
@@ -1697,7 +1736,7 @@ describe('SpriteRoutinePresetRegistry', () => {
       1000
     );
     const calls: string[] = [];
-    let clicked = false;
+    let clickedOpenWizard = false;
     let workspaceCreatedResolvers: Array<(event: any) => void> = [];
     const workspaceCreatedEvent = {
       source: 'app-event' as const,
@@ -1742,8 +1781,16 @@ describe('SpriteRoutinePresetRegistry', () => {
         calls.push(`open:${step.window}`);
       },
       waitForEvent: (step, signal) => {
-        if (step.event === 'bubble:action' && !clicked) {
-          clicked = true;
+        if (step.event === 'bubble:action' && step.match?.purposeAction) {
+          return {
+            source: 'purpose-event',
+            event: 'bubble:action',
+            timestamp: Date.now(),
+            payload: { purposeAction: step.match.purposeAction, actionId: step.match.purposeAction }
+          };
+        }
+        if (step.event === 'bubble:action' && !clickedOpenWizard) {
+          clickedOpenWizard = true;
           return {
             source: 'purpose-event',
             event: 'bubble:action',
@@ -1772,11 +1819,13 @@ describe('SpriteRoutinePresetRegistry', () => {
     expect(result.ok, result.error).toBe(true);
     expect(calls).toEqual(
       expect.arrayContaining([
-        'notice:onboarding.workspace.create.invite:没有找到工作空间，先创建吧。',
+        'speak:speak-workspace-assistant-intro:你好，我是你的专属桌面助手。',
+        'speak:speak-workspace-growth-promise:我会陪伴你学习和工作，一起共同成长。',
+        'notice:onboarding.workspace.create.invite:先创建工作空间吧',
         'open:workspaceWizard',
         'walk:workspaceWizard',
         'speak:speak-workspace-intro:工作空间会存放所有重要的数据。',
-        'speak:speak-workspace-quickstart-tip:可以用快速创建就能开始，以后也可以再调整。',
+        'speak:speak-workspace-quickstart-tip:快速开始会默认创建到文档文件夹。',
         'clear:onboarding.workspace.create.invite',
         'speak:speak-done:工作空间建好啦！我可以做更多事情啦。'
       ])
@@ -1830,6 +1879,14 @@ describe('SpriteRoutinePresetRegistry', () => {
       },
       clearMessage: vi.fn(),
       waitForEvent: (step, signal) => {
+        if (step.event === 'bubble:action' && step.match?.purposeAction) {
+          return {
+            source: 'purpose-event',
+            event: 'bubble:action',
+            timestamp: Date.now(),
+            payload: { purposeAction: step.match.purposeAction, actionId: step.match.purposeAction }
+          };
+        }
         if (step.event === 'WORKSPACE_CREATED') {
           return pendingWorkspaceCreated(signal);
         }
@@ -1837,6 +1894,9 @@ describe('SpriteRoutinePresetRegistry', () => {
       },
       setTimeout: ((handler: () => void, timeout: number) => {
         timers.push({ timeout, handler });
+        if (timeout === 3600 || timeout === 4200) {
+          setTimeout(handler, 0);
+        }
         return timers.length as any;
       }) as any,
       clearTimeout: vi.fn() as any
@@ -1896,6 +1956,14 @@ describe('SpriteRoutinePresetRegistry', () => {
       },
       clearMessage: vi.fn(),
       waitForEvent: (step, signal) => {
+        if (step.event === 'bubble:action' && step.match?.purposeAction) {
+          return {
+            source: 'purpose-event',
+            event: 'bubble:action',
+            timestamp: Date.now(),
+            payload: { purposeAction: step.match.purposeAction, actionId: step.match.purposeAction }
+          };
+        }
         if (step.event === 'bubble:action') {
           return pendingEvent(signal);
         }
@@ -1920,7 +1988,7 @@ describe('SpriteRoutinePresetRegistry', () => {
         }
         return pendingEvent(signal);
       },
-      setTimeout: (handler, timeout) => setTimeout(handler, timeout === 5000 ? 0 : timeout),
+      setTimeout: (handler, timeout) => setTimeout(handler, timeout === 3600 || timeout === 4200 || timeout === 5000 ? 0 : timeout),
       clearTimeout
     });
 
@@ -1976,9 +2044,17 @@ describe('SpriteRoutinePresetRegistry', () => {
         calls.push(`notice:${step.messageId}`);
       },
       clearMessage: (step) => {
-        calls.push(`clear:${step.messageId}`);
-      },
+	        calls.push(`clear:${step.messageId}`);
+	      },
       waitForEvent: (step, signal) => {
+        if (step.event === 'bubble:action' && step.match?.purposeAction) {
+          return {
+            source: 'purpose-event',
+            event: 'bubble:action',
+            timestamp: Date.now(),
+            payload: { purposeAction: step.match.purposeAction, actionId: step.match.purposeAction }
+          };
+        }
         if (step.event === 'bubble:action') {
           return pendingEvent(signal);
         }
@@ -2003,7 +2079,7 @@ describe('SpriteRoutinePresetRegistry', () => {
         }
         return pendingEvent(signal);
       },
-      setTimeout: (handler, timeout) => setTimeout(handler, timeout === 5000 ? 0 : timeout),
+	      setTimeout: (handler, timeout) => setTimeout(handler, timeout === 3600 || timeout === 4200 || timeout === 5000 ? 0 : timeout),
       clearTimeout
     });
 
