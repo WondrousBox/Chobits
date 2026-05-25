@@ -29,6 +29,7 @@ import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { resolveModelFirstSelection } from '@/lib/ai-model-first';
+import { guideChatApiConfigIfNeeded } from '@/lib/chat-api-config-guide';
 import { buildExplicitSkillInvocationInput } from '@/lib/chat-explicit-skill-invocation';
 import { pickCodingWorkspace } from '@/lib/coding-workspace';
 import { formatRelativeTime } from '@/lib/time';
@@ -241,6 +242,10 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
   }, [loadAgents, loadConversations]);
 
   useEffect(() => {
+    void guideChatApiConfigIfNeeded({ providerId, preferredPresetId: presetId, trigger: 'sidebar-open' });
+  }, [presetId, providerId]);
+
+  useEffect(() => {
     const dispose = window.YUA.ai.onConversationTitleUpdated((data) => {
       if (data.status === 'generating') return;
       if (data.title) {
@@ -287,6 +292,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
     });
 
     if (!resolvedSelection) {
+      void guideChatApiConfigIfNeeded({ providerId, preferredPresetId: presetId, trigger: 'sidebar-send', force: true });
       toast.error('当前服务商还没有可用预设，请先完成 AI 配置');
       return;
     }

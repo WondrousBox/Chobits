@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 
 import { getFirstLockedSpriteCapability, getSpriteCapabilityLockedReason } from '@/features/sprite-assistant/capability-ui';
 import { useSpriteCapabilitySnapshot } from '@/features/sprite-assistant/hooks/useSpriteCapabilitySnapshot';
+import { guideChatApiConfigIfNeeded } from '@/lib/chat-api-config-guide';
 
 import RadialMenu, { RadialMenuItem } from '../../components/common/RadialMenu/RadialMenu';
 
@@ -241,6 +242,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         action: () => {
           emitAssistantMenuItemSelected('chat', 'chat');
           window.YUA.window['window:open']('chat');
+          void guideChatApiConfigIfNeeded({ trigger: 'assistant-menu-chat' });
         }
       },
       {
