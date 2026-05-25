@@ -19,7 +19,7 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
   },
   'emoji-send': {
     category: 'ui-side-effect',
-    description: '根据关键词或情绪在已导入的表情包中随机挑选一张并发送到聊天气泡，留空 query 时随机抽取',
+    description: '根据关键词或情绪在已导入的表情包中随机挑选一张并发送到配置的展示位置，留空 query 时随机抽取',
     compatName: 'emojiSendTool',
     name: 'emojiSendTool',
     status: 'ready-for-pi-runtime'

@@ -148,6 +148,10 @@ function sanitizeChatPayload(payload: unknown): Payload | undefined {
   pickString(payload, next, 'codingWorkspaceLabel', { maxLength: 200 });
   pickBoolean(payload, next, 'webSearchEnabled');
   pickBoolean(payload, next, 'emojiPacksEnabled');
+  const emojiPacksDisplayTarget = readString(payload, 'emojiPacksDisplayTarget', { maxLength: 32 });
+  if (emojiPacksDisplayTarget === 'chat' || emojiPacksDisplayTarget === 'sprite-bubble') {
+    next.emojiPacksDisplayTarget = emojiPacksDisplayTarget;
+  }
   pickBoolean(payload, next, 'characterPersonaEnabled');
   const overlaySide = readString(payload, 'overlaySide', { maxLength: 16 });
   if (overlaySide === 'left' || overlaySide === 'right') next.overlaySide = overlaySide;
@@ -172,7 +176,9 @@ const chatPayloadFields: AppWindowPayloadField[] = [
   { name: 'providerId', type: 'string', description: 'AI 提供商 ID' },
   { name: 'modelId', type: 'string', description: '模型 ID' },
   { name: 'preferredPresetId', type: 'string', description: '首选提供商预设 ID' },
-  { name: 'webSearchEnabled', type: 'boolean', description: '是否开启联网搜索' }
+  { name: 'webSearchEnabled', type: 'boolean', description: '是否开启联网搜索' },
+  { name: 'emojiPacksEnabled', type: 'boolean', description: '是否开启表情包回复' },
+  { name: 'emojiPacksDisplayTarget', type: 'chat | sprite-bubble', description: '表情包展示到对话内或角色浮动气泡' }
 ];
 
 export const APP_WINDOW_TOOL_DIRECTORY: AppWindowToolEntry[] = [

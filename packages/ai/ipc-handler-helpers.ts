@@ -663,6 +663,7 @@ export interface TranslationTaskHandle {
   requestId: string;
   eventsChannel: string;
   completionPromise: Promise<TranslationCompletedData>;
+  reused?: boolean;
 }
 
 export interface SummaryTaskHandle {
@@ -703,6 +704,124 @@ function getMetadataResourceId(metadata?: TaskMetadata): string | undefined {
 
 function getMetadataWorkspaceId(metadata?: TaskMetadata): string | undefined {
   return typeof metadata?.workspaceId === 'string' ? metadata.workspaceId : undefined;
+}
+
+const RECENT_SUBTITLE_TRANSLATION_DEDUPE_TTL_MS = 30 * 1000;
+
+type CachedSubtitleTranslationTask = TranslationTaskHandle & {
+  cleanupTimer?: ReturnType<typeof setTimeout>;
+  expiresAt?: number;
+  key: string;
+};
+
+const subtitleTranslationTaskCache = new Map<string, CachedSubtitleTranslationTask>();
+
+function stableStringify(value: unknown): string {
+  if (value === undefined) return '';
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value) ?? '';
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+  }
+
+  return `{${Object.keys(value as Record<string, unknown>)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableStringify((value as Record<string, unknown>)[key])}`)
+    .join(',')}}`;
+}
+
+function getSubtitleTranslationDedupeKey(params: {
+  model?: string;
+  options?: TranslatePayload['options'];
+  providerId?: string;
+  providerPresetId?: string;
+  resourceId?: string;
+  sourceLanguage?: string;
+  targetLanguage?: string;
+}): string | undefined {
+  const resourceId = params.resourceId?.trim();
+  const targetLanguage = params.targetLanguage?.trim().toLowerCase();
+  if (!resourceId || !targetLanguage) {
+    return undefined;
+  }
+
+  return stableStringify({
+    model: params.model?.trim() || '',
+    options: params.options || {},
+    providerId: params.providerId?.trim() || '',
+    providerPresetId: params.providerPresetId?.trim() || '',
+    resourceId,
+    sourceLanguage: params.sourceLanguage?.trim().toLowerCase() || '',
+    targetLanguage
+  });
+}
+
+function getCachedSubtitleTranslationTask(key?: string): TranslationTaskHandle | undefined {
+  if (!key) return undefined;
+
+  const cached = subtitleTranslationTaskCache.get(key);
+  if (!cached) return undefined;
+
+  if (cached.expiresAt && cached.expiresAt <= Date.now()) {
+    if (cached.cleanupTimer) clearTimeout(cached.cleanupTimer);
+    subtitleTranslationTaskCache.delete(key);
+    return undefined;
+  }
+
+  return {
+    completionPromise: cached.completionPromise,
+    eventsChannel: cached.eventsChannel,
+    requestId: cached.requestId,
+    reused: true
+  };
+}
+
+function cacheSubtitleTranslationTask(key: string | undefined, handle: TranslationTaskHandle): void {
+  if (!key) return;
+
+  const existing = subtitleTranslationTaskCache.get(key);
+  if (existing?.cleanupTimer) {
+    clearTimeout(existing.cleanupTimer);
+  }
+
+  const cached: CachedSubtitleTranslationTask = {
+    ...handle,
+    key
+  };
+  subtitleTranslationTaskCache.set(key, cached);
+
+  void handle.completionPromise.then(
+    () => {
+      const current = subtitleTranslationTaskCache.get(key);
+      if (!current || current.requestId !== handle.requestId) return;
+
+      current.expiresAt = Date.now() + RECENT_SUBTITLE_TRANSLATION_DEDUPE_TTL_MS;
+      current.cleanupTimer = setTimeout(() => {
+        const latest = subtitleTranslationTaskCache.get(key);
+        if (latest?.requestId === handle.requestId) {
+          subtitleTranslationTaskCache.delete(key);
+        }
+      }, RECENT_SUBTITLE_TRANSLATION_DEDUPE_TTL_MS);
+      if (typeof current.cleanupTimer === 'object' && 'unref' in current.cleanupTimer) {
+        current.cleanupTimer.unref?.();
+      }
+    },
+    () => {
+      clearCachedSubtitleTranslationTask(key, handle.requestId);
+    }
+  );
+}
+
+function clearCachedSubtitleTranslationTask(key: string | undefined, requestId: string): void {
+  if (!key) return;
+
+  const cached = subtitleTranslationTaskCache.get(key);
+  if (cached?.requestId !== requestId) return;
+
+  if (cached.cleanupTimer) clearTimeout(cached.cleanupTimer);
+  subtitleTranslationTaskCache.delete(key);
 }
 
 function toAnalyticsUsage(usage?: TokenUsage): RecordAiUsageEventInput['usage'] | undefined {
@@ -1299,10 +1418,49 @@ export async function startSubtitleTranslationTask(payload: TranslatePayload, ta
   const startTimestamp = Date.now(); // 记录翻译任务开始时间戳
   const resolvedProviderPresetId = resolveProviderPresetId(normalizedPayload);
   const effectiveMetadata = createEffectiveTaskMetadata(metadata, resourceId);
+  const effectiveResourceId = getMetadataResourceId(effectiveMetadata);
+  const dedupeKey = getSubtitleTranslationDedupeKey({
+    model,
+    options,
+    providerId,
+    providerPresetId: resolvedProviderPresetId,
+    resourceId: effectiveResourceId,
+    sourceLanguage,
+    targetLanguage
+  });
+  const cachedTask = getCachedSubtitleTranslationTask(dedupeKey);
+  if (cachedTask) {
+    console.log('[translate] Reusing active subtitle translation task:', {
+      requestId: cachedTask.requestId,
+      resourceId: effectiveResourceId,
+      targetLanguage
+    });
+    return cachedTask;
+  }
+
+  let resolveCompletion!: (data: TranslationCompletedData) => void;
+  let rejectCompletion!: (error: Error) => void;
+  const completionPromise = new Promise<TranslationCompletedData>((resolve, reject) => {
+    resolveCompletion = resolve;
+    rejectCompletion = reject;
+  });
+  void completionPromise.catch(() => undefined);
+  const taskHandle: TranslationTaskHandle = { requestId, eventsChannel, completionPromise };
+  cacheSubtitleTranslationTask(dedupeKey, taskHandle);
+
+  const failStartup = (error: unknown): never => {
+    const normalizedError = error instanceof Error ? error : new Error(String(error));
+    rejectCompletion(normalizedError);
+    clearCachedSubtitleTranslationTask(dedupeKey, requestId);
+    throw normalizedError;
+  };
+
+  if (abortSignal?.aborted) {
+    failStartup(new Error('Aborted'));
+  }
 
   // 步骤1: 读取文件，加载字幕片段
   let actualSegments: Array<AimSegments> | undefined = segments;
-  const effectiveResourceId = getMetadataResourceId(effectiveMetadata);
   let sourceSubtitleFilePath: string | undefined;
   let sourceWorkspaceId: string | undefined; // 保存工作空间 ID
 
@@ -1313,13 +1471,14 @@ export async function startSubtitleTranslationTask(payload: TranslatePayload, ta
       sourceSubtitleFilePath = loaded.filePath;
     } catch (error) {
       console.error('[translate] Failed to load segments from resource:', error);
-      throw error;
+      failStartup(error);
     }
   }
 
   if (!actualSegments || actualSegments.length === 0) {
-    throw new Error('No segments provided and unable to load segments from resourceId');
+    failStartup(new Error('No segments provided and unable to load segments from resourceId'));
   }
+  const resolvedSegments = actualSegments!;
 
   // 如果传入了 segments 但仍然有资源 ID，则提前解析一次字幕文件路径（用于保存 JSON），避免每个 chunk 都查库
   if (!sourceSubtitleFilePath && effectiveResourceId) {
@@ -1345,15 +1504,20 @@ export async function startSubtitleTranslationTask(payload: TranslatePayload, ta
   let effectiveChatFn = injectedChatFn;
   let effectiveModel = model;
   if (!effectiveChatFn) {
-    const runtime = await createPreferredTaskChatRuntime({
-      agentId: 'chat',
-      model,
-      providerId,
-      providerPresetId: resolvedProviderPresetId
-    });
-    effectiveChatFn = runtime.chatFn;
-    effectiveModel = runtime.modelId;
+    try {
+      const runtime = await createPreferredTaskChatRuntime({
+        agentId: 'chat',
+        model,
+        providerId,
+        providerPresetId: resolvedProviderPresetId
+      });
+      effectiveChatFn = runtime.chatFn;
+      effectiveModel = runtime.modelId;
+    } catch (error) {
+      failStartup(error);
+    }
   }
+  const resolvedChatFn = effectiveChatFn!;
   const taskLabel = incomingTaskLabel || `${providerId}/${effectiveModel}`;
   const translationUsageRecorder = createTaskUsageRecorder({
     context: 'executeSubtitleTranslation',
@@ -1362,7 +1526,7 @@ export async function startSubtitleTranslationTask(payload: TranslatePayload, ta
       runtime: injectedChatFn ? 'custom_chat_fn' : 'pi',
       sourceLanguage: sourceLanguage || null,
       targetLanguage,
-      totalSegments: actualSegments.length
+      totalSegments: resolvedSegments.length
     },
     model: effectiveModel,
     providerId,
@@ -1381,13 +1545,6 @@ export async function startSubtitleTranslationTask(payload: TranslatePayload, ta
   // 步骤4: 创建事件发射器，处理翻译回调
   const accumulatedTranslations: Array<{ index: number; text: string }> = [];
   let translationJsonPath: string | undefined;
-  let resolveCompletion!: (data: TranslationCompletedData) => void;
-  let rejectCompletion!: (error: Error) => void;
-  const completionPromise = new Promise<TranslationCompletedData>((resolve, reject) => {
-    resolveCompletion = resolve;
-    rejectCompletion = reject;
-  });
-  void completionPromise.catch(() => undefined);
 
   const broadcastEvent = createEventEmitter({
     requestId,
@@ -1475,33 +1632,45 @@ export async function startSubtitleTranslationTask(payload: TranslatePayload, ta
     }
   };
 
-  TranslationService.translateSubtitles(
-    {
-      requestId,
-      chatFn: effectiveChatFn,
-      taskLabel,
-      segments: actualSegments,
-      sourceLanguage,
-      targetLanguage,
-      languageNames,
-      providerId,
-      model: effectiveModel,
-      metadata: effectiveMetadata,
-      onUsageEvent: translationUsageRecorder,
-      options
-    },
-    emit,
-    abortSignal
-  ).catch((err: any) => {
-    console.error('翻译失败:', err);
-    if (err.message === 'Aborted') {
-      emit({ type: 'done' });
-    } else {
-      emit({ type: 'error', data: { message: err?.message || '翻译失败' } });
-    }
-  });
+  try {
+    TranslationService.translateSubtitles(
+      {
+        requestId,
+        chatFn: resolvedChatFn,
+        taskLabel,
+        segments: resolvedSegments,
+        sourceLanguage,
+        targetLanguage,
+        languageNames,
+        providerId,
+        model: effectiveModel,
+        metadata: effectiveMetadata,
+        onUsageEvent: translationUsageRecorder,
+        options
+      },
+      emit,
+      abortSignal
+    ).catch((err: any) => {
+      console.error('翻译失败:', err);
+      if (err.message === 'Aborted') {
+        emit({ type: 'done' });
+      } else {
+        emit({ type: 'error', data: { message: err?.message || '翻译失败' } });
+      }
+    });
+  } catch (error) {
+    failStartup(error);
+  }
 
-  return { requestId, eventsChannel, completionPromise };
+  abortSignal?.addEventListener(
+    'abort',
+    () => {
+      clearCachedSubtitleTranslationTask(dedupeKey, requestId);
+    },
+    { once: true }
+  );
+
+  return taskHandle;
 }
 
 export async function executeSubtitleTranslation(payload: TranslatePayload): Promise<{ requestId: string; eventsChannel: string }> {

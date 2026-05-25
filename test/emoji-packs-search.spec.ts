@@ -8,12 +8,22 @@ const electronState = {
   userDataDir: ''
 };
 
+const spriteManagerSendBridgeMessageMock = vi.fn();
+
 vi.mock('electron', () => ({
   app: {
     getPath: () => electronState.userDataDir
   },
   shell: {
     openPath: vi.fn()
+  }
+}));
+
+vi.mock('../packages/sprite-core/manager', () => ({
+  SpriteManager: {
+    getInstance: () => ({
+      sendBridgeMessage: spriteManagerSendBridgeMessageMock
+    })
   }
 }));
 
@@ -132,6 +142,7 @@ describe('emoji pack search', () => {
 
   beforeEach(async () => {
     vi.resetModules();
+    spriteManagerSendBridgeMessageMock.mockClear();
     tempDir = path.join(os.tmpdir(), `emoji-pack-search-${Date.now()}-${Math.random().toString(16).slice(2)}`);
     electronState.userDataDir = tempDir;
 
@@ -198,6 +209,7 @@ describe('emoji pack search', () => {
       showBubble: false,
       text: firstSend.emoji.title
     });
+    expect(firstSend.displayTarget).toBe('chat');
 
     // Block-duplicate: forcing the same emoji to be picked again must respect sentBefore.
     // We rely on the fact that the only top-tier "嚣张" hit was just sent, so the next
@@ -252,6 +264,46 @@ describe('emoji pack search', () => {
     expect(result.success).toBe(true);
     expect(result.emoji.packId).toBe('EmojiPackage-1778160720970');
     expect(result.query).toBeUndefined();
+  });
+
+  it('pushes emoji images to the sprite bubble when configured', async () => {
+    const { createPiEmojiSendTool } = await import('../packages/ai/runtime/pi/tools/emoji-packs');
+    const toolContext = {
+      ...createToolContext(`conv-sprite-bubble-${Date.now()}`),
+      resolved: {
+        request: {
+          extras: {
+            emojiPacksDisplayTarget: 'sprite-bubble'
+          },
+          requestId: `conv-sprite-bubble-${Date.now()}-request`
+        }
+      }
+    };
+    const sendTool = createPiEmojiSendTool(toolContext as any);
+
+    const result = (
+      await sendTool.execute('call-sprite-bubble', {
+        packId: 'EmojiPackage-1778160720970',
+        query: '嚣张'
+      })
+    ).details as any;
+
+    expect(sendTool.chatDisplay).toEqual({ mode: 'hidden' });
+    expect(result.success).toBe(true);
+    expect(result.displayTarget).toBe('sprite-bubble');
+    expect(spriteManagerSendBridgeMessageMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        duration: 6000,
+        id: 'emoji-send-call-sprite-bubble',
+        image: expect.objectContaining({
+          title: result.emoji.title,
+          url: result.emoji.url
+        }),
+        speak: false,
+        type: 'toast'
+      }),
+      { target: 'sprite' }
+    );
   });
 
   it('loads previously sent emoji from persisted conversation tool calls', async () => {

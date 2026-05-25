@@ -338,7 +338,7 @@ export function initDownloadHandlers(win: BrowserWindow): void {
   downloadManager.on('taskProgress', (task) => {
     void updateRssDownloadProgress(task);
     const percent = normalizeProgressPercent(task.progress?.percent);
-    if (percent !== undefined) {
+    if (percent !== undefined && percent < 100) {
       emitDownloadSpriteEvent(AppEvent.SPRITE_DOWNLOAD_PROGRESS, task, `下载中: ${getDownloadTaskLabel(task)}`, percent);
     }
     win.webContents.send('video-downloader:task-progress', task);

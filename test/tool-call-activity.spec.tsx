@@ -216,4 +216,49 @@ describe('ToolCallActivity', () => {
     });
     env.cleanup();
   });
+
+  it('hides sprite-bubble emoji sends from the chat timeline', async () => {
+    const { act } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+    const { default: ToolCallActivity } = await import('../src/components/chat/ToolCallActivity');
+
+    const env = installMiniDom();
+    const root = createRoot(env.container as any);
+
+    await act(async () => {
+      root.render(
+        <ToolCallActivity
+          activities={[
+            {
+              args: { query: 'bubble' },
+              callId: 'emoji-call-hidden',
+              display: { mode: 'hidden' },
+              name: 'emojiSendTool',
+              result: {
+                details: {
+                  displayTarget: 'sprite-bubble',
+                  emoji: {
+                    title: 'bubble emoji',
+                    url: 'res://ws/test/emoji-hidden.jpg'
+                  },
+                  success: true
+                }
+              },
+              status: 'done'
+            }
+          ]}
+        />
+      );
+      await flushPromises();
+    });
+
+    expect(env.container.textContent).toBe('');
+    expect(env.container.querySelector('img')).toBeNull();
+
+    await act(async () => {
+      root.unmount();
+      await flushPromises();
+    });
+    env.cleanup();
+  });
 });

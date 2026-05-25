@@ -1,4 +1,5 @@
 import type * as PopoverPrimitive from '@radix-ui/react-popover';
+import type { EmojiPacksDisplayTarget } from '@packages/ai/types';
 import { Archive, FolderOpen, FolderPlus, ImagePlus, Loader2, PackageOpen, SmilePlus } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
@@ -15,7 +16,9 @@ import type { EmojiPackImportResult, EmojiPackSummary } from '../../../electron/
 
 interface EmojiPackButtonProps {
   enabled: boolean;
+  displayTarget: EmojiPacksDisplayTarget;
   onEnabledChange: (enabled: boolean) => void;
+  onDisplayTargetChange: (target: EmojiPacksDisplayTarget) => void;
   onOpenChange?: (open: boolean) => void;
   contentSide?: PopoverPrimitive.PopoverContentProps['side'];
   contentAlign?: PopoverPrimitive.PopoverContentProps['align'];
@@ -48,7 +51,16 @@ function hasSuccessfulImport(results: EmojiPackImportResult[]): boolean {
   return results.some((item) => item.ok);
 }
 
-export default function EmojiPackButton({ enabled, contentSide, contentAlign = 'start', avoidCollisions, onEnabledChange, onOpenChange }: EmojiPackButtonProps): JSX.Element {
+export default function EmojiPackButton({
+  enabled,
+  displayTarget,
+  contentSide,
+  contentAlign = 'start',
+  avoidCollisions,
+  onEnabledChange,
+  onDisplayTargetChange,
+  onOpenChange
+}: EmojiPackButtonProps): JSX.Element {
   const [open, setOpen] = useState(false);
   const [packs, setPacks] = useState<EmojiPackSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -154,6 +166,7 @@ export default function EmojiPackButton({ enabled, contentSide, contentAlign = '
     if (!hasPacks) return '未导入';
     return `${packCount} 个包`;
   }, [hasPacks, loading, packCount]);
+  const showInBubble = displayTarget === 'sprite-bubble';
 
   return (
     <Popover
@@ -173,11 +186,11 @@ export default function EmojiPackButton({ enabled, contentSide, contentAlign = '
                 className={cn('h-8 w-8 rounded-none border-0', enabled && 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground')}
                 aria-label="管理表情包"
               >
-                {enabled ? <SmilePlus className="h-4 w-4" /> : <ImagePlus className="h-4 w-4" />}
+                {enabled ? <SmilePlus /> : <ImagePlus />}
               </Button>
             </PopoverTrigger>
           </TooltipTrigger>
-          <TooltipContent>{enabled ? '表情包回复已开启' : '表情包回复已关闭'}</TooltipContent>
+          <TooltipContent>{enabled ? (showInBubble ? '表情包会显示在角色气泡' : '表情包会显示在对话中') : '表情包回复已关闭'}</TooltipContent>
         </Tooltip>
       </div>
       <PopoverContent align={contentAlign} side={contentSide} avoidCollisions={avoidCollisions} className="no-drag pointer-events-auto w-80 p-0">
@@ -191,6 +204,18 @@ export default function EmojiPackButton({ enabled, contentSide, contentAlign = '
               </div>
             </div>
             <Switch checked={enabled} onCheckedChange={(checked) => void setEnabled(checked)} aria-label={enabled ? '关闭表情包回复' : '开启表情包回复'} />
+          </div>
+
+          <div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+            <div className="min-w-0">
+              <div className="text-xs font-medium">角色浮动气泡展示</div>
+              <div className="mt-0.5 text-[11px] text-muted-foreground">{showInBubble ? '开启后表情包推送到角色气泡' : '关闭后沿用对话内展示'}</div>
+            </div>
+            <Switch
+              checked={showInBubble}
+              onCheckedChange={(checked) => onDisplayTargetChange(checked ? 'sprite-bubble' : 'chat')}
+              aria-label={showInBubble ? '关闭角色浮动气泡展示' : '开启角色浮动气泡展示'}
+            />
           </div>
 
           <div
@@ -208,11 +233,11 @@ export default function EmojiPackButton({ enabled, contentSide, contentAlign = '
 
           <div className="mt-3 grid grid-cols-2 gap-2">
             <Button type="button" variant="outline" size="sm" className="h-8 text-xs" disabled={importing} onClick={() => void pickFolder()}>
-              <FolderPlus className="h-3.5 w-3.5" />
+              <FolderPlus />
               选择文件夹
             </Button>
             <Button type="button" variant="outline" size="sm" className="h-8 text-xs" disabled={importing} onClick={() => void pickArchive()}>
-              <Archive className="h-3.5 w-3.5" />
+              <Archive />
               选择压缩包
             </Button>
           </div>
@@ -243,7 +268,7 @@ export default function EmojiPackButton({ enabled, contentSide, contentAlign = '
                     }}
                     aria-label="在文件管理器中显示"
                   >
-                    <FolderOpen className="h-3.5 w-3.5" />
+                    <FolderOpen />
                   </Button>
                 </div>
               ))}

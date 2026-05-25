@@ -3,6 +3,31 @@
 > 本文件描述所有可用工具的详细使用方法。通过 toolboxLookupTool 按需加载。
 > 每个 `##` 章节是一个技能，包含触发词、使用流程和注意事项。
 
+## 链式资源处理
+
+**触发词：** 看不懂视频、看不懂链接、帮我理解视频、下载转写翻译、下载视频并翻译、视频转写翻译、YouTube 转写翻译、字幕链路、media chain
+
+**涉及工具：** youtubeDownloadTool, workflowRunTool, translationTool
+
+**工作流程：**
+
+1. 用户给 YouTube 链接并表达“看不懂、帮我理解、翻译一下、做字幕”等意图时，先规划完整链路：下载视频 -> 转写/提取字幕 -> 翻译字幕。
+2. 调用 `youtubeDownloadTool({ url, waitForCompletion: true })`，等待下载完成。
+3. 下载完成后必须使用工具返回的 `resourceId`、`resource.id` 或 `next.resourceId` 作为新视频资源 ID，不要按标题搜索资源。
+4. 调用 `workflowRunTool` 搜索或执行转写工作流。执行时传入 `input: { resourceId: 上一步下载得到的视频资源ID }`，并优先 `waitForCompletion: true`。
+5. 转写完成后必须使用 `workflowRunTool` 返回的 `outputResourceId`、`next.resourceId`、`createdResources[0].id` 或 `producedResourceIds[0]` 作为新字幕资源 ID。
+6. 调用 `translationTool({ resourceId: 上一步转写得到的字幕资源ID, targetLanguage, waitForCompletion: true })`。
+
+**关键规则：**
+
+- 刚由工具创建或返回的资源 ID 是权威链路状态。只要上一步结果里有 `resourceId`、`outputResourceId`、`createdResources`、`producedResourceIds` 或 `next.resourceId`，就必须直接传给下一步。
+- 不要为了继续处理刚下载或刚转写出来的资源而调用 `resourceQueryTool`。
+- 只有在用户要处理“已有资源”，且当前对话没有确切资源 ID 时，才使用 `resourceQueryTool`。
+- 不要用视频标题、文件名或同名字幕搜索来猜测下一步输入；这会误命中历史同名资源。
+- 如果下载或转写被切到后台，当前链路不能继续执行依赖产物的下一步，除非后续能拿到明确的产物 ID。
+
+---
+
 ## 资源查询与推送
 
 **触发词：** 查找资源、创建资源、保存资源、导入资源、找视频、找音频、找字幕、预览资源、打开资源、查看资源、播放资源、打开文件、预览文件、有没有、给我看看、最新的、查询
@@ -26,6 +51,7 @@
 **注意：**
 
 - 当用户询问资源或想要查看资源时，务必推送资源卡片，不要只用文字描述
+- 如果上一轮工具刚返回了 `resourceId`、`outputResourceId`、`createdResources` 或 `next.resourceId`，后续处理必须直接使用这些 ID，不要再用 resourceQueryTool 按标题搜索同一个资源
 - “给我看看有哪些资源/找一下资源”偏查询和卡片；“打开这个资源/预览这个视频/播放这段音频/查看这张图片”偏窗口预览，应使用 appWindowTool
 - resourceQueryTool 支持按类型、时间、关键词等多种条件查询
 - resourceCreateTool 的 `mediaKind: "music"` 会把资源标记为音乐：资源类型仍是 `audio`，但 metadata 中会写入 `mediaKind/kind: "music"`，并添加 music 标签/分类
@@ -40,12 +66,14 @@
 
 **工作流程：**
 
-1. 用 resourceQueryTool 查找要翻译的字幕文件（获取 resourceId）
-2. 直接用 translationTool 执行翻译（只需传入 resourceId 和 targetLanguage）
-3. 翻译在后台异步进行，完成后会通知用户
+1. 如果上一轮转写工作流刚返回 `outputResourceId`、`next.resourceId`、`createdResources[0].id` 或 `producedResourceIds[0]`，直接把这个字幕资源 ID 传给 translationTool。
+2. 只有在没有明确字幕 ID、且用户是在处理已有字幕资源时，才用 resourceQueryTool 查找要翻译的字幕文件（获取 resourceId）。
+3. 直接用 translationTool 执行翻译（只需传入 resourceId 和 targetLanguage）。
+4. 翻译在后台异步进行，完成后会通知用户。
 
 **注意：**
 
+- 刚由转写工作流创建的字幕，绝对不要按标题或文件名搜索；直接使用转写工具结果里的资源 ID。
 - translationTool 会自动加载字幕内容，无需先调用 readSubtitleTool
 - 如果用户没有指定目标语言，询问用户想要翻译成什么语言
 
@@ -244,8 +272,9 @@
 
 **注意：**
 
-- 大多数工作流需要 resourceId 作为输入，先用 resourceQueryTool 查找目标资源
+- 大多数工作流需要 resourceId 作为输入。如果上一步工具刚产生了 resourceId，必须直接使用；只有没有明确 ID 且要处理已有资源时，才用 resourceQueryTool 查找目标资源
 - 工作流执行是异步的，返回 runId 不代表执行完成
+- 当工作流完成结果里有 outputResourceId、createdResources、producedResourceIds 或 next.resourceId 时，这就是后续工具的输入，不要再搜索同名资源
 - 如果不确定用哪个工作流，先用 list 列出所有工作流查看描述
 - 如果有多个类似工作流（如多种转写引擎），可以根据描述选择合适的
 

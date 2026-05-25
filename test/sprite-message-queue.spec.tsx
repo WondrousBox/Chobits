@@ -106,6 +106,52 @@ describe('useMessageQueue', () => {
     env.cleanup();
   });
 
+  it('keeps image metadata on toast messages', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1700000000000);
+
+    const { act } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+    const { useMessageQueue } = await import('../src/features/sprite-assistant/message/useMessageQueue');
+
+    const env = installMiniDom();
+    let queue: ReturnType<typeof useMessageQueue> | null = null;
+
+    function Probe(): JSX.Element {
+      queue = useMessageQueue();
+      const imageUrl = queue.current?.type === 'toast' ? queue.current.image?.url : '';
+      return <div data-image={imageUrl ?? ''} />;
+    }
+
+    const root = createRoot(env.container as any);
+
+    await act(async () => {
+      root.render(<Probe />);
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      queue?.showToast({
+        content: '表情标题',
+        duration: 3000,
+        image: {
+          alt: '表情',
+          title: '表情标题',
+          url: 'res://emoji/test.gif'
+        }
+      });
+      await Promise.resolve();
+    });
+
+    expect((env.container.firstChild as any).getAttribute('data-image')).toBe('res://emoji/test.gif');
+
+    await act(async () => {
+      root.unmount();
+      await Promise.resolve();
+    });
+    env.cleanup();
+  });
+
   it('still dedupes preset category toasts', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(1700000000000);

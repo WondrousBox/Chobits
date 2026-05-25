@@ -39,4 +39,20 @@ describe('ProgressSpeechAnnouncer', () => {
 
     expect(spoken).toEqual(['转写进度 30%。', '转写完成了。']);
   });
+
+  it('does not treat a 100% progress update as completion', () => {
+    const spoken: string[] = [];
+    const announcer = new ProgressSpeechAnnouncer({
+      minIntervalMs: 5000,
+      random: () => 0,
+      speak: (text) => spoken.push(text)
+    });
+
+    announcer.start({ id: 'download:1', kind: 'download', progress: 0, now: 0 });
+    announcer.update({ id: 'download:1', kind: 'download', progress: 100, now: 6000 });
+    expect(spoken).toHaveLength(1);
+
+    announcer.complete({ id: 'download:1', kind: 'download', now: 7000 });
+    expect(spoken).toHaveLength(2);
+  });
 });

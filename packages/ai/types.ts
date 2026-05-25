@@ -69,7 +69,10 @@ export type ChatRequestExtras = Record<string, any> & {
   workspaceId?: string;
   explicitSkillInvocation?: ExplicitSkillInvocationInput;
   emojiPacksEnabled?: boolean;
+  emojiPacksDisplayTarget?: EmojiPacksDisplayTarget;
 };
+
+export type EmojiPacksDisplayTarget = 'chat' | 'sprite-bubble';
 
 export type ChatRequest = ProviderScopedRequest & {
   conversationId?: string;

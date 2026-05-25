@@ -68,6 +68,7 @@ import {
   MESSAGE_IPC_CHANNELS,
   type MessageBridgeClearPayload,
   type MessageBridgePayload,
+  type MessageBridgeTarget,
   type MessageCategory,
   type MessageIPCPayload,
   normalizeSpriteAnimationPlaylistMode,
@@ -859,6 +860,10 @@ export class SpriteManager {
 
   private sendRendererMessage(payload: MessageIPCPayload): void {
     this.sendMessageBridge({ kind: 'show', payload, source: 'sprite' });
+  }
+
+  sendBridgeMessage(payload: MessageIPCPayload, options?: { target?: MessageBridgeTarget }): void {
+    this.sendMessageBridge({ kind: 'show', payload, source: 'app', target: options?.target });
   }
 
   private clearRendererMessage(payload: MessageBridgeClearPayload): void {
@@ -2458,7 +2463,10 @@ export class SpriteManager {
       return;
     }
 
-    if (channel === MESSAGE_IPC_CHANNELS.BRIDGE && !isBubbleWindowMode(this.bubbleModeConfig.mode)) {
+    const bridgeTarget = channel === MESSAGE_IPC_CHANNELS.BRIDGE ? (data as MessageBridgePayload | undefined)?.target : undefined;
+    const shouldBroadcastBridgeToSprite = bridgeTarget === 'sprite' || isBubbleWindowMode(this.bubbleModeConfig.mode);
+
+    if (channel === MESSAGE_IPC_CHANNELS.BRIDGE && !shouldBroadcastBridgeToSprite) {
       return;
     }
 

@@ -33,6 +33,13 @@ function extractToolNamesFromSkills(skills: Array<{ tools: string[] }>): string[
   return Array.from(names);
 }
 
+function focusPrimaryChainSkill<T extends { name: string }>(skills: T[]): T[] {
+  if (skills[0]?.name === '链式资源处理') {
+    return [skills[0]];
+  }
+  return skills;
+}
+
 export function createPiToolboxLookupTool(toolContext: PiSessionToolContext): ToolDefinition<typeof toolboxParameters> {
   return {
     name: 'toolboxTool',
@@ -84,7 +91,7 @@ export function createPiToolboxLookupTool(toolContext: PiSessionToolContext): To
         if (!query) {
           return createJsonToolResult({ success: false, error: 'search 需要提供查询（query）' });
         }
-        const results = searchToolbox(query);
+        const results = focusPrimaryChainSkill(searchToolbox(query));
         if (!results.length) {
           return createJsonToolResult({
             success: true,

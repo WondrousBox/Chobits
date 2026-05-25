@@ -101,6 +101,11 @@ export function MessageProvider({ children }: MessageProviderProps): JSX.Element
       progress?: number;
       buttons?: MessageButton[];
       duration?: number;
+      image?: {
+        alt?: string;
+        title?: string;
+        url: string;
+      };
       persistent?: boolean;
       routineId?: string;
       category?: string;
@@ -118,6 +123,7 @@ export function MessageProvider({ children }: MessageProviderProps): JSX.Element
             category: payload.category as any,
             ctx: payload.ctx,
             duration: payload.duration,
+            image: payload.image,
             nextAction: payload.nextAction
           });
           return;

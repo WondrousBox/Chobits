@@ -1,3 +1,4 @@
+import type { EmojiPacksDisplayTarget } from '@packages/ai/types';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 type Provider = any;
@@ -13,6 +14,7 @@ export interface ChatSelectionContextValue {
   codingWorkspaceLabel: string;
   webSearchEnabled: boolean;
   emojiPacksEnabled: boolean;
+  emojiPacksDisplayTarget: EmojiPacksDisplayTarget;
   characterPersonaEnabled: boolean;
   setProviderId: (id: string) => void;
   setModelId: (id: string) => void;
@@ -21,6 +23,7 @@ export interface ChatSelectionContextValue {
   setCodingWorkspace: (workspace: { root: string; label?: string } | null) => void;
   setWebSearchEnabled: (enabled: boolean) => void;
   setEmojiPacksEnabled: (enabled: boolean) => void;
+  setEmojiPacksDisplayTarget: (target: EmojiPacksDisplayTarget) => void;
   setCharacterPersonaEnabled: (enabled: boolean) => void;
   refresh: () => Promise<void>;
 }
@@ -36,8 +39,13 @@ const LS_KEYS = {
   codingWorkspaceLabel: 'chat.sel.codingWorkspaceLabel',
   webSearchEnabled: 'chat.sel.webSearchEnabled',
   emojiPacksEnabled: 'chat.sel.emojiPacksEnabled',
+  emojiPacksDisplayTarget: 'chat.sel.emojiPacksDisplayTarget',
   characterPersonaEnabled: 'chat.sel.characterPersonaEnabled'
 };
+
+function normalizeEmojiPacksDisplayTarget(value: unknown): EmojiPacksDisplayTarget {
+  return value === 'sprite-bubble' ? 'sprite-bubble' : 'chat';
+}
 
 export function ChatSelectionProvider({ children }: { children: React.ReactNode }): JSX.Element {
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -50,6 +58,9 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
   const [codingWorkspaceLabel, setCodingWorkspaceLabelState] = useState<string>(() => localStorage.getItem(LS_KEYS.codingWorkspaceLabel) || '');
   const [webSearchEnabled, setWebSearchEnabledState] = useState<boolean>(() => localStorage.getItem(LS_KEYS.webSearchEnabled) === 'true');
   const [emojiPacksEnabled, setEmojiPacksEnabledState] = useState<boolean>(() => localStorage.getItem(LS_KEYS.emojiPacksEnabled) === 'true');
+  const [emojiPacksDisplayTarget, setEmojiPacksDisplayTargetState] = useState<EmojiPacksDisplayTarget>(() =>
+    normalizeEmojiPacksDisplayTarget(localStorage.getItem(LS_KEYS.emojiPacksDisplayTarget))
+  );
   const [characterPersonaEnabled, setCharacterPersonaEnabledState] = useState<boolean>(() => localStorage.getItem(LS_KEYS.characterPersonaEnabled) === 'true');
 
   // Persist selections
@@ -135,6 +146,14 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
       /* noop */
     }
   }, [emojiPacksEnabled]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS_KEYS.emojiPacksDisplayTarget, emojiPacksDisplayTarget);
+    } catch {
+      /* noop */
+    }
+  }, [emojiPacksDisplayTarget]);
 
   useEffect(() => {
     try {
@@ -235,6 +254,10 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
     setEmojiPacksEnabledState(enabled);
   }, []);
 
+  const setEmojiPacksDisplayTarget = useCallback((target: EmojiPacksDisplayTarget) => {
+    setEmojiPacksDisplayTargetState(normalizeEmojiPacksDisplayTarget(target));
+  }, []);
+
   const setCharacterPersonaEnabled = useCallback((enabled: boolean) => {
     setCharacterPersonaEnabledState(enabled);
   }, []);
@@ -250,6 +273,7 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
       codingWorkspaceLabel,
       webSearchEnabled,
       emojiPacksEnabled,
+      emojiPacksDisplayTarget,
       characterPersonaEnabled,
       setProviderId,
       setModelId,
@@ -258,6 +282,7 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
       setCodingWorkspace,
       setWebSearchEnabled,
       setEmojiPacksEnabled,
+      setEmojiPacksDisplayTarget,
       setCharacterPersonaEnabled,
       refresh
     }),
@@ -271,12 +296,14 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
       codingWorkspaceLabel,
       webSearchEnabled,
       emojiPacksEnabled,
+      emojiPacksDisplayTarget,
       characterPersonaEnabled,
       setProviderId,
       setPresetId,
       setCodingWorkspace,
       setWebSearchEnabled,
       setEmojiPacksEnabled,
+      setEmojiPacksDisplayTarget,
       setCharacterPersonaEnabled,
       refresh
     ]
