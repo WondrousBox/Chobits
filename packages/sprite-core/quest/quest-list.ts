@@ -1,4 +1,5 @@
 import type { OnboardingQuestDefinition, OnboardingQuestReward, OnboardingQuestRuntimeState, OnboardingState, QuestCategory } from './types';
+import type { SpriteRoutineGuideGoalDefinition } from '../purpose/guide-goals';
 
 export type QuestListItemStatus = OnboardingQuestRuntimeState['status'];
 
@@ -20,6 +21,7 @@ export interface QuestListItem {
     status: QuestListItemStatus;
     reward?: QuestListReward;
     rewardSource: string;
+    goal?: SpriteRoutineGuideGoalDefinition;
     activatedAt?: number;
     completedAt?: number;
     progressPercent: number;
@@ -73,6 +75,7 @@ function createQuestListItem(definition: OnboardingQuestDefinition, state: Onboa
         status,
         reward: definition.reward ? { ...definition.reward } : undefined,
         rewardSource: definition.rewardSource ?? `quest:${definition.id}`,
+        goal: definition.goal,
         activatedAt: runtime?.activatedAt,
         completedAt: runtime?.completedAt,
         progressPercent: resolveProgressPercent(status),

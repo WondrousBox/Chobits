@@ -3,7 +3,7 @@
  */
 
 // 基础类型
-export { silenceAudio } from './common';
+export { silenceAudio, stripEmoji } from './common';
 export * from './types';
 
 // Edge TTS

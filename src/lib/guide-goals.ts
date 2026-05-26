@@ -26,7 +26,8 @@ export interface GuideGoalEvaluationResult {
   goal: SpriteRoutineGuideGoalDefinition;
   providerId?: string;
   presetId?: string;
-  reason?: 'achieved' | 'missing-provider' | 'missing-api' | 'missing-workspace' | 'unsupported-goal' | 'check-failed';
+  achievementId?: string;
+  reason?: 'achieved' | 'missing-provider' | 'missing-api' | 'missing-workspace' | 'missing-achievement' | 'unsupported-goal' | 'check-failed';
 }
 
 export interface GuideGoalEnsureResult {
@@ -133,12 +134,35 @@ async function evaluateChatProviderConfiguredGoal(goal: SpriteRoutineGuideGoalDe
   }
 }
 
+async function evaluateAchievementUnlockedGoal(goal: SpriteRoutineGuideGoalDefinition): Promise<GuideGoalEvaluationResult> {
+  const achievementId = 'achievementId' in goal && typeof goal.achievementId === 'string' ? goal.achievementId.trim() : '';
+  if (!achievementId) {
+    return { goal, achieved: false, reason: 'unsupported-goal' };
+  }
+
+  try {
+    const result = await window.YUA.persona.getState();
+    const achieved = Array.isArray(result?.state?.achievements) && result.state.achievements.includes(achievementId);
+    return {
+      goal,
+      achieved,
+      achievementId,
+      reason: achieved ? 'achieved' : 'missing-achievement'
+    };
+  } catch (error) {
+    console.warn('[guide-goals] failed to check achievement goal:', error);
+    return { goal, achieved: false, achievementId, reason: 'check-failed' };
+  }
+}
+
 export async function evaluateGuideGoal(goal: SpriteRoutineGuideGoalDefinition, options: Pick<GuideGoalEnsureOptions, 'providerId' | 'preferredPresetId' | 'trigger'>): Promise<GuideGoalEvaluationResult> {
   switch (goal.kind as SpriteRoutineGuideGoalKind) {
     case 'workspace.exists':
       return evaluateWorkspaceExistsGoal(goal);
     case 'ai.chat-provider-configured':
       return evaluateChatProviderConfiguredGoal(goal, options);
+    case 'achievement.unlocked':
+      return evaluateAchievementUnlockedGoal(goal);
     default:
       return { goal, achieved: false, reason: 'unsupported-goal' };
   }

@@ -1,6 +1,13 @@
 import { FEATURE_INTRO_QUEST_CATALOG, type FeatureIntroQuestCatalogItem } from '../feature-intro-catalog';
 import { getCharacterRoutineText } from '../messages/character';
-import { CHAT_API_CONFIGURED_GUIDE_GOAL, type SpriteRoutineGuideGoalDefinition, WORKSPACE_EXISTS_GUIDE_GOAL } from './guide-goals';
+import {
+  CHAT_API_CONFIGURED_GUIDE_GOAL,
+  createAchievementUnlockedGuideGoal,
+  FIRST_FILE_DROP_GUIDE_GOAL,
+  OPEN_RESOURCE_LIBRARY_GUIDE_GOAL,
+  type SpriteRoutineGuideGoalDefinition,
+  WORKSPACE_EXISTS_GUIDE_GOAL
+} from './guide-goals';
 import type { SpritePurpose, SpriteRoutine, SpriteRoutineStep, StartSpritePurposeRequest } from './types';
 
 export interface SpriteRoutinePresetDefinition {
@@ -694,6 +701,13 @@ function createChatApiConfigGuideSteps(purpose: SpritePurpose): SpriteRoutineSte
                   timeoutMs: 10000
                 },
                 {
+                  id: 'chat-api-config-walk-to-settings',
+                  type: 'walkTo',
+                  target: { window: targetWindow, placement: 'right', offset: 16 },
+                  speed: 120,
+                  timeoutMs: 10000
+                },
+                {
                   id: 'chat-api-config-tip',
                   type: 'speak',
                   text: getCharacterRoutineText('chat.api-config-guide.tip', { providerId }, hasPreset ? '填好 API Key 就可以和我对话了' : '先新增一个模型预设并填入 API Key，就可以开始聊天。'),
@@ -947,6 +961,11 @@ function createFeatureIntroRoutinePreset(item: FeatureIntroQuestCatalogItem): Sp
     title: `功能自述：${item.title}`,
     purposeKind: item.id,
     defaultPriority: getFeatureIntroDefaultPriority(item.priority),
+    goal: createAchievementUnlockedGuideGoal({
+      achievementId: item.achievementId,
+      id: `${item.id}.achievement`,
+      description: `功能自述「${item.title}」的完成成就已解锁。`
+    }),
     steps: () => createFeatureIntroRoutineSteps(item)
   };
 }
@@ -1024,6 +1043,7 @@ export const DEFAULT_SPRITE_ROUTINE_PRESETS: SpriteRoutinePresetDefinition[] = [
     title: '新手引导：拖拽导入文件',
     purposeKind: 'onboarding.file.drop',
     defaultPriority: 68,
+    goal: FIRST_FILE_DROP_GUIDE_GOAL,
     steps: createOnboardingFileDropRoutineSteps
   },
   {
@@ -1031,6 +1051,7 @@ export const DEFAULT_SPRITE_ROUTINE_PRESETS: SpriteRoutinePresetDefinition[] = [
     title: '新手引导：打开资源库',
     purposeKind: 'onboarding.resource.open-library',
     defaultPriority: 66,
+    goal: OPEN_RESOURCE_LIBRARY_GUIDE_GOAL,
     steps: createOpenResourceLibraryRoutineSteps
   },
   ...FEATURE_INTRO_ROUTINE_PRESETS

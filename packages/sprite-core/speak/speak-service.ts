@@ -12,6 +12,7 @@
  * 可扩展：实现新的 TTS 适配器并在 synthesizeWithService() 中注册即可
  */
 
+import { stripEmoji } from '../../tts/common';
 import EdgeTTS from '../../tts/edge';
 import { SpeakCache } from './speak-cache';
 import { SpeakConfigStore } from './speak-config-store';
@@ -104,7 +105,10 @@ export class SpeakService {
             return { success: false, error: 'Empty text' };
         }
 
-        const trimmedText = text.trim();
+        const trimmedText = stripEmoji(text);
+        if (trimmedText.length === 0) {
+            return { success: false, error: 'Empty text after emoji filtering' };
+        }
 
         // 生成缓存 ID
         const cacheId = SpeakCache.generateCacheId(
@@ -172,7 +176,7 @@ export class SpeakService {
         if (result.success && result.audioPath && this.onPlayAudio) {
             const config = this.configStore.getConfig();
             this.onPlayAudio({
-                text,
+                text: stripEmoji(text),
                 audioPath: result.audioPath,
                 cacheId: result.cacheId!,
                 volume: config.volume

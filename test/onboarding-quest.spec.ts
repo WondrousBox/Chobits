@@ -58,6 +58,8 @@ describe('QuestEngine — workspace.create happy path', () => {
     engine: QuestEngine;
     startPurpose: ReturnType<typeof vi.fn>;
     grantReward: ReturnType<typeof vi.fn>;
+    isPurposeAlive: ReturnType<typeof vi.fn>;
+    hasAchievement: ReturnType<typeof vi.fn>;
     saved: { current: ReturnType<typeof createEmptyOnboardingState> | null };
   } {
     const reg = new QuestRegistry();
@@ -78,11 +80,15 @@ describe('QuestEngine — workspace.create happy path', () => {
       status: 'started' as const
     }));
     const grantReward = vi.fn(async () => undefined);
+    const isPurposeAlive = vi.fn(() => false);
+    const hasAchievement = vi.fn(() => false);
     const saved: { current: any } = { current: null };
 
     const engine = new QuestEngine({
       registry: reg,
       startPurpose,
+      isPurposeAlive,
+      hasAchievement,
       grantReward,
       loadState: () => saved.current,
       saveState: (state) => {
@@ -91,7 +97,7 @@ describe('QuestEngine — workspace.create happy path', () => {
       now: () => 1000
     });
 
-    return { engine, startPurpose, grantReward, saved };
+    return { engine, startPurpose, grantReward, isPurposeAlive, hasAchievement, saved };
   }
 
   it('activates the quest when no workspace exists', async () => {
@@ -193,6 +199,20 @@ describe('QuestEngine — workspace.create happy path', () => {
     expect(saved.current?.quests['workspace.create'].status).toBe('done');
   });
 
+  it('marks an already unlocked quest achievement done without replaying the guide or reward', async () => {
+    const wsCount = { value: 0 };
+    const { engine, startPurpose, grantReward, hasAchievement, saved } = makeDeps(wsCount);
+    hasAchievement.mockImplementation((id) => id === 'first-workspace');
+
+    const result = await engine.startQuest('workspace.create');
+
+    expect(result).toBeNull();
+    expect(hasAchievement).toHaveBeenCalledWith('first-workspace');
+    expect(startPurpose).not.toHaveBeenCalled();
+    expect(grantReward).not.toHaveBeenCalled();
+    expect(saved.current?.quests['workspace.create']).toMatchObject({ status: 'done', completedAt: 1000 });
+  });
+
   it('retries an active retriable quest on startup when the workspace is still missing', async () => {
     const wsCount = { value: 0 };
     const { engine, startPurpose, saved } = makeDeps(wsCount);
@@ -206,7 +226,8 @@ describe('QuestEngine — workspace.create happy path', () => {
 
   it('does not retry an active quest for unrelated events', async () => {
     const wsCount = { value: 0 };
-    const { engine, startPurpose } = makeDeps(wsCount);
+    const { engine, startPurpose, isPurposeAlive } = makeDeps(wsCount);
+    isPurposeAlive.mockReturnValue(true);
 
     await engine.tick({ event: 'APP_STARTED' });
     await engine.tick({ event: 'UNRELATED' });
@@ -214,9 +235,23 @@ describe('QuestEngine — workspace.create happy path', () => {
     expect(startPurpose).toHaveBeenCalledTimes(1);
   });
 
+  it('restarts an active quest for unrelated events when the previous purpose is gone', async () => {
+    const wsCount = { value: 0 };
+    const { engine, startPurpose, saved, isPurposeAlive } = makeDeps(wsCount);
+    isPurposeAlive.mockReturnValue(false);
+
+    await engine.tick({ event: 'APP_STARTED' });
+    await engine.tick({ event: 'WORKSPACE_WIZARD_CLOSED' });
+
+    expect(isPurposeAlive).toHaveBeenCalledWith('p-1');
+    expect(startPurpose).toHaveBeenCalledTimes(2);
+    expect(saved.current?.quests['workspace.create']).toMatchObject({ status: 'active', lastPurposeId: 'p-1' });
+  });
+
   it('keeps wizard close as a tracked event but lets the active routine own immediate reprompting', async () => {
     const wsCount = { value: 0 };
-    const { engine, startPurpose } = makeDeps(wsCount);
+    const { engine, startPurpose, isPurposeAlive } = makeDeps(wsCount);
+    isPurposeAlive.mockReturnValue(true);
 
     await engine.tick({ event: 'APP_STARTED' });
     await engine.tick({ event: 'WORKSPACE_WIZARD_CLOSED' });
@@ -268,6 +303,7 @@ describe('QuestEngine — first-file-drop onboarding quest', () => {
     engine: QuestEngine;
     startPurpose: ReturnType<typeof vi.fn>;
     grantReward: ReturnType<typeof vi.fn>;
+    hasAchievement: ReturnType<typeof vi.fn>;
     saved: { current: ReturnType<typeof createEmptyOnboardingState> | null };
   } {
     const reg = new QuestRegistry();
@@ -288,6 +324,7 @@ describe('QuestEngine — first-file-drop onboarding quest', () => {
       status: 'started' as const
     }));
     const grantReward = vi.fn(async () => undefined);
+    const hasAchievement = vi.fn(() => false);
     const saved: { current: any } = {
       current: {
         version: 1,
@@ -303,6 +340,7 @@ describe('QuestEngine — first-file-drop onboarding quest', () => {
     const engine = new QuestEngine({
       registry: reg,
       startPurpose,
+      hasAchievement,
       grantReward,
       loadState: () => saved.current,
       saveState: (state) => {
@@ -311,7 +349,7 @@ describe('QuestEngine — first-file-drop onboarding quest', () => {
       now: () => 1000
     });
 
-    return { engine, startPurpose, grantReward, saved };
+    return { engine, startPurpose, grantReward, hasAchievement, saved };
   }
 
   it('does not auto activate on app startup when workspace is ready', async () => {
@@ -350,6 +388,18 @@ describe('QuestEngine — first-file-drop onboarding quest', () => {
       plannerMode: 'preset-only'
     });
     expect(saved.current?.quests['first-file-drop']).toMatchObject({ status: 'active', activatedAt: 1000 });
+  });
+
+  it('uses the import achievement as a durable completion marker', async () => {
+    const counts = { workspaces: 1 };
+    const { engine, startPurpose, grantReward, hasAchievement, saved } = makeFileDropDeps(counts);
+    hasAchievement.mockImplementation((id) => id === 'first-import');
+
+    await engine.tick({ event: 'APP_STARTED' });
+
+    expect(startPurpose).not.toHaveBeenCalled();
+    expect(grantReward).not.toHaveBeenCalled();
+    expect(saved.current?.quests['first-file-drop']).toMatchObject({ status: 'done', completedAt: 1000 });
   });
 
   it('can be started explicitly by AI when workspace is ready', async () => {
@@ -461,6 +511,7 @@ describe('QuestEngine — open-resource-library onboarding quest', () => {
     engine: QuestEngine;
     startPurpose: ReturnType<typeof vi.fn>;
     grantReward: ReturnType<typeof vi.fn>;
+    hasAchievement: ReturnType<typeof vi.fn>;
     saved: { current: ReturnType<typeof createEmptyOnboardingState> | null };
   } {
     const reg = new QuestRegistry();
@@ -481,6 +532,7 @@ describe('QuestEngine — open-resource-library onboarding quest', () => {
       status: 'started' as const
     }));
     const grantReward = vi.fn(async () => undefined);
+    const hasAchievement = vi.fn(() => false);
     const saved: { current: any } = {
       current: {
         version: 1,
@@ -496,6 +548,7 @@ describe('QuestEngine — open-resource-library onboarding quest', () => {
     const engine = new QuestEngine({
       registry: reg,
       startPurpose,
+      hasAchievement,
       grantReward,
       loadState: () => saved.current,
       saveState: (state) => {
@@ -504,7 +557,7 @@ describe('QuestEngine — open-resource-library onboarding quest', () => {
       now: () => 1000
     });
 
-    return { engine, startPurpose, grantReward, saved };
+    return { engine, startPurpose, grantReward, hasAchievement, saved };
   }
 
   it('does not auto activate on app startup when workspace is ready', async () => {
@@ -533,6 +586,19 @@ describe('QuestEngine — open-resource-library onboarding quest', () => {
       plannerMode: 'preset-only'
     });
     expect(saved.current?.quests['open-resource-library']).toMatchObject({ status: 'active', activatedAt: 1000 });
+  });
+
+  it('does not restart resource-library guidance after its achievement is unlocked', async () => {
+    const counts = { workspaces: 1 };
+    const { engine, startPurpose, grantReward, hasAchievement, saved } = makeOpenResourceLibraryDeps(counts);
+    hasAchievement.mockImplementation((id) => id === 'first-resource-library-open');
+
+    const result = await engine.startQuest('open-resource-library', { source: 'task-list' });
+
+    expect(result).toBeNull();
+    expect(startPurpose).not.toHaveBeenCalled();
+    expect(grantReward).not.toHaveBeenCalled();
+    expect(saved.current?.quests['open-resource-library']).toMatchObject({ status: 'done', completedAt: 1000 });
   });
 
   it('builds a quest list item with resource library rewards and action', () => {
@@ -592,6 +658,7 @@ describe('QuestEngine — feature file video transcription intro quest', () => {
     engine: QuestEngine;
     startPurpose: ReturnType<typeof vi.fn>;
     grantReward: ReturnType<typeof vi.fn>;
+    hasAchievement: ReturnType<typeof vi.fn>;
     saved: { current: ReturnType<typeof createEmptyOnboardingState> | null };
   } {
     const reg = new QuestRegistry();
@@ -612,6 +679,7 @@ describe('QuestEngine — feature file video transcription intro quest', () => {
       status: 'started' as const
     }));
     const grantReward = vi.fn(async () => undefined);
+    const hasAchievement = vi.fn(() => false);
     const saved: { current: any } = {
       current: {
         version: 1,
@@ -627,6 +695,7 @@ describe('QuestEngine — feature file video transcription intro quest', () => {
     const engine = new QuestEngine({
       registry: reg,
       startPurpose,
+      hasAchievement,
       grantReward,
       loadState: () => saved.current,
       saveState: (state) => {
@@ -635,7 +704,7 @@ describe('QuestEngine — feature file video transcription intro quest', () => {
       now: () => 1000
     });
 
-    return { engine, startPurpose, grantReward, saved };
+    return { engine, startPurpose, grantReward, hasAchievement, saved };
   }
 
   it('does not auto activate on app startup when workspace is ready', async () => {
@@ -664,6 +733,19 @@ describe('QuestEngine — feature file video transcription intro quest', () => {
       plannerMode: 'preset-only'
     });
     expect(saved.current?.quests['feature.file-video-transcription']).toMatchObject({ status: 'active', activatedAt: 1000 });
+  });
+
+  it('does not replay a feature intro when its achievement is already unlocked', async () => {
+    const counts = { workspaces: 1 };
+    const { engine, startPurpose, grantReward, hasAchievement, saved } = makeFeatureIntroDeps(counts);
+    hasAchievement.mockImplementation((id) => id === 'feature-file-transcription-introduced');
+
+    const result = await engine.startQuest('feature.file-video-transcription', { source: 'task-list' });
+
+    expect(result).toBeNull();
+    expect(startPurpose).not.toHaveBeenCalled();
+    expect(grantReward).not.toHaveBeenCalled();
+    expect(saved.current?.quests['feature.file-video-transcription']).toMatchObject({ status: 'done', completedAt: 1000 });
   });
 
   it('builds a quest list item with feature-intro category and rewards', () => {
@@ -727,6 +809,7 @@ describe('QuestEngine — feature intro catalog quests', () => {
     grantReward: ReturnType<typeof vi.fn>;
     saved: { current: ReturnType<typeof createEmptyOnboardingState> | null };
     startPurpose: ReturnType<typeof vi.fn>;
+    hasAchievement: ReturnType<typeof vi.fn>;
   } {
     const item = FEATURE_INTRO_QUEST_CATALOG.find((candidate) => candidate.id === questId);
     if (!item) throw new Error(`Missing catalog item: ${questId}`);
@@ -747,10 +830,12 @@ describe('QuestEngine — feature intro catalog quests', () => {
       status: 'started' as const
     }));
     const grantReward = vi.fn(async () => undefined);
+    const hasAchievement = vi.fn(() => false);
     const saved: { current: any } = { current: createEmptyOnboardingState() };
     const engine = new QuestEngine({
       registry: reg,
       startPurpose,
+      hasAchievement,
       grantReward,
       loadState: () => saved.current,
       saveState: (state) => {
@@ -758,7 +843,7 @@ describe('QuestEngine — feature intro catalog quests', () => {
       },
       now: () => 1000
     });
-    return { engine, grantReward, saved, startPurpose };
+    return { engine, grantReward, saved, startPurpose, hasAchievement };
   }
 
   it('creates an explicit preset-only start request for every catalog item', async () => {

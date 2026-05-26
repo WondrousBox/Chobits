@@ -5,7 +5,7 @@ import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import { FEATURE_INTRO_QUEST_CATALOG } from '../packages/sprite-core/feature-intro-catalog';
-import { CHAT_API_CONFIGURED_GUIDE_GOAL, type SpritePurposeHistoryEntry, type SpriteRoutinePresetDefinition, WORKSPACE_EXISTS_GUIDE_GOAL } from '../packages/sprite-core/purpose';
+import { CHAT_API_CONFIGURED_GUIDE_GOAL, FIRST_FILE_DROP_GUIDE_GOAL, OPEN_RESOURCE_LIBRARY_GUIDE_GOAL, type SpritePurposeHistoryEntry, type SpriteRoutinePresetDefinition, WORKSPACE_EXISTS_GUIDE_GOAL } from '../packages/sprite-core/purpose';
 import {
   createSpriteRoutineFromPlannerDraft,
   SpritePresentationLock,
@@ -1305,6 +1305,25 @@ describe('SpriteRoutinePresetRegistry', () => {
       type: 'branch',
       by: 'workspaceCreatedEvent.event.event'
     });
+  });
+
+  it('declares achievement goals for event-driven onboarding routine presets', () => {
+    const registry = new SpriteRoutinePresetRegistry();
+
+    expect(registry.get('onboarding.file.drop')?.goal).toEqual(FIRST_FILE_DROP_GUIDE_GOAL);
+    expect(registry.get('onboarding.resource.open-library')?.goal).toEqual(OPEN_RESOURCE_LIBRARY_GUIDE_GOAL);
+  });
+
+  it('declares achievement goals for every feature intro routine preset', () => {
+    const registry = new SpriteRoutinePresetRegistry();
+
+    for (const item of FEATURE_INTRO_QUEST_CATALOG) {
+      expect(registry.get(item.id)?.goal).toMatchObject({
+        id: `${item.id}.achievement`,
+        kind: 'achievement.unlocked',
+        achievementId: item.achievementId
+      });
+    }
   });
 
   it('declares a blocking chat API config goal on the chat guide preset', () => {

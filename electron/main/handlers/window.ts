@@ -19,6 +19,10 @@ const SPRITE_BUBBLE_MAX_HEIGHT = 392;
 const SPRITE_EFFECT_WINDOW_KEY = 'spriteEffect' as const;
 type AssistantInteractiveRegion = { x: number; y: number; width: number; height: number };
 const WORKSPACE_WIZARD_WINDOW_KEY = 'workspaceWizard';
+const ACHIEVEMENT_UNLOCK_WINDOW_KEY = 'achievementUnlock';
+const ACHIEVEMENT_UNLOCK_WINDOW_WIDTH = 420;
+const ACHIEVEMENT_UNLOCK_WINDOW_HEIGHT = 128;
+const ACHIEVEMENT_UNLOCK_WINDOW_MARGIN = 20;
 
 function clampWindowDimension(value: number | undefined, min: number, max: number): number {
   const numericValue = Number(value ?? 0);
@@ -43,6 +47,21 @@ function normalizeInteractiveRegion(region: Partial<AssistantInteractiveRegion> 
     width: Math.ceil(width),
     height: Math.ceil(height)
   };
+}
+
+function positionAchievementUnlockWindow(targetWindow: BrowserWindow, referenceWindow: BrowserWindow | null): void {
+  try {
+    const display = referenceWindow && !referenceWindow.isDestroyed() ? screen.getDisplayMatching(referenceWindow.getBounds()) : screen.getPrimaryDisplay();
+    const workArea = display.workArea;
+    targetWindow.setBounds({
+      x: Math.round(workArea.x + workArea.width - ACHIEVEMENT_UNLOCK_WINDOW_WIDTH - ACHIEVEMENT_UNLOCK_WINDOW_MARGIN),
+      y: Math.round(workArea.y + ACHIEVEMENT_UNLOCK_WINDOW_MARGIN),
+      width: ACHIEVEMENT_UNLOCK_WINDOW_WIDTH,
+      height: ACHIEVEMENT_UNLOCK_WINDOW_HEIGHT
+    });
+  } catch (error) {
+    console.warn('[window] failed to position achievement unlock window:', error);
+  }
 }
 
 export function initWindowHandlers(win: BrowserWindow): void {
@@ -341,12 +360,17 @@ export function initWindowHandlers(win: BrowserWindow): void {
       rememberWindowPayload(String(windowKey), payload);
 
       let opened: BrowserWindow | null = null;
+      let opener: BrowserWindow | null = null;
       try {
-        const opener = BrowserWindow.fromWebContents(event.sender) || null;
+        opener = BrowserWindow.fromWebContents(event.sender) || null;
         if (opener && !opener.isDestroyed()) {
           windowManager.setOpener(windowKey, opener);
         }
-        if (options?.sameDisplayAsSender && opener && !opener.isDestroyed()) {
+        if (String(windowKey) === ACHIEVEMENT_UNLOCK_WINDOW_KEY) {
+          opened = await windowManager.createOrShow(windowKey, payload, {
+            beforeShow: (targetWindow) => positionAchievementUnlockWindow(targetWindow, opener)
+          });
+        } else if (options?.sameDisplayAsSender && opener && !opener.isDestroyed()) {
           const display = screen.getDisplayMatching(opener.getBounds());
           opened = await windowManager.createOrShowOnDisplay(windowKey, display, payload);
         }

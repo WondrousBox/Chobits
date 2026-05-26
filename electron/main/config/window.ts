@@ -25,6 +25,7 @@ declare module '@aim-packages/window-manager' {
     tts: void;
     skillTree: void;
     levelUp: void;
+    achievementUnlock: void;
     questList: void;
     webRecorder: void;
     memoryGraph: void;
@@ -619,6 +620,29 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       resizable: false,
       movable: false,
       focusable: false,
+      hasShadow: false,
+      show: false,
+      backgroundColor: '#00000000',
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
+    }
+  },
+  achievementUnlock: {
+    routeHash: 'achievement-unlock',
+    autoCenterOn: 'none',
+    showOnReady: false,
+    openDevTools: false,
+    preferShowInactive: true,
+    options: {
+      width: 420,
+      height: 128,
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      resizable: false,
+      movable: false,
+      focusable: true,
+      acceptFirstMouse: true,
       hasShadow: false,
       show: false,
       backgroundColor: '#00000000',

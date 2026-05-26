@@ -304,6 +304,16 @@ async function initOnboardingQuestEngine(
       }
       return mgr.startPurpose(request);
     },
+    isPurposeAlive: (purposeId) => {
+      const mgr = SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
+      if (!mgr) return false;
+      const snapshot = mgr.getPurposeSnapshot();
+      return snapshot.current?.id === purposeId || snapshot.queue.some((purpose) => purpose.id === purposeId);
+    },
+    hasAchievement: (achievementId) => {
+      const mgr = SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
+      return mgr?.hasAchievement(achievementId) === true;
+    },
     loadState: () => PreferencesStore.getOnboardingState() ?? null,
     saveState: (state) => {
       PreferencesStore.setOnboardingState(state);

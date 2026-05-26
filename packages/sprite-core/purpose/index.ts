@@ -1,5 +1,17 @@
-export type { SpriteRoutineGuideGoalDefinition, SpriteRoutineGuideGoalKind } from './guide-goals';
-export { CHAT_API_CONFIGURED_GUIDE_GOAL, WORKSPACE_EXISTS_GUIDE_GOAL } from './guide-goals';
+export type {
+  AchievementUnlockedGuideGoalDefinition,
+  ChatApiConfiguredGuideGoalDefinition,
+  SpriteRoutineGuideGoalDefinition,
+  SpriteRoutineGuideGoalKind,
+  WorkspaceExistsGuideGoalDefinition
+} from './guide-goals';
+export {
+  CHAT_API_CONFIGURED_GUIDE_GOAL,
+  createAchievementUnlockedGuideGoal,
+  FIRST_FILE_DROP_GUIDE_GOAL,
+  OPEN_RESOURCE_LIBRARY_GUIDE_GOAL,
+  WORKSPACE_EXISTS_GUIDE_GOAL
+} from './guide-goals';
 export type { SpritePresentationLockSnapshot, SpritePresentationRequest } from './presentation-lock';
 export { SpritePresentationLock } from './presentation-lock';
 export { SpritePurposeEventTimeoutError, SpritePurposeEventWaiter } from './purpose-event-waiter';

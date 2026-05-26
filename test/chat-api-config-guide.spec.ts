@@ -10,6 +10,7 @@ function installGuideHarness(options: { providers?: any[]; presets?: any[]; usab
   startPurpose: ReturnType<typeof vi.fn>;
   startQuest: ReturnType<typeof vi.fn>;
   listWorkspaces: ReturnType<typeof vi.fn>;
+  getPersonaState: ReturnType<typeof vi.fn>;
 } {
   const env = installMiniDom();
   const getProviders = vi.fn(async () => options.providers ?? []);
@@ -22,6 +23,7 @@ function installGuideHarness(options: { providers?: any[]; presets?: any[]; usab
     purpose: { id: 'purpose-chat-config', kind: request.kind, title: request.title, reason: request.reason, source: request.source, status: 'active', priority: request.priority, interruptPolicy: request.interruptPolicy }
   }));
   const startQuest = vi.fn(async () => ({ ok: true, startResult: { accepted: true, status: 'started' } }));
+  const getPersonaState = vi.fn(async () => ({ ok: true, state: { achievements: [] } }));
 
   (env.window as any).YUA = {
     ai: {
@@ -35,12 +37,15 @@ function installGuideHarness(options: { providers?: any[]; presets?: any[]; usab
     quest: {
       'quest:start': startQuest
     },
+    persona: {
+      getState: getPersonaState
+    },
     sprite: {
       startPurpose
     }
   };
 
-  return { env, getProviders, listPresets, resolveUsablePreset, startPurpose, startQuest, listWorkspaces };
+  return { env, getProviders, listPresets, resolveUsablePreset, startPurpose, startQuest, listWorkspaces, getPersonaState };
 }
 
 describe('guideChatApiConfigIfNeeded', () => {
@@ -164,6 +169,27 @@ describe('guideChatApiConfigIfNeeded', () => {
     expect(result).toMatchObject({ achieved: false, guided: true, blocked: true, reason: 'missing-workspace' });
     expect(harness.listWorkspaces).toHaveBeenCalledWith({ filter: { deletedAt: 0 }, limit: 1, offset: 0 });
     expect(harness.startQuest).toHaveBeenCalledWith({ id: 'workspace.create', source: 'task-list' });
+    expect(harness.startPurpose).not.toHaveBeenCalled();
+    harness.env.cleanup();
+  });
+
+  it('evaluates achievement guide goals without starting a guide', async () => {
+    const harness = installGuideHarness();
+    harness.getPersonaState.mockResolvedValue({
+      ok: true,
+      state: {
+        achievements: ['first-import']
+      }
+    });
+    const { ensureGuideGoal, resetGuideGoalStateForTest } = await import('../src/lib/guide-goals');
+    const { FIRST_FILE_DROP_GUIDE_GOAL } = await import('../packages/sprite-core/purpose');
+    resetGuideGoalStateForTest();
+
+    const result = await ensureGuideGoal({ goal: FIRST_FILE_DROP_GUIDE_GOAL, trigger: 'workspace-entry', forceGuide: true });
+
+    expect(result).toMatchObject({ achieved: true, guided: false, blocked: false, achievementId: 'first-import', reason: 'achieved' });
+    expect(harness.getPersonaState).toHaveBeenCalledTimes(1);
+    expect(harness.startQuest).not.toHaveBeenCalled();
     expect(harness.startPurpose).not.toHaveBeenCalled();
     harness.env.cleanup();
   });
