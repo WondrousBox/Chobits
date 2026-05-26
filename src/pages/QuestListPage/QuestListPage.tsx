@@ -1,9 +1,20 @@
 import { AppEvent } from '@packages/event/events';
 import type { QuestListItem, QuestListItemStatus, QuestListSnapshot } from '@packages/sprite-core/quest';
-import { CheckCircle2, Circle, Gift, Loader2, Play, RefreshCcw, Sparkles, Trophy, X } from 'lucide-react';
+import { CheckCircle2, Circle, FolderOpen, Gift, Loader2, Play, RefreshCcw, RotateCcw, Sparkles, Trophy, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -124,6 +135,8 @@ export default function QuestListPage(): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<QuestFilter>('onboarding');
   const [startingQuestId, setStartingQuestId] = useState<string | null>(null);
+  const [resettingProgress, setResettingProgress] = useState(false);
+  const [openingStorage, setOpeningStorage] = useState(false);
 
   const loadSnapshot = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -190,6 +203,42 @@ export default function QuestListPage(): JSX.Element {
     }
   }, []);
 
+  const handleOpenStorageLocation = useCallback(async (): Promise<void> => {
+    setOpeningStorage(true);
+    try {
+      const result = await window.YUA.quest['quest:openStorageLocation']();
+      if (!result.ok || !result.location) {
+        throw new Error(result.error || '打开任务存储位置失败');
+      }
+      toast.success('已打开任务存储位置', {
+        description: result.location.file
+      });
+    } catch (error) {
+      toast.error('打开任务存储位置失败', { description: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setOpeningStorage(false);
+    }
+  }, []);
+
+  const handleResetProgress = useCallback(async (): Promise<void> => {
+    setResettingProgress(true);
+    try {
+      const result = await window.YUA.quest['quest:resetProgress']();
+      if (result.snapshot) {
+        setSnapshot(result.snapshot);
+      }
+      if (!result.ok) {
+        throw new Error(result.error || '清空任务进度失败');
+      }
+      const resetCount = result.summary?.resetCount ?? 0;
+      toast.success(resetCount > 0 ? `已清空 ${resetCount} 条任务进度` : '任务进度已清空');
+    } catch (error) {
+      toast.error('清空任务进度失败', { description: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setResettingProgress(false);
+    }
+  }, []);
+
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-background text-foreground">
       <header className="drag-region flex h-11 shrink-0 items-center gap-3 border-b px-4">
@@ -201,6 +250,38 @@ export default function QuestListPage(): JSX.Element {
           </div>
         </div>
         <div className="no-drag flex items-center gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="sm" className="w-8 h-8 p-0" disabled={openingStorage} onClick={() => void handleOpenStorageLocation()}>
+                {openingStorage ? <Loader2 className="animate-spin" /> : <FolderOpen />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>打开任务存储位置</TooltipContent>
+          </Tooltip>
+          <AlertDialog>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="sm" className="w-8 h-8 p-0" disabled={resettingProgress || !snapshot}>
+                    {resettingProgress ? <Loader2 className="animate-spin" /> : <RotateCcw />}
+                  </Button>
+                </AlertDialogTrigger>
+              </TooltipTrigger>
+              <TooltipContent>清空任务进度</TooltipContent>
+            </Tooltip>
+            <AlertDialogContent className="no-drag">
+              <AlertDialogHeader>
+                <AlertDialogTitle>清空任务进度？</AlertDialogTitle>
+                <AlertDialogDescription>会清除未开始、进行中、已完成任务的持久进度，并清除对应成就解锁标记和任务奖励领取记录。经验值和好感度不会回滚。</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => void handleResetProgress()}>
+                  确认清空
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="sm" className="w-8 h-8 p-0" disabled={loading} onClick={() => void loadSnapshot()}>

@@ -516,7 +516,7 @@ function createOnboardingFileDropRoutineSteps(): SpriteRoutineStep[] {
       id: 'invite-file-drop-notice',
       type: 'showNotice',
       messageId: FIRST_FILE_DROP_NOTICE_ID,
-      content: getCharacterRoutineText('onboarding.file.drop.invite', undefined, '可以把文件拖拽给我存起来'),
+      content: getCharacterRoutineText('onboarding.file.drop.invite', undefined, '可以把文件拖拽给我'),
       level: 'info',
       persistent: true,
       speak: true
@@ -535,7 +535,7 @@ function createOnboardingFileDropRoutineSteps(): SpriteRoutineStep[] {
         {
           id: 'drop-intro-speak',
           type: 'speak',
-          text: getCharacterRoutineText('onboarding.file.drop.intro', undefined, '拖给我的文件会进入资源库，之后就可以拿来整理、总结或继续处理。'),
+          text: getCharacterRoutineText('onboarding.file.drop.intro', undefined, '拖给我的文件会放到背包。'),
           bubbleDuration: 4200,
           cooldownKey: 'onboarding.file.drop.intro',
           cooldownMs: FIRST_FILE_DROP_HELP_COOLDOWN_MS
@@ -573,7 +573,7 @@ function createOnboardingFileDropRoutineSteps(): SpriteRoutineStep[] {
         {
           id: 'first-file-drop-timeout',
           type: 'speak',
-          text: getCharacterRoutineText('onboarding.file.drop.invite', undefined, '可以把文件拖拽给我存起来'),
+          text: getCharacterRoutineText('onboarding.file.drop.invite', undefined, '可以把文件拖拽给我'),
           bubbleDuration: 3200
         }
       ]

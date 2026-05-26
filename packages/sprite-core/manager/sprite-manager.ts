@@ -596,6 +596,10 @@ export class SpriteManager {
       return Math.floor(explicitLoopCount);
     }
 
+    if (this.isWalkToMovementPlayback(playback)) {
+      return undefined;
+    }
+
     if (!this.shouldUseListPlaylist(mode)) {
       return undefined;
     }
@@ -605,6 +609,10 @@ export class SpriteManager {
     }
 
     return undefined;
+  }
+
+  private isWalkToMovementPlayback(playback: AnimationEntry['playback'] | undefined): boolean {
+    return playback?.movement?.enabled === true && playback.movement.mode === 'walkTo';
   }
 
   private selectAnimationFromCandidates(candidates: AnimationEntry[]): { anim: AnimationEntry; index: number } | null {
@@ -1147,6 +1155,10 @@ export class SpriteManager {
     return this.personaState.hasAchievement(id);
   }
 
+  removeAchievements(ids: Iterable<string>): string[] {
+    return this.personaState.removeAchievements(ids);
+  }
+
   /** 检查指定 source 的奖励是否已经发放过（用于 Quest / 新手引导幂等） */
   hasClaimedReward(source: string): boolean {
     return this.personaState.hasClaimedReward(source);
@@ -1159,6 +1171,10 @@ export class SpriteManager {
       this.persistence.markDirty();
     }
     return result;
+  }
+
+  removeClaimedRewards(sources: Iterable<string>): string[] {
+    return this.personaState.removeClaimedRewards(sources);
   }
 
   /** 更新维度值 */

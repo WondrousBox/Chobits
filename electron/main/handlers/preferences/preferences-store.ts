@@ -88,6 +88,11 @@ function write(next: StoreShape): void {
  * 偏好设置存储
  */
 export const PreferencesStore = {
+  getStoreLocation(): { file: string; dir: string } {
+    ensureStore();
+    return { file: STORE_FILE, dir: STORE_DIR };
+  },
+
   /**
    * 获取完整配置
    */

@@ -34,7 +34,7 @@
 2. `first-file-drop` 不随 `APP_STARTED` / `WORKSPACE_CREATED` 自动启动，避免用户启动应用或刚创建工作空间后被下一条引导打断。
 3. 用户在任务列表点击“开始引导/继续引导”，或未来 AI 显式触发 `quest:start({ id: 'first-file-drop', source: 'ai' })` 时，`QuestEngine` 评估前置条件。
 4. 满足前置条件后启动 `onboarding.file.drop` purpose，强制 `plannerMode: 'preset-only'`。
-5. 角色走到中心，展示固定 notice：“可以把文件拖拽给我存起来”
+5. 角色走到中心，展示固定 notice：“可以把文件拖拽给我”
 6. 等待用户拖拽文件。真实拖入时，已有 `file.drop.invite` / `file.drop.intake` 会接管更高优先级的交互表现。
 7. 用户把文件拖给角色后，资源服务创建资源，并在资源 metadata 写入 `source: 'sprite-drop'`。
 8. `QuestEngine` 收到 `RESOURCE_CREATED` 或角色拖拽上传链路产生的导入完成事件，且确认业务来源为 `sprite-drop`，标记 `first-file-drop` 完成并发放奖励。

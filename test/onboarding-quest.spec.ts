@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { FEATURE_INTRO_QUEST_CATALOG } from '../packages/sprite-core/feature-intro-catalog';
 import {
   createFeatureIntroQuest,
   createFeatureIntroQuests,
@@ -12,7 +13,6 @@ import {
   QuestEngine,
   QuestRegistry
 } from '../packages/sprite-core/quest';
-import { FEATURE_INTRO_QUEST_CATALOG } from '../packages/sprite-core/feature-intro-catalog';
 import { createEmptyOnboardingState } from '../packages/sprite-core/quest/types';
 
 describe('QuestRegistry', () => {
@@ -40,7 +40,16 @@ describe('QuestRegistry', () => {
     expect(createFeatureIntroQuests({ countWorkspaces: () => 1 }).map((quest) => quest.id)).toEqual(featureIds);
     expect(reg.byTriggerEvent('RESOURCE_CREATED').map((quest) => quest.id)).toEqual(['first-file-drop']);
     expect(reg.byTriggerEvent('ASSISTANT_MENU_ITEM_SELECTED').map((quest) => quest.id)).toEqual(
-      expect.arrayContaining(['open-resource-library', 'feature.inventory', 'feature.quest-list', 'feature.asr-microphone', 'feature.system-audio-asr', 'feature.tts-config', 'feature.memory-graph', 'feature.skill-tree'])
+      expect.arrayContaining([
+        'open-resource-library',
+        'feature.inventory',
+        'feature.quest-list',
+        'feature.asr-microphone',
+        'feature.system-audio-asr',
+        'feature.tts-config',
+        'feature.memory-graph',
+        'feature.skill-tree'
+      ])
     );
     expect(reg.byTriggerEvent('FILE_ACTION_WORKFLOW_STARTED').map((quest) => quest.id)).toEqual(
       expect.arrayContaining(['feature.file-video-transcription', 'feature.video-keyframes', 'feature.media-transcode', 'feature.image-understand', 'feature.ocr'])
@@ -211,6 +220,70 @@ describe('QuestEngine — workspace.create happy path', () => {
     expect(startPurpose).not.toHaveBeenCalled();
     expect(grantReward).not.toHaveBeenCalled();
     expect(saved.current?.quests['workspace.create']).toMatchObject({ status: 'done', completedAt: 1000 });
+  });
+
+  it('resets completed quest state and reports durable persona markers to clear', async () => {
+    const wsCount = { value: 0 };
+    const { engine, hasAchievement, saved } = makeDeps(wsCount);
+    saved.current = {
+      version: 1,
+      quests: {
+        'workspace.create': {
+          status: 'done',
+          completedAt: 900
+        }
+      }
+    };
+    hasAchievement.mockImplementation((id) => id === 'first-workspace');
+
+    const result = await engine.resetCompleted();
+
+    expect(result).toEqual({
+      resetQuestIds: ['workspace.create'],
+      achievementIds: ['first-workspace'],
+      rewardSources: ['quest:workspace.create']
+    });
+    expect(saved.current?.quests['workspace.create']).toBeUndefined();
+  });
+
+  it('resets quests that are only completed through an already unlocked achievement marker', async () => {
+    const wsCount = { value: 0 };
+    const { engine, hasAchievement, saved } = makeDeps(wsCount);
+    hasAchievement.mockImplementation((id) => id === 'first-workspace');
+
+    const result = await engine.resetCompleted();
+
+    expect(result).toEqual({
+      resetQuestIds: ['workspace.create'],
+      achievementIds: ['first-workspace'],
+      rewardSources: ['quest:workspace.create']
+    });
+    expect(saved.current?.quests['workspace.create']).toBeUndefined();
+  });
+
+  it('clears active quest progress as well as completed quest markers', async () => {
+    const wsCount = { value: 0 };
+    const { engine, hasAchievement, saved } = makeDeps(wsCount);
+    saved.current = {
+      version: 1,
+      quests: {
+        'workspace.create': {
+          status: 'active',
+          activatedAt: 900,
+          lastPurposeId: 'purpose-1'
+        }
+      }
+    };
+    hasAchievement.mockImplementation((id) => id === 'first-workspace');
+
+    const result = await engine.resetProgress();
+
+    expect(result).toEqual({
+      resetQuestIds: ['workspace.create'],
+      achievementIds: ['first-workspace'],
+      rewardSources: ['quest:workspace.create']
+    });
+    expect(saved.current).toEqual({ version: 1, quests: {} });
   });
 
   it('retries an active retriable quest on startup when the workspace is still missing', async () => {
@@ -825,7 +898,7 @@ describe('QuestEngine — feature intro catalog quests', () => {
         source: request.source,
         status: 'queued' as const,
         priority: request.priority ?? 0,
-        interruptPolicy: request.interruptPolicy ?? 'interruptible' as const
+        interruptPolicy: request.interruptPolicy ?? ('interruptible' as const)
       },
       status: 'started' as const
     }));

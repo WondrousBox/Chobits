@@ -5,7 +5,14 @@ import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import { FEATURE_INTRO_QUEST_CATALOG } from '../packages/sprite-core/feature-intro-catalog';
-import { CHAT_API_CONFIGURED_GUIDE_GOAL, FIRST_FILE_DROP_GUIDE_GOAL, OPEN_RESOURCE_LIBRARY_GUIDE_GOAL, type SpritePurposeHistoryEntry, type SpriteRoutinePresetDefinition, WORKSPACE_EXISTS_GUIDE_GOAL } from '../packages/sprite-core/purpose';
+import {
+  CHAT_API_CONFIGURED_GUIDE_GOAL,
+  FIRST_FILE_DROP_GUIDE_GOAL,
+  OPEN_RESOURCE_LIBRARY_GUIDE_GOAL,
+  type SpritePurposeHistoryEntry,
+  type SpriteRoutinePresetDefinition,
+  WORKSPACE_EXISTS_GUIDE_GOAL
+} from '../packages/sprite-core/purpose';
 import {
   createSpriteRoutineFromPlannerDraft,
   SpritePresentationLock,
@@ -1623,7 +1630,7 @@ describe('SpriteRoutinePresetRegistry', () => {
           id: 'invite-file-drop-notice',
           type: 'showNotice',
           messageId: 'onboarding.file.drop.invite',
-          content: '可以把文件拖拽给我存起来'
+          content: '可以把文件拖拽给我'
         }),
         expect.objectContaining({
           id: 'wait-first-file-drop',
@@ -1647,7 +1654,7 @@ describe('SpriteRoutinePresetRegistry', () => {
         expect.objectContaining({
           id: 'drop-intro-speak',
           type: 'speak',
-          text: '拖给我的文件会进入资源库，之后就可以拿来整理、总结或继续处理。',
+          text: '拖给我的文件会放到背包。',
           cooldownKey: 'onboarding.file.drop.intro'
         })
       ])
@@ -1959,7 +1966,7 @@ describe('SpriteRoutinePresetRegistry', () => {
     expect(calls).toEqual(
       expect.arrayContaining([
         'walk:center',
-        'notice:onboarding.file.drop.invite:可以把文件拖拽给我存起来',
+        'notice:onboarding.file.drop.invite:可以把文件拖拽给我',
         'clear:onboarding.file.drop.invite',
         'play:celebrate',
         'speak:first-file-drop-done:收到啦！第一个文件已经进资源库了。',
