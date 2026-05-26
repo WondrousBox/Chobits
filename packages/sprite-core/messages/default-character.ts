@@ -457,7 +457,7 @@ export const CHARACTER_MESSAGE_SPECS = [
     section: 'routines',
     key: 'onboarding.file.drop.invite',
     label: '首次拖拽文件引导',
-    neutral: () => ['可以把文件拖拽给我存起来']
+    neutral: () => ['可以把文件拖拽给我']
   },
   {
     field: 'onboardingFileDropIntro',
@@ -466,7 +466,7 @@ export const CHARACTER_MESSAGE_SPECS = [
     label: '首次拖拽文件说明',
     maxItems: 4,
     maxLength: 240,
-    neutral: () => ['拖给我的文件会进入资源库，之后就可以拿来整理、总结或继续处理。']
+    neutral: () => ['拖给我的文件会放到背包。']
   },
   {
     field: 'onboardingFileDropDone',

@@ -418,6 +418,25 @@ export class PersonaStateManager {
     return this.state.achievements.includes(id);
   }
 
+  removeAchievements(ids: Iterable<string>): string[] {
+    const targets = new Set(Array.from(ids, (id) => id.trim()).filter(Boolean));
+    if (targets.size === 0) return [];
+
+    const removed: string[] = [];
+    this.state.achievements = this.state.achievements.filter((id) => {
+      if (!targets.has(id)) return true;
+      removed.push(id);
+      return false;
+    });
+
+    if (removed.length > 0) {
+      this.state.updatedAt = Date.now();
+      this.notifyChange();
+    }
+
+    return removed;
+  }
+
   // --- 奖励幂等（claimed rewards） ---
 
   /**
@@ -442,6 +461,25 @@ export class PersonaStateManager {
     this.state.updatedAt = at;
     this.notifyChange();
     return true;
+  }
+
+  removeClaimedRewards(sources: Iterable<string>): string[] {
+    const targets = new Set(Array.from(sources, (source) => source.trim()).filter(Boolean));
+    if (targets.size === 0 || !this.state.claimedRewards) return [];
+
+    const removed: string[] = [];
+    for (const source of targets) {
+      if (!this.state.claimedRewards[source]) continue;
+      delete this.state.claimedRewards[source];
+      removed.push(source);
+    }
+
+    if (removed.length > 0) {
+      this.state.updatedAt = Date.now();
+      this.notifyChange();
+    }
+
+    return removed;
   }
 
   // --- 统计 ---

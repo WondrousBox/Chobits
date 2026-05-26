@@ -371,6 +371,91 @@ describe('sprite manager regression coverage', () => {
     expect(mgr.getCurrentAnimation()?.animationId).toBe('dance-once');
   });
 
+  it('keeps walkTo whole-clip loops unbounded inside a list playlist', () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'walk-looping',
+      title: 'Walk Looping',
+      eventTypes: ['walk'],
+      priority: 10,
+      source: { localPath: './walk-looping.webm', type: 'video/webm' },
+      playback: {
+        loop: true,
+        autoIdle: false,
+        durationMs: 1500,
+        movement: {
+          enabled: true,
+          mode: 'walkTo',
+          speed: 60
+        }
+      }
+    });
+    registry.register({
+      id: 'walk-once',
+      title: 'Walk Once',
+      eventTypes: ['walk'],
+      priority: 1,
+      source: { localPath: './walk-once.webm', type: 'video/webm' },
+      playback: {
+        autoIdle: false,
+        durationMs: 1500
+      }
+    });
+
+    mgr.setAnimationPlaylistMode('list-loop');
+    mgr.trigger('walk', { silent: true });
+
+    expect(mgr.getCurrentAnimation()).toMatchObject({
+      animationId: 'walk-looping',
+      playback: {
+        loop: true
+      }
+    });
+    expect(mgr.getCurrentAnimation()?.playback?.loopCount).toBeUndefined();
+  });
+
+  it('keeps walkTo segmented loops unbounded inside a list playlist', () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'walk-segmented',
+      title: 'Walk Segmented',
+      eventTypes: ['walk'],
+      priority: 10,
+      source: { localPath: './walk-segmented.webm', type: 'video/webm' },
+      playback: {
+        loop: true,
+        autoIdle: false,
+        loopStartMs: 300,
+        loopEndMs: 900,
+        durationMs: 1500,
+        movement: {
+          enabled: true,
+          mode: 'walkTo',
+          speed: 60
+        }
+      }
+    });
+
+    mgr.setAnimationPlaylistMode('list-loop');
+    mgr.trigger('walk', { silent: true });
+
+    expect(mgr.getCurrentAnimation()).toMatchObject({
+      animationId: 'walk-segmented',
+      playback: {
+        loop: true,
+        loopStartMs: 300,
+        loopEndMs: 900
+      }
+    });
+    expect(mgr.getCurrentAnimation()?.playback?.loopCount).toBeUndefined();
+  });
+
   it('preserves explicit loopCount when resolving playlist playback', () => {
     const { mgr, dataDir } = createManager();
     dataDirs.add(dataDir);
