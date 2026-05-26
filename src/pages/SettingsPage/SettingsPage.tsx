@@ -85,13 +85,15 @@ const defaultCategories: SettingsCategoryDef[] = [
   }
 ];
 
+const EMPTY_EXTRA_CATEGORIES: SettingsCategoryDef[] = [];
+
 interface SettingsPageProps {
   extraCategories?: SettingsCategoryDef[];
   hideTitleBar?: boolean;
   defaultCategory?: SettingsCategory;
 }
 
-export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = [], hideTitleBar = false, defaultCategory }) => {
+export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = EMPTY_EXTRA_CATEGORIES, hideTitleBar = false, defaultCategory }) => {
   // 合并分类，将扩展分类放在偏好设置之后 (index 1)
   const allCategories = React.useMemo(() => {
     const cats = [...defaultCategories];
@@ -104,6 +106,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = []
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>(defaultCategory || allCategories[0]?.id || 'preferences');
   const [initialAiProviderId, setInitialAiProviderId] = useState<string | null>(null);
   const [initialAiPresetId, setInitialAiPresetId] = useState<string | null>(null);
+  const [aiPayloadRevision, setAiPayloadRevision] = useState(0);
 
   // 当 defaultCategory 变化时，更新 activeCategory
   useEffect(() => {
@@ -112,21 +115,52 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = []
     }
   }, [defaultCategory]);
 
+  const applyWindowPayload = React.useCallback(
+    (payload: any): void => {
+      if (!payload || typeof payload !== 'object') return;
+
+      const hasAiTarget = typeof payload.aiProviderId === 'string' || typeof payload.aiPresetId === 'string';
+      if (payload.category && allCategories.some((c) => c.id === payload.category)) {
+        setActiveCategory(payload.category as SettingsCategory);
+      } else if (hasAiTarget && allCategories.some((c) => c.id === 'ai')) {
+        setActiveCategory('ai');
+      }
+
+      if (hasAiTarget) {
+        setInitialAiProviderId(typeof payload.aiProviderId === 'string' ? payload.aiProviderId : null);
+        setInitialAiPresetId(typeof payload.aiPresetId === 'string' ? payload.aiPresetId : null);
+        setAiPayloadRevision((prev) => prev + 1);
+      }
+    },
+    [allCategories]
+  );
+
   useEffect(() => {
-    // 读取窗口打开时传入的 payload，用于直接跳转到指定分类/AI 提供商
+    let mounted = true;
+    const handlePayload = (payload: any): void => {
+      if (!mounted) return;
+      applyWindowPayload(payload);
+    };
+    const ipcHandler = (_event: any, payload: any): void => handlePayload(payload);
+
+    window.ipcRenderer?.on('on:window:open:ready', ipcHandler);
+
+    // 读取窗口打开时传入的 payload，用于直接跳转到指定分类/AI 提供商。
+    // 如果 settings 窗口已存在，后续 createOrShow 会走上面的 IPC 事件重新定位。
     (async () => {
       try {
         const payload = await window.YUA.window['window:payload:get']('settings' as any);
-        if (payload?.category && allCategories.some((c) => c.id === payload.category)) {
-          setActiveCategory(payload.category as SettingsCategory);
-        }
-        if (payload?.aiProviderId) setInitialAiProviderId(payload.aiProviderId);
-        if (payload?.aiPresetId) setInitialAiPresetId(payload.aiPresetId);
+        handlePayload(payload);
       } catch {
         // ignore
       }
     })();
-  }, [allCategories]);
+
+    return () => {
+      mounted = false;
+      window.ipcRenderer?.off('on:window:open:ready', ipcHandler);
+    };
+  }, [applyWindowPayload]);
 
   // 根据当前分类渲染对应内容
   const renderCurrentCategoryContent = (): JSX.Element => {
@@ -144,7 +178,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = []
       case 'plugins':
         return <PluginPage />;
       case 'ai':
-        return <AiSettings initialProviderId={initialAiProviderId || undefined} initialPresetId={initialAiPresetId || undefined} />;
+        return <AiSettings initialProviderId={initialAiProviderId || undefined} initialPresetId={initialAiPresetId || undefined} focusRevision={aiPayloadRevision} />;
       case 'user-profile':
         return <UserProfileSettings />;
       case 'prompt':

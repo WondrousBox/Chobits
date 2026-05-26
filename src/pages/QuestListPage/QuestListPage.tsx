@@ -155,6 +155,7 @@ export default function QuestListPage(): JSX.Element {
         event.type === AppEvent.FILE_ACTION_WORKFLOW_STARTED ||
         event.type === AppEvent.AI_PROVIDER_CONFIG_UPDATED ||
         event.type === AppEvent.APP_WINDOW_OPENED ||
+        event.type === AppEvent.APP_WINDOW_CLOSED ||
         event.type === AppEvent.RESOURCE_PREVIEW_OPENED ||
         event.type === AppEvent.SPRITE_AI_COMPLETE ||
         event.type === AppEvent.SPRITE_WORKFLOW_START ||

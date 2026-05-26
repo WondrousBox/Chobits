@@ -497,21 +497,13 @@ export const CHARACTER_MESSAGE_SPECS = [
     neutral: () => ['打开啦！以后导入的文件都可以在资源库里整理。']
   },
   {
-    field: 'chatApiConfigGuideIntro',
-    section: 'routines',
-    key: 'chat.api-config-guide.intro',
-    label: '聊天 API 配置引导开场',
-    maxItems: 4,
-    neutral: () => ['聊天需要先配置模型 API Key。']
-  },
-  {
     field: 'chatApiConfigGuideInvite',
     section: 'routines',
     key: 'chat.api-config-guide.invite',
     label: '聊天 API 配置引导跳转确认',
     maxItems: 4,
     maxLength: 180,
-    neutral: () => ['需要你确认后，我再打开模型服务配置页面。']
+    neutral: () => ['需要先配置 API Key']
   },
   {
     field: 'chatApiConfigGuideTip',
@@ -520,7 +512,7 @@ export const CHARACTER_MESSAGE_SPECS = [
     label: '聊天 API 配置引导提示',
     maxItems: 4,
     maxLength: 240,
-    neutral: () => ['填好 API Key 后就可以开始聊天。']
+    neutral: () => ['填好 API Key 就可以和我对话了']
   },
   {
     field: 'chatApiConfigGuideDone',

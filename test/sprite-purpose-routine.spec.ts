@@ -5,7 +5,7 @@ import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import { FEATURE_INTRO_QUEST_CATALOG } from '../packages/sprite-core/feature-intro-catalog';
-import { CHAT_API_CONFIGURED_GUIDE_GOAL, WORKSPACE_EXISTS_GUIDE_GOAL, type SpritePurposeHistoryEntry, type SpriteRoutinePresetDefinition } from '../packages/sprite-core/purpose';
+import { CHAT_API_CONFIGURED_GUIDE_GOAL, type SpritePurposeHistoryEntry, type SpriteRoutinePresetDefinition, WORKSPACE_EXISTS_GUIDE_GOAL } from '../packages/sprite-core/purpose';
 import {
   createSpriteRoutineFromPlannerDraft,
   SpritePresentationLock,
@@ -511,6 +511,52 @@ describe('SpriteRoutineRunner', () => {
     expect(seen).toEqual([
       { event: 'WORKSPACE_CREATED', ignoreHistory: true },
       { event: 'WORKSPACE_WIZARD_CLOSED', ignoreHistory: true }
+    ]);
+  });
+
+  it('passes per-event matches from loopUntil to terminal event waits', async () => {
+    const seen: Array<{ event: string; match?: Record<string, unknown> }> = [];
+    const runner = new SpriteRoutineRunner({
+      playAnimation: vi.fn(),
+      walkTo: vi.fn(),
+      waitForEvent: (step) => {
+        seen.push({ event: step.event, match: step.match });
+        return {
+          source: 'app-event',
+          event: step.event,
+          timestamp: Date.now()
+        };
+      },
+      speak: vi.fn(),
+      showToast: vi.fn()
+    });
+
+    const result = await runner.run({
+      id: 'routine-loop-event-matches',
+      purposeId: 'purpose-loop-event-matches',
+      source: 'preset',
+      status: 'queued',
+      steps: [
+        {
+          id: 'loop',
+          type: 'loopUntil',
+          source: 'app-event',
+          untilEvent: ['AI_PROVIDER_CONFIG_UPDATED', 'APP_WINDOW_CLOSED'],
+          eventMatches: {
+            AI_PROVIDER_CONFIG_UPDATED: { providerId: 'openai' },
+            APP_WINDOW_CLOSED: { windowKey: 'aiProviderConfig', presetId: 'preset-openai' }
+          },
+          body: []
+        }
+      ],
+      cursor: 0,
+      createdAt: Date.now()
+    });
+
+    expect(result.ok).toBe(true);
+    expect(seen).toEqual([
+      { event: 'AI_PROVIDER_CONFIG_UPDATED', match: { providerId: 'openai' } },
+      { event: 'APP_WINDOW_CLOSED', match: { windowKey: 'aiProviderConfig', presetId: 'preset-openai' } }
     ]);
   });
 });
@@ -1331,14 +1377,203 @@ describe('SpriteRoutinePresetRegistry', () => {
           expect.objectContaining({
             id: 'chat-api-config-open-settings',
             type: 'openWindow',
-            window: 'settings',
-            payload: { category: 'ai', aiProviderId: 'openai', aiPresetId: 'preset-openai', fields: ['apiKey'] }
+            window: 'aiProviderConfig',
+            payload: { providerId: 'openai', presetId: 'preset-openai', fields: ['apiKey'] }
           }),
-          expect.objectContaining({ id: 'chat-api-config-wait-updated', type: 'waitForEvent', source: 'app-event', event: 'AI_PROVIDER_CONFIG_UPDATED', match: { providerId: 'openai' } }),
-          expect.objectContaining({ id: 'chat-api-config-done-branch', type: 'branch', by: 'chatApiConfigUpdated.event.event' })
+          expect.objectContaining({ id: 'chat-api-config-walk-to-settings', type: 'walkTo', target: { window: 'aiProviderConfig', placement: 'right', offset: 16 } }),
+          expect.objectContaining({
+            id: 'chat-api-config-wait-result',
+            type: 'loopUntil',
+            source: 'app-event',
+            untilEvent: ['AI_PROVIDER_CONFIG_UPDATED', 'APP_WINDOW_CLOSED'],
+            eventMatches: {
+              AI_PROVIDER_CONFIG_UPDATED: { providerId: 'openai' },
+              APP_WINDOW_CLOSED: { windowKey: 'aiProviderConfig' }
+            }
+          }),
+          expect.objectContaining({ id: 'chat-api-config-done-branch', type: 'branch', by: 'chatApiConfigResult.event.event' })
         ])
       }
     });
+  });
+
+  it('ends the chat API config guide quietly when the config window is closed without saving', async () => {
+    const registry = new SpriteRoutinePresetRegistry();
+    const preset = registry.get('chat.api-config-guide');
+    expect(preset).toBeDefined();
+
+    const routine = registry.createRoutine(
+      {
+        id: 'purpose-chat-api-config-guide',
+        kind: 'chat.api-config-guide',
+        title: 'chat api config guide',
+        reason: 'missing api key',
+        source: 'user-event',
+        status: 'active',
+        priority: 72,
+        interruptPolicy: 'interruptible',
+        context: {
+          providerId: 'openai',
+          presetId: 'preset-openai',
+          fields: ['apiKey']
+        }
+      },
+      preset!,
+      1000
+    );
+    const calls: string[] = [];
+    const seenWaits: Array<{ event: string; match?: Record<string, unknown> }> = [];
+    const pending = (signal?: AbortSignal): Promise<any> =>
+      new Promise((_, reject) => {
+        if (signal?.aborted) {
+          reject(new DOMException('Routine cancelled', 'AbortError'));
+          return;
+        }
+        signal?.addEventListener('abort', () => reject(new DOMException('Routine cancelled', 'AbortError')), { once: true });
+      });
+    const runner = new SpriteRoutineRunner({
+      playAnimation: vi.fn(),
+      walkTo: (step) => {
+        calls.push(`walk:${typeof step.target === 'string' ? step.target : 'window' in step.target ? step.target.window : 'point'}`);
+      },
+      speak: (step) => {
+        calls.push(`speak:${step.id}:${step.text}`);
+      },
+      showToast: vi.fn(),
+      showNotice: (step) => {
+        calls.push(`notice:${step.messageId}:${step.content}`);
+      },
+      clearMessage: (step) => {
+        calls.push(`clear:${step.messageId}`);
+      },
+      openWindow: (step) => {
+        calls.push(`open:${step.window}`);
+      },
+      waitForEvent: (step, signal) => {
+        seenWaits.push({ event: step.event, match: step.match });
+        if (step.event === 'bubble:action') {
+          return {
+            source: 'purpose-event',
+            event: 'bubble:action',
+            timestamp: Date.now(),
+            payload: {
+              messageId: 'chat.api-config-guide.invite',
+              purposeAction: 'open-ai-provider-settings'
+            }
+          };
+        }
+        if (step.event === 'APP_WINDOW_CLOSED') {
+          return {
+            source: 'app-event',
+            event: 'APP_WINDOW_CLOSED',
+            timestamp: Date.now(),
+            payload: {
+              windowKey: 'aiProviderConfig',
+              providerId: 'openai',
+              presetId: 'preset-openai'
+            }
+          };
+        }
+        return pending(signal);
+      }
+    });
+
+    const result = await runner.run(routine);
+
+    expect(result.ok, result.error).toBe(true);
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        'notice:chat.api-config-guide.invite:需要先配置 API Key',
+        'clear:chat.api-config-guide.invite',
+        'open:aiProviderConfig',
+        'walk:aiProviderConfig',
+        'speak:chat-api-config-tip:填好 API Key 就可以和我对话了',
+        'walk:corner'
+      ])
+    );
+    expect(calls.some((call) => call.includes('chat-api-config-done'))).toBe(false);
+    expect(seenWaits).toEqual(
+      expect.arrayContaining([
+        { event: 'AI_PROVIDER_CONFIG_UPDATED', match: { providerId: 'openai' } },
+        { event: 'APP_WINDOW_CLOSED', match: { windowKey: 'aiProviderConfig' } }
+      ])
+    );
+  });
+
+  it('speaks completion when the chat API config guide observes a provider config update', async () => {
+    const registry = new SpriteRoutinePresetRegistry();
+    const preset = registry.get('chat.api-config-guide');
+    expect(preset).toBeDefined();
+
+    const routine = registry.createRoutine(
+      {
+        id: 'purpose-chat-api-config-guide',
+        kind: 'chat.api-config-guide',
+        title: 'chat api config guide',
+        reason: 'missing api key',
+        source: 'user-event',
+        status: 'active',
+        priority: 72,
+        interruptPolicy: 'interruptible',
+        context: {
+          providerId: 'openai',
+          presetId: 'preset-openai',
+          fields: ['apiKey']
+        }
+      },
+      preset!,
+      1000
+    );
+    const calls: string[] = [];
+    const pending = (signal?: AbortSignal): Promise<any> =>
+      new Promise((_, reject) => {
+        if (signal?.aborted) {
+          reject(new DOMException('Routine cancelled', 'AbortError'));
+          return;
+        }
+        signal?.addEventListener('abort', () => reject(new DOMException('Routine cancelled', 'AbortError')), { once: true });
+      });
+    const runner = new SpriteRoutineRunner({
+      playAnimation: vi.fn(),
+      walkTo: vi.fn(),
+      speak: (step) => {
+        calls.push(`speak:${step.id}:${step.text}`);
+      },
+      showToast: vi.fn(),
+      showNotice: vi.fn(),
+      clearMessage: vi.fn(),
+      openWindow: vi.fn(),
+      waitForEvent: (step, signal) => {
+        if (step.event === 'bubble:action') {
+          return {
+            source: 'purpose-event',
+            event: 'bubble:action',
+            timestamp: Date.now(),
+            payload: {
+              messageId: 'chat.api-config-guide.invite',
+              purposeAction: 'open-ai-provider-settings'
+            }
+          };
+        }
+        if (step.event === 'AI_PROVIDER_CONFIG_UPDATED') {
+          return {
+            source: 'app-event',
+            event: 'AI_PROVIDER_CONFIG_UPDATED',
+            timestamp: Date.now(),
+            payload: {
+              providerId: 'openai',
+              presetId: 'preset-openai'
+            }
+          };
+        }
+        return pending(signal);
+      }
+    });
+
+    const result = await runner.run(routine);
+
+    expect(result.ok, result.error).toBe(true);
+    expect(calls).toContain('speak:chat-api-config-done:配置保存好了，现在可以开始聊天。');
   });
 
   it('creates first file drop onboarding routines that invite drag-to-sprite and wait for resource events', () => {
@@ -1624,13 +1859,22 @@ describe('SpriteRoutinePresetRegistry', () => {
           window: 'aiProviderConfig'
         }),
         expect.objectContaining({
-          id: 'feature.ai-provider-config.wait-event',
-          type: 'waitForEvent',
+          id: 'feature.ai-provider-config.wait-events',
+          type: 'loopUntil',
           source: 'app-event',
-          event: 'AI_PROVIDER_CONFIG_UPDATED',
+          untilEvent: ['AI_PROVIDER_CONFIG_UPDATED', 'APP_WINDOW_CLOSED'],
+          eventMatches: {
+            APP_WINDOW_CLOSED: { windowKey: 'aiProviderConfig' }
+          },
           ignoreHistory: true
         }),
-        expect.objectContaining({ id: 'feature.ai-provider-config.clear-notice', type: 'clearMessage', messageId: 'feature.ai-provider-config.invite', messageType: 'notice' })
+        expect.objectContaining({ id: 'feature.ai-provider-config.clear-notice', type: 'clearMessage', messageId: 'feature.ai-provider-config.invite', messageType: 'notice' }),
+        expect.objectContaining({
+          id: 'feature.ai-provider-config.result-branch',
+          type: 'branch',
+          by: 'featureIntroResult.event.event',
+          cases: { APP_WINDOW_CLOSED: [] }
+        })
       ])
     );
   });
@@ -2159,8 +2403,8 @@ describe('SpriteRoutinePresetRegistry', () => {
         calls.push(`notice:${step.messageId}`);
       },
       clearMessage: (step) => {
-	        calls.push(`clear:${step.messageId}`);
-	      },
+        calls.push(`clear:${step.messageId}`);
+      },
       waitForEvent: (step, signal) => {
         if (step.event === 'bubble:action' && step.match?.purposeAction) {
           return {
@@ -2194,7 +2438,7 @@ describe('SpriteRoutinePresetRegistry', () => {
         }
         return pendingEvent(signal);
       },
-	      setTimeout: (handler, timeout) => setTimeout(handler, timeout === 3600 || timeout === 4200 || timeout === 5000 ? 0 : timeout),
+      setTimeout: (handler, timeout) => setTimeout(handler, timeout === 3600 || timeout === 4200 || timeout === 5000 ? 0 : timeout),
       clearTimeout
     });
 

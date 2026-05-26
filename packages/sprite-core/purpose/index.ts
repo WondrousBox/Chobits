@@ -1,17 +1,11 @@
+export type { SpriteRoutineGuideGoalDefinition, SpriteRoutineGuideGoalKind } from './guide-goals';
+export { CHAT_API_CONFIGURED_GUIDE_GOAL, WORKSPACE_EXISTS_GUIDE_GOAL } from './guide-goals';
 export type { SpritePresentationLockSnapshot, SpritePresentationRequest } from './presentation-lock';
 export { SpritePresentationLock } from './presentation-lock';
 export { SpritePurposeEventTimeoutError, SpritePurposeEventWaiter } from './purpose-event-waiter';
 export { SpritePurposeHistoryStore } from './purpose-history';
 export type { SpritePurposeIdlePresenceOptions, SpritePurposeManagerDeps, SpritePurposeQueuePolicyOptions, SpritePurposeRoutinePlanner, SpritePurposeRoutinePlannerContext } from './purpose-manager';
 export { SpritePurposeManager } from './purpose-manager';
-export type {
-  SpriteRoutineGuideGoalDefinition,
-  SpriteRoutineGuideGoalKind
-} from './guide-goals';
-export {
-  CHAT_API_CONFIGURED_GUIDE_GOAL,
-  WORKSPACE_EXISTS_GUIDE_GOAL
-} from './guide-goals';
 export type {
   SpritePurposePlannerExecutor,
   SpritePurposePlannerInput,

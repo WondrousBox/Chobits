@@ -1,5 +1,29 @@
+import { clsx } from 'clsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbExternalLink, TbEyeOff, TbFolderFilled, TbFolderOpen, TbFolderPlus, TbLine, TbLoader2, TbMusic, TbPencil, TbRefresh, TbSettings, TbTrash } from 'react-icons/tb';
+import {
+  TbAlertTriangle,
+  TbExternalLink,
+  TbEyeOff,
+  TbFile,
+  TbFileText,
+  TbFolderFilled,
+  TbFolderOpen,
+  TbFolderPlus,
+  TbLine,
+  TbLink,
+  TbLoader2,
+  TbMusic,
+  TbPencil,
+  TbPhoto,
+  TbPlayerPlay,
+  TbRefresh,
+  TbRss,
+  TbSettings,
+  TbStar,
+  TbTrash,
+  TbVideo,
+  TbVolume
+} from 'react-icons/tb';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -10,7 +34,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { runWorkflow } from '@/lib/workflow-runner';
-import { useResourceTaskStatus } from '@/pages/ResourcePage/hooks/useResourceTaskStatus';
+import { type ResourceTaskStatus, useResourceTaskStatus } from '@/pages/ResourcePage/hooks/useResourceTaskStatus';
 import { ResourceItem } from '@/pages/ResourcePage/types';
 import {
   getIgnoreLinkedMissingDirectoryErrorMessage,
@@ -31,17 +55,22 @@ import {
   getLinkedResourceDiskInfo,
   getLinkedResourceSyncIssue,
   getLinkedResourceSyncIssueDescription,
+  getLinkedResourceSyncIssueLabel,
   getResolveLinkedResourceConflictErrorMessage,
   type LinkedResourceDiskInfo,
   openContainingFolderForResource,
   rescanLinkedResourceRoot,
   resolveLinkedResourceConflict
 } from '@/pages/ResourcePage/utils/linkedResourceSync';
-import { isAudioFile } from '@/pages/ResourcePage/utils/resourceProtocol';
+import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
+import { getFileCoverByPath, getResourceSummary } from '@/pages/ResourcePage/utils/resourceUtils';
 import { ResourceItemWithSubtitles } from '@/pages/ResourcePage/utils/subtitleUtils';
 import type { UIFolder } from '@/pages/ResourcePage/components/FolderSidebar';
-import ResourceGalleryItem from '@/pages/ResourcePage/components/ResourceGalleryItem';
-import RssSubscriptionCard from '@/pages/ResourcePage/components/RssSubscriptionCard';
+
+const INVENTORY_COLUMNS = 8;
+const INVENTORY_SLOT_SIZE = 72;
+const INVENTORY_SLOT_GAP = 8;
+const INVENTORY_GRID_PADDING = 16;
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -49,6 +78,185 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
+
+function formatDate(timestamp?: number): string {
+  if (!timestamp) return '未知时间';
+  return new Date(timestamp).toLocaleDateString();
+}
+
+function getResourceTypeLabel(item: ResourceItem): string {
+  if (item.type === 'rss') return '订阅';
+  if (item.type === 'link') return '链接';
+  if (item.type === 'text' || item.type === 'note') return '文本';
+  if (isImageFile(item.filePath) || item.type === 'image' || item.type === 'screenshot') return '图像';
+  if (isVideoFile(item.filePath) || item.type === 'video') return '视频';
+  if (isAudioFile(item.filePath) || item.type === 'audio') return '音频';
+  if (item.type === 'document') return '文档';
+  return '物品';
+}
+
+function InventoryTypeIcon({ item }: { item: ResourceItem }): JSX.Element {
+  if (item.type === 'rss') return <TbRss />;
+  if (item.type === 'link') return <TbLink />;
+  if (item.type === 'text' || item.type === 'note') return <TbFileText />;
+  if (isImageFile(item.filePath) || item.type === 'image' || item.type === 'screenshot') return <TbPhoto />;
+  if (isVideoFile(item.filePath) || item.type === 'video') return <TbVideo />;
+  if (isAudioFile(item.filePath) || item.type === 'audio') return <TbVolume />;
+  return <TbFile />;
+}
+
+const InventoryTooltipContent: React.FC<{ item: ResourceItem; taskStatus?: ResourceTaskStatus }> = ({ item, taskStatus }) => {
+  const summary = getResourceSummary(item);
+  const syncIssue = getLinkedResourceSyncIssue(item);
+  const tags = summary.tags.slice(0, 3);
+
+  return (
+    <div className="w-64 space-y-2 p-1">
+      <div className="min-w-0">
+        <div className="truncate text-sm font-semibold">{summary.title}</div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+          <span>{getResourceTypeLabel(item)}</span>
+          {item.sizeBytes ? <span>{formatBytes(item.sizeBytes)}</span> : null}
+          {item.width && item.height ? <span>{item.width}x{item.height}</span> : null}
+          {item.favorite === 1 ? <span className="text-amber-500">已收藏</span> : null}
+        </div>
+      </div>
+
+      {summary.subtitle ? <div className="line-clamp-2 text-xs text-muted-foreground">{summary.subtitle}</div> : null}
+
+      <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-[11px]">
+        <span className="text-muted-foreground">获得</span>
+        <span className="truncate">{formatDate(item.collectedAt || item.createdAt)}</span>
+        {item.domain || item.sourceName || item.authorName ? (
+          <>
+            <span className="text-muted-foreground">来源</span>
+            <span className="truncate">{item.domain || item.sourceName || item.authorName}</span>
+          </>
+        ) : null}
+        {taskStatus ? (
+          <>
+            <span className="text-muted-foreground">任务</span>
+            <span className="truncate text-primary">{taskStatus.subLabel ? `${taskStatus.label} · ${taskStatus.subLabel}` : taskStatus.label}</span>
+          </>
+        ) : null}
+        {syncIssue ? (
+          <>
+            <span className="text-muted-foreground">状态</span>
+            <span className="truncate text-amber-500">{getLinkedResourceSyncIssueLabel(syncIssue)}</span>
+          </>
+        ) : null}
+      </div>
+
+      {tags.length > 0 ? (
+        <div className="flex flex-wrap gap-1">
+          {tags.map((tag) => (
+            <span key={tag} className="rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
+              #{tag}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+const InventoryItemSlot: React.FC<{
+  item: ResourceItemWithSubtitles;
+  selected: boolean;
+  isNew?: boolean;
+  taskStatus?: ResourceTaskStatus;
+  innerRef?: (el: HTMLDivElement | null) => void;
+  onClick: (e: React.MouseEvent) => void;
+  onPreview?: () => void;
+  onOpenRssFeed?: () => void;
+  onDragStart?: (e: React.DragEvent<HTMLDivElement>) => void;
+}> = ({ item, selected, isNew, taskStatus, innerRef, onClick, onPreview, onOpenRssFeed, onDragStart }) => {
+  const summary = getResourceSummary(item);
+  const syncIssue = getLinkedResourceSyncIssue(item);
+  const previewSrc = item.thumbnailPath ? makeResSrc(item.thumbnailPath) : item.filePath && isImageFile(item.filePath) && !syncIssue ? makeResSrc(item.filePath) : undefined;
+  const fileCover = getFileCoverByPath(item.filePath);
+  const canOpen = item.type === 'rss' || item.type === 'text' || isImageFile(item.filePath) || isVideoFile(item.filePath) || isAudioFile(item.filePath);
+
+  const handleDoubleClick = (e: React.MouseEvent): void => {
+    e.stopPropagation();
+    if (item.type === 'rss') {
+      onOpenRssFeed?.();
+      return;
+    }
+    onPreview?.();
+  };
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div
+          ref={innerRef}
+          data-explorer-item
+          data-id={item.id}
+          draggable
+          onClick={onClick}
+          onDoubleClick={handleDoubleClick}
+          onDragStart={onDragStart}
+          className={clsx(
+            'group/inventory relative aspect-square cursor-pointer select-none rounded-md border bg-card p-1 shadow-sm outline-none transition-all',
+            'border-border/70 hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-md',
+            selected && 'border-primary ring-2 ring-primary/55',
+            isNew && !selected && 'border-amber-400 ring-2 ring-amber-300/70'
+          )}
+        >
+          <div className="relative h-full w-full overflow-hidden rounded bg-muted/50">
+            {previewSrc ? (
+              <img src={previewSrc} alt={summary.title} className="h-full w-full object-cover" draggable={false} />
+            ) : fileCover ? (
+              <div className="flex h-full w-full items-center justify-center p-3 [&>svg]:h-full [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: fileCover }} />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-3xl text-muted-foreground">
+                <InventoryTypeIcon item={item} />
+              </div>
+            )}
+
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/25 opacity-0 transition-opacity group-hover/inventory:opacity-100" />
+
+            {canOpen ? (
+              <button
+                type="button"
+                className="absolute inset-0 flex items-center justify-center bg-black/25 opacity-0 transition-opacity group-hover/inventory:opacity-100"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (item.type === 'rss') onOpenRssFeed?.();
+                  else onPreview?.();
+                }}
+                aria-label="打开物品"
+              >
+                <span className="flex size-8 items-center justify-center rounded-full border border-white/60 bg-black/40 text-white shadow">
+                  <TbPlayerPlay />
+                </span>
+              </button>
+            ) : null}
+          </div>
+
+          <div className="pointer-events-none absolute left-1 top-1 flex gap-1">
+            {item.favorite === 1 ? (
+              <span className="flex size-4 items-center justify-center rounded bg-amber-500 text-[10px] text-white shadow">
+                <TbStar />
+              </span>
+            ) : null}
+            {syncIssue ? (
+              <span className="flex size-4 items-center justify-center rounded bg-amber-500 text-[10px] text-white shadow">
+                <TbAlertTriangle />
+              </span>
+            ) : null}
+          </div>
+
+          {taskStatus ? <span className="pointer-events-none absolute bottom-1 right-1 size-2 rounded-full bg-primary shadow-[0_0_0_2px_hsl(var(--background))]" /> : null}
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="right" align="start" className="border bg-popover/95 shadow-xl backdrop-blur">
+        <InventoryTooltipContent item={item} taskStatus={taskStatus} />
+      </TooltipContent>
+    </Tooltip>
+  );
+};
 
 // Inline folder tile for grid view to avoid cross-file resolution issues
 const GridFolderTile: React.FC<{
@@ -109,17 +317,17 @@ const GridFolderTile: React.FC<{
     return (
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <Tooltip open={overInvalid || tipOpen}>
+          <Tooltip open={overInvalid || tipOpen ? true : undefined}>
             <TooltipTrigger asChild>
               <div
                 data-explorer-folder
                 onContextMenu={(e) => e.stopPropagation()}
-                className={`group relative aspect-video w-full overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm transition-all cursor-pointer select-none ${over
+                className={`group relative aspect-square w-full overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm transition-all cursor-pointer select-none ${over
                   ? overInvalid
                     ? 'ring-2 ring-destructive border-destructive/50 bg-destructive/10'
                     : 'ring-2 ring-primary border-primary/50 bg-primary/5'
-                  : 'hover:shadow-md hover:border-primary/30'
-                  } bg-gradient-to-br from-background to-muted flex items-center justify-center`}
+                  : 'hover:-translate-y-0.5 hover:shadow-md hover:border-primary/60'
+                  } flex items-center justify-center p-1`}
                 onClick={() => onOpen?.()}
                 draggable
                 onDragStart={(e: any) => {
@@ -195,21 +403,30 @@ const GridFolderTile: React.FC<{
                   }
                 }}
               >
-                <div className="text-center relative">
-                  <div className="text-5xl text-muted-foreground/80 mb-2">
+                <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded bg-gradient-to-br from-sky-50 to-amber-100 text-center dark:from-sky-950/40 dark:to-amber-950/30">
+                  <div className="text-4xl text-amber-500 drop-shadow-sm">
                     <TbFolderFilled />
                   </div>
-                  <div className="text-sm font-medium truncate max-w-[90%] mx-auto">{folder.name}</div>
                   {linkedFolderIssueBadge ? (
-                    <span className={`mt-1 inline-flex h-5 items-center rounded border px-1.5 text-[10px] ${linkedFolderIssueBadge.className}`} title={linkedFolderIssueDescription}>
-                      {linkedFolderIssueBadge.label}
+                    <span className={`absolute left-1 top-1 inline-flex size-4 items-center justify-center rounded border text-[10px] ${linkedFolderIssueBadge.className}`} title={linkedFolderIssueDescription}>
+                      !
                     </span>
                   ) : null}
-                  {typeof count === 'number' && <span className="absolute top-1 right-1 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full shadow">{count}</span>}
+                  {typeof count === 'number' && <span className="absolute bottom-1 right-1 rounded bg-primary px-1.5 py-0.5 text-[10px] text-primary-foreground shadow">{count}</span>}
                 </div>
               </div>
             </TooltipTrigger>
-            <TooltipContent side="top">不能移动到自己的子文件夹中</TooltipContent>
+            <TooltipContent side="right" align="start">
+              {overInvalid ? (
+                '不能移动到自己的子文件夹中'
+              ) : (
+                <div className="w-52 space-y-1">
+                  <div className="truncate text-sm font-semibold">{folder.name}</div>
+                  <div className="text-xs text-muted-foreground">{typeof count === 'number' ? `${count} 件物品` : '文件夹'}</div>
+                  {linkedFolderIssueDescription ? <div className="text-xs text-amber-500">{linkedFolderIssueDescription}</div> : null}
+                </div>
+              )}
+            </TooltipContent>
           </Tooltip>
         </ContextMenuTrigger>
         <ContextMenuContent className="min-w-[200px]" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
@@ -845,10 +1062,18 @@ export const InventoryGrid: React.FC<InventoryGridProps> = ({
     <>
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <div className="flex flex-col min-h-full">
+          <div className="flex min-h-full justify-center overflow-x-auto">
             <div
               ref={containerRef}
-              className="relative grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2 p-2 outline-none flex-1 content-start box-border"
+              className="relative grid flex-none content-start rounded-lg border border-border/60 bg-muted/20 outline-none"
+              style={{
+                gridTemplateColumns: `repeat(${INVENTORY_COLUMNS}, ${INVENTORY_SLOT_SIZE}px)`,
+                gridAutoRows: `${INVENTORY_SLOT_SIZE}px`,
+                gap: `${INVENTORY_SLOT_GAP}px`,
+                padding: `${INVENTORY_GRID_PADDING}px`,
+                width: `${INVENTORY_COLUMNS * INVENTORY_SLOT_SIZE + (INVENTORY_COLUMNS - 1) * INVENTORY_SLOT_GAP + INVENTORY_GRID_PADDING * 2}px`,
+                minHeight: `${INVENTORY_SLOT_SIZE * 3 + INVENTORY_SLOT_GAP * 2 + INVENTORY_GRID_PADDING * 2}px`
+              }}
               tabIndex={0}
               onPointerDown={handleBackgroundPointerDown}
               onPointerMove={handlePointerMove}
@@ -885,60 +1110,22 @@ export const InventoryGrid: React.FC<InventoryGridProps> = ({
                 // RSS 类型资源使用专门的卡片
                 if (item.type === 'rss') {
                   return (
-                    <div key={item.id} className="aspect-video w-full">
-                      <RssSubscriptionCard
-                        item={item}
-                        selected={isSelected}
-                        innerRef={updateItemRef(item.id)}
-                        onClick={(e) => handleItemClick(e, item.id, idx)}
-                        onToggleFavorite={onToggleFavorite}
-                        onOpenFeed={() => {
-                          if (onOpenRssFeed) {
-                            onOpenRssFeed(item);
-                            return;
-                          }
-                          navigate(`/resources/rss/${item.id}`);
-                        }}
-                      />
-                    </div>
-                  );
-                }
-
-                return (
-                  <div key={item.id} className="aspect-video w-full">
-                    <ResourceGalleryItem
+                    <InventoryItemSlot
+                      key={item.id}
                       item={item}
                       selected={isSelected}
-                      isNew={!!isNew}
                       innerRef={updateItemRef(item.id)}
                       onClick={(e) => handleItemClick(e, item.id, idx)}
-                      onToggleFavorite={onToggleFavorite}
-                      onToggleVisibility={onToggleVisibility}
+                      isNew={!!isNew}
                       taskStatus={taskStatuses[item.id]}
-                      onPreview={() => {
-                        const current = mergedItems[idx];
-                        if (!current) return;
-                        // 使用父组件传入的 onPreview 回调（侧边面板预览）
-                        if (onPreview) {
-                          onPreview(current);
-                        } else {
-                          // 如果没有传入回调，则使用独立窗口预览（后备方案）
-                          window.YUA.window['window:open'](
-                            'resourcePreview',
-                            {
-                              current,
-                              list: mergedItems,
-                              index: idx
-                            },
-                            {
-                              sameDisplayAsSender: true
-                            }
-                          );
+                      onOpenRssFeed={() => {
+                        if (onOpenRssFeed) {
+                          onOpenRssFeed(item);
+                          return;
                         }
+                        navigate(`/resources/rss/${item.id}`);
                       }}
-                      draggable
-                      onDragStart={(e: React.DragEvent) => {
-                        // 如果当前 item 已在多选中，则拖拽这些被选中的；否则仅拖该项
+                      onDragStart={(e: React.DragEvent<HTMLDivElement>) => {
                         const ids = selected.has(item.id) && selected.size > 0 ? Array.from(selected) : [item.id];
                         try {
                           e.dataTransfer.setData('application/x-resource-ids', JSON.stringify(ids));
@@ -948,9 +1135,52 @@ export const InventoryGrid: React.FC<InventoryGridProps> = ({
                           /* ignore */
                         }
                       }}
-                      fillContainer
                     />
-                  </div>
+                  );
+                }
+
+                return (
+                  <InventoryItemSlot
+                    key={item.id}
+                    item={item}
+                    selected={isSelected}
+                    isNew={!!isNew}
+                    taskStatus={taskStatuses[item.id]}
+                    innerRef={updateItemRef(item.id)}
+                    onClick={(e) => handleItemClick(e, item.id, idx)}
+                    onPreview={() => {
+                      const current = mergedItems[idx];
+                      if (!current) return;
+                      // 使用父组件传入的 onPreview 回调（侧边面板预览）
+                      if (onPreview) {
+                        onPreview(current);
+                      } else {
+                        // 如果没有传入回调，则使用独立窗口预览（后备方案）
+                        window.YUA.window['window:open'](
+                          'resourcePreview',
+                          {
+                            current,
+                            list: mergedItems,
+                            index: idx
+                          },
+                          {
+                            sameDisplayAsSender: true
+                          }
+                        );
+                      }
+                    }}
+                    onDragStart={(e: React.DragEvent<HTMLDivElement>) => {
+                      // 如果当前 item 已在多选中，则拖拽这些被选中的；否则仅拖该项
+                      const ids = selected.has(item.id) && selected.size > 0 ? Array.from(selected) : [item.id];
+                      try {
+                        e.dataTransfer.setData('application/x-resource-ids', JSON.stringify(ids));
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.dropEffect = 'move';
+                      } catch {
+                        /* ignore */
+                      }
+                    }}
+                  />
                 );
               })}
 
@@ -965,13 +1195,6 @@ export const InventoryGrid: React.FC<InventoryGridProps> = ({
                   }}
                 />
               )}
-            </div>
-
-            {/* 底部统计信息 */}
-            <div className="flex items-center h-8 text-xs text-muted-foreground justify-end px-4 shrink-0">
-              <span>
-                共 {mergedItems.length}/{totalCount} 个资源
-              </span>
             </div>
           </div>
         </ContextMenuTrigger>

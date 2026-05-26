@@ -285,6 +285,8 @@ type LoopUntilStep = BaseRoutineStep<'loopUntil'> & {
   source?: SpritePurposeRuntimeEventSource;
   /** 结束事件匹配条件。 */
   match?: Record<string, unknown>;
+  /** 针对不同结束事件的匹配条件；优先级高于通用 `match`。 */
+  eventMatches?: Record<string, Record<string, unknown>>;
   /** true 时只等新事件，避免历史事件立即结束循环。 */
   ignoreHistory?: boolean;
   /** 循环体；每轮按顺序执行。空 body 时 runner 会短暂 sleep，避免忙等。 */

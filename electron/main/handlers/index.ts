@@ -57,6 +57,7 @@ import { initThemeHandlers } from './theme/ipc-main';
 import { initTrashHandlers } from './trash/ipc-main';
 import { initUserProfileHandlers } from './user-profile/ipc-main';
 import { initWindowHandlers } from './window';
+import { attachAppWindowClosedReporter, emitAppWindowOpened, rememberWindowPayload } from './window-events';
 import { emitWorkspaceWizardClosedIfStillEmpty, initWorkspaceHandlers } from './workspace/ipc-main';
 
 export async function initHandlers(win: BrowserWindow): Promise<void> {
@@ -209,16 +210,13 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
     },
     purposeWindowAdapter: {
       async open(windowKey, payload) {
+        rememberWindowPayload(String(windowKey), payload);
         const opened = await windowManager.createOrShow(windowKey as any, payload);
+        attachAppWindowClosedReporter(opened, String(windowKey), 'purpose-routine');
         if (String(windowKey) === 'workspaceWizard') {
           attachWorkspaceWizardClosedReporter(opened);
         }
-        const windowPayload = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
-        eventManager.emit(AppEvent.APP_WINDOW_OPENED, {
-          ...windowPayload,
-          windowKey: String(windowKey),
-          source: 'purpose-routine'
-        });
+        emitAppWindowOpened(String(windowKey), payload, 'purpose-routine');
       },
       async close(windowKey) {
         await windowManager.close(windowKey as any);
@@ -383,6 +381,7 @@ async function initOnboardingQuestEngine(
     AppEvent.FILE_ACTION_FAILED,
     AppEvent.FILE_ACTION_CANCELLED,
     AppEvent.APP_WINDOW_OPENED,
+    AppEvent.APP_WINDOW_CLOSED,
     AppEvent.RESOURCE_PREVIEW_OPENED,
     AppEvent.SPRITE_AI_COMPLETE,
     AppEvent.SPRITE_WORKFLOW_START,

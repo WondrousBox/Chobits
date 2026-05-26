@@ -84,6 +84,7 @@ describe('appWindowTool', () => {
       payload: {
         aiProviderId: 'openai',
         category: 'ai',
+        tab: 'provider',
         unknown: true
       },
       windowKey: 'settings'
@@ -92,12 +93,14 @@ describe('appWindowTool', () => {
 
     expect(openWindow).toHaveBeenCalledWith('settings', {
       aiProviderId: 'openai',
-      category: 'ai'
+      category: 'ai',
+      tab: 'provider'
     });
     expect(details).toMatchObject({
       payload: {
         aiProviderId: 'openai',
-        category: 'ai'
+        category: 'ai',
+        tab: 'provider'
       },
       payloadAccepted: true,
       success: true,

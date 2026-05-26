@@ -467,6 +467,7 @@ function validateOpenWindowStep(record: Record<string, unknown>, path: string, s
 
 function validateLoopUntilStep(record: Record<string, unknown>, path: string, state: ValidationState): number {
   const untilEvent = record.untilEvent;
+  const events = Array.isArray(untilEvent) ? untilEvent : [untilEvent];
   if (Array.isArray(untilEvent)) {
     if (untilEvent.length === 0) {
       state.errors.push(`${path}.untilEvent must include at least one event`);
@@ -475,6 +476,7 @@ function validateLoopUntilStep(record: Record<string, unknown>, path: string, st
   } else {
     validateEventName(untilEvent, `${path}.untilEvent`, state);
   }
+  validateLoopUntilEventMatches(record.eventMatches, events, `${path}.eventMatches`, state);
   validateRuntimeEventSource(record.source, `${path}.source`, state);
 
   if (!Array.isArray(record.body)) {
@@ -483,6 +485,24 @@ function validateLoopUntilStep(record: Record<string, unknown>, path: string, st
     validateStepList(record.body, `${path}.body`, state, 'sum');
   }
   return requireTimeout(record.maxDurationMs, `${path}.maxDurationMs`, state);
+}
+
+function validateLoopUntilEventMatches(value: unknown, events: unknown[], path: string, state: ValidationState): void {
+  if (value === undefined) return;
+  const eventMatches = asRecord(value);
+  if (!eventMatches) {
+    state.errors.push(`${path} must be an object when provided`);
+    return;
+  }
+  const eventNames = new Set(events.filter((event): event is string => typeof event === 'string' && event.trim().length > 0));
+  for (const [event, match] of Object.entries(eventMatches)) {
+    if (!eventNames.has(event)) {
+      state.errors.push(`${path}.${event} must reference an untilEvent`);
+    }
+    if (!asRecord(match)) {
+      state.errors.push(`${path}.${event} must be an object`);
+    }
+  }
 }
 
 function validateBranchStep(record: Record<string, unknown>, path: string, state: ValidationState): number {

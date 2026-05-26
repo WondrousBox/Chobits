@@ -1,6 +1,6 @@
 import { FEATURE_INTRO_QUEST_CATALOG, type FeatureIntroQuestCatalogItem } from '../feature-intro-catalog';
 import { getCharacterRoutineText } from '../messages/character';
-import { CHAT_API_CONFIGURED_GUIDE_GOAL, WORKSPACE_EXISTS_GUIDE_GOAL, type SpriteRoutineGuideGoalDefinition } from './guide-goals';
+import { CHAT_API_CONFIGURED_GUIDE_GOAL, type SpriteRoutineGuideGoalDefinition, WORKSPACE_EXISTS_GUIDE_GOAL } from './guide-goals';
 import type { SpritePurpose, SpriteRoutine, SpriteRoutineStep, StartSpritePurposeRequest } from './types';
 
 export interface SpriteRoutinePresetDefinition {
@@ -638,24 +638,25 @@ function createChatApiConfigGuideSteps(purpose: SpritePurpose): SpriteRoutineSte
   const rawFields = purpose.context?.fields;
   const fields = Array.isArray(rawFields) ? rawFields.filter((field): field is string => typeof field === 'string' && field.trim().length > 0) : ['apiKey'];
   const hasPreset = typeof presetId === 'string' && presetId.trim().length > 0;
-  const settingsPayload = {
-    category: 'ai',
-    aiProviderId: providerId,
-    ...(hasPreset ? { aiPresetId: presetId, fields } : {})
-  };
-
+  const targetWindow = hasPreset ? 'aiProviderConfig' : 'settings';
+  const closeMatch = { windowKey: targetWindow };
+  const targetPayload = hasPreset
+    ? {
+      providerId,
+      presetId,
+      fields
+    }
+    : {
+      category: 'ai',
+      tab: 'provider',
+      aiProviderId: providerId
+    };
   return [
-    {
-      id: 'chat-api-config-intro',
-      type: 'speak',
-      text: getCharacterRoutineText('chat.api-config-guide.intro', { providerId }, '聊天需要先配置模型 API Key。'),
-      bubbleDuration: 4200
-    },
     {
       id: 'chat-api-config-invite',
       type: 'showNotice',
       messageId: CHAT_API_CONFIG_NOTICE_ID,
-      content: getCharacterRoutineText('chat.api-config-guide.invite', { providerId }, '需要你确认后，我再打开模型服务配置页面。'),
+      content: getCharacterRoutineText('chat.api-config-guide.invite', { providerId }, '需要先配置 API Key'),
       level: 'info',
       persistent: true,
       buttons: [{ id: 'open-ai-provider-settings', label: '去配置', variant: 'default', purposeAction: CHAT_API_CONFIG_OPEN_SETTINGS_ACTION }],
@@ -688,35 +689,34 @@ function createChatApiConfigGuideSteps(purpose: SpritePurpose): SpriteRoutineSte
                 {
                   id: 'chat-api-config-open-settings',
                   type: 'openWindow',
-                  window: 'settings',
-                  payload: settingsPayload,
+                  window: targetWindow,
+                  payload: targetPayload,
                   timeoutMs: 10000
                 },
-                { id: 'chat-api-config-walk-to-settings', type: 'walkTo', target: { window: 'settings', placement: 'right', offset: 16 }, speed: 120, timeoutMs: 10000 },
                 {
                   id: 'chat-api-config-tip',
                   type: 'speak',
-                  text: getCharacterRoutineText(
-                    'chat.api-config-guide.tip',
-                    { providerId },
-                    hasPreset ? '我已经打开 AI 设置，并定位到当前模型预设。填好 API Key 后就可以开始聊天。' : '我已经打开 AI 设置。先新增一个模型预设并填入 API Key，就可以开始聊天。'
-                  ),
+                  text: getCharacterRoutineText('chat.api-config-guide.tip', { providerId }, hasPreset ? '填好 API Key 就可以和我对话了' : '先新增一个模型预设并填入 API Key，就可以开始聊天。'),
                   bubbleDuration: 5200
                 },
                 {
-                  id: 'chat-api-config-wait-updated',
-                  type: 'waitForEvent',
+                  id: 'chat-api-config-wait-result',
+                  type: 'loopUntil',
                   source: 'app-event',
-                  event: 'AI_PROVIDER_CONFIG_UPDATED',
-                  match: { providerId },
-                  timeoutMs: CHAT_API_CONFIG_GUIDE_WAIT_MS,
-                  assignTo: 'chatApiConfigUpdated',
-                  optional: true
+                  untilEvent: ['AI_PROVIDER_CONFIG_UPDATED', 'APP_WINDOW_CLOSED'],
+                  eventMatches: {
+                    AI_PROVIDER_CONFIG_UPDATED: { providerId },
+                    APP_WINDOW_CLOSED: closeMatch
+                  },
+                  maxDurationMs: CHAT_API_CONFIG_GUIDE_WAIT_MS,
+                  assignTo: 'chatApiConfigResult',
+                  ignoreHistory: true,
+                  body: []
                 },
                 {
                   id: 'chat-api-config-done-branch',
                   type: 'branch',
-                  by: 'chatApiConfigUpdated.event.event',
+                  by: 'chatApiConfigResult.event.event',
                   cases: {
                     AI_PROVIDER_CONFIG_UPDATED: [
                       {
@@ -749,10 +749,22 @@ function getFeatureIntroDefaultPriority(priority: FeatureIntroQuestCatalogItem['
   return 58;
 }
 
+function shouldEndFeatureIntroOnWindowClose(item: FeatureIntroQuestCatalogItem): boolean {
+  return item.routine.kind === 'window' && Boolean(item.routine.windowKey) && !item.routine.waitEvents?.includes('APP_WINDOW_CLOSED') && item.routine.waitEvent !== 'APP_WINDOW_OPENED';
+}
+
 function buildFeatureIntroWaitSteps(item: FeatureIntroQuestCatalogItem): SpriteRoutineStep[] {
   const routine = item.routine;
-  const waitEvents = routine.waitEvents ?? (routine.waitEvent ? [routine.waitEvent] : []);
+  const baseWaitEvents = routine.waitEvents ?? (routine.waitEvent ? [routine.waitEvent] : []);
+  const waitEvents = shouldEndFeatureIntroOnWindowClose(item) ? [...baseWaitEvents, 'APP_WINDOW_CLOSED'] : baseWaitEvents;
   const waitMatch = routine.waitMatch;
+  const windowCloseMatch = routine.windowKey ? { windowKey: routine.windowKey } : undefined;
+  const eventMatches = windowCloseMatch
+    ? {
+      ...(waitMatch && waitEvents.length > 0 ? Object.fromEntries(baseWaitEvents.map((event) => [event, waitMatch])) : {}),
+      APP_WINDOW_CLOSED: windowCloseMatch
+    }
+    : undefined;
   const waitId = `${item.id}.wait`;
 
   if (routine.kind === 'assistant-menu') {
@@ -843,7 +855,8 @@ function buildFeatureIntroWaitSteps(item: FeatureIntroQuestCatalogItem): SpriteR
       type: 'loopUntil',
       source: 'app-event',
       untilEvent: waitEvents,
-      match: waitMatch,
+      match: eventMatches ? undefined : waitMatch,
+      eventMatches,
       maxDurationMs: FEATURE_INTRO_WAIT_MS,
       assignTo: 'featureIntroResult',
       ignoreHistory: true,
@@ -882,6 +895,16 @@ function buildFeatureIntroWaitSteps(item: FeatureIntroQuestCatalogItem): SpriteR
 
 function createFeatureIntroRoutineSteps(item: FeatureIntroQuestCatalogItem): SpriteRoutineStep[] {
   const noticeId = `${item.id}.invite`;
+  const completionSteps: SpriteRoutineStep[] = [
+    { id: `${item.id}.celebrate`, type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
+    {
+      id: `${item.id}.done`,
+      type: 'speak',
+      text: item.routine.done,
+      bubbleDuration: 4200
+    }
+  ];
+  const cancelOnWindowClose = shouldEndFeatureIntroOnWindowClose(item);
   return [
     { id: `${item.id}.wave`, type: 'playAnimation', trigger: 'wave', durationMs: 900, waitFor: 'duration', silent: true },
     {
@@ -901,13 +924,19 @@ function createFeatureIntroRoutineSteps(item: FeatureIntroQuestCatalogItem): Spr
     },
     ...buildFeatureIntroWaitSteps(item),
     { id: `${item.id}.clear-notice`, type: 'clearMessage', messageId: noticeId, messageType: 'notice' },
-    { id: `${item.id}.celebrate`, type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
-    {
-      id: `${item.id}.done`,
-      type: 'speak',
-      text: item.routine.done,
-      bubbleDuration: 4200
-    },
+    ...(cancelOnWindowClose
+      ? [
+        {
+          id: `${item.id}.result-branch`,
+          type: 'branch',
+          by: 'featureIntroResult.event.event',
+          cases: {
+            APP_WINDOW_CLOSED: []
+          },
+          default: completionSteps
+        } satisfies SpriteRoutineStep
+      ]
+      : completionSteps),
     { id: `${item.id}.return-corner`, type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
   ];
 }
