@@ -702,7 +702,8 @@ export const BatchTTSService = {
         }
 
         const itemIndex = item.index ?? index;
-        const md5 = generateContentMd5(configPrefix, item.text);
+        const ttsText = stripEmoji(item.text);
+        const md5 = generateContentMd5(configPrefix, ttsText);
         const audioFileName = `${md5}.mp3`;
         const audioPath = path.join(outputDir, 'audio', audioFileName);
         const trimmedFileName = `${md5}_trimmed.mp3`;
@@ -761,7 +762,7 @@ export const BatchTTSService = {
             const emptyAudio = Buffer.from(silenceAudio, 'base64');
 
             // 空文本直接返回静音音频
-            if (!item.text || !item.text.trim()) {
+            if (!ttsText) {
               console.log(`[BatchTTS] [${itemIndex}] ${md5} 空文本，使用静音音频`);
               await fs.writeFile(audioPath, emptyAudio);
               result.audioPath = audioPath;
@@ -776,7 +777,7 @@ export const BatchTTSService = {
                 async () => {
                   const synthesizeResult = await tts.textToSpeech({
                     ...config,
-                    text: stripEmoji(item.text),
+                    text: ttsText,
                     fetchOptions: httpProxy ? { agent: httpProxy } : undefined
                   } as EdgeTTSOptions);
 
@@ -952,7 +953,7 @@ export const BatchTTSService = {
         maxConcurrency: 1,
         httpProxy
       },
-      () => { } // 不需要进度回调
+      () => {} // 不需要进度回调
     );
 
     return result.results[0];

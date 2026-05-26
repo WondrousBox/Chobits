@@ -67,6 +67,16 @@ const AIAssistantInner: React.FC = () => {
     };
   }, []);
 
+  // 订阅成就解锁事件，打开右上角独立成就动画窗口
+  useEffect(() => {
+    const unsub = window.YUA.persona.onAchievementUnlocked(async (data) => {
+      await window.YUA.window['window:open']('achievementUnlock' as any, data);
+    });
+    return () => {
+      unsub();
+    };
+  }, []);
+
   // 首次挂载：初始定位窗口
   const isInitialMountRef = useRef(true);
   useEffect(() => {

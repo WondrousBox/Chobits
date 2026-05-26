@@ -13,6 +13,10 @@ export interface QuestEngineDeps {
     saveState: (state: OnboardingState) => Promise<void> | void;
     /** 发奖：内部会调用 sprite:persona:grantReward IPC（idempotent via source='quest:<id>'）。 */
     grantReward: (reward: OnboardingQuestReward, source: string) => Promise<unknown>;
+    /** 检查持久化 persona 成就是否已解锁；用于把 reward.achievementId 作为通用完成锚点。 */
+    hasAchievement?: (achievementId: string) => Promise<boolean> | boolean;
+    /** 判断已派发的 purpose 是否仍在当前运行队列中；用于恢复被取消/被替换但 quest 仍是 active 的引导。 */
+    isPurposeAlive?: (purposeId: string) => Promise<boolean> | boolean;
     /** 时间源（便于测试） */
     now?: () => number;
 }
@@ -53,7 +57,7 @@ export class QuestEngine {
         if (!this.loaded) await this.init();
         if (this.state.skipped) return;
 
-        const quests = input.event ? this.deps.registry.byTriggerEvent(input.event) : this.deps.registry.list();
+        const quests = input.event && input.event !== 'APP_STARTED' ? this.deps.registry.byTriggerEvent(input.event) : this.deps.registry.list();
         for (const def of quests) {
             try {
                 await this.evaluateQuest(def, input);
@@ -90,6 +94,11 @@ export class QuestEngine {
             throw new Error(`Quest "${id}" is already completed`);
         }
 
+        if (await this.isQuestAchievementUnlocked(def)) {
+            await this.completeQuest(def, { grantReward: false });
+            return null;
+        }
+
         const ctx: QuestPredicateContext = {
             onboardingState: this.state
         };
@@ -121,6 +130,11 @@ export class QuestEngine {
         const runtime = this.state.quests[def.id] ?? { status: 'pending' as const };
         if (runtime.status === 'done' && def.oneShot !== false) return;
 
+        if (await this.isQuestAchievementUnlocked(def)) {
+            await this.completeQuest(def, { grantReward: false });
+            return;
+        }
+
         const ctx: QuestPredicateContext = {
             event: input.event,
             eventPayload: input.eventPayload,
@@ -139,7 +153,7 @@ export class QuestEngine {
             if (!ok) return;
         }
 
-        if (runtime.status === 'active' && !this.shouldRetryActiveQuest(def, input.event)) {
+        if (runtime.status === 'active' && !(await this.shouldRestartActiveQuest(def, runtime, input.event))) {
             return; // 已派发 purpose，等结果
         }
 
@@ -174,6 +188,33 @@ export class QuestEngine {
         return event === 'APP_STARTED';
     }
 
+    private async shouldRestartActiveQuest(def: OnboardingQuestDefinition, runtime: OnboardingState['quests'][string], event?: string): Promise<boolean> {
+        if (this.shouldRetryActiveQuest(def, event)) {
+            return true;
+        }
+
+        const purposeId = runtime.lastPurposeId;
+        if (!purposeId || !this.deps.isPurposeAlive) {
+            return false;
+        }
+
+        const alive = await Promise.resolve(this.deps.isPurposeAlive(purposeId));
+        return !alive;
+    }
+
+    private getQuestAchievementId(def: OnboardingQuestDefinition): string | undefined {
+        const achievementId = def.reward?.achievementId ?? def.achievementOnComplete;
+        return typeof achievementId === 'string' && achievementId.trim() ? achievementId.trim() : undefined;
+    }
+
+    private async isQuestAchievementUnlocked(def: OnboardingQuestDefinition): Promise<boolean> {
+        const achievementId = this.getQuestAchievementId(def);
+        if (!achievementId || !this.deps.hasAchievement) {
+            return false;
+        }
+        return Promise.resolve(this.deps.hasAchievement(achievementId));
+    }
+
     private async activateQuest(def: OnboardingQuestDefinition): Promise<SpritePurposeStartResult> {
         const request = def.toPurposeRequest();
         const result = await this.deps.startPurpose(request);
@@ -187,12 +228,12 @@ export class QuestEngine {
         return result;
     }
 
-    private async completeQuest(def: OnboardingQuestDefinition): Promise<void> {
+    private async completeQuest(def: OnboardingQuestDefinition, options: { grantReward?: boolean } = {}): Promise<void> {
         const prev = this.state.quests[def.id];
         if (prev?.status === 'done') return;
 
         const source = def.rewardSource ?? `quest:${def.id}`;
-        if (def.reward) {
+        if (options.grantReward !== false && def.reward) {
             try {
                 await this.deps.grantReward(def.reward, source);
             } catch (err) {

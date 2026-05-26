@@ -1142,6 +1142,11 @@ export class SpriteManager {
     return result;
   }
 
+  /** 检查指定成就是否已经解锁 */
+  hasAchievement(id: string): boolean {
+    return this.personaState.hasAchievement(id);
+  }
+
   /** 检查指定 source 的奖励是否已经发放过（用于 Quest / 新手引导幂等） */
   hasClaimedReward(source: string): boolean {
     return this.personaState.hasClaimedReward(source);

@@ -1,4 +1,5 @@
 import type { StartSpritePurposeRequest } from '../purpose/types';
+import type { SpriteRoutineGuideGoalDefinition } from '../purpose/guide-goals';
 
 /**
  * Quest 类别。
@@ -73,6 +74,8 @@ export interface OnboardingQuestDefinition {
     precondition?: QuestPredicate;
     /** 完成条件谓词：满足后发奖并标记 done */
     completion: QuestPredicate;
+    /** 声明式目标：用于任务列表、planner 摘要和跨中断恢复时解释“这个任务到底要达成什么”。 */
+    goal?: SpriteRoutineGuideGoalDefinition;
     /** 用于将 Quest 转化为 SpritePurposeManager.start 的入参 */
     toPurposeRequest: () => StartSpritePurposeRequest;
     /** 完成奖励 */

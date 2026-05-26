@@ -263,8 +263,11 @@ export type {
   SpritePurposeHistoryReader,
   SpritePurposeHistoryWriter,
   SpritePurposeInterruptPolicy,
+  AchievementUnlockedGuideGoalDefinition,
+  ChatApiConfiguredGuideGoalDefinition,
   SpriteRoutineGuideGoalDefinition,
   SpriteRoutineGuideGoalKind,
+  WorkspaceExistsGuideGoalDefinition,
   SpritePurposePlannerExecutor,
   SpritePurposePlannerInput,
   SpritePurposePlannerLastResult,
@@ -300,6 +303,7 @@ export type {
 export {
   buildSpritePurposeDailyRetrospective,
   CHAT_API_CONFIGURED_GUIDE_GOAL,
+  createAchievementUnlockedGuideGoal,
   createSpritePurposePlannerStepSchema,
   createSpriteRoutineFromPlannerDraft,
   DEFAULT_SPRITE_PURPOSE_PLANNER_EVENTS,
@@ -316,6 +320,8 @@ export {
   summarizeSpriteRoutinePreset,
   summarizeSpriteRoutinePresets,
   validateSpritePurposePlannerOutput,
+  FIRST_FILE_DROP_GUIDE_GOAL,
+  OPEN_RESOURCE_LIBRARY_GUIDE_GOAL,
   WORKSPACE_EXISTS_GUIDE_GOAL
 } from './purpose';
 export type {

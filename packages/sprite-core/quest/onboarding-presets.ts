@@ -1,4 +1,5 @@
 import { FEATURE_INTRO_QUEST_CATALOG, type FeatureIntroCompletionSpec, type FeatureIntroQuestCatalogItem } from '../feature-intro-catalog';
+import { createAchievementUnlockedGuideGoal, FIRST_FILE_DROP_GUIDE_GOAL, OPEN_RESOURCE_LIBRARY_GUIDE_GOAL, WORKSPACE_EXISTS_GUIDE_GOAL } from '../purpose/guide-goals';
 import type { StartSpritePurposeRequest } from '../purpose/types';
 import { QuestRegistry } from './quest-registry';
 import type { OnboardingQuestDefinition, QuestPredicateContext } from './types';
@@ -185,6 +186,7 @@ export function createWorkspaceCreateQuest(deps: OnboardingPresetDeps): Onboardi
         return count > 0;
       }
     },
+    goal: WORKSPACE_EXISTS_GUIDE_GOAL,
     reward: {
       xp: 20,
       favor: 3,
@@ -248,6 +250,7 @@ export function createFirstFileDropQuest(deps: OnboardingPresetDeps): Onboarding
         return false;
       }
     },
+    goal: FIRST_FILE_DROP_GUIDE_GOAL,
     reward: {
       xp: 15,
       favor: 2,
@@ -302,6 +305,7 @@ export function createOpenResourceLibraryQuest(deps: OnboardingPresetDeps): Onbo
       id: 'assistant-menu-resources-selected',
       evaluate: (ctx) => ctx.event === 'ASSISTANT_MENU_ITEM_SELECTED' && isAssistantResourceMenuSelection(ctx.eventPayload)
     },
+    goal: OPEN_RESOURCE_LIBRARY_GUIDE_GOAL,
     reward: {
       xp: 10,
       favor: 1,
@@ -368,6 +372,11 @@ export function createFeatureIntroQuest(deps: OnboardingPresetDeps, item: Featur
       id: `${item.id}.completion`,
       evaluate: (ctx) => isFeatureIntroCompleted(item.completion, ctx)
     },
+    goal: createAchievementUnlockedGuideGoal({
+      achievementId: item.achievementId,
+      id: `${item.id}.achievement`,
+      description: `功能自述「${item.title}」的完成成就已解锁。`
+    }),
     reward: {
       xp: item.rewardXp,
       favor: item.rewardFavor,

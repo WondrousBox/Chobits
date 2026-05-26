@@ -1,4 +1,4 @@
-import { silenceAudio } from '../common';
+import { silenceAudio, stripEmoji } from '../common';
 import { BaseTTS, TTSOptions } from '../types';
 import { ra } from './edge/edge-api';
 
@@ -11,10 +11,11 @@ export interface EdgeTTSOptions extends TTSOptions {
 export default class TTS implements BaseTTS {
   async textToSpeech(options: EdgeTTSOptions): Promise<Buffer | string> {
     const emptyAudio = Buffer.from(silenceAudio, 'base64');
-    if (!options.text) {
+    const sanitizedText = stripEmoji(options.text);
+    if (!sanitizedText) {
       return emptyAudio;
     }
-    const result = await ra(this.getSSML(options), options.fetchOptions?.agent);
+    const result = await ra(this.getSSML({ ...options, text: sanitizedText }), options.fetchOptions?.agent);
     if (Buffer.isBuffer(result?.data) && result.data.length <= 0) {
       console.log('[TTS] empty audio, return silence audio for text: ', options.text);
 
