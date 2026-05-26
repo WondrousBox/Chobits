@@ -206,9 +206,9 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     openDevTools: false,
     rememberState: true,
     options: {
-      width: 960,
+      width: 680,
       height: 640,
-      minWidth: 520,
+      minWidth: 680,
       minHeight: 420,
       frame: false,
       transparent: false,

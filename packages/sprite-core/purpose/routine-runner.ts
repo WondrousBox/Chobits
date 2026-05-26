@@ -411,7 +411,7 @@ export class SpriteRoutineRunner {
             type: 'waitForEvent',
             event,
             source: step.source,
-            match: step.match,
+            match: this.resolveLoopUntilEventMatch(step, event),
             ignoreHistory: step.ignoreHistory,
             timeoutMs: step.maxDurationMs
           },
@@ -487,6 +487,10 @@ export class SpriteRoutineRunner {
       controller.abort();
       await Promise.allSettled(waitPromises);
     }
+  }
+
+  private resolveLoopUntilEventMatch(step: Extract<SpriteRoutineStep, { type: 'loopUntil' }>, event: string): Record<string, unknown> | undefined {
+    return step.eventMatches?.[event] ?? step.match;
   }
 
   private async runBranch(routine: SpriteRoutine, step: Extract<SpriteRoutineStep, { type: 'branch' }>, options: SpriteRoutineRunOptions, context: SpriteRoutineRunContext): Promise<{ caseKey: string; stepCount: number }> {

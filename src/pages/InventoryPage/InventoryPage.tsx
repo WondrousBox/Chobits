@@ -51,27 +51,10 @@ const InventoryPage: React.FC = () => {
     sortOrder: 'desc'
   });
 
-  const { handleDelete, handleDeleteMany, handleToggleFavorite, handleToggleVisibility } = useResourceOperations(
-    list,
-    setList,
-    favoriteFilter,
-    setFavoriteFilter,
-    selectedItems,
-    setSelectedItems
-  );
+  const { handleDelete, handleDeleteMany, handleToggleFavorite, handleToggleVisibility } = useResourceOperations(list, setList, favoriteFilter, setFavoriteFilter, selectedItems, setSelectedItems);
 
-  const {
-    renameOpen,
-    setRenameOpen,
-    renameName,
-    setRenameName,
-    handleMoveFolder,
-    handleOpenFolderLocation,
-    handleRenameFolder,
-    handleDeleteFolder,
-    handleMoveResourcesToFolder,
-    handleRenameConfirm
-  } = useFolderOperations(folders, wsFilter, folderFilter, setFolderFilter, list, load, loadFolders);
+  const { renameOpen, setRenameOpen, renameName, setRenameName, handleMoveFolder, handleOpenFolderLocation, handleRenameFolder, handleDeleteFolder, handleMoveResourcesToFolder, handleRenameConfirm } =
+    useFolderOperations(folders, wsFilter, folderFilter, setFolderFilter, list, load, loadFolders);
 
   const loadDefaultWorkspace = useCallback(async () => {
     try {
@@ -230,9 +213,6 @@ const InventoryPage: React.FC = () => {
       <DragAbleTitle
         title={
           <div className="flex h-9 min-w-0 items-center gap-2">
-            <TbPackages className="shrink-0 text-muted-foreground" />
-            <span className="truncate text-sm font-medium">背包</span>
-            <div className="mx-1 h-4 w-px shrink-0 bg-border" />
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="ghost" size="icon" className="no-drag w-8 h-8" onClick={folderFilter ? openParent : openRoot}>
@@ -305,7 +285,7 @@ const InventoryPage: React.FC = () => {
               onOpenRssFeed={() => undefined}
             />
           ) : (
-            <div className="flex min-h-full flex-col items-center justify-center px-6 py-16 text-center">
+            <div className="flex min-h-full flex-col items-center justify-center text-center">
               <div className="mb-3 flex size-12 items-center justify-center rounded-lg bg-muted text-muted-foreground">
                 <TbPackages />
               </div>

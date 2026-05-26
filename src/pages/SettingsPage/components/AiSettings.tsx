@@ -35,7 +35,7 @@ const createPresetSuffix = (): string => {
   return Math.random().toString(36).slice(2, 6).toUpperCase();
 };
 
-export default function AiSettings({ initialProviderId, initialPresetId }: { initialProviderId?: string; initialPresetId?: string }): JSX.Element {
+export default function AiSettings({ initialProviderId, initialPresetId, focusRevision = 0 }: { initialProviderId?: string; initialPresetId?: string; focusRevision?: number }): JSX.Element {
   const [providers, setProviders] = useState<ProviderRow[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [presets, setPresets] = useState<Preset[]>([]);
@@ -45,6 +45,7 @@ export default function AiSettings({ initialProviderId, initialPresetId }: { ini
   const [expandedPresetId, setExpandedPresetId] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createFormKey, setCreateFormKey] = useState(0);
+  const [providerFocusRevision, setProviderFocusRevision] = useState(0);
 
   const selectedProvider = useMemo(() => resolveProviderIdentity(providers, selectedProviderId || undefined) || null, [providers, selectedProviderId]);
   const currentLang = navigator.language?.toLowerCase?.() || 'en';
@@ -65,6 +66,7 @@ export default function AiSettings({ initialProviderId, initialPresetId }: { ini
       setErrors((prev) => ({ ...prev, __new__: {} }));
       const preferred = (preferredProviderId ? resolveProviderIdentity(provs || [], preferredProviderId) : undefined) || provs?.[0] || null;
       setSelectedProviderId(preferred?.id || null);
+      setProviderFocusRevision((prev) => prev + 1);
     }
   };
 
@@ -72,7 +74,7 @@ export default function AiSettings({ initialProviderId, initialPresetId }: { ini
     (async () => {
       await refreshProviders(initialProviderId ?? null);
     })();
-  }, [initialProviderId]);
+  }, [focusRevision, initialProviderId]);
 
   // 如果 initialProviderId 在挂载后才到达，首个 effect 已根据依赖更新，这里可省略二次设置以避免不必要的状态同步告警
 
@@ -94,7 +96,7 @@ export default function AiSettings({ initialProviderId, initialPresetId }: { ini
         /* ignore */
       }
     })();
-  }, [initialPresetId, selectedProviderId]);
+  }, [initialPresetId, providerFocusRevision, selectedProviderId]);
 
   // duplicated declarations removed
 

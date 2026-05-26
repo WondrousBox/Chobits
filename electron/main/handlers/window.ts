@@ -7,6 +7,7 @@ import { BrowserWindow, ipcMain } from 'electron';
 import { app, screen } from 'electron';
 
 import defaultWindowConfigs from '../config/window';
+import { attachAppWindowClosedReporter, emitAppWindowOpened, rememberWindowPayload } from './window-events';
 import { emitWorkspaceWizardClosedIfStillEmpty } from './workspace/ipc-main';
 
 const SPRITE_BUBBLE_WINDOW_KEYS = ['spriteBubbleFixedTop'] as const;
@@ -337,10 +338,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
   ipcMain.handle('window:open', async (event, windowKey, payload, options) => {
     if (!win || win.isDestroyed()) return false;
     try {
-      if (payload) {
-        (globalThis as any).__lastWindowPayload = (globalThis as any).__lastWindowPayload || {};
-        (globalThis as any).__lastWindowPayload[windowKey] = payload;
-      }
+      rememberWindowPayload(String(windowKey), payload);
 
       let opened: BrowserWindow | null = null;
       try {
@@ -357,9 +355,11 @@ export function initWindowHandlers(win: BrowserWindow): void {
       }
 
       opened = opened ?? (await windowManager.createOrShow(windowKey, payload));
+      attachAppWindowClosedReporter(opened, String(windowKey), 'renderer-window-open');
       if (windowKey === WORKSPACE_WIZARD_WINDOW_KEY) {
         attachWorkspaceWizardClosedReporter(opened);
       }
+      emitAppWindowOpened(String(windowKey), payload, 'renderer-window-open');
       return true;
     } catch {
       return false;
