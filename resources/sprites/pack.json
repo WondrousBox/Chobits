@@ -11,7 +11,8 @@
   "platform": ["darwin", "win32", "linux"],
   "assets": {
     "character": "character.json",
-    "animations": "index.json"
+    "animations": "index.json",
+    "gallery": "gallery/index.json"
   },
   "provenance": {
     "channel": "builtin",
@@ -22,7 +23,7 @@
   "signature": {
     "algorithm": "sha256",
     "keyId": "builtin:yua-default",
-    "digest": "sha256:048856373406c5b751427b812e629b437a61dabc09c5287166ec24703588bb07"
+    "digest": "sha256:87c9553c492a4b66b8bda972e9824f411a7b7c99c606e81c07f4e7ee55eb35d4"
   },
   "capabilities": {
     "hasVoice": false,

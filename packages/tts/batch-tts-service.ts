@@ -834,8 +834,8 @@ export const BatchTTSService = {
             seg.duration = result.duration;
             seg.trimmedDuration = result.trimmedDuration;
             // 保存文本（用于独立 TTS 轨道加载历史时显示）
-            if (item.text) {
-              seg.text = item.text;
+            if (ttsText) {
+              seg.text = ttsText;
             }
           }
 
@@ -953,7 +953,7 @@ export const BatchTTSService = {
         maxConcurrency: 1,
         httpProxy
       },
-      () => {} // 不需要进度回调
+      () => { } // 不需要进度回调
     );
 
     return result.results[0];

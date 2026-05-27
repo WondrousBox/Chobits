@@ -1301,7 +1301,7 @@ describe('SpriteRoutinePresetRegistry', () => {
             expect.objectContaining({
               id: 'speak-workspace-quickstart-tip',
               type: 'speak',
-              text: '快速开始会默认创建到文档文件夹。',
+              text: '快速开始会默认创建到文档中',
               cooldownKey: 'onboarding.workspace.create.quickstart-tip'
             })
           ])
@@ -2210,7 +2210,7 @@ describe('SpriteRoutinePresetRegistry', () => {
         'open:workspaceWizard',
         'walk:workspaceWizard',
         'speak:speak-workspace-intro:工作空间会存放所有重要的数据。',
-        'speak:speak-workspace-quickstart-tip:快速开始会默认创建到文档文件夹。',
+        'speak:speak-workspace-quickstart-tip:快速开始会默认创建到文档中',
         'clear:onboarding.workspace.create.invite',
         'speak:speak-done:工作空间建好啦！我可以做更多事情啦。'
       ])

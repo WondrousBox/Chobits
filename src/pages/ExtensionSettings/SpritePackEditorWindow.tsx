@@ -11,6 +11,7 @@ import { getSpriteCapabilityLockedReason, getSpriteCapabilityState } from '@/fea
 import { useSpriteCapabilitySnapshot } from '@/features/sprite-assistant/hooks/useSpriteCapabilitySnapshot';
 
 import { SpriteAnimationManager } from './SpriteManager';
+import CharacterGalleryManager from './CharacterGalleryManager';
 import { SpritePackEditorContent } from './SpritePackEditor';
 import {
   buildCreateSpritePackEditorState,
@@ -38,7 +39,7 @@ export default function SpritePackEditorWindow(): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'profile' | 'animations'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'gallery' | 'animations'>('profile');
   const { snapshot: capabilitySnapshot } = useSpriteCapabilitySnapshot();
 
   const loadEditor = useCallback(async (payload?: SpritePackEditorWindowPayload | null): Promise<void> => {
@@ -153,15 +154,24 @@ export default function SpritePackEditorWindow(): JSX.Element {
           ) : error ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{error}</div>
           ) : editor ? (
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'profile' | 'animations')} className="flex h-full min-h-0 flex-col">
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'profile' | 'gallery' | 'animations')} className="flex h-full min-h-0 flex-col">
               <div className="shrink-0 border-b border-border/60 px-6 py-3">
                 <TabsList>
                   <TabsTrigger value="profile">角色资料</TabsTrigger>
+                  <TabsTrigger value="gallery">角色图集</TabsTrigger>
                   <TabsTrigger value="animations">精灵动画</TabsTrigger>
                 </TabsList>
               </div>
               <TabsContent value="profile" className="m-0 min-h-0 flex-1 overflow-y-auto px-6 py-5">
                 <SpritePackEditorContent editor={editor} setEditor={setEditor} />
+              </TabsContent>
+              <TabsContent value="gallery" className="m-0 min-h-0 flex-1 overflow-y-auto px-6 py-5">
+                <CharacterGalleryManager
+                  packId={editor.targetPack?.id ?? editor.basePack?.id}
+                  source={editor.targetPack?.source ?? editor.basePack?.source}
+                  assetAuthoringCapability={assetAuthoringCapability}
+                  onCapabilityBlocked={handleCapabilityBlocked}
+                />
               </TabsContent>
               <TabsContent value="animations" className="m-0 min-h-0 flex-1 overflow-y-auto px-4 py-5">
                 <SpriteAnimationManager assetAuthoringCapability={assetAuthoringCapability} onCapabilityBlocked={handleCapabilityBlocked} />
@@ -178,7 +188,7 @@ export default function SpritePackEditorWindow(): JSX.Element {
           </Button>
           {activeTab === 'profile' && (
             <Button onClick={() => void handleSave()} disabled={!editor || loading || saving}>
-              {saving && <TbLoader2 className="h-4 w-4 animate-spin mr-1" />}
+              {saving && <TbLoader2 className="animate-spin" />}
               保存角色包
             </Button>
           )}

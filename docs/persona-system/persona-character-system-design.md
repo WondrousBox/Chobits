@@ -12,6 +12,7 @@
 > - `character.json` 已进入运行时主链路：`CharacterService` 负责人格、好感度 overlay、心情表达、维度 schema、工具标签与 `capabilityFlags` 的解析
 > - 对话人格注入已经通过 `SystemPromptEnricher` 注册表接入 `buildPiContext()`；ChatPage 侧也已有 `characterPersonaEnabled` 开关
 > - 角色包 lifecycle 已落地：`CharacterPackManager` 已支持扫描、安装、archive 导入、激活、卸载/替换冲突处理、preview cache、installability assessment 与 trust-root 公钥验签
+> - 2026-05-27 角色图集补充：`pack.json.assets.gallery` 与 `gallery/index.json` 已作为角色包一等资产接入。它用于存放 idle、左/右行走、背面、跳跃、指向、自定义动作、表情、道具、分镜参考等静态图片，并在角色包编辑窗口提供“角色图集”预览、导入、元数据编辑、替换和 AI 编辑上下文整理入口。图集写入仅允许 installed 角色包，内置包保持只读。
 > - `PersonaStatePersistence` 已升级为按角色 slot 持久化；角色切换会保存旧 slot 并恢复目标 slot
 > - 2026-04-24 收尾：sprite runtime / persona reward / capability 消费主线本轮已冻结；当前剩余工作仅作为后续 backlog，主要包括 trust-root 扩容与 key rotation / revocation、`customAppearance` 明确产品入口后的细分 capability 消费、`WindowController` 执行边界收薄，以及 legacy persona mutation IPC / 兼容层下线评估
 >
@@ -414,6 +415,17 @@ installed 角色包当前落盘在 `<userData>/data/character-packs/<packId>/`�
 │   │   ├── walk.webm
 │   │   ├── celebrate.webm
 │   │   └── ...
+│   ├── gallery/                    ← 角色参考图集（静态图片）
+│   │   ├── index.json              ← 图集清单
+│   │   ├── images/
+│   │   │   ├── idle-front.png
+│   │   │   ├── walk-left.png
+│   │   │   ├── walk-right.png
+│   │   │   ├── back.png
+│   │   │   ├── jump.png
+│   │   │   ├── point.png
+│   │   │   └── prop-mug.png
+│   │   └── thumbs/                 ← 预览缩略图缓存
 │   ├── voices/                     ← 语音资产（可选）
 │   │   ├── greeting.mp3
 │   │   └── ...
@@ -455,6 +467,7 @@ installed 角色包当前落盘在 `<userData>/data/character-packs/<packId>/`�
   "assets": {
     "character": "character.json",
     "animations": "animations/index.json",
+    "gallery": "gallery/index.json",
     "voices": "voices/", // 可选
     "preview": {
       "avatar": "preview/avatar.png",
@@ -490,6 +503,7 @@ installed 角色包当前落盘在 `<userData>/data/character-packs/<packId>/`�
 
 当前代码实现说明：
 
+- `assets.gallery` 指向角色图集索引。若路径是目录，按 `<dir>/index.json` 处理；若缺省，新建/保存本地角色包会默认写入 `gallery/index.json`
 - `pack.json` 中的 `provenance / signature` 负责声明来源、发布者、链接与签名元数据
 - `packages/sprite-core/character-pack-manager.ts` 会统一把这些声明归一化成 `trust` assessment
 - `SpritePackManager` 设置页会展示 `trust.level / verificationStatus / note / links`
@@ -499,6 +513,68 @@ installed 角色包当前落盘在 `<userData>/data/character-packs/<packId>/`�
 - 当受信 key 的签名校验失败时，会进入 blocking error 并阻止安装
 - 当 `keyId` 未被当前 trust-root 收录时，角色包仍可导入，但会显示为 `verificationStatus='signature-untrusted'` warning，而不是伪装成“已验证”
 - 当前剩余工作主要收敛到 trust-root 扩充、publisher key rotation / revocation，以及 preview poster / hover / 多媒体展示策略细化
+
+### 4.2.1 角色图集规范
+
+角色图集不是运行时动画表，也不是商店 preview。它是给创作链路使用的角色参考素材库：同一角色常用角度、动作、表情、道具和分镜参考都应进入这里，方便发送给 AI 做一致性生成、局部重绘、动作扩展或分镜设计。
+
+```jsonc
+{
+  "version": 1,
+  "updatedAt": "2026-05-27T00:00:00.000Z",
+  "items": [
+    {
+      "id": "walk-left",
+      "title": "左侧行走",
+      "kind": "action", // pose | action | expression | prop | outfit | reference | background | custom
+      "semantic": {
+        "action": "walk-left",
+        "view": "left",
+        "emotion": "neutral",
+        "propName": "",
+        "customLabel": ""
+      },
+      "tags": ["walk", "left", "reference"],
+      "source": {
+        "localPath": "gallery/images/walk-left.png",
+        "type": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "sha256": "<content-sha256>",
+        "sizeBytes": 123456
+      },
+      "thumbnail": {
+        "localPath": "gallery/thumbs/walk-left.webp",
+        "type": "image/webp",
+        "width": 512,
+        "height": 512
+      },
+      "ai": {
+        "referenceRole": "character", // character | pose | style | prop | background | storyboard | custom
+        "preserveIdentity": true,
+        "referenceStrength": 0.8,
+        "promptHint": "保持角色身份一致，参考该图的左侧行走姿势。",
+        "negativePrompt": "不要改变发型、服装主色和脸部特征。"
+      },
+      "origin": {
+        "type": "import", // import | ai-generated | ai-edited | derived | pack-author
+        "sourceName": "walk-left.png"
+      },
+      "createdAt": "2026-05-27T00:00:00.000Z",
+      "updatedAt": "2026-05-27T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+生产级约束：
+
+- 所有 `localPath` 必须是角色包目录内相对路径；导入外部图片时复制到 `gallery/images/`，缩略图写入 `gallery/thumbs/`
+- 支持图片格式限定为 `png / jpg / jpeg / webp / gif`，导入时记录尺寸、文件大小和 SHA-256
+- installed 角色包可以新增、编辑、替换、删除图集条目；builtin 角色包只能预览，必须另存为本地角色包后才能写入
+- 删除或替换图片时只清理 `gallery/images/` 与 `gallery/thumbs/` 中不再被任何条目引用的文件，避免误删角色包 preview、动画或其他共享资产
+- 图集导入、编辑、替换、删除与动画 authoring 一样受 `spriteManage` capability guard 保护
+- AI 编辑当前先形成稳定的 `CharacterGalleryAIEditContext`：包含选中图片的绝对本地路径、mime、语义、标签和提示词。后续接入真实 image-edit / inpaint provider 时，只需要消费这个上下文并把产物通过 `replaceCharacterGalleryItemImage` 或新增条目回写图集
 
 ### 4.3 角色包生命周期
 
@@ -527,7 +603,9 @@ installed 角色包当前落盘在 `<userData>/data/character-packs/<packId>/`�
 11. 当前已支持：`pack.json.provenance / signature` 声明与共享 `trust` assessment，设置页会统一展示来源摘要、来源链接与签名状态
 12. 当前已支持：builtin source 的角色包会显示 `verificationStatus='builtin-bundled'`，可与外部导入包区分
 13. 当前已支持：`resources/sprites/trust-root.json` 作为应用内置信任根，外部导入角色包在声明 `signature.value` 且 `keyId` 命中受信公钥时会执行真实公钥验签；mismatch 会阻止安装，未知 key 则保留为 warning
-14. 待补：trust-root 扩充、publisher key rotation / revocation，以及 preview poster / hover / 多媒体展示策略的进一步细化
+14. 当前已支持：角色包图集随 `.cbpk` / `.zip` 完整导入导出，并作为 digest/signature payload 的一部分参与完整性校验
+15. 当前已支持：角色包编辑窗口新增“角色图集”页，可预览图集、导入图片、编辑动作/角度/标签/AI 提示、替换图片、删除条目，并整理发送给 AI 的编辑上下文
+16. 待补：trust-root 扩充、publisher key rotation / revocation，以及 preview poster / hover / 多媒体展示策略的进一步细化
 
 **角色切换流程**：
 

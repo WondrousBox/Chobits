@@ -8,6 +8,7 @@
 > - `PersonaRulesProvider` / `PersonaRulesLayer` 规则注入与 live sync
 > - `CapabilityRegistry` + `capability-runtime` + 主进程 capability guard（覆盖 movement / screenshot / recorder / ASR / dailyCare / sprite asset authoring）
 > - `CharacterPackManager`：角色包扫描 / 安装 / 激活 / 导入 / 卸载 / trust-root 公钥验签
+> - `CharacterGalleryManager`：角色包静态参考图集（动作/角度/表情/道具）索引、导入、替换、删除与 AI 编辑上下文
 > - `MovementCoordinator`：preview / animation / behavior movement 统一策略
 > - AI 自发说话：`SpriteSpontaneousUtteranceService`（详见 [sprite-ai-spontaneous-utterance-design.md](./sprite-ai-spontaneous-utterance-design.md)）
 >
@@ -59,6 +60,8 @@ packages/sprite-core/
 ├── persona-state.ts            # 人格状态管理（XP/等级/好感度/心情）
 ├── character-runtime.ts        # 角色声明 → runtime persona layer 桥接
 ├── character-pack-manager.ts   # 角色包扫描 / 安装 / 激活 authority
+├── character-gallery.ts        # 角色图集共享类型 / 索引规范
+├── character-gallery-manager.ts # 角色图集文件与索引管理
 ├── character-capability-flags.ts # 角色声明 / persona snapshot → capability flags 桥接
 ├── interaction-tracker.ts      # 交互追踪器
 ├── persona-rules.ts            # persona reward runtime 统一解析入口
@@ -759,6 +762,15 @@ mgr.showToast(data?.message || '记忆整理完毕！', { category: 'success' })
 
 当当前激活的是 installed 角色包时，动画新增、删除与 metadata 更新会优先写入该角色包自己的 `animations/` 目录，并在 `pack.json.assets.animations` 指向的索引里记录相对路径。`{userData}/data/sprites/` 仍保留为全局用户动画兜底目录：主要用于没有可写 installed 角色包时，叠加在内置默认动画之上。
 
+### 角色图集配置文件
+
+- 内置默认图集：`resources/sprites/gallery/index.json`
+- 角色包图集：`{userData}/data/character-packs/<packId>/gallery/index.json`
+- 图片文件：`gallery/images/*`
+- 缩略图：`gallery/thumbs/*`
+
+角色图集通过 `pack.json.assets.gallery` 声明，是角色包的一等资产，用来存放 idle、左侧行走、右侧行走、背面、跳跃、指向、自定义动作、表情、道具、分镜参考等静态图片。它服务于创作和 AI 编辑链路，不参与桌面精灵动画触发。installed 角色包可写，builtin 角色包只读；导入外部图片时会复制到包内，记录 mime、尺寸、文件大小和 SHA-256，并生成 webp 缩略图。删除/替换只清理 `gallery/images/` 与 `gallery/thumbs/` 下不再被引用的文件。图集写入口受 `spriteManage` capability guard 保护。
+
 ```json
 {
   "version": 1,
@@ -1009,6 +1021,12 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 | `sprite:character:inspectPackFromArchive` | `{ archivePath }`                              | 预检压缩包角色包   |
 | `sprite:character:installPackFromArchive` | `{ archivePath, replaceExisting?, activate? }` | 从压缩包安装角色包 |
 | `sprite:character:removePack`       | `{ packId, source? }`                               | 删除已安装角色包   |
+| `sprite:character:gallery:list`     | `{ packId?, source?, query? }`                      | 列出角色图集       |
+| `sprite:character:gallery:import`   | `{ packId?, source?, filePath, draft? }`            | 导入图集图片       |
+| `sprite:character:gallery:update`   | `{ packId?, source?, itemId, patch }`               | 更新图集元数据     |
+| `sprite:character:gallery:replaceImage` | `{ packId?, source?, itemId, filePath, origin? }` | 替换图集图片       |
+| `sprite:character:gallery:remove`   | `{ packId?, source?, itemId, deleteFile? }`         | 删除图集条目       |
+| `sprite:character:gallery:buildAIEditContext` | `{ packId?, source?, draft }`              | 构建 AI 编辑上下文 |
 | `sprite:character:reload`           | -                                                   | 重载角色并同步规则 |
 | `sprite:dimensions:get`             | -                                                   | 获取维度状态       |
 | `sprite:config:getAutoWalk`         | -                                                   | 获取自动行走开关   |
@@ -1074,7 +1092,7 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 
 **`window.YUA.persona` / Persona 与 capability**: `getState()`, `addXP()`, `changeFavor()`, `recordLogin()`, `unlockAchievement()`, `resetState()`, `getCapabilitySnapshot()`
 
-**`window.YUA.persona` / 角色与角色包**: `getCharacterInfo()`, `getCharacterPersonaPrompt()`, `listCharacterPacks()`, `getActiveCharacterPack()`, `activateCharacterPack()`, `inspectCharacterPackFromArchive()`, `installCharacterPackFromArchive()`, `removeCharacterPack()`, `reloadCharacter()`, `getDimensions()`
+**`window.YUA.persona` / 角色与角色包**: `getCharacterInfo()`, `getCharacterPersonaPrompt()`, `listCharacterPacks()`, `getActiveCharacterPack()`, `activateCharacterPack()`, `inspectCharacterPackFromArchive()`, `installCharacterPackFromArchive()`, `removeCharacterPack()`, `listCharacterGallery()`, `importCharacterGalleryItem()`, `updateCharacterGalleryItem()`, `replaceCharacterGalleryItemImage()`, `removeCharacterGalleryItem()`, `buildCharacterGalleryAIEditContext()`, `reloadCharacter()`, `getDimensions()`
 
 **`window.YUA.persona` / 事件订阅**: `onStateChanged()`, `onLevelUp()`, `onXPGained()`, `onFavorChanged()`, `onDailyLogin()`, `onAchievementUnlocked()`, `onCapabilityChanged()`, `onCharacterSwitched()`
 
@@ -1123,6 +1141,8 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 | InteractionTracker   | `packages/sprite-core/interaction-tracker.ts`                  |
 | EventBus             | `packages/sprite-core/event-bus.ts`                            |
 | CharacterService     | `packages/sprite-core/character-service.ts`                    |
+| CharacterGallery     | `packages/sprite-core/character-gallery.ts`                    |
+| CharacterGalleryManager | `packages/sprite-core/character-gallery-manager.ts`         |
 | WindowController     | `packages/sprite-core/window-controller.ts`                    |
 | WindowController Model | `packages/sprite-core/window-controller-model.ts`            |
 | WindowController Platform | `packages/sprite-core/window-controller-platform.ts`      |
@@ -1138,6 +1158,7 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 | Preload Bridge       | `packages/sprite-core/preload/sprite-bridge.ts`                |
 | Shared Types         | `packages/sprite-core/types.ts`                                |
 | 动画配置             | `resources/sprites/index.json`                                 |
+| 角色图集配置         | `resources/sprites/gallery/index.json`                         |
 | SpriteStateContext   | `src/features/sprite-assistant/context/SpriteStateContext.tsx` |
 | VideoSprite          | `src/features/sprite-assistant/renderers/VideoSprite.tsx`      |
 | useDragCollector     | `src/features/sprite-assistant/hooks/useDragCollector.ts`      |

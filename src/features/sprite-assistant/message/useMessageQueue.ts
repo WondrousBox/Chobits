@@ -31,6 +31,7 @@ const sortByPriority = (messages: SpriteMessage[]): SpriteMessage[] => {
  * - Notice: 使用 routineId（如果有）或 content 作为去重键
  * - Busy: 使用 content 作为去重键
  * - Toast: 普通预设消息使用 category 去重；角色说话气泡按内容去重
+ * - Toast: 不排队；后来的 toast 直接替换之前所有 toast
  */
 const getDedupeKey = (message: SpriteMessage): string => {
   const { type } = message;
@@ -52,6 +53,7 @@ const getDedupeKey = (message: SpriteMessage): string => {
       return `toast:message:${toast.content || toast.id}`;
     }
     // 使用 category（预设文案类型）或 content 作为去重键
+    // 保留稳定 key；toast 入队时不会用它保留旧 toast
     return `toast:${toast.category || toast.content || 'default'}`;
   }
 
@@ -105,6 +107,8 @@ export function useMessageQueue(): UseMessageQueueReturn {
 
       // 检查是否已存在相同的消息（去重）
       const hasDuplicate = prev.queue.some((m) => {
+        // toast 是轻量提示，不保留历史队列；新 toast 出现时直接顶掉旧 toast。
+        if (message.type === 'toast' && m.type === 'toast') return false;
         // 相同 ID 视为同一消息（会被替换）
         if (m.id === message.id) return false;
         // 检查去重键是否相同
@@ -118,6 +122,8 @@ export function useMessageQueue(): UseMessageQueueReturn {
 
       // 过滤掉需要被替换的消息
       const filteredQueue = prev.queue.filter((m) => {
+        // toast 是轻量提示，不保留历史队列；新 toast 出现时直接顶掉旧 toast。
+        if (message.type === 'toast' && m.type === 'toast') return false;
         // busy 消息只保留一个（新的替换旧的）
         if (message.type === 'busy' && m.type === 'busy') return false;
         // 相同 ID 的消息替换

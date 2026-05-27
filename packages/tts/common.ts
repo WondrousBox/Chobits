@@ -1,5 +1,16 @@
-const EMOJI_REGEX =
-  /(?:[0-9#*]\uFE0F?\u20E3|[\u{1F1E6}-\u{1F1FF}]{2}|[\u{1F1E6}-\u{1F1FF}]|[\u{1F3FB}-\u{1F3FF}]|[\u{E0020}-\u{E007F}]|\p{Extended_Pictographic}(?:\uFE0E|\uFE0F)?(?:[\u{1F3FB}-\u{1F3FF}])?(?:\u200D\p{Extended_Pictographic}(?:\uFE0E|\uFE0F)?(?:[\u{1F3FB}-\u{1F3FF}])?)*|\p{Emoji_Presentation}|\uFE0E|\uFE0F|\u200D|\u20E3)/gu;
+const EMOJI_MODIFIER = String.raw`[\u{1F3FB}-\u{1F3FF}]`;
+const EMOJI_PRESENTATION_ATOM = String.raw`(?:\p{Emoji_Presentation}\uFE0F?|(?!(?:[0-9#*]))\p{Emoji}\uFE0F)`;
+const EMOJI_REGEX = new RegExp(
+  [
+    String.raw`[0-9#*]\uFE0F?\u20E3`,
+    String.raw`[\u{1F1E6}-\u{1F1FF}]{2}`,
+    String.raw`[\u{1F1E6}-\u{1F1FF}]`,
+    EMOJI_MODIFIER,
+    String.raw`[\u{E0020}-\u{E007F}]`,
+    String.raw`${EMOJI_PRESENTATION_ATOM}(?:${EMOJI_MODIFIER})?(?:\u200D${EMOJI_PRESENTATION_ATOM}(?:${EMOJI_MODIFIER})?)*`
+  ].join('|'),
+  'gu'
+);
 
 /**
  * 移除文本中的 emoji，避免 TTS 引擎把 emoji 名称读出来。

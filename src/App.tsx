@@ -1,5 +1,5 @@
 import { TbSparkles } from 'react-icons/tb';
-import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { Toaster } from '@/components/ui/sonner';
 import { DownloadFloating } from '@/features/download';
@@ -43,77 +43,101 @@ import WorkflowHistoryPage from './pages/WorkflowBuilderPage/WorkflowHistoryPage
 import WorkflowStartInputSheet from './pages/WorkflowBuilderPage/WorkflowStartInputSheet';
 import WorkspaceWizard from './pages/WorkspacePage/WorkspaceWizard';
 
-function App(): JSX.Element {
+function StandardAppRoutes(): JSX.Element {
   useWorkspaceCheck();
   useAIProviderConfig();
 
   return (
+    <ChatSelectionProvider>
+      <div className="w-full h-full overflow-hidden">
+        <Routes>
+          <Route path="/" element={<AIAssistant />} />
+          <Route path="/status" element={<StatusPage />} />
+          <Route path="/asr-config" element={<ASRConfigPage />} />
+          <Route path="/asr" element={<RecordingPage />} />
+          <Route path="/tts-config" element={<TTSConfigPage />} />
+          <Route path="/tts" element={<TTSPage />} />
+          <Route path="/menu" element={<AssistantMenuPage />} />
+          <Route path="/file-actions" element={<FileActionsMenu />} />
+          <Route
+            path="/settings"
+            element={
+              <SettingsPage
+                extraCategories={[
+                  {
+                    id: 'extensions',
+                    label: '机能扩展',
+                    icon: TbSparkles,
+                    description: '自由移动、日常关怀、角色包和精灵能力',
+                    component: <ExtensionSettings />
+                  }
+                ]}
+              />
+            }
+          />
+          <Route path="/workspace-wizard" element={<WorkspaceWizard />} />
+          <Route path="/resources/*" element={<ResourcePage />} />
+          <Route path="/inventory" element={<InventoryPage />} />
+          <Route path="/workspace" element={<WorkspacePage />} />
+          <Route path="/assistant" element={<AssistantPage />} />
+          <Route path="/assistant-mini" element={<AssistantPage mode="mini" />} />
+          <Route path="/chat" element={<ChatPage />} />
+          <Route path="/chat-overlay" element={<ChatPage presentation="overlay" payloadWindowKey="chatOverlay" />} />
+          <Route path="/plugin-manager" element={<PluginPage />} />
+          <Route path="/plugin-download" element={<PluginDownloadPage />} />
+          <Route path="/workflow" element={<WorkflowBuilderPage />} />
+          <Route path="/workflow/:id" element={<WorkflowBuilderPage />} />
+          <Route path="/workflow-page" element={<WorkflowPage />} />
+          <Route path="/screenshot" element={<Screenshot />} />
+          <Route path="/workflow-history" element={<WorkflowHistoryPage />} />
+          <Route path="/ai-provider-config" element={<AiProviderConfigWindow />} />
+          <Route path="/tagger" element={<TaggingPage />} />
+          <Route path="/resource-preview" element={<ResourcePreviewWindow />} />
+          <Route path="/download" element={<DownloadFloating />} />
+          <Route path="/skill-tree" element={<SkillTreeSettings />} />
+          <Route path="/level-up" element={<LevelUpPage />} />
+          <Route path="/achievement-unlock" element={<AchievementUnlockPage />} />
+          <Route path="/quest-list" element={<QuestListPage />} />
+          <Route path="/web-recorder" element={<WebRecorderWindow />} />
+          <Route path="/memory-graph" element={<MemoryGraphPage />} />
+          <Route path="/character-pack-editor" element={<SpritePackEditorWindow />} />
+          <Route path="/window-animation-editor" element={<WindowAnimationEditor />} />
+          <Route path="/sprite-bubble" element={<SpriteBubblePage />} />
+          <Route path="/sprite-effect" element={<SpriteEffectPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+        <Toaster />
+        <WorkflowStartInputSheet />
+      </div>
+    </ChatSelectionProvider>
+  );
+}
+
+function AppRoutes(): JSX.Element {
+  const location = useLocation();
+  const isAchievementUnlockWindow = location.pathname === '/achievement-unlock';
+
+  if (isAchievementUnlockWindow) {
+    return (
+      <div className="w-full h-full overflow-hidden bg-transparent">
+        <Routes>
+          <Route path="/achievement-unlock" element={<AchievementUnlockPage />} />
+          <Route path="*" element={<Navigate to="/achievement-unlock" replace />} />
+        </Routes>
+      </div>
+    );
+  }
+
+  return <StandardAppRoutes />;
+}
+
+function App(): JSX.Element {
+  return (
     <ThemeProvider>
       <HashRouter>
-        <ChatSelectionProvider>
-          <TooltipProvider delayDuration={0}>
-            <div className="w-full h-full overflow-hidden">
-              <Routes>
-                <Route path="/" element={<AIAssistant />} />
-                <Route path="/status" element={<StatusPage />} />
-                <Route path="/asr-config" element={<ASRConfigPage />} />
-                <Route path="/asr" element={<RecordingPage />} />
-                <Route path="/tts-config" element={<TTSConfigPage />} />
-                <Route path="/tts" element={<TTSPage />} />
-                <Route path="/menu" element={<AssistantMenuPage />} />
-                <Route path="/file-actions" element={<FileActionsMenu />} />
-                <Route
-                  path="/settings"
-                  element={
-                    <SettingsPage
-                      extraCategories={[
-                        {
-                          id: 'extensions',
-                          label: '机能扩展',
-                          icon: TbSparkles,
-                          description: '自由移动、日常关怀、角色包和精灵能力',
-                          component: <ExtensionSettings />
-                        }
-                      ]}
-                    />
-                  }
-                />
-                <Route path="/workspace-wizard" element={<WorkspaceWizard />} />
-                <Route path="/resources/*" element={<ResourcePage />} />
-                <Route path="/inventory" element={<InventoryPage />} />
-                <Route path="/workspace" element={<WorkspacePage />} />
-                <Route path="/assistant" element={<AssistantPage />} />
-                <Route path="/assistant-mini" element={<AssistantPage mode="mini" />} />
-                <Route path="/chat" element={<ChatPage />} />
-                <Route path="/chat-overlay" element={<ChatPage presentation="overlay" payloadWindowKey="chatOverlay" />} />
-                <Route path="/plugin-manager" element={<PluginPage />} />
-                <Route path="/plugin-download" element={<PluginDownloadPage />} />
-                <Route path="/workflow" element={<WorkflowBuilderPage />} />
-                <Route path="/workflow/:id" element={<WorkflowBuilderPage />} />
-                <Route path="/workflow-page" element={<WorkflowPage />} />
-                <Route path="/screenshot" element={<Screenshot />} />
-                <Route path="/workflow-history" element={<WorkflowHistoryPage />} />
-                <Route path="/ai-provider-config" element={<AiProviderConfigWindow />} />
-                <Route path="/tagger" element={<TaggingPage />} />
-                <Route path="/resource-preview" element={<ResourcePreviewWindow />} />
-                <Route path="/download" element={<DownloadFloating />} />
-                <Route path="/skill-tree" element={<SkillTreeSettings />} />
-                <Route path="/level-up" element={<LevelUpPage />} />
-                <Route path="/achievement-unlock" element={<AchievementUnlockPage />} />
-                <Route path="/quest-list" element={<QuestListPage />} />
-                <Route path="/web-recorder" element={<WebRecorderWindow />} />
-                <Route path="/memory-graph" element={<MemoryGraphPage />} />
-                <Route path="/character-pack-editor" element={<SpritePackEditorWindow />} />
-                <Route path="/window-animation-editor" element={<WindowAnimationEditor />} />
-                <Route path="/sprite-bubble" element={<SpriteBubblePage />} />
-                <Route path="/sprite-effect" element={<SpriteEffectPage />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-              <Toaster />
-              <WorkflowStartInputSheet />
-            </div>
-          </TooltipProvider>
-        </ChatSelectionProvider>
+        <TooltipProvider delayDuration={0}>
+          <AppRoutes />
+        </TooltipProvider>
       </HashRouter>
     </ThemeProvider>
   );
