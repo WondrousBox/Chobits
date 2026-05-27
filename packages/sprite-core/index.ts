@@ -127,6 +127,38 @@ export {
 } from './capability-runtime';
 export type { CharacterCapabilityContextFlags } from './character-capability-flags';
 export { CHARACTER_PACK_ARCHIVE_EXTENSION, CHARACTER_PACK_ARCHIVE_EXTENSION_NAME } from './character-pack-archive';
+export type {
+  CharacterGalleryAIEditContext,
+  CharacterGalleryAIHints,
+  CharacterGalleryImageRef,
+  CharacterGalleryIndex,
+  CharacterGalleryItem,
+  CharacterGalleryItemDraft,
+  CharacterGalleryItemKind,
+  CharacterGalleryItemOrigin,
+  CharacterGalleryItemPatch,
+  CharacterGalleryOriginType,
+  CharacterGalleryReferenceRole,
+  CharacterGallerySemantic,
+  CharacterGalleryViewAngle
+} from './character-gallery';
+export {
+  CHARACTER_GALLERY_ITEM_KINDS,
+  CHARACTER_GALLERY_REFERENCE_ROLES,
+  CHARACTER_GALLERY_VIEW_ANGLES,
+  CHARACTER_GALLERY_INDEX_VERSION,
+  DEFAULT_CHARACTER_GALLERY_INDEX_PATH,
+  getCharacterGalleryImageMimeFromPath,
+  isSupportedCharacterGalleryImagePath,
+  normalizeCharacterGalleryAIHints,
+  normalizeCharacterGalleryIndex,
+  normalizeCharacterGalleryItem,
+  normalizeCharacterGalleryItemDraft,
+  normalizeCharacterGalleryItemId,
+  normalizeCharacterGalleryItemPatch,
+  normalizeCharacterGalleryKind,
+  normalizeCharacterGallerySemantic
+} from './character-gallery';
 export type { CharacterPackDigestVerification, CharacterPackDigestVerificationStatus } from './character-pack-integrity';
 export { assessCharacterPackDigest, calculateCharacterPackPayloadDigest, verifyCharacterPackDigest } from './character-pack-integrity';
 export type {

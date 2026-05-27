@@ -211,6 +211,7 @@ export interface CharacterDefinition {
 export interface CharacterPackAssets {
   character?: string;
   animations?: string;
+  gallery?: string;
   voices?: string;
   preview?: {
     avatar?: string;

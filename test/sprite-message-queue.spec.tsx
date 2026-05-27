@@ -45,13 +45,71 @@ describe('useMessageQueue', () => {
       vi.setSystemTime(1700000005000);
       queue?.showToast({
         category: 'message',
-        content: '快速开始会默认创建到文档文件夹。',
+        content: '快速开始会默认创建到文档中',
         duration: 4200
       });
       await Promise.resolve();
     });
 
-    expect((env.container.firstChild as any).getAttribute('data-content')).toBe('快速开始会默认创建到文档文件夹。');
+    expect((env.container.firstChild as any).getAttribute('data-content')).toBe('快速开始会默认创建到文档中');
+
+    await act(async () => {
+      root.unmount();
+      await Promise.resolve();
+    });
+    env.cleanup();
+  });
+
+  it('does not restore an older toast after a newer toast expires', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1700000000000);
+
+    const { act } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+    const { useMessageQueue } = await import('../src/features/sprite-assistant/message/useMessageQueue');
+
+    const env = installMiniDom();
+    let queue: ReturnType<typeof useMessageQueue> | null = null;
+
+    function Probe(): JSX.Element {
+      queue = useMessageQueue();
+      return <div data-content={queue.current?.content ?? ''} />;
+    }
+
+    const root = createRoot(env.container as any);
+
+    await act(async () => {
+      root.render(<Probe />);
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      queue?.showToast({
+        category: 'message',
+        content: '旧提示',
+        duration: 5000
+      });
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      vi.setSystemTime(1700000001000);
+      queue?.showToast({
+        category: 'message',
+        content: '新提示',
+        duration: 1000
+      });
+      await Promise.resolve();
+    });
+
+    expect((env.container.firstChild as any).getAttribute('data-content')).toBe('新提示');
+
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+      await Promise.resolve();
+    });
+
+    expect((env.container.firstChild as any).getAttribute('data-content')).toBe('');
 
     await act(async () => {
       root.unmount();
@@ -152,7 +210,7 @@ describe('useMessageQueue', () => {
     env.cleanup();
   });
 
-  it('still dedupes preset category toasts', async () => {
+  it('replaces preset category toasts with the latest toast', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(1700000000000);
 
@@ -194,7 +252,7 @@ describe('useMessageQueue', () => {
       await Promise.resolve();
     });
 
-    expect((env.container.firstChild as any).getAttribute('data-content')).toBe('第一次完成');
+    expect((env.container.firstChild as any).getAttribute('data-content')).toBe('第二次完成');
 
     await act(async () => {
       root.unmount();

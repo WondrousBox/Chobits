@@ -171,7 +171,7 @@
       "onboarding.workspace.create.growth-promise": ["我会陪伴你学习和工作，一起共同成长。"],
       "onboarding.workspace.create.invite": ["先创建工作空间吧"],
       "onboarding.workspace.create.workspace-intro": ["工作空间会存放所有重要的数据。"],
-      "onboarding.workspace.create.quickstart-tip": ["快速开始会默认创建到文档文件夹。"],
+      "onboarding.workspace.create.quickstart-tip": ["快速开始会默认创建到文档中"],
       "onboarding.workspace.create.done": ["工作空间建好啦！我可以做更多事情啦。"],
       "onboarding.workspace.create.closed-without-create": ["还没有创建工作空间哦。"],
       "onboarding.file.drop.invite": ["可以把文件拖拽给我"],

@@ -9,6 +9,7 @@ import { CHARACTER_PACK_ARCHIVE_EXTENSION } from './character-pack-archive';
 import { assessCharacterPackDigest, calculateCharacterPackPayloadDigest, type CharacterPackDigestVerification } from './character-pack-integrity';
 import { isPathContainedByRoot, isResolvedPathContainedByRoot, resolvePackRelativeAssetPath, resolvePackRelativeAssetPathWithDiagnostics } from './character-pack-paths';
 import { type CharacterPackSignatureVerification, type CharacterPackTrustRoot, loadCharacterPackTrustRoot, verifyCharacterPackSignature } from './character-pack-signature';
+import { DEFAULT_CHARACTER_GALLERY_INDEX_PATH } from './character-gallery';
 import type {
   CharacterDefinition,
   CharacterMessageTemplateEntry,
@@ -49,6 +50,7 @@ export type CharacterPackTrustLinkLabel = 'homepage' | 'repository' | 'support' 
 export interface ResolvedCharacterPackAssets {
   character?: string;
   animations?: string;
+  gallery?: string;
   voices?: string;
   preview?: {
     avatar?: string;
@@ -112,6 +114,7 @@ export interface CharacterPackImportWarning {
   code:
     | 'missing-character-asset'
     | 'missing-animation-asset'
+    | 'missing-gallery-asset'
     | 'missing-voice-asset'
     | 'asset-path-outside-pack'
     | 'signature-digest-unverified'
@@ -230,6 +233,7 @@ interface ActiveCharacterPackState {
 const SUPPORTED_CHARACTER_PACK_FORMAT_VERSION = 1;
 const IMPORT_PREVIEW_CACHE_LIMIT = 24;
 const EDITOR_ANIMATION_INDEX_PATH = 'animations/index.json';
+const EDITOR_GALLERY_INDEX_PATH = DEFAULT_CHARACTER_GALLERY_INDEX_PATH;
 const WINDOWS_ABSOLUTE_ARCHIVE_PATH_PATTERN = /^[a-zA-Z]:[\\/]/;
 const MAX_CHARACTER_PACK_ARCHIVE_ENTRIES = 2_000;
 const MAX_CHARACTER_PACK_ARCHIVE_ENTRY_SIZE_BYTES = 256 * 1024 * 1024;
@@ -324,6 +328,7 @@ function normalizePackAssets(value: unknown): CharacterPackAssets | undefined {
   const assets: CharacterPackAssets = {
     ...(typeof value.character === 'string' ? { character: value.character } : {}),
     ...(typeof value.animations === 'string' ? { animations: value.animations } : {}),
+    ...(typeof value.gallery === 'string' ? { gallery: value.gallery } : {}),
     ...(typeof value.voices === 'string' ? { voices: value.voices } : {}),
     ...(preview && Object.keys(preview).length > 0 ? { preview } : {})
   };
@@ -644,6 +649,7 @@ function resolvePackRelativeAsset(rootDir: string, candidate: unknown): string |
 function resolveCharacterPackAssets(rootDir: string, assets?: CharacterPackAssets): ResolvedCharacterPackAssets {
   const character = resolvePackRelativeAsset(rootDir, assets?.character);
   const animations = resolvePackRelativeAsset(rootDir, assets?.animations);
+  const gallery = resolvePackRelativeAsset(rootDir, assets?.gallery);
   const voices = resolvePackRelativeAsset(rootDir, assets?.voices);
   const previewAvatar = resolvePackRelativeAsset(rootDir, assets?.preview?.avatar);
   const previewGif = resolvePackRelativeAsset(rootDir, assets?.preview?.gif);
@@ -657,6 +663,7 @@ function resolveCharacterPackAssets(rootDir: string, assets?: CharacterPackAsset
   return {
     ...(character ? { character } : {}),
     ...(animations ? { animations } : {}),
+    ...(gallery ? { gallery } : {}),
     ...(voices ? { voices } : {}),
     ...(Object.keys(preview).length > 0 ? { preview } : {})
   };
@@ -842,6 +849,7 @@ function collectOutsidePackAssetPaths(pack: CharacterPackSummary): CharacterPack
 
   check('character', pack.assets?.character, true);
   check('animations', pack.assets?.animations, true);
+  check('gallery', pack.assets?.gallery, false);
   check('voices', pack.assets?.voices, false);
   check('preview.avatar', pack.assets?.preview?.avatar, false);
   check('preview.gif', pack.assets?.preview?.gif, false);
@@ -911,6 +919,13 @@ function collectCharacterPackImportWarnings(
     warnings.push({
       code: 'missing-animation-asset',
       message: `pack.json 声明的 animations 索引不存在：${pack.assets.animations}`
+    });
+  }
+
+  if (pack.assets?.gallery && !outsideAssetFields.has('gallery') && (!pack.resolvedAssets.gallery || !fs.existsSync(pack.resolvedAssets.gallery))) {
+    warnings.push({
+      code: 'missing-gallery-asset',
+      message: `pack.json 声明的 gallery 索引不存在：${pack.assets.gallery}`
     });
   }
 
@@ -1542,7 +1557,8 @@ function buildEditorPackDefinition(basePack: CharacterPackSummary | null, draft:
   const assets: CharacterPackAssets = {
     ...(baseAssets ?? {}),
     character: 'character.json',
-    animations: options.resetAnimations ? EDITOR_ANIMATION_INDEX_PATH : (baseAssets?.animations ?? EDITOR_ANIMATION_INDEX_PATH)
+    animations: options.resetAnimations ? EDITOR_ANIMATION_INDEX_PATH : (baseAssets?.animations ?? EDITOR_ANIMATION_INDEX_PATH),
+    gallery: baseAssets?.gallery ?? EDITOR_GALLERY_INDEX_PATH
   };
 
   return {
@@ -1639,6 +1655,23 @@ async function ensureEmptyAnimationIndex(rootDir: string, declaredPath: string):
 
 async function ensureAnimationIndexExists(rootDir: string, declaredPath: string): Promise<void> {
   const indexPath = normalizeAnimationIndexPath(rootDir, declaredPath);
+  if (fs.existsSync(indexPath)) {
+    return;
+  }
+
+  await writeJsonFile(indexPath, {
+    version: 1,
+    items: []
+  });
+}
+
+async function ensureGalleryIndexExists(rootDir: string, declaredPath: string): Promise<void> {
+  const resolvedPath = resolvePackRelativeAssetPath(rootDir, declaredPath);
+  if (!resolvedPath) {
+    throw new Error(`Gallery index path must stay inside character pack: ${declaredPath}`);
+  }
+
+  const indexPath = path.extname(resolvedPath).toLowerCase() === '.json' ? resolvedPath : path.join(resolvedPath, 'index.json');
   if (fs.existsSync(indexPath)) {
     return;
   }
@@ -1989,6 +2022,9 @@ export class CharacterPackManager {
         } else {
           await ensureEmptyAnimationIndex(stagingRootDir, packDefinition.assets.animations);
         }
+      }
+      if (packDefinition.assets?.gallery) {
+        await ensureGalleryIndexExists(stagingRootDir, packDefinition.assets.gallery);
       }
       await assertCharacterPackDirectorySafe(stagingRootDir);
 

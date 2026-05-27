@@ -73,6 +73,14 @@ import {
   resetCharacterPackManager,
   saveCharacterPackEditorDraft
 } from '../packages/sprite-core/character-pack-manager';
+import {
+  buildCharacterGalleryAIEditContext,
+  importCharacterGalleryItem,
+  listCharacterGalleryItems,
+  removeCharacterGalleryItem,
+  replaceCharacterGalleryItemImage,
+  updateCharacterGalleryItem
+} from '../packages/sprite-core/character-gallery-manager';
 import { createCharacterPackSignaturePayload } from '../packages/sprite-core/character-pack-signature';
 import { CHARACTER_MESSAGE_SPECS, CHARACTER_PROGRESS_KIND_LABEL_SPECS, CHARACTER_PROGRESS_MESSAGE_SPECS, getCharacterMessageTemplateLines } from '../packages/sprite-core/messages/default-character';
 
@@ -1179,10 +1187,15 @@ describe('character pack manager', () => {
     });
     expect(pack.assets).toMatchObject({
       character: 'character.json',
-      animations: 'animations/index.json'
+      animations: 'animations/index.json',
+      gallery: 'gallery/index.json'
     });
     expect(pack.assets.preview).toBeUndefined();
     expect(animationIndex).toEqual({
+      version: 1,
+      items: []
+    });
+    expect(JSON.parse(readFileSync(path.join(installedRoot, 'gallery/index.json'), 'utf-8'))).toEqual({
       version: 1,
       items: []
     });
@@ -1275,6 +1288,233 @@ describe('character pack manager', () => {
     expect(getCharacterMessageTemplateLines(character.messages.events.appear)).toEqual(['咱来了。', '已经就位。']);
     expect(character.messages.routines['file.drop.intake.selected']).toBe('交给我吧。');
     expectCharacterMessagesCoverSpecs(character.messages);
+  });
+
+  it('imports, updates, replaces and removes installed character gallery items', async () => {
+    tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
+    const builtinRoot = path.join(tempRoot, 'builtin-pack');
+    const userDataDir = path.join(tempRoot, 'user-data');
+    const sourceImage = path.join(tempRoot, 'idle-front.png');
+    const replacementImage = path.join(tempRoot, 'idle-front-edited.png');
+
+    writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
+    const onePixelPng = Buffer.from(
+      '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082',
+      'hex'
+    );
+    writeFileSync(sourceImage, onePixelPng);
+    writeFileSync(replacementImage, onePixelPng);
+
+    initCharacterPackManager({
+      userDataDir,
+      builtinPackRootDir: builtinRoot,
+      appVersion: '1.0.0'
+    });
+
+    await saveCharacterPackEditorDraft(
+      {
+        pack: {
+          id: 'custom-gallery',
+          name: 'Custom Gallery',
+          version: '1.0.0',
+          author: 'test',
+          description: 'custom gallery',
+          license: 'Custom',
+          tags: ['custom'],
+          platform: [process.platform]
+        },
+        character: {
+          id: 'custom-gallery',
+          name: 'Custom Gallery',
+          nameAliases: [],
+          tagline: 'Custom tagline',
+          background: 'Custom background',
+          coreTraits: ['warm'],
+          boundaries: ['kind'],
+          speechTone: 'gentle',
+          language: 'zh-CN',
+          firstPerson: '我',
+          addressUser: '你',
+          quirks: [],
+          speechExamples: [],
+          metaDescription: 'custom gallery',
+          metaTags: ['custom']
+        }
+      },
+      {
+        basePackId: 'pack-alpha',
+        basePackSource: 'builtin',
+        activate: true
+      }
+    );
+
+    const imported = await importCharacterGalleryItem({
+      filePath: sourceImage,
+      draft: {
+        title: 'Idle Front',
+        kind: 'pose',
+        semantic: {
+          action: 'idle',
+          view: 'front'
+        },
+        tags: ['idle', 'front'],
+        ai: {
+          referenceRole: 'character',
+          preserveIdentity: true,
+          promptHint: 'Keep character identity.'
+        }
+      }
+    });
+    const installedRoot = path.join(userDataDir, 'data', 'character-packs', 'custom-gallery');
+
+    expect(imported.item).toMatchObject({
+      id: 'idle-front',
+      title: 'Idle Front',
+      kind: 'pose',
+      semantic: {
+        action: 'idle',
+        view: 'front'
+      }
+    });
+    expect(imported.item.source.localPath.startsWith(installedRoot + path.sep)).toBe(true);
+    expect(existsSync(imported.item.source.localPath)).toBe(true);
+
+    const listed = await listCharacterGalleryItems();
+    expect(listed?.items).toHaveLength(1);
+    expect(JSON.parse(readFileSync(path.join(installedRoot, 'gallery/index.json'), 'utf-8')).items[0].source.localPath).toBe('gallery/images/idle-front.png');
+
+    const updated = await updateCharacterGalleryItem(imported.item.id, {
+      title: 'Idle Front Updated',
+      kind: 'action',
+      semantic: {
+        action: 'idle',
+        view: 'front',
+        emotion: 'neutral'
+      },
+      tags: ['idle', 'front', 'updated']
+    });
+    expect(updated).toMatchObject({
+      ok: true,
+      item: {
+        title: 'Idle Front Updated',
+        kind: 'action',
+        tags: ['idle', 'front', 'updated']
+      }
+    });
+
+    const replaced = await replaceCharacterGalleryItemImage(imported.item.id, {
+      filePath: replacementImage,
+      origin: {
+        type: 'ai-edited',
+        parentId: imported.item.id,
+        prompt: 'local repaint'
+      }
+    });
+    expect(replaced.ok).toBe(true);
+    expect(replaced.item?.origin).toMatchObject({
+      type: 'ai-edited',
+      parentId: imported.item.id
+    });
+
+    const aiContext = await buildCharacterGalleryAIEditContext({
+      itemIds: [imported.item.id],
+      prompt: 'Make a storyboard frame.'
+    });
+    expect(aiContext).toMatchObject({
+      prompt: 'Make a storyboard frame.',
+      images: [
+        {
+          id: imported.item.id,
+          title: 'Idle Front Updated',
+          kind: 'action',
+          mimeType: 'image/png'
+        }
+      ]
+    });
+
+    const removed = await removeCharacterGalleryItem(imported.item.id);
+    expect(removed).toEqual({ ok: true });
+    expect((await listCharacterGalleryItems())?.items).toHaveLength(0);
+  });
+
+  it('only cleans files managed by the character gallery directories', async () => {
+    tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
+    const builtinRoot = path.join(tempRoot, 'builtin-pack');
+    const userDataDir = path.join(tempRoot, 'user-data');
+    const sourceImage = path.join(tempRoot, 'idle-front.png');
+    const onePixelPng = Buffer.from(
+      '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082',
+      'hex'
+    );
+
+    writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
+    writeFileSync(sourceImage, onePixelPng);
+
+    initCharacterPackManager({
+      userDataDir,
+      builtinPackRootDir: builtinRoot,
+      appVersion: '1.0.0'
+    });
+
+    await saveCharacterPackEditorDraft(
+      {
+        pack: {
+          id: 'custom-gallery-cleanup',
+          name: 'Custom Gallery Cleanup',
+          version: '1.0.0',
+          author: 'test',
+          description: 'custom gallery cleanup',
+          license: 'Custom',
+          tags: ['custom'],
+          platform: [process.platform]
+        },
+        character: {
+          id: 'custom-gallery-cleanup',
+          name: 'Custom Gallery Cleanup',
+          nameAliases: [],
+          tagline: 'Custom tagline',
+          background: 'Custom background',
+          coreTraits: ['warm'],
+          boundaries: ['kind'],
+          speechTone: 'gentle',
+          language: 'zh-CN',
+          firstPerson: '我',
+          addressUser: '你',
+          quirks: [],
+          speechExamples: [],
+          metaDescription: 'custom gallery cleanup',
+          metaTags: ['custom']
+        }
+      },
+      {
+        basePackId: 'pack-alpha',
+        basePackSource: 'builtin',
+        activate: true
+      }
+    );
+
+    const installedRoot = path.join(userDataDir, 'data', 'character-packs', 'custom-gallery-cleanup');
+    const protectedAsset = path.join(installedRoot, 'preview', 'avatar.png');
+    mkdirSync(path.dirname(protectedAsset), { recursive: true });
+    writeFileSync(protectedAsset, onePixelPng);
+
+    const imported = await importCharacterGalleryItem({
+      filePath: sourceImage,
+      draft: {
+        title: 'Idle Front',
+        kind: 'pose'
+      }
+    });
+
+    const indexPath = path.join(installedRoot, 'gallery', 'index.json');
+    const index = JSON.parse(readFileSync(indexPath, 'utf-8'));
+    index.items[0].source.localPath = 'preview/avatar.png';
+    writeFileSync(indexPath, `${JSON.stringify(index, null, 2)}\n`, 'utf-8');
+
+    expect((await listCharacterGalleryItems())?.items[0].source.localPath).toBe(protectedAsset);
+    await removeCharacterGalleryItem(imported.item.id);
+
+    expect(existsSync(protectedAsset)).toBe(true);
   });
 
   it('removes an inactive installed pack and keeps the current active pack unchanged', async () => {

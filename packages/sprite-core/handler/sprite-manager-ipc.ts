@@ -61,6 +61,16 @@ import {
   removeCharacterPack,
   saveCharacterPackEditorDraft
 } from '../character-pack-manager';
+import {
+  buildCharacterGalleryAIEditContext,
+  importCharacterGalleryItem,
+  initCharacterGalleryManager,
+  listCharacterGalleryItems,
+  removeCharacterGalleryItem,
+  replaceCharacterGalleryItemImage,
+  updateCharacterGalleryItem,
+  type CharacterGalleryAIEditDraft
+} from '../character-gallery-manager';
 import { type CharacterPersonaRuntimeSyncResult, reloadCharacterPersonaRuntime, syncCharacterPersonaRuntime } from '../character-runtime';
 import { buildCharacterPersonaPrompt, getCharacterDefinition, getCharacterInfo, getCharacterToolLabels, initCharacterService, type ToolLabelDefinition } from '../character-service';
 import type { PersonaRewardGrant } from '../config/persona-rules';
@@ -286,6 +296,9 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   mgr.setWindowController(windowCtrl);
   initSpriteCapabilityRuntime({
     resolveContext: () => resolveCapabilityContext()
+  });
+  initCharacterGalleryManager({
+    addAllowedResourceRoot: deps.addAllowedResourceRoot
   });
 
   async function syncCharacterToolLabels(): Promise<void> {
@@ -961,6 +974,88 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       runtime: reload.runtime,
       personaSlot: reload.personaSlot
     };
+  });
+
+  ipcMain.handle('sprite:character:gallery:list', async (_e, payload: { packId?: string; source?: CharacterPackSource; query?: string } = {}) => {
+    return listCharacterGalleryItems(payload);
+  });
+
+  ipcMain.handle(
+    'sprite:character:gallery:import',
+    async (
+      _e,
+      payload: {
+        packId?: string;
+        source?: CharacterPackSource;
+        filePath: string;
+        draft?: Parameters<typeof importCharacterGalleryItem>[0]['draft'];
+      }
+    ) => {
+      assertSpriteCapabilityUnlocked('spriteManage');
+      return importCharacterGalleryItem(payload);
+    }
+  );
+
+  ipcMain.handle(
+    'sprite:character:gallery:update',
+    async (
+      _e,
+      payload: {
+        packId?: string;
+        source?: CharacterPackSource;
+        itemId: string;
+        patch: Parameters<typeof updateCharacterGalleryItem>[1];
+      }
+    ) => {
+      assertSpriteCapabilityUnlocked('spriteManage');
+      return updateCharacterGalleryItem(payload.itemId, payload.patch, {
+        packId: payload.packId,
+        source: payload.source
+      });
+    }
+  );
+
+  ipcMain.handle(
+    'sprite:character:gallery:replaceImage',
+    async (
+      _e,
+      payload: {
+        packId?: string;
+        source?: CharacterPackSource;
+        itemId: string;
+        filePath: string;
+        origin?: Parameters<typeof replaceCharacterGalleryItemImage>[1]['origin'];
+      }
+    ) => {
+      assertSpriteCapabilityUnlocked('spriteManage');
+      return replaceCharacterGalleryItemImage(
+        payload.itemId,
+        {
+          filePath: payload.filePath,
+          origin: payload.origin
+        },
+        {
+          packId: payload.packId,
+          source: payload.source
+        }
+      );
+    }
+  );
+
+  ipcMain.handle('sprite:character:gallery:remove', async (_e, payload: { packId?: string; source?: CharacterPackSource; itemId: string; deleteFile?: boolean }) => {
+    assertSpriteCapabilityUnlocked('spriteManage');
+    return removeCharacterGalleryItem(payload.itemId, {
+      packId: payload.packId,
+      source: payload.source,
+      deleteFile: payload.deleteFile
+    });
+  });
+
+  ipcMain.handle('sprite:character:gallery:buildAIEditContext', async (_e, payload: { packId?: string; source?: CharacterPackSource; draft: CharacterGalleryAIEditDraft }) => {
+    return buildCharacterGalleryAIEditContext(payload.draft, {
+      packId: payload.packId,
+      source: payload.source
+    });
   });
 
   ipcMain.handle('sprite:character:reload', async () => {

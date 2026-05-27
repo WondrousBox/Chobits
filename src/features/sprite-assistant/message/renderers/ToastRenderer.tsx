@@ -13,7 +13,6 @@ import { ChevronRight } from 'lucide-react';
 import React from 'react';
 
 import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 import type { MessageCategory } from '../../types';
 import type { MessageButton, ToastMessage } from '../types';
@@ -73,25 +72,11 @@ export function ToastRenderer({ message, onButtonClick, className, placement = '
       )}
     >
       {hasText && <span className={clsx(message.nextAction && 'min-w-0 flex-1', hasImage && 'mb-1 px-2 pt-1 text-left')}>{displayText}</span>}
-      {hasImage && (
-        <img
-          src={image!.url}
-          alt={image!.alt || image!.title || displayText || '表情包'}
-          draggable={false}
-          className="block max-h-[200px] max-w-[200px] object-contain"
-        />
-      )}
+      {hasImage && <img src={image!.url} alt={image!.alt || image!.title || displayText || '表情包'} draggable={false} className="block max-h-[200px] max-w-[200px] object-contain" />}
       {message.nextAction && (
-        <TooltipProvider delayDuration={120}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button size="sm" variant="ghost" className="h-8 w-8 shrink-0 rounded-full" onClick={() => onButtonClick?.(message.nextAction!)}>
-                <ChevronRight />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{message.nextAction.label || '下一句'}</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Button size="sm" variant="ghost" className={clsx(['h-8 w-8 shrink-0 rounded-full', levelStyles[level], 'bg-transparent'])} onClick={() => onButtonClick?.(message.nextAction!)}>
+          <ChevronRight />
+        </Button>
       )}
     </div>
   );

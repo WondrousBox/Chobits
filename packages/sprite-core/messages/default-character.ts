@@ -436,7 +436,7 @@ export const CHARACTER_MESSAGE_SPECS = [
     key: 'onboarding.workspace.create.quickstart-tip',
     label: '工作空间快速创建提示',
     maxItems: 4,
-    neutral: () => ['快速开始会默认创建到文档文件夹。']
+    neutral: () => ['快速开始会默认创建到文档中']
   },
   {
     field: 'workspaceCreateDone',

@@ -3,6 +3,21 @@
  * 保持向后兼容，所有类型定义已迁移至 packages/sprite-core/types.ts
  */
 export type {
+  CharacterGalleryAIEditContext,
+  CharacterGalleryAIHints,
+  CharacterGalleryImageRef,
+  CharacterGalleryIndex,
+  CharacterGalleryItem,
+  CharacterGalleryItemDraft,
+  CharacterGalleryItemKind,
+  CharacterGalleryItemOrigin,
+  CharacterGalleryItemPatch,
+  CharacterGalleryOriginType,
+  CharacterGalleryReferenceRole,
+  CharacterGallerySemantic,
+  CharacterGalleryViewAngle
+} from '@packages/sprite-core/character-gallery';
+export type {
   MessageCatalog,
   MessageCategory,
   MessageProducer,
@@ -21,6 +36,22 @@ export type {
   SpriteEventType,
   SpriteTriggerOptions
 } from '@packages/sprite-core/types';
+export {
+  CHARACTER_GALLERY_ITEM_KINDS,
+  CHARACTER_GALLERY_REFERENCE_ROLES,
+  CHARACTER_GALLERY_VIEW_ANGLES,
+  DEFAULT_CHARACTER_GALLERY_INDEX_PATH,
+  getCharacterGalleryImageMimeFromPath,
+  isSupportedCharacterGalleryImagePath,
+  normalizeCharacterGalleryAIHints,
+  normalizeCharacterGalleryIndex,
+  normalizeCharacterGalleryItem,
+  normalizeCharacterGalleryItemDraft,
+  normalizeCharacterGalleryItemId,
+  normalizeCharacterGalleryItemPatch,
+  normalizeCharacterGalleryKind,
+  normalizeCharacterGallerySemantic
+} from '@packages/sprite-core/character-gallery';
 export {
   compileSpriteAnimationCondition,
   DEFAULT_SPRITE_ANIMATION_PLAYLIST_MODE,

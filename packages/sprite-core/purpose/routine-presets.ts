@@ -423,7 +423,7 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStep[] {
                         {
                           id: 'speak-workspace-quickstart-tip',
                           type: 'speak',
-                          text: getCharacterRoutineText('onboarding.workspace.create.quickstart-tip', undefined, '快速开始会默认创建到文档文件夹。'),
+                          text: getCharacterRoutineText('onboarding.workspace.create.quickstart-tip', undefined, '快速开始会默认创建到文档中'),
                           bubbleDuration: 4200,
                           cooldownKey: 'onboarding.workspace.create.quickstart-tip',
                           cooldownMs: WORKSPACE_CREATE_WINDOW_HELPER_COOLDOWN_MS

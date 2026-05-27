@@ -8,6 +8,7 @@ const ipcMainRemoveHandler = vi.fn((channel: string) => {
   ipcHandlers.delete(channel);
 });
 const browserWindowFromWebContents = vi.fn();
+const browserWindowGetAllWindows = vi.fn(() => []);
 const dynamicRequireMock = vi.fn(() => {
   throw new Error('uiohook unavailable in tests');
 });
@@ -18,6 +19,9 @@ const windowManagerState = {
   destroyAll: vi.fn(),
   get: vi.fn(),
   create: vi.fn(() => Promise.resolve(null)),
+  createOrShow: vi.fn(() => Promise.resolve(null)),
+  createOrShowOnDisplay: vi.fn(() => Promise.resolve(null)),
+  setOpener: vi.fn(),
   adjustMainWindowForPadding: vi.fn(),
   setAnchorWidth: vi.fn(),
   setAnchorHeight: vi.fn(),
@@ -31,6 +35,9 @@ vi.mock('@aim-packages/window-manager', () => ({
     destroyAll: (...args: any[]) => windowManagerState.destroyAll(...args),
     get: (...args: any[]) => windowManagerState.get(...args),
     create: (...args: any[]) => windowManagerState.create(...args),
+    createOrShow: (...args: any[]) => windowManagerState.createOrShow(...args),
+    createOrShowOnDisplay: (...args: any[]) => windowManagerState.createOrShowOnDisplay(...args),
+    setOpener: (...args: any[]) => windowManagerState.setOpener(...args),
     adjustMainWindowForPadding: (...args: any[]) => windowManagerState.adjustMainWindowForPadding(...args),
     setAnchorWidth: (...args: any[]) => windowManagerState.setAnchorWidth(...args),
     setAnchorHeight: (...args: any[]) => windowManagerState.setAnchorHeight(...args),
@@ -42,12 +49,17 @@ vi.mock('node:module', () => ({
   createRequire: () => dynamicRequireMock
 }));
 
+vi.mock('../electron/main/handlers/workspace/ipc-main', () => ({
+  emitWorkspaceWizardClosedIfStillEmpty: vi.fn()
+}));
+
 vi.mock('electron', () => ({
   app: {
     getAppPath: () => '/app'
   },
   BrowserWindow: Object.assign(vi.fn(), {
-    fromWebContents: (...args: unknown[]) => browserWindowFromWebContents(...args)
+    fromWebContents: (...args: unknown[]) => browserWindowFromWebContents(...args),
+    getAllWindows: (...args: unknown[]) => browserWindowGetAllWindows(...args)
   }),
   ipcMain: {
     handle: ipcMainHandle,
@@ -79,6 +91,8 @@ describe('window handlers', () => {
     ipcMainHandle.mockClear();
     ipcMainRemoveHandler.mockClear();
     browserWindowFromWebContents.mockReset();
+    browserWindowGetAllWindows.mockReset();
+    browserWindowGetAllWindows.mockReturnValue([]);
     dynamicRequireMock.mockClear();
     cursorPoint = { x: 0, y: 0 };
     Object.values(windowManagerState).forEach((mockFn) => mockFn.mockClear());
@@ -223,6 +237,43 @@ describe('window handlers', () => {
     });
     expect(windowManagerState.get).toHaveBeenCalledWith('chatOverlay');
     expect(targetWindow.setBounds).toHaveBeenCalledWith({ x: 10, y: 21, width: 560, height: 720 });
+  });
+
+  it('opens achievement unlock on the opener display at the top right', async () => {
+    const { initWindowHandlers } = await import('../electron/main/handlers/window');
+    const win = createWindowStub();
+    const sender = {};
+    const opener = {
+      isDestroyed: vi.fn(() => false),
+      getBounds: vi.fn(() => ({ x: 100, y: 200, width: 300, height: 300 }))
+    };
+    const achievementWindow = {
+      isDestroyed: vi.fn(() => false),
+      webContents: {
+        id: 42
+      },
+      once: vi.fn(),
+      setBounds: vi.fn()
+    };
+
+    browserWindowFromWebContents.mockReturnValue(opener);
+    windowManagerState.createOrShow.mockImplementation(async (_key: string, _payload: unknown, options?: { beforeShow?: (win: unknown) => void }) => {
+      options?.beforeShow?.(achievementWindow);
+      return achievementWindow;
+    });
+    initWindowHandlers(win);
+
+    const openWindow = ipcHandlers.get('window:open') as (event: { sender: unknown }, key: string, payload?: unknown) => Promise<boolean>;
+    await expect(openWindow({ sender }, 'achievementUnlock', { achievementId: 'first-workspace' })).resolves.toBe(true);
+
+    expect(windowManagerState.setOpener).toHaveBeenCalledWith('achievementUnlock', opener);
+    expect(windowManagerState.createOrShow).toHaveBeenCalledWith('achievementUnlock', { achievementId: 'first-workspace' }, expect.objectContaining({ beforeShow: expect.any(Function) }));
+    expect(achievementWindow.setBounds).toHaveBeenCalledWith({
+      x: 850,
+      y: 40,
+      width: 420,
+      height: 128
+    });
   });
 
   it('clamps sprite bubble resize requests before updating the window', async () => {
