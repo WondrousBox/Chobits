@@ -1,5 +1,12 @@
 import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
-import type { CharacterGalleryAIEditContext, CharacterGalleryItem, CharacterGalleryItemDraft, CharacterGalleryItemKind, CharacterGalleryReferenceRole, CharacterGalleryViewAngle } from '@packages/sprite-core/character-gallery';
+import type {
+  CharacterGalleryAIEditContext,
+  CharacterGalleryItem,
+  CharacterGalleryItemDraft,
+  CharacterGalleryItemKind,
+  CharacterGalleryReferenceRole,
+  CharacterGalleryViewAngle
+} from '@packages/sprite-core/character-gallery';
 import type { CharacterPackSource } from '@packages/sprite-core/character-pack-manager';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { TbEdit, TbPencil, TbPhotoPlus, TbRefresh, TbSend, TbTrash } from 'react-icons/tb';
@@ -16,6 +23,7 @@ import { ensureSpriteCapabilityAccessible, SpriteCapabilityLockedNotice } from '
 import { cn } from '@/lib/utils';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
+import CharacterImageStudio from './CharacterImageStudio';
 import { joinEditorLines, splitEditorLines } from './SpritePackEditorModel';
 
 interface CharacterGalleryManagerProps {
@@ -200,7 +208,8 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiContext, setAiContext] = useState<CharacterGalleryAIEditContext | null>(null);
   const canWrite = !!state?.pack.writable && assetAuthoringCapability?.status !== 'locked';
-  const lockedTitle = assetAuthoringCapability?.status === 'locked' ? `${assetAuthoringCapability.name} 尚未解锁` : state?.pack.writable === false ? '内置角色包需要另存为本地版本后才能编辑图集' : undefined;
+  const lockedTitle =
+    assetAuthoringCapability?.status === 'locked' ? `${assetAuthoringCapability.name} 尚未解锁` : state?.pack.writable === false ? '内置角色包需要另存为本地版本后才能编辑图集' : undefined;
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -265,13 +274,16 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
     setDialogMode('add');
   }, [ensureCanWrite]);
 
-  const openEditDialog = useCallback((item: CharacterGalleryItem): void => {
-    if (!ensureCanWrite()) return;
-    setSelected(item);
-    setPendingFilePath(null);
-    setDraft(draftFromItem(item));
-    setDialogMode('edit');
-  }, [ensureCanWrite]);
+  const openEditDialog = useCallback(
+    (item: CharacterGalleryItem): void => {
+      if (!ensureCanWrite()) return;
+      setSelected(item);
+      setPendingFilePath(null);
+      setDraft(draftFromItem(item));
+      setDialogMode('edit');
+    },
+    [ensureCanWrite]
+  );
 
   const closeDialog = useCallback((): void => {
     setDialogMode(null);
@@ -399,6 +411,16 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
     toast.success('AI 上下文已复制');
   }, [aiContext]);
 
+  const handleAIImageChanged = useCallback(
+    async (item?: CharacterGalleryItem): Promise<void> => {
+      await refresh();
+      if (item) {
+        setSelected(item);
+      }
+    },
+    [refresh]
+  );
+
   return (
     <TooltipProvider>
       <div className="space-y-4">
@@ -422,7 +444,9 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
         </div>
 
         {state?.pack.writable === false && (
-          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">当前是内置角色包，图集仅可预览。保存为本地自定义角色包后可以导入、替换和编辑图片。</div>
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+            当前是内置角色包，图集仅可预览。保存为本地自定义角色包后可以导入、替换和编辑图片。
+          </div>
         )}
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -511,6 +535,8 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
             )}
           </div>
         </div>
+
+        <CharacterImageStudio canWrite={canWrite} lockedTitle={lockedTitle} packId={packId} selected={selected} source={source} onChanged={handleAIImageChanged} />
 
         <Dialog open={!!dialogMode} onOpenChange={(open) => (!open ? closeDialog() : undefined)}>
           <DialogContent className="max-h-[88vh] max-w-3xl overflow-y-auto">

@@ -86,6 +86,13 @@ export async function resolvePiModelConfig(req: ChatRequest): Promise<{ preset?:
   const presetSecrets = (await getPresetSecrets(preset?.id, fields).catch(() => ({}))) as SecretValues;
   const mergedSecrets = { ...adapterSecrets, ...providerSecrets, ...presetSecrets };
   const apiKey = getFirstApiKey(mergedSecrets.apiKey);
+  const resolvedSecrets = Object.entries(mergedSecrets).reduce<Record<string, string>>((acc, [key, value]) => {
+    if (typeof value === 'string') acc[key] = value;
+    return acc;
+  }, {});
+  if (apiKey) {
+    resolvedSecrets.apiKey = apiKey;
+  }
   const defaultModel = getProviderDefinitionDefaultModel(provider.id, 'chat', '');
   const modelId = ((req.extras?.model as string | undefined) || (mergedSecrets.model as string | undefined) || defaultModel || '').trim();
 
@@ -99,10 +106,7 @@ export async function resolvePiModelConfig(req: ChatRequest): Promise<{ preset?:
       modelId,
       providerId: provider.id,
       providerLabel: provider.label,
-      secrets: Object.entries(mergedSecrets).reduce<Record<string, string>>((acc, [key, value]) => {
-        if (typeof value === 'string') acc[key] = value;
-        return acc;
-      }, {}),
+      secrets: resolvedSecrets,
       source: preset ? 'preset' : 'provider'
     }
   };

@@ -2,6 +2,7 @@ import type { BuiltinProviderDefinition } from '../types';
 import { anthropicDefinition } from './anthropic/definition';
 import { deepseekDefinition } from './deepseek/definition';
 import { geminiDefinition } from './gemini/definition';
+import { gpteamDefinition } from './gpteam/definition';
 import { minimaxDefinition } from './minimax/definition';
 import { ollamaDefinition } from './ollama/definition';
 import { openaiDefinition } from './openai/definition';
@@ -13,6 +14,7 @@ export const BUILTIN_PROVIDER_DEFINITIONS: BuiltinProviderDefinition[] = [
   anthropicDefinition,
   deepseekDefinition,
   geminiDefinition,
+  gpteamDefinition,
   minimaxDefinition,
   ollamaDefinition,
   openaiDefinition,
@@ -21,4 +23,4 @@ export const BUILTIN_PROVIDER_DEFINITIONS: BuiltinProviderDefinition[] = [
   zhipuDefinition
 ];
 
-export { anthropicDefinition, deepseekDefinition, geminiDefinition, minimaxDefinition, ollamaDefinition, openaiDefinition, qwenDefinition, zaiDefinition, zhipuDefinition };
+export { anthropicDefinition, deepseekDefinition, geminiDefinition, gpteamDefinition, minimaxDefinition, ollamaDefinition, openaiDefinition, qwenDefinition, zaiDefinition, zhipuDefinition };

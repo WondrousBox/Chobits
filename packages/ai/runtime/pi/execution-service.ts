@@ -11,6 +11,7 @@ import type {
   ChatResponse,
   EmbeddingRequest,
   EmbeddingResponse,
+  ImageEditRequest,
   ImageGenerationRequest,
   ImageGenerationResponse,
   LyricsGenerationRequest,
@@ -23,8 +24,8 @@ import type {
 } from '../../types';
 import type { PiRuntimeAvailability } from './contracts';
 import { PiImageGenerationService } from './image-generation-service';
-import { PiMusicGenerationService } from './music-generation-service';
 import { resolvePiModelConfig } from './model-resolver';
+import { PiMusicGenerationService } from './music-generation-service';
 import { PiSessionService } from './session-service';
 
 function forcePiRuntimeRequest(req: ChatRequest): ChatRequest {
@@ -77,10 +78,7 @@ function toAnalyticsUsage(usage?: TokenUsage): RecordAiUsageEventInput['usage'] 
   };
 }
 
-async function recordExecutionUsageEventSafely(
-  context: 'embed' | 'transcribe' | 'generateImage' | 'generateLyrics' | 'generateMusic',
-  input: RecordAiUsageEventInput
-): Promise<void> {
+async function recordExecutionUsageEventSafely(context: 'embed' | 'transcribe' | 'generateImage' | 'generateLyrics' | 'generateMusic', input: RecordAiUsageEventInput): Promise<void> {
   await emitAiUsageObservedEvent(input, { producer: `PiExecutionService:${context}` });
 }
 
@@ -515,6 +513,101 @@ export class PiExecutionService {
           quality: payload.quality || null,
           size: payload.size || null,
           imageCount: 1,
+          ...(usageOverride?.metadata || {})
+        }
+      });
+      throw error;
+    }
+  }
+
+  async generateImageArtifact(payload: ImageGenerationRequest): Promise<ImageGenerationResponse> {
+    return this.generateImage({
+      ...payload,
+      responseFormat: 'b64_json'
+    });
+  }
+
+  async editImage(payload: ImageEditRequest): Promise<ImageGenerationResponse> {
+    const providerPresetId = resolveProviderPresetId(payload);
+    const resolved = await this.resolveProviderCapability(payload.providerId, providerPresetId);
+
+    if (!supportsProviderCapability(resolved.provider.id, 'imageGeneration', resolved.provider)) {
+      throw new Error(`Provider ${resolved.provider.id} does not support image editing`);
+    }
+
+    const requestId = resolveExecutionRequestId(payload);
+    const usageOverride = resolveExecutionUsageOverride(payload);
+    const startedAt = Date.now();
+    const request = normalizeProviderPreset({
+      ...payload,
+      providerId: resolved.provider.id,
+      providerPresetId: resolved.model.presetId || providerPresetId
+    });
+
+    try {
+      const response = await this.imageGenerationService.editImageFromRequest(request);
+      const providerUsageMetadata = extractProviderUsageMetadata(response.rawUsage);
+
+      await recordExecutionUsageEventSafely('generateImage', {
+        traceId: requestId,
+        requestId,
+        operationKey: usageOverride?.operationKey || 'edit',
+        sourceType: usageOverride?.sourceType || 'image_generation',
+        sourceId: usageOverride?.sourceId || requestId,
+        sourceLabel: usageOverride?.sourceLabel || '图片编辑',
+        usageCategory: usageOverride?.usageCategory || 'media',
+        usageFeature: usageOverride?.usageFeature || 'image_generation',
+        usageStage: usageOverride?.usageStage || 'generate',
+        providerId: response.providerId || resolved.provider.id,
+        providerPresetId: resolved.model.presetId || providerPresetId,
+        model: response.model || payload.model || getProviderDefinitionDefaultModel(resolved.provider.id, 'imageGeneration', resolved.provider.id) || 'unknown',
+        agentId: 'pi-execution',
+        status: 'completed',
+        usage: toAnalyticsUsage(response.usage),
+        rawUsage: response.rawUsage,
+        meteringSource: 'provider_reported',
+        startedAt,
+        completedAt: Date.now(),
+        metadata: {
+          runtime: 'pi',
+          promptChars: payload.prompt.length,
+          quality: payload.quality || null,
+          referenceImageCount: payload.imagePaths.length,
+          size: payload.size || null,
+          imageCount: response.artifacts?.length || 1,
+          revisedPromptChars: response.revisedPrompt?.length ?? null,
+          ...(providerUsageMetadata || {}),
+          ...(usageOverride?.metadata || {})
+        }
+      });
+
+      return response;
+    } catch (error) {
+      await recordExecutionUsageEventSafely('generateImage', {
+        traceId: requestId,
+        requestId,
+        operationKey: usageOverride?.operationKey || 'edit',
+        sourceType: usageOverride?.sourceType || 'image_generation',
+        sourceId: usageOverride?.sourceId || requestId,
+        sourceLabel: usageOverride?.sourceLabel || '图片编辑',
+        usageCategory: usageOverride?.usageCategory || 'media',
+        usageFeature: usageOverride?.usageFeature || 'image_generation',
+        usageStage: usageOverride?.usageStage || 'generate',
+        providerId: resolved.provider.id,
+        providerPresetId: resolved.model.presetId || providerPresetId,
+        model: payload.model || getProviderDefinitionDefaultModel(resolved.provider.id, 'imageGeneration', resolved.provider.id) || 'unknown',
+        agentId: 'pi-execution',
+        status: 'failed',
+        meteringSource: 'provider_reported',
+        startedAt,
+        completedAt: Date.now(),
+        metadata: {
+          errorMessage: error instanceof Error ? error.message : String(error),
+          runtime: 'pi',
+          promptChars: payload.prompt.length,
+          quality: payload.quality || null,
+          referenceImageCount: payload.imagePaths.length,
+          size: payload.size || null,
           ...(usageOverride?.metadata || {})
         }
       });

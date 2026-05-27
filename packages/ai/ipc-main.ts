@@ -57,7 +57,16 @@ import {
   updateApiKey
 } from './settings-store';
 import { listToolInfos } from './tools';
-import type { ImageGenerationRequest, LyricsGenerationRequest, MusicGenerationRequest, ProviderPresetCreatePayload, ProviderPresetUpdatePatch, PushedCard, TranscriptionRequest } from './types';
+import type {
+  ImageEditRequest,
+  ImageGenerationRequest,
+  LyricsGenerationRequest,
+  MusicGenerationRequest,
+  ProviderPresetCreatePayload,
+  ProviderPresetUpdatePatch,
+  PushedCard,
+  TranscriptionRequest
+} from './types';
 import { registerUserChoiceIpc } from './user-choice-registry';
 
 async function hasUsablePreset(providerId: string): Promise<boolean> {
@@ -270,6 +279,14 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
 
   ipcMain.handle('ai:generateImage', async (_e, payload: ImageGenerationRequest) => {
     return piExecutionService.generateImage(normalizeProviderPreset(payload));
+  });
+
+  ipcMain.handle('ai:generateImageArtifact', async (_e, payload: ImageGenerationRequest) => {
+    return piExecutionService.generateImageArtifact(normalizeProviderPreset(payload));
+  });
+
+  ipcMain.handle('ai:editImage', async (_e, payload: ImageEditRequest) => {
+    return piExecutionService.editImage(normalizeProviderPreset(payload));
   });
 
   ipcMain.handle('ai:generateMusic', async (_e, payload: MusicGenerationRequest) => {
