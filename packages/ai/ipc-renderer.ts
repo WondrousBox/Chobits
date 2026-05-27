@@ -5,10 +5,11 @@ import { normalizeProviderPreset } from './provider-preset';
 import type {
   ConversationRecord,
   EmbeddingRequest,
+  ImageEditRequest,
   ImageGenerationRequest,
   LyricsGenerationRequest,
-  MusicGenerationRequest,
   MindmapRequest,
+  MusicGenerationRequest,
   ProviderPresetCreatePayload,
   ProviderPresetUpdatePatch,
   PushedCard,
@@ -80,6 +81,12 @@ export const aiBridge = {
   },
   async generateImage(payload: ImageGenerationRequest) {
     return ipcRenderer.invoke('ai:generateImage', normalizeProviderPreset(payload));
+  },
+  async generateImageArtifact(payload: ImageGenerationRequest) {
+    return ipcRenderer.invoke('ai:generateImageArtifact', normalizeProviderPreset(payload));
+  },
+  async editImage(payload: ImageEditRequest) {
+    return ipcRenderer.invoke('ai:editImage', normalizeProviderPreset(payload));
   },
   async generateMusic(payload: MusicGenerationRequest) {
     return ipcRenderer.invoke('ai:generateMusic', normalizeProviderPreset(payload));

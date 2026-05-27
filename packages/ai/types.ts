@@ -197,10 +197,28 @@ export type ImageGenerationRequest = ProviderScopedRequest & {
   prompt: string;
   size?: string;
   quality?: string;
+  responseFormat?: 'url' | 'b64_json';
+  outputFormat?: 'png' | 'jpeg' | 'webp';
+  outputCompression?: number;
+  partialImages?: number;
+  sessionId?: string;
   extras?: Record<string, any>;
+};
+export type ImageEditRequest = ImageGenerationRequest & {
+  imagePaths: string[];
+  maskPath?: string;
+};
+export type GeneratedImageArtifact = {
+  filePath?: string;
+  imageUrl?: string;
+  mimeType?: string;
+  revisedPrompt?: string;
+  sizeBytes?: number;
 };
 export type ImageGenerationResponse = {
   imageUrl: string;
+  filePath?: string;
+  artifacts?: GeneratedImageArtifact[];
   model?: string;
   providerId?: string;
   revisedPrompt?: string;
@@ -536,6 +554,8 @@ export type AIApi = {
   ): Promise<Array<{ id: string; language?: string; title?: string; filePath?: string; segments?: Array<{ index: number; text: string }>; createdAt?: number; updatedAt?: number }>>;
   transcribe(payload: TranscriptionRequest): Promise<TranscriptionResponse>;
   generateImage(payload: ImageGenerationRequest): Promise<ImageGenerationResponse>;
+  generateImageArtifact(payload: ImageGenerationRequest): Promise<ImageGenerationResponse>;
+  editImage(payload: ImageEditRequest): Promise<ImageGenerationResponse>;
   generateMusic(payload: MusicGenerationRequest): Promise<MusicGenerationResponse>;
   generateLyrics(payload: LyricsGenerationRequest): Promise<LyricsGenerationResponse>;
   embed(payload: EmbeddingRequest): Promise<{ vectors: number[][]; dim: number }>;
