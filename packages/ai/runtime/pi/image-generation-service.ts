@@ -133,6 +133,10 @@ function normalizeApiKey(secrets: ProviderSecrets): string {
   return String(getFirstApiKey(secrets.apiKey) || '').trim();
 }
 
+function logImageProviderRequest(kind: 'edit' | 'generation', payload: Record<string, unknown>): void {
+  console.info(`[PiImageGenerationService] ${kind} request`, payload);
+}
+
 async function resolveProviderSecrets(providerId: string, secrets: ProviderSecrets): Promise<ProviderSecrets> {
   const provider = getProvider(providerId);
   const adapterSecrets = ((await Promise.resolve(provider?.getSecrets?.() || {})) as ProviderSecrets) || {};
@@ -172,6 +176,19 @@ export class PiImageGenerationService {
     }
 
     const baseURL = normalizeBaseURL(secrets, providerId);
+    logImageProviderRequest('generation', {
+      baseURL,
+      model,
+      outputCompression: options.outputCompression,
+      outputFormat: options.outputFormat,
+      partialImages: options.partialImages,
+      providerId,
+      quality,
+      responseFormat,
+      sessionId: options.sessionId,
+      size,
+      prompt
+    });
     const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
     const response = await client.images.generate({
       model,
@@ -232,6 +249,21 @@ export class PiImageGenerationService {
     }
 
     const baseURL = normalizeBaseURL(secrets, options.providerId);
+    logImageProviderRequest('edit', {
+      baseURL,
+      imagePaths,
+      maskPath: options.maskPath,
+      model: options.model,
+      outputCompression: options.outputCompression,
+      outputFormat: options.outputFormat,
+      partialImages: options.partialImages,
+      providerId: options.providerId,
+      quality: options.quality,
+      responseFormat: options.responseFormat || 'b64_json',
+      sessionId: options.sessionId,
+      size: options.size,
+      prompt: options.prompt
+    });
     const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
     const imageFiles = await Promise.all(
       imagePaths.map(async (filePath) => {

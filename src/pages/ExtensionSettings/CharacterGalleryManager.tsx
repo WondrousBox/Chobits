@@ -9,7 +9,7 @@ import type {
 } from '@packages/sprite-core/character-gallery';
 import type { CharacterPackSource } from '@packages/sprite-core/character-pack-manager';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { TbEdit, TbPencil, TbPhotoPlus, TbRefresh, TbSend, TbTrash } from 'react-icons/tb';
+import { TbArrowLeft, TbChevronLeft, TbChevronRight, TbEdit, TbPencil, TbPhotoPlus, TbRefresh, TbSend, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -46,6 +46,7 @@ interface CharacterGalleryListState {
 }
 
 type GalleryDialogMode = 'add' | 'edit';
+type GalleryPreviewMode = 'preview' | 'image-studio';
 
 interface GalleryDraftState {
   title: string;
@@ -176,7 +177,17 @@ function fileName(filePath: string): string {
   return parts[parts.length - 1] || filePath;
 }
 
+function getStackCardStyle(index: number, isSelected: boolean, total: number): React.CSSProperties & { '--card-rotate'?: string } {
+  const rotation = ((index % 5) - 2) * 1.6;
+  return {
+    marginLeft: index === 0 ? 0 : -72,
+    zIndex: isSelected ? total + 8 : index + 1,
+    '--card-rotate': `${rotation}deg`
+  };
+}
+
 function IconTooltipButton({
+  'aria-label': ariaLabel,
   className,
   label,
   children,
@@ -187,7 +198,7 @@ function IconTooltipButton({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button {...props} className={cn(props.size === 'sm' ? 'w-8 h-8' : undefined, className)}>
+        <Button {...props} aria-label={ariaLabel ?? label} className={cn(props.size === 'sm' ? 'w-8 h-8' : undefined, className)}>
           {children}
         </Button>
       </TooltipTrigger>
@@ -205,6 +216,8 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
   const [draft, setDraft] = useState<GalleryDraftState>(emptyDraft);
   const [pendingFilePath, setPendingFilePath] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewMode, setPreviewMode] = useState<GalleryPreviewMode>('preview');
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiContext, setAiContext] = useState<CharacterGalleryAIEditContext | null>(null);
   const canWrite = !!state?.pack.writable && assetAuthoringCapability?.status !== 'locked';
@@ -242,6 +255,9 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
         .includes(normalized)
     );
   }, [query, state?.items]);
+
+  const selectedIndex = useMemo(() => filteredItems.findIndex((item) => item.id === selected?.id), [filteredItems, selected?.id]);
+  const previewItem = selectedIndex >= 0 ? filteredItems[selectedIndex] : selected;
 
   const ensureCanWrite = useCallback((): boolean => {
     if (!ensureSpriteCapabilityAccessible(assetAuthoringCapability, onCapabilityBlocked)) {
@@ -290,6 +306,37 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
     setPendingFilePath(null);
     setSaving(false);
   }, []);
+
+  const selectPreviewItem = useCallback((item: CharacterGalleryItem): void => {
+    setSelected(item);
+    setPreviewOpen(true);
+    setPreviewMode('preview');
+    setAiContext(null);
+    setAiPrompt('');
+  }, []);
+
+  const closePreviewDialog = useCallback((open: boolean): void => {
+    setPreviewOpen(open);
+    if (!open) {
+      setPreviewMode('preview');
+      setAiContext(null);
+      setAiPrompt('');
+    }
+  }, []);
+
+  const movePreview = useCallback(
+    (delta: number): void => {
+      if (!filteredItems.length) return;
+      const currentIndex = selectedIndex >= 0 ? selectedIndex : 0;
+      const nextIndex = (currentIndex + delta + filteredItems.length) % filteredItems.length;
+      setSelected(filteredItems[nextIndex]);
+      setPreviewOpen(true);
+      setPreviewMode('preview');
+      setAiContext(null);
+      setAiPrompt('');
+    },
+    [filteredItems, selectedIndex]
+  );
 
   const saveDialog = useCallback(async (): Promise<void> => {
     if (!ensureCanWrite() || !dialogMode) return;
@@ -378,6 +425,10 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
       }
       if (selected?.id === item.id) {
         setSelected(null);
+        setPreviewOpen(false);
+        setPreviewMode('preview');
+        setAiContext(null);
+        setAiPrompt('');
       }
       await refresh();
       toast.success('图集条目已删除');
@@ -386,7 +437,7 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
   );
 
   const buildAIContext = useCallback(async (): Promise<void> => {
-    const target = selected ?? filteredItems[0];
+    const target = previewItem ?? filteredItems[0];
     if (!target) {
       toast.warning('请先选择一张图集图片');
       return;
@@ -403,7 +454,7 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
     });
     setAiContext(context);
     toast.success('已整理 AI 编辑上下文');
-  }, [aiPrompt, filteredItems, packId, selected, source]);
+  }, [aiPrompt, filteredItems, packId, previewItem, source]);
 
   const copyAIContext = useCallback(async (): Promise<void> => {
     if (!aiContext) return;
@@ -416,6 +467,10 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
       await refresh();
       if (item) {
         setSelected(item);
+        setPreviewOpen(true);
+        setPreviewMode('preview');
+        setAiContext(null);
+        setAiPrompt('');
       }
     },
     [refresh]
@@ -449,29 +504,54 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
           </div>
         )}
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="min-h-[360px] rounded-md border border-border/60 p-3">
+        <div className="space-y-4">
+          <div className="min-h-[280px] rounded-md border border-border/60 p-3">
             {loading ? (
               <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">正在读取图集...</div>
             ) : filteredItems.length > 0 ? (
-              <div className="grid content-start gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                {filteredItems.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={`group overflow-hidden rounded-md border bg-card text-left transition ${selected?.id === item.id ? 'border-primary ring-1 ring-primary' : 'border-border/60 hover:border-primary/50'}`}
-                    onClick={() => setSelected(item)}
-                  >
-                    <div className="relative aspect-square bg-muted">
-                      <img src={makeGallerySrc(item)} alt={item.title} className="h-full w-full object-contain" draggable={false} />
-                      <div className="absolute left-2 top-2 rounded bg-background/90 px-2 py-0.5 text-[10px] font-medium text-foreground shadow">{getKindLabel(item.kind)}</div>
-                    </div>
-                    <div className="space-y-1 p-2">
-                      <div className="truncate text-sm font-medium text-foreground">{item.title}</div>
-                      <div className="truncate text-xs text-muted-foreground">{item.semantic?.action || item.semantic?.view || item.semantic?.emotion || item.tags?.join(', ') || item.id}</div>
-                    </div>
-                  </button>
-                ))}
+              <div className="overflow-x-auto overflow-y-visible px-2 pb-7 pt-5">
+                <div className="flex min-h-[250px] items-start">
+                  {filteredItems.map((item, index) => {
+                    const isSelected = selected?.id === item.id;
+                    return (
+                      <Tooltip key={item.id}>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            style={getStackCardStyle(index, isSelected, filteredItems.length)}
+                            className={cn(
+                              'group relative h-56 w-36 shrink-0 overflow-hidden rounded-md border bg-card text-left shadow-sm outline-none transition-[box-shadow,filter,transform] duration-200 [transform:rotate(var(--card-rotate))] hover:z-50 hover:shadow-xl hover:[transform:translateY(-12px)_rotate(0deg)_scale(1.04)] focus-visible:ring-2 focus-visible:ring-ring sm:h-60 sm:w-40',
+                              isSelected
+                                ? 'border-primary shadow-lg ring-2 ring-primary/40 [transform:translateY(-8px)_rotate(0deg)]'
+                                : 'border-border/70 hover:border-primary/60'
+                            )}
+                            onClick={() => selectPreviewItem(item)}
+                          >
+                            <div className="relative h-full bg-muted">
+                              <img src={makeGallerySrc(item)} alt={item.title} className="h-full w-full object-contain" draggable={false} />
+                              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/80 to-transparent p-2 pt-10">
+                                <div className="truncate text-sm font-medium text-foreground">{item.title}</div>
+                                <div className="truncate text-xs text-muted-foreground">{item.semantic?.action || item.semantic?.view || item.semantic?.emotion || item.tags?.join(', ') || item.id}</div>
+                              </div>
+                              <div className="absolute left-2 top-2 rounded bg-background/90 px-2 py-0.5 text-[10px] font-medium text-foreground shadow">{getKindLabel(item.kind)}</div>
+                            </div>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" align="start" className="max-w-72">
+                          <div className="space-y-1 text-xs">
+                            <div className="text-sm font-medium text-foreground">{item.title}</div>
+                            <div className="text-muted-foreground">{getKindLabel(item.kind)}</div>
+                            <div>动作：{item.semantic?.action || '未设置'}</div>
+                            <div>角度：{item.semantic?.view || '未设置'}</div>
+                            <div>表情：{item.semantic?.emotion || '未设置'}</div>
+                            {item.tags?.length ? <div className="line-clamp-2">标签：{item.tags.join(', ')}</div> : null}
+                            {item.ai?.promptHint ? <div className="line-clamp-3 text-muted-foreground">{item.ai.promptHint}</div> : null}
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  })}
+                </div>
               </div>
             ) : (
               <div className="flex h-64 flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
@@ -484,59 +564,113 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
             )}
           </div>
 
-          <div className="space-y-3 rounded-md border border-border/60 p-3">
-            {selected ? (
-              <>
-                <div className="overflow-hidden rounded-md border bg-muted">
-                  <img src={makeFullSrc(selected)} alt={selected.title} className="max-h-[360px] w-full object-contain" draggable={false} />
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-foreground">{selected.title}</div>
-                  <div className="mt-1 text-xs text-muted-foreground break-all">{fileName(selected.source.localPath)}</div>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded border px-2 py-1">类型：{getKindLabel(selected.kind)}</div>
-                  <div className="rounded border px-2 py-1">角度：{selected.semantic?.view ?? '未设置'}</div>
-                  <div className="rounded border px-2 py-1">动作：{selected.semantic?.action ?? '未设置'}</div>
-                  <div className="rounded border px-2 py-1">参考：{selected.ai?.referenceRole ?? 'character'}</div>
-                </div>
-                {selected.tags?.length ? <div className="text-xs text-muted-foreground">标签：{selected.tags.join(', ')}</div> : null}
-                {selected.ai?.promptHint ? <div className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">{selected.ai.promptHint}</div> : null}
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={() => openEditDialog(selected)} disabled={!canWrite} title={lockedTitle}>
-                    <TbPencil />
-                    编辑元数据
-                  </Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => void replaceImage(selected)} disabled={!canWrite} title={lockedTitle}>
-                    <TbEdit />
-                    替换图片
-                  </Button>
-                  <IconTooltipButton label="删除图片" type="button" size="sm" variant="destructive" onClick={() => void removeItem(selected)} disabled={!canWrite} title={lockedTitle}>
-                    <TbTrash />
-                  </IconTooltipButton>
-                </div>
-                <div className="space-y-2 border-t pt-3">
-                  <Label className="text-xs text-muted-foreground">发送给 AI 的编辑意图</Label>
-                  <Textarea className="min-h-20" value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} placeholder="例如：保持角色一致，生成向右奔跑的分镜参考。" />
-                  <div className="flex gap-2">
-                    <Button type="button" size="sm" onClick={() => void buildAIContext()}>
-                      <TbSend />
-                      整理上下文
-                    </Button>
-                    <Button type="button" size="sm" variant="outline" onClick={() => void copyAIContext()} disabled={!aiContext}>
-                      复制 JSON
-                    </Button>
-                  </div>
-                  {aiContext && <Textarea className="max-h-48 min-h-28 font-mono text-xs" value={JSON.stringify(aiContext, null, 2)} readOnly />}
-                </div>
-              </>
-            ) : (
-              <div className="flex h-full min-h-[360px] items-center justify-center text-sm text-muted-foreground">选择一张图片查看详情</div>
-            )}
-          </div>
         </div>
 
-        <CharacterImageStudio canWrite={canWrite} lockedTitle={lockedTitle} packId={packId} selected={selected} source={source} onChanged={handleAIImageChanged} />
+        <Dialog open={previewOpen && !!previewItem} onOpenChange={closePreviewDialog}>
+          <DialogContent className="flex h-[min(860px,90vh)] w-[min(1120px,calc(100vw-32px))] max-w-none flex-col gap-0 overflow-hidden p-0">
+            {previewItem ? (
+              <>
+                <DialogHeader className="border-b border-border/60 px-5 py-4 pr-14">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {previewMode === 'image-studio' ? (
+                      <IconTooltipButton label="返回预览" type="button" size="sm" variant="ghost" onClick={() => setPreviewMode('preview')}>
+                        <TbArrowLeft />
+                      </IconTooltipButton>
+                    ) : null}
+                    <div className="min-w-0">
+                      <DialogTitle className="truncate text-base">{previewMode === 'image-studio' ? '图片编辑' : previewItem.title}</DialogTitle>
+                      <DialogDescription className="truncate">{previewMode === 'image-studio' ? `参考图：${previewItem.title}` : fileName(previewItem.source.localPath)}</DialogDescription>
+                    </div>
+                  </div>
+                </DialogHeader>
+
+                {previewMode === 'preview' ? (
+                  <div className="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_340px] lg:overflow-hidden">
+                    <div className="relative flex min-h-[280px] items-center justify-center bg-muted/60 p-4 lg:min-h-0">
+                      <img src={makeFullSrc(previewItem)} alt={previewItem.title} className="max-h-[62vh] w-full object-contain lg:max-h-full" draggable={false} />
+                      {filteredItems.length > 1 ? (
+                        <>
+                          <IconTooltipButton label="上一张" type="button" size="sm" variant="secondary" className="absolute left-4 top-1/2 -translate-y-1/2 shadow" onClick={() => movePreview(-1)}>
+                            <TbChevronLeft />
+                          </IconTooltipButton>
+                          <IconTooltipButton label="下一张" type="button" size="sm" variant="secondary" className="absolute right-4 top-1/2 -translate-y-1/2 shadow" onClick={() => movePreview(1)}>
+                            <TbChevronRight />
+                          </IconTooltipButton>
+                        </>
+                      ) : null}
+                    </div>
+
+                    <div className="min-h-0 space-y-4 border-t border-border/60 p-4 lg:overflow-y-auto lg:border-l lg:border-t-0">
+                      <div>
+                        <div className="text-base font-medium text-foreground">{previewItem.title}</div>
+                        <div className="mt-1 break-all text-xs text-muted-foreground">{previewItem.id}</div>
+                      </div>
+                      {previewItem.description ? <div className="text-sm text-muted-foreground">{previewItem.description}</div> : null}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="rounded border px-2 py-1">类型：{getKindLabel(previewItem.kind)}</div>
+                        <div className="rounded border px-2 py-1">角度：{previewItem.semantic?.view ?? '未设置'}</div>
+                        <div className="rounded border px-2 py-1">动作：{previewItem.semantic?.action ?? '未设置'}</div>
+                        <div className="rounded border px-2 py-1">表情：{previewItem.semantic?.emotion ?? '未设置'}</div>
+                        <div className="rounded border px-2 py-1">参考：{previewItem.ai?.referenceRole ?? 'character'}</div>
+                        <div className="rounded border px-2 py-1">强度：{previewItem.ai?.referenceStrength ?? '0.8'}</div>
+                      </div>
+                      {previewItem.tags?.length ? <div className="text-xs text-muted-foreground">标签：{previewItem.tags.join(', ')}</div> : null}
+                      {previewItem.ai?.promptHint ? <div className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">{previewItem.ai.promptHint}</div> : null}
+                      <div className="space-y-2 border-t pt-3">
+                        <Button type="button" size="sm" className="w-full justify-center" onClick={() => setPreviewMode('image-studio')} disabled={!canWrite} title={lockedTitle}>
+                          <TbSend />
+                          编辑图片
+                        </Button>
+                        <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setPreviewOpen(false);
+                              setPreviewMode('preview');
+                              openEditDialog(previewItem);
+                            }}
+                            disabled={!canWrite}
+                            title={lockedTitle}
+                          >
+                            <TbPencil />
+                            元数据
+                          </Button>
+                          <Button type="button" size="sm" variant="outline" onClick={() => void replaceImage(previewItem)} disabled={!canWrite} title={lockedTitle}>
+                            <TbEdit />
+                            替换
+                          </Button>
+                          <IconTooltipButton label="删除图片" type="button" size="sm" variant="destructive" onClick={() => void removeItem(previewItem)} disabled={!canWrite} title={lockedTitle}>
+                            <TbTrash />
+                          </IconTooltipButton>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+                    <CharacterImageStudio canWrite={canWrite} lockedTitle={lockedTitle} packId={packId} selected={previewItem} source={source} onChanged={handleAIImageChanged} />
+                    <div className="space-y-2 rounded-md border border-border/60 p-3">
+                      <Label className="text-xs text-muted-foreground">发送给 AI 的编辑意图</Label>
+                      <Textarea className="min-h-20" value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} placeholder="例如：保持角色一致，生成向右奔跑的分镜参考。" />
+                      <div className="flex gap-2">
+                        <Button type="button" size="sm" onClick={() => void buildAIContext()}>
+                          <TbSend />
+                          整理上下文
+                        </Button>
+                        <Button type="button" size="sm" variant="outline" onClick={() => void copyAIContext()} disabled={!aiContext}>
+                          复制 JSON
+                        </Button>
+                      </div>
+                      {aiContext && <Textarea className="max-h-48 min-h-28 font-mono text-xs" value={JSON.stringify(aiContext, null, 2)} readOnly />}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : null}
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={!!dialogMode} onOpenChange={(open) => (!open ? closeDialog() : undefined)}>
           <DialogContent className="max-h-[88vh] max-w-3xl overflow-y-auto">

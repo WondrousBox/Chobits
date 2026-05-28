@@ -84,7 +84,7 @@ export interface ProviderModelSelectProps {
   // 当 provider 配置状态变化时的回调
   onProviderConfigChange?: (providerId: string, isConfigured: boolean) => void;
   // 当需要打开配置窗口时的回调，传入 providerId 和需要配置的字段
-  onOpenConfig?: (providerId: string, requiredFields: string[], presetId?: string) => void;
+  onOpenConfig?: (providerId: string, fields: string[], presetId?: string) => void;
   // 过滤可见的 provider
   providerFilter?: (provider: ProviderRow) => boolean;
 }
@@ -351,8 +351,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
         if (!provider) return;
 
         const schema = provider.schema;
-        const requiredFields = schema?.fields?.filter((f: any) => f.required) || [];
-        const fields = requiredFields.map((f: any) => f.key);
+        const fields = schema?.fields?.map((f: any) => f.key).filter(Boolean) || [];
         const preferredPresetId = targetPresetId ?? (idToUse === resolvedProviderId ? presetId : undefined);
         const resolvedPreset = await window.YUA.ai.resolveUsablePreset(idToUse, preferredPresetId);
         const resolvedPresetId = resolvedPreset?.id;
