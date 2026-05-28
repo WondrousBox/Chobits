@@ -6,7 +6,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { getSpriteCapabilityLockedReason, getSpriteCapabilityState } from '@/features/sprite-assistant/capability-ui';
 import { useSpriteCapabilitySnapshot } from '@/features/sprite-assistant/hooks/useSpriteCapabilitySnapshot';
 
+import { ChatEntryDetailContent, ChatEntryItem } from './ChatEntrySettings';
 import { DailyCareDetailContent, DailyCareItem, useDailyCareSettings } from './DailyCareSettings';
+import { DanceAnimationDetailContent, DanceAnimationItem } from './DanceAnimationSettings';
 import { MovementDetailContent, MovementItem } from './MovementSettings';
 import { MovToWebmConverterDetailContent, MovToWebmConverterItem } from './MovToWebmConverterSettings';
 import { PurposePlannerDetailContent, PurposePlannerItem } from './PurposePlannerSettings';
@@ -17,15 +19,31 @@ import { SpeakDetailContent, SpeakItem, useSpeakSettings } from './SpeakSettings
 import { SpeechRecognitionDetailContent, SpeechRecognitionItem, useSpeechRecognitionSettings } from './SpeechRecognitionSettings';
 import { SpontaneousUtteranceDetailContent, SpontaneousUtteranceItem } from './SpontaneousUtteranceSettings';
 import { SpriteDetailContent, SpriteItem } from './SpriteSettings';
+import { useChatEntrySettings } from './useChatEntrySettings';
 import { useMovementSettings } from './useMovementSettings';
+import { useMusicDanceSettings } from './useMusicDanceSettings';
 import { usePurposePlannerSettings } from './usePurposePlannerSettings';
 import { useSpontaneousUtteranceSettings } from './useSpontaneousUtteranceSettings';
 import { WindowAnimationDetailContent, WindowAnimationItem } from './WindowAnimationSettings';
 
-type SkillKey = 'movement' | 'speak' | 'dailyCare' | 'sprite' | 'movToWebm' | 'windowAnimation' | 'spontaneous' | 'purposePlanner' | 'scheduler' | 'recorder' | 'speechRecognition' | 'screenshot';
+type SkillKey =
+  | 'chatEntry'
+  | 'movement'
+  | 'speak'
+  | 'dailyCare'
+  | 'danceAnimation'
+  | 'sprite'
+  | 'movToWebm'
+  | 'windowAnimation'
+  | 'spontaneous'
+  | 'purposePlanner'
+  | 'scheduler'
+  | 'recorder'
+  | 'speechRecognition'
+  | 'screenshot';
 
 const ExtensionSettings: React.FC = () => {
-  const [selected, setSelected] = useState<SkillKey>('movement');
+  const [selected, setSelected] = useState<SkillKey>('chatEntry');
   const { snapshot: capabilitySnapshot, refresh: refreshCapabilitySnapshot } = useSpriteCapabilitySnapshot();
 
   const handleCapabilityBlocked = React.useCallback((capability: SpriteCapabilityState) => {
@@ -40,9 +58,11 @@ const ExtensionSettings: React.FC = () => {
   const speechRecognitionCapability = getSpriteCapabilityState(capabilitySnapshot, 'speechRecognition');
   const screenshotCapability = getSpriteCapabilityState(capabilitySnapshot, 'screenshot');
   const spriteManageCapability = getSpriteCapabilityState(capabilitySnapshot, 'spriteManage');
+  const chatEntryState = useChatEntrySettings();
   const movementState = useMovementSettings({ capability: movementCapability, onBlocked: handleCapabilityBlocked, afterChange: refreshCapabilitySnapshot });
   const speakState = useSpeakSettings();
   const dailyCareState = useDailyCareSettings({ capability: dailyCareCapability, onBlocked: handleCapabilityBlocked, afterChange: refreshCapabilitySnapshot });
+  const musicDanceState = useMusicDanceSettings();
   const spontaneousUtteranceState = useSpontaneousUtteranceSettings();
   const purposePlannerState = usePurposePlannerSettings();
   const recorderState = useRecorderSettings({ capability: recorderCapability, onBlocked: handleCapabilityBlocked, afterChange: refreshCapabilitySnapshot });
@@ -51,12 +71,16 @@ const ExtensionSettings: React.FC = () => {
 
   const renderDetail = (): React.ReactNode => {
     switch (selected) {
+      case 'chatEntry':
+        return <ChatEntryDetailContent state={chatEntryState} />;
       case 'movement':
         return <MovementDetailContent state={movementState} capability={movementCapability} />;
       case 'speak':
         return <SpeakDetailContent state={speakState} />;
       case 'dailyCare':
         return <DailyCareDetailContent state={dailyCareState} capability={dailyCareCapability} />;
+      case 'danceAnimation':
+        return <DanceAnimationDetailContent state={musicDanceState} />;
       case 'sprite':
         return <SpriteDetailContent assetAuthoringCapability={spriteManageCapability} onBlocked={handleCapabilityBlocked} />;
       case 'movToWebm':
@@ -85,9 +109,11 @@ const ExtensionSettings: React.FC = () => {
       <div className="w-64 shrink-0 border-t-0 border-l-0 border-b-0 border-r border-solid border-ring">
         <ScrollArea className="h-full">
           <div className="space-y-1 pr-2">
+            <ChatEntryItem state={chatEntryState} selected={selected === 'chatEntry'} onSelect={() => setSelected('chatEntry')} />
             <MovementItem state={movementState} capability={movementCapability} selected={selected === 'movement'} onSelect={() => setSelected('movement')} />
             <SpeakItem state={speakState} selected={selected === 'speak'} onSelect={() => setSelected('speak')} />
             <DailyCareItem state={dailyCareState} capability={dailyCareCapability} selected={selected === 'dailyCare'} onSelect={() => setSelected('dailyCare')} />
+            <DanceAnimationItem state={musicDanceState} selected={selected === 'danceAnimation'} onSelect={() => setSelected('danceAnimation')} />
             <SpriteItem selected={selected === 'sprite'} onSelect={() => setSelected('sprite')} />
             <MovToWebmConverterItem selected={selected === 'movToWebm'} onSelect={() => setSelected('movToWebm')} />
             <WindowAnimationItem selected={selected === 'windowAnimation'} onSelect={() => setSelected('windowAnimation')} />

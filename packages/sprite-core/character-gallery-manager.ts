@@ -549,6 +549,18 @@ export async function removeCharacterGalleryItem(itemId: string, options?: { pac
   if (itemIndex === -1) return { ok: false };
 
   const [removed] = index.items.splice(itemIndex, 1);
+  const now = new Date().toISOString();
+  index.items = index.items.map((item) => {
+    if (item.origin?.parentId !== itemId) return item;
+    return {
+      ...item,
+      origin: {
+        ...item.origin,
+        parentId: undefined
+      },
+      updatedAt: now
+    };
+  });
   await writeIndex(indexPath, pack.rootDir, index);
   if (options?.deleteFile !== false) {
     await removeUnreferencedFile(pack.rootDir, indexPath, index.items, removed?.source.localPath);

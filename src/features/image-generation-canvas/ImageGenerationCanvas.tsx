@@ -168,6 +168,26 @@ function ImageGenerationCanvasInner<TAsset>({
     [setEdges, setNodes]
   );
 
+  const deleteAssetNode = useCallback(
+    async (assetId: string, sourceNodeId: string): Promise<void> => {
+      if (readonly || !adapter.deleteAsset) return;
+      const target = assetById.get(assetId);
+      if (!target) return;
+
+      try {
+        const deleted = await adapter.deleteAsset(target);
+        if (deleted === false) return;
+        setNodes((current) => current.filter((node) => node.id !== sourceNodeId));
+        setEdges((current) => current.filter((edge) => edge.source !== sourceNodeId && edge.target !== sourceNodeId));
+      } catch (error) {
+        toast.error('删除图片失败', {
+          description: getErrorMessage(error)
+        });
+      }
+    },
+    [adapter, assetById, readonly, setEdges, setNodes]
+  );
+
   const createImageNodeData = useCallback(
     (asset: ImageGenerationCanvasAssetView): ImageGenerationReactFlowNodeData => ({
       asset,
@@ -175,13 +195,18 @@ function ImageGenerationCanvasInner<TAsset>({
       onCreateEditForm: (assetId, sourceNodeId) => {
         createEditFormRef.current(assetId, sourceNodeId);
       },
+      onDelete: adapter.deleteAsset
+        ? (assetId, sourceNodeId) => {
+            void deleteAssetNode(assetId, sourceNodeId);
+          }
+        : undefined,
       onPreview: (assetId) => {
         const target = assetById.get(assetId);
         if (target) onPreviewAsset(target);
       },
       readonly
     }),
-    [assetById, onPreviewAsset, readonly]
+    [adapter.deleteAsset, assetById, deleteAssetNode, onPreviewAsset, readonly]
   );
 
   const submitFormNode = useCallback(
