@@ -71,6 +71,7 @@ export interface ImageGenerationCanvasLayout {
 
 export interface ImageGenerationCanvasAdapter<TAsset> {
   buildInitialDraft(input: { mode: ImageGenerationCanvasMode; referenceAsset?: TAsset }): ImageGenerationCanvasDraft;
+  deleteAsset?: (asset: TAsset) => Promise<boolean | void> | boolean | void;
   getAssetView(asset: TAsset): ImageGenerationCanvasAssetView;
   submitGeneration(input: { draft: ImageGenerationCanvasDraft; mode: ImageGenerationCanvasMode; referenceAsset?: TAsset }): Promise<TAsset>;
 }
@@ -103,6 +104,7 @@ export interface ImageAssetNodeData {
   asset: ImageGenerationCanvasAssetView;
   kind: 'image';
   onCreateEditForm: (assetId: string, sourceNodeId: string) => void;
+  onDelete?: (assetId: string, sourceNodeId: string) => void;
   onPreview: (assetId: string) => void;
   readonly?: boolean;
 }

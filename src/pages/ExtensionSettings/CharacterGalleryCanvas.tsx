@@ -9,7 +9,7 @@ import type {
 } from '@packages/sprite-core/character-gallery';
 import type { CharacterPackSource } from '@packages/sprite-core/character-pack-manager';
 import type { ComponentProps } from 'react';
-import { forwardRef, useCallback, useMemo } from 'react';
+import { forwardRef, useCallback, useEffect, useMemo, useRef } from 'react';
 import { TbLayout, TbMaximize, TbPhotoPlus, TbSparkles } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
@@ -34,6 +34,7 @@ interface CharacterGalleryCanvasProps {
   packId?: string;
   source?: CharacterPackSource;
   onChanged: (item?: CharacterGalleryItem) => Promise<void> | void;
+  onDeleteItem: (item: CharacterGalleryItem) => Promise<boolean | void> | boolean | void;
   onImportImage: () => Promise<void> | void;
   onLayoutChange?: (layout: CharacterGalleryCanvasLayout) => Promise<void> | void;
   onPreviewItem: (item: CharacterGalleryItem) => void;
@@ -218,9 +219,15 @@ function IconTooltipButton({
 }
 
 const CharacterGalleryCanvas = forwardRef<ImageGenerationCanvasHandle, CharacterGalleryCanvasProps>(function CharacterGalleryCanvas(
-  { canWrite, items, layout, loading, lockedTitle, onChanged, onImportImage, onLayoutChange, onPreviewItem, packId, source },
+  { canWrite, items, layout, loading, lockedTitle, onChanged, onDeleteItem, onImportImage, onLayoutChange, onPreviewItem, packId, source },
   ref
 ): JSX.Element {
+  const onDeleteItemRef = useRef(onDeleteItem);
+
+  useEffect(() => {
+    onDeleteItemRef.current = onDeleteItem;
+  }, [onDeleteItem]);
+
   const fieldOptions = useMemo<ImageGenerationCanvasFieldOptions>(
     () => ({
       kinds: KIND_OPTIONS.map((option) => ({ label: option.label, value: option.value })),
@@ -236,6 +243,9 @@ const CharacterGalleryCanvas = forwardRef<ImageGenerationCanvasHandle, Character
   const adapter = useMemo<ImageGenerationCanvasAdapter<CharacterGalleryItem>>(
     () => ({
       buildInitialDraft: ({ mode, referenceAsset }) => buildInitialDraft(mode, referenceAsset),
+      deleteAsset: async (asset) => {
+        return onDeleteItemRef.current(asset);
+      },
       getAssetView: buildAssetView,
       submitGeneration: async ({ draft, mode, referenceAsset }) => {
         const prompt = draft.prompt.trim();

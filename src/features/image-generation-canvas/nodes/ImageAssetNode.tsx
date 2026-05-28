@@ -1,8 +1,8 @@
-import { TbPhotoCog } from 'react-icons/tb';
+import { TbPhotoCog, TbTrash } from 'react-icons/tb';
 import type { NodeProps } from 'reactflow';
 import { Handle, Position } from 'reactflow';
 
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { cn } from '@/lib/utils';
 
 import type { ImageAssetNodeData } from '../types';
@@ -39,6 +39,15 @@ export default function ImageAssetNode({ data, id, selected }: NodeProps<ImageAs
           <TbPhotoCog />
           以此图生成
         </ContextMenuItem>
+        {data.onDelete ? (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem className="flex items-center gap-2 text-destructive focus:text-destructive" disabled={data.readonly} onSelect={() => data.onDelete?.(data.asset.assetId, id)}>
+              <TbTrash />
+              删除图片
+            </ContextMenuItem>
+          </>
+        ) : null}
       </ContextMenuContent>
     </ContextMenu>
   );

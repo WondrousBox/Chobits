@@ -390,8 +390,8 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
   );
 
   const removeItem = useCallback(
-    async (item: CharacterGalleryItem): Promise<void> => {
-      if (!ensureCanWrite()) return;
+    async (item: CharacterGalleryItem): Promise<boolean> => {
+      if (!ensureCanWrite()) return false;
       const result = await window.YUA.persona.removeCharacterGalleryItem({
         packId,
         source,
@@ -400,7 +400,7 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
       });
       if (!result?.ok) {
         toast.error('删除图集条目失败');
-        return;
+        return false;
       }
       if (selected?.id === item.id) {
         setSelected(null);
@@ -408,6 +408,7 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
       }
       await refresh();
       toast.success('图集条目已删除');
+      return true;
     },
     [ensureCanWrite, packId, refresh, selected?.id, source]
   );
@@ -493,6 +494,7 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
           packId={packId}
           source={source}
           onChanged={handleAIImageChanged}
+          onDeleteItem={removeItem}
           onImportImage={openAddDialog}
           onLayoutChange={saveCanvasLayout}
           onPreviewItem={selectPreviewItem}
