@@ -2,7 +2,7 @@ import type { ImageGenerationResponse } from '@packages/ai/types';
 import type { CharacterGalleryItem, CharacterGalleryItemDraft, CharacterGalleryItemKind, CharacterGalleryReferenceRole, CharacterGalleryViewAngle } from '@packages/sprite-core/character-gallery';
 import type { CharacterPackSource } from '@packages/sprite-core/character-pack-manager';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { TbLoader2, TbPhotoCog, TbPhotoPlus, TbReplace } from 'react-icons/tb';
+import { TbLoader2, TbPhotoCog, TbPhotoPlus } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
@@ -11,11 +11,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
 interface CharacterImageStudioProps {
   canWrite: boolean;
   lockedTitle?: string;
+  mode: 'edit' | 'generate';
   packId?: string;
   selected?: CharacterGalleryItem | null;
   source?: CharacterPackSource;
@@ -179,7 +181,7 @@ function buildReferencePrompt(prompt: string, selected?: CharacterGalleryItem | 
   return `${prompt}\n\n参考图信息：${details}。保持角色身份、比例、服装关键特征和画风一致。`;
 }
 
-function buildRequestPrompt(draft: StudioDraft, mode: 'edit-add' | 'edit-replace' | 'generate', selected?: CharacterGalleryItem | null): string {
+function buildRequestPrompt(draft: StudioDraft, mode: CharacterImageStudioProps['mode'], selected?: CharacterGalleryItem | null): string {
   const prompt = mode === 'generate' ? draft.prompt.trim() : buildReferencePrompt(draft.prompt.trim(), selected);
   const negativePrompt = draft.negativePrompt.trim();
   return negativePrompt ? `${prompt}\n\n避免：${negativePrompt}` : prompt;
@@ -189,37 +191,40 @@ function logImageRequest(label: string, payload: Record<string, unknown>): void 
   console.info(`[CharacterImageStudio] ${label}`, payload);
 }
 
-export default function CharacterImageStudio({ canWrite, lockedTitle, packId, selected, source, onChanged }: CharacterImageStudioProps): JSX.Element {
+export default function CharacterImageStudio({ canWrite, lockedTitle, mode, packId, selected, source, onChanged }: CharacterImageStudioProps): JSX.Element {
   const [providerId, setProviderId] = useState('gpteam');
   const [modelId, setModelId] = useState('gpt-image-2');
   const [size, setSize] = useState('1024x1024');
   const [quality, setQuality] = useState('high');
   const [outputFormat, setOutputFormat] = useState<'png' | 'webp' | 'jpeg'>('png');
   const [draft, setDraft] = useState<StudioDraft>(() => emptyDraft(selected));
-  const [submitting, setSubmitting] = useState<'edit-add' | 'edit-replace' | 'generate' | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [lastResult, setLastResult] = useState<ImageGenerationResponse | null>(null);
 
   const selectedPreview = useMemo(() => (selected ? makeResSrc(selected.source.localPath) : ''), [selected]);
   const lastResultPath = lastResult ? getResultPath(lastResult) : undefined;
   const lastResultSrc = lastResultPath ? makeResSrc(lastResultPath) : toImageSrc(lastResult?.imageUrl);
+  const isEditMode = mode === 'edit';
+  const submitLabel = isEditMode ? '图生图加入图集' : '文生图加入图集';
 
   useEffect(() => {
     setDraft(emptyDraft(selected));
+    setLastResult(null);
   }, [selected]);
 
   const runRequest = useCallback(
-    async (mode: 'edit-add' | 'edit-replace' | 'generate'): Promise<void> => {
+    async (): Promise<void> => {
       if (!canWrite) return;
       const prompt = draft.prompt.trim();
       if (!prompt) {
         toast.warning('请先填写图片提示词');
         return;
       }
-      if (mode !== 'generate' && !selected) {
+      if (isEditMode && !selected) {
         toast.warning('请先选择一张参考图');
         return;
       }
-      setSubmitting(mode);
+      setSubmitting(true);
       try {
         const resolvedPreset = await resolveImageProviderPreset(providerId);
         if (!resolvedPreset) return;
@@ -241,52 +246,23 @@ export default function CharacterImageStudio({ canWrite, lockedTitle, packId, se
           providerId: common.providerId,
           providerPresetId: common.providerPresetId,
           quality: common.quality,
-          referenceImagePath: mode === 'generate' ? undefined : selected?.source.localPath,
+          referenceImagePath: isEditMode ? selected?.source.localPath : undefined,
           size: common.size,
           prompt: common.prompt
         });
         const response =
-          mode === 'generate'
-            ? await window.YUA.ai.generateImageArtifact(common)
-            : await window.YUA.ai.editImage({
+          isEditMode && selected
+            ? await window.YUA.ai.editImage({
                 ...common,
-                imagePaths: selected ? [selected.source.localPath] : []
-              });
+                imagePaths: [selected.source.localPath]
+              })
+            : await window.YUA.ai.generateImageArtifact(common);
         const filePath = getResultPath(response);
         if (!filePath) {
           throw new Error('接口没有返回可导入的本地图片文件');
         }
 
         setLastResult(response);
-        if (mode === 'edit-replace' && selected) {
-          const result = await window.YUA.persona.replaceCharacterGalleryItemImage({
-            packId,
-            source,
-            itemId: selected.id,
-            filePath,
-            origin: {
-              type: 'ai-edited',
-              parentId: selected.id,
-              model: response.model || modelId,
-              prompt: common.prompt
-            }
-          });
-          if (!result?.ok) throw new Error('替换图集图片失败');
-          if (result.item?.source?.localPath) {
-            logImageRequest('gallery image replaced', {
-              itemId: result.item.id,
-              title: result.item.title,
-              sourcePath: result.item.source.localPath,
-              thumbnailPath: result.item.thumbnail?.localPath,
-              temporaryGeneratedPath: filePath
-            });
-          }
-          await onChanged(result.item);
-          toast.success('AI 编辑结果已替换当前图集图片', {
-            description: result.item?.source?.localPath
-          });
-          return;
-        }
 
         const imported = await window.YUA.persona.importCharacterGalleryItem({
           packId,
@@ -308,8 +284,8 @@ export default function CharacterImageStudio({ canWrite, lockedTitle, packId, se
             itemId: imported.item.id,
             patch: {
               origin: {
-                type: mode === 'generate' ? 'ai-generated' : 'ai-edited',
-                ...(selected ? { parentId: selected.id } : {}),
+                type: isEditMode ? 'ai-edited' : 'ai-generated',
+                ...(isEditMode && selected ? { parentId: selected.id } : {}),
                 model: response.model || modelId,
                 prompt: common.prompt
               }
@@ -319,7 +295,7 @@ export default function CharacterImageStudio({ canWrite, lockedTitle, packId, se
         } else {
           await onChanged();
         }
-        toast.success(mode === 'generate' ? 'AI 生成图片已加入图集' : 'AI 编辑结果已加入图集', {
+        toast.success(isEditMode ? 'AI 编辑结果已加入图集' : 'AI 生成图片已加入图集', {
           description: imported?.item?.source?.localPath
         });
       } catch (error) {
@@ -327,18 +303,18 @@ export default function CharacterImageStudio({ canWrite, lockedTitle, packId, se
           description: error instanceof Error ? error.message : String(error)
         });
       } finally {
-        setSubmitting(null);
+        setSubmitting(false);
       }
     },
-    [canWrite, draft, modelId, onChanged, outputFormat, packId, providerId, quality, selected, size, source]
+    [canWrite, draft, isEditMode, mode, modelId, onChanged, outputFormat, packId, providerId, quality, selected, size, source]
   );
 
   return (
     <div className="space-y-3 rounded-md border border-border/60 p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-sm font-medium text-foreground">AI 制图工作台</div>
-          <div className="text-xs text-muted-foreground">对接 GPTeam /images/generations 与 /images/edits，结果会直接写入角色图集。</div>
+          <div className="text-sm font-medium text-foreground">{isEditMode ? 'AI 图片编辑' : 'AI 新建图片'}</div>
+          <div className="text-xs text-muted-foreground">{isEditMode ? '以当前预览图片作为参考图，生成新的角色图集图片。' : '不使用参考图，直接生成一张新的角色图集图片。'}</div>
         </div>
         <ProviderModelSelect
           providerId={providerId}
@@ -354,21 +330,28 @@ export default function CharacterImageStudio({ canWrite, lockedTitle, packId, se
         />
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <div className="space-y-2">
-          <div className="overflow-hidden rounded-md border bg-muted">
-            {selectedPreview ? (
-              <img src={selectedPreview} alt={selected?.title} className="aspect-square w-full object-contain" draggable={false} />
-            ) : (
-              <div className="flex aspect-square items-center justify-center text-xs text-muted-foreground">未选择参考图</div>
-            )}
-          </div>
-          {lastResultSrc ? (
+      <div className={cn('grid gap-3', isEditMode ? 'lg:grid-cols-[220px_minmax(0,1fr)]' : 'lg:grid-cols-[minmax(0,1fr)]')}>
+        {isEditMode ? (
+          <div className="space-y-2">
             <div className="overflow-hidden rounded-md border bg-muted">
-              <img src={lastResultSrc} alt="AI result" className="aspect-square w-full object-contain" draggable={false} />
+              {selectedPreview ? (
+                <img src={selectedPreview} alt={selected?.title} className="aspect-square w-full object-contain" draggable={false} />
+              ) : (
+                <div className="flex aspect-square items-center justify-center text-xs text-muted-foreground">未选择参考图</div>
+              )}
             </div>
-          ) : null}
-        </div>
+            {lastResultSrc ? (
+              <div className="overflow-hidden rounded-md border bg-muted">
+                <img src={lastResultSrc} alt="AI result" className="aspect-square w-full object-contain" draggable={false} />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        {!isEditMode && lastResultSrc ? (
+          <div className="overflow-hidden rounded-md border bg-muted">
+            <img src={lastResultSrc} alt="AI result" className="max-h-[360px] w-full object-contain" draggable={false} />
+          </div>
+        ) : null}
 
         <div className="space-y-3">
           <div className="grid gap-3 md:grid-cols-3">
@@ -504,17 +487,9 @@ export default function CharacterImageStudio({ canWrite, lockedTitle, packId, se
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button type="button" size="sm" onClick={() => void runRequest('generate')} disabled={!canWrite || !!submitting} title={lockedTitle}>
-              {submitting === 'generate' ? <TbLoader2 className="animate-spin" /> : <TbPhotoPlus />}
-              文生图加入图集
-            </Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => void runRequest('edit-add')} disabled={!canWrite || !selected || !!submitting} title={lockedTitle}>
-              {submitting === 'edit-add' ? <TbLoader2 className="animate-spin" /> : <TbPhotoCog />}
-              图生图加入图集
-            </Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => void runRequest('edit-replace')} disabled={!canWrite || !selected || !!submitting} title={lockedTitle}>
-              {submitting === 'edit-replace' ? <TbLoader2 className="animate-spin" /> : <TbReplace />}
-              替换当前图
+            <Button type="button" size="sm" onClick={() => void runRequest()} disabled={!canWrite || (isEditMode && !selected) || submitting} title={lockedTitle}>
+              {submitting ? <TbLoader2 className="animate-spin" /> : isEditMode ? <TbPhotoCog /> : <TbPhotoPlus />}
+              {submitLabel}
             </Button>
           </div>
         </div>

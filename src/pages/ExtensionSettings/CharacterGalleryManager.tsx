@@ -1,6 +1,5 @@
 import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
 import type {
-  CharacterGalleryAIEditContext,
   CharacterGalleryItem,
   CharacterGalleryItemDraft,
   CharacterGalleryItemKind,
@@ -9,7 +8,7 @@ import type {
 } from '@packages/sprite-core/character-gallery';
 import type { CharacterPackSource } from '@packages/sprite-core/character-pack-manager';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { TbArrowLeft, TbChevronLeft, TbChevronRight, TbEdit, TbPencil, TbPhotoPlus, TbRefresh, TbSend, TbTrash } from 'react-icons/tb';
+import { TbArrowLeft, TbChevronLeft, TbChevronRight, TbEdit, TbPencil, TbPhotoPlus, TbRefresh, TbSend, TbSparkles, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -46,7 +45,7 @@ interface CharacterGalleryListState {
 }
 
 type GalleryDialogMode = 'add' | 'edit';
-type GalleryPreviewMode = 'preview' | 'image-studio';
+type GalleryPreviewMode = 'preview' | 'image-studio' | 'generate-studio';
 
 interface GalleryDraftState {
   title: string;
@@ -218,8 +217,6 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
   const [saving, setSaving] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewMode, setPreviewMode] = useState<GalleryPreviewMode>('preview');
-  const [aiPrompt, setAiPrompt] = useState('');
-  const [aiContext, setAiContext] = useState<CharacterGalleryAIEditContext | null>(null);
   const canWrite = !!state?.pack.writable && assetAuthoringCapability?.status !== 'locked';
   const lockedTitle =
     assetAuthoringCapability?.status === 'locked' ? `${assetAuthoringCapability.name} 尚未解锁` : state?.pack.writable === false ? '内置角色包需要另存为本地版本后才能编辑图集' : undefined;
@@ -311,16 +308,12 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
     setSelected(item);
     setPreviewOpen(true);
     setPreviewMode('preview');
-    setAiContext(null);
-    setAiPrompt('');
   }, []);
 
   const closePreviewDialog = useCallback((open: boolean): void => {
     setPreviewOpen(open);
     if (!open) {
       setPreviewMode('preview');
-      setAiContext(null);
-      setAiPrompt('');
     }
   }, []);
 
@@ -332,11 +325,16 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
       setSelected(filteredItems[nextIndex]);
       setPreviewOpen(true);
       setPreviewMode('preview');
-      setAiContext(null);
-      setAiPrompt('');
     },
     [filteredItems, selectedIndex]
   );
+
+  const openGenerateStudio = useCallback((): void => {
+    if (!ensureCanWrite()) return;
+    setSelected(null);
+    setPreviewOpen(true);
+    setPreviewMode('generate-studio');
+  }, [ensureCanWrite]);
 
   const saveDialog = useCallback(async (): Promise<void> => {
     if (!ensureCanWrite() || !dialogMode) return;
@@ -427,40 +425,12 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
         setSelected(null);
         setPreviewOpen(false);
         setPreviewMode('preview');
-        setAiContext(null);
-        setAiPrompt('');
       }
       await refresh();
       toast.success('图集条目已删除');
     },
     [ensureCanWrite, packId, refresh, selected?.id, source]
   );
-
-  const buildAIContext = useCallback(async (): Promise<void> => {
-    const target = previewItem ?? filteredItems[0];
-    if (!target) {
-      toast.warning('请先选择一张图集图片');
-      return;
-    }
-    const prompt = aiPrompt.trim() || target.ai?.promptHint || `以「${target.title}」作为角色参考，保持角色身份一致，生成新的动作或分镜。`;
-    const context = await window.YUA.persona.buildCharacterGalleryAIEditContext({
-      packId,
-      source,
-      draft: {
-        itemIds: [target.id],
-        prompt,
-        negativePrompt: target.ai?.negativePrompt
-      }
-    });
-    setAiContext(context);
-    toast.success('已整理 AI 编辑上下文');
-  }, [aiPrompt, filteredItems, packId, previewItem, source]);
-
-  const copyAIContext = useCallback(async (): Promise<void> => {
-    if (!aiContext) return;
-    await navigator.clipboard.writeText(JSON.stringify(aiContext, null, 2));
-    toast.success('AI 上下文已复制');
-  }, [aiContext]);
 
   const handleAIImageChanged = useCallback(
     async (item?: CharacterGalleryItem): Promise<void> => {
@@ -469,8 +439,6 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
         setSelected(item);
         setPreviewOpen(true);
         setPreviewMode('preview');
-        setAiContext(null);
-        setAiPrompt('');
       }
     },
     [refresh]
@@ -493,7 +461,11 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
             </IconTooltipButton>
             <Button type="button" size="sm" onClick={() => void openAddDialog()} disabled={!canWrite} title={lockedTitle}>
               <TbPhotoPlus />
-              添加图片
+              导入图片
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={openGenerateStudio} disabled={!canWrite} title={lockedTitle}>
+              <TbSparkles />
+              AI 新建
             </Button>
           </div>
         </div>
@@ -514,41 +486,27 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
                   {filteredItems.map((item, index) => {
                     const isSelected = selected?.id === item.id;
                     return (
-                      <Tooltip key={item.id}>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            style={getStackCardStyle(index, isSelected, filteredItems.length)}
-                            className={cn(
-                              'group relative h-56 w-36 shrink-0 overflow-hidden rounded-md border bg-card text-left shadow-sm outline-none transition-[box-shadow,filter,transform] duration-200 [transform:rotate(var(--card-rotate))] hover:z-50 hover:shadow-xl hover:[transform:translateY(-12px)_rotate(0deg)_scale(1.04)] focus-visible:ring-2 focus-visible:ring-ring sm:h-60 sm:w-40',
-                              isSelected
-                                ? 'border-primary shadow-lg ring-2 ring-primary/40 [transform:translateY(-8px)_rotate(0deg)]'
-                                : 'border-border/70 hover:border-primary/60'
-                            )}
-                            onClick={() => selectPreviewItem(item)}
-                          >
-                            <div className="relative h-full bg-muted">
-                              <img src={makeGallerySrc(item)} alt={item.title} className="h-full w-full object-contain" draggable={false} />
-                              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/80 to-transparent p-2 pt-10">
-                                <div className="truncate text-sm font-medium text-foreground">{item.title}</div>
-                                <div className="truncate text-xs text-muted-foreground">{item.semantic?.action || item.semantic?.view || item.semantic?.emotion || item.tags?.join(', ') || item.id}</div>
-                              </div>
-                              <div className="absolute left-2 top-2 rounded bg-background/90 px-2 py-0.5 text-[10px] font-medium text-foreground shadow">{getKindLabel(item.kind)}</div>
-                            </div>
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom" align="start" className="max-w-72">
-                          <div className="space-y-1 text-xs">
-                            <div className="text-sm font-medium text-foreground">{item.title}</div>
-                            <div className="text-muted-foreground">{getKindLabel(item.kind)}</div>
-                            <div>动作：{item.semantic?.action || '未设置'}</div>
-                            <div>角度：{item.semantic?.view || '未设置'}</div>
-                            <div>表情：{item.semantic?.emotion || '未设置'}</div>
-                            {item.tags?.length ? <div className="line-clamp-2">标签：{item.tags.join(', ')}</div> : null}
-                            {item.ai?.promptHint ? <div className="line-clamp-3 text-muted-foreground">{item.ai.promptHint}</div> : null}
+                      <button
+                        key={item.id}
+                        type="button"
+                        style={getStackCardStyle(index, isSelected, filteredItems.length)}
+                        className={cn(
+                          'group relative h-56 w-36 shrink-0 overflow-hidden rounded-md border bg-card text-left shadow-sm outline-none transition-[box-shadow,filter,transform] duration-200 [transform:rotate(var(--card-rotate))] hover:z-50 hover:shadow-xl hover:[transform:translateY(-12px)_rotate(0deg)_scale(1.04)] focus-visible:ring-2 focus-visible:ring-ring sm:h-60 sm:w-40',
+                          isSelected
+                            ? 'border-primary shadow-lg ring-2 ring-primary/40 [transform:translateY(-8px)_rotate(0deg)]'
+                            : 'border-border/70 hover:border-primary/60'
+                        )}
+                        onClick={() => selectPreviewItem(item)}
+                      >
+                        <div className="relative h-full bg-muted">
+                          <img src={makeGallerySrc(item)} alt={item.title} className="h-full w-full object-contain" draggable={false} />
+                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/80 to-transparent p-2 pt-10">
+                            <div className="truncate text-sm font-medium text-foreground">{item.title}</div>
+                            <div className="truncate text-xs text-muted-foreground">{item.semantic?.action || item.semantic?.view || item.semantic?.emotion || item.tags?.join(', ') || item.id}</div>
                           </div>
-                        </TooltipContent>
-                      </Tooltip>
+                          <div className="absolute left-2 top-2 rounded bg-background/90 px-2 py-0.5 text-[10px] font-medium text-foreground shadow">{getKindLabel(item.kind)}</div>
+                        </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -558,7 +516,11 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
                 <div>{query.trim() ? '没有匹配的图集图片' : '这个角色包还没有图集图片'}</div>
                 <Button type="button" size="sm" onClick={() => void openAddDialog()} disabled={!canWrite} title={lockedTitle}>
                   <TbPhotoPlus />
-                  添加第一张
+                  导入第一张
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={openGenerateStudio} disabled={!canWrite} title={lockedTitle}>
+                  <TbSparkles />
+                  AI 新建
                 </Button>
               </div>
             )}
@@ -566,9 +528,21 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
 
         </div>
 
-        <Dialog open={previewOpen && !!previewItem} onOpenChange={closePreviewDialog}>
+        <Dialog open={previewOpen && (previewMode === 'generate-studio' || !!previewItem)} onOpenChange={closePreviewDialog}>
           <DialogContent className="flex h-[min(860px,90vh)] w-[min(1120px,calc(100vw-32px))] max-w-none flex-col gap-0 overflow-hidden p-0">
-            {previewItem ? (
+            {previewMode === 'generate-studio' ? (
+              <>
+                <DialogHeader className="border-b border-border/60 px-5 py-4 pr-14">
+                  <div className="min-w-0">
+                    <DialogTitle className="truncate text-base">AI 新建图片</DialogTitle>
+                    <DialogDescription className="truncate">不使用参考图，生成全新的角色图集图片。</DialogDescription>
+                  </div>
+                </DialogHeader>
+                <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                  <CharacterImageStudio canWrite={canWrite} lockedTitle={lockedTitle} mode="generate" packId={packId} source={source} onChanged={handleAIImageChanged} />
+                </div>
+              </>
+            ) : previewItem ? (
               <>
                 <DialogHeader className="border-b border-border/60 px-5 py-4 pr-14">
                   <div className="flex flex-wrap items-center gap-2">
@@ -649,22 +623,8 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
                     </div>
                   </div>
                 ) : (
-                  <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
-                    <CharacterImageStudio canWrite={canWrite} lockedTitle={lockedTitle} packId={packId} selected={previewItem} source={source} onChanged={handleAIImageChanged} />
-                    <div className="space-y-2 rounded-md border border-border/60 p-3">
-                      <Label className="text-xs text-muted-foreground">发送给 AI 的编辑意图</Label>
-                      <Textarea className="min-h-20" value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} placeholder="例如：保持角色一致，生成向右奔跑的分镜参考。" />
-                      <div className="flex gap-2">
-                        <Button type="button" size="sm" onClick={() => void buildAIContext()}>
-                          <TbSend />
-                          整理上下文
-                        </Button>
-                        <Button type="button" size="sm" variant="outline" onClick={() => void copyAIContext()} disabled={!aiContext}>
-                          复制 JSON
-                        </Button>
-                      </div>
-                      {aiContext && <Textarea className="max-h-48 min-h-28 font-mono text-xs" value={JSON.stringify(aiContext, null, 2)} readOnly />}
-                    </div>
+                  <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                    <CharacterImageStudio canWrite={canWrite} lockedTitle={lockedTitle} mode="edit" packId={packId} selected={previewItem} source={source} onChanged={handleAIImageChanged} />
                   </div>
                 )}
               </>
