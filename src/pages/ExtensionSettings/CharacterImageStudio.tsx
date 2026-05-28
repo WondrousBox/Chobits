@@ -34,10 +34,10 @@ interface StudioDraft {
   referenceRole: CharacterGalleryReferenceRole;
 }
 
-interface ProviderApiKeyItem {
+interface ImageProviderPreset {
+  id: string;
+  providerId: string;
   name: string;
-  value: string;
-  isDefault?: boolean;
 }
 
 const SIZE_OPTIONS = [
@@ -150,16 +150,11 @@ function toImageSrc(pathOrUrl?: string): string {
   return makeResSrc(pathOrUrl);
 }
 
-function hasUsableApiKey(keys: ProviderApiKeyItem[]): boolean {
-  return keys.some((key) => typeof key.value === 'string' && key.value.trim().length > 0);
-}
-
-async function ensureProviderApiKey(providerId: string): Promise<boolean> {
-  const keys = await window.YUA.ai.getProviderApiKeys(providerId, 'apiKey').catch(() => [] as ProviderApiKeyItem[]);
-  if (hasUsableApiKey(keys)) return true;
-
+async function resolveImageProviderPreset(providerId: string): Promise<ImageProviderPreset | null> {
+  const preset = (await window.YUA.ai.resolveUsablePreset(providerId).catch(() => null)) as ImageProviderPreset | null;
+  if (preset?.id) return preset;
   toast.warning('请先配置图片服务 API Key', {
-    description: `当前提供商 ${providerId} 还没有可用的 API Key。`,
+    description: `当前提供商 ${providerId} 还没有可用的预设，请保存 API Key 后再生成。`,
     action: {
       label: '去配置',
       onClick: () => {
@@ -167,7 +162,7 @@ async function ensureProviderApiKey(providerId: string): Promise<boolean> {
       }
     }
   });
-  return false;
+  return null;
 }
 
 function buildReferencePrompt(prompt: string, selected?: CharacterGalleryItem | null): string {
@@ -188,6 +183,10 @@ function buildRequestPrompt(draft: StudioDraft, mode: 'edit-add' | 'edit-replace
   const prompt = mode === 'generate' ? draft.prompt.trim() : buildReferencePrompt(draft.prompt.trim(), selected);
   const negativePrompt = draft.negativePrompt.trim();
   return negativePrompt ? `${prompt}\n\n避免：${negativePrompt}` : prompt;
+}
+
+function logImageRequest(label: string, payload: Record<string, unknown>): void {
+  console.info(`[CharacterImageStudio] ${label}`, payload);
 }
 
 export default function CharacterImageStudio({ canWrite, lockedTitle, packId, selected, source, onChanged }: CharacterImageStudioProps): JSX.Element {
@@ -220,21 +219,32 @@ export default function CharacterImageStudio({ canWrite, lockedTitle, packId, se
         toast.warning('请先选择一张参考图');
         return;
       }
-      if (!(await ensureProviderApiKey(providerId))) {
-        return;
-      }
-
       setSubmitting(mode);
       try {
+        const resolvedPreset = await resolveImageProviderPreset(providerId);
+        if (!resolvedPreset) return;
+
         const common = {
           model: modelId,
           outputFormat,
           prompt: buildRequestPrompt(draft, mode, selected),
           providerId,
+          providerPresetId: resolvedPreset.id,
           quality,
           responseFormat: 'b64_json' as const,
           size
         };
+        logImageRequest('final image prompt before request', {
+          mode,
+          model: common.model,
+          outputFormat: common.outputFormat,
+          providerId: common.providerId,
+          providerPresetId: common.providerPresetId,
+          quality: common.quality,
+          referenceImagePath: mode === 'generate' ? undefined : selected?.source.localPath,
+          size: common.size,
+          prompt: common.prompt
+        });
         const response =
           mode === 'generate'
             ? await window.YUA.ai.generateImageArtifact(common)
@@ -262,8 +272,19 @@ export default function CharacterImageStudio({ canWrite, lockedTitle, packId, se
             }
           });
           if (!result?.ok) throw new Error('替换图集图片失败');
+          if (result.item?.source?.localPath) {
+            logImageRequest('gallery image replaced', {
+              itemId: result.item.id,
+              title: result.item.title,
+              sourcePath: result.item.source.localPath,
+              thumbnailPath: result.item.thumbnail?.localPath,
+              temporaryGeneratedPath: filePath
+            });
+          }
           await onChanged(result.item);
-          toast.success('AI 编辑结果已替换当前图集图片');
+          toast.success('AI 编辑结果已替换当前图集图片', {
+            description: result.item?.source?.localPath
+          });
           return;
         }
 
@@ -274,6 +295,13 @@ export default function CharacterImageStudio({ canWrite, lockedTitle, packId, se
           draft: toGalleryDraft(draft, response)
         });
         if (imported?.item) {
+          logImageRequest('gallery image imported', {
+            itemId: imported.item.id,
+            title: imported.item.title,
+            sourcePath: imported.item.source.localPath,
+            thumbnailPath: imported.item.thumbnail?.localPath,
+            temporaryGeneratedPath: filePath
+          });
           const updated = await window.YUA.persona.updateCharacterGalleryItem({
             packId,
             source,
@@ -291,7 +319,9 @@ export default function CharacterImageStudio({ canWrite, lockedTitle, packId, se
         } else {
           await onChanged();
         }
-        toast.success(mode === 'generate' ? 'AI 生成图片已加入图集' : 'AI 编辑结果已加入图集');
+        toast.success(mode === 'generate' ? 'AI 生成图片已加入图集' : 'AI 编辑结果已加入图集', {
+          description: imported?.item?.source?.localPath
+        });
       } catch (error) {
         toast.error('AI 图片任务失败', {
           description: error instanceof Error ? error.message : String(error)
