@@ -45,6 +45,18 @@ import { SPRITE_CAPABILITY_SIGNALS, type SpriteCapabilityResolutionContext } fro
 import { assertSpriteCapabilityUnlocked, getSpriteCapabilitySnapshot, initSpriteCapabilityRuntime } from '../capability-runtime';
 import { getCharacterCapabilityContextFlags } from '../character-capability-flags';
 import {
+  buildCharacterGalleryAIEditContext,
+  type CharacterGalleryAIEditDraft,
+  getCharacterGalleryCanvasLayout,
+  importCharacterGalleryItem,
+  initCharacterGalleryManager,
+  listCharacterGalleryItems,
+  removeCharacterGalleryItem,
+  replaceCharacterGalleryItemImage,
+  saveCharacterGalleryCanvasLayout,
+  updateCharacterGalleryItem
+} from '../character-gallery-manager';
+import {
   activateCharacterPack,
   type CharacterPackEditorDraft,
   type CharacterPackEditorSaveOptions,
@@ -61,16 +73,6 @@ import {
   removeCharacterPack,
   saveCharacterPackEditorDraft
 } from '../character-pack-manager';
-import {
-  buildCharacterGalleryAIEditContext,
-  importCharacterGalleryItem,
-  initCharacterGalleryManager,
-  listCharacterGalleryItems,
-  removeCharacterGalleryItem,
-  replaceCharacterGalleryItemImage,
-  updateCharacterGalleryItem,
-  type CharacterGalleryAIEditDraft
-} from '../character-gallery-manager';
 import { type CharacterPersonaRuntimeSyncResult, reloadCharacterPersonaRuntime, syncCharacterPersonaRuntime } from '../character-runtime';
 import { buildCharacterPersonaPrompt, getCharacterDefinition, getCharacterInfo, getCharacterToolLabels, initCharacterService, type ToolLabelDefinition } from '../character-service';
 import type { PersonaRewardGrant } from '../config/persona-rules';
@@ -631,7 +633,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     return { ok: true, state: mgr.getPersonaState() };
   });
 
-  function grantPersonaReward(payload: SpritePersonaRewardGrantRequest = {}): { ok: boolean;[key: string]: unknown } {
+  function grantPersonaReward(payload: SpritePersonaRewardGrantRequest = {}): { ok: boolean; [key: string]: unknown } {
     const source = typeof payload.source === 'string' && payload.source.trim() ? payload.source.trim() : 'persona:reward';
     const xp = typeof payload.xp === 'number' && Number.isFinite(payload.xp) ? payload.xp : 0;
     const favor = typeof payload.favor === 'number' && Number.isFinite(payload.favor) ? payload.favor : 0;
@@ -796,10 +798,10 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   type InstalledPackChangeResponse = {
     ok: true;
   } & Awaited<ReturnType<typeof installCharacterPackFromArchive>> & {
-    character?: ReturnType<typeof getCharacterInfo>;
-    runtime?: CharacterPersonaRuntimeSyncResult;
-    personaSlot?: { slotId: string; restored: boolean; switched: boolean };
-  };
+      character?: ReturnType<typeof getCharacterInfo>;
+      runtime?: CharacterPersonaRuntimeSyncResult;
+      personaSlot?: { slotId: string; restored: boolean; switched: boolean };
+    };
 
   async function finalizeInstalledPackChange(
     result: Awaited<ReturnType<typeof installCharacterPackFromArchive>>,
@@ -979,6 +981,28 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   ipcMain.handle('sprite:character:gallery:list', async (_e, payload: { packId?: string; source?: CharacterPackSource; query?: string } = {}) => {
     return listCharacterGalleryItems(payload);
   });
+
+  ipcMain.handle('sprite:character:gallery:canvas:get', async (_e, payload: { packId?: string; source?: CharacterPackSource } = {}) => {
+    return getCharacterGalleryCanvasLayout(payload);
+  });
+
+  ipcMain.handle(
+    'sprite:character:gallery:canvas:save',
+    async (
+      _e,
+      payload: {
+        layout: Parameters<typeof saveCharacterGalleryCanvasLayout>[0];
+        packId?: string;
+        source?: CharacterPackSource;
+      }
+    ) => {
+      assertSpriteCapabilityUnlocked('spriteManage');
+      return saveCharacterGalleryCanvasLayout(payload.layout, {
+        packId: payload.packId,
+        source: payload.source
+      });
+    }
+  );
 
   ipcMain.handle(
     'sprite:character:gallery:import',

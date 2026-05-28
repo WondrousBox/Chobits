@@ -1,5 +1,6 @@
 import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
 import type {
+  CharacterGalleryCanvasLayout,
   CharacterGalleryItem,
   CharacterGalleryItemDraft,
   CharacterGalleryItemKind,
@@ -7,8 +8,8 @@ import type {
   CharacterGalleryViewAngle
 } from '@packages/sprite-core/character-gallery';
 import type { CharacterPackSource } from '@packages/sprite-core/character-pack-manager';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { TbArrowLeft, TbChevronLeft, TbChevronRight, TbEdit, TbPencil, TbPhotoPlus, TbRefresh, TbSend, TbSparkles, TbTrash } from 'react-icons/tb';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { TbChevronLeft, TbChevronRight, TbEdit, TbPencil, TbRefresh, TbSend, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -18,11 +19,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import type { ImageGenerationCanvasHandle } from '@/features/image-generation-canvas/types';
 import { ensureSpriteCapabilityAccessible, SpriteCapabilityLockedNotice } from '@/features/sprite-assistant/capability-ui';
 import { cn } from '@/lib/utils';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
-import CharacterImageStudio from './CharacterImageStudio';
+import CharacterGalleryCanvas from './CharacterGalleryCanvas';
 import { joinEditorLines, splitEditorLines } from './SpritePackEditorModel';
 
 interface CharacterGalleryManagerProps {
@@ -45,7 +47,6 @@ interface CharacterGalleryListState {
 }
 
 type GalleryDialogMode = 'add' | 'edit';
-type GalleryPreviewMode = 'preview' | 'image-studio' | 'generate-studio';
 
 interface GalleryDraftState {
   title: string;
@@ -163,10 +164,6 @@ function getKindLabel(kind: CharacterGalleryItemKind): string {
   return KIND_OPTIONS.find((option) => option.value === kind)?.label ?? kind;
 }
 
-function makeGallerySrc(item: CharacterGalleryItem): string {
-  return makeResSrc(item.thumbnail?.localPath || item.source.localPath);
-}
-
 function makeFullSrc(item: CharacterGalleryItem): string {
   return makeResSrc(item.source.localPath);
 }
@@ -174,15 +171,6 @@ function makeFullSrc(item: CharacterGalleryItem): string {
 function fileName(filePath: string): string {
   const parts = filePath.replace(/\\/g, '/').split('/');
   return parts[parts.length - 1] || filePath;
-}
-
-function getStackCardStyle(index: number, isSelected: boolean, total: number): React.CSSProperties & { '--card-rotate'?: string } {
-  const rotation = ((index % 5) - 2) * 1.6;
-  return {
-    marginLeft: index === 0 ? 0 : -72,
-    zIndex: isSelected ? total + 8 : index + 1,
-    '--card-rotate': `${rotation}deg`
-  };
 }
 
 function IconTooltipButton({
@@ -207,7 +195,10 @@ function IconTooltipButton({
 }
 
 export default function CharacterGalleryManager({ packId, source, assetAuthoringCapability, onCapabilityBlocked }: CharacterGalleryManagerProps): JSX.Element {
+  const canvasRef = useRef<ImageGenerationCanvasHandle | null>(null);
+  const canvasLayoutRef = useRef<CharacterGalleryCanvasLayout | null>(null);
   const [state, setState] = useState<CharacterGalleryListState | null>(null);
+  const [canvasLayout, setCanvasLayout] = useState<CharacterGalleryCanvasLayout | null>(null);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<CharacterGalleryItem | null>(null);
@@ -216,7 +207,6 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
   const [pendingFilePath, setPendingFilePath] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewMode, setPreviewMode] = useState<GalleryPreviewMode>('preview');
   const canWrite = !!state?.pack.writable && assetAuthoringCapability?.status !== 'locked';
   const lockedTitle =
     assetAuthoringCapability?.status === 'locked' ? `${assetAuthoringCapability.name} 尚未解锁` : state?.pack.writable === false ? '内置角色包需要另存为本地版本后才能编辑图集' : undefined;
@@ -224,8 +214,11 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
     try {
-      const result = await window.YUA.persona.listCharacterGallery({ packId, source });
+      const [result, layoutResult] = await Promise.all([window.YUA.persona.listCharacterGallery({ packId, source }), window.YUA.persona.getCharacterGalleryCanvasLayout({ packId, source })]);
       setState(result);
+      const nextLayout = layoutResult?.layout ?? { version: 1, nodes: [] };
+      canvasLayoutRef.current = nextLayout;
+      setCanvasLayout(nextLayout);
     } catch (error) {
       console.warn('[CharacterGalleryManager] list failed', error);
       toast.error('读取角色图集失败', {
@@ -307,14 +300,10 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
   const selectPreviewItem = useCallback((item: CharacterGalleryItem): void => {
     setSelected(item);
     setPreviewOpen(true);
-    setPreviewMode('preview');
   }, []);
 
   const closePreviewDialog = useCallback((open: boolean): void => {
     setPreviewOpen(open);
-    if (!open) {
-      setPreviewMode('preview');
-    }
   }, []);
 
   const movePreview = useCallback(
@@ -324,17 +313,9 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
       const nextIndex = (currentIndex + delta + filteredItems.length) % filteredItems.length;
       setSelected(filteredItems[nextIndex]);
       setPreviewOpen(true);
-      setPreviewMode('preview');
     },
     [filteredItems, selectedIndex]
   );
-
-  const openGenerateStudio = useCallback((): void => {
-    if (!ensureCanWrite()) return;
-    setSelected(null);
-    setPreviewOpen(true);
-    setPreviewMode('generate-studio');
-  }, [ensureCanWrite]);
 
   const saveDialog = useCallback(async (): Promise<void> => {
     if (!ensureCanWrite() || !dialogMode) return;
@@ -424,7 +405,6 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
       if (selected?.id === item.id) {
         setSelected(null);
         setPreviewOpen(false);
-        setPreviewMode('preview');
       }
       await refresh();
       toast.success('图集条目已删除');
@@ -438,10 +418,45 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
       if (item) {
         setSelected(item);
         setPreviewOpen(true);
-        setPreviewMode('preview');
       }
     },
     [refresh]
+  );
+
+  const saveCanvasLayout = useCallback(
+    async (layout: CharacterGalleryCanvasLayout): Promise<void> => {
+      if (!canWrite) return;
+      const shouldMergeHiddenNodes = !!query.trim();
+      const previousNodes = shouldMergeHiddenNodes ? (canvasLayoutRef.current?.nodes ?? []) : [];
+      const nextNodeIds = new Set(layout.nodes.map((node) => node.id));
+      const nextLayout: CharacterGalleryCanvasLayout = {
+        ...layout,
+        nodes: [...layout.nodes, ...previousNodes.filter((node) => !nextNodeIds.has(node.id))]
+      };
+      canvasLayoutRef.current = nextLayout;
+      try {
+        const result = await window.YUA.persona.saveCharacterGalleryCanvasLayout({
+          packId,
+          source,
+          layout: nextLayout
+        });
+        if (result?.layout) {
+          canvasLayoutRef.current = result.layout;
+        }
+      } catch (error) {
+        console.warn('[CharacterGalleryManager] save canvas layout failed', error);
+      }
+    },
+    [canWrite, packId, query, source]
+  );
+
+  const openCanvasEditForm = useCallback(
+    (item: CharacterGalleryItem): void => {
+      if (!ensureCanWrite()) return;
+      setPreviewOpen(false);
+      canvasRef.current?.createEditForm(item.id);
+    },
+    [ensureCanWrite]
   );
 
   return (
@@ -459,14 +474,6 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
             <IconTooltipButton label="刷新图集" type="button" size="sm" variant="outline" onClick={() => void refresh()} disabled={loading}>
               <TbRefresh />
             </IconTooltipButton>
-            <Button type="button" size="sm" onClick={() => void openAddDialog()} disabled={!canWrite} title={lockedTitle}>
-              <TbPhotoPlus />
-              导入图片
-            </Button>
-            <Button type="button" size="sm" variant="outline" onClick={openGenerateStudio} disabled={!canWrite} title={lockedTitle}>
-              <TbSparkles />
-              AI 新建
-            </Button>
           </div>
         </div>
 
@@ -476,157 +483,94 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
           </div>
         )}
 
-        <div className="space-y-4">
-          <div className="min-h-[280px] rounded-md border border-border/60 p-3">
-            {loading ? (
-              <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">正在读取图集...</div>
-            ) : filteredItems.length > 0 ? (
-              <div className="overflow-x-auto overflow-y-visible px-2 pb-7 pt-5">
-                <div className="flex min-h-[250px] items-start">
-                  {filteredItems.map((item, index) => {
-                    const isSelected = selected?.id === item.id;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        style={getStackCardStyle(index, isSelected, filteredItems.length)}
-                        className={cn(
-                          'group relative h-56 w-36 shrink-0 overflow-hidden rounded-md border bg-card text-left shadow-sm outline-none transition-[box-shadow,filter,transform] duration-200 [transform:rotate(var(--card-rotate))] hover:z-50 hover:shadow-xl hover:[transform:translateY(-12px)_rotate(0deg)_scale(1.04)] focus-visible:ring-2 focus-visible:ring-ring sm:h-60 sm:w-40',
-                          isSelected
-                            ? 'border-primary shadow-lg ring-2 ring-primary/40 [transform:translateY(-8px)_rotate(0deg)]'
-                            : 'border-border/70 hover:border-primary/60'
-                        )}
-                        onClick={() => selectPreviewItem(item)}
-                      >
-                        <div className="relative h-full bg-muted">
-                          <img src={makeGallerySrc(item)} alt={item.title} className="h-full w-full object-contain" draggable={false} />
-                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/80 to-transparent p-2 pt-10">
-                            <div className="truncate text-sm font-medium text-foreground">{item.title}</div>
-                            <div className="truncate text-xs text-muted-foreground">{item.semantic?.action || item.semantic?.view || item.semantic?.emotion || item.tags?.join(', ') || item.id}</div>
-                          </div>
-                          <div className="absolute left-2 top-2 rounded bg-background/90 px-2 py-0.5 text-[10px] font-medium text-foreground shadow">{getKindLabel(item.kind)}</div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : (
-              <div className="flex h-64 flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
-                <div>{query.trim() ? '没有匹配的图集图片' : '这个角色包还没有图集图片'}</div>
-                <Button type="button" size="sm" onClick={() => void openAddDialog()} disabled={!canWrite} title={lockedTitle}>
-                  <TbPhotoPlus />
-                  导入第一张
-                </Button>
-                <Button type="button" size="sm" variant="outline" onClick={openGenerateStudio} disabled={!canWrite} title={lockedTitle}>
-                  <TbSparkles />
-                  AI 新建
-                </Button>
-              </div>
-            )}
-          </div>
+        <CharacterGalleryCanvas
+          ref={canvasRef}
+          canWrite={canWrite}
+          items={filteredItems}
+          layout={canvasLayout}
+          loading={loading}
+          lockedTitle={lockedTitle}
+          packId={packId}
+          source={source}
+          onChanged={handleAIImageChanged}
+          onImportImage={openAddDialog}
+          onLayoutChange={saveCanvasLayout}
+          onPreviewItem={selectPreviewItem}
+        />
 
-        </div>
-
-        <Dialog open={previewOpen && (previewMode === 'generate-studio' || !!previewItem)} onOpenChange={closePreviewDialog}>
+        <Dialog open={previewOpen && !!previewItem} onOpenChange={closePreviewDialog}>
           <DialogContent className="flex h-[min(860px,90vh)] w-[min(1120px,calc(100vw-32px))] max-w-none flex-col gap-0 overflow-hidden p-0">
-            {previewMode === 'generate-studio' ? (
+            {previewItem ? (
               <>
                 <DialogHeader className="border-b border-border/60 px-5 py-4 pr-14">
                   <div className="min-w-0">
-                    <DialogTitle className="truncate text-base">AI 新建图片</DialogTitle>
-                    <DialogDescription className="truncate">不使用参考图，生成全新的角色图集图片。</DialogDescription>
+                    <DialogTitle className="truncate text-base">{previewItem.title}</DialogTitle>
+                    <DialogDescription className="truncate">{fileName(previewItem.source.localPath)}</DialogDescription>
                   </div>
                 </DialogHeader>
-                <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                  <CharacterImageStudio canWrite={canWrite} lockedTitle={lockedTitle} mode="generate" packId={packId} source={source} onChanged={handleAIImageChanged} />
-                </div>
-              </>
-            ) : previewItem ? (
-              <>
-                <DialogHeader className="border-b border-border/60 px-5 py-4 pr-14">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {previewMode === 'image-studio' ? (
-                      <IconTooltipButton label="返回预览" type="button" size="sm" variant="ghost" onClick={() => setPreviewMode('preview')}>
-                        <TbArrowLeft />
-                      </IconTooltipButton>
+
+                <div className="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_340px] lg:overflow-hidden">
+                  <div className="relative flex min-h-[280px] items-center justify-center bg-muted/60 p-4 lg:min-h-0">
+                    <img src={makeFullSrc(previewItem)} alt={previewItem.title} className="max-h-[62vh] w-full object-contain lg:max-h-full" draggable={false} />
+                    {filteredItems.length > 1 ? (
+                      <>
+                        <IconTooltipButton label="上一张" type="button" size="sm" variant="secondary" className="absolute left-4 top-1/2 -translate-y-1/2 shadow" onClick={() => movePreview(-1)}>
+                          <TbChevronLeft />
+                        </IconTooltipButton>
+                        <IconTooltipButton label="下一张" type="button" size="sm" variant="secondary" className="absolute right-4 top-1/2 -translate-y-1/2 shadow" onClick={() => movePreview(1)}>
+                          <TbChevronRight />
+                        </IconTooltipButton>
+                      </>
                     ) : null}
-                    <div className="min-w-0">
-                      <DialogTitle className="truncate text-base">{previewMode === 'image-studio' ? '图片编辑' : previewItem.title}</DialogTitle>
-                      <DialogDescription className="truncate">{previewMode === 'image-studio' ? `参考图：${previewItem.title}` : fileName(previewItem.source.localPath)}</DialogDescription>
-                    </div>
                   </div>
-                </DialogHeader>
 
-                {previewMode === 'preview' ? (
-                  <div className="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_340px] lg:overflow-hidden">
-                    <div className="relative flex min-h-[280px] items-center justify-center bg-muted/60 p-4 lg:min-h-0">
-                      <img src={makeFullSrc(previewItem)} alt={previewItem.title} className="max-h-[62vh] w-full object-contain lg:max-h-full" draggable={false} />
-                      {filteredItems.length > 1 ? (
-                        <>
-                          <IconTooltipButton label="上一张" type="button" size="sm" variant="secondary" className="absolute left-4 top-1/2 -translate-y-1/2 shadow" onClick={() => movePreview(-1)}>
-                            <TbChevronLeft />
-                          </IconTooltipButton>
-                          <IconTooltipButton label="下一张" type="button" size="sm" variant="secondary" className="absolute right-4 top-1/2 -translate-y-1/2 shadow" onClick={() => movePreview(1)}>
-                            <TbChevronRight />
-                          </IconTooltipButton>
-                        </>
-                      ) : null}
+                  <div className="min-h-0 space-y-4 border-t border-border/60 p-4 lg:overflow-y-auto lg:border-l lg:border-t-0">
+                    <div>
+                      <div className="text-base font-medium text-foreground">{previewItem.title}</div>
+                      <div className="mt-1 break-all text-xs text-muted-foreground">{previewItem.id}</div>
                     </div>
-
-                    <div className="min-h-0 space-y-4 border-t border-border/60 p-4 lg:overflow-y-auto lg:border-l lg:border-t-0">
-                      <div>
-                        <div className="text-base font-medium text-foreground">{previewItem.title}</div>
-                        <div className="mt-1 break-all text-xs text-muted-foreground">{previewItem.id}</div>
-                      </div>
-                      {previewItem.description ? <div className="text-sm text-muted-foreground">{previewItem.description}</div> : null}
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="rounded border px-2 py-1">类型：{getKindLabel(previewItem.kind)}</div>
-                        <div className="rounded border px-2 py-1">角度：{previewItem.semantic?.view ?? '未设置'}</div>
-                        <div className="rounded border px-2 py-1">动作：{previewItem.semantic?.action ?? '未设置'}</div>
-                        <div className="rounded border px-2 py-1">表情：{previewItem.semantic?.emotion ?? '未设置'}</div>
-                        <div className="rounded border px-2 py-1">参考：{previewItem.ai?.referenceRole ?? 'character'}</div>
-                        <div className="rounded border px-2 py-1">强度：{previewItem.ai?.referenceStrength ?? '0.8'}</div>
-                      </div>
-                      {previewItem.tags?.length ? <div className="text-xs text-muted-foreground">标签：{previewItem.tags.join(', ')}</div> : null}
-                      {previewItem.ai?.promptHint ? <div className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">{previewItem.ai.promptHint}</div> : null}
-                      <div className="space-y-2 border-t pt-3">
-                        <Button type="button" size="sm" className="w-full justify-center" onClick={() => setPreviewMode('image-studio')} disabled={!canWrite} title={lockedTitle}>
-                          <TbSend />
-                          编辑图片
+                    {previewItem.description ? <div className="text-sm text-muted-foreground">{previewItem.description}</div> : null}
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded border px-2 py-1">类型：{getKindLabel(previewItem.kind)}</div>
+                      <div className="rounded border px-2 py-1">角度：{previewItem.semantic?.view ?? '未设置'}</div>
+                      <div className="rounded border px-2 py-1">动作：{previewItem.semantic?.action ?? '未设置'}</div>
+                      <div className="rounded border px-2 py-1">表情：{previewItem.semantic?.emotion ?? '未设置'}</div>
+                      <div className="rounded border px-2 py-1">参考：{previewItem.ai?.referenceRole ?? 'character'}</div>
+                      <div className="rounded border px-2 py-1">强度：{previewItem.ai?.referenceStrength ?? '0.8'}</div>
+                    </div>
+                    {previewItem.tags?.length ? <div className="text-xs text-muted-foreground">标签：{previewItem.tags.join(', ')}</div> : null}
+                    {previewItem.ai?.promptHint ? <div className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">{previewItem.ai.promptHint}</div> : null}
+                    <div className="space-y-2 border-t pt-3">
+                      <Button type="button" size="sm" className="w-full justify-center" onClick={() => openCanvasEditForm(previewItem)} disabled={!canWrite} title={lockedTitle}>
+                        <TbSend />
+                        以此图生成
+                      </Button>
+                      <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setPreviewOpen(false);
+                            openEditDialog(previewItem);
+                          }}
+                          disabled={!canWrite}
+                          title={lockedTitle}
+                        >
+                          <TbPencil />
+                          元数据
                         </Button>
-                        <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setPreviewOpen(false);
-                              setPreviewMode('preview');
-                              openEditDialog(previewItem);
-                            }}
-                            disabled={!canWrite}
-                            title={lockedTitle}
-                          >
-                            <TbPencil />
-                            元数据
-                          </Button>
-                          <Button type="button" size="sm" variant="outline" onClick={() => void replaceImage(previewItem)} disabled={!canWrite} title={lockedTitle}>
-                            <TbEdit />
-                            替换
-                          </Button>
-                          <IconTooltipButton label="删除图片" type="button" size="sm" variant="destructive" onClick={() => void removeItem(previewItem)} disabled={!canWrite} title={lockedTitle}>
-                            <TbTrash />
-                          </IconTooltipButton>
-                        </div>
+                        <Button type="button" size="sm" variant="outline" onClick={() => void replaceImage(previewItem)} disabled={!canWrite} title={lockedTitle}>
+                          <TbEdit />
+                          替换
+                        </Button>
+                        <IconTooltipButton label="删除图片" type="button" size="sm" variant="destructive" onClick={() => void removeItem(previewItem)} disabled={!canWrite} title={lockedTitle}>
+                          <TbTrash />
+                        </IconTooltipButton>
                       </div>
                     </div>
                   </div>
-                ) : (
-                  <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                    <CharacterImageStudio canWrite={canWrite} lockedTitle={lockedTitle} mode="edit" packId={packId} selected={previewItem} source={source} onChanged={handleAIImageChanged} />
-                  </div>
-                )}
+                </div>
               </>
             ) : null}
           </DialogContent>
