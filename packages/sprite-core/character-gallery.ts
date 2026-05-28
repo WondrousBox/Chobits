@@ -96,6 +96,46 @@ export interface CharacterGalleryAIEditContext {
   negativePrompt?: string;
 }
 
+export interface CharacterGalleryCanvasDraft {
+  action?: string;
+  emotion?: string;
+  kind?: CharacterGalleryItemKind;
+  modelId?: string;
+  negativePrompt?: string;
+  outputFormat?: 'png' | 'webp' | 'jpeg';
+  prompt?: string;
+  providerId?: string;
+  providerPresetId?: string;
+  quality?: string;
+  referenceRole?: CharacterGalleryReferenceRole;
+  size?: string;
+  tags?: string;
+  title?: string;
+  view?: CharacterGalleryViewAngle | '';
+}
+
+export interface CharacterGalleryCanvasNodeLayout {
+  assetId?: string;
+  draft?: CharacterGalleryCanvasDraft & {
+    mode?: 'generate' | 'edit';
+    referenceAssetId?: string;
+  };
+  id: string;
+  x: number;
+  y: number;
+}
+
+export interface CharacterGalleryCanvasLayout {
+  nodes: CharacterGalleryCanvasNodeLayout[];
+  updatedAt?: string;
+  version: 1;
+  viewport?: {
+    x: number;
+    y: number;
+    zoom: number;
+  };
+}
+
 const KIND_SET = new Set<string>(CHARACTER_GALLERY_ITEM_KINDS);
 const VIEW_ANGLE_SET = new Set<string>(CHARACTER_GALLERY_VIEW_ANGLES);
 const REFERENCE_ROLE_SET = new Set<string>(CHARACTER_GALLERY_REFERENCE_ROLES);
@@ -224,7 +264,7 @@ function normalizeImageRef(value: unknown): CharacterGalleryImageRef | null {
     return null;
   }
 
-  const type = typeof value.type === 'string' && value.type.trim() ? value.type.trim().slice(0, 80) : getCharacterGalleryImageMimeFromPath(value.localPath) ?? 'application/octet-stream';
+  const type = typeof value.type === 'string' && value.type.trim() ? value.type.trim().slice(0, 80) : (getCharacterGalleryImageMimeFromPath(value.localPath) ?? 'application/octet-stream');
   return {
     localPath: value.localPath.trim(),
     type,
@@ -311,5 +351,84 @@ export function normalizeCharacterGalleryItemPatch(value: unknown): CharacterGal
     ...(tags !== undefined ? { tags } : {}),
     ...(Object.prototype.hasOwnProperty.call(source, 'ai') ? { ai: normalizeCharacterGalleryAIHints(source.ai) } : {}),
     ...(Object.prototype.hasOwnProperty.call(source, 'origin') ? { origin: normalizeCharacterGalleryOrigin(source.origin) } : {})
+  };
+}
+
+function normalizeCanvasNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function normalizeCharacterGalleryCanvasDraft(value: unknown): CharacterGalleryCanvasDraft | undefined {
+  if (!isPlainObject(value)) return undefined;
+  const outputFormat = typeof value.outputFormat === 'string' && ['png', 'webp', 'jpeg'].includes(value.outputFormat) ? (value.outputFormat as 'png' | 'webp' | 'jpeg') : undefined;
+  const view = typeof value.view === 'string' && (value.view === '' || VIEW_ANGLE_SET.has(value.view)) ? (value.view as CharacterGalleryViewAngle | '') : undefined;
+  const referenceRole = typeof value.referenceRole === 'string' && REFERENCE_ROLE_SET.has(value.referenceRole) ? (value.referenceRole as CharacterGalleryReferenceRole) : undefined;
+  const kind = typeof value.kind === 'string' && KIND_SET.has(value.kind) ? (value.kind as CharacterGalleryItemKind) : undefined;
+  const draft: CharacterGalleryCanvasDraft = {
+    ...(normalizeOptionalString(value.action, 80) ? { action: normalizeOptionalString(value.action, 80) } : {}),
+    ...(normalizeOptionalString(value.emotion, 80) ? { emotion: normalizeOptionalString(value.emotion, 80) } : {}),
+    ...(kind ? { kind } : {}),
+    ...(normalizeOptionalString(value.modelId, 120) ? { modelId: normalizeOptionalString(value.modelId, 120) } : {}),
+    ...(normalizeOptionalString(value.negativePrompt, 800) ? { negativePrompt: normalizeOptionalString(value.negativePrompt, 800) } : {}),
+    ...(outputFormat ? { outputFormat } : {}),
+    ...(normalizeOptionalString(value.prompt, 2000) ? { prompt: normalizeOptionalString(value.prompt, 2000) } : {}),
+    ...(normalizeOptionalString(value.providerId, 80) ? { providerId: normalizeOptionalString(value.providerId, 80) } : {}),
+    ...(normalizeOptionalString(value.providerPresetId, 120) ? { providerPresetId: normalizeOptionalString(value.providerPresetId, 120) } : {}),
+    ...(normalizeOptionalString(value.quality, 40) ? { quality: normalizeOptionalString(value.quality, 40) } : {}),
+    ...(referenceRole ? { referenceRole } : {}),
+    ...(normalizeOptionalString(value.size, 40) ? { size: normalizeOptionalString(value.size, 40) } : {}),
+    ...(normalizeOptionalString(value.tags, 1000) ? { tags: normalizeOptionalString(value.tags, 1000) } : {}),
+    ...(normalizeOptionalString(value.title, 120) ? { title: normalizeOptionalString(value.title, 120) } : {}),
+    ...(view !== undefined ? { view } : {})
+  };
+  return Object.keys(draft).length > 0 ? draft : undefined;
+}
+
+export function normalizeCharacterGalleryCanvasLayout(value: unknown): CharacterGalleryCanvasLayout {
+  if (!isPlainObject(value)) {
+    return { version: 1, nodes: [] };
+  }
+
+  const nodes = Array.isArray(value.nodes)
+    ? value.nodes
+        .map((entry): CharacterGalleryCanvasNodeLayout | null => {
+          if (!isPlainObject(entry)) return null;
+          const id = normalizeOptionalString(entry.id, 120);
+          if (!id) return null;
+          const draftSource = isPlainObject(entry.draft) ? entry.draft : undefined;
+          const mode = draftSource?.mode === 'edit' || draftSource?.mode === 'generate' ? draftSource.mode : undefined;
+          const draft = normalizeCharacterGalleryCanvasDraft(draftSource);
+          return {
+            id,
+            x: normalizeCanvasNumber(entry.x, 0),
+            y: normalizeCanvasNumber(entry.y, 0),
+            ...(normalizeOptionalString(entry.assetId, 80) ? { assetId: normalizeOptionalString(entry.assetId, 80) } : {}),
+            ...(draft || mode || normalizeOptionalString(draftSource?.referenceAssetId, 80)
+              ? {
+                  draft: {
+                    ...(draft ?? {}),
+                    ...(mode ? { mode } : {}),
+                    ...(normalizeOptionalString(draftSource?.referenceAssetId, 80) ? { referenceAssetId: normalizeOptionalString(draftSource?.referenceAssetId, 80) } : {})
+                  }
+                }
+              : {})
+          };
+        })
+        .filter((node): node is CharacterGalleryCanvasNodeLayout => !!node)
+    : [];
+
+  const viewport = isPlainObject(value.viewport)
+    ? {
+        x: normalizeCanvasNumber(value.viewport.x, 0),
+        y: normalizeCanvasNumber(value.viewport.y, 0),
+        zoom: normalizeCanvasNumber(value.viewport.zoom, 1)
+      }
+    : undefined;
+
+  return {
+    version: 1,
+    ...(normalizeOptionalString(value.updatedAt, 40) ? { updatedAt: normalizeOptionalString(value.updatedAt, 40) } : {}),
+    ...(viewport ? { viewport } : {}),
+    nodes
   };
 }

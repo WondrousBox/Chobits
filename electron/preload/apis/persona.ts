@@ -13,6 +13,7 @@ import type { SpriteCapabilitySnapshot } from '../../../packages/sprite-core/cap
 import type {
   CharacterGalleryAIEditContext,
   CharacterGalleryAIHints,
+  CharacterGalleryCanvasLayout,
   CharacterGalleryItem,
   CharacterGalleryItemDraft,
   CharacterGalleryItemKind,
@@ -73,6 +74,13 @@ export interface CharacterGalleryListResult {
   items: CharacterGalleryItem[];
 }
 
+export interface CharacterGalleryCanvasLayoutResult {
+  layout: CharacterGalleryCanvasLayout;
+  ok: true;
+  path: string;
+  writable: boolean;
+}
+
 export interface CharacterGalleryImportPayload {
   packId?: string;
   source?: CharacterPackSource;
@@ -104,6 +112,7 @@ export interface CharacterGalleryAIEditDraft {
 export type {
   CharacterGalleryAIEditContext,
   CharacterGalleryAIHints,
+  CharacterGalleryCanvasLayout,
   CharacterGalleryItem,
   CharacterGalleryItemDraft,
   CharacterGalleryItemKind,
@@ -270,6 +279,14 @@ export const personaApi = {
   /** 列出角色包图集图片。默认读取当前激活角色包。 */
   listCharacterGallery: (payload?: { packId?: string; source?: CharacterPackSource; query?: string }): Promise<CharacterGalleryListResult | null> =>
     ipcRenderer.invoke('sprite:character:gallery:list', payload ?? {}),
+
+  /** 获取角色图集画布布局。只读包可能返回自动布局空壳。 */
+  getCharacterGalleryCanvasLayout: (payload?: { packId?: string; source?: CharacterPackSource }): Promise<CharacterGalleryCanvasLayoutResult | null> =>
+    ipcRenderer.invoke('sprite:character:gallery:canvas:get', payload ?? {}),
+
+  /** 保存角色图集画布布局。只允许写入本地 installed 角色包。 */
+  saveCharacterGalleryCanvasLayout: (payload: { packId?: string; source?: CharacterPackSource; layout: CharacterGalleryCanvasLayout }): Promise<CharacterGalleryCanvasLayoutResult | null> =>
+    ipcRenderer.invoke('sprite:character:gallery:canvas:save', payload),
 
   /** 导入图片到角色包图集。只允许写入本地 installed 角色包。 */
   importCharacterGalleryItem: (payload: CharacterGalleryImportPayload): Promise<{ ok: true; item: CharacterGalleryItem }> => ipcRenderer.invoke('sprite:character:gallery:import', payload),
