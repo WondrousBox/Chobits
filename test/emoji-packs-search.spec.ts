@@ -238,7 +238,7 @@ describe('emoji pack search', () => {
     expect(repeatedSend.sentBefore).toBe(true);
   });
 
-  it('falls back to a random emoji when query has no match', async () => {
+  it('returns success:false with sampleTitles when query has no match', async () => {
     const { createPiEmojiSendTool } = await import('../packages/ai/runtime/pi/tools/emoji-packs');
     const toolContext = createToolContext(`conv-no-match-${Date.now()}`);
     const sendTool = createPiEmojiSendTool(toolContext as any);
@@ -250,8 +250,10 @@ describe('emoji pack search', () => {
       })
     ).details as any;
 
-    expect(result.success).toBe(true);
-    expect(result.emoji.packId).toBe('EmojiPackage-1778160720970');
+    expect(result.success).toBe(false);
+    expect(result.query).toBe('no-such-keyword-xyz');
+    expect(Array.isArray(result.sampleTitles)).toBe(true);
+    expect(result.sampleTitles.length).toBeGreaterThan(0);
   });
 
   it('picks a random emoji when query is omitted', async () => {
