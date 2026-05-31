@@ -43,12 +43,6 @@ interface Star {
   color: string;
 }
 
-interface FlowDot {
-  t: number;
-  speed: number;
-  size: number;
-}
-
 // ━━━━━━━━━━━━━━ Constants ━━━━━━━━━━━━━━
 
 const DEG = Math.PI / 180;
@@ -127,6 +121,45 @@ function hexAlpha(hex: string, a: number): string {
   return `rgba(${r},${g},${b},${a})`;
 }
 
+function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.lineTo(x + w - rr, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+  ctx.lineTo(x + w, y + h - rr);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+  ctx.lineTo(x + rr, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+  ctx.lineTo(x, y + rr);
+  ctx.quadraticCurveTo(x, y, x + rr, y);
+  ctx.closePath();
+}
+
+function drawPadlock(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, color: string): void {
+  const bodyW = size * 0.9;
+  const bodyH = size * 0.7;
+  const bodyY = cy + size * 0.1;
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineCap = 'round';
+  ctx.lineWidth = Math.max(1, size * 0.18);
+  // Shackle
+  ctx.beginPath();
+  ctx.arc(cx, bodyY, size * 0.35, Math.PI, 0);
+  ctx.stroke();
+  // Body
+  roundRectPath(ctx, cx - bodyW / 2, bodyY, bodyW, bodyH, size * 0.15);
+  ctx.fill();
+  ctx.restore();
+}
+
+// Map angle in our convention (0=up, clockwise) to canvas arc angle (0=right, clockwise)
+function toCanvasAngle(deg: number): number {
+  return (deg - 90) * DEG;
+}
+
 // ━━━━━━━━━━━━━━ Layout ━━━━━━━━━━━━━━
 
 function computeLayout(): NodeLayout[] {
@@ -188,7 +221,6 @@ export class SkillTreeRenderer {
   private layout: NodeLayout[];
   private layoutMap: Map<string, NodeLayout>;
   private stars: Star[] = [];
-  private flowDots: Map<string, FlowDot[]> = new Map();
   private time = 0;
 
   constructor() {
@@ -243,11 +275,12 @@ export class SkillTreeRenderer {
 
     ctx.clearRect(0, 0, W, H);
     this.drawBg(ctx, W, H, cam, t);
+    this.drawSectorBackgrounds(ctx, cam, toS);
     this.drawTierRings(ctx, W, H, cam, toS, t);
-    this.drawBranchLabels(ctx, W, H, toS);
     this.drawConnections(ctx, W, H, cam, toS, data, t, dt);
     this.drawCore(ctx, W, H, toS, t);
     this.drawNodes(ctx, W, H, cam, toS, data, t);
+    this.drawBranchLabels(ctx, cam, toS);
     if (data.hoveredSkill && data.hoveredSkill !== 'core') this.drawTooltip(ctx, W, H, toS, data);
     this.drawVignette(ctx, W, H);
   }
@@ -307,88 +340,129 @@ export class SkillTreeRenderer {
     ctx.globalAlpha = 1;
   }
 
-  // ━━ Tier rings (solar system / atomic model) ━━
-  private drawTierRings(ctx: CanvasRenderingContext2D, _W: number, _H: number, _cam: Camera, toS: (wx: number, wy: number) => { x: number; y: number }, t: number): void {
+  // ━━ Sector backgrounds (subtle branch wedges) ━━
+  private drawSectorBackgrounds(ctx: CanvasRenderingContext2D, cam: Camera, toS: (wx: number, wy: number) => { x: number; y: number }): void {
+    const center = toS(0, 0);
+    const outerR = (TIER_RADII.master + 90) * cam.zoom;
+    const innerR = 60 * cam.zoom;
+
+    for (const [branchId, sector] of Object.entries(BRANCH_SECTORS)) {
+      const colors = getNodeColors(branchId);
+      const pad = 4;
+      const startA = toCanvasAngle(sector.start - pad);
+      const endA = toCanvasAngle(sector.end + pad);
+
+      const g = ctx.createRadialGradient(center.x, center.y, innerR, center.x, center.y, outerR);
+      g.addColorStop(0, 'transparent');
+      g.addColorStop(0.55, hexAlpha(colors.color, 0.05));
+      g.addColorStop(1, 'transparent');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(center.x + Math.cos(startA) * innerR, center.y + Math.sin(startA) * innerR);
+      ctx.arc(center.x, center.y, outerR, startA, endA);
+      ctx.lineTo(center.x + Math.cos(endA) * innerR, center.y + Math.sin(endA) * innerR);
+      ctx.arc(center.x, center.y, innerR, endA, startA, true);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // ━━ Tier rings (clean concentric orbits with slow sweeping highlight) ━━
+  private drawTierRings(ctx: CanvasRenderingContext2D, _W: number, _H: number, cam: Camera, toS: (wx: number, wy: number) => { x: number; y: number }, t: number): void {
     const center = toS(0, 0);
     const tiers: SkillTier[] = ['beginner', 'intermediate', 'advanced', 'professional', 'master'];
 
-    for (const tier of tiers) {
+    for (let idx = 0; idx < tiers.length; idx++) {
+      const tier = tiers[idx];
       const cfg = skillTierConfig[tier];
-      const baseR = TIER_RADII[tier] * _cam.zoom;
+      const baseR = TIER_RADII[tier] * cam.zoom;
 
-      // ── Single thin orbital ring ──
+      // Thin base ring
       ctx.save();
-      ctx.strokeStyle = hexAlpha(cfg.color, 0.18);
-      ctx.lineWidth = 0.8 * _cam.zoom;
+      ctx.strokeStyle = hexAlpha(cfg.color, 0.14);
+      ctx.lineWidth = 1 * cam.zoom;
       ctx.beginPath();
       ctx.arc(center.x, center.y, baseR, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
 
-      // ── Orbital particles with trails ──
-      const particleCount = 3 + cfg.order;
-      const orbitSpeed = (0.12 + cfg.order * 0.04) * (cfg.order % 2 === 0 ? 1 : -1);
-      for (let i = 0; i < particleCount; i++) {
-        const angle = t * orbitSpeed + (i * Math.PI * 2) / particleCount;
-        const px = center.x + Math.cos(angle) * baseR;
-        const py = center.y + Math.sin(angle) * baseR;
-
-        // Trail arc
-        ctx.save();
-        const trailLen = 0.3;
-        const dir = orbitSpeed > 0 ? -1 : 1;
-        const trailGrad = ctx.createConicGradient(angle + dir * trailLen, center.x, center.y);
-        const sweep = Math.abs(trailLen) / (Math.PI * 2);
-        if (dir < 0) {
-          trailGrad.addColorStop(0, 'transparent');
-          trailGrad.addColorStop(sweep, hexAlpha(cfg.color, 0.2));
-        } else {
-          trailGrad.addColorStop(1 - sweep, hexAlpha(cfg.color, 0.2));
-          trailGrad.addColorStop(1, 'transparent');
-        }
-        ctx.strokeStyle = trailGrad;
-        ctx.lineWidth = 2.5 * _cam.zoom;
-        ctx.beginPath();
-        const startA = dir < 0 ? angle + dir * trailLen : angle;
-        const endA = dir < 0 ? angle : angle + dir * trailLen;
-        ctx.arc(center.x, center.y, baseR, startA, endA);
-        ctx.stroke();
-        ctx.restore();
-
-        // Particle glow
-        const glowR = 6 * _cam.zoom;
-        const pg = ctx.createRadialGradient(px, py, 0, px, py, glowR);
-        pg.addColorStop(0, hexAlpha(cfg.color, 0.7));
-        pg.addColorStop(0.4, hexAlpha(cfg.color, 0.2));
-        pg.addColorStop(1, 'transparent');
-        ctx.fillStyle = pg;
-        ctx.beginPath();
-        ctx.arc(px, py, glowR, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Particle core
-        ctx.fillStyle = hexAlpha(cfg.color, 0.95);
-        ctx.beginPath();
-        ctx.arc(px, py, 1.5 * _cam.zoom, 0, Math.PI * 2);
-        ctx.fill();
+      // Slow sweeping highlight arc (one per ring, alternating direction)
+      const dir = idx % 2 === 0 ? 1 : -1;
+      const head = t * 0.18 * dir + idx * 1.3;
+      const sweepLen = 0.9; // radians
+      ctx.save();
+      const grad = ctx.createConicGradient(head - (dir > 0 ? sweepLen : 0), center.x, center.y);
+      const seg = sweepLen / (Math.PI * 2);
+      if (dir > 0) {
+        grad.addColorStop(0, 'transparent');
+        grad.addColorStop(seg * 0.5, hexAlpha(cfg.color, 0.35));
+        grad.addColorStop(seg, 'transparent');
+      } else {
+        grad.addColorStop(0, 'transparent');
+        grad.addColorStop(seg * 0.5, hexAlpha(cfg.color, 0.35));
+        grad.addColorStop(seg, 'transparent');
       }
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 2 * cam.zoom;
+      ctx.beginPath();
+      const a0 = dir > 0 ? head - sweepLen : head;
+      const a1 = dir > 0 ? head : head + sweepLen;
+      ctx.arc(center.x, center.y, baseR, a0, a1);
+      ctx.stroke();
+      ctx.restore();
 
-      // ── Tier label ──
-      const labelPos = angleToXY(5, TIER_RADII[tier]);
+      // Tier label
+      const labelPos = angleToXY(8, TIER_RADII[tier]);
       const ls = toS(labelPos.x, labelPos.y);
-      ctx.font = `${10 * _cam.zoom}px "Microsoft YaHei", sans-serif`;
-      ctx.fillStyle = hexAlpha(cfg.color, 0.5);
+      ctx.font = `${10 * cam.zoom}px "Microsoft YaHei", sans-serif`;
+      ctx.fillStyle = hexAlpha(cfg.color, 0.45);
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.fillText(cfg.label, ls.x + 6, ls.y);
     }
   }
 
-  // ━━ Branch labels ━━
-  // ━━ Branch labels (disabled — relying on color only) ━━
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private drawBranchLabels(_ctx: CanvasRenderingContext2D, _W: number, _H: number, _toS: (wx: number, wy: number) => { x: number; y: number }): void {
-    // Intentionally empty — branch identity conveyed by node colors
+  // ━━ Branch labels (outer arc) ━━
+  private drawBranchLabels(ctx: CanvasRenderingContext2D, cam: Camera, toS: (wx: number, wy: number) => { x: number; y: number }): void {
+    const labelR = TIER_RADII.master + 70;
+    for (const [branchId, sector] of Object.entries(BRANCH_SECTORS)) {
+      const colors = getNodeColors(branchId);
+      const midAngle = (sector.start + sector.end) / 2;
+      const pos = angleToXY(midAngle, labelR);
+      const s = toS(pos.x, pos.y);
+      const label = BRANCH_LABELS[branchId] || branchId;
+
+      ctx.save();
+      ctx.font = `bold ${13 * cam.zoom}px "Microsoft YaHei", sans-serif`;
+      const metrics = ctx.measureText(label);
+      const padX = 10 * cam.zoom;
+      const padY = 5 * cam.zoom;
+      const w = metrics.width + padX * 2;
+      const h = 13 * cam.zoom + padY * 2;
+      // Backdrop pill
+      roundRectPath(ctx, s.x - w / 2, s.y - h / 2, w, h, h / 2);
+      ctx.fillStyle = 'rgba(10,14,26,0.72)';
+      ctx.fill();
+      ctx.strokeStyle = hexAlpha(colors.color, 0.45);
+      ctx.lineWidth = 1 * cam.zoom;
+      ctx.stroke();
+      // Color dot
+      const dotR = 3 * cam.zoom;
+      const dotX = s.x - w / 2 + padX + dotR;
+      ctx.beginPath();
+      ctx.arc(dotX, s.y, dotR, 0, Math.PI * 2);
+      ctx.fillStyle = colors.color;
+      ctx.shadowColor = colors.color;
+      ctx.shadowBlur = 8 * cam.zoom;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      // Text
+      ctx.fillStyle = hexAlpha(colors.color, 0.95);
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, dotX + dotR + 6 * cam.zoom, s.y);
+      ctx.restore();
+    }
   }
 
   // ━━ Connections ━━
@@ -415,7 +489,7 @@ export class SkillTreeRenderer {
     toS: (wx: number, wy: number) => { x: number; y: number },
     data: RenderData,
     t: number,
-    dt: number,
+    _dt: number,
     from: { x: number; y: number },
     to: { x: number; y: number },
     fromId: string,
@@ -440,88 +514,132 @@ export class SkillTreeRenderer {
     const fromStatus = fromId === 'core' ? 'active' : data.skillStatuses[fromId] || 'locked';
     const toStatus = data.skillStatuses[toId] || 'locked';
     const isActive = fromStatus === 'active' && (toStatus === 'active' || toStatus === 'unlocked');
+    const isUnlockableNext = fromStatus === 'active' && toStatus === 'unlocked';
 
-    // Always draw the connection line
     ctx.beginPath();
     ctx.moveTo(fromS.x, fromS.y);
     ctx.quadraticCurveTo(cs.x, cs.y, toS2.x, toS2.y);
 
     if (isActive) {
-      ctx.strokeStyle = hexAlpha(colors.color, 0.7);
-      ctx.lineWidth = isCoreLine ? 2.5 : 2;
+      // Glow underlay
+      ctx.save();
+      ctx.strokeStyle = hexAlpha(colors.color, 0.18);
+      ctx.lineWidth = isCoreLine ? 6 : 5;
       ctx.stroke();
+      ctx.restore();
+      // Gradient stroke from prereq color → branch color
+      const fromColors = fromId === 'core' ? getNodeColors('core') : getNodeColors(this.layoutMap.get(fromId)?.node.branch ?? branch);
+      const lg = ctx.createLinearGradient(fromS.x, fromS.y, toS2.x, toS2.y);
+      lg.addColorStop(0, hexAlpha(fromColors.color, 0.85));
+      lg.addColorStop(1, hexAlpha(colors.color, 0.85));
+      ctx.strokeStyle = lg;
+      ctx.lineWidth = isCoreLine ? 2 : 1.6;
+      ctx.stroke();
+
+      // Flow dots along the curve
+      const phaseSeed = (fromId.charCodeAt(0) * 13 + toId.charCodeAt(0) * 7) % 100 / 100;
+      const dotCount = 2;
+      for (let k = 0; k < dotCount; k++) {
+        const tt = (t * 0.22 + phaseSeed + k / dotCount) % 1;
+        const p = quadBezierPt(tt, fromS.x, fromS.y, cs.x, cs.y, toS2.x, toS2.y);
+        const fade = Math.sin(tt * Math.PI); // fade in/out at endpoints
+        const dr = 2.6;
+        const gg = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, dr * 3);
+        gg.addColorStop(0, hexAlpha(colors.color, 0.9 * fade));
+        gg.addColorStop(1, 'transparent');
+        ctx.fillStyle = gg;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, dr * 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = hexAlpha('#ffffff', 0.9 * fade);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, dr * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (isUnlockableNext) {
+      // Subtle pulse for connections leading to currently-unlockable nodes
+      const pulse = 0.25 + Math.sin(t * 2) * 0.15;
+      ctx.strokeStyle = hexAlpha(colors.color, pulse);
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([6, 6]);
+      ctx.lineDashOffset = -t * 12;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.lineDashOffset = 0;
     } else {
-      ctx.strokeStyle = hexAlpha(colors.color, 0.2);
+      ctx.strokeStyle = hexAlpha(colors.color, 0.16);
       ctx.lineWidth = 0.7;
-      ctx.setLineDash([4, 8]);
+      ctx.setLineDash([3, 7]);
       ctx.stroke();
       ctx.setLineDash([]);
     }
   }
 
-  // ━━ Core orb ━━
+  // ━━ Core orb (calm luminous gem) ━━
   private drawCore(ctx: CanvasRenderingContext2D, _W: number, _H: number, toS: (wx: number, wy: number) => { x: number; y: number }, t: number): void {
     const c = toS(0, 0);
-    const pulse = Math.sin(t * 0.8) * 0.15 + 0.85;
-    const r = CORE_R * pulse;
+    const breathe = Math.sin(t * 0.8) * 0.06 + 1;
+    const r = CORE_R * breathe;
 
-    // Outer glow
-    const g1 = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, r * 3.5);
-    g1.addColorStop(0, 'rgba(251,191,36,0.15)');
-    g1.addColorStop(0.4, 'rgba(251,191,36,0.04)');
-    g1.addColorStop(1, 'transparent');
-    ctx.fillStyle = g1;
+    // Outer halo
+    const halo = ctx.createRadialGradient(c.x, c.y, r * 0.8, c.x, c.y, r * 4);
+    halo.addColorStop(0, 'rgba(251,191,36,0.22)');
+    halo.addColorStop(0.45, 'rgba(251,191,36,0.06)');
+    halo.addColorStop(1, 'transparent');
+    ctx.fillStyle = halo;
     ctx.beginPath();
-    ctx.arc(c.x, c.y, r * 3.5, 0, Math.PI * 2);
+    ctx.arc(c.x, c.y, r * 4, 0, Math.PI * 2);
     ctx.fill();
 
-    // Rotating rings
-    for (let i = 0; i < 3; i++) {
-      ctx.save();
-      ctx.translate(c.x, c.y);
-      ctx.rotate(t * (0.3 + i * 0.15) * (i % 2 === 0 ? 1 : -1));
-      const rr = (r * 1.4 + i * 15) * pulse;
-      ctx.strokeStyle = `rgba(251,191,36,${0.15 - i * 0.04})`;
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([6, 10 + i * 4]);
-      ctx.beginPath();
-      ctx.arc(0, 0, rr, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.restore();
-    }
+    // Single elegant rotating ring
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    ctx.rotate(t * 0.25);
+    ctx.strokeStyle = 'rgba(251,191,36,0.25)';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([14, 8]);
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 1.55, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
 
-    // Orbiting dots
-    for (let i = 0; i < 5; i++) {
-      const a = t * 0.6 + (i * Math.PI * 2) / 5;
-      const orbitR = r * 1.8;
-      const dx = c.x + Math.cos(a) * orbitR;
-      const dy = c.y + Math.sin(a) * orbitR;
-      ctx.fillStyle = 'rgba(251,191,36,0.5)';
-      ctx.beginPath();
-      ctx.arc(dx, dy, 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Core circle
+    // Core gradient sphere
     ctx.save();
     ctx.shadowColor = '#fbbf24';
-    ctx.shadowBlur = 25;
-    const coreGrad = ctx.createRadialGradient(c.x - r * 0.2, c.y - r * 0.2, r * 0.1, c.x, c.y, r);
-    coreGrad.addColorStop(0, '#fde68a');
-    coreGrad.addColorStop(0.5, '#fbbf24');
-    coreGrad.addColorStop(1, '#d97706');
+    ctx.shadowBlur = 28;
+    const coreGrad = ctx.createRadialGradient(c.x - r * 0.25, c.y - r * 0.3, r * 0.1, c.x, c.y, r);
+    coreGrad.addColorStop(0, '#fff7d6');
+    coreGrad.addColorStop(0.45, '#fbbf24');
+    coreGrad.addColorStop(1, '#b45309');
     ctx.fillStyle = coreGrad;
     ctx.beginPath();
     ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
-    // Highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    // Inner rim highlight
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc(c.x - r * 0.2, c.y - r * 0.25, r * 0.35, 0, Math.PI * 2);
+    ctx.arc(c.x, c.y, r - 1.5, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Specular highlight
+    const spec = ctx.createRadialGradient(c.x - r * 0.25, c.y - r * 0.3, 0, c.x - r * 0.25, c.y - r * 0.3, r * 0.5);
+    spec.addColorStop(0, 'rgba(255,255,255,0.55)');
+    spec.addColorStop(1, 'transparent');
+    ctx.fillStyle = spec;
+    ctx.beginPath();
+    ctx.arc(c.x - r * 0.25, c.y - r * 0.3, r * 0.5, 0, Math.PI * 2);
     ctx.fill();
+
+    // Center label
+    ctx.font = `bold ${11 * 1}px "Microsoft YaHei", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(120,53,15,0.85)';
+    ctx.fillText('核心', c.x, c.y + 1);
   }
 
   // ━━ Skill nodes ━━
@@ -558,96 +676,152 @@ export class SkillTreeRenderer {
         ctx.restore();
       }
 
-      // ── Main circle ──
+      // ── Outer halo for active nodes ──
+      if (isActive) {
+        const halo = ctx.createRadialGradient(s.x, s.y, r * 0.8, s.x, s.y, r * 2.4);
+        halo.addColorStop(0, hexAlpha(colors.color, 0.28));
+        halo.addColorStop(0.6, hexAlpha(colors.color, 0.06));
+        halo.addColorStop(1, 'transparent');
+        ctx.fillStyle = halo;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, r * 2.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // ── Selection ring ──
+      if (isSelected) {
+        ctx.save();
+        ctx.translate(s.x, s.y);
+        ctx.rotate(t * 0.5);
+        ctx.strokeStyle = hexAlpha(colors.color, 0.75);
+        ctx.lineWidth = 2 * cam.zoom;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.arc(0, 0, r + 9 * cam.zoom, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      }
+
+      // ── Main disc ──
       ctx.save();
       if (isActive) {
-        ctx.shadowColor = colors.color;
-        ctx.shadowBlur = 15 * cam.zoom;
-      }
-      // Fill
-      if (isActive) {
-        const cg = ctx.createRadialGradient(s.x - r * 0.2, s.y - r * 0.2, r * 0.1, s.x, s.y, r);
+        const cg = ctx.createRadialGradient(s.x - r * 0.3, s.y - r * 0.35, r * 0.1, s.x, s.y, r);
         cg.addColorStop(0, colors.gradientFrom);
         cg.addColorStop(1, colors.gradientTo);
         ctx.fillStyle = cg;
       } else if (isUnlocked) {
-        ctx.fillStyle = hexAlpha(colors.color, 0.12);
+        // Frosted glass with branch color tint
+        const cg = ctx.createRadialGradient(s.x - r * 0.2, s.y - r * 0.25, r * 0.1, s.x, s.y, r);
+        cg.addColorStop(0, hexAlpha(colors.color, 0.22));
+        cg.addColorStop(1, hexAlpha(colors.color, 0.06));
+        ctx.fillStyle = cg;
       } else {
-        ctx.fillStyle = 'rgba(15,23,42,0.8)';
+        // Dim, slightly tinted dark fill
+        const cg = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, r);
+        cg.addColorStop(0, 'rgba(30,41,59,0.85)');
+        cg.addColorStop(1, 'rgba(15,23,42,0.92)');
+        ctx.fillStyle = cg;
       }
       ctx.beginPath();
       ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
 
-      // Border
-      ctx.strokeStyle = isActive ? hexAlpha(colors.color, 0.9) : isUnlocked ? hexAlpha(colors.color, 0.4) : 'rgba(55,65,81,0.5)';
-      ctx.lineWidth = isActive ? 2.5 * cam.zoom : 1.5 * cam.zoom;
-      if (!isUnlocked) {
-        ctx.setLineDash([3, 5]);
-      }
+      // ── Border ring ──
+      ctx.save();
+      ctx.strokeStyle = isActive ? hexAlpha('#ffffff', 0.55) : isUnlocked ? hexAlpha(colors.color, 0.55) : 'rgba(71,85,105,0.45)';
+      ctx.lineWidth = isActive ? 1.8 * cam.zoom : 1.4 * cam.zoom;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, r - (isActive ? 0.9 : 0.7), 0, Math.PI * 2);
       ctx.stroke();
-      ctx.setLineDash([]);
+      // Outer thin accent ring for active
+      if (isActive) {
+        ctx.strokeStyle = hexAlpha(colors.color, 0.7);
+        ctx.lineWidth = 1 * cam.zoom;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, r + 2 * cam.zoom, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       ctx.restore();
 
       // ── Hover highlight ──
-      if (isHovered && isUnlocked) {
+      if (isHovered) {
         ctx.save();
-        ctx.strokeStyle = hexAlpha(colors.color, 0.5);
-        ctx.lineWidth = 3 * cam.zoom;
-        ctx.shadowColor = colors.color;
-        ctx.shadowBlur = 15;
+        ctx.strokeStyle = hexAlpha(isUnlocked ? colors.color : '#94a3b8', 0.7);
+        ctx.lineWidth = 2 * cam.zoom;
+        ctx.shadowColor = isUnlocked ? colors.color : '#475569';
+        ctx.shadowBlur = 12;
         ctx.beginPath();
-        ctx.arc(s.x, s.y, r + 4 * cam.zoom, 0, Math.PI * 2);
+        ctx.arc(s.x, s.y, r + 5 * cam.zoom, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }
 
-      // ── Highlight (inner) ──
+      // ── Top-left specular highlight (active only) ──
       if (isActive) {
-        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        const spec = ctx.createRadialGradient(s.x - r * 0.3, s.y - r * 0.35, 0, s.x - r * 0.3, s.y - r * 0.35, r * 0.55);
+        spec.addColorStop(0, 'rgba(255,255,255,0.35)');
+        spec.addColorStop(1, 'transparent');
+        ctx.fillStyle = spec;
         ctx.beginPath();
-        ctx.arc(s.x - r * 0.15, s.y - r * 0.2, r * 0.4, 0, Math.PI * 2);
+        ctx.arc(s.x - r * 0.3, s.y - r * 0.35, r * 0.55, 0, Math.PI * 2);
         ctx.fill();
       }
 
       // ── Emoji icon ──
-      const fontSize = isActive ? r * 0.95 : r * 0.85;
-      ctx.font = `${fontSize}px sans-serif`;
+      const fontSize = isActive ? r * 0.9 : r * 0.78;
+      ctx.font = `${fontSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.globalAlpha = isUnlocked ? 1 : 0.35;
+      ctx.globalAlpha = isActive ? 1 : isUnlocked ? 0.92 : 0.32;
       ctx.fillText(emoji, s.x, s.y + 1);
       ctx.globalAlpha = 1;
 
-      // ── Lock badge (only when locked) ──
+      // ── Lock badge (drawn padlock) ──
       if (!isUnlocked) {
-        const badgeR = 7 * cam.zoom;
-        const bx = s.x + r * 0.7;
-        const by = s.y - r * 0.7;
-        ctx.fillStyle = 'rgba(30,41,59,0.9)';
+        const badgeR = 8 * cam.zoom;
+        const bx = s.x + r * 0.72;
+        const by = s.y - r * 0.72;
+        ctx.save();
+        ctx.fillStyle = 'rgba(15,23,42,0.95)';
         ctx.beginPath();
         ctx.arc(bx, by, badgeR, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = 'rgba(100,116,139,0.5)';
+        ctx.strokeStyle = 'rgba(100,116,139,0.65)';
         ctx.lineWidth = 1 * cam.zoom;
         ctx.stroke();
-        ctx.font = `${8 * cam.zoom}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('🔒', bx, by + 0.5);
+        drawPadlock(ctx, bx, by - 0.3, badgeR * 0.85, 'rgba(203,213,225,0.85)');
+        ctx.restore();
       }
 
-      // ── Name label ──
-      ctx.font = `${10 * cam.zoom}px "Microsoft YaHei", sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillStyle = isActive ? hexAlpha(colors.color, 0.9) : isUnlocked ? 'rgba(203,213,225,0.8)' : 'rgba(100,116,139,0.5)';
-      if (isActive) {
-        ctx.shadowColor = colors.color;
-        ctx.shadowBlur = 6;
+      // ── Name label with backdrop pill ──
+      ctx.save();
+      const labelFont = `${10 * cam.zoom}px "Microsoft YaHei", sans-serif`;
+      ctx.font = labelFont;
+      const labelText = nl.node.name;
+      const labelMetrics = ctx.measureText(labelText);
+      const labelPadX = 6 * cam.zoom;
+      const labelPadY = 3 * cam.zoom;
+      const labelW = labelMetrics.width + labelPadX * 2;
+      const labelH = 10 * cam.zoom + labelPadY * 2;
+      const labelX = s.x - labelW / 2;
+      const labelY = s.y + r + 6 * cam.zoom;
+      // Backdrop
+      roundRectPath(ctx, labelX, labelY, labelW, labelH, labelH / 2);
+      ctx.fillStyle = isActive ? hexAlpha(colors.color, 0.18) : 'rgba(10,14,26,0.6)';
+      ctx.fill();
+      if (isActive || isHovered) {
+        ctx.strokeStyle = hexAlpha(colors.color, isActive ? 0.55 : 0.35);
+        ctx.lineWidth = 1 * cam.zoom;
+        ctx.stroke();
       }
-      ctx.fillText(nl.node.name, s.x, s.y + r + 6 * cam.zoom);
-      ctx.shadowBlur = 0;
+      // Text
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = isActive ? '#ffffff' : isUnlocked ? 'rgba(226,232,240,0.9)' : 'rgba(148,163,184,0.55)';
+      ctx.fillText(labelText, s.x, labelY + labelH / 2);
+      ctx.restore();
     }
   }
 
