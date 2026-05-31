@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ForceGraph2D, { type ForceGraphMethods } from 'react-force-graph-2d';
+import { motion } from 'framer-motion';
 import {
+  TbArrowLeft,
   TbArrowRight,
   TbBrain,
   TbCalendar,
@@ -22,12 +24,13 @@ import {
   TbZoomReset
 } from 'react-icons/tb';
 
-import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+
+import './styles.css';
 
 // ━━ Types ━━
 
@@ -440,8 +443,28 @@ function DetailPanel({
   if (!node) return null;
 
   return (
-    <div className="absolute right-0 top-0 bottom-0 w-80 bg-background/95 backdrop-blur-sm border-l border-border shadow-lg z-20 flex flex-col">
-      <div className="p-4 border-b border-border/50 shrink-0">
+    <motion.div
+      className="absolute right-0 top-14 bottom-0 w-96 max-w-[85vw] memory-graph-detail z-30 flex flex-col overflow-hidden"
+      initial={{ x: '100%', opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      exit={{ x: '100%', opacity: 0 }}
+      transition={{ type: 'spring', damping: 26, stiffness: 280 }}
+    >
+      {/* 顶部发光条 */}
+      <div
+        className="absolute top-0 left-0 right-0 h-px"
+        style={{
+          background:
+            node.type === 'topic'
+              ? 'linear-gradient(90deg, transparent, #a78bfa, transparent)'
+              : node.type === 'note'
+                ? 'linear-gradient(90deg, transparent, #60a5fa, transparent)'
+                : node.type === 'entity'
+                  ? 'linear-gradient(90deg, transparent, #fbbf24, transparent)'
+                  : 'linear-gradient(90deg, transparent, #22c55e, transparent)'
+        }}
+      />
+      <div className="p-4 border-b border-slate-700/40 shrink-0">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             {node.type === 'topic' ? (
@@ -675,7 +698,7 @@ function DetailPanel({
           )}
         </div>
       </ScrollArea>
-    </div>
+    </motion.div>
   );
 }
 
@@ -1507,57 +1530,126 @@ export default function MemoryGraphPage(): React.ReactElement {
     }
   }, [loading, graphData.nodes.length]);
 
+  // ESC 关闭窗口
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        window.YUA.window?.['window:close']?.('memoryGraph');
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, []);
+
+  const handleCloseWindow = useCallback(() => {
+    window.YUA.window?.['window:close']?.('memoryGraph');
+  }, []);
+
   return (
-    <div className="h-full w-full flex flex-col bg-background overflow-hidden">
-      <DragAbleTitle
-        title={
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <TbBrain className="h-4 w-4 text-violet-500" />
-            <span>记忆图谱</span>
-            {memoryStats && (
-              <span className="text-[10px] text-muted-foreground font-normal ml-1">
-                {memoryStats.noteCount} 条记忆 · {memoryStats.topicCount} 个主题 · {memoryStats.edgeCount} 条关系
+    <div className="absolute inset-0 overflow-hidden memory-graph-root">
+      {/* 宇宙背景层 */}
+      <div className="memory-graph-nebula" />
+      <div className="memory-graph-stars" />
+
+      {/* 顶部 HUD */}
+      <motion.div
+        className="fixed top-0 left-0 right-0 z-40 memory-graph-hud"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15, duration: 0.4 }}
+      >
+        <div className="flex items-center justify-between gap-4 px-6 py-2.5">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2 shrink-0">
+              <TbBrain
+                className="w-5 h-5 text-violet-400"
+                style={{ filter: 'drop-shadow(0 0 6px rgba(167, 139, 250, 0.7))' }}
+              />
+              <span
+                className="text-sm font-bold text-slate-100"
+                style={{ textShadow: '0 0 10px rgba(255,255,255,0.1)' }}
+              >
+                记忆图谱
               </span>
+            </div>
+
+            {memoryStats && (
+              <>
+                <div className="h-4 w-px bg-slate-700" />
+                <div className="flex items-center gap-3 text-xs text-slate-400 whitespace-nowrap">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400" style={{ boxShadow: '0 0 6px rgba(96,165,250,0.7)' }} />
+                    <span>{memoryStats.noteCount} <span className="text-slate-500">记忆</span></span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-violet-400" style={{ boxShadow: '0 0 6px rgba(167,139,250,0.7)' }} />
+                    <span>{memoryStats.topicCount} <span className="text-slate-500">主题</span></span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" style={{ boxShadow: '0 0 6px rgba(52,211,153,0.7)' }} />
+                    <span>{memoryStats.edgeCount} <span className="text-slate-500">关系</span></span>
+                  </span>
+                </div>
+              </>
             )}
+
             {focusTopicId && (
-              <Button variant="ghost" size="sm" className="h-5 px-1.5 text-xs text-muted-foreground no-drag" onClick={handleClearFocus}>
-                ← 返回全局
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs text-violet-300 hover:text-violet-200 hover:bg-violet-500/15"
+                onClick={handleClearFocus}
+              >
+                <TbArrowLeft className="w-3.5 h-3.5 mr-1" />
+                返回全局
               </Button>
             )}
           </div>
-        }
-        actions={
-          <div className="flex items-center gap-1">
+
+          <div className="flex items-center gap-1.5 shrink-0">
             <div className="relative">
-              <TbSearch className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-              <Input value={filterTerm} onChange={(e) => setFilterTerm(e.target.value)} placeholder="过滤图谱节点..." className="h-7 w-36 pl-7 text-xs" />
+              <TbSearch className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              <Input
+                value={filterTerm}
+                onChange={(e) => setFilterTerm(e.target.value)}
+                placeholder="过滤图谱节点..."
+                className="h-7 w-40 pl-7 text-xs bg-slate-900/60 border-slate-700 text-slate-200 placeholder:text-slate-500"
+              />
               {filterTerm && (
-                <button className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setFilterTerm('')}>
+                <button
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                  onClick={() => setFilterTerm('')}
+                >
                   <TbX className="h-3 w-3" />
                 </button>
               )}
             </div>
+
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="flex items-center gap-1.5 px-2">
-                  <TbNote className="h-3.5 w-3.5 text-muted-foreground" />
+                  <TbNote className="h-3.5 w-3.5 text-slate-400" />
                   <Switch checked={showNotes} onCheckedChange={setShowNotes} className="scale-75" />
                 </div>
               </TooltipTrigger>
               <TooltipContent side="bottom">显示笔记节点</TooltipContent>
             </Tooltip>
+
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="flex items-center gap-1.5 px-2">
-                  <TbTag className="h-3.5 w-3.5 text-muted-foreground" />
+                  <TbTag className="h-3.5 w-3.5 text-slate-400" />
                   <Switch checked={showKeywords} onCheckedChange={setShowKeywords} className="scale-75" />
                 </div>
               </TooltipTrigger>
               <TooltipContent side="bottom">显示关键词节点</TooltipContent>
             </Tooltip>
+
+            <div className="h-4 w-px bg-slate-700 mx-1" />
+
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSidebarOpen((v) => !v)}>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-300 hover:text-slate-100 hover:bg-slate-700/50" onClick={() => setSidebarOpen((v) => !v)}>
                   <TbLayoutSidebar className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -1565,7 +1657,7 @@ export default function MemoryGraphPage(): React.ReactElement {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleZoomIn}>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-300 hover:text-slate-100 hover:bg-slate-700/50" onClick={handleZoomIn}>
                   <TbZoomIn className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -1573,7 +1665,7 @@ export default function MemoryGraphPage(): React.ReactElement {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleZoomOut}>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-300 hover:text-slate-100 hover:bg-slate-700/50" onClick={handleZoomOut}>
                   <TbZoomOut className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -1581,7 +1673,7 @@ export default function MemoryGraphPage(): React.ReactElement {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleZoomReset}>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-300 hover:text-slate-100 hover:bg-slate-700/50" onClick={handleZoomReset}>
                   <TbZoomReset className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -1589,59 +1681,96 @@ export default function MemoryGraphPage(): React.ReactElement {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleRefresh}>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-300 hover:text-slate-100 hover:bg-slate-700/50" onClick={handleRefresh}>
                   <TbRefresh className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">刷新</TooltipContent>
             </Tooltip>
-          </div>
-        }
-      />
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* ━━ Left Sidebar: Search & Notes ━━ */}
+            <div className="h-4 w-px bg-slate-700 mx-1" />
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-slate-100 hover:bg-slate-700/50" onClick={handleCloseWindow}>
+                  <TbX className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">关闭 (ESC)</TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* 主内容区：侧栏 + 图谱 */}
+      <div className="absolute inset-0 pt-12 flex overflow-hidden">
+        {/* 左侧栏 */}
         {sidebarOpen && (
-          <div className="w-72 shrink-0 border-r border-border bg-background/50 flex flex-col">
-            <div className="flex border-b border-border/50 shrink-0">
+          <motion.div
+            className="w-80 shrink-0 memory-graph-sidebar flex flex-col"
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.2, duration: 0.35 }}
+          >
+            <div className="flex border-b border-slate-700/40 shrink-0">
               <button
-                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-t-0 border-l-0 border-r-0 ${sidebarTab === 'search' ? 'text-foreground border-b-2 border-violet-500' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-all relative ${sidebarTab === 'search'
+                  ? 'text-violet-300'
+                  : 'text-slate-400 hover:text-slate-200'
+                  }`}
                 onClick={() => setSidebarTab('search')}
               >
                 <TbSearch className="h-3.5 w-3.5" />
                 记忆搜索
+                {sidebarTab === 'search' && (
+                  <motion.div
+                    layoutId="memory-tab-indicator"
+                    className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full"
+                    style={{ background: 'linear-gradient(90deg, transparent, #a78bfa, transparent)' }}
+                  />
+                )}
               </button>
               <button
-                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-t-0 border-l-0 border-r-0 ${sidebarTab === 'notes' ? 'text-foreground border-b-2 border-blue-500' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-all relative ${sidebarTab === 'notes'
+                  ? 'text-blue-300'
+                  : 'text-slate-400 hover:text-slate-200'
+                  }`}
                 onClick={() => setSidebarTab('notes')}
               >
                 <TbList className="h-3.5 w-3.5" />
                 笔记列表
+                {sidebarTab === 'notes' && (
+                  <motion.div
+                    layoutId="memory-tab-indicator"
+                    className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full"
+                    style={{ background: 'linear-gradient(90deg, transparent, #60a5fa, transparent)' }}
+                  />
+                )}
               </button>
             </div>
             <div className="flex-1 overflow-hidden">
               {sidebarTab === 'search' && <SearchPanel workspaceId={workspaceId} onHighlightNote={handleHighlightNote} onSearchResults={handleSearchResults} />}
               {sidebarTab === 'notes' && <NotesListPanel workspaceId={workspaceId} onHighlightNote={handleHighlightNote} />}
             </div>
-          </div>
+          </motion.div>
         )}
 
-        {/* ━━ Graph Area ━━ */}
+        {/* 图谱画布 */}
         <div className="flex-1 relative" ref={containerRef}>
           {loading ? (
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                <TbLoader2 className="h-8 w-8 animate-spin" />
+              <div className="flex flex-col items-center gap-3 text-slate-400">
+                <TbLoader2 className="h-10 w-10 animate-spin text-violet-400" style={{ filter: 'drop-shadow(0 0 8px rgba(167,139,250,0.5))' }} />
                 <span className="text-sm">加载记忆图谱...</span>
               </div>
             </div>
           ) : graphData.nodes.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="flex flex-col items-center gap-3 text-muted-foreground">
-                <TbBrain className="h-12 w-12 opacity-30" />
+              <div className="flex flex-col items-center gap-3 text-slate-400">
+                <TbBrain className="h-14 w-14 opacity-30 text-violet-400" />
                 <div className="text-center">
-                  <p className="text-sm font-medium">暂无记忆数据</p>
-                  <p className="text-xs mt-1">开始对话后，记忆系统将自动提取并构建知识图谱</p>
+                  <p className="text-sm font-medium text-slate-300">暂无记忆数据</p>
+                  <p className="text-xs mt-1 text-slate-500">开始对话后，记忆系统将自动提取并构建知识图谱</p>
                 </div>
               </div>
             </div>
@@ -1675,63 +1804,88 @@ export default function MemoryGraphPage(): React.ReactElement {
             />
           )}
 
-          <div className="absolute left-3 bottom-3 flex items-center gap-3 text-[10px] text-muted-foreground bg-background/80 backdrop-blur-sm rounded-md px-2.5 py-1 border border-border/50">
-            <span className="flex items-center gap-1">
-              <span className="inline-block w-2 h-2 rounded-full" style={{ background: '#8b5cf6' }} />
-              主题 {stats.topics}
+          {/* 底部统计栏 */}
+          <motion.div
+            className="absolute left-4 bottom-4 flex items-center gap-3 text-[11px] text-slate-300 memory-graph-glass-soft rounded-lg px-3 py-1.5"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.4 }}
+          >
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-2 h-2 rounded-full" style={{ background: '#8b5cf6', boxShadow: '0 0 6px rgba(139,92,246,0.6)' }} />
+              <span className="text-slate-500">主题</span>
+              <span className="font-semibold text-violet-300 tabular-nums">{stats.topics}</span>
             </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block w-2 h-2 rounded-sm rotate-45" style={{ background: '#3b82f6' }} />
-              笔记 {stats.notes}
+            <span className="text-slate-700">·</span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-2 h-2 rounded-sm rotate-45" style={{ background: '#3b82f6', boxShadow: '0 0 6px rgba(59,130,246,0.6)' }} />
+              <span className="text-slate-500">笔记</span>
+              <span className="font-semibold text-blue-300 tabular-nums">{stats.notes}</span>
             </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block w-4 h-2" style={{ background: '#22c55e', clipPath: 'polygon(24% 0, 100% 0, 100% 100%, 24% 100%, 0 50%)' }} />
-              关键词 {stats.keywords}
+            <span className="text-slate-700">·</span>
+            <span className="flex items-center gap-1.5">
+              <span
+                className="inline-block w-3.5 h-2"
+                style={{ background: '#22c55e', clipPath: 'polygon(24% 0, 100% 0, 100% 100%, 24% 100%, 0 50%)', boxShadow: '0 0 6px rgba(34,197,94,0.4)' }}
+              />
+              <span className="text-slate-500">关键词</span>
+              <span className="font-semibold text-emerald-300 tabular-nums">{stats.keywords}</span>
             </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block w-3 h-px" style={{ background: '#94a3b8' }} />
-              关系 {stats.edges}
+            <span className="text-slate-700">·</span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-px bg-slate-400" />
+              <span className="text-slate-500">关系</span>
+              <span className="font-semibold text-slate-200 tabular-nums">{stats.edges}</span>
             </span>
-          </div>
+          </motion.div>
 
-          <div className="absolute left-3 top-3 text-[10px] text-muted-foreground bg-background/80 backdrop-blur-sm rounded-md px-2.5 py-2 border border-border/50 space-y-1">
-            <div className="font-medium text-foreground/70 mb-1">图例</div>
+          {/* 图例 */}
+          <motion.div
+            className="absolute left-4 top-4 text-[10px] text-slate-300 memory-graph-glass-soft rounded-lg px-3 py-2.5 space-y-1.5 w-52"
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3, duration: 0.4 }}
+          >
+            <div className="font-semibold text-slate-200 mb-1.5 text-[11px] flex items-center gap-1.5">
+              <span className="w-1 h-3 rounded-full bg-gradient-to-b from-violet-400 to-blue-400" />
+              图例
+            </div>
             <div className="flex items-center gap-1.5">
               <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: '#6366f1' }} />
-              <span>低活跃主题</span>
+              <span className="text-slate-400">低活跃主题</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: '#f97316' }} />
-              <span>高活跃主题</span>
+              <span className="text-slate-400">高活跃主题</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="inline-block w-2 h-2 rounded-sm rotate-45" style={{ background: '#3b82f6' }} />
-              <span>记忆笔记</span>
+              <span className="text-slate-400">记忆笔记</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="inline-block w-4 h-2" style={{ background: '#22c55e', clipPath: 'polygon(24% 0, 100% 0, 100% 100%, 24% 100%, 0 50%)' }} />
-              <span>关键词</span>
+              <span className="text-slate-400">关键词</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="inline-block min-w-4 h-2 rounded-full border" style={{ background: 'linear-gradient(90deg, #f59e0b, #f97316)', borderColor: 'rgba(255,255,255,0.35)' }} />
-              <span>实体节点（颜色代表实体类型）</span>
+              <span className="text-slate-400">实体节点</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="inline-block w-4 h-px" style={{ background: 'rgba(245, 158, 11, 0.75)' }} />
-              <span>实体事实</span>
+            <div className="border-t border-slate-700/40 pt-1.5 mt-1.5 space-y-1">
+              <div className="flex items-center gap-1.5">
+                <span className="inline-block w-4 h-px" style={{ background: 'rgba(245, 158, 11, 0.85)' }} />
+                <span className="text-slate-500">实体事实</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="inline-block w-4 h-px" style={{ background: 'rgba(16, 185, 129, 0.85)' }} />
+                <span className="text-slate-500">实体属性</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="inline-block w-4 h-px" style={{ background: 'rgba(14, 165, 233, 0.85)' }} />
+                <span className="text-slate-500">实体关系</span>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="inline-block w-4 h-px" style={{ background: 'rgba(16, 185, 129, 0.75)' }} />
-              <span>实体属性</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="inline-block w-4 h-px" style={{ background: 'rgba(14, 165, 233, 0.75)' }} />
-              <span>实体关系</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-muted-foreground/60">
-              <span>节点大小 = 关联数量</span>
-            </div>
-          </div>
+            <div className="text-slate-600 text-[9px] pt-1">节点大小 = 关联数量</div>
+          </motion.div>
 
           <DetailPanel node={selectedNode} onClose={() => setSelectedNode(null)} onFocusTopic={handleFocusTopic} workspaceId={workspaceId} />
         </div>
