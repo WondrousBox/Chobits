@@ -517,7 +517,66 @@ function tokenizeSearchQuery(query: string): string[] {
   return Array.from(new Set(query.trim().toLowerCase().split(/\s+/).filter(Boolean)));
 }
 
-function computeSearchTermScore(file: EmojiPackTreeFile, term: string): number {
+// Synonym groups for query expansion. Each group lists interchangeable Chinese/English
+// keywords commonly used in meme file names, so an abstract emotion typed by the model
+// can still match concrete file titles.
+const SYNONYM_GROUPS: string[][] = [
+  ['开心', '高兴', '快乐', '笑', '乐', '哈哈', '嘻嘻', '嗨', '爽', 'happy', 'lol'],
+  ['难过', '伤心', '哭', '委屈', '难受', '泪', '呜呜', 'sad', 'cry'],
+  ['生气', '愤怒', '怒', '气', '炸', '怼', '揍', 'angry', 'mad'],
+  ['惊讶', '震惊', '吃惊', '哇', '懵', '傻眼', 'wow', 'shock'],
+  ['尴尬', '捂脸', '汗', '黑线', '尬', 'awkward'],
+  ['无语', '白眼', '裂开', '汗', '翻白眼', 'speechless'],
+  ['疲惫', '累', '困', '摆烂', '躺平', '咸鱼', '佛系', 'tired', '哈欠'],
+  ['思考', '想', '思索', '托腮', 'think'],
+  ['疑问', '问号', '困惑', '迷茫', '不懂', 'confused', 'huh'],
+  ['同意', '赞', '点头', '认同', '好的', 'ok', '可以', 'agree'],
+  ['点赞', '赞', '棒', '厉害', 'good', '666', '牛'],
+  ['反对', '不行', '摇头', 'no', '拒绝'],
+  ['加油', '冲', '冲鸭', '奥利给', '拼命', 'fight'],
+  ['庆祝', '撒花', '鼓掌', '欢呼', '庆贺', '烟花', 'celebrate'],
+  ['害怕', '恐惧', '吓', '怕', '抖', 'scary', 'fear'],
+  ['害羞', '脸红', '羞', '不好意思', 'shy'],
+  ['喜欢', '爱', '比心', '心动', 'love', '亲'],
+  ['感谢', '谢谢', '感激', '鞠躬', 'thanks', 'thx'],
+  ['抱歉', '对不起', '道歉', '鞠躬', 'sorry'],
+  ['再见', '拜拜', '88', 'bye', '走'],
+  ['你好', 'hi', 'hello', '招手', '挥手'],
+  ['羡慕', '酸', '柠檬', '嫉妒'],
+  ['骄傲', '得意', '嚣张', '炫', '装'],
+  ['吃饭', '吃', '美食', '饿', '干饭', 'food'],
+  ['睡觉', '睡', '困', '哈欠', 'sleep'],
+  ['猫', '猫猫', '喵', 'cat', '咪'],
+  ['狗', '狗狗', '汪', 'dog', '柴', '柯基'],
+  ['可爱', '萌', '萌萌', 'cute'],
+  ['帅', '酷', '炫', 'cool'],
+  ['等待', '等', '催', 'wait'],
+  ['震怒', '生气', '怒', '愤怒'],
+  ['夸奖', '表扬', '点赞', '赞', '棒']
+];
+
+const SYNONYM_INDEX = ((): Map<string, string[]> => {
+  const map = new Map<string, Set<string>>();
+  for (const group of SYNONYM_GROUPS) {
+    for (const term of group) {
+      const lower = term.toLowerCase();
+      let set = map.get(lower);
+      if (!set) {
+        set = new Set();
+        map.set(lower, set);
+      }
+      for (const other of group) {
+        const otherLower = other.toLowerCase();
+        if (otherLower !== lower) set.add(otherLower);
+      }
+    }
+  }
+  const out = new Map<string, string[]>();
+  for (const [key, value] of map.entries()) out.set(key, Array.from(value));
+  return out;
+})();
+
+function computeRawTermScore(file: EmojiPackTreeFile, term: string): number {
   const title = file.title.toLowerCase();
   const name = file.name.toLowerCase();
   const text = `${file.title} ${file.name} ${file.relativePath}`.toLowerCase();
@@ -525,6 +584,22 @@ function computeSearchTermScore(file: EmojiPackTreeFile, term: string): number {
   if (title.startsWith(term)) return 80;
   if (name.includes(term)) return 60;
   return text.includes(term) ? 40 : 0;
+}
+
+function computeSearchTermScore(file: EmojiPackTreeFile, term: string): number {
+  let best = computeRawTermScore(file, term);
+  if (best >= 100) return best;
+  const synonyms = SYNONYM_INDEX.get(term);
+  if (synonyms) {
+    for (const syn of synonyms) {
+      const synScore = computeRawTermScore(file, syn);
+      if (synScore > 0) {
+        // Discount synonym hits so direct keyword matches still rank higher.
+        best = Math.max(best, Math.round(synScore * 0.85));
+      }
+    }
+  }
+  return best;
 }
 
 function computeSearchScore(file: EmojiPackTreeFile, query: string): number {
