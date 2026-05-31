@@ -1,0 +1,1 @@
+export { MusicSpectrumPage } from './MusicSpectrumPage';
