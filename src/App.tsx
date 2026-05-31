@@ -6,6 +6,7 @@ import { DownloadFloating } from '@/features/download';
 import { AchievementUnlockPage, AIAssistant, LevelUpPage, StatusPage } from '@/features/sprite-assistant';
 import { SpriteBubblePage } from '@/features/sprite-bubble';
 import { SpriteEffectPage } from '@/features/sprite-effect';
+import { MusicSpectrumPage } from '@/features/music-spectrum';
 import { useAIProviderConfig } from '@/hooks/useAIProviderConfig';
 import { useWorkspaceCheck } from '@/hooks/useWorkspaceCheck';
 import { ChatSelectionProvider } from '@/pages/ChatPage/context/ChatSelectionContext';
@@ -104,6 +105,7 @@ function StandardAppRoutes(): JSX.Element {
           <Route path="/window-animation-editor" element={<WindowAnimationEditor />} />
           <Route path="/sprite-bubble" element={<SpriteBubblePage />} />
           <Route path="/sprite-effect" element={<SpriteEffectPage />} />
+          <Route path="/music-spectrum" element={<MusicSpectrumPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <Toaster />

@@ -1,4 +1,5 @@
 import { estimateMediaMusicFeatures } from '@packages/audio-reactivity/analysis/media-feature-estimator';
+import { MUSIC_REACTIVITY_SPECTRUM_BAND_COUNT } from '@packages/audio-reactivity/types';
 import { type RefObject, useEffect, useRef } from 'react';
 
 type MediaElement = HTMLAudioElement | HTMLVideoElement;
@@ -12,6 +13,7 @@ interface AnalyzerState {
   frequencyData: Uint8Array;
   previousFrequencyData: Uint8Array;
   lastSentAt: number;
+  lastSpectrumSentAt: number;
   disposed: boolean;
   refCount: number;
   releaseTimerId: number | null;
@@ -22,11 +24,36 @@ interface AnalyzerState {
 
 const FFT_SIZE = 2048;
 const SEND_INTERVAL_MS = 500;
+const SPECTRUM_FRAME_INTERVAL_MS = 40;
 const ANALYZER_RELEASE_DELAY_MS = 3000;
 const FEATURE_LOG_INTERVAL_MS = 3000;
 const LOG_PREFIX = '[MusicReactivity][MediaPlayer]';
 const analyzerByMedia = new WeakMap<MediaElement, AnalyzerState>();
 let nextAnalyzerDebugId = 1;
+
+function computeSpectrumBands(frequencyData: Uint8Array, bandCount: number): number[] {
+  const bands = new Array<number>(bandCount).fill(0);
+  const binCount = frequencyData.length;
+  if (binCount === 0) return bands;
+  // Log-distributed buckets from low to high frequency for a musical look.
+  const minBin = 1;
+  const maxBin = binCount;
+  const logMin = Math.log(minBin);
+  const logMax = Math.log(maxBin);
+  for (let i = 0; i < bandCount; i += 1) {
+    const startLog = logMin + ((logMax - logMin) * i) / bandCount;
+    const endLog = logMin + ((logMax - logMin) * (i + 1)) / bandCount;
+    const start = Math.max(0, Math.min(binCount - 1, Math.floor(Math.exp(startLog))));
+    const end = Math.max(start + 1, Math.min(binCount, Math.ceil(Math.exp(endLog))));
+    let peak = 0;
+    for (let j = start; j < end; j += 1) {
+      const value = frequencyData[j];
+      if (value > peak) peak = value;
+    }
+    bands[i] = peak / 255;
+  }
+  return bands;
+}
 
 function getAudioContextConstructor(): typeof AudioContext | undefined {
   return window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -102,6 +129,7 @@ function acquireAnalyzer(media: MediaElement): AnalyzerState | null {
       frequencyData: new Uint8Array(analyser.frequencyBinCount),
       previousFrequencyData: new Uint8Array(analyser.frequencyBinCount),
       lastSentAt: 0,
+      lastSpectrumSentAt: 0,
       disposed: false,
       refCount: 1,
       releaseTimerId: null,
@@ -186,11 +214,28 @@ export function useMusicReactivityAnalyzer(mediaRef: RefObject<MediaElement | nu
     const tick = (): void => {
       if (state.disposed) return;
       const now = Date.now();
-      if (activeRef.current && !media.paused && !media.ended && now - state.lastSentAt >= SEND_INTERVAL_MS) {
-        state.lastSentAt = now;
+      const mediaActive = activeRef.current && !media.paused && !media.ended;
+
+      if (mediaActive && now - state.lastSpectrumSentAt >= SPECTRUM_FRAME_INTERVAL_MS) {
+        state.lastSpectrumSentAt = now;
         if (state.audioContext.state === 'suspended') {
           void state.audioContext.resume().catch(() => undefined);
         }
+        state.analyser.getByteFrequencyData(state.frequencyData as Uint8Array<ArrayBuffer>);
+        const bands = computeSpectrumBands(state.frequencyData, MUSIC_REACTIVITY_SPECTRUM_BAND_COUNT);
+        let sumSquares = 0;
+        for (const value of bands) sumSquares += value * value;
+        const energy = Math.sqrt(sumSquares / Math.max(1, bands.length));
+        window.YUA.musicReactivity.sendSpectrumFrame({
+          timestampMs: now,
+          source: 'app-media',
+          bands,
+          energy
+        });
+      }
+
+      if (mediaActive && now - state.lastSentAt >= SEND_INTERVAL_MS) {
+        state.lastSentAt = now;
         const features = computeFeatures(state);
         state.sentCount += 1;
         logFeatureSnapshot(state, now, features);
@@ -200,7 +245,7 @@ export function useMusicReactivityAnalyzer(mediaRef: RefObject<MediaElement | nu
           ...features
         });
       }
-      timerRef.current = window.setTimeout(tick, 100);
+      timerRef.current = window.setTimeout(tick, SPECTRUM_FRAME_INTERVAL_MS);
     };
 
     tick();

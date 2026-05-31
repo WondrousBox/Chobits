@@ -33,6 +33,7 @@ declare module '@aim-packages/window-manager' {
     windowAnimationEditor: { presetId?: string } | void;
     spriteBubbleFixedTop: void;
     spriteEffect: void;
+    musicSpectrum: void;
   }
 }
 
@@ -839,6 +840,36 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       height: 260,
       minWidth: 360,
       minHeight: 220,
+      frame: false,
+      transparent: true,
+      resizable: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      focusable: false,
+      hasShadow: false,
+      show: false,
+      backgroundColor: '#00000000',
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
+    },
+    platformOverlays: {
+      darwin: { options: { hasShadow: false } }
+    }
+  },
+  musicSpectrum: {
+    routeHash: 'music-spectrum',
+    followMain: true,
+    followerPreferMode: 'overlap-center',
+    enableOverlapTransparency: true,
+    forceCenterAlignment: true,
+    preferShowInactive: true,
+    suspendHoverMonitorOnShow: false,
+    parent: 'main',
+    hideOnClose: true,
+    showOnReady: false,
+    openDevTools: false,
+    options: {
+      width: 360,
+      height: 120,
       frame: false,
       transparent: true,
       resizable: true,

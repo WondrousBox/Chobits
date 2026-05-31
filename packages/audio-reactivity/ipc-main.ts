@@ -1,16 +1,31 @@
 import { BrowserWindow, ipcMain } from 'electron';
 
 import type { MusicReactivityService } from './music-reactivity-service';
-import { MUSIC_REACTIVITY_SNAPSHOT_CHANNEL, type MusicReactivityAnalysisInput, type MusicReactivityPreferences, type MusicReactivitySnapshot } from './types';
+import {
+  MUSIC_REACTIVITY_SNAPSHOT_CHANNEL,
+  MUSIC_REACTIVITY_SPECTRUM_FRAME_CHANNEL,
+  type MusicReactivityAnalysisInput,
+  type MusicReactivityPreferences,
+  type MusicReactivitySnapshot,
+  type MusicReactivitySpectrumFrame
+} from './types';
 
 export interface MusicReactivityHandlerOptions {
   savePreferences?: (preferences: MusicReactivityPreferences) => void;
+  onSpectrumFrame?: (frame: MusicReactivitySpectrumFrame) => void;
 }
 
 export function broadcastMusicReactivitySnapshot(snapshot: MusicReactivitySnapshot): void {
   for (const win of BrowserWindow.getAllWindows()) {
     if (win.isDestroyed()) continue;
     win.webContents.send(MUSIC_REACTIVITY_SNAPSHOT_CHANNEL, snapshot);
+  }
+}
+
+export function broadcastMusicReactivitySpectrumFrame(frame: MusicReactivitySpectrumFrame): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isDestroyed()) continue;
+    win.webContents.send(MUSIC_REACTIVITY_SPECTRUM_FRAME_CHANNEL, frame);
   }
 }
 
@@ -73,5 +88,12 @@ export function initMusicReactivityHandlers(service: MusicReactivityService, opt
       console.error('[MusicReactivity] reset failed:', error);
       return { ok: false, error: toErrorMessage(error) };
     }
+  });
+
+  ipcMain.removeAllListeners('music-reactivity:emit-spectrum-frame');
+  ipcMain.on('music-reactivity:emit-spectrum-frame', (_event, frame: MusicReactivitySpectrumFrame) => {
+    if (!frame || !Array.isArray(frame.bands)) return;
+    options.onSpectrumFrame?.(frame);
+    broadcastMusicReactivitySpectrumFrame(frame);
   });
 }

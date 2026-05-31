@@ -60,6 +60,54 @@ import { initWindowHandlers } from './window';
 import { attachAppWindowClosedReporter, emitAppWindowOpened, rememberWindowPayload } from './window-events';
 import { emitWorkspaceWizardClosedIfStillEmpty, initWorkspaceHandlers } from './workspace/ipc-main';
 
+let musicSpectrumWindowVisible = false;
+let musicSpectrumDanceActive = false;
+let musicSpectrumLastFrameAtMs = 0;
+let musicSpectrumWatchdog: NodeJS.Timeout | null = null;
+const MUSIC_SPECTRUM_FRAME_TIMEOUT_MS = 1200;
+
+async function setMusicSpectrumWindowVisible(shouldShow: boolean): Promise<void> {
+  if (shouldShow === musicSpectrumWindowVisible) return;
+  musicSpectrumWindowVisible = shouldShow;
+  try {
+    if (shouldShow) {
+      await windowManager.createOrShow('musicSpectrum');
+    } else {
+      await windowManager.hide('musicSpectrum');
+    }
+  } catch (error) {
+    console.warn('[MusicSpectrum] toggle window failed', error);
+  }
+}
+
+function evaluateMusicSpectrumWindow(): void {
+  const fresh = Date.now() - musicSpectrumLastFrameAtMs < MUSIC_SPECTRUM_FRAME_TIMEOUT_MS;
+  const shouldShow = musicSpectrumDanceActive && fresh;
+  void setMusicSpectrumWindowVisible(shouldShow);
+}
+
+function scheduleMusicSpectrumWatchdog(): void {
+  if (musicSpectrumWatchdog) return;
+  musicSpectrumWatchdog = setInterval(() => {
+    evaluateMusicSpectrumWindow();
+    if (!musicSpectrumDanceActive && !musicSpectrumWindowVisible && musicSpectrumWatchdog) {
+      clearInterval(musicSpectrumWatchdog);
+      musicSpectrumWatchdog = null;
+    }
+  }, 400);
+}
+
+function notifyMusicSpectrumDanceState(dancing: boolean): void {
+  musicSpectrumDanceActive = dancing;
+  evaluateMusicSpectrumWindow();
+  if (dancing) scheduleMusicSpectrumWatchdog();
+}
+
+function notifyMusicSpectrumFrameReceived(): void {
+  musicSpectrumLastFrameAtMs = Date.now();
+  if (musicSpectrumDanceActive) evaluateMusicSpectrumWindow();
+}
+
 export async function initHandlers(win: BrowserWindow): Promise<void> {
   console.log(process.versions);
   const { WorkspacesRepo } = await import('../db/repositories');
@@ -247,10 +295,14 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
       return SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
     },
     preferences: PreferencesStore.getMusicReactivity(),
-    onSnapshot: broadcastMusicReactivitySnapshot
+    onSnapshot: (snapshot) => {
+      broadcastMusicReactivitySnapshot(snapshot);
+      notifyMusicSpectrumDanceState(snapshot.state === 'dancing');
+    }
   });
   initMusicReactivityHandlers(musicReactivityService, {
-    savePreferences: (preferences) => PreferencesStore.setMusicReactivity(preferences)
+    savePreferences: (preferences) => PreferencesStore.setMusicReactivity(preferences),
+    onSpectrumFrame: () => notifyMusicSpectrumFrameReceived()
   });
 
   // ----------------------------------------------------------------------

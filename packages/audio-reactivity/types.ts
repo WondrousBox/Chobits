@@ -5,6 +5,17 @@ export type MusicReactivityState = 'idle' | 'candidate' | 'dancing' | 'cooldown'
 export type MusicReactivityAnalysisStatus = 'none' | 'accepted' | 'source-filtered' | 'disabled';
 
 export const MUSIC_REACTIVITY_SNAPSHOT_CHANNEL = 'music-reactivity:snapshot';
+export const MUSIC_REACTIVITY_SPECTRUM_FRAME_CHANNEL = 'music-reactivity:spectrum-frame';
+
+export const MUSIC_REACTIVITY_SPECTRUM_BAND_COUNT = 32;
+
+export interface MusicReactivitySpectrumFrame {
+  timestampMs: number;
+  source: MusicReactivityCaptureSource | 'none';
+  bands: number[];
+  energy: number;
+  beatTick?: boolean;
+}
 
 export interface MusicReactivityPreferences {
   enabled: boolean;
