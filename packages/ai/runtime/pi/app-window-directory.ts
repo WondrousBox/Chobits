@@ -26,7 +26,7 @@ export interface AppWindowSummary {
   title: string;
 }
 
-const SETTINGS_CATEGORIES = new Set(['preferences', 'workspace', 'ai', 'user-profile', 'prompt', 'glossary', 'plugins', 'shortcuts', 'proxy']);
+const SETTINGS_CATEGORIES = new Set(['preferences', 'workspace', 'ai', 'user-profile', 'prompt', 'glossary', 'selected-text-learning', 'plugins', 'shortcuts', 'proxy']);
 const WINDOW_ANIMATION_PRESET_IDS = new Set(['fly-in', 'fade-in', 'zoom-in', 'fly-out', 'fade-out', 'zoom-out', 'pulse', 'shake']);
 const CHAT_AGENT_IDS = new Set(['assistant', 'chat', 'coder', 'assistant-skills']);
 const CJK_SEARCH_TERMS = [
@@ -140,6 +140,20 @@ function sanitizeChatPayload(payload: unknown): Payload | undefined {
   if (!isRecord(payload)) return undefined;
   const next: Payload = {};
   pickString(payload, next, 'initialMessage', { maxLength: 8000, trim: false });
+  if (Array.isArray(payload.initialMessages)) {
+    const messages = payload.initialMessages
+      .map((item) => {
+        if (!isRecord(item)) return null;
+        const role = readString(item, 'role', { maxLength: 16 });
+        if (role !== 'user' && role !== 'assistant') return null;
+        const content = readString(item, 'content', { maxLength: 8000, trim: false });
+        if (!content) return null;
+        return { role, content };
+      })
+      .filter(Boolean)
+      .slice(0, 8);
+    if (messages.length > 0) next.initialMessages = messages;
+  }
   pickString(payload, next, 'providerId', { maxLength: 120 });
   pickString(payload, next, 'modelId', { maxLength: 160 });
   pickString(payload, next, 'preferredPresetId', { maxLength: 160 });
