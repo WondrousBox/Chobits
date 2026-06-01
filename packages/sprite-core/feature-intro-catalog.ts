@@ -1,3 +1,5 @@
+import type { QuestRecommendationDefinition } from './quest/types';
+
 export type FeatureIntroCompletionSpec =
   | {
       kind: 'file-workflow-started';
@@ -53,6 +55,7 @@ export interface FeatureIntroQuestCatalogItem {
   rewardXp: number;
   rewardFavor: number;
   achievementId: string;
+  recommendation?: QuestRecommendationDefinition;
   completion: FeatureIntroCompletionSpec;
   routine: FeatureIntroRoutineSpec;
 }
@@ -71,6 +74,12 @@ export const FEATURE_INTRO_QUEST_CATALOG: FeatureIntroQuestCatalogItem[] = [
     rewardXp: 12,
     rewardFavor: 1,
     achievementId: 'feature-file-transcription-introduced',
+    recommendation: {
+      questId: 'feature.resource-library-preview',
+      prompt: '转写流程已经跑起来了。要不要接着看看资源在库里怎么预览？',
+      confirmLabel: '继续',
+      cancelLabel: '稍后'
+    },
     completion: {
       kind: 'file-workflow-started',
       workflowIds: ['sample:transcribe'],
@@ -94,6 +103,12 @@ export const FEATURE_INTRO_QUEST_CATALOG: FeatureIntroQuestCatalogItem[] = [
     rewardXp: 12,
     rewardFavor: 1,
     achievementId: achievementFor('feature.resource-library-preview'),
+    recommendation: {
+      questId: 'feature.chat-with-resource',
+      prompt: '预览窗口打开啦。要不要接着试试围绕资源聊天？',
+      confirmLabel: '继续',
+      cancelLabel: '稍后'
+    },
     completion: {
       kind: 'app-event',
       events: ['RESOURCE_PREVIEW_OPENED']

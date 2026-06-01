@@ -393,6 +393,31 @@ async function initOnboardingQuestEngine(
       if (source.startsWith('quest:')) {
         mgr.markRewardClaimed(source);
       }
+    },
+    onRecommendation: async (offer, completedQuest) => {
+      const mgr = SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
+      if (!mgr) return;
+
+      mgr.showNotice(offer.prompt || `要不要接着做「${offer.questTitle}」？`, {
+        id: `quest-recommendation:${completedQuest.id}:${offer.questId}`,
+        level: 'success',
+        persistent: true,
+        speak: false,
+        buttons: [
+          {
+            id: 'start-recommended-quest',
+            label: offer.confirmLabel || '继续',
+            variant: 'default',
+            action: `quest:start:${offer.questId}`
+          },
+          {
+            id: 'dismiss-recommended-quest',
+            label: offer.cancelLabel || '稍后',
+            variant: 'secondary',
+            action: 'dismiss'
+          }
+        ]
+      });
     }
   });
 

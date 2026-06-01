@@ -23,6 +23,7 @@
 - `routine`：固定表现流程，负责说说明文案、打开窗口、等待用户动作、庆祝完成。
 - `reward`：少量 XP / 好感度 / 成就，使用 `quest:<id>` 幂等发放。
 - `precondition`：当前统一要求已经具备 workspace；没有 workspace 时应先完成 `workspace.create`。
+- `recommendation`（可选）：完成后推荐继续执行的下一个 Quest。QuestEngine 会检查下一个任务未完成、前置条件满足且允许 `source: 'recommendation'` 后，才展示“是否继续”的确认气泡；用户确认后才启动下一个任务。
 
 触发方式：
 
@@ -74,6 +75,17 @@ Routine 类型：
 | P3 | `feature.character-pack-editor` | 认识角色包编辑器 | `APP_WINDOW_OPENED`，`windowKey=characterPackEditor` | XP +6, 好感 +1 |
 | P3 | `feature.skill-tree` | 认识技能树 | `ASSISTANT_MENU_ITEM_SELECTED`，`itemId=skill-tree` | XP +6, 好感 +1 |
 
+## 3.1 已配置的推荐链
+
+首批推荐链只覆盖最自然的新手路径，避免功能自述任务完成后过度打扰：
+
+| 完成 Quest | 推荐 Quest | 目的 |
+| --- | --- | --- |
+| `feature.file-video-transcription` | `feature.resource-library-preview` | 转写流程启动后，继续引导用户回到资源库查看资源 |
+| `feature.resource-library-preview` | `feature.chat-with-resource` | 预览资源后，继续引导用户围绕资源聊天 |
+
+固定新手任务的推荐链记录在主 README：`workspace.create → first-file-drop → open-resource-library → feature.resource-library-preview`。
+
 ## 4. 当前事件接入
 
 已补齐的关键事件：
@@ -98,5 +110,6 @@ Routine 类型：
 - 新增功能自述任务时先改 `FEATURE_INTRO_QUEST_CATALOG`，不要只改文档或只写单独 preset。
 - 每个任务必须有确定的 `completion`，优先使用真实业务事件。
 - 每个任务默认不配置 `autoStartEvents`，避免功能介绍主动打断用户。
+- 如果配置 `recommendation`，目标任务也必须允许 `explicitStartSources` 包含 `recommendation`；当前 `createFeatureIntroQuest` 会统一加入该来源。
 - 如果任务需要打开窗口，优先使用 `routine.windowKey` 和 `windowPayload`，由 routine 统一完成陪同、等待和庆祝。
 - 修改事件名、菜单 `itemId`、workflow id 或 window key 时，同步更新本文件、catalog、测试。

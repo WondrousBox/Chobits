@@ -24,6 +24,7 @@ function optionItems(options: Array<{ label: string; value: string }>): JSX.Elem
 export default function ImageGenerationFormNode({ id, data, selected }: NodeProps<ImageGenerationFormNodeData>): JSX.Element {
   const update = (patch: Partial<ImageGenerationCanvasDraft>): void => data.onDraftChange(id, patch);
   const running = data.status === 'running';
+  const references = data.references?.length ? data.references : data.reference ? [data.reference] : [];
 
   return (
     <div
@@ -38,7 +39,7 @@ export default function ImageGenerationFormNode({ id, data, selected }: NodeProp
       <div className="flex items-start justify-between gap-3 border-b border-border/60 bg-background p-3">
         <div>
           <div className="text-sm font-medium">{data.mode === 'edit' ? '参考图生成' : 'AI 新建图片'}</div>
-          <div className="text-xs text-muted-foreground">{data.mode === 'edit' ? `参考：${data.reference?.title ?? '未选择'}` : '无参考图'}</div>
+          <div className="text-xs text-muted-foreground">{data.mode === 'edit' ? `参考：${references.length ? `${references.length} 张` : '未选择'}` : '无参考图'}</div>
         </div>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -62,7 +63,19 @@ export default function ImageGenerationFormNode({ id, data, selected }: NodeProp
           showModelDetails
         />
 
-        {data.reference ? (
+        {references.length ? (
+          <div className="rounded-md border bg-muted/40 p-2">
+            <div className="grid grid-cols-4 gap-2">
+              {references.slice(0, 8).map((reference) => (
+                <div key={reference.assetId} className="min-w-0">
+                  <img src={reference.thumbnailSrc || reference.imageSrc} alt={reference.title} className="h-16 w-full rounded border bg-muted object-contain" draggable={false} />
+                  <div className="mt-1 truncate text-[11px] text-muted-foreground">{reference.title}</div>
+                </div>
+              ))}
+            </div>
+            {references.length > 8 ? <div className="mt-2 text-xs text-muted-foreground">还有 {references.length - 8} 张参考图</div> : null}
+          </div>
+        ) : data.reference ? (
           <div className="flex gap-3 rounded-md border bg-muted/40 p-2">
             <img src={data.reference.thumbnailSrc || data.reference.imageSrc} alt={data.reference.title} className="h-20 w-16 rounded border bg-muted object-contain" draggable={false} />
             <div className="min-w-0 flex-1">

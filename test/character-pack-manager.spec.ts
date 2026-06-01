@@ -59,6 +59,14 @@ vi.mock('../packages/common/utils/file', () => ({
 }));
 
 import { unzipFileWith7Z, zipDirectoryContentsWith7Z } from '../packages/common/utils/file';
+import {
+  buildCharacterGalleryAIEditContext,
+  importCharacterGalleryItem,
+  listCharacterGalleryItems,
+  removeCharacterGalleryItem,
+  replaceCharacterGalleryItemImage,
+  updateCharacterGalleryItem
+} from '../packages/sprite-core/character-gallery-manager';
 import { calculateCharacterPackPayloadDigest } from '../packages/sprite-core/character-pack-integrity';
 import {
   activateCharacterPack,
@@ -73,14 +81,6 @@ import {
   resetCharacterPackManager,
   saveCharacterPackEditorDraft
 } from '../packages/sprite-core/character-pack-manager';
-import {
-  buildCharacterGalleryAIEditContext,
-  importCharacterGalleryItem,
-  listCharacterGalleryItems,
-  removeCharacterGalleryItem,
-  replaceCharacterGalleryItemImage,
-  updateCharacterGalleryItem
-} from '../packages/sprite-core/character-gallery-manager';
 import { createCharacterPackSignaturePayload } from '../packages/sprite-core/character-pack-signature';
 import { CHARACTER_MESSAGE_SPECS, CHARACTER_PROGRESS_KIND_LABEL_SPECS, CHARACTER_PROGRESS_MESSAGE_SPECS, getCharacterMessageTemplateLines } from '../packages/sprite-core/messages/default-character';
 
@@ -1298,10 +1298,7 @@ describe('character pack manager', () => {
     const replacementImage = path.join(tempRoot, 'idle-front-edited.png');
 
     writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
-    const onePixelPng = Buffer.from(
-      '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082',
-      'hex'
-    );
+    const onePixelPng = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082', 'hex');
     writeFileSync(sourceImage, onePixelPng);
     writeFileSync(replacementImage, onePixelPng);
 
@@ -1431,10 +1428,138 @@ describe('character pack manager', () => {
         }
       ]
     });
+    expect(aiContext.referencesSummary).toContain('Idle Front Updated');
+    expect(aiContext.combinedPrompt).toContain('Make a storyboard frame.');
+    expect(aiContext.referenceSet).toMatchObject({
+      imageCount: 1,
+      itemIds: [imported.item.id],
+      actions: ['idle'],
+      views: ['front']
+    });
 
     const removed = await removeCharacterGalleryItem(imported.item.id);
     expect(removed).toEqual({ ok: true });
     expect((await listCharacterGalleryItems())?.items).toHaveLength(0);
+  });
+
+  it('builds a multi-image gallery AI edit context for storyboard references', async () => {
+    tempRoot = mkdtempSync(path.join(os.tmpdir(), 'character-pack-manager-'));
+    const builtinRoot = path.join(tempRoot, 'builtin-pack');
+    const userDataDir = path.join(tempRoot, 'user-data');
+    const onePixelPng = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082', 'hex');
+    const sourceImage = path.join(tempRoot, 'source.png');
+    writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
+    writeFileSync(sourceImage, onePixelPng);
+
+    initCharacterPackManager({
+      userDataDir,
+      builtinPackRootDir: builtinRoot,
+      appVersion: '1.0.0'
+    });
+
+    await saveCharacterPackEditorDraft(
+      {
+        pack: {
+          id: 'custom-gallery-multi-reference',
+          name: 'Custom Gallery Multi Reference',
+          version: '1.0.0',
+          author: 'test',
+          description: 'multi reference gallery',
+          license: 'Custom',
+          tags: ['custom'],
+          platform: [process.platform]
+        },
+        character: {
+          id: 'custom-gallery-multi-reference',
+          name: 'Custom Gallery Multi Reference',
+          nameAliases: [],
+          tagline: 'Custom tagline',
+          background: 'Custom background',
+          coreTraits: ['warm'],
+          boundaries: ['kind'],
+          speechTone: 'gentle',
+          language: 'zh-CN',
+          firstPerson: '我',
+          addressUser: '你',
+          quirks: [],
+          speechExamples: [],
+          metaDescription: 'multi reference gallery',
+          metaTags: ['custom']
+        }
+      },
+      {
+        basePackId: 'pack-alpha',
+        basePackSource: 'builtin',
+        activate: true
+      }
+    );
+
+    const idle = await importCharacterGalleryItem({
+      filePath: sourceImage,
+      draft: {
+        title: 'Idle Front',
+        kind: 'pose',
+        semantic: { action: 'idle', view: 'front' },
+        tags: ['idle', 'front'],
+        ai: { referenceRole: 'character', preserveIdentity: true, promptHint: 'Keep the face and outfit.', negativePrompt: 'extra limbs' }
+      }
+    });
+    const left = await importCharacterGalleryItem({
+      filePath: sourceImage,
+      draft: {
+        title: 'Walk Left',
+        kind: 'action',
+        semantic: { action: 'walk-left', view: 'left' },
+        tags: ['walk', 'left'],
+        ai: { referenceRole: 'pose', referenceStrength: 0.65, promptHint: 'Use the left-facing silhouette.' }
+      }
+    });
+    const jump = await importCharacterGalleryItem({
+      filePath: sourceImage,
+      draft: {
+        title: 'Jump Point',
+        kind: 'action',
+        semantic: { action: 'jump-point', view: 'three-quarter-right' },
+        tags: ['jump', 'point'],
+        ai: { referenceRole: 'storyboard', promptHint: 'Use the airborne pointing gesture.' }
+      }
+    });
+
+    const context = await buildCharacterGalleryAIEditContext({
+      itemIds: [idle.item.id, left.item.id, jump.item.id],
+      prompt: 'Create a single storyboard frame.',
+      negativePrompt: 'low detail'
+    });
+
+    expect(context.images.map((image) => image.id)).toEqual([idle.item.id, left.item.id, jump.item.id]);
+    expect(context.images.map((image) => image.referenceRole)).toEqual(['character', 'pose', 'storyboard']);
+    expect(context.referenceSet).toMatchObject({
+      imageCount: 3,
+      itemIds: [idle.item.id, left.item.id, jump.item.id],
+      actions: ['idle', 'walk-left', 'jump-point'],
+      views: ['front', 'left', 'three-quarter-right'],
+      roles: ['character', 'pose', 'storyboard'],
+      negativePrompts: ['extra limbs']
+    });
+    expect(context.combinedPrompt).toContain('Create a single storyboard frame.');
+    expect(context.combinedPrompt).toContain('Walk Left');
+    expect(context.combinedPrompt).toContain('Use the airborne pointing gesture.');
+    expect(context.combinedNegativePrompt).toContain('low detail');
+    expect(context.combinedNegativePrompt).toContain('extra limbs');
+    expect(context.groups).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'action', key: 'idle', itemIds: [idle.item.id] }),
+        expect.objectContaining({ kind: 'view', key: 'left', itemIds: [left.item.id] }),
+        expect.objectContaining({ kind: 'role', key: 'storyboard', itemIds: [jump.item.id] })
+      ])
+    );
+
+    await expect(
+      buildCharacterGalleryAIEditContext({
+        itemIds: [],
+        prompt: 'Missing references'
+      })
+    ).rejects.toThrow('At least one gallery reference image is required');
   });
 
   it('only cleans files managed by the character gallery directories', async () => {
@@ -1442,10 +1567,7 @@ describe('character pack manager', () => {
     const builtinRoot = path.join(tempRoot, 'builtin-pack');
     const userDataDir = path.join(tempRoot, 'user-data');
     const sourceImage = path.join(tempRoot, 'idle-front.png');
-    const onePixelPng = Buffer.from(
-      '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082',
-      'hex'
-    );
+    const onePixelPng = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082', 'hex');
 
     writePack(builtinRoot, 'pack-alpha', 'Pack Alpha');
     writeFileSync(sourceImage, onePixelPng);

@@ -34,9 +34,9 @@ describe('QuestRegistry', () => {
     expect(reg.list().map((quest) => quest.id)).toEqual(['workspace.create', 'first-file-drop', 'open-resource-library', ...featureIds]);
     expect(reg.get('workspace.create')?.autoStartEvents).toEqual(['APP_STARTED']);
     expect(reg.get('first-file-drop')?.autoStartEvents).toBeUndefined();
-    expect(reg.get('first-file-drop')?.explicitStartSources).toEqual(['task-list', 'ai']);
+    expect(reg.get('first-file-drop')?.explicitStartSources).toEqual(['task-list', 'ai', 'recommendation']);
     expect(reg.get('open-resource-library')?.autoStartEvents).toBeUndefined();
-    expect(reg.get('open-resource-library')?.explicitStartSources).toEqual(['task-list', 'ai']);
+    expect(reg.get('open-resource-library')?.explicitStartSources).toEqual(['task-list', 'ai', 'recommendation']);
     expect(createFeatureIntroQuests({ countWorkspaces: () => 1 }).map((quest) => quest.id)).toEqual(featureIds);
     expect(reg.byTriggerEvent('RESOURCE_CREATED').map((quest) => quest.id)).toEqual(['first-file-drop']);
     expect(reg.byTriggerEvent('ASSISTANT_MENU_ITEM_SELECTED').map((quest) => quest.id)).toEqual(
@@ -151,6 +151,9 @@ describe('QuestEngine — workspace.create happy path', () => {
       progressPercent: 50,
       reward: { xp: 20, favor: 3, achievementId: 'first-workspace' },
       rewardSource: 'quest:workspace.create',
+      recommendation: {
+        questId: 'first-file-drop'
+      },
       action: {
         kind: 'start-quest',
         label: '继续引导',
@@ -206,6 +209,86 @@ describe('QuestEngine — workspace.create happy path', () => {
     expect(startPurpose).not.toHaveBeenCalled();
     expect(grantReward).toHaveBeenCalledTimes(1);
     expect(saved.current?.quests['workspace.create'].status).toBe('done');
+  });
+
+  it('offers the next quest when the completed quest recommends an unfinished available quest', async () => {
+    const counts = { workspaces: 0 };
+    const reg = new QuestRegistry([createWorkspaceCreateQuest({ countWorkspaces: () => counts.workspaces }), createFirstFileDropQuest({ countWorkspaces: () => counts.workspaces })]);
+    const startPurpose = vi.fn(async () => ({
+      accepted: true as const,
+      purpose: {
+        id: 'p-1',
+        kind: 'onboarding.workspace.create',
+        title: '',
+        reason: '',
+        source: 'system-event' as const,
+        status: 'queued' as const,
+        priority: 70,
+        interruptPolicy: 'interruptible' as const
+      },
+      status: 'started' as const
+    }));
+    const grantReward = vi.fn(async () => undefined);
+    const onRecommendation = vi.fn(async () => undefined);
+    const saved: { current: any } = { current: createEmptyOnboardingState() };
+    const engine = new QuestEngine({
+      registry: reg,
+      startPurpose,
+      grantReward,
+      hasAchievement: () => false,
+      onRecommendation,
+      loadState: () => saved.current,
+      saveState: (state) => {
+        saved.current = JSON.parse(JSON.stringify(state));
+      },
+      now: () => 1000
+    });
+
+    counts.workspaces = 1;
+    await engine.tick({ event: 'WORKSPACE_CREATED' });
+
+    expect(onRecommendation).toHaveBeenCalledTimes(1);
+    expect(onRecommendation.mock.calls[0][0]).toMatchObject({
+      questId: 'first-file-drop',
+      questTitle: '把第一个文件拖给我',
+      questStatus: 'pending',
+      confirmLabel: '继续',
+      cancelLabel: '稍后'
+    });
+    expect(onRecommendation.mock.calls[0][1].id).toBe('workspace.create');
+  });
+
+  it('does not offer a recommended quest that is already completed', async () => {
+    const counts = { workspaces: 1 };
+    const reg = new QuestRegistry([createWorkspaceCreateQuest({ countWorkspaces: () => counts.workspaces }), createFirstFileDropQuest({ countWorkspaces: () => counts.workspaces })]);
+    const onRecommendation = vi.fn(async () => undefined);
+    const saved: { current: any } = {
+      current: {
+        version: 1,
+        quests: {
+          'first-file-drop': {
+            status: 'done',
+            completedAt: 900
+          }
+        }
+      }
+    };
+    const engine = new QuestEngine({
+      registry: reg,
+      startPurpose: vi.fn(async () => ({ accepted: true as const, status: 'started' as const })),
+      grantReward: vi.fn(async () => undefined),
+      hasAchievement: () => false,
+      onRecommendation,
+      loadState: () => saved.current,
+      saveState: (state) => {
+        saved.current = JSON.parse(JSON.stringify(state));
+      },
+      now: () => 1000
+    });
+
+    await engine.tick({ event: 'WORKSPACE_CREATED' });
+
+    expect(onRecommendation).not.toHaveBeenCalled();
   });
 
   it('marks an already unlocked quest achievement done without replaying the guide or reward', async () => {
@@ -486,6 +569,17 @@ describe('QuestEngine — first-file-drop onboarding quest', () => {
     expect(saved.current?.quests['first-file-drop']).toMatchObject({ status: 'active', activatedAt: 1000 });
   });
 
+  it('can be started explicitly from a recommendation when workspace is ready', async () => {
+    const counts = { workspaces: 1 };
+    const { engine, startPurpose, saved } = makeFileDropDeps(counts);
+
+    const result = await engine.startQuest('first-file-drop', { source: 'recommendation' });
+
+    expect(result).toMatchObject({ accepted: true, status: 'started' });
+    expect(startPurpose).toHaveBeenCalledTimes(1);
+    expect(saved.current?.quests['first-file-drop']).toMatchObject({ status: 'active', activatedAt: 1000 });
+  });
+
   it('does not activate before workspace is ready', async () => {
     const counts = { workspaces: 0 };
     const { engine, startPurpose } = makeFileDropDeps(counts);
@@ -528,6 +622,9 @@ describe('QuestEngine — first-file-drop onboarding quest', () => {
       title: '把第一个文件拖给我',
       reward: { xp: 15, favor: 2, achievementId: 'first-import' },
       rewardSource: 'quest:first-file-drop',
+      recommendation: {
+        questId: 'open-resource-library'
+      },
       action: {
         kind: 'start-quest',
         label: '开始引导',
@@ -698,6 +795,9 @@ describe('QuestEngine — open-resource-library onboarding quest', () => {
       title: '打开资源库',
       reward: { xp: 10, favor: 1, achievementId: 'first-resource-library-open' },
       rewardSource: 'quest:open-resource-library',
+      recommendation: {
+        questId: 'feature.resource-library-preview'
+      },
       action: {
         kind: 'start-quest',
         label: '开始引导',
@@ -842,6 +942,9 @@ describe('QuestEngine — feature file video transcription intro quest', () => {
       title: '认识文件转写流程',
       reward: { xp: 12, favor: 1, achievementId: 'feature-file-transcription-introduced' },
       rewardSource: 'quest:feature.file-video-transcription',
+      recommendation: {
+        questId: 'feature.resource-library-preview'
+      },
       action: {
         kind: 'start-quest',
         label: '开始介绍',
