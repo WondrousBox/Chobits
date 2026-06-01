@@ -20,6 +20,7 @@ import { initYtDlpIpcHandlers } from '../../../packages/ytdlp';
 import { initDailyCare } from '../daily';
 import { getMainSchedulerService, initSchedulerIPC } from '../scheduler';
 import { initScreenshotHandlers } from '../screenshot';
+import { initSelectedTextLearningHandlers } from '../selected-text/ipc-main';
 import { initSkillTreeHandlers } from '../skillTreeWindow';
 import { getResourcePath } from '../utils/resources-path';
 import { initAnalyticsHandlers } from './analytics/ipc-main';
@@ -290,6 +291,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
       }
     })
   });
+  initSelectedTextLearningHandlers(win);
   const musicReactivityService = new MusicReactivityService({
     getSpriteManager: () => {
       return SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;

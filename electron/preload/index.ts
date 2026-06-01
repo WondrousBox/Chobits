@@ -33,6 +33,7 @@ import { themeIpcRenderer } from '../main/handlers/theme/ipc-renderer';
 import { trashIpcRenderer } from '../main/handlers/trash/ipc-renderer';
 import { workspaceIpcRenderer } from '../main/handlers/workspace/ipc-renderer';
 import { schedulerBridge } from '../main/scheduler/ipc-renderer';
+import { selectedTextLearningBridge } from '../main/selected-text/ipc-renderer';
 import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
 import { analyticsApi } from './apis/analytics';
 import { memoryApi } from './apis/memory';
@@ -115,6 +116,7 @@ contextBridge.exposeInMainWorld('YUA', {
   recorder: recorderIpcRenderer,
   dailyCare: dailyCareBridge,
   scheduler: schedulerBridge,
+  selectedTextLearning: selectedTextLearningBridge,
   emojiPacks: emojiPacksIpcRenderer,
   pluginResource: pluginResourceIpcRenderer,
   proxy: proxyIpcRenderer,

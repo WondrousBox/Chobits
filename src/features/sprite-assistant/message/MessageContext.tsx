@@ -70,6 +70,28 @@ export function MessageProvider({ children }: MessageProviderProps): JSX.Element
         return;
       }
 
+      if (button.action === 'selected-text:open-overlay') {
+        try {
+          const opened = await window.YUA.selectedTextLearning?.openLatestOverlay?.();
+          if (!opened) {
+            showToast({
+              content: '还没有可打开的划词解释',
+              level: 'warning',
+              duration: 2500
+            });
+            return;
+          }
+          dismissMessage(undefined, 'button');
+        } catch (error) {
+          showToast({
+            content: error instanceof Error ? error.message : String(error),
+            level: 'error',
+            duration: 4000
+          });
+        }
+        return;
+      }
+
       // Purpose routine 按钮：约定 action 形如 'purpose:<actionKey>'
       // 派发 purpose-event 'bubble:action'，供 routine 的 waitForEvent / loopUntil 解锁
       if (typeof button.action === 'string' && button.action.startsWith('purpose:')) {

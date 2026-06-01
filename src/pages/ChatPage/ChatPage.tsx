@@ -55,6 +55,20 @@ interface ChatUiMessage {
   usage?: TokenUsage;
 }
 
+function normalizeInitialMessages(value: unknown): ChatUiMessage[] {
+  if (!Array.isArray(value)) return [];
+  const messages: ChatUiMessage[] = [];
+  for (const item of value) {
+    const record = item && typeof item === 'object' ? (item as Record<string, unknown>) : {};
+    const role = record.role === 'user' || record.role === 'assistant' ? record.role : null;
+    const content = typeof record.content === 'string' ? record.content : '';
+    if (!role || !content.trim()) continue;
+    const createdAt = typeof record.createdAt === 'number' ? record.createdAt : Date.now();
+    messages.push({ content, createdAt, role });
+  }
+  return messages;
+}
+
 export default function ChatPage({ hideTitleBar = false, presentation = 'standard', payloadWindowKey = 'chat' }: ChatPageProps): JSX.Element {
   const isOverlay = presentation === 'overlay';
   const {
@@ -274,7 +288,8 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
   // Listen for initial message from assistant window (on:window:open:ready)
   useEffect(() => {
     const handlePayload = (payload: any): void => {
-      if (!payload?.initialMessage) return;
+      const initialMessages = normalizeInitialMessages(payload?.initialMessages);
+      if (!payload?.initialMessage && initialMessages.length === 0) return;
       // 清除缓存 payload，防止关闭后再次打开时重复触发
       window.ipcRenderer?.invoke('window:payload:clear', payloadWindowKey).catch(() => { });
       if (isOverlay) {
@@ -290,6 +305,10 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
       }
       // 重置为新对话状态
       newConversation();
+      if (initialMessages.length > 0) {
+        setMessages(initialMessages);
+        return;
+      }
       // 延迟一帧确保状态已重置，再发起对话
       setTimeout(() => {
         if (payload.providerId) {

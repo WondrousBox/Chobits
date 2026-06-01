@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React, { useEffect, useState } from 'react';
-import { TbAdjustments, TbBook, TbCpu, TbFolderOpen, TbKeyboard, TbMessage2, TbNetwork, TbPlug, TbUser } from 'react-icons/tb';
+import { TbAdjustments, TbBook, TbCpu, TbFolderOpen, TbKeyboard, TbLanguage, TbMessage2, TbNetwork, TbPlug, TbUser } from 'react-icons/tb';
 
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
 
@@ -10,12 +10,13 @@ import GlossarySettings from './components/glossary/GlossarySettings';
 import PreferencesSettings from './components/PreferencesSettings';
 import PromptSetting from './components/PromptSetting';
 import ProxySettings from './components/ProxySettings';
+import SelectedTextLearningSettings from './components/SelectedTextLearningSettings';
 import ShortcutsSettings from './components/ShortcutsSettings';
 import UserProfileSettings from './components/UserProfileSettings';
 import Workspace from './components/Workspace';
 import PluginPage from './PluginPage';
 
-export type DefaultSettingsCategory = 'preferences' | 'workspace' | 'ai' | 'user-profile' | 'prompt' | 'glossary' | 'plugins' | 'shortcuts' | 'proxy';
+export type DefaultSettingsCategory = 'preferences' | 'workspace' | 'ai' | 'user-profile' | 'prompt' | 'glossary' | 'selected-text-learning' | 'plugins' | 'shortcuts' | 'proxy';
 
 export type SettingsCategory = DefaultSettingsCategory | (string & {});
 
@@ -64,6 +65,12 @@ const defaultCategories: SettingsCategoryDef[] = [
     label: '翻译术语',
     icon: TbBook,
     description: '翻译术语表管理'
+  },
+  {
+    id: 'selected-text-learning',
+    label: '划词学习',
+    icon: TbLanguage,
+    description: '长按 Ctrl 解析选中的英文文本'
   },
   {
     id: 'plugins',
@@ -185,6 +192,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = EM
         return <PromptSetting />;
       case 'glossary':
         return <GlossarySettings />;
+      case 'selected-text-learning':
+        return <SelectedTextLearningSettings />;
       case 'shortcuts':
         return <ShortcutsSettings />;
       case 'proxy':

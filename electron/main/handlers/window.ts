@@ -1,4 +1,3 @@
-import { createRequire } from 'node:module';
 import path from 'node:path';
 
 import { initIpcMain, windowManager } from '@aim-packages/window-manager';
@@ -7,6 +6,7 @@ import { BrowserWindow, ipcMain } from 'electron';
 import { app, screen } from 'electron';
 
 import defaultWindowConfigs from '../config/window';
+import { globalInputMonitor } from '../global-input-monitor';
 import { attachAppWindowClosedReporter, emitAppWindowOpened, rememberWindowPayload } from './window-events';
 import { emitWorkspaceWizardClosedIfStillEmpty } from './workspace/ipc-main';
 
@@ -73,10 +73,8 @@ export function initWindowHandlers(win: BrowserWindow): void {
   // 在透明窗口上，为了让外部（Finder）拖拽能进入助手区域，我们需要在鼠标进入助手内层矩形时
   // 自动关闭 ignoreMouseEvents（否则不会收到 dragenter/over 事件）。
   // 优先使用全局系统级鼠标事件钩子（uiohook-napi），不可用时回退到低频轮询。
-  const require = createRequire(import.meta.url);
-
-  // 记录助手窗口的实际尺寸（由渲染进程通过 IPC 设置）
-  // 初始值为 0，等待渲染进程通过 setAssistantSize 设置
+  // 记录助手窗口的实际尺寸（由渲染进程通过 IPC 设置）。
+  // 初始值为 0，等待渲染进程通过 setAssistantSize 设置。
   let assistantWidth = 0;
   let assistantHeight = 0;
   let assistantInteractiveRegions: AssistantInteractiveRegion[] = [];
@@ -148,7 +146,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
   }
 
   // 全局钩子
-  let uIOhook: any | null = null;
+  let unsubscribeMouseMove: (() => void) | null = null;
   let hookActive = false;
   let hoverMonitorActive = false;
   function startHook(): void {
@@ -163,13 +161,9 @@ export function initWindowHandlers(win: BrowserWindow): void {
     //   }
     // }
     try {
-      const mod = require('uiohook-napi');
-      uIOhook = mod?.uIOhook ?? mod; // 兼容不同导出形式
-      if (!uIOhook || typeof uIOhook.on !== 'function') throw new Error('uIOhook not available');
-      uIOhook.on('mousemove', (e: { x: number; y: number }) => {
+      unsubscribeMouseMove = globalInputMonitor.on('mousemove', (e: { x: number; y: number }) => {
         applyInsideState(pointInside(e.x, e.y));
       });
-      uIOhook.start();
       hookActive = true;
     } catch {
       // 模块不可用或启动失败，回退轮询
@@ -178,14 +172,14 @@ export function initWindowHandlers(win: BrowserWindow): void {
     }
   }
   function stopHook(): void {
-    if (hookActive && uIOhook) {
+    if (hookActive && unsubscribeMouseMove) {
       try {
-        uIOhook.removeAllListeners?.('mousemove');
-        uIOhook.stop?.();
+        unsubscribeMouseMove();
       } catch {
         /* ignore */
       }
     }
+    unsubscribeMouseMove = null;
     hookActive = false;
   }
 

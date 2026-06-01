@@ -21,6 +21,7 @@ import type { TrashIpcType } from '../electron/main/handlers/trash/ipc-renderer'
 import type { WorkspaceIpcType } from '../electron/main/handlers/workspace/ipc-renderer';
 import type { PluginResourceIpcType } from '../electron/main/plugins/ipc-renderer';
 import type { SchedulerBridgeType } from '../electron/main/scheduler/ipc-renderer';
+import type { SelectedTextLearningBridgeType } from '../electron/main/selected-text/ipc-renderer';
 import type { analyticsApi } from '../electron/preload/apis/analytics';
 import type { memoryApi } from '../electron/preload/apis/memory';
 import type { PersonaApiBridgeType } from '../electron/preload/apis/persona';
@@ -66,6 +67,7 @@ declare global {
       pluginResource: PluginResourceIpcType;
       dailyCare: DailyCareBridgeType;
       scheduler: SchedulerBridgeType;
+      selectedTextLearning: SelectedTextLearningBridgeType;
       emojiPacks: EmojiPacksIpcType;
       recorder: RecorderIpcRendererType;
       proxy: ProxyIpcType;
