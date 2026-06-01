@@ -1,5 +1,6 @@
 export const CHARACTER_GALLERY_INDEX_VERSION = 1;
 export const DEFAULT_CHARACTER_GALLERY_INDEX_PATH = 'gallery/index.json';
+export const MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES = 12;
 
 export const CHARACTER_GALLERY_ITEM_KINDS = ['pose', 'action', 'expression', 'prop', 'outfit', 'reference', 'background', 'custom'] as const;
 export type CharacterGalleryItemKind = (typeof CHARACTER_GALLERY_ITEM_KINDS)[number];
@@ -40,6 +41,7 @@ export interface CharacterGalleryImageRef {
 export interface CharacterGalleryItemOrigin {
   type: CharacterGalleryOriginType;
   parentId?: string;
+  parentIds?: string[];
   model?: string;
   prompt?: string;
   sourceName?: string;
@@ -79,21 +81,59 @@ export interface CharacterGalleryItemPatch extends CharacterGalleryItemDraft {
   origin?: CharacterGalleryItemOrigin;
 }
 
-export interface CharacterGalleryAIEditContext {
-  images: Array<{
-    id: string;
-    title: string;
-    kind: CharacterGalleryItemKind;
-    localPath: string;
-    mimeType: string;
-    width?: number;
-    height?: number;
-    tags: string[];
-    semantic?: CharacterGallerySemantic;
-    ai?: CharacterGalleryAIHints;
-  }>;
+export interface CharacterGalleryAIEditDraft {
+  itemIds: string[];
   prompt: string;
   negativePrompt?: string;
+}
+
+export interface CharacterGalleryAIEditReferenceImage {
+  id: string;
+  title: string;
+  kind: CharacterGalleryItemKind;
+  localPath: string;
+  mimeType: string;
+  width?: number;
+  height?: number;
+  tags: string[];
+  semantic?: CharacterGallerySemantic;
+  ai?: CharacterGalleryAIHints;
+  referenceRole: CharacterGalleryReferenceRole;
+  referenceStrength?: number;
+  preserveIdentity: boolean;
+  promptHint?: string;
+  negativePrompt?: string;
+}
+
+export interface CharacterGalleryAIReferenceGroup {
+  count: number;
+  itemIds: string[];
+  key: string;
+  kind: 'action' | 'kind' | 'role' | 'view';
+  label: string;
+}
+
+export interface CharacterGalleryAIReferenceSetSummary {
+  actions: string[];
+  imageCount: number;
+  itemIds: string[];
+  negativePrompts: string[];
+  promptHints: string[];
+  roles: CharacterGalleryReferenceRole[];
+  summary: string;
+  tags: string[];
+  views: CharacterGalleryViewAngle[];
+}
+
+export interface CharacterGalleryAIEditContext {
+  images: CharacterGalleryAIEditReferenceImage[];
+  prompt: string;
+  negativePrompt?: string;
+  combinedPrompt: string;
+  combinedNegativePrompt?: string;
+  groups: CharacterGalleryAIReferenceGroup[];
+  referenceSet: CharacterGalleryAIReferenceSetSummary;
+  referencesSummary: string;
 }
 
 export interface CharacterGalleryCanvasDraft {
@@ -119,6 +159,7 @@ export interface CharacterGalleryCanvasNodeLayout {
   draft?: CharacterGalleryCanvasDraft & {
     mode?: 'generate' | 'edit';
     referenceAssetId?: string;
+    referenceAssetIds?: string[];
   };
   id: string;
   x: number;
@@ -253,6 +294,9 @@ export function normalizeCharacterGalleryOrigin(value: unknown): CharacterGaller
   return {
     type: type as CharacterGalleryOriginType,
     ...(normalizeOptionalString(value.parentId, 80) ? { parentId: normalizeOptionalString(value.parentId, 80) } : {}),
+    ...(normalizeStringList(value.parentIds, { maxItems: MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES, maxLength: 80 }).length > 0
+      ? { parentIds: normalizeStringList(value.parentIds, { maxItems: MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES, maxLength: 80 }) }
+      : {}),
     ...(normalizeOptionalString(value.model, 120) ? { model: normalizeOptionalString(value.model, 120) } : {}),
     ...(normalizeOptionalString(value.prompt, 2000) ? { prompt: normalizeOptionalString(value.prompt, 2000) } : {}),
     ...(normalizeOptionalString(value.sourceName, 240) ? { sourceName: normalizeOptionalString(value.sourceName, 240) } : {})
@@ -398,17 +442,19 @@ export function normalizeCharacterGalleryCanvasLayout(value: unknown): Character
           const draftSource = isPlainObject(entry.draft) ? entry.draft : undefined;
           const mode = draftSource?.mode === 'edit' || draftSource?.mode === 'generate' ? draftSource.mode : undefined;
           const draft = normalizeCharacterGalleryCanvasDraft(draftSource);
+          const referenceAssetIds = normalizeStringList(draftSource?.referenceAssetIds, { maxItems: MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES, maxLength: 80 });
           return {
             id,
             x: normalizeCanvasNumber(entry.x, 0),
             y: normalizeCanvasNumber(entry.y, 0),
             ...(normalizeOptionalString(entry.assetId, 80) ? { assetId: normalizeOptionalString(entry.assetId, 80) } : {}),
-            ...(draft || mode || normalizeOptionalString(draftSource?.referenceAssetId, 80)
+            ...(draft || mode || normalizeOptionalString(draftSource?.referenceAssetId, 80) || referenceAssetIds.length > 0
               ? {
                   draft: {
                     ...(draft ?? {}),
                     ...(mode ? { mode } : {}),
-                    ...(normalizeOptionalString(draftSource?.referenceAssetId, 80) ? { referenceAssetId: normalizeOptionalString(draftSource?.referenceAssetId, 80) } : {})
+                    ...(normalizeOptionalString(draftSource?.referenceAssetId, 80) ? { referenceAssetId: normalizeOptionalString(draftSource?.referenceAssetId, 80) } : {}),
+                    ...(referenceAssetIds.length > 0 ? { referenceAssetIds } : {})
                   }
                 }
               : {})

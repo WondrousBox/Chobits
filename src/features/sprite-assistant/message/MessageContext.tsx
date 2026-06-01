@@ -46,6 +46,30 @@ export function MessageProvider({ children }: MessageProviderProps): JSX.Element
         return;
       }
 
+      if (typeof button.action === 'string' && button.action.startsWith('quest:start:')) {
+        const questId = button.action.slice('quest:start:'.length).trim();
+        if (!questId) return;
+        try {
+          const result = await window.YUA.quest?.['quest:start']?.({ id: questId, source: 'recommendation' });
+          if (!result?.ok) {
+            throw new Error(result?.error || '启动任务失败');
+          }
+          showToast({
+            content: result.startResult ? '任务引导已启动' : '任务已完成',
+            level: 'success',
+            duration: 2500
+          });
+          dismissMessage(undefined, 'button');
+        } catch (error) {
+          showToast({
+            content: error instanceof Error ? error.message : String(error),
+            level: 'error',
+            duration: 4000
+          });
+        }
+        return;
+      }
+
       // Purpose routine 按钮：约定 action 形如 'purpose:<actionKey>'
       // 派发 purpose-event 'bubble:action'，供 routine 的 waitForEvent / loopUntil 解锁
       if (typeof button.action === 'string' && button.action.startsWith('purpose:')) {
@@ -87,7 +111,7 @@ export function MessageProvider({ children }: MessageProviderProps): JSX.Element
         dismissMessage(undefined, 'button');
       }
     },
-    [current, currentNotice, dismissMessage]
+    [current, currentNotice, dismissMessage, showToast]
   );
 
   useEffect(() => {

@@ -260,4 +260,67 @@ describe('useMessageQueue', () => {
     });
     env.cleanup();
   });
+
+  it('starts a recommended quest from notice button actions', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1700000000000);
+
+    const { act } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+    const { MessageProvider, useMessage } = await import('../src/features/sprite-assistant/message/MessageContext');
+    type MessageContextValue = import('../src/features/sprite-assistant/message/types').MessageContextValue;
+    type MessageButton = import('../src/features/sprite-assistant/message/types').MessageButton;
+
+    const env = installMiniDom();
+    const startQuest = vi.fn(async () => ({ ok: true, startResult: { accepted: true, status: 'started' } }));
+    (env.window as any).YUA = {
+      quest: {
+        'quest:start': startQuest
+      },
+      messages: {
+        on: () => () => undefined
+      }
+    };
+    let messageContext: MessageContextValue | null = null;
+
+    function Probe(): JSX.Element {
+      messageContext = useMessage();
+      return <div data-content={messageContext.current?.content ?? ''} />;
+    }
+
+    const root = createRoot(env.container as any);
+
+    await act(async () => {
+      root.render(
+        <MessageProvider>
+          <Probe />
+        </MessageProvider>
+      );
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      messageContext?.showNotice({
+        content: '要不要继续下一个任务？',
+        persistent: true,
+        buttons: [{ id: 'start-next', label: '继续', action: 'quest:start:first-file-drop' }]
+      });
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      const button: MessageButton = { id: 'start-next', label: '继续', action: 'quest:start:first-file-drop' };
+      await messageContext?.handleButtonClick(button);
+      await Promise.resolve();
+    });
+
+    expect(startQuest).toHaveBeenCalledWith({ id: 'first-file-drop', source: 'recommendation' });
+    expect((env.container.firstChild as any).getAttribute('data-content')).toBe('任务引导已启动');
+
+    await act(async () => {
+      root.unmount();
+      await Promise.resolve();
+    });
+    env.cleanup();
+  });
 });

@@ -52,6 +52,7 @@ export interface ImageGenerationCanvasLayoutNode {
   draft?: Partial<ImageGenerationCanvasDraft> & {
     mode?: ImageGenerationCanvasMode;
     referenceAssetId?: string;
+    referenceAssetIds?: string[];
   };
   id: string;
   x: number;
@@ -70,15 +71,15 @@ export interface ImageGenerationCanvasLayout {
 }
 
 export interface ImageGenerationCanvasAdapter<TAsset> {
-  buildInitialDraft(input: { mode: ImageGenerationCanvasMode; referenceAsset?: TAsset }): ImageGenerationCanvasDraft;
+  buildInitialDraft(input: { mode: ImageGenerationCanvasMode; referenceAsset?: TAsset; referenceAssets?: TAsset[] }): ImageGenerationCanvasDraft;
   deleteAsset?: (asset: TAsset) => Promise<boolean | void> | boolean | void;
   getAssetView(asset: TAsset): ImageGenerationCanvasAssetView;
-  submitGeneration(input: { draft: ImageGenerationCanvasDraft; mode: ImageGenerationCanvasMode; referenceAsset?: TAsset }): Promise<TAsset>;
+  submitGeneration(input: { draft: ImageGenerationCanvasDraft; mode: ImageGenerationCanvasMode; referenceAsset?: TAsset; referenceAssets?: TAsset[] }): Promise<TAsset>;
 }
 
 export interface ImageGenerationCanvasActions {
   autoLayout: () => void;
-  createEditForm: (assetId: string) => void;
+  createEditForm: (assetIds: string | string[]) => void;
   createGenerateForm: () => void;
   fitView: () => void;
 }
@@ -97,6 +98,7 @@ export interface ImageGenerationCanvasProps<TAsset> {
   onLayoutChange?: (layout: ImageGenerationCanvasLayout) => Promise<void> | void;
   onPreviewAsset: (asset: TAsset) => void;
   readonly?: boolean;
+  renderAssetOverlay?: (asset: ImageGenerationCanvasAssetView) => ReactNode;
   renderToolbar?: (actions: ImageGenerationCanvasActions) => ReactNode;
 }
 
@@ -106,6 +108,7 @@ export interface ImageAssetNodeData {
   onCreateEditForm: (assetId: string, sourceNodeId: string) => void;
   onDelete?: (assetId: string, sourceNodeId: string) => void;
   onPreview: (assetId: string) => void;
+  renderOverlay?: (asset: ImageGenerationCanvasAssetView) => ReactNode;
   readonly?: boolean;
 }
 
@@ -120,6 +123,7 @@ export interface ImageGenerationFormNodeData {
   onSubmit: (nodeId: string) => void;
   readonly?: boolean;
   reference?: ImageGenerationCanvasAssetView;
+  references?: ImageGenerationCanvasAssetView[];
   status: ImageGenerationFormStatus;
 }
 

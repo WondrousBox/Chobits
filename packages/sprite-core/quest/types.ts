@@ -10,7 +10,7 @@ import type { SpriteRoutineGuideGoalDefinition } from '../purpose/guide-goals';
 export type QuestCategory = 'onboarding' | 'feature-intro' | 'daily' | 'achievement' | 'event';
 
 /** 显式启动 Quest 的来源。系统自动启动由 autoStartEvents 单独控制。 */
-export type QuestStartSource = 'task-list' | 'ai' | 'system';
+export type QuestStartSource = 'task-list' | 'ai' | 'system' | 'recommendation';
 
 /**
  * Quest 奖励定义。
@@ -24,6 +24,25 @@ export interface OnboardingQuestReward {
     achievementId?: string;
     /** 维度增益，沿用 PersonaRewardGrant.dimensions 结构 */
     dimensions?: Array<{ id: string; delta: number; maxValue?: number }>;
+}
+
+/**
+ * Quest 完成后的后续任务推荐。
+ * - 只声明“推荐哪个 Quest”，是否展示由 QuestEngine 根据下一个任务是否已完成/可启动统一判断；
+ * - prompt / confirmLabel / cancelLabel 只影响提示框文案，不参与完成判定。
+ */
+export interface QuestRecommendationDefinition {
+    questId: string;
+    prompt?: string;
+    confirmLabel?: string;
+    cancelLabel?: string;
+}
+
+export interface QuestRecommendationOffer extends QuestRecommendationDefinition {
+    questTitle: string;
+    questDescription?: string;
+    questCategory: QuestCategory;
+    questStatus: OnboardingQuestRuntimeState['status'];
 }
 
 /**
@@ -76,6 +95,8 @@ export interface OnboardingQuestDefinition {
     completion: QuestPredicate;
     /** 声明式目标：用于任务列表、planner 摘要和跨中断恢复时解释“这个任务到底要达成什么”。 */
     goal?: SpriteRoutineGuideGoalDefinition;
+    /** 完成后可推荐的下一任务。由 QuestEngine 确认下一个任务尚未完成后再提示。 */
+    recommendation?: QuestRecommendationDefinition;
     /** 用于将 Quest 转化为 SpritePurposeManager.start 的入参 */
     toPurposeRequest: () => StartSpritePurposeRequest;
     /** 完成奖励 */

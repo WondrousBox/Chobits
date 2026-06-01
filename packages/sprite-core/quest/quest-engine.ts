@@ -1,6 +1,13 @@
 import type { SpritePurposeStartResult, StartSpritePurposeRequest } from '../purpose/types';
 import type { QuestRegistry } from './quest-registry';
-import type { OnboardingQuestDefinition, OnboardingQuestReward, OnboardingState, QuestPredicateContext, QuestStartSource } from './types';
+import type {
+  OnboardingQuestDefinition,
+  OnboardingQuestReward,
+  OnboardingState,
+  QuestPredicateContext,
+  QuestRecommendationOffer,
+  QuestStartSource
+} from './types';
 import { createEmptyOnboardingState } from './types';
 
 export interface QuestEngineDeps {
@@ -16,6 +23,8 @@ export interface QuestEngineDeps {
   hasAchievement?: (achievementId: string) => Promise<boolean> | boolean;
   /** 判断已派发的 purpose 是否仍在当前运行队列中；用于恢复被取消/被替换但 quest 仍是 active 的引导。 */
   isPurposeAlive?: (purposeId: string) => Promise<boolean> | boolean;
+  /** Quest 完成后，如果定义了可执行的推荐后续任务，会回调给应用层展示确认入口。 */
+  onRecommendation?: (offer: QuestRecommendationOffer, completedQuest: OnboardingQuestDefinition) => Promise<void> | void;
   /** 时间源（便于测试） */
   now?: () => number;
 }
@@ -288,6 +297,71 @@ export class QuestEngine {
     return Promise.resolve(this.deps.hasAchievement(achievementId));
   }
 
+  private resolveRuntimeStatus(def: OnboardingQuestDefinition): OnboardingState['quests'][string]['status'] {
+    return this.state.quests[def.id]?.status ?? 'pending';
+  }
+
+  private async buildRecommendationOffer(def: OnboardingQuestDefinition): Promise<QuestRecommendationOffer | null> {
+    const recommendation = def.recommendation;
+    if (!recommendation?.questId) {
+      return null;
+    }
+
+    const nextDef = this.deps.registry.get(recommendation.questId);
+    if (!nextDef) {
+      console.warn(`[QuestEngine] recommendation target "${recommendation.questId}" from "${def.id}" is not registered`);
+      return null;
+    }
+
+    const status = this.resolveRuntimeStatus(nextDef);
+    if ((status === 'done' && nextDef.oneShot !== false) || status === 'skipped') {
+      return null;
+    }
+
+    if (await this.isQuestAchievementUnlocked(nextDef)) {
+      await this.completeQuest(nextDef, { grantReward: false, notifyRecommendation: false, checkRecommendation: false });
+      return null;
+    }
+
+    const ctx: QuestPredicateContext = {
+      onboardingState: this.state
+    };
+
+    const completed = await Promise.resolve(nextDef.completion.evaluate(ctx));
+    if (completed) {
+      await this.completeQuest(nextDef, { notifyRecommendation: false, checkRecommendation: false });
+      return null;
+    }
+
+    if (nextDef.precondition) {
+      const ok = await Promise.resolve(nextDef.precondition.evaluate(ctx));
+      if (!ok) return null;
+    }
+
+    if (!this.canStartExplicitly(nextDef, 'recommendation')) {
+      return null;
+    }
+
+    return {
+      ...recommendation,
+      questTitle: nextDef.title,
+      questDescription: nextDef.description,
+      questCategory: nextDef.category,
+      questStatus: status
+    };
+  }
+
+  private async notifyRecommendation(def: OnboardingQuestDefinition): Promise<void> {
+    if (!this.deps.onRecommendation) return;
+    const offer = await this.buildRecommendationOffer(def);
+    if (!offer) return;
+    try {
+      await this.deps.onRecommendation(offer, def);
+    } catch (err) {
+      console.error(`[QuestEngine] notify recommendation for "${def.id}" failed`, err);
+    }
+  }
+
   private async activateQuest(def: OnboardingQuestDefinition): Promise<SpritePurposeStartResult> {
     const request = def.toPurposeRequest();
     const result = await this.deps.startPurpose(request);
@@ -301,7 +375,10 @@ export class QuestEngine {
     return result;
   }
 
-  private async completeQuest(def: OnboardingQuestDefinition, options: { grantReward?: boolean } = {}): Promise<void> {
+  private async completeQuest(
+    def: OnboardingQuestDefinition,
+    options: { grantReward?: boolean; notifyRecommendation?: boolean; checkRecommendation?: boolean } = {}
+  ): Promise<void> {
     const prev = this.state.quests[def.id];
     if (prev?.status === 'done') return;
 
@@ -320,6 +397,10 @@ export class QuestEngine {
       completedAt: this.now()
     };
     await this.persist();
+
+    if (options.checkRecommendation !== false && options.notifyRecommendation !== false) {
+      await this.notifyRecommendation(def);
+    }
   }
 
   private async persist(): Promise<void> {

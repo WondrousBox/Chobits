@@ -44,9 +44,9 @@ import { disableASRRuntime, getASRConfigSnapshot, getASRStatusSnapshot } from '.
 import { SPRITE_CAPABILITY_SIGNALS, type SpriteCapabilityResolutionContext } from '../capability-registry';
 import { assertSpriteCapabilityUnlocked, getSpriteCapabilitySnapshot, initSpriteCapabilityRuntime } from '../capability-runtime';
 import { getCharacterCapabilityContextFlags } from '../character-capability-flags';
+import type { CharacterGalleryAIEditDraft } from '../character-gallery';
 import {
   buildCharacterGalleryAIEditContext,
-  type CharacterGalleryAIEditDraft,
   getCharacterGalleryCanvasLayout,
   importCharacterGalleryItem,
   initCharacterGalleryManager,

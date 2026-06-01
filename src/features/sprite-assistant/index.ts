@@ -13,7 +13,11 @@ export { SpriteStateProvider } from './context/SpriteStateContext';
 // ── Types (re-exported from @packages/sprite-core) ──────────
 export type {
   CharacterGalleryAIEditContext,
+  CharacterGalleryAIEditDraft,
+  CharacterGalleryAIEditReferenceImage,
   CharacterGalleryAIHints,
+  CharacterGalleryAIReferenceGroup,
+  CharacterGalleryAIReferenceSetSummary,
   CharacterGalleryImageRef,
   CharacterGalleryIndex,
   CharacterGalleryItem,
@@ -59,6 +63,7 @@ export {
   isCustomSpriteAnimationTrigger,
   isSupportedCharacterGalleryImagePath,
   matchesSpriteAnimationCondition,
+  MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES,
   normalizeCharacterGalleryAIHints,
   normalizeCharacterGalleryIndex,
   normalizeCharacterGalleryItem,

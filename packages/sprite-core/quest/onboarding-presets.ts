@@ -166,7 +166,7 @@ export function createWorkspaceCreateQuest(deps: OnboardingPresetDeps): Onboardi
     oneShot: true,
     triggerEvents: ['WORKSPACE_CREATED', 'WORKSPACE_WIZARD_CLOSED', 'APP_STARTED'],
     autoStartEvents: ['APP_STARTED'],
-    explicitStartSources: ['task-list', 'ai'],
+    explicitStartSources: ['task-list', 'ai', 'recommendation'],
     retriable: true,
     retryEvents: ['APP_STARTED'],
     precondition: {
@@ -187,6 +187,12 @@ export function createWorkspaceCreateQuest(deps: OnboardingPresetDeps): Onboardi
       }
     },
     goal: WORKSPACE_EXISTS_GUIDE_GOAL,
+    recommendation: {
+      questId: 'first-file-drop',
+      prompt: '工作空间准备好了。要不要接着试试把第一个文件拖给我？',
+      confirmLabel: '继续',
+      cancelLabel: '稍后'
+    },
     reward: {
       xp: 20,
       favor: 3,
@@ -232,7 +238,7 @@ export function createFirstFileDropQuest(deps: OnboardingPresetDeps): Onboarding
     },
     oneShot: true,
     triggerEvents: ['RESOURCE_CREATED', 'SPRITE_RESOURCE_IMPORT_COMPLETE'],
-    explicitStartSources: ['task-list', 'ai'],
+    explicitStartSources: ['task-list', 'ai', 'recommendation'],
     precondition: {
       id: 'workspace-ready',
       evaluate: async (ctx) => {
@@ -251,6 +257,12 @@ export function createFirstFileDropQuest(deps: OnboardingPresetDeps): Onboarding
       }
     },
     goal: FIRST_FILE_DROP_GUIDE_GOAL,
+    recommendation: {
+      questId: 'open-resource-library',
+      prompt: '文件已经进库了。要不要接着看看资源库在哪里？',
+      confirmLabel: '打开引导',
+      cancelLabel: '稍后'
+    },
     reward: {
       xp: 15,
       favor: 2,
@@ -296,7 +308,7 @@ export function createOpenResourceLibraryQuest(deps: OnboardingPresetDeps): Onbo
     },
     oneShot: true,
     triggerEvents: ['ASSISTANT_MENU_ITEM_SELECTED'],
-    explicitStartSources: ['task-list', 'ai'],
+    explicitStartSources: ['task-list', 'ai', 'recommendation'],
     precondition: {
       id: 'workspace-ready',
       evaluate: hasWorkspaceReady
@@ -306,6 +318,12 @@ export function createOpenResourceLibraryQuest(deps: OnboardingPresetDeps): Onbo
       evaluate: (ctx) => ctx.event === 'ASSISTANT_MENU_ITEM_SELECTED' && isAssistantResourceMenuSelection(ctx.eventPayload)
     },
     goal: OPEN_RESOURCE_LIBRARY_GUIDE_GOAL,
+    recommendation: {
+      questId: 'feature.resource-library-preview',
+      prompt: '资源库已经打开啦。要不要继续试试预览一个资源？',
+      confirmLabel: '继续',
+      cancelLabel: '稍后'
+    },
     reward: {
       xp: 10,
       favor: 1,
@@ -363,7 +381,7 @@ export function createFeatureIntroQuest(deps: OnboardingPresetDeps, item: Featur
     },
     oneShot: true,
     triggerEvents: getFeatureIntroTriggerEvents(item.completion),
-    explicitStartSources: ['task-list', 'ai'],
+    explicitStartSources: ['task-list', 'ai', 'recommendation'],
     precondition: {
       id: 'workspace-ready',
       evaluate: createWorkspaceReadyPredicate(deps)
@@ -377,6 +395,7 @@ export function createFeatureIntroQuest(deps: OnboardingPresetDeps, item: Featur
       id: `${item.id}.achievement`,
       description: `功能自述「${item.title}」的完成成就已解锁。`
     }),
+    recommendation: item.recommendation,
     reward: {
       xp: item.rewardXp,
       favor: item.rewardFavor,

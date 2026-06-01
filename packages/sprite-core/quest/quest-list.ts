@@ -1,4 +1,4 @@
-import type { OnboardingQuestDefinition, OnboardingQuestReward, OnboardingQuestRuntimeState, OnboardingState, QuestCategory } from './types';
+import type { OnboardingQuestDefinition, OnboardingQuestReward, OnboardingQuestRuntimeState, OnboardingState, QuestCategory, QuestRecommendationDefinition } from './types';
 import type { SpriteRoutineGuideGoalDefinition } from '../purpose/guide-goals';
 
 export type QuestListItemStatus = OnboardingQuestRuntimeState['status'];
@@ -26,6 +26,7 @@ export interface QuestListItem {
     completedAt?: number;
     progressPercent: number;
     action?: QuestListAction;
+    recommendation?: QuestRecommendationDefinition;
 }
 
 export interface QuestListSnapshot {
@@ -79,7 +80,8 @@ function createQuestListItem(definition: OnboardingQuestDefinition, state: Onboa
         activatedAt: runtime?.activatedAt,
         completedAt: runtime?.completedAt,
         progressPercent: resolveProgressPercent(status),
-        action: createQuestAction(definition, status, purposeRequest)
+        action: createQuestAction(definition, status, purposeRequest),
+        recommendation: definition.recommendation ? { ...definition.recommendation } : undefined
     };
 }
 

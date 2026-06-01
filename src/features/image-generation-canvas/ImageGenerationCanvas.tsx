@@ -91,9 +91,9 @@ function showImageGenerationError(error: unknown, providerId: string): string {
   return message;
 }
 
-function buildPendingReferenceEdge(sourceNodeId: string, targetNodeId: string, sourceAssetId: string): ImageGenerationCanvasEdge {
+function buildPendingReferenceEdge(sourceNodeId: string, targetNodeId: string, sourceAssetId: string, index = 0): ImageGenerationCanvasEdge {
   return {
-    id: `edge:${sourceAssetId}->${targetNodeId}`,
+    id: `edge:${sourceAssetId}->${targetNodeId}:${index}`,
     source: sourceNodeId,
     target: targetNodeId,
     animated: true,
@@ -122,6 +122,7 @@ function ImageGenerationCanvasInner<TAsset>({
   onLayoutChange,
   onPreviewAsset,
   readonly,
+  renderAssetOverlay,
   renderToolbar,
   canvasRef
 }: ImageGenerationCanvasProps<TAsset> & { canvasRef?: Ref<ImageGenerationCanvasHandle> }): JSX.Element {
@@ -133,10 +134,28 @@ function ImageGenerationCanvasInner<TAsset>({
   const assetViews = useMemo(() => assets.map((asset) => adapter.getAssetView(asset)), [adapter, assets]);
   const assetById = useMemo(() => new Map(assets.map((asset) => [adapter.getAssetView(asset).assetId, asset])), [adapter, assets]);
   const assetViewById = useMemo(() => new Map(assetViews.map((asset) => [asset.assetId, asset])), [assetViews]);
-  const createEditFormRef = useRef<(assetId: string, sourceNodeId?: string) => void>(() => undefined);
+  const createEditFormRef = useRef<(assetIds: string | string[], sourceNodeId?: string) => void>(() => undefined);
   const hydratedRef = useRef(false);
+  const renderAssetOverlayRef = useRef(renderAssetOverlay);
   const serializedLayoutRef = useRef<string>('');
   const saveTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    renderAssetOverlayRef.current = renderAssetOverlay;
+    setNodes((current) =>
+      current.map((node) =>
+        node.data.kind === 'image'
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                renderOverlay: renderAssetOverlay
+              }
+            }
+          : node
+      )
+    );
+  }, [renderAssetOverlay, setNodes]);
 
   const updateFormDraft = useCallback(
     (nodeId: string, patch: Partial<ImageGenerationCanvasDraft>): void => {
@@ -204,6 +223,7 @@ function ImageGenerationCanvasInner<TAsset>({
         const target = assetById.get(assetId);
         if (target) onPreviewAsset(target);
       },
+      renderOverlay: renderAssetOverlayRef.current,
       readonly
     }),
     [adapter.deleteAsset, assetById, deleteAssetNode, onPreviewAsset, readonly]
@@ -214,7 +234,8 @@ function ImageGenerationCanvasInner<TAsset>({
       const node = rf.getNode(nodeId);
       if (!node || node.data.kind !== 'generation-form' || readonly) return;
       const nodeData = node.data;
-      const referenceAsset = node.data.reference?.assetId ? assetById.get(node.data.reference.assetId) : undefined;
+      const referenceAssets = node.data.references?.map((reference) => assetById.get(reference.assetId)).filter((asset): asset is TAsset => !!asset) ?? [];
+      const referenceAsset = referenceAssets[0] ?? (node.data.reference?.assetId ? assetById.get(node.data.reference.assetId) : undefined);
 
       setNodes((current) =>
         current.map((entry) =>
@@ -235,7 +256,8 @@ function ImageGenerationCanvasInner<TAsset>({
         const created = await adapter.submitGeneration({
           draft: nodeData.draft,
           mode: nodeData.mode,
-          referenceAsset
+          referenceAsset,
+          referenceAssets: referenceAssets.length > 0 ? referenceAssets : referenceAsset ? [referenceAsset] : []
         });
         const view = adapter.getAssetView(created);
         const imageData = createImageNodeData(view);
@@ -255,7 +277,7 @@ function ImageGenerationCanvasInner<TAsset>({
             ? {
                 ...edge,
                 animated: false,
-                id: `edge:${view.parentAssetId ?? nodeData.reference?.assetId}->${view.assetId}`,
+                id: `edge:${edge.data?.sourceAssetId ?? view.parentAssetId ?? nodeData.reference?.assetId}->${view.assetId}`,
                 style: {
                   stroke: 'hsl(var(--muted-foreground))',
                   strokeWidth: 2
@@ -321,13 +343,23 @@ function ImageGenerationCanvasInner<TAsset>({
   );
 
   const createFormNode = useCallback(
-    (input: { mode: ImageGenerationCanvasMode; position: { x: number; y: number }; reference?: ImageGenerationCanvasAssetView; referenceAsset?: TAsset; sourceNodeId?: string }): void => {
+    (input: {
+      mode: ImageGenerationCanvasMode;
+      position: { x: number; y: number };
+      reference?: ImageGenerationCanvasAssetView;
+      referenceAsset?: TAsset;
+      referenceAssets?: TAsset[];
+      references?: ImageGenerationCanvasAssetView[];
+      sourceNodeIds?: string[];
+      sourceNodeId?: string;
+    }): void => {
       if (readonly) return;
       const id = formNodeId();
-      const referenceAssetId = input.reference?.assetId;
+      const references = input.references?.length ? input.references : input.reference ? [input.reference] : [];
       const draft = adapter.buildInitialDraft({
         mode: input.mode,
-        referenceAsset: input.referenceAsset
+        referenceAsset: input.referenceAsset,
+        referenceAssets: input.referenceAssets?.length ? input.referenceAssets : input.referenceAsset ? [input.referenceAsset] : []
       });
       setNodes((current) => [
         ...current,
@@ -345,35 +377,52 @@ function ImageGenerationCanvasInner<TAsset>({
             onSubmit: submitFormNode,
             readonly,
             reference: input.reference,
+            references,
             status: 'idle'
           }
         }
       ]);
-      if (input.mode === 'edit' && referenceAssetId && input.sourceNodeId) {
-        setEdges((current) => [...current, buildPendingReferenceEdge(input.sourceNodeId as string, id, referenceAssetId)]);
+      if (input.mode === 'edit' && references.length > 0) {
+        const sourceNodeIds = input.sourceNodeIds?.length ? input.sourceNodeIds : input.sourceNodeId ? [input.sourceNodeId] : [];
+        setEdges((current) => [
+          ...current,
+          ...references
+            .map((reference, index) => {
+              const sourceNodeId = sourceNodeIds[index] ?? sourceNodeIds[0];
+              return sourceNodeId ? buildPendingReferenceEdge(sourceNodeId, id, reference.assetId, index) : null;
+            })
+            .filter((edge): edge is ImageGenerationCanvasEdge => !!edge)
+        ]);
       }
     },
     [adapter, fieldOptions, readonly, removeFormNode, setEdges, setNodes, submitFormNode, updateFormDraft]
   );
 
   const createEditForm = useCallback(
-    (assetId: string, sourceNodeId?: string): void => {
+    (assetIds: string | string[], sourceNodeId?: string): void => {
       if (readonly) return;
-      const referenceAsset = assetById.get(assetId);
-      const referenceView = assetViewById.get(assetId);
-      if (!referenceAsset || !referenceView) return;
+      const ids = Array.isArray(assetIds) ? assetIds : [assetIds];
+      const uniqueIds = Array.from(new Set(ids.map((assetId) => assetId.trim()).filter(Boolean)));
+      const referenceAssets = uniqueIds.map((assetId) => assetById.get(assetId)).filter((asset): asset is TAsset => !!asset);
+      const references = uniqueIds.map((assetId) => assetViewById.get(assetId)).filter((asset): asset is ImageGenerationCanvasAssetView => !!asset);
+      if (referenceAssets.length === 0 || references.length === 0) return;
+      const firstAssetId = references[0].assetId;
       const sourceNode = sourceNodeId ? rf.getNode(sourceNodeId) : undefined;
-      const fallbackSourceNode = rf.getNode(imageNodeId(assetId));
-      const resolvedSourceNode = sourceNode ?? fallbackSourceNode;
+      const sourceNodes = references.map((reference) => rf.getNode(imageNodeId(reference.assetId))).filter((node): node is NonNullable<ReturnType<typeof rf.getNode>> => !!node);
+      const fallbackSourceNode = rf.getNode(imageNodeId(firstAssetId));
+      const resolvedSourceNode = sourceNode ?? fallbackSourceNode ?? sourceNodes[0];
       createFormNode({
         mode: 'edit',
         position: {
           x: (resolvedSourceNode?.position.x ?? 120) + 320,
           y: resolvedSourceNode?.position.y ?? 120
         },
-        reference: referenceView,
-        referenceAsset,
-        sourceNodeId: resolvedSourceNode?.id ?? imageNodeId(assetId)
+        reference: references[0],
+        referenceAsset: referenceAssets[0],
+        referenceAssets,
+        references,
+        sourceNodeId: resolvedSourceNode?.id ?? imageNodeId(firstAssetId),
+        sourceNodeIds: sourceNodes.length > 0 ? sourceNodes.map((node) => node.id) : [resolvedSourceNode?.id ?? imageNodeId(firstAssetId)]
       });
     },
     [assetById, assetViewById, createFormNode, readonly, rf]
@@ -453,9 +502,12 @@ function ImageGenerationCanvasInner<TAsset>({
       .filter((entry) => !entry.assetId && entry.draft)
       .map((entry) => {
         const mode = entry.draft?.mode ?? 'generate';
-        const referenceAsset = entry.draft?.referenceAssetId ? assetById.get(entry.draft.referenceAssetId) : undefined;
-        const referenceView = entry.draft?.referenceAssetId ? assetViewById.get(entry.draft.referenceAssetId) : undefined;
-        const fallback = adapter.buildInitialDraft({ mode, referenceAsset });
+        const referenceAssetIds = entry.draft?.referenceAssetIds?.length ? entry.draft.referenceAssetIds : entry.draft?.referenceAssetId ? [entry.draft.referenceAssetId] : [];
+        const referenceAssets = referenceAssetIds.map((assetId) => assetById.get(assetId)).filter((asset): asset is TAsset => !!asset);
+        const referenceViews = referenceAssetIds.map((assetId) => assetViewById.get(assetId)).filter((asset): asset is ImageGenerationCanvasAssetView => !!asset);
+        const referenceAsset = referenceAssets[0];
+        const referenceView = referenceViews[0];
+        const fallback = adapter.buildInitialDraft({ mode, referenceAsset, referenceAssets });
         return {
           id: entry.id,
           type: 'generationForm',
@@ -473,17 +525,20 @@ function ImageGenerationCanvasInner<TAsset>({
             onSubmit: submitFormNode,
             readonly,
             reference: referenceView,
+            references: referenceViews,
             status: 'idle'
           }
         };
       });
 
     const pendingEdges: ImageGenerationCanvasEdge[] = layoutFormNodes
-      .filter((node) => node.data.kind === 'generation-form' && !!node.data.reference)
-      .map((node) => {
-        const referenceAssetId = node.data.kind === 'generation-form' ? node.data.reference?.assetId : undefined;
-        const source = referenceAssetId ? (nodeIdByAssetId.get(referenceAssetId) ?? imageNodeId(referenceAssetId)) : '';
-        return buildPendingReferenceEdge(source, node.id, referenceAssetId ?? '');
+      .filter((node) => node.data.kind === 'generation-form' && !!node.data.references?.length)
+      .flatMap((node) => {
+        const references = node.data.kind === 'generation-form' ? (node.data.references ?? []) : [];
+        return references.map((reference, index) => {
+          const source = nodeIdByAssetId.get(reference.assetId) ?? imageNodeId(reference.assetId);
+          return buildPendingReferenceEdge(source, node.id, reference.assetId, index);
+        });
       });
 
     const nextNodes = [...nextImageNodes, ...layoutFormNodes];

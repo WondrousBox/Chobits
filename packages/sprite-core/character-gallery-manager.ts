@@ -5,6 +5,7 @@ import path from 'node:path';
 
 import {
   type CharacterGalleryAIEditContext,
+  type CharacterGalleryAIEditDraft,
   type CharacterGalleryCanvasLayout,
   type CharacterGalleryImageRef,
   type CharacterGalleryIndex,
@@ -14,6 +15,7 @@ import {
   DEFAULT_CHARACTER_GALLERY_INDEX_PATH,
   getCharacterGalleryImageMimeFromPath,
   isSupportedCharacterGalleryImagePath,
+  MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES,
   normalizeCharacterGalleryCanvasLayout,
   normalizeCharacterGalleryIndex,
   normalizeCharacterGalleryItemDraft,
@@ -65,12 +67,6 @@ export interface CharacterGalleryCanvasLayoutResult {
 export interface CharacterGalleryReplaceImageOptions {
   filePath: string;
   origin?: CharacterGalleryItemPatch['origin'];
-}
-
-export interface CharacterGalleryAIEditDraft {
-  itemIds: string[];
-  prompt: string;
-  negativePrompt?: string;
 }
 
 export interface CharacterGalleryManagerDeps {
@@ -295,6 +291,67 @@ function getUniqueItemId(items: CharacterGalleryItem[], title: string): string {
 
 function getFileStem(filePath: string): string {
   return path.basename(filePath, path.extname(filePath));
+}
+
+function uniqueStrings(values: Array<string | undefined>, maxItems = 100): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const normalized = typeof value === 'string' ? value.trim() : '';
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(normalized);
+    if (result.length >= maxItems) break;
+  }
+  return result;
+}
+
+function normalizeAIEditItemIds(value: unknown): string[] {
+  return uniqueStrings(Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [], MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES);
+}
+
+function formatReferenceImageLine(item: CharacterGalleryAIEditContext['images'][number], index: number): string {
+  const details = [
+    item.semantic?.action ? `action=${item.semantic.action}` : '',
+    item.semantic?.view ? `view=${item.semantic.view}` : '',
+    item.semantic?.emotion ? `emotion=${item.semantic.emotion}` : '',
+    item.referenceRole ? `role=${item.referenceRole}` : '',
+    item.tags.length ? `tags=${item.tags.join(', ')}` : '',
+    item.promptHint ? `hint=${item.promptHint}` : ''
+  ]
+    .filter(Boolean)
+    .join('; ');
+  return `${index + 1}. ${item.title} (${item.id})${details ? `: ${details}` : ''}`;
+}
+
+function buildReferenceGroups(images: CharacterGalleryAIEditContext['images']): CharacterGalleryAIEditContext['groups'] {
+  const groups = new Map<string, CharacterGalleryAIEditContext['groups'][number]>();
+  const add = (kind: CharacterGalleryAIEditContext['groups'][number]['kind'], key: string | undefined, labelPrefix: string, itemId: string): void => {
+    const normalized = key?.trim();
+    if (!normalized) return;
+    const groupKey = `${kind}:${normalized}`;
+    const current =
+      groups.get(groupKey) ??
+      ({
+        count: 0,
+        itemIds: [],
+        key: normalized,
+        kind,
+        label: `${labelPrefix}：${normalized}`
+      } satisfies CharacterGalleryAIEditContext['groups'][number]);
+    current.count += 1;
+    current.itemIds.push(itemId);
+    groups.set(groupKey, current);
+  };
+
+  for (const image of images) {
+    add('action', image.semantic?.action, '动作', image.id);
+    add('view', image.semantic?.view, '角度', image.id);
+    add('role', image.referenceRole, '参考角色', image.id);
+    add('kind', image.kind, '类型', image.id);
+  }
+
+  return Array.from(groups.values()).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
 }
 
 function getDestinationImagePath(indexPath: string, itemId: string, sourcePath: string): string {
@@ -582,9 +639,13 @@ export async function buildCharacterGalleryAIEditContext(draft: CharacterGallery
 
   const indexPath = getPackGalleryIndexPath(pack);
   const index = await readIndex(indexPath, pack.rootDir);
-  const requestedIds = new Set(Array.isArray(draft.itemIds) ? draft.itemIds.filter((id) => typeof id === 'string' && id.trim()).map((id) => id.trim()) : []);
+  const itemIds = normalizeAIEditItemIds(draft.itemIds);
+  if (itemIds.length === 0) {
+    throw new Error('At least one gallery reference image is required');
+  }
+  const requestedIds = new Set(itemIds);
   const images = index.items
-    .filter((item) => requestedIds.size === 0 || requestedIds.has(item.id))
+    .filter((item) => requestedIds.has(item.id))
     .map((item) => ({
       id: item.id,
       title: item.title,
@@ -595,13 +656,69 @@ export async function buildCharacterGalleryAIEditContext(draft: CharacterGallery
       ...(item.source.height ? { height: item.source.height } : {}),
       tags: item.tags ?? [],
       ...(item.semantic ? { semantic: item.semantic } : {}),
-      ...(item.ai ? { ai: item.ai } : {})
+      ...(item.ai ? { ai: item.ai } : {}),
+      referenceRole: item.ai?.referenceRole ?? 'character',
+      ...(typeof item.ai?.referenceStrength === 'number' ? { referenceStrength: item.ai.referenceStrength } : {}),
+      preserveIdentity: item.ai?.preserveIdentity ?? true,
+      ...(item.ai?.promptHint ? { promptHint: item.ai.promptHint } : {}),
+      ...(item.ai?.negativePrompt ? { negativePrompt: item.ai.negativePrompt } : {})
     }));
+  const foundIds = new Set(images.map((image) => image.id));
+  const missingIds = itemIds.filter((itemId) => !foundIds.has(itemId));
+  if (missingIds.length > 0) {
+    throw new Error(`Gallery reference images not found: ${missingIds.join(', ')}`);
+  }
+
+  const promptHints = uniqueStrings(
+    images.map((image) => image.promptHint),
+    MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES
+  );
+  const ownNegativePrompt = typeof draft.negativePrompt === 'string' && draft.negativePrompt.trim() ? draft.negativePrompt.trim() : undefined;
+  const negativePrompts = uniqueStrings(
+    images.map((image) => image.negativePrompt),
+    MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES
+  );
+  const referencesSummaryLines = images.map(formatReferenceImageLine);
+  const referencesSummary = referencesSummaryLines.join('\n');
+  const combinedPrompt = [prompt, referencesSummary ? `参考图集：\n${referencesSummary}` : '', promptHints.length ? `参考提示：${promptHints.join('；')}` : ''].filter(Boolean).join('\n\n');
+  const combinedNegativePrompt = uniqueStrings([ownNegativePrompt, ...negativePrompts]).join('\n') || undefined;
+  const actions = uniqueStrings(
+    images.map((image) => image.semantic?.action),
+    MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES
+  );
+  const views = uniqueStrings(
+    images.map((image) => image.semantic?.view),
+    MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES
+  ) as CharacterGalleryAIEditContext['referenceSet']['views'];
+  const roles = uniqueStrings(
+    images.map((image) => image.referenceRole),
+    MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES
+  ) as CharacterGalleryAIEditContext['referenceSet']['roles'];
+  const tags = uniqueStrings(
+    images.flatMap((image) => image.tags),
+    32
+  );
+  const groups = buildReferenceGroups(images);
 
   return {
     images,
     prompt,
-    ...(typeof draft.negativePrompt === 'string' && draft.negativePrompt.trim() ? { negativePrompt: draft.negativePrompt.trim() } : {})
+    ...(ownNegativePrompt ? { negativePrompt: ownNegativePrompt } : {}),
+    combinedPrompt,
+    ...(combinedNegativePrompt ? { combinedNegativePrompt } : {}),
+    groups,
+    referenceSet: {
+      actions,
+      imageCount: images.length,
+      itemIds,
+      negativePrompts,
+      promptHints,
+      roles,
+      summary: `${images.length} reference image${images.length === 1 ? '' : 's'}${actions.length ? `; actions: ${actions.join(', ')}` : ''}${views.length ? `; views: ${views.join(', ')}` : ''}`,
+      tags,
+      views
+    },
+    referencesSummary
   };
 }
 

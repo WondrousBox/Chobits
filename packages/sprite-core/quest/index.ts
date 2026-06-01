@@ -13,5 +13,16 @@ export { QuestEngine } from './quest-engine';
 export type { QuestListAction, QuestListItem, QuestListItemStatus, QuestListReward, QuestListSnapshot } from './quest-list';
 export { createQuestListSnapshot } from './quest-list';
 export { QuestRegistry } from './quest-registry';
-export type { OnboardingQuestDefinition, OnboardingQuestReward, OnboardingQuestRuntimeState, OnboardingState, QuestCategory, QuestPredicate, QuestPredicateContext, QuestStartSource } from './types';
+export type {
+  OnboardingQuestDefinition,
+  OnboardingQuestReward,
+  OnboardingQuestRuntimeState,
+  OnboardingState,
+  QuestCategory,
+  QuestPredicate,
+  QuestPredicateContext,
+  QuestRecommendationDefinition,
+  QuestRecommendationOffer,
+  QuestStartSource
+} from './types';
 export { createEmptyOnboardingState } from './types';

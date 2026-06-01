@@ -126,10 +126,13 @@ export {
   resetSpriteCapabilityRuntime
 } from './capability-runtime';
 export type { CharacterCapabilityContextFlags } from './character-capability-flags';
-export { CHARACTER_PACK_ARCHIVE_EXTENSION, CHARACTER_PACK_ARCHIVE_EXTENSION_NAME } from './character-pack-archive';
 export type {
   CharacterGalleryAIEditContext,
+  CharacterGalleryAIEditDraft,
+  CharacterGalleryAIEditReferenceImage,
   CharacterGalleryAIHints,
+  CharacterGalleryAIReferenceGroup,
+  CharacterGalleryAIReferenceSetSummary,
   CharacterGalleryImageRef,
   CharacterGalleryIndex,
   CharacterGalleryItem,
@@ -143,13 +146,14 @@ export type {
   CharacterGalleryViewAngle
 } from './character-gallery';
 export {
+  CHARACTER_GALLERY_INDEX_VERSION,
   CHARACTER_GALLERY_ITEM_KINDS,
   CHARACTER_GALLERY_REFERENCE_ROLES,
   CHARACTER_GALLERY_VIEW_ANGLES,
-  CHARACTER_GALLERY_INDEX_VERSION,
   DEFAULT_CHARACTER_GALLERY_INDEX_PATH,
   getCharacterGalleryImageMimeFromPath,
   isSupportedCharacterGalleryImagePath,
+  MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES,
   normalizeCharacterGalleryAIHints,
   normalizeCharacterGalleryIndex,
   normalizeCharacterGalleryItem,
@@ -159,6 +163,7 @@ export {
   normalizeCharacterGalleryKind,
   normalizeCharacterGallerySemantic
 } from './character-gallery';
+export { CHARACTER_PACK_ARCHIVE_EXTENSION, CHARACTER_PACK_ARCHIVE_EXTENSION_NAME } from './character-pack-archive';
 export type { CharacterPackDigestVerification, CharacterPackDigestVerificationStatus } from './character-pack-integrity';
 export { assessCharacterPackDigest, calculateCharacterPackPayloadDigest, verifyCharacterPackDigest } from './character-pack-integrity';
 export type {
@@ -288,6 +293,8 @@ export {
 export type { FavorLevel, LevelConfig, MoodType, PersonaState } from './persona-state';
 export { PersonaStateManager } from './persona-state';
 export type {
+  AchievementUnlockedGuideGoalDefinition,
+  ChatApiConfiguredGuideGoalDefinition,
   SpritePurpose,
   SpritePurposeDailyRetrospective,
   SpritePurposeHistoryEntry,
@@ -295,11 +302,6 @@ export type {
   SpritePurposeHistoryReader,
   SpritePurposeHistoryWriter,
   SpritePurposeInterruptPolicy,
-  AchievementUnlockedGuideGoalDefinition,
-  ChatApiConfiguredGuideGoalDefinition,
-  SpriteRoutineGuideGoalDefinition,
-  SpriteRoutineGuideGoalKind,
-  WorkspaceExistsGuideGoalDefinition,
   SpritePurposePlannerExecutor,
   SpritePurposePlannerInput,
   SpritePurposePlannerLastResult,
@@ -325,12 +327,15 @@ export type {
   SpritePurposeStatus,
   SpriteRoutine,
   SpriteRoutineDraft,
+  SpriteRoutineGuideGoalDefinition,
+  SpriteRoutineGuideGoalKind,
   SpriteRoutineRunResult,
   SpriteRoutineSource,
   SpriteRoutineStatus,
   SpriteRoutineStep,
   SpriteRoutineStepResult,
-  StartSpritePurposeRequest
+  StartSpritePurposeRequest,
+  WorkspaceExistsGuideGoalDefinition
 } from './purpose';
 export {
   buildSpritePurposeDailyRetrospective,
@@ -343,7 +348,9 @@ export {
   DEFAULT_SPRITE_PURPOSE_PLANNER_STEP_TYPES,
   DEFAULT_SPRITE_PURPOSE_PLANNER_WINDOWS,
   DEFAULT_SPRITE_ROUTINE_PRESETS,
+  FIRST_FILE_DROP_GUIDE_GOAL,
   normalizeSpritePurposePlannerPreferences,
+  OPEN_RESOURCE_LIBRARY_GUIDE_GOAL,
   SpritePurposeEventWaiter,
   SpritePurposeHistoryStore,
   SpritePurposeManager,
@@ -352,8 +359,6 @@ export {
   summarizeSpriteRoutinePreset,
   summarizeSpriteRoutinePresets,
   validateSpritePurposePlannerOutput,
-  FIRST_FILE_DROP_GUIDE_GOAL,
-  OPEN_RESOURCE_LIBRARY_GUIDE_GOAL,
   WORKSPACE_EXISTS_GUIDE_GOAL
 } from './purpose';
 export type {
@@ -367,12 +372,7 @@ export type {
   QuestPredicate,
   QuestPredicateContext
 } from './quest';
-export {
-  createEmptyOnboardingState,
-  createWorkspaceCreateQuest,
-  QuestEngine,
-  QuestRegistry
-} from './quest';
+export { createEmptyOnboardingState, createWorkspaceCreateQuest, QuestEngine, QuestRegistry } from './quest';
 export type { SpriteReactionState, SpriteState, SpriteSubState, StateConfig, StateTransition } from './state-machine';
 export { SpriteStateMachine } from './state-machine';
 

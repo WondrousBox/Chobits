@@ -141,7 +141,8 @@ export function serializeCanvasLayout(nodes: Array<Node<ImageGenerationReactFlow
         draft: {
           ...node.data.draft,
           mode: node.data.mode,
-          ...(node.data.reference?.assetId ? { referenceAssetId: node.data.reference.assetId } : {})
+          ...(node.data.reference?.assetId ? { referenceAssetId: node.data.reference.assetId } : {}),
+          ...(node.data.references?.length ? { referenceAssetIds: node.data.references.map((asset) => asset.assetId) } : {})
         }
       };
     })

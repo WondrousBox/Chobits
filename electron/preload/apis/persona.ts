@@ -12,6 +12,7 @@ import { SPRITE_CAPABILITY_CHANGED_CHANNEL, type SpriteCapabilityChangedPayload 
 import type { SpriteCapabilitySnapshot } from '../../../packages/sprite-core/capability-registry';
 import type {
   CharacterGalleryAIEditContext,
+  CharacterGalleryAIEditDraft,
   CharacterGalleryAIHints,
   CharacterGalleryCanvasLayout,
   CharacterGalleryItem,
@@ -103,14 +104,9 @@ export interface CharacterGalleryReplaceImagePayload {
   origin?: CharacterGalleryItemPatch['origin'];
 }
 
-export interface CharacterGalleryAIEditDraft {
-  itemIds: string[];
-  prompt: string;
-  negativePrompt?: string;
-}
-
 export type {
   CharacterGalleryAIEditContext,
+  CharacterGalleryAIEditDraft,
   CharacterGalleryAIHints,
   CharacterGalleryCanvasLayout,
   CharacterGalleryItem,

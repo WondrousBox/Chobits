@@ -11,8 +11,14 @@ export default function ImageAssetNode({ data, id, selected }: NodeProps<ImageAs
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <div className={cn('relative w-56 overflow-hidden rounded-lg border border-solid bg-muted text-foreground shadow-md transition-all duration-200', selected ? 'border-primary ring-2 ring-primary' : 'border-ring')}>
+        <div
+          className={cn(
+            'relative w-56 overflow-hidden rounded-lg border border-solid bg-muted text-foreground shadow-md transition-all duration-200',
+            selected ? 'border-primary ring-2 ring-primary' : 'border-ring'
+          )}
+        >
           <Handle type="target" position={Position.Left} className="!h-2 !w-2 !bg-rose-400" />
+          {data.renderOverlay?.(data.asset)}
           <button type="button" className="block w-full text-left" onClick={() => data.onPreview(data.asset.assetId)}>
             <div className="relative aspect-[4/5] bg-background/70">
               <img src={data.asset.thumbnailSrc || data.asset.imageSrc} alt={data.asset.title} className="h-full w-full object-contain" draggable={false} />

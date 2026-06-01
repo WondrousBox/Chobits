@@ -10,9 +10,10 @@ import type {
 import type { CharacterPackSource } from '@packages/sprite-core/character-pack-manager';
 import type { ComponentProps } from 'react';
 import { forwardRef, useCallback, useEffect, useMemo, useRef } from 'react';
-import { TbLayout, TbMaximize, TbPhotoPlus, TbSparkles } from 'react-icons/tb';
+import { TbCheck, TbLayout, TbMaximize, TbPhotoPlus, TbSparkles } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import ImageGenerationCanvas from '@/features/image-generation-canvas/ImageGenerationCanvas';
 import type {
@@ -32,12 +33,14 @@ interface CharacterGalleryCanvasProps {
   loading?: boolean;
   lockedTitle?: string;
   packId?: string;
+  selectedReferenceIds?: string[];
   source?: CharacterPackSource;
   onChanged: (item?: CharacterGalleryItem) => Promise<void> | void;
   onDeleteItem: (item: CharacterGalleryItem) => Promise<boolean | void> | boolean | void;
   onImportImage: () => Promise<void> | void;
   onLayoutChange?: (layout: CharacterGalleryCanvasLayout) => Promise<void> | void;
   onPreviewItem: (item: CharacterGalleryItem) => void;
+  onToggleReferenceItem?: (itemId: string, checked?: boolean) => void;
 }
 
 const KIND_OPTIONS: Array<{ value: CharacterGalleryItemKind; label: string }> = [
@@ -113,22 +116,40 @@ function getResultPath(response: ImageGenerationResponse): string | undefined {
   return response.filePath || response.artifacts?.find((artifact) => artifact.filePath)?.filePath;
 }
 
-function buildReferencePrompt(prompt: string, reference?: CharacterGalleryItem): string {
-  if (!reference) return prompt;
+function buildReferencePrompt(prompt: string, references: CharacterGalleryItem[]): string {
+  if (references.length === 0) return prompt;
+  const reference = references[0];
   const details = [
-    reference.title,
-    reference.semantic?.action ? `动作：${reference.semantic.action}` : '',
-    reference.semantic?.view ? `视角：${reference.semantic.view}` : '',
-    reference.semantic?.emotion ? `表情：${reference.semantic.emotion}` : '',
-    reference.tags?.length ? `标签：${reference.tags.join(', ')}` : ''
-  ]
-    .filter(Boolean)
-    .join('；');
-  return `${prompt}\n\n参考图信息：${details}。保持角色身份、比例、服装关键特征和画风一致。`;
+    references.length === 1
+      ? [
+          reference.title,
+          reference.semantic?.action ? `动作：${reference.semantic.action}` : '',
+          reference.semantic?.view ? `视角：${reference.semantic.view}` : '',
+          reference.semantic?.emotion ? `表情：${reference.semantic.emotion}` : '',
+          reference.tags?.length ? `标签：${reference.tags.join(', ')}` : ''
+        ]
+          .filter(Boolean)
+          .join('；')
+      : references
+          .map((item, index) => {
+            const itemDetails = [
+              item.semantic?.action ? `动作：${item.semantic.action}` : '',
+              item.semantic?.view ? `视角：${item.semantic.view}` : '',
+              item.semantic?.emotion ? `表情：${item.semantic.emotion}` : '',
+              item.ai?.referenceRole ? `用途：${item.ai.referenceRole}` : '',
+              item.tags?.length ? `标签：${item.tags.join(', ')}` : ''
+            ]
+              .filter(Boolean)
+              .join('；');
+            return `${index + 1}. ${item.title}${itemDetails ? `（${itemDetails}）` : ''}`;
+          })
+          .join('\n')
+  ].join('');
+  return `${prompt}\n\n参考图信息：${details}。综合这些参考图，保持角色身份、比例、服装关键特征和画风一致；动作、视角和分镜需求以提示词为准。`;
 }
 
-function buildRequestPrompt(draft: ImageGenerationCanvasDraft, mode: 'edit' | 'generate', reference?: CharacterGalleryItem): string {
-  const prompt = mode === 'generate' ? draft.prompt.trim() : buildReferencePrompt(draft.prompt.trim(), reference);
+function buildRequestPrompt(draft: ImageGenerationCanvasDraft, mode: 'edit' | 'generate', references: CharacterGalleryItem[]): string {
+  const prompt = mode === 'generate' ? draft.prompt.trim() : buildReferencePrompt(draft.prompt.trim(), references);
   const negativePrompt = draft.negativePrompt.trim();
   return negativePrompt ? `${prompt}\n\n避免：${negativePrompt}` : prompt;
 }
@@ -163,7 +184,9 @@ async function resolveImageProviderPreset(providerId: string, preferredPresetId?
   return null;
 }
 
-function buildInitialDraft(mode: 'edit' | 'generate', reference?: CharacterGalleryItem): ImageGenerationCanvasDraft {
+function buildInitialDraft(mode: 'edit' | 'generate', reference?: CharacterGalleryItem, references: CharacterGalleryItem[] = reference ? [reference] : []): ImageGenerationCanvasDraft {
+  const promptHints = references.map((item) => item.ai?.promptHint).filter((value): value is string => !!value?.trim());
+  const tags = Array.from(new Set(references.flatMap((item) => item.tags ?? [])));
   return {
     action: reference?.semantic?.action ?? '',
     emotion: reference?.semantic?.emotion ?? '',
@@ -171,13 +194,13 @@ function buildInitialDraft(mode: 'edit' | 'generate', reference?: CharacterGalle
     modelId: 'gpt-image-2',
     negativePrompt: reference?.ai?.negativePrompt ?? '',
     outputFormat: 'png',
-    prompt: reference?.ai?.promptHint ?? '',
+    prompt: promptHints.join('\n') || reference?.ai?.promptHint || '',
     providerId: 'gpteam',
     quality: 'high',
     referenceRole: reference?.ai?.referenceRole ?? 'character',
     size: '1024x1024',
-    tags: reference?.tags?.join(', ') ?? '',
-    title: mode === 'edit' && reference ? `${reference.title} 变体` : '新角色状态',
+    tags: tags.join(', ') || reference?.tags?.join(', ') || '',
+    title: mode === 'edit' && references.length > 1 ? '多参考角色状态' : mode === 'edit' && reference ? `${reference.title} 变体` : '新角色状态',
     view: reference?.semantic?.view ?? ''
   };
 }
@@ -219,10 +242,11 @@ function IconTooltipButton({
 }
 
 const CharacterGalleryCanvas = forwardRef<ImageGenerationCanvasHandle, CharacterGalleryCanvasProps>(function CharacterGalleryCanvas(
-  { canWrite, items, layout, loading, lockedTitle, onChanged, onDeleteItem, onImportImage, onLayoutChange, onPreviewItem, packId, source },
+  { canWrite, items, layout, loading, lockedTitle, onChanged, onDeleteItem, onImportImage, onLayoutChange, onPreviewItem, onToggleReferenceItem, packId, selectedReferenceIds, source },
   ref
 ): JSX.Element {
   const onDeleteItemRef = useRef(onDeleteItem);
+  const selectedReferenceIdSet = useMemo(() => new Set(selectedReferenceIds ?? []), [selectedReferenceIds]);
 
   useEffect(() => {
     onDeleteItemRef.current = onDeleteItem;
@@ -242,17 +266,18 @@ const CharacterGalleryCanvas = forwardRef<ImageGenerationCanvasHandle, Character
 
   const adapter = useMemo<ImageGenerationCanvasAdapter<CharacterGalleryItem>>(
     () => ({
-      buildInitialDraft: ({ mode, referenceAsset }) => buildInitialDraft(mode, referenceAsset),
+      buildInitialDraft: ({ mode, referenceAsset, referenceAssets }) => buildInitialDraft(mode, referenceAsset, referenceAssets),
       deleteAsset: async (asset) => {
         return onDeleteItemRef.current(asset);
       },
       getAssetView: buildAssetView,
-      submitGeneration: async ({ draft, mode, referenceAsset }) => {
+      submitGeneration: async ({ draft, mode, referenceAsset, referenceAssets }) => {
         const prompt = draft.prompt.trim();
         if (!prompt) {
           throw new Error('请先填写图片提示词');
         }
-        if (mode === 'edit' && !referenceAsset) {
+        const references = referenceAssets?.length ? referenceAssets : referenceAsset ? [referenceAsset] : [];
+        if (mode === 'edit' && references.length === 0) {
           throw new Error('图生图需要一张参考图');
         }
         const resolvedPreset = await resolveImageProviderPreset(draft.providerId, draft.providerPresetId);
@@ -260,7 +285,7 @@ const CharacterGalleryCanvas = forwardRef<ImageGenerationCanvasHandle, Character
           throw new Error(`Provider ${draft.providerId} 没有可用图片预设，请先配置 API Key`);
         }
 
-        const finalPrompt = buildRequestPrompt(draft, mode, referenceAsset);
+        const finalPrompt = buildRequestPrompt(draft, mode, references);
         const common = {
           model: draft.modelId || 'gpt-image-2',
           outputFormat: draft.outputFormat,
@@ -279,16 +304,16 @@ const CharacterGalleryCanvas = forwardRef<ImageGenerationCanvasHandle, Character
           providerId: common.providerId,
           providerPresetId: common.providerPresetId,
           quality: common.quality,
-          referenceImagePath: mode === 'edit' ? referenceAsset?.source.localPath : undefined,
+          referenceImagePaths: mode === 'edit' ? references.map((item) => item.source.localPath) : undefined,
           size: common.size,
           prompt: finalPrompt
         });
 
         const response =
-          mode === 'edit' && referenceAsset
+          mode === 'edit' && references.length > 0
             ? await window.YUA.ai.editImage({
                 ...common,
-                imagePaths: [referenceAsset.source.localPath]
+                imagePaths: references.map((item) => item.source.localPath)
               })
             : await window.YUA.ai.generateImageArtifact(common);
         const filePath = getResultPath(response);
@@ -313,7 +338,8 @@ const CharacterGalleryCanvas = forwardRef<ImageGenerationCanvasHandle, Character
           patch: {
             origin: {
               type: mode === 'edit' ? 'ai-edited' : 'ai-generated',
-              ...(mode === 'edit' && referenceAsset ? { parentId: referenceAsset.id } : {}),
+              ...(mode === 'edit' && references[0] ? { parentId: references[0].id } : {}),
+              ...(mode === 'edit' && references.length > 1 ? { parentIds: references.map((item) => item.id) } : {}),
               model: response.model || common.model,
               prompt: finalPrompt
             }
@@ -353,6 +379,25 @@ const CharacterGalleryCanvas = forwardRef<ImageGenerationCanvasHandle, Character
       onLayoutChange={canWrite ? handleLayoutChange : undefined}
       onPreviewAsset={onPreviewItem}
       readonly={!canWrite}
+      renderAssetOverlay={
+        onToggleReferenceItem
+          ? (asset) => (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="nodrag absolute right-2 top-2 z-10 rounded bg-background/90 p-1 shadow" onClick={(event) => event.stopPropagation()}>
+                    <Checkbox
+                      checked={selectedReferenceIdSet.has(asset.assetId)}
+                      onCheckedChange={(checked) => onToggleReferenceItem(asset.assetId, checked === true)}
+                      onClick={(event) => event.stopPropagation()}
+                      aria-label={`选择 ${asset.title} 作为参考图`}
+                    />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>选为多图参考</TooltipContent>
+              </Tooltip>
+            )
+          : undefined
+      }
       renderToolbar={(actions) => (
         <>
           <Button type="button" size="sm" onClick={() => void onImportImage()} disabled={!canWrite} title={lockedTitle}>
@@ -369,6 +414,12 @@ const CharacterGalleryCanvas = forwardRef<ImageGenerationCanvasHandle, Character
           <IconTooltipButton label="适配视图" type="button" size="sm" variant="outline" onClick={actions.fitView}>
             <TbMaximize />
           </IconTooltipButton>
+          {onToggleReferenceItem ? (
+            <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-2 py-1 text-xs text-muted-foreground">
+              <TbCheck />
+              {selectedReferenceIds?.length ?? 0} 张参考
+            </div>
+          ) : null}
         </>
       )}
     />
