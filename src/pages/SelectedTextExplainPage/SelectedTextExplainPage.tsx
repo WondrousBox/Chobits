@@ -1,4 +1,4 @@
-import { Check, Copy, Loader2, RefreshCcw, Sparkles, X } from 'lucide-react';
+import { Check, ChevronDown, Copy, Loader2, RefreshCcw, Sparkles, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
@@ -24,8 +24,17 @@ type SelectedTextExplainStreamEvent =
   | { type: 'error'; data?: { message?: string } }
   | { type: 'done' };
 
+type ExplainMode = 'detail' | 'quick';
+
+type OutputBuffer = {
+  final: string;
+  pending: string;
+  rendered: string;
+};
+
 const WINDOW_KEY = 'selectedTextExplain';
 const TYPEWRITER_INTERVAL_MS = 22;
+const EXPLAIN_MODES: ExplainMode[] = ['quick', 'detail'];
 
 function readSelectionFromPayload(payload: unknown): string {
   if (!payload || typeof payload !== 'object') return '';
@@ -39,21 +48,45 @@ function getTypewriterChunkSize(pendingLength: number): number {
   return 6;
 }
 
+function createOutputBuffer(): OutputBuffer {
+  return {
+    final: '',
+    pending: '',
+    rendered: ''
+  };
+}
+
+function createOutputBuffers(): Record<ExplainMode, OutputBuffer> {
+  return {
+    detail: createOutputBuffer(),
+    quick: createOutputBuffer()
+  };
+}
+
 export default function SelectedTextExplainPage(): JSX.Element {
   const { providerId, modelId, presetId, setModelId } = useChatSelection();
   const [sourceText, setSourceText] = useState('');
-  const [output, setOutput] = useState('');
+  const [quickOutput, setQuickOutput] = useState('');
+  const [detailOutput, setDetailOutput] = useState('');
   const [statusText, setStatusText] = useState('Ready');
   const [loading, setLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailRequested, setDetailRequested] = useState(false);
   const [copied, setCopied] = useState(false);
-  const explainFinishedRef = useRef(false);
-  const finalOutputRef = useRef('');
-  const pendingOutputRef = useRef('');
-  const renderedOutputRef = useRef('');
-  const requestIdRef = useRef<string | null>(null);
+  const buffersRef = useRef<Record<ExplainMode, OutputBuffer>>(createOutputBuffers());
+  const finishedRef = useRef<Record<ExplainMode, boolean>>({
+    detail: false,
+    quick: false
+  });
+  const requestIdRef = useRef<Record<ExplainMode, string | null>>({
+    detail: null,
+    quick: null
+  });
+  const requestModeRef = useRef<Record<string, ExplainMode>>({});
+  const hasStreamErrorRef = useRef(false);
   const typewriterTimerRef = useRef<number | null>(null);
 
-  const canStart = Boolean(sourceText && providerId && modelId);
+  const canStart = Boolean(sourceText && providerId);
   const shortSource = useMemo(() => sourceText.replace(/\s+/g, ' ').slice(0, 260), [sourceText]);
 
   const stopTypewriter = useCallback((): void => {
@@ -62,71 +95,119 @@ export default function SelectedTextExplainPage(): JSX.Element {
     typewriterTimerRef.current = null;
   }, []);
 
+  const clearRequestForMode = useCallback((mode: ExplainMode): void => {
+    const requestId = requestIdRef.current[mode];
+    if (requestId) {
+      delete requestModeRef.current[requestId];
+    }
+    requestIdRef.current[mode] = null;
+  }, []);
+
   const finishTypewriterIfIdle = useCallback((): boolean => {
-    if (!explainFinishedRef.current || pendingOutputRef.current) return false;
+    let hasPending = false;
+
+    EXPLAIN_MODES.forEach((mode) => {
+      const buffer = buffersRef.current[mode];
+      if (buffer.pending) {
+        hasPending = true;
+        return;
+      }
+
+      if (!finishedRef.current[mode]) return;
+      if (mode === 'quick') {
+        setLoading(false);
+      } else {
+        setDetailLoading(false);
+      }
+      clearRequestForMode(mode);
+    });
+
+    if (hasPending) return false;
+
     stopTypewriter();
-    setStatusText('Done');
-    setLoading(false);
-    requestIdRef.current = null;
+    if (!hasStreamErrorRef.current && !requestIdRef.current.quick && !requestIdRef.current.detail) {
+      setStatusText('Done');
+    }
     return true;
-  }, [stopTypewriter]);
+  }, [clearRequestForMode, stopTypewriter]);
 
   const startTypewriter = useCallback((): void => {
     if (typewriterTimerRef.current !== null) return;
 
     typewriterTimerRef.current = window.setInterval(() => {
-      const pending = pendingOutputRef.current;
-      if (!pending) {
+      const mode = EXPLAIN_MODES.find((key) => buffersRef.current[key].pending);
+      if (!mode) {
         finishTypewriterIfIdle();
         return;
       }
 
+      const buffer = buffersRef.current[mode];
+      const pending = buffer.pending;
       const chunkSize = getTypewriterChunkSize(pending.length);
       const chunk = pending.slice(0, chunkSize);
-      pendingOutputRef.current = pending.slice(chunkSize);
-      renderedOutputRef.current += chunk;
-      setOutput(renderedOutputRef.current);
+      buffer.pending = pending.slice(chunkSize);
+      buffer.rendered += chunk;
 
-      if (!pendingOutputRef.current) {
+      if (mode === 'quick') {
+        setQuickOutput(buffer.rendered);
+      } else {
+        setDetailOutput(buffer.rendered);
+      }
+
+      if (!buffer.pending) {
         finishTypewriterIfIdle();
         return;
       }
 
-      setStatusText(explainFinishedRef.current ? 'Rendering...' : 'Streaming...');
+      setStatusText(finishedRef.current[mode] ? 'Rendering...' : mode === 'quick' ? 'Streaming translation...' : 'Streaming details...');
     }, TYPEWRITER_INTERVAL_MS);
   }, [finishTypewriterIfIdle]);
 
-  const resetTypewriter = useCallback((): void => {
-    stopTypewriter();
-    explainFinishedRef.current = false;
-    finalOutputRef.current = '';
-    pendingOutputRef.current = '';
-    renderedOutputRef.current = '';
-    setOutput('');
-  }, [stopTypewriter]);
+  const resetTypewriter = useCallback(
+    (mode?: ExplainMode): void => {
+      stopTypewriter();
+      const modes = mode ? [mode] : EXPLAIN_MODES;
+      modes.forEach((key) => {
+        finishedRef.current[key] = false;
+        buffersRef.current[key] = createOutputBuffer();
+        if (key === 'quick') {
+          setQuickOutput('');
+        } else {
+          setDetailOutput('');
+        }
+      });
+    },
+    [stopTypewriter]
+  );
 
   const enqueueOutputDelta = useCallback(
-    (text: string): void => {
+    (mode: ExplainMode, text: string): void => {
       if (!text) return;
-      pendingOutputRef.current += text;
-      finalOutputRef.current = renderedOutputRef.current + pendingOutputRef.current;
+      const buffer = buffersRef.current[mode];
+      buffer.pending += text;
+      buffer.final = buffer.rendered + buffer.pending;
       startTypewriter();
     },
     [startTypewriter]
   );
 
   const enqueueOutputSnapshot = useCallback(
-    (text: string): void => {
+    (mode: ExplainMode, text: string): void => {
       if (!text) return;
 
-      const buffered = renderedOutputRef.current + pendingOutputRef.current;
-      finalOutputRef.current = text;
+      const buffer = buffersRef.current[mode];
+      const buffered = buffer.rendered + buffer.pending;
+      buffer.final = text;
       if (text.startsWith(buffered)) {
-        pendingOutputRef.current += text.slice(buffered.length);
+        buffer.pending += text.slice(buffered.length);
       } else {
-        renderedOutputRef.current = '';
-        pendingOutputRef.current = text;
-        setOutput('');
+        buffer.rendered = '';
+        buffer.pending = text;
+        if (mode === 'quick') {
+          setQuickOutput('');
+        } else {
+          setDetailOutput('');
+        }
       }
       startTypewriter();
       finishTypewriterIfIdle();
@@ -134,15 +215,18 @@ export default function SelectedTextExplainPage(): JSX.Element {
     [finishTypewriterIfIdle, startTypewriter]
   );
 
-  const cancelActiveTask = useCallback(async (): Promise<void> => {
-    const requestId = requestIdRef.current;
-    if (!requestId) return;
-    requestIdRef.current = null;
-    await window.YUA.ai.cancelSelectedTextExplain(requestId).catch(() => undefined);
-  }, []);
+  const cancelActiveTask = useCallback(
+    async (mode?: ExplainMode): Promise<void> => {
+      const modes = mode ? [mode] : EXPLAIN_MODES;
+      const requests = modes.map((key) => requestIdRef.current[key]).filter((id): id is string => Boolean(id));
+      modes.forEach((key) => clearRequestForMode(key));
+      await Promise.all(requests.map((id) => window.YUA.ai.cancelSelectedTextExplain(id).catch(() => undefined)));
+    },
+    [clearRequestForMode]
+  );
 
   const startExplain = useCallback(
-    async (text: string): Promise<void> => {
+    async (text: string, mode: ExplainMode = 'quick'): Promise<void> => {
       const selectedText = text.trim();
       if (!selectedText) return;
       if (!providerId) {
@@ -159,38 +243,67 @@ export default function SelectedTextExplainPage(): JSX.Element {
 
       if (!nextModelId) {
         setStatusText('No chat model selected');
-        setLoading(false);
+        if (mode === 'quick') {
+          setLoading(false);
+        } else {
+          setDetailLoading(false);
+        }
         return;
       }
 
-      await cancelActiveTask();
+      if (mode === 'quick') {
+        await cancelActiveTask();
+        resetTypewriter();
+        hasStreamErrorRef.current = false;
+        setDetailRequested(false);
+        setDetailLoading(false);
+        setCopied(false);
+        setLoading(true);
+        setStatusText('Connecting...');
+      } else {
+        await cancelActiveTask('detail');
+        resetTypewriter('detail');
+        hasStreamErrorRef.current = false;
+        setDetailRequested(true);
+        setDetailLoading(true);
+        setStatusText('Loading details...');
+      }
+
       const requestId = crypto.randomUUID();
-      requestIdRef.current = requestId;
-      resetTypewriter();
-      setCopied(false);
-      setLoading(true);
-      setStatusText('Connecting...');
+      requestIdRef.current[mode] = requestId;
+      requestModeRef.current[requestId] = mode;
+      finishedRef.current[mode] = false;
 
       try {
         const handle = await window.YUA.ai.explainSelectedText({
           languageNames: { 'zh-CN': '中文' },
-          metadata: { source: 'selected-text-learning' },
+          metadata: { mode, source: 'selected-text-learning' },
           model: nextModelId,
+          options: { mode },
           providerId,
           providerPresetId: presetId || undefined,
           requestId,
           targetLanguage: 'zh-CN',
           text: selectedText
         });
-        requestIdRef.current = handle.requestId;
+
+        if (handle.requestId !== requestId) {
+          delete requestModeRef.current[requestId];
+          requestIdRef.current[mode] = handle.requestId;
+          requestModeRef.current[handle.requestId] = mode;
+        }
       } catch (error) {
-        requestIdRef.current = null;
-        setLoading(false);
+        clearRequestForMode(mode);
+        if (mode === 'quick') {
+          setLoading(false);
+        } else {
+          setDetailLoading(false);
+        }
         setStatusText('Failed');
         toast.error(error instanceof Error ? error.message : 'Failed to start selected text explain');
       }
     },
-    [cancelActiveTask, modelId, presetId, providerId, resetTypewriter, setModelId]
+    [cancelActiveTask, clearRequestForMode, modelId, presetId, providerId, resetTypewriter, setModelId]
   );
 
   const hydratePayload = useCallback(
@@ -198,7 +311,7 @@ export default function SelectedTextExplainPage(): JSX.Element {
       const text = readSelectionFromPayload(payload);
       if (!text) return;
       setSourceText(text);
-      void startExplain(text);
+      void startExplain(text, 'quick');
     },
     [startExplain]
   );
@@ -228,40 +341,46 @@ export default function SelectedTextExplainPage(): JSX.Element {
     const handler = (_event: unknown, message: { data?: any; type?: string }): void => {
       if (message?.type !== 'selected-text:explain') return;
       const data = message.data || {};
-      if (data.requestId !== requestIdRef.current) return;
+      const requestId = typeof data.requestId === 'string' ? data.requestId : '';
+      const mode = requestModeRef.current[requestId];
+      if (!mode) return;
       const event = data as SelectedTextExplainStreamEvent & { requestId?: string };
 
       if (event.type === 'connected') {
-        setStatusText('Connected');
+        setStatusText(mode === 'quick' ? 'Connected' : 'Loading details...');
         return;
       }
       if (event.type === 'progress') {
-        setStatusText(event.data?.message || 'Running...');
+        setStatusText(event.data?.message || (mode === 'quick' ? 'Translating...' : 'Loading details...'));
         return;
       }
       if (event.type === 'delta' && event.data?.text) {
-        enqueueOutputDelta(event.data.text);
-        setStatusText('Streaming...');
+        enqueueOutputDelta(mode, event.data.text);
+        setStatusText(mode === 'quick' ? 'Streaming translation...' : 'Streaming details...');
         return;
       }
       if (event.type === 'completed') {
-        if (event.data?.text) enqueueOutputSnapshot(event.data.text);
-        explainFinishedRef.current = true;
-        setStatusText(pendingOutputRef.current ? 'Rendering...' : 'Done');
+        if (event.data?.text) enqueueOutputSnapshot(mode, event.data.text);
+        finishedRef.current[mode] = true;
+        setStatusText(buffersRef.current[mode].pending ? 'Rendering...' : 'Done');
         finishTypewriterIfIdle();
         return;
       }
       if (event.type === 'error') {
-        explainFinishedRef.current = true;
-        stopTypewriter();
-        pendingOutputRef.current = '';
+        hasStreamErrorRef.current = true;
+        finishedRef.current[mode] = true;
+        buffersRef.current[mode].pending = '';
+        clearRequestForMode(mode);
+        if (mode === 'quick') {
+          setLoading(false);
+        } else {
+          setDetailLoading(false);
+        }
         setStatusText(event.data?.message || 'Failed');
-        setLoading(false);
-        requestIdRef.current = null;
         return;
       }
       if (event.type === 'done') {
-        explainFinishedRef.current = true;
+        finishedRef.current[mode] = true;
         finishTypewriterIfIdle();
       }
     };
@@ -270,7 +389,7 @@ export default function SelectedTextExplainPage(): JSX.Element {
     return () => {
       window.ipcRenderer?.off('renderer-message', handler as any);
     };
-  }, [enqueueOutputDelta, enqueueOutputSnapshot, finishTypewriterIfIdle, stopTypewriter]);
+  }, [clearRequestForMode, enqueueOutputDelta, enqueueOutputSnapshot, finishTypewriterIfIdle]);
 
   useEffect(() => {
     return () => {
@@ -280,19 +399,24 @@ export default function SelectedTextExplainPage(): JSX.Element {
   }, [cancelActiveTask, stopTypewriter]);
 
   const handleCopy = useCallback(async (): Promise<void> => {
-    const content = (finalOutputRef.current || renderedOutputRef.current || output).trim() || sourceText;
+    const quickText = buffersRef.current.quick.final || buffersRef.current.quick.rendered || quickOutput;
+    const detailText = buffersRef.current.detail.final || buffersRef.current.detail.rendered || detailOutput;
+    const content = [quickText.trim(), detailText.trim()].filter(Boolean).join('\n\n') || sourceText;
     if (!content) return;
     await navigator.clipboard.writeText(content);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1200);
-  }, [output, sourceText]);
+  }, [detailOutput, quickOutput, sourceText]);
 
   const handleClose = useCallback((): void => {
     void cancelActiveTask();
     resetTypewriter();
     setLoading(false);
+    setDetailLoading(false);
     void window.YUA.window['window:close'](WINDOW_KEY as any);
   }, [cancelActiveTask, resetTypewriter]);
+
+  const hasOutput = Boolean(quickOutput || detailOutput);
 
   return (
     <div className="h-full w-full overflow-hidden bg-transparent p-2 text-foreground">
@@ -301,14 +425,14 @@ export default function SelectedTextExplainPage(): JSX.Element {
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <Sparkles className="size-4 text-primary" />
             <div className="min-w-0">
-              <h1 className="truncate text-sm font-semibold">划词解释</h1>
+              <h1 className="truncate text-sm font-semibold">划词释义</h1>
               <p className="truncate text-[11px] text-muted-foreground">{statusText}</p>
             </div>
           </div>
           <div className="no-drag flex items-center gap-1">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="w-8 h-8 p-0" disabled={!sourceText || loading} onClick={() => void startExplain(sourceText)}>
+                <Button variant="ghost" size="sm" className="w-8 h-8 p-0" disabled={!sourceText || loading || detailLoading} onClick={() => void startExplain(sourceText, 'quick')}>
                   {loading ? <Loader2 className="animate-spin" /> : <RefreshCcw />}
                 </Button>
               </TooltipTrigger>
@@ -316,7 +440,7 @@ export default function SelectedTextExplainPage(): JSX.Element {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="w-8 h-8 p-0" disabled={!output && !sourceText} onClick={() => void handleCopy()}>
+                <Button variant="ghost" size="sm" className="w-8 h-8 p-0" disabled={!hasOutput && !sourceText} onClick={() => void handleCopy()}>
                   {copied ? <Check /> : <Copy />}
                 </Button>
               </TooltipTrigger>
@@ -341,16 +465,45 @@ export default function SelectedTextExplainPage(): JSX.Element {
           <main className="p-3">
             {!sourceText ? (
               <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">等待选中文本</div>
-            ) : output ? (
-              <div className="prose prose-sm max-w-none select-text dark:prose-invert">
-                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[[rehypeHighlight, { detect: true }]]}>
-                  {output}
-                </ReactMarkdown>
+            ) : quickOutput ? (
+              <div className="space-y-3">
+                <div className="prose prose-sm max-w-none select-text dark:prose-invert">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[[rehypeHighlight, { detect: true }]]}>
+                    {quickOutput}
+                  </ReactMarkdown>
+                </div>
+
+                {!detailRequested ? (
+                  <Button size="sm" variant="outline" disabled={loading || detailLoading} onClick={() => void startExplain(sourceText, 'detail')}>
+                    {detailLoading ? <Loader2 className="animate-spin" /> : <ChevronDown />}
+                    详细释义
+                  </Button>
+                ) : (
+                  <section className="border-t pt-3">
+                    {detailOutput ? (
+                      <div className="prose prose-sm max-w-none select-text dark:prose-invert">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[[rehypeHighlight, { detect: true }]]}>
+                          {detailOutput}
+                        </ReactMarkdown>
+                      </div>
+                    ) : detailLoading ? (
+                      <div className="flex h-32 items-center justify-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="animate-spin" />
+                        正在加载详细释义
+                      </div>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={() => void startExplain(sourceText, 'detail')}>
+                        {detailLoading ? <Loader2 className="animate-spin" /> : <ChevronDown />}
+                        重新加载详细释义
+                      </Button>
+                    )}
+                  </section>
+                )}
               </div>
             ) : loading ? (
               <div className="flex h-64 items-center justify-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" />
-                正在生成
+                <Loader2 className="animate-spin" />
+                正在快速翻译
               </div>
             ) : canStart ? (
               <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">准备就绪</div>

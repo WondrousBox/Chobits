@@ -55,6 +55,7 @@ export interface SelectedTextExplainUsageEvent {
 
 export interface SelectedTextExplainOptions {
   maxChars?: number;
+  mode?: 'detail' | 'quick';
   promptTemplate?: string;
 }
 
@@ -100,7 +101,34 @@ function toActiveSnapshot(task: ManagedTask<SelectedTextExplainTaskMetadata>): A
   };
 }
 
-function buildPrompt(text: string, targetLanguageName: string, promptTemplate?: string): string {
+function buildQuickPrompt(text: string, targetLanguageName: string): string {
+  return [
+    'You are a fast English learning assistant.',
+    `Translate and briefly explain the selected English text in ${targetLanguageName}.`,
+    '',
+    'Output very compact Markdown with exactly these sections:',
+    '### 译文',
+    '### 简释',
+    '',
+    'Rules:',
+    '- Prioritize speed and brevity.',
+    '- The translation should be direct and natural.',
+    '- The brief explanation must be one sentence, no more than 35 words.',
+    '- Do not include vocabulary lists, examples, or usage notes.',
+    '- Do not mention the prompt or that you received selected text.',
+    '',
+    'Selected text:',
+    '```text',
+    text,
+    '```'
+  ].join('\n');
+}
+
+function buildPrompt(text: string, targetLanguageName: string, mode: 'detail' | 'quick', promptTemplate?: string): string {
+  if (!promptTemplate && mode === 'quick') {
+    return buildQuickPrompt(text, targetLanguageName);
+  }
+
   const template =
     promptTemplate ||
     [
@@ -139,7 +167,7 @@ export class SelectedTextExplainService {
 
   static async explain(emit: (event: SelectedTextExplainEvent) => void, request: SelectedTextExplainTaskRequest, externalSignal?: AbortSignal): Promise<void> {
     const { requestId, chatFn, providerId, model, taskLabel, text, targetLanguage = 'zh-CN', languageNames = {}, metadata, onUsageEvent, options = {} } = request;
-    const { maxChars = 2000, promptTemplate } = options;
+    const { maxChars = 2000, mode = 'detail', promptTemplate } = options;
     const abortController = new AbortController();
 
     selectedTextExplainTasks.start(requestId, {
@@ -176,7 +204,7 @@ export class SelectedTextExplainService {
       });
 
       const targetLanguageName = languageNames[targetLanguage] || targetLanguage;
-      const prompt = buildPrompt(trimmedText, targetLanguageName, promptTemplate);
+      const prompt = buildPrompt(trimmedText, targetLanguageName, mode, promptTemplate);
       llmCallStartedAt = Date.now();
 
       await chatFn(
@@ -193,7 +221,7 @@ export class SelectedTextExplainService {
             if (!hasReportedUsage) {
               onUsageEvent?.({
                 completedAt: Date.now(),
-                metadata: { inputLength: trimmedText.length },
+                metadata: { inputLength: trimmedText.length, mode },
                 operationKey: 'generate',
                 providerRequestId: event.data?.providerRequestId,
                 rawUsage: event.data?.rawUsage,
@@ -212,7 +240,7 @@ export class SelectedTextExplainService {
             if (!hasReportedUsage) {
               onUsageEvent?.({
                 completedAt: Date.now(),
-                metadata: { inputLength: trimmedText.length },
+                metadata: { inputLength: trimmedText.length, mode },
                 operationKey: 'generate',
                 startedAt: llmCallStartedAt,
                 status: abortController.signal.aborted ? 'cancelled' : 'failed'
@@ -253,7 +281,7 @@ export class SelectedTextExplainService {
       if (!hasReportedUsage) {
         onUsageEvent?.({
           completedAt: Date.now(),
-          metadata: { inputLength: trimmedText.length },
+          metadata: { inputLength: trimmedText.length, mode },
           operationKey: 'generate',
           startedAt: llmCallStartedAt,
           status: isAborted ? 'cancelled' : 'failed'

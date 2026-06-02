@@ -12,9 +12,9 @@
 - 不在“划词学习”设置页维护单独的 LLM provider/model/preset。
 - 浮窗复用普通聊天的模型选择配置，也就是 `chat.sel.providerId`、`chat.sel.modelId` 和 `chat.sel.presetId`。
 - 解释展示使用新增的独立窗口 `selectedTextExplain`，不打开 `ChatPage`，不打开 `chatOverlay`，不创建会话，不调用 agent/tool workflow。
-- AI 调用使用新增的轻量 task service：`SelectedTextExplainService`。它只做一次临时 Pi task runtime 流式调用，输出 Markdown 文本。
+- AI 调用使用新增的轻量 task service：`SelectedTextExplainService`。默认先发 `quick` 请求，只输出简单翻译和一句简释；用户点击“详细释义”后再发 `detail` 请求，补充语境、重点词汇和用法。
 - 浮窗打开位置使用触发时的 `screen.getCursorScreenPoint()` 作为锚点，贴近鼠标/选区附近并夹取到当前显示器工作区内。剪贴板保护式复制只能读到文本，第一版不能精确获得外部应用的选区矩形。
-- 解释页在 renderer 侧维护本地 typewriter buffer；即使 provider 只在完成时返回全文，也会按小块逐步展示，避免结果一次性跳出。
+- 解释页在 renderer 侧维护 quick/detail 两套 typewriter buffer；即使 provider 只在完成时返回全文，也会按小块逐步展示，避免结果一次性跳出。
 
 ## 第一版范围
 
@@ -26,7 +26,7 @@
 - 本地英语启发式检测，过滤空文本、中文文本、代码片段、路径、URL-only 和过长文本。
 - 复用 `SpriteManager.speak` 朗读选中的英文原文。
 - 打开独立 `selectedTextExplain` 浮窗。
-- 浮窗按触发时鼠标位置附近打开，启动 `ai:selectedTextExplain` 任务并以打字机节奏展示 Markdown 结果。
+- 浮窗按触发时鼠标位置附近打开，先启动 `ai:selectedTextExplain` 的 `quick` 任务并以打字机节奏展示简单翻译/简释；展开后再启动 `detail` 任务加载更多解释。
 - 提供 IPC 调试入口：读取配置、读取选区测试、手动触发、打开最近一次解释窗口。
 
 ### 不包含
@@ -159,9 +159,9 @@ flowchart TD
 - 读取 `selectedTextExplain` 窗口 payload。
 - 复用 `ChatSelectionProvider` 中的 `providerId`、`modelId`、`presetId`。
 - 如果没有模型，尝试从当前 provider 的模型列表选择第一个模型。
-- 调用 `window.YUA.ai.explainSelectedText()` 启动流式任务。
+- 调用 `window.YUA.ai.explainSelectedText()` 启动流式任务；默认 `options.mode = 'quick'`，展开后再请求 `options.mode = 'detail'`。
 - 监听 `renderer-message` 中 `selected-text:explain` 事件。
-- 将 `delta` 和 `completed` 全文写入本地 typewriter buffer，再按小块刷新 Markdown，支持复制、重新生成、关闭。
+- 将 quick/detail 的 `delta` 和 `completed` 全文分别写入本地 typewriter buffer，再按小块刷新 Markdown，支持复制、重新生成、关闭。
 
 ### SelectedTextExplainService
 
@@ -171,7 +171,7 @@ flowchart TD
 职责：
 
 - 管理独立划词解释 task registry。
-- 构造紧凑解释 prompt。
+- 构造两档 prompt：`quick` 只要译文和一句简释，`detail` 才输出完整语境、重点词汇和用法提示。
 - 接受 `chatFn` 并流式转发 `delta`。
 - 发出 `connected`、`progress`、`delta`、`completed`、`error`、`done` 事件。
 - 支持取消任务。
@@ -284,6 +284,8 @@ await window.YUA.ai.cancelSelectedTextExplain(requestId);
 - 英文文本会朗读原文。
 - 打开的是 `selectedTextExplain` 独立窗口，不是 `chatOverlay`。
 - 解释由 `ai:selectedTextExplain` 流式返回。
+- 首次打开只请求 quick 简单释义，能更快返回可用翻译。
+- 点击“详细释义”按钮后才单独请求 detail 内容，且不会覆盖 quick 结果。
 - 即使上游只返回 `completed.text`，解释页也会显示可见的打字机效果。
 - 浮窗会出现在触发时鼠标/选区附近，并保持在当前显示器工作区内。
 - 不创建聊天会话，不调用 agent，不执行工具。
