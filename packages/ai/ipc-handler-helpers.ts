@@ -13,11 +13,13 @@ import { normalizeProviderPreset, resolveProviderPresetId } from './provider-pre
 import { PiSessionService } from './runtime/pi/session-service';
 import { createPiTaskChatRuntimeFromRequest, type PiTaskChatFunction as ChatFunction } from './runtime/pi/task-chat';
 import { MindmapService } from './services/mindmap-service';
+import { SelectedTextExplainService } from './services/selected-text-explain-service';
+import type { SelectedTextExplainCompletedData, SelectedTextExplainEvent } from './services/selected-text-explain-service';
 import { SummaryService } from './services/summary-service';
 import type { SummaryCompletedData, SummaryEvent } from './services/summary-service';
 import { TranslationService } from './services/translation-service';
 import type { TranslationCompletedData, TranslationEvent } from './services/translation-service';
-import type { MindmapRequest, ProviderScopedRequest, SummarizeRequest, TokenUsage, TranslateRequest } from './types';
+import type { MindmapRequest, ProviderScopedRequest, SelectedTextExplainRequest, SummarizeRequest, TokenUsage, TranslateRequest } from './types';
 
 // ==================== 项目文件夹常量 ====================
 
@@ -672,9 +674,22 @@ export interface SummaryTaskHandle {
   completionPromise: Promise<SummaryCompletedData>;
 }
 
+export interface SelectedTextExplainTaskHandle {
+  requestId: string;
+  eventsChannel: string;
+  completionPromise: Promise<SelectedTextExplainCompletedData>;
+}
+
 interface TaskStartOptions<TEvent> {
   onEvent?: (event: TEvent) => void;
 }
+
+export type SelectedTextExplainPayload = SelectedTextExplainRequest & {
+  requestId?: string;
+  taskLabel?: string;
+  chatFn?: ChatFunction;
+  abortSignal?: AbortSignal;
+};
 
 export type MindmapPayload = MindmapRequest & {
   requestId?: string;
@@ -1676,6 +1691,141 @@ export async function startSubtitleTranslationTask(payload: TranslatePayload, ta
 export async function executeSubtitleTranslation(payload: TranslatePayload): Promise<{ requestId: string; eventsChannel: string }> {
   const { requestId, eventsChannel } = await startSubtitleTranslationTask(payload);
   return { requestId, eventsChannel };
+}
+
+export async function executeSelectedTextExplain(payload: SelectedTextExplainPayload): Promise<{ requestId: string; eventsChannel: string }> {
+  const { requestId, eventsChannel } = await startSelectedTextExplainTask(payload);
+  return { requestId, eventsChannel };
+}
+
+export async function startSelectedTextExplainTask(
+  payload: SelectedTextExplainPayload,
+  taskStartOptions?: TaskStartOptions<SelectedTextExplainEvent>
+): Promise<SelectedTextExplainTaskHandle> {
+  const normalizedPayload = normalizeProviderPreset(payload);
+  const {
+    abortSignal,
+    chatFn: injectedChatFn,
+    languageNames,
+    metadata = {},
+    model,
+    options,
+    providerId,
+    requestId: incomingRequestId,
+    targetLanguage = 'zh-CN',
+    taskLabel: incomingTaskLabel,
+    text
+  } = normalizedPayload;
+  const requestId = incomingRequestId || randomUUID();
+  const eventsChannel = `selected-text:explain:${requestId}`;
+  const resolvedProviderPresetId = resolveProviderPresetId(normalizedPayload);
+  const selectedText = String(text || '').trim();
+
+  if (abortSignal?.aborted) {
+    throw new Error('Aborted');
+  }
+
+  if (!selectedText) {
+    throw new Error('No selected text provided');
+  }
+
+  let effectiveChatFn = injectedChatFn;
+  let effectiveModel = model;
+  if (!effectiveChatFn) {
+    const runtime = await createPreferredTaskChatRuntime({
+      agentId: 'chat',
+      model,
+      providerId,
+      providerPresetId: resolvedProviderPresetId
+    });
+    effectiveChatFn = runtime.chatFn;
+    effectiveModel = runtime.modelId;
+  }
+
+  const taskLabel = incomingTaskLabel || `${providerId}/${effectiveModel}`;
+  const usageRecorder = createTaskUsageRecorder({
+    context: 'executeSelectedTextExplain',
+    metadata: {
+      ...(metadata || {}),
+      runtime: injectedChatFn ? 'custom_chat_fn' : 'pi',
+      selectedTextLength: selectedText.length,
+      targetLanguage
+    },
+    model: effectiveModel,
+    providerId,
+    providerPresetId: resolvedProviderPresetId,
+    requestId,
+    sourceId: requestId,
+    sourceLabel: 'Selected text explain',
+    sourceType: 'translation',
+    usageCategory: 'content_processing',
+    usageFeature: 'translation',
+    usageStage: 'generate'
+  });
+
+  let resolveCompletion!: (data: SelectedTextExplainCompletedData) => void;
+  let rejectCompletion!: (error: Error) => void;
+  const completionPromise = new Promise<SelectedTextExplainCompletedData>((resolve, reject) => {
+    resolveCompletion = resolve;
+    rejectCompletion = reject;
+  });
+  void completionPromise.catch(() => undefined);
+
+  const broadcastEvent = createEventEmitter({
+    requestId,
+    eventType: 'selected-text:explain',
+    busyMessage: '正在解释选中文本...',
+    progressMessage: '正在解释选中文本...'
+  });
+
+  const emit = (event: SelectedTextExplainEvent): void => {
+    broadcastEvent(event);
+    taskStartOptions?.onEvent?.(event);
+
+    if (event.type === 'completed') {
+      resolveCompletion(event.data);
+      return;
+    }
+
+    if (event.type === 'error') {
+      rejectCompletion(new Error(event.data?.message || 'Selected text explain task failed'));
+      return;
+    }
+
+    if (event.type === 'done') {
+      rejectCompletion(new Error('Selected text explain task finished before emitting a completed event'));
+    }
+  };
+
+  SelectedTextExplainService.explain(
+    emit,
+    {
+      requestId,
+      chatFn: effectiveChatFn,
+      languageNames,
+      metadata: {
+        ...(metadata || {}),
+        textPreview: selectedText.slice(0, 120)
+      },
+      model: effectiveModel,
+      onUsageEvent: usageRecorder,
+      options,
+      providerId,
+      targetLanguage,
+      taskLabel,
+      text: selectedText
+    },
+    abortSignal
+  ).catch((err: any) => {
+    console.error('Selected text explain failed:', err);
+    if (err.message === 'Aborted') {
+      emit({ type: 'done' });
+    } else {
+      emit({ type: 'error', data: { message: err?.message || 'Selected text explain failed' } });
+    }
+  });
+
+  return { requestId, eventsChannel, completionPromise };
 }
 
 export async function executeSummarize(payload: SummarizePayload): Promise<{ requestId: string; eventsChannel: string }> {

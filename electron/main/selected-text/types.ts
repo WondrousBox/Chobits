@@ -6,9 +6,6 @@ export type SelectedTextLearningConfig = {
   maxTextLength: number;
   restoreClipboard: boolean;
   dedupeWindowMs: number;
-  providerId: string;
-  preferredPresetId?: string;
-  modelId?: string;
 };
 
 export type SelectedTextLearningConfigPatch = Partial<SelectedTextLearningConfig>;
@@ -28,26 +25,9 @@ export type EnglishDetectionResult = {
   reason?: string;
 };
 
-export type SelectedTextLearningResult = {
-  explanation: string;
-  keyWords: Array<{
-    meaning: string;
-    note?: string;
-    word: string;
-  }>;
-  original: string;
-  phrases: Array<{
-    meaning: string;
-    phrase: string;
-  }>;
-  translation: string;
-  usageTips?: string[];
-};
-
 export type SelectedTextLearningRunResult = {
   detection?: EnglishDetectionResult;
   error?: string;
-  explanation?: SelectedTextLearningResult;
   ok: boolean;
   read?: SelectionReadResult;
   skipped?: boolean;

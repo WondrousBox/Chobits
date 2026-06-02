@@ -1,23 +1,20 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import type { SelectedTextLearningConfig, SelectedTextLearningConfigPatch, SelectedTextLearningRunResult, SelectedTextLearningStatus } from '@main/selected-text/types';
+import React, { useCallback, useEffect, useState } from 'react';
 import { TbLoader, TbPlayerPlay, TbTestPipe } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import type { ProviderPresetRecord, ProviderRecord } from '@packages/ai/types';
-import type { SelectedTextLearningConfig, SelectedTextLearningConfigPatch, SelectedTextLearningRunResult, SelectedTextLearningStatus } from '@main/selected-text/types';
 
 import { SettingGroup, SettingItem } from './SettingComponents';
 
 const EMPTY_CONFIG: SelectedTextLearningConfig = {
   autoSpeak: true,
   dedupeWindowMs: 8000,
-  enabled: false,
+  enabled: true,
   holdMs: 1500,
   maxTextLength: 2000,
-  providerId: 'openai',
   restoreClipboard: true,
   showOverlay: true
 };
@@ -26,10 +23,6 @@ function clampNumber(value: string, fallback: number, min: number, max: number):
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return fallback;
   return Math.min(max, Math.max(min, Math.round(numeric)));
-}
-
-function getProviderLabel(provider: ProviderRecord): string {
-  return provider.schema?.locales?.['zh-CN']?.label || provider.schema?.locales?.zh?.label || provider.label || provider.id;
 }
 
 function describeRunResult(result: SelectedTextLearningRunResult): string {
@@ -42,24 +35,15 @@ function describeRunResult(result: SelectedTextLearningRunResult): string {
 export default function SelectedTextLearningSettings(): JSX.Element {
   const [config, setConfig] = useState<SelectedTextLearningConfig>(EMPTY_CONFIG);
   const [status, setStatus] = useState<SelectedTextLearningStatus | null>(null);
-  const [providers, setProviders] = useState<ProviderRecord[]>([]);
-  const [presets, setPresets] = useState<ProviderPresetRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [triggering, setTriggering] = useState(false);
 
-  const selectedProvider = useMemo(() => providers.find((provider) => provider.id === config.providerId), [config.providerId, providers]);
-
   const refresh = useCallback(async () => {
-    const [nextConfig, nextStatus, nextProviders] = await Promise.all([
-      window.YUA.selectedTextLearning.getConfig(),
-      window.YUA.selectedTextLearning.getStatus(),
-      window.YUA.ai.getProviders().catch(() => [])
-    ]);
+    const [nextConfig, nextStatus] = await Promise.all([window.YUA.selectedTextLearning.getConfig(), window.YUA.selectedTextLearning.getStatus()]);
     setConfig(nextConfig);
     setStatus(nextStatus);
-    setProviders(nextProviders || []);
   }, []);
 
   useEffect(() => {
@@ -68,7 +52,7 @@ export default function SelectedTextLearningSettings(): JSX.Element {
       try {
         await refresh();
       } catch (error) {
-        if (mounted) toast.error(error instanceof Error ? error.message : '加载选中文本学习设置失败');
+        if (mounted) toast.error(error instanceof Error ? error.message : '加载划词学习设置失败');
       } finally {
         if (mounted) setLoading(false);
       }
@@ -78,24 +62,8 @@ export default function SelectedTextLearningSettings(): JSX.Element {
     };
   }, [refresh]);
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const list = await window.YUA.ai.listPresets(config.providerId);
-        if (mounted) setPresets(list || []);
-      } catch {
-        if (mounted) setPresets([]);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [config.providerId]);
-
   const savePatch = async (patch: SelectedTextLearningConfigPatch, options: { silent?: boolean } = {}): Promise<void> => {
-    const optimistic = { ...config, ...patch };
-    setConfig(optimistic);
+    setConfig((prev) => ({ ...prev, ...patch }));
     setSaving(true);
     try {
       const result = await window.YUA.selectedTextLearning.setConfig(patch);
@@ -127,10 +95,9 @@ export default function SelectedTextLearningSettings(): JSX.Element {
     setTriggering(true);
     try {
       const result = await window.YUA.selectedTextLearning.triggerNow();
-      if (result.ok) toast.success('已开始解析选中文本');
+      if (result.ok) toast.success('已打开解释浮窗');
       else toast.warning(describeRunResult(result));
-      const nextStatus = await window.YUA.selectedTextLearning.getStatus();
-      setStatus(nextStatus);
+      setStatus(await window.YUA.selectedTextLearning.getStatus());
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '手动触发失败');
     } finally {
@@ -190,9 +157,21 @@ export default function SelectedTextLearningSettings(): JSX.Element {
       </SettingGroup>
 
       <SettingGroup title="动作">
-        <SettingItem title="自动朗读原文" description="检测到英文后，先让精灵读出原文。" action={<Switch checked={config.autoSpeak} onCheckedChange={(checked) => savePatch({ autoSpeak: checked }, { silent: true })} />} />
-        <SettingItem title="打开解释浮层" description="AI 生成结果后，同时打开 chatOverlay 展示完整解释。" action={<Switch checked={config.showOverlay} onCheckedChange={(checked) => savePatch({ showOverlay: checked }, { silent: true })} />} />
-        <SettingItem title="恢复剪贴板" description="读取选区时会短暂写入剪贴板，开启后尽量恢复原内容。" action={<Switch checked={config.restoreClipboard} onCheckedChange={(checked) => savePatch({ restoreClipboard: checked }, { silent: true })} />} />
+        <SettingItem
+          title="自动朗读原文"
+          description="检测到英文后，先让精灵读出原文。"
+          action={<Switch checked={config.autoSpeak} onCheckedChange={(checked) => savePatch({ autoSpeak: checked }, { silent: true })} />}
+        />
+        <SettingItem
+          title="打开解释浮层"
+          description="使用独立浮窗流式展示解释，并复用当前聊天模型配置。"
+          action={<Switch checked={config.showOverlay} onCheckedChange={(checked) => savePatch({ showOverlay: checked }, { silent: true })} />}
+        />
+        <SettingItem
+          title="恢复剪贴板"
+          description="读取选区时会短暂写入剪贴板，开启后尽量恢复原内容。"
+          action={<Switch checked={config.restoreClipboard} onCheckedChange={(checked) => savePatch({ restoreClipboard: checked }, { silent: true })} />}
+        />
         <SettingItem
           title="最大文本长度"
           description="超过长度的选区会被跳过，避免误读整页内容。"
@@ -206,59 +185,6 @@ export default function SelectedTextLearningSettings(): JSX.Element {
               value={config.maxTextLength}
               onChange={(event) => setConfig((prev) => ({ ...prev, maxTextLength: clampNumber(event.target.value, prev.maxTextLength, 20, 10000) }))}
               onBlur={(event) => savePatch({ maxTextLength: clampNumber(event.target.value, config.maxTextLength, 20, 10000) }, { silent: true })}
-            />
-          }
-        />
-      </SettingGroup>
-
-      <SettingGroup title="AI">
-        <SettingItem
-          title="提供商"
-          description={selectedProvider?.configured ? '将使用已配置的预设发起解释请求。' : '该提供商可能还没有可用预设。'}
-          action={
-            <Select value={config.providerId} onValueChange={(providerId) => savePatch({ preferredPresetId: undefined, providerId }, { silent: true })}>
-              <SelectTrigger className="w-44 h-8">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {providers.map((provider) => (
-                  <SelectItem key={provider.id} value={provider.id}>
-                    {getProviderLabel(provider)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          }
-        />
-        <SettingItem
-          title="首选预设"
-          description="留空时会自动选择当前提供商可用预设。"
-          action={
-            <Select value={config.preferredPresetId || '__auto__'} onValueChange={(preferredPresetId) => savePatch({ preferredPresetId: preferredPresetId === '__auto__' ? undefined : preferredPresetId }, { silent: true })}>
-              <SelectTrigger className="w-44 h-8">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__auto__">自动选择</SelectItem>
-                {presets.map((preset) => (
-                  <SelectItem key={preset.id} value={preset.id}>
-                    {preset.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          }
-        />
-        <SettingItem
-          title="指定模型"
-          description="可选；留空时使用提供商默认聊天模型。"
-          action={
-            <Input
-              className="w-44 h-8 text-sm"
-              placeholder="默认模型"
-              value={config.modelId || ''}
-              onChange={(event) => setConfig((prev) => ({ ...prev, modelId: event.target.value }))}
-              onBlur={(event) => savePatch({ modelId: event.target.value.trim() || undefined }, { silent: true })}
             />
           }
         />
