@@ -14,6 +14,7 @@ declare module '@aim-packages/window-manager' {
     pluginManager: void;
     chat: void;
     chatOverlay: void;
+    selectedTextExplain: void;
     resourcePreview: void;
     downloadFloating: void;
     pluginDownload: void;
@@ -353,6 +354,29 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       frame: false,
       transparent: true,
       resizable: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      hasShadow: false,
+      backgroundColor: '#00000000',
+      show: false,
+      autoHideMenuBar: true,
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
+    }
+  },
+  selectedTextExplain: {
+    routeHash: 'selected-text-explain',
+    autoCenterOn: 'none',
+    showOnReady: false,
+    openDevTools: false,
+    hideOnClose: true,
+    options: {
+      width: 460,
+      height: 540,
+      minWidth: 360,
+      minHeight: 360,
+      frame: false,
+      transparent: true,
+      resizable: true,
       alwaysOnTop: true,
       skipTaskbar: true,
       hasShadow: false,

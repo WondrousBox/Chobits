@@ -31,6 +31,7 @@ import RecordingPage from './pages/RecordingPage/RecordingPage';
 import ResourcePage from './pages/ResourcePage/ResourcePage';
 import WorkflowPage from './pages/ResourcePage/WorkflowPage';
 import Screenshot from './pages/Screenshot';
+import SelectedTextExplainPage from './pages/SelectedTextExplainPage/SelectedTextExplainPage';
 import WorkspacePage from './pages/SettingsPage/components/Workspace';
 import PluginDownloadPage from './pages/SettingsPage/PluginDownloadPage';
 import PluginPage from './pages/SettingsPage/PluginPage';
@@ -84,6 +85,7 @@ function StandardAppRoutes(): JSX.Element {
           <Route path="/assistant-mini" element={<AssistantPage mode="mini" />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/chat-overlay" element={<ChatPage presentation="overlay" payloadWindowKey="chatOverlay" />} />
+          <Route path="/selected-text-explain" element={<SelectedTextExplainPage />} />
           <Route path="/plugin-manager" element={<PluginPage />} />
           <Route path="/plugin-download" element={<PluginDownloadPage />} />
           <Route path="/workflow" element={<WorkflowBuilderPage />} />

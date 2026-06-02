@@ -140,20 +140,6 @@ function sanitizeChatPayload(payload: unknown): Payload | undefined {
   if (!isRecord(payload)) return undefined;
   const next: Payload = {};
   pickString(payload, next, 'initialMessage', { maxLength: 8000, trim: false });
-  if (Array.isArray(payload.initialMessages)) {
-    const messages = payload.initialMessages
-      .map((item) => {
-        if (!isRecord(item)) return null;
-        const role = readString(item, 'role', { maxLength: 16 });
-        if (role !== 'user' && role !== 'assistant') return null;
-        const content = readString(item, 'content', { maxLength: 8000, trim: false });
-        if (!content) return null;
-        return { role, content };
-      })
-      .filter(Boolean)
-      .slice(0, 8);
-    if (messages.length > 0) next.initialMessages = messages;
-  }
   pickString(payload, next, 'providerId', { maxLength: 120 });
   pickString(payload, next, 'modelId', { maxLength: 160 });
   pickString(payload, next, 'preferredPresetId', { maxLength: 160 });
@@ -171,6 +157,15 @@ function sanitizeChatPayload(payload: unknown): Payload | undefined {
   pickBoolean(payload, next, 'characterPersonaEnabled');
   const overlaySide = readString(payload, 'overlaySide', { maxLength: 16 });
   if (overlaySide === 'left' || overlaySide === 'right') next.overlaySide = overlaySide;
+  return emptyToUndefined(next);
+}
+
+function sanitizeSelectedTextExplainPayload(payload: unknown): Payload | undefined {
+  if (!isRecord(payload)) return undefined;
+  const next: Payload = {};
+  pickString(payload, next, 'text', { maxLength: 4000, trim: false });
+  const trigger = readString(payload, 'trigger', { maxLength: 32 });
+  if (trigger) next.trigger = trigger;
   return emptyToUndefined(next);
 }
 
@@ -201,10 +196,10 @@ export const APP_WINDOW_TOOL_DIRECTORY: AppWindowToolEntry[] = [
   {
     key: 'settings',
     title: '设置',
-    description: '打开应用设置页，可跳转到偏好、工作空间、AI、用户画像、提示词、术语、插件、快捷键、代理等分类。',
-    aliases: ['设置', '偏好设置', 'AI 设置', '插件设置', '快捷键', '代理设置', 'settings'],
+    description: '打开应用设置页，可跳转到偏好、工作空间、AI、用户画像、提示词、术语、划词学习、插件、快捷键、代理等分类。',
+    aliases: ['设置', '偏好设置', 'AI 设置', '划词学习设置', '插件设置', '快捷键', '代理设置', 'settings'],
     payloadFields: [
-      { name: 'category', type: 'preferences | workspace | ai | user-profile | prompt | glossary | plugins | shortcuts | proxy', description: '设置分类' },
+      { name: 'category', type: 'preferences | workspace | ai | user-profile | prompt | glossary | selected-text-learning | plugins | shortcuts | proxy', description: '设置分类' },
       { name: 'tab', type: 'provider', description: '打开 AI 设置时切到提供商配置入口' },
       { name: 'aiProviderId', type: 'string', description: '打开 AI 设置时聚焦的提供商 ID' },
       { name: 'aiPresetId', type: 'string', description: '打开 AI 设置时展开的提供商预设 ID' }
@@ -238,6 +233,17 @@ export const APP_WINDOW_TOOL_DIRECTORY: AppWindowToolEntry[] = [
     aliases: ['侧边聊天', '浮层聊天', 'overlay chat'],
     payloadFields: [...chatPayloadFields, { name: 'overlaySide', type: 'left | right', description: '浮层出现侧' }],
     sanitizePayload: sanitizeChatPayload
+  },
+  {
+    key: 'selectedTextExplain',
+    title: 'Selected text explain',
+    description: 'Open the lightweight selected-text English explanation floating window.',
+    aliases: ['selected text explain', 'selection explain', 'selected text translation', '划词解释', '划词翻译'],
+    payloadFields: [
+      { name: 'text', type: 'string', description: 'Selected English text to explain', required: true },
+      { name: 'trigger', type: 'string', description: 'Trigger source' }
+    ],
+    sanitizePayload: sanitizeSelectedTextExplainPayload
   },
   {
     key: 'assistant',

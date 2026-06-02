@@ -13,6 +13,7 @@ import type {
   ProviderPresetCreatePayload,
   ProviderPresetUpdatePatch,
   PushedCard,
+  SelectedTextExplainRequest,
   SummarizeRequest,
   TranscriptionRequest,
   TranslateRequest,
@@ -359,6 +360,13 @@ export const aiBridge = {
   },
   async cancelMindmap(requestId: string) {
     return ipcRenderer.invoke('ai:cancelMindmap', { requestId });
+  },
+  async explainSelectedText(payload: SelectedTextExplainRequest) {
+    const res = await ipcRenderer.invoke('ai:selectedTextExplain', normalizeProviderPreset(payload));
+    return { eventsChannel: res.eventsChannel as string, requestId: res.requestId as string };
+  },
+  async cancelSelectedTextExplain(requestId: string) {
+    return ipcRenderer.invoke('ai:cancelSelectedTextExplain', { requestId });
   },
 
   // ==================== 笔记相关 ====================

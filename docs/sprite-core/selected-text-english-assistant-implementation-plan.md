@@ -1,41 +1,62 @@
-# 选中文本英语学习助手实施文档
+# 选中文本英语助手实施文档
 
 ## 目标
 
-当用户在任意应用中选中文本后，长按 `Ctrl` 达到设定时长，精灵自动尝试读取当前选区。如果文本判断为英语，则朗读原文，并调用 AI 生成中文解释、重点词汇、短语与学习提示，最后通过精灵气泡或浮层展示结果。
+用户在任意可复制文本的应用中选中英文后，长按 `Ctrl` 达到阈值，精灵读取当前选区。如果文本被本地规则判断为英语，则朗读原文，并打开独立的划词解释浮窗。浮窗通过轻量 AI 解释服务流式生成译文、语境解释、重点词汇和用法提示。
 
-第一版采用“剪贴板保护式复制”读取选中文本，不引入 Windows UI Automation 或 native addon。
+第一版使用“剪贴板保护式复制”读取选中文本，不引入 Windows UI Automation、OCR 或新的 native addon。
 
-## 第一版范围与现状
+## 当前设计决策
 
-当前第一版已落地：主进程通过 `GlobalInputMonitor` 复用 `uiohook-napi`，长按 `Ctrl` 后走剪贴板保护式复制，完成英语检测、原文朗读、AI 结构化解释、精灵气泡摘要和 `chatOverlay` 完整解释展示。默认关闭，需要在设置页“划词学习”中开启。
+- 保留单独的“划词学习”设置页，用于配置启用状态、长按时长、朗读、是否打开浮窗、剪贴板恢复、最大文本长度和去重窗口。
+- 不在“划词学习”设置页维护单独的 LLM provider/model/preset。
+- 浮窗复用普通聊天的模型选择配置，也就是 `chat.sel.providerId`、`chat.sel.modelId` 和 `chat.sel.presetId`。
+- 解释展示使用新增的独立窗口 `selectedTextExplain`，不打开 `ChatPage`，不打开 `chatOverlay`，不创建会话，不调用 agent/tool workflow。
+- AI 调用使用新增的轻量 task service：`SelectedTextExplainService`。它只做一次临时 Pi task runtime 流式调用，输出 Markdown 文本。
+- 浮窗打开位置使用触发时的 `screen.getCursorScreenPoint()` 作为锚点，贴近鼠标/选区附近并夹取到当前显示器工作区内。剪贴板保护式复制只能读到文本，第一版不能精确获得外部应用的选区矩形。
+- 解释页在 renderer 侧维护本地 typewriter buffer；即使 provider 只在完成时返回全文，也会按小块逐步展示，避免结果一次性跳出。
+
+## 第一版范围
 
 ### 包含
 
-- 全局监听 `Ctrl` / `Right Ctrl` 按下与松开。
-- 长按阈值触发，默认建议 `1500ms`。
-- 使用剪贴板保护式 `Ctrl+C` 读取外部应用选区文本。
-- 本地英语启发式检测，过滤空文本、中文文本、代码片段和过长文本。
-- 朗读原文，复用现有 `SpriteManager.speak` / `SpeakService`。
-- 调用 AI 生成解释结果。
-- 用精灵 notice/bubble 展示短结果；必要时打开 `chatOverlay` 展示已生成的完整解释。
-- 提供基础设置项：启用开关、长按时长、是否自动朗读、最大文本长度。
+- 监听全局 `Ctrl` / `Right Ctrl` 按下与松开。
+- 长按阈值触发，默认 `1500ms`。
+- 使用保护式 `Ctrl+C` 读取外部应用选区文本，并尽量恢复原剪贴板内容。
+- 本地英语启发式检测，过滤空文本、中文文本、代码片段、路径、URL-only 和过长文本。
+- 复用 `SpriteManager.speak` 朗读选中的英文原文。
+- 打开独立 `selectedTextExplain` 浮窗。
+- 浮窗按触发时鼠标位置附近打开，启动 `ai:selectedTextExplain` 任务并以打字机节奏展示 Markdown 结果。
+- 提供 IPC 调试入口：读取配置、读取选区测试、手动触发、打开最近一次解释窗口。
 
 ### 不包含
 
+- 不做单独 LLM 配置页。
+- 不使用 `ChatPage` / `chatOverlay` 承载划词解释。
+- 不创建聊天会话，不写入聊天历史。
+- 不调用 agent 或工具链。
+- 不做结构化 JSON 解释结果解析。
 - 不做无剪贴板读取模式。
 - 不做 OCR 读取图片/PDF 截图文字。
-- 不覆盖所有高权限窗口或安全输入框。
-- 不在第一版实现复杂词典缓存、历史记录、学习卡片复习。
+- 不在第一版实现学习历史、生词本和复习卡片。
 
-## 现有可复用能力
+## 触发方式
 
-- `uiohook-napi` 已安装，可监听全局键盘与鼠标事件。
-- 当前全局鼠标移动监听在 `electron/main/handlers/window.ts`，用于透明窗口 hover/click-through。
-- 全局快捷键系统在 `electron/main/shortcuts.ts`，但 `globalShortcut` 不适合“单独长按 Ctrl”。
-- 精灵 TTS 在 `packages/sprite-core/manager/sprite-manager.ts` 的 `speak` 与 `showNotice` 中已有完整链路。
-- `chatOverlay` 已扩展支持通过窗口 payload 传入 `initialMessages`，用于直接展示已生成内容，避免同一段文本二次请求 AI。
-- 精灵气泡独立窗口 `spriteBubbleFixedTop` 已支持跟随主精灵展示消息。
+1. 在任意可复制文本的应用中选中一段英文。
+2. 松开鼠标后，单独按住 `Ctrl`。
+3. 持续约 `1.5s`。
+4. 主进程模拟 `Ctrl+C` 读取当前选区。
+5. 如果文本通过英语检测，精灵朗读原文。
+6. 同时打开 `selectedTextExplain` 浮窗。
+7. 浮窗使用当前聊天模型配置启动轻量解释任务，并流式展示结果。
+
+调试入口：
+
+```ts
+await window.YUA.selectedTextLearning.getStatus();
+await window.YUA.selectedTextLearning.testReadSelection();
+await window.YUA.selectedTextLearning.triggerNow();
+```
 
 ## 总体架构
 
@@ -43,185 +64,196 @@
 flowchart TD
   A["uiohook keydown Ctrl"] --> B["GlobalInputMonitor"]
   B --> C["SelectedTextTriggerService"]
-  C --> D{"held >= threshold?"}
+  C --> D{"held >= holdMs?"}
   D -- no --> C
   D -- yes --> E["ProtectedClipboardSelectionReader"]
   E --> F{"got text?"}
-  F -- no --> G["轻提示或静默"]
+  F -- no --> G["manual notice / hotkey quiet"]
   F -- yes --> H["EnglishTextDetector"]
   H --> I{"looks English?"}
   I -- no --> G
   I -- yes --> J["SelectedTextLearningService"]
-  J --> K["SpriteManager.speak 原文朗读"]
-  J --> L["AI 解释/重点词汇"]
-  L --> M["精灵气泡短结果"]
-  L --> N["chatOverlay 完整结果"]
+  J --> K["SpriteManager.speak original text"]
+  J --> L["windowManager.createOrShow selectedTextExplain"]
+  L --> M["SelectedTextExplainPage reads payload"]
+  M --> N["ai:selectedTextExplain"]
+  N --> O["SelectedTextExplainService"]
+  O --> P["Pi task runtime streamSimple"]
+  P --> Q["renderer-message selected-text:explain"]
+  Q --> R["floating window streams Markdown"]
 ```
 
 ## 模块设计
 
-### 1. GlobalInputMonitor
+### GlobalInputMonitor
 
-已新增：
-
+文件：
 `electron/main/global-input-monitor.ts`
 
 职责：
 
-- 统一管理 `uiohook-napi` 的 `start()` / `stop()`。
-- 允许多个功能订阅事件，避免 hover 监听和长按 Ctrl 互相 `stop()`。
-- 暴露 `onKeyDown`、`onKeyUp`、`onMouseMove` 等订阅方法。
-- 内部维护 listener map 和引用计数。
+- 统一加载和管理 `uiohook-napi`。
+- 支持 `keydown`、`keyup`、`mousemove`、`mousedown`、`mouseup` 多事件订阅。
+- 多个功能共享同一个 hook，避免互相 `start()` / `stop()`。
+- 暴露 `keys`、`keyTap()`、`keyToggle()`，供保护式复制使用。
 - `uiohook-napi` 不可用时仅让订阅失败，不影响主进程启动。
 
-现有 `electron/main/handlers/window.ts` 中 hover monitor 后续应迁移到该服务。
+### SelectedTextTriggerService
 
-### 2. SelectedTextTriggerService
-
-已新增：
-
+文件：
 `electron/main/selected-text/trigger-service.ts`
 
 职责：
 
-- 监听 `UiohookKey.Ctrl` 与 `UiohookKey.CtrlRight`。
-- 第一次 `keydown` 开始计时；重复 `keydown` 不重复启动定时器。
-- `keyup` 清理定时器并重置触发状态。
-- 达到阈值后只触发一次，直到 Ctrl 松开。
-- 最近文本由 `SelectedTextLearningService` 去重，避免同一选区反复触发。
-- 在用户按下其他键、鼠标点击或窗口焦点变化时取消本轮触发。
+- 监听 `Ctrl` 和 `Right Ctrl`。
+- 第一次 `keydown` 开始计时，重复 `keydown` 不重复启动定时器。
+- `keyup`、其他按键或鼠标按下会取消本轮触发。
+- 达到阈值后只触发一次，直到本次 `Ctrl` 松开。
 
-状态机：
+### ProtectedClipboardSelectionReader
 
-```mermaid
-stateDiagram-v2
-  [*] --> Idle
-  Idle --> HoldingCtrl: ctrl down
-  HoldingCtrl --> Idle: ctrl up / cancel
-  HoldingCtrl --> Triggering: threshold reached
-  Triggering --> Triggered: selection read started
-  Triggered --> Idle: ctrl up
-```
-
-### 3. ProtectedClipboardSelectionReader
-
-已新增：
-
+文件：
 `electron/main/selected-text/protected-clipboard-selection-reader.ts`
 
 职责：
 
-- 读取并保存当前剪贴板文本、HTML、RTF、图片等可恢复内容。
-- 模拟 `Ctrl+C`。
-- 短暂等待目标应用写入剪贴板，建议 `120ms`，必要时重试一次。
+- 读取并保存当前剪贴板文本、HTML、RTF、图片等常见内容。
+- 清空剪贴板后模拟 `Ctrl+C`。
+- 等待目标应用写入剪贴板，默认先等 `120ms`，空文本时再等 `180ms`。
 - 读取 `clipboard.readText()`。
 - 尽量恢复原剪贴板内容。
 - 返回 `{ text, source: 'clipboard-copy', restored, elapsedMs }`。
 
-实现细节：
+### EnglishTextDetector
 
-- 使用 Electron `clipboard` 保存/恢复常见格式。
-- 使用 `uIOhook.keyTap(UiohookKey.C, [UiohookKey.Ctrl])` 模拟复制。
-- 复制前后对比剪贴板文本，若没有变化但原剪贴板为空，也允许作为候选文本。
-- 如果目标应用阻止复制或选区为空，返回空文本。
-- 读取期间设置 `busy` 标记，防止并发触发。
-
-注意：
-
-- 第一版会短暂修改系统剪贴板，但应在毫秒级恢复。
-- 如果目标应用复制大对象或图片，恢复可能不完整；设置页需要明确提示。
-- 密码框、安全输入框通常不会返回文本，应静默失败。
-
-### 4. EnglishTextDetector
-
-已新增：
-
+文件：
 `electron/main/selected-text/english-text-detector.ts`
 
-建议规则：
+职责：
 
-- `trim()` 后长度在 `3-2000` 字符内。
-- 至少包含 2 个英文字母，或一个明显英文单词。
-- 拉丁字符占可见字符比例大于 `0.55`。
-- 中文/日文/韩文字符比例低于 `0.2`。
-- 排除明显文件路径、URL-only、JSON-only、代码块-only。
-- 如果包含完整英文句子标点或空格分词，提升置信度。
+- `trim()` 后校验长度，默认最大 `2000` 字符。
+- 要求包含足够英文字符或明显英文单词。
+- CJK 字符占比过高时拒绝。
+- 排除明显路径、URL-only、JSON-only、代码块-only 文本。
+- 返回 `EnglishDetectionResult`，包含 `ok`、`confidence`、`reason` 和 `normalizedText`。
 
-返回：
+### SelectedTextLearningService
 
-```ts
-type EnglishDetectionResult = {
-  ok: boolean;
-  confidence: number;
-  reason?: string;
-  normalizedText?: string;
-};
-```
-
-### 5. SelectedTextLearningService
-
-已新增：
-
+文件：
 `electron/main/selected-text/learning-service.ts`
 
 职责：
 
-- 编排读取文本、检测、朗读、AI 解释和展示。
-- 做请求取消与防抖。
-- 统一错误处理与轻提示。
+- 编排读取选区、英语检测、去重、朗读和打开解释浮窗。
+- 对同一段文本做短时间去重，默认 `8000ms`。
+- 通过 `rememberWindowPayload('selectedTextExplain', { text, trigger, anchor })` 写入窗口 payload。
+- 调用 `windowManager.createOrShow('selectedTextExplain', payload, { beforeShow })`，在显示前按 `anchor` 定位，并在复用已隐藏窗口时再次定位。
 
-推荐输出结构：
+### SelectedTextExplainPage
+
+文件：
+`src/pages/SelectedTextExplainPage/SelectedTextExplainPage.tsx`
+
+职责：
+
+- 读取 `selectedTextExplain` 窗口 payload。
+- 复用 `ChatSelectionProvider` 中的 `providerId`、`modelId`、`presetId`。
+- 如果没有模型，尝试从当前 provider 的模型列表选择第一个模型。
+- 调用 `window.YUA.ai.explainSelectedText()` 启动流式任务。
+- 监听 `renderer-message` 中 `selected-text:explain` 事件。
+- 将 `delta` 和 `completed` 全文写入本地 typewriter buffer，再按小块刷新 Markdown，支持复制、重新生成、关闭。
+
+### SelectedTextExplainService
+
+文件：
+`packages/ai/services/selected-text-explain-service.ts`
+
+职责：
+
+- 管理独立划词解释 task registry。
+- 构造紧凑解释 prompt。
+- 接受 `chatFn` 并流式转发 `delta`。
+- 发出 `connected`、`progress`、`delta`、`completed`、`error`、`done` 事件。
+- 支持取消任务。
+- 记录 provider usage，归类到 `translation/content_processing`。
+
+## 窗口与路由
+
+新增窗口 key：
 
 ```ts
-type SelectedTextLearningResult = {
-  original: string;
-  translation: string;
-  explanation: string;
-  keyWords: Array<{
-    word: string;
-    meaning: string;
-    note?: string;
-  }>;
-  phrases: Array<{
-    phrase: string;
-    meaning: string;
-  }>;
-  usageTips?: string[];
-};
+selectedTextExplain
 ```
 
-AI prompt 要求：
+新增路由：
 
-- 输出中文。
-- 解释简洁，优先帮助理解当前语境。
-- 重点词汇不要超过 6 个。
-- 短语不要超过 4 个。
-- 返回 JSON，便于稳定渲染。
+```tsx
+<Route path="/selected-text-explain" element={<SelectedTextExplainPage />} />
+```
 
-### 6. 展示策略
+窗口特性：
 
-第一版使用两级展示：
+- 约 `460x540`
+- 无边框
+- 透明背景
+- always on top
+- hide on close
+- 可调整大小
 
-- 短文本或 AI 结果摘要：用 `SpriteManager.showNotice` 或 `showToast` 显示。
-- 解释较长：打开 `chatOverlay`，传入 `initialMessages`，直接展示本次后台 AI 已生成的学习结果。
+## IPC 与 preload
 
-可选交互：
+划词读取与设置：
 
-- 气泡按钮：`查看解释`、`关闭`。
-- `查看解释` 打开 `chatOverlay`。
-- `重新朗读` 再次调用 `SpriteManager.speak(original, { showBubble: false })`。
+- `selectedTextLearning:getConfig`
+- `selectedTextLearning:setConfig`
+- `selectedTextLearning:getStatus`
+- `selectedTextLearning:testReadSelection`
+- `selectedTextLearning:triggerNow`
+- `selectedTextLearning:openLatestOverlay`
 
-## 设置项
+AI 解释任务：
 
-建议新增配置文件：
+- `ai:selectedTextExplain`
+- `ai:cancelSelectedTextExplain`
 
+Renderer API：
+
+```ts
+await window.YUA.ai.explainSelectedText({
+  providerId,
+  providerPresetId,
+  model,
+  text,
+  targetLanguage: 'zh-CN',
+  languageNames: { 'zh-CN': '中文' }
+});
+
+await window.YUA.ai.cancelSelectedTextExplain(requestId);
+```
+
+流式事件：
+
+```ts
+{
+  type: 'selected-text:explain',
+  data: {
+    requestId,
+    type: 'delta',
+    data: { text: '...' }
+  }
+}
+```
+
+## 配置
+
+配置文件：
 `<userData>/data/selected-text-learning.json`
 
 默认值：
 
 ```json
 {
-  "enabled": false,
+  "enabled": true,
   "holdMs": 1500,
   "autoSpeak": true,
   "showOverlay": true,
@@ -231,110 +263,37 @@ AI prompt 要求：
 }
 ```
 
-设置页已新增为“划词学习”分类。因为这不是传统快捷键，而是长按修饰键触发，页面文案说明为“长按触发”。
+说明：
 
-## IPC 与 preload
+- `enabled`：是否注册长按 `Ctrl` 监听。
+- `holdMs`：长按触发阈值。
+- `autoSpeak`：触发成功后是否朗读原文。
+- `showOverlay`：是否打开独立解释浮窗。
+- `maxTextLength`：英语检测允许的最大文本长度。
+- `restoreClipboard`：读取完成后是否恢复剪贴板。
+- `dedupeWindowMs`：同一段文本短时间内不重复触发。
 
-已新增主进程 IPC：
-
-- `selectedTextLearning:getConfig`
-- `selectedTextLearning:setConfig`
-- `selectedTextLearning:getStatus`
-- `selectedTextLearning:testReadSelection`
-- `selectedTextLearning:triggerNow`
-- `selectedTextLearning:openLatestOverlay`
-
-preload 暴露在：
-
-`window.YUA.selectedTextLearning`
-
-用途：
-
-- 设置页读写配置。
-- 调试按钮手动测试选区读取。
-- 后续 UI 可主动触发。
-
-## 生命周期
-
-应用启动后：
-
-1. 初始化配置。
-2. 如果 `enabled = true`，启动 `SelectedTextTriggerService`。
-3. 设置变更时动态启停监听。
-4. 应用退出时取消定时器、移除订阅。
-
-触发流程：
-
-1. 用户选中文本。
-2. 用户长按 Ctrl。
-3. 到阈值后读取选区。
-4. 恢复剪贴板。
-5. 本地判断英语。
-6. 先朗读原文。
-7. 同时或随后请求 AI 解释。
-8. 展示解释摘要，必要时打开浮层。
-
-## 风险与处理
-
-| 风险 | 处理 |
-| --- | --- |
-| 剪贴板恢复不完整 | 保存 text/html/rtf/image 等常见格式；设置中说明；提供关闭开关 |
-| 目标应用复制慢 | 等待 120ms 后读取，失败可再等 180ms 重试一次 |
-| 长按 Ctrl 影响用户正常快捷键 | 只有单独 Ctrl 按住才计时；按下其他键取消 |
-| 误判代码为英语 | 增加代码/JSON/path/URL 检测；允许用户关闭 |
-| 高权限应用无法复制 | 静默失败或轻提示“不支持当前窗口” |
-| AI 请求慢 | 先朗读和展示“解析中”；AI 完成后更新气泡或打开 overlay |
-| 和 hover monitor 争用 uiohook | 先抽 GlobalInputMonitor 统一订阅 |
-
-## 实施步骤
-
-### 阶段 1：输入监听基础设施
-
-- [x] 抽出 `GlobalInputMonitor`。
-- [x] 将现有 hover mousemove 迁移为订阅模式。
-- [ ] 验证透明窗口 hover/click-through 行为不回退。
-
-### 阶段 2：剪贴板读取与检测
-
-- [x] 实现 `ProtectedClipboardSelectionReader`。
-- [x] 实现 `EnglishTextDetector`。
-- [x] 增加 `testReadSelection` IPC，方便设置页或开发者测试。
-
-### 阶段 3：长按 Ctrl 触发
-
-- [x] 实现 `SelectedTextTriggerService`。
-- [x] 支持配置启停、长按阈值、去重窗口。
-- [x] 加基础日志，记录启动/触发失败等原因。
-
-### 阶段 4：AI 与精灵展示
-
-- [x] 实现 `SelectedTextLearningService`。
-- [x] 复用 `SpriteManager.speak` 朗读原文。
-- [x] 调用现有 AI chat/ephemeral 能力生成 JSON 解释。
-- [x] 用气泡展示摘要，用 `chatOverlay` 展示完整内容。
-
-### 阶段 5：设置页与验收
-
-- [x] 新增设置项。
-- [x] 加手动测试按钮。
-- [ ] 验证浏览器、VS Code、记事本、PDF 阅读器、聊天软件输入框等常见场景。
+该配置不包含 LLM provider、model 或 preset。
 
 ## 验收清单
 
-- 关闭功能时不注册长按 Ctrl 监听。
-- 长按 Ctrl 超过阈值才触发，短按不触发。
-- 按住 Ctrl 后再按其他键不会触发。
-- 成功读取外部应用选中文本后，原剪贴板能恢复。
-- 非英语文本不触发 AI 与 TTS。
-- 英语文本会朗读原文。
-- AI 解释包含中文解释、重点词汇和短语。
+- 长按 `Ctrl` 超过阈值才触发，短按不触发。
+- 按住 `Ctrl` 后再按其他键不会触发。
+- 成功读取外部应用选中文本后，原剪贴板尽量恢复。
+- 非英文文本不触发朗读和解释浮窗。
+- 英文文本会朗读原文。
+- 打开的是 `selectedTextExplain` 独立窗口，不是 `chatOverlay`。
+- 解释由 `ai:selectedTextExplain` 流式返回。
+- 即使上游只返回 `completed.text`，解释页也会显示可见的打字机效果。
+- 浮窗会出现在触发时鼠标/选区附近，并保持在当前显示器工作区内。
+- 不创建聊天会话，不调用 agent，不执行工具。
+- 解释浮窗复用普通聊天当前模型配置。
 - 同一段文本短时间内不会重复触发。
 - `uiohook` 失败时应用仍能正常启动。
-- 现有精灵 hover/click-through 行为不受影响。
 
 ## 后续升级方向
 
-- Windows UI Automation 无剪贴板读取模式。
+- Windows UI Automation 无剪贴板读取模式，并获取精确选区矩形用于贴边定位。
 - OCR 选区/截图识别模式。
 - 生词本与学习历史。
 - 单词点击发音。

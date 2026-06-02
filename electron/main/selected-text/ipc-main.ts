@@ -34,7 +34,7 @@ function getStatus(targetRuntime = getRuntime()): SelectedTextLearningStatus {
   const config = targetRuntime.configStore.load();
   return {
     available: globalInputMonitor.available,
-    enabled: config.enabled,
+    enabled: config.enabled && targetRuntime.triggerService.isActive(),
     running: targetRuntime.learningService.isRunning()
   };
 }
@@ -46,12 +46,7 @@ export function getSelectedTextLearningRuntime(): SelectedTextLearningRuntime | 
 export function initSelectedTextLearningHandlers(win: BrowserWindow): void {
   const configStore = new SelectedTextLearningConfigStore();
   const learningService = new SelectedTextLearningService({
-    getConfig: () => configStore.load(),
-    getMainWindow: () => {
-      if (win && !win.isDestroyed()) return win;
-      const fallback = BrowserWindow.getAllWindows().find((item) => !item.isDestroyed());
-      return fallback ?? null;
-    }
+    getConfig: () => configStore.load()
   });
   const triggerService = new SelectedTextTriggerService({
     getConfig: () => configStore.load(),

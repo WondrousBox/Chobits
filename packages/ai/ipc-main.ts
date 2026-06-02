@@ -11,6 +11,7 @@ import {
   cleanupTranslationResources,
   deleteTranslationSegment,
   executeMindmap,
+  executeSelectedTextExplain,
   executeSubtitleTranslation,
   executeSummarize,
   insertTranslationSegment,
@@ -42,6 +43,7 @@ import { getProvider, listAgents, listProviders } from './registry';
 import { PiExecutionService } from './runtime/pi/execution-service';
 import { createSkillRegistry, getSkillSourceInfo } from './runtime/pi/skills';
 import { SummaryService } from './services/summary-service';
+import { SelectedTextExplainService } from './services/selected-text-explain-service';
 import { TaggingService } from './services/tagging-service';
 import { TranslationService } from './services/translation-service';
 import {
@@ -521,6 +523,14 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
   // 取消脑图生成
   ipcMain.handle('ai:cancelMindmap', async (_e, payload: { requestId: string }) => {
     return { ok: cancelMindmap(payload.requestId) };
+  });
+
+  ipcMain.handle('ai:selectedTextExplain', async (_e, payload: any) => {
+    return executeSelectedTextExplain(payload);
+  });
+
+  ipcMain.handle('ai:cancelSelectedTextExplain', async (_e, payload: { requestId: string }) => {
+    return { ok: SelectedTextExplainService.cancel(payload.requestId) };
   });
 
   // ==================== 笔记相关 ====================

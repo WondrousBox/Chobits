@@ -55,18 +55,9 @@ interface ChatUiMessage {
   usage?: TokenUsage;
 }
 
-function normalizeInitialMessages(value: unknown): ChatUiMessage[] {
-  if (!Array.isArray(value)) return [];
-  const messages: ChatUiMessage[] = [];
-  for (const item of value) {
-    const record = item && typeof item === 'object' ? (item as Record<string, unknown>) : {};
-    const role = record.role === 'user' || record.role === 'assistant' ? record.role : null;
-    const content = typeof record.content === 'string' ? record.content : '';
-    if (!role || !content.trim()) continue;
-    const createdAt = typeof record.createdAt === 'number' ? record.createdAt : Date.now();
-    messages.push({ content, createdAt, role });
-  }
-  return messages;
+async function resolveInitialChatModelId(providerId: string, presetId?: string): Promise<string> {
+  const models = await window.YUA.ai.listModels(providerId, presetId).catch(() => []);
+  return models.find((item) => item?.type === 'chat')?.id || models[0]?.id || '';
 }
 
 export default function ChatPage({ hideTitleBar = false, presentation = 'standard', payloadWindowKey = 'chat' }: ChatPageProps): JSX.Element {
@@ -288,8 +279,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
   // Listen for initial message from assistant window (on:window:open:ready)
   useEffect(() => {
     const handlePayload = (payload: any): void => {
-      const initialMessages = normalizeInitialMessages(payload?.initialMessages);
-      if (!payload?.initialMessage && initialMessages.length === 0) return;
+      if (!payload?.initialMessage) return;
       // 清除缓存 payload，防止关闭后再次打开时重复触发
       window.ipcRenderer?.invoke('window:payload:clear', payloadWindowKey).catch(() => { });
       if (isOverlay) {
@@ -305,10 +295,6 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
       }
       // 重置为新对话状态
       newConversation();
-      if (initialMessages.length > 0) {
-        setMessages(initialMessages);
-        return;
-      }
       // 延迟一帧确保状态已重置，再发起对话
       setTimeout(() => {
         if (payload.providerId) {
@@ -431,14 +417,13 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
   }): Promise<void> => {
     const content = params.content;
     const selectedProviderId = params.providerId || providerId;
-    const selectedModelId = params.modelId || modelId;
     const preferredPresetId = params.preferredPresetId || presetId;
     const selectedAgentId = params.agentId || agentId;
     const selectedCodingWorkspaceRoot = params.codingWorkspaceRoot || codingWorkspaceRoot;
     const selectedCodingWorkspaceLabel = params.codingWorkspaceLabel || codingWorkspaceLabel;
     const explicitSkillInvocation = buildExplicitSkillInvocationInput(selectedAgentId, content);
 
-    if (!content.trim() || !selectedProviderId || !selectedModelId) return;
+    if (!content.trim() || !selectedProviderId) return;
 
     const placeholderTitle = !conversationId ? buildConversationPlaceholderTitle(content) : '';
 
@@ -450,9 +435,16 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
       return;
     }
 
+    const selectedModelId = params.modelId || modelId || (await resolveInitialChatModelId(resolvedPreset.providerId || selectedProviderId, resolvedPreset.id));
+    if (!selectedModelId) {
+      setPendingConversationTitle(null);
+      toast.error('当前服务商没有可用的对话模型');
+      return;
+    }
+
     setPendingConversationTitle(placeholderTitle || null);
 
-    setProviderId(selectedProviderId);
+    setProviderId(resolvedPreset.providerId || selectedProviderId);
     setModelId(selectedModelId);
     if (resolvedPreset.id !== preferredPresetId) {
       setPresetId(resolvedPreset.id);
@@ -477,7 +469,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
         conversationId,
         messages: history as any,
         agentId: selectedAgentId,
-        providerId: selectedProviderId,
+        providerId: resolvedPreset.providerId || selectedProviderId,
         providerPresetId: resolvedPreset.id,
         stream: true,
         extras: {

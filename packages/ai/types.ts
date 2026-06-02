@@ -348,6 +348,17 @@ export type MindmapRequest = ProviderScopedRequest & {
   options?: any;
   metadata?: any;
 };
+export type SelectedTextExplainRequest = ProviderScopedRequest & {
+  model: string;
+  text: string;
+  targetLanguage?: string;
+  languageNames?: Record<string, string>;
+  metadata?: Record<string, any>;
+  options?: {
+    maxChars?: number;
+    promptTemplate?: string;
+  };
+};
 export type ActiveAiTaskSnapshot = {
   requestId: string;
   providerId: string;
@@ -723,6 +734,8 @@ export type AIApi = {
   getResourceMindmap(resourceId: string): Promise<{ markdown: string } | null>;
   generateMindmap(payload: MindmapRequest): Promise<{ requestId: string }>;
   cancelMindmap(requestId: string): Promise<{ ok: boolean }>;
+  explainSelectedText(payload: SelectedTextExplainRequest & { requestId?: string }): Promise<{ eventsChannel: string; requestId: string }>;
+  cancelSelectedTextExplain(requestId: string): Promise<{ ok: boolean }>;
 
   // ==================== 笔记相关 ====================
 
