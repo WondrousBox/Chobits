@@ -356,6 +356,7 @@ export type SelectedTextExplainRequest = ProviderScopedRequest & {
   metadata?: Record<string, any>;
   options?: {
     maxChars?: number;
+    mode?: 'detail' | 'quick';
     promptTemplate?: string;
   };
 };
