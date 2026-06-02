@@ -13,10 +13,6 @@ const MAX_STORED_SENT_EMOJIS = 500;
 const MAX_SEARCH_CANDIDATES = 200;
 const RANDOM_FALLBACK_LIMIT = 200;
 const SPRITE_BUBBLE_EMOJI_DURATION_MS = 6000;
-// Minimum score for a search hit to be considered relevant. Below this we'd rather tell
-// the model "no good match" than send an unrelated meme.
-const MIN_KEYWORD_MATCH_SCORE = 40;
-const NO_MATCH_HINT_LIMIT = 8;
 
 function resolveEmojiDisplayTarget(toolContext?: PiSessionToolContext): EmojiPacksDisplayTarget {
   return toolContext?.resolved?.request?.extras?.emojiPacksDisplayTarget === 'sprite-bubble' ? 'sprite-bubble' : 'chat';
@@ -206,7 +202,7 @@ export function createPiEmojiSendTool(toolContext?: PiSessionToolContext): ToolD
   return {
     chatDisplay: displayTarget === 'sprite-bubble' ? PI_HIDDEN_TOOL_DISPLAY : PI_CONTENT_ONLY_TOOL_DISPLAY,
     description:
-      'Send one meme/emoji image. `query` must be 2-5 space-separated **concrete** keywords likely to appear in a meme file name — prefer concrete actions/objects/onomatopoeia/internet slang (e.g. "哭 委屈 猫", "哈哈 笑死 拍桌", "摆烂 躺平", "鞠躬 谢谢") over abstract feelings ("开心"/"难过"). The tool already expands common synonyms internally. If nothing relevant is found the call returns success:false with sample available titles — read them, retry with better keywords, or skip sending. Omit `query` to pick a random emoji intentionally. Send at most 1 emoji per turn; skip the call when no emoji really fits.',
+      'Send one meme/emoji image to the configured display surface. Provide a short literal `query` describing keywords/emotion/scene (e.g. "开心 庆祝", "猫猫 哭"); the tool searches imported packs internally and randomly picks a suitable image. Omit `query` to pick a random emoji. Use only when an emoji actually fits the reply; do not call multiple times per turn.',
     label: 'emojiSendTool',
     name: 'emojiSendTool',
     parameters: emojiSendParameters,
@@ -219,32 +215,22 @@ export function createPiEmojiSendTool(toolContext?: PiSessionToolContext): ToolD
       const allowRepeat = Boolean(input.allowRepeat);
 
       let rawCandidates: EmojiPackSearchResult[];
-      let isRandomMode = false;
       if (query) {
         rawCandidates = await searchEmojiPacks({ limit: MAX_SEARCH_CANDIDATES, packId, query });
-        // Keep only relevant hits — drop the score=40 "any substring anywhere" tail and below.
-        rawCandidates = rawCandidates.filter((item) => item.score >= MIN_KEYWORD_MATCH_SCORE);
+        // No keyword match — fall back to a random pick from imported packs so we still try to send something.
+        if (!rawCandidates.length) {
+          rawCandidates = await collectRandomFallbackCandidates(packId);
+        }
       } else {
-        isRandomMode = true;
         rawCandidates = await collectRandomFallbackCandidates(packId);
       }
 
       if (!rawCandidates.length) {
-        if (isRandomMode) {
-          return createJsonToolResult({
-            error: 'No imported emoji packs available. Import an emoji pack before using emojiSendTool.',
-            success: false
-          });
-        }
-        // No relevant match — surface a few real titles so the model can retry with better keywords or skip.
-        const hintPool = await collectRandomFallbackCandidates(packId);
-        const sampleTitles = Array.from(new Set(hintPool.map((item) => item.title))).slice(0, NO_MATCH_HINT_LIMIT);
-        return createJsonToolResult({
-          error: 'No emoji matched the given keywords. Retry with more concrete words from the sample titles, or skip sending an emoji this turn.',
-          query,
-          sampleTitles,
+        const details = {
+          error: 'No imported emoji packs available. Import an emoji pack before using emojiSendTool.',
           success: false
-        });
+        };
+        return createJsonToolResult(details);
       }
 
       const ranked: RankedEmojiCandidate[] = rawCandidates.map((item) => {
@@ -259,19 +245,32 @@ export function createPiEmojiSendTool(toolContext?: PiSessionToolContext): ToolD
 
       let selected = pickTieredRandom(eligible);
 
-      // For random mode, allow falling back to a repeat so we still send something.
-      if (!selected && isRandomMode) {
+      // If every match was already sent, fall back to a random unsent emoji from the preferred pack.
+      if (!selected && !allowRepeat) {
+        const fallbackRaw = await collectRandomFallbackCandidates(packId);
+        const fallbackUnsent = fallbackRaw.filter((item) => {
+          const key = emojiKey(item.packId, item.relativePath);
+          return !(key && state.sentKeys.has(key));
+        });
+        const fallback = pickRandom(fallbackUnsent);
+        if (fallback) {
+          selected = { ...fallback, alreadySent: false };
+        }
+      }
+
+      // Last resort: allow a repeat from the full ranked pool so we still send something.
+      if (!selected) {
         const fallback = pickRandom(ranked);
         if (fallback) selected = fallback;
       }
 
       if (!selected) {
-        // All keyword matches were already sent this conversation.
-        return createJsonToolResult({
-          error: 'All relevant emojis for these keywords were already sent in this conversation. Pass allowRepeat:true to resend, or skip.',
+        const details = {
+          error: 'No emoji candidate could be selected.',
           query: query || undefined,
           success: false
-        });
+        };
+        return createJsonToolResult(details);
       }
 
       const emoji = await resolveEmojiFromPack({
