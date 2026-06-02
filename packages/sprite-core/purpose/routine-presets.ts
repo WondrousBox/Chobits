@@ -511,7 +511,6 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStep[] {
 function createOnboardingFileDropRoutineSteps(): SpriteRoutineStep[] {
   return [
     { id: 'attention-wave', type: 'playAnimation', trigger: 'wave', durationMs: 900, waitFor: 'duration', silent: true },
-    { id: 'walk-drop-target', type: 'walkTo', target: 'center', speed: 130, timeoutMs: 8000 },
     {
       id: 'invite-file-drop-notice',
       type: 'showNotice',
