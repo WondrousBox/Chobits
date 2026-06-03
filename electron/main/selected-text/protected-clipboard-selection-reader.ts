@@ -10,8 +10,25 @@ type ClipboardSnapshot = {
   text?: string;
 };
 
+type CopyShortcut = {
+  key: number;
+  label: string;
+  modifiers: number[];
+};
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function resolveSelectionCopyShortcut(keys: Record<string, number> | null, platform: NodeJS.Platform = process.platform): CopyShortcut | null {
+  const c = keys?.C;
+  const modifier = platform === 'darwin' ? keys?.Meta : keys?.Ctrl;
+  if (!c || !modifier) return null;
+  return {
+    key: c,
+    label: platform === 'darwin' ? 'Command+C' : 'Ctrl+C',
+    modifiers: [modifier]
+  };
 }
 
 function readClipboardSnapshot(): ClipboardSnapshot {
@@ -66,17 +83,15 @@ export class ProtectedClipboardSelectionReader {
     let restored = false;
 
     try {
-      const keys = globalInputMonitor.keys;
-      const ctrl = keys?.Ctrl;
-      const c = keys?.C;
-      if (!ctrl || !c) {
+      const shortcut = resolveSelectionCopyShortcut(globalInputMonitor.keys);
+      if (!shortcut) {
         throw new Error('uiohook key map unavailable');
       }
 
       clipboard.clear();
-      const tapped = globalInputMonitor.keyTap(c, [ctrl]);
+      const tapped = globalInputMonitor.keyTap(shortcut.key, shortcut.modifiers);
       if (!tapped) {
-        throw new Error('failed to send Ctrl+C');
+        throw new Error(`failed to send ${shortcut.label}`);
       }
 
       await sleep(timeoutMs);
