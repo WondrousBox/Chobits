@@ -1,11 +1,11 @@
 import { windowManager } from '@aim-packages/window-manager';
-import { screen, type BrowserWindow } from 'electron';
+import { type BrowserWindow, screen } from 'electron';
 
 import { SpriteManager } from '../../../packages/sprite-core/manager';
 import { rememberWindowPayload } from '../handlers/window-events';
 import { detectEnglishText } from './english-text-detector';
 import { ProtectedClipboardSelectionReader } from './protected-clipboard-selection-reader';
-import type { SelectedTextLearningConfig, SelectedTextLearningRunResult } from './types';
+import type { SelectedTextLearningConfig, SelectedTextLearningPreparedSelection, SelectedTextLearningRunResult, SelectionReadResult } from './types';
 
 type ScreenPoint = {
   x: number;
@@ -58,6 +58,7 @@ export class SelectedTextLearningService {
   private lastTextAt = 0;
   private running = false;
   private latestText = '';
+  private triggerSeq = 0;
 
   constructor(private readonly deps: LearningServiceDeps) {}
 
@@ -79,25 +80,33 @@ export class SelectedTextLearningService {
     try {
       const config = this.deps.getConfig();
       const read = await this.reader.readSelection({ restoreClipboard: config.restoreClipboard });
-      if (!read.text) {
-        if (trigger === 'manual') this.showNotice('No selected text was read.', 'warning');
-        return { ok: false, read, skipped: true };
-      }
+      const prepared = this.prepareReadResult(read, config, trigger);
+      if (!prepared) return this.createSkippedRunResult(read, config);
+      return await this.executePreparedSelection(prepared, trigger);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.showNotice(`Selected text explain failed: ${message}`, 'error');
+      return { error: message, ok: false };
+    } finally {
+      this.running = false;
+    }
+  }
 
-      const detection = detectEnglishText(read.text, { maxLength: config.maxTextLength });
-      if (!detection.ok || !detection.normalizedText) {
-        if (trigger === 'manual') this.showNotice('The selected text does not look like English.', 'warning');
-        return { detection, ok: false, read, skipped: true };
-      }
+  async prepareSelectionForHotkey(options: { usePhysicalCtrlShortcut?: boolean } = {}): Promise<SelectedTextLearningPreparedSelection | null> {
+    const config = this.deps.getConfig();
+    const read = await this.reader.readSelection({
+      restoreClipboard: config.restoreClipboard,
+      usePhysicalCtrlShortcut: options.usePhysicalCtrlShortcut
+    });
+    return this.prepareReadResult(read, config, 'hotkey');
+  }
 
-      if (this.isDuplicate(detection.normalizedText, config.dedupeWindowMs)) {
-        return { detection, ok: false, read, skipped: true };
-      }
+  async runPreparedSelection(prepared: SelectedTextLearningPreparedSelection, trigger: 'hotkey' | 'manual' = 'hotkey'): Promise<SelectedTextLearningRunResult> {
+    if (this.running) return { error: 'busy', ok: false, skipped: true };
+    this.running = true;
 
-      this.lastText = detection.normalizedText;
-      this.lastTextAt = Date.now();
-      await this.handleEnglishText(detection.normalizedText, config, trigger);
-      return { detection, ok: true, read };
+    try {
+      return await this.executePreparedSelection(prepared, trigger);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.showNotice(`Selected text explain failed: ${message}`, 'error');
@@ -111,6 +120,43 @@ export class SelectedTextLearningService {
     if (!this.latestText) return false;
     await this.openOverlay(this.latestText, 'manual');
     return true;
+  }
+
+  private prepareReadResult(read: SelectionReadResult, config: SelectedTextLearningConfig, trigger: 'hotkey' | 'manual'): SelectedTextLearningPreparedSelection | null {
+    if (!read.text) {
+      if (trigger === 'manual') this.showNotice('No selected text was read.', 'warning');
+      return null;
+    }
+
+    const detection = detectEnglishText(read.text, { maxLength: config.maxTextLength });
+    if (!detection.ok || !detection.normalizedText) {
+      if (trigger === 'manual') this.showNotice('The selected text does not look like English.', 'warning');
+      return null;
+    }
+
+    return {
+      detection,
+      read,
+      text: detection.normalizedText
+    };
+  }
+
+  private createSkippedRunResult(read: SelectionReadResult, config: SelectedTextLearningConfig): SelectedTextLearningRunResult {
+    if (!read.text) return { ok: false, read, skipped: true };
+    const detection = detectEnglishText(read.text, { maxLength: config.maxTextLength });
+    return { detection, ok: false, read, skipped: true };
+  }
+
+  private async executePreparedSelection(prepared: SelectedTextLearningPreparedSelection, trigger: 'hotkey' | 'manual'): Promise<SelectedTextLearningRunResult> {
+    const config = this.deps.getConfig();
+    if (this.isDuplicate(prepared.text, config.dedupeWindowMs)) {
+      return { detection: prepared.detection, ok: false, read: prepared.read, skipped: true };
+    }
+
+    this.lastText = prepared.text;
+    this.lastTextAt = Date.now();
+    await this.handleEnglishText(prepared.text, config, trigger);
+    return { detection: prepared.detection, ok: true, read: prepared.read };
   }
 
   private async handleEnglishText(text: string, config: SelectedTextLearningConfig, trigger: 'hotkey' | 'manual'): Promise<void> {
@@ -134,7 +180,8 @@ export class SelectedTextLearningService {
     const payload = {
       anchor,
       text,
-      trigger
+      trigger,
+      triggerId: `${Date.now()}-${++this.triggerSeq}`
     };
     rememberWindowPayload('selectedTextExplain', payload);
     const opened = await windowManager.createOrShow('selectedTextExplain' as any, payload, {

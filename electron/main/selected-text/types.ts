@@ -33,6 +33,12 @@ export type SelectedTextLearningRunResult = {
   skipped?: boolean;
 };
 
+export type SelectedTextLearningPreparedSelection = {
+  detection: EnglishDetectionResult;
+  read: SelectionReadResult;
+  text: string;
+};
+
 export type SelectedTextLearningStatus = {
   available: boolean;
   enabled: boolean;

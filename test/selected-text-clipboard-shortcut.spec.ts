@@ -34,4 +34,14 @@ describe('selected text clipboard shortcut', () => {
       modifiers: [29]
     });
   });
+
+  it('taps only C on non-macOS when Ctrl is already physically held', async () => {
+    const { resolveSelectionCopyShortcut } = await import('../electron/main/selected-text/protected-clipboard-selection-reader');
+
+    expect(resolveSelectionCopyShortcut({ C: 46, Ctrl: 29, Meta: 3675 }, 'win32', { usePhysicalCtrlShortcut: true })).toEqual({
+      key: 46,
+      label: 'Ctrl+C',
+      modifiers: []
+    });
+  });
 });

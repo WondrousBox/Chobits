@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 
+import { SpriteManager } from '../../../packages/sprite-core/manager';
 import { globalInputMonitor } from '../global-input-monitor';
 import { SelectedTextLearningConfigStore } from './config-store';
 import { SelectedTextLearningService } from './learning-service';
@@ -44,14 +45,24 @@ export function getSelectedTextLearningRuntime(): SelectedTextLearningRuntime | 
 }
 
 export function initSelectedTextLearningHandlers(win: BrowserWindow): void {
+  void win;
   const configStore = new SelectedTextLearningConfigStore();
   const learningService = new SelectedTextLearningService({
     getConfig: () => configStore.load()
   });
   const triggerService = new SelectedTextTriggerService({
     getConfig: () => configStore.load(),
-    onTrigger: async () => {
-      await learningService.runFromSelection('hotkey');
+    prepareSelection: (options) => learningService.prepareSelectionForHotkey(options),
+    onTrigger: async (selection) => {
+      await learningService.runPreparedSelection(selection, 'hotkey');
+    },
+    showProgress: (progress, message) => {
+      const sprite = SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
+      sprite?.updateBusy(progress, message);
+    },
+    clearProgress: () => {
+      const sprite = SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
+      sprite?.clearBusy();
     }
   });
 
