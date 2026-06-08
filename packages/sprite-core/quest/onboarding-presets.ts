@@ -189,7 +189,7 @@ export function createWorkspaceCreateQuest(deps: OnboardingPresetDeps): Onboardi
     goal: WORKSPACE_EXISTS_GUIDE_GOAL,
     recommendation: {
       questId: 'first-file-drop',
-      prompt: '工作空间准备好了。要不要接着试试把第一个文件拖给我？',
+      prompt: '要不要接着试试把第一个文件拖给我？',
       confirmLabel: '继续',
       cancelLabel: '稍后'
     },
