@@ -306,9 +306,7 @@ function SpriteAnimationConfigEditor({
 }
 
 const PLAYLIST_MODE_OPTIONS: Array<{ value: SpriteAnimationPlaylistMode; label: string }> = [
-  { value: 'single-loop', label: '单个循环' },
   { value: 'list-loop', label: '列表循环' },
-  { value: 'single-once', label: '单个播放' },
   { value: 'list-once', label: '列表播放' }
 ];
 

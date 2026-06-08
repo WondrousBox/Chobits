@@ -123,12 +123,12 @@ describe('sprite preload bridge', () => {
     await spriteBridge.getAnimationPlaylistMode();
     await spriteBridge.setAnimationPlaylistMode('list-loop');
     await spriteBridge.getAnimationPlaylistMode('idle');
-    await spriteBridge.setAnimationPlaylistMode('single-once', 'idle');
+    await spriteBridge.setAnimationPlaylistMode('list-once', 'idle');
 
     expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:config:getAnimationPlaylistMode');
     expect(electronHarness.invoke).toHaveBeenNthCalledWith(2, 'sprite:config:setAnimationPlaylistMode', { mode: 'list-loop' });
     expect(electronHarness.invoke).toHaveBeenNthCalledWith(3, 'sprite:config:getAnimationPlaylistMode', { trigger: 'idle' });
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(4, 'sprite:config:setAnimationPlaylistMode', { mode: 'single-once', trigger: 'idle' });
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(4, 'sprite:config:setAnimationPlaylistMode', { mode: 'list-once', trigger: 'idle' });
   });
 
   it('forwards animation completion with an optional playId', async () => {

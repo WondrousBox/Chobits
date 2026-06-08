@@ -118,11 +118,9 @@ interface SpritePresentationOwnerContext {
   priority: number;
 }
 
-type SpriteListPlaylistMode = Extract<SpriteAnimationPlaylistMode, 'list-loop' | 'list-once'>;
-
 interface ActiveAnimationPlaylist {
   trigger: SpriteAnimationTrigger;
-  mode: SpriteListPlaylistMode;
+  mode: SpriteAnimationPlaylistMode;
   entries: AnimationEntry[];
   currentIndex: number;
   sessionMode: 'state-bound' | 'trigger';
@@ -550,10 +548,7 @@ export class SpriteManager {
     return playback?.loopStartMs != null && playback?.loopEndMs != null;
   }
 
-  private resolveAnimationPlaylistMode(trigger?: SpriteAnimationTrigger, options?: SpriteTriggerOptions): SpriteAnimationPlaylistMode {
-    if (options?.playId && !options.allowPlaylistWithPlayId) {
-      return 'single-once';
-    }
+  private resolveAnimationPlaylistMode(trigger?: SpriteAnimationTrigger): SpriteAnimationPlaylistMode {
     const normalizedTrigger = typeof trigger === 'string' ? trigger.trim() : '';
     if (normalizedTrigger) {
       const animationPlaylistModes = normalizeSpriteAnimationPlaylistModeMap(this.spriteConfig.animationPlaylistModes);
@@ -565,11 +560,11 @@ export class SpriteManager {
     return normalizeSpriteAnimationPlaylistMode(this.spriteConfig.animationPlaylistMode);
   }
 
-  private shouldUseListPlaylist(mode: SpriteAnimationPlaylistMode): mode is SpriteListPlaylistMode {
-    return mode === 'list-loop' || mode === 'list-once';
+  private shouldUseListPlaylist(mode: SpriteAnimationPlaylistMode, candidateCount?: number): boolean {
+    return (mode === 'list-loop' || mode === 'list-once') && (candidateCount ?? 0) > 1;
   }
 
-  private resolvePlaybackLoop(playback: AnimationEntry['playback'] | undefined, mode: SpriteAnimationPlaylistMode): boolean {
+  private resolvePlaybackLoop(playback: AnimationEntry['playback'] | undefined): boolean {
     if (this.hasSegmentLoop(playback)) {
       return true;
     }
@@ -583,14 +578,10 @@ export class SpriteManager {
       return true;
     }
 
-    if (mode === 'single-loop') {
-      return true;
-    }
-
     return false;
   }
 
-  private resolvePlaybackLoopCount(playback: AnimationEntry['playback'] | undefined, mode: SpriteAnimationPlaylistMode): number | undefined {
+  private resolvePlaybackLoopCount(playback: AnimationEntry['playback'] | undefined, mode: SpriteAnimationPlaylistMode, candidateCount?: number): number | undefined {
     const explicitLoopCount = playback?.loopCount;
     if (typeof explicitLoopCount === 'number' && Number.isFinite(explicitLoopCount) && explicitLoopCount > 0) {
       return Math.floor(explicitLoopCount);
@@ -600,7 +591,7 @@ export class SpriteManager {
       return undefined;
     }
 
-    if (!this.shouldUseListPlaylist(mode)) {
+    if (!this.shouldUseListPlaylist(mode, candidateCount)) {
       return undefined;
     }
 
@@ -622,8 +613,9 @@ export class SpriteManager {
 
   private playAnimationEntry(anim: AnimationEntry, options: PlayAnimationEntryOptions): void {
     const resolvedDurationMs = options.durationMs ?? anim.playback?.durationMs;
-    const playbackLoop = this.resolvePlaybackLoop(anim.playback, options.playlistMode);
-    const playbackLoopCount = this.resolvePlaybackLoopCount(anim.playback, options.playlistMode);
+    const playlistCandidateCount = options.playlistEntries?.length ?? 0;
+    const playbackLoop = this.resolvePlaybackLoop(anim.playback);
+    const playbackLoopCount = this.resolvePlaybackLoopCount(anim.playback, options.playlistMode, playlistCandidateCount);
 
     this.currentAnimation = {
       playId: options.playId,
@@ -655,7 +647,7 @@ export class SpriteManager {
       if (pb.padding != null) this.spriteConfig.padding = pb.padding;
     }
 
-    if (options.trigger && this.shouldUseListPlaylist(options.playlistMode) && options.playlistEntries?.length) {
+    if (options.trigger && this.shouldUseListPlaylist(options.playlistMode, playlistCandidateCount) && options.playlistEntries?.length) {
       this.activeAnimationPlaylist = {
         trigger: options.trigger,
         mode: options.playlistMode,
@@ -742,7 +734,8 @@ export class SpriteManager {
         personaState: this.personaState.getState()
       });
     }
-    const playlistMode = this.resolveAnimationPlaylistMode(resolvedTrigger, options);
+    const playlistMode = this.resolveAnimationPlaylistMode(resolvedTrigger);
+    const playlistEntries = options?.playId && !options.allowPlaylistWithPlayId ? undefined : candidates;
     const selected = this.selectAnimationFromCandidates(candidates);
     const presentationAllowed = this.canPresentAnimation(options);
     const shouldLogDebug = this.shouldLogTriggerDebug(trigger, options);
@@ -798,7 +791,7 @@ export class SpriteManager {
       this.playAnimationEntry(selected.anim, {
         trigger: resolvedTrigger,
         playlistMode,
-        playlistEntries: candidates,
+        playlistEntries,
         playlistIndex: selected.index,
         sessionMode: 'trigger',
         durationMs: options?.durationMs,
@@ -825,7 +818,7 @@ export class SpriteManager {
     if (!this.canPresentAnimation(options)) return false;
 
     this.playAnimationEntry(anim, {
-      playlistMode: this.resolveAnimationPlaylistMode(anim.eventTypes?.[0], options),
+      playlistMode: this.resolveAnimationPlaylistMode(anim.eventTypes?.[0]),
       sessionMode: 'trigger',
       durationMs: options?.durationMs,
       playId: options?.playId
@@ -2031,7 +2024,7 @@ export class SpriteManager {
   /** 根据当前状态解析并发送动画指令到渲染进程 */
   private resolveAndSendAnimation(state: SpriteState, subState: SpriteReactionState | null, options?: SpriteTriggerOptions): void {
     const trigger = mapStateToEventType(state, subState);
-    const playlistMode = this.resolveAnimationPlaylistMode(trigger, options);
+    const playlistMode = this.resolveAnimationPlaylistMode(trigger);
     const candidates = this.animationRegistry.findCandidatesByTrigger({
       trigger,
       personaState: this.personaState.getState(),
