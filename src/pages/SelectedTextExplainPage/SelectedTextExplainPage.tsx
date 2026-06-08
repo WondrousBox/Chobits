@@ -14,6 +14,7 @@ type SelectedTextExplainPayload = {
   anchor?: { x: number; y: number };
   text?: string;
   trigger?: 'hotkey' | 'manual' | string;
+  triggerId?: string;
 };
 
 type SelectedTextExplainStreamEvent =
@@ -40,6 +41,21 @@ function readSelectionFromPayload(payload: unknown): string {
   if (!payload || typeof payload !== 'object') return '';
   const text = (payload as SelectedTextExplainPayload).text;
   return typeof text === 'string' ? text.trim() : '';
+}
+
+function getPayloadSignature(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') return '';
+  const source = payload as SelectedTextExplainPayload;
+  const text = typeof source.text === 'string' ? source.text.trim() : '';
+  if (!text) return '';
+  if (typeof source.triggerId === 'string' && source.triggerId) return source.triggerId;
+  const anchor = source.anchor;
+  const trigger = typeof source.trigger === 'string' ? source.trigger : '';
+  return JSON.stringify({
+    anchor: anchor ? { x: anchor.x, y: anchor.y } : null,
+    text,
+    trigger
+  });
 }
 
 function getTypewriterChunkSize(pendingLength: number): number {
@@ -84,6 +100,7 @@ export default function SelectedTextExplainPage(): JSX.Element {
   });
   const requestModeRef = useRef<Record<string, ExplainMode>>({});
   const hasStreamErrorRef = useRef(false);
+  const lastHydratedPayloadRef = useRef('');
   const typewriterTimerRef = useRef<number | null>(null);
 
   const canStart = Boolean(sourceText && providerId);
@@ -310,6 +327,9 @@ export default function SelectedTextExplainPage(): JSX.Element {
     (payload: unknown): void => {
       const text = readSelectionFromPayload(payload);
       if (!text) return;
+      const signature = getPayloadSignature(payload);
+      if (signature && signature === lastHydratedPayloadRef.current) return;
+      lastHydratedPayloadRef.current = signature;
       setSourceText(text);
       void startExplain(text, 'quick');
     },

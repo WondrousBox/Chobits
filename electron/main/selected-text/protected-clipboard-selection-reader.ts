@@ -16,14 +16,32 @@ type CopyShortcut = {
   modifiers: number[];
 };
 
+type ReadSelectionOptions = {
+  restoreClipboard?: boolean;
+  timeoutMs?: number;
+  usePhysicalCtrlShortcut?: boolean;
+};
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export function resolveSelectionCopyShortcut(keys: Record<string, number> | null, platform: NodeJS.Platform = process.platform): CopyShortcut | null {
+export function resolveSelectionCopyShortcut(
+  keys: Record<string, number> | null,
+  platform: NodeJS.Platform = process.platform,
+  options: { usePhysicalCtrlShortcut?: boolean } = {}
+): CopyShortcut | null {
   const c = keys?.C;
+  if (!c) return null;
+  if (options.usePhysicalCtrlShortcut && platform !== 'darwin') {
+    return {
+      key: c,
+      label: 'Ctrl+C',
+      modifiers: []
+    };
+  }
   const modifier = platform === 'darwin' ? keys?.Meta : keys?.Ctrl;
-  if (!c || !modifier) return null;
+  if (!modifier) return null;
   return {
     key: c,
     label: platform === 'darwin' ? 'Command+C' : 'Ctrl+C',
@@ -64,7 +82,7 @@ function restoreClipboardSnapshot(snapshot: ClipboardSnapshot): boolean {
 export class ProtectedClipboardSelectionReader {
   private busy = false;
 
-  async readSelection(options: { restoreClipboard?: boolean; timeoutMs?: number } = {}): Promise<SelectionReadResult> {
+  async readSelection(options: ReadSelectionOptions = {}): Promise<SelectionReadResult> {
     if (this.busy) {
       return {
         elapsedMs: 0,
@@ -83,7 +101,9 @@ export class ProtectedClipboardSelectionReader {
     let restored = false;
 
     try {
-      const shortcut = resolveSelectionCopyShortcut(globalInputMonitor.keys);
+      const shortcut = resolveSelectionCopyShortcut(globalInputMonitor.keys, process.platform, {
+        usePhysicalCtrlShortcut: options.usePhysicalCtrlShortcut
+      });
       if (!shortcut) {
         throw new Error('uiohook key map unavailable');
       }

@@ -1,19 +1,37 @@
 import { globalInputMonitor, type UiohookKeyboardEvent } from '../global-input-monitor';
-import type { SelectedTextLearningConfig } from './types';
+import type { SelectedTextLearningConfig, SelectedTextLearningPreparedSelection } from './types';
 
 type TriggerServiceDeps = {
   getConfig: () => SelectedTextLearningConfig;
-  onTrigger: () => void | Promise<void>;
+  prepareSelection: (options?: { usePhysicalCtrlShortcut?: boolean }) => Promise<SelectedTextLearningPreparedSelection | null>;
+  onTrigger: (selection: SelectedTextLearningPreparedSelection) => void | Promise<void>;
+  showProgress?: (progress: number, message?: string) => void;
+  clearProgress?: () => void;
 };
+
+const HOLD_PROGRESS_INTERVAL_MS = 100;
+const POST_TRIGGER_RELEASE_GRACE_MS = 700;
+const PROGRESS_MESSAGE = '长按划词翻译';
 
 function isCtrlKey(event: UiohookKeyboardEvent): boolean {
   const keys = globalInputMonitor.keys;
   return Boolean(keys && (event.keycode === keys.Ctrl || event.keycode === keys.CtrlRight));
 }
 
+function isSelectionReadSyntheticKey(event: UiohookKeyboardEvent): boolean {
+  const keys = globalInputMonitor.keys;
+  return Boolean(keys && (event.keycode === keys.C || event.keycode === keys.Ctrl || event.keycode === keys.CtrlRight || event.keycode === keys.Meta || event.keycode === keys.MetaRight));
+}
+
 export class SelectedTextTriggerService {
   private ctrlDown = false;
   private timer: NodeJS.Timeout | null = null;
+  private progressTimer: NodeJS.Timeout | null = null;
+  private releaseRecoveryTimer: NodeJS.Timeout | null = null;
+  private holdStartedAt = 0;
+  private holdSessionId = 0;
+  private preparedSelection: SelectedTextLearningPreparedSelection | null = null;
+  private selectionReadInFlight = false;
   private triggeredThisHold = false;
   private unsubscribers: Array<() => void> = [];
   private active = false;
@@ -30,7 +48,7 @@ export class SelectedTextTriggerService {
       this.unsubscribers = [
         globalInputMonitor.on('keydown', (event) => this.handleKeyDown(event)),
         globalInputMonitor.on('keyup', (event) => this.handleKeyUp(event)),
-        globalInputMonitor.on('mousedown', () => this.cancelHold())
+        globalInputMonitor.on('mousedown', () => this.handleMouseDown())
       ];
       this.active = true;
       return true;
@@ -59,6 +77,16 @@ export class SelectedTextTriggerService {
       return;
     }
 
+    if (this.triggeredThisHold) {
+      if (isCtrlKey(event)) {
+        this.ctrlDown = true;
+        this.clearReleaseRecoveryTimer();
+      }
+      return;
+    }
+
+    if (this.selectionReadInFlight && isSelectionReadSyntheticKey(event)) return;
+
     if (!isCtrlKey(event)) {
       this.cancelHold();
       return;
@@ -66,36 +94,140 @@ export class SelectedTextTriggerService {
 
     if (this.ctrlDown || this.triggeredThisHold) return;
     this.ctrlDown = true;
-    this.scheduleTrigger();
+    this.holdStartedAt = Date.now();
+    this.preparedSelection = null;
+    this.beginSelectionPreparation(++this.holdSessionId);
   }
 
   private handleKeyUp(event: UiohookKeyboardEvent): void {
     if (!isCtrlKey(event)) return;
+    if (this.triggeredThisHold) {
+      this.scheduleReleaseRecovery();
+      return;
+    }
     this.cancelHold();
   }
 
-  private scheduleTrigger(): void {
+  private handleMouseDown(): void {
+    if (this.triggeredThisHold) {
+      this.clearActiveTimers();
+      return;
+    }
+    this.cancelHold();
+  }
+
+  private beginSelectionPreparation(sessionId: number): void {
+    this.clearActiveTimers();
+    this.selectionReadInFlight = true;
+    void this.deps
+      .prepareSelection({ usePhysicalCtrlShortcut: true })
+      .then((selection) => {
+        if (sessionId !== this.holdSessionId) return;
+        this.selectionReadInFlight = false;
+        if (!this.ctrlDown || this.triggeredThisHold || !this.deps.getConfig().enabled || !selection) {
+          this.preparedSelection = null;
+          this.deps.clearProgress?.();
+          return;
+        }
+        this.preparedSelection = selection;
+        this.startProgress(sessionId);
+        this.scheduleTrigger(sessionId);
+      })
+      .catch((error) => {
+        if (sessionId !== this.holdSessionId) return;
+        this.selectionReadInFlight = false;
+        this.preparedSelection = null;
+        this.deps.clearProgress?.();
+        console.warn('[selected-text] failed to prepare selection:', error);
+      });
+  }
+
+  private scheduleTrigger(sessionId: number): void {
     this.clearTimer();
+    this.clearReleaseRecoveryTimer();
     const holdMs = this.deps.getConfig().holdMs;
+    const elapsed = Date.now() - this.holdStartedAt;
+    const remainingMs = Math.max(0, holdMs - elapsed);
     this.timer = setTimeout(() => {
       this.timer = null;
-      if (!this.ctrlDown || this.triggeredThisHold || !this.deps.getConfig().enabled) return;
-      this.triggeredThisHold = true;
-      void Promise.resolve(this.deps.onTrigger()).catch((error) => {
+      this.triggerPreparedSelection(sessionId);
+    }, remainingMs);
+  }
+
+  private startProgress(sessionId: number): void {
+    this.clearProgressTimer();
+    this.updateProgress(sessionId);
+    this.progressTimer = setInterval(() => this.updateProgress(sessionId), HOLD_PROGRESS_INTERVAL_MS);
+  }
+
+  private updateProgress(sessionId: number): void {
+    if (sessionId !== this.holdSessionId || !this.ctrlDown || this.triggeredThisHold) return;
+    const holdMs = this.deps.getConfig().holdMs;
+    const progress = holdMs > 0 ? Math.min(100, Math.max(0, ((Date.now() - this.holdStartedAt) / holdMs) * 100)) : 100;
+    this.deps.showProgress?.(progress, PROGRESS_MESSAGE);
+    if (progress >= 100) {
+      this.triggerPreparedSelection(sessionId);
+    }
+  }
+
+  private triggerPreparedSelection(sessionId: number): void {
+    if (sessionId !== this.holdSessionId || !this.ctrlDown || this.triggeredThisHold || !this.deps.getConfig().enabled || !this.preparedSelection) return;
+
+    this.triggeredThisHold = true;
+    this.clearActiveTimers();
+    this.deps.showProgress?.(100, PROGRESS_MESSAGE);
+    void Promise.resolve(this.deps.onTrigger(this.preparedSelection))
+      .catch((error) => {
         console.warn('[selected-text] trigger failed:', error);
+      })
+      .finally(() => {
+        if (sessionId === this.holdSessionId) {
+          this.deps.clearProgress?.();
+        }
       });
-    }, holdMs);
+  }
+
+  private scheduleReleaseRecovery(): void {
+    this.clearTimer();
+    this.clearReleaseRecoveryTimer();
+    this.releaseRecoveryTimer = setTimeout(() => {
+      this.releaseRecoveryTimer = null;
+      this.cancelHold();
+    }, POST_TRIGGER_RELEASE_GRACE_MS);
   }
 
   private cancelHold(): void {
+    this.holdSessionId++;
     this.ctrlDown = false;
+    this.selectionReadInFlight = false;
+    this.preparedSelection = null;
     this.triggeredThisHold = false;
+    this.holdStartedAt = 0;
+    this.clearActiveTimers();
+    this.clearReleaseRecoveryTimer();
+    this.deps.clearProgress?.();
+  }
+
+  private clearActiveTimers(): void {
     this.clearTimer();
+    this.clearProgressTimer();
   }
 
   private clearTimer(): void {
     if (!this.timer) return;
     clearTimeout(this.timer);
     this.timer = null;
+  }
+
+  private clearProgressTimer(): void {
+    if (!this.progressTimer) return;
+    clearInterval(this.progressTimer);
+    this.progressTimer = null;
+  }
+
+  private clearReleaseRecoveryTimer(): void {
+    if (!this.releaseRecoveryTimer) return;
+    clearTimeout(this.releaseRecoveryTimer);
+    this.releaseRecoveryTimer = null;
   }
 }
