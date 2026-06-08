@@ -240,6 +240,42 @@ describe('video sprite driver', () => {
     expect(onAnimationComplete).toHaveBeenCalledWith('success-ended', 'full');
   });
 
+  it('reports full completion for whole-clip non-loop playback near the end', () => {
+    const onAnimationComplete = vi.fn();
+    const video = createVideo({ duration: 1.2, currentTime: 1.16 });
+    const driver = new VideoSpriteDriver({ onAnimationComplete });
+
+    driver.handleTimeUpdate({
+      video,
+      animId: 'welcome-once',
+      playback: {
+        loop: false
+      },
+      fallbackIsPlaying: true
+    });
+
+    expect(video.pause).toHaveBeenCalledTimes(1);
+    expect(onAnimationComplete).toHaveBeenCalledWith('welcome-once', 'full');
+  });
+
+  it('does not report whole-clip infinite loops from timeupdate', () => {
+    const onAnimationComplete = vi.fn();
+    const video = createVideo({ duration: 1.2, currentTime: 1.16 });
+    const driver = new VideoSpriteDriver({ onAnimationComplete });
+
+    driver.handleTimeUpdate({
+      video,
+      animId: 'idle-loop',
+      playback: {
+        loop: true
+      },
+      fallbackIsPlaying: true
+    });
+
+    expect(video.pause).not.toHaveBeenCalled();
+    expect(onAnimationComplete).not.toHaveBeenCalled();
+  });
+
   it('keeps a full segment loop active even when playback loop is false', () => {
     const onAnimationComplete = vi.fn();
     const video = createVideo({ duration: 1.5, currentTime: 0.92 });

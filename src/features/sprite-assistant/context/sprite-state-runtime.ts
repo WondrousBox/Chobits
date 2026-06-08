@@ -98,6 +98,18 @@ export class SpriteStateRuntimeController {
 
     this.cleanupFns.push(
       this.bridge.onPlay((data) => {
+        if (data.trigger === 'welcome' || data.trigger === 'idle' || data.animationId === 'sprite-fx718a5q') {
+          console.info('[SpriteVideo] sprite:play received', {
+            trigger: data.trigger,
+            animationId: data.animationId,
+            playId: data.playId,
+            loop: data.playback?.loop,
+            loopCount: data.playback?.loopCount,
+            autoIdle: data.playback?.autoIdle,
+            src: data.source?.src,
+            localPath: data.source?.localPath
+          });
+        }
         this.commit((current) => applySpritePlayCommand(current, data));
       })
     );
