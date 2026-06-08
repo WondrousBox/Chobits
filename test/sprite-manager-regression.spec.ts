@@ -250,12 +250,12 @@ describe('sprite manager regression coverage', () => {
       playback: { durationMs: 800, loop: true }
     });
 
-    mgr.setAnimationPlaylistMode('single-once');
+    mgr.setAnimationPlaylistMode('list-once');
     mgr.setAnimationPlaylistMode('list-loop', 'idle');
 
-    expect(mgr.getAnimationPlaylistMode()).toBe('single-once');
+    expect(mgr.getAnimationPlaylistMode()).toBe('list-once');
     expect(mgr.getAnimationPlaylistMode('idle')).toBe('list-loop');
-    expect(mgr.getAnimationPlaylistMode('success')).toBe('single-once');
+    expect(mgr.getAnimationPlaylistMode('success')).toBe('list-once');
 
     mgr.trigger('idle', { silent: true });
     expect(mgr.getCurrentAnimation()?.animationId).toBe('idle-high');
@@ -266,6 +266,42 @@ describe('sprite manager regression coverage', () => {
     expect(mgr.getCurrentAnimation()?.animationId).toBe('success-high');
     mgr.handleAnimationComplete('success-high', 'full');
     expect(mgr.getCurrentAnimation()?.animationId).not.toBe('success-low');
+  });
+
+  it('ignores list playback mode for categories with a single animation', () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'idle-default',
+      title: 'Idle Default',
+      eventTypes: ['idle'],
+      source: { localPath: './idle.webm', type: 'video/webm' },
+      playback: { durationMs: 800, loop: true }
+    });
+    registry.register({
+      id: 'welcome-once',
+      title: 'Welcome Once',
+      eventTypes: ['welcome'],
+      source: { localPath: './welcome.webm', type: 'video/webm' },
+      playback: { durationMs: 800, loop: false, autoIdle: true }
+    });
+
+    mgr.setAnimationPlaylistMode('list-loop');
+    mgr.trigger('welcome', { silent: true });
+
+    expect(mgr.getCurrentAnimation()).toMatchObject({
+      animationId: 'welcome-once',
+      playback: {
+        loop: false,
+        autoIdle: true
+      }
+    });
+
+    mgr.handleAnimationComplete('welcome-once', 'full');
+
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('idle-default');
   });
 
   it('playlist mode never disables a per-animation segment loop', () => {
@@ -286,7 +322,7 @@ describe('sprite manager regression coverage', () => {
       }
     });
 
-    mgr.setAnimationPlaylistMode('single-once');
+    mgr.setAnimationPlaylistMode('list-once');
     mgr.trigger('idle', { silent: true });
 
     expect(mgr.getCurrentAnimation()).toMatchObject({
@@ -316,7 +352,7 @@ describe('sprite manager regression coverage', () => {
       }
     });
 
-    mgr.setAnimationPlaylistMode('single-once');
+    mgr.setAnimationPlaylistMode('list-once');
     mgr.trigger('idle', { silent: true });
 
     expect(mgr.getCurrentAnimation()).toMatchObject({
@@ -996,7 +1032,7 @@ describe('sprite manager regression coverage', () => {
       playback: { durationMs: 800, autoIdle: true }
     });
 
-    mgr.setAnimationPlaylistMode('single-once');
+    mgr.setAnimationPlaylistMode('list-once');
     mgr.setAnimationPlaylistMode('list-loop', 'dance');
 
     mgr.trigger('music:dance', {

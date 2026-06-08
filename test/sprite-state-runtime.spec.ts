@@ -132,7 +132,7 @@ describe('sprite state runtime helpers', () => {
       width: 200,
       height: 180,
       padding: 12,
-      animationPlaylistMode: 'single-once',
+      animationPlaylistMode: 'list-once',
       autoWalkEnabled: true,
       showDebugOverlay: false
     });
@@ -147,7 +147,7 @@ describe('sprite state runtime helpers', () => {
         width: 200,
         height: 180,
         padding: 12,
-        animationPlaylistMode: 'single-once',
+        animationPlaylistMode: 'list-once',
         autoWalkEnabled: true,
         showDebugOverlay: false
       },

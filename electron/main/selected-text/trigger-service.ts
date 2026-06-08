@@ -30,7 +30,6 @@ export class SelectedTextTriggerService {
   private releaseRecoveryTimer: NodeJS.Timeout | null = null;
   private holdStartedAt = 0;
   private holdSessionId = 0;
-  private preparedSelection: SelectedTextLearningPreparedSelection | null = null;
   private selectionReadInFlight = false;
   private triggeredThisHold = false;
   private unsubscribers: Array<() => void> = [];
@@ -95,51 +94,10 @@ export class SelectedTextTriggerService {
     if (this.ctrlDown || this.triggeredThisHold) return;
     this.ctrlDown = true;
     this.holdStartedAt = Date.now();
-    this.preparedSelection = null;
-    this.beginSelectionPreparation(++this.holdSessionId);
-  }
-
-  private handleKeyUp(event: UiohookKeyboardEvent): void {
-    if (!isCtrlKey(event)) return;
-    if (this.triggeredThisHold) {
-      this.scheduleReleaseRecovery();
-      return;
-    }
-    this.cancelHold();
-  }
-
-  private handleMouseDown(): void {
-    if (this.triggeredThisHold) {
-      this.clearActiveTimers();
-      return;
-    }
-    this.cancelHold();
-  }
-
-  private beginSelectionPreparation(sessionId: number): void {
+    const sessionId = ++this.holdSessionId;
     this.clearActiveTimers();
-    this.selectionReadInFlight = true;
-    void this.deps
-      .prepareSelection({ usePhysicalCtrlShortcut: true })
-      .then((selection) => {
-        if (sessionId !== this.holdSessionId) return;
-        this.selectionReadInFlight = false;
-        if (!this.ctrlDown || this.triggeredThisHold || !this.deps.getConfig().enabled || !selection) {
-          this.preparedSelection = null;
-          this.deps.clearProgress?.();
-          return;
-        }
-        this.preparedSelection = selection;
-        this.startProgress(sessionId);
-        this.scheduleTrigger(sessionId);
-      })
-      .catch((error) => {
-        if (sessionId !== this.holdSessionId) return;
-        this.selectionReadInFlight = false;
-        this.preparedSelection = null;
-        this.deps.clearProgress?.();
-        console.warn('[selected-text] failed to prepare selection:', error);
-      });
+    this.startProgress(sessionId);
+    this.scheduleTrigger(sessionId);
   }
 
   private scheduleTrigger(sessionId: number): void {
@@ -171,20 +129,46 @@ export class SelectedTextTriggerService {
   }
 
   private triggerPreparedSelection(sessionId: number): void {
-    if (sessionId !== this.holdSessionId || !this.ctrlDown || this.triggeredThisHold || !this.deps.getConfig().enabled || !this.preparedSelection) return;
+    if (sessionId !== this.holdSessionId || !this.ctrlDown || this.triggeredThisHold || !this.deps.getConfig().enabled) return;
 
     this.triggeredThisHold = true;
+    this.selectionReadInFlight = true;
     this.clearActiveTimers();
     this.deps.showProgress?.(100, PROGRESS_MESSAGE);
-    void Promise.resolve(this.deps.onTrigger(this.preparedSelection))
+    void this.deps
+      .prepareSelection({ usePhysicalCtrlShortcut: true })
+      .then((selection) => {
+        if (sessionId !== this.holdSessionId) return;
+        this.selectionReadInFlight = false;
+        if (!this.ctrlDown || !this.deps.getConfig().enabled || !selection) return;
+        return this.deps.onTrigger(selection);
+      })
       .catch((error) => {
         console.warn('[selected-text] trigger failed:', error);
       })
       .finally(() => {
         if (sessionId === this.holdSessionId) {
+          this.selectionReadInFlight = false;
           this.deps.clearProgress?.();
         }
       });
+  }
+
+  private handleKeyUp(event: UiohookKeyboardEvent): void {
+    if (!isCtrlKey(event)) return;
+    if (this.triggeredThisHold) {
+      this.scheduleReleaseRecovery();
+      return;
+    }
+    this.cancelHold();
+  }
+
+  private handleMouseDown(): void {
+    if (this.triggeredThisHold) {
+      this.clearActiveTimers();
+      return;
+    }
+    this.cancelHold();
   }
 
   private scheduleReleaseRecovery(): void {
@@ -200,7 +184,6 @@ export class SelectedTextTriggerService {
     this.holdSessionId++;
     this.ctrlDown = false;
     this.selectionReadInFlight = false;
-    this.preparedSelection = null;
     this.triggeredThisHold = false;
     this.holdStartedAt = 0;
     this.clearActiveTimers();

@@ -598,32 +598,32 @@ describe('sprite manager IPC integration', () => {
     expect(getMode).toBeTypeOf('function');
     expect(setMode).toBeTypeOf('function');
     expect(getMode?.({} as never)).toBe('list-loop');
-    expect(setMode?.({} as never, { mode: 'single-loop' })).toBe('single-loop');
-    expect(getMode?.({} as never)).toBe('single-loop');
+    expect(setMode?.({} as never, { mode: 'list-once' })).toBe('list-once');
+    expect(getMode?.({} as never)).toBe('list-once');
     expect(windowStub.sent).toContainEqual({
       channel: 'sprite:config',
       payload: {
         width: 200,
         height: 200,
         padding: 100,
-        animationPlaylistMode: 'single-loop',
+        animationPlaylistMode: 'list-once',
         autoWalkEnabled: false,
         showDebugOverlay: false,
         bubbleMode: 'fixed-top'
       }
     });
-    expect(setMode?.({} as never, { mode: 'list-once', trigger: 'idle' })).toBe('list-once');
-    expect(getMode?.({} as never, { trigger: 'idle' })).toBe('list-once');
-    expect(getMode?.({} as never, { trigger: 'success' })).toBe('single-loop');
+    expect(setMode?.({} as never, { mode: 'list-loop', trigger: 'idle' })).toBe('list-loop');
+    expect(getMode?.({} as never, { trigger: 'idle' })).toBe('list-loop');
+    expect(getMode?.({} as never, { trigger: 'success' })).toBe('list-once');
     expect(windowStub.sent).toContainEqual({
       channel: 'sprite:config',
       payload: {
         width: 200,
         height: 200,
         padding: 100,
-        animationPlaylistMode: 'single-loop',
+        animationPlaylistMode: 'list-once',
         animationPlaylistModes: {
-          idle: 'list-once'
+          idle: 'list-loop'
         },
         autoWalkEnabled: false,
         showDebugOverlay: false,
