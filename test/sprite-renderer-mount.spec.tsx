@@ -364,4 +364,120 @@ describe('sprite renderer mount', () => {
     });
     env.cleanup();
   });
+
+  it('switches back to an already-loaded idle slot without another media ready event', async () => {
+    const { act } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+
+    const env = installMiniDom();
+    const harness = createSpriteBridgeHarness({
+      state: 'idle',
+      subState: null,
+      personaState: null,
+      animations: [],
+      currentAnimation: {
+        animationId: 'idle-default',
+        trigger: 'idle',
+        source: { localPath: './idle.webm', type: 'video/webm' },
+        playback: {
+          width: 180,
+          height: 240,
+          padding: 100,
+          loop: true,
+          autoIdle: true
+        }
+      },
+      config: {
+        width: 180,
+        height: 240,
+        padding: 100,
+        animationPlaylistMode: 'list-loop',
+        autoWalkEnabled: true,
+        showDebugOverlay: false
+      }
+    } as SpriteInitialState);
+
+    (env.window as any).YUA = { sprite: harness.bridge };
+
+    const { SpriteStateProvider } = await import('../src/features/sprite-assistant/context/SpriteStateContext');
+    const { useSpriteState } = await import('../src/features/sprite-assistant/context/hooks');
+    const { default: VideoSprite } = await import('../src/features/sprite-assistant/renderers/VideoSprite');
+
+    function MountedSprite(): JSX.Element | null {
+      const { walkDirection } = useSpriteState();
+      return <VideoSprite walkDirection={walkDirection} />;
+    }
+
+    const root = createRoot(env.container as any);
+
+    await act(async () => {
+      root.render(
+        <SpriteStateProvider>
+          <MountedSprite />
+        </SpriteStateProvider>
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const initialIdleVideo = getActiveVideo(env.container);
+    expect(initialIdleVideo.src).toContain('idle');
+    initialIdleVideo.readyState = 2;
+
+    await act(async () => {
+      harness.emitPlay({
+        animationId: 'welcome-once',
+        trigger: 'welcome',
+        source: { localPath: './welcome.webm', type: 'video/webm' },
+        playback: {
+          width: 180,
+          height: 240,
+          padding: 100,
+          loop: false,
+          autoIdle: true
+        }
+      });
+      await Promise.resolve();
+    });
+
+    expect(getActiveVideo(env.container).src).toContain('idle');
+    const welcomeVideo = getInactiveVideo(env.container);
+    expect(welcomeVideo.src).toContain('welcome');
+    welcomeVideo.readyState = 2;
+
+    await act(async () => {
+      welcomeVideo.dispatchEvent({ type: 'loadeddata' });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(getActiveVideo(env.container).src).toContain('welcome');
+    const inactiveIdleVideo = getInactiveVideo(env.container);
+    expect(inactiveIdleVideo.src).toContain('idle');
+    inactiveIdleVideo.readyState = 2;
+
+    await act(async () => {
+      harness.emitPlay({
+        animationId: 'idle-default',
+        trigger: 'idle',
+        source: { localPath: './idle.webm', type: 'video/webm' },
+        playback: {
+          width: 180,
+          height: 240,
+          padding: 100,
+          loop: true,
+          autoIdle: true
+        }
+      });
+      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(getActiveVideo(env.container).src).toContain('idle');
+
+    await act(async () => {
+      root.unmount();
+      await Promise.resolve();
+    });
+    env.cleanup();
+  });
 });

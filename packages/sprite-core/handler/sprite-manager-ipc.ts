@@ -560,6 +560,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
 
   // 动画播放完成上报
   ipcMain.handle('sprite:anim-complete', (_e, payload: { animId: string; phase: 'intro' | 'loop' | 'outro' | 'full'; playId?: string }) => {
+    console.info('[SpritePlayback] ipc sprite:anim-complete', payload);
     mgr.handleAnimationComplete(payload.animId, payload.phase, payload.playId);
   });
 

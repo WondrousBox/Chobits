@@ -38,6 +38,17 @@ function getFiniteLoopCount(loopCount: unknown): number | undefined {
   return typeof loopCount === 'number' && Number.isFinite(loopCount) && loopCount > 0 ? Math.floor(loopCount) : undefined;
 }
 
+function isVideoReadyForPresentation(video: HTMLVideoElement | null, presentation: VideoPresentation): boolean {
+  if (!video) return false;
+  const readyState = Number(video.readyState);
+  if (!Number.isFinite(readyState) || readyState < 2) return false;
+
+  const expectedSrc = presentation.computed.srcUrl;
+  const attrSrc = video.getAttribute('src') ?? '';
+  const currentSrc = video.currentSrc || video.src || '';
+  return attrSrc === expectedSrc || currentSrc === expectedSrc;
+}
+
 export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' | 'right' | null }): JSX.Element | null {
   const frontVideoRef = useRef<HTMLVideoElement | null>(null);
   const backVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -52,6 +63,7 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
     () =>
       new VideoSpriteDriver({
         onAnimationComplete: (animationId, phase, playId) => {
+          console.info('[SpriteVideo] animation complete -> ipc', { animationId, phase, playId });
           if (playId) {
             window.YUA.sprite.animComplete(animationId, phase, playId);
             return;
@@ -121,6 +133,14 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
     }
 
     const nextSlot = getInactiveSlot(activeSlot);
+    console.info('[SpriteVideo] queue slot switch', {
+      from: activeSlot,
+      to: nextSlot,
+      currentAnimationId: activePresentation.animId,
+      nextAnimationId: desiredPresentation.animId,
+      nextPlayId: desiredPresentation.playId,
+      src: desiredPresentation.computed.srcUrl
+    });
     pendingSwitchRef.current = { slot: nextSlot, key: desiredPresentation.key };
     setSlotPresentations((prev) => ({ ...prev, [nextSlot]: desiredPresentation }));
   }, [activePresentation, activeSlot, desiredPresentation]);
@@ -174,6 +194,13 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
   const switchToReadySlot = (slot: VideoSlot, presentation: VideoPresentation): void => {
     const previousSlot = activeSlotRef.current;
     pendingSwitchRef.current = null;
+    console.info('[SpriteVideo] switch to ready slot', {
+      from: previousSlot,
+      to: slot,
+      animationId: presentation.animId,
+      playId: presentation.playId,
+      src: presentation.computed.srcUrl
+    });
     setActiveSlot(slot);
     setActivePresentation(presentation);
     setSlotPresentations((prev) => ({ ...prev, [slot]: presentation }));
@@ -192,20 +219,57 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
     if (!presentation || presentation.key !== pending.key) return;
 
     const video = getVideoForSlot(slot);
+    console.info('[SpriteVideo] slot ready', {
+      slot,
+      animationId: presentation.animId,
+      playId: presentation.playId,
+      readyState: video?.readyState,
+      src: presentation.computed.srcUrl
+    });
     try {
       void video?.play()?.catch?.(() => undefined);
     } catch {
       // Browser autoplay can race during hidden prebuffering; the driver retries after the swap.
     }
 
-    const requestFrame =
-      video && typeof (video as any).requestVideoFrameCallback === 'function' ? (cb: () => void) => (video as any).requestVideoFrameCallback(cb) : requestAnimationFrame;
-    requestFrame(() => {
+    let switched = false;
+    const completeSwitch = (): void => {
+      if (switched) return;
+      switched = true;
       if (pendingSwitchRef.current?.slot === slot && pendingSwitchRef.current.key === presentation.key) {
         switchToReadySlot(slot, presentation);
       }
-    });
+    };
+
+    if (video && typeof (video as any).requestVideoFrameCallback === 'function') {
+      try {
+        (video as any).requestVideoFrameCallback(completeSwitch);
+      } catch {
+        // Fall through to the animation-frame fallback below.
+      }
+    }
+    requestAnimationFrame(completeSwitch);
   };
+
+  useLayoutEffect(() => {
+    const pending = pendingSwitchRef.current;
+    if (!pending) return;
+
+    const presentation = slotPresentations[pending.slot];
+    if (!presentation || presentation.key !== pending.key) return;
+
+    const video = getVideoForSlot(pending.slot);
+    if (!isVideoReadyForPresentation(video, presentation)) return;
+
+    console.info('[SpriteVideo] pending slot already has current data', {
+      slot: pending.slot,
+      animationId: presentation.animId,
+      playId: presentation.playId,
+      readyState: video?.readyState,
+      src: presentation.computed.srcUrl
+    });
+    switchToReadySlot(pending.slot, presentation);
+  }, [slotPresentations]);
 
   const handleCanPlay = (slot: VideoSlot): void => {
     handleSlotReady(slot);
@@ -271,7 +335,7 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
         src={presentation?.computed.srcUrl ?? ''}
         onError={(e) => {
           if (presentation?.computed.srcUrl) {
-            console.warn('Sprite video failed to load', presentation.computed.srcUrl, e);
+            console.warn('[SpriteVideo] failed to load', presentation.computed.srcUrl, e);
           }
         }}
       ></video>

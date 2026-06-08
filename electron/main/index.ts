@@ -151,7 +151,7 @@ async function createWindow(): Promise<void> {
 
   // 主窗口显示由 splash 流程控制，不在此自动 show
   win.once('ready-to-show', () => {
-    if (VITE_DEV_SERVER_URL) win?.webContents.openDevTools({ mode: 'detach' });
+    win?.webContents.openDevTools({ mode: 'detach', activate: true });
   });
 
   // Test actively push message to the Electron-Renderer

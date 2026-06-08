@@ -183,7 +183,26 @@ export class VideoSpriteDriver {
       return;
     }
 
-    if (!hasCustomLoop) return;
+    if (!hasCustomLoop) {
+      if (currentTimeMs < durationMs - 50) return;
+
+      if (shouldLoop) {
+        if (finiteLoopCount == null) return;
+
+        this.completedLoopCount += 1;
+        if (this.completedLoopCount < finiteLoopCount) {
+          video.currentTime = 0;
+          this.requestPlay(video);
+          return;
+        }
+      }
+
+      video.pause();
+      if (input.animId) {
+        this.notifyAnimationComplete(input.animId, 'full', input.playId);
+      }
+      return;
+    }
 
     if (currentTimeMs >= effectiveEnd - 50) {
       if (shouldLoop) {
