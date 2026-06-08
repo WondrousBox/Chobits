@@ -182,7 +182,7 @@ const AIAssistantInner: React.FC = () => {
       style={{ width, height, left: effectivePadding, top: effectivePadding }}
       className={`fixed select-none z-[9999] pointer-events-auto
         ${isDragReady ? 'cursor-grabbing opacity-80' : 'cursor-grab'}
-        ${showBlock ? 'opacity-50' : ''}
+        ${showBlock ? 'opacity-30' : ''}
       `}
       onMouseDown={onMouseDown}
       onMouseEnter={handleMouseEnter}
@@ -208,19 +208,6 @@ const AIAssistantInner: React.FC = () => {
         <Renderer width={width} height={height} walkDirection={walkDirection} />
       </Dropzone>
       <StatusIndicator isDragging={isDragging} isWalking={isWalking} />
-      {window.YUA.isDev && showBlock && (
-        <div
-          style={{
-            left: effectivePadding,
-            top: effectivePadding,
-            bottom: effectivePadding,
-            right: effectivePadding
-          }}
-          className="text-xs bg-background fixed rounded-md border border-solid border-ring"
-        >
-          {effectivePadding} {width} {height}
-        </div>
-      )}
     </div>
   );
 };
