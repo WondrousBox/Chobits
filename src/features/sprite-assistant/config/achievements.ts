@@ -10,8 +10,8 @@ export interface AchievementPresentation {
 const ONBOARDING_ACHIEVEMENTS: AchievementPresentation[] = [
   {
     id: 'first-workspace',
-    title: '第一座工作空间',
-    description: '创建了第一个工作空间，Chobits 的长期记忆有了落点。',
+    title: '第一个工作空间',
+    description: '创建了第一个工作空间',
     category: '新手任务'
   },
   {
@@ -35,9 +35,7 @@ const FEATURE_INTRO_ACHIEVEMENTS: AchievementPresentation[] = FEATURE_INTRO_QUES
   category: item.area
 }));
 
-const ACHIEVEMENT_MAP = new Map<string, AchievementPresentation>(
-  [...ONBOARDING_ACHIEVEMENTS, ...FEATURE_INTRO_ACHIEVEMENTS].map((achievement) => [achievement.id, achievement])
-);
+const ACHIEVEMENT_MAP = new Map<string, AchievementPresentation>([...ONBOARDING_ACHIEVEMENTS, ...FEATURE_INTRO_ACHIEVEMENTS].map((achievement) => [achievement.id, achievement]));
 
 function titleCaseFromId(id: string): string {
   return id

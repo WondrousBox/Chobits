@@ -287,6 +287,25 @@
       "loop": false,
       "autoIdle": true,
       "durationMs": 5016.667
+    },{
+      "meta": {
+        "id": "write-default",
+        "title": "write",
+        "primaryTrigger": "write",
+        "deletable": true
+      },
+      "source": {
+        "localPath": "./write.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false,
+      "autoIdle": true
     }
   ]
 }

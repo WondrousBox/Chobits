@@ -782,7 +782,118 @@ describe('sprite manager regression coverage', () => {
     expect(mgr.getCurrentAnimation()?.animationId).toBe('click-state');
   });
 
-  it('allows routine-owned walk state animation while the lifecycle lock is active', async () => {
+  it('plays quest record feedback through the active purpose lifecycle lock owner', () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'thinking-purpose',
+      title: 'Thinking Purpose',
+      eventTypes: ['thinking'],
+      source: { localPath: './thinking.webm', type: 'video/webm' },
+      playback: { durationMs: 100 }
+    });
+    registry.register({
+      id: 'write-feedback',
+      title: 'Write Feedback',
+      eventTypes: ['write'],
+      source: { localPath: './write.webm', type: 'video/webm' },
+      playback: { durationMs: 100 }
+    });
+
+    mgr.trigger('thinking', { silent: true });
+    (mgr as any).acquireRoutinePresentationLock(
+      { id: 'purpose-1', priority: 80 },
+      {
+        id: 'routine-purpose-1',
+        purposeId: 'purpose-1',
+        priority: 80,
+        source: 'preset',
+        status: 'running',
+        steps: [{ id: 'wait', type: 'wait', durationMs: 1000 }],
+        cursor: 0,
+        createdAt: Date.now()
+      }
+    );
+
+    const result = mgr.playFeedbackAnimation({ trigger: 'write', kind: 'quest-record', silent: true });
+
+    expect(result).toEqual({ ok: true, played: true, ownerPurposeId: 'purpose-1' });
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('write-feedback');
+  });
+
+  it('blocks feedback when the presentation lock is not owned by the active purpose', () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'thinking-purpose',
+      title: 'Thinking Purpose',
+      eventTypes: ['thinking'],
+      source: { localPath: './thinking.webm', type: 'video/webm' },
+      playback: { durationMs: 100 }
+    });
+    registry.register({
+      id: 'write-feedback',
+      title: 'Write Feedback',
+      eventTypes: ['write'],
+      source: { localPath: './write.webm', type: 'video/webm' },
+      playback: { durationMs: 100 }
+    });
+
+    mgr.trigger('thinking', { silent: true });
+    (mgr as any).presentationLock.acquire('other-owner', 90, 1000, 'test:other-owner');
+
+    const result = mgr.playFeedbackAnimation({ trigger: 'write', kind: 'quest-record', silent: true });
+
+    expect(result).toEqual({ ok: true, played: false, reason: 'blocked-by-lock' });
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('thinking-purpose');
+  });
+
+  it('reports missing feedback animation candidates before checking presentation ownership', () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+
+    const result = mgr.playFeedbackAnimation({ trigger: 'write', kind: 'quest-record', silent: true });
+
+    expect(result).toEqual({ ok: true, played: false, reason: 'missing-animation' });
+    expect(mgr.getCurrentAnimation()).toBeNull();
+  });
+
+  it('plays feedback as a normal trigger when no presentation lock is active', () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'write-feedback',
+      title: 'Write Feedback',
+      eventTypes: ['write'],
+      source: { localPath: './write.webm', type: 'video/webm' },
+      playback: { durationMs: 100 }
+    });
+
+    const result = mgr.playFeedbackAnimation({ trigger: 'write', kind: 'quest-record', silent: true });
+
+    expect(result).toEqual({ ok: true, played: true });
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('write-feedback');
+  });
+
+  it('rejects invalid feedback animation requests', () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+
+    expect(mgr.playFeedbackAnimation({ trigger: 'write' })).toEqual({
+      ok: false,
+      played: false,
+      reason: 'invalid-request',
+      error: 'Feedback trigger and kind are required'
+    });
+  });
+
+  it('allows routine-owned walk state animation while the lifecycle lock is active and returns to idle after walking', async () => {
     const { mgr, dataDir } = createManager();
     dataDirs.add(dataDir);
     const registry = (mgr as any).animationRegistry;
@@ -801,8 +912,16 @@ describe('sprite manager regression coverage', () => {
       source: { localPath: './walk.webm', type: 'video/webm' },
       playback: { durationMs: 100 }
     });
+    registry.register({
+      id: 'idle-purpose',
+      title: 'Idle Purpose',
+      eventTypes: ['idle'],
+      source: { localPath: './idle.webm', type: 'video/webm' },
+      playback: { durationMs: 100, loop: true }
+    });
 
     mgr.trigger('thinking', { silent: true });
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('thinking-purpose');
     const routine = {
       id: 'routine-purpose-1',
       purposeId: 'purpose-1',
@@ -814,18 +933,158 @@ describe('sprite manager regression coverage', () => {
       createdAt: Date.now()
     };
     (mgr as any).acquireRoutinePresentationLock({ id: 'purpose-1', priority: 80 }, routine);
+    let resolveWalk!: () => void;
     mgr.setWindowController({
       walkTo: vi.fn(() => {
         mgr.transitionTo('walking', { force: true });
-        return Promise.resolve();
+        return new Promise<void>((resolve) => {
+          resolveWalk = resolve;
+        });
       }),
       stopWalk: vi.fn(),
       getPosition: () => [0, 0]
     });
 
-    await (mgr as any).runPurposeWalkStep({ id: 'walk', type: 'walkTo', target: 'center', timeoutMs: 1000 }, new AbortController().signal, routine);
+    const walkStep = (mgr as any).runPurposeWalkStep({ id: 'walk', type: 'walkTo', target: 'center', timeoutMs: 1000 }, new AbortController().signal, routine);
 
     expect(mgr.getCurrentAnimation()?.animationId).toBe('walk-purpose');
+    resolveWalk();
+    await walkStep;
+
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('idle-purpose');
+  });
+
+  it('uses the routine owner when segmented walk outro completes under a lifecycle lock', async () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'thinking-purpose',
+      title: 'Thinking Purpose',
+      eventTypes: ['thinking'],
+      source: { localPath: './thinking.webm', type: 'video/webm' },
+      playback: { durationMs: 100 }
+    });
+    registry.register({
+      id: 'walk-segmented-purpose',
+      title: 'Walk Segmented Purpose',
+      eventTypes: ['walk'],
+      source: { localPath: './walk-segmented.webm', type: 'video/webm' },
+      playback: {
+        durationMs: 1500,
+        loop: true,
+        loopStartMs: 300,
+        loopEndMs: 900
+      }
+    });
+    registry.register({
+      id: 'idle-purpose',
+      title: 'Idle Purpose',
+      eventTypes: ['idle'],
+      source: { localPath: './idle.webm', type: 'video/webm' },
+      playback: { durationMs: 100, loop: true }
+    });
+
+    mgr.trigger('thinking', { silent: true });
+    const routine = {
+      id: 'routine-purpose-1',
+      purposeId: 'purpose-1',
+      priority: 80,
+      source: 'preset',
+      status: 'running',
+      steps: [{ id: 'wait', type: 'wait', durationMs: 30 * 60 * 1000 }],
+      cursor: 0,
+      createdAt: Date.now()
+    };
+    (mgr as any).acquireRoutinePresentationLock({ id: 'purpose-1', priority: 80 }, routine);
+
+    let finishWalk!: () => void;
+    mgr.setWindowController({
+      walkTo: vi.fn(() => {
+        mgr.transitionTo('walking', { force: true });
+        return new Promise<void>((resolve) => {
+          finishWalk = () => {
+            mgr.transitionTo('idle');
+            resolve();
+          };
+        });
+      }),
+      stopWalk: vi.fn(),
+      getPosition: () => [0, 0]
+    });
+
+    const walkStep = (mgr as any).runPurposeWalkStep({ id: 'walk', type: 'walkTo', target: 'center', timeoutMs: 1000 }, new AbortController().signal, routine);
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('walk-segmented-purpose');
+
+    finishWalk();
+    await walkStep;
+
+    expect(mgr.getState()).toBe('idle');
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('walk-segmented-purpose');
+
+    mgr.handleAnimationComplete('walk-segmented-purpose', 'outro');
+
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('idle-purpose');
+  });
+
+  it('returns to idle when a routine-owned walk step times out under a lifecycle lock', async () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'thinking-purpose',
+      title: 'Thinking Purpose',
+      eventTypes: ['thinking'],
+      source: { localPath: './thinking.webm', type: 'video/webm' },
+      playback: { durationMs: 100 }
+    });
+    registry.register({
+      id: 'walk-purpose',
+      title: 'Walk Purpose',
+      eventTypes: ['walk'],
+      source: { localPath: './walk.webm', type: 'video/webm' },
+      playback: { durationMs: 100 }
+    });
+    registry.register({
+      id: 'idle-purpose',
+      title: 'Idle Purpose',
+      eventTypes: ['idle'],
+      source: { localPath: './idle.webm', type: 'video/webm' },
+      playback: { durationMs: 100, loop: true }
+    });
+
+    mgr.trigger('thinking', { silent: true });
+    const routine = {
+      id: 'routine-purpose-1',
+      purposeId: 'purpose-1',
+      priority: 80,
+      source: 'preset',
+      status: 'running',
+      steps: [{ id: 'wait', type: 'wait', durationMs: 30 * 60 * 1000 }],
+      cursor: 0,
+      createdAt: Date.now()
+    };
+    (mgr as any).acquireRoutinePresentationLock({ id: 'purpose-1', priority: 80 }, routine);
+
+    const stopWalk = vi.fn(() => {
+      mgr.transitionTo('idle');
+    });
+    mgr.setWindowController({
+      walkTo: vi.fn(() => {
+        mgr.transitionTo('walking', { force: true });
+        return new Promise<void>(() => undefined);
+      }),
+      stopWalk,
+      getPosition: () => [0, 0]
+    });
+
+    await expect((mgr as any).runPurposeWalkStep({ id: 'walk-timeout', type: 'walkTo', target: 'center', timeoutMs: 1 }, new AbortController().signal, routine)).rejects.toThrow('Walk step timed out');
+
+    expect(stopWalk).toHaveBeenCalledTimes(1);
+    expect(mgr.getState()).toBe('idle');
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('idle-purpose');
   });
 
   it('opens routine windows through the injected purpose window adapter', async () => {
@@ -1537,7 +1796,7 @@ describe('sprite manager regression coverage', () => {
 
     expect(startPurpose).not.toHaveBeenCalled();
     expect(playOnce).toHaveBeenCalledWith('sleepy');
-    expect(showToast).toHaveBeenCalledWith('有点困了呢...', { category: 'info', duration: 2000 });
+    expect(showToast).toHaveBeenCalledWith('有点困了呢...', { category: 'info', duration: 2000, ambientContext: 'behavior' });
   });
 
   it('gates idle emotion behavior behind emotionExpression capability', () => {

@@ -234,6 +234,8 @@ export class SpriteRoutineRunner {
         return this.runOpenWindow(routine, step, signal);
       case 'loopUntil':
         return this.runLoopUntil(routine, step, options, context);
+      case 'parallel':
+        return this.runParallel(routine, step, options, context);
       case 'branch':
         return this.runBranch(routine, step, options, context);
       default:
@@ -491,6 +493,50 @@ export class SpriteRoutineRunner {
 
   private resolveLoopUntilEventMatch(step: Extract<SpriteRoutineStep, { type: 'loopUntil' }>, event: string): Record<string, unknown> | undefined {
     return step.eventMatches?.[event] ?? step.match;
+  }
+
+  private async runParallel(
+    routine: SpriteRoutine,
+    step: Extract<SpriteRoutineStep, { type: 'parallel' }>,
+    options: SpriteRoutineRunOptions,
+    context: SpriteRoutineRunContext
+  ): Promise<{ stepCount: number }> {
+    const signal = options.signal ?? new AbortController().signal;
+    this.throwIfAborted(signal);
+
+    const controller = new AbortController();
+    const onAbort = (): void => {
+      controller.abort();
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+
+    try {
+      const parallelOptions: SpriteRoutineRunOptions = {
+        ...options,
+        signal: controller.signal
+      };
+      const results = await Promise.all(
+        step.body.map(async (child) => {
+          const result = await this.runStep(routine, child, context, parallelOptions, false);
+          if (!result.ok) {
+            controller.abort();
+          }
+          return result;
+        })
+      );
+      const failed = results.find((result) => !result.ok && result.status !== 'cancelled') ?? results.find((result) => !result.ok);
+      if (failed) {
+        if (failed.status === 'cancelled') {
+          throw new SpriteRoutineCancelledError();
+        }
+        throw new Error(failed.error || `Parallel step failed: ${failed.stepId}`);
+      }
+
+      return { stepCount: step.body.length };
+    } finally {
+      signal.removeEventListener('abort', onAbort);
+      controller.abort();
+    }
   }
 
   private async runBranch(routine: SpriteRoutine, step: Extract<SpriteRoutineStep, { type: 'branch' }>, options: SpriteRoutineRunOptions, context: SpriteRoutineRunContext): Promise<{ caseKey: string; stepCount: number }> {

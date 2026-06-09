@@ -55,6 +55,9 @@ export type {
   SpriteAnimationTrigger,
   SpriteAnimationTriggerMetadata,
   SpriteEventType,
+  SpriteFeedbackKind,
+  SpriteFeedbackRequest,
+  SpriteFeedbackResult,
   SpriteTriggerOptions
 } from '@packages/sprite-core/types';
 export {

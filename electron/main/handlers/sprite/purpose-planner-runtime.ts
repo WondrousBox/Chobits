@@ -145,6 +145,7 @@ Your task:
 - Every walkTo, waitForEvent, and openWindow step must include timeoutMs.
 - Every loopUntil step must include maxDurationMs.
 - Every playAnimation step must include durationMs, timeoutMs, or waitFor:"none".
+- Use parallel only when child steps should start together, such as speaking while walking; all child steps must still be bounded.
 - Keep text short, friendly, and non-intrusive.
 - Treat movement as optional expression, not as a fixed requirement. For rest reminders, do not walk to screen center by default; only add a walkTo step when the purpose/context clearly needs a spatial gesture.
 - Do not invent file paths, shell commands, IPC channels, hidden windows, or new runtime events.
@@ -178,11 +179,11 @@ function compactPlannerInput(input: SpritePurposePlannerInput): Record<string, u
   return {
     purpose: compactPurpose(input.purpose),
     currentPurpose: input.currentPurpose ? compactPurpose(input.currentPurpose) : null,
-    availablePresets: input.availablePresets,
     availableStepSchema: input.availableStepSchema,
     availableAnimationTriggers: input.availableAnimationTriggers,
     allowedWindows: input.allowedWindows,
     allowedEvents: input.allowedEvents,
+    availablePresets: input.availablePresets,
     recentHistory: input.recentHistory.slice(-PURPOSE_PLANNER_HISTORY_LIMIT).map((entry) => compactHistoryEntry(entry)),
     ...(input.screen ? { screen: input.screen } : {}),
     ...(input.context ? { context: truncateJsonLike(input.context, PURPOSE_PLANNER_MAX_CONTEXT_CHARS) } : {})

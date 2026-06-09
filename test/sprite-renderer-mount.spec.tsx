@@ -480,4 +480,190 @@ describe('sprite renderer mount', () => {
     });
     env.cleanup();
   });
+
+  it('exits a segmented state-bound walk loop when sprite state returns to idle', async () => {
+    const { act } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+
+    const env = installMiniDom();
+    const harness = createSpriteBridgeHarness({
+      state: 'walking',
+      subState: null,
+      personaState: null,
+      animations: [],
+      currentAnimation: {
+        animationId: 'walk-segmented',
+        trigger: 'walk',
+        sessionMode: 'state-bound',
+        source: { localPath: './walk-segmented.webm', type: 'video/webm' },
+        playback: {
+          width: 180,
+          height: 240,
+          padding: 100,
+          loop: true,
+          loopStartMs: 300,
+          loopEndMs: 900,
+          autoIdle: true
+        }
+      },
+      config: {
+        width: 180,
+        height: 240,
+        padding: 100,
+        animationPlaylistMode: 'list-loop',
+        autoWalkEnabled: true,
+        showDebugOverlay: false
+      }
+    } as SpriteInitialState);
+
+    (env.window as any).YUA = { sprite: harness.bridge };
+
+    const { SpriteStateProvider } = await import('../src/features/sprite-assistant/context/SpriteStateContext');
+    const { useSpriteState } = await import('../src/features/sprite-assistant/context/hooks');
+    const { default: VideoSprite } = await import('../src/features/sprite-assistant/renderers/VideoSprite');
+
+    function MountedSprite(): JSX.Element | null {
+      const { walkDirection } = useSpriteState();
+      return <VideoSprite walkDirection={walkDirection} />;
+    }
+
+    const root = createRoot(env.container as any);
+
+    await act(async () => {
+      root.render(
+        <SpriteStateProvider>
+          <MountedSprite />
+        </SpriteStateProvider>
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const video = getActiveVideo(env.container);
+    expect(isFakeVideoElement(video)).toBe(true);
+    video.duration = 1.5;
+    video.play = vi.fn(async () => undefined);
+    video.pause = vi.fn();
+
+    await act(async () => {
+      video.currentTime = 0.32;
+      video.dispatchEvent({ type: 'timeupdate' });
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      harness.emitState({
+        state: 'idle',
+        subState: null,
+        personaSnapshot: { favor: 52 } as any
+      });
+      harness.emitWalk({ active: false });
+      await Promise.resolve();
+    });
+
+    expect(video.currentTime).toBeCloseTo(0.9);
+    expect(video.play).toHaveBeenCalled();
+
+    await act(async () => {
+      video.currentTime = 1.5;
+      video.dispatchEvent({ type: 'timeupdate' });
+      await Promise.resolve();
+    });
+
+    expect(harness.bridge.animComplete).toHaveBeenCalledWith('walk-segmented', 'outro');
+
+    await act(async () => {
+      root.unmount();
+      await Promise.resolve();
+    });
+    env.cleanup();
+  });
+
+  it('keeps a segmented state-bound idle animation looping while sprite state is idle', async () => {
+    const { act } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+
+    const env = installMiniDom();
+    const harness = createSpriteBridgeHarness({
+      state: 'idle',
+      subState: null,
+      personaState: null,
+      animations: [],
+      currentAnimation: {
+        animationId: 'idle-segmented',
+        trigger: 'idle',
+        sessionMode: 'state-bound',
+        source: { localPath: './idle-segmented.webm', type: 'video/webm' },
+        playback: {
+          width: 180,
+          height: 240,
+          padding: 100,
+          loop: true,
+          loopStartMs: 300,
+          loopEndMs: 900,
+          autoIdle: true
+        }
+      },
+      config: {
+        width: 180,
+        height: 240,
+        padding: 100,
+        animationPlaylistMode: 'list-loop',
+        autoWalkEnabled: true,
+        showDebugOverlay: false
+      }
+    } as SpriteInitialState);
+
+    (env.window as any).YUA = { sprite: harness.bridge };
+
+    const { SpriteStateProvider } = await import('../src/features/sprite-assistant/context/SpriteStateContext');
+    const { useSpriteState } = await import('../src/features/sprite-assistant/context/hooks');
+    const { default: VideoSprite } = await import('../src/features/sprite-assistant/renderers/VideoSprite');
+
+    function MountedSprite(): JSX.Element | null {
+      const { walkDirection } = useSpriteState();
+      return <VideoSprite walkDirection={walkDirection} />;
+    }
+
+    const root = createRoot(env.container as any);
+
+    await act(async () => {
+      root.render(
+        <SpriteStateProvider>
+          <MountedSprite />
+        </SpriteStateProvider>
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const video = getActiveVideo(env.container);
+    expect(isFakeVideoElement(video)).toBe(true);
+    video.duration = 1.5;
+    video.play = vi.fn(async () => undefined);
+    video.pause = vi.fn();
+
+    await act(async () => {
+      video.currentTime = 0.32;
+      video.dispatchEvent({ type: 'timeupdate' });
+      await Promise.resolve();
+    });
+
+    expect(video.currentTime).toBeCloseTo(0.32);
+
+    await act(async () => {
+      video.currentTime = 0.92;
+      video.dispatchEvent({ type: 'timeupdate' });
+      await Promise.resolve();
+    });
+
+    expect(video.currentTime).toBeCloseTo(0.3);
+    expect(harness.bridge.animComplete).not.toHaveBeenCalled();
+
+    await act(async () => {
+      root.unmount();
+      await Promise.resolve();
+    });
+    env.cleanup();
+  });
 });

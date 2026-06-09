@@ -72,6 +72,61 @@ describe('SpriteRoutineRunner', () => {
     expect(calls).toEqual(['walk:center', 'play:wave', 'speak:休息一下吧。', 'toast:完成']);
   });
 
+  it('runs parallel child steps concurrently before continuing', async () => {
+    const calls: string[] = [];
+    let releaseWalk: (() => void) | null = null;
+    const runner = new SpriteRoutineRunner({
+      playAnimation: vi.fn(),
+      walkTo: () => {
+        calls.push('walk:start');
+        return new Promise<void>((resolve) => {
+          releaseWalk = () => {
+            calls.push('walk:done');
+            resolve();
+          };
+        });
+      },
+      speak: (step) => {
+        calls.push(`speak:${step.text}`);
+      },
+      showToast: (step) => {
+        calls.push(`toast:${step.content}`);
+      }
+    });
+
+    const runPromise = runner.run({
+      id: 'routine-parallel',
+      purposeId: 'purpose-parallel',
+      source: 'preset',
+      status: 'queued',
+      steps: [
+        {
+          id: 'walk-and-speak',
+          type: 'parallel',
+          body: [
+            { id: 'walk', type: 'walkTo', target: 'center' },
+            { id: 'speak', type: 'speak', text: '边走边说。' }
+          ]
+        },
+        { id: 'toast', type: 'showToast', content: '完成' }
+      ],
+      cursor: 0,
+      createdAt: Date.now()
+    });
+
+    await waitFor(() => calls.includes('speak:边走边说。'));
+    expect(calls).toEqual(['walk:start', 'speak:边走边说。']);
+
+    releaseWalk?.();
+    const result = await runPromise;
+
+    expect(result.ok, result.error).toBe(true);
+    expect(calls).toEqual(['walk:start', 'speak:边走边说。', 'walk:done', 'toast:完成']);
+    expect(result.steps.map((step) => step.stepId)).toEqual(expect.arrayContaining(['walk', 'speak', 'walk-and-speak', 'toast']));
+    expect(result.steps.at(-2)?.stepId).toBe('walk-and-speak');
+    expect(result.steps.at(-1)?.stepId).toBe('toast');
+  });
+
   it('cancels a running wait step', async () => {
     const controller = new AbortController();
     const runner = new SpriteRoutineRunner({
@@ -1277,32 +1332,38 @@ describe('SpriteRoutinePresetRegistry', () => {
       expect.arrayContaining([
         expect.objectContaining({ id: 'clear-invite-after-click', type: 'clearMessage', messageId: 'onboarding.workspace.create.invite', messageType: 'notice' }),
         expect.objectContaining({ id: 'open-wizard', type: 'openWindow', window: 'workspaceWizard' }),
-        expect.objectContaining({ id: 'walk-near-wizard', type: 'walkTo', target: { window: 'workspaceWizard', placement: 'right', offset: 16 } }),
         expect.objectContaining({
-          id: 'await-wizard-result',
-          type: 'loopUntil',
-          untilEvent: ['WORKSPACE_CREATED', 'WORKSPACE_WIZARD_CLOSED'],
-          ignoreHistory: true,
+          id: 'guide-near-wizard',
+          type: 'parallel',
           body: expect.arrayContaining([
+            expect.objectContaining({ id: 'walk-near-wizard', type: 'walkTo', target: { window: 'workspaceWizard', placement: 'right', offset: 16 } }),
             expect.objectContaining({
-              id: 'speak-workspace-intro',
-              type: 'speak',
-              text: '工作空间会存放所有重要的数据。',
-              nextAction: expect.objectContaining({ purposeAction: 'workspace-intro-next' }),
-              cooldownKey: 'onboarding.workspace.create.workspace-intro'
-            }),
-            expect.objectContaining({
-              id: 'workspace-intro-breath',
-              type: 'wait',
-              interruptEvent: 'bubble:action',
-              interruptMatch: { purposeAction: 'workspace-intro-next' },
-              interruptIgnoreHistory: true
-            }),
-            expect.objectContaining({
-              id: 'speak-workspace-quickstart-tip',
-              type: 'speak',
-              text: '快速开始会默认创建到文档中',
-              cooldownKey: 'onboarding.workspace.create.quickstart-tip'
+              id: 'await-wizard-result',
+              type: 'loopUntil',
+              untilEvent: ['WORKSPACE_CREATED', 'WORKSPACE_WIZARD_CLOSED'],
+              ignoreHistory: true,
+              body: expect.arrayContaining([
+                expect.objectContaining({
+                  id: 'speak-workspace-intro',
+                  type: 'speak',
+                  text: '工作空间会存放所有重要的数据。',
+                  nextAction: expect.objectContaining({ purposeAction: 'workspace-intro-next' }),
+                  cooldownKey: 'onboarding.workspace.create.workspace-intro'
+                }),
+                expect.objectContaining({
+                  id: 'workspace-intro-breath',
+                  type: 'wait',
+                  interruptEvent: 'bubble:action',
+                  interruptMatch: { purposeAction: 'workspace-intro-next' },
+                  interruptIgnoreHistory: true
+                }),
+                expect.objectContaining({
+                  id: 'speak-workspace-quickstart-tip',
+                  type: 'speak',
+                  text: '快速开始会默认创建到文档中',
+                  cooldownKey: 'onboarding.workspace.create.quickstart-tip'
+                })
+              ])
             })
           ])
         })
@@ -1625,7 +1686,7 @@ describe('SpriteRoutinePresetRegistry', () => {
     expect(preset!.defaultPriority).toBe(68);
     expect(routine.steps).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: 'walk-drop-target', type: 'walkTo', target: 'center' }),
+        expect.objectContaining({ id: 'attention-wave', type: 'playAnimation', trigger: 'wave' }),
         expect.objectContaining({
           id: 'invite-file-drop-notice',
           type: 'showNotice',
@@ -1647,6 +1708,7 @@ describe('SpriteRoutinePresetRegistry', () => {
         })
       ])
     );
+    expect(routine.steps).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'return-corner', type: 'walkTo', target: 'corner' })]));
     const waitStep = routine.steps.find((step) => step.id === 'wait-first-file-drop');
     expect(waitStep).toMatchObject({
       type: 'loopUntil',
@@ -1965,7 +2027,7 @@ describe('SpriteRoutinePresetRegistry', () => {
     expect(result.ok, result.error).toBe(true);
     expect(calls).toEqual(
       expect.arrayContaining([
-        'walk:center',
+        'play:wave',
         'notice:onboarding.file.drop.invite:可以把文件拖拽给我',
         'clear:onboarding.file.drop.invite',
         'play:celebrate',

@@ -232,6 +232,26 @@ export interface SpriteTriggerRequest extends SpriteTriggerOptions {
   trigger?: SpriteAnimationTrigger;
 }
 
+export type SpriteFeedbackKind =
+  | 'quest-record'
+  | 'purpose-link'
+  | 'memory-record'
+  | (string & {});
+
+export interface SpriteFeedbackRequest {
+  trigger?: SpriteAnimationTrigger;
+  kind?: SpriteFeedbackKind;
+  silent?: boolean;
+  durationMs?: number;
+  message?: string;
+  ctx?: Record<string, unknown>;
+}
+
+export type SpriteFeedbackResult =
+  | { ok: true; played: true; ownerPurposeId?: string }
+  | { ok: true; played: false; reason: 'missing-animation' | 'blocked-by-lock' | 'no-renderer' }
+  | { ok: false; played: false; reason: 'invalid-request'; error: string };
+
 export type { PersonaSnapshot };
 export type {
   CapabilityLevelUnlockDefinition,

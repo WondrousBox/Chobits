@@ -159,34 +159,40 @@ export function createWorkspaceCreateRoutineSteps(_: SpritePurpose): SpriteRouti
                   'open-wizard': [
                     { id: 'clear-invite-after-click', type: 'clearMessage', messageId: 'onboarding.workspace.create.invite', messageType: 'notice' },
                     { id: 'open-wizard', type: 'openWindow', window: 'workspaceWizard', timeoutMs: 10000 },
-                    { id: 'walk-near-wizard', type: 'walkTo', target: { window: 'workspaceWizard', placement: 'right', offset: 16 }, speed: 130, timeoutMs: 10000 },
                     {
-                      id: 'await-wizard-result',
-                      type: 'loopUntil',
-                      source: 'app-event',
-                      untilEvent: ['WORKSPACE_CREATED', 'WORKSPACE_WIZARD_CLOSED'],
-                      ignoreHistory: true,
-                      maxDurationMs: 30 * 60 * 1000,
-                      assignTo: 'workspaceWizardResult',
+                      id: 'guide-near-wizard',
+                      type: 'parallel',
                       body: [
+                        { id: 'walk-near-wizard', type: 'walkTo', target: { window: 'workspaceWizard', placement: 'right', offset: 16 }, speed: 130, timeoutMs: 10000 },
                         {
-                          id: 'speak-workspace-intro',
-                          type: 'speak',
-                          text: getCharacterRoutineText('onboarding.workspace.create.workspace-intro', undefined, '工作空间会存放所有重要的数据。'),
-                          bubbleDuration: 5200,
-                          cooldownKey: 'onboarding.workspace.create.workspace-intro',
-                          cooldownMs: 5 * 60 * 1000
-                        },
-                        { id: 'workspace-intro-breath', type: 'wait', durationMs: 800 },
-                        {
-                          id: 'speak-workspace-quickstart-tip',
-                          type: 'speak',
-                          text: getCharacterRoutineText('onboarding.workspace.create.quickstart-tip', undefined, '快速开始会默认创建到文档中'),
-                          bubbleDuration: 4200,
-                          cooldownKey: 'onboarding.workspace.create.quickstart-tip',
-                          cooldownMs: 5 * 60 * 1000
-                        },
-                        { id: 'await-wizard-result-pause', type: 'wait', durationMs: 1000 }
+                          id: 'await-wizard-result',
+                          type: 'loopUntil',
+                          source: 'app-event',
+                          untilEvent: ['WORKSPACE_CREATED', 'WORKSPACE_WIZARD_CLOSED'],
+                          ignoreHistory: true,
+                          maxDurationMs: 30 * 60 * 1000,
+                          assignTo: 'workspaceWizardResult',
+                          body: [
+                            {
+                              id: 'speak-workspace-intro',
+                              type: 'speak',
+                              text: getCharacterRoutineText('onboarding.workspace.create.workspace-intro', undefined, '工作空间会存放所有重要的数据。'),
+                              bubbleDuration: 5200,
+                              cooldownKey: 'onboarding.workspace.create.workspace-intro',
+                              cooldownMs: 5 * 60 * 1000
+                            },
+                            { id: 'workspace-intro-breath', type: 'wait', durationMs: 800 },
+                            {
+                              id: 'speak-workspace-quickstart-tip',
+                              type: 'speak',
+                              text: getCharacterRoutineText('onboarding.workspace.create.quickstart-tip', undefined, '快速开始会默认创建到文档中'),
+                              bubbleDuration: 4200,
+                              cooldownKey: 'onboarding.workspace.create.quickstart-tip',
+                              cooldownMs: 5 * 60 * 1000
+                            },
+                            { id: 'await-wizard-result-pause', type: 'wait', durationMs: 1000 }
+                          ]
+                        }
                       ]
                     },
                     {
