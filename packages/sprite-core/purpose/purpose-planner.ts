@@ -441,14 +441,6 @@ function validateSpeakStep(record: Record<string, unknown>, path: string, state:
   if (!getOptionalString(record.text)) {
     state.errors.push(`${path}.text must be a non-empty string`);
   }
-  const nextAction = asRecord(record.nextAction);
-  if (record.nextAction !== undefined) {
-    if (!nextAction) {
-      state.errors.push(`${path}.nextAction must be an object when provided`);
-    } else if (!getOptionalString(nextAction.purposeAction)) {
-      state.errors.push(`${path}.nextAction.purposeAction must be a non-empty string`);
-    }
-  }
   validateOptionalTimeout(record.timeoutMs, `${path}.timeoutMs`, state);
   validateBoundedOptionalDuration(record.bubbleDuration, `${path}.bubbleDuration`, state);
   validateBoundedOptionalDuration(record.cooldownMs, `${path}.cooldownMs`, state);

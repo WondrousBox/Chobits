@@ -174,15 +174,6 @@ type SpeakStep = BaseRoutineStep<'speak'> & {
   cooldownMs?: number;
   /** 冷却键；不填时默认用 `speak:<step.id>`。 */
   cooldownKey?: string;
-  /** 可选：在普通对话气泡上显示一个下一句按钮。 */
-  nextAction?: {
-    /** 按钮 id，会作为 payload.actionId 回到 purpose event。 */
-    id: string;
-    /** 无障碍/tooltip 文本。 */
-    label?: string;
-    /** 点击后触发 purpose-event 的 action 标识。 */
-    purposeAction: string;
-  };
 };
 
 /** 展示轻量 toast 气泡，适合短提示、成功/失败提示。 */

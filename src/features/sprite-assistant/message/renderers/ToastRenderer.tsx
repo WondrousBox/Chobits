@@ -9,17 +9,13 @@
 
 import Messages from '@packages/sprite-core/messages/zh-CN';
 import clsx from 'clsx';
-import { ChevronRight } from 'lucide-react';
 import React from 'react';
 
-import { Button } from '@/components/ui/button';
-
 import type { MessageCategory } from '../../types';
-import type { MessageButton, ToastMessage } from '../types';
+import type { ToastMessage } from '../types';
 
 interface ToastRendererProps {
   message: ToastMessage;
-  onButtonClick?: (button: MessageButton) => void;
   className?: string;
   placement?: 'inline' | 'fixed-top';
 }
@@ -32,7 +28,7 @@ const levelStyles: Record<string, string> = {
   error: 'bg-rose-50/95 text-rose-800 border border-rose-200/50'
 };
 
-export function ToastRenderer({ message, onButtonClick, className, placement = 'inline' }: ToastRendererProps): JSX.Element {
+export function ToastRenderer({ message, className, placement = 'inline' }: ToastRendererProps): JSX.Element {
   // 计算显示文案
   const displayText = React.useMemo(() => {
     // 优先使用自定义内容
@@ -58,7 +54,7 @@ export function ToastRenderer({ message, onButtonClick, className, placement = '
         'rounded-xl shadow-lg backdrop-blur-sm',
         'text-xs text-center',
         hasImage ? 'overflow-hidden p-1.5' : 'px-4 py-2',
-        message.nextAction ? 'flex items-center gap-2 text-left' : 'inline-flex flex-col items-center',
+        'inline-flex flex-col items-center',
         placement === 'fixed-top'
           ? hasImage
             ? 'w-fit max-w-[440px]'
@@ -71,13 +67,8 @@ export function ToastRenderer({ message, onButtonClick, className, placement = '
         className
       )}
     >
-      {hasText && <span className={clsx(message.nextAction && 'min-w-0 flex-1', hasImage && 'mb-1 px-2 pt-1 text-left')}>{displayText}</span>}
+      {hasText && <span className={clsx(hasImage && 'mb-1 px-2 pt-1 text-left')}>{displayText}</span>}
       {hasImage && <img src={image!.url} alt={image!.alt || image!.title || displayText || '表情包'} draggable={false} className="block max-h-[200px] max-w-[200px] object-contain" />}
-      {message.nextAction && (
-        <Button size="sm" variant="ghost" className={clsx(['h-8 w-8 shrink-0 rounded-full', levelStyles[level], 'bg-transparent'])} onClick={() => onButtonClick?.(message.nextAction!)}>
-          <ChevronRight />
-        </Button>
-      )}
     </div>
   );
 }

@@ -340,6 +340,7 @@ interface QuestListItem {
 - `workspace.create` 这类必须完成的新手 Quest 才配置 `autoStartEvents` 和 `retryEvents`；关闭气泡/窗口后的即时重提示主要由 routine 循环承担。
 - `first-file-drop` 这类行动型 Quest 不配置 `autoStartEvents`，避免用户启动应用或刚建完 workspace 后被自动打断；但它的完成事件仍与 routine 解耦，用户真实把文件拖给角色即可结算。
 - 推荐下一个任务不是自动启动。QuestEngine 只在目标任务未完成、前置条件满足且允许 `recommendation` 来源时展示确认 notice；若配置 `delayMs`，会先等待这段缓冲时间并在到点前再次检查目标状态。用户点击确认后才调用 `quest:start`。recommendation notice 默认朗读 prompt，并依赖自带关闭按钮取消；只有显式配置 `cancelLabel` 时才展示额外取消按钮。
+- 普通 `speak` / `showToast` 气泡只展示当前台词或轻量提示。多句台词用 routine 的顺序 step、`wait` 缓冲或 `parallel` 编排；需要用户确认或选择时统一使用 `showNotice.buttons`。
 
 ## 5. 对目的规划器的扩展需求
 
