@@ -64,6 +64,14 @@ function filterQuestItems(items: QuestListItem[], filter: QuestFilter): QuestLis
   return items;
 }
 
+function playQuestRecordAnimation(): void {
+  const playFeedback = window.YUA.sprite?.playFeedback;
+  if (!playFeedback) return;
+  void playFeedback({ trigger: 'write', kind: 'quest-record', silent: true }).catch((error) => {
+    console.warn('[QuestListPage] trigger quest record animation failed', error);
+  });
+}
+
 function QuestStatusIcon({ status }: { status: QuestListItemStatus }): JSX.Element {
   if (status === 'done') return <CheckCircle2 className="text-emerald-600" />;
   if (status === 'active') return <Sparkles className="text-blue-600" />;
@@ -196,6 +204,7 @@ export default function QuestListPage(): JSX.Element {
         throw new Error(result.error || '启动任务失败');
       }
       toast.success(result.startResult ? '任务引导已启动' : '任务已完成');
+      playQuestRecordAnimation();
     } catch (error) {
       toast.error('启动任务失败', { description: error instanceof Error ? error.message : String(error) });
     } finally {

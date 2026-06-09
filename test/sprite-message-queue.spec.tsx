@@ -277,6 +277,7 @@ describe('useMessageQueue', () => {
       quest: {
         'quest:start': startQuest
       },
+      sprite: {},
       messages: {
         on: () => () => undefined
       }

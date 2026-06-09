@@ -33,6 +33,8 @@ import type {
   SpriteEffectBridgePayload,
   SpriteEffectClearPayload,
   SpriteEffectPayload,
+  SpriteFeedbackRequest,
+  SpriteFeedbackResult,
   SpriteMovementPreviewConfig,
   SpriteTriggerOptions
 } from '../types';
@@ -138,6 +140,7 @@ export type SpriteBridgeType = {
 
   // 统一事件触发
   trigger(trigger: SpriteAnimationTrigger, options?: SpriteTriggerOptions): Promise<void>;
+  playFeedback(request: SpriteFeedbackRequest): Promise<SpriteFeedbackResult>;
   // 按动画 ID 测试播放（开发调试用）
   testAnimation(animationId: string, options?: { message?: string; duration?: number; durationMs?: number; silent?: boolean }): Promise<boolean>;
 
@@ -245,6 +248,7 @@ export const spriteBridge: SpriteBridgeType = {
 
   // ── 统一事件触发 ───────────────────────────────────────
   trigger: (trigger, options) => ipcRenderer.invoke('sprite:trigger', { trigger, ...options }),
+  playFeedback: (request) => ipcRenderer.invoke('sprite:feedback:play', request),
   testAnimation: (animationId, options) => ipcRenderer.invoke('sprite:triggerById', { animationId, ...options }),
 
   // ── Purpose / Routine 编排 ──────────────────────────────

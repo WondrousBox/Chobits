@@ -25,6 +25,8 @@ interface VideoPresentation {
   key: string;
   animId: string | null;
   playId: string | null;
+  trigger: SpritePlayCommand['trigger'];
+  sessionMode: SpritePlayCommand['sessionMode'];
   playback: SpritePlayCommand['playback'];
   playbackSession: SpritePlayCommand['playbackSession'];
   computed: VideoComputed;
@@ -83,6 +85,8 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
       key: [currentAnimation?.animationId ?? '', currentAnimation?.playId ?? '', url].join('|'),
       animId: currentAnimation?.animationId ?? null,
       playId: currentAnimation?.playId ?? null,
+      trigger: currentAnimation?.trigger,
+      sessionMode: currentAnimation?.sessionMode,
       playback,
       playbackSession: currentAnimation?.playbackSession,
       computed: {
@@ -154,9 +158,9 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
   const activePlayback = activePresentation?.playback;
   const activePlaybackSession = activePresentation?.playbackSession;
   const activeHasSegmentLoop = activePlayback?.loopStartMs != null && activePlayback?.loopEndMs != null;
+  const activeIsIdleSegmentLoop = activeHasSegmentLoop && activePresentation?.sessionMode === 'state-bound' && activePresentation?.trigger === 'idle';
   const activeTimedSessionActive = activePlaybackSession?.mode === 'timed' ? isTimedPlaybackActive(activePlaybackSession) : null;
-  const activeSegmentLoopActive = activeHasSegmentLoop && activePlayback?.loop === true;
-  const activeIsPlaying = activeTimedSessionActive ?? (activeSegmentLoopActive ? true : spriteState !== 'idle');
+  const activeIsPlaying = activeTimedSessionActive ?? (activeIsIdleSegmentLoop || spriteState !== 'idle');
 
   useEffect(() => {
     if (!activePresentation) return;
@@ -284,7 +288,7 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
       animId: activePresentation.animId,
       playId: activePresentation.playId,
       playback: activePlayback,
-      fallbackIsPlaying: activeSegmentLoopActive ? true : spriteState !== 'idle'
+      fallbackIsPlaying: activeIsPlaying
     });
   };
 

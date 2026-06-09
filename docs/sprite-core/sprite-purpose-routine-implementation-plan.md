@@ -804,6 +804,286 @@ Implementation notes:
 - Added regression coverage that `daily.rest-reminder` fallback routines contain no `walkTo` steps.
 - `file.drop.invite` still walks to center because the center position is the explicit drop target affordance for that interaction.
 
+## 8.2 2026-06-09 Workspace Onboarding Walk Exit Correction
+
+### 背景
+
+`onboarding.workspace.create` 的 preset routine 会在用户点击邀请气泡按钮后：
+
+```text
+clearMessage(onboarding.workspace.create.invite)
+openWindow(workspaceWizard)
+walkTo({ window: 'workspaceWizard', placement: 'right', offset: 16 })
+loopUntil(WORKSPACE_CREATED | WORKSPACE_WIZARD_CLOSED)
+```
+
+实际现象是：角色已经走到创建工作空间窗口旁边，窗口位置不再变化，但画面仍停留在行走动画，看起来像“一直在走”。
+
+### 根因
+
+这是 movement、状态机动画和 presentation lock 的边界问题，不是 `WindowController.walkTo()` 没有完成。
+
+1. `runPurposeWalkStep()` 为 routine 自己触发的行走状态临时设置 `stateDrivenPresentationOwner`，因此 `walking -> walk` 动画可以越过当前 routine lifecycle lock 正常播放。
+2. `WindowController` 到达目标后调用 `onWalkEnd()`，主进程把状态切回 `idle`。
+3. 这次 `idle` 状态解析没有携带 routine owner。由于 `workspace.create` routine 仍在等待用户创建工作空间，它的 lifecycle presentation lock 仍然存在；routine 等待窗口可达 30 分钟，当前 lock TTL 会被实现 clamp 到最多 10 分钟，但仍足以让旧 walk 展示长时间残留。
+4. `resolveAndSendAnimation(idle)` 被当前 routine lock 拦住，renderer 没有收到新的 idle `sprite:play`，于是 `currentAnimation` 仍然是 walk。
+5. 如果 walk 动画是三段式 `loopStartMs/loopEndMs`，`VideoSprite` 当前会把三段式 loop 视为持续 active，可能一直传入 `fallbackIsPlaying: true`，导致 `VideoSpriteDriver` 不进入 outro。即使 3 秒 pending-idle fallback 触发，也会再次被 routine lifecycle lock 拦住。
+
+### 目标行为
+
+- routine 自己的 `walkTo` 在 lifecycle lock 存在时仍然能播放 walk 动画。
+- `walkTo` 完成、被 stop 或超时后，角色展示必须离开 walk：普通 walk 立即切 idle，三段式 walk 先进入 outro，再切 idle。
+- routine 在打开业务窗口并长时间等待用户操作时，可以继续持有 presentation lock 防止 ambient/idle 行为打断，但这个 lock 不能让上一段 walk 动画残留。
+- 修复不能让外部低优先级状态变化覆盖 active routine 的显式动画。
+
+### 推荐实施方案
+
+第一层修复放在 `SpriteManager`，解决 routine-owned walk 结束后的 idle handoff。
+
+- 将 `transitionToIdleAnimation()` 扩展为可接收 `SpriteTriggerOptions` 或新增专用 helper，例如 `transitionToIdleAnimationForOwner(owner)`。
+- `runPurposeWalkStep()` 在 `walk` Promise 正常结束后，用同一个 `routine.purposeId + priority` 主动触发一次 idle 状态展示。
+- 这个 idle handoff 应该发生在释放 step lock 之前；若当前仍有 lifecycle lock，owner 匹配即可通过 `presentationLock.shouldAllow()`。
+- 如果当前动画是三段式 walk，不要直接清空 `currentAnimation`；保持现有 pending outro 机制，但 fallback 到 idle 的那次状态解析也必须带 routine owner。
+- 如果 walk step 超时并调用 `stopWalk()`，也应执行同样的 owner-aware idle handoff，避免失败路径残留 walk。
+
+第二层修复放在 `VideoSprite` / `VideoSpriteDriver`，解决三段式 walk loop 不退出的问题。
+
+- `activeIsPlaying` / `fallbackIsPlaying` 对三段式动画不要无条件使用 `activeSegmentLoopActive ? true : spriteState !== 'idle'`。
+- 对 state-bound 动画，应以 `spriteState !== 'idle'` 作为退出 loop 的主要信号；`loopStartMs/loopEndMs` 只表示“有 loop 段”，不表示永远 active。
+- 对 timed trigger 动画，继续以 `playbackSession` 控制 active 时长。
+- 对 idle 类三段式循环，如果后续确实需要常驻 loop，应显式通过 trigger/session 语义区分，不能让所有三段式动画都默认不可退出。
+
+第三层补充可观测性，便于定位类似问题。
+
+- 保留或收敛现有 `[SpritePlayback] handleAnimationComplete` 日志，增加 `currentState/currentTrigger/pendingIdleAfterOutro/presentationLock` 信息。
+- 在 `resolveAndSendAnimation()` 被 lock 拦住时，只对 debug trigger 或 purpose 相关场景记录一条结构化日志，避免长期刷屏。
+
+### 建议文件级改动
+
+- `packages/sprite-core/manager/sprite-manager.ts`
+  - 扩展 idle handoff helper，允许携带 owner/priority。
+  - `runPurposeWalkStep()` 在 success/stop/timeout 路径完成 owner-aware idle handoff。
+  - pending-idle fallback 触发时保留 owner 上下文，避免被同一 routine lifecycle lock 拦住。
+- `src/features/sprite-assistant/renderers/VideoSprite.tsx`
+  - 调整 `activeIsPlaying` 和 `fallbackIsPlaying` 的计算，避免三段式 state-bound walk 在 idle 后继续 loop。
+- `src/features/sprite-assistant/renderers/video-sprite-driver.ts`
+  - 如有必要，补一个显式 `syncPlayingState(false)` 后从 loop seek 到 `loopEndMs` 并进入 outro 的测试路径；现有 driver 逻辑已经支持该行为，重点是 renderer 传参。
+
+### 回归测试
+
+- `test/sprite-manager-regression.spec.ts`
+  - 新增：routine lifecycle lock 存在时，routine-owned walk 结束后仍能切回 idle 动画。
+  - 新增：`workspace.create` 风格的长 lifecycle lock 不会让 walk animation 残留。
+  - 新增：walk timeout / stopWalk 路径也会离开 walk presentation。
+- `test/video-sprite-driver.spec.ts`
+  - 覆盖三段式动画在 `isPlaying: false` 时从 loop 进入 outro，并在结尾上报 `outro`。
+- `test/sprite-renderer-mount.spec.tsx`
+  - 新增：三段式 walk 播放中收到 `spriteState: idle` 后，renderer 传入 inactive playing 状态，driver 进入 outro。
+- `test/sprite-purpose-routine.spec.ts`
+  - 保持 `onboarding.workspace.create` 顺序不变：open wizard -> walk near wizard -> speak/wait loop。
+
+### 验收标准
+
+- 首次引导中点击“立即创建”后，角色走到 `workspaceWizard` 旁边，位置停止后 1 个动画周期内离开 walk loop。
+- 如果 walk 动画有 outro，能自然播完 outro，再显示 idle。
+- workspace wizard 保持打开、routine 继续等待创建时，角色不再一直保持行走动画。
+- routine lifecycle lock 仍然能阻止 ambient idle、random message、auto-walk 等低优先级展示覆盖当前引导。
+
+### 落地记录
+
+- `SpriteManager` 已将 routine-owned `walkTo` 结束后的 idle handoff 改为携带同一个 `purposeId + priority`，并在三段式 outro pending 期间保存 owner，等 outro 完成后再消费。
+- `VideoSprite` 已改为让 state-bound walk 依据 `spriteState` 退出三段式 loop，同时保留 `idle` state-bound 三段式动画的常驻 loop 行为。
+- 已补充 manager 回归测试覆盖 lifecycle lock 下普通 walk 回 idle、三段式 walk outro 后 owner-aware idle；renderer mount 测试覆盖 walk loop 退出和 idle segment loop 保持。
+
+## 8.3 2026-06-09 Quest Record Link-State Feedback Animation
+
+### 背景
+
+任务列表页和消息气泡里的任务推荐入口会在启动任务后播放一次“记录/写入任务”的角色动画：
+
+```text
+quest:start(...)
+playQuestRecordAnimation()
+```
+
+当前 renderer 侧实现位于：
+
+- `src/features/sprite-assistant/message/MessageContext.tsx`
+- `src/pages/QuestListPage/QuestListPage.tsx`
+
+它们直接调用：
+
+```ts
+window.YUA.sprite?.trigger('write', { silent: true })
+```
+
+实际风险是：这个调用经由 `sprite:trigger` 进入 `SpriteManager.trigger('write')` 后，会被 `presentationLock.shouldAllow()` 检查。若 `quest:start` 已经启动了某个 purpose routine，routine lifecycle lock 可能已经存在；这次 renderer 外部触发没有 `ownerPurposeId + priority`，因此即使它在产品语义上属于“启动任务的衔接反馈”，也会被当前 active purpose 的 lock 拦住。
+
+这和 8.2 的 walk 残留属于同一类 presentation ownership 边界问题，但不是同一个具体 bug：
+
+- 8.2 是 routine 自己的 `walkTo` 完成后，`idle` handoff 丢失 owner，导致旧 walk 展示残留。
+- 8.3 是 renderer 发起的链接态反馈动画从一开始就没有 owner，因此无法越过当前 purpose lock。
+
+还需要区分另一类失败：如果当前角色包没有注册 `write` trigger 对应动画，`trigger('write')` 会没有候选动画。这个场景应返回明确的 `missing-animation`，而不是误判为 lock 问题。
+
+### 定位
+
+`playQuestRecordAnimation()` 不应该被硬塞进某个 `purpose routine`：
+
+- 它不是目标 purpose 的业务步骤，而是“任务被记录/进入引导流程”的过渡反馈。
+- `quest:start` 可能启动一个 routine，也可能只是同步任务状态、发现任务已经完成、或从推荐气泡进入已有任务。
+- 如果把它塞进每个 routine preset，会让每个 purpose 都背负任务系统 UI 衔接责任，污染 routine 的业务语义。
+- 如果 renderer 直接调用普通 `sprite.trigger()`，又无法安全表达“我属于当前 purpose 的链接态反馈”。
+
+因此它应该被建模为主进程受控的 system/purpose feedback，而不是 routine step。
+
+### 目标行为
+
+- 任务启动、任务记录、推荐气泡转任务等链接态反馈可以播放 `write` 这类动画。
+- 如果当前 active purpose 正持有 presentation lock，反馈动画可以借用同一个 purpose owner 播放，但只能借用当前 owner，不能绕过其他 owner 的 lock。
+- renderer 不能直接传 `ignorePresentationLock`、`ownerPurposeId` 或任意 priority。
+- 如果没有 active purpose 且没有 lock，反馈动画按普通 trigger 播放。
+- 如果存在不属于当前可解释 purpose 的 lock，反馈动画不播放，并返回可观测原因。
+- 如果没有对应动画资源，返回可观测原因，不显示错误 toast。
+
+### 推荐接口
+
+在 preload 暴露一个窄接口，不扩展普通 `sprite.trigger()` 的权限面：
+
+```ts
+window.YUA.sprite.playFeedback({
+  trigger: 'write',
+  kind: 'quest-record',
+  silent: true,
+  durationMs: 1200
+})
+```
+
+建议类型：
+
+```ts
+type SpriteFeedbackKind =
+  | 'quest-record'
+  | 'purpose-link'
+  | 'memory-record'
+  | (string & {});
+
+interface SpriteFeedbackRequest {
+  trigger: SpriteAnimationTrigger;
+  kind: SpriteFeedbackKind;
+  silent?: boolean;
+  durationMs?: number;
+  message?: string;
+  ctx?: Record<string, unknown>;
+}
+
+type SpriteFeedbackResult =
+  | { ok: true; played: true; ownerPurposeId?: string }
+  | { ok: true; played: false; reason: 'missing-animation' | 'blocked-by-lock' | 'no-renderer' }
+  | { ok: false; played: false; reason: 'invalid-request'; error: string };
+```
+
+命名可选项：
+
+- `playFeedback`：最通用，适合任务记录、记忆保存、系统写入等轻量反馈。
+- `playPurposeFeedback`：更强调与 purpose owner 的关系，但未来用于非 purpose 系统反馈时名字会变窄。
+- `triggerOwnedFeedback`：表达准确，但对调用端偏底层。
+
+推荐先用 `playFeedback`，参数中的 `kind` 负责表达具体场景。
+
+### 主进程决策规则
+
+在 `SpriteManager` 增加专用方法，例如 `playFeedbackAnimation(request)`。该方法内部读取：
+
+- `purposeManager.getSnapshot().current`
+- `presentationLock.getSnapshot()`
+- `animationRegistry.findCandidatesByTrigger({ trigger, personaState })`
+
+决策顺序：
+
+1. 校验 request：必须有 trigger 和 kind。
+2. 先检查 trigger 是否有动画候选；没有则返回 `missing-animation`。
+3. 读取当前 presentation lock。
+4. 如果没有 lock，调用普通 `trigger(trigger, { silent, durationMs, message, ctx })`。
+5. 如果有 lock，且当前 active purpose 存在，且 `lock.ownerId === currentPurpose.id`：
+   - 使用 `{ ownerPurposeId: currentPurpose.id, priority: currentPurpose.priority }` 调用 `trigger()`。
+   - 这表示反馈动画借用当前 purpose 的展示权。
+6. 如果有 lock，但 lock owner 与当前 active purpose 不一致：
+   - 返回 `blocked-by-lock`。
+   - 不使用 `ignorePresentationLock`。
+7. 如果 trigger 调用成功但由于候选消失或 race 没播出，返回可观测结果；第一版可以由 feedback helper 自己在调用前完成候选与 lock 检查，暂不强制把 `trigger()` 从 `void` 改为返回值。
+
+这个 helper 可以允许高优先级 active purpose 的链接态反馈替换当前动画，但不能让低可信 renderer 任意覆盖别的 routine、ambient 或开发测试动画。
+
+### 为什么不开放 ignorePresentationLock
+
+不要让 renderer 直接调用：
+
+```ts
+window.YUA.sprite.trigger('write', {
+  silent: true,
+  ignorePresentationLock: true
+})
+```
+
+原因：
+
+- 这会让任何页面都可以绕过 presentation lock，破坏 routine 对关键引导、业务窗口等待、动画收尾的保护。
+- 它无法区分“当前 purpose 的链接态反馈”和“不相关页面的随手动画”。
+- 后续一旦出现更多 UI 反馈动画，会演变成所有调用点都加 `ignorePresentationLock`，presentation lock 失去意义。
+
+正确边界是 renderer 表达意图，主进程判断是否允许借用当前 owner。
+
+### 建议文件级改动
+
+- `packages/sprite-core/types.ts`
+  - 新增 `SpriteFeedbackRequest` / `SpriteFeedbackResult` 类型。
+  - 可选：后续如果多个入口都需要可观测播放结果，再新增 `SpriteTriggerResult`，让 `trigger()` 从 `void` 升级为返回值。
+- `packages/sprite-core/manager/sprite-manager.ts`
+  - 新增 `playFeedbackAnimation(request)`。
+  - 提供内部 helper：`resolveCurrentPresentationOwnerForFeedback(kind)`。
+  - 不暴露 `ignorePresentationLock` 给 renderer。
+- `packages/sprite-core/handler/sprite-manager-ipc.ts`
+  - 新增 IPC：`sprite:feedback:play`。
+  - 只接收 `SpriteFeedbackRequest` 白名单字段。
+- `packages/sprite-core/preload/sprite-bridge.ts`
+  - 暴露 `playFeedback(request)`。
+- `src/features/sprite-assistant/message/MessageContext.tsx`
+  - 将 `playQuestRecordAnimation()` 改为调用 `window.YUA.sprite.playFeedback({ trigger: 'write', kind: 'quest-record', silent: true })`。
+- `src/pages/QuestListPage/QuestListPage.tsx`
+  - 同步改为同一个 helper；后续可抽一个 renderer 侧小工具，避免重复实现。
+
+### 回归测试
+
+- `test/sprite-manager-regression.spec.ts`
+  - 当前 active purpose 持有 lifecycle lock 时，`playFeedback({ trigger: 'write', kind: 'quest-record' })` 使用当前 owner 播放动画。
+  - 有 lock 但 owner 不属于当前 active purpose 时，返回 `blocked-by-lock`，不覆盖 current animation。
+  - 没有 lock 时，按普通 trigger 播放。
+  - 没有 `write` 动画候选时，返回 `missing-animation`。
+- `test/sprite-manager-ipc.spec.ts`
+  - `sprite:feedback:play` 不接受 renderer 传入的 `ownerPurposeId` / `priority` / `ignorePresentationLock`。
+  - IPC 返回结构化 result。
+- `test/sprite-message-queue.spec.tsx`
+  - 推荐气泡 `quest:start:*` 成功后调用 `playFeedback({ trigger: 'write', kind: 'quest-record', silent: true })`。
+- `test/quest-list-page.spec.tsx` 或现有任务列表测试
+  - 点击任务开始按钮后调用同一 helper。
+
+### 验收标准
+
+- 在首次引导、聊天 API 配置引导、功能引导等 active purpose 期间，从任务推荐入口启动任务时，`write` 反馈动画能播放。
+- 如果另一个不相关高优先级 lock 正在保护展示，任务记录反馈不会强行覆盖。
+- 没有 `write` 动画资源时不报错，日志或返回值能说明 `missing-animation`。
+- 普通 `sprite.trigger()` 仍然不能从 renderer 绕过 presentation lock。
+
+### 落地记录
+
+- 已新增 `SpriteFeedbackKind` / `SpriteFeedbackRequest` / `SpriteFeedbackResult`，并从 sprite-core 与 sprite-assistant 类型出口导出。
+- `SpriteManager.playFeedbackAnimation()` 已实现主进程受控的 owner 借用：先校验 request，再先查动画候选；有 lock 时只接受 active routine owner 或当前 active purpose owner，随后用内部 `ownerPurposeId + priority` 调用 `trigger()`。
+- `sprite:feedback:play` IPC 只转发 `trigger/kind/silent/durationMs/message/ctx` 白名单字段，renderer 传入的 `ownerPurposeId`、`priority`、`ignorePresentationLock` 会被丢弃。
+- preload 已暴露 `window.YUA.sprite.playFeedback(request)`；任务推荐气泡和任务列表页的 `playQuestRecordAnimation()` 已迁移到 `playFeedback({ trigger: 'write', kind: 'quest-record', silent: true })`。
+- 已补充 manager 回归测试覆盖 active purpose lifecycle lock、非当前 owner lock、无 lock、缺失动画候选、非法 request；IPC 测试覆盖窄 payload；消息队列测试覆盖推荐任务启动后的 `playFeedback` 调用。
+- `no-renderer` 暂作为 `SpriteFeedbackResult` 的预留可观测原因；当前 manager 版本还没有独立的 renderer availability 判断，因此第一版不会主动返回该 reason。
+
 ## 9. 推荐开工顺序
 
 最稳的顺序是：

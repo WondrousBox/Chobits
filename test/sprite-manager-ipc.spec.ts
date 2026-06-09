@@ -701,6 +701,52 @@ describe('sprite manager IPC integration', () => {
     });
   });
 
+  it('forwards sprite feedback through a narrow payload without renderer-owned lock fields', async () => {
+    listSpritesMock.mockResolvedValue([]);
+
+    const { initSpriteManagerIPC } = await import('../packages/sprite-core/handler/sprite-manager-ipc');
+    await initSpriteManagerIPC(windowStub.win as any, { addAllowedResourceRoot: vi.fn() });
+
+    const handleFeedback = electronState.handlers.get('sprite:feedback:play') as
+      | ((_: unknown, payload: { trigger?: string; kind?: string; silent?: boolean; durationMs?: number; ownerPurposeId?: string; priority?: number; ignorePresentationLock?: boolean }) => unknown)
+      | undefined;
+    const { SpriteManager } = await import('../packages/sprite-core/manager');
+    const mgr = SpriteManager.getInstance();
+    const feedbackSpy = vi.spyOn(mgr, 'playFeedbackAnimation').mockReturnValue({ ok: true, played: true });
+
+    expect(handleFeedback).toBeTypeOf('function');
+
+    const result = handleFeedback?.({} as never, {
+      trigger: 'write',
+      kind: 'quest-record',
+      silent: true,
+      durationMs: 1200,
+      ownerPurposeId: 'renderer-owner',
+      priority: 999,
+      ignorePresentationLock: true
+    });
+
+    expect(result).toEqual({ ok: true, played: true });
+    expect(feedbackSpy).toHaveBeenCalledWith({
+      trigger: 'write',
+      kind: 'quest-record',
+      silent: true,
+      durationMs: 1200,
+      message: undefined,
+      ctx: undefined
+    });
+
+    handleFeedback?.({} as never, null as never);
+    expect(feedbackSpy).toHaveBeenLastCalledWith({
+      trigger: undefined,
+      kind: undefined,
+      silent: undefined,
+      durationMs: undefined,
+      message: undefined,
+      ctx: undefined
+    });
+  });
+
   it('forwards animation completion playId to SpriteManager', async () => {
     listSpritesMock.mockResolvedValue([]);
 

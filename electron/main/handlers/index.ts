@@ -425,6 +425,7 @@ async function initOnboardingQuestEngine(
         speak: true,
         buttons
       });
+      mgr.playFeedbackAnimation({ trigger: 'write', kind: 'quest-record', silent: true });
     }
   });
 

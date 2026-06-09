@@ -74,7 +74,7 @@ describe('AchievementUnlockPage', () => {
       root.render(<AchievementUnlockPage />);
       await flushPromises();
     });
-    expect(env.container.textContent).toContain('第一座工作空间');
+    expect(env.container.textContent).toContain('第一个工作空间');
 
     await act(async () => {
       ipcListeners.get('on:window:open:ready')?.(null, { achievementId: 'first-workspace' });
@@ -113,7 +113,7 @@ describe('AchievementUnlockPage', () => {
       ipcListeners.get('on:window:open:ready')?.(null, { achievementId: 'first-import' });
       await flushPromises();
     });
-    expect(env.container.textContent).toContain('第一座工作空间');
+    expect(env.container.textContent).toContain('第一个工作空间');
 
     await act(async () => {
       vi.advanceTimersByTime(5600);

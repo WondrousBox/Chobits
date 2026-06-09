@@ -89,6 +89,7 @@ import type {
   SpriteEffectBridgePayload,
   SpriteEffectClearPayload,
   SpriteEffectPayload,
+  SpriteFeedbackRequest,
   SpriteMovementPreviewConfig,
   SpriteTriggerRequest
 } from '../types';
@@ -1236,6 +1237,18 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       durationMs: p.durationMs,
       ctx: p.ctx,
       silent: p.silent
+    });
+  });
+
+  ipcMain.handle('sprite:feedback:play', (_e, p: SpriteFeedbackRequest | null | undefined) => {
+    const request = p ?? {};
+    return mgr.playFeedbackAnimation({
+      trigger: request.trigger,
+      kind: request.kind,
+      silent: request.silent,
+      durationMs: request.durationMs,
+      message: request.message,
+      ctx: request.ctx
     });
   });
 

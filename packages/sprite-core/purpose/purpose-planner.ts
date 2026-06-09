@@ -136,6 +136,7 @@ export const DEFAULT_SPRITE_PURPOSE_PLANNER_STEP_TYPES = [
   'clearBusy',
   'openWindow',
   'loopUntil',
+  'parallel',
   'branch'
 ] as const satisfies readonly SpriteRoutineStepType[];
 
@@ -166,6 +167,7 @@ const STEP_SCHEMA_DESCRIPTIONS: Record<SpriteRoutineStepType, string> = {
   clearBusy: 'Clear busy/progress state.',
   openWindow: 'Open an allowlisted window; timeoutMs is required.',
   loopUntil: 'Repeat bounded body steps until allowlisted event; maxDurationMs is required.',
+  parallel: 'Run bounded child steps concurrently; duration is estimated as the longest child branch.',
   branch: 'Choose nested steps from assigned state; nested steps are validated recursively.'
 };
 
@@ -380,6 +382,8 @@ function validateStep(step: unknown, path: string, state: ValidationState): numb
         state.errors.push(`${path}.ignoreHistory must be a boolean when provided`);
       }
       return validateLoopUntilStep(record, path, state);
+    case 'parallel':
+      return validateParallelStep(record, path, state);
     case 'branch':
       return validateBranchStep(record, path, state);
     default:
@@ -505,6 +509,18 @@ function validateLoopUntilEventMatches(value: unknown, events: unknown[], path: 
   }
 }
 
+function validateParallelStep(record: Record<string, unknown>, path: string, state: ValidationState): number {
+  if (!Array.isArray(record.body)) {
+    state.errors.push(`${path}.body must be an array`);
+    return 0;
+  }
+  if (record.body.length === 0) {
+    state.errors.push(`${path}.body must include at least one child step`);
+    return 0;
+  }
+  return validateStepList(record.body, `${path}.body`, state, 'max');
+}
+
 function validateBranchStep(record: Record<string, unknown>, path: string, state: ValidationState): number {
   if (!getOptionalString(record.by)) {
     state.errors.push(`${path}.by must be a non-empty string`);
@@ -607,6 +623,12 @@ function invalid(errors: string[], fallbackPresetId: string | undefined, whyThis
 
 function cloneRoutineStep(step: SpriteRoutineStep): SpriteRoutineStep {
   if (step.type === 'loopUntil') {
+    return {
+      ...step,
+      body: step.body.map((child) => cloneRoutineStep(child))
+    };
+  }
+  if (step.type === 'parallel') {
     return {
       ...step,
       body: step.body.map((child) => cloneRoutineStep(child))

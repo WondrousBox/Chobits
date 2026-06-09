@@ -79,6 +79,8 @@ import {
   type SpriteAnimationTrigger,
   type SpriteBubbleMode,
   type SpriteConfig,
+  type SpriteFeedbackRequest,
+  type SpriteFeedbackResult,
   type SpriteInitialState,
   type SpriteMovementConfig,
   type SpriteMovementPreviewConfig,
@@ -216,6 +218,7 @@ export class SpriteManager {
   // 当从 reacting 状态（三段式动画）切回 idle 时，
   // 不立即切换动画，等 outro 播完再发送 idle 动画
   private _pendingIdleAfterOutro = false;
+  private pendingIdlePresentationOwner: SpritePresentationOwnerContext | null = null;
 
   // 欢迎消息只在首次 rendererReady 时发送
   private _welcomeSent = false;
@@ -849,6 +852,60 @@ export class SpriteManager {
     return true;
   }
 
+  playFeedbackAnimation(request?: SpriteFeedbackRequest | null): SpriteFeedbackResult {
+    const feedbackRequest = request ?? {};
+    const trigger = typeof feedbackRequest.trigger === 'string' ? (feedbackRequest.trigger.trim() as SpriteAnimationTrigger) : undefined;
+    const kind = typeof feedbackRequest.kind === 'string' ? feedbackRequest.kind.trim() : undefined;
+    if (!trigger || !kind) {
+      return {
+        ok: false,
+        played: false,
+        reason: 'invalid-request',
+        error: 'Feedback trigger and kind are required'
+      };
+    }
+
+    const candidates = this.animationRegistry.findCandidatesByTrigger({
+      trigger,
+      personaState: this.personaState.getState()
+    });
+    if (candidates.length === 0) {
+      return { ok: true, played: false, reason: 'missing-animation' };
+    }
+
+    const lock = this.presentationLock.getSnapshot();
+    const owner = lock ? this.resolveCurrentPresentationOwnerForFeedback(lock.ownerId) : null;
+    if (lock && !owner) {
+      return { ok: true, played: false, reason: 'blocked-by-lock' };
+    }
+
+    this.trigger(trigger, {
+      silent: feedbackRequest.silent,
+      durationMs: feedbackRequest.durationMs,
+      message: feedbackRequest.message,
+      ctx: feedbackRequest.ctx,
+      ...(owner ? this.toPresentationOptions(owner) : {})
+    });
+
+    return owner ? { ok: true, played: true, ownerPurposeId: owner.ownerId } : { ok: true, played: true };
+  }
+
+  private resolveCurrentPresentationOwnerForFeedback(lockOwnerId: string): SpritePresentationOwnerContext | null {
+    if (this.activeRoutinePresentationOwner?.ownerId === lockOwnerId) {
+      return { ...this.activeRoutinePresentationOwner };
+    }
+
+    const currentPurpose = this.purposeManager.getSnapshot().current;
+    if (currentPurpose?.id !== lockOwnerId) {
+      return null;
+    }
+
+    return {
+      ownerId: currentPurpose.id,
+      priority: currentPurpose.priority
+    };
+  }
+
   /** 获取当前主状态 */
   getState(): SpriteState {
     return this.stateMachine.getState();
@@ -1357,6 +1414,7 @@ export class SpriteManager {
     if (currentMatches) {
       this.currentAnimation = null;
       this._pendingIdleAfterOutro = false;
+      this.pendingIdlePresentationOwner = null;
       this.stopAutoMove();
       this.transitionToIdleAnimation();
     }
@@ -1716,7 +1774,7 @@ export class SpriteManager {
       state: this.getState(),
       subState: this.getSubState()
     });
-    this.transitionToIdleAnimation();
+    this.transitionToIdleAnimation(this.consumePendingIdlePresentationOptions());
   }
 
   /** 处理文件拖放 */
@@ -1966,12 +2024,13 @@ export class SpriteManager {
     if (newState === 'idle' && _oldState !== 'idle' && this.currentAnimation?.playback?.loopStartMs != null && this.currentAnimation?.playback?.loopEndMs != null) {
       const autoIdle = this.currentAnimation?.playback?.autoIdle ?? true;
       this._pendingIdleAfterOutro = autoIdle;
+      this.pendingIdlePresentationOwner = autoIdle && this.stateDrivenPresentationOwner ? { ...this.stateDrivenPresentationOwner } : null;
       this.broadcastState();
       if (autoIdle) {
         setTimeout(() => {
           if (this._pendingIdleAfterOutro) {
             this._pendingIdleAfterOutro = false;
-            this.transitionToIdleAnimation();
+            this.transitionToIdleAnimation(this.consumePendingIdlePresentationOptions());
           }
         }, 3000);
       }
@@ -1979,6 +2038,7 @@ export class SpriteManager {
     }
 
     this._pendingIdleAfterOutro = false;
+    this.pendingIdlePresentationOwner = null;
     this.resolveAndSendAnimation(newState, subState, this.getStateDrivenPresentationOptions());
 
     this.broadcastState();
@@ -2059,9 +2119,42 @@ export class SpriteManager {
     return 'advanced';
   }
 
-  private transitionToIdleAnimation(): void {
+  private transitionToIdleAnimation(options?: SpriteTriggerOptions): void {
     const isAlreadyIdle = this.getState() === 'idle' && this.getSubState() == null;
-    this.transitionTo('idle', { force: isAlreadyIdle });
+    if (!isAlreadyIdle) {
+      const owner = this.toPresentationOwner(options);
+      if (owner) {
+        this.withStateDrivenPresentationOwner(owner, () => this.transitionTo('idle'));
+      } else {
+        this.transitionTo('idle');
+      }
+      return;
+    }
+
+    this.resolveAndSendAnimation('idle', null, options);
+    this.broadcastState();
+  }
+
+  private toPresentationOwner(options?: SpriteTriggerOptions): SpritePresentationOwnerContext | null {
+    if (!options?.ownerPurposeId) return null;
+    return {
+      ownerId: options.ownerPurposeId,
+      priority: options.priority ?? 0
+    };
+  }
+
+  private toPresentationOptions(owner: SpritePresentationOwnerContext): SpriteTriggerOptions {
+    return {
+      ownerPurposeId: owner.ownerId,
+      priority: owner.priority
+    };
+  }
+
+  private consumePendingIdlePresentationOptions(): SpriteTriggerOptions | undefined {
+    const owner = this.pendingIdlePresentationOwner;
+    this.pendingIdlePresentationOwner = null;
+    if (!owner) return undefined;
+    return this.toPresentationOptions(owner);
   }
 
   /** 根据当前状态解析并发送动画指令到渲染进程 */
@@ -2349,8 +2442,9 @@ export class SpriteManager {
     const lockTtlMs = Math.max(1000, step.timeoutMs ?? 8000);
     const lockAcquired = this.shouldAcquirePurposeStepLock(routine) ? this.presentationLock.acquire(routine.purposeId, priority, lockTtlMs, `routine:${routine.id}:${step.id}`) : false;
     const [x, y] = this.resolvePurposeWalkTarget(step.target);
+    const owner: SpritePresentationOwnerContext = { ownerId: routine.purposeId, priority };
     try {
-      const walk = this.withStateDrivenPresentationOwner({ ownerId: routine.purposeId, priority }, () => this.walkTo(x, y, step.speed));
+      const walk = this.withStateDrivenPresentationOwner(owner, () => this.walkTo(x, y, step.speed));
       if (step.timeoutMs == null) {
         await this.racePurposeSignal(walk, signal);
         return;
@@ -2366,6 +2460,11 @@ export class SpriteManager {
         signal
       );
     } finally {
+      if (this._pendingIdleAfterOutro && this.getState() === 'idle' && this.getSubState() == null) {
+        this.pendingIdlePresentationOwner = owner;
+      } else {
+        this.transitionToIdleAnimation(this.toPresentationOptions(owner));
+      }
       if (lockAcquired) {
         this.presentationLock.release(routine.purposeId);
       }
