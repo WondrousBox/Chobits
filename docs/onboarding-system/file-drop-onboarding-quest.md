@@ -32,7 +32,7 @@
 
 1. `workspace.create` 已完成，或系统里已经有工作空间。
 2. `first-file-drop` 不随 `APP_STARTED` / `WORKSPACE_CREATED` 自动启动，避免用户启动应用或刚创建工作空间后被下一条引导打断。
-3. 用户在任务列表点击“开始引导/继续引导”，或未来 AI 显式触发 `quest:start({ id: 'first-file-drop', source: 'ai' })` 时，`QuestEngine` 评估前置条件。
+3. 用户在任务列表点击“开始引导/继续引导”、未来 AI 显式触发 `quest:start({ id: 'first-file-drop', source: 'ai' })`，或从上一任务推荐确认继续时，`QuestEngine` 评估前置条件。
 4. 满足前置条件后启动 `onboarding.file.drop` purpose，强制 `plannerMode: 'preset-only'`。
 5. 角色走到中心，展示固定 notice：“可以把文件拖拽给我”
 6. 等待用户拖拽文件。真实拖入时，已有 `file.drop.invite` / `file.drop.intake` 会接管更高优先级的交互表现。
@@ -52,7 +52,8 @@
 - `description`: `把任意文件拖到桌面角色身上，完成一次拖拽导入。`
 - `precondition`: 已有工作空间
 - `autoStartEvents`: 不配置；启动应用/完成工作空间创建不会自动弹出这条引导
-- `explicitStartSources`: `task-list`、`ai`
+- `explicitStartSources`: `task-list`、`ai`、`recommendation`
+- `recommendation`: 完成后缓冲 `delayMs = 2500`，推荐 `open-resource-library`
 - `triggerEvents`: `RESOURCE_CREATED`、`SPRITE_RESOURCE_IMPORT_COMPLETE`
 - `completion`: `RESOURCE_CREATED` 或 `SPRITE_RESOURCE_IMPORT_COMPLETE`，且事件 payload / resource metadata 标记 `source === 'sprite-drop'`
 - `reward`: `xp: 15`、`favor: 2`、`achievementId: 'first-import'`

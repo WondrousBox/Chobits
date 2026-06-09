@@ -59,9 +59,16 @@ export const workspaceCreateQuest: OnboardingQuestDefinition = {
 
   triggerEvents: ['WORKSPACE_CREATED', 'WORKSPACE_WIZARD_CLOSED', 'APP_STARTED'],
   autoStartEvents: ['APP_STARTED'],
-  explicitStartSources: ['task-list', 'ai'],
+  explicitStartSources: ['task-list', 'ai', 'recommendation'],
   retriable: true,
   retryEvents: ['APP_STARTED'],
+
+  recommendation: {
+    questId: 'first-file-drop',
+    delayMs: 5000,
+    prompt: '要不要接着试试把第一个文件拖给我？',
+    confirmLabel: '继续'
+  },
 
   toPurposeRequest: () => ({
     kind: 'onboarding.workspace.create',

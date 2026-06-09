@@ -15,6 +15,36 @@ import {
 } from '../packages/sprite-core/quest';
 import { createEmptyOnboardingState } from '../packages/sprite-core/quest/types';
 
+function createTimerHarness() {
+  let nextId = 1;
+  const callbacks = new Map<number, () => void | Promise<void>>();
+  const setTimeout = vi.fn((callback: () => void | Promise<void>, ms: number) => {
+    const id = nextId;
+    nextId += 1;
+    callbacks.set(id, callback);
+    return id;
+  });
+  const clearTimeout = vi.fn((timeoutId: unknown) => {
+    callbacks.delete(Number(timeoutId));
+  });
+  const runNext = async (): Promise<boolean> => {
+    const next = callbacks.entries().next().value as [number, () => void] | undefined;
+    if (!next) return false;
+    const [id, callback] = next;
+    callbacks.delete(id);
+    await callback();
+    return true;
+  };
+  return {
+    setTimeout,
+    clearTimeout,
+    runNext,
+    get pendingCount() {
+      return callbacks.size;
+    }
+  };
+}
+
 describe('QuestRegistry', () => {
   it('registers quests and looks them up by trigger event', () => {
     const reg = new QuestRegistry();
@@ -152,7 +182,8 @@ describe('QuestEngine — workspace.create happy path', () => {
       reward: { xp: 20, favor: 3, achievementId: 'first-workspace' },
       rewardSource: 'quest:workspace.create',
       recommendation: {
-        questId: 'first-file-drop'
+        questId: 'first-file-drop',
+        delayMs: 5000
       },
       action: {
         kind: 'start-quest',
@@ -230,6 +261,7 @@ describe('QuestEngine — workspace.create happy path', () => {
     }));
     const grantReward = vi.fn(async () => undefined);
     const onRecommendation = vi.fn(async () => undefined);
+    const timer = createTimerHarness();
     const saved: { current: any } = { current: createEmptyOnboardingState() };
     const engine = new QuestEngine({
       registry: reg,
@@ -241,20 +273,28 @@ describe('QuestEngine — workspace.create happy path', () => {
       saveState: (state) => {
         saved.current = JSON.parse(JSON.stringify(state));
       },
-      now: () => 1000
+      now: () => 1000,
+      setTimeout: timer.setTimeout,
+      clearTimeout: timer.clearTimeout
     });
 
     counts.workspaces = 1;
     await engine.tick({ event: 'WORKSPACE_CREATED' });
+
+    expect(timer.setTimeout).toHaveBeenCalledWith(expect.any(Function), 5000);
+    expect(onRecommendation).not.toHaveBeenCalled();
+
+    await timer.runNext();
 
     expect(onRecommendation).toHaveBeenCalledTimes(1);
     expect(onRecommendation.mock.calls[0][0]).toMatchObject({
       questId: 'first-file-drop',
       questTitle: '把第一个文件拖给我',
       questStatus: 'pending',
-      confirmLabel: '继续',
-      cancelLabel: '稍后'
+      delayMs: 5000,
+      confirmLabel: '继续'
     });
+    expect(onRecommendation.mock.calls[0][0]).not.toHaveProperty('cancelLabel');
     expect(onRecommendation.mock.calls[0][1].id).toBe('workspace.create');
   });
 
@@ -262,6 +302,7 @@ describe('QuestEngine — workspace.create happy path', () => {
     const counts = { workspaces: 1 };
     const reg = new QuestRegistry([createWorkspaceCreateQuest({ countWorkspaces: () => counts.workspaces }), createFirstFileDropQuest({ countWorkspaces: () => counts.workspaces })]);
     const onRecommendation = vi.fn(async () => undefined);
+    const timer = createTimerHarness();
     const saved: { current: any } = {
       current: {
         version: 1,
@@ -283,10 +324,43 @@ describe('QuestEngine — workspace.create happy path', () => {
       saveState: (state) => {
         saved.current = JSON.parse(JSON.stringify(state));
       },
-      now: () => 1000
+      now: () => 1000,
+      setTimeout: timer.setTimeout,
+      clearTimeout: timer.clearTimeout
     });
 
     await engine.tick({ event: 'WORKSPACE_CREATED' });
+    await timer.runNext();
+
+    expect(onRecommendation).not.toHaveBeenCalled();
+  });
+
+  it('does not offer a recommended quest that completes during the buffer window', async () => {
+    const counts = { workspaces: 1 };
+    const reg = new QuestRegistry([createWorkspaceCreateQuest({ countWorkspaces: () => counts.workspaces }), createFirstFileDropQuest({ countWorkspaces: () => counts.workspaces })]);
+    const onRecommendation = vi.fn(async () => undefined);
+    const timer = createTimerHarness();
+    const saved: { current: any } = { current: createEmptyOnboardingState() };
+    const engine = new QuestEngine({
+      registry: reg,
+      startPurpose: vi.fn(async () => ({ accepted: true as const, status: 'started' as const })),
+      grantReward: vi.fn(async () => undefined),
+      hasAchievement: () => false,
+      onRecommendation,
+      loadState: () => saved.current,
+      saveState: (state) => {
+        saved.current = JSON.parse(JSON.stringify(state));
+      },
+      now: () => 1000,
+      setTimeout: timer.setTimeout,
+      clearTimeout: timer.clearTimeout
+    });
+
+    await engine.tick({ event: 'WORKSPACE_CREATED' });
+    expect(timer.pendingCount).toBe(1);
+
+    await engine.tick({ event: 'RESOURCE_CREATED', eventPayload: { id: 'resource-1', metadata: JSON.stringify({ source: 'sprite-drop' }) } });
+    await timer.runNext();
 
     expect(onRecommendation).not.toHaveBeenCalled();
   });

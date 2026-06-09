@@ -189,9 +189,9 @@ export function createWorkspaceCreateQuest(deps: OnboardingPresetDeps): Onboardi
     goal: WORKSPACE_EXISTS_GUIDE_GOAL,
     recommendation: {
       questId: 'first-file-drop',
+      delayMs: 5000,
       prompt: '要不要接着试试把第一个文件拖给我？',
-      confirmLabel: '继续',
-      cancelLabel: '稍后'
+      confirmLabel: '继续'
     },
     reward: {
       xp: 20,
@@ -259,9 +259,9 @@ export function createFirstFileDropQuest(deps: OnboardingPresetDeps): Onboarding
     goal: FIRST_FILE_DROP_GUIDE_GOAL,
     recommendation: {
       questId: 'open-resource-library',
+      delayMs: 2500,
       prompt: '文件已经进库了。要不要接着看看资源库在哪里？',
-      confirmLabel: '打开引导',
-      cancelLabel: '稍后'
+      confirmLabel: '打开引导'
     },
     reward: {
       xp: 15,
@@ -320,9 +320,9 @@ export function createOpenResourceLibraryQuest(deps: OnboardingPresetDeps): Onbo
     goal: OPEN_RESOURCE_LIBRARY_GUIDE_GOAL,
     recommendation: {
       questId: 'feature.resource-library-preview',
+      delayMs: 2500,
       prompt: '资源库已经打开啦。要不要继续试试预览一个资源？',
-      confirmLabel: '继续',
-      cancelLabel: '稍后'
+      confirmLabel: '继续'
     },
     reward: {
       xp: 10,

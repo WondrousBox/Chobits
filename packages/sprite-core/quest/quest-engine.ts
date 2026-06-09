@@ -27,6 +27,9 @@ export interface QuestEngineDeps {
   onRecommendation?: (offer: QuestRecommendationOffer, completedQuest: OnboardingQuestDefinition) => Promise<void> | void;
   /** 时间源（便于测试） */
   now?: () => number;
+  /** 定时器注入（便于测试推荐缓冲时间）。 */
+  setTimeout?: (callback: () => void | Promise<void>, ms: number) => unknown;
+  clearTimeout?: (timeoutId: unknown) => void;
 }
 
 export interface QuestResetCompletedResult {
@@ -54,9 +57,14 @@ export class QuestEngine {
   private state: OnboardingState = createEmptyOnboardingState();
   private loaded = false;
   private readonly now: () => number;
+  private readonly setTimeoutFn: (callback: () => void | Promise<void>, ms: number) => unknown;
+  private readonly clearTimeoutFn: (timeoutId: unknown) => void;
+  private pendingRecommendationTimers = new Map<string, unknown>();
 
   constructor(private readonly deps: QuestEngineDeps) {
     this.now = deps.now ?? (() => Date.now());
+    this.setTimeoutFn = deps.setTimeout ?? ((callback, ms) => setTimeout(callback, ms));
+    this.clearTimeoutFn = deps.clearTimeout ?? ((timeoutId) => clearTimeout(timeoutId as ReturnType<typeof setTimeout>));
   }
 
   async init(): Promise<void> {
@@ -143,6 +151,7 @@ export class QuestEngine {
   async skipAll(): Promise<void> {
     if (!this.loaded) await this.init();
     this.state.skipped = true;
+    this.clearPendingRecommendationTimers();
     await this.persist();
   }
 
@@ -169,6 +178,9 @@ export class QuestEngine {
     }
 
     if (resetQuestIds.length > 0) {
+      for (const questId of resetQuestIds) {
+        this.clearPendingRecommendationTimer(questId);
+      }
       await this.persist();
     }
 
@@ -199,6 +211,7 @@ export class QuestEngine {
     }
 
     this.state = createEmptyOnboardingState();
+    this.clearPendingRecommendationTimers();
     await this.persist();
 
     return {
@@ -352,6 +365,43 @@ export class QuestEngine {
   }
 
   private async notifyRecommendation(def: OnboardingQuestDefinition): Promise<void> {
+    if (!this.deps.onRecommendation) return;
+    const delayMs = this.resolveRecommendationDelayMs(def.recommendation?.delayMs);
+    const timerKey = def.id;
+    this.clearPendingRecommendationTimer(timerKey);
+
+    if (delayMs > 0) {
+      const timerId = this.setTimeoutFn(() => {
+        this.pendingRecommendationTimers.delete(timerKey);
+        return this.dispatchRecommendation(def);
+      }, delayMs);
+      this.pendingRecommendationTimers.set(timerKey, timerId);
+      return;
+    }
+
+    await this.dispatchRecommendation(def);
+  }
+
+  private resolveRecommendationDelayMs(delayMs: unknown): number {
+    return typeof delayMs === 'number' && Number.isFinite(delayMs) && delayMs > 0 ? Math.floor(delayMs) : 0;
+  }
+
+  private clearPendingRecommendationTimer(questId: string): void {
+    if (!this.pendingRecommendationTimers.has(questId)) return;
+    const timerId = this.pendingRecommendationTimers.get(questId);
+    this.clearTimeoutFn(timerId);
+    this.pendingRecommendationTimers.delete(questId);
+  }
+
+  private clearPendingRecommendationTimers(): void {
+    for (const timerId of this.pendingRecommendationTimers.values()) {
+      this.clearTimeoutFn(timerId);
+    }
+    this.pendingRecommendationTimers.clear();
+  }
+
+  private async dispatchRecommendation(def: OnboardingQuestDefinition): Promise<void> {
+    if (this.state.skipped) return;
     if (!this.deps.onRecommendation) return;
     const offer = await this.buildRecommendationOffer(def);
     if (!offer) return;
