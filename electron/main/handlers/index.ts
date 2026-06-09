@@ -14,7 +14,7 @@ import { initSpriteHandlers, initSpriteManagerIPC } from '../../../packages/spri
 import { SpriteManager } from '../../../packages/sprite-core/manager';
 import { DEFAULT_SPRITE_ROUTINE_PRESETS, SpritePurposeHistoryStore } from '../../../packages/sprite-core/purpose';
 import { createOnboardingQuestRegistry, QuestEngine } from '../../../packages/sprite-core/quest';
-import { SPRITE_EVENT_TYPES } from '../../../packages/sprite-core/types';
+import { SPRITE_EVENT_TYPES, type MessageButton } from '../../../packages/sprite-core/types';
 import { initTTSHandlers } from '../../../packages/tts/ipc-main';
 import { initYtDlpIpcHandlers } from '../../../packages/ytdlp';
 import { initDailyCare } from '../daily';
@@ -400,25 +400,30 @@ async function initOnboardingQuestEngine(
       const mgr = SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
       if (!mgr) return;
 
+      const buttons: MessageButton[] = [
+        {
+          id: 'start-recommended-quest',
+          label: offer.confirmLabel || '继续',
+          variant: 'default',
+          action: `quest:start:${offer.questId}`
+        }
+      ];
+      const cancelLabel = offer.cancelLabel?.trim();
+      if (cancelLabel) {
+        buttons.push({
+          id: 'dismiss-recommended-quest',
+          label: cancelLabel,
+          variant: 'secondary',
+          action: 'dismiss'
+        });
+      }
+
       mgr.showNotice(offer.prompt || `要不要接着做「${offer.questTitle}」？`, {
         id: `quest-recommendation:${completedQuest.id}:${offer.questId}`,
         level: 'success',
         persistent: true,
-        speak: false,
-        buttons: [
-          {
-            id: 'start-recommended-quest',
-            label: offer.confirmLabel || '继续',
-            variant: 'default',
-            action: `quest:start:${offer.questId}`
-          },
-          {
-            id: 'dismiss-recommended-quest',
-            label: offer.cancelLabel || '稍后',
-            variant: 'secondary',
-            action: 'dismiss'
-          }
-        ]
+        speak: true,
+        buttons
       });
     }
   });

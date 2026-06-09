@@ -141,8 +141,11 @@ export interface OnboardingQuestReward {
 
 interface QuestRecommendationDefinition {
   questId: string;
+  /** 完成当前任务后延迟多久再提示下一任务；默认 0 */
+  delayMs?: number;
   prompt?: string;
   confirmLabel?: string;
+  /** 可选额外取消按钮文案；不填时只保留 notice 自带关闭按钮 */
   cancelLabel?: string;
 }
 
@@ -326,7 +329,8 @@ interface QuestListItem {
         if next completion already satisfied   → 补完成，不提示
         if !next precondition                  → 不提示
         if 'recommendation' not allowed source → 不提示
-        show persistent notice with confirm/cancel
+        wait recommendation.delayMs            → 缓冲后再次检查目标状态
+        show persistent notice with confirm button (+ optional cancel button)
         confirm → QuestEngine.startQuest(nextId, { source: 'recommendation' })
 ```
 
@@ -335,7 +339,7 @@ interface QuestListItem {
 - 完成事件**与 routine 解耦**：即使 routine 因为打断而结束，只要 completion 谓词满足，仍判定完成（例：用户没走 routine 内的"立即创建"按钮，而是从设置页直接创建了 workspace，也算完成）。
 - `workspace.create` 这类必须完成的新手 Quest 才配置 `autoStartEvents` 和 `retryEvents`；关闭气泡/窗口后的即时重提示主要由 routine 循环承担。
 - `first-file-drop` 这类行动型 Quest 不配置 `autoStartEvents`，避免用户启动应用或刚建完 workspace 后被自动打断；但它的完成事件仍与 routine 解耦，用户真实把文件拖给角色即可结算。
-- 推荐下一个任务不是自动启动。QuestEngine 只在目标任务未完成、前置条件满足且允许 `recommendation` 来源时展示确认 notice；用户点击确认后才调用 `quest:start`。
+- 推荐下一个任务不是自动启动。QuestEngine 只在目标任务未完成、前置条件满足且允许 `recommendation` 来源时展示确认 notice；若配置 `delayMs`，会先等待这段缓冲时间并在到点前再次检查目标状态。用户点击确认后才调用 `quest:start`。recommendation notice 默认朗读 prompt，并依赖自带关闭按钮取消；只有显式配置 `cancelLabel` 时才展示额外取消按钮。
 
 ## 5. 对目的规划器的扩展需求
 
@@ -459,7 +463,7 @@ const handleContextMenu = async (e: React.MouseEvent) => {
 - `open-resource-library` 显示 XP +10、好感 +1、成就 `first-resource-library-open`。
 - 未完成任务显示“开始引导/继续引导”按钮。
 - 按钮调用 `quest:start`，由 `QuestEngine.startQuest(id)` 重新检查前置/完成条件后启动固定 preset-only purpose。
-- 已配置串联推荐：`workspace.create → first-file-drop → open-resource-library → feature.resource-library-preview → feature.chat-with-resource`，以及 `feature.file-video-transcription → feature.resource-library-preview`。
+- 已配置串联推荐：`workspace.create → first-file-drop → open-resource-library → feature.resource-library-preview → feature.chat-with-resource`，以及 `feature.file-video-transcription → feature.resource-library-preview`。`workspace.create` 完成后缓冲 `delayMs = 5000`，其余首批链路默认 `delayMs = 2500`，避免上一个任务刚完成就立刻弹出下一步。
 - 如果工作空间已经存在但状态尚未同步，`quest:start` 会先补完成状态和奖励，不再启动创建引导。
 
 窗口注册：

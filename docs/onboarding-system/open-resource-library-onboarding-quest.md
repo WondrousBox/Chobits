@@ -16,7 +16,7 @@
 ## 2. 最终流程
 
 1. `workspace.create` 已完成，或系统里已经有工作空间。
-2. 用户在任务列表点击“开始引导/继续引导”，或未来 AI 显式触发 `quest:start({ id: 'open-resource-library', source: 'ai' })`。
+2. 用户在任务列表点击“开始引导/继续引导”、未来 AI 显式触发 `quest:start({ id: 'open-resource-library', source: 'ai' })`，或从上一任务推荐确认继续。
 3. QuestEngine 启动 `onboarding.resource.open-library` preset-only routine。
 4. 角色提示：“右键点我，打开菜单里的资源库。”
 5. 用户右键助手，菜单打开。
@@ -37,7 +37,8 @@
 - `description`: `右键点击桌面助手，在菜单中打开资源库。`
 - `precondition`: 已有工作空间
 - `autoStartEvents`: 不配置；启动应用/完成工作空间创建不会自动弹出这条引导
-- `explicitStartSources`: `task-list`、`ai`
+- `explicitStartSources`: `task-list`、`ai`、`recommendation`
+- `recommendation`: 完成后缓冲 `delayMs = 2500`，推荐 `feature.resource-library-preview`
 - `triggerEvents`: `ASSISTANT_MENU_ITEM_SELECTED`
 - `completion`: `ASSISTANT_MENU_ITEM_SELECTED` 且 `itemId === 'resources'`、`windowKey === 'resources'`、`source === 'assistant-context-menu'`
 - `reward`: `xp: 10`、`favor: 1`、`achievementId: 'first-resource-library-open'`

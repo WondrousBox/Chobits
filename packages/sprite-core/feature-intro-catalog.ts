@@ -76,9 +76,9 @@ export const FEATURE_INTRO_QUEST_CATALOG: FeatureIntroQuestCatalogItem[] = [
     achievementId: 'feature-file-transcription-introduced',
     recommendation: {
       questId: 'feature.resource-library-preview',
+      delayMs: 2500,
       prompt: '转写流程已经跑起来了。要不要接着看看资源在库里怎么预览？',
-      confirmLabel: '继续',
-      cancelLabel: '稍后'
+      confirmLabel: '继续'
     },
     completion: {
       kind: 'file-workflow-started',
@@ -105,9 +105,9 @@ export const FEATURE_INTRO_QUEST_CATALOG: FeatureIntroQuestCatalogItem[] = [
     achievementId: achievementFor('feature.resource-library-preview'),
     recommendation: {
       questId: 'feature.chat-with-resource',
+      delayMs: 2500,
       prompt: '预览窗口打开啦。要不要接着试试围绕资源聊天？',
-      confirmLabel: '继续',
-      cancelLabel: '稍后'
+      confirmLabel: '继续'
     },
     completion: {
       kind: 'app-event',

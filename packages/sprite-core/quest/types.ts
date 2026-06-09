@@ -29,10 +29,13 @@ export interface OnboardingQuestReward {
 /**
  * Quest 完成后的后续任务推荐。
  * - 只声明“推荐哪个 Quest”，是否展示由 QuestEngine 根据下一个任务是否已完成/可启动统一判断；
- * - prompt / confirmLabel / cancelLabel 只影响提示框文案，不参与完成判定。
+ * - delayMs 控制完成当前任务后等待多久再提示下一个任务，默认 0；
+ * - prompt / confirmLabel 只影响提示框文案，不参与完成判定；
+ * - cancelLabel 只在需要额外取消按钮时配置；不填时只使用 notice 自带关闭按钮。
  */
 export interface QuestRecommendationDefinition {
     questId: string;
+    delayMs?: number;
     prompt?: string;
     confirmLabel?: string;
     cancelLabel?: string;
