@@ -235,6 +235,8 @@ export type SpriteRoutineStep =
     };
 ```
 
+普通 `speak` / `showToast` 只负责台词和轻量提示；多句台词用 step 顺序、`wait` 或 `parallel` 编排。需要用户确认或选择时使用 `showNotice.buttons`，再通过 `bubble:action` 回到 routine。
+
 ### 4.3 StepResult
 
 ```ts

@@ -510,7 +510,6 @@ export interface ToastMessage extends BaseMessage {
     title?: string;
     url: string;
   };
-  nextAction?: MessageButton;
 }
 
 export interface NoticeMessage extends BaseMessage {
@@ -551,7 +550,6 @@ export interface MessageIPCPayload {
     title?: string;
     url: string;
   };
-  nextAction?: MessageButton;
   speak?: boolean;
   ctx?: any;
 }

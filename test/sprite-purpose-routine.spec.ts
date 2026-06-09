@@ -1287,25 +1287,23 @@ describe('SpriteRoutinePresetRegistry', () => {
           id: 'speak-workspace-assistant-intro',
           type: 'speak',
           text: '你好，我是你的专属桌面助手。',
-          nextAction: expect.objectContaining({ purposeAction: 'workspace-assistant-intro-next' })
+          bubbleDuration: 3600
         }),
         expect.objectContaining({
           id: 'assistant-intro-breath',
           type: 'wait',
-          interruptEvent: 'bubble:action',
-          interruptMatch: { purposeAction: 'workspace-assistant-intro-next' }
+          durationMs: 3600
         }),
         expect.objectContaining({
           id: 'speak-workspace-growth-promise',
           type: 'speak',
           text: '我会陪伴你学习和工作，一起共同成长。',
-          nextAction: expect.objectContaining({ purposeAction: 'workspace-growth-promise-next' })
+          bubbleDuration: 4200
         }),
         expect.objectContaining({
           id: 'assistant-growth-breath',
           type: 'wait',
-          interruptEvent: 'bubble:action',
-          interruptMatch: { purposeAction: 'workspace-growth-promise-next' }
+          durationMs: 4200
         })
       ])
     );
@@ -1347,15 +1345,13 @@ describe('SpriteRoutinePresetRegistry', () => {
                   id: 'speak-workspace-intro',
                   type: 'speak',
                   text: '工作空间会存放所有重要的数据。',
-                  nextAction: expect.objectContaining({ purposeAction: 'workspace-intro-next' }),
+                  bubbleDuration: 4000,
                   cooldownKey: 'onboarding.workspace.create.workspace-intro'
                 }),
                 expect.objectContaining({
                   id: 'workspace-intro-breath',
                   type: 'wait',
-                  interruptEvent: 'bubble:action',
-                  interruptMatch: { purposeAction: 'workspace-intro-next' },
-                  interruptIgnoreHistory: true
+                  durationMs: 5000
                 }),
                 expect.objectContaining({
                   id: 'speak-workspace-quickstart-tip',
@@ -2350,7 +2346,7 @@ describe('SpriteRoutinePresetRegistry', () => {
     });
 
     const runPromise = runner.run(routine);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await waitFor(() => calls.includes('notice:onboarding.workspace.create.invite'));
 
     expect(calls).toEqual(['notice:onboarding.workspace.create.invite']);
     expect(timers.some((timer) => timer.timeout === 1000)).toBe(true);
@@ -2440,8 +2436,7 @@ describe('SpriteRoutinePresetRegistry', () => {
     });
 
     const runPromise = runner.run(routine);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await waitFor(() => calls.filter((call) => call === 'notice:onboarding.workspace.create.invite').length === 2);
 
     expect(calls).toEqual(['notice:onboarding.workspace.create.invite', 'notice:onboarding.workspace.create.invite']);
     workspaceCreatedResolver?.({
@@ -2531,9 +2526,7 @@ describe('SpriteRoutinePresetRegistry', () => {
     });
 
     const runPromise = runner.run(routine);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await waitFor(() => calls.filter((call) => call === 'notice:onboarding.workspace.create.invite').length === 3);
 
     expect(calls.filter((call) => call === 'notice:onboarding.workspace.create.invite')).toHaveLength(3);
     workspaceCreatedResolver?.({

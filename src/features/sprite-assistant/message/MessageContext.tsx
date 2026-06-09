@@ -133,7 +133,6 @@ export function MessageProvider({ children }: MessageProviderProps): JSX.Element
       persistent?: boolean;
       routineId?: string;
       category?: string;
-      nextAction?: MessageButton;
       ctx?: any;
     }): void => {
       if (!payload) return;
@@ -147,8 +146,7 @@ export function MessageProvider({ children }: MessageProviderProps): JSX.Element
             category: payload.category as any,
             ctx: payload.ctx,
             duration: payload.duration,
-            image: payload.image,
-            nextAction: payload.nextAction
+            image: payload.image
           });
           return;
         case 'notice':

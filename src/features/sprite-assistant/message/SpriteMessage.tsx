@@ -131,7 +131,7 @@ export function SpriteMessage({ className, placement = 'inline' }: SpriteMessage
   const renderMessage = (): JSX.Element | null => {
     switch (displayMessage.type) {
       case 'toast':
-        return <ToastRenderer message={displayMessage as ToastMessage} placement={placement} onButtonClick={handleButtonClick} />;
+        return <ToastRenderer message={displayMessage as ToastMessage} placement={placement} />;
       case 'notice':
         return <NoticeRenderer message={displayMessage as NoticeMessage} placement={placement} onClose={() => dismiss(displayMessage.id)} onButtonClick={handleButtonClick} />;
       case 'busy':

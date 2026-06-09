@@ -283,7 +283,7 @@ export function createWorkspaceCreateRoutineSteps(_: SpritePurpose): SpriteRouti
   ```
 - **幂等**：`grantReward` 入参 `source: 'quest:workspace.create'`，主进程在写入前查 `personaState.claimedRewards`，已存在则直接返回。
 - **成功反馈**：routine 也等待同一个 `WORKSPACE_CREATED` purpose event，因此创建成功时可以清掉 notice、播放庆祝反馈并说恭喜文案；QuestEngine 只负责任务状态和奖励。
-- **窗口陪同讲解**：点击创建后先清掉邀请 notice，避免按钮气泡压住说明文字；`await-wizard-result` 开始等待后，角色说工作空间用途和快速创建提示。这两段话有 5 分钟冷却，窗口持续打开时不会每秒重复，但关闭未创建后仍会继续回到强制创建提示。
+- **窗口陪同讲解**：点击创建后先清掉邀请 notice，避免按钮气泡压住说明文字；`await-wizard-result` 开始等待后，角色说工作空间用途和快速创建提示。普通台词气泡只展示当前台词，台词之间用 routine `wait` 控制节奏。这两段话有 5 分钟冷却，窗口持续打开时不会每秒重复，但关闭未创建后仍会继续回到强制创建提示。
 
 ## 5. 右键菜单守卫（关联 UI 改动）
 

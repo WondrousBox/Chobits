@@ -252,6 +252,8 @@ Routine 可以理解为“成套行为方案”。它不是决定行为是否发
 - `setPurposeStatus`：标记目的完成、失败或被替代。
 - `returnToAnchor`：回到角落、上次位置或预设位置。
 
+普通 `speak` / `showToast` 气泡只显示当前台词或轻量提示。多句台词靠 routine 的顺序 step、`wait` 缓冲或 `parallel` 并行编排；需要用户确认或选择时统一使用 `showNotice.buttons`。
+
 示例 step 类型：
 
 ```ts

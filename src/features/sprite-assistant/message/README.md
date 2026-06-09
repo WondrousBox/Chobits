@@ -51,6 +51,8 @@ interface SpriteMessage {
 }
 ```
 
+Toast 只用于轻量文本、图片和预设文案；需要按钮交互时使用 Notice。
+
 ### 架构设计
 
 ```
