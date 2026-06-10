@@ -128,6 +128,7 @@ interface ActiveAnimationPlaylist {
   sessionMode: 'state-bound' | 'trigger';
   durationMs?: number;
   playId?: string;
+  presentationOwner?: SpritePresentationOwnerContext | null;
 }
 
 interface PlayAnimationEntryOptions {
@@ -138,6 +139,7 @@ interface PlayAnimationEntryOptions {
   sessionMode: 'state-bound' | 'trigger';
   durationMs?: number;
   playId?: string;
+  presentationOwner?: SpritePresentationOwnerContext | null;
 }
 
 interface SpriteBehaviorSchedulerPayload {
@@ -195,6 +197,7 @@ export class SpriteManager {
   // 当前动画和配置
   private currentAnimation: SpritePlayCommand | null = null;
   private activeAnimationPlaylist: ActiveAnimationPlaylist | null = null;
+  private currentAnimationPresentationOwner: SpritePresentationOwnerContext | null = null;
   private animationPlayCounter = 0;
   private animationCompletionWaiters = new Map<string, SpriteAnimationCompletionWaiter>();
   private presentationLock = new SpritePresentationLock();
@@ -635,6 +638,7 @@ export class SpriteManager {
         }
         : { durationMs: options.durationMs ?? 2000, loop: playbackLoop, loopCount: playbackLoopCount, autoIdle: true }
     };
+    this.currentAnimationPresentationOwner = options.presentationOwner ? { ...options.presentationOwner } : null;
 
     if (anim.playback) {
       const pb = anim.playback;
@@ -651,7 +655,8 @@ export class SpriteManager {
         currentIndex: options.playlistIndex ?? 0,
         sessionMode: options.sessionMode,
         durationMs: options.durationMs,
-        playId: options.playId
+        playId: options.playId,
+        presentationOwner: options.presentationOwner ? { ...options.presentationOwner } : null
       };
     } else {
       this.activeAnimationPlaylist = null;
@@ -805,7 +810,8 @@ export class SpriteManager {
         playlistIndex: selected.index,
         sessionMode: 'trigger',
         durationMs: options?.durationMs,
-        playId: options?.playId
+        playId: options?.playId,
+        presentationOwner: this.toPresentationOwner(options)
       });
     }
 
@@ -831,7 +837,8 @@ export class SpriteManager {
       playlistMode: this.resolveAnimationPlaylistMode(anim.eventTypes?.[0]),
       sessionMode: 'trigger',
       durationMs: options?.durationMs,
-      playId: options?.playId
+      playId: options?.playId,
+      presentationOwner: this.toPresentationOwner(options)
     });
 
     if (!options?.silent) {
@@ -1405,6 +1412,7 @@ export class SpriteManager {
 
     if (currentMatches) {
       this.currentAnimation = null;
+      this.currentAnimationPresentationOwner = null;
       this._pendingIdleAfterOutro = false;
       this.pendingIdlePresentationOwner = null;
       this.stopAutoMove();
@@ -1466,6 +1474,7 @@ export class SpriteManager {
   replaceAnimations(anims: SpriteAnimation[], options?: { refreshCurrentState?: boolean }): void {
     this.animationRegistry.clear();
     this.currentAnimation = null;
+    this.currentAnimationPresentationOwner = null;
     this.activeAnimationPlaylist = null;
     this.registerAnimations(anims);
 
@@ -1766,7 +1775,7 @@ export class SpriteManager {
       state: this.getState(),
       subState: this.getSubState()
     });
-    this.transitionToIdleAnimation(this.consumePendingIdlePresentationOptions());
+    this.transitionToIdleAnimation(this.consumeIdleTransitionPresentationOptions());
   }
 
   /** 处理文件拖放 */
@@ -2088,7 +2097,8 @@ export class SpriteManager {
         playlistIndex: 0,
         sessionMode: playlist.sessionMode,
         durationMs: playlist.durationMs,
-        playId: playlist.playId
+        playId: playlist.playId,
+        presentationOwner: playlist.presentationOwner ? { ...playlist.presentationOwner } : null
       });
       return 'advanced';
     }
@@ -2106,7 +2116,8 @@ export class SpriteManager {
       playlistIndex: nextIndex,
       sessionMode: playlist.sessionMode,
       durationMs: playlist.durationMs,
-      playId: playlist.playId
+      playId: playlist.playId,
+      presentationOwner: playlist.presentationOwner ? { ...playlist.presentationOwner } : null
     });
     return 'advanced';
   }
@@ -2149,6 +2160,16 @@ export class SpriteManager {
     return this.toPresentationOptions(owner);
   }
 
+  private consumeIdleTransitionPresentationOptions(): SpriteTriggerOptions | undefined {
+    const pendingOptions = this.consumePendingIdlePresentationOptions();
+    if (pendingOptions) return pendingOptions;
+
+    const owner = this.currentAnimationPresentationOwner;
+    this.currentAnimationPresentationOwner = null;
+    if (!owner) return undefined;
+    return this.toPresentationOptions(owner);
+  }
+
   /** 根据当前状态解析并发送动画指令到渲染进程 */
   private resolveAndSendAnimation(state: SpriteState, subState: SpriteReactionState | null, options?: SpriteTriggerOptions): void {
     const trigger = mapStateToEventType(state, subState);
@@ -2173,7 +2194,8 @@ export class SpriteManager {
         playlistIndex: selected.index,
         sessionMode: 'state-bound',
         durationMs: options?.durationMs,
-        playId: options?.playId
+        playId: options?.playId,
+        presentationOwner: this.toPresentationOwner(options)
       });
     }
   }

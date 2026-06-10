@@ -72,6 +72,44 @@ describe('SpriteRoutineRunner', () => {
     expect(calls).toEqual(['walk:center', 'play:wave', 'speak:休息一下吧。', 'toast:完成']);
   });
 
+  it('waits after a step when waitAfter is configured', async () => {
+    const calls: string[] = [];
+    const timeouts: number[] = [];
+    const runner = new SpriteRoutineRunner({
+      playAnimation: vi.fn(),
+      walkTo: vi.fn(),
+      speak: (step) => {
+        calls.push(`speak:${step.text}`);
+      },
+      showToast: (step) => {
+        calls.push(`toast:${step.content}`);
+      },
+      setTimeout: ((handler: () => void, timeout: number) => {
+        timeouts.push(timeout);
+        setTimeout(handler, 0);
+        return timeouts.length as any;
+      }) as any,
+      clearTimeout: vi.fn() as any
+    });
+
+    const result = await runner.run({
+      id: 'routine-wait-after',
+      purposeId: 'purpose-wait-after',
+      source: 'preset',
+      status: 'queued',
+      steps: [
+        { id: 'speak', type: 'speak', text: '等我说完。', bubbleDuration: 1200, waitAfter: true },
+        { id: 'toast', type: 'showToast', content: '下一步' }
+      ],
+      cursor: 0,
+      createdAt: Date.now()
+    });
+
+    expect(result.ok, result.error).toBe(true);
+    expect(calls).toEqual(['speak:等我说完。', 'toast:下一步']);
+    expect(timeouts).toContain(1200);
+  });
+
   it('runs parallel child steps concurrently before continuing', async () => {
     const calls: string[] = [];
     let releaseWalk: (() => void) | null = null;
@@ -1353,23 +1391,15 @@ describe('SpriteRoutinePresetRegistry', () => {
           id: 'speak-workspace-assistant-intro',
           type: 'speak',
           text: '你好，我是你的专属桌面助手。',
-          bubbleDuration: 3600
-        }),
-        expect.objectContaining({
-          id: 'wait-3',
-          type: 'wait',
-          durationMs: 3600
+          bubbleDuration: 3600,
+          waitAfter: true
         }),
         expect.objectContaining({
           id: 'speak-workspace-growth-promise',
           type: 'speak',
           text: '我会陪伴你学习和工作，一起共同成长。',
-          bubbleDuration: 4200
-        }),
-        expect.objectContaining({
-          id: 'wait-5',
-          type: 'wait',
-          durationMs: 4200
+          bubbleDuration: 4200,
+          waitAfter: true
         })
       ])
     );
@@ -1412,12 +1442,8 @@ describe('SpriteRoutinePresetRegistry', () => {
                   type: 'speak',
                   text: '工作空间会存放所有重要的数据。',
                   bubbleDuration: 4000,
+                  waitAfter: 5000,
                   cooldownKey: 'onboarding.workspace.create.workspace-intro'
-                }),
-                expect.objectContaining({
-                  id: 'await-wizard-result.wait-2',
-                  type: 'wait',
-                  durationMs: 5000
                 }),
                 expect.objectContaining({
                   id: 'speak-workspace-quickstart-tip',

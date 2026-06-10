@@ -87,6 +87,13 @@ type BaseRoutineStep<TType extends SpriteRoutineStepType> = {
   type: TType;
   /** 设为 false 时，该 step 会被 PurposeManager 视作关键区，协作式打断会延后。 */
   interruptible?: boolean;
+  /**
+   * Step 完成后额外等待一段时间。
+   *
+   * - `number`：等待指定毫秒数；
+   * - `true`：复用当前 step 的自然展示/执行时长，例如 `speak.bubbleDuration`、`showToast.duration`、`playAnimation.durationMs`。
+   */
+  waitAfter?: number | boolean;
 };
 
 /** 播放一个已注册动画，可按 trigger 或 animationId 选择。 */

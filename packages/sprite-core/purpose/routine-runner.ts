@@ -142,6 +142,7 @@ export class SpriteRoutineRunner {
         };
       } else {
         const value = await this.dispatchStep(routine, step, effectiveOptions, context);
+        await this.runWaitAfter(step, signal);
         result = {
           ok: true,
           status: 'completed',
@@ -238,6 +239,47 @@ export class SpriteRoutineRunner {
         return this.runParallel(routine, step, options, context);
       case 'branch':
         return this.runBranch(routine, step, options, context);
+      default:
+        return undefined;
+    }
+  }
+
+  private async runWaitAfter(step: SpriteRoutineStep, signal?: AbortSignal): Promise<void> {
+    const durationMs = this.resolveWaitAfterDuration(step);
+    if (durationMs == null || durationMs <= 0) {
+      return;
+    }
+    await this.delay(durationMs, signal);
+  }
+
+  private resolveWaitAfterDuration(step: SpriteRoutineStep): number | undefined {
+    if (step.waitAfter === false || step.waitAfter == null) {
+      return undefined;
+    }
+    if (typeof step.waitAfter === 'number') {
+      return Number.isFinite(step.waitAfter) ? Math.max(0, step.waitAfter) : undefined;
+    }
+    if (step.waitAfter !== true) {
+      return undefined;
+    }
+
+    switch (step.type) {
+      case 'speak':
+        return step.bubbleDuration ?? step.timeoutMs;
+      case 'showToast':
+      case 'showNotice':
+        return step.duration;
+      case 'playAnimation':
+        return step.durationMs ?? step.timeoutMs;
+      case 'wait':
+        return step.durationMs;
+      case 'waitForEvent':
+        return step.timeoutMs;
+      case 'walkTo':
+      case 'openWindow':
+        return step.timeoutMs;
+      case 'loopUntil':
+        return step.maxDurationMs;
       default:
         return undefined;
     }
