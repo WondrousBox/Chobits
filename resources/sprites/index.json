@@ -306,6 +306,25 @@
       "playsInline": true,
       "loop": false,
       "autoIdle": true
+    },{
+      "meta": {
+        "id": "wave-default",
+        "title": "wave",
+        "deletable": true,
+        "primaryTrigger": "wave"
+      },
+      "source": {
+        "localPath": "./wave.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false,
+      "autoIdle": true
     }
   ]
 }

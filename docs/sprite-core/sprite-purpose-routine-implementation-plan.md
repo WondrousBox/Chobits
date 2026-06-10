@@ -205,7 +205,7 @@ export type SpriteRoutineStep =
       ignoreHistory?: boolean;
       interruptible?: boolean;
     }
-  | { id: string; type: 'speak'; text: string; bubbleDuration?: number; timeoutMs?: number; cooldownMs?: number; cooldownKey?: string }
+  | { id: string; type: 'speak'; text: string; bubbleDuration?: number; timeoutMs?: number; cooldownMs?: number; cooldownKey?: string; waitAfter?: number | boolean }
   | { id: string; type: 'showToast'; content?: string; category?: string; duration?: number }
   | { id: string; type: 'showBusy'; content?: string; progress?: number }
   | { id: string; type: 'updateBusy'; content?: string; progress?: number; contentFrom?: string; progressFrom?: string }
@@ -235,14 +235,70 @@ export type SpriteRoutineStep =
     };
 ```
 
-普通 `speak` / `showToast` 只负责台词和轻量提示；多句台词用 step 顺序、`wait` 或 `parallel` 编排。需要用户确认或选择时使用 `showNotice.buttons`，再通过 `bubble:action` 回到 routine。
+普通 `speak` / `showToast` 只负责台词和轻量提示；多句台词用 step 顺序和 `waitAfter` 控制节奏，也可以用 `parallel` 表达边走边说。需要用户确认或选择时使用 `showNotice.buttons`，再通过 `bubble:action` 回到 routine。
+
+#### 4.2.1 Preset shorthand 与等待写法
 
 Preset 编写层可以使用 `SpriteRoutineStepInput` shorthand，`SpriteRoutinePresetRegistry.createRoutine()` 会统一标准化为完整 `SpriteRoutineStep` 后再交给 runner：
 
 - 数字代表等待毫秒数，例如 `3600` 会变成 `{ id: 'wait-1', type: 'wait', durationMs: 3600 }`。
 - 对象 step 可以省略 `id`，registry 会按 `type` 和位置生成稳定可读的 id，例如 `speak-2`。
+- 所有 step 都支持 `waitAfter`：`waitAfter: true` 会复用该 step 的自然展示/执行时长，`waitAfter: 800` 则在 step 完成后额外等待 800ms。
 - `loopUntil.body`、`parallel.body`、`branch.cases/default` 会递归标准化，最终 runner 看到的每个 step 仍然都有 id。
 - AI planner 输出仍使用严格 `SpriteRoutineStep`，避免模型输出过度简写导致校验边界变模糊。
+
+等待节奏有三种兼容写法：
+
+```ts
+// 旧完整写法：独立 wait step，适合需要明确 id 或 interruptEvent 的等待。
+[
+  { id: 'line-a', type: 'speak', text: '第一句', bubbleDuration: 3600 },
+  { id: 'line-a-breath', type: 'wait', durationMs: 3600 }
+]
+
+// shorthand：数字代表独立 wait step。
+[
+  { id: 'line-a', type: 'speak', text: '第一句', bubbleDuration: 3600 },
+  3600
+]
+
+// 推荐用于“说完再继续”：step 自己等待。
+[
+  { id: 'line-a', type: 'speak', text: '第一句', bubbleDuration: 3600, waitAfter: true },
+  { id: 'line-b', type: 'speak', text: '第二句', bubbleDuration: 4200, waitAfter: true }
+]
+```
+
+三种写法的执行记录差异：
+
+| 写法 | 是否生成独立 step | 是否有独立 stepId | 是否出现在 `result.steps` | 适合场景 |
+| --- | --- | --- | --- | --- |
+| 完整 wait step | 是 | 是，使用显式 `id` | 是 | 需要明确日志、测试锚点、`interruptEvent` 或可读 step 名 |
+| 数字 shorthand | 是，会标准化成 wait step | 是，自动生成如 `wait-2` | 是 | 简单固定停顿，不需要手写 id |
+| `waitAfter` | 否，属于当前 step 的执行过程 | 否，沿用当前 stepId | 否，耗时计入当前 step 的 `elapsedMs` | 当前动作完成后自然停顿，例如“说完再继续” |
+
+`waitAfter` 的取值规则：
+
+- `waitAfter: true`：复用当前 step 的自然时长，如 `speak.bubbleDuration`、`showToast.duration`、`showNotice.duration`、`playAnimation.durationMs`、`wait.durationMs`，以及部分 step 的 `timeoutMs/maxDurationMs`。
+- `waitAfter: 500`：当前 step 完成后额外等待 500ms。
+- 不配置：不额外等待。
+
+`waitAfter: true` 的自然时长映射：
+
+| step type | 使用字段 |
+| --- | --- |
+| `speak` | `bubbleDuration`，没有时用 `timeoutMs` |
+| `showToast` | `duration` |
+| `showNotice` | `duration` |
+| `playAnimation` | `durationMs`，没有时用 `timeoutMs` |
+| `wait` | `durationMs` |
+| `waitForEvent` | `timeoutMs` |
+| `walkTo` | `timeoutMs` |
+| `openWindow` | `timeoutMs` |
+| `loopUntil` | `maxDurationMs` |
+| 其他 step | 不自动等待；需要停顿时写 `waitAfter: <ms>` 或接独立 wait step |
+
+注意：`waitAfter` 和后面的独立 wait step 会叠加。例如 `waitAfter: true` 后面再写 `3600`，会等待两次。
 
 ### 4.3 StepResult
 

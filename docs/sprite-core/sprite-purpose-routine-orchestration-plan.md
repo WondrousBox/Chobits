@@ -254,7 +254,15 @@ Routine 可以理解为“成套行为方案”。它不是决定行为是否发
 
 普通 `speak` / `showToast` 气泡只显示当前台词或轻量提示。多句台词靠 routine 的顺序 step、`wait` 缓冲或 `parallel` 并行编排；需要用户确认或选择时统一使用 `showNotice.buttons`。
 
-Preset 编写层允许更轻的 `SpriteRoutineStepInput`：数字代表等待毫秒数，对象 step 可省略 `id`，由 `SpriteRoutinePresetRegistry.createRoutine()` 统一生成完整 `SpriteRoutineStep`。Runner 和 AI planner 仍以严格 step 为边界。
+Preset 编写层允许更轻的 `SpriteRoutineStepInput`，由 `SpriteRoutinePresetRegistry.createRoutine()` 统一生成完整 `SpriteRoutineStep`。Runner 和 AI planner 仍以严格 step 为边界。
+
+等待节奏支持三种兼容写法：
+
+- 完整 wait step：`{ id: 'breath', type: 'wait', durationMs: 3600 }`，适合需要明确 id、`interruptEvent` 或测试锚点的等待。
+- 数字 shorthand：`3600`，等价于自动补 id 的 wait step。
+- `waitAfter`：配置在任意 step 上；`waitAfter: true` 复用当前 step 的自然展示/执行时长，`waitAfter: 800` 则额外等待 800ms。若同时配置 `waitAfter` 和后续 wait step，两段等待会叠加。
+
+三种写法的执行记录差异，以及 `waitAfter: true` 的具体字段映射，维护在 [sprite-purpose-routine-implementation-plan.md](./sprite-purpose-routine-implementation-plan.md#421-preset-shorthand-与等待写法)。
 
 示例 step 类型：
 
@@ -264,7 +272,7 @@ type SpriteRoutineStep =
   | { id: string; type: 'playAnimation'; trigger?: string; animationId?: string; durationMs?: number; waitFor?: 'complete' | 'duration' | 'none'; silent?: boolean }
   | { id: string; type: 'wait'; durationMs: number }
   | { id: string; type: 'waitForEvent'; event: string; timeoutMs?: number; assignTo?: string }
-  | { id: string; type: 'speak'; text: string; bubbleDuration?: number }
+  | { id: string; type: 'speak'; text: string; bubbleDuration?: number; waitAfter?: number | boolean }
   | { id: string; type: 'showNotice'; content: string; buttons?: Array<{ id: string; label: string }> }
   | { id: string; type: 'openWindow'; window: string; payload?: Record<string, unknown>; waitForEvent?: string }
   | { id: string; type: 'runTask'; task: string; input?: Record<string, unknown>; assignTo?: string }
@@ -454,8 +462,7 @@ mgr.startPurpose({
       "maxDurationMs": 600000,
       "body": [
         { "id": "waiting-anim", "type": "playAnimation", "trigger": "waiting", "durationMs": 2500, "waitFor": "duration", "silent": true },
-        { "id": "waiting-line", "type": "speak", "text": "我在处理，马上就好。", "bubbleDuration": 3000 },
-        { "id": "breath", "type": "wait", "durationMs": 5000 }
+        { "id": "waiting-line", "type": "speak", "text": "我在处理，马上就好。", "bubbleDuration": 3000, "waitAfter": 5000 }
       ]
     },
     { "id": "done", "type": "playAnimation", "trigger": "success", "durationMs": 2200, "waitFor": "complete" },

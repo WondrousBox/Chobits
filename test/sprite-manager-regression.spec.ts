@@ -782,6 +782,53 @@ describe('sprite manager regression coverage', () => {
     expect(mgr.getCurrentAnimation()?.animationId).toBe('click-state');
   });
 
+  it('uses the routine owner when a routine playAnimation auto-idles under a lifecycle lock', async () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'wave-purpose',
+      title: 'Wave Purpose',
+      eventTypes: ['wave'],
+      source: { localPath: './wave.webm', type: 'video/webm' },
+      playback: { durationMs: 1200, autoIdle: true }
+    });
+    registry.register({
+      id: 'idle-purpose',
+      title: 'Idle Purpose',
+      eventTypes: ['idle'],
+      source: { localPath: './idle.webm', type: 'video/webm' },
+      playback: { durationMs: 100, loop: true }
+    });
+
+    const routine = {
+      id: 'routine-purpose-1',
+      purposeId: 'purpose-1',
+      priority: 80,
+      source: 'preset',
+      status: 'running',
+      steps: [{ id: 'wait', type: 'wait', durationMs: 30 * 60 * 1000 }],
+      cursor: 0,
+      createdAt: Date.now()
+    };
+    (mgr as any).acquireRoutinePresentationLock({ id: 'purpose-1', priority: 80 }, routine);
+
+    await (mgr as any).runPurposeAnimationStep(
+      { id: 'attention-wave', type: 'playAnimation', trigger: 'wave', durationMs: 1200, waitFor: 'none', silent: true },
+      new AbortController().signal,
+      routine
+    );
+
+    const playId = mgr.getCurrentAnimation()?.playId;
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('wave-purpose');
+    expect(playId).toEqual(expect.any(String));
+
+    mgr.handleAnimationComplete('wave-purpose', 'full', playId);
+
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('idle-purpose');
+  });
+
   it('plays quest record feedback through the active purpose lifecycle lock owner', () => {
     const { mgr, dataDir } = createManager();
     dataDirs.add(dataDir);

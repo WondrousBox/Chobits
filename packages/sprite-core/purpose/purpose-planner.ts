@@ -350,46 +350,61 @@ function validateStep(step: unknown, path: string, state: ValidationState): numb
     return 0;
   }
 
+  let duration = 0;
   switch (type as SpriteRoutineStepType) {
     case 'playAnimation':
-      return validatePlayAnimationStep(record, path, state);
+      duration = validatePlayAnimationStep(record, path, state);
+      break;
     case 'walkTo':
-      return validateWalkToStep(record, path, state);
+      duration = validateWalkToStep(record, path, state);
+      break;
     case 'wait':
       validateRuntimeEventSource(record.interruptSource, `${path}.interruptSource`, state);
       if (record.interruptEvent !== undefined) {
         validateEventName(record.interruptEvent, `${path}.interruptEvent`, state);
       }
-      return requireDuration(record.durationMs, `${path}.durationMs`, state);
+      duration = requireDuration(record.durationMs, `${path}.durationMs`, state);
+      break;
     case 'waitForEvent':
-      return validateWaitForEventStep(record, path, state);
+      duration = validateWaitForEventStep(record, path, state);
+      break;
     case 'speak':
-      return validateSpeakStep(record, path, state);
+      duration = validateSpeakStep(record, path, state);
+      break;
     case 'showToast':
-      return validateBoundedOptionalDuration(record.duration, `${path}.duration`, state);
+      duration = validateBoundedOptionalDuration(record.duration, `${path}.duration`, state);
+      break;
     case 'showNotice':
-      return validateBoundedOptionalDuration(record.duration, `${path}.duration`, state);
+      duration = validateBoundedOptionalDuration(record.duration, `${path}.duration`, state);
+      break;
     case 'clearMessage':
-      return 0;
+      duration = 0;
+      break;
     case 'showBusy':
     case 'updateBusy':
     case 'clearBusy':
-      return 0;
+      duration = 0;
+      break;
     case 'openWindow':
-      return validateOpenWindowStep(record, path, state);
+      duration = validateOpenWindowStep(record, path, state);
+      break;
     case 'loopUntil':
       if (record.ignoreHistory !== undefined && typeof record.ignoreHistory !== 'boolean') {
         state.errors.push(`${path}.ignoreHistory must be a boolean when provided`);
       }
-      return validateLoopUntilStep(record, path, state);
+      duration = validateLoopUntilStep(record, path, state);
+      break;
     case 'parallel':
-      return validateParallelStep(record, path, state);
+      duration = validateParallelStep(record, path, state);
+      break;
     case 'branch':
-      return validateBranchStep(record, path, state);
+      duration = validateBranchStep(record, path, state);
+      break;
     default:
       state.errors.push(`${path}.type "${type}" is not supported`);
       return 0;
   }
+  return duration + validateWaitAfter(record.waitAfter, duration, `${path}.waitAfter`, state);
 }
 
 function validatePlayAnimationStep(record: Record<string, unknown>, path: string, state: ValidationState): number {
@@ -542,6 +557,16 @@ function validateBranchStep(record: Record<string, unknown>, path: string, state
   }
 
   return branchDurations.length > 0 ? Math.max(...branchDurations) : 0;
+}
+
+function validateWaitAfter(value: unknown, fallbackDurationMs: number, path: string, state: ValidationState): number {
+  if (value === undefined || value === false) {
+    return 0;
+  }
+  if (value === true) {
+    return fallbackDurationMs;
+  }
+  return validateBoundedOptionalDuration(value, path, state);
 }
 
 function validateEventName(value: unknown, path: string, state: ValidationState): void {

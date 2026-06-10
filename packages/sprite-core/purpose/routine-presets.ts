@@ -365,21 +365,21 @@ const CHAT_API_CONFIG_GUIDE_WAIT_MS = 30 * 60 * 1000;
  */
 function createWorkspaceCreateRoutineSteps(): SpriteRoutineStepInput[] {
   return [
-    { id: 'attention-wave', type: 'playAnimation', trigger: 'wave', durationMs: 1200, waitFor: 'duration', silent: true },
+    { id: 'attention-wave', type: 'playAnimation', trigger: 'wave', durationMs: 1000, waitFor: 'duration', silent: true },
     {
       id: 'speak-workspace-assistant-intro',
       type: 'speak',
       text: getCharacterRoutineText('onboarding.workspace.create.assistant-intro', undefined, '你好，我是你的专属桌面助手。'),
-      bubbleDuration: 3600
+      bubbleDuration: 3600,
+      waitAfter: true
     },
-    3600,
     {
       id: 'speak-workspace-growth-promise',
       type: 'speak',
       text: getCharacterRoutineText('onboarding.workspace.create.growth-promise', undefined, '我会陪伴你学习和工作，一起共同成长。'),
-      bubbleDuration: 4200
+      bubbleDuration: 4200,
+      waitAfter: true
     },
-    4200,
     {
       id: 'invite-notice',
       type: 'showNotice',
@@ -442,10 +442,10 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStepInput[] {
                               type: 'speak',
                               text: getCharacterRoutineText('onboarding.workspace.create.workspace-intro', undefined, '工作空间会存放所有重要的数据。'),
                               bubbleDuration: 4000,
+                              waitAfter: 5000,
                               cooldownKey: 'onboarding.workspace.create.workspace-intro',
                               cooldownMs: WORKSPACE_CREATE_WINDOW_HELPER_COOLDOWN_MS
                             },
-                            5000,
                             {
                               id: 'speak-workspace-quickstart-tip',
                               type: 'speak',

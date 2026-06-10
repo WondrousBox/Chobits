@@ -118,6 +118,23 @@ describe('SpritePurposePlanner validation', () => {
     expect(result.errors.join('\n')).toContain('exceeds maxDurationMs 10000');
   });
 
+  it('counts waitAfter in planner duration estimates', () => {
+    const result = validateSpritePurposePlannerOutput(
+      {
+        routineDraft: {
+          steps: [
+            { id: 'line', type: 'speak', text: '我说完再继续。', bubbleDuration: 1200, waitAfter: true },
+            { id: 'toast', type: 'showToast', content: '下一步', duration: 500, waitAfter: 300 }
+          ]
+        }
+      },
+      validationOptions
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.summary).toEqual({ stepCount: 2, estimatedDurationMs: 3200 });
+  });
+
   it('builds planner input from presets and stays disabled by default', async () => {
     const executor: SpritePurposePlannerExecutor = {
       plan: vi.fn()
