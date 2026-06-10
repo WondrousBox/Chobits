@@ -237,6 +237,13 @@ export type SpriteRoutineStep =
 
 普通 `speak` / `showToast` 只负责台词和轻量提示；多句台词用 step 顺序、`wait` 或 `parallel` 编排。需要用户确认或选择时使用 `showNotice.buttons`，再通过 `bubble:action` 回到 routine。
 
+Preset 编写层可以使用 `SpriteRoutineStepInput` shorthand，`SpriteRoutinePresetRegistry.createRoutine()` 会统一标准化为完整 `SpriteRoutineStep` 后再交给 runner：
+
+- 数字代表等待毫秒数，例如 `3600` 会变成 `{ id: 'wait-1', type: 'wait', durationMs: 3600 }`。
+- 对象 step 可以省略 `id`，registry 会按 `type` 和位置生成稳定可读的 id，例如 `speak-2`。
+- `loopUntil.body`、`parallel.body`、`branch.cases/default` 会递归标准化，最终 runner 看到的每个 step 仍然都有 id。
+- AI planner 输出仍使用严格 `SpriteRoutineStep`，避免模型输出过度简写导致校验边界变模糊。
+
 ### 4.3 StepResult
 
 ```ts
