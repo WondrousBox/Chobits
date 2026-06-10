@@ -254,6 +254,8 @@ Routine 可以理解为“成套行为方案”。它不是决定行为是否发
 
 普通 `speak` / `showToast` 气泡只显示当前台词或轻量提示。多句台词靠 routine 的顺序 step、`wait` 缓冲或 `parallel` 并行编排；需要用户确认或选择时统一使用 `showNotice.buttons`。
 
+Preset 编写层允许更轻的 `SpriteRoutineStepInput`：数字代表等待毫秒数，对象 step 可省略 `id`，由 `SpriteRoutinePresetRegistry.createRoutine()` 统一生成完整 `SpriteRoutineStep`。Runner 和 AI planner 仍以严格 step 为边界。
+
 示例 step 类型：
 
 ```ts

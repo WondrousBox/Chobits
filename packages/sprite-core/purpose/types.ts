@@ -305,6 +305,49 @@ type BranchStep = BaseRoutineStep<'branch'> & {
   default?: SpriteRoutineStep[];
 };
 
+type MakeRoutineStepInput<TStep extends SpriteRoutineStep> = Omit<TStep, 'id'> & {
+  /** Preset authoring shorthand: omit to let SpriteRoutinePresetRegistry generate a stable id. */
+  id?: string;
+};
+
+type LoopUntilStepInput = Omit<MakeRoutineStepInput<LoopUntilStep>, 'body'> & {
+  body: SpriteRoutineStepInput[];
+};
+
+type ParallelStepInput = Omit<MakeRoutineStepInput<ParallelStep>, 'body'> & {
+  body: SpriteRoutineStepInput[];
+};
+
+type BranchStepInput = Omit<MakeRoutineStepInput<BranchStep>, 'cases' | 'default'> & {
+  cases: Record<string, SpriteRoutineStepInput[]>;
+  default?: SpriteRoutineStepInput[];
+};
+
+/**
+ * Preset authoring input. The registry normalizes this into strict `SpriteRoutineStep`.
+ *
+ * - `number` means `{ type: 'wait', durationMs: number }`;
+ * - object steps may omit `id`; the registry generates a readable id from type and position;
+ * - nested `loopUntil.body`, `parallel.body`, and `branch` cases are normalized recursively.
+ */
+export type SpriteRoutineStepInput =
+  | number
+  | MakeRoutineStepInput<PlayAnimationStep>
+  | MakeRoutineStepInput<WalkToStep>
+  | MakeRoutineStepInput<WaitStep>
+  | MakeRoutineStepInput<WaitForEventStep>
+  | MakeRoutineStepInput<SpeakStep>
+  | MakeRoutineStepInput<ShowToastStep>
+  | MakeRoutineStepInput<ShowNoticeStep>
+  | MakeRoutineStepInput<ClearMessageStep>
+  | MakeRoutineStepInput<ShowBusyStep>
+  | MakeRoutineStepInput<UpdateBusyStep>
+  | MakeRoutineStepInput<ClearBusyStep>
+  | MakeRoutineStepInput<OpenWindowStep>
+  | LoopUntilStepInput
+  | ParallelStepInput
+  | BranchStepInput;
+
 /**
  * Routine 的最小执行单元。
  *

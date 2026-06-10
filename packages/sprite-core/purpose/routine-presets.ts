@@ -8,7 +8,7 @@ import {
   type SpriteRoutineGuideGoalDefinition,
   WORKSPACE_EXISTS_GUIDE_GOAL
 } from './guide-goals';
-import type { SpritePurpose, SpriteRoutine, SpriteRoutineStep, StartSpritePurposeRequest } from './types';
+import type { SpritePurpose, SpriteRoutine, SpriteRoutineStep, SpriteRoutineStepInput, StartSpritePurposeRequest } from './types';
 
 export interface SpriteRoutinePresetDefinition {
   id: string;
@@ -20,10 +20,54 @@ export interface SpriteRoutinePresetDefinition {
    * Runtime layers can evaluate it before continuing a user action, e.g. block chat open until an API key is configured.
    */
   goal?: SpriteRoutineGuideGoalDefinition;
-  steps: SpriteRoutineStep[] | ((purpose: SpritePurpose) => SpriteRoutineStep[]);
+  steps: SpriteRoutineStepInput[] | ((purpose: SpritePurpose) => SpriteRoutineStepInput[]);
 }
 
-function createRestReminderSteps(): SpriteRoutineStep[] {
+function createGeneratedStepId(type: string, index: number, parentPath?: string): string {
+  const localId = `${type}-${index + 1}`;
+  return parentPath ? `${parentPath}.${localId}` : localId;
+}
+
+function normalizeRoutineStepInput(input: SpriteRoutineStepInput, index: number, parentPath?: string): SpriteRoutineStep {
+  if (typeof input === 'number') {
+    return {
+      id: createGeneratedStepId('wait', index, parentPath),
+      type: 'wait',
+      durationMs: input
+    };
+  }
+
+  const id = input.id?.trim() || createGeneratedStepId(input.type, index, parentPath);
+  const step = { ...input, id } as SpriteRoutineStep;
+
+  if (step.type === 'loopUntil') {
+    return {
+      ...step,
+      body: step.body.map((child, childIndex) => normalizeRoutineStepInput(child as SpriteRoutineStepInput, childIndex, id))
+    };
+  }
+
+  if (step.type === 'parallel') {
+    return {
+      ...step,
+      body: step.body.map((child, childIndex) => normalizeRoutineStepInput(child as SpriteRoutineStepInput, childIndex, id))
+    };
+  }
+
+  if (step.type === 'branch') {
+    return {
+      ...step,
+      cases: Object.fromEntries(
+        Object.entries(step.cases).map(([caseKey, steps]) => [caseKey, steps.map((child, childIndex) => normalizeRoutineStepInput(child as SpriteRoutineStepInput, childIndex, `${id}.${caseKey}`))])
+      ),
+      default: step.default?.map((child, childIndex) => normalizeRoutineStepInput(child as SpriteRoutineStepInput, childIndex, `${id}.default`))
+    };
+  }
+
+  return step;
+}
+
+function createRestReminderSteps(): SpriteRoutineStepInput[] {
   return [
     { id: 'attention', type: 'playAnimation', trigger: 'wave', durationMs: 1200, waitFor: 'duration', silent: true },
     { id: 'speak', type: 'speak', text: getCharacterRoutineText('daily.rest-reminder.speak', undefined, '差不多该休息一下了。'), bubbleDuration: 3600 },
@@ -32,11 +76,11 @@ function createRestReminderSteps(): SpriteRoutineStep[] {
   ];
 }
 
-function createIdlePresenceSteps(): SpriteRoutineStep[] {
+function createIdlePresenceSteps(): SpriteRoutineStepInput[] {
   return [];
 }
 
-function createFileDropInviteSteps(): SpriteRoutineStep[] {
+function createFileDropInviteSteps(): SpriteRoutineStepInput[] {
   return [
     { id: 'invite-go-center', type: 'walkTo', target: 'center', speed: 130, timeoutMs: 8000 },
     { id: 'invite-ready', type: 'playAnimation', trigger: 'fileDragOver', durationMs: 900, waitFor: 'duration', silent: true },
@@ -86,7 +130,7 @@ function createFileActionsMenuPayload(purpose: SpritePurpose): Record<string, un
   };
 }
 
-function createFileDropIntakeSteps(purpose: SpritePurpose): SpriteRoutineStep[] {
+function createFileDropIntakeSteps(purpose: SpritePurpose): SpriteRoutineStepInput[] {
   const match = purpose.correlationId ? { correlationId: purpose.correlationId } : undefined;
   const ctx = {
     purposeKind: purpose.kind,
@@ -129,7 +173,7 @@ function getPurposeContextString(purpose: SpritePurpose, key: string): string | 
   return typeof value === 'string' && value.trim() ? value : undefined;
 }
 
-function createWorkflowWaitingSteps(purpose: SpritePurpose): SpriteRoutineStep[] {
+function createWorkflowWaitingSteps(purpose: SpritePurpose): SpriteRoutineStepInput[] {
   const workflowRunId = getPurposeContextString(purpose, 'workflowRunId') ?? getPurposeContextString(purpose, 'runId');
   const workflowName = getPurposeContextString(purpose, 'workflowName') ?? '工作流';
   const match = workflowRunId ? { runId: workflowRunId } : undefined;
@@ -203,7 +247,7 @@ function createWorkflowWaitingSteps(purpose: SpritePurpose): SpriteRoutineStep[]
   ];
 }
 
-function createResourceImportWaitingSteps(purpose: SpritePurpose): SpriteRoutineStep[] {
+function createResourceImportWaitingSteps(purpose: SpritePurpose): SpriteRoutineStepInput[] {
   const resourceId = getPurposeContextString(purpose, 'resourceId');
   const workspaceId = getPurposeContextString(purpose, 'workspaceId');
   const folderId = getPurposeContextString(purpose, 'folderId');
@@ -284,7 +328,7 @@ function getDailyCareReminderTrigger(purpose: SpritePurpose): string {
   return 'wave';
 }
 
-function createDailyCareReminderSteps(purpose: SpritePurpose): SpriteRoutineStep[] {
+function createDailyCareReminderSteps(purpose: SpritePurpose): SpriteRoutineStepInput[] {
   const message = getPurposeContextString(purpose, 'message') ?? purpose.reason;
   const routineId = getPurposeContextString(purpose, 'routineId') ?? purpose.kind;
   return [
@@ -308,9 +352,6 @@ const FEATURE_INTRO_HELP_COOLDOWN_MS = 60_000;
 const CHAT_API_CONFIG_NOTICE_ID = 'chat.api-config-guide.invite';
 const CHAT_API_CONFIG_OPEN_SETTINGS_ACTION = 'open-ai-provider-settings';
 const CHAT_API_CONFIG_GUIDE_WAIT_MS = 30 * 60 * 1000;
-function createWorkspaceGuideWaitStep(id: string, durationMs: number): SpriteRoutineStep {
-  return { id, type: 'wait', durationMs };
-}
 
 /**
  * 新手引导 — 引导用户创建工作空间。
@@ -322,7 +363,7 @@ function createWorkspaceGuideWaitStep(id: string, durationMs: number): SpriteRou
  * 4) 用户手动关闭气泡后，短暂缓冲并继续提示；若未创建就关闭窗口，立即提醒并回到带按钮的提示态；
  * 5) 创建成功 → 清理引导气泡并庆祝。QuestEngine 监听 AppEvent 决定是否标记完成和发奖。
  */
-function createWorkspaceCreateRoutineSteps(): SpriteRoutineStep[] {
+function createWorkspaceCreateRoutineSteps(): SpriteRoutineStepInput[] {
   return [
     { id: 'attention-wave', type: 'playAnimation', trigger: 'wave', durationMs: 1200, waitFor: 'duration', silent: true },
     {
@@ -331,14 +372,14 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStep[] {
       text: getCharacterRoutineText('onboarding.workspace.create.assistant-intro', undefined, '你好，我是你的专属桌面助手。'),
       bubbleDuration: 3600
     },
-    createWorkspaceGuideWaitStep('assistant-intro-breath', 3600),
+    3600,
     {
       id: 'speak-workspace-growth-promise',
       type: 'speak',
       text: getCharacterRoutineText('onboarding.workspace.create.growth-promise', undefined, '我会陪伴你学习和工作，一起共同成长。'),
       bubbleDuration: 4200
     },
-    createWorkspaceGuideWaitStep('assistant-growth-breath', 4200),
+    4200,
     {
       id: 'invite-notice',
       type: 'showNotice',
@@ -404,7 +445,7 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStep[] {
                               cooldownKey: 'onboarding.workspace.create.workspace-intro',
                               cooldownMs: WORKSPACE_CREATE_WINDOW_HELPER_COOLDOWN_MS
                             },
-                            createWorkspaceGuideWaitStep('workspace-intro-breath', 5000),
+                            5000,
                             {
                               id: 'speak-workspace-quickstart-tip',
                               type: 'speak',
@@ -472,7 +513,7 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStep[] {
           {
             id: 'speak-done',
             type: 'speak',
-            text: getCharacterRoutineText('onboarding.workspace.create.done', undefined, '工作空间建好啦！我可以做更多事情啦。'),
+            text: getCharacterRoutineText('onboarding.workspace.create.done', undefined, '好啦！我可以做更多事情啦。'),
             bubbleDuration: 3600
           }
         ]
@@ -495,7 +536,7 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStep[] {
  * 真实导入仍由 useFileDropCollector + file.drop.invite/file.drop.intake 接管；
  * 这里负责展示任务引导、说明拖拽价值，并等待资源创建事件后给出祝贺反馈。
  */
-function createOnboardingFileDropRoutineSteps(): SpriteRoutineStep[] {
+function createOnboardingFileDropRoutineSteps(): SpriteRoutineStepInput[] {
   return [
     { id: 'attention-wave', type: 'playAnimation', trigger: 'wave', durationMs: 900, waitFor: 'duration', silent: true },
     {
@@ -507,7 +548,7 @@ function createOnboardingFileDropRoutineSteps(): SpriteRoutineStep[] {
       persistent: true,
       speak: true
     },
-    { id: 'await-wizard-result-pause', type: 'wait', durationMs: 1000 },
+    { id: 'await-wizard-result-pause', type: 'wait', durationMs: 3000 },
     {
       id: 'wait-first-file-drop',
       type: 'loopUntil',
@@ -540,7 +581,7 @@ function createOnboardingFileDropRoutineSteps(): SpriteRoutineStep[] {
           {
             id: 'first-file-drop-done',
             type: 'speak',
-            text: getCharacterRoutineText('onboarding.file.drop.done', undefined, '收到啦！第一个文件已经进资源库了。'),
+            text: getCharacterRoutineText('onboarding.file.drop.done', undefined, '收到啦！已经放到背包。'),
             bubbleDuration: 3600
           }
         ],
@@ -550,7 +591,7 @@ function createOnboardingFileDropRoutineSteps(): SpriteRoutineStep[] {
           {
             id: 'first-file-drop-done',
             type: 'speak',
-            text: getCharacterRoutineText('onboarding.file.drop.done', undefined, '收到啦！第一个文件已经进资源库了。'),
+            text: getCharacterRoutineText('onboarding.file.drop.done', undefined, '收到啦！已经放到背包。'),
             bubbleDuration: 3600
           }
         ]
@@ -571,7 +612,7 @@ function createOnboardingFileDropRoutineSteps(): SpriteRoutineStep[] {
 /**
  * 新手引导 — 引导用户通过右键助手菜单打开资源库。
  */
-function createOpenResourceLibraryRoutineSteps(): SpriteRoutineStep[] {
+function createOpenResourceLibraryRoutineSteps(): SpriteRoutineStepInput[] {
   return [
     { id: 'resource-menu-wave', type: 'playAnimation', trigger: 'wave', durationMs: 900, waitFor: 'duration', silent: true },
     {
@@ -625,7 +666,7 @@ function createOpenResourceLibraryRoutineSteps(): SpriteRoutineStep[] {
   ];
 }
 
-function createChatApiConfigGuideSteps(purpose: SpritePurpose): SpriteRoutineStep[] {
+function createChatApiConfigGuideSteps(purpose: SpritePurpose): SpriteRoutineStepInput[] {
   const providerId = getPurposeContextString(purpose, 'providerId') ?? 'openai';
   const presetId = getPurposeContextString(purpose, 'presetId');
   const rawFields = purpose.context?.fields;
@@ -753,7 +794,7 @@ function shouldEndFeatureIntroOnWindowClose(item: FeatureIntroQuestCatalogItem):
   return item.routine.kind === 'window' && Boolean(item.routine.windowKey) && !item.routine.waitEvents?.includes('APP_WINDOW_CLOSED') && item.routine.waitEvent !== 'APP_WINDOW_OPENED';
 }
 
-function buildFeatureIntroWaitSteps(item: FeatureIntroQuestCatalogItem): SpriteRoutineStep[] {
+function buildFeatureIntroWaitSteps(item: FeatureIntroQuestCatalogItem): SpriteRoutineStepInput[] {
   const routine = item.routine;
   const baseWaitEvents = routine.waitEvents ?? (routine.waitEvent ? [routine.waitEvent] : []);
   const waitEvents = shouldEndFeatureIntroOnWindowClose(item) ? [...baseWaitEvents, 'APP_WINDOW_CLOSED'] : baseWaitEvents;
@@ -802,7 +843,7 @@ function buildFeatureIntroWaitSteps(item: FeatureIntroQuestCatalogItem): SpriteR
     ];
   }
 
-  const steps: SpriteRoutineStep[] = [];
+  const steps: SpriteRoutineStepInput[] = [];
   if (routine.windowKey && (routine.kind === 'window' || routine.kind === 'app-event')) {
     steps.push({
       id: `${item.id}.open-window`,
@@ -893,9 +934,9 @@ function buildFeatureIntroWaitSteps(item: FeatureIntroQuestCatalogItem): SpriteR
   return steps;
 }
 
-function createFeatureIntroRoutineSteps(item: FeatureIntroQuestCatalogItem): SpriteRoutineStep[] {
+function createFeatureIntroRoutineSteps(item: FeatureIntroQuestCatalogItem): SpriteRoutineStepInput[] {
   const noticeId = `${item.id}.invite`;
-  const completionSteps: SpriteRoutineStep[] = [
+  const completionSteps: SpriteRoutineStepInput[] = [
     { id: `${item.id}.celebrate`, type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
     {
       id: `${item.id}.done`,
@@ -934,7 +975,7 @@ function createFeatureIntroRoutineSteps(item: FeatureIntroQuestCatalogItem): Spr
             APP_WINDOW_CLOSED: []
           },
           default: completionSteps
-        } satisfies SpriteRoutineStep
+        } satisfies SpriteRoutineStepInput
       ]
       : completionSteps),
     { id: `${item.id}.return-corner`, type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
@@ -1072,7 +1113,7 @@ export class SpriteRoutinePresetRegistry {
   }
 
   createRoutine(purpose: SpritePurpose, preset: SpriteRoutinePresetDefinition, now = Date.now()): SpriteRoutine {
-    const steps = typeof preset.steps === 'function' ? preset.steps(purpose) : preset.steps;
+    const stepInputs = typeof preset.steps === 'function' ? preset.steps(purpose) : preset.steps;
     return {
       id: `routine-${purpose.id}`,
       purposeId: purpose.id,
@@ -1080,7 +1121,7 @@ export class SpriteRoutinePresetRegistry {
       priority: purpose.priority,
       source: 'preset',
       status: 'queued',
-      steps: steps.map((step) => ({ ...step })),
+      steps: stepInputs.map((step, index) => normalizeRoutineStepInput(step, index)),
       cursor: 0,
       createdAt: now
     };

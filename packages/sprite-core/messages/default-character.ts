@@ -443,7 +443,7 @@ export const CHARACTER_MESSAGE_SPECS = [
     section: 'routines',
     key: 'onboarding.workspace.create.done',
     label: '工作空间创建完成',
-    neutral: () => ['工作空间建好啦！我可以做更多事情啦。']
+    neutral: () => ['好啦！我可以做更多事情啦。']
   },
   {
     field: 'workspaceCreateClosedWithoutCreate',
@@ -473,7 +473,7 @@ export const CHARACTER_MESSAGE_SPECS = [
     section: 'routines',
     key: 'onboarding.file.drop.done',
     label: '首次拖拽文件完成',
-    neutral: () => ['收到啦！第一个文件已经进资源库了。']
+    neutral: () => ['收到啦！已经放到背包。']
   },
   {
     field: 'onboardingResourceOpenLibraryInvite',

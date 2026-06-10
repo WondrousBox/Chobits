@@ -70,7 +70,7 @@
 
 - 让角色走到屏幕中心，形成明确的可投递目标。
 - 展示常驻引导 notice，并低频说明资源库的作用。
-- 等待带 `purposeSource: 'sprite-drop'` 的 `RESOURCE_CREATED` / `SPRITE_RESOURCE_IMPORT_COMPLETE`，成功后清理 notice、庆祝并说“收到啦！第一个文件已经进资源库了。”这里不用 runtime event 顶层的 `source` 字段，因为它固定表示事件通道来源 `app-event`。
+- 等待带 `purposeSource: 'sprite-drop'` 的 `RESOURCE_CREATED` / `SPRITE_RESOURCE_IMPORT_COMPLETE`，成功后清理 notice、庆祝并说“收到啦！已经放到背包。”这里不用 runtime event 顶层的 `source` 字段，因为它固定表示事件通道来源 `app-event`。
 
 真实文件导入不在这个 routine 里重复实现，继续交给 `useFileDropCollector` 和资源服务。
 

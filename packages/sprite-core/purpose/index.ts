@@ -73,6 +73,7 @@ export type {
   SpriteRoutineSource,
   SpriteRoutineStatus,
   SpriteRoutineStep,
+  SpriteRoutineStepInput,
   SpriteRoutineStepResult,
   SpriteRoutineStepType,
   StartSpritePurposeRequest

@@ -855,6 +855,72 @@ describe('SpritePurposeManager', () => {
 });
 
 describe('SpriteRoutinePresetRegistry', () => {
+  it('normalizes preset shorthand steps into strict routine steps', () => {
+    const registry = new SpriteRoutinePresetRegistry([
+      {
+        id: 'test.shorthand',
+        title: 'shorthand',
+        purposeKind: 'test.shorthand',
+        defaultPriority: 50,
+        steps: [
+          3600,
+          { type: 'speak', text: '自动补 id。' },
+          {
+            type: 'parallel',
+            body: [
+              250,
+              { type: 'showToast', content: '嵌套也补 id。' }
+            ]
+          },
+          {
+            type: 'branch',
+            by: 'result',
+            cases: {
+              ok: [100]
+            },
+            default: [{ type: 'showToast', content: '默认分支。' }]
+          }
+        ]
+      }
+    ]);
+    const preset = registry.get('test.shorthand');
+    expect(preset).toBeDefined();
+
+    const routine = registry.createRoutine(
+      {
+        id: 'purpose-shorthand',
+        kind: 'test.shorthand',
+        title: 'shorthand',
+        reason: 'test shorthand',
+        source: 'manual',
+        status: 'active',
+        priority: 50,
+        interruptPolicy: 'interruptible'
+      },
+      preset!,
+      1000
+    );
+
+    expect(routine.steps[0]).toMatchObject({ id: 'wait-1', type: 'wait', durationMs: 3600 });
+    expect(routine.steps[1]).toMatchObject({ id: 'speak-2', type: 'speak', text: '自动补 id。' });
+    expect(routine.steps[2]).toMatchObject({
+      id: 'parallel-3',
+      type: 'parallel',
+      body: [
+        expect.objectContaining({ id: 'parallel-3.wait-1', type: 'wait', durationMs: 250 }),
+        expect.objectContaining({ id: 'parallel-3.showToast-2', type: 'showToast', content: '嵌套也补 id。' })
+      ]
+    });
+    expect(routine.steps[3]).toMatchObject({
+      id: 'branch-4',
+      type: 'branch',
+      cases: {
+        ok: [expect.objectContaining({ id: 'branch-4.ok.wait-1', type: 'wait', durationMs: 100 })]
+      },
+      default: [expect.objectContaining({ id: 'branch-4.default.showToast-1', type: 'showToast', content: '默认分支。' })]
+    });
+  });
+
   it('keeps rest reminders in-place unless a planner explicitly chooses movement', () => {
     const registry = new SpriteRoutinePresetRegistry();
     const preset = registry.get('daily.rest-reminder');
@@ -1290,7 +1356,7 @@ describe('SpriteRoutinePresetRegistry', () => {
           bubbleDuration: 3600
         }),
         expect.objectContaining({
-          id: 'assistant-intro-breath',
+          id: 'wait-3',
           type: 'wait',
           durationMs: 3600
         }),
@@ -1301,7 +1367,7 @@ describe('SpriteRoutinePresetRegistry', () => {
           bubbleDuration: 4200
         }),
         expect.objectContaining({
-          id: 'assistant-growth-breath',
+          id: 'wait-5',
           type: 'wait',
           durationMs: 4200
         })
@@ -1349,7 +1415,7 @@ describe('SpriteRoutinePresetRegistry', () => {
                   cooldownKey: 'onboarding.workspace.create.workspace-intro'
                 }),
                 expect.objectContaining({
-                  id: 'workspace-intro-breath',
+                  id: 'await-wizard-result.wait-2',
                   type: 'wait',
                   durationMs: 5000
                 }),
@@ -2027,7 +2093,7 @@ describe('SpriteRoutinePresetRegistry', () => {
         'notice:onboarding.file.drop.invite:可以把文件拖拽给我',
         'clear:onboarding.file.drop.invite',
         'play:celebrate',
-        'speak:first-file-drop-done:收到啦！第一个文件已经进资源库了。',
+        'speak:first-file-drop-done:收到啦！已经放到背包。',
         'walk:corner'
       ])
     );
@@ -2154,7 +2220,7 @@ describe('SpriteRoutinePresetRegistry', () => {
         'notice:onboarding.workspace.create.invite:还没有创建工作空间哦。',
         'clear:onboarding.workspace.create.invite',
         'play:celebrate',
-        'speak:工作空间建好啦！我可以做更多事情啦。'
+        'speak:好啦！我可以做更多事情啦。'
       ])
     );
   });
@@ -2270,7 +2336,7 @@ describe('SpriteRoutinePresetRegistry', () => {
         'speak:speak-workspace-intro:工作空间会存放所有重要的数据。',
         'speak:speak-workspace-quickstart-tip:快速开始会默认创建到文档中',
         'clear:onboarding.workspace.create.invite',
-        'speak:speak-done:工作空间建好啦！我可以做更多事情啦。'
+        'speak:speak-done:好啦！我可以做更多事情啦。'
       ])
     );
   });
