@@ -959,6 +959,85 @@ describe('SpriteRoutinePresetRegistry', () => {
     });
   });
 
+  it('normalizes playAnimation string shorthand into strict routine steps', () => {
+    const registry = new SpriteRoutinePresetRegistry([
+      {
+        id: 'test.animation-shorthand',
+        title: 'animation shorthand',
+        purposeKind: 'test.animation-shorthand',
+        defaultPriority: 50,
+        steps: [
+          'playAnimation wave 1000 duration silent',
+          'playAnimation wave 1000 3000 complete silent',
+          'playAnimation wave silent',
+          'playAnimation wave 1000',
+          {
+            type: 'parallel',
+            body: ['playAnimation thinking 800 duration']
+          }
+        ]
+      }
+    ]);
+    const preset = registry.get('test.animation-shorthand');
+    expect(preset).toBeDefined();
+
+    const routine = registry.createRoutine(
+      {
+        id: 'purpose-animation-shorthand',
+        kind: 'test.animation-shorthand',
+        title: 'animation shorthand',
+        reason: 'test animation shorthand',
+        source: 'manual',
+        status: 'active',
+        priority: 50,
+        interruptPolicy: 'interruptible'
+      },
+      preset!,
+      1000
+    );
+
+    expect(routine.steps[0]).toMatchObject({ id: 'playAnimation-1', type: 'playAnimation', trigger: 'wave', durationMs: 1000, waitFor: 'duration', silent: true });
+    expect(routine.steps[1]).toMatchObject({ id: 'playAnimation-2', type: 'playAnimation', trigger: 'wave', durationMs: 1000, timeoutMs: 3000, waitFor: 'complete', silent: true });
+    expect(routine.steps[2]).toMatchObject({ id: 'playAnimation-3', type: 'playAnimation', trigger: 'wave', silent: true });
+    expect(routine.steps[3]).toMatchObject({ id: 'playAnimation-4', type: 'playAnimation', trigger: 'wave', durationMs: 1000 });
+    expect(routine.steps[4]).toMatchObject({
+      id: 'parallel-5',
+      type: 'parallel',
+      body: [expect.objectContaining({ id: 'parallel-5.playAnimation-1', type: 'playAnimation', trigger: 'thinking', durationMs: 800, waitFor: 'duration' })]
+    });
+  });
+
+  it('rejects ambiguous playAnimation string shorthand timeout values', () => {
+    const registry = new SpriteRoutinePresetRegistry([
+      {
+        id: 'test.invalid-animation-shorthand',
+        title: 'invalid animation shorthand',
+        purposeKind: 'test.invalid-animation-shorthand',
+        defaultPriority: 50,
+        steps: ['playAnimation wave 1000 3000 duration']
+      }
+    ]);
+    const preset = registry.get('test.invalid-animation-shorthand');
+    expect(preset).toBeDefined();
+
+    expect(() =>
+      registry.createRoutine(
+        {
+          id: 'purpose-invalid-animation-shorthand',
+          kind: 'test.invalid-animation-shorthand',
+          title: 'invalid animation shorthand',
+          reason: 'test invalid animation shorthand',
+          source: 'manual',
+          status: 'active',
+          priority: 50,
+          interruptPolicy: 'interruptible'
+        },
+        preset!,
+        1000
+      )
+    ).toThrow('the second numeric value maps to timeoutMs and requires waitFor complete');
+  });
+
   it('keeps rest reminders in-place unless a planner explicitly chooses movement', () => {
     const registry = new SpriteRoutinePresetRegistry();
     const preset = registry.get('daily.rest-reminder');

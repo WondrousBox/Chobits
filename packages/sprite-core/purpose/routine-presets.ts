@@ -28,6 +28,78 @@ function createGeneratedStepId(type: string, index: number, parentPath?: string)
   return parentPath ? `${parentPath}.${localId}` : localId;
 }
 
+function isNonNegativeIntegerToken(token: string): boolean {
+  return /^\d+$/.test(token);
+}
+
+function parsePlayAnimationStepString(input: string, index: number, parentPath?: string): SpriteRoutineStep {
+  const tokens = input.trim().split(/\s+/).filter(Boolean);
+  const fail = (message: string): never => {
+    throw new Error(`Invalid routine step shorthand "${input}": ${message}`);
+  };
+
+  if (tokens[0] !== 'playAnimation') {
+    fail('only playAnimation shorthand is supported');
+  }
+
+  const trigger = tokens[1];
+  if (!trigger) {
+    fail('missing animation trigger');
+  }
+
+  let durationMs: number | undefined;
+  let timeoutMs: number | undefined;
+  let waitFor: Extract<SpriteRoutineStep, { type: 'playAnimation' }>['waitFor'];
+  let silent: boolean | undefined;
+
+  for (const token of tokens.slice(2)) {
+    if (isNonNegativeIntegerToken(token)) {
+      const numericValue = Number(token);
+      if (durationMs == null) {
+        durationMs = numericValue;
+        continue;
+      }
+      if (timeoutMs == null) {
+        timeoutMs = numericValue;
+        continue;
+      }
+      fail('playAnimation accepts at most two numeric values');
+    }
+
+    if (token === 'duration' || token === 'complete' || token === 'none') {
+      if (waitFor != null) {
+        fail('waitFor can only be specified once');
+      }
+      waitFor = token;
+      continue;
+    }
+
+    if (token === 'silent') {
+      if (silent === true) {
+        fail('silent can only be specified once');
+      }
+      silent = true;
+      continue;
+    }
+
+    fail(`unsupported token "${token}"`);
+  }
+
+  if (timeoutMs != null && waitFor !== 'complete') {
+    fail('the second numeric value maps to timeoutMs and requires waitFor complete');
+  }
+
+  return {
+    id: createGeneratedStepId('playAnimation', index, parentPath),
+    type: 'playAnimation',
+    trigger,
+    ...(durationMs != null ? { durationMs } : {}),
+    ...(timeoutMs != null ? { timeoutMs } : {}),
+    ...(waitFor != null ? { waitFor } : {}),
+    ...(silent === true ? { silent: true } : {})
+  };
+}
+
 function normalizeRoutineStepInput(input: SpriteRoutineStepInput, index: number, parentPath?: string): SpriteRoutineStep {
   if (typeof input === 'number') {
     return {
@@ -35,6 +107,10 @@ function normalizeRoutineStepInput(input: SpriteRoutineStepInput, index: number,
       type: 'wait',
       durationMs: input
     };
+  }
+
+  if (typeof input === 'string') {
+    return parsePlayAnimationStepString(input, index, parentPath);
   }
 
   const id = input.id?.trim() || createGeneratedStepId(input.type, index, parentPath);
@@ -365,7 +441,7 @@ const CHAT_API_CONFIG_GUIDE_WAIT_MS = 30 * 60 * 1000;
  */
 function createWorkspaceCreateRoutineSteps(): SpriteRoutineStepInput[] {
   return [
-    { id: 'attention-wave', type: 'playAnimation', trigger: 'wave', durationMs: 1000, waitFor: 'duration', silent: true },
+    'playAnimation wave silent',
     {
       id: 'speak-workspace-assistant-intro',
       type: 'speak',

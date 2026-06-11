@@ -700,6 +700,39 @@ describe('sprite manager regression coverage', () => {
     expect(settled).toBe(true);
   });
 
+  it('treats omitted purpose animation waitFor as fire-and-forget', async () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'thinking-purpose',
+      title: 'Thinking Purpose',
+      eventTypes: ['thinking'],
+      source: { localPath: './thinking.webm', type: 'video/webm' },
+      playback: {
+        durationMs: 200,
+        autoIdle: false
+      }
+    });
+
+    const routine = {
+      id: 'routine-purpose-1',
+      purposeId: 'purpose-1',
+      priority: 80,
+      source: 'preset',
+      status: 'running',
+      steps: [],
+      cursor: 0,
+      createdAt: Date.now()
+    };
+
+    await expect(
+      (mgr as any).runPurposeAnimationStep({ id: 'play', type: 'playAnimation', trigger: 'thinking', durationMs: 10_000 }, new AbortController().signal, routine)
+    ).resolves.toBeUndefined();
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('thinking-purpose');
+  });
+
   it('keeps low-priority ambient triggers from overriding a running purpose animation', async () => {
     const { mgr, dataDir } = createManager();
     dataDirs.add(dataDir);

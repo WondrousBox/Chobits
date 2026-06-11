@@ -102,9 +102,9 @@ type PlayAnimationStep = BaseRoutineStep<'playAnimation'> & {
   trigger?: SpriteAnimationTrigger;
   /** 精确指定动画资源 id；存在时优先于 trigger。 */
   animationId?: string;
-  /** 播放或等待的时长。`waitFor: 'duration'` 时作为等待时长，也会传给 timed playback。 */
+  /** 播放语义时长；`waitFor: 'duration'` 时也作为 routine 等待时长。 */
   durationMs?: number;
-  /** 等待策略：等播放器完成、等固定时长，或 fire-and-forget。默认会按 duration/timeout 等一小段时间。 */
+  /** 等待策略：等播放器完成、等固定时长，或 fire-and-forget；不传时等同于 `none`。 */
   waitFor?: 'complete' | 'duration' | 'none';
   /** 是否禁止动画触发时自动带出角色文案；routine 动画通常默认静默。 */
   silent?: boolean;
@@ -334,11 +334,13 @@ type BranchStepInput = Omit<MakeRoutineStepInput<BranchStep>, 'cases' | 'default
  * Preset authoring input. The registry normalizes this into strict `SpriteRoutineStep`.
  *
  * - `number` means `{ type: 'wait', durationMs: number }`;
+ * - `string` supports a small preset-only DSL, currently `playAnimation <trigger> [durationMs] [timeoutMs] [waitFor] [silent]`;
  * - object steps may omit `id`; the registry generates a readable id from type and position;
  * - nested `loopUntil.body`, `parallel.body`, and `branch` cases are normalized recursively.
  */
 export type SpriteRoutineStepInput =
   | number
+  | string
   | MakeRoutineStepInput<PlayAnimationStep>
   | MakeRoutineStepInput<WalkToStep>
   | MakeRoutineStepInput<WaitStep>

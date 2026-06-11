@@ -970,7 +970,10 @@ export class SpriteManager {
   }
 
   /** 通知消息 */
-  showNotice(content: string, options?: { id?: string; buttons?: any[]; duration?: number; persistent?: boolean; routineId?: string; level?: string; speak?: boolean; ambientContext?: SpriteAmbientMessageContext }): boolean {
+  showNotice(
+    content: string,
+    options?: { id?: string; buttons?: any[]; duration?: number; persistent?: boolean; routineId?: string; level?: string; speak?: boolean; ambientContext?: SpriteAmbientMessageContext }
+  ): boolean {
     if (this.shouldSuppressAmbientMessage(options?.ambientContext)) {
       return false;
     }
@@ -1208,7 +1211,7 @@ export class SpriteManager {
     const result = this.personaState.unlockAchievement(id);
     if (result) {
       this.persistence.markDirty();
-      this.trigger('sparkle', { message: '成就解锁！✨' });
+      this.trigger('sparkle', { message: '成就解锁！✨', silent: true });
     }
     return result;
   }
@@ -2295,7 +2298,13 @@ export class SpriteManager {
       case 'waitForEvent':
         return step.timeoutMs ?? 30000;
       case 'playAnimation':
-        return step.timeoutMs ?? step.durationMs ?? 3000;
+        if (step.waitFor === 'duration') {
+          return step.durationMs ?? step.timeoutMs ?? 1200;
+        }
+        if (step.waitFor === 'complete') {
+          return step.timeoutMs ?? step.durationMs ?? 1200;
+        }
+        return 0;
       case 'walkTo':
         return step.timeoutMs ?? 10000;
       case 'speak':
@@ -2432,7 +2441,7 @@ export class SpriteManager {
         });
       }
 
-      if (step.waitFor === 'none') {
+      if (step.waitFor == null || step.waitFor === 'none') {
         return;
       }
 

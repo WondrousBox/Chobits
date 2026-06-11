@@ -154,7 +154,7 @@ export const DEFAULT_SPRITE_PURPOSE_PLANNER_EVENTS = [
 ] as const;
 
 const STEP_SCHEMA_DESCRIPTIONS: Record<SpriteRoutineStepType, string> = {
-  playAnimation: 'Play an allowlisted animation trigger or animation id; durationMs, timeoutMs, or waitFor:none is required.',
+  playAnimation: 'Play an allowlisted animation trigger or animation id. Omitted waitFor is fire-and-forget; waitFor:duration or waitFor:complete requires durationMs or timeoutMs.',
   walkTo: 'Move the sprite to center, corner, previous, or a bounded point; timeoutMs is required.',
   wait: 'Pause for a bounded durationMs.',
   waitForEvent: 'Wait for an allowlisted runtime event; timeoutMs is required.',
@@ -419,11 +419,17 @@ function validatePlayAnimationStep(record: Record<string, unknown>, path: string
 
   const durationMs = getOptionalNonNegativeNumber(record.durationMs);
   const timeoutMs = getOptionalNonNegativeNumber(record.timeoutMs);
-  if (record.waitFor !== 'none' && durationMs === undefined && timeoutMs === undefined) {
-    state.errors.push(`${path} must include durationMs, timeoutMs, or waitFor:"none"`);
+  if ((record.waitFor === 'duration' || record.waitFor === 'complete') && durationMs === undefined && timeoutMs === undefined) {
+    state.errors.push(`${path} must include durationMs or timeoutMs when waitFor is "duration" or "complete"`);
   }
   validateOptionalTimeout(record.timeoutMs, `${path}.timeoutMs`, state);
-  return durationMs ?? timeoutMs ?? 0;
+  if (record.waitFor === 'duration') {
+    return durationMs ?? timeoutMs ?? 0;
+  }
+  if (record.waitFor === 'complete') {
+    return timeoutMs ?? durationMs ?? 0;
+  }
+  return 0;
 }
 
 function validateWalkToStep(record: Record<string, unknown>, path: string, state: ValidationState): number {
