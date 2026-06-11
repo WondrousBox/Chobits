@@ -421,6 +421,7 @@ const WORKSPACE_CREATE_WINDOW_HELPER_COOLDOWN_MS = 5 * 60 * 1000;
 const FIRST_FILE_DROP_NOTICE_ID = 'onboarding.file.drop.invite';
 const FIRST_FILE_DROP_WAIT_MS = 30 * 60 * 1000;
 const FIRST_FILE_DROP_HELP_COOLDOWN_MS = 60_000;
+const FIRST_FILE_DROP_PROMPT_CYCLE_MS = 6500;
 const OPEN_RESOURCE_LIBRARY_NOTICE_ID = 'onboarding.resource.open-library.invite';
 const OPEN_RESOURCE_LIBRARY_WAIT_MS = 5 * 60 * 1000;
 const FEATURE_INTRO_WAIT_MS = 30 * 60 * 1000;
@@ -441,7 +442,7 @@ const CHAT_API_CONFIG_GUIDE_WAIT_MS = 30 * 60 * 1000;
  */
 function createWorkspaceCreateRoutineSteps(): SpriteRoutineStepInput[] {
   return [
-    'playAnimation wave silent',
+    'playAnimation welcome silent',
     {
       id: 'speak-workspace-assistant-intro',
       type: 'speak',
@@ -614,17 +615,17 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStepInput[] {
  */
 function createOnboardingFileDropRoutineSteps(): SpriteRoutineStepInput[] {
   return [
-    { id: 'attention-wave', type: 'playAnimation', trigger: 'wave', durationMs: 900, waitFor: 'duration', silent: true },
+    'playAnimation welcome 900 duration silent',
     {
       id: 'invite-file-drop-notice',
       type: 'showNotice',
       messageId: FIRST_FILE_DROP_NOTICE_ID,
       content: getCharacterRoutineText('onboarding.file.drop.invite', undefined, '可以把文件拖拽给我'),
       level: 'info',
-      persistent: true,
+      // persistent: true,
       speak: true
     },
-    { id: 'await-wizard-result-pause', type: 'wait', durationMs: 3000 },
+    3000,
     {
       id: 'wait-first-file-drop',
       type: 'loopUntil',
@@ -634,16 +635,22 @@ function createOnboardingFileDropRoutineSteps(): SpriteRoutineStepInput[] {
       maxDurationMs: FIRST_FILE_DROP_WAIT_MS,
       assignTo: 'firstFileDropResult',
       body: [
-        { id: 'drop-ready-pulse', type: 'playAnimation', trigger: 'fileDragOver', durationMs: 900, waitFor: 'duration', silent: true },
         {
-          id: 'drop-intro-speak',
-          type: 'speak',
-          text: getCharacterRoutineText('onboarding.file.drop.intro', undefined, '拖给我的文件会放到背包。'),
-          bubbleDuration: 4200,
-          cooldownKey: 'onboarding.file.drop.intro',
-          cooldownMs: FIRST_FILE_DROP_HELP_COOLDOWN_MS
-        },
-        { id: 'drop-wait-pause', type: 'wait', durationMs: 5000 }
+          id: 'drop-wait-cycle',
+          type: 'parallel',
+          body: [
+            { id: 'drop-ready-loop', type: 'playAnimation', trigger: 'fileDragOver', durationMs: FIRST_FILE_DROP_PROMPT_CYCLE_MS, waitFor: 'duration', silent: true },
+            {
+              id: 'drop-intro-speak',
+              type: 'speak',
+              text: getCharacterRoutineText('onboarding.file.drop.intro', undefined, '拖给我的文件会放到背包。'),
+              bubbleDuration: 4200,
+              cooldownKey: 'onboarding.file.drop.intro',
+              cooldownMs: FIRST_FILE_DROP_HELP_COOLDOWN_MS
+            },
+            { id: 'drop-wait-pause', type: 'wait', durationMs: FIRST_FILE_DROP_PROMPT_CYCLE_MS }
+          ]
+        }
       ]
     },
     {

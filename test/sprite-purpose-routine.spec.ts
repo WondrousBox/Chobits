@@ -1853,7 +1853,7 @@ describe('SpriteRoutinePresetRegistry', () => {
     expect(preset!.defaultPriority).toBe(68);
     expect(routine.steps).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: 'attention-wave', type: 'playAnimation', trigger: 'wave' }),
+        expect.objectContaining({ id: 'playAnimation-1', type: 'playAnimation', trigger: 'welcome' }),
         expect.objectContaining({
           id: 'invite-file-drop-notice',
           type: 'showNotice',
@@ -1881,10 +1881,29 @@ describe('SpriteRoutinePresetRegistry', () => {
       type: 'loopUntil',
       body: expect.arrayContaining([
         expect.objectContaining({
-          id: 'drop-intro-speak',
-          type: 'speak',
-          text: '拖给我的文件会放到背包。',
-          cooldownKey: 'onboarding.file.drop.intro'
+          id: 'drop-wait-cycle',
+          type: 'parallel',
+          body: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'drop-ready-loop',
+              type: 'playAnimation',
+              trigger: 'fileDragOver',
+              durationMs: 6500,
+              waitFor: 'duration',
+              silent: true
+            }),
+            expect.objectContaining({
+              id: 'drop-intro-speak',
+              type: 'speak',
+              text: '拖给我的文件会放到背包。',
+              cooldownKey: 'onboarding.file.drop.intro'
+            }),
+            expect.objectContaining({
+              id: 'drop-wait-pause',
+              type: 'wait',
+              durationMs: 6500
+            })
+          ])
         })
       ])
     });
@@ -2194,7 +2213,7 @@ describe('SpriteRoutinePresetRegistry', () => {
     expect(result.ok, result.error).toBe(true);
     expect(calls).toEqual(
       expect.arrayContaining([
-        'play:wave',
+        'play:welcome',
         'notice:onboarding.file.drop.invite:可以把文件拖拽给我',
         'clear:onboarding.file.drop.invite',
         'play:celebrate',
