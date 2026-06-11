@@ -144,7 +144,7 @@ Your task:
 - Use only step types, windows, events, and animation triggers present in the input.
 - Every walkTo, waitForEvent, and openWindow step must include timeoutMs.
 - Every loopUntil step must include maxDurationMs.
-- Every playAnimation step must include durationMs, timeoutMs, or waitFor:"none".
+- playAnimation without waitFor is fire-and-forget. Use waitFor:"duration" to hold the routine for durationMs/timeoutMs, or waitFor:"complete" to wait for completion with a durationMs/timeoutMs safety budget.
 - Use parallel only when child steps should start together, such as speaking while walking; all child steps must still be bounded.
 - Keep text short, friendly, and non-intrusive.
 - Treat movement as optional expression, not as a fixed requirement. For rest reminders, do not walk to screen center by default; only add a walkTo step when the purpose/context clearly needs a spatial gesture.

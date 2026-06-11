@@ -118,6 +118,37 @@ describe('SpritePurposePlanner validation', () => {
     expect(result.errors.join('\n')).toContain('exceeds maxDurationMs 10000');
   });
 
+  it('treats omitted playAnimation waitFor as fire-and-forget in planner validation', () => {
+    const result = validateSpritePurposePlannerOutput(
+      {
+        routineDraft: {
+          steps: [{ id: 'wave', type: 'playAnimation', trigger: 'wave', durationMs: 800 }]
+        }
+      },
+      validationOptions
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.summary).toEqual({ stepCount: 1, estimatedDurationMs: 0 });
+  });
+
+  it('requires a bounded wait budget when playAnimation waits for duration or completion', () => {
+    const result = validateSpritePurposePlannerOutput(
+      {
+        routineDraft: {
+          steps: [
+            { id: 'duration-wave', type: 'playAnimation', trigger: 'wave', waitFor: 'duration' },
+            { id: 'complete-wave', type: 'playAnimation', trigger: 'wave', waitFor: 'complete' }
+          ]
+        }
+      },
+      validationOptions
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.errors.join('\n')).toContain('must include durationMs or timeoutMs when waitFor is "duration" or "complete"');
+  });
+
   it('counts waitAfter in planner duration estimates', () => {
     const result = validateSpritePurposePlannerOutput(
       {

@@ -24,13 +24,7 @@ const AchievementUnlockToast: React.FC<AchievementUnlockToastProps> = ({ achieve
   return (
     <AnimatePresence mode="wait" onExitComplete={onExitComplete}>
       {achievement && (
-        <motion.div
-          className="relative h-full w-full overflow-hidden bg-transparent p-2.5"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.16 }}
-        >
+        <motion.div className="relative h-full w-full overflow-hidden bg-transparent p-2.5" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.16 }}>
           <motion.div
             key={achievement.toastKey ?? achievement.id}
             className="relative h-full w-full overflow-hidden rounded-lg border border-amber-300/40 bg-zinc-950 text-white shadow-[0_10px_24px_rgba(0,0,0,0.32)]"
@@ -45,7 +39,12 @@ const AchievementUnlockToast: React.FC<AchievementUnlockToastProps> = ({ achieve
               animate={{ opacity: [0.35, 0.7, 0.35], scale: [1, 1.08, 1] }}
               transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
             />
-            <motion.div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/90 to-transparent" initial={{ x: '-100%' }} animate={{ x: '100%' }} transition={{ duration: 1.15, ease: 'easeOut' }} />
+            <motion.div
+              className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/90 to-transparent"
+              initial={{ x: '-100%' }}
+              animate={{ x: '100%' }}
+              transition={{ duration: 1.15, ease: 'easeOut' }}
+            />
 
             <div className="relative flex h-full min-w-0 items-center gap-3 px-4 py-3 pl-5">
               <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-md border border-amber-200/60 bg-gradient-to-br from-yellow-200 via-amber-400 to-orange-500 shadow-[0_0_24px_rgba(251,191,36,0.46)]">

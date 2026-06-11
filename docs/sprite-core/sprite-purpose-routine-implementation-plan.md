@@ -12,7 +12,7 @@
 - `SpriteManager` 已持有 PurposeManager，并暴露 `startPurpose()`、`cancelPurpose()`、`getPurposeSnapshot()`。
 - preload / IPC 已接入 `sprite:purpose:start`、`sprite:purpose:cancel`、`sprite:purpose:getSnapshot`。
 - 动画播放指令已支持 `playId`，渲染层完成上报可回传 `playId`。
-- `playAnimation` step 已支持按 `playId` 等待 `waitFor: 'complete'`，并保留 `duration` / `timeoutMs` fallback。
+- `playAnimation` step 已支持 `waitFor: 'duration'`、按 `playId` 等待 `waitFor: 'complete'`，以及省略 `waitFor` / `waitFor: 'none'` 的 fire-and-forget 触发语义。
 - 已新增 `SpritePresentationLock`，高优先级 routine 动画/行走期间会阻止低优先级 ambient trigger 抢占展示。
 - Phase 2.5 已把展示锁扩展到状态机驱动的动画解析链路，并新增 routine 生命周期级展示锁。
 - routine 自己触发的行走状态会带 owner 上下文通过展示锁；routine 结束释放锁后会按当前状态刷新动画。
@@ -35,7 +35,7 @@
 | 类型 | 当前文档已有 | 当前实现状态 |
 | --- | --- | --- |
 | 行为边界 | 已明确不替换 `BehaviorEngine` | 已通过 preset purpose、DailyCare bridge、workflow/resource listener 和少量行为接入明确升级边界 |
-| 动画等待 | 已提出 `playAnimationAndWait()` | 已用 `playId` 等待动画完成，并保留 duration / timeout fallback |
+| 动画等待 | 已提出 `playAnimationAndWait()` | 已用 `playId` 等待动画完成；省略 `waitFor` 时不阻塞 routine，显式 `duration` / `complete` 才等待 |
 | 事件等待 | 已有 `waitForEvent` 概念 | 已区分 purpose event、SpriteEventBus、AppEvent，并支持 runId/workflowId/resourceId correlation |
 | 并发控制 | 已有 priority / interruptPolicy | 已接入 priority arbitration、critical step defer interrupt 与 presentation lock |
 | 文件菜单 | 已描述 `fileActionsMenu` | FileActionsMenu 已上报 selected / resolved / cancelled / failed，并由 routine 分支消费 |
@@ -242,10 +242,31 @@ export type SpriteRoutineStep =
 Preset 编写层可以使用 `SpriteRoutineStepInput` shorthand，`SpriteRoutinePresetRegistry.createRoutine()` 会统一标准化为完整 `SpriteRoutineStep` 后再交给 runner：
 
 - 数字代表等待毫秒数，例如 `3600` 会变成 `{ id: 'wait-1', type: 'wait', durationMs: 3600 }`。
+- 字符串支持少量 preset-only DSL；当前只支持 `playAnimation <trigger> [durationMs] [timeoutMs] [waitFor] [silent]`。
 - 对象 step 可以省略 `id`，registry 会按 `type` 和位置生成稳定可读的 id，例如 `speak-2`。
 - 所有 step 都支持 `waitAfter`：`waitAfter: true` 会复用该 step 的自然展示/执行时长，`waitAfter: 800` 则在 step 完成后额外等待 800ms。
 - `loopUntil.body`、`parallel.body`、`branch.cases/default` 会递归标准化，最终 runner 看到的每个 step 仍然都有 id。
 - AI planner 输出仍使用严格 `SpriteRoutineStep`，避免模型输出过度简写导致校验边界变模糊。
+
+`playAnimation` 字符串 DSL 示例：
+
+```ts
+[
+  'playAnimation wave',
+  'playAnimation wave silent',
+  'playAnimation wave 1000 duration silent',
+  'playAnimation wave 1000 complete',
+  'playAnimation wave 1000 3000 complete silent'
+]
+```
+
+解析规则：
+
+- 第一个 token 必须是 `playAnimation`，第二个 token 是 `trigger`。
+- 第一个数值 token 映射为 `durationMs`，第二个数值 token 映射为 `timeoutMs`，第三个数值会报错。
+- `duration` / `complete` / `none` 映射为 `waitFor`，只能出现一次。
+- `silent` 映射为 `silent: true`，只能出现一次。
+- 第二个数值表示 `timeoutMs`，必须搭配 `waitFor: 'complete'`；例如 `'playAnimation wave 1000 3000 duration'` 会被拒绝，避免 timeout 写了但不生效。
 
 等待节奏有三种兼容写法：
 
@@ -299,6 +320,13 @@ Preset 编写层可以使用 `SpriteRoutineStepInput` shorthand，`SpriteRoutine
 | 其他 step | 不自动等待；需要停顿时写 `waitAfter: <ms>` 或接独立 wait step |
 
 注意：`waitAfter` 和后面的独立 wait step 会叠加。例如 `waitAfter: true` 后面再写 `3600`，会等待两次。
+
+`playAnimation.waitFor` 的运行时语义：
+
+- 不配置 `waitFor`：等同于 `waitFor: 'none'`，触发动画后立刻进入下一步；`durationMs` 只作为播放语义传给动画层。
+- `waitFor: 'duration'`：等待 `durationMs ?? timeoutMs ?? 1200` 后继续。
+- `waitFor: 'complete'`：等待当前 `playId` 的完成事件，最多等待 `timeoutMs ?? durationMs ?? 1200`。
+- AI planner 校验中，只有 `waitFor: 'duration'` 和 `waitFor: 'complete'` 必须提供 `durationMs` 或 `timeoutMs` 作为等待预算；省略 `waitFor` 和 `waitFor: 'none'` 可用于链接态、反馈态动画。
 
 ### 4.3 StepResult
 
@@ -475,6 +503,7 @@ daily.rest-reminder:
 - [x] Routine `playAnimation` step 支持：
   - `waitFor: 'duration'`
   - `waitFor: 'complete'`
+  - 省略 `waitFor` / `waitFor: 'none'` 时 fire-and-forget
   - `timeoutMs`
   - cancel token
 - [x] 新增 `PresentationLock`。

@@ -240,7 +240,7 @@ Routine 可以理解为“成套行为方案”。它不是决定行为是否发
 
 建议第一版支持这些 step：
 
-- `playAnimation`：播放 trigger 或 animationId，并等待完成或指定时长。
+- `playAnimation`：播放 trigger 或 animationId；默认 fire-and-forget，只有显式 `waitFor: 'duration'` / `'complete'` 时才阻塞 routine。
 - `walkTo`：走到位置，等待移动完成。
 - `wait`：等待固定时间。
 - `waitForEvent`：等待事件，如 `file-drop`、用户选择、任务完成。
@@ -661,7 +661,7 @@ AI planner 的入口也应优先来自现有行为体系。例如某个 Behavior
 - 动画完成需要 promise 化，但不能依赖所有动画都有完整 metadata；必须允许 duration fallback。
 - `walkTo` 已经返回 Promise，是最容易纳入 step 的能力。
 - `trigger()` 当前是 fire-and-forget，需要增加 `playAnimationAndWait()` 一类内部能力。
-- 三段式动画要明确 wait 策略：`duration`、`complete`、`none`。
+- 三段式动画要明确 wait 策略：省略 `waitFor` 等同 `none`；需要控制 routine 节奏时显式使用 `duration` 或 `complete`。
 - purpose history 不应无限增长；需要按日期 JSONL、查询 limit、未来清理策略。
 - AI 规划必须是“建议计划”，执行前必须校验。
 - 固定 Quest（尤其 onboarding）不是 AI 规划建议。Quest 下发的 purpose 应明确使用 preset-only，避免目的规划器开关或 LLM 输出改变新手引导流程。
