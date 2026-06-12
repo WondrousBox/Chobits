@@ -1,5 +1,5 @@
 import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
-import type { SpriteMovementConfig, SpriteMovementDirection, SpriteMovementMode, SpriteMovementTrigger } from '@packages/sprite-core/types';
+import type { SpriteMovementConfig, SpriteMovementDirection, SpriteMovementMode, SpriteMovementTrigger, SpriteWindowAnimationDirection, SpriteWindowAnimationPresetId } from '@packages/sprite-core/types';
 import React, { useCallback, useEffect, useState } from 'react';
 import { TbPencil, TbPlayerPlay, TbTools, TbTrash, TbX } from 'react-icons/tb';
 import { toast } from 'sonner';
@@ -23,11 +23,16 @@ import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 import { createSpriteAnimationMetaDraft, formatSpriteAnimationConditionInput, formatSpriteTriggerAliasesInput, parseSpriteAnimationConditionInput } from './components/sprite-animation-meta-utils';
 import SpriteAnimationConditionBuilder from './components/SpriteAnimationConditionBuilder';
 import SpriteAnimationMetaPopover from './components/SpriteAnimationMetaPopover';
+import SpriteWindowAnimationPositionEditor from './components/SpriteWindowAnimationPositionEditor';
 import SpriteTriggerPicker from './components/SpriteTriggerPicker';
 import SpritePackManager from './SpritePackManager';
 import SpriteVideoEditor, { type SpriteVideoConfig } from './SpriteVideoEditor';
+import { isWindowAnimationPresetId, WINDOW_ANIMATION_PRESET_DIRECTIONS, WINDOW_ANIMATION_PRESETS } from './window-animation-presets';
 
 type SpriteLoopMode = 'none' | 'finite' | 'infinite';
+const DEFAULT_WINDOW_ANIMATION_PRESET_ID: SpriteWindowAnimationPresetId = 'fly-in';
+const DEFAULT_WINDOW_ANIMATION_DIRECTION: SpriteWindowAnimationDirection = 'left';
+const DEFAULT_WINDOW_ANIMATION_DURATION = 650;
 
 function getInitialLoopMode(animation: Pick<SpriteAnimation, 'loop' | 'loopCount'>): SpriteLoopMode {
   if (animation.loopCount != null && animation.loopCount > 0) return 'finite';
@@ -95,6 +100,10 @@ function SpriteAnimationConfigEditor({
   const padding = getNonNegativeNumber(paddingInput, animation.padding ?? 100);
   const loopCount = loopMode === 'finite' ? getPositiveNumber(loopCountInput, animation.loopCount ?? 1) : undefined;
   const sourceLabel = animation.source?.localPath ? baseName(animation.source.localPath) : animation.source?.src ? baseName(animation.source.src) : '';
+  const movementMode = movement.mode ?? 'direction';
+  const windowAnimationPresetId = isWindowAnimationPresetId(movement.windowAnimationPresetId) ? movement.windowAnimationPresetId : DEFAULT_WINDOW_ANIMATION_PRESET_ID;
+  const selectedWindowAnimationPreset = WINDOW_ANIMATION_PRESETS.find((preset) => preset.id === windowAnimationPresetId);
+  const windowAnimationSupportsDirection = selectedWindowAnimationPreset?.supportsDirection ?? false;
 
   const handleSave = async (): Promise<void> => {
     if (saving || parsedCondition.error) return;
@@ -223,8 +232,8 @@ function SpriteAnimationConfigEditor({
             <div className="space-y-2 rounded-md border px-3 py-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-sm font-medium">播放时窗口移动</div>
-                  <div className="text-xs text-muted-foreground">只修改移动配置，不改变视频文件</div>
+                  <div className="text-sm font-medium">播放时窗口动作</div>
+                  <div className="text-xs text-muted-foreground">只修改窗口动作配置，不改变视频文件</div>
                 </div>
                 <Switch checked={movement.enabled} onCheckedChange={(checked) => setMovement((prev) => ({ ...prev, enabled: checked }))} />
               </div>
@@ -232,51 +241,116 @@ function SpriteAnimationConfigEditor({
                 <div className="grid gap-3 md:grid-cols-4">
                   <div className="space-y-1.5">
                     <Label className="text-xs text-muted-foreground">模式</Label>
-                    <Select value={movement.mode ?? 'direction'} onValueChange={(value) => setMovement((prev) => ({ ...prev, mode: value as SpriteMovementMode }))}>
+                    <Select
+                      value={movementMode}
+                      onValueChange={(value) =>
+                        setMovement((prev) => ({
+                          ...prev,
+                          mode: value as SpriteMovementMode,
+                          trigger: value === 'windowAnimation' ? 'animation' : prev.trigger
+                        }))
+                      }
+                    >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="direction">方向移动</SelectItem>
                         <SelectItem value="walkTo">随机行走</SelectItem>
+                        <SelectItem value="windowAnimation">窗口动画</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">方向</Label>
-                    <Select value={movement.direction ?? 'random'} onValueChange={(value) => setMovement((prev) => ({ ...prev, direction: value as SpriteMovementDirection }))}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="left">向左</SelectItem>
-                        <SelectItem value="right">向右</SelectItem>
-                        <SelectItem value="up">向上</SelectItem>
-                        <SelectItem value="down">向下</SelectItem>
-                        <SelectItem value="up-left">左上</SelectItem>
-                        <SelectItem value="up-right">右上</SelectItem>
-                        <SelectItem value="down-left">左下</SelectItem>
-                        <SelectItem value="down-right">右下</SelectItem>
-                        <SelectItem value="random">随机</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">速度 px/s</Label>
-                    <Input type="number" value={movement.speed ?? 60} onChange={(event) => setMovement((prev) => ({ ...prev, speed: getPositiveNumber(event.target.value, 60) }))} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">触发</Label>
-                    <Select value={movement.trigger ?? 'animation'} onValueChange={(value) => setMovement((prev) => ({ ...prev, trigger: value as SpriteMovementTrigger }))}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="animation">动画播放时</SelectItem>
-                        <SelectItem value="behavior">行为调度</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {movementMode === 'windowAnimation' ? (
+                    <div className="space-y-3 md:col-span-3">
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">预设</Label>
+                          <Select value={windowAnimationPresetId} onValueChange={(value) => setMovement((prev) => ({ ...prev, windowAnimationPresetId: value as SpriteWindowAnimationPresetId }))}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {WINDOW_ANIMATION_PRESETS.map((preset) => (
+                                <SelectItem key={preset.id} value={preset.id}>
+                                  {preset.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {windowAnimationSupportsDirection && (
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-muted-foreground">方向</Label>
+                            <Select
+                              value={movement.windowAnimationDirection ?? DEFAULT_WINDOW_ANIMATION_DIRECTION}
+                              onValueChange={(value) => setMovement((prev) => ({ ...prev, windowAnimationDirection: value as SpriteWindowAnimationDirection }))}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {WINDOW_ANIMATION_PRESET_DIRECTIONS.map((direction) => (
+                                  <SelectItem key={direction.value} value={direction.value}>
+                                    {direction.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">时长 ms</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            step={50}
+                            value={movement.windowAnimationDuration ?? DEFAULT_WINDOW_ANIMATION_DURATION}
+                            onChange={(event) => setMovement((prev) => ({ ...prev, windowAnimationDuration: Math.max(0, Number(event.target.value) || DEFAULT_WINDOW_ANIMATION_DURATION) }))}
+                          />
+                        </div>
+                      </div>
+                      <SpriteWindowAnimationPositionEditor value={movement.windowAnimationPlayPosition} onChange={(value) => setMovement((prev) => ({ ...prev, windowAnimationPlayPosition: value }))} />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">方向</Label>
+                        <Select value={movement.direction ?? 'random'} onValueChange={(value) => setMovement((prev) => ({ ...prev, direction: value as SpriteMovementDirection }))}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="left">向左</SelectItem>
+                            <SelectItem value="right">向右</SelectItem>
+                            <SelectItem value="up">向上</SelectItem>
+                            <SelectItem value="down">向下</SelectItem>
+                            <SelectItem value="up-left">左上</SelectItem>
+                            <SelectItem value="up-right">右上</SelectItem>
+                            <SelectItem value="down-left">左下</SelectItem>
+                            <SelectItem value="down-right">右下</SelectItem>
+                            <SelectItem value="random">随机</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">速度 px/s</Label>
+                        <Input type="number" value={movement.speed ?? 60} onChange={(event) => setMovement((prev) => ({ ...prev, speed: getPositiveNumber(event.target.value, 60) }))} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">触发</Label>
+                        <Select value={movement.trigger ?? 'animation'} onValueChange={(value) => setMovement((prev) => ({ ...prev, trigger: value as SpriteMovementTrigger }))}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="animation">动画播放时</SelectItem>
+                            <SelectItem value="behavior">行为调度</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>

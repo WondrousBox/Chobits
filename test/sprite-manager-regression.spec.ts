@@ -40,7 +40,7 @@ function createTestWindow(): {
   return { win, sent };
 }
 
-function createManager(options: { purposeWindowAdapter?: any; behaviorScheduler?: any } = {}): {
+function createManager(options: { purposeWindowAdapter?: any; behaviorScheduler?: any; windowAnimationAdapter?: any } = {}): {
   mgr: SpriteManager;
   sent: Array<{ channel: string; payload: unknown }>;
   dataDir: string;
@@ -53,6 +53,7 @@ function createManager(options: { purposeWindowAdapter?: any; behaviorScheduler?
     getScreenSize: () => ({ width: 1280, height: 720 }),
     appName: 'SpriteTest',
     purposeWindowAdapter: options.purposeWindowAdapter,
+    windowAnimationAdapter: options.windowAnimationAdapter,
     behaviorScheduler: options.behaviorScheduler
   });
 
@@ -1888,6 +1889,75 @@ describe('sprite manager regression coverage', () => {
     expect(sent).toContainEqual({
       channel: 'sprite:walk',
       payload: { active: true, direction: 'left' }
+    });
+  });
+
+  it('forwards sprite window animation play position to the injected adapter', () => {
+    const playPreset = vi.fn();
+    const { mgr, dataDir } = createManager({ windowAnimationAdapter: { playPreset } });
+    dataDirs.add(dataDir);
+    initSpriteCapabilityRuntime({
+      resolveContext: () => ({
+        personaLevel: 10,
+        activeSignals: {}
+      })
+    });
+
+    (mgr as any).windowController = {
+      isAutoMoving: () => false,
+      stopAutoMove: vi.fn()
+    };
+
+    mgr.registerAnimation({
+      meta: {
+        id: 'celebrate-window-animation',
+        title: 'Celebrate Window Animation',
+        primaryTrigger: 'celebrate'
+      },
+      source: { localPath: './celebrate-window.webm', type: 'video/webm' },
+      movement: {
+        enabled: true,
+        mode: 'windowAnimation',
+        windowAnimationPresetId: 'fly-in',
+        windowAnimationDirection: 'left',
+        windowAnimationDuration: 650,
+        windowAnimationTarget: 'main',
+        windowAnimationPlayPosition: {
+          mode: 'point',
+          point: { x: 120, y: 80 },
+          positionAnchor: 'top-left',
+          coordinateSpace: {
+            type: 'design-area',
+            designArea: { width: 1440, height: 900 },
+            display: 'current',
+            useWorkArea: true,
+            fitMode: 'stretch',
+            sizeMode: 'scale-with-area'
+          }
+        }
+      }
+    });
+
+    mgr.trigger('celebrate', { silent: true });
+
+    expect(playPreset).toHaveBeenCalledWith({
+      presetId: 'fly-in',
+      direction: 'left',
+      duration: 650,
+      target: 'main',
+      playPosition: {
+        mode: 'point',
+        point: { x: 120, y: 80 },
+        positionAnchor: 'top-left',
+        coordinateSpace: {
+          type: 'design-area',
+          designArea: { width: 1440, height: 900 },
+          display: 'current',
+          useWorkArea: true,
+          fitMode: 'stretch',
+          sizeMode: 'scale-with-area'
+        }
+      }
     });
   });
 

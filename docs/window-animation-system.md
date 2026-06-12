@@ -85,6 +85,7 @@ Rules:
 - `curve` affects position only. `width`, `height`, and `opacity` are interpolated linearly after easing.
 - `control1` and `control2` are absolute desktop coordinates, matching SVG path semantics.
 - Keyframes may be sparse. Missing `width`/`height` inherit from the previously resolved window bounds, and the first keyframe inherits from the real window size at playback start. This is the correct way to keep the original window size for effects such as fly-in, fly-out, fade, and shake.
+- In the Chobits editor, the size mode controls whether manually authored keyframes write `width`/`height`. `Edit width/height` shows the window rectangle, resize handles, and serializes explicit size fields. `Keep original size` omits `width`/`height` from playback keyframes and the canvas only shows the keyframe anchor points and path.
 - In the current manager, missing `x`/`y` preserve the previous top-left corner even when `positionAnchor` is `center`. This keeps compatibility, but it means size-changing presets still need explicit `x/y` if they want center-based scaling. See the sparse preset optimization plan below for the planned anchor-inheritance improvement.
 - Presets should omit fields they do not own. For example, a fade preset should only write `opacity` and timing fields, while a fly preset should write position and `opacity` but not `width`/`height`.
 
@@ -164,6 +165,7 @@ The editor currently supports:
 - line/quadratic/cubic path segments
 - segment duration and easing
 - width/height/opacity keyframes
+- size mode selection: edit explicit width/height or keep the target window's original size by omitting size fields
 - JSON preview
 - direct playback/stop through manager IPC
 
@@ -181,6 +183,28 @@ The first supported preset batch intentionally covers effects that can be expres
 
 Effects such as rotate, wipe, blur, glow, or content morphing should be authored as content-layer sprite/video/CSS tracks in Chobits and synchronized with the manager timeline, because Electron `BrowserWindow` itself does not provide those transforms as first-class cross-platform window operations.
 
+### Sprite Animation Integration
+
+Sprite video animations can trigger these same non-editable window presets as a playback side effect. This is modeled as the third `SpriteMovementConfig.mode`, `windowAnimation`, because the existing `movement` field already represents the extra window action attached to a sprite animation.
+
+The integration follows these boundaries:
+
+- Renderer editors only persist intent: preset id, optional direction, optional duration, optional play position, and `trigger: 'animation'`.
+- `sprite-core` remains independent of `@aim-packages/window-manager`; it calls an injected `windowAnimationAdapter`.
+- Electron main owns the concrete playback: it resolves `windowAnimationTarget` with `main` as the default, optionally places that target window, reads the resulting bounds and work area, builds the sparse preset timeline, then calls `windowManager.playWindowAnimation(target, timeline)`.
+- Window animation presets triggered from sprite playback are direct actions, not editable timeline documents.
+- Window animation mode must not emit walking state or start `WindowController` auto-move. The sprite video can keep playing in place while the main window performs the preset.
+
+`SpriteMovementConfig.windowAnimationPlayPosition` controls the optional placement step before preset playback:
+
+- When `windowAnimationPlayPosition` is omitted, playback is identical to the old behavior: the preset uses the target window's current bounds as its base frame.
+- `mode: 'placement'` stores a semantic anchor such as `top-left`, `right`, `bottom`, or `center`, plus display/work-area/margin options. Electron main resolves it against the selected display and calls `BrowserWindow.setBounds()` before building the preset timeline.
+- `mode: 'point'` stores a manually dragged design-area point, a `positionAnchor`, and coordinate-space mapping options. The point is mapped with the same `design-area` fit modes used by window animation authoring, then converted to a top-left window bound by subtracting the selected local anchor offset.
+- The placement step changes only the starting desktop bounds used by the native window animation. It does not write `x/y/width/height` into the sprite animation itself, does not resize the sprite window, and does not change `SpriteState`.
+- The shared UI component for this setting mirrors the window animation editor: enable/disable switch, quick corner/edge/center buttons, display selection, work-area toggle, margin field, and a manual drag canvas with `stretch`/`contain`/`cover` mapping.
+
+This keeps one source of truth for preset geometry and sparse serialization. Settings-page direct playback, sprite-animation playback, and tests all use the same preset factory.
+
 ## Sparse Preset Timeline Optimization Plan
 
 This improvement fixes an over-specific authoring problem in the first preset implementation. The current editor stores every preview frame as a complete rectangle (`x/y/width/height/opacity/duration/easing/curve`) and serializes the same complete shape into the manager timeline. That is convenient for canvas preview, but it makes PPT-style presets write properties they do not actually control. For example, fly-in should control position and opacity only; writing `width` and `height` accidentally freezes the target window size.
@@ -189,7 +213,7 @@ The design rule is:
 
 - editor preview frames may remain complete, because the canvas needs rectangles, resize handles, and size labels;
 - manager playback frames should be sparse, because missing fields intentionally inherit from the real window state or the previous resolved frame;
-- manual/custom keyframes may keep full serialization unless a later field-level authoring UI tracks which properties are intentionally controlled.
+- manual/custom keyframes keep full size serialization in `Edit width/height` mode, but may intentionally omit `width/height` through the editor's `Keep original size` mode.
 
 ### Phase 1: Sparse Serialization in Chobits
 

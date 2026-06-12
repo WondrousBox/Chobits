@@ -294,8 +294,68 @@ export type SpriteMovementDirection = 'left' | 'right' | 'up' | 'down' | 'up-lef
  * 移动模式:
  * - 'direction': 沿固定方向恒速移动，到达屏幕边界停止
  * - 'walkTo': 随机选取屏幕位置，沿贝塞尔曲线路径移动（三段式动画：intro→loop→outro）
+ * - 'windowAnimation': 播放主窗口动画预设，不改变精灵窗口行走状态
  */
-export type SpriteMovementMode = 'direction' | 'walkTo';
+export type SpriteMovementMode = 'direction' | 'walkTo' | 'windowAnimation';
+
+export type SpriteWindowAnimationPresetId = 'fly-in' | 'fade-in' | 'zoom-in' | 'fly-out' | 'fade-out' | 'zoom-out' | 'pulse' | 'shake';
+
+export type SpriteWindowAnimationDirection = 'left' | 'right' | 'top' | 'bottom';
+
+export type SpriteWindowAnimationAnchor = 'top-left' | 'top' | 'top-right' | 'left' | 'center' | 'right' | 'bottom-left' | 'bottom' | 'bottom-right';
+
+export type SpriteWindowAnimationDisplay = 'primary' | 'current' | 'main';
+
+export type SpriteWindowAnimationCoordinateSpaceType = 'absolute' | 'design-area';
+
+export type SpriteWindowAnimationCoordinateFitMode = 'contain' | 'cover' | 'stretch';
+
+export type SpriteWindowAnimationSizeMode = 'absolute' | 'scale-with-area';
+
+export type SpriteWindowAnimationMargin =
+  | number
+  | {
+      x?: number;
+      y?: number;
+      top?: number;
+      right?: number;
+      bottom?: number;
+      left?: number;
+    };
+
+export interface SpriteWindowAnimationPoint {
+  x: number;
+  y: number;
+}
+
+export interface SpriteWindowAnimationCoordinateSpace {
+  type?: SpriteWindowAnimationCoordinateSpaceType;
+  designArea?: {
+    width: number;
+    height: number;
+  };
+  display?: SpriteWindowAnimationDisplay;
+  useWorkArea?: boolean;
+  fitMode?: SpriteWindowAnimationCoordinateFitMode;
+  sizeMode?: SpriteWindowAnimationSizeMode;
+}
+
+export interface SpriteWindowAnimationPlacement {
+  anchor: SpriteWindowAnimationAnchor;
+  display?: SpriteWindowAnimationDisplay;
+  useWorkArea?: boolean;
+  margin?: SpriteWindowAnimationMargin;
+  offset?: Partial<SpriteWindowAnimationPoint>;
+}
+
+export interface SpriteWindowAnimationPlayPosition {
+  /** placement 使用语义位置，point 使用设计区/绝对坐标锚点 */
+  mode: 'placement' | 'point';
+  placement?: SpriteWindowAnimationPlacement;
+  point?: SpriteWindowAnimationPoint;
+  positionAnchor?: SpriteWindowAnimationAnchor;
+  coordinateSpace?: SpriteWindowAnimationCoordinateSpace;
+}
 
 /**
  * 移动触发方式:
@@ -313,6 +373,7 @@ export interface SpriteMovementConfig {
    * 移动模式，默认 'direction'
    * - 'direction': 沿固定方向恒速移动（需配置 direction）
    * - 'walkTo': 随机选取屏幕位置行走（方向由目标推导，可配合单段循环或三段式动画）
+   * - 'windowAnimation': 播放窗口动画预设（由主进程适配器执行）
    */
   mode?: SpriteMovementMode;
 
@@ -353,6 +414,21 @@ export interface SpriteMovementConfig {
    * 限制目标位置与当前位置的 Y 轴偏差，避免角度过大
    */
   verticalRange?: number;
+
+  /** windowAnimation 模式的窗口动画预设 ID，默认 fly-in */
+  windowAnimationPresetId?: SpriteWindowAnimationPresetId;
+
+  /** windowAnimation 模式的方向参数，仅对飞入、飞出、抖动等方向型预设生效 */
+  windowAnimationDirection?: SpriteWindowAnimationDirection;
+
+  /** windowAnimation 模式的动画时长（ms），默认由预设工厂决定 */
+  windowAnimationDuration?: number;
+
+  /** windowAnimation 模式的目标窗口，当前 UI 默认 main */
+  windowAnimationTarget?: string;
+
+  /** windowAnimation 模式下播放前先放置到的位置；未设置时保持当前位置 */
+  windowAnimationPlayPosition?: SpriteWindowAnimationPlayPosition;
 }
 
 /** movement preview 请求体 */

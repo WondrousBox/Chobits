@@ -14,6 +14,7 @@ function createCoordinatorHarness(options?: { canUseMovement?: () => boolean; ge
   setWindowSize: ReturnType<typeof vi.fn>;
   emitConfigChanged: ReturnType<typeof vi.fn>;
   emitWalkState: ReturnType<typeof vi.fn>;
+  playWindowAnimation: ReturnType<typeof vi.fn>;
 } {
   let config: SpriteConfig = {
     width: 200,
@@ -30,6 +31,7 @@ function createCoordinatorHarness(options?: { canUseMovement?: () => boolean; ge
   const setWindowSize = vi.fn();
   const emitConfigChanged = vi.fn();
   const emitWalkState = vi.fn();
+  const playWindowAnimation = vi.fn(async () => undefined);
   const startAutoMove = vi.fn((movement: SpriteMovementConfig) => {
     autoMoving = true;
     if (movement.direction === 'left') {
@@ -63,7 +65,8 @@ function createCoordinatorHarness(options?: { canUseMovement?: () => boolean; ge
     isAutoMoving: () => autoMoving,
     getAutoMoveDirection: () => autoMoveDirection,
     emitWalkState,
-    emitConfigChanged
+    emitConfigChanged,
+    playWindowAnimation
   });
 
   return {
@@ -75,7 +78,8 @@ function createCoordinatorHarness(options?: { canUseMovement?: () => boolean; ge
     stopAutoMove,
     setWindowSize,
     emitConfigChanged,
-    emitWalkState
+    emitWalkState,
+    playWindowAnimation
   };
 }
 
@@ -186,6 +190,55 @@ describe('MovementCoordinator', () => {
     expect(targetY).toBeGreaterThanOrEqual(168);
     expect(targetY).toBeLessThanOrEqual(312);
     expect(speed).toBe(60);
+  });
+
+  it('plays window animation presets without starting sprite movement state', () => {
+    const harness = createCoordinatorHarness();
+    const movement: SpriteMovementConfig = {
+      enabled: true,
+      mode: 'windowAnimation',
+      windowAnimationPresetId: 'fly-in',
+      windowAnimationDirection: 'left',
+      windowAnimationDuration: 650,
+      windowAnimationPlayPosition: {
+        mode: 'placement',
+        placement: {
+          anchor: 'top-right',
+          display: 'current',
+          useWorkArea: true,
+          margin: 16
+        }
+      }
+    };
+
+    harness.coordinator.applyAnimationMovement(movement);
+
+    expect(harness.playWindowAnimation).toHaveBeenCalledWith(movement);
+    expect(harness.startAutoMove).not.toHaveBeenCalled();
+    expect(harness.walkTo).not.toHaveBeenCalled();
+    expect(harness.emitWalkState).not.toHaveBeenCalledWith(expect.objectContaining({ active: true }));
+  });
+
+  it('previews window animation presets without resizing the sprite window', () => {
+    const harness = createCoordinatorHarness();
+    const movement: SpriteMovementConfig = {
+      enabled: true,
+      mode: 'windowAnimation',
+      windowAnimationPresetId: 'shake',
+      windowAnimationDirection: 'top'
+    };
+
+    harness.coordinator.previewMovement({
+      width: 320,
+      height: 260,
+      padding: 24,
+      movement
+    });
+
+    expect(harness.playWindowAnimation).toHaveBeenCalledWith(movement);
+    expect(harness.setWindowSize).not.toHaveBeenCalled();
+    expect(harness.emitConfigChanged).not.toHaveBeenCalled();
+    expect(harness.getConfig()).toMatchObject({ width: 200, height: 200, padding: 100 });
   });
 
   it('keeps movement capability as the shared gate for preview, animation and behavior movement', async () => {

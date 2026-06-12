@@ -66,6 +66,18 @@ export type {
   SpriteMovementDirection,
   SpriteMovementMode,
   SpriteMovementTrigger,
+  SpriteWindowAnimationAnchor,
+  SpriteWindowAnimationCoordinateFitMode,
+  SpriteWindowAnimationCoordinateSpace,
+  SpriteWindowAnimationCoordinateSpaceType,
+  SpriteWindowAnimationDirection,
+  SpriteWindowAnimationDisplay,
+  SpriteWindowAnimationMargin,
+  SpriteWindowAnimationPlacement,
+  SpriteWindowAnimationPlayPosition,
+  SpriteWindowAnimationPoint,
+  SpriteWindowAnimationPresetId,
+  SpriteWindowAnimationSizeMode,
   SpritePersonaStateResult,
   SpritePlayCommand,
   SpriteStateSnapshot,
@@ -380,7 +392,7 @@ export type { SpriteReactionState, SpriteState, SpriteSubState, StateConfig, Sta
 export { SpriteStateMachine } from './state-machine';
 
 // ----- Manager (主进程门面) -----
-export type { SpriteManagerOptions, SpritePurposeWindowAdapter, SpriteWindow } from './manager';
+export type { SpriteManagerOptions, SpritePurposeWindowAdapter, SpriteWindow, SpriteWindowAnimationAdapter } from './manager';
 export { SpriteManager } from './manager';
 
 // ----- WindowController -----
