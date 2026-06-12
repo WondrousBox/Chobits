@@ -116,7 +116,7 @@ appWindowTool({ action: 'open', windowKey: 'resourcePreview', payload: { resourc
 - `aiProviderConfig`: `providerId`, `presetId`, `fields`
 - `asr`: `mode`, `cloudProviderId`, `cloudProviderPresetId`, `cloudModelId`, `audioSource`
 - `chat` / `chatOverlay` / `assistant` / `assistantMini`: `initialMessage`, `providerId`, `modelId`, `preferredPresetId`, `presetId`, `agentId`, `codingWorkspaceRoot`, `codingWorkspaceLabel`, `webSearchEnabled`, `emojiPacksEnabled`, `characterPersonaEnabled`, `overlaySide`
-- `windowAnimationEditor`: `presetId`
+- `windowAnimationEditor`: no payload; presets are direct playback actions and are not loaded into this editor
 - `resourcePreview`: `resourceId`
 
 ## 当前实现
