@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   TbAlignBoxBottomCenter,
   TbAlignBoxBottomLeft,
@@ -40,7 +40,6 @@ import type {
   WindowAnimationPlacement,
   WindowAnimationTimeline
 } from '../../../electron/preload/apis/window';
-import { createWindowAnimationPresetFrames, isWindowAnimationPresetId, type WindowAnimationPresetDirection, type WindowAnimationPresetId } from './window-animation-presets';
 
 type EditableKeyframe = Required<Pick<WindowAnimationKeyframe, 'x' | 'y' | 'width' | 'height'>> &
   Pick<WindowAnimationKeyframe, 'duration' | 'easing' | 'curve' | 'control1' | 'control2' | 'opacity' | 'placement'>;
@@ -48,9 +47,6 @@ type EditableKeyframe = Required<Pick<WindowAnimationKeyframe, 'x' | 'y' | 'widt
 type ResizeCorner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
 type DragOperation = { type: 'move'; index: number } | { type: 'resize'; index: number; corner: ResizeCorner };
-type WindowAnimationEditorPayload = {
-  presetId?: unknown;
-};
 
 const TARGET_WINDOWS = [
   { key: 'main', label: '主精灵窗口' },
@@ -82,7 +78,6 @@ const CANVAS_HEIGHT = 420;
 const WORK_AREA = { x: 0, y: 0, width: 1440, height: 900 };
 const MIN_WINDOW_SIZE = 40;
 const DEFAULT_POSITION_ANCHOR: WindowAnimationAnchor = 'center';
-const DEFAULT_PRESET_DURATION = 650;
 
 const RESIZE_HANDLES: Array<{ corner: ResizeCorner; cursor: React.CSSProperties['cursor'] }> = [
   { corner: 'top-left', cursor: 'nwse-resize' },
@@ -340,11 +335,6 @@ function buildPath(frames: EditableKeyframe[]): string {
   return commands.join(' ');
 }
 
-function resolvePayloadPresetId(payload: unknown): WindowAnimationPresetId | undefined {
-  const presetId = (payload as WindowAnimationEditorPayload | undefined)?.presetId;
-  return isWindowAnimationPresetId(presetId) ? presetId : undefined;
-}
-
 export default function WindowAnimationEditor(): JSX.Element {
   const [targetWindow, setTargetWindow] = useState('main');
   const [frames, setFrames] = useState<EditableKeyframe[]>(() => createDefaultFrames());
@@ -357,7 +347,6 @@ export default function WindowAnimationEditor(): JSX.Element {
   const [jsonDialogOpen, setJsonDialogOpen] = useState(false);
   const [jsonCopied, setJsonCopied] = useState(false);
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const loadPresetRef = useRef<(presetId: WindowAnimationPresetId) => void>(() => undefined);
 
   const selectedFrame = frames[selectedIndex] || frames[0];
   const totalDuration = useMemo(() => frames.reduce((sum, frame, index) => sum + (index === 0 ? 0 : Math.max(0, frame.duration ?? 0)), 0), [frames]);
@@ -432,72 +421,6 @@ export default function WindowAnimationEditor(): JSX.Element {
   const clearFramePlacement = useCallback(() => {
     updateFrame(selectedIndex, { placement: undefined });
   }, [selectedIndex, updateFrame]);
-
-  const loadPreset = useCallback(
-    (
-      nextPresetId: WindowAnimationPresetId,
-      options: {
-        baseFrame?: EditableKeyframe;
-        direction?: WindowAnimationPresetDirection;
-        duration?: number;
-      } = {}
-    ) => {
-      const baseFrame = options.baseFrame || selectedFrame;
-      if (!baseFrame) return;
-      const direction = options.direction || 'left';
-      const duration = options.duration ?? DEFAULT_PRESET_DURATION;
-      const nextFrames = createWindowAnimationPresetFrames({
-        presetId: nextPresetId,
-        baseFrame,
-        positionAnchor,
-        direction,
-        duration,
-        workArea: WORK_AREA
-      });
-      setFrames(nextFrames);
-      setSelectedIndex(Math.max(0, nextFrames.length - 1));
-    },
-    [positionAnchor, selectedFrame]
-  );
-
-  loadPresetRef.current = loadPreset;
-
-  useEffect(() => {
-    const handlePayload = (_event: unknown, payload: unknown): void => {
-      const payloadPresetId = resolvePayloadPresetId(payload);
-      if (payloadPresetId) {
-        loadPresetRef.current(payloadPresetId);
-      }
-    };
-
-    window.ipcRenderer?.on('on:window:open:ready', handlePayload);
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const payload = await window.YUA.window['window:payload:get']('windowAnimationEditor' as any);
-        if (!cancelled) {
-          const payloadPresetId = resolvePayloadPresetId(payload);
-          if (payloadPresetId) {
-            loadPresetRef.current(payloadPresetId);
-          }
-        }
-      } catch {
-        // ignore missing startup payload
-      } finally {
-        try {
-          await window.YUA.window['window:open:ready']('windowAnimationEditor' as any);
-        } catch {
-          // ignore
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      window.ipcRenderer?.off('on:window:open:ready', handlePayload);
-    };
-  }, []);
 
   const addFrame = useCallback(() => {
     setFrames((prev) => {
@@ -626,14 +549,6 @@ export default function WindowAnimationEditor(): JSX.Element {
               <TbPlayerStop />
               停止
             </Button>
-            <Button size="sm" variant="outline" onClick={addFrame}>
-              <TbPlus />
-              关键帧
-            </Button>
-            <Button size="sm" variant="ghost" onClick={removeFrame} disabled={frames.length <= 1}>
-              <TbTrash />
-              删除
-            </Button>
             <Button size="sm" variant="outline" onClick={() => setJsonDialogOpen(true)}>
               <TbJson />
               JSON
@@ -740,7 +655,7 @@ export default function WindowAnimationEditor(): JSX.Element {
             </svg>
           </div>
 
-          <KeyframeTimeline frames={frames} selectedIndex={selectedIndex} onSelect={setSelectedIndex} />
+          <KeyframeTimeline frames={frames} selectedIndex={selectedIndex} onSelect={setSelectedIndex} onAdd={addFrame} onRemove={removeFrame} canRemove={frames.length > 1} />
         </section>
 
         <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto border-l pl-4">
@@ -899,12 +814,38 @@ function Field({ label, value, step = '1', disabled, onChange }: { label: string
   );
 }
 
-function KeyframeTimeline({ frames, selectedIndex, onSelect }: { frames: EditableKeyframe[]; selectedIndex: number; onSelect: (index: number) => void }): JSX.Element {
+function KeyframeTimeline({
+  frames,
+  selectedIndex,
+  onSelect,
+  onAdd,
+  onRemove,
+  canRemove
+}: {
+  frames: EditableKeyframe[];
+  selectedIndex: number;
+  onSelect: (index: number) => void;
+  onAdd: () => void;
+  onRemove: () => void;
+  canRemove: boolean;
+}): JSX.Element {
   return (
     <div className="shrink-0 rounded-md border bg-background p-3">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="text-xs font-medium">窗口关键帧</div>
-        <div className="text-xs text-muted-foreground">{frames.length} 帧</div>
+        <div className="min-w-0">
+          <div className="text-xs font-medium">窗口关键帧</div>
+          <div className="text-xs text-muted-foreground">{frames.length} 帧</div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={onAdd}>
+            <TbPlus />
+            添加
+          </Button>
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={onRemove} disabled={!canRemove}>
+            <TbTrash />
+            删除
+          </Button>
+        </div>
       </div>
       <div className="overflow-x-auto pb-1">
         <div className="flex min-w-max items-center">

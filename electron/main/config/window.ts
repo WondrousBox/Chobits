@@ -31,7 +31,7 @@ declare module '@aim-packages/window-manager' {
     webRecorder: void;
     memoryGraph: void;
     characterPackEditor: void;
-    windowAnimationEditor: { presetId?: string } | void;
+    windowAnimationEditor: void;
     spriteBubbleFixedTop: void;
     spriteEffect: void;
     musicSpectrum: void;

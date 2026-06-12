@@ -84,6 +84,9 @@ Rules:
 - `duration` is the segment duration in milliseconds.
 - `curve` affects position only. `width`, `height`, and `opacity` are interpolated linearly after easing.
 - `control1` and `control2` are absolute desktop coordinates, matching SVG path semantics.
+- Keyframes may be sparse. Missing `width`/`height` inherit from the previously resolved window bounds, and the first keyframe inherits from the real window size at playback start. This is the correct way to keep the original window size for effects such as fly-in, fly-out, fade, and shake.
+- In the current manager, missing `x`/`y` preserve the previous top-left corner even when `positionAnchor` is `center`. This keeps compatibility, but it means size-changing presets still need explicit `x/y` if they want center-based scaling. See the sparse preset optimization plan below for the planned anchor-inheritance improvement.
+- Presets should omit fields they do not own. For example, a fade preset should only write `opacity` and timing fields, while a fly preset should write position and `opacity` but not `width`/`height`.
 
 Example:
 
@@ -164,9 +167,9 @@ The editor currently supports:
 - JSON preview
 - direct playback/stop through manager IPC
 
-Preset generation lives in Chobits, not in the manager. A preset is a pure factory that reads a base frame and writes ordinary manager keyframes. This means presets can use all existing playback features, including `positionAnchor`, `placement`, opacity, size interpolation, easing, and screen adaptation, while the manager remains a generic timeline player.
+Preset generation lives in Chobits, not in the manager. A preset is a pure factory that reads a base frame and writes ordinary manager keyframes. This means presets can use all existing playback features, including `positionAnchor`, `placement`, opacity, size interpolation, easing, and screen adaptation, while the manager remains a generic timeline player. Preset playback keyframes should be sparse: the generated timeline should only include the properties controlled by that preset.
 
-The settings page exposes the supported presets as an external list. Clicking a preset opens `windowAnimationEditor` with `{ presetId }`, and the editor immediately loads that preset onto the canvas. Inside the editor, changing the preset dropdown, direction, or duration also regenerates the timeline immediately. Any manual keyframe edit switches the editor back to custom keyframe mode.
+The settings page exposes the supported presets as direct playback actions. Clicking a preset reads the current main-window bounds, builds a sparse preset timeline for `main`, and immediately calls `window:animation:play`. Presets are not editable keyframe documents. The `windowAnimationEditor` remains a custom authoring surface for manually edited timelines.
 
 The first supported preset batch intentionally covers effects that can be expressed through native window bounds and opacity:
 
@@ -177,6 +180,115 @@ The first supported preset batch intentionally covers effects that can be expres
 - Shake creates a short multi-keyframe offset motion and returns to the base frame.
 
 Effects such as rotate, wipe, blur, glow, or content morphing should be authored as content-layer sprite/video/CSS tracks in Chobits and synchronized with the manager timeline, because Electron `BrowserWindow` itself does not provide those transforms as first-class cross-platform window operations.
+
+## Sparse Preset Timeline Optimization Plan
+
+This improvement fixes an over-specific authoring problem in the first preset implementation. The current editor stores every preview frame as a complete rectangle (`x/y/width/height/opacity/duration/easing/curve`) and serializes the same complete shape into the manager timeline. That is convenient for canvas preview, but it makes PPT-style presets write properties they do not actually control. For example, fly-in should control position and opacity only; writing `width` and `height` accidentally freezes the target window size.
+
+The design rule is:
+
+- editor preview frames may remain complete, because the canvas needs rectangles, resize handles, and size labels;
+- manager playback frames should be sparse, because missing fields intentionally inherit from the real window state or the previous resolved frame;
+- manual/custom keyframes may keep full serialization unless a later field-level authoring UI tracks which properties are intentionally controlled.
+
+### Phase 1: Sparse Serialization in Chobits
+
+Do not change `@aim-packages/window-manager` for this phase. The manager already preserves the original size when `width` and `height` are omitted.
+
+Implementation steps:
+
+1. Keep the existing full `EditableKeyframe` model for `WindowAnimationEditor` custom preview and JSON.
+2. Add a preset playback serializer, separate from the preview frame factory. It should convert full preset preview frames into sparse `WindowAnimationKeyframe[]`.
+3. Treat presets as non-editable actions. The settings page should generate a sparse timeline from the current main-window bounds and play it directly, instead of opening `windowAnimationEditor`.
+4. Keep custom editor serialization complete so user-authored values remain explicit.
+5. Omit default noise where possible in preset playback: the first keyframe does not need `duration`; `curve: 'line'` does not need to be written; `easing` only matters on the segment target frame.
+
+Preset-controlled fields:
+
+| Preset | Controlled fields in playback timeline | Fields to omit |
+| --- | --- | --- |
+| `fly-in` | `x/y` or `placement` for path endpoints, `opacity`, segment `duration/easing` | `width/height`; omit `curve` when line |
+| `fly-out` | `x/y` or `placement` for path endpoints, `opacity`, segment `duration/easing` | `width/height`; omit `curve` when line |
+| `fade-in` | `opacity`, segment `duration/easing` | `x/y/width/height/placement/curve` |
+| `fade-out` | `opacity`, segment `duration/easing` | `x/y/width/height/placement/curve` |
+| `shake` | `x/y`, segment `duration/easing` | `width/height/opacity`; omit `curve` when line |
+| `zoom-in` | Phase 1: `x/y`, `width/height`, `opacity`, segment `duration/easing` | No unrelated `placement`; omit `curve` when line |
+| `zoom-out` | Phase 1: `x/y`, `width/height`, `opacity`, segment `duration/easing` | No unrelated `placement`; omit `curve` when line |
+| `pulse` | Phase 1: `x/y`, `width/height`, segment `duration/easing` | `opacity` unless the base opacity is intentionally changed; omit `curve` when line |
+
+The size-changing presets keep `x/y` in Phase 1 because the current manager preserves the previous top-left corner when `x/y` is omitted. Without the Phase 2 manager change, omitting `x/y` from `zoom-in`, `zoom-out`, or `pulse` would make center-based scaling drift.
+
+Example sparse fly-in output:
+
+```json
+{
+  "id": "chobits-window-main",
+  "keyframes": [
+    { "x": -158, "y": 630, "opacity": 0 },
+    { "x": 530, "y": 630, "opacity": 1, "duration": 650, "easing": "ease-out-cubic" }
+  ],
+  "coordinateSpace": {
+    "type": "design-area",
+    "designArea": { "width": 1440, "height": 900 },
+    "display": "current",
+    "useWorkArea": true,
+    "fitMode": "stretch",
+    "sizeMode": "scale-with-area"
+  },
+  "positionAnchor": "center",
+  "createIfMissing": false,
+  "showBeforePlay": true,
+  "clampToWorkArea": false,
+  "suspendFollowMainDuringPlay": true,
+  "refreshFollowerAfterPlay": false
+}
+```
+
+Verification:
+
+- Add Chobits unit tests asserting that sparse preset serialization omits uncontrolled fields.
+- Keep existing preset geometry tests for full preview frames so the editor canvas behavior remains stable.
+- Add Chobits unit coverage for fly-in/fade/shake proving that omitted size fields follow the manager inheritance contract and keep the target window's current size.
+
+### Phase 2: Anchor-Based Missing Position in Window Manager
+
+This phase improves `@aim-packages/window-manager` so size-only keyframes can scale around `positionAnchor` without writing explicit `x/y`.
+
+Current behavior:
+
+- Missing `width`/`height` inherit previous size.
+- Missing `x`/`y` preserve the previous top-left corner, even when `positionAnchor` is `center`.
+
+Desired PPT-style behavior for size-changing presets:
+
+- When `positionAnchor` is `center` and a keyframe changes only `width`/`height`, the previous center should remain fixed.
+- The same rule should work for all anchors: missing position preserves the previous anchor point, then computes the new top-left from the new size.
+
+Compatibility plan:
+
+1. Add an additive manager timeline option such as:
+
+```ts
+type WindowAnimationMissingPositionMode = 'top-left' | 'position-anchor';
+
+type WindowAnimationTimeline = {
+  missingPositionMode?: WindowAnimationMissingPositionMode;
+};
+```
+
+2. Keep `top-left` as the default for compatibility.
+3. When `missingPositionMode: 'position-anchor'`, resolve missing `x` and/or `y` from the previous bounds' `positionAnchor` point instead of the previous top-left corner.
+4. Keep `placement` as an explicit semantic position override. If a frame has `placement`, it still overrides `x/y` inheritance.
+5. Chobits should set `missingPositionMode: 'position-anchor'` for PPT preset timelines after the manager version with this option is available.
+6. Then update sparse serialization for `zoom-in`, `zoom-out`, and `pulse` so they can omit `x/y` and describe only size, opacity when relevant, and timing.
+
+Manager verification:
+
+- Missing `width`/`height` keeps the real starting window size.
+- Default missing `x`/`y` behavior remains top-left compatible.
+- With `missingPositionMode: 'position-anchor'` and `positionAnchor: 'center'`, a width/height-only segment keeps the center fixed.
+- Partial inheritance works per axis: if only `x` is missing, inherit the previous anchor X while using the explicit Y, and vice versa.
+- `placement` continues to override inherited position.
 
 ## Optional Advanced PPT-Style Effects
 

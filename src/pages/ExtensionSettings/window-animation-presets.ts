@@ -1,4 +1,4 @@
-import type { WindowAnimationAnchor, WindowAnimationKeyframe, WindowAnimationPlacement } from '../../../electron/preload/apis/window';
+import type { WindowAnimationAnchor, WindowAnimationBounds, WindowAnimationKeyframe, WindowAnimationPlacement, WindowAnimationTimeline } from '../../../electron/preload/apis/window';
 
 export type WindowAnimationPresetFrame = Required<Pick<WindowAnimationKeyframe, 'x' | 'y' | 'width' | 'height'>> &
   Pick<WindowAnimationKeyframe, 'duration' | 'easing' | 'curve' | 'control1' | 'control2' | 'opacity' | 'placement'>;
@@ -53,11 +53,28 @@ export type CreateWindowAnimationPresetFramesOptions = {
   workArea: WindowAnimationPresetWorkArea;
 };
 
+export type SerializeWindowAnimationPresetFramesOptions = {
+  presetId: WindowAnimationPresetId;
+  frames: WindowAnimationPresetFrame[];
+};
+
+export type CreateMainWindowAnimationPresetTimelineOptions = {
+  presetId: WindowAnimationPresetId;
+  bounds: WindowAnimationBounds;
+  workArea: WindowAnimationPresetWorkArea;
+  direction?: WindowAnimationPresetDirection;
+  duration?: number;
+  positionAnchor?: WindowAnimationAnchor;
+  windowKey?: string;
+};
+
 type PresetFramePatch = Partial<Omit<WindowAnimationPresetFrame, 'placement'>> & {
   placement?: WindowAnimationPlacement | null;
 };
 
 const DEFAULT_PRESET_DURATION = 650;
+const DEFAULT_PRESET_WINDOW_KEY = 'main';
+const DEFAULT_PRESET_POSITION_ANCHOR: WindowAnimationAnchor = 'center';
 const OFFSCREEN_MARGIN = 48;
 const MIN_PRESET_SIZE = 24;
 
@@ -232,6 +249,97 @@ function createShakeFrames(options: CreateWindowAnimationPresetFramesOptions, du
   ];
 }
 
+function roundFramePosition(frame: WindowAnimationPresetFrame): Pick<WindowAnimationKeyframe, 'x' | 'y'> {
+  return {
+    x: Math.round(frame.x),
+    y: Math.round(frame.y)
+  };
+}
+
+function roundFrameSize(frame: WindowAnimationPresetFrame): Pick<WindowAnimationKeyframe, 'width' | 'height'> {
+  return {
+    width: Math.max(1, Math.round(frame.width)),
+    height: Math.max(1, Math.round(frame.height))
+  };
+}
+
+function normalizeOpacity(opacity?: number): number {
+  return clamp(opacity ?? 1, 0, 1);
+}
+
+function addSegmentTiming(target: WindowAnimationKeyframe, frame: WindowAnimationPresetFrame, index: number): WindowAnimationKeyframe {
+  if (index === 0) return target;
+  target.duration = normalizeDuration(frame.duration);
+  if (frame.easing) {
+    target.easing = frame.easing;
+  }
+  if (frame.curve && frame.curve !== 'line') {
+    target.curve = frame.curve;
+    if (frame.control1) {
+      target.control1 = frame.control1;
+    }
+    if (frame.curve === 'cubic' && frame.control2) {
+      target.control2 = frame.control2;
+    }
+  }
+  return target;
+}
+
+function serializeMotionEndpoint(frame: WindowAnimationPresetFrame): WindowAnimationKeyframe {
+  if (frame.placement) {
+    return { placement: frame.placement };
+  }
+  return roundFramePosition(frame);
+}
+
+function serializeMotionOpacityFrame(frame: WindowAnimationPresetFrame, index: number): WindowAnimationKeyframe {
+  return addSegmentTiming(
+    {
+      ...serializeMotionEndpoint(frame),
+      opacity: normalizeOpacity(frame.opacity)
+    },
+    frame,
+    index
+  );
+}
+
+function serializeOpacityFrame(frame: WindowAnimationPresetFrame, index: number): WindowAnimationKeyframe {
+  return addSegmentTiming(
+    {
+      opacity: normalizeOpacity(frame.opacity)
+    },
+    frame,
+    index
+  );
+}
+
+function serializeMotionFrame(frame: WindowAnimationPresetFrame, index: number): WindowAnimationKeyframe {
+  return addSegmentTiming(roundFramePosition(frame), frame, index);
+}
+
+function serializeSizeOpacityFrame(frame: WindowAnimationPresetFrame, index: number): WindowAnimationKeyframe {
+  return addSegmentTiming(
+    {
+      ...roundFramePosition(frame),
+      ...roundFrameSize(frame),
+      opacity: normalizeOpacity(frame.opacity)
+    },
+    frame,
+    index
+  );
+}
+
+function serializeSizeFrame(frame: WindowAnimationPresetFrame, index: number): WindowAnimationKeyframe {
+  return addSegmentTiming(
+    {
+      ...roundFramePosition(frame),
+      ...roundFrameSize(frame)
+    },
+    frame,
+    index
+  );
+}
+
 export function createWindowAnimationPresetFrames(options: CreateWindowAnimationPresetFramesOptions): WindowAnimationPresetFrame[] {
   const duration = normalizeDuration(options.duration);
   const direction = options.direction || 'left';
@@ -253,4 +361,65 @@ export function createWindowAnimationPresetFrames(options: CreateWindowAnimation
     case 'shake':
       return createShakeFrames(options, duration, direction);
   }
+}
+
+export function serializeWindowAnimationPresetFrames(options: SerializeWindowAnimationPresetFramesOptions): WindowAnimationKeyframe[] {
+  switch (options.presetId) {
+    case 'fly-in':
+    case 'fly-out':
+      return options.frames.map(serializeMotionOpacityFrame);
+    case 'fade-in':
+    case 'fade-out':
+      return options.frames.map(serializeOpacityFrame);
+    case 'shake':
+      return options.frames.map(serializeMotionFrame);
+    case 'zoom-in':
+    case 'zoom-out':
+      return options.frames.map(serializeSizeOpacityFrame);
+    case 'pulse':
+      return options.frames.map(serializeSizeFrame);
+  }
+}
+
+function createBaseFrameFromBounds(bounds: WindowAnimationBounds, positionAnchor: WindowAnimationAnchor): WindowAnimationPresetFrame {
+  const width = Math.max(1, Math.round(bounds.width));
+  const height = Math.max(1, Math.round(bounds.height));
+  const offset = getPositionAnchorOffset(positionAnchor, { width, height });
+  return {
+    x: Math.round(bounds.x + offset.x),
+    y: Math.round(bounds.y + offset.y),
+    width,
+    height,
+    opacity: 1,
+    duration: 0,
+    easing: 'linear',
+    curve: 'line'
+  };
+}
+
+export function createMainWindowAnimationPresetTimeline(options: CreateMainWindowAnimationPresetTimelineOptions): WindowAnimationTimeline {
+  const windowKey = options.windowKey || DEFAULT_PRESET_WINDOW_KEY;
+  const positionAnchor = options.positionAnchor || DEFAULT_PRESET_POSITION_ANCHOR;
+  const frames = createWindowAnimationPresetFrames({
+    presetId: options.presetId,
+    baseFrame: createBaseFrameFromBounds(options.bounds, positionAnchor),
+    positionAnchor,
+    direction: options.direction || 'left',
+    duration: options.duration ?? DEFAULT_PRESET_DURATION,
+    workArea: options.workArea
+  });
+
+  return {
+    id: `chobits-window-${windowKey}-${options.presetId}`,
+    keyframes: serializeWindowAnimationPresetFrames({
+      presetId: options.presetId,
+      frames
+    }),
+    positionAnchor,
+    createIfMissing: false,
+    showBeforePlay: true,
+    clampToWorkArea: false,
+    suspendFollowMainDuringPlay: true,
+    refreshFollowerAfterPlay: false
+  };
 }

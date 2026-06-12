@@ -27,7 +27,6 @@ export interface AppWindowSummary {
 }
 
 const SETTINGS_CATEGORIES = new Set(['preferences', 'workspace', 'ai', 'user-profile', 'prompt', 'glossary', 'selected-text-learning', 'plugins', 'shortcuts', 'proxy']);
-const WINDOW_ANIMATION_PRESET_IDS = new Set(['fly-in', 'fade-in', 'zoom-in', 'fly-out', 'fade-out', 'zoom-out', 'pulse', 'shake']);
 const CHAT_AGENT_IDS = new Set(['assistant', 'chat', 'coder', 'assistant-skills']);
 const CJK_SEARCH_TERMS = [
   '打开物品栏',
@@ -167,12 +166,6 @@ function sanitizeSelectedTextExplainPayload(payload: unknown): Payload | undefin
   const trigger = readString(payload, 'trigger', { maxLength: 32 });
   if (trigger) next.trigger = trigger;
   return emptyToUndefined(next);
-}
-
-function sanitizeWindowAnimationEditorPayload(payload: unknown): Payload | undefined {
-  if (!isRecord(payload)) return undefined;
-  const presetId = readString(payload, 'presetId', { maxLength: 64 });
-  return presetId && WINDOW_ANIMATION_PRESET_IDS.has(presetId) ? { presetId } : undefined;
 }
 
 function sanitizeResourcePreviewPayload(payload: unknown): Payload | undefined {
@@ -364,10 +357,8 @@ export const APP_WINDOW_TOOL_DIRECTORY: AppWindowToolEntry[] = [
   {
     key: 'windowAnimationEditor',
     title: '窗口动画编辑器',
-    description: '打开窗口动画编辑器，可载入指定预设。',
-    aliases: ['窗口动画', '动画编辑器', 'window animation'],
-    payloadFields: [{ name: 'presetId', type: 'fly-in | fade-in | zoom-in | fly-out | fade-out | zoom-out | pulse | shake', description: '预设动画 ID' }],
-    sanitizePayload: sanitizeWindowAnimationEditorPayload
+    description: '打开窗口动画编辑器，用于手动编辑自定义关键帧。',
+    aliases: ['窗口动画', '动画编辑器', 'window animation']
   }
 ];
 

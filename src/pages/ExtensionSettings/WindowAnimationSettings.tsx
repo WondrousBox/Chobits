@@ -1,9 +1,17 @@
 import React from 'react';
-import { TbChevronRight, TbRoute } from 'react-icons/tb';
+import { TbChevronRight, TbPlayerPlay, TbRoute } from 'react-icons/tb';
+import { toast } from 'sonner';
 
 import { cn } from '@/lib/utils';
 
-import { WINDOW_ANIMATION_PRESET_CATEGORIES, WINDOW_ANIMATION_PRESETS, type WindowAnimationPresetId } from './window-animation-presets';
+import {
+  createMainWindowAnimationPresetTimeline,
+  WINDOW_ANIMATION_PRESET_CATEGORIES,
+  WINDOW_ANIMATION_PRESETS,
+  type WindowAnimationPresetId
+} from './window-animation-presets';
+
+const MAIN_WINDOW_KEY = 'main';
 
 export const WindowAnimationItem: React.FC<{
   selected: boolean;
@@ -20,12 +28,33 @@ export const WindowAnimationItem: React.FC<{
   </div>
 );
 
-function openEditor(presetId?: WindowAnimationPresetId): void {
-  void window.YUA.window['window:open']('windowAnimationEditor', presetId ? { presetId } : undefined);
+function openEditor(): void {
+  void window.YUA.window['window:open']('windowAnimationEditor');
 }
 
-function getPresetHint(supportsDirection: boolean): string {
-  return supportsDirection ? '可选方向' : '基于当前帧';
+async function playMainWindowPreset(presetId: WindowAnimationPresetId): Promise<void> {
+  try {
+    const [boundsResult, workArea] = await Promise.all([window.YUA.window['window:size:get'](MAIN_WINDOW_KEY), window.YUA.window['screen:work-area:get'](MAIN_WINDOW_KEY)]);
+    if (!boundsResult.success || !boundsResult.bounds) {
+      toast.error('窗口动画播放失败', { description: boundsResult.error || '主窗口不可用' });
+      return;
+    }
+
+    const timeline = createMainWindowAnimationPresetTimeline({
+      presetId,
+      bounds: boundsResult.bounds,
+      workArea,
+      windowKey: MAIN_WINDOW_KEY
+    });
+    const result = await window.YUA.window['window:animation:play'](MAIN_WINDOW_KEY, timeline);
+    if (result.ok) {
+      toast.success('窗口动画已开始播放');
+    } else {
+      toast.error('窗口动画播放失败', { description: result.error || 'unknown error' });
+    }
+  } catch (error) {
+    toast.error('窗口动画播放失败', { description: error instanceof Error ? error.message : String(error) });
+  }
 }
 
 export const WindowAnimationDetailContent: React.FC = () => (
@@ -52,13 +81,15 @@ export const WindowAnimationDetailContent: React.FC = () => (
                 key={preset.id}
                 type="button"
                 className="flex w-full items-center justify-between gap-3 border-b px-3 py-2.5 text-left transition-colors last:border-b-0 hover:bg-accent"
-                onClick={() => openEditor(preset.id)}
+                onClick={() => {
+                  void playMainWindowPreset(preset.id);
+                }}
               >
                 <div className="min-w-0">
                   <div className="text-sm font-medium text-foreground">{preset.label}</div>
-                  <div className="mt-0.5 text-xs text-muted-foreground">{getPresetHint(preset.supportsDirection)}</div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">点击后立即播放主窗口动画</div>
                 </div>
-                <TbChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <TbPlayerPlay className="h-4 w-4 shrink-0 text-muted-foreground" />
               </button>
             ))}
           </div>
