@@ -17,6 +17,15 @@ describe('sprite trigger picker utils', () => {
     });
   });
 
+  it('groups talk as a built-in action trigger', () => {
+    expect(getSpriteTriggerPresentation('talk')).toEqual({
+      kind: 'builtin',
+      label: 'talk',
+      detail: 'action',
+      value: 'talk'
+    });
+  });
+
   it('keeps custom trigger presentation explicit', () => {
     expect(getSpriteTriggerPresentation(' persona:daily-login ')).toEqual({
       kind: 'custom',

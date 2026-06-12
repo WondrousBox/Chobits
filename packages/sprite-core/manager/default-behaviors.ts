@@ -186,7 +186,7 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
   const actionDef = createActionBehavior();
   actionDef.action = async (ctx: BehaviorContext) => {
     const favor = ctx.personaState.favor;
-    const baseActions = ['sit', 'stand', 'wave', 'nod', 'point', 'lookLeft', 'lookRight'];
+    const baseActions = ['sit', 'stand', 'wave', 'talk', 'nod', 'point', 'lookLeft', 'lookRight'];
     const highFavorActions = ['dance', 'spin', 'jump'];
 
     const pool = favor >= 60 ? [...baseActions, ...highFavorActions] : baseActions;

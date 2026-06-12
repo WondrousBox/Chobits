@@ -57,7 +57,7 @@ import {
   type StartSpritePurposeRequest
 } from '../purpose';
 import { SpeakService } from '../speak/speak-service';
-import type { SpeakResult, SpriteSpeakConfig, SpriteSpeakPayload } from '../speak/types';
+import type { SpeakResult, SpriteSpeakConfig, SpriteSpeakPayload, SpriteSpeakPlaybackContext } from '../speak/types';
 import type { SpriteReactionState, SpriteState } from '../state-machine';
 import { SpriteStateMachine } from '../state-machine';
 import {
@@ -141,6 +141,13 @@ interface PlayAnimationEntryOptions {
   playId?: string;
   presentationOwner?: SpritePresentationOwnerContext | null;
 }
+
+type SpriteSpeechPlaybackOptions = {
+  talkDurationMs?: number;
+  ownerPurposeId?: string;
+  priority?: number;
+  ignorePresentationLock?: boolean;
+};
 
 interface SpriteBehaviorSchedulerPayload {
   behaviorId: string;
@@ -302,13 +309,15 @@ export class SpriteManager {
         playAnimation: (step, signal, routine) => this.runPurposeAnimationStep(step, signal, routine),
         walkTo: (step, signal, routine) => this.runPurposeWalkStep(step, signal, routine),
         waitForEvent: (step, signal, routine) => this.purposeEventWaiter.wait(step, routine, signal),
-        speak: (step) =>
-          this.speak(step.text, {
-            showBubble: true,
-            bubbleDuration: step.bubbleDuration
+        speak: (step, _signal, routine) => this.runPurposeSpeakStep(step, routine),
+        showToast: (step, routine) =>
+          this.showToast(step.content, {
+            category: step.category as MessageCategory | undefined,
+            duration: step.duration,
+            ownerPurposeId: routine.purposeId,
+            priority: this.resolveRoutinePriority(routine)
           }),
-        showToast: (step) => this.showToast(step.content, { category: step.category as MessageCategory | undefined, duration: step.duration }),
-        showNotice: (step) =>
+        showNotice: (step, routine) =>
           this.showNotice(step.content, {
             id: step.messageId,
             buttons: step.buttons?.map((b) => ({
@@ -322,7 +331,9 @@ export class SpriteManager {
             persistent: step.persistent,
             routineId: step.routineId,
             level: step.level,
-            speak: step.speak
+            speak: step.speak,
+            ownerPurposeId: routine.purposeId,
+            priority: this.resolveRoutinePriority(routine)
           }),
         clearMessage: (step) => this.clearRendererMessage({ id: step.messageId, type: step.messageType ?? 'all' }),
         showBusy: (step) => this.showBusy(step.content, step.progress),
@@ -368,7 +379,8 @@ export class SpriteManager {
 
     // 语音合成服务
     this.speakService = new SpeakService(options.dataDir);
-    this.speakService.setPlayAudioCallback((payload: SpriteSpeakPayload) => {
+    this.speakService.setPlayAudioCallback((payload: SpriteSpeakPayload, context?: SpriteSpeakPlaybackContext) => {
+      this.triggerTalkForSpeech(payload, context);
       this.sendToRenderer('sprite:speak', payload);
     });
 
@@ -874,7 +886,7 @@ export class SpriteManager {
     }
 
     const lock = this.presentationLock.getSnapshot();
-    const owner = lock ? this.resolveCurrentPresentationOwnerForFeedback(lock.ownerId) : null;
+    const owner = lock ? this.resolveCurrentPresentationOwner(lock.ownerId) : null;
     if (lock && !owner) {
       return { ok: true, played: false, reason: 'blocked-by-lock' };
     }
@@ -890,7 +902,7 @@ export class SpriteManager {
     return owner ? { ok: true, played: true, ownerPurposeId: owner.ownerId } : { ok: true, played: true };
   }
 
-  private resolveCurrentPresentationOwnerForFeedback(lockOwnerId: string): SpritePresentationOwnerContext | null {
+  private resolveCurrentPresentationOwner(lockOwnerId: string): SpritePresentationOwnerContext | null {
     if (this.activeRoutinePresentationOwner?.ownerId === lockOwnerId) {
       return { ...this.activeRoutinePresentationOwner };
     }
@@ -943,7 +955,20 @@ export class SpriteManager {
   }
 
   /** 轻量提示 */
-  showToast(content?: string, options?: { category?: MessageCategory; duration?: number; level?: string; ctx?: any; speak?: boolean; ambientContext?: SpriteAmbientMessageContext }): void {
+  showToast(
+    content?: string,
+    options?: {
+      category?: MessageCategory;
+      duration?: number;
+      level?: string;
+      ctx?: any;
+      speak?: boolean;
+      ambientContext?: SpriteAmbientMessageContext;
+      ownerPurposeId?: string;
+      priority?: number;
+      ignorePresentationLock?: boolean;
+    }
+  ): void {
     if (this.shouldSuppressAmbientMessage(options?.ambientContext)) {
       return;
     }
@@ -964,7 +989,12 @@ export class SpriteManager {
     // 自动朗读：非静默类别 且 非来自 speak() 的调用
     if (options?.speak !== false && !this._speakGuard && !SpriteManager.MUTE_CATEGORIES.has(options?.category ?? '')) {
       if (resolvedContent) {
-        this.speakService.speak(resolvedContent).catch(() => { });
+        this.playSpeechAudio(resolvedContent, {
+          talkDurationMs: options?.duration,
+          ownerPurposeId: options?.ownerPurposeId,
+          priority: options?.priority,
+          ignorePresentationLock: options?.ignorePresentationLock
+        }).catch(() => { });
       }
     }
   }
@@ -972,7 +1002,19 @@ export class SpriteManager {
   /** 通知消息 */
   showNotice(
     content: string,
-    options?: { id?: string; buttons?: any[]; duration?: number; persistent?: boolean; routineId?: string; level?: string; speak?: boolean; ambientContext?: SpriteAmbientMessageContext }
+    options?: {
+      id?: string;
+      buttons?: any[];
+      duration?: number;
+      persistent?: boolean;
+      routineId?: string;
+      level?: string;
+      speak?: boolean;
+      ambientContext?: SpriteAmbientMessageContext;
+      ownerPurposeId?: string;
+      priority?: number;
+      ignorePresentationLock?: boolean;
+    }
   ): boolean {
     if (this.shouldSuppressAmbientMessage(options?.ambientContext)) {
       return false;
@@ -993,7 +1035,12 @@ export class SpriteManager {
 
     // 自动朗读通知内容
     if (options?.speak !== false && content && !this._speakGuard) {
-      this.speakService.speak(content).catch(() => { });
+      this.playSpeechAudio(content, {
+        talkDurationMs: options?.duration,
+        ownerPurposeId: options?.ownerPurposeId,
+        priority: options?.priority,
+        ignorePresentationLock: options?.ignorePresentationLock
+      }).catch(() => { });
     }
     return true;
   }
@@ -1030,7 +1077,17 @@ export class SpriteManager {
    * 让精灵说话
    * 同时显示文字气泡 + 合成并播放语音
    */
-  async speak(text: string, options?: { showBubble?: boolean; bubbleDuration?: number; ambientContext?: SpriteAmbientMessageContext }): Promise<SpeakResult> {
+  async speak(
+    text: string,
+    options?: {
+      showBubble?: boolean;
+      bubbleDuration?: number;
+      ambientContext?: SpriteAmbientMessageContext;
+      ownerPurposeId?: string;
+      priority?: number;
+      ignorePresentationLock?: boolean;
+    }
+  ): Promise<SpeakResult> {
     if (this.shouldSuppressAmbientMessage(options?.ambientContext)) {
       return { success: false, error: 'suppressed-by-onboarding' };
     }
@@ -1039,14 +1096,71 @@ export class SpriteManager {
 
     this._speakGuard = true;
     try {
+      const bubbleDuration = options?.bubbleDuration ?? Math.max(3000, text.length * 200);
       if (showBubble) {
-        const bubbleDuration = options?.bubbleDuration ?? Math.max(3000, text.length * 200);
         this.showToast(text, { duration: bubbleDuration, category: 'message' });
       }
-      return await this.speakService.speak(text);
+      return await this.playSpeechAudio(text, {
+        talkDurationMs: bubbleDuration,
+        ownerPurposeId: options?.ownerPurposeId,
+        priority: options?.priority,
+        ignorePresentationLock: options?.ignorePresentationLock
+      });
     } finally {
       this._speakGuard = false;
     }
+  }
+
+  private playSpeechAudio(text: string, options?: SpriteSpeechPlaybackOptions): Promise<SpeakResult> {
+    return this.speakService.speak(text, this.resolveSpeechPlaybackContext(text, options));
+  }
+
+  private resolveSpeechPlaybackContext(text: string, options?: SpriteSpeechPlaybackOptions): SpriteSpeakPlaybackContext {
+    const owner = this.resolveSpeechPresentationOwner(options);
+    return {
+      talkDurationMs: options?.talkDurationMs ?? Math.max(3000, text.length * 200),
+      ...(owner ? { ownerPurposeId: owner.ownerId, priority: owner.priority } : {}),
+      ...(options?.ignorePresentationLock ? { ignorePresentationLock: true } : {})
+    };
+  }
+
+  private resolveSpeechPresentationOwner(options?: SpriteSpeechPlaybackOptions): SpritePresentationOwnerContext | null {
+    if (options?.ownerPurposeId) {
+      return {
+        ownerId: options.ownerPurposeId,
+        priority: options.priority ?? 0
+      };
+    }
+
+    const lock = this.presentationLock.getSnapshot();
+    if (!lock) {
+      return null;
+    }
+
+    return this.resolveCurrentPresentationOwner(lock.ownerId);
+  }
+
+  private triggerTalkForSpeech(payload: SpriteSpeakPayload, context?: SpriteSpeakPlaybackContext): void {
+    if (!this.canUseTalkForSpeech()) {
+      return;
+    }
+
+    this.trigger('talk', {
+      durationMs: context?.talkDurationMs ?? Math.max(3000, payload.text.length * 200),
+      silent: true,
+      ownerPurposeId: context?.ownerPurposeId,
+      priority: context?.priority,
+      ignorePresentationLock: context?.ignorePresentationLock
+    });
+  }
+
+  private canUseTalkForSpeech(): boolean {
+    console.log(
+      '================================>>>>>>>>>',
+      this.getState() === 'idle' && this.getSubState() == null && (!this.currentAnimation || this.currentAnimation.sessionMode === 'state-bound' || this.currentAnimation.trigger === 'idle')
+    );
+    console.log(this.getState(), this.getSubState(), this.currentAnimation?.animationId, this.currentAnimation?.trigger, this.currentAnimation?.sessionMode);
+    return this.getState() === 'idle' && this.getSubState() == null && (!this.currentAnimation || this.currentAnimation.sessionMode === 'state-bound' || this.currentAnimation.trigger === 'idle');
   }
 
   /** 仅合成语音（不播放） */
@@ -2327,6 +2441,10 @@ export class SpriteManager {
             step.body.reduce((sum, child) => sum + this.estimateRoutineStepPresentationMs(child), 0)
           )
         );
+      case 'sequence':
+        return step.body.reduce((sum, child) => sum + this.estimateRoutineStepPresentationMs(child), 0);
+      case 'parallel':
+        return Math.max(1000, ...step.body.map((child) => this.estimateRoutineStepPresentationMs(child)));
       case 'branch': {
         const branches = [...Object.values(step.cases), step.default ?? []];
         return Math.max(500, ...branches.map((steps) => steps.reduce((sum, child) => sum + this.estimateRoutineStepPresentationMs(child), 0)));
@@ -2458,6 +2576,15 @@ export class SpriteManager {
         this.presentationLock.release(routine.purposeId);
       }
     }
+  }
+
+  private async runPurposeSpeakStep(step: Extract<SpriteRoutineStep, { type: 'speak' }>, routine: SpriteRoutine): Promise<SpeakResult> {
+    return this.speak(step.text, {
+      showBubble: true,
+      bubbleDuration: step.bubbleDuration,
+      ownerPurposeId: routine.purposeId,
+      priority: this.resolveRoutinePriority(routine)
+    });
   }
 
   private async runPurposeWalkStep(step: Extract<SpriteRoutineStep, { type: 'walkTo' }>, signal: AbortSignal, routine: SpriteRoutine): Promise<void> {

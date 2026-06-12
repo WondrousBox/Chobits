@@ -77,6 +77,7 @@ export type SpriteRoutineStepType =
   | /** 清理 busy/progress 状态。 */ 'clearBusy'
   | /** 打开或聚焦一个由 purposeWindowAdapter 支持的窗口。 */ 'openWindow'
   | /** 循环执行 body，直到等到目标事件或达到 maxDurationMs。 */ 'loopUntil'
+  | /** 顺序执行多个子步骤，常用于 parallel 中包一组有先后关系的小流程。 */ 'sequence'
   | /** 并行执行多个子步骤，全部成功后继续。 */ 'parallel'
   | /** 根据 runner variables 中的值选择一组子步骤执行。 */ 'branch';
 
@@ -302,6 +303,12 @@ type ParallelStep = BaseRoutineStep<'parallel'> & {
   body: SpriteRoutineStep[];
 };
 
+/** 顺序执行多个子步骤，适合在 parallel 分支里保持局部顺序。 */
+type SequenceStep = BaseRoutineStep<'sequence'> & {
+  /** 顺序执行的子步骤；任一失败会让 sequence 失败。 */
+  body: SpriteRoutineStep[];
+};
+
 /** 根据 runner variables 中的值选择一组子步骤执行。 */
 type BranchStep = BaseRoutineStep<'branch'> & {
   /** 读取变量的点路径，例如 `menuResult.payload.status` 或 `workspaceCreatedEvent.event.event`。 */
@@ -325,6 +332,10 @@ type ParallelStepInput = Omit<MakeRoutineStepInput<ParallelStep>, 'body'> & {
   body: SpriteRoutineStepInput[];
 };
 
+type SequenceStepInput = Omit<MakeRoutineStepInput<SequenceStep>, 'body'> & {
+  body: SpriteRoutineStepInput[];
+};
+
 type BranchStepInput = Omit<MakeRoutineStepInput<BranchStep>, 'cases' | 'default'> & {
   cases: Record<string, SpriteRoutineStepInput[]>;
   default?: SpriteRoutineStepInput[];
@@ -335,12 +346,14 @@ type BranchStepInput = Omit<MakeRoutineStepInput<BranchStep>, 'cases' | 'default
  *
  * - `number` means `{ type: 'wait', durationMs: number }`;
  * - `string` supports a small preset-only DSL, currently `playAnimation <trigger> [durationMs] [timeoutMs] [waitFor] [silent]`;
+ * - `SpriteRoutineStepInput[]` means a shorthand `sequence` step;
  * - object steps may omit `id`; the registry generates a readable id from type and position;
- * - nested `loopUntil.body`, `parallel.body`, and `branch` cases are normalized recursively.
+ * - nested arrays, `loopUntil.body`, `parallel.body`, `sequence.body`, and `branch` cases are normalized recursively.
  */
 export type SpriteRoutineStepInput =
   | number
   | string
+  | SpriteRoutineStepInput[]
   | MakeRoutineStepInput<PlayAnimationStep>
   | MakeRoutineStepInput<WalkToStep>
   | MakeRoutineStepInput<WaitStep>
@@ -355,6 +368,7 @@ export type SpriteRoutineStepInput =
   | MakeRoutineStepInput<OpenWindowStep>
   | LoopUntilStepInput
   | ParallelStepInput
+  | SequenceStepInput
   | BranchStepInput;
 
 /**

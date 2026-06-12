@@ -149,6 +149,43 @@ describe('SpritePurposePlanner validation', () => {
     expect(result.errors.join('\n')).toContain('must include durationMs or timeoutMs when waitFor is "duration" or "complete"');
   });
 
+  it('validates sequence steps and estimates them as ordered child duration', () => {
+    const result = validateSpritePurposePlannerOutput(
+      {
+        routineDraft: {
+          steps: [
+            {
+              id: 'ordered-motion',
+              type: 'sequence',
+              body: [
+                { id: 'walk', type: 'walkTo', target: 'center', timeoutMs: 1200 },
+                { id: 'look', type: 'playAnimation', trigger: 'wave', durationMs: 800, waitFor: 'duration' }
+              ]
+            }
+          ]
+        }
+      },
+      validationOptions
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.summary).toEqual({ stepCount: 3, estimatedDurationMs: 2000 });
+  });
+
+  it('rejects sequence steps without child steps', () => {
+    const result = validateSpritePurposePlannerOutput(
+      {
+        routineDraft: {
+          steps: [{ id: 'empty-sequence', type: 'sequence', body: [] }]
+        }
+      },
+      validationOptions
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.errors.join('\n')).toContain('routineDraft.steps[0].body must include at least one child step');
+  });
+
   it('counts waitAfter in planner duration estimates', () => {
     const result = validateSpritePurposePlannerOutput(
       {

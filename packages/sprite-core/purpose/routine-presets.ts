@@ -113,6 +113,15 @@ function normalizeRoutineStepInput(input: SpriteRoutineStepInput, index: number,
     return parsePlayAnimationStepString(input, index, parentPath);
   }
 
+  if (Array.isArray(input)) {
+    const id = createGeneratedStepId('sequence', index, parentPath);
+    return {
+      id,
+      type: 'sequence',
+      body: input.map((child, childIndex) => normalizeRoutineStepInput(child, childIndex, id))
+    };
+  }
+
   const id = input.id?.trim() || createGeneratedStepId(input.type, index, parentPath);
   const step = { ...input, id } as SpriteRoutineStep;
 
@@ -124,6 +133,13 @@ function normalizeRoutineStepInput(input: SpriteRoutineStepInput, index: number,
   }
 
   if (step.type === 'parallel') {
+    return {
+      ...step,
+      body: step.body.map((child, childIndex) => normalizeRoutineStepInput(child as SpriteRoutineStepInput, childIndex, id))
+    };
+  }
+
+  if (step.type === 'sequence') {
     return {
       ...step,
       body: step.body.map((child, childIndex) => normalizeRoutineStepInput(child as SpriteRoutineStepInput, childIndex, id))
@@ -504,7 +520,10 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStepInput[] {
                       id: 'guide-near-wizard',
                       type: 'parallel',
                       body: [
-                        { id: 'walk-near-wizard', type: 'walkTo', target: { window: 'workspaceWizard', placement: 'right', offset: 16 }, speed: 130, timeoutMs: 10000 },
+                        [
+                          { id: 'walk-near-wizard', type: 'walkTo', target: { window: 'workspaceWizard', placement: 'right', offset: 16 }, speed: 130, timeoutMs: 10000 },
+                          'playAnimation lookLeft silent'
+                        ],
                         {
                           id: 'await-wizard-result',
                           type: 'loopUntil',

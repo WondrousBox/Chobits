@@ -16,7 +16,7 @@ import { stripEmoji } from '../../tts/common';
 import EdgeTTS from '../../tts/edge';
 import { SpeakCache } from './speak-cache';
 import { SpeakConfigStore } from './speak-config-store';
-import type { SpeakResult, SpriteSpeakConfig, SpriteSpeakPayload } from './types';
+import type { SpeakResult, SpriteSpeakConfig, SpriteSpeakPayload, SpriteSpeakPlaybackContext } from './types';
 
 export class SpeakService {
   private configStore: SpeakConfigStore;
@@ -25,7 +25,7 @@ export class SpeakService {
   private initialized = false;
 
   /** 回调：通知渲染进程播放音频 */
-  private onPlayAudio: ((payload: SpriteSpeakPayload) => void) | null = null;
+  private onPlayAudio: ((payload: SpriteSpeakPayload, context?: SpriteSpeakPlaybackContext) => void) | null = null;
 
   constructor(dataDir: string) {
     this.configStore = new SpeakConfigStore(dataDir);
@@ -43,7 +43,7 @@ export class SpeakService {
   }
 
   /** 设置音频播放回调 */
-  setPlayAudioCallback(cb: (payload: SpriteSpeakPayload) => void): void {
+  setPlayAudioCallback(cb: (payload: SpriteSpeakPayload, context?: SpriteSpeakPlaybackContext) => void): void {
     this.onPlayAudio = cb;
   }
 
@@ -174,19 +174,22 @@ export class SpeakService {
    * 1. 合成语音
    * 2. 通知渲染进程播放
    */
-  async speak(text: string): Promise<SpeakResult> {
+  async speak(text: string, context?: SpriteSpeakPlaybackContext): Promise<SpeakResult> {
     const originalText = text ?? '';
     const sanitizedText = stripEmoji(originalText);
     const result = await this.synthesizeSanitized(originalText, sanitizedText);
 
     if (result.success && result.audioPath && this.onPlayAudio) {
       const config = this.configStore.getConfig();
-      this.onPlayAudio({
-        text: sanitizedText,
-        audioPath: result.audioPath,
-        cacheId: result.cacheId!,
-        volume: config.volume
-      });
+      this.onPlayAudio(
+        {
+          text: sanitizedText,
+          audioPath: result.audioPath,
+          cacheId: result.cacheId!,
+          volume: config.volume
+        },
+        context
+      );
     }
 
     return result;

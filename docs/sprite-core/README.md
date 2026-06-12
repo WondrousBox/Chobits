@@ -556,6 +556,8 @@ wc.getAutoMoveDirection(); // 'left' | 'right' | null
 
 Edge TTS 语音合成服务，支持缓存、配置管理、自动播放。
 
+当系统确认合成音频会被播放时，会在下发 `sprite:speak` 前尝试播放 `talk` 动画。这个能力是系统级的：`SpriteManager.speak()`、自动朗读的 `showToast()` / `showNotice()` 都走同一条链路。`talk` 不改变 `SpriteState`，并且只会在当前视觉表现是 idle-like 时插入，避免覆盖 `welcome`、`celebrate`、`thinking` 等显式 trigger 动画。
+
 ```typescript
 // 通过 SpriteManager API 使用
 await sprite.speak('你好，我是你的桌面助手！');
@@ -590,6 +592,10 @@ await sprite.clearSpeakCache();
     │                                   │                         │
     │                            合成音频 (Edge TTS)              │
     │                            缓存检查/存储                    │
+    │                                   │                         │
+    │                            尝试 trigger('talk')              │
+    │                                   │  sprite:play(talk)      │
+    │                                   │ ───────────────────────►│
     │                                   │                         │
     │                                   │  sprite:speak 事件      │
     │                                   │ ───────────────────────►│
@@ -699,6 +705,8 @@ const idleMode = await window.YUA.sprite.getAnimationPlaylistMode('idle');
 - 只有当动画本身没有循环片段时，才由播放列表模式决定是单个循环、列表循环、单个播放还是列表播放
 
 ### playOnce vs transitionTo
+
+更完整的动画播放入口矩阵见 [Sprite 动画播放入口与状态变更说明](./sprite-animation-playback-paths.md)。
 
 | 方法                                 | 用途         | 自动回退              |
 | ------------------------------------ | ------------ | --------------------- |
