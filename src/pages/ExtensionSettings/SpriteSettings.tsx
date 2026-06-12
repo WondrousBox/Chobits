@@ -1,7 +1,10 @@
 import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
 import React from 'react';
 import { TbMoodKid } from 'react-icons/tb';
+import { toast } from 'sonner';
 
+import { getSpriteCapabilityLockedReason, getSpriteCapabilityState } from '@/features/sprite-assistant/capability-ui';
+import { useSpriteCapabilitySnapshot } from '@/features/sprite-assistant/hooks/useSpriteCapabilitySnapshot';
 import { cn } from '@/lib/utils';
 
 import SpriteManager from './SpriteManager';
@@ -30,10 +33,21 @@ export const SpriteDetailContent: React.FC<{ assetAuthoringCapability?: SpriteCa
   </div>
 );
 
-const SpriteSettings: React.FC = () => (
-  <div className="space-y-4">
-    <SpriteManager />
-  </div>
-);
+const SpriteSettings: React.FC = () => {
+  const { snapshot: capabilitySnapshot } = useSpriteCapabilitySnapshot();
+  const spriteManageCapability = getSpriteCapabilityState(capabilitySnapshot, 'spriteManage');
+
+  const handleCapabilityBlocked = React.useCallback((capability: SpriteCapabilityState) => {
+    toast.info(`${capability.name} 尚未解锁`, {
+      description: getSpriteCapabilityLockedReason(capability)
+    });
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      <SpriteManager assetAuthoringCapability={spriteManageCapability} onCapabilityBlocked={handleCapabilityBlocked} />
+    </div>
+  );
+};
 
 export default SpriteSettings;

@@ -18,7 +18,6 @@ import { ScreenshotDetailContent, ScreenshotItem, useScreenshotSettings } from '
 import { SpeakDetailContent, SpeakItem, useSpeakSettings } from './SpeakSettings';
 import { SpeechRecognitionDetailContent, SpeechRecognitionItem, useSpeechRecognitionSettings } from './SpeechRecognitionSettings';
 import { SpontaneousUtteranceDetailContent, SpontaneousUtteranceItem } from './SpontaneousUtteranceSettings';
-import { SpriteDetailContent, SpriteItem } from './SpriteSettings';
 import { useChatEntrySettings } from './useChatEntrySettings';
 import { useMovementSettings } from './useMovementSettings';
 import { useMusicDanceSettings } from './useMusicDanceSettings';
@@ -32,7 +31,6 @@ type SkillKey =
   | 'speak'
   | 'dailyCare'
   | 'danceAnimation'
-  | 'sprite'
   | 'movToWebm'
   | 'windowAnimation'
   | 'spontaneous'
@@ -57,7 +55,6 @@ const ExtensionSettings: React.FC = () => {
   const recorderCapability = getSpriteCapabilityState(capabilitySnapshot, 'microphone');
   const speechRecognitionCapability = getSpriteCapabilityState(capabilitySnapshot, 'speechRecognition');
   const screenshotCapability = getSpriteCapabilityState(capabilitySnapshot, 'screenshot');
-  const spriteManageCapability = getSpriteCapabilityState(capabilitySnapshot, 'spriteManage');
   const chatEntryState = useChatEntrySettings();
   const movementState = useMovementSettings({ capability: movementCapability, onBlocked: handleCapabilityBlocked, afterChange: refreshCapabilitySnapshot });
   const speakState = useSpeakSettings();
@@ -81,8 +78,6 @@ const ExtensionSettings: React.FC = () => {
         return <DailyCareDetailContent state={dailyCareState} capability={dailyCareCapability} />;
       case 'danceAnimation':
         return <DanceAnimationDetailContent state={musicDanceState} />;
-      case 'sprite':
-        return <SpriteDetailContent assetAuthoringCapability={spriteManageCapability} onBlocked={handleCapabilityBlocked} />;
       case 'movToWebm':
         return <MovToWebmConverterDetailContent />;
       case 'windowAnimation':
@@ -114,7 +109,6 @@ const ExtensionSettings: React.FC = () => {
             <SpeakItem state={speakState} selected={selected === 'speak'} onSelect={() => setSelected('speak')} />
             <DailyCareItem state={dailyCareState} capability={dailyCareCapability} selected={selected === 'dailyCare'} onSelect={() => setSelected('dailyCare')} />
             <DanceAnimationItem state={musicDanceState} selected={selected === 'danceAnimation'} onSelect={() => setSelected('danceAnimation')} />
-            <SpriteItem selected={selected === 'sprite'} onSelect={() => setSelected('sprite')} />
             <MovToWebmConverterItem selected={selected === 'movToWebm'} onSelect={() => setSelected('movToWebm')} />
             <WindowAnimationItem selected={selected === 'windowAnimation'} onSelect={() => setSelected('windowAnimation')} />
             <SpontaneousUtteranceItem state={spontaneousUtteranceState} selected={selected === 'spontaneous'} onSelect={() => setSelected('spontaneous')} />
