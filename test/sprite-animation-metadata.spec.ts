@@ -8,10 +8,17 @@ import {
   matchesSpriteAnimationCondition,
   normalizeSpriteAnimationCondition,
   normalizeSpriteAnimationMeta,
-  normalizeSpriteAnimationMetaPatch
+  normalizeSpriteAnimationMetaPatch,
+  isBuiltinSpriteAnimationTrigger,
+  SpriteEventGroups
 } from '../packages/sprite-core/types';
 
 describe('sprite animation metadata helpers', () => {
+  it('declares talk as a built-in action trigger', () => {
+    expect(SpriteEventGroups.action).toContain('talk');
+    expect(isBuiltinSpriteAnimationTrigger('talk')).toBe(true);
+  });
+
   it('upgrades legacy eventType to primaryTrigger without persisting a mirror field', () => {
     const meta = normalizeSpriteAnimationMeta({
       id: 'idle-default',

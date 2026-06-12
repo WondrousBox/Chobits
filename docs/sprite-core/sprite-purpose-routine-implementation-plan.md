@@ -228,6 +228,16 @@ export type SpriteRoutineStep =
     }
   | {
       id: string;
+      type: 'sequence';
+      body: SpriteRoutineStep[];
+    }
+  | {
+      id: string;
+      type: 'parallel';
+      body: SpriteRoutineStep[];
+    }
+  | {
+      id: string;
       type: 'branch';
       by: string;
       cases: Record<string, SpriteRoutineStep[]>;
@@ -235,7 +245,7 @@ export type SpriteRoutineStep =
     };
 ```
 
-普通 `speak` / `showToast` 只负责台词和轻量提示；多句台词用 step 顺序和 `waitAfter` 控制节奏，也可以用 `parallel` 表达边走边说。需要用户确认或选择时使用 `showNotice.buttons`，再通过 `bubble:action` 回到 routine。
+普通 `speak` / `showToast` 只负责台词和轻量提示；多句台词用 step 顺序和 `waitAfter` 控制节奏，也可以用 `parallel` 表达边走边说。若一个并行分支内部仍需要先后关系，用 `sequence` 包住这组子步骤，例如“外层同时等待窗口结果，内层先 `walkTo`，到达后再 `playAnimation lookLeft`”。需要用户确认或选择时使用 `showNotice.buttons`，再通过 `bubble:action` 回到 routine。
 
 #### 4.2.1 Preset shorthand 与等待写法
 
@@ -243,9 +253,10 @@ Preset 编写层可以使用 `SpriteRoutineStepInput` shorthand，`SpriteRoutine
 
 - 数字代表等待毫秒数，例如 `3600` 会变成 `{ id: 'wait-1', type: 'wait', durationMs: 3600 }`。
 - 字符串支持少量 preset-only DSL；当前只支持 `playAnimation <trigger> [durationMs] [timeoutMs] [waitFor] [silent]`。
+- 数组代表一个 shorthand `sequence` step；例如 `[{ type: 'walkTo', ... }, 'playAnimation lookLeft silent']` 会标准化成 `{ id: 'sequence-N', type: 'sequence', body: [...] }`。
 - 对象 step 可以省略 `id`，registry 会按 `type` 和位置生成稳定可读的 id，例如 `speak-2`。
 - 所有 step 都支持 `waitAfter`：`waitAfter: true` 会复用该 step 的自然展示/执行时长，`waitAfter: 800` 则在 step 完成后额外等待 800ms。
-- `loopUntil.body`、`parallel.body`、`branch.cases/default` 会递归标准化，最终 runner 看到的每个 step 仍然都有 id。
+- 嵌套数组、`loopUntil.body`、`parallel.body`、`sequence.body`、`branch.cases/default` 会递归标准化，最终 runner 看到的每个 step 仍然都有 id。
 - AI planner 输出仍使用严格 `SpriteRoutineStep`，避免模型输出过度简写导致校验边界变模糊。
 
 `playAnimation` 字符串 DSL 示例：
@@ -317,6 +328,8 @@ Preset 编写层可以使用 `SpriteRoutineStepInput` shorthand，`SpriteRoutine
 | `walkTo` | `timeoutMs` |
 | `openWindow` | `timeoutMs` |
 | `loopUntil` | `maxDurationMs` |
+| `sequence` | 子步骤自然时长之和 |
+| `parallel` | 子步骤自然时长最大值 |
 | 其他 step | 不自动等待；需要停顿时写 `waitAfter: <ms>` 或接独立 wait step |
 
 注意：`waitAfter` 和后面的独立 wait step 会叠加。例如 `waitAfter: true` 后面再写 `3600`，会等待两次。
@@ -907,8 +920,13 @@ Implementation notes:
 ```text
 clearMessage(onboarding.workspace.create.invite)
 openWindow(workspaceWizard)
-walkTo({ window: 'workspaceWizard', placement: 'right', offset: 16 })
-loopUntil(WORKSPACE_CREATED | WORKSPACE_WIZARD_CLOSED)
+parallel(
+  sequence(
+    walkTo({ window: 'workspaceWizard', placement: 'right', offset: 16 }),
+    playAnimation lookLeft silent
+  ),
+  loopUntil(WORKSPACE_CREATED | WORKSPACE_WIZARD_CLOSED)
+)
 ```
 
 实际现象是：角色已经走到创建工作空间窗口旁边，窗口位置不再变化，但画面仍停留在行走动画，看起来像“一直在走”。

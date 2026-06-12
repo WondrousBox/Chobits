@@ -165,6 +165,72 @@ describe('SpriteRoutineRunner', () => {
     expect(result.steps.at(-1)?.stepId).toBe('toast');
   });
 
+  it('keeps sequence child steps ordered inside a parallel routine step', async () => {
+    const calls: string[] = [];
+    let releaseWalk: (() => void) | null = null;
+    const runner = new SpriteRoutineRunner({
+      playAnimation: (step) => {
+        calls.push(`play:${step.trigger ?? step.animationId}`);
+      },
+      walkTo: () => {
+        calls.push('walk:start');
+        return new Promise<void>((resolve) => {
+          releaseWalk = () => {
+            calls.push('walk:done');
+            resolve();
+          };
+        });
+      },
+      speak: (step) => {
+        calls.push(`speak:${step.text}`);
+      },
+      showToast: (step) => {
+        calls.push(`toast:${step.content}`);
+      }
+    });
+
+    const runPromise = runner.run({
+      id: 'routine-parallel-sequence',
+      purposeId: 'purpose-parallel-sequence',
+      source: 'preset',
+      status: 'queued',
+      steps: [
+        {
+          id: 'guide-near-window',
+          type: 'parallel',
+          body: [
+            {
+              id: 'walk-and-look',
+              type: 'sequence',
+              body: [
+                { id: 'walk', type: 'walkTo', target: 'center' },
+                { id: 'look', type: 'playAnimation', trigger: 'lookLeft', silent: true }
+              ]
+            },
+            { id: 'speak', type: 'speak', text: '等待窗口结果。' }
+          ]
+        },
+        { id: 'toast', type: 'showToast', content: '完成' }
+      ],
+      cursor: 0,
+      createdAt: Date.now()
+    });
+
+    await waitFor(() => calls.includes('speak:等待窗口结果。'));
+    expect(calls).toEqual(expect.arrayContaining(['walk:start', 'speak:等待窗口结果。']));
+    expect(calls).not.toContain('play:lookLeft');
+
+    releaseWalk?.();
+    const result = await runPromise;
+
+    expect(result.ok, result.error).toBe(true);
+    expect(calls.indexOf('play:lookLeft')).toBeGreaterThan(calls.indexOf('walk:done'));
+    expect(calls.at(-1)).toBe('toast:完成');
+    expect(result.steps.map((step) => step.stepId)).toEqual(expect.arrayContaining(['walk', 'look', 'walk-and-look', 'speak', 'guide-near-window', 'toast']));
+    expect(result.steps.at(-2)?.stepId).toBe('guide-near-window');
+    expect(result.steps.at(-1)?.stepId).toBe('toast');
+  });
+
   it('cancels a running wait step', async () => {
     const controller = new AbortController();
     const runner = new SpriteRoutineRunner({
@@ -911,6 +977,17 @@ describe('SpriteRoutinePresetRegistry', () => {
             ]
           },
           {
+            type: 'sequence',
+            body: [
+              100,
+              'playAnimation thinking silent'
+            ]
+          },
+          [
+            { type: 'showToast', content: '数组也表示 sequence。' },
+            'playAnimation wave silent'
+          ],
+          {
             type: 'branch',
             by: 'result',
             cases: {
@@ -950,12 +1027,28 @@ describe('SpriteRoutinePresetRegistry', () => {
       ]
     });
     expect(routine.steps[3]).toMatchObject({
-      id: 'branch-4',
+      id: 'sequence-4',
+      type: 'sequence',
+      body: [
+        expect.objectContaining({ id: 'sequence-4.wait-1', type: 'wait', durationMs: 100 }),
+        expect.objectContaining({ id: 'sequence-4.playAnimation-2', type: 'playAnimation', trigger: 'thinking', silent: true })
+      ]
+    });
+    expect(routine.steps[4]).toMatchObject({
+      id: 'sequence-5',
+      type: 'sequence',
+      body: [
+        expect.objectContaining({ id: 'sequence-5.showToast-1', type: 'showToast', content: '数组也表示 sequence。' }),
+        expect.objectContaining({ id: 'sequence-5.playAnimation-2', type: 'playAnimation', trigger: 'wave', silent: true })
+      ]
+    });
+    expect(routine.steps[5]).toMatchObject({
+      id: 'branch-6',
       type: 'branch',
       cases: {
-        ok: [expect.objectContaining({ id: 'branch-4.ok.wait-1', type: 'wait', durationMs: 100 })]
+        ok: [expect.objectContaining({ id: 'branch-6.ok.wait-1', type: 'wait', durationMs: 100 })]
       },
-      default: [expect.objectContaining({ id: 'branch-4.default.showToast-1', type: 'showToast', content: '默认分支。' })]
+      default: [expect.objectContaining({ id: 'branch-6.default.showToast-1', type: 'showToast', content: '默认分支。' })]
     });
   });
 
@@ -1509,7 +1602,14 @@ describe('SpriteRoutinePresetRegistry', () => {
           id: 'guide-near-wizard',
           type: 'parallel',
           body: expect.arrayContaining([
-            expect.objectContaining({ id: 'walk-near-wizard', type: 'walkTo', target: { window: 'workspaceWizard', placement: 'right', offset: 16 } }),
+            expect.objectContaining({
+              id: 'guide-near-wizard.sequence-1',
+              type: 'sequence',
+              body: [
+                expect.objectContaining({ id: 'walk-near-wizard', type: 'walkTo', target: { window: 'workspaceWizard', placement: 'right', offset: 16 } }),
+                expect.objectContaining({ id: 'guide-near-wizard.sequence-1.playAnimation-2', type: 'playAnimation', trigger: 'lookLeft', silent: true })
+              ]
+            }),
             expect.objectContaining({
               id: 'await-wizard-result',
               type: 'loopUntil',

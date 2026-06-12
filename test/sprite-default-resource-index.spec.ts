@@ -19,6 +19,13 @@ describe('default sprite resource index metadata', () => {
     }
   });
 
+  it('includes a default talk animation trigger', () => {
+    const indexPath = path.resolve(process.cwd(), 'resources/sprites/index.json');
+    const raw = JSON.parse(readFileSync(indexPath, 'utf8')) as { items?: SpriteAnimation[] };
+
+    expect(raw.items?.some((item) => item.meta.primaryTrigger === 'talk')).toBe(true);
+  });
+
   it('keeps the default character pack sha256 payload digest in sync', async () => {
     const packRoot = path.resolve(process.cwd(), 'resources/sprites');
     const packPath = path.join(packRoot, 'pack.json');

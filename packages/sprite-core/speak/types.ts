@@ -104,6 +104,13 @@ export interface SpriteSpeakPayload {
   volume: number;
 }
 
+export interface SpriteSpeakPlaybackContext {
+  talkDurationMs?: number;
+  ownerPurposeId?: string;
+  priority?: number;
+  ignorePresentationLock?: boolean;
+}
+
 /**
  * speak 璇锋眰鍙傛暟
  */

@@ -136,6 +136,7 @@ export const DEFAULT_SPRITE_PURPOSE_PLANNER_STEP_TYPES = [
   'clearBusy',
   'openWindow',
   'loopUntil',
+  'sequence',
   'parallel',
   'branch'
 ] as const satisfies readonly SpriteRoutineStepType[];
@@ -167,6 +168,7 @@ const STEP_SCHEMA_DESCRIPTIONS: Record<SpriteRoutineStepType, string> = {
   clearBusy: 'Clear busy/progress state.',
   openWindow: 'Open an allowlisted window; timeoutMs is required.',
   loopUntil: 'Repeat bounded body steps until allowlisted event; maxDurationMs is required.',
+  sequence: 'Run bounded child steps in order; duration is estimated as the sum of child steps.',
   parallel: 'Run bounded child steps concurrently; duration is estimated as the longest child branch.',
   branch: 'Choose nested steps from assigned state; nested steps are validated recursively.'
 };
@@ -394,6 +396,9 @@ function validateStep(step: unknown, path: string, state: ValidationState): numb
       }
       duration = validateLoopUntilStep(record, path, state);
       break;
+    case 'sequence':
+      duration = validateSequenceStep(record, path, state);
+      break;
     case 'parallel':
       duration = validateParallelStep(record, path, state);
       break;
@@ -534,6 +539,18 @@ function validateParallelStep(record: Record<string, unknown>, path: string, sta
   return validateStepList(record.body, `${path}.body`, state, 'max');
 }
 
+function validateSequenceStep(record: Record<string, unknown>, path: string, state: ValidationState): number {
+  if (!Array.isArray(record.body)) {
+    state.errors.push(`${path}.body must be an array`);
+    return 0;
+  }
+  if (record.body.length === 0) {
+    state.errors.push(`${path}.body must include at least one child step`);
+    return 0;
+  }
+  return validateStepList(record.body, `${path}.body`, state, 'sum');
+}
+
 function validateBranchStep(record: Record<string, unknown>, path: string, state: ValidationState): number {
   if (!getOptionalString(record.by)) {
     state.errors.push(`${path}.by must be a non-empty string`);
@@ -652,6 +669,12 @@ function cloneRoutineStep(step: SpriteRoutineStep): SpriteRoutineStep {
     };
   }
   if (step.type === 'parallel') {
+    return {
+      ...step,
+      body: step.body.map((child) => cloneRoutineStep(child))
+    };
+  }
+  if (step.type === 'sequence') {
     return {
       ...step,
       body: step.body.map((child) => cloneRoutineStep(child))

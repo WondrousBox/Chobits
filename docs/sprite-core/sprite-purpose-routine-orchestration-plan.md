@@ -248,13 +248,17 @@ Routine 可以理解为“成套行为方案”。它不是决定行为是否发
 - `openWindow`：打开选择框，例如 `fileActionsMenu`。
 - `runTask`：启动后台任务或 workflow。
 - `loopUntil`：在任务未完成时循环播放等待动画或提示。
+- `sequence`：在并行分支里包一组有先后关系的子步骤，例如先 `walkTo` 到业务窗口旁，再播放朝向窗口的动画。
+- `parallel`：并发执行多个子步骤，适合一边移动一边提示，或一边等待业务结果一边播放局部引导动作。
 - `branch`：根据事件结果、用户选择、任务结果走不同分支。
 - `setPurposeStatus`：标记目的完成、失败或被替代。
 - `returnToAnchor`：回到角落、上次位置或预设位置。
 
-普通 `speak` / `showToast` 气泡只显示当前台词或轻量提示。多句台词靠 routine 的顺序 step、`wait` 缓冲或 `parallel` 并行编排；需要用户确认或选择时统一使用 `showNotice.buttons`。
+普通 `speak` / `showToast` 气泡只显示当前台词或轻量提示。多句台词靠 routine 的顺序 step、`wait` 缓冲或 `parallel` 并行编排；若并行中的某个分支自己也需要顺序，使用 `sequence`，不要为这种“链接态”额外拆 purpose。需要用户确认或选择时统一使用 `showNotice.buttons`。
 
 Preset 编写层允许更轻的 `SpriteRoutineStepInput`，由 `SpriteRoutinePresetRegistry.createRoutine()` 统一生成完整 `SpriteRoutineStep`。Runner 和 AI planner 仍以严格 step 为边界。
+
+Preset 中还可以用数组表达 shorthand `sequence`。这只是编写层语法糖，例如 `[walkToStep, 'playAnimation lookLeft silent']` 会被 registry 标准化为 `{ type: 'sequence', body: [...] }`；runner、history 和 AI planner 仍只看到严格对象 step。
 
 等待节奏支持三种兼容写法：
 
@@ -277,6 +281,8 @@ type SpriteRoutineStep =
   | { id: string; type: 'openWindow'; window: string; payload?: Record<string, unknown>; waitForEvent?: string }
   | { id: string; type: 'runTask'; task: string; input?: Record<string, unknown>; assignTo?: string }
   | { id: string; type: 'loopUntil'; untilEvent: string; body: SpriteRoutineStep[]; maxDurationMs?: number }
+  | { id: string; type: 'sequence'; body: SpriteRoutineStep[] }
+  | { id: string; type: 'parallel'; body: SpriteRoutineStep[] }
   | { id: string; type: 'branch'; by: string; cases: Record<string, SpriteRoutineStep[]>; default?: SpriteRoutineStep[] };
 ```
 
@@ -612,7 +618,7 @@ AI planner 的入口也应优先来自现有行为体系。例如某个 Behavior
 
 目标：覆盖文件操作全过程。
 
-- 支持 `runTask`、`loopUntil`、`branch`。
+- 支持 `runTask`、`loopUntil`、`sequence`、`parallel`、`branch`。
 - 监听 workflow/resource/file action 事件。
 - 将 busy/progress 与等待动画联动。
 - 完成后播放 success/failure routine。

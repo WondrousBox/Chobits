@@ -59,6 +59,46 @@ function createManager(options: { purposeWindowAdapter?: any; behaviorScheduler?
   return { mgr, sent, dataDir };
 }
 
+function registerTalkAnimation(mgr: SpriteManager, playback: AnimationEntry['playback'] = { durationMs: 800 }): void {
+  const registry = (mgr as any).animationRegistry;
+  registry.register({
+    id: 'talk-purpose',
+    title: 'Talk Purpose',
+    eventTypes: ['talk'],
+    source: { localPath: './talk.webm', type: 'video/webm' },
+    playback
+  });
+}
+
+function mockSpeechPlayback(mgr: SpriteManager, result: { success: boolean; error?: string } = { success: true }): ReturnType<typeof vi.spyOn> {
+  const service = (mgr as any).speakService;
+  return vi.spyOn(service, 'speak').mockImplementation(async (text: string, context?: any) => {
+    if (result.success) {
+      service.onPlayAudio?.(
+        {
+          text,
+          audioPath: '/tmp/speech.mp3',
+          cacheId: 'speech-cache',
+          volume: 1
+        },
+        context
+      );
+      return { success: true, cacheId: 'speech-cache', audioPath: '/tmp/speech.mp3' };
+    }
+    return result;
+  });
+}
+
+async function waitFor(predicate: () => boolean, timeoutMs = 200): Promise<void> {
+  const startedAt = Date.now();
+  while (!predicate()) {
+    if (Date.now() - startedAt > timeoutMs) {
+      throw new Error('Timed out waiting for condition');
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+}
+
 function createBehaviorSchedulerHarness(): {
   scheduler: {
     handlers: Map<string, any>;
@@ -731,6 +771,214 @@ describe('sprite manager regression coverage', () => {
       (mgr as any).runPurposeAnimationStep({ id: 'play', type: 'playAnimation', trigger: 'thinking', durationMs: 10_000 }, new AbortController().signal, routine)
     ).resolves.toBeUndefined();
     expect(mgr.getCurrentAnimation()?.animationId).toBe('thinking-purpose');
+  });
+
+  it('plays talk animation when speech audio is played while the sprite is idle', async () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const speak = mockSpeechPlayback(mgr);
+
+    registerTalkAnimation(mgr, {
+      durationMs: 1800,
+      loop: true,
+      loopStartMs: 300,
+      loopEndMs: 1200
+    });
+
+    await expect(mgr.speak('我来说一下。', { bubbleDuration: 1400 })).resolves.toMatchObject({ success: true });
+
+    expect(speak).toHaveBeenCalledWith('我来说一下。', expect.objectContaining({ talkDurationMs: 1400 }));
+    expect(mgr.getCurrentAnimation()).toMatchObject({
+      animationId: 'talk-purpose',
+      trigger: 'talk',
+      playback: {
+        durationMs: 1400
+      }
+    });
+  });
+
+  it('routes routine speak steps through the system speech talk animation path', async () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const speak = mockSpeechPlayback(mgr);
+
+    registerTalkAnimation(mgr, { durationMs: 800 });
+
+    await expect(
+      (mgr as any).runPurposeSpeakStep(
+        { id: 'say', type: 'speak', text: '我来说一下。', bubbleDuration: 1400 },
+        {
+          id: 'routine-purpose-1',
+          purposeId: 'purpose-1',
+          priority: 80,
+          source: 'preset',
+          status: 'running',
+          steps: [],
+          cursor: 0,
+          createdAt: Date.now()
+        }
+      )
+    ).resolves.toMatchObject({ success: true });
+
+    expect(mgr.getCurrentAnimation()).toMatchObject({
+      animationId: 'talk-purpose',
+      trigger: 'talk',
+      playback: {
+        durationMs: 1400
+      }
+    });
+    expect(speak).toHaveBeenCalledWith(
+      '我来说一下。',
+      expect.objectContaining({
+        talkDurationMs: 1400,
+        ownerPurposeId: 'purpose-1',
+        priority: 80
+      })
+    );
+  });
+
+  it('does not play talk animation for speech while the sprite is busy', async () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const speak = mockSpeechPlayback(mgr);
+
+    registerTalkAnimation(mgr, { durationMs: 800 });
+    const registry = (mgr as any).animationRegistry;
+    registry.register({
+      id: 'idle-default',
+      title: 'Idle Default',
+      eventTypes: ['idle'],
+      source: { localPath: './idle.webm', type: 'video/webm' },
+      playback: { durationMs: 800 }
+    });
+    mgr.transitionTo('walking', { force: true });
+
+    await expect(mgr.speak('边走边说。', { bubbleDuration: 1000 })).resolves.toMatchObject({ success: true });
+
+    expect(mgr.getCurrentAnimation()?.animationId).not.toBe('talk-purpose');
+    expect(speak).toHaveBeenCalledWith('边走边说。', expect.objectContaining({ talkDurationMs: 1000 }));
+  });
+
+  it('does not replace an active trigger animation with talk during speech playback', async () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+    const speak = mockSpeechPlayback(mgr);
+
+    registry.register({
+      id: 'welcome-purpose',
+      title: 'Welcome Purpose',
+      eventTypes: ['welcome'],
+      source: { localPath: './welcome.webm', type: 'video/webm' },
+      playback: { durationMs: 2000 }
+    });
+    registerTalkAnimation(mgr, { durationMs: 800 });
+
+    mgr.trigger('welcome', { silent: true });
+    expect(mgr.getState()).toBe('idle');
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('welcome-purpose');
+
+    await expect(mgr.speak('你好，我是你的专属桌面助手。', { bubbleDuration: 3600 })).resolves.toMatchObject({ success: true });
+
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('welcome-purpose');
+    expect(speak).toHaveBeenCalledWith('你好，我是你的专属桌面助手。', expect.objectContaining({ talkDurationMs: 3600 }));
+  });
+
+  it('plays talk animation for toast and notice auto speech playback', async () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const speak = mockSpeechPlayback(mgr);
+
+    registerTalkAnimation(mgr, { durationMs: 800 });
+    const registry = (mgr as any).animationRegistry;
+    registry.register({
+      id: 'idle-default',
+      title: 'Idle Default',
+      eventTypes: ['idle'],
+      source: { localPath: './idle.webm', type: 'video/webm' },
+      playback: { durationMs: 800 }
+    });
+
+    mgr.showToast('提示一下。', { category: 'info', duration: 1100 });
+    await waitFor(() => mgr.getCurrentAnimation()?.animationId === 'talk-purpose');
+    expect(mgr.getCurrentAnimation()).toMatchObject({
+      animationId: 'talk-purpose',
+      trigger: 'talk',
+      playback: {
+        durationMs: 1100
+      }
+    });
+
+    mgr.handleAnimationComplete('talk-purpose', 'full');
+    await waitFor(() => mgr.getCurrentAnimation()?.animationId === 'idle-default');
+    mgr.showNotice('注意一下。', { duration: 1300, level: 'warning' });
+    await waitFor(() => mgr.getCurrentAnimation()?.animationId === 'talk-purpose' && mgr.getCurrentAnimation()?.playback?.durationMs === 1300);
+    expect(mgr.getCurrentAnimation()).toMatchObject({
+      animationId: 'talk-purpose',
+      trigger: 'talk',
+      playback: {
+        durationMs: 1300
+      }
+    });
+    expect(speak).toHaveBeenCalledWith('提示一下。', expect.objectContaining({ talkDurationMs: 1100 }));
+    expect(speak).toHaveBeenCalledWith('注意一下。', expect.objectContaining({ talkDurationMs: 1300 }));
+  });
+
+  it('uses the routine owner for talk animation from routine notice speech under a lifecycle lock', async () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const speak = mockSpeechPlayback(mgr);
+
+    registerTalkAnimation(mgr, { durationMs: 800 });
+    (mgr as any).acquireRoutinePresentationLock(
+      { id: 'purpose-1', priority: 80 },
+      {
+        id: 'routine-purpose-1',
+        purposeId: 'purpose-1',
+        priority: 80,
+        source: 'preset',
+        status: 'running',
+        steps: [{ id: 'notice', type: 'showNotice', content: '注意一下。', duration: 1200 }],
+        cursor: 0,
+        createdAt: Date.now()
+      }
+    );
+
+    (mgr as any).showNotice('注意一下。', {
+      duration: 1200,
+      ownerPurposeId: 'purpose-1',
+      priority: 80
+    });
+
+    await waitFor(() => mgr.getCurrentAnimation()?.animationId === 'talk-purpose');
+    expect(mgr.getCurrentAnimation()).toMatchObject({
+      animationId: 'talk-purpose',
+      trigger: 'talk',
+      playback: {
+        durationMs: 1200
+      }
+    });
+    expect(speak).toHaveBeenCalledWith(
+      '注意一下。',
+      expect.objectContaining({
+        talkDurationMs: 1200,
+        ownerPurposeId: 'purpose-1',
+        priority: 80
+      })
+    );
+  });
+
+  it('does not play talk animation when speech synthesis does not produce audio', async () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const speak = mockSpeechPlayback(mgr, { success: false, error: 'TTS is disabled' });
+
+    registerTalkAnimation(mgr, { durationMs: 800 });
+
+    await expect(mgr.speak('不会真的播放。', { bubbleDuration: 1000 })).resolves.toEqual({ success: false, error: 'TTS is disabled' });
+
+    expect(speak).toHaveBeenCalledWith('不会真的播放。', expect.objectContaining({ talkDurationMs: 1000 }));
+    expect(mgr.getCurrentAnimation()).toBeNull();
   });
 
   it('keeps low-priority ambient triggers from overriding a running purpose animation', async () => {
@@ -1877,6 +2125,53 @@ describe('sprite manager regression coverage', () => {
     expect(startPurpose).not.toHaveBeenCalled();
     expect(playOnce).toHaveBeenCalledWith('sleepy');
     expect(showToast).toHaveBeenCalledWith('有点困了呢...', { category: 'info', duration: 2000, ambientContext: 'behavior' });
+  });
+
+  it('offers talk as an idle spontaneous action candidate', async () => {
+    const registered = new Map<string, any>();
+    const generateForIdleAction = vi.fn(async () => ({
+      text: '我想说两句。',
+      recommendedAction: 'talk',
+      actionSource: 'model'
+    }));
+    const speak = vi.fn(async () => ({ success: true }));
+    const trigger = vi.fn();
+    const fakeManager = {
+      findAnimationByTrigger: vi.fn(),
+      registerBehavior: (behavior: any) => {
+        registered.set(behavior.id, behavior);
+      },
+      isAutoWalkEnabled: () => false,
+      runBehaviorMovement: vi.fn(),
+      startPurpose: vi.fn(),
+      playOnce: vi.fn(),
+      showToast: vi.fn(),
+      trigger,
+      transitionTo: vi.fn(),
+      changeFavor: vi.fn(),
+      speak,
+      getSpontaneousUtteranceExecutor: () => ({
+        generateForIdleAction
+      })
+    };
+
+    registerDefaultBehaviors(fakeManager as any);
+    const idleAction = registered.get('idle-action');
+    expect(idleAction).toBeTruthy();
+
+    await idleAction.action({
+      spriteState: 'idle',
+      interactionStats: { idleDuration: 120_000 },
+      personaState: { favor: 20, mood: 'neutral', moodIntensity: 0.5, level: 1 }
+    } as any);
+
+    expect(generateForIdleAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionCandidates: expect.arrayContaining(['talk'])
+      })
+    );
+    expect(trigger).toHaveBeenCalledWith('talk', { silent: true });
+    expect(speak).toHaveBeenCalledWith('我想说两句。', { showBubble: true, ambientContext: 'behavior' });
   });
 
   it('gates idle emotion behavior behind emotionExpression capability', () => {

@@ -107,7 +107,7 @@ describe('TTS emoji sanitization pipeline', () => {
 
     expect(result).toMatchObject({ success: true, cacheId: expectedCacheId, fromCache: false });
     expect(textToSpeech).toHaveBeenCalledWith(expect.objectContaining({ text: sanitized }));
-    expect(onPlayAudio).toHaveBeenCalledWith(expect.objectContaining({ text: sanitized, cacheId: expectedCacheId }));
+    expect(onPlayAudio).toHaveBeenCalledWith(expect.objectContaining({ text: sanitized, cacheId: expectedCacheId }), undefined);
   });
 
   it('uses sanitized text for batch cache ids, synthesis input, and history metadata', async () => {

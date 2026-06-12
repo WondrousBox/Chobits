@@ -11,9 +11,9 @@ export interface SpriteRoutineRunnerDeps {
   playAnimation: (step: Extract<SpriteRoutineStep, { type: 'playAnimation' }>, signal: AbortSignal, routine: SpriteRoutine) => Promise<unknown> | unknown;
   walkTo: (step: Extract<SpriteRoutineStep, { type: 'walkTo' }>, signal: AbortSignal, routine: SpriteRoutine) => Promise<unknown> | unknown;
   waitForEvent?: (step: Extract<SpriteRoutineStep, { type: 'waitForEvent' }>, signal: AbortSignal, routine: SpriteRoutine) => Promise<SpritePurposeRuntimeEvent> | SpritePurposeRuntimeEvent;
-  speak: (step: Extract<SpriteRoutineStep, { type: 'speak' }>, signal: AbortSignal) => Promise<unknown> | unknown;
-  showToast: (step: Extract<SpriteRoutineStep, { type: 'showToast' }>) => Promise<unknown> | unknown;
-  showNotice?: (step: Extract<SpriteRoutineStep, { type: 'showNotice' }>) => Promise<unknown> | unknown;
+  speak: (step: Extract<SpriteRoutineStep, { type: 'speak' }>, signal: AbortSignal, routine: SpriteRoutine) => Promise<unknown> | unknown;
+  showToast: (step: Extract<SpriteRoutineStep, { type: 'showToast' }>, routine: SpriteRoutine) => Promise<unknown> | unknown;
+  showNotice?: (step: Extract<SpriteRoutineStep, { type: 'showNotice' }>, routine: SpriteRoutine) => Promise<unknown> | unknown;
   clearMessage?: (step: Extract<SpriteRoutineStep, { type: 'clearMessage' }>) => Promise<unknown> | unknown;
   showBusy?: (step: Extract<SpriteRoutineStep, { type: 'showBusy' }>) => Promise<unknown> | unknown;
   updateBusy?: (step: Extract<SpriteRoutineStep, { type: 'updateBusy' }>) => Promise<unknown> | unknown;
@@ -218,11 +218,11 @@ export class SpriteRoutineRunner {
       case 'walkTo':
         return this.deps.walkTo(step, signal, routine);
       case 'speak':
-        return this.deps.speak(step, signal);
+        return this.deps.speak(step, signal, routine);
       case 'showToast':
-        return this.deps.showToast(step);
+        return this.deps.showToast(step, routine);
       case 'showNotice':
-        return this.deps.showNotice?.(step);
+        return this.deps.showNotice?.(step, routine);
       case 'clearMessage':
         return this.deps.clearMessage?.(step);
       case 'showBusy':
@@ -235,6 +235,8 @@ export class SpriteRoutineRunner {
         return this.runOpenWindow(routine, step, signal);
       case 'loopUntil':
         return this.runLoopUntil(routine, step, options, context);
+      case 'sequence':
+        return this.runSequence(routine, step, options, context);
       case 'parallel':
         return this.runParallel(routine, step, options, context);
       case 'branch':
@@ -245,14 +247,14 @@ export class SpriteRoutineRunner {
   }
 
   private async runWaitAfter(step: SpriteRoutineStep, signal?: AbortSignal): Promise<void> {
-    const durationMs = this.resolveWaitAfterDuration(step);
+    const durationMs = this.estimateStepNaturalDuration(step);
     if (durationMs == null || durationMs <= 0) {
       return;
     }
     await this.delay(durationMs, signal);
   }
 
-  private resolveWaitAfterDuration(step: SpriteRoutineStep): number | undefined {
+  private estimateStepNaturalDuration(step: SpriteRoutineStep): number | undefined {
     if (step.waitAfter === false || step.waitAfter == null) {
       return undefined;
     }
@@ -280,6 +282,37 @@ export class SpriteRoutineRunner {
         return step.timeoutMs;
       case 'loopUntil':
         return step.maxDurationMs;
+      case 'sequence':
+        return step.body.reduce((sum, child) => sum + (this.estimateStepPresentationDuration(child) ?? 0), 0);
+      case 'parallel':
+        return Math.max(0, ...step.body.map((child) => this.estimateStepPresentationDuration(child) ?? 0));
+      default:
+        return undefined;
+    }
+  }
+
+  private estimateStepPresentationDuration(step: SpriteRoutineStep): number | undefined {
+    switch (step.type) {
+      case 'speak':
+        return step.bubbleDuration ?? step.timeoutMs;
+      case 'showToast':
+      case 'showNotice':
+        return step.duration;
+      case 'playAnimation':
+        return step.durationMs ?? step.timeoutMs;
+      case 'wait':
+        return step.durationMs;
+      case 'waitForEvent':
+        return step.timeoutMs;
+      case 'walkTo':
+      case 'openWindow':
+        return step.timeoutMs;
+      case 'loopUntil':
+        return step.maxDurationMs;
+      case 'sequence':
+        return step.body.reduce((sum, child) => sum + (this.estimateStepPresentationDuration(child) ?? 0), 0);
+      case 'parallel':
+        return Math.max(0, ...step.body.map((child) => this.estimateStepPresentationDuration(child) ?? 0));
       default:
         return undefined;
     }
@@ -579,6 +612,23 @@ export class SpriteRoutineRunner {
       signal.removeEventListener('abort', onAbort);
       controller.abort();
     }
+  }
+
+  private async runSequence(routine: SpriteRoutine, step: Extract<SpriteRoutineStep, { type: 'sequence' }>, options: SpriteRoutineRunOptions, context: SpriteRoutineRunContext): Promise<{ stepCount: number }> {
+    const signal = options.signal ?? new AbortController().signal;
+
+    for (const child of step.body) {
+      this.throwIfAborted(signal);
+      const result = await this.runStep(routine, child, context, options, false);
+      if (!result.ok) {
+        if (result.status === 'cancelled') {
+          throw new SpriteRoutineCancelledError();
+        }
+        throw new Error(result.error || `Sequence step failed: ${child.id}`);
+      }
+    }
+
+    return { stepCount: step.body.length };
   }
 
   private async runBranch(routine: SpriteRoutine, step: Extract<SpriteRoutineStep, { type: 'branch' }>, options: SpriteRoutineRunOptions, context: SpriteRoutineRunContext): Promise<{ caseKey: string; stepCount: number }> {

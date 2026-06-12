@@ -127,6 +127,7 @@ export const spriteEventMessages: Record<string, SpriteEventMessageEntry> = {
   sit: ['坐下来休息一下~', '歇会儿~'],
   stand: ['起立！', '站起来了~'],
   wave: ['你好呀~👋', '嗨！', '挥挥手~'],
+  talk: ['我说两句~', '听我说~', '叽叽咕咕~'],
   nod: ['嗯嗯！', '点头~', '同意！'],
   shakeHead: ['不行不行~', '摇头~', '这个不行！'],
   dance: ['跳舞♪', '摇摆~♬', '来一起嗨！💃'],

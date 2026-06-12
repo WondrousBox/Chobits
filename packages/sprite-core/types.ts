@@ -118,6 +118,7 @@ export const SpriteEventGroups = {
     'sit',
     'stand',
     'wave',
+    'talk',
     'nod',
     'shakeHead',
     'dance',
