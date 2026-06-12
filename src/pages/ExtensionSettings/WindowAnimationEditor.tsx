@@ -45,6 +45,7 @@ type EditableKeyframe = Required<Pick<WindowAnimationKeyframe, 'x' | 'y' | 'widt
   Pick<WindowAnimationKeyframe, 'duration' | 'easing' | 'curve' | 'control1' | 'control2' | 'opacity' | 'placement'>;
 
 type ResizeCorner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+type EditorSizeMode = 'explicit' | 'original';
 
 type DragOperation = { type: 'move'; index: number } | { type: 'resize'; index: number; corner: ResizeCorner };
 
@@ -61,6 +62,10 @@ const DISPLAY_OPTIONS: Array<{ value: WindowAnimationDisplay; label: string }> =
   { value: 'current', label: '当前显示器' },
   { value: 'main', label: '主窗口显示器' },
   { value: 'primary', label: '主显示器' }
+];
+const SIZE_MODE_OPTIONS: Array<{ value: EditorSizeMode; label: string; description: string }> = [
+  { value: 'explicit', label: '编辑宽高', description: '关键帧写入窗口宽高' },
+  { value: 'original', label: '保持原始尺寸', description: '播放时继承窗口当前尺寸' }
 ];
 const ANCHOR_OPTIONS: Array<{ anchor: WindowAnimationAnchor; label: string; icon: React.ComponentType<{ className?: string }> }> = [
   { anchor: 'top-left', label: '左上角', icon: TbAlignBoxTopLeft },
@@ -118,17 +123,19 @@ function normalizeCoordinateSpace(enabled: boolean): WindowAnimationCoordinateSp
   return enabled ? createAdaptiveCoordinateSpace() : undefined;
 }
 
-function normalizeFrame(frame: EditableKeyframe): WindowAnimationKeyframe {
+function normalizeFrame(frame: EditableKeyframe, sizeMode: EditorSizeMode): WindowAnimationKeyframe {
   const result: WindowAnimationKeyframe = {
     x: Math.round(frame.x),
     y: Math.round(frame.y),
-    width: Math.max(1, Math.round(frame.width)),
-    height: Math.max(1, Math.round(frame.height)),
     opacity: clamp(frame.opacity ?? 1, 0, 1),
     duration: Math.max(0, Math.round(frame.duration ?? 300)),
     easing: frame.easing || 'ease-in-out',
     curve: frame.curve || 'line'
   };
+  if (sizeMode === 'explicit') {
+    result.width = Math.max(1, Math.round(frame.width));
+    result.height = Math.max(1, Math.round(frame.height));
+  }
   if (frame.placement) {
     result.placement = frame.placement;
   }
@@ -343,6 +350,7 @@ export default function WindowAnimationEditor(): JSX.Element {
   const [clampToWorkArea, setClampToWorkArea] = useState(false);
   const [coordinateSpaceEnabled, setCoordinateSpaceEnabled] = useState(true);
   const [positionAnchor, setPositionAnchor] = useState<WindowAnimationAnchor>(DEFAULT_POSITION_ANCHOR);
+  const [sizeMode, setSizeMode] = useState<EditorSizeMode>('explicit');
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [jsonDialogOpen, setJsonDialogOpen] = useState(false);
   const [jsonCopied, setJsonCopied] = useState(false);
@@ -354,7 +362,7 @@ export default function WindowAnimationEditor(): JSX.Element {
   const timeline = useMemo<WindowAnimationTimeline>(
     () => ({
       id: `chobits-window-${targetWindow}`,
-      keyframes: frames.map(normalizeFrame),
+      keyframes: frames.map((frame) => normalizeFrame(frame, sizeMode)),
       coordinateSpace: normalizedCoordinateSpace,
       positionAnchor,
       createIfMissing: targetWindow !== 'main',
@@ -363,7 +371,7 @@ export default function WindowAnimationEditor(): JSX.Element {
       suspendFollowMainDuringPlay: true,
       refreshFollowerAfterPlay: false
     }),
-    [clampToWorkArea, frames, normalizedCoordinateSpace, positionAnchor, targetWindow]
+    [clampToWorkArea, frames, normalizedCoordinateSpace, positionAnchor, sizeMode, targetWindow]
   );
   const timelineJson = useMemo(() => JSON.stringify(timeline, null, 2), [timeline]);
 
@@ -457,6 +465,8 @@ export default function WindowAnimationEditor(): JSX.Element {
         return;
       }
 
+      if (sizeMode === 'original') return;
+
       const bounds = resizeFrameBounds(frame, dragOperation.corner, designPoint, positionAnchor);
       if (frame.placement) {
         updateFrame(dragOperation.index, { width: bounds.width, height: bounds.height });
@@ -464,7 +474,7 @@ export default function WindowAnimationEditor(): JSX.Element {
         updateFrame(dragOperation.index, bounds);
       }
     },
-    [dragOperation, frames, positionAnchor, updateFrame]
+    [dragOperation, frames, positionAnchor, sizeMode, updateFrame]
   );
 
   const handlePointerUp = useCallback((event: React.PointerEvent<SVGSVGElement>) => {
@@ -507,6 +517,8 @@ export default function WindowAnimationEditor(): JSX.Element {
       toast.error('复制失败', { description: error instanceof Error ? error.message : String(error) });
     }
   }, [timelineJson]);
+
+  const usesExplicitSize = sizeMode === 'explicit';
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background text-foreground">
@@ -578,6 +590,8 @@ export default function WindowAnimationEditor(): JSX.Element {
               <path d={buildPath(frames)} fill="none" stroke="hsl(var(--primary))" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
               {frames.map((frame, index) => {
                 const point = toCanvasPoint(frame);
+                const markerLabel = frame.placement ? getPlacementLabel(frame.placement) : String(index + 1);
+                const isSelected = index === selectedIndex;
                 const previewWidth = Math.max(20, (frame.width / WORK_AREA.width) * CANVAS_WIDTH);
                 const previewHeight = Math.max(16, (frame.height / WORK_AREA.height) * CANVAS_HEIGHT);
                 const anchorOffset = getPositionAnchorOffset(positionAnchor, frame);
@@ -585,8 +599,6 @@ export default function WindowAnimationEditor(): JSX.Element {
                 const previewAnchorOffsetY = (anchorOffset.y / WORK_AREA.height) * CANVAS_HEIGHT;
                 const rectX = point.x - previewAnchorOffsetX;
                 const rectY = point.y - previewAnchorOffsetY;
-                const markerLabel = frame.placement ? getPlacementLabel(frame.placement) : String(index + 1);
-                const isSelected = index === selectedIndex;
                 const sizeLabel = `${Math.round(frame.width)} x ${Math.round(frame.height)}`;
                 const sizeLabelWidth = Math.max(62, sizeLabel.length * 7 + 14);
                 const sizeLabelX = clamp(rectX + previewWidth - sizeLabelWidth - 6, 6, CANVAS_WIDTH - sizeLabelWidth - 6);
@@ -601,52 +613,60 @@ export default function WindowAnimationEditor(): JSX.Element {
                       setDragOperation({ type: 'move', index });
                     }}
                   >
-                    <rect
-                      x={rectX}
-                      y={rectY}
-                      width={previewWidth}
-                      height={previewHeight}
-                      rx="5"
-                      fill={index === selectedIndex ? 'hsl(var(--primary) / 0.18)' : 'hsl(var(--background) / 0.88)'}
-                      stroke={index === selectedIndex ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground) / 0.7)'}
-                      strokeWidth={index === selectedIndex ? 2 : 1}
-                      strokeDasharray={frame.placement ? '6 4' : undefined}
-                    />
+                    {usesExplicitSize && (
+                      <rect
+                        x={rectX}
+                        y={rectY}
+                        width={previewWidth}
+                        height={previewHeight}
+                        rx="5"
+                        fill={index === selectedIndex ? 'hsl(var(--primary) / 0.18)' : 'hsl(var(--background) / 0.88)'}
+                        stroke={index === selectedIndex ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground) / 0.7)'}
+                        strokeWidth={index === selectedIndex ? 2 : 1}
+                        strokeDasharray={frame.placement ? '6 4' : undefined}
+                      />
+                    )}
+                    {!usesExplicitSize && isSelected && <circle cx={point.x} cy={point.y} r={15} fill="hsl(var(--primary) / 0.12)" stroke="hsl(var(--primary) / 0.45)" strokeWidth={1.5} />}
+                    {!usesExplicitSize && !isSelected && <circle cx={point.x} cy={point.y} r={12} fill="hsl(var(--background) / 0.82)" stroke="hsl(var(--muted-foreground) / 0.45)" strokeWidth={1} />}
                     <circle cx={point.x} cy={point.y} r={7} fill="hsl(var(--primary))" />
                     <text x={point.x + 12} y={point.y - 10} className="select-none fill-foreground text-[12px] font-medium">
                       {markerLabel}
                     </text>
                     {isSelected && (
                       <>
-                        <g className="pointer-events-none">
-                          <rect x={sizeLabelX} y={sizeLabelY} width={sizeLabelWidth} height={22} rx={5} fill="hsl(var(--background) / 0.92)" stroke="hsl(var(--primary) / 0.35)" />
-                          <text x={sizeLabelX + 7} y={sizeLabelY + 15} className="select-none fill-foreground text-[11px] font-medium">
-                            {sizeLabel}
-                          </text>
-                        </g>
-                        {RESIZE_HANDLES.map((handle) => {
-                          const handlePoint = getResizeHandlePosition(handle.corner, { x: rectX, y: rectY, width: previewWidth, height: previewHeight });
-                          return (
-                            <rect
-                              key={handle.corner}
-                              x={handlePoint.x - 5}
-                              y={handlePoint.y - 5}
-                              width={10}
-                              height={10}
-                              rx={2}
-                              fill="hsl(var(--background))"
-                              stroke="hsl(var(--primary))"
-                              strokeWidth={2}
-                              style={{ cursor: handle.cursor }}
-                              onPointerDown={(event) => {
-                                event.stopPropagation();
-                                event.currentTarget.ownerSVGElement?.setPointerCapture?.(event.pointerId);
-                                setSelectedIndex(index);
-                                setDragOperation({ type: 'resize', index, corner: handle.corner });
-                              }}
-                            />
-                          );
-                        })}
+                        {usesExplicitSize && (
+                          <>
+                            <g className="pointer-events-none">
+                              <rect x={sizeLabelX} y={sizeLabelY} width={sizeLabelWidth} height={22} rx={5} fill="hsl(var(--background) / 0.92)" stroke="hsl(var(--primary) / 0.35)" />
+                              <text x={sizeLabelX + 7} y={sizeLabelY + 15} className="select-none fill-foreground text-[11px] font-medium">
+                                {sizeLabel}
+                              </text>
+                            </g>
+                            {RESIZE_HANDLES.map((handle) => {
+                              const handlePoint = getResizeHandlePosition(handle.corner, { x: rectX, y: rectY, width: previewWidth, height: previewHeight });
+                              return (
+                                <rect
+                                  key={handle.corner}
+                                  x={handlePoint.x - 5}
+                                  y={handlePoint.y - 5}
+                                  width={10}
+                                  height={10}
+                                  rx={2}
+                                  fill="hsl(var(--background))"
+                                  stroke="hsl(var(--primary))"
+                                  strokeWidth={2}
+                                  style={{ cursor: handle.cursor }}
+                                  onPointerDown={(event) => {
+                                    event.stopPropagation();
+                                    event.currentTarget.ownerSVGElement?.setPointerCapture?.(event.pointerId);
+                                    setSelectedIndex(index);
+                                    setDragOperation({ type: 'resize', index, corner: handle.corner });
+                                  }}
+                                />
+                              );
+                            })}
+                          </>
+                        )}
                       </>
                     )}
                   </g>
@@ -655,7 +675,7 @@ export default function WindowAnimationEditor(): JSX.Element {
             </svg>
           </div>
 
-          <KeyframeTimeline frames={frames} selectedIndex={selectedIndex} onSelect={setSelectedIndex} onAdd={addFrame} onRemove={removeFrame} canRemove={frames.length > 1} />
+          <KeyframeTimeline frames={frames} selectedIndex={selectedIndex} sizeMode={sizeMode} onSelect={setSelectedIndex} onAdd={addFrame} onRemove={removeFrame} canRemove={frames.length > 1} />
         </section>
 
         <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto border-l pl-4">
@@ -704,8 +724,30 @@ export default function WindowAnimationEditor(): JSX.Element {
                   </div>
                   <Field label="锚点 X" value={selectedFrame.x} onChange={(value) => updateNumeric('x', value)} />
                   <Field label="锚点 Y" value={selectedFrame.y} onChange={(value) => updateNumeric('y', value)} />
-                  <Field label="宽度" value={selectedFrame.width} onChange={(value) => updateNumeric('width', value)} />
-                  <Field label="高度" value={selectedFrame.height} onChange={(value) => updateNumeric('height', value)} />
+                  <div className="col-span-2 space-y-1">
+                    <label className="text-xs text-muted-foreground">尺寸模式</label>
+                    <Select value={sizeMode} onValueChange={(value) => setSizeMode(value as EditorSizeMode)}>
+                      <SelectTrigger className="h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SIZE_MODE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="text-[11px] text-muted-foreground">{SIZE_MODE_OPTIONS.find((option) => option.value === sizeMode)?.description}</div>
+                  </div>
+                  {usesExplicitSize ? (
+                    <>
+                      <Field label="宽度" value={selectedFrame.width} onChange={(value) => updateNumeric('width', value)} />
+                      <Field label="高度" value={selectedFrame.height} onChange={(value) => updateNumeric('height', value)} />
+                    </>
+                  ) : (
+                    <div className="col-span-2 rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">保持原始尺寸时，关键帧不会写入 width/height，画布仅展示锚点路径。</div>
+                  )}
                   <Field label="透明度" value={selectedFrame.opacity ?? 1} step="0.05" onChange={(value) => updateNumeric('opacity', value)} />
                   <Field label="段时长 ms" value={selectedIndex === 0 ? 0 : (selectedFrame.duration ?? 600)} disabled={selectedIndex === 0} onChange={(value) => updateNumeric('duration', value)} />
                 </div>
@@ -817,6 +859,7 @@ function Field({ label, value, step = '1', disabled, onChange }: { label: string
 function KeyframeTimeline({
   frames,
   selectedIndex,
+  sizeMode,
   onSelect,
   onAdd,
   onRemove,
@@ -824,6 +867,7 @@ function KeyframeTimeline({
 }: {
   frames: EditableKeyframe[];
   selectedIndex: number;
+  sizeMode: EditorSizeMode;
   onSelect: (index: number) => void;
   onAdd: () => void;
   onRemove: () => void;
@@ -870,7 +914,7 @@ function KeyframeTimeline({
                     ({Math.round(frame.x)}, {Math.round(frame.y)})
                   </div>
                   <div className={cn('truncate', active ? 'text-primary/80' : 'text-muted-foreground')}>
-                    {Math.round(frame.width)} x {Math.round(frame.height)}
+                    {sizeMode === 'explicit' ? `${Math.round(frame.width)} x ${Math.round(frame.height)}` : '保持原始尺寸'}
                   </div>
                   {frame.placement && <div className="truncate text-[11px] text-primary">{getPlacementLabel(frame.placement)}</div>}
                 </button>

@@ -40,6 +40,7 @@ export type {
   SpriteBehaviorScheduler,
   SpriteManagerOptions,
   SpritePurposeWindowAdapter,
+  SpriteWindowAnimationAdapter,
   SpriteSchedulerGateContext,
   SpriteSchedulerGateResult,
   SpriteSchedulerJobDefinition,

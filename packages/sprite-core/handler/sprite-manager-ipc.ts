@@ -77,7 +77,7 @@ import { type CharacterPersonaRuntimeSyncResult, reloadCharacterPersonaRuntime, 
 import { buildCharacterPersonaPrompt, getCharacterDefinition, getCharacterInfo, getCharacterToolLabels, initCharacterService, type ToolLabelDefinition } from '../character-service';
 import type { PersonaRewardGrant } from '../config/persona-rules';
 import { isSpriteInteractionIntent, type SpriteInteractionPayload } from '../interaction-contract';
-import type { SpritePurposeRoutinePlanner, SpritePurposeWindowAdapter, SpriteSpontaneousUtteranceExecutor } from '../manager';
+import type { SpritePurposeRoutinePlanner, SpritePurposeWindowAdapter, SpriteSpontaneousUtteranceExecutor, SpriteWindowAnimationAdapter } from '../manager';
 import { SpriteManager } from '../manager';
 import { getPersonaRuleDimensionSchema } from '../persona-rules';
 import type { SpritePurposeHistoryQuery, SpritePurposeRetrospectiveQuery, SpritePurposeRuntimeEventInput, StartSpritePurposeRequest } from '../purpose';
@@ -105,6 +105,7 @@ export interface SpriteManagerDeps {
   registerCharacterPersonaPromptProvider?: (provider: () => string | null) => void | Promise<void>;
   spontaneousUtteranceExecutor?: SpriteSpontaneousUtteranceExecutor;
   purposeWindowAdapter?: SpritePurposeWindowAdapter;
+  windowAnimationAdapter?: SpriteWindowAnimationAdapter;
   purposeRoutinePlanner?: SpritePurposeRoutinePlanner;
   spriteEventListener?: SpriteEventListenerOptions;
   syncCharacterToolLabels?: (labels: Record<string, ToolLabelDefinition> | undefined) => void | Promise<void>;
@@ -233,6 +234,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     appName: 'Chobits',
     spontaneousUtteranceExecutor: deps.spontaneousUtteranceExecutor,
     purposeWindowAdapter: deps.purposeWindowAdapter,
+    windowAnimationAdapter: deps.windowAnimationAdapter,
     purposeRoutinePlanner: deps.purposeRoutinePlanner,
     behaviorScheduler: getMainSchedulerService(),
     // 额外接收消息桥的窗口：当前气泡窗口模式对应的独立窗口。

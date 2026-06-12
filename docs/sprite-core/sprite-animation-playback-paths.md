@@ -138,8 +138,8 @@ const canUseTalkForSpeech =
 | `reportInteraction('context-menu')` | 否 | 只切换 movement suspension，不播放动画。 |
 | `startDrag()` / `endDrag()` | 是 | 分别进入 `dragging` 和 `idle`。 |
 | `walkTo()` / `runBehaviorMovement()` | 是 | 通过 `WindowController` 的 `onWalkStart/onWalkEnd` 进入 `walking` 并回 idle。 |
-| `previewMovement()` | 条件触发 | `movement.mode === 'walkTo'` 时会走 `walkTo()`；方向自动移动只移动窗口，不改状态。 |
-| 动画自带 `playback.movement` | 否 | 当前只处理方向自动移动；不会因此改 `SpriteState`。 |
+| `previewMovement()` | 条件触发 | `movement.mode === 'walkTo'` 时会走 `walkTo()`；方向自动移动只移动精灵窗口，`windowAnimation` 只触发主窗口动画预设。若配置了 `windowAnimationPlayPosition`，主进程会在播放前先放置目标窗口；这些动作都不改状态。 |
+| 动画自带 `playback.movement` | 否 | `direction` 会启动方向自动移动，`windowAnimation` 会通过主进程 adapter 播放窗口动画预设，并可在播放前先放置目标窗口；都不会因此改 `SpriteState`。`walkTo` 仍只作为 behavior movement 执行。 |
 | 默认 sleepy 行为 | 是 | fallback 时 `playOnce('sleepy')`。 |
 | 默认 bored 行为 | 是 | `transitionTo('bored')`。 |
 | 默认 emotion/action/ambient/seasonal 行为 | 否 | 通过 `trigger()` 播放表达动画。 |

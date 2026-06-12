@@ -38,6 +38,7 @@ export interface MovementCoordinatorDeps {
   getAutoMoveDirection: () => SpriteWalkState['direction'] | null;
   emitWalkState: (state: SpriteWalkState) => void;
   emitConfigChanged: () => void;
+  playWindowAnimation?: (movement: SpriteMovementConfig) => Promise<void> | void;
 }
 
 export class MovementCoordinator {
@@ -46,6 +47,16 @@ export class MovementCoordinator {
   constructor(private readonly deps: MovementCoordinatorDeps) {}
 
   previewMovement(config: SpriteMovementPreviewConfig): void {
+    const mode = config.movement?.mode ?? 'direction';
+    if (config.movement?.enabled && mode === 'windowAnimation') {
+      this.stopAutoMove();
+      if (!this.deps.canMove() || !this.deps.canUseMovement()) {
+        return;
+      }
+      void this.deps.playWindowAnimation?.(config.movement);
+      return;
+    }
+
     if (!this.previewSnapshot) {
       const liveConfig = this.deps.getSpriteConfig();
       this.previewSnapshot = {
@@ -69,7 +80,6 @@ export class MovementCoordinator {
       return;
     }
 
-    const mode = config.movement.mode ?? 'direction';
     if (mode === 'walkTo') {
       const target = this.computeWalkTarget(config.movement);
       if (!target) return;
@@ -109,6 +119,11 @@ export class MovementCoordinator {
     }
 
     const mode = movement.mode ?? 'direction';
+    if (mode === 'windowAnimation') {
+      void this.deps.playWindowAnimation?.(movement);
+      return;
+    }
+
     if (mode === 'walkTo') {
       return;
     }
@@ -122,6 +137,10 @@ export class MovementCoordinator {
     }
 
     const mode = movement.mode ?? 'direction';
+    if (mode === 'windowAnimation') {
+      return false;
+    }
+
     const target = mode === 'walkTo' ? this.computeWalkTarget(movement) : this.computeDirectionalWalkTarget(movement);
     if (!target) {
       return false;

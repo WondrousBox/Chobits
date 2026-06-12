@@ -178,6 +178,7 @@ export class SpriteManager {
   private purposeEventWaiter: SpritePurposeEventWaiter;
   private purposeHistory: SpritePurposeHistoryStore;
   private purposeWindowAdapter?: SpritePurposeWindowAdapter;
+  private windowAnimationAdapter?: SpriteManagerOptions['windowAnimationAdapter'];
 
   // 内建持久化
   private persistence: PersonaStatePersistence;
@@ -243,6 +244,7 @@ export class SpriteManager {
     this.getScreenSize = options.getScreenSize;
     this.spontaneousUtteranceExecutor = options.spontaneousUtteranceExecutor;
     this.purposeWindowAdapter = options.purposeWindowAdapter;
+    this.windowAnimationAdapter = options.windowAnimationAdapter;
     this.activePersonaIdentity = {
       name: options.appName ?? 'Chobits'
     };
@@ -302,7 +304,15 @@ export class SpriteManager {
       isAutoMoving: () => this.windowController?.isAutoMoving?.() ?? false,
       getAutoMoveDirection: () => this.windowController?.getAutoMoveDirection?.() ?? null,
       emitWalkState: (payload) => this.sendToRenderer('sprite:walk', payload),
-      emitConfigChanged: () => this.emitConfigChanged()
+      emitConfigChanged: () => this.emitConfigChanged(),
+      playWindowAnimation: (movement) =>
+        this.windowAnimationAdapter?.playPreset({
+          presetId: movement.windowAnimationPresetId,
+          direction: movement.windowAnimationDirection,
+          duration: movement.windowAnimationDuration,
+          target: movement.windowAnimationTarget,
+          playPosition: movement.windowAnimationPlayPosition
+        })
     });
     this.purposeManager = new SpritePurposeManager({
       runner: new SpriteRoutineRunner({

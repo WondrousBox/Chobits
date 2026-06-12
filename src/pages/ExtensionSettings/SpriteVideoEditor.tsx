@@ -9,7 +9,17 @@
  */
 
 import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
-import type { SpriteAnimationCondition, SpriteAnimationTrigger, SpriteMovementConfig, SpriteMovementDirection, SpriteMovementMode, SpriteMovementTrigger } from '@packages/sprite-core/types';
+import type {
+  SpriteAnimationCondition,
+  SpriteAnimationTrigger,
+  SpriteMovementConfig,
+  SpriteMovementDirection,
+  SpriteMovementMode,
+  SpriteMovementTrigger,
+  SpriteWindowAnimationDirection,
+  SpriteWindowAnimationPlayPosition,
+  SpriteWindowAnimationPresetId
+} from '@packages/sprite-core/types';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TbPlayerPause, TbPlayerPlay, TbX, TbZoomIn, TbZoomOut } from 'react-icons/tb';
 
@@ -24,7 +34,9 @@ import { ensureSpriteCapabilityAccessible, SpriteCapabilityLockedNotice } from '
 import { createSpriteAnimationMetaDraft, formatSpriteAnimationConditionInput, formatSpriteTriggerAliasesInput, parseSpriteAnimationConditionInput } from './components/sprite-animation-meta-utils';
 import SpriteAnimationConditionBuilder from './components/SpriteAnimationConditionBuilder';
 import SpriteTriggerPicker from './components/SpriteTriggerPicker';
+import SpriteWindowAnimationPositionEditor from './components/SpriteWindowAnimationPositionEditor';
 import { hasLoopSegment, isTimeInTrimmedSegment, normalizeSegmentMarkers, type SegmentMarkerKey, type SegmentMarkers, updateSegmentMarker } from './sprite-video-segments';
+import { isWindowAnimationPresetId, WINDOW_ANIMATION_PRESET_DIRECTIONS, WINDOW_ANIMATION_PRESETS } from './window-animation-presets';
 
 export type { SegmentMarkers } from './sprite-video-segments';
 
@@ -62,14 +74,24 @@ const DEFAULT_SPEEDS: SegmentSpeeds = { intro: 1, loop: 1, outro: 1 };
 const DEFAULT_PLAYBACK_SCALE = 1;
 const DEFAULT_PADDING = 100;
 const DEFAULT_MOVEMENT: SpriteMovementConfig = { enabled: false, mode: 'direction', direction: 'random', speed: 60 };
+const DEFAULT_WINDOW_ANIMATION_PRESET_ID: SpriteWindowAnimationPresetId = 'fly-in';
+const DEFAULT_WINDOW_ANIMATION_DIRECTION: SpriteWindowAnimationDirection = 'left';
+const DEFAULT_WINDOW_ANIMATION_DURATION = 650;
 const SPRITE_VIDEO_EDITOR_FORM_STORAGE_KEY = 'sprite-video-editor-form-settings:v1';
 const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
-const SPRITE_MOVEMENT_MODE_SET = new Set<SpriteMovementMode>(['direction', 'walkTo']);
+const SPRITE_MOVEMENT_MODE_SET = new Set<SpriteMovementMode>(['direction', 'walkTo', 'windowAnimation']);
 const SPRITE_MOVEMENT_DIRECTION_SET = new Set<SpriteMovementDirection>(['left', 'right', 'up', 'down', 'up-left', 'up-right', 'down-left', 'down-right', 'random']);
 const SPRITE_MOVEMENT_TRIGGER_SET = new Set<SpriteMovementTrigger>(['animation', 'behavior']);
+const SPRITE_WINDOW_ANIMATION_DIRECTION_SET = new Set<SpriteWindowAnimationDirection>(['left', 'right', 'top', 'bottom']);
+const SPRITE_WINDOW_ANIMATION_ANCHOR_SET = new Set(['top-left', 'top', 'top-right', 'left', 'center', 'right', 'bottom-left', 'bottom', 'bottom-right']);
+const SPRITE_WINDOW_ANIMATION_DISPLAY_SET = new Set(['current', 'main', 'primary']);
+const SPRITE_WINDOW_ANIMATION_FIT_MODE_SET = new Set(['stretch', 'contain', 'cover']);
 const VIDEO_READY_STATE_HAVE_CURRENT_DATA = 2;
 
-function getInitialLoopMode(input: Pick<SpriteVideoConfigInput, 'loop' | 'loopCount'> | undefined, stored: Pick<SpriteVideoEditorStoredFormSettings, 'loopMode' | 'loopWholeClip'> | null): SpriteLoopMode {
+function getInitialLoopMode(
+  input: Pick<SpriteVideoConfigInput, 'loop' | 'loopCount'> | undefined,
+  stored: Pick<SpriteVideoEditorStoredFormSettings, 'loopMode' | 'loopWholeClip'> | null
+): SpriteLoopMode {
   if (input?.loopCount != null && input.loopCount > 0) return 'finite';
   if (input?.loop === true) return 'infinite';
   return stored?.loopMode ?? (stored?.loopWholeClip ? 'infinite' : 'once');
@@ -144,6 +166,51 @@ function normalizeOutputSettings(value: unknown): OutputSettings {
   };
 }
 
+function normalizeWindowAnimationPlayPosition(value: unknown): SpriteWindowAnimationPlayPosition | undefined {
+  if (!isRecord(value)) return undefined;
+  const positionAnchor =
+    typeof value.positionAnchor === 'string' && SPRITE_WINDOW_ANIMATION_ANCHOR_SET.has(value.positionAnchor) ? (value.positionAnchor as SpriteWindowAnimationPlayPosition['positionAnchor']) : 'center';
+
+  if (value.mode === 'placement' && isRecord(value.placement)) {
+    const anchor = typeof value.placement.anchor === 'string' && SPRITE_WINDOW_ANIMATION_ANCHOR_SET.has(value.placement.anchor) ? value.placement.anchor : 'center';
+    const display = typeof value.placement.display === 'string' && SPRITE_WINDOW_ANIMATION_DISPLAY_SET.has(value.placement.display) ? value.placement.display : 'current';
+    return {
+      mode: 'placement',
+      positionAnchor,
+      placement: {
+        anchor: anchor as NonNullable<SpriteWindowAnimationPlayPosition['placement']>['anchor'],
+        display: display as NonNullable<SpriteWindowAnimationPlayPosition['placement']>['display'],
+        useWorkArea: typeof value.placement.useWorkArea === 'boolean' ? value.placement.useWorkArea : true,
+        margin: clampNumber(value.placement.margin, 24, 0)
+      }
+    };
+  }
+
+  if (value.mode === 'point' && isRecord(value.point)) {
+    const coordinateSpace = isRecord(value.coordinateSpace) ? value.coordinateSpace : {};
+    const display = typeof coordinateSpace.display === 'string' && SPRITE_WINDOW_ANIMATION_DISPLAY_SET.has(coordinateSpace.display) ? coordinateSpace.display : 'current';
+    const fitMode = typeof coordinateSpace.fitMode === 'string' && SPRITE_WINDOW_ANIMATION_FIT_MODE_SET.has(coordinateSpace.fitMode) ? coordinateSpace.fitMode : 'stretch';
+    return {
+      mode: 'point',
+      positionAnchor,
+      point: {
+        x: clampNumber(value.point.x, 720),
+        y: clampNumber(value.point.y, 450)
+      },
+      coordinateSpace: {
+        type: 'design-area',
+        designArea: { width: 1440, height: 900 },
+        display: display as NonNullable<SpriteWindowAnimationPlayPosition['coordinateSpace']>['display'],
+        useWorkArea: typeof coordinateSpace.useWorkArea === 'boolean' ? coordinateSpace.useWorkArea : true,
+        fitMode: fitMode as NonNullable<SpriteWindowAnimationPlayPosition['coordinateSpace']>['fitMode'],
+        sizeMode: 'scale-with-area'
+      }
+    };
+  }
+
+  return undefined;
+}
+
 function normalizeMovementSettings(value: unknown): SpriteMovementConfig {
   if (!isRecord(value)) return { ...DEFAULT_MOVEMENT };
 
@@ -165,6 +232,25 @@ function normalizeMovementSettings(value: unknown): SpriteMovementConfig {
 
   if (value.verticalRange !== undefined) {
     next.verticalRange = clampNumber(value.verticalRange, 0.1, 0.01, 1);
+  }
+
+  if (mode === 'windowAnimation') {
+    next.trigger = 'animation';
+    next.windowAnimationPresetId = isWindowAnimationPresetId(value.windowAnimationPresetId) ? value.windowAnimationPresetId : DEFAULT_WINDOW_ANIMATION_PRESET_ID;
+    next.windowAnimationDirection =
+      typeof value.windowAnimationDirection === 'string' && SPRITE_WINDOW_ANIMATION_DIRECTION_SET.has(value.windowAnimationDirection as SpriteWindowAnimationDirection)
+        ? (value.windowAnimationDirection as SpriteWindowAnimationDirection)
+        : DEFAULT_WINDOW_ANIMATION_DIRECTION;
+    if (value.windowAnimationDuration !== undefined) {
+      next.windowAnimationDuration = clampNumber(value.windowAnimationDuration, DEFAULT_WINDOW_ANIMATION_DURATION, 0);
+    }
+    if (typeof value.windowAnimationTarget === 'string' && value.windowAnimationTarget.trim()) {
+      next.windowAnimationTarget = value.windowAnimationTarget.trim();
+    }
+    const playPosition = normalizeWindowAnimationPlayPosition(value.windowAnimationPlayPosition);
+    if (playPosition) {
+      next.windowAnimationPlayPosition = playPosition;
+    }
   }
 
   if (isRecord(value.behaviorSchedule)) {
@@ -425,6 +511,10 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
   const hasLoop = hasLoopSegment(segments);
   const loopCount = loopMode === 'finite' ? (normalizeLoopCount(loopCountInput) ?? 1) : undefined;
   const playbackLoop = hasLoop || loopMode !== 'once';
+  const movementMode = movement.mode ?? 'direction';
+  const windowAnimationPresetId = isWindowAnimationPresetId(movement.windowAnimationPresetId) ? movement.windowAnimationPresetId : DEFAULT_WINDOW_ANIMATION_PRESET_ID;
+  const selectedWindowAnimationPreset = WINDOW_ANIMATION_PRESETS.find((preset) => preset.id === windowAnimationPresetId);
+  const windowAnimationSupportsDirection = selectedWindowAnimationPreset?.supportsDirection ?? false;
 
   useEffect(() => {
     saveSpriteVideoEditorStoredFormSettings({
@@ -579,7 +669,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
       video.pause();
       setIsPlaying(false);
     } else {
-      video.play().catch(() => {});
+      video.play().catch(() => { });
       setIsPlaying(true);
     }
   }, [isPlaying]);
@@ -740,7 +830,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
 
     video.currentTime = segments.loopStart / 1000;
     video.playbackRate = speeds.loop;
-    video.play().catch(() => {});
+    video.play().catch(() => { });
     setIsPlaying(true);
 
     const checkLoop = (): void => {
@@ -764,7 +854,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
 
     video.currentTime = segments.start / 1000;
     video.playbackRate = hasLoop ? speeds.intro : speeds.intro;
-    video.play().catch(() => {});
+    video.play().catch(() => { });
     setIsPlaying(true);
 
     if (!hasLoop) {
@@ -780,7 +870,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
         if (video.currentTime * 1000 >= segments.end - 30) {
           if (loopMode !== 'once') {
             video.currentTime = segments.start / 1000;
-            video.play().catch(() => {});
+            video.play().catch(() => { });
           } else {
             video.pause();
             setIsPlaying(false);
@@ -1183,9 +1273,8 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
                   {previewPhase !== 'idle' && (
                     <div className="absolute top-2 left-2 z-20 flex items-center gap-1">
                       <span
-                        className={`px-2 py-0.5 rounded text-xs font-semibold text-white ${
-                          previewPhase === 'intro' ? 'bg-green-500' : previewPhase === 'loop' ? 'bg-blue-500' : previewPhase === 'outro' ? 'bg-red-500' : 'bg-gray-500'
-                        }`}
+                        className={`px-2 py-0.5 rounded text-xs font-semibold text-white ${previewPhase === 'intro' ? 'bg-green-500' : previewPhase === 'loop' ? 'bg-blue-500' : previewPhase === 'outro' ? 'bg-red-500' : 'bg-gray-500'
+                          }`}
                       >
                         {previewPhase === 'intro' ? 'Intro' : previewPhase === 'loop' ? `Loop ${previewLoopCount}/3` : previewPhase === 'outro' ? 'Outro' : ''}
                       </span>
@@ -1250,12 +1339,12 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
                           movement
                         });
                       }}
-                      title="预览窗口移动效果"
+                      title={movementMode === 'windowAnimation' ? '预览窗口动画效果' : '预览窗口移动效果'}
                     >
-                      测试移动
+                      {movementMode === 'windowAnimation' ? '测试窗口动画' : '测试移动'}
                     </Button>
                   )}
-                  {movement.enabled && (
+                  {movement.enabled && movementMode !== 'windowAnimation' && (
                     <Button size="sm" variant="ghost" onClick={() => window.YUA.sprite.stopMovementPreview()} title="停止窗口移动">
                       停止
                     </Button>
@@ -1703,7 +1792,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
 
                 {/* 窗口移动 */}
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs">播放时窗口移动</Label>
+                  <Label className="text-xs">播放时窗口动作</Label>
                   <Switch checked={movement.enabled} onCheckedChange={(checked) => setMovement((prev) => ({ ...prev, enabled: checked }))} />
                 </div>
 
@@ -1712,29 +1801,41 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-1">
                         <Label className="text-[11px] text-muted-foreground shrink-0">模式</Label>
-                        <Select value={movement.mode ?? 'direction'} onValueChange={(v) => setMovement((prev) => ({ ...prev, mode: v as SpriteMovementMode }))}>
-                          <SelectTrigger className="h-7 w-28 text-xs">
+                        <Select
+                          value={movementMode}
+                          onValueChange={(v) =>
+                            setMovement((prev) => ({
+                              ...prev,
+                              mode: v as SpriteMovementMode,
+                              trigger: v === 'windowAnimation' ? 'animation' : prev.trigger
+                            }))
+                          }
+                        >
+                          <SelectTrigger className="h-7 w-32 text-xs">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="direction">方向移动</SelectItem>
                             <SelectItem value="walkTo">随机行走</SelectItem>
+                            <SelectItem value="windowAnimation">窗口动画</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Label className="text-[11px] text-muted-foreground shrink-0">速度</Label>
-                        <Input
-                          type="number"
-                          value={movement.speed ?? 60}
-                          onChange={(e) => setMovement((prev) => ({ ...prev, speed: Math.max(1, parseInt(e.target.value) || 60) }))}
-                          className="h-7 w-16 text-xs text-center"
-                        />
-                        <span className="text-[10px] text-muted-foreground">px/s</span>
-                      </div>
+                      {movementMode !== 'windowAnimation' && (
+                        <div className="flex items-center gap-1">
+                          <Label className="text-[11px] text-muted-foreground shrink-0">速度</Label>
+                          <Input
+                            type="number"
+                            value={movement.speed ?? 60}
+                            onChange={(e) => setMovement((prev) => ({ ...prev, speed: Math.max(1, parseInt(e.target.value) || 60) }))}
+                            className="h-7 w-16 text-xs text-center"
+                          />
+                          <span className="text-[10px] text-muted-foreground">px/s</span>
+                        </div>
+                      )}
                     </div>
 
-                    {(movement.mode ?? 'direction') === 'direction' && (
+                    {movementMode === 'direction' && (
                       <div className="flex items-center gap-1">
                         <Label className="text-[11px] text-muted-foreground shrink-0">方向</Label>
                         <Select value={movement.direction ?? 'random'} onValueChange={(v) => setMovement((prev) => ({ ...prev, direction: v as SpriteMovementDirection }))}>
@@ -1756,7 +1857,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
                       </div>
                     )}
 
-                    {(movement.mode ?? 'direction') === 'walkTo' && (
+                    {movementMode === 'walkTo' && (
                       <div className="flex items-center gap-1">
                         <Label className="text-[11px] text-muted-foreground shrink-0">竖直范围</Label>
                         <Input
@@ -1772,22 +1873,100 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
                       </div>
                     )}
 
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1">
-                        <Label className="text-[11px] text-muted-foreground shrink-0">触发</Label>
-                        <Select value={movement.trigger ?? 'animation'} onValueChange={(v) => setMovement((prev) => ({ ...prev, trigger: v as SpriteMovementTrigger }))}>
-                          <SelectTrigger className="h-7 w-32 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="animation">动画播放时</SelectItem>
-                            <SelectItem value="behavior">行为调度</SelectItem>
-                          </SelectContent>
-                        </Select>
+                    {movementMode === 'windowAnimation' && (
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <Label className="text-[11px] text-muted-foreground shrink-0">预设</Label>
+                            <Select
+                              value={windowAnimationPresetId}
+                              onValueChange={(v) =>
+                                setMovement((prev) => ({
+                                  ...prev,
+                                  windowAnimationPresetId: v as SpriteWindowAnimationPresetId
+                                }))
+                              }
+                            >
+                              <SelectTrigger className="h-7 w-28 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {WINDOW_ANIMATION_PRESETS.map((preset) => (
+                                  <SelectItem key={preset.id} value={preset.id}>
+                                    {preset.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {windowAnimationSupportsDirection && (
+                            <div className="flex items-center gap-1">
+                              <Label className="text-[11px] text-muted-foreground shrink-0">方向</Label>
+                              <Select
+                                value={movement.windowAnimationDirection ?? DEFAULT_WINDOW_ANIMATION_DIRECTION}
+                                onValueChange={(v) =>
+                                  setMovement((prev) => ({
+                                    ...prev,
+                                    windowAnimationDirection: v as SpriteWindowAnimationDirection
+                                  }))
+                                }
+                              >
+                                <SelectTrigger className="h-7 w-24 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {WINDOW_ANIMATION_PRESET_DIRECTIONS.map((direction) => (
+                                    <SelectItem key={direction.value} value={direction.value}>
+                                      {direction.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1">
+                            <Label className="text-[11px] text-muted-foreground shrink-0">时长</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="50"
+                              value={movement.windowAnimationDuration ?? DEFAULT_WINDOW_ANIMATION_DURATION}
+                              onChange={(e) =>
+                                setMovement((prev) => ({
+                                  ...prev,
+                                  windowAnimationDuration: Math.max(0, parseInt(e.target.value) || DEFAULT_WINDOW_ANIMATION_DURATION)
+                                }))
+                              }
+                              className="h-7 w-20 text-xs text-center"
+                            />
+                            <span className="text-[10px] text-muted-foreground">ms</span>
+                          </div>
+                        </div>
+                        <SpriteWindowAnimationPositionEditor
+                          value={movement.windowAnimationPlayPosition}
+                          onChange={(value) => setMovement((prev) => ({ ...prev, windowAnimationPlayPosition: value }))}
+                        />
                       </div>
-                    </div>
+                    )}
 
-                    {movement.trigger === 'behavior' && (
+                    {movementMode !== 'windowAnimation' && (
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1">
+                          <Label className="text-[11px] text-muted-foreground shrink-0">触发</Label>
+                          <Select value={movement.trigger ?? 'animation'} onValueChange={(v) => setMovement((prev) => ({ ...prev, trigger: v as SpriteMovementTrigger }))}>
+                            <SelectTrigger className="h-7 w-32 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="animation">动画播放时</SelectItem>
+                              <SelectItem value="behavior">行为调度</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    )}
+
+                    {movementMode !== 'windowAnimation' && movement.trigger === 'behavior' && (
                       <div className="space-y-1 pl-2 border-l-2 border-muted">
                         <div className="flex items-center gap-2">
                           <Label className="text-[11px] text-muted-foreground shrink-0">间隔</Label>
@@ -1911,15 +2090,7 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
                     <SelectItem value="infinite">无限循环</SelectItem>
                   </SelectContent>
                 </Select>
-                <Input
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={loopCountInput}
-                  onChange={(e) => setLoopCountInput(e.target.value)}
-                  disabled={loopMode !== 'finite'}
-                  className="h-8 w-16 text-center"
-                />
+                <Input type="number" min={1} step={1} value={loopCountInput} onChange={(e) => setLoopCountInput(e.target.value)} disabled={loopMode !== 'finite'} className="h-8 w-16 text-center" />
               </div>
               <Input className="min-w-[220px] flex-1" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="动画名称" />
               <SpriteTriggerPicker value={primaryTrigger} onChange={setPrimaryTrigger} buttonClassName="w-[240px]" emptyLabel="未分类" />

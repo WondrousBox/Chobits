@@ -14,9 +14,17 @@ import { initSpriteHandlers, initSpriteManagerIPC } from '../../../packages/spri
 import { SpriteManager } from '../../../packages/sprite-core/manager';
 import { DEFAULT_SPRITE_ROUTINE_PRESETS, SpritePurposeHistoryStore } from '../../../packages/sprite-core/purpose';
 import { createOnboardingQuestRegistry, QuestEngine } from '../../../packages/sprite-core/quest';
-import { SPRITE_EVENT_TYPES, type MessageButton } from '../../../packages/sprite-core/types';
+import {
+  SPRITE_EVENT_TYPES,
+  type MessageButton,
+  type SpriteWindowAnimationDisplay,
+  type SpriteWindowAnimationMargin,
+  type SpriteWindowAnimationPlacement,
+  type SpriteWindowAnimationPlayPosition
+} from '../../../packages/sprite-core/types';
 import { initTTSHandlers } from '../../../packages/tts/ipc-main';
 import { initYtDlpIpcHandlers } from '../../../packages/ytdlp';
+import { createMainWindowAnimationPresetTimeline, isWindowAnimationPresetId, type WindowAnimationPresetDirection } from '../../../src/lib/window-animation-presets';
 import { initDailyCare } from '../daily';
 import { getMainSchedulerService, initSchedulerIPC } from '../scheduler';
 import { initScreenshotHandlers } from '../screenshot';
@@ -66,6 +74,9 @@ let musicSpectrumDanceActive = false;
 let musicSpectrumLastFrameAtMs = 0;
 let musicSpectrumWatchdog: NodeJS.Timeout | null = null;
 const MUSIC_SPECTRUM_FRAME_TIMEOUT_MS = 1200;
+const DEFAULT_SPRITE_WINDOW_ANIMATION_TARGET = 'main';
+const WINDOW_ANIMATION_DIRECTIONS = new Set<WindowAnimationPresetDirection>(['left', 'right', 'top', 'bottom']);
+const DEFAULT_WINDOW_ANIMATION_DESIGN_AREA = { width: 1440, height: 900 };
 
 async function setMusicSpectrumWindowVisible(shouldShow: boolean): Promise<void> {
   if (shouldShow === musicSpectrumWindowVisible) return;
@@ -79,6 +90,174 @@ async function setMusicSpectrumWindowVisible(shouldShow: boolean): Promise<void>
   } catch (error) {
     console.warn('[MusicSpectrum] toggle window failed', error);
   }
+}
+
+function resolveWindowAnimationDirection(value: string | undefined): WindowAnimationPresetDirection {
+  return value && WINDOW_ANIMATION_DIRECTIONS.has(value as WindowAnimationPresetDirection) ? (value as WindowAnimationPresetDirection) : 'left';
+}
+
+type WindowAnimationAdapterBounds = { x: number; y: number; width: number; height: number };
+type WindowAnimationAdapterPoint = { x: number; y: number };
+
+function getWindowAnimationAnchorOffset(anchor: SpriteWindowAnimationPlayPosition['positionAnchor'] | undefined, size: Pick<WindowAnimationAdapterBounds, 'width' | 'height'>): WindowAnimationAdapterPoint {
+  switch (anchor) {
+    case 'top-left':
+      return { x: 0, y: 0 };
+    case 'top':
+      return { x: size.width / 2, y: 0 };
+    case 'top-right':
+      return { x: size.width, y: 0 };
+    case 'left':
+      return { x: 0, y: size.height / 2 };
+    case 'right':
+      return { x: size.width, y: size.height / 2 };
+    case 'bottom-left':
+      return { x: 0, y: size.height };
+    case 'bottom':
+      return { x: size.width / 2, y: size.height };
+    case 'bottom-right':
+      return { x: size.width, y: size.height };
+    case 'center':
+    default:
+      return { x: size.width / 2, y: size.height / 2 };
+  }
+}
+
+function normalizeWindowAnimationMargin(margin?: SpriteWindowAnimationMargin): {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+} {
+  if (typeof margin === 'number' && Number.isFinite(margin)) {
+    const value = Math.round(margin);
+    return { top: value, right: value, bottom: value, left: value };
+  }
+  if (margin && typeof margin === 'object') {
+    const x = Number.isFinite(margin.x) ? Math.round(margin.x as number) : 0;
+    const y = Number.isFinite(margin.y) ? Math.round(margin.y as number) : 0;
+    return {
+      top: Number.isFinite(margin.top) ? Math.round(margin.top as number) : y,
+      right: Number.isFinite(margin.right) ? Math.round(margin.right as number) : x,
+      bottom: Number.isFinite(margin.bottom) ? Math.round(margin.bottom as number) : y,
+      left: Number.isFinite(margin.left) ? Math.round(margin.left as number) : x
+    };
+  }
+  return { top: 0, right: 0, bottom: 0, left: 0 };
+}
+
+function getWindowAnimationDisplayArea(
+  displayMode: SpriteWindowAnimationDisplay | undefined,
+  fallback: WindowAnimationAdapterBounds,
+  useWorkArea = true
+): WindowAnimationAdapterBounds {
+  const main = windowManager.get('main' as any);
+  const source =
+    displayMode === 'primary'
+      ? screen.getPrimaryDisplay()
+      : displayMode === 'main' && main && !main.isDestroyed()
+        ? screen.getDisplayMatching(main.getBounds())
+        : screen.getDisplayMatching(fallback);
+  return useWorkArea ? source.workArea : source.bounds;
+}
+
+function resolveSpriteWindowAnimationPlacementBounds(current: WindowAnimationAdapterBounds, placement?: SpriteWindowAnimationPlacement): WindowAnimationAdapterBounds | null {
+  if (!placement?.anchor) return null;
+  const area = getWindowAnimationDisplayArea(placement.display, current, placement.useWorkArea ?? true);
+  const margin = normalizeWindowAnimationMargin(placement.margin);
+  const offsetX = Number.isFinite(placement.offset?.x) ? Math.round(placement.offset?.x as number) : 0;
+  const offsetY = Number.isFinite(placement.offset?.y) ? Math.round(placement.offset?.y as number) : 0;
+  const left = area.x + margin.left;
+  const right = area.x + area.width - current.width - margin.right;
+  const top = area.y + margin.top;
+  const bottom = area.y + area.height - current.height - margin.bottom;
+  const centerX = area.x + (area.width - current.width) / 2;
+  const centerY = area.y + (area.height - current.height) / 2;
+
+  let x = current.x;
+  let y = current.y;
+  switch (placement.anchor) {
+    case 'top-left':
+      x = left;
+      y = top;
+      break;
+    case 'top':
+      x = centerX;
+      y = top;
+      break;
+    case 'top-right':
+      x = right;
+      y = top;
+      break;
+    case 'left':
+      x = left;
+      y = centerY;
+      break;
+    case 'center':
+      x = centerX;
+      y = centerY;
+      break;
+    case 'right':
+      x = right;
+      y = centerY;
+      break;
+    case 'bottom-left':
+      x = left;
+      y = bottom;
+      break;
+    case 'bottom':
+      x = centerX;
+      y = bottom;
+      break;
+    case 'bottom-right':
+      x = right;
+      y = bottom;
+      break;
+  }
+
+  return {
+    ...current,
+    x: Math.round(x + offsetX),
+    y: Math.round(y + offsetY)
+  };
+}
+
+function mapSpriteWindowAnimationPoint(point: WindowAnimationAdapterPoint, current: WindowAnimationAdapterBounds, playPosition: SpriteWindowAnimationPlayPosition): WindowAnimationAdapterPoint {
+  const coordinateSpace = playPosition.coordinateSpace;
+  if (coordinateSpace?.type !== 'design-area') {
+    return { x: Math.round(point.x), y: Math.round(point.y) };
+  }
+
+  const designArea = coordinateSpace.designArea ?? DEFAULT_WINDOW_ANIMATION_DESIGN_AREA;
+  const area = getWindowAnimationDisplayArea(coordinateSpace.display, current, coordinateSpace.useWorkArea ?? true);
+  const scaleX = area.width / Math.max(1, designArea.width);
+  const scaleY = area.height / Math.max(1, designArea.height);
+  const fitMode = coordinateSpace.fitMode ?? 'stretch';
+  let mappedX = area.x + point.x * scaleX;
+  let mappedY = area.y + point.y * scaleY;
+  if (fitMode !== 'stretch') {
+    const uniformScale = fitMode === 'cover' ? Math.max(scaleX, scaleY) : Math.min(scaleX, scaleY);
+    mappedX = area.x + (area.width - designArea.width * uniformScale) / 2 + point.x * uniformScale;
+    mappedY = area.y + (area.height - designArea.height * uniformScale) / 2 + point.y * uniformScale;
+  }
+  return { x: Math.round(mappedX), y: Math.round(mappedY) };
+}
+
+function resolveSpriteWindowAnimationPlayBounds(current: WindowAnimationAdapterBounds, playPosition?: SpriteWindowAnimationPlayPosition): WindowAnimationAdapterBounds | null {
+  if (!playPosition) return null;
+  if (playPosition.mode === 'placement') {
+    return resolveSpriteWindowAnimationPlacementBounds(current, playPosition.placement);
+  }
+  if (playPosition.mode !== 'point' || !playPosition.point) {
+    return null;
+  }
+  const anchorPoint = mapSpriteWindowAnimationPoint(playPosition.point, current, playPosition);
+  const offset = getWindowAnimationAnchorOffset(playPosition.positionAnchor ?? 'center', current);
+  return {
+    ...current,
+    x: Math.round(anchorPoint.x - offset.x),
+    y: Math.round(anchorPoint.y - offset.y)
+  };
 }
 
 function evaluateMusicSpectrumWindow(): void {
@@ -274,6 +453,37 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
         const target = windowManager.get(windowKey as any);
         if (!target || target.isDestroyed()) return null;
         return target.getBounds();
+      }
+    },
+    windowAnimationAdapter: {
+      async playPreset(config) {
+        const target = config.target || DEFAULT_SPRITE_WINDOW_ANIMATION_TARGET;
+        const presetId = isWindowAnimationPresetId(config.presetId) ? config.presetId : 'fly-in';
+        const targetWindow = windowManager.get(target as any);
+        if (!targetWindow || targetWindow.isDestroyed()) {
+          console.warn('[SpriteWindowAnimation] target window not available:', target);
+          return;
+        }
+
+        let bounds = targetWindow.getBounds();
+        const playBounds = resolveSpriteWindowAnimationPlayBounds(bounds, config.playPosition);
+        if (playBounds) {
+          targetWindow.setBounds(playBounds, false);
+          bounds = targetWindow.getBounds();
+        }
+        const workArea = screen.getDisplayMatching(bounds).workArea;
+        const timeline = createMainWindowAnimationPresetTimeline({
+          presetId,
+          bounds,
+          workArea,
+          direction: resolveWindowAnimationDirection(config.direction),
+          duration: typeof config.duration === 'number' && Number.isFinite(config.duration) ? config.duration : undefined,
+          windowKey: target
+        });
+        const result = await windowManager.playWindowAnimation(target as any, timeline);
+        if (!result.ok) {
+          console.warn('[SpriteWindowAnimation] play preset failed:', result.error || presetId);
+        }
       }
     },
     purposeRoutinePlanner: createSpritePurposeRoutinePlanner(purposePlannerService, {

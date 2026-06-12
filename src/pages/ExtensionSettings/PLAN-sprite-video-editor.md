@@ -105,6 +105,57 @@ VideoSprite (<video> 播放 + timeupdate 驱动阶段切换)
 
 **选视频 → 设分类 → 标三段时间点 → 预览三段循环效果 → 绿幕预览确认 → 转码导入**
 
+### Window Animation Mode Extension
+
+当前 `movement` 配置承担的是“精灵动画播放时对精灵窗口执行额外动作”的职责，已有模式包括 `direction`（方向移动）和 `walkTo`（随机行走）。新增第三种模式时继续复用这条保存与运行时链路，但将语义从狭义的窗口移动扩展为窗口动作：
+
+```ts
+type SpriteMovementMode = 'direction' | 'walkTo' | 'windowAnimation';
+
+type SpriteMovementConfig = {
+  enabled: boolean;
+  mode?: SpriteMovementMode;
+  trigger?: 'animation' | 'behavior';
+  windowAnimationPresetId?: WindowAnimationPresetId;
+  windowAnimationDirection?: WindowAnimationPresetDirection;
+  windowAnimationDuration?: number;
+  windowAnimationTarget?: string;
+  windowAnimationPlayPosition?: {
+    mode: 'placement' | 'point';
+    placement?: {
+      anchor: 'top-left' | 'top' | 'top-right' | 'left' | 'center' | 'right' | 'bottom-left' | 'bottom' | 'bottom-right';
+      display?: 'primary' | 'current' | 'main';
+      useWorkArea?: boolean;
+      margin?: number | { x?: number; y?: number; top?: number; right?: number; bottom?: number; left?: number };
+      offset?: { x?: number; y?: number };
+    };
+    point?: { x: number; y: number };
+    positionAnchor?: 'top-left' | 'top' | 'top-right' | 'left' | 'center' | 'right' | 'bottom-left' | 'bottom' | 'bottom-right';
+    coordinateSpace?: {
+      type?: 'absolute' | 'design-area';
+      designArea?: { width: number; height: number };
+      display?: 'primary' | 'current' | 'main';
+      useWorkArea?: boolean;
+      fitMode?: 'contain' | 'cover' | 'stretch';
+      sizeMode?: 'absolute' | 'scale-with-area';
+    };
+  };
+};
+```
+
+实施计划：
+
+1. UI：在精灵视频编辑器和已有精灵属性编辑面板的“播放时窗口移动”模式里加入“窗口动画”。选中后展示窗口动画预设、方向（仅对飞入/飞出/抖动有意义）、时长和“播放前目标位置”，隐藏方向移动/随机行走专用的速度、竖直范围和行为调度参数。
+2. 播放位置 UI：复用窗口动画设计里的画布心智，提供启用开关、九宫格角落/边缘/中心快捷位置、显示器选择、工作区开关、边距设置，以及手动拖拽点位模式。手动点位写入 `design-area` 坐标，并配套 `stretch` / `contain` / `cover` 适配模式。
+3. 默认行为：不启用 `windowAnimationPlayPosition` 时不改变现有行为，窗口动画以播放瞬间的目标窗口当前位置为 base frame。启用后，主进程先把目标窗口放到指定位置，再基于新的 bounds 生成并播放窗口动画预设。
+4. 数据：`SpriteAnimation.movement` 继续作为索引 JSON 的持久化字段，避免新增重复字段；导入、再次编辑、角色包/全局兜底保存链路都只需要透传扩展后的配置。目标窗口字段保留为 `windowAnimationTarget`，当前 UI 默认使用 `main`，运行时 adapter 也以 `main` 作为缺省目标。
+5. 规范化：导入编辑器读取本地表单草稿时会规范化播放位置；两个编辑入口写入时都通过共享位置组件产生当前模式对应的数据结构，只保留 `placement` 或 `point/coordinateSpace` 这一类有效字段。
+6. 运行时：`SpriteManager.playAnimationEntry()` 下发 `sprite:play` 后仍调用 `MovementCoordinator.applyAnimationMovement()`。当模式为 `windowAnimation` 且触发方式为 `animation` 时，不启动 auto-move，也不切 walking 状态，而是调用主进程注入的窗口动画适配器。
+7. 适配层：`sprite-core` 不直接依赖 `@aim-packages/window-manager`。Electron main 在初始化 `SpriteManager` 时注入 adapter，由 adapter 解析可选播放位置、读取目标窗口 bounds 和 workArea，调用共享的窗口动画预设工厂生成稀疏 timeline，再执行 `windowManager.playWindowAnimation(target, timeline)`。
+8. 预设工厂：将当前页面目录下的 `window-animation-presets` 迁移为可被 renderer、main 和测试共同引用的纯模块，保留旧路径 re-export，避免编辑器页面和设置页产生重复预设逻辑。
+9. 预览：现有“测试移动”按钮在窗口动画模式下改为“测试窗口动画”，仍走 `sprite:previewMovement`，由运行时 adapter 播放主窗口预设；窗口动画模式下隐藏停止移动按钮，后续如需要可单独加入 `stopWindowAnimation` adapter。
+10. 验证：补充 `MovementCoordinator` 单测覆盖窗口动画模式不会触发 auto-move/walkTo，且会调用 adapter；补充 `SpriteManager` 回归测试保证 `windowAnimationPlayPosition` 被转发到注入 adapter；补充预设模块测试保证共享导出仍生成稀疏关键帧。
+
 ### Phase 1: 分类选择增强
 
 **目标**：将事件类型选择从简单文本输入改为 SpriteEventGroups 嵌套下拉菜单
