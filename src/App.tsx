@@ -1,18 +1,19 @@
-import { TbSparkles } from 'react-icons/tb';
+import { TbMoodKid, TbSparkles } from 'react-icons/tb';
 import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { Toaster } from '@/components/ui/sonner';
 import { DownloadFloating } from '@/features/download';
+import { MusicSpectrumPage } from '@/features/music-spectrum';
 import { AchievementUnlockPage, AIAssistant, LevelUpPage, StatusPage } from '@/features/sprite-assistant';
 import { SpriteBubblePage } from '@/features/sprite-bubble';
 import { SpriteEffectPage } from '@/features/sprite-effect';
-import { MusicSpectrumPage } from '@/features/music-spectrum';
 import { useAIProviderConfig } from '@/hooks/useAIProviderConfig';
 import { useWorkspaceCheck } from '@/hooks/useWorkspaceCheck';
 import { ChatSelectionProvider } from '@/pages/ChatPage/context/ChatSelectionContext';
 import ExtensionSettings from '@/pages/ExtensionSettings/ExtensionSettings';
 import SkillTreeSettings from '@/pages/ExtensionSettings/SkillTreeSettings';
 import SpritePackEditorWindow from '@/pages/ExtensionSettings/SpritePackEditorWindow';
+import SpriteSettings from '@/pages/ExtensionSettings/SpriteSettings';
 import WindowAnimationEditor from '@/pages/ExtensionSettings/WindowAnimationEditor';
 import FileActionsMenu from '@/pages/FileActionsMenu/FileActionsMenu';
 import WebRecorderWindow from '@/pages/RecordingPage/WebRecorderWindow';
@@ -26,6 +27,7 @@ import ChatPage from './pages/ChatPage/ChatPage';
 import AssistantPage from './pages/ChatPage/StartPage';
 import InventoryPage from './pages/InventoryPage/InventoryPage';
 import MemoryGraphPage from './pages/MemoryGraphPage/MemoryGraphPage';
+import QuestListPage from './pages/QuestListPage/QuestListPage';
 import ASRConfigPage from './pages/RecordingPage/ASRConfigPage';
 import RecordingPage from './pages/RecordingPage/RecordingPage';
 import ResourcePage from './pages/ResourcePage/ResourcePage';
@@ -36,7 +38,6 @@ import WorkspacePage from './pages/SettingsPage/components/Workspace';
 import PluginDownloadPage from './pages/SettingsPage/PluginDownloadPage';
 import PluginPage from './pages/SettingsPage/PluginPage';
 import SettingsPage from './pages/SettingsPage/SettingsPage';
-import QuestListPage from './pages/QuestListPage/QuestListPage';
 import TaggingPage from './pages/TaggingPage/TaggingPage';
 import TTSConfigPage from './pages/TTSPage/TTSConfigPage';
 import TTSPage from './pages/TTSPage/TTSPage';
@@ -72,6 +73,13 @@ function StandardAppRoutes(): JSX.Element {
                     icon: TbSparkles,
                     description: '自由移动、日常关怀、角色包和精灵能力',
                     component: <ExtensionSettings />
+                  },
+                  {
+                    id: 'sprite-manager',
+                    label: '精灵管理',
+                    icon: TbMoodKid,
+                    description: '管理桌面精灵动画资源、导入与调试动作',
+                    component: <SpriteSettings />
                   }
                 ]}
               />
