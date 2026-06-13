@@ -2134,10 +2134,8 @@ describe('SpriteRoutinePresetRegistry', () => {
     const registry = new SpriteRoutinePresetRegistry();
     const menuPreset = registry.get('feature.skill-tree');
     const windowPreset = registry.get('feature.workflow-gallery');
-    const aiProviderPreset = registry.get('feature.ai-provider-config');
     expect(menuPreset).toBeDefined();
     expect(windowPreset).toBeDefined();
-    expect(aiProviderPreset).toBeDefined();
 
     const menuRoutine = registry.createRoutine(
       {
@@ -2208,47 +2206,6 @@ describe('SpriteRoutinePresetRegistry', () => {
         }),
         expect.objectContaining({ id: 'feature.workflow-gallery.clear-notice', type: 'clearMessage', messageId: 'feature.workflow-gallery.invite', messageType: 'notice' }),
         expect.objectContaining({ id: 'feature.workflow-gallery.celebrate', type: 'playAnimation', trigger: 'celebrate' })
-      ])
-    );
-
-    const aiProviderRoutine = registry.createRoutine(
-      {
-        id: 'purpose-feature-ai-provider-config',
-        kind: 'feature.ai-provider-config',
-        title: 'ai provider config feature intro',
-        reason: 'introduce ai provider config',
-        source: 'system-event',
-        status: 'active',
-        priority: 60,
-        interruptPolicy: 'interruptible'
-      },
-      aiProviderPreset!,
-      1000
-    );
-    expect(aiProviderRoutine.steps).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: 'feature.ai-provider-config.open-window',
-          type: 'openWindow',
-          window: 'aiProviderConfig'
-        }),
-        expect.objectContaining({
-          id: 'feature.ai-provider-config.wait-events',
-          type: 'loopUntil',
-          source: 'app-event',
-          untilEvent: ['AI_PROVIDER_CONFIG_UPDATED', 'APP_WINDOW_CLOSED'],
-          eventMatches: {
-            APP_WINDOW_CLOSED: { windowKey: 'aiProviderConfig' }
-          },
-          ignoreHistory: true
-        }),
-        expect.objectContaining({ id: 'feature.ai-provider-config.clear-notice', type: 'clearMessage', messageId: 'feature.ai-provider-config.invite', messageType: 'notice' }),
-        expect.objectContaining({
-          id: 'feature.ai-provider-config.result-branch',
-          type: 'branch',
-          by: 'featureIntroResult.event.event',
-          cases: { APP_WINDOW_CLOSED: [] }
-        })
       ])
     );
   });

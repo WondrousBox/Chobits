@@ -21,6 +21,12 @@ const ONBOARDING_ACHIEVEMENTS: AchievementPresentation[] = [
     category: '新手任务'
   },
   {
+    id: 'first-chat-api-config',
+    title: '聊天钥匙就绪',
+    description: '配置了第一个可用于聊天的 AI API Key。',
+    category: '新手任务'
+  },
+  {
     id: 'first-resource-library-open',
     title: '资源库初见',
     description: '从助手菜单打开资源库，开始管理你的素材和知识。',

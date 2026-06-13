@@ -3,6 +3,7 @@ export {
   createFeatureIntroQuest,
   createFeatureIntroQuests,
   createFileVideoTranscriptionIntroQuest,
+  createChatApiConfigQuest,
   createFirstFileDropQuest,
   createOnboardingQuestRegistry,
   createOpenResourceLibraryQuest,

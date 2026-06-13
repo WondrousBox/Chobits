@@ -1,5 +1,5 @@
 import { FEATURE_INTRO_QUEST_CATALOG, type FeatureIntroCompletionSpec, type FeatureIntroQuestCatalogItem } from '../feature-intro-catalog';
-import { createAchievementUnlockedGuideGoal, FIRST_FILE_DROP_GUIDE_GOAL, OPEN_RESOURCE_LIBRARY_GUIDE_GOAL, WORKSPACE_EXISTS_GUIDE_GOAL } from '../purpose/guide-goals';
+import { CHAT_API_CONFIGURED_GUIDE_GOAL, createAchievementUnlockedGuideGoal, FIRST_FILE_DROP_GUIDE_GOAL, OPEN_RESOURCE_LIBRARY_GUIDE_GOAL, WORKSPACE_EXISTS_GUIDE_GOAL } from '../purpose/guide-goals';
 import type { StartSpritePurposeRequest } from '../purpose/types';
 import { QuestRegistry } from './quest-registry';
 import type { OnboardingQuestDefinition, QuestPredicateContext } from './types';
@@ -10,6 +10,10 @@ import type { OnboardingQuestDefinition, QuestPredicateContext } from './types';
 export interface OnboardingPresetDeps {
   /** 返回当前未删除的工作空间数量 */
   countWorkspaces: () => Promise<number> | number;
+  /** 返回是否已有至少一个可用于聊天的 AI 服务商预设。 */
+  hasChatApiConfigured?: () => Promise<boolean> | boolean;
+  /** 为聊天 API Key 配置引导解析 provider / preset / required fields。 */
+  resolveChatApiConfigGuideContext?: () => Record<string, unknown> | undefined;
 }
 
 function readRecord(value: unknown): Record<string, unknown> | undefined {
@@ -145,6 +149,14 @@ function createWorkspaceReadyPredicate(deps: OnboardingPresetDeps) {
   };
 }
 
+async function hasChatApiConfigured(deps: OnboardingPresetDeps): Promise<boolean> {
+  return Promise.resolve(deps.hasChatApiConfigured?.() ?? false);
+}
+
+function resolveChatApiConfigGuideContext(deps: OnboardingPresetDeps): Record<string, unknown> | undefined {
+  return deps.resolveChatApiConfigGuideContext?.();
+}
+
 /**
  * "workspace.create" 新手引导任务：
  * - precondition：工作空间数量为 0；
@@ -188,10 +200,10 @@ export function createWorkspaceCreateQuest(deps: OnboardingPresetDeps): Onboardi
     },
     goal: WORKSPACE_EXISTS_GUIDE_GOAL,
     recommendation: {
-      questId: 'first-file-drop',
+      questId: 'chat.api-config',
       delayMs: 5000,
-      prompt: '要不要接着试试把第一个文件拖给我？',
-      confirmLabel: '继续'
+      prompt: '工作空间准备好啦。要不要接着配置 API Key，先让我可以聊天？',
+      confirmLabel: '去配置'
     },
     reward: {
       xp: 20,
@@ -210,6 +222,67 @@ export function createWorkspaceCreateQuest(deps: OnboardingPresetDeps): Onboardi
       coalesceKey: 'onboarding.workspace.create',
       plannerMode: 'preset-only'
     })
+  };
+}
+
+/**
+ * "chat.api-config" 新手引导任务：
+ * - precondition：已具备工作空间；
+ * - start：由任务列表、推荐或 AI 显式启动，复用 chat.api-config-guide preset；
+ * - completion：监听 AppEvent.AI_PROVIDER_CONFIG_UPDATED 后重新检查是否已有可用于聊天的预设；
+ * - reward：XP+15、Favor+2、achievement: 'first-chat-api-config'。
+ */
+export function createChatApiConfigQuest(deps: OnboardingPresetDeps): OnboardingQuestDefinition {
+  return {
+    id: 'chat.api-config',
+    category: 'onboarding',
+    title: '配置聊天 API Key',
+    description: '配置一个可用于聊天的 AI 服务商预设，让桌面助手可以开始对话。',
+    display: {
+      actionLabel: '开始配置',
+      activeActionLabel: '继续配置',
+      actionWindowKey: 'aiProviderConfig',
+      actionPurposeKind: 'chat.api-config-guide'
+    },
+    oneShot: true,
+    triggerEvents: ['AI_PROVIDER_CONFIG_UPDATED'],
+    explicitStartSources: ['task-list', 'ai', 'recommendation'],
+    precondition: {
+      id: 'workspace-ready',
+      evaluate: createWorkspaceReadyPredicate(deps)
+    },
+    completion: {
+      id: 'chat-api-configured',
+      evaluate: () => hasChatApiConfigured(deps)
+    },
+    goal: CHAT_API_CONFIGURED_GUIDE_GOAL,
+    recommendation: {
+      questId: 'first-file-drop',
+      delayMs: 2500,
+      prompt: '现在可以聊天啦。要不要再试试把第一个文件拖给我？',
+      confirmLabel: '继续'
+    },
+    reward: {
+      xp: 15,
+      favor: 2,
+      achievementId: 'first-chat-api-config'
+    },
+    rewardSource: 'quest:chat.api-config',
+    toPurposeRequest: (): StartSpritePurposeRequest => {
+      const context = resolveChatApiConfigGuideContext(deps);
+      return {
+        kind: 'chat.api-config-guide',
+        reason: '引导用户配置可用于聊天的 AI API Key',
+        source: 'system-event',
+        title: '新手引导：配置聊天 API Key',
+        priority: 69,
+        presetId: 'chat.api-config-guide',
+        interruptPolicy: 'interruptible',
+        coalesceKey: 'chat.api-config-guide',
+        plannerMode: 'preset-only',
+        ...(context ? { context } : {})
+      };
+    }
   };
 }
 
@@ -428,5 +501,5 @@ export function createFeatureIntroQuests(deps: OnboardingPresetDeps): Onboarding
 }
 
 export function createOnboardingQuestRegistry(deps: OnboardingPresetDeps): QuestRegistry {
-  return new QuestRegistry([createWorkspaceCreateQuest(deps), createFirstFileDropQuest(deps), createOpenResourceLibraryQuest(deps), ...createFeatureIntroQuests(deps)]);
+  return new QuestRegistry([createWorkspaceCreateQuest(deps), createChatApiConfigQuest(deps), createFirstFileDropQuest(deps), createOpenResourceLibraryQuest(deps), ...createFeatureIntroQuests(deps)]);
 }
