@@ -446,6 +446,17 @@ const CHAT_API_CONFIG_NOTICE_ID = 'chat.api-config-guide.invite';
 const CHAT_API_CONFIG_OPEN_SETTINGS_ACTION = 'open-ai-provider-settings';
 const CHAT_API_CONFIG_GUIDE_WAIT_MS = 30 * 60 * 1000;
 
+function getChatApiConfigDoneText(providerId: string): string {
+  if (providerId === 'minimax') {
+    return getCharacterRoutineText(
+      'chat.api-config-guide.done.minimax',
+      { providerId },
+      '你配置的是 MiniMax 的 Token Plan 哦。这个 plan 还可以制作音乐，要不要试一下？做好的音乐，我还可以跟着跳舞。'
+    );
+  }
+  return getCharacterRoutineText('chat.api-config-guide.done', { providerId }, '配置保存好了，现在可以开始聊天。');
+}
+
 /**
  * 新手引导 — 引导用户创建工作空间。
  *
@@ -865,7 +876,7 @@ function createChatApiConfigGuideSteps(purpose: SpritePurpose): SpriteRoutineSte
                       {
                         id: 'chat-api-config-done',
                         type: 'speak',
-                        text: getCharacterRoutineText('chat.api-config-guide.done', { providerId }, '配置保存好了，现在可以开始聊天。'),
+                        text: getChatApiConfigDoneText(providerId),
                         bubbleDuration: 4200
                       }
                     ]
