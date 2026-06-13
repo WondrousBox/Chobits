@@ -150,8 +150,8 @@ type SpriteMovementConfig = {
 3. 默认行为：不启用 `windowAnimationPlayPosition` 时不改变现有行为，窗口动画以播放瞬间的目标窗口当前位置为 base frame。启用后，主进程先把目标窗口放到指定位置，再基于新的 bounds 生成并播放窗口动画预设。
 4. 数据：`SpriteAnimation.movement` 继续作为索引 JSON 的持久化字段，避免新增重复字段；导入、再次编辑、角色包/全局兜底保存链路都只需要透传扩展后的配置。目标窗口字段保留为 `windowAnimationTarget`，当前 UI 默认使用 `main`，运行时 adapter 也以 `main` 作为缺省目标。
 5. 规范化：导入编辑器读取本地表单草稿时会规范化播放位置；两个编辑入口写入时都通过共享位置组件产生当前模式对应的数据结构，只保留 `placement` 或 `point/coordinateSpace` 这一类有效字段。
-6. 运行时：`SpriteManager.playAnimationEntry()` 下发 `sprite:play` 后仍调用 `MovementCoordinator.applyAnimationMovement()`。当模式为 `windowAnimation` 且触发方式为 `animation` 时，不启动 auto-move，也不切 walking 状态，而是调用主进程注入的窗口动画适配器。
-7. 适配层：`sprite-core` 不直接依赖 `@aim-packages/window-manager`。Electron main 在初始化 `SpriteManager` 时注入 adapter，由 adapter 解析可选播放位置、读取目标窗口 bounds 和 workArea，调用共享的窗口动画预设工厂生成稀疏 timeline，再执行 `windowManager.playWindowAnimation(target, timeline)`。
+6. 运行时：`SpriteManager.playAnimationEntry()` 下发 `sprite:play` 后仍调用 `MovementCoordinator.applyAnimationMovement()`。当模式为 `windowAnimation` 且触发方式为 `animation` 时，不启动 auto-move，也不切 walking 状态，而是把当前精灵动画的有效播放尺寸快照一起传给主进程注入的窗口动画适配器。
+7. 适配层：`sprite-core` 不直接依赖 `@aim-packages/window-manager`。Electron main 在初始化 `SpriteManager` 时注入 adapter，由 adapter 解析可选播放位置、读取目标窗口 bounds 和 workArea，调用共享的窗口动画预设工厂生成稀疏 timeline，再执行 `windowManager.playWindowAnimation(target, timeline)`。如果生成的 timeline 没有 `width/height`，主窗口播放时会先使用精灵动画播放尺寸作为继承基准；如果 timeline 自己带 `width/height`，则关键帧尺寸优先。
 8. 预设工厂：将当前页面目录下的 `window-animation-presets` 迁移为可被 renderer、main 和测试共同引用的纯模块，保留旧路径 re-export，避免编辑器页面和设置页产生重复预设逻辑。
 9. 预览：现有“测试移动”按钮在窗口动画模式下改为“测试窗口动画”，仍走 `sprite:previewMovement`，由运行时 adapter 播放主窗口预设；窗口动画模式下隐藏停止移动按钮，后续如需要可单独加入 `stopWindowAnimation` adapter。
 10. 验证：补充 `MovementCoordinator` 单测覆盖窗口动画模式不会触发 auto-move/walkTo，且会调用 adapter；补充 `SpriteManager` 回归测试保证 `windowAnimationPlayPosition` 被转发到注入 adapter；补充预设模块测试保证共享导出仍生成稀疏关键帧。

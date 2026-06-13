@@ -33,6 +33,12 @@
 
 所有真正发送给渲染进程的动画播放命令都会经过 `playAnimationEntry()`，该函数会更新 `currentAnimation`、设置 `sessionMode`、下发 `sprite:play`，但它自己不调用状态机。
 
+## 播放尺寸同步
+
+精灵视频动画的 `width` / `height` / `padding` 是播放窗口尺寸配置，不是视频文件本身的尺寸。`SpriteManager.registerAnimation()` 会把这些字段复制到 `AnimationEntry.playback`；`playAnimationEntry()` 再把它们下发到 `SpritePlayCommand.playback`，同时更新运行时的 `spriteConfig`。渲染进程收到 `sprite:play` 后会合并这些播放尺寸，`AIAssistant` 会调用 `window.YUA.window.setAssistantSize({ width, height, padding })` 调整精灵窗口大小。
+
+当动画的 `movement.mode` 是 `windowAnimation` 时，`playAnimationEntry()` 会把当前动画的有效播放尺寸快照一起传给注入的 `windowAnimationAdapter`。这是为了弥补主进程窗口动画和渲染进程 `setAssistantSize` 之间的时序差：飞入、淡入、抖动这类稀疏窗口预设不写 `width/height`，窗口管理器会从播放开始时的目标窗口 bounds 继承尺寸。adapter 在主窗口播放这类稀疏预设前，会优先把窗口尺寸同步到当前精灵动画的播放尺寸；如果窗口预设本身写了 `width/height`（例如缩放、脉冲），则关键帧尺寸优先。
+
 ## 状态机到动画 trigger 的映射
 
 状态驱动动画会通过 `manager/state-mapping.ts` 的 `mapStateToEventType()` 转成动画 trigger：

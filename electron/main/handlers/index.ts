@@ -98,6 +98,7 @@ function resolveWindowAnimationDirection(value: string | undefined): WindowAnima
 
 type WindowAnimationAdapterBounds = { x: number; y: number; width: number; height: number };
 type WindowAnimationAdapterPoint = { x: number; y: number };
+type WindowAnimationAdapterPlaybackSize = { width?: number; height?: number; padding?: number };
 
 function getWindowAnimationAnchorOffset(anchor: SpriteWindowAnimationPlayPosition['positionAnchor'] | undefined, size: Pick<WindowAnimationAdapterBounds, 'width' | 'height'>): WindowAnimationAdapterPoint {
   switch (anchor) {
@@ -257,6 +258,44 @@ function resolveSpriteWindowAnimationPlayBounds(current: WindowAnimationAdapterB
     ...current,
     x: Math.round(anchorPoint.x - offset.x),
     y: Math.round(anchorPoint.y - offset.y)
+  };
+}
+
+function normalizeSpriteWindowAnimationPlaybackSize(size?: WindowAnimationAdapterPlaybackSize): { width: number; height: number; padding: number } | null {
+  if (!size) return null;
+  const width = Number(size.width);
+  const height = Number(size.height);
+  const padding = Number(size.padding ?? 0);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return null;
+  }
+  return {
+    width: Math.max(1, Math.round(width)),
+    height: Math.max(1, Math.round(height)),
+    padding: Math.max(0, Math.round(Number.isFinite(padding) ? padding : 0))
+  };
+}
+
+function hasExplicitWindowAnimationSize(timeline: ReturnType<typeof createMainWindowAnimationPresetTimeline>): boolean {
+  const hasSizedFrame = (frame: { width?: number; height?: number }): boolean => Number.isFinite(frame.width) || Number.isFinite(frame.height);
+  return (
+    timeline.keyframes.some(hasSizedFrame) ||
+    Object.values(timeline.variants ?? {}).some((variant) => variant?.keyframes?.some(hasSizedFrame))
+  );
+}
+
+function resolveSpritePlaybackWindowBounds(current: WindowAnimationAdapterBounds, playbackSize?: WindowAnimationAdapterPlaybackSize): WindowAnimationAdapterBounds | null {
+  const normalized = normalizeSpriteWindowAnimationPlaybackSize(playbackSize);
+  if (!normalized) return null;
+  const nextWidth = normalized.width + normalized.padding * 2;
+  const nextHeight = normalized.height + normalized.padding * 2;
+  if (current.width === nextWidth && current.height === nextHeight) {
+    return null;
+  }
+  return {
+    ...current,
+    width: nextWidth,
+    height: nextHeight
   };
 }
 
@@ -466,6 +505,22 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
         }
 
         let bounds = targetWindow.getBounds();
+        const initialWorkArea = screen.getDisplayMatching(bounds).workArea;
+        const probeTimeline = createMainWindowAnimationPresetTimeline({
+          presetId,
+          bounds,
+          workArea: initialWorkArea,
+          direction: resolveWindowAnimationDirection(config.direction),
+          duration: typeof config.duration === 'number' && Number.isFinite(config.duration) ? config.duration : undefined,
+          windowKey: target
+        });
+        if (target === DEFAULT_SPRITE_WINDOW_ANIMATION_TARGET && !hasExplicitWindowAnimationSize(probeTimeline)) {
+          const playbackBounds = resolveSpritePlaybackWindowBounds(bounds, config.playbackSize);
+          if (playbackBounds) {
+            targetWindow.setBounds(playbackBounds, false);
+            bounds = targetWindow.getBounds();
+          }
+        }
         const playBounds = resolveSpriteWindowAnimationPlayBounds(bounds, config.playPosition);
         if (playBounds) {
           targetWindow.setBounds(playBounds, false);

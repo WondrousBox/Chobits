@@ -1,6 +1,7 @@
 import type { SpriteBubbleMode, SpriteConfig, SpriteMovementConfig, SpriteMovementDirection, SpriteMovementPreviewConfig, SpriteWalkState } from '../types';
 import { isBubbleWindowMode } from '../types';
 import { clampWindowPosition, getWindowClampBounds, type WindowControllerAvoidRegion, type WindowControllerViewport } from '../window-controller-model';
+import type { SpriteWindowAnimationPlaybackSize } from './types';
 
 type SpriteSizeSnapshot = Pick<SpriteConfig, 'width' | 'height' | 'padding'>;
 
@@ -38,7 +39,7 @@ export interface MovementCoordinatorDeps {
   getAutoMoveDirection: () => SpriteWalkState['direction'] | null;
   emitWalkState: (state: SpriteWalkState) => void;
   emitConfigChanged: () => void;
-  playWindowAnimation?: (movement: SpriteMovementConfig) => Promise<void> | void;
+  playWindowAnimation?: (movement: SpriteMovementConfig, playbackSize?: SpriteWindowAnimationPlaybackSize) => Promise<void> | void;
 }
 
 export class MovementCoordinator {
@@ -106,7 +107,7 @@ export class MovementCoordinator {
     this.deps.setWindowSize(snapshot.width, snapshot.height, effectivePadding);
   }
 
-  applyAnimationMovement(movement?: SpriteMovementConfig): void {
+  applyAnimationMovement(movement?: SpriteMovementConfig, playbackSize?: SpriteWindowAnimationPlaybackSize): void {
     this.stopAutoMove();
 
     if (!movement?.enabled || !this.deps.canMove() || !this.deps.canUseMovement()) {
@@ -120,7 +121,11 @@ export class MovementCoordinator {
 
     const mode = movement.mode ?? 'direction';
     if (mode === 'windowAnimation') {
-      void this.deps.playWindowAnimation?.(movement);
+      if (playbackSize) {
+        void this.deps.playWindowAnimation?.(movement, playbackSize);
+      } else {
+        void this.deps.playWindowAnimation?.(movement);
+      }
       return;
     }
 

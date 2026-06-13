@@ -80,6 +80,12 @@ export interface SpritePurposeWindowAdapter {
   getBounds?(windowKey: string): { x: number; y: number; width: number; height: number } | null;
 }
 
+export interface SpriteWindowAnimationPlaybackSize {
+  width?: number;
+  height?: number;
+  padding?: number;
+}
+
 export interface SpriteWindowAnimationAdapter {
   playPreset(config: {
     presetId?: string;
@@ -87,6 +93,7 @@ export interface SpriteWindowAnimationAdapter {
     duration?: number;
     target?: string;
     playPosition?: SpriteWindowAnimationPlayPosition;
+    playbackSize?: SpriteWindowAnimationPlaybackSize;
   }): Promise<void> | void;
 }
 

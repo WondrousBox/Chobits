@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { createMainWindowAnimationPresetTimeline, createWindowAnimationPresetFrames, serializeWindowAnimationPresetFrames, type WindowAnimationPresetFrame } from '../src/pages/ExtensionSettings/window-animation-presets';
+import {
+  createMainWindowAnimationPresetTimeline,
+  createWindowAnimationPresetFrames,
+  serializeWindowAnimationPresetFrames,
+  type WindowAnimationPresetFrame
+} from '../src/pages/ExtensionSettings/window-animation-presets';
 
 const workArea = { x: 0, y: 0, width: 1440, height: 900 };
 
