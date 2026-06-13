@@ -1930,6 +1930,82 @@ describe('SpriteRoutinePresetRegistry', () => {
     expect(calls).toContain('speak:chat-api-config-done:配置保存好了，现在可以开始聊天。');
   });
 
+  it('speaks a MiniMax music easter egg after the MiniMax chat API config is saved', async () => {
+    const registry = new SpriteRoutinePresetRegistry();
+    const preset = registry.get('chat.api-config-guide');
+    expect(preset).toBeDefined();
+
+    const routine = registry.createRoutine(
+      {
+        id: 'purpose-chat-api-config-guide',
+        kind: 'chat.api-config-guide',
+        title: 'chat api config guide',
+        reason: 'missing api key',
+        source: 'user-event',
+        status: 'active',
+        priority: 72,
+        interruptPolicy: 'interruptible',
+        context: {
+          providerId: 'minimax',
+          presetId: 'preset-minimax',
+          fields: ['apiKey']
+        }
+      },
+      preset!,
+      1000
+    );
+    const calls: string[] = [];
+    const pending = (signal?: AbortSignal): Promise<any> =>
+      new Promise((_, reject) => {
+        if (signal?.aborted) {
+          reject(new DOMException('Routine cancelled', 'AbortError'));
+          return;
+        }
+        signal?.addEventListener('abort', () => reject(new DOMException('Routine cancelled', 'AbortError')), { once: true });
+      });
+    const runner = new SpriteRoutineRunner({
+      playAnimation: vi.fn(),
+      walkTo: vi.fn(),
+      speak: (step) => {
+        calls.push(`speak:${step.id}:${step.text}`);
+      },
+      showToast: vi.fn(),
+      showNotice: vi.fn(),
+      clearMessage: vi.fn(),
+      openWindow: vi.fn(),
+      waitForEvent: (step, signal) => {
+        if (step.event === 'bubble:action') {
+          return {
+            source: 'purpose-event',
+            event: 'bubble:action',
+            timestamp: Date.now(),
+            payload: {
+              messageId: 'chat.api-config-guide.invite',
+              purposeAction: 'open-ai-provider-settings'
+            }
+          };
+        }
+        if (step.event === 'AI_PROVIDER_CONFIG_UPDATED') {
+          return {
+            source: 'app-event',
+            event: 'AI_PROVIDER_CONFIG_UPDATED',
+            timestamp: Date.now(),
+            payload: {
+              providerId: 'minimax',
+              presetId: 'preset-minimax'
+            }
+          };
+        }
+        return pending(signal);
+      }
+    });
+
+    const result = await runner.run(routine);
+
+    expect(result.ok, result.error).toBe(true);
+    expect(calls).toContain('speak:chat-api-config-done:你配置的是 MiniMax 的 Token Plan 哦。这个 plan 还可以制作音乐，要不要试一下？做好的音乐，我还可以跟着跳舞。');
+  });
+
   it('creates first file drop onboarding routines that invite drag-to-sprite and wait for resource events', () => {
     const registry = new SpriteRoutinePresetRegistry();
     const preset = registry.get('onboarding.file.drop');

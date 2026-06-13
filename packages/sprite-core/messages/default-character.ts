@@ -523,6 +523,15 @@ export const CHARACTER_MESSAGE_SPECS = [
     neutral: () => ['配置保存好了，现在可以开始聊天。']
   },
   {
+    field: 'chatApiConfigGuideDoneMiniMax',
+    section: 'routines',
+    key: 'chat.api-config-guide.done.minimax',
+    label: '聊天 API 配置引导完成 MiniMax 彩蛋',
+    maxItems: 4,
+    maxLength: 280,
+    neutral: () => ['你配置的是 MiniMax 的 Token Plan 哦。这个 plan 还可以制作音乐，要不要试一下？做好的音乐，我还可以跟着跳舞。']
+  },
+  {
     field: 'featureFileVideoTranscriptionInvite',
     section: 'routines',
     key: 'feature.file-video-transcription.invite',
