@@ -2,6 +2,8 @@ import { windowManager } from '@aim-packages/window-manager';
 import { app, BrowserWindow, screen } from 'electron';
 
 import { initAIHandlers } from '../../../packages/ai/ipc-main';
+import { listPresets, resolveUsablePreset } from '../../../packages/ai/preset-service';
+import { getProviderDefinitionSchema, listProviderDefinitions } from '../../../packages/ai/providers/service';
 import { broadcastMusicReactivitySnapshot, initMusicReactivityHandlers } from '../../../packages/audio-reactivity/ipc-main';
 import { MusicReactivityService } from '../../../packages/audio-reactivity/music-reactivity-service';
 import { AppEvent, eventManager } from '../../../packages/event';
@@ -75,6 +77,7 @@ let musicSpectrumLastFrameAtMs = 0;
 let musicSpectrumWatchdog: NodeJS.Timeout | null = null;
 const MUSIC_SPECTRUM_FRAME_TIMEOUT_MS = 1200;
 const DEFAULT_SPRITE_WINDOW_ANIMATION_TARGET = 'main';
+const DEFAULT_CHAT_PROVIDER_ID = 'openai';
 const WINDOW_ANIMATION_DIRECTIONS = new Set<WindowAnimationPresetDirection>(['left', 'right', 'top', 'bottom']);
 const DEFAULT_WINDOW_ANIMATION_DESIGN_AREA = { width: 1440, height: 900 };
 
@@ -327,6 +330,47 @@ function notifyMusicSpectrumFrameReceived(): void {
   if (musicSpectrumDanceActive) evaluateMusicSpectrumWindow();
 }
 
+async function hasConfiguredChatProviderPreset(): Promise<boolean> {
+  const chatProviderIds = listProviderDefinitions()
+    .filter((definition) => definition.capabilities.chat !== false)
+    .map((definition) => definition.id);
+
+  for (const providerId of chatProviderIds) {
+    if (await resolveUsablePreset(providerId)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function resolveChatProviderIdForGuide(): string {
+  const providerDefinitions = listProviderDefinitions().filter((definition) => definition.capabilities.chat !== false);
+  const presetProviderIds = new Set(listPresets().map((preset) => preset.providerId));
+  return (
+    providerDefinitions.find((definition) => presetProviderIds.has(definition.id))?.id ||
+    providerDefinitions.find((definition) => definition.id === DEFAULT_CHAT_PROVIDER_ID)?.id ||
+    providerDefinitions[0]?.id ||
+    DEFAULT_CHAT_PROVIDER_ID
+  );
+}
+
+function resolveRequiredProviderFields(providerId: string): string[] {
+  const requiredFields = getProviderDefinitionSchema(providerId)?.fields?.filter((field) => field.required).map((field) => field.key).filter(Boolean) || [];
+  return requiredFields.length > 0 ? requiredFields : ['apiKey'];
+}
+
+function resolveChatApiConfigGuideContext(): Record<string, unknown> {
+  const providerId = resolveChatProviderIdForGuide();
+  const presetId = listPresets(providerId)[0]?.id;
+  return {
+    providerId,
+    ...(presetId ? { presetId } : {}),
+    fields: resolveRequiredProviderFields(providerId),
+    trigger: 'onboarding'
+  };
+}
+
 export async function initHandlers(win: BrowserWindow): Promise<void> {
   console.log(process.versions);
   const { WorkspacesRepo } = await import('../db/repositories');
@@ -577,6 +621,8 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   // ----------------------------------------------------------------------
   await initOnboardingQuestEngine(win, {
     countWorkspaces,
+    hasChatApiConfigured: hasConfiguredChatProviderPreset,
+    resolveChatApiConfigGuideContext,
     hasNoWorkspace,
     setOnboardingFocus,
     isOnboardingFocusActive: () => onboardingFocusActive
@@ -593,13 +639,17 @@ async function initOnboardingQuestEngine(
   _win: BrowserWindow,
   deps: {
     countWorkspaces: () => Promise<number>;
+    hasChatApiConfigured: () => Promise<boolean>;
+    resolveChatApiConfigGuideContext: () => Record<string, unknown> | undefined;
     hasNoWorkspace: () => Promise<boolean>;
     setOnboardingFocus: (enabled: boolean) => void;
     isOnboardingFocusActive: () => boolean;
   }
 ): Promise<void> {
   const registry = createOnboardingQuestRegistry({
-    countWorkspaces: deps.countWorkspaces
+    countWorkspaces: deps.countWorkspaces,
+    hasChatApiConfigured: deps.hasChatApiConfigured,
+    resolveChatApiConfigGuideContext: deps.resolveChatApiConfigGuideContext
   });
 
   const previousSuppressAmbientMessages = SpriteManager.hasInstance() ? SpriteManager.getInstance().getSuppressAmbientMessagesHandler() : undefined;

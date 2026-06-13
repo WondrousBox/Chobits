@@ -5,6 +5,7 @@ import {
   createFeatureIntroQuest,
   createFeatureIntroQuests,
   createFileVideoTranscriptionIntroQuest,
+  createChatApiConfigQuest,
   createFirstFileDropQuest,
   createOnboardingQuestRegistry,
   createOpenResourceLibraryQuest,
@@ -61,8 +62,10 @@ describe('QuestRegistry', () => {
     const reg = createOnboardingQuestRegistry({ countWorkspaces: () => 0 });
     const featureIds = FEATURE_INTRO_QUEST_CATALOG.map((item) => item.id);
 
-    expect(reg.list().map((quest) => quest.id)).toEqual(['workspace.create', 'first-file-drop', 'open-resource-library', ...featureIds]);
+    expect(reg.list().map((quest) => quest.id)).toEqual(['workspace.create', 'chat.api-config', 'first-file-drop', 'open-resource-library', ...featureIds]);
     expect(reg.get('workspace.create')?.autoStartEvents).toEqual(['APP_STARTED']);
+    expect(reg.get('chat.api-config')?.autoStartEvents).toBeUndefined();
+    expect(reg.get('chat.api-config')?.explicitStartSources).toEqual(['task-list', 'ai', 'recommendation']);
     expect(reg.get('first-file-drop')?.autoStartEvents).toBeUndefined();
     expect(reg.get('first-file-drop')?.explicitStartSources).toEqual(['task-list', 'ai', 'recommendation']);
     expect(reg.get('open-resource-library')?.autoStartEvents).toBeUndefined();
@@ -87,7 +90,7 @@ describe('QuestRegistry', () => {
     expect(reg.byTriggerEvent('APP_WINDOW_OPENED').map((quest) => quest.id)).toEqual(
       expect.arrayContaining(['feature.workflow-gallery', 'feature.plugin-manager', 'feature.window-animation-editor', 'feature.character-pack-editor'])
     );
-    expect(reg.byTriggerEvent('AI_PROVIDER_CONFIG_UPDATED').map((quest) => quest.id)).toEqual(['feature.ai-provider-config']);
+    expect(reg.byTriggerEvent('AI_PROVIDER_CONFIG_UPDATED').map((quest) => quest.id)).toEqual(['chat.api-config']);
     expect(reg.byTriggerEvent('APP_STARTED').map((quest) => quest.id)).toEqual(['workspace.create']);
   });
 });
@@ -182,7 +185,7 @@ describe('QuestEngine — workspace.create happy path', () => {
       reward: { xp: 20, favor: 3, achievementId: 'first-workspace' },
       rewardSource: 'quest:workspace.create',
       recommendation: {
-        questId: 'first-file-drop',
+        questId: 'chat.api-config',
         delayMs: 5000
       },
       action: {
@@ -244,7 +247,7 @@ describe('QuestEngine — workspace.create happy path', () => {
 
   it('offers the next quest when the completed quest recommends an unfinished available quest', async () => {
     const counts = { workspaces: 0 };
-    const reg = new QuestRegistry([createWorkspaceCreateQuest({ countWorkspaces: () => counts.workspaces }), createFirstFileDropQuest({ countWorkspaces: () => counts.workspaces })]);
+    const reg = new QuestRegistry([createWorkspaceCreateQuest({ countWorkspaces: () => counts.workspaces }), createChatApiConfigQuest({ countWorkspaces: () => counts.workspaces })]);
     const startPurpose = vi.fn(async () => ({
       accepted: true as const,
       purpose: {
@@ -288,11 +291,11 @@ describe('QuestEngine — workspace.create happy path', () => {
 
     expect(onRecommendation).toHaveBeenCalledTimes(1);
     expect(onRecommendation.mock.calls[0][0]).toMatchObject({
-      questId: 'first-file-drop',
-      questTitle: '把第一个文件拖给我',
+      questId: 'chat.api-config',
+      questTitle: '配置聊天 API Key',
       questStatus: 'pending',
       delayMs: 5000,
-      confirmLabel: '继续'
+      confirmLabel: '去配置'
     });
     expect(onRecommendation.mock.calls[0][0]).not.toHaveProperty('cancelLabel');
     expect(onRecommendation.mock.calls[0][1].id).toBe('workspace.create');
@@ -300,14 +303,14 @@ describe('QuestEngine — workspace.create happy path', () => {
 
   it('does not offer a recommended quest that is already completed', async () => {
     const counts = { workspaces: 1 };
-    const reg = new QuestRegistry([createWorkspaceCreateQuest({ countWorkspaces: () => counts.workspaces }), createFirstFileDropQuest({ countWorkspaces: () => counts.workspaces })]);
+    const reg = new QuestRegistry([createWorkspaceCreateQuest({ countWorkspaces: () => counts.workspaces }), createChatApiConfigQuest({ countWorkspaces: () => counts.workspaces, hasChatApiConfigured: () => true })]);
     const onRecommendation = vi.fn(async () => undefined);
     const timer = createTimerHarness();
     const saved: { current: any } = {
       current: {
         version: 1,
         quests: {
-          'first-file-drop': {
+          'chat.api-config': {
             status: 'done',
             completedAt: 900
           }
@@ -337,7 +340,8 @@ describe('QuestEngine — workspace.create happy path', () => {
 
   it('does not offer a recommended quest that completes during the buffer window', async () => {
     const counts = { workspaces: 1 };
-    const reg = new QuestRegistry([createWorkspaceCreateQuest({ countWorkspaces: () => counts.workspaces }), createFirstFileDropQuest({ countWorkspaces: () => counts.workspaces })]);
+    const chatConfig = { configured: false };
+    const reg = new QuestRegistry([createWorkspaceCreateQuest({ countWorkspaces: () => counts.workspaces }), createChatApiConfigQuest({ countWorkspaces: () => counts.workspaces, hasChatApiConfigured: () => chatConfig.configured })]);
     const onRecommendation = vi.fn(async () => undefined);
     const timer = createTimerHarness();
     const saved: { current: any } = { current: createEmptyOnboardingState() };
@@ -359,7 +363,8 @@ describe('QuestEngine — workspace.create happy path', () => {
     await engine.tick({ event: 'WORKSPACE_CREATED' });
     expect(timer.pendingCount).toBe(1);
 
-    await engine.tick({ event: 'RESOURCE_CREATED', eventPayload: { id: 'resource-1', metadata: JSON.stringify({ source: 'sprite-drop' }) } });
+    chatConfig.configured = true;
+    await engine.tick({ event: 'AI_PROVIDER_CONFIG_UPDATED', eventPayload: { providerId: 'openai', presetId: 'preset-openai' } });
     await timer.runNext();
 
     expect(onRecommendation).not.toHaveBeenCalled();
@@ -525,6 +530,180 @@ describe('QuestEngine — workspace.create happy path', () => {
     await engine.tick({ event: 'APP_STARTED' });
 
     expect(startPurpose).not.toHaveBeenCalled();
+  });
+});
+
+describe('QuestEngine — chat.api-config onboarding quest', () => {
+  function makeChatApiConfigDeps(state: { workspaces: number; configured: boolean }): {
+    engine: QuestEngine;
+    startPurpose: ReturnType<typeof vi.fn>;
+    grantReward: ReturnType<typeof vi.fn>;
+    hasAchievement: ReturnType<typeof vi.fn>;
+    saved: { current: ReturnType<typeof createEmptyOnboardingState> | null };
+  } {
+    const reg = new QuestRegistry();
+    reg.register(
+      createChatApiConfigQuest({
+        countWorkspaces: () => state.workspaces,
+        hasChatApiConfigured: () => state.configured,
+        resolveChatApiConfigGuideContext: () => ({
+          providerId: 'openai',
+          presetId: 'preset-openai',
+          fields: ['apiKey'],
+          trigger: 'onboarding'
+        })
+      })
+    );
+
+    const startPurpose = vi.fn(async () => ({
+      accepted: true as const,
+      purpose: {
+        id: 'p-chat-api-config',
+        kind: 'chat.api-config-guide',
+        title: '',
+        reason: '',
+        source: 'system-event' as const,
+        status: 'queued' as const,
+        priority: 69,
+        interruptPolicy: 'interruptible' as const
+      },
+      status: 'started' as const
+    }));
+    const grantReward = vi.fn(async () => undefined);
+    const hasAchievement = vi.fn(() => false);
+    const saved: { current: any } = {
+      current: {
+        version: 1,
+        quests: {
+          'workspace.create': {
+            status: 'done',
+            completedAt: 900
+          }
+        }
+      }
+    };
+
+    const engine = new QuestEngine({
+      registry: reg,
+      startPurpose,
+      hasAchievement,
+      grantReward,
+      loadState: () => saved.current,
+      saveState: (nextState) => {
+        saved.current = JSON.parse(JSON.stringify(nextState));
+      },
+      now: () => 1000
+    });
+
+    return { engine, startPurpose, grantReward, hasAchievement, saved };
+  }
+
+  it('does not auto activate on app startup when workspace is ready', async () => {
+    const state = { workspaces: 1, configured: false };
+    const { engine, startPurpose, saved } = makeChatApiConfigDeps(state);
+
+    await engine.tick({ event: 'APP_STARTED' });
+
+    expect(startPurpose).not.toHaveBeenCalled();
+    expect(saved.current?.quests['chat.api-config']).toBeUndefined();
+  });
+
+  it('starts from a recommendation with provider preset context', async () => {
+    const state = { workspaces: 1, configured: false };
+    const { engine, startPurpose, saved } = makeChatApiConfigDeps(state);
+
+    const result = await engine.startQuest('chat.api-config', { source: 'recommendation' });
+
+    expect(result).toMatchObject({ accepted: true, status: 'started' });
+    expect(startPurpose).toHaveBeenCalledTimes(1);
+    expect(startPurpose.mock.calls[0][0]).toMatchObject({
+      kind: 'chat.api-config-guide',
+      presetId: 'chat.api-config-guide',
+      priority: 69,
+      coalesceKey: 'chat.api-config-guide',
+      plannerMode: 'preset-only',
+      context: {
+        providerId: 'openai',
+        presetId: 'preset-openai',
+        fields: ['apiKey'],
+        trigger: 'onboarding'
+      }
+    });
+    expect(saved.current?.quests['chat.api-config']).toMatchObject({ status: 'active', activatedAt: 1000 });
+  });
+
+  it('does not activate before workspace is ready', async () => {
+    const state = { workspaces: 0, configured: false };
+    const { engine, startPurpose } = makeChatApiConfigDeps(state);
+
+    await expect(engine.startQuest('chat.api-config')).rejects.toThrow('precondition is not satisfied');
+
+    expect(startPurpose).not.toHaveBeenCalled();
+  });
+
+  it('marks configured chat API as done without replaying the guide', async () => {
+    const state = { workspaces: 1, configured: true };
+    const { engine, startPurpose, grantReward, saved } = makeChatApiConfigDeps(state);
+
+    const result = await engine.startQuest('chat.api-config', { source: 'task-list' });
+
+    expect(result).toBeNull();
+    expect(startPurpose).not.toHaveBeenCalled();
+    expect(grantReward).toHaveBeenCalledWith({ xp: 15, favor: 2, achievementId: 'first-chat-api-config' }, 'quest:chat.api-config');
+    expect(saved.current?.quests['chat.api-config']).toMatchObject({ status: 'done', completedAt: 1000 });
+  });
+
+  it('completes and rewards after AI provider config becomes usable', async () => {
+    const state = { workspaces: 1, configured: false };
+    const { engine, grantReward, saved } = makeChatApiConfigDeps(state);
+
+    await engine.tick({ event: 'AI_PROVIDER_CONFIG_UPDATED', eventPayload: { providerId: 'openai', presetId: 'preset-openai' } });
+    expect(grantReward).not.toHaveBeenCalled();
+    expect(saved.current?.quests['chat.api-config']).toBeUndefined();
+
+    state.configured = true;
+    await engine.tick({ event: 'AI_PROVIDER_CONFIG_UPDATED', eventPayload: { providerId: 'openai', presetId: 'preset-openai' } });
+
+    expect(grantReward).toHaveBeenCalledTimes(1);
+    expect(grantReward.mock.calls[0]).toEqual([{ xp: 15, favor: 2, achievementId: 'first-chat-api-config' }, 'quest:chat.api-config']);
+    expect(saved.current?.quests['chat.api-config'].status).toBe('done');
+  });
+
+  it('builds a quest list item with chat API config rewards and action', () => {
+    const quest = createChatApiConfigQuest({ countWorkspaces: () => 1 });
+    const snapshot = createQuestListSnapshot({
+      definitions: [quest],
+      state: {
+        version: 1,
+        quests: {
+          'workspace.create': {
+            status: 'done',
+            completedAt: 900
+          },
+          'chat.api-config': {
+            status: 'pending'
+          }
+        }
+      }
+    });
+
+    expect(snapshot.items[0]).toMatchObject({
+      id: 'chat.api-config',
+      category: 'onboarding',
+      title: '配置聊天 API Key',
+      reward: { xp: 15, favor: 2, achievementId: 'first-chat-api-config' },
+      rewardSource: 'quest:chat.api-config',
+      recommendation: {
+        questId: 'first-file-drop'
+      },
+      action: {
+        kind: 'start-quest',
+        label: '开始配置',
+        questId: 'chat.api-config',
+        windowKey: 'aiProviderConfig',
+        purposeKind: 'chat.api-config-guide'
+      }
+    });
   });
 });
 
@@ -1145,11 +1324,6 @@ describe('QuestEngine — feature intro catalog quests', () => {
         id: 'feature.chat-with-resource',
         event: 'SPRITE_AI_COMPLETE',
         payload: { hasResourceContext: true, resourceIds: ['resource-1'] }
-      },
-      {
-        id: 'feature.ai-provider-config',
-        event: 'AI_PROVIDER_CONFIG_UPDATED',
-        payload: { providerId: 'openai', presetId: 'preset-openai', action: 'preset-secrets-updated' }
       }
     ];
 
