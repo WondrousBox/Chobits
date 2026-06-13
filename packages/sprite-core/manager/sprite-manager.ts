@@ -101,7 +101,8 @@ import type {
   SpritePurposeWindowAdapter,
   SpriteSchedulerScheduleSpec,
   SpriteSpontaneousUtteranceExecutor,
-  SpriteWindow
+  SpriteWindow,
+  SpriteWindowAnimationPlaybackSize
 } from './types';
 
 // ============================================================================
@@ -305,13 +306,14 @@ export class SpriteManager {
       getAutoMoveDirection: () => this.windowController?.getAutoMoveDirection?.() ?? null,
       emitWalkState: (payload) => this.sendToRenderer('sprite:walk', payload),
       emitConfigChanged: () => this.emitConfigChanged(),
-      playWindowAnimation: (movement) =>
+      playWindowAnimation: (movement, playbackSize) =>
         this.windowAnimationAdapter?.playPreset({
           presetId: movement.windowAnimationPresetId,
           direction: movement.windowAnimationDirection,
           duration: movement.windowAnimationDuration,
           target: movement.windowAnimationTarget,
-          playPosition: movement.windowAnimationPlayPosition
+          playPosition: movement.windowAnimationPlayPosition,
+          ...(playbackSize ? { playbackSize } : {})
         })
     });
     this.purposeManager = new SpritePurposeManager({
@@ -711,7 +713,7 @@ export class SpriteManager {
         hasPlayback: Boolean(anim.playback)
       });
     }
-    this.handleAnimationMovement(anim.playback?.movement);
+    this.handleAnimationMovement(anim.playback?.movement, this.resolveWindowAnimationPlaybackSize(anim.playback));
   }
 
   private canPresentAnimation(options?: SpriteTriggerOptions): boolean {
@@ -2358,8 +2360,20 @@ export class SpriteManager {
   }
 
   /** 处理动画播放时的窗口自动移动 */
-  private handleAnimationMovement(movement?: SpriteMovementConfig): void {
-    this.movementCoordinator.applyAnimationMovement(movement);
+  private resolveWindowAnimationPlaybackSize(playback?: AnimationEntry['playback']): SpriteWindowAnimationPlaybackSize | undefined {
+    if (!playback) return undefined;
+    const hasExplicitPlaybackSize = [playback.width, playback.height, playback.padding].some((value) => typeof value === 'number' && Number.isFinite(value));
+    if (!hasExplicitPlaybackSize) return undefined;
+
+    return {
+      width: this.spriteConfig.width,
+      height: this.spriteConfig.height,
+      padding: this.getEffectivePadding()
+    };
+  }
+
+  private handleAnimationMovement(movement?: SpriteMovementConfig, playbackSize?: SpriteWindowAnimationPlaybackSize): void {
+    this.movementCoordinator.applyAnimationMovement(movement, playbackSize);
   }
 
   /** 停止自动移动 */

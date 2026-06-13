@@ -1961,6 +1961,57 @@ describe('sprite manager regression coverage', () => {
     });
   });
 
+  it('forwards current sprite playback size for sparse window animation presets', () => {
+    const playPreset = vi.fn();
+    const { mgr, dataDir } = createManager({ windowAnimationAdapter: { playPreset } });
+    dataDirs.add(dataDir);
+    initSpriteCapabilityRuntime({
+      resolveContext: () => ({
+        personaLevel: 10,
+        activeSignals: {}
+      })
+    });
+
+    (mgr as any).windowController = {
+      isAutoMoving: () => false,
+      stopAutoMove: vi.fn()
+    };
+
+    mgr.registerAnimation({
+      width: 320,
+      height: 260,
+      padding: 24,
+      meta: {
+        id: 'celebrate-window-animation-sized',
+        title: 'Celebrate Window Animation Sized',
+        primaryTrigger: 'celebrate'
+      },
+      source: { localPath: './celebrate-window-sized.webm', type: 'video/webm' },
+      movement: {
+        enabled: true,
+        mode: 'windowAnimation',
+        windowAnimationPresetId: 'fly-in',
+        windowAnimationDirection: 'left',
+        windowAnimationTarget: 'main'
+      }
+    });
+
+    mgr.trigger('celebrate', { silent: true });
+
+    expect(playPreset).toHaveBeenCalledWith({
+      presetId: 'fly-in',
+      direction: 'left',
+      duration: undefined,
+      target: 'main',
+      playPosition: undefined,
+      playbackSize: {
+        width: 320,
+        height: 260,
+        padding: 0
+      }
+    });
+  });
+
   it('auto-walk behavior delegates movement execution to the unified runtime entry', async () => {
     const registered = new Map<string, any>();
     const runBehaviorMovement = vi.fn(async () => true);

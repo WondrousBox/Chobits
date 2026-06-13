@@ -191,16 +191,24 @@ The integration follows these boundaries:
 
 - Renderer editors only persist intent: preset id, optional direction, optional duration, optional play position, and `trigger: 'animation'`.
 - `sprite-core` remains independent of `@aim-packages/window-manager`; it calls an injected `windowAnimationAdapter`.
-- Electron main owns the concrete playback: it resolves `windowAnimationTarget` with `main` as the default, optionally places that target window, reads the resulting bounds and work area, builds the sparse preset timeline, then calls `windowManager.playWindowAnimation(target, timeline)`.
+- Electron main owns the concrete playback: it resolves `windowAnimationTarget` with `main` as the default, optionally prepares the main sprite window size for sparse-size presets, optionally places that target window, reads the resulting bounds and work area, builds the sparse preset timeline, then calls `windowManager.playWindowAnimation(target, timeline)`.
 - Window animation presets triggered from sprite playback are direct actions, not editable timeline documents.
 - Window animation mode must not emit walking state or start `WindowController` auto-move. The sprite video can keep playing in place while the main window performs the preset.
 
+Sprite-triggered window animation has an explicit size priority:
+
+1. If the generated window animation keyframes contain `width` or `height`, those keyframe sizes are authoritative.
+2. If the generated keyframes omit size, and the currently playing sprite animation has playback `width` / `height` / `padding`, Electron main first applies that effective sprite playback size to the main sprite window. The sparse timeline then inherits the correct current size from `@aim-packages/window-manager`.
+3. If there is no sprite playback size, playback falls back to the window manager's normal inheritance from the target window's current bounds or the previous resolved keyframe.
+
+This avoids a race where `SpriteManager.playAnimationEntry()` sends `sprite:play`, immediately triggers a window preset, and the renderer-side `AIAssistant` effect has not yet called `setAssistantSize`. Without the adapter preparation step, sparse presets such as fly, fade, and shake can inherit the old native window bounds and keep writing that old size during the animation.
+
 `SpriteMovementConfig.windowAnimationPlayPosition` controls the optional placement step before preset playback:
 
-- When `windowAnimationPlayPosition` is omitted, playback is identical to the old behavior: the preset uses the target window's current bounds as its base frame.
+- When `windowAnimationPlayPosition` is omitted, playback keeps the target window's current position. For sparse-size presets on the main sprite window, the adapter may still update the native window size to the active sprite animation playback size before building the timeline.
 - `mode: 'placement'` stores a semantic anchor such as `top-left`, `right`, `bottom`, or `center`, plus display/work-area/margin options. Electron main resolves it against the selected display and calls `BrowserWindow.setBounds()` before building the preset timeline.
 - `mode: 'point'` stores a manually dragged design-area point, a `positionAnchor`, and coordinate-space mapping options. The point is mapped with the same `design-area` fit modes used by window animation authoring, then converted to a top-left window bound by subtracting the selected local anchor offset.
-- The placement step changes only the starting desktop bounds used by the native window animation. It does not write `x/y/width/height` into the sprite animation itself, does not resize the sprite window, and does not change `SpriteState`.
+- The placement step changes only the starting desktop position used by the native window animation. It does not write `x/y/width/height` into the sprite animation itself and does not change `SpriteState`. Size changes remain governed by the priority above.
 - The shared UI component for this setting mirrors the window animation editor: enable/disable switch, quick corner/edge/center buttons, display selection, work-area toggle, margin field, and a manual drag canvas with `stretch`/`contain`/`cover` mapping.
 
 This keeps one source of truth for preset geometry and sparse serialization. Settings-page direct playback, sprite-animation playback, and tests all use the same preset factory.

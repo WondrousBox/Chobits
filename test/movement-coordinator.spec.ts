@@ -219,6 +219,20 @@ describe('MovementCoordinator', () => {
     expect(harness.emitWalkState).not.toHaveBeenCalledWith(expect.objectContaining({ active: true }));
   });
 
+  it('forwards playback size when applying sprite-bound window animations', () => {
+    const harness = createCoordinatorHarness();
+    const movement: SpriteMovementConfig = {
+      enabled: true,
+      mode: 'windowAnimation',
+      windowAnimationPresetId: 'fly-in'
+    };
+    const playbackSize = { width: 320, height: 260, padding: 0 };
+
+    harness.coordinator.applyAnimationMovement(movement, playbackSize);
+
+    expect(harness.playWindowAnimation).toHaveBeenCalledWith(movement, playbackSize);
+  });
+
   it('previews window animation presets without resizing the sprite window', () => {
     const harness = createCoordinatorHarness();
     const movement: SpriteMovementConfig = {
