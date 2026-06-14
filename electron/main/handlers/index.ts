@@ -78,7 +78,7 @@ let musicSpectrumWatchdog: NodeJS.Timeout | null = null;
 const MUSIC_SPECTRUM_FRAME_TIMEOUT_MS = 1200;
 const DEFAULT_SPRITE_WINDOW_ANIMATION_TARGET = 'main';
 const DEFAULT_CHAT_PROVIDER_ID = 'openai';
-const WINDOW_ANIMATION_DIRECTIONS = new Set<WindowAnimationPresetDirection>(['left', 'right', 'top', 'bottom']);
+const WINDOW_ANIMATION_DIRECTIONS = new Set<WindowAnimationPresetDirection>(['top', 'top-right', 'right', 'bottom-right', 'bottom', 'bottom-left', 'left', 'top-left']);
 const DEFAULT_WINDOW_ANIMATION_DESIGN_AREA = { width: 1440, height: 900 };
 
 async function setMusicSpectrumWindowVisible(shouldShow: boolean): Promise<void> {

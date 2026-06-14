@@ -29,10 +29,14 @@ export function isWindowAnimationPresetId(value: unknown): value is WindowAnimat
 }
 
 export const WINDOW_ANIMATION_PRESET_DIRECTIONS = [
-  { value: 'left', label: '左侧' },
-  { value: 'right', label: '右侧' },
   { value: 'top', label: '上侧' },
-  { value: 'bottom', label: '下侧' }
+  { value: 'top-right', label: '右上' },
+  { value: 'right', label: '右侧' },
+  { value: 'bottom-right', label: '右下' },
+  { value: 'bottom', label: '下侧' },
+  { value: 'bottom-left', label: '左下' },
+  { value: 'left', label: '左侧' },
+  { value: 'top-left', label: '左上' }
 ] as const;
 
 export type WindowAnimationPresetDirection = (typeof WINDOW_ANIMATION_PRESET_DIRECTIONS)[number]['value'];
@@ -158,6 +162,27 @@ function scaleFrame(baseFrame: WindowAnimationPresetFrame, scale: number): Pick<
   };
 }
 
+function getPresetDirectionVector(direction: WindowAnimationPresetDirection): { x: -1 | 0 | 1; y: -1 | 0 | 1 } {
+  switch (direction) {
+    case 'top-left':
+      return { x: -1, y: -1 };
+    case 'top':
+      return { x: 0, y: -1 };
+    case 'top-right':
+      return { x: 1, y: -1 };
+    case 'right':
+      return { x: 1, y: 0 };
+    case 'bottom-right':
+      return { x: 1, y: 1 };
+    case 'bottom':
+      return { x: 0, y: 1 };
+    case 'bottom-left':
+      return { x: -1, y: 1 };
+    case 'left':
+      return { x: -1, y: 0 };
+  }
+}
+
 function getOffscreenPoint(
   baseFrame: WindowAnimationPresetFrame,
   positionAnchor: WindowAnimationAnchor,
@@ -166,23 +191,26 @@ function getOffscreenPoint(
 ): Pick<WindowAnimationPresetFrame, 'x' | 'y'> {
   const topLeft = getFrameTopLeft(baseFrame, positionAnchor);
   const nextTopLeft = { ...topLeft };
-  if (direction === 'left') {
+  const vector = getPresetDirectionVector(direction);
+  if (vector.x < 0) {
     nextTopLeft.x = workArea.x - baseFrame.width - OFFSCREEN_MARGIN;
-  } else if (direction === 'right') {
+  } else if (vector.x > 0) {
     nextTopLeft.x = workArea.x + workArea.width + OFFSCREEN_MARGIN;
-  } else if (direction === 'top') {
+  }
+  if (vector.y < 0) {
     nextTopLeft.y = workArea.y - baseFrame.height - OFFSCREEN_MARGIN;
-  } else {
+  } else if (vector.y > 0) {
     nextTopLeft.y = workArea.y + workArea.height + OFFSCREEN_MARGIN;
   }
   return getFrameFromTopLeft(baseFrame, nextTopLeft, positionAnchor);
 }
 
 function getShakeOffset(direction: WindowAnimationPresetDirection, amount: number): Pick<WindowAnimationPresetFrame, 'x' | 'y'> {
-  if (direction === 'left') return { x: -amount, y: 0 };
-  if (direction === 'right') return { x: amount, y: 0 };
-  if (direction === 'top') return { x: 0, y: -amount };
-  return { x: 0, y: amount };
+  const vector = getPresetDirectionVector(direction);
+  return {
+    x: vector.x * amount,
+    y: vector.y * amount
+  };
 }
 
 function createFlyInFrames(options: CreateWindowAnimationPresetFramesOptions, duration: number, direction: WindowAnimationPresetDirection): WindowAnimationPresetFrame[] {

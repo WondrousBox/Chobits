@@ -73,6 +73,38 @@ describe('window animation presets', () => {
     expect(frames[1]).toMatchObject({ x: 1608, y: 450, opacity: 0, duration: 700 });
   });
 
+  it('creates fly-in frames from outside selected corners', () => {
+    const baseFrame = createBaseFrame();
+    const frames = createWindowAnimationPresetFrames({
+      presetId: 'fly-in',
+      baseFrame,
+      positionAnchor: 'center',
+      direction: 'top-left',
+      duration: 800,
+      workArea
+    });
+
+    expect(frames).toHaveLength(2);
+    expect(frames[0]).toMatchObject({ x: -168, y: -128, width: 240, height: 160, opacity: 0, duration: 0 });
+    expect(frames[1]).toMatchObject({ x: 720, y: 450, width: 240, height: 160, opacity: 0.9, duration: 800 });
+  });
+
+  it('creates fly-out frames that end outside selected corners', () => {
+    const baseFrame = createBaseFrame();
+    const frames = createWindowAnimationPresetFrames({
+      presetId: 'fly-out',
+      baseFrame,
+      positionAnchor: 'center',
+      direction: 'bottom-right',
+      duration: 700,
+      workArea
+    });
+
+    expect(frames).toHaveLength(2);
+    expect(frames[0]).toMatchObject({ x: 720, y: 450, opacity: 0.9, duration: 0 });
+    expect(frames[1]).toMatchObject({ x: 1608, y: 1028, opacity: 0, duration: 700 });
+  });
+
   it('keeps placement on effects that return to the authored base frame', () => {
     const baseFrame = createBaseFrame({
       placement: { anchor: 'right', display: 'current', useWorkArea: true, margin: 16 }
@@ -145,6 +177,28 @@ describe('window animation presets', () => {
       expectNoProperties(keyframe, ['width', 'height', 'curve']);
     }
     expectNoProperties(keyframes[0], ['duration', 'easing']);
+  });
+
+  it('serializes corner fly presets as sparse position and opacity timelines', () => {
+    const baseFrame = createBaseFrame();
+    const frames = createWindowAnimationPresetFrames({
+      presetId: 'fly-in',
+      baseFrame,
+      positionAnchor: 'center',
+      direction: 'top-left',
+      duration: 800,
+      workArea
+    });
+
+    const keyframes = serializeWindowAnimationPresetFrames({ presetId: 'fly-in', frames });
+
+    expect(keyframes).toEqual([
+      { x: -168, y: -128, opacity: 0 },
+      { x: 720, y: 450, opacity: 0.9, duration: 800, easing: 'ease-out-cubic' }
+    ]);
+    for (const keyframe of keyframes) {
+      expectNoProperties(keyframe, ['width', 'height', 'curve']);
+    }
   });
 
   it('serializes fade presets as opacity-only timelines', () => {
