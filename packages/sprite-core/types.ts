@@ -300,7 +300,7 @@ export type SpriteMovementMode = 'direction' | 'walkTo' | 'windowAnimation';
 
 export type SpriteWindowAnimationPresetId = 'fly-in' | 'fade-in' | 'zoom-in' | 'fly-out' | 'fade-out' | 'zoom-out' | 'pulse' | 'shake';
 
-export type SpriteWindowAnimationDirection = 'left' | 'right' | 'top' | 'bottom';
+export type SpriteWindowAnimationDirection = 'left' | 'right' | 'top' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
 export type SpriteWindowAnimationAnchor = 'top-left' | 'top' | 'top-right' | 'left' | 'center' | 'right' | 'bottom-left' | 'bottom' | 'bottom-right';
 

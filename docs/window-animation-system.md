@@ -237,6 +237,8 @@ Implementation steps:
 
 Preset-controlled fields:
 
+Direction-aware presets accept the four side directions plus the four corners: `top`, `right`, `bottom`, `left`, `top-left`, `top-right`, `bottom-left`, and `bottom-right`. Fly presets use corner directions as diagonal off-screen endpoints while still serializing only position and opacity.
+
 | Preset | Controlled fields in playback timeline | Fields to omit |
 | --- | --- | --- |
 | `fly-in` | `x/y` or `placement` for path endpoints, `opacity`, segment `duration/easing` | `width/height`; omit `curve` when line |
