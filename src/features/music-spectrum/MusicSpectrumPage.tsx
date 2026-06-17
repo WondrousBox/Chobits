@@ -1,10 +1,14 @@
 import { MUSIC_REACTIVITY_SPECTRUM_BAND_COUNT, type MusicReactivitySpectrumFrame } from '@packages/audio-reactivity/types';
-import { useEffect, useRef } from 'react';
+import { type CSSProperties, useEffect, useRef } from 'react';
 
 const SMOOTHING = 0.78;
 const DECAY_PER_FRAME = 0.04;
 const PEAK_DECAY_PER_FRAME = 0.012;
 const IDLE_TIMEOUT_MS = 600;
+const draggableWindowStyle: CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' } = {
+    background: 'transparent',
+    WebkitAppRegion: 'drag'
+};
 
 export function MusicSpectrumPage(): JSX.Element {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -126,7 +130,7 @@ export function MusicSpectrumPage(): JSX.Element {
     }, []);
 
     return (
-        <div className="w-screen h-screen overflow-hidden select-none" style={{ background: 'transparent', WebkitAppRegion: 'drag' as never }}>
+        <div className="w-screen h-screen overflow-hidden select-none" style={draggableWindowStyle}>
             <canvas ref={canvasRef} className="w-full h-full block" />
         </div>
     );

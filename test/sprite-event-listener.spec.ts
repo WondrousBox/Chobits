@@ -210,6 +210,48 @@ describe('sprite event listener', () => {
     cleanup();
   });
 
+  it('speaks the MiniMax music easter egg when a MiniMax API key config save is not handled by a guide routine', () => {
+    const mgr = createManagerStub();
+    const cleanup = initSpriteEventListener(mgr as any);
+
+    eventHarness.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
+      providerId: 'minimax',
+      presetId: 'preset-minimax',
+      action: 'preset-secrets-updated'
+    });
+
+    expect(mgr.emitPurposeEvent).toHaveBeenCalledWith({
+      source: 'app-event',
+      event: AppEvent.AI_PROVIDER_CONFIG_UPDATED,
+      payload: {
+        providerId: 'minimax',
+        presetId: 'preset-minimax',
+        action: 'preset-secrets-updated'
+      }
+    });
+    expect(mgr.speak).toHaveBeenCalledWith('MiniMax 还可以制作音乐，以后可以和我说哦', {
+      bubbleDuration: 6200
+    });
+
+    cleanup();
+  });
+
+  it('lets the chat API config guide own the MiniMax easter egg when it captures the save event', () => {
+    const mgr = createManagerStub();
+    mgr.emitPurposeEvent.mockReturnValue({ matched: 1 });
+    const cleanup = initSpriteEventListener(mgr as any);
+
+    eventHarness.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
+      providerId: 'minimax',
+      presetId: 'preset-minimax',
+      action: 'preset-secrets-updated'
+    });
+
+    expect(mgr.speak).not.toHaveBeenCalled();
+
+    cleanup();
+  });
+
   it('lets an active workflow.waiting purpose own workflow busy presentation', () => {
     const mgr = createManagerStub();
     mgr.getPurposeSnapshot.mockReturnValue({

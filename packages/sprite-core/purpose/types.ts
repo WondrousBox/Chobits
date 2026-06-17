@@ -399,6 +399,7 @@ export type SpriteRoutineStep =
   | ClearBusyStep
   | OpenWindowStep
   | LoopUntilStep
+  | SequenceStep
   | ParallelStep
   | BranchStep;
 

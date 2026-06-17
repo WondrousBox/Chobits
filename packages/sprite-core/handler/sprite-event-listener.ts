@@ -10,7 +10,7 @@ import { AppEvent, eventManager } from '@packages/event';
 import type { ActivityRewardId } from '../character-service';
 import type { SpriteManager } from '../manager';
 import { ProgressSpeechAnnouncer, type ProgressSpeechKind } from '../manager/progress-speech-announcer';
-import { getCharacterSpriteEventText } from '../messages/character';
+import { getCharacterRoutineText, getCharacterSpriteEventText } from '../messages/character';
 import { getResolvedActivityPersonaReward } from '../persona-rules';
 
 export interface SpriteEventPayload {
@@ -28,6 +28,10 @@ export interface SpriteEventPayload {
   error?: string;
   success?: boolean;
   operationKind?: ProgressSpeechKind;
+  providerId?: string;
+  presetId?: string;
+  field?: string;
+  action?: string;
   // AI conversation reward fields
   conversationId?: string;
   messageCount?: number;
@@ -35,7 +39,11 @@ export interface SpriteEventPayload {
   assistantContentLength?: number;
 }
 
-type SpriteHandler = (data?: SpriteEventPayload) => void;
+interface SpriteHandlerContext {
+  purposeMatches: number;
+}
+
+type SpriteHandler = (data?: SpriteEventPayload, context?: SpriteHandlerContext) => void;
 export type SpriteEventListenerRouteMode = 'auto' | 'trigger' | 'purpose';
 
 export interface SpriteEventListenerOptions {
@@ -73,6 +81,44 @@ function getDownloadProgressSpeechId(data?: SpriteEventPayload): string {
 
 function eventText(eventType: string, data?: SpriteEventPayload, fallback?: string): string {
   return getCharacterSpriteEventText(eventType, data as Record<string, unknown> | undefined, fallback);
+}
+
+const MINIMAX_CHAT_API_CONFIG_EASTER_EGG_COOLDOWN_MS = 5 * 60 * 1000;
+const MINIMAX_CHAT_API_CONFIG_EASTER_EGG_BUBBLE_MS = 6200;
+const CHAT_API_CONFIG_SAVE_ACTIONS = new Set([
+  'provider-secrets-updated',
+  'provider-api-keys-updated',
+  'provider-api-key-added',
+  'provider-api-key-updated',
+  'provider-api-key-default-updated',
+  'preset-secrets-updated'
+]);
+
+function normalizeText(value?: string): string {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isMiniMaxChatApiConfigSave(data?: SpriteEventPayload): boolean {
+  const providerId = normalizeText(data?.providerId);
+  if (providerId !== 'minimax' && providerId !== 'minimaxi') {
+    return false;
+  }
+
+  const field = normalizeText(data?.field);
+  if (field && field !== 'apikey' && field !== 'api_key') {
+    return false;
+  }
+
+  const action = normalizeText(data?.action);
+  return !action || CHAT_API_CONFIG_SAVE_ACTIONS.has(action);
+}
+
+function getMiniMaxChatApiConfigEasterEggText(): string {
+  return getCharacterRoutineText(
+    'chat.api-config-guide.done.minimax',
+    { providerId: 'minimax' },
+    'MiniMax 还可以制作音乐，以后可以和我说哦'
+  );
 }
 
 function getActiveWorkflowWaitingRunId(mgr: SpriteManager): string | undefined {
@@ -165,9 +211,10 @@ function startResourceImportPurpose(mgr: SpriteManager, data?: SpriteEventPayloa
 export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEventListenerOptions): () => void {
   const routeMode = resolveOptions(options);
   const handlers: Array<{ event: AppEvent; handler: SpriteHandler }> = [];
+  let lastMiniMaxChatApiConfigEasterEggAt = 0;
   const progressSpeech = new ProgressSpeechAnnouncer({
     speak: (text) => {
-      void mgr.speak(text, { showBubble: false }).catch(() => {});
+      void mgr.speak(text, { showBubble: false }).catch(() => { });
     }
   });
 
@@ -201,6 +248,30 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
     handler: (data) => {
       mgr.showToast(data?.message || data?.error || eventText('aiError', data), { category: 'error', duration: 2000 });
       mgr.trigger('error', { durationMs: 1500, silent: true });
+    }
+  });
+
+  handlers.push({
+    event: AppEvent.AI_PROVIDER_CONFIG_UPDATED,
+    handler: (data, context) => {
+      if (context?.purposeMatches && context.purposeMatches > 0) {
+        return;
+      }
+      if (!isMiniMaxChatApiConfigSave(data)) {
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastMiniMaxChatApiConfigEasterEggAt < MINIMAX_CHAT_API_CONFIG_EASTER_EGG_COOLDOWN_MS) {
+        return;
+      }
+      lastMiniMaxChatApiConfigEasterEggAt = now;
+
+      const text = getMiniMaxChatApiConfigEasterEggText();
+      if (!text) {
+        return;
+      }
+      void mgr.speak(text, { bubbleDuration: MINIMAX_CHAT_API_CONFIG_EASTER_EGG_BUBBLE_MS }).catch(() => { });
     }
   });
 
@@ -625,12 +696,12 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
   const subscriptions = handlers.map(({ event, handler }) => ({
     event,
     handler: (data?: SpriteEventPayload) => {
-      mgr.emitPurposeEvent?.({
+      const purposeEventResult = mgr.emitPurposeEvent?.({
         source: 'app-event',
         event,
         payload: data as Record<string, unknown> | undefined
       });
-      handler(data);
+      handler(data, { purposeMatches: purposeEventResult?.matched ?? 0 });
     }
   }));
 

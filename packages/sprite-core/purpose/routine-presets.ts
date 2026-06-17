@@ -3,6 +3,7 @@ import { getCharacterRoutineText } from '../messages/character';
 import {
   CHAT_API_CONFIGURED_GUIDE_GOAL,
   createAchievementUnlockedGuideGoal,
+  FIRST_CHAT_GUIDE_GOAL,
   FIRST_FILE_DROP_GUIDE_GOAL,
   OPEN_RESOURCE_LIBRARY_GUIDE_GOAL,
   type SpriteRoutineGuideGoalDefinition,
@@ -438,6 +439,9 @@ const FIRST_FILE_DROP_NOTICE_ID = 'onboarding.file.drop.invite';
 const FIRST_FILE_DROP_WAIT_MS = 30 * 60 * 1000;
 const FIRST_FILE_DROP_HELP_COOLDOWN_MS = 60_000;
 const FIRST_FILE_DROP_PROMPT_CYCLE_MS = 6500;
+const FIRST_CHAT_NOTICE_ID = 'onboarding.chat.start.invite';
+const FIRST_CHAT_WAIT_MS = 30 * 60 * 1000;
+const FIRST_CHAT_HELP_COOLDOWN_MS = 60_000;
 const OPEN_RESOURCE_LIBRARY_NOTICE_ID = 'onboarding.resource.open-library.invite';
 const OPEN_RESOURCE_LIBRARY_WAIT_MS = 5 * 60 * 1000;
 const FEATURE_INTRO_WAIT_MS = 30 * 60 * 1000;
@@ -448,11 +452,7 @@ const CHAT_API_CONFIG_GUIDE_WAIT_MS = 30 * 60 * 1000;
 
 function getChatApiConfigDoneText(providerId: string): string {
   if (providerId === 'minimax') {
-    return getCharacterRoutineText(
-      'chat.api-config-guide.done.minimax',
-      { providerId },
-      '你配置的是 MiniMax 的 Token Plan 哦。这个 plan 还可以制作音乐，要不要试一下？做好的音乐，我还可以跟着跳舞。'
-    );
+    return getCharacterRoutineText('chat.api-config-guide.done.minimax', { providerId }, 'MiniMax 还可以制作音乐，以后可以和我说哦');
   }
   return getCharacterRoutineText('chat.api-config-guide.done', { providerId }, '配置保存好了，现在可以开始聊天。');
 }
@@ -719,6 +719,64 @@ function createOnboardingFileDropRoutineSteps(): SpriteRoutineStepInput[] {
       ]
     },
     { id: 'return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
+  ];
+}
+
+/**
+ * 新手引导 — 引导用户完成第一次普通聊天。
+ */
+function createFirstChatRoutineSteps(): SpriteRoutineStepInput[] {
+  return [
+    { id: 'first-chat-wave', type: 'playAnimation', trigger: 'wave', durationMs: 900, waitFor: 'duration', silent: true },
+    {
+      id: 'first-chat-invite',
+      type: 'showNotice',
+      messageId: FIRST_CHAT_NOTICE_ID,
+      content: getCharacterRoutineText('onboarding.chat.start.invite', undefined, '现在双击我，就可以打开聊天入口啦'),
+      level: 'info',
+      persistent: true,
+      speak: true
+    },
+    {
+      id: 'first-chat-wait-double-click',
+      type: 'loopUntil',
+      source: 'sprite-event-bus',
+      untilEvent: 'interact:double-click',
+      maxDurationMs: FIRST_CHAT_WAIT_MS,
+      assignTo: 'firstChatDoubleClick',
+      ignoreHistory: true,
+      body: [
+        {
+          id: 'first-chat-help',
+          type: 'speak',
+          text: getCharacterRoutineText('onboarding.chat.start.tip', undefined, '双击桌面角色，就能打开聊天输入窗口。'),
+          bubbleDuration: 4800,
+          cooldownKey: 'onboarding.chat.start.tip',
+          cooldownMs: FIRST_CHAT_HELP_COOLDOWN_MS
+        },
+        { id: 'first-chat-wait-double-click-pause', type: 'wait', durationMs: 1000 }
+      ]
+    },
+    {
+      id: 'first-chat-wait-window-open',
+      type: 'loopUntil',
+      source: 'app-event',
+      untilEvent: ['APP_WINDOW_OPENED'],
+      match: { windowKey: ['assistant', 'assistantMini', 'chat', 'chatOverlay'] },
+      maxDurationMs: 10_000,
+      assignTo: 'firstChatWindowOpened',
+      ignoreHistory: false,
+      body: [{ id: 'first-chat-wait-window-pause', type: 'wait', durationMs: 300 }]
+    },
+    { id: 'first-chat-clear-invite', type: 'clearMessage', messageId: FIRST_CHAT_NOTICE_ID, messageType: 'notice' },
+    { id: 'first-chat-celebrate', type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
+    {
+      id: 'first-chat-done',
+      type: 'speak',
+      text: getCharacterRoutineText('onboarding.chat.start.done', undefined, '打开啦！以后双击我就可以开始聊天。'),
+      bubbleDuration: 3800
+    },
+    { id: 'first-chat-return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
   ];
 }
 
@@ -1177,6 +1235,14 @@ export const DEFAULT_SPRITE_ROUTINE_PRESETS: SpriteRoutinePresetDefinition[] = [
     defaultPriority: 70,
     goal: WORKSPACE_EXISTS_GUIDE_GOAL,
     steps: createWorkspaceCreateRoutineSteps
+  },
+  {
+    id: 'onboarding.chat.start',
+    title: '新手引导：开始聊天',
+    purposeKind: 'onboarding.chat.start',
+    defaultPriority: 68,
+    goal: FIRST_CHAT_GUIDE_GOAL,
+    steps: createFirstChatRoutineSteps
   },
   {
     id: 'onboarding.file.drop',

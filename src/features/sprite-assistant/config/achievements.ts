@@ -27,6 +27,12 @@ const ONBOARDING_ACHIEVEMENTS: AchievementPresentation[] = [
     category: '新手任务'
   },
   {
+    id: 'first-chat',
+    title: '第一次对话',
+    description: '完成了第一次 AI 聊天回复。',
+    category: '新手任务'
+  },
+  {
     id: 'first-resource-library-open',
     title: '资源库初见',
     description: '从助手菜单打开资源库，开始管理你的素材和知识。',

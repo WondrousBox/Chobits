@@ -363,6 +363,7 @@ export {
   DEFAULT_SPRITE_PURPOSE_PLANNER_STEP_TYPES,
   DEFAULT_SPRITE_PURPOSE_PLANNER_WINDOWS,
   DEFAULT_SPRITE_ROUTINE_PRESETS,
+  FIRST_CHAT_GUIDE_GOAL,
   FIRST_FILE_DROP_GUIDE_GOAL,
   normalizeSpritePurposePlannerPreferences,
   OPEN_RESOURCE_LIBRARY_GUIDE_GOAL,
@@ -387,7 +388,7 @@ export type {
   QuestPredicate,
   QuestPredicateContext
 } from './quest';
-export { createEmptyOnboardingState, createWorkspaceCreateQuest, QuestEngine, QuestRegistry } from './quest';
+export { createEmptyOnboardingState, createFirstChatQuest, createWorkspaceCreateQuest, QuestEngine, QuestRegistry } from './quest';
 export type { SpriteReactionState, SpriteState, SpriteSubState, StateConfig, StateTransition } from './state-machine';
 export { SpriteStateMachine } from './state-machine';
 
