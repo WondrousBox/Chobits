@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { FEATURE_INTRO_QUEST_CATALOG } from '../packages/sprite-core/feature-intro-catalog';
 import {
   CHAT_API_CONFIGURED_GUIDE_GOAL,
+  FIRST_CHAT_GUIDE_GOAL,
   FIRST_FILE_DROP_GUIDE_GOAL,
   OPEN_RESOURCE_LIBRARY_GUIDE_GOAL,
   type SpritePurposeHistoryEntry,
@@ -358,6 +359,47 @@ describe('SpriteRoutineRunner', () => {
     await expect(promise).resolves.toMatchObject({
       event: 'SPRITE_WORKFLOW_PROGRESS',
       payload: { runId: 'run-1', progress: 35, message: '转录中' }
+    });
+  });
+
+  it('matches purpose event payload fields against any expected array value', async () => {
+    const waiter = new SpritePurposeEventWaiter();
+    const routine = {
+      id: 'routine-chat-window',
+      purposeId: 'purpose-chat-window',
+      source: 'preset' as const,
+      status: 'queued' as const,
+      steps: [],
+      cursor: 0,
+      createdAt: Date.now()
+    };
+
+    const promise = waiter.wait(
+      {
+        id: 'wait-chat-entry-window',
+        type: 'waitForEvent',
+        source: 'app-event',
+        event: 'APP_WINDOW_OPENED',
+        match: { windowKey: ['assistant', 'assistantMini', 'chat', 'chatOverlay'] },
+        timeoutMs: 100
+      },
+      routine
+    );
+
+    waiter.emit({
+      source: 'app-event',
+      event: 'APP_WINDOW_OPENED',
+      payload: { windowKey: 'settings' }
+    });
+    waiter.emit({
+      source: 'app-event',
+      event: 'APP_WINDOW_OPENED',
+      payload: { windowKey: 'assistantMini' }
+    });
+
+    await expect(promise).resolves.toMatchObject({
+      event: 'APP_WINDOW_OPENED',
+      payload: { windowKey: 'assistantMini' }
     });
   });
 
@@ -1645,6 +1687,7 @@ describe('SpriteRoutinePresetRegistry', () => {
   it('declares achievement goals for event-driven onboarding routine presets', () => {
     const registry = new SpriteRoutinePresetRegistry();
 
+    expect(registry.get('onboarding.chat.start')?.goal).toEqual(FIRST_CHAT_GUIDE_GOAL);
     expect(registry.get('onboarding.file.drop')?.goal).toEqual(FIRST_FILE_DROP_GUIDE_GOAL);
     expect(registry.get('onboarding.resource.open-library')?.goal).toEqual(OPEN_RESOURCE_LIBRARY_GUIDE_GOAL);
   });
@@ -2003,7 +2046,206 @@ describe('SpriteRoutinePresetRegistry', () => {
     const result = await runner.run(routine);
 
     expect(result.ok, result.error).toBe(true);
-    expect(calls).toContain('speak:chat-api-config-done:你配置的是 MiniMax 的 Token Plan 哦。这个 plan 还可以制作音乐，要不要试一下？做好的音乐，我还可以跟着跳舞。');
+    expect(calls).toContain('speak:chat-api-config-done:MiniMax 还可以制作音乐，以后可以和我说哦');
+  });
+
+  it('creates first chat onboarding routines that wait for double click and chat entry open', () => {
+    const registry = new SpriteRoutinePresetRegistry();
+    const preset = registry.get('onboarding.chat.start');
+    expect(preset).toBeDefined();
+
+    const routine = registry.createRoutine(
+      {
+        id: 'purpose-first-chat-onboarding',
+        kind: 'onboarding.chat.start',
+        title: 'first chat onboarding',
+        reason: 'first chat',
+        source: 'system-event',
+        status: 'active',
+        priority: 68,
+        interruptPolicy: 'interruptible'
+      },
+      preset!,
+      1000
+    );
+
+    expect(preset!.defaultPriority).toBe(68);
+    expect(routine.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'first-chat-invite',
+          type: 'showNotice',
+          messageId: 'onboarding.chat.start.invite',
+          content: '现在双击我，就可以打开聊天入口啦'
+        }),
+        expect.objectContaining({
+          id: 'first-chat-wait-double-click',
+          type: 'loopUntil',
+          source: 'sprite-event-bus',
+          untilEvent: 'interact:double-click',
+          assignTo: 'firstChatDoubleClick'
+        }),
+        expect.objectContaining({
+          id: 'first-chat-wait-window-open',
+          type: 'loopUntil',
+          source: 'app-event',
+          untilEvent: ['APP_WINDOW_OPENED'],
+          match: { windowKey: ['assistant', 'assistantMini', 'chat', 'chatOverlay'] },
+          assignTo: 'firstChatWindowOpened'
+        })
+      ])
+    );
+  });
+
+  it('runs first chat onboarding completion feedback when double click opens the chat entry', async () => {
+    const registry = new SpriteRoutinePresetRegistry();
+    const preset = registry.get('onboarding.chat.start');
+    expect(preset).toBeDefined();
+    const routine = registry.createRoutine(
+      {
+        id: 'purpose-first-chat-onboarding',
+        kind: 'onboarding.chat.start',
+        title: 'first chat onboarding',
+        reason: 'first chat',
+        source: 'system-event',
+        status: 'active',
+        priority: 68,
+        interruptPolicy: 'interruptible'
+      },
+      preset!,
+      1000
+    );
+    const calls: string[] = [];
+    const pending = (signal?: AbortSignal): Promise<any> =>
+      new Promise((_, reject) => {
+        if (signal?.aborted) {
+          reject(new DOMException('Routine cancelled', 'AbortError'));
+          return;
+        }
+        signal?.addEventListener('abort', () => reject(new DOMException('Routine cancelled', 'AbortError')), { once: true });
+      });
+    const runner = new SpriteRoutineRunner({
+      playAnimation: (step) => {
+        calls.push(`play:${step.trigger ?? step.animationId}`);
+      },
+      walkTo: (step) => {
+        calls.push(`walk:${typeof step.target === 'string' ? step.target : 'window' in step.target ? step.target.window : 'point'}`);
+      },
+      speak: (step) => {
+        calls.push(`speak:${step.id}:${step.text}`);
+      },
+      showToast: vi.fn(),
+      showNotice: (step) => {
+        calls.push(`notice:${step.messageId}:${step.content}`);
+      },
+      clearMessage: (step) => {
+        calls.push(`clear:${step.messageId}`);
+      },
+      openWindow: (step) => {
+        calls.push(`open:${step.window}`);
+      },
+      waitForEvent: (step, signal) => {
+        if (step.event === 'interact:double-click') {
+          return {
+            source: 'sprite-event-bus',
+            event: 'interact:double-click',
+            timestamp: Date.now(),
+            payload: {}
+          };
+        }
+        if (step.event === 'APP_WINDOW_OPENED') {
+          return {
+            source: 'app-event',
+            event: 'APP_WINDOW_OPENED',
+            timestamp: Date.now(),
+            payload: {
+              windowKey: 'assistant',
+              source: 'renderer-window-open'
+            }
+          };
+        }
+        return pending(signal);
+      }
+    });
+
+    const result = await runner.run(routine);
+
+    expect(result.ok, result.error).toBe(true);
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        'play:wave',
+        'notice:onboarding.chat.start.invite:现在双击我，就可以打开聊天入口啦',
+        'clear:onboarding.chat.start.invite',
+        'play:celebrate',
+        'speak:first-chat-done:打开啦！以后双击我就可以开始聊天。',
+        'walk:corner'
+      ])
+    );
+  });
+
+  it('keeps first chat onboarding waiting until the user double-clicks the sprite', async () => {
+    const registry = new SpriteRoutinePresetRegistry();
+    const preset = registry.get('onboarding.chat.start');
+    expect(preset).toBeDefined();
+    const routine = registry.createRoutine(
+      {
+        id: 'purpose-first-chat-onboarding',
+        kind: 'onboarding.chat.start',
+        title: 'first chat onboarding',
+        reason: 'first chat',
+        source: 'system-event',
+        status: 'active',
+        priority: 68,
+        interruptPolicy: 'interruptible'
+      },
+      preset!,
+      1000
+    );
+    const calls: string[] = [];
+    const pending = (signal?: AbortSignal): Promise<any> =>
+      new Promise((_, reject) => {
+        if (signal?.aborted) {
+          reject(new DOMException('Routine cancelled', 'AbortError'));
+          return;
+        }
+        signal?.addEventListener('abort', () => reject(new DOMException('Routine cancelled', 'AbortError')), { once: true });
+      });
+    const runner = new SpriteRoutineRunner({
+      playAnimation: vi.fn(),
+      walkTo: vi.fn(),
+      speak: (step) => {
+        calls.push(`speak:${step.id}:${step.text}`);
+      },
+      showToast: vi.fn(),
+      showNotice: vi.fn(),
+      clearMessage: vi.fn(),
+      openWindow: vi.fn(),
+      waitForEvent: (step, signal) => {
+        if (step.event === 'APP_WINDOW_OPENED') {
+          return {
+            source: 'app-event',
+            event: 'APP_WINDOW_OPENED',
+            timestamp: Date.now(),
+            payload: { windowKey: 'assistant' }
+          };
+        }
+        return pending(signal);
+      }
+    });
+    const controller = new AbortController();
+
+    const result = await runner.run(routine, {
+      signal: controller.signal,
+      onStepComplete: (_routine, step) => {
+        if (step.id === 'first-chat-help') {
+          controller.abort();
+        }
+      }
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe('cancelled');
+    expect(calls.some((call) => call.includes('first-chat-done'))).toBe(false);
   });
 
   it('creates first file drop onboarding routines that invite drag-to-sprite and wait for resource events', () => {

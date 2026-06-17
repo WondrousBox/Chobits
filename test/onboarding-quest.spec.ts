@@ -6,6 +6,7 @@ import {
   createFeatureIntroQuests,
   createFileVideoTranscriptionIntroQuest,
   createChatApiConfigQuest,
+  createFirstChatQuest,
   createFirstFileDropQuest,
   createOnboardingQuestRegistry,
   createOpenResourceLibraryQuest,
@@ -62,10 +63,12 @@ describe('QuestRegistry', () => {
     const reg = createOnboardingQuestRegistry({ countWorkspaces: () => 0 });
     const featureIds = FEATURE_INTRO_QUEST_CATALOG.map((item) => item.id);
 
-    expect(reg.list().map((quest) => quest.id)).toEqual(['workspace.create', 'chat.api-config', 'first-file-drop', 'open-resource-library', ...featureIds]);
+    expect(reg.list().map((quest) => quest.id)).toEqual(['workspace.create', 'chat.api-config', 'first-chat', 'first-file-drop', 'open-resource-library', ...featureIds]);
     expect(reg.get('workspace.create')?.autoStartEvents).toEqual(['APP_STARTED']);
     expect(reg.get('chat.api-config')?.autoStartEvents).toBeUndefined();
     expect(reg.get('chat.api-config')?.explicitStartSources).toEqual(['task-list', 'ai', 'recommendation']);
+    expect(reg.get('first-chat')?.autoStartEvents).toBeUndefined();
+    expect(reg.get('first-chat')?.explicitStartSources).toEqual(['task-list', 'ai', 'recommendation']);
     expect(reg.get('first-file-drop')?.autoStartEvents).toBeUndefined();
     expect(reg.get('first-file-drop')?.explicitStartSources).toEqual(['task-list', 'ai', 'recommendation']);
     expect(reg.get('open-resource-library')?.autoStartEvents).toBeUndefined();
@@ -88,9 +91,10 @@ describe('QuestRegistry', () => {
       expect.arrayContaining(['feature.file-video-transcription', 'feature.video-keyframes', 'feature.media-transcode', 'feature.image-understand', 'feature.ocr'])
     );
     expect(reg.byTriggerEvent('APP_WINDOW_OPENED').map((quest) => quest.id)).toEqual(
-      expect.arrayContaining(['feature.workflow-gallery', 'feature.plugin-manager', 'feature.window-animation-editor', 'feature.character-pack-editor'])
+      expect.arrayContaining(['first-chat', 'feature.workflow-gallery', 'feature.plugin-manager', 'feature.window-animation-editor', 'feature.character-pack-editor'])
     );
     expect(reg.byTriggerEvent('AI_PROVIDER_CONFIG_UPDATED').map((quest) => quest.id)).toEqual(['chat.api-config']);
+    expect(reg.byTriggerEvent('SPRITE_AI_COMPLETE').map((quest) => quest.id)).toEqual(expect.arrayContaining(['feature.chat-with-resource']));
     expect(reg.byTriggerEvent('APP_STARTED').map((quest) => quest.id)).toEqual(['workspace.create']);
   });
 });
@@ -694,7 +698,8 @@ describe('QuestEngine — chat.api-config onboarding quest', () => {
       reward: { xp: 15, favor: 2, achievementId: 'first-chat-api-config' },
       rewardSource: 'quest:chat.api-config',
       recommendation: {
-        questId: 'first-file-drop'
+        questId: 'first-chat',
+        delayMs: 7000
       },
       action: {
         kind: 'start-quest',
@@ -702,6 +707,173 @@ describe('QuestEngine — chat.api-config onboarding quest', () => {
         questId: 'chat.api-config',
         windowKey: 'aiProviderConfig',
         purposeKind: 'chat.api-config-guide'
+      }
+    });
+  });
+});
+
+describe('QuestEngine — first-chat onboarding quest', () => {
+  function makeFirstChatDeps(state: { workspaces: number; configured: boolean }): {
+    engine: QuestEngine;
+    startPurpose: ReturnType<typeof vi.fn>;
+    grantReward: ReturnType<typeof vi.fn>;
+    hasAchievement: ReturnType<typeof vi.fn>;
+    saved: { current: ReturnType<typeof createEmptyOnboardingState> | null };
+  } {
+    const reg = new QuestRegistry();
+    reg.register(createFirstChatQuest({ countWorkspaces: () => state.workspaces, hasChatApiConfigured: () => state.configured }));
+
+    const startPurpose = vi.fn(async () => ({
+      accepted: true as const,
+      purpose: {
+        id: 'p-first-chat',
+        kind: 'onboarding.chat.start',
+        title: '',
+        reason: '',
+        source: 'system-event' as const,
+        status: 'queued' as const,
+        priority: 68,
+        interruptPolicy: 'interruptible' as const
+      },
+      status: 'started' as const
+    }));
+    const grantReward = vi.fn(async () => undefined);
+    const hasAchievement = vi.fn(() => false);
+    const saved: { current: any } = {
+      current: {
+        version: 1,
+        quests: {
+          'workspace.create': {
+            status: 'done',
+            completedAt: 900
+          },
+          'chat.api-config': {
+            status: 'done',
+            completedAt: 950
+          }
+        }
+      }
+    };
+
+    const engine = new QuestEngine({
+      registry: reg,
+      startPurpose,
+      hasAchievement,
+      grantReward,
+      loadState: () => saved.current,
+      saveState: (nextState) => {
+        saved.current = JSON.parse(JSON.stringify(nextState));
+      },
+      now: () => 1000
+    });
+
+    return { engine, startPurpose, grantReward, hasAchievement, saved };
+  }
+
+  it('does not auto activate on app startup when chat is ready', async () => {
+    const state = { workspaces: 1, configured: true };
+    const { engine, startPurpose, saved } = makeFirstChatDeps(state);
+
+    await engine.tick({ event: 'APP_STARTED' });
+
+    expect(startPurpose).not.toHaveBeenCalled();
+    expect(saved.current?.quests['first-chat']).toBeUndefined();
+  });
+
+  it('starts from a recommendation when workspace and chat API are ready', async () => {
+    const state = { workspaces: 1, configured: true };
+    const { engine, startPurpose, saved } = makeFirstChatDeps(state);
+
+    const result = await engine.startQuest('first-chat', { source: 'recommendation' });
+
+    expect(result).toMatchObject({ accepted: true, status: 'started' });
+    expect(startPurpose).toHaveBeenCalledTimes(1);
+    expect(startPurpose.mock.calls[0][0]).toMatchObject({
+      kind: 'onboarding.chat.start',
+      presetId: 'onboarding.chat.start',
+      priority: 68,
+      coalesceKey: 'onboarding.chat.start',
+      plannerMode: 'preset-only'
+    });
+    expect(saved.current?.quests['first-chat']).toMatchObject({ status: 'active', activatedAt: 1000 });
+  });
+
+  it('does not activate before workspace and chat API are ready', async () => {
+    const state = { workspaces: 1, configured: false };
+    const { engine, startPurpose } = makeFirstChatDeps(state);
+
+    await expect(engine.startQuest('first-chat')).rejects.toThrow('precondition is not satisfied');
+
+    state.workspaces = 0;
+    state.configured = true;
+    await expect(engine.startQuest('first-chat')).rejects.toThrow('precondition is not satisfied');
+    expect(startPurpose).not.toHaveBeenCalled();
+  });
+
+  it('uses the first-chat achievement as a durable completion marker', async () => {
+    const state = { workspaces: 1, configured: true };
+    const { engine, startPurpose, grantReward, hasAchievement, saved } = makeFirstChatDeps(state);
+    hasAchievement.mockImplementation((id) => id === 'first-chat');
+
+    await engine.tick({ event: 'APP_STARTED' });
+
+    expect(startPurpose).not.toHaveBeenCalled();
+    expect(grantReward).not.toHaveBeenCalled();
+    expect(saved.current?.quests['first-chat']).toMatchObject({ status: 'done', completedAt: 1000 });
+  });
+
+  it('completes and rewards after a double click opens the chat entry window', async () => {
+    const state = { workspaces: 1, configured: true };
+    const { engine, grantReward, saved } = makeFirstChatDeps(state);
+
+    await engine.tick({ event: 'APP_WINDOW_OPENED', eventPayload: { windowKey: 'settings' } });
+    expect(grantReward).not.toHaveBeenCalled();
+    expect(saved.current?.quests['first-chat']).toBeUndefined();
+
+    await engine.tick({ event: 'APP_WINDOW_OPENED', eventPayload: { windowKey: 'assistant', source: 'renderer-window-open' } });
+
+    expect(grantReward).toHaveBeenCalledTimes(1);
+    expect(grantReward.mock.calls[0]).toEqual([{ xp: 15, favor: 2, achievementId: 'first-chat' }, 'quest:first-chat']);
+    expect(saved.current?.quests['first-chat'].status).toBe('done');
+  });
+
+  it('builds a quest list item with first chat rewards and action', () => {
+    const quest = createFirstChatQuest({ countWorkspaces: () => 1, hasChatApiConfigured: () => true });
+    const snapshot = createQuestListSnapshot({
+      definitions: [quest],
+      state: {
+        version: 1,
+        quests: {
+          'workspace.create': {
+            status: 'done',
+            completedAt: 900
+          },
+          'chat.api-config': {
+            status: 'done',
+            completedAt: 950
+          },
+          'first-chat': {
+            status: 'pending'
+          }
+        }
+      }
+    });
+
+    expect(snapshot.items[0]).toMatchObject({
+      id: 'first-chat',
+      category: 'onboarding',
+      title: '开始第一次聊天',
+      reward: { xp: 15, favor: 2, achievementId: 'first-chat' },
+      rewardSource: 'quest:first-chat',
+      recommendation: {
+        questId: 'first-file-drop',
+        delayMs: 7000
+      },
+      action: {
+        kind: 'start-quest',
+        label: '开始聊天',
+        questId: 'first-chat',
+        purposeKind: 'onboarding.chat.start'
       }
     });
   });

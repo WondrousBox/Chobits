@@ -111,7 +111,7 @@ export class SpritePurposeEventWaiter {
 
     const expected = step.match ?? {};
     for (const [key, value] of Object.entries(expected)) {
-      if (this.readMatchValue(event, key) !== value) {
+      if (!this.matchesExpectedValue(this.readMatchValue(event, key), value)) {
         return false;
       }
     }
@@ -132,6 +132,13 @@ export class SpritePurposeEventWaiter {
       if (typeof current !== 'object' || current === null) return undefined;
       return (current as Record<string, unknown>)[part];
     }, payload);
+  }
+
+  private matchesExpectedValue(actual: unknown, expected: unknown): boolean {
+    if (Array.isArray(expected)) {
+      return expected.includes(actual);
+    }
+    return actual === expected;
   }
 
   private now(): number {

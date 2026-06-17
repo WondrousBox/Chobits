@@ -4,6 +4,7 @@ export {
   createFeatureIntroQuests,
   createFileVideoTranscriptionIntroQuest,
   createChatApiConfigQuest,
+  createFirstChatQuest,
   createFirstFileDropQuest,
   createOnboardingQuestRegistry,
   createOpenResourceLibraryQuest,

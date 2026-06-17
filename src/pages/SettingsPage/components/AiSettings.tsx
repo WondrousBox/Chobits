@@ -5,6 +5,7 @@ import { z } from 'zod';
 import TintableSvg from '@/components/common/TintableSvg';
 import { Button } from '@/components/ui/button';
 import { resolveProviderIdentity } from '@/lib/ai-provider-identity';
+import { selectChatDefaultsForProvider } from '@/lib/chat-selection-defaults';
 
 import PresetFormDialog, { PresetFormValues } from './PresetFormDialog';
 
@@ -166,7 +167,10 @@ export default function AiSettings({ initialProviderId, initialPresetId, focusRe
       name: buildPresetName(selectedProvider),
       overrides: {}
     });
-    if (created?.id) await window.YUA.ai.setPresetSecrets(created.id, vals.secrets);
+    if (created?.id) {
+      await window.YUA.ai.setPresetSecrets(created.id, vals.secrets);
+      await selectChatDefaultsForProvider({ providerId: selectedProvider.id, presetId: created.id, provider: selectedProvider });
+    }
     const list = await window.YUA.ai.listPresets(selectedProvider.id);
     setPresets(list || []);
     await refreshProviders(selectedProvider.id);
@@ -190,6 +194,7 @@ export default function AiSettings({ initialProviderId, initialPresetId, focusRe
     }
     setErrors((prev) => ({ ...prev, [preset.id]: {} }));
     await window.YUA.ai.setPresetSecrets(preset.id, vals.secrets || {});
+    await selectChatDefaultsForProvider({ providerId: preset.providerId, presetId: preset.id, provider: selectedProvider });
     const list = await window.YUA.ai.listPresets(preset.providerId);
     setPresets(list || []);
     await refreshProviders(preset.providerId);

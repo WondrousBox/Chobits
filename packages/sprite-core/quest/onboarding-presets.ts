@@ -1,5 +1,5 @@
 import { FEATURE_INTRO_QUEST_CATALOG, type FeatureIntroCompletionSpec, type FeatureIntroQuestCatalogItem } from '../feature-intro-catalog';
-import { CHAT_API_CONFIGURED_GUIDE_GOAL, createAchievementUnlockedGuideGoal, FIRST_FILE_DROP_GUIDE_GOAL, OPEN_RESOURCE_LIBRARY_GUIDE_GOAL, WORKSPACE_EXISTS_GUIDE_GOAL } from '../purpose/guide-goals';
+import { CHAT_API_CONFIGURED_GUIDE_GOAL, createAchievementUnlockedGuideGoal, FIRST_CHAT_GUIDE_GOAL, FIRST_FILE_DROP_GUIDE_GOAL, OPEN_RESOURCE_LIBRARY_GUIDE_GOAL, WORKSPACE_EXISTS_GUIDE_GOAL } from '../purpose/guide-goals';
 import type { StartSpritePurposeRequest } from '../purpose/types';
 import { QuestRegistry } from './quest-registry';
 import type { OnboardingQuestDefinition, QuestPredicateContext } from './types';
@@ -104,6 +104,12 @@ function isAppWindowOpened(payload: unknown, options: { windowKey: string; route
   return true;
 }
 
+function isChatEntryWindowOpened(payload: unknown): boolean {
+  const record = readRecord(payload);
+  if (!record) return false;
+  return record.windowKey === 'assistant' || record.windowKey === 'assistantMini' || record.windowKey === 'chat' || record.windowKey === 'chatOverlay';
+}
+
 function getFeatureIntroTriggerEvents(completion: FeatureIntroCompletionSpec): string[] {
   switch (completion.kind) {
     case 'file-workflow-started':
@@ -202,7 +208,7 @@ export function createWorkspaceCreateQuest(deps: OnboardingPresetDeps): Onboardi
     recommendation: {
       questId: 'chat.api-config',
       delayMs: 5000,
-      prompt: '工作空间准备好啦。要不要接着配置 API Key，先让我可以聊天？',
+      prompt: '接着配置 API Key 就可以和我聊天了',
       confirmLabel: '去配置'
     },
     reward: {
@@ -257,9 +263,9 @@ export function createChatApiConfigQuest(deps: OnboardingPresetDeps): Onboarding
     },
     goal: CHAT_API_CONFIGURED_GUIDE_GOAL,
     recommendation: {
-      questId: 'first-file-drop',
-      delayMs: 2500,
-      prompt: '现在可以聊天啦。要不要再试试把第一个文件拖给我？',
+      questId: 'first-chat',
+      delayMs: 7000,
+      prompt: '现在可以聊天啦。要不要先试着和我说一句？',
       confirmLabel: '继续'
     },
     reward: {
@@ -283,6 +289,68 @@ export function createChatApiConfigQuest(deps: OnboardingPresetDeps): Onboarding
         ...(context ? { context } : {})
       };
     }
+  };
+}
+
+/**
+ * "first-chat" 新手引导任务：
+ * - precondition：已具备工作空间，且已有可用于聊天的 AI 服务商预设；
+ * - start：由任务列表、推荐或 AI 显式启动，引导用户双击角色打开聊天入口；
+ * - completion：监听 AppEvent.APP_WINDOW_OPENED，聊天入口窗口打开后即完成；
+ * - reward：XP+15、Favor+2、achievement: 'first-chat'。
+ */
+export function createFirstChatQuest(deps: OnboardingPresetDeps): OnboardingQuestDefinition {
+  const hasWorkspaceAndChatReady = async (): Promise<boolean> => {
+    const workspaceCount = await Promise.resolve(deps.countWorkspaces());
+    if (workspaceCount <= 0) return false;
+    return hasChatApiConfigured(deps);
+  };
+
+  return {
+    id: 'first-chat',
+    category: 'onboarding',
+    title: '开始第一次聊天',
+    description: '双击桌面角色，打开聊天入口窗口。',
+    display: {
+      actionLabel: '开始聊天',
+      activeActionLabel: '继续聊天',
+      actionPurposeKind: 'onboarding.chat.start'
+    },
+    oneShot: true,
+    triggerEvents: ['APP_WINDOW_OPENED'],
+    explicitStartSources: ['task-list', 'ai', 'recommendation'],
+    precondition: {
+      id: 'workspace-and-chat-api-ready',
+      evaluate: hasWorkspaceAndChatReady
+    },
+    completion: {
+      id: 'chat-entry-window-opened',
+      evaluate: async (ctx) => ctx.event === 'APP_WINDOW_OPENED' && isChatEntryWindowOpened(ctx.eventPayload) && (await hasWorkspaceAndChatReady())
+    },
+    goal: FIRST_CHAT_GUIDE_GOAL,
+    recommendation: {
+      questId: 'first-file-drop',
+      delayMs: 7000,
+      prompt: '聊天跑通啦。要不要再试试把第一个文件拖给我？',
+      confirmLabel: '继续'
+    },
+    reward: {
+      xp: 15,
+      favor: 2,
+      achievementId: 'first-chat'
+    },
+    rewardSource: 'quest:first-chat',
+    toPurposeRequest: (): StartSpritePurposeRequest => ({
+      kind: 'onboarding.chat.start',
+      reason: '引导用户完成第一次 AI 聊天',
+      source: 'system-event',
+      title: '新手引导：开始聊天',
+      priority: 68,
+      presetId: 'onboarding.chat.start',
+      interruptPolicy: 'interruptible',
+      coalesceKey: 'onboarding.chat.start',
+      plannerMode: 'preset-only'
+    })
   };
 }
 
@@ -501,5 +569,5 @@ export function createFeatureIntroQuests(deps: OnboardingPresetDeps): Onboarding
 }
 
 export function createOnboardingQuestRegistry(deps: OnboardingPresetDeps): QuestRegistry {
-  return new QuestRegistry([createWorkspaceCreateQuest(deps), createChatApiConfigQuest(deps), createFirstFileDropQuest(deps), createOpenResourceLibraryQuest(deps), ...createFeatureIntroQuests(deps)]);
+  return new QuestRegistry([createWorkspaceCreateQuest(deps), createChatApiConfigQuest(deps), createFirstChatQuest(deps), createFirstFileDropQuest(deps), createOpenResourceLibraryQuest(deps), ...createFeatureIntroQuests(deps)]);
 }

@@ -69,6 +69,11 @@ export const FIRST_FILE_DROP_GUIDE_GOAL = createAchievementUnlockedGuideGoal({
   description: '首次通过桌面角色拖拽导入资源的成就已解锁。'
 });
 
+export const FIRST_CHAT_GUIDE_GOAL = createAchievementUnlockedGuideGoal({
+  achievementId: 'first-chat',
+  description: '首次完成一次 AI 聊天回复的成就已解锁。'
+});
+
 export const OPEN_RESOURCE_LIBRARY_GUIDE_GOAL = createAchievementUnlockedGuideGoal({
   achievementId: 'first-resource-library-open',
   description: '首次通过桌面助手菜单打开资源库的成就已解锁。'

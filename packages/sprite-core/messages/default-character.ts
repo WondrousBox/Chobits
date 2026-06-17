@@ -497,6 +497,33 @@ export const CHARACTER_MESSAGE_SPECS = [
     neutral: () => ['打开啦！以后导入的文件都可以在资源库里整理。']
   },
   {
+    field: 'onboardingChatStartInvite',
+    section: 'routines',
+    key: 'onboarding.chat.start.invite',
+    label: '首次聊天引导邀请',
+    maxItems: 4,
+    maxLength: 180,
+    neutral: () => ['现在双击我，就可以打开聊天入口啦']
+  },
+  {
+    field: 'onboardingChatStartTip',
+    section: 'routines',
+    key: 'onboarding.chat.start.tip',
+    label: '首次聊天引导提示',
+    maxItems: 4,
+    maxLength: 240,
+    neutral: () => ['双击桌面角色，就能打开聊天输入窗口。']
+  },
+  {
+    field: 'onboardingChatStartDone',
+    section: 'routines',
+    key: 'onboarding.chat.start.done',
+    label: '首次聊天完成',
+    maxItems: 4,
+    maxLength: 220,
+    neutral: () => ['打开啦！以后双击我就可以开始聊天。']
+  },
+  {
     field: 'chatApiConfigGuideInvite',
     section: 'routines',
     key: 'chat.api-config-guide.invite',
@@ -529,7 +556,7 @@ export const CHARACTER_MESSAGE_SPECS = [
     label: '聊天 API 配置引导完成 MiniMax 彩蛋',
     maxItems: 4,
     maxLength: 280,
-    neutral: () => ['你配置的是 MiniMax 的 Token Plan 哦。这个 plan 还可以制作音乐，要不要试一下？做好的音乐，我还可以跟着跳舞。']
+    neutral: () => ['MiniMax 还可以制作音乐，以后可以和我说哦']
   },
   {
     field: 'featureFileVideoTranscriptionInvite',

@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { resolveProviderIdentity } from '@/lib/ai-provider-identity';
+import { selectChatDefaultsForProvider } from '@/lib/chat-selection-defaults';
 
 type ProviderRow = {
   id: string;
@@ -132,8 +133,10 @@ export default function AiProviderConfigWindow(): JSX.Element {
             setSaving(true);
             if (presetId) {
               await window.YUA.ai.setPresetSecrets(presetId, payload);
+              await selectChatDefaultsForProvider({ providerId: pid, presetId, provider: provider ?? undefined });
             } else {
               await window.YUA.ai.setProviderSecrets(pid, payload);
+              await selectChatDefaultsForProvider({ providerId: pid, provider: provider ?? undefined });
             }
           } catch (e: any) {
             toast.error('自动保存失败', { description: e?.message || String(e) });
@@ -144,7 +147,7 @@ export default function AiProviderConfigWindow(): JSX.Element {
         500,
         { leading: false, trailing: true }
       ),
-    [presetId]
+    [presetId, provider]
   );
 
   const handleChange = (key: string, val: string): void => {
