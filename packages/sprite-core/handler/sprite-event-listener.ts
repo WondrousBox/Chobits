@@ -58,8 +58,8 @@ interface ResolvedSpriteEventListenerOptions {
 
 function resolveOptions(options?: SpriteEventListenerOptions): ResolvedSpriteEventListenerOptions {
   return {
-    workflow: options?.workflow ?? 'auto',
-    resourceImport: options?.resourceImport ?? 'trigger'
+    workflow: options?.workflow ?? 'purpose',
+    resourceImport: options?.resourceImport ?? 'purpose'
   };
 }
 
@@ -279,10 +279,10 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
   handlers.push({
     event: AppEvent.SPRITE_WORKFLOW_START,
     handler: (data) => {
-      if (routeMode.workflow === 'purpose' && startWorkflowWaitingPurpose(mgr, data)) {
+      if (routeMode.workflow !== 'trigger' && isWorkflowWaitingPurposeHandling(mgr, data)) {
         return;
       }
-      if (routeMode.workflow !== 'trigger' && isWorkflowWaitingPurposeHandling(mgr, data)) {
+      if (routeMode.workflow === 'purpose' && startWorkflowWaitingPurpose(mgr, data)) {
         return;
       }
       progressSpeech.start({
@@ -362,10 +362,10 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
   handlers.push({
     event: AppEvent.SPRITE_RESOURCE_IMPORT_START,
     handler: (data) => {
-      if (routeMode.resourceImport === 'purpose' && startResourceImportPurpose(mgr, data)) {
+      if (routeMode.resourceImport !== 'trigger' && isResourceImportPurposeHandling(mgr, data)) {
         return;
       }
-      if (routeMode.resourceImport !== 'trigger' && isResourceImportPurposeHandling(mgr, data)) {
+      if (routeMode.resourceImport === 'purpose' && startResourceImportPurpose(mgr, data)) {
         return;
       }
       progressSpeech.start({

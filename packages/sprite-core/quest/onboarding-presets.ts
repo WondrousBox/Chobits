@@ -1,5 +1,12 @@
 import { FEATURE_INTRO_QUEST_CATALOG, type FeatureIntroCompletionSpec, type FeatureIntroQuestCatalogItem } from '../feature-intro-catalog';
-import { CHAT_API_CONFIGURED_GUIDE_GOAL, createAchievementUnlockedGuideGoal, FIRST_CHAT_GUIDE_GOAL, FIRST_FILE_DROP_GUIDE_GOAL, OPEN_RESOURCE_LIBRARY_GUIDE_GOAL, WORKSPACE_EXISTS_GUIDE_GOAL } from '../purpose/guide-goals';
+import {
+  CHAT_API_CONFIGURED_GUIDE_GOAL,
+  createAchievementUnlockedGuideGoal,
+  FIRST_CHAT_GUIDE_GOAL,
+  FIRST_FILE_DROP_GUIDE_GOAL,
+  OPEN_RESOURCE_LIBRARY_GUIDE_GOAL,
+  WORKSPACE_EXISTS_GUIDE_GOAL
+} from '../purpose/guide-goals';
 import type { StartSpritePurposeRequest } from '../purpose/types';
 import { QuestRegistry } from './quest-registry';
 import type { OnboardingQuestDefinition, QuestPredicateContext } from './types';
@@ -35,9 +42,9 @@ function hasSpriteDropSource(payload: unknown): boolean {
   }
 }
 
-function isAssistantResourceMenuSelection(payload: unknown): boolean {
+function isAssistantInventoryMenuSelection(payload: unknown): boolean {
   const record = readRecord(payload);
-  return record?.itemId === 'resources' && record.windowKey === 'resources' && record.source === 'assistant-context-menu';
+  return record?.itemId === 'inventory' && record.windowKey === 'inventory' && record.source === 'assistant-context-menu';
 }
 
 function readPath(record: Record<string, unknown>, path: string): unknown {
@@ -265,7 +272,7 @@ export function createChatApiConfigQuest(deps: OnboardingPresetDeps): Onboarding
     recommendation: {
       questId: 'first-chat',
       delayMs: 7000,
-      prompt: '现在可以聊天啦。要不要先试着和我说一句？',
+      prompt: '现在可以聊天啦，要不要试试看？',
       confirmLabel: '继续'
     },
     reward: {
@@ -274,7 +281,7 @@ export function createChatApiConfigQuest(deps: OnboardingPresetDeps): Onboarding
       achievementId: 'first-chat-api-config'
     },
     rewardSource: 'quest:chat.api-config',
-    toPurposeRequest: (): StartSpritePurposeRequest => {
+    toPurposeRequest: (options): StartSpritePurposeRequest => {
       const context = resolveChatApiConfigGuideContext(deps);
       return {
         kind: 'chat.api-config-guide',
@@ -286,7 +293,11 @@ export function createChatApiConfigQuest(deps: OnboardingPresetDeps): Onboarding
         interruptPolicy: 'interruptible',
         coalesceKey: 'chat.api-config-guide',
         plannerMode: 'preset-only',
-        ...(context ? { context } : {})
+        context: {
+          ...(context ?? {}),
+          ...(options?.source ? { questStartSource: options.source } : {}),
+          ...(options?.source === 'recommendation' ? { openSettingsDirectly: true } : {})
+        }
       };
     }
   };
@@ -331,7 +342,7 @@ export function createFirstChatQuest(deps: OnboardingPresetDeps): OnboardingQues
     recommendation: {
       questId: 'first-file-drop',
       delayMs: 7000,
-      prompt: '聊天跑通啦。要不要再试试把第一个文件拖给我？',
+      prompt: '我可以帮你管理文件，可以试试把文件拖给我。',
       confirmLabel: '继续'
     },
     reward: {
@@ -401,8 +412,8 @@ export function createFirstFileDropQuest(deps: OnboardingPresetDeps): Onboarding
     recommendation: {
       questId: 'open-resource-library',
       delayMs: 2500,
-      prompt: '文件已经进库了。要不要接着看看资源库在哪里？',
-      confirmLabel: '打开引导'
+      prompt: '文件被放到背包了，要不要接着看在哪里？',
+      confirmLabel: '去看看'
     },
     reward: {
       xp: 15,
@@ -428,7 +439,7 @@ export function createFirstFileDropQuest(deps: OnboardingPresetDeps): Onboarding
  * "open-resource-library" 新手引导任务：
  * - precondition：已具备工作空间；
  * - start：不自动启动，只能由任务列表或未来 AI 显式 startQuest；
- * - completion：用户从助手右键菜单选择“资源库”。
+ * - completion：用户从助手右键菜单选择“背包”。
  */
 export function createOpenResourceLibraryQuest(deps: OnboardingPresetDeps): OnboardingQuestDefinition {
   const hasWorkspaceReady = async (): Promise<boolean> => {
@@ -439,12 +450,12 @@ export function createOpenResourceLibraryQuest(deps: OnboardingPresetDeps): Onbo
   return {
     id: 'open-resource-library',
     category: 'onboarding',
-    title: '打开资源库',
-    description: '右键点击桌面助手，在菜单中打开资源库。',
+    title: '打开背包',
+    description: '右键点击桌面助手，在菜单中打开背包。',
     display: {
       actionLabel: '开始引导',
       activeActionLabel: '继续引导',
-      actionWindowKey: 'resources',
+      actionWindowKey: 'inventory',
       actionPurposeKind: 'onboarding.resource.open-library'
     },
     oneShot: true,
@@ -455,16 +466,10 @@ export function createOpenResourceLibraryQuest(deps: OnboardingPresetDeps): Onbo
       evaluate: hasWorkspaceReady
     },
     completion: {
-      id: 'assistant-menu-resources-selected',
-      evaluate: (ctx) => ctx.event === 'ASSISTANT_MENU_ITEM_SELECTED' && isAssistantResourceMenuSelection(ctx.eventPayload)
+      id: 'assistant-menu-inventory-selected',
+      evaluate: (ctx) => ctx.event === 'ASSISTANT_MENU_ITEM_SELECTED' && isAssistantInventoryMenuSelection(ctx.eventPayload)
     },
     goal: OPEN_RESOURCE_LIBRARY_GUIDE_GOAL,
-    recommendation: {
-      questId: 'feature.resource-library-preview',
-      delayMs: 2500,
-      prompt: '资源库已经打开啦。要不要继续试试预览一个资源？',
-      confirmLabel: '继续'
-    },
     reward: {
       xp: 10,
       favor: 1,
@@ -473,9 +478,9 @@ export function createOpenResourceLibraryQuest(deps: OnboardingPresetDeps): Onbo
     rewardSource: 'quest:open-resource-library',
     toPurposeRequest: (): StartSpritePurposeRequest => ({
       kind: 'onboarding.resource.open-library',
-      reason: '引导用户通过右键助手菜单打开资源库',
+      reason: '引导用户通过右键助手菜单打开背包',
       source: 'system-event',
-      title: '新手引导：打开资源库',
+      title: '新手引导：打开背包',
       priority: 66,
       presetId: 'onboarding.resource.open-library',
       interruptPolicy: 'interruptible',
@@ -569,5 +574,12 @@ export function createFeatureIntroQuests(deps: OnboardingPresetDeps): Onboarding
 }
 
 export function createOnboardingQuestRegistry(deps: OnboardingPresetDeps): QuestRegistry {
-  return new QuestRegistry([createWorkspaceCreateQuest(deps), createChatApiConfigQuest(deps), createFirstChatQuest(deps), createFirstFileDropQuest(deps), createOpenResourceLibraryQuest(deps), ...createFeatureIntroQuests(deps)]);
+  return new QuestRegistry([
+    createWorkspaceCreateQuest(deps),
+    createChatApiConfigQuest(deps),
+    createFirstChatQuest(deps),
+    createFirstFileDropQuest(deps),
+    createOpenResourceLibraryQuest(deps),
+    ...createFeatureIntroQuests(deps)
+  ]);
 }

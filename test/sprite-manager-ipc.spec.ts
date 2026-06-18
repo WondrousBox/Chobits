@@ -806,6 +806,26 @@ describe('sprite manager IPC integration', () => {
     expect(retrospectiveSpy).toHaveBeenCalledWith({ date: '2026-05-03', limit: 5 });
   });
 
+  it('routes app-event purpose IPC through the global event bus only', async () => {
+    listSpritesMock.mockResolvedValue([]);
+
+    const { initSpriteManagerIPC } = await import('../packages/sprite-core/handler/sprite-manager-ipc');
+    const { AppEvent, eventManager } = await import('@packages/event');
+    const emitSpy = vi.spyOn(eventManager, 'emit').mockImplementation(() => undefined);
+
+    await initSpriteManagerIPC(windowStub.win as any, { addAllowedResourceRoot: vi.fn() });
+
+    const { SpriteManager } = await import('../packages/sprite-core/manager');
+    const mgr = SpriteManager.getInstance();
+    const eventSpy = vi.spyOn(mgr, 'emitPurposeEvent').mockReturnValue({ matched: 1 });
+
+    const handleEvent = electronState.handlers.get('sprite:purpose:event') as ((_: unknown, payload: any) => unknown) | undefined;
+
+    expect(handleEvent?.({} as never, { source: 'app-event', event: AppEvent.FILE_ACTION_SELECTED, payload: { actionId: 'doc-sum' } })).toEqual({ matched: 0 });
+    expect(eventSpy).not.toHaveBeenCalled();
+    expect(emitSpy).toHaveBeenCalledWith(AppEvent.FILE_ACTION_SELECTED, { actionId: 'doc-sum' });
+  });
+
   it('bridges daily-care routine dispatches into sprite purposes', async () => {
     listSpritesMock.mockResolvedValue([]);
     let dispatchDailyCare: ((event: any) => void) | undefined;

@@ -1,5 +1,5 @@
-import type { StartSpritePurposeRequest } from '../purpose/types';
 import type { SpriteRoutineGuideGoalDefinition } from '../purpose/guide-goals';
+import type { StartSpritePurposeRequest } from '../purpose/types';
 
 /**
  * Quest 类别。
@@ -19,11 +19,11 @@ export type QuestStartSource = 'task-list' | 'ai' | 'system' | 'recommendation';
  * - `quest:<id>` 形式的 source 会触发幂等检查，确保只发放一次。
  */
 export interface OnboardingQuestReward {
-    xp?: number;
-    favor?: number;
-    achievementId?: string;
-    /** 维度增益，沿用 PersonaRewardGrant.dimensions 结构 */
-    dimensions?: Array<{ id: string; delta: number; maxValue?: number }>;
+  xp?: number;
+  favor?: number;
+  achievementId?: string;
+  /** 维度增益，沿用 PersonaRewardGrant.dimensions 结构 */
+  dimensions?: Array<{ id: string; delta: number; maxValue?: number }>;
 }
 
 /**
@@ -34,18 +34,18 @@ export interface OnboardingQuestReward {
  * - cancelLabel 只在需要额外取消按钮时配置；不填时只使用 notice 自带关闭按钮。
  */
 export interface QuestRecommendationDefinition {
-    questId: string;
-    delayMs?: number;
-    prompt?: string;
-    confirmLabel?: string;
-    cancelLabel?: string;
+  questId: string;
+  delayMs?: number;
+  prompt?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
 }
 
 export interface QuestRecommendationOffer extends QuestRecommendationDefinition {
-    questTitle: string;
-    questDescription?: string;
-    questCategory: QuestCategory;
-    questStatus: OnboardingQuestRuntimeState['status'];
+  questTitle: string;
+  questDescription?: string;
+  questCategory: QuestCategory;
+  questStatus: OnboardingQuestRuntimeState['status'];
 }
 
 /**
@@ -55,94 +55,94 @@ export interface QuestRecommendationOffer extends QuestRecommendationDefinition 
  * 通过定时器或显式 tick 调用时不存在。
  */
 export interface QuestPredicateContext {
-    /** 当 tick 由某个 AppEvent 触发时携带的事件名（例如 'WORKSPACE_CREATED'） */
-    event?: string;
-    /** AppEvent 的 payload */
-    eventPayload?: unknown;
-    /** Quest 引擎自身维护的状态（read-only），供谓词参考 */
-    onboardingState: OnboardingState;
+  /** 当 tick 由某个 AppEvent 触发时携带的事件名（例如 'WORKSPACE_CREATED'） */
+  event?: string;
+  /** AppEvent 的 payload */
+  eventPayload?: unknown;
+  /** Quest 引擎自身维护的状态（read-only），供谓词参考 */
+  onboardingState: OnboardingState;
 }
 
 export interface QuestPredicate {
-    /** 描述性 id，便于调试 */
-    id: string;
-    /**
-     * 异步判定。返回 true 即视为满足。
-     * 由于通常需要查询 IPC（如 workspace:list），允许 async。
-     */
-    evaluate: (ctx: QuestPredicateContext) => Promise<boolean> | boolean;
+  /** 描述性 id，便于调试 */
+  id: string;
+  /**
+   * 异步判定。返回 true 即视为满足。
+   * 由于通常需要查询 IPC（如 workspace:list），允许 async。
+   */
+  evaluate: (ctx: QuestPredicateContext) => Promise<boolean> | boolean;
 }
 
 /**
  * Quest 定义。
  */
 export interface OnboardingQuestDefinition {
-    /** 唯一 ID，例如 'workspace.create' */
-    id: string;
-    category: QuestCategory;
-    title: string;
-    /** 展示层说明文案。QuestEngine 不依赖该字段，任务列表等 UI 可读取。 */
-    description?: string;
-    /** 展示层配置。用于任务列表窗口，不参与完成判定。 */
-    display?: {
-        actionLabel?: string;
-        activeActionLabel?: string;
-        actionWindowKey?: string;
-        actionPurposeKind?: string;
-    };
-    /** 不可重复完成；true=完成后永久标记 done */
-    oneShot?: boolean;
-    /** 触发条件（前置）：进入该 Quest 的前置谓词，全部满足才会激活并派发 startPurpose */
-    precondition?: QuestPredicate;
-    /** 完成条件谓词：满足后发奖并标记 done */
-    completion: QuestPredicate;
-    /** 声明式目标：用于任务列表、planner 摘要和跨中断恢复时解释“这个任务到底要达成什么”。 */
-    goal?: SpriteRoutineGuideGoalDefinition;
-    /** 完成后可推荐的下一任务。由 QuestEngine 确认下一个任务尚未完成后再提示。 */
-    recommendation?: QuestRecommendationDefinition;
-    /** 用于将 Quest 转化为 SpritePurposeManager.start 的入参 */
-    toPurposeRequest: () => StartSpritePurposeRequest;
-    /** 完成奖励 */
-    reward?: OnboardingQuestReward;
-    /** 奖励 source key；默认为 `quest:<id>` */
-    rewardSource?: string;
-    /** 监听的 AppEvent 名，命中时驱动 Quest tick；用于完成判定、状态恢复等，不等同于自动启动。 */
-    triggerEvents?: string[];
-    /** 允许 pending Quest 自动启动引导的 AppEvent。未配置时只能通过 startQuest 等显式入口启动。 */
-    autoStartEvents?: string[];
-    /** 允许通过 startQuest 显式启动的来源；未配置时默认允许任务列表和 AI。 */
-    explicitStartSources?: QuestStartSource[];
-    /** active 但尚未完成时，是否允许在指定事件上重新派发 purpose。用于启动恢复/关闭窗口后再次提醒。 */
-    retriable?: boolean;
-    /** retriable=true 时可重新派发的事件；默认只在 APP_STARTED 恢复。 */
-    retryEvents?: string[];
-    /** 完成时是否解锁附加成就（与 reward.achievementId 不同：reward 由 grantReward 处理，此处独立） */
-    achievementOnComplete?: string;
+  /** 唯一 ID，例如 'workspace.create' */
+  id: string;
+  category: QuestCategory;
+  title: string;
+  /** 展示层说明文案。QuestEngine 不依赖该字段，任务列表等 UI 可读取。 */
+  description?: string;
+  /** 展示层配置。用于任务列表窗口，不参与完成判定。 */
+  display?: {
+    actionLabel?: string;
+    activeActionLabel?: string;
+    actionWindowKey?: string;
+    actionPurposeKind?: string;
+  };
+  /** 不可重复完成；true=完成后永久标记 done */
+  oneShot?: boolean;
+  /** 触发条件（前置）：进入该 Quest 的前置谓词，全部满足才会激活并派发 startPurpose */
+  precondition?: QuestPredicate;
+  /** 完成条件谓词：满足后发奖并标记 done */
+  completion: QuestPredicate;
+  /** 声明式目标：用于任务列表、planner 摘要和跨中断恢复时解释“这个任务到底要达成什么”。 */
+  goal?: SpriteRoutineGuideGoalDefinition;
+  /** 完成后可推荐的下一任务。由 QuestEngine 确认下一个任务尚未完成后再提示。 */
+  recommendation?: QuestRecommendationDefinition;
+  /** 用于将 Quest 转化为 SpritePurposeManager.start 的入参 */
+  toPurposeRequest: (options?: { source?: QuestStartSource }) => StartSpritePurposeRequest;
+  /** 完成奖励 */
+  reward?: OnboardingQuestReward;
+  /** 奖励 source key；默认为 `quest:<id>` */
+  rewardSource?: string;
+  /** 监听的 AppEvent 名，命中时驱动 Quest tick；用于完成判定、状态恢复等，不等同于自动启动。 */
+  triggerEvents?: string[];
+  /** 允许 pending Quest 自动启动引导的 AppEvent。未配置时只能通过 startQuest 等显式入口启动。 */
+  autoStartEvents?: string[];
+  /** 允许通过 startQuest 显式启动的来源；未配置时默认允许任务列表和 AI。 */
+  explicitStartSources?: QuestStartSource[];
+  /** active 但尚未完成时，是否允许在指定事件上重新派发 purpose。用于启动恢复/关闭窗口后再次提醒。 */
+  retriable?: boolean;
+  /** retriable=true 时可重新派发的事件；默认只在 APP_STARTED 恢复。 */
+  retryEvents?: string[];
+  /** 完成时是否解锁附加成就（与 reward.achievementId 不同：reward 由 grantReward 处理，此处独立） */
+  achievementOnComplete?: string;
 }
 
 /**
  * 单个 Quest 的运行时状态。
  */
 export interface OnboardingQuestRuntimeState {
-    /** 'pending' = 未开始 / 'active' = 已激活已派发 purpose / 'done' = 已完成已发奖 / 'skipped' */
-    status: 'pending' | 'active' | 'done' | 'skipped';
-    activatedAt?: number;
-    completedAt?: number;
-    /** 已派发的 purpose id（如果有），用于去重 */
-    lastPurposeId?: string;
+  /** 'pending' = 未开始 / 'active' = 已激活已派发 purpose / 'done' = 已完成已发奖 / 'skipped' */
+  status: 'pending' | 'active' | 'done' | 'skipped';
+  activatedAt?: number;
+  completedAt?: number;
+  /** 已派发的 purpose id（如果有），用于去重 */
+  lastPurposeId?: string;
 }
 
 /**
  * 整个新手引导/任务系统的持久化状态，存到 preferences-config.json 的 `onboardingState` 字段。
  */
 export interface OnboardingState {
-    version: 1;
-    /** 用户主动跳过整个新手引导（不影响后续 daily quest 等） */
-    skipped?: boolean;
-    /** 每个 Quest 的状态 */
-    quests: Record<string, OnboardingQuestRuntimeState>;
+  version: 1;
+  /** 用户主动跳过整个新手引导（不影响后续 daily quest 等） */
+  skipped?: boolean;
+  /** 每个 Quest 的状态 */
+  quests: Record<string, OnboardingQuestRuntimeState>;
 }
 
 export function createEmptyOnboardingState(): OnboardingState {
-    return { version: 1, quests: {} };
+  return { version: 1, quests: {} };
 }

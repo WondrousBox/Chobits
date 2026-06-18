@@ -1013,22 +1013,13 @@ describe('SpriteRoutinePresetRegistry', () => {
           { type: 'speak', text: '自动补 id。' },
           {
             type: 'parallel',
-            body: [
-              250,
-              { type: 'showToast', content: '嵌套也补 id。' }
-            ]
+            body: [250, { type: 'showToast', content: '嵌套也补 id。' }]
           },
           {
             type: 'sequence',
-            body: [
-              100,
-              'playAnimation thinking silent'
-            ]
+            body: [100, 'playAnimation thinking silent']
           },
-          [
-            { type: 'showToast', content: '数组也表示 sequence。' },
-            'playAnimation wave silent'
-          ],
+          [{ type: 'showToast', content: '数组也表示 sequence。' }, 'playAnimation wave silent'],
           {
             type: 'branch',
             by: 'result',
@@ -1197,56 +1188,20 @@ describe('SpriteRoutinePresetRegistry', () => {
     expect(routine.steps.some((step) => step.type === 'walkTo')).toBe(false);
   });
 
-  it('creates file drop invite routines that walk to center and wait for drop or leave', () => {
+  it('creates unified file drop routines that invite, wait for resources, and resolve the menu', () => {
     const registry = new SpriteRoutinePresetRegistry();
-    const preset = registry.get('file.drop.invite');
+    const preset = registry.get('file.drop');
     expect(preset).toBeDefined();
 
     const routine = registry.createRoutine(
       {
-        id: 'purpose-file-invite',
-        kind: 'file.drop.invite',
-        title: '文件投递等待',
-        reason: '用户正在拖文件',
-        source: 'user-event',
-        status: 'active',
-        priority: 85,
-        interruptPolicy: 'interruptible',
-        correlationId: 'drag-1'
-      },
-      preset!,
-      1000
-    );
-
-    expect(preset!.defaultPriority).toBe(85);
-    expect(routine.steps.map((step) => step.id)).toEqual(['invite-go-center', 'invite-ready', 'wait-file-drop-or-leave', 'drag-result-branch']);
-    expect(routine.steps[0]).toMatchObject({ type: 'walkTo', target: 'center' });
-    expect(routine.steps.find((step) => step.id === 'wait-file-drop-or-leave')).toMatchObject({
-      type: 'loopUntil',
-      source: 'sprite-event-bus',
-      untilEvent: ['interact:file-drop', 'interact:file-drag-leave'],
-      assignTo: 'dragResult'
-    });
-    expect(routine.steps.find((step) => step.id === 'drag-result-branch')).toMatchObject({
-      type: 'branch',
-      by: 'dragResult.event.event'
-    });
-  });
-
-  it('creates file drop intake routines with correlation-aware event waits', () => {
-    const registry = new SpriteRoutinePresetRegistry();
-    const preset = registry.get('file.drop.intake');
-    expect(preset).toBeDefined();
-
-    const routine = registry.createRoutine(
-      {
-        id: 'purpose-file',
-        kind: 'file.drop.intake',
-        title: '文件投递接收',
+        id: 'purpose-file-drop',
+        kind: 'file.drop',
+        title: '文件投递',
         reason: '用户拖入文件',
         source: 'user-event',
         status: 'active',
-        priority: 70,
+        priority: 100,
         interruptPolicy: 'interruptible',
         correlationId: 'drop-1'
       },
@@ -1255,34 +1210,39 @@ describe('SpriteRoutinePresetRegistry', () => {
     );
 
     expect(preset!.defaultPriority).toBe(100);
-    expect(routine.steps.map((step) => step.id)).toContain('wait-menu-result');
-    expect(routine.steps.find((step) => step.id === 'open-file-actions-menu')).toMatchObject({
-      type: 'openWindow',
-      window: 'fileActionsMenu',
-      payload: { files: [], resources: [], source: 'drop', correlationId: 'drop-1' }
+    expect(routine.steps.map((step) => step.id)).toEqual(['invite-go-center', 'invite-ready', 'wait-file-drop-or-leave', 'drag-result-branch']);
+    expect(routine.steps[0]).toMatchObject({ type: 'walkTo', target: 'center' });
+    expect(routine.steps.find((step) => step.id === 'wait-file-drop-or-leave')).toMatchObject({
+      type: 'loopUntil',
+      source: 'sprite-event-bus',
+      untilEvent: ['interact:file-drop', 'interact:file-drag-leave'],
+      match: { correlationId: 'drop-1' },
+      assignTo: 'dragResult'
     });
-    expect(routine.steps.find((step) => step.id === 'wait-menu-result')).toMatchObject({
-      type: 'waitForEvent',
-      event: 'fileAction:resolved',
-      assignTo: 'menuResult',
-      match: { correlationId: 'drop-1' }
-    });
-    expect(routine.steps.find((step) => step.id === 'result-branch')).toMatchObject({
+    expect(routine.steps.find((step) => step.id === 'drag-result-branch')).toMatchObject({
       type: 'branch',
-      by: 'menuResult.payload.outcome'
+      by: 'dragResult.event.event',
+      cases: {
+        'interact:file-drop': expect.arrayContaining([
+          expect.objectContaining({ id: 'wait-file-drop-resources-ready', type: 'waitForEvent', event: 'fileDrop:resources-ready', match: { correlationId: 'drop-1' } }),
+          expect.objectContaining({ id: 'open-file-actions-menu', type: 'openWindow', window: 'fileActionsMenu', payloadFrom: 'fileDropReady.payload.fileActionsMenuPayload' }),
+          expect.objectContaining({ id: 'wait-menu-result', type: 'waitForEvent', event: 'fileAction:resolved', match: { correlationId: 'drop-1' } })
+        ]),
+        'interact:file-drag-leave': expect.arrayContaining([expect.objectContaining({ id: 'invite-return-corner', type: 'walkTo', target: 'corner' })])
+      }
     });
   });
 
   it('runs the cancelled file drop branch to confused animation and return', async () => {
     const registry = new SpriteRoutinePresetRegistry();
-    const preset = registry.get('file.drop.intake');
+    const preset = registry.get('file.drop');
     expect(preset).toBeDefined();
     const calls: string[] = [];
     const routine = registry.createRoutine(
       {
         id: 'purpose-file',
-        kind: 'file.drop.intake',
-        title: 'file drop intake',
+        kind: 'file.drop',
+        title: 'file drop',
         reason: 'user dropped files',
         source: 'user-event',
         status: 'active',
@@ -1304,13 +1264,34 @@ describe('SpriteRoutinePresetRegistry', () => {
       walkTo: (step) => {
         calls.push(`walk:${typeof step.target === 'string' ? step.target : 'point'}`);
       },
-      waitForEvent: () => ({
-        source: 'purpose-event',
-        event: 'fileAction:resolved',
-        correlationId: 'drop-1',
-        timestamp: Date.now(),
-        payload: { outcome: 'cancelled', reason: 'menu-closed' }
-      }),
+      waitForEvent: (step) => {
+        if (step.event === 'interact:file-drop') {
+          return { source: 'sprite-event-bus', event: 'interact:file-drop', correlationId: 'drop-1', timestamp: Date.now() };
+        }
+        if (step.event === 'fileDrop:resources-ready') {
+          return {
+            source: 'purpose-event',
+            event: 'fileDrop:resources-ready',
+            correlationId: 'drop-1',
+            timestamp: Date.now(),
+            payload: {
+              fileActionsMenuPayload: {
+                files: [{ name: 'notes.docx', path: 'F:/tmp/notes.docx' }],
+                resources: [{ id: 'resource-1', title: 'notes.docx', filePath: 'F:/tmp/notes.docx' }],
+                source: 'drop',
+                correlationId: 'drop-1'
+              }
+            }
+          };
+        }
+        return {
+          source: 'purpose-event',
+          event: 'fileAction:resolved',
+          correlationId: 'drop-1',
+          timestamp: Date.now(),
+          payload: { outcome: 'cancelled', reason: 'menu-closed' }
+        };
+      },
       speak: vi.fn(),
       showToast: (step) => {
         calls.push(`toast:${step.category ?? 'none'}`);
@@ -1324,15 +1305,20 @@ describe('SpriteRoutinePresetRegistry', () => {
 
     expect(result.ok).toBe(true);
     expect(result.steps.map((step) => step.stepId)).toEqual([
+      'invite-go-center',
+      'invite-ready',
+      'wait-file-drop-or-leave',
       'ack-drop',
       'thinking',
+      'wait-file-drop-resources-ready',
       'prompt-action',
       'open-file-actions-menu',
       'wait-menu-result',
       'cancelled-confused',
       'cancelled-toast',
       'result-branch',
-      'return-corner'
+      'return-corner',
+      'drag-result-branch'
     ]);
     expect(calls).toContain('open:fileActionsMenu:drop-1');
     expect(calls).toContain('play:confused');
@@ -1342,14 +1328,14 @@ describe('SpriteRoutinePresetRegistry', () => {
 
   it('runs the failed file drop branch to failure animation and return', async () => {
     const registry = new SpriteRoutinePresetRegistry();
-    const preset = registry.get('file.drop.intake');
+    const preset = registry.get('file.drop');
     expect(preset).toBeDefined();
     const calls: string[] = [];
     const routine = registry.createRoutine(
       {
         id: 'purpose-file',
-        kind: 'file.drop.intake',
-        title: 'file drop intake',
+        kind: 'file.drop',
+        title: 'file drop',
         reason: 'user dropped files',
         source: 'user-event',
         status: 'active',
@@ -1371,13 +1357,34 @@ describe('SpriteRoutinePresetRegistry', () => {
       walkTo: (step) => {
         calls.push(`walk:${typeof step.target === 'string' ? step.target : 'point'}`);
       },
-      waitForEvent: () => ({
-        source: 'purpose-event',
-        event: 'fileAction:resolved',
-        correlationId: 'drop-1',
-        timestamp: Date.now(),
-        payload: { outcome: 'failed', error: 'workflow exploded' }
-      }),
+      waitForEvent: (step) => {
+        if (step.event === 'interact:file-drop') {
+          return { source: 'sprite-event-bus', event: 'interact:file-drop', correlationId: 'drop-1', timestamp: Date.now() };
+        }
+        if (step.event === 'fileDrop:resources-ready') {
+          return {
+            source: 'purpose-event',
+            event: 'fileDrop:resources-ready',
+            correlationId: 'drop-1',
+            timestamp: Date.now(),
+            payload: {
+              fileActionsMenuPayload: {
+                files: [{ name: 'voice.mp3', path: 'F:/tmp/voice.mp3' }],
+                resources: [{ id: 'resource-1', title: 'voice.mp3', filePath: 'F:/tmp/voice.mp3' }],
+                source: 'drop',
+                correlationId: 'drop-1'
+              }
+            }
+          };
+        }
+        return {
+          source: 'purpose-event',
+          event: 'fileAction:resolved',
+          correlationId: 'drop-1',
+          timestamp: Date.now(),
+          payload: { outcome: 'failed', error: 'workflow exploded' }
+        };
+      },
       speak: vi.fn(),
       showToast: (step) => {
         calls.push(`toast:${step.category ?? 'none'}`);
@@ -1391,15 +1398,20 @@ describe('SpriteRoutinePresetRegistry', () => {
 
     expect(result.ok).toBe(true);
     expect(result.steps.map((step) => step.stepId)).toEqual([
+      'invite-go-center',
+      'invite-ready',
+      'wait-file-drop-or-leave',
       'ack-drop',
       'thinking',
+      'wait-file-drop-resources-ready',
       'prompt-action',
       'open-file-actions-menu',
       'wait-menu-result',
       'failed-reaction',
       'failed-toast',
       'result-branch',
-      'return-corner'
+      'return-corner',
+      'drag-result-branch'
     ]);
     expect(calls).toContain('open:fileActionsMenu:drop-1');
     expect(calls).toContain('play:failure');
@@ -1794,6 +1806,49 @@ describe('SpriteRoutinePresetRegistry', () => {
     });
   });
 
+  it('opens chat API settings directly when started from a confirmed recommendation', () => {
+    const registry = new SpriteRoutinePresetRegistry();
+    const preset = registry.get('chat.api-config-guide');
+    expect(preset).toBeDefined();
+
+    const routine = registry.createRoutine(
+      {
+        id: 'purpose-chat-api-config-guide',
+        kind: 'chat.api-config-guide',
+        title: 'chat api config guide',
+        reason: 'missing api key',
+        source: 'system-event',
+        status: 'active',
+        priority: 69,
+        interruptPolicy: 'interruptible',
+        context: {
+          providerId: 'openai',
+          presetId: 'preset-openai',
+          fields: ['apiKey'],
+          questStartSource: 'recommendation',
+          openSettingsDirectly: true
+        }
+      },
+      preset!,
+      1000
+    );
+
+    expect(routine.steps.map((step) => step.id)).toEqual([
+      'chat-api-config-open-settings',
+      'chat-api-config-walk-to-settings',
+      'chat-api-config-tip',
+      'chat-api-config-wait-result',
+      'chat-api-config-done-branch',
+      'chat-api-config-return-corner'
+    ]);
+    expect(routine.steps.some((step) => step.type === 'showNotice')).toBe(false);
+    expect(routine.steps[0]).toMatchObject({
+      type: 'openWindow',
+      window: 'aiProviderConfig',
+      payload: { providerId: 'openai', presetId: 'preset-openai', fields: ['apiKey'] }
+    });
+  });
+
   it('ends the chat API config guide quietly when the config window is closed without saving', async () => {
     const registry = new SpriteRoutinePresetRegistry();
     const preset = registry.get('chat.api-config-guide');
@@ -2073,12 +2128,6 @@ describe('SpriteRoutinePresetRegistry', () => {
     expect(routine.steps).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: 'first-chat-invite',
-          type: 'showNotice',
-          messageId: 'onboarding.chat.start.invite',
-          content: '现在双击我，就可以打开聊天入口啦'
-        }),
-        expect.objectContaining({
           id: 'first-chat-wait-double-click',
           type: 'loopUntil',
           source: 'sprite-event-bus',
@@ -2095,6 +2144,7 @@ describe('SpriteRoutinePresetRegistry', () => {
         })
       ])
     );
+    expect(routine.steps.some((step) => step.type === 'showNotice')).toBe(false);
   });
 
   it('runs first chat onboarding completion feedback when double click opens the chat entry', async () => {
@@ -2174,13 +2224,13 @@ describe('SpriteRoutinePresetRegistry', () => {
     expect(calls).toEqual(
       expect.arrayContaining([
         'play:wave',
-        'notice:onboarding.chat.start.invite:现在双击我，就可以打开聊天入口啦',
-        'clear:onboarding.chat.start.invite',
         'play:celebrate',
         'speak:first-chat-done:打开啦！以后双击我就可以开始聊天。',
         'walk:corner'
       ])
     );
+    expect(calls.some((call) => call.startsWith('notice:'))).toBe(false);
+    expect(calls.some((call) => call.startsWith('clear:'))).toBe(false);
   });
 
   it('keeps first chat onboarding waiting until the user double-clicks the sprite', async () => {
@@ -2293,7 +2343,6 @@ describe('SpriteRoutinePresetRegistry', () => {
         })
       ])
     );
-    expect(routine.steps).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'return-corner', type: 'walkTo', target: 'corner' })]));
     const waitStep = routine.steps.find((step) => step.id === 'wait-first-file-drop');
     expect(waitStep).toMatchObject({
       type: 'loopUntil',
@@ -2327,7 +2376,7 @@ describe('SpriteRoutinePresetRegistry', () => {
     });
   });
 
-  it('creates resource library onboarding routines that wait for right-click menu selection', () => {
+  it('creates inventory onboarding routines that wait for right-click menu selection', () => {
     const registry = new SpriteRoutinePresetRegistry();
     const preset = registry.get('onboarding.resource.open-library');
     expect(preset).toBeDefined();
@@ -2354,7 +2403,7 @@ describe('SpriteRoutinePresetRegistry', () => {
           id: 'resource-menu-invite',
           type: 'showNotice',
           messageId: 'onboarding.resource.open-library.invite',
-          content: '右键点我，打开菜单里的资源库。'
+          content: '右键点我，打开菜单里的背包。'
         }),
         expect.objectContaining({
           id: 'wait-context-menu-open',
@@ -2366,16 +2415,16 @@ describe('SpriteRoutinePresetRegistry', () => {
         expect.objectContaining({
           id: 'resource-menu-tip',
           type: 'speak',
-          text: '现在点菜单里的「资源库」。'
+          text: '现在点菜单里的「背包」。'
         }),
         expect.objectContaining({
-          id: 'wait-resource-library-open',
+          id: 'wait-inventory-open',
           type: 'waitForEvent',
           source: 'app-event',
           event: 'ASSISTANT_MENU_ITEM_SELECTED',
           match: {
-            itemId: 'resources',
-            windowKey: 'resources',
+            itemId: 'inventory',
+            windowKey: 'inventory',
             source: 'assistant-context-menu'
           }
         }),
@@ -2592,8 +2641,7 @@ describe('SpriteRoutinePresetRegistry', () => {
         'notice:onboarding.file.drop.invite:可以把文件拖拽给我',
         'clear:onboarding.file.drop.invite',
         'play:celebrate',
-        'speak:first-file-drop-done:收到啦！已经放到背包。',
-        'walk:corner'
+        'speak:first-file-drop-done:收到啦！已经放到背包。'
       ])
     );
   });

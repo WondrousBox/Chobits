@@ -232,7 +232,7 @@ export class SpriteRoutineRunner {
       case 'clearBusy':
         return this.deps.clearBusy?.();
       case 'openWindow':
-        return this.runOpenWindow(routine, step, signal);
+        return this.runOpenWindow(routine, step, signal, context);
       case 'loopUntil':
         return this.runLoopUntil(routine, step, options, context);
       case 'sequence':
@@ -425,12 +425,13 @@ export class SpriteRoutineRunner {
     return undefined;
   }
 
-  private async runOpenWindow(routine: SpriteRoutine, step: Extract<SpriteRoutineStep, { type: 'openWindow' }>, signal: AbortSignal): Promise<unknown> {
+  private async runOpenWindow(routine: SpriteRoutine, step: Extract<SpriteRoutineStep, { type: 'openWindow' }>, signal: AbortSignal, context: SpriteRoutineRunContext): Promise<unknown> {
     if (!this.deps.openWindow) {
       throw new Error('openWindow step is not supported by this runner');
     }
 
-    await this.deps.openWindow(step, signal, routine);
+    const resolvedStep = this.resolveOpenWindowStep(step, context);
+    await this.deps.openWindow(resolvedStep, signal, routine);
     if (!step.waitForEvent) {
       return undefined;
     }
@@ -451,6 +452,22 @@ export class SpriteRoutineRunner {
       signal,
       routine
     );
+  }
+
+  private resolveOpenWindowStep(step: Extract<SpriteRoutineStep, { type: 'openWindow' }>, context: SpriteRoutineRunContext): Extract<SpriteRoutineStep, { type: 'openWindow' }> {
+    if (!step.payloadFrom) {
+      return step;
+    }
+
+    const payload = this.readPath(context.variables, step.payloadFrom);
+    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+      return {
+        ...step,
+        payload: payload as Record<string, unknown>
+      };
+    }
+
+    throw new Error(`openWindow payloadFrom did not resolve to an object: ${step.payloadFrom}`);
   }
 
   private async runLoopUntil(

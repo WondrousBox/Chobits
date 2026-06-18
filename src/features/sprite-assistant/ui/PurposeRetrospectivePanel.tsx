@@ -21,10 +21,8 @@ function formatDuration(ms?: number): string {
 
 function getPurposeKindLabel(kind: string): string {
   switch (kind) {
-    case 'file.drop.invite':
-      return '文件等待';
-    case 'file.drop.intake':
-      return '文件处理';
+    case 'file.drop':
+      return '文件投递';
     case 'workflow.waiting':
       return '任务等待';
     case 'resource.import.waiting':

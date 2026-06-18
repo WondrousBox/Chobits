@@ -210,29 +210,13 @@ const FileActionsMenu: React.FC = () => {
           resourceId: primary.id,
           resourceName: primary.title || 'Unknown',
           thumbnailPath: primary.thumbnailPath,
-          workspaceId: primary.workspaceId
+          workspaceId: primary.workspaceId,
+          workflowName: purpose,
+          actionId,
+          actionPurpose: purpose
         },
         onSuccess: (runId) => {
           console.log(`[FileActionsMenu] ${purpose} started, runId:`, runId);
-          void window.YUA.sprite
-            .startPurpose({
-              kind: 'workflow.waiting',
-              reason: `等待文件操作工作流完成：${purpose}`,
-              source: 'app-event',
-              presetId: 'workflow.waiting',
-              priority: 65,
-              correlationId: payloadMeta.correlationId,
-              context: {
-                workflowRunId: runId,
-                runId,
-                workflowId: defId,
-                workflowName: purpose,
-                resourceId: primary.id
-              }
-            })
-            .catch((err) => {
-              console.warn('[FileActionsMenu] failed to start workflow waiting purpose', err);
-          });
           void emitPurposeEvent('fileAction:workflow-started', {
             actionId,
             actionPurpose: purpose,

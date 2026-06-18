@@ -34,7 +34,7 @@ describe('SpritePurposePlanner validation', () => {
     const result = validateSpritePurposePlannerOutput(
       {
         whyThisPlan: 'acknowledge the drop and wait for the user choice',
-        fallbackPresetId: 'file.drop.intake',
+        fallbackPresetId: 'file.drop',
         routineDraft: {
           title: 'Drop intake',
           steps: [

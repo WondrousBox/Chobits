@@ -151,7 +151,7 @@ describe('sprite event listener', () => {
 
   it('routes business animation semantics through trigger() instead of playOnce()', () => {
     const mgr = createManagerStub();
-    const cleanup = initSpriteEventListener(mgr as any);
+    const cleanup = initSpriteEventListener(mgr as any, { workflow: 'trigger', resourceImport: 'trigger' });
 
     eventHarness.emit(AppEvent.SPRITE_AI_START, { message: '思考中...' });
     eventHarness.emit(AppEvent.SPRITE_AI_ERROR, { error: 'boom' });
@@ -301,6 +301,67 @@ describe('sprite event listener', () => {
     cleanup();
   });
 
+  it('routes workflow start events into workflow.waiting purpose mode by default', () => {
+    const mgr = createManagerStub();
+    const cleanup = initSpriteEventListener(mgr as any);
+
+    eventHarness.emit(AppEvent.SPRITE_WORKFLOW_START, {
+      runId: 'run-default-purpose',
+      workflowId: 'wf-default',
+      workflowName: 'Default workflow purpose'
+    });
+
+    expect(mgr.startPurpose).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'workflow.waiting',
+        presetId: 'workflow.waiting',
+        source: 'app-event',
+        correlationId: 'run-default-purpose',
+        coalesceKey: 'workflow:run-default-purpose',
+        context: expect.objectContaining({
+          runId: 'run-default-purpose',
+          workflowRunId: 'run-default-purpose',
+          workflowId: 'wf-default',
+          workflowName: 'Default workflow purpose'
+        })
+      })
+    );
+    expect(mgr.showBusy).not.toHaveBeenCalled();
+    expect(mgr.trigger).not.toHaveBeenCalled();
+
+    cleanup();
+  });
+
+  it('routes resource import start events into resource.import.waiting purpose mode by default', () => {
+    const mgr = createManagerStub();
+    const cleanup = initSpriteEventListener(mgr as any);
+
+    eventHarness.emit(AppEvent.SPRITE_RESOURCE_IMPORT_START, {
+      resourceId: 'resource-default',
+      workspaceId: 'workspace-default',
+      message: 'Importing by default'
+    });
+
+    expect(mgr.startPurpose).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'resource.import.waiting',
+        presetId: 'resource.import.waiting',
+        source: 'app-event',
+        correlationId: 'resource-default',
+        coalesceKey: 'resource-import:resource-default',
+        context: expect.objectContaining({
+          resourceId: 'resource-default',
+          workspaceId: 'workspace-default',
+          message: 'Importing by default'
+        })
+      })
+    );
+    expect(mgr.showBusy).not.toHaveBeenCalled();
+    expect(mgr.trigger).not.toHaveBeenCalled();
+
+    cleanup();
+  });
+
   it('keeps legacy workflow presentation for unmatched active workflow purposes', () => {
     const mgr = createManagerStub();
     mgr.getPurposeSnapshot.mockReturnValue({
@@ -311,7 +372,7 @@ describe('sprite event listener', () => {
       routine: null,
       queue: []
     });
-    const cleanup = initSpriteEventListener(mgr as any);
+    const cleanup = initSpriteEventListener(mgr as any, { workflow: 'auto' });
 
     eventHarness.emit(AppEvent.SPRITE_WORKFLOW_PROGRESS, { runId: 'run-2', progress: 64, message: '另一个任务' });
     eventHarness.emit(AppEvent.SPRITE_WORKFLOW_PROGRESS, { progress: 70, message: '旧事件' });
