@@ -265,6 +265,8 @@ type OpenWindowStep = BaseRoutineStep<'openWindow'> & {
   window: string;
   /** 传给窗口的初始化 payload。 */
   payload?: Record<string, unknown>;
+  /** 从 runner variables 中读取窗口 payload 的点路径，例如 `fileDropReady.payload.fileActionsMenuPayload`。 */
+  payloadFrom?: string;
   /** 打开窗口后继续等待某个事件；内部会派生一个 waitForEvent step。 */
   waitForEvent?: string;
   /** `waitForEvent` 的事件来源；不填时按 `purpose-event` 等待。 */

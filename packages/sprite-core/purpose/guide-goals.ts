@@ -76,5 +76,5 @@ export const FIRST_CHAT_GUIDE_GOAL = createAchievementUnlockedGuideGoal({
 
 export const OPEN_RESOURCE_LIBRARY_GUIDE_GOAL = createAchievementUnlockedGuideGoal({
   achievementId: 'first-resource-library-open',
-  description: '首次通过桌面助手菜单打开资源库的成就已解锁。'
+  description: '首次通过桌面助手菜单打开背包的成就已解锁。'
 });

@@ -770,13 +770,30 @@ async function initOnboardingQuestEngine(
     mgr?.emitPurposeEvent({ source: 'app-event', event: 'RESOURCE_CREATED', payload: purposePayload });
     void engine.tick({ event: 'RESOURCE_CREATED', eventPayload: data });
   });
+  const spriteListenerPurposeEvents = new Set<AppEvent>([
+    AppEvent.SPRITE_RESOURCE_IMPORT_COMPLETE,
+    AppEvent.SPRITE_RESOURCE_IMPORT_ERROR,
+    AppEvent.AI_PROVIDER_CONFIG_UPDATED,
+    AppEvent.SPRITE_AI_COMPLETE,
+    AppEvent.SPRITE_WORKFLOW_START,
+    AppEvent.SPRITE_WORKFLOW_PROGRESS,
+    AppEvent.SPRITE_WORKFLOW_COMPLETE,
+    AppEvent.SPRITE_WORKFLOW_FAIL,
+    AppEvent.SPRITE_WORKFLOW_CANCEL,
+    AppEvent.SPRITE_DOWNLOAD_START,
+    AppEvent.SPRITE_RSS_REFRESH,
+    AppEvent.MEMORY_EXTRACTION_COMPLETED
+  ]);
+
   const bridgeQuestEvent = (event: AppEvent, data: unknown): void => {
-    const mgr = SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
-    mgr?.emitPurposeEvent({
-      source: 'app-event',
-      event,
-      payload: data as Record<string, unknown> | undefined
-    });
+    if (!spriteListenerPurposeEvents.has(event)) {
+      const mgr = SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
+      mgr?.emitPurposeEvent({
+        source: 'app-event',
+        event,
+        payload: data as Record<string, unknown> | undefined
+      });
+    }
     void engine.tick({ event, eventPayload: data });
   };
 

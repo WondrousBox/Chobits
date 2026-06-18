@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { resetSpriteCapabilityRuntime } from '../packages/sprite-core/capability-runtime';
+import { initSpriteEventListener } from '../packages/sprite-core/handler/sprite-event-listener';
 import { SpriteManager } from '../packages/sprite-core/manager/sprite-manager';
 import { resetPersonaRulesRuntime } from '../packages/sprite-core/persona-rules';
 import { installMiniDom } from './utils/minidom';
@@ -121,6 +122,13 @@ function getPurposeWaiterEvents(mgr: SpriteManager): string[] {
     .filter((event): event is string => Boolean(event));
 }
 
+function emitInternalAppEvent(eventManager: unknown, event: string, payload: unknown): void {
+  const listeners = (eventManager as any).listeners as Map<string, Set<(data?: unknown) => void>> | undefined;
+  for (const handler of listeners?.get(event) ?? []) {
+    handler(payload);
+  }
+}
+
 describe('FileActionsMenu workflow waiting e2e', () => {
   const dataDirs = new Set<string>();
 
@@ -140,6 +148,7 @@ describe('FileActionsMenu workflow waiting e2e', () => {
 
   it('routes a workflow action through workflow.waiting progress and completion', async () => {
     const { act } = await import('react');
+    const { AppEvent, eventManager } = await import('@packages/event');
     const { createRoot } = await import('react-dom/client');
     const { runWorkflow } = await import('@/lib/workflow-runner');
     const { default: FileActionsMenu } = await import('../src/pages/FileActionsMenu/FileActionsMenu');
@@ -216,11 +225,19 @@ describe('FileActionsMenu workflow waiting e2e', () => {
       await flushPromises();
     });
 
-    await waitFor(() => startPurpose.mock.calls.length === 1);
+    expect(startPurpose).not.toHaveBeenCalled();
+    const cleanupListener = initSpriteEventListener(mgr);
+    emitInternalAppEvent(eventManager, AppEvent.SPRITE_WORKFLOW_START, {
+      runId: 'run-menu-1',
+      workflowRunId: 'run-menu-1',
+      workflowId: 'sample:transcribe',
+      workflowName: 'audio transcription',
+      resourceId: 'resource-audio'
+    });
     await waitFor(() => getPurposeWaiterEvents(mgr).includes('SPRITE_WORKFLOW_PROGRESS'));
-    expect(startPurpose.mock.calls[0][0]).toMatchObject({
+    expect(mgr.getPurposeSnapshot().current).toMatchObject({
       kind: 'workflow.waiting',
-      correlationId: 'drop-menu',
+      correlationId: 'run-menu-1',
       context: {
         workflowRunId: 'run-menu-1',
         runId: 'run-menu-1',
@@ -288,6 +305,7 @@ describe('FileActionsMenu workflow waiting e2e', () => {
       root.unmount();
       await flushPromises();
     });
+    cleanupListener();
     env.cleanup();
   });
 });

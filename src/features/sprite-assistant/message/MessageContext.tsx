@@ -74,7 +74,7 @@ export function MessageProvider({ children }: MessageProviderProps): JSX.Element
       // 派发 purpose-event 'bubble:action'，供 routine 的 waitForEvent / loopUntil 解锁
       if (typeof button.action === 'string' && button.action.startsWith('purpose:')) {
         const purposeAction = button.action.slice('purpose:'.length);
-        let shouldDismiss = button.action !== 'keep-open';
+        const shouldDismiss = button.action !== 'keep-open';
         try {
           await window.YUA.sprite?.emitPurposeEvent?.({
             source: 'purpose-event',
@@ -86,10 +86,6 @@ export function MessageProvider({ children }: MessageProviderProps): JSX.Element
               routineId: current?.type === 'notice' ? currentNotice?.routineId : undefined
             }
           });
-          if (purposeAction === 'open-wizard') {
-            const opened = await window.YUA.window?.['window:open']?.('workspaceWizard');
-            shouldDismiss = opened !== false;
-          }
         } catch (error) {
           console.warn('[MessageContext] emit purpose bubble:action failed', error);
         }

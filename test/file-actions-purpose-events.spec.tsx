@@ -237,7 +237,7 @@ describe('FileActionsMenu purpose events', () => {
     harness.env.cleanup();
   });
 
-  it('starts workflow.waiting when a workflow action reports a run id', async () => {
+  it('leaves workflow.waiting startup to the global workflow event route', async () => {
     const { act } = await import('react');
     const { createRoot } = await import('react-dom/client');
     const { runWorkflow } = await import('@/lib/workflow-runner');
@@ -266,22 +266,18 @@ describe('FileActionsMenu purpose events', () => {
       radialHarness.latestProps?.items.find((item) => item.id === 'audio-stt')?.action?.();
       await flushPromises();
     });
-    await waitFor(() => harness.startPurpose.mock.calls.length === 1);
     await waitFor(() => harness.closeWindow.mock.calls.length === 1);
 
-    expect(harness.startPurpose).toHaveBeenCalledWith({
-      kind: 'workflow.waiting',
-      reason: '等待文件操作工作流完成：audio transcription',
-      source: 'app-event',
-      presetId: 'workflow.waiting',
-      priority: 65,
-      correlationId: 'drop-audio',
-      context: {
-        workflowRunId: 'run-audio-1',
-        runId: 'run-audio-1',
-        workflowId: 'sample:transcribe',
+    expect(harness.startPurpose).not.toHaveBeenCalled();
+    expect(vi.mocked(runWorkflow).mock.calls[0][0]).toMatchObject({
+      defId: 'sample:transcribe',
+      metadata: {
+        resourceId: 'resource-audio',
+        resourceName: 'voice.mp3',
+        workspaceId: 'workspace-1',
         workflowName: 'audio transcription',
-        resourceId: 'resource-audio'
+        actionId: 'audio-stt',
+        actionPurpose: 'audio transcription'
       }
     });
     expect(purposeEvents(harness.emitPurposeEvent)).toEqual(

@@ -82,9 +82,8 @@ Routine 类型：
 | 完成 Quest | 推荐 Quest | 目的 |
 | --- | --- | --- |
 | `feature.file-video-transcription` | `feature.resource-library-preview` | 转写流程启动后，继续引导用户回到资源库查看资源 |
-| `feature.resource-library-preview` | `feature.chat-with-resource` | 预览资源后，继续引导用户围绕资源聊天 |
 
-固定新手任务的推荐链记录在主 README：`workspace.create → first-file-drop → open-resource-library → feature.resource-library-preview`。`workspace.create` 后缓冲 `delayMs = 5000`，其余首批推荐链默认缓冲时间为 `delayMs = 2500`。
+固定新手任务的推荐链记录在主 README：`workspace.create → first-file-drop → open-resource-library`。`workspace.create` 后缓冲 `delayMs = 5000`，其余首批推荐链默认缓冲时间为 `delayMs = 2500`。
 
 ## 4. 当前事件接入
 

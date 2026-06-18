@@ -103,12 +103,6 @@ export const FEATURE_INTRO_QUEST_CATALOG: FeatureIntroQuestCatalogItem[] = [
     rewardXp: 12,
     rewardFavor: 1,
     achievementId: achievementFor('feature.resource-library-preview'),
-    recommendation: {
-      questId: 'feature.chat-with-resource',
-      delayMs: 2500,
-      prompt: '预览窗口打开啦。要不要接着试试围绕资源聊天？',
-      confirmLabel: '继续'
-    },
     completion: {
       kind: 'app-event',
       events: ['RESOURCE_PREVIEW_OPENED']

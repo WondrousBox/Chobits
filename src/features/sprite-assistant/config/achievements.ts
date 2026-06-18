@@ -34,8 +34,8 @@ const ONBOARDING_ACHIEVEMENTS: AchievementPresentation[] = [
   },
   {
     id: 'first-resource-library-open',
-    title: '资源库初见',
-    description: '从助手菜单打开资源库，开始管理你的素材和知识。',
+    title: '背包初见',
+    description: '从助手菜单打开背包，开始管理你的素材和知识。',
     category: '新手任务'
   }
 ];

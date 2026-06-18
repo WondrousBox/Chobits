@@ -173,7 +173,11 @@ function createIdlePresenceSteps(): SpriteRoutineStepInput[] {
   return [];
 }
 
-function createFileDropInviteSteps(): SpriteRoutineStepInput[] {
+function createFileDropEventMatch(purpose: SpritePurpose): Record<string, unknown> | undefined {
+  return purpose.correlationId ? { correlationId: purpose.correlationId } : undefined;
+}
+
+function createFileDropInviteWaitSteps(options: { match?: Record<string, unknown> } = {}): SpriteRoutineStepInput[] {
   return [
     { id: 'invite-go-center', type: 'walkTo', target: 'center', speed: 130, timeoutMs: 8000 },
     { id: 'invite-ready', type: 'playAnimation', trigger: 'fileDragOver', durationMs: 900, waitFor: 'duration', silent: true },
@@ -182,22 +186,10 @@ function createFileDropInviteSteps(): SpriteRoutineStepInput[] {
       type: 'loopUntil',
       source: 'sprite-event-bus',
       untilEvent: ['interact:file-drop', 'interact:file-drag-leave'],
+      match: options.match,
       maxDurationMs: 2 * 60 * 1000,
       assignTo: 'dragResult',
       body: [{ id: 'invite-wait-pulse', type: 'playAnimation', trigger: 'thinking', durationMs: 1200, waitFor: 'duration', silent: true }]
-    },
-    {
-      id: 'drag-result-branch',
-      type: 'branch',
-      by: 'dragResult.event.event',
-      cases: {
-        'interact:file-drag-leave': [
-          { id: 'invite-cancelled', type: 'playAnimation', trigger: 'confused', durationMs: 900, waitFor: 'duration', silent: true },
-          { id: 'invite-return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
-        ],
-        'interact:file-drop': [{ id: 'invite-drop-settle', type: 'wait', durationMs: 120 }]
-      },
-      default: [{ id: 'invite-default-return', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }]
     }
   ];
 }
@@ -223,7 +215,7 @@ function createFileActionsMenuPayload(purpose: SpritePurpose): Record<string, un
   };
 }
 
-function createFileDropIntakeSteps(purpose: SpritePurpose): SpriteRoutineStepInput[] {
+function createFileDropIntakeSteps(purpose: SpritePurpose, options: { waitForResourcesReady?: boolean } = {}): SpriteRoutineStepInput[] {
   const match = purpose.correlationId ? { correlationId: purpose.correlationId } : undefined;
   const ctx = {
     purposeKind: purpose.kind,
@@ -231,11 +223,36 @@ function createFileDropIntakeSteps(purpose: SpritePurpose): SpriteRoutineStepInp
     files: purpose.context?.files,
     resources: purpose.context?.resources
   };
+  const waitForResourcesReady = options.waitForResourcesReady ?? false;
+  const readyStep: SpriteRoutineStepInput[] = waitForResourcesReady
+    ? [
+      {
+        id: 'wait-file-drop-resources-ready',
+        type: 'waitForEvent',
+        source: 'purpose-event',
+        event: 'fileDrop:resources-ready',
+        match,
+        timeoutMs: 2 * 60 * 1000,
+        assignTo: 'fileDropReady'
+      }
+    ]
+    : [];
+  const openWindowStep: SpriteRoutineStepInput = waitForResourcesReady
+    ? {
+      id: 'open-file-actions-menu',
+      type: 'openWindow',
+      window: 'fileActionsMenu',
+      payloadFrom: 'fileDropReady.payload.fileActionsMenuPayload',
+      timeoutMs: 10000
+    }
+    : { id: 'open-file-actions-menu', type: 'openWindow', window: 'fileActionsMenu', payload: createFileActionsMenuPayload(purpose), timeoutMs: 10000 };
+
   return [
     { id: 'ack-drop', type: 'playAnimation', trigger: 'fileDrop', durationMs: 900, waitFor: 'duration', silent: true },
     { id: 'thinking', type: 'playAnimation', trigger: 'thinking', durationMs: 1200, waitFor: 'duration', silent: true },
+    ...readyStep,
     { id: 'prompt-action', type: 'showToast', content: getCharacterRoutineText('file.drop.intake.prompt', ctx, '要怎么处理这个文件？'), category: 'question', duration: 2600 },
-    { id: 'open-file-actions-menu', type: 'openWindow', window: 'fileActionsMenu', payload: createFileActionsMenuPayload(purpose), timeoutMs: 10000 },
+    openWindowStep,
     { id: 'wait-menu-result', type: 'waitForEvent', source: 'purpose-event', event: 'fileAction:resolved', match, timeoutMs: 5 * 60 * 1000, assignTo: 'menuResult' },
     {
       id: 'result-branch',
@@ -258,6 +275,25 @@ function createFileDropIntakeSteps(purpose: SpritePurpose): SpriteRoutineStepInp
       default: [{ id: 'default-done', type: 'playAnimation', trigger: 'success', durationMs: 900, waitFor: 'duration', silent: true }]
     },
     { id: 'return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
+  ];
+}
+
+function createFileDropSteps(purpose: SpritePurpose): SpriteRoutineStepInput[] {
+  return [
+    ...createFileDropInviteWaitSteps({ match: createFileDropEventMatch(purpose) }),
+    {
+      id: 'drag-result-branch',
+      type: 'branch',
+      by: 'dragResult.event.event',
+      cases: {
+        'interact:file-drag-leave': [
+          { id: 'invite-cancelled', type: 'playAnimation', trigger: 'confused', durationMs: 900, waitFor: 'duration', silent: true },
+          { id: 'invite-return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
+        ],
+        'interact:file-drop': createFileDropIntakeSteps(purpose, { waitForResourcesReady: true })
+      },
+      default: [{ id: 'invite-default-return', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }]
+    }
   ];
 }
 
@@ -439,11 +475,10 @@ const FIRST_FILE_DROP_NOTICE_ID = 'onboarding.file.drop.invite';
 const FIRST_FILE_DROP_WAIT_MS = 30 * 60 * 1000;
 const FIRST_FILE_DROP_HELP_COOLDOWN_MS = 60_000;
 const FIRST_FILE_DROP_PROMPT_CYCLE_MS = 6500;
-const FIRST_CHAT_NOTICE_ID = 'onboarding.chat.start.invite';
 const FIRST_CHAT_WAIT_MS = 30 * 60 * 1000;
 const FIRST_CHAT_HELP_COOLDOWN_MS = 60_000;
-const OPEN_RESOURCE_LIBRARY_NOTICE_ID = 'onboarding.resource.open-library.invite';
-const OPEN_RESOURCE_LIBRARY_WAIT_MS = 5 * 60 * 1000;
+const OPEN_INVENTORY_NOTICE_ID = 'onboarding.resource.open-library.invite';
+const OPEN_INVENTORY_WAIT_MS = 5 * 60 * 1000;
 const FEATURE_INTRO_WAIT_MS = 30 * 60 * 1000;
 const FEATURE_INTRO_HELP_COOLDOWN_MS = 60_000;
 const CHAT_API_CONFIG_NOTICE_ID = 'chat.api-config-guide.invite';
@@ -455,6 +490,10 @@ function getChatApiConfigDoneText(providerId: string): string {
     return getCharacterRoutineText('chat.api-config-guide.done.minimax', { providerId }, 'MiniMax 还可以制作音乐，以后可以和我说哦');
   }
   return getCharacterRoutineText('chat.api-config-guide.done', { providerId }, '配置保存好了，现在可以开始聊天。');
+}
+
+function isPurposeContextFlagEnabled(purpose: SpritePurpose, key: string): boolean {
+  return purpose.context?.[key] === true;
 }
 
 /**
@@ -640,7 +679,7 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStepInput[] {
 /**
  * 新手引导 — 引导用户把第一个文件拖到角色身上。
  *
- * 真实导入仍由 useFileDropCollector + file.drop.invite/file.drop.intake 接管；
+ * 真实导入仍由 useFileDropCollector 触发统一的 file.drop routine 接管；
  * 这里负责展示任务引导、说明拖拽价值，并等待资源创建事件后给出祝贺反馈。
  */
 function createOnboardingFileDropRoutineSteps(): SpriteRoutineStepInput[] {
@@ -717,8 +756,7 @@ function createOnboardingFileDropRoutineSteps(): SpriteRoutineStepInput[] {
           bubbleDuration: 3200
         }
       ]
-    },
-    { id: 'return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
+    }
   ];
 }
 
@@ -728,15 +766,6 @@ function createOnboardingFileDropRoutineSteps(): SpriteRoutineStepInput[] {
 function createFirstChatRoutineSteps(): SpriteRoutineStepInput[] {
   return [
     { id: 'first-chat-wave', type: 'playAnimation', trigger: 'wave', durationMs: 900, waitFor: 'duration', silent: true },
-    {
-      id: 'first-chat-invite',
-      type: 'showNotice',
-      messageId: FIRST_CHAT_NOTICE_ID,
-      content: getCharacterRoutineText('onboarding.chat.start.invite', undefined, '现在双击我，就可以打开聊天入口啦'),
-      level: 'info',
-      persistent: true,
-      speak: true
-    },
     {
       id: 'first-chat-wait-double-click',
       type: 'loopUntil',
@@ -749,7 +778,7 @@ function createFirstChatRoutineSteps(): SpriteRoutineStepInput[] {
         {
           id: 'first-chat-help',
           type: 'speak',
-          text: getCharacterRoutineText('onboarding.chat.start.tip', undefined, '双击桌面角色，就能打开聊天输入窗口。'),
+          text: getCharacterRoutineText('onboarding.chat.start.tip', undefined, '鼠标双击我，就能打开聊天窗口。'),
           bubbleDuration: 4800,
           cooldownKey: 'onboarding.chat.start.tip',
           cooldownMs: FIRST_CHAT_HELP_COOLDOWN_MS
@@ -768,7 +797,6 @@ function createFirstChatRoutineSteps(): SpriteRoutineStepInput[] {
       ignoreHistory: false,
       body: [{ id: 'first-chat-wait-window-pause', type: 'wait', durationMs: 300 }]
     },
-    { id: 'first-chat-clear-invite', type: 'clearMessage', messageId: FIRST_CHAT_NOTICE_ID, messageType: 'notice' },
     { id: 'first-chat-celebrate', type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
     {
       id: 'first-chat-done',
@@ -781,7 +809,7 @@ function createFirstChatRoutineSteps(): SpriteRoutineStepInput[] {
 }
 
 /**
- * 新手引导 — 引导用户通过右键助手菜单打开资源库。
+ * 新手引导 — 引导用户通过右键助手菜单打开背包。
  */
 function createOpenResourceLibraryRoutineSteps(): SpriteRoutineStepInput[] {
   return [
@@ -789,8 +817,8 @@ function createOpenResourceLibraryRoutineSteps(): SpriteRoutineStepInput[] {
     {
       id: 'resource-menu-invite',
       type: 'showNotice',
-      messageId: OPEN_RESOURCE_LIBRARY_NOTICE_ID,
-      content: getCharacterRoutineText('onboarding.resource.open-library.invite', undefined, '右键点我，打开菜单里的资源库。'),
+      messageId: OPEN_INVENTORY_NOTICE_ID,
+      content: getCharacterRoutineText('onboarding.resource.open-library.invite', undefined, '右键点我，打开菜单里的背包。'),
       level: 'info',
       persistent: true,
       speak: true
@@ -801,36 +829,36 @@ function createOpenResourceLibraryRoutineSteps(): SpriteRoutineStepInput[] {
       source: 'sprite-event-bus',
       event: 'interact:context-menu',
       match: { open: true },
-      timeoutMs: OPEN_RESOURCE_LIBRARY_WAIT_MS,
+      timeoutMs: OPEN_INVENTORY_WAIT_MS,
       assignTo: 'contextMenuOpenEvent',
       ignoreHistory: true
     },
     {
       id: 'resource-menu-tip',
       type: 'speak',
-      text: getCharacterRoutineText('onboarding.resource.open-library.menu-tip', undefined, '现在点菜单里的「资源库」。'),
+      text: getCharacterRoutineText('onboarding.resource.open-library.menu-tip', undefined, '现在点菜单里的「背包」。'),
       bubbleDuration: 3600
     },
     {
-      id: 'wait-resource-library-open',
+      id: 'wait-inventory-open',
       type: 'waitForEvent',
       source: 'app-event',
       event: 'ASSISTANT_MENU_ITEM_SELECTED',
       match: {
-        itemId: 'resources',
-        windowKey: 'resources',
+        itemId: 'inventory',
+        windowKey: 'inventory',
         source: 'assistant-context-menu'
       },
-      timeoutMs: OPEN_RESOURCE_LIBRARY_WAIT_MS,
-      assignTo: 'resourceLibraryOpenEvent',
+      timeoutMs: OPEN_INVENTORY_WAIT_MS,
+      assignTo: 'inventoryOpenEvent',
       ignoreHistory: true
     },
-    { id: 'clear-resource-menu-notice', type: 'clearMessage', messageId: OPEN_RESOURCE_LIBRARY_NOTICE_ID, messageType: 'notice' },
+    { id: 'clear-resource-menu-notice', type: 'clearMessage', messageId: OPEN_INVENTORY_NOTICE_ID, messageType: 'notice' },
     { id: 'resource-menu-celebrate', type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
     {
       id: 'resource-menu-done',
       type: 'speak',
-      text: getCharacterRoutineText('onboarding.resource.open-library.done', undefined, '打开啦！以后导入的文件都可以在资源库里整理。'),
+      text: getCharacterRoutineText('onboarding.resource.open-library.done', undefined, '打开啦！以后导入的文件都可以在背包里整理。'),
       bubbleDuration: 3800
     },
     { id: 'return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
@@ -845,6 +873,7 @@ function createChatApiConfigGuideSteps(purpose: SpritePurpose): SpriteRoutineSte
   const hasPreset = typeof presetId === 'string' && presetId.trim().length > 0;
   const targetWindow = hasPreset ? 'aiProviderConfig' : 'settings';
   const closeMatch = { windowKey: targetWindow };
+  const openSettingsDirectly = isPurposeContextFlagEnabled(purpose, 'openSettingsDirectly');
   const targetPayload = hasPreset
     ? {
       providerId,
@@ -856,6 +885,65 @@ function createChatApiConfigGuideSteps(purpose: SpritePurpose): SpriteRoutineSte
       tab: 'provider',
       aiProviderId: providerId
     };
+  const openSettingsSteps: SpriteRoutineStepInput[] = [];
+  if (!openSettingsDirectly) {
+    openSettingsSteps.push({ id: 'chat-api-config-clear-invite', type: 'clearMessage', messageId: CHAT_API_CONFIG_NOTICE_ID, messageType: 'notice' });
+  }
+  openSettingsSteps.push(
+    {
+      id: 'chat-api-config-open-settings',
+      type: 'openWindow',
+      window: targetWindow,
+      payload: targetPayload,
+      timeoutMs: 10000
+    },
+    {
+      id: 'chat-api-config-walk-to-settings',
+      type: 'walkTo',
+      target: { window: targetWindow, placement: 'right', offset: 16 },
+      speed: 120,
+      timeoutMs: 10000
+    },
+    {
+      id: 'chat-api-config-tip',
+      type: 'speak',
+      text: getCharacterRoutineText('chat.api-config-guide.tip', { providerId }, hasPreset ? '填好 API Key 就可以和我对话了' : '先新增一个模型预设并填入 API Key，就可以开始聊天。'),
+      bubbleDuration: 5200
+    },
+    {
+      id: 'chat-api-config-wait-result',
+      type: 'loopUntil',
+      source: 'app-event',
+      untilEvent: ['AI_PROVIDER_CONFIG_UPDATED', 'APP_WINDOW_CLOSED'],
+      eventMatches: {
+        AI_PROVIDER_CONFIG_UPDATED: { providerId },
+        APP_WINDOW_CLOSED: closeMatch
+      },
+      maxDurationMs: CHAT_API_CONFIG_GUIDE_WAIT_MS,
+      assignTo: 'chatApiConfigResult',
+      ignoreHistory: true,
+      body: []
+    },
+    {
+      id: 'chat-api-config-done-branch',
+      type: 'branch',
+      by: 'chatApiConfigResult.event.event',
+      cases: {
+        AI_PROVIDER_CONFIG_UPDATED: [
+          {
+            id: 'chat-api-config-done',
+            type: 'speak',
+            text: getChatApiConfigDoneText(providerId),
+            bubbleDuration: 4200
+          }
+        ]
+      },
+      default: []
+    }
+  );
+  if (openSettingsDirectly) {
+    return [...openSettingsSteps, { id: 'chat-api-config-return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }];
+  }
   return [
     {
       id: 'chat-api-config-invite',
@@ -889,59 +977,7 @@ function createChatApiConfigGuideSteps(purpose: SpritePurpose): SpriteRoutineSte
             type: 'branch',
             by: 'chatApiConfigBubbleEvent.event.payload.purposeAction',
             cases: {
-              [CHAT_API_CONFIG_OPEN_SETTINGS_ACTION]: [
-                { id: 'chat-api-config-clear-invite', type: 'clearMessage', messageId: CHAT_API_CONFIG_NOTICE_ID, messageType: 'notice' },
-                {
-                  id: 'chat-api-config-open-settings',
-                  type: 'openWindow',
-                  window: targetWindow,
-                  payload: targetPayload,
-                  timeoutMs: 10000
-                },
-                {
-                  id: 'chat-api-config-walk-to-settings',
-                  type: 'walkTo',
-                  target: { window: targetWindow, placement: 'right', offset: 16 },
-                  speed: 120,
-                  timeoutMs: 10000
-                },
-                {
-                  id: 'chat-api-config-tip',
-                  type: 'speak',
-                  text: getCharacterRoutineText('chat.api-config-guide.tip', { providerId }, hasPreset ? '填好 API Key 就可以和我对话了' : '先新增一个模型预设并填入 API Key，就可以开始聊天。'),
-                  bubbleDuration: 5200
-                },
-                {
-                  id: 'chat-api-config-wait-result',
-                  type: 'loopUntil',
-                  source: 'app-event',
-                  untilEvent: ['AI_PROVIDER_CONFIG_UPDATED', 'APP_WINDOW_CLOSED'],
-                  eventMatches: {
-                    AI_PROVIDER_CONFIG_UPDATED: { providerId },
-                    APP_WINDOW_CLOSED: closeMatch
-                  },
-                  maxDurationMs: CHAT_API_CONFIG_GUIDE_WAIT_MS,
-                  assignTo: 'chatApiConfigResult',
-                  ignoreHistory: true,
-                  body: []
-                },
-                {
-                  id: 'chat-api-config-done-branch',
-                  type: 'branch',
-                  by: 'chatApiConfigResult.event.event',
-                  cases: {
-                    AI_PROVIDER_CONFIG_UPDATED: [
-                      {
-                        id: 'chat-api-config-done',
-                        type: 'speak',
-                        text: getChatApiConfigDoneText(providerId),
-                        bubbleDuration: 4200
-                      }
-                    ]
-                  },
-                  default: []
-                }
-              ]
+              [CHAT_API_CONFIG_OPEN_SETTINGS_ACTION]: openSettingsSteps
             },
             default: []
           }
@@ -1179,18 +1215,11 @@ export const DEFAULT_SPRITE_ROUTINE_PRESETS: SpriteRoutinePresetDefinition[] = [
     steps: createIdlePresenceSteps
   },
   {
-    id: 'file.drop.intake',
-    title: '文件投递接收',
-    purposeKind: 'file.drop.intake',
+    id: 'file.drop',
+    title: '文件投递',
+    purposeKind: 'file.drop',
     defaultPriority: 100,
-    steps: createFileDropIntakeSteps
-  },
-  {
-    id: 'file.drop.invite',
-    title: '文件投递等待',
-    purposeKind: 'file.drop.invite',
-    defaultPriority: 85,
-    steps: createFileDropInviteSteps
+    steps: createFileDropSteps
   },
   {
     id: 'daily.rest-reminder',
@@ -1254,7 +1283,7 @@ export const DEFAULT_SPRITE_ROUTINE_PRESETS: SpriteRoutinePresetDefinition[] = [
   },
   {
     id: 'onboarding.resource.open-library',
-    title: '新手引导：打开资源库',
+    title: '新手引导：打开背包',
     purposeKind: 'onboarding.resource.open-library',
     defaultPriority: 66,
     goal: OPEN_RESOURCE_LIBRARY_GUIDE_GOAL,

@@ -479,31 +479,22 @@ export const CHARACTER_MESSAGE_SPECS = [
     field: 'onboardingResourceOpenLibraryInvite',
     section: 'routines',
     key: 'onboarding.resource.open-library.invite',
-    label: '打开资源库引导',
-    neutral: () => ['右键点我，打开菜单里的资源库。']
+    label: '打开背包引导',
+    neutral: () => ['右键点我，打开菜单里的背包。']
   },
   {
     field: 'onboardingResourceOpenLibraryMenuTip',
     section: 'routines',
     key: 'onboarding.resource.open-library.menu-tip',
-    label: '打开资源库菜单提示',
-    neutral: () => ['现在点菜单里的「资源库」。']
+    label: '打开背包菜单提示',
+    neutral: () => ['现在点菜单里的「背包」。']
   },
   {
     field: 'onboardingResourceOpenLibraryDone',
     section: 'routines',
     key: 'onboarding.resource.open-library.done',
-    label: '打开资源库完成',
-    neutral: () => ['打开啦！以后导入的文件都可以在资源库里整理。']
-  },
-  {
-    field: 'onboardingChatStartInvite',
-    section: 'routines',
-    key: 'onboarding.chat.start.invite',
-    label: '首次聊天引导邀请',
-    maxItems: 4,
-    maxLength: 180,
-    neutral: () => ['现在双击我，就可以打开聊天入口啦']
+    label: '打开背包完成',
+    neutral: () => ['打开啦！以后导入的文件都可以在背包里整理。']
   },
   {
     field: 'onboardingChatStartTip',
@@ -512,7 +503,7 @@ export const CHARACTER_MESSAGE_SPECS = [
     label: '首次聊天引导提示',
     maxItems: 4,
     maxLength: 240,
-    neutral: () => ['双击桌面角色，就能打开聊天输入窗口。']
+    neutral: () => ['鼠标双击我，就能打开聊天窗口。']
   },
   {
     field: 'onboardingChatStartDone',

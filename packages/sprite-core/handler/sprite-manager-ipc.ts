@@ -568,8 +568,8 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   });
 
   // 文件拖放
-  ipcMain.handle('sprite:file-drop', (_e, payload: { files: any[] }) => {
-    mgr.handleFileDrop(payload.files);
+  ipcMain.handle('sprite:file-drop', (_e, payload: { files: any[]; correlationId?: string }) => {
+    return mgr.handleFileDrop(payload.files, { correlationId: payload.correlationId });
   });
 
   // 渲染进程就绪
@@ -1278,11 +1278,11 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   });
 
   ipcMain.handle('sprite:purpose:event', (_e, p: SpritePurposeRuntimeEventInput) => {
-    const result = mgr.emitPurposeEvent(p);
     if (p?.source === 'app-event' && Object.values(AppEvent).includes(p.event as AppEvent)) {
       eventManager.emit(p.event as AppEvent, p.payload);
+      return { matched: 0 };
     }
-    return result;
+    return mgr.emitPurposeEvent(p);
   });
 
   ipcMain.handle('sprite:purpose:listHistory', (_e, p: SpritePurposeHistoryQuery | undefined) => {

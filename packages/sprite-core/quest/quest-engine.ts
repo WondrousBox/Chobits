@@ -1,13 +1,6 @@
 import type { SpritePurposeStartResult, StartSpritePurposeRequest } from '../purpose/types';
 import type { QuestRegistry } from './quest-registry';
-import type {
-  OnboardingQuestDefinition,
-  OnboardingQuestReward,
-  OnboardingState,
-  QuestPredicateContext,
-  QuestRecommendationOffer,
-  QuestStartSource
-} from './types';
+import type { OnboardingQuestDefinition, OnboardingQuestReward, OnboardingState, QuestPredicateContext, QuestRecommendationOffer, QuestStartSource } from './types';
 import { createEmptyOnboardingState } from './types';
 
 export interface QuestEngineDeps {
@@ -144,7 +137,7 @@ export class QuestEngine {
       }
     }
 
-    return this.activateQuest(def);
+    return this.activateQuest(def, { source });
   }
 
   /** 用户主动跳过整个新手引导 */
@@ -412,8 +405,8 @@ export class QuestEngine {
     }
   }
 
-  private async activateQuest(def: OnboardingQuestDefinition): Promise<SpritePurposeStartResult> {
-    const request = def.toPurposeRequest();
+  private async activateQuest(def: OnboardingQuestDefinition, options: { source?: QuestStartSource } = {}): Promise<SpritePurposeStartResult> {
+    const request = def.toPurposeRequest(options);
     const result = await this.deps.startPurpose(request);
     const lastPurposeId = result.purpose?.id;
     this.state.quests[def.id] = {
@@ -425,10 +418,7 @@ export class QuestEngine {
     return result;
   }
 
-  private async completeQuest(
-    def: OnboardingQuestDefinition,
-    options: { grantReward?: boolean; notifyRecommendation?: boolean; checkRecommendation?: boolean } = {}
-  ): Promise<void> {
+  private async completeQuest(def: OnboardingQuestDefinition, options: { grantReward?: boolean; notifyRecommendation?: boolean; checkRecommendation?: boolean } = {}): Promise<void> {
     const prev = this.state.quests[def.id];
     if (prev?.status === 'done') return;
 

@@ -13,7 +13,7 @@
 - 串联推荐：Quest 可声明完成后的推荐任务；若下一个任务尚未完成且前置条件满足，会弹出确认框，用户确认后以 `source: 'recommendation'` 继续启动下一个 Quest
 - 入口：助手右键菜单中的“任务”，以及 AI app-window 工具目录中的 `questList`
 
-任务列表窗口只展示和启动 Quest，不生成流程、不调用 LLM。点击“开始引导/继续引导/开始介绍”会回到对应 Quest 的 preset-only routine，例如 `workspace.create` 会继续走气泡按钮、创建窗口陪同、窗口讲解、成功奖励这一套固定流程；`first-file-drop` 会让角色走到中心，提示用户把文件拖到角色身上，并在拖拽导入完成后结算奖励；`open-resource-library` 会引导用户右键助手，从菜单里打开资源库；功能自述任务会按目录里的固定流程介绍软件能力，并等待真实业务事件完成后发奖。
+任务列表窗口只展示和启动 Quest，不生成流程、不调用 LLM。点击“开始引导/继续引导/开始介绍”会回到对应 Quest 的 preset-only routine，例如 `workspace.create` 会继续走气泡按钮、创建窗口陪同、窗口讲解、成功奖励这一套固定流程；`first-file-drop` 会让角色走到中心，提示用户把文件拖到角色身上，并在拖拽导入完成后结算奖励；`open-resource-library` 会引导用户右键助手，从菜单里打开背包；功能自述任务会按目录里的固定流程介绍软件能力，并等待真实业务事件完成后发奖。
 
 功能自述目录见 [feature-introduction-quest-catalog.md](./feature-introduction-quest-catalog.md)。这份目录是功能自述任务的维护入口，用于记录每个自述任务的触发方式、关键用户动作、完成事件和奖励，并与 `packages/sprite-core/feature-intro-catalog.ts` 保持同步。
 
@@ -35,7 +35,7 @@
 - 如果用户创建好了空间，AI 要有对应响应和奖励，奖励可以是经验和好感度。
 - 这是新手引导任务系统，`workspace.create` 只是第一种任务，后续还会有更多固定任务。
 - “拖拽文件到角色身上进行上传/导入”也必须作为新手任务补完整：任务列表展示、固定引导表现、资源事件完成判定和奖励都由 Quest 系统统一管理。
-- “右键点击助手打开资源库”也必须作为新手任务：任务列表展示、引导用户右键助手、提示选择菜单里的“资源库”，并只在用户确实从助手菜单打开资源库时结算。
+- “右键点击助手打开背包”也必须作为新手任务：任务列表展示、引导用户右键助手、提示选择菜单里的“背包”，并只在用户确实从助手菜单打开背包时结算。
 - Quest 必须设计“出发条件/启动方式”：`workspace.create` 属于启动后检测到未完成就自动触发；`first-file-drop` 属于用户准备执行时从任务列表点击“开始引导”触发，未来也可以由 AI 显式触发，但不应该在启动或刚创建工作空间后自动弹出。
 - 还需要新增“系统介绍/功能自述”类型任务：这类任务配合文字说明介绍软件能力，同时引导用户点击、拖拽、选择菜单或打开窗口。它不是 LLM 临场生成计划，而是固定预设任务。示例：介绍桌面助手支持用户拖拽视频/音频文件，文件进入资源库后通过文件操作菜单选择“转写”，再启动工作流。
 
@@ -69,10 +69,10 @@
 - `workspaceWizard` 打开后，routine 在等待 `WORKSPACE_CREATED` / `WORKSPACE_WIZARD_CLOSED` 的同时讲解工作空间用途和快速创建提示；这些讲解有冷却，避免窗口保持打开时反复念。
 - 窗口未创建就关闭时，routine 立即替换 notice 文案并继续下一轮提示。
 - 创建成功时清理该 notice、播放庆祝动画并说成功文案；QuestEngine 负责幂等奖励。
-- `first-file-drop` 已补成第二个固定新手 Quest：前置为已有工作空间，启动 `onboarding.file.drop` preset-only routine；真实拖拽仍由已有 `file.drop.invite` / `file.drop.intake` 接管；拖给角色创建的资源携带 `metadata.source = 'sprite-drop'` 后触发任务完成与 XP/好感奖励。
+- `first-file-drop` 已补成第二个固定新手 Quest：前置为已有工作空间，启动 `onboarding.file.drop` preset-only routine；真实拖拽由统一 `file.drop` routine 接管；拖给角色创建的资源携带 `metadata.source = 'sprite-drop'` 后触发任务完成与 XP/好感奖励。
 - `first-file-drop` 不配置 `autoStartEvents`，所以 `APP_STARTED` / `WORKSPACE_CREATED` 不会自动弹出拖拽引导；它通过任务列表 `quest:start` 或未来 AI 显式启动，并继续监听真实拖给角色的资源事件来结算。
 - 普通资源创建/导入事件没有 `sprite-drop` 业务来源时，不会激活或完成 `first-file-drop`，避免用户通过资源页上传文件时误结算“拖给角色”任务。
-- `open-resource-library` 已补成第三个固定新手 Quest：前置为已有工作空间，不配置 `autoStartEvents`；启动 `onboarding.resource.open-library` preset-only routine；右键菜单点击“资源库”会派发 `ASSISTANT_MENU_ITEM_SELECTED`，只有 payload 标记 `itemId=resources` 且 `source=assistant-context-menu` 时才结算。
+- `open-resource-library` 已补成第三个固定新手 Quest：前置为已有工作空间，不配置 `autoStartEvents`；启动 `onboarding.resource.open-library` preset-only routine；右键菜单点击“背包”会派发 `ASSISTANT_MENU_ITEM_SELECTED`，只有 payload 标记 `itemId=inventory` 且 `source=assistant-context-menu` 时才结算。
 - routine preset 现在可以声明 `goal`。`onboarding.workspace.create` 的 goal 是 `workspace.exists`，右键菜单等需要工作空间的入口会先评估这个 goal；没有工作空间时启动 `workspace.create` Quest 并阻断原动作，不再裸开业务窗口。
 - `chat.api-config-guide` 的 goal 是 `ai.chat-provider-configured`。双击助手打开聊天、菜单打开聊天、发送消息前都会先检查这个 goal；没有可用 API Key / preset 时只启动配置引导，原聊天动作等配置完成后再继续。配置引导不会直接跳转设置页，而是先展示“去配置”按钮；用户点击后才打开设置页并定位到 `category=ai` 的模型服务配置区，若已解析到 preset 则展开对应预设。
 
@@ -464,7 +464,7 @@ const handleContextMenu = async (e: React.MouseEvent) => {
 - `open-resource-library` 显示 XP +10、好感 +1、成就 `first-resource-library-open`。
 - 未完成任务显示“开始引导/继续引导”按钮。
 - 按钮调用 `quest:start`，由 `QuestEngine.startQuest(id)` 重新检查前置/完成条件后启动固定 preset-only purpose。
-- 已配置串联推荐：`workspace.create → first-file-drop → open-resource-library → feature.resource-library-preview → feature.chat-with-resource`，以及 `feature.file-video-transcription → feature.resource-library-preview`。`workspace.create` 完成后缓冲 `delayMs = 5000`，其余首批链路默认 `delayMs = 2500`，避免上一个任务刚完成就立刻弹出下一步。
+- 已配置串联推荐：`workspace.create → first-file-drop → open-resource-library`，以及 `feature.file-video-transcription → feature.resource-library-preview`。`workspace.create` 完成后缓冲 `delayMs = 5000`，其余首批链路默认缓冲时间为 `delayMs = 2500`，避免上一个任务刚完成就立刻弹出下一步。
 - 如果工作空间已经存在但状态尚未同步，`quest:start` 会先补完成状态和奖励，不再启动创建引导。
 
 窗口注册：
@@ -497,7 +497,7 @@ const handleContextMenu = async (e: React.MouseEvent) => {
 | --------------------- | ---------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------- | ------------ |
 | `workspace.create`    | 无 workspace                             | `APP_STARTED` 自动启动；任务列表/AI/推荐显式启动 | `app-event WORKSPACE_CREATED`                                                                    | xp 20, favor 3, achievement `first-workspace` | `first-file-drop` |
 | `first-file-drop`     | 已完成 workspace.create 或已有 workspace | 任务列表/AI/推荐显式启动，不随启动自动弹出      | `app-event RESOURCE_CREATED` 或 `SPRITE_RESOURCE_IMPORT_COMPLETE`，需业务来源 `sprite-drop` | xp 15, favor 2, achievement `first-import`    | `open-resource-library` |
-| `open-resource-library` | 已完成 workspace.create 或已有 workspace | 任务列表/AI/推荐显式启动，不随启动自动弹出      | `app-event ASSISTANT_MENU_ITEM_SELECTED`，需 `itemId=resources` 且来源为助手右键菜单              | xp 10, favor 1, achievement `first-resource-library-open` | `feature.resource-library-preview` |
+| `open-resource-library` | 已完成 workspace.create 或已有 workspace | 任务列表/AI/推荐显式启动，不随启动自动弹出      | `app-event ASSISTANT_MENU_ITEM_SELECTED`，需 `itemId=inventory` 且来源为助手右键菜单              | xp 10, favor 1, achievement `first-resource-library-open` | 无 |
 | `feature.*`（25 个功能自述任务） | 已完成 workspace.create 或已有 workspace | 任务列表/AI/推荐显式启动，不随启动自动弹出 | 由 `FEATURE_INTRO_QUEST_CATALOG.completion` 定义，覆盖文件动作、助手菜单、窗口打开、AI 配置保存、AI 完成、记忆写入等事件 | P0: xp 12；P1: xp 10；P2: xp 8；P3: xp 6；均 favor 1 | catalog 可选配置 |
 | `first-chat`          | 已完成 workspace.create                  | 待定                                      | `app-event SPRITE_CHAT_FIRST_REPLY`                                                              | xp 15, favor 2                                |
 | `unlock-context-menu` | 完成 workspace.create                    | 自动（其他 quest 完成时触发）              | 自动                                                                                             | 解锁右键菜单                                  |
@@ -519,13 +519,13 @@ const handleContextMenu = async (e: React.MouseEvent) => {
 - `onboarding-quest.spec.ts`：registry 顺序、`triggerEvents` / `autoStartEvents` 拆分、任务列表快照、幂等 reward
 - `onboarding-quest.spec.ts`：模拟 `workspace.create` 在 `APP_STARTED` 自动激活、active 未完成时启动重试、`WORKSPACE_WIZARD_CLOSED` 不重复启动 purpose、`WORKSPACE_CREATED` 完成、重复事件不重复发奖
 - `onboarding-quest.spec.ts`：模拟 `first-file-drop` 不随 `APP_STARTED` / `WORKSPACE_CREATED` 自动激活，只能由任务列表或 AI 显式启动，同时仍能通过 `sprite-drop` 资源事件完成
-- `onboarding-quest.spec.ts`：模拟 `open-resource-library` 不随启动自动激活，只能由任务列表或 AI 显式启动，且只在助手右键菜单选择资源库时完成
+- `onboarding-quest.spec.ts`：模拟 `open-resource-library` 不随启动自动激活，只能由任务列表或 AI 显式启动，且只在助手右键菜单选择背包时完成
 - `onboarding-quest.spec.ts`：验证 `FEATURE_INTRO_QUEST_CATALOG` 中每个功能自述任务都能生成 preset-only Quest，并覆盖文件工作流、文件菜单、助手菜单、窗口打开、资源预览和带资源聊天等完成类型
 - `onboarding-quest.spec.ts`：验证 Quest 完成后只在推荐目标未完成、前置满足且允许 `recommendation` 来源时生成推荐 offer；已完成目标不再提示
 - `sprite-purpose-routine.spec.ts`：验证 `workspace.create` routine 持续提示、按钮进入创建、走到向导窗口旁、关闭未创建后继续提示、创建成功后清理 notice 并庆祝
 - `sprite-purpose-routine.spec.ts`：同时验证 `onboarding.file.drop` routine 会走到中心、提示拖拽文件、等待资源事件并在完成后庆祝
 - `sprite-purpose-routine.spec.ts`：验证功能自述目录里的每个任务都注册为 routine preset，并覆盖文件拖拽、助手右键菜单和业务窗口打开三类典型流程
-- `file-drop-purpose.spec.tsx`：验证真实拖拽仍会启动 `file.drop.invite` / `file.drop.intake`，并给资源创建链路标记 `source: 'sprite-drop'`
+- `file-drop-purpose.spec.tsx`：验证真实拖拽会桥接到统一 `file.drop` routine，并给资源创建链路标记 `source: 'sprite-drop'`
 - `file-actions-purpose-events.spec.tsx`：验证图片理解、OCR、转写、转码等文件动作会派发 `FILE_ACTION_*` AppEvent，供 QuestEngine 结算功能自述任务
 - `character-messages.spec.ts`：验证工作空间引导的 routine 文案 key 已进入共享规格与内置角色包，避免角色包文案漂移
 - `routine-show-notice.spec.ts`：notice step + 按钮点击 → purpose-event 解锁 waitForEvent

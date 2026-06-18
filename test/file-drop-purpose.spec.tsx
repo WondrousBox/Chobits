@@ -112,16 +112,15 @@ describe('file drop purpose integration', () => {
     dataDirs.clear();
   });
 
-  it('starts a file.drop.invite purpose on file drag enter and reuses the correlation for drop intake', async () => {
+  it('bridges drag/drop events into the unified file.drop routine contract', async () => {
     const { act } = await import('react');
     const { createRoot } = await import('react-dom/client');
     const { useFileDropCollector } = await import('../src/features/sprite-assistant/hooks/useFileDropCollector');
 
     const env = installMiniDom();
     const fileDrop = vi.fn(async () => undefined);
-    const startPurpose = vi.fn(async () => ({ accepted: true, status: 'started' }));
+    const emitPurposeEvent = vi.fn(async () => ({ matched: 1 }));
     const interact = vi.fn();
-    const openWindow = vi.fn();
     const dataTransfer = {
       types: ['Files'],
       files: [{ name: 'draft.txt', path: 'F:/tmp/draft.txt' }]
@@ -133,11 +132,8 @@ describe('file drop purpose integration', () => {
     (env.window as any).YUA = {
       sprite: {
         fileDrop,
-        startPurpose,
+        emitPurposeEvent,
         interact
-      },
-      window: {
-        'window:open': openWindow
       }
     };
 
@@ -162,22 +158,10 @@ describe('file drop purpose integration', () => {
       await flushPromises();
     });
 
-    expect(interact).toHaveBeenCalledWith('file-drag-over');
-    expect(startPurpose).toHaveBeenCalledTimes(1);
-    const inviteRequest = startPurpose.mock.calls[0][0];
-    expect(inviteRequest).toMatchObject({
-      kind: 'file.drop.invite',
-      source: 'user-event',
-      presetId: 'file.drop.invite',
-      priority: 85,
-      coalesceKey: 'file-drop-invite',
-      context: {
-        source: 'drag-enter',
-        purposeSource: 'sprite-drop',
-        trigger: 'drag-enter'
-      }
-    });
-    expect(inviteRequest.correlationId).toEqual(expect.stringMatching(/^file-drop-/));
+    expect(interact).toHaveBeenCalledTimes(1);
+    expect(interact.mock.calls[0][0]).toBe('file-drag-over');
+    const dragCorrelationId = interact.mock.calls[0][1].correlationId;
+    expect(dragCorrelationId).toEqual(expect.stringMatching(/^file-drop-/));
 
     await act(async () => {
       await hook?.handleDrop({
@@ -188,23 +172,28 @@ describe('file drop purpose integration', () => {
       await flushPromises();
     });
 
-    expect(fileDrop).toHaveBeenCalledWith([{ name: 'draft.txt', path: 'F:/tmp/draft.txt' }]);
+    expect(fileDrop).toHaveBeenCalledWith([{ name: 'draft.txt', path: 'F:/tmp/draft.txt' }], { correlationId: dragCorrelationId });
     expect(resourceServiceMocks.addResourcesFromDataTransfer).toHaveBeenCalledWith(dataTransfer, { source: 'sprite-drop' });
-    expect(startPurpose).toHaveBeenCalledTimes(2);
-    const intakeRequest = startPurpose.mock.calls[1][0];
-    expect(intakeRequest).toMatchObject({
-      kind: 'file.drop.intake',
-      presetId: 'file.drop.intake',
-      priority: 100,
-      correlationId: inviteRequest.correlationId,
-      context: {
-        source: 'drop',
+    expect(emitPurposeEvent).toHaveBeenCalledWith({
+      source: 'purpose-event',
+      event: 'fileDrop:resources-ready',
+      correlationId: dragCorrelationId,
+      payload: expect.objectContaining({
         purposeSource: 'sprite-drop',
         files: [{ name: 'draft.txt', path: 'F:/tmp/draft.txt' }],
-        resources: [{ id: 'resource-draft', title: 'draft.txt', filePath: 'F:/tmp/draft.txt', workspaceId: 'workspace-1' }]
-      }
+        resources: [{ id: 'resource-draft', title: 'draft.txt', filePath: 'F:/tmp/draft.txt', workspaceId: 'workspace-1' }],
+        fileActionsMenuPayload: {
+          files: [{ name: 'draft.txt', path: 'F:/tmp/draft.txt' }],
+          resources: [{ id: 'resource-draft', title: 'draft.txt', filePath: 'F:/tmp/draft.txt', workspaceId: 'workspace-1' }],
+          source: 'drop',
+          correlationId: dragCorrelationId
+        },
+        fileCount: 1,
+        fileNames: ['draft.txt'],
+        resourceIds: ['resource-draft'],
+        primaryResourceName: 'draft.txt'
+      })
     });
-    expect(openWindow).not.toHaveBeenCalled();
 
     await act(async () => {
       root.unmount();
@@ -213,19 +202,15 @@ describe('file drop purpose integration', () => {
     env.cleanup();
   });
 
-  it('cancels a queued file.drop.invite so it cannot run after drag ends', async () => {
+  it('emits file drag leave with the active file drop correlation', async () => {
     const { act } = await import('react');
     const { createRoot } = await import('react-dom/client');
     const { useFileDropCollector } = await import('../src/features/sprite-assistant/hooks/useFileDropCollector');
 
     const env = installMiniDom();
     const fileDrop = vi.fn(async () => undefined);
-    const cancelPurpose = vi.fn(async () => true);
-    const startPurpose = vi
-      .fn()
-      .mockResolvedValueOnce({ accepted: true, purpose: { id: 'invite-queued', status: 'queued' }, status: 'queued' })
-      .mockResolvedValueOnce({ accepted: true, purpose: { id: 'intake-active', status: 'active' }, status: 'started' });
-    const openWindow = vi.fn();
+    const emitPurposeEvent = vi.fn(async () => ({ matched: 0 }));
+    const interact = vi.fn();
     const dataTransfer = {
       types: ['Files'],
       files: [{ name: 'draft.txt', path: 'F:/tmp/draft.txt' }]
@@ -234,13 +219,9 @@ describe('file drop purpose integration', () => {
 
     (env.window as any).YUA = {
       sprite: {
-        cancelPurpose,
         fileDrop,
-        startPurpose,
-        interact: vi.fn()
-      },
-      window: {
-        'window:open': openWindow
+        emitPurposeEvent,
+        interact
       }
     };
 
@@ -265,11 +246,10 @@ describe('file drop purpose integration', () => {
       await flushPromises();
     });
 
-    await waitFor(() => cancelPurpose.mock.calls.length === 1);
-    expect(cancelPurpose).toHaveBeenCalledWith('invite-queued', 'file-drop-invite-queued');
+    const correlationId = interact.mock.calls[0][1].correlationId;
 
     await act(async () => {
-      await hook?.handleDrop({
+      hook?.handleDragLeave({
         dataTransfer,
         preventDefault: vi.fn(),
         stopPropagation: vi.fn()
@@ -277,14 +257,12 @@ describe('file drop purpose integration', () => {
       await flushPromises();
     });
 
-    expect(fileDrop).toHaveBeenCalledWith([{ name: 'draft.txt', path: 'F:/tmp/draft.txt' }]);
-    expect(resourceServiceMocks.addResourcesFromDataTransfer).toHaveBeenCalledWith(dataTransfer, { source: 'sprite-drop' });
-    expect(startPurpose).toHaveBeenCalledTimes(2);
-    expect(startPurpose.mock.calls[1][0]).toMatchObject({
-      kind: 'file.drop.intake',
-      correlationId: startPurpose.mock.calls[0][0].correlationId
-    });
-    expect(openWindow).not.toHaveBeenCalled();
+    expect(interact.mock.calls).toEqual([
+      ['file-drag-over', { correlationId }],
+      ['file-drag-leave', { correlationId }]
+    ]);
+    expect(fileDrop).not.toHaveBeenCalled();
+    expect(emitPurposeEvent).not.toHaveBeenCalled();
 
     await act(async () => {
       root.unmount();
@@ -293,15 +271,14 @@ describe('file drop purpose integration', () => {
     env.cleanup();
   });
 
-  it('starts a file.drop.intake purpose from selected dropped files', async () => {
+  it('bridges selected dropped files into the same file.drop routine contract', async () => {
     const { act } = await import('react');
     const { createRoot } = await import('react-dom/client');
     const { useFileDropCollector } = await import('../src/features/sprite-assistant/hooks/useFileDropCollector');
 
     const env = installMiniDom();
     const fileDrop = vi.fn(async () => undefined);
-    const startPurpose = vi.fn(async () => ({ accepted: true, status: 'started' }));
-    const openWindow = vi.fn();
+    const emitPurposeEvent = vi.fn(async () => ({ matched: 1 }));
     resourceServiceMocks.addResourcesFromSelectedFiles.mockResolvedValue([
       { id: 'resource-1', title: 'notes.docx', filePath: 'F:/tmp/notes.docx', workspaceId: 'workspace-1' }
     ]);
@@ -309,11 +286,8 @@ describe('file drop purpose integration', () => {
     (env.window as any).YUA = {
       sprite: {
         fileDrop,
-        startPurpose,
+        emitPurposeEvent,
         interact: vi.fn()
-      },
-      window: {
-        'window:open': openWindow
       }
     };
 
@@ -334,34 +308,29 @@ describe('file drop purpose integration', () => {
       await flushPromises();
     });
 
-    expect(fileDrop).toHaveBeenCalledWith([{ name: 'notes.docx', path: 'F:/tmp/notes.docx' }]);
+    expect(fileDrop).toHaveBeenCalledWith([{ name: 'notes.docx', path: 'F:/tmp/notes.docx' }], { correlationId: expect.stringMatching(/^file-drop-/) });
+    const correlationId = fileDrop.mock.calls[0][1].correlationId;
     expect(resourceServiceMocks.addResourcesFromSelectedFiles).toHaveBeenCalledWith([{ name: 'notes.docx', path: 'F:/tmp/notes.docx', size: 1234 }], { source: 'sprite-drop' });
-    expect(startPurpose).toHaveBeenCalledTimes(1);
-    const request = startPurpose.mock.calls[0][0];
-    expect(request).toMatchObject({
-      kind: 'file.drop.intake',
-      source: 'user-event',
-      presetId: 'file.drop.intake',
-      priority: 100,
-      context: {
-        source: 'drop',
+    expect(emitPurposeEvent).toHaveBeenCalledWith({
+      source: 'purpose-event',
+      event: 'fileDrop:resources-ready',
+      correlationId,
+      payload: expect.objectContaining({
         purposeSource: 'sprite-drop',
         files: [{ name: 'notes.docx', path: 'F:/tmp/notes.docx' }],
         resources: [{ id: 'resource-1', title: 'notes.docx', filePath: 'F:/tmp/notes.docx', workspaceId: 'workspace-1' }],
         fileActionsMenuPayload: {
           files: [{ name: 'notes.docx', path: 'F:/tmp/notes.docx' }],
           resources: [{ id: 'resource-1', title: 'notes.docx', filePath: 'F:/tmp/notes.docx', workspaceId: 'workspace-1' }],
-          source: 'drop'
+          source: 'drop',
+          correlationId
         },
         fileCount: 1,
         fileNames: ['notes.docx'],
         resourceIds: ['resource-1'],
         primaryResourceName: 'notes.docx'
-      }
+      })
     });
-    expect(request.correlationId).toEqual(expect.stringMatching(/^file-drop-/));
-    expect(request.context.fileActionsMenuPayload.correlationId).toBe(request.correlationId);
-    expect(openWindow).not.toHaveBeenCalled();
 
     await act(async () => {
       root.unmount();
@@ -370,7 +339,7 @@ describe('file drop purpose integration', () => {
     env.cleanup();
   });
 
-  it('runs file.drop.intake through menu open, purpose event resolution, and routine cleanup', async () => {
+  it('runs unified file.drop through invite, resource ready, menu resolution, and cleanup', async () => {
     const opened: Array<{ windowKey: string; payload?: Record<string, unknown> }> = [];
     const calls: string[] = [];
     const { mgr, dataDir } = createManager({
@@ -392,20 +361,26 @@ describe('file drop purpose integration', () => {
       calls.push(`toast:${options?.category ?? 'none'}`);
     });
 
-    const result = await mgr.startPurpose({
-      kind: 'file.drop.intake',
-      reason: 'user dropped files',
-      source: 'user-event',
-      presetId: 'file.drop.intake',
-      priority: 100,
+    mgr.reportInteraction('file-drag-over', { correlationId: 'drop-integration' });
+    await waitFor(() => mgr.getPurposeSnapshot().current?.kind === 'file.drop');
+    const purposeId = mgr.getPurposeSnapshot().current?.id;
+
+    await mgr.handleFileDrop([{ name: 'notes.docx', path: 'F:/tmp/notes.docx' }], { correlationId: 'drop-integration' });
+    const readyMatched = mgr.emitPurposeEvent({
+      source: 'purpose-event',
+      event: 'fileDrop:resources-ready',
       correlationId: 'drop-integration',
-      context: {
-        files: [{ name: 'notes.docx', path: 'F:/tmp/notes.docx' }],
-        resources: [{ id: 'resource-1', title: 'notes.docx', filePath: 'F:/tmp/notes.docx' }]
+      payload: {
+        fileActionsMenuPayload: {
+          files: [{ name: 'notes.docx', path: 'F:/tmp/notes.docx' }],
+          resources: [{ id: 'resource-1', title: 'notes.docx', filePath: 'F:/tmp/notes.docx' }],
+          source: 'drop',
+          correlationId: 'drop-integration'
+        }
       }
     });
+    expect(readyMatched.matched).toBeGreaterThanOrEqual(0);
 
-    expect(result.accepted).toBe(true);
     await waitFor(() => opened.length === 1);
     expect(opened[0]).toEqual({
       windowKey: 'fileActionsMenu',
@@ -417,7 +392,7 @@ describe('file drop purpose integration', () => {
       }
     });
     expect(mgr.getPurposeSnapshot().current).toMatchObject({
-      kind: 'file.drop.intake',
+      kind: 'file.drop',
       correlationId: 'drop-integration'
     });
     await waitFor(() => ((mgr as any).purposeEventWaiter?.waiters?.size ?? 0) === 1);
@@ -431,13 +406,13 @@ describe('file drop purpose integration', () => {
 
     expect(matched.matched).toBe(1);
     await waitFor(() => mgr.getPurposeSnapshot().current?.kind === 'idle.presence');
-    expect(calls).toEqual(['play:fileDrop', 'play:thinking', 'toast:question', 'play:success', 'toast:success', 'walk:corner']);
+    expect(calls).toEqual(['walk:center', 'play:fileDragOver', 'play:fileDrop', 'play:thinking', 'toast:question', 'play:success', 'toast:success', 'walk:corner']);
 
-    const history = await mgr.listPurposeHistory({ kind: 'file.drop.intake', limit: 50 });
+    const history = await mgr.listPurposeHistory({ kind: 'file.drop', limit: 50 });
     expect(history).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ eventType: 'purpose:completed', purposeId: result.purpose.id, status: 'completed' }),
-        expect.objectContaining({ eventType: 'routine:completed', purposeId: result.purpose.id, status: 'completed' }),
+        expect.objectContaining({ eventType: 'purpose:completed', purposeId, status: 'completed' }),
+        expect.objectContaining({ eventType: 'routine:completed', purposeId, status: 'completed' }),
         expect.objectContaining({ eventType: 'step:completed', stepId: 'wait-menu-result', status: 'completed' })
       ])
     );

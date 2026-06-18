@@ -630,7 +630,9 @@ describe('QuestEngine — chat.api-config onboarding quest', () => {
         providerId: 'openai',
         presetId: 'preset-openai',
         fields: ['apiKey'],
-        trigger: 'onboarding'
+        trigger: 'onboarding',
+        questStartSource: 'recommendation',
+        openSettingsDirectly: true
       }
     });
     expect(saved.current?.quests['chat.api-config']).toMatchObject({ status: 'active', activatedAt: 1000 });
@@ -1183,7 +1185,7 @@ describe('QuestEngine — open-resource-library onboarding quest', () => {
     expect(saved.current?.quests['open-resource-library']).toMatchObject({ status: 'active', activatedAt: 1000 });
   });
 
-  it('does not restart resource-library guidance after its achievement is unlocked', async () => {
+  it('does not restart inventory guidance after its achievement is unlocked', async () => {
     const counts = { workspaces: 1 };
     const { engine, startPurpose, grantReward, hasAchievement, saved } = makeOpenResourceLibraryDeps(counts);
     hasAchievement.mockImplementation((id) => id === 'first-resource-library-open');
@@ -1196,7 +1198,7 @@ describe('QuestEngine — open-resource-library onboarding quest', () => {
     expect(saved.current?.quests['open-resource-library']).toMatchObject({ status: 'done', completedAt: 1000 });
   });
 
-  it('builds a quest list item with resource library rewards and action', () => {
+  it('builds a quest list item with inventory rewards and action', () => {
     const quest = createOpenResourceLibraryQuest({ countWorkspaces: () => 1 });
     const snapshot = createQuestListSnapshot({
       definitions: [quest],
@@ -1217,33 +1219,32 @@ describe('QuestEngine — open-resource-library onboarding quest', () => {
     expect(snapshot.items[0]).toMatchObject({
       id: 'open-resource-library',
       category: 'onboarding',
-      title: '打开资源库',
+      title: '打开背包',
       reward: { xp: 10, favor: 1, achievementId: 'first-resource-library-open' },
       rewardSource: 'quest:open-resource-library',
-      recommendation: {
-        questId: 'feature.resource-library-preview'
-      },
       action: {
         kind: 'start-quest',
         label: '开始引导',
         questId: 'open-resource-library',
-        windowKey: 'resources',
+        windowKey: 'inventory',
         purposeKind: 'onboarding.resource.open-library'
       }
     });
+    expect(snapshot.items[0].recommendation).toBeUndefined();
   });
 
-  it('completes and rewards only when resources is selected from the assistant menu', async () => {
+  it('completes and rewards only when inventory is selected from the assistant menu', async () => {
     const counts = { workspaces: 1 };
     const { engine, grantReward, saved } = makeOpenResourceLibraryDeps(counts);
 
     await engine.tick({ event: 'ASSISTANT_MENU_ITEM_SELECTED', eventPayload: { itemId: 'chat', windowKey: 'chat', source: 'assistant-context-menu' } });
-    await engine.tick({ event: 'ASSISTANT_MENU_ITEM_SELECTED', eventPayload: { itemId: 'resources', windowKey: 'resources', source: 'ai' } });
+    await engine.tick({ event: 'ASSISTANT_MENU_ITEM_SELECTED', eventPayload: { itemId: 'inventory', windowKey: 'inventory', source: 'ai' } });
+    await engine.tick({ event: 'ASSISTANT_MENU_ITEM_SELECTED', eventPayload: { itemId: 'resources', windowKey: 'resources', source: 'assistant-context-menu' } });
 
     expect(grantReward).not.toHaveBeenCalled();
     expect(saved.current?.quests['open-resource-library']).toBeUndefined();
 
-    await engine.tick({ event: 'ASSISTANT_MENU_ITEM_SELECTED', eventPayload: { itemId: 'resources', windowKey: 'resources', source: 'assistant-context-menu' } });
+    await engine.tick({ event: 'ASSISTANT_MENU_ITEM_SELECTED', eventPayload: { itemId: 'inventory', windowKey: 'inventory', source: 'assistant-context-menu' } });
 
     expect(grantReward).toHaveBeenCalledTimes(1);
     expect(grantReward.mock.calls[0]).toEqual([{ xp: 10, favor: 1, achievementId: 'first-resource-library-open' }, 'quest:open-resource-library']);
@@ -1377,6 +1378,30 @@ describe('QuestEngine — feature file video transcription intro quest', () => {
         purposeKind: 'feature.file-video-transcription'
       }
     });
+  });
+
+  it('does not recommend resource chat after the resource preview intro', () => {
+    const item = FEATURE_INTRO_QUEST_CATALOG.find((entry) => entry.id === 'feature.resource-library-preview');
+    expect(item).toBeDefined();
+    const quest = createFeatureIntroQuest({ countWorkspaces: () => 1 }, item!);
+    const snapshot = createQuestListSnapshot({
+      definitions: [quest],
+      state: {
+        version: 1,
+        quests: {
+          'workspace.create': {
+            status: 'done',
+            completedAt: 900
+          }
+        }
+      }
+    });
+
+    expect(snapshot.items[0]).toMatchObject({
+      id: 'feature.resource-library-preview',
+      category: 'feature-intro'
+    });
+    expect(snapshot.items[0].recommendation).toBeUndefined();
   });
 
   it('completes only when the transcription workflow starts', async () => {

@@ -154,6 +154,15 @@ interface SpriteBehaviorSchedulerPayload {
   behaviorId: string;
 }
 
+interface SpriteFileDropPayloadItem {
+  name?: string;
+  path?: string;
+}
+
+interface SpriteFileDropOptions {
+  correlationId?: string;
+}
+
 const SPRITE_BEHAVIOR_SCHEDULER_OWNER = 'sprite.behavior';
 const SPRITE_AUTO_MOVE_SCHEDULER_GATE = 'sprite.canAutoMove';
 const SPRITE_TRIGGER_DEBUG_PREFIX = '[SpriteManager][trigger]';
@@ -1425,6 +1434,7 @@ export class SpriteManager {
     // file-drag-over → 切换到 reacting/file-drag-over（持续到 drag-leave 或 file-drop）
     if (type === 'file-drag-over' && this.getState() !== 'dragging') {
       this.transitionTo('reacting', { subState: 'file-drag-over', force: true });
+      void this.startFileDropPurpose([], this.getFileDropCorrelationId(data));
       return;
     }
 
@@ -1908,17 +1918,42 @@ export class SpriteManager {
   }
 
   /** 处理文件拖放 */
-  handleFileDrop(files: any[]): void {
-    this.reportInteraction('file-drop', { fileCount: files.length });
-    const names = files.map((f: any) => f.name).filter(Boolean);
-    this.showToast(undefined, {
-      category: 'fileDrop',
-      ctx: {
-        count: files.length,
-        names,
-        singleName: files.length === 1 ? names[0] : undefined
+  async handleFileDrop(files: SpriteFileDropPayloadItem[], options: SpriteFileDropOptions = {}): Promise<SpritePurposeStartResult> {
+    const normalizedFiles = Array.isArray(files) ? files : [];
+    const correlationId = options.correlationId ?? this.createFileDropCorrelationId();
+    this.reportInteraction('file-drop', { fileCount: normalizedFiles.length, correlationId });
+
+    return this.startFileDropPurpose(normalizedFiles, correlationId);
+  }
+
+  private startFileDropPurpose(files: SpriteFileDropPayloadItem[], correlationId: string): Promise<SpritePurposeStartResult> {
+    return this.startPurpose({
+      kind: 'file.drop',
+      reason: '用户把文件拖给角色处理',
+      source: 'user-event',
+      presetId: 'file.drop',
+      priority: 100,
+      interruptPolicy: 'interruptible',
+      correlationId,
+      coalesceKey: `file-drop:${correlationId}`,
+      plannerMode: 'preset-only',
+      context: {
+        source: 'drop',
+        purposeSource: 'sprite-drop',
+        files,
+        fileCount: files.length,
+        fileNames: files.map((file) => file.name).filter(Boolean)
       }
     });
+  }
+
+  private getFileDropCorrelationId(data?: SpriteInteractionPayload): string {
+    const correlationId = data?.correlationId;
+    return typeof correlationId === 'string' && correlationId.trim() ? correlationId : this.createFileDropCorrelationId();
+  }
+
+  private createFileDropCorrelationId(): string {
+    return `file-drop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
   /** 渲染进程就绪 */

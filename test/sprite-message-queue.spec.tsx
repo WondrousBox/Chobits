@@ -278,4 +278,83 @@ describe('useMessageQueue', () => {
     });
     env.cleanup();
   });
+
+  it('routes purpose notice buttons through bubble actions only', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1700000000000);
+
+    const { act } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+    const { MessageProvider, useMessage } = await import('../src/features/sprite-assistant/message/MessageContext');
+    type MessageContextValue = import('../src/features/sprite-assistant/message/types').MessageContextValue;
+    type MessageButton = import('../src/features/sprite-assistant/message/types').MessageButton;
+
+    const env = installMiniDom();
+    const emitPurposeEvent = vi.fn(async () => ({ matched: 1 }));
+    const openWindow = vi.fn(async () => true);
+    (env.window as any).YUA = {
+      sprite: {
+        emitPurposeEvent
+      },
+      window: {
+        'window:open': openWindow
+      },
+      messages: {
+        on: () => () => undefined
+      }
+    };
+    let messageContext: MessageContextValue | null = null;
+
+    function Probe(): JSX.Element {
+      messageContext = useMessage();
+      return <div data-content={messageContext.current?.content ?? ''} />;
+    }
+
+    const root = createRoot(env.container as any);
+
+    await act(async () => {
+      root.render(
+        <MessageProvider>
+          <Probe />
+        </MessageProvider>
+      );
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      messageContext?.showNotice({
+        id: 'onboarding.workspace.create.invite',
+        content: '先创建工作空间吧',
+        persistent: true,
+        routineId: 'routine-workspace-create',
+        buttons: [{ id: 'focus-wizard', label: '立即创建', action: 'purpose:open-wizard' }]
+      });
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      const button: MessageButton = { id: 'focus-wizard', label: '立即创建', action: 'purpose:open-wizard' };
+      await messageContext?.handleButtonClick(button);
+      await Promise.resolve();
+    });
+
+    expect(emitPurposeEvent).toHaveBeenCalledWith({
+      source: 'purpose-event',
+      event: 'bubble:action',
+      payload: {
+        messageId: 'onboarding.workspace.create.invite',
+        actionId: 'focus-wizard',
+        purposeAction: 'open-wizard',
+        routineId: 'routine-workspace-create'
+      }
+    });
+    expect(openWindow).not.toHaveBeenCalled();
+    expect((env.container.firstChild as any).getAttribute('data-content')).toBe('先创建工作空间吧');
+
+    await act(async () => {
+      root.unmount();
+      await Promise.resolve();
+    });
+    env.cleanup();
+  });
 });

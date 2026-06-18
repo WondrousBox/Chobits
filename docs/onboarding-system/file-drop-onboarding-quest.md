@@ -15,11 +15,10 @@
 
 ## 2. 现有残留代码分析
 
-此前已经存在两段底层能力：
+此前已经存在统一的底层文件投递能力：
 
-- `file.drop.invite`：用户把文件拖入角色区域时，角色走到屏幕中心并等待 `interact:file-drop` 或 `interact:file-drag-leave`。
-- `file.drop.intake`：用户 drop 后播放接收反馈、打开 `fileActionsMenu`，等待 `fileAction:resolved`，再按 selected/cancelled/failed 收尾。
-- `useFileDropCollector`：渲染层 Dropzone 在 drag enter / drop 时启动上述 purpose，并调用资源服务把文件写入资源库。
+- `file.drop`：用户把文件拖入角色区域时，角色走到屏幕中心并等待 `interact:file-drop` 或 `interact:file-drag-leave`；真正 drop 后等待资源服务回报 `fileDrop:resources-ready`，再播放接收反馈、打开 `fileActionsMenu`，等待 `fileAction:resolved`，按 selected/cancelled/failed 收尾。
+- `useFileDropCollector`：渲染层 Dropzone 只负责把 DOM drag/drop 转成 `interact` / `fileDrop` / `fileDrop:resources-ready` 事件，并调用资源服务把文件写入资源库；角色行为统一由 `file.drop` routine steps 描述。
 
 缺失的是 Quest 层：
 
@@ -35,7 +34,7 @@
 3. 用户在任务列表点击“开始引导/继续引导”、未来 AI 显式触发 `quest:start({ id: 'first-file-drop', source: 'ai' })`，或从上一任务推荐确认继续时，`QuestEngine` 评估前置条件。
 4. 满足前置条件后启动 `onboarding.file.drop` purpose，强制 `plannerMode: 'preset-only'`。
 5. 角色走到中心，展示固定 notice：“可以把文件拖拽给我”
-6. 等待用户拖拽文件。真实拖入时，已有 `file.drop.invite` / `file.drop.intake` 会接管更高优先级的交互表现。
+6. 等待用户拖拽文件。真实拖入时，统一的 `file.drop` routine 会接管更高优先级的交互表现。
 7. 用户把文件拖给角色后，资源服务创建资源，并在资源 metadata 写入 `source: 'sprite-drop'`。
 8. `QuestEngine` 收到 `RESOURCE_CREATED` 或角色拖拽上传链路产生的导入完成事件，且确认业务来源为 `sprite-drop`，标记 `first-file-drop` 完成并发放奖励。
 9. routine 收到资源事件后清理引导 notice，播放庆祝反馈并说完成文案。
@@ -72,7 +71,7 @@
 - 展示常驻引导 notice，并低频说明资源库的作用。
 - 等待带 `purposeSource: 'sprite-drop'` 的 `RESOURCE_CREATED` / `SPRITE_RESOURCE_IMPORT_COMPLETE`，成功后清理 notice、庆祝并说“收到啦！已经放到背包。”这里不用 runtime event 顶层的 `source` 字段，因为它固定表示事件通道来源 `app-event`。
 
-真实文件导入不在这个 routine 里重复实现，继续交给 `useFileDropCollector` 和资源服务。
+真实文件导入不在这个 onboarding routine 里重复实现，继续交给统一 `file.drop` routine、`useFileDropCollector` 和资源服务。
 
 ## 6. 事件接入
 
@@ -103,7 +102,7 @@
 - ✅ 启动应用或刚完成工作空间创建时，不会自动弹出拖拽文件引导。
 - ✅ 未来 AI 可以通过显式 `quest:start` 入口启动这条任务。
 - ✅ 角色走到中心并提示拖文件给它。
-- ✅ 用户拖入文件时，已有 `file.drop.invite` / `file.drop.intake` 继续接管拖拽和后续菜单。
+- ✅ 用户拖入文件时，统一 `file.drop` routine 继续接管拖拽和后续菜单。
 - ✅ 拖给角色创建的资源会带 `metadata.source = 'sprite-drop'`。
 - ✅ `RESOURCE_CREATED` 命中后完成 Quest，发放 XP +15、好感 +2、成就 `first-import`。
 - ✅ 普通资源创建不会误完成“拖给角色”任务。
