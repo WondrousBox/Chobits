@@ -173,27 +173,6 @@ function createIdlePresenceSteps(): SpriteRoutineStepInput[] {
   return [];
 }
 
-function createFileDropEventMatch(purpose: SpritePurpose): Record<string, unknown> | undefined {
-  return purpose.correlationId ? { correlationId: purpose.correlationId } : undefined;
-}
-
-function createFileDropInviteWaitSteps(options: { match?: Record<string, unknown> } = {}): SpriteRoutineStepInput[] {
-  return [
-    { id: 'invite-go-center', type: 'walkTo', target: 'center', speed: 130, timeoutMs: 8000 },
-    { id: 'invite-ready', type: 'playAnimation', trigger: 'fileDragOver', durationMs: 900, waitFor: 'duration', silent: true },
-    {
-      id: 'wait-file-drop-or-leave',
-      type: 'loopUntil',
-      source: 'sprite-event-bus',
-      untilEvent: ['interact:file-drop', 'interact:file-drag-leave'],
-      match: options.match,
-      maxDurationMs: 2 * 60 * 1000,
-      assignTo: 'dragResult',
-      body: [{ id: 'invite-wait-pulse', type: 'playAnimation', trigger: 'thinking', durationMs: 1200, waitFor: 'duration', silent: true }]
-    }
-  ];
-}
-
 function getRecord(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : undefined;
 }
@@ -279,22 +258,7 @@ function createFileDropIntakeSteps(purpose: SpritePurpose, options: { waitForRes
 }
 
 function createFileDropSteps(purpose: SpritePurpose): SpriteRoutineStepInput[] {
-  return [
-    ...createFileDropInviteWaitSteps({ match: createFileDropEventMatch(purpose) }),
-    {
-      id: 'drag-result-branch',
-      type: 'branch',
-      by: 'dragResult.event.event',
-      cases: {
-        'interact:file-drag-leave': [
-          { id: 'invite-cancelled', type: 'playAnimation', trigger: 'confused', durationMs: 900, waitFor: 'duration', silent: true },
-          { id: 'invite-return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
-        ],
-        'interact:file-drop': createFileDropIntakeSteps(purpose, { waitForResourcesReady: true })
-      },
-      default: [{ id: 'invite-default-return', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }]
-    }
-  ];
+  return createFileDropIntakeSteps(purpose, { waitForResourcesReady: true });
 }
 
 function getPurposeContextString(purpose: SpritePurpose, key: string): string | undefined {
