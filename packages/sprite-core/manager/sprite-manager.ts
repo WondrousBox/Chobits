@@ -1434,7 +1434,6 @@ export class SpriteManager {
     // file-drag-over → 切换到 reacting/file-drag-over（持续到 drag-leave 或 file-drop）
     if (type === 'file-drag-over' && this.getState() !== 'dragging') {
       this.transitionTo('reacting', { subState: 'file-drag-over', force: true });
-      void this.startFileDropPurpose([], this.getFileDropCorrelationId(data));
       return;
     }
 

@@ -1188,7 +1188,7 @@ describe('SpriteRoutinePresetRegistry', () => {
     expect(routine.steps.some((step) => step.type === 'walkTo')).toBe(false);
   });
 
-  it('creates unified file drop routines that invite, wait for resources, and resolve the menu', () => {
+  it('creates unified file drop routines that wait for resources and resolve the menu after drop', () => {
     const registry = new SpriteRoutinePresetRegistry();
     const preset = registry.get('file.drop');
     expect(preset).toBeDefined();
@@ -1210,27 +1210,46 @@ describe('SpriteRoutinePresetRegistry', () => {
     );
 
     expect(preset!.defaultPriority).toBe(100);
-    expect(routine.steps.map((step) => step.id)).toEqual(['invite-go-center', 'invite-ready', 'wait-file-drop-or-leave', 'drag-result-branch']);
-    expect(routine.steps[0]).toMatchObject({ type: 'walkTo', target: 'center' });
-    expect(routine.steps.find((step) => step.id === 'wait-file-drop-or-leave')).toMatchObject({
-      type: 'loopUntil',
-      source: 'sprite-event-bus',
-      untilEvent: ['interact:file-drop', 'interact:file-drag-leave'],
+    expect(routine.steps.map((step) => step.id)).toEqual([
+      'ack-drop',
+      'thinking',
+      'wait-file-drop-resources-ready',
+      'prompt-action',
+      'open-file-actions-menu',
+      'wait-menu-result',
+      'result-branch',
+      'return-corner'
+    ]);
+    expect(routine.steps[0]).toMatchObject({ type: 'playAnimation', trigger: 'fileDrop' });
+    expect(routine.steps.find((step) => step.id === 'wait-file-drop-resources-ready')).toMatchObject({
+      type: 'waitForEvent',
+      source: 'purpose-event',
+      event: 'fileDrop:resources-ready',
       match: { correlationId: 'drop-1' },
-      assignTo: 'dragResult'
+      assignTo: 'fileDropReady'
     });
-    expect(routine.steps.find((step) => step.id === 'drag-result-branch')).toMatchObject({
+    expect(routine.steps.find((step) => step.id === 'open-file-actions-menu')).toMatchObject({
+      type: 'openWindow',
+      window: 'fileActionsMenu',
+      payloadFrom: 'fileDropReady.payload.fileActionsMenuPayload'
+    });
+    expect(routine.steps.find((step) => step.id === 'wait-menu-result')).toMatchObject({
+      type: 'waitForEvent',
+      source: 'purpose-event',
+      event: 'fileAction:resolved',
+      match: { correlationId: 'drop-1' },
+      assignTo: 'menuResult'
+    });
+    expect(routine.steps.find((step) => step.id === 'result-branch')).toMatchObject({
       type: 'branch',
-      by: 'dragResult.event.event',
+      by: 'menuResult.payload.outcome',
       cases: {
-        'interact:file-drop': expect.arrayContaining([
-          expect.objectContaining({ id: 'wait-file-drop-resources-ready', type: 'waitForEvent', event: 'fileDrop:resources-ready', match: { correlationId: 'drop-1' } }),
-          expect.objectContaining({ id: 'open-file-actions-menu', type: 'openWindow', window: 'fileActionsMenu', payloadFrom: 'fileDropReady.payload.fileActionsMenuPayload' }),
-          expect.objectContaining({ id: 'wait-menu-result', type: 'waitForEvent', event: 'fileAction:resolved', match: { correlationId: 'drop-1' } })
-        ]),
-        'interact:file-drag-leave': expect.arrayContaining([expect.objectContaining({ id: 'invite-return-corner', type: 'walkTo', target: 'corner' })])
+        selected: expect.arrayContaining([expect.objectContaining({ id: 'selected-success', type: 'playAnimation', trigger: 'success' })]),
+        cancelled: expect.arrayContaining([expect.objectContaining({ id: 'cancelled-confused', type: 'playAnimation', trigger: 'confused' })]),
+        failed: expect.arrayContaining([expect.objectContaining({ id: 'failed-reaction', type: 'playAnimation', trigger: 'failure' })])
       }
     });
+    expect(routine.steps.at(-1)).toMatchObject({ id: 'return-corner', type: 'walkTo', target: 'corner' });
   });
 
   it('runs the cancelled file drop branch to confused animation and return', async () => {
@@ -1265,9 +1284,6 @@ describe('SpriteRoutinePresetRegistry', () => {
         calls.push(`walk:${typeof step.target === 'string' ? step.target : 'point'}`);
       },
       waitForEvent: (step) => {
-        if (step.event === 'interact:file-drop') {
-          return { source: 'sprite-event-bus', event: 'interact:file-drop', correlationId: 'drop-1', timestamp: Date.now() };
-        }
         if (step.event === 'fileDrop:resources-ready') {
           return {
             source: 'purpose-event',
@@ -1305,9 +1321,6 @@ describe('SpriteRoutinePresetRegistry', () => {
 
     expect(result.ok).toBe(true);
     expect(result.steps.map((step) => step.stepId)).toEqual([
-      'invite-go-center',
-      'invite-ready',
-      'wait-file-drop-or-leave',
       'ack-drop',
       'thinking',
       'wait-file-drop-resources-ready',
@@ -1317,8 +1330,7 @@ describe('SpriteRoutinePresetRegistry', () => {
       'cancelled-confused',
       'cancelled-toast',
       'result-branch',
-      'return-corner',
-      'drag-result-branch'
+      'return-corner'
     ]);
     expect(calls).toContain('open:fileActionsMenu:drop-1');
     expect(calls).toContain('play:confused');
@@ -1358,9 +1370,6 @@ describe('SpriteRoutinePresetRegistry', () => {
         calls.push(`walk:${typeof step.target === 'string' ? step.target : 'point'}`);
       },
       waitForEvent: (step) => {
-        if (step.event === 'interact:file-drop') {
-          return { source: 'sprite-event-bus', event: 'interact:file-drop', correlationId: 'drop-1', timestamp: Date.now() };
-        }
         if (step.event === 'fileDrop:resources-ready') {
           return {
             source: 'purpose-event',
@@ -1398,9 +1407,6 @@ describe('SpriteRoutinePresetRegistry', () => {
 
     expect(result.ok).toBe(true);
     expect(result.steps.map((step) => step.stepId)).toEqual([
-      'invite-go-center',
-      'invite-ready',
-      'wait-file-drop-or-leave',
       'ack-drop',
       'thinking',
       'wait-file-drop-resources-ready',
@@ -1410,8 +1416,7 @@ describe('SpriteRoutinePresetRegistry', () => {
       'failed-reaction',
       'failed-toast',
       'result-branch',
-      'return-corner',
-      'drag-result-branch'
+      'return-corner'
     ]);
     expect(calls).toContain('open:fileActionsMenu:drop-1');
     expect(calls).toContain('play:failure');

@@ -339,7 +339,7 @@ describe('file drop purpose integration', () => {
     env.cleanup();
   });
 
-  it('runs unified file.drop through invite, resource ready, menu resolution, and cleanup', async () => {
+  it('runs unified file.drop after drop, resource ready, menu resolution, and cleanup', async () => {
     const opened: Array<{ windowKey: string; payload?: Record<string, unknown> }> = [];
     const calls: string[] = [];
     const { mgr, dataDir } = createManager({
@@ -362,10 +362,13 @@ describe('file drop purpose integration', () => {
     });
 
     mgr.reportInteraction('file-drag-over', { correlationId: 'drop-integration' });
-    await waitFor(() => mgr.getPurposeSnapshot().current?.kind === 'file.drop');
-    const purposeId = mgr.getPurposeSnapshot().current?.id;
+    expect(mgr.getState()).toBe('reacting');
+    expect(mgr.getSubState()).toBe('file-drag-over');
+    expect(mgr.getPurposeSnapshot().current?.kind).not.toBe('file.drop');
 
     await mgr.handleFileDrop([{ name: 'notes.docx', path: 'F:/tmp/notes.docx' }], { correlationId: 'drop-integration' });
+    await waitFor(() => mgr.getPurposeSnapshot().current?.kind === 'file.drop');
+    const purposeId = mgr.getPurposeSnapshot().current?.id;
     const readyMatched = mgr.emitPurposeEvent({
       source: 'purpose-event',
       event: 'fileDrop:resources-ready',
@@ -406,7 +409,7 @@ describe('file drop purpose integration', () => {
 
     expect(matched.matched).toBe(1);
     await waitFor(() => mgr.getPurposeSnapshot().current?.kind === 'idle.presence');
-    expect(calls).toEqual(['walk:center', 'play:fileDragOver', 'play:fileDrop', 'play:thinking', 'toast:question', 'play:success', 'toast:success', 'walk:corner']);
+    expect(calls).toEqual(['play:fileDrop', 'play:thinking', 'toast:question', 'play:success', 'toast:success', 'walk:corner']);
 
     const history = await mgr.listPurposeHistory({ kind: 'file.drop', limit: 50 });
     expect(history).toEqual(
