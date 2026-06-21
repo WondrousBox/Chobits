@@ -142,7 +142,7 @@ export type SpriteBridgeType = {
   trigger(trigger: SpriteAnimationTrigger, options?: SpriteTriggerOptions): Promise<void>;
   playFeedback(request: SpriteFeedbackRequest): Promise<SpriteFeedbackResult>;
   // 按动画 ID 测试播放（开发调试用）
-  testAnimation(animationId: string, options?: { message?: string; duration?: number; durationMs?: number; silent?: boolean }): Promise<boolean>;
+  testAnimation(animationId: string, options?: SpriteTriggerOptions): Promise<boolean>;
 
   // Purpose / Routine 编排
   startPurpose(request: StartSpritePurposeRequest): Promise<SpritePurposeStartResult>;

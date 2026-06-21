@@ -155,7 +155,7 @@ export const DEFAULT_SPRITE_PURPOSE_PLANNER_EVENTS = [
 ] as const;
 
 const STEP_SCHEMA_DESCRIPTIONS: Record<SpriteRoutineStepType, string> = {
-  playAnimation: 'Play an allowlisted animation trigger or animation id. Omitted waitFor is fire-and-forget; waitFor:duration or waitFor:complete requires durationMs or timeoutMs.',
+  playAnimation: 'Play an allowlisted animation trigger or animation id. Omitted waitFor is fire-and-forget; waitFor:duration or waitFor:complete requires durationMs or timeoutMs. Set allowMovementDuringPlayback:false for presentation-first animations such as dancing.',
   walkTo: 'Move the sprite to center, corner, previous, or a bounded point; timeoutMs is required.',
   wait: 'Pause for a bounded durationMs.',
   waitForEvent: 'Wait for an allowlisted runtime event; timeoutMs is required.',
@@ -420,6 +420,9 @@ function validatePlayAnimationStep(record: Record<string, unknown>, path: string
 
   if (record.waitFor !== undefined && record.waitFor !== 'complete' && record.waitFor !== 'duration' && record.waitFor !== 'none') {
     state.errors.push(`${path}.waitFor must be "complete", "duration", or "none"`);
+  }
+  if (record.allowMovementDuringPlayback !== undefined && typeof record.allowMovementDuringPlayback !== 'boolean') {
+    state.errors.push(`${path}.allowMovementDuringPlayback must be a boolean when provided`);
   }
 
   const durationMs = getOptionalNonNegativeNumber(record.durationMs);

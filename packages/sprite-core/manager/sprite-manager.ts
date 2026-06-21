@@ -140,6 +140,7 @@ interface PlayAnimationEntryOptions {
   sessionMode: 'state-bound' | 'trigger';
   durationMs?: number;
   playId?: string;
+  allowMovementDuringPlayback?: boolean;
   presentationOwner?: SpritePresentationOwnerContext | null;
 }
 
@@ -195,6 +196,7 @@ export class SpriteManager {
   private autoWalkConfig: AutoWalkConfig;
   private bubbleModeConfig: BubbleModeConfig;
   private movementSuspensionReasons = new Set<string>();
+  private animationMovementSuspensionReasons = new Map<string, string>();
 
   // 额外消息/配置接收方（如顶部气泡 / spriteEffect 窗口）
   private getMessageRecipients?: () => Array<SpriteWindow | null | undefined>;
@@ -543,6 +545,9 @@ export class SpriteManager {
     this.stateMachine.destroy();
     this.eventBus.clear();
     this.animationRegistry.clear();
+    for (const playId of Array.from(this.animationMovementSuspensionReasons.keys())) {
+      this.releaseAnimationMovementSuspension(playId);
+    }
 
     if (this.windowController) {
       this.windowController.destroy?.();
@@ -643,7 +648,64 @@ export class SpriteManager {
     return { anim: candidates[0], index: 0 };
   }
 
+  private shouldSuspendMovementForTrigger(trigger?: SpriteAnimationTrigger, options?: SpriteTriggerOptions): boolean {
+    if (options?.allowMovementDuringPlayback !== undefined) {
+      return options.allowMovementDuringPlayback === false;
+    }
+
+    return trigger === MUSIC_DANCE_TRIGGER || trigger === MUSIC_DANCE_FALLBACK_TRIGGER;
+  }
+
+  private resolveTriggerPlayId(trigger: SpriteAnimationTrigger | undefined, options: SpriteTriggerOptions | undefined, suspendMovement: boolean): string | undefined {
+    if (options?.playId) {
+      return options.playId;
+    }
+
+    if (!suspendMovement) {
+      return undefined;
+    }
+
+    return this.createAnimationPlayId(`trigger:${trigger ?? 'animation'}`);
+  }
+
+  private getAnimationMovementSuspensionReason(playId: string): string {
+    return `animation:${playId}`;
+  }
+
+  private registerAnimationMovementSuspension(playId?: string, allowMovementDuringPlayback?: boolean): void {
+    if (!playId || allowMovementDuringPlayback !== false) {
+      return;
+    }
+
+    if (this.animationMovementSuspensionReasons.has(playId)) {
+      return;
+    }
+
+    const reason = this.getAnimationMovementSuspensionReason(playId);
+    this.animationMovementSuspensionReasons.set(playId, reason);
+    this.setMovementSuspended(reason, true);
+  }
+
+  private releaseAnimationMovementSuspension(playId?: string): void {
+    if (!playId) {
+      return;
+    }
+
+    const reason = this.animationMovementSuspensionReasons.get(playId);
+    if (!reason) {
+      return;
+    }
+
+    this.animationMovementSuspensionReasons.delete(playId);
+    this.setMovementSuspended(reason, false);
+  }
+
   private playAnimationEntry(anim: AnimationEntry, options: PlayAnimationEntryOptions): void {
+    const previousPlayId = this.currentAnimation?.playId;
+    if (previousPlayId && previousPlayId !== options.playId) {
+      this.releaseAnimationMovementSuspension(previousPlayId);
+    }
+
     const resolvedDurationMs = options.durationMs ?? anim.playback?.durationMs;
     const playlistCandidateCount = options.playlistEntries?.length ?? 0;
     const playbackLoop = this.resolvePlaybackLoop(anim.playback);
@@ -696,6 +758,7 @@ export class SpriteManager {
     }
 
     this.sendToRenderer('sprite:play', this.currentAnimation);
+    this.registerAnimationMovementSuspension(options.playId, options.allowMovementDuringPlayback);
     if (options.trigger === 'welcome' || options.trigger === 'idle' || this.currentAnimation.animationId === 'sprite-fx718a5q') {
       console.info('[SpritePlayback] sprite:play sent', {
         trigger: options.trigger,
@@ -783,6 +846,8 @@ export class SpriteManager {
       });
     }
     const playlistMode = this.resolveAnimationPlaylistMode(resolvedTrigger);
+    const suspendMovement = this.shouldSuspendMovementForTrigger(resolvedTrigger, options);
+    const playId = this.resolveTriggerPlayId(resolvedTrigger, options, suspendMovement);
     const playlistEntries = options?.playId && !options.allowPlaylistWithPlayId ? undefined : candidates;
     const selected = this.selectAnimationFromCandidates(candidates);
     const presentationAllowed = this.canPresentAnimation(options);
@@ -792,7 +857,7 @@ export class SpriteManager {
         trigger,
         resolvedTrigger,
         fallbackTrigger,
-        playId: options?.playId,
+        playId,
         silent: options?.silent,
         priority: options?.priority,
         ownerPurposeId: options?.ownerPurposeId,
@@ -813,7 +878,7 @@ export class SpriteManager {
         trigger,
         resolvedTrigger,
         fallbackTrigger,
-        playId: options?.playId,
+        playId,
         availableTriggerSample: this.animationRegistry.getTriggers().slice(0, 30)
       });
     } else if (selected && !presentationAllowed && shouldLogDebug) {
@@ -821,7 +886,7 @@ export class SpriteManager {
         trigger,
         resolvedTrigger,
         fallbackTrigger,
-        playId: options?.playId,
+        playId,
         selectedAnimationId: selected.anim.id,
         presentationLock: this.presentationLock.getSnapshot()
       });
@@ -843,7 +908,8 @@ export class SpriteManager {
         playlistIndex: selected.index,
         sessionMode: 'trigger',
         durationMs: options?.durationMs,
-        playId: options?.playId,
+        playId,
+        allowMovementDuringPlayback: suspendMovement ? false : options?.allowMovementDuringPlayback,
         presentationOwner: this.toPresentationOwner(options)
       });
     }
@@ -865,12 +931,15 @@ export class SpriteManager {
     const anim = this.animationRegistry.get(animationId);
     if (!anim) return false;
     if (!this.canPresentAnimation(options)) return false;
+    const trigger = anim.eventTypes?.[0];
+    const suspendMovement = this.shouldSuspendMovementForTrigger(trigger, options);
 
     this.playAnimationEntry(anim, {
-      playlistMode: this.resolveAnimationPlaylistMode(anim.eventTypes?.[0]),
+      playlistMode: this.resolveAnimationPlaylistMode(trigger),
       sessionMode: 'trigger',
       durationMs: options?.durationMs,
-      playId: options?.playId,
+      playId: this.resolveTriggerPlayId(trigger, options, suspendMovement),
+      allowMovementDuringPlayback: suspendMovement ? false : options?.allowMovementDuringPlayback,
       presentationOwner: this.toPresentationOwner(options)
     });
 
@@ -1544,6 +1613,8 @@ export class SpriteManager {
     const playlistMatches = this.activeAnimationPlaylist?.playId === normalizedPlayId;
     if (!currentMatches && !playlistMatches) return false;
 
+    this.releaseAnimationMovementSuspension(normalizedPlayId);
+
     if (playlistMatches) {
       this.activeAnimationPlaylist = null;
     }
@@ -1872,6 +1943,10 @@ export class SpriteManager {
       if (playlistResult === 'advanced') {
         return;
       }
+    }
+
+    if (playId) {
+      this.releaseAnimationMovementSuspension(playId);
     }
 
     const autoIdle = this.shouldAutoIdleAfterComplete(animId, playId);
@@ -2604,6 +2679,7 @@ export class SpriteManager {
           durationMs: step.durationMs,
           silent: step.silent ?? true,
           playId,
+          allowMovementDuringPlayback: step.allowMovementDuringPlayback,
           ownerPurposeId: routine.purposeId,
           priority
         });
@@ -2612,6 +2688,7 @@ export class SpriteManager {
           durationMs: step.durationMs,
           silent: step.silent ?? true,
           playId,
+          allowMovementDuringPlayback: step.allowMovementDuringPlayback,
           ownerPurposeId: routine.purposeId,
           priority
         });

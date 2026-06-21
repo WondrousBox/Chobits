@@ -88,6 +88,7 @@ describe('MusicReactivityService', () => {
     expect(snapshot.lastAcceptedAnalysisSource).toBe('app-media');
     expect(calls).toHaveLength(1);
     expect(calls[0].trigger).toBe('music:dance');
+    expect(calls[0].options).toMatchObject({ allowMovementDuringPlayback: false });
   });
 
   it('keeps candidate timing through brief dips above the exit threshold', () => {

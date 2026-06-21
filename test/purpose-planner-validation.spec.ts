@@ -132,6 +132,31 @@ describe('SpritePurposePlanner validation', () => {
     expect(result.summary).toEqual({ stepCount: 1, estimatedDurationMs: 0 });
   });
 
+  it('accepts boolean playAnimation movement gating and rejects non-boolean values', () => {
+    const accepted = validateSpritePurposePlannerOutput(
+      {
+        routineDraft: {
+          steps: [{ id: 'dance', type: 'playAnimation', trigger: 'wave', durationMs: 800, allowMovementDuringPlayback: false }]
+        }
+      },
+      validationOptions
+    );
+
+    expect(accepted.ok).toBe(true);
+
+    const rejected = validateSpritePurposePlannerOutput(
+      {
+        routineDraft: {
+          steps: [{ id: 'dance', type: 'playAnimation', trigger: 'wave', durationMs: 800, allowMovementDuringPlayback: 'no' }]
+        }
+      },
+      validationOptions
+    );
+
+    expect(rejected.ok).toBe(false);
+    expect(rejected.errors.join('\n')).toContain('allowMovementDuringPlayback must be a boolean');
+  });
+
   it('requires a bounded wait budget when playAnimation waits for duration or completion', () => {
     const result = validateSpritePurposePlannerOutput(
       {

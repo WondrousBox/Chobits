@@ -220,6 +220,8 @@ export interface SpriteTriggerOptions {
   silent?: boolean;
   playId?: string;
   allowPlaylistWithPlayId?: boolean;
+  /** When false, auto/animation movement is suspended until this playback session ends. */
+  allowMovementDuringPlayback?: boolean;
   ownerPurposeId?: string;
   priority?: number;
   ignorePresentationLock?: boolean;

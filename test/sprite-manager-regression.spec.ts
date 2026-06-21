@@ -2098,6 +2098,164 @@ describe('sprite manager regression coverage', () => {
     expect(walkTo).toHaveBeenCalledOnce();
   });
 
+  it('suspends auto movement while a dance animation playback session is active', async () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    initSpriteCapabilityRuntime({
+      resolveContext: () => ({
+        personaLevel: 1,
+        activeSignals: {}
+      })
+    });
+
+    const walkTo = vi.fn(async () => undefined);
+    const stopWalk = vi.fn();
+    const stopAutoMove = vi.fn();
+    (mgr as any).windowController = {
+      getPosition: () => [100, 100],
+      walkTo,
+      stopWalk,
+      stopAutoMove,
+      isAutoMoving: () => true,
+      getAutoMoveDirection: () => 'left'
+    };
+
+    mgr.registerAnimation({
+      meta: {
+        id: 'dance-default',
+        title: 'Dance Default',
+        primaryTrigger: 'dance'
+      },
+      source: { localPath: './dance.webm', type: 'video/webm' },
+      durationMs: 800
+    });
+
+    const movement: SpriteMovementConfig = {
+      enabled: true,
+      mode: 'direction',
+      direction: 'right',
+      speed: 48
+    };
+
+    mgr.trigger('dance', { silent: true });
+    const playId = mgr.getCurrentAnimation()?.playId;
+    expect(playId).toEqual(expect.any(String));
+    expect(stopWalk).toHaveBeenCalled();
+    expect(stopAutoMove).toHaveBeenCalled();
+
+    await expect(mgr.runBehaviorMovement(movement)).resolves.toBe(false);
+    expect(walkTo).not.toHaveBeenCalled();
+
+    mgr.handleAnimationComplete('dance-default', 'full', playId);
+
+    await expect(mgr.runBehaviorMovement(movement)).resolves.toBe(true);
+    expect(walkTo).toHaveBeenCalledOnce();
+  });
+
+  it('allows dance movement when the trigger explicitly opts into movement during playback', async () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    initSpriteCapabilityRuntime({
+      resolveContext: () => ({
+        personaLevel: 1,
+        activeSignals: {}
+      })
+    });
+
+    const walkTo = vi.fn(async () => undefined);
+    const stopWalk = vi.fn();
+    (mgr as any).windowController = {
+      getPosition: () => [100, 100],
+      walkTo,
+      stopWalk,
+      isAutoMoving: () => false,
+      getAutoMoveDirection: () => null
+    };
+
+    mgr.registerAnimation({
+      meta: {
+        id: 'dance-default',
+        title: 'Dance Default',
+        primaryTrigger: 'dance'
+      },
+      source: { localPath: './dance.webm', type: 'video/webm' },
+      durationMs: 800
+    });
+
+    mgr.trigger('dance', { silent: true, allowMovementDuringPlayback: true });
+
+    await expect(
+      mgr.runBehaviorMovement({
+        enabled: true,
+        mode: 'direction',
+        direction: 'right',
+        speed: 48
+      })
+    ).resolves.toBe(true);
+    expect(stopWalk).not.toHaveBeenCalled();
+    expect(walkTo).toHaveBeenCalledOnce();
+  });
+
+  it('keeps movement suspended across a dance playlist until the playback session is stopped', async () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    initSpriteCapabilityRuntime({
+      resolveContext: () => ({
+        personaLevel: 1,
+        activeSignals: {}
+      })
+    });
+
+    const walkTo = vi.fn(async () => undefined);
+    (mgr as any).windowController = {
+      getPosition: () => [100, 100],
+      walkTo,
+      stopWalk: vi.fn(),
+      stopAutoMove: vi.fn(),
+      isAutoMoving: () => false,
+      getAutoMoveDirection: () => null
+    };
+
+    const registry = (mgr as any).animationRegistry;
+    registry.register({
+      id: 'dance-high',
+      title: 'Dance High',
+      eventTypes: ['dance'],
+      priority: 10,
+      source: { localPath: './dance-high.webm', type: 'video/webm' },
+      playback: { durationMs: 800, autoIdle: true }
+    });
+    registry.register({
+      id: 'dance-low',
+      title: 'Dance Low',
+      eventTypes: ['dance'],
+      priority: 1,
+      source: { localPath: './dance-low.webm', type: 'video/webm' },
+      playback: { durationMs: 800, autoIdle: true }
+    });
+    mgr.setAnimationPlaylistMode('list-loop', 'dance');
+
+    const movement: SpriteMovementConfig = {
+      enabled: true,
+      mode: 'direction',
+      direction: 'right',
+      speed: 48
+    };
+
+    mgr.trigger('dance', { silent: true });
+    const playId = mgr.getCurrentAnimation()?.playId;
+    expect(playId).toEqual(expect.any(String));
+
+    await expect(mgr.runBehaviorMovement(movement)).resolves.toBe(false);
+    mgr.handleAnimationComplete('dance-high', 'full', playId);
+    expect(mgr.getCurrentAnimation()?.animationId).toBe('dance-low');
+    await expect(mgr.runBehaviorMovement(movement)).resolves.toBe(false);
+
+    expect(mgr.stopAnimationSession(playId as string)).toBe(true);
+    await expect(mgr.runBehaviorMovement(movement)).resolves.toBe(true);
+    expect(walkTo).toHaveBeenCalledOnce();
+  });
+
   it('registers sprite behaviors with the injected main scheduler instead of legacy polling', async () => {
     const { scheduler } = createBehaviorSchedulerHarness();
     const { mgr, dataDir } = createManager({ behaviorScheduler: scheduler });

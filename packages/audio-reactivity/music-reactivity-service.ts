@@ -307,6 +307,7 @@ export class MusicReactivityService {
       durationMs: DANCE_TRIGGER_DURATION_MS,
       playId,
       allowPlaylistWithPlayId: true,
+      allowMovementDuringPlayback: false,
       priority: 20,
       ctx: {
         music: {
