@@ -65,8 +65,8 @@ function computeFeatures(state: AnalyzerState): {
   onsetStrength: number;
   musicProbability: number;
 } {
-  state.analyser.getByteTimeDomainData(state.timeData as Uint8Array<ArrayBuffer>);
-  state.analyser.getByteFrequencyData(state.frequencyData as Uint8Array<ArrayBuffer>);
+  state.analyser.getByteTimeDomainData(state.timeData);
+  state.analyser.getByteFrequencyData(state.frequencyData);
 
   const features = estimateMediaMusicFeatures({
     timeData: state.timeData,
@@ -221,7 +221,7 @@ export function useMusicReactivityAnalyzer(mediaRef: RefObject<MediaElement | nu
         if (state.audioContext.state === 'suspended') {
           void state.audioContext.resume().catch(() => undefined);
         }
-        state.analyser.getByteFrequencyData(state.frequencyData as Uint8Array<ArrayBuffer>);
+        state.analyser.getByteFrequencyData(state.frequencyData);
         const bands = computeSpectrumBands(state.frequencyData, MUSIC_REACTIVITY_SPECTRUM_BAND_COUNT);
         let sumSquares = 0;
         for (const value of bands) sumSquares += value * value;
