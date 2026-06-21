@@ -17,8 +17,8 @@ import { SpriteManager } from '../../../packages/sprite-core/manager';
 import { DEFAULT_SPRITE_ROUTINE_PRESETS, SpritePurposeHistoryStore } from '../../../packages/sprite-core/purpose';
 import { createOnboardingQuestRegistry, QuestEngine } from '../../../packages/sprite-core/quest';
 import {
-  SPRITE_EVENT_TYPES,
   type MessageButton,
+  SPRITE_EVENT_TYPES,
   type SpriteWindowAnimationDisplay,
   type SpriteWindowAnimationMargin,
   type SpriteWindowAnimationPlacement,
@@ -50,8 +50,8 @@ import { registerPurposeRetrospectiveMemoryProvider } from './memory/purpose-ret
 import { initPreferencesHandlers } from './preferences/ipc-main';
 import { PreferencesStore } from './preferences/preferences-store';
 import { initProxyHandlers } from './proxy/ipc-main';
-import { initQuestHandlers } from './quest/ipc-main';
 import { getHttpProxy } from './proxy/proxy';
+import { initQuestHandlers } from './quest/ipc-main';
 import { initResourceHandlers } from './resource/ipc-main';
 import { initRssHandlers } from './rss/ipc-main';
 import { initShortcutsHandlers } from './shortcuts';
@@ -76,17 +76,42 @@ let musicSpectrumDanceActive = false;
 let musicSpectrumLastFrameAtMs = 0;
 let musicSpectrumWatchdog: NodeJS.Timeout | null = null;
 const MUSIC_SPECTRUM_FRAME_TIMEOUT_MS = 1200;
+const MUSIC_SPECTRUM_BOTTOM_GAP_PX = 4;
 const DEFAULT_SPRITE_WINDOW_ANIMATION_TARGET = 'main';
 const DEFAULT_CHAT_PROVIDER_ID = 'openai';
 const WINDOW_ANIMATION_DIRECTIONS = new Set<WindowAnimationPresetDirection>(['top', 'top-right', 'right', 'bottom-right', 'bottom', 'bottom-left', 'left', 'top-left']);
 const DEFAULT_WINDOW_ANIMATION_DESIGN_AREA = { width: 1440, height: 900 };
 
+function positionMusicSpectrumWindowNearSprite(): void {
+  const spectrumWindow = windowManager.get('musicSpectrum');
+  const mainWindow = windowManager.get('main' as any);
+  if (!spectrumWindow || spectrumWindow.isDestroyed() || !mainWindow || mainWindow.isDestroyed()) return;
+
+  try {
+    const mainBounds = mainWindow.getBounds();
+    const spectrumBounds = spectrumWindow.getBounds();
+    const rawPadding = Math.max(0, Math.round(windowManager.getAssistantPadding?.() ?? 0));
+    const padding = rawPadding * 2 < mainBounds.width && rawPadding * 2 < mainBounds.height ? rawPadding : 0;
+    const anchorWidth = Math.max(1, mainBounds.width - padding * 2);
+    const anchorHeight = Math.max(1, mainBounds.height - padding * 2);
+    const x = Math.round(mainBounds.x + padding + (anchorWidth - spectrumBounds.width) / 2);
+    const y = Math.round(mainBounds.y + padding + anchorHeight + MUSIC_SPECTRUM_BOTTOM_GAP_PX);
+    spectrumWindow.setPosition(x, y);
+  } catch (error) {
+    console.warn('[MusicSpectrum] position window failed', error);
+  }
+}
+
 async function setMusicSpectrumWindowVisible(shouldShow: boolean): Promise<void> {
-  if (shouldShow === musicSpectrumWindowVisible) return;
+  if (shouldShow === musicSpectrumWindowVisible) {
+    if (shouldShow) positionMusicSpectrumWindowNearSprite();
+    return;
+  }
   musicSpectrumWindowVisible = shouldShow;
   try {
     if (shouldShow) {
       await windowManager.createOrShow('musicSpectrum');
+      positionMusicSpectrumWindowNearSprite();
     } else {
       await windowManager.hide('musicSpectrum');
     }
@@ -103,7 +128,10 @@ type WindowAnimationAdapterBounds = { x: number; y: number; width: number; heigh
 type WindowAnimationAdapterPoint = { x: number; y: number };
 type WindowAnimationAdapterPlaybackSize = { width?: number; height?: number; padding?: number };
 
-function getWindowAnimationAnchorOffset(anchor: SpriteWindowAnimationPlayPosition['positionAnchor'] | undefined, size: Pick<WindowAnimationAdapterBounds, 'width' | 'height'>): WindowAnimationAdapterPoint {
+function getWindowAnimationAnchorOffset(
+  anchor: SpriteWindowAnimationPlayPosition['positionAnchor'] | undefined,
+  size: Pick<WindowAnimationAdapterBounds, 'width' | 'height'>
+): WindowAnimationAdapterPoint {
   switch (anchor) {
     case 'top-left':
       return { x: 0, y: 0 };
@@ -150,18 +178,10 @@ function normalizeWindowAnimationMargin(margin?: SpriteWindowAnimationMargin): {
   return { top: 0, right: 0, bottom: 0, left: 0 };
 }
 
-function getWindowAnimationDisplayArea(
-  displayMode: SpriteWindowAnimationDisplay | undefined,
-  fallback: WindowAnimationAdapterBounds,
-  useWorkArea = true
-): WindowAnimationAdapterBounds {
+function getWindowAnimationDisplayArea(displayMode: SpriteWindowAnimationDisplay | undefined, fallback: WindowAnimationAdapterBounds, useWorkArea = true): WindowAnimationAdapterBounds {
   const main = windowManager.get('main' as any);
   const source =
-    displayMode === 'primary'
-      ? screen.getPrimaryDisplay()
-      : displayMode === 'main' && main && !main.isDestroyed()
-        ? screen.getDisplayMatching(main.getBounds())
-        : screen.getDisplayMatching(fallback);
+    displayMode === 'primary' ? screen.getPrimaryDisplay() : displayMode === 'main' && main && !main.isDestroyed() ? screen.getDisplayMatching(main.getBounds()) : screen.getDisplayMatching(fallback);
   return useWorkArea ? source.workArea : source.bounds;
 }
 
@@ -281,10 +301,7 @@ function normalizeSpriteWindowAnimationPlaybackSize(size?: WindowAnimationAdapte
 
 function hasExplicitWindowAnimationSize(timeline: ReturnType<typeof createMainWindowAnimationPresetTimeline>): boolean {
   const hasSizedFrame = (frame: { width?: number; height?: number }): boolean => Number.isFinite(frame.width) || Number.isFinite(frame.height);
-  return (
-    timeline.keyframes.some(hasSizedFrame) ||
-    Object.values(timeline.variants ?? {}).some((variant) => variant?.keyframes?.some(hasSizedFrame))
-  );
+  return timeline.keyframes.some(hasSizedFrame) || Object.values(timeline.variants ?? {}).some((variant) => variant?.keyframes?.some(hasSizedFrame));
 }
 
 function resolveSpritePlaybackWindowBounds(current: WindowAnimationAdapterBounds, playbackSize?: WindowAnimationAdapterPlaybackSize): WindowAnimationAdapterBounds | null {
@@ -356,7 +373,11 @@ function resolveChatProviderIdForGuide(): string {
 }
 
 function resolveRequiredProviderFields(providerId: string): string[] {
-  const requiredFields = getProviderDefinitionSchema(providerId)?.fields?.filter((field) => field.required).map((field) => field.key).filter(Boolean) || [];
+  const requiredFields =
+    getProviderDefinitionSchema(providerId)
+      ?.fields?.filter((field) => field.required)
+      .map((field) => field.key)
+      .filter(Boolean) || [];
   return requiredFields.length > 0 ? requiredFields : ['apiKey'];
 }
 
@@ -439,7 +460,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
     },
     {
       scheduler,
-      autoDispatchGate: () => onboardingFocusActive ? { accepted: false, reason: 'onboarding-workspace-required' } : true
+      autoDispatchGate: () => (onboardingFocusActive ? { accepted: false, reason: 'onboarding-workspace-required' } : true)
     }
   );
   initStatusHandlers(win);
@@ -763,10 +784,7 @@ async function initOnboardingQuestEngine(
   eventManager.on(AppEvent.RESOURCE_CREATED, (data) => {
     const mgr = SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
     const payload = data as Record<string, unknown> | undefined;
-    const purposePayload =
-      typeof payload?.metadata === 'string' && /"source"\s*:\s*"sprite-drop"/.test(payload.metadata)
-        ? { ...payload, purposeSource: 'sprite-drop' }
-        : payload;
+    const purposePayload = typeof payload?.metadata === 'string' && /"source"\s*:\s*"sprite-drop"/.test(payload.metadata) ? { ...payload, purposeSource: 'sprite-drop' } : payload;
     mgr?.emitPurposeEvent({ source: 'app-event', event: 'RESOURCE_CREATED', payload: purposePayload });
     void engine.tick({ event: 'RESOURCE_CREATED', eventPayload: data });
   });

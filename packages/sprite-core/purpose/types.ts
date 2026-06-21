@@ -109,6 +109,8 @@ type PlayAnimationStep = BaseRoutineStep<'playAnimation'> & {
   waitFor?: 'complete' | 'duration' | 'none';
   /** 是否禁止动画触发时自动带出角色文案；routine 动画通常默认静默。 */
   silent?: boolean;
+  /** When false, auto/animation movement is suspended until this playback step ends. */
+  allowMovementDuringPlayback?: boolean;
   /** 等待动画完成的最大时间，避免播放器事件丢失时卡住 routine。 */
   timeoutMs?: number;
 };

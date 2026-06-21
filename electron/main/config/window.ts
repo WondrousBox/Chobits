@@ -871,9 +871,8 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
   musicSpectrum: {
     routeHash: 'music-spectrum',
     followMain: true,
-    followerPreferMode: 'overlap-center',
-    enableOverlapTransparency: true,
-    forceCenterAlignment: true,
+    followerPreferMode: 'fixed-bottom',
+    followerClampToWorkArea: false,
     preferShowInactive: true,
     suspendHoverMonitorOnShow: false,
     parent: 'main',
@@ -882,7 +881,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     openDevTools: false,
     options: {
       width: 360,
-      height: 120,
+      height: 72,
       frame: false,
       transparent: true,
       resizable: true,
