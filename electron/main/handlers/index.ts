@@ -77,6 +77,8 @@ let musicSpectrumLastFrameAtMs = 0;
 let musicSpectrumWatchdog: NodeJS.Timeout | null = null;
 const MUSIC_SPECTRUM_FRAME_TIMEOUT_MS = 1200;
 const MUSIC_SPECTRUM_BOTTOM_GAP_PX = 4;
+const MUSIC_SPECTRUM_WINDOW_WIDTH = 360;
+const MUSIC_SPECTRUM_WINDOW_HEIGHT = 48;
 const DEFAULT_SPRITE_WINDOW_ANIMATION_TARGET = 'main';
 const DEFAULT_CHAT_PROVIDER_ID = 'openai';
 const WINDOW_ANIMATION_DIRECTIONS = new Set<WindowAnimationPresetDirection>(['top', 'top-right', 'right', 'bottom-right', 'bottom', 'bottom-left', 'left', 'top-left']);
@@ -88,6 +90,11 @@ function positionMusicSpectrumWindowNearSprite(): void {
   if (!spectrumWindow || spectrumWindow.isDestroyed() || !mainWindow || mainWindow.isDestroyed()) return;
 
   try {
+    const currentSpectrumBounds = spectrumWindow.getBounds();
+    if (currentSpectrumBounds.width !== MUSIC_SPECTRUM_WINDOW_WIDTH || currentSpectrumBounds.height !== MUSIC_SPECTRUM_WINDOW_HEIGHT) {
+      spectrumWindow.setSize(MUSIC_SPECTRUM_WINDOW_WIDTH, MUSIC_SPECTRUM_WINDOW_HEIGHT, false);
+    }
+
     const mainBounds = mainWindow.getBounds();
     const spectrumBounds = spectrumWindow.getBounds();
     const rawPadding = Math.max(0, Math.round(windowManager.getAssistantPadding?.() ?? 0));

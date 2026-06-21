@@ -5,6 +5,7 @@ const SMOOTHING = 0.78;
 const DECAY_PER_FRAME = 0.04;
 const PEAK_DECAY_PER_FRAME = 0.012;
 const IDLE_TIMEOUT_MS = 600;
+const BAR_HEIGHT_RATIO = 0.6;
 const draggableWindowStyle: CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' } = {
   background: 'transparent',
   WebkitAppRegion: 'drag'
@@ -89,8 +90,8 @@ export function MusicSpectrumPage(): JSX.Element {
       const barWidth = Math.max(2, Math.min(4 * (window.devicePixelRatio || 1), (width - gap * (count + 1)) / count));
       const totalContentWidth = barWidth * count + gap * (count - 1);
       const startX = (width - totalContentWidth) / 2;
-      const baselineY = height * 0.96;
-      const usableHeight = baselineY * 0.88;
+      const baselineY = height * 0.82;
+      const usableHeight = height * BAR_HEIGHT_RATIO;
 
       for (let i = 0; i < count; i += 1) {
         const value = smoothed[i];

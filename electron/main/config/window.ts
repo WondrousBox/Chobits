@@ -881,7 +881,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     openDevTools: false,
     options: {
       width: 360,
-      height: 72,
+      height: 48,
       frame: false,
       transparent: true,
       resizable: true,
