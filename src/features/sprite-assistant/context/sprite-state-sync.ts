@@ -46,9 +46,9 @@ export function mergePlayCommandIntoSpriteConfig(prev: SpriteConfig, playCommand
 
   return {
     ...prev,
-    width: playback.width ?? prev.width,
-    height: playback.height ?? prev.height,
-    padding: playback.padding ?? prev.padding,
+    width: playback.width ?? DEFAULT_SPRITE_CONFIG.width,
+    height: playback.height ?? DEFAULT_SPRITE_CONFIG.height,
+    padding: playback.padding ?? DEFAULT_SPRITE_CONFIG.padding,
     animationPlaylistMode: prev.animationPlaylistMode,
     ...(prev.animationPlaylistModes ? { animationPlaylistModes: prev.animationPlaylistModes } : {}),
     showDebugOverlay: prev.showDebugOverlay,

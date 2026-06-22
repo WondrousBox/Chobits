@@ -156,6 +156,8 @@ type SpriteSpeechPlaybackOptions = {
   ignorePresentationLock?: boolean;
 };
 
+type SpritePlaybackMetrics = Pick<SpriteConfig, 'width' | 'height' | 'padding'>;
+
 interface SpriteBehaviorSchedulerPayload {
   behaviorId: string;
 }
@@ -175,6 +177,11 @@ const SPRITE_TRIGGER_DEBUG_PREFIX = '[SpriteManager][trigger]';
 const MUSIC_DANCE_TRIGGER = 'music:dance' as SpriteAnimationTrigger;
 const MUSIC_DANCE_FALLBACK_TRIGGER = 'dance' as SpriteAnimationTrigger;
 const PLAYLIST_LOOP_FALLBACK_COUNT = 1;
+const DEFAULT_ANIMATION_PLAYBACK_METRICS: SpritePlaybackMetrics = {
+  width: 180,
+  height: 240,
+  padding: 100
+};
 
 export class SpriteManager {
   // 内部引擎实例
@@ -707,6 +714,18 @@ export class SpriteManager {
     this.setMovementSuspended(reason, false);
   }
 
+  private resolveAnimationPlaybackMetrics(playback: AnimationEntry['playback']): SpritePlaybackMetrics {
+    return {
+      width: this.resolvePlaybackMetric(playback.width, DEFAULT_ANIMATION_PLAYBACK_METRICS.width),
+      height: this.resolvePlaybackMetric(playback.height, DEFAULT_ANIMATION_PLAYBACK_METRICS.height),
+      padding: this.resolvePlaybackMetric(playback.padding, DEFAULT_ANIMATION_PLAYBACK_METRICS.padding)
+    };
+  }
+
+  private resolvePlaybackMetric(value: unknown, fallback: number): number {
+    return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+  }
+
   private playAnimationEntry(anim: AnimationEntry, options: PlayAnimationEntryOptions): void {
     const previousPlayId = this.currentAnimation?.playId;
     if (previousPlayId && previousPlayId !== options.playId) {
@@ -717,6 +736,7 @@ export class SpriteManager {
     const playlistCandidateCount = options.playlistEntries?.length ?? 0;
     const playbackLoop = this.resolvePlaybackLoop(anim.playback);
     const playbackLoopCount = this.resolvePlaybackLoopCount(anim.playback, options.playlistMode, playlistCandidateCount);
+    const playbackMetrics = anim.playback ? this.resolveAnimationPlaybackMetrics(anim.playback) : null;
 
     this.currentAnimation = {
       playId: options.playId,
@@ -727,9 +747,9 @@ export class SpriteManager {
       playbackSession: this.buildPlaybackSession(anim.playback, resolvedDurationMs, options.sessionMode),
       playback: anim.playback
         ? {
-            width: anim.playback.width,
-            height: anim.playback.height,
-            padding: anim.playback.padding,
+            width: playbackMetrics!.width,
+            height: playbackMetrics!.height,
+            padding: playbackMetrics!.padding,
             loop: playbackLoop,
             loopCount: playbackLoopCount,
             loopStartMs: anim.playback.loopStartMs,
@@ -742,11 +762,8 @@ export class SpriteManager {
     };
     this.currentAnimationPresentationOwner = options.presentationOwner ? { ...options.presentationOwner } : null;
 
-    if (anim.playback) {
-      const pb = anim.playback;
-      if (pb.width != null) this.spriteConfig.width = pb.width;
-      if (pb.height != null) this.spriteConfig.height = pb.height;
-      if (pb.padding != null) this.spriteConfig.padding = pb.padding;
+    if (playbackMetrics) {
+      this.setSpriteMetrics(playbackMetrics);
     }
 
     if (options.trigger && this.shouldUseListPlaylist(options.playlistMode, playlistCandidateCount) && options.playlistEntries?.length) {

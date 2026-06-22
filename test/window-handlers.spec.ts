@@ -124,7 +124,7 @@ describe('window handlers', () => {
     expect(dynamicRequireMock).not.toHaveBeenCalled();
   });
 
-  it('does not start hover click-through when assistant padding is zero', async () => {
+  it('keeps hover click-through active when assistant padding is zero', async () => {
     const { initWindowHandlers } = await import('../electron/main/handlers/window');
     const win = createWindowStub();
     initWindowHandlers(win);
@@ -136,12 +136,11 @@ describe('window handlers', () => {
 
     cursorPoint = { x: 400, y: 400 };
     expect(setAssistantSize({}, { width: 120, height: 120, padding: 0 })).toEqual({ success: true });
-    expect(win.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false, { forward: true });
-    expect(win.setIgnoreMouseEvents).not.toHaveBeenCalledWith(true, { forward: true });
-    expect(dynamicRequireMock).not.toHaveBeenCalled();
+    expect(win.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true, { forward: true });
+    expect(dynamicRequireMock).toHaveBeenCalledWith('uiohook-napi');
   });
 
-  it('stops hover click-through when padding switches back to zero', async () => {
+  it('keeps hover click-through when padding switches back to zero', async () => {
     const { initWindowHandlers } = await import('../electron/main/handlers/window');
     const win = createWindowStub();
     win.getBounds.mockReturnValue({ x: 100, y: 100, width: 320, height: 320 });
@@ -159,7 +158,7 @@ describe('window handlers', () => {
 
     dynamicRequireMock.mockClear();
     expect(setAssistantSize({}, { width: 120, height: 120, padding: 0 })).toEqual({ success: true });
-    expect(win.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false, { forward: true });
+    expect(win.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true, { forward: true });
     expect(dynamicRequireMock).not.toHaveBeenCalled();
   });
 
@@ -313,6 +312,52 @@ describe('window handlers', () => {
     expect(win.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false, { forward: true });
 
     expect(setAssistantInteractiveRegions({}, { regions: [] })).toEqual({ success: true });
+    expect(win.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true, { forward: true });
+  });
+
+  it('recomputes click-through immediately when the assistant shrinks under the cursor', async () => {
+    const { initWindowHandlers } = await import('../electron/main/handlers/window');
+    const win = createWindowStub();
+    win.getBounds.mockReturnValue({ x: 100, y: 100, width: 680, height: 460 });
+    initWindowHandlers(win);
+
+    const setAssistantSize = ipcHandlers.get('setAssistantSize') as (
+      event: unknown,
+      params: { width: number; height: number; padding: number }
+    ) => { success: boolean };
+
+    cursorPoint = { x: 20, y: 20 };
+    expect(setAssistantSize({}, { width: 640, height: 420, padding: 20 })).toEqual({ success: true });
+    expect(win.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true, { forward: true });
+
+    cursorPoint = { x: 620, y: 360 };
+    vi.advanceTimersByTime(33);
+    expect(win.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false, { forward: true });
+
+    win.setIgnoreMouseEvents.mockClear();
+    expect(setAssistantSize({}, { width: 180, height: 240, padding: 100 })).toEqual({ success: true });
+
+    expect(win.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true, { forward: true });
+  });
+
+  it('keeps old wave-sized transparent areas click-through after returning to fixed-top idle size', async () => {
+    const { initWindowHandlers } = await import('../electron/main/handlers/window');
+    const win = createWindowStub();
+    win.getBounds.mockReturnValue({ x: 100, y: 100, width: 480, height: 480 });
+    initWindowHandlers(win);
+
+    const setAssistantSize = ipcHandlers.get('setAssistantSize') as (
+      event: unknown,
+      params: { width: number; height: number; padding: number }
+    ) => { success: boolean };
+
+    cursorPoint = { x: 430, y: 430 };
+    expect(setAssistantSize({}, { width: 480, height: 480, padding: 0 })).toEqual({ success: true });
+    expect(win.setIgnoreMouseEvents).not.toHaveBeenCalledWith(true, { forward: true });
+
+    win.setIgnoreMouseEvents.mockClear();
+    expect(setAssistantSize({}, { width: 180, height: 240, padding: 0 })).toEqual({ success: true });
+
     expect(win.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true, { forward: true });
   });
 });
