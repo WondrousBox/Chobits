@@ -194,7 +194,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
   }
 
   function shouldRunHoverMonitor(): boolean {
-    return assistantPaddingInitialized && assistantPadding > 0;
+    return assistantPaddingInitialized && assistantWidth > 0 && assistantHeight > 0;
   }
 
   function startHoverMonitor(): void {

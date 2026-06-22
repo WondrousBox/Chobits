@@ -23,7 +23,7 @@ import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
 import PersonaGainEffects from './ui/PersonaGainEffects';
 import StatusIndicator from './ui/StatusIndicator';
 
-const showBlock = true; // 开发时显示
+const showBlock = false; // 开发时显示
 const CLICK_INTERACTION_DEDUP_MS = 300;
 
 /** 内部组件：包含实际逻辑 */

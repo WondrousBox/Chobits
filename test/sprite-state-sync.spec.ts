@@ -107,6 +107,34 @@ describe('sprite state sync helpers', () => {
     });
   });
 
+  it('does not reuse previous animation metrics when a play command omits dimensions', () => {
+    const previous: SpriteConfig = {
+      width: 640,
+      height: 420,
+      padding: 20,
+      animationPlaylistMode: 'list-loop',
+      autoWalkEnabled: false,
+      showDebugOverlay: true
+    };
+    const playCommand: SpritePlayCommand = {
+      animationId: 'idle-default',
+      source: { localPath: './idle.webm', type: 'video/webm' },
+      playback: {
+        durationMs: 800,
+        loop: true
+      }
+    };
+
+    expect(mergePlayCommandIntoSpriteConfig(previous, playCommand)).toEqual({
+      width: DEFAULT_SPRITE_CONFIG.width,
+      height: DEFAULT_SPRITE_CONFIG.height,
+      padding: DEFAULT_SPRITE_CONFIG.padding,
+      animationPlaylistMode: 'list-loop',
+      autoWalkEnabled: false,
+      showDebugOverlay: true
+    });
+  });
+
   it('keeps config unchanged when play command has no playback payload', () => {
     const previous = { ...DEFAULT_SPRITE_CONFIG, showDebugOverlay: true };
     const playCommand: SpritePlayCommand = {

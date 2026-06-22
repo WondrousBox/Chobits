@@ -345,6 +345,68 @@ describe('sprite manager regression coverage', () => {
     expect(mgr.getCurrentAnimation()?.animationId).toBe('idle-default');
   });
 
+  it('resets omitted playback dimensions after a larger animation returns to idle', () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    const registry = (mgr as any).animationRegistry;
+
+    registry.register({
+      id: 'celebrate-large',
+      title: 'Celebrate Large',
+      eventTypes: ['celebrate'],
+      source: { localPath: './celebrate-large.webm', type: 'video/webm' },
+      playback: {
+        width: 640,
+        height: 420,
+        padding: 20,
+        durationMs: 800,
+        autoIdle: true
+      }
+    });
+    registry.register({
+      id: 'idle-default',
+      title: 'Idle Default',
+      eventTypes: ['idle'],
+      source: { localPath: './idle.webm', type: 'video/webm' },
+      playback: {
+        durationMs: 800,
+        loop: true
+      }
+    });
+
+    mgr.trigger('celebrate', { silent: true });
+
+    expect(mgr.getCurrentAnimation()).toMatchObject({
+      animationId: 'celebrate-large',
+      playback: {
+        width: 640,
+        height: 420,
+        padding: 20
+      }
+    });
+    expect(mgr.getSpriteConfig()).toMatchObject({
+      width: 640,
+      height: 420,
+      padding: 20
+    });
+
+    mgr.handleAnimationComplete('celebrate-large', 'full');
+
+    expect(mgr.getCurrentAnimation()).toMatchObject({
+      animationId: 'idle-default',
+      playback: {
+        width: 180,
+        height: 240,
+        padding: 100
+      }
+    });
+    expect(mgr.getSpriteConfig()).toMatchObject({
+      width: 180,
+      height: 240,
+      padding: 100
+    });
+  });
+
   it('playlist mode never disables a per-animation segment loop', () => {
     const { mgr, dataDir } = createManager();
     dataDirs.add(dataDir);
