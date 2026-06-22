@@ -215,7 +215,7 @@ export function createWorkspaceCreateQuest(deps: OnboardingPresetDeps): Onboardi
     recommendation: {
       questId: 'chat.api-config',
       delayMs: 5000,
-      prompt: '接着配置 API Key 就可以和我聊天了',
+      prompt: '配置好 API Key 就可以和我聊天了',
       confirmLabel: '去配置'
     },
     reward: {

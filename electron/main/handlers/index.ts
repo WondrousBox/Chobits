@@ -761,6 +761,30 @@ async function initOnboardingQuestEngine(
         });
       }
 
+      if (offer.questId === 'first-file-drop' || offer.questId === 'open-resource-library') {
+        const purposeSnapshot = mgr.getPurposeSnapshot();
+        console.info('[QuestRecommendation] showing offer', {
+          completedQuestId: completedQuest.id,
+          recommendedQuestId: offer.questId,
+          prompt: offer.prompt,
+          confirmLabel: offer.confirmLabel,
+          currentPurpose: purposeSnapshot.current
+            ? {
+              id: purposeSnapshot.current.id,
+              kind: purposeSnapshot.current.kind,
+              status: purposeSnapshot.current.status,
+              priority: purposeSnapshot.current.priority
+            }
+            : null,
+          queue: purposeSnapshot.queue.map((purpose) => ({
+            id: purpose.id,
+            kind: purpose.kind,
+            status: purpose.status,
+            priority: purpose.priority
+          }))
+        });
+      }
+
       mgr.showNotice(offer.prompt || `要不要接着做「${offer.questTitle}」？`, {
         id: `quest-recommendation:${completedQuest.id}:${offer.questId}`,
         level: 'success',

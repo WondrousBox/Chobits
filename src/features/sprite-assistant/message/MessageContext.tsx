@@ -1,15 +1,48 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 
+import { MessageContext } from './message-context-value';
 import type { MessageBridgePayload, MessageButton, MessageContextValue, MessageLevel, NoticeMessage } from './types';
 import { useMessageQueue } from './useMessageQueue';
 
-const MessageContext = createContext<MessageContextValue | null>(null);
+type MessageSurface = 'app' | 'sprite-bubble';
 
 interface MessageProviderProps {
   children: React.ReactNode;
+  surface?: MessageSurface;
 }
 
-export function MessageProvider({ children }: MessageProviderProps): JSX.Element {
+function shouldHandleBridgeEvent(surface: MessageSurface, event: MessageBridgePayload): boolean {
+  if (surface === 'sprite-bubble') {
+    return event.target === undefined || event.target === 'all' || event.target === 'sprite';
+  }
+  return event.target !== 'sprite';
+}
+
+async function releaseFileDropPurposeBeforeOpenResourceLibrary(): Promise<void> {
+  const snapshot = await window.YUA.sprite?.getPurposeSnapshot?.().catch((error) => {
+    console.warn('[MessageContext] get purpose snapshot before open-resource-library failed', error);
+    return null;
+  });
+  const currentPurpose = snapshot?.current;
+  if (currentPurpose?.kind !== 'file.drop') {
+    return;
+  }
+
+  console.info('[MessageContext] releasing file.drop before open resource library quest', {
+    purposeId: currentPurpose.id,
+    kind: currentPurpose.kind,
+    priority: currentPurpose.priority
+  });
+
+  await window.YUA.window?.['window:close']?.('fileActionsMenu' as any).catch((error) => {
+    console.warn('[MessageContext] close fileActionsMenu before open-resource-library failed', error);
+  });
+  await window.YUA.sprite?.cancelPurpose?.(currentPurpose.id, 'open-resource-library-recommendation').catch((error) => {
+    console.warn('[MessageContext] cancel file.drop before open-resource-library failed', error);
+  });
+}
+
+export function MessageProvider({ children, surface = 'app' }: MessageProviderProps): JSX.Element {
   const { current, showToast, showNotice, showBusy, updateBusy, clearBusy, clearByType, dismiss, clearAll, currentNotice } = useMessageQueue();
 
   const emitNoticeDismissed = useCallback(async (notice: NoticeMessage | null | undefined, reason: 'button' | 'close' | 'clear' | 'auto' = 'close') => {
@@ -50,7 +83,39 @@ export function MessageProvider({ children }: MessageProviderProps): JSX.Element
         const questId = button.action.slice('quest:start:'.length).trim();
         if (!questId) return;
         try {
+          if (questId === 'first-file-drop' || questId === 'open-resource-library') {
+            console.info('[MessageContext] quest recommendation button clicked', {
+              questId,
+              buttonId: button.id,
+              label: button.label
+            });
+          }
+          if (questId === 'open-resource-library') {
+            await releaseFileDropPurposeBeforeOpenResourceLibrary();
+          }
           const result = await window.YUA.quest?.['quest:start']?.({ id: questId, source: 'recommendation' });
+          if (questId === 'first-file-drop' || questId === 'open-resource-library') {
+            console.info('[MessageContext] quest recommendation start result', {
+              questId,
+              ok: result?.ok,
+              error: result?.error,
+              startResult: result?.startResult
+                ? {
+                    accepted: result.startResult.accepted,
+                    status: result.startResult.status,
+                    reason: result.startResult.reason,
+                    purpose: result.startResult.purpose
+                      ? {
+                          id: result.startResult.purpose.id,
+                          kind: result.startResult.purpose.kind,
+                          status: result.startResult.purpose.status,
+                          priority: result.startResult.purpose.priority
+                        }
+                      : undefined
+                  }
+                : null
+            });
+          }
           if (!result?.ok) {
             throw new Error(result?.error || '启动任务失败');
           }
@@ -195,6 +260,9 @@ export function MessageProvider({ children }: MessageProviderProps): JSX.Element
     };
 
     return window.YUA.messages.on((event: MessageBridgePayload) => {
+      const shouldHandle = shouldHandleBridgeEvent(surface, event);
+      if (!shouldHandle) return;
+
       if (event.kind === 'show') {
         handleMessage(event.payload);
         return;
@@ -202,7 +270,7 @@ export function MessageProvider({ children }: MessageProviderProps): JSX.Element
 
       handleClear(event.payload);
     });
-  }, [showToast, showNotice, showBusy, clearBusy, clearByType, dismissMessage, clearAll]);
+  }, [surface, showToast, showNotice, showBusy, clearBusy, clearByType, dismissMessage, clearAll]);
 
   const value = useMemo<MessageContextValue>(
     () => ({
@@ -220,18 +288,6 @@ export function MessageProvider({ children }: MessageProviderProps): JSX.Element
   );
 
   return <MessageContext.Provider value={value}>{children}</MessageContext.Provider>;
-}
-
-export function useMessage(): MessageContextValue {
-  const context = useContext(MessageContext);
-  if (!context) {
-    throw new Error('useMessage must be used within a MessageProvider');
-  }
-  return context;
-}
-
-export function useMessageSafe(): MessageContextValue | null {
-  return useContext(MessageContext);
 }
 
 export default MessageProvider;

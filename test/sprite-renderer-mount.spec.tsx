@@ -82,6 +82,54 @@ function createSpriteBridgeHarness(initialState: SpriteInitialState): {
 }
 
 describe('sprite renderer mount', () => {
+  it('retries renderer initial state and sends ready after a transient failure', async () => {
+    vi.useFakeTimers();
+    const { SpriteStateRuntimeController } = await import('../src/features/sprite-assistant/context/sprite-state-runtime');
+    const initialState: SpriteInitialState = {
+      state: 'idle',
+      subState: null,
+      personaState: null,
+      animations: [],
+      currentAnimation: null,
+      config: {
+        width: 200,
+        height: 220,
+        padding: 80,
+        animationPlaylistMode: 'list-loop',
+        autoWalkEnabled: false,
+        showDebugOverlay: false,
+        bubbleMode: 'fixed-top'
+      }
+    };
+    const bridge = {
+      getInitialState: vi.fn().mockRejectedValueOnce(new Error('handler missing')).mockResolvedValueOnce(initialState),
+      ready: vi.fn(async () => undefined),
+      onState: vi.fn(() => () => undefined),
+      onPlay: vi.fn(() => () => undefined),
+      onWalk: vi.fn(() => () => undefined),
+      onConfig: vi.fn(() => () => undefined)
+    };
+    const onChange = vi.fn();
+    const onError = vi.fn();
+
+    const controller = new SpriteStateRuntimeController(bridge, onChange, onError);
+    controller.start();
+
+    await Promise.resolve();
+    expect(bridge.getInitialState).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(250);
+    await Promise.resolve();
+
+    expect(bridge.getInitialState).toHaveBeenCalledTimes(2);
+    expect(bridge.ready).toHaveBeenCalledTimes(1);
+    expect(onError).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ ready: true }));
+
+    controller.dispose();
+    vi.useRealTimers();
+  });
+
   it('renders the debug overlay from the context-menu switch with the effective runtime padding', async () => {
     const { act } = await import('react');
     const { createRoot } = await import('react-dom/client');

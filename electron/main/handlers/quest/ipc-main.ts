@@ -60,7 +60,50 @@ export function initQuestHandlers(deps: QuestHandlersDeps): void {
           return { ok: false, snapshot: buildSnapshot(deps), error: 'Quest id is required' };
         }
         const source = payload?.source;
+        if (id === 'first-file-drop' || id === 'open-resource-library') {
+          const mgr = SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
+          const purposeSnapshot = mgr?.getPurposeSnapshot();
+          console.info('[quest:start] request', {
+            id,
+            source,
+            currentPurpose: purposeSnapshot?.current
+              ? {
+                id: purposeSnapshot.current.id,
+                kind: purposeSnapshot.current.kind,
+                status: purposeSnapshot.current.status,
+                priority: purposeSnapshot.current.priority
+              }
+              : null,
+            queue: purposeSnapshot?.queue?.map((purpose) => ({
+              id: purpose.id,
+              kind: purpose.kind,
+              status: purpose.status,
+              priority: purpose.priority
+            })) ?? []
+          });
+        }
         const startResult = await deps.engine.startQuest(id, { source });
+        if (id === 'first-file-drop' || id === 'open-resource-library') {
+          console.info('[quest:start] result', {
+            id,
+            source,
+            result: startResult
+              ? {
+                accepted: startResult.accepted,
+                status: startResult.status,
+                reason: startResult.reason,
+                purpose: startResult.purpose
+                  ? {
+                    id: startResult.purpose.id,
+                    kind: startResult.purpose.kind,
+                    status: startResult.purpose.status,
+                    priority: startResult.purpose.priority
+                  }
+                  : undefined
+              }
+              : null
+          });
+        }
         return { ok: true, snapshot: buildSnapshot(deps), startResult };
       } catch (error) {
         return {

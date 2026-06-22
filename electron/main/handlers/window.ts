@@ -17,6 +17,7 @@ const SPRITE_BUBBLE_MIN_HEIGHT = 24;
 const SPRITE_BUBBLE_MAX_WIDTH = 504;
 const SPRITE_BUBBLE_MAX_HEIGHT = 392;
 const SPRITE_EFFECT_WINDOW_KEY = 'spriteEffect' as const;
+const EMOJI_BUBBLE_DEBUG_PREFIX = '[EmojiBubbleDebug]';
 type AssistantInteractiveRegion = { x: number; y: number; width: number; height: number };
 const WORKSPACE_WIZARD_WINDOW_KEY = 'workspaceWizard';
 const ACHIEVEMENT_UNLOCK_WINDOW_KEY = 'achievementUnlock';
@@ -422,15 +423,28 @@ export function initWindowHandlers(win: BrowserWindow): void {
     try {
       const target = resolveSpriteBubbleEventTarget(event);
       if (!target || target.window.isDestroyed()) {
+        console.info(EMOJI_BUBBLE_DEBUG_PREFIX, 'main bubble resize skipped: no target', {
+          width: payload?.width,
+          height: payload?.height
+        });
         return { success: false, error: 'spriteBubbleFixedTop window not available' };
       }
       const bubble = target.window;
       const width = clampWindowDimension(payload?.width, SPRITE_BUBBLE_MIN_WIDTH, SPRITE_BUBBLE_MAX_WIDTH);
       const height = clampWindowDimension(payload?.height, SPRITE_BUBBLE_MIN_HEIGHT, SPRITE_BUBBLE_MAX_HEIGHT);
+      console.info(EMOJI_BUBBLE_DEBUG_PREFIX, 'main bubble resize', {
+        key: target.key,
+        windowId: bubble.id,
+        requestedWidth: payload?.width,
+        requestedHeight: payload?.height,
+        width,
+        height
+      });
       bubble.setSize(width, height, false);
       updateSpriteBubblePosition();
       return { success: true };
     } catch (error) {
+      console.warn(EMOJI_BUBBLE_DEBUG_PREFIX, 'main bubble resize failed', error);
       return { success: false, error: String(error) };
     }
   });
@@ -440,8 +454,16 @@ export function initWindowHandlers(win: BrowserWindow): void {
     try {
       const target = resolveSpriteBubbleEventTarget(event);
       if (!target) {
+        console.info(EMOJI_BUBBLE_DEBUG_PREFIX, 'main bubble visible skipped: no target', {
+          visible: payload?.visible
+        });
         return { success: false, error: 'spriteBubbleFixedTop window not available' };
       }
+      console.info(EMOJI_BUBBLE_DEBUG_PREFIX, 'main bubble set visible', {
+        key: target.key,
+        windowId: target.window.id,
+        visible: payload?.visible
+      });
       if (payload?.visible) {
         await windowManager.show(target.key);
       } else {
@@ -449,6 +471,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
       }
       return { success: true };
     } catch (error) {
+      console.warn(EMOJI_BUBBLE_DEBUG_PREFIX, 'main bubble set visible failed', error);
       return { success: false, error: String(error) };
     }
   });

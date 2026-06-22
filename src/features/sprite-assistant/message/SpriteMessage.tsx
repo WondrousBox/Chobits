@@ -10,9 +10,9 @@
 import clsx from 'clsx';
 import { useEffect, useRef, useState } from 'react';
 
-import { useMessage } from './MessageContext';
 import { BusyRenderer, NoticeRenderer, ToastRenderer } from './renderers';
 import type { BusyMessage, NoticeMessage, ToastMessage } from './types';
+import { useMessage } from './useMessage';
 
 interface SpriteMessageProps {
   className?: string;
@@ -97,8 +97,7 @@ export function SpriteMessage({ className, placement = 'inline' }: SpriteMessage
             height: rect.height
           }
         ]
-      })
-        .catch(() => undefined);
+      }).catch(() => undefined);
     };
 
     const schedule = (): void => {

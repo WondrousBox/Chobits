@@ -261,4 +261,52 @@ describe('ToolCallActivity', () => {
     });
     env.cleanup();
   });
+
+  it('shows a chat fallback when sprite-bubble emoji delivery fails', async () => {
+    const { act } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+    const { default: ToolCallActivity } = await import('../src/components/chat/ToolCallActivity');
+
+    const env = installMiniDom();
+    const root = createRoot(env.container as any);
+
+    await act(async () => {
+      root.render(
+        <ToolCallActivity
+          activities={[
+            {
+              args: { query: 'bubble fallback' },
+              callId: 'emoji-call-fallback',
+              display: { mode: 'hidden' },
+              name: 'emojiSendTool',
+              result: {
+                details: {
+                  displayTarget: 'sprite-bubble',
+                  emoji: {
+                    title: 'fallback emoji',
+                    url: 'res://ws/test/emoji-fallback.jpg'
+                  },
+                  spriteBubbleDelivered: false,
+                  success: true
+                }
+              },
+              status: 'done'
+            }
+          ]}
+        />
+      );
+      await flushPromises();
+    });
+
+    const img = env.container.querySelector('img');
+    expect(env.container.textContent).toContain('发送表情包完成');
+    expect(img?.getAttribute('src')).toBe('res://ws/test/emoji-fallback.jpg');
+    expect(img?.getAttribute('alt')).toBe('fallback emoji');
+
+    await act(async () => {
+      root.unmount();
+      await flushPromises();
+    });
+    env.cleanup();
+  });
 });

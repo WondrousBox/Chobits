@@ -106,6 +106,7 @@ export class QuestEngine {
     }
 
     const source = options.source ?? 'task-list';
+    this.logQuestDiagnostic('start requested', { questId: id, source, runtime: this.state.quests[id] ?? { status: 'pending' } });
     if (!this.canStartExplicitly(def, source)) {
       throw new Error(`Quest "${id}" cannot be started by ${source}`);
     }
@@ -116,6 +117,7 @@ export class QuestEngine {
     }
 
     if (await this.isQuestAchievementUnlocked(def)) {
+      this.logQuestDiagnostic('start skipped because achievement is already unlocked', { questId: id, source });
       await this.completeQuest(def, { grantReward: false });
       return null;
     }
@@ -126,6 +128,7 @@ export class QuestEngine {
 
     const completed = await Promise.resolve(def.completion.evaluate(ctx));
     if (completed) {
+      this.logQuestDiagnostic('start skipped because quest completion predicate is already true', { questId: id, source });
       await this.completeQuest(def);
       return null;
     }
@@ -133,6 +136,7 @@ export class QuestEngine {
     if (def.precondition) {
       const ok = await Promise.resolve(def.precondition.evaluate(ctx));
       if (!ok) {
+        this.logQuestDiagnostic('start blocked by precondition', { questId: id, source, preconditionId: def.precondition.id });
         throw new Error(`Quest "${id}" precondition is not satisfied`);
       }
     }
@@ -312,6 +316,10 @@ export class QuestEngine {
     if (!recommendation?.questId) {
       return null;
     }
+    this.logQuestDiagnostic('building recommendation', {
+      completedQuestId: def.id,
+      recommendedQuestId: recommendation.questId
+    });
 
     const nextDef = this.deps.registry.get(recommendation.questId);
     if (!nextDef) {
@@ -320,6 +328,11 @@ export class QuestEngine {
     }
 
     const status = this.resolveRuntimeStatus(nextDef);
+    this.logQuestDiagnostic('recommendation target status', {
+      completedQuestId: def.id,
+      recommendedQuestId: nextDef.id,
+      status
+    });
     if ((status === 'done' && nextDef.oneShot !== false) || status === 'skipped') {
       return null;
     }
@@ -398,6 +411,11 @@ export class QuestEngine {
     if (!this.deps.onRecommendation) return;
     const offer = await this.buildRecommendationOffer(def);
     if (!offer) return;
+    this.logQuestDiagnostic('dispatching recommendation', {
+      completedQuestId: def.id,
+      recommendedQuestId: offer.questId,
+      questTitle: offer.questTitle
+    });
     try {
       await this.deps.onRecommendation(offer, def);
     } catch (err) {
@@ -407,7 +425,34 @@ export class QuestEngine {
 
   private async activateQuest(def: OnboardingQuestDefinition, options: { source?: QuestStartSource } = {}): Promise<SpritePurposeStartResult> {
     const request = def.toPurposeRequest(options);
+    this.logQuestDiagnostic('activating quest purpose', {
+      questId: def.id,
+      source: options.source ?? 'task-list',
+      request: {
+        kind: request.kind,
+        priority: request.priority,
+        presetId: request.presetId,
+        coalesceKey: request.coalesceKey
+      }
+    });
     const result = await this.deps.startPurpose(request);
+    this.logQuestDiagnostic('quest purpose start result', {
+      questId: def.id,
+      source: options.source ?? 'task-list',
+      result: {
+        accepted: result.accepted,
+        status: result.status,
+        reason: result.reason,
+        purpose: result.purpose
+          ? {
+            id: result.purpose.id,
+            kind: result.purpose.kind,
+            status: result.purpose.status,
+            priority: result.purpose.priority
+          }
+          : undefined
+      }
+    });
     const lastPurposeId = result.purpose?.id;
     this.state.quests[def.id] = {
       status: 'active',
@@ -421,6 +466,12 @@ export class QuestEngine {
   private async completeQuest(def: OnboardingQuestDefinition, options: { grantReward?: boolean; notifyRecommendation?: boolean; checkRecommendation?: boolean } = {}): Promise<void> {
     const prev = this.state.quests[def.id];
     if (prev?.status === 'done') return;
+    this.logQuestDiagnostic('completing quest', {
+      questId: def.id,
+      previousStatus: prev?.status ?? 'pending',
+      grantReward: options.grantReward !== false,
+      notifyRecommendation: options.notifyRecommendation !== false
+    });
 
     const source = def.rewardSource ?? `quest:${def.id}`;
     if (options.grantReward !== false && def.reward) {
@@ -449,5 +500,13 @@ export class QuestEngine {
     } catch (err) {
       console.error('[QuestEngine] persist failed', err);
     }
+  }
+
+  private logQuestDiagnostic(message: string, data: Record<string, unknown>): void {
+    const questIds = [data.questId, data.completedQuestId, data.recommendedQuestId].filter((value): value is string => typeof value === 'string');
+    if (!questIds.some((questId) => questId === 'first-file-drop' || questId === 'open-resource-library')) {
+      return;
+    }
+    console.info(`[QuestEngine] ${message}`, data);
   }
 }

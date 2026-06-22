@@ -47,6 +47,17 @@ function createToolPart(activity: ToolActivity, index: number): ChatMessageDispl
   return { activity, id: createPartId('tool', index), type: 'tool' };
 }
 
+function readToolDetails(result: any): any {
+  return result?.details || result;
+}
+
+function needsHiddenEmojiFallbackPart(activity: ToolActivity): boolean {
+  if (activity.display?.mode !== 'hidden') return false;
+  if (activity.name !== 'emojiSendTool' && activity.name !== 'emoji-send') return false;
+  const details = readToolDetails(activity.result) || {};
+  return details.displayTarget === 'sprite-bubble' && details.spriteBubbleDelivered === false;
+}
+
 function ensureDisplayParts(message: TimelineMessage): ChatMessageDisplayPart[] {
   if (message.displayParts) {
     return cloneDisplayParts(message.displayParts);
@@ -202,6 +213,7 @@ export function readDisplayPartsFromMetadata(metadata: unknown, activities?: Too
   }
 
   const activityByCallId = new Map((activities || []).map((activity) => [activity.callId, activity]));
+  const includedToolCallIds = new Set<string>();
   const parts: ChatMessageDisplayPart[] = [];
 
   for (const rawPart of rawParts as MetadataDisplayPart[]) {
@@ -230,7 +242,15 @@ export function readDisplayPartsFromMetadata(metadata: unknown, activities?: Too
       const activity = callId ? activityByCallId.get(callId) : undefined;
       if (activity) {
         parts.push(createToolPart(activity, parts.length));
+        includedToolCallIds.add(activity.callId);
       }
+    }
+  }
+
+  for (const activity of activities || []) {
+    if (includedToolCallIds.has(activity.callId)) continue;
+    if (needsHiddenEmojiFallbackPart(activity)) {
+      parts.push(createToolPart(activity, parts.length));
     }
   }
 

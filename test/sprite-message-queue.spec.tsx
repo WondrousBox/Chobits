@@ -221,7 +221,8 @@ describe('useMessageQueue', () => {
 
     const { act } = await import('react');
     const { createRoot } = await import('react-dom/client');
-    const { MessageProvider, useMessage } = await import('../src/features/sprite-assistant/message/MessageContext');
+    const { MessageProvider } = await import('../src/features/sprite-assistant/message/MessageContext');
+    const { useMessage } = await import('../src/features/sprite-assistant/message/useMessage');
     type MessageContextValue = import('../src/features/sprite-assistant/message/types').MessageContextValue;
     type MessageButton = import('../src/features/sprite-assistant/message/types').MessageButton;
 
@@ -279,13 +280,92 @@ describe('useMessageQueue', () => {
     env.cleanup();
   });
 
+  it('releases an active file drop purpose before starting the open resource library recommendation', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1700000000000);
+
+    const { act } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+    const { MessageProvider } = await import('../src/features/sprite-assistant/message/MessageContext');
+    const { useMessage } = await import('../src/features/sprite-assistant/message/useMessage');
+    type MessageContextValue = import('../src/features/sprite-assistant/message/types').MessageContextValue;
+    type MessageButton = import('../src/features/sprite-assistant/message/types').MessageButton;
+
+    const env = installMiniDom();
+    const startQuest = vi.fn(async () => ({ ok: true, startResult: { accepted: true, status: 'started' } }));
+    const getPurposeSnapshot = vi.fn(async () => ({
+      current: {
+        id: 'purpose-file-drop',
+        kind: 'file.drop',
+        status: 'active',
+        priority: 100
+      },
+      queue: [],
+      routine: null
+    }));
+    const cancelPurpose = vi.fn(async () => true);
+    const closeWindow = vi.fn(async () => true);
+    (env.window as any).YUA = {
+      quest: {
+        'quest:start': startQuest
+      },
+      sprite: {
+        getPurposeSnapshot,
+        cancelPurpose
+      },
+      window: {
+        'window:close': closeWindow
+      },
+      messages: {
+        on: () => () => undefined
+      }
+    };
+    let messageContext: MessageContextValue | null = null;
+
+    function Probe(): JSX.Element {
+      messageContext = useMessage();
+      return <div data-content={messageContext.current?.content ?? ''} />;
+    }
+
+    const root = createRoot(env.container as any);
+
+    await act(async () => {
+      root.render(
+        <MessageProvider>
+          <Probe />
+        </MessageProvider>
+      );
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      const button: MessageButton = { id: 'start-next', label: '去看看', action: 'quest:start:open-resource-library' };
+      await messageContext?.handleButtonClick(button);
+      await Promise.resolve();
+    });
+
+    expect(getPurposeSnapshot).toHaveBeenCalledTimes(1);
+    expect(closeWindow).toHaveBeenCalledWith('fileActionsMenu');
+    expect(cancelPurpose).toHaveBeenCalledWith('purpose-file-drop', 'open-resource-library-recommendation');
+    expect(startQuest).toHaveBeenCalledWith({ id: 'open-resource-library', source: 'recommendation' });
+    expect(closeWindow.mock.invocationCallOrder[0]).toBeLessThan(startQuest.mock.invocationCallOrder[0]);
+    expect(cancelPurpose.mock.invocationCallOrder[0]).toBeLessThan(startQuest.mock.invocationCallOrder[0]);
+
+    await act(async () => {
+      root.unmount();
+      await Promise.resolve();
+    });
+    env.cleanup();
+  });
+
   it('routes purpose notice buttons through bubble actions only', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(1700000000000);
 
     const { act } = await import('react');
     const { createRoot } = await import('react-dom/client');
-    const { MessageProvider, useMessage } = await import('../src/features/sprite-assistant/message/MessageContext');
+    const { MessageProvider } = await import('../src/features/sprite-assistant/message/MessageContext');
+    const { useMessage } = await import('../src/features/sprite-assistant/message/useMessage');
     type MessageContextValue = import('../src/features/sprite-assistant/message/types').MessageContextValue;
     type MessageButton = import('../src/features/sprite-assistant/message/types').MessageButton;
 

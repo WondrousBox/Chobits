@@ -155,7 +155,7 @@ function SpriteBubbleContent(): JSX.Element | null {
 
 export function SpriteBubblePage(): JSX.Element {
   return (
-    <MessageProvider>
+    <MessageProvider surface="sprite-bubble">
       <SpriteBubbleContent />
     </MessageProvider>
   );
