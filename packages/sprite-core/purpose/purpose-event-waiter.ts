@@ -45,8 +45,15 @@ export class SpritePurposeEventWaiter {
 
     let matched = 0;
     for (const waiter of Array.from(this.waiters)) {
-      if (!this.matches(waiter.step, waiter.routine, event)) continue;
+      const matchResult = this.getMatchResult(waiter.step, waiter.routine, event);
+      if (!matchResult.matched) {
+        this.logChatApiConfigMatchMiss(waiter.step, waiter.routine, event, matchResult.reason);
+        this.logOpenResourceLibraryMatchMiss(waiter.step, waiter.routine, event, matchResult.reason);
+        continue;
+      }
       matched += 1;
+      this.logChatApiConfigMatchHit(waiter.step, waiter.routine, event);
+      this.logOpenResourceLibraryMatchHit(waiter.step, waiter.routine, event);
       waiter.cleanup();
       waiter.resolve(event);
     }
@@ -54,6 +61,8 @@ export class SpritePurposeEventWaiter {
   }
 
   wait(step: WaitForEventStep, routine: SpriteRoutine, signal?: AbortSignal): Promise<SpritePurposeRuntimeEvent> {
+    this.logChatApiConfigWaitStart(step, routine);
+    this.logOpenResourceLibraryWaitStart(step, routine);
     if (!step.ignoreHistory) {
       const existing = this.history.find((event) => this.matches(step, routine, event));
       if (existing) {
@@ -106,19 +115,36 @@ export class SpritePurposeEventWaiter {
   }
 
   private matches(step: WaitForEventStep, routine: SpriteRoutine, event: SpritePurposeRuntimeEvent): boolean {
-    if (step.source && event.source !== step.source) return false;
-    if (event.event !== step.event) return false;
+    return this.getMatchResult(step, routine, event).matched;
+  }
+
+  private getMatchResult(
+    step: WaitForEventStep,
+    routine: SpriteRoutine,
+    event: SpritePurposeRuntimeEvent
+  ): { matched: true } | { matched: false; reason: string } {
+    if (step.source && event.source !== step.source) {
+      return { matched: false, reason: `source expected=${step.source} actual=${event.source}` };
+    }
+    if (event.event !== step.event) {
+      return { matched: false, reason: `event expected=${step.event} actual=${event.event}` };
+    }
 
     const expected = step.match ?? {};
     for (const [key, value] of Object.entries(expected)) {
-      if (!this.matchesExpectedValue(this.readMatchValue(event, key), value)) {
-        return false;
+      const actual = this.readMatchValue(event, key);
+      if (!this.matchesExpectedValue(actual, value)) {
+        return { matched: false, reason: `payload.${key} expected=${this.formatLogValue(value)} actual=${this.formatLogValue(actual)}` };
       }
     }
 
-    if (event.routineId && event.routineId !== routine.id) return false;
-    if (event.purposeId && event.purposeId !== routine.purposeId) return false;
-    return true;
+    if (event.routineId && event.routineId !== routine.id) {
+      return { matched: false, reason: `routineId expected=${routine.id} actual=${event.routineId}` };
+    }
+    if (event.purposeId && event.purposeId !== routine.purposeId) {
+      return { matched: false, reason: `purposeId expected=${routine.purposeId} actual=${event.purposeId}` };
+    }
+    return { matched: true };
   }
 
   private readMatchValue(event: SpritePurposeRuntimeEvent, key: string): unknown {
@@ -139,6 +165,120 @@ export class SpritePurposeEventWaiter {
       return expected.includes(actual);
     }
     return actual === expected;
+  }
+
+  private isChatApiConfigWait(step: WaitForEventStep, routine: SpriteRoutine, event?: SpritePurposeRuntimeEvent): boolean {
+    return (
+      routine.presetId === 'chat.api-config-guide' ||
+      step.id.includes('chat-api-config')
+    );
+  }
+
+  private logChatApiConfigMatchMiss(step: WaitForEventStep, routine: SpriteRoutine, event: SpritePurposeRuntimeEvent, reason: string): void {
+    if (!this.isChatApiConfigWait(step, routine, event)) return;
+    if (event.event !== step.event && event.event !== 'AI_PROVIDER_CONFIG_UPDATED' && event.event !== 'APP_WINDOW_CLOSED') return;
+    console.info('[SpritePurposeEventWaiter] chat api config event miss', {
+      stepId: step.id,
+      waitingFor: step.event,
+      match: step.match,
+      routineId: routine.id,
+      purposeId: routine.purposeId,
+      presetId: routine.presetId,
+      event: event.event,
+      source: event.source,
+      payload: event.payload,
+      reason
+    });
+  }
+
+  private logChatApiConfigWaitStart(step: WaitForEventStep, routine: SpriteRoutine): void {
+    if (!this.isChatApiConfigWait(step, routine)) return;
+    console.info('[SpritePurposeEventWaiter] chat api config wait start', {
+      stepId: step.id,
+      waitingFor: step.event,
+      source: step.source,
+      match: step.match,
+      ignoreHistory: step.ignoreHistory,
+      timeoutMs: step.timeoutMs,
+      routineId: routine.id,
+      purposeId: routine.purposeId,
+      presetId: routine.presetId
+    });
+  }
+
+  private logChatApiConfigMatchHit(step: WaitForEventStep, routine: SpriteRoutine, event: SpritePurposeRuntimeEvent): void {
+    if (!this.isChatApiConfigWait(step, routine, event)) return;
+    console.info('[SpritePurposeEventWaiter] chat api config event matched', {
+      stepId: step.id,
+      waitingFor: step.event,
+      match: step.match,
+      routineId: routine.id,
+      purposeId: routine.purposeId,
+      presetId: routine.presetId,
+      event: event.event,
+      source: event.source,
+      payload: event.payload
+    });
+  }
+
+  private isOpenResourceLibraryWait(step: WaitForEventStep, routine: SpriteRoutine): boolean {
+    return routine.presetId === 'onboarding.resource.open-library' || step.id === 'wait-context-menu-open' || step.id === 'wait-inventory-open';
+  }
+
+  private logOpenResourceLibraryWaitStart(step: WaitForEventStep, routine: SpriteRoutine): void {
+    if (!this.isOpenResourceLibraryWait(step, routine)) return;
+    console.info('[SpritePurposeEventWaiter] open resource library wait start', {
+      stepId: step.id,
+      waitingFor: step.event,
+      source: step.source,
+      match: step.match,
+      ignoreHistory: step.ignoreHistory,
+      timeoutMs: step.timeoutMs,
+      routineId: routine.id,
+      purposeId: routine.purposeId,
+      presetId: routine.presetId
+    });
+  }
+
+  private logOpenResourceLibraryMatchMiss(step: WaitForEventStep, routine: SpriteRoutine, event: SpritePurposeRuntimeEvent, reason: string): void {
+    if (!this.isOpenResourceLibraryWait(step, routine)) return;
+    if (event.event !== step.event && event.event !== 'interact:context-menu' && event.event !== 'ASSISTANT_MENU_ITEM_SELECTED') return;
+    console.info('[SpritePurposeEventWaiter] open resource library event miss', {
+      stepId: step.id,
+      waitingFor: step.event,
+      match: step.match,
+      routineId: routine.id,
+      purposeId: routine.purposeId,
+      presetId: routine.presetId,
+      event: event.event,
+      source: event.source,
+      payload: event.payload,
+      reason
+    });
+  }
+
+  private logOpenResourceLibraryMatchHit(step: WaitForEventStep, routine: SpriteRoutine, event: SpritePurposeRuntimeEvent): void {
+    if (!this.isOpenResourceLibraryWait(step, routine)) return;
+    console.info('[SpritePurposeEventWaiter] open resource library event matched', {
+      stepId: step.id,
+      waitingFor: step.event,
+      match: step.match,
+      routineId: routine.id,
+      purposeId: routine.purposeId,
+      presetId: routine.presetId,
+      event: event.event,
+      source: event.source,
+      payload: event.payload
+    });
+  }
+
+  private formatLogValue(value: unknown): string {
+    if (typeof value === 'string') return value;
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
   }
 
   private now(): number {

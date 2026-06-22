@@ -49,7 +49,7 @@ const ToolCallActivity: React.FC<ToolCallActivityProps> = ({ activities, onUserC
 };
 
 function isRenderableToolActivity(activity: ToolActivity): boolean {
-  if (activity.display?.mode === 'hidden') return false;
+  if (activity.display?.mode === 'hidden' && !shouldShowHiddenToolFallback(activity)) return false;
   if (activity.display?.mode === 'content-only' && EMOJI_SEND_TOOL_NAMES.has(activity.name) && activity.status !== 'done') return false;
   return true;
 }
@@ -119,6 +119,11 @@ function parseToolArgs(args: any): any {
 
 function readToolDetails(result: any): any {
   return result?.details || result;
+}
+
+function shouldShowHiddenToolFallback(activity: ToolActivity): boolean {
+  const details = readToolDetails(activity.result) || {};
+  return EMOJI_SEND_TOOL_NAMES.has(activity.name) && activity.status === 'done' && details.displayTarget === 'sprite-bubble' && details.spriteBubbleDelivered === false;
 }
 
 function allowToolImageUrl(url: string): string {

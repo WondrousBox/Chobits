@@ -8,7 +8,7 @@
 import { useEffect, useRef } from 'react';
 
 import type { MessageCategory } from '../types';
-import { useMessageSafe } from './MessageContext';
+import { useMessageSafe } from './useMessage';
 
 /**
  * 同步 messageState 到消息系统

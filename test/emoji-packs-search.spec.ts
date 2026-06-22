@@ -52,7 +52,7 @@ function writeJsonFile(filePath: string, payload: unknown): void {
   writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf8');
 }
 
-function createManifest(rootPath: string) {
+function createManifest(rootPath: string): Record<string, unknown> {
   return {
     id: 'EmojiPackage-1778160720970',
     importedAt: Date.now(),
@@ -123,7 +123,20 @@ function createManifest(rootPath: string) {
   };
 }
 
-function createToolContext(conversationId: string, messages: any[] = []) {
+function createToolContext(
+  conversationId: string,
+  messages: any[] = []
+): {
+  chatRepo: {
+    listMessages: ReturnType<typeof vi.fn>;
+  };
+  conversationId: string;
+  resolved: {
+    request: {
+      requestId: string;
+    };
+  };
+} {
   return {
     chatRepo: {
       listMessages: vi.fn(async () => messages)
@@ -143,6 +156,7 @@ describe('emoji pack search', () => {
   beforeEach(async () => {
     vi.resetModules();
     spriteManagerSendBridgeMessageMock.mockClear();
+    spriteManagerSendBridgeMessageMock.mockResolvedValue({ deliveredToSprite: true });
     tempDir = path.join(os.tmpdir(), `emoji-pack-search-${Date.now()}-${Math.random().toString(16).slice(2)}`);
     electronState.userDataDir = tempDir;
 
@@ -291,6 +305,7 @@ describe('emoji pack search', () => {
     expect(sendTool.chatDisplay).toEqual({ mode: 'hidden' });
     expect(result.success).toBe(true);
     expect(result.displayTarget).toBe('sprite-bubble');
+    expect(result.spriteBubbleDelivered).toBe(true);
     expect(spriteManagerSendBridgeMessageMock).toHaveBeenCalledWith(
       expect.objectContaining({
         duration: 6000,
@@ -304,6 +319,34 @@ describe('emoji pack search', () => {
       }),
       { target: 'sprite' }
     );
+  });
+
+  it('reports sprite bubble delivery failure for chat fallback', async () => {
+    spriteManagerSendBridgeMessageMock.mockResolvedValueOnce({ deliveredToSprite: false });
+    const { createPiEmojiSendTool } = await import('../packages/ai/runtime/pi/tools/emoji-packs');
+    const toolContext = {
+      ...createToolContext(`conv-sprite-bubble-fallback-${Date.now()}`),
+      resolved: {
+        request: {
+          extras: {
+            emojiPacksDisplayTarget: 'sprite-bubble'
+          },
+          requestId: `conv-sprite-bubble-fallback-${Date.now()}-request`
+        }
+      }
+    };
+    const sendTool = createPiEmojiSendTool(toolContext as any);
+
+    const result = (
+      await sendTool.execute('call-sprite-bubble-fallback', {
+        packId: 'EmojiPackage-1778160720970',
+        query: '嚣张'
+      })
+    ).details as any;
+
+    expect(result.success).toBe(true);
+    expect(result.displayTarget).toBe('sprite-bubble');
+    expect(result.spriteBubbleDelivered).toBe(false);
   });
 
   it('loads previously sent emoji from persisted conversation tool calls', async () => {

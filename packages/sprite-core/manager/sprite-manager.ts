@@ -116,6 +116,11 @@ interface SpriteAnimationCompletionWaiter {
   timer: ReturnType<typeof setTimeout>;
 }
 
+interface RendererDeliveryResult {
+  primarySent: boolean;
+  recipientCount: number;
+}
+
 interface SpritePresentationOwnerContext {
   ownerId: string;
   priority: number;
@@ -200,6 +205,7 @@ export class SpriteManager {
 
   // 额外消息/配置接收方（如顶部气泡 / spriteEffect 窗口）
   private getMessageRecipients?: () => Array<SpriteWindow | null | undefined>;
+  private ensureMessageRecipients?: () => Promise<void> | void;
   private getConfigRecipients?: () => Array<SpriteWindow | null | undefined>;
 
   // 语音合成服务
@@ -398,6 +404,7 @@ export class SpriteManager {
 
     // 额外消息接收方
     this.getMessageRecipients = options.getMessageRecipients;
+    this.ensureMessageRecipients = options.ensureMessageRecipients;
     this.getConfigRecipients = options.getConfigRecipients;
 
     // 语音合成服务
@@ -720,17 +727,17 @@ export class SpriteManager {
       playbackSession: this.buildPlaybackSession(anim.playback, resolvedDurationMs, options.sessionMode),
       playback: anim.playback
         ? {
-          width: anim.playback.width,
-          height: anim.playback.height,
-          padding: anim.playback.padding,
-          loop: playbackLoop,
-          loopCount: playbackLoopCount,
-          loopStartMs: anim.playback.loopStartMs,
-          loopEndMs: anim.playback.loopEndMs,
-          durationMs: resolvedDurationMs,
-          autoIdle: anim.playback.autoIdle ?? true,
-          movement: anim.playback.movement
-        }
+            width: anim.playback.width,
+            height: anim.playback.height,
+            padding: anim.playback.padding,
+            loop: playbackLoop,
+            loopCount: playbackLoopCount,
+            loopStartMs: anim.playback.loopStartMs,
+            loopEndMs: anim.playback.loopEndMs,
+            durationMs: resolvedDurationMs,
+            autoIdle: anim.playback.autoIdle ?? true,
+            movement: anim.playback.movement
+          }
         : { durationMs: options.durationMs ?? 2000, loop: playbackLoop, loopCount: playbackLoopCount, autoIdle: true }
     };
     this.currentAnimationPresentationOwner = options.presentationOwner ? { ...options.presentationOwner } : null;
@@ -1028,16 +1035,25 @@ export class SpriteManager {
    */
   private static MUTE_CATEGORIES: ReadonlySet<string> = new Set(['loading', 'processing', 'waiting']);
 
-  private sendMessageBridge(payload: MessageBridgePayload): void {
-    this.sendToRenderer(MESSAGE_IPC_CHANNELS.BRIDGE, payload);
+  private sendMessageBridge(payload: MessageBridgePayload): RendererDeliveryResult {
+    return this.sendToRenderer(MESSAGE_IPC_CHANNELS.BRIDGE, payload);
   }
 
   private sendRendererMessage(payload: MessageIPCPayload): void {
     this.sendMessageBridge({ kind: 'show', payload, source: 'sprite' });
   }
 
-  sendBridgeMessage(payload: MessageIPCPayload, options?: { target?: MessageBridgeTarget }): void {
-    this.sendMessageBridge({ kind: 'show', payload, source: 'app', target: options?.target });
+  async sendBridgeMessage(payload: MessageIPCPayload, options?: { target?: MessageBridgeTarget }): Promise<{ deliveredToSprite: boolean }> {
+    if (options?.target === 'sprite') {
+      try {
+        await this.ensureMessageRecipients?.();
+      } catch (error) {
+        console.warn('[SpriteManager] failed to ensure sprite message recipients', error);
+      }
+    }
+    const delivery = this.sendMessageBridge({ kind: 'show', payload, source: 'app', target: options?.target });
+    const deliveredToSprite = isBubbleWindowMode(this.bubbleModeConfig.mode) ? delivery.recipientCount > 0 : delivery.primarySent;
+    return { deliveredToSprite };
   }
 
   private clearRendererMessage(payload: MessageBridgeClearPayload): void {
@@ -1084,7 +1100,7 @@ export class SpriteManager {
           ownerPurposeId: options?.ownerPurposeId,
           priority: options?.priority,
           ignorePresentationLock: options?.ignorePresentationLock
-        }).catch(() => { });
+        }).catch(() => {});
       }
     }
   }
@@ -1130,7 +1146,7 @@ export class SpriteManager {
         ownerPurposeId: options?.ownerPurposeId,
         priority: options?.priority,
         ignorePresentationLock: options?.ignorePresentationLock
-      }).catch(() => { });
+      }).catch(() => {});
     }
     return true;
   }
@@ -1921,12 +1937,12 @@ export class SpriteManager {
       pendingIdleAfterOutro: this._pendingIdleAfterOutro,
       activePlaylist: this.activeAnimationPlaylist
         ? {
-          trigger: this.activeAnimationPlaylist.trigger,
-          mode: this.activeAnimationPlaylist.mode,
-          currentIndex: this.activeAnimationPlaylist.currentIndex,
-          count: this.activeAnimationPlaylist.entries.length,
-          playId: this.activeAnimationPlaylist.playId
-        }
+            trigger: this.activeAnimationPlaylist.trigger,
+            mode: this.activeAnimationPlaylist.mode,
+            currentIndex: this.activeAnimationPlaylist.currentIndex,
+            count: this.activeAnimationPlaylist.entries.length,
+            playId: this.activeAnimationPlaylist.playId
+          }
         : null,
       autoIdle: this.shouldAutoIdleAfterComplete(animId, playId)
     });
@@ -2140,10 +2156,10 @@ export class SpriteManager {
       },
       ...(definition.id === 'auto-walk'
         ? {
-          admission: {
-            customGate: SPRITE_AUTO_MOVE_SCHEDULER_GATE
+            admission: {
+              customGate: SPRITE_AUTO_MOVE_SCHEDULER_GATE
+            }
           }
-        }
         : {})
     });
   }
@@ -2605,10 +2621,10 @@ export class SpriteManager {
     const currentPurpose = this.purposeManager.getSnapshot().current;
     const resultPayload: Record<string, unknown> | undefined = result
       ? {
-        elapsedMs: result.elapsedMs,
-        value: result.value,
-        stepType: step.type
-      }
+          elapsedMs: result.elapsedMs,
+          value: result.value,
+          stepType: step.type
+        }
       : { stepType: step.type };
 
     await this.purposeHistory.append({
@@ -2884,10 +2900,15 @@ export class SpriteManager {
   }
 
   /** 安全发送 IPC 到渲染进程 */
-  private sendToRenderer(channel: string, data: any): void {
+  private sendToRenderer(channel: string, data: any): RendererDeliveryResult {
+    let primarySent = false;
+    let recipientCount = 0;
+    const isMessageBridge = channel === MESSAGE_IPC_CHANNELS.BRIDGE;
+    const bridgePayload = isMessageBridge ? (data as MessageBridgePayload | undefined) : undefined;
     try {
       if (this.win && !this.win.isDestroyed()) {
         this.win.webContents.send(channel, data);
+        primarySent = true;
       } else if (channel === 'sprite:play') {
         this.logTriggerDebug('sprite:play skipped: main sprite window unavailable', {
           isDestroyed: this.win?.isDestroyed?.()
@@ -2901,28 +2922,33 @@ export class SpriteManager {
     }
 
     if (!SpriteManager.BROADCAST_CHANNELS.has(channel)) {
-      return;
+      return { primarySent, recipientCount };
     }
 
-    const bridgeTarget = channel === MESSAGE_IPC_CHANNELS.BRIDGE ? (data as MessageBridgePayload | undefined)?.target : undefined;
+    const bridgeTarget = bridgePayload?.target;
     const shouldBroadcastBridgeToSprite = bridgeTarget === 'sprite' || isBubbleWindowMode(this.bubbleModeConfig.mode);
 
     if (channel === MESSAGE_IPC_CHANNELS.BRIDGE && !shouldBroadcastBridgeToSprite) {
-      return;
+      return { primarySent, recipientCount };
     }
 
     const recipients = channel === 'sprite:config' ? (this.getConfigRecipients?.() ?? this.getMessageRecipients?.()) : this.getMessageRecipients?.();
-    if (!recipients || recipients.length === 0) return;
+    if (!recipients || recipients.length === 0) {
+      return { primarySent, recipientCount };
+    }
 
     for (const recipient of recipients) {
       if (!recipient || recipient === this.win) continue;
       try {
         if (recipient.isDestroyed()) continue;
         recipient.webContents.send(channel, data);
+        recipientCount += 1;
       } catch {
         /* ignore */
       }
     }
+
+    return { primarySent, recipientCount };
   }
 
   private logTriggerDebug(message: string, details: Record<string, unknown> = {}): void {

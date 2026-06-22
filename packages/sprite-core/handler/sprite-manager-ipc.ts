@@ -125,6 +125,7 @@ type SpriteBubbleWindowManager = {
 const SPRITE_BUBBLE_WINDOW_KEYS = ['spriteBubbleFixedTop'] as const;
 type SpriteBubbleWindowKey = (typeof SPRITE_BUBBLE_WINDOW_KEYS)[number];
 const SPRITE_EFFECT_WINDOW_KEY = 'spriteEffect';
+const SPRITE_BUBBLE_READY_TIMEOUT_MS = 1500;
 
 function getSpriteBubbleWindowKeyForMode(mode: SpriteBubbleMode): SpriteBubbleWindowKey | null {
   if (mode === 'fixed-top') return 'spriteBubbleFixedTop';
@@ -225,6 +226,140 @@ function bindDailyCarePurposeBridge(mgr: SpriteManager): void {
 export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManagerDeps): Promise<void> {
   const spriteBubbleWindowManager = await resolveSpriteBubbleWindowManager();
   let spriteManagerRef: SpriteManager | null = null;
+  const spriteBubbleReadyWebContentsIds = new Set<number>();
+  const spriteBubbleReadyWaiters = new Map<number, Array<() => void>>();
+  const pendingSpriteBubbleCreates = new Map<SpriteBubbleWindowKey, Promise<BrowserWindow | null>>();
+
+  const getSpriteBubbleWindowKey = (targetWindow: BrowserWindow | null | undefined): SpriteBubbleWindowKey | null => {
+    if (!targetWindow || targetWindow.isDestroyed()) return null;
+    for (const key of SPRITE_BUBBLE_WINDOW_KEYS) {
+      const candidate = spriteBubbleWindowManager?.get(key) ?? null;
+      if (candidate && !candidate.isDestroyed() && candidate.id === targetWindow.id) {
+        return key;
+      }
+    }
+    return null;
+  };
+
+  const markSpriteBubbleReady = (targetWindow: BrowserWindow | null | undefined): void => {
+    const key = getSpriteBubbleWindowKey(targetWindow);
+    if (!key) {
+      return;
+    }
+    const id = targetWindow!.webContents.id;
+    spriteBubbleReadyWebContentsIds.add(id);
+    const waiters = spriteBubbleReadyWaiters.get(id) ?? [];
+    spriteBubbleReadyWaiters.delete(id);
+    for (const resolve of waiters) {
+      resolve();
+    }
+  };
+
+  const isSpriteBubbleReady = (targetWindow: BrowserWindow | null | undefined): boolean => {
+    if (!getSpriteBubbleWindowKey(targetWindow)) return false;
+    if (targetWindow!.isDestroyed()) return false;
+    const id = targetWindow!.webContents.id;
+    return spriteBubbleReadyWebContentsIds.has(id);
+  };
+
+  const waitForSpriteBubbleReady = async (targetWindow: BrowserWindow): Promise<boolean> => {
+    if (targetWindow.isDestroyed()) {
+      return false;
+    }
+    const id = targetWindow.webContents.id;
+    if (isSpriteBubbleReady(targetWindow)) {
+      return true;
+    }
+
+    await new Promise<void>((resolve) => {
+      let done = false;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+
+      const finish = (): void => {
+        if (done) return;
+        done = true;
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        targetWindow.off('closed', finish);
+        const waiters = spriteBubbleReadyWaiters.get(id);
+        if (waiters) {
+          const nextWaiters = waiters.filter((item) => item !== finish);
+          if (nextWaiters.length) {
+            spriteBubbleReadyWaiters.set(id, nextWaiters);
+          } else {
+            spriteBubbleReadyWaiters.delete(id);
+          }
+        }
+        resolve();
+      };
+
+      const waiters = spriteBubbleReadyWaiters.get(id) ?? [];
+      waiters.push(finish);
+      spriteBubbleReadyWaiters.set(id, waiters);
+      targetWindow.once('closed', finish);
+      timer = setTimeout(finish, SPRITE_BUBBLE_READY_TIMEOUT_MS);
+    });
+
+    return isSpriteBubbleReady(targetWindow);
+  };
+
+  const ensureActiveSpriteBubbleWindow = async (): Promise<BrowserWindow | null> => {
+    const mode = spriteManagerRef?.getBubbleMode() ?? 'inline';
+    const key = getSpriteBubbleWindowKeyForMode(mode);
+    if (!key || !spriteBubbleWindowManager) return null;
+
+    const existing = spriteBubbleWindowManager.get(key);
+    if (existing && !existing.isDestroyed()) {
+      const ready = await waitForSpriteBubbleReady(existing);
+      return ready ? existing : null;
+    }
+
+    let pending = pendingSpriteBubbleCreates.get(key);
+    if (!pending) {
+      pending = spriteBubbleWindowManager
+        .create(key)
+        .catch((error) => {
+          console.warn('[SpriteManagerIPC] failed to create sprite bubble window', error);
+          return null;
+        })
+        .finally(() => {
+          pendingSpriteBubbleCreates.delete(key);
+        });
+      pendingSpriteBubbleCreates.set(key, pending);
+    }
+
+    const created = await pending;
+    if (created && !created.isDestroyed()) {
+      const ready = await waitForSpriteBubbleReady(created);
+      return ready ? created : null;
+    }
+    return null;
+  };
+
+  const sendInitialStateToRenderer = (targetWindow: BrowserWindow | null | undefined): void => {
+    if (!targetWindow || targetWindow.isDestroyed()) return;
+    const manager = spriteManagerRef;
+    if (!manager) return;
+    const initial = manager.getInitialState();
+    try {
+      targetWindow.webContents.send('sprite:config', initial.config);
+      targetWindow.webContents.send('sprite:state', {
+        state: initial.state,
+        subState: initial.subState,
+        personaSnapshot: initial.personaState
+      });
+      if (initial.currentAnimation) {
+        targetWindow.webContents.send('sprite:play', initial.currentAnimation);
+      }
+    } catch (error) {
+      console.warn('[SpriteManagerIPC] failed to send initial sprite state to ready renderer', {
+        windowId: targetWindow.id,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  };
 
   // 初始化 SpriteManager
   const mgr = SpriteManager.init({
@@ -243,7 +378,11 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       const key = getSpriteBubbleWindowKeyForMode(mode);
       if (!key) return [];
       const bubble = spriteBubbleWindowManager?.get(key) ?? null;
-      return bubble && !bubble.isDestroyed() ? [bubble as any] : [];
+      const ready = isSpriteBubbleReady(bubble);
+      return ready ? [bubble as any] : [];
+    },
+    ensureMessageRecipients: async () => {
+      await ensureActiveSpriteBubbleWindow();
     },
     getConfigRecipients: () => {
       const recipients: BrowserWindow[] = [];
@@ -573,7 +712,10 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   });
 
   // 渲染进程就绪
-  ipcMain.handle('sprite:ready', () => {
+  ipcMain.handle('sprite:ready', (event) => {
+    const targetWindow = BrowserWindow.fromWebContents(event.sender);
+    markSpriteBubbleReady(targetWindow);
+    sendInitialStateToRenderer(targetWindow);
     mgr.handleRendererReady();
   });
 

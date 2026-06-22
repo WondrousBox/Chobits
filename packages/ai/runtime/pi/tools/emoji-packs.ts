@@ -18,9 +18,9 @@ function resolveEmojiDisplayTarget(toolContext?: PiSessionToolContext): EmojiPac
   return toolContext?.resolved?.request?.extras?.emojiPacksDisplayTarget === 'sprite-bubble' ? 'sprite-bubble' : 'chat';
 }
 
-function pushEmojiToSpriteBubble(toolCallId: string, emoji: { title: string; url: string }, caption?: string): void {
+async function pushEmojiToSpriteBubble(toolCallId: string, emoji: { title: string; url: string }, caption?: string): Promise<boolean> {
   try {
-    SpriteManager.getInstance().sendBridgeMessage(
+    const result = await SpriteManager.getInstance().sendBridgeMessage(
       {
         id: `emoji-send-${toolCallId}`,
         type: 'toast',
@@ -34,8 +34,10 @@ function pushEmojiToSpriteBubble(toolCallId: string, emoji: { title: string; url
       },
       { target: 'sprite' }
     );
+    return result.deliveredToSprite;
   } catch (error) {
     console.warn('[emoji-packs] failed to push emoji to sprite bubble:', error);
+    return false;
   }
 }
 
@@ -288,9 +290,7 @@ export function createPiEmojiSendTool(toolContext?: PiSessionToolContext): ToolD
 
       rememberSentEmoji(state, emoji.packId, emoji.relativePath);
 
-      if (displayTarget === 'sprite-bubble') {
-        pushEmojiToSpriteBubble(_toolCallId, emoji, input.caption);
-      }
+      const spriteBubbleDelivered = displayTarget === 'sprite-bubble' ? await pushEmojiToSpriteBubble(_toolCallId, emoji, input.caption) : undefined;
 
       const details = {
         caption: input.caption,
@@ -306,6 +306,7 @@ export function createPiEmojiSendTool(toolContext?: PiSessionToolContext): ToolD
         markdown: `![${emoji.title}](${emoji.url})`,
         query: query || undefined,
         sentBefore: selected.alreadySent,
+        spriteBubbleDelivered,
         success: true
       };
 

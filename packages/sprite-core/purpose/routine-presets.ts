@@ -448,6 +448,14 @@ const FEATURE_INTRO_HELP_COOLDOWN_MS = 60_000;
 const CHAT_API_CONFIG_NOTICE_ID = 'chat.api-config-guide.invite';
 const CHAT_API_CONFIG_OPEN_SETTINGS_ACTION = 'open-ai-provider-settings';
 const CHAT_API_CONFIG_GUIDE_WAIT_MS = 30 * 60 * 1000;
+const CHAT_API_CONFIG_COMPLETION_ACTIONS = [
+  'provider-secrets-updated',
+  'provider-api-keys-updated',
+  'provider-api-key-added',
+  'provider-api-key-updated',
+  'provider-api-key-default-updated',
+  'preset-secrets-updated'
+];
 
 function getChatApiConfigDoneText(providerId: string): string {
   if (providerId === 'minimax') {
@@ -458,6 +466,11 @@ function getChatApiConfigDoneText(providerId: string): string {
 
 function isPurposeContextFlagEnabled(purpose: SpritePurpose, key: string): boolean {
   return purpose.context?.[key] === true;
+}
+
+function shouldLockChatApiConfigGuideProvider(purpose: SpritePurpose): boolean {
+  const trigger = getPurposeContextString(purpose, 'trigger');
+  return trigger === 'chat-send' || trigger === 'sidebar-send' || isPurposeContextFlagEnabled(purpose, 'strictProviderMatch');
 }
 
 /**
@@ -838,6 +851,9 @@ function createChatApiConfigGuideSteps(purpose: SpritePurpose): SpriteRoutineSte
   const targetWindow = hasPreset ? 'aiProviderConfig' : 'settings';
   const closeMatch = { windowKey: targetWindow };
   const openSettingsDirectly = isPurposeContextFlagEnabled(purpose, 'openSettingsDirectly');
+  const configUpdatedMatch = shouldLockChatApiConfigGuideProvider(purpose)
+    ? { providerId, action: CHAT_API_CONFIG_COMPLETION_ACTIONS }
+    : { action: CHAT_API_CONFIG_COMPLETION_ACTIONS };
   const targetPayload = hasPreset
     ? {
       providerId,
@@ -880,7 +896,7 @@ function createChatApiConfigGuideSteps(purpose: SpritePurpose): SpriteRoutineSte
       source: 'app-event',
       untilEvent: ['AI_PROVIDER_CONFIG_UPDATED', 'APP_WINDOW_CLOSED'],
       eventMatches: {
-        AI_PROVIDER_CONFIG_UPDATED: { providerId },
+        AI_PROVIDER_CONFIG_UPDATED: configUpdatedMatch,
         APP_WINDOW_CLOSED: closeMatch
       },
       maxDurationMs: CHAT_API_CONFIG_GUIDE_WAIT_MS,
@@ -895,10 +911,27 @@ function createChatApiConfigGuideSteps(purpose: SpritePurpose): SpriteRoutineSte
       cases: {
         AI_PROVIDER_CONFIG_UPDATED: [
           {
-            id: 'chat-api-config-done',
-            type: 'speak',
-            text: getChatApiConfigDoneText(providerId),
-            bubbleDuration: 4200
+            id: 'chat-api-config-done-provider-branch',
+            type: 'branch',
+            by: 'chatApiConfigResult.event.payload.providerId',
+            cases: {
+              minimax: [
+                {
+                  id: 'chat-api-config-done',
+                  type: 'speak',
+                  text: getChatApiConfigDoneText('minimax'),
+                  bubbleDuration: 4200
+                }
+              ]
+            },
+            default: [
+              {
+                id: 'chat-api-config-done',
+                type: 'speak',
+                text: getChatApiConfigDoneText(providerId),
+                bubbleDuration: 4200
+              }
+            ]
           }
         ]
       },

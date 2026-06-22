@@ -3,6 +3,15 @@ import type { SpriteConfig, SpriteInitialState, SpritePlayCommand, SpriteStateSn
 import type { SpriteStateContextValue } from './sprite-state-context';
 import { DEFAULT_SPRITE_CONFIG, mergePlayCommandIntoSpriteConfig, resolveInitialSpriteConfig, resolveWalkState } from './sprite-state-sync';
 
+const INITIAL_STATE_RETRY_DELAYS_MS = [0, 250, 500, 1000, 2000, 5000, 10000] as const;
+const READY_RETRY_DELAYS_MS = [0, 500, 1000, 2000, 5000, 10000] as const;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 export interface SpriteStateRuntimeBridge {
   getInitialState(): Promise<SpriteInitialState>;
   ready(): Promise<void>;
@@ -83,7 +92,7 @@ export class SpriteStateRuntimeController {
     private readonly bridge: SpriteStateRuntimeBridge,
     private readonly onChange: (value: SpriteStateContextValue) => void,
     private readonly onError?: (error: unknown) => void
-  ) { }
+  ) {}
 
   getSnapshot(): SpriteStateContextValue {
     return this.value;
@@ -137,20 +146,55 @@ export class SpriteStateRuntimeController {
   }
 
   private async initialize(): Promise<void> {
-    try {
-      const initial = await this.bridge.getInitialState();
+    let lastError: unknown;
+
+    for (let attemptIndex = 0; attemptIndex < INITIAL_STATE_RETRY_DELAYS_MS.length; attemptIndex += 1) {
+      const delayMs = INITIAL_STATE_RETRY_DELAYS_MS[attemptIndex];
+      if (delayMs > 0) {
+        await delay(delayMs);
+      }
       if (this.disposed) return;
 
-      this.commit((current) => applyInitialSpriteState(current, initial));
-      await this.bridge.ready();
-    } catch (error) {
-      if (this.disposed) return;
-      this.onError?.(error);
-      this.commit((current) => ({
-        ...current,
-        ready: true
-      }));
+      try {
+        const initial = await this.bridge.getInitialState();
+        if (this.disposed) return;
+
+        this.commit((current) => applyInitialSpriteState(current, initial));
+        await this.notifyReady();
+        return;
+      } catch (error) {
+        lastError = error;
+      }
     }
+
+    if (this.disposed) return;
+    this.onError?.(lastError);
+    this.commit((current) => ({
+      ...current,
+      ready: true
+    }));
+    await this.notifyReady();
+  }
+
+  private async notifyReady(): Promise<void> {
+    let lastError: unknown;
+
+    for (let attemptIndex = 0; attemptIndex < READY_RETRY_DELAYS_MS.length; attemptIndex += 1) {
+      const delayMs = READY_RETRY_DELAYS_MS[attemptIndex];
+      if (delayMs > 0) {
+        await delay(delayMs);
+      }
+      if (this.disposed) return;
+
+      try {
+        await this.bridge.ready();
+        return;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    this.onError?.(lastError);
   }
 
   private commit(updater: (value: SpriteStateContextValue) => SpriteStateContextValue): void {

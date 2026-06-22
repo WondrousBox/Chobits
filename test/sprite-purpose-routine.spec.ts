@@ -1801,7 +1801,9 @@ describe('SpriteRoutinePresetRegistry', () => {
             source: 'app-event',
             untilEvent: ['AI_PROVIDER_CONFIG_UPDATED', 'APP_WINDOW_CLOSED'],
             eventMatches: {
-              AI_PROVIDER_CONFIG_UPDATED: { providerId: 'openai' },
+              AI_PROVIDER_CONFIG_UPDATED: {
+                action: ['provider-secrets-updated', 'provider-api-keys-updated', 'provider-api-key-added', 'provider-api-key-updated', 'provider-api-key-default-updated', 'preset-secrets-updated']
+              },
               APP_WINDOW_CLOSED: { windowKey: 'aiProviderConfig' }
             }
           }),
@@ -1951,7 +1953,12 @@ describe('SpriteRoutinePresetRegistry', () => {
     expect(calls.some((call) => call.includes('chat-api-config-done'))).toBe(false);
     expect(seenWaits).toEqual(
       expect.arrayContaining([
-        { event: 'AI_PROVIDER_CONFIG_UPDATED', match: { providerId: 'openai' } },
+        {
+          event: 'AI_PROVIDER_CONFIG_UPDATED',
+          match: {
+            action: ['provider-secrets-updated', 'provider-api-keys-updated', 'provider-api-key-added', 'provider-api-key-updated', 'provider-api-key-default-updated', 'preset-secrets-updated']
+          }
+        },
         { event: 'APP_WINDOW_CLOSED', match: { windowKey: 'aiProviderConfig' } }
       ])
     );
@@ -2019,7 +2026,8 @@ describe('SpriteRoutinePresetRegistry', () => {
             timestamp: Date.now(),
             payload: {
               providerId: 'openai',
-              presetId: 'preset-openai'
+              presetId: 'preset-openai',
+              action: 'preset-secrets-updated'
             }
           };
         }
@@ -2031,6 +2039,90 @@ describe('SpriteRoutinePresetRegistry', () => {
 
     expect(result.ok, result.error).toBe(true);
     expect(calls).toContain('speak:chat-api-config-done:配置保存好了，现在可以开始聊天。');
+  });
+
+  it('uses the saved provider when an open-time chat API guide observes another provider secret save', async () => {
+    const registry = new SpriteRoutinePresetRegistry();
+    const preset = registry.get('chat.api-config-guide');
+    expect(preset).toBeDefined();
+
+    const routine = registry.createRoutine(
+      {
+        id: 'purpose-chat-api-config-guide',
+        kind: 'chat.api-config-guide',
+        title: 'chat api config guide',
+        reason: 'missing api key',
+        source: 'user-event',
+        status: 'active',
+        priority: 72,
+        interruptPolicy: 'interruptible',
+        context: {
+          providerId: 'openai',
+          trigger: 'chat-window-open'
+        }
+      },
+      preset!,
+      1000
+    );
+    const waiter = new SpritePurposeEventWaiter();
+    const calls: string[] = [];
+    const runner = new SpriteRoutineRunner({
+      playAnimation: vi.fn(),
+      walkTo: vi.fn(),
+      speak: (step) => {
+        calls.push(`speak:${step.id}:${step.text}`);
+      },
+      showToast: vi.fn(),
+      showNotice: vi.fn(),
+      clearMessage: vi.fn(),
+      openWindow: vi.fn(),
+      waitForEvent: (step, signal) => {
+        if (step.event === 'bubble:action') {
+          return {
+            source: 'purpose-event',
+            event: 'bubble:action',
+            timestamp: Date.now(),
+            payload: {
+              messageId: 'chat.api-config-guide.invite',
+              purposeAction: 'open-ai-provider-settings'
+            }
+          };
+        }
+        return waiter.wait(step, routine, signal);
+      }
+    });
+
+    const pending = runner.run(routine);
+    await waitFor(() => calls.includes('speak:chat-api-config-tip:先新增一个模型预设并填入 API Key，就可以开始聊天。'));
+
+    expect(
+      waiter.emit({
+        source: 'app-event',
+        event: 'AI_PROVIDER_CONFIG_UPDATED',
+        payload: {
+          providerId: 'minimax',
+          presetId: 'preset-minimax',
+          action: 'preset-created'
+        }
+      })
+    ).toBe(0);
+
+    expect(
+      waiter.emit({
+        source: 'app-event',
+        event: 'AI_PROVIDER_CONFIG_UPDATED',
+        payload: {
+          providerId: 'minimax',
+          presetId: 'preset-minimax',
+          action: 'preset-secrets-updated'
+        }
+      })
+    ).toBe(1);
+
+    const result = await pending;
+
+    expect(result.ok, result.error).toBe(true);
+    expect(calls).toContain('speak:chat-api-config-done:MiniMax 还可以制作音乐，以后可以和我说哦');
   });
 
   it('speaks a MiniMax music easter egg after the MiniMax chat API config is saved', async () => {
@@ -2095,7 +2187,8 @@ describe('SpriteRoutinePresetRegistry', () => {
             timestamp: Date.now(),
             payload: {
               providerId: 'minimax',
-              presetId: 'preset-minimax'
+              presetId: 'preset-minimax',
+              action: 'preset-secrets-updated'
             }
           };
         }
@@ -2226,14 +2319,7 @@ describe('SpriteRoutinePresetRegistry', () => {
     const result = await runner.run(routine);
 
     expect(result.ok, result.error).toBe(true);
-    expect(calls).toEqual(
-      expect.arrayContaining([
-        'play:wave',
-        'play:celebrate',
-        'speak:first-chat-done:打开啦！以后双击我就可以开始聊天。',
-        'walk:corner'
-      ])
-    );
+    expect(calls).toEqual(expect.arrayContaining(['play:wave', 'play:celebrate', 'speak:first-chat-done:打开啦！以后双击我就可以开始聊天。', 'walk:corner']));
     expect(calls.some((call) => call.startsWith('notice:'))).toBe(false);
     expect(calls.some((call) => call.startsWith('clear:'))).toBe(false);
   });

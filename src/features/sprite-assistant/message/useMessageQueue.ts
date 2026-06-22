@@ -16,10 +16,32 @@ import { DEFAULT_DURATION, MESSAGE_PRIORITY } from './types';
 /** 生成唯一 ID */
 const generateId = (): string => `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
+function hasToastImage(message: SpriteMessage): boolean {
+  return message.type === 'toast' && Boolean((message as ToastMessage).image?.url);
+}
+
+function getSortPriority(message: SpriteMessage): number {
+  return MESSAGE_PRIORITY[message.type] + (hasToastImage(message) ? 0.5 : 0);
+}
+
+function shouldReplaceQueuedMessage(existing: SpriteMessage, incoming: SpriteMessage): boolean {
+  if (existing.id === incoming.id) return true;
+
+  if (incoming.type === 'toast' && existing.type === 'toast') {
+    // 图片 toast 用于表情包展示，不能被随后到达的普通文字 toast 立即顶掉。
+    if (!hasToastImage(incoming) && hasToastImage(existing)) return false;
+    return true;
+  }
+
+  if (incoming.type === 'busy' && existing.type === 'busy') return true;
+
+  return false;
+}
+
 /** 根据优先级排序消息 */
 const sortByPriority = (messages: SpriteMessage[]): SpriteMessage[] => {
   return [...messages].sort((a, b) => {
-    const priorityDiff = MESSAGE_PRIORITY[b.type] - MESSAGE_PRIORITY[a.type];
+    const priorityDiff = getSortPriority(b) - getSortPriority(a);
     if (priorityDiff !== 0) return priorityDiff;
     // 同优先级按创建时间排序（新的在前）
     return b.createdAt - a.createdAt;
@@ -31,7 +53,7 @@ const sortByPriority = (messages: SpriteMessage[]): SpriteMessage[] => {
  * - Notice: 使用 routineId（如果有）或 content 作为去重键
  * - Busy: 使用 content 作为去重键
  * - Toast: 普通预设消息使用 category 去重；角色说话气泡按内容去重
- * - Toast: 不排队；后来的 toast 直接替换之前所有 toast
+ * - Toast: 默认由后来的 toast 替换旧 toast；图片 toast 会短暂保护，避免被随后到达的普通文字 toast 顶掉
  */
 const getDedupeKey = (message: SpriteMessage): string => {
   const { type } = message;
@@ -122,13 +144,7 @@ export function useMessageQueue(): UseMessageQueueReturn {
 
       // 过滤掉需要被替换的消息
       const filteredQueue = prev.queue.filter((m) => {
-        // toast 是轻量提示，不保留历史队列；新 toast 出现时直接顶掉旧 toast。
-        if (message.type === 'toast' && m.type === 'toast') return false;
-        // busy 消息只保留一个（新的替换旧的）
-        if (message.type === 'busy' && m.type === 'busy') return false;
-        // 相同 ID 的消息替换
-        if (m.id === message.id) return false;
-        return true;
+        return !shouldReplaceQueuedMessage(m, message);
       });
 
       const newQueue = sortByPriority([...filteredQueue, message]);
@@ -289,11 +305,12 @@ export function useMessageQueue(): UseMessageQueueReturn {
     setState({ current: null, queue: [] });
   }, [clearTimer]);
 
+  const current = state.current;
+
   /** 处理自动过期 */
   useEffect(() => {
     clearTimer();
 
-    const current = state.current;
     if (!current) return;
 
     // busy 消息不自动过期
@@ -307,13 +324,13 @@ export function useMessageQueue(): UseMessageQueueReturn {
     }
 
     return clearTimer;
-  }, [state.current, clearTimer, removeMessage]);
+  }, [current, clearTimer, removeMessage]);
 
   /** 获取当前 Notice 消息 */
-  const currentNotice = state.current?.type === 'notice' ? (state.current as NoticeMessage) : null;
+  const currentNotice = current?.type === 'notice' ? (current as NoticeMessage) : null;
 
   return {
-    current: state.current,
+    current,
     showToast,
     showNotice,
     showBusy,

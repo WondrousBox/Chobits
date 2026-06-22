@@ -701,6 +701,13 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
         event,
         payload: data as Record<string, unknown> | undefined
       });
+      if (event === AppEvent.AI_PROVIDER_CONFIG_UPDATED || event === AppEvent.APP_WINDOW_CLOSED) {
+        console.info('[sprite-event-listener] bridged app event to purpose waiter', {
+          event,
+          payload: data,
+          purposeMatches: purposeEventResult?.matched ?? 0
+        });
+      }
       handler(data, { purposeMatches: purposeEventResult?.matched ?? 0 });
     }
   }));

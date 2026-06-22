@@ -121,6 +121,8 @@ export interface SpriteManagerOptions {
   shouldSuppressAmbientMessages?: (context: SpriteAmbientMessageContext) => boolean;
   /** 额外接收 `app:message:bridge` 广播的窗口，主要用于独立气泡窗口同步气泡消息。 */
   getMessageRecipients?: () => Array<SpriteWindow | null | undefined>;
+  /** 发送消息前可异步确保目标消息窗口已创建并完成基础初始化。 */
+  ensureMessageRecipients?: () => Promise<void> | void;
   /**
    * 额外接收 `sprite:config` 广播的窗口。
    * 主要用于独立气泡、特效等跟随窗口同步配置开关。

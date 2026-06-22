@@ -45,7 +45,8 @@
  */
 
 // Context & Provider
-export { MessageProvider, useMessage, useMessageSafe } from './MessageContext';
+export { MessageProvider } from './MessageContext';
+export { useMessage, useMessageSafe } from './useMessage';
 
 // 同步 hook
 export { useMessageSync } from './useMessageSync';
