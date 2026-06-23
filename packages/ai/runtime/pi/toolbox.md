@@ -298,9 +298,11 @@
 
 **注意：**
 
-- musicLyricsTool 对应 MiniMax `POST /v1/lyrics_generation`，只在 toolbox 搜索到音乐/歌词能力后使用，不是默认启用工具。
-- 默认使用 MiniMax `music-2.6`；cover 场景默认使用 `music-cover`。
-- 需要 MiniMax 音乐生成能力和可用 API Key。
+- musicLyricsTool / musicGenerateTool 走 provider 统一封装，内部调用 `PiExecutionService.generateLyrics()` / `PiExecutionService.generateMusic()`。
+- 默认优先使用当前会话中支持 `musicGeneration` 的 provider；否则回落 MiniMax。需要指定其他音乐 provider 时，传 `providerId`、`providerPresetId`、`model`。
+- provider 私有参数使用 `providerOptions`，工具会放进 `extras[providerId]`；MiniMax 历史参数如 `lyricsOptimizer`、`coverFeatureId` 仍可直接传。
+- MiniMax 生成非纯音乐且没有传 `lyrics` 时，会自动使用 `lyricsOptimizer: true` 让 MiniMax 从 prompt 补歌词；如果用户需要精确歌词，仍应先用 musicLyricsTool 或显式传 `lyrics`。
+- 需要所选 provider 具备音乐生成能力和可用 API Key。
 - 这是生成音乐的工具，不是转写或提取音频工具。
 - 生成的资源会标记 `mediaKind: "music"` / `kind: "music"`，并带有 `music`、`ai-generated` 等标签，后续播放器或桌面精灵可以据此识别音乐并触发跳舞等动作。
 

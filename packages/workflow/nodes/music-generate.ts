@@ -1,13 +1,16 @@
 import { NodeConfig, NodeHandler, PortSchema } from '../types';
+import { getProviderDefaultModels, toCanonicalProviderId } from '../../ai/providers/service';
 import { buildWorkflowAiUsageContext, executeWorkflowMusicGenerationRequest, getDynamicModelConfig, getWorkflowProviderPresetId } from './ai-workflow-utils';
 
 async function getDynamicConfig(providerId?: string, providerPresetId?: string): Promise<PortSchema[]> {
+  const defaultMusicModel = getProviderDefaultModels(providerId || 'minimax').musicGeneration;
   const config = await getDynamicModelConfig({
+    defaultModel: defaultMusicModel,
     defaultProviderId: 'minimax',
     emptyModelDescription: providerId ? `服务商 ${providerId} 暂不支持音乐生成模型` : '请先选择服务商',
     modelDescription: '选择音乐生成模型',
     modelLabel: '模型',
-    modelPredicate: (model) => model.type === 'text2music' && Boolean(model.capabilities?.music_generation),
+    modelPredicate: (model) => model.type === 'text2music' || Boolean(model.capabilities?.music_generation),
     providerCapability: 'musicGeneration',
     providerId,
     providerPresetId,
@@ -65,7 +68,7 @@ async function getDynamicConfig(providerId?: string, providerPresetId?: string):
       type: 'boolean',
       required: false,
       default: false,
-      description: '允许 MiniMax 优化输入歌词'
+      description: '允许支持该能力的服务商优化输入歌词'
     },
     {
       key: 'isInstrumental',
@@ -118,9 +121,9 @@ export const MusicGenerateNode: NodeHandler = {
     const prompt = String(input.prompt || '').trim();
     if (!prompt) throw new Error('缺少音乐生成提示词');
 
-    const providerId = String(config?.providerId || 'minimax');
+    const providerId = toCanonicalProviderId(String(config?.providerId || 'minimax'));
     const providerPresetId = getWorkflowProviderPresetId(config);
-    const model = String(config?.model || 'music-2.6');
+    const model = String(config?.model || getProviderDefaultModels(providerId).musicGeneration || (providerId === 'minimax' ? 'music-2.6' : 'music'));
     const mode = String(config?.mode || (input.lyrics ? 'lyrics-to-song' : 'text-to-music')) as any;
     const lyrics = String(input.lyrics || '').trim() || undefined;
     const outputFormat = String(config?.outputFormat || 'url');
@@ -128,29 +131,40 @@ export const MusicGenerateNode: NodeHandler = {
     const referenceAudioUrl = String(config?.referenceAudioUrl || '').trim() || undefined;
     const lyricsOptimizer = config?.lyricsOptimizer === true;
     const isInstrumental = config?.isInstrumental === true || mode === 'instrumental';
+    const effectiveLyricsOptimizer = providerId === 'minimax' && mode !== 'cover' && !isInstrumental && !lyrics ? true : lyricsOptimizer;
+    const providerExtras =
+      providerId === 'minimax'
+        ? {
+          minimax: {
+            ...(referenceAudioUrl ? { audio_url: referenceAudioUrl } : {}),
+            is_instrumental: isInstrumental,
+            lyrics_optimizer: effectiveLyricsOptimizer,
+            output_format: outputFormat
+          }
+        }
+        : {};
 
     emit('node:progress', { progress: 10, message: '准备调用音乐生成服务...' });
-    emit('node:progress', { progress: 30, message: '调用 MiniMax 音乐生成...' });
+    emit('node:progress', { progress: 30, message: `调用 ${providerId} 音乐生成...` });
 
     const response = await executeWorkflowMusicGenerationRequest({
       audioSetting: {
         format: audioFormat
       },
       extras: {
-        minimax: {
-          ...(referenceAudioUrl ? { audio_url: referenceAudioUrl } : {}),
-          is_instrumental: isInstrumental,
-          lyrics_optimizer: lyricsOptimizer
-        },
+        ...providerExtras,
         outputDir: ctx.tmpDir
       },
+      isInstrumental,
       lyrics,
+      ...(providerId === 'minimax' ? { lyricsOptimizer: effectiveLyricsOptimizer } : {}),
       mode,
       model,
       outputFormat,
       prompt,
       providerId,
       providerPresetId,
+      referenceAudioUrl,
       workflowAiUsage: buildWorkflowAiUsageContext(ctx, {
         nodeLabel: '音乐生成',
         nodeType: 'music/music-generate',

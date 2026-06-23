@@ -86,8 +86,10 @@ MiniMax TTS 需要同时考虑三条路径：
 - `packages/ai/providers/model-types.ts` 已有 `tts` 模型类型。
 - `packages/ai/providers/service.ts` 已统一 Provider capability、默认模型、runtime model info。
 - `musicGeneration` capability、默认模型、`MusicGenerationRequest` / `MusicGenerationResponse`、`GeneratedAudioArtifact` 和 `ProviderAdapter.generateMusic()` 已经落地。
+- `ProviderAdapter.generateLyrics()` 已作为 `musicGeneration` 同域的可选前置能力落地，用于歌词生成/改写。
 - MiniMax 内建 provider 已声明 `music-2.6`、`music-2.6-free`、`music-cover`、`music-cover-free`，并实现 `generateMusic()` / `generateLyrics()`。
-- `PiExecutionService.generateMusic()`、`ai:generateMusic`、`window.YUA.ai.generateMusic()`、`music/music-generate` workflow 节点和 Pi `musicGenerateTool` 已经落地。
+- `PiExecutionService.generateMusic()` / `generateLyrics()`、`ai:generateMusic`、`window.YUA.ai.generateMusic()`、`music/music-generate` workflow 节点和 Pi `musicGenerateTool` / `musicLyricsTool` 已经落地。
+- Pi agent 音乐工具已经改为 provider-generic：显式 `providerId` 优先；当前会话 provider 支持 `musicGeneration` 时沿用当前 provider；否则回落 MiniMax；默认模型来自 provider definition；`providerOptions` 进入 `extras[providerId]`。
 - `packages/ai/runtime/pi/execution-service.ts` 已有 `embed()`、`transcribe()`、`generateImage()` 这类 one-shot 执行链路。
 - `packages/workflow/nodes/image-generate.ts` 已经展示了“能力筛选 + 动态模型选择 + execution service 调用”的可复用模式。
 - `packages/tts` 已有批量 TTS、缓存、去重、音频落盘、去静音、进度事件、字幕时间更新。
@@ -434,7 +436,12 @@ TTS 也建议走 ProviderAdapter 方法。现有 `packages/tts` 可以作为批�
   - `mode: 'output-stream'` 使用 HTTP `stream: true`，将 hex chunk 映射到 `audio_delta`。
   - `mode: 'duplex-stream'` 使用 WebSocket `task_start` / `task_continue` / `task_finish`，并行处理输入队列和服务端音频。
   - provider-specific event 映射到 `SpeechSynthesisStreamEvent`，最终仍聚合为 `SpeechSynthesisResponse`。
-- 可选实现 `generateLyrics()` 不进入通用 ProviderAdapter，先作为 MiniMax provider 内部 helper 或 workflow 前置节点。
+- 可选实现 `generateLyrics()` 作为 `ProviderAdapter` 的可选方法存在，与 `musicGeneration` capability 同域；provider 不支持时 execution 层返回 unsupported。
+- Agent 工具层保留 MiniMax 兼容字段，但新增 provider-generic 入口：
+  - `providerId`、`providerPresetId`、`model`。
+  - `providerOptions` 合并到 `extras[providerId]`。
+  - MiniMax 的 `lyricsOptimizer`、`coverFeatureId` 等历史参数继续兼容，并镜像到 `extras.minimax`。
+  - MiniMax prompt-only 歌曲生成默认补 `lyrics_optimizer: true`；如果关闭歌词优化，则必须提供 `lyrics` 或设置 `isInstrumental: true`。
 
 新增后续 Provider 计划：
 
@@ -587,7 +594,8 @@ TTS 也建议走 ProviderAdapter 方法。现有 `packages/tts` 可以作为批�
   - audioUrl
   - artifacts
 - 如果 Coding Plan 主要通过 workflow 调用，优先让 workflow 节点可用。
-- 如果需要 Pi agent 直接调用，则再加一个 `music-generate` tool，内部调用 `PiExecutionService.generateMusic()`。
+- Pi agent 直接调用使用 `musicGenerateTool`，内部调用 `PiExecutionService.generateMusic()`；工具入口不应硬编码 MiniMax，只能把 MiniMax 历史参数作为兼容层。
+- Pi agent 直接生成/改写歌词使用 `musicLyricsTool`，内部调用 `PiExecutionService.generateLyrics()`；provider 私有参数通过 `providerOptions -> extras[providerId]`。
 - 如果需要 Pi agent 直接配音，则再加一个 `speech-synthesize` tool，内部调用 `PiExecutionService.synthesizeSpeech()`。
 - 如果需要 Pi agent 直接实时说话，则 `speech-synthesize` tool 不应把 chunk 直接暴露给 LLM，而应把流式播放作为 UI/runtime side effect，只把最终 artifact 返回给模型。
 
@@ -595,6 +603,8 @@ TTS 也建议走 ProviderAdapter 方法。现有 `packages/tts` 可以作为批�
 
 - Workflow Builder 能选择 MiniMax + music model。
 - 节点执行后能得到可播放音频。
+- Pi `musicGenerateTool` 显式传入非 MiniMax `providerId` 时，请求进入统一 `PiExecutionService.generateMusic()`，不会把 MiniMax 专有字段写入通用请求顶层。
+- Pi `musicLyricsTool` 显式传入非 MiniMax `providerId` 时，请求进入统一 `PiExecutionService.generateLyrics()`，provider-specific 参数只在 `extras[providerId]`。
 - TTS 入口能选择 MiniMax + tts model。
 - 字幕批量 TTS 或独立 TTS workflow 能得到可播放音频。
 - Coding Plan 能通过 workflow-run 或新增 tool 完成音乐合成。

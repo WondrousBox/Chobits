@@ -184,6 +184,33 @@ describe('MiniMax music generation provider', () => {
     expect(response.artifacts[0].audioUrl).toBeUndefined();
   });
 
+  it('enables MiniMax lyrics optimization for prompt-only vocal music', async () => {
+    const fetchMock = mockFetchJson({
+      base_resp: { status_code: 0, status_msg: '' },
+      data: { audio: 'https://example.com/generated-song.mp3', status: 2 },
+      trace_id: 'trace-prompt-only'
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const provider = new MiniMaxProvider();
+    provider.setSecrets({ apiKey: 'test-key' });
+
+    await provider.generateMusic({
+      audioSetting: { format: 'mp3' },
+      mode: 'text-to-music',
+      model: 'music-2.6',
+      outputFormat: 'url',
+      prompt: 'upbeat city pop with a bright chorus',
+      providerId: 'minimax'
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body));
+    expect(body.lyrics).toBeUndefined();
+    expect(body.is_instrumental).toBeUndefined();
+    expect(body.lyrics_optimizer).toBe(true);
+  });
+
   it('maps MiniMax HTTP speech synthesis requests and hex responses', async () => {
     const fetchMock = mockFetchJson({
       base_resp: { status_code: 0, status_msg: '' },

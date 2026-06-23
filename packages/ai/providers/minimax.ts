@@ -1022,8 +1022,19 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
   }
 
   private buildMusicRequestBody(req: MusicGenerationRequest, minimaxExtras: Record<string, any>, outputFormat: string, audioSetting: Record<string, any>): Record<string, any> {
+    const model = String(req.model || minimaxExtras.model || '').trim();
+    const isCoverModel = model === 'music-cover' || model === 'music-cover-free';
+    const lyrics = trimString(req.lyrics) || trimString(minimaxExtras.lyrics);
     const isInstrumental = req.isInstrumental ?? minimaxExtras.is_instrumental ?? minimaxExtras.isInstrumental ?? (req.mode === 'instrumental' ? true : undefined);
-    const lyricsOptimizer = req.lyricsOptimizer ?? minimaxExtras.lyrics_optimizer ?? minimaxExtras.lyricsOptimizer;
+    let lyricsOptimizer = req.lyricsOptimizer ?? minimaxExtras.lyrics_optimizer ?? minimaxExtras.lyricsOptimizer;
+    if (!isCoverModel && !lyrics && isInstrumental !== true && lyricsOptimizer === undefined) {
+      lyricsOptimizer = true;
+    }
+
+    if (!isCoverModel && !lyrics && isInstrumental !== true && lyricsOptimizer !== true) {
+      throw new Error('MiniMax music generation requires lyrics, lyricsOptimizer=true, or isInstrumental=true');
+    }
+
     const referenceAudioUrl = req.referenceAudioUrl || minimaxExtras.audio_url || minimaxExtras.referenceAudioUrl;
     const referenceAudioBase64 = req.referenceAudioBase64 || minimaxExtras.audio_base64 || minimaxExtras.referenceAudioBase64;
     const coverFeatureId = req.coverFeatureId || minimaxExtras.cover_feature_id || minimaxExtras.coverFeatureId;
@@ -1035,7 +1046,7 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
       audio_url: referenceAudioUrl,
       cover_feature_id: coverFeatureId,
       is_instrumental: isInstrumental,
-      lyrics: req.lyrics,
+      lyrics,
       lyrics_optimizer: lyricsOptimizer,
       model: req.model,
       output_format: outputFormat,
