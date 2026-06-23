@@ -9,9 +9,9 @@ interface AnalyzerState {
   audioContext: AudioContext;
   analyser: AnalyserNode;
   source: MediaElementAudioSourceNode;
-  timeData: Uint8Array;
-  frequencyData: Uint8Array;
-  previousFrequencyData: Uint8Array;
+  timeData: Uint8Array<ArrayBuffer>;
+  frequencyData: Uint8Array<ArrayBuffer>;
+  previousFrequencyData: Uint8Array<ArrayBuffer>;
   lastSentAt: number;
   lastSpectrumSentAt: number;
   disposed: boolean;

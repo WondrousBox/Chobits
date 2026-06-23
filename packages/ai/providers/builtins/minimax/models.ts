@@ -86,6 +86,43 @@ const minimaxMusicModels: ProviderModelDefinition[] = [
   }
 ];
 
-export const allModels = [...minimaxChatModels, ...minimaxMusicModels];
+const minimaxSpeechModels: ProviderModelDefinition[] = [
+  {
+    description: 'MiniMax 低延迟语音合成模型，支持 HTTP 非流式、HTTP 流式和 WebSocket 会话式 T2A。',
+    displayName: 'Speech 2.8 Turbo',
+    enabled: true,
+    id: 'speech-2.8-turbo',
+    speechSynthesis: {
+      audioFormats: ['mp3', 'wav', 'flac', 'pcm'],
+      maxTextChars: 10000,
+      modes: ['complete', 'output-stream', 'duplex-stream'],
+      outputFormats: ['hex', 'url'],
+      recommendedStreamTextChars: 3000,
+      supportsSubtitle: true,
+      transports: ['http', 'http-stream', 'websocket']
+    },
+    tags: ['speech', 'tts', 'streaming'],
+    type: 'tts'
+  },
+  {
+    description: 'MiniMax 高质量语音合成模型，适合对音质要求更高的旁白和配音场景。',
+    displayName: 'Speech 2.8 HD',
+    enabled: true,
+    id: 'speech-2.8-hd',
+    speechSynthesis: {
+      audioFormats: ['mp3', 'wav', 'flac', 'pcm'],
+      maxTextChars: 10000,
+      modes: ['complete', 'output-stream', 'duplex-stream'],
+      outputFormats: ['hex', 'url'],
+      recommendedStreamTextChars: 3000,
+      supportsSubtitle: true,
+      transports: ['http', 'http-stream', 'websocket']
+    },
+    tags: ['hd', 'speech', 'tts', 'streaming'],
+    type: 'tts'
+  }
+];
+
+export const allModels = [...minimaxChatModels, ...minimaxMusicModels, ...minimaxSpeechModels];
 
 export default allModels;

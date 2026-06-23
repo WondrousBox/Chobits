@@ -18,6 +18,10 @@ import type {
   LyricsGenerationResponse,
   MusicGenerationRequest,
   MusicGenerationResponse,
+  SpeechSynthesisStreamEvent,
+  SpeechSynthesisRequest,
+  SpeechSynthesisResponse,
+  SpeechTextInputChunk,
   TokenUsage,
   TranscriptionRequest,
   TranscriptionResponse
@@ -25,7 +29,7 @@ import type {
 import type { PiRuntimeAvailability } from './contracts';
 import { PiImageGenerationService } from './image-generation-service';
 import { resolvePiModelConfig } from './model-resolver';
-import { PiMusicGenerationService } from './music-generation-service';
+import { PiAudioArtifactService } from './audio-artifact-service';
 import { PiSessionService } from './session-service';
 
 function forcePiRuntimeRequest(req: ChatRequest): ChatRequest {
@@ -78,7 +82,10 @@ function toAnalyticsUsage(usage?: TokenUsage): RecordAiUsageEventInput['usage'] 
   };
 }
 
-async function recordExecutionUsageEventSafely(context: 'embed' | 'transcribe' | 'generateImage' | 'generateLyrics' | 'generateMusic', input: RecordAiUsageEventInput): Promise<void> {
+async function recordExecutionUsageEventSafely(
+  context: 'embed' | 'transcribe' | 'generateImage' | 'generateLyrics' | 'generateMusic' | 'synthesizeSpeech',
+  input: RecordAiUsageEventInput
+): Promise<void> {
   await emitAiUsageObservedEvent(input, { producer: `PiExecutionService:${context}` });
 }
 
@@ -201,7 +208,7 @@ function extractProviderUsageMetadata(rawUsage: unknown): Record<string, unknown
 export class PiExecutionService {
   private readonly sessionService = new PiSessionService();
   private readonly imageGenerationService = new PiImageGenerationService();
-  private readonly musicGenerationService = new PiMusicGenerationService();
+  private readonly audioArtifactService = new PiAudioArtifactService();
 
   getAvailability(req?: Pick<ChatRequest, 'extras'>): PiRuntimeAvailability {
     return this.sessionService.getAvailability(req);
@@ -639,7 +646,7 @@ export class PiExecutionService {
     try {
       const response = await resolved.provider.generateMusic(request, signal);
       const requestExtras = request.extras as Record<string, any> | undefined;
-      const materializedResponse = await this.musicGenerationService.materializeMusicResponse(response, {
+      const materializedResponse = await this.audioArtifactService.materializeMusicResponse(response, {
         outputDir: typeof requestExtras?.outputDir === 'string' ? requestExtras.outputDir : undefined,
         request,
         requestId,
@@ -713,6 +720,255 @@ export class PiExecutionService {
           ...(usageOverride?.metadata || {})
         }
       });
+      throw error;
+    }
+  }
+
+  async synthesizeSpeech(payload: SpeechSynthesisRequest, signal?: AbortSignal): Promise<SpeechSynthesisResponse> {
+    const providerPresetId = resolveProviderPresetId(payload);
+    const resolved = await this.resolveProviderCapability(payload.providerId, providerPresetId);
+
+    if (!supportsProviderCapability(resolved.provider.id, 'speechSynthesis', resolved.provider) || !resolved.provider.synthesizeSpeech) {
+      throw new Error(`Provider ${resolved.provider.id} does not support speech synthesis`);
+    }
+
+    const requestId = resolveExecutionRequestId(payload);
+    const usageOverride = resolveExecutionUsageOverride(payload);
+    const startedAt = Date.now();
+    const request = normalizeProviderPreset({
+      ...payload,
+      extras: {
+        ...(payload.extras || {}),
+        secrets: resolved.model.secrets
+      },
+      providerId: resolved.provider.id,
+      providerPresetId: resolved.model.presetId || providerPresetId
+    });
+
+    try {
+      const response = await resolved.provider.synthesizeSpeech(request, signal);
+      const requestExtras = request.extras as Record<string, any> | undefined;
+      const materializedResponse = await this.audioArtifactService.materializeSpeechResponse(response, {
+        outputDir: typeof requestExtras?.outputDir === 'string' ? requestExtras.outputDir : undefined,
+        request,
+        requestId,
+        signal
+      });
+      const providerUsageMetadata = extractProviderUsageMetadata(materializedResponse.rawUsage);
+      const firstArtifact = materializedResponse.artifacts[0];
+
+      await recordExecutionUsageEventSafely('synthesizeSpeech', {
+        traceId: requestId,
+        requestId,
+        operationKey: usageOverride?.operationKey || 'generate',
+        sourceType: usageOverride?.sourceType || 'speech_synthesis',
+        sourceId: usageOverride?.sourceId || requestId,
+        sourceLabel: usageOverride?.sourceLabel || '语音合成',
+        usageCategory: usageOverride?.usageCategory || 'media',
+        usageFeature: usageOverride?.usageFeature || 'speech_synthesis',
+        usageStage: usageOverride?.usageStage || 'generate',
+        providerId: materializedResponse.providerId || resolved.provider.id,
+        providerPresetId: resolved.model.presetId || providerPresetId,
+        model: materializedResponse.model || payload.model || getProviderDefinitionDefaultModel(resolved.provider.id, 'speechSynthesis', resolved.provider.id) || 'unknown',
+        agentId: 'pi-execution',
+        status: 'completed',
+        usage: toAnalyticsUsage(materializedResponse.usage),
+        rawUsage: materializedResponse.rawUsage,
+        meteringSource: 'provider_reported',
+        startedAt,
+        completedAt: Date.now(),
+        metadata: {
+          artifactCount: materializedResponse.artifacts.length,
+          audioBase64: materializedResponse.audioBase64 ? true : null,
+          audioUrl: materializedResponse.audioUrl || null,
+          durationMs: firstArtifact?.durationMs ?? null,
+          filePath: firstArtifact?.filePath || null,
+          language: payload.language || null,
+          mode: payload.mode || 'complete',
+          outputFormat: payload.outputFormat || null,
+          sizeBytes: firstArtifact?.sizeBytes ?? null,
+          textChars: payload.text?.length ?? null,
+          transportPreference: payload.transportPreference || 'auto',
+          voice: payload.voice || materializedResponse.voice || null,
+          voiceId: payload.voiceId || materializedResponse.voiceId || null,
+          ...(providerUsageMetadata || {}),
+          ...(usageOverride?.metadata || {})
+        }
+      });
+
+      return materializedResponse;
+    } catch (error) {
+      await recordExecutionUsageEventSafely('synthesizeSpeech', {
+        traceId: requestId,
+        requestId,
+        operationKey: usageOverride?.operationKey || 'generate',
+        sourceType: usageOverride?.sourceType || 'speech_synthesis',
+        sourceId: usageOverride?.sourceId || requestId,
+        sourceLabel: usageOverride?.sourceLabel || '语音合成',
+        usageCategory: usageOverride?.usageCategory || 'media',
+        usageFeature: usageOverride?.usageFeature || 'speech_synthesis',
+        usageStage: usageOverride?.usageStage || 'generate',
+        providerId: resolved.provider.id,
+        providerPresetId: resolved.model.presetId || providerPresetId,
+        model: payload.model || getProviderDefinitionDefaultModel(resolved.provider.id, 'speechSynthesis', resolved.provider.id) || 'unknown',
+        agentId: 'pi-execution',
+        status: 'failed',
+        meteringSource: 'provider_reported',
+        startedAt,
+        completedAt: Date.now(),
+        metadata: {
+          errorMessage: error instanceof Error ? error.message : String(error),
+          language: payload.language || null,
+          mode: payload.mode || 'complete',
+          outputFormat: payload.outputFormat || null,
+          textChars: payload.text?.length ?? null,
+          transportPreference: payload.transportPreference || 'auto',
+          voice: payload.voice || null,
+          voiceId: payload.voiceId || null,
+          ...(usageOverride?.metadata || {})
+        }
+      });
+      throw error;
+    }
+  }
+
+  async streamSpeechSynthesis(
+    payload: SpeechSynthesisRequest,
+    emit: (event: SpeechSynthesisStreamEvent) => void,
+    signal?: AbortSignal,
+    input?: AsyncIterable<SpeechTextInputChunk>
+  ): Promise<SpeechSynthesisResponse> {
+    const providerPresetId = resolveProviderPresetId(payload);
+    const resolved = await this.resolveProviderCapability(payload.providerId, providerPresetId);
+
+    if (!supportsProviderCapability(resolved.provider.id, 'speechSynthesis', resolved.provider) || !resolved.provider.streamSpeechSynthesis) {
+      throw new Error(`Provider ${resolved.provider.id} does not support streaming speech synthesis`);
+    }
+
+    const requestId = resolveExecutionRequestId(payload);
+    const usageOverride = resolveExecutionUsageOverride(payload);
+    const startedAt = Date.now();
+    const request = normalizeProviderPreset({
+      ...payload,
+      mode: payload.mode || 'output-stream',
+      transportPreference: payload.transportPreference || 'http-stream',
+      extras: {
+        ...(payload.extras || {}),
+        requestId,
+        secrets: resolved.model.secrets
+      },
+      providerId: resolved.provider.id,
+      providerPresetId: resolved.model.presetId || providerPresetId
+    });
+
+    try {
+      const response = await resolved.provider.streamSpeechSynthesis(
+        request,
+        (event) => {
+          if (event.type === 'completed' || event.type === 'done') {
+            return;
+          }
+          if (event.type === 'started') {
+            emit({
+              type: 'started',
+              data: {
+                ...event.data,
+                requestId
+              }
+            });
+            return;
+          }
+          emit(event);
+        },
+        signal,
+        input
+      );
+      const requestExtras = request.extras as Record<string, any> | undefined;
+      const materializedResponse = await this.audioArtifactService.materializeSpeechResponse(response, {
+        outputDir: typeof requestExtras?.outputDir === 'string' ? requestExtras.outputDir : undefined,
+        request,
+        requestId,
+        signal
+      });
+      const providerUsageMetadata = extractProviderUsageMetadata(materializedResponse.rawUsage);
+      const firstArtifact = materializedResponse.artifacts[0];
+
+      await recordExecutionUsageEventSafely('synthesizeSpeech', {
+        traceId: requestId,
+        requestId,
+        operationKey: usageOverride?.operationKey || 'stream',
+        sourceType: usageOverride?.sourceType || 'speech_synthesis',
+        sourceId: usageOverride?.sourceId || requestId,
+        sourceLabel: usageOverride?.sourceLabel || '流式语音合成',
+        usageCategory: usageOverride?.usageCategory || 'media',
+        usageFeature: usageOverride?.usageFeature || 'speech_synthesis',
+        usageStage: usageOverride?.usageStage || 'generate',
+        providerId: materializedResponse.providerId || resolved.provider.id,
+        providerPresetId: resolved.model.presetId || providerPresetId,
+        model: materializedResponse.model || payload.model || getProviderDefinitionDefaultModel(resolved.provider.id, 'speechSynthesis', resolved.provider.id) || 'unknown',
+        agentId: 'pi-execution',
+        status: 'completed',
+        usage: toAnalyticsUsage(materializedResponse.usage),
+        rawUsage: materializedResponse.rawUsage,
+        meteringSource: 'provider_reported',
+        startedAt,
+        completedAt: Date.now(),
+        metadata: {
+          artifactCount: materializedResponse.artifacts.length,
+          audioBase64: materializedResponse.audioBase64 ? true : null,
+          audioUrl: materializedResponse.audioUrl || null,
+          durationMs: firstArtifact?.durationMs ?? null,
+          filePath: firstArtifact?.filePath || null,
+          language: payload.language || null,
+          mode: request.mode || 'output-stream',
+          outputFormat: payload.outputFormat || 'hex',
+          sizeBytes: firstArtifact?.sizeBytes ?? null,
+          textChars: payload.text?.length ?? null,
+          transportPreference: request.transportPreference || 'http-stream',
+          voice: payload.voice || materializedResponse.voice || null,
+          voiceId: payload.voiceId || materializedResponse.voiceId || null,
+          ...(providerUsageMetadata || {}),
+          ...(usageOverride?.metadata || {})
+        }
+      });
+
+      emit({ type: 'completed', data: materializedResponse });
+      emit({ type: 'done' });
+
+      return materializedResponse;
+    } catch (error) {
+      await recordExecutionUsageEventSafely('synthesizeSpeech', {
+        traceId: requestId,
+        requestId,
+        operationKey: usageOverride?.operationKey || 'stream',
+        sourceType: usageOverride?.sourceType || 'speech_synthesis',
+        sourceId: usageOverride?.sourceId || requestId,
+        sourceLabel: usageOverride?.sourceLabel || '流式语音合成',
+        usageCategory: usageOverride?.usageCategory || 'media',
+        usageFeature: usageOverride?.usageFeature || 'speech_synthesis',
+        usageStage: usageOverride?.usageStage || 'generate',
+        providerId: resolved.provider.id,
+        providerPresetId: resolved.model.presetId || providerPresetId,
+        model: payload.model || getProviderDefinitionDefaultModel(resolved.provider.id, 'speechSynthesis', resolved.provider.id) || 'unknown',
+        agentId: 'pi-execution',
+        status: 'failed',
+        meteringSource: 'provider_reported',
+        startedAt,
+        completedAt: Date.now(),
+        metadata: {
+          errorMessage: error instanceof Error ? error.message : String(error),
+          language: payload.language || null,
+          mode: request.mode || 'output-stream',
+          outputFormat: payload.outputFormat || 'hex',
+          textChars: payload.text?.length ?? null,
+          transportPreference: request.transportPreference || 'http-stream',
+          voice: payload.voice || null,
+          voiceId: payload.voiceId || null,
+          ...(usageOverride?.metadata || {})
+        }
+      });
+      emit({ type: 'error', data: { message: error instanceof Error ? error.message : String(error) } });
+      emit({ type: 'done' });
       throw error;
     }
   }

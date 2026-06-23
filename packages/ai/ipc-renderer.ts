@@ -14,6 +14,8 @@ import type {
   ProviderPresetUpdatePatch,
   PushedCard,
   SelectedTextExplainRequest,
+  SpeechSynthesisStreamEvent,
+  SpeechSynthesisRequest,
   SummarizeRequest,
   TranscriptionRequest,
   TranslateRequest,
@@ -94,6 +96,66 @@ export const aiBridge = {
   },
   async generateLyrics(payload: LyricsGenerationRequest) {
     return ipcRenderer.invoke('ai:generateLyrics', normalizeProviderPreset(payload));
+  },
+  async synthesizeSpeech(payload: SpeechSynthesisRequest) {
+    return ipcRenderer.invoke('ai:synthesizeSpeech', normalizeProviderPreset(payload));
+  },
+  async streamSpeechSynthesis(payload: SpeechSynthesisRequest, onEvent?: (ev: SpeechSynthesisStreamEvent) => void) {
+    const normalizedPayload = normalizeProviderPreset({
+      ...payload,
+      mode: payload.mode || 'output-stream',
+      transportPreference: payload.transportPreference || 'http-stream'
+    });
+    const res = await ipcRenderer.invoke('ai:streamSpeechSynthesis', normalizedPayload);
+    const channel: string = res.eventsChannel;
+    const listeners = new Set<(ev: SpeechSynthesisStreamEvent) => void>();
+    const handler = (_event: any, ev: SpeechSynthesisStreamEvent): void => {
+      listeners.forEach((cb) => {
+        try {
+          cb(ev);
+        } catch {
+          //
+        }
+      });
+    };
+    ipcRenderer.on(channel, handler);
+
+    if (onEvent) listeners.add(onEvent);
+
+    const cleanup = (): void => {
+      try {
+        ipcRenderer.off(channel, handler);
+      } catch {
+        //
+      }
+      listeners.clear();
+    };
+    const api = {
+      requestId: res.requestId as string,
+      appendText(text: string) {
+        return ipcRenderer.invoke('ai:appendSpeechSynthesisText', { requestId: res.requestId, text });
+      },
+      on(cb: (ev: SpeechSynthesisStreamEvent) => void) {
+        listeners.add(cb);
+        return () => listeners.delete(cb);
+      },
+      off(cb: (ev: SpeechSynthesisStreamEvent) => void) {
+        listeners.delete(cb);
+      },
+      dispose: cleanup,
+      cancel: () => ipcRenderer.invoke('ai:cancelSpeechSynthesis', { requestId: res.requestId }),
+      finish: () => ipcRenderer.invoke('ai:finishSpeechSynthesis', { requestId: res.requestId }),
+      flush: () => ipcRenderer.invoke('ai:flushSpeechSynthesis', { requestId: res.requestId })
+    };
+    const autoCleanup = (ev: SpeechSynthesisStreamEvent): void => {
+      if (ev?.type === 'done' || ev?.type === 'error') {
+        cleanup();
+        api.off(autoCleanup);
+      }
+    };
+    listeners.add(autoCleanup);
+
+    return api;
   },
   async chat(payload: any) {
     return ipcRenderer.invoke('ai:chat', normalizeProviderPreset(payload));

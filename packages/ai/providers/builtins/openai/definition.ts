@@ -63,6 +63,7 @@ export const openaiDefinition: BuiltinProviderDefinition = {
     imageGeneration: true,
     modelListing: true,
     musicGeneration: false,
+    speechSynthesis: false,
     transcribe: true
   },
   defaults: {
