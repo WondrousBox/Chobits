@@ -6,7 +6,7 @@
  *
  * 存储位置: <userData>/data/sprite-speak-cache/
  *   ├── cache-index.json
- *   └── <cacheId>.mp3
+ *   └── <cacheId>.<audio-format>
  */
 
 import { createHash } from 'node:crypto';
@@ -14,7 +14,38 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 
-import type { SpeakCacheIndex, SpeakServiceType } from './types';
+import type { SpeakCacheIndex, SpeakCacheMetadata } from './types';
+
+function stableJson(value: unknown): string {
+    if (value === null || typeof value !== 'object') {
+        return JSON.stringify(value);
+    }
+    if (Array.isArray(value)) {
+        return `[${value.map((item) => stableJson(item)).join(',')}]`;
+    }
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record)
+        .sort()
+        .filter((key) => record[key] !== undefined)
+        .map((key) => `${JSON.stringify(key)}:${stableJson(record[key])}`)
+        .join(',')}}`;
+}
+
+function normalizeExtension(extension?: string): string {
+    const raw = String(extension || 'mp3')
+        .trim()
+        .toLowerCase()
+        .replace(/^\./, '');
+    if (!raw) return 'mp3';
+    if (raw.includes('wav')) return 'wav';
+    if (raw.includes('flac')) return 'flac';
+    if (raw.includes('aac')) return 'aac';
+    if (raw.includes('m4a') || raw.includes('mp4')) return 'm4a';
+    if (raw.includes('ogg') || raw.includes('opus')) return 'ogg';
+    if (raw.includes('pcm')) return 'pcm';
+    if (raw.includes('mpeg') || raw.includes('mp3')) return 'mp3';
+    return raw.replace(/[^a-z0-9]/g, '') || 'mp3';
+}
 
 export class SpeakCache {
     private cacheDir: string;
@@ -54,14 +85,25 @@ export class SpeakCache {
      * 生成缓存 ID
      * 根据 TTS 配置 + 文本内容生成唯一 MD5 hash
      */
-    static generateCacheId(config: { serviceType: SpeakServiceType; voiceName: string; rate: number; pitch: number }, text: string): string {
-        const key = JSON.stringify({
-            serviceType: config.serviceType,
-            voiceName: config.voiceName,
-            rate: config.rate,
-            pitch: config.pitch,
-            text
-        });
+    static generateCacheId(config: Record<string, unknown>, text: string): string {
+        const legacyEdgeShape =
+            !('engine' in config) &&
+            Object.prototype.hasOwnProperty.call(config, 'serviceType') &&
+            Object.prototype.hasOwnProperty.call(config, 'voiceName') &&
+            Object.prototype.hasOwnProperty.call(config, 'rate') &&
+            Object.prototype.hasOwnProperty.call(config, 'pitch');
+        const key = legacyEdgeShape
+            ? JSON.stringify({
+                  serviceType: config.serviceType,
+                  voiceName: config.voiceName,
+                  rate: config.rate,
+                  pitch: config.pitch,
+                  text
+              })
+            : stableJson({
+                  ...config,
+                  text
+              });
         return createHash('md5').update(key).digest('hex');
     }
 
@@ -98,15 +140,9 @@ export class SpeakCache {
     async put(
         cacheId: string,
         audioBuffer: Buffer,
-        meta: {
-            text: string;
-            serviceType: SpeakServiceType;
-            voiceName: string;
-            rate: number;
-            pitch: number;
-        }
+        meta: SpeakCacheMetadata
     ): Promise<string> {
-        const fileName = `${cacheId}.mp3`;
+        const fileName = `${cacheId}.${normalizeExtension(meta.extension)}`;
         const audioPath = path.join(this.cacheDir, fileName);
 
         // 写入音频文件
@@ -117,13 +153,10 @@ export class SpeakCache {
         this.index.entries[cacheId] = {
             cacheId,
             text: meta.text,
-            config: {
-                serviceType: meta.serviceType,
-                voiceName: meta.voiceName,
-                rate: meta.rate,
-                pitch: meta.pitch
-            },
+            config: meta.config,
+            durationMs: meta.durationMs,
             fileName,
+            mimeType: meta.mimeType,
             createdAt: now,
             lastUsedAt: now
         };

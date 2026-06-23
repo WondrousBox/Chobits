@@ -1,6 +1,6 @@
 # 角色说话接入 AI Provider 语音合成规划
 
-> 状态：规划文档。本文只定义角色说话如何接入 `speechSynthesis` Provider 能力，暂不替代现有 Edge TTS 实现。
+> 状态：Phase 1 已实现。角色说话现在可在 Edge 和 AI Provider 之间切换；AI Provider 模式已接入 `speechSynthesis`，并支持 `complete`、`output-stream`、`duplex-stream` 三种模式聚合成缓存文件后播放。真正的边合成边播放仍作为后续阶段。
 
 ## 1. 当前结论
 
@@ -12,12 +12,13 @@ MiniMax 的语音合成底座已经在 `packages/ai` 中具备三种请求方式
 | HTTP 流式 | `streamSpeechSynthesis()` + `mode: 'output-stream'` + `transportPreference: 'http-stream'` | `POST /v1/t2a_v2`，`stream: true` | 已实现 |
 | WebSocket 双向流 | `streamSpeechSynthesis()` + `mode: 'duplex-stream'` + `transportPreference: 'websocket'` | `WSS /ws/v1/t2a_v2`，`task_start` / `task_continue` / `task_finish` | 已实现 |
 
-角色说话尚未接入这些能力。当前链路仍是：
+角色说话已接入这些能力。改造后的链路是：
 
-- `src/pages/ExtensionSettings/SpeakSettings.tsx` 只展示 Edge 音色列表。
-- `packages/sprite-core/speak/types.ts` 的 `SpriteSpeakConfig` 只有 `serviceType`、`voiceName`、`rate`、`pitch`、`volume`。
-- `packages/sprite-core/speak/speak-service.ts` 的 `synthesizeWithService()` 只调用 `EdgeTTS`。
-- `packages/sprite-core/speak/speak-cache.ts` 的缓存 key 只包含 Edge 风格字段，且固定写成 `.mp3`。
+- `src/pages/ExtensionSettings/SpeakSettings.tsx` 提供 Edge / AI Provider 引擎切换。
+- AI Provider 面板可选择 provider、preset、TTS model、voiceId、合成模式和音频格式。
+- `packages/sprite-core/speak/types.ts` 的 `SpriteSpeakConfig` 已增加 `engine` 和 `aiProvider`。
+- `packages/sprite-core/speak/speak-service.ts` 会根据配置调用 Edge TTS 或注入的 `SpriteSpeechSynthesisExecutor`。
+- `packages/sprite-core/speak/speak-cache.ts` 已支持 Provider cache key 和动态音频扩展名，同时保留旧 Edge cache id 兼容。
 
 因此接入目标不是“再实现一遍 MiniMax TTS”，而是让 `sprite-core/speak` 变成角色说话的业务编排层，底层合成引擎可选择 Edge 或 AI Provider。
 
@@ -108,6 +109,7 @@ UI 分层：
    - 使用 `ProviderModelSelect`，传入 `modelTypes={['tts']}`。
    - 使用 `providerFilter={(provider) => provider.capabilities?.speechSynthesis === true}`。
    - 模型默认值优先使用 provider 的 `defaultModels.speechSynthesis`。
+   - 支持选择当前 provider 的 preset；不选择时走 `resolveUsablePreset()` 自动选择可用预设。
    - 音色使用 provider voice 选择器。第一阶段可先提供“常用 MiniMax 音色 + 手动输入 voiceId”，后续再扩展统一 voice catalog。
    - 模式默认 `complete`。`output-stream` 和 `duplex-stream` 放到高级选项，并依据模型 metadata 中的 `speechSynthesis.modes/transports` 做可用性过滤。
    - 展示 Provider 配置状态。未配置 API key 或 preset 时，提供“去配置”入口。
@@ -197,7 +199,57 @@ MiniMax 注意点：
 
 ## 6. 缓存与文件
 
-当前缓存固定 `{ serviceType, voiceName, rate, pitch, text } -> cacheId.mp3`，接入 Provider 后需要升级：
+角色说话统一使用本地缓存，缓存目录是 `<userData>/data/sprite-speak-cache/`：
+
+```text
+sprite-speak-cache/
+  cache-index.json
+  <cacheId>.<audio-format>
+```
+
+Edge 旧实现使用：
+
+```ts
+MD5(JSON.stringify({
+  serviceType,
+  voiceName,
+  rate,
+  pitch,
+  text: sanitizedText
+}))
+```
+
+其中 `sanitizedText` 是去掉 emoji 后真正送入 TTS 的文本。为了兼容旧缓存，Edge 路径仍保留这个 JSON 顺序和字段集合，不把新增的 `engine` 写进 hash。
+
+AI Provider 使用稳定序列化后的配置指纹加文本再做 MD5：
+
+```ts
+MD5(stableJson({
+  engine: 'ai-provider',
+  aiProvider: {
+    providerId,
+    providerPresetId,
+    model,
+    voiceId,
+    voice,
+    language,
+    mode,
+    transportPreference,
+    audioFormat,
+    speed,
+    pitch,
+    voiceVolume,
+    emotion
+  },
+  audioSetting,
+  subtitle,
+  pronunciationDict,
+  extras: stableExtras,
+  text: sanitizedText
+}))
+```
+
+这样同一段文本在同一套语音配置下会命中本地缓存，不会重复调用服务商；切换 provider、preset、model、voiceId、语速、音高、发声音量、情绪、格式或字幕/发音词典会得到新的 `cacheId`，避免误复用旧音频。
 
 缓存 key 建议包含：
 
@@ -205,6 +257,13 @@ MiniMax 注意点：
 - Edge: `voiceName`、`rate`、`pitch`
 - AI Provider: `providerId`、`providerPresetId`、`model`、`voiceId`、`language`、`mode`、`transportPreference`、`audioSetting`、`speed`、`pitch`、`voiceVolume`、`emotion`、`extras` 中参与合成的稳定字段
 - `text`
+
+不进入缓存 key 的字段：
+
+- `secrets`：密钥不应落入 hash 或 cache index。
+- `requestId`、`outputDir`：单次调用控制字段，不影响声音内容。
+- `usage`：统计 metadata，不影响声音内容。
+- `volume`：角色播放器音量，只影响播放响度，不影响合成音频；Provider 发声音量使用 `aiProvider.voiceVolume`，会进入 hash。
 
 缓存条目建议升级：
 
@@ -238,11 +297,19 @@ durationMs?: number;
 - 如果只返回 `audioBase64`，`SpeakService` 解码后写入 cache。
 - 不建议直接复用 Provider artifact 临时路径作为 sprite cache 路径，否则清理策略会互相影响。
 
+当前实现状态：
+
+- Edge cache id 保持旧算法兼容。
+- AI Provider 使用 `stableJson()` 保证对象 key 顺序稳定，再做 MD5。
+- `SpeakService.synthesize()` 先 `cache.get(cacheId)`，命中直接返回 `audioPath` 和 `fromCache: true`。
+- 未命中才调用 Edge 或 AI Provider executor，成功后 `cache.put()` 写入本地文件和 `cache-index.json`。
+
 ## 7. 流式模式规划
 
-第一阶段：
+第一阶段已完成：
 
-- 只在角色说话默认路径使用 `complete`。
+- 默认推荐使用 `complete`。
+- `output-stream` 和 `duplex-stream` 也已可通过 Provider stream executor 聚合为完整音频文件。
 - `synthesizeSpeech()` 和 `speak()` 都返回完整 `audioPath`，保持现有播放、缓存、talk 动画语义。
 
 第二阶段 HTTP 流式：
@@ -284,14 +351,15 @@ durationMs?: number;
 
 ### Phase 1：完整合成接入
 
-- 扩展 `SpriteSpeakConfig` 类型，保留旧字段并增加 `engine` / `aiProvider`。
-- `SpeakConfigStore` 增加旧配置迁移和新字段持久化。
-- `SpeakCache` 支持 Provider cache key、动态扩展名和新版 cache index。
-- `SpriteManagerOptions` 增加 `speechSynthesisExecutor` 注入点。
-- Electron main 注入 `PiExecutionService.synthesizeSpeech()`。
-- `SpeakService` 增加 AI Provider engine 分支，构造通用 `SpeechSynthesisRequest`。
-- `SpeakSettings.tsx` 增加 Edge / AI Provider 引擎切换、ProviderModelSelect、voiceId、模式高级项和配置状态提示。
-- 试听、缓存、talk 动画保持当前行为。
+- [x] 扩展 `SpriteSpeakConfig` 类型，保留旧字段并增加 `engine` / `aiProvider`。
+- [x] `SpeakConfigStore` 增加旧配置迁移和新字段持久化。
+- [x] `SpeakCache` 支持 Provider cache key、动态扩展名和新版 cache index。
+- [x] `SpriteManagerOptions` 增加 `speechSynthesisExecutor` 注入点。
+- [x] Electron main 注入 `PiExecutionService.synthesizeSpeech()` 和 `streamSpeechSynthesis()`。
+- [x] `SpeakService` 增加 AI Provider engine 分支，构造通用 `SpeechSynthesisRequest`。
+- [x] `SpeakSettings.tsx` 增加 Edge / AI Provider 引擎切换、ProviderModelSelect、voiceId、模式高级项和配置入口。
+- [x] `SpeakSettings.tsx` 支持选择当前 Provider 的 preset，适配 MiniMax Token Plan 多预设。
+- [x] 试听、缓存、talk 动画保持当前行为。
 
 ### Phase 2：HTTP 流式播放
 
@@ -325,6 +393,11 @@ durationMs?: number;
 
 ## 11. 接入前清理项
 
-- `MiniMaxProvider.synthesizeSpeech()` 对非 `complete` mode 的错误文案仍写着 `streamSpeechSynthesis` 未实现，应改为提示调用流式入口。
-- `SpeakSettings.tsx` 当前本地重复定义 `SpriteSpeakConfig`，应改为导入共享类型。
-- `SpriteSpeakConfig.volume` 语义需要在 UI 文案中明确为播放音量，避免和 Provider 发声音量混淆。
+- [x] `MiniMaxProvider.synthesizeSpeech()` 对非 `complete` mode 的错误文案已改为提示调用流式入口。
+- [x] `SpeakSettings.tsx` 已改为导入共享 `SpriteSpeakConfig` 类型。
+- [x] `SpriteSpeakConfig.volume` 在 UI 中标记为播放音量，Provider 发声音量使用 `aiProvider.voiceVolume`。
+
+## 12. 已验证
+
+- `pnpm exec tsc --noEmit`
+- `pnpm exec vitest run test/sprite-speak-provider.spec.ts test/tts-strip-emoji.spec.ts test/minimax-music-provider.spec.ts`

@@ -4,6 +4,7 @@ import { app, BrowserWindow, screen } from 'electron';
 import { initAIHandlers } from '../../../packages/ai/ipc-main';
 import { listPresets, resolveUsablePreset } from '../../../packages/ai/preset-service';
 import { getProviderDefinitionSchema, listProviderDefinitions } from '../../../packages/ai/providers/service';
+import { PiExecutionService } from '../../../packages/ai/runtime/pi/execution-service';
 import { broadcastMusicReactivitySnapshot, initMusicReactivityHandlers } from '../../../packages/audio-reactivity/ipc-main';
 import { MusicReactivityService } from '../../../packages/audio-reactivity/music-reactivity-service';
 import { AppEvent, eventManager } from '../../../packages/event';
@@ -83,6 +84,7 @@ const DEFAULT_SPRITE_WINDOW_ANIMATION_TARGET = 'main';
 const DEFAULT_CHAT_PROVIDER_ID = 'openai';
 const WINDOW_ANIMATION_DIRECTIONS = new Set<WindowAnimationPresetDirection>(['top', 'top-right', 'right', 'bottom-right', 'bottom', 'bottom-left', 'left', 'top-left']);
 const DEFAULT_WINDOW_ANIMATION_DESIGN_AREA = { width: 1440, height: 900 };
+const spriteSpeechPiExecutionService = new PiExecutionService();
 
 function positionMusicSpectrumWindowNearSprite(): void {
   const spectrumWindow = windowManager.get('musicSpectrum');
@@ -543,6 +545,10 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
       });
     },
     spontaneousUtteranceExecutor: spontaneousUtteranceService,
+    speechSynthesisExecutor: {
+      synthesize: (request) => spriteSpeechPiExecutionService.synthesizeSpeech(request),
+      stream: (request, onEvent, input) => spriteSpeechPiExecutionService.streamSpeechSynthesis(request, onEvent, undefined, input)
+    },
     syncCharacterToolLabels: async (labels) => {
       const { setCharacterToolLabels } = await import('../../../packages/ai/runtime/pi/tool-labels');
       setCharacterToolLabels(labels);

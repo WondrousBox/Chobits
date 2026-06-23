@@ -1,5 +1,6 @@
 import type { PersonaState } from '../persona-state';
 import type { SpritePurposeRoutinePlanner } from '../purpose';
+import type { SpriteSpeechSynthesisExecutor } from '../speak/types';
 import type { SpriteWindowAnimationPlayPosition } from '../types';
 
 // ============================================================================
@@ -109,6 +110,8 @@ export interface SpriteManagerOptions {
   appName?: string;
   /** AI 自发说话执行器（可选） */
   spontaneousUtteranceExecutor?: SpriteSpontaneousUtteranceExecutor;
+  /** AI Provider speech synthesis executor for sprite speech. */
+  speechSynthesisExecutor?: SpriteSpeechSynthesisExecutor;
   /** Adapter injected by Electron main for Purpose/Routine window actions. */
   purposeWindowAdapter?: SpritePurposeWindowAdapter;
   /** Adapter injected by Electron main for sprite animation triggered window presets. */

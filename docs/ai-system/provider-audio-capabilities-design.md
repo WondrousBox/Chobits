@@ -521,7 +521,7 @@ Pi agent 工具：
 - `packages/sprite-core/speak`：精灵说话缓存、播放控制、talk 动画触发、气泡展示。
 - AI Provider TTS：底层合成引擎，由 `speechSynthesis` capability 提供。
 
-角色说话的具体接入方案单独维护在 [角色说话接入 AI Provider 语音合成规划](../sprite-core/sprite-speech-provider-integration-plan.md)。该方案以 `complete` 稳定落地为第一阶段，同时预留 HTTP 流式和 WebSocket 双向流播放。
+角色说话的具体接入方案单独维护在 [角色说话接入 AI Provider 语音合成规划](../sprite-core/sprite-speech-provider-integration-plan.md)。当前已完成第一阶段：设置页可选择 Edge / AI Provider，底层可调用 `complete`、HTTP 流式和 WebSocket 双向流并聚合为缓存文件播放；真正的边合成边播放仍作为后续阶段。
 
 迁移策略：
 
@@ -575,7 +575,7 @@ Analytics 建议：
 ### Phase 4：业务迁移
 
 - `packages/tts` 支持 AI Provider TTS。
-- `sprite-core/speak` 支持 AI Provider TTS；配置、UI、缓存和播放策略见 [角色说话接入 AI Provider 语音合成规划](../sprite-core/sprite-speech-provider-integration-plan.md)。
+- `sprite-core/speak` 已支持 AI Provider TTS；配置、UI、缓存和播放策略见 [角色说话接入 AI Provider 语音合成规划](../sprite-core/sprite-speech-provider-integration-plan.md)。
 - 设置页从 Edge voice 列表扩展为 provider/model/voice。
 
 ### Phase 5：更多服务商
