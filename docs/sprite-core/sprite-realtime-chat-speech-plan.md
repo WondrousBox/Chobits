@@ -150,7 +150,8 @@ UI 控制：
 - 切换开关只保存配置，不立即创建 TTS 会话。
 - 只有正在产生 assistant 正文 delta 的聊天会触发实时会话。
 - `thinking_delta`、tool call 参数、tool result 文本默认不进入实时朗读。
-- 现有工具结果 `speech` 仍继续走 `sprite.speak()`，不和实时聊天朗读混用。
+- 开启实时朗读后，对话过程只保留 assistant 正文 delta 的实时语音；AI 开始/结束/错误提示、工具结果 `speech`、表情包发送结果等辅助说话不再调用普通 `sprite.speak()`，避免多路 TTS 同时播放。
+- 关闭实时朗读后，工具结果 `speech` 和现有 AI 事件提示继续保持原来的普通 `sprite.speak()` / toast 自动朗读行为。
 
 ## 5. 运行时架构
 
@@ -182,6 +183,7 @@ Chat stream delta
 - 在 assistant 消息开始时准备 controller。
 - 把 `delta` 文本喂给 controller。
 - 在 `message_completed`、取消、错误、页面卸载时 finish/cancel。
+- 发送请求前刷新实时朗读配置，把 `spriteRealtimeSpeechScope` 透传到 AI 请求；当该 scope 的实时朗读开启时，聊天页跳过工具结果 `speech`，主进程 AI 事件也只展示提示和动画，不触发普通 TTS。
 
 ## 6. IPC 与 Preload
 
@@ -420,6 +422,7 @@ src/lib/audio/pcm-stream-worklet.ts
 - [x] ChatPage 接入 assistant `delta`、`message_completed`、`error`、`done`、cancel。
 - [x] Resource AIChatSidebar 接入同一 hook。
 - [x] 跳过 `thinking_delta`、tool call 和 tool result。
+- [x] 实时朗读开启时屏蔽 AI 开始/结束/错误提示、工具结果 `speech` 和表情包辅助说话。
 - [x] 页面卸载、切换会话、用户停止生成时取消 TTS session。
 
 ### Phase 5：体验和稳定性
@@ -437,6 +440,7 @@ src/lib/audio/pcm-stream-worklet.ts
 - 用户开启“AI 回复实时朗读”后，assistant 正文 delta 能触发一个 Provider duplex-stream session。
 - 第一段 PCM `audio_delta` 到达后，renderer 不等待完整文件即可开始播放。
 - `thinking_delta` 不被朗读。
+- 开启实时朗读时，AI 开始/结束/错误提示、工具结果 `speech`、表情包发送结果不会触发普通 `sprite.speak()`；关闭实时朗读后这些入口保持原行为。
 - 停止生成、页面卸载、会话切换会取消 TTS session 和 PCM 播放器。
 - Provider 未配置或模型不支持时，设置页禁用开关，聊天页不会静默消耗额度。
 - 普通 `sprite.speak()` 的缓存和播放行为不受影响。

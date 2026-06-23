@@ -20,6 +20,7 @@ import type {
   SpeakCacheEntry,
   SpeakCacheMetadata,
   SpeakResult,
+  SpriteRealtimeSpeechAvailabilityRequest,
   SpriteRealtimeSpeechEvent,
   SpriteRealtimeSpeechSampleFormat,
   SpriteRealtimeSpeechScope,
@@ -585,6 +586,23 @@ export class SpeakService {
 
     this.activeRealtimeSessions.set(request.scope, session);
     return session;
+  }
+
+  isRealtimeSpeechEnabled(request: SpriteRealtimeSpeechAvailabilityRequest): boolean {
+    const config = this.configStore.getConfig();
+    const realtimeConfig = config.chatRealtimeSpeech;
+
+    if (!config.enabled || normalizeEngine(config) !== 'ai-provider' || !realtimeConfig.enabled) {
+      return false;
+    }
+    if (request.source !== 'chat') {
+      return false;
+    }
+    if (request.scope) {
+      return Boolean(realtimeConfig.scopes[request.scope]);
+    }
+
+    return Object.values(realtimeConfig.scopes).some(Boolean);
   }
 
   async appendRealtimeSpeechText(sessionId: string, text: string): Promise<void> {

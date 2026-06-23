@@ -601,6 +601,7 @@ Analytics 建议：
 - Renderer 增加 PCM streaming player，消费 `audio_delta`。
 - ChatPage 和 Resource AIChatSidebar 只把 assistant 正文 delta 送入 session。
 - thinking、tool call、tool result 不进入实时朗读。
+- 开启实时朗读时，聊天页和 sprite 事件层会屏蔽工具结果 `speech`、表情包辅助说话以及 AI 开始/结束/错误提示的普通 TTS；关闭实时朗读后保持原来的普通 `sprite.speak()` 行为。
 
 ### Phase 5：更多服务商
 

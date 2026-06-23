@@ -5,7 +5,13 @@ function readToolResultSpeech(data: any): ToolSpeech | undefined {
   return normalizeToolSpeech(data?.speech) || extractToolSpeechFromResult(data?.result);
 }
 
-export function speakToolResultSpeech(data: any): void {
+export interface SpeakToolResultSpeechOptions {
+  suppress?: boolean;
+}
+
+export function speakToolResultSpeech(data: any, options?: SpeakToolResultSpeechOptions): void {
+  if (options?.suppress) return;
+
   const speech = readToolResultSpeech(data);
   if (!speech || typeof window === 'undefined') return;
 
