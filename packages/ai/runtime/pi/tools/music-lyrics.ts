@@ -2,6 +2,7 @@ import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
 import { type Static, Type } from '@sinclair/typebox';
 
 import { normalizeProviderPreset } from '../../../provider-preset';
+import { getProviderDefinition, supportsProviderCapability, toCanonicalProviderId } from '../../../providers/service';
 import type { LyricsGenerationMode, LyricsGenerationRequest, LyricsGenerationResponse } from '../../../types';
 import { resolveGuardedToolExecution } from '../skills';
 import type { PiSessionToolContext } from '../tool-context';
@@ -31,7 +32,10 @@ const musicLyricsParameters = Type.Object({
       description: 'Lyrics generation mode. Defaults to edit when lyrics are provided, otherwise write_full_song.'
     })
   ),
-  providerPresetId: Type.Optional(Type.String({ description: 'Optional MiniMax provider preset id. Omit to use the current MiniMax preset or default provider secrets.' })),
+  providerId: Type.Optional(Type.String({ description: 'Lyrics provider id. Defaults to the current provider when it supports musicGeneration, otherwise minimax.' })),
+  model: Type.Optional(Type.String({ description: 'Optional lyrics generation model when the selected provider requires one.' })),
+  providerPresetId: Type.Optional(Type.String({ description: 'Optional provider preset id. Omit to use the current preset when it belongs to the selected provider, otherwise provider defaults.' })),
+  providerOptions: Type.Optional(Type.Record(Type.String(), Type.Any(), { description: 'Provider-specific options merged into extras[providerId]. Prefer this for non-common fields.' })),
   saveToResourceLibrary: Type.Optional(Type.Boolean({ description: 'Whether to create a text resource for the generated lyrics. Defaults to true.' })),
   workspaceId: Type.Optional(Type.String({ description: 'Target workspace ID for the lyrics resource.' })),
   folderId: Type.Optional(Type.String({ description: 'Target resource folder ID. If omitted, addResource chooses the default/daily folder.' })),
@@ -55,15 +59,54 @@ function resolveMode(input: MusicLyricsInput): LyricsGenerationMode {
   return trimString(input.lyrics) ? 'edit' : 'write_full_song';
 }
 
-function resolveProviderPresetId(toolContext: PiSessionToolContext, explicitPresetId?: string): string | undefined {
+function isRecord(value: unknown): value is Record<string, any> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function resolveProviderId(toolContext: PiSessionToolContext, explicitProviderId?: string): string {
+  const providerId = trimString(explicitProviderId);
+  if (providerId) return toCanonicalProviderId(providerId);
+
+  const currentProviderId = trimString(toolContext.resolved.model.providerId);
+  if (currentProviderId && supportsProviderCapability(currentProviderId, 'musicGeneration')) {
+    return toCanonicalProviderId(currentProviderId);
+  }
+
+  return 'minimax';
+}
+
+function isSameProvider(left?: string, right?: string): boolean {
+  return toCanonicalProviderId(left) === toCanonicalProviderId(right);
+}
+
+function resolveProviderPresetId(toolContext: PiSessionToolContext, providerId: string, explicitPresetId?: string): string | undefined {
   const presetId = trimString(explicitPresetId);
   if (presetId) return presetId;
 
-  if (toolContext.resolved.model.providerId === 'minimax') {
+  if (isSameProvider(toolContext.resolved.model.providerId, providerId)) {
     return toolContext.resolved.model.presetId;
   }
 
   return undefined;
+}
+
+function resolveProviderLabel(providerId?: string): string {
+  const id = trimString(providerId) || 'provider';
+  const definition = getProviderDefinition(id);
+  return definition?.catalog?.name || definition?.display.label || id;
+}
+
+function buildProviderExtras(providerId: string, input: MusicLyricsInput, toolCallId: string): Record<string, any> {
+  const providerOptions = isRecord(input.providerOptions) ? input.providerOptions : {};
+  const extras: Record<string, any> = {
+    requestId: toolCallId
+  };
+
+  if (Object.keys(providerOptions).length > 0) {
+    extras[providerId] = providerOptions;
+  }
+
+  return extras;
 }
 
 function buildMusicPrompt(input: MusicLyricsInput, response: LyricsGenerationResponse): string {
@@ -104,7 +147,7 @@ export function createPiMusicLyricsTool(toolContext: PiSessionToolContext, bindi
   return {
     name: 'musicLyricsTool',
     label: 'musicLyricsTool',
-    description: 'Generate complete song lyrics with MiniMax before music generation, rewrite existing lyrics, and save the generated lyrics as a text resource by default.',
+    description: 'Generate or rewrite song lyrics through a provider that supports musicGeneration and save the generated lyrics as a text resource by default.',
     parameters: musicLyricsParameters,
     async execute(toolCallId, input, signal) {
       const prompt = trimString(input.prompt);
@@ -127,26 +170,29 @@ export function createPiMusicLyricsTool(toolContext: PiSessionToolContext, bindi
         }
 
         const mode = resolveMode(input);
-        const providerPresetId = resolveProviderPresetId(toolContext, input.providerPresetId);
+        const providerId = resolveProviderId(toolContext, input.providerId);
+        const providerPresetId = resolveProviderPresetId(toolContext, providerId, input.providerPresetId);
+        const providerLabel = resolveProviderLabel(providerId);
         const request: LyricsGenerationRequest = normalizeProviderPreset({
-          extras: {
-            requestId: toolCallId
-          },
+          extras: buildProviderExtras(providerId, input, toolCallId),
           lyrics,
+          model: trimString(input.model),
           mode,
           prompt,
-          providerId: 'minimax',
+          providerId,
           providerPresetId
         });
 
         const executionService = bindings.executionService || (await getDefaultExecutionService());
-        toolContext.reportProgress?.(toolCallId, 15, '准备调用 MiniMax 歌词生成...');
+        toolContext.reportProgress?.(toolCallId, 15, `准备调用 ${providerLabel} 歌词生成...`);
         const response = await executionService.generateLyrics(request, signal);
         toolContext.reportProgress?.(toolCallId, 80, '保存生成歌词...');
 
         let createdResource: Record<string, any> | undefined;
         let resourceId: string | undefined;
         let resourceWarning: string | undefined;
+        const responseProviderId = response.providerId || providerId;
+        const responseProviderLabel = resolveProviderLabel(responseProviderId);
         if (input.saveToResourceLibrary !== false) {
           const resourceTitle = buildLyricsResourceTitle(input, response);
           try {
@@ -156,7 +202,7 @@ export function createPiMusicLyricsTool(toolContext: PiSessionToolContext, bindi
                 aiGenerated: true,
                 categories: ['music', 'lyrics'],
                 contentText: response.lyrics,
-                description: `${response.providerId || 'minimax'} / lyrics_generation / ${mode}`,
+                description: `${responseProviderId} / lyrics_generation / ${mode}`,
                 folderId: input.folderId,
                 metadata: {
                   generatedAt: Date.now(),
@@ -164,14 +210,15 @@ export function createPiMusicLyricsTool(toolContext: PiSessionToolContext, bindi
                   kind: 'lyrics',
                   lyricsGeneration: {
                     mode,
+                    model: response.model || trimString(input.model),
                     prompt,
-                    providerId: response.providerId || 'minimax',
+                    providerId: responseProviderId,
                     requestId: toolCallId,
                     songTitle: response.songTitle,
                     styleTags: response.styleTags
                   }
                 },
-                sourceName: 'MiniMax',
+                sourceName: responseProviderLabel,
                 tags: input.tags ? ['lyrics', 'generated-lyrics'].concat(input.tags as any) : ['lyrics', 'generated-lyrics'],
                 title: resourceTitle,
                 type: 'text',
@@ -195,7 +242,8 @@ export function createPiMusicLyricsTool(toolContext: PiSessionToolContext, bindi
           mode,
           musicPrompt: buildMusicPrompt(input, response),
           nextStep: '如果用户要完整歌曲，继续调用 musicGenerateTool，把 lyrics 设置为本次返回的歌词；如果有 lyricsResourceId，也一并传入。',
-          providerId: response.providerId || 'minimax',
+          model: response.model || trimString(input.model),
+          providerId: responseProviderId,
           resource: createdResource,
           resourceId,
           resourceStorage: resourceId
@@ -221,7 +269,7 @@ export function createPiMusicLyricsTool(toolContext: PiSessionToolContext, bindi
         });
       } catch (error: any) {
         return createJsonToolResult({
-          error: error?.message || 'MiniMax lyrics generation failed.',
+          error: error?.message || 'Lyrics generation failed.',
           success: false
         });
       }

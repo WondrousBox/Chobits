@@ -187,14 +187,14 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
   },
   'music-generate': {
     category: 'integration',
-    description: 'Generate music with MiniMax from prompt, lyrics, or reference audio.',
+    description: 'Generate music through a provider with musicGeneration capability from prompt, lyrics, or reference audio.',
     compatName: 'musicGenerateTool',
     name: 'musicGenerateTool',
     status: 'ready-for-pi-runtime'
   },
   'music-lyrics': {
     category: 'integration',
-    description: 'Generate or rewrite song lyrics with MiniMax before music generation.',
+    description: 'Generate or rewrite song lyrics through a musicGeneration provider before music generation.',
     compatName: 'musicLyricsTool',
     name: 'musicLyricsTool',
     status: 'ready-for-pi-runtime'

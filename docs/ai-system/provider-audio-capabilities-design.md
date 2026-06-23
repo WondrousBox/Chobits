@@ -151,7 +151,7 @@ export type GeneratedAudioArtifact = {
 
 ## 6. 音乐生成接口
 
-音乐生成接口保持小而稳定，差异字段放到 `extras.<providerId>`。
+音乐生成接口保持小而稳定，差异字段放到 `extras.<providerId>`。`prompt`、`lyrics`、`mode`、`audioSetting`、`referenceAudioUrl` / `referenceAudioBase64` 这类跨服务商字段放在顶层；`stream`、歌词优化、cover feature id、provider 自有质量参数等放入 `extras.minimax`、`extras.suno`、`extras.<providerId>`。
 
 ```ts
 export type MusicGenerationMode =
@@ -193,6 +193,17 @@ export type MusicGenerationResponse = {
   rawResponse?: unknown;
 };
 ```
+
+Pi agent 工具入口遵循同一规则：
+
+- `musicGenerateTool` 接收可选 `providerId`、`providerPresetId`、`model` 和 `providerOptions`。
+- 解析顺序是：显式 `providerId` 优先；否则当前会话 provider 支持 `musicGeneration` 时沿用当前 provider；否则回落 `minimax`，保持旧调用兼容。
+- 默认模型来自 `getProviderDefaultModels(providerId).musicGeneration`；MiniMax cover 模式兼容使用 `music-cover`。
+- `providerOptions` 只合并到 `extras[providerId]`，不污染通用 `MusicGenerationRequest` 顶层字段。
+- MiniMax 历史字段 `lyricsOptimizer`、`coverFeatureId`、`referenceAudioUrl`、`referenceAudioBase64` 仍兼容，同时镜像到 `extras.minimax`。
+- MiniMax 非 cover、非纯音乐且没有 `lyrics` 时，adapter 会默认 `lyrics_optimizer: true`；显式传 `lyricsOptimizer: false` 时 adapter 会在本地报出“需要 lyrics / lyricsOptimizer / isInstrumental”的参数错误，避免把无效请求发到远端。
+
+歌词生成属于音乐生成控制面的一部分。Provider adapter 可选实现 `generateLyrics()`；Pi `musicLyricsTool` 使用与 `musicGenerateTool` 相同的 provider 解析规则，差异参数通过 `providerOptions -> extras[providerId]` 传递。
 
 ## 7. TTS 运行模式与 Transport
 
@@ -471,6 +482,7 @@ MiniMax models：
 Execution service：
 
 - `generateMusic(payload)`：检查 `musicGeneration` 和 `provider.generateMusic`。
+- `generateLyrics(payload)`：检查 `musicGeneration` 和 `provider.generateLyrics`，用于歌曲歌词生成/改写前置步骤。
 - `synthesizeSpeech(payload)`：检查 `speechSynthesis` 和 `provider.synthesizeSpeech`。
 - `streamSpeechSynthesis(payload, emit, input?)`：检查 `speechSynthesis` 和 `provider.streamSpeechSynthesis`，管理 requestId、AbortSignal、append writer、事件转发和最终 artifact。
 
@@ -496,6 +508,11 @@ Workflow：
 
 `duplex-stream` 需要持续输入通道，普通批量 workflow 节点默认仍建议使用 `complete` 或 `output-stream`；精灵说话、voice session、实时旁白可以使用 stream handle 持续 `appendText()`。
 
+Pi agent 工具：
+
+- `musicGenerateTool`：构造通用 `MusicGenerationRequest`，调用 `PiExecutionService.generateMusic()`，由 execution 层完成 capability 校验、provider adapter 调用、音频落盘、usage 记录。
+- `musicLyricsTool`：构造通用 `LyricsGenerationRequest`，调用 `PiExecutionService.generateLyrics()`，用于生成或改写歌词，并可将歌词保存为资源。
+
 ## 13. 现有 TTS 系统迁移
 
 `packages/tts` 和 `packages/sprite-core/speak` 不需要被重写。它们应从“合成引擎实现者”逐步变成“业务编排层”：
@@ -503,6 +520,8 @@ Workflow：
 - `packages/tts`：字幕批量合成、缓存、去静音、时间轴写回、重试。
 - `packages/sprite-core/speak`：精灵说话缓存、播放控制、talk 动画触发、气泡展示。
 - AI Provider TTS：底层合成引擎，由 `speechSynthesis` capability 提供。
+
+角色说话的具体接入方案单独维护在 [角色说话接入 AI Provider 语音合成规划](../sprite-core/sprite-speech-provider-integration-plan.md)。该方案以 `complete` 稳定落地为第一阶段，同时预留 HTTP 流式和 WebSocket 双向流播放。
 
 迁移策略：
 
@@ -556,7 +575,7 @@ Analytics 建议：
 ### Phase 4：业务迁移
 
 - `packages/tts` 支持 AI Provider TTS。
-- `sprite-core/speak` 支持 AI Provider TTS。
+- `sprite-core/speak` 支持 AI Provider TTS；配置、UI、缓存和播放策略见 [角色说话接入 AI Provider 语音合成规划](../sprite-core/sprite-speech-provider-integration-plan.md)。
 - 设置页从 Edge voice 列表扩展为 provider/model/voice。
 
 ### Phase 5：更多服务商

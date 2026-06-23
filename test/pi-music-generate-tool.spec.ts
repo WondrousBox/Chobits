@@ -28,6 +28,13 @@ function createToolContext() {
   } as any;
 }
 
+function createMusicProviderToolContext(providerId = 'minimax', presetId = 'preset-minimax') {
+  const context = createToolContext();
+  context.resolved.model.providerId = providerId;
+  context.resolved.model.presetId = presetId;
+  return context;
+}
+
 describe('musicGenerateTool', () => {
   it('is registered and discoverable through toolbox search', () => {
     expect(resolvePiToolId('musicGenerateTool')).toBe('music-generate');
@@ -111,6 +118,10 @@ describe('musicGenerateTool', () => {
     });
     expect(requests[0].extras?.outputDir).toBe('/workspace/.cache/music-generation');
     expect(requests[0].extras?.requestId).toBe('call-music-1');
+    expect(requests[0].extras?.minimax).toMatchObject({
+      lyrics_optimizer: true,
+      output_format: 'url'
+    });
 
     expect(resourceCreator).toHaveBeenCalledOnce();
     expect(createdResources[0]).toMatchObject({
@@ -152,6 +163,117 @@ describe('musicGenerateTool', () => {
       },
       resourceId: 'resource-music-1',
       success: true
+    });
+  });
+
+  it('can target an explicit non-MiniMax music provider through the unified executor', async () => {
+    const toolContext = createMusicProviderToolContext('openai', 'preset-openai');
+    const requests: MusicGenerationRequest[] = [];
+    const executionService = {
+      generateMusic: vi.fn(async (request: MusicGenerationRequest) => {
+        requests.push(request);
+        return {
+          artifacts: [
+            {
+              filePath: '/tmp/acme-song.wav',
+              mimeType: 'audio/wav',
+              sizeBytes: 456
+            }
+          ],
+          filePath: '/tmp/acme-song.wav',
+          model: request.model,
+          providerId: request.providerId
+        };
+      })
+    };
+
+    const tool = createPiMusicGenerateTool(toolContext, {
+      executionService,
+      resolveMusicOutputDir: async () => '/workspace/.cache/music-generation',
+      resourceCreator: vi.fn(async (resource: Record<string, any>) => ({
+        data: { ...resource, id: 'resource-acme-music-1' },
+        success: true
+      }))
+    });
+    const result = await tool.execute('call-acme-music', {
+      audioFormat: 'wav',
+      lyricsOptimizer: true,
+      model: 'acme-song-v1',
+      providerId: 'acme-music',
+      providerOptions: {
+        styleStrength: 0.7
+      },
+      prompt: 'bright synth intro',
+      referenceAudioUrl: 'https://example.com/ref.wav'
+    });
+
+    expect(executionService.generateMusic).toHaveBeenCalledOnce();
+    expect(requests[0]).toMatchObject({
+      audioSetting: { format: 'wav' },
+      model: 'acme-song-v1',
+      outputFormat: 'url',
+      providerId: 'acme-music',
+      providerPresetId: undefined,
+      referenceAudioUrl: 'https://example.com/ref.wav'
+    });
+    expect(requests[0]).not.toHaveProperty('lyricsOptimizer');
+    expect(requests[0]).not.toHaveProperty('coverFeatureId');
+    expect(requests[0].extras).toMatchObject({
+      'acme-music': {
+        styleStrength: 0.7
+      },
+      outputDir: '/workspace/.cache/music-generation',
+      requestId: 'call-acme-music'
+    });
+    expect(requests[0].extras?.minimax).toBeUndefined();
+    expect((result.details as any)).toMatchObject({
+      model: 'acme-song-v1',
+      providerId: 'acme-music',
+      success: true
+    });
+  });
+
+  it('enables MiniMax lyrics optimization for prompt-only songs', async () => {
+    const toolContext = createToolContext();
+    const requests: MusicGenerationRequest[] = [];
+    const executionService = {
+      generateMusic: vi.fn(async (request: MusicGenerationRequest) => {
+        requests.push(request);
+        return {
+          artifacts: [
+            {
+              filePath: '/tmp/prompt-song.mp3',
+              mimeType: 'audio/mpeg',
+              sizeBytes: 789
+            }
+          ],
+          filePath: '/tmp/prompt-song.mp3',
+          model: request.model,
+          providerId: request.providerId
+        };
+      })
+    };
+
+    const tool = createPiMusicGenerateTool(toolContext, {
+      executionService,
+      resolveMusicOutputDir: async () => '/workspace/.cache/music-generation',
+      resourceCreator: vi.fn(async (resource: Record<string, any>) => ({
+        data: { ...resource, id: 'resource-prompt-song-1' },
+        success: true
+      }))
+    });
+    await tool.execute('call-prompt-song', {
+      prompt: 'upbeat city pop with a bright chorus'
+    });
+
+    expect(requests[0]).toMatchObject({
+      lyrics: undefined,
+      lyricsOptimizer: true,
+      mode: 'text-to-music',
+      providerId: 'minimax'
+    });
+    expect(requests[0].extras?.minimax).toMatchObject({
+      lyrics_optimizer: true
     });
   });
 
@@ -234,6 +356,57 @@ describe('musicGenerateTool', () => {
       },
       resourceId: 'resource-lyrics-1',
       songTitle: 'Rain Again',
+      success: true
+    });
+  });
+
+  it('can target an explicit non-MiniMax lyrics provider through the unified executor', async () => {
+    const toolContext = createMusicProviderToolContext('openai', 'preset-openai');
+    const requests: LyricsGenerationRequest[] = [];
+    const executionService = {
+      generateLyrics: vi.fn(async (request: LyricsGenerationRequest) => {
+        requests.push(request);
+        return {
+          lyrics: '[Verse]\ncity lights',
+          model: request.model,
+          providerId: request.providerId
+        };
+      })
+    };
+
+    const tool = createPiMusicLyricsTool(toolContext, {
+      executionService,
+      resourceCreator: vi.fn(async (resource: Record<string, any>) => ({
+        data: { ...resource, id: 'resource-acme-lyrics-1' },
+        success: true
+      }))
+    });
+    const result = await tool.execute('call-acme-lyrics', {
+      model: 'acme-lyrics-v1',
+      providerId: 'acme-music',
+      providerOptions: {
+        rhymeScheme: 'abab'
+      },
+      prompt: 'write a chorus'
+    });
+
+    expect(executionService.generateLyrics).toHaveBeenCalledOnce();
+    expect(requests[0]).toMatchObject({
+      extras: {
+        'acme-music': {
+          rhymeScheme: 'abab'
+        },
+        requestId: 'call-acme-lyrics'
+      },
+      mode: 'write_full_song',
+      model: 'acme-lyrics-v1',
+      prompt: 'write a chorus',
+      providerId: 'acme-music',
+      providerPresetId: undefined
+    });
+    expect((result.details as any)).toMatchObject({
+      model: 'acme-lyrics-v1',
+      providerId: 'acme-music',
       success: true
     });
   });

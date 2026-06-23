@@ -42,6 +42,7 @@ export type WorkflowMessageContent = string | WorkflowRichContentPart[];
 export type WorkflowChatMessage = Omit<ChatMessage, 'content'> & { content: WorkflowMessageContent };
 
 export interface DynamicModelConfigOptions extends ProviderPresetFields {
+  defaultModel?: string;
   defaultProviderId?: string;
   emptyModelDescription: string;
   modelDescription: string;
@@ -254,7 +255,7 @@ export async function getProviderOptions(capability?: ProviderCapabilityKey): Pr
 }
 
 export async function getDynamicModelConfig(options: DynamicModelConfigOptions): Promise<PortSchema[]> {
-  const { defaultProviderId = '', emptyModelDescription, modelDescription, modelLabel, modelPredicate, providerCapability, providerId, required = true, warningScope } = options;
+  const { defaultModel, defaultProviderId = '', emptyModelDescription, modelDescription, modelLabel, modelPredicate, providerCapability, providerId, required = true, warningScope } = options;
   const resolvedProviderPresetId = resolveProviderPresetId(options);
   const selectedPreset = getPreset(resolvedProviderPresetId);
   const resolvedProviderId = selectedPreset?.providerId || providerId;
@@ -286,7 +287,7 @@ export async function getDynamicModelConfig(options: DynamicModelConfigOptions):
 
   if (resolvedProviderId) {
     const models = await loadProviderModels(resolvedProviderId, modelPredicate, warningScope);
-    const defaultModelValue = resolveDefaultWorkflowModel(models);
+    const defaultModelValue = resolveDefaultWorkflowModel(models, defaultModel);
 
     if (models.length > 0) {
       config.push({
@@ -672,7 +673,12 @@ function isMissingWorkflowProviderConfigError(error: unknown): boolean {
   return /missing api key|未配置.*api key|未配置必要秘钥|未配置 API Key/i.test(message);
 }
 
-function resolveDefaultWorkflowModel(models: Array<{ value: string; label: string }>): string {
+function resolveDefaultWorkflowModel(models: Array<{ value: string; label: string }>, preferredModel?: string): string {
+  const preferred = String(preferredModel || '').trim();
+  if (preferred && models.some((model) => model.value === preferred)) {
+    return preferred;
+  }
+
   return models[0]?.value || '';
 }
 
