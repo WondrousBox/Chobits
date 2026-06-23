@@ -116,7 +116,7 @@
         "primaryTrigger": "thinking"
       },
       "source": {
-        "localPath": "./idle.webm",
+        "localPath": "./thinking.webm",
         "type": "video/webm"
       },
       "width": 180,

@@ -95,7 +95,9 @@ const CHAT_API_CONFIG_SAVE_ACTIONS = new Set([
 ]);
 
 function normalizeText(value?: string): string {
-  return String(value || '').trim().toLowerCase();
+  return String(value || '')
+    .trim()
+    .toLowerCase();
 }
 
 function isMiniMaxChatApiConfigSave(data?: SpriteEventPayload): boolean {
@@ -114,11 +116,7 @@ function isMiniMaxChatApiConfigSave(data?: SpriteEventPayload): boolean {
 }
 
 function getMiniMaxChatApiConfigEasterEggText(): string {
-  return getCharacterRoutineText(
-    'chat.api-config-guide.done.minimax',
-    { providerId: 'minimax' },
-    'MiniMax 还可以制作音乐，以后可以和我说哦'
-  );
+  return getCharacterRoutineText('chat.api-config-guide.done.minimax', { providerId: 'minimax' }, 'MiniMax 还可以制作音乐，以后可以和我说哦');
 }
 
 function getActiveWorkflowWaitingRunId(mgr: SpriteManager): string | undefined {
