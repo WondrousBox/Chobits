@@ -1,6 +1,6 @@
 # 角色说话接入 AI Provider 语音合成规划
 
-> 状态：Phase 1 已实现。角色说话现在可在 Edge 和 AI Provider 之间切换；AI Provider 模式已接入 `speechSynthesis`，并支持 `complete`、`output-stream`、`duplex-stream` 三种模式聚合成缓存文件后播放。真正的边合成边播放仍作为后续阶段。
+> 状态：Phase 1 已实现。角色说话现在可在 Edge 和 AI Provider 之间切换；AI Provider 模式已接入 `speechSynthesis`，并支持 `complete`、`output-stream`、`duplex-stream` 三种模式聚合成缓存文件后播放。AI 聊天 delta 驱动的 PCM 边合成边播放已拆为独立实施计划，见 [AI 对话实时语音合成与 PCM 播放实施计划](./sprite-realtime-chat-speech-plan.md)。
 
 ## 1. 当前结论
 
@@ -30,13 +30,13 @@ MiniMax 的语音合成底座已经在 `packages/ai` 中具备三种请求方式
 - AI Provider 模式使用统一 `speechSynthesis` capability，未来可接 MiniMax、OpenAI、ElevenLabs、火山、腾讯、阿里等服务商。
 - 保留现有 `window.YUA.sprite.speak()`、`synthesizeSpeech()`、气泡展示、talk 动画触发和缓存行为。
 - 第一阶段优先接入 `complete`，保证“合成完成 -> 缓存 -> 播放”的稳定体验。
-- 设计上预留 HTTP 流式和 WebSocket 双向流，后续可用于低延迟说话和 LLM token 流驱动的实时语音。
+- 设计上预留 HTTP 流式和 WebSocket 双向流。AI 聊天 delta 的实时朗读走独立开关，默认关闭，优先使用 WebSocket `duplex-stream` + PCM 播放器。
 
 非目标：
 
 - 不把 Edge TTS 改造成 Provider。Edge 可以继续作为内置本地/免费引擎存在。
 - 不把 TTS 合并到音乐生成能力。语音仍使用 `speechSynthesis`，音乐使用 `musicGeneration`。
-- 第一阶段不强求实现边合成边播。当前 `sprite:speak` 播放事件仍以完整音频文件路径为中心。
+- 普通 `sprite:speak(text)` 仍以完整音频文件路径和缓存为中心；聊天实时朗读不改变这个入口，单独通过实时会话 API 接入。
 
 ## 3. 配置模型
 
@@ -304,7 +304,7 @@ durationMs?: number;
 - `SpeakService.synthesize()` 先 `cache.get(cacheId)`，命中直接返回 `audioPath` 和 `fromCache: true`。
 - 未命中才调用 Edge 或 AI Provider executor，成功后 `cache.put()` 写入本地文件和 `cache-index.json`。
 
-## 7. 流式模式规划
+## 7. 流式与实时朗读规划
 
 第一阶段已完成：
 
@@ -312,19 +312,24 @@ durationMs?: number;
 - `output-stream` 和 `duplex-stream` 也已可通过 Provider stream executor 聚合为完整音频文件。
 - `synthesizeSpeech()` 和 `speak()` 都返回完整 `audioPath`，保持现有播放、缓存、talk 动画语义。
 
-第二阶段 HTTP 流式：
+第二阶段 AI 聊天实时朗读已完成第一版：
 
-- `SpeakService` 使用 `streamSpeechSynthesis()` 收集 `audio_delta`。
-- 渲染进程新增流式播放通道，例如 `sprite:speak:stream-start`、`sprite:speak:stream-chunk`、`sprite:speak:stream-end`。
-- talk 动画可在第一段音频到达时触发，而不是等待完整文件。
-- 同时将 chunk 聚合落盘，结束后写入同一套 speak cache。
+- `SpriteSpeakConfig` 已增加 `chatRealtimeSpeech.enabled`，默认关闭。
+- 设置页已增加“AI 回复实时朗读”开关。只有用户明确开启后，聊天 assistant 正文 delta 才会进入 TTS。
+- `SpeakService` 已新增实时 session API，使用 `streamSpeechSynthesis()` 和文本输入队列。
+- MiniMax 第一版优先使用 `mode: 'duplex-stream'`、`transportPreference: 'websocket'`、`audioSetting.format: 'pcm'`。
+- 渲染进程已新增 PCM 播放器，消费连续 `audio_delta`，不等待完整文件。
+- talk 动画在第一段有效 PCM 音频到达后触发。
+- 聊天实时朗读第一版默认不写 speak cache，避免每条对话回复落盘；普通 `sprite.speak()` 缓存策略不变。
 
-第三阶段 WebSocket 双向流：
+第三阶段 HTTP output-stream 边播：
 
-- 新增 `SpeakService.startSession()` 或类似会话 API。
-- LLM token 流、AI 自发说话、实时旁白可以持续 `appendText()`。
-- 会话结束后发送 `finish()`，聚合最终音频入缓存。
-- 普通 `window.YUA.sprite.speak(fullText)` 不默认走 duplex，避免短句也持有 WebSocket 会话。
+- 面向完整长文本，例如 AI 自发长句、旁白、摘要朗读。
+- `SpeakService` 可以使用 `output-stream` 收集完整文本产生的 `audio_delta`。
+- 如果输出不是 PCM，可另行增加 MediaSource/解码器路径；第一版实时聊天只要求 PCM。
+- 可选在结束后聚合落盘，写入 speak cache。
+
+实时聊天朗读的详细配置、IPC、PCM 播放器和验收标准见 [AI 对话实时语音合成与 PCM 播放实施计划](./sprite-realtime-chat-speech-plan.md)。
 
 ## 8. IPC 与 Preload
 
@@ -340,12 +345,15 @@ durationMs?: number;
 
 第一阶段无需新增角色说话 IPC。设置页选择 provider/model 可以直接复用 `window.YUA.ai.getProviders()`、`window.YUA.ai.listModels()`、`window.YUA.ai.resolveUsablePreset()` 和 Provider 配置窗口。
 
-后续流式播放需要新增事件或 IPC：
+聊天实时朗读需要新增实时会话 IPC：
 
-- `sprite:speak:stream-start`
-- `sprite:speak:stream-chunk`
-- `sprite:speak:stream-end`
-- `sprite:speak:stream-error`
+- `sprite:speak:realtime:start`
+- `sprite:speak:realtime:appendText`
+- `sprite:speak:realtime:flush`
+- `sprite:speak:realtime:finish`
+- `sprite:speak:realtime:cancel`
+
+实时会话的事件通过返回的 `eventsChannel` 推送，事件包括 `started`、`audio_delta`、`metadata`、`completed`、`error`、`done`。
 
 ## 9. 分阶段实施清单
 
@@ -361,19 +369,22 @@ durationMs?: number;
 - [x] `SpeakSettings.tsx` 支持选择当前 Provider 的 preset，适配 MiniMax Token Plan 多预设。
 - [x] 试听、缓存、talk 动画保持当前行为。
 
-### Phase 2：HTTP 流式播放
+### Phase 2：AI 聊天实时朗读 + PCM 播放
 
-- `SpeakService` 增加 `output-stream` 分支，使用 injected `stream()`。
-- 设计并实现 renderer 流式音频播放器。
-- 新增流式播放事件和取消能力。
-- 流式结束后聚合写入缓存。
+- [x] `SpriteSpeakConfig` 增加 `chatRealtimeSpeech`，默认关闭。
+- [x] 设置页增加“AI 回复实时朗读”开关、scope 和 PCM 参数。
+- [x] `SpeakService` 增加实时 session API，支持 `appendText()`、`flush()`、`finish()`、`cancel()`。
+- [x] 新增 sprite realtime IPC/preload handle。
+- [x] Renderer 新增 PCM streaming player。
+- [x] ChatPage 和 Resource AIChatSidebar 接入 assistant delta，跳过 thinking/tool。
+- [x] 聊天取消、页面卸载、message completed 时正确关闭 TTS session。
 
-### Phase 3：WebSocket 双向会话
+### Phase 3：HTTP output-stream 边播与缓存增强
 
-- 新增角色说话 session API。
-- 支持文本分片输入、flush、finish、cancel。
-- 将 AI 自发说话或聊天 token 流接入 session，而不是等待完整文本。
-- 增加 session 级超时、并发限制和清理逻辑。
+- 支持完整长文本 `output-stream` 边合成边播放。
+- 支持非 PCM 流式音频的解码播放路径。
+- 可选将实时 session 的最终聚合音频写入 speak cache。
+- 增加 session 级延迟、underrun、首包耗时监控。
 
 ### Phase 4：Provider voice catalog
 

@@ -547,7 +547,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
     spontaneousUtteranceExecutor: spontaneousUtteranceService,
     speechSynthesisExecutor: {
       synthesize: (request) => spriteSpeechPiExecutionService.synthesizeSpeech(request),
-      stream: (request, onEvent, input) => spriteSpeechPiExecutionService.streamSpeechSynthesis(request, onEvent, undefined, input)
+      stream: (request, onEvent, input, signal) => spriteSpeechPiExecutionService.streamSpeechSynthesis(request, onEvent, signal, input)
     },
     syncCharacterToolLabels: async (labels) => {
       const { setCharacterToolLabels } = await import('../../../packages/ai/runtime/pi/tool-labels');

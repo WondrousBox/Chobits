@@ -57,7 +57,7 @@ import {
   type StartSpritePurposeRequest
 } from '../purpose';
 import { SpeakService } from '../speak/speak-service';
-import type { SpeakResult, SpriteSpeakConfig, SpriteSpeakPayload, SpriteSpeakPlaybackContext } from '../speak/types';
+import type { SpeakResult, SpriteRealtimeSpeechEvent, SpriteRealtimeSpeechSessionRequest, SpriteSpeakConfig, SpriteSpeakPayload, SpriteSpeakPlaybackContext } from '../speak/types';
 import type { SpriteReactionState, SpriteState } from '../state-machine';
 import { SpriteStateMachine } from '../state-machine';
 import {
@@ -217,6 +217,7 @@ export class SpriteManager {
 
   // 语音合成服务
   private speakService: SpeakService;
+  private realtimeSpeechTalkSessions = new Set<string>();
   /** 防止 speak() → showToast() → speakService.speak() 递归 */
   private _speakGuard = false;
 
@@ -419,6 +420,15 @@ export class SpriteManager {
     this.speakService.setPlayAudioCallback((payload: SpriteSpeakPayload, context?: SpriteSpeakPlaybackContext) => {
       this.triggerTalkForSpeech(payload, context);
       this.sendToRenderer('sprite:speak', payload);
+    });
+    this.speakService.setRealtimeSpeechEventCallback((sessionId, event) => {
+      if (event.type === 'audio_delta' && !this.realtimeSpeechTalkSessions.has(sessionId)) {
+        this.realtimeSpeechTalkSessions.add(sessionId);
+        this.triggerTalkForRealtimeSpeech();
+      }
+      if (event.type === 'done' || event.type === 'error') {
+        this.realtimeSpeechTalkSessions.delete(sessionId);
+      }
     });
 
     // 设置状态机变化监听
@@ -1277,18 +1287,44 @@ export class SpriteManager {
     });
   }
 
+  private triggerTalkForRealtimeSpeech(): void {
+    if (!this.canUseTalkForSpeech()) {
+      return;
+    }
+
+    this.trigger('talk', {
+      durationMs: 3000,
+      silent: true
+    });
+  }
+
   private canUseTalkForSpeech(): boolean {
-    console.log(
-      '================================>>>>>>>>>',
-      this.getState() === 'idle' && this.getSubState() == null && (!this.currentAnimation || this.currentAnimation.sessionMode === 'state-bound' || this.currentAnimation.trigger === 'idle')
-    );
-    console.log(this.getState(), this.getSubState(), this.currentAnimation?.animationId, this.currentAnimation?.trigger, this.currentAnimation?.sessionMode);
     return this.getState() === 'idle' && this.getSubState() == null && (!this.currentAnimation || this.currentAnimation.sessionMode === 'state-bound' || this.currentAnimation.trigger === 'idle');
   }
 
   /** 仅合成语音（不播放） */
   async synthesizeSpeech(text: string): Promise<SpeakResult> {
     return this.speakService.synthesize(text);
+  }
+
+  async startRealtimeSpeechSession(request: SpriteRealtimeSpeechSessionRequest, onEvent?: (event: SpriteRealtimeSpeechEvent) => void) {
+    return this.speakService.startRealtimeSession(request, onEvent);
+  }
+
+  async appendRealtimeSpeechText(sessionId: string, text: string): Promise<void> {
+    await this.speakService.appendRealtimeSpeechText(sessionId, text);
+  }
+
+  async flushRealtimeSpeech(sessionId: string): Promise<void> {
+    await this.speakService.flushRealtimeSpeech(sessionId);
+  }
+
+  async finishRealtimeSpeech(sessionId: string): Promise<void> {
+    await this.speakService.finishRealtimeSpeech(sessionId);
+  }
+
+  async cancelRealtimeSpeech(sessionId: string): Promise<void> {
+    await this.speakService.cancelRealtimeSpeech(sessionId);
   }
 
   /** 获取语音合成配置 */

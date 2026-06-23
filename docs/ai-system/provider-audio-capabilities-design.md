@@ -294,7 +294,19 @@ export type SpeechSynthesisResponse = {
 
 ```ts
 export type SpeechSynthesisStreamEvent =
-  | { type: 'started'; data: { requestId?: string; providerRequestId?: string; mode?: SpeechSynthesisMode; transport?: string } }
+  | {
+      type: 'started';
+      data: {
+        requestId?: string;
+        providerRequestId?: string;
+        mode?: SpeechSynthesisMode;
+        transport?: string;
+        format?: string;
+        sampleRate?: number;
+        channels?: number;
+        sampleFormat?: 's16le' | 'f32le' | string;
+      };
+    }
   | {
       type: 'audio_delta';
       data: {
@@ -302,6 +314,8 @@ export type SpeechSynthesisStreamEvent =
         format?: string;
         mimeType?: string;
         sampleRate?: number;
+        channels?: number;
+        sampleFormat?: 's16le' | 'f32le' | string;
         sequence?: number;
         isHeaderChunk?: boolean;
         encoding?: 'binary' | 'base64' | 'hex';
@@ -323,6 +337,8 @@ export type SpeechTextInputChunk =
 
 - `audio_delta` 是同一个播放队列和同一个输出文件的连续内容，不能每帧生成独立资源。
 - 对 wav/mp3 等带文件头的格式，需要保留 `isHeaderChunk`。
+- 面向实时播放器的 PCM 流必须声明 `format: 'pcm'`、`sampleRate`、`channels` 和 `sampleFormat`。默认推荐 `s16le`、mono、`32000Hz`。
+- Provider adapter 应尽量把 hex/base64 chunk 在 adapter 内归一为二进制 chunk；`encoding` 只作为调试或兼容信息，不应让业务播放器理解 provider 私有包格式。
 - Main process 负责边收边写，renderer 只接收播放所需的小块事件。
 - 取消请求必须关闭网络连接、文件句柄和 session。
 
@@ -521,14 +537,14 @@ Pi agent 工具：
 - `packages/sprite-core/speak`：精灵说话缓存、播放控制、talk 动画触发、气泡展示。
 - AI Provider TTS：底层合成引擎，由 `speechSynthesis` capability 提供。
 
-角色说话的具体接入方案单独维护在 [角色说话接入 AI Provider 语音合成规划](../sprite-core/sprite-speech-provider-integration-plan.md)。当前已完成第一阶段：设置页可选择 Edge / AI Provider，底层可调用 `complete`、HTTP 流式和 WebSocket 双向流并聚合为缓存文件播放；真正的边合成边播放仍作为后续阶段。
+角色说话的具体接入方案单独维护在 [角色说话接入 AI Provider 语音合成规划](../sprite-core/sprite-speech-provider-integration-plan.md)。当前已完成第一阶段：设置页可选择 Edge / AI Provider，底层可调用 `complete`、HTTP 流式和 WebSocket 双向流并聚合为缓存文件播放。AI 聊天 delta 驱动的边合成边播放使用独立开关和 PCM 播放器，实施计划见 [AI 对话实时语音合成与 PCM 播放实施计划](../sprite-core/sprite-realtime-chat-speech-plan.md)。
 
 迁移策略：
 
 1. 保留 Edge TTS，确保旧配置继续可用。
 2. `BatchTTSConfig` 增加 `providerId`、`providerPresetId`、`model`、`voiceId`。
 3. 字幕批量 TTS 默认使用 `mode: 'complete'`，保证 duration、缓存和重试稳定。
-4. 精灵实时说话后续可使用 `output-stream` 或 `duplex-stream`。
+4. 精灵普通说话继续以完整文件和缓存为中心；AI 聊天实时朗读后续使用 `duplex-stream` + PCM 播放器，默认关闭。
 
 ## 14. Usage 与资源化
 
@@ -577,6 +593,14 @@ Analytics 建议：
 - `packages/tts` 支持 AI Provider TTS。
 - `sprite-core/speak` 已支持 AI Provider TTS；配置、UI、缓存和播放策略见 [角色说话接入 AI Provider 语音合成规划](../sprite-core/sprite-speech-provider-integration-plan.md)。
 - 设置页从 Edge voice 列表扩展为 provider/model/voice。
+
+### Phase 4.5：AI 聊天实时朗读
+
+- `sprite-core/speak` 增加 `chatRealtimeSpeech` 配置，默认关闭。
+- 新增 sprite 实时语音 session API，封装 Provider `duplex-stream` 输入队列。
+- Renderer 增加 PCM streaming player，消费 `audio_delta`。
+- ChatPage 和 Resource AIChatSidebar 只把 assistant 正文 delta 送入 session。
+- thinking、tool call、tool result 不进入实时朗读。
 
 ### Phase 5：更多服务商
 
