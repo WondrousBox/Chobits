@@ -1,5 +1,5 @@
-import type { SpriteRealtimeSpeechHandle, SpriteRealtimeSpeechScope, SpriteSpeakChatRealtimeSpeechConfig } from '@packages/sprite-core/speak/types';
-import { useCallback, useEffect, useRef } from 'react';
+import type { SpriteRealtimeSpeechHandle, SpriteRealtimeSpeechScope, SpriteSpeakChatRealtimeSpeechConfig, SpriteSpeakConfig } from '@packages/sprite-core/speak/types';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { PcmStreamPlayer } from '@/lib/audio/pcm-stream-player';
 
@@ -27,6 +27,11 @@ function shouldFlush(buffer: string, config: SpriteSpeakChatRealtimeSpeechConfig
   return false;
 }
 
+function isRealtimeSpeechConfigEnabled(config: SpriteSpeakConfig, scope: SpriteRealtimeSpeechScope): boolean {
+  const realtimeConfig = config.chatRealtimeSpeech;
+  return Boolean(config.enabled && config.engine === 'ai-provider' && realtimeConfig.enabled && realtimeConfig.scopes[scope]);
+}
+
 export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
   const handleRef = useRef<SpriteRealtimeSpeechHandle | null>(null);
   const playerRef = useRef<PcmStreamPlayer | null>(null);
@@ -35,6 +40,7 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
   const flushTimerRef = useRef<number | null>(null);
   const startingRef = useRef<Promise<SpriteRealtimeSpeechHandle | null> | null>(null);
   const finishingRef = useRef(false);
+  const [isEnabled, setIsEnabled] = useState(false);
 
   const clearFlushTimer = useCallback(() => {
     if (flushTimerRef.current !== null) {
@@ -53,6 +59,20 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
       player.cancel();
     }
   }, []);
+
+  const refreshEnabled = useCallback(async (): Promise<boolean> => {
+    try {
+      const config = await window.YUA.sprite.getSpeakConfig();
+      configRef.current = config.chatRealtimeSpeech;
+      const enabled = isRealtimeSpeechConfigEnabled(config, scope);
+      setIsEnabled(enabled);
+      return enabled;
+    } catch (error) {
+      console.warn('[realtime-chat-speech] Failed to load config:', error);
+      setIsEnabled(false);
+      return false;
+    }
+  }, [scope]);
 
   const disposeHandle = useCallback(async (mode: 'finish' | 'cancel' = 'cancel') => {
     clearFlushTimer();
@@ -111,7 +131,9 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
         const config = await window.YUA.sprite.getSpeakConfig();
         const realtimeConfig = config.chatRealtimeSpeech;
         configRef.current = realtimeConfig;
-        if (!config.enabled || config.engine !== 'ai-provider' || !realtimeConfig.enabled || !realtimeConfig.scopes[scope]) {
+        const enabled = isRealtimeSpeechConfigEnabled(config, scope);
+        setIsEnabled(enabled);
+        if (!enabled) {
           return null;
         }
 
@@ -235,6 +257,10 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
   }, [disposeHandle]);
 
   useEffect(() => {
+    void refreshEnabled();
+  }, [refreshEnabled]);
+
+  useEffect(() => {
     return () => {
       void disposeHandle('cancel');
     };
@@ -243,6 +269,8 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
   return {
     appendDelta,
     cancel,
-    complete
+    complete,
+    isEnabled,
+    refreshEnabled
   };
 }

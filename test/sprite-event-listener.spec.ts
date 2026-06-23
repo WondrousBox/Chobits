@@ -123,6 +123,7 @@ function createManagerStub(): {
   emitPurposeEvent: ReturnType<typeof vi.fn>;
   startPurpose: ReturnType<typeof vi.fn>;
   getPurposeSnapshot: ReturnType<typeof vi.fn>;
+  isRealtimeSpeechEnabled: ReturnType<typeof vi.fn>;
 } {
   return {
     showToast: vi.fn(),
@@ -139,7 +140,8 @@ function createManagerStub(): {
     updateDimension: vi.fn(),
     emitPurposeEvent: vi.fn(() => ({ matched: 0 })),
     startPurpose: vi.fn(async () => ({ accepted: true, status: 'started' })),
-    getPurposeSnapshot: vi.fn(() => ({ current: null, routine: null, queue: [] }))
+    getPurposeSnapshot: vi.fn(() => ({ current: null, routine: null, queue: [] })),
+    isRealtimeSpeechEnabled: vi.fn(() => false)
   };
 }
 
@@ -206,6 +208,39 @@ describe('sprite event listener', () => {
     expect(mgr.addXP).not.toHaveBeenCalled();
     expect(mgr.changeFavor).not.toHaveBeenCalled();
     expect(mgr.updateDimension).not.toHaveBeenCalled();
+
+    cleanup();
+  });
+
+  it('suppresses AI event toast speech when chat realtime speech is enabled for the scope', () => {
+    const mgr = createManagerStub();
+    mgr.isRealtimeSpeechEnabled.mockReturnValue(true);
+    const cleanup = initSpriteEventListener(mgr as any);
+
+    eventHarness.emit(AppEvent.SPRITE_AI_START, {
+      message: '思考中...',
+      spriteRealtimeSpeechScope: 'mainChat'
+    });
+    eventHarness.emit(AppEvent.SPRITE_AI_COMPLETE, {
+      message: '完成啦',
+      spriteRealtimeSpeechScope: 'mainChat'
+    });
+    eventHarness.emit(AppEvent.SPRITE_AI_ERROR, {
+      error: '失败了',
+      spriteRealtimeSpeechScope: 'mainChat'
+    });
+
+    expect(mgr.isRealtimeSpeechEnabled).toHaveBeenCalledWith({ source: 'chat', scope: 'mainChat' });
+    expect(mgr.showToast.mock.calls).toEqual([
+      ['思考中...', { category: 'loading', speak: false }],
+      ['完成啦', { category: 'success', duration: 1500, speak: false }],
+      ['失败了', { category: 'error', duration: 2000, speak: false }]
+    ]);
+    expect(mgr.trigger.mock.calls).toEqual([
+      ['thinking', { durationMs: 2000, silent: true }],
+      ['celebrate', { durationMs: 1500, silent: true }],
+      ['error', { durationMs: 1500, silent: true }]
+    ]);
 
     cleanup();
   });

@@ -57,7 +57,7 @@ import {
   type StartSpritePurposeRequest
 } from '../purpose';
 import { SpeakService } from '../speak/speak-service';
-import type { SpeakResult, SpriteRealtimeSpeechEvent, SpriteRealtimeSpeechSessionRequest, SpriteSpeakConfig, SpriteSpeakPayload, SpriteSpeakPlaybackContext } from '../speak/types';
+import type { SpeakResult, SpriteRealtimeSpeechAvailabilityRequest, SpriteRealtimeSpeechEvent, SpriteRealtimeSpeechSessionRequest, SpriteSpeakConfig, SpriteSpeakPayload, SpriteSpeakPlaybackContext } from '../speak/types';
 import type { SpriteReactionState, SpriteState } from '../state-machine';
 import { SpriteStateMachine } from '../state-machine';
 import {
@@ -1309,6 +1309,10 @@ export class SpriteManager {
 
   async startRealtimeSpeechSession(request: SpriteRealtimeSpeechSessionRequest, onEvent?: (event: SpriteRealtimeSpeechEvent) => void) {
     return this.speakService.startRealtimeSession(request, onEvent);
+  }
+
+  isRealtimeSpeechEnabled(request: SpriteRealtimeSpeechAvailabilityRequest): boolean {
+    return this.speakService.isRealtimeSpeechEnabled(request);
   }
 
   async appendRealtimeSpeechText(sessionId: string, text: string): Promise<void> {

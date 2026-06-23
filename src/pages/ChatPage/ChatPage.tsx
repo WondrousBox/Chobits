@@ -462,6 +462,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     setLoading(true);
     // User sent a message → force auto-scroll to bottom
     resetAutoScroll();
+    const suppressAuxiliarySpeech = await realtimeSpeech.refreshEnabled();
 
     // 2) 构造上下文（包含历史消息 + 新用户消息）
     const history = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content, createdAt: m.createdAt }));
@@ -476,6 +477,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
         stream: true,
         extras: {
           model: selectedModelId,
+          spriteRealtimeSpeechScope: 'mainChat',
           ...(explicitSkillInvocation ? { explicitSkillInvocation } : {}),
           ...(params.webSearchEnabled ? { webSearchEnabled: true } : {}),
           ...(params.characterPersonaEnabled ? { characterPersonaEnabled: true } : {}),
@@ -519,7 +521,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
           });
         }
         if (ev?.type === 'tool_result' && ev.data) {
-          speakToolResultSpeech(ev.data);
+          speakToolResultSpeech(ev.data, { suppress: suppressAuxiliarySpeech });
           setMessages((prev) => {
             const idx = assistantIndexRef.current;
             if (idx < 0 || idx >= prev.length) return prev;

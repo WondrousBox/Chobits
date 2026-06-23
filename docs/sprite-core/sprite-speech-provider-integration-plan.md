@@ -320,6 +320,7 @@ durationMs?: number;
 - MiniMax 第一版优先使用 `mode: 'duplex-stream'`、`transportPreference: 'websocket'`、`audioSetting.format: 'pcm'`。
 - 渲染进程已新增 PCM 播放器，消费连续 `audio_delta`，不等待完整文件。
 - talk 动画在第一段有效 PCM 音频到达后触发。
+- 聊天实时朗读开启时只播放 assistant 正文 delta；AI 开始/结束/错误提示、工具结果 `speech`、表情包发送结果等辅助说话会跳过普通 `sprite.speak()`，关闭实时朗读后恢复原行为。
 - 聊天实时朗读第一版默认不写 speak cache，避免每条对话回复落盘；普通 `sprite.speak()` 缓存策略不变。
 
 第三阶段 HTTP output-stream 边播：

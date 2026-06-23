@@ -260,6 +260,11 @@ export interface SpriteRealtimeSpeechSessionRequest {
   scope: SpriteRealtimeSpeechScope;
 }
 
+export interface SpriteRealtimeSpeechAvailabilityRequest {
+  source: SpriteRealtimeSpeechSource;
+  scope?: SpriteRealtimeSpeechScope;
+}
+
 export interface SpriteRealtimeSpeechSessionStartResult {
   sessionId: string;
   eventsChannel: string;

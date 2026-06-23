@@ -12,6 +12,7 @@ import type { SpriteManager } from '../manager';
 import { ProgressSpeechAnnouncer, type ProgressSpeechKind } from '../manager/progress-speech-announcer';
 import { getCharacterRoutineText, getCharacterSpriteEventText } from '../messages/character';
 import { getResolvedActivityPersonaReward } from '../persona-rules';
+import type { SpriteRealtimeSpeechScope } from '../speak/types';
 
 export interface SpriteEventPayload {
   runId?: string;
@@ -37,6 +38,7 @@ export interface SpriteEventPayload {
   messageCount?: number;
   toolCallCount?: number;
   assistantContentLength?: number;
+  spriteRealtimeSpeechScope?: SpriteRealtimeSpeechScope;
 }
 
 interface SpriteHandlerContext {
@@ -117,6 +119,14 @@ function isMiniMaxChatApiConfigSave(data?: SpriteEventPayload): boolean {
 
 function getMiniMaxChatApiConfigEasterEggText(): string {
   return getCharacterRoutineText('chat.api-config-guide.done.minimax', { providerId: 'minimax' }, 'MiniMax 还可以制作音乐，以后可以和我说哦');
+}
+
+function shouldSuppressAiEventSpeech(mgr: SpriteManager, data?: SpriteEventPayload): boolean {
+  const scope = data?.spriteRealtimeSpeechScope;
+  if (!scope) {
+    return false;
+  }
+  return mgr.isRealtimeSpeechEnabled({ source: 'chat', scope });
 }
 
 function getActiveWorkflowWaitingRunId(mgr: SpriteManager): string | undefined {
@@ -224,7 +234,8 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
   handlers.push({
     event: AppEvent.SPRITE_AI_START,
     handler: (data) => {
-      mgr.showToast(data?.message || eventText('aiThinking', data), { category: 'loading' });
+      const suppressSpeech = shouldSuppressAiEventSpeech(mgr, data);
+      mgr.showToast(data?.message || eventText('aiThinking', data), { category: 'loading', ...(suppressSpeech ? { speak: false } : {}) });
       mgr.trigger('thinking', { durationMs: 2000, silent: true });
     }
   });
@@ -232,7 +243,8 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
   handlers.push({
     event: AppEvent.SPRITE_AI_COMPLETE,
     handler: (data) => {
-      mgr.showToast(data?.message || eventText('aiComplete', data), { category: 'success', duration: 1500 });
+      const suppressSpeech = shouldSuppressAiEventSpeech(mgr, data);
+      mgr.showToast(data?.message || eventText('aiComplete', data), { category: 'success', duration: 1500, ...(suppressSpeech ? { speak: false } : {}) });
       mgr.trigger('celebrate', { durationMs: 1500, silent: true });
       mgr.recordConversationEvent({
         assistantContentLength: data?.assistantContentLength,
@@ -244,7 +256,8 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
   handlers.push({
     event: AppEvent.SPRITE_AI_ERROR,
     handler: (data) => {
-      mgr.showToast(data?.message || data?.error || eventText('aiError', data), { category: 'error', duration: 2000 });
+      const suppressSpeech = shouldSuppressAiEventSpeech(mgr, data);
+      mgr.showToast(data?.message || data?.error || eventText('aiError', data), { category: 'error', duration: 2000, ...(suppressSpeech ? { speak: false } : {}) });
       mgr.trigger('error', { durationMs: 1500, silent: true });
     }
   });

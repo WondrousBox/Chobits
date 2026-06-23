@@ -61,6 +61,11 @@ function toThinkingBlocks(thinking: string): ThinkingMetadataBlock[] | undefined
   return [{ type: 'thinking', thinking }];
 }
 
+function getSpriteRealtimeSpeechScope(req: ChatRequest): 'mainChat' | 'resourceChatSidebar' | undefined {
+  const scope = req.extras?.spriteRealtimeSpeechScope;
+  return scope === 'mainChat' || scope === 'resourceChatSidebar' ? scope : undefined;
+}
+
 function appendTextDisplayPart(parts: ChatMessageDisplayPart[], text: string): void {
   const last = parts[parts.length - 1];
   if (last?.type === 'text') {
@@ -473,7 +478,11 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
     const displayParts: ChatMessageDisplayPart[] = [];
     const inlineThinkingParser = shouldNormalizeInlineThinkingTags(preview.resolved.model.canonicalProviderId) ? createThinkingTagStreamParser() : undefined;
 
-    eventManager.emit(AppEvent.SPRITE_AI_START, { message: '思考中...' });
+    const spriteRealtimeSpeechScope = getSpriteRealtimeSpeechScope(req);
+    eventManager.emit(AppEvent.SPRITE_AI_START, {
+      message: '思考中...',
+      ...(spriteRealtimeSpeechScope ? { spriteRealtimeSpeechScope } : {})
+    });
 
     try {
       await this.piSessionService.chatStream(
@@ -652,7 +661,10 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
     }
 
     if (errorMessage) {
-      eventManager.emit(AppEvent.SPRITE_AI_ERROR, { message: errorMessage });
+      eventManager.emit(AppEvent.SPRITE_AI_ERROR, {
+        message: errorMessage,
+        ...(spriteRealtimeSpeechScope ? { spriteRealtimeSpeechScope } : {})
+      });
     } else {
       const resourceContextIds = extractResourceContextIds(req, streamMessages, collectedToolCalls);
       eventManager.emit(AppEvent.SPRITE_AI_COMPLETE, {
@@ -661,7 +673,8 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
         toolCallCount: collectedToolCalls.length,
         assistantContentLength: fullText.length,
         hasResourceContext: resourceContextIds.length > 0,
-        resourceIds: resourceContextIds
+        resourceIds: resourceContextIds,
+        ...(spriteRealtimeSpeechScope ? { spriteRealtimeSpeechScope } : {})
       });
 
       if (conv?.id) {

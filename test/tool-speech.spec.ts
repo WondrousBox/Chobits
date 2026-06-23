@@ -109,4 +109,33 @@ describe('tool speech metadata', () => {
       showBubble: false
     });
   });
+
+  it('skips renderer tool result speech when auxiliary speech is suppressed', async () => {
+    const speak = vi.fn(async () => ({ success: true }));
+    (globalThis as any).window = {
+      YUA: {
+        sprite: {
+          speak
+        }
+      }
+    };
+    const { speakToolResultSpeech } = await import('../src/lib/tool-speech');
+
+    speakToolResultSpeech(
+      {
+        result: createJsonToolResult(
+          { success: true },
+          {
+            speech: {
+              showBubble: false,
+              text: '发送表情'
+            }
+          }
+        )
+      },
+      { suppress: true }
+    );
+
+    expect(speak).not.toHaveBeenCalled();
+  });
 });

@@ -70,6 +70,7 @@ export type ChatRequestExtras = Record<string, any> & {
   explicitSkillInvocation?: ExplicitSkillInvocationInput;
   emojiPacksEnabled?: boolean;
   emojiPacksDisplayTarget?: EmojiPacksDisplayTarget;
+  spriteRealtimeSpeechScope?: 'mainChat' | 'resourceChatSidebar';
 };
 
 export type EmojiPacksDisplayTarget = 'chat' | 'sprite-bubble';
