@@ -83,6 +83,7 @@ export class PcmStreamPlayer {
   private nextStartTime = 0;
   private sources = new Set<AudioBufferSourceNode>();
   private started = false;
+  private endTimer: number | null = null;
   private options: Required<Pick<PcmStreamPlayerOptions, 'sampleRate' | 'channels' | 'sampleFormat' | 'volume' | 'startBufferMs' | 'fadeInMs' | 'fadeOutMs'>>;
 
   constructor(options: PcmStreamPlayerOptions) {
@@ -95,6 +96,13 @@ export class PcmStreamPlayer {
       fadeInMs: options.fadeInMs ?? 12,
       fadeOutMs: options.fadeOutMs ?? 32
     };
+  }
+
+  private clearEndTimer(): void {
+    if (this.endTimer !== null) {
+      window.clearTimeout(this.endTimer);
+      this.endTimer = null;
+    }
   }
 
   async start(): Promise<void> {
@@ -112,6 +120,21 @@ export class PcmStreamPlayer {
     }
     this.nextStartTime = this.context.currentTime + this.options.startBufferMs / 1000;
     this.started = true;
+  }
+
+  async pause(): Promise<void> {
+    if (!this.context || !this.started || this.context.state !== 'running') return;
+    await this.context.suspend().catch(() => undefined);
+  }
+
+  async resume(): Promise<void> {
+    if (!this.context) {
+      await this.start();
+      return;
+    }
+    if (this.context.state === 'suspended') {
+      await this.context.resume().catch(() => undefined);
+    }
   }
 
   append(chunk: ArrayBuffer | Uint8Array | Buffer): void {
@@ -153,11 +176,13 @@ export class PcmStreamPlayer {
     return Math.max(0, this.nextStartTime - this.context.currentTime) * 1000;
   }
 
-  end(): void {
+  end(onEnded?: () => void): void {
+    this.clearEndTimer();
     const context = this.context;
     const gain = this.gain;
     if (!context || !gain) {
       this.cancel();
+      onEnded?.();
       return;
     }
     const stopAt = Math.max(context.currentTime, this.nextStartTime);
@@ -165,10 +190,18 @@ export class PcmStreamPlayer {
     if (fadeOutSeconds > 0) {
       gain.gain.setTargetAtTime(0, Math.max(context.currentTime, stopAt - fadeOutSeconds), fadeOutSeconds / 4);
     }
-    window.setTimeout(() => this.cancel(), Math.max(0, (stopAt - context.currentTime + fadeOutSeconds) * 1000 + 50));
+    this.endTimer = window.setTimeout(() => {
+      this.cancel();
+      onEnded?.();
+    }, Math.max(0, (stopAt - context.currentTime + fadeOutSeconds) * 1000 + 50));
+  }
+
+  stop(): void {
+    this.cancel();
   }
 
   cancel(): void {
+    this.clearEndTimer();
     for (const source of this.sources) {
       try {
         source.stop();

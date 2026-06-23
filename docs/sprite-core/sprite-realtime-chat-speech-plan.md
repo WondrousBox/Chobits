@@ -340,8 +340,11 @@ src/lib/audio/pcm-stream-worklet.ts
 播放器职责：
 
 - `start({ sampleRate, channels, sampleFormat, volume })`
+- `pause()`
+- `resume()`
 - `append(chunk)`
 - `end()`
+- `stop()`
 - `cancel()`
 - `setVolume(volume)`
 - `getBufferedMs()`
@@ -355,7 +358,9 @@ src/lib/audio/pcm-stream-worklet.ts
 - 如果 `audioContext.sampleRate !== pcm.sampleRate`，第一版用线性插值重采样。
 - `startBufferMs` 达到后开始播放，减少开头卡顿。
 - buffer underrun 时短暂补静音，不阻塞 TTS 接收。
-- `cancel()` 立即停止并清空队列；`end()` 播完剩余 buffer 后淡出。
+- `pause()` 暂停当前 `AudioContext`，保留已排程 PCM；`resume()` 继续播放。
+- `stop()` / `cancel()` 立即停止并清空队列；`end()` 播完剩余 buffer 后淡出。
+- 新一轮聊天发送前必须主动 `stop()` 当前实时朗读，避免上一轮尚未播完的 PCM 队列继续出声。
 
 播放器不负责：
 
@@ -413,6 +418,7 @@ src/lib/audio/pcm-stream-worklet.ts
 - [x] 新增 `PcmStreamPlayer`。
 - [x] 支持 `s16le` mono PCM。
 - [x] 支持 start buffer、取消、自然结束。
+- [x] 支持暂停、恢复、强制停止，并在新一轮聊天发送前清空旧 PCM 队列。
 - [x] 支持 sample rate 不一致时的基础重采样。
 - [x] 播放器事件接入 talk 动画时机。
 
@@ -442,6 +448,7 @@ src/lib/audio/pcm-stream-worklet.ts
 - `thinking_delta` 不被朗读。
 - 开启实时朗读时，AI 开始/结束/错误提示、工具结果 `speech`、表情包发送结果不会触发普通 `sprite.speak()`；关闭实时朗读后这些入口保持原行为。
 - 停止生成、页面卸载、会话切换会取消 TTS session 和 PCM 播放器。
+- AI 回复尚未播完时发起下一轮提问，会先停止上一轮实时朗读和已排程 PCM，再开始新的实时会话。
 - Provider 未配置或模型不支持时，设置页禁用开关，聊天页不会静默消耗额度。
 - 普通 `sprite.speak()` 的缓存和播放行为不受影响。
 - TypeScript 通过，覆盖配置迁移、开关默认关闭、文本分片、session 取消和 PCM 解码单测。

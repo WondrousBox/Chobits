@@ -64,6 +64,7 @@ async function resolveInitialChatModelId(providerId: string, presetId?: string):
 export default function ChatPage({ hideTitleBar = false, presentation = 'standard', payloadWindowKey = 'chat' }: ChatPageProps): JSX.Element {
   const isOverlay = presentation === 'overlay';
   const realtimeSpeech = useRealtimeChatSpeech('mainChat');
+  const stopRealtimeSpeech = realtimeSpeech.stop;
   const {
     providerId,
     modelId,
@@ -213,11 +214,12 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
 
   // Start a brand new conversation (reset state)
   const newConversation = useCallback((): void => {
+    void stopRealtimeSpeech();
     setSelectedConvId(null);
     setConversationId(undefined);
     setPendingConversationTitle(null);
     setMessages([]);
-  }, []);
+  }, [stopRealtimeSpeech]);
 
   // Open rename dialog
   const openRenameDialog = (id: string): void => {
@@ -426,6 +428,8 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     const explicitSkillInvocation = buildExplicitSkillInvocationInput(selectedAgentId, content);
 
     if (!content.trim() || !selectedProviderId) return;
+
+    await stopRealtimeSpeech();
 
     const placeholderTitle = !conversationId ? buildConversationPlaceholderTitle(content) : '';
 

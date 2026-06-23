@@ -75,6 +75,7 @@ const STORAGE_KEYS = {
 
 const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) => {
   const realtimeSpeech = useRealtimeChatSpeech('resourceChatSidebar');
+  const stopRealtimeSpeech = realtimeSpeech.stop;
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -214,6 +215,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
   };
 
   const newConversation = (): void => {
+    void stopRealtimeSpeech();
     setConversationId(undefined);
     setMessages([]);
     setShowHistory(false);
@@ -286,6 +288,8 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
       toast.error('代码助手需要先选择项目目录');
       return;
     }
+
+    await stopRealtimeSpeech();
 
     const resolvedSelection = await resolveModelFirstSelection({
       providerId,

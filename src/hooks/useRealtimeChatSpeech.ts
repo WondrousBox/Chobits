@@ -51,11 +51,15 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
 
   const stopPlayer = useCallback((mode: 'end' | 'cancel' = 'cancel') => {
     const player = playerRef.current;
-    playerRef.current = null;
     if (!player) return;
     if (mode === 'end') {
-      player.end();
+      player.end(() => {
+        if (playerRef.current === player) {
+          playerRef.current = null;
+        }
+      });
     } else {
+      playerRef.current = null;
       player.cancel();
     }
   }, []);
@@ -256,6 +260,18 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
     await disposeHandle('cancel');
   }, [disposeHandle]);
 
+  const pause = useCallback(async () => {
+    await playerRef.current?.pause();
+  }, []);
+
+  const resume = useCallback(async () => {
+    await playerRef.current?.resume();
+  }, []);
+
+  const stop = useCallback(async () => {
+    await disposeHandle('cancel');
+  }, [disposeHandle]);
+
   useEffect(() => {
     void refreshEnabled();
   }, [refreshEnabled]);
@@ -271,6 +287,9 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
     cancel,
     complete,
     isEnabled,
-    refreshEnabled
+    pause,
+    refreshEnabled,
+    resume,
+    stop
   };
 }
