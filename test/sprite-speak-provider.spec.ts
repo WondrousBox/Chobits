@@ -59,6 +59,20 @@ describe('Sprite speak AI Provider config', () => {
       voiceId: 'female-shaonv',
       mode: 'complete'
     });
+    expect(config.chatRealtimeSpeech).toMatchObject({
+      enabled: false,
+      mode: 'duplex-stream',
+      transportPreference: 'websocket',
+      audioSetting: {
+        format: 'pcm',
+        sampleRate: 32000,
+        channels: 1
+      },
+      scopes: {
+        mainChat: true,
+        resourceChatSidebar: true
+      }
+    });
   });
 
   it('keeps legacy Edge cache ids unchanged', () => {
@@ -223,5 +237,89 @@ describe('Sprite speak AI Provider synthesis', () => {
       expect.any(Object)
     );
     expect(readFileSync(result.audioPath!, 'utf8')).toBe(JSON.stringify([{ type: 'text', text: '流式你好' }, { type: 'close' }]));
+  });
+
+  it('streams realtime chat speech only when explicitly enabled', async () => {
+    const dataDir = makeTempDir();
+    let releaseStream: (() => void) | undefined;
+    const stream = vi.fn<NonNullable<SpriteSpeechSynthesisExecutor['stream']>>(async (request, onEvent, input) => {
+      const chunks: unknown[] = [];
+      const reader = (async () => {
+        for await (const chunk of input || []) {
+          chunks.push(chunk);
+          if (chunk.type === 'text') {
+            onEvent({
+              type: 'audio_delta',
+              data: {
+                chunk: Buffer.from([1, 2, 3, 4]),
+                format: 'pcm',
+                sampleRate: request.audioSetting?.sampleRate,
+                channels: request.audioSetting?.channels,
+                sampleFormat: 's16le'
+              }
+            });
+          }
+        }
+      })();
+      await new Promise<void>((resolve) => {
+        releaseStream = resolve;
+      });
+      await reader;
+      return {
+        artifacts: [{ audioBase64: audioBase64(JSON.stringify(chunks)), format: 'pcm', mimeType: 'audio/pcm' }],
+        model: request.model,
+        providerId: request.providerId,
+        voiceId: request.voiceId
+      };
+    });
+    const service = new SpeakService(dataDir, {
+      synthesize: vi.fn<SpriteSpeechSynthesisExecutor['synthesize']>(),
+      stream
+    });
+
+    service.setConfig({
+      engine: 'ai-provider',
+      aiProvider: {
+        providerId: 'minimax',
+        model: 'speech-2.8-turbo',
+        voiceId: 'female-shaonv',
+        mode: 'complete',
+        audioSetting: { format: 'mp3' }
+      }
+    });
+
+    await expect(service.startRealtimeSession({ source: 'chat', scope: 'mainChat' })).rejects.toThrow('disabled');
+
+    service.setConfig({
+      chatRealtimeSpeech: {
+        ...service.getConfig().chatRealtimeSpeech,
+        enabled: true
+      }
+    });
+
+    const events: unknown[] = [];
+    const session = await service.startRealtimeSession({ source: 'chat', scope: 'mainChat' }, (event) => events.push(event));
+    await session.appendText('你好');
+    await session.flush();
+    await session.finish();
+    releaseStream?.();
+
+    await vi.waitFor(() => {
+      expect(stream).toHaveBeenCalledTimes(1);
+      expect(events).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'audio_delta' })]));
+    });
+
+    expect(stream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        audioSetting: expect.objectContaining({ format: 'pcm', sampleRate: 32000, channels: 1 }),
+        mode: 'duplex-stream',
+        providerId: 'minimax',
+        transportPreference: 'websocket',
+        voiceId: 'female-shaonv'
+      }),
+      expect.any(Function),
+      expect.any(Object),
+      expect.any(AbortSignal)
+    );
   });
 });

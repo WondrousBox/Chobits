@@ -28,6 +28,7 @@ import {
 import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useRealtimeChatSpeech } from '@/hooks/useRealtimeChatSpeech';
 import { resolveModelFirstSelection } from '@/lib/ai-model-first';
 import { ensureChatApiConfigGoal, guideChatApiConfigIfNeeded } from '@/lib/chat-api-config-guide';
 import { buildExplicitSkillInvocationInput } from '@/lib/chat-explicit-skill-invocation';
@@ -73,6 +74,7 @@ const STORAGE_KEYS = {
 };
 
 const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) => {
+  const realtimeSpeech = useRealtimeChatSpeech('resourceChatSidebar');
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -413,6 +415,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
 
           if (event?.type === 'delta' && event.data?.text) {
             const delta = String(event.data.text);
+            realtimeSpeech.appendDelta(delta);
             setMessages((prev) => {
               const idx = assistantIndexRef.current;
               if (idx < 0 || idx >= prev.length) return prev;
@@ -442,6 +445,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
               return copy;
             });
             setLoading(false);
+            void realtimeSpeech.complete();
           }
 
           if (event?.type === 'message_completed') {
@@ -452,6 +456,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
           }
 
           if (event?.type === 'error') {
+            void realtimeSpeech.cancel();
             setMessages((prev) => {
               const idx = assistantIndexRef.current;
               if (idx < 0 || idx >= prev.length) return prev;
@@ -463,12 +468,16 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
             });
             setLoading(false);
           }
+          if (event?.type === 'done') {
+            void realtimeSpeech.complete();
+          }
         }
       );
 
       disposerRef.current = disposer;
     } catch (error) {
       console.error('Failed to send sidebar chat message:', error);
+      void realtimeSpeech.cancel();
       setLoading(false);
       toast.error('发送消息失败');
     }
@@ -513,6 +522,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
     }
 
     disposerRef.current?.dispose?.();
+    await realtimeSpeech.cancel();
     setLoading(false);
   };
 

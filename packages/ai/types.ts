@@ -329,7 +329,19 @@ export type SpeechSynthesisResponse = {
   rawResponse?: unknown;
 };
 export type SpeechSynthesisStreamEvent =
-  | { type: 'started'; data: { requestId?: string; providerRequestId?: string; mode?: SpeechSynthesisMode; transport?: string } }
+  | {
+      type: 'started';
+      data: {
+        requestId?: string;
+        providerRequestId?: string;
+        mode?: SpeechSynthesisMode;
+        transport?: string;
+        format?: string;
+        sampleRate?: number;
+        channels?: number;
+        sampleFormat?: 's16le' | 'f32le' | string;
+      };
+    }
   | {
       type: 'audio_delta';
       data: {
@@ -337,6 +349,8 @@ export type SpeechSynthesisStreamEvent =
         format?: string;
         mimeType?: string;
         sampleRate?: number;
+        channels?: number;
+        sampleFormat?: 's16le' | 'f32le' | string;
         sequence?: number;
         isHeaderChunk?: boolean;
         encoding?: 'binary' | 'base64' | 'hex';

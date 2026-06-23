@@ -22,7 +22,7 @@ import type {
   SpritePurposeStartResult,
   StartSpritePurposeRequest
 } from '../purpose';
-import type { SpeakResult, SpriteSpeakConfig } from '../speak/types';
+import type { SpeakResult, SpriteRealtimeSpeechEvent, SpriteRealtimeSpeechHandle, SpriteRealtimeSpeechSessionRequest, SpriteRealtimeSpeechSessionStartResult, SpriteSpeakConfig } from '../speak/types';
 import type {
   MessageBridgePayload,
   MessageIPCPayload,
@@ -137,6 +137,7 @@ export type SpriteBridgeType = {
   speak(text: string, options?: { showBubble?: boolean; bubbleDuration?: number }): Promise<SpeakResult>;
   synthesizeSpeech(text: string): Promise<SpeakResult>;
   getSpeakConfig(): Promise<SpriteSpeakConfig>;
+  startRealtimeSpeechSession(request: SpriteRealtimeSpeechSessionRequest): Promise<SpriteRealtimeSpeechHandle>;
 
   // 统一事件触发
   trigger(trigger: SpriteAnimationTrigger, options?: SpriteTriggerOptions): Promise<void>;
@@ -241,6 +242,60 @@ export const spriteBridge: SpriteBridgeType = {
   speak: (text, options) => ipcRenderer.invoke('sprite:speak', { text, showBubble: options?.showBubble, bubbleDuration: options?.bubbleDuration }),
   synthesizeSpeech: (text) => ipcRenderer.invoke('sprite:speak:synthesize', { text }),
   getSpeakConfig: () => ipcRenderer.invoke('sprite:speak:getConfig'),
+  startRealtimeSpeechSession: async (request) => {
+    const res = (await ipcRenderer.invoke('sprite:speak:realtime:start', request)) as SpriteRealtimeSpeechSessionStartResult;
+    const listeners = new Set<(event: SpriteRealtimeSpeechEvent) => void>();
+    const handler = (_event: any, data: SpriteRealtimeSpeechEvent): void => {
+      listeners.forEach((cb) => {
+        try {
+          cb(data);
+        } catch {
+          //
+        }
+      });
+      if (data.type === 'done' || data.type === 'error') {
+        cleanup();
+      }
+    };
+    ipcRenderer.on(res.eventsChannel, handler);
+
+    const cleanup = (): void => {
+      try {
+        ipcRenderer.off(res.eventsChannel, handler);
+      } catch {
+        //
+      }
+      listeners.clear();
+    };
+
+    const api: SpriteRealtimeSpeechHandle = {
+      sessionId: res.sessionId,
+      appendText: async (text) => {
+        await ipcRenderer.invoke('sprite:speak:realtime:appendText', { sessionId: res.sessionId, text });
+      },
+      flush: async () => {
+        await ipcRenderer.invoke('sprite:speak:realtime:flush', { sessionId: res.sessionId });
+      },
+      finish: async () => {
+        await ipcRenderer.invoke('sprite:speak:realtime:finish', { sessionId: res.sessionId });
+      },
+      cancel: async () => {
+        await ipcRenderer.invoke('sprite:speak:realtime:cancel', { sessionId: res.sessionId });
+      },
+      on: (cb) => {
+        listeners.add(cb);
+        return () => {
+          listeners.delete(cb);
+        };
+      },
+      off: (cb) => {
+        listeners.delete(cb);
+      },
+      dispose: cleanup
+    };
+
+    return api;
+  },
   setSpeakConfig: (config) => ipcRenderer.invoke('sprite:speak:setConfig', config),
   resetSpeakConfig: () => ipcRenderer.invoke('sprite:speak:resetConfig'),
   getSpeakCacheStats: () => ipcRenderer.invoke('sprite:speak:getCacheStats'),

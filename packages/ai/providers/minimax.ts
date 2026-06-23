@@ -636,7 +636,11 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
     onEvent({
       type: 'started',
       data: {
+        channels: toFiniteNumber(audioSetting.channel),
+        format: normalizeFormat(audioSetting.format),
         mode,
+        sampleFormat: normalizeFormat(audioSetting.format) === 'pcm' ? 's16le' : undefined,
+        sampleRate: toFiniteNumber(audioSetting.sample_rate),
         transport: 'http-stream'
       }
     });
@@ -682,6 +686,8 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
               format: normalizeFormat(audioSetting.format),
               mimeType: formatToMimeType(audioSetting.format),
               sampleRate: toFiniteNumber(audioSetting.sample_rate),
+              channels: toFiniteNumber(audioSetting.channel),
+              sampleFormat: normalizeFormat(audioSetting.format) === 'pcm' ? 's16le' : undefined,
               sequence
             }
           });
@@ -807,6 +813,8 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
               format: normalizeFormat(audioSetting.format),
               mimeType: formatToMimeType(audioSetting.format),
               sampleRate: toFiniteNumber(audioSetting.sample_rate),
+              channels: toFiniteNumber(audioSetting.channel),
+              sampleFormat: normalizeFormat(audioSetting.format) === 'pcm' ? 's16le' : undefined,
               sequence
             }
           });
@@ -838,7 +846,11 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
       onEvent({
         type: 'started',
         data: {
+          channels: toFiniteNumber(audioSetting.channel),
+          format: normalizeFormat(audioSetting.format),
           mode: 'duplex-stream',
+          sampleFormat: normalizeFormat(audioSetting.format) === 'pcm' ? 's16le' : undefined,
+          sampleRate: toFiniteNumber(audioSetting.sample_rate),
           transport: 'websocket'
         }
       });

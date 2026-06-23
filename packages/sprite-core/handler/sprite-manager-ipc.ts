@@ -32,6 +32,8 @@
  *   sprite:busy:clear       — 清除忙碌
  */
 
+import { randomUUID } from 'node:crypto';
+
 import { app, BrowserWindow, ipcMain, screen } from 'electron';
 
 import { getDailyCareService } from '../../../electron/main/daily';
@@ -81,7 +83,7 @@ import type { SpritePurposeRoutinePlanner, SpritePurposeWindowAdapter, SpriteSpo
 import { SpriteManager } from '../manager';
 import { getPersonaRuleDimensionSchema } from '../persona-rules';
 import type { SpritePurposeHistoryQuery, SpritePurposeRetrospectiveQuery, SpritePurposeRuntimeEventInput, StartSpritePurposeRequest } from '../purpose';
-import type { SpeakRequest, SpriteSpeakConfig, SpriteSpeechSynthesisExecutor } from '../speak/types';
+import type { SpeakRequest, SpriteRealtimeSpeechSessionRequest, SpriteSpeakConfig, SpriteSpeechSynthesisExecutor } from '../speak/types';
 import type {
   SpriteAnimationPlaylistMode,
   SpriteAnimationTrigger,
@@ -1368,6 +1370,46 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   ipcMain.handle('sprite:speak:clearCache', async () => {
     await mgr.clearSpeakCache();
     return { success: true };
+  });
+
+  ipcMain.handle('sprite:speak:realtime:start', async (event, p: SpriteRealtimeSpeechSessionRequest) => {
+    let eventsChannel = '';
+    const session = await mgr.startRealtimeSpeechSession(p, (streamEvent) => {
+      if (!eventsChannel) return;
+      try {
+        if (!event.sender.isDestroyed()) {
+          event.sender.send(eventsChannel, streamEvent);
+        }
+      } catch {
+        // The requesting chat window may already be closed.
+      }
+    });
+    eventsChannel = `sprite:speak:realtime:${session.sessionId}:${randomUUID()}`;
+    return {
+      enabled: true,
+      eventsChannel,
+      sessionId: session.sessionId
+    };
+  });
+
+  ipcMain.handle('sprite:speak:realtime:appendText', async (_event, p: { sessionId: string; text: string }) => {
+    await mgr.appendRealtimeSpeechText(String(p.sessionId || ''), String(p.text || ''));
+    return { ok: true };
+  });
+
+  ipcMain.handle('sprite:speak:realtime:flush', async (_event, p: { sessionId: string }) => {
+    await mgr.flushRealtimeSpeech(String(p.sessionId || ''));
+    return { ok: true };
+  });
+
+  ipcMain.handle('sprite:speak:realtime:finish', async (_event, p: { sessionId: string }) => {
+    await mgr.finishRealtimeSpeech(String(p.sessionId || ''));
+    return { ok: true };
+  });
+
+  ipcMain.handle('sprite:speak:realtime:cancel', async (_event, p: { sessionId: string }) => {
+    await mgr.cancelRealtimeSpeech(String(p.sessionId || ''));
+    return { ok: true };
   });
 
   // ===== 统一事件触发 =====

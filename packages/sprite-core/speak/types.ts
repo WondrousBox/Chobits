@@ -9,6 +9,9 @@ export type SpriteSpeakEngine = 'edge' | 'ai-provider';
 
 export type SpriteSpeakMode = Extract<NonNullable<SpeechSynthesisRequest['mode']>, 'complete' | 'output-stream' | 'duplex-stream'>;
 export type SpriteSpeakTransportPreference = Extract<NonNullable<SpeechSynthesisRequest['transportPreference']>, 'auto' | 'http' | 'http-stream' | 'websocket'>;
+export type SpriteRealtimeSpeechSource = 'chat';
+export type SpriteRealtimeSpeechScope = 'mainChat' | 'resourceChatSidebar';
+export type SpriteRealtimeSpeechSampleFormat = 's16le' | 'f32le' | string;
 
 export interface SpriteSpeakAIProviderConfig {
   providerId: string;
@@ -37,6 +40,33 @@ export interface SpriteSpeakAIProviderConfig {
   extras?: Record<string, any>;
 }
 
+export interface SpriteSpeakChatRealtimeSpeechConfig {
+  enabled: boolean;
+  mode: Extract<SpriteSpeakMode, 'duplex-stream' | 'output-stream'>;
+  transportPreference: Extract<SpriteSpeakTransportPreference, 'websocket' | 'http-stream' | 'auto'>;
+  audioSetting: {
+    format: 'pcm';
+    sampleRate: number;
+    channels: 1 | 2;
+    sampleFormat?: SpriteRealtimeSpeechSampleFormat;
+  };
+  chunking: {
+    minChars: number;
+    maxChars: number;
+    maxDelayMs: number;
+    flushOnPunctuation: boolean;
+  };
+  playback: {
+    startBufferMs: number;
+    maxBufferMs: number;
+    fadeInMs: number;
+    fadeOutMs: number;
+    volume?: number;
+  };
+  scopes: Record<SpriteRealtimeSpeechScope, boolean>;
+  writeFinalCache?: boolean;
+}
+
 export interface SpriteSpeakConfig {
   /** Enables speech synthesis for sprite speech. */
   enabled: boolean;
@@ -54,6 +84,8 @@ export interface SpriteSpeakConfig {
   volume: number;
   /** AI Provider speech synthesis settings. */
   aiProvider?: SpriteSpeakAIProviderConfig;
+  /** Optional realtime speech for AI chat assistant deltas. Default disabled. */
+  chatRealtimeSpeech: SpriteSpeakChatRealtimeSpeechConfig;
 }
 
 export const DEFAULT_AI_PROVIDER_SPEAK_CONFIG: SpriteSpeakAIProviderConfig = {
@@ -73,6 +105,35 @@ export const DEFAULT_AI_PROVIDER_SPEAK_CONFIG: SpriteSpeakAIProviderConfig = {
   voiceVolume: 1
 };
 
+export const DEFAULT_CHAT_REALTIME_SPEECH_CONFIG: SpriteSpeakChatRealtimeSpeechConfig = {
+  enabled: false,
+  mode: 'duplex-stream',
+  transportPreference: 'websocket',
+  audioSetting: {
+    format: 'pcm',
+    sampleRate: 32000,
+    channels: 1,
+    sampleFormat: 's16le'
+  },
+  chunking: {
+    minChars: 8,
+    maxChars: 80,
+    maxDelayMs: 350,
+    flushOnPunctuation: true
+  },
+  playback: {
+    startBufferMs: 160,
+    maxBufferMs: 3000,
+    fadeInMs: 12,
+    fadeOutMs: 32
+  },
+  scopes: {
+    mainChat: true,
+    resourceChatSidebar: true
+  },
+  writeFinalCache: false
+};
+
 export const DEFAULT_SPEAK_CONFIG: SpriteSpeakConfig = {
   enabled: true,
   engine: 'edge',
@@ -81,7 +142,8 @@ export const DEFAULT_SPEAK_CONFIG: SpriteSpeakConfig = {
   rate: 20,
   pitch: 0,
   volume: 1,
-  aiProvider: { ...DEFAULT_AI_PROVIDER_SPEAK_CONFIG }
+  aiProvider: { ...DEFAULT_AI_PROVIDER_SPEAK_CONFIG },
+  chatRealtimeSpeech: { ...DEFAULT_CHAT_REALTIME_SPEECH_CONFIG }
 };
 
 export interface SpriteSpeechSynthesisExecutor {
@@ -89,7 +151,8 @@ export interface SpriteSpeechSynthesisExecutor {
   stream?(
     req: SpeechSynthesisRequest,
     onEvent: (event: SpeechSynthesisStreamEvent) => void,
-    input?: AsyncIterable<SpeechTextInputChunk>
+    input?: AsyncIterable<SpeechTextInputChunk>,
+    signal?: AbortSignal
   ): Promise<SpeechSynthesisResponse>;
 }
 
@@ -158,6 +221,61 @@ export interface SpriteSpeakPlaybackContext {
   ownerPurposeId?: string;
   priority?: number;
   ignorePresentationLock?: boolean;
+}
+
+export type SpriteRealtimeSpeechEvent =
+  | {
+      type: 'started';
+      data: {
+        sessionId: string;
+        requestId?: string;
+        providerRequestId?: string;
+        mode?: string;
+        transport?: string;
+        format: 'pcm';
+        sampleRate: number;
+        channels: number;
+        sampleFormat: SpriteRealtimeSpeechSampleFormat;
+      };
+    }
+  | {
+      type: 'audio_delta';
+      data: {
+        chunk: ArrayBuffer | Buffer | Uint8Array;
+        format: 'pcm';
+        mimeType?: string;
+        sampleRate: number;
+        channels: number;
+        sampleFormat: SpriteRealtimeSpeechSampleFormat;
+        sequence?: number;
+      };
+    }
+  | { type: 'metadata'; data: Record<string, any> }
+  | { type: 'completed'; data: { sessionId: string; filePath?: string; durationMs?: number } }
+  | { type: 'error'; data: { message: string; code?: string } }
+  | { type: 'done' };
+
+export interface SpriteRealtimeSpeechSessionRequest {
+  source: SpriteRealtimeSpeechSource;
+  scope: SpriteRealtimeSpeechScope;
+}
+
+export interface SpriteRealtimeSpeechSessionStartResult {
+  sessionId: string;
+  eventsChannel: string;
+  enabled: boolean;
+  reason?: string;
+}
+
+export interface SpriteRealtimeSpeechHandle {
+  sessionId: string;
+  appendText(text: string): Promise<void>;
+  flush(): Promise<void>;
+  finish(): Promise<void>;
+  cancel(): Promise<void>;
+  on(cb: (event: SpriteRealtimeSpeechEvent) => void): () => void;
+  off(cb: (event: SpriteRealtimeSpeechEvent) => void): void;
+  dispose(): void;
 }
 
 export interface SpeakRequest {

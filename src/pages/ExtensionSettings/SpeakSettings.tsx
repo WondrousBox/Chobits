@@ -4,7 +4,7 @@
  * 配置精灵说话的声音、语速、音高等参数
  */
 import type { ProviderPresetRecord } from '@packages/ai/types';
-import type { SpriteSpeakAIProviderConfig, SpriteSpeakConfig, SpriteSpeakMode, SpriteSpeakTransportPreference } from '@packages/sprite-core/speak/types';
+import type { SpriteSpeakAIProviderConfig, SpriteSpeakChatRealtimeSpeechConfig, SpriteSpeakConfig, SpriteSpeakMode, SpriteSpeakTransportPreference } from '@packages/sprite-core/speak/types';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { TbSettings, TbTrash, TbVolume } from 'react-icons/tb';
 
@@ -67,12 +67,63 @@ const DEFAULT_AI_PROVIDER_CONFIG: SpriteSpeakAIProviderConfig = {
   voiceVolume: 1
 };
 
+const DEFAULT_CHAT_REALTIME_CONFIG: SpriteSpeakChatRealtimeSpeechConfig = {
+  enabled: false,
+  mode: 'duplex-stream',
+  transportPreference: 'websocket',
+  audioSetting: {
+    format: 'pcm',
+    sampleRate: 32000,
+    channels: 1,
+    sampleFormat: 's16le'
+  },
+  chunking: {
+    minChars: 8,
+    maxChars: 80,
+    maxDelayMs: 350,
+    flushOnPunctuation: true
+  },
+  playback: {
+    startBufferMs: 160,
+    maxBufferMs: 3000,
+    fadeInMs: 12,
+    fadeOutMs: 32
+  },
+  scopes: {
+    mainChat: true,
+    resourceChatSidebar: true
+  },
+  writeFinalCache: false
+};
+
 const mergeAiProviderConfig = (config?: SpriteSpeakAIProviderConfig): SpriteSpeakAIProviderConfig => ({
   ...DEFAULT_AI_PROVIDER_CONFIG,
   ...(config || {}),
   audioSetting: {
     ...DEFAULT_AI_PROVIDER_CONFIG.audioSetting,
     ...(config?.audioSetting || {})
+  }
+});
+
+const mergeChatRealtimeConfig = (config?: SpriteSpeakChatRealtimeSpeechConfig): SpriteSpeakChatRealtimeSpeechConfig => ({
+  ...DEFAULT_CHAT_REALTIME_CONFIG,
+  ...(config || {}),
+  audioSetting: {
+    ...DEFAULT_CHAT_REALTIME_CONFIG.audioSetting,
+    ...(config?.audioSetting || {}),
+    format: 'pcm'
+  },
+  chunking: {
+    ...DEFAULT_CHAT_REALTIME_CONFIG.chunking,
+    ...(config?.chunking || {})
+  },
+  playback: {
+    ...DEFAULT_CHAT_REALTIME_CONFIG.playback,
+    ...(config?.playback || {})
+  },
+  scopes: {
+    ...DEFAULT_CHAT_REALTIME_CONFIG.scopes,
+    ...(config?.scopes || {})
   }
 });
 
@@ -179,6 +230,7 @@ export const SpeakItem: React.FC<{
 export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ state }) => {
   const { config, loading, testLoading, cacheStats, updateConfig, handleTest, handleClearCache } = state;
   const aiProvider = useMemo(() => mergeAiProviderConfig(config?.aiProvider), [config?.aiProvider]);
+  const realtimeSpeech = useMemo(() => mergeChatRealtimeConfig(config?.chatRealtimeSpeech), [config?.chatRealtimeSpeech]);
   const [presets, setPresets] = useState<ProviderPresetRecord[]>([]);
 
   useEffect(() => {
@@ -214,6 +266,19 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
         ...aiProvider,
         ...patch,
         audioSetting: patch.audioSetting ? { ...aiProvider.audioSetting, ...patch.audioSetting } : aiProvider.audioSetting
+      })
+    });
+  };
+
+  const updateRealtimeSpeech = (patch: Partial<SpriteSpeakChatRealtimeSpeechConfig>) => {
+    void updateConfig({
+      chatRealtimeSpeech: mergeChatRealtimeConfig({
+        ...realtimeSpeech,
+        ...patch,
+        audioSetting: patch.audioSetting ? { ...realtimeSpeech.audioSetting, ...patch.audioSetting, format: 'pcm' } : realtimeSpeech.audioSetting,
+        chunking: patch.chunking ? { ...realtimeSpeech.chunking, ...patch.chunking } : realtimeSpeech.chunking,
+        playback: patch.playback ? { ...realtimeSpeech.playback, ...patch.playback } : realtimeSpeech.playback,
+        scopes: patch.scopes ? { ...realtimeSpeech.scopes, ...patch.scopes } : realtimeSpeech.scopes
       })
     });
   };
@@ -390,6 +455,51 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
               <span className="text-xs text-muted-foreground">{Math.round((aiProvider.voiceVolume ?? 1) * 100)}%</span>
             </div>
             <Slider value={[aiProvider.voiceVolume ?? 1]} min={0.1} max={2} step={0.05} onValueChange={([value]) => updateAiProvider({ voiceVolume: value })} />
+          </div>
+
+          <div className="space-y-3 rounded-lg border border-border p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-foreground">AI 回复实时朗读</div>
+                <div className="text-xs text-muted-foreground">开启后仅朗读 assistant 正文 delta。</div>
+              </div>
+              <Switch checked={realtimeSpeech.enabled} onCheckedChange={(checked) => updateRealtimeSpeech({ enabled: checked })} />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 text-sm">
+                <span>主聊天</span>
+                <Switch checked={realtimeSpeech.scopes.mainChat} onCheckedChange={(checked) => updateRealtimeSpeech({ scopes: { mainChat: checked, resourceChatSidebar: realtimeSpeech.scopes.resourceChatSidebar } })} />
+              </label>
+              <label className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 text-sm">
+                <span>资源侧栏</span>
+                <Switch checked={realtimeSpeech.scopes.resourceChatSidebar} onCheckedChange={(checked) => updateRealtimeSpeech({ scopes: { mainChat: realtimeSpeech.scopes.mainChat, resourceChatSidebar: checked } })} />
+              </label>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">PCM 采样率</label>
+                <Select value={String(realtimeSpeech.audioSetting.sampleRate)} onValueChange={(value) => updateRealtimeSpeech({ audioSetting: { ...realtimeSpeech.audioSetting, sampleRate: Number(value) } })}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="16000">16000 Hz</SelectItem>
+                    <SelectItem value="24000">24000 Hz</SelectItem>
+                    <SelectItem value="32000">32000 Hz</SelectItem>
+                    <SelectItem value="44100">44100 Hz</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-muted-foreground">首播缓冲</label>
+                  <span className="text-xs text-muted-foreground">{realtimeSpeech.playback.startBufferMs}ms</span>
+                </div>
+                <Slider value={[realtimeSpeech.playback.startBufferMs]} min={0} max={800} step={20} onValueChange={([value]) => updateRealtimeSpeech({ playback: { ...realtimeSpeech.playback, startBufferMs: value } })} />
+              </div>
+            </div>
           </div>
         </div>
       )}
