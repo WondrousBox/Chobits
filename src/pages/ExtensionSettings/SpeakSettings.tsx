@@ -3,23 +3,19 @@
  *
  * 配置精灵说话的声音、语速、音高等参数
  */
-import React, { useCallback, useEffect, useState } from 'react';
-import { TbTrash, TbVolume } from 'react-icons/tb';
+import type { ProviderPresetRecord } from '@packages/ai/types';
+import type { SpriteSpeakAIProviderConfig, SpriteSpeakConfig, SpriteSpeakMode, SpriteSpeakTransportPreference } from '@packages/sprite-core/speak/types';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { TbSettings, TbTrash, TbVolume } from 'react-icons/tb';
 
+import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-
-interface SpriteSpeakConfig {
-  enabled: boolean;
-  serviceType: string;
-  voiceName: string;
-  rate: number;
-  pitch: number;
-  volume: number;
-}
 
 /** 支持的 Edge TTS 语音列表（常用子集） */
 const EDGE_VOICES = [
@@ -43,6 +39,48 @@ const EDGE_VOICES = [
   { value: 'de-DE-KatjaNeural', label: 'Katja (Weiblich)', lang: 'Deutsch' },
   { value: 'es-ES-ElviraNeural', label: 'Elvira (Mujer)', lang: 'Español' }
 ];
+
+const MINIMAX_VOICES = [
+  { value: 'female-shaonv', label: '少女音色', lang: '中文' },
+  { value: 'male-qn-qingse', label: '青年男声', lang: '中文' },
+  { value: 'female-yujie', label: '御姐音色', lang: '中文' },
+  { value: 'audiobook_male_1', label: '有声书男声', lang: '中文' },
+  { value: 'audiobook_female_1', label: '有声书女声', lang: '中文' },
+  { value: 'presenter_male', label: '主持男声', lang: '中文' },
+  { value: 'presenter_female', label: '主持女声', lang: '中文' }
+];
+
+const DEFAULT_AI_PROVIDER_CONFIG: SpriteSpeakAIProviderConfig = {
+  providerId: 'minimax',
+  model: 'speech-2.8-turbo',
+  voiceId: 'female-shaonv',
+  mode: 'complete',
+  transportPreference: 'auto',
+  audioSetting: {
+    format: 'mp3',
+    sampleRate: 32000,
+    bitrate: 128000,
+    channels: 1
+  },
+  speed: 1,
+  pitch: 0,
+  voiceVolume: 1
+};
+
+const mergeAiProviderConfig = (config?: SpriteSpeakAIProviderConfig): SpriteSpeakAIProviderConfig => ({
+  ...DEFAULT_AI_PROVIDER_CONFIG,
+  ...(config || {}),
+  audioSetting: {
+    ...DEFAULT_AI_PROVIDER_CONFIG.audioSetting,
+    ...(config?.audioSetting || {})
+  }
+});
+
+const resolveTransportForMode = (mode: SpriteSpeakMode, current?: SpriteSpeakTransportPreference): SpriteSpeakTransportPreference => {
+  if (mode === 'complete') return current === 'http' ? 'http' : 'auto';
+  if (mode === 'output-stream') return 'http-stream';
+  return 'websocket';
+};
 
 const formatSize = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;
@@ -128,8 +166,8 @@ export const SpeakItem: React.FC<{
       <TbVolume className="h-5 w-5" />
     </div>
     <div className="flex-1 min-w-0">
-      <div className="text-sm font-medium text-foreground">语音合成</div>
-      <div className="text-xs text-muted-foreground line-clamp-1">让精灵用声音说话，配置音色和语速。</div>
+      <div className="text-sm font-medium text-foreground">角色说话</div>
+      <div className="text-xs text-muted-foreground line-clamp-1">选择 Edge 或服务商语音合成。</div>
     </div>
     <div onClick={(e) => e.stopPropagation()}>
       <Switch checked={state.config?.enabled ?? false} onCheckedChange={(checked) => state.updateConfig({ enabled: checked })} disabled={state.loading} />
@@ -140,57 +178,226 @@ export const SpeakItem: React.FC<{
 /* ─── Right-panel detail ─── */
 export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ state }) => {
   const { config, loading, testLoading, cacheStats, updateConfig, handleTest, handleClearCache } = state;
+  const aiProvider = useMemo(() => mergeAiProviderConfig(config?.aiProvider), [config?.aiProvider]);
+  const [presets, setPresets] = useState<ProviderPresetRecord[]>([]);
+
+  useEffect(() => {
+    if (!config || config.engine !== 'ai-provider' || !aiProvider.providerId) {
+      setPresets([]);
+      return;
+    }
+    let cancelled = false;
+    void window.YUA.ai
+      .listPresets(aiProvider.providerId)
+      .then((rows) => {
+        if (!cancelled) setPresets(rows || []);
+      })
+      .catch(() => {
+        if (!cancelled) setPresets([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [aiProvider.providerId, config]);
 
   if (loading || !config) {
     return <div className="text-sm text-muted-foreground">加载中...</div>;
   }
 
   if (!config.enabled) {
-    return <p className="text-sm text-muted-foreground py-4">请先在左侧开启语音合成功能。</p>;
+    return <p className="text-sm text-muted-foreground py-4">请先在左侧开启角色说话。</p>;
   }
+
+  const updateAiProvider = (patch: Partial<SpriteSpeakAIProviderConfig>) => {
+    void updateConfig({
+      aiProvider: mergeAiProviderConfig({
+        ...aiProvider,
+        ...patch,
+        audioSetting: patch.audioSetting ? { ...aiProvider.audioSetting, ...patch.audioSetting } : aiProvider.audioSetting
+      })
+    });
+  };
+
+  const isAiProvider = config.engine === 'ai-provider';
 
   return (
     <div className="space-y-5">
-      {/* 语音选择 */}
       <div className="space-y-2">
-        <label className="text-sm font-medium text-foreground">音色</label>
-        <Select value={config.voiceName} onValueChange={(value) => updateConfig({ voiceName: value })}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="选择音色" />
-          </SelectTrigger>
-          <SelectContent>
-            {EDGE_VOICES.map((voice) => (
-              <SelectItem key={voice.value} value={voice.value}>
-                <span>{voice.label}</span>
-                <span className="ml-2 text-xs text-muted-foreground">{voice.lang}</span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <label className="text-sm font-medium text-foreground">合成引擎</label>
+        <Tabs value={isAiProvider ? 'ai-provider' : 'edge'} onValueChange={(value) => updateConfig({ engine: value === 'ai-provider' ? 'ai-provider' : 'edge' })}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="edge">Edge</TabsTrigger>
+            <TabsTrigger value="ai-provider">AI Provider</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
-      {/* 语速 */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label className="text-sm font-medium text-foreground">语速</label>
-          <span className="text-xs text-muted-foreground">{config.rate > 0 ? `+${config.rate}%` : `${config.rate}%`}</span>
-        </div>
-        <Slider value={[config.rate]} min={-50} max={200} step={10} onValueChange={([value]) => updateConfig({ rate: value })} />
-      </div>
+      {!isAiProvider ? (
+        <>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">音色</label>
+            <Select value={config.voiceName} onValueChange={(value) => updateConfig({ voiceName: value })}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="选择音色" />
+              </SelectTrigger>
+              <SelectContent>
+                {EDGE_VOICES.map((voice) => (
+                  <SelectItem key={voice.value} value={voice.value}>
+                    <span>{voice.label}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">{voice.lang}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-      {/* 音高 */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label className="text-sm font-medium text-foreground">音高</label>
-          <span className="text-xs text-muted-foreground">{config.pitch > 0 ? `+${config.pitch}%` : `${config.pitch}%`}</span>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-foreground">语速</label>
+              <span className="text-xs text-muted-foreground">{config.rate > 0 ? `+${config.rate}%` : `${config.rate}%`}</span>
+            </div>
+            <Slider value={[config.rate]} min={-50} max={200} step={10} onValueChange={([value]) => updateConfig({ rate: value })} />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-foreground">音高</label>
+              <span className="text-xs text-muted-foreground">{config.pitch > 0 ? `+${config.pitch}%` : `${config.pitch}%`}</span>
+            </div>
+            <Slider value={[config.pitch]} min={-50} max={50} step={5} onValueChange={([value]) => updateConfig({ pitch: value })} />
+          </div>
+        </>
+      ) : (
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">服务商与模型</label>
+            <div className="flex items-center gap-2">
+              <ProviderModelSelect
+                providerId={aiProvider.providerId}
+                presetId={aiProvider.providerPresetId}
+                modelId={aiProvider.model}
+                modelTypes={['tts']}
+                providerFilter={(provider) => provider.capabilities?.speechSynthesis === true}
+                placeholder="选择语音合成模型"
+                className="w-full rounded-md"
+                onChange={(providerId, model) =>
+                  updateAiProvider({
+                    providerId,
+                    model,
+                    providerPresetId: providerId === aiProvider.providerId ? aiProvider.providerPresetId : undefined
+                  })
+                }
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => window.YUA.window['window:open']('settings' as any, { category: 'ai', aiProviderId: aiProvider.providerId })}
+              >
+                <TbSettings />
+                配置
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">服务商预设</label>
+            <Select value={aiProvider.providerPresetId || '__auto__'} onValueChange={(value) => updateAiProvider({ providerPresetId: value === '__auto__' ? undefined : value })}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="自动选择可用预设" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__auto__">自动选择可用预设</SelectItem>
+                {presets.map((preset) => (
+                  <SelectItem key={preset.id} value={preset.id}>
+                    {preset.name || preset.id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">常用音色</label>
+              <Select value={aiProvider.voiceId} onValueChange={(value) => updateAiProvider({ voiceId: value, voice: value })}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="选择音色" />
+                </SelectTrigger>
+                <SelectContent>
+                  {MINIMAX_VOICES.map((voice) => (
+                    <SelectItem key={voice.value} value={voice.value}>
+                      <span>{voice.label}</span>
+                      <span className="ml-2 text-xs text-muted-foreground">{voice.lang}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">voiceId</label>
+              <Input value={aiProvider.voiceId} onChange={(event) => updateAiProvider({ voiceId: event.target.value, voice: event.target.value })} placeholder="例如 female-shaonv" />
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">合成模式</label>
+              <Select
+                value={aiProvider.mode || 'complete'}
+                onValueChange={(value) => {
+                  const mode = value as SpriteSpeakMode;
+                  updateAiProvider({ mode, transportPreference: resolveTransportForMode(mode, aiProvider.transportPreference) });
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="complete">HTTP 完整合成</SelectItem>
+                  <SelectItem value="output-stream">HTTP 流式合成</SelectItem>
+                  <SelectItem value="duplex-stream">WebSocket 双向流</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">音频格式</label>
+              <Select value={aiProvider.audioSetting?.format || 'mp3'} onValueChange={(value) => updateAiProvider({ audioSetting: { format: value } })}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="mp3">MP3</SelectItem>
+                  <SelectItem value="wav">WAV</SelectItem>
+                  <SelectItem value="flac">FLAC</SelectItem>
+                  <SelectItem value="pcm">PCM</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-foreground">语速</label>
+              <span className="text-xs text-muted-foreground">{(aiProvider.speed ?? 1).toFixed(2)}x</span>
+            </div>
+            <Slider value={[aiProvider.speed ?? 1]} min={0.5} max={2} step={0.05} onValueChange={([value]) => updateAiProvider({ speed: value })} />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-foreground">发声音量</label>
+              <span className="text-xs text-muted-foreground">{Math.round((aiProvider.voiceVolume ?? 1) * 100)}%</span>
+            </div>
+            <Slider value={[aiProvider.voiceVolume ?? 1]} min={0.1} max={2} step={0.05} onValueChange={([value]) => updateAiProvider({ voiceVolume: value })} />
+          </div>
         </div>
-        <Slider value={[config.pitch]} min={-50} max={50} step={5} onValueChange={([value]) => updateConfig({ pitch: value })} />
-      </div>
+      )}
 
       {/* 音量 */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <label className="text-sm font-medium text-foreground">音量</label>
+          <label className="text-sm font-medium text-foreground">播放音量</label>
           <span className="text-xs text-muted-foreground">{Math.round(config.volume * 100)}%</span>
         </div>
         <Slider value={[config.volume]} min={0} max={1} step={0.05} onValueChange={([value]) => updateConfig({ volume: value })} />
@@ -199,12 +406,13 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
       {/* 操作按钮 */}
       <div className="flex flex-wrap items-center gap-3 pt-2">
         <Button variant="outline" size="sm" onClick={handleTest} disabled={testLoading}>
-          {testLoading ? '合成中...' : '🔊 试听'}
+          <TbVolume />
+          {testLoading ? '合成中...' : '试听'}
         </Button>
 
         {cacheStats && cacheStats.totalEntries > 0 && (
           <Button variant="ghost" size="sm" onClick={handleClearCache} className="text-muted-foreground">
-            <TbTrash className="mr-1 h-4 w-4" />
+            <TbTrash />
             清空缓存 ({cacheStats.totalEntries} 条, {formatSize(cacheStats.totalSizeBytes)})
           </Button>
         )}

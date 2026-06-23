@@ -519,7 +519,7 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
 
     const mode = req.mode || 'complete';
     if (mode !== 'complete') {
-      throw new Error(`MiniMax speech synthesis mode "${mode}" requires streamSpeechSynthesis, which is not implemented yet`);
+      throw new Error(`MiniMax speech synthesis mode "${mode}" requires calling streamSpeechSynthesis instead of synthesizeSpeech`);
     }
 
     const transportPreference = req.transportPreference || 'auto';

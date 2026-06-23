@@ -556,6 +556,8 @@ wc.getAutoMoveDirection(); // 'left' | 'right' | null
 
 语音合成服务，当前实现以 Edge TTS 为主，支持缓存、配置管理、自动播放。MiniMax 的 `speechSynthesis` Provider 底座已经覆盖 HTTP 非流式、HTTP 流式和 WebSocket 双向流；角色说话侧下一步应作为业务编排层接入该能力，并继续保留 Edge。详细方案见 [角色说话接入 AI Provider 语音合成规划](./sprite-speech-provider-integration-plan.md)，底层 Provider 契约见 [AI Provider 音频能力统一设计](../ai-system/provider-audio-capabilities-design.md)。
 
+Edge 和 AI Provider 都会先用“去 emoji 后文本 + 影响声音内容的配置指纹”生成 MD5 cache id，再查 `<userData>/data/sprite-speak-cache/`。命中时直接播放本地音频，不再调用 TTS 服务商；只有未命中时才合成并写入缓存。
+
 当系统确认合成音频会被播放时，会在下发 `sprite:speak` 前尝试播放 `talk` 动画。这个能力是系统级的：`SpriteManager.speak()`、自动朗读的 `showToast()` / `showNotice()` 都走同一条链路。`talk` 不改变 `SpriteState`，并且只会在当前视觉表现是 idle-like 时插入，避免覆盖 `welcome`、`celebrate`、`thinking` 等显式 trigger 动画。
 
 ```typescript
@@ -576,9 +578,9 @@ await sprite.clearSpeakCache();
 | 字段          | 类型     | 说明                                  |
 | ------------- | -------- | ------------------------------------- |
 | `enabled`     | boolean  | 是否启用语音合成                      |
-| `serviceType` | `'Edge'` | Legacy TTS 服务类型；当前运行时仍主要使用 Edge |
-| `engine`      | `'edge' \| 'ai-provider'` | 规划新增：说话引擎选择，缺失时由 `serviceType` 兼容推导 |
-| `aiProvider`  | object   | 规划新增：Provider、preset、model、voiceId、mode、transport 等配置 |
+| `serviceType` | `'Edge'` | Legacy TTS 服务类型；Edge 引擎继续使用该字段 |
+| `engine`      | `'edge' \| 'ai-provider'` | 说话引擎选择，缺失时由 `serviceType` 兼容推导 |
+| `aiProvider`  | object   | AI Provider、preset、model、voiceId、mode、transport 等配置 |
 | `voiceName`   | string   | 语音名称（如 `zh-CN-XiaoxiaoNeural`） |
 | `rate`        | number   | 语速 (-100 ~ 200)                     |
 | `pitch`       | number   | 音高 (-100 ~ 200)                     |
