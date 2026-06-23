@@ -228,6 +228,7 @@ export type ImageGenerationResponse = {
 export type GeneratedAudioArtifact = {
   audioUrl?: string;
   audioBase64?: string;
+  audioHex?: string;
   filePath?: string;
   mimeType?: string;
   format?: string;
@@ -238,6 +239,12 @@ export type GeneratedAudioArtifact = {
   sizeBytes?: number;
   title?: string;
   seed?: number;
+  timestamps?: Array<{
+    type: 'word' | 'sentence' | 'ssml_mark' | 'phoneme' | string;
+    text?: string;
+    startMs: number;
+    endMs?: number;
+  }>;
   metadata?: Record<string, any>;
 };
 export type MusicGenerationMode = 'text-to-music' | 'lyrics-to-song' | 'instrumental' | 'cover';
@@ -275,6 +282,81 @@ export type MusicGenerationResponse = {
   usage?: TokenUsage;
   rawUsage?: unknown;
   rawResponse?: unknown;
+};
+export type SpeechSynthesisMode = 'complete' | 'output-stream' | 'duplex-stream' | 'async-job';
+export type SpeechSynthesisTransportPreference = 'auto' | 'http' | 'http-stream' | 'sse' | 'websocket' | 'webrtc';
+export type SpeechSynthesisAudioSetting = {
+  sampleRate?: number;
+  bitrate?: number;
+  format?: string;
+  channels?: number;
+};
+export type SpeechSynthesisRequest = ProviderScopedRequest & {
+  model: string;
+  text?: string;
+  mode?: SpeechSynthesisMode;
+  transportPreference?: SpeechSynthesisTransportPreference;
+  voice?: string;
+  voiceId?: string;
+  language?: string;
+  inputFormat?: 'text' | 'ssml' | string;
+  outputFormat?: 'hex' | 'url' | 'mp3' | 'wav' | 'flac' | 'pcm' | 'opus' | string;
+  audioSetting?: SpeechSynthesisAudioSetting;
+  speed?: number;
+  rate?: number;
+  pitch?: number;
+  volume?: number;
+  emotion?: string;
+  returnTimestamps?: boolean;
+  subtitle?: {
+    enabled?: boolean;
+    type?: 'sentence' | 'word' | 'word_streaming' | string;
+  };
+  pronunciationDict?: Record<string, any>;
+  extras?: Record<string, any>;
+};
+export type SpeechSynthesisResponse = {
+  artifacts: GeneratedAudioArtifact[];
+  audioUrl?: string;
+  audioBase64?: string;
+  filePath?: string;
+  model?: string;
+  providerId?: string;
+  voice?: string;
+  voiceId?: string;
+  usage?: TokenUsage;
+  rawUsage?: unknown;
+  rawResponse?: unknown;
+};
+export type SpeechSynthesisStreamEvent =
+  | { type: 'started'; data: { requestId?: string; providerRequestId?: string; mode?: SpeechSynthesisMode; transport?: string } }
+  | {
+      type: 'audio_delta';
+      data: {
+        chunk: ArrayBuffer | Buffer;
+        format?: string;
+        mimeType?: string;
+        sampleRate?: number;
+        sequence?: number;
+        isHeaderChunk?: boolean;
+        encoding?: 'binary' | 'base64' | 'hex';
+      };
+    }
+  | { type: 'text_delta'; data: { text?: string; timestamps?: GeneratedAudioArtifact['timestamps'] } }
+  | { type: 'metadata'; data: Record<string, any> }
+  | { type: 'completed'; data: SpeechSynthesisResponse }
+  | { type: 'error'; data: { message: string; code?: string; cause?: any } }
+  | { type: 'done' };
+export type SpeechTextInputChunk = { type: 'text'; text: string } | { type: 'flush' } | { type: 'close' };
+export type SpeechSynthesisStreamHandle = {
+  requestId: string;
+  appendText: (text: string) => Promise<any>;
+  dispose: () => void;
+  cancel: () => Promise<any>;
+  finish: () => Promise<any>;
+  flush: () => Promise<any>;
+  on: (cb: (ev: SpeechSynthesisStreamEvent) => void) => () => boolean;
+  off: (cb: (ev: SpeechSynthesisStreamEvent) => void) => void;
 };
 export type LyricsGenerationMode = 'write_full_song' | 'edit';
 export type LyricsGenerationRequest = ProviderScopedRequest & {
@@ -419,7 +501,7 @@ export type ConversationRecord = {
   updatedAt?: number | null;
   deletedAt?: number | null;
 };
-export type ProviderCapabilityKey = 'chat' | 'modelListing' | 'embeddings' | 'transcribe' | 'imageGeneration' | 'musicGeneration';
+export type ProviderCapabilityKey = 'chat' | 'modelListing' | 'embeddings' | 'transcribe' | 'imageGeneration' | 'musicGeneration' | 'speechSynthesis';
 export type ProviderCapabilities = Record<ProviderCapabilityKey, boolean>;
 export type ProviderDefaultModels = {
   chat?: string;
@@ -427,6 +509,7 @@ export type ProviderDefaultModels = {
   transcribe?: string;
   imageGeneration?: string;
   musicGeneration?: string;
+  speechSynthesis?: string;
 };
 export type ProviderRecord = {
   id: string;
@@ -485,6 +568,14 @@ export interface ProviderAdapter {
   // Music generation
   generateMusic?(req: MusicGenerationRequest, signal?: AbortSignal): Promise<MusicGenerationResponse>;
   generateLyrics?(req: LyricsGenerationRequest, signal?: AbortSignal): Promise<LyricsGenerationResponse>;
+  // Speech synthesis
+  synthesizeSpeech?(req: SpeechSynthesisRequest, signal?: AbortSignal): Promise<SpeechSynthesisResponse>;
+  streamSpeechSynthesis?(
+    req: SpeechSynthesisRequest,
+    onEvent: (event: SpeechSynthesisStreamEvent) => void,
+    signal?: AbortSignal,
+    input?: AsyncIterable<SpeechTextInputChunk>
+  ): Promise<SpeechSynthesisResponse>;
 }
 
 // Agent contracts are now represented by Pi profiles and provider adapters.
@@ -570,6 +661,8 @@ export type AIApi = {
   editImage(payload: ImageEditRequest): Promise<ImageGenerationResponse>;
   generateMusic(payload: MusicGenerationRequest): Promise<MusicGenerationResponse>;
   generateLyrics(payload: LyricsGenerationRequest): Promise<LyricsGenerationResponse>;
+  synthesizeSpeech(payload: SpeechSynthesisRequest): Promise<SpeechSynthesisResponse>;
+  streamSpeechSynthesis(payload: SpeechSynthesisRequest, onEvent: (ev: SpeechSynthesisStreamEvent) => void): Promise<SpeechSynthesisStreamHandle>;
   embed(payload: EmbeddingRequest): Promise<{ vectors: number[][]; dim: number }>;
   // Presets
   listPresets(providerId?: string): Promise<ProviderPresetRecord[]>;

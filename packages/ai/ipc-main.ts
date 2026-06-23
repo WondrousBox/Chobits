@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { BrowserWindow, ipcMain } from 'electron';
 
 import { cleanupMemoryForConversations as cleanupMemoryForDeletedConversations } from '../../electron/main/handlers/memory/memory-cleanup';
@@ -67,6 +69,7 @@ import type {
   ProviderPresetCreatePayload,
   ProviderPresetUpdatePatch,
   PushedCard,
+  SpeechSynthesisRequest,
   TranscriptionRequest
 } from './types';
 import { registerUserChoiceIpc } from './user-choice-registry';
@@ -86,6 +89,14 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
 
   const chat = new ChatService(win);
   const piExecutionService = new PiExecutionService();
+  const speechSynthesisControllers = new Map<string, AbortController>();
+  const speechSynthesisInputs = new Map<
+    string,
+    {
+      enqueue(chunk: { type: 'text'; text: string } | { type: 'flush' } | { type: 'close' }): void;
+      close(): void;
+    }
+  >();
   chat.registerIpc();
   // Register AI utility IPCs (e.g., auto-tagging)
   TaggingService.registerIpc();
@@ -297,6 +308,136 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
 
   ipcMain.handle('ai:generateLyrics', async (_e, payload: LyricsGenerationRequest) => {
     return piExecutionService.generateLyrics(normalizeProviderPreset(payload));
+  });
+
+  ipcMain.handle('ai:synthesizeSpeech', async (_e, payload: SpeechSynthesisRequest) => {
+    return piExecutionService.synthesizeSpeech(normalizeProviderPreset(payload));
+  });
+
+  ipcMain.handle('ai:streamSpeechSynthesis', async (event, payload: SpeechSynthesisRequest) => {
+    const requestId = String(payload.extras?.requestId || randomUUID());
+    const eventsChannel = `ai:speech-synthesis:${requestId}`;
+    const controller = new AbortController();
+    speechSynthesisControllers.set(requestId, controller);
+    const inputQueue: Array<{ type: 'text'; text: string } | { type: 'flush' } | { type: 'close' }> = [];
+    let inputClosed = false;
+    let inputWaiter: (() => void) | undefined;
+    const wakeInput = (): void => {
+      const waiter = inputWaiter;
+      inputWaiter = undefined;
+      waiter?.();
+    };
+    const inputController = {
+      enqueue(chunk: { type: 'text'; text: string } | { type: 'flush' } | { type: 'close' }): void {
+        if (inputClosed) return;
+        inputQueue.push(chunk);
+        if (chunk.type === 'close') {
+          inputClosed = true;
+        }
+        wakeInput();
+      },
+      close(): void {
+        if (inputClosed) return;
+        inputClosed = true;
+        inputQueue.push({ type: 'close' });
+        wakeInput();
+      }
+    };
+    speechSynthesisInputs.set(requestId, inputController);
+    async function* readSpeechInput(): AsyncIterable<{ type: 'text'; text: string } | { type: 'flush' } | { type: 'close' }> {
+      while (!inputClosed || inputQueue.length > 0) {
+        if (!inputQueue.length) {
+          await new Promise<void>((resolve) => {
+            inputWaiter = resolve;
+          });
+          continue;
+        }
+        const chunk = inputQueue.shift();
+        if (!chunk) continue;
+        yield chunk;
+        if (chunk.type === 'close') break;
+      }
+    }
+    const normalizedPayload = normalizeProviderPreset({
+      ...payload,
+      extras: {
+        ...(payload.extras || {}),
+        requestId
+      }
+    });
+
+    setTimeout(async () => {
+      let terminalSent = false;
+      try {
+        await piExecutionService.streamSpeechSynthesis(
+          normalizedPayload,
+          (streamEvent) => {
+            if (streamEvent.type === 'error' || streamEvent.type === 'done') {
+              terminalSent = true;
+            }
+            event.sender.send(eventsChannel, streamEvent);
+          },
+          controller.signal,
+          normalizedPayload.mode === 'duplex-stream' || normalizedPayload.transportPreference === 'websocket' ? readSpeechInput() : undefined
+        );
+      } catch (error) {
+        if (!terminalSent) {
+          event.sender.send(eventsChannel, {
+            type: 'error',
+            data: {
+              message: error instanceof Error ? error.message : String(error)
+            }
+          });
+          event.sender.send(eventsChannel, { type: 'done' });
+        }
+      } finally {
+        speechSynthesisControllers.delete(requestId);
+        speechSynthesisInputs.delete(requestId);
+      }
+    }, 0);
+
+    return {
+      eventsChannel,
+      requestId
+    };
+  });
+
+  ipcMain.handle('ai:cancelSpeechSynthesis', async (_e, payload: { requestId: string }) => {
+    const controller = speechSynthesisControllers.get(payload.requestId);
+    speechSynthesisInputs.get(payload.requestId)?.close();
+    if (!controller) {
+      return { ok: false };
+    }
+    controller.abort();
+    speechSynthesisControllers.delete(payload.requestId);
+    return { ok: true };
+  });
+
+  ipcMain.handle('ai:appendSpeechSynthesisText', async (_e, payload: { requestId: string; text: string }) => {
+    const input = speechSynthesisInputs.get(payload.requestId);
+    if (!input) {
+      return { ok: false };
+    }
+    input.enqueue({ type: 'text', text: payload.text || '' });
+    return { ok: true };
+  });
+
+  ipcMain.handle('ai:flushSpeechSynthesis', async (_e, payload: { requestId: string }) => {
+    const input = speechSynthesisInputs.get(payload.requestId);
+    if (!input) {
+      return { ok: false };
+    }
+    input.enqueue({ type: 'flush' });
+    return { ok: true };
+  });
+
+  ipcMain.handle('ai:finishSpeechSynthesis', async (_e, payload: { requestId: string }) => {
+    const input = speechSynthesisInputs.get(payload.requestId);
+    if (!input) {
+      return { ok: false };
+    }
+    input.close();
+    return { ok: true };
   });
 
   ipcMain.handle('ai:listModels', async (_e, payload: { providerId: string; presetId?: string }) => {

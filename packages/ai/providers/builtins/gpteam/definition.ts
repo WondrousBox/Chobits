@@ -47,6 +47,7 @@ export const gpteamDefinition: BuiltinProviderDefinition = {
     imageGeneration: true,
     modelListing: true,
     musicGeneration: false,
+    speechSynthesis: false,
     transcribe: false
   },
   defaults: {

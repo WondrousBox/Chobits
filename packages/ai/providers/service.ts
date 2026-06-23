@@ -6,7 +6,10 @@ import type { BuiltinProviderDefinition, BuiltinProviderId, ProviderDefinition }
 import { isBuiltinProviderDefinition } from './types';
 
 let builtinDefinitionsRegistered = false;
-type ProviderCapabilitySource = Pick<ProviderAdapter, 'chat' | 'embed' | 'generateLyrics' | 'generateMusic' | 'getCapabilities' | 'getDefaultModels' | 'listModels' | 'transcribe'> & {
+type ProviderCapabilitySource = Pick<
+  ProviderAdapter,
+  'chat' | 'embed' | 'generateLyrics' | 'generateMusic' | 'getCapabilities' | 'getDefaultModels' | 'listModels' | 'streamSpeechSynthesis' | 'synthesizeSpeech' | 'transcribe'
+> & {
   id?: string;
 };
 
@@ -113,7 +116,7 @@ function resolveRuntimeModelType(providerId: string, model: ProviderModelDefinit
     .trim()
     .toLowerCase();
 
-  if (rawType === 'stt' || rawType === 'tts') {
+  if (rawType === 'stt') {
     return 'audio';
   }
 
@@ -138,6 +141,9 @@ function resolveRuntimeModelCapabilities(providerId: string, model: ProviderMode
   if (model.abilities?.structuredOutput) capabilities.json = true;
   if (type === 'image') capabilities.image_generation = true;
   if (type === 'text2music') capabilities.music_generation = true;
+  if (type === 'tts') {
+    capabilities.speech_synthesis = true;
+  }
   if (
     String(model.type || '')
       .trim()
@@ -268,6 +274,7 @@ function createProviderCapabilities(capabilities?: Partial<ProviderCapabilities>
     imageGeneration: false,
     modelListing: true,
     musicGeneration: false,
+    speechSynthesis: false,
     transcribe: false,
     ...capabilities
   };
@@ -284,6 +291,7 @@ export function getProviderCapabilities(providerId?: string, provider?: Provider
     imageGeneration: providerCapabilities?.imageGeneration ?? definitionCapabilities?.imageGeneration ?? false,
     modelListing: providerCapabilities?.modelListing ?? definitionCapabilities?.modelListing ?? Boolean(provider?.listModels),
     musicGeneration: providerCapabilities?.musicGeneration ?? definitionCapabilities?.musicGeneration ?? Boolean(provider?.generateMusic || provider?.generateLyrics),
+    speechSynthesis: providerCapabilities?.speechSynthesis ?? definitionCapabilities?.speechSynthesis ?? Boolean(provider?.synthesizeSpeech || provider?.streamSpeechSynthesis),
     transcribe: providerCapabilities?.transcribe ?? definitionCapabilities?.transcribe ?? Boolean(provider?.transcribe)
   };
 }
@@ -301,6 +309,7 @@ export function getProviderDefaultModels(providerId?: string, provider?: Provide
     embeddings: providerDefaults?.embeddings ?? defaultModels?.embeddings,
     imageGeneration: providerDefaults?.imageGeneration ?? defaultModels?.imageGeneration,
     musicGeneration: providerDefaults?.musicGeneration ?? defaultModels?.musicGeneration,
+    speechSynthesis: providerDefaults?.speechSynthesis ?? defaultModels?.speechSynthesis,
     transcribe: providerDefaults?.transcribe ?? defaultModels?.transcribe
   };
 }

@@ -87,7 +87,7 @@ function normalizeCapabilities(value: unknown, errors: string[]): ProviderCapabi
   }
 
   const source = isRecord(value) ? value : {};
-  const keys: Array<keyof ProviderCapabilities> = ['chat', 'embeddings', 'imageGeneration', 'modelListing', 'musicGeneration', 'transcribe'];
+  const keys: Array<keyof ProviderCapabilities> = ['chat', 'embeddings', 'imageGeneration', 'modelListing', 'musicGeneration', 'speechSynthesis', 'transcribe'];
 
   for (const key of keys) {
     if (key in source && typeof source[key] !== 'boolean') {
@@ -101,6 +101,7 @@ function normalizeCapabilities(value: unknown, errors: string[]): ProviderCapabi
     imageGeneration: toOptionalBoolean(source.imageGeneration) ?? false,
     modelListing: toOptionalBoolean(source.modelListing) ?? true,
     musicGeneration: toOptionalBoolean(source.musicGeneration) ?? false,
+    speechSynthesis: toOptionalBoolean(source.speechSynthesis) ?? false,
     transcribe: toOptionalBoolean(source.transcribe) ?? false
   };
 }
@@ -111,7 +112,7 @@ function normalizeDefaultModels(value: unknown, errors: string[]): ProviderDefau
     return {};
   }
 
-  const keys: Array<keyof ProviderDefaultModels> = ['chat', 'embeddings', 'imageGeneration', 'musicGeneration', 'transcribe'];
+  const keys: Array<keyof ProviderDefaultModels> = ['chat', 'embeddings', 'imageGeneration', 'musicGeneration', 'speechSynthesis', 'transcribe'];
   const result: ProviderDefaultModels = {};
 
   for (const key of keys) {

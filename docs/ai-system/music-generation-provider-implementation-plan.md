@@ -93,15 +93,15 @@ MiniMax TTS 需要同时考虑三条路径：
 - `packages/tts` 已有批量 TTS、缓存、去重、音频落盘、去静音、进度事件、字幕时间更新。
 - `packages/sprite-core/speak` 已有精灵说话服务、缓存和播放回调。
 
-仍待补齐：
+当前 TTS Provider 能力状态：
 
-- `ProviderCapabilityKey` / `ProviderDefaultModels` 仍缺少 `speechSynthesis`。
-- `ProviderAdapter` 仍缺少 `synthesizeSpeech()` / `streamSpeechSynthesis()`。
-- `AIApi`、IPC、preload 仍缺少通用 `synthesizeSpeech()` 和流式 TTS session 接口。
-- `ProviderModelSelect` 仍需要明确支持 `tts` 类型、`defaults.speechSynthesis` 和避免把 TTS 混入 `audio` / `transcribe`。
-- Plugin provider manifest validator/runtime 仍需补齐 TTS 能力字段；标准 driver 未实现时应保持 unsupported warning。
-- MiniMax 内建 provider 仍需声明 `speech-2.8-hd`、`speech-2.8-turbo` 等 TTS 模型。
-- MiniMax provider 仍需实现 HTTP 非流式 T2A、HTTP 流式 T2A 和 WebSocket T2A 的 adapter 映射。
+- `ProviderCapabilityKey` / `ProviderDefaultModels` 已包含 `speechSynthesis`。
+- `ProviderAdapter` 已包含 `synthesizeSpeech()` / `streamSpeechSynthesis()`。
+- `AIApi`、IPC、preload 已暴露通用 `synthesizeSpeech()` 和流式 TTS session 接口。
+- `ProviderModelSelect` 已支持 `tts` 类型、`defaults.speechSynthesis`，并避免把 TTS 混入 `audio` / `transcribe`。
+- Plugin provider manifest validator/runtime 已支持 TTS 能力字段；标准 driver 未实现时保持 unsupported warning。
+- MiniMax 内建 provider 已声明 `speech-2.8-hd`、`speech-2.8-turbo` 等 TTS 模型。
+- MiniMax provider 已实现 HTTP 非流式 T2A、HTTP 流式 T2A 和 WebSocket duplex T2A 的 adapter 映射。
 - `packages/tts/batch-tts-service.ts` 的 `BatchTTSConfig.type` 虽预留 `OpenAI` / `Volc`，但当前实际只创建 `EdgeTTS`，后续应迁移为可调用 AI Provider `speechSynthesis`。
 
 ## 5. 推荐抽象
@@ -428,11 +428,12 @@ TTS 也建议走 ProviderAdapter 方法。现有 `packages/tts` 可以作为批�
 - 在 `MiniMaxProvider` 中实现 `synthesizeSpeech()`：
   - 调用 `/v1/t2a_v2`。
   - 映射通用字段到 MiniMax 字段：`text`、`model`、`voice_setting`、`audio_setting`、`pronunciation_dict`、`subtitle_enable`。
-  - 第一版固定 `stream: false`，返回 hex audio 后写入或转成 `audioBase64`。
+  - `mode: 'complete'` 使用 `stream: false`，返回 hex/url audio 后统一归一化。
   - 允许透传 `extras.minimax`，用于 emotion、timber_weights、language_boost、subtitle 等细项。
 - MiniMax 流式 TTS：
-  - 第一版可只预留方法和模型 capability，不立即实现。
-  - 后续实现时将 provider-specific event 映射到 `SpeechSynthesisStreamEvent`。
+  - `mode: 'output-stream'` 使用 HTTP `stream: true`，将 hex chunk 映射到 `audio_delta`。
+  - `mode: 'duplex-stream'` 使用 WebSocket `task_start` / `task_continue` / `task_finish`，并行处理输入队列和服务端音频。
+  - provider-specific event 映射到 `SpeechSynthesisStreamEvent`，最终仍聚合为 `SpeechSynthesisResponse`。
 - 可选实现 `generateLyrics()` 不进入通用 ProviderAdapter，先作为 MiniMax provider 内部 helper 或 workflow 前置节点。
 
 新增后续 Provider 计划：
@@ -482,20 +483,22 @@ TTS 也建议走 ProviderAdapter 方法。现有 `packages/tts` 可以作为批�
   - 注入 resolved secrets。
   - 记录 analytics usage。
 - 在 `PiExecutionService` 增加 `streamSpeechSynthesis(payload, emit, input?)`：
-  - 主进程创建 requestId 与本地输出文件。
   - 调 provider `streamSpeechSynthesis()`。
-  - 收到 `audio_delta` 时追加写入同一个文件，并转发小块事件给 renderer。
-  - 收到 `completed` 时补齐 duration、artifact、usage 并记录 analytics。
-  - 支持 AbortSignal 取消，取消后关闭连接和文件句柄。
+  - 转发 `audio_delta` / `metadata` 给 renderer。
+  - 收到 provider 最终 response 后走共享 audio artifact 服务落盘。
+  - 记录 analytics usage。
+  - 支持 AbortSignal 取消，取消后关闭连接和输入队列。
 - 增加 IPC：
   - `ai:generateMusic`
   - `ai:synthesizeSpeech`
-  - `ai:startSpeechSynthesisStream`
-  - `ai:sendSpeechSynthesisText`
-  - `ai:stopSpeechSynthesisStream`
+  - `ai:streamSpeechSynthesis`
+  - `ai:appendSpeechSynthesisText`
+  - `ai:flushSpeechSynthesis`
+  - `ai:finishSpeechSynthesis`
+  - `ai:cancelSpeechSynthesis`
   - `window.YUA.ai.generateMusic(payload)`
   - `window.YUA.ai.synthesizeSpeech(payload)`
-  - `window.YUA.ai.startSpeechSynthesisStream(payload, onEvent)`
+  - `window.YUA.ai.streamSpeechSynthesis(payload, onEvent)`，返回支持 `appendText()`、`flush()`、`finish()`、`cancel()` 的 handle。
 - 统计字段建议：
   - `operationKey: 'generate_music'`
   - `sourceType: 'music_generation'`
@@ -514,7 +517,7 @@ TTS 也建议走 ProviderAdapter 方法。现有 `packages/tts` 可以作为批�
 
 - Renderer 能通过 `window.YUA.ai.generateMusic()` 调起 MiniMax。
 - Renderer 能通过 `window.YUA.ai.synthesizeSpeech()` 调起 MiniMax。
-- Renderer 能通过 `startSpeechSynthesisStream()` 接收 `audio_delta` / `metadata` / `completed`。
+- Renderer 能通过 `window.YUA.ai.streamSpeechSynthesis()` 接收 `audio_delta` / `metadata` / `completed`，并通过 stream handle 持续 `appendText()`。
 - 失败时 analytics 记录 failed。
 - 成功时 analytics 记录 completed，并包含 prompt chars、lyrics chars、duration、artifact count。
 - TTS 成功时 analytics 记录 text chars、voice、format、duration、artifact count。
@@ -671,6 +674,8 @@ Provider 测试：
 - mock hex/base64 output，验证 artifact 映射。
 - mock 401/500/空 response，验证错误。
 - mock MiniMax T2A hex output，验证 TTS artifact 映射。
+- mock MiniMax HTTP stream，验证 `audio_delta` 与最终 artifact 聚合。
+- mock MiniMax WebSocket duplex，验证 `task_start` / `task_continue` / `task_finish`、输入队列和最终 artifact 聚合。
 - mock voice_setting / audio_setting / pronunciation_dict 透传。
 
 Execution 测试：
@@ -724,15 +729,15 @@ Workflow 测试：
 5. 通用 `SpeechSynthesisRequest` / `SpeechSynthesisResponse`。
 6. 通用 `SpeechSynthesisStreamEvent` / `streamSpeechSynthesis()` 契约。
 7. MiniMax `music-2.6` 模型定义与 `generateMusic()`。
-8. MiniMax `speech-2.8-turbo` / `speech-2.8-hd` 模型定义与 `synthesizeSpeech()`。
+8. MiniMax `speech-2.8-turbo` / `speech-2.8-hd` 模型定义与 `synthesizeSpeech()` / `streamSpeechSynthesis()`。
 9. `PiExecutionService.generateMusic()`。
 10. `PiExecutionService.synthesizeSpeech()`。
 11. `window.YUA.ai.generateMusic()`。
-12. `window.YUA.ai.synthesizeSpeech()`。
+12. `window.YUA.ai.synthesizeSpeech()` / `window.YUA.ai.streamSpeechSynthesis()`。
 13. `music/music-generate` workflow 节点。
 14. TTS 首版可先接入现有 `packages/tts` 批量合成入口，或新增一个轻量 `tts/speech-synthesize` workflow 节点。
 15. 生成结果自动保存为本地音频文件。
-16. 可选：用 OpenAI HTTP chunk 或 mock provider 做一个最小 `streamSpeechSynthesis()` 验证，不进入完整 UI。
+16. MiniMax HTTP stream 与 WebSocket duplex 的 `streamSpeechSynthesis()` 验证。
 
 暂不做：
 

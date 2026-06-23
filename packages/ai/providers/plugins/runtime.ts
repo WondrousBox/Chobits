@@ -26,6 +26,7 @@ const OPENAI_DRIVER_CAPABILITIES: ProviderCapabilities = {
   imageGeneration: true,
   modelListing: true,
   musicGeneration: false,
+  speechSynthesis: false,
   transcribe: true
 };
 
@@ -35,6 +36,7 @@ const ANTHROPIC_DRIVER_CAPABILITIES: ProviderCapabilities = {
   imageGeneration: false,
   modelListing: true,
   musicGeneration: false,
+  speechSynthesis: false,
   transcribe: false
 };
 
@@ -44,6 +46,7 @@ const GEMINI_DRIVER_CAPABILITIES: ProviderCapabilities = {
   imageGeneration: false,
   modelListing: true,
   musicGeneration: false,
+  speechSynthesis: false,
   transcribe: false
 };
 
@@ -53,6 +56,7 @@ const OLLAMA_DRIVER_CAPABILITIES: ProviderCapabilities = {
   imageGeneration: false,
   modelListing: true,
   musicGeneration: false,
+  speechSynthesis: false,
   transcribe: false
 };
 
@@ -95,6 +99,7 @@ function cloneCapabilities(capabilities: ProviderCapabilities): ProviderCapabili
     imageGeneration: Boolean(capabilities.imageGeneration),
     modelListing: Boolean(capabilities.modelListing),
     musicGeneration: Boolean(capabilities.musicGeneration),
+    speechSynthesis: Boolean(capabilities.speechSynthesis),
     transcribe: Boolean(capabilities.transcribe)
   };
 }
@@ -105,6 +110,7 @@ function cloneDefaultModels(defaults?: ProviderDefaultModels): ProviderDefaultMo
     embeddings: defaults?.embeddings,
     imageGeneration: defaults?.imageGeneration,
     musicGeneration: defaults?.musicGeneration,
+    speechSynthesis: defaults?.speechSynthesis,
     transcribe: defaults?.transcribe
   };
 }
@@ -116,12 +122,13 @@ function intersectCapabilities(left: ProviderCapabilities, right: ProviderCapabi
     imageGeneration: Boolean(left.imageGeneration && right.imageGeneration),
     modelListing: Boolean(left.modelListing && right.modelListing),
     musicGeneration: Boolean(left.musicGeneration && right.musicGeneration),
+    speechSynthesis: Boolean(left.speechSynthesis && right.speechSynthesis),
     transcribe: Boolean(left.transcribe && right.transcribe)
   };
 }
 
 function listUnsupportedCapabilities(declared: ProviderCapabilities, supported: ProviderCapabilities): ProviderCapabilityKey[] {
-  const keys: ProviderCapabilityKey[] = ['chat', 'embeddings', 'imageGeneration', 'modelListing', 'musicGeneration', 'transcribe'];
+  const keys: ProviderCapabilityKey[] = ['chat', 'embeddings', 'imageGeneration', 'modelListing', 'musicGeneration', 'speechSynthesis', 'transcribe'];
   return keys.filter((key) => declared[key] && !supported[key]);
 }
 

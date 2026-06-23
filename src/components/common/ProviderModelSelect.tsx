@@ -21,6 +21,7 @@ type ProviderRow = {
     imageGeneration: boolean;
     modelListing: boolean;
     musicGeneration: boolean;
+    speechSynthesis: boolean;
     transcribe: boolean;
   };
   kind?: string;
@@ -30,6 +31,7 @@ type ProviderRow = {
     embeddings?: string;
     imageGeneration?: string;
     musicGeneration?: string;
+    speechSynthesis?: string;
     transcribe?: string;
   };
   schema?: {
@@ -100,6 +102,10 @@ const typeDisplay = (t?: string): string => {
       return '图像';
     case 'text2music':
       return '音乐';
+    case 'tts':
+      return '语音';
+    case 'stt':
+      return '转写';
     case 'video':
       return '视频';
     case 'audio':
@@ -127,6 +133,10 @@ const typeColorClasses = (t?: string): string => {
       return 'bg-rose-100 text-rose-700 border-rose-200';
     case 'text2music':
       return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+    case 'tts':
+      return 'bg-lime-100 text-lime-700 border-lime-200';
+    case 'stt':
+      return 'bg-teal-100 text-teal-700 border-teal-200';
     case 'video':
       return 'bg-amber-100 text-amber-700 border-amber-200';
     case 'audio':
@@ -180,6 +190,8 @@ const resolveDefaultModelFromTypes = (provider: ProviderRow | undefined, modelTy
   for (const type of requestedTypes) {
     if (type === 'embedding' && defaults.embeddings) return defaults.embeddings;
     if (type === 'audio' && defaults.transcribe) return defaults.transcribe;
+    if (type === 'stt' && defaults.transcribe) return defaults.transcribe;
+    if (type === 'tts' && defaults.speechSynthesis) return defaults.speechSynthesis;
     if (type === 'image' && defaults.imageGeneration) return defaults.imageGeneration;
     if (type === 'text2music' && defaults.musicGeneration) return defaults.musicGeneration;
     if ((type === 'chat' || type === 'vision' || type === 'realtime' || type === 'tool' || type === 'tooling' || type === 'video') && defaults.chat) {

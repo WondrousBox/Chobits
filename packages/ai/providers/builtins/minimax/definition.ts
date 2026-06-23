@@ -62,12 +62,14 @@ export const minimaxDefinition: BuiltinProviderDefinition = {
     imageGeneration: false,
     modelListing: true,
     musicGeneration: true,
+    speechSynthesis: true,
     transcribe: false
   },
   defaults: {
     models: {
       chat: 'MiniMax-M2.7',
-      musicGeneration: 'music-2.6'
+      musicGeneration: 'music-2.6',
+      speechSynthesis: 'speech-2.8-turbo'
     }
   },
   models: {

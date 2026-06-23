@@ -393,6 +393,10 @@ if (req.mode === 'complete') {
 if (req.mode === 'output-stream') {
   return streamMiniMaxHttp({ stream: true });
 }
+
+if (req.mode === 'duplex-stream') {
+  return streamMiniMaxWebSocket();
+}
 ```
 
 `transportPreference: 'auto'` 时建议：
@@ -408,15 +412,29 @@ if (req.mode === 'output-stream') {
 适合 `duplex-stream`：
 
 1. 建立 WebSocket，携带 Authorization。
-2. 发送 `task_start`，包含模型、音色、音频参数、字幕等配置。
-3. 收到 `task_started`。
-4. 每个 `SpeechTextInputChunk { type: 'text' }` 映射为 `task_continue`。
-5. `flush` 可映射为 provider 支持的 flush 语义；MiniMax 若无显式 flush，adapter 内部只刷新本地 writer。
-6. `close` 映射为 `task_finish`。
-7. 服务端音频块统一发 `audio_delta`。
-8. `task_finished` 映射为 `completed` + `done`。
+2. 等待 `connected_success`。
+3. 发送 `task_start`，包含模型、音色、音频参数、字幕等配置。
+4. 收到 `task_started`。
+5. 每个 `SpeechTextInputChunk { type: 'text' }` 映射为 `task_continue`。
+6. `flush` 映射为本地 `metadata` 事件，不透传 provider 私有语义。
+7. `close` 或输入结束映射为 `task_finish`。
+8. 服务端音频块统一发 `audio_delta`。
+9. `task_finished` 映射为 `completed` + `done`。
+
+实现要求：
+
+- WebSocket 接收 loop 与输入 loop 并行运行，不能等所有输入结束后才处理音频。
+- `task_failed` 或 `base_resp.status_code !== 0` 必须关闭会话并发 `error`。
+- 最终仍聚合为 `SpeechSynthesisResponse`，复用音频 artifact 落盘服务。
+- IPC stream handle 支持 `appendText(text)`、`flush()`、`finish()`、`cancel()`。
 
 MiniMax WebSocket 私有事件不应透出到 workflow/UI；必要调试信息放到 `metadata`。
+
+当前实现状态：
+
+- `MiniMaxProvider.streamSpeechSynthesis()` 已支持 `mode: 'duplex-stream'` 或 `transportPreference: 'websocket'`。
+- Renderer bridge `window.YUA.ai.streamSpeechSynthesis()` 已返回可持续输入的 stream handle。
+- WebSocket 会话支持完整文本一次性输入，也支持 AsyncIterable / IPC 队列分段输入。
 
 ### 11.4 MiniMax 模型声明
 
@@ -460,9 +478,11 @@ IPC / preload：
 
 - `ai:generateMusic` / `window.YUA.ai.generateMusic`
 - `ai:synthesizeSpeech` / `window.YUA.ai.synthesizeSpeech`
-- `ai:startSpeechSynthesisStream`
-- `ai:sendSpeechSynthesisText`
-- `ai:stopSpeechSynthesisStream`
+- `ai:streamSpeechSynthesis` / `window.YUA.ai.streamSpeechSynthesis`
+- `ai:appendSpeechSynthesisText`
+- `ai:flushSpeechSynthesis`
+- `ai:finishSpeechSynthesis`
+- `ai:cancelSpeechSynthesis`
 
 Workflow：
 
@@ -472,9 +492,9 @@ Workflow：
 - `audio/speech-synthesize`
   - `providerCapability: 'speechSynthesis'`
   - `modelPredicate: model.type === 'tts' || model.capabilities?.speech_synthesis`
-  - `mode: complete | output-stream`
+  - `mode: complete | output-stream | duplex-stream`
 
-`duplex-stream` 第一版不建议做普通 workflow 节点，因为它需要持续输入通道，更适合精灵说话或 voice session。
+`duplex-stream` 需要持续输入通道，普通批量 workflow 节点默认仍建议使用 `complete` 或 `output-stream`；精灵说话、voice session、实时旁白可以使用 stream handle 持续 `appendText()`。
 
 ## 13. 现有 TTS 系统迁移
 
@@ -516,19 +536,21 @@ Analytics 建议：
 - Plugin validator/runtime 支持 `speechSynthesis`，标准 driver 默认不支持。
 - `ProviderModelSelect` 对 `modelTypes={['tts']}` 使用 `defaults.speechSynthesis`。
 
-### Phase 2：MiniMax TTS complete + HTTP stream
+### Phase 2：MiniMax TTS complete + HTTP stream + WebSocket duplex
 
 - MiniMax models 增加 TTS 模型。
 - MiniMax definition 打开 `speechSynthesis`。
 - 实现 HTTP 非流式 T2A：`mode: 'complete'`。
 - 实现 HTTP 流式 T2A：`mode: 'output-stream'`。
+- 实现 WebSocket 双向 T2A：`mode: 'duplex-stream'`。
 - 支持 hex/url 归一化和落盘。
 
 ### Phase 3：Pi / IPC / workflow
 
 - `PiExecutionService.synthesizeSpeech()`。
 - `PiExecutionService.streamSpeechSynthesis()`。
-- IPC/preload 暴露 TTS complete 和 stream。
+- IPC/preload 暴露 TTS complete、HTTP stream 和 WebSocket duplex stream。
+- Stream handle 支持 `appendText()`、`flush()`、`finish()`、`cancel()`。
 - 新增 `audio/speech-synthesize` workflow 节点。
 
 ### Phase 4：业务迁移
