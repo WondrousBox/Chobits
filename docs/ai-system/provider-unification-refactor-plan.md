@@ -33,6 +33,10 @@
   - `resources/providers` 目录现在仅保留 `icons/*` 打包资源
   - 共享模型类型与参数 schema 已并入 `packages/ai/providers/model-types.ts` 与 `packages/ai/providers/model-params.ts`
   - `Preset` 已切到 `overrides` 为主语义；`config` 仅保留读写兼容 alias
+- 进行中：Provider 音频输出能力扩展
+  - 音乐生成已以 `musicGeneration` 接入，MiniMax 是当前内建实现
+  - TTS 将以 `speechSynthesis` 接入，统一支持 HTTP 非流式、HTTP/SSE/chunk 流式、WebSocket 会话式和后续异步任务
+  - 详细方案见 [AI Provider 音频能力统一设计](./provider-audio-capabilities-design.md)
 
 ## 1. 背景与当前问题
 
@@ -170,6 +174,8 @@ export interface ProviderDefinition {
     chat: boolean;
     embeddings: boolean;
     imageGeneration: boolean;
+    musicGeneration: boolean;
+    speechSynthesis: boolean;
     transcribe: boolean;
     modelListing: boolean;
   };
@@ -179,6 +185,8 @@ export interface ProviderDefinition {
       chat?: string;
       embeddings?: string;
       imageGeneration?: string;
+      musicGeneration?: string;
+      speechSynthesis?: string;
       transcribe?: string;
     };
     config?: Record<string, any>;
@@ -451,6 +459,8 @@ export const openaiDefinition: ProviderDefinition = {
     chat: true,
     embeddings: true,
     imageGeneration: true,
+    musicGeneration: false,
+    speechSynthesis: false,
     transcribe: true,
     modelListing: true,
   },
@@ -459,6 +469,9 @@ export const openaiDefinition: ProviderDefinition = {
       chat: 'gpt-4o-mini',
       embeddings: 'text-embedding-3-small',
       imageGeneration: 'gpt-image-1',
+      // Optional audio-output defaults are declared only when the provider supports them.
+      // musicGeneration: 'music-2.6',
+      // speechSynthesis: 'speech-2.8-turbo',
       transcribe: 'gpt-4o-mini-transcribe',
     },
   },
@@ -526,6 +539,8 @@ export const openaiDefinition: ProviderDefinition = {
     "chat": true,
     "embeddings": true,
     "imageGeneration": false,
+    "musicGeneration": false,
+    "speechSynthesis": false,
     "transcribe": false,
     "modelListing": true
   },
