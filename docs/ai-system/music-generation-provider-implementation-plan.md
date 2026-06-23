@@ -1,17 +1,25 @@
 # AI Provider 音乐生成能力实施计划
 
-更新时间：2026-05-09
+更新时间：2026-06-23
+
+> 状态说明：本文是音乐生成接入 MiniMax 的历史实施计划，并保留了早期对 TTS 的调研和分阶段建议。当前更完整的统一方案请以 [AI Provider 音频能力统一设计](./provider-audio-capabilities-design.md) 为准。后续新增 `speechSynthesis`、MiniMax HTTP/WebSocket T2A、更多 TTS 服务商、流式事件协议和音频 artifact 共用服务时，应优先更新新设计文档，再按需同步本文。
 
 ## 1. 背景
 
-当前 `packages/ai` 的 Provider 体系已经把聊天、向量、转写、图片生成等能力收敛到 `ProviderDefinition` / `ProviderService` / Pi runtime execution 链路中。音乐生成还没有成为一等能力：模型类型里虽然已经预留了 `text2music`，但 capability、默认模型、adapter、IPC、preload、workflow 与统计链路都还没有对应定义。
+当前 `packages/ai` 的 Provider 体系已经把聊天、向量、转写、图片生成等能力收敛到 `ProviderDefinition` / `ProviderService` / Pi runtime execution 链路中。音乐生成已经以 `musicGeneration` capability 接入，MiniMax 是当前内建 provider 中唯一真正实现 `generateMusic()` / `generateLyrics()` 的服务商。
 
-本计划目标是新增“音乐生成”的通用 Provider 调用方式，并优先接入 MiniMax 音乐模型，使 Coding Plan、Workflow 或后续工具调用都能稳定地完成音乐合成。
+本计划原始目标是新增“音乐生成”的通用 Provider 调用方式，并优先接入 MiniMax 音乐模型，使 Coding Plan、Workflow 或后续工具调用都能稳定地完成音乐合成。新的音频能力扩展目标是：在保留 `musicGeneration` 的基础上，新增 `speechSynthesis`，让 TTS 和音乐生成共享音频 artifact、落盘、资源化和统计基础设施。
 
-补充结论：音乐生成与 TTS 都属于“音频输出”，但不应合并成一个 `audioGeneration` 能力。二者应共享音频 artifact、落盘、缓存、播放和统计基础设施，但在 Provider capability 与请求语义上保持独立：
+统一原则：音乐生成与 TTS 都属于“音频输出”，但不应合并成一个 `audioGeneration` 能力。二者应共享音频 artifact、落盘、缓存、播放和统计基础设施，但在 Provider capability 与请求语义上保持独立：
 
 - `speechSynthesis`：文本到语音，核心是 voice、language、rate、pitch、SSML、timestamps、低延迟/批量合成。
 - `musicGeneration`：文本/歌词/参考音频到音乐，核心是 prompt、lyrics、instrumental、duration、cover、loop、多候选和版权元数据。
+
+MiniMax TTS 需要同时考虑三条路径：
+
+- HTTP 非流式：`POST /v1/t2a_v2`，完整文本输入，返回完整音频。
+- HTTP 流式：同一 endpoint，MiniMax `stream: true`，返回 hex 音频片段。
+- WebSocket 会话式：`WSS /ws/v1/t2a_v2`，`task_start` / `task_continue` / `task_finish`，适合分段文本输入和低延迟说话。
 
 ## 2. 外部 API 调研摘要
 
@@ -77,29 +85,24 @@
 - `packages/ai/providers/model-types.ts` 已有 `text2music` 模型类型。
 - `packages/ai/providers/model-types.ts` 已有 `tts` 模型类型。
 - `packages/ai/providers/service.ts` 已统一 Provider capability、默认模型、runtime model info。
+- `musicGeneration` capability、默认模型、`MusicGenerationRequest` / `MusicGenerationResponse`、`GeneratedAudioArtifact` 和 `ProviderAdapter.generateMusic()` 已经落地。
+- MiniMax 内建 provider 已声明 `music-2.6`、`music-2.6-free`、`music-cover`、`music-cover-free`，并实现 `generateMusic()` / `generateLyrics()`。
+- `PiExecutionService.generateMusic()`、`ai:generateMusic`、`window.YUA.ai.generateMusic()`、`music/music-generate` workflow 节点和 Pi `musicGenerateTool` 已经落地。
 - `packages/ai/runtime/pi/execution-service.ts` 已有 `embed()`、`transcribe()`、`generateImage()` 这类 one-shot 执行链路。
 - `packages/workflow/nodes/image-generate.ts` 已经展示了“能力筛选 + 动态模型选择 + execution service 调用”的可复用模式。
 - `packages/tts` 已有批量 TTS、缓存、去重、音频落盘、去静音、进度事件、字幕时间更新。
 - `packages/sprite-core/speak` 已有精灵说话服务、缓存和播放回调。
 
-缺失点：
+仍待补齐：
 
-- `ProviderCapabilityKey` 缺少 `musicGeneration`。
-- `ProviderCapabilityKey` 缺少 `speechSynthesis`。
-- `ProviderDefaultModels` 缺少 `musicGeneration`。
-- `ProviderDefaultModels` 缺少 `speechSynthesis`。
-- `ProviderAdapter` 缺少 `generateMusic()`。
-- `ProviderAdapter` 缺少 `synthesizeSpeech()`。
-- `AIApi`、IPC、preload 缺少 `generateMusic()`。
-- `AIApi`、IPC、preload 缺少通用 `synthesizeSpeech()`。
-- `ProviderModelSelect` 缺少 music/text2music 的默认模型映射和展示文案。
-- `ProviderModelSelect` 当前把 `audio` 映射到 `defaults.transcribe`，这会混淆 STT 和 TTS。
-- Plugin provider manifest validator/runtime 缺少音乐能力字段。
-- Plugin provider manifest validator/runtime 缺少 TTS 能力字段。
-- MiniMax 内建 provider 目前只有 chat 模型，未声明 `music-2.6` / `music-cover`。
-- MiniMax 内建 provider 未声明 `speech-2.8-hd`、`speech-2.8-turbo` 等 TTS 模型。
-- Workflow 和 Pi toolbox 没有音乐生成节点或工具入口。
-- `packages/tts/batch-tts-service.ts` 的 `BatchTTSConfig.type` 虽预留 `OpenAI` / `Volc`，但当前实际只创建 `EdgeTTS`。
+- `ProviderCapabilityKey` / `ProviderDefaultModels` 仍缺少 `speechSynthesis`。
+- `ProviderAdapter` 仍缺少 `synthesizeSpeech()` / `streamSpeechSynthesis()`。
+- `AIApi`、IPC、preload 仍缺少通用 `synthesizeSpeech()` 和流式 TTS session 接口。
+- `ProviderModelSelect` 仍需要明确支持 `tts` 类型、`defaults.speechSynthesis` 和避免把 TTS 混入 `audio` / `transcribe`。
+- Plugin provider manifest validator/runtime 仍需补齐 TTS 能力字段；标准 driver 未实现时应保持 unsupported warning。
+- MiniMax 内建 provider 仍需声明 `speech-2.8-hd`、`speech-2.8-turbo` 等 TTS 模型。
+- MiniMax provider 仍需实现 HTTP 非流式 T2A、HTTP 流式 T2A 和 WebSocket T2A 的 adapter 映射。
+- `packages/tts/batch-tts-service.ts` 的 `BatchTTSConfig.type` 虽预留 `OpenAI` / `Volc`，但当前实际只创建 `EdgeTTS`，后续应迁移为可调用 AI Provider `speechSynthesis`。
 
 ## 5. 推荐抽象
 

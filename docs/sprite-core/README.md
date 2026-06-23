@@ -92,7 +92,7 @@ packages/sprite-core/
 │   └── zh-CN.ts                # 中文气泡文案目录（53+ 类别 + 150+ 事件文案）
 ├── speak/                      # 语音合成模块
 │   ├── index.ts
-│   ├── speak-service.ts        # Edge TTS 语音合成服务
+│   ├── speak-service.ts        # 语音合成服务（当前 Edge TTS，后续可接 AI Provider speechSynthesis）
 │   ├── speak-cache.ts          # 语音缓存管理
 │   ├── speak-config-store.ts   # 语音配置持久化
 │   └── types.ts                # 语音类型定义
@@ -126,7 +126,7 @@ BehaviorEngine (tick 1s) → 检查条件 → 触发行为 → SpriteManager.tri
 │  ├ BehaviorEngine           # 自主行为调度 (tick 1s)       │
 │  ├ AnimationRegistry        # 事件→动画映射               │
 │  ├ WindowController         # 行走/位置/拖拽               │
-│  ├ SpeakService             # Edge TTS 语音合成            │
+│  ├ SpeakService             # 语音合成（当前 Edge TTS）       │
 │  └ PersonaStatePersistence  # JSON 持久化 (debounced)     │
 └──────────────────────────────────────────────────────────┘
 
@@ -554,7 +554,7 @@ wc.getAutoMoveDirection(); // 'left' | 'right' | null
 
 ### 10. SpeakService — 语音合成模块
 
-Edge TTS 语音合成服务，支持缓存、配置管理、自动播放。
+语音合成服务，当前实现以 Edge TTS 为主，支持缓存、配置管理、自动播放。后续底层合成引擎应逐步接入 AI Provider 的 `speechSynthesis` capability，统一复用 Provider 模型、密钥、音频 artifact 和流式事件设计。详细方案见 [AI Provider 音频能力统一设计](../ai-system/provider-audio-capabilities-design.md)。
 
 当系统确认合成音频会被播放时，会在下发 `sprite:speak` 前尝试播放 `talk` 动画。这个能力是系统级的：`SpriteManager.speak()`、自动朗读的 `showToast()` / `showNotice()` 都走同一条链路。`talk` 不改变 `SpriteState`，并且只会在当前视觉表现是 idle-like 时插入，避免覆盖 `welcome`、`celebrate`、`thinking` 等显式 trigger 动画。
 
@@ -576,7 +576,7 @@ await sprite.clearSpeakCache();
 | 字段          | 类型     | 说明                                  |
 | ------------- | -------- | ------------------------------------- |
 | `enabled`     | boolean  | 是否启用语音合成                      |
-| `serviceType` | `'Edge'` | TTS 服务类型                          |
+| `serviceType` | `'Edge'` | TTS 服务类型；当前仅 Edge，后续可扩展 AI Provider |
 | `voiceName`   | string   | 语音名称（如 `zh-CN-XiaoxiaoNeural`） |
 | `rate`        | number   | 语速 (-100 ~ 200)                     |
 | `pitch`       | number   | 音高 (-100 ~ 200)                     |
@@ -590,7 +590,7 @@ await sprite.clearSpeakCache();
     │  window.YUA.sprite.speak('你好') │                         │
     │ ─────────────────────────────────►│                         │
     │                                   │                         │
-    │                            合成音频 (Edge TTS)              │
+    │                            合成音频 (当前 Edge TTS)          │
     │                            缓存检查/存储                    │
     │                                   │                         │
     │                            尝试 trigger('talk')              │
