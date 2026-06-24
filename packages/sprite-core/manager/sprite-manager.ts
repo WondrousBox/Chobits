@@ -3017,7 +3017,7 @@ export class SpriteManager {
   }
 
   private logTriggerDebug(message: string, details: Record<string, unknown> = {}): void {
-    console.info(SPRITE_TRIGGER_DEBUG_PREFIX, message, details);
+    // console.info(SPRITE_TRIGGER_DEBUG_PREFIX, message, details);
   }
 
   private shouldLogTriggerDebug(trigger?: SpriteAnimationTrigger, options?: Pick<SpriteTriggerOptions, 'playId'>): boolean {
