@@ -1,50 +1,139 @@
 import type { ProviderModelDefinition } from '../../model-types';
 
 // MiniMax Token Plan 套餐模型
-// ref: https://platform.minimaxi.com/docs/token-plan/intro
+// ref: https://platform.minimaxi.com/docs/guides/text-generation
 // endpoint: https://api.minimaxi.com/v1
+
+const minimaxTextPricing: ProviderModelDefinition['pricing'] = {
+  currency: 'CNY',
+  units: [
+    { name: 'textInput', rate: 0, strategy: 'fixed', unit: 'millionTokens' },
+    { name: 'textOutput', rate: 0, strategy: 'fixed', unit: 'millionTokens' }
+  ]
+};
 
 const minimaxChatModels: ProviderModelDefinition[] = [
   {
     abilities: {
       functionCall: true,
       reasoning: true,
+      video: true,
       vision: true
     },
     contextWindowTokens: 1_000_000,
-    description: 'MiniMax-M2.7 是 MiniMax 最新旗舰模型，兼容 OpenAI 和 Anthropic 接口协议，适用于代码助手、Agent 工具、AI IDE 等多种场景。',
-    displayName: 'MiniMax-M2.7',
+    description: 'MiniMax-M3 是原生多模态、1M 上下文的 Frontier Coding 模型，适用于 Agent 推理、工具调用、代码和长上下文任务。',
+    displayName: 'MiniMax-M3',
     enabled: true,
-    id: 'MiniMax-M2.7',
+    id: 'MiniMax-M3',
     maxOutput: 65_536,
-    pricing: {
-      currency: 'CNY',
-      units: [
-        { name: 'textInput', rate: 0, strategy: 'fixed', unit: 'millionTokens' },
-        { name: 'textOutput', rate: 0, strategy: 'fixed', unit: 'millionTokens' }
-      ]
-    },
+    pricing: minimaxTextPricing,
     type: 'chat'
   },
   {
     abilities: {
       functionCall: true,
-      reasoning: true,
-      vision: true
+      reasoning: true
     },
-    contextWindowTokens: 1_000_000,
-    description: 'MiniMax-M2.7-highspeed 是 M2.7 的极速版本，提供更快的推理速度，适合极速版订阅用户。',
+    contextWindowTokens: 204_800,
+    description: 'MiniMax-M2.7 开启模型的自我迭代，适用于 Agent、代码和复杂任务，输出速度约 60 TPS。',
+    displayName: 'MiniMax-M2.7',
+    enabled: true,
+    id: 'MiniMax-M2.7',
+    maxOutput: 65_536,
+    pricing: minimaxTextPricing,
+    type: 'chat'
+  },
+  {
+    abilities: {
+      functionCall: true,
+      reasoning: true
+    },
+    contextWindowTokens: 204_800,
+    description: 'MiniMax-M2.7-highspeed 是 M2.7 极速版，效果不变，输出速度约 100 TPS。',
     displayName: 'MiniMax-M2.7 Highspeed',
     enabled: true,
     id: 'MiniMax-M2.7-highspeed',
     maxOutput: 65_536,
-    pricing: {
-      currency: 'CNY',
-      units: [
-        { name: 'textInput', rate: 0, strategy: 'fixed', unit: 'millionTokens' },
-        { name: 'textOutput', rate: 0, strategy: 'fixed', unit: 'millionTokens' }
-      ]
+    pricing: minimaxTextPricing,
+    type: 'chat'
+  },
+  {
+    abilities: {
+      functionCall: true,
+      reasoning: true
     },
+    contextWindowTokens: 204_800,
+    description: 'MiniMax-M2.5 兼顾顶尖性能与极致性价比，适合复杂任务，输出速度约 60 TPS。',
+    displayName: 'MiniMax-M2.5',
+    enabled: true,
+    id: 'MiniMax-M2.5',
+    maxOutput: 65_536,
+    pricing: minimaxTextPricing,
+    type: 'chat'
+  },
+  {
+    abilities: {
+      functionCall: true,
+      reasoning: true
+    },
+    contextWindowTokens: 204_800,
+    description: 'MiniMax-M2.5-highspeed 是 M2.5 极速版，效果不变，输出速度约 100 TPS。',
+    displayName: 'MiniMax-M2.5 Highspeed',
+    enabled: true,
+    id: 'MiniMax-M2.5-highspeed',
+    maxOutput: 65_536,
+    pricing: minimaxTextPricing,
+    type: 'chat'
+  },
+  {
+    abilities: {
+      functionCall: true,
+      reasoning: true
+    },
+    contextWindowTokens: 204_800,
+    description: 'MiniMax-M2.1 具备强大的多语言编程能力，适合代码工程与复杂任务，输出速度约 60 TPS。',
+    displayName: 'MiniMax-M2.1',
+    enabled: true,
+    id: 'MiniMax-M2.1',
+    maxOutput: 65_536,
+    pricing: minimaxTextPricing,
+    type: 'chat'
+  },
+  {
+    abilities: {
+      functionCall: true,
+      reasoning: true
+    },
+    contextWindowTokens: 204_800,
+    description: 'MiniMax-M2.1-highspeed 是 M2.1 极速版，效果不变，输出速度约 100 TPS。',
+    displayName: 'MiniMax-M2.1 Highspeed',
+    enabled: true,
+    id: 'MiniMax-M2.1-highspeed',
+    maxOutput: 65_536,
+    pricing: minimaxTextPricing,
+    type: 'chat'
+  },
+  {
+    abilities: {
+      functionCall: true,
+      reasoning: true
+    },
+    contextWindowTokens: 204_800,
+    description: 'MiniMax-M2 专为高效编码与 Agent 工作流而生。',
+    displayName: 'MiniMax-M2',
+    enabled: true,
+    id: 'MiniMax-M2',
+    maxOutput: 65_536,
+    pricing: minimaxTextPricing,
+    type: 'chat'
+  },
+  {
+    contextWindowTokens: 65_536,
+    description: 'M2-her 是 MiniMax 专为对话场景优化的模型，支持角色扮演和多轮对话。',
+    displayName: 'M2-her',
+    enabled: true,
+    id: 'M2-her',
+    pricing: minimaxTextPricing,
     type: 'chat'
   }
 ];

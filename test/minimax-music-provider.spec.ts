@@ -99,13 +99,26 @@ describe('MiniMax music generation provider', () => {
 
     expect(getProviderCapabilities('minimax').musicGeneration).toBe(true);
     expect(getProviderCapabilities('minimax').speechSynthesis).toBe(true);
+    expect(getProviderDefaultModels('minimax').chat).toBe('MiniMax-M3');
     expect(getProviderDefaultModels('minimax').musicGeneration).toBe('music-2.6');
     expect(getProviderDefaultModels('minimax').speechSynthesis).toBe('speech-2.8-turbo');
 
     const models = await listProviderRuntimeModels('minimax');
+    const chatModelIds = models.filter((model) => model.type === 'chat').map((model) => model.id);
     const musicModel = models.find((model) => model.id === 'music-2.6');
     const speechModel = models.find((model) => model.id === 'speech-2.8-turbo');
 
+    expect(chatModelIds).toEqual([
+      'MiniMax-M3',
+      'MiniMax-M2.7',
+      'MiniMax-M2.7-highspeed',
+      'MiniMax-M2.5',
+      'MiniMax-M2.5-highspeed',
+      'MiniMax-M2.1',
+      'MiniMax-M2.1-highspeed',
+      'MiniMax-M2',
+      'M2-her'
+    ]);
     expect(musicModel?.type).toBe('text2music');
     expect(musicModel?.capabilities?.music_generation).toBe(true);
     expect(speechModel?.type).toBe('tts');
