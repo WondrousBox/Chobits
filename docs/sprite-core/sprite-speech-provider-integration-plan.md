@@ -1,23 +1,23 @@
 # 角色说话接入 AI Provider 语音合成规划
 
-> 状态：Phase 1 已实现。角色说话现在可在 Edge 和 AI Provider 之间切换；AI Provider 模式已接入 `speechSynthesis`，并支持 `complete`、`output-stream`、`duplex-stream` 三种模式聚合成缓存文件后播放。AI 聊天 delta 驱动的 PCM 边合成边播放已拆为独立实施计划，见 [AI 对话实时语音合成与 PCM 播放实施计划](./sprite-realtime-chat-speech-plan.md)。
+> 状态：已实现。角色说话现在可在 Edge 和 AI Provider 之间切换；普通 `sprite.speak()` 固定使用 AI Provider `complete/http` 完整合成并写入本地缓存。AI 聊天 delta 驱动的 PCM 边合成边播放使用独立开关，运行时按模型能力自动选择 `duplex-stream/websocket`、`output-stream/http-stream`、`complete/http` 并优雅降级，见 [AI 对话实时语音合成与 PCM 播放实施计划](./sprite-realtime-chat-speech-plan.md)。
 
 ## 1. 当前结论
 
 MiniMax 的语音合成底座已经在 `packages/ai` 中具备三种请求方式：
 
-| Provider 能力 | 通用入口 | MiniMax 映射 | 当前代码状态 |
-| --- | --- | --- | --- |
-| HTTP 非流式 | `synthesizeSpeech()` + `mode: 'complete'` | `POST /v1/t2a_v2`，`stream: false` | 已实现 |
-| HTTP 流式 | `streamSpeechSynthesis()` + `mode: 'output-stream'` + `transportPreference: 'http-stream'` | `POST /v1/t2a_v2`，`stream: true` | 已实现 |
-| WebSocket 双向流 | `streamSpeechSynthesis()` + `mode: 'duplex-stream'` + `transportPreference: 'websocket'` | `WSS /ws/v1/t2a_v2`，`task_start` / `task_continue` / `task_finish` | 已实现 |
+| Provider 能力    | 通用入口                                                                                   | MiniMax 映射                                                        | 当前代码状态 |
+| ---------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- | ------------ |
+| HTTP 非流式      | `synthesizeSpeech()` + `mode: 'complete'`                                                  | `POST /v1/t2a_v2`，`stream: false`                                  | 已实现       |
+| HTTP 流式        | `streamSpeechSynthesis()` + `mode: 'output-stream'` + `transportPreference: 'http-stream'` | `POST /v1/t2a_v2`，`stream: true`                                   | 已实现       |
+| WebSocket 双向流 | `streamSpeechSynthesis()` + `mode: 'duplex-stream'` + `transportPreference: 'websocket'`   | `WSS /ws/v1/t2a_v2`，`task_start` / `task_continue` / `task_finish` | 已实现       |
 
 角色说话已接入这些能力。改造后的链路是：
 
 - `src/pages/ExtensionSettings/SpeakSettings.tsx` 提供 Edge / AI Provider 引擎切换。
-- AI Provider 面板可选择 provider、preset、TTS model、voiceId、合成模式和音频格式。
+- AI Provider 面板可选择 provider、preset、TTS model、voiceId 和普通说话音频格式；不再让用户选择合成模式。
 - `packages/sprite-core/speak/types.ts` 的 `SpriteSpeakConfig` 已增加 `engine` 和 `aiProvider`。
-- `packages/sprite-core/speak/speak-service.ts` 会根据配置调用 Edge TTS 或注入的 `SpriteSpeechSynthesisExecutor`。
+- `packages/sprite-core/speak/speak-service.ts` 会根据配置调用 Edge TTS 或注入的 `SpriteSpeechSynthesisExecutor`。普通说话始终构造 `complete/http` 请求；实时聊天朗读由运行时自动选择和降级。
 - `packages/sprite-core/speak/speak-cache.ts` 已支持 Provider cache key 和动态音频扩展名，同时保留旧 Edge cache id 兼容。
 
 因此接入目标不是“再实现一遍 MiniMax TTS”，而是让 `sprite-core/speak` 变成角色说话的业务编排层，底层合成引擎可选择 Edge 或 AI Provider。
@@ -29,8 +29,8 @@ MiniMax 的语音合成底座已经在 `packages/ai` 中具备三种请求方式
 - 角色机能扩展中的“语音合成/角色说话”支持选择 `Edge` 或 `AI Provider`。
 - AI Provider 模式使用统一 `speechSynthesis` capability，未来可接 MiniMax、OpenAI、ElevenLabs、火山、腾讯、阿里等服务商。
 - 保留现有 `window.YUA.sprite.speak()`、`synthesizeSpeech()`、气泡展示、talk 动画触发和缓存行为。
-- 第一阶段优先接入 `complete`，保证“合成完成 -> 缓存 -> 播放”的稳定体验。
-- 设计上预留 HTTP 流式和 WebSocket 双向流。AI 聊天 delta 的实时朗读走独立开关，默认关闭，优先使用 WebSocket `duplex-stream` + PCM 播放器。
+- 普通角色说话使用 `complete/http`，保证“合成完成 -> 缓存 -> 播放”的稳定体验。
+- AI 聊天 delta 的实时朗读走独立开关，默认关闭，优先使用 WebSocket `duplex-stream` + PCM 播放器；不支持时按能力降级到 HTTP 流式或完整 HTTP 合成。
 
 非目标：
 
@@ -40,7 +40,7 @@ MiniMax 的语音合成底座已经在 `packages/ai` 中具备三种请求方式
 
 ## 3. 配置模型
 
-现有配置需要兼容读取。建议新增 `engine` 和 `aiProvider`，旧字段继续服务 Edge：
+当前配置通过 `engine` 区分 Edge 和 AI Provider，旧 Edge 字段继续服务 Edge 面板。AI Provider 配置只保存影响声音内容的参数，不保存合成模式或传输方式；普通说话和实时朗读的调用策略由运行时按使用场景和 provider/model capability 决定。
 
 ```ts
 export type SpriteSpeakEngine = 'edge' | 'ai-provider';
@@ -52,8 +52,6 @@ export interface SpriteSpeakAIProviderConfig {
   voiceId: string;
   voice?: string;
   language?: string;
-  mode?: 'complete' | 'output-stream' | 'duplex-stream';
-  transportPreference?: 'auto' | 'http' | 'http-stream' | 'websocket';
   audioSetting?: {
     format?: 'mp3' | 'wav' | 'flac' | 'pcm' | 'opus' | string;
     sampleRate?: number;
@@ -74,9 +72,9 @@ export interface SpriteSpeakAIProviderConfig {
 
 export interface SpriteSpeakConfig {
   enabled: boolean;
-  engine?: SpriteSpeakEngine;
+  engine: SpriteSpeakEngine;
 
-  // Legacy Edge fields. Keep them for old configs and the Edge settings panel.
+  // Legacy Edge fields. Keep them for the Edge settings panel and old config reads.
   serviceType: 'Edge' | string;
   voiceName: string;
   rate: number;
@@ -92,7 +90,8 @@ export interface SpriteSpeakConfig {
 兼容策略：
 
 - 读取旧配置时，`engine` 缺失则按 `serviceType === 'Edge'` 推导为 `edge`。
-- 保存新配置时保留旧字段，避免旧窗口或旧代码读取失败。
+- 保存新配置时仍保留 Edge 旧字段，避免旧窗口或旧代码读取失败。
+- 旧配置中如果曾保存过 `mode` / `transportPreference` 会被读取流程忽略；新配置模型不再定义这两个字段，UI 也不暴露选择项。
 - `volume` 继续表示播放器音量。Provider 请求里的发声音量使用 `aiProvider.voiceVolume` 映射到 `SpeechSynthesisRequest.volume`。
 - 不把 Edge 的百分比 `rate` 原样复用到 Provider。AI Provider 使用 `speed`，由各 provider adapter 映射到自身字段。
 
@@ -111,14 +110,14 @@ UI 分层：
    - 模型默认值优先使用 provider 的 `defaultModels.speechSynthesis`。
    - 支持选择当前 provider 的 preset；不选择时走 `resolveUsablePreset()` 自动选择可用预设。
    - 音色使用 provider voice 选择器。第一阶段可先提供“常用 MiniMax 音色 + 手动输入 voiceId”，后续再扩展统一 voice catalog。
-   - 模式默认 `complete`。`output-stream` 和 `duplex-stream` 放到高级选项，并依据模型 metadata 中的 `speechSynthesis.modes/transports` 做可用性过滤。
+   - 合成模式不在配置页暴露。普通说话由系统固定走 `complete/http`；AI 回复实时朗读由系统按模型 metadata 中的 `speechSynthesis.modes/transports/audioFormats` 自动选择。
    - 展示 Provider 配置状态。未配置 API key 或 preset 时，提供“去配置”入口。
    - 试听按钮仍调用 `window.YUA.sprite.speak()`，让测试覆盖真实角色说话链路。
 
 需要扩展的前端类型：
 
 - `SpeakSettings.tsx` 的本地 `SpriteSpeakConfig` 应改为从 `@packages/sprite-core/speak/types` 引入，避免 UI 和主进程类型分叉。
-- `ProviderModelSelect` 的 `ModelRow` 应允许读取 `speechSynthesis?: { modes?: string[]; transports?: string[]; voices?: unknown[] }` 这类 metadata，用于模式和传输过滤。
+- `ProviderModelSelect` 的 `ModelRow` 应允许读取 `speechSynthesis?: { modes?: string[]; transports?: string[]; audioFormats?: string[]; voices?: unknown[] }` 这类 metadata，用于运行时策略和后续 UI 状态提示。
 
 ## 5. 主进程运行链路
 
@@ -127,11 +126,7 @@ UI 分层：
 ```ts
 export interface SpriteSpeechSynthesisExecutor {
   synthesize(req: SpeechSynthesisRequest): Promise<SpeechSynthesisResponse>;
-  stream?(
-    req: SpeechSynthesisRequest,
-    onEvent: (event: SpeechSynthesisStreamEvent) => void,
-    input?: AsyncIterable<SpeechTextInputChunk>
-  ): Promise<SpeechSynthesisResponse>;
+  stream?(req: SpeechSynthesisRequest, onEvent: (event: SpeechSynthesisStreamEvent) => void, input?: AsyncIterable<SpeechTextInputChunk>): Promise<SpeechSynthesisResponse>;
 }
 ```
 
@@ -167,8 +162,8 @@ const request: SpeechSynthesisRequest = {
   providerPresetId: config.aiProvider.providerPresetId,
   model: config.aiProvider.model,
   text,
-  mode: config.aiProvider.mode ?? 'complete',
-  transportPreference: config.aiProvider.transportPreference ?? 'auto',
+  mode: 'complete',
+  transportPreference: 'http',
   voice: config.aiProvider.voice,
   voiceId: config.aiProvider.voiceId,
   language: config.aiProvider.language,
@@ -193,9 +188,10 @@ MiniMax 注意点：
 
 - `voiceId` 必填，否则 adapter 会抛出 `MiniMax speech synthesis requires voiceId or voice`。
 - `speech-2.8-turbo` 可作为默认模型，`speech-2.8-hd` 可作为高质量选项。
-- `complete` 可用 `transportPreference: 'auto'` 或 `'http'`。
-- `output-stream` 使用 `'http-stream'`。
-- `duplex-stream` 使用 `'websocket'`，适合后续 token 流实时说话，不适合作为第一阶段默认。
+- 普通 `sprite.speak()` 固定使用 `complete/http`，这样缓存 key 和费用行为稳定，不会因为旧配置或 UI 选择误走流式。
+- 实时聊天朗读优先使用 `duplex-stream/websocket`，适合 token/delta 流实时说话。
+- 如果当前 provider/model 未声明 WebSocket 能力或运行时在未出音频前失败，则降级到 `output-stream/http-stream`。
+- 如果 HTTP 流式也不可用，则降级到 `complete/http`，按文本分片逐段完整合成并送入 PCM 播放队列。
 
 ## 6. 缓存与文件
 
@@ -210,13 +206,15 @@ sprite-speak-cache/
 Edge 旧实现使用：
 
 ```ts
-MD5(JSON.stringify({
-  serviceType,
-  voiceName,
-  rate,
-  pitch,
-  text: sanitizedText
-}))
+MD5(
+  JSON.stringify({
+    serviceType,
+    voiceName,
+    rate,
+    pitch,
+    text: sanitizedText
+  })
+);
 ```
 
 其中 `sanitizedText` 是去掉 emoji 后真正送入 TTS 的文本。为了兼容旧缓存，Edge 路径仍保留这个 JSON 顺序和字段集合，不把新增的 `engine` 写进 hash。
@@ -224,29 +222,29 @@ MD5(JSON.stringify({
 AI Provider 使用稳定序列化后的配置指纹加文本再做 MD5：
 
 ```ts
-MD5(stableJson({
-  engine: 'ai-provider',
-  aiProvider: {
-    providerId,
-    providerPresetId,
-    model,
-    voiceId,
-    voice,
-    language,
-    mode,
-    transportPreference,
-    audioFormat,
-    speed,
-    pitch,
-    voiceVolume,
-    emotion
-  },
-  audioSetting,
-  subtitle,
-  pronunciationDict,
-  extras: stableExtras,
-  text: sanitizedText
-}))
+MD5(
+  stableJson({
+    engine: 'ai-provider',
+    aiProvider: {
+      providerId,
+      providerPresetId,
+      model,
+      voiceId,
+      voice,
+      language,
+      audioFormat,
+      speed,
+      pitch,
+      voiceVolume,
+      emotion
+    },
+    audioSetting,
+    subtitle,
+    pronunciationDict,
+    extras: stableExtras,
+    text: sanitizedText
+  })
+);
 ```
 
 这样同一段文本在同一套语音配置下会命中本地缓存，不会重复调用服务商；切换 provider、preset、model、voiceId、语速、音高、发声音量、情绪、格式或字幕/发音词典会得到新的 `cacheId`，避免误复用旧音频。
@@ -255,7 +253,7 @@ MD5(stableJson({
 
 - `engine`
 - Edge: `voiceName`、`rate`、`pitch`
-- AI Provider: `providerId`、`providerPresetId`、`model`、`voiceId`、`language`、`mode`、`transportPreference`、`audioSetting`、`speed`、`pitch`、`voiceVolume`、`emotion`、`extras` 中参与合成的稳定字段
+- AI Provider: `providerId`、`providerPresetId`、`model`、`voiceId`、`language`、`audioSetting`、`speed`、`pitch`、`voiceVolume`、`emotion`、`extras` 中参与合成的稳定字段
 - `text`
 
 不进入缓存 key 的字段：
@@ -279,8 +277,8 @@ config: {
     providerPresetId?: string;
     model: string;
     voiceId: string;
-    mode: string;
-    transportPreference?: string;
+    voice?: string;
+    language?: string;
     audioFormat?: string;
   };
 };
@@ -306,29 +304,29 @@ durationMs?: number;
 
 ## 7. 流式与实时朗读规划
 
-第一阶段已完成：
+普通角色说话已完成：
 
-- 默认推荐使用 `complete`。
-- `output-stream` 和 `duplex-stream` 也已可通过 Provider stream executor 聚合为完整音频文件。
-- `synthesizeSpeech()` 和 `speak()` 都返回完整 `audioPath`，保持现有播放、缓存、talk 动画语义。
+- `synthesizeSpeech()` 和 `speak()` 都固定走 `complete/http`，返回完整 `audioPath`，保持现有播放、缓存、talk 动画语义。
+- AI Provider 缓存 key 不包含用户可配的合成模式或传输方式；普通说话的 `complete/http` 是运行时调用策略。
+- `output-stream` 和 `duplex-stream` 仍保留在 Provider 能力层，供实时朗读、旁白等场景按能力自动使用。
 
 第二阶段 AI 聊天实时朗读已完成第一版：
 
 - `SpriteSpeakConfig` 已增加 `chatRealtimeSpeech.enabled`，默认关闭。
 - 设置页已增加“AI 回复实时朗读”开关。只有用户明确开启后，聊天 assistant 正文 delta 才会进入 TTS。
-- `SpeakService` 已新增实时 session API，使用 `streamSpeechSynthesis()` 和文本输入队列。
-- MiniMax 第一版优先使用 `mode: 'duplex-stream'`、`transportPreference: 'websocket'`、`audioSetting.format: 'pcm'`。
+- `SpeakService` 已新增实时 session API，使用可重放文本输入队列和自动策略候选。
+- 实时朗读候选顺序为 `duplex-stream/websocket` -> `output-stream/http-stream` -> `complete/http`。候选必须被 provider/model 的 `speechSynthesis` metadata 声明支持；未声明 metadata 的 provider 只保守使用 `complete/http`。
+- 如果较高优先级策略在未输出音频前失败，session 会重放已接收文本并切到下一档；已经输出音频后不再混用其它策略，避免多路声音叠加。
 - 渲染进程已新增 PCM 播放器，消费连续 `audio_delta`，不等待完整文件。
 - talk 动画在第一段有效 PCM 音频到达后触发。
 - 聊天实时朗读开启时只播放 assistant 正文 delta；AI 开始/结束/错误提示、工具结果 `speech`、表情包发送结果等辅助说话会跳过普通 `sprite.speak()`，关闭实时朗读后恢复原行为。
 - 聊天实时朗读第一版默认不写 speak cache，避免每条对话回复落盘；普通 `sprite.speak()` 缓存策略不变。
 
-第三阶段 HTTP output-stream 边播：
+后续增强：
 
-- 面向完整长文本，例如 AI 自发长句、旁白、摘要朗读。
-- `SpeakService` 可以使用 `output-stream` 收集完整文本产生的 `audio_delta`。
 - 如果输出不是 PCM，可另行增加 MediaSource/解码器路径；第一版实时聊天只要求 PCM。
 - 可选在结束后聚合落盘，写入 speak cache。
+- 增加 session 级延迟、underrun、首包耗时监控。
 
 实时聊天朗读的详细配置、IPC、PCM 播放器和验收标准见 [AI 对话实时语音合成与 PCM 播放实施计划](./sprite-realtime-chat-speech-plan.md)。
 
@@ -366,7 +364,7 @@ durationMs?: number;
 - [x] `SpriteManagerOptions` 增加 `speechSynthesisExecutor` 注入点。
 - [x] Electron main 注入 `PiExecutionService.synthesizeSpeech()` 和 `streamSpeechSynthesis()`。
 - [x] `SpeakService` 增加 AI Provider engine 分支，构造通用 `SpeechSynthesisRequest`。
-- [x] `SpeakSettings.tsx` 增加 Edge / AI Provider 引擎切换、ProviderModelSelect、voiceId、模式高级项和配置入口。
+- [x] `SpeakSettings.tsx` 增加 Edge / AI Provider 引擎切换、ProviderModelSelect、voiceId、自动策略说明和配置入口。
 - [x] `SpeakSettings.tsx` 支持选择当前 Provider 的 preset，适配 MiniMax Token Plan 多预设。
 - [x] 试听、缓存、talk 动画保持当前行为。
 
@@ -375,14 +373,14 @@ durationMs?: number;
 - [x] `SpriteSpeakConfig` 增加 `chatRealtimeSpeech`，默认关闭。
 - [x] 设置页增加“AI 回复实时朗读”开关、scope 和 PCM 参数。
 - [x] `SpeakService` 增加实时 session API，支持 `appendText()`、`flush()`、`finish()`、`cancel()`。
+- [x] `SpeakService` 实时 session 支持 WS -> HTTP 流式 -> HTTP 完整的 capability 驱动自动策略和失败降级。
 - [x] 新增 sprite realtime IPC/preload handle。
 - [x] Renderer 新增 PCM streaming player。
 - [x] ChatPage 和 Resource AIChatSidebar 接入 assistant delta，跳过 thinking/tool。
 - [x] 聊天取消、页面卸载、message completed 时正确关闭 TTS session。
 
-### Phase 3：HTTP output-stream 边播与缓存增强
+### Phase 3：实时播放增强与缓存增强
 
-- 支持完整长文本 `output-stream` 边合成边播放。
 - 支持非 PCM 流式音频的解码播放路径。
 - 可选将实时 session 的最终聚合音频写入 speak cache。
 - 增加 session 级延迟、underrun、首包耗时监控。
@@ -400,6 +398,8 @@ durationMs?: number;
 - 选择 AI Provider + MiniMax + `speech-2.8-turbo` + 合法 `voiceId` 时，`window.YUA.sprite.speak()` 能合成、缓存并播放。
 - 未配置 Provider API key 时，设置页能明确引导配置，不在 speak 时静默失败。
 - 切换 provider、model、voiceId、speed、pitch、emotion 后缓存 key 变化。
+- 普通 `sprite.speak()` 即使旧配置中存在 `duplex-stream/websocket`，也仍使用 `complete/http` 和同一套缓存 key。
+- 开启实时朗读时，系统按模型能力优先 WS、再 HTTP 流式、再 HTTP 完整；不需要用户手动选择合成方式。
 - `synthesizeSpeech()` 只预合成，不触发 talk 动画；`speak()` 在音频即将播放时才触发 talk 动画。
 - TypeScript 编译通过，并覆盖 Edge 旧配置迁移、AI Provider 请求映射、缓存 key 和错误提示测试。
 

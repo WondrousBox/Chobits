@@ -554,9 +554,9 @@ wc.getAutoMoveDirection(); // 'left' | 'right' | null
 
 ### 10. SpeakService — 语音合成模块
 
-语音合成服务支持 Edge TTS 和 AI Provider TTS，负责缓存、配置管理、自动播放与 talk 动画触发。MiniMax 的 `speechSynthesis` Provider 底座已经覆盖 HTTP 非流式、HTTP 流式和 WebSocket 双向流；角色说话侧完整合成已接入 Provider，普通 `sprite.speak()` 仍以完整音频文件和缓存为中心。详细方案见 [角色说话接入 AI Provider 语音合成规划](./sprite-speech-provider-integration-plan.md)，底层 Provider 契约见 [AI Provider 音频能力统一设计](../ai-system/provider-audio-capabilities-design.md)。
+语音合成服务支持 Edge TTS 和 AI Provider TTS，负责缓存、配置管理、自动播放与 talk 动画触发。MiniMax 的 `speechSynthesis` Provider 底座已经覆盖 HTTP 非流式、HTTP 流式和 WebSocket 双向流；普通 `sprite.speak()` 固定使用完整 HTTP 合成和本地缓存，不让用户选择合成方式。详细方案见 [角色说话接入 AI Provider 语音合成规划](./sprite-speech-provider-integration-plan.md)，底层 Provider 契约见 [AI Provider 音频能力统一设计](../ai-system/provider-audio-capabilities-design.md)。
 
-AI 聊天 delta 驱动的边合成边播放默认关闭，可通过“AI 回复实时朗读”开关接入 `duplex-stream` + PCM 播放器。实施计划见 [AI 对话实时语音合成与 PCM 播放实施计划](./sprite-realtime-chat-speech-plan.md)。
+AI 聊天 delta 驱动的边合成边播放默认关闭，可通过“AI 回复实时朗读”开关接入 PCM 播放器。系统会先经过主进程实时文本 parser 做 markdown 降噪和断句缓冲，再按模型能力优先使用 WebSocket 双向流，不可用时降级为 HTTP 流式或 HTTP 完整合成。实施计划见 [AI 对话实时语音合成与 PCM 播放实施计划](./sprite-realtime-chat-speech-plan.md)。
 
 Edge 和 AI Provider 都会先用“去 emoji 后文本 + 影响声音内容的配置指纹”生成 MD5 cache id，再查 `<userData>/data/sprite-speak-cache/`。命中时直接播放本地音频，不再调用 TTS 服务商；只有未命中时才合成并写入缓存。
 
@@ -582,7 +582,7 @@ await sprite.clearSpeakCache();
 | `enabled`     | boolean  | 是否启用语音合成                      |
 | `serviceType` | `'Edge'` | Legacy TTS 服务类型；Edge 引擎继续使用该字段 |
 | `engine`      | `'edge' \| 'ai-provider'` | 说话引擎选择，缺失时由 `serviceType` 兼容推导 |
-| `aiProvider`  | object   | AI Provider、preset、model、voiceId、mode、transport 等配置 |
+| `aiProvider`  | object   | AI Provider、preset、model、voiceId、音频格式和声音参数等配置 |
 | `voiceName`   | string   | 语音名称（如 `zh-CN-XiaoxiaoNeural`） |
 | `rate`        | number   | 语速 (-100 ~ 200)                     |
 | `pitch`       | number   | 音高 (-100 ~ 200)                     |

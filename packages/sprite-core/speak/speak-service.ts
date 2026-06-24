@@ -12,8 +12,11 @@
  * 可扩展：实现新的 TTS 适配器并在 synthesizeWithService() 中注册即可
  */
 
+import { getProviderDefinitionModel } from '../../ai/providers/service';
+import type { SpeechSynthesisRequest, SpeechSynthesisStreamEvent, SpeechTextInputChunk } from '../../ai/types';
 import { stripEmoji } from '../../tts/common';
 import EdgeTTS from '../../tts/edge';
+import { RealtimeSpeechTextParser, type RealtimeSpeechTextSegment } from './realtime-text-parser';
 import { SpeakCache } from './speak-cache';
 import { SpeakConfigStore } from './speak-config-store';
 import type {
@@ -33,11 +36,15 @@ import type {
   SpriteSpeakPlaybackContext,
   SpriteSpeechSynthesisExecutor
 } from './types';
-import type { SpeechSynthesisRequest, SpeechSynthesisStreamEvent, SpeechTextInputChunk } from '../../ai/types';
 
 type SynthesisOutput = {
   buffer: Buffer;
   cacheMeta: SpeakCacheMetadata;
+};
+
+type RealtimeSpeechStrategy = {
+  mode: 'complete' | 'output-stream' | 'duplex-stream';
+  transportPreference: 'http' | 'http-stream' | 'websocket';
 };
 
 export interface SpriteRealtimeSpeechSession {
@@ -71,6 +78,61 @@ function logSpeakService(message: string, data?: Record<string, any>): void {
   console.log(`[SpeakService] ${message} ${JSON.stringify({ at: new Date().toISOString(), ...(data || {}) })}`);
 }
 
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function getSpeechSynthesisMetadata(aiProvider: SpriteSpeakAIProviderConfig): Record<string, any> | undefined {
+  const model = getProviderDefinitionModel(aiProvider.providerId, aiProvider.model);
+  return isRecord(model?.speechSynthesis) ? model.speechSynthesis : undefined;
+}
+
+function supportsSpeechStrategy(aiProvider: SpriteSpeakAIProviderConfig, strategy: RealtimeSpeechStrategy): boolean {
+  const metadata = getSpeechSynthesisMetadata(aiProvider);
+  if (!metadata) {
+    // Unknown providers should declare streaming capabilities before realtime speak assumes them.
+    return strategy.mode === 'complete' && strategy.transportPreference === 'http';
+  }
+
+  const modes = asStringArray(metadata.modes);
+  if (modes.length) {
+    if (!modes.includes(strategy.mode)) {
+      return false;
+    }
+  } else if (strategy.mode !== 'complete') {
+    return false;
+  }
+
+  const transports = asStringArray(metadata.transports);
+  if (transports.length) {
+    if (!transports.includes(strategy.transportPreference)) {
+      return false;
+    }
+  } else if (strategy.transportPreference !== 'http') {
+    return false;
+  }
+
+  const audioFormats = asStringArray(metadata.audioFormats).map(normalizeFormat);
+  if (audioFormats.length && !audioFormats.includes('pcm')) {
+    return false;
+  }
+
+  return true;
+}
+
+function resolveRealtimeSpeechStrategies(aiProvider: SpriteSpeakAIProviderConfig, executor: SpriteSpeechSynthesisExecutor): RealtimeSpeechStrategy[] {
+  const candidates: RealtimeSpeechStrategy[] = [
+    { mode: 'duplex-stream', transportPreference: 'websocket' },
+    { mode: 'output-stream', transportPreference: 'http-stream' },
+    { mode: 'complete', transportPreference: 'http' }
+  ];
+
+  return candidates.filter((strategy) => {
+    const hasExecutor = strategy.mode === 'complete' ? Boolean(executor.synthesize) : Boolean(executor.stream);
+    return hasExecutor && supportsSpeechStrategy(aiProvider, strategy);
+  });
+}
+
 function buildSpeakSynthesisLogPayload(config: SpriteSpeakConfig, text: string, cacheId?: string): Record<string, any> {
   const engine = normalizeEngine(config);
   if (engine === 'ai-provider') {
@@ -78,11 +140,11 @@ function buildSpeakSynthesisLogPayload(config: SpriteSpeakConfig, text: string, 
     return {
       cacheId,
       engine,
-      mode: aiProvider?.mode || 'complete',
+      mode: 'complete',
       model: aiProvider?.model,
       providerId: aiProvider?.providerId,
       providerPresetId: aiProvider?.providerPresetId,
-      transportPreference: aiProvider?.transportPreference || 'auto',
+      transportPreference: 'http',
       voice: aiProvider?.voice,
       voiceId: aiProvider?.voiceId,
       ...speakTextLogPayload(text)
@@ -115,7 +177,9 @@ function normalizeFormat(format?: string): string {
 }
 
 function normalizeSampleFormat(value?: string): SpriteRealtimeSpeechSampleFormat {
-  const raw = String(value || '').trim().toLowerCase();
+  const raw = String(value || '')
+    .trim()
+    .toLowerCase();
   return raw || 's16le';
 }
 
@@ -194,13 +258,11 @@ function buildAiProviderCacheConfig(aiProvider: SpriteSpeakAIProviderConfig): Sp
       audioFormat: normalizeFormat(aiProvider.audioSetting?.format),
       emotion: aiProvider.emotion,
       language: aiProvider.language,
-      mode: aiProvider.mode || 'complete',
       model: aiProvider.model,
       pitch: aiProvider.pitch,
       providerId: aiProvider.providerId,
       providerPresetId: aiProvider.providerPresetId,
       speed: aiProvider.speed,
-      transportPreference: aiProvider.transportPreference || 'auto',
       voice: aiProvider.voice,
       voiceId: aiProvider.voiceId,
       voiceVolume: aiProvider.voiceVolume
@@ -218,14 +280,40 @@ function buildAiProviderCacheKeyConfig(aiProvider: SpriteSpeakAIProviderConfig):
   };
 }
 
+function buildCompleteSpeechSynthesisRequest(aiProvider: SpriteSpeakAIProviderConfig, text: string, usage: Record<string, any>): SpeechSynthesisRequest {
+  return {
+    audioSetting: aiProvider.audioSetting,
+    emotion: aiProvider.emotion,
+    extras: {
+      ...(aiProvider.extras || {}),
+      usage
+    },
+    language: aiProvider.language,
+    mode: 'complete',
+    model: aiProvider.model,
+    pitch: aiProvider.pitch,
+    pronunciationDict: aiProvider.pronunciationDict,
+    providerId: aiProvider.providerId,
+    providerPresetId: aiProvider.providerPresetId,
+    rate: aiProvider.speed,
+    speed: aiProvider.speed,
+    subtitle: aiProvider.subtitle,
+    text,
+    transportPreference: 'http',
+    voice: aiProvider.voice,
+    voiceId: aiProvider.voiceId,
+    volume: aiProvider.voiceVolume
+  };
+}
+
 class SpeechTextInputQueue {
-  private queue: SpeechTextInputChunk[] = [];
+  private chunks: SpeechTextInputChunk[] = [];
   private closed = false;
-  private waiter?: () => void;
+  private waiters = new Set<() => void>();
 
   enqueue(chunk: SpeechTextInputChunk): void {
     if (this.closed) return;
-    this.queue.push(chunk);
+    this.chunks.push(chunk);
     if (chunk.type === 'close') {
       this.closed = true;
     }
@@ -235,19 +323,26 @@ class SpeechTextInputQueue {
   close(): void {
     if (this.closed) return;
     this.closed = true;
-    this.queue.push({ type: 'close' });
+    this.chunks.push({ type: 'close' });
     this.wake();
   }
 
-  async *read(): AsyncIterable<SpeechTextInputChunk> {
-    while (!this.closed || this.queue.length > 0) {
-      if (!this.queue.length) {
+  async *read(startIndex = 0): AsyncIterable<SpeechTextInputChunk> {
+    let index = startIndex;
+    while (!this.closed || index < this.chunks.length) {
+      if (index >= this.chunks.length) {
+        let waiter: (() => void) | undefined;
         await new Promise<void>((resolve) => {
-          this.waiter = resolve;
+          waiter = resolve;
+          this.waiters.add(resolve);
+        }).finally(() => {
+          if (waiter) {
+            this.waiters.delete(waiter);
+          }
         });
         continue;
       }
-      const chunk = this.queue.shift();
+      const chunk = this.chunks[index++];
       if (!chunk) continue;
       yield chunk;
       if (chunk.type === 'close') break;
@@ -255,9 +350,9 @@ class SpeechTextInputQueue {
   }
 
   private wake(): void {
-    const waiter = this.waiter;
-    this.waiter = undefined;
-    waiter?.();
+    const waiters = Array.from(this.waiters);
+    this.waiters.clear();
+    waiters.forEach((waiter) => waiter());
   }
 }
 
@@ -271,9 +366,14 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
   private readonly executor: SpriteSpeechSynthesisExecutor;
   private readonly inputQueue = new SpeechTextInputQueue();
   private readonly realtimeConfig: SpriteSpeakChatRealtimeSpeechConfig;
+  private readonly strategies: RealtimeSpeechStrategy[];
   private readonly source: string;
+  private readonly textParser: RealtimeSpeechTextParser;
   private readonly unregister: () => void;
+  private audioSequence = 0;
+  private audioEmitted = false;
   private done = false;
+  private playbackStarted = false;
   private started = false;
   private terminalSent = false;
 
@@ -285,6 +385,7 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
     scope: SpriteRealtimeSpeechScope;
     sessionId: string;
     source: string;
+    strategies: RealtimeSpeechStrategy[];
     unregister: () => void;
   }) {
     this.aiProvider = options.aiProvider;
@@ -294,6 +395,8 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
     this.scope = options.scope;
     this.sessionId = options.sessionId;
     this.source = options.source;
+    this.strategies = options.strategies;
+    this.textParser = new RealtimeSpeechTextParser(options.realtimeConfig.chunking);
     this.unregister = options.unregister;
   }
 
@@ -304,9 +407,8 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
   private ensureStarted(): void {
     if (this.started || this.done) return;
     this.started = true;
-    const request = this.buildRequest();
     setTimeout(() => {
-      void this.run(request);
+      void this.run();
     }, 0);
   }
 
@@ -314,17 +416,31 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
     if (this.done) return;
     const sanitized = stripEmoji(text ?? '');
     if (!sanitized.trim()) return;
-    this.inputQueue.enqueue({ type: 'text', text: sanitized });
-    this.ensureStarted();
+    const segments = this.textParser.append(sanitized);
+    this.enqueueTextSegments(segments);
+    if (segments.length || this.textParser.hasPendingText()) {
+      this.ensureStarted();
+    }
   }
 
   async flush(): Promise<void> {
-    if (this.done || !this.started) return;
-    this.inputQueue.enqueue({ type: 'flush' });
+    if (this.done) return;
+    const segments = this.textParser.flush();
+    this.enqueueTextSegments(segments);
+    if (segments.length) {
+      this.ensureStarted();
+    } else if (this.started) {
+      this.inputQueue.enqueue({ type: 'flush' });
+    }
   }
 
   async finish(): Promise<void> {
     if (this.done) return;
+    const segments = this.textParser.end();
+    this.enqueueTextSegments(segments);
+    if (segments.length) {
+      this.ensureStarted();
+    }
     if (!this.started) {
       this.done = true;
       this.emitDone();
@@ -337,13 +453,30 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
   async cancel(reason?: string): Promise<void> {
     if (this.done) return;
     this.done = true;
+    this.textParser.reset();
     this.inputQueue.close();
     this.controller.abort(reason || 'cancelled');
     this.emitDone();
     this.unregister();
   }
 
-  private buildRequest(): SpeechSynthesisRequest {
+  private enqueueTextSegments(segments: RealtimeSpeechTextSegment[]): void {
+    for (const segment of segments) {
+      logSpeakService('Realtime speech text segment', {
+        reason: segment.reason,
+        scope: this.scope,
+        sessionId: this.sessionId,
+        text: segment.text,
+        textLength: segment.text.length
+      });
+      this.inputQueue.enqueue({ type: 'text', text: segment.text });
+      if (segment.flush) {
+        this.inputQueue.enqueue({ type: 'flush' });
+      }
+    }
+  }
+
+  private buildRequest(strategy: RealtimeSpeechStrategy): SpeechSynthesisRequest {
     const audioSetting = this.realtimeConfig.audioSetting;
     return {
       audioSetting: {
@@ -363,7 +496,7 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
         }
       },
       language: this.aiProvider.language,
-      mode: this.realtimeConfig.mode,
+      mode: strategy.mode,
       model: this.aiProvider.model,
       pitch: this.aiProvider.pitch,
       pronunciationDict: this.aiProvider.pronunciationDict,
@@ -372,29 +505,84 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
       rate: this.aiProvider.speed,
       speed: this.aiProvider.speed,
       subtitle: this.aiProvider.subtitle,
-      transportPreference: this.realtimeConfig.transportPreference,
+      transportPreference: strategy.transportPreference,
       voice: this.aiProvider.voice,
       voiceId: this.aiProvider.voiceId,
       volume: this.aiProvider.voiceVolume
     };
   }
 
-  private async run(request: SpeechSynthesisRequest): Promise<void> {
+  private async run(): Promise<void> {
+    const failures: string[] = [];
     try {
-      if (!this.executor.stream) {
-        throw new Error('Streaming speech synthesis executor is not configured');
-      }
-      await this.executor.stream(request, (event) => this.handleProviderEvent(event, request), this.inputQueue.read(), this.controller.signal);
-      this.emitDone();
-    } catch (error) {
-      if (!this.controller.signal.aborted && !this.terminalSent) {
-        this.emit({
-          type: 'error',
-          data: {
-            message: error instanceof Error ? error.message : String(error)
+      for (let index = 0; index < this.strategies.length; index += 1) {
+        if (this.done || this.controller.signal.aborted) return;
+
+        const strategy = this.strategies[index];
+        const request = this.buildRequest(strategy);
+
+        try {
+          logSpeakService('Realtime speech strategy start', {
+            mode: strategy.mode,
+            providerId: this.aiProvider.providerId,
+            sessionId: this.sessionId,
+            transportPreference: strategy.transportPreference
+          });
+          await this.runStrategy(strategy, request);
+          this.emitDone();
+          return;
+        } catch (error) {
+          if (this.controller.signal.aborted || this.done) {
+            return;
           }
-        });
+
+          const message = error instanceof Error ? error.message : String(error);
+          failures.push(`${strategy.mode}/${strategy.transportPreference}: ${message}`);
+          const canFallback = !this.audioEmitted && index < this.strategies.length - 1;
+          logSpeakService(canFallback ? 'Realtime speech strategy fallback' : 'Realtime speech strategy failed', {
+            audioEmitted: this.audioEmitted,
+            error: message,
+            mode: strategy.mode,
+            providerId: this.aiProvider.providerId,
+            sessionId: this.sessionId,
+            transportPreference: strategy.transportPreference
+          });
+
+          if (canFallback) {
+            this.emit({
+              type: 'metadata',
+              data: {
+                event: 'strategy_fallback',
+                error: message,
+                fromMode: strategy.mode,
+                fromTransport: strategy.transportPreference,
+                nextMode: this.strategies[index + 1].mode,
+                nextTransport: this.strategies[index + 1].transportPreference,
+                scope: this.scope,
+                sessionId: this.sessionId,
+                source: this.source
+              }
+            });
+            continue;
+          }
+
+          this.emit({
+            type: 'error',
+            data: {
+              message: failures.length > 1 ? `Realtime speech synthesis failed after fallback: ${failures.join(' | ')}` : message
+            }
+          });
+          this.emitDone();
+          return;
+        }
       }
+
+      this.emit({
+        type: 'error',
+        data: {
+          message: 'AI chat realtime speech could not find a supported speech synthesis strategy'
+        }
+      });
       this.emitDone();
     } finally {
       this.done = true;
@@ -403,22 +591,150 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
     }
   }
 
-  private handleProviderEvent(event: SpeechSynthesisStreamEvent, request: SpeechSynthesisRequest): void {
+  private async runStrategy(strategy: RealtimeSpeechStrategy, request: SpeechSynthesisRequest): Promise<void> {
+    if (strategy.mode === 'duplex-stream') {
+      if (!this.executor.stream) {
+        throw new Error('Streaming speech synthesis executor is not configured');
+      }
+      const audioEmittedBefore = this.audioEmitted;
+      let providerError: string | undefined;
+      await this.executor.stream(
+        request,
+        (event) => {
+          if (event.type === 'error') {
+            providerError = event.data.message;
+          }
+          this.handleProviderEvent(event, request, {
+            suppressErrors: true,
+            terminal: false
+          });
+        },
+        this.inputQueue.read(),
+        this.controller.signal
+      );
+      if (providerError) {
+        throw new Error(providerError);
+      }
+      if (!audioEmittedBefore && !this.audioEmitted) {
+        throw new Error('Streaming speech synthesis returned no audio delta');
+      }
+      return;
+    }
+
+    await this.runChunkedFallback(strategy, request);
+  }
+
+  private async runChunkedFallback(strategy: RealtimeSpeechStrategy, request: SpeechSynthesisRequest): Promise<void> {
+    for await (const chunk of this.inputQueue.read()) {
+      if (this.done || this.controller.signal.aborted) break;
+      if (chunk.type === 'flush') {
+        this.emit({
+          type: 'metadata',
+          data: {
+            event: 'flush',
+            scope: this.scope,
+            sessionId: this.sessionId,
+            source: this.source
+          }
+        });
+        continue;
+      }
+      if (chunk.type === 'close') break;
+      const text = chunk.text.trim();
+      if (!text) continue;
+      await this.synthesizeFallbackTextChunk(strategy, request, text);
+    }
+  }
+
+  private async synthesizeFallbackTextChunk(strategy: RealtimeSpeechStrategy, request: SpeechSynthesisRequest, text: string): Promise<void> {
+    const chunkRequest = { ...request, text };
+
+    if (strategy.mode === 'output-stream') {
+      if (!this.executor.stream) {
+        throw new Error('HTTP streaming speech synthesis executor is not configured');
+      }
+      let chunkAudioEmitted = false;
+      let providerError: string | undefined;
+      await this.executor.stream(
+        chunkRequest,
+        (event) => {
+          if (event.type === 'error') {
+            providerError = event.data.message;
+          }
+          if (event.type === 'audio_delta') {
+            chunkAudioEmitted = true;
+          }
+          if (event.type === 'completed' || event.type === 'done') {
+            return;
+          }
+          this.handleProviderEvent(event, chunkRequest, { suppressErrors: true, terminal: false });
+        },
+        undefined,
+        this.controller.signal
+      );
+      if (providerError) {
+        throw new Error(providerError);
+      }
+      if (!chunkAudioEmitted) {
+        throw new Error('HTTP streaming speech synthesis returned no audio delta');
+      }
+      return;
+    }
+
+    const response = await this.executor.synthesize(chunkRequest);
+    const artifact = response.artifacts?.[0];
+    const buffer = await readAudioArtifactToBuffer(artifact);
+    if (!buffer) {
+      throw new Error('AI Provider realtime speech fallback returned no audio payload');
+    }
+    const format = normalizeFormat(artifact?.format || artifact?.mimeType || chunkRequest.audioSetting?.format);
+    if (format !== 'pcm') {
+      throw new Error(`Realtime speech playback requires PCM audio, got ${format || 'unknown'}`);
+    }
+
+    this.emitStarted(chunkRequest, {
+      mode: chunkRequest.mode,
+      transport: chunkRequest.transportPreference
+    });
+    this.audioSequence += 1;
+    const sample = this.resolveAudioSample({ type: 'metadata', data: artifact || {} }, chunkRequest);
+    this.emit({
+      type: 'audio_delta',
+      data: {
+        chunk: buffer,
+        channels: sample.channels,
+        format: 'pcm',
+        mimeType: artifact?.mimeType,
+        sampleFormat: sample.sampleFormat,
+        sampleRate: sample.sampleRate,
+        sequence: this.audioSequence
+      }
+    });
+    this.audioEmitted = true;
+  }
+
+  private emitStarted(request: SpeechSynthesisRequest, data?: Record<string, any>): void {
+    if (this.playbackStarted) return;
+    this.playbackStarted = true;
+    const sample = this.resolveAudioSample({ type: 'started', data: data || {} }, request);
+    this.emit({
+      type: 'started',
+      data: {
+        ...(data || {}),
+        channels: sample.channels,
+        format: 'pcm',
+        sampleFormat: sample.sampleFormat,
+        sampleRate: sample.sampleRate,
+        sessionId: this.sessionId
+      }
+    });
+  }
+
+  private handleProviderEvent(event: SpeechSynthesisStreamEvent, request: SpeechSynthesisRequest, options?: { suppressErrors?: boolean; terminal?: boolean }): void {
     if (this.done) return;
 
     if (event.type === 'started') {
-      const sample = this.resolveAudioSample(event, request);
-      this.emit({
-        type: 'started',
-        data: {
-          ...event.data,
-          channels: sample.channels,
-          format: 'pcm',
-          sampleFormat: sample.sampleFormat,
-          sampleRate: sample.sampleRate,
-          sessionId: this.sessionId
-        }
-      });
+      this.emitStarted(request, event.data);
       return;
     }
 
@@ -435,6 +751,7 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
         return;
       }
 
+      this.emitStarted(request, event.data);
       const sample = this.resolveAudioSample(event, request);
       this.emit({
         type: 'audio_delta',
@@ -445,9 +762,10 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
           mimeType: event.data.mimeType,
           sampleFormat: sample.sampleFormat,
           sampleRate: sample.sampleRate,
-          sequence: event.data.sequence
+          sequence: event.data.sequence ?? ++this.audioSequence
         }
       });
+      this.audioEmitted = true;
       return;
     }
 
@@ -477,6 +795,9 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
     }
 
     if (event.type === 'error') {
+      if (options?.suppressErrors) {
+        return;
+      }
       this.emit({
         type: 'error',
         data: {
@@ -488,11 +809,16 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
     }
 
     if (event.type === 'done') {
-      this.emitDone();
+      if (options?.terminal !== false) {
+        this.emitDone();
+      }
     }
   }
 
-  private resolveAudioSample(event: SpeechSynthesisStreamEvent, request: SpeechSynthesisRequest): {
+  private resolveAudioSample(
+    event: SpeechSynthesisStreamEvent,
+    request: SpeechSynthesisRequest
+  ): {
     sampleRate: number;
     channels: number;
     sampleFormat: SpriteRealtimeSpeechSampleFormat;
@@ -595,8 +921,8 @@ export class SpeakService {
     if (normalizeEngine(config) !== 'ai-provider') {
       throw new Error('AI chat realtime speech requires AI Provider speech engine');
     }
-    if (!this.speechSynthesisExecutor?.stream) {
-      throw new Error('AI chat realtime speech requires streaming speech synthesis support');
+    if (!this.speechSynthesisExecutor) {
+      throw new Error('AI chat realtime speech requires speech synthesis support');
     }
 
     const existing = this.activeRealtimeSessions.get(request.scope);
@@ -605,6 +931,20 @@ export class SpeakService {
     }
 
     const aiProvider = this.resolveAiProviderConfig(config);
+    const strategies = resolveRealtimeSpeechStrategies(aiProvider, this.speechSynthesisExecutor);
+    if (!strategies.length) {
+      throw new Error('AI chat realtime speech could not find a supported speech synthesis strategy');
+    }
+
+    logSpeakService('Realtime speech strategies selected', {
+      model: aiProvider.model,
+      providerId: aiProvider.providerId,
+      providerPresetId: aiProvider.providerPresetId,
+      strategies: strategies.map((strategy) => `${strategy.mode}/${strategy.transportPreference}`),
+      voice: aiProvider.voice,
+      voiceId: aiProvider.voiceId
+    });
+
     const sessionId = `sprite-rt-speech-${Date.now()}-${++this.realtimeSessionCounter}`;
     const session = new RealtimeSpeechSessionImpl({
       aiProvider,
@@ -617,6 +957,7 @@ export class SpeakService {
       scope: request.scope,
       sessionId,
       source: request.source,
+      strategies,
       unregister: () => {
         if (this.activeRealtimeSessions.get(request.scope) === session) {
           this.activeRealtimeSessions.delete(request.scope);
@@ -638,11 +979,20 @@ export class SpeakService {
     if (request.source !== 'chat') {
       return false;
     }
-    if (request.scope) {
-      return Boolean(realtimeConfig.scopes[request.scope]);
+    const scopeEnabled = request.scope ? Boolean(realtimeConfig.scopes[request.scope]) : Object.values(realtimeConfig.scopes).some(Boolean);
+    if (!scopeEnabled) {
+      return false;
     }
 
-    return Object.values(realtimeConfig.scopes).some(Boolean);
+    if (!this.speechSynthesisExecutor) {
+      return false;
+    }
+
+    try {
+      return resolveRealtimeSpeechStrategies(this.resolveAiProviderConfig(config), this.speechSynthesisExecutor).length > 0;
+    } catch {
+      return false;
+    }
   }
 
   async appendRealtimeSpeechText(sessionId: string, text: string): Promise<void> {
@@ -877,52 +1227,25 @@ export class SpeakService {
     }
 
     const aiProvider = this.resolveAiProviderConfig(config);
-    const mode = aiProvider.mode || 'complete';
-    const transportPreference = aiProvider.transportPreference || (mode === 'output-stream' ? 'http-stream' : mode === 'duplex-stream' ? 'websocket' : 'auto');
-    const request = {
-      audioSetting: aiProvider.audioSetting,
-      emotion: aiProvider.emotion,
-      extras: {
-        ...(aiProvider.extras || {}),
-        usage: {
-          sourceId: 'sprite-speak',
-          sourceLabel: '角色说话',
-          sourceType: 'sprite_speech',
-          usageFeature: 'sprite_speech'
-        }
-      },
-      language: aiProvider.language,
-      mode,
-      model: aiProvider.model,
-      pitch: aiProvider.pitch,
-      pronunciationDict: aiProvider.pronunciationDict,
-      providerId: aiProvider.providerId,
-      providerPresetId: aiProvider.providerPresetId,
-      rate: aiProvider.speed,
-      speed: aiProvider.speed,
-      subtitle: aiProvider.subtitle,
-      text,
-      transportPreference,
-      voice: aiProvider.voice,
-      voiceId: aiProvider.voiceId,
-      volume: aiProvider.voiceVolume
-    };
+    const request = buildCompleteSpeechSynthesisRequest(aiProvider, text, {
+      sourceId: 'sprite-speak',
+      sourceLabel: '角色说话',
+      sourceType: 'sprite_speech',
+      usageFeature: 'sprite_speech'
+    });
 
     logSpeakService('AI Provider speech request', {
-      mode,
+      mode: request.mode,
       model: aiProvider.model,
       providerId: aiProvider.providerId,
       providerPresetId: aiProvider.providerPresetId,
-      transportPreference,
+      transportPreference: request.transportPreference,
       voice: aiProvider.voice,
       voiceId: aiProvider.voiceId,
       ...speakTextLogPayload(text)
     });
 
-    const response =
-      mode === 'complete'
-        ? await executor.synthesize(request)
-        : await this.synthesizeAIProviderStream(request, executor);
+    const response = await executor.synthesize(request);
     const artifact = response.artifacts?.[0];
     const buffer = await readAudioArtifactToBuffer(artifact);
 
@@ -941,23 +1264,5 @@ export class SpeakService {
         text
       }
     };
-  }
-
-  private async synthesizeAIProviderStream(request: Parameters<SpriteSpeechSynthesisExecutor['synthesize']>[0], executor: SpriteSpeechSynthesisExecutor): Promise<Awaited<ReturnType<SpriteSpeechSynthesisExecutor['synthesize']>>> {
-    if (!executor.stream) {
-      throw new Error('Selected AI Provider speech synthesis mode requires streaming support');
-    }
-
-    if (request.mode === 'duplex-stream') {
-      async function* input(): AsyncIterable<{ type: 'text'; text: string } | { type: 'close' }> {
-        if (request.text) {
-          yield { type: 'text', text: request.text };
-        }
-        yield { type: 'close' };
-      }
-      return executor.stream({ ...request, text: undefined }, () => {}, input());
-    }
-
-    return executor.stream(request, () => {});
   }
 }

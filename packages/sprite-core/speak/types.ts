@@ -7,8 +7,6 @@ import type { SpeechSynthesisRequest, SpeechSynthesisResponse, SpeechSynthesisSt
 export type SpeakServiceType = 'Edge' | string;
 export type SpriteSpeakEngine = 'edge' | 'ai-provider';
 
-export type SpriteSpeakMode = Extract<NonNullable<SpeechSynthesisRequest['mode']>, 'complete' | 'output-stream' | 'duplex-stream'>;
-export type SpriteSpeakTransportPreference = Extract<NonNullable<SpeechSynthesisRequest['transportPreference']>, 'auto' | 'http' | 'http-stream' | 'websocket'>;
 export type SpriteRealtimeSpeechSource = 'chat';
 export type SpriteRealtimeSpeechScope = 'mainChat' | 'resourceChatSidebar';
 export type SpriteRealtimeSpeechSampleFormat = 's16le' | 'f32le' | string;
@@ -20,8 +18,6 @@ export interface SpriteSpeakAIProviderConfig {
   voiceId: string;
   voice?: string;
   language?: string;
-  mode?: SpriteSpeakMode;
-  transportPreference?: SpriteSpeakTransportPreference;
   audioSetting?: {
     format?: string;
     sampleRate?: number;
@@ -42,8 +38,6 @@ export interface SpriteSpeakAIProviderConfig {
 
 export interface SpriteSpeakChatRealtimeSpeechConfig {
   enabled: boolean;
-  mode: Extract<SpriteSpeakMode, 'duplex-stream' | 'output-stream'>;
-  transportPreference: Extract<SpriteSpeakTransportPreference, 'websocket' | 'http-stream' | 'auto'>;
   audioSetting: {
     format: 'pcm';
     sampleRate: number;
@@ -92,8 +86,6 @@ export const DEFAULT_AI_PROVIDER_SPEAK_CONFIG: SpriteSpeakAIProviderConfig = {
   providerId: 'minimax',
   model: 'speech-2.8-turbo',
   voiceId: 'female-shaonv',
-  mode: 'complete',
-  transportPreference: 'auto',
   audioSetting: {
     format: 'mp3',
     sampleRate: 32000,
@@ -107,8 +99,6 @@ export const DEFAULT_AI_PROVIDER_SPEAK_CONFIG: SpriteSpeakAIProviderConfig = {
 
 export const DEFAULT_CHAT_REALTIME_SPEECH_CONFIG: SpriteSpeakChatRealtimeSpeechConfig = {
   enabled: false,
-  mode: 'duplex-stream',
-  transportPreference: 'websocket',
   audioSetting: {
     format: 'pcm',
     sampleRate: 32000,
@@ -148,12 +138,7 @@ export const DEFAULT_SPEAK_CONFIG: SpriteSpeakConfig = {
 
 export interface SpriteSpeechSynthesisExecutor {
   synthesize(req: SpeechSynthesisRequest): Promise<SpeechSynthesisResponse>;
-  stream?(
-    req: SpeechSynthesisRequest,
-    onEvent: (event: SpeechSynthesisStreamEvent) => void,
-    input?: AsyncIterable<SpeechTextInputChunk>,
-    signal?: AbortSignal
-  ): Promise<SpeechSynthesisResponse>;
+  stream?(req: SpeechSynthesisRequest, onEvent: (event: SpeechSynthesisStreamEvent) => void, input?: AsyncIterable<SpeechTextInputChunk>, signal?: AbortSignal): Promise<SpeechSynthesisResponse>;
 }
 
 // ============================================================================
@@ -176,8 +161,6 @@ export interface SpeakCacheEntry {
       voiceId: string;
       voice?: string;
       language?: string;
-      mode?: string;
-      transportPreference?: string;
       audioFormat?: string;
       speed?: number;
       pitch?: number;
@@ -225,31 +208,31 @@ export interface SpriteSpeakPlaybackContext {
 
 export type SpriteRealtimeSpeechEvent =
   | {
-      type: 'started';
-      data: {
-        sessionId: string;
-        requestId?: string;
-        providerRequestId?: string;
-        mode?: string;
-        transport?: string;
-        format: 'pcm';
-        sampleRate: number;
-        channels: number;
-        sampleFormat: SpriteRealtimeSpeechSampleFormat;
-      };
-    }
+    type: 'started';
+    data: {
+      sessionId: string;
+      requestId?: string;
+      providerRequestId?: string;
+      mode?: string;
+      transport?: string;
+      format: 'pcm';
+      sampleRate: number;
+      channels: number;
+      sampleFormat: SpriteRealtimeSpeechSampleFormat;
+    };
+  }
   | {
-      type: 'audio_delta';
-      data: {
-        chunk: ArrayBuffer | Buffer | Uint8Array;
-        format: 'pcm';
-        mimeType?: string;
-        sampleRate: number;
-        channels: number;
-        sampleFormat: SpriteRealtimeSpeechSampleFormat;
-        sequence?: number;
-      };
-    }
+    type: 'audio_delta';
+    data: {
+      chunk: ArrayBuffer | Buffer | Uint8Array;
+      format: 'pcm';
+      mimeType?: string;
+      sampleRate: number;
+      channels: number;
+      sampleFormat: SpriteRealtimeSpeechSampleFormat;
+      sequence?: number;
+    };
+  }
   | { type: 'metadata'; data: Record<string, any> }
   | { type: 'completed'; data: { sessionId: string; filePath?: string; durationMs?: number } }
   | { type: 'error'; data: { message: string; code?: string } }
