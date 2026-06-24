@@ -35,14 +35,14 @@ export const minimaxDefinition: BuiltinProviderDefinition = {
   source: 'builtin',
   display: {
     label: 'MiniMax Token Plan',
-    description: 'MiniMax Token Plan 提供全模态覆盖的订阅服务，搭载最新 MiniMax-M2.7 模型，兼容 OpenAI 和 Anthropic 接口协议。',
+    description: 'MiniMax Token Plan 提供全模态覆盖的订阅服务，搭载最新 MiniMax-M3 模型，兼容 OpenAI 和 Anthropic 接口协议。',
     icon: 'providers/icons/minimax-color.svg',
     website: 'https://platform.minimaxi.com'
   },
   catalog: {
     name: 'MiniMax',
-    checkModel: 'MiniMax-M2.7',
-    modelsUrl: 'https://platform.minimaxi.com/docs/token-plan/intro',
+    checkModel: 'MiniMax-M3',
+    modelsUrl: 'https://platform.minimaxi.com/docs/guides/text-generation#chat',
     settings: {
       proxyUrl: {
         placeholder: 'https://api.minimaxi.com/v1'
@@ -67,7 +67,7 @@ export const minimaxDefinition: BuiltinProviderDefinition = {
   },
   defaults: {
     models: {
-      chat: 'MiniMax-M2.7',
+      chat: 'MiniMax-M3',
       musicGeneration: 'music-2.6',
       speechSynthesis: 'speech-2.8-turbo'
     }
