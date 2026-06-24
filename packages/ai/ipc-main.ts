@@ -44,8 +44,8 @@ import {
 import { getProvider, listAgents, listProviders } from './registry';
 import { PiExecutionService } from './runtime/pi/execution-service';
 import { createSkillRegistry, getSkillSourceInfo } from './runtime/pi/skills';
-import { SummaryService } from './services/summary-service';
 import { SelectedTextExplainService } from './services/selected-text-explain-service';
+import { SummaryService } from './services/summary-service';
 import { TaggingService } from './services/tagging-service';
 import { TranslationService } from './services/translation-service';
 import {
@@ -378,7 +378,7 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
             event.sender.send(eventsChannel, streamEvent);
           },
           controller.signal,
-          normalizedPayload.mode === 'duplex-stream' || normalizedPayload.transportPreference === 'websocket' ? readSpeechInput() : undefined
+          readSpeechInput()
         );
       } catch (error) {
         if (!terminalSent) {

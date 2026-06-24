@@ -7,12 +7,14 @@ const SENTENCE_BOUNDARY_RE = /[。！？!?]$/;
 const SOFT_BOUNDARY_RE = /[，,、；;：:]$/;
 
 function normalizeDeltaText(text: string): string {
-  return text.replace(/\s+/g, ' ');
+  return text
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+/g, ' ');
 }
 
 function shouldSkipText(text: string): boolean {
   const trimmed = text.trim();
-  if (!trimmed) return true;
+  if (!trimmed) return !text.includes('\n');
   if (/^`+$/.test(trimmed)) return true;
   if (/^[-*_#>\s]+$/.test(trimmed)) return true;
   return false;
@@ -21,6 +23,7 @@ function shouldSkipText(text: string): boolean {
 function shouldFlush(buffer: string, config: SpriteSpeakChatRealtimeSpeechConfig): boolean {
   const trimmed = buffer.trim();
   if (!trimmed) return false;
+  if (buffer.includes('\n')) return true;
   if (trimmed.length >= config.chunking.maxChars) return true;
   if (config.chunking.flushOnPunctuation && SENTENCE_BOUNDARY_RE.test(trimmed)) return true;
   if (trimmed.length >= Math.max(config.chunking.minChars, Math.floor(config.chunking.maxChars * 0.7)) && SOFT_BOUNDARY_RE.test(trimmed)) return true;
@@ -217,7 +220,7 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
     clearFlushTimer();
     const text = textBufferRef.current;
     textBufferRef.current = '';
-    if (!text.trim()) return;
+    if (!text.trim() && !text.includes('\n')) return;
     const handle = await ensureHandle();
     if (!handle) return;
     await handle.appendText(text);
@@ -244,7 +247,7 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
       if (!config?.enabled) return;
       textBufferRef.current += text;
       if (shouldFlush(textBufferRef.current, config)) {
-        void flushBuffer(SENTENCE_BOUNDARY_RE.test(textBufferRef.current.trim()));
+        void flushBuffer(false);
       } else if (textBufferRef.current.trim().length >= config.chunking.minChars) {
         scheduleFlush();
       }

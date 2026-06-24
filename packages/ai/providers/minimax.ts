@@ -131,7 +131,7 @@ function speechTextLogPayload(text: string): { text: string; textLength: number 
 }
 
 function logMiniMaxSpeech(message: string, data?: Record<string, any>): void {
-  console.log(`[MiniMax][Speech] ${message} ${JSON.stringify(data || {})}`);
+  console.log(`[MiniMax][Speech] ${message} ${data ? JSON.stringify(data || {}) : ''}`);
 }
 
 function formatToMimeType(format?: string): string | undefined {

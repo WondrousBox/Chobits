@@ -537,14 +537,14 @@ Pi agent 工具：
 - `packages/sprite-core/speak`：精灵说话缓存、播放控制、talk 动画触发、气泡展示。
 - AI Provider TTS：底层合成引擎，由 `speechSynthesis` capability 提供。
 
-角色说话的具体接入方案单独维护在 [角色说话接入 AI Provider 语音合成规划](../sprite-core/sprite-speech-provider-integration-plan.md)。当前已完成第一阶段：设置页可选择 Edge / AI Provider，底层可调用 `complete`、HTTP 流式和 WebSocket 双向流并聚合为缓存文件播放。AI 聊天 delta 驱动的边合成边播放使用独立开关和 PCM 播放器，实施计划见 [AI 对话实时语音合成与 PCM 播放实施计划](../sprite-core/sprite-realtime-chat-speech-plan.md)。
+角色说话的具体接入方案单独维护在 [角色说话接入 AI Provider 语音合成规划](../sprite-core/sprite-speech-provider-integration-plan.md)。当前已完成：设置页可选择 Edge / AI Provider；普通 `sprite.speak()` 固定调用 `complete/http` 并使用本地缓存；AI 聊天 delta 驱动的边合成边播放使用独立开关和 PCM 播放器，并按 provider/model capability 自动选择 `duplex-stream/websocket`、`output-stream/http-stream`、`complete/http`。实施计划见 [AI 对话实时语音合成与 PCM 播放实施计划](../sprite-core/sprite-realtime-chat-speech-plan.md)。
 
 迁移策略：
 
 1. 保留 Edge TTS，确保旧配置继续可用。
 2. `BatchTTSConfig` 增加 `providerId`、`providerPresetId`、`model`、`voiceId`。
 3. 字幕批量 TTS 默认使用 `mode: 'complete'`，保证 duration、缓存和重试稳定。
-4. 精灵普通说话继续以完整文件和缓存为中心；AI 聊天实时朗读后续使用 `duplex-stream` + PCM 播放器，默认关闭。
+4. 精灵普通说话继续以完整文件和缓存为中心，并固定使用 `complete/http`；AI 聊天实时朗读默认关闭，开启后由系统按能力优先 WS、再 HTTP 流式、再 HTTP 完整合成。
 
 ## 14. Usage 与资源化
 
@@ -597,7 +597,7 @@ Analytics 建议：
 ### Phase 4.5：AI 聊天实时朗读
 
 - `sprite-core/speak` 增加 `chatRealtimeSpeech` 配置，默认关闭。
-- 新增 sprite 实时语音 session API，封装 Provider `duplex-stream` 输入队列。
+- 新增 sprite 实时语音 session API，封装 Provider 自动策略输入队列，优先 `duplex-stream`，可降级到 `output-stream` 或 `complete`。
 - Renderer 增加 PCM streaming player，消费 `audio_delta`。
 - ChatPage 和 Resource AIChatSidebar 只把 assistant 正文 delta 送入 session。
 - thinking、tool call、tool result 不进入实时朗读。

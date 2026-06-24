@@ -4,7 +4,7 @@
  * 配置精灵说话的声音、语速、音高等参数
  */
 import type { ProviderPresetRecord } from '@packages/ai/types';
-import type { SpriteSpeakAIProviderConfig, SpriteSpeakChatRealtimeSpeechConfig, SpriteSpeakConfig, SpriteSpeakMode, SpriteSpeakTransportPreference } from '@packages/sprite-core/speak/types';
+import type { SpriteSpeakAIProviderConfig, SpriteSpeakChatRealtimeSpeechConfig, SpriteSpeakConfig } from '@packages/sprite-core/speak/types';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { TbSettings, TbTrash, TbVolume } from 'react-icons/tb';
 
@@ -54,8 +54,6 @@ const DEFAULT_AI_PROVIDER_CONFIG: SpriteSpeakAIProviderConfig = {
   providerId: 'minimax',
   model: 'speech-2.8-turbo',
   voiceId: 'female-shaonv',
-  mode: 'complete',
-  transportPreference: 'auto',
   audioSetting: {
     format: 'mp3',
     sampleRate: 32000,
@@ -69,8 +67,6 @@ const DEFAULT_AI_PROVIDER_CONFIG: SpriteSpeakAIProviderConfig = {
 
 const DEFAULT_CHAT_REALTIME_CONFIG: SpriteSpeakChatRealtimeSpeechConfig = {
   enabled: false,
-  mode: 'duplex-stream',
-  transportPreference: 'websocket',
   audioSetting: {
     format: 'pcm',
     sampleRate: 32000,
@@ -126,12 +122,6 @@ const mergeChatRealtimeConfig = (config?: SpriteSpeakChatRealtimeSpeechConfig): 
     ...(config?.scopes || {})
   }
 });
-
-const resolveTransportForMode = (mode: SpriteSpeakMode, current?: SpriteSpeakTransportPreference): SpriteSpeakTransportPreference => {
-  if (mode === 'complete') return current === 'http' ? 'http' : 'auto';
-  if (mode === 'output-stream') return 'http-stream';
-  return 'websocket';
-};
 
 const formatSize = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;
@@ -353,12 +343,7 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
                   })
                 }
               />
-              <Button
-                variant="outline"
-                size="sm"
-                className="shrink-0"
-                onClick={() => window.YUA.window['window:open']('settings' as any, { category: 'ai', aiProviderId: aiProvider.providerId })}
-              >
+              <Button variant="outline" size="sm" className="shrink-0" onClick={() => window.YUA.window['window:open']('settings' as any, { category: 'ai', aiProviderId: aiProvider.providerId })}>
                 <TbSettings />
                 配置
               </Button>
@@ -407,25 +392,6 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
 
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">合成模式</label>
-              <Select
-                value={aiProvider.mode || 'complete'}
-                onValueChange={(value) => {
-                  const mode = value as SpriteSpeakMode;
-                  updateAiProvider({ mode, transportPreference: resolveTransportForMode(mode, aiProvider.transportPreference) });
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="complete">HTTP 完整合成</SelectItem>
-                  <SelectItem value="output-stream">HTTP 流式合成</SelectItem>
-                  <SelectItem value="duplex-stream">WebSocket 双向流</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">音频格式</label>
               <Select value={aiProvider.audioSetting?.format || 'mp3'} onValueChange={(value) => updateAiProvider({ audioSetting: { format: value } })}>
                 <SelectTrigger className="w-full">
@@ -438,6 +404,12 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
                   <SelectItem value="pcm">PCM</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">合成策略</label>
+              <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">
+                普通说话固定使用完整合成和本地缓存；AI 回复实时朗读按模型能力自动选择 WebSocket、HTTP 流式或完整合成。
+              </div>
             </div>
           </div>
 
@@ -469,18 +441,27 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 text-sm">
                 <span>主聊天</span>
-                <Switch checked={realtimeSpeech.scopes.mainChat} onCheckedChange={(checked) => updateRealtimeSpeech({ scopes: { mainChat: checked, resourceChatSidebar: realtimeSpeech.scopes.resourceChatSidebar } })} />
+                <Switch
+                  checked={realtimeSpeech.scopes.mainChat}
+                  onCheckedChange={(checked) => updateRealtimeSpeech({ scopes: { mainChat: checked, resourceChatSidebar: realtimeSpeech.scopes.resourceChatSidebar } })}
+                />
               </label>
               <label className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 text-sm">
                 <span>资源侧栏</span>
-                <Switch checked={realtimeSpeech.scopes.resourceChatSidebar} onCheckedChange={(checked) => updateRealtimeSpeech({ scopes: { mainChat: realtimeSpeech.scopes.mainChat, resourceChatSidebar: checked } })} />
+                <Switch
+                  checked={realtimeSpeech.scopes.resourceChatSidebar}
+                  onCheckedChange={(checked) => updateRealtimeSpeech({ scopes: { mainChat: realtimeSpeech.scopes.mainChat, resourceChatSidebar: checked } })}
+                />
               </label>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <label className="text-xs font-medium text-muted-foreground">PCM 采样率</label>
-                <Select value={String(realtimeSpeech.audioSetting.sampleRate)} onValueChange={(value) => updateRealtimeSpeech({ audioSetting: { ...realtimeSpeech.audioSetting, sampleRate: Number(value) } })}>
+                <Select
+                  value={String(realtimeSpeech.audioSetting.sampleRate)}
+                  onValueChange={(value) => updateRealtimeSpeech({ audioSetting: { ...realtimeSpeech.audioSetting, sampleRate: Number(value) } })}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -497,7 +478,13 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
                   <label className="text-xs font-medium text-muted-foreground">首播缓冲</label>
                   <span className="text-xs text-muted-foreground">{realtimeSpeech.playback.startBufferMs}ms</span>
                 </div>
-                <Slider value={[realtimeSpeech.playback.startBufferMs]} min={0} max={800} step={20} onValueChange={([value]) => updateRealtimeSpeech({ playback: { ...realtimeSpeech.playback, startBufferMs: value } })} />
+                <Slider
+                  value={[realtimeSpeech.playback.startBufferMs]}
+                  min={0}
+                  max={800}
+                  step={20}
+                  onValueChange={([value]) => updateRealtimeSpeech({ playback: { ...realtimeSpeech.playback, startBufferMs: value } })}
+                />
               </div>
             </div>
           </div>
