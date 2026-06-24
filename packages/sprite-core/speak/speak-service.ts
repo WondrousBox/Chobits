@@ -60,6 +60,46 @@ function normalizeEngine(config: SpriteSpeakConfig): SpriteSpeakEngine {
   return 'edge';
 }
 
+function speakTextLogPayload(text: string): { text: string; textLength: number } {
+  return {
+    text,
+    textLength: text.length
+  };
+}
+
+function logSpeakService(message: string, data?: Record<string, any>): void {
+  console.log(`[SpeakService] ${message} ${JSON.stringify({ at: new Date().toISOString(), ...(data || {}) })}`);
+}
+
+function buildSpeakSynthesisLogPayload(config: SpriteSpeakConfig, text: string, cacheId?: string): Record<string, any> {
+  const engine = normalizeEngine(config);
+  if (engine === 'ai-provider') {
+    const aiProvider = config.aiProvider;
+    return {
+      cacheId,
+      engine,
+      mode: aiProvider?.mode || 'complete',
+      model: aiProvider?.model,
+      providerId: aiProvider?.providerId,
+      providerPresetId: aiProvider?.providerPresetId,
+      transportPreference: aiProvider?.transportPreference || 'auto',
+      voice: aiProvider?.voice,
+      voiceId: aiProvider?.voiceId,
+      ...speakTextLogPayload(text)
+    };
+  }
+
+  return {
+    cacheId,
+    engine,
+    pitch: config.pitch,
+    rate: config.rate,
+    serviceType: config.serviceType,
+    voiceName: config.voiceName,
+    ...speakTextLogPayload(text)
+  };
+}
+
 function normalizeFormat(format?: string): string {
   const raw = String(format || '')
     .trim()
@@ -686,11 +726,17 @@ export class SpeakService {
     }
 
     const cacheId = this.generateCacheId(config, sanitizedText);
+    const logPayload = buildSpeakSynthesisLogPayload(config, sanitizedText, cacheId);
 
     // 查找缓存
+    logSpeakService('Cache lookup', logPayload);
     const cachedPath = this.cache.get(cacheId);
     if (cachedPath) {
-      console.log(`[SpeakService] Cache hit: ${cacheId}`);
+      logSpeakService('Cache hit', {
+        ...logPayload,
+        audioPath: cachedPath,
+        fromCache: true
+      });
       return {
         success: true,
         cacheId,
@@ -701,6 +747,10 @@ export class SpeakService {
 
     // 合成音频
     try {
+      logSpeakService('Cache miss; synthesizing', {
+        ...logPayload,
+        fromCache: false
+      });
       const output = await this.synthesizeWithService(sanitizedText, config);
 
       if (!output.buffer || output.buffer.length === 0) {
@@ -713,7 +763,11 @@ export class SpeakService {
         text: sanitizedText
       });
 
-      console.log(`[SpeakService] Synthesized and cached: ${cacheId}`);
+      logSpeakService('Synthesized and cached', {
+        ...logPayload,
+        audioPath,
+        fromCache: false
+      });
 
       return {
         success: true,
@@ -853,6 +907,17 @@ export class SpeakService {
       voiceId: aiProvider.voiceId,
       volume: aiProvider.voiceVolume
     };
+
+    logSpeakService('AI Provider speech request', {
+      mode,
+      model: aiProvider.model,
+      providerId: aiProvider.providerId,
+      providerPresetId: aiProvider.providerPresetId,
+      transportPreference,
+      voice: aiProvider.voice,
+      voiceId: aiProvider.voiceId,
+      ...speakTextLogPayload(text)
+    });
 
     const response =
       mode === 'complete'

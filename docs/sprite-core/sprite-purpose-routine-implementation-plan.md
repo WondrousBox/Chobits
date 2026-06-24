@@ -32,18 +32,18 @@
 
 ### 1.1 原始缺口与当前实现状态
 
-| 类型 | 当前文档已有 | 当前实现状态 |
-| --- | --- | --- |
-| 行为边界 | 已明确不替换 `BehaviorEngine` | 已通过 preset purpose、DailyCare bridge、workflow/resource listener 和少量行为接入明确升级边界 |
-| 动画等待 | 已提出 `playAnimationAndWait()` | 已用 `playId` 等待动画完成；省略 `waitFor` 时不阻塞 routine，显式 `duration` / `complete` 才等待 |
-| 事件等待 | 已有 `waitForEvent` 概念 | 已区分 purpose event、SpriteEventBus、AppEvent，并支持 runId/workflowId/resourceId correlation |
-| 并发控制 | 已有 priority / interruptPolicy | 已接入 priority arbitration、critical step defer interrupt 与 presentation lock |
-| 文件菜单 | 已描述 `fileActionsMenu` | FileActionsMenu 已上报 selected / resolved / cancelled / failed，并由 routine 分支消费 |
-| 工作流等待 | 已提到 workflow | `workflow.waiting` 已消费 runId/workflowId/status/progress payload，支持 progress/updateBusy 与 terminal 收尾 |
-| 失败恢复 | 只提到失败状态 | 已覆盖 timeout、cancel、step failed、planner fallback 与菜单关闭/卸载兜底 |
-| 历史记录 | 已有 JSONL 概念 | 已拆 snapshot 与 JSONL event log，并新增每日 retrospective 汇总面 |
-| UI/IPC | 已列 IPC 名称 | preload 类型、状态广播、状态页、planner 设置页与 retrospective 面板已接入 |
-| 测试 | 原始文档未展开 | 已补单测、集成测试、UI/e2e 风格测试与跨层 retrospective smoke |
+| 类型       | 当前文档已有                    | 当前实现状态                                                                                                  |
+| ---------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| 行为边界   | 已明确不替换 `BehaviorEngine`   | 已通过 preset purpose、DailyCare bridge、workflow/resource listener 和少量行为接入明确升级边界                |
+| 动画等待   | 已提出 `playAnimationAndWait()` | 已用 `playId` 等待动画完成；省略 `waitFor` 时不阻塞 routine，显式 `duration` / `complete` 才等待              |
+| 事件等待   | 已有 `waitForEvent` 概念        | 已区分 purpose event、SpriteEventBus、AppEvent，并支持 runId/workflowId/resourceId correlation                |
+| 并发控制   | 已有 priority / interruptPolicy | 已接入 priority arbitration、critical step defer interrupt 与 presentation lock                               |
+| 文件菜单   | 已描述 `fileActionsMenu`        | FileActionsMenu 已上报 selected / resolved / cancelled / failed，并由 routine 分支消费                        |
+| 工作流等待 | 已提到 workflow                 | `workflow.waiting` 已消费 runId/workflowId/status/progress payload，支持 progress/updateBusy 与 terminal 收尾 |
+| 失败恢复   | 只提到失败状态                  | 已覆盖 timeout、cancel、step failed、planner fallback 与菜单关闭/卸载兜底                                     |
+| 历史记录   | 已有 JSONL 概念                 | 已拆 snapshot 与 JSONL event log，并新增每日 retrospective 汇总面                                             |
+| UI/IPC     | 已列 IPC 名称                   | preload 类型、状态广播、状态页、planner 设置页与 retrospective 面板已接入                                     |
+| 测试       | 原始文档未展开                  | 已补单测、集成测试、UI/e2e 风格测试与跨层 retrospective smoke                                                 |
 
 ### 1.2 不做的事
 
@@ -72,12 +72,12 @@ BehaviorEngine / 用户事件 / 系统事件 / AppEvent
 
 职责边界：
 
-| 模块 | 负责 | 不负责 |
-| --- | --- | --- |
-| `BehaviorEngine` | 什么时候触发行为 | 连续动作编排 |
-| `PurposeManager` | 当前目的、优先级、打断/排队 | 定时 tick、概率、冷却 |
-| `RoutineRunner` | 执行一串 step 并等待 | 决定行为是否该发生 |
-| `SpriteManager` | 提供动画、移动、消息、语音等原子能力 | 直接写业务工作流 |
+| 模块                  | 负责                                           | 不负责                    |
+| --------------------- | ---------------------------------------------- | ------------------------- |
+| `BehaviorEngine`      | 什么时候触发行为                               | 连续动作编排              |
+| `PurposeManager`      | 当前目的、优先级、打断/排队                    | 定时 tick、概率、冷却     |
+| `RoutineRunner`       | 执行一串 step 并等待                           | 决定行为是否该发生        |
+| `SpriteManager`       | 提供动画、移动、消息、语音等原子能力           | 直接写业务工作流          |
 | Electron main service | AI planner、窗口打开、历史文件、跨系统事件适配 | 侵入 sprite-core 纯逻辑层 |
 
 ## 3. 文件与模块规划
@@ -125,19 +125,19 @@ electron/main/handlers/sprite/
 
 ### 3.3 需要改动的现有文件
 
-| 文件 | 改动 |
-| --- | --- |
-| `packages/sprite-core/manager/sprite-manager.ts` | 持有 PurposeManager，新增 start/cancel/get/list API，新增 playAnimationAndWait |
-| `packages/sprite-core/manager/types.ts` | 扩展 SpriteManagerOptions，注入 purpose history/openWindow/event adapter |
-| `packages/sprite-core/types.ts` | `SpritePlayCommand` 增加可选 `playId` |
-| `src/features/sprite-assistant/renderers/VideoSprite.tsx` | `animComplete` 回传 `playId` |
-| `src/features/sprite-assistant/renderers/video-sprite-driver.ts` | 完成回调透传 `playId` 所需上下文 |
-| `packages/sprite-core/preload/sprite-bridge.ts` | 增加 `purpose` 相关 IPC |
-| `packages/sprite-core/handler/sprite-manager-ipc.ts` | 注册 `sprite:purpose:*` IPC |
-| `packages/sprite-core/handler/sprite-event-listener.ts` | workflow 事件可选升级为 Purpose/Routine |
-| `src/features/sprite-assistant/hooks/useFileDropCollector.ts` | 阶段性保持现状；后续可改为 startPurpose |
-| `src/pages/FileActionsMenu/FileActionsMenu.tsx` | 上报 action selected/cancelled/workflow started |
-| `packages/workflow/index.ts` | workflow AppEvent payload 增加 runId/workflowId/status/progress |
+| 文件                                                             | 改动                                                                           |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `packages/sprite-core/manager/sprite-manager.ts`                 | 持有 PurposeManager，新增 start/cancel/get/list API，新增 playAnimationAndWait |
+| `packages/sprite-core/manager/types.ts`                          | 扩展 SpriteManagerOptions，注入 purpose history/openWindow/event adapter       |
+| `packages/sprite-core/types.ts`                                  | `SpritePlayCommand` 增加可选 `playId`                                          |
+| `src/features/sprite-assistant/renderers/VideoSprite.tsx`        | `animComplete` 回传 `playId`                                                   |
+| `src/features/sprite-assistant/renderers/video-sprite-driver.ts` | 完成回调透传 `playId` 所需上下文                                               |
+| `packages/sprite-core/preload/sprite-bridge.ts`                  | 增加 `purpose` 相关 IPC                                                        |
+| `packages/sprite-core/handler/sprite-manager-ipc.ts`             | 注册 `sprite:purpose:*` IPC                                                    |
+| `packages/sprite-core/handler/sprite-event-listener.ts`          | workflow 事件可选升级为 Purpose/Routine                                        |
+| `src/features/sprite-assistant/hooks/useFileDropCollector.ts`    | 阶段性保持现状；后续可改为 startPurpose                                        |
+| `src/pages/FileActionsMenu/FileActionsMenu.tsx`                  | 上报 action selected/cancelled/workflow started                                |
+| `packages/workflow/index.ts`                                     | workflow AppEvent payload 增加 runId/workflowId/status/progress                |
 
 ## 4. 核心类型草案
 
@@ -146,15 +146,7 @@ electron/main/handlers/sprite/
 ```ts
 export type SpritePurposeSource = 'behavior' | 'user-event' | 'system-event' | 'app-event' | 'ai' | 'manual';
 
-export type SpritePurposeStatus =
-  | 'idle'
-  | 'queued'
-  | 'active'
-  | 'paused'
-  | 'completed'
-  | 'cancelled'
-  | 'superseded'
-  | 'failed';
+export type SpritePurposeStatus = 'idle' | 'queued' | 'active' | 'paused' | 'completed' | 'cancelled' | 'superseded' | 'failed';
 
 export interface StartSpritePurposeRequest {
   kind: string;
@@ -262,13 +254,7 @@ Preset 编写层可以使用 `SpriteRoutineStepInput` shorthand，`SpriteRoutine
 `playAnimation` 字符串 DSL 示例：
 
 ```ts
-[
-  'playAnimation wave',
-  'playAnimation wave silent',
-  'playAnimation wave 1000 duration silent',
-  'playAnimation wave 1000 complete',
-  'playAnimation wave 1000 3000 complete silent'
-]
+['playAnimation wave', 'playAnimation wave silent', 'playAnimation wave 1000 duration silent', 'playAnimation wave 1000 complete', 'playAnimation wave 1000 3000 complete silent'];
 ```
 
 解析规则：
@@ -286,28 +272,22 @@ Preset 编写层可以使用 `SpriteRoutineStepInput` shorthand，`SpriteRoutine
 [
   { id: 'line-a', type: 'speak', text: '第一句', bubbleDuration: 3600 },
   { id: 'line-a-breath', type: 'wait', durationMs: 3600 }
-]
-
-// shorthand：数字代表独立 wait step。
-[
-  { id: 'line-a', type: 'speak', text: '第一句', bubbleDuration: 3600 },
-  3600
-]
-
-// 推荐用于“说完再继续”：step 自己等待。
-[
-  { id: 'line-a', type: 'speak', text: '第一句', bubbleDuration: 3600, waitAfter: true },
-  { id: 'line-b', type: 'speak', text: '第二句', bubbleDuration: 4200, waitAfter: true }
-]
+][
+  // shorthand：数字代表独立 wait step。
+  ({ id: 'line-a', type: 'speak', text: '第一句', bubbleDuration: 3600 }, 3600)
+][
+  // 推荐用于“说完再继续”：step 自己等待。
+  ({ id: 'line-a', type: 'speak', text: '第一句', bubbleDuration: 3600, waitAfter: true }, { id: 'line-b', type: 'speak', text: '第二句', bubbleDuration: 4200, waitAfter: true })
+];
 ```
 
 三种写法的执行记录差异：
 
-| 写法 | 是否生成独立 step | 是否有独立 stepId | 是否出现在 `result.steps` | 适合场景 |
-| --- | --- | --- | --- | --- |
-| 完整 wait step | 是 | 是，使用显式 `id` | 是 | 需要明确日志、测试锚点、`interruptEvent` 或可读 step 名 |
-| 数字 shorthand | 是，会标准化成 wait step | 是，自动生成如 `wait-2` | 是 | 简单固定停顿，不需要手写 id |
-| `waitAfter` | 否，属于当前 step 的执行过程 | 否，沿用当前 stepId | 否，耗时计入当前 step 的 `elapsedMs` | 当前动作完成后自然停顿，例如“说完再继续” |
+| 写法           | 是否生成独立 step            | 是否有独立 stepId       | 是否出现在 `result.steps`            | 适合场景                                                |
+| -------------- | ---------------------------- | ----------------------- | ------------------------------------ | ------------------------------------------------------- |
+| 完整 wait step | 是                           | 是，使用显式 `id`       | 是                                   | 需要明确日志、测试锚点、`interruptEvent` 或可读 step 名 |
+| 数字 shorthand | 是，会标准化成 wait step     | 是，自动生成如 `wait-2` | 是                                   | 简单固定停顿，不需要手写 id                             |
+| `waitAfter`    | 否，属于当前 step 的执行过程 | 否，沿用当前 stepId     | 否，耗时计入当前 step 的 `elapsedMs` | 当前动作完成后自然停顿，例如“说完再继续”                |
 
 `waitAfter` 的取值规则：
 
@@ -317,20 +297,20 @@ Preset 编写层可以使用 `SpriteRoutineStepInput` shorthand，`SpriteRoutine
 
 `waitAfter: true` 的自然时长映射：
 
-| step type | 使用字段 |
-| --- | --- |
-| `speak` | `bubbleDuration`，没有时用 `timeoutMs` |
-| `showToast` | `duration` |
-| `showNotice` | `duration` |
-| `playAnimation` | `durationMs`，没有时用 `timeoutMs` |
-| `wait` | `durationMs` |
-| `waitForEvent` | `timeoutMs` |
-| `walkTo` | `timeoutMs` |
-| `openWindow` | `timeoutMs` |
-| `loopUntil` | `maxDurationMs` |
-| `sequence` | 子步骤自然时长之和 |
-| `parallel` | 子步骤自然时长最大值 |
-| 其他 step | 不自动等待；需要停顿时写 `waitAfter: <ms>` 或接独立 wait step |
+| step type       | 使用字段                                                      |
+| --------------- | ------------------------------------------------------------- |
+| `speak`         | `bubbleDuration`，没有时用 `timeoutMs`                        |
+| `showToast`     | `duration`                                                    |
+| `showNotice`    | `duration`                                                    |
+| `playAnimation` | `durationMs`，没有时用 `timeoutMs`                            |
+| `wait`          | `durationMs`                                                  |
+| `waitForEvent`  | `timeoutMs`                                                   |
+| `walkTo`        | `timeoutMs`                                                   |
+| `openWindow`    | `timeoutMs`                                                   |
+| `loopUntil`     | `maxDurationMs`                                               |
+| `sequence`      | 子步骤自然时长之和                                            |
+| `parallel`      | 子步骤自然时长最大值                                          |
+| 其他 step       | 不自动等待；需要停顿时写 `waitAfter: <ms>` 或接独立 wait step |
 
 注意：`waitAfter` 和后面的独立 wait step 会叠加。例如 `waitAfter: true` 后面再写 `3600`，会等待两次。
 
@@ -878,25 +858,25 @@ walkTo(corner)
 
 ## 8. 验收矩阵
 
-| 场景 | 预期 |
-| --- | --- |
-| 调用 rest reminder | 连续走到中心、说话、播放动画、回角落 |
-| Routine 中途取消 | 停止等待、释放 lock、回到 idle |
-| 同一动画连续播放 | `playId` 保证不会串台 |
-| 状态机动画切换发生在 routine 期间 | 低优先级状态动画不覆盖 active routine，routine 自己的 walk 动画可通过 owner 上下文播放 |
-| 拖文件后选择 workflow | 进入等待 routine，workflow 完成后成功收尾 |
-| FileActionsMenu workflow action e2e | 菜单点击 action 后真实 SpriteManager 启动 waiting，消费 progress，完成收尾并写 history |
-| workflow progress 更新 | routine 消费进度事件，刷新 busy，history 记录 progress step |
-| workflow waiting 已激活时收到 AppEvent | AppEvent 仍转 purpose event；legacy busy/toast/动画不重复执行 |
-| 拖文件后关闭菜单 | 取消 routine，角色回角落 |
-| workflow 失败 | clearBusy，播放失败动画，不残留 lock |
-| idle ambient 触发 | 无 active 高优先级 purpose 时正常，有 lock 时不覆盖 |
-| 历史查询 | 能看到 purpose/step 的开始、结束、失败原因 |
-| 拖入文件但尚未放下 | `file.drop.invite` 先移动到中心并等待 drop / leave，真正 drop 后转 `file.drop.intake` |
-| AI planner 输出非法或执行失败 | 记录 `planner:fallback`，回退 preset routine 收尾 |
-| 每日目的复盘 | 汇总当天 terminal purpose、kind 分布、step/outcome 与高价值 recall cues，默认过滤 `idle.presence` 展示噪声 |
-| Memory index / daily index 触发 | 通过注册的 provider 先同步固定路径 `Sprite Purpose Retrospective` Memory Note，重复触发更新同一 note |
-| 自发说话生成 | 通过构造注入的 provider 读取当天 retrospective 作为 prompt 的安静自我感知，不暴露 purpose id / routine 内部噪声 |
+| 场景                                   | 预期                                                                                                            |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| 调用 rest reminder                     | 连续走到中心、说话、播放动画、回角落                                                                            |
+| Routine 中途取消                       | 停止等待、释放 lock、回到 idle                                                                                  |
+| 同一动画连续播放                       | `playId` 保证不会串台                                                                                           |
+| 状态机动画切换发生在 routine 期间      | 低优先级状态动画不覆盖 active routine，routine 自己的 walk 动画可通过 owner 上下文播放                          |
+| 拖文件后选择 workflow                  | 进入等待 routine，workflow 完成后成功收尾                                                                       |
+| FileActionsMenu workflow action e2e    | 菜单点击 action 后真实 SpriteManager 启动 waiting，消费 progress，完成收尾并写 history                          |
+| workflow progress 更新                 | routine 消费进度事件，刷新 busy，history 记录 progress step                                                     |
+| workflow waiting 已激活时收到 AppEvent | AppEvent 仍转 purpose event；legacy busy/toast/动画不重复执行                                                   |
+| 拖文件后关闭菜单                       | 取消 routine，角色回角落                                                                                        |
+| workflow 失败                          | clearBusy，播放失败动画，不残留 lock                                                                            |
+| idle ambient 触发                      | 无 active 高优先级 purpose 时正常，有 lock 时不覆盖                                                             |
+| 历史查询                               | 能看到 purpose/step 的开始、结束、失败原因                                                                      |
+| 拖入文件但尚未放下                     | `file.drop.invite` 先移动到中心并等待 drop / leave，真正 drop 后转 `file.drop.intake`                           |
+| AI planner 输出非法或执行失败          | 记录 `planner:fallback`，回退 preset routine 收尾                                                               |
+| 每日目的复盘                           | 汇总当天 terminal purpose、kind 分布、step/outcome 与高价值 recall cues，默认过滤 `idle.presence` 展示噪声      |
+| Memory index / daily index 触发        | 通过注册的 provider 先同步固定路径 `Sprite Purpose Retrospective` Memory Note，重复触发更新同一 note            |
+| 自发说话生成                           | 通过构造注入的 provider 读取当天 retrospective 作为 prompt 的安静自我感知，不暴露 purpose id / routine 内部噪声 |
 
 ## 8.1 2026-05-04 Rest Reminder Movement Correction
 
@@ -967,7 +947,7 @@ parallel(
 
 第三层补充可观测性，便于定位类似问题。
 
-- 保留或收敛现有 `[SpritePlayback] handleAnimationComplete` 日志，增加 `currentState/currentTrigger/pendingIdleAfterOutro/presentationLock` 信息。
+- 保留或收敛现有 `❤ handleAnimationComplete` 日志，增加 `currentState/currentTrigger/pendingIdleAfterOutro/presentationLock` 信息。
 - 在 `resolveAndSendAnimation()` 被 lock 拦住时，只对 debug trigger 或 purpose 相关场景记录一条结构化日志，避免长期刷屏。
 
 ### 建议文件级改动
@@ -1026,7 +1006,7 @@ playQuestRecordAnimation()
 它们直接调用：
 
 ```ts
-window.YUA.sprite?.trigger('write', { silent: true })
+window.YUA.sprite?.trigger('write', { silent: true });
 ```
 
 实际风险是：这个调用经由 `sprite:trigger` 进入 `SpriteManager.trigger('write')` 后，会被 `presentationLock.shouldAllow()` 检查。若 `quest:start` 已经启动了某个 purpose routine，routine lifecycle lock 可能已经存在；这次 renderer 外部触发没有 `ownerPurposeId + priority`，因此即使它在产品语义上属于“启动任务的衔接反馈”，也会被当前 active purpose 的 lock 拦住。
@@ -1068,17 +1048,13 @@ window.YUA.sprite.playFeedback({
   kind: 'quest-record',
   silent: true,
   durationMs: 1200
-})
+});
 ```
 
 建议类型：
 
 ```ts
-type SpriteFeedbackKind =
-  | 'quest-record'
-  | 'purpose-link'
-  | 'memory-record'
-  | (string & {});
+type SpriteFeedbackKind = 'quest-record' | 'purpose-link' | 'memory-record' | (string & {});
 
 interface SpriteFeedbackRequest {
   trigger: SpriteAnimationTrigger;
@@ -1135,7 +1111,7 @@ type SpriteFeedbackResult =
 window.YUA.sprite.trigger('write', {
   silent: true,
   ignorePresentationLock: true
-})
+});
 ```
 
 原因：
