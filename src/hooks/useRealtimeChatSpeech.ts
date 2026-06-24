@@ -35,6 +35,19 @@ function isRealtimeSpeechConfigEnabled(config: SpriteSpeakConfig, scope: SpriteR
   return Boolean(config.enabled && config.engine === 'ai-provider' && realtimeConfig.enabled && realtimeConfig.scopes[scope]);
 }
 
+function buildRealtimeSpeechPromptContext(config: SpriteSpeakConfig, scope: SpriteRealtimeSpeechScope) {
+  if (!isRealtimeSpeechConfigEnabled(config, scope)) return undefined;
+  const aiProvider = config.aiProvider;
+  if (!aiProvider?.providerId || !aiProvider.model) return undefined;
+
+  return {
+    enabled: true,
+    model: aiProvider.model,
+    providerId: aiProvider.providerId,
+    voiceId: aiProvider.voiceId
+  };
+}
+
 export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
   const handleRef = useRef<SpriteRealtimeSpeechHandle | null>(null);
   const playerRef = useRef<PcmStreamPlayer | null>(null);
@@ -78,6 +91,20 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
       console.warn('[realtime-chat-speech] Failed to load config:', error);
       setIsEnabled(false);
       return false;
+    }
+  }, [scope]);
+
+  const getPromptContext = useCallback(async () => {
+    try {
+      const config = await window.YUA.sprite.getSpeakConfig();
+      configRef.current = config.chatRealtimeSpeech;
+      const enabled = isRealtimeSpeechConfigEnabled(config, scope);
+      setIsEnabled(enabled);
+      return buildRealtimeSpeechPromptContext(config, scope);
+    } catch (error) {
+      console.warn('[realtime-chat-speech] Failed to load prompt context:', error);
+      setIsEnabled(false);
+      return undefined;
     }
   }, [scope]);
 
@@ -190,17 +217,24 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
           }
 
           if (event.type === 'done') {
-            finishingRef.current = false;
-            stopPlayer('end');
-            handleRef.current = null;
-            startingRef.current = null;
+            if (handleRef.current === handle) {
+              finishingRef.current = false;
+              stopPlayer('end');
+              handleRef.current = null;
+              startingRef.current = null;
+            }
             handle.dispose();
           }
 
           if (event.type === 'error') {
-            finishingRef.current = false;
             console.warn('[realtime-chat-speech] Session error:', event.data.message);
-            stopPlayer('cancel');
+            if (handleRef.current === handle) {
+              finishingRef.current = false;
+              stopPlayer('cancel');
+              handleRef.current = null;
+              startingRef.current = null;
+            }
+            handle.dispose();
           }
         });
         handleRef.current = handle;
@@ -289,6 +323,7 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
     appendDelta,
     cancel,
     complete,
+    getPromptContext,
     isEnabled,
     pause,
     refreshEnabled,

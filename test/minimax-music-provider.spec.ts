@@ -413,6 +413,7 @@ describe('MiniMax music generation provider', () => {
     expect(fakeSocket?.sent.map((payload) => payload.event)).toEqual(['task_start', 'task_continue', 'task_continue', 'task_finish']);
     expect(fakeSocket?.sent[0]).toMatchObject({
       audio_setting: { format: 'mp3', sample_rate: 32000 },
+      continuous_sound: true,
       event: 'task_start',
       model: 'speech-2.8-turbo',
       voice_setting: { voice_id: 'female-shaonv' }

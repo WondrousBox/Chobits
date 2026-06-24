@@ -266,6 +266,13 @@ function sanitizeMiniMaxExtras(extras: Record<string, any>): Record<string, any>
   return rest;
 }
 
+function shouldEnableMiniMaxContinuousSound(model?: string): boolean {
+  const normalized = String(model || '')
+    .trim()
+    .toLowerCase();
+  return normalized === 'speech-2.8-turbo' || normalized === 'speech-2.8-hd';
+}
+
 function rawWebSocketDataToString(data: unknown): string {
   if (typeof data === 'string') return data;
   if (Buffer.isBuffer(data)) return data.toString('utf8');
@@ -866,8 +873,10 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
     const text = String(req.text || '').trim();
     const audioSetting = this.resolveSpeechAudioSetting(req, minimaxExtras.audio_setting || minimaxExtras.audioSetting);
     const { body, voiceId } = this.buildSpeechRequestBody({ ...req, text: undefined }, minimaxExtras, '', 'hex', audioSetting);
+    const continuousSound = shouldEnableMiniMaxContinuousSound(req.model);
     const taskStartBody = stripUndefined({
       ...body,
+      continuous_sound: continuousSound ? true : undefined,
       output_format: undefined,
       stream: undefined,
       text: undefined,
@@ -1028,6 +1037,7 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
 
       logMiniMaxSpeech('WebSocket task_start send', {
         audioSetting,
+        continuousSound,
         model: body.model,
         transport: 'websocket',
         voiceId

@@ -266,6 +266,11 @@ describe('emoji pack search', () => {
 
     expect(result.success).toBe(true);
     expect(result.emoji.packId).toBe('EmojiPackage-1778160720970');
+    expect(result.autoFallback).toBe(false);
+    expect(result.fallbackReason).toBe('query-no-match');
+    expect(result.matched).toBe(false);
+    expect(result.searchCandidateCount).toBe(0);
+    expect(result.selectionSource).toBe('random-query-no-match');
   });
 
   it('picks a random emoji when query is omitted', async () => {
@@ -278,6 +283,28 @@ describe('emoji pack search', () => {
     expect(result.success).toBe(true);
     expect(result.emoji.packId).toBe('EmojiPackage-1778160720970');
     expect(result.query).toBeUndefined();
+    expect(result.selectionSource).toBe('random-empty-query');
+  });
+
+  it('reports keyword match diagnostics when query finds candidates', async () => {
+    const { createPiEmojiSendTool } = await import('../packages/ai/runtime/pi/tools/emoji-packs');
+    const toolContext = createToolContext(`conv-match-diagnostics-${Date.now()}`);
+    const sendTool = createPiEmojiSendTool(toolContext as any);
+
+    const result = (
+      await sendTool.execute('call-match-diagnostics', {
+        packId: 'EmojiPackage-1778160720970',
+        query: '普通微笑'
+      })
+    ).details as any;
+
+    expect(result.success).toBe(true);
+    expect(result.autoFallback).toBe(false);
+    expect(result.fallbackReason).toBeUndefined();
+    expect(result.matched).toBe(true);
+    expect(result.searchCandidateCount).toBeGreaterThan(0);
+    expect(result.selectedScore).toBeGreaterThan(0);
+    expect(result.selectionSource).toBe('keyword-search');
   });
 
   it('pushes emoji images to the sprite bubble when configured', async () => {

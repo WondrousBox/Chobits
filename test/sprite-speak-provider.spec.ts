@@ -632,6 +632,50 @@ describe('Sprite speak AI Provider synthesis', () => {
       expect.any(AbortSignal)
     );
   });
+
+  it('ignores stale realtime append and flush calls after a session is replaced', async () => {
+    const dataDir = makeTempDir();
+    const stream = vi.fn<NonNullable<SpriteSpeechSynthesisExecutor['stream']>>(async (_request, onEvent) => {
+      onEvent({
+        type: 'audio_delta',
+        data: {
+          chunk: Buffer.from([1, 2, 3, 4]),
+          format: 'pcm',
+          sampleRate: 32000,
+          channels: 1,
+          sampleFormat: 's16le'
+        }
+      });
+      return {
+        artifacts: [{ audioBase64: audioBase64('duplex'), format: 'pcm', mimeType: 'audio/pcm' }]
+      };
+    });
+    const service = new SpeakService(dataDir, {
+      synthesize: vi.fn<SpriteSpeechSynthesisExecutor['synthesize']>(),
+      stream
+    });
+
+    service.setConfig({
+      engine: 'ai-provider',
+      aiProvider: {
+        providerId: 'minimax',
+        model: 'speech-2.8-turbo',
+        voiceId: 'female-shaonv',
+        audioSetting: { format: 'pcm' }
+      },
+      chatRealtimeSpeech: {
+        ...service.getConfig().chatRealtimeSpeech,
+        enabled: true
+      }
+    });
+
+    const first = await service.startRealtimeSession({ source: 'chat', scope: 'mainChat' });
+    const second = await service.startRealtimeSession({ source: 'chat', scope: 'mainChat' });
+
+    await expect(service.appendRealtimeSpeechText(first.sessionId, '旧会话尾巴')).resolves.toBeUndefined();
+    await expect(service.flushRealtimeSpeech(first.sessionId)).resolves.toBeUndefined();
+    await second.cancel('test-cleanup');
+  });
 });
 
 describe('RealtimeSpeechTextParser', () => {

@@ -16,6 +16,7 @@ import { readProviderRequestId } from './runtime/pi/provider-request-id';
 import { PiSessionService } from './runtime/pi/session-service';
 import { generatePiConversationTitle } from './runtime/pi/tasks/title';
 import type { AgentLoopCompletePayload } from './services/memory-types';
+import { appendRealtimeSpeechPromptGuidance } from './speech-synthesis-guidance';
 import { createThinkingTagStreamParser, extractThinkingTextFromMetadata, readThinkingBlocksFromMetadata, splitThinkingTagsFromText, type ThinkingMetadataBlock } from './thinking-content';
 import { CHAT_MESSAGE_DISPLAY_PARTS_METADATA_KEY, ChatMessage, ChatMessageDisplayPart, ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent, type ToolCallDisplay } from './types';
 
@@ -272,10 +273,10 @@ export class ChatService {
     // Prepare identifiers and controller
     const requestId = req.abortId || req['requestId'] || safeUuid();
     const eventsChannel = `ai:stream:${requestId}`;
-    const streamReq = {
+    const streamReq = this.withRealtimeSpeechPrompt({
       ...req,
       requestId
-    };
+    });
     const ctrl = new AbortController();
     this.controllers.set(requestId, ctrl);
 
@@ -455,7 +456,7 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
       contextMessages = await this.loadConversationContextMessages(conv.id);
     }
 
-    const streamMessages = this.selectRecentMessages(contextMessages) || req.messages;
+    const streamMessages = appendRealtimeSpeechPromptGuidance(this.selectRecentMessages(contextMessages) || req.messages, req.extras);
     const targetWindowId = BrowserWindow.fromWebContents(sender)?.id;
     const streamRequest: ChatRequest = {
       ...req,
@@ -722,7 +723,15 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
 
   private toPiRequest(req: ChatRequest): ChatRequest {
     const normalizedRequest = normalizeProviderPreset(req);
-    return this.piSessionService.shouldHandle(normalizedRequest) ? normalizedRequest : forcePiRuntime(normalizedRequest);
+    const requestWithRealtimeSpeechPrompt = this.withRealtimeSpeechPrompt(normalizedRequest);
+    return this.piSessionService.shouldHandle(requestWithRealtimeSpeechPrompt) ? requestWithRealtimeSpeechPrompt : forcePiRuntime(requestWithRealtimeSpeechPrompt);
+  }
+
+  private withRealtimeSpeechPrompt(req: ChatRequest): ChatRequest {
+    return {
+      ...req,
+      messages: appendRealtimeSpeechPromptGuidance(req.messages || [], req.extras)
+    };
   }
 
   private getLastUserMessage(messages?: ChatMessage[]): ChatMessage | undefined {

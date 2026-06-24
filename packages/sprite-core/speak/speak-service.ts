@@ -998,7 +998,11 @@ export class SpeakService {
   async appendRealtimeSpeechText(sessionId: string, text: string): Promise<void> {
     const session = this.findRealtimeSession(sessionId);
     if (!session) {
-      throw new Error(`Realtime speech session not found: ${sessionId}`);
+      logSpeakService('Realtime speech stale append ignored', {
+        sessionId,
+        textLength: String(text || '').length
+      });
+      return;
     }
     await session.appendText(stripEmoji(text ?? ''));
   }
@@ -1006,7 +1010,10 @@ export class SpeakService {
   async flushRealtimeSpeech(sessionId: string): Promise<void> {
     const session = this.findRealtimeSession(sessionId);
     if (!session) {
-      throw new Error(`Realtime speech session not found: ${sessionId}`);
+      logSpeakService('Realtime speech stale flush ignored', {
+        sessionId
+      });
+      return;
     }
     await session.flush();
   }
@@ -1079,7 +1086,7 @@ export class SpeakService {
     const logPayload = buildSpeakSynthesisLogPayload(config, sanitizedText, cacheId);
 
     // 查找缓存
-    logSpeakService('Cache lookup', logPayload);
+    logSpeakService('Cache lookup ' + logPayload.text, logPayload);
     const cachedPath = this.cache.get(cacheId);
     if (cachedPath) {
       logSpeakService('Cache hit', {

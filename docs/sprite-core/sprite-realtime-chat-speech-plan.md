@@ -180,7 +180,15 @@ Chat stream delta
 - 在 assistant 消息开始时准备 controller。
 - 把 `delta` 文本喂给 controller。
 - 在 `message_completed`、取消、错误、页面卸载时 finish/cancel。
-- 发送请求前刷新实时朗读配置，把 `spriteRealtimeSpeechScope` 透传到 AI 请求；当该 scope 的实时朗读开启时，聊天页跳过工具结果 `speech`，主进程 AI 事件也只展示提示和动画，不触发普通 TTS。
+- 发送请求前刷新实时朗读配置，把 `spriteRealtimeSpeechScope` 透传到 AI 请求；当该 scope 的实时朗读开启时，同时把当前角色说话使用的 TTS `providerId`、`model`、`voiceId` 放入 `extras.spriteRealtimeSpeech`，供后端按 provider/model metadata 注入实时朗读提示词。
+- 当该 scope 的实时朗读开启时，聊天页跳过工具结果 `speech`，主进程 AI 事件也只展示提示和动画，不触发普通 TTS。
+
+LLM system prompt 注入规则：
+
+- 只有 `chatRealtimeSpeech.enabled === true`、当前 scope 开启、角色说话 engine 为 `ai-provider` 时才注入。
+- 注入内容来自当前 TTS provider/model 的 `speechSynthesis.realtimeSpeechPromptGuidance`，例如 MiniMax 的段落换行、`<#0.4#>` 停顿标签和语气词标签说明。
+- 聊天层只识别统一的 `extras.spriteRealtimeSpeech` 上下文，不硬编码 MiniMax 私有标签。新增服务商时在模型 metadata 中声明自己的实时朗读提示词即可。
+- 关闭实时朗读时不注入，避免普通文字聊天被 TTS 风格约束污染。
 
 ## 6. IPC 与 Preload
 
