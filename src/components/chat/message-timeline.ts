@@ -1,3 +1,4 @@
+import type { SpeechDisplayTextFilter } from '@packages/ai/speech-display-filter';
 import { CHAT_MESSAGE_DISPLAY_PARTS_METADATA_KEY } from '@packages/ai/types';
 
 import type { ToolActivity } from './ToolCallActivity';
@@ -12,6 +13,7 @@ export interface TimelineMessage {
   activities?: ToolActivity[];
   displayParts?: ChatMessageDisplayPart[];
   isThinking?: boolean;
+  speechDisplayTextFilter?: SpeechDisplayTextFilter;
   thinking?: string;
 }
 

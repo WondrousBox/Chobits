@@ -16,9 +16,20 @@ import { readProviderRequestId } from './runtime/pi/provider-request-id';
 import { PiSessionService } from './runtime/pi/session-service';
 import { generatePiConversationTitle } from './runtime/pi/tasks/title';
 import type { AgentLoopCompletePayload } from './services/memory-types';
+import { attachSpeechDisplayTextFilterToMessage, getRealtimeSpeechDisplayTextFilter } from './speech-display-filter';
 import { appendRealtimeSpeechPromptGuidance } from './speech-synthesis-guidance';
 import { createThinkingTagStreamParser, extractThinkingTextFromMetadata, readThinkingBlocksFromMetadata, splitThinkingTagsFromText, type ThinkingMetadataBlock } from './thinking-content';
-import { CHAT_MESSAGE_DISPLAY_PARTS_METADATA_KEY, ChatMessage, ChatMessageDisplayPart, ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent, type ToolCallDisplay } from './types';
+import {
+  CHAT_MESSAGE_DISPLAY_PARTS_METADATA_KEY,
+  ChatMessage,
+  ChatMessageDisplayPart,
+  ChatRequest,
+  ChatResponse,
+  EmbeddingRequest,
+  EmbeddingResponse,
+  StreamEvent,
+  type ToolCallDisplay
+} from './types';
 
 // local UUID fallback if uuid not present
 function safeUuid(): string {
@@ -375,10 +386,12 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
       ...resp,
       ...(resp.message
         ? {
-            message:
+            message: attachSpeechDisplayTextFilterToMessage(
               normalizeAssistantThinkingMessage(resp.message, {
                 providerId: preview.resolved.model.canonicalProviderId
-              }) || resp.message
+              }) || resp.message,
+              getRealtimeSpeechDisplayTextFilter(runtimeReq.extras)
+            )
           }
         : {})
     };
@@ -478,6 +491,7 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
     const collectedToolCalls: Array<{ callId: string; name: string; args?: any; label?: string; display?: ToolCallDisplay; result?: any }> = [];
     const displayParts: ChatMessageDisplayPart[] = [];
     const inlineThinkingParser = shouldNormalizeInlineThinkingTags(preview.resolved.model.canonicalProviderId) ? createThinkingTagStreamParser() : undefined;
+    const speechDisplayTextFilter = getRealtimeSpeechDisplayTextFilter(req.extras);
 
     const spriteRealtimeSpeechScope = getSpriteRealtimeSpeechScope(req);
     eventManager.emit(AppEvent.SPRITE_AI_START, {
@@ -508,8 +522,14 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
 
           if (event.type === 'connected') {
             emit(event);
-            if (conv && !emittedConversationMetadata) {
-              emit({ type: 'metadata', data: { conversationId: conv.id, title: conv.title || null } });
+            if (!emittedConversationMetadata && (conv || speechDisplayTextFilter)) {
+              emit({
+                type: 'metadata',
+                data: {
+                  ...(conv ? { conversationId: conv.id, title: conv.title || null } : {}),
+                  ...(speechDisplayTextFilter ? { speechDisplayTextFilter } : {})
+                }
+              });
               emittedConversationMetadata = true;
             }
             return;
@@ -551,7 +571,7 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
               fullText = finalMessage.content;
             }
 
-            finalMessage = attachDisplayParts(finalMessage, finalizeDisplayParts(displayParts, finalMessage));
+            finalMessage = attachSpeechDisplayTextFilterToMessage(attachDisplayParts(finalMessage, finalizeDisplayParts(displayParts, finalMessage)), speechDisplayTextFilter);
 
             emit({
               ...event,
@@ -628,7 +648,7 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
       }) || finalMessage;
 
     if (finalMessage) {
-      finalMessage = attachDisplayParts(finalMessage, finalizeDisplayParts(displayParts, finalMessage));
+      finalMessage = attachSpeechDisplayTextFilterToMessage(attachDisplayParts(finalMessage, finalizeDisplayParts(displayParts, finalMessage)), speechDisplayTextFilter);
     }
 
     if (finalMessage && collectedToolCalls.length > 0) {

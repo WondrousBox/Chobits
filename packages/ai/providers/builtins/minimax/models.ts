@@ -181,6 +181,23 @@ const minimaxSpeech2RealtimePromptGuidance = [
   '语气词标签，挑选符合语境的使用，要完整包含英文括号和里面的单词，不能改变，不能编造：笑声(laughs)、轻笑(chuckle)、咳嗽(coughs)、清嗓子(clear-throat)、呻吟(groans)、正常换气(breath)、喘气(pant)、吸气(inhale)、呼气(exhale)、倒吸气(gasps)、吸鼻子(sniffs)、叹气(sighs)、喷鼻息(snorts)、打嗝(burps)、(lip-smacking)（咂嘴）、哼唱(humming)、嘶嘶声(hissing)、嗯(emm)、喷嚏(sneezes)'
 ].join('\n');
 
+const minimaxSpeech2RealtimeDisplayTextFilter = {
+  collapseWhitespace: true,
+  id: 'minimax-speech2-realtime-tags',
+  rules: [
+    {
+      pattern: '<#\\s*\\d+(?:\\.\\d{1,2})?\\s*#>',
+      type: 'regex'
+    },
+    {
+      flags: 'i',
+      pattern: '\\((?:laughs|chuckle|coughs|clear-throat|groans|breath|pant|inhale|exhale|gasps|sniffs|sighs|snorts|burps|lip-smacking|humming|hissing|emm|sneezes)\\)',
+      type: 'regex'
+    }
+  ],
+  trim: true
+};
+
 const minimaxSpeechModels: ProviderModelDefinition[] = [
   {
     description: 'MiniMax 低延迟语音合成模型，支持 HTTP 非流式、HTTP 流式和 WebSocket 会话式 T2A。',
@@ -192,6 +209,7 @@ const minimaxSpeechModels: ProviderModelDefinition[] = [
       maxTextChars: 10000,
       modes: ['complete', 'output-stream', 'duplex-stream'],
       outputFormats: ['hex', 'url'],
+      realtimeSpeechDisplayTextFilter: minimaxSpeech2RealtimeDisplayTextFilter,
       realtimeSpeechPromptGuidance: minimaxSpeech2RealtimePromptGuidance,
       recommendedStreamTextChars: 3000,
       supportsSubtitle: true,
@@ -210,6 +228,7 @@ const minimaxSpeechModels: ProviderModelDefinition[] = [
       maxTextChars: 10000,
       modes: ['complete', 'output-stream', 'duplex-stream'],
       outputFormats: ['hex', 'url'],
+      realtimeSpeechDisplayTextFilter: minimaxSpeech2RealtimeDisplayTextFilter,
       realtimeSpeechPromptGuidance: minimaxSpeech2RealtimePromptGuidance,
       recommendedStreamTextChars: 3000,
       supportsSubtitle: true,
