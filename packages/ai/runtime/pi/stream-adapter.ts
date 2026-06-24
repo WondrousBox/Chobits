@@ -9,6 +9,27 @@ type UnknownPiEvent = {
   [key: string]: any;
 };
 
+function summarizeToolResultForLog(result: any): unknown {
+  if (!result || typeof result !== 'object') return result;
+  const details = result.details && typeof result.details === 'object' ? result.details : result;
+  return {
+    autoFallback: details.autoFallback,
+    error: details.error,
+    fallbackReason: details.fallbackReason,
+    matched: details.matched,
+    mimeType: details.emoji?.mimeType,
+    packId: details.emoji?.packId,
+    packName: details.emoji?.packName,
+    query: details.query,
+    relativePath: details.emoji?.relativePath,
+    selectedScore: details.selectedScore,
+    selectionSource: details.selectionSource,
+    success: details.success,
+    title: details.emoji?.title || details.title,
+    url: details.emoji?.url
+  };
+}
+
 type LegacyStreamEmitter = {
   connected: () => void;
   delta: (text: string) => void;
@@ -57,7 +78,7 @@ export function createLegacyStreamEmitter(emit: (event: StreamEvent) => void, op
     },
     toolResult(callId: string, result: any) {
       const speech = extractToolSpeechFromResult(result);
-      console.log(`[AI Tool] 工具返回: ${callId}`, typeof result === 'object' ? { success: result?.success, error: result?.error } : result);
+      console.log(`[AI Tool] 工具返回: ${callId}`, summarizeToolResultForLog(result));
       emit({ type: 'tool_result', data: { callId, result, ...(speech ? { speech } : {}) } });
     },
     toolProgress(callId: string, progress: number, message?: string) {

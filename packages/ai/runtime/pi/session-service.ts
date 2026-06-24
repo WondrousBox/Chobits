@@ -27,8 +27,8 @@ import {
 } from './skills';
 import { createLegacyAssistantMessage, createLegacyStreamEmitter, normalizePiError } from './stream-adapter';
 import type { PiSessionToolContext } from './tool-context';
-import { getPiToolChatDisplayByName } from './tools/display';
 import { normalizePiToolIds, resolvePiToolDescriptors, resolvePiToolId } from './tool-registry';
+import { getPiToolChatDisplayByName } from './tools/display';
 
 const require = createRequire(import.meta.url);
 
@@ -711,10 +711,7 @@ function inspectPiAiPrompt(params: { context: PiContext; metadata?: Record<strin
   });
 }
 
-function getActiveSessionTools(session: {
-  getActiveToolNames?: () => string[];
-  getAllTools?: () => Array<{ description?: string; name: string; parameters?: unknown }>;
-}): AiPromptInspectionTool[] {
+function getActiveSessionTools(session: { getActiveToolNames?: () => string[]; getAllTools?: () => Array<{ description?: string; name: string; parameters?: unknown }> }): AiPromptInspectionTool[] {
   if (typeof session.getActiveToolNames !== 'function' || typeof session.getAllTools !== 'function') {
     return [];
   }
@@ -863,7 +860,10 @@ function resolveLatestUserMessageText(resolved: ResolvedPiRequest): string {
   return '';
 }
 
-async function runEmojiFallbackSend(toolContext: PiSessionToolContext, query: string): Promise<
+async function runEmojiFallbackSend(
+  toolContext: PiSessionToolContext,
+  query: string
+): Promise<
   | {
     send: { args: Record<string, unknown>; callId: string; result: unknown };
   }

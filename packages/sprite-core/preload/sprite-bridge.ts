@@ -245,6 +245,7 @@ export const spriteBridge: SpriteBridgeType = {
   startRealtimeSpeechSession: async (request) => {
     const res = (await ipcRenderer.invoke('sprite:speak:realtime:start', request)) as SpriteRealtimeSpeechSessionStartResult;
     const listeners = new Set<(event: SpriteRealtimeSpeechEvent) => void>();
+    let active = true;
     const handler = (_event: any, data: SpriteRealtimeSpeechEvent): void => {
       listeners.forEach((cb) => {
         try {
@@ -260,6 +261,7 @@ export const spriteBridge: SpriteBridgeType = {
     ipcRenderer.on(res.eventsChannel, handler);
 
     const cleanup = (): void => {
+      active = false;
       try {
         ipcRenderer.off(res.eventsChannel, handler);
       } catch {
@@ -271,15 +273,19 @@ export const spriteBridge: SpriteBridgeType = {
     const api: SpriteRealtimeSpeechHandle = {
       sessionId: res.sessionId,
       appendText: async (text) => {
+        if (!active) return;
         await ipcRenderer.invoke('sprite:speak:realtime:appendText', { sessionId: res.sessionId, text });
       },
       flush: async () => {
+        if (!active) return;
         await ipcRenderer.invoke('sprite:speak:realtime:flush', { sessionId: res.sessionId });
       },
       finish: async () => {
+        if (!active) return;
         await ipcRenderer.invoke('sprite:speak:realtime:finish', { sessionId: res.sessionId });
       },
       cancel: async () => {
+        if (!active) return;
         await ipcRenderer.invoke('sprite:speak:realtime:cancel', { sessionId: res.sessionId });
       },
       on: (cb) => {

@@ -316,6 +316,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
     setInputText('');
     setLoading(true);
     const suppressAuxiliarySpeech = await realtimeSpeech.refreshEnabled();
+    const realtimeSpeechPromptContext = suppressAuxiliarySpeech ? await realtimeSpeech.getPromptContext() : undefined;
 
     const history = [...messages, userMessage].map((message) => ({
       role: message.role,
@@ -336,6 +337,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
           extras: {
             model: resolvedSelection.modelId,
             spriteRealtimeSpeechScope: 'resourceChatSidebar',
+            ...(realtimeSpeechPromptContext ? { spriteRealtimeSpeech: realtimeSpeechPromptContext } : {}),
             ...(explicitSkillInvocation ? { explicitSkillInvocation } : {}),
             ...(workspaceId ? { workspaceId } : {}),
             ...(isCoder && codingWorkspaceRoot

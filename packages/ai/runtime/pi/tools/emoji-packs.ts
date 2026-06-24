@@ -170,6 +170,8 @@ interface RankedEmojiCandidate extends EmojiPackSearchResult {
   alreadySent: boolean;
 }
 
+type EmojiSelectionSource = 'keyword-search' | 'random-empty-query' | 'random-query-no-match' | 'random-unsent-after-duplicates' | 'repeat-last-resort';
+
 /** Bucket by score tier (>=80 / 60-79 / 40-59 / >0), keep the first non-empty tier, then random pick. */
 function pickTieredRandom(candidates: RankedEmojiCandidate[]): RankedEmojiCandidate | undefined {
   if (!candidates.length) return undefined;
@@ -217,10 +219,16 @@ export function createPiEmojiSendTool(toolContext?: PiSessionToolContext): ToolD
       const allowRepeat = Boolean(input.allowRepeat);
 
       let rawCandidates: EmojiPackSearchResult[];
+      let searchCandidateCount: number | undefined;
+      let selectionSource: EmojiSelectionSource = query ? 'keyword-search' : 'random-empty-query';
+      let fallbackReason: string | undefined;
       if (query) {
         rawCandidates = await searchEmojiPacks({ limit: MAX_SEARCH_CANDIDATES, packId, query });
+        searchCandidateCount = rawCandidates.length;
         // No keyword match — fall back to a random pick from imported packs so we still try to send something.
         if (!rawCandidates.length) {
+          selectionSource = 'random-query-no-match';
+          fallbackReason = 'query-no-match';
           rawCandidates = await collectRandomFallbackCandidates(packId);
         }
       } else {
@@ -249,6 +257,8 @@ export function createPiEmojiSendTool(toolContext?: PiSessionToolContext): ToolD
 
       // If every match was already sent, fall back to a random unsent emoji from the preferred pack.
       if (!selected && !allowRepeat) {
+        selectionSource = 'random-unsent-after-duplicates';
+        fallbackReason = fallbackReason || 'all-candidates-already-sent';
         const fallbackRaw = await collectRandomFallbackCandidates(packId);
         const fallbackUnsent = fallbackRaw.filter((item) => {
           const key = emojiKey(item.packId, item.relativePath);
@@ -262,6 +272,8 @@ export function createPiEmojiSendTool(toolContext?: PiSessionToolContext): ToolD
 
       // Last resort: allow a repeat from the full ranked pool so we still send something.
       if (!selected) {
+        selectionSource = 'repeat-last-resort';
+        fallbackReason = fallbackReason || 'repeat-last-resort';
         const fallback = pickRandom(ranked);
         if (fallback) selected = fallback;
       }
@@ -293,6 +305,7 @@ export function createPiEmojiSendTool(toolContext?: PiSessionToolContext): ToolD
       const spriteBubbleDelivered = displayTarget === 'sprite-bubble' ? await pushEmojiToSpriteBubble(_toolCallId, emoji, input.caption) : undefined;
 
       const details = {
+        autoFallback: _toolCallId.startsWith('emoji-fallback-send-'),
         caption: input.caption,
         displayTarget,
         emoji: {
@@ -303,9 +316,14 @@ export function createPiEmojiSendTool(toolContext?: PiSessionToolContext): ToolD
           title: emoji.title,
           url: emoji.url
         },
+        fallbackReason,
         markdown: `![${emoji.title}](${emoji.url})`,
+        matched: query ? (searchCandidateCount || 0) > 0 : undefined,
         query: query || undefined,
+        searchCandidateCount,
         sentBefore: selected.alreadySent,
+        selectedScore: selected.score,
+        selectionSource,
         spriteBubbleDelivered,
         success: true
       };
@@ -314,8 +332,12 @@ export function createPiEmojiSendTool(toolContext?: PiSessionToolContext): ToolD
         content: {
           caption: details.caption,
           displayTarget: details.displayTarget,
+          fallbackReason: details.fallbackReason,
+          matched: details.matched,
           query: details.query,
+          selectedScore: details.selectedScore,
           sentBefore: details.sentBefore,
+          selectionSource: details.selectionSource,
           success: details.success,
           title: details.emoji.title
         },

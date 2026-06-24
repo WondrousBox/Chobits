@@ -86,6 +86,12 @@ const minimaxMusicModels: ProviderModelDefinition[] = [
   }
 ];
 
+const minimaxSpeech2RealtimePromptGuidance = [
+  '一定要插入停顿和语气词标签，让语气自然。格式必须是标签后面跟文字',
+  '停顿标签： <#x#>， x 为秒数，范围 0.01 到 99.99，最多两位小数，例如 <#0.4#>。',
+  '语气词标签，挑选符合语境的使用，要完整包含英文括号和里面的单词，不能改变，不能编造：笑声(laughs)、轻笑(chuckle)、咳嗽(coughs)、清嗓子(clear-throat)、呻吟(groans)、正常换气(breath)、喘气(pant)、吸气(inhale)、呼气(exhale)、倒吸气(gasps)、吸鼻子(sniffs)、叹气(sighs)、喷鼻息(snorts)、打嗝(burps)、(lip-smacking)（咂嘴）、哼唱(humming)、嘶嘶声(hissing)、嗯(emm)、喷嚏(sneezes)'
+].join('\n');
+
 const minimaxSpeechModels: ProviderModelDefinition[] = [
   {
     description: 'MiniMax 低延迟语音合成模型，支持 HTTP 非流式、HTTP 流式和 WebSocket 会话式 T2A。',
@@ -97,6 +103,7 @@ const minimaxSpeechModels: ProviderModelDefinition[] = [
       maxTextChars: 10000,
       modes: ['complete', 'output-stream', 'duplex-stream'],
       outputFormats: ['hex', 'url'],
+      realtimeSpeechPromptGuidance: minimaxSpeech2RealtimePromptGuidance,
       recommendedStreamTextChars: 3000,
       supportsSubtitle: true,
       transports: ['http', 'http-stream', 'websocket']
@@ -114,6 +121,7 @@ const minimaxSpeechModels: ProviderModelDefinition[] = [
       maxTextChars: 10000,
       modes: ['complete', 'output-stream', 'duplex-stream'],
       outputFormats: ['hex', 'url'],
+      realtimeSpeechPromptGuidance: minimaxSpeech2RealtimePromptGuidance,
       recommendedStreamTextChars: 3000,
       supportsSubtitle: true,
       transports: ['http', 'http-stream', 'websocket']

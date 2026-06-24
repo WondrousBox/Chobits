@@ -71,6 +71,12 @@ export type ChatRequestExtras = Record<string, any> & {
   emojiPacksEnabled?: boolean;
   emojiPacksDisplayTarget?: EmojiPacksDisplayTarget;
   spriteRealtimeSpeechScope?: 'mainChat' | 'resourceChatSidebar';
+  spriteRealtimeSpeech?: {
+    enabled?: boolean;
+    providerId?: string;
+    model?: string;
+    voiceId?: string;
+  };
 };
 
 export type EmojiPacksDisplayTarget = 'chat' | 'sprite-bubble';

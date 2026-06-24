@@ -700,7 +700,7 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
   handlers.push({
     event: AppEvent.USER_PERSONA_UPDATE_SKIPPED,
     handler: (data) => {
-      mgr.showToast(data?.message || eventText('personaUpdateSkipped', data), { category: 'info', duration: 1500 });
+      mgr.showToast(data?.message || eventText('personaUpdateSkipped', data), { category: 'info', duration: 1500, speak: false });
     }
   });
 

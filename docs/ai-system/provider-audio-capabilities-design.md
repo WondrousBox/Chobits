@@ -84,6 +84,7 @@ export type SpeechSynthesisModelMetadata = {
   supportsTimestamps?: boolean;
   supportsSubtitle?: boolean;
   supportsVoiceClone?: boolean;
+  realtimeSpeechPromptGuidance?: string;
 };
 ```
 
@@ -107,10 +108,13 @@ MiniMax TTS 模型示例：
     audioFormats: ['mp3', 'wav', 'flac', 'pcm'],
     maxTextChars: 10000,
     recommendedStreamTextChars: 3000,
-    supportsSubtitle: true
+    supportsSubtitle: true,
+    realtimeSpeechPromptGuidance: 'MiniMax 实时朗读提示词...'
   }
 }
 ```
+
+`realtimeSpeechPromptGuidance` 是 provider/model 级提示词扩展点，只在上层明确开启“AI 回复实时朗读”时注入到 LLM system prompt。它用于告诉 LLM 当前回复会被该 provider 的 TTS 朗读，例如段落换行、停顿标签、语气标签等服务商私有写法。聊天层不硬编码 MiniMax、ElevenLabs 等差异，只通过统一 helper 从当前 TTS provider/model metadata 读取。
 
 ## 5. 通用音频 Artifact
 
@@ -452,6 +456,7 @@ if (req.mode === 'duplex-stream') {
 
 - WebSocket 接收 loop 与输入 loop 并行运行，不能等所有输入结束后才处理音频。
 - `task_failed` 或 `base_resp.status_code !== 0` 必须关闭会话并发 `error`。
+- MiniMax `speech-2.8-turbo` / `speech-2.8-hd` 走 WebSocket 时，`task_start` 默认带 `continuous_sound: true`，让模型侧不再自行切分文本，优先服务长文本连续推理和更自然的韵律。该字段属于 MiniMax 私有协议，只在 adapter 内部处理，不进入通用 `SpeechSynthesisRequest`。
 - 最终仍聚合为 `SpeechSynthesisResponse`，复用音频 artifact 落盘服务。
 - IPC stream handle 支持 `appendText(text)`、`flush()`、`finish()`、`cancel()`。
 
