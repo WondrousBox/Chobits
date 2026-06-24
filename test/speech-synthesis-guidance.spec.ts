@@ -14,9 +14,9 @@ describe('speech synthesis prompt guidance', () => {
       }
     });
 
-    expect(guidance).toContain('MiniMax');
     expect(guidance).toContain('<#x#>');
     expect(guidance).toContain('(laughs)');
+    expect(guidance).toContain('语气词标签');
   });
 
   it('injects realtime speech guidance only when realtime speech is enabled', () => {
@@ -48,7 +48,7 @@ describe('speech synthesis prompt guidance', () => {
       name: 'provider_realtime_speech_guidance',
       role: 'system'
     });
-    expect(enabled[1].content).toContain('段落切换用换行');
+    expect(enabled[1].content).toContain('停顿标签');
     expect(enabled[2]).toBe(messages[1]);
   });
 });

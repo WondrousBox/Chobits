@@ -1,4 +1,6 @@
 import { getChatMessageUsage, sumTokenUsage } from '@packages/ai/message-usage';
+import type { SpeechDisplayTextFilter } from '@packages/ai/speech-display-filter';
+import { getSpeechDisplayTextFilter, getSpeechDisplayTextFilterFromMetadata, normalizeSpeechDisplayTextFilter } from '@packages/ai/speech-display-filter';
 import { extractThinkingTextFromMetadata } from '@packages/ai/thinking-content';
 import type { TokenUsage } from '@packages/ai/types';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -44,6 +46,7 @@ interface Message {
   displayParts?: ChatMessageDisplayPart[];
   thinking?: string;
   isThinking?: boolean;
+  speechDisplayTextFilter?: SpeechDisplayTextFilter;
   usage?: TokenUsage;
 }
 
@@ -176,6 +179,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
         const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata || '{}') : row.metadata;
         const usage: TokenUsage | undefined = getChatMessageUsage({ metadata: meta });
         const thinking = extractThinkingTextFromMetadata(meta);
+        const speechDisplayTextFilter = getSpeechDisplayTextFilterFromMetadata(meta);
         if (meta && Array.isArray(meta?.toolCalls)) {
           activities = meta.toolCalls.map((tc: any) => {
             const base: ToolActivity = { callId: tc.callId, name: tc.name, args: tc.args, status: 'done' as const, label: tc.label, display: tc.display, result: tc.result };
@@ -205,6 +209,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
           ...(activities ? { activities } : {}),
           ...(displayParts ? { displayParts } : {}),
           ...(thinking ? { thinking, isThinking: false } : {}),
+          ...(speechDisplayTextFilter ? { speechDisplayTextFilter } : {}),
           ...(usage ? { usage } : {})
         };
       });
@@ -317,6 +322,18 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
     setLoading(true);
     const suppressAuxiliarySpeech = await realtimeSpeech.refreshEnabled();
     const realtimeSpeechPromptContext = suppressAuxiliarySpeech ? await realtimeSpeech.getPromptContext() : undefined;
+    const speechDisplayTextFilter = realtimeSpeechPromptContext ? getSpeechDisplayTextFilter(realtimeSpeechPromptContext.providerId, realtimeSpeechPromptContext.model) : undefined;
+
+    if (speechDisplayTextFilter) {
+      setMessages((prev) => {
+        const idx = assistantIndexRef.current;
+        if (idx < 0 || idx >= prev.length) return prev;
+
+        const copy = prev.slice();
+        copy[idx] = { ...copy[idx], speechDisplayTextFilter };
+        return copy;
+      });
+    }
 
     const history = [...messages, userMessage].map((message) => ({
       role: message.role,
@@ -342,9 +359,9 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
             ...(workspaceId ? { workspaceId } : {}),
             ...(isCoder && codingWorkspaceRoot
               ? {
-                codingWorkspaceRoot,
-                codingWorkspaceLabel: codingWorkspaceLabel || undefined
-              }
+                  codingWorkspaceRoot,
+                  codingWorkspaceLabel: codingWorkspaceLabel || undefined
+                }
               : {})
           }
         },
@@ -360,6 +377,20 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
                   return prev.map((conversation) => (conversation.id === nextConversationId ? { ...conversation, title: existing.title || nextTitle } : conversation));
                 }
                 return [{ id: nextConversationId, title: nextTitle, messagesCount: 1, lastMessageAt: userMessage.createdAt }, ...prev];
+              });
+            }
+          }
+
+          if (event?.type === 'metadata' && event.data?.speechDisplayTextFilter) {
+            const metadataSpeechDisplayTextFilter = normalizeSpeechDisplayTextFilter(event.data.speechDisplayTextFilter);
+            if (metadataSpeechDisplayTextFilter) {
+              setMessages((prev) => {
+                const idx = assistantIndexRef.current;
+                if (idx < 0 || idx >= prev.length) return prev;
+
+                const copy = prev.slice();
+                copy[idx] = { ...copy[idx], speechDisplayTextFilter: metadataSpeechDisplayTextFilter };
+                return copy;
               });
             }
           }
@@ -439,6 +470,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
             const full = String(event.data.message.content || '');
             const usage = getChatMessageUsage(event.data.message);
             const finalThinking = extractThinkingTextFromMetadata(event.data.message.metadata);
+            const finalSpeechDisplayTextFilter = getSpeechDisplayTextFilterFromMetadata(event.data.message.metadata) ?? speechDisplayTextFilter;
             setMessages((prev) => {
               const idx = assistantIndexRef.current;
               if (idx < 0 || idx >= prev.length) return prev;
@@ -448,6 +480,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
               copy[idx] = {
                 ...finalizeTimelineMessage(message, { content: full, thinking: finalThinking }),
                 createdAt: event.data.message.createdAt || message.createdAt,
+                ...(finalSpeechDisplayTextFilter ? { speechDisplayTextFilter: finalSpeechDisplayTextFilter } : {}),
                 ...(usage ? { usage } : {})
               };
               return copy;

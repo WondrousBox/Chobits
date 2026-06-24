@@ -1,5 +1,7 @@
 import { buildConversationPlaceholderTitle } from '@packages/ai/conversation-title';
 import { getChatMessageUsage, sumTokenUsage } from '@packages/ai/message-usage';
+import type { SpeechDisplayTextFilter } from '@packages/ai/speech-display-filter';
+import { getSpeechDisplayTextFilter, getSpeechDisplayTextFilterFromMetadata, normalizeSpeechDisplayTextFilter } from '@packages/ai/speech-display-filter';
 import { extractThinkingTextFromMetadata } from '@packages/ai/thinking-content';
 import type { TokenUsage } from '@packages/ai/types';
 import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area';
@@ -53,6 +55,7 @@ interface ChatUiMessage {
   displayParts?: ChatMessageDisplayPart[];
   thinking?: string;
   isThinking?: boolean;
+  speechDisplayTextFilter?: SpeechDisplayTextFilter;
   usage?: TokenUsage;
 }
 
@@ -64,6 +67,7 @@ async function resolveInitialChatModelId(providerId: string, presetId?: string):
 export default function ChatPage({ hideTitleBar = false, presentation = 'standard', payloadWindowKey = 'chat' }: ChatPageProps): JSX.Element {
   const isOverlay = presentation === 'overlay';
   const realtimeSpeech = useRealtimeChatSpeech('mainChat');
+  const cancelRealtimeSpeech = realtimeSpeech.cancel;
   const stopRealtimeSpeech = realtimeSpeech.stop;
   const {
     providerId,
@@ -166,6 +170,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
             const meta = typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata;
             usage = getChatMessageUsage({ metadata: meta });
             const thinking = extractThinkingTextFromMetadata(meta);
+            const speechDisplayTextFilter = getSpeechDisplayTextFilterFromMetadata(meta);
             if (Array.isArray(meta?.toolCalls)) {
               activities = meta.toolCalls.map((tc: any) => {
                 const base: ToolActivity = { callId: tc.callId, name: tc.name, args: tc.args, status: 'done' as const, label: tc.label, display: tc.display, result: tc.result };
@@ -198,6 +203,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
               ...(activities ? { activities } : {}),
               ...(displayParts ? { displayParts } : {}),
               ...(thinking ? { thinking, isThinking: false } : {}),
+              ...(speechDisplayTextFilter ? { speechDisplayTextFilter } : {}),
               ...(usage ? { usage } : {})
             };
           } catch {
@@ -285,14 +291,14 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     const handlePayload = (payload: any): void => {
       if (!payload?.initialMessage) return;
       // 清除缓存 payload，防止关闭后再次打开时重复触发
-      window.ipcRenderer?.invoke('window:payload:clear', payloadWindowKey).catch(() => { });
+      window.ipcRenderer?.invoke('window:payload:clear', payloadWindowKey).catch(() => {});
       if (isOverlay) {
         setOverlaySide(resolveChatOverlaySide(payload.overlaySide));
         setOverlayExpanded(false);
         window.setTimeout(() => setOverlayExpanded(true), 30);
       }
       if (disposerRef.current) {
-        void disposerRef.current.cancel().catch(() => { });
+        void disposerRef.current.cancel().catch(() => {});
         disposerRef.current.dispose?.();
         disposerRef.current = null;
         setLoading(false);
@@ -468,6 +474,17 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     resetAutoScroll();
     const suppressAuxiliarySpeech = await realtimeSpeech.refreshEnabled();
     const realtimeSpeechPromptContext = suppressAuxiliarySpeech ? await realtimeSpeech.getPromptContext() : undefined;
+    const speechDisplayTextFilter = realtimeSpeechPromptContext ? getSpeechDisplayTextFilter(realtimeSpeechPromptContext.providerId, realtimeSpeechPromptContext.model) : undefined;
+
+    if (speechDisplayTextFilter) {
+      setMessages((prev) => {
+        const idx = assistantIndexRef.current;
+        if (idx < 0 || idx >= prev.length) return prev;
+        const copy = prev.slice();
+        copy[idx] = { ...copy[idx], speechDisplayTextFilter };
+        return copy;
+      });
+    }
 
     // 2) 构造上下文（包含历史消息 + 新用户消息）
     const history = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content, createdAt: m.createdAt }));
@@ -491,9 +508,9 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
           ...(params.emojiPacksDisplayTarget ? { emojiPacksDisplayTarget: params.emojiPacksDisplayTarget } : {}),
           ...(selectedAgentId === 'coder' && selectedCodingWorkspaceRoot
             ? {
-              codingWorkspaceRoot: selectedCodingWorkspaceRoot,
-              codingWorkspaceLabel: selectedCodingWorkspaceLabel || undefined
-            }
+                codingWorkspaceRoot: selectedCodingWorkspaceRoot,
+                codingWorkspaceLabel: selectedCodingWorkspaceLabel || undefined
+              }
             : {})
         }
       },
@@ -514,6 +531,18 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
           }
           // Refresh conversation list so the new conversation appears in sidebar
           loadConversations();
+        }
+        if (ev?.type === 'metadata' && ev.data?.speechDisplayTextFilter) {
+          const metadataSpeechDisplayTextFilter = normalizeSpeechDisplayTextFilter(ev.data.speechDisplayTextFilter);
+          if (metadataSpeechDisplayTextFilter) {
+            setMessages((prev) => {
+              const idx = assistantIndexRef.current;
+              if (idx < 0 || idx >= prev.length) return prev;
+              const copy = prev.slice();
+              copy[idx] = { ...copy[idx], speechDisplayTextFilter: metadataSpeechDisplayTextFilter };
+              return copy;
+            });
+          }
         }
         if (ev?.type === 'tool_call' && ev.data) {
           setMessages((prev) => {
@@ -585,6 +614,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
           const full: string = ev.data.message.content || '';
           const usage = getChatMessageUsage(ev.data.message);
           const finalThinking = extractThinkingTextFromMetadata(ev.data.message.metadata);
+          const finalSpeechDisplayTextFilter = getSpeechDisplayTextFilterFromMetadata(ev.data.message.metadata) ?? speechDisplayTextFilter;
           setMessages((prev) => {
             const idx = assistantIndexRef.current;
             if (idx < 0 || idx >= prev.length) return prev;
@@ -593,6 +623,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
             copy[idx] = {
               ...finalizeTimelineMessage(m, { content: full, thinking: finalThinking }),
               createdAt: ev.data.message.createdAt || m.createdAt,
+              ...(finalSpeechDisplayTextFilter ? { speechDisplayTextFilter: finalSpeechDisplayTextFilter } : {}),
               ...(usage ? { usage } : {})
             };
             return copy;
@@ -774,11 +805,11 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     }
     disposerRef.current?.dispose?.();
     disposerRef.current = null;
-    await realtimeSpeech.cancel();
+    await cancelRealtimeSpeech();
     setLoading(false);
     await clearOverlaySpriteAvoidRegion();
     await window.YUA.window['window:close'](payloadWindowKey as any);
-  }, [clearOverlayCollapseTimer, clearOverlaySpriteAvoidRegion, isOverlay, payloadWindowKey]);
+  }, [cancelRealtimeSpeech, clearOverlayCollapseTimer, clearOverlaySpriteAvoidRegion, isOverlay, payloadWindowKey]);
 
   useEffect(() => {
     void positionOverlayWindow();

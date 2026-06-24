@@ -3,6 +3,8 @@
  * 支持解析消息中的卡片标记 [card:type:id] 并渲染为对应的卡片组件
  */
 
+import type { SpeechDisplayTextFilter } from '@packages/ai/speech-display-filter';
+import { sanitizeSpeechTextForDisplay } from '@packages/ai/speech-display-filter';
 import React, { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
@@ -18,6 +20,8 @@ interface ChatMessageRendererProps {
   className?: string;
   /** 是否使用紧凑模式的卡片 */
   compactCards?: boolean;
+  /** Text filter for speech-only tags that should be hidden from chat display. */
+  speechDisplayTextFilter?: SpeechDisplayTextFilter;
 }
 
 function allowChatMediaUrl(url: string): string {
@@ -48,9 +52,10 @@ const markdownComponents = {
  * 聊天消息渲染器组件
  * 解析消息内容中的卡片标记，将文本和卡片混合渲染
  */
-const ChatMessageRenderer: React.FC<ChatMessageRendererProps> = ({ content, className, compactCards = false }) => {
+const ChatMessageRenderer: React.FC<ChatMessageRendererProps> = ({ content, className, compactCards = false, speechDisplayTextFilter }) => {
+  const displayContent = useMemo(() => sanitizeSpeechTextForDisplay(content, speechDisplayTextFilter), [content, speechDisplayTextFilter]);
   // 解析消息内容
-  const parsedParts = useMemo(() => parseMessageContent(content), [content]);
+  const parsedParts = useMemo(() => parseMessageContent(displayContent), [displayContent]);
 
   // 如果没有卡片或图片标记，直接渲染 Markdown
   const hasRichTokens = parsedParts.some((part) => part.type === 'card' || part.type === 'image');
@@ -59,7 +64,7 @@ const ChatMessageRenderer: React.FC<ChatMessageRendererProps> = ({ content, clas
     return (
       <div className={`prose prose-sm dark:prose-invert max-w-none ${className || ''}`}>
         <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[[rehypeHighlight, { detect: true }]]} urlTransform={allowChatMediaUrl}>
-          {content}
+          {displayContent}
         </ReactMarkdown>
       </div>
     );
