@@ -57,7 +57,15 @@ import {
   type StartSpritePurposeRequest
 } from '../purpose';
 import { SpeakService } from '../speak/speak-service';
-import type { SpeakResult, SpriteRealtimeSpeechAvailabilityRequest, SpriteRealtimeSpeechEvent, SpriteRealtimeSpeechSessionRequest, SpriteSpeakConfig, SpriteSpeakPayload, SpriteSpeakPlaybackContext } from '../speak/types';
+import type {
+  SpeakResult,
+  SpriteRealtimeSpeechAvailabilityRequest,
+  SpriteRealtimeSpeechEvent,
+  SpriteRealtimeSpeechSessionRequest,
+  SpriteSpeakConfig,
+  SpriteSpeakPayload,
+  SpriteSpeakPlaybackContext
+} from '../speak/types';
 import type { SpriteReactionState, SpriteState } from '../state-machine';
 import { SpriteStateMachine } from '../state-machine';
 import {
@@ -757,17 +765,17 @@ export class SpriteManager {
       playbackSession: this.buildPlaybackSession(anim.playback, resolvedDurationMs, options.sessionMode),
       playback: anim.playback
         ? {
-            width: playbackMetrics!.width,
-            height: playbackMetrics!.height,
-            padding: playbackMetrics!.padding,
-            loop: playbackLoop,
-            loopCount: playbackLoopCount,
-            loopStartMs: anim.playback.loopStartMs,
-            loopEndMs: anim.playback.loopEndMs,
-            durationMs: resolvedDurationMs,
-            autoIdle: anim.playback.autoIdle ?? true,
-            movement: anim.playback.movement
-          }
+          width: playbackMetrics!.width,
+          height: playbackMetrics!.height,
+          padding: playbackMetrics!.padding,
+          loop: playbackLoop,
+          loopCount: playbackLoopCount,
+          loopStartMs: anim.playback.loopStartMs,
+          loopEndMs: anim.playback.loopEndMs,
+          durationMs: resolvedDurationMs,
+          autoIdle: anim.playback.autoIdle ?? true,
+          movement: anim.playback.movement
+        }
         : { durationMs: options.durationMs ?? 2000, loop: playbackLoop, loopCount: playbackLoopCount, autoIdle: true }
     };
     this.currentAnimationPresentationOwner = options.presentationOwner ? { ...options.presentationOwner } : null;
@@ -794,7 +802,7 @@ export class SpriteManager {
     this.sendToRenderer('sprite:play', this.currentAnimation);
     this.registerAnimationMovementSuspension(options.playId, options.allowMovementDuringPlayback);
     if (options.trigger === 'welcome' || options.trigger === 'idle' || this.currentAnimation.animationId === 'sprite-fx718a5q') {
-      console.info('[SpritePlayback] sprite:play sent', {
+      console.info('❤❤❤❤❤ sprite:play sent', {
         trigger: options.trigger,
         animationId: anim.id,
         title: anim.title,
@@ -1127,7 +1135,7 @@ export class SpriteManager {
           ownerPurposeId: options?.ownerPurposeId,
           priority: options?.priority,
           ignorePresentationLock: options?.ignorePresentationLock
-        }).catch(() => {});
+        }).catch(() => { });
       }
     }
   }
@@ -1173,7 +1181,7 @@ export class SpriteManager {
         ownerPurposeId: options?.ownerPurposeId,
         priority: options?.priority,
         ignorePresentationLock: options?.ignorePresentationLock
-      }).catch(() => {});
+      }).catch(() => { });
     }
     return true;
   }
@@ -1981,7 +1989,7 @@ export class SpriteManager {
 
     // 动画播放完成时停止自动移动
     const isCurrentAnimation = this.isCurrentAnimationCompletion(animId, playId);
-    console.info('[SpritePlayback] handleAnimationComplete', {
+    console.info('❤❤❤❤❤ handleAnimationComplete', {
       animId,
       phase,
       playId,
@@ -1994,12 +2002,12 @@ export class SpriteManager {
       pendingIdleAfterOutro: this._pendingIdleAfterOutro,
       activePlaylist: this.activeAnimationPlaylist
         ? {
-            trigger: this.activeAnimationPlaylist.trigger,
-            mode: this.activeAnimationPlaylist.mode,
-            currentIndex: this.activeAnimationPlaylist.currentIndex,
-            count: this.activeAnimationPlaylist.entries.length,
-            playId: this.activeAnimationPlaylist.playId
-          }
+          trigger: this.activeAnimationPlaylist.trigger,
+          mode: this.activeAnimationPlaylist.mode,
+          currentIndex: this.activeAnimationPlaylist.currentIndex,
+          count: this.activeAnimationPlaylist.entries.length,
+          playId: this.activeAnimationPlaylist.playId
+        }
         : null,
       autoIdle: this.shouldAutoIdleAfterComplete(animId, playId)
     });
@@ -2054,7 +2062,7 @@ export class SpriteManager {
     }
 
     this.activeAnimationPlaylist = null;
-    console.info('[SpritePlayback] transition to idle after completion', {
+    console.info('❤❤❤❤❤ transition to idle after completion', {
       animId,
       phase,
       playId,
@@ -2213,10 +2221,10 @@ export class SpriteManager {
       },
       ...(definition.id === 'auto-walk'
         ? {
-            admission: {
-              customGate: SPRITE_AUTO_MOVE_SCHEDULER_GATE
-            }
+          admission: {
+            customGate: SPRITE_AUTO_MOVE_SCHEDULER_GATE
           }
+        }
         : {})
     });
   }
@@ -2678,10 +2686,10 @@ export class SpriteManager {
     const currentPurpose = this.purposeManager.getSnapshot().current;
     const resultPayload: Record<string, unknown> | undefined = result
       ? {
-          elapsedMs: result.elapsedMs,
-          value: result.value,
-          stepType: step.type
-        }
+        elapsedMs: result.elapsedMs,
+        value: result.value,
+        stepType: step.type
+      }
       : { stepType: step.type };
 
     await this.purposeHistory.append({

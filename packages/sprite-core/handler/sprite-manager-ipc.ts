@@ -706,7 +706,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
 
   // 动画播放完成上报
   ipcMain.handle('sprite:anim-complete', (_e, payload: { animId: string; phase: 'intro' | 'loop' | 'outro' | 'full'; playId?: string }) => {
-    console.info('[SpritePlayback] ipc sprite:anim-complete', payload);
+    console.info('❤❤❤❤❤ ipc sprite:anim-complete', payload);
     mgr.handleAnimationComplete(payload.animId, payload.phase, payload.playId);
   });
 
@@ -783,7 +783,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     return { ok: true, state: mgr.getPersonaState() };
   });
 
-  function grantPersonaReward(payload: SpritePersonaRewardGrantRequest = {}): { ok: boolean; [key: string]: unknown } {
+  function grantPersonaReward(payload: SpritePersonaRewardGrantRequest = {}): { ok: boolean;[key: string]: unknown } {
     const source = typeof payload.source === 'string' && payload.source.trim() ? payload.source.trim() : 'persona:reward';
     const xp = typeof payload.xp === 'number' && Number.isFinite(payload.xp) ? payload.xp : 0;
     const favor = typeof payload.favor === 'number' && Number.isFinite(payload.favor) ? payload.favor : 0;
@@ -948,10 +948,10 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   type InstalledPackChangeResponse = {
     ok: true;
   } & Awaited<ReturnType<typeof installCharacterPackFromArchive>> & {
-      character?: ReturnType<typeof getCharacterInfo>;
-      runtime?: CharacterPersonaRuntimeSyncResult;
-      personaSlot?: { slotId: string; restored: boolean; switched: boolean };
-    };
+    character?: ReturnType<typeof getCharacterInfo>;
+    runtime?: CharacterPersonaRuntimeSyncResult;
+    personaSlot?: { slotId: string; restored: boolean; switched: boolean };
+  };
 
   async function finalizeInstalledPackChange(
     result: Awaited<ReturnType<typeof installCharacterPackFromArchive>>,

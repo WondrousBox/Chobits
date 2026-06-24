@@ -1,6 +1,5 @@
 import WebSocket from 'ws';
 
-import { OpenAICompatibleProvider } from './openai-compatible';
 import type {
   GeneratedAudioArtifact,
   LyricsGenerationRequest,
@@ -9,11 +8,12 @@ import type {
   MusicGenerationRequest,
   MusicGenerationResponse,
   ProviderSecrets,
-  SpeechSynthesisStreamEvent,
   SpeechSynthesisRequest,
   SpeechSynthesisResponse,
+  SpeechSynthesisStreamEvent,
   SpeechTextInputChunk
 } from '../types';
+import { OpenAICompatibleProvider } from './openai-compatible';
 
 type MiniMaxMusicResponse = {
   base_resp?: {
@@ -121,6 +121,17 @@ function normalizeFormat(format?: string): string {
   return String(format || 'mp3')
     .trim()
     .toLowerCase();
+}
+
+function speechTextLogPayload(text: string): { text: string; textLength: number } {
+  return {
+    text,
+    textLength: text.length
+  };
+}
+
+function logMiniMaxSpeech(message: string, data?: Record<string, any>): void {
+  console.log(`[MiniMax][Speech] ${message} ${JSON.stringify(data || {})}`);
 }
 
 function formatToMimeType(format?: string): string | undefined {
@@ -317,7 +328,10 @@ function waitForWebSocketOpen(socket: WebSocketLike, signal?: AbortSignal): Prom
   });
 }
 
-function createWebSocketMessageQueue(socket: WebSocketLike, signal?: AbortSignal): {
+function createWebSocketMessageQueue(
+  socket: WebSocketLike,
+  signal?: AbortSignal
+): {
   close: () => void;
   next: () => Promise<Record<string, any> | undefined>;
 } {
@@ -531,45 +545,95 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
     const outputFormat = this.resolveSpeechOutputFormat(req, minimaxExtras);
     const audioSetting = this.resolveSpeechAudioSetting(req, minimaxExtras.audio_setting || minimaxExtras.audioSetting);
     const { body, voiceId } = this.buildSpeechRequestBody(req, minimaxExtras, text, outputFormat, audioSetting);
-    const response = await fetch(toEndpointUrl(secrets.baseUrl, '/t2a_v2'), {
-      body: JSON.stringify(body),
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      method: 'POST',
-      signal
-    });
-    const payload = await readJsonResponse<MiniMaxSpeechResponse>(response);
+    const endpoint = toEndpointUrl(secrets.baseUrl, '/t2a_v2');
 
-    if (!response.ok) {
-      const message = payload.base_resp?.status_msg || payload.error || response.statusText || 'MiniMax speech synthesis failed';
-      throw new Error(`MiniMax speech synthesis failed (${response.status}): ${message}`);
-    }
-
-    const statusCode = toFiniteNumber(payload.base_resp?.status_code);
-    if (statusCode !== undefined && statusCode !== 0) {
-      throw new Error(`MiniMax speech synthesis failed (${statusCode}): ${payload.base_resp?.status_msg || 'unknown error'}`);
-    }
-
-    const audio = typeof payload.data?.audio === 'string' ? payload.data.audio.trim() : '';
-    if (!audio) {
-      throw new Error('MiniMax speech synthesis failed: response did not include audio data');
-    }
-
-    const artifact = this.toSpeechAudioArtifact(audio, payload, outputFormat, audioSetting, req, voiceId);
-
-    return stripUndefined({
-      artifacts: [artifact],
-      ...(artifact.audioUrl ? { audioUrl: artifact.audioUrl } : {}),
-      ...(artifact.audioBase64 ? { audioBase64: artifact.audioBase64 } : {}),
+    logMiniMaxSpeech('HTTP complete start', {
+      audioSetting,
+      mode,
       model: req.model,
-      providerId: this.id,
-      rawResponse: payload,
-      ...(payload.extra_info ? { rawUsage: payload.extra_info } : {}),
-      voice: req.voice || voiceId,
-      voiceId
+      outputFormat,
+      transport: 'http',
+      voice: req.voice,
+      voiceId,
+      ...speechTextLogPayload(text)
     });
+    try {
+      logMiniMaxSpeech('HTTP complete request send', {
+        endpoint,
+        model: body.model,
+        outputFormat: body.output_format,
+        stream: body.stream,
+        transport: 'http',
+        voiceId,
+        ...speechTextLogPayload(text)
+      });
+      const response = await fetch(endpoint, {
+        body: JSON.stringify(body),
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        method: 'POST',
+        signal
+      });
+      const payload = await readJsonResponse<MiniMaxSpeechResponse>(response);
+
+      logMiniMaxSpeech('HTTP complete response received', {
+        httpStatus: response.status,
+        ok: response.ok,
+        statusCode: payload.base_resp?.status_code,
+        statusMessage: payload.base_resp?.status_msg,
+        traceId: payload.trace_id,
+        transport: 'http'
+      });
+
+      if (!response.ok) {
+        const message = payload.base_resp?.status_msg || payload.error || response.statusText || 'MiniMax speech synthesis failed';
+        throw new Error(`MiniMax speech synthesis failed (${response.status}): ${message}`);
+      }
+
+      const statusCode = toFiniteNumber(payload.base_resp?.status_code);
+      if (statusCode !== undefined && statusCode !== 0) {
+        throw new Error(`MiniMax speech synthesis failed (${statusCode}): ${payload.base_resp?.status_msg || 'unknown error'}`);
+      }
+
+      const audio = typeof payload.data?.audio === 'string' ? payload.data.audio.trim() : '';
+      if (!audio) {
+        throw new Error('MiniMax speech synthesis failed: response did not include audio data');
+      }
+
+      const artifact = this.toSpeechAudioArtifact(audio, payload, outputFormat, audioSetting, req, voiceId);
+      const result = stripUndefined({
+        artifacts: [artifact],
+        ...(artifact.audioUrl ? { audioUrl: artifact.audioUrl } : {}),
+        ...(artifact.audioBase64 ? { audioBase64: artifact.audioBase64 } : {}),
+        model: req.model,
+        providerId: this.id,
+        rawResponse: payload,
+        ...(payload.extra_info ? { rawUsage: payload.extra_info } : {}),
+        voice: req.voice || voiceId,
+        voiceId
+      });
+
+      logMiniMaxSpeech('HTTP complete done', {
+        artifactFormat: artifact.format,
+        audioBase64Length: artifact.audioBase64?.length,
+        audioHexLength: artifact.audioHex?.length,
+        audioUrl: artifact.audioUrl,
+        durationMs: artifact.durationMs,
+        mimeType: artifact.mimeType,
+        traceId: payload.trace_id,
+        transport: 'http'
+      });
+
+      return result;
+    } catch (error) {
+      logMiniMaxSpeech('HTTP complete failed', {
+        error: error instanceof Error ? error.message : String(error),
+        transport: 'http'
+      });
+      throw error;
+    }
   }
 
   async streamSpeechSynthesis(
@@ -591,6 +655,17 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
     const minimaxExtras = isRecord(req.extras?.minimax) ? sanitizeMiniMaxExtras(req.extras.minimax) : {};
     const text = String(req.text || '').trim();
     const shouldUseWebSocket = mode === 'duplex-stream' || transportPreference === 'websocket';
+
+    logMiniMaxSpeech('stream route decision', {
+      hasInput: Boolean(input),
+      mode,
+      model: req.model,
+      resolvedTransport: shouldUseWebSocket ? 'websocket' : 'http-stream',
+      transportPreference,
+      voice: req.voice,
+      voiceId: req.voiceId,
+      ...speechTextLogPayload(text)
+    });
 
     if (!text && !shouldUseWebSocket) {
       throw new Error('MiniMax speech synthesis streaming requires text');
@@ -633,6 +708,16 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
       }
     });
 
+    logMiniMaxSpeech('HTTP stream start', {
+      audioSetting,
+      mode,
+      model: req.model,
+      transport: 'http-stream',
+      voice: req.voice,
+      voiceId,
+      ...speechTextLogPayload(text)
+    });
+
     onEvent({
       type: 'started',
       data: {
@@ -645,96 +730,128 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
       }
     });
 
-    const response = await fetch(toEndpointUrl(secrets.baseUrl, '/t2a_v2'), {
-      body: JSON.stringify(streamBody),
-      headers: {
-        Accept: 'text/event-stream, application/x-ndjson, application/json',
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      method: 'POST',
-      signal
-    });
+    const endpoint = toEndpointUrl(secrets.baseUrl, '/t2a_v2');
+    try {
+      logMiniMaxSpeech('HTTP stream request send', {
+        endpoint,
+        model: body.model,
+        stream: streamBody.stream,
+        transport: 'http-stream',
+        voiceId,
+        ...speechTextLogPayload(text)
+      });
+      const response = await fetch(endpoint, {
+        body: JSON.stringify(streamBody),
+        headers: {
+          Accept: 'text/event-stream, application/x-ndjson, application/json',
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        method: 'POST',
+        signal
+      });
 
-    if (!response.ok) {
-      const payload = await readJsonResponse<MiniMaxSpeechResponse>(response);
-      const message = payload.base_resp?.status_msg || payload.error || response.statusText || 'MiniMax speech synthesis streaming failed';
-      throw new Error(`MiniMax speech synthesis streaming failed (${response.status}): ${message}`);
-    }
+      logMiniMaxSpeech('HTTP stream response opened', {
+        httpStatus: response.status,
+        ok: response.ok,
+        transport: 'http-stream'
+      });
 
-    const audioChunks: string[] = [];
-    let finalPayload: MiniMaxSpeechResponse | undefined;
-    let sequence = 0;
-
-    for await (const eventPayload of readJsonStream(response)) {
-      const statusCode = toFiniteNumber(eventPayload.base_resp?.status_code);
-      if (statusCode !== undefined && statusCode !== 0) {
-        throw new Error(`MiniMax speech synthesis streaming failed (${statusCode}): ${eventPayload.base_resp?.status_msg || 'unknown error'}`);
+      if (!response.ok) {
+        const payload = await readJsonResponse<MiniMaxSpeechResponse>(response);
+        const message = payload.base_resp?.status_msg || payload.error || response.statusText || 'MiniMax speech synthesis streaming failed';
+        throw new Error(`MiniMax speech synthesis streaming failed (${response.status}): ${message}`);
       }
 
-      const audio = typeof eventPayload.data?.audio === 'string' ? eventPayload.data.audio.trim() : '';
-      if (audio) {
-        const chunkBuffer = hexToBuffer(audio);
-        if (chunkBuffer) {
-          sequence += 1;
-          audioChunks.push(audio.replace(/\s+/g, ''));
+      const audioChunks: string[] = [];
+      let finalPayload: MiniMaxSpeechResponse | undefined;
+      let sequence = 0;
+
+      for await (const eventPayload of readJsonStream(response)) {
+        const statusCode = toFiniteNumber(eventPayload.base_resp?.status_code);
+        if (statusCode !== undefined && statusCode !== 0) {
+          throw new Error(`MiniMax speech synthesis streaming failed (${statusCode}): ${eventPayload.base_resp?.status_msg || 'unknown error'}`);
+        }
+
+        const audio = typeof eventPayload.data?.audio === 'string' ? eventPayload.data.audio.trim() : '';
+        if (audio) {
+          const chunkBuffer = hexToBuffer(audio);
+          if (chunkBuffer) {
+            sequence += 1;
+            audioChunks.push(audio.replace(/\s+/g, ''));
+            onEvent({
+              type: 'audio_delta',
+              data: {
+                chunk: chunkBuffer,
+                encoding: 'hex',
+                format: normalizeFormat(audioSetting.format),
+                mimeType: formatToMimeType(audioSetting.format),
+                sampleRate: toFiniteNumber(audioSetting.sample_rate),
+                channels: toFiniteNumber(audioSetting.channel),
+                sampleFormat: normalizeFormat(audioSetting.format) === 'pcm' ? 's16le' : undefined,
+                sequence
+              }
+            });
+          }
+        }
+
+        if (eventPayload.extra_info || eventPayload.trace_id || eventPayload.data?.status !== undefined || eventPayload.data?.subtitle_file) {
+          finalPayload = eventPayload as MiniMaxSpeechResponse;
           onEvent({
-            type: 'audio_delta',
-            data: {
-              chunk: chunkBuffer,
-              encoding: 'hex',
-              format: normalizeFormat(audioSetting.format),
-              mimeType: formatToMimeType(audioSetting.format),
-              sampleRate: toFiniteNumber(audioSetting.sample_rate),
-              channels: toFiniteNumber(audioSetting.channel),
-              sampleFormat: normalizeFormat(audioSetting.format) === 'pcm' ? 's16le' : undefined,
-              sequence
-            }
+            type: 'metadata',
+            data: stripUndefined({
+              extraInfo: eventPayload.extra_info,
+              status: eventPayload.data?.status,
+              subtitleFile: eventPayload.data?.subtitle_file,
+              traceId: eventPayload.trace_id
+            })
           });
         }
       }
 
-      if (eventPayload.extra_info || eventPayload.trace_id || eventPayload.data?.status !== undefined || eventPayload.data?.subtitle_file) {
-        finalPayload = eventPayload as MiniMaxSpeechResponse;
-        onEvent({
-          type: 'metadata',
-          data: stripUndefined({
-            extraInfo: eventPayload.extra_info,
-            status: eventPayload.data?.status,
-            subtitleFile: eventPayload.data?.subtitle_file,
-            traceId: eventPayload.trace_id
-          })
-        });
+      if (!audioChunks.length) {
+        throw new Error('MiniMax speech synthesis streaming failed: response did not include audio data');
       }
+
+      const payload: MiniMaxSpeechResponse = {
+        ...(finalPayload || {}),
+        data: {
+          ...(finalPayload?.data || {}),
+          audio: audioChunks.join('')
+        }
+      };
+      const artifact = this.toSpeechAudioArtifact(payload.data!.audio!, payload, 'hex', audioSetting, { ...req, mode }, voiceId, 'http-stream');
+      const result = stripUndefined({
+        artifacts: [artifact],
+        ...(artifact.audioBase64 ? { audioBase64: artifact.audioBase64 } : {}),
+        model: req.model,
+        providerId: this.id,
+        rawResponse: payload,
+        ...(payload.extra_info ? { rawUsage: payload.extra_info } : {}),
+        voice: req.voice || voiceId,
+        voiceId
+      });
+
+      logMiniMaxSpeech('HTTP stream completed', {
+        artifactFormat: artifact.format,
+        audioChunkCount: audioChunks.length,
+        durationMs: artifact.durationMs,
+        mimeType: artifact.mimeType,
+        totalAudioHexLength: payload.data!.audio!.length,
+        transport: 'http-stream'
+      });
+
+      onEvent({ type: 'completed', data: result });
+      onEvent({ type: 'done' });
+
+      return result;
+    } catch (error) {
+      logMiniMaxSpeech('HTTP stream failed', {
+        error: error instanceof Error ? error.message : String(error),
+        transport: 'http-stream'
+      });
+      throw error;
     }
-
-    if (!audioChunks.length) {
-      throw new Error('MiniMax speech synthesis streaming failed: response did not include audio data');
-    }
-
-    const payload: MiniMaxSpeechResponse = {
-      ...(finalPayload || {}),
-      data: {
-        ...(finalPayload?.data || {}),
-        audio: audioChunks.join('')
-      }
-    };
-    const artifact = this.toSpeechAudioArtifact(payload.data!.audio!, payload, 'hex', audioSetting, { ...req, mode }, voiceId, 'http-stream');
-    const result = stripUndefined({
-      artifacts: [artifact],
-      ...(artifact.audioBase64 ? { audioBase64: artifact.audioBase64 } : {}),
-      model: req.model,
-      providerId: this.id,
-      rawResponse: payload,
-      ...(payload.extra_info ? { rawUsage: payload.extra_info } : {}),
-      voice: req.voice || voiceId,
-      voiceId
-    });
-
-    onEvent({ type: 'completed', data: result });
-    onEvent({ type: 'done' });
-
-    return result;
   }
 
   private async streamSpeechSynthesisWebSocket(
@@ -757,6 +874,7 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
       event: 'task_start'
     });
     const wsUrl = String((req.extras?.minimax as any)?.websocketUrl || (req.extras?.minimax as any)?.webSocketUrl || (req.extras?.minimax as any)?.websocket_url || '').trim();
+    const endpoint = wsUrl || toWebSocketEndpointUrl(secrets.baseUrl);
     const factory =
       typeof (req.extras?.minimax as any)?.webSocketFactory === 'function'
         ? ((req.extras?.minimax as any).webSocketFactory as MiniMaxWebSocketFactory)
@@ -765,7 +883,22 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
           : typeof (req.extras?.minimax as any)?.wsFactory === 'function'
             ? ((req.extras?.minimax as any).wsFactory as MiniMaxWebSocketFactory)
             : (url: string, options: { headers: Record<string, string> }) => new WebSocket(url, options);
-    const socket = factory(wsUrl || toWebSocketEndpointUrl(secrets.baseUrl), {
+
+    logMiniMaxSpeech('WebSocket start', {
+      audioSetting,
+      customWebSocketUrl: Boolean(wsUrl),
+      hasInput: Boolean(input),
+      mode: 'duplex-stream',
+      model: req.model,
+      outputFormat: 'hex',
+      transport: 'websocket',
+      transportPreference: req.transportPreference || 'auto',
+      voice: req.voice,
+      voiceId,
+      ...speechTextLogPayload(text)
+    });
+
+    const socket = factory(endpoint, {
       headers: {
         Authorization: `Bearer ${apiKey}`
       }
@@ -835,13 +968,31 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
         });
       }
 
-      if (eventName === 'task_started') return 'started';
-      if (eventName === 'task_finished') return 'finished';
+      if (eventName === 'task_started') {
+        logMiniMaxSpeech('WebSocket task_started', {
+          event: eventName,
+          traceId: payload.trace_id,
+          transport: 'websocket'
+        });
+        return 'started';
+      }
+      if (eventName === 'task_finished') {
+        logMiniMaxSpeech('WebSocket task_finished', {
+          audioChunkCount: audioChunks.length,
+          event: eventName,
+          traceId: payload.trace_id,
+          transport: 'websocket'
+        });
+        return 'finished';
+      }
       return 'continue';
     };
 
     try {
       await waitForWebSocketOpen(socket, signal);
+      logMiniMaxSpeech('WebSocket opened', {
+        transport: 'websocket'
+      });
 
       onEvent({
         type: 'started',
@@ -864,12 +1015,23 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
         const eventName = String(payload.event || payload.type || '').trim();
         if (eventName === 'connected_success') {
           connected = true;
+          logMiniMaxSpeech('WebSocket connected_success', {
+            event: eventName,
+            traceId: payload.trace_id,
+            transport: 'websocket'
+          });
           onEvent({ type: 'metadata', data: { event: eventName, traceId: payload.trace_id } });
         } else {
           handlePayload(payload);
         }
       }
 
+      logMiniMaxSpeech('WebSocket task_start send', {
+        audioSetting,
+        model: body.model,
+        transport: 'websocket',
+        voiceId
+      });
       await sendJson(taskStartBody);
 
       let taskStarted = false;
@@ -897,6 +1059,7 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
       })();
 
       if (text) {
+        logMiniMaxSpeech('WebSocket task_continue send ' + text);
         await sendJson({
           event: 'task_continue',
           text
@@ -929,14 +1092,21 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
           const chunk = result.value.value;
           if (finished) break;
           if (chunk.type === 'text' && chunk.text.trim()) {
+            logMiniMaxSpeech('WebSocket task_continue send ' + chunk.text);
             await sendJson({
               event: 'task_continue',
               text: chunk.text
             });
             sentText = true;
           } else if (chunk.type === 'flush') {
+            logMiniMaxSpeech('WebSocket flush input', {
+              transport: 'websocket'
+            });
             onEvent({ type: 'metadata', data: { event: 'flush' } });
           } else if (chunk.type === 'close') {
+            logMiniMaxSpeech('WebSocket close input', {
+              transport: 'websocket'
+            });
             break;
           }
         }
@@ -947,9 +1117,20 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
       }
 
       if (!finished) {
+        logMiniMaxSpeech('WebSocket task_finish send', {
+          audioChunkCount: audioChunks.length,
+          sentText,
+          transport: 'websocket'
+        });
         await sendJson({ event: 'task_finish' });
       }
       await receiveUntilFinished;
+    } catch (error) {
+      logMiniMaxSpeech('WebSocket failed', {
+        error: error instanceof Error ? error.message : String(error),
+        transport: 'websocket'
+      });
+      throw error;
     } finally {
       queue.close();
       try {
@@ -960,6 +1141,10 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
     }
 
     if (!audioChunks.length) {
+      logMiniMaxSpeech('WebSocket failed', {
+        error: 'response did not include audio data',
+        transport: 'websocket'
+      });
       throw new Error('MiniMax WebSocket speech synthesis failed: response did not include audio data');
     }
 
@@ -980,6 +1165,15 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
       ...(payload.extra_info ? { rawUsage: payload.extra_info } : {}),
       voice: req.voice || voiceId,
       voiceId
+    });
+
+    logMiniMaxSpeech('WebSocket completed', {
+      artifactFormat: artifact.format,
+      audioChunkCount: audioChunks.length,
+      durationMs: artifact.durationMs,
+      mimeType: artifact.mimeType,
+      totalAudioHexLength: payload.data!.audio!.length,
+      transport: 'websocket'
     });
 
     onEvent({ type: 'completed', data: result });
@@ -1153,13 +1347,7 @@ export class MiniMaxProvider extends OpenAICompatibleProvider {
     return undefined;
   }
 
-  private toAudioArtifact(
-    audio: string,
-    payload: MiniMaxMusicResponse,
-    outputFormat: string,
-    audioSetting: Record<string, any>,
-    req: MusicGenerationRequest
-  ): GeneratedAudioArtifact {
+  private toAudioArtifact(audio: string, payload: MiniMaxMusicResponse, outputFormat: string, audioSetting: Record<string, any>, req: MusicGenerationRequest): GeneratedAudioArtifact {
     const extraInfo = isRecord(payload.extra_info) ? payload.extra_info : {};
     const format = normalizeFormat(audioSetting.format || extraInfo.audio_format || extraInfo.format);
     const audioUrl = /^https?:\/\//i.test(audio) ? audio : undefined;
