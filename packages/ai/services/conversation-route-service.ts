@@ -20,6 +20,15 @@ const MAX_LIST_ITEMS = 8;
 const MAX_CORRECTIONS = 5;
 const MAX_DECISIONS = 5;
 const MAX_BLOCKERS = 5;
+const MAX_DELTA_EVENTS = 4;
+const MAX_DELTA_EVENT_TAGS = 3;
+const MAX_DELTA_EVENT_TITLE_LENGTH = 48;
+const MAX_DELTA_EVENT_CONTENT_LENGTH = 160;
+const MAX_DELTA_EVENT_EVIDENCE_LENGTH = 160;
+const MAX_DELTA_PATCH_LIST_ITEMS = 3;
+const MAX_DELTA_PATCH_LIST_ITEM_LENGTH = 80;
+const MAX_DELTA_PATCH_SHORT_TEXT_LENGTH = 120;
+const MAX_DELTA_PATCH_SUMMARY_LENGTH = 180;
 
 const EVENT_TYPE_LABELS: Record<ConversationRouteEventType, string> = {
   assumption: '假设',
@@ -67,7 +76,7 @@ export function createEmptyConversationRouteSnapshot(input: {
 
 export function normalizeRouteDelta(raw: unknown): ConversationRouteDelta {
   const source = isRecord(raw) ? raw : {};
-  const events = Array.isArray(source.events) ? source.events.map(normalizeDeltaEvent).filter((event): event is ConversationRouteDeltaEvent => !!event) : [];
+  const events = Array.isArray(source.events) ? source.events.map(normalizeDeltaEvent).filter((event): event is ConversationRouteDeltaEvent => !!event).slice(0, MAX_DELTA_EVENTS) : [];
   const snapshotPatch = normalizeSnapshotPatch(source.snapshotPatch);
   return { events, snapshotPatch };
 }
@@ -77,6 +86,7 @@ export function reduceConversationRouteSnapshot(input: {
   existingEvents?: ConversationRouteEvent[];
   newEvents: ConversationRouteEvent[];
   now?: number;
+  preservePreviousSnapshot?: boolean;
   previous?: ConversationRouteSnapshot | null;
   targetSeq: number;
   workspaceId?: string | null;
@@ -97,28 +107,30 @@ export function reduceConversationRouteSnapshot(input: {
       if (Math.abs(byImportance) > 0.001) return byImportance;
       return b.createdAt - a.createdAt;
     });
-  const activeEvents = snapshotEvents.filter((event) => event.status === 'active' || event.status === 'resolved');
+  const currentEvents = snapshotEvents.filter((event) => event.status === 'active');
+  const taskEvents = snapshotEvents.filter((event) => event.status === 'active' || event.status === 'resolved');
 
   const patch = input.delta.snapshotPatch ?? {};
+  const previousForMerge = input.preservePreviousSnapshot === false ? undefined : previous;
   const openTasks = deriveOpenTasks(previous.openTasks, input.newEvents, snapshotEvents);
-  const resolvedTasks = deriveResolvedTasks(previous.resolvedTasks, input.newEvents, snapshotEvents);
+  const resolvedTasks = deriveResolvedTasks(previousForMerge?.resolvedTasks ?? [], input.newEvents, taskEvents);
 
   const next: ConversationRouteSnapshot = {
-    activeThreads: limitList(mergeTextLists(patch.activeThreads, previous.activeThreads, collectEventTitles(activeEvents, ['topic_shift', 'user_goal'])), MAX_ACTIVE_THREADS),
-    blockers: limitList(mergeTextLists(patch.blockers, previous.blockers, collectEventTitles(activeEvents, ['blocker'])), MAX_BLOCKERS),
+    activeThreads: limitList(mergeTextLists(patch.activeThreads, collectEventTitles(currentEvents, ['topic_shift', 'user_goal']), previousForMerge?.activeThreads), MAX_ACTIVE_THREADS),
+    blockers: limitList(mergeTextLists(patch.blockers, collectEventTitles(currentEvents, ['blocker']), previousForMerge?.blockers), MAX_BLOCKERS),
     conversationId: previous.conversationId || input.conversationId,
-    currentGoal: firstNonEmpty(patch.currentGoal, latestEventContent(activeEvents, 'user_goal'), previous.currentGoal),
-    currentTopic: firstNonEmpty(patch.currentTopic, latestEventContent(activeEvents, 'topic_shift'), previous.currentTopic),
-    decisions: limitList(mergeTextLists(patch.decisions, previous.decisions, collectEventTitles(activeEvents, ['decision'])), MAX_DECISIONS),
-    keyClues: limitList(mergeTextLists(patch.keyClues, previous.keyClues, collectEventTitles(activeEvents, ['key_clue', 'open_question'])), MAX_LIST_ITEMS),
-    keyConstraints: limitList(mergeTextLists(patch.keyConstraints, previous.keyConstraints, collectEventTitles(activeEvents, ['constraint', 'preference'])), MAX_LIST_ITEMS),
+    currentGoal: firstNonEmpty(patch.currentGoal, latestEventContent(currentEvents, 'user_goal'), previousForMerge?.currentGoal),
+    currentTopic: firstNonEmpty(patch.currentTopic, latestEventContent(currentEvents, 'topic_shift'), previousForMerge?.currentTopic),
+    decisions: limitList(mergeTextLists(patch.decisions, collectEventTitles(currentEvents, ['decision']), previousForMerge?.decisions), MAX_DECISIONS),
+    keyClues: limitList(mergeTextLists(patch.keyClues, collectEventTitles(currentEvents, ['key_clue', 'open_question']), previousForMerge?.keyClues), MAX_LIST_ITEMS),
+    keyConstraints: limitList(mergeTextLists(patch.keyConstraints, collectEventTitles(currentEvents, ['constraint', 'preference']), previousForMerge?.keyConstraints), MAX_LIST_ITEMS),
     lastProcessedSeq: Math.max(previous.lastProcessedSeq ?? 0, input.targetSeq),
-    nextSuggestedFocus: firstNonEmpty(patch.nextSuggestedFocus, previous.nextSuggestedFocus),
+    nextSuggestedFocus: firstNonEmpty(patch.nextSuggestedFocus, previousForMerge?.nextSuggestedFocus),
     openTasks,
     resolvedTasks,
-    summary: trimText(firstNonEmpty(patch.summary, buildFallbackSummary(patch, activeEvents), previous.summary) ?? '', 500),
+    summary: trimText(firstNonEmpty(patch.summary, buildFallbackSummary(patch, currentEvents), previousForMerge?.summary) ?? '', 500),
     updatedAt: now,
-    userCorrections: limitList(mergeTextLists(patch.userCorrections, previous.userCorrections, collectEventTitles(activeEvents, ['user_correction'])), MAX_CORRECTIONS),
+    userCorrections: limitList(mergeTextLists(patch.userCorrections, collectEventTitles(currentEvents, ['user_correction']), previousForMerge?.userCorrections), MAX_CORRECTIONS),
     version: (previous.version ?? 0) + 1,
     workspaceId: input.workspaceId ?? previous.workspaceId ?? null
   };
@@ -227,17 +239,17 @@ function normalizeDeltaEvent(value: unknown): ConversationRouteDeltaEvent | null
   if (!type || !isEventType(type)) return null;
   return {
     confidence: numericOrUndefined(value.confidence),
-    content: stringOrUndefined(value.content),
-    evidence: stringOrUndefined(value.evidence),
+    content: stringOrUndefined(value.content, MAX_DELTA_EVENT_CONTENT_LENGTH),
+    evidence: stringOrUndefined(value.evidence, MAX_DELTA_EVENT_EVIDENCE_LENGTH),
     importance: numericOrUndefined(value.importance),
-    relatedEventIds: arrayOfStrings(value.relatedEventIds),
+    relatedEventIds: arrayOfStrings(value.relatedEventIds, 8, 80),
     resolvesEventIds: arrayOfStrings(value.resolvesEventIds),
     seqEnd: integerOrUndefined(value.seqEnd),
     seqStart: integerOrUndefined(value.seqStart),
     status: isStatus(value.status) ? value.status : undefined,
     supersedesEventIds: arrayOfStrings(value.supersedesEventIds),
-    tags: arrayOfStrings(value.tags),
-    title: stringOrUndefined(value.title),
+    tags: arrayOfStrings(value.tags, MAX_DELTA_EVENT_TAGS, 40),
+    title: stringOrUndefined(value.title, MAX_DELTA_EVENT_TITLE_LENGTH),
     type
   };
 }
@@ -245,16 +257,16 @@ function normalizeDeltaEvent(value: unknown): ConversationRouteDeltaEvent | null
 function normalizeSnapshotPatch(value: unknown): ConversationRouteSnapshotPatch {
   if (!isRecord(value)) return {};
   return {
-    activeThreads: arrayOfStrings(value.activeThreads),
-    blockers: arrayOfStrings(value.blockers),
-    currentGoal: stringOrUndefined(value.currentGoal),
-    currentTopic: stringOrUndefined(value.currentTopic),
-    decisions: arrayOfStrings(value.decisions),
-    keyClues: arrayOfStrings(value.keyClues),
-    keyConstraints: arrayOfStrings(value.keyConstraints),
-    nextSuggestedFocus: stringOrUndefined(value.nextSuggestedFocus),
-    summary: stringOrUndefined(value.summary),
-    userCorrections: arrayOfStrings(value.userCorrections)
+    activeThreads: arrayOfStrings(value.activeThreads, MAX_DELTA_PATCH_LIST_ITEMS, MAX_DELTA_PATCH_LIST_ITEM_LENGTH),
+    blockers: arrayOfStrings(value.blockers, MAX_DELTA_PATCH_LIST_ITEMS, MAX_DELTA_PATCH_LIST_ITEM_LENGTH),
+    currentGoal: stringOrUndefined(value.currentGoal, MAX_DELTA_PATCH_SHORT_TEXT_LENGTH),
+    currentTopic: stringOrUndefined(value.currentTopic, MAX_DELTA_PATCH_SHORT_TEXT_LENGTH),
+    decisions: arrayOfStrings(value.decisions, MAX_DELTA_PATCH_LIST_ITEMS, MAX_DELTA_PATCH_LIST_ITEM_LENGTH),
+    keyClues: arrayOfStrings(value.keyClues, MAX_DELTA_PATCH_LIST_ITEMS, MAX_DELTA_PATCH_LIST_ITEM_LENGTH),
+    keyConstraints: arrayOfStrings(value.keyConstraints, MAX_DELTA_PATCH_LIST_ITEMS, MAX_DELTA_PATCH_LIST_ITEM_LENGTH),
+    nextSuggestedFocus: stringOrUndefined(value.nextSuggestedFocus, MAX_DELTA_PATCH_SHORT_TEXT_LENGTH),
+    summary: stringOrUndefined(value.summary, MAX_DELTA_PATCH_SUMMARY_LENGTH),
+    userCorrections: arrayOfStrings(value.userCorrections, MAX_DELTA_PATCH_LIST_ITEMS, MAX_DELTA_PATCH_LIST_ITEM_LENGTH)
   };
 }
 
@@ -422,8 +434,11 @@ function isStatus(value: unknown): value is ConversationRouteEventStatus {
   return value === 'active' || value === 'resolved' || value === 'superseded' || value === 'abandoned';
 }
 
-function stringOrUndefined(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+function stringOrUndefined(value: unknown, limit?: number): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const text = value.trim();
+  if (!text) return undefined;
+  return typeof limit === 'number' ? trimText(text, limit) : text;
 }
 
 function numericOrUndefined(value: unknown): number | undefined {
@@ -434,8 +449,12 @@ function integerOrUndefined(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? Math.trunc(value) : undefined;
 }
 
-function arrayOfStrings(value: unknown): string[] | undefined {
+function arrayOfStrings(value: unknown, limit?: number, itemLimit?: number): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
-  const values = value.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0).map((entry) => entry.trim());
+  const values = value
+    .filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+    .map((entry) => trimText(entry.trim(), itemLimit ?? 100))
+    .filter(Boolean)
+    .slice(0, limit);
   return values.length ? values : undefined;
 }

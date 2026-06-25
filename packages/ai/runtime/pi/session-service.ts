@@ -689,8 +689,22 @@ function splitSessionPrompt(messages: PiMessage[]): { history: PiMessage[]; prom
   };
 }
 
-function replaceAgentMessages(session: { agent: { state: { messages: unknown[] } } }, messages: PiMessage[]): void {
-  session.agent.state.messages = messages as any[];
+function replaceAgentMessages(session: { agent?: { state?: { messages: unknown[] } }; state?: { messages: unknown[] } }, messages: PiMessage[]): void {
+  const nextMessages = messages as any[];
+  const agentState = session.agent?.state;
+  const sessionState = session.state;
+
+  if (agentState) {
+    agentState.messages = nextMessages;
+  }
+
+  if (sessionState && sessionState !== agentState) {
+    sessionState.messages = nextMessages;
+  }
+
+  if (!agentState && !sessionState) {
+    throw new Error('Pi coding session does not expose writable message state.');
+  }
 }
 
 function toInspectionMessages(messages: PiMessage[]): Array<{ content: unknown; name?: string; role: string; timestamp?: number; toolCallId?: string }> {

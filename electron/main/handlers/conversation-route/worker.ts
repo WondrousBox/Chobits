@@ -113,9 +113,9 @@ async function runOnce(payload: AgentLoopCompletePayload): Promise<void> {
       now
     });
 
-  const rows = await ChatRepo.listMessages(conversationId, 2000, 0);
+  const rows = await ChatRepo.listMessagesAfterSeq(conversationId, previousSnapshot.lastProcessedSeq, 200);
   const newMessages: ConversationRouteMessage[] = rows
-    .filter((message: any) => (message.role === 'user' || message.role === 'assistant') && (message.seq ?? 0) > previousSnapshot.lastProcessedSeq)
+    .filter((message: any) => message.role === 'user' || message.role === 'assistant')
     .map((message: any) => ({
       content: message.content,
       createdAt: message.createdAt,
@@ -154,13 +154,16 @@ async function runOnce(payload: AgentLoopCompletePayload): Promise<void> {
     workspaceId
   });
   const insertedEvents = await ConversationRouteEventRepo.bulkInsert(eventDrafts);
-  const activeEvents = await ConversationRouteEventRepo.listActiveByConversation(conversationId, 200);
+  await ConversationRouteEventRepo.applyResolutionLinks(insertedEvents);
+  const snapshotEvents = await ConversationRouteEventRepo.listActiveByConversation(conversationId, 200);
+  const insertedEventIds = new Set(insertedEvents.map((event) => event.id));
   const nextSnapshot = reduceConversationRouteSnapshot({
     conversationId,
     delta,
-    existingEvents: activeEvents.filter((event) => !insertedEvents.some((newEvent) => newEvent.id === event.id)),
-    newEvents: insertedEvents,
+    existingEvents: snapshotEvents.filter((event) => !insertedEventIds.has(event.id)),
+    newEvents: snapshotEvents.filter((event) => insertedEventIds.has(event.id)),
     now,
+    preservePreviousSnapshot: false,
     previous: previousSnapshot,
     targetSeq: maxSeq,
     workspaceId
