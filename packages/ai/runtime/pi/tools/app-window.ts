@@ -1,6 +1,6 @@
 import type { WindowKey } from '@aim-packages/window-manager';
-import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
-import { type Static, Type } from '@sinclair/typebox';
+import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
+import { type Static, Type } from 'typebox';
 
 import { getAppWindowToolEntry, listAppWindowSummaries, sanitizeAppWindowPayload, searchAppWindowSummaries } from '../app-window-directory';
 import { resolveGuardedToolExecution } from '../skills';

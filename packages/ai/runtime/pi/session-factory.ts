@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import type { AgentSession } from '@mariozechner/pi-coding-agent';
+import type { AgentSession } from '@earendil-works/pi-coding-agent';
 
 import type { ResolvedPiRequest } from './contracts';
 import { createSkillRegistry, createSkillSessionState, type SkillRegistry, type SkillSessionState } from './skills';
@@ -10,10 +10,10 @@ import { createPiSessionToolContext, type PiSessionToolContext } from './tool-co
 import { resolvePiToolId } from './tool-registry';
 import { createPiCustomTools, listPiReadyToolIds } from './tools';
 
-type PiModel = import('@mariozechner/pi-ai').Model<any>;
-type PiAgentThinkingLevel = import('@mariozechner/pi-agent-core').ThinkingLevel;
+type PiModel = import('@earendil-works/pi-ai/compat').Model<any>;
+type PiAgentThinkingLevel = import('@earendil-works/pi-agent-core').ThinkingLevel;
 
-type PiCodingSdkModule = Pick<typeof import('@mariozechner/pi-coding-agent'), 'createAgentSession'>;
+type PiCodingSdkModule = Pick<typeof import('@earendil-works/pi-coding-agent'), 'createAgentSession'>;
 type PiCodingAuthStorage = {
   set: (providerId: string, credential: { key: string; type: 'api_key' }) => void;
 };
@@ -67,7 +67,7 @@ export interface PiCodingSessionHandle {
 }
 
 function resolveLocalPiCodingPackageRoot(): string | undefined {
-  const packageRoot = path.join(process.cwd(), 'node_modules', '@mariozechner', 'pi-coding-agent');
+  const packageRoot = path.join(process.cwd(), 'node_modules', '@earendil-works', 'pi-coding-agent');
   return fs.existsSync(path.join(packageRoot, 'package.json')) ? packageRoot : undefined;
 }
 
@@ -77,7 +77,7 @@ async function resolvePiCodingCorePath(fileName: string): Promise<string> {
     return path.join(localPackageRoot, 'dist', 'core', fileName);
   }
 
-  const entryUrl = await import.meta.resolve('@mariozechner/pi-coding-agent');
+  const entryUrl = await import.meta.resolve('@earendil-works/pi-coding-agent');
   const entryPath = fileURLToPath(entryUrl);
   const packageRoot = path.resolve(path.dirname(entryPath), '..');
   return path.join(packageRoot, 'dist', 'core', fileName);

@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 
-import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
-import { Type, type Static } from '@sinclair/typebox';
+import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
+import { Type, type Static } from 'typebox';
 
 import type { ChatCardType } from '../../../types';
 import { resolveGuardedToolExecution } from '../skills';

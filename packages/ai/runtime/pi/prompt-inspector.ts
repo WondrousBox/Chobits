@@ -107,11 +107,17 @@ export function clearRecentAiPromptInspections(): void {
   recentInspections.length = 0;
 }
 
+function pushOptionalLine(lines: string[], label: string, value: unknown): void {
+  if (typeof value === 'string' && value.trim()) {
+    lines.push(`${label}: ${value}`);
+  }
+}
+
 export function formatAiPromptInspection(record: AiPromptInspectionRecord): string {
   const lines: string[] = [];
   lines.push('==================== AI PROMPT INSPECTION ====================');
-  lines.push(`source: ${record.source}`);
-  lines.push(`transport: ${record.transport}`);
+  pushOptionalLine(lines, 'source', record.source);
+  pushOptionalLine(lines, 'transport', record.transport);
   pushOptionalLine(lines, 'requestId', record.requestId);
   pushOptionalLine(lines, 'conversationId', record.conversationId);
   pushOptionalLine(lines, 'agentId', record.agentId);
@@ -141,18 +147,12 @@ export function formatAiPromptInspection(record: AiPromptInspectionRecord): stri
   if (record.activeTools && record.activeTools.length > 0) {
     lines.push(`-------------------- ACTIVE TOOLS (${record.activeTools.length}) --------------------`);
     for (const tool of record.activeTools) {
-      lines.push(typeof tool === 'string' ? tool : safeStringify(tool));
+      lines.push(typeof tool === 'string' ? tool : tool.name || 'unknown name');
     }
   }
 
   lines.push('================== END AI PROMPT INSPECTION ==================');
   return lines.join('\n');
-}
-
-function pushOptionalLine(lines: string[], label: string, value: unknown): void {
-  if (typeof value === 'string' && value.trim()) {
-    lines.push(`${label}: ${value}`);
-  }
 }
 
 function formatMessageContent(content: unknown): string {

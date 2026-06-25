@@ -2,8 +2,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { parser } from '@aim-packages/subtitle';
-import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
-import { Type } from '@sinclair/typebox';
+import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
+import { Type } from 'typebox';
 
 import type { PiSessionToolContext } from '../tool-context';
 import { createJsonToolResult } from './result';

@@ -32,19 +32,19 @@ import { getPiToolChatDisplayByName } from './tools/display';
 
 const require = createRequire(import.meta.url);
 
-const PI_PACKAGE_NAMES = ['@mariozechner/pi-agent-core', '@mariozechner/pi-ai', '@mariozechner/pi-coding-agent', '@mariozechner/pi-tui'];
+const PI_PACKAGE_NAMES = ['@earendil-works/pi-agent-core', '@earendil-works/pi-ai', '@earendil-works/pi-coding-agent', '@earendil-works/pi-tui'];
 
-type PiAiModule = typeof import('@mariozechner/pi-ai');
-type PiAgentSessionEvent = import('@mariozechner/pi-coding-agent').AgentSessionEvent;
-type PiAgentThinkingLevel = import('@mariozechner/pi-agent-core').ThinkingLevel;
-type PiApi = import('@mariozechner/pi-ai').Api;
-type PiAssistantMessage = import('@mariozechner/pi-ai').AssistantMessage;
-type PiAssistantMessageEvent = import('@mariozechner/pi-ai').AssistantMessageEvent;
-type PiContext = import('@mariozechner/pi-ai').Context;
-type PiMessage = import('@mariozechner/pi-ai').Message;
-type PiModel = import('@mariozechner/pi-ai').Model<PiApi>;
-type PiSimpleStreamOptions = import('@mariozechner/pi-ai').SimpleStreamOptions;
-type PiThinkingLevel = import('@mariozechner/pi-ai').ThinkingLevel;
+type PiAiModule = typeof import('@earendil-works/pi-ai/compat');
+type PiAgentSessionEvent = import('@earendil-works/pi-coding-agent').AgentSessionEvent;
+type PiAgentThinkingLevel = import('@earendil-works/pi-agent-core').ThinkingLevel;
+type PiApi = import('@earendil-works/pi-ai/compat').Api;
+type PiAssistantMessage = import('@earendil-works/pi-ai/compat').AssistantMessage;
+type PiAssistantMessageEvent = import('@earendil-works/pi-ai/compat').AssistantMessageEvent;
+type PiContext = import('@earendil-works/pi-ai/compat').Context;
+type PiMessage = import('@earendil-works/pi-ai/compat').Message;
+type PiModel = import('@earendil-works/pi-ai/compat').Model<PiApi>;
+type PiSimpleStreamOptions = import('@earendil-works/pi-ai/compat').SimpleStreamOptions;
+type PiThinkingLevel = import('@earendil-works/pi-ai/compat').ThinkingLevel;
 type PiUserContentBlock = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string };
 type PiSkillRuntimeContext = {
   registry: SkillRegistry;
@@ -71,7 +71,7 @@ function getMissingPackages(): string[] {
 }
 
 async function loadPiAi(): Promise<PiAiModule> {
-  return import('@mariozechner/pi-ai');
+  return import('@earendil-works/pi-ai/compat');
 }
 
 function isPlaceholderInstructions(instructions?: string): boolean {
@@ -645,7 +645,7 @@ function resolveForkedThinkingLevel(execution: SkillExecutionResult, resolved: R
 }
 
 function canUseCodingSession(resolved: ResolvedPiRequest): boolean {
-  return resolved.profile.executionMode === 'session' && hasPackage('@mariozechner/pi-coding-agent');
+  return resolved.profile.executionMode === 'session' && hasPackage('@earendil-works/pi-coding-agent');
 }
 
 function resolveToolBridgeState(preview: PiRuntimePreview): 'disabled' | 'partial' | 'planned' | 'ready' {
@@ -687,6 +687,10 @@ function splitSessionPrompt(messages: PiMessage[]): { history: PiMessage[]; prom
     history: messages.slice(0, -1),
     prompt
   };
+}
+
+function replaceAgentMessages(session: { agent: { state: { messages: unknown[] } } }, messages: PiMessage[]): void {
+  session.agent.state.messages = messages as any[];
 }
 
 function toInspectionMessages(messages: PiMessage[]): Array<{ content: unknown; name?: string; role: string; timestamp?: number; toolCallId?: string }> {
@@ -1262,7 +1266,7 @@ export class PiSessionService {
         : () => { };
 
     try {
-      session.agent.replaceMessages(options.promptState.history as any);
+      replaceAgentMessages(session, options.promptState.history);
       reportForkProgress(15, `Forked skill session ready with model ${childModel.id}.`);
       const forkedPrompt = buildForkedSkillPrompt(options.execution, options.promptState.prompt);
       inspectCodingSessionPrompt({
@@ -1448,7 +1452,7 @@ export class PiSessionService {
     }
 
     try {
-      session.agent.replaceMessages(promptState.history as any);
+      replaceAgentMessages(session, promptState.history);
       inspectCodingSessionPrompt({
         activeTools: getActiveSessionTools(session),
         promptState,
@@ -1541,7 +1545,7 @@ export class PiSessionService {
     });
 
     try {
-      session.agent.replaceMessages(promptState.history as any);
+      replaceAgentMessages(session, promptState.history);
       inspectCodingSessionPrompt({
         activeTools: getActiveSessionTools(session),
         promptState,

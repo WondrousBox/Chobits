@@ -411,7 +411,7 @@ interface ToolResult<T = unknown> {
 
 ### Chobits 当前的工具定义
 
-当前工具通过 Pi runtime 注册，格式与 `@mariozechner/pi-coding-agent` 的 `ToolDefinition` 绑定：
+当前工具通过 Pi runtime 注册，格式与 `@earendil-works/pi-coding-agent` 的 `ToolDefinition` 绑定：
 
 ```typescript
 // packages/ai/runtime/pi/tools/index.ts

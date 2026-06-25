@@ -1,5 +1,5 @@
-﻿import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
-import { Type } from '@sinclair/typebox';
+﻿import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
+import { Type } from 'typebox';
 
 import { listEmojiPacks, resolveEmojiFromPack, searchEmojiPacks } from '../../../../../electron/main/handlers/emoji-packs/service';
 import type { EmojiPackSearchResult } from '../../../../../electron/main/handlers/emoji-packs/types';

@@ -1,9 +1,9 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
+import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { WorkspacesRepo } from '@packages/common/db';
-import { Type } from '@sinclair/typebox';
+import { Type } from 'typebox';
 
 import { getTodayMemoryDate } from '../../../services/memory-date';
 import { resolveGuardedToolExecution } from '../skills';

@@ -1,11 +1,11 @@
 import { getProviderDefinition, getProviderDefinitionDefaultModel, getProviderDefinitionModel, getProviderDefinitionPiBaseUrl } from '../../providers/service';
 import type { ResolvedPiModelConfig, ResolvedPiRequest } from './contracts';
 
-type PiAiModule = typeof import('@mariozechner/pi-ai');
-type PiApi = import('@mariozechner/pi-ai').Api;
-type PiKnownProvider = import('@mariozechner/pi-ai').KnownProvider;
-type PiModel = import('@mariozechner/pi-ai').Model<PiApi>;
-type PiOpenAICompletionsCompat = import('@mariozechner/pi-ai').OpenAICompletionsCompat;
+type PiAiModule = typeof import('@earendil-works/pi-ai/compat');
+type PiApi = import('@earendil-works/pi-ai/compat').Api;
+type PiKnownProvider = import('@earendil-works/pi-ai/compat').KnownProvider;
+type PiModel = import('@earendil-works/pi-ai/compat').Model<PiApi>;
+type PiOpenAICompletionsCompat = import('@earendil-works/pi-ai/compat').OpenAICompletionsCompat;
 
 export function sanitizePiBaseUrl(baseUrl?: string): string | undefined {
   const trimmed = baseUrl?.trim();

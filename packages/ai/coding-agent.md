@@ -398,7 +398,7 @@ isCommandAllowed(...)
 
 所有新工具都应：
 
-- 使用 `@mariozechner/pi-coding-agent` 的 `ToolDefinition`
+- 使用 `@earendil-works/pi-coding-agent` 的 `ToolDefinition`
 - 复用 `tools/result.ts` 中的 `createJsonToolResult`
 - 通过 `PiSessionToolContext.coding` 访问工作区
 

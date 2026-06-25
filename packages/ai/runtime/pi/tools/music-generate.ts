@@ -1,7 +1,7 @@
 import path from 'node:path';
 
-import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
-import { type Static, Type } from '@sinclair/typebox';
+import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
+import { type Static, Type } from 'typebox';
 
 import { normalizeProviderPreset } from '../../../provider-preset';
 import { getProviderDefaultModels, getProviderDefinition, supportsProviderCapability, toCanonicalProviderId } from '../../../providers/service';
