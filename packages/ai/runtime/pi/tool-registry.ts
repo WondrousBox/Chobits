@@ -185,6 +185,13 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
     name: 'memoryRefreshCriticalTool',
     status: 'ready-for-pi-runtime'
   },
+  'conversation-route': {
+    category: 'query',
+    description: '查询当前会话线路记忆，包括当前目标、话题转折、待办、用户纠正、关键线索和事件时间线',
+    compatName: 'conversationRouteTool',
+    name: 'conversationRouteTool',
+    status: 'ready-for-pi-runtime'
+  },
   'music-generate': {
     category: 'integration',
     description: 'Generate music through a provider with musicGeneration capability from prompt, lyrics, or reference audio.',
@@ -258,6 +265,7 @@ export const DEFAULT_SESSION_TOOL_IDS = [
   'memory-topics',
   'memory-save',
   'memory-refresh-critical',
+  'conversation-route',
   'music-generate',
   'music-lyrics',
   'persona-update',

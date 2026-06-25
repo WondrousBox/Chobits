@@ -3,6 +3,7 @@ import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
 import type { PiSessionToolContext } from '../tool-context';
 import { createPiAppWindowTool } from './app-window';
 import { createPiAskUserTool } from './ask-user';
+import { createPiConversationRouteTool } from './conversation-route';
 import { createPiEmojiSendTool } from './emoji-packs';
 import { createPiFileEditTool } from './file-edit';
 import { createPiFileGlobTool } from './file-glob';
@@ -40,6 +41,7 @@ type PiToolFactory = (toolContext: PiSessionToolContext) => ToolDefinition<any>;
 const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
   'app-window': createPiAppWindowTool,
   'ask-user': createPiAskUserTool,
+  'conversation-route': createPiConversationRouteTool,
   'emoji-send': createPiEmojiSendTool,
   'file-edit': createPiFileEditTool,
   'file-glob': createPiFileGlobTool,
@@ -77,6 +79,7 @@ const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
 const COMPAT_NAME_TO_TOOL_ID: Record<string, string> = {
   appWindowTool: 'app-window',
   askUserTool: 'ask-user',
+  conversationRouteTool: 'conversation-route',
   emojiSendTool: 'emoji-send',
   fileEditTool: 'file-edit',
   fileGlobTool: 'file-glob',

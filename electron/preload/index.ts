@@ -36,6 +36,7 @@ import { schedulerBridge } from '../main/scheduler/ipc-renderer';
 import { selectedTextLearningBridge } from '../main/selected-text/ipc-renderer';
 import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
 import { analyticsApi } from './apis/analytics';
+import { conversationRouteApi } from './apis/conversation-route';
 import { memoryApi } from './apis/memory';
 import { personaApi } from './apis/persona';
 import { shortcutsBridge } from './apis/shortcuts';
@@ -134,6 +135,7 @@ contextBridge.exposeInMainWorld('YUA', {
   annotation: createAnnotationIpcRenderer(ipcRenderer),
   media: mediaIpcRenderer,
   memory: memoryApi,
+  conversationRoute: conversationRouteApi,
   analytics: analyticsApi,
   userProfile: userProfileApi,
   messages: {
