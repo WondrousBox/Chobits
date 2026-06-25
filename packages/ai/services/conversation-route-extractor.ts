@@ -1,9 +1,5 @@
 import { parseJsonMarkdown } from '../json';
-import {
-  formatConversationRouteMessages,
-  formatConversationRouteSnapshotForPrompt,
-  normalizeRouteDelta
-} from './conversation-route-service';
+import { formatConversationRouteMessages, formatConversationRouteSnapshotForPrompt, normalizeRouteDelta } from './conversation-route-service';
 import type { ConversationRouteChatFn, ConversationRouteDelta, ConversationRouteMessage, ConversationRouteSnapshot } from './conversation-route-types';
 
 export interface ExtractConversationRouteDeltaInput {

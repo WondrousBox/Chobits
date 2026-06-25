@@ -5,15 +5,7 @@ import { ConversationRouteSnapshotRepo } from '../../db/conversation-route-repos
 
 const TAG = '[ConversationRouteEnricher]';
 
-const INTERNAL_AGENT_IDS = new Set([
-  'conversation-route',
-  'memory-extraction',
-  'memory-auto-recall',
-  'memory-recall-cue-backfill',
-  'title-generation',
-  'user-persona-check',
-  'user-persona-update'
-]);
+const INTERNAL_AGENT_IDS = new Set(['conversation-route', 'memory-extraction', 'memory-auto-recall', 'memory-recall-cue-backfill', 'title-generation', 'user-persona-check', 'user-persona-update']);
 
 function shouldSkip(request: ChatRequest): string | null {
   if (request.persist === false) return 'not_persisted';
@@ -47,4 +39,3 @@ export function initConversationRouteEnricher(): void {
 
   console.log(`${TAG} registered`);
 }
-

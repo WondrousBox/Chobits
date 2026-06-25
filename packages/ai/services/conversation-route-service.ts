@@ -49,12 +49,7 @@ const EVENT_TYPE_LABELS: Record<ConversationRouteEventType, string> = {
 
 const TASK_EVENT_TYPES = new Set<ConversationRouteEventType>(['task_added', 'task_progress', 'task_done', 'blocker']);
 
-export function createEmptyConversationRouteSnapshot(input: {
-  conversationId: string;
-  lastProcessedSeq?: number;
-  now?: number;
-  workspaceId?: string | null;
-}): ConversationRouteSnapshot {
+export function createEmptyConversationRouteSnapshot(input: { conversationId: string; lastProcessedSeq?: number; now?: number; workspaceId?: string | null }): ConversationRouteSnapshot {
   const now = input.now ?? Date.now();
   return {
     activeThreads: [],
@@ -76,7 +71,12 @@ export function createEmptyConversationRouteSnapshot(input: {
 
 export function normalizeRouteDelta(raw: unknown): ConversationRouteDelta {
   const source = isRecord(raw) ? raw : {};
-  const events = Array.isArray(source.events) ? source.events.map(normalizeDeltaEvent).filter((event): event is ConversationRouteDeltaEvent => !!event).slice(0, MAX_DELTA_EVENTS) : [];
+  const events = Array.isArray(source.events)
+    ? source.events
+      .map(normalizeDeltaEvent)
+      .filter((event): event is ConversationRouteDeltaEvent => !!event)
+      .slice(0, MAX_DELTA_EVENTS)
+    : [];
   const snapshotPatch = normalizeSnapshotPatch(source.snapshotPatch);
   return { events, snapshotPatch };
 }
@@ -101,12 +101,11 @@ export function reduceConversationRouteSnapshot(input: {
       now
     });
 
-  const snapshotEvents = [...(input.existingEvents ?? []), ...input.newEvents]
-    .sort((a, b) => {
-      const byImportance = b.importance - a.importance;
-      if (Math.abs(byImportance) > 0.001) return byImportance;
-      return b.createdAt - a.createdAt;
-    });
+  const snapshotEvents = [...(input.existingEvents ?? []), ...input.newEvents].sort((a, b) => {
+    const byImportance = b.importance - a.importance;
+    if (Math.abs(byImportance) > 0.001) return byImportance;
+    return b.createdAt - a.createdAt;
+  });
   const currentEvents = snapshotEvents.filter((event) => event.status === 'active');
   const taskEvents = snapshotEvents.filter((event) => event.status === 'active' || event.status === 'resolved');
 
@@ -149,35 +148,35 @@ export function materializeDeltaEvents(input: {
   const now = input.now ?? Date.now();
   const events: Omit<ConversationRouteEvent, 'id'>[] = [];
   for (const event of input.delta.events) {
-      const type = event.type;
-      if (!type) continue;
-      const title = trimText(event.title || event.content || EVENT_TYPE_LABELS[type], 120);
-      const content = trimText(event.content || event.title || EVENT_TYPE_LABELS[type], 500);
-      if (!title || !content) continue;
-      const seqStart = clampInteger(event.seqStart ?? input.minSeq, input.minSeq, input.maxSeq);
-      const seqEnd = clampInteger(event.seqEnd ?? seqStart, seqStart, input.maxSeq);
+    const type = event.type;
+    if (!type) continue;
+    const title = trimText(event.title || event.content || EVENT_TYPE_LABELS[type], 120);
+    const content = trimText(event.content || event.title || EVENT_TYPE_LABELS[type], 500);
+    if (!title || !content) continue;
+    const seqStart = clampInteger(event.seqStart ?? input.minSeq, input.minSeq, input.maxSeq);
+    const seqEnd = clampInteger(event.seqEnd ?? seqStart, seqStart, input.maxSeq);
 
-      events.push({
-        confidence: clampNumber(event.confidence ?? 0.6),
-        content,
-        conversationId: input.conversationId,
-        createdAt: now,
-        evidence: trimText(event.evidence || '', 500) || null,
-        importance: clampNumber(event.importance ?? 0.6),
-        metadata: null,
-        promotedMemoryNoteId: null,
-        relatedEventIds: cleanStringList(event.relatedEventIds, 8),
-        resolvesEventIds: cleanStringList(event.resolvesEventIds, 8),
-        seqEnd,
-        seqStart,
-        status: normalizeStatus(event.status),
-        supersedesEventIds: cleanStringList(event.supersedesEventIds, 8),
-        tags: cleanStringList(event.tags, 8),
-        title,
-        type,
-        updatedAt: now,
-        workspaceId: input.workspaceId ?? null
-      });
+    events.push({
+      confidence: clampNumber(event.confidence ?? 0.6),
+      content,
+      conversationId: input.conversationId,
+      createdAt: now,
+      evidence: trimText(event.evidence || '', 500) || null,
+      importance: clampNumber(event.importance ?? 0.6),
+      metadata: null,
+      promotedMemoryNoteId: null,
+      relatedEventIds: cleanStringList(event.relatedEventIds, 8),
+      resolvesEventIds: cleanStringList(event.resolvesEventIds, 8),
+      seqEnd,
+      seqStart,
+      status: normalizeStatus(event.status),
+      supersedesEventIds: cleanStringList(event.supersedesEventIds, 8),
+      tags: cleanStringList(event.tags, 8),
+      title,
+      type,
+      updatedAt: now,
+      workspaceId: input.workspaceId ?? null
+    });
   }
   return events;
 }
@@ -399,7 +398,10 @@ function firstNonEmpty(...values: Array<string | undefined | null>): string | un
 }
 
 function cleanStringList(values: unknown, limit: number): string[] {
-  return (arrayOfStrings(values) ?? []).map((value) => trimText(value, 100)).filter(Boolean).slice(0, limit);
+  return (arrayOfStrings(values) ?? [])
+    .map((value) => trimText(value, 100))
+    .filter(Boolean)
+    .slice(0, limit);
 }
 
 function trimText(value: string, limit: number): string {
