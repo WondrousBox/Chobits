@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -23,7 +24,11 @@ type PiCodingAuthStorageClass = {
   };
 }['AuthStorage'];
 type PiCodingModelRegistryClass = {
-  ModelRegistry: new (authStorage: PiCodingAuthStorage, modelsPath: string) => unknown;
+  ModelRegistry: {
+    create?: (authStorage: PiCodingAuthStorage, modelsPath?: string) => unknown;
+    inMemory?: (authStorage: PiCodingAuthStorage) => unknown;
+    new (authStorage: PiCodingAuthStorage, modelsPath: string): unknown;
+  };
 }['ModelRegistry'];
 type PiCodingSettingsManager = unknown;
 type PiCodingSettingsManagerClass = {
@@ -127,10 +132,27 @@ function hasSkillToolsEnabled(resolved: ResolvedPiRequest): boolean {
   return enabledToolIds.has('skill-search') && enabledToolIds.has('skill-use');
 }
 
+function resolvePiRuntimeAgentDir(): string {
+  return path.join(os.tmpdir(), 'chobits-pi-runtime');
+}
+
+function createPiRuntimeModelRegistry(ModelRegistry: PiCodingModelRegistryClass, authStorage: PiCodingAuthStorage): unknown {
+  if (typeof ModelRegistry.inMemory === 'function') {
+    return ModelRegistry.inMemory(authStorage);
+  }
+
+  if (typeof ModelRegistry.create === 'function') {
+    return ModelRegistry.create(authStorage);
+  }
+
+  return new ModelRegistry(authStorage, '');
+}
+
 export class PiSessionFactory {
   async createCodingSession(options: CreatePiCodingSessionOptions): Promise<PiCodingSessionHandle> {
     const { AuthStorage, DefaultResourceLoader, ModelRegistry, SessionManager, SettingsManager, createAgentSession } = await loadPiCodingCore();
     const cwd = options.resolved.coding?.rootPath?.trim() || process.cwd();
+    const agentDir = resolvePiRuntimeAgentDir();
     const authStorage = AuthStorage.inMemory();
     seedRuntimeApiKeys(authStorage, options.resolved, options.model);
     const toolContext = createPiSessionToolContext(options.resolved);
@@ -167,7 +189,7 @@ export class PiSessionFactory {
 
     console.log('[PiSession] mode:', injectionMode, '| registered:', allTools.length, 'tools, initially active:', initialActiveNames.length);
 
-    const modelRegistry = new ModelRegistry(authStorage, '');
+    const modelRegistry = createPiRuntimeModelRegistry(ModelRegistry, authStorage);
     const settingsManager = SettingsManager.inMemory({
       enableSkillCommands: false,
       followUpMode: 'one-at-a-time',
@@ -177,8 +199,10 @@ export class PiSessionFactory {
 
     const resourceLoader = new DefaultResourceLoader({
       agentsFilesOverride: () => ({ agentsFiles: [] }),
+      agentDir,
       cwd,
       noExtensions: true,
+      noContextFiles: true,
       noPromptTemplates: true,
       noSkills: true,
       noThemes: true,
@@ -189,6 +213,7 @@ export class PiSessionFactory {
     await resourceLoader.reload();
 
     const { session } = await (createAgentSession as any)({
+      agentDir,
       authStorage,
       customTools: allTools,
       cwd,

@@ -154,6 +154,43 @@ export const ConversationRouteEventRepo = {
     return rows.map(rowToEvent);
   },
 
+  async applyResolutionLinks(sourceEvents: ConversationRouteEvent[]): Promise<void> {
+    const db = getOrm();
+    const now = Date.now();
+
+    for (const event of sourceEvents) {
+      const resolvedIds = event.resolvesEventIds.filter(Boolean);
+      if (resolvedIds.length > 0) {
+        await db
+          .update(conversation_route_events)
+          .set({ status: 'resolved', updatedAt: now } as any)
+          .where(
+            and(
+              eq(conversation_route_events.conversationId, event.conversationId),
+              inArray(conversation_route_events.id, resolvedIds),
+              eq(conversation_route_events.status, 'active' as any)
+            )
+          )
+          .run();
+      }
+
+      const supersededIds = event.supersedesEventIds.filter(Boolean);
+      if (supersededIds.length > 0) {
+        await db
+          .update(conversation_route_events)
+          .set({ status: 'superseded', updatedAt: now } as any)
+          .where(
+            and(
+              eq(conversation_route_events.conversationId, event.conversationId),
+              inArray(conversation_route_events.id, supersededIds),
+              eq(conversation_route_events.status, 'active' as any)
+            )
+          )
+          .run();
+      }
+    }
+  },
+
   async getById(id: string): Promise<ConversationRouteEvent | undefined> {
     const db = getOrm();
     const rows = await db.select().from(conversation_route_events).where(eq(conversation_route_events.id, id)).limit(1);
@@ -302,6 +339,7 @@ export const ConversationRouteSnapshotRepo = {
       existingEvents: events,
       newEvents: [],
       now,
+      preservePreviousSnapshot: false,
       previous: baseline,
       targetSeq,
       workspaceId

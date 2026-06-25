@@ -114,6 +114,63 @@ describe('conversation route memory service', () => {
     expect(delta.snapshotPatch.keyClues?.[0]).toContain('会话级的记忆');
   });
 
+  it('does not create rule-based route events for low-value small talk', async () => {
+    const delta = await extractConversationRouteDelta({
+      conversationId: 'conv-small-talk',
+      messages: [
+        {
+          content: '哈哈这个挺有意思的，谢谢你。',
+          role: 'user',
+          seq: 9
+        }
+      ]
+    });
+
+    expect(delta).toEqual({ events: [], snapshotPatch: {} });
+  });
+
+  it('caps oversized llm delta output before snapshot reduction', async () => {
+    const longText = '这是一个会在长会话中反复累积并导致线路快照膨胀的冗长内容。'.repeat(20);
+    const chatFn = vi.fn(async () =>
+      JSON.stringify({
+        events: Array.from({ length: 8 }, (_, index) => ({
+          confidence: 0.8,
+          content: longText,
+          importance: 0.8,
+          seqEnd: 2,
+          seqStart: 2,
+          tags: ['route', 'delta', 'overflow', 'extra'],
+          title: `过长事件标题-${index}-${longText}`,
+          type: 'key_clue'
+        })),
+        snapshotPatch: {
+          activeThreads: [longText, longText, longText, longText],
+          currentGoal: longText,
+          keyClues: [longText, longText, longText, longText],
+          nextSuggestedFocus: longText,
+          summary: longText
+        }
+      })
+    );
+
+    const delta = await extractConversationRouteDelta(
+      {
+        conversationId: 'conv-cap',
+        messages: [{ content: '继续优化会话线路记忆，重点控制增量输出大小。', role: 'user', seq: 2 }]
+      },
+      chatFn
+    );
+
+    expect(delta.events).toHaveLength(4);
+    expect(delta.events[0].title?.length).toBeLessThanOrEqual(48);
+    expect(delta.events[0].content?.length).toBeLessThanOrEqual(160);
+    expect(delta.events[0].tags).toHaveLength(3);
+    expect(delta.snapshotPatch.activeThreads).toHaveLength(3);
+    expect(delta.snapshotPatch.activeThreads?.[0].length).toBeLessThanOrEqual(80);
+    expect(delta.snapshotPatch.currentGoal?.length).toBeLessThanOrEqual(120);
+    expect(delta.snapshotPatch.summary?.length).toBeLessThanOrEqual(180);
+  });
+
   it('keeps resolved task events out of open tasks when recomputing a snapshot', () => {
     const previous = createEmptyConversationRouteSnapshot({
       conversationId: 'conv-resolved-task',
@@ -158,5 +215,75 @@ describe('conversation route memory service', () => {
 
     expect(snapshot.openTasks).toEqual([]);
     expect(snapshot.resolvedTasks).toEqual([{ eventId: 'task-1', status: 'resolved', title: '同步事件状态到 snapshot' }]);
+  });
+
+  it('can rebuild a snapshot from active events without preserving stale previous lists', () => {
+    const previous = {
+      ...createEmptyConversationRouteSnapshot({
+        conversationId: 'conv-rebuild-clean',
+        now: 1000
+      }),
+      keyClues: ['已经废弃的旧线索'],
+      userCorrections: ['已经取代的旧纠正'],
+      summary: '旧摘要'
+    };
+
+    const snapshot = reduceConversationRouteSnapshot({
+      conversationId: 'conv-rebuild-clean',
+      delta: { events: [], snapshotPatch: {} },
+      existingEvents: [
+        {
+          confidence: 0.9,
+          content: '新的有效线索。',
+          conversationId: 'conv-rebuild-clean',
+          createdAt: 2000,
+          id: 'clue-active',
+          importance: 0.8,
+          metadata: null,
+          promotedMemoryNoteId: null,
+          relatedEventIds: [],
+          resolvesEventIds: [],
+          seqEnd: 3,
+          seqStart: 3,
+          status: 'active',
+          supersedesEventIds: [],
+          tags: [],
+          title: '新的有效线索',
+          type: 'key_clue',
+          updatedAt: 2000,
+          workspaceId: null
+        },
+        {
+          confidence: 0.8,
+          content: '已经废弃的旧线索。',
+          conversationId: 'conv-rebuild-clean',
+          createdAt: 1500,
+          id: 'clue-abandoned',
+          importance: 0.7,
+          metadata: null,
+          promotedMemoryNoteId: null,
+          relatedEventIds: [],
+          resolvesEventIds: [],
+          seqEnd: 2,
+          seqStart: 2,
+          status: 'abandoned',
+          supersedesEventIds: [],
+          tags: [],
+          title: '已经废弃的旧线索',
+          type: 'key_clue',
+          updatedAt: 2500,
+          workspaceId: null
+        }
+      ],
+      newEvents: [],
+      now: 3000,
+      preservePreviousSnapshot: false,
+      previous,
+      targetSeq: 3
+    });
+
+    expect(snapshot.keyClues).toEqual(['新的有效线索']);
+    expect(snapshot.userCorrections).toEqual([]);
+    expect(snapshot.summary).toBe('新的有效线索');
   });
 });

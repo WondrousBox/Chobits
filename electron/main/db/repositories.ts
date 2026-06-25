@@ -3,7 +3,7 @@ import * as fscb from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, like, lte } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, like, lte } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 
 import { getDB, getOrm } from '.';
@@ -2086,6 +2086,16 @@ export const ChatRepo = {
       .orderBy(chat_messages.seq as any)
       .limit(limit)
       .offset(offset);
+  },
+
+  async listMessagesAfterSeq(conversationId: string, afterSeq: number, limit = 1000): Promise<ChatMessageRow[]> {
+    const db = getOrm();
+    return db
+      .select()
+      .from(chat_messages)
+      .where(and(eq(chat_messages.conversationId, conversationId), isNull(chat_messages.deletedAt), gt(chat_messages.seq, afterSeq)))
+      .orderBy(chat_messages.seq as any)
+      .limit(limit);
   },
 
   async renameConversation(id: string, title: string): Promise<ConversationRow | undefined> {
