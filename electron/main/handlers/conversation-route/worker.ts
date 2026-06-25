@@ -1,11 +1,7 @@
 import { createPiTaskChatRuntimeFromRequest, type PiTaskChatFunction } from '../../../../packages/ai/runtime/pi/task-chat';
 import { buildNonReasoningTaskRuntimeRequest, resolveNonReasoningTaskModel } from '../../../../packages/ai/runtime/pi/task-model-policy';
 import { extractConversationRouteDelta } from '../../../../packages/ai/services/conversation-route-extractor';
-import {
-  createEmptyConversationRouteSnapshot,
-  materializeDeltaEvents,
-  reduceConversationRouteSnapshot
-} from '../../../../packages/ai/services/conversation-route-service';
+import { createEmptyConversationRouteSnapshot, materializeDeltaEvents, reduceConversationRouteSnapshot } from '../../../../packages/ai/services/conversation-route-service';
 import type { ConversationRouteChatFn, ConversationRouteMessage } from '../../../../packages/ai/services/conversation-route-types';
 import type { AgentLoopCompletePayload } from '../../../../packages/ai/services/memory-types';
 import { createManagedTaskChatFn, LONG_TASK_CHAT_TIMEOUTS } from '../../../../packages/ai/services/task-chat-runner';
@@ -15,15 +11,7 @@ import { ConversationRouteEventRepo, ConversationRouteSnapshotRepo } from '../..
 import { ChatRepo, WorkspacesRepo } from '../../db/repositories';
 
 const TAG = '[ConversationRouteWorker]';
-const INTERNAL_AGENT_IDS = new Set([
-  'conversation-route',
-  'memory-extraction',
-  'memory-auto-recall',
-  'memory-recall-cue-backfill',
-  'title-generation',
-  'user-persona-check',
-  'user-persona-update'
-]);
+const INTERNAL_AGENT_IDS = new Set(['conversation-route', 'memory-extraction', 'memory-auto-recall', 'memory-recall-cue-backfill', 'title-generation', 'user-persona-check', 'user-persona-update']);
 
 const runningConversations = new Set<string>();
 const trailingConversations = new Map<string, AgentLoopCompletePayload>();

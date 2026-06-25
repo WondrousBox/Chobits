@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import { and, desc, eq, inArray, like, or, sql } from 'drizzle-orm';
 
-import type { ConversationRouteEvent, ConversationRouteSnapshot } from '../../../packages/ai/services/conversation-route-types';
 import { createEmptyConversationRouteSnapshot, reduceConversationRouteSnapshot } from '../../../packages/ai/services/conversation-route-service';
+import type { ConversationRouteEvent, ConversationRouteSnapshot } from '../../../packages/ai/services/conversation-route-types';
 import { getOrm } from '.';
 import {
   conversation_route_events,
@@ -150,7 +150,11 @@ export const ConversationRouteEventRepo = {
   async bulkInsert(events: Array<Omit<ConversationRouteEvent, 'id'> & { id?: string }>): Promise<ConversationRouteEvent[]> {
     if (!events.length) return [];
     const db = getOrm();
-    const rows = await db.insert(conversation_route_events).values(events.map(eventToInsert) as any).returning().all();
+    const rows = await db
+      .insert(conversation_route_events)
+      .values(events.map(eventToInsert) as any)
+      .returning()
+      .all();
     return rows.map(rowToEvent);
   },
 
@@ -164,13 +168,7 @@ export const ConversationRouteEventRepo = {
         await db
           .update(conversation_route_events)
           .set({ status: 'resolved', updatedAt: now } as any)
-          .where(
-            and(
-              eq(conversation_route_events.conversationId, event.conversationId),
-              inArray(conversation_route_events.id, resolvedIds),
-              eq(conversation_route_events.status, 'active' as any)
-            )
-          )
+          .where(and(eq(conversation_route_events.conversationId, event.conversationId), inArray(conversation_route_events.id, resolvedIds), eq(conversation_route_events.status, 'active' as any)))
           .run();
       }
 
@@ -179,13 +177,7 @@ export const ConversationRouteEventRepo = {
         await db
           .update(conversation_route_events)
           .set({ status: 'superseded', updatedAt: now } as any)
-          .where(
-            and(
-              eq(conversation_route_events.conversationId, event.conversationId),
-              inArray(conversation_route_events.id, supersededIds),
-              eq(conversation_route_events.status, 'active' as any)
-            )
-          )
+          .where(and(eq(conversation_route_events.conversationId, event.conversationId), inArray(conversation_route_events.id, supersededIds), eq(conversation_route_events.status, 'active' as any)))
           .run();
       }
     }
@@ -268,7 +260,11 @@ export const ConversationRouteEventRepo = {
     if (patch.tags) values.tags = stringify(patch.tags);
     if (patch.promotedMemoryNoteId !== undefined) values.promotedMemoryNoteId = patch.promotedMemoryNoteId;
 
-    await db.update(conversation_route_events).set(values as any).where(eq(conversation_route_events.id, id)).run();
+    await db
+      .update(conversation_route_events)
+      .set(values as any)
+      .where(eq(conversation_route_events.id, id))
+      .run();
     return this.getById(id);
   },
 

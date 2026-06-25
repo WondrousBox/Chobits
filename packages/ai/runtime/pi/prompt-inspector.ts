@@ -52,12 +52,33 @@ function createInspectionId(): string {
   return `prompt-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export function isAiPromptInspectionEnabled(extras?: Record<string, unknown>): boolean {
+export function isAiPromptInspectionEnabled(extras?: Record<string, unknown>, source?: AiPromptInspectionSource, agentId?: string): boolean {
+  // 单次请求级 explicit 覆盖最优先：debugPrompt / inspectPrompt / showPrompt。
+  // 这条覆盖完全绕开 allowlist，保证本地排障一次就能开。
   const explicit = extras?.debugPrompt ?? extras?.inspectPrompt ?? extras?.showPrompt;
   if (typeof explicit === 'boolean') {
     return explicit;
   }
-  return AI_PROMPT_INSPECTOR_SETTINGS.enabled;
+
+  if (!AI_PROMPT_INSPECTOR_SETTINGS.enabled) {
+    return false;
+  }
+
+  // enabled === true 时再叠加 allowlist 过滤。两个 allowlist 留空都
+  // 表示"不按该维度过滤"，命中即放行；任一非空维度不命中则整条记录
+  // 被视为不在观察范围内。
+  const { agentIdAllowlist, sourceAllowlist } = AI_PROMPT_INSPECTOR_SETTINGS;
+  if (sourceAllowlist && sourceAllowlist.length > 0) {
+    if (!source || !sourceAllowlist.includes(source)) {
+      return false;
+    }
+  }
+  if (agentIdAllowlist && agentIdAllowlist.length > 0) {
+    if (!agentId || !agentIdAllowlist.includes(agentId)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 export function createResolvedPromptInspectionContext(
@@ -76,7 +97,7 @@ export function createResolvedPromptInspectionContext(
 }
 
 export function inspectAiPrompt(record: AiPromptInspectionRecord, options: AiPromptInspectionOptions = {}): StoredAiPromptInspectionRecord | undefined {
-  const enabled = options.enabled ?? isAiPromptInspectionEnabled(record.requestExtras);
+  const enabled = options.enabled ?? isAiPromptInspectionEnabled(record.requestExtras, record.source, record.agentId);
   if (!enabled) {
     return undefined;
   }

@@ -3,7 +3,7 @@ import { ipcMain } from 'electron';
 import { ConversationRouteEventRepo, ConversationRouteSnapshotRepo } from '../../db/conversation-route-repositories';
 import { ChatRepo } from '../../db/repositories';
 import { initConversationRouteEnricher } from './enricher';
-import { rebuildConversationRoute, initConversationRouteWorker } from './worker';
+import { initConversationRouteWorker, rebuildConversationRoute } from './worker';
 
 export function initConversationRouteHandlers(): void {
   initConversationRouteEnricher();
