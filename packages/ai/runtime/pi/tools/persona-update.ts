@@ -1,6 +1,6 @@
-import type { ToolDefinition } from '@mariozechner/pi-coding-agent'
+import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { WorkspacesRepo } from '@packages/common/db'
-import { Type } from '@sinclair/typebox'
+import { Type } from 'typebox'
 
 import type { PersonaCandidateFact, PersonaChatFn, PersonaUpdateJobParams, PersonaUpdateReason } from '../../../services/persona-types'
 import { updatePersona } from '../../../services/persona-update-service'

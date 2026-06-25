@@ -1,4 +1,4 @@
-import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
+import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
 
 import type { PiSessionToolContext } from '../tool-context';
 import { createPiAppWindowTool } from './app-window';
@@ -36,7 +36,7 @@ import { createPiWorkflowRunTool } from './workflow-run';
 import { createPiYoutubeDownloadTool } from './youtube-download';
 import { createPiYoutubeSubscribeTool } from './youtube-subscribe';
 
-type PiToolFactory = (toolContext: PiSessionToolContext) => ToolDefinition<any>;
+type PiToolFactory = (toolContext: PiSessionToolContext) => unknown;
 
 const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
   'app-window': createPiAppWindowTool,
@@ -122,7 +122,7 @@ export function createPiCustomTools(enabledToolIds: string[], toolContext: PiSes
     if (!factory || seen.has(toolId)) continue;
 
     seen.add(toolId);
-    tools.push(factory(toolContext));
+    tools.push(factory(toolContext) as ToolDefinition);
   }
 
   return tools;

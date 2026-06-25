@@ -1,6 +1,6 @@
-import type { ToolDefinition } from '@mariozechner/pi-coding-agent'
+import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { MemoryNoteRepo, MemoryTopicRepo, WorkspacesRepo } from '@packages/common/db'
-import { Type } from '@sinclair/typebox'
+import { Type } from 'typebox'
 
 import { clearCriticalFactsCache, clearRecallCache } from '../../../services/memory-auto-recall'
 import { type ContentGenDbDeps, generateMemoryIndex } from '../../../services/memory-content-gen'

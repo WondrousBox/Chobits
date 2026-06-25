@@ -6,10 +6,10 @@ import { createResolvedPromptInspectionContext, inspectAiPrompt } from './prompt
 import { buildPiModel, buildPiModelHeaders } from './provider-model';
 import { extractPiProviderRequestId } from './provider-request-id';
 
-type PiAiModule = typeof import('@mariozechner/pi-ai');
-type PiAssistantMessage = import('@mariozechner/pi-ai').AssistantMessage;
-type PiSimpleStreamOptions = import('@mariozechner/pi-ai').SimpleStreamOptions;
-type PiThinkingLevel = import('@mariozechner/pi-ai').ThinkingLevel;
+type PiAiModule = typeof import('@earendil-works/pi-ai/compat');
+type PiAssistantMessage = import('@earendil-works/pi-ai/compat').AssistantMessage;
+type PiSimpleStreamOptions = import('@earendil-works/pi-ai/compat').SimpleStreamOptions;
+type PiThinkingLevel = import('@earendil-works/pi-ai/compat').ThinkingLevel;
 
 export type PiTaskChatEvent =
   | { type: 'delta'; data: { text: string } }
@@ -28,7 +28,7 @@ export interface CreatePiTaskRuntimeRequest extends ProviderScopedRequest {
 }
 
 async function loadPiAi(): Promise<PiAiModule> {
-  return import('@mariozechner/pi-ai');
+  return import('@earendil-works/pi-ai/compat');
 }
 
 function extractAssistantText(message: PiAssistantMessage): string {

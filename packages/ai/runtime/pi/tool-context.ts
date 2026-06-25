@@ -4,7 +4,7 @@ import type { UserChoiceRequest, UserChoiceResponse } from '../../types';
 import type { PiCodingWorkspaceContext, ResolvedPiRequest } from './contracts';
 import type { SkillExecutionResult, SkillSessionState, SkillRegistry } from './skills';
 
-type PiAgentThinkingLevel = import('@mariozechner/pi-agent-core').ThinkingLevel;
+type PiAgentThinkingLevel = import('@earendil-works/pi-agent-core').ThinkingLevel;
 
 export interface PiForkedSkillToolCall {
   args?: unknown;

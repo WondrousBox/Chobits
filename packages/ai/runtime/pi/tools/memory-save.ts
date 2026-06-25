@@ -1,7 +1,7 @@
-import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
+import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { WorkspacesRepo } from '@packages/common/db';
 import { AppEvent, eventManager } from '@packages/event';
-import { Type } from '@sinclair/typebox';
+import { Type } from 'typebox';
 
 import { getTodayMemoryDate } from '../../../services/memory-date';
 import { writeMemory } from '../../../services/memory-extraction-service';
