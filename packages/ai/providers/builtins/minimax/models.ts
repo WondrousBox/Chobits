@@ -177,8 +177,32 @@ const minimaxMusicModels: ProviderModelDefinition[] = [
 
 const minimaxSpeech2RealtimePromptGuidance = [
   '一定要插入停顿和语气词标签，让语气自然。格式必须是标签后面跟文字',
-  '停顿标签： <#x#>， x 为秒数，范围 0.01 到 99.99，最多两位小数，例如 <#0.4#>。',
-  '语气词标签，挑选符合语境的使用，要完整包含英文括号和里面的单词，不能改变，不能编造：笑声(laughs)、轻笑(chuckle)、咳嗽(coughs)、清嗓子(clear-throat)、呻吟(groans)、正常换气(breath)、喘气(pant)、吸气(inhale)、呼气(exhale)、倒吸气(gasps)、吸鼻子(sniffs)、叹气(sighs)、喷鼻息(snorts)、打嗝(burps)、(lip-smacking)（咂嘴）、哼唱(humming)、嘶嘶声(hissing)、嗯(emm)、喷嚏(sneezes)'
+  `停顿标签特征： <#秒数#>
+注意：秒数范围从 0.01 到 99.99，最多两位小数，
+例如 <#0.4#>。
+
+语气词标签特征: (语气词英文)
+注意：要完整包含英文括号和里面的单词，挑选符合语境的使用。
+只能选择下面语气标签，一定不能改变和编造新的：
+笑声(laughs)
+轻笑(chuckle)
+咳嗽(coughs)
+清嗓子(clear-throat)
+呻吟(groans)
+正常换气(breath)
+喘气(pant)
+吸气(inhale)
+呼气(exhale)
+倒吸气(gasps)
+吸鼻子(sniffs)
+叹气(sighs)
+喷鼻息(snorts)
+打嗝(burps)
+咂嘴(lip-smacking)
+哼唱(humming)
+嘶嘶声(hissing)
+嗯(emm)
+喷嚏(sneezes)`
 ].join('\n');
 
 const minimaxSpeech2RealtimeDisplayTextFilter = {

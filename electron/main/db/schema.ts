@@ -432,6 +432,97 @@ export const chat_messages = sqliteTable(
 export type ChatMessageRow = InferSelectModel<typeof chat_messages>;
 export type NewChatMessage = InferInsertModel<typeof chat_messages>;
 
+export const conversation_route_events = sqliteTable(
+  'conversation_route_events',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+    conversationId: text('conversation_id')
+      .references(() => conversations.id, { onDelete: 'cascade', onUpdate: 'cascade' })
+      .notNull(),
+    seqStart: integer('seq_start').notNull(),
+    seqEnd: integer('seq_end').notNull(),
+    type: text('type', {
+      enum: [
+        'user_goal',
+        'topic_shift',
+        'task_added',
+        'task_progress',
+        'task_done',
+        'open_question',
+        'decision',
+        'key_clue',
+        'user_correction',
+        'constraint',
+        'preference',
+        'blocker',
+        'assumption',
+        'summary_checkpoint'
+      ]
+    }).notNull(),
+    title: text('title').notNull(),
+    content: text('content').notNull(),
+    evidence: text('evidence'),
+    status: text('status', { enum: ['active', 'resolved', 'superseded', 'abandoned'] }).notNull().default('active'),
+    importance: real('importance').notNull().default(0.5),
+    confidence: real('confidence').notNull().default(0.5),
+    tags: text('tags'),
+    relatedEventIds: text('related_event_ids'),
+    resolvesEventIds: text('resolves_event_ids'),
+    supersedesEventIds: text('supersedes_event_ids'),
+    promotedMemoryNoteId: text('promoted_memory_note_id').references((): AnySQLiteColumn => memory_notes.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+    metadata: text('metadata'),
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
+    updatedAt: integer('updated_at').default(sql`(unixepoch('now')*1000)`)
+  },
+  (t) => ({
+    idxConvRouteEventsConversationSeq: index('idx_conv_route_events_conversation_seq').on(t.conversationId, t.seqStart, t.seqEnd),
+    idxConvRouteEventsWorkspace: index('idx_conv_route_events_workspace').on(t.workspaceId),
+    idxConvRouteEventsType: index('idx_conv_route_events_type').on(t.type),
+    idxConvRouteEventsStatus: index('idx_conv_route_events_status').on(t.status),
+    idxConvRouteEventsImportance: index('idx_conv_route_events_importance').on(t.importance)
+  })
+);
+
+export type ConversationRouteEventRow = InferSelectModel<typeof conversation_route_events>;
+export type NewConversationRouteEvent = InferInsertModel<typeof conversation_route_events>;
+
+export const conversation_route_snapshots = sqliteTable(
+  'conversation_route_snapshots',
+  {
+    conversationId: text('conversation_id')
+      .primaryKey()
+      .references(() => conversations.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+    version: integer('version').notNull().default(1),
+    lastProcessedSeq: integer('last_processed_seq').notNull().default(0),
+    summary: text('summary').notNull().default(''),
+    currentGoal: text('current_goal'),
+    currentTopic: text('current_topic'),
+    nextSuggestedFocus: text('next_suggested_focus'),
+    activeThreads: text('active_threads').notNull().default('[]'),
+    openTasks: text('open_tasks').notNull().default('[]'),
+    resolvedTasks: text('resolved_tasks').notNull().default('[]'),
+    keyConstraints: text('key_constraints').notNull().default('[]'),
+    userCorrections: text('user_corrections').notNull().default('[]'),
+    keyClues: text('key_clues').notNull().default('[]'),
+    decisions: text('decisions').notNull().default('[]'),
+    blockers: text('blockers').notNull().default('[]'),
+    metadata: text('metadata'),
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
+    updatedAt: integer('updated_at').default(sql`(unixepoch('now')*1000)`)
+  },
+  (t) => ({
+    idxConvRouteSnapshotsWorkspace: index('idx_conv_route_snapshots_workspace').on(t.workspaceId),
+    idxConvRouteSnapshotsUpdated: index('idx_conv_route_snapshots_updated').on(t.updatedAt)
+  })
+);
+
+export type ConversationRouteSnapshotRow = InferSelectModel<typeof conversation_route_snapshots>;
+export type NewConversationRouteSnapshot = InferInsertModel<typeof conversation_route_snapshots>;
+
 /**
  * ai_usage_events：AI 使用量事实表
  * - 以单次 provider 调用为粒度记录 token / 费用 / 来源 / 分类 / 精度

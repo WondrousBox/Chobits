@@ -23,6 +23,7 @@ import type { PluginResourceIpcType } from '../electron/main/plugins/ipc-rendere
 import type { SchedulerBridgeType } from '../electron/main/scheduler/ipc-renderer';
 import type { SelectedTextLearningBridgeType } from '../electron/main/selected-text/ipc-renderer';
 import type { analyticsApi } from '../electron/preload/apis/analytics';
+import type { conversationRouteApi } from '../electron/preload/apis/conversation-route';
 import type { memoryApi } from '../electron/preload/apis/memory';
 import type { PersonaApiBridgeType } from '../electron/preload/apis/persona';
 import type { ShortcutsBridgeType } from '../electron/preload/apis/shortcuts';
@@ -87,6 +88,7 @@ declare global {
       annotation: AnnotationIpcRenderer;
       media: MediaIpcType;
       memory: typeof memoryApi;
+      conversationRoute: typeof conversationRouteApi;
       analytics: typeof analyticsApi;
       userProfile: typeof userProfileApi;
       messages: {

@@ -127,6 +127,13 @@
       "when": 1776596306191,
       "tag": "0017_left_shocker",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1782354694138,
+      "tag": "0018_square_jack_flag",
+      "breakpoints": true
     }
   ]
 }

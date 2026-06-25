@@ -38,6 +38,7 @@ import { initAnalyticsHandlers } from './analytics/ipc-main';
 import { initAnnotationHandlers } from './annotation/ipc-main';
 import { initAutomationHandlers } from './automation/ipc-main';
 import { initClipHandlers } from './clip/ipc-main';
+import { initConversationRouteHandlers } from './conversation-route/ipc-main';
 import { initDownloadHandlers } from './downloader/ipc-main';
 import { initVectorHandlers } from './embedding/ipc-main';
 import { initEmojiPackHandlers } from './emoji-packs/ipc-main';
@@ -510,6 +511,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initAnnotationHandlers();
   initMediaHandlers(win);
   initMemoryHandlers();
+  initConversationRouteHandlers();
   initAnalyticsHandlers();
   initUserProfileHandlers();
   const purposeHistoryStore = new SpritePurposeHistoryStore(app.getPath('userData'));

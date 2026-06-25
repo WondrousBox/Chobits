@@ -39,6 +39,7 @@ import { formatDateTime, formatRelativeTime } from '@/lib/time';
 import { speakToolResultSpeech } from '@/lib/tool-speech';
 
 import { CHAT_OVERLAY_SETTINGS, type ChatOverlaySide, resolveChatOverlaySide } from './chat-overlay-settings';
+import { ConversationRoutePanel } from './components/ConversationRoutePanel';
 import { useChatSelection } from './context/ChatSelectionContext';
 
 interface ChatPageProps {
@@ -879,6 +880,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
       {/* 顶部可拖拽导航栏 - 根据 hideTitleBar 控制显示 */}
       {!isOverlay && !hideTitleBar && (
         <DragAbleTitle
+          actions={<ConversationRoutePanel conversationId={conversationId} />}
           title={
             <div className="flex items-center gap-2 w-full">
               <span>🗨️</span>
