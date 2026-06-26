@@ -44,7 +44,7 @@ import { PluginListItem } from './components/PluginListItem';
 import SelectModelFolder from './components/SelectModelFolder';
 import type { InstalledResource } from './components/types';
 
-interface PluginPageProps { }
+interface PluginPageProps {}
 
 type DownloadSettingKey =
   | 'deletePartialDownloadOnCancel'
@@ -59,37 +59,37 @@ const DOWNLOAD_SETTING_ITEMS: Array<{
   title: string;
   description: string;
 }> = [
-    {
-      key: 'deletePartialDownloadOnCancel',
-      title: '取消后删除临时文件',
-      description: '关闭后，取消下载会保留 .download 文件，方便下次继续下载。'
-    },
-    {
-      key: 'deletePartialDownloadOnFailure',
-      title: '失败后删除临时文件',
-      description: '关闭后，下载失败时保留未完成的临时文件。'
-    },
-    {
-      key: 'deleteDownloadedFileOnFailure',
-      title: '失败后删除目标文件',
-      description: '控制非压缩资源下载失败时是否清理目标文件。'
-    },
-    {
-      key: 'deleteArchiveAfterInstall',
-      title: '安装后删除压缩包',
-      description: '开启后，解压安装完成会清理原始压缩包。'
-    },
-    {
-      key: 'downloaderResumeValidation',
-      title: '续传前校验远端资源',
-      description: '开启后，继续下载前会用 HEAD 校验资源是否变化。'
-    },
-    {
-      key: 'downloaderDebug',
-      title: '下载器 debug 日志',
-      description: '开启后打印 aim-downloader 的内部调试日志。'
-    }
-  ];
+  {
+    key: 'deletePartialDownloadOnCancel',
+    title: '取消后删除临时文件',
+    description: '关闭后，取消下载会保留 .download 文件，方便下次继续下载。'
+  },
+  {
+    key: 'deletePartialDownloadOnFailure',
+    title: '失败后删除临时文件',
+    description: '关闭后，下载失败时保留未完成的临时文件。'
+  },
+  {
+    key: 'deleteDownloadedFileOnFailure',
+    title: '失败后删除目标文件',
+    description: '控制非压缩资源下载失败时是否清理目标文件。'
+  },
+  {
+    key: 'deleteArchiveAfterInstall',
+    title: '安装后删除压缩包',
+    description: '开启后，解压安装完成会清理原始压缩包。'
+  },
+  {
+    key: 'downloaderResumeValidation',
+    title: '续传前校验远端资源',
+    description: '开启后，继续下载前会用 HEAD 校验资源是否变化。'
+  },
+  {
+    key: 'downloaderDebug',
+    title: '下载器 debug 日志',
+    description: '开启后打印 aim-downloader 的内部调试日志。'
+  }
+];
 
 const PluginPage: React.FC<PluginPageProps> = () => {
   const [supported, setSupported] = useState<PluginDefinition[]>([]);
@@ -103,6 +103,33 @@ const PluginPage: React.FC<PluginPageProps> = () => {
   const [selectedPluginId, setSelectedPluginId] = useState<string | null>(null);
   const [showNetworkDialog, setShowNetworkDialog] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<PluginCategory | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const payload = await window.YUA.window['window:payload:get']('pluginManager' as any);
+        if (!mounted || !payload || typeof payload !== 'object') return;
+        const tab = (payload as any).tab;
+        const category = (payload as any).category;
+        const pluginId = (payload as any).pluginId;
+        if (tab === 'available' || tab === 'installed') {
+          setTabValue(tab);
+        }
+        if (CATEGORY_CONFIG.some((item) => item.value === category)) {
+          setSelectedCategory(category);
+        }
+        if (typeof pluginId === 'string' && pluginId.trim()) {
+          setSelectedPluginId(pluginId);
+        }
+      } catch (error) {
+        console.warn('[PluginPage] failed to apply initial payload', error);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // 获取当前可用的分类列表（只显示有插件的分类）
   const availableCategories = useMemo(() => {
@@ -247,7 +274,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
   };
 
   const remove = async (id: string): Promise<void> => {
-    const res = await window.YUA.pluginResource['plugin-resource:remove']({ id });
+    const res = await window.YUA.pluginResource['plugin-resource:remove']({ id, deleteFiles: true });
     if (res.ok) {
       setInstalled((prev) => prev.filter((m) => m.id !== id));
     }
@@ -377,15 +404,15 @@ const PluginPage: React.FC<PluginPageProps> = () => {
     const isSystemPreset = isSystemPresetPlugin(resource);
     const installedResource = isSystemPreset
       ? {
-        id: `${resource.pluginId}_${resource.type}_${resource.id}_${resource.version}`,
-        pluginId: resource.pluginId,
-        resourceId: resource.id,
-        type: resource.type,
-        name: resource.name,
-        displayName: resource.displayName,
-        version: resource.version,
-        status: 'installed' as const
-      }
+          id: `${resource.pluginId}_${resource.type}_${resource.id}_${resource.version}`,
+          pluginId: resource.pluginId,
+          resourceId: resource.id,
+          type: resource.type,
+          name: resource.name,
+          displayName: resource.displayName,
+          version: resource.version,
+          status: 'installed' as const
+        }
       : rec;
     return <PluginListItem key={resource.id} resource={resource} installedResource={installedResource} isInstalling={busy} onInstall={install} onCancel={cancel} onRetry={retry} onRemove={remove} />;
   };
@@ -428,8 +455,9 @@ const PluginPage: React.FC<PluginPageProps> = () => {
                 <button
                   key={category.value}
                   onClick={() => setSelectedCategory(selectedCategory === category.value ? null : category.value)}
-                  className={`text-xs px-2 py-1 rounded-md transition-colors ${selectedCategory === category.value ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground'
-                    }`}
+                  className={`text-xs px-2 py-1 rounded-md transition-colors ${
+                    selectedCategory === category.value ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground'
+                  }`}
                 >
                   {category.label}
                 </button>

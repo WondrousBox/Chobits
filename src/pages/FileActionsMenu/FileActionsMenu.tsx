@@ -1,5 +1,7 @@
 import { AppEvent } from '@packages/event/events';
+import type { OcrModelInfo, OcrRecognizeImageResult } from '@packages/ocr/types';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 import { resolveModelFirstSelection } from '@/lib/ai-model-first';
 import { runWorkflow as runWorkflowUtil } from '@/lib/workflow-runner';
@@ -29,6 +31,8 @@ function mapFileActionPurposeEventToAppEvent(event: string): AppEvent | undefine
       return AppEvent.FILE_ACTION_SELECTED;
     case 'fileAction:workflow-started':
       return AppEvent.FILE_ACTION_WORKFLOW_STARTED;
+    case 'fileAction:ocr-completed':
+      return AppEvent.FILE_ACTION_OCR_COMPLETED;
     case 'fileAction:resolved':
       return AppEvent.FILE_ACTION_RESOLVED;
     case 'fileAction:failed':
@@ -53,6 +57,107 @@ function guessKind(file: FileInfo): 'doc' | 'audio' | 'video' | 'image' | 'pdf' 
   if (ext === 'pdf' || /pdf/.test(mime)) return 'pdf';
   if (/^(srt|vtt|ass)$/i.test(ext)) return 'subtitle';
   return 'other';
+}
+
+function parseJsonObject(value?: string): Record<string, unknown> {
+  if (!value || !value.trim()) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function getOcrText(result: OcrRecognizeImageResult): string {
+  const text = result.text.trim();
+  return text || '（未识别到文字）';
+}
+
+function createOcrResourceTitle(primary: Resource): string {
+  const baseTitle = (primary.title || primary.filePath?.split(/[\\/]/).pop() || '图片').replace(/\.[^.]+$/, '').trim();
+  return `${baseTitle || '图片'} OCR`;
+}
+
+function createOcrTextResourceMetadata(primary: Resource, result: OcrRecognizeImageResult): string {
+  return JSON.stringify({
+    source: 'ocr',
+    sourceResourceId: primary.id,
+    engine: result.engine,
+    modelName: result.modelName,
+    modelDisplayName: result.modelDisplayName,
+    confidence: result.confidence,
+    updatedAt: Date.now()
+  });
+}
+
+function isOcrTextResource(primary: Resource, resource: Resource): boolean {
+  if (resource.type !== 'text') return false;
+  const metadata = parseJsonObject(resource.metadata);
+  return metadata.source === 'ocr' && metadata.sourceResourceId === primary.id;
+}
+
+async function upsertOcrTextResource(primary: Resource, text: string, result: OcrRecognizeImageResult): Promise<Resource> {
+  const title = createOcrResourceTitle(primary);
+  const description = `来自 ${primary.title || primary.filePath || primary.id} 的 OCR 识别结果`;
+  const metadata = createOcrTextResourceMetadata(primary, result);
+  const children = await window.YUA.resource['resource:listChildren']({
+    parentResourceId: primary.id,
+    limit: 100,
+    offset: 0
+  });
+  const existing = (children || []).find((resource) => isOcrTextResource(primary, resource));
+
+  if (existing) {
+    const updateResult = await window.YUA.resource['resource:update']({
+      id: existing.id,
+      patch: {
+        title,
+        contentText: text,
+        description,
+        metadata,
+        status: 'ready'
+      }
+    });
+    if (!updateResult.success) {
+      throw new Error(updateResult.error || 'OCR 文本资源更新失败');
+    }
+    return (updateResult.data as Resource | undefined) || { ...existing, title, contentText: text, description, metadata, status: 'ready' };
+  }
+
+  const textResourceResult = await window.YUA.resource['resource:add']({
+    resource: {
+      type: 'text',
+      title,
+      contentText: text,
+      workspaceId: primary.workspaceId,
+      folderId: primary.folderId,
+      parentResourceId: primary.id,
+      description,
+      metadata
+    }
+  });
+  if (!textResourceResult.success || !textResourceResult.data) {
+    throw new Error(textResourceResult.error || 'OCR 文本资源创建失败');
+  }
+  return textResourceResult.data;
+}
+
+async function selectOcrModel(): Promise<OcrModelInfo | null> {
+  const res = await window.YUA.ocr.listModels();
+  if (!res.ok) {
+    throw new Error(res.error || '无法读取 OCR 模型列表');
+  }
+  const models = res.data || [];
+  return models.find((model) => model.name === 'ppocr-v6-small' && model.installed) || models.find((model) => model.installed) || null;
+}
+
+async function openOcrPluginManager(): Promise<void> {
+  await window.YUA.window['window:open']('pluginManager' as any, {
+    tab: 'available',
+    category: 'ocr',
+    pluginId: 'plugin:paddle-ocr'
+  });
 }
 
 const FileActionsMenu: React.FC = () => {
@@ -240,22 +345,23 @@ const FileActionsMenu: React.FC = () => {
         throw runError;
       }
     };
-    const closeAfter = async (fn: () => Promise<void> | void): Promise<void> => {
+    const closeAfter = async (actionId: string, fn: () => Promise<void> | void): Promise<void> => {
       let outcome = 'selected';
       try {
         await fn();
       } catch (err) {
         outcome = 'failed';
         await emitPurposeEvent('fileAction:failed', {
+          actionId,
           error: err instanceof Error ? err.message : String(err)
         });
       } finally {
-        await emitPurposeEvent('fileAction:resolved', { outcome });
+        await emitPurposeEvent('fileAction:resolved', { actionId, outcome });
         await closeWindow();
       }
     };
     const summarizeDoc = (): Promise<void> =>
-      closeAfter(async () => {
+      closeAfter('doc-sum', async () => {
         // 资源已添加，打开助手窗口继续处理
         try {
           await window.YUA.window['window:open']('assistant' as any);
@@ -264,7 +370,7 @@ const FileActionsMenu: React.FC = () => {
         }
       });
     const makeCards = (): Promise<void> =>
-      closeAfter(async () => {
+      closeAfter('doc-cards', async () => {
         try {
           await window.YUA.window['window:open']('assistant' as any);
         } catch (err) {
@@ -272,36 +378,106 @@ const FileActionsMenu: React.FC = () => {
         }
       });
     const transcribeAudio = (): Promise<void> =>
-      closeAfter(async () => {
+      closeAfter('audio-stt', async () => {
         await runWorkflow('sample:transcribe', 'audio transcription', 'audio-stt');
       });
     const convertAudio = (): Promise<void> =>
-      closeAfter(async () => {
+      closeAfter('audio-transcode', async () => {
         await runWorkflow('sample:transcode', 'audio transcode', 'audio-transcode');
       });
     const transcodeVideo = (): Promise<void> =>
-      closeAfter(async () => {
+      closeAfter('video-transcode', async () => {
         await runWorkflow('sample:transcode', 'video transcode', 'video-transcode');
       });
     const extractKeyframes = (): Promise<void> =>
-      closeAfter(async () => {
+      closeAfter('video-keyframes', async () => {
         await runWorkflow('sample:video-keyframes', 'video keyframes', 'video-keyframes');
       });
 
     const transcribeVideo = (): Promise<void> =>
-      closeAfter(async () => {
+      closeAfter('video-stt', async () => {
         await runWorkflow('sample:transcribe', 'video transcription', 'video-stt');
       });
     const analyzeImage = (): Promise<void> =>
-      closeAfter(async () => {
+      closeAfter('image-analyze', async () => {
         await runWorkflow('sample:image-understand', 'image understand', 'image-analyze');
       });
     const ocrImage = (): Promise<void> =>
-      closeAfter(async () => {
-        await runWorkflow('sample:ocr', 'image ocr', 'image-ocr');
+      closeAfter('image-ocr', async () => {
+        if (!primary?.id || !primary.filePath) {
+          throw new Error('缺少可识别的图片资源');
+        }
+
+        const model = await selectOcrModel();
+        if (!model) {
+          toast.error('OCR 模型未安装', {
+            description: '请先在插件管理器下载一个 Paddle OCR 模型。'
+          });
+          await openOcrPluginManager();
+          throw new Error('OCR 模型未安装');
+        }
+
+        toast.info('正在识别图片文字', { description: model.displayName });
+        const result = await window.YUA.ocr.recognizeImage({
+          imagePath: primary.filePath,
+          model: model.name,
+          strategy: 'per-box',
+          processingEngine: 'opencv',
+          maxSideLength: 640,
+          flatten: true
+        });
+
+        if (!result.ok || !result.data) {
+          if (result.code === 'OCR_MODEL_MISSING') {
+            toast.error('OCR 模型未安装或不完整', {
+              description: result.error || '请在插件管理器重新下载模型。'
+            });
+            await openOcrPluginManager();
+          }
+          throw new Error(result.error || 'OCR 识别失败');
+        }
+
+        const recognizedText = getOcrText(result.data);
+        const metadata = {
+          ...parseJsonObject(primary.metadata),
+          ocr: {
+            engine: result.data.engine,
+            modelName: result.data.modelName,
+            modelDisplayName: result.data.modelDisplayName,
+            confidence: result.data.confidence,
+            updatedAt: Date.now()
+          }
+        };
+
+        const updateResult = await window.YUA.resource['resource:update']({
+          id: primary.id,
+          patch: {
+            contentText: recognizedText,
+            metadata: JSON.stringify(metadata),
+            status: 'ready'
+          }
+        });
+        if (!updateResult.success) {
+          throw new Error(updateResult.error || 'OCR 结果写回图片资源失败');
+        }
+
+        const textResource = await upsertOcrTextResource(primary, recognizedText, result.data);
+
+        await emitPurposeEvent('fileAction:ocr-completed', {
+          actionId: 'image-ocr',
+          modelName: result.data.modelName,
+          modelDisplayName: result.data.modelDisplayName,
+          textResourceId: textResource.id,
+          textLength: recognizedText.length
+        });
+
+        toast.success('OCR 识别完成', { description: '识别结果已保存为关联文本资源。' });
+        await window.YUA.window['window:open']('resourcePreview', {
+          current: textResource
+        });
       });
     const parsePdf = (): Promise<void> =>
-      closeAfter(async () => {
+      closeAfter('pdf-parse', async () => {
         try {
           await window.YUA.window['window:open']('assistant' as any);
         } catch (err) {
@@ -310,7 +486,7 @@ const FileActionsMenu: React.FC = () => {
       });
 
     const openSubtitlePreview = (): Promise<void> =>
-      closeAfter(async () => {
+      closeAfter('subtitle-view', async () => {
         if (!primary?.id) return;
         try {
           await window.YUA.window['window:open']('resourcePreview', {
@@ -322,7 +498,7 @@ const FileActionsMenu: React.FC = () => {
       });
 
     const translateSubtitle = (): Promise<void> =>
-      closeAfter(async () => {
+      closeAfter('subtitle-translate', async () => {
         if (!primary?.id) return;
         try {
           const STORAGE_KEY = 'subtitle-translator-preferences';
@@ -398,7 +574,7 @@ const FileActionsMenu: React.FC = () => {
       });
 
     const readSubtitle = (): Promise<void> =>
-      closeAfter(async () => {
+      closeAfter('subtitle-read', async () => {
         if (!primary?.id) return;
         try {
           await window.YUA.window['window:open']('resourcePreview', {
@@ -411,7 +587,7 @@ const FileActionsMenu: React.FC = () => {
       });
 
     const summarizeSubtitle = (): Promise<void> =>
-      closeAfter(async () => {
+      closeAfter('subtitle-summarize', async () => {
         if (!primary?.id) return;
         try {
           await window.YUA.window['window:open']('resourcePreview', {

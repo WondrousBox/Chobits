@@ -211,24 +211,24 @@ export const FEATURE_INTRO_QUEST_CATALOG: FeatureIntroQuestCatalogItem[] = [
   {
     id: 'feature.ocr',
     title: '认识图片 OCR',
-    description: '拖拽图片并启动 OCR 工作流，把图片中的文字提取成可检索内容。',
+    description: '拖拽图片并使用 OCR 基础能力，把图片中的文字提取成可检索内容。',
     area: '图片 / OCR',
     priority: 'P1',
     rewardXp: 10,
     rewardFavor: 1,
     achievementId: achievementFor('feature.ocr'),
     completion: {
-      kind: 'file-workflow-started',
-      workflowIds: ['sample:ocr'],
-      actionIds: ['image-ocr']
+      kind: 'app-event',
+      events: ['FILE_ACTION_OCR_COMPLETED'],
+      match: { actionId: 'image-ocr' }
     },
     routine: {
-      kind: 'file-workflow',
+      kind: 'file-action',
       intro: '如果图片里有文字，可以用 OCR 把它识别出来，后续就能搜索和整理。',
       instruction: '拖入图片后，在菜单里选择「文字识别（OCR）」。',
-      done: 'OCR 工作流开始了。图片里的文字会被提取出来，方便后续使用。',
-      waitEvent: 'FILE_ACTION_WORKFLOW_STARTED',
-      waitMatch: { workflowId: 'sample:ocr' }
+      done: 'OCR 识别完成了。图片里的文字已经保存成关联文本，也会写回图片资源方便检索。',
+      waitEvent: 'FILE_ACTION_OCR_COMPLETED',
+      waitMatch: { actionId: 'image-ocr' }
     }
   },
   {

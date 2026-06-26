@@ -54,11 +54,15 @@
       },
       {
         "id": "ocr",
-        "type": "image/ocr",
+        "type": "image/paddle-ocr",
         "x": 676,
         "y": 34,
         "config": {
-          "lang": "chi_sim"
+          "model": "ppocr-v6-small",
+          "strategy": "per-box",
+          "processingEngine": "opencv",
+          "maxSideLength": 640,
+          "noCache": false
         }
       },
       {

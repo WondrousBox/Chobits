@@ -222,7 +222,7 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
   let lastMiniMaxChatApiConfigEasterEggAt = 0;
   const progressSpeech = new ProgressSpeechAnnouncer({
     speak: (text) => {
-      void mgr.speak(text, { showBubble: false }).catch(() => { });
+      void mgr.speak(text, { showBubble: false }).catch(() => {});
     }
   });
 
@@ -282,7 +282,7 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
       if (!text) {
         return;
       }
-      void mgr.speak(text, { bubbleDuration: MINIMAX_CHAT_API_CONFIG_EASTER_EGG_BUBBLE_MS }).catch(() => { });
+      void mgr.speak(text, { bubbleDuration: MINIMAX_CHAT_API_CONFIG_EASTER_EGG_BUBBLE_MS }).catch(() => {});
     }
   });
 
@@ -501,7 +501,7 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
   handlers.push({
     event: AppEvent.SPRITE_PLUGIN_INSTALL,
     handler: (data) => {
-      mgr.trigger('install', { message: data?.message || eventText('pluginInstall', data, '插件安装完成！') });
+      mgr.trigger('install', { message: data?.message || eventText('pluginInstall', data, '插件安装完成！'), silent: true });
       grantActivityReward('plugin-install');
     }
   });

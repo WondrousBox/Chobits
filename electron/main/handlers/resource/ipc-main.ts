@@ -689,16 +689,20 @@ export function initResourceHandlers(): void {
       delete patch.subtitleContent;
 
       if (typeof patch.contentText === 'string') {
+        const currentFilePath = typeof current.filePath === 'string' && current.filePath ? current.filePath : undefined;
+        const shouldSyncContentTextToFile = currentFilePath && (current.type === 'text' || isEditableTextPath(currentFilePath));
         try {
-          patch.sizeBytes = Buffer.byteLength(patch.contentText, 'utf8');
+          if (!currentFilePath || shouldSyncContentTextToFile) {
+            patch.sizeBytes = Buffer.byteLength(patch.contentText, 'utf8');
+          }
         } catch {
           // ignore size calculation failure
         }
 
-        if (current.filePath && (current.type === 'text' || isEditableTextPath(current.filePath))) {
-          await fs.mkdir(path.dirname(current.filePath), { recursive: true });
-          await fs.writeFile(current.filePath, patch.contentText, 'utf8');
-          const stat = await getFileStatSnapshot(current.filePath);
+        if (shouldSyncContentTextToFile) {
+          await fs.mkdir(path.dirname(currentFilePath), { recursive: true });
+          await fs.writeFile(currentFilePath, patch.contentText, 'utf8');
+          const stat = await getFileStatSnapshot(currentFilePath);
           if (stat) {
             patch.sizeBytes = stat.size;
             if (isLinkedResourceRow(current)) {

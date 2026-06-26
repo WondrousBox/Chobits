@@ -4,6 +4,7 @@ import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import { aiBridge } from '../../packages/ai/ipc-renderer';
 import { musicReactivityIpcRenderer } from '../../packages/audio-reactivity/ipc-renderer';
 import { APP_EVENT_CHANNEL, AppEventPayload } from '../../packages/event/events';
+import { ocrIpcRenderer } from '../../packages/ocr/ipc-renderer';
 import { pluginResourceIpcRenderer } from '../../packages/plugins/ipc-renderer';
 import { recorderIpcRenderer } from '../../packages/recorder/ipc-renderer';
 import { sherpaIpcRenderer } from '../../packages/sherpa/ipc-renderer';
@@ -119,6 +120,7 @@ contextBridge.exposeInMainWorld('YUA', {
   scheduler: schedulerBridge,
   selectedTextLearning: selectedTextLearningBridge,
   emojiPacks: emojiPacksIpcRenderer,
+  ocr: ocrIpcRenderer,
   pluginResource: pluginResourceIpcRenderer,
   proxy: proxyIpcRenderer,
   theme: themeIpcRenderer,

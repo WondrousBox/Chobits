@@ -14,7 +14,7 @@ export function unzipFileWith7Z(
   zipFilePath: string,
   outputFolderPath: string,
   progressCallback?: (data: { total: number; current: number; filePath: string; type: 'Directory' | 'File'; size?: number; percent?: number }) => void,
-  x?: string
+  x?: string | readonly string[]
 ): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     unpack(

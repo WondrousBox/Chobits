@@ -33,6 +33,7 @@ import type { WindowBridgeType } from '../electron/preload/apis/window';
 import type { AIApi } from '../packages/ai/types';
 import type { MusicReactivityIpcRendererType } from '../packages/audio-reactivity/ipc-renderer';
 import type { AppEventPayload } from '../packages/event/events';
+import type { OcrIpcRendererType } from '../packages/ocr/ipc-renderer';
 import type { RecorderIpcRendererType } from '../packages/recorder/ipc-renderer';
 import type { SherpaIpcRendererType } from '../packages/sherpa/ipc-renderer';
 import type { SpriteBridgeType } from '../packages/sprite-core/preload';
@@ -70,6 +71,7 @@ declare global {
       scheduler: SchedulerBridgeType;
       selectedTextLearning: SelectedTextLearningBridgeType;
       emojiPacks: EmojiPacksIpcType;
+      ocr: OcrIpcRendererType;
       recorder: RecorderIpcRendererType;
       proxy: ProxyIpcType;
       theme: ThemeIpcType;

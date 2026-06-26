@@ -8,6 +8,9 @@
     "node_modules/sharp/**/*",
     "node_modules/@img/sharp-*/**/*",
     "node_modules/@img/sharp-libvips-*/**/*",
+    "node_modules/onnxruntime-node/**/*",
+    "node_modules/ppu-paddle-ocr/**/*",
+    "node_modules/ppu-ocv/**/*",
     "node_modules/sherpa-onnx-node/**/*"
   ],
   "directories": {
@@ -21,6 +24,9 @@
     "node_modules/sharp/**/*",
     "node_modules/@img/sharp-*/**/*",
     "node_modules/@img/sharp-libvips-*/**/*",
+    "node_modules/onnxruntime-node/**/*",
+    "node_modules/ppu-paddle-ocr/**/*",
+    "node_modules/ppu-ocv/**/*",
     "node_modules/sherpa-onnx-node/**/*"
   ],
   "extraResources": [
