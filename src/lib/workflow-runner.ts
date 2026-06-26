@@ -48,8 +48,13 @@ async function installModelResource(pluginId: string, modelName: string, resourc
       deleteAfterInstall: true
     });
     if (result?.ok) {
-      toast.success('模型安装成功', { description: modelResource.displayName || modelName });
-      return true;
+      const status = result.data?.status;
+      if (status === 'installed') {
+        toast.success('模型安装成功', { description: modelResource.displayName || modelName });
+        return true;
+      }
+      toast.info('模型已加入下载队列', { description: modelResource.displayName || modelName });
+      return false;
     }
     toast.error('模型安装失败', { description: result?.error || '未知错误' });
     return false;

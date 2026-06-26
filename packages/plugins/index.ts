@@ -39,6 +39,14 @@ export interface PluginResource {
   extractTo?: string; // 解压到的目录（相对路径）
   // 模型特定字段
   modelFormat?: string; // 模型格式
+  files?: PluginResourceFile[]; // 多文件模型资源清单
+}
+
+export interface PluginResourceFile {
+  path: string; // 相对 installPath 的文件路径
+  sourceUrl: string;
+  sizeBytes?: number;
+  sha256?: string;
 }
 
 export interface DownloadProgress {
@@ -68,6 +76,8 @@ interface InternalTask {
   deleteAfterInstall?: boolean; // 是否在安装完成后删除下载文件
   proxyAgent?: ProxyAgent;
 }
+
+const PLUGIN_ARCHIVE_EXCLUDE_ARGS = ['-xr!__MACOSX', '-xr!__MACOSX/*'];
 
 function isAbortLikeError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
@@ -268,6 +278,27 @@ export class PluginResourceManager extends EventEmitter {
     return path.join(modelsDir, modelName);
   }
 
+  private sanitizeFileName(fileName: string): string {
+    // Windows 不允许的字符: < > : " / \ | ? *
+    return fileName.replace(/[<>:"/\\|?*]/g, '_');
+  }
+
+  private getArchiveDownloadPath(resource: PluginResource, installDir: string, archiveType: Exclude<NonNullable<PluginResource['archiveType']>, 'none'>): string {
+    let urlFileName = '';
+    if (resource.sourceUrl) {
+      try {
+        const urlObj = new URL(resource.sourceUrl);
+        urlFileName = path.basename(urlObj.pathname) || '';
+      } catch {
+        urlFileName = '';
+      }
+    }
+    if (!urlFileName) {
+      urlFileName = `${resource.name}.${archiveType}`;
+    }
+    return path.join(installDir, this.sanitizeFileName(urlFileName));
+  }
+
   /**
    * 设置并发数
    */
@@ -350,8 +381,156 @@ export class PluginResourceManager extends EventEmitter {
    * 检查资源是否已安装
    */
   isInstalled(resource: PluginResource): boolean {
-    if (!resource.installPath) return false;
-    return fs.existsSync(resource.installPath);
+    const installPath = this.getResourceInstallPath(resource);
+    if (!installPath) return false;
+    if (resource.files?.length) {
+      return resource.files.every((file) => {
+        const filePath = this.resolveResourceFilePath(installPath, file.path);
+        try {
+          return Boolean(filePath && fs.statSync(filePath).isFile());
+        } catch {
+          return false;
+        }
+      });
+    }
+    return fs.existsSync(installPath);
+  }
+
+  private getResourceInstallPath(resource: PluginResource): string | undefined {
+    if (resource.installPath) return resource.installPath;
+    if (resource.type === 'engine') {
+      return this.getEnginePath(resource.pluginId, resource.binaryName || resource.name);
+    }
+    return this.getModelPath(resource.pluginId, resource.name);
+  }
+
+  private assertManagedResourcePath(resource: PluginResource, targetPath: string): string {
+    const root = path.resolve(this.getPluginResourceDir(resource.pluginId, resource.type));
+    const resolved = path.resolve(targetPath);
+    if (resolved === root || !resolved.startsWith(root + path.sep)) {
+      throw new Error(`Invalid managed resource path: ${targetPath}`);
+    }
+    return resolved;
+  }
+
+  async removeInstalledFiles(resource: PluginResource): Promise<string[]> {
+    const installPath = this.getResourceInstallPath(resource);
+    if (!installPath) return [];
+
+    const deletedPaths: string[] = [];
+    const pruneEmptyParents = async (startDir: string): Promise<void> => {
+      const pluginsRoot = path.resolve(PluginConfigStore.getPluginsDir());
+      let current = path.resolve(startDir);
+      while (current !== pluginsRoot && current.startsWith(pluginsRoot + path.sep)) {
+        try {
+          await fs.promises.rmdir(current);
+          deletedPaths.push(current);
+        } catch {
+          break;
+        }
+        current = path.dirname(current);
+      }
+    };
+    const removePath = async (targetPath: string): Promise<void> => {
+      const resolved = this.assertManagedResourcePath(resource, targetPath);
+      if (!fs.existsSync(resolved)) return;
+      await fs.promises.rm(resolved, { recursive: true, force: true });
+      deletedPaths.push(resolved);
+      await pruneEmptyParents(path.dirname(resolved));
+    };
+    const archiveType = resource.archiveType || 'none';
+
+    if (resource.type === 'engine' && archiveType !== 'none') {
+      await removePath(path.dirname(installPath));
+      return deletedPaths;
+    }
+
+    if (resource.files?.length) {
+      for (const file of resource.files) {
+        const filePath = this.resolveResourceFilePath(installPath, file.path);
+        if (filePath) {
+          await removePath(filePath);
+          await removePath(`${filePath}.download`);
+        }
+      }
+      return deletedPaths;
+    }
+
+    await removePath(installPath);
+    await removePath(`${installPath}.download`);
+    if (archiveType !== 'none') {
+      const archivePath = this.getArchiveDownloadPath(resource, path.dirname(installPath), archiveType);
+      await removePath(archivePath);
+      await removePath(`${archivePath}.download`);
+    }
+    return deletedPaths;
+  }
+
+  private resolveResourceFilePath(baseDir: string, relativePath: string): string | null {
+    const normalized = path.normalize(relativePath || '');
+    if (!normalized || path.isAbsolute(normalized) || normalized.startsWith('..') || normalized.includes(`..${path.sep}`)) {
+      return null;
+    }
+    const resolved = path.resolve(baseDir, normalized);
+    const root = path.resolve(baseDir);
+    if (resolved !== root && !resolved.startsWith(root + path.sep)) {
+      return null;
+    }
+    return resolved;
+  }
+
+  private async downloadResourceFile(task: InternalTask, file: PluginResourceFile, targetPath: string, progressOffsetBytes: number, totalBytes?: number): Promise<void> {
+    if (!this.downloader) {
+      throw new Error('DOWNLOADER_NOT_INITIALIZED');
+    }
+
+    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+
+    let skipDownload = false;
+    if (fs.existsSync(targetPath) && file.sha256) {
+      task.resource.status = 'verifying';
+      this.emitProgress(task.resource.id, {
+        status: 'verifying',
+        doneBytes: progressOffsetBytes,
+        totalBytes
+      });
+      const existingDigest = await calculateFileHash(targetPath);
+      if (existingDigest === file.sha256) {
+        skipDownload = true;
+      } else {
+        fs.unlinkSync(targetPath);
+      }
+    } else if (fs.existsSync(targetPath) && !file.sha256) {
+      skipDownload = true;
+    }
+
+    if (skipDownload) {
+      return;
+    }
+
+    const pluginConfig = PluginConfigStore.getConfig();
+    const downloadOptions: DownloadOptions = {
+      onProgress: (p) => {
+        this.emitProgress(task.resource.id, {
+          status: 'downloading',
+          doneBytes: progressOffsetBytes + p.doneBytes,
+          totalBytes,
+          speedBps: p.speedBps,
+          etaMs: p.etaMs,
+          percentage: totalBytes ? Math.round(((progressOffsetBytes + p.doneBytes) / totalBytes) * 100) : p.percentage
+        });
+      },
+      signal: task.controller?.signal,
+      proxyAgent: task.proxyAgent,
+      sha256: file.sha256
+    };
+    if (pluginConfig.downloaderResumeValidation !== undefined) {
+      downloadOptions.resumeValidation = pluginConfig.downloaderResumeValidation;
+    }
+    if (pluginConfig.downloaderDebug !== undefined) {
+      downloadOptions.debug = pluginConfig.downloaderDebug;
+    }
+    await this.downloader.download(file.sourceUrl, targetPath, downloadOptions);
   }
 
   private emitProgress(id: string, partial: Partial<DownloadProgress>): void {
@@ -381,6 +560,15 @@ export class PluginResourceManager extends EventEmitter {
       ...partial
     } as any;
     this.emit('progress', base);
+    if (resource && (partial.status === 'downloading' || partial.status === 'extracting' || partial.status === 'verifying')) {
+      const resourceLabel = resource.displayName || resource.name || resource.id;
+      const progress = partial.percentage ?? (partial.totalBytes && partial.doneBytes !== undefined ? Math.round((partial.doneBytes / partial.totalBytes) * 100) : undefined);
+      eventManager.emit(AppEvent.SPRITE_DOWNLOAD_PROGRESS, {
+        name: resource.name || resource.id,
+        message: `${resource.type === 'model' ? '模型' : '插件'}下载中: ${resourceLabel}`,
+        progress
+      });
+    }
 
     // Clean up throttle tracking for terminal states
     if (['installed', 'failed', 'cancelled'].includes(partial.status || '')) {
@@ -426,30 +614,13 @@ export class PluginResourceManager extends EventEmitter {
       finalFile = task.resource.installPath!;
     } else {
       // 压缩包：下载到目标目录
-      // 从URL中提取文件名，如果无法提取则使用资源名称
-      let urlFileName: string;
-      try {
-        const urlObj = new URL(url!);
-        urlFileName = path.basename(urlObj.pathname) || '';
-      } catch {
-        urlFileName = '';
-      }
-      if (!urlFileName) {
-        urlFileName = `${task.resource.name}.${archiveType}`;
-      }
-      // 清理文件名中的非法字符（Windows 不允许的字符）
-      const sanitizeFileName = (fileName: string): string => {
-        // Windows 不允许的字符: < > : " / \ | ? *
-        return fileName.replace(/[<>:"/\\|?*]/g, '_');
-      };
-      const sanitizedUrlFileName = sanitizeFileName(urlFileName);
-      finalFile = path.join(installDir, sanitizedUrlFileName);
+      finalFile = this.getArchiveDownloadPath(task.resource, installDir, archiveType);
     }
 
     try {
       // 下载前检查：如果目标文件已存在且有hash，先验证hash
       let skipDownload = false;
-      if (fs.existsSync(finalFile) && task.resource.sha256) {
+      if (!task.resource.files?.length && fs.existsSync(finalFile) && task.resource.sha256) {
         task.resource.status = 'verifying';
         this.emitProgress(task.resource.id, { status: 'verifying' });
         console.log('[PluginDL] checking existing file hash', { id: task.resource.id, file: finalFile });
@@ -470,6 +641,29 @@ export class PluginResourceManager extends EventEmitter {
       }
 
       // 如果需要下载，执行下载流程
+      if (task.resource.files?.length) {
+        if (!task.resource.installPath) {
+          throw new Error('INSTALL_PATH_REQUIRED');
+        }
+        fs.mkdirSync(task.resource.installPath, { recursive: true });
+        const totalBytes = task.resource.files.reduce((sum, file) => sum + (file.sizeBytes || 0), 0) || task.resource.sizeBytes;
+        let doneBytes = 0;
+        for (const file of task.resource.files) {
+          const targetPath = this.resolveResourceFilePath(task.resource.installPath, file.path);
+          if (!targetPath) {
+            throw new Error(`Invalid resource file path: ${file.path}`);
+          }
+          await this.downloadResourceFile(task, file, targetPath, doneBytes, totalBytes);
+          doneBytes += file.sizeBytes || 0;
+          this.emitProgress(task.resource.id, {
+            status: 'downloading',
+            doneBytes,
+            totalBytes
+          });
+        }
+        skipDownload = true;
+      }
+
       if (!skipDownload) {
         console.log('[PluginDL] start download', { id: task.resource.id, url, finalFile });
         // 下载文件（下载器会自动添加 .download 后缀，并在下载完成后进行 hash 验证和重命名）
@@ -528,18 +722,32 @@ export class PluginResourceManager extends EventEmitter {
 
       task.resource.status = 'installed';
       task.resource.installedAt = Date.now();
+      const totalSizeBytes = task.resource.sizeBytes || task.resource.files?.reduce((sum, file) => sum + (file.sizeBytes || 0), 0) || undefined;
+      const resourceLabel = task.resource.displayName || task.resource.name || task.resource.id;
       PluginResourceStore.patch(task.resource.id, {
         status: 'installed',
         installedAt: task.resource.installedAt,
-        installPath: task.resource.installPath
+        installPath: task.resource.installPath,
+        sizeBytes: totalSizeBytes
       });
       this.emitProgress(task.resource.id, {
         status: 'installed',
-        doneBytes: task.resource.sizeBytes || 0,
-        totalBytes: task.resource.sizeBytes
+        doneBytes: totalSizeBytes || 0,
+        totalBytes: totalSizeBytes
       });
       console.log('[PluginDL] installed', { id: task.resource.id, installPath: task.resource.installPath });
-      eventManager.emit(AppEvent.SPRITE_DOWNLOAD_COMPLETE, { name: task.resource.name || task.resource.id });
+      eventManager.emit(AppEvent.SPRITE_DOWNLOAD_COMPLETE, {
+        name: task.resource.name || task.resource.id,
+        message: `${task.resource.type === 'model' ? '模型' : '插件'}安装完成: ${resourceLabel}`,
+        progress: 100
+      });
+      eventManager.emit(AppEvent.SPRITE_PLUGIN_INSTALL, {
+        name: task.resource.name || task.resource.id,
+        pluginId: task.resource.pluginId,
+        resourceId: task.resource.resourceId,
+        type: task.resource.type,
+        message: `${task.resource.type === 'model' ? '模型' : '插件'}安装完成: ${resourceLabel}`
+      });
     } catch (err: any) {
       const isCancelled = isAbortLikeError(err);
       if (isCancelled) {
@@ -595,15 +803,15 @@ export class PluginResourceManager extends EventEmitter {
 
     const progressCallback = task
       ? (data: { total: number; current: number; filePath: string; type: 'Directory' | 'File'; size?: number; percent?: number }) => {
-        // 更新解压进度
-        // percent是百分比，我们用它来估算已处理的字节数
-        const estimatedBytes = task.resource.sizeBytes && data.percent ? Math.floor((task.resource.sizeBytes * data.percent) / 100) : undefined;
-        this.emitProgress(task.resource.id, {
-          status: 'extracting',
-          doneBytes: estimatedBytes,
-          totalBytes: task.resource.sizeBytes
-        });
-      }
+          // 更新解压进度
+          // percent是百分比，我们用它来估算已处理的字节数
+          const estimatedBytes = task.resource.sizeBytes && data.percent ? Math.floor((task.resource.sizeBytes * data.percent) / 100) : undefined;
+          this.emitProgress(task.resource.id, {
+            status: 'extracting',
+            doneBytes: estimatedBytes,
+            totalBytes: task.resource.sizeBytes
+          });
+        }
       : undefined;
 
     // tar.bz2 需要解压两次：先解压 bz2 得到 tar 文件，再解压 tar 文件
@@ -613,7 +821,7 @@ export class PluginResourceManager extends EventEmitter {
       fs.mkdirSync(tempDir, { recursive: true });
 
       try {
-        await unzipFileWith7Z(archivePath, tempDir, progressCallback);
+        await unzipFileWith7Z(archivePath, tempDir, progressCallback, PLUGIN_ARCHIVE_EXCLUDE_ARGS);
 
         // 查找解压出来的 .tar 文件
         const files = fs.readdirSync(tempDir);
@@ -626,7 +834,7 @@ export class PluginResourceManager extends EventEmitter {
         const tarFilePath = path.join(tempDir, tarFile);
 
         // 第二次解压：解压 tar 文件到最终目录
-        await unzipFileWith7Z(tarFilePath, finalDir, progressCallback);
+        await unzipFileWith7Z(tarFilePath, finalDir, progressCallback, PLUGIN_ARCHIVE_EXCLUDE_ARGS);
 
         // 清理临时目录和 tar 文件
         try {
@@ -653,7 +861,7 @@ export class PluginResourceManager extends EventEmitter {
       }
     } else {
       // 其他格式直接解压
-      await unzipFileWith7Z(archivePath, finalDir, progressCallback);
+      await unzipFileWith7Z(archivePath, finalDir, progressCallback, PLUGIN_ARCHIVE_EXCLUDE_ARGS);
     }
   }
 }

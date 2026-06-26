@@ -119,7 +119,7 @@ const PluginDownloadPage: React.FC = () => {
   };
 
   const handleRemove = async (id: string): Promise<void> => {
-    const res = await window.YUA.pluginResource['plugin-resource:remove']({ id });
+    const res = await window.YUA.pluginResource['plugin-resource:remove']({ id, deleteFiles: true });
     if (res.ok) {
       setDownloads((prev) => {
         const next = new Map(prev);

@@ -24,7 +24,7 @@
     "displayName": "Whisper CLI",
     "description": "OpenAI Whisper 命令行工具，用于音频和视频转录",
     "version": "1.8.2",
-    "binaryName": "whisper",
+    "binaryName": "whisper-cli",
     "archiveType": "zip",
     "category": [
       "asr",
@@ -833,7 +833,7 @@
     "displayName": "Fast Whisper CLI",
     "description": "Fast Whisper 命令行工具，用于快速音频和视频转录",
     "version": "1.0.0",
-    "binaryName": "fast-whisper",
+    "binaryName": "fast-whisper-cli",
     "archiveType": "zip",
     "category": "asr",
     "languages": [
@@ -909,6 +909,145 @@
         "sourceUrl": "https://model.memo.ac/integration/rspleeter/memo-extension-rspleeter-win@1.0.0.zip",
         "sizeBytes": 119537664,
         "sha256": "519a502a25e0ee3a9d3cffd357571b935d0596d03cded58b4329d2ba92a21fcc"
+      }
+    ]
+  },
+  {
+    "id": "paddle-ocr-runtime",
+    "pluginId": "plugin:paddle-ocr",
+    "type": "engine",
+    "name": "paddle-ocr-runtime",
+    "displayName": "Paddle OCR Runtime",
+    "description": "基于 ppu-paddle-ocr 与 ONNX Runtime 的本地 OCR 引擎（软件内置）",
+    "version": "6.0.0",
+    "archiveType": "none",
+    "category": [
+      "ocr"
+    ],
+    "languages": [
+      "multi"
+    ],
+    "platforms": [],
+    "models": [
+      {
+        "id": "ppocr-v6-small",
+        "pluginId": "plugin:paddle-ocr",
+        "type": "model",
+        "name": "ppocr-v6-small",
+        "displayName": "PP-OCRv6 Small",
+        "description": "默认多语言 OCR 模型，平衡速度和准确率",
+        "version": "6.0.0",
+        "archiveType": "none",
+        "category": "ocr",
+        "languages": [
+          "multi"
+        ],
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "files": [
+              {
+                "path": "detection/PP-OCRv6_small_det.ort",
+                "sourceUrl": "https://media.githubusercontent.com/media/PT-Perkasa-Pilar-Utama/ppu-paddle-ocr-models/main/detection/ort/PP-OCRv6_small_det.ort",
+                "sizeBytes": 9982352,
+                "sha256": "c21be8d8268f0f45e2693b1d52432a290a56d008f6c1ff28b4baa7c35bab250e"
+              },
+              {
+                "path": "recognition/PP-OCRv6_small_rec.ort",
+                "sourceUrl": "https://media.githubusercontent.com/media/PT-Perkasa-Pilar-Utama/ppu-paddle-ocr-models/main/recognition/ort/PP-OCRv6_small_rec.ort",
+                "sizeBytes": 21290816,
+                "sha256": "40bccd9fa3ae2d14d724bf9d020c8f0edfc801489477b92f7449162a538366df"
+              },
+              {
+                "path": "dict/ppocrv6_dict.txt",
+                "sourceUrl": "https://raw.githubusercontent.com/PT-Perkasa-Pilar-Utama/ppu-paddle-ocr-models/main/recognition/ppocrv6_dict.txt",
+                "sizeBytes": 74948,
+                "sha256": "41557512862dfe31970cf22407742b629725461dd84c0d8771bde9c87c2202c8"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ppocr-v6-tiny",
+        "pluginId": "plugin:paddle-ocr",
+        "type": "model",
+        "name": "ppocr-v6-tiny",
+        "displayName": "PP-OCRv6 Tiny",
+        "description": "更快的多语言 OCR 模型，适合低资源设备",
+        "version": "6.0.0",
+        "archiveType": "none",
+        "category": "ocr",
+        "languages": [
+          "multi"
+        ],
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "files": [
+              {
+                "path": "detection/PP-OCRv6_tiny_det.ort",
+                "sourceUrl": "https://media.githubusercontent.com/media/PT-Perkasa-Pilar-Utama/ppu-paddle-ocr-models/main/detection/ort/PP-OCRv6_tiny_det.ort",
+                "sizeBytes": 1882568,
+                "sha256": "2816e82d26a09d6af722492f80f3059d458377c084eca88f34d84ddf9b385580"
+              },
+              {
+                "path": "recognition/PP-OCRv6_tiny_rec.ort",
+                "sourceUrl": "https://media.githubusercontent.com/media/PT-Perkasa-Pilar-Utama/ppu-paddle-ocr-models/main/recognition/ort/PP-OCRv6_tiny_rec.ort",
+                "sizeBytes": 4530048,
+                "sha256": "efc46adf1bde1e05b58748268abb0e71791bfa8616c435676bbca13d1ea47767"
+              },
+              {
+                "path": "dict/ppocrv6_tiny_dict.txt",
+                "sourceUrl": "https://raw.githubusercontent.com/PT-Perkasa-Pilar-Utama/ppu-paddle-ocr-models/main/recognition/ppocrv6_tiny_dict.txt",
+                "sizeBytes": 27157,
+                "sha256": "2f3717bbd530b681b6db3be35cc485e8a41a932b9558b833986bf0894eb21f2d"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ppocr-v6-medium",
+        "pluginId": "plugin:paddle-ocr",
+        "type": "model",
+        "name": "ppocr-v6-medium",
+        "displayName": "PP-OCRv6 Medium",
+        "description": "更高准确率的多语言 OCR 模型，初始化和推理更重",
+        "version": "6.0.0",
+        "archiveType": "none",
+        "category": "ocr",
+        "languages": [
+          "multi"
+        ],
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "files": [
+              {
+                "path": "detection/PP-OCRv6_medium_det.ort",
+                "sourceUrl": "https://media.githubusercontent.com/media/PT-Perkasa-Pilar-Utama/ppu-paddle-ocr-models/main/detection/ort/PP-OCRv6_medium_det.ort",
+                "sizeBytes": 62160320,
+                "sha256": "b3fad30d6dde47fd015d92a10f6cddf5969d910c6460d2f9b82de59e97931738"
+              },
+              {
+                "path": "recognition/PP-OCRv6_medium_rec.ort",
+                "sourceUrl": "https://media.githubusercontent.com/media/PT-Perkasa-Pilar-Utama/ppu-paddle-ocr-models/main/recognition/ort/PP-OCRv6_medium_rec.ort",
+                "sizeBytes": 76691568,
+                "sha256": "14bf37252c87d2359764466c751d17787a28c9c5cbd5d64059a6f49b9dbd4ab4"
+              },
+              {
+                "path": "dict/ppocrv6_dict.txt",
+                "sourceUrl": "https://raw.githubusercontent.com/PT-Perkasa-Pilar-Utama/ppu-paddle-ocr-models/main/recognition/ppocrv6_dict.txt",
+                "sizeBytes": 74948,
+                "sha256": "41557512862dfe31970cf22407742b629725461dd84c0d8771bde9c87c2202c8"
+              }
+            ]
+          }
+        ]
       }
     ]
   }

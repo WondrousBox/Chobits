@@ -61,9 +61,15 @@ export type PluginDefinition = {
   platforms: {
     platform: string;
     arch: string;
-    sourceUrl: string;
+    sourceUrl?: string;
     sizeBytes?: number;
     sha256?: string; // SHA256校验和
+    files?: {
+      path: string;
+      sourceUrl: string;
+      sizeBytes?: number;
+      sha256?: string;
+    }[];
   }[];
   // 模型作为引擎的子资源（仅当 type === 'engine' 时存在）
   models?: PluginDefinition[];

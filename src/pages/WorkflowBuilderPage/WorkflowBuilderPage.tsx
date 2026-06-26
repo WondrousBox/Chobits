@@ -34,9 +34,9 @@ import { BroadcastChannelManager, CHANNEL_NAMES } from '@/utils/broadcastChannel
 import AIChatSidebar from '../ResourcePage/components/AIChatSidebar';
 import ResourceRunPopover from '../ResourcePage/ResourceRunPopover';
 import { ResourceItem } from '../ResourcePage/types';
-import NodePropertyEditor from './NodePropertyEditor';
 import IconSelector from './IconSelector';
 import { autoLayout } from './layout';
+import NodePropertyEditor from './NodePropertyEditor';
 import SpecNode from './SpecNode';
 import type { ExecutionStatus, NodeData, NodeSpec, WorkflowDraft, WorkflowRunLogEntry } from './types';
 import WorkflowJsonDialog from './WorkflowJsonDialog';
@@ -304,8 +304,12 @@ const WorkflowCanvasInner: React.FC = () => {
         deleteAfterInstall: true
       });
       if (result?.ok) {
-        toast.success('插件安装成功', { description: pluginId });
-        return true;
+        if (result.data?.status === 'installed') {
+          toast.success('插件安装成功', { description: pluginId });
+          return true;
+        }
+        toast.info('插件已加入下载队列', { description: pluginResource.displayName || pluginId });
+        return false;
       }
       toast.error('插件安装失败', { description: result?.error || '未知错误' });
       return false;
@@ -352,8 +356,12 @@ const WorkflowCanvasInner: React.FC = () => {
         deleteAfterInstall: true
       });
       if (result?.ok) {
-        toast.success('模型安装成功', { description: modelResource.displayName || modelName });
-        return true;
+        if (result.data?.status === 'installed') {
+          toast.success('模型安装成功', { description: modelResource.displayName || modelName });
+          return true;
+        }
+        toast.info('模型已加入下载队列', { description: modelResource.displayName || modelName });
+        return false;
       }
       toast.error('模型安装失败', { description: result?.error || '未知错误' });
       return false;
@@ -414,28 +422,28 @@ const WorkflowCanvasInner: React.FC = () => {
         description,
         action: firstMissingPlugin
           ? {
-            label: '下载插件',
-            onClick: () => {
-              void (async () => {
-                const ok = await installPluginResource(firstMissingPlugin);
-                if (ok) {
-                  await performValidate();
-                }
-              })();
-            }
-          }
-          : firstMissingModel
-            ? {
-              label: '下载模型',
+              label: '下载插件',
               onClick: () => {
                 void (async () => {
-                  const ok = await installModelResource(firstMissingModel.pluginId, firstMissingModel.modelName, firstMissingModel.resourceId);
+                  const ok = await installPluginResource(firstMissingPlugin);
                   if (ok) {
                     await performValidate();
                   }
                 })();
               }
             }
+          : firstMissingModel
+            ? {
+                label: '下载模型',
+                onClick: () => {
+                  void (async () => {
+                    const ok = await installModelResource(firstMissingModel.pluginId, firstMissingModel.modelName, firstMissingModel.resourceId);
+                    if (ok) {
+                      await performValidate();
+                    }
+                  })();
+                }
+              }
             : undefined
       });
     }
@@ -758,7 +766,7 @@ const WorkflowCanvasInner: React.FC = () => {
                 setRunLogs(logs);
               }
             })
-            .catch(() => { });
+            .catch(() => {});
         } else if (rec.status === 'completed' || rec.status === 'failed' || rec.status === 'canceled') {
           currentRunIdRef.current = null;
           // 更新所有节点状态
@@ -802,15 +810,15 @@ const WorkflowCanvasInner: React.FC = () => {
             eds.map((e) =>
               e.source === nodeState.nodeId
                 ? {
-                  ...e,
-                  animated: true,
-                  style: { stroke: '#22d3ee', strokeWidth: 3 }
-                }
+                    ...e,
+                    animated: true,
+                    style: { stroke: '#22d3ee', strokeWidth: 3 }
+                  }
                 : {
-                  ...e,
-                  animated: false,
-                  style: {}
-                }
+                    ...e,
+                    animated: false,
+                    style: {}
+                  }
             )
           );
         } else if (nodeState.status === 'completed' || nodeState.status === 'failed') {
@@ -819,10 +827,10 @@ const WorkflowCanvasInner: React.FC = () => {
             eds.map((e) =>
               e.source === nodeState.nodeId
                 ? {
-                  ...e,
-                  animated: false,
-                  style: {}
-                }
+                    ...e,
+                    animated: false,
+                    style: {}
+                  }
                 : e
             )
           );
@@ -933,16 +941,10 @@ const WorkflowCanvasInner: React.FC = () => {
       </div>
 
       {/* AI/自动化按钮 - 绝对定位到标题栏右侧（与资源管理页面统一） */}
-      <div
-        className="absolute top-0 right-3 h-9 flex items-center gap-1 z-10 pointer-events-auto"
-        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-      >
+      <div className="absolute top-0 right-3 h-9 flex items-center gap-1 z-10 pointer-events-auto" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <button
-              className={`p-1.5 rounded transition-colors ${aiChatOpen ? 'bg-muted text-primary' : 'hover:bg-muted'}`}
-              onClick={() => setAiChatOpen((prev) => !prev)}
-            >
+            <button className={`p-1.5 rounded transition-colors ${aiChatOpen ? 'bg-muted text-primary' : 'hover:bg-muted'}`} onClick={() => setAiChatOpen((prev) => !prev)}>
               <TbSparkles className="w-4 h-4" />
             </button>
           </TooltipTrigger>

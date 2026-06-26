@@ -8,6 +8,7 @@ import { PiExecutionService } from '../../../packages/ai/runtime/pi/execution-se
 import { broadcastMusicReactivitySnapshot, initMusicReactivityHandlers } from '../../../packages/audio-reactivity/ipc-main';
 import { MusicReactivityService } from '../../../packages/audio-reactivity/music-reactivity-service';
 import { AppEvent, eventManager } from '../../../packages/event';
+import { initOcrHandlers } from '../../../packages/ocr/ipc-main';
 import type { DownloadProgress } from '../../../packages/plugins';
 import { initPluginResourceHandlers } from '../../../packages/plugins/ipc-main';
 import { initRecorderHandlers } from '../../../packages/recorder/ipc-main';
@@ -501,6 +502,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
       }
     }
   });
+  initOcrHandlers();
   initThemeHandlers();
   initScreenshotHandlers();
   initSpleeterHandlers(win);
@@ -861,6 +863,7 @@ async function initOnboardingQuestEngine(
     AppEvent.ASSISTANT_MENU_ITEM_SELECTED,
     AppEvent.FILE_ACTION_SELECTED,
     AppEvent.FILE_ACTION_WORKFLOW_STARTED,
+    AppEvent.FILE_ACTION_OCR_COMPLETED,
     AppEvent.FILE_ACTION_RESOLVED,
     AppEvent.FILE_ACTION_FAILED,
     AppEvent.FILE_ACTION_CANCELLED,

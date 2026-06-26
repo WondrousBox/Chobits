@@ -32,6 +32,7 @@ import {
   JsonStringifyNode,
   MusicGenerateNode,
   OCRNode,
+  PaddleOCRNode,
   ResourceCreateNode,
   ResourceLoadNode,
   ResourceUpdateNode,
@@ -45,7 +46,7 @@ import {
   TranscribeParakeetNode,
   TranscribeWhisperNode
 } from './nodes';
-import { FastWhisperPlugin, FfmpegPlugin, FunASRPlugin, ParakeetPlugin, TesseractPlugin, WhisperPlugin } from './plugins';
+import { FastWhisperPlugin, FfmpegPlugin, FunASRPlugin, PaddleOcrPlugin, ParakeetPlugin, TesseractPlugin, WhisperPlugin } from './plugins';
 import { getNode, listNodes, listPlugins, registerNode, registerPlugin } from './registry';
 import { WorkflowStore } from './store';
 import type { NodeConfig, ResourceProjectContext, WorkflowDefinition, WorkflowRunRecord } from './types';
@@ -128,6 +129,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
   registerPlugin(FunASRPlugin);
   registerPlugin(FastWhisperPlugin);
   registerPlugin(ParakeetPlugin);
+  registerPlugin(PaddleOcrPlugin);
   registerPlugin(TesseractPlugin);
   registerPlugin(WhisperPlugin);
   // Register nodes
@@ -144,6 +146,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
     TranscodeNode,
     TranscodeAdvancedNode,
     OCRNode,
+    PaddleOCRNode,
     TranscribeWhisperNode,
     TranscribeFastWhisperNode,
     TranscribeParakeetNode,

@@ -16,6 +16,7 @@ export { JsonParseNode } from './json-parse';
 export { JsonStringifyNode } from './json-stringify';
 export { MusicGenerateNode } from './music-generate';
 export { OCRNode } from './ocr';
+export { PaddleOCRNode } from './paddle-ocr';
 export { ResourceCreateNode } from './resource-create';
 export { ResourceLoadNode } from './resource-load';
 export { ResourceUpdateNode } from './resource-update';

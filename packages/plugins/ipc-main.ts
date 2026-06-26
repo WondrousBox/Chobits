@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -11,7 +12,7 @@ import { DownloadProgress, PluginResource, pluginResourceManager } from '.';
 import { PluginConfigStore } from './plugin-config-store';
 import { getPluginForCurrentPlatform, loadPluginDefinitions } from './plugin-loader';
 import { PluginResourceStore } from './plugin-resource-store';
-import { isSystemPresetPlugin } from './types';
+import { isSystemPresetPlugin, type PluginDefinition } from './types';
 
 // 存储获取 proxy 的方法
 let getHttpProxyFn: (() => ProxyAgent | undefined) | null = null;
@@ -20,6 +21,45 @@ let getPluginDefinitionsPathFn: (() => string) | null = null;
 // 存储进度回调函数
 let onProgressFn: ((info: DownloadProgress) => void) | null = null;
 const pendingInstallRequests = new Map<string, Promise<{ ok: boolean; data?: any; error?: string; message?: string }>>();
+
+function getFilesSizeBytes(files?: PluginResource['files']): number | undefined {
+  if (!files?.length) return undefined;
+  const total = files.reduce((sum, file) => sum + (file.sizeBytes || 0), 0);
+  return total > 0 ? total : undefined;
+}
+
+function getFilesDigest(files?: PluginResource['files']): string | undefined {
+  if (!files?.length || files.some((file) => !file.sha256)) return undefined;
+  const payload = files.map((file) => `${file.path}:${file.sha256}`).join('|');
+  return crypto.createHash('sha256').update(payload).digest('hex');
+}
+
+function getDeterministicResourceId(pluginDef: PluginDefinition, platformInfo?: PluginDefinition['platforms'][number]): string {
+  const deterministicHash = platformInfo?.sha256 || getFilesDigest(platformInfo?.files);
+  return `${pluginDef.pluginId}_${pluginDef.type}_${pluginDef.id}_${pluginDef.version}${deterministicHash ? `_${deterministicHash}` : ''}`;
+}
+
+function hydrateResourceFromDefinition(pluginDef: PluginDefinition, platformInfo?: PluginDefinition['platforms'][number]): PluginResource {
+  const resource: PluginResource = {
+    id: getDeterministicResourceId(pluginDef, platformInfo),
+    pluginId: pluginDef.pluginId,
+    resourceId: pluginDef.id,
+    type: pluginDef.type,
+    name: pluginDef.name,
+    displayName: pluginDef.displayName,
+    version: pluginDef.version,
+    binaryName: pluginDef.binaryName,
+    archiveType: pluginDef.archiveType || 'zip',
+    sourceUrl: platformInfo?.sourceUrl,
+    sizeBytes: platformInfo?.sizeBytes || getFilesSizeBytes(platformInfo?.files),
+    sha256: platformInfo?.sha256,
+    files: platformInfo?.files,
+    status: 'installed'
+  };
+  resource.installPath =
+    resource.type === 'engine' ? pluginResourceManager.getEnginePath(resource.pluginId, resource.binaryName || resource.name) : pluginResourceManager.getModelPath(resource.pluginId, resource.name);
+  return resource;
+}
 
 export interface InitOptions {
   getHttpProxy?: () => ProxyAgent | undefined;
@@ -72,6 +112,18 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
 
     const all = PluginResourceStore.list();
     const installedEngines = all.filter((r) => r.type === 'engine' && r.status === 'installed' && pluginResourceManager.isInstalled(r));
+    const installedIds = new Set(installedEngines.map((engine) => engine.id));
+    const hydratedEngines = definitions
+      .filter((definition) => definition.type === 'engine' && !isSystemPresetPlugin(definition))
+      .map((definition) => {
+        const platformInfo = getPluginForCurrentPlatform(definition);
+        return platformInfo ? hydrateResourceFromDefinition(definition, platformInfo) : null;
+      })
+      .filter((resource): resource is PluginResource => resource !== null && !installedIds.has(resource.id) && pluginResourceManager.isInstalled(resource))
+      .map((resource) => {
+        PluginResourceStore.upsert(resource);
+        return resource;
+      });
 
     // 合并系统预设引擎和已安装的引擎
     return [
@@ -87,7 +139,8 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
         archiveType: d.archiveType,
         status: 'installed' as const
       })),
-      ...installedEngines
+      ...installedEngines,
+      ...hydratedEngines
     ];
   });
 
@@ -114,10 +167,11 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
 
   // 列出所有资源
   ipcMain.handle('plugin-resource:list', async (_e, payload?: { pluginId?: string; type?: 'engine' | 'model' }) => {
+    let definitions: PluginDefinition[] = [];
     // 获取系统预设插件
     let systemPresetResources: any[] = [];
     if (getPluginDefinitionsPathFn) {
-      const definitions = await loadPluginDefinitions(getPluginDefinitionsPathFn());
+      definitions = await loadPluginDefinitions(getPluginDefinitionsPathFn());
       const systemPresetPlugins = definitions.filter((d) => isSystemPresetPlugin(d));
 
       systemPresetResources = systemPresetPlugins
@@ -151,6 +205,28 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
     } else {
       installedResources = PluginResourceStore.list();
     }
+
+    const installedIds = new Set(installedResources.map((resource) => resource.id));
+    const hydratedResources = definitions
+      .filter((definition) => {
+        if (isSystemPresetPlugin(definition)) return false;
+        if (payload?.pluginId && definition.pluginId !== payload.pluginId) return false;
+        if (payload?.type && definition.type !== payload.type) return false;
+        return true;
+      })
+      .map((definition) => {
+        const platformInfo = getPluginForCurrentPlatform(definition);
+        return platformInfo ? hydrateResourceFromDefinition(definition, platformInfo) : null;
+      })
+      .filter((resource): resource is PluginResource => resource !== null && !installedIds.has(resource.id) && pluginResourceManager.isInstalled(resource));
+
+    installedResources = [
+      ...installedResources,
+      ...hydratedResources.map((resource) => {
+        PluginResourceStore.upsert(resource);
+        return resource;
+      })
+    ];
 
     // 合并系统预设和已安装的资源，去重（以 id 为准）
     const resourceMap = new Map<string, any>();
@@ -217,7 +293,7 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
       }
 
       // 构建确定性资源ID：pluginId_version[_sha256]
-      const deterministicId = `${pluginDef.pluginId}_${pluginDef.type}_${pluginDef.id}_${pluginDef.version}${platformInfo.sha256 ? `_${platformInfo.sha256}` : ''}`;
+      const deterministicId = getDeterministicResourceId(pluginDef, platformInfo);
       console.log('deterministicId', deterministicId);
 
       // 如果已存在同ID资源，避免重复安装
@@ -237,28 +313,8 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
       }
 
       // 构建资源对象
-      const resource: PluginResource = {
-        id: deterministicId,
-        pluginId: pluginDef.pluginId,
-        resourceId: pluginDef.id,
-        type: pluginDef.type,
-        name: pluginDef.name,
-        displayName: pluginDef.displayName,
-        version: pluginDef.version,
-        binaryName: pluginDef.binaryName,
-        archiveType: pluginDef.archiveType || 'zip',
-        sourceUrl: platformInfo.sourceUrl,
-        sizeBytes: platformInfo.sizeBytes,
-        sha256: platformInfo.sha256,
-        status: 'queued'
-      };
-
-      // 设置 installPath 以便正确检查是否已安装
-      if (resource.type === 'engine') {
-        resource.installPath = pluginResourceManager.getEnginePath(resource.pluginId, resource.binaryName || resource.name);
-      } else {
-        resource.installPath = pluginResourceManager.getModelPath(resource.pluginId, resource.name);
-      }
+      const resource = hydrateResourceFromDefinition(pluginDef, platformInfo);
+      resource.status = 'queued';
 
       // 检查是否已安装（基于文件存在）
       if (pluginResourceManager.isInstalled(resource)) {
@@ -289,7 +345,12 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
         console.warn('[pluginResource] open download window failed', error);
       }
 
-      eventManager.emit(AppEvent.SPRITE_PLUGIN_INSTALL, { name: queuedResource.name || queuedResource.id });
+      const resourceLabel = queuedResource.displayName || queuedResource.name || queuedResource.id;
+      eventManager.emit(AppEvent.SPRITE_DOWNLOAD_START, {
+        name: queuedResource.name || queuedResource.id,
+        message: `${queuedResource.type === 'model' ? '模型' : '插件'}下载中: ${resourceLabel}`,
+        progress: 0
+      });
       return { ok: true, data: queuedResource };
     })();
 
@@ -347,13 +408,33 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
     return { ok: true, path: modelPath };
   });
 
-  // 删除资源（从store中移除，不删除文件）
-  ipcMain.handle('plugin-resource:remove', async (_e, payload: { id: string }) => {
+  // 删除资源。默认只移除记录；deleteFiles=true 时同时删除受管理的安装文件。
+  ipcMain.handle('plugin-resource:remove', async (_e, payload: { id: string; deleteFiles?: boolean }) => {
+    let resource = PluginResourceStore.get(payload.id);
+    if (!resource && getPluginDefinitionsPathFn) {
+      const definitions = await loadPluginDefinitions(getPluginDefinitionsPathFn());
+      const pluginDef = definitions.find((def) => {
+        if (isSystemPresetPlugin(def)) return payload.id === `${def.pluginId}_${def.type}_${def.id}_${def.version}`;
+        const platformInfo = getPluginForCurrentPlatform(def);
+        return payload.id === getDeterministicResourceId(def, platformInfo);
+      });
+      const platformInfo = pluginDef ? getPluginForCurrentPlatform(pluginDef) : undefined;
+      if (pluginDef && platformInfo) {
+        const candidate = hydrateResourceFromDefinition(pluginDef, platformInfo);
+        if (pluginResourceManager.isInstalled(candidate)) {
+          resource = candidate;
+        }
+      }
+    }
+    let deletedPaths: string[] = [];
+    if (resource && payload.deleteFiles) {
+      deletedPaths = await pluginResourceManager.removeInstalledFiles(resource);
+    }
     const removed = PluginResourceStore.remove(payload.id);
-    if (removed) {
+    if (removed || deletedPaths.length > 0) {
       eventManager.emit(AppEvent.SPRITE_PLUGIN_REMOVE, { name: payload.id });
     }
-    return { ok: removed };
+    return { ok: removed || deletedPaths.length > 0, deletedPaths };
   });
 
   // 获取下载目录

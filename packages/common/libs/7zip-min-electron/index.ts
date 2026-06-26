@@ -13,6 +13,7 @@ const path7za = path.resolve(
 
 type CallbackFn = (err: Error | null, result?: any) => void;
 type ProgressFn = (progress: { progress: number; index: number }) => void;
+type ExtraArgs = string | readonly string[];
 
 interface ListItem {
   name?: string;
@@ -36,19 +37,15 @@ interface ListItem {
  * @param {function} [cb] - callback function. Will be called once unpack is done. If no errors, first parameter will contain `null`
  * NOTE: Providing destination path is optional. In case it is not provided, cb is expected as the second argument to function.
  */
-export function unpack(pathToPack: string, destPathOrCb: string | CallbackFn, cb?: CallbackFn, p?: ProgressFn, x?: string): void {
+export function unpack(pathToPack: string, destPathOrCb: string | CallbackFn, cb?: CallbackFn, p?: ProgressFn, x?: ExtraArgs): void {
   if (typeof destPathOrCb === 'function' && cb === undefined) {
     const callback = destPathOrCb;
     const arg = ['x', pathToPack, '-y', '-bsp1'];
-    if (x) {
-      arg.push(x);
-    }
+    appendExtraArgs(arg, x);
     run(path7za, arg, callback, p);
   } else {
     const arg = ['x', pathToPack, '-y', '-o' + destPathOrCb, '-bsp1'];
-    if (x) {
-      arg.push(x);
-    }
+    appendExtraArgs(arg, x);
     run(path7za, arg, cb!, p);
   }
 }
@@ -98,6 +95,11 @@ function extractProgressAndIndex(str: string): { progress: number; index: number
   }
 
   return { progress: -1, index: -1 };
+}
+
+function appendExtraArgs(args: string[], extraArgs?: ExtraArgs): void {
+  if (!extraArgs) return;
+  args.push(...(Array.isArray(extraArgs) ? extraArgs : [extraArgs]));
 }
 
 function run(bin: string, args: string[], cb: CallbackFn, p?: ProgressFn, options?: SpawnOptionsWithoutStdio): void {

@@ -38,7 +38,9 @@ const getPackageSize = (resource: PluginDefinition): number | undefined => {
     match = resource.platforms.find((p) => p.platform === 'all');
   }
 
-  return match?.sizeBytes;
+  if (match?.sizeBytes) return match.sizeBytes;
+  const filesSize = match?.files?.reduce((sum, file) => sum + (file.sizeBytes || 0), 0);
+  return filesSize && filesSize > 0 ? filesSize : undefined;
 };
 
 // 分类代码到中文名称的映射
@@ -192,6 +194,7 @@ export const PluginListItem: React.FC<PluginListItemProps> = ({ resource, instal
   // 获取包大小
   const packageSize = getPackageSize(resource);
   const displaySize = installedResource?.sizeBytes || packageSize;
+  const resourceLabel = resource.type === 'model' ? '模型' : '插件';
 
   const content = (
     <>
@@ -224,10 +227,11 @@ export const PluginListItem: React.FC<PluginListItemProps> = ({ resource, instal
               return (
                 <span
                   key={lang}
-                  className={`text-[10px] px-1.5 py-0.5 rounded ${isMulti
+                  className={`text-[10px] px-1.5 py-0.5 rounded ${
+                    isMulti
                       ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 dark:from-purple-900/40 dark:to-pink-900/40 dark:text-purple-300 font-medium'
                       : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                    }`}
+                  }`}
                 >
                   {getLanguageName(lang)}
                 </span>
@@ -301,8 +305,8 @@ export const PluginListItem: React.FC<PluginListItemProps> = ({ resource, instal
         <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>删除插件</DialogTitle>
-              <DialogDescription>确定要删除 &quot;{resource.displayName || resource.name}&quot; 吗？此操作将从列表中移除该插件，但不会删除已下载的文件。</DialogDescription>
+              <DialogTitle>删除{resourceLabel}</DialogTitle>
+              <DialogDescription>确定要删除 &quot;{resource.displayName || resource.name}&quot; 吗？此操作会移除安装记录并删除本地已下载文件，之后再次使用需要重新下载。</DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>

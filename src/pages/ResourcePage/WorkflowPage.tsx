@@ -38,11 +38,11 @@ const WorkflowPage: React.FC = () => {
     Record<
       string,
       | {
-        ok: boolean;
-        errors?: string[];
-        missingPlugins?: { id: string; hint?: string }[];
-        missingModels?: { pluginId: string; modelName: string; resourceId?: string; displayName?: string }[];
-      }
+          ok: boolean;
+          errors?: string[];
+          missingPlugins?: { id: string; hint?: string }[];
+          missingModels?: { pluginId: string; modelName: string; resourceId?: string; displayName?: string }[];
+        }
       | undefined
     >
   >({});
@@ -222,8 +222,12 @@ const WorkflowPage: React.FC = () => {
         deleteAfterInstall: true
       });
       if (result.ok) {
-        // 安装成功后，重新校验工作流
-        setRefreshTick((t) => t + 1);
+        if (result.data?.status === 'installed') {
+          // 安装成功后，重新校验工作流
+          setRefreshTick((t) => t + 1);
+        } else {
+          alert('插件已加入下载队列，请下载完成后再运行工作流。');
+        }
       } else {
         alert(`安装失败: ${result.error || '未知错误'}`);
       }
@@ -253,8 +257,12 @@ const WorkflowPage: React.FC = () => {
         deleteAfterInstall: true
       });
       if (result.ok) {
-        // 安装成功后，重新校验工作流
-        setRefreshTick((t) => t + 1);
+        if (result.data?.status === 'installed') {
+          // 安装成功后，重新校验工作流
+          setRefreshTick((t) => t + 1);
+        } else {
+          alert('模型已加入下载队列，请下载完成后再运行工作流。');
+        }
       } else {
         alert(`安装失败: ${result.error || '未知错误'}`);
       }
