@@ -97,6 +97,7 @@ export function useMediaThumbnails(
       width: number,
       height: number
     ) => Promise<MediaThumbnail[]>;
+    thumbnailLoadFailedMessage?: string;
   }
 ) {
   const {
@@ -104,7 +105,8 @@ export function useMediaThumbnails(
     thumbnailCount,
     thumbnailWidth = MEDIA_CONFIG.THUMBNAIL_WIDTH,
     thumbnailHeight = MEDIA_CONFIG.THUMBNAIL_HEIGHT,
-    loadThumbnails
+    loadThumbnails,
+    thumbnailLoadFailedMessage = 'Failed to load thumbnail'
   } = options ?? {};
 
   const [thumbnails, setThumbnails] = useState<MediaThumbnail[]>(segment?.thumbnails ?? []);
@@ -174,12 +176,12 @@ export function useMediaThumbnails(
       setThumbnails(result);
       lastLoadKeyRef.current = cacheKey;
     } catch (err) {
-      setError(err instanceof Error ? err.message : '加载缩略图失败');
+      setError(err instanceof Error ? err.message : thumbnailLoadFailedMessage);
     } finally {
       setLoading(false);
       loadingRef.current = false;
     }
-  }, [segment, loadThumbnails, desiredCount, thumbnailWidth, thumbnailHeight]);
+  }, [segment, loadThumbnails, desiredCount, thumbnailWidth, thumbnailHeight, thumbnailLoadFailedMessage]);
 
   // 自动加载
   useEffect(() => {
@@ -269,9 +271,10 @@ export function useMediaThumbnailsBatch(
       width: number,
       height: number
     ) => Promise<MediaThumbnail[]>;
+    thumbnailLoadFailedMessage?: string;
   }
 ) {
-  const { autoLoad = true, loadThumbnails } = options ?? {};
+  const { autoLoad = true, loadThumbnails, thumbnailLoadFailedMessage = 'Failed to load thumbnail' } = options ?? {};
 
   const [thumbnailMap, setThumbnailMap] = useState<Map<string, MediaThumbnail[]>>(new Map());
   const [loadingMap, setLoadingMap] = useState<Map<string, boolean>>(new Map());
@@ -329,7 +332,7 @@ export function useMediaThumbnailsBatch(
         globalThumbnailCache.set(cacheKey, result);
         newThumbnailMap.set(segment.id, result);
       } catch (err) {
-        newErrorMap.set(segment.id, err instanceof Error ? err.message : '加载缩略图失败');
+        newErrorMap.set(segment.id, err instanceof Error ? err.message : thumbnailLoadFailedMessage);
       } finally {
         newLoadingMap.set(segment.id, false);
       }
@@ -340,7 +343,7 @@ export function useMediaThumbnailsBatch(
     setThumbnailMap(newThumbnailMap);
     setLoadingMap(newLoadingMap);
     setErrorMap(newErrorMap);
-  }, [segments, loadThumbnails, thumbnailMap, loadingMap, errorMap]);
+  }, [segments, loadThumbnails, thumbnailMap, loadingMap, errorMap, thumbnailLoadFailedMessage]);
 
   useEffect(() => {
     if (autoLoad) {

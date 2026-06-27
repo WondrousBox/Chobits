@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
+import { useLabels } from '../../context';
 import type { ViewportState, WaveformData } from '../../types';
 
 /**
@@ -70,6 +71,7 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
   containerWidth = 800
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const labels = useLabels();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [actualContainerWidth, setActualContainerWidth] = useState(containerWidth);
 
@@ -235,7 +237,7 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
       <div ref={wrapperRef} className="flex-1 overflow-hidden relative" style={{ height }}>
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-muted/50">
-            <span className="text-xs text-muted-foreground">加载波形中...</span>
+            <span className="text-xs text-muted-foreground">{labels.blockWaveformLoading}</span>
           </div>
         )}
 
@@ -249,7 +251,7 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
 
         {!isLoading && !error && !waveformData && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-xs text-muted-foreground">暂无波形数据</span>
+            <span className="text-xs text-muted-foreground">{labels.waveformNoData}</span>
           </div>
         )}
 
@@ -262,7 +264,11 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
 
         {/* 音频结束截止线 */}
         {totalDuration > 0 && (
-          <div className="absolute top-0 bottom-0 w-0.5 bg-orange-500 z-10 pointer-events-none" style={{ left: totalDuration * pixelsPerSecond - scrollLeft }} title={`音频结束: ${totalDuration.toFixed(2)}s`} />
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-orange-500 z-10 pointer-events-none"
+            style={{ left: totalDuration * pixelsPerSecond - scrollLeft }}
+            title={labels.audioEnd.replace('{time}', totalDuration.toFixed(2))}
+          />
         )}
       </div>
     </div>

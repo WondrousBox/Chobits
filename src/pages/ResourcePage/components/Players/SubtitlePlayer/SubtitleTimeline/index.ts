@@ -4,6 +4,7 @@ export { SubtitleTimeline } from './SubtitleTimeline';
 // 类型
 export type {
   BaseSegment,
+  ClipCutOptions,
   ClipSegment,
   ClipTool,
   ClipTrackCallbacks,

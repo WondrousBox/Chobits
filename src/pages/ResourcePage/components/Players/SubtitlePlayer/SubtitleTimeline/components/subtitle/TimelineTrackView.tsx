@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import React, { useCallback, useMemo, useRef } from 'react';
 
 import type { WordTimestamp } from '../../../../MediaPlayer/subtitleDisplayEvent';
+import { useLabels } from '../../context';
 import { DEFAULT_CONFIG, TimelineSegment, TimelineTrack, ViewportState } from '../../types';
 import { detectOverlappingSegments } from '../../utils';
 import { InlinePendingSegmentInput } from '../shared/InlinePendingSegmentInput';
@@ -100,6 +101,7 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
 }) => {
   const height = track.height ?? DEFAULT_CONFIG.TRACK_HEIGHT;
   const trackRef = useRef<HTMLDivElement>(null);
+  const labels = useLabels();
   /** mousedown 时的横向滚动位置，用于区分「点击空白」与「拖拽滚动后松开」 */
   const scrollLeftAtMouseDownRef = useRef<number | null>(null);
 
@@ -257,7 +259,11 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
       }
 
       {/* 音频结束截止线 */}
-      <div className="absolute top-0 bottom-0 w-0.5 bg-orange-500 z-10 pointer-events-none" style={{ left: timeToPixel(totalDuration) }} title={`音频结束: ${totalDuration.toFixed(2)}s`} />
+      <div
+        className="absolute top-0 bottom-0 w-0.5 bg-orange-500 z-10 pointer-events-none"
+        style={{ left: timeToPixel(totalDuration) }}
+        title={labels.audioEnd.replace('{time}', totalDuration.toFixed(2))}
+      />
     </div>
   );
 };

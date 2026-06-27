@@ -5,7 +5,7 @@ import { TbBookmark, TbHighlight, TbNote, TbTrash, TbVocabulary } from 'react-ic
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 import type { AnnotationItem } from '../../adapters/types';
-import { useAnnotationAdapter } from '../../context';
+import { useAnnotationAdapter, useLabels } from '../../context';
 import type { AnnotationTrackCallbacks, ViewportState } from '../../types';
 import { DEFAULT_CONFIG } from '../../types';
 
@@ -48,6 +48,7 @@ const ANNOTATION_TYPE_ICONS: Record<string, React.ReactNode> = {
 export const AnnotationTrack: React.FC<AnnotationTrackProps> = ({ annotations, width, pixelsPerSecond, viewport, callbacks, disabled = false }) => {
   // Get annotation adapter from context
   const annotationAdapter = useAnnotationAdapter();
+  const labels = useLabels();
 
   // 虚拟化：只渲染视口内的标注（带缓冲区）
   const bufferSeconds = 5;
@@ -118,7 +119,7 @@ export const AnnotationTrack: React.FC<AnnotationTrackProps> = ({ annotations, w
                     <button
                       onClick={() => callbacks.onAnnotationDelete?.(annotation.id)}
                       className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors shrink-0"
-                      title="Delete annotation"
+                      title={labels.annotationDelete}
                     >
                       <TbTrash className="w-3 h-3" />
                     </button>

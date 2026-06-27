@@ -2156,8 +2156,8 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   /** 剪辑轨道回调集合 */
   const clipCallbacks = useMemo(
     (): ClipTrackCallbacks => ({
-      onClipCut: (time: number) => {
-        setClipSegments((prev) => ClipSequence.cutAtTime(prev, time));
+      onClipCut: (time, options) => {
+        setClipSegments((prev) => ClipSequence.cutAtTime(prev, time, options));
       },
       onClipDelete: (clipId: string) => {
         setClipSegments((prev) => ClipSequence.deleteClip(prev, clipId));

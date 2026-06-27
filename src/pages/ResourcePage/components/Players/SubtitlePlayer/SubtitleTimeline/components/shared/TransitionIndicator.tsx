@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import React from 'react';
 import { TbArrowBarRight, TbArrowBarToLeft, TbArrowBarToRight, TbBlur } from 'react-icons/tb';
 
+import { useLabels } from '../../context';
 import type { MediaTransition, TransitionType } from '../../types';
 
 interface TransitionIndicatorProps {
@@ -26,16 +27,16 @@ const TransitionIcons: Record<TransitionType, React.ElementType> = {
   'wipe-right': TbArrowBarToLeft
 };
 
-/**
- * 转场类型名称映射
- */
-const TransitionNames: Record<TransitionType, string> = {
-  none: '无',
-  fade: '淡入淡出',
-  dissolve: '溶解',
-  'wipe-left': '左擦除',
-  'wipe-right': '右擦除'
-};
+function getTransitionName(labels: ReturnType<typeof useLabels>, type: TransitionType): string {
+  const names: Record<TransitionType, string> = {
+    none: labels.transitionTypeNone,
+    fade: labels.transitionTypeFade,
+    dissolve: labels.transitionTypeDissolve,
+    'wipe-left': labels.transitionTypeWipeLeft,
+    'wipe-right': labels.transitionTypeWipeRight
+  };
+  return names[type];
+}
 
 /**
  * TransitionIndicator - 转场效果指示器
@@ -43,11 +44,13 @@ const TransitionNames: Record<TransitionType, string> = {
  * 在片段边缘显示转场效果的视觉指示
  */
 export const TransitionIndicator: React.FC<TransitionIndicatorProps> = ({ transition, position, height, className }) => {
+  const labels = useLabels();
   if (!transition || transition.type === 'none') {
     return null;
   }
 
   const Icon = TransitionIcons[transition.type] || TbArrowBarRight;
+  const transitionName = getTransitionName(labels, transition.type);
   const width = Math.min(24, transition.duration * 50); // 基于转场时长计算宽度
 
   return (
@@ -59,7 +62,7 @@ export const TransitionIndicator: React.FC<TransitionIndicatorProps> = ({ transi
         className
       )}
       style={{ width, height }}
-      title={`${position === 'in' ? '入场' : '出场'}转场: ${TransitionNames[transition.type]} (${transition.duration}s)`}
+      title={`${position === 'in' ? labels.transitionIn : labels.transitionOut} ${labels.transitionLabel}: ${transitionName} (${transition.duration}s)`}
     >
       <Icon className={clsx('w-3 h-3 text-white/70', position === 'in' ? 'ml-0.5' : 'mr-0.5')} />
     </div>
@@ -76,7 +79,9 @@ interface TransitionBadgeProps {
 }
 
 export const TransitionBadge: React.FC<TransitionBadgeProps> = ({ type, selected, onClick }) => {
+  const labels = useLabels();
   const Icon = TransitionIcons[type];
+  const transitionName = getTransitionName(labels, type);
 
   return (
     <button
@@ -86,10 +91,10 @@ export const TransitionBadge: React.FC<TransitionBadgeProps> = ({ type, selected
         selected ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80 text-foreground'
       )}
       onClick={onClick}
-      title={TransitionNames[type]}
+      title={transitionName}
     >
       <Icon className="w-3.5 h-3.5" />
-      <span>{TransitionNames[type]}</span>
+      <span>{transitionName}</span>
     </button>
   );
 };

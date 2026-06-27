@@ -28,6 +28,8 @@ import { ClipTool, DEFAULT_CONFIG, SubtitleTimelineProps, TRACK_COLORS, Viewport
 import { parseSegmentId } from './utils';
 
 const audioWaveformHeight = 40;
+const SCROLL_SYNC_THRESHOLD_PX = 0.5;
+const SEEK_SYNC_THRESHOLD_SECONDS = 0.001;
 
 function isEditableElement(element: Element | null): boolean {
   if (!(element instanceof HTMLElement)) return false;
@@ -119,6 +121,15 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollLeftRef = useRef(0);
+  const scrollStateRafRef = useRef<number | null>(null);
+  const scrollToTimeRafRef = useRef<number | null>(null);
+  const panSeekRafRef = useRef<number | null>(null);
+  const pendingPanSeekTimeRef = useRef<number | null>(null);
+  const suppressScrollSeekRafRef = useRef<number | null>(null);
+  const effectiveCurrentTimeRef = useRef(0);
+  const isPlayingRef = useRef(isPlaying);
+  const resumePlaybackAfterPanRef = useRef(false);
   const [containerWidth, setContainerWidth] = useState(800);
   const [scrollContainerWidth, setScrollContainerWidth] = useState(384);
   const [scrollLeft, setScrollLeft] = useState(0);
@@ -221,6 +232,41 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   // 生效的当前时间：优先外部的 currentTime，否则使用 mockCurrentTime
   const effectiveCurrentTime = currentTime ?? mockCurrentTime;
   const followMode = followCurrentTime;
+  effectiveCurrentTimeRef.current = effectiveCurrentTime;
+  isPlayingRef.current = isPlaying;
+
+  const getViewportWidth = useCallback(
+    (scrollContainer: HTMLDivElement): number => {
+      return scrollContainer.clientWidth || scrollContainerWidth || timelineContentWidth;
+    },
+    [scrollContainerWidth, timelineContentWidth]
+  );
+
+  const getViewportCenterTime = useCallback(
+    (scrollContainer: HTMLDivElement): number => {
+      const viewportWidth = getViewportWidth(scrollContainer);
+      return Math.max(0, Math.min(duration, (scrollContainer.scrollLeft + viewportWidth / 2) / pixelsPerSecond));
+    },
+    [duration, getViewportWidth, pixelsPerSecond]
+  );
+
+  const seekViewportCenter = useCallback(
+    (scrollContainer: HTMLDivElement) => {
+      const nextTime = getViewportCenterTime(scrollContainer);
+      pendingPanSeekTimeRef.current = nextTime;
+      if (Math.abs(nextTime - effectiveCurrentTimeRef.current) < SEEK_SYNC_THRESHOLD_SECONDS) return;
+      if (panSeekRafRef.current !== null) return;
+
+      panSeekRafRef.current = window.requestAnimationFrame(() => {
+        panSeekRafRef.current = null;
+        const pendingTime = pendingPanSeekTimeRef.current;
+        pendingPanSeekTimeRef.current = null;
+        if (pendingTime === null || Math.abs(pendingTime - effectiveCurrentTimeRef.current) < SEEK_SYNC_THRESHOLD_SECONDS) return;
+        handleSeekUnified(pendingTime);
+      });
+    },
+    [getViewportCenterTime, handleSeekUnified]
+  );
 
   // 滚动到指定时间。instant 为 true 时无动画、瞬间到位，用于跟随当前时间，避免滞后
   const scrollToTime = useCallback(
@@ -228,17 +274,62 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
       const scrollContainer = scrollContainerRef.current;
       if (!scrollContainer) return;
 
-      const targetScrollLeft = Math.max(0, time * pixelsPerSecond - timelineContentWidth / 2);
+      const applyScroll = (): void => {
+        const currentScrollContainer = scrollContainerRef.current;
+        if (!currentScrollContainer) return;
+
+        const maxScrollLeft = Math.max(0, currentScrollContainer.scrollWidth - currentScrollContainer.clientWidth);
+        const targetScrollLeft = Math.min(maxScrollLeft, Math.max(0, time * pixelsPerSecond - getViewportWidth(currentScrollContainer) / 2));
+        if (Math.abs(currentScrollContainer.scrollLeft - targetScrollLeft) < SCROLL_SYNC_THRESHOLD_PX) return;
+
+        if (suppressScrollSeekRafRef.current !== null) {
+          window.cancelAnimationFrame(suppressScrollSeekRafRef.current);
+        }
+        if (instant) {
+          currentScrollContainer.scrollLeft = targetScrollLeft;
+        } else {
+          currentScrollContainer.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
+        }
+        suppressScrollSeekRafRef.current = window.requestAnimationFrame(() => {
+          suppressScrollSeekRafRef.current = null;
+        });
+      };
+
       if (instant) {
-        scrollContainer.scrollLeft = targetScrollLeft;
-      } else {
-        scrollContainer.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
+        if (scrollToTimeRafRef.current !== null) {
+          window.cancelAnimationFrame(scrollToTimeRafRef.current);
+        }
+        scrollToTimeRafRef.current = window.requestAnimationFrame(() => {
+          scrollToTimeRafRef.current = null;
+          applyScroll();
+        });
+        return;
       }
+
+      applyScroll();
     },
-    [pixelsPerSecond, timelineContentWidth]
+    [getViewportWidth, pixelsPerSecond]
   );
 
   // 缩放处理
+  useEffect(() => {
+    return () => {
+      if (scrollToTimeRafRef.current !== null) {
+        window.cancelAnimationFrame(scrollToTimeRafRef.current);
+        scrollToTimeRafRef.current = null;
+      }
+      if (panSeekRafRef.current !== null) {
+        window.cancelAnimationFrame(panSeekRafRef.current);
+        panSeekRafRef.current = null;
+      }
+      if (suppressScrollSeekRafRef.current !== null) {
+        window.cancelAnimationFrame(suppressScrollSeekRafRef.current);
+        suppressScrollSeekRafRef.current = null;
+      }
+      resumePlaybackAfterPanRef.current = false;
+    };
+  }, []);
+
   const handleZoom = useCallback(
     (factor: number, centerTime?: number) => {
       const scrollContainer = scrollContainerRef.current;
@@ -257,19 +348,46 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
 
       // 使用 requestAnimationFrame 确保在缩放后调整滚动位置
       requestAnimationFrame(() => {
-        scrollContainer.scrollLeft = Math.max(0, newScrollLeft);
+        const targetScrollLeft = Math.max(0, newScrollLeft);
+        if (Math.abs(scrollContainer.scrollLeft - targetScrollLeft) >= SCROLL_SYNC_THRESHOLD_PX) {
+          scrollContainer.scrollLeft = targetScrollLeft;
+          scrollLeftRef.current = targetScrollLeft;
+        }
       });
     },
     [scrollLeft, timelineContentWidth, pixelsPerSecond, minPixelsPerSecond, maxPixelsPerSecond]
   );
 
   // 平移处理（用于拖拽）
-  const handlePan = useCallback((deltaPixels: number) => {
-    const scrollContainer = scrollContainerRef.current;
-    if (!scrollContainer) return;
+  const handlePan = useCallback(
+    (deltaPixels: number) => {
+      const scrollContainer = scrollContainerRef.current;
+      if (!scrollContainer) return;
 
-    scrollContainer.scrollLeft += deltaPixels;
-  }, []);
+      scrollContainer.scrollLeft += deltaPixels;
+      scrollLeftRef.current = scrollContainer.scrollLeft;
+
+      if (followMode === 'center') {
+        seekViewportCenter(scrollContainer);
+      }
+    },
+    [followMode, seekViewportCenter]
+  );
+
+  const handlePanStart = useCallback(() => {
+    resumePlaybackAfterPanRef.current = isPlayingRef.current && !!onTogglePlayback;
+    if (resumePlaybackAfterPanRef.current) {
+      onTogglePlayback?.();
+    }
+  }, [onTogglePlayback]);
+
+  const handlePanEnd = useCallback(() => {
+    if (!resumePlaybackAfterPanRef.current) return;
+    resumePlaybackAfterPanRef.current = false;
+    window.requestAnimationFrame(() => {
+      onTogglePlayback?.();
+    });
+  }, [onTogglePlayback]);
 
   // 通过滑块调整缩放
   const handleSliderChange = useCallback(
@@ -284,7 +402,11 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
         const newScrollLeft = centerTime * newPps - timelineContentWidth / 2;
 
         requestAnimationFrame(() => {
-          scrollContainer.scrollLeft = Math.max(0, newScrollLeft);
+          const targetScrollLeft = Math.max(0, newScrollLeft);
+          if (Math.abs(scrollContainer.scrollLeft - targetScrollLeft) >= SCROLL_SYNC_THRESHOLD_PX) {
+            scrollContainer.scrollLeft = targetScrollLeft;
+            scrollLeftRef.current = targetScrollLeft;
+          }
         });
       }
     },
@@ -356,6 +478,8 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     disabled,
     onZoom: handleZoom,
     onPan: handlePan,
+    onPanStart: handlePanStart,
+    onPanEnd: handlePanEnd,
     pixelToTime, // 像素直接转时间（包含滚动偏移的计算在 hook 内部处理）
     onSeek: handleSeekUnified,
     onSegmentClick: handleSegmentClickInternal,
@@ -463,32 +587,45 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     if (!scrollContainer) return;
 
     const handleScroll = (): void => {
-      setScrollLeft(scrollContainer.scrollLeft);
+      const nextScrollLeft = scrollContainer.scrollLeft;
+      scrollLeftRef.current = nextScrollLeft;
+
+      if (scrollStateRafRef.current !== null) return;
+      scrollStateRafRef.current = window.requestAnimationFrame(() => {
+        scrollStateRafRef.current = null;
+        setScrollLeft((prev) => (Math.abs(prev - scrollLeftRef.current) < SCROLL_SYNC_THRESHOLD_PX ? prev : scrollLeftRef.current));
+      });
+
+      if (followMode === 'center' && suppressScrollSeekRafRef.current === null) {
+        seekViewportCenter(scrollContainer);
+      }
     };
 
     scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
-    return () => scrollContainer.removeEventListener('scroll', handleScroll);
-  }, []);
+    return () => {
+      scrollContainer.removeEventListener('scroll', handleScroll);
+      if (scrollStateRafRef.current !== null) {
+        window.cancelAnimationFrame(scrollStateRafRef.current);
+        scrollStateRafRef.current = null;
+      }
+    };
+  }, [followMode, seekViewportCenter]);
 
   // 当前时间改变时，检查是否需要滚动到可见区域
   useEffect(() => {
-    if (followMode === 'off' || effectiveCurrentTime === undefined) return;
+    if (followMode !== 'center' || effectiveCurrentTime === undefined) return;
 
-    if (followMode === 'center') {
+    scrollToTime(effectiveCurrentTime, true);
+  }, [effectiveCurrentTime, followMode, scrollToTime]);
+
+  useEffect(() => {
+    if (followMode !== 'visibility' || effectiveCurrentTime === undefined) return;
+    const currentX = effectiveCurrentTime * pixelsPerSecond;
+    const viewStart = scrollLeft;
+    const viewEnd = scrollLeft + timelineContentWidth;
+
+    if (currentX < viewStart || currentX > viewEnd) {
       scrollToTime(effectiveCurrentTime, true);
-      return;
-    }
-
-    if (followMode === 'visibility') {
-      // 如果当前时间在可视区域外，自动滚动
-      const currentX = effectiveCurrentTime * pixelsPerSecond;
-      const viewStart = scrollLeft;
-      const viewEnd = scrollLeft + timelineContentWidth;
-
-      // 只有当时间指示器完全不在视野内时才自动滚动；用 instant 避免动画导致跟随滞后
-      if (currentX < viewStart || currentX > viewEnd) {
-        scrollToTime(effectiveCurrentTime, true);
-      }
     }
   }, [effectiveCurrentTime, followMode, pixelsPerSecond, scrollLeft, timelineContentWidth, scrollToTime]);
 
@@ -562,6 +699,11 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   }, []);
 
   const totalSegmentCount = useMemo(() => tracks.reduce((sum, t) => sum + t.segments.length, 0), [tracks]);
+  const trackSegmentSummary = useMemo(() => {
+    const trackCount = labels.trackCount.replace('{count}', String(tracks.length));
+    const segmentCount = labels.segmentCount.replace('{count}', String(totalSegmentCount));
+    return labels.trackSegmentSummary.replace('{tracks}', trackCount).replace('{segments}', segmentCount);
+  }, [labels, totalSegmentCount, tracks.length]);
 
   const handleSeekBackward = useCallback(() => {
     handleSeekUnified(effectiveCurrentTime - 5);
@@ -578,9 +720,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
         <div className="flex items-center border-b bg-muted/30 shrink-0">
           {showTrackLabels && (
             <div className="flex items-center self-stretch px-2 border-r shrink-0 box-border" style={{ width: trackLabelWidth }}>
-              <div className="text-xs text-muted-foreground truncate">
-                {labels.trackCount.replace('{count}', String(tracks.length))} · {labels.segmentCount.replace('{count}', String(totalSegmentCount))}
-              </div>
+              <div className="text-xs text-muted-foreground truncate">{trackSegmentSummary}</div>
             </div>
           )}
 
@@ -646,13 +786,13 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
         <div className="flex items-center border-b bg-muted/30 shrink-0">
           {showTrackLabels && (
             <div className="flex items-center justify-center self-stretch gap-1 px-2 border-r shrink-0 box-border" style={{ width: trackLabelWidth }}>
-              <Button variant="ghost" size="sm" className="w-7 h-7 p-0" onClick={handleSeekBackward} title="后退 5 秒">
+              <Button variant="ghost" size="sm" className="w-7 h-7 p-0" onClick={handleSeekBackward} title={labels.seekBackward5}>
                 <TbRewindBackward5 />
               </Button>
-              <Button variant="ghost" size="sm" className="w-7 h-7 p-0" onClick={onTogglePlayback} disabled={!onTogglePlayback} title={isPlaying ? '暂停' : '播放'}>
+              <Button variant="ghost" size="sm" className="w-7 h-7 p-0" onClick={onTogglePlayback} disabled={!onTogglePlayback} title={isPlaying ? labels.blockPause : labels.blockPlay}>
                 {isPlaying ? <TbPlayerPause /> : <TbPlayerPlay />}
               </Button>
-              <Button variant="ghost" size="sm" className="w-7 h-7 p-0" onClick={handleSeekForward} title="前进 5 秒">
+              <Button variant="ghost" size="sm" className="w-7 h-7 p-0" onClick={handleSeekForward} title={labels.seekForward5}>
                 <TbRewindForward5 />
               </Button>
             </div>
