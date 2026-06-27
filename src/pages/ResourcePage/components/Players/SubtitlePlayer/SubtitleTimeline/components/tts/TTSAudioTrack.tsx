@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { useMediaAdapter } from '../../context';
+import { useLabels, useMediaAdapter } from '../../context';
 import type { TTSAudioItem } from '../../types';
 import { DEFAULT_CONFIG, ViewportState } from '../../types';
 import { detectOverlappingIndices, TimeRange } from '../../utils';
@@ -98,6 +98,7 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
 
   // Get media adapter from context and create waveform loader
   const mediaAdapter = useMediaAdapter();
+  const labels = useLabels();
   const waveformLoader = useMemo(() => createTTSWaveformLoader(mediaAdapter), [mediaAdapter]);
 
   const trackHeight = DEFAULT_CONFIG.TRACK_HEIGHT + DEFAULT_CONFIG.TRACK_GAP;
@@ -389,12 +390,16 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
         {/* 空轨道提示 */}
         {items.length === 0 && allowAddSegment && (
           <div className="absolute inset-0 flex items-center justify-start pointer-events-none px-2 bg-primary/20">
-            <span className="text-[10px] text-muted-foreground/60">点击添加配音片段</span>
+            <span className="text-[10px] text-muted-foreground/60">{labels.ttsTrackEmptyHint}</span>
           </div>
         )}
 
         {/* 音频结束截止线 */}
-        <div className="absolute top-0 bottom-0 w-0.5 bg-orange-500 z-10 pointer-events-none" style={{ left: totalDuration * pixelsPerSecond }} title={`音频结束: ${totalDuration.toFixed(2)}s`} />
+        <div
+          className="absolute top-0 bottom-0 w-0.5 bg-orange-500 z-10 pointer-events-none"
+          style={{ left: totalDuration * pixelsPerSecond }}
+          title={labels.audioEnd.replace('{time}', totalDuration.toFixed(2))}
+        />
       </div>
     </div>
   );

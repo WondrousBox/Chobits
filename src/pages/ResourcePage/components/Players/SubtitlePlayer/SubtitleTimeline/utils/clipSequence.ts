@@ -1,4 +1,4 @@
-import type { ClipSegment } from '../types';
+import type { ClipCutOptions, ClipSegment } from '../types';
 
 /**
  * 剪辑时间映射结果
@@ -374,7 +374,9 @@ export class ClipSequence {
   /**
    * 在指定的源时间点切割片段
    */
-  static cutAtTime(clips: ClipSegment[], cutTime: number): ClipSegment[] {
+  static cutAtTime(clips: ClipSegment[], cutTime: number, options?: ClipCutOptions): ClipSegment[] {
+    const beforeSuffix = options?.beforeSuffix ?? ' (before)';
+    const afterSuffix = options?.afterSuffix ?? ' (after)';
     const sorted = [...clips].sort((a, b) => a.sourceStart - b.sourceStart);
     const result: ClipSegment[] = [];
 
@@ -384,14 +386,14 @@ export class ClipSequence {
           ...clip,
           id: clip.id + '-L-' + Date.now(),
           sourceEnd: cutTime,
-          label: clip.label ? clip.label + ' (前)' : undefined
+          label: clip.label ? clip.label + beforeSuffix : undefined
         };
         const rightClip: ClipSegment = {
           ...clip,
           id: clip.id + '-R-' + Date.now(),
           sourceStart: cutTime,
           order: clip.order + 0.5,
-          label: clip.label ? clip.label + ' (后)' : undefined
+          label: clip.label ? clip.label + afterSuffix : undefined
         };
         result.push(leftClip, rightClip);
       } else {

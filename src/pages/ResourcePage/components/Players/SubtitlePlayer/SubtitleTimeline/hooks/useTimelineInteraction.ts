@@ -9,6 +9,8 @@ interface UseTimelineInteractionOptions {
   onZoom?: (factor: number, centerTime: number) => void;
   /** 平移回调（像素） */
   onPan?: (deltaPixels: number) => void;
+  onPanStart?: () => void;
+  onPanEnd?: () => void;
   /** 像素转时间 */
   pixelToTime?: (pixel: number) => number;
   /** 点击时间轴回调 */
@@ -40,10 +42,13 @@ interface UseTimelineInteractionReturn {
  * 时间轴交互 Hook
  * 处理鼠标滚轮缩放、拖拽平移等交互
  */
-export function useTimelineInteraction({ disabled = false, onZoom, onPan, pixelToTime, onSeek, onSegmentClick, onSegmentDoubleClick }: UseTimelineInteractionOptions): UseTimelineInteractionReturn {
+const PAN_START_THRESHOLD_PX = 3;
+
+export function useTimelineInteraction({ disabled = false, onZoom, onPan, onPanStart, onPanEnd, pixelToTime, onSeek, onSegmentClick, onSegmentDoubleClick }: UseTimelineInteractionOptions): UseTimelineInteractionReturn {
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
   const lastPosRef = useRef<{ x: number; y: number } | null>(null);
+  const hasPannedRef = useRef(false);
 
   // 滚轮缩放
   const onWheel = useCallback(
@@ -79,6 +84,7 @@ export function useTimelineInteraction({ disabled = false, onZoom, onPan, pixelT
       if (target.closest('[data-segment]') || target.closest('[data-tts-block]') || target.closest('[data-clip-block]') || target.closest('[data-clip-track]')) return;
 
       setIsDragging(true);
+      hasPannedRef.current = false;
       dragStartRef.current = { x: e.clientX, y: e.clientY };
       lastPosRef.current = { x: e.clientX, y: e.clientY };
       e.preventDefault();
@@ -89,13 +95,21 @@ export function useTimelineInteraction({ disabled = false, onZoom, onPan, pixelT
   // 拖拽移动
   const onMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (!isDragging || !lastPosRef.current) return;
+      if (!isDragging || !lastPosRef.current || !dragStartRef.current) return;
+
+      if (!hasPannedRef.current) {
+        const totalDx = Math.abs(e.clientX - dragStartRef.current.x);
+        const totalDy = Math.abs(e.clientY - dragStartRef.current.y);
+        if (totalDx < PAN_START_THRESHOLD_PX && totalDy < PAN_START_THRESHOLD_PX) return;
+        hasPannedRef.current = true;
+        onPanStart?.();
+      }
 
       const deltaX = lastPosRef.current.x - e.clientX;
       onPan?.(deltaX);
       lastPosRef.current = { x: e.clientX, y: e.clientY };
     },
-    [isDragging, onPan]
+    [isDragging, onPan, onPanStart]
   );
 
   // 拖拽结束
@@ -103,6 +117,7 @@ export function useTimelineInteraction({ disabled = false, onZoom, onPan, pixelT
     (e: React.MouseEvent) => {
       if (!isDragging) return;
 
+      const didPan = hasPannedRef.current;
       setIsDragging(false);
 
       // 检查是否为点击（移动距离很小）
@@ -110,7 +125,7 @@ export function useTimelineInteraction({ disabled = false, onZoom, onPan, pixelT
         const dx = Math.abs(e.clientX - dragStartRef.current.x);
         const dy = Math.abs(e.clientY - dragStartRef.current.y);
 
-        if (dx < 3 && dy < 3) {
+        if (!didPan && dx < 3 && dy < 3) {
           // 这是一个点击，触发 seek
           const target = e.target as HTMLElement;
           if (!target.closest('[data-segment]') && !target.closest('[data-clip-block]') && !target.closest('[data-clip-track]') && pixelToTime && onSeek) {
@@ -124,20 +139,29 @@ export function useTimelineInteraction({ disabled = false, onZoom, onPan, pixelT
         }
       }
 
+      if (didPan) {
+        onPanEnd?.();
+      }
+
       dragStartRef.current = null;
       lastPosRef.current = null;
+      hasPannedRef.current = false;
     },
-    [isDragging, pixelToTime, onSeek]
+    [isDragging, onPanEnd, pixelToTime, onSeek]
   );
 
   // 鼠标离开
   const onMouseLeave = useCallback(() => {
     if (isDragging) {
+      if (hasPannedRef.current) {
+        onPanEnd?.();
+      }
       setIsDragging(false);
       dragStartRef.current = null;
       lastPosRef.current = null;
+      hasPannedRef.current = false;
     }
-  }, [isDragging]);
+  }, [isDragging, onPanEnd]);
 
   // 片段点击
   const handleSegmentClick = useCallback(

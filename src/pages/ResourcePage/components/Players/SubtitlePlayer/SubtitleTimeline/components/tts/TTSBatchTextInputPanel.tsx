@@ -144,13 +144,13 @@ export const TTSBatchTextInputPanel: React.FC<TTSBatchTextInputPanelProps> = ({
   // 开始依次合成
   const handleStartSynthesis = useCallback(async () => {
     if (!config) {
-      console.warn('[TTSBatchTextInputPanel] 未配置 TTS 语音');
+      console.warn('[TTSBatchTextInputPanel] TTS voice is not configured');
       return;
     }
 
     const pendingLines = textLines.filter((line) => line.status === 'pending');
     if (pendingLines.length === 0) {
-      console.log('[TTSBatchTextInputPanel] 没有待合成的文本');
+      console.log('[TTSBatchTextInputPanel] No pending text to synthesize');
       return;
     }
 
@@ -166,7 +166,7 @@ export const TTSBatchTextInputPanel: React.FC<TTSBatchTextInputPanelProps> = ({
         setCurrentSynthesizingIndex(0);
       }
     } catch (error) {
-      console.error('[TTSBatchTextInputPanel] 合成失败:', error);
+      console.error('[TTSBatchTextInputPanel] Synthesis failed:', error);
       setIsLocalSynthesizing(false);
     }
   }, [config, textLines, parsedLines, existingSegmentCount, synthesizedCount, onSynthesize, updateLineStatus]);

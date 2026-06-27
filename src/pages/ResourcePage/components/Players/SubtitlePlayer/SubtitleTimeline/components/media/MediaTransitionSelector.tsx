@@ -161,6 +161,7 @@ interface TransitionTypeButtonProps {
 export const TransitionTypeButton: React.FC<TransitionTypeButtonProps> = ({ transition, position, onClick, isSelectorOpen = false }) => {
   const labels = useLabels();
   const hasTransition = transition && transition.type !== 'none';
+  const addTransitionTitle = (position === 'in' ? labels.transitionAddIn : labels.transitionAddOut).replace('{position}', position === 'in' ? labels.transitionIn : labels.transitionOut);
 
   return (
     <button
@@ -171,7 +172,7 @@ export const TransitionTypeButton: React.FC<TransitionTypeButtonProps> = ({ tran
         isSelectorOpen && 'ring-1 ring-primary'
       )}
       onClick={onClick}
-      title={hasTransition ? `${position === 'in' ? labels.transitionIn : labels.transitionOut}: ${transition.type} (${transition.duration}s)` : `添加${position === 'in' ? labels.transitionIn : labels.transitionOut}${labels.transitionLabel}`}
+      title={hasTransition ? `${position === 'in' ? labels.transitionIn : labels.transitionOut}: ${transition.type} (${transition.duration}s)` : addTransitionTitle}
     >
       {hasTransition ? <span className="text-[10px] font-mono">{transition.duration.toFixed(1)}</span> : <span className="text-[10px]">+</span>}
     </button>

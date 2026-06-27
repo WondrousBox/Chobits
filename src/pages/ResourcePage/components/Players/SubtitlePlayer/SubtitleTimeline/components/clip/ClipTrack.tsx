@@ -4,7 +4,8 @@ import { TbArrowBackUp } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
-import type { ClipSegment, ClipTool, ViewportState } from '../../types';
+import { useLabels } from '../../context';
+import type { ClipCutOptions, ClipSegment, ClipTool, ViewportState } from '../../types';
 import { DEFAULT_CONFIG } from '../../types';
 import { ClipSequence } from '../../utils';
 import { ClipSegmentBlock } from './ClipSegmentBlock';
@@ -39,7 +40,7 @@ interface ClipTrackProps {
   /** 选中的片段 ID - 统一命名为 selectedId */
   selectedId?: string | null;
   /** 在某个源时间点切割 */
-  onCut?: (sourceTime: number) => void;
+  onCut?: (sourceTime: number, options?: ClipCutOptions) => void;
   /** 删除片段（软删除） */
   onDelete?: (clipId: string) => void;
   /** 恢复已删除的片段 */
@@ -88,6 +89,7 @@ export const ClipTrack: React.FC<ClipTrackProps> = ({
   height
 }) => {
   const trackRef = useRef<HTMLDivElement>(null);
+  const labels = useLabels();
 
   const sequence = useMemo(() => new ClipSequence(clips), [clips]);
   const allInfos = useMemo(() => sequence.getAllPlaybackInfos(), [sequence]);
@@ -117,9 +119,12 @@ export const ClipTrack: React.FC<ClipTrackProps> = ({
       if (!rect) return;
       const x = e.clientX - rect.left;
       const sourceTime = x / pixelsPerSecond;
-      onCut(sourceTime);
+      onCut(sourceTime, {
+        beforeSuffix: labels.clipSplitBeforeSuffix,
+        afterSuffix: labels.clipSplitAfterSuffix
+      });
     },
-    [activeTool, onCut, pixelsPerSecond]
+    [activeTool, labels.clipSplitAfterSuffix, labels.clipSplitBeforeSuffix, onCut, pixelsPerSecond]
   );
 
   const handleClipClick = useCallback(
@@ -176,7 +181,7 @@ export const ClipTrack: React.FC<ClipTrackProps> = ({
               onClipSelect?.(info.clip.id);
             }}
           >
-            <span className="text-[9px] text-muted-foreground select-none">已删除</span>
+            <span className="text-[9px] text-muted-foreground select-none">{labels.clipDeleted}</span>
             {selectedId === info.clip.id && onRestore && (
               <Button
                 size="icon"
@@ -186,7 +191,7 @@ export const ClipTrack: React.FC<ClipTrackProps> = ({
                   e.stopPropagation();
                   onRestore(info.clip.id);
                 }}
-                title="恢复片段"
+                title={labels.blockRestore}
               >
                 <TbArrowBackUp className="w-3 h-3" />
               </Button>

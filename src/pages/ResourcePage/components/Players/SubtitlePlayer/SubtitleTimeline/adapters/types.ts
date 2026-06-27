@@ -133,12 +133,17 @@ export interface TimelineLabels {
   trackCount?: string;
   /** Segment count display, use {count} as placeholder */
   segmentCount?: string;
+  /** Track and segment summary, use {tracks} and {segments} as placeholders */
+  trackSegmentSummary?: string;
   /** Waveform track label */
   waveform?: string;
   /** Waveform + clip overlay track label */
   waveformClip?: string;
   /** Clip track label */
   clip?: string;
+  clipDeleted?: string;
+  clipSplitBeforeSuffix?: string;
+  clipSplitAfterSuffix?: string;
   /** Default track labels (index-based fallback) */
   defaultTrackLabels?: string[];
   /** Fallback track label template, use {index} as placeholder */
@@ -156,6 +161,11 @@ export interface TimelineLabels {
   deleteConfirmDescription?: string;
   comingSoon?: string;
   annotationDefaultLabel?: string;
+  annotationDelete?: string;
+  seekBackward5?: string;
+  seekForward5?: string;
+  audioEnd?: string;
+  timecodeCurrentAriaLabel?: string;
 
   // --- Inline input ---
   inlineInputPlaceholder?: string;
@@ -229,6 +239,7 @@ export interface TimelineLabels {
   // --- Media quick add ---
   mediaQuickAddDropToRelease?: string;
   mediaQuickAddProcessing?: string;
+  mediaQuickAddEmptyHint?: string;
   mediaQuickAddMenuTitle?: string;
   mediaQuickAddSelectFile?: string;
   mediaQuickAddFromLibrary?: string;
@@ -274,8 +285,15 @@ export interface TimelineLabels {
   // --- Thumbnail ---
   thumbnailLoading?: string;
   thumbnailNoPreview?: string;
+  thumbnailLoadFailed?: string;
   /** use {index} as placeholder */
   thumbnailAlt?: string;
+
+  // --- Waveform ---
+  waveformNoData?: string;
+
+  // --- TTS track ---
+  ttsTrackEmptyHint?: string;
 
   // --- TTS batch ---
   ttsBatchClearText?: string;

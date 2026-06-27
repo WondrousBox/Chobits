@@ -565,12 +565,17 @@ export interface ClipTrackData {
  */
 export type ClipTool = 'select' | 'cut';
 
+export interface ClipCutOptions {
+  beforeSuffix?: string;
+  afterSuffix?: string;
+}
+
 /**
  * 剪辑轨道回调
  */
 export interface ClipTrackCallbacks {
   /** 在某个时间点切割（裁剪工具点击时） */
-  onClipCut?: (time: number) => void;
+  onClipCut?: (time: number, options?: ClipCutOptions) => void;
   /** 删除某个剪辑片段（软删除） */
   onClipDelete?: (clipId: string) => void;
   /** 恢复已删除的剪辑片段 */

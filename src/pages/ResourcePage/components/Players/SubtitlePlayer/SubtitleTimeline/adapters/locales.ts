@@ -12,9 +12,13 @@ const zhCN: Required<TimelineLabels> = {
   importMedia: '导入媒体',
   trackCount: '{count} 轨道',
   segmentCount: '{count} 片段',
+  trackSegmentSummary: '{tracks} · {segments}',
   waveform: '波形',
   waveformClip: '波形/剪辑',
   clip: '剪辑',
+  clipDeleted: '已删除',
+  clipSplitBeforeSuffix: ' (前)',
+  clipSplitAfterSuffix: ' (后)',
   defaultTrackLabels: ['原文', '译文', '轨道 3', '轨道 4', '轨道 5', '轨道 6'],
   trackLabelTemplate: '轨道 {index}',
 
@@ -29,6 +33,11 @@ const zhCN: Required<TimelineLabels> = {
   deleteConfirmDescription: '将永久删除该轨道内所有内容，无法恢复。',
   comingSoon: '即将推出',
   annotationDefaultLabel: '标注',
+  annotationDelete: '删除标注',
+  seekBackward5: '后退 5 秒',
+  seekForward5: '前进 5 秒',
+  audioEnd: '音频结束: {time}s',
+  timecodeCurrentAriaLabel: '当前时间码',
 
   // Inline input
   inlineInputPlaceholder: '输入内容，enter 确认，esc 取消',
@@ -96,6 +105,7 @@ const zhCN: Required<TimelineLabels> = {
   // Media quick add
   mediaQuickAddDropToRelease: '释放以添加媒体',
   mediaQuickAddProcessing: '处理中...',
+  mediaQuickAddEmptyHint: '右键或拖拽文件添加媒体',
   mediaQuickAddMenuTitle: '添加媒体',
   mediaQuickAddSelectFile: '选择文件...',
   mediaQuickAddFromLibrary: '从资源库选择',
@@ -140,7 +150,14 @@ const zhCN: Required<TimelineLabels> = {
   // Thumbnail
   thumbnailLoading: '加载中...',
   thumbnailNoPreview: '无预览',
+  thumbnailLoadFailed: '加载缩略图失败',
   thumbnailAlt: '缩略图 {index}',
+
+  // Waveform
+  waveformNoData: '暂无波形数据',
+
+  // TTS track
+  ttsTrackEmptyHint: '点击添加配音片段',
 
   // TTS batch
   ttsBatchClearText: '清空文本',
@@ -154,7 +171,7 @@ const zhCN: Required<TimelineLabels> = {
   ttsBatchCompleted: '已完成',
   ttsBatchSynthesizing: '合成中...',
   ttsBatchStopSynthesis: '停止合成',
-  ttsBatchStartSynthesis: '依次合成',
+  ttsBatchStartSynthesis: '依次合成'
 };
 
 // ========== English (en) ==========
@@ -169,9 +186,13 @@ const en: Required<TimelineLabels> = {
   importMedia: 'Import media',
   trackCount: '{count} tracks',
   segmentCount: '{count} segments',
+  trackSegmentSummary: '{tracks} · {segments}',
   waveform: 'Waveform',
   waveformClip: 'Waveform/Clip',
   clip: 'Clip',
+  clipDeleted: 'Deleted',
+  clipSplitBeforeSuffix: ' (before)',
+  clipSplitAfterSuffix: ' (after)',
   defaultTrackLabels: ['Original', 'Translation', 'Track 3', 'Track 4', 'Track 5', 'Track 6'],
   trackLabelTemplate: 'Track {index}',
 
@@ -186,6 +207,11 @@ const en: Required<TimelineLabels> = {
   deleteConfirmDescription: 'This will permanently delete all content in this track. This action cannot be undone.',
   comingSoon: 'Coming soon',
   annotationDefaultLabel: 'Annotation',
+  annotationDelete: 'Delete annotation',
+  seekBackward5: 'Back 5 seconds',
+  seekForward5: 'Forward 5 seconds',
+  audioEnd: 'Audio end: {time}s',
+  timecodeCurrentAriaLabel: 'Current timecode',
 
   // Inline input
   inlineInputPlaceholder: 'Type content, Enter to confirm, Esc to cancel',
@@ -253,6 +279,7 @@ const en: Required<TimelineLabels> = {
   // Media quick add
   mediaQuickAddDropToRelease: 'Release to add media',
   mediaQuickAddProcessing: 'Processing...',
+  mediaQuickAddEmptyHint: 'Right-click or drag files to add media',
   mediaQuickAddMenuTitle: 'Add media',
   mediaQuickAddSelectFile: 'Select file...',
   mediaQuickAddFromLibrary: 'From library',
@@ -297,7 +324,14 @@ const en: Required<TimelineLabels> = {
   // Thumbnail
   thumbnailLoading: 'Loading...',
   thumbnailNoPreview: 'No preview',
+  thumbnailLoadFailed: 'Failed to load thumbnail',
   thumbnailAlt: 'Thumbnail {index}',
+
+  // Waveform
+  waveformNoData: 'No waveform data',
+
+  // TTS track
+  ttsTrackEmptyHint: 'Click to add voice segment',
 
   // TTS batch
   ttsBatchClearText: 'Clear text',
@@ -311,7 +345,7 @@ const en: Required<TimelineLabels> = {
   ttsBatchCompleted: 'completed',
   ttsBatchSynthesizing: 'Synthesizing...',
   ttsBatchStopSynthesis: 'Stop synthesis',
-  ttsBatchStartSynthesis: 'Start synthesis',
+  ttsBatchStartSynthesis: 'Start synthesis'
 };
 
 // ========== Chinese Traditional (zh-TW) ==========
@@ -326,9 +360,13 @@ const zhTW: Required<TimelineLabels> = {
   importMedia: '匯入媒體',
   trackCount: '{count} 軌道',
   segmentCount: '{count} 片段',
+  trackSegmentSummary: '{tracks} · {segments}',
   waveform: '波形',
   waveformClip: '波形/剪輯',
   clip: '剪輯',
+  clipDeleted: '已刪除',
+  clipSplitBeforeSuffix: ' (前)',
+  clipSplitAfterSuffix: ' (後)',
   defaultTrackLabels: ['原文', '譯文', '軌道 3', '軌道 4', '軌道 5', '軌道 6'],
   trackLabelTemplate: '軌道 {index}',
 
@@ -343,6 +381,11 @@ const zhTW: Required<TimelineLabels> = {
   deleteConfirmDescription: '將永久刪除該軌道內所有內容，無法恢復。',
   comingSoon: '即將推出',
   annotationDefaultLabel: '標註',
+  annotationDelete: '刪除標註',
+  seekBackward5: '後退 5 秒',
+  seekForward5: '前進 5 秒',
+  audioEnd: '音訊結束: {time}s',
+  timecodeCurrentAriaLabel: '目前時間碼',
 
   // Inline input
   inlineInputPlaceholder: '輸入內容，enter 確認，esc 取消',
@@ -410,6 +453,7 @@ const zhTW: Required<TimelineLabels> = {
   // Media quick add
   mediaQuickAddDropToRelease: '釋放以加入媒體',
   mediaQuickAddProcessing: '處理中...',
+  mediaQuickAddEmptyHint: '右鍵或拖曳檔案新增媒體',
   mediaQuickAddMenuTitle: '加入媒體',
   mediaQuickAddSelectFile: '選擇檔案...',
   mediaQuickAddFromLibrary: '從資源庫選擇',
@@ -454,7 +498,14 @@ const zhTW: Required<TimelineLabels> = {
   // Thumbnail
   thumbnailLoading: '載入中...',
   thumbnailNoPreview: '無預覽',
+  thumbnailLoadFailed: '載入縮圖失敗',
   thumbnailAlt: '縮圖 {index}',
+
+  // Waveform
+  waveformNoData: '暫無波形資料',
+
+  // TTS track
+  ttsTrackEmptyHint: '點擊新增配音片段',
 
   // TTS batch
   ttsBatchClearText: '清空文字',
@@ -468,7 +519,7 @@ const zhTW: Required<TimelineLabels> = {
   ttsBatchCompleted: '已完成',
   ttsBatchSynthesizing: '合成中...',
   ttsBatchStopSynthesis: '停止合成',
-  ttsBatchStartSynthesis: '依次合成',
+  ttsBatchStartSynthesis: '依次合成'
 };
 
 // ========== Japanese (ja) ==========
@@ -483,9 +534,13 @@ const ja: Required<TimelineLabels> = {
   importMedia: 'メディアをインポート',
   trackCount: '{count} トラック',
   segmentCount: '{count} セグメント',
+  trackSegmentSummary: '{tracks} · {segments}',
   waveform: '波形',
   waveformClip: '波形/クリップ',
   clip: 'クリップ',
+  clipDeleted: '削除済み',
+  clipSplitBeforeSuffix: ' (前半)',
+  clipSplitAfterSuffix: ' (後半)',
   defaultTrackLabels: ['原文', '訳文', 'トラック 3', 'トラック 4', 'トラック 5', 'トラック 6'],
   trackLabelTemplate: 'トラック {index}',
 
@@ -500,6 +555,11 @@ const ja: Required<TimelineLabels> = {
   deleteConfirmDescription: 'このトラック内のすべての内容が永久に削除され、元に戻すことはできません。',
   comingSoon: '近日公開',
   annotationDefaultLabel: '注釈',
+  annotationDelete: '注釈を削除',
+  seekBackward5: '5秒戻る',
+  seekForward5: '5秒進む',
+  audioEnd: '音声終了: {time}s',
+  timecodeCurrentAriaLabel: '現在のタイムコード',
 
   // Inline input
   inlineInputPlaceholder: '内容を入力、Enterで確認、Escでキャンセル',
@@ -567,6 +627,7 @@ const ja: Required<TimelineLabels> = {
   // Media quick add
   mediaQuickAddDropToRelease: 'ドロップしてメディアを追加',
   mediaQuickAddProcessing: '処理中...',
+  mediaQuickAddEmptyHint: '右クリックまたはファイルをドラッグしてメディアを追加',
   mediaQuickAddMenuTitle: 'メディアを追加',
   mediaQuickAddSelectFile: 'ファイルを選択...',
   mediaQuickAddFromLibrary: 'ライブラリから選択',
@@ -611,7 +672,14 @@ const ja: Required<TimelineLabels> = {
   // Thumbnail
   thumbnailLoading: '読み込み中...',
   thumbnailNoPreview: 'プレビューなし',
+  thumbnailLoadFailed: 'サムネイルの読み込みに失敗しました',
   thumbnailAlt: 'サムネイル {index}',
+
+  // Waveform
+  waveformNoData: '波形データがありません',
+
+  // TTS track
+  ttsTrackEmptyHint: 'クリックして音声セグメントを追加',
 
   // TTS batch
   ttsBatchClearText: 'テキストをクリア',
@@ -625,7 +693,7 @@ const ja: Required<TimelineLabels> = {
   ttsBatchCompleted: '完了',
   ttsBatchSynthesizing: '合成中...',
   ttsBatchStopSynthesis: '合成を停止',
-  ttsBatchStartSynthesis: '順次合成',
+  ttsBatchStartSynthesis: '順次合成'
 };
 
 // ========== Korean (ko) ==========
@@ -640,9 +708,13 @@ const ko: Required<TimelineLabels> = {
   importMedia: '미디어 가져오기',
   trackCount: '{count} 트랙',
   segmentCount: '{count} 세그먼트',
+  trackSegmentSummary: '{tracks} · {segments}',
   waveform: '파형',
   waveformClip: '파형/클립',
   clip: '클립',
+  clipDeleted: '삭제됨',
+  clipSplitBeforeSuffix: ' (앞)',
+  clipSplitAfterSuffix: ' (뒤)',
   defaultTrackLabels: ['원문', '번역', '트랙 3', '트랙 4', '트랙 5', '트랙 6'],
   trackLabelTemplate: '트랙 {index}',
 
@@ -657,6 +729,11 @@ const ko: Required<TimelineLabels> = {
   deleteConfirmDescription: '이 트랙의 모든 콘텐츠가 영구적으로 삭제되며 복원할 수 없습니다.',
   comingSoon: '출시 예정',
   annotationDefaultLabel: '주석',
+  annotationDelete: '주석 삭제',
+  seekBackward5: '5초 뒤로',
+  seekForward5: '5초 앞으로',
+  audioEnd: '오디오 종료: {time}s',
+  timecodeCurrentAriaLabel: '현재 타임코드',
 
   // Inline input
   inlineInputPlaceholder: '내용을 입력하고 Enter로 확인, Esc로 취소',
@@ -724,6 +801,7 @@ const ko: Required<TimelineLabels> = {
   // Media quick add
   mediaQuickAddDropToRelease: '놓아서 미디어 추가',
   mediaQuickAddProcessing: '처리 중...',
+  mediaQuickAddEmptyHint: '오른쪽 클릭하거나 파일을 드래그하여 미디어 추가',
   mediaQuickAddMenuTitle: '미디어 추가',
   mediaQuickAddSelectFile: '파일 선택...',
   mediaQuickAddFromLibrary: '라이브러리에서 선택',
@@ -768,7 +846,14 @@ const ko: Required<TimelineLabels> = {
   // Thumbnail
   thumbnailLoading: '로딩 중...',
   thumbnailNoPreview: '미리보기 없음',
+  thumbnailLoadFailed: '썸네일 로드 실패',
   thumbnailAlt: '썸네일 {index}',
+
+  // Waveform
+  waveformNoData: '파형 데이터 없음',
+
+  // TTS track
+  ttsTrackEmptyHint: '클릭하여 음성 세그먼트 추가',
 
   // TTS batch
   ttsBatchClearText: '텍스트 지우기',
@@ -782,7 +867,7 @@ const ko: Required<TimelineLabels> = {
   ttsBatchCompleted: '완료',
   ttsBatchSynthesizing: '합성 중...',
   ttsBatchStopSynthesis: '합성 중지',
-  ttsBatchStartSynthesis: '순차 합성',
+  ttsBatchStartSynthesis: '순차 합성'
 };
 
 // ========== German (de) ==========
@@ -797,9 +882,13 @@ const de: Required<TimelineLabels> = {
   importMedia: 'Medien importieren',
   trackCount: '{count} Spuren',
   segmentCount: '{count} Segmente',
+  trackSegmentSummary: '{tracks} · {segments}',
   waveform: 'Wellenform',
   waveformClip: 'Wellenform/Clip',
   clip: 'Clip',
+  clipDeleted: 'Gelöscht',
+  clipSplitBeforeSuffix: ' (vorher)',
+  clipSplitAfterSuffix: ' (nachher)',
   defaultTrackLabels: ['Original', 'Übersetzung', 'Spur 3', 'Spur 4', 'Spur 5', 'Spur 6'],
   trackLabelTemplate: 'Spur {index}',
 
@@ -814,6 +903,11 @@ const de: Required<TimelineLabels> = {
   deleteConfirmDescription: 'Alle Inhalte dieser Spur werden dauerhaft gelöscht. Dies kann nicht rückgängig gemacht werden.',
   comingSoon: 'Demnächst',
   annotationDefaultLabel: 'Anmerkung',
+  annotationDelete: 'Anmerkung löschen',
+  seekBackward5: '5 Sekunden zurück',
+  seekForward5: '5 Sekunden vor',
+  audioEnd: 'Audioende: {time}s',
+  timecodeCurrentAriaLabel: 'Aktueller Timecode',
 
   // Inline input
   inlineInputPlaceholder: 'Inhalt eingeben, Enter zum Bestätigen, Esc zum Abbrechen',
@@ -881,6 +975,7 @@ const de: Required<TimelineLabels> = {
   // Media quick add
   mediaQuickAddDropToRelease: 'Loslassen, um Medien hinzuzufügen',
   mediaQuickAddProcessing: 'Verarbeitung...',
+  mediaQuickAddEmptyHint: 'Rechtsklick oder Dateien ziehen, um Medien hinzuzufügen',
   mediaQuickAddMenuTitle: 'Medien hinzufügen',
   mediaQuickAddSelectFile: 'Datei auswählen...',
   mediaQuickAddFromLibrary: 'Aus Bibliothek',
@@ -925,7 +1020,14 @@ const de: Required<TimelineLabels> = {
   // Thumbnail
   thumbnailLoading: 'Laden...',
   thumbnailNoPreview: 'Keine Vorschau',
+  thumbnailLoadFailed: 'Vorschaubild konnte nicht geladen werden',
   thumbnailAlt: 'Vorschaubild {index}',
+
+  // Waveform
+  waveformNoData: 'Keine Wellenformdaten',
+
+  // TTS track
+  ttsTrackEmptyHint: 'Klicken, um Sprachsegment hinzuzufügen',
 
   // TTS batch
   ttsBatchClearText: 'Text löschen',
@@ -939,7 +1041,7 @@ const de: Required<TimelineLabels> = {
   ttsBatchCompleted: 'abgeschlossen',
   ttsBatchSynthesizing: 'Synthese läuft...',
   ttsBatchStopSynthesis: 'Synthese stoppen',
-  ttsBatchStartSynthesis: 'Sequentielle Synthese',
+  ttsBatchStartSynthesis: 'Sequentielle Synthese'
 };
 
 // ========== Spanish (es) ==========
@@ -954,9 +1056,13 @@ const es: Required<TimelineLabels> = {
   importMedia: 'Importar medios',
   trackCount: '{count} pistas',
   segmentCount: '{count} segmentos',
+  trackSegmentSummary: '{tracks} · {segments}',
   waveform: 'Forma de onda',
   waveformClip: 'Onda/Clip',
   clip: 'Clip',
+  clipDeleted: 'Eliminado',
+  clipSplitBeforeSuffix: ' (antes)',
+  clipSplitAfterSuffix: ' (después)',
   defaultTrackLabels: ['Original', 'Traducción', 'Pista 3', 'Pista 4', 'Pista 5', 'Pista 6'],
   trackLabelTemplate: 'Pista {index}',
 
@@ -971,6 +1077,11 @@ const es: Required<TimelineLabels> = {
   deleteConfirmDescription: 'Se eliminará permanentemente todo el contenido de esta pista. Esta acción no se puede deshacer.',
   comingSoon: 'Próximamente',
   annotationDefaultLabel: 'Anotación',
+  annotationDelete: 'Eliminar anotación',
+  seekBackward5: 'Retroceder 5 segundos',
+  seekForward5: 'Avanzar 5 segundos',
+  audioEnd: 'Fin del audio: {time}s',
+  timecodeCurrentAriaLabel: 'Código de tiempo actual',
 
   // Inline input
   inlineInputPlaceholder: 'Escribe contenido, Enter para confirmar, Esc para cancelar',
@@ -1038,6 +1149,7 @@ const es: Required<TimelineLabels> = {
   // Media quick add
   mediaQuickAddDropToRelease: 'Suelta para agregar medios',
   mediaQuickAddProcessing: 'Procesando...',
+  mediaQuickAddEmptyHint: 'Clic derecho o arrastra archivos para agregar medios',
   mediaQuickAddMenuTitle: 'Agregar medios',
   mediaQuickAddSelectFile: 'Seleccionar archivo...',
   mediaQuickAddFromLibrary: 'Desde la biblioteca',
@@ -1082,7 +1194,14 @@ const es: Required<TimelineLabels> = {
   // Thumbnail
   thumbnailLoading: 'Cargando...',
   thumbnailNoPreview: 'Sin vista previa',
+  thumbnailLoadFailed: 'Error al cargar miniatura',
   thumbnailAlt: 'Miniatura {index}',
+
+  // Waveform
+  waveformNoData: 'Sin datos de forma de onda',
+
+  // TTS track
+  ttsTrackEmptyHint: 'Haz clic para agregar segmento de voz',
 
   // TTS batch
   ttsBatchClearText: 'Limpiar texto',
@@ -1096,7 +1215,7 @@ const es: Required<TimelineLabels> = {
   ttsBatchCompleted: 'completado',
   ttsBatchSynthesizing: 'Sintetizando...',
   ttsBatchStopSynthesis: 'Detener síntesis',
-  ttsBatchStartSynthesis: 'Síntesis secuencial',
+  ttsBatchStartSynthesis: 'Síntesis secuencial'
 };
 
 // ========== Italian (it) ==========
@@ -1111,9 +1230,13 @@ const it: Required<TimelineLabels> = {
   importMedia: 'Importa media',
   trackCount: '{count} tracce',
   segmentCount: '{count} segmenti',
-  waveform: 'Forma d\'onda',
+  trackSegmentSummary: '{tracks} · {segments}',
+  waveform: "Forma d'onda",
   waveformClip: 'Onda/Clip',
   clip: 'Clip',
+  clipDeleted: 'Eliminato',
+  clipSplitBeforeSuffix: ' (prima)',
+  clipSplitAfterSuffix: ' (dopo)',
   defaultTrackLabels: ['Originale', 'Traduzione', 'Traccia 3', 'Traccia 4', 'Traccia 5', 'Traccia 6'],
   trackLabelTemplate: 'Traccia {index}',
 
@@ -1128,6 +1251,11 @@ const it: Required<TimelineLabels> = {
   deleteConfirmDescription: 'Tutto il contenuto di questa traccia verrà eliminato permanentemente. Questa azione non può essere annullata.',
   comingSoon: 'Prossimamente',
   annotationDefaultLabel: 'Annotazione',
+  annotationDelete: 'Elimina annotazione',
+  seekBackward5: 'Indietro di 5 secondi',
+  seekForward5: 'Avanti di 5 secondi',
+  audioEnd: 'Fine audio: {time}s',
+  timecodeCurrentAriaLabel: 'Timecode corrente',
 
   // Inline input
   inlineInputPlaceholder: 'Inserisci contenuto, Invio per confermare, Esc per annullare',
@@ -1156,7 +1284,7 @@ const it: Required<TimelineLabels> = {
   blockValidationMaxLength: 'Il contenuto non può superare {maxLength} caratteri',
   blockValidationInvalid: 'Contenuto non valido',
   blockEditHint: 'Invio per confermare, Esc per annullare',
-  blockWaveformLoading: 'Caricamento forma d\'onda...',
+  blockWaveformLoading: "Caricamento forma d'onda...",
 
   // Block handles
   blockHandlesDragSpeed: 'Trascina per regolare la velocità',
@@ -1172,7 +1300,7 @@ const it: Required<TimelineLabels> = {
 
   // Media import
   mediaImportNoValidFiles: 'Nessun file multimediale valido trovato (supporta video e immagini)',
-  mediaImportProcessError: 'Errore durante l\'elaborazione del file',
+  mediaImportProcessError: "Errore durante l'elaborazione del file",
   mediaImportDragDropPathError: 'Impossibile ottenere il percorso del file, utilizzare il pulsante "Seleziona file"',
   mediaImportOpenDialogError: 'Impossibile aprire la finestra di dialogo dei file',
   mediaImportTitle: 'Importa file multimediali',
@@ -1195,6 +1323,7 @@ const it: Required<TimelineLabels> = {
   // Media quick add
   mediaQuickAddDropToRelease: 'Rilascia per aggiungere media',
   mediaQuickAddProcessing: 'Elaborazione...',
+  mediaQuickAddEmptyHint: 'Clic destro o trascina file per aggiungere media',
   mediaQuickAddMenuTitle: 'Aggiungi media',
   mediaQuickAddSelectFile: 'Seleziona file...',
   mediaQuickAddFromLibrary: 'Dalla libreria',
@@ -1221,7 +1350,7 @@ const it: Required<TimelineLabels> = {
   transitionTypeNone: 'Nessuno',
   transitionTypeNoneDesc: 'Nessuna transizione',
   transitionTypeFade: 'Dissolvenza',
-  transitionTypeFadeDesc: 'Transizione graduale dell\'opacità',
+  transitionTypeFadeDesc: "Transizione graduale dell'opacità",
   transitionTypeDissolve: 'Dissolvi',
   transitionTypeDissolveDesc: 'Effetto dissolvi a livello di pixel',
   transitionTypeWipeLeft: 'Cancella a sinistra',
@@ -1239,7 +1368,14 @@ const it: Required<TimelineLabels> = {
   // Thumbnail
   thumbnailLoading: 'Caricamento...',
   thumbnailNoPreview: 'Nessuna anteprima',
+  thumbnailLoadFailed: 'Caricamento miniatura non riuscito',
   thumbnailAlt: 'Miniatura {index}',
+
+  // Waveform
+  waveformNoData: "Nessun dato forma d'onda",
+
+  // TTS track
+  ttsTrackEmptyHint: 'Fai clic per aggiungere segmento vocale',
 
   // TTS batch
   ttsBatchClearText: 'Cancella testo',
@@ -1253,30 +1389,30 @@ const it: Required<TimelineLabels> = {
   ttsBatchCompleted: 'completato',
   ttsBatchSynthesizing: 'Sintesi in corso...',
   ttsBatchStopSynthesis: 'Ferma sintesi',
-  ttsBatchStartSynthesis: 'Sintesi sequenziale',
+  ttsBatchStartSynthesis: 'Sintesi sequenziale'
 };
 
 // ========== Locale Map ==========
 
 const LOCALE_MAP: Record<string, Required<TimelineLabels>> = {
   'zh-CN': zhCN,
-  'zh': zhCN,
+  zh: zhCN,
   'zh-Hans': zhCN,
-  'en': en,
+  en: en,
   'en-US': en,
   'en-GB': en,
   'zh-TW': zhTW,
   'zh-Hant': zhTW,
-  'ja': ja,
+  ja: ja,
   'ja-JP': ja,
-  'ko': ko,
+  ko: ko,
   'ko-KR': ko,
-  'de': de,
+  de: de,
   'de-DE': de,
-  'es': es,
+  es: es,
   'es-ES': es,
-  'it': it,
-  'it-IT': it,
+  it: it,
+  'it-IT': it
 };
 
 /**
@@ -1287,4 +1423,4 @@ export function getLabelsForLocale(locale: string): Required<TimelineLabels> {
   return LOCALE_MAP[locale] ?? LOCALE_MAP[locale.split('-')[0]] ?? zhCN;
 }
 
-export { zhCN, en, zhTW, ja, ko, de, es, it };
+export { de, en, es, it, ja, ko, zhCN, zhTW };

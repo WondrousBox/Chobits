@@ -1,6 +1,8 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { useLabels } from '../../context';
+
 interface TimecodeControlProps {
   currentTime?: number;
   duration: number;
@@ -68,6 +70,7 @@ function parseTimecode(value: string): number {
 }
 
 export const TimecodeControl: React.FC<TimecodeControlProps> = ({ currentTime = 0, duration, onSeek, className }) => {
+  const labels = useLabels();
   const inputRef = useRef<HTMLInputElement>(null);
   const dragStateRef = useRef<DragState | null>(null);
   const onSeekRef = useRef(onSeek);
@@ -309,7 +312,7 @@ export const TimecodeControl: React.FC<TimecodeControlProps> = ({ currentTime = 
           onBlur={handleDraftBlur}
           className="h-6 w-[12ch] border-0 bg-transparent p-0 text-center font-mono text-lg text-primary outline-none ring-0 font-bold"
           inputMode="numeric"
-          aria-label="Current timecode"
+          aria-label={labels.timecodeCurrentAriaLabel}
         />
         <span className="h-3 text-[11px] leading-3 text-center text-muted-foreground">{durationLabel}</span>
       </div>

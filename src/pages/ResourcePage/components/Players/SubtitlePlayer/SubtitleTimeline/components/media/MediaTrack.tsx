@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { TbUpload } from 'react-icons/tb';
 
-import { useConfigAdapter, useIdGeneratorAdapter, useMediaAdapter } from '../../context';
+import { useConfigAdapter, useIdGeneratorAdapter, useLabels, useMediaAdapter } from '../../context';
 import type { MediaSegment, MediaSource, MediaTool, MediaTrackData, ViewportState } from '../../types';
 import { DEFAULT_CONFIG, DEFAULT_TRANSFORM, MEDIA_CONFIG } from '../../types';
 import { MediaSegmentBlock } from './MediaSegmentBlock';
@@ -80,6 +80,7 @@ export const MediaTrack: React.FC<MediaTrackProps> = ({
   const mediaAdapter = useMediaAdapter();
   const configAdapter = useConfigAdapter();
   const idGeneratorAdapter = useIdGeneratorAdapter();
+  const labels = useLabels();
 
   // Get file extensions from config adapter
   const videoExtensions = configAdapter?.videoExtensions || ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v'];
@@ -307,7 +308,7 @@ export const MediaTrack: React.FC<MediaTrackProps> = ({
       {/* 空轨道提示 */}
       {track.segments.filter((s) => !s.deleted).length === 0 && !isDisabled && (
         <div className="absolute inset-0 flex items-center justify-start pointer-events-none px-2 bg-primary/20">
-          <span className="text-xs text-muted-foreground/50">右键或拖拽文件添加媒体</span>
+          <span className="text-xs text-muted-foreground/50">{labels.mediaQuickAddEmptyHint}</span>
         </div>
       )}
 
@@ -343,7 +344,7 @@ export const MediaTrack: React.FC<MediaTrackProps> = ({
         <div className="absolute inset-0 bg-emerald-500/10 border-2 border-dashed border-emerald-400 flex items-center justify-center z-20 pointer-events-none">
           <div className="flex flex-col items-center gap-1 bg-background/95 px-4 py-2 rounded-lg shadow-lg">
             <TbUpload className="w-6 h-6 text-emerald-500" />
-            <span className="text-sm font-medium text-emerald-600">释放以添加媒体</span>
+            <span className="text-sm font-medium text-emerald-600">{labels.mediaQuickAddDropToRelease}</span>
           </div>
         </div>
       )}
@@ -353,7 +354,7 @@ export const MediaTrack: React.FC<MediaTrackProps> = ({
         <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-30">
           <div className="flex items-center gap-2 bg-background px-4 py-2 rounded-lg shadow-lg border">
             <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            <span className="text-sm">处理中...</span>
+            <span className="text-sm">{labels.mediaQuickAddProcessing}</span>
           </div>
         </div>
       )}

@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import React, { useMemo, useRef } from 'react';
 
+import { useLabels } from '../../context';
 import { DEFAULT_CONFIG } from '../../types';
 
 interface TimeRulerProps {
@@ -83,6 +84,7 @@ function getTickInterval(pixelsPerSecond: number): { major: number; minor: numbe
  * 渲染整个时间范围的刻度，但使用虚拟化技术只渲染可见区域附近的刻度
  */
 export const TimeRuler: React.FC<TimeRulerProps> = ({ startTime, endTime, pixelsPerSecond, width, currentTime, onClick, viewportStart, viewportEnd, className }) => {
+  const labels = useLabels();
   // 计算刻度（带缓冲区的虚拟化）
   const ticks = useMemo(() => {
     const { major, minor } = getTickInterval(pixelsPerSecond);
@@ -190,7 +192,7 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({ startTime, endTime, pixels
       )}
 
       {/* 音频结束截止线 */}
-      <div className="absolute top-0 bottom-0 w-0.5 bg-orange-500 z-10" style={{ left: (endTime - startTime) * pixelsPerSecond }} title={`音频结束: ${endTime.toFixed(2)}s`}>
+      <div className="absolute top-0 bottom-0 w-0.5 bg-orange-500 z-10" style={{ left: (endTime - startTime) * pixelsPerSecond }} title={labels.audioEnd.replace('{time}', endTime.toFixed(2))}>
         <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[5px] border-r-[5px] border-t-[6px] border-l-transparent border-r-transparent border-t-orange-500" />
       </div>
     </div>
