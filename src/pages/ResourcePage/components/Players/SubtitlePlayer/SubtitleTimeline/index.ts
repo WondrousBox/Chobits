@@ -21,6 +21,7 @@ export type {
   StandaloneTTSTrack,
   SubtitleTimelineProps,
   TimelineCallbacks,
+  TimelineFollowMode,
   TimelineSegment,
   TimelineTrack,
   TrackProps,

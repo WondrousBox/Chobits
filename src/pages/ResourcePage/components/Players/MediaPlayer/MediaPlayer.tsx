@@ -23,6 +23,7 @@ interface MediaPlayerProps {
 
 export interface MediaPlayerRef {
   seekTo: (time: number) => void; // 跳转到指定时间
+  togglePlay: () => void; // 切换播放/暂停
   pause: () => void; // 暂停播放
   setPlaybackRate: (rate: number) => void; // 设置播放速度
   getCurrentTime: () => number; // 获取当前播放时间
@@ -140,13 +141,14 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(
       ref,
       () => ({
         seekTo,
+        togglePlay,
         pause,
         setPlaybackRate: changePlaybackRate,
         getCurrentTime,
         getDuration,
         isPlaying: () => isPlaying
       }),
-      [seekTo, pause, changePlaybackRate, getCurrentTime, getDuration, isPlaying]
+      [seekTo, togglePlay, pause, changePlaybackRate, getCurrentTime, getDuration, isPlaying]
     );
 
     // 切换全屏

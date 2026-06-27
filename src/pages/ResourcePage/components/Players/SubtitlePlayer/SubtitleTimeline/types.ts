@@ -243,6 +243,14 @@ export interface ViewportState {
 }
 
 /**
+ * 当前时间跟随滚动模式
+ * - off: 不跟随
+ * - visibility: 当前光标离开视口后拉回
+ * - center: 当前光标始终保持在视口中心附近
+ */
+export type TimelineFollowMode = 'off' | 'visibility' | 'center';
+
+/**
  * 选中状态
  */
 export interface SelectionState {
@@ -326,8 +334,12 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   duration?: number;
   /** 当前播放时间（秒） */
   currentTime?: number;
-  /** 是否跟随当前时间自动调整可见区域 */
-  followCurrentTime?: boolean;
+  /** 当前媒体是否正在播放 */
+  isPlaying?: boolean;
+  /** 切换媒体播放/暂停 */
+  onTogglePlayback?: () => void;
+  /** 当前时间跟随滚动模式 */
+  followCurrentTime?: TimelineFollowMode;
   /** 初始视口状态 */
   initialViewport?: Partial<ViewportState>;
   /** 是否显示时间刻度 */
