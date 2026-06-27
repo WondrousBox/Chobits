@@ -389,8 +389,8 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
   resourcePreview: {
     routeHash: 'resource-preview',
     autoCenterOn: 'parent-display',
-    showOnReady: false,
-    openDevTools: false,
+    showOnReady: true,
+    openDevTools: true,
     rememberState: true,
     options: {
       width: 600,
