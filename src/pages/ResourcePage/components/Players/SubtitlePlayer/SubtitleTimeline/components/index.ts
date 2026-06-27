@@ -19,6 +19,7 @@ export { ThumbnailStrip } from './media';
 
 // Shared components
 export { SeekBar } from './shared';
+export { TimecodeControl } from './shared';
 export { TimeRuler } from './shared';
 export { TrackAddMenu } from './shared';
 export { TransitionBadge, TransitionIndicator } from './shared';

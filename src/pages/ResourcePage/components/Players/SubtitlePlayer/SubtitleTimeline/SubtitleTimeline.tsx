@@ -6,7 +6,20 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 
 import { DEFAULT_LABELS } from './adapters/defaults';
-import { AnnotationTrack, ClipTrack, ClipTrackLabel, MediaTrackLabel, MediaTrackManager, SeekBar, TimelineTrackView, TimeRuler, TrackAddMenu, TTSAudioTrack, WaveformTrack } from './components';
+import {
+  AnnotationTrack,
+  ClipTrack,
+  ClipTrackLabel,
+  MediaTrackLabel,
+  MediaTrackManager,
+  SeekBar,
+  TimecodeControl,
+  TimelineTrackView,
+  TimeRuler,
+  TrackAddMenu,
+  TTSAudioTrack,
+  WaveformTrack
+} from './components';
 import { CommonTrackLabel } from './components';
 import { TimelineAdapterProvider } from './context';
 import { useTimelineInteraction } from './hooks';
@@ -22,6 +35,7 @@ function isEditableElement(element: Element | null): boolean {
 
   return element.isContentEditable || tagName === 'input' || tagName === 'textarea' || tagName === 'select';
 }
+
 /** 波形+剪辑叠加时的轨道高度 */
 const overlayTrackHeight = Math.max(audioWaveformHeight, DEFAULT_CONFIG.CLIP_TRACK_HEIGHT);
 
@@ -410,7 +424,6 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onDeleteSegment, selectedSegmentId, tracksWithColors, onDeleteTTSSegment, selectedTTS, clipCallbacks, selectedClipId, mediaCallbacks, selectedMediaSegmentId]);
 
-
   // 监听容器尺寸变化
   useEffect(() => {
     const container = containerRef.current;
@@ -542,7 +555,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     <TimelineAdapterProvider adapters={adapters}>
       <div ref={containerRef} className={clsx('flex flex-col bg-background border rounded-lg overflow-hidden select-none h-full', className)}>
         {/* 工具栏 */}
-        <div className="flex items-center justify-between px-2 py-1 border-b bg-muted/30 shrink-0">
+        <div className="relative flex items-center justify-between px-2 py-1 border-b bg-muted/30 shrink-0">
           <div className="flex items-center gap-2 flex-1">
             <Button variant="ghost" size="sm" className="w-8 h-8 p-0 shrink-0" onClick={handleZoomOut} title={labels.zoomOut}>
               <TbMinus className="w-4 h-4" />
@@ -593,25 +606,13 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
             )}
           </div>
 
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <TimecodeControl currentTime={effectiveCurrentTime} duration={duration} onSeek={handleSeekUnified} />
+          </div>
+
           <div className="flex items-center gap-3">
             <div className="text-xs text-muted-foreground">
               {labels.trackCount.replace('{count}', String(tracks.length))} · {labels.segmentCount.replace('{count}', String(tracks.reduce((sum, t) => sum + t.segments.length, 0)))}
-            </div>
-            <div className="text-xs font-mono text-foreground">
-              {(() => {
-                const formatTime = (seconds: number): string => {
-                  const h = Math.floor(seconds / 3600);
-                  const m = Math.floor((seconds % 3600) / 60);
-                  const s = Math.floor(seconds % 60);
-                  if (h > 0) {
-                    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-                  }
-                  return `${m}:${s.toString().padStart(2, '0')}`;
-                };
-                const current = effectiveCurrentTime !== undefined ? formatTime(effectiveCurrentTime) : '--:--';
-                const total = formatTime(duration);
-                return `${current} / ${total}`;
-              })()}
             </div>
           </div>
         </div>
