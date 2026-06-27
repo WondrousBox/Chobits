@@ -6,6 +6,7 @@ import { TbBookmark, TbCrosshair, TbDownload, TbList, TbScissors, TbTimeline } f
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
@@ -20,7 +21,7 @@ import { ExportDialog } from './ExportDialog';
 import type { ExportAnnotation } from './ExportDialog/types';
 import { SubtitlePlayer } from './SubtitleListPlayer/SubtitlePlayer';
 import { aimTracksToTimelineTracks, ClipSequence, formatSecondsToTime, indicesToIds, parseSegmentId, parseTimeToSeconds, SubtitleTimeline, TimelineSegment } from './SubtitleTimeline';
-import { MediaSequence, TTSBatchTextInputPanel } from './SubtitleTimeline';
+import { MediaSequence, TimelineFollowMode, TTSBatchTextInputPanel } from './SubtitleTimeline';
 import type {
   AnnotationTrackCallbacks,
   AnnotationTrackData,
@@ -58,7 +59,7 @@ interface ResourceSubtitlePlayerProps {
   /** 媒体总时长（秒），有音视频播放器时传入，时间轴以此作为总时长而非字幕结尾时长 */
   mediaDuration?: number;
   onSeek?: (time: number) => void; // 跳转到指定时间的回调
-  followCurrentTime?: boolean; // 是否跟随时间自动滚动
+  followCurrentTime?: TimelineFollowMode; // 当前时间跟随滚动模式
   audioPath?: string; // 音频文件路径（用于波形显示）
   onMediaPlay?: () => void; // 媒体播放器播放事件回调
   onMediaPause?: () => void; // 媒体播放器暂停事件回调
@@ -75,7 +76,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   currentTime = 0,
   mediaDuration,
   onSeek,
-  followCurrentTime = false,
+  followCurrentTime = 'center',
   audioPath,
   onMediaPlay,
   onMediaPause
@@ -93,6 +94,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   const [subtitleEditTracks, setSubtitleEditTracks] = useState<AimSegments[][]>([]);
   const [subtitleEditTrackMeta, setSubtitleEditTrackMeta] = useState<{ label: string; trackId: string }[]>([]);
   const [subtitleEditNameDialog, setSubtitleEditNameDialog] = useState<{ open: boolean; name: string }>({ open: false, name: '' });
+  const [isMediaPlaying, setIsMediaPlaying] = useState(false);
   /** 独立 TTS 轨道元数据：每个轨道有唯一 ID、名称、TTS 配置、数据库资源 ID、是否已配置 */
   const [standaloneTTSTracks, setStandaloneTTSTracks] = useState<
     { id: string; label: string; voiceName: string; rate: number; pitch: number; autoTrimSilence: boolean; resourceId?: string; configured?: boolean }[]
@@ -121,7 +123,8 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     setViewModeState(mode);
     localStorage.setItem(SUBTITLE_VIEW_MODE_KEY, mode);
   }, []);
-  const [followTime, setFollowTime] = useState<boolean>(followCurrentTime);
+  const [followMode, setFollowMode] = useState<TimelineFollowMode>(followCurrentTime);
+  const [followModePopoverOpen, setFollowModePopoverOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
   // ---- 剪辑轨道状态 ----
@@ -356,9 +359,9 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     debouncedSaveMediaTracks(resource.id, mediaTracks, mediaSources);
   }, [mediaTracks, mediaSources, resource.id, debouncedSaveMediaTracks]);
 
-  // 外部值变化时同步本地开关
+  // 外部值变化时同步本地跟随滚动模式
   useEffect(() => {
-    setFollowTime(followCurrentTime);
+    setFollowMode(followCurrentTime);
   }, [followCurrentTime]);
 
   // 保持 subtitleEntries 的引用始终是最新的
@@ -844,6 +847,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     };
 
     const handleMediaStateChange = (event: CustomEvent<{ isPlaying: boolean }>) => {
+      setIsMediaPlaying(event.detail.isPlaying);
       if (event.detail.isPlaying) {
         startEnabledTracks();
       } else {
@@ -855,7 +859,9 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
 
     // 首次挂载时检测：若播放器已在播放（如自动播放），事件可能已错过，需主动触发 TTS
     const checkInitialPlaying = () => {
-      if (mediaPlayerRef?.current?.isPlaying()) {
+      const isPlaying = mediaPlayerRef?.current?.isPlaying() ?? false;
+      setIsMediaPlaying(isPlaying);
+      if (isPlaying) {
         startEnabledTracks();
       }
     };
@@ -876,6 +882,30 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     });
     return opts;
   }, [translationTrackMeta]);
+
+  const handleTogglePlayback = useCallback(() => {
+    mediaPlayerRef?.current?.togglePlay();
+  }, [mediaPlayerRef]);
+
+  const followModeOptions = useMemo<{ value: TimelineFollowMode; label: string; description: string }[]>(
+    () => [
+      { value: 'center', label: '居中跟随', description: '光标保持在中间，时间轴内容滚动' },
+      { value: 'visibility', label: '出界跟随', description: '光标离开视图后自动拉回' },
+      { value: 'off', label: '关闭跟随', description: '保持当前视图，不自动滚动' }
+    ],
+    []
+  );
+
+  const handleSelectFollowMode = useCallback((mode: TimelineFollowMode) => {
+    setFollowMode(mode);
+    setFollowModePopoverOpen(false);
+  }, []);
+
+  const followModeLabel = useMemo(() => {
+    if (followMode === 'visibility') return '跟随滚动：光标出界后拉回';
+    if (followMode === 'center') return '跟随滚动：光标居中';
+    return '跟随滚动：关闭';
+  }, [followMode]);
 
   // 各轨道对应的字幕片段（索引 0=原文，1..n=翻译轨）
   const ttsTracksSegments = useMemo(() => [subtitleEntries, ...translationTracks], [subtitleEntries, translationTracks]);
@@ -2677,14 +2707,34 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
         </div>
         {/* 右侧：翻译按钮和配置 */}
         <div className="flex items-center">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button className="h-8 w-8 p-0" variant={followTime ? 'default' : 'ghost'} size="sm" onClick={() => setFollowTime((prev) => !prev)}>
+          <Popover open={followModePopoverOpen} onOpenChange={setFollowModePopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button className="h-8 w-8 p-0" variant={followMode !== 'off' ? 'default' : 'ghost'} size="sm" title={followModeLabel}>
                 <TbCrosshair />
               </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">跟随滚动</TooltipContent>
-          </Tooltip>
+            </PopoverTrigger>
+            <PopoverContent align="end" side="bottom" className="w-52 p-1">
+              <div className="space-y-1">
+                {followModeOptions.map((option) => {
+                  const active = followMode === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={`flex w-full items-start gap-2 rounded px-2 py-1.5 text-left transition-colors ${active ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/70'}`}
+                      onClick={() => handleSelectFollowMode(option.value)}
+                    >
+                      <span className={`mt-1 h-2 w-2 rounded-full border ${active ? 'border-primary bg-primary' : 'border-muted-foreground/50'}`} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs font-medium leading-4">{option.label}</span>
+                        <span className="block text-[10px] leading-4 text-muted-foreground">{option.description}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
           <SubtitleTranslator
             subtitleEntries={subtitleEntries}
             resourceId={resource.id}
@@ -2721,7 +2771,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
         <SubtitlePlayer
           tracks={tracks}
           currentTime={currentTime}
-          followCurrentTime={followTime}
+          followCurrentTime={followMode !== 'off'}
           onMergePrev={handleMergePrev}
           onMergeNext={handleMergeNext}
           onSeek={onSeek}
@@ -2745,7 +2795,9 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
             tracks={timelineTracksWithEnabled}
             duration={mediaDuration}
             currentTime={currentTime}
-            followCurrentTime={followTime}
+            isPlaying={isMediaPlaying}
+            onTogglePlayback={handleTogglePlayback}
+            followCurrentTime={followMode}
             wordsMapByTrack={timelineWordsMapByTrack}
             onSeek={onSeek}
             onAddSegment={handleAddSegment}

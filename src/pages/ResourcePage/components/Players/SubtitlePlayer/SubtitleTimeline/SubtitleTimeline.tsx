@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbBookmark, TbLetterT, TbMinus, TbMusic, TbPlus, TbPointer, TbScissors, TbWaveSine } from 'react-icons/tb';
+import { TbBookmark, TbLetterT, TbMinus, TbMusic, TbPlayerPause, TbPlayerPlay, TbPlus, TbPointer, TbRewindBackward5, TbRewindForward5, TbScissors, TbWaveSine } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -53,7 +53,9 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   tracks,
   duration: propDuration,
   currentTime,
-  followCurrentTime = false,
+  isPlaying = false,
+  onTogglePlayback,
+  followCurrentTime = 'center',
   initialViewport,
   showRuler = true,
   showTrackLabels = true,
@@ -218,6 +220,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
 
   // 生效的当前时间：优先外部的 currentTime，否则使用 mockCurrentTime
   const effectiveCurrentTime = currentTime ?? mockCurrentTime;
+  const followMode = followCurrentTime;
 
   // 滚动到指定时间。instant 为 true 时无动画、瞬间到位，用于跟随当前时间，避免滞后
   const scrollToTime = useCallback(
@@ -469,18 +472,25 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
 
   // 当前时间改变时，检查是否需要滚动到可见区域
   useEffect(() => {
-    if (!followCurrentTime || effectiveCurrentTime === undefined) return;
+    if (followMode === 'off' || effectiveCurrentTime === undefined) return;
 
-    // 如果当前时间在可视区域外，自动滚动
-    const currentX = effectiveCurrentTime * pixelsPerSecond;
-    const viewStart = scrollLeft;
-    const viewEnd = scrollLeft + timelineContentWidth;
-
-    // 只有当时间指示器完全不在视野内时才自动滚动；用 instant 避免动画导致跟随滞后
-    if (currentX < viewStart || currentX > viewEnd) {
+    if (followMode === 'center') {
       scrollToTime(effectiveCurrentTime, true);
+      return;
     }
-  }, [effectiveCurrentTime, followCurrentTime, pixelsPerSecond, scrollLeft, timelineContentWidth, scrollToTime]);
+
+    if (followMode === 'visibility') {
+      // 如果当前时间在可视区域外，自动滚动
+      const currentX = effectiveCurrentTime * pixelsPerSecond;
+      const viewStart = scrollLeft;
+      const viewEnd = scrollLeft + timelineContentWidth;
+
+      // 只有当时间指示器完全不在视野内时才自动滚动；用 instant 避免动画导致跟随滞后
+      if (currentX < viewStart || currentX > viewEnd) {
+        scrollToTime(effectiveCurrentTime, true);
+      }
+    }
+  }, [effectiveCurrentTime, followMode, pixelsPerSecond, scrollLeft, timelineContentWidth, scrollToTime]);
 
   // 缩放控制按钮
   const handleZoomIn = useCallback(() => {
@@ -552,6 +562,14 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   }, []);
 
   const totalSegmentCount = useMemo(() => tracks.reduce((sum, t) => sum + t.segments.length, 0), [tracks]);
+
+  const handleSeekBackward = useCallback(() => {
+    handleSeekUnified(effectiveCurrentTime - 5);
+  }, [effectiveCurrentTime, handleSeekUnified]);
+
+  const handleSeekForward = useCallback(() => {
+    handleSeekUnified(effectiveCurrentTime + 5);
+  }, [effectiveCurrentTime, handleSeekUnified]);
 
   return (
     <TimelineAdapterProvider adapters={adapters}>
@@ -625,7 +643,23 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
         </div>
 
         {/* SeekBar - 播放进度条和字幕片段概览 */}
-        <SeekBar duration={duration} currentTime={effectiveCurrentTime} segments={tracksWithColors[0]?.segments || []} onSeek={handleSeekUnified} />
+        <div className="flex items-center border-b bg-muted/30 shrink-0">
+          {showTrackLabels && (
+            <div className="flex items-center justify-center self-stretch gap-1 px-2 border-r shrink-0 box-border" style={{ width: trackLabelWidth }}>
+              <Button variant="ghost" size="sm" className="w-7 h-7 p-0" onClick={handleSeekBackward} title="后退 5 秒">
+                <TbRewindBackward5 />
+              </Button>
+              <Button variant="ghost" size="sm" className="w-7 h-7 p-0" onClick={onTogglePlayback} disabled={!onTogglePlayback} title={isPlaying ? '暂停' : '播放'}>
+                {isPlaying ? <TbPlayerPause /> : <TbPlayerPlay />}
+              </Button>
+              <Button variant="ghost" size="sm" className="w-7 h-7 p-0" onClick={handleSeekForward} title="前进 5 秒">
+                <TbRewindForward5 />
+              </Button>
+            </div>
+          )}
+
+          <SeekBar className="flex-1 border-b-0 min-w-0" duration={duration} currentTime={effectiveCurrentTime} segments={tracksWithColors[0]?.segments || []} onSeek={handleSeekUnified} />
+        </div>
 
         {/* 主内容区域 */}
         <div className="flex flex-1 overflow-hidden min-h-0">
