@@ -719,8 +719,16 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
         {/* 工具栏 */}
         <div className="flex items-center border-b bg-muted/30 shrink-0">
           {showTrackLabels && (
-            <div className="flex items-center self-stretch px-2 border-r shrink-0 box-border" style={{ width: trackLabelWidth }}>
-              <div className="text-xs text-muted-foreground truncate">{trackSegmentSummary}</div>
+            <div className="flex items-center justify-center self-stretch gap-1 px-2 border-r shrink-0 box-border" style={{ width: trackLabelWidth }}>
+              <Button variant="ghost" size="sm" className="w-7 h-7 p-0" onClick={handleSeekBackward} title={labels.seekBackward5}>
+                <TbRewindBackward5 />
+              </Button>
+              <Button variant="ghost" size="sm" className="w-7 h-7 p-0" onClick={onTogglePlayback} disabled={!onTogglePlayback} title={isPlaying ? labels.blockPause : labels.blockPlay}>
+                {isPlaying ? <TbPlayerPause /> : <TbPlayerPlay />}
+              </Button>
+              <Button variant="ghost" size="sm" className="w-7 h-7 p-0" onClick={handleSeekForward} title={labels.seekForward5}>
+                <TbRewindForward5 />
+              </Button>
             </div>
           )}
 
@@ -785,16 +793,8 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
         {/* SeekBar - 播放进度条和字幕片段概览 */}
         <div className="flex items-center border-b bg-muted/30 shrink-0">
           {showTrackLabels && (
-            <div className="flex items-center justify-center self-stretch gap-1 px-2 border-r shrink-0 box-border" style={{ width: trackLabelWidth }}>
-              <Button variant="ghost" size="sm" className="w-7 h-7 p-0" onClick={handleSeekBackward} title={labels.seekBackward5}>
-                <TbRewindBackward5 />
-              </Button>
-              <Button variant="ghost" size="sm" className="w-7 h-7 p-0" onClick={onTogglePlayback} disabled={!onTogglePlayback} title={isPlaying ? labels.blockPause : labels.blockPlay}>
-                {isPlaying ? <TbPlayerPause /> : <TbPlayerPlay />}
-              </Button>
-              <Button variant="ghost" size="sm" className="w-7 h-7 p-0" onClick={handleSeekForward} title={labels.seekForward5}>
-                <TbRewindForward5 />
-              </Button>
+            <div className="flex items-center text-center justify-center self-stretch px-2 border-r shrink-0 box-border" style={{ width: trackLabelWidth }}>
+              <div className="text-xs text-muted-foreground truncate text-center">{trackSegmentSummary}</div>
             </div>
           )}
 
