@@ -551,68 +551,75 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     setPendingNewSegment(null);
   }, []);
 
+  const totalSegmentCount = useMemo(() => tracks.reduce((sum, t) => sum + t.segments.length, 0), [tracks]);
+
   return (
     <TimelineAdapterProvider adapters={adapters}>
       <div ref={containerRef} className={clsx('flex flex-col bg-background border rounded-lg overflow-hidden select-none h-full', className)}>
         {/* 工具栏 */}
-        <div className="relative flex items-center justify-between px-2 py-1 border-b bg-muted/30 shrink-0">
-          <div className="flex items-center gap-2 flex-1">
-            <Button variant="ghost" size="sm" className="w-8 h-8 p-0 shrink-0" onClick={handleZoomOut} title={labels.zoomOut}>
-              <TbMinus className="w-4 h-4" />
-            </Button>
+        <div className="flex items-center border-b bg-muted/30 shrink-0">
+          {showTrackLabels && (
+            <div className="flex items-center self-stretch px-2 border-r shrink-0 box-border" style={{ width: trackLabelWidth }}>
+              <div className="text-xs text-muted-foreground truncate">
+                {labels.trackCount.replace('{count}', String(tracks.length))} · {labels.segmentCount.replace('{count}', String(totalSegmentCount))}
+              </div>
+            </div>
+          )}
 
-            {/* 缩放滑块 */}
-            <div className="flex items-center gap-2 flex-1 max-w-[200px]">
-              <Slider
-                value={[pixelsPerSecond]}
-                onValueChange={handleSliderChange}
-                min={DEFAULT_CONFIG.MIN_PIXELS_PER_SECOND}
-                max={DEFAULT_CONFIG.MAX_PIXELS_PER_SECOND}
-                step={10}
-                className="flex-1"
-                title={labels.zoomLevel.replace('{value}', pixelsPerSecond.toFixed(0))}
-              />
+          <div className="relative flex flex-1 items-center justify-between px-2 py-1 min-w-0">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              {/* 剪辑工具（从剪辑轨道标签移至顶部工具栏） */}
+              {clipTrackData && (
+                <>
+                  <div className="flex items-center gap-0.5">
+                    <Button
+                      variant={internalClipTool === 'select' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="w-7 h-7 p-0"
+                      onClick={() => (clipCallbacks?.onClipToolChange ?? setInternalClipTool)('select')}
+                      title={labels.selectTool}
+                    >
+                      <TbPointer className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      variant={internalClipTool === 'cut' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="w-7 h-7 p-0"
+                      onClick={() => (clipCallbacks?.onClipToolChange ?? setInternalClipTool)('cut')}
+                      title={labels.cutTool}
+                    >
+                      <TbScissors className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
 
-            <Button variant="ghost" size="sm" className="w-8 h-8 p-0 shrink-0" onClick={handleZoomIn} title={labels.zoomIn}>
-              <TbPlus className="w-4 h-4" />
-            </Button>
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+              <TimecodeControl currentTime={effectiveCurrentTime} duration={duration} onSeek={handleSeekUnified} />
+            </div>
 
-            {/* 剪辑工具（从剪辑轨道标签移至顶部工具栏） */}
-            {clipTrackData && (
-              <>
-                <div className="w-px h-5 bg-border mx-1" />
-                <div className="flex items-center gap-0.5">
-                  <Button
-                    variant={internalClipTool === 'select' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    className="w-7 h-7 p-0"
-                    onClick={() => (clipCallbacks?.onClipToolChange ?? setInternalClipTool)('select')}
-                    title={labels.selectTool}
-                  >
-                    <TbPointer className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button
-                    variant={internalClipTool === 'cut' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    className="w-7 h-7 p-0"
-                    onClick={() => (clipCallbacks?.onClipToolChange ?? setInternalClipTool)('cut')}
-                    title={labels.cutTool}
-                  >
-                    <TbScissors className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
+            <div className="flex items-center gap-2 w-40">
+              <Button variant="ghost" size="sm" className="w-8 h-8 p-0 shrink-0" onClick={handleZoomOut} title={labels.zoomOut}>
+                <TbMinus className="w-4 h-4" />
+              </Button>
 
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <TimecodeControl currentTime={effectiveCurrentTime} duration={duration} onSeek={handleSeekUnified} />
-          </div>
+              {/* 缩放滑块 */}
+              <div className="flex items-center gap-2 flex-1 max-w-[200px]">
+                <Slider
+                  value={[pixelsPerSecond]}
+                  onValueChange={handleSliderChange}
+                  min={DEFAULT_CONFIG.MIN_PIXELS_PER_SECOND}
+                  max={DEFAULT_CONFIG.MAX_PIXELS_PER_SECOND}
+                  step={10}
+                  className="flex-1"
+                  title={labels.zoomLevel.replace('{value}', pixelsPerSecond.toFixed(0))}
+                />
+              </div>
 
-          <div className="flex items-center gap-3">
-            <div className="text-xs text-muted-foreground">
-              {labels.trackCount.replace('{count}', String(tracks.length))} · {labels.segmentCount.replace('{count}', String(tracks.reduce((sum, t) => sum + t.segments.length, 0)))}
+              <Button variant="ghost" size="sm" className="w-8 h-8 p-0 shrink-0" onClick={handleZoomIn} title={labels.zoomIn}>
+                <TbPlus className="w-4 h-4" />
+              </Button>
             </div>
           </div>
         </div>

@@ -300,37 +300,35 @@ export const TimecodeControl: React.FC<TimecodeControlProps> = ({ currentTime = 
 
   if (isEditing) {
     return (
-      <div className={clsx('flex items-center text-lg font-mono text-foreground whitespace-nowrap', className)}>
+      <div className={clsx('flex items-center flex-col text-xl font-mono text-foreground whitespace-nowrap', className)}>
         <input
           ref={inputRef}
           value={draftValue}
           onChange={handleDraftChange}
           onKeyDown={handleDraftKeyDown}
           onBlur={handleDraftBlur}
-          className="h-6 w-[12ch] border-0 border-b border-dashed border-amber-600 bg-transparent p-0 text-center font-mono text-lg text-amber-600 outline-none ring-0"
+          className="h-6 w-[12ch] border-0 bg-transparent p-0 text-center font-mono text-lg text-primary outline-none ring-0 font-bold"
           inputMode="numeric"
           aria-label="Current timecode"
         />
-        <span className="text-muted-foreground">/</span>
-        <span className="w-[12ch] text-center text-muted-foreground">{durationLabel}</span>
+        <span className="h-3 text-[11px] leading-3 text-center text-muted-foreground">{durationLabel}</span>
       </div>
     );
   }
 
   return (
     <div
-      className={clsx('group flex cursor-ew-resize touch-none select-none items-center text-lg font-mono text-foreground whitespace-nowrap', className)}
+      className={clsx('group flex cursor-ew-resize touch-none select-none items-center flex-col text-xl font-mono text-foreground whitespace-nowrap', className)}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerEnd}
       onPointerCancel={handlePointerCancel}
       title={currentPreciseLabel}
     >
-      <span className="w-[12ch] border-b border-dashed border-l-0 border-t-0 border-r-0 border-transparent text-center transition-colors group-hover:border-amber-600 group-hover:text-amber-600">
+      <span className="h-6 border-b border-dashed border-l-0 border-t-0 border-r-0 border-transparent text-center transition-colors group-hover:border-primary text-primary font-bold">
         {activeCurrentLabel}
       </span>
-      <span className="text-muted-foreground">/</span>
-      <span className="w-[12ch] text-center text-muted-foreground">{durationLabel}</span>
+      <span className="h-3 text-[11px] leading-3 text-center text-muted-foreground">{durationLabel}</span>
     </div>
   );
 };
