@@ -11,13 +11,26 @@ interface TextPlayerProps {
   resource: ResourceItem;
 }
 
+const READABLE_TEXT_EXT_RE = /(\.txt|\.md|\.log|\.json|\.csv|\.ts|\.js|\.tsx|\.jsx|\.py|\.go|\.rs|\.java|\.c|\.cpp|\.yml|\.yaml|\.toml|\.ini)$/i;
+
+function canReadFileContent(resource: ResourceItem): boolean {
+  return !!resource.filePath && READABLE_TEXT_EXT_RE.test(resource.filePath.toLowerCase());
+}
+
 export const TextPlayer: React.FC<TextPlayerProps> = ({ resource }) => {
-  const [textContent, setTextContent] = useState<string>('');
-  const [loadingText, setLoadingText] = useState(false);
+  if (resource.type === 'text') {
+    return <EditableTextResource key={resource.id} resource={resource} />;
+  }
 
-  const fileSrc = resource.filePath ? makeResSrc(resource.filePath) : resource.url;
+  if (resource.contentText) {
+    return <ReadonlyTextContent text={resource.contentText} />;
+  }
 
-  // 自动保存
+  return <FileTextResource key={`${resource.id}:${resource.filePath || ''}`} resource={resource} />;
+};
+
+const EditableTextResource: React.FC<TextPlayerProps> = ({ resource }) => {
+  const [textContent, setTextContent] = useState<string>(resource.contentText || '');
   const debouncedSave = useMemo(
     () =>
       debounce((id: string, content: string) => {
@@ -29,98 +42,76 @@ export const TextPlayer: React.FC<TextPlayerProps> = ({ resource }) => {
     []
   );
 
-  // 切换资源或卸载组件时，确保待保存的更改被立即保存
   useEffect(() => {
     return () => {
       debouncedSave.flush();
     };
-  }, [resource.id, debouncedSave]);
+  }, [debouncedSave]);
 
   const handleTextChange = useCallback(
     (newContent: string) => {
       setTextContent(newContent);
-      if (resource?.id && resource.type === 'text') {
+      if (resource.id) {
         debouncedSave(resource.id, newContent);
       }
     },
-    [resource?.id, resource.type, debouncedSave]
+    [resource.id, debouncedSave]
   );
-
-  // 加载文本类资源内容（通过主进程读取文件内容）
-  useEffect(() => {
-    const data = resource;
-
-    if (!data) {
-      setTextContent('');
-      return;
-    }
-
-    if (data.type === 'text' || data.type === 'document' || data.type === 'file') {
-      if (data.type === 'text') {
-        setTextContent(data.contentText || '');
-        return;
-      }
-
-      // 优先使用 contentText
-      if (data.contentText) {
-        setTextContent(data.contentText || '');
-        return;
-      }
-
-      // 通过主进程读取文件内容
-      if (data.filePath) {
-        const lower = data.filePath.toLowerCase();
-        if (/(\.txt|\.md|\.log|\.json|\.csv|\.ts|\.js|\.tsx|\.jsx|\.py|\.go|\.rs|\.java|\.c|\.cpp|\.yml|\.yaml|\.toml|\.ini)$/i.test(lower)) {
-          setLoadingText(true);
-          window.YUA.file['file:readContent'](data.filePath)
-            .then((result: any) => {
-              if (result.success) {
-                const content = result.content || '';
-                setTextContent(content);
-              } else {
-                setTextContent('（无法加载文本内容）');
-              }
-            })
-            .catch(() => setTextContent('（无法加载文本内容）'))
-            .finally(() => setLoadingText(false));
-          return;
-        }
-      }
-
-      setTextContent('（暂无提取文本）');
-    } else {
-      setTextContent('');
-    }
-  }, [resource]);
-
-  const isPureText = resource.type === 'text';
 
   return (
     <div className="flex h-full w-full flex-col text-xs text-muted-foreground">
-      {isPureText || textContent ? (
-        <>
-          {isPureText ? (
-            <div className="h-full w-full">
-              <RichTextEditor
-                value={textContent}
-                onChange={handleTextChange}
-                placeholder={loadingText ? '加载中…' : '暂无内容'}
-                className="h-full w-full"
-                style={{ height: '100%' }}
-                resourceUploadContext={{ workspaceId: resource.workspaceId, folderId: resource.folderId }}
-              />
-            </div>
-          ) : (
-            <ScrollArea className="h-full w-full">
-              <div className="box-border h-full w-full select-text overflow-auto px-4 py-3 text-left font-mono text-xs leading-relaxed">
-                {loadingText ? '加载中…' : textContent || '（无文本内容）'}
-              </div>
-            </ScrollArea>
-          )}
-        </>
-      ) : null}
+      <div className="h-full w-full">
+        <RichTextEditor
+          value={textContent}
+          onChange={handleTextChange}
+          placeholder="暂无内容"
+          className="h-full w-full"
+          style={{ height: '100%' }}
+          resourceUploadContext={{ workspaceId: resource.workspaceId, folderId: resource.folderId }}
+        />
+      </div>
+    </div>
+  );
+};
 
-      {!isPureText && !textContent && fileSrc && <div className="text-[11px] break-all">来源: {fileSrc}</div>}
+const ReadonlyTextContent: React.FC<{ text: string }> = ({ text }) => (
+  <div className="flex h-full w-full flex-col text-xs text-muted-foreground">
+    <ScrollArea className="h-full w-full">
+      <div className="box-border h-full w-full select-text overflow-auto px-4 py-3 text-left font-mono text-xs leading-relaxed">{text || '（无文本内容）'}</div>
+    </ScrollArea>
+  </div>
+);
+
+const FileTextResource: React.FC<TextPlayerProps> = ({ resource }) => {
+  const [fileTextContent, setFileTextContent] = useState<string>('');
+  const fileSrc = resource.filePath ? makeResSrc(resource.filePath) : resource.url;
+
+  useEffect(() => {
+    if (!['document', 'file'].includes(resource.type) || !canReadFileContent(resource)) {
+      return;
+    }
+
+    let cancelled = false;
+    window.YUA.file['file:readContent'](resource.filePath!)
+      .then((result: any) => {
+        if (cancelled) return;
+        setFileTextContent(result.success ? result.content || '' : '（无法加载文本内容）');
+      })
+      .catch(() => {
+        if (!cancelled) setFileTextContent('（无法加载文本内容）');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [resource.filePath, resource.type]);
+
+  if (fileTextContent) {
+    return <ReadonlyTextContent text={fileTextContent} />;
+  }
+
+  return (
+    <div className="flex h-full w-full flex-col text-xs text-muted-foreground">
+      {fileSrc ? <div className="text-[11px] break-all">来源: {fileSrc}</div> : null}
     </div>
   );
 };

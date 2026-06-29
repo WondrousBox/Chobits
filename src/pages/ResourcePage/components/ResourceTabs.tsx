@@ -105,7 +105,7 @@ const ResourceTabs: React.FC<ResourceTabsProps> = ({
     if (isVideo || isAudio) {
       return ['subtitle', 'translate', 'summary', 'mindmap', 'notes', 'list'];
     } else if (isImage) {
-      return ['summary', 'notes', 'list'];
+      return ['content', 'summary', 'notes', 'list'];
     } else if (isSubtitle) {
       return ['content', 'translate', 'summary', 'mindmap', 'notes', 'list'];
     } else {
@@ -244,8 +244,8 @@ const ResourceTabs: React.FC<ResourceTabsProps> = ({
 
   // 默认 Tab：文本类型选中 'content'，媒体类型选中 'subtitle'
   const getDefaultTab = useCallback((): TabType => {
-    const textType = !isVideoFile(resource?.filePath) && !isAudioFile(resource?.filePath) && !isImageFile(resource?.filePath);
-    return textType ? 'content' : 'subtitle';
+    const textOrImageType = !isVideoFile(resource?.filePath) && !isAudioFile(resource?.filePath);
+    return textOrImageType ? 'content' : 'subtitle';
   }, [resource?.filePath]);
 
   const [activeTab, setActiveTab] = useState<TabType>(getDefaultTab);

@@ -1,3 +1,4 @@
+import { AppEvent } from '@packages/event/events';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TbArrowLeft, TbLayoutBottombar, TbLayoutBottombarFilled, TbLayoutSidebarRight, TbLayoutSidebarRightFilled } from 'react-icons/tb';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -6,7 +7,6 @@ import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { BroadcastChannelManager, CHANNEL_NAMES, type MediaSyncMessage } from '@/utils/broadcastChannels';
-import { AppEvent } from '@packages/event/events';
 
 import { AnnotationAlertOverlay, ImagePlayer, MediaPlayer, ResourceSubtitlePlayer, SubtitleOverlay, TextPlayer } from './components/Players';
 import type { MediaPlayerRef } from './components/Players/MediaPlayer/MediaPlayer';
@@ -153,11 +153,11 @@ const ResourcePreviewWindow: React.FC = () => {
         return;
       }
       try {
-        const children = await window.YUA.resource['resource:listChildren']({
+        const children = (await window.YUA.resource['resource:listChildren']({
           parentResourceId: data.id,
           limit: 100,
           offset: 0
-        }) as ResourceItem[];
+        })) as ResourceItem[];
         const subs = (children || []).filter((item) => isSubtitleFile(item.filePath));
         setSubtitleList(subs);
         setActiveSubtitle((prev) => {
@@ -527,7 +527,7 @@ const ResourcePreviewWindow: React.FC = () => {
                         onResourceChange={handleResourceChange}
                         onMediaPlay={handlePlay}
                         onMediaPause={handlePause}
-                        defaultPinnedTabs={['summary', 'list']}
+                        defaultPinnedTabs={['content', 'summary', 'list']}
                       />
                     </div>
                   </ResizablePanel>

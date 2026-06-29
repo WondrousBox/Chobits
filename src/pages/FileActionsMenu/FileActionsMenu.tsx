@@ -74,75 +74,6 @@ function getOcrText(result: OcrRecognizeImageResult): string {
   return text || '（未识别到文字）';
 }
 
-function createOcrResourceTitle(primary: Resource): string {
-  const baseTitle = (primary.title || primary.filePath?.split(/[\\/]/).pop() || '图片').replace(/\.[^.]+$/, '').trim();
-  return `${baseTitle || '图片'} OCR`;
-}
-
-function createOcrTextResourceMetadata(primary: Resource, result: OcrRecognizeImageResult): string {
-  return JSON.stringify({
-    source: 'ocr',
-    sourceResourceId: primary.id,
-    engine: result.engine,
-    modelName: result.modelName,
-    modelDisplayName: result.modelDisplayName,
-    confidence: result.confidence,
-    updatedAt: Date.now()
-  });
-}
-
-function isOcrTextResource(primary: Resource, resource: Resource): boolean {
-  if (resource.type !== 'text') return false;
-  const metadata = parseJsonObject(resource.metadata);
-  return metadata.source === 'ocr' && metadata.sourceResourceId === primary.id;
-}
-
-async function upsertOcrTextResource(primary: Resource, text: string, result: OcrRecognizeImageResult): Promise<Resource> {
-  const title = createOcrResourceTitle(primary);
-  const description = `来自 ${primary.title || primary.filePath || primary.id} 的 OCR 识别结果`;
-  const metadata = createOcrTextResourceMetadata(primary, result);
-  const children = await window.YUA.resource['resource:listChildren']({
-    parentResourceId: primary.id,
-    limit: 100,
-    offset: 0
-  });
-  const existing = (children || []).find((resource) => isOcrTextResource(primary, resource));
-
-  if (existing) {
-    const updateResult = await window.YUA.resource['resource:update']({
-      id: existing.id,
-      patch: {
-        title,
-        contentText: text,
-        description,
-        metadata,
-        status: 'ready'
-      }
-    });
-    if (!updateResult.success) {
-      throw new Error(updateResult.error || 'OCR 文本资源更新失败');
-    }
-    return (updateResult.data as Resource | undefined) || { ...existing, title, contentText: text, description, metadata, status: 'ready' };
-  }
-
-  const textResourceResult = await window.YUA.resource['resource:add']({
-    resource: {
-      type: 'text',
-      title,
-      contentText: text,
-      workspaceId: primary.workspaceId,
-      folderId: primary.folderId,
-      parentResourceId: primary.id,
-      description,
-      metadata
-    }
-  });
-  if (!textResourceResult.success || !textResourceResult.data) {
-    throw new Error(textResourceResult.error || 'OCR 文本资源创建失败');
-  }
-  return textResourceResult.data;
-}
-
 async function selectOcrModel(): Promise<OcrModelInfo | null> {
   const res = await window.YUA.ocr.listModels();
   if (!res.ok) {
@@ -460,20 +391,23 @@ const FileActionsMenu: React.FC = () => {
         if (!updateResult.success) {
           throw new Error(updateResult.error || 'OCR 结果写回图片资源失败');
         }
-
-        const textResource = await upsertOcrTextResource(primary, recognizedText, result.data);
+        const updatedResource = (updateResult.data as Resource | undefined) || {
+          ...primary,
+          contentText: recognizedText,
+          metadata: JSON.stringify(metadata),
+          status: 'ready' as const
+        };
 
         await emitPurposeEvent('fileAction:ocr-completed', {
           actionId: 'image-ocr',
           modelName: result.data.modelName,
           modelDisplayName: result.data.modelDisplayName,
-          textResourceId: textResource.id,
           textLength: recognizedText.length
         });
 
-        toast.success('OCR 识别完成', { description: '识别结果已保存为关联文本资源。' });
+        toast.success('OCR 识别完成', { description: '识别结果已保存到图片资源内容。' });
         await window.YUA.window['window:open']('resourcePreview', {
-          current: textResource
+          current: updatedResource
         });
       });
     const parsePdf = (): Promise<void> =>
