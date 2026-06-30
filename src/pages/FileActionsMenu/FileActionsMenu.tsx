@@ -25,6 +25,31 @@ type ActionItem = {
   run: () => Promise<void> | void;
 };
 
+type PluginDownloadProgressInfo = {
+  pluginId?: string;
+  resourceId?: string;
+  name?: string;
+  displayName?: string;
+  status?: string;
+  error?: string;
+};
+
+const PADDLE_OCR_PLUGIN_ID = 'plugin:paddle-ocr';
+const DEFAULT_OCR_MODEL_NAME = 'ppocr-v6-small';
+const DEFAULT_OCR_MODEL_DISPLAY_NAME = 'PP-OCRv6 Small';
+const OCR_MODEL_INSTALL_TIMEOUT_MS = 30 * 60 * 1000;
+const OCR_MODEL_INSTALL_POLL_MS = 1000;
+
+class FileActionCancelledError extends Error {
+  constructor(
+    readonly reason: string,
+    message: string
+  ) {
+    super(message);
+    this.name = 'FileActionCancelledError';
+  }
+}
+
 function mapFileActionPurposeEventToAppEvent(event: string): AppEvent | undefined {
   switch (event) {
     case 'fileAction:selected':
@@ -83,17 +108,96 @@ async function selectOcrModel(): Promise<OcrModelInfo | null> {
   return models.find((model) => model.name === 'ppocr-v6-small' && model.installed) || models.find((model) => model.installed) || null;
 }
 
-async function openOcrPluginManager(): Promise<void> {
-  await window.YUA.window['window:open']('pluginManager' as any, {
-    tab: 'available',
-    category: 'ocr',
-    pluginId: 'plugin:paddle-ocr'
+async function getPreferredOcrModelForDownload(): Promise<OcrModelInfo | null> {
+  const res = await window.YUA.ocr.listModels();
+  if (!res.ok) {
+    throw new Error(res.error || '无法读取 OCR 模型列表');
+  }
+  const models = res.data || [];
+  return models.find((model) => model.name === DEFAULT_OCR_MODEL_NAME) || models[0] || null;
+}
+
+async function waitForInstalledOcrModel(options: { resourceId?: string; modelName?: string; timeoutMs?: number } = {}): Promise<OcrModelInfo> {
+  const timeoutMs = options.timeoutMs ?? OCR_MODEL_INSTALL_TIMEOUT_MS;
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let checking = false;
+
+    const cleanup = (): void => {
+      clearInterval(pollTimer);
+      clearTimeout(timeoutTimer);
+      window.ipcRenderer?.off?.('plugin-resource:progress', progressListener as any);
+    };
+
+    const settle = (fn: () => void): void => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      fn();
+    };
+
+    const checkInstalled = async (): Promise<void> => {
+      if (checking || settled) return;
+      checking = true;
+      try {
+        const model = await selectOcrModel();
+        if (model) {
+          settle(() => resolve(model));
+        }
+      } catch (error) {
+        settle(() => reject(error));
+      } finally {
+        checking = false;
+      }
+    };
+
+    const progressListener = (_event: unknown, info?: PluginDownloadProgressInfo): void => {
+      if (!info || info.pluginId !== PADDLE_OCR_PLUGIN_ID) return;
+      const matchesTarget = !options.resourceId || info.resourceId === options.resourceId || info.name === options.modelName;
+      if (!matchesTarget) return;
+
+      if (info.status === 'installed') {
+        void checkInstalled();
+        return;
+      }
+
+      if (info.status === 'failed' || info.status === 'cancelled') {
+        const label = info.displayName || options.modelName || DEFAULT_OCR_MODEL_DISPLAY_NAME;
+        const reason = info.status === 'cancelled' ? '下载已取消' : info.error || '下载失败';
+        settle(() => reject(new Error(`${label} ${reason}`)));
+      }
+    };
+
+    window.ipcRenderer?.on?.('plugin-resource:progress', progressListener as any);
+    const pollTimer = setInterval(() => void checkInstalled(), OCR_MODEL_INSTALL_POLL_MS);
+    const timeoutTimer = setTimeout(() => {
+      settle(() => reject(new Error('等待 OCR 模型安装超时')));
+    }, timeoutMs);
+    void checkInstalled();
   });
+}
+
+async function openPluginDownloadWindow(): Promise<void> {
+  await window.YUA.window['window:open']('pluginDownload' as any);
+}
+
+async function requestOcrModelInstallConfirmation(model: OcrModelInfo | null): Promise<boolean> {
+  const modelDisplayName = model?.displayName || DEFAULT_OCR_MODEL_DISPLAY_NAME;
+  const result = await window.YUA.sprite.confirmNotice({
+    content: `当前没有可用的 OCR 模型。需要下载 ${modelDisplayName} 后，才能继续识别图片里的文字。`,
+    level: 'warning',
+    confirmLabel: '下载模型',
+    cancelLabel: '取消',
+    timeoutMs: 5 * 60 * 1000
+  });
+  return result.confirmed;
 }
 
 const FileActionsMenu: React.FC = () => {
   const [resources, setResources] = useState<Resource[]>([]);
   const [payloadMeta, setPayloadMeta] = useState<Omit<FileActionsMenuPayload, 'resources'>>({});
+  const [menuOpen, setMenuOpen] = useState(true);
   const actionTakenRef = useRef(false);
   const primary = resources[0];
   const kind = primary ? guessKind({ name: primary.title || '', path: primary.filePath }) : 'other';
@@ -222,6 +326,7 @@ const FileActionsMenu: React.FC = () => {
   const handleClose = useCallback((): void => {
     void (async () => {
       if (actionTakenRef.current) {
+        setMenuOpen(false);
         return;
       }
       await resolveCancellation('menu-closed');
@@ -281,11 +386,19 @@ const FileActionsMenu: React.FC = () => {
       try {
         await fn();
       } catch (err) {
-        outcome = 'failed';
-        await emitPurposeEvent('fileAction:failed', {
-          actionId,
-          error: err instanceof Error ? err.message : String(err)
-        });
+        if (err instanceof FileActionCancelledError) {
+          outcome = 'cancelled';
+          await emitPurposeEvent('fileAction:cancelled', {
+            actionId,
+            reason: err.reason
+          });
+        } else {
+          outcome = 'failed';
+          await emitPurposeEvent('fileAction:failed', {
+            actionId,
+            error: err instanceof Error ? err.message : String(err)
+          });
+        }
       } finally {
         await emitPurposeEvent('fileAction:resolved', { actionId, outcome });
         await closeWindow();
@@ -339,13 +452,47 @@ const FileActionsMenu: React.FC = () => {
           throw new Error('缺少可识别的图片资源');
         }
 
-        const model = await selectOcrModel();
+        let model = await selectOcrModel();
         if (!model) {
-          toast.error('OCR 模型未安装', {
-            description: '请先在插件管理器下载一个 Paddle OCR 模型。'
+          const downloadModel = await getPreferredOcrModelForDownload();
+          const confirmed = await requestOcrModelInstallConfirmation(downloadModel);
+          if (!confirmed) {
+            throw new FileActionCancelledError('ocr-model-download-cancelled', '已取消下载 OCR 模型');
+          }
+
+          const modelName = downloadModel?.name || DEFAULT_OCR_MODEL_NAME;
+          const resourceId = downloadModel?.resourceId || modelName;
+          const modelDisplayName = downloadModel?.displayName || DEFAULT_OCR_MODEL_DISPLAY_NAME;
+
+          await emitPurposeEvent('fileAction:model-download-started', {
+            actionId: 'image-ocr',
+            pluginId: PADDLE_OCR_PLUGIN_ID,
+            resourceId,
+            modelName,
+            modelDisplayName
           });
-          await openOcrPluginManager();
-          throw new Error('OCR 模型未安装');
+
+          const installResult = await window.YUA.pluginResource['plugin-resource:install']({
+            pluginId: PADDLE_OCR_PLUGIN_ID,
+            resourceId,
+            deleteAfterInstall: true
+          });
+          await openPluginDownloadWindow();
+
+          if (!installResult.ok) {
+            throw new Error(installResult.error || 'OCR 模型下载任务创建失败');
+          }
+
+          toast.info('OCR 模型下载已开始', { description: `正在等待 ${modelDisplayName} 安装完成。` });
+          model = await waitForInstalledOcrModel({ resourceId, modelName });
+          await emitPurposeEvent('fileAction:model-download-completed', {
+            actionId: 'image-ocr',
+            pluginId: PADDLE_OCR_PLUGIN_ID,
+            resourceId: model.resourceId,
+            modelName: model.name,
+            modelDisplayName: model.displayName
+          });
+          toast.success('OCR 模型已安装', { description: '继续识别图片文字。' });
         }
 
         toast.info('正在识别图片文字', { description: model.displayName });
@@ -361,9 +508,9 @@ const FileActionsMenu: React.FC = () => {
         if (!result.ok || !result.data) {
           if (result.code === 'OCR_MODEL_MISSING') {
             toast.error('OCR 模型未安装或不完整', {
-              description: result.error || '请在插件管理器重新下载模型。'
+              description: result.error || '请在插件下载窗口重新下载模型。'
             });
-            await openOcrPluginManager();
+            await openPluginDownloadWindow();
           }
           throw new Error(result.error || 'OCR 识别失败');
         }
@@ -563,7 +710,7 @@ const FileActionsMenu: React.FC = () => {
       // generic: already added
     }
     return list;
-  }, [closeWindow, emitPurposeEvent, kind, payloadMeta.correlationId, primary]);
+  }, [closeWindow, emitPurposeEvent, kind, primary]);
 
   // Build radial menu items from available actions
   const radialItems: RadialMenuItem[] = useMemo(() => {
@@ -573,6 +720,7 @@ const FileActionsMenu: React.FC = () => {
       icon: a.icon,
       action: () => {
         actionTakenRef.current = true;
+        setMenuOpen(false);
         void emitPurposeEvent('fileAction:selected', {
           actionId: a.id,
           actionLabel: a.label
@@ -585,7 +733,7 @@ const FileActionsMenu: React.FC = () => {
   // If there are no actions yet (data not ready), don't render the menu
   if (radialItems.length === 0) return null;
 
-  return <RadialMenu items={radialItems} open onClose={handleClose} />;
+  return <>{menuOpen && radialItems.length > 0 && <RadialMenu items={radialItems} open onClose={handleClose} />}</>;
 };
 
 export default FileActionsMenu;

@@ -30,6 +30,8 @@ import type {
   SpriteAnimationPlaylistMode,
   SpriteAnimationTrigger,
   SpriteBubbleMode,
+  SpriteConfirmNoticeRequest,
+  SpriteConfirmNoticeResult,
   SpriteEffectBridgePayload,
   SpriteEffectClearPayload,
   SpriteEffectPayload,
@@ -155,6 +157,7 @@ export type SpriteBridgeType = {
   getPurposePlannerPreferences(): Promise<SpritePurposePlannerPreferences>;
   updatePurposePlannerPreferences(patch: Partial<SpritePurposePlannerPreferences>): Promise<SpritePurposePlannerPreferences>;
   getPurposePlannerStatus(): Promise<SpritePurposePlannerStatus>;
+  confirmNotice(request: SpriteConfirmNoticeRequest): Promise<SpriteConfirmNoticeResult>;
 
   // 临时资源根目录（用于视频预览等场景）
   addTempResourceRoot(root: string): Promise<{ success: boolean }>;
@@ -322,6 +325,7 @@ export const spriteBridge: SpriteBridgeType = {
   getPurposePlannerPreferences: () => ipcRenderer.invoke('sprite:purposePlanner:getPreferences'),
   updatePurposePlannerPreferences: (patch) => ipcRenderer.invoke('sprite:purposePlanner:updatePreferences', patch),
   getPurposePlannerStatus: () => ipcRenderer.invoke('sprite:purposePlanner:getStatus'),
+  confirmNotice: (request) => ipcRenderer.invoke('sprite:message:confirm', request),
 
   // ── 临时资源根目录 ──────────────────────────────────────
   addTempResourceRoot: (root) => ipcRenderer.invoke('sprite:addTempResourceRoot', root),

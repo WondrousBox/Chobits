@@ -636,6 +636,24 @@ export interface MessageIPCPayload {
 export type MessageBridgeSource = 'app' | 'sprite';
 export type MessageBridgeTarget = 'all' | 'sprite';
 
+export interface SpriteConfirmNoticeRequest {
+  id?: string;
+  content: string;
+  level?: MessageLevel;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  timeoutMs?: number;
+  speak?: boolean;
+}
+
+export interface SpriteConfirmNoticeResult {
+  confirmed: boolean;
+  messageId: string;
+  actionId?: string;
+  action?: string;
+  reason?: 'confirm' | 'cancel' | 'dismissed' | 'timeout' | 'error';
+}
+
 export interface MessageBridgeClearPayload {
   id?: string;
   type?: MessageType | 'all';
