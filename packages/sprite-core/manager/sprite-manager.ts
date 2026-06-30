@@ -48,6 +48,7 @@ import {
   SpritePurposeHistoryStore,
   SpritePurposeManager,
   type SpritePurposeRetrospectiveQuery,
+  type SpritePurposeRuntimeEvent,
   type SpritePurposeRuntimeEventInput,
   type SpritePurposeSnapshot,
   type SpritePurposeStartResult,
@@ -56,7 +57,7 @@ import {
   type SpriteRoutineStep,
   type StartSpritePurposeRequest
 } from '../purpose';
-import { SpeakService } from '../speak/speak-service';
+import { SpeakService, type SpriteRealtimeSpeechSession } from '../speak/speak-service';
 import type {
   SpeakResult,
   SpriteRealtimeSpeechAvailabilityRequest,
@@ -1087,8 +1088,47 @@ export class SpriteManager {
       }
     }
     const delivery = this.sendMessageBridge({ kind: 'show', payload, source: 'app', target: options?.target });
-    const deliveredToSprite = isBubbleWindowMode(this.bubbleModeConfig.mode) ? delivery.recipientCount > 0 : delivery.primarySent;
+    const deliveredToSprite = options?.target === 'sprite' || isBubbleWindowMode(this.bubbleModeConfig.mode) ? delivery.recipientCount > 0 : delivery.primarySent;
     return { deliveredToSprite };
+  }
+
+  waitForPurposeEvent(
+    options: {
+      event: string;
+      source?: SpritePurposeRuntimeEvent['source'];
+      match?: Record<string, unknown>;
+      timeoutMs?: number;
+      ignoreHistory?: boolean;
+      signal?: AbortSignal;
+      routineId?: string;
+      purposeId?: string;
+    }
+  ): Promise<SpritePurposeRuntimeEvent> {
+    const routineId = options.routineId || `manual-${Date.now()}`;
+    const routine: SpriteRoutine = {
+      id: routineId,
+      purposeId: options.purposeId || routineId,
+      source: 'system',
+      status: 'running',
+      steps: [],
+      cursor: 0,
+      createdAt: Date.now()
+    };
+    const step: Extract<SpriteRoutineStep, { type: 'waitForEvent' }> = {
+      id: `wait-${options.event}`,
+      type: 'waitForEvent',
+      event: options.event,
+      source: options.source,
+      match: options.match,
+      timeoutMs: options.timeoutMs,
+      ignoreHistory: options.ignoreHistory
+    };
+
+    return this.purposeEventWaiter.wait(step, routine, options.signal);
+  }
+
+  clearMessage(payload: MessageBridgeClearPayload): void {
+    this.clearRendererMessage(payload);
   }
 
   private clearRendererMessage(payload: MessageBridgeClearPayload): void {
@@ -1187,6 +1227,33 @@ export class SpriteManager {
   }
 
   /** 显示忙碌状态 */
+  async showSpriteNotice(
+    content: string,
+    options?: {
+      id?: string;
+      buttons?: any[];
+      duration?: number;
+      persistent?: boolean;
+      routineId?: string;
+      level?: string;
+      speak?: boolean;
+    }
+  ): Promise<boolean> {
+    const payload: MessageIPCPayload = {
+      type: 'notice',
+      id: options?.id,
+      content,
+      buttons: options?.buttons,
+      duration: options?.duration,
+      persistent: options?.persistent,
+      routineId: options?.routineId,
+      level: options?.level as any,
+      speak: options?.speak
+    };
+    const result = await this.sendBridgeMessage(payload, { target: 'sprite' });
+    return result.deliveredToSprite;
+  }
+
   showBusy(content?: string, progress?: number): void {
     const payload: MessageIPCPayload = {
       type: 'busy',
@@ -1315,7 +1382,7 @@ export class SpriteManager {
     return this.speakService.synthesize(text);
   }
 
-  async startRealtimeSpeechSession(request: SpriteRealtimeSpeechSessionRequest, onEvent?: (event: SpriteRealtimeSpeechEvent) => void) {
+  async startRealtimeSpeechSession(request: SpriteRealtimeSpeechSessionRequest, onEvent?: (event: SpriteRealtimeSpeechEvent) => void): Promise<SpriteRealtimeSpeechSession> {
     return this.speakService.startRealtimeSession(request, onEvent);
   }
 
@@ -3017,7 +3084,9 @@ export class SpriteManager {
   }
 
   private logTriggerDebug(message: string, details: Record<string, unknown> = {}): void {
-    // console.info(SPRITE_TRIGGER_DEBUG_PREFIX, message, details);
+    if (process.env.SPRITE_TRIGGER_DEBUG === '1') {
+      console.info(SPRITE_TRIGGER_DEBUG_PREFIX, message, details);
+    }
   }
 
   private shouldLogTriggerDebug(trigger?: SpriteAnimationTrigger, options?: Pick<SpriteTriggerOptions, 'playId'>): boolean {

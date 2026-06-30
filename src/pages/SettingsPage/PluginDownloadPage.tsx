@@ -213,6 +213,11 @@ const PluginDownloadPage: React.FC = () => {
             插件下载
           </div>
         }
+        actions={
+          <Button size="icon" variant="ghost" className="w-8 h-8" title="关闭" onClick={() => window.YUA.window['window:close']('pluginDownload' as any)}>
+            <TbX />
+          </Button>
+        }
       />
 
       <div className="flex-1 overflow-y-auto p-4">

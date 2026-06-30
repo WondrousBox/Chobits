@@ -88,6 +88,8 @@ import type {
   SpriteAnimationPlaylistMode,
   SpriteAnimationTrigger,
   SpriteBubbleMode,
+  SpriteConfirmNoticeRequest,
+  SpriteConfirmNoticeResult,
   SpriteEffectBridgePayload,
   SpriteEffectClearPayload,
   SpriteEffectPayload,
@@ -1471,6 +1473,85 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       return { matched: 0 };
     }
     return mgr.emitPurposeEvent(p);
+  });
+
+  ipcMain.handle('sprite:message:confirm', async (_event, request: SpriteConfirmNoticeRequest | undefined): Promise<SpriteConfirmNoticeResult> => {
+    const content = typeof request?.content === 'string' ? request.content.trim() : '';
+    const messageId = typeof request?.id === 'string' && request.id.trim() ? request.id.trim() : `sprite-confirm-${randomUUID()}`;
+    if (!content) {
+      return { confirmed: false, messageId, reason: 'error' };
+    }
+
+    const timeoutMs = Number.isFinite(request?.timeoutMs) ? Math.max(0, Number(request?.timeoutMs)) : 5 * 60 * 1000;
+    const controller = new AbortController();
+    const waitOptions = {
+      source: 'purpose-event' as const,
+      match: { messageId },
+      timeoutMs,
+      ignoreHistory: true,
+      signal: controller.signal
+    };
+    const actionPromise = mgr.waitForPurposeEvent({
+      ...waitOptions,
+      event: 'bubble:action',
+      routineId: `${messageId}:action`
+    });
+    actionPromise.catch(() => undefined);
+    const dismissedPromise = mgr.waitForPurposeEvent({
+      ...waitOptions,
+      event: 'bubble:dismissed',
+      routineId: `${messageId}:dismissed`
+    });
+    dismissedPromise.catch(() => undefined);
+
+    try {
+      const delivered = await mgr.showSpriteNotice(content, {
+        id: messageId,
+        level: request?.level ?? 'warning',
+        persistent: true,
+        speak: request?.speak ?? false,
+        buttons: [
+          {
+            id: 'confirm',
+            label: request?.confirmLabel || '确认',
+            action: 'purpose:confirm',
+            variant: 'default'
+          },
+          {
+            id: 'cancel',
+            label: request?.cancelLabel || '取消',
+            action: 'purpose:cancel',
+            variant: 'secondary'
+          }
+        ]
+      });
+
+      if (!delivered) {
+        return { confirmed: false, messageId, reason: 'error' };
+      }
+
+      const event = await Promise.race([actionPromise, dismissedPromise]);
+      const action = event.event === 'bubble:action' ? String(event.payload?.purposeAction || event.payload?.actionId || '') : undefined;
+      return {
+        confirmed: action === 'confirm',
+        messageId,
+        actionId: typeof event.payload?.actionId === 'string' ? event.payload.actionId : undefined,
+        action,
+        reason: event.event === 'bubble:action' ? (action === 'confirm' ? 'confirm' : 'cancel') : 'dismissed'
+      };
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return { confirmed: false, messageId, reason: 'dismissed' };
+      }
+      if (error instanceof Error && error.name === 'SpritePurposeEventTimeoutError') {
+        return { confirmed: false, messageId, reason: 'timeout' };
+      }
+      console.warn('[SpriteManagerIPC] sprite confirm notice failed', error);
+      return { confirmed: false, messageId, reason: 'error' };
+    } finally {
+      controller.abort();
+      mgr.clearMessage({ id: messageId, type: 'notice' });
+    }
   });
 
   ipcMain.handle('sprite:purpose:listHistory', (_e, p: SpritePurposeHistoryQuery | undefined) => {
