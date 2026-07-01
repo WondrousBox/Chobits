@@ -3,8 +3,8 @@
  *
  * 配置精灵说话的声音和播放音量
  */
-import type { ProviderPresetRecord } from '@packages/ai/types';
 import { getProviderVoiceCatalog } from '@packages/ai/providers/voice-catalogs';
+import type { ProviderPresetRecord } from '@packages/ai/types';
 import type { SpriteSpeakAIProviderConfig, SpriteSpeakConfig } from '@packages/sprite-core/speak/types';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { TbSettings, TbTrash, TbVolume } from 'react-icons/tb';
@@ -287,13 +287,6 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
               <ProviderVoiceSelect value={aiProvider.voiceId} groups={voiceCatalog?.groups || []} onChange={(value) => updateAiProvider({ voiceId: value, voice: value })} />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">voiceId</label>
-              <Input value={aiProvider.voiceId} onChange={(event) => updateAiProvider({ voiceId: event.target.value, voice: event.target.value })} placeholder="例如 female-shaonv" />
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">音频格式</label>
               <Select value={aiProvider.audioSetting?.format || 'mp3'} onValueChange={(value) => updateAiProvider({ audioSetting: { format: value } })}>
                 <SelectTrigger className="w-full">
@@ -306,12 +299,6 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
                   <SelectItem value="pcm">PCM</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">合成策略</label>
-              <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">
-                普通说话固定使用完整合成和本地缓存；对话界面的 AI 说话会按模型能力自动选择 WebSocket、HTTP 流式或完整合成。
-              </div>
             </div>
           </div>
         </div>
