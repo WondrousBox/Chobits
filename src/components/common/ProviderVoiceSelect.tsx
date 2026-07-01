@@ -94,7 +94,7 @@ export default function ProviderVoiceSelect({
           <ChevronsUpDown className="shrink-0 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="no-drag pointer-events-auto w-[min(420px,calc(100vw-32px))] p-0">
+      <DropdownMenuContent align="start" className="no-drag pointer-events-auto w-[min(288px,calc(100vw-32px))] p-0">
         <div className="border-b p-2">
           <Input
             value={searchQuery}
@@ -130,9 +130,8 @@ export default function ProviderVoiceSelect({
           <div className="max-h-72 overflow-y-auto p-1">
             {groups.map((group) => (
               <DropdownMenuSub key={group.id}>
-                <DropdownMenuSubTrigger className="justify-between">
+                <DropdownMenuSubTrigger>
                   <span className="min-w-0 truncate">{group.label}</span>
-                  <span className="ml-auto mr-1 text-[10px] text-muted-foreground">{group.voices.length}</span>
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="no-drag pointer-events-auto max-h-72 min-w-[320px] overflow-y-auto">
                   {group.voices.map((voice) => (
