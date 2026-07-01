@@ -11,6 +11,7 @@ import {
   appendTextPart,
   appendThinkingPart,
   appendToolPart,
+  AiSpeechToggle,
   AssistantMessageTimeline,
   ChatAgentSelect,
   ChatFooterActions,
@@ -735,7 +736,9 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
                 isListening: speechInput.isListening,
                 onToggle: speechInput.toggle
               }}
-            />
+            >
+              <AiSpeechToggle compact />
+            </ChatFooterActions>
           }
         />
       </div>

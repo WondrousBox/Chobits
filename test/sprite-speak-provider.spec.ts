@@ -105,6 +105,8 @@ describe('Sprite speak AI Provider config', () => {
     expect(config.engine).toBe('edge');
     expect(config.serviceType).toBe('Edge');
     expect(config.voiceName).toBe('zh-CN-YunxiNeural');
+    expect(config.rate).toBe(20);
+    expect(config.pitch).toBe(0);
     expect(config.aiProvider).toMatchObject({
       providerId: 'minimax',
       model: 'speech-2.8-turbo',
@@ -184,14 +186,14 @@ describe('Sprite speak AI Provider synthesis', () => {
         emotion: 'happy',
         mode: 'complete',
         model: 'speech-2.8-turbo',
-        pitch: 2,
+        pitch: 0,
         providerId: 'minimax',
         providerPresetId: 'preset-1',
-        speed: 1.1,
+        speed: 1,
         text: '你好',
         transportPreference: 'http',
         voiceId: 'female-shaonv',
-        volume: 0.9
+        volume: 1
       })
     );
 
@@ -357,6 +359,62 @@ describe('Sprite speak AI Provider synthesis', () => {
       expect.any(Object),
       expect.any(AbortSignal)
     );
+  });
+
+  it('treats chat realtime speech as one unified switch across scopes', async () => {
+    const dataDir = makeTempDir();
+    const stream = vi.fn<NonNullable<SpriteSpeechSynthesisExecutor['stream']>>(async (request, onEvent) => {
+      onEvent({
+        type: 'audio_delta',
+        data: {
+          chunk: Buffer.from([1, 2, 3, 4]),
+          format: 'pcm',
+          sampleRate: request.audioSetting?.sampleRate,
+          channels: request.audioSetting?.channels,
+          sampleFormat: 's16le'
+        }
+      });
+      return {
+        artifacts: [{ audioBase64: audioBase64('resource-sidebar-audio'), format: 'pcm', mimeType: 'audio/pcm' }],
+        model: request.model,
+        providerId: request.providerId,
+        voiceId: request.voiceId
+      };
+    });
+    const service = new SpeakService(dataDir, {
+      synthesize: vi.fn<SpriteSpeechSynthesisExecutor['synthesize']>(),
+      stream
+    });
+
+    service.setConfig({
+      engine: 'ai-provider',
+      aiProvider: {
+        providerId: 'minimax',
+        model: 'speech-2.8-turbo',
+        voiceId: 'female-shaonv',
+        audioSetting: { format: 'mp3' }
+      },
+      chatRealtimeSpeech: {
+        ...service.getConfig().chatRealtimeSpeech,
+        enabled: true,
+        scopes: {
+          mainChat: true,
+          resourceChatSidebar: false
+        }
+      }
+    });
+
+    expect(service.isRealtimeSpeechEnabled({ source: 'chat', scope: 'resourceChatSidebar' })).toBe(true);
+
+    const events: unknown[] = [];
+    const session = await service.startRealtimeSession({ source: 'chat', scope: 'resourceChatSidebar' }, (event) => events.push(event));
+    await session.appendText('资源侧栏也说话');
+    await session.finish();
+
+    await vi.waitFor(() => {
+      expect(stream).toHaveBeenCalledTimes(1);
+      expect(events).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'audio_delta' })]));
+    });
   });
 
   it('buffers realtime markdown fragments before sending text to duplex speech synthesis', async () => {

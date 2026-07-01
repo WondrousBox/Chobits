@@ -20,6 +20,7 @@ import { pickCodingWorkspace } from '@/lib/coding-workspace';
 import { getSkillTrustPresentation } from '@/lib/skill-trust';
 import { useChatSelection } from '@/pages/ChatPage/context/ChatSelectionContext';
 
+import AiSpeechToggle from './AiSpeechToggle';
 import ChatAgentSelect from './ChatAgentSelect';
 import ChatFooterActions from './ChatFooterActions';
 import CodingWorkspaceButton from './CodingWorkspaceButton';
@@ -377,6 +378,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
             onToggle: speechInput.toggle
           }}
         >
+          <AiSpeechToggle compact />
           {footerRightExtra}
         </ChatFooterActions>
       }

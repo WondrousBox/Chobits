@@ -1,4 +1,5 @@
 import { WindowConfig, WindowKey } from '@aim-packages/window-manager';
+import { ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY, ACHIEVEMENT_UNLOCK_WINDOW_KEY, ACHIEVEMENT_UNLOCK_WINDOW_ROUTE_HASH } from '@packages/sprite-core/achievement-window';
 
 declare module '@aim-packages/window-manager' {
   interface CustomWindowKeys {
@@ -651,15 +652,15 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       webPreferences: { nodeIntegration: true, contextIsolation: true }
     }
   },
-  achievementUnlock: {
-    routeHash: 'achievement-unlock',
+  [ACHIEVEMENT_UNLOCK_WINDOW_KEY]: {
+    routeHash: ACHIEVEMENT_UNLOCK_WINDOW_ROUTE_HASH,
     autoCenterOn: 'none',
     showOnReady: false,
-    openDevTools: false,
+    openDevTools: true,
     preferShowInactive: true,
     options: {
-      width: 420,
-      height: 128,
+      width: ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY.width,
+      height: ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY.height,
       frame: false,
       transparent: true,
       alwaysOnTop: true,

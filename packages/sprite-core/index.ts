@@ -88,6 +88,11 @@ export type {
   ToastMessage
 } from './types';
 export {
+  ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY,
+  ACHIEVEMENT_UNLOCK_WINDOW_KEY,
+  ACHIEVEMENT_UNLOCK_WINDOW_ROUTE_HASH
+} from './achievement-window';
+export {
   compileSpriteAnimationCondition,
   DEFAULT_DURATION,
   DEFAULT_SPRITE_ANIMATION_PLAYLIST_MODE,

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { emitAiUsageObservedEvent } from '../../analytics/events';
 import { AI_USAGE_CATEGORIES, AI_USAGE_FEATURES, AI_USAGE_SOURCE_TYPES, AI_USAGE_STAGES, type RecordAiUsageEventInput } from '../../analytics/types';
+import { resolveUsablePreset } from '../../preset-service';
 import { normalizeProviderPreset, resolveProviderPresetId } from '../../provider-preset';
 import { getProviderDefinitionDefaultModel } from '../../providers/service';
 import { supportsProviderCapability } from '../../providers/service';
@@ -1066,12 +1067,13 @@ export class PiExecutionService {
     providerId: string,
     providerPresetId?: string
   ): Promise<{ model: Awaited<ReturnType<typeof resolvePiModelConfig>>['model']; provider: NonNullable<ReturnType<typeof getProvider>> }> {
+    const effectivePresetId = providerPresetId || (await resolveUsablePreset(providerId).catch(() => undefined))?.id;
     const { model } = await resolvePiModelConfig(
       normalizeProviderPreset({
         messages: [],
         persist: false,
         providerId,
-        providerPresetId
+        providerPresetId: effectivePresetId
       })
     );
     const provider = getProvider(model.providerId);
