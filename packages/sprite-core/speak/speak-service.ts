@@ -490,7 +490,7 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
         usage: {
           operationKey: 'chat_realtime_speech',
           sourceId: `sprite-chat-realtime-speech:${this.scope}`,
-          sourceLabel: 'AI 回复实时朗读',
+          sourceLabel: 'AI 说话',
           sourceType: 'sprite_chat_realtime_speech',
           usageFeature: 'sprite_chat_realtime_speech'
         }
@@ -915,9 +915,6 @@ export class SpeakService {
     if (!realtimeConfig.enabled) {
       throw new Error('AI chat realtime speech is disabled');
     }
-    if (!realtimeConfig.scopes[request.scope]) {
-      throw new Error(`AI chat realtime speech scope "${request.scope}" is disabled`);
-    }
     if (normalizeEngine(config) !== 'ai-provider') {
       throw new Error('AI chat realtime speech requires AI Provider speech engine');
     }
@@ -979,11 +976,6 @@ export class SpeakService {
     if (request.source !== 'chat') {
       return false;
     }
-    const scopeEnabled = request.scope ? Boolean(realtimeConfig.scopes[request.scope]) : Object.values(realtimeConfig.scopes).some(Boolean);
-    if (!scopeEnabled) {
-      return false;
-    }
-
     if (!this.speechSynthesisExecutor) {
       return false;
     }

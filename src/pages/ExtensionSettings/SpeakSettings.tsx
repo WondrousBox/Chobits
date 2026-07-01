@@ -1,20 +1,21 @@
 /**
  * SpeakSettings — 精灵语音合成设置面板
  *
- * 配置精灵说话的声音、语速、音高等参数
+ * 配置精灵说话的声音和播放音量
  */
 import type { ProviderPresetRecord } from '@packages/ai/types';
-import type { SpriteSpeakAIProviderConfig, SpriteSpeakChatRealtimeSpeechConfig, SpriteSpeakConfig } from '@packages/sprite-core/speak/types';
+import { getProviderVoiceCatalog } from '@packages/ai/providers/voice-catalogs';
+import type { SpriteSpeakAIProviderConfig, SpriteSpeakConfig } from '@packages/sprite-core/speak/types';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { TbSettings, TbTrash, TbVolume } from 'react-icons/tb';
 
 import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
+import ProviderVoiceSelect from '@/components/common/ProviderVoiceSelect';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 
 /** 支持的 Edge TTS 语音列表（常用子集） */
@@ -40,16 +41,6 @@ const EDGE_VOICES = [
   { value: 'es-ES-ElviraNeural', label: 'Elvira (Mujer)', lang: 'Español' }
 ];
 
-const MINIMAX_VOICES = [
-  { value: 'female-shaonv', label: '少女音色', lang: '中文' },
-  { value: 'male-qn-qingse', label: '青年男声', lang: '中文' },
-  { value: 'female-yujie', label: '御姐音色', lang: '中文' },
-  { value: 'audiobook_male_1', label: '有声书男声', lang: '中文' },
-  { value: 'audiobook_female_1', label: '有声书女声', lang: '中文' },
-  { value: 'presenter_male', label: '主持男声', lang: '中文' },
-  { value: 'presenter_female', label: '主持女声', lang: '中文' }
-];
-
 const DEFAULT_AI_PROVIDER_CONFIG: SpriteSpeakAIProviderConfig = {
   providerId: 'minimax',
   model: 'speech-2.8-turbo',
@@ -65,61 +56,12 @@ const DEFAULT_AI_PROVIDER_CONFIG: SpriteSpeakAIProviderConfig = {
   voiceVolume: 1
 };
 
-const DEFAULT_CHAT_REALTIME_CONFIG: SpriteSpeakChatRealtimeSpeechConfig = {
-  enabled: false,
-  audioSetting: {
-    format: 'pcm',
-    sampleRate: 32000,
-    channels: 1,
-    sampleFormat: 's16le'
-  },
-  chunking: {
-    minChars: 8,
-    maxChars: 80,
-    maxDelayMs: 350,
-    flushOnPunctuation: true
-  },
-  playback: {
-    startBufferMs: 160,
-    maxBufferMs: 3000,
-    fadeInMs: 12,
-    fadeOutMs: 32
-  },
-  scopes: {
-    mainChat: true,
-    resourceChatSidebar: true
-  },
-  writeFinalCache: false
-};
-
 const mergeAiProviderConfig = (config?: SpriteSpeakAIProviderConfig): SpriteSpeakAIProviderConfig => ({
   ...DEFAULT_AI_PROVIDER_CONFIG,
   ...(config || {}),
   audioSetting: {
     ...DEFAULT_AI_PROVIDER_CONFIG.audioSetting,
     ...(config?.audioSetting || {})
-  }
-});
-
-const mergeChatRealtimeConfig = (config?: SpriteSpeakChatRealtimeSpeechConfig): SpriteSpeakChatRealtimeSpeechConfig => ({
-  ...DEFAULT_CHAT_REALTIME_CONFIG,
-  ...(config || {}),
-  audioSetting: {
-    ...DEFAULT_CHAT_REALTIME_CONFIG.audioSetting,
-    ...(config?.audioSetting || {}),
-    format: 'pcm'
-  },
-  chunking: {
-    ...DEFAULT_CHAT_REALTIME_CONFIG.chunking,
-    ...(config?.chunking || {})
-  },
-  playback: {
-    ...DEFAULT_CHAT_REALTIME_CONFIG.playback,
-    ...(config?.playback || {})
-  },
-  scopes: {
-    ...DEFAULT_CHAT_REALTIME_CONFIG.scopes,
-    ...(config?.scopes || {})
   }
 });
 
@@ -220,7 +162,7 @@ export const SpeakItem: React.FC<{
 export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ state }) => {
   const { config, loading, testLoading, cacheStats, updateConfig, handleTest, handleClearCache } = state;
   const aiProvider = useMemo(() => mergeAiProviderConfig(config?.aiProvider), [config?.aiProvider]);
-  const realtimeSpeech = useMemo(() => mergeChatRealtimeConfig(config?.chatRealtimeSpeech), [config?.chatRealtimeSpeech]);
+  const voiceCatalog = useMemo(() => getProviderVoiceCatalog(aiProvider.providerId), [aiProvider.providerId]);
   const [presets, setPresets] = useState<ProviderPresetRecord[]>([]);
 
   useEffect(() => {
@@ -260,68 +202,40 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
     });
   };
 
-  const updateRealtimeSpeech = (patch: Partial<SpriteSpeakChatRealtimeSpeechConfig>) => {
-    void updateConfig({
-      chatRealtimeSpeech: mergeChatRealtimeConfig({
-        ...realtimeSpeech,
-        ...patch,
-        audioSetting: patch.audioSetting ? { ...realtimeSpeech.audioSetting, ...patch.audioSetting, format: 'pcm' } : realtimeSpeech.audioSetting,
-        chunking: patch.chunking ? { ...realtimeSpeech.chunking, ...patch.chunking } : realtimeSpeech.chunking,
-        playback: patch.playback ? { ...realtimeSpeech.playback, ...patch.playback } : realtimeSpeech.playback,
-        scopes: patch.scopes ? { ...realtimeSpeech.scopes, ...patch.scopes } : realtimeSpeech.scopes
-      })
-    });
-  };
-
   const isAiProvider = config.engine === 'ai-provider';
 
   return (
     <div className="space-y-5">
       <div className="space-y-2">
-        <label className="text-sm font-medium text-foreground">合成引擎</label>
-        <Tabs value={isAiProvider ? 'ai-provider' : 'edge'} onValueChange={(value) => updateConfig({ engine: value === 'ai-provider' ? 'ai-provider' : 'edge' })}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="edge">Edge</TabsTrigger>
-            <TabsTrigger value="ai-provider">AI Provider</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <label className="text-sm font-medium text-foreground">说话方式</label>
+        <Select value={isAiProvider ? 'ai-provider' : 'edge'} onValueChange={(value) => updateConfig({ engine: value === 'ai-provider' ? 'ai-provider' : 'edge' })}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="选择说话方式" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="edge">Edge TTS</SelectItem>
+            <SelectItem value="ai-provider">服务商语音</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {!isAiProvider ? (
-        <>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">音色</label>
-            <Select value={config.voiceName} onValueChange={(value) => updateConfig({ voiceName: value })}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="选择音色" />
-              </SelectTrigger>
-              <SelectContent>
-                {EDGE_VOICES.map((voice) => (
-                  <SelectItem key={voice.value} value={voice.value}>
-                    <span>{voice.label}</span>
-                    <span className="ml-2 text-xs text-muted-foreground">{voice.lang}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-foreground">语速</label>
-              <span className="text-xs text-muted-foreground">{config.rate > 0 ? `+${config.rate}%` : `${config.rate}%`}</span>
-            </div>
-            <Slider value={[config.rate]} min={-50} max={200} step={10} onValueChange={([value]) => updateConfig({ rate: value })} />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-foreground">音高</label>
-              <span className="text-xs text-muted-foreground">{config.pitch > 0 ? `+${config.pitch}%` : `${config.pitch}%`}</span>
-            </div>
-            <Slider value={[config.pitch]} min={-50} max={50} step={5} onValueChange={([value]) => updateConfig({ pitch: value })} />
-          </div>
-        </>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-foreground">音色</label>
+          <Select value={config.voiceName} onValueChange={(value) => updateConfig({ voiceName: value })}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="选择音色" />
+            </SelectTrigger>
+            <SelectContent>
+              {EDGE_VOICES.map((voice) => (
+                <SelectItem key={voice.value} value={voice.value}>
+                  <span>{voice.label}</span>
+                  <span className="ml-2 text-xs text-muted-foreground">{voice.lang}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       ) : (
         <div className="space-y-5">
           <div className="space-y-2">
@@ -369,20 +283,8 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
 
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">常用音色</label>
-              <Select value={aiProvider.voiceId} onValueChange={(value) => updateAiProvider({ voiceId: value, voice: value })}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="选择音色" />
-                </SelectTrigger>
-                <SelectContent>
-                  {MINIMAX_VOICES.map((voice) => (
-                    <SelectItem key={voice.value} value={voice.value}>
-                      <span>{voice.label}</span>
-                      <span className="ml-2 text-xs text-muted-foreground">{voice.lang}</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <label className="text-sm font-medium text-foreground">音色</label>
+              <ProviderVoiceSelect value={aiProvider.voiceId} groups={voiceCatalog?.groups || []} onChange={(value) => updateAiProvider({ voiceId: value, voice: value })} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">voiceId</label>
@@ -408,83 +310,7 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">合成策略</label>
               <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">
-                普通说话固定使用完整合成和本地缓存；AI 回复实时朗读按模型能力自动选择 WebSocket、HTTP 流式或完整合成。
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-foreground">语速</label>
-              <span className="text-xs text-muted-foreground">{(aiProvider.speed ?? 1).toFixed(2)}x</span>
-            </div>
-            <Slider value={[aiProvider.speed ?? 1]} min={0.5} max={2} step={0.05} onValueChange={([value]) => updateAiProvider({ speed: value })} />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-foreground">发声音量</label>
-              <span className="text-xs text-muted-foreground">{Math.round((aiProvider.voiceVolume ?? 1) * 100)}%</span>
-            </div>
-            <Slider value={[aiProvider.voiceVolume ?? 1]} min={0.1} max={2} step={0.05} onValueChange={([value]) => updateAiProvider({ voiceVolume: value })} />
-          </div>
-
-          <div className="space-y-3 rounded-lg border border-border p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-sm font-medium text-foreground">AI 回复实时朗读</div>
-                <div className="text-xs text-muted-foreground">开启后仅朗读 assistant 正文 delta。</div>
-              </div>
-              <Switch checked={realtimeSpeech.enabled} onCheckedChange={(checked) => updateRealtimeSpeech({ enabled: checked })} />
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 text-sm">
-                <span>主聊天</span>
-                <Switch
-                  checked={realtimeSpeech.scopes.mainChat}
-                  onCheckedChange={(checked) => updateRealtimeSpeech({ scopes: { mainChat: checked, resourceChatSidebar: realtimeSpeech.scopes.resourceChatSidebar } })}
-                />
-              </label>
-              <label className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 text-sm">
-                <span>资源侧栏</span>
-                <Switch
-                  checked={realtimeSpeech.scopes.resourceChatSidebar}
-                  onCheckedChange={(checked) => updateRealtimeSpeech({ scopes: { mainChat: realtimeSpeech.scopes.mainChat, resourceChatSidebar: checked } })}
-                />
-              </label>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">PCM 采样率</label>
-                <Select
-                  value={String(realtimeSpeech.audioSetting.sampleRate)}
-                  onValueChange={(value) => updateRealtimeSpeech({ audioSetting: { ...realtimeSpeech.audioSetting, sampleRate: Number(value) } })}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="16000">16000 Hz</SelectItem>
-                    <SelectItem value="24000">24000 Hz</SelectItem>
-                    <SelectItem value="32000">32000 Hz</SelectItem>
-                    <SelectItem value="44100">44100 Hz</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-muted-foreground">首播缓冲</label>
-                  <span className="text-xs text-muted-foreground">{realtimeSpeech.playback.startBufferMs}ms</span>
-                </div>
-                <Slider
-                  value={[realtimeSpeech.playback.startBufferMs]}
-                  min={0}
-                  max={800}
-                  step={20}
-                  onValueChange={([value]) => updateRealtimeSpeech({ playback: { ...realtimeSpeech.playback, startBufferMs: value } })}
-                />
+                普通说话固定使用完整合成和本地缓存；对话界面的 AI 说话会按模型能力自动选择 WebSocket、HTTP 流式或完整合成。
               </div>
             </div>
           </div>

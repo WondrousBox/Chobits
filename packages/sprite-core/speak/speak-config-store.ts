@@ -47,9 +47,9 @@ function normalizeAiProviderConfig(raw: unknown): SpriteSpeakAIProviderConfig {
       ...DEFAULT_AI_PROVIDER_SPEAK_CONFIG.audioSetting,
       ...(audioSetting || {})
     },
-    speed: typeof source.speed === 'number' && Number.isFinite(source.speed) ? source.speed : DEFAULT_AI_PROVIDER_SPEAK_CONFIG.speed,
-    pitch: typeof source.pitch === 'number' && Number.isFinite(source.pitch) ? source.pitch : DEFAULT_AI_PROVIDER_SPEAK_CONFIG.pitch,
-    voiceVolume: typeof source.voiceVolume === 'number' && Number.isFinite(source.voiceVolume) ? source.voiceVolume : DEFAULT_AI_PROVIDER_SPEAK_CONFIG.voiceVolume,
+    speed: DEFAULT_AI_PROVIDER_SPEAK_CONFIG.speed,
+    pitch: DEFAULT_AI_PROVIDER_SPEAK_CONFIG.pitch,
+    voiceVolume: DEFAULT_AI_PROVIDER_SPEAK_CONFIG.voiceVolume,
     emotion: typeof source.emotion === 'string' && source.emotion.trim() ? source.emotion.trim() : undefined,
     subtitle: subtitle ? { ...subtitle } : undefined,
     pronunciationDict: isRecord(source.pronunciationDict) ? source.pronunciationDict : undefined,
@@ -120,8 +120,8 @@ export class SpeakConfigStore {
           engine: normalizeEngine(parsed),
           serviceType: parsed.serviceType ?? DEFAULT_SPEAK_CONFIG.serviceType,
           voiceName: parsed.voiceName ?? DEFAULT_SPEAK_CONFIG.voiceName,
-          rate: parsed.rate ?? DEFAULT_SPEAK_CONFIG.rate,
-          pitch: parsed.pitch ?? DEFAULT_SPEAK_CONFIG.pitch,
+          rate: DEFAULT_SPEAK_CONFIG.rate,
+          pitch: DEFAULT_SPEAK_CONFIG.pitch,
           volume: parsed.volume ?? DEFAULT_SPEAK_CONFIG.volume,
           aiProvider: normalizeAiProviderConfig(parsed.aiProvider),
           chatRealtimeSpeech: normalizeChatRealtimeSpeechConfig(parsed.chatRealtimeSpeech)
@@ -158,6 +158,8 @@ export class SpeakConfigStore {
       ...this.config,
       ...partial,
       engine: partial.engine || this.config.engine,
+      rate: DEFAULT_SPEAK_CONFIG.rate,
+      pitch: DEFAULT_SPEAK_CONFIG.pitch,
       aiProvider: partial.aiProvider ? normalizeAiProviderConfig({ ...this.config.aiProvider, ...partial.aiProvider }) : this.config.aiProvider,
       chatRealtimeSpeech: partial.chatRealtimeSpeech
         ? normalizeChatRealtimeSpeechConfig({

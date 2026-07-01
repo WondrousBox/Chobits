@@ -240,6 +240,7 @@ describe('window handlers', () => {
 
   it('opens achievement unlock on the opener display at the top right', async () => {
     const { initWindowHandlers } = await import('../electron/main/handlers/window');
+    const { ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY, ACHIEVEMENT_UNLOCK_WINDOW_KEY } = await import('../packages/sprite-core/achievement-window');
     const win = createWindowStub();
     const sender = {};
     const opener = {
@@ -263,15 +264,15 @@ describe('window handlers', () => {
     initWindowHandlers(win);
 
     const openWindow = ipcHandlers.get('window:open') as (event: { sender: unknown }, key: string, payload?: unknown) => Promise<boolean>;
-    await expect(openWindow({ sender }, 'achievementUnlock', { achievementId: 'first-workspace' })).resolves.toBe(true);
+    await expect(openWindow({ sender }, ACHIEVEMENT_UNLOCK_WINDOW_KEY, { achievementId: 'first-workspace' })).resolves.toBe(true);
 
-    expect(windowManagerState.setOpener).toHaveBeenCalledWith('achievementUnlock', opener);
-    expect(windowManagerState.createOrShow).toHaveBeenCalledWith('achievementUnlock', { achievementId: 'first-workspace' }, expect.objectContaining({ beforeShow: expect.any(Function) }));
+    expect(windowManagerState.setOpener).toHaveBeenCalledWith(ACHIEVEMENT_UNLOCK_WINDOW_KEY, opener);
+    expect(windowManagerState.createOrShow).toHaveBeenCalledWith(ACHIEVEMENT_UNLOCK_WINDOW_KEY, { achievementId: 'first-workspace' }, expect.objectContaining({ beforeShow: expect.any(Function) }));
     expect(achievementWindow.setBounds).toHaveBeenCalledWith({
-      x: 850,
-      y: 40,
-      width: 420,
-      height: 128
+      x: 10 + 1280 - ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY.width - ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY.margin,
+      y: 20 + ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY.margin,
+      width: ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY.width,
+      height: ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY.height
     });
   });
 

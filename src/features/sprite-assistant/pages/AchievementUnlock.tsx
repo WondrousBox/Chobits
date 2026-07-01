@@ -1,22 +1,26 @@
+import { ACHIEVEMENT_UNLOCK_WINDOW_KEY } from '@packages/sprite-core/achievement-window';
 import React, { useCallback, useEffect, useState } from 'react';
 
-import { getAchievementPresentation, type AchievementPresentation } from '../config/achievements';
+import { type AchievementPresentation, getAchievementPresentation } from '../config/achievements';
 import AchievementUnlockToast from '../ui/AchievementUnlockToast';
 
 interface AchievementUnlockPayload {
   achievementId?: string;
+  debugDurationMs?: number;
 }
 
 type QueuedAchievement = AchievementPresentation & {
   toastKey: string;
 };
 
-const WINDOW_KEY = 'achievementUnlock';
-const WINDOW_WIDTH = 420;
-const WINDOW_HEIGHT = 128;
-const SCREEN_MARGIN = 20;
 const DISPLAY_DURATION_MS = 5600;
 const DUPLICATE_PAYLOAD_GUARD_MS = 750;
+
+function parseDebugDurationMs(value: unknown): number | null {
+  const numericValue = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : Number.NaN;
+  if (!Number.isFinite(numericValue)) return null;
+  return Math.max(0, Math.round(numericValue));
+}
 
 function readAchievementId(payload: unknown): string | null {
   if (!payload || typeof payload !== 'object') return null;
@@ -24,8 +28,36 @@ function readAchievementId(payload: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+function readDebugDurationMs(payload: unknown): number | null {
+  if (!payload || typeof payload !== 'object') return null;
+  return parseDebugDurationMs((payload as AchievementUnlockPayload).debugDurationMs);
+}
+
+function getHashSearchParams(): URLSearchParams {
+  const hash = window.location.hash ?? '';
+  const queryIndex = hash.indexOf('?');
+  return new URLSearchParams(queryIndex >= 0 ? hash.slice(queryIndex + 1) : '');
+}
+
+function readDebugSearchParams(): { achievementId: string | null; durationMs: number | null } {
+  const searchParams = new URLSearchParams(window.location.search ?? '');
+  const hashSearchParams = getHashSearchParams();
+  const debugAchievementId = searchParams.get('debugAchievementId')?.trim() || searchParams.get('achievementId')?.trim() || null;
+  const hashDebugAchievementId = hashSearchParams.get('debugAchievementId')?.trim() || hashSearchParams.get('achievementId')?.trim() || null;
+  const debugDurationMs = searchParams.get('debugDurationMs') ?? searchParams.get('durationMs') ?? hashSearchParams.get('debugDurationMs') ?? hashSearchParams.get('durationMs');
+  return {
+    achievementId: debugAchievementId ?? hashDebugAchievementId,
+    durationMs: parseDebugDurationMs(debugDurationMs)
+  };
+}
+
+function getWindowBridge(): Window['YUA']['window'] | null {
+  return window.YUA?.window ?? null;
+}
+
 const AchievementUnlockPage: React.FC = () => {
   const [achievement, setAchievement] = useState<QueuedAchievement | null>(null);
+  const [displayDurationMs, setDisplayDurationMs] = useState(DISPLAY_DURATION_MS);
   const activeAchievementRef = React.useRef<QueuedAchievement | null>(null);
   const queuedAchievementsRef = React.useRef<QueuedAchievement[]>([]);
   const isExitingRef = React.useRef(false);
@@ -34,26 +66,12 @@ const AchievementUnlockPage: React.FC = () => {
   const lastAcceptedPayloadRef = React.useRef<{ achievementId: string; acceptedAt: number } | null>(null);
 
   const closeWindow = useCallback((): void => {
-    void window.YUA.window['window:close'](WINDOW_KEY as any);
+    void getWindowBridge()?.['window:close'](ACHIEVEMENT_UNLOCK_WINDOW_KEY as any);
   }, []);
 
   const setActiveAchievement = useCallback((nextAchievement: QueuedAchievement | null): void => {
     activeAchievementRef.current = nextAchievement;
     setAchievement(nextAchievement);
-  }, []);
-
-  const positionWindow = useCallback(async (): Promise<void> => {
-    try {
-      const workArea = await window.YUA.window['screen:work-area:get'](WINDOW_KEY as any);
-      await window.YUA.window['window:bounds:set'](WINDOW_KEY as any, {
-        x: workArea.x + workArea.width - WINDOW_WIDTH - SCREEN_MARGIN,
-        y: workArea.y + SCREEN_MARGIN,
-        width: WINDOW_WIDTH,
-        height: WINDOW_HEIGHT
-      });
-    } catch (error) {
-      console.warn('[AchievementUnlock] failed to position window:', error);
-    }
   }, []);
 
   const enqueueAchievement = useCallback(
@@ -81,12 +99,21 @@ const AchievementUnlockPage: React.FC = () => {
     [setActiveAchievement]
   );
 
-  const hydrateFromPayload = useCallback(async (incoming?: unknown): Promise<void> => {
-    const payload = incoming ?? (await window.YUA.window['window:payload:get'](WINDOW_KEY as any));
-    const achievementId = readAchievementId(payload);
-    if (!achievementId) return;
-    enqueueAchievement(achievementId);
-  }, [enqueueAchievement]);
+  const hydrateFromPayload = useCallback(
+    async (incoming?: unknown): Promise<boolean> => {
+      const windowBridge = getWindowBridge();
+      const payload = incoming ?? (windowBridge ? await windowBridge['window:payload:get'](ACHIEVEMENT_UNLOCK_WINDOW_KEY as any) : null);
+      const debugDurationMs = readDebugDurationMs(payload);
+      if (debugDurationMs !== null) {
+        setDisplayDurationMs(debugDurationMs);
+      }
+      const achievementId = readAchievementId(payload);
+      if (!achievementId) return false;
+      enqueueAchievement(achievementId);
+      return true;
+    },
+    [enqueueAchievement]
+  );
 
   const dismissCurrentAchievement = useCallback((): void => {
     if (!activeAchievementRef.current || isExitingRef.current) return;
@@ -125,28 +152,34 @@ const AchievementUnlockPage: React.FC = () => {
   }, [closeWindow, setActiveAchievement]);
 
   useEffect(() => {
-    void positionWindow();
+    const debugParams = readDebugSearchParams();
+    if (debugParams.durationMs !== null) {
+      setDisplayDurationMs(debugParams.durationMs);
+    }
+    if (debugParams.achievementId) {
+      enqueueAchievement(debugParams.achievementId);
+    }
     void hydrateFromPayload();
 
     const handler = (_event: unknown, payload: unknown): void => {
-      void positionWindow();
       void hydrateFromPayload(payload);
     };
     window.ipcRenderer?.on('on:window:open:ready', handler as any);
     return () => {
       window.ipcRenderer?.off('on:window:open:ready', handler as any);
     };
-  }, [hydrateFromPayload, positionWindow]);
+  }, [enqueueAchievement, hydrateFromPayload]);
 
   useEffect(() => {
     if (!achievement) return undefined;
-    const timer = window.setTimeout(dismissCurrentAchievement, DISPLAY_DURATION_MS);
+    if (displayDurationMs <= 0) return undefined;
+    const timer = window.setTimeout(dismissCurrentAchievement, displayDurationMs);
     return () => window.clearTimeout(timer);
-  }, [achievement?.toastKey, dismissCurrentAchievement]);
+  }, [achievement?.toastKey, dismissCurrentAchievement, displayDurationMs]);
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-transparent [background:transparent]">
-      <AchievementUnlockToast achievement={achievement} durationMs={DISPLAY_DURATION_MS} onClose={closeAllAchievements} onExitComplete={handleExitComplete} />
+      <AchievementUnlockToast achievement={achievement} durationMs={displayDurationMs} onClose={closeAllAchievements} onExitComplete={handleExitComplete} />
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import path from 'node:path';
 
 import { initIpcMain, windowManager } from '@aim-packages/window-manager';
+import { ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY, ACHIEVEMENT_UNLOCK_WINDOW_KEY } from '@packages/sprite-core/achievement-window';
 import type { IpcMainInvokeEvent } from 'electron';
 import { BrowserWindow, ipcMain } from 'electron';
 import { app, screen } from 'electron';
@@ -19,10 +20,6 @@ const SPRITE_BUBBLE_MAX_HEIGHT = 392;
 const SPRITE_EFFECT_WINDOW_KEY = 'spriteEffect' as const;
 type AssistantInteractiveRegion = { x: number; y: number; width: number; height: number };
 const WORKSPACE_WIZARD_WINDOW_KEY = 'workspaceWizard';
-const ACHIEVEMENT_UNLOCK_WINDOW_KEY = 'achievementUnlock';
-const ACHIEVEMENT_UNLOCK_WINDOW_WIDTH = 420;
-const ACHIEVEMENT_UNLOCK_WINDOW_HEIGHT = 128;
-const ACHIEVEMENT_UNLOCK_WINDOW_MARGIN = 20;
 
 function clampWindowDimension(value: number | undefined, min: number, max: number): number {
   const numericValue = Number(value ?? 0);
@@ -54,10 +51,10 @@ function positionAchievementUnlockWindow(targetWindow: BrowserWindow, referenceW
     const display = referenceWindow && !referenceWindow.isDestroyed() ? screen.getDisplayMatching(referenceWindow.getBounds()) : screen.getPrimaryDisplay();
     const workArea = display.workArea;
     targetWindow.setBounds({
-      x: Math.round(workArea.x + workArea.width - ACHIEVEMENT_UNLOCK_WINDOW_WIDTH - ACHIEVEMENT_UNLOCK_WINDOW_MARGIN),
-      y: Math.round(workArea.y + ACHIEVEMENT_UNLOCK_WINDOW_MARGIN),
-      width: ACHIEVEMENT_UNLOCK_WINDOW_WIDTH,
-      height: ACHIEVEMENT_UNLOCK_WINDOW_HEIGHT
+      x: Math.round(workArea.x + workArea.width - ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY.width - ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY.margin),
+      y: Math.round(workArea.y + ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY.margin),
+      width: ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY.width,
+      height: ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY.height
     });
   } catch (error) {
     console.warn('[window] failed to position achievement unlock window:', error);

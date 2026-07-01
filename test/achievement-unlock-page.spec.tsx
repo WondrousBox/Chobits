@@ -21,16 +21,28 @@ async function flushPromises(): Promise<void> {
   await Promise.resolve();
 }
 
-function installAchievementWindowEnv(initialAchievementId: string): {
+function installAchievementWindowEnv(initialAchievementId?: string | null, options?: { href?: string }): {
   env: MiniDomEnvironment;
   ipcListeners: Map<string, any>;
   closeWindow: ReturnType<typeof vi.fn>;
   setBounds: ReturnType<typeof vi.fn>;
+  getWorkArea: ReturnType<typeof vi.fn>;
+  getPayload: ReturnType<typeof vi.fn>;
 } {
   const env = installMiniDom();
+  if (options?.href) {
+    const url = new URL(options.href);
+    (env.window as any).location = {
+      href: url.href,
+      search: url.search,
+      hash: url.hash
+    };
+  }
   const ipcListeners = new Map<string, any>();
   const closeWindow = vi.fn(async () => true);
   const setBounds = vi.fn(async () => ({ success: true }));
+  const getWorkArea = vi.fn(async () => ({ x: 10, y: 20, width: 1280, height: 720 }));
+  const getPayload = vi.fn(async () => (initialAchievementId ? { achievementId: initialAchievementId } : null));
 
   (env.window as any).ipcRenderer = {
     on: vi.fn((event: string, listener: any) => {
@@ -42,14 +54,14 @@ function installAchievementWindowEnv(initialAchievementId: string): {
   };
   (env.window as any).YUA = {
     window: {
-      'window:payload:get': vi.fn(async () => ({ achievementId: initialAchievementId })),
-      'screen:work-area:get': vi.fn(async () => ({ x: 10, y: 20, width: 1280, height: 720 })),
+      'window:payload:get': getPayload,
+      'screen:work-area:get': getWorkArea,
       'window:bounds:set': setBounds,
       'window:close': closeWindow
     }
   };
 
-  return { env, ipcListeners, closeWindow, setBounds };
+  return { env, ipcListeners, closeWindow, setBounds, getWorkArea, getPayload };
 }
 
 describe('AchievementUnlockPage', () => {
@@ -67,7 +79,7 @@ describe('AchievementUnlockPage', () => {
     const { act } = await import('react');
     const { createRoot } = await import('react-dom/client');
     const { default: AchievementUnlockPage } = await import('../src/features/sprite-assistant/pages/AchievementUnlock');
-    const { env, ipcListeners, closeWindow, setBounds } = installAchievementWindowEnv('first-workspace');
+    const { env, ipcListeners, closeWindow, getWorkArea, setBounds } = installAchievementWindowEnv('first-workspace');
     const root = createRoot(env.container as any);
 
     await act(async () => {
@@ -91,7 +103,8 @@ describe('AchievementUnlockPage', () => {
     });
 
     expect(closeWindow).toHaveBeenCalledTimes(1);
-    expect(setBounds).toHaveBeenCalledWith('achievementUnlock', { x: 850, y: 40, width: 420, height: 128 });
+    expect(getWorkArea).not.toHaveBeenCalled();
+    expect(setBounds).not.toHaveBeenCalled();
 
     await act(async () => root.unmount());
     env.cleanup();
@@ -132,6 +145,75 @@ describe('AchievementUnlockPage', () => {
       await flushPromises();
     });
     await act(async () => {
+      toastMockState.latestProps.onExitComplete();
+      await flushPromises();
+    });
+
+    expect(closeWindow).toHaveBeenCalledTimes(1);
+
+    await act(async () => root.unmount());
+    env.cleanup();
+  });
+
+  it('can render a debug achievement from hash search params', async () => {
+    const { act } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+    const { default: AchievementUnlockPage } = await import('../src/features/sprite-assistant/pages/AchievementUnlock');
+    const { env, closeWindow } = installAchievementWindowEnv(null, {
+      href: 'http://localhost/#/achievement-unlock?debugAchievementId=first-import&debugDurationMs=0'
+    });
+    const root = createRoot(env.container as any);
+
+    await act(async () => {
+      root.render(<AchievementUnlockPage />);
+      await flushPromises();
+    });
+
+    expect(env.container.textContent).toContain('第一次托付文件');
+    expect(toastMockState.latestProps.durationMs).toBe(0);
+
+    await act(async () => {
+      vi.advanceTimersByTime(30000);
+      await flushPromises();
+    });
+
+    expect(env.container.textContent).toContain('第一次托付文件');
+    expect(closeWindow).not.toHaveBeenCalled();
+
+    await act(async () => root.unmount());
+    env.cleanup();
+  });
+
+  it('keeps a payload achievement visible when debugDurationMs is zero', async () => {
+    const { act } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+    const { default: AchievementUnlockPage } = await import('../src/features/sprite-assistant/pages/AchievementUnlock');
+    const { env, ipcListeners, closeWindow, getPayload } = installAchievementWindowEnv('first-workspace');
+    getPayload.mockResolvedValueOnce({ achievementId: 'first-workspace', debugDurationMs: 0 });
+    const root = createRoot(env.container as any);
+
+    await act(async () => {
+      root.render(<AchievementUnlockPage />);
+      await flushPromises();
+    });
+    expect(env.container.textContent).toContain('第一个工作空间');
+
+    await act(async () => {
+      vi.advanceTimersByTime(30000);
+      await flushPromises();
+    });
+
+    expect(env.container.textContent).toContain('第一个工作空间');
+    expect(closeWindow).not.toHaveBeenCalled();
+
+    await act(async () => {
+      ipcListeners.get('on:window:open:ready')?.(null, { achievementId: 'first-import', debugDurationMs: 12000 });
+      await flushPromises();
+    });
+
+    await act(async () => {
+      toastMockState.latestProps.onClose();
+      await flushPromises();
       toastMockState.latestProps.onExitComplete();
       await flushPromises();
     });

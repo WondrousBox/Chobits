@@ -30,13 +30,24 @@ function shouldFlush(buffer: string, config: SpriteSpeakChatRealtimeSpeechConfig
   return false;
 }
 
-function isRealtimeSpeechConfigEnabled(config: SpriteSpeakConfig, scope: SpriteRealtimeSpeechScope): boolean {
+function isRealtimeSpeechConfigEnabled(config: SpriteSpeakConfig): boolean {
   const realtimeConfig = config.chatRealtimeSpeech;
-  return Boolean(config.enabled && config.engine === 'ai-provider' && realtimeConfig.enabled && realtimeConfig.scopes[scope]);
+  return Boolean(config.enabled && config.engine === 'ai-provider' && realtimeConfig.enabled);
+}
+
+function normalizeRealtimeSpeechConfig(config: SpriteSpeakConfig, scope: SpriteRealtimeSpeechScope): SpriteSpeakChatRealtimeSpeechConfig {
+  const realtimeConfig = config.chatRealtimeSpeech;
+  return {
+    ...realtimeConfig,
+    scopes: {
+      ...realtimeConfig.scopes,
+      [scope]: true
+    }
+  };
 }
 
 function buildRealtimeSpeechPromptContext(config: SpriteSpeakConfig, scope: SpriteRealtimeSpeechScope) {
-  if (!isRealtimeSpeechConfigEnabled(config, scope)) return undefined;
+  if (!isRealtimeSpeechConfigEnabled(config)) return undefined;
   const aiProvider = config.aiProvider;
   if (!aiProvider?.providerId || !aiProvider.model) return undefined;
 
@@ -83,8 +94,9 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
   const refreshEnabled = useCallback(async (): Promise<boolean> => {
     try {
       const config = await window.YUA.sprite.getSpeakConfig();
-      configRef.current = config.chatRealtimeSpeech;
-      const enabled = isRealtimeSpeechConfigEnabled(config, scope);
+      const realtimeConfig = normalizeRealtimeSpeechConfig(config, scope);
+      configRef.current = realtimeConfig;
+      const enabled = isRealtimeSpeechConfigEnabled(config);
       setIsEnabled(enabled);
       return enabled;
     } catch (error) {
@@ -97,8 +109,9 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
   const getPromptContext = useCallback(async () => {
     try {
       const config = await window.YUA.sprite.getSpeakConfig();
-      configRef.current = config.chatRealtimeSpeech;
-      const enabled = isRealtimeSpeechConfigEnabled(config, scope);
+      const realtimeConfig = normalizeRealtimeSpeechConfig(config, scope);
+      configRef.current = realtimeConfig;
+      const enabled = isRealtimeSpeechConfigEnabled(config);
       setIsEnabled(enabled);
       return buildRealtimeSpeechPromptContext(config, scope);
     } catch (error) {
@@ -163,9 +176,9 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
     startingRef.current = (async () => {
       try {
         const config = await window.YUA.sprite.getSpeakConfig();
-        const realtimeConfig = config.chatRealtimeSpeech;
+        const realtimeConfig = normalizeRealtimeSpeechConfig(config, scope);
         configRef.current = realtimeConfig;
-        const enabled = isRealtimeSpeechConfigEnabled(config, scope);
+        const enabled = isRealtimeSpeechConfigEnabled(config);
         setIsEnabled(enabled);
         if (!enabled) {
           return null;
