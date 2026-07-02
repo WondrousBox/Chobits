@@ -8,10 +8,10 @@ import { TbAt, TbClock, TbDotsVertical, TbLoader2, TbPhoto, TbPlayerStop, TbPlus
 import { toast } from 'sonner';
 
 import {
+  AiSpeechToggle,
   appendTextPart,
   appendThinkingPart,
   appendToolPart,
-  AiSpeechToggle,
   AssistantMessageTimeline,
   ChatAgentSelect,
   ChatFooterActions,
@@ -79,6 +79,8 @@ const STORAGE_KEYS = {
 
 const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) => {
   const realtimeSpeech = useRealtimeChatSpeech('resourceChatSidebar');
+  const cancelRealtimeSpeech = realtimeSpeech.cancel;
+  const refreshRealtimeSpeechEnabled = realtimeSpeech.refreshEnabled;
   const stopRealtimeSpeech = realtimeSpeech.stop;
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -226,6 +228,17 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
     setMessages([]);
     setShowHistory(false);
   };
+
+  const handleAiSpeechEnabledChange = useCallback(
+    (enabled: boolean): void => {
+      if (enabled) {
+        void refreshRealtimeSpeechEnabled();
+        return;
+      }
+      void cancelRealtimeSpeech();
+    },
+    [cancelRealtimeSpeech, refreshRealtimeSpeechEnabled]
+  );
 
   const handlePickWorkspace = async (): Promise<void> => {
     const workspace = await pickCodingWorkspace(codingWorkspaceRoot);
@@ -595,70 +608,77 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto min-h-0">
-        {showHistory ? (
-          <div className="p-4">
-            <div className="text-sm font-medium mb-3">历史会话</div>
-            {loadingConvs ? (
-              <div className="text-xs text-muted-foreground">加载中...</div>
-            ) : conversations.length === 0 ? (
-              <div className="text-xs text-muted-foreground">暂无历史会话</div>
-            ) : (
-              <div className="flex flex-col gap-1">
-                {conversations.map((conversation) => (
-                  <button key={conversation.id} className="w-full text-left px-3 py-2 rounded-lg hover:bg-muted transition-colors" onClick={() => void selectConversation(conversation.id)}>
-                    <div className="text-sm truncate">{conversation.title || '未命名会话'}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {conversation.messagesCount ?? 0} 条消息
-                      {conversation.lastMessageAt ? ` · ${formatRelativeTime(conversation.lastMessageAt)}` : ''}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : messages.length === 0 ? (
-          <div className="h-full" />
-        ) : (
-          <div className="flex flex-col gap-3 p-4">
-            {conversationUsage && (
-              <div className="flex justify-center">
-                <ChatTokenUsage usage={conversationUsage} label="会话累计" variant="conversation" />
-              </div>
-            )}
-            {messages.map((message, index) => (
-              <div key={index} className={message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
-                <div className={`max-w-[90%] rounded-xl px-3 py-2 ${message.role === 'user' ? 'bg-primary text-primary-foreground text-sm' : 'bg-muted text-foreground'}`}>
-                  {message.role === 'assistant' ? (
-                    <>
-                      <AssistantMessageTimeline message={message} compactCards onUserChoiceSubmit={handleUserChoiceSubmit} />
-                      {message.usage && <ChatTokenUsage usage={message.usage} label="本轮" className="mt-2" />}
-                      {!hasTimelineContent(message) && loading && index === messages.length - 1 ? (
-                        <div className="inline-flex items-center gap-2 text-muted-foreground text-sm">
-                          <TbLoader2 className="h-4 w-4 animate-spin" /> 正在思考...
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void handleStop();
-                            }}
-                            className="ml-2 p-1 rounded hover:bg-background/50 transition-colors"
-                            title="停止生成"
-                          >
-                            <TbPlayerStop className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ) : null}
-                    </>
-                  ) : (
-                    <span className="whitespace-pre-wrap break-words">{message.content}</span>
-                  )}
-                </div>
-              </div>
-            ))}
-            <div ref={listEndRef} />
+      <div className="flex min-h-0 flex-1 flex-col">
+        {!showHistory && (
+          <div className="flex shrink-0 justify-end px-4 pt-2">
+            <AiSpeechToggle onEnabledChange={handleAiSpeechEnabledChange} />
           </div>
         )}
+        <div className="flex-1 overflow-auto min-h-0">
+          {showHistory ? (
+            <div className="p-4">
+              <div className="text-sm font-medium mb-3">历史会话</div>
+              {loadingConvs ? (
+                <div className="text-xs text-muted-foreground">加载中...</div>
+              ) : conversations.length === 0 ? (
+                <div className="text-xs text-muted-foreground">暂无历史会话</div>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {conversations.map((conversation) => (
+                    <button key={conversation.id} className="w-full text-left px-3 py-2 rounded-lg hover:bg-muted transition-colors" onClick={() => void selectConversation(conversation.id)}>
+                      <div className="text-sm truncate">{conversation.title || '未命名会话'}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {conversation.messagesCount ?? 0} 条消息
+                        {conversation.lastMessageAt ? ` · ${formatRelativeTime(conversation.lastMessageAt)}` : ''}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="h-full" />
+          ) : (
+            <div className="flex flex-col gap-3 p-4">
+              {conversationUsage && (
+                <div className="flex justify-center">
+                  <ChatTokenUsage usage={conversationUsage} label="会话累计" variant="conversation" />
+                </div>
+              )}
+              {messages.map((message, index) => (
+                <div key={index} className={message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
+                  <div className={`max-w-[90%] rounded-xl px-3 py-2 ${message.role === 'user' ? 'bg-primary text-primary-foreground text-sm' : 'bg-muted text-foreground'}`}>
+                    {message.role === 'assistant' ? (
+                      <>
+                        <AssistantMessageTimeline message={message} compactCards onUserChoiceSubmit={handleUserChoiceSubmit} />
+                        {message.usage && <ChatTokenUsage usage={message.usage} label="本轮" className="mt-2" />}
+                        {!hasTimelineContent(message) && loading && index === messages.length - 1 ? (
+                          <div className="inline-flex items-center gap-2 text-muted-foreground text-sm">
+                            <TbLoader2 className="h-4 w-4 animate-spin" /> 正在思考...
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void handleStop();
+                              }}
+                              className="ml-2 p-1 rounded hover:bg-background/50 transition-colors"
+                              title="停止生成"
+                            >
+                              <TbPlayerStop className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : null}
+                      </>
+                    ) : (
+                      <span className="whitespace-pre-wrap break-words">{message.content}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+              <div ref={listEndRef} />
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="px-4 py-3 shrink-0 border-t">
@@ -736,9 +756,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
                 isListening: speechInput.isListening,
                 onToggle: speechInput.toggle
               }}
-            >
-              <AiSpeechToggle compact />
-            </ChatFooterActions>
+            />
           }
         />
       </div>
