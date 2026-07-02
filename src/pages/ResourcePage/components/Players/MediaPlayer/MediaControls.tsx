@@ -28,11 +28,12 @@ interface PlayPauseButtonProps {
   isPlaying: boolean;
   onTogglePlay: () => void;
   type: 'video' | 'audio';
+  overlay?: boolean;
 }
 
-const PlayPauseButton: React.FC<PlayPauseButtonProps> = ({ isPlaying, onTogglePlay, type }) => {
+const PlayPauseButton: React.FC<PlayPauseButtonProps> = ({ isPlaying, onTogglePlay, type, overlay = false }) => {
   return (
-    <Button size="sm" variant="ghost" onClick={onTogglePlay} className={`w-8 h-8 p-0 hover:bg-white/20 ${type === 'video' ? 'text-white' : 'text-foreground'}`}>
+    <Button size="sm" variant="ghost" onClick={onTogglePlay} className={`w-8 h-8 p-0 hover:bg-white/20 ${type === 'video' || overlay ? 'text-white' : 'text-foreground'}`}>
       {isPlaying ? <TbPlayerPause size={16} /> : <TbPlayerPlay size={16} />}
     </Button>
   );
@@ -44,9 +45,10 @@ interface VolumeControlProps {
   onVolumeChange: (volume: number) => void;
   onToggleMute: () => void;
   type: 'video' | 'audio';
+  overlay?: boolean;
 }
 
-const VolumeControl: React.FC<VolumeControlProps> = ({ volume, onVolumeChange, onToggleMute, type }) => {
+const VolumeControl: React.FC<VolumeControlProps> = ({ volume, onVolumeChange, onToggleMute, type, overlay = false }) => {
   const handleVolumeChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const newVolume = parseFloat(e.target.value);
@@ -57,7 +59,7 @@ const VolumeControl: React.FC<VolumeControlProps> = ({ volume, onVolumeChange, o
 
   return (
     <div className="relative flex items-center group">
-      <Button size="sm" variant="ghost" onClick={onToggleMute} className={`w-8 h-8 p-0 hover:bg-white/20 ${type === 'video' ? 'text-white' : 'text-foreground'}`}>
+      <Button size="sm" variant="ghost" onClick={onToggleMute} className={`w-8 h-8 p-0 hover:bg-white/20 ${type === 'video' || overlay ? 'text-white' : 'text-foreground'}`}>
         {volume === 0 ? <TbVolumeOff size={16} /> : <TbVolume size={16} />}
       </Button>
 
@@ -73,7 +75,7 @@ const VolumeControl: React.FC<VolumeControlProps> = ({ volume, onVolumeChange, o
           className={`w-full h-1 rounded-full appearance-none cursor-pointer slider ${type === 'video' ? 'bg-white/30' : 'bg-muted-foreground/30'}`}
           style={{
             background:
-              type === 'video'
+              type === 'video' || overlay
                 ? `linear-gradient(to right, white 0%, white ${volume * 100}%, rgba(255,255,255,0.3) ${volume * 100}%, rgba(255,255,255,0.3) 100%)`
                 : `linear-gradient(to right, hsl(var(--foreground)) 0%, hsl(var(--foreground)) ${volume * 100}%, hsl(var(--muted-foreground) / 0.3) ${volume * 100}%, hsl(var(--muted-foreground) / 0.3) 100%)`
           }}
@@ -88,9 +90,10 @@ interface TimeDisplayProps {
   currentTime: number;
   duration: number;
   type: 'video' | 'audio';
+  overlay?: boolean;
 }
 
-const TimeDisplay: React.FC<TimeDisplayProps> = ({ currentTime, duration, type }) => {
+const TimeDisplay: React.FC<TimeDisplayProps> = ({ currentTime, duration, type, overlay = false }) => {
   const formatTime = useCallback((time: number) => {
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
@@ -98,7 +101,7 @@ const TimeDisplay: React.FC<TimeDisplayProps> = ({ currentTime, duration, type }
   }, []);
 
   return (
-    <div className={`text-xs px-2 font-mono ${type === 'video' ? 'text-white' : 'text-muted-foreground'}`}>
+    <div className={`text-xs px-2 font-mono ${type === 'video' || overlay ? 'text-white' : 'text-muted-foreground'}`}>
       {formatTime(currentTime)} / {formatTime(duration)}
     </div>
   );
@@ -109,9 +112,10 @@ interface PlaybackRateControlProps {
   playbackRate: number;
   onPlaybackRateChange: (rate: number) => void;
   type: 'video' | 'audio';
+  overlay?: boolean;
 }
 
-const PlaybackRateControl: React.FC<PlaybackRateControlProps> = ({ playbackRate, onPlaybackRateChange, type }) => {
+const PlaybackRateControl: React.FC<PlaybackRateControlProps> = ({ playbackRate, onPlaybackRateChange, type, overlay = false }) => {
   const [showPlaybackRateMenu, setShowPlaybackRateMenu] = useState(false);
   const playbackRates = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -121,12 +125,12 @@ const PlaybackRateControl: React.FC<PlaybackRateControlProps> = ({ playbackRate,
         size="sm"
         variant="ghost"
         onClick={() => setShowPlaybackRateMenu(!showPlaybackRateMenu)}
-        className={`w-8 h-8 p-0 hover:bg-white/20 ${type === 'video' ? 'text-white' : 'text-foreground'}`}
+        className={`w-8 h-8 p-0 hover:bg-white/20 ${type === 'video' || overlay ? 'text-white' : 'text-foreground'}`}
       >
         <TbSettings size={16} />
       </Button>
       {showPlaybackRateMenu && (
-        <div className={`absolute bottom-full mb-2 right-0 rounded-md p-1 min-w-[80px] ${type === 'video' ? 'bg-black/80' : 'bg-background border'}`}>
+        <div className={`absolute bottom-full mb-2 right-0 rounded-md p-1 min-w-[80px] ${type === 'video' || overlay ? 'bg-black/80 border border-white/15' : 'bg-background border'}`}>
           {playbackRates.map((rate) => (
             <button
               key={rate}
@@ -134,8 +138,9 @@ const PlaybackRateControl: React.FC<PlaybackRateControlProps> = ({ playbackRate,
                 onPlaybackRateChange(rate);
                 setShowPlaybackRateMenu(false);
               }}
-              className={`w-full px-2 py-1 text-xs hover:bg-white/20 rounded ${type === 'video' ? `text-white ${playbackRate === rate ? 'bg-white/30' : ''}` : `text-foreground ${playbackRate === rate ? 'bg-muted' : ''}`
-                }`}
+              className={`w-full px-2 py-1 text-xs hover:bg-white/20 rounded ${
+                type === 'video' || overlay ? `text-white ${playbackRate === rate ? 'bg-white/30' : ''}` : `text-foreground ${playbackRate === rate ? 'bg-muted' : ''}`
+              }`}
             >
               {rate}x
             </button>
@@ -154,9 +159,10 @@ interface ProgressSliderProps {
   onSeekStart?: () => void;
   onSeekEnd?: () => void;
   type: 'video' | 'audio';
+  overlay?: boolean;
 }
 
-const ProgressSlider: React.FC<ProgressSliderProps> = ({ currentTime, duration, onSeek, onSeekStart, onSeekEnd, type }) => {
+const ProgressSlider: React.FC<ProgressSliderProps> = ({ currentTime, duration, onSeek, onSeekStart, onSeekEnd, type, overlay = false }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragValue, setDragValue] = useState(0);
   const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -164,7 +170,7 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({ currentTime, duration, 
 
   // 监听标注标记更新事件
   useEffect(() => {
-    const handler = (e: Event) => {
+    const handler = (e: Event): void => {
       setAnnotationMarkers((e as CustomEvent<AnnotationMarker[]>).detail);
     };
     window.addEventListener(ANNOTATION_MARKERS_UPDATE_EVENT, handler);
@@ -243,7 +249,7 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({ currentTime, duration, 
         className={`absolute inset-0 w-full h-full rounded-full appearance-none cursor-pointer progress-slider ${type === 'video' ? 'bg-white/30' : 'bg-muted-foreground/30'}`}
         style={{
           background:
-            type === 'video'
+            type === 'video' || overlay
               ? `linear-gradient(to right, white 0%, white ${displayValue}%, rgba(255,255,255,0.3) ${displayValue}%, rgba(255,255,255,0.3) 100%)`
               : `linear-gradient(to right, hsl(var(--foreground)) 0%, hsl(var(--foreground)) ${displayValue}%, hsl(var(--muted-foreground) / 0.3) ${displayValue}%, hsl(var(--muted-foreground) / 0.3) 100%)`
         }}
@@ -337,6 +343,7 @@ interface MediaControlsProps {
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
   type: 'video' | 'audio';
+  overlay?: boolean;
 }
 
 export const MediaControls: React.FC<MediaControlsProps> = ({
@@ -355,7 +362,8 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
   onScreenshot,
   onMouseEnter,
   onMouseLeave,
-  type
+  type,
+  overlay = false
 }) => {
   const [previousVolume, setPreviousVolume] = useState(1); // 记住静音前的音量
 
@@ -401,26 +409,26 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
   }, [isPlaying, onTogglePlay]);
 
   const controlsClass =
-    type === 'video'
+    type === 'video' || overlay
       ? `absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/80 to-transparent p-3 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`
       : 'flex items-center justify-between gap-3 p-3 bg-background/90 rounded-lg border';
 
   return (
-    <div className={controlsClass} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
+    <div className={controlsClass} onClick={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
       {/* 进度条 */}
-      <ProgressSlider currentTime={currentTime} duration={duration} onSeek={onSeek} onSeekStart={handleSeekStart} onSeekEnd={handleSeekEnd} type={type} />
+      <ProgressSlider currentTime={currentTime} duration={duration} onSeek={onSeek} onSeekStart={handleSeekStart} onSeekEnd={handleSeekEnd} type={type} overlay={overlay} />
 
       {/* 控制按钮 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center">
-          <PlayPauseButton isPlaying={isPlaying} onTogglePlay={onTogglePlay} type={type} />
-          <VolumeControl volume={volume} onVolumeChange={handleVolumeChange} onToggleMute={toggleMute} type={type} />
-          <TimeDisplay currentTime={currentTime} duration={duration} type={type} />
+          <PlayPauseButton isPlaying={isPlaying} onTogglePlay={onTogglePlay} type={type} overlay={overlay} />
+          <VolumeControl volume={volume} onVolumeChange={handleVolumeChange} onToggleMute={toggleMute} type={type} overlay={overlay} />
+          <TimeDisplay currentTime={currentTime} duration={duration} type={type} overlay={overlay} />
         </div>
 
         <div className="flex items-center gap-2">
-          <TrackSettingsPopover type={type} />
-          <PlaybackRateControl playbackRate={playbackRate} onPlaybackRateChange={onPlaybackRateChange} type={type} />
+          <TrackSettingsPopover type={type} overlay={overlay} />
+          <PlaybackRateControl playbackRate={playbackRate} onPlaybackRateChange={onPlaybackRateChange} type={type} overlay={overlay} />
           {type === 'video' && onScreenshot && (
             <Button size="sm" variant="ghost" onClick={onScreenshot} className="w-8 h-8 p-0 text-white hover:bg-white/20" title="截图">
               <TbCamera size={16} />

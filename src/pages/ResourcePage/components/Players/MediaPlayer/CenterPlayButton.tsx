@@ -10,28 +10,32 @@ interface CenterPlayButtonProps {
 export const CenterPlayButton: React.FC<CenterPlayButtonProps> = ({ isPlaying, onTogglePlay, className = '' }) => {
   const [isAnimating, setIsAnimating] = useState(false);
 
-  const handleClick = useCallback(() => {
-    if (isPlaying) return; // 如果正在播放，不显示按钮
+  const handleClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      event.stopPropagation();
+      if (isPlaying) return; // 如果正在播放，不显示按钮
 
-    // 开始动画
-    setIsAnimating(true);
+      // 开始动画
+      setIsAnimating(true);
 
-    // 延迟触发播放，让动画有时间执行
-    setTimeout(() => {
-      onTogglePlay();
-    }, 150); // 在动画进行到一半时触发播放
+      // 延迟触发播放，让动画有时间执行
+      setTimeout(() => {
+        onTogglePlay();
+      }, 150); // 在动画进行到一半时触发播放
 
-    // 动画完成后重置状态
-    setTimeout(() => {
-      setIsAnimating(false);
-    }, 300);
-  }, [isPlaying, onTogglePlay]);
+      // 动画完成后重置状态
+      setTimeout(() => {
+        setIsAnimating(false);
+      }, 300);
+    },
+    [isPlaying, onTogglePlay]
+  );
 
   // 只在暂停时显示按钮
   if (isPlaying) return null;
 
   return (
-    <div className={`absolute inset-0 flex items-center justify-center pointer-events-none ${className}`} onClick={handleClick}>
+    <div className={`absolute inset-0 flex items-center justify-center pointer-events-none ${className}`} onClick={handleClick} onDoubleClick={(event) => event.stopPropagation()}>
       <div
         className={`
           pointer-events-auto cursor-pointer transition-all duration-300 ease-out

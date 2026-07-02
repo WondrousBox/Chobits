@@ -17,7 +17,8 @@ const GROUP_CONFIG: Record<TrackType, { label: string; icon: React.ReactNode }> 
 /** 复选框组件 */
 const Checkbox: React.FC<{ checked: boolean; disabled?: boolean; isVideo?: boolean }> = ({ checked, disabled, isVideo }) => (
   <div
-    className={`w-3.5 h-3.5 rounded-sm border shrink-0 flex items-center justify-center transition-colors ${disabled
+    className={`w-3.5 h-3.5 rounded-sm border shrink-0 flex items-center justify-center transition-colors ${
+      disabled
         ? isVideo
           ? 'border-white/30 bg-white/10'
           : 'border-muted-foreground/30 bg-muted/50'
@@ -28,7 +29,7 @@ const Checkbox: React.FC<{ checked: boolean; disabled?: boolean; isVideo?: boole
           : isVideo
             ? 'border-white/50 bg-transparent'
             : 'border-muted-foreground/50 bg-transparent'
-      }`}
+    }`}
   >
     {checked && <TbCheck className={`w-2.5 h-2.5 ${disabled ? 'opacity-50' : ''} ${isVideo ? 'text-black' : 'text-primary-foreground'}`} />}
   </div>
@@ -36,13 +37,14 @@ const Checkbox: React.FC<{ checked: boolean; disabled?: boolean; isVideo?: boole
 
 interface TrackSettingsPopoverProps {
   type: 'video' | 'audio';
+  overlay?: boolean;
 }
 
 /**
  * 轨道设置弹出框，监听来自 ResourceSubtitlePlayer 广播的轨道信息，
  * 用户切换某个轨道时发送 toggle 事件。主轨道始终启用、不可交互。
  */
-export const TrackSettingsPopover: React.FC<TrackSettingsPopoverProps> = ({ type }) => {
+export const TrackSettingsPopover: React.FC<TrackSettingsPopoverProps> = ({ type, overlay = false }) => {
   const [items, setItems] = useState<TrackSettingsItem[]>([]);
 
   // 监听轨道信息广播
@@ -71,7 +73,7 @@ export const TrackSettingsPopover: React.FC<TrackSettingsPopoverProps> = ({ type
     groups.set(item.type, list);
   }
 
-  const isVideo = type === 'video';
+  const isVideo = type === 'video' || overlay;
 
   return (
     <Popover>
