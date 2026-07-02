@@ -6,10 +6,27 @@ import { extractThinkingTextFromMetadata } from '@packages/ai/thinking-content';
 import type { TokenUsage } from '@packages/ai/types';
 import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbArrowDown, TbChevronLeft, TbChevronRight, TbDots, TbEdit, TbHistory, TbLoader2, TbPin, TbPlus, TbRefresh, TbShare, TbTrash, TbX } from 'react-icons/tb';
+import {
+  TbArrowDown,
+  TbChevronLeft,
+  TbChevronRight,
+  TbDots,
+  TbEdit,
+  TbHistory,
+  TbLayoutSidebarRightExpand,
+  TbLoader2,
+  TbPin,
+  TbPlus,
+  TbRefresh,
+  TbShare,
+  TbTrash,
+  TbWindow,
+  TbX
+} from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import {
+  AiSpeechToggle,
   appendTextPart,
   appendThinkingPart,
   appendToolPart,
@@ -31,6 +48,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAutoScroll } from '@/hooks/useAutoScroll';
 import { useRealtimeChatSpeech } from '@/hooks/useRealtimeChatSpeech';
 import { ensureChatApiConfigGoal, guideChatApiConfigIfNeeded } from '@/lib/chat-api-config-guide';
@@ -60,6 +78,24 @@ interface ChatUiMessage {
   usage?: TokenUsage;
 }
 
+interface ChatWindowPayload {
+  source?: 'chat-mode-switch' | string;
+  initialMessage?: string;
+  conversationId?: string;
+  providerId?: string;
+  modelId?: string;
+  preferredPresetId?: string;
+  presetId?: string;
+  agentId?: string;
+  codingWorkspaceRoot?: string;
+  codingWorkspaceLabel?: string;
+  webSearchEnabled?: boolean;
+  characterPersonaEnabled?: boolean;
+  emojiPacksEnabled?: boolean;
+  emojiPacksDisplayTarget?: 'chat' | 'sprite-bubble';
+  overlaySide?: ChatOverlaySide;
+}
+
 async function resolveInitialChatModelId(providerId: string, presetId?: string): Promise<string> {
   const models = await window.YUA.ai.listModels(providerId, presetId).catch(() => []);
   return models.find((item) => item?.type === 'chat')?.id || models[0]?.id || '';
@@ -69,6 +105,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
   const isOverlay = presentation === 'overlay';
   const realtimeSpeech = useRealtimeChatSpeech('mainChat');
   const cancelRealtimeSpeech = realtimeSpeech.cancel;
+  const refreshRealtimeSpeechEnabled = realtimeSpeech.refreshEnabled;
   const stopRealtimeSpeech = realtimeSpeech.stop;
   const {
     providerId,
@@ -77,6 +114,10 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     agentId,
     codingWorkspaceRoot,
     codingWorkspaceLabel,
+    webSearchEnabled,
+    emojiPacksEnabled,
+    emojiPacksDisplayTarget,
+    characterPersonaEnabled,
     setProviderId,
     setModelId,
     setPresetId,
@@ -99,6 +140,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
   const [renamingConvId, setRenamingConvId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [pendingConversationTitle, setPendingConversationTitle] = useState<string | null>(null);
+  const [switchingWindowMode, setSwitchingWindowMode] = useState(false);
   // Track conversations that are waiting for AI-generated titles
   const [generatingTitleIds, setGeneratingTitleIds] = useState<Set<string>>(new Set());
 
@@ -116,6 +158,8 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
   const currentConversation = useMemo(() => conversations.find((c) => c.id === conversationId) || null, [conversations, conversationId]);
   const conversationUsage = useMemo(() => sumTokenUsage(messages), [messages]);
   const showEmptyStart = !isOverlay && messages.length === 0;
+  const canSwitchWindowMode = Boolean(conversationId);
+  const windowModeSwitchDisabledText = '发送一条消息后可切换窗口模式';
 
   // Load conversations list
   const loadConversations = async (): Promise<void> => {
@@ -157,7 +201,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
   }, [payloadWindowKey, presetId, providerId]);
 
   // Select conversation and load its messages
-  const selectConversation = async (id: string): Promise<void> => {
+  const selectConversation = useCallback(async (id: string): Promise<void> => {
     setSelectedConvId(id);
     setConversationId(id);
     setPendingConversationTitle(null);
@@ -217,7 +261,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     } catch {
       // Let parent surface errors
     }
-  };
+  }, []);
 
   // Start a brand new conversation (reset state)
   const newConversation = useCallback((): void => {
@@ -227,6 +271,17 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     setPendingConversationTitle(null);
     setMessages([]);
   }, [stopRealtimeSpeech]);
+
+  const handleAiSpeechEnabledChange = useCallback(
+    (enabled: boolean): void => {
+      if (enabled) {
+        void refreshRealtimeSpeechEnabled();
+        return;
+      }
+      void cancelRealtimeSpeech();
+    },
+    [cancelRealtimeSpeech, refreshRealtimeSpeechEnabled]
+  );
 
   // Open rename dialog
   const openRenameDialog = (id: string): void => {
@@ -287,10 +342,46 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
       }) => Promise<void>
     >();
 
-  // Listen for initial message from assistant window (on:window:open:ready)
+  const applyChatWindowPayloadSelection = useCallback(
+    (payload: ChatWindowPayload): void => {
+      if (payload.providerId) {
+        setProviderId(payload.providerId);
+      }
+      if (payload.modelId) {
+        setModelId(payload.modelId);
+      }
+      if (payload.preferredPresetId || payload.presetId) {
+        setPresetId(payload.preferredPresetId || payload.presetId || '');
+      }
+      if (payload.agentId) {
+        setAgentId(payload.agentId);
+      }
+      if (typeof payload.codingWorkspaceRoot === 'string' && payload.codingWorkspaceRoot.trim()) {
+        setCodingWorkspace({
+          root: payload.codingWorkspaceRoot,
+          label: typeof payload.codingWorkspaceLabel === 'string' ? payload.codingWorkspaceLabel : undefined
+        });
+      }
+      if (typeof payload.webSearchEnabled === 'boolean') {
+        setWebSearchEnabled(payload.webSearchEnabled);
+      }
+      if (typeof payload.emojiPacksEnabled === 'boolean') {
+        setEmojiPacksEnabled(payload.emojiPacksEnabled);
+      }
+      if (payload.emojiPacksDisplayTarget === 'chat' || payload.emojiPacksDisplayTarget === 'sprite-bubble') {
+        setEmojiPacksDisplayTarget(payload.emojiPacksDisplayTarget);
+      }
+      if (typeof payload.characterPersonaEnabled === 'boolean') {
+        setCharacterPersonaEnabled(payload.characterPersonaEnabled);
+      }
+    },
+    [setAgentId, setCharacterPersonaEnabled, setCodingWorkspace, setEmojiPacksDisplayTarget, setEmojiPacksEnabled, setModelId, setPresetId, setProviderId, setWebSearchEnabled]
+  );
+
+  // Listen for initial message or mode switch payload from assistant/chat windows.
   useEffect(() => {
-    const handlePayload = (payload: any): void => {
-      if (!payload?.initialMessage) return;
+    const handlePayload = (payload: ChatWindowPayload | null | undefined): void => {
+      if (!payload?.initialMessage && !payload?.conversationId) return;
       // 清除缓存 payload，防止关闭后再次打开时重复触发
       window.ipcRenderer?.invoke('window:payload:clear', payloadWindowKey).catch(() => {});
       if (isOverlay) {
@@ -304,42 +395,19 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
         disposerRef.current = null;
         setLoading(false);
       }
+      applyChatWindowPayloadSelection(payload);
+
+      if (payload.conversationId) {
+        void selectConversation(payload.conversationId);
+        return;
+      }
+
       // 重置为新对话状态
       newConversation();
       // 延迟一帧确保状态已重置，再发起对话
       setTimeout(() => {
-        if (payload.providerId) {
-          setProviderId(payload.providerId);
-        }
-        if (payload.modelId) {
-          setModelId(payload.modelId);
-        }
-        if (payload.preferredPresetId || payload.presetId) {
-          setPresetId(payload.preferredPresetId || payload.presetId);
-        }
-        if (payload.agentId) {
-          setAgentId(payload.agentId);
-        }
-        if (typeof payload.codingWorkspaceRoot === 'string' && payload.codingWorkspaceRoot.trim()) {
-          setCodingWorkspace({
-            root: payload.codingWorkspaceRoot,
-            label: typeof payload.codingWorkspaceLabel === 'string' ? payload.codingWorkspaceLabel : undefined
-          });
-        }
-        if (typeof payload.webSearchEnabled === 'boolean') {
-          setWebSearchEnabled(payload.webSearchEnabled);
-        }
-        if (typeof payload.emojiPacksEnabled === 'boolean') {
-          setEmojiPacksEnabled(payload.emojiPacksEnabled);
-        }
-        if (payload.emojiPacksDisplayTarget === 'chat' || payload.emojiPacksDisplayTarget === 'sprite-bubble') {
-          setEmojiPacksDisplayTarget(payload.emojiPacksDisplayTarget);
-        }
-        if (typeof payload.characterPersonaEnabled === 'boolean') {
-          setCharacterPersonaEnabled(payload.characterPersonaEnabled);
-        }
         startRef.current?.({
-          content: payload.initialMessage,
+          content: payload.initialMessage || '',
           providerId: payload.providerId,
           modelId: payload.modelId,
           preferredPresetId: payload.preferredPresetId || payload.presetId,
@@ -363,8 +431,9 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
       if (fallbackDone) return;
       fallbackDone = true;
       try {
-        const cached = await window.YUA.window['window:payload:get'](payloadWindowKey);
+        const cached = (await window.YUA.window['window:payload:get'](payloadWindowKey)) as ChatWindowPayload | undefined;
         if (cached?.initialMessage) handlePayload(cached);
+        else if (cached?.conversationId) handlePayload(cached);
       } catch {
         /* noop */
       }
@@ -374,20 +443,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
       window.ipcRenderer?.off('on:window:open:ready', ipcHandler);
       clearTimeout(timer);
     };
-  }, [
-    isOverlay,
-    newConversation,
-    payloadWindowKey,
-    setAgentId,
-    setCharacterPersonaEnabled,
-    setCodingWorkspace,
-    setEmojiPacksDisplayTarget,
-    setEmojiPacksEnabled,
-    setModelId,
-    setPresetId,
-    setProviderId,
-    setWebSearchEnabled
-  ]);
+  }, [applyChatWindowPayloadSelection, isOverlay, newConversation, payloadWindowKey, selectConversation]);
 
   // Listen for conversation title updates from main process
   useEffect(() => {
@@ -718,19 +774,51 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     startRef.current = start;
   });
 
-  const stop = async (): Promise<void> => {
+  const stop = useCallback(async (): Promise<void> => {
     try {
       await disposerRef.current?.cancel();
     } catch {
       // Let parent surface errors
     }
     disposerRef.current?.dispose?.();
-    await realtimeSpeech.cancel();
+    await cancelRealtimeSpeech();
     setLoading(false);
-  };
+  }, [cancelRealtimeSpeech]);
 
   // Smart auto-scroll: only scrolls when user is at bottom
   const { containerRef: scrollContainerRef, showScrollButton, scrollToBottom, resetAutoScroll } = useAutoScroll([messages, loading]);
+
+  const buildModeSwitchPayload = useCallback(
+    (targetOverlay: boolean): ChatWindowPayload => ({
+      source: 'chat-mode-switch',
+      conversationId,
+      providerId,
+      modelId,
+      presetId,
+      agentId,
+      codingWorkspaceRoot,
+      codingWorkspaceLabel,
+      webSearchEnabled,
+      characterPersonaEnabled,
+      emojiPacksEnabled,
+      emojiPacksDisplayTarget,
+      ...(targetOverlay ? { overlaySide } : {})
+    }),
+    [
+      agentId,
+      characterPersonaEnabled,
+      codingWorkspaceLabel,
+      codingWorkspaceRoot,
+      conversationId,
+      emojiPacksDisplayTarget,
+      emojiPacksEnabled,
+      modelId,
+      overlaySide,
+      presetId,
+      providerId,
+      webSearchEnabled
+    ]
+  );
 
   const clearOverlayCollapseTimer = useCallback((): void => {
     if (overlayCollapseTimerRef.current) {
@@ -747,6 +835,41 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
       console.warn('[ChatPage] failed to clear overlay sprite avoid region:', error);
     }
   }, [isOverlay]);
+
+  const switchChatWindowMode = useCallback(
+    async (target: 'standard' | 'overlay'): Promise<void> => {
+      if (switchingWindowMode) return;
+      if (!conversationId) {
+        toast.info('当前对话还没有保存，发送一条消息后就可以切换窗口模式');
+        return;
+      }
+
+      setSwitchingWindowMode(true);
+      const targetWindowKey = target === 'overlay' ? 'chatOverlay' : 'chat';
+      const targetOverlay = target === 'overlay';
+
+      try {
+        await stop();
+        if (isOverlay) {
+          clearOverlayCollapseTimer();
+          await clearOverlaySpriteAvoidRegion();
+        }
+
+        const opened = await window.YUA.window['window:open'](targetWindowKey as any, buildModeSwitchPayload(targetOverlay), { sameDisplayAsSender: true });
+        if (!opened) {
+          toast.error('切换聊天窗口模式失败');
+          return;
+        }
+        await window.YUA.window['window:close'](payloadWindowKey as any);
+      } catch (error) {
+        console.warn('[ChatPage] failed to switch chat window mode:', error);
+        toast.error('切换聊天窗口模式失败');
+      } finally {
+        setSwitchingWindowMode(false);
+      }
+    },
+    [buildModeSwitchPayload, clearOverlayCollapseTimer, clearOverlaySpriteAvoidRegion, conversationId, isOverlay, payloadWindowKey, stop, switchingWindowMode]
+  );
 
   const positionOverlayWindow = useCallback(async (): Promise<void> => {
     if (!isOverlay) return;
@@ -875,12 +998,51 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
           <Button aria-label="收起对话" className="h-8 w-8 rounded-full bg-background/80 shadow-lg backdrop-blur" size="icon" title="收起对话" variant="outline" onClick={collapseOverlay}>
             {overlaySide === 'right' ? <TbChevronRight className="h-4 w-4" /> : <TbChevronLeft className="h-4 w-4" />}
           </Button>
+          <AiSpeechToggle onEnabledChange={handleAiSpeechEnabledChange} />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex" title={canSwitchWindowMode ? '切换到独立聊天窗口' : windowModeSwitchDisabledText}>
+                <Button
+                  aria-label="切换到独立聊天窗口"
+                  className="h-8 w-8 rounded-full bg-background/80 shadow-lg backdrop-blur"
+                  disabled={switchingWindowMode || !canSwitchWindowMode}
+                  size="icon"
+                  variant="outline"
+                  onClick={() => void switchChatWindowMode('standard')}
+                >
+                  <TbWindow />
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{canSwitchWindowMode ? '切换到独立聊天窗口' : windowModeSwitchDisabledText}</TooltipContent>
+          </Tooltip>
         </div>
       )}
       {/* 顶部可拖拽导航栏 - 根据 hideTitleBar 控制显示 */}
       {!isOverlay && !hideTitleBar && (
         <DragAbleTitle
-          actions={<ConversationRoutePanel conversationId={conversationId} />}
+          actions={
+            <>
+              <ConversationRoutePanel conversationId={conversationId} />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex" title={canSwitchWindowMode ? '切换到侧边栏窗口' : windowModeSwitchDisabledText}>
+                    <Button
+                      aria-label="切换到侧边栏窗口"
+                      className="h-8 w-8 rounded-full"
+                      disabled={switchingWindowMode || !canSwitchWindowMode}
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => void switchChatWindowMode('overlay')}
+                    >
+                      <TbLayoutSidebarRightExpand />
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{canSwitchWindowMode ? '切换到侧边栏窗口' : windowModeSwitchDisabledText}</TooltipContent>
+              </Tooltip>
+            </>
+          }
           title={
             <div className="flex items-center gap-2 w-full">
               <span>🗨️</span>
@@ -1044,6 +1206,11 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
           )}
           {messages.length > 0 && (
             <>
+              {!isOverlay && (
+                <div className="no-drag pointer-events-auto flex shrink-0 justify-end px-3 pt-2">
+                  <AiSpeechToggle onEnabledChange={handleAiSpeechEnabledChange} />
+                </div>
+              )}
               <ScrollAreaPrimitive.Root className="relative flex-1 min-h-0 w-full overflow-hidden">
                 <ScrollAreaPrimitive.Viewport ref={scrollContainerRef} className={isOverlay ? 'h-full w-full px-3 pb-4 pt-14 box-border' : 'h-full w-full p-2 box-border'}>
                   <div className={isOverlay ? 'flex min-h-full flex-col justify-end gap-3 pb-44' : 'flex flex-col gap-2'}>

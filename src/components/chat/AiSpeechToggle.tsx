@@ -2,7 +2,7 @@ import type { SpriteSpeakConfig } from '@packages/sprite-core/speak/types';
 import { useCallback, useEffect, useState } from 'react';
 import { TbVolume, TbVolumeOff } from 'react-icons/tb';
 
-import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
@@ -17,11 +17,10 @@ function canShowAiSpeechToggle(config: SpriteSpeakConfig | null): boolean {
 
 export interface AiSpeechToggleProps {
   className?: string;
-  compact?: boolean;
   onEnabledChange?: (enabled: boolean) => void;
 }
 
-export default function AiSpeechToggle({ className, compact = false, onEnabledChange }: AiSpeechToggleProps): JSX.Element | null {
+export default function AiSpeechToggle({ className, onEnabledChange }: AiSpeechToggleProps): JSX.Element | null {
   const [config, setConfig] = useState<SpriteSpeakConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -85,23 +84,27 @@ export default function AiSpeechToggle({ className, compact = false, onEnabledCh
     }
   };
 
-  const content = checked ? 'AI 说话已开启' : '开启后 AI 回复会跟随 SSE 流式说话';
+  const content = checked ? 'AI 说话已开启，点击关闭' : 'AI 说话已关闭，点击开启';
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div
+        <Button
+          type="button"
+          size="icon"
+          variant={checked ? 'default' : 'outline'}
+          disabled={disabled}
+          aria-label={checked ? '关闭 AI 说话' : '开启 AI 说话'}
+          aria-pressed={checked}
           className={cn(
-            'flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground transition-colors hover:bg-muted',
-            checked && 'text-primary',
-            disabled && 'cursor-not-allowed opacity-60',
+            'h-8 w-8 shrink-0 rounded-full shadow-sm backdrop-blur',
+            checked ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'bg-background/90 text-muted-foreground hover:text-foreground',
             className
           )}
+          onClick={() => void handleCheckedChange(!checked)}
         >
-          {checked ? <TbVolume className="h-3.5 w-3.5" /> : <TbVolumeOff className="h-3.5 w-3.5" />}
-          {!compact && <span className="whitespace-nowrap">AI 说话</span>}
-          <Switch checked={checked} disabled={disabled} aria-label={checked ? '关闭 AI 说话' : '开启 AI 说话'} onCheckedChange={(value) => void handleCheckedChange(value)} />
-        </div>
+          {checked ? <TbVolume /> : <TbVolumeOff />}
+        </Button>
       </TooltipTrigger>
       <TooltipContent>{content}</TooltipContent>
     </Tooltip>
