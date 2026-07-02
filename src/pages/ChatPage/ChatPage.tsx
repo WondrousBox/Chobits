@@ -60,6 +60,8 @@ import { CHAT_OVERLAY_SETTINGS, type ChatOverlaySide, resolveChatOverlaySide } f
 import { ConversationRoutePanel } from './components/ConversationRoutePanel';
 import { useChatSelection } from './context/ChatSelectionContext';
 
+const CHAT_WINDOW_PAYLOAD_DEDUPE_MS = 30_000;
+
 interface ChatPageProps {
   hideTitleBar?: boolean;
   presentation?: 'standard' | 'overlay';
@@ -79,6 +81,7 @@ interface ChatUiMessage {
 }
 
 interface ChatWindowPayload {
+  requestId?: string;
   source?: 'chat-mode-switch' | string;
   initialMessage?: string;
   conversationId?: string;
@@ -99,6 +102,14 @@ interface ChatWindowPayload {
 async function resolveInitialChatModelId(providerId: string, presetId?: string): Promise<string> {
   const models = await window.YUA.ai.listModels(providerId, presetId).catch(() => []);
   return models.find((item) => item?.type === 'chat')?.id || models[0]?.id || '';
+}
+
+function getChatWindowPayloadKey(payload: ChatWindowPayload): string {
+  if (payload.requestId) return `request:${payload.requestId}`;
+  if (payload.source === 'chat-mode-switch' && payload.conversationId) {
+    return `mode-switch:${payload.conversationId}:${payload.overlaySide || 'standard'}`;
+  }
+  return `initial:${payload.initialMessage || ''}:${payload.providerId || ''}:${payload.modelId || ''}:${payload.preferredPresetId || payload.presetId || ''}`;
 }
 
 export default function ChatPage({ hideTitleBar = false, presentation = 'standard', payloadWindowKey = 'chat' }: ChatPageProps): JSX.Element {
@@ -154,12 +165,32 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
   const [overlayExpanded, setOverlayExpanded] = useState(!isOverlay);
   const overlayCollapseTimerRef = useRef<number | null>(null);
   const initialConfigGuideRanRef = useRef(false);
+  const handledPayloadKeysRef = useRef<Map<string, number>>(new Map());
+  const pendingPayloadStartTimerRef = useRef<number | null>(null);
 
   const currentConversation = useMemo(() => conversations.find((c) => c.id === conversationId) || null, [conversations, conversationId]);
   const conversationUsage = useMemo(() => sumTokenUsage(messages), [messages]);
   const showEmptyStart = !isOverlay && messages.length === 0;
   const canSwitchWindowMode = Boolean(conversationId);
   const windowModeSwitchDisabledText = '发送一条消息后可切换窗口模式';
+
+  const clearPendingPayloadStartTimer = useCallback((): void => {
+    if (pendingPayloadStartTimerRef.current === null) return;
+    window.clearTimeout(pendingPayloadStartTimerRef.current);
+    pendingPayloadStartTimerRef.current = null;
+  }, []);
+
+  const markPayloadHandled = useCallback((payloadKey: string): boolean => {
+    const now = Date.now();
+    for (const [key, handledAt] of handledPayloadKeysRef.current) {
+      if (now - handledAt > CHAT_WINDOW_PAYLOAD_DEDUPE_MS) {
+        handledPayloadKeysRef.current.delete(key);
+      }
+    }
+    if (handledPayloadKeysRef.current.has(payloadKey)) return false;
+    handledPayloadKeysRef.current.set(payloadKey, now);
+    return true;
+  }, []);
 
   // Load conversations list
   const loadConversations = async (): Promise<void> => {
@@ -265,12 +296,13 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
 
   // Start a brand new conversation (reset state)
   const newConversation = useCallback((): void => {
+    clearPendingPayloadStartTimer();
     void stopRealtimeSpeech();
     setSelectedConvId(null);
     setConversationId(undefined);
     setPendingConversationTitle(null);
     setMessages([]);
-  }, [stopRealtimeSpeech]);
+  }, [clearPendingPayloadStartTimer, stopRealtimeSpeech]);
 
   const handleAiSpeechEnabledChange = useCallback(
     (enabled: boolean): void => {
@@ -382,8 +414,13 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
   useEffect(() => {
     const handlePayload = (payload: ChatWindowPayload | null | undefined): void => {
       if (!payload?.initialMessage && !payload?.conversationId) return;
+      const payloadKey = getChatWindowPayloadKey(payload);
       // 清除缓存 payload，防止关闭后再次打开时重复触发
       window.ipcRenderer?.invoke('window:payload:clear', payloadWindowKey).catch(() => {});
+      if (!markPayloadHandled(payloadKey)) {
+        return;
+      }
+      clearPendingPayloadStartTimer();
       if (isOverlay) {
         setOverlaySide(resolveChatOverlaySide(payload.overlaySide));
         setOverlayExpanded(false);
@@ -405,7 +442,8 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
       // 重置为新对话状态
       newConversation();
       // 延迟一帧确保状态已重置，再发起对话
-      setTimeout(() => {
+      pendingPayloadStartTimerRef.current = window.setTimeout(() => {
+        pendingPayloadStartTimerRef.current = null;
         startRef.current?.({
           content: payload.initialMessage || '',
           providerId: payload.providerId,
@@ -442,8 +480,9 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     return () => {
       window.ipcRenderer?.off('on:window:open:ready', ipcHandler);
       clearTimeout(timer);
+      clearPendingPayloadStartTimer();
     };
-  }, [applyChatWindowPayloadSelection, isOverlay, newConversation, payloadWindowKey, selectConversation]);
+  }, [applyChatWindowPayloadSelection, clearPendingPayloadStartTimer, isOverlay, markPayloadHandled, newConversation, payloadWindowKey, selectConversation]);
 
   // Listen for conversation title updates from main process
   useEffect(() => {
@@ -790,6 +829,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
 
   const buildModeSwitchPayload = useCallback(
     (targetOverlay: boolean): ChatWindowPayload => ({
+      requestId: `chat-mode-switch-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       source: 'chat-mode-switch',
       conversationId,
       providerId,
@@ -849,6 +889,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
       const targetOverlay = target === 'overlay';
 
       try {
+        clearPendingPayloadStartTimer();
         await stop();
         if (isOverlay) {
           clearOverlayCollapseTimer();
@@ -868,7 +909,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
         setSwitchingWindowMode(false);
       }
     },
-    [buildModeSwitchPayload, clearOverlayCollapseTimer, clearOverlaySpriteAvoidRegion, conversationId, isOverlay, payloadWindowKey, stop, switchingWindowMode]
+    [buildModeSwitchPayload, clearOverlayCollapseTimer, clearOverlaySpriteAvoidRegion, clearPendingPayloadStartTimer, conversationId, isOverlay, payloadWindowKey, stop, switchingWindowMode]
   );
 
   const positionOverlayWindow = useCallback(async (): Promise<void> => {
@@ -922,6 +963,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
   const closeOverlayWindow = useCallback(async (): Promise<void> => {
     if (!isOverlay) return;
     clearOverlayCollapseTimer();
+    clearPendingPayloadStartTimer();
     try {
       await disposerRef.current?.cancel();
     } catch {
@@ -933,7 +975,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     setLoading(false);
     await clearOverlaySpriteAvoidRegion();
     await window.YUA.window['window:close'](payloadWindowKey as any);
-  }, [cancelRealtimeSpeech, clearOverlayCollapseTimer, clearOverlaySpriteAvoidRegion, isOverlay, payloadWindowKey]);
+  }, [cancelRealtimeSpeech, clearOverlayCollapseTimer, clearOverlaySpriteAvoidRegion, clearPendingPayloadStartTimer, isOverlay, payloadWindowKey]);
 
   useEffect(() => {
     void positionOverlayWindow();

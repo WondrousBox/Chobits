@@ -40,6 +40,7 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
   const openMenuCountRef = useRef<number>(0);
   const menuResizeResumeTimerRef = useRef<number | null>(null);
   const visibilityOpenTimerRef = useRef<number | null>(null);
+  const sendingRef = useRef(false);
 
   const { setPresetId } = useChatSelection();
 
@@ -110,6 +111,8 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
     emojiPacksDisplayTarget
   }: AssistantStartParams): Promise<void> => {
     if (!content.trim() || !providerId || !modelId) return;
+    if (sendingRef.current) return;
+    sendingRef.current = true;
     setLoading(true);
     try {
       const resolvedPreset = await window.YUA.ai.resolveUsablePreset(providerId, preferredPresetId);
@@ -124,7 +127,9 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
 
       // 打开聊天独立窗口，传递初始消息数据
       const targetWindow = CHAT_OVERLAY_SETTINGS.enabledFromAssistantInput ? 'chatOverlay' : 'chat';
+      const requestId = `assistant-chat-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       await window.YUA.window['window:open'](targetWindow as any, {
+        requestId,
         initialMessage: content,
         providerId,
         modelId,
@@ -144,6 +149,7 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
       console.error('[chat] open chat window failed', e);
       toast.error('打开聊天窗口失败');
     } finally {
+      sendingRef.current = false;
       setLoading(false);
     }
   };
