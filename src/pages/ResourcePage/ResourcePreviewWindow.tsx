@@ -1,5 +1,5 @@
 import { AppEvent } from '@packages/event/events';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TbArrowLeft, TbLayoutBottombar, TbLayoutBottombarFilled, TbLayoutSidebarRight, TbLayoutSidebarRightFilled } from 'react-icons/tb';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
@@ -20,6 +20,7 @@ import {
   openContainingFolderForResource,
   rescanLinkedResourceRoot
 } from './utils/linkedResourceSync';
+import { getOcrAnnotationsFromMetadata } from './utils/ocrAnnotations';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from './utils/resourceProtocol';
 import { isSubtitleFile } from './utils/subtitleUtils';
 
@@ -376,6 +377,8 @@ const ResourcePreviewWindow: React.FC = () => {
     [data, currentTime]
   );
 
+  const ocrAnnotations = useMemo(() => getOcrAnnotationsFromMetadata(data?.metadata), [data?.metadata]);
+
   if (!data) {
     return <div className="w-full h-full flex items-center justify-center bg-background text-muted-foreground text-sm">等待资源数据...</div>;
   }
@@ -386,7 +389,7 @@ const ResourcePreviewWindow: React.FC = () => {
 
   // 渲染主要内容
   const renderMainContent = (): React.ReactNode => (
-    <div className="h-full relative flex flex-col overflow-hidden">
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
       {/* linked 资源同步问题提示 */}
       {syncIssue && (
         <div className={`shrink-0 px-4 py-3 text-sm flex flex-col gap-2 ${syncIssue === 'missing' ? 'bg-destructive/10 text-destructive' : 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400'}`}>
@@ -418,8 +421,8 @@ const ResourcePreviewWindow: React.FC = () => {
       )}
       {/* 缺失的 linked 资源不渲染播放器 */}
       {syncIssue !== 'missing' && (
-        <div className="flex-1 flex items-center justify-center">
-          {isImageFile(data.filePath) && fileSrc && <ImagePlayer src={fileSrc} title={title} className="w-full h-full rounded-md shadow" />}
+        <div className="flex min-h-0 flex-1 items-center justify-center">
+          {isImageFile(data.filePath) && fileSrc && <ImagePlayer src={fileSrc} title={title} className="w-full h-full rounded-md shadow" ocrAnnotations={ocrAnnotations} />}
           {(isVideoFile(data.filePath) || isAudioFile(data.filePath)) && fileSrc && (
             <MediaPlayer
               ref={mediaPlayerRef}
@@ -427,6 +430,8 @@ const ResourcePreviewWindow: React.FC = () => {
               type={isVideoFile(data.filePath) ? 'video' : 'audio'}
               title={title}
               autoPlay={true}
+              resourceId={data.id}
+              workspaceId={data.workspaceId}
               className="w-full h-full"
               onTimeUpdate={setCurrentTime}
               onDurationChange={setMediaDuration}
@@ -447,7 +452,7 @@ const ResourcePreviewWindow: React.FC = () => {
   );
 
   return (
-    <div className="w-full h-full bg-background text-foreground overflow-hidden">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background text-foreground">
       {/* Header */}
       {isRouteMode ? (
         <div className="flex items-center w-full drag-region gap-2 h-9 px-2 box-border bg-background">
@@ -472,13 +477,13 @@ const ResourcePreviewWindow: React.FC = () => {
         />
       )}
       {/* Content */}
-      <div className="h-full overflow-hidden" style={{ height: 'calc(100% - 36px)' }}>
+      <div className="min-h-0 flex-1 overflow-hidden">
         {data && (
           <CrossPanelDndProvider>
             <ResizablePanelGroup direction="horizontal" className="h-full">
               {/* 左侧：垂直布局（播放器 + 底部 ResourceTabs） */}
               <ResizablePanel defaultSize={isTabsExpanded ? 60 : 100}>
-                <ResizablePanelGroup direction="vertical" className="h-full">
+                <ResizablePanelGroup direction="vertical" className="h-full min-h-0">
                   {/* 上方：播放器 */}
                   <ResizablePanel defaultSize={isBottomExpanded ? 50 : 100} minSize={5}>
                     {renderMainContent()}
@@ -514,7 +519,7 @@ const ResourcePreviewWindow: React.FC = () => {
                 <>
                   <ResizableHandle className="hover:bg-primary" withHandle />
                   <ResizablePanel defaultSize={40} minSize={20}>
-                    <div className="h-full flex flex-col overflow-hidden bg-background border-l">
+                    <div className="flex h-full min-h-0 flex-col overflow-hidden border-l bg-background">
                       <ResourceTabs
                         panelId="preview-window-sidebar"
                         resource={data}

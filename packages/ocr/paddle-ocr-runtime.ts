@@ -188,6 +188,12 @@ export async function recognizeWithPaddleOcr(
       noCache: Boolean(options.noCache),
       strategy: normalizeStrategy(options.strategy)
     })) as FlattenedPaddleOcrResult;
+    console.info('[OCR] Paddle raw recognize result', {
+      imagePath,
+      modelName: model.modelName,
+      flatten: true,
+      result
+    });
     return {
       text: result.text || '',
       results: result.results || [],
@@ -201,6 +207,12 @@ export async function recognizeWithPaddleOcr(
     noCache: Boolean(options.noCache),
     strategy: normalizeStrategy(options.strategy)
   })) as PaddleOcrResult;
+  console.info('[OCR] Paddle raw recognize result', {
+    imagePath,
+    modelName: model.modelName,
+    flatten: false,
+    result
+  });
 
   return {
     text: result.text || '',

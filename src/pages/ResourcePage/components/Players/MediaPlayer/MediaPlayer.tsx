@@ -1,5 +1,7 @@
+import type { MusicReactivitySpectrumFrame } from '@packages/audio-reactivity/types';
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 
+import { AudioWaveformView } from './AudioWaveformView';
 import { CenterPlayButton } from './CenterPlayButton';
 import { MediaControls } from './MediaControls';
 import { useMusicReactivityAnalyzer } from './useMusicReactivityAnalyzer';
@@ -15,6 +17,8 @@ interface MediaPlayerProps {
   onPlay?: () => void; // 开始播放回调
   onPause?: () => void; // 暂停回调
   onStop?: () => void; // 播放结束回调（ended）
+  resourceId?: string;
+  workspaceId?: string;
   /** 视频截图回调，不传则默认触发浏览器下载 */
   onScreenshot?: (blob: Blob) => void;
   /** 子元素，可用于渲染字幕叠加层等 */
@@ -32,7 +36,7 @@ export interface MediaPlayerRef {
 }
 
 export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(
-  ({ src, type, title, autoPlay = false, className = '', onTimeUpdate, onDurationChange, onPlay, onPause, onStop, onScreenshot, children }, ref) => {
+  ({ src, type, title, autoPlay = false, className = '', onTimeUpdate, onDurationChange, onPlay, onPause, onStop, resourceId, workspaceId, onScreenshot, children }, ref) => {
     const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -42,6 +46,13 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(
     const [playbackRate, setPlaybackRate] = useState(1);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [showControls, setShowControls] = useState(true);
+    const [spectrumFrame, setSpectrumFrame] = useState<{ src?: string; frame?: MusicReactivitySpectrumFrame | null }>({});
+    const [waveform, setWaveform] = useState<{
+      src?: string;
+      data?: { peaks: number[]; duration: number };
+      loading?: boolean;
+      error?: string | null;
+    }>({});
     /** 上次已通知父组件的 duration，避免 timeupdate 时重复触发 onDurationChange */
     const lastReportedDurationRef = useRef(0);
 
@@ -50,7 +61,65 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(
       lastReportedDurationRef.current = 0;
     }, [src]);
 
-    useMusicReactivityAnalyzer(mediaRef, isPlaying, type);
+    const handleSpectrumFrame = useCallback(
+      (frame: MusicReactivitySpectrumFrame) => {
+        setSpectrumFrame({ src, frame });
+      },
+      [src]
+    );
+
+    useMusicReactivityAnalyzer(mediaRef, isPlaying, type, type === 'audio' ? handleSpectrumFrame : undefined);
+
+    useEffect(() => {
+      if (type !== 'audio' || !duration || duration <= 0 || !src.startsWith('res://local/')) {
+        return;
+      }
+
+      const encodedPath = src.slice('res://local/'.length);
+      let inputPath = '';
+      try {
+        inputPath = decodeURIComponent(encodedPath);
+      } catch {
+        inputPath = encodedPath;
+      }
+      if (!inputPath) {
+        return;
+      }
+
+      let cancelled = false;
+      const loadWaveform = async (): Promise<void> => {
+        setWaveform({ src, loading: true });
+        try {
+          const samplesCount = Math.min(Math.max(3000, Math.ceil(duration * 80)), 50000);
+          const result = await window.YUA.ffmpeg.extractWaveform({
+            inputPath,
+            samplesCount,
+            resourceId,
+            workspaceId
+          });
+          if (!cancelled) {
+            setWaveform({ src, data: result, loading: false });
+          }
+        } catch (error) {
+          if (!cancelled) {
+            console.warn('[MediaPlayer] audio waveform load failed:', error);
+            setWaveform({
+              src,
+              error: error instanceof Error ? error.message : '加载波形失败',
+              loading: false
+            });
+          }
+        }
+      };
+
+      void loadWaveform();
+      return () => {
+        cancelled = true;
+      };
+    }, [duration, resourceId, src, type, workspaceId]);
+
+    const activeWaveform = waveform.src === src ? waveform : {};
+    const activeSpectrumFrame = spectrumFrame.src === src ? spectrumFrame.frame : null;
 
     // 更新时间信息
     const updateTime = useCallback(() => {
@@ -338,6 +407,18 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(
       }
     }, [type, toggleFullscreen]);
 
+    const handleAudioClick = useCallback(() => {
+      if (type === 'audio') {
+        togglePlay();
+      }
+    }, [type, togglePlay]);
+
+    const handleAudioDoubleClick = useCallback(() => {
+      if (type === 'audio') {
+        toggleFullscreen();
+      }
+    }, [type, toggleFullscreen]);
+
     if (type === 'video') {
       return (
         <div ref={containerRef} className={`relative bg-black ${className}`} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
@@ -374,24 +455,44 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(
     }
 
     return (
-      <div ref={containerRef} className={`flex flex-col items-stretch gap-3 ${className}`}>
-        <audio ref={mediaRef as React.RefObject<HTMLAudioElement>} src={src} className="w-full" />
+      <div
+        ref={containerRef}
+        className={`relative overflow-hidden bg-black ${className}`}
+        onClick={handleAudioClick}
+        onDoubleClick={handleAudioDoubleClick}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+      >
+        <audio ref={mediaRef as React.RefObject<HTMLAudioElement>} src={src} className="hidden" />
+        <AudioWaveformView
+          waveformData={activeWaveform.data}
+          spectrumFrame={activeSpectrumFrame}
+          isLoading={activeWaveform.loading}
+          error={activeWaveform.error}
+          currentTime={currentTime}
+          duration={duration}
+          title={title}
+          onSeek={seekTo}
+        />
+        <CenterPlayButton isPlaying={isPlaying} onTogglePlay={togglePlay} />
         <MediaControls
           isPlaying={isPlaying}
           currentTime={currentTime}
           duration={duration}
           volume={volume}
           playbackRate={playbackRate}
-          isFullscreen={false}
-          showControls={true}
+          isFullscreen={isFullscreen}
+          showControls={showControls}
           onTogglePlay={togglePlay}
           onSeek={seekTo}
           onVolumeChange={changeVolume}
           onPlaybackRateChange={changePlaybackRate}
-          onToggleFullscreen={() => {}}
+          onToggleFullscreen={toggleFullscreen}
+          onMouseEnter={handleControlsMouseEnter}
+          onMouseLeave={handleControlsMouseLeave}
           type="audio"
+          overlay
         />
-        {title && <div className="text-[11px] text-muted-foreground px-1">音频预览 - {title}</div>}
       </div>
     );
   }

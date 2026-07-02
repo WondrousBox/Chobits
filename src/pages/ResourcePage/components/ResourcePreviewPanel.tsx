@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TbExternalLink, TbMaximize, TbX } from 'react-icons/tb';
 import { useNavigate } from 'react-router-dom';
 
@@ -13,6 +13,7 @@ import {
   openContainingFolderForResource,
   rescanLinkedResourceRoot
 } from '../utils/linkedResourceSync';
+import { getOcrAnnotationsFromMetadata } from '../utils/ocrAnnotations';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '../utils/resourceProtocol';
 import { isSubtitleFile } from '../utils/subtitleUtils';
 import { AnnotationAlertOverlay, ImagePlayer, MediaPlayer, SubtitleOverlay } from './Players';
@@ -36,29 +37,22 @@ interface ResourcePreviewPanelProps {
  */
 const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, resourceList, onClose, onResourceChange }) => {
   const navigate = useNavigate();
-  const [data, setData] = useState<ResourceItem>(resource);
   const [subtitleList, setSubtitleList] = useState<ResourceItem[]>([]);
   const [activeSubtitle, setActiveSubtitle] = useState<ResourceItem | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [mediaDuration, setMediaDuration] = useState(0);
   const mediaPlayerRef = useRef<MediaPlayerRef>(null);
+  const data = resource;
 
   // 判断资源类型（提前定义，供多处使用）
   const isVideo = isVideoFile(data?.filePath);
   const isAudio = isAudioFile(data?.filePath);
   const isImage = isImageFile(data?.filePath);
-
-  // 当外部 resource 变化时，更新内部状态
-  useEffect(() => {
-    setData(resource);
-    setCurrentTime(0);
-    setMediaDuration(0);
-  }, [resource]);
+  const ocrAnnotations = useMemo(() => getOcrAnnotationsFromMetadata(data?.metadata), [data?.metadata]);
 
   // 处理资源切换（来自 ResourceFileList 的点击）
   const handleResourceChange = useCallback(
     (newResource: ResourceItem) => {
-      setData(newResource);
       setCurrentTime(0);
       onResourceChange?.(newResource);
     },
@@ -74,11 +68,11 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
         return;
       }
       try {
-        const children = await window.YUA.resource['resource:listChildren']({
+        const children = (await window.YUA.resource['resource:listChildren']({
           parentResourceId: data.id,
           limit: 100,
           offset: 0
-        }) as ResourceItem[];
+        })) as ResourceItem[];
         const subs = (children || []).filter((item) => isSubtitleFile(item.filePath));
         setSubtitleList(subs);
         setActiveSubtitle((prev) => {
@@ -130,7 +124,7 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
     });
     // 触发自定义事件，通知 ResourceSubtitlePlayer
     window.dispatchEvent(new CustomEvent('custom:media-state-change', { detail: { isPlaying: true } }));
-  }, [data?.id]);
+  }, [data]);
 
   // 面板暂停时通知弹窗（可选）
   const handlePause = useCallback(() => {
@@ -142,7 +136,7 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
     });
     // 触发自定义事件，通知 ResourceSubtitlePlayer
     window.dispatchEvent(new CustomEvent('custom:media-state-change', { detail: { isPlaying: false } }));
-  }, [data?.id]);
+  }, [data]);
 
   // 截图：只传文件数据与上下文，主进程负责创建/查找截图文件夹、写入文件、创建资源记录
   const handleScreenshot = useCallback(
@@ -187,6 +181,8 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
             type="video"
             title={title}
             autoPlay={false}
+            resourceId={data.id}
+            workspaceId={data.workspaceId}
             className="w-full h-full"
             onTimeUpdate={setCurrentTime}
             onDurationChange={setMediaDuration}
@@ -205,22 +201,24 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
     if (isImage && fileSrc) {
       return (
         <div className="w-full flex items-center justify-center bg-black/5 max-h-[50vh]">
-          <ImagePlayer src={fileSrc} title={title} className="max-w-full max-h-[50vh] object-contain rounded-md shadow" />
+          <ImagePlayer src={fileSrc} title={title} className="max-w-full max-h-[50vh] object-contain rounded-md shadow" ocrAnnotations={ocrAnnotations} />
         </div>
       );
     }
 
-    // 音频：固定高度
+    // 音频：与视频一致的预览比例，画面区域展示波形
     if (isAudio && fileSrc) {
       return (
-        <div className="w-full p-4 bg-muted/30">
+        <div className="w-full aspect-video bg-black">
           <MediaPlayer
             ref={mediaPlayerRef}
             src={fileSrc}
             type="audio"
             title={title}
             autoPlay={false}
-            className="w-full"
+            resourceId={data.id}
+            workspaceId={data.workspaceId}
+            className="w-full h-full"
             onTimeUpdate={setCurrentTime}
             onDurationChange={setMediaDuration}
             onPlay={handlePlay}

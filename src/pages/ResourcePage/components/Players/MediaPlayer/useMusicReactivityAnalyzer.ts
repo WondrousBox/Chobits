@@ -1,5 +1,5 @@
 import { estimateMediaMusicFeatures } from '@packages/audio-reactivity/analysis/media-feature-estimator';
-import { MUSIC_REACTIVITY_SPECTRUM_BAND_COUNT } from '@packages/audio-reactivity/types';
+import { MUSIC_REACTIVITY_SPECTRUM_BAND_COUNT, type MusicReactivitySpectrumFrame } from '@packages/audio-reactivity/types';
 import { type RefObject, useEffect, useRef } from 'react';
 
 type MediaElement = HTMLAudioElement | HTMLVideoElement;
@@ -159,9 +159,15 @@ function releaseAnalyzer(state: AnalyzerState): void {
   }, ANALYZER_RELEASE_DELAY_MS);
 }
 
-export function useMusicReactivityAnalyzer(mediaRef: RefObject<MediaElement | null>, active: boolean, mediaKind: 'audio' | 'video'): void {
+export function useMusicReactivityAnalyzer(
+  mediaRef: RefObject<MediaElement | null>,
+  active: boolean,
+  mediaKind: 'audio' | 'video',
+  onSpectrumFrame?: (frame: MusicReactivitySpectrumFrame) => void
+): void {
   const stateRef = useRef<AnalyzerState | null>(null);
   const activeRef = useRef(active);
+  const onSpectrumFrameRef = useRef(onSpectrumFrame);
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -171,6 +177,10 @@ export function useMusicReactivityAnalyzer(mediaRef: RefObject<MediaElement | nu
       void window.YUA.musicReactivity.reset('media-inactive');
     }
   }, [active, mediaKind]);
+
+  useEffect(() => {
+    onSpectrumFrameRef.current = onSpectrumFrame;
+  }, [onSpectrumFrame]);
 
   useEffect(() => {
     return () => {
@@ -226,12 +236,14 @@ export function useMusicReactivityAnalyzer(mediaRef: RefObject<MediaElement | nu
         let sumSquares = 0;
         for (const value of bands) sumSquares += value * value;
         const energy = Math.sqrt(sumSquares / Math.max(1, bands.length));
-        window.YUA.musicReactivity.sendSpectrumFrame({
+        const frame: MusicReactivitySpectrumFrame = {
           timestampMs: now,
           source: 'app-media',
           bands,
           energy
-        });
+        };
+        onSpectrumFrameRef.current?.(frame);
+        window.YUA.musicReactivity.sendSpectrumFrame(frame);
       }
 
       if (mediaActive && now - state.lastSentAt >= SEND_INTERVAL_MS) {

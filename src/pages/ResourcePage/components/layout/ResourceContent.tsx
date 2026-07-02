@@ -701,7 +701,13 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
                     <>
                       <ResizableHandle className="hover:bg-primary" withHandle />
                       <ResizablePanel ref={previewPanelRef} defaultSize={previewPanelSize} minSize={20}>
-                        <ResourcePreviewPanel resource={previewResource} resourceList={mergedItems} onClose={handleClosePreview} onResourceChange={handlePreviewResourceChange} />
+                        <ResourcePreviewPanel
+                          key={previewResource.id}
+                          resource={previewResource}
+                          resourceList={mergedItems}
+                          onClose={handleClosePreview}
+                          onResourceChange={handlePreviewResourceChange}
+                        />
                       </ResizablePanel>
                     </>
                   )}

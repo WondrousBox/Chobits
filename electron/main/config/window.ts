@@ -392,7 +392,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     autoCenterOn: 'parent-display',
     showOnReady: true,
     openDevTools: true,
-    rememberState: true,
+    startMaximized: true,
     options: {
       width: 600,
       height: 420,

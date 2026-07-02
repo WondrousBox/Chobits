@@ -13,8 +13,8 @@ interface TextPlayerProps {
 
 const READABLE_TEXT_EXT_RE = /(\.txt|\.md|\.log|\.json|\.csv|\.ts|\.js|\.tsx|\.jsx|\.py|\.go|\.rs|\.java|\.c|\.cpp|\.yml|\.yaml|\.toml|\.ini)$/i;
 
-function canReadFileContent(resource: ResourceItem): boolean {
-  return !!resource.filePath && READABLE_TEXT_EXT_RE.test(resource.filePath.toLowerCase());
+function canReadFileContent(filePath?: string | null): boolean {
+  return !!filePath && READABLE_TEXT_EXT_RE.test(filePath.toLowerCase());
 }
 
 export const TextPlayer: React.FC<TextPlayerProps> = ({ resource }) => {
@@ -77,22 +77,23 @@ const EditableTextResource: React.FC<TextPlayerProps> = ({ resource }) => {
 const ReadonlyTextContent: React.FC<{ text: string }> = ({ text }) => (
   <div className="flex h-full w-full flex-col text-xs text-muted-foreground">
     <ScrollArea className="h-full w-full">
-      <div className="box-border h-full w-full select-text overflow-auto px-4 py-3 text-left font-mono text-xs leading-relaxed">{text || '（无文本内容）'}</div>
+      <div className="box-border h-full w-full select-text overflow-auto whitespace-pre-wrap break-words px-4 py-3 text-left font-mono text-xs leading-relaxed">{text || '（无文本内容）'}</div>
     </ScrollArea>
   </div>
 );
 
 const FileTextResource: React.FC<TextPlayerProps> = ({ resource }) => {
   const [fileTextContent, setFileTextContent] = useState<string>('');
-  const fileSrc = resource.filePath ? makeResSrc(resource.filePath) : resource.url;
+  const { filePath, type, url } = resource;
+  const fileSrc = filePath ? makeResSrc(filePath) : url;
 
   useEffect(() => {
-    if (!['document', 'file'].includes(resource.type) || !canReadFileContent(resource)) {
+    if (!['document', 'file'].includes(type) || !canReadFileContent(filePath)) {
       return;
     }
 
     let cancelled = false;
-    window.YUA.file['file:readContent'](resource.filePath!)
+    window.YUA.file['file:readContent'](filePath!)
       .then((result: any) => {
         if (cancelled) return;
         setFileTextContent(result.success ? result.content || '' : '（无法加载文本内容）');
@@ -103,15 +104,11 @@ const FileTextResource: React.FC<TextPlayerProps> = ({ resource }) => {
     return () => {
       cancelled = true;
     };
-  }, [resource.filePath, resource.type]);
+  }, [filePath, type]);
 
   if (fileTextContent) {
     return <ReadonlyTextContent text={fileTextContent} />;
   }
 
-  return (
-    <div className="flex h-full w-full flex-col text-xs text-muted-foreground">
-      {fileSrc ? <div className="text-[11px] break-all">来源: {fileSrc}</div> : null}
-    </div>
-  );
+  return <div className="flex h-full w-full flex-col text-xs text-muted-foreground">{fileSrc ? <div className="text-[11px] break-all">来源: {fileSrc}</div> : null}</div>;
 };

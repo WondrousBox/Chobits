@@ -185,7 +185,7 @@ async function openPluginDownloadWindow(): Promise<void> {
 async function requestOcrModelInstallConfirmation(model: OcrModelInfo | null): Promise<boolean> {
   const modelDisplayName = model?.displayName || DEFAULT_OCR_MODEL_DISPLAY_NAME;
   const result = await window.YUA.sprite.confirmNotice({
-    content: `当前没有可用的 OCR 模型。需要下载 ${modelDisplayName} 后，才能继续识别图片里的文字。`,
+    content: `下载 ${modelDisplayName} 模型后才能识别图片文字。`,
     level: 'warning',
     confirmLabel: '下载模型',
     cancelLabel: '取消',
@@ -504,6 +504,14 @@ const FileActionsMenu: React.FC = () => {
           maxSideLength: 640,
           flatten: true
         });
+        console.info('[OCR] recognizeImage IPC result', {
+          imagePath: primary.filePath,
+          modelName: model.name,
+          ok: result.ok,
+          code: result.code,
+          error: result.error,
+          data: result.data
+        });
 
         if (!result.ok || !result.data) {
           if (result.code === 'OCR_MODEL_MISSING') {
@@ -523,6 +531,7 @@ const FileActionsMenu: React.FC = () => {
             modelName: result.data.modelName,
             modelDisplayName: result.data.modelDisplayName,
             confidence: result.data.confidence,
+            results: result.data.results,
             updatedAt: Date.now()
           }
         };
