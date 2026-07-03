@@ -95,7 +95,9 @@ export const folders = sqliteTable(
     description: text('description'),
     parentId: text('parent_id').references((): AnySQLiteColumn => folders.id, { onDelete: 'set null', onUpdate: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
-    originType: text('origin_type', { enum: ['workspace', 'linked'] }).notNull().default('workspace'),
+    originType: text('origin_type', { enum: ['workspace', 'linked'] })
+      .notNull()
+      .default('workspace'),
     linkedMountId: text('linked_mount_id').references(() => linked_folder_mounts.id, { onDelete: 'set null', onUpdate: 'cascade' }),
     relativePath: text('relative_path'),
     metadata: text('metadata'),
@@ -129,7 +131,9 @@ export const linked_folder_mounts = sqliteTable(
     absolutePath: text('absolute_path').notNull(),
     displayName: text('display_name').notNull(),
     authorizedAt: integer('authorized_at'),
-    status: text('status', { enum: ['active', 'disconnected'] }).notNull().default('active'),
+    status: text('status', { enum: ['active', 'disconnected'] })
+      .notNull()
+      .default('active'),
     lastScanAt: integer('last_scan_at'),
     watchEnabled: integer('watch_enabled').default(0),
     metadata: text('metadata'),
@@ -224,7 +228,9 @@ export const resources = sqliteTable(
     workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
     // 归属文件夹（可为空，表示在根目录）
     folderId: text('folder_id').references(() => folders.id, { onDelete: 'set null', onUpdate: 'cascade' }),
-    originType: text('origin_type', { enum: ['workspace', 'linked'] }).notNull().default('workspace'),
+    originType: text('origin_type', { enum: ['workspace', 'linked'] })
+      .notNull()
+      .default('workspace'),
     linkedMountId: text('linked_mount_id').references(() => linked_folder_mounts.id, { onDelete: 'set null', onUpdate: 'cascade' }),
     relativePath: text('relative_path'),
     externalMtimeMs: integer('external_mtime_ms'),
@@ -465,7 +471,9 @@ export const conversation_route_events = sqliteTable(
     title: text('title').notNull(),
     content: text('content').notNull(),
     evidence: text('evidence'),
-    status: text('status', { enum: ['active', 'resolved', 'superseded', 'abandoned'] }).notNull().default('active'),
+    status: text('status', { enum: ['active', 'resolved', 'superseded', 'abandoned'] })
+      .notNull()
+      .default('active'),
     importance: real('importance').notNull().default(0.5),
     confidence: real('confidence').notNull().default(0.5),
     tags: text('tags'),
@@ -537,7 +545,9 @@ export const tracked_projects = sqliteTable(
     summary: text('summary').notNull().default(''),
     goal: text('goal').notNull(),
     scope: text('scope'),
-    status: text('status', { enum: ['candidate', 'active', 'paused', 'completed', 'archived', 'rejected'] }).notNull().default('active'),
+    status: text('status', { enum: ['candidate', 'active', 'paused', 'completed', 'archived', 'rejected'] })
+      .notNull()
+      .default('active'),
     ownerUserId: text('owner_user_id'),
     stakeholders: text('stakeholders').notNull().default('[]'),
     domains: text('domains').notNull().default('[]'),
@@ -545,8 +555,20 @@ export const tracked_projects = sqliteTable(
     startedAt: integer('started_at'),
     targetEndAt: integer('target_end_at'),
     completedAt: integer('completed_at'),
+    deletedAt: integer('deleted_at'),
+    mergedIntoProjectId: text('merged_into_project_id').references((): AnySQLiteColumn => tracked_projects.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+    splitFromProjectId: text('split_from_project_id').references((): AnySQLiteColumn => tracked_projects.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+    privacySettings: text('privacy_settings').notNull().default('{}'),
+    completionSummary: text('completion_summary'),
+    retrospective: text('retrospective'),
+    memoryPromotionStatus: text('memory_promotion_status', { enum: ['none', 'suggested', 'promoted', 'declined'] })
+      .notNull()
+      .default('none'),
+    promotedMemoryNoteId: text('promoted_memory_note_id').references(() => memory_notes.id, { onDelete: 'set null', onUpdate: 'cascade' }),
     confidence: real('confidence').notNull().default(1),
-    createdBy: text('created_by', { enum: ['user', 'agent_suggestion', 'import'] }).notNull().default('user'),
+    createdBy: text('created_by', { enum: ['user', 'agent_suggestion', 'import'] })
+      .notNull()
+      .default('user'),
     metadata: text('metadata'),
     createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
     updatedAt: integer('updated_at').default(sql`(unixepoch('now')*1000)`),
@@ -556,7 +578,8 @@ export const tracked_projects = sqliteTable(
     idxTrackedProjectsWorkspaceStatus: index('idx_tracked_projects_workspace_status').on(t.workspaceId, t.status),
     idxTrackedProjectsWorkspaceUpdated: index('idx_tracked_projects_workspace_updated').on(t.workspaceId, t.updatedAt),
     idxTrackedProjectsWorkspaceName: index('idx_tracked_projects_workspace_name').on(t.workspaceId, t.name),
-    idxTrackedProjectsTargetEnd: index('idx_tracked_projects_target_end').on(t.workspaceId, t.targetEndAt)
+    idxTrackedProjectsTargetEnd: index('idx_tracked_projects_target_end').on(t.workspaceId, t.targetEndAt),
+    idxTrackedProjectsDeleted: index('idx_tracked_projects_deleted').on(t.workspaceId, t.deletedAt)
   })
 );
 
@@ -585,7 +608,9 @@ export const project_candidates = sqliteTable(
     reasons: text('reasons').notNull().default('[]'),
     suggestedMilestones: text('suggested_milestones').notNull().default('[]'),
     suggestedReminders: text('suggested_reminders').notNull().default('[]'),
-    status: text('status', { enum: ['pending', 'confirmed', 'dismissed', 'expired', 'merged'] }).notNull().default('pending'),
+    status: text('status', { enum: ['pending', 'confirmed', 'dismissed', 'expired', 'merged'] })
+      .notNull()
+      .default('pending'),
     confirmedProjectId: text('confirmed_project_id').references((): AnySQLiteColumn => tracked_projects.id, { onDelete: 'set null', onUpdate: 'cascade' }),
     expiresAt: integer('expires_at').notNull(),
     createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
@@ -619,7 +644,9 @@ export const project_links = sqliteTable(
     relationType: text('relation_type', { enum: ['source', 'evidence', 'follow_up', 'decision_record', 'deliverable', 'meeting', 'reminder', 'related_context'] }).notNull(),
     strength: real('strength').notNull().default(1),
     confidence: real('confidence').notNull().default(1),
-    createdBy: text('created_by', { enum: ['user', 'agent', 'system'] }).notNull().default('system'),
+    createdBy: text('created_by', { enum: ['user', 'agent', 'system'] })
+      .notNull()
+      .default('system'),
     createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`)
   },
   (t) => ({
@@ -643,7 +670,9 @@ export const project_snapshots = sqliteTable(
       .references(() => workspaces.id, { onDelete: 'cascade', onUpdate: 'cascade' })
       .notNull(),
     version: integer('version').notNull().default(1),
-    status: text('status', { enum: ['candidate', 'active', 'paused', 'completed', 'archived', 'rejected'] }).notNull().default('active'),
+    status: text('status', { enum: ['candidate', 'active', 'paused', 'completed', 'archived', 'rejected'] })
+      .notNull()
+      .default('active'),
     summary: text('summary').notNull().default(''),
     goal: text('goal').notNull(),
     currentFocus: text('current_focus'),
@@ -708,7 +737,15 @@ export const project_events = sqliteTable(
     }).notNull(),
     title: text('title').notNull(),
     content: text('content').notNull(),
-    status: text('status', { enum: ['active', 'resolved', 'superseded', 'cancelled'] }).notNull().default('active'),
+    status: text('status', { enum: ['active', 'resolved', 'superseded', 'cancelled'] })
+      .notNull()
+      .default('active'),
+    quality: text('quality', { enum: ['draft', 'accepted', 'rejected'] })
+      .notNull()
+      .default('draft'),
+    needsUserConfirmation: integer('needs_user_confirmation', { mode: 'boolean' }).notNull().default(false),
+    reviewedAt: integer('reviewed_at'),
+    reviewedBy: text('reviewed_by', { enum: ['user', 'agent', 'system'] }),
     importance: real('importance').notNull().default(0.5),
     confidence: real('confidence').notNull().default(0.5),
     eventTime: integer('event_time'),
@@ -729,6 +766,8 @@ export const project_events = sqliteTable(
     idxProjectEventsWorkspace: index('idx_project_events_workspace').on(t.workspaceId),
     idxProjectEventsType: index('idx_project_events_type').on(t.type),
     idxProjectEventsStatus: index('idx_project_events_status').on(t.status),
+    idxProjectEventsQuality: index('idx_project_events_quality').on(t.quality),
+    idxProjectEventsReview: index('idx_project_events_review').on(t.needsUserConfirmation, t.quality),
     idxProjectEventsDue: index('idx_project_events_due').on(t.dueAt),
     idxProjectEventsCreated: index('idx_project_events_created').on(t.createdAt)
   })
@@ -751,7 +790,9 @@ export const project_milestones = sqliteTable(
       .notNull(),
     title: text('title').notNull(),
     description: text('description'),
-    status: text('status', { enum: ['planned', 'in_progress', 'done', 'missed', 'cancelled'] }).notNull().default('planned'),
+    status: text('status', { enum: ['planned', 'in_progress', 'done', 'missed', 'cancelled'] })
+      .notNull()
+      .default('planned'),
     targetAt: integer('target_at'),
     completedAt: integer('completed_at'),
     evidenceEventIds: text('evidence_event_ids').notNull().default('[]'),
@@ -784,19 +825,62 @@ export const project_reminder_links = sqliteTable(
     projectEventId: text('project_event_id').references(() => project_events.id, { onDelete: 'set null', onUpdate: 'cascade' }),
     schedulerTaskId: text('scheduler_task_id').notNull(),
     kind: text('kind', { enum: ['deadline', 'meeting', 'follow_up', 'review', 'milestone_check', 'stale_project_check'] }).notNull(),
-    status: text('status', { enum: ['suggested', 'scheduled', 'done', 'cancelled'] }).notNull().default('suggested'),
+    status: text('status', { enum: ['suggested', 'scheduled', 'done', 'cancelled'] })
+      .notNull()
+      .default('suggested'),
+    title: text('title'),
+    dueAt: integer('due_at'),
+    reason: text('reason'),
+    syncStatus: text('sync_status', { enum: ['suggested', 'synced', 'cancelled', 'failed'] })
+      .notNull()
+      .default('suggested'),
+    lastSyncedAt: integer('last_synced_at'),
+    metadata: text('metadata'),
     createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`)
   },
   (t) => ({
     idxProjectReminderLinksProject: index('idx_project_reminder_links_project').on(t.projectId),
     idxProjectReminderLinksWorkspace: index('idx_project_reminder_links_workspace').on(t.workspaceId),
     idxProjectReminderLinksTask: index('idx_project_reminder_links_task').on(t.schedulerTaskId),
-    idxProjectReminderLinksStatus: index('idx_project_reminder_links_status').on(t.status)
+    idxProjectReminderLinksStatus: index('idx_project_reminder_links_status').on(t.status),
+    idxProjectReminderLinksDue: index('idx_project_reminder_links_due').on(t.dueAt)
   })
 );
 
 export type ProjectReminderLinkRow = InferSelectModel<typeof project_reminder_links>;
 export type NewProjectReminderLink = InferInsertModel<typeof project_reminder_links>;
+
+export const project_audit_logs = sqliteTable(
+  'project_audit_logs',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    workspaceId: text('workspace_id')
+      .references(() => workspaces.id, { onDelete: 'cascade', onUpdate: 'cascade' })
+      .notNull(),
+    projectId: text('project_id').references(() => tracked_projects.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+    action: text('action').notNull(),
+    actor: text('actor', { enum: ['user', 'agent', 'system'] })
+      .notNull()
+      .default('system'),
+    targetType: text('target_type').notNull(),
+    targetId: text('target_id'),
+    before: text('before'),
+    after: text('after'),
+    reason: text('reason'),
+    metadata: text('metadata'),
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`)
+  },
+  (t) => ({
+    idxProjectAuditWorkspace: index('idx_project_audit_workspace').on(t.workspaceId, t.createdAt),
+    idxProjectAuditProject: index('idx_project_audit_project').on(t.projectId, t.createdAt),
+    idxProjectAuditAction: index('idx_project_audit_action').on(t.action)
+  })
+);
+
+export type ProjectAuditLogRow = InferSelectModel<typeof project_audit_logs>;
+export type NewProjectAuditLog = InferInsertModel<typeof project_audit_logs>;
 
 /**
  * ai_usage_events：AI 使用量事实表

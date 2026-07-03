@@ -1,8 +1,11 @@
+import { createPiTaskChatRuntimeFromRequest } from '../../../../packages/ai/runtime/pi/task-chat';
 import type { ConversationRouteMessage } from '../../../../packages/ai/services/conversation-route-types';
 import type { AgentLoopCompletePayload } from '../../../../packages/ai/services/memory-types';
 import { extractProjectDelta } from '../../../../packages/ai/services/project-tracking-extractor';
 import { matchProjectsForConversation } from '../../../../packages/ai/services/project-tracking-matcher';
+import { isHighRiskProjectEventType } from '../../../../packages/ai/services/project-tracking-service';
 import { detectProjectSignal } from '../../../../packages/ai/services/project-tracking-signal';
+import type { ProjectTrackingConfig } from '../../../../packages/ai/services/project-tracking-types';
 import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
 import { ConversationRouteSnapshotRepo } from '../../db/conversation-route-repositories';
@@ -23,6 +26,7 @@ const INTERNAL_AGENT_IDS = new Set([
 ]);
 const runningConversations = new Set<string>();
 const trailingConversations = new Map<string, AgentLoopCompletePayload>();
+const COMPLEX_DELTA_TERMS = ['会议纪要', '纪要', '评审', '协议', '决策', '决定', '变更', '调整', '延期', '取消', '范围', '里程碑', '风险', '阻塞', 'deadline'];
 
 function shouldSkip(payload: AgentLoopCompletePayload): string | null {
   const config = getProjectTrackingConfig();
@@ -165,20 +169,23 @@ async function materializeLinkedProjectDeltas(input: {
     if (!newMessages.length) continue;
 
     const snapshot = await ProjectSnapshotRepo.get(projectId).catch(() => undefined);
-    const delta = extractProjectDelta({
+    const deltaInput = {
       conversationId: input.conversationId,
       messages: newMessages,
       project,
       routeSnapshot: input.routeSnapshot,
       snapshot
-    });
+    };
+    const delta = await extractProjectDelta(deltaInput, await createProjectDeltaChatFnIfEnabled(getProjectTrackingConfig(), newMessages));
     if (!delta.events.length && !delta.milestonePatches.length) continue;
 
     let createdEvents = 0;
     for (const event of delta.events) {
       await ProjectEventRepo.create({
         ...event,
+        needsUserConfirmation: event.needsUserConfirmation ?? isHighRiskProjectEventType(event.type),
         projectId,
+        quality: event.quality ?? 'draft',
         workspaceId: input.workspaceId
       });
       createdEvents += 1;
@@ -199,6 +206,68 @@ async function materializeLinkedProjectDeltas(input: {
     await ProjectSnapshotRepo.recomputeFromEvents(projectId);
     console.log(`${TAG} project delta materialized: project=${projectId} events=${createdEvents} conversation=${input.conversationId}`);
   }
+}
+
+async function createProjectDeltaChatFnIfEnabled(
+  config: ProjectTrackingConfig,
+  messages: ConversationRouteMessage[]
+): Promise<((prompt: string, signal?: AbortSignal) => Promise<string>) | undefined> {
+  const llm = config.llmProjectDelta;
+  if (!llm?.enabled || !llm.providerId) return undefined;
+  if (!shouldUseLlmProjectDelta(config, messages)) return undefined;
+
+  try {
+    const runtime = await createPiTaskChatRuntimeFromRequest({
+      agentId: 'project-tracking',
+      extras: {
+        usage: {
+          feature: 'project_tracking',
+          operationKey: 'project_delta_extract',
+          sourceType: 'project'
+        }
+      },
+      maxTokens: llm.maxTokens,
+      model: llm.model,
+      providerId: llm.providerId,
+      providerPresetId: llm.providerPresetId,
+      temperature: llm.temperature
+    });
+    return async (prompt, signal) => {
+      let text = '';
+      let completedText = '';
+      let streamError: Error | undefined;
+      await runtime.chatFn(
+        prompt,
+        (event) => {
+          if (event.type === 'delta') {
+            text += event.data.text;
+          } else if (event.type === 'message_completed') {
+            completedText = event.data?.text || completedText;
+          } else if (event.type === 'error') {
+            streamError = new Error(event.data.message || 'Project delta LLM failed');
+          }
+        },
+        signal
+      );
+      if (streamError) throw streamError;
+      return completedText || text;
+    };
+  } catch (error) {
+    console.warn(`${TAG} LLM project delta disabled for this run:`, error instanceof Error ? error.message : error);
+    return undefined;
+  }
+}
+
+function shouldUseLlmProjectDelta(config: ProjectTrackingConfig, messages: ConversationRouteMessage[]): boolean {
+  const llm = config.llmProjectDelta;
+  if (!llm?.enabled) return false;
+  const totalChars = messages.reduce((sum, message) => sum + message.content.trim().length, 0);
+  if (messages.length >= (llm.minMessages ?? 4) || totalChars >= (llm.minMessageChars ?? 600)) return true;
+  const joined = messages
+    .map((message) => message.content)
+    .join('\n')
+    .toLowerCase();
+  return COMPLEX_DELTA_TERMS.some((term) => joined.includes(term.toLowerCase()));
 }
 
 async function tryAutoLinkExistingProject(input: {

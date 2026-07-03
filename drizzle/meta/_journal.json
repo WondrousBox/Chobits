@@ -148,6 +148,13 @@
       "when": 1783046992972,
       "tag": "0020_fast_revanche",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1783072330512,
+      "tag": "0021_slimy_monster_badoon",
+      "breakpoints": true
     }
   ]
 }
