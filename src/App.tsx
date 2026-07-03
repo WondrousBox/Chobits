@@ -27,6 +27,7 @@ import ChatPage from './pages/ChatPage/ChatPage';
 import AssistantPage from './pages/ChatPage/StartPage';
 import InventoryPage from './pages/InventoryPage/InventoryPage';
 import MemoryGraphPage from './pages/MemoryGraphPage/MemoryGraphPage';
+import ProjectTrackingPage from './pages/ProjectTrackingPage';
 import QuestListPage from './pages/QuestListPage/QuestListPage';
 import ASRConfigPage from './pages/RecordingPage/ASRConfigPage';
 import RecordingPage from './pages/RecordingPage/RecordingPage';
@@ -111,6 +112,7 @@ function StandardAppRoutes(): JSX.Element {
           <Route path="/quest-list" element={<QuestListPage />} />
           <Route path="/web-recorder" element={<WebRecorderWindow />} />
           <Route path="/memory-graph" element={<MemoryGraphPage />} />
+          <Route path="/project-tracking" element={<ProjectTrackingPage />} />
           <Route path="/character-pack-editor" element={<SpritePackEditorWindow />} />
           <Route path="/window-animation-editor" element={<WindowAnimationEditor />} />
           <Route path="/sprite-bubble" element={<SpriteBubblePage />} />

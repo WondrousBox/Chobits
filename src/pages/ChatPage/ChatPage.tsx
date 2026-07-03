@@ -58,6 +58,8 @@ import { speakToolResultSpeech } from '@/lib/tool-speech';
 
 import { CHAT_OVERLAY_SETTINGS, type ChatOverlaySide, resolveChatOverlaySide } from './chat-overlay-settings';
 import { ConversationRoutePanel } from './components/ConversationRoutePanel';
+import { ProjectCandidatePrompt } from './components/ProjectCandidatePrompt';
+import { ProjectContextBar } from './components/ProjectContextBar';
 import { useChatSelection } from './context/ChatSelectionContext';
 
 const CHAT_WINDOW_PAYLOAD_DEDUPE_MS = 30_000;
@@ -152,6 +154,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
   const [newTitle, setNewTitle] = useState('');
   const [pendingConversationTitle, setPendingConversationTitle] = useState<string | null>(null);
   const [switchingWindowMode, setSwitchingWindowMode] = useState(false);
+  const [projectRefreshKey, setProjectRefreshKey] = useState(0);
   // Track conversations that are waiting for AI-generated titles
   const [generatingTitleIds, setGeneratingTitleIds] = useState<Set<string>>(new Set());
 
@@ -302,6 +305,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     setConversationId(undefined);
     setPendingConversationTitle(null);
     setMessages([]);
+    setProjectRefreshKey((prev) => prev + 1);
   }, [clearPendingPayloadStartTimer, stopRealtimeSpeech]);
 
   const handleAiSpeechEnabledChange = useCallback(
@@ -1200,6 +1204,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
               </Button>
             </div>
           )}
+          {!isOverlay && conversationId && <ProjectContextBar conversationId={conversationId} refreshKey={projectRefreshKey} />}
           {showEmptyStart && (
             <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
               <div className="text-center text-lg mb-4">今天有什么能帮到你？</div>
@@ -1369,6 +1374,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <ProjectCandidatePrompt conversationId={conversationId} onProjectCreated={() => setProjectRefreshKey((prev) => prev + 1)} />
     </div>
   );
 }

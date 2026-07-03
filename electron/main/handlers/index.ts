@@ -52,6 +52,7 @@ import { initMemoryHandlers } from './memory/ipc-main';
 import { registerPurposeRetrospectiveMemoryProvider } from './memory/purpose-retrospective-memory-sync';
 import { initPreferencesHandlers } from './preferences/ipc-main';
 import { PreferencesStore } from './preferences/preferences-store';
+import { initProjectTrackingHandlers } from './project-tracking/ipc-main';
 import { initProxyHandlers } from './proxy/ipc-main';
 import { getHttpProxy } from './proxy/proxy';
 import { initQuestHandlers } from './quest/ipc-main';
@@ -514,6 +515,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initMediaHandlers(win);
   initMemoryHandlers();
   initConversationRouteHandlers();
+  initProjectTrackingHandlers();
   initAnalyticsHandlers();
   initUserProfileHandlers();
   const purposeHistoryStore = new SpritePurposeHistoryStore(app.getPath('userData'));

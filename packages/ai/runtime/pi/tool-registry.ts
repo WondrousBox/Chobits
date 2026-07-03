@@ -213,6 +213,13 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
     name: 'personaUpdateTool',
     status: 'ready-for-pi-runtime'
   },
+  'project-tracking': {
+    category: 'content',
+    description: '查询和维护跨会话项目跟踪记忆，包括项目快照、时间线事件、里程碑和会话关联',
+    compatName: 'projectTrackingTool',
+    name: 'projectTrackingTool',
+    status: 'ready-for-pi-runtime'
+  },
   'toolbox-lookup': {
     category: 'meta',
     description: '万能工具箱：搜索技能、了解工具用法、执行工具',
@@ -269,6 +276,7 @@ export const DEFAULT_SESSION_TOOL_IDS = [
   'music-generate',
   'music-lyrics',
   'persona-update',
+  'project-tracking',
   'app-window',
   'toolbox-lookup',
   'workflow-run',

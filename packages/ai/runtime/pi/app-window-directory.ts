@@ -60,6 +60,9 @@ const CJK_SEARCH_TERMS = [
   '聊天',
   '助手',
   '插件',
+  '项目',
+  '项目中心',
+  '项目跟踪',
   '窗口',
   '动画'
 ].sort((a, b) => b.length - a.length);
@@ -347,6 +350,12 @@ export const APP_WINDOW_TOOL_DIRECTORY: AppWindowToolEntry[] = [
     title: '记忆图谱',
     description: '打开长期记忆图谱窗口。',
     aliases: ['记忆图谱', '记忆', 'memory graph']
+  },
+  {
+    key: 'projectTracking',
+    title: '项目中心',
+    description: '打开项目跟踪中心，查看跨会话项目、项目快照、时间线、里程碑和关联对话。',
+    aliases: ['项目中心', '项目跟踪', '项目记忆', '项目管理', 'project tracking']
   },
   {
     key: 'characterPackEditor',

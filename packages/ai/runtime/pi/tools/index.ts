@@ -20,6 +20,7 @@ import { createPiMemoryTopicsTool } from './memory-topics';
 import { createPiMusicGenerateTool } from './music-generate';
 import { createPiMusicLyricsTool } from './music-lyrics';
 import { createPiPersonaUpdateTool } from './persona-update';
+import { createPiProjectTrackingTool } from './project-tracking';
 import { createPiPushCardTool } from './push-card';
 import { createPiReadSubtitleTool } from './read-subtitle';
 import { createPiResourceCreateTool } from './resource-create';
@@ -71,6 +72,7 @@ const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
   'music-generate': createPiMusicGenerateTool,
   'music-lyrics': createPiMusicLyricsTool,
   'persona-update': createPiPersonaUpdateTool,
+  'project-tracking': createPiProjectTrackingTool,
   'toolbox-lookup': createPiToolboxLookupTool,
   'workflow-run': createPiWorkflowRunTool
 };
@@ -109,6 +111,7 @@ const COMPAT_NAME_TO_TOOL_ID: Record<string, string> = {
   musicGenerateTool: 'music-generate',
   musicLyricsTool: 'music-lyrics',
   personaUpdateTool: 'persona-update',
+  projectTrackingTool: 'project-tracking',
   toolboxTool: 'toolbox-lookup',
   workflowRunTool: 'workflow-run'
 };
