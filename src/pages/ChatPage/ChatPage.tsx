@@ -4,6 +4,7 @@ import type { SpeechDisplayTextFilter } from '@packages/ai/speech-display-filter
 import { getSpeechDisplayTextFilter, getSpeechDisplayTextFilterFromMetadata, normalizeSpeechDisplayTextFilter } from '@packages/ai/speech-display-filter';
 import { extractThinkingTextFromMetadata } from '@packages/ai/thinking-content';
 import type { TokenUsage } from '@packages/ai/types';
+import { AppEvent } from '@packages/event/events';
 import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -170,6 +171,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
   const initialConfigGuideRanRef = useRef(false);
   const handledPayloadKeysRef = useRef<Map<string, number>>(new Map());
   const pendingPayloadStartTimerRef = useRef<number | null>(null);
+  const projectCandidateRefreshTimerRef = useRef<number | null>(null);
 
   const currentConversation = useMemo(() => conversations.find((c) => c.id === conversationId) || null, [conversations, conversationId]);
   const conversationUsage = useMemo(() => sumTokenUsage(messages), [messages]);
@@ -182,6 +184,36 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     window.clearTimeout(pendingPayloadStartTimerRef.current);
     pendingPayloadStartTimerRef.current = null;
   }, []);
+
+  const scheduleProjectCandidateRefresh = useCallback((): void => {
+    if (projectCandidateRefreshTimerRef.current !== null) {
+      window.clearTimeout(projectCandidateRefreshTimerRef.current);
+    }
+    projectCandidateRefreshTimerRef.current = window.setTimeout(() => {
+      projectCandidateRefreshTimerRef.current = null;
+      setProjectRefreshKey((prev) => prev + 1);
+    }, 700);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (projectCandidateRefreshTimerRef.current !== null) {
+        window.clearTimeout(projectCandidateRefreshTimerRef.current);
+        projectCandidateRefreshTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = window.YUA.events.on((payload) => {
+      if (payload.type !== AppEvent.PROJECT_CANDIDATE_CREATED) return;
+      const candidateConversationId = typeof payload.data?.conversationId === 'string' ? payload.data.conversationId : undefined;
+      if (candidateConversationId && candidateConversationId === conversationId) {
+        setProjectRefreshKey((prev) => prev + 1);
+      }
+    });
+    return () => unsubscribe();
+  }, [conversationId]);
 
   const markPayloadHandled = useCallback((payloadKey: string): boolean => {
     const now = Date.now();
@@ -740,6 +772,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
           disposerRef.current = null;
           // Refresh conversation list to show updated message count
           loadConversations();
+          scheduleProjectCandidateRefresh();
         }
         if (ev?.type === 'error') {
           void realtimeSpeech.cancel();
@@ -1374,7 +1407,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <ProjectCandidatePrompt conversationId={conversationId} onProjectCreated={() => setProjectRefreshKey((prev) => prev + 1)} />
+      <ProjectCandidatePrompt conversationId={conversationId} refreshKey={projectRefreshKey} onProjectCreated={() => setProjectRefreshKey((prev) => prev + 1)} />
     </div>
   );
 }

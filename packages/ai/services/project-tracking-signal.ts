@@ -14,6 +14,7 @@ const TIME_TERMS = ['今天', '明天', '后天', '下周', '本周', '月底', 
 const AGREEMENT_TERMS = ['协议', '约定', '确认', '达成', '决定', '合同', '评审', '方案'];
 const TASK_TERMS = ['待办', '下一步', '先做', '实现', '完成', '拆分', '安排', '检查', '测试', '修复'];
 const EXPLICIT_TERMS = ['作为项目跟进', '创建项目', '项目跟踪', '持续跟进', '后续跟进', '帮我跟进', '记成项目'];
+const CANDIDATE_THRESHOLD = 0.5;
 
 export function detectProjectSignal(input: DetectProjectSignalInput): ProjectSignalDecision {
   const userMessages = input.messages.filter((message) => message.role === 'user' && message.content.trim());
@@ -27,7 +28,7 @@ export function detectProjectSignal(input: DetectProjectSignalInput): ProjectSig
   let score = 0;
 
   if (matchesAny(userText, EXPLICIT_TERMS)) {
-    score += 0.42;
+    score += CANDIDATE_THRESHOLD;
     reasons.push('explicit_project_tracking_request');
   }
   if (countMatches(userText, PROJECT_TERMS) >= 2 || route?.currentGoal) {
@@ -49,7 +50,7 @@ export function detectProjectSignal(input: DetectProjectSignalInput): ProjectSig
 
   const uniqueReasons = cleanStringList(reasons, 8) as ProjectSignalReason[];
   const signalScore = clamp(score);
-  if (signalScore < 0.5) return { ...emptyDecision(), reasons: uniqueReasons, signalScore };
+  if (signalScore < CANDIDATE_THRESHOLD) return { ...emptyDecision(), reasons: uniqueReasons, signalScore };
 
   const projectName = inferProjectName(userText, route);
   const proposedGoal = inferProjectGoal(userText, route);
@@ -66,7 +67,7 @@ export function detectProjectSignal(input: DetectProjectSignalInput): ProjectSig
     },
     needsUserConfirmation: true,
     reasons: uniqueReasons,
-    shouldCreateCandidate: signalScore >= 0.5,
+    shouldCreateCandidate: signalScore >= CANDIDATE_THRESHOLD,
     shouldLinkExistingProject: false,
     signalScore
   };
