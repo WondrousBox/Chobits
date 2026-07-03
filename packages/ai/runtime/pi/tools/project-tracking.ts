@@ -1,8 +1,17 @@
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
-import { ProjectEventRepo, ProjectLinkRepo, ProjectMilestoneRepo, ProjectRepo, ProjectSnapshotRepo } from '@packages/common/db';
+import { ProjectAuditLogRepo, ProjectEventRepo, ProjectGovernanceRepo, ProjectLinkRepo, ProjectMilestoneRepo, ProjectReminderLinkRepo, ProjectRepo, ProjectSnapshotRepo } from '@packages/common/db';
 import { Type } from 'typebox';
 
-import type { ProjectEventStatus, ProjectEventType, ProjectLinkRelationType, ProjectStatus } from '../../../services/project-tracking-types';
+import { buildProjectReminderSuggestions, generateProjectCompletionSummary } from '../../../services/project-tracking-service';
+import type {
+  ProjectEventQuality,
+  ProjectEventReviewedBy,
+  ProjectEventStatus,
+  ProjectEventType,
+  ProjectLinkRelationType,
+  ProjectPrivacySettings,
+  ProjectStatus
+} from '../../../services/project-tracking-types';
 import { resolveGuardedToolExecution } from '../skills';
 import type { PiSessionToolContext } from '../tool-context';
 import { resolveWorkspaceId } from './memory-db-deps';
@@ -19,9 +28,19 @@ const projectTrackingParameters = Type.Object({
       Type.Literal('addEvent'),
       Type.Literal('updateEvent'),
       Type.Literal('listMilestones'),
+      Type.Literal('listAuditLogs'),
+      Type.Literal('listReminderSuggestions'),
+      Type.Literal('listReminderLinks'),
+      Type.Literal('previewProjectImpact'),
+      Type.Literal('inspectProjectOrphans'),
       Type.Literal('linkConversation'),
       Type.Literal('unlinkConversation'),
       Type.Literal('archiveProject'),
+      Type.Literal('completeProject'),
+      Type.Literal('reopenProject'),
+      Type.Literal('generateCompletionSummary'),
+      Type.Literal('exportProject'),
+      Type.Literal('updatePrivacySettings'),
       Type.Literal('rebuildSnapshot')
     ],
     { description: '要执行的项目跟踪动作' }
@@ -31,6 +50,9 @@ const projectTrackingParameters = Type.Object({
   query: Type.Optional(Type.String({ description: 'searchProjects 查询文本' })),
   limit: Type.Optional(Type.Number({ description: '最多返回数量，默认 20', minimum: 1, maximum: 100 })),
   status: Type.Optional(Type.String({ description: '项目或事件状态过滤/更新值' })),
+  quality: Type.Optional(Type.String({ description: '事件质量状态：draft/accepted/rejected' })),
+  needsUserConfirmation: Type.Optional(Type.Boolean({ description: '事件是否需要用户确认' })),
+  reviewedBy: Type.Optional(Type.String({ description: '事件审核者：user/agent/system' })),
   type: Type.Optional(Type.String({ description: '事件类型过滤或新增事件类型' })),
   title: Type.Optional(Type.String({ description: '新增或更新事件标题' })),
   content: Type.Optional(Type.String({ description: '新增或更新事件内容' })),
@@ -40,6 +62,13 @@ const projectTrackingParameters = Type.Object({
   eventTime: Type.Optional(Type.Number({ description: '事件发生时间毫秒时间戳' })),
   eventId: Type.Optional(Type.String({ description: 'updateEvent 需要的事件 ID' })),
   relationType: Type.Optional(Type.String({ description: 'linkConversation 的关联类型，默认 related_context' })),
+  completionSummary: Type.Optional(Type.String({ description: 'completeProject 的完成总结' })),
+  retrospective: Type.Optional(Type.String({ description: 'completeProject 的复盘内容' })),
+  allowAutoLinking: Type.Optional(Type.Boolean({ description: 'updatePrivacySettings：允许自动关联' })),
+  allowPromptInjection: Type.Optional(Type.Boolean({ description: 'updatePrivacySettings：允许注入项目上下文' })),
+  allowReminderSuggestions: Type.Optional(Type.Boolean({ description: 'updatePrivacySettings：允许提醒建议' })),
+  allowLongTermMemoryPromotion: Type.Optional(Type.Boolean({ description: 'updatePrivacySettings：允许长期记忆晋升' })),
+  sensitive: Type.Optional(Type.Boolean({ description: 'updatePrivacySettings：标记敏感项目' })),
   workspaceId: Type.Optional(Type.String({ description: 'workspace 限定；不填自动解析当前 workspace' }))
 });
 
@@ -100,6 +129,7 @@ export function createPiProjectTrackingTool(toolContext: PiSessionToolContext): 
           if (!input.projectId) return createJsonToolResult({ success: false, error: 'projectId is required', events: [] });
           const events = await ProjectEventRepo.listByProject(input.projectId, {
             limit: input.limit,
+            quality: input.quality ? ([input.quality] as ProjectEventQuality[]) : undefined,
             status: input.status ? ([input.status] as ProjectEventStatus[]) : undefined,
             type: input.type ? ([input.type] as ProjectEventType[]) : undefined
           });
@@ -110,6 +140,48 @@ export function createPiProjectTrackingTool(toolContext: PiSessionToolContext): 
           if (!input.projectId) return createJsonToolResult({ success: false, error: 'projectId is required', milestones: [] });
           const milestones = await ProjectMilestoneRepo.listByProject(input.projectId, input.limit);
           return createJsonToolResult({ success: true, milestones });
+        }
+
+        if (input.action === 'listAuditLogs') {
+          if (!input.projectId) return createJsonToolResult({ success: false, error: 'projectId is required', auditLogs: [] });
+          const auditLogs = await ProjectAuditLogRepo.listByProject(input.projectId, input.limit ?? 100);
+          return createJsonToolResult({ success: true, auditLogs });
+        }
+
+        if (input.action === 'listReminderLinks') {
+          if (!input.projectId) return createJsonToolResult({ success: false, error: 'projectId is required', reminderLinks: [] });
+          const reminderLinks = await ProjectReminderLinkRepo.listByProject(input.projectId, input.limit ?? 100);
+          return createJsonToolResult({ success: true, reminderLinks });
+        }
+
+        if (input.action === 'listReminderSuggestions') {
+          if (!input.projectId) return createJsonToolResult({ success: false, error: 'projectId is required', suggestions: [] });
+          const [project, snapshot, events, existing] = await Promise.all([
+            ProjectRepo.get(input.projectId),
+            ProjectSnapshotRepo.get(input.projectId),
+            ProjectEventRepo.listByProject(input.projectId, { limit: 200 }),
+            ProjectReminderLinkRepo.listByProject(input.projectId, 200)
+          ]);
+          if (!project) return createJsonToolResult({ success: false, error: 'project not found', suggestions: [] });
+          const existingSourceEventIds = new Set(existing.map((link) => link.projectEventId).filter(Boolean));
+          const suggestions = buildProjectReminderSuggestions({ events, project, snapshot }).filter((suggestion) => !suggestion.sourceEventId || !existingSourceEventIds.has(suggestion.sourceEventId));
+          return createJsonToolResult({ success: true, suggestions });
+        }
+
+        if (input.action === 'previewProjectImpact') {
+          if (!input.projectId) return createJsonToolResult({ success: false, error: 'projectId is required', preview: null });
+          const preview = await ProjectGovernanceRepo.previewProjectImpact(input.projectId);
+          return createJsonToolResult({ success: Boolean(preview), preview: preview ?? null });
+        }
+
+        if (input.action === 'inspectProjectOrphans') {
+          if (!input.projectId) return createJsonToolResult({ success: false, error: 'projectId is required', report: null });
+          const report = await ProjectGovernanceRepo.inspectProjectOrphans(input.projectId);
+          return createJsonToolResult({
+            note: 'Scheduler runtime orphan checks are available in the Project Center UI because they require the main process scheduler instance.',
+            report: report ?? null,
+            success: Boolean(report)
+          });
         }
 
         if (input.action === 'addEvent') {
@@ -124,7 +196,11 @@ export function createPiProjectTrackingTool(toolContext: PiSessionToolContext): 
             dueAt: input.dueAt ?? null,
             eventTime: input.eventTime ?? null,
             importance: input.importance,
+            needsUserConfirmation: input.needsUserConfirmation ?? false,
             projectId: input.projectId,
+            quality: (input.quality as ProjectEventQuality | undefined) ?? 'accepted',
+            reviewedAt: Date.now(),
+            reviewedBy: 'agent',
             sourceConversationId: input.conversationId || toolContext.conversationId || null,
             sourceSeqEnd: 0,
             sourceSeqStart: 0,
@@ -144,6 +220,10 @@ export function createPiProjectTrackingTool(toolContext: PiSessionToolContext): 
             confidence: input.confidence,
             content: input.content,
             importance: input.importance,
+            needsUserConfirmation: input.needsUserConfirmation,
+            quality: input.quality as ProjectEventQuality | undefined,
+            reviewedAt: input.quality === 'accepted' || input.quality === 'rejected' ? Date.now() : undefined,
+            reviewedBy: input.reviewedBy as ProjectEventReviewedBy | undefined,
             status: input.status as ProjectEventStatus | undefined,
             title: input.title
           });
@@ -188,6 +268,105 @@ export function createPiProjectTrackingTool(toolContext: PiSessionToolContext): 
           if (guarded?.kind === 'blocked' || guarded?.kind === 'cancel') return createJsonToolResult(guarded.details);
           if (!input.projectId) return createJsonToolResult({ success: false, error: 'projectId is required' });
           const project = await ProjectRepo.archive(input.projectId);
+          return createJsonToolResult({ success: Boolean(project), project: project ?? null, ...(guarded?.warning ? { warning: guarded.warning } : {}) });
+        }
+
+        if (input.action === 'completeProject') {
+          const guarded = await resolveGuardedToolExecution(toolContext, toolCallId, 'project-tracking');
+          if (guarded?.kind === 'blocked' || guarded?.kind === 'cancel') return createJsonToolResult(guarded.details);
+          if (!input.projectId) return createJsonToolResult({ success: false, error: 'projectId is required' });
+          const project = await ProjectRepo.get(input.projectId);
+          if (!project) return createJsonToolResult({ success: false, error: 'project not found' });
+          const [events, milestones, snapshot] = await Promise.all([
+            ProjectEventRepo.listByProject(input.projectId, { limit: 500 }),
+            ProjectMilestoneRepo.listByProject(input.projectId, 500),
+            ProjectSnapshotRepo.get(input.projectId)
+          ]);
+          const summary = input.completionSummary ?? generateProjectCompletionSummary({ events, milestones, project, snapshot });
+          const completed = await ProjectRepo.markCompleted(input.projectId, summary, input.retrospective ?? summary);
+          await ProjectAuditLogRepo.create({
+            action: 'project_completed',
+            actor: 'agent',
+            after: completed,
+            before: project,
+            projectId: input.projectId,
+            targetId: input.projectId,
+            targetType: 'project',
+            workspaceId: project.workspaceId
+          });
+          return createJsonToolResult({ success: Boolean(completed), project: completed ?? null, ...(guarded?.warning ? { warning: guarded.warning } : {}) });
+        }
+
+        if (input.action === 'reopenProject') {
+          const guarded = await resolveGuardedToolExecution(toolContext, toolCallId, 'project-tracking');
+          if (guarded?.kind === 'blocked' || guarded?.kind === 'cancel') return createJsonToolResult(guarded.details);
+          if (!input.projectId) return createJsonToolResult({ success: false, error: 'projectId is required' });
+          const project = await ProjectRepo.reopen(input.projectId);
+          if (project) {
+            await ProjectAuditLogRepo.create({
+              action: 'project_reopened',
+              actor: 'agent',
+              projectId: input.projectId,
+              targetId: input.projectId,
+              targetType: 'project',
+              workspaceId: project.workspaceId
+            });
+          }
+          return createJsonToolResult({ success: Boolean(project), project: project ?? null, ...(guarded?.warning ? { warning: guarded.warning } : {}) });
+        }
+
+        if (input.action === 'generateCompletionSummary') {
+          if (!input.projectId) return createJsonToolResult({ success: false, error: 'projectId is required' });
+          const project = await ProjectRepo.get(input.projectId);
+          if (!project) return createJsonToolResult({ success: false, error: 'project not found' });
+          const [events, milestones, snapshot] = await Promise.all([
+            ProjectEventRepo.listByProject(input.projectId, { limit: 500 }),
+            ProjectMilestoneRepo.listByProject(input.projectId, 500),
+            ProjectSnapshotRepo.get(input.projectId)
+          ]);
+          return createJsonToolResult({ success: true, summary: generateProjectCompletionSummary({ events, milestones, project, snapshot }) });
+        }
+
+        if (input.action === 'exportProject') {
+          if (!input.projectId) return createJsonToolResult({ success: false, error: 'projectId is required' });
+          const data = await ProjectGovernanceRepo.exportProject(input.projectId);
+          if (data) {
+            await ProjectAuditLogRepo.create({
+              action: 'project_exported',
+              actor: 'agent',
+              projectId: input.projectId,
+              targetId: input.projectId,
+              targetType: 'project',
+              workspaceId: data.project.workspaceId
+            });
+          }
+          return createJsonToolResult({ success: Boolean(data), data: data ?? null });
+        }
+
+        if (input.action === 'updatePrivacySettings') {
+          const guarded = await resolveGuardedToolExecution(toolContext, toolCallId, 'project-tracking');
+          if (guarded?.kind === 'blocked' || guarded?.kind === 'cancel') return createJsonToolResult(guarded.details);
+          if (!input.projectId) return createJsonToolResult({ success: false, error: 'projectId is required' });
+          const patch: Partial<ProjectPrivacySettings> = {};
+          if (typeof input.allowAutoLinking === 'boolean') patch.allowAutoLinking = input.allowAutoLinking;
+          if (typeof input.allowPromptInjection === 'boolean') patch.allowPromptInjection = input.allowPromptInjection;
+          if (typeof input.allowReminderSuggestions === 'boolean') patch.allowReminderSuggestions = input.allowReminderSuggestions;
+          if (typeof input.allowLongTermMemoryPromotion === 'boolean') patch.allowLongTermMemoryPromotion = input.allowLongTermMemoryPromotion;
+          if (typeof input.sensitive === 'boolean') patch.sensitive = input.sensitive;
+          const before = await ProjectRepo.get(input.projectId);
+          const project = await ProjectRepo.updatePrivacySettings(input.projectId, patch);
+          if (project) {
+            await ProjectAuditLogRepo.create({
+              action: 'project_privacy_updated',
+              actor: 'agent',
+              after: project.privacySettings,
+              before: before?.privacySettings,
+              projectId: input.projectId,
+              targetId: input.projectId,
+              targetType: 'project',
+              workspaceId: project.workspaceId
+            });
+          }
           return createJsonToolResult({ success: Boolean(project), project: project ?? null, ...(guarded?.warning ? { warning: guarded.warning } : {}) });
         }
 

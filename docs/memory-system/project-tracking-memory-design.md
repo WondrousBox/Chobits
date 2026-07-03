@@ -7,17 +7,20 @@
 
 - 当前文档是项目跟踪系统的产品、架构与实施总计划，也是本轮实现状态的同步记录。
 - 已完成第一版端到端闭环：类型、配置、schema/migration、repository、IPC/preload、设置开关、项目信号识别、确认浮窗、当前会话项目条、项目事件/里程碑/提醒链接数据模型、项目快照归约、prompt 注入、跨会话匹配、已关联会话事件抽取、`projectTrackingTool`、项目中心基础 UI。
+- 2026-07-03 已完成 Phase A-G 基础落地，并继续补齐 R 阶段残余深化包：治理 impact preview / orphan report、提醒编辑/重同步/完成、默认关闭的真实 LLM Project Delta 调用路径、长期记忆引用处理策略、晋升前内容预览和 extractor 回归测试。
 - 当前第一版默认保持低侵入：`enabled` 默认开启，但自动识别、自动关联、prompt 注入、提醒建议仍由设置开关控制，避免未经用户确认就改变对话行为。
-- 后续增强聚焦治理和外部系统桥接：重复项目合并/拆分、删除与深度清理、scheduler 真实提醒创建、基于 LLM 的高质量项目 delta 提取、专项自动化测试。
+- 后续增强聚焦更深的长期运行和外部系统桥接：撤销一次治理操作、合并/拆分专属 dry-run、supersede/cancel 精准识别、scheduler/worker/UI 集成测试、长期记忆保留周期、外部日历/任务连接器和项目智能层。
 - 设计会复用现有 `memory-system` 的长期记忆、会话线路、用户画像、自动召回与调度能力。
 - 未来如涉及数据库表字段变更，必须先更新 schema 定义，再执行 `db:generate`，保持与项目数据库约定一致。
+- 完整能力边界、成熟度路线和终局验收见：[项目跟踪记忆系统完整能力蓝图](./project-tracking-complete-capability-blueprint.md)。
 - 深入风险和后续增强方案见：[项目跟踪记忆系统风险与增强设计](./project-tracking-memory-risk-and-enhancement-design.md)。
+- 下一阶段可执行开发步骤见：[项目跟踪记忆系统下一阶段实施计划](./project-tracking-next-implementation-plan.md)。
 
 ---
 
 ## 0. 整体完成情况评估
 
-当前状态可以定义为“第一版端到端闭环已完成，但尚未达到成熟项目管理系统”。系统已经具备真实创建、关联、查询和持续跟进跨会话项目的能力；剩余工作主要集中在抽取质量、治理能力、提醒桥接和自动化验证。
+当前状态可以定义为“第一版端到端闭环已完成，Phase A-G 基础能力和 R 阶段可信运行基础已落地，但尚未达到完整成熟项目管理系统”。系统已经具备真实创建、关联、查询、持续跟进、审核、治理预检、提醒编辑、隐私控制、复盘、长期记忆晋升和默认关闭的 LLM 增量抽取路径；剩余工作主要集中在撤销治理、复杂 supersede/cancel、外部生态、观测运维、项目智能和更完整的集成测试。完整目标态以[完整能力蓝图](./project-tracking-complete-capability-blueprint.md)为准。
 
 | 模块 | 完成情况 | 说明 |
 | --- | --- | --- |
@@ -30,11 +33,12 @@
 | 项目持续跟进 | 第一版完成 | 已关联会话结束后可增量抽取项目事件、里程碑并重算快照 |
 | 跨会话匹配 | 第一版完成 | 支持项目名、别名、目标、快照事项、显式延续词匹配，高置信可自动关联 |
 | Prompt 注入 | 已完成 | 按配置注入已关联或高置信匹配项目的压缩快照 |
-| Agent Tool | 已完成 | `projectTrackingTool` 可查询项目/快照/时间线/里程碑，写事件，关联/解除会话，归档和重建快照 |
-| 项目中心 UI | 第一版完成 | 可查看项目列表、详情、快照、时间线、里程碑、关联对象，支持编辑、手动事件、归档 |
-| 提醒能力 | 部分完成 | 已有 reminder link 数据模型；尚未真正调用 scheduler 创建可触发提醒 |
-| 治理能力 | 部分完成 | 已支持归档和解除会话关联；删除、合并、拆分、深度清理仍待设计实现 |
-| 测试验证 | 基础验证完成 | `drizzle-kit generate`、`tsc --noEmit`、目标文件 lint 已通过；专项单元/集成/UI 自动化测试待补 |
+| Agent Tool | 已扩展 | `projectTrackingTool` 可查询项目/快照/时间线/里程碑/审计/提醒/治理预检/orphan report，写事件，关联/解除会话，归档、完成/重开、生成总结、导出和更新隐私 |
+| 项目中心 UI | Phase A-G + R 基础完成 | 可查看项目列表、详情、快照、时间线、待确认、里程碑、提醒、复盘、治理预检、隐私、审计、关联对象，支持编辑、手动事件、归档、导出、删除、恢复、合并、拆分、完成/重开、Memory Note 晋升 |
+| 提醒能力 | R2 基础完成 | reminder suggestion 可确认创建内部 scheduler task；已创建提醒可编辑、取消、重同步、手动完成，触发后回写状态并记录审计 |
+| 治理能力 | R1 基础完成 | 支持解除会话关联、导出、软删除、恢复、硬删除、合并、拆分、审计、impact preview、orphan report；剩余撤销、合并/拆分专属 dry-run 和批量治理 |
+| LLM Project Delta | R3 基础完成 | 抽取器支持可选 chatFn、JSON prompt、标准化、质量门控和规则回退；worker 可按配置调用默认关闭的 Pi task LLM 路径；已有 mock chatFn 回归测试 |
+| 测试验证 | R5 基础完成 | `drizzle-kit generate`、service/extractor vitest、`tsc --noEmit`、目标 lint 已通过；repo/worker/scheduler/UI 自动化测试待补 |
 
 ### 0.1 可用闭环
 
@@ -52,12 +56,27 @@
 
 | 不足 | 影响 | 当前策略 | 后续方向 |
 | --- | --- | --- | --- |
-| 规则型事件抽取不够聪明 | 复杂会议纪要、隐式协议、模糊计划变更可能漏提或误提 | 低成本、可控、可回滚 | 引入 LLM Project Delta extractor 和质量门控 |
+| 复杂事件抽取仍需样本打磨 | 会议纪要、隐式取消、supersede/cancel 仍可能漏提或误提 | 已有默认关闭的 LLM Project Delta 路径、质量门控和规则回退 | 增加真实样本回归集、supersede/cancel 精准匹配 |
 | 自动开关默认关闭 | 用户不打开配置时，只能使用手动或显式路径 | 避免误打扰、误关联 | 通过设置引导和低风险提示逐步放开 |
-| 治理能力较弱 | 重复项目、误关联、误拆分后清理成本高 | 先支持归档和解除关联 | 设计合并、拆分、硬删除、回收站和审计日志 |
-| 提醒未真正接 scheduler | deadline/meeting 还不会变成真实触发提醒 | 先保留数据模型和 suggestion | 增加 reminder bridge、用户确认和撤销 |
+| 治理能力需要深化验证 | 重复项目、误关联、误拆分后仍需要撤销和更细预览 | 已支持解除、导出、软删/恢复/硬删、合并、拆分、审计、impact preview 和 orphan report | 增加撤销一次操作、合并/拆分专属 dry-run |
+| 提醒已接内部 scheduler 但外部协作未做 | deadline/meeting 可创建和编辑内部提醒，但缺提前量和外部同步 | 已有 suggestion、创建、编辑、取消、重同步、完成、触发回写 | 增加提前量、触发通知和外部日历 connector |
 | 缺专项测试 | 复杂项目记忆链路回归风险较高 | 已做类型、lint、migration 验证 | 增加 signal/matcher/reducer/repo/worker/UI 测试 |
-| 项目中心仍是基础版 | 能管理核心状态，但缺对比、筛选、批量操作 | 信息密度优先 | 增加筛选、来源跳转、治理操作和提醒视图 |
+| 项目中心仍需产品化打磨 | B-G 控制台已可操作，但缺预览、批量、组合视图和 UI 自动化测试 | 先保证单项目治理完整 | 增加筛选、来源跳转、治理预览、批量操作和组合视图 |
+
+### 0.3 下一阶段实施摘要
+
+近期建议按“先质量、再治理、再提醒、再 LLM 增强”的顺序推进，并在扩大自动化使用前继续补观测、隐私数据生命周期和完成复盘：
+
+| 阶段 | 目标 | 关键交付 |
+| --- | --- | --- |
+| Phase A | 质量状态与测试底座 | 自动事件质量字段、待确认事件、signal/matcher/extractor/reducer 测试 |
+| Phase B | 项目治理能力 | 解除关联 UI、导出 JSON、归档筛选、合并项目、拆分项目 |
+| Phase C | Scheduler 提醒桥接 | reminder suggestion、用户确认、scheduler task 创建/撤销、状态回写 |
+| Phase D | LLM Project Delta | 复杂会议纪要/计划变更抽取、supersede/cancel 识别、高风险事件确认 |
+| Phase E-F | 长期运行能力 | analytics、审计日志、debug/rebuild、敏感项目策略、删除/导出/长期记忆引用清理 |
+| Phase G+ | 完成复盘与项目智能 | completed 流程、复盘摘要、长期记忆晋升、下一步推荐、组合视图 |
+
+执行版任务拆解、涉及文件、schema 影响和验收标准见：[下一阶段实施计划](./project-tracking-next-implementation-plan.md)。下一阶段计划只覆盖完整蓝图中的近期落地段，不代表系统整体完成。
 
 ## 1. 背景
 
@@ -1231,7 +1250,7 @@ pnpm lint
 - 保留 `projectTracking:clearProjectData(projectId)` 或内部调试入口，方便清理误生成数据。
 - 为候选创建、确认、dismiss、自动关联、提醒创建记录 analytics event，便于调阈值。
 
-### 15.11 本轮交付清单与剩余 Backlog
+### 15.11 历史交付清单与当前剩余 Backlog
 
 | 优先级 | 模块 | 状态 | 已完成 / 剩余 |
 | --- | --- | --- | --- |
@@ -1241,14 +1260,17 @@ pnpm lint
 | P0 | 项目事件 schema | 已完成 | `project_events` 支持任务、会议、协议、决策、变更、阻塞、风险等事件 |
 | P0 | 项目快照归约 | 已完成 | 从事件归约 open tasks、dates、recent progress、decisions、agreements、blockers、risks、changes，并过滤已完成事项 |
 | P1 | 里程碑与提醒 schema | 已完成 | `project_milestones`、`project_reminder_links` 已建模并有 repo/IPC 基础能力 |
-| P1 | Project Delta 提取 | 第一版完成 | `project-tracking-extractor.ts` 用规则从已关联会话增量提取事件和里程碑；后续可升级 LLM 提取 |
+| P1 | Project Delta 提取 | R3 基础完成 | `project-tracking-extractor.ts` 已支持规则提取和可插拔 LLM chatFn；worker 已接默认关闭的 Pi task LLM 调用路径并有 mock 回归测试；supersede/cancel 仍需补齐 |
 | P1 | 项目匹配器 | 第一版完成 | `project-tracking-matcher.ts` 支持项目名、别名、目标、快照事项和显式延续词匹配，高置信时可自动关联 |
 | P1 | Prompt 注入完善 | 已完成 | `project-context` enricher 对已关联项目注入快照；开启自动关联时，新会话高置信匹配也可写 link 并注入 |
-| P1 | Agent Tool | 已完成 | `projectTrackingTool` 支持查询项目/快照/事件/里程碑，写事件，关联/解除会话，归档和重建快照 |
-| P2 | 项目中心 UI | 第一版完成 | `ProjectTrackingPage` 支持项目列表、详情编辑、快照、时间线、里程碑、关联对象、手动事件、归档 |
-| P2 | 治理能力 | 部分完成 | 已支持归档、解除 conversation 关联；删除、合并、拆分、深度清理留作后续增强 |
-| P2 | 提醒桥接 | 部分完成 | 已有提醒链接数据模型；scheduler 真实创建和提醒触发携带项目快照留作后续增强 |
-| P2 | 测试与验证 | 进行中 | 本轮需跑 `tsc --noEmit` 和目标文件 lint；后续补单元/集成/UI 自动化测试 |
+| P1 | Agent Tool | 已扩展 | `projectTrackingTool` 支持查询项目/快照/事件/里程碑/审计/提醒，写事件，关联/解除会话，归档、完成/重开、生成总结、导出和更新隐私 |
+| P2 | 项目中心 UI | Phase A-G + R 基础完成 | `ProjectTrackingPage` 支持项目资料、快照、时间线、待确认、里程碑、提醒编辑、复盘、治理预检、隐私、审计、关联对象 |
+| P2 | 治理能力 | R1 基础完成 | 已支持解除关联、导出、软删除、恢复、硬删除、合并、拆分、审计、impact preview、orphan report；剩余撤销和合并/拆分专属 dry-run |
+| P2 | 提醒桥接 | R2 基础完成 | 内部 scheduler 创建、编辑、取消、重同步、完成、触发状态回写已落地；剩余提前量、触发通知和外部日历连接器 |
+| P2 | 完成复盘与长期记忆晋升 | R4 基础完成 | 已支持完成/重开、完成总结、复盘、受控晋升 Memory Note、晋升前内容预览、硬删除引用处理策略；剩余长期事实去噪和更细 diff |
+| P2 | 测试与验证 | R5 基础完成 | 已跑 `drizzle-kit generate`、`vitest run test/project-tracking-service.spec.ts test/project-tracking-extractor.spec.ts`、`tsc --noEmit`、目标 lint；剩余 repo/worker/scheduler/UI 集成测试 |
+
+当前 R 阶段基础落地记录见：[下一阶段实施计划 - R 阶段落地记录](./project-tracking-next-implementation-plan.md#02-2026-07-03-r-阶段落地记录)。剩余 Backlog 已收敛到撤销治理、合并/拆分专属 dry-run、supersede/cancel、集成测试、项目智能和外部生态，详见：[当前未完成项与后续规划](./project-tracking-next-implementation-plan.md#03-当前未完成项与后续规划)。
 
 ### 15.12 端到端完成定义
 
@@ -1264,11 +1286,15 @@ pnpm lint
 - 用户能在项目中心查看、编辑、归档和清理项目数据。
 - 所有数据库变更都从 schema 生成迁移，`tsc` 和相关 lint 通过。
 
-第一版完成边界：
+历史第一版完成边界：
 
 - “清理项目数据”第一版先覆盖归档和解除会话关联；硬删除、合并、拆分属于治理增强。
 - “提醒”第一版先保留 project reminder link 和 suggestion 模型；真正调用 scheduler 创建提醒属于外部桥接增强。
 - “自动提取”第一版用规则型 extractor，保证低成本和可控；高质量复杂事件抽取后续可接内部 LLM worker。
+
+当前 Phase A-G + R 基础实现已经超过上述历史第一版边界：硬删除、合并、拆分、scheduler bridge、提醒编辑、治理预检、orphan report、默认关闭的真实 LLM Delta 路径、完成复盘和长期记忆晋升控制均已有可用实现。剩余不再是“有没有入口”，而是撤销、复杂变更识别、观测指标、集成测试、项目智能和外部生态。
+
+完整系统完成定义不止于第一版端到端闭环，还必须覆盖质量审核、治理操作、scheduler 提醒闭环、长期记忆晋升控制、隐私删除、观测审计和专项自动化测试。完整口径见：[项目跟踪记忆系统完整能力蓝图](./project-tracking-complete-capability-blueprint.md#15-完整完成定义)。
 
 ## 16. 风险与缓解
 

@@ -1,4 +1,17 @@
-import type { ProjectDateBrief, ProjectEvent, ProjectSnapshot, ProjectStatus, ProjectTaskBrief, ProjectTrackingConfig } from './project-tracking-types';
+import type {
+  ProjectDateBrief,
+  ProjectEvent,
+  ProjectEventQuality,
+  ProjectEventType,
+  ProjectMilestone,
+  ProjectPrivacySettings,
+  ProjectReminderSuggestion,
+  ProjectSnapshot,
+  ProjectStatus,
+  ProjectTaskBrief,
+  ProjectTrackingConfig,
+  TrackedProject
+} from './project-tracking-types';
 
 export const PROJECT_TRACKING_INJECTION_CHAR_LIMIT = 1600;
 
@@ -7,17 +20,64 @@ export const DEFAULT_PROJECT_TRACKING_CONFIG: ProjectTrackingConfig = {
   autoLinkEnabled: false,
   candidateCooldownMinutes: 60,
   enabled: true,
+  llmProjectDelta: {
+    enabled: false,
+    maxTokens: 1200,
+    minMessageChars: 600,
+    minMessages: 4,
+    temperature: 0.1
+  },
   promptInjectionEnabled: false,
   reminderSuggestionEnabled: false
 };
 
+export const DEFAULT_PROJECT_PRIVACY_SETTINGS: ProjectPrivacySettings = {
+  allowAutoLinking: true,
+  allowLongTermMemoryPromotion: true,
+  allowPromptInjection: true,
+  allowReminderSuggestions: true,
+  sensitive: false
+};
+
+export function normalizeProjectPrivacySettings(input: Partial<ProjectPrivacySettings> = {}): ProjectPrivacySettings {
+  return {
+    allowAutoLinking: input.allowAutoLinking ?? DEFAULT_PROJECT_PRIVACY_SETTINGS.allowAutoLinking,
+    allowLongTermMemoryPromotion: input.allowLongTermMemoryPromotion ?? DEFAULT_PROJECT_PRIVACY_SETTINGS.allowLongTermMemoryPromotion,
+    allowPromptInjection: input.allowPromptInjection ?? DEFAULT_PROJECT_PRIVACY_SETTINGS.allowPromptInjection,
+    allowReminderSuggestions: input.allowReminderSuggestions ?? DEFAULT_PROJECT_PRIVACY_SETTINGS.allowReminderSuggestions,
+    sensitive: input.sensitive ?? DEFAULT_PROJECT_PRIVACY_SETTINGS.sensitive
+  };
+}
+
+export const HIGH_RISK_PROJECT_EVENT_TYPES: ProjectEventType[] = ['agreement_reached', 'decision_made', 'deadline_changed', 'reminder_scheduled', 'status_changed'];
+
+export function isHighRiskProjectEventType(type: ProjectEventType): boolean {
+  return HIGH_RISK_PROJECT_EVENT_TYPES.includes(type);
+}
+
+export function getDefaultProjectEventQuality(input: { createdBy?: 'agent' | 'system' | 'user'; needsUserConfirmation?: boolean; type: ProjectEventType }): ProjectEventQuality {
+  if (input.needsUserConfirmation || isHighRiskProjectEventType(input.type)) return 'draft';
+  return input.createdBy === 'user' || input.createdBy === 'agent' ? 'accepted' : 'draft';
+}
+
 export function normalizeProjectTrackingConfig(input: Partial<ProjectTrackingConfig> = {}): ProjectTrackingConfig {
   const merged = { ...DEFAULT_PROJECT_TRACKING_CONFIG, ...input };
+  const llmProjectDelta = { ...DEFAULT_PROJECT_TRACKING_CONFIG.llmProjectDelta, ...(merged.llmProjectDelta || {}) };
   return {
     autoDetectEnabled: Boolean(merged.autoDetectEnabled),
     autoLinkEnabled: Boolean(merged.autoLinkEnabled),
     candidateCooldownMinutes: clampInteger(merged.candidateCooldownMinutes, 5, 24 * 60),
     enabled: Boolean(merged.enabled),
+    llmProjectDelta: {
+      enabled: Boolean(llmProjectDelta.enabled),
+      maxTokens: clampInteger(llmProjectDelta.maxTokens, 256, 4000),
+      minMessageChars: clampInteger(llmProjectDelta.minMessageChars, 120, 5000),
+      minMessages: clampInteger(llmProjectDelta.minMessages, 1, 20),
+      model: llmProjectDelta.model?.trim() || undefined,
+      providerId: llmProjectDelta.providerId?.trim() || undefined,
+      providerPresetId: llmProjectDelta.providerPresetId?.trim() || undefined,
+      temperature: clampNumber(llmProjectDelta.temperature, 0, 1)
+    },
     promptInjectionEnabled: Boolean(merged.promptInjectionEnabled),
     reminderSuggestionEnabled: Boolean(merged.reminderSuggestionEnabled)
   };
@@ -81,8 +141,9 @@ export function reduceProjectSnapshotFromEvents(input: {
   workspaceId: string;
 }): ProjectSnapshot {
   const now = input.now ?? Date.now();
-  const activeEvents = input.events.filter((event) => event.status === 'active');
-  const resolvedEvents = input.events.filter((event) => event.status === 'resolved');
+  const acceptedEvents = input.events.filter((event) => event.quality === 'accepted');
+  const activeEvents = acceptedEvents.filter((event) => event.status === 'active');
+  const resolvedEvents = acceptedEvents.filter((event) => event.status === 'resolved');
 
   return {
     agreements: collectTitles(activeEvents, ['agreement_reached'], 6),
@@ -104,6 +165,71 @@ export function reduceProjectSnapshotFromEvents(input: {
     version: (input.previous?.version ?? 0) + 1,
     workspaceId: input.workspaceId
   };
+}
+
+export function buildProjectReminderSuggestions(input: { events: ProjectEvent[]; now?: number; project: TrackedProject; snapshot?: ProjectSnapshot | null }): ProjectReminderSuggestion[] {
+  if (!input.project.privacySettings.allowReminderSuggestions || input.project.status !== 'active') return [];
+  const now = input.now ?? Date.now();
+  const suggestions: ProjectReminderSuggestion[] = [];
+  const accepted = input.events.filter((event) => event.quality === 'accepted' && event.status === 'active');
+  for (const event of accepted) {
+    const dueAt = event.dueAt ?? event.eventTime ?? null;
+    if (!dueAt || dueAt < now - 24 * 60 * 60 * 1000) continue;
+    if (event.type === 'deadline_changed') {
+      suggestions.push({
+        confidence: event.confidence,
+        dueAt,
+        kind: 'deadline',
+        needsConfirmation: true,
+        projectId: event.projectId,
+        reason: `项目时间点来自事件：${event.title}`,
+        sourceEventId: event.id,
+        sourceType: 'event',
+        title: event.title
+      });
+    } else if (event.type === 'meeting_scheduled') {
+      suggestions.push({
+        confidence: event.confidence,
+        dueAt,
+        kind: 'meeting',
+        needsConfirmation: true,
+        projectId: event.projectId,
+        reason: `项目会议来自事件：${event.title}`,
+        sourceEventId: event.id,
+        sourceType: 'event',
+        title: event.title
+      });
+    }
+  }
+  if (input.snapshot?.openTasks.length) {
+    suggestions.push({
+      confidence: 0.6,
+      dueAt: now + 3 * 24 * 60 * 60 * 1000,
+      kind: 'stale_project_check',
+      needsConfirmation: true,
+      projectId: input.project.id,
+      reason: '项目仍有开放事项，建议设置阶段性跟进提醒',
+      sourceType: 'snapshot',
+      title: `跟进项目：${input.project.name}`
+    });
+  }
+  return dedupeReminderSuggestions(suggestions).slice(0, 8);
+}
+
+export function generateProjectCompletionSummary(input: { events: ProjectEvent[]; milestones: ProjectMilestone[]; project: TrackedProject; snapshot?: ProjectSnapshot | null }): string {
+  const accepted = input.events.filter((event) => event.quality === 'accepted');
+  const completedMilestones = input.milestones.filter((milestone) => milestone.status === 'done').map((milestone) => milestone.title);
+  const progress = collectTitles(accepted, ['task_done', 'milestone_reached', 'summary_checkpoint'], 8);
+  const decisions = collectTitles(accepted, ['decision_made'], 6);
+  const agreements = collectTitles(accepted, ['agreement_reached'], 6);
+  const openTasks = input.snapshot?.openTasks.map((task) => task.title).slice(0, 6) ?? [];
+  const lines = [`项目：${input.project.name}`, `目标：${input.project.goal}`];
+  pushList(lines, '已完成里程碑', completedMilestones, 8);
+  pushList(lines, '主要进展', progress, 8);
+  pushList(lines, '关键决策', decisions, 6);
+  pushList(lines, '关键协议', agreements, 6);
+  pushList(lines, '遗留事项', openTasks, 6);
+  return lines.join('\n');
 }
 
 export function cleanStringList(value: unknown, limit = 20): string[] {
@@ -200,8 +326,25 @@ function deriveUpcomingDates(events: ProjectEvent[]): ProjectDateBrief[] {
     }));
 }
 
+function dedupeReminderSuggestions(suggestions: ProjectReminderSuggestion[]): ProjectReminderSuggestion[] {
+  const seen = new Set<string>();
+  const output: ProjectReminderSuggestion[] = [];
+  for (const suggestion of suggestions) {
+    const key = `${suggestion.kind}:${suggestion.sourceEventId ?? suggestion.title}:${suggestion.dueAt ?? ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    output.push(suggestion);
+  }
+  return output;
+}
+
 function clampInteger(value: unknown, min: number, max: number): number {
   const num = typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : min;
+  return Math.min(max, Math.max(min, num));
+}
+
+function clampNumber(value: unknown, min: number, max: number): number {
+  const num = typeof value === 'number' && Number.isFinite(value) ? value : min;
   return Math.min(max, Math.max(min, num));
 }
 

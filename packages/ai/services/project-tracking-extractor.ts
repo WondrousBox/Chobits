@@ -1,6 +1,7 @@
+import { parseJsonMarkdown } from '../json';
 import type { ConversationRouteMessage, ConversationRouteSnapshot } from './conversation-route-types';
-import { cleanStringList, trimText } from './project-tracking-service';
-import type { ProjectDelta, ProjectEventDraft, ProjectMilestonePatch, ProjectSnapshot, TrackedProject } from './project-tracking-types';
+import { cleanStringList, getDefaultProjectEventQuality, isHighRiskProjectEventType, trimText } from './project-tracking-service';
+import type { ProjectDelta, ProjectEventDraft, ProjectEventStatus, ProjectEventType, ProjectMilestonePatch, ProjectMilestoneStatus, ProjectSnapshot, TrackedProject } from './project-tracking-types';
 
 export interface ExtractProjectDeltaInput {
   conversationId: string;
@@ -9,6 +10,52 @@ export interface ExtractProjectDeltaInput {
   routeSnapshot?: ConversationRouteSnapshot | null;
   snapshot?: ProjectSnapshot | null;
 }
+
+export interface ProjectDeltaChatFn {
+  (prompt: string, signal?: AbortSignal): Promise<string>;
+}
+
+const PROJECT_DELTA_PROMPT = `你是 Project Tracking Memory 的项目增量提取器。你的任务是从本轮新增对话中提取“会影响项目长期跟进状态”的增量。
+
+只记录项目事实：
+- 待办、进展、完成、里程碑、截止日期、会议、协议、决策、计划变更、阻塞、风险
+- 不记录普通解释、寒暄、模型推测、重复旧状态或没有后续价值的临时讨论
+
+质量和安全规则：
+- 每个事件必须包含 sourceSeqStart/sourceSeqEnd，落在新增消息范围内
+- 高风险事件必须 needsUserConfirmation=true：agreement_reached、decision_made、deadline_changed、status_changed、reminder_scheduled
+- 除非用户明确要求记录或事实很低风险，否则 LLM 输出事件默认 quality=draft
+- title 不超过 32 个汉字，content 不超过 160 个汉字，events 最多 6 个，milestonePatches 最多 4 个
+- 不要把现有项目快照原样复制成新事件
+- 只输出 JSON，不要解释
+
+JSON 结构：
+{
+  "events": [
+    {
+      "type": "task_added|task_progress|task_done|milestone_added|milestone_reached|deadline_changed|meeting_scheduled|meeting_done|agreement_reached|decision_made|plan_changed|blocker_found|blocker_resolved|risk_identified|reminder_scheduled|status_changed|summary_checkpoint",
+      "title": "短标题",
+      "content": "证据化描述",
+      "status": "active|resolved|superseded|cancelled",
+      "importance": 0.7,
+      "confidence": 0.8,
+      "dueAt": 1780000000000,
+      "eventTime": 1780000000000,
+      "quality": "draft|accepted",
+      "needsUserConfirmation": true,
+      "sourceSeqStart": 1,
+      "sourceSeqEnd": 2
+    }
+  ],
+  "milestonePatches": [
+    {
+      "title": "里程碑",
+      "description": "可选说明",
+      "status": "planned|in_progress|done|missed|cancelled",
+      "targetAt": 1780000000000
+    }
+  ]
+}`;
 
 const TASK_TERMS = ['要做', '待办', '下一步', '先做', '实现', '完成', '修复', '检查', '测试', '补齐', '设计', '开发'];
 const PROGRESS_TERMS = ['已经', '完成了', '搞定', '通过', '推进到', '现在进展', '继续'];
@@ -22,7 +69,22 @@ const BLOCKER_TERMS = ['阻塞', '卡住', '问题', '风险', '失败', '报错
 const RISK_TERMS = ['风险', '担心', '可能', '不确定'];
 const MILESTONE_TERMS = ['里程碑', '阶段', '节点'];
 
-export function extractProjectDelta(input: ExtractProjectDeltaInput): ProjectDelta {
+export async function extractProjectDelta(input: ExtractProjectDeltaInput, chatFn?: ProjectDeltaChatFn, signal?: AbortSignal): Promise<ProjectDelta> {
+  if (!input.messages.length) return { events: [], milestonePatches: [] };
+  if (!chatFn) return extractProjectDeltaByRules(input);
+
+  try {
+    const response = await chatFn(buildProjectDeltaPrompt(input), signal);
+    const delta = normalizeProjectDelta(parseJsonMarkdown(response), input);
+    if (delta.events.length || delta.milestonePatches.length) return delta;
+  } catch (error) {
+    console.warn('[ProjectTrackingExtractor] LLM extraction failed, falling back to rules:', error instanceof Error ? error.message : error);
+  }
+
+  return extractProjectDeltaByRules(input);
+}
+
+export function extractProjectDeltaByRules(input: ExtractProjectDeltaInput): ProjectDelta {
   const userMessages = input.messages.filter((message) => message.role === 'user' && message.content.trim());
   if (!userMessages.length) return { events: [], milestonePatches: [] };
 
@@ -197,4 +259,163 @@ function addDays(date: Date, days: number): Date {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
   return next;
+}
+
+function buildProjectDeltaPrompt(input: ExtractProjectDeltaInput): string {
+  const lines: string[] = [PROJECT_DELTA_PROMPT, '', `项目: ${input.project.name}`, `目标: ${input.project.goal}`];
+  if (input.snapshot) {
+    lines.push(
+      '',
+      '当前可信快照:',
+      JSON.stringify(
+        {
+          agreements: input.snapshot.agreements.slice(0, 5),
+          blockers: input.snapshot.blockers.slice(0, 5),
+          changes: input.snapshot.changes.slice(0, 5),
+          decisions: input.snapshot.decisions.slice(0, 5),
+          openTasks: input.snapshot.openTasks.slice(0, 6),
+          recentProgress: input.snapshot.recentProgress.slice(0, 5),
+          risks: input.snapshot.risks.slice(0, 5),
+          upcomingDates: input.snapshot.upcomingDates.slice(0, 5)
+        },
+        null,
+        2
+      )
+    );
+  }
+  if (input.routeSnapshot) {
+    lines.push(
+      '',
+      '当前会话线路摘要:',
+      JSON.stringify(
+        {
+          blockers: input.routeSnapshot.blockers.slice(0, 3),
+          currentGoal: input.routeSnapshot.currentGoal,
+          decisions: input.routeSnapshot.decisions.slice(0, 3),
+          openTasks: input.routeSnapshot.openTasks.slice(0, 5),
+          resolvedTasks: input.routeSnapshot.resolvedTasks.slice(0, 5),
+          summary: input.routeSnapshot.summary
+        },
+        null,
+        2
+      )
+    );
+  }
+  lines.push('', '新增消息:', formatMessages(input.messages));
+  return lines.join('\n');
+}
+
+function formatMessages(messages: ConversationRouteMessage[]): string {
+  return messages.map((message) => `[seq=${message.seq} role=${message.role}] ${trimText(message.content.replace(/\s+/g, ' ').trim(), 700)}`).join('\n');
+}
+
+export function normalizeProjectDelta(raw: unknown, input?: ExtractProjectDeltaInput): ProjectDelta {
+  const obj = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const events = Array.isArray(obj.events)
+    ? obj.events
+        .map((value) => normalizeDeltaEvent(value, input))
+        .filter((event): event is ProjectEventDraft => Boolean(event))
+        .slice(0, 12)
+    : [];
+  const milestonePatches = Array.isArray(obj.milestonePatches)
+    ? obj.milestonePatches
+        .map(normalizeMilestonePatch)
+        .filter((patch): patch is ProjectMilestonePatch => Boolean(patch))
+        .slice(0, 8)
+    : [];
+  return {
+    events: dedupeEvents(events),
+    milestonePatches: dedupeMilestones(milestonePatches)
+  };
+}
+
+function normalizeDeltaEvent(value: unknown, input?: ExtractProjectDeltaInput): ProjectEventDraft | null {
+  if (!value || typeof value !== 'object') return null;
+  const item = value as Record<string, unknown>;
+  const type = normalizeEventType(item.type);
+  const title = typeof item.title === 'string' ? trimText(item.title.trim(), 80) : '';
+  const content = typeof item.content === 'string' ? trimText(item.content.trim(), 500) : title;
+  if (!type || !title || !content) return null;
+  const seqStart = toFiniteNumber(item.sourceSeqStart ?? item.seqStart);
+  const seqEnd = toFiniteNumber(item.sourceSeqEnd ?? item.seqEnd);
+  const status = normalizeEventStatus(item.status);
+  const highRisk = isHighRiskProjectEventType(type);
+  const needsUserConfirmation = typeof item.needsUserConfirmation === 'boolean' ? item.needsUserConfirmation : highRisk;
+  const quality = item.quality === 'accepted' || item.quality === 'draft' ? item.quality : getDefaultProjectEventQuality({ createdBy: 'system', needsUserConfirmation, type });
+  return {
+    confidence: clamp01(item.confidence, highRisk ? 0.68 : 0.62),
+    content,
+    dueAt: toNullableTimestamp(item.dueAt),
+    eventTime: toNullableTimestamp(item.eventTime),
+    importance: clamp01(item.importance, highRisk ? 0.75 : 0.62),
+    metadata: JSON.stringify({ extractor: 'llm-project-delta' }),
+    needsUserConfirmation,
+    quality,
+    sourceConversationId: input?.conversationId ?? null,
+    sourceSeqEnd: seqEnd ?? seqStart ?? null,
+    sourceSeqStart: seqStart ?? seqEnd ?? null,
+    status,
+    title,
+    type
+  };
+}
+
+function normalizeMilestonePatch(value: unknown): ProjectMilestonePatch | null {
+  if (!value || typeof value !== 'object') return null;
+  const item = value as Record<string, unknown>;
+  const title = typeof item.title === 'string' ? trimText(item.title.trim(), 80) : '';
+  if (!title) return null;
+  return {
+    description: typeof item.description === 'string' ? trimText(item.description.trim(), 500) : null,
+    evidenceEventIds: cleanStringList(item.evidenceEventIds, 12),
+    status: normalizeMilestoneStatus(item.status),
+    targetAt: toNullableTimestamp(item.targetAt),
+    title
+  };
+}
+
+function normalizeEventType(value: unknown): ProjectEventType | null {
+  const allowed: ProjectEventType[] = [
+    'agreement_reached',
+    'blocker_found',
+    'blocker_resolved',
+    'deadline_changed',
+    'decision_made',
+    'meeting_done',
+    'meeting_scheduled',
+    'milestone_added',
+    'milestone_reached',
+    'plan_changed',
+    'reminder_scheduled',
+    'risk_identified',
+    'status_changed',
+    'summary_checkpoint',
+    'task_added',
+    'task_done',
+    'task_progress'
+  ];
+  return typeof value === 'string' && allowed.includes(value as ProjectEventType) ? (value as ProjectEventType) : null;
+}
+
+function normalizeEventStatus(value: unknown): ProjectEventStatus {
+  return value === 'resolved' || value === 'superseded' || value === 'cancelled' ? value : 'active';
+}
+
+function normalizeMilestoneStatus(value: unknown): ProjectMilestoneStatus {
+  return value === 'in_progress' || value === 'done' || value === 'missed' || value === 'cancelled' ? value : 'planned';
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  const num = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : Number.NaN;
+  return Number.isFinite(num) ? Math.round(num) : null;
+}
+
+function toNullableTimestamp(value: unknown): number | null {
+  const num = toFiniteNumber(value);
+  return num && num > 0 ? num : null;
+}
+
+function clamp01(value: unknown, fallback: number): number {
+  const num = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+  return Math.max(0, Math.min(1, Number(num.toFixed(2))));
 }

@@ -1,6 +1,9 @@
 export const PROJECT_STATUSES = ['candidate', 'active', 'paused', 'completed', 'archived', 'rejected'] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 
+export const PROJECT_MEMORY_PROMOTION_STATUSES = ['none', 'suggested', 'promoted', 'declined'] as const;
+export type ProjectMemoryPromotionStatus = (typeof PROJECT_MEMORY_PROMOTION_STATUSES)[number];
+
 export const PROJECT_CREATED_BY_VALUES = ['user', 'agent_suggestion', 'import'] as const;
 export type ProjectCreatedBy = (typeof PROJECT_CREATED_BY_VALUES)[number];
 
@@ -37,6 +40,9 @@ export type ProjectTaskStatus = (typeof PROJECT_TASK_STATUSES)[number];
 export const PROJECT_REMINDER_KINDS = ['deadline', 'meeting', 'follow_up', 'review', 'milestone_check', 'stale_project_check'] as const;
 export type ProjectReminderKind = (typeof PROJECT_REMINDER_KINDS)[number];
 
+export const PROJECT_REMINDER_SYNC_STATUSES = ['suggested', 'synced', 'cancelled', 'failed'] as const;
+export type ProjectReminderSyncStatus = (typeof PROJECT_REMINDER_SYNC_STATUSES)[number];
+
 export const PROJECT_EVENT_TYPES = [
   'goal_defined',
   'scope_defined',
@@ -62,6 +68,15 @@ export type ProjectEventType = (typeof PROJECT_EVENT_TYPES)[number];
 
 export const PROJECT_EVENT_STATUSES = ['active', 'resolved', 'superseded', 'cancelled'] as const;
 export type ProjectEventStatus = (typeof PROJECT_EVENT_STATUSES)[number];
+
+export const PROJECT_EVENT_QUALITIES = ['draft', 'accepted', 'rejected'] as const;
+export type ProjectEventQuality = (typeof PROJECT_EVENT_QUALITIES)[number];
+
+export const PROJECT_EVENT_REVIEWED_BY_VALUES = ['user', 'agent', 'system'] as const;
+export type ProjectEventReviewedBy = (typeof PROJECT_EVENT_REVIEWED_BY_VALUES)[number];
+
+export const PROJECT_AUDIT_ACTORS = ['user', 'agent', 'system'] as const;
+export type ProjectAuditActor = (typeof PROJECT_AUDIT_ACTORS)[number];
 
 export const PROJECT_MILESTONE_STATUSES = ['planned', 'in_progress', 'done', 'missed', 'cancelled'] as const;
 export type ProjectMilestoneStatus = (typeof PROJECT_MILESTONE_STATUSES)[number];
@@ -90,6 +105,20 @@ export interface ProjectReminderDraft {
   title: string;
 }
 
+export interface ProjectReminderSuggestion extends ProjectReminderDraft {
+  confidence?: number;
+  projectId: string;
+  sourceType?: 'event' | 'milestone' | 'snapshot';
+}
+
+export interface ProjectPrivacySettings {
+  allowAutoLinking: boolean;
+  allowLongTermMemoryPromotion: boolean;
+  allowPromptInjection: boolean;
+  allowReminderSuggestions: boolean;
+  sensitive: boolean;
+}
+
 export interface ProjectDateBrief {
   at: number;
   kind: ProjectDateKind;
@@ -111,13 +140,21 @@ export interface TrackedProject {
   confidence: number;
   createdAt: number;
   createdBy: ProjectCreatedBy;
+  deletedAt?: number | null;
   domains: string[];
   goal: string;
   id: string;
+  completionSummary?: string | null;
+  memoryPromotionStatus: ProjectMemoryPromotionStatus;
+  mergedIntoProjectId?: string | null;
   metadata?: string | null;
   name: string;
   ownerUserId?: string | null;
+  privacySettings: ProjectPrivacySettings;
+  promotedMemoryNoteId?: string | null;
+  retrospective?: string | null;
   scope?: string | null;
+  splitFromProjectId?: string | null;
   startedAt?: number | null;
   status: ProjectStatus;
   stakeholders: ProjectStakeholder[];
@@ -192,8 +229,12 @@ export interface ProjectEvent {
   id: string;
   importance: number;
   metadata?: string | null;
+  needsUserConfirmation: boolean;
   projectId: string;
+  quality: ProjectEventQuality;
   relatedEventIds: string[];
+  reviewedAt?: number | null;
+  reviewedBy?: ProjectEventReviewedBy | null;
   sourceConversationId?: string | null;
   sourceMemoryNoteIds: string[];
   sourceRouteEventIds: string[];
@@ -223,13 +264,65 @@ export interface ProjectMilestone {
 
 export interface ProjectReminderLink {
   createdAt: number;
+  dueAt?: number | null;
   id: string;
   kind: ProjectReminderKind;
+  lastSyncedAt?: number | null;
+  metadata?: string | null;
   projectEventId?: string | null;
   projectId: string;
+  reason?: string | null;
   schedulerTaskId: string;
   status: 'suggested' | 'scheduled' | 'done' | 'cancelled';
+  syncStatus: ProjectReminderSyncStatus;
+  title?: string | null;
   workspaceId: string;
+}
+
+export interface ProjectImpactPreview {
+  auditLogs: number;
+  events: number;
+  links: number;
+  milestones: number;
+  projectId: string;
+  promotedMemoryNoteIds: string[];
+  reminderLinks: number;
+  schedulerTasks: number;
+  warnings: string[];
+}
+
+export interface ProjectOrphanReport {
+  deletedProjectActiveLinks: ProjectLink[];
+  danglingMemoryLinks: ProjectLink[];
+  missingSchedulerTasks: ProjectReminderLink[];
+  projectId: string;
+  staleSchedulerTasks: ProjectReminderLink[];
+  warnings: string[];
+}
+
+export interface ProjectAuditLog {
+  action: string;
+  actor: ProjectAuditActor;
+  after?: string | null;
+  before?: string | null;
+  createdAt: number;
+  id: string;
+  metadata?: string | null;
+  projectId?: string | null;
+  reason?: string | null;
+  targetId?: string | null;
+  targetType: string;
+  workspaceId: string;
+}
+
+export interface ExportedProjectData {
+  auditLogs: ProjectAuditLog[];
+  events: ProjectEvent[];
+  links: ProjectLink[];
+  milestones: ProjectMilestone[];
+  project: TrackedProject;
+  reminderLinks: ProjectReminderLink[];
+  snapshot: ProjectSnapshot | null;
 }
 
 export interface ProjectEventDraft {
@@ -239,7 +332,11 @@ export interface ProjectEventDraft {
   eventTime?: number | null;
   importance?: number;
   metadata?: string | null;
+  needsUserConfirmation?: boolean;
   relatedEventIds?: string[];
+  quality?: ProjectEventQuality;
+  reviewedAt?: number | null;
+  reviewedBy?: ProjectEventReviewedBy | null;
   sourceConversationId?: string | null;
   sourceMemoryNoteIds?: string[];
   sourceRouteEventIds?: string[];
@@ -279,6 +376,16 @@ export interface ProjectTrackingConfig {
   autoLinkEnabled: boolean;
   candidateCooldownMinutes: number;
   enabled: boolean;
+  llmProjectDelta?: {
+    enabled: boolean;
+    maxTokens?: number;
+    minMessageChars?: number;
+    minMessages?: number;
+    model?: string;
+    providerId?: string;
+    providerPresetId?: string;
+    temperature?: number;
+  };
   promptInjectionEnabled: boolean;
   reminderSuggestionEnabled: boolean;
 }

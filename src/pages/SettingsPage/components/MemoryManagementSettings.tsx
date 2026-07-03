@@ -1,8 +1,10 @@
+import type { ProjectTrackingConfig } from '@packages/ai/services/project-tracking-types';
 import React, { useEffect, useState } from 'react';
 import { TbBrain, TbBriefcase, TbLoader2, TbTopologyRing, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 
 import { SettingGroup, SettingItem } from './SettingComponents';
@@ -16,15 +18,6 @@ interface MemoryConfig {
   minNewMessagesForExtraction: number;
   extractionCooldownMinutes: number;
   maxTokensPerExtraction: number;
-}
-
-interface ProjectTrackingConfig {
-  autoDetectEnabled: boolean;
-  autoLinkEnabled: boolean;
-  candidateCooldownMinutes: number;
-  enabled: boolean;
-  promptInjectionEnabled: boolean;
-  reminderSuggestionEnabled: boolean;
 }
 
 const MemoryManagementSettings: React.FC = () => {
@@ -73,6 +66,16 @@ const MemoryManagementSettings: React.FC = () => {
     } catch (err) {
       console.error('更新项目跟踪配置失败:', err);
     }
+  };
+
+  const updateLlmProjectDeltaConfig = async (patch: Partial<NonNullable<ProjectTrackingConfig['llmProjectDelta']>>): Promise<void> => {
+    await updateProjectConfig({
+      llmProjectDelta: {
+        enabled: false,
+        ...(projectConfig?.llmProjectDelta || {}),
+        ...patch
+      }
+    });
   };
 
   const handleClearAll = async (): Promise<void> => {
@@ -127,6 +130,36 @@ const MemoryManagementSettings: React.FC = () => {
               description="开启后，相关对话前会注入活跃项目快照"
               action={
                 <Switch checked={projectConfig.promptInjectionEnabled} disabled={!projectConfig.enabled} onCheckedChange={(checked) => updateProjectConfig({ promptInjectionEnabled: checked })} />
+              }
+            />
+            <SettingItem
+              title="LLM 项目增量抽取"
+              description="仅在复杂已关联项目对话中调用配置模型；高风险事件仍进入待确认"
+              action={
+                <Switch
+                  checked={Boolean(projectConfig.llmProjectDelta?.enabled)}
+                  disabled={!projectConfig.enabled || !projectConfig.llmProjectDelta?.providerId}
+                  onCheckedChange={(checked) => updateLlmProjectDeltaConfig({ enabled: checked })}
+                />
+              }
+            />
+            <SettingItem
+              title="项目增量模型"
+              description="填写 providerId 和可选 model 后，才允许开启 LLM 项目增量抽取"
+              action={
+                <div className="grid w-80 grid-cols-2 gap-2">
+                  <Input
+                    placeholder="providerId"
+                    value={projectConfig.llmProjectDelta?.providerId || ''}
+                    onChange={(event) =>
+                      updateLlmProjectDeltaConfig({
+                        enabled: Boolean(event.target.value.trim()) && Boolean(projectConfig.llmProjectDelta?.enabled),
+                        providerId: event.target.value.trim() || undefined
+                      })
+                    }
+                  />
+                  <Input placeholder="model" value={projectConfig.llmProjectDelta?.model || ''} onChange={(event) => updateLlmProjectDeltaConfig({ model: event.target.value.trim() || undefined })} />
+                </div>
               }
             />
           </>
