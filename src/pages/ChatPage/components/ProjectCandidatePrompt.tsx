@@ -10,9 +10,10 @@ import { Input } from '@/components/ui/input';
 interface ProjectCandidatePromptProps {
   conversationId?: string;
   onProjectCreated?: () => void;
+  refreshKey?: number;
 }
 
-export function ProjectCandidatePrompt({ conversationId, onProjectCreated }: ProjectCandidatePromptProps): JSX.Element | null {
+export function ProjectCandidatePrompt({ conversationId, onProjectCreated, refreshKey = 0 }: ProjectCandidatePromptProps): JSX.Element | null {
   const [candidate, setCandidate] = useState<ProjectCandidate | null>(null);
   const [name, setName] = useState('');
   const [goal, setGoal] = useState('');
@@ -36,7 +37,7 @@ export function ProjectCandidatePrompt({ conversationId, onProjectCreated }: Pro
 
   useEffect(() => {
     void loadCandidate().catch(() => undefined);
-  }, [loadCandidate]);
+  }, [loadCandidate, refreshKey]);
 
   if (!candidate) return null;
 

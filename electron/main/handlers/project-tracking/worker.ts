@@ -68,7 +68,10 @@ async function processProjectTracking(payload: AgentLoopCompletePayload): Promis
 async function runOnce(payload: AgentLoopCompletePayload): Promise<void> {
   const conversationId = payload.conversationId;
   const workspaceId = await resolveWorkspaceId(conversationId);
-  if (!workspaceId) return;
+  if (!workspaceId) {
+    console.log(`${TAG} skipped: no_workspace conversation=${conversationId}`);
+    return;
+  }
 
   const config = getProjectTrackingConfig();
   const routeSnapshot = await ConversationRouteSnapshotRepo.get(conversationId).catch(() => undefined);
@@ -91,6 +94,7 @@ async function runOnce(payload: AgentLoopCompletePayload): Promise<void> {
     workspaceId
   });
   if (links.length > 0) {
+    console.log(`${TAG} linked conversation detected: conversation=${conversationId} projects=${links.length}`);
     await materializeLinkedProjectDeltas({
       conversationId,
       messages,
@@ -111,14 +115,20 @@ async function runOnce(payload: AgentLoopCompletePayload): Promise<void> {
     if (linked) return;
   }
 
-  if (!config.autoDetectEnabled) return;
+  if (!config.autoDetectEnabled) {
+    console.log(`${TAG} auto-detect disabled: conversation=${conversationId}`);
+    return;
+  }
 
   const existing = await ProjectCandidateRepo.list(workspaceId, {
     conversationId,
     limit: 1,
     status: ['pending']
   });
-  if (existing.length > 0) return;
+  if (existing.length > 0) {
+    console.log(`${TAG} pending candidate exists: candidate=${existing[0].id} conversation=${conversationId}`);
+    return;
+  }
 
   const decision = detectProjectSignal({
     conversationId,
@@ -126,6 +136,7 @@ async function runOnce(payload: AgentLoopCompletePayload): Promise<void> {
     routeSnapshot,
     workspaceId
   });
+  console.log(`${TAG} signal checked: conversation=${conversationId} score=${decision.signalScore} create=${decision.shouldCreateCandidate} reasons=${decision.reasons.join(',') || '-'}`);
   if (!decision.shouldCreateCandidate || !decision.candidate) return;
 
   const minSeq = Math.min(...messages.map((message) => message.seq));
@@ -148,6 +159,11 @@ async function runOnce(payload: AgentLoopCompletePayload): Promise<void> {
     workspaceId
   });
   console.log(`${TAG} candidate created: ${candidate.id} score=${candidate.signalScore} conversation=${conversationId}`);
+  eventManager.emit(AppEvent.PROJECT_CANDIDATE_CREATED, {
+    candidateId: candidate.id,
+    conversationId,
+    workspaceId
+  });
 }
 
 async function materializeLinkedProjectDeltas(input: {

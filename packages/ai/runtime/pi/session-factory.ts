@@ -224,21 +224,26 @@ export class PiSessionFactory {
       sessionManager: SessionManager.inMemory(cwd),
       settingsManager,
       thinkingLevel: options.thinkingLevel || 'off',
-      tools: []
+      // Keep SDK built-ins disabled, but do not pass `tools: []`: the SDK treats
+      // that as an empty allowlist and filters out every custom tool.
+      noTools: 'builtin'
     });
 
     // PATCH: pi-agent-core's runLoop captures context.tools (array reference) once at the start.
-    // Agent.setTools() replaces the reference (this._state.tools = newArray), so tools activated
-    // mid-loop via toolbox never appear in the LLM's tools parameter until the next prompt() call.
-    // Fix: mutate the array IN-PLACE so the existing reference sees the new tools immediately.
-    const agentInner = (session as any).agent;
-    if (agentInner && typeof agentInner.setTools === 'function') {
-      agentInner.setTools = function (t: any[]) {
-        const arr = this._state.tools;
-        arr.length = 0;
-        arr.push(...t);
-      };
-    }
+    // Tool activation must mutate that array in place so toolbox-selected tools
+    // can be used by the model in the same turn instead of waiting for next prompt().
+    const setActiveToolsByName = session.setActiveToolsByName.bind(session);
+    session.setActiveToolsByName = (names: string[]) => {
+      const previousTools = (session as any).agent?.state?.tools;
+      setActiveToolsByName(names);
+
+      const nextTools = (session as any).agent?.state?.tools;
+      if (Array.isArray(previousTools) && Array.isArray(nextTools) && previousTools !== nextTools) {
+        previousTools.length = 0;
+        previousTools.push(...nextTools);
+        (session as any).agent.state.tools = previousTools;
+      }
+    };
 
     // WORKAROUND: pi-coding-agent's constructor calls _buildRuntime with
     // includeAllExtensionTools: true, which appends ALL customTools to the

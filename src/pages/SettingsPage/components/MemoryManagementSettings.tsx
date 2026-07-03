@@ -126,6 +126,11 @@ const MemoryManagementSettings: React.FC = () => {
               action={<Switch checked={projectConfig.autoDetectEnabled} disabled={!projectConfig.enabled} onCheckedChange={(checked) => updateProjectConfig({ autoDetectEnabled: checked })} />}
             />
             <SettingItem
+              title="自动关联已有项目"
+              description="开启后，相关对话会自动关联到已有项目并更新项目状态"
+              action={<Switch checked={projectConfig.autoLinkEnabled} disabled={!projectConfig.enabled} onCheckedChange={(checked) => updateProjectConfig({ autoLinkEnabled: checked })} />}
+            />
+            <SettingItem
               title="项目上下文注入"
               description="开启后，相关对话前会注入活跃项目快照"
               action={
