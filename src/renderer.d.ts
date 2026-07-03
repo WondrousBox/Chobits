@@ -26,6 +26,7 @@ import type { analyticsApi } from '../electron/preload/apis/analytics';
 import type { conversationRouteApi } from '../electron/preload/apis/conversation-route';
 import type { memoryApi } from '../electron/preload/apis/memory';
 import type { PersonaApiBridgeType } from '../electron/preload/apis/persona';
+import type { projectTrackingApi } from '../electron/preload/apis/project-tracking';
 import type { ShortcutsBridgeType } from '../electron/preload/apis/shortcuts';
 import type { StatusBridgeType } from '../electron/preload/apis/status';
 import type { userProfileApi } from '../electron/preload/apis/user-profile';
@@ -91,6 +92,7 @@ declare global {
       media: MediaIpcType;
       memory: typeof memoryApi;
       conversationRoute: typeof conversationRouteApi;
+      projectTracking: typeof projectTrackingApi;
       analytics: typeof analyticsApi;
       userProfile: typeof userProfileApi;
       messages: {

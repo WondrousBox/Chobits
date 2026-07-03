@@ -31,6 +31,7 @@ declare module '@aim-packages/window-manager' {
     questList: void;
     webRecorder: void;
     memoryGraph: void;
+    projectTracking: void;
     characterPackEditor: void;
     windowAnimationEditor: void;
     spriteBubbleFixedTop: void;
@@ -742,6 +743,38 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       show: false,
       backgroundColor: '#00000000',
       webPreferences: { nodeIntegration: true, contextIsolation: true }
+    }
+  },
+  projectTracking: {
+    routeHash: 'project-tracking',
+    autoCenterOn: 'parent-display',
+    showOnReady: true,
+    openDevTools: false,
+    rememberState: true,
+    options: {
+      width: 1180,
+      height: 760,
+      minWidth: 960,
+      minHeight: 620,
+      frame: false,
+      transparent: false,
+      resizable: true,
+      alwaysOnTop: false,
+      skipTaskbar: false,
+      show: false,
+      backgroundColor: '#ffffff',
+      autoHideMenuBar: true,
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
+    },
+    platformOverlays: {
+      darwin: {
+        options: {
+          titleBarStyle: 'hiddenInset',
+          titleBarOverlay: true,
+          trafficLightPosition: { x: 20, y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2 },
+          frame: true
+        }
+      }
     }
   },
   characterPackEditor: {

@@ -523,6 +523,281 @@ export const conversation_route_snapshots = sqliteTable(
 export type ConversationRouteSnapshotRow = InferSelectModel<typeof conversation_route_snapshots>;
 export type NewConversationRouteSnapshot = InferInsertModel<typeof conversation_route_snapshots>;
 
+export const tracked_projects = sqliteTable(
+  'tracked_projects',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    workspaceId: text('workspace_id')
+      .references(() => workspaces.id, { onDelete: 'cascade', onUpdate: 'cascade' })
+      .notNull(),
+    name: text('name').notNull(),
+    aliases: text('aliases').notNull().default('[]'),
+    summary: text('summary').notNull().default(''),
+    goal: text('goal').notNull(),
+    scope: text('scope'),
+    status: text('status', { enum: ['candidate', 'active', 'paused', 'completed', 'archived', 'rejected'] }).notNull().default('active'),
+    ownerUserId: text('owner_user_id'),
+    stakeholders: text('stakeholders').notNull().default('[]'),
+    domains: text('domains').notNull().default('[]'),
+    tags: text('tags').notNull().default('[]'),
+    startedAt: integer('started_at'),
+    targetEndAt: integer('target_end_at'),
+    completedAt: integer('completed_at'),
+    confidence: real('confidence').notNull().default(1),
+    createdBy: text('created_by', { enum: ['user', 'agent_suggestion', 'import'] }).notNull().default('user'),
+    metadata: text('metadata'),
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
+    updatedAt: integer('updated_at').default(sql`(unixepoch('now')*1000)`),
+    archivedAt: integer('archived_at')
+  },
+  (t) => ({
+    idxTrackedProjectsWorkspaceStatus: index('idx_tracked_projects_workspace_status').on(t.workspaceId, t.status),
+    idxTrackedProjectsWorkspaceUpdated: index('idx_tracked_projects_workspace_updated').on(t.workspaceId, t.updatedAt),
+    idxTrackedProjectsWorkspaceName: index('idx_tracked_projects_workspace_name').on(t.workspaceId, t.name),
+    idxTrackedProjectsTargetEnd: index('idx_tracked_projects_target_end').on(t.workspaceId, t.targetEndAt)
+  })
+);
+
+export type TrackedProjectRow = InferSelectModel<typeof tracked_projects>;
+export type NewTrackedProject = InferInsertModel<typeof tracked_projects>;
+
+export const project_candidates = sqliteTable(
+  'project_candidates',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    workspaceId: text('workspace_id')
+      .references(() => workspaces.id, { onDelete: 'cascade', onUpdate: 'cascade' })
+      .notNull(),
+    conversationId: text('conversation_id')
+      .references(() => conversations.id, { onDelete: 'cascade', onUpdate: 'cascade' })
+      .notNull(),
+    seqStart: integer('seq_start').notNull(),
+    seqEnd: integer('seq_end').notNull(),
+    proposedName: text('proposed_name').notNull(),
+    proposedGoal: text('proposed_goal').notNull(),
+    evidenceSummary: text('evidence_summary').notNull().default(''),
+    evidenceMessageIds: text('evidence_message_ids').notNull().default('[]'),
+    signalScore: real('signal_score').notNull().default(0),
+    reasons: text('reasons').notNull().default('[]'),
+    suggestedMilestones: text('suggested_milestones').notNull().default('[]'),
+    suggestedReminders: text('suggested_reminders').notNull().default('[]'),
+    status: text('status', { enum: ['pending', 'confirmed', 'dismissed', 'expired', 'merged'] }).notNull().default('pending'),
+    confirmedProjectId: text('confirmed_project_id').references((): AnySQLiteColumn => tracked_projects.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+    expiresAt: integer('expires_at').notNull(),
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
+    updatedAt: integer('updated_at').default(sql`(unixepoch('now')*1000)`)
+  },
+  (t) => ({
+    idxProjectCandidatesWorkspaceStatus: index('idx_project_candidates_workspace_status').on(t.workspaceId, t.status),
+    idxProjectCandidatesConversation: index('idx_project_candidates_conversation').on(t.conversationId),
+    idxProjectCandidatesExpires: index('idx_project_candidates_expires').on(t.expiresAt),
+    idxProjectCandidatesScore: index('idx_project_candidates_score').on(t.signalScore)
+  })
+);
+
+export type ProjectCandidateRow = InferSelectModel<typeof project_candidates>;
+export type NewProjectCandidate = InferInsertModel<typeof project_candidates>;
+
+export const project_links = sqliteTable(
+  'project_links',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    workspaceId: text('workspace_id')
+      .references(() => workspaces.id, { onDelete: 'cascade', onUpdate: 'cascade' })
+      .notNull(),
+    projectId: text('project_id')
+      .references(() => tracked_projects.id, { onDelete: 'cascade', onUpdate: 'cascade' })
+      .notNull(),
+    targetType: text('target_type', { enum: ['conversation', 'conversation_route_event', 'memory_note', 'resource', 'scheduler_task', 'file', 'external_url'] }).notNull(),
+    targetId: text('target_id').notNull(),
+    relationType: text('relation_type', { enum: ['source', 'evidence', 'follow_up', 'decision_record', 'deliverable', 'meeting', 'reminder', 'related_context'] }).notNull(),
+    strength: real('strength').notNull().default(1),
+    confidence: real('confidence').notNull().default(1),
+    createdBy: text('created_by', { enum: ['user', 'agent', 'system'] }).notNull().default('system'),
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`)
+  },
+  (t) => ({
+    idxProjectLinksProject: index('idx_project_links_project').on(t.projectId),
+    idxProjectLinksWorkspaceTarget: index('idx_project_links_workspace_target').on(t.workspaceId, t.targetType, t.targetId),
+    idxProjectLinksRelation: index('idx_project_links_relation').on(t.relationType),
+    uqProjectLinksProjectTargetRelation: uniqueIndex('uq_project_links_project_target_relation').on(t.projectId, t.targetType, t.targetId, t.relationType)
+  })
+);
+
+export type ProjectLinkRow = InferSelectModel<typeof project_links>;
+export type NewProjectLink = InferInsertModel<typeof project_links>;
+
+export const project_snapshots = sqliteTable(
+  'project_snapshots',
+  {
+    projectId: text('project_id')
+      .primaryKey()
+      .references(() => tracked_projects.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .references(() => workspaces.id, { onDelete: 'cascade', onUpdate: 'cascade' })
+      .notNull(),
+    version: integer('version').notNull().default(1),
+    status: text('status', { enum: ['candidate', 'active', 'paused', 'completed', 'archived', 'rejected'] }).notNull().default('active'),
+    summary: text('summary').notNull().default(''),
+    goal: text('goal').notNull(),
+    currentFocus: text('current_focus'),
+    nextSuggestedAction: text('next_suggested_action'),
+    upcomingDates: text('upcoming_dates').notNull().default('[]'),
+    openTasks: text('open_tasks').notNull().default('[]'),
+    recentProgress: text('recent_progress').notNull().default('[]'),
+    decisions: text('decisions').notNull().default('[]'),
+    agreements: text('agreements').notNull().default('[]'),
+    blockers: text('blockers').notNull().default('[]'),
+    risks: text('risks').notNull().default('[]'),
+    changes: text('changes').notNull().default('[]'),
+    completedMilestones: text('completed_milestones').notNull().default('[]'),
+    metadata: text('metadata'),
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
+    updatedAt: integer('updated_at').default(sql`(unixepoch('now')*1000)`)
+  },
+  (t) => ({
+    idxProjectSnapshotsWorkspace: index('idx_project_snapshots_workspace').on(t.workspaceId),
+    idxProjectSnapshotsStatus: index('idx_project_snapshots_status').on(t.status),
+    idxProjectSnapshotsUpdated: index('idx_project_snapshots_updated').on(t.updatedAt)
+  })
+);
+
+export type ProjectSnapshotRow = InferSelectModel<typeof project_snapshots>;
+export type NewProjectSnapshot = InferInsertModel<typeof project_snapshots>;
+
+export const project_events = sqliteTable(
+  'project_events',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    projectId: text('project_id')
+      .references(() => tracked_projects.id, { onDelete: 'cascade', onUpdate: 'cascade' })
+      .notNull(),
+    workspaceId: text('workspace_id')
+      .references(() => workspaces.id, { onDelete: 'cascade', onUpdate: 'cascade' })
+      .notNull(),
+    type: text('type', {
+      enum: [
+        'goal_defined',
+        'scope_defined',
+        'task_added',
+        'task_progress',
+        'task_done',
+        'milestone_added',
+        'milestone_reached',
+        'deadline_changed',
+        'meeting_scheduled',
+        'meeting_done',
+        'agreement_reached',
+        'decision_made',
+        'plan_changed',
+        'blocker_found',
+        'blocker_resolved',
+        'risk_identified',
+        'reminder_scheduled',
+        'status_changed',
+        'summary_checkpoint'
+      ]
+    }).notNull(),
+    title: text('title').notNull(),
+    content: text('content').notNull(),
+    status: text('status', { enum: ['active', 'resolved', 'superseded', 'cancelled'] }).notNull().default('active'),
+    importance: real('importance').notNull().default(0.5),
+    confidence: real('confidence').notNull().default(0.5),
+    eventTime: integer('event_time'),
+    dueAt: integer('due_at'),
+    sourceConversationId: text('source_conversation_id').references(() => conversations.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+    sourceSeqStart: integer('source_seq_start'),
+    sourceSeqEnd: integer('source_seq_end'),
+    sourceRouteEventIds: text('source_route_event_ids').notNull().default('[]'),
+    sourceMemoryNoteIds: text('source_memory_note_ids').notNull().default('[]'),
+    relatedEventIds: text('related_event_ids').notNull().default('[]'),
+    supersedesEventIds: text('supersedes_event_ids').notNull().default('[]'),
+    metadata: text('metadata'),
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
+    updatedAt: integer('updated_at').default(sql`(unixepoch('now')*1000)`)
+  },
+  (t) => ({
+    idxProjectEventsProject: index('idx_project_events_project').on(t.projectId),
+    idxProjectEventsWorkspace: index('idx_project_events_workspace').on(t.workspaceId),
+    idxProjectEventsType: index('idx_project_events_type').on(t.type),
+    idxProjectEventsStatus: index('idx_project_events_status').on(t.status),
+    idxProjectEventsDue: index('idx_project_events_due').on(t.dueAt),
+    idxProjectEventsCreated: index('idx_project_events_created').on(t.createdAt)
+  })
+);
+
+export type ProjectEventRow = InferSelectModel<typeof project_events>;
+export type NewProjectEvent = InferInsertModel<typeof project_events>;
+
+export const project_milestones = sqliteTable(
+  'project_milestones',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    projectId: text('project_id')
+      .references(() => tracked_projects.id, { onDelete: 'cascade', onUpdate: 'cascade' })
+      .notNull(),
+    workspaceId: text('workspace_id')
+      .references(() => workspaces.id, { onDelete: 'cascade', onUpdate: 'cascade' })
+      .notNull(),
+    title: text('title').notNull(),
+    description: text('description'),
+    status: text('status', { enum: ['planned', 'in_progress', 'done', 'missed', 'cancelled'] }).notNull().default('planned'),
+    targetAt: integer('target_at'),
+    completedAt: integer('completed_at'),
+    evidenceEventIds: text('evidence_event_ids').notNull().default('[]'),
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
+    updatedAt: integer('updated_at').default(sql`(unixepoch('now')*1000)`)
+  },
+  (t) => ({
+    idxProjectMilestonesProject: index('idx_project_milestones_project').on(t.projectId),
+    idxProjectMilestonesWorkspace: index('idx_project_milestones_workspace').on(t.workspaceId),
+    idxProjectMilestonesStatus: index('idx_project_milestones_status').on(t.status),
+    idxProjectMilestonesTarget: index('idx_project_milestones_target').on(t.targetAt)
+  })
+);
+
+export type ProjectMilestoneRow = InferSelectModel<typeof project_milestones>;
+export type NewProjectMilestone = InferInsertModel<typeof project_milestones>;
+
+export const project_reminder_links = sqliteTable(
+  'project_reminder_links',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    projectId: text('project_id')
+      .references(() => tracked_projects.id, { onDelete: 'cascade', onUpdate: 'cascade' })
+      .notNull(),
+    workspaceId: text('workspace_id')
+      .references(() => workspaces.id, { onDelete: 'cascade', onUpdate: 'cascade' })
+      .notNull(),
+    projectEventId: text('project_event_id').references(() => project_events.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+    schedulerTaskId: text('scheduler_task_id').notNull(),
+    kind: text('kind', { enum: ['deadline', 'meeting', 'follow_up', 'review', 'milestone_check', 'stale_project_check'] }).notNull(),
+    status: text('status', { enum: ['suggested', 'scheduled', 'done', 'cancelled'] }).notNull().default('suggested'),
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`)
+  },
+  (t) => ({
+    idxProjectReminderLinksProject: index('idx_project_reminder_links_project').on(t.projectId),
+    idxProjectReminderLinksWorkspace: index('idx_project_reminder_links_workspace').on(t.workspaceId),
+    idxProjectReminderLinksTask: index('idx_project_reminder_links_task').on(t.schedulerTaskId),
+    idxProjectReminderLinksStatus: index('idx_project_reminder_links_status').on(t.status)
+  })
+);
+
+export type ProjectReminderLinkRow = InferSelectModel<typeof project_reminder_links>;
+export type NewProjectReminderLink = InferInsertModel<typeof project_reminder_links>;
+
 /**
  * ai_usage_events：AI 使用量事实表
  * - 以单次 provider 调用为粒度记录 token / 费用 / 来源 / 分类 / 精度

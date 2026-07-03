@@ -40,6 +40,7 @@ import { analyticsApi } from './apis/analytics';
 import { conversationRouteApi } from './apis/conversation-route';
 import { memoryApi } from './apis/memory';
 import { personaApi } from './apis/persona';
+import { projectTrackingApi } from './apis/project-tracking';
 import { shortcutsBridge } from './apis/shortcuts';
 import { statusBridge } from './apis/status';
 import { userProfileApi } from './apis/user-profile';
@@ -138,6 +139,7 @@ contextBridge.exposeInMainWorld('YUA', {
   media: mediaIpcRenderer,
   memory: memoryApi,
   conversationRoute: conversationRouteApi,
+  projectTracking: projectTrackingApi,
   analytics: analyticsApi,
   userProfile: userProfileApi,
   messages: {
