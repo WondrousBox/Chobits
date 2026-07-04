@@ -1,11 +1,13 @@
-import { createPiTaskChatRuntimeFromRequest } from '../../../../packages/ai/runtime/pi/task-chat';
+import { createPiTaskChatRuntimeFromRequest, type PiTaskChatFunction } from '../../../../packages/ai/runtime/pi/task-chat';
+import { buildNonReasoningTaskRuntimeRequest, resolveNonReasoningTaskModel } from '../../../../packages/ai/runtime/pi/task-model-policy';
 import type { ConversationRouteMessage } from '../../../../packages/ai/services/conversation-route-types';
 import type { AgentLoopCompletePayload } from '../../../../packages/ai/services/memory-types';
 import { extractProjectDelta } from '../../../../packages/ai/services/project-tracking-extractor';
 import { matchProjectsForConversation } from '../../../../packages/ai/services/project-tracking-matcher';
 import { isHighRiskProjectEventType } from '../../../../packages/ai/services/project-tracking-service';
-import { detectProjectSignal } from '../../../../packages/ai/services/project-tracking-signal';
+import { detectProjectSignalWithLlm, getProjectSignalDiagnostics, type ProjectSignalChatFn } from '../../../../packages/ai/services/project-tracking-signal';
 import type { ProjectTrackingConfig } from '../../../../packages/ai/services/project-tracking-types';
+import { createManagedTaskChatFn, LONG_TASK_CHAT_TIMEOUTS } from '../../../../packages/ai/services/task-chat-runner';
 import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
 import { ConversationRouteSnapshotRepo } from '../../db/conversation-route-repositories';
@@ -27,6 +29,18 @@ const INTERNAL_AGENT_IDS = new Set([
 const runningConversations = new Set<string>();
 const trailingConversations = new Map<string, AgentLoopCompletePayload>();
 const COMPLEX_DELTA_TERMS = ['会议纪要', '纪要', '评审', '协议', '决策', '决定', '变更', '调整', '延期', '取消', '范围', '里程碑', '风险', '阻塞', 'deadline'];
+
+function adaptProjectSignalChatFn(piChatFn: PiTaskChatFunction): ProjectSignalChatFn {
+  return createManagedTaskChatFn(piChatFn, {
+    tag: '[ProjectSignalTaskChat]',
+    timeouts: {
+      ...LONG_TASK_CHAT_TIMEOUTS,
+      firstActivityTimeoutMs: 45_000,
+      maxTimeoutMs: 90_000,
+      streamIdleTimeoutMs: 45_000
+    }
+  });
+}
 
 function shouldSkip(payload: AgentLoopCompletePayload): string | null {
   const config = getProjectTrackingConfig();
@@ -130,13 +144,30 @@ async function runOnce(payload: AgentLoopCompletePayload): Promise<void> {
     return;
   }
 
-  const decision = detectProjectSignal({
+  const signalResult = await detectProjectSignalWithLlm(
+    {
+      conversationId,
+      messages,
+      routeSnapshot,
+      workspaceId
+    },
+    () => createProjectSignalChatFn(payload)
+  );
+  const decision = signalResult.decision;
+  const diagnostics = getProjectSignalDiagnostics({
     conversationId,
     messages,
     routeSnapshot,
     workspaceId
   });
-  console.log(`${TAG} signal checked: conversation=${conversationId} score=${decision.signalScore} create=${decision.shouldCreateCandidate} reasons=${decision.reasons.join(',') || '-'}`);
+  console.log(
+    `${TAG} signal checked: conversation=${conversationId} source=${signalResult.source}${signalResult.error ? ` error="${signalResult.error}"` : ''} score=${decision.signalScore} create=${decision.shouldCreateCandidate} reasons=${decision.reasons.join(',') || '-'} ` +
+    `userMessages=${diagnostics.userMessageCount} userChars=${diagnostics.userChars} latest="${diagnostics.latestUserPreview}" ` +
+    `explicitTerms=${diagnostics.matchedExplicitTerms.join('|') || '-'} explicitPatterns=${diagnostics.matchedExplicitPatterns.join('|') || '-'} ` +
+    `projectTerms=${diagnostics.matchedProjectTerms.join('|') || '-'} taskTerms=${diagnostics.matchedTaskTerms.join('|') || '-'} ` +
+    `timeTerms=${diagnostics.matchedTimeTerms.join('|') || '-'} agreementTerms=${diagnostics.matchedAgreementTerms.join('|') || '-'} ` +
+    `routeGoal=${diagnostics.routeHasCurrentGoal} routeTasks=${diagnostics.routeOpenTaskCount}`
+  );
   if (!decision.shouldCreateCandidate || !decision.candidate) return;
 
   const minSeq = Math.min(...messages.map((message) => message.seq));
@@ -164,6 +195,37 @@ async function runOnce(payload: AgentLoopCompletePayload): Promise<void> {
     conversationId,
     workspaceId
   });
+}
+
+async function createProjectSignalChatFn(payload: AgentLoopCompletePayload): Promise<ProjectSignalChatFn | undefined> {
+  const conversation = await ChatRepo.getConversation(payload.conversationId).catch(() => undefined);
+  const providerId = payload.providerId || conversation?.providerId;
+  if (!providerId) return undefined;
+
+  try {
+    const fastModel = resolveNonReasoningTaskModel(providerId);
+    const runtime = await createPiTaskChatRuntimeFromRequest(
+      buildNonReasoningTaskRuntimeRequest({
+        agentId: 'project-tracking',
+        extras: {
+          usage: {
+            feature: 'project_tracking',
+            operationKey: 'project_candidate_detect',
+            sourceType: 'project'
+          }
+        },
+        maxTokens: 900,
+        ...(fastModel ? { model: fastModel } : {}),
+        providerId,
+        providerPresetId: payload.providerPresetId || conversation?.providerPresetId || undefined,
+        temperature: 0
+      })
+    );
+    return adaptProjectSignalChatFn(runtime.chatFn);
+  } catch (error) {
+    console.warn(`${TAG} LLM project signal disabled for this run:`, error instanceof Error ? error.message : error);
+    return undefined;
+  }
 }
 
 async function materializeLinkedProjectDeltas(input: {
