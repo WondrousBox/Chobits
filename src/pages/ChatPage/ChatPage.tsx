@@ -1237,7 +1237,11 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
               </Button>
             </div>
           )}
-          {!isOverlay && conversationId && <ProjectContextBar conversationId={conversationId} refreshKey={projectRefreshKey} />}
+          {conversationId && (!isOverlay || overlayExpanded) && (
+            <div className={isOverlay ? 'shrink-0 pt-12' : 'shrink-0'}>
+              <ProjectContextBar conversationId={conversationId} refreshKey={projectRefreshKey} />
+            </div>
+          )}
           {showEmptyStart && (
             <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
               <div className="text-center text-lg mb-4">今天有什么能帮到你？</div>

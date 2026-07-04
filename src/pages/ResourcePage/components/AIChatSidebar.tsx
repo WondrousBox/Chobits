@@ -3,6 +3,7 @@ import type { SpeechDisplayTextFilter } from '@packages/ai/speech-display-filter
 import { getSpeechDisplayTextFilter, getSpeechDisplayTextFilterFromMetadata, normalizeSpeechDisplayTextFilter } from '@packages/ai/speech-display-filter';
 import { extractThinkingTextFromMetadata } from '@packages/ai/thinking-content';
 import type { TokenUsage } from '@packages/ai/types';
+import { AppEvent } from '@packages/event/events';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TbAt, TbClock, TbDotsVertical, TbLoader2, TbPhoto, TbPlayerStop, TbPlus, TbWorld } from 'react-icons/tb';
 import { toast } from 'sonner';
@@ -38,6 +39,9 @@ import { buildExplicitSkillInvocationInput } from '@/lib/chat-explicit-skill-inv
 import { pickCodingWorkspace } from '@/lib/coding-workspace';
 import { formatRelativeTime } from '@/lib/time';
 import { speakToolResultSpeech } from '@/lib/tool-speech';
+
+import { ProjectCandidatePrompt } from '../../ChatPage/components/ProjectCandidatePrompt';
+import { ProjectContextBar } from '../../ChatPage/components/ProjectContextBar';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -98,18 +102,50 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
   const [loadingConvs, setLoadingConvs] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [projectRefreshKey, setProjectRefreshKey] = useState(0);
 
   const inputRef = useRef<UnifiedChatInputHandle>(null);
   const listEndRef = useRef<HTMLDivElement | null>(null);
   const assistantIndexRef = useRef<number>(-1);
   const disposerRef = useRef<{ dispose: () => void; cancel: () => Promise<any> } | null>(null);
+  const projectCandidateRefreshTimerRef = useRef<number | null>(null);
 
   const isCoder = agentId === 'coder';
   const conversationUsage = React.useMemo(() => sumTokenUsage(messages), [messages]);
 
+  const scheduleProjectCandidateRefresh = useCallback((): void => {
+    if (projectCandidateRefreshTimerRef.current !== null) {
+      window.clearTimeout(projectCandidateRefreshTimerRef.current);
+    }
+    projectCandidateRefreshTimerRef.current = window.setTimeout(() => {
+      projectCandidateRefreshTimerRef.current = null;
+      setProjectRefreshKey((prev) => prev + 1);
+    }, 700);
+  }, []);
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.providerId, providerId);
   }, [providerId]);
+
+  useEffect(() => {
+    return () => {
+      if (projectCandidateRefreshTimerRef.current !== null) {
+        window.clearTimeout(projectCandidateRefreshTimerRef.current);
+        projectCandidateRefreshTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = window.YUA.events.on((payload) => {
+      if (payload.type !== AppEvent.PROJECT_CANDIDATE_CREATED) return;
+      const candidateConversationId = typeof payload.data?.conversationId === 'string' ? payload.data.conversationId : undefined;
+      if (candidateConversationId && candidateConversationId === conversationId) {
+        setProjectRefreshKey((prev) => prev + 1);
+      }
+    });
+    return () => unsubscribe();
+  }, [conversationId]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.modelId, modelId);
@@ -508,6 +544,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
             disposerRef.current?.dispose?.();
             disposerRef.current = null;
             void loadConversations();
+            scheduleProjectCandidateRefresh();
           }
 
           if (event?.type === 'error') {
@@ -614,6 +651,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
             <AiSpeechToggle onEnabledChange={handleAiSpeechEnabledChange} />
           </div>
         )}
+        {!showHistory && conversationId && <ProjectContextBar conversationId={conversationId} refreshKey={projectRefreshKey} />}
         <div className="flex-1 overflow-auto min-h-0">
           {showHistory ? (
             <div className="p-4">
@@ -760,6 +798,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose, workspaceId }) =
           }
         />
       </div>
+      <ProjectCandidatePrompt conversationId={conversationId} refreshKey={projectRefreshKey} onProjectCreated={() => setProjectRefreshKey((prev) => prev + 1)} />
     </div>
   );
 };
