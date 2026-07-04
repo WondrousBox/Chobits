@@ -12,7 +12,8 @@ import type { AiPromptInspectionSource } from './prompt-inspector';
  * 临时打开；本地排障时把 enabled 改成 true，或配合下面的 allowlist
  * 收敛到只关心少数 source / agentId。
  *
- * 当前配置：enabled=true，配合 allowlist 只观察 conversation-route。
+ * 当前配置：enabled=true，配合 allowlist 只观察 conversation-route
+ * 和 project-tracking。
  * 临时切换为"全部打印"：把两个 allowlist 置空 []；恢复只观察
  * conversation-route：把 enabled 改回 false、allowlist 留作示例。
  */
@@ -63,6 +64,7 @@ export const AI_PROMPT_INSPECTOR_SETTINGS = {
    *
    * 常见 agentId：
    *   - 'conversation-route'           // 对话路由抽取
+   *   - 'project-tracking'             // 项目候选识别 / 项目增量抽取
    *   - 'memory-extraction'            // 记忆抽取
    *   - 'memory-auto-recall'           // 记忆自动召回
    *   - 'memory-recall-cue-backfill'   // 记忆回填
@@ -73,5 +75,5 @@ export const AI_PROMPT_INSPECTOR_SETTINGS = {
    * 用例：只观察 conversation-route 的 prompt 时可写
    *   agentIdAllowlist: ['conversation-route']
    */
-  agentIdAllowlist: ['conversation-route'] as string[]
+  agentIdAllowlist: ['conversation-route', 'project-tracking'] as string[]
 };
