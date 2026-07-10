@@ -1078,14 +1078,16 @@ export class SpeakService {
     const logPayload = buildSpeakSynthesisLogPayload(config, sanitizedText, cacheId);
 
     // 查找缓存
-    logSpeakService('Cache lookup ' + logPayload.text, logPayload);
+    logSpeakService('Cache lookup ' + logPayload.text);
+    // logSpeakService('Cache lookup ' + logPayload.text, logPayload);
     const cachedPath = this.cache.get(cacheId);
     if (cachedPath) {
-      logSpeakService('Cache hit', {
-        ...logPayload,
-        audioPath: cachedPath,
-        fromCache: true
-      });
+      logSpeakService('Cache hit ' + logPayload.text);
+      // logSpeakService('Cache hit', {
+      //   ...logPayload,
+      //   audioPath: cachedPath,
+      //   fromCache: true
+      // });
       return {
         success: true,
         cacheId,

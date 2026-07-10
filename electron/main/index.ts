@@ -67,6 +67,7 @@ function updateSplashStatus(text: string): void {
 
 function updateSplashLog(text: string): void {
   if (splashWin && !splashWin.isDestroyed()) {
+    console.log('>> ' + text);
     splashWin.webContents.executeJavaScript(`typeof updateLog==='function'&&updateLog(${JSON.stringify(text)})`).catch(() => { });
   }
 }

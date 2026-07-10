@@ -1,5 +1,5 @@
 import React from 'react';
-import { TbChartBar, TbFilter, TbHeart, TbHome, TbLine, TbSettings, TbTrash } from 'react-icons/tb';
+import { TbChartBar, TbFilter, TbHeart, TbHome, TbLine, TbTrash } from 'react-icons/tb';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
@@ -158,17 +158,6 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
             >
               <TbLine />
               工作流
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem
-            key={'settings'}
-            onClick={() => {
-              onOpenSettings();
-            }}
-          >
-            <SidebarMenuButton>
-              <TbSettings />
-              设置
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
