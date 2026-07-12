@@ -22,6 +22,7 @@ interface ResourceSidebarProps {
   allCount: number;
   handleMoveResourcesToFolder: (folderId: string, ids: string[]) => Promise<void>;
   handleMoveFolder: (folderId: string, targetId: string | null, prevRank?: number, nextRank?: number) => Promise<void>;
+  handleLinkLocalFolder: () => void | Promise<void>;
   loadFolders: (wsId?: string) => Promise<void>;
   handleRenameFolder: (id: string) => void;
   handleDeleteFolder: (id: string) => void;
@@ -48,6 +49,7 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
   allCount,
   handleMoveResourcesToFolder,
   handleMoveFolder,
+  handleLinkLocalFolder,
   loadFolders,
   handleRenameFolder,
   handleDeleteFolder,
@@ -182,6 +184,7 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
             await handleMoveResourcesToFolder(folderId || '', ids);
           }}
           onMoveFolder={handleMoveFolder}
+          onLinkLocalFolder={handleLinkLocalFolder}
           onCreate={async (parentId) => {
             try {
               const d = new Date();

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TbFilter, TbFolderPlus, TbGrid3X3, TbLayoutGrid, TbList, TbRefresh, TbRobot, TbRss, TbSearch, TbStack2 } from 'react-icons/tb';
+import { TbFilter, TbGrid3X3, TbLayoutGrid, TbList, TbRefresh, TbRobot, TbRss, TbSearch, TbStack2 } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +18,6 @@ interface ContentToolbarProps {
   setSearchQuery: (query: string) => void;
   viewMode: ViewMode;
   handleViewModeChange: (mode: ViewMode) => void;
-  onLinkLocalFolder?: () => void | Promise<void>;
   load: () => void;
   loadTags: () => void;
   folderFilter: string;
@@ -41,7 +40,6 @@ const ContentToolbar: React.FC<ContentToolbarProps> = ({
   setSearchQuery,
   viewMode,
   handleViewModeChange,
-  onLinkLocalFolder,
   load,
   loadTags,
   folderFilter,
@@ -138,22 +136,6 @@ const ContentToolbar: React.FC<ContentToolbarProps> = ({
           <TooltipContent>添加订阅</TooltipContent>
         </Tooltip>
         <AddRssDialog open={showAddRss} onOpenChange={setShowAddRss} workspaceId={wsFilter} folderId={folderFilter} onSuccess={load} />
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              size="icon"
-              className="w-8 h-8 shrink-0"
-              variant="ghost"
-              onClick={() => {
-                void onLinkLocalFolder?.();
-              }}
-            >
-              <TbFolderPlus />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Link local folder</TooltipContent>
-        </Tooltip>
-
         {/* 刷新按钮 */}
         <Tooltip>
           <TooltipTrigger asChild>
