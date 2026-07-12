@@ -548,7 +548,6 @@ const ResourcePage: React.FC = () => {
             setSearchQuery={setSearchQuery}
             viewMode={viewMode}
             handleViewModeChange={handleViewModeChange}
-            onLinkLocalFolder={handleLinkLocalFolder}
             load={load}
             loadTags={() => loadTags(wsFilter)}
             folderFilter={folderFilter}
@@ -584,6 +583,7 @@ const ResourcePage: React.FC = () => {
           allCount={allCount}
           handleMoveResourcesToFolder={handleMoveResourcesToFolder}
           handleMoveFolder={handleMoveFolder}
+          handleLinkLocalFolder={handleLinkLocalFolder}
           loadFolders={loadFolders}
           handleRenameFolder={handleRenameFolder}
           handleDeleteFolder={handleDeleteFolder}

@@ -1,9 +1,10 @@
 import React, { useCallback } from 'react';
-import { TbHome, TbPlus } from 'react-icons/tb';
+import { TbFolderPlus, TbHome, TbPlus } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
-import { SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
+import { SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 import FolderTreeRow from './FolderTreeRow';
 
@@ -50,6 +51,7 @@ interface FolderSidebarProps {
   selectedId?: string;
   onSelect: (id: string | '') => void;
   onCreate: (parentId?: string | null) => Promise<string | void>;
+  onLinkLocalFolder: () => void | Promise<void>;
   onRename: (id: string) => void;
   onDelete: (id: string) => void;
   onDropResources?: (folderId: string | null, ids: string[]) => void;
@@ -70,6 +72,7 @@ const FolderSidebar = ({
   selectedId,
   onSelect,
   onCreate,
+  onLinkLocalFolder,
   onRename,
   onDelete,
   onDropResources,
@@ -290,11 +293,31 @@ const FolderSidebar = ({
     <>
       <SidebarGroup className="box-border">
         <SidebarGroupLabel>文件夹</SidebarGroupLabel>
-        <SidebarGroupAction asChild>
-          <Button size="icon" variant={'ghost'} className="w-8 h-8 top-2" onClick={() => handleCreate(null)}>
-            <TbPlus />
-          </Button>
-        </SidebarGroupAction>
+        <div className="absolute right-2 top-2 flex items-center">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="w-8 h-8"
+                onClick={() => {
+                  void onLinkLocalFolder();
+                }}
+              >
+                <TbFolderPlus />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Link local folder</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="icon" variant="ghost" className="w-8 h-8" onClick={() => handleCreate(null)}>
+                <TbPlus />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>新建文件夹</TooltipContent>
+          </Tooltip>
+        </div>
         <SidebarGroupContent>
           <SidebarMenu className="pl-0 my-0">
             {tree.length > 0 && (
