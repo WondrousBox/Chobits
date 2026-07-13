@@ -403,6 +403,50 @@ describe('SpriteRoutineRunner', () => {
     });
   });
 
+  it('matches explicit payload paths when a field also exists on the event', async () => {
+    const waiter = new SpritePurposeEventWaiter();
+    const routine = {
+      id: 'routine-inventory-menu',
+      purposeId: 'purpose-inventory-menu',
+      source: 'preset' as const,
+      status: 'queued' as const,
+      steps: [],
+      cursor: 0,
+      createdAt: Date.now()
+    };
+
+    const promise = waiter.wait(
+      {
+        id: 'wait-inventory-open',
+        type: 'waitForEvent',
+        source: 'app-event',
+        event: 'ASSISTANT_MENU_ITEM_SELECTED',
+        match: {
+          itemId: 'inventory',
+          windowKey: 'inventory',
+          'payload.source': 'assistant-context-menu'
+        },
+        timeoutMs: 100
+      },
+      routine
+    );
+
+    waiter.emit({
+      source: 'app-event',
+      event: 'ASSISTANT_MENU_ITEM_SELECTED',
+      payload: {
+        itemId: 'inventory',
+        windowKey: 'inventory',
+        source: 'assistant-context-menu'
+      }
+    });
+
+    await expect(promise).resolves.toMatchObject({
+      source: 'app-event',
+      payload: { source: 'assistant-context-menu' }
+    });
+  });
+
   it('assigns event results and runs matching branch steps', async () => {
     const calls: string[] = [];
     const runner = new SpriteRoutineRunner({
@@ -2516,7 +2560,7 @@ describe('SpriteRoutinePresetRegistry', () => {
           match: {
             itemId: 'inventory',
             windowKey: 'inventory',
-            source: 'assistant-context-menu'
+            'payload.source': 'assistant-context-menu'
           }
         }),
         expect.objectContaining({ id: 'clear-resource-menu-notice', type: 'clearMessage', messageId: 'onboarding.resource.open-library.invite', messageType: 'notice' }),
@@ -2626,7 +2670,7 @@ describe('SpriteRoutinePresetRegistry', () => {
           match: {
             itemId: 'skill-tree',
             windowKey: 'skillTree',
-            source: 'assistant-context-menu'
+            'payload.source': 'assistant-context-menu'
           }
         })
       ])

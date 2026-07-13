@@ -162,7 +162,7 @@ type WaitForEventStep = BaseRoutineStep<'waitForEvent'> & {
   source?: SpritePurposeRuntimeEventSource;
   /** 最大等待时间；超时默认让 step 失败，`optional: true` 时会转为 skipped。 */
   timeoutMs?: number;
-  /** 事件匹配条件。key 可匹配事件顶层字段，也可用点路径读取 payload。 */
+  /** 事件匹配条件。key 可匹配事件顶层字段或 payload；与顶层字段重名时使用 `payload.*` 显式读取 payload。 */
   match?: Record<string, unknown>;
   /** 将事件结果写入 runner 变量，后续可通过 `branch.by` 或 `*From` 读取。 */
   assignTo?: string;
