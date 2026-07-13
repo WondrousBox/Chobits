@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { AgentSession } from '@earendil-works/pi-coding-agent';
 
 import type { ResolvedPiRequest } from './contracts';
+import { installSameTurnDynamicToolActivation } from './dynamic-tool-activation';
 import { createSkillRegistry, createSkillSessionState, type SkillRegistry, type SkillSessionState } from './skills';
 import { createPiSessionToolContext, type PiSessionToolContext } from './tool-context';
 import { resolvePiToolId } from './tool-registry';
@@ -229,27 +230,16 @@ export class PiSessionFactory {
       noTools: 'builtin'
     });
 
-    // PATCH: pi-agent-core's runLoop captures context.tools (array reference) once at the start.
-    // Tool activation must mutate that array in place so toolbox-selected tools
-    // can be used by the model in the same turn instead of waiting for next prompt().
-    const setActiveToolsByName = session.setActiveToolsByName.bind(session);
-    session.setActiveToolsByName = (names: string[]) => {
-      const previousTools = (session as any).agent?.state?.tools;
-      setActiveToolsByName(names);
-
-      const nextTools = (session as any).agent?.state?.tools;
-      if (Array.isArray(previousTools) && Array.isArray(nextTools) && previousTools !== nextTools) {
-        previousTools.length = 0;
-        previousTools.push(...nextTools);
-        (session as any).agent.state.tools = previousTools;
-      }
-    };
-
     // WORKAROUND: pi-coding-agent's constructor calls _buildRuntime with
     // includeAllExtensionTools: true, which appends ALL customTools to the
     // active set — defeating initialActiveToolNames. Force-reset here.
     // In 'all' mode this is a no-op since all tools are already intended to be active.
     session.setActiveToolsByName(initialActiveNames);
+
+    // pi-agent-core snapshots tools at prompt start. Refresh the next-turn context
+    // after toolbox activation so newly active tool schemas are available in the
+    // next model request within the same user turn.
+    installSameTurnDynamicToolActivation(session);
 
     console.log('[PiSession] active tools after reset:', session.getActiveToolNames().length);
 

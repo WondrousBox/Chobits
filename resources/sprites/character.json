@@ -181,7 +181,7 @@
       "onboarding.resource.open-library.menu-tip": ["现在点菜单里的「背包」。"],
       "onboarding.resource.open-library.done": ["打开啦！以后导入的文件都可以在背包里整理。"],
       "onboarding.chat.start.tip": ["鼠标双击我，就能打开聊天窗口。"],
-      "onboarding.chat.start.done": ["打开啦！以后双击我就可以开始聊天。"],
+      "onboarding.chat.start.done": ["打开啦！"],
       "chat.api-config-guide.invite": ["需要先配置 API Key"],
       "chat.api-config-guide.tip": ["填好 API Key 就可以和我对话了"],
       "chat.api-config-guide.done": ["配置保存好了，现在可以开始聊天。"],

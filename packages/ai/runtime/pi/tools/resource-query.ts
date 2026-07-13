@@ -4,44 +4,56 @@ import { Type } from 'typebox';
 import type { PiSessionToolContext } from '../tool-context';
 import { createJsonToolResult } from './result';
 
-const resourceQueryParameters = Type.Object({
-  type: Type.Optional(
-    Type.Union([
-      Type.Literal('image'),
-      Type.Literal('video'),
-      Type.Literal('audio'),
-      Type.Literal('recording'),
-      Type.Literal('subtitle'),
-      Type.Literal('text'),
-      Type.Literal('link'),
-      Type.Literal('file'),
-      Type.Literal('document'),
-      Type.Literal('rss'),
-      Type.Literal('other')
-    ])
-  ),
-  status: Type.Optional(Type.Union([Type.Literal('new'), Type.Literal('processing'), Type.Literal('ready'), Type.Literal('archived'), Type.Literal('error')])),
-  timeRange: Type.Optional(
-    Type.Union([
-      Type.Literal('today'),
-      Type.Literal('yesterday'),
-      Type.Literal('this-week'),
-      Type.Literal('this-month'),
-      Type.Literal('last-7-days'),
-      Type.Literal('last-30-days'),
-      Type.Literal('custom')
-    ])
-  ),
-  startTime: Type.Optional(Type.Number({ description: '自定义开始时间（毫秒时间戳）' })),
-  endTime: Type.Optional(Type.Number({ description: '自定义结束时间（毫秒时间戳）' })),
-  favorite: Type.Optional(Type.Boolean({ description: '是否只查询收藏资源' })),
-  tags: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { description: '按标签筛选' })),
-  minRating: Type.Optional(Type.Number({ minimum: 0, maximum: 5, description: '最低评分' })),
-  searchText: Type.Optional(Type.String({ description: '全文搜索关键词（标题、描述）' })),
-  sortBy: Type.Optional(Type.Union([Type.Literal('newest'), Type.Literal('oldest'), Type.Literal('rating'), Type.Literal('title'), Type.Literal('size'), Type.Literal('duration')])),
-  limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100, description: '返回数量限制，默认 10' })),
-  offset: Type.Optional(Type.Number({ minimum: 0, description: '分页偏移量' }))
-});
+const resourceQueryParameters = Type.Object(
+  {
+    type: Type.Optional(
+      Type.Union(
+        [
+          Type.Literal('image'),
+          Type.Literal('video'),
+          Type.Literal('audio'),
+          Type.Literal('recording'),
+          Type.Literal('subtitle'),
+          Type.Literal('text'),
+          Type.Literal('link'),
+          Type.Literal('file'),
+          Type.Literal('document'),
+          Type.Literal('rss'),
+          Type.Literal('other')
+        ],
+        { description: '可选的资源类型筛选。只有用户明确限定视频、音频、字幕、图片等具体类型时才填写；“资源”或“文件”是泛称，不代表 type=file，应省略 type' }
+      )
+    ),
+    status: Type.Optional(
+      Type.Union([Type.Literal('new'), Type.Literal('processing'), Type.Literal('ready'), Type.Literal('archived'), Type.Literal('error')], {
+        description: '资源状态筛选'
+      })
+    ),
+    timeRange: Type.Optional(
+      Type.Union(
+        [Type.Literal('today'), Type.Literal('yesterday'), Type.Literal('this-week'), Type.Literal('this-month'), Type.Literal('last-7-days'), Type.Literal('last-30-days'), Type.Literal('custom')],
+        { description: '创建时间范围。仅当用户明确要求“今天”、“最近7天”等范围时填写；“最新”应使用 sortBy=newest' }
+      )
+    ),
+    startTime: Type.Optional(Type.Number({ description: 'timeRange=custom 时的开始时间（毫秒时间戳）' })),
+    endTime: Type.Optional(Type.Number({ description: 'timeRange=custom 时的结束时间（毫秒时间戳）' })),
+    favorite: Type.Optional(Type.Boolean({ description: '是否只查询收藏资源' })),
+    tags: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { description: '按标签筛选' })),
+    minRating: Type.Optional(Type.Number({ minimum: 0, maximum: 5, description: '最低评分（0-5）' })),
+    searchText: Type.Optional(Type.String({ description: '全文搜索标题和描述的关键词。不要把“最新文件”这类查询意图填到此字段' })),
+    sortBy: Type.Optional(
+      Type.Union([Type.Literal('newest'), Type.Literal('oldest'), Type.Literal('rating'), Type.Literal('title'), Type.Literal('size'), Type.Literal('duration')], {
+        description: '排序方式，默认 newest。用户询问“最新”或“最近”的资源时使用 newest'
+      })
+    ),
+    limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100, description: '返回数量，默认 10。询问“最新的一个”时使用 1' })),
+    offset: Type.Optional(Type.Number({ minimum: 0, description: '分页偏移量，默认 0' }))
+  },
+  {
+    additionalProperties: false,
+    description: '资源库查询条件。不支持 action 或 query 字段'
+  }
+);
 
 type ResourceRecord = Awaited<ReturnType<PiSessionToolContext['resourcesRepo']['list']>>[number];
 type ResourceQueryOutputResource = {
@@ -114,7 +126,16 @@ export function createPiResourceQueryTool(toolContext: PiSessionToolContext): To
   return {
     name: 'resourceQueryTool',
     label: 'resourceQueryTool',
-    description: `查询数据库中的资源。支持按类型、时间范围、标签、评分、收藏、关键词和排序查询，返回精简资源列表，适合后续继续调用 pushCardTool 或其他处理工具。`,
+    description: `查询数据库中的已有资源，返回可供后续工具使用的精简资源列表。
+
+参数规则：
+- “最新的资源” -> { sortBy: "newest", limit: 1 }
+- “最新的文件” -> { sortBy: "newest", limit: 1 }
+- “最新的视频” -> { type: "video", sortBy: "newest", limit: 1 }
+- “最近7天的视频” -> { type: "video", timeRange: "last-7-days", sortBy: "newest" }
+- “标题或描述包含教程的资源” -> { searchText: "教程" }
+- “资源”和“文件”是泛称，不能由此推断 type=file；用户没有明确限定类型时省略 type。
+- 关键词搜索只使用 searchText；没有 action 或 query 参数。`,
     parameters: resourceQueryParameters,
     async execute(_toolCallId, input) {
       const { endTime: customEndTime, favorite, limit = 10, minRating, offset = 0, searchText, sortBy = 'newest', startTime: customStartTime, status, tags, timeRange, type } = input;

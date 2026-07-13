@@ -657,7 +657,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     routeHash: ACHIEVEMENT_UNLOCK_WINDOW_ROUTE_HASH,
     autoCenterOn: 'none',
     showOnReady: false,
-    openDevTools: true,
+    openDevTools: false,
     preferShowInactive: true,
     options: {
       width: ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY.width,

@@ -148,16 +148,23 @@ export class SpritePurposeEventWaiter {
   }
 
   private readMatchValue(event: SpritePurposeRuntimeEvent, key: string): unknown {
+    if (key.startsWith('payload.')) {
+      return this.readPath(event.payload, key.slice('payload.'.length));
+    }
+
     if (key in event) {
       return event[key as keyof SpritePurposeRuntimeEvent];
     }
 
-    const payload = event.payload;
-    if (!payload) return undefined;
-    return key.split('.').reduce<unknown>((current, part) => {
+    return this.readPath(event.payload, key);
+  }
+
+  private readPath(value: unknown, path: string): unknown {
+    if (!path) return value;
+    return path.split('.').reduce<unknown>((current, part) => {
       if (typeof current !== 'object' || current === null) return undefined;
       return (current as Record<string, unknown>)[part];
-    }, payload);
+    }, value);
   }
 
   private matchesExpectedValue(actual: unknown, expected: unknown): boolean {

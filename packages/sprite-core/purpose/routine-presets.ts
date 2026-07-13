@@ -435,7 +435,6 @@ const WORKSPACE_CREATE_NOTICE_ID = 'onboarding.workspace.create.invite';
 const WORKSPACE_CREATE_MANDATORY_REPROMPT_DELAY_MS = 5_000;
 const WORKSPACE_CREATE_NOTICE_WAIT_MS = 30 * 60 * 1000;
 const WORKSPACE_CREATE_WINDOW_HELPER_COOLDOWN_MS = 5 * 60 * 1000;
-const FIRST_FILE_DROP_NOTICE_ID = 'onboarding.file.drop.invite';
 const FIRST_FILE_DROP_WAIT_MS = 30 * 60 * 1000;
 const FIRST_FILE_DROP_HELP_COOLDOWN_MS = 60_000;
 const FIRST_FILE_DROP_PROMPT_CYCLE_MS = 6500;
@@ -664,12 +663,8 @@ function createOnboardingFileDropRoutineSteps(): SpriteRoutineStepInput[] {
     'playAnimation welcome 900 duration silent',
     {
       id: 'invite-file-drop-notice',
-      type: 'showNotice',
-      messageId: FIRST_FILE_DROP_NOTICE_ID,
-      content: getCharacterRoutineText('onboarding.file.drop.invite', undefined, '可以把文件拖拽给我'),
-      level: 'info',
-      // persistent: true,
-      speak: true
+      type: 'speak',
+      text: getCharacterRoutineText('onboarding.file.drop.invite', undefined, '可以把文件拖拽给我')
     },
     3000,
     {
@@ -705,7 +700,6 @@ function createOnboardingFileDropRoutineSteps(): SpriteRoutineStepInput[] {
       by: 'firstFileDropResult.event.event',
       cases: {
         RESOURCE_CREATED: [
-          { id: 'clear-file-drop-notice', type: 'clearMessage', messageId: FIRST_FILE_DROP_NOTICE_ID, messageType: 'notice' },
           { id: 'first-file-drop-celebrate', type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
           {
             id: 'first-file-drop-done',
@@ -715,7 +709,6 @@ function createOnboardingFileDropRoutineSteps(): SpriteRoutineStepInput[] {
           }
         ],
         SPRITE_RESOURCE_IMPORT_COMPLETE: [
-          { id: 'clear-file-drop-notice', type: 'clearMessage', messageId: FIRST_FILE_DROP_NOTICE_ID, messageType: 'notice' },
           { id: 'first-file-drop-celebrate', type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
           {
             id: 'first-file-drop-done',
@@ -775,10 +768,11 @@ function createFirstChatRoutineSteps(): SpriteRoutineStepInput[] {
       body: [{ id: 'first-chat-wait-window-pause', type: 'wait', durationMs: 300 }]
     },
     { id: 'first-chat-celebrate', type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
+    3000,
     {
       id: 'first-chat-done',
       type: 'speak',
-      text: getCharacterRoutineText('onboarding.chat.start.done', undefined, '打开啦！以后双击我就可以开始聊天。'),
+      text: getCharacterRoutineText('onboarding.chat.start.done', undefined, '打开啦！'),
       bubbleDuration: 3800
     },
     { id: 'first-chat-return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
@@ -824,7 +818,7 @@ function createOpenResourceLibraryRoutineSteps(): SpriteRoutineStepInput[] {
       match: {
         itemId: 'inventory',
         windowKey: 'inventory',
-        source: 'assistant-context-menu'
+        'payload.source': 'assistant-context-menu'
       },
       timeoutMs: OPEN_INVENTORY_WAIT_MS,
       assignTo: 'inventoryOpenEvent',
@@ -851,9 +845,7 @@ function createChatApiConfigGuideSteps(purpose: SpritePurpose): SpriteRoutineSte
   const targetWindow = hasPreset ? 'aiProviderConfig' : 'settings';
   const closeMatch = { windowKey: targetWindow };
   const openSettingsDirectly = isPurposeContextFlagEnabled(purpose, 'openSettingsDirectly');
-  const configUpdatedMatch = shouldLockChatApiConfigGuideProvider(purpose)
-    ? { providerId, action: CHAT_API_CONFIG_COMPLETION_ACTIONS }
-    : { action: CHAT_API_CONFIG_COMPLETION_ACTIONS };
+  const configUpdatedMatch = shouldLockChatApiConfigGuideProvider(purpose) ? { providerId, action: CHAT_API_CONFIG_COMPLETION_ACTIONS } : { action: CHAT_API_CONFIG_COMPLETION_ACTIONS };
   const targetPayload = hasPreset
     ? {
       providerId,
@@ -1038,7 +1030,7 @@ function buildFeatureIntroWaitSteps(item: FeatureIntroQuestCatalogItem): SpriteR
         match: {
           itemId: routine.menuItemId,
           ...(routine.menuWindowKey ? { windowKey: routine.menuWindowKey } : {}),
-          source: 'assistant-context-menu'
+          'payload.source': 'assistant-context-menu'
         },
         timeoutMs: FEATURE_INTRO_WAIT_MS,
         assignTo: 'featureIntroResult',

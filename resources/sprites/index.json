@@ -125,8 +125,7 @@
       "autoplay": true,
       "muted": true,
       "autoIdle": true,
-      "playsInline": true,
-      "loop": true
+      "playsInline": true
     },
     {
       "meta": {
@@ -172,12 +171,12 @@
       "meta": {
         "id": "celebrate-default",
         "title": "Celebrate 庆祝",
-        "description": "庆祝/完成任务动画（占位）",
+        "description": "庆祝/完成任务动画",
         "tags": ["celebrate", "placeholder"],
         "primaryTrigger": "celebrate"
       },
       "source": {
-        "localPath": "./idle.webm",
+        "localPath": "./celebrate.webm",
         "type": "video/webm"
       },
       "width": 180,

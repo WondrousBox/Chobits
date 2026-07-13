@@ -512,7 +512,7 @@ export const CHARACTER_MESSAGE_SPECS = [
     label: '首次聊天完成',
     maxItems: 4,
     maxLength: 220,
-    neutral: () => ['打开啦！以后双击我就可以开始聊天。']
+    neutral: () => ['打开啦！']
   },
   {
     field: 'chatApiConfigGuideInvite',
