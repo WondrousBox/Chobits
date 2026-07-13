@@ -111,8 +111,8 @@
       "meta": {
         "id": "thinking-default",
         "title": "Thinking 思考中",
-        "description": "AI 思考/处理中动画（占位）",
-        "tags": ["thinking", "placeholder"],
+        "description": "AI 思考/处理中动画",
+        "tags": ["thinking"],
         "primaryTrigger": "thinking"
       },
       "source": {
@@ -131,12 +131,12 @@
       "meta": {
         "id": "success-default",
         "title": "Success 成功",
-        "description": "任务成功完成动画（占位）",
-        "tags": ["success", "placeholder"],
+        "description": "任务成功完成动画",
+        "tags": ["success"],
         "primaryTrigger": "success"
       },
       "source": {
-        "localPath": "./idle.webm",
+        "localPath": "./success.webm",
         "type": "video/webm"
       },
       "width": 180,
@@ -151,12 +151,12 @@
       "meta": {
         "id": "error-default",
         "title": "Error 错误",
-        "description": "错误/失败动画（占位）",
-        "tags": ["error", "placeholder"],
+        "description": "错误/失败动画",
+        "tags": ["error"],
         "primaryTrigger": "error"
       },
       "source": {
-        "localPath": "./idle.webm",
+        "localPath": "./error.webm",
         "type": "video/webm"
       },
       "width": 180,
@@ -172,7 +172,7 @@
         "id": "celebrate-default",
         "title": "Celebrate 庆祝",
         "description": "庆祝/完成任务动画",
-        "tags": ["celebrate", "placeholder"],
+        "tags": ["celebrate"],
         "primaryTrigger": "celebrate"
       },
       "source": {
@@ -191,12 +191,12 @@
       "meta": {
         "id": "processing-default",
         "title": "Processing 处理中",
-        "description": "处理/加载中动画（占位）",
-        "tags": ["processing", "loading", "placeholder"],
+        "description": "处理/加载中动画",
+        "tags": ["processing", "loading"],
         "primaryTrigger": "processing"
       },
       "source": {
-        "localPath": "./idle.webm",
+        "localPath": "./processing.webm",
         "type": "video/webm"
       },
       "width": 180,
@@ -211,12 +211,12 @@
       "meta": {
         "id": "loading-default",
         "title": "Loading 加载中",
-        "description": "加载中动画（占位）",
-        "tags": ["loading", "placeholder"],
+        "description": "加载中动画",
+        "tags": ["loading"],
         "primaryTrigger": "loading"
       },
       "source": {
-        "localPath": "./idle.webm",
+        "localPath": "./loading.webm",
         "type": "video/webm"
       },
       "width": 180,
@@ -231,12 +231,12 @@
       "meta": {
         "id": "failure-default",
         "title": "Failure 失败",
-        "description": "失败动画（占位）",
-        "tags": ["failure", "placeholder"],
+        "description": "失败动画",
+        "tags": ["failure"],
         "primaryTrigger": "failure"
       },
       "source": {
-        "localPath": "./idle.webm",
+        "localPath": "./failure.webm",
         "type": "video/webm"
       },
       "width": 180,
@@ -251,12 +251,12 @@
       "meta": {
         "id": "cancellation-default",
         "title": "Cancellation 取消",
-        "description": "取消操作动画（占位）",
-        "tags": ["cancel", "placeholder"],
+        "description": "取消操作动画",
+        "tags": ["cancel"],
         "primaryTrigger": "cancellation"
       },
       "source": {
-        "localPath": "./idle.webm",
+        "localPath": "./cancellation.webm",
         "type": "video/webm"
       },
       "width": 180,
@@ -329,8 +329,8 @@
       "meta": {
         "id": "talk-default",
         "title": "talk",
-        "description": "默认的说话动作动画（占位）",
-        "tags": ["talk", "placeholder"],
+        "description": "默认的说话动作动画",
+        "tags": ["talk"],
         "primaryTrigger": "talk",
         "deletable": true
       },
@@ -365,6 +365,46 @@
       "playsInline": true,
       "loop": false,
       "autoIdle": true
+    },
+    {
+      "meta": {
+        "id": "sprite-119jc4f5",
+        "title": "dance_00",
+        "primaryTrigger": "dance",
+        "deletable": true
+      },
+      "source": {
+        "localPath": "./dance_00.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": true,
+      "loopCount": 3,
+      "autoIdle": false
+    },    {
+      "meta": {
+        "id": "sprite-i27hgyeh",
+        "title": "dance_01",
+        "primaryTrigger": "dance",
+        "deletable": true
+      },
+      "source": {
+        "localPath": "./dance_00.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false,
+      "autoIdle": false
     }
   ]
 }
