@@ -1,6 +1,8 @@
 import { WindowConfig, WindowKey } from '@aim-packages/window-manager';
 import { ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY, ACHIEVEMENT_UNLOCK_WINDOW_KEY, ACHIEVEMENT_UNLOCK_WINDOW_ROUTE_HASH } from '@packages/sprite-core/achievement-window';
 
+import { Env } from '../utils';
+
 declare module '@aim-packages/window-manager' {
   interface CustomWindowKeys {
     status: void;
@@ -392,7 +394,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     routeHash: 'resource-preview',
     autoCenterOn: 'parent-display',
     showOnReady: true,
-    openDevTools: true,
+    openDevTools: Env.isDev(),
     startMaximized: true,
     options: {
       width: 600,

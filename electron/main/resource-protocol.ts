@@ -5,6 +5,8 @@ import { Readable } from 'node:stream';
 
 import { app, protocol } from 'electron';
 
+import { getResourcePath } from './utils/resources-path';
+
 // Register scheme privileges early (module import time)
 protocol.registerSchemesAsPrivileged([
   {
@@ -75,8 +77,11 @@ export async function setupResourceProtocol(): Promise<void> {
   if (protocolHandled) return;
   const register = async (): Promise<void> => {
     if (protocolHandled) return;
-    // Provide a default root so relative or empty list does not block everything.
-    addAllowedResourceRoot(path.join(process.cwd(), 'resources'));
+    // extraResources are placed directly under Electron's Resources directory
+    // in packaged apps, while development assets live under <appPath>/resources.
+    const bundledResourceRoot = getResourcePath('resources');
+    if (!bundledResourceRoot) throw new Error('Bundled resource root is unavailable');
+    addAllowedResourceRoot(bundledResourceRoot);
 
     await protocol.handle('res', async (request): Promise<Response> => {
       try {
@@ -95,8 +100,7 @@ export async function setupResourceProtocol(): Promise<void> {
           } else if (p.startsWith('/')) {
             // POSIX absolute
           } else {
-            if (allowedRoots.length === 0) addAllowedResourceRoot(path.join(process.cwd(), 'resources'));
-            p = path.join(allowedRoots[0], p);
+            p = path.join(bundledResourceRoot, p);
           }
           abs = path.normalize(p);
         } else if (host === 'ws') {

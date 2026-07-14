@@ -15,6 +15,7 @@ import { logger } from './logger';
 import { addAllowedResourceRoot, addWorkspaceResourceRoot, setupResourceProtocol } from './resource-protocol';
 import { registerGlobalShortcuts, unregisterGlobalShortcuts } from './shortcuts';
 import { update } from './update';
+import { Env } from './utils';
 import { getResourcePath } from './utils/resources-path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -152,7 +153,9 @@ async function createWindow(): Promise<void> {
 
   // 主窗口显示由 splash 流程控制，不在此自动 show
   win.once('ready-to-show', () => {
-    win?.webContents.openDevTools({ mode: 'detach', activate: true });
+    if (Env.isDev()) {
+      win?.webContents.openDevTools({ mode: 'detach', activate: true });
+    }
   });
 
   // Test actively push message to the Electron-Renderer

@@ -1,3 +1,7 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
@@ -65,6 +69,23 @@ describe('PiSessionService coder workspace guard', () => {
         status: 'ready-for-pi-runtime'
       }
     ]);
+  });
+
+  it('resolves Pi runtime packages independently of the process working directory', () => {
+    const originalCwd = process.cwd();
+    const unrelatedCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-runtime-cwd-'));
+
+    try {
+      process.chdir(unrelatedCwd);
+
+      expect(new PiSessionService().getAvailability()).toMatchObject({
+        available: true,
+        missingPackages: []
+      });
+    } finally {
+      process.chdir(originalCwd);
+      fs.rmSync(unrelatedCwd, { recursive: true, force: true });
+    }
   });
 
   it('returns a direct assistant response when coder has no workspace', async () => {

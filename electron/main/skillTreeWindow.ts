@@ -3,6 +3,8 @@ import { fileURLToPath } from 'node:url';
 
 import { BrowserWindow, ipcMain, screen } from 'electron';
 
+import { Env } from './utils';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export class SkillTreeManager {
@@ -55,7 +57,9 @@ export class SkillTreeManager {
       this.window?.show();
       this.window?.setAlwaysOnTop(true, 'screen-saver');
       this.window?.focus();
-      this.window?.webContents.openDevTools({ mode: 'detach' });
+      if (Env.isDev()) {
+        this.window?.webContents.openDevTools({ mode: 'detach' });
+      }
     });
 
     this.window.on('closed', () => {

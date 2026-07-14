@@ -1,6 +1,4 @@
-import fs from 'node:fs';
-import { createRequire } from 'node:module';
-import path from 'node:path';
+import { findPackageJSON } from 'node:module';
 
 import { logMemoryTrace, shortTraceId } from '../../services/memory-trace';
 import type { ChatRequest, ChatResponse, StreamEvent, TokenUsage } from '../../types';
@@ -30,8 +28,6 @@ import type { PiSessionToolContext } from './tool-context';
 import { normalizePiToolIds, resolvePiToolDescriptors, resolvePiToolId } from './tool-registry';
 import { getPiToolChatDisplayByName } from './tools/display';
 
-const require = createRequire(import.meta.url);
-
 const PI_PACKAGE_NAMES = ['@earendil-works/pi-agent-core', '@earendil-works/pi-ai', '@earendil-works/pi-coding-agent', '@earendil-works/pi-tui'];
 
 type PiAiModule = typeof import('@earendil-works/pi-ai/compat');
@@ -54,16 +50,10 @@ type PiSkillRuntimeContext = {
 
 function hasPackage(pkg: string): boolean {
   try {
-    require.resolve(pkg);
-    return true;
-  } catch (error: any) {
-    if (error?.code !== 'ERR_PACKAGE_PATH_NOT_EXPORTED' && error?.code !== 'MODULE_NOT_FOUND') {
-      return false;
-    }
+    return !!findPackageJSON(pkg, import.meta.url);
+  } catch {
+    return false;
   }
-
-  const packagePath = path.join(process.cwd(), 'node_modules', ...pkg.split('/'), 'package.json');
-  return fs.existsSync(packagePath);
 }
 
 function getMissingPackages(): string[] {
