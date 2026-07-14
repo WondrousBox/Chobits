@@ -213,17 +213,27 @@ function dedupeSpriteAnimationTriggers(values: Array<string | null | undefined>)
 }
 
 export interface SpriteTriggerOptions {
+  /** 自定义气泡文案；不填时根据 trigger 和 ctx 读取角色默认事件文案。 */
   message?: string;
+  /** 气泡展示时长，单位毫秒；不控制动画播放时长。 */
   duration?: number;
+  /** 动画播放时长，单位毫秒；优先于动画资源配置的 durationMs。 */
   durationMs?: number;
+  /** 角色默认事件文案的模板变量上下文；传入自定义 message 时通常无需设置。 */
   ctx?: any;
+  /** true 时不显示 trigger 自动生成的气泡文案；不会阻止动画播放，也不表示静音动画。 */
   silent?: boolean;
+  /** 本次动画播放会话的唯一标识，用于关联完成事件、停止会话和恢复移动。 */
   playId?: string;
+  /** 传入 playId 时是否仍允许按 trigger 的播放列表模式连续播放多个候选动画。 */
   allowPlaylistWithPlayId?: boolean;
-  /** When false, auto/animation movement is suspended until this playback session ends. */
+  /** false 时暂停auto/animation，直到该播放会话结束。 */
   allowMovementDuringPlayback?: boolean;
+  /** 本次展示所属的 Purpose ID，用于通过或继承对应的 presentation lock。 */
   ownerPurposeId?: string;
+  /** 展示优先级；存在 presentation lock 时，优先级不低于当前锁才允许播放。 */
   priority?: number;
+  /** true 时忽略 presentation lock 并强制允许本次动画展示。 */
   ignorePresentationLock?: boolean;
 }
 
@@ -235,11 +245,7 @@ export interface SpriteTriggerRequest extends SpriteTriggerOptions {
   trigger?: SpriteAnimationTrigger;
 }
 
-export type SpriteFeedbackKind =
-  | 'quest-record'
-  | 'purpose-link'
-  | 'memory-record'
-  | (string & {});
+export type SpriteFeedbackKind = 'quest-record' | 'purpose-link' | 'memory-record' | (string & {});
 
 export interface SpriteFeedbackRequest {
   trigger?: SpriteAnimationTrigger;
@@ -317,13 +323,13 @@ export type SpriteWindowAnimationSizeMode = 'absolute' | 'scale-with-area';
 export type SpriteWindowAnimationMargin =
   | number
   | {
-      x?: number;
-      y?: number;
-      top?: number;
-      right?: number;
-      bottom?: number;
-      left?: number;
-    };
+    x?: number;
+    y?: number;
+    top?: number;
+    right?: number;
+    bottom?: number;
+    left?: number;
+  };
 
 export interface SpriteWindowAnimationPoint {
   x: number;
@@ -545,8 +551,8 @@ export function normalizeSpriteAnimationMetaPatch<T extends SpriteAnimationMetaI
     primaryTrigger,
     ...(Object.prototype.hasOwnProperty.call(rest, 'triggerAliases') || triggerAliases.length > 0
       ? {
-          triggerAliases: triggerAliases.length > 0 ? triggerAliases : undefined
-        }
+        triggerAliases: triggerAliases.length > 0 ? triggerAliases : undefined
+      }
       : {})
   } as Omit<T, 'eventType'> & Partial<SpriteAnimationMeta>;
 }
@@ -661,17 +667,17 @@ export interface MessageBridgeClearPayload {
 
 export type MessageBridgePayload =
   | {
-      kind: 'show';
-      payload: MessageIPCPayload;
-      source: MessageBridgeSource;
-      target?: MessageBridgeTarget;
-    }
+    kind: 'show';
+    payload: MessageIPCPayload;
+    source: MessageBridgeSource;
+    target?: MessageBridgeTarget;
+  }
   | {
-      kind: 'clear';
-      payload: MessageBridgeClearPayload;
-      source: MessageBridgeSource;
-      target?: MessageBridgeTarget;
-    };
+    kind: 'clear';
+    payload: MessageBridgeClearPayload;
+    source: MessageBridgeSource;
+    target?: MessageBridgeTarget;
+  };
 
 export const MESSAGE_IPC_CHANNELS = {
   BRIDGE: 'app:message:bridge',
@@ -713,15 +719,15 @@ export type SpriteEffectBridgeSource = 'app' | 'sprite';
 
 export type SpriteEffectBridgePayload =
   | {
-      kind: 'show';
-      payload: SpriteEffectPayload;
-      source: SpriteEffectBridgeSource;
-    }
+    kind: 'show';
+    payload: SpriteEffectPayload;
+    source: SpriteEffectBridgeSource;
+  }
   | {
-      kind: 'clear';
-      payload: SpriteEffectClearPayload;
-      source: SpriteEffectBridgeSource;
-    };
+    kind: 'clear';
+    payload: SpriteEffectClearPayload;
+    source: SpriteEffectBridgeSource;
+  };
 
 export const SPRITE_EFFECT_IPC_CHANNELS = {
   BRIDGE: 'sprite:effect:bridge',

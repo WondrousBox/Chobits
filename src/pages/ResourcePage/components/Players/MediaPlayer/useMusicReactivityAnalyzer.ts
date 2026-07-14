@@ -1,6 +1,6 @@
 import { estimateMediaMusicFeatures } from '@packages/audio-reactivity/analysis/media-feature-estimator';
 import { MUSIC_REACTIVITY_SPECTRUM_BAND_COUNT, type MusicReactivitySpectrumFrame } from '@packages/audio-reactivity/types';
-import { type RefObject, useEffect, useRef } from 'react';
+import { type RefObject, useCallback, useEffect, useRef } from 'react';
 
 type MediaElement = HTMLAudioElement | HTMLVideoElement;
 
@@ -164,11 +164,22 @@ export function useMusicReactivityAnalyzer(
   active: boolean,
   mediaKind: 'audio' | 'video',
   onSpectrumFrame?: (frame: MusicReactivitySpectrumFrame) => void
-): void {
+): () => Promise<void> {
   const stateRef = useRef<AnalyzerState | null>(null);
   const activeRef = useRef(active);
   const onSpectrumFrameRef = useRef(onSpectrumFrame);
   const timerRef = useRef<number | null>(null);
+
+  const resumeAudioContext = useCallback(async (): Promise<void> => {
+    const state = stateRef.current;
+    if (!state || state.disposed || state.audioContext.state !== 'suspended') return;
+
+    try {
+      await state.audioContext.resume();
+    } catch (error) {
+      console.warn('[MediaPlayer] music reactivity audio context resume failed:', error);
+    }
+  }, []);
 
   useEffect(() => {
     activeRef.current = active;
@@ -228,9 +239,7 @@ export function useMusicReactivityAnalyzer(
 
       if (mediaActive && now - state.lastSpectrumSentAt >= SPECTRUM_FRAME_INTERVAL_MS) {
         state.lastSpectrumSentAt = now;
-        if (state.audioContext.state === 'suspended') {
-          void state.audioContext.resume().catch(() => undefined);
-        }
+        void resumeAudioContext();
         state.analyser.getByteFrequencyData(state.frequencyData);
         const bands = computeSpectrumBands(state.frequencyData, MUSIC_REACTIVITY_SPECTRUM_BAND_COUNT);
         let sumSquares = 0;
@@ -273,7 +282,9 @@ export function useMusicReactivityAnalyzer(
         void window.YUA.musicReactivity.reset('media-analyzer-disposed');
       }
     };
-  }, [mediaKind, mediaRef]);
+  }, [mediaKind, mediaRef, resumeAudioContext]);
+
+  return resumeAudioContext;
 }
 
 function logAnalyzer(message: string, state: AnalyzerState, details: Record<string, unknown> = {}): void {

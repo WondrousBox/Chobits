@@ -51,18 +51,18 @@ const ResourcePreviewWindow: React.FC = () => {
   const TABS_EXPANDED_KEY = 'resource-preview:tabsExpanded';
   const BOTTOM_EXPANDED_KEY = 'resource-preview:bottomExpanded';
   const [isTabsExpanded, setIsTabsExpandedState] = useState(() => {
-    if (typeof window === 'undefined') return true;
+    if (typeof window === 'undefined') return false;
     const stored = localStorage.getItem(TABS_EXPANDED_KEY);
     if (stored === 'true') return true;
     if (stored === 'false') return false;
-    return true;
+    return false;
   });
   const [isBottomExpanded, setIsBottomExpandedState] = useState(() => {
-    if (typeof window === 'undefined') return true;
+    if (typeof window === 'undefined') return false;
     const stored = localStorage.getItem(BOTTOM_EXPANDED_KEY);
     if (stored === 'true') return true;
     if (stored === 'false') return false;
-    return true;
+    return false;
   });
   const [currentTime, setCurrentTime] = useState(0); // 当前播放时间（秒）
   const [mediaDuration, setMediaDuration] = useState(0); // 媒体总时长（秒）

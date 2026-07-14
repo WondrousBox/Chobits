@@ -222,7 +222,7 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
   let lastMiniMaxChatApiConfigEasterEggAt = 0;
   const progressSpeech = new ProgressSpeechAnnouncer({
     speak: (text) => {
-      void mgr.speak(text, { showBubble: false }).catch(() => {});
+      void mgr.speak(text, { showBubble: false }).catch(() => { });
     }
   });
 
@@ -245,7 +245,7 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
     handler: (data) => {
       const suppressSpeech = shouldSuppressAiEventSpeech(mgr, data);
       mgr.showToast(data?.message || eventText('aiComplete', data), { category: 'success', duration: 1500, ...(suppressSpeech ? { speak: false } : {}) });
-      mgr.trigger('celebrate', { durationMs: 1500, silent: true });
+      mgr.trigger('success', { silent: true });
       mgr.recordConversationEvent({
         assistantContentLength: data?.assistantContentLength,
         toolCallCount: data?.toolCallCount
@@ -282,7 +282,7 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
       if (!text) {
         return;
       }
-      void mgr.speak(text, { bubbleDuration: MINIMAX_CHAT_API_CONFIG_EASTER_EGG_BUBBLE_MS }).catch(() => {});
+      void mgr.speak(text, { bubbleDuration: MINIMAX_CHAT_API_CONFIG_EASTER_EGG_BUBBLE_MS }).catch(() => { });
     }
   });
 

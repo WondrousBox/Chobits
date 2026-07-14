@@ -68,7 +68,7 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(
       [src]
     );
 
-    useMusicReactivityAnalyzer(mediaRef, isPlaying, type, type === 'audio' ? handleSpectrumFrame : undefined);
+    const resumeAudioContext = useMusicReactivityAnalyzer(mediaRef, isPlaying, type, type === 'audio' ? handleSpectrumFrame : undefined);
 
     useEffect(() => {
       if (type !== 'audio' || !duration || duration <= 0 || !src.startsWith('res://local/')) {
@@ -156,14 +156,16 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(
 
       try {
         if (mediaRef.current.paused) {
-          await mediaRef.current.play();
+          const resumePromise = resumeAudioContext();
+          const playPromise = mediaRef.current.play();
+          await Promise.all([resumePromise, playPromise]);
         } else {
           mediaRef.current.pause();
         }
       } catch (error) {
         console.warn('播放控制失败:', error);
       }
-    }, []);
+    }, [resumeAudioContext]);
 
     // 跳转到指定时间
     const seekTo = useCallback((time: number) => {
@@ -362,11 +364,13 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(
     // 自动播放
     useEffect(() => {
       if (autoPlay && mediaRef.current) {
-        mediaRef.current.play().catch(() => {
+        const resumePromise = resumeAudioContext();
+        const playPromise = mediaRef.current.play();
+        Promise.all([resumePromise, playPromise]).catch(() => {
           // 忽略自动播放失败
         });
       }
-    }, [autoPlay]);
+    }, [autoPlay, resumeAudioContext]);
 
     // 鼠标移动显示/隐藏控制栏
     const handleMouseMove = useCallback(() => {
@@ -424,6 +428,7 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(
         <div ref={containerRef} className={`relative bg-black ${className}`} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
           <video
             ref={mediaRef as React.RefObject<HTMLVideoElement>}
+            crossOrigin="anonymous"
             src={src}
             className="w-full h-full object-contain cursor-pointer"
             playsInline
@@ -463,7 +468,7 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       >
-        <audio ref={mediaRef as React.RefObject<HTMLAudioElement>} src={src} className="hidden" />
+        <audio ref={mediaRef as React.RefObject<HTMLAudioElement>} crossOrigin="anonymous" src={src} className="hidden" />
         <AudioWaveformView
           waveformData={activeWaveform.data}
           spectrumFrame={activeSpectrumFrame}
