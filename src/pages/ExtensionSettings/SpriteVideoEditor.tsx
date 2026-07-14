@@ -12,6 +12,7 @@ import type { SpriteCapabilityState } from '@packages/sprite-core/capability-reg
 import type {
   SpriteAnimationCondition,
   SpriteAnimationTrigger,
+  SpriteMotionEffectMode,
   SpriteMovementConfig,
   SpriteMovementDirection,
   SpriteMovementMode,
@@ -82,6 +83,7 @@ const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 const SPRITE_MOVEMENT_MODE_SET = new Set<SpriteMovementMode>(['direction', 'walkTo', 'windowAnimation']);
 const SPRITE_MOVEMENT_DIRECTION_SET = new Set<SpriteMovementDirection>(['left', 'right', 'up', 'down', 'up-left', 'up-right', 'down-left', 'down-right', 'random']);
 const SPRITE_MOVEMENT_TRIGGER_SET = new Set<SpriteMovementTrigger>(['animation', 'behavior']);
+const SPRITE_MOTION_EFFECT_MODE_SET = new Set<SpriteMotionEffectMode>(['none', 'warp']);
 const SPRITE_WINDOW_ANIMATION_DIRECTION_SET = new Set<SpriteWindowAnimationDirection>(['top', 'top-right', 'right', 'bottom-right', 'bottom', 'bottom-left', 'left', 'top-left']);
 const SPRITE_WINDOW_ANIMATION_ANCHOR_SET = new Set(['top-left', 'top', 'top-right', 'left', 'center', 'right', 'bottom-left', 'bottom', 'bottom-right']);
 const SPRITE_WINDOW_ANIMATION_DISPLAY_SET = new Set(['current', 'main', 'primary']);
@@ -232,6 +234,10 @@ function normalizeMovementSettings(value: unknown): SpriteMovementConfig {
 
   if (value.verticalRange !== undefined) {
     next.verticalRange = clampNumber(value.verticalRange, 0.1, 0.01, 1);
+  }
+
+  if (mode === 'walkTo' && typeof value.motionEffect === 'string' && SPRITE_MOTION_EFFECT_MODE_SET.has(value.motionEffect as SpriteMotionEffectMode)) {
+    next.motionEffect = value.motionEffect as SpriteMotionEffectMode;
   }
 
   if (mode === 'windowAnimation') {
@@ -1339,9 +1345,9 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
                           movement
                         });
                       }}
-                      title={movementMode === 'windowAnimation' ? '预览窗口动画效果' : '预览窗口移动效果'}
+                      title={movementMode === 'windowAnimation' ? '预览窗口动画效果' : movementMode === 'walkTo' && movement.motionEffect === 'warp' ? '预览粒子流光瞬移' : '预览窗口移动效果'}
                     >
-                      {movementMode === 'windowAnimation' ? '测试窗口动画' : '测试移动'}
+                      {movementMode === 'windowAnimation' ? '测试窗口动画' : movementMode === 'walkTo' && movement.motionEffect === 'warp' ? '测试流光瞬移' : '测试移动'}
                     </Button>
                   )}
                   {movement.enabled && movementMode !== 'windowAnimation' && (
@@ -1858,18 +1864,32 @@ export function SpriteVideoEditor({ assetAuthoringCapability, initialConfig, onC
                     )}
 
                     {movementMode === 'walkTo' && (
-                      <div className="flex items-center gap-1">
-                        <Label className="text-[11px] text-muted-foreground shrink-0">竖直范围</Label>
-                        <Input
-                          type="number"
-                          step="0.05"
-                          min="0.01"
-                          max="1"
-                          value={movement.verticalRange ?? 0.1}
-                          onChange={(e) => setMovement((prev) => ({ ...prev, verticalRange: Math.max(0.01, Math.min(1, parseFloat(e.target.value) || 0.1)) }))}
-                          className="h-7 w-16 text-xs text-center"
-                        />
-                        <span className="text-[10px] text-muted-foreground">屏幕比例</span>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-1">
+                          <Label className="text-[11px] text-muted-foreground shrink-0">竖直范围</Label>
+                          <Input
+                            type="number"
+                            step="0.05"
+                            min="0.01"
+                            max="1"
+                            value={movement.verticalRange ?? 0.1}
+                            onChange={(e) => setMovement((prev) => ({ ...prev, verticalRange: Math.max(0.01, Math.min(1, parseFloat(e.target.value) || 0.1)) }))}
+                            className="h-7 w-16 text-xs text-center"
+                          />
+                          <span className="text-[10px] text-muted-foreground">屏幕比例</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Label className="text-[11px] text-muted-foreground shrink-0">移动流光</Label>
+                          <Select value={movement.motionEffect ?? 'none'} onValueChange={(value) => setMovement((prev) => ({ ...prev, motionEffect: value as SpriteMotionEffectMode }))}>
+                            <SelectTrigger className="h-7 w-28 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">关闭</SelectItem>
+                              <SelectItem value="warp">流光瞬移</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                     )}
 

@@ -15,6 +15,7 @@ import { ensureGuideGoal, WORKSPACE_EXISTS_GUIDE_GOAL } from '@/lib/guide-goals'
 
 import { useSpriteState } from './context/hooks';
 import { useAssistantEntrance } from './hooks/useAssistantEntrance';
+import { useAssistantMotionEffect } from './hooks/useAssistantMotionEffect';
 import { useDragCollector } from './hooks/useDragCollector';
 import { useFileDropCollector } from './hooks/useFileDropCollector';
 import { MessageProvider, SpriteMessage } from './message';
@@ -54,6 +55,7 @@ const AIAssistantInner: React.FC = () => {
     surface: entranceSurface,
     characterRect: entranceCharacterRect
   });
+  const { motionWrapperRef, motionRunning } = useAssistantMotionEffect(entranceComplete);
 
   // 全局语音播放
   useSpriteSpeak();
@@ -135,7 +137,7 @@ const AIAssistantInner: React.FC = () => {
 
   // 交互采集
   const handleClick = (): void => {
-    if (!entranceComplete) return;
+    if (!entranceComplete || motionRunning) return;
     const now = Date.now();
     if (now - lastClickInteractionAtRef.current < CLICK_INTERACTION_DEDUP_MS) {
       return;
@@ -145,18 +147,18 @@ const AIAssistantInner: React.FC = () => {
   };
 
   const handleMouseEnter = (): void => {
-    if (!entranceComplete) return;
+    if (!entranceComplete || motionRunning) return;
     window.YUA.sprite.interact('hover-enter');
   };
 
   const handleMouseLeave = (): void => {
-    if (!entranceComplete) return;
+    if (!entranceComplete || motionRunning) return;
     window.YUA.sprite.interact('hover-leave');
   };
 
   const handleContextMenu = (e: React.MouseEvent): void => {
     e.preventDefault();
-    if (!entranceComplete) return;
+    if (!entranceComplete || motionRunning) return;
     void (async () => {
       const workspaceGoal = await ensureGuideGoal({
         goal: WORKSPACE_EXISTS_GUIDE_GOAL,
@@ -172,7 +174,7 @@ const AIAssistantInner: React.FC = () => {
   };
 
   const handleDoubleClick = (): void => {
-    if (!entranceComplete) return;
+    if (!entranceComplete || motionRunning) return;
     window.YUA.sprite.interact('double-click');
     void (async () => {
       const guide = await ensureChatApiConfigGoal({ trigger: 'assistant-double-click' });
@@ -197,7 +199,7 @@ const AIAssistantInner: React.FC = () => {
       ref={containerRef}
       style={{ width, height, left: effectivePadding, top: effectivePadding }}
       className={`fixed select-none z-[9999]
-        ${entranceComplete ? 'pointer-events-auto' : 'pointer-events-none'}
+        ${entranceComplete && !motionRunning ? 'pointer-events-auto' : 'pointer-events-none'}
         ${isDragReady ? 'cursor-grabbing opacity-80' : 'cursor-grab'}
         ${showBlock ? 'opacity-10' : ''}
       `}
@@ -208,31 +210,33 @@ const AIAssistantInner: React.FC = () => {
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
     >
-      {entranceComplete && <PaddingDebugOverlay padding={effectivePadding} />}
-      {/* inline 模式下才在主窗口内嵌入气泡；独立窗口模式交给气泡窗口 */}
-      {!isBubbleWindow && entranceComplete && <SpriteMessage />}
-      <div className={entranceComplete ? 'contents' : 'contents invisible'}>
-        <PersonaGainEffects />
-      </div>
-      <Dropzone
-        onDragEnter={entranceComplete ? handleDragEnter : undefined}
-        onDragLeave={entranceComplete ? handleDragLeave : undefined}
-        onDropFiles={entranceComplete ? handleDropFiles : undefined}
-        customDropzoneInside={
-          <div className="flex items-center justify-center absolute top-2 left-1/2 -translate-x-1/2 p-1 rounded-md bg-primary text-primary-foreground text-xs whitespace-nowrap z-10">
-            把文件交给我吧
-          </div>
-        }
-      >
-        <div
-          ref={rendererWrapperRef}
-          data-assistant-entrance={entranceRunning ? 'running' : entranceComplete ? 'complete' : 'waiting'}
-          style={{ width: targetWidth, height: targetHeight, clipPath: entranceComplete ? 'inset(0 0 0 0)' : 'inset(100% 0 0 0)', opacity: entranceComplete ? 1 : 0 }}
-        >
-          <Renderer width={width} height={height} walkDirection={walkDirection} onFirstFrame={reportFirstFrame} />
+      <div ref={motionWrapperRef} data-assistant-motion={motionRunning ? 'running' : 'idle'} className="relative w-full h-full">
+        {entranceComplete && <PaddingDebugOverlay padding={effectivePadding} />}
+        {/* inline 模式下才在主窗口内嵌入气泡；独立窗口模式交给气泡窗口 */}
+        {!isBubbleWindow && entranceComplete && <SpriteMessage />}
+        <div className={entranceComplete ? 'contents' : 'contents invisible'}>
+          <PersonaGainEffects />
         </div>
-      </Dropzone>
-      {entranceComplete && <StatusIndicator isDragging={isDragging} isWalking={isWalking} />}
+        <Dropzone
+          onDragEnter={entranceComplete ? handleDragEnter : undefined}
+          onDragLeave={entranceComplete ? handleDragLeave : undefined}
+          onDropFiles={entranceComplete ? handleDropFiles : undefined}
+          customDropzoneInside={
+            <div className="flex items-center justify-center absolute top-2 left-1/2 -translate-x-1/2 p-1 rounded-md bg-primary text-primary-foreground text-xs whitespace-nowrap z-10">
+              把文件交给我吧
+            </div>
+          }
+        >
+          <div
+            ref={rendererWrapperRef}
+            data-assistant-entrance={entranceRunning ? 'running' : entranceComplete ? 'complete' : 'waiting'}
+            style={{ width: targetWidth, height: targetHeight, clipPath: entranceComplete ? 'inset(0 0 0 0)' : 'inset(100% 0 0 0)', opacity: entranceComplete ? 1 : 0 }}
+          >
+            <Renderer width={width} height={height} walkDirection={walkDirection} onFirstFrame={reportFirstFrame} />
+          </div>
+        </Dropzone>
+        {entranceComplete && <StatusIndicator isDragging={isDragging} isWalking={isWalking} />}
+      </div>
     </div>
   );
 };

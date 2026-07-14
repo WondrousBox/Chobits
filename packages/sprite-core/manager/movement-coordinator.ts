@@ -40,6 +40,8 @@ export interface MovementCoordinatorDeps {
   emitWalkState: (state: SpriteWalkState) => void;
   emitConfigChanged: () => void;
   playWindowAnimation?: (movement: SpriteMovementConfig, playbackSize?: SpriteWindowAnimationPlaybackSize) => Promise<void> | void;
+  playMotionEffect?: (type: 'warp' | 'dash-trail', targetX: number, targetY: number) => Promise<boolean>;
+  cancelMotionEffect?: () => void;
 }
 
 export class MovementCoordinator {
@@ -48,6 +50,7 @@ export class MovementCoordinator {
   constructor(private readonly deps: MovementCoordinatorDeps) {}
 
   previewMovement(config: SpriteMovementPreviewConfig): void {
+    this.deps.cancelMotionEffect?.();
     const mode = config.movement?.mode ?? 'direction';
     if (config.movement?.enabled && mode === 'windowAnimation') {
       this.stopAutoMove();
@@ -84,7 +87,7 @@ export class MovementCoordinator {
     if (mode === 'walkTo') {
       const target = this.computeWalkTarget(config.movement);
       if (!target) return;
-      void this.deps.walkTo(target.targetX, target.targetY, config.movement.speed);
+      void this.moveToTarget(target, config.movement);
       return;
     }
 
@@ -92,6 +95,7 @@ export class MovementCoordinator {
   }
 
   stopMovementPreview(): void {
+    this.deps.cancelMotionEffect?.();
     this.deps.stopWalk();
     this.stopAutoMove();
 
@@ -130,6 +134,10 @@ export class MovementCoordinator {
     }
 
     if (mode === 'walkTo') {
+      if (movement.motionEffect === 'warp') {
+        const target = this.computeWalkTarget(movement);
+        if (target) void this.moveToTarget(target, movement);
+      }
       return;
     }
 
@@ -151,7 +159,7 @@ export class MovementCoordinator {
       return false;
     }
 
-    await this.deps.walkTo(target.targetX, target.targetY, movement.speed);
+    await this.moveToTarget(target, movement);
     return true;
   }
 
@@ -170,6 +178,18 @@ export class MovementCoordinator {
     if (direction) {
       this.deps.emitWalkState({ active: true, direction });
     }
+  }
+
+  private async moveToTarget(target: { targetX: number; targetY: number }, movement: SpriteMovementConfig): Promise<void> {
+    if (movement.motionEffect === 'warp' && this.deps.playMotionEffect) {
+      try {
+        const played = await this.deps.playMotionEffect('warp', target.targetX, target.targetY);
+        if (played) return;
+      } catch {
+        // Existing window walking is the fail-open path when the overlay cannot run.
+      }
+    }
+    await this.deps.walkTo(target.targetX, target.targetY, movement.speed);
   }
 
   private computeWalkTarget(movement: SpriteMovementConfig): { targetX: number; targetY: number } | null {

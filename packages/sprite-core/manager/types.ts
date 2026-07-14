@@ -1,7 +1,7 @@
 import type { PersonaState } from '../persona-state';
 import type { SpritePurposeRoutinePlanner } from '../purpose';
 import type { SpriteSpeechSynthesisExecutor } from '../speak/types';
-import type { SpriteWindowAnimationPlayPosition } from '../types';
+import type { SpriteMotionEffectType, SpriteWindowAnimationPlayPosition } from '../types';
 
 // ============================================================================
 // 主进程调度器抽象（由 Electron main 注入，避免 sprite-core 反向依赖 Electron）
@@ -98,6 +98,11 @@ export interface SpriteWindowAnimationAdapter {
   }): Promise<void> | void;
 }
 
+export interface SpriteMotionEffectAdapter {
+  play(config: { type: SpriteMotionEffectType; targetX: number; targetY: number }): Promise<boolean>;
+  cancel?(): void;
+}
+
 /** SpriteManager 初始化选项 */
 export interface SpriteManagerOptions {
   /** 主窗口 */
@@ -116,6 +121,8 @@ export interface SpriteManagerOptions {
   purposeWindowAdapter?: SpritePurposeWindowAdapter;
   /** Adapter injected by Electron main for sprite animation triggered window presets. */
   windowAnimationAdapter?: SpriteWindowAnimationAdapter;
+  /** Adapter injected by Electron main for screen-space movement particle effects. */
+  motionEffectAdapter?: SpriteMotionEffectAdapter;
   /** Optional planner hook that can replace preset routines with validated AI routines. */
   purposeRoutinePlanner?: SpritePurposeRoutinePlanner;
   /** Shared main-process scheduler for autonomous sprite behaviors. */

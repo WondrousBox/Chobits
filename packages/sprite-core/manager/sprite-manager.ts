@@ -211,6 +211,7 @@ export class SpriteManager {
   private purposeHistory: SpritePurposeHistoryStore;
   private purposeWindowAdapter?: SpritePurposeWindowAdapter;
   private windowAnimationAdapter?: SpriteManagerOptions['windowAnimationAdapter'];
+  private motionEffectAdapter?: SpriteManagerOptions['motionEffectAdapter'];
 
   // 内建持久化
   private persistence: PersonaStatePersistence;
@@ -280,6 +281,7 @@ export class SpriteManager {
     this.spontaneousUtteranceExecutor = options.spontaneousUtteranceExecutor;
     this.purposeWindowAdapter = options.purposeWindowAdapter;
     this.windowAnimationAdapter = options.windowAnimationAdapter;
+    this.motionEffectAdapter = options.motionEffectAdapter;
     this.activePersonaIdentity = {
       name: options.appName ?? 'Chobits'
     };
@@ -348,7 +350,9 @@ export class SpriteManager {
           target: movement.windowAnimationTarget,
           playPosition: movement.windowAnimationPlayPosition,
           ...(playbackSize ? { playbackSize } : {})
-        })
+        }),
+      playMotionEffect: (type, targetX, targetY) => this.motionEffectAdapter?.play({ type, targetX, targetY }) ?? Promise.resolve(false),
+      cancelMotionEffect: () => this.motionEffectAdapter?.cancel?.()
     });
     this.purposeManager = new SpritePurposeManager({
       runner: new SpriteRoutineRunner({

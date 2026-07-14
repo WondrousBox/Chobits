@@ -19,6 +19,19 @@
  */
 
 // ----- Shared Types -----
+export { ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY, ACHIEVEMENT_UNLOCK_WINDOW_KEY, ACHIEVEMENT_UNLOCK_WINDOW_ROUTE_HASH } from './achievement-window';
+export {
+  createSpriteMotionEffectOverlayBounds,
+  createSpriteMotionEffectPath,
+  createSpriteMotionEffectRun,
+  getSpriteMotionEffectFrame,
+  getSpriteMotionEffectLocalPoint,
+  getSpriteMotionEffectPoint,
+  SPRITE_MOTION_EFFECT_COMPLETION_GRACE_MS,
+  SPRITE_MOTION_EFFECT_READY_TIMEOUT_MS,
+  SPRITE_MOTION_EFFECT_START_DELAY_MS,
+  SPRITE_MOTION_EFFECT_TIMELINES
+} from './sprite-motion-effect';
 export type {
   BusyInput,
   BusyMessage,
@@ -62,10 +75,24 @@ export type {
   SpriteFeedbackResult,
   SpriteInitialState,
   SpriteMessageData,
+  SpriteMotionEffectCancelPayload,
+  SpriteMotionEffectMode,
+  SpriteMotionEffectPath,
+  SpriteMotionEffectPoint,
+  SpriteMotionEffectRect,
+  SpriteMotionEffectRun,
+  SpriteMotionEffectTimeline,
+  SpriteMotionEffectType,
   SpriteMovementConfig,
   SpriteMovementDirection,
   SpriteMovementMode,
   SpriteMovementTrigger,
+  SpritePersonaStateResult,
+  SpritePlayCommand,
+  SpriteStateSnapshot,
+  SpriteTriggerOptions,
+  SpriteTriggerRequest,
+  SpriteWalkState,
   SpriteWindowAnimationAnchor,
   SpriteWindowAnimationCoordinateFitMode,
   SpriteWindowAnimationCoordinateSpace,
@@ -78,20 +105,9 @@ export type {
   SpriteWindowAnimationPoint,
   SpriteWindowAnimationPresetId,
   SpriteWindowAnimationSizeMode,
-  SpritePersonaStateResult,
-  SpritePlayCommand,
-  SpriteStateSnapshot,
-  SpriteTriggerOptions,
-  SpriteTriggerRequest,
-  SpriteWalkState,
   ToastInput,
   ToastMessage
 } from './types';
-export {
-  ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY,
-  ACHIEVEMENT_UNLOCK_WINDOW_KEY,
-  ACHIEVEMENT_UNLOCK_WINDOW_ROUTE_HASH
-} from './achievement-window';
 export {
   compileSpriteAnimationCondition,
   DEFAULT_DURATION,
@@ -113,6 +129,7 @@ export {
   SPRITE_ANIMATION_PLAYLIST_MODES,
   SPRITE_EFFECT_IPC_CHANNELS,
   SPRITE_EVENT_TYPES,
+  SPRITE_MOTION_EFFECT_IPC_CHANNELS,
   SpriteEventGroups
 } from './types';
 

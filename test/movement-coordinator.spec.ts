@@ -4,7 +4,7 @@ import { MovementCoordinator } from '../packages/sprite-core/manager/movement-co
 import type { SpriteConfig, SpriteMovementConfig } from '../packages/sprite-core/types';
 import type { WindowControllerAvoidRegion } from '../packages/sprite-core/window-controller-model';
 
-function createCoordinatorHarness(options?: { canUseMovement?: () => boolean; getAvoidRegions?: () => WindowControllerAvoidRegion[] }): {
+function createCoordinatorHarness(options?: { canUseMovement?: () => boolean; getAvoidRegions?: () => WindowControllerAvoidRegion[]; motionEffectResult?: boolean }): {
   coordinator: MovementCoordinator;
   getConfig: () => SpriteConfig;
   walkTo: ReturnType<typeof vi.fn>;
@@ -15,6 +15,8 @@ function createCoordinatorHarness(options?: { canUseMovement?: () => boolean; ge
   emitConfigChanged: ReturnType<typeof vi.fn>;
   emitWalkState: ReturnType<typeof vi.fn>;
   playWindowAnimation: ReturnType<typeof vi.fn>;
+  playMotionEffect: ReturnType<typeof vi.fn>;
+  cancelMotionEffect: ReturnType<typeof vi.fn>;
 } {
   let config: SpriteConfig = {
     width: 200,
@@ -32,6 +34,8 @@ function createCoordinatorHarness(options?: { canUseMovement?: () => boolean; ge
   const emitConfigChanged = vi.fn();
   const emitWalkState = vi.fn();
   const playWindowAnimation = vi.fn(async () => undefined);
+  const playMotionEffect = vi.fn(async () => options?.motionEffectResult ?? true);
+  const cancelMotionEffect = vi.fn();
   const startAutoMove = vi.fn((movement: SpriteMovementConfig) => {
     autoMoving = true;
     if (movement.direction === 'left') {
@@ -66,7 +70,9 @@ function createCoordinatorHarness(options?: { canUseMovement?: () => boolean; ge
     getAutoMoveDirection: () => autoMoveDirection,
     emitWalkState,
     emitConfigChanged,
-    playWindowAnimation
+    playWindowAnimation,
+    playMotionEffect,
+    cancelMotionEffect
   });
 
   return {
@@ -79,7 +85,9 @@ function createCoordinatorHarness(options?: { canUseMovement?: () => boolean; ge
     setWindowSize,
     emitConfigChanged,
     emitWalkState,
-    playWindowAnimation
+    playWindowAnimation,
+    playMotionEffect,
+    cancelMotionEffect
   };
 }
 
@@ -190,6 +198,49 @@ describe('MovementCoordinator', () => {
     expect(targetY).toBeGreaterThanOrEqual(168);
     expect(targetY).toBeLessThanOrEqual(312);
     expect(speed).toBe(60);
+  });
+
+  it('routes a warp preview through the motion effect adapter', async () => {
+    const harness = createCoordinatorHarness();
+
+    harness.coordinator.previewMovement({
+      width: 320,
+      height: 260,
+      padding: 24,
+      movement: { enabled: true, mode: 'walkTo', motionEffect: 'warp', verticalRange: 0.1 }
+    });
+    await vi.waitFor(() => expect(harness.playMotionEffect).toHaveBeenCalledOnce());
+
+    expect(harness.playMotionEffect).toHaveBeenCalledWith('warp', expect.any(Number), expect.any(Number));
+    expect(harness.walkTo).not.toHaveBeenCalled();
+  });
+
+  it('falls back to normal walking when the warp overlay is unavailable', async () => {
+    const harness = createCoordinatorHarness({ motionEffectResult: false });
+
+    const moved = await harness.coordinator.runBehaviorMovement({
+      enabled: true,
+      trigger: 'behavior',
+      mode: 'walkTo',
+      motionEffect: 'warp',
+      speed: 90
+    });
+
+    expect(moved).toBe(true);
+    expect(harness.playMotionEffect).toHaveBeenCalledOnce();
+    expect(harness.walkTo).toHaveBeenCalledWith(expect.any(Number), expect.any(Number), 90);
+  });
+
+  it('starts animation-triggered warp movement and cancels it with preview cleanup', async () => {
+    const harness = createCoordinatorHarness();
+    const movement: SpriteMovementConfig = { enabled: true, mode: 'walkTo', motionEffect: 'warp', trigger: 'animation' };
+
+    harness.coordinator.applyAnimationMovement(movement);
+    await vi.waitFor(() => expect(harness.playMotionEffect).toHaveBeenCalledOnce());
+    expect(harness.walkTo).not.toHaveBeenCalled();
+
+    harness.coordinator.stopMovementPreview();
+    expect(harness.cancelMotionEffect).toHaveBeenCalledOnce();
   });
 
   it('plays window animation presets without starting sprite movement state', () => {

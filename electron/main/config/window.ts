@@ -38,6 +38,7 @@ declare module '@aim-packages/window-manager' {
     windowAnimationEditor: void;
     spriteBubbleFixedTop: void;
     spriteEffect: void;
+    spriteMotionEffect: void;
     musicSpectrum: void;
   }
 }
@@ -892,6 +893,30 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       frame: false,
       transparent: true,
       resizable: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      focusable: false,
+      hasShadow: false,
+      show: false,
+      backgroundColor: '#00000000',
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
+    },
+    platformOverlays: {
+      darwin: { options: { hasShadow: false } }
+    }
+  },
+  spriteMotionEffect: {
+    routeHash: 'sprite-motion-effect',
+    preferShowInactive: true,
+    hideOnClose: true,
+    showOnReady: false,
+    openDevTools: false,
+    options: {
+      width: 1,
+      height: 1,
+      frame: false,
+      transparent: true,
+      resizable: false,
       alwaysOnTop: true,
       skipTaskbar: true,
       focusable: false,

@@ -306,6 +306,11 @@ export type SpriteMovementDirection = 'left' | 'right' | 'up' | 'down' | 'up-lef
  */
 export type SpriteMovementMode = 'direction' | 'walkTo' | 'windowAnimation';
 
+/** 可叠加到位置移动上的屏幕空间粒子效果。 */
+export type SpriteMotionEffectMode = 'none' | 'warp' | 'dash-trail';
+
+export type SpriteMotionEffectType = Exclude<SpriteMotionEffectMode, 'none'>;
+
 export type SpriteWindowAnimationPresetId = 'fly-in' | 'fade-in' | 'zoom-in' | 'fly-out' | 'fade-out' | 'zoom-out' | 'pulse' | 'shake';
 
 export type SpriteWindowAnimationDirection = 'left' | 'right' | 'top' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
@@ -422,6 +427,9 @@ export interface SpriteMovementConfig {
    * 限制目标位置与当前位置的 Y 轴偏差，避免角度过大
    */
   verticalRange?: number;
+
+  /** walkTo 移动的视觉增强；第一阶段开放 warp，dash-trail 预留给真实轨迹采样。 */
+  motionEffect?: SpriteMotionEffectMode;
 
   /** windowAnimation 模式的窗口动画预设 ID，默认 fly-in */
   windowAnimationPresetId?: SpriteWindowAnimationPresetId;
@@ -775,6 +783,61 @@ export const ASSISTANT_ENTRANCE_IPC_CHANNELS = {
   EFFECT_READY: 'sprite:assistant-entrance:effect-ready',
   START: 'sprite:assistant-entrance:start',
   COMPLETE: 'sprite:assistant-entrance:complete'
+} as const;
+
+// ============================================================================
+// 屏幕空间移动流光
+// ============================================================================
+
+export interface SpriteMotionEffectPoint {
+  x: number;
+  y: number;
+}
+
+export interface SpriteMotionEffectRect extends SpriteMotionEffectPoint {
+  width: number;
+  height: number;
+}
+
+export interface SpriteMotionEffectPath {
+  type: 'quadratic';
+  start: SpriteMotionEffectPoint;
+  control1: SpriteMotionEffectPoint;
+  end: SpriteMotionEffectPoint;
+}
+
+export interface SpriteMotionEffectTimeline {
+  dissolveEndMs: number;
+  travelStartMs: number;
+  travelEndMs: number;
+  arriveStartMs: number;
+  arriveEndMs: number;
+}
+
+export interface SpriteMotionEffectRun {
+  runId: string;
+  type: SpriteMotionEffectType;
+  startsAt: number;
+  durationMs: number;
+  sourceBounds: SpriteMotionEffectRect;
+  destinationBounds: SpriteMotionEffectRect;
+  overlayBounds: SpriteMotionEffectRect;
+  path: SpriteMotionEffectPath;
+  timeline: SpriteMotionEffectTimeline;
+  seed: number;
+  reducedMotion: boolean;
+}
+
+export interface SpriteMotionEffectCancelPayload {
+  runId: string;
+  reason: 'completed' | 'cancelled' | 'superseded' | 'failed' | 'timeout' | 'disposed';
+}
+
+export const SPRITE_MOTION_EFFECT_IPC_CHANNELS = {
+  READY: 'sprite:motion-effect:ready',
+  START: 'sprite:motion-effect:start',
+  CANCEL: 'sprite:motion-effect:cancel',
+  COMPLETE: 'sprite:motion-effect:complete'
 } as const;
 
 export interface MessageQueueState {

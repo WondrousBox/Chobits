@@ -66,6 +66,7 @@ import { SpritePurposePlannerPreferencesStore } from './sprite/purpose-planner-p
 import { createSpritePurposePiPlannerExecutor } from './sprite/purpose-planner-runtime';
 import { createSpritePurposeRoutinePlanner, SpritePurposePlannerService } from './sprite/purpose-planner-service';
 import { SpriteSpontaneousUtteranceService } from './sprite/spontaneous-utterance-service';
+import { initSpriteMotionEffectController } from './sprite-motion-effect';
 import { initStatusHandlers } from './status';
 import { initSystemHandlers } from './system/ipc-main';
 import { initThemeHandlers } from './theme/ipc-main';
@@ -441,6 +442,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   setOnboardingFocus(onboardingFocusActive);
 
   initWindowHandlers(win);
+  const spriteMotionEffectController = initSpriteMotionEffectController(win);
   // Load proxy settings before any handlers that trigger startup network requests.
   await initProxyHandlers(win);
   initFFmpegHandlers(win);
@@ -624,6 +626,10 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
           console.warn('[SpriteWindowAnimation] play preset failed:', result.error || presetId);
         }
       }
+    },
+    motionEffectAdapter: {
+      play: (config) => spriteMotionEffectController.play(config),
+      cancel: () => spriteMotionEffectController.cancel()
     },
     purposeRoutinePlanner: createSpritePurposeRoutinePlanner(purposePlannerService, {
       history: purposeHistoryStore,

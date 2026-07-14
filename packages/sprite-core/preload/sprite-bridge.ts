@@ -40,10 +40,12 @@ import type {
   SpriteEffectPayload,
   SpriteFeedbackRequest,
   SpriteFeedbackResult,
+  SpriteMotionEffectCancelPayload,
+  SpriteMotionEffectRun,
   SpriteMovementPreviewConfig,
   SpriteTriggerOptions
 } from '../types';
-import { ASSISTANT_ENTRANCE_IPC_CHANNELS, MESSAGE_IPC_CHANNELS, SPRITE_EFFECT_IPC_CHANNELS } from '../types';
+import { ASSISTANT_ENTRANCE_IPC_CHANNELS, MESSAGE_IPC_CHANNELS, SPRITE_EFFECT_IPC_CHANNELS, SPRITE_MOTION_EFFECT_IPC_CHANNELS } from '../types';
 import type { WindowControllerAvoidRegion } from '../window-controller-model';
 
 function onMessageBridge(cb: (payload: MessageBridgePayload) => void): () => void {
@@ -68,6 +70,18 @@ function onAssistantEntranceStart(cb: (payload: AssistantEntranceRun) => void): 
   return () => {
     ipcRenderer.off(ASSISTANT_ENTRANCE_IPC_CHANNELS.START, handler);
   };
+}
+
+function onMotionEffectStart(cb: (payload: SpriteMotionEffectRun) => void): () => void {
+  const handler = (_: any, payload: SpriteMotionEffectRun): void => cb(payload);
+  ipcRenderer.on(SPRITE_MOTION_EFFECT_IPC_CHANNELS.START, handler);
+  return () => ipcRenderer.off(SPRITE_MOTION_EFFECT_IPC_CHANNELS.START, handler);
+}
+
+function onMotionEffectCancel(cb: (payload: SpriteMotionEffectCancelPayload) => void): () => void {
+  const handler = (_: any, payload: SpriteMotionEffectCancelPayload): void => cb(payload);
+  ipcRenderer.on(SPRITE_MOTION_EFFECT_IPC_CHANNELS.CANCEL, handler);
+  return () => ipcRenderer.off(SPRITE_MOTION_EFFECT_IPC_CHANNELS.CANCEL, handler);
 }
 
 export type SpriteBridgeType = {
@@ -140,6 +154,8 @@ export type SpriteBridgeType = {
   prepareEntrance(payload: AssistantEntrancePreparePayload): Promise<AssistantEntrancePrepareResult>;
   effectEntranceReady(): Promise<void>;
   completeEntrance(runId: string): Promise<void>;
+  motionEffectReady(): Promise<void>;
+  completeMotionEffect(runId: string): Promise<void>;
   getSpontaneousUtterancePreferences(): Promise<SpriteSpontaneousUtterancePreferences | null>;
   updateSpontaneousUtterancePreferences(patch: Partial<SpriteSpontaneousUtterancePreferences>): Promise<SpriteSpontaneousUtterancePreferences | null>;
   listSpontaneousUtteranceHistory(query?: SpriteSpontaneousUtteranceHistoryQuery): Promise<SpriteSpontaneousUtteranceHistoryItem[]>;
@@ -186,6 +202,8 @@ export type SpriteBridgeType = {
   onMessage(cb: (data: any) => void): () => void;
   onEffect(cb: (data: SpriteEffectBridgePayload) => void): () => void;
   onEntranceStart(cb: (data: AssistantEntranceRun) => void): () => void;
+  onMotionEffectStart(cb: (data: SpriteMotionEffectRun) => void): () => void;
+  onMotionEffectCancel(cb: (data: SpriteMotionEffectCancelPayload) => void): () => void;
   onWalk(cb: (data: any) => void): () => void;
   onConfig(cb: (data: any) => void): () => void;
   onPurposeState(cb: (data: SpritePurposeSnapshot) => void): () => void;
@@ -252,6 +270,8 @@ export const spriteBridge: SpriteBridgeType = {
   prepareEntrance: (payload) => ipcRenderer.invoke(ASSISTANT_ENTRANCE_IPC_CHANNELS.PREPARE, payload),
   effectEntranceReady: () => ipcRenderer.invoke(ASSISTANT_ENTRANCE_IPC_CHANNELS.EFFECT_READY),
   completeEntrance: (runId) => ipcRenderer.invoke(ASSISTANT_ENTRANCE_IPC_CHANNELS.COMPLETE, { runId }),
+  motionEffectReady: () => ipcRenderer.invoke(SPRITE_MOTION_EFFECT_IPC_CHANNELS.READY),
+  completeMotionEffect: (runId) => ipcRenderer.invoke(SPRITE_MOTION_EFFECT_IPC_CHANNELS.COMPLETE, { runId }),
   getSpontaneousUtterancePreferences: () => ipcRenderer.invoke('sprite:spontaneous:getPreferences'),
   updateSpontaneousUtterancePreferences: (patch) => ipcRenderer.invoke('sprite:spontaneous:updatePreferences', patch),
   listSpontaneousUtteranceHistory: (query) => ipcRenderer.invoke('sprite:spontaneous:listHistory', query),
@@ -370,6 +390,8 @@ export const spriteBridge: SpriteBridgeType = {
     }),
   onEffect: (cb) => onEffectBridge(cb),
   onEntranceStart: (cb) => onAssistantEntranceStart(cb),
+  onMotionEffectStart: (cb) => onMotionEffectStart(cb),
+  onMotionEffectCancel: (cb) => onMotionEffectCancel(cb),
   onWalk: (cb) => {
     const handler = (_: any, data: any): void => cb(data);
     ipcRenderer.on('sprite:walk', handler);

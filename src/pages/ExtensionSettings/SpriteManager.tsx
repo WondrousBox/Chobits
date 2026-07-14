@@ -1,5 +1,13 @@
 import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
-import type { SpriteMovementConfig, SpriteMovementDirection, SpriteMovementMode, SpriteMovementTrigger, SpriteWindowAnimationDirection, SpriteWindowAnimationPresetId } from '@packages/sprite-core/types';
+import type {
+  SpriteMotionEffectMode,
+  SpriteMovementConfig,
+  SpriteMovementDirection,
+  SpriteMovementMode,
+  SpriteMovementTrigger,
+  SpriteWindowAnimationDirection,
+  SpriteWindowAnimationPresetId
+} from '@packages/sprite-core/types';
 import React, { useCallback, useEffect, useState } from 'react';
 import { TbPencil, TbPlayerPlay, TbTools, TbTrash, TbX } from 'react-icons/tb';
 import { toast } from 'sonner';
@@ -23,8 +31,8 @@ import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 import { createSpriteAnimationMetaDraft, formatSpriteAnimationConditionInput, formatSpriteTriggerAliasesInput, parseSpriteAnimationConditionInput } from './components/sprite-animation-meta-utils';
 import SpriteAnimationConditionBuilder from './components/SpriteAnimationConditionBuilder';
 import SpriteAnimationMetaPopover from './components/SpriteAnimationMetaPopover';
-import SpriteWindowAnimationPositionEditor from './components/SpriteWindowAnimationPositionEditor';
 import SpriteTriggerPicker from './components/SpriteTriggerPicker';
+import SpriteWindowAnimationPositionEditor from './components/SpriteWindowAnimationPositionEditor';
 import SpritePackManager from './SpritePackManager';
 import SpriteVideoEditor, { type SpriteVideoConfig } from './SpriteVideoEditor';
 import { isWindowAnimationPresetId, WINDOW_ANIMATION_PRESET_DIRECTIONS, WINDOW_ANIMATION_PRESETS } from './window-animation-presets';
@@ -314,25 +322,39 @@ function SpriteAnimationConfigEditor({
                     </div>
                   ) : (
                     <>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">方向</Label>
-                        <Select value={movement.direction ?? 'random'} onValueChange={(value) => setMovement((prev) => ({ ...prev, direction: value as SpriteMovementDirection }))}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="left">向左</SelectItem>
-                            <SelectItem value="right">向右</SelectItem>
-                            <SelectItem value="up">向上</SelectItem>
-                            <SelectItem value="down">向下</SelectItem>
-                            <SelectItem value="up-left">左上</SelectItem>
-                            <SelectItem value="up-right">右上</SelectItem>
-                            <SelectItem value="down-left">左下</SelectItem>
-                            <SelectItem value="down-right">右下</SelectItem>
-                            <SelectItem value="random">随机</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      {movementMode === 'walkTo' ? (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">竖直范围</Label>
+                          <Input
+                            type="number"
+                            min={0.01}
+                            max={1}
+                            step={0.05}
+                            value={movement.verticalRange ?? 0.1}
+                            onChange={(event) => setMovement((prev) => ({ ...prev, verticalRange: Math.max(0.01, Math.min(1, Number(event.target.value) || 0.1)) }))}
+                          />
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">方向</Label>
+                          <Select value={movement.direction ?? 'random'} onValueChange={(value) => setMovement((prev) => ({ ...prev, direction: value as SpriteMovementDirection }))}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="left">向左</SelectItem>
+                              <SelectItem value="right">向右</SelectItem>
+                              <SelectItem value="up">向上</SelectItem>
+                              <SelectItem value="down">向下</SelectItem>
+                              <SelectItem value="up-left">左上</SelectItem>
+                              <SelectItem value="up-right">右上</SelectItem>
+                              <SelectItem value="down-left">左下</SelectItem>
+                              <SelectItem value="down-right">右下</SelectItem>
+                              <SelectItem value="random">随机</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                       <div className="space-y-1.5">
                         <Label className="text-xs text-muted-foreground">速度 px/s</Label>
                         <Input type="number" value={movement.speed ?? 60} onChange={(event) => setMovement((prev) => ({ ...prev, speed: getPositiveNumber(event.target.value, 60) }))} />
@@ -349,6 +371,20 @@ function SpriteAnimationConfigEditor({
                           </SelectContent>
                         </Select>
                       </div>
+                      {movementMode === 'walkTo' && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">移动流光</Label>
+                          <Select value={movement.motionEffect ?? 'none'} onValueChange={(value) => setMovement((prev) => ({ ...prev, motionEffect: value as SpriteMotionEffectMode }))}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">关闭</SelectItem>
+                              <SelectItem value="warp">流光瞬移</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>

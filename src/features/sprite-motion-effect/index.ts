@@ -1,0 +1,1 @@
+export { SpriteMotionEffectPage } from './SpriteMotionEffectPage';
