@@ -887,8 +887,8 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     options: {
       width: 420,
       height: 260,
-      minWidth: 360,
-      minHeight: 220,
+      minWidth: 120,
+      minHeight: 80,
       frame: false,
       transparent: true,
       resizable: true,

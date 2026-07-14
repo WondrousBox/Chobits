@@ -7,13 +7,14 @@
  * - 不再实例化任何 sprite-core 引擎
  */
 import { isBubbleWindowMode } from '@packages/sprite-core/types';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import Dropzone from '@/components/common/Dropzone';
 import { ensureChatApiConfigGoal } from '@/lib/chat-api-config-guide';
 import { ensureGuideGoal, WORKSPACE_EXISTS_GUIDE_GOAL } from '@/lib/guide-goals';
 
 import { useSpriteState } from './context/hooks';
+import { useAssistantEntrance } from './hooks/useAssistantEntrance';
 import { useDragCollector } from './hooks/useDragCollector';
 import { useFileDropCollector } from './hooks/useFileDropCollector';
 import { MessageProvider, SpriteMessage } from './message';
@@ -23,7 +24,7 @@ import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
 import PersonaGainEffects from './ui/PersonaGainEffects';
 import StatusIndicator from './ui/StatusIndicator';
 
-const showBlock = true; // 开发时显示
+const showBlock = false; // 开发时显示
 const CLICK_INTERACTION_DEDUP_MS = 300;
 
 /** 内部组件：包含实际逻辑 */
@@ -39,6 +40,20 @@ const AIAssistantInner: React.FC = () => {
   const { onMouseDown, isDragging, isDragReady } = useDragCollector();
   const { handleDragEnter, handleDragLeave, handleDropFiles } = useFileDropCollector();
   const lastClickInteractionAtRef = useRef(0);
+  const [assistantSizeReady, setAssistantSizeReady] = useState(false);
+  const playback = currentAnimation?.playback;
+  const targetWidth = playback?.width ?? width;
+  const targetHeight = playback?.height ?? height;
+  const rawPadding = playback?.padding ?? padding;
+  const targetPadding = isBubbleWindow ? 0 : rawPadding;
+  const entranceSurface = useMemo(() => ({ width: targetWidth + targetPadding * 2, height: targetHeight + targetPadding * 2 }), [targetHeight, targetPadding, targetWidth]);
+  const entranceCharacterRect = useMemo(() => ({ x: targetPadding, y: targetPadding, width: targetWidth, height: targetHeight }), [targetHeight, targetPadding, targetWidth]);
+  const { rendererWrapperRef, entranceComplete, entranceRunning, reportFirstFrame } = useAssistantEntrance({
+    enabled: ready,
+    sizeReady: assistantSizeReady,
+    surface: entranceSurface,
+    characterRect: entranceCharacterRect
+  });
 
   // 全局语音播放
   useSpriteSpeak();
@@ -103,11 +118,6 @@ const AIAssistantInner: React.FC = () => {
   // 当动画切换、尺寸或气泡模式变化时，同步到主进程调整主窗口尺寸。
   useEffect(() => {
     if (!ready) return;
-    const playback = currentAnimation?.playback;
-    const targetWidth = playback?.width ?? width;
-    const targetHeight = playback?.height ?? height;
-    const rawPadding = playback?.padding ?? padding;
-    const targetPadding = isBubbleWindow ? 0 : rawPadding;
     const setSize = async (): Promise<void> => {
       try {
         await window.YUA.window.setAssistantSize({
@@ -115,15 +125,17 @@ const AIAssistantInner: React.FC = () => {
           height: targetHeight,
           padding: targetPadding
         });
+        setAssistantSizeReady(true);
       } catch (error) {
         console.error('Failed to set assistant size:', error);
       }
     };
     setSize();
-  }, [ready, currentAnimation, width, height, padding, isBubbleWindow]);
+  }, [ready, targetWidth, targetHeight, targetPadding]);
 
   // 交互采集
   const handleClick = (): void => {
+    if (!entranceComplete) return;
     const now = Date.now();
     if (now - lastClickInteractionAtRef.current < CLICK_INTERACTION_DEDUP_MS) {
       return;
@@ -133,15 +145,18 @@ const AIAssistantInner: React.FC = () => {
   };
 
   const handleMouseEnter = (): void => {
+    if (!entranceComplete) return;
     window.YUA.sprite.interact('hover-enter');
   };
 
   const handleMouseLeave = (): void => {
+    if (!entranceComplete) return;
     window.YUA.sprite.interact('hover-leave');
   };
 
   const handleContextMenu = (e: React.MouseEvent): void => {
     e.preventDefault();
+    if (!entranceComplete) return;
     void (async () => {
       const workspaceGoal = await ensureGuideGoal({
         goal: WORKSPACE_EXISTS_GUIDE_GOAL,
@@ -157,6 +172,7 @@ const AIAssistantInner: React.FC = () => {
   };
 
   const handleDoubleClick = (): void => {
+    if (!entranceComplete) return;
     window.YUA.sprite.interact('double-click');
     void (async () => {
       const guide = await ensureChatApiConfigGoal({ trigger: 'assistant-double-click' });
@@ -180,7 +196,8 @@ const AIAssistantInner: React.FC = () => {
     <div
       ref={containerRef}
       style={{ width, height, left: effectivePadding, top: effectivePadding }}
-      className={`fixed select-none z-[9999] pointer-events-auto
+      className={`fixed select-none z-[9999]
+        ${entranceComplete ? 'pointer-events-auto' : 'pointer-events-none'}
         ${isDragReady ? 'cursor-grabbing opacity-80' : 'cursor-grab'}
         ${showBlock ? 'opacity-10' : ''}
       `}
@@ -191,23 +208,31 @@ const AIAssistantInner: React.FC = () => {
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
     >
-      <PaddingDebugOverlay padding={effectivePadding} />
+      {entranceComplete && <PaddingDebugOverlay padding={effectivePadding} />}
       {/* inline 模式下才在主窗口内嵌入气泡；独立窗口模式交给气泡窗口 */}
-      {!isBubbleWindow && <SpriteMessage />}
-      <PersonaGainEffects />
+      {!isBubbleWindow && entranceComplete && <SpriteMessage />}
+      <div className={entranceComplete ? 'contents' : 'contents invisible'}>
+        <PersonaGainEffects />
+      </div>
       <Dropzone
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDropFiles={handleDropFiles}
+        onDragEnter={entranceComplete ? handleDragEnter : undefined}
+        onDragLeave={entranceComplete ? handleDragLeave : undefined}
+        onDropFiles={entranceComplete ? handleDropFiles : undefined}
         customDropzoneInside={
           <div className="flex items-center justify-center absolute top-2 left-1/2 -translate-x-1/2 p-1 rounded-md bg-primary text-primary-foreground text-xs whitespace-nowrap z-10">
             把文件交给我吧
           </div>
         }
       >
-        <Renderer width={width} height={height} walkDirection={walkDirection} />
+        <div
+          ref={rendererWrapperRef}
+          data-assistant-entrance={entranceRunning ? 'running' : entranceComplete ? 'complete' : 'waiting'}
+          style={{ width: targetWidth, height: targetHeight, clipPath: entranceComplete ? 'inset(0 0 0 0)' : 'inset(100% 0 0 0)', opacity: entranceComplete ? 1 : 0 }}
+        >
+          <Renderer width={width} height={height} walkDirection={walkDirection} onFirstFrame={reportFirstFrame} />
+        </div>
       </Dropzone>
-      <StatusIndicator isDragging={isDragging} isWalking={isWalking} />
+      {entranceComplete && <StatusIndicator isDragging={isDragging} isWalking={isWalking} />}
     </div>
   );
 };

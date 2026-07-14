@@ -1,5 +1,5 @@
 import type { SpritePlayCommand } from '@packages/sprite-core/types';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useSpriteState } from '../context/hooks';
 import { resolveSpriteSrc } from '../utils/resource';
@@ -51,7 +51,7 @@ function isVideoReadyForPresentation(video: HTMLVideoElement | null, presentatio
   return attrSrc === expectedSrc || currentSrc === expectedSrc;
 }
 
-export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' | 'right' | null }): JSX.Element | null {
+export default function VideoSprite({ walkDirection, onFirstFrame }: { walkDirection?: 'left' | 'right' | null; onFirstFrame?: () => void }): JSX.Element | null {
   const frontVideoRef = useRef<HTMLVideoElement | null>(null);
   const backVideoRef = useRef<HTMLVideoElement | null>(null);
   const { currentAnimation, spriteState } = useSpriteState();
@@ -61,6 +61,8 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
   const slotPresentationsRef = useRef<Record<VideoSlot, VideoPresentation | null>>({ front: null, back: null });
   const [activePresentation, setActivePresentation] = useState<VideoPresentation | null>(null);
   const pendingSwitchRef = useRef<{ slot: VideoSlot; key: string } | null>(null);
+  const firstFrameReportedRef = useRef(false);
+  const onFirstFrameRef = useRef(onFirstFrame);
   const [driver] = useState(
     () =>
       new VideoSpriteDriver({
@@ -74,6 +76,16 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
         }
       })
   );
+
+  useEffect(() => {
+    onFirstFrameRef.current = onFirstFrame;
+  }, [onFirstFrame]);
+
+  const reportFirstFrame = useCallback((): void => {
+    if (firstFrameReportedRef.current) return;
+    firstFrameReportedRef.current = true;
+    onFirstFrameRef.current?.();
+  }, []);
 
   const desiredPresentation = useMemo<VideoPresentation | null>(() => {
     const source = currentAnimation?.source;
@@ -278,7 +290,18 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
   const handleCanPlay = (slot: VideoSlot): void => {
     handleSlotReady(slot);
     if (slot !== activeSlot || !activePresentation) return;
+    if (isVideoReadyForPresentation(getVideoForSlot(slot), activePresentation)) {
+      reportFirstFrame();
+    }
     driver.handleCanPlay(getVideoForSlot(slot));
+  };
+
+  const handleLoadedData = (slot: VideoSlot): void => {
+    handleSlotReady(slot);
+    if (slot !== activeSlot || !activePresentation) return;
+    if (isVideoReadyForPresentation(getVideoForSlot(slot), activePresentation)) {
+      reportFirstFrame();
+    }
   };
 
   const handleTimeUpdate = (slot: VideoSlot): void => {
@@ -309,8 +332,7 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
     const presentation = slotPresentations[slot];
     const slotComputed = presentation?.computed ?? activeComputed;
     const isActive = slot === activeSlot && !!activePresentation;
-    const slotUsesNativeLoop =
-      isActive && slotComputed && slotComputed.loop === true && slotComputed.loopCount == null && slotComputed.loopStartMs == null && slotComputed.loopEndMs == null;
+    const slotUsesNativeLoop = isActive && slotComputed && slotComputed.loop === true && slotComputed.loopCount == null && slotComputed.loopStartMs == null && slotComputed.loopEndMs == null;
 
     return (
       <video
@@ -332,7 +354,7 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
         muted
         playsInline
         loop={slotUsesNativeLoop}
-        onLoadedData={() => handleSlotReady(slot)}
+        onLoadedData={() => handleLoadedData(slot)}
         onCanPlay={() => handleCanPlay(slot)}
         onTimeUpdate={() => handleTimeUpdate(slot)}
         onEnded={() => handleEnded(slot)}

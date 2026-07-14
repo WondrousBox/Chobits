@@ -1,7 +1,14 @@
 import PersonaGainEffects from '@/features/sprite-assistant/ui/PersonaGainEffects';
 
+import AssistantEntranceEffect from './AssistantEntranceEffect';
+
 export function SpriteEffectPage(): JSX.Element {
-  return <PersonaGainEffects presentation="window" />;
+  return (
+    <>
+      <AssistantEntranceEffect />
+      <PersonaGainEffects presentation="window" />
+    </>
+  );
 }
 
 export default SpriteEffectPage;

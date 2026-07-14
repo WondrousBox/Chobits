@@ -735,6 +735,48 @@ export const SPRITE_EFFECT_IPC_CHANNELS = {
   CLEAR: 'sprite:effect:clear'
 } as const;
 
+// ============================================================================
+// 助手冷启动出场效果
+// ============================================================================
+
+export interface AssistantEntranceSize {
+  width: number;
+  height: number;
+}
+
+export interface AssistantEntranceRect extends AssistantEntranceSize {
+  x: number;
+  y: number;
+}
+
+export interface AssistantEntrancePreparePayload {
+  surface: AssistantEntranceSize;
+  characterRect: AssistantEntranceRect;
+  reducedMotion: boolean;
+}
+
+export interface AssistantEntranceRun extends AssistantEntrancePreparePayload {
+  runId: string;
+  startsAt: number;
+  durationMs: number;
+  scanStartMs: number;
+  scanDurationMs: number;
+  seed: number;
+}
+
+export interface AssistantEntrancePrepareResult {
+  played: boolean;
+  run?: AssistantEntranceRun;
+  reason?: 'already-played' | 'invalid-sender' | 'invalid-payload' | 'effect-not-ready' | 'window-unavailable' | 'failed';
+}
+
+export const ASSISTANT_ENTRANCE_IPC_CHANNELS = {
+  PREPARE: 'sprite:assistant-entrance:prepare',
+  EFFECT_READY: 'sprite:assistant-entrance:effect-ready',
+  START: 'sprite:assistant-entrance:start',
+  COMPLETE: 'sprite:assistant-entrance:complete'
+} as const;
+
 export interface MessageQueueState {
   current: SpriteMessageData | null;
   queue: SpriteMessageData[];

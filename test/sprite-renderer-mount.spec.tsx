@@ -360,10 +360,11 @@ describe('sprite renderer mount', () => {
     const { SpriteStateProvider } = await import('../src/features/sprite-assistant/context/SpriteStateContext');
     const { useSpriteState } = await import('../src/features/sprite-assistant/context/hooks');
     const { default: VideoSprite } = await import('../src/features/sprite-assistant/renderers/VideoSprite');
+    const onFirstFrame = vi.fn();
 
     function MountedSprite(): JSX.Element | null {
       const { walkDirection } = useSpriteState();
-      return <VideoSprite walkDirection={walkDirection} />;
+      return <VideoSprite walkDirection={walkDirection} onFirstFrame={onFirstFrame} />;
     }
 
     const root = createRoot(env.container as any);
@@ -384,12 +385,20 @@ describe('sprite renderer mount', () => {
     const playSpy = vi.fn(async () => undefined);
     video.play = playSpy;
     video.duration = 1.2;
+    video.readyState = 2;
 
     await act(async () => {
       video.dispatchEvent({ type: 'canplay' });
       await Promise.resolve();
     });
     expect(playSpy).toHaveBeenCalledTimes(1);
+    expect(onFirstFrame).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      video.dispatchEvent({ type: 'canplay' });
+      await Promise.resolve();
+    });
+    expect(onFirstFrame).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       video.currentTime = 0.91;

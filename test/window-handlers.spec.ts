@@ -25,7 +25,9 @@ const windowManagerState = {
   adjustMainWindowForPadding: vi.fn(),
   setAnchorWidth: vi.fn(),
   setAnchorHeight: vi.fn(),
-  updateFollowerPositionsManually: vi.fn()
+  updateFollowerPositionsManually: vi.fn(),
+  show: vi.fn(() => Promise.resolve(null)),
+  hide: vi.fn(() => Promise.resolve(null))
 };
 
 vi.mock('@aim-packages/window-manager', () => ({
@@ -41,7 +43,9 @@ vi.mock('@aim-packages/window-manager', () => ({
     adjustMainWindowForPadding: (...args: any[]) => windowManagerState.adjustMainWindowForPadding(...args),
     setAnchorWidth: (...args: any[]) => windowManagerState.setAnchorWidth(...args),
     setAnchorHeight: (...args: any[]) => windowManagerState.setAnchorHeight(...args),
-    updateFollowerPositionsManually: (...args: any[]) => windowManagerState.updateFollowerPositionsManually(...args)
+    updateFollowerPositionsManually: (...args: any[]) => windowManagerState.updateFollowerPositionsManually(...args),
+    show: (...args: any[]) => windowManagerState.show(...args),
+    hide: (...args: any[]) => windowManagerState.hide(...args)
   }
 }));
 
@@ -73,8 +77,14 @@ vi.mock('electron', () => ({
 }));
 
 function createWindowStub(): any {
+  const id = Math.floor(Math.random() * 1000000);
   return {
+    id,
     __preloadPath: '/preload/index.mjs',
+    webContents: {
+      id,
+      send: vi.fn()
+    },
     getBounds: vi.fn(() => ({ x: 0, y: 0, width: 200, height: 200 })),
     on: vi.fn(),
     isDestroyed: vi.fn(() => false),
@@ -360,5 +370,69 @@ describe('window handlers', () => {
     expect(setAssistantSize({}, { width: 180, height: 240, padding: 0 })).toEqual({ success: true });
 
     expect(win.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true, { forward: true });
+  });
+
+  it('coordinates one assistant entrance run across the main and effect windows', async () => {
+    const { initWindowHandlers } = await import('../electron/main/handlers/window');
+    const { ASSISTANT_ENTRANCE_IPC_CHANNELS } = await import('../packages/sprite-core/types');
+    const win = createWindowStub();
+    const effectWindow = createWindowStub();
+    const mainSender = {};
+    const effectSender = {};
+    cursorPoint = { x: 50, y: 50 };
+
+    browserWindowFromWebContents.mockImplementation((sender: unknown) => {
+      if (sender === mainSender) return win;
+      if (sender === effectSender) return effectWindow;
+      return null;
+    });
+    windowManagerState.get.mockImplementation((key: string) => (key === 'spriteEffect' ? effectWindow : null));
+    windowManagerState.show.mockImplementation(async (key: string) => (key === 'spriteEffect' ? effectWindow : null));
+    windowManagerState.hide.mockImplementation(async (key: string) => (key === 'spriteEffect' ? effectWindow : null));
+
+    initWindowHandlers(win);
+    const setAssistantSize = ipcHandlers.get('setAssistantSize') as (event: unknown, params: { width: number; height: number; padding: number }) => { success: boolean };
+    expect(setAssistantSize({}, { width: 180, height: 240, padding: 0 })).toEqual({ success: true });
+
+    const markEffectReady = ipcHandlers.get(ASSISTANT_ENTRANCE_IPC_CHANNELS.EFFECT_READY) as (event: { sender: unknown }) => void;
+    markEffectReady({ sender: effectSender });
+
+    const prepare = ipcHandlers.get(ASSISTANT_ENTRANCE_IPC_CHANNELS.PREPARE) as (
+      event: { sender: unknown },
+      payload: { surface: { width: number; height: number }; characterRect: { x: number; y: number; width: number; height: number }; reducedMotion: boolean }
+    ) => Promise<{ played: boolean; run?: { runId: string } }>;
+    const payload = {
+      surface: { width: 180, height: 240 },
+      characterRect: { x: 0, y: 0, width: 180, height: 240 },
+      reducedMotion: false
+    };
+    const result = await prepare({ sender: mainSender }, payload);
+
+    expect(result.played).toBe(true);
+    expect(result.run?.runId).toMatch(/^assistant-entrance-/);
+    expect(effectWindow.setSize).toHaveBeenCalledWith(180, 240, false);
+    expect(windowManagerState.show).toHaveBeenCalledWith('spriteEffect');
+    expect(win.webContents.send).toHaveBeenCalledWith(ASSISTANT_ENTRANCE_IPC_CHANNELS.START, result.run);
+    expect(effectWindow.webContents.send).toHaveBeenCalledWith(ASSISTANT_ENTRANCE_IPC_CHANNELS.START, result.run);
+    expect(win.setIgnoreMouseEvents).toHaveBeenCalledWith(true, { forward: true });
+
+    await expect(prepare({ sender: mainSender }, payload)).resolves.toEqual({ played: false, reason: 'already-played' });
+
+    const setEffectVisible = ipcHandlers.get('sprite:effect:setVisible') as (event: unknown, payload: { visible: boolean }) => Promise<{ success: boolean }>;
+    await expect(setEffectVisible({}, { visible: false })).resolves.toEqual({ success: true });
+    expect(windowManagerState.hide).not.toHaveBeenCalled();
+
+    effectWindow.setSize.mockClear();
+    const resizeEffect = ipcHandlers.get('sprite:effect:resize') as (event: unknown, payload: { width: number; height: number }) => Promise<{ success: boolean }>;
+    await expect(resizeEffect({}, { width: 420, height: 260 })).resolves.toEqual({ success: true });
+    expect(effectWindow.setSize).not.toHaveBeenCalled();
+
+    const complete = ipcHandlers.get(ASSISTANT_ENTRANCE_IPC_CHANNELS.COMPLETE) as (event: { sender: unknown }, payload: { runId: string }) => void;
+    complete({ sender: mainSender }, { runId: 'not-the-active-run' });
+    expect(windowManagerState.hide).not.toHaveBeenCalled();
+
+    complete({ sender: mainSender }, { runId: result.run!.runId });
+    expect(windowManagerState.hide).toHaveBeenCalledWith('spriteEffect');
+    expect(win.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false, { forward: true });
   });
 });

@@ -5,10 +5,15 @@ import * as THREE from 'three';
  * Minimal 3D renderer using three.js that draws a rotating cube.
  * Purely UI: does not contain business logic. Dimensions are driven by props.
  */
-export default function ThreeSprite({ width = 180, height = 240 }: { width?: number; height?: number }): JSX.Element {
+export default function ThreeSprite({ width = 180, height = 240, onFirstFrame }: { width?: number; height?: number; onFirstFrame?: () => void }): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const animationRef = useRef<number | null>(null);
+  const onFirstFrameRef = useRef(onFirstFrame);
+
+  useEffect(() => {
+    onFirstFrameRef.current = onFirstFrame;
+  }, [onFirstFrame]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -42,10 +47,15 @@ export default function ThreeSprite({ width = 180, height = 240 }: { width?: num
     light.position.set(2, 2, 5);
     scene.add(light);
 
+    let firstFrameReported = false;
     const animate = (): void => {
       cube.rotation.x += 0.01;
       cube.rotation.y += 0.01;
       renderer.render(scene, camera);
+      if (!firstFrameReported) {
+        firstFrameReported = true;
+        onFirstFrameRef.current?.();
+      }
       animationRef.current = requestAnimationFrame(animate);
     };
     animate();

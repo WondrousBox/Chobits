@@ -1,7 +1,15 @@
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 
 import { initIpcMain, windowManager } from '@aim-packages/window-manager';
 import { ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY, ACHIEVEMENT_UNLOCK_WINDOW_KEY } from '@packages/sprite-core/achievement-window';
+import {
+  ASSISTANT_ENTRANCE_COMPLETION_GRACE_MS,
+  ASSISTANT_ENTRANCE_EFFECT_READY_TIMEOUT_MS,
+  createAssistantEntranceRun,
+  normalizeAssistantEntrancePreparePayload
+} from '@packages/sprite-core/assistant-entrance';
+import { ASSISTANT_ENTRANCE_IPC_CHANNELS, type AssistantEntrancePreparePayload, type AssistantEntrancePrepareResult, type AssistantEntranceRun } from '@packages/sprite-core/types';
 import type { IpcMainInvokeEvent } from 'electron';
 import { BrowserWindow, ipcMain } from 'electron';
 import { app, screen } from 'electron';
@@ -75,6 +83,11 @@ export function initWindowHandlers(win: BrowserWindow): void {
   let assistantWidth = 0;
   let assistantHeight = 0;
   let assistantInteractiveRegions: AssistantInteractiveRegion[] = [];
+  let assistantEntranceState: 'idle' | 'preparing' | 'running' | 'completed' | 'skipped' = 'idle';
+  let activeAssistantEntranceRun: AssistantEntranceRun | null = null;
+  let assistantEntranceCompletionTimer: NodeJS.Timeout | null = null;
+  let entranceEffectReadyWindowId: number | null = null;
+  const entranceEffectReadyWaiters = new Set<(windowId: number) => void>();
 
   // 缓存窗口边界，避免每次事件都调用 getBounds()
   let cachedBounds = win.getBounds();
@@ -229,6 +242,11 @@ export function initWindowHandlers(win: BrowserWindow): void {
   win.on('closed', () => {
     windowManager.destroyAll();
     stopHoverMonitor({ restoreMouseEvents: true });
+    if (assistantEntranceCompletionTimer) {
+      clearTimeout(assistantEntranceCompletionTimer);
+      assistantEntranceCompletionTimer = null;
+    }
+    entranceEffectReadyWaiters.clear();
   });
 
   // Bootstrap WindowManager with main window context
@@ -454,6 +472,9 @@ export function initWindowHandlers(win: BrowserWindow): void {
   ipcMain.removeHandler('sprite:effect:resize');
   ipcMain.handle('sprite:effect:resize', async (_event, payload: { width: number; height: number }) => {
     try {
+      if (assistantEntranceState === 'preparing' || assistantEntranceState === 'running') {
+        return { success: true };
+      }
       const effectWindow = await ensureSpriteEffectWindow();
       if (!effectWindow || effectWindow.isDestroyed()) {
         return { success: false, error: 'spriteEffect window not available' };
@@ -471,6 +492,9 @@ export function initWindowHandlers(win: BrowserWindow): void {
   ipcMain.removeHandler('sprite:effect:setVisible');
   ipcMain.handle('sprite:effect:setVisible', async (_event, payload: { visible: boolean }) => {
     try {
+      if (!payload?.visible && (assistantEntranceState === 'preparing' || assistantEntranceState === 'running')) {
+        return { success: true };
+      }
       const effectWindow = payload?.visible ? await ensureSpriteEffectWindow() : resolveSpriteEffectWindow();
       if (!effectWindow) {
         if (!payload?.visible) {
@@ -488,6 +512,106 @@ export function initWindowHandlers(win: BrowserWindow): void {
     } catch (error) {
       return { success: false, error: String(error) };
     }
+  });
+
+  ipcMain.removeHandler(ASSISTANT_ENTRANCE_IPC_CHANNELS.EFFECT_READY);
+  ipcMain.handle(ASSISTANT_ENTRANCE_IPC_CHANNELS.EFFECT_READY, (event) => {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    const effectWindow = resolveSpriteEffectWindow();
+    if (!senderWindow || !effectWindow || senderWindow.isDestroyed() || effectWindow.isDestroyed() || senderWindow.id !== effectWindow.id) return;
+
+    entranceEffectReadyWindowId = effectWindow.id;
+    for (const resolve of entranceEffectReadyWaiters) {
+      resolve(effectWindow.id);
+    }
+    entranceEffectReadyWaiters.clear();
+  });
+
+  ipcMain.removeHandler(ASSISTANT_ENTRANCE_IPC_CHANNELS.PREPARE);
+  ipcMain.handle(ASSISTANT_ENTRANCE_IPC_CHANNELS.PREPARE, async (event, payload: AssistantEntrancePreparePayload): Promise<AssistantEntrancePrepareResult> => {
+    if (assistantEntranceState !== 'idle') {
+      return { played: false, reason: 'already-played' };
+    }
+
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!senderWindow || senderWindow.isDestroyed() || (senderWindow !== win && senderWindow.id !== win.id)) {
+      return { played: false, reason: 'invalid-sender' };
+    }
+
+    const normalizedPayload = normalizeAssistantEntrancePreparePayload(payload);
+    if (!normalizedPayload) {
+      assistantEntranceState = 'skipped';
+      return { played: false, reason: 'invalid-payload' };
+    }
+
+    assistantEntranceState = 'preparing';
+    try {
+      const effectWindow = await ensureSpriteEffectWindow();
+      if (!effectWindow || effectWindow.isDestroyed()) {
+        assistantEntranceState = 'skipped';
+        restoreAssistantAfterEntrance();
+        return { played: false, reason: 'window-unavailable' };
+      }
+
+      configureSpriteEffectWindow(effectWindow);
+      effectWindow.setSize(normalizedPayload.surface.width, normalizedPayload.surface.height, false);
+      updateSpriteEffectPosition();
+
+      const effectReady = await waitForEntranceEffectReady(effectWindow);
+      if (!effectReady) {
+        assistantEntranceState = 'skipped';
+        restoreAssistantAfterEntrance();
+        return { played: false, reason: 'effect-not-ready' };
+      }
+
+      const visibleEffectWindow = await windowManager.show(SPRITE_EFFECT_WINDOW_KEY);
+      if (!visibleEffectWindow || visibleEffectWindow.isDestroyed()) {
+        assistantEntranceState = 'skipped';
+        restoreAssistantAfterEntrance();
+        return { played: false, reason: 'window-unavailable' };
+      }
+      configureSpriteEffectWindow(visibleEffectWindow);
+
+      const run = createAssistantEntranceRun(normalizedPayload, {
+        runId: `assistant-entrance-${randomUUID()}`,
+        now: Date.now(),
+        seed: Math.floor(Math.random() * 0x100000000)
+      });
+      activeAssistantEntranceRun = run;
+      assistantEntranceState = 'running';
+      lockAssistantForEntrance();
+
+      win.webContents.send(ASSISTANT_ENTRANCE_IPC_CHANNELS.START, run);
+      visibleEffectWindow.webContents.send(ASSISTANT_ENTRANCE_IPC_CHANNELS.START, run);
+      console.info('[assistant-entrance] started', { runId: run.runId, surface: run.surface, characterRect: run.characterRect, reducedMotion: run.reducedMotion });
+
+      assistantEntranceCompletionTimer = setTimeout(
+        () => {
+          finishAssistantEntrance(run.runId);
+        },
+        Math.max(0, run.startsAt - Date.now()) + run.durationMs + ASSISTANT_ENTRANCE_COMPLETION_GRACE_MS
+      );
+
+      return { played: true, run };
+    } catch (error) {
+      console.warn('[assistant-entrance] prepare failed:', error);
+      assistantEntranceState = 'skipped';
+      activeAssistantEntranceRun = null;
+      restoreAssistantAfterEntrance();
+      void windowManager.hide(SPRITE_EFFECT_WINDOW_KEY).catch(() => undefined);
+      return { played: false, reason: 'failed' };
+    }
+  });
+
+  ipcMain.removeHandler(ASSISTANT_ENTRANCE_IPC_CHANNELS.COMPLETE);
+  ipcMain.handle(ASSISTANT_ENTRANCE_IPC_CHANNELS.COMPLETE, (event, payload: { runId?: string }) => {
+    if (typeof payload?.runId !== 'string' || !payload.runId) return;
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    const effectWindow = resolveSpriteEffectWindow();
+    const isMainSender = senderWindow && !senderWindow.isDestroyed() && (senderWindow === win || senderWindow.id === win.id);
+    const isEffectSender = senderWindow && effectWindow && !senderWindow.isDestroyed() && !effectWindow.isDestroyed() && senderWindow.id === effectWindow.id;
+    if (!isMainSender && !isEffectSender) return;
+    finishAssistantEntrance(payload.runId);
   });
 
   // Pre-create menu window in hidden state for faster first-open
@@ -539,6 +663,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
   async function ensureSpriteEffectWindow(): Promise<BrowserWindow | null> {
     const existing = resolveSpriteEffectWindow();
     if (existing) return existing;
+    entranceEffectReadyWindowId = null;
     const created = await windowManager.create(SPRITE_EFFECT_WINDOW_KEY);
     configureSpriteEffectWindow(created);
     return created;
@@ -559,5 +684,56 @@ export function initWindowHandlers(win: BrowserWindow): void {
     } catch {
       /* ignore */
     }
+  }
+
+  function waitForEntranceEffectReady(effectWindow: BrowserWindow): Promise<boolean> {
+    if (entranceEffectReadyWindowId === effectWindow.id) return Promise.resolve(true);
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (ready: boolean): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        entranceEffectReadyWaiters.delete(handleReady);
+        resolve(ready);
+      };
+      const handleReady = (windowId: number): void => {
+        if (windowId === effectWindow.id) finish(true);
+      };
+      const timeoutId = setTimeout(() => finish(false), ASSISTANT_ENTRANCE_EFFECT_READY_TIMEOUT_MS);
+      entranceEffectReadyWaiters.add(handleReady);
+    });
+  }
+
+  function lockAssistantForEntrance(): void {
+    stopHoverMonitor();
+    lastInside = false;
+    try {
+      win.setIgnoreMouseEvents(true, { forward: true });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function restoreAssistantAfterEntrance(): void {
+    syncHoverMonitor();
+    if (!shouldRunHoverMonitor()) {
+      restoreMouseEvents();
+    }
+  }
+
+  function finishAssistantEntrance(runId: string): void {
+    if (!activeAssistantEntranceRun || activeAssistantEntranceRun.runId !== runId) return;
+
+    if (assistantEntranceCompletionTimer) {
+      clearTimeout(assistantEntranceCompletionTimer);
+      assistantEntranceCompletionTimer = null;
+    }
+    activeAssistantEntranceRun = null;
+    assistantEntranceState = 'completed';
+    restoreAssistantAfterEntrance();
+    void windowManager.hide(SPRITE_EFFECT_WINDOW_KEY).catch(() => undefined);
+    console.info('[assistant-entrance] completed', { runId });
   }
 }
