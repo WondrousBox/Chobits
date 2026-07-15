@@ -25,7 +25,7 @@ import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
 import PersonaGainEffects from './ui/PersonaGainEffects';
 import StatusIndicator from './ui/StatusIndicator';
 
-const showBlock = false; // 开发时显示
+const showBlock = true; // 开发时显示
 const CLICK_INTERACTION_DEDUP_MS = 300;
 
 /** 内部组件：包含实际逻辑 */
@@ -41,6 +41,7 @@ const AIAssistantInner: React.FC = () => {
   const { onMouseDown, isDragging, isDragReady } = useDragCollector();
   const { handleDragEnter, handleDragLeave, handleDropFiles } = useFileDropCollector();
   const lastClickInteractionAtRef = useRef(0);
+  const initialCenterRequestedRef = useRef(false);
   const [assistantSizeReady, setAssistantSizeReady] = useState(false);
   const playback = currentAnimation?.playback;
   const targetWidth = playback?.width ?? width;
@@ -94,45 +95,66 @@ const AIAssistantInner: React.FC = () => {
     };
   }, []);
 
-  // 首次挂载：初始定位窗口
-  const isInitialMountRef = useRef(true);
-  useEffect(() => {
-    if (!ready) return;
-    const positionWindow = async (): Promise<void> => {
-      try {
-        const screenSize = await window.YUA.window['screen:size:get']();
-        const winWidth = width + effectivePadding * 2;
-        const winHeight = height + effectivePadding * 2;
+  // // 首次挂载：初始定位窗口
+  // const isInitialMountRef = useRef(true);
+  // useEffect(() => {
+  //   if (!ready) return;
+  //   const positionWindow = async (): Promise<void> => {
+  //     try {
+  //       const screenSize = await window.YUA.window['screen:size:get']();
+  //       const winWidth = width + effectivePadding * 2;
+  //       const winHeight = height + effectivePadding * 2;
 
-        if (isInitialMountRef.current) {
-          isInitialMountRef.current = false;
-          const winX = Math.max(0, screenSize.width - winWidth - 20);
-          const winY = Math.max(0, screenSize.height - winHeight - 40);
-          await window.YUA.window['window:move']({ x: winX, y: winY });
-        }
-      } catch (error) {
-        console.error('Failed to handle window position:', error);
-      }
-    };
-    positionWindow();
-  }, [ready, width, height, effectivePadding]);
+  //       if (isInitialMountRef.current) {
+  //         isInitialMountRef.current = false;
+  //         const winX = Math.max(0, screenSize.width - winWidth - 20);
+  //         const winY = Math.max(0, screenSize.height - winHeight - 40);
+  //         await window.YUA.window['window:move']({ x: winX, y: winY });
+  //       }
+  //     } catch (error) {
+  //       console.error('Failed to handle window position:', error);
+  //     }
+  //   };
+  //   positionWindow();
+  // }, [ready, width, height, effectivePadding]);
 
   // 当动画切换、尺寸或气泡模式变化时，同步到主进程调整主窗口尺寸。
   useEffect(() => {
     if (!ready) return;
+    let cancelled = false;
     const setSize = async (): Promise<void> => {
       try {
-        await window.YUA.window.setAssistantSize({
+        const result = await window.YUA.window.setAssistantSize({
           width: targetWidth,
           height: targetHeight,
           padding: targetPadding
         });
-        setAssistantSizeReady(true);
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to set assistant size');
+        }
+        if (cancelled) return;
+        if (!initialCenterRequestedRef.current) {
+          initialCenterRequestedRef.current = true;
+          try {
+            const centered = await window.YUA.window['window:center']('main');
+            if (!centered) {
+              initialCenterRequestedRef.current = false;
+              console.error('Failed to center assistant window');
+            }
+          } catch (error) {
+            initialCenterRequestedRef.current = false;
+            console.error('Failed to center assistant window:', error);
+          }
+        }
+        if (!cancelled) setAssistantSizeReady(true);
       } catch (error) {
         console.error('Failed to set assistant size:', error);
       }
     };
     setSize();
+    return () => {
+      cancelled = true;
+    };
   }, [ready, targetWidth, targetHeight, targetPadding]);
 
   // 交互采集

@@ -893,6 +893,8 @@ Implementation notes:
 
 ## 8.2 2026-06-09 Workspace Onboarding Walk Exit Correction
 
+> 2026-07-15 现状：工作空间引导已将这里记录的 `walkTo` 动作替换为独立 `warpTo` step。以下内容保留用于说明普通行走路径曾经处理过的状态收尾问题；当前工作空间流程会等待流光瞬移完成，再播放 `lookLeft`。
+
 ### 背景
 
 `onboarding.workspace.create` 的 preset routine 会在用户点击邀请气泡按钮后：

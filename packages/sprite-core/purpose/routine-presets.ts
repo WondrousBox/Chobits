@@ -546,10 +546,7 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStepInput[] {
                       id: 'guide-near-wizard',
                       type: 'parallel',
                       body: [
-                        [
-                          { id: 'walk-near-wizard', type: 'walkTo', target: { window: 'workspaceWizard', placement: 'right', offset: 16 }, speed: 130, timeoutMs: 10000 },
-                          'playAnimation lookLeft silent'
-                        ],
+                        [{ id: 'warp-near-wizard', type: 'warpTo', target: { window: 'workspaceWizard', placement: 'right', offset: 16 }, timeoutMs: 2400 }, 'playAnimation lookLeft silent'],
                         {
                           id: 'await-wizard-result',
                           type: 'loopUntil',

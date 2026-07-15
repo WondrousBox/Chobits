@@ -18,7 +18,7 @@
 > 3. Quest 启动 `onboarding.workspace.create` purpose，但不调用 LLM，也不直接弹创建窗口。
 > 4. 角色挥手，并定时用气泡提示"你还没有建立工作空间哦，点这里立即创建吧。"
 > 5. 气泡保留"立即创建/去创建"按钮；用户点击按钮后打开或聚焦创建窗口。
-> 6. 创建过程中角色走到 `workspaceWizard` 窗口旁边陪同。
+> 6. 创建过程中角色通过流光瞬移到 `workspaceWizard` 窗口旁边陪同。
 > 7. 创建窗口打开期间，角色说固定辅助介绍：工作空间的作用、快速创建/默认目录可以先开始。
 > 8. 如果用户关掉向导但没有创建，角色马上提示"还没有创建"，继续展示去创建按钮。
 > 9. 用户创建成功 → 清掉引导气泡，角色播 celebrate 动画，说"恭喜完成！现在右键我可以做更多了"。
@@ -103,7 +103,7 @@ export const workspaceCreateQuest: OnboardingQuestDefinition = {
 - 进行中：显示“继续引导”
 - 已完成：隐藏操作按钮，显示完成状态
 
-任务列表按钮不会裸开 `workspaceWizard`。它调用 `quest:start({ id: 'workspace.create' })`，由 QuestEngine 检查是否仍需要引导，再启动 `onboarding.workspace.create` preset-only purpose。右键菜单等需要 workspace 的入口也不会自己查完后裸开向导，而是复用 preset goal `workspace.exists`：未达成时启动同一个 Quest 并阻断原动作。这样从任务窗口或业务入口触发都会保持气泡按钮、角色走到窗口旁、窗口讲解、关闭未创建后继续提示和成功奖励的完整固定流程。
+任务列表按钮不会裸开 `workspaceWizard`。它调用 `quest:start({ id: 'workspace.create' })`，由 QuestEngine 检查是否仍需要引导，再启动 `onboarding.workspace.create` preset-only purpose。右键菜单等需要 workspace 的入口也不会自己查完后裸开向导，而是复用 preset goal `workspace.exists`：未达成时启动同一个 Quest 并阻断原动作。这样从任务窗口或业务入口触发都会保持气泡按钮、角色流光瞬移到窗口旁、窗口讲解、关闭未创建后继续提示和成功奖励的完整固定流程。
 
 ## 3. Preset Routine
 
@@ -163,7 +163,10 @@ export function createWorkspaceCreateRoutineSteps(_: SpritePurpose): SpriteRouti
                       id: 'guide-near-wizard',
                       type: 'parallel',
                       body: [
-                        { id: 'walk-near-wizard', type: 'walkTo', target: { window: 'workspaceWizard', placement: 'right', offset: 16 }, speed: 130, timeoutMs: 10000 },
+                        [
+                          { id: 'warp-near-wizard', type: 'warpTo', target: { window: 'workspaceWizard', placement: 'right', offset: 16 }, timeoutMs: 2400 },
+                          'playAnimation lookLeft silent'
+                        ],
                         {
                           id: 'await-wizard-result',
                           type: 'loopUntil',
@@ -316,7 +319,7 @@ window.YUA.sprite.startPurpose({
 });
 ```
 
-这个入口只验证 preset routine 的表现层：展示引导气泡、按钮打开/聚焦 `workspaceWizard`、角色走到窗口旁、窗口打开期间讲解工作空间作用和快速创建方式、关闭未创建后继续提示、等待 `WORKSPACE_CREATED` 后清理气泡并庆祝。它不会修改 `onboardingState`，也不会授予 `quest:workspace.create` 奖励。
+这个入口只验证 preset routine 的表现层：展示引导气泡、按钮打开/聚焦 `workspaceWizard`、角色通过流光瞬移到窗口旁、窗口打开期间讲解工作空间作用和快速创建方式、关闭未创建后继续提示、等待 `WORKSPACE_CREATED` 后清理气泡并庆祝。它不会修改 `onboardingState`，也不会授予 `quest:workspace.create` 奖励。
 
 ## 7. 文案 i18n
 
@@ -338,7 +341,7 @@ window.YUA.sprite.startPurpose({
 - ✅ 首次展示创建提示气泡和按钮；气泡仍打开时不重复提示、不重复朗读
 - ✅ 用户关闭创建提示气泡但仍未创建 → 短暂缓冲后继续重新展示按钮，直到创建完成
 - ✅ 点击"立即创建"按钮 → 打开/重新聚焦 `workspaceWizard`
-- ✅ 创建过程中角色走到 `workspaceWizard` 旁边
+- ✅ 创建过程中角色通过 `warpTo` 流光瞬移到 `workspaceWizard` 旁边
 - ✅ `workspaceWizard` 打开期间 → 角色解释工作空间作用，并提示可用快速创建/默认目录开始
 - ✅ 已有 workspace 的开发机 → 设置页“工作空间引导预设”可直接执行现有 preset，无需删除真实空间
 - ✅ 关闭窗口但未创建 → active routine 立刻提示并继续展示去创建按钮
@@ -363,7 +366,7 @@ window.YUA.sprite.startPurpose({
 - [x] active 未完成时按 `APP_STARTED` 重试，避免跨启动静默卡住
 - [x] AI 目标规划设置页增加 `onboarding.workspace.create` preset 手动执行入口
 - [x] `WORKSPACE_WIZARD_CLOSED` purpose event 由 routine 即时消费，未创建时继续展示去创建按钮；后续仍可扩展漏斗分析
-- [x] `walkTo` 支持 `{ window, placement, offset }` 目标，创建时角色可走到窗口旁
+- [x] `warpTo` 与 `walkTo` 共用 `{ window, placement, offset }` 目标解析，创建时角色通过流光瞬移到窗口旁
 - [x] onboarding purpose 使用 `plannerMode: 'preset-only'`，不受 AI planner 开关影响
 - [x] 独立 `questList` 窗口展示新手任务、奖励和状态
 - [x] `quest:list` / `quest:start` IPC 支持任务列表读取与显式启动 Quest

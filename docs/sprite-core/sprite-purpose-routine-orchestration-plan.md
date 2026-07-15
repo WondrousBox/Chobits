@@ -14,7 +14,7 @@
 > 这些扩展不破坏现有 preset/AI planner 接口，预设 routine 不受 `DEFAULT_SPRITE_PURPOSE_PLANNER_WINDOWS` 白名单约束，可直接 `openWindow: 'workspaceWizard'` 等。
 > 2026-05-20 追加：机能扩展里的“AI 目标规划 / 目的规划器”需要提供“执行现有目标预设”的诊断入口。当前已保留 `daily.care.reminder` planner/fallback 试跑，并新增 `onboarding.workspace.create` 预设执行按钮，用于在已有 workspace 的电脑上验证创建引导表现层，而不修改 quest 状态或发放 quest 奖励。
 >
-> 2026-05-20 校正：`onboarding.workspace.create` 不是 AI 目的规划用例，而是固定新手 Quest。它必须通过 `plannerMode: 'preset-only'` 绕过 LLM，按 preset routine 展示创建提示、按钮打开创建窗口、角色走到窗口旁、窗口打开期间讲解工作空间用途和快速创建方式、气泡打开时不重复提示、气泡关闭后短暂缓冲并继续提示、关闭向导未创建后立即继续提示、创建成功后庆祝并由 QuestEngine 幂等奖励。
+> 2026-05-20 校正：`onboarding.workspace.create` 不是 AI 目的规划用例，而是固定新手 Quest。它必须通过 `plannerMode: 'preset-only'` 绕过 LLM，按 preset routine 展示创建提示、按钮打开创建窗口、角色通过 `warpTo` 流光瞬移到窗口旁、窗口打开期间讲解工作空间用途和快速创建方式、气泡打开时不重复提示、气泡关闭后短暂缓冲并继续提示、关闭向导未创建后立即继续提示、创建成功后庆祝并由 QuestEngine 幂等奖励。
 
 ## 0. 原始需求
 

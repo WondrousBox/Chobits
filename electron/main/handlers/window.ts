@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 
-import { initIpcMain, windowManager } from '@aim-packages/window-manager';
+import { initIpcMain, type WindowKey, windowManager } from '@aim-packages/window-manager';
 import { ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY, ACHIEVEMENT_UNLOCK_WINDOW_KEY } from '@packages/sprite-core/achievement-window';
 import {
   ASSISTANT_ENTRANCE_COMPLETION_GRACE_MS,
@@ -343,9 +343,9 @@ export function initWindowHandlers(win: BrowserWindow): void {
 
   initIpcMain(win);
   ipcMain.removeHandler('window:devtools:toggle');
-  ipcMain.handle('window:devtools:toggle', (event) => {
+  ipcMain.handle('window:devtools:toggle', (event, windowKey?: WindowKey) => {
     try {
-      const targetWindow = BrowserWindow.fromWebContents(event.sender);
+      const targetWindow = windowKey !== undefined ? windowManager.get(windowKey) : BrowserWindow.fromWebContents(event.sender);
       if (!targetWindow || targetWindow.isDestroyed()) {
         return false;
       }

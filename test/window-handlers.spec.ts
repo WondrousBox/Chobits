@@ -198,6 +198,44 @@ describe('window handlers', () => {
     expect(webContents.closeDevTools).not.toHaveBeenCalled();
   });
 
+  it('toggles detached devtools for a specified managed window', async () => {
+    const { initWindowHandlers } = await import('../electron/main/handlers/window');
+    const win = createWindowStub();
+    const webContents = {
+      isDevToolsOpened: vi.fn(() => false),
+      openDevTools: vi.fn(),
+      closeDevTools: vi.fn()
+    };
+    const targetWindow = {
+      isDestroyed: vi.fn(() => false),
+      webContents
+    };
+
+    windowManagerState.get.mockReturnValue(targetWindow);
+    initWindowHandlers(win);
+
+    const toggleDevTools = ipcHandlers.get('window:devtools:toggle') as (event: { sender: unknown }, windowKey?: string) => boolean;
+    expect(toggleDevTools({ sender: {} }, 'settings')).toBe(true);
+
+    expect(windowManagerState.get).toHaveBeenCalledWith('settings');
+    expect(browserWindowFromWebContents).not.toHaveBeenCalled();
+    expect(webContents.openDevTools).toHaveBeenCalledWith({ mode: 'detach', activate: true });
+  });
+
+  it('does not fall back to the invoking window for an unknown window key', async () => {
+    const { initWindowHandlers } = await import('../electron/main/handlers/window');
+    const win = createWindowStub();
+
+    windowManagerState.get.mockReturnValue(null);
+    initWindowHandlers(win);
+
+    const toggleDevTools = ipcHandlers.get('window:devtools:toggle') as (event: { sender: unknown }, windowKey?: string) => boolean;
+    expect(toggleDevTools({ sender: {} }, 'missing-window')).toBe(false);
+
+    expect(windowManagerState.get).toHaveBeenCalledWith('missing-window');
+    expect(browserWindowFromWebContents).not.toHaveBeenCalled();
+  });
+
   it('closes toggled devtools when they are already open', async () => {
     const { initWindowHandlers } = await import('../electron/main/handlers/window');
     const win = createWindowStub();

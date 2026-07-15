@@ -29,7 +29,7 @@
 - AI/桌面角色要自动定时每隔几秒提示一次"还没有创建工作空间"。
 - 提醒必须有节流机制：如果创建提示气泡已经打开，不要重复刷新、重复朗读或重复弹提示；但工作空间引导是必须完成的新手任务，用户关闭气泡只表示收起本次提示，仍未创建时必须短暂缓冲后继续提示。
 - 提示气泡里必须有按钮，用户点击按钮去创建工作空间。
-- 创建过程中，AI 要走到创建窗口旁边陪同。
+- 创建过程中，AI 要通过流光瞬移到创建窗口旁边陪同。
 - 创建窗口打开期间，AI 要说辅助介绍文案，例如解释工作空间的作用，并提示可以先用快速创建/默认目录开始。
 - 如果用户没有创建就关掉窗口，AI 要及时提示"还需要创建"，并继续展示"去创建"按钮。
 - 如果用户创建好了空间，AI 要有对应响应和奖励，奖励可以是经验和好感度。
@@ -55,7 +55,7 @@
 - `QuestEngine` 能在 `APP_STARTED` 启动 `workspace.create`，也能在 `WORKSPACE_CREATED` 发奖，但 active 状态主要靠启动重试，不是一个持续的新手任务循环。
 - routine 先打开 `workspaceWizard`，再说话和展示 notice，这与"先气泡提示，点击按钮去创建"不一致。
 - `WORKSPACE_WIZARD_CLOSED` 只让 routine 结束或等下次启动，关闭后没有立刻回到"继续去创建"按钮提示。
-- 没有让角色走到创建窗口旁边，只有普通 `openWindow`。
+- 没有让角色移动到创建窗口旁边，只有普通 `openWindow`。
 - 手动测试入口放在 AI 目标规划设置里可以保留，但它不能代表真实新手引导触发链路。
 - 如果 AI planner 开启，`onboarding.workspace.create` 仍可能被 planner 介入；固定 Quest 必须显式 `plannerMode: 'preset-only'`。
 
@@ -65,7 +65,7 @@
 - routine 以 `loopUntil(WORKSPACE_CREATED)` 持续运行，每轮展示带按钮的常驻 notice。
 - notice 按钮派发 `purpose-event: bubble:action` 并打开/聚焦 `workspaceWizard`；notice 手动关闭会派发 `purpose-event: bubble:dismissed`。
 - routine 展示 notice 后等待 `bubble:action` / `bubble:dismissed` / `WORKSPACE_CREATED`：气泡仍打开时不重复提示；气泡关闭后按强制引导重提节奏继续展示；窗口未创建就关闭时立即替换为"去创建"提示。
-- 点击后 routine 先清掉邀请 notice，再 `openWindow('workspaceWizard')`，接着 `walkTo({ window: 'workspaceWizard', placement: 'right' })`。
+- 点击后 routine 先清掉邀请 notice，再 `openWindow('workspaceWizard')`，接着 `warpTo({ window: 'workspaceWizard', placement: 'right' })` 播放流光瞬移。
 - `workspaceWizard` 打开后，routine 在等待 `WORKSPACE_CREATED` / `WORKSPACE_WIZARD_CLOSED` 的同时讲解工作空间用途和快速创建提示；这些讲解有冷却，避免窗口保持打开时反复念。
 - 窗口未创建就关闭时，routine 立即替换 notice 文案并继续下一轮提示。
 - 创建成功时清理该 notice、播放庆祝动画并说成功文案；QuestEngine 负责幂等奖励。
@@ -480,7 +480,7 @@ const handleContextMenu = async (e: React.MouseEvent) => {
 
 - 若没有 workspace，`initHandlers` 会先进入 onboarding focus：暂停 `dailyCare` owner，并通过 gate 阻止 `DailyCareService.start()` 的启动补偿派发。
 - `initOnboardingQuestEngine` 再启动 `workspace.create` quest；Quest 只下发固定 preset purpose，不直接打开向导。
-- routine 先展示常驻气泡按钮；用户点击按钮后清掉邀请气泡，再 `openWindow('workspaceWizard')`，并让角色 `walkTo` 到创建窗口旁。
+- routine 先展示常驻气泡按钮；用户点击按钮后清掉邀请气泡，再 `openWindow('workspaceWizard')`，并让角色通过 `warpTo` 流光瞬移到创建窗口旁。
 - 创建窗口打开期间，routine 会说固定辅助说明：工作空间用于保存资源、项目与记忆索引，也可以先用快速创建/默认目录开始。
 - 常驻气泡打开期间不会重复提示；用户关闭气泡后，routine 短暂缓冲再重新展示。它避免气泡仍在时重复刷新/朗读，但不会让必须完成的工作空间引导静默消失。
 - `APP_STARTED` 在主窗口显示后驱动 `QuestEngine.tick()`，避免早于渲染层 message bridge 就绪时丢失首次气泡。
@@ -522,7 +522,7 @@ const handleContextMenu = async (e: React.MouseEvent) => {
 - `onboarding-quest.spec.ts`：模拟 `open-resource-library` 不随启动自动激活，只能由任务列表或 AI 显式启动，且只在助手右键菜单选择背包时完成
 - `onboarding-quest.spec.ts`：验证 `FEATURE_INTRO_QUEST_CATALOG` 中每个功能自述任务都能生成 preset-only Quest，并覆盖文件工作流、文件菜单、助手菜单、窗口打开、资源预览和带资源聊天等完成类型
 - `onboarding-quest.spec.ts`：验证 Quest 完成后只在推荐目标未完成、前置满足且允许 `recommendation` 来源时生成推荐 offer；已完成目标不再提示
-- `sprite-purpose-routine.spec.ts`：验证 `workspace.create` routine 持续提示、按钮进入创建、走到向导窗口旁、关闭未创建后继续提示、创建成功后清理 notice 并庆祝
+- `sprite-purpose-routine.spec.ts`：验证 `workspace.create` routine 持续提示、按钮进入创建、流光瞬移到向导窗口旁、关闭未创建后继续提示、创建成功后清理 notice 并庆祝
 - `sprite-purpose-routine.spec.ts`：同时验证 `onboarding.file.drop` routine 会走到中心、提示拖拽文件、等待资源事件并在完成后庆祝
 - `sprite-purpose-routine.spec.ts`：验证功能自述目录里的每个任务都注册为 routine preset，并覆盖文件拖拽、助手右键菜单和业务窗口打开三类典型流程
 - `file-drop-purpose.spec.tsx`：验证真实拖拽会桥接到统一 `file.drop` routine，并给资源创建链路标记 `source: 'sprite-drop'`
@@ -538,7 +538,7 @@ const handleContextMenu = async (e: React.MouseEvent) => {
 在“机能扩展 → AI 目标规划 / 目的规划器 → 观测”中保留两个手动入口：
 
 - **试跑**：执行 `daily.care.reminder`，用于验证 AI planner / preset fallback 链路。
-- **工作空间引导预设**：直接执行 `onboarding.workspace.create` preset，且携带 `plannerMode: 'preset-only'`。这个入口不检查当前是否已有 workspace，方便在已有真实空间的电脑上测试气泡、按钮、窗口聚焦、角色走到窗口旁、窗口打开期间的用途/快速创建说明、关闭后继续提示和成功反馈；它只启动 purpose，不写入 quest 完成状态，也不会发放 `quest:workspace.create` 奖励。
+- **工作空间引导预设**：直接执行 `onboarding.workspace.create` preset，且携带 `plannerMode: 'preset-only'`。这个入口不检查当前是否已有 workspace，方便在已有真实空间的电脑上测试气泡、按钮、窗口聚焦、角色流光瞬移到窗口旁、窗口打开期间的用途/快速创建说明、关闭后继续提示和成功反馈；它只启动 purpose，不写入 quest 完成状态，也不会发放 `quest:workspace.create` 奖励。
 
 ## 11. Open Questions
 

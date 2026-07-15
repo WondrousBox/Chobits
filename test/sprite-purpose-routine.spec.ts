@@ -1657,7 +1657,7 @@ describe('SpriteRoutinePresetRegistry', () => {
     ]);
   });
 
-  it('creates workspace onboarding routines that repeatedly prompt and move near the wizard', () => {
+  it('creates workspace onboarding routines that repeatedly prompt and warp near the wizard', () => {
     const registry = new SpriteRoutinePresetRegistry();
     const preset = registry.get('onboarding.workspace.create');
     expect(preset).toBeDefined();
@@ -1733,7 +1733,7 @@ describe('SpriteRoutinePresetRegistry', () => {
               id: 'guide-near-wizard.sequence-1',
               type: 'sequence',
               body: [
-                expect.objectContaining({ id: 'walk-near-wizard', type: 'walkTo', target: { window: 'workspaceWizard', placement: 'right', offset: 16 } }),
+                expect.objectContaining({ id: 'warp-near-wizard', type: 'warpTo', target: { window: 'workspaceWizard', placement: 'right', offset: 16 }, timeoutMs: 2400 }),
                 expect.objectContaining({ id: 'guide-near-wizard.sequence-1.playAnimation-2', type: 'playAnimation', trigger: 'lookLeft', silent: true })
               ]
             }),
@@ -2856,6 +2856,10 @@ describe('SpriteRoutinePresetRegistry', () => {
       walkTo: (step) => {
         calls.push(`walk:${typeof step.target === 'string' ? step.target : 'window' in step.target ? step.target.window : 'point'}`);
       },
+      warpTo: (step) => {
+        calls.push(`warp:${typeof step.target === 'string' ? step.target : 'window' in step.target ? step.target.window : 'point'}`);
+        return true;
+      },
       speak: (step) => {
         calls.push(`speak:${step.text}`);
       },
@@ -2922,7 +2926,7 @@ describe('SpriteRoutinePresetRegistry', () => {
         'speak:我会陪伴你学习和工作，一起共同成长。',
         'notice:onboarding.workspace.create.invite:先创建工作空间吧',
         'open:workspaceWizard',
-        'walk:workspaceWizard',
+        'warp:workspaceWizard',
         'notice:onboarding.workspace.create.invite:还没有创建工作空间哦。',
         'clear:onboarding.workspace.create.invite',
         'play:celebrate',
@@ -2978,6 +2982,10 @@ describe('SpriteRoutinePresetRegistry', () => {
       playAnimation: vi.fn(),
       walkTo: (step) => {
         calls.push(`walk:${typeof step.target === 'string' ? step.target : 'window' in step.target ? step.target.window : 'point'}`);
+      },
+      warpTo: (step) => {
+        calls.push(`warp:${typeof step.target === 'string' ? step.target : 'window' in step.target ? step.target.window : 'point'}`);
+        return true;
       },
       speak: (step) => {
         calls.push(`speak:${step.id}:${step.text}`);
@@ -3038,7 +3046,7 @@ describe('SpriteRoutinePresetRegistry', () => {
         'speak:speak-workspace-growth-promise:我会陪伴你学习和工作，一起共同成长。',
         'notice:onboarding.workspace.create.invite:先创建工作空间吧',
         'open:workspaceWizard',
-        'walk:workspaceWizard',
+        'warp:workspaceWizard',
         'speak:speak-workspace-intro:工作空间会存放所有重要的数据。',
         'speak:speak-workspace-quickstart-tip:快速开始会默认创建到文档中',
         'clear:onboarding.workspace.create.invite',
