@@ -12,11 +12,11 @@ import {
   DEFAULT_SPRITE_PURPOSE_PLANNER_PREFERENCES,
   DEFAULT_SPRITE_ROUTINE_PRESETS,
   normalizeSpritePurposePlannerPreferences,
-  summarizeSpriteRoutinePresets,
-  validateSpritePurposePlannerOutput,
   type SpritePurpose,
   type SpritePurposeHistoryEntry,
-  type SpritePurposePlannerExecutor
+  type SpritePurposePlannerExecutor,
+  summarizeSpriteRoutinePresets,
+  validateSpritePurposePlannerOutput
 } from '../packages/sprite-core/purpose';
 
 const validationOptions = {
@@ -97,6 +97,30 @@ describe('SpritePurposePlanner validation', () => {
     expect(result.errors.join('\n')).toContain('window "settings" is not in the window allowlist');
     expect(result.errors.join('\n')).toContain('event "SECRET_EVENT" is not in the event allowlist');
     expect(result.errors.join('\n')).toContain('routineDraft.steps[2].timeoutMs is required');
+  });
+
+  it('accepts bounded warpTo steps and rejects unbounded teleport plans', () => {
+    const accepted = validateSpritePurposePlannerOutput(
+      {
+        routineDraft: {
+          steps: [{ id: 'warp-center', type: 'warpTo', target: 'center', timeoutMs: 1800 }]
+        }
+      },
+      validationOptions
+    );
+    const rejected = validateSpritePurposePlannerOutput(
+      {
+        routineDraft: {
+          steps: [{ id: 'warp-point', type: 'warpTo', target: { x: 480, y: 320 } }]
+        }
+      },
+      validationOptions
+    );
+
+    expect(accepted.ok).toBe(true);
+    expect(accepted.summary).toEqual({ stepCount: 1, estimatedDurationMs: 1800 });
+    expect(rejected.ok).toBe(false);
+    expect(rejected.errors.join('\n')).toContain('routineDraft.steps[0].timeoutMs is required');
   });
 
   it('rejects drafts that exceed step or duration limits', () => {

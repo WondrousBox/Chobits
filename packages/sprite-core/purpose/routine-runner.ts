@@ -10,6 +10,7 @@ interface SpriteRoutineRunContext {
 export interface SpriteRoutineRunnerDeps {
   playAnimation: (step: Extract<SpriteRoutineStep, { type: 'playAnimation' }>, signal: AbortSignal, routine: SpriteRoutine) => Promise<unknown> | unknown;
   walkTo: (step: Extract<SpriteRoutineStep, { type: 'walkTo' }>, signal: AbortSignal, routine: SpriteRoutine) => Promise<unknown> | unknown;
+  warpTo?: (step: Extract<SpriteRoutineStep, { type: 'warpTo' }>, signal: AbortSignal, routine: SpriteRoutine) => Promise<unknown> | unknown;
   waitForEvent?: (step: Extract<SpriteRoutineStep, { type: 'waitForEvent' }>, signal: AbortSignal, routine: SpriteRoutine) => Promise<SpritePurposeRuntimeEvent> | SpritePurposeRuntimeEvent;
   speak: (step: Extract<SpriteRoutineStep, { type: 'speak' }>, signal: AbortSignal, routine: SpriteRoutine) => Promise<unknown> | unknown;
   showToast: (step: Extract<SpriteRoutineStep, { type: 'showToast' }>, routine: SpriteRoutine) => Promise<unknown> | unknown;
@@ -217,6 +218,11 @@ export class SpriteRoutineRunner {
         return this.deps.playAnimation(step, signal, routine);
       case 'walkTo':
         return this.deps.walkTo(step, signal, routine);
+      case 'warpTo':
+        if (!this.deps.warpTo) {
+          throw new Error('warpTo step is not supported by this runner');
+        }
+        return this.deps.warpTo(step, signal, routine);
       case 'speak':
         return this.deps.speak(step, signal, routine);
       case 'showToast':
@@ -278,6 +284,7 @@ export class SpriteRoutineRunner {
       case 'waitForEvent':
         return step.timeoutMs;
       case 'walkTo':
+      case 'warpTo':
       case 'openWindow':
         return step.timeoutMs;
       case 'loopUntil':
@@ -305,6 +312,7 @@ export class SpriteRoutineRunner {
       case 'waitForEvent':
         return step.timeoutMs;
       case 'walkTo':
+      case 'warpTo':
       case 'openWindow':
         return step.timeoutMs;
       case 'loopUntil':

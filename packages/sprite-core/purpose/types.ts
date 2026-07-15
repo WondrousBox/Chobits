@@ -66,6 +66,7 @@ export interface SpritePurpose {
 export type SpriteRoutineStepType =
   | /** 播放已注册动画，可按 trigger 或 animationId 选择。 */ 'playAnimation'
   | /** 移动桌面精灵窗口到语义位置、坐标，或业务窗口旁边。 */ 'walkTo'
+  | /** 让桌面精灵通过屏幕空间流光瞬移到目标位置。 */ 'warpTo'
   | /** 纯等待一段时间，用于控制节奏或给用户阅读/操作留时间。 */ 'wait'
   | /** 等待 runtime event，例如用户选择、窗口结果、导入进度或业务完成事件。 */ 'waitForEvent'
   | /** 让角色说一句话：展示气泡，并由 SpriteManager.speak 走 TTS。 */ 'speak'
@@ -115,28 +116,33 @@ type PlayAnimationStep = BaseRoutineStep<'playAnimation'> & {
   timeoutMs?: number;
 };
 
-/** 移动桌面精灵窗口到某个语义位置、坐标，或某个业务窗口旁边。 */
-type WalkToStep = BaseRoutineStep<'walkTo'> & {
-  /**
-   * 移动目标：
-   * - `center` / `corner`：屏幕语义位置；
-   * - `previous`：保持当前位置；
-   * - `{ x, y }`：绝对窗口坐标；
-   * - `{ window, placement, offset }`：贴近某个 purpose window，比如 workspaceWizard 右侧。
-   */
-  target:
+/** 角色行走与瞬移共享的语义目标。 */
+export type SpriteRoutineMovementTarget =
   | 'center'
   | 'corner'
   | 'previous'
   | { x: number; y: number }
   | {
-    window: string;
-    placement?: 'left' | 'right' | 'top' | 'bottom' | 'center';
-    offset?: number;
-  };
+      window: string;
+      placement?: 'left' | 'right' | 'top' | 'bottom' | 'center';
+      offset?: number;
+    };
+
+/** 移动桌面精灵窗口到某个语义位置、坐标，或某个业务窗口旁边。 */
+type WalkToStep = BaseRoutineStep<'walkTo'> & {
+  /** 行走目标；支持语义位置、绝对坐标和 purpose window 相对位置。 */
+  target: SpriteRoutineMovementTarget;
   /** 移动速度，传给 MovementCoordinator。 */
   speed?: number;
   /** 移动最大耗时；超时会 stopWalk 并让 step 失败。 */
+  timeoutMs?: number;
+};
+
+/** 通过屏幕空间粒子流光瞬移到目标位置。 */
+type WarpToStep = BaseRoutineStep<'warpTo'> & {
+  /** 瞬移目标，与 walkTo 使用相同的目标语义。 */
+  target: SpriteRoutineMovementTarget;
+  /** 瞬移最大耗时；超时或任务取消时会终止当前流光。 */
   timeoutMs?: number;
 };
 
@@ -360,6 +366,7 @@ export type SpriteRoutineStepInput =
   | SpriteRoutineStepInput[]
   | MakeRoutineStepInput<PlayAnimationStep>
   | MakeRoutineStepInput<WalkToStep>
+  | MakeRoutineStepInput<WarpToStep>
   | MakeRoutineStepInput<WaitStep>
   | MakeRoutineStepInput<WaitForEventStep>
   | MakeRoutineStepInput<SpeakStep>
@@ -392,6 +399,7 @@ export type SpriteRoutineStepInput =
 export type SpriteRoutineStep =
   | PlayAnimationStep
   | WalkToStep
+  | WarpToStep
   | WaitStep
   | WaitForEventStep
   | SpeakStep

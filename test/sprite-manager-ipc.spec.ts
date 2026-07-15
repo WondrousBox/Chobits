@@ -673,6 +673,37 @@ describe('sprite manager IPC integration', () => {
     ).not.toThrow();
   });
 
+  it('exposes standalone warpTo and cancellation through the movement IPC boundary', async () => {
+    listSpritesMock.mockResolvedValue([]);
+    const play = vi.fn(async () => true);
+    const cancel = vi.fn();
+
+    const { initSpriteManagerIPC } = await import('../packages/sprite-core/handler/sprite-manager-ipc');
+    await initSpriteManagerIPC(windowStub.win as any, {
+      addAllowedResourceRoot: vi.fn(),
+      motionEffectAdapter: { play, cancel }
+    });
+
+    const warpTo = electronState.handlers.get('sprite:movement:warpTo') as ((_: unknown, payload: { x: number; y: number }) => Promise<boolean>) | undefined;
+    const cancelWarp = electronState.handlers.get('sprite:movement:cancelWarp') as (() => void) | undefined;
+
+    await expect(warpTo?.({} as never, { x: 480, y: 320 })).resolves.toBe(true);
+    expect(play).toHaveBeenCalledWith({ type: 'warp', targetX: 480, targetY: 320 });
+
+    const { SpriteManager } = await import('../packages/sprite-core/manager');
+    const manager = SpriteManager.getInstance();
+    await (manager as any).runPurposeWarpStep(
+      { id: 'warp-center', type: 'warpTo', target: 'center', timeoutMs: 10 },
+      new AbortController().signal,
+      { id: 'routine-warp', purposeId: 'purpose-warp', priority: 50 }
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(cancel).not.toHaveBeenCalled();
+
+    cancelWarp?.();
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
   it('accepts trigger-named sprite:trigger payloads and rejects legacy eventType-only payloads', async () => {
     listSpritesMock.mockResolvedValue([]);
 

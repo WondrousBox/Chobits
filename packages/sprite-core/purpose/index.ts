@@ -70,6 +70,7 @@ export type {
   SpritePurposeStartResult,
   SpritePurposeStatus,
   SpriteRoutine,
+  SpriteRoutineMovementTarget,
   SpriteRoutineRunResult,
   SpriteRoutineSource,
   SpriteRoutineStatus,

@@ -2,7 +2,7 @@
 
 ## 1. 文档状态
 
-- 状态：Phase 1 代码完成，待人工视觉验收
+- 状态：Phase 1 与独立 `warpTo` 移动原语代码完成，待人工视觉验收
 - 创建日期：2026-07-14
 - 目标版本：第一阶段 `warp` 流光瞬移
 - 后续版本：`dash-trail` 实体移动拖尾、多显示器分片覆盖
@@ -17,6 +17,8 @@
 - [x] 完成覆盖窗口 Canvas 粒子渲染
 - [x] 完成主角色消失、跳转、重组同步
 - [x] 完成移动配置和编辑器预览接入
+- [x] 完成 Manager、Renderer IPC 和 Purpose 编排的独立 `warpTo` 调用入口
+- [x] 完成行走、定位、拖拽与瞬移之间的抢占和准备阶段取消
 - [x] 完成单元测试、类型检查与文档验收记录
 - [ ] 用户使用 `pnpm dev` 完成人工视觉验收
 
@@ -282,6 +284,58 @@ interface SpriteMotionEffectAdapter {
 
 如果适配器返回 `false` 或抛错，协调器 fail-open 到现有 `walkTo`，保证配置不会导致角色无法移动。
 
+### 11.1 独立 `warpTo` 移动原语
+
+`warp` 不再只作为精灵动画 movement 配置的附属效果。动画配置入口继续保留，同时提供三种独立调用方式，最终统一进入 `SpriteManager.warpTo(x, y)`：
+
+Renderer / IPC：
+
+```ts
+const played = await window.YUA.sprite.warpTo(480, 320);
+// 需要抢占或终止时：
+await window.YUA.sprite.cancelWarp();
+```
+
+Electron main / 内部 Node：
+
+```ts
+import { SpriteManager } from '@packages/sprite-core/manager';
+
+const played = await SpriteManager.getInstance().warpTo(480, 320);
+SpriteManager.getInstance().cancelWarp();
+```
+
+Purpose / 新手任务编排：
+
+```ts
+{
+  id: 'warp-near-wizard',
+  type: 'warpTo',
+  target: { window: 'workspaceWizard', placement: 'right', offset: 16 },
+  timeoutMs: 2400
+}
+```
+
+`warpTo` 与 `walkTo` 共用目标语义：`center`、`corner`、`previous`、绝对 `{ x, y }`，以及业务窗口相对位置。直接坐标会通过 `WindowController` 限制到可移动区域；开始瞬移前会停止普通行走和方向自动移动。Routine 被取消或超时时会调用 `cancelWarp()`，主进程负责恢复角色可见性。
+
+移动抢占规则：
+
+| 新动作 | 当前动作 | 处理 |
+| --- | --- | --- |
+| `warpTo` | 普通行走或方向自动移动 | 停止旧移动后播放瞬移 |
+| `warpTo` | 另一次瞬移 | 新请求取代旧请求 |
+| `walkTo`、`setPosition` 或拖拽 | 正在播放或准备中的瞬移 | 取消瞬移，再执行新动作 |
+| Routine 取消或 `timeoutMs` 到期 | 正在播放或准备中的瞬移 | 取消瞬移并让 step 结束 |
+
+主进程控制器为每次播放、取消和销毁维护请求版本。异步创建、ready 或 show 完成后，过期请求不得再广播 `START`；这样即使特效窗口仍在准备，用户拖拽或新的移动命令也不会被迟到的瞬移覆盖。
+
+Renderer 对应 IPC 通道为：
+
+```text
+sprite:movement:warpTo
+sprite:movement:cancelWarp
+```
+
 ## 12. 文件变更计划
 
 | 文件 | 变更 |
@@ -290,11 +344,12 @@ interface SpriteMotionEffectAdapter {
 | `packages/sprite-core/types.ts` | 新增移动流光配置和 IPC 类型 |
 | `packages/sprite-core/manager/types.ts` | 新增平台适配器抽象 |
 | `packages/sprite-core/manager/movement-coordinator.ts` | 对 `walkTo + warp` 分流并实现 fail-open |
-| `packages/sprite-core/manager/sprite-manager.ts` | 注入并调用运动特效适配器 |
-| `packages/sprite-core/handler/sprite-manager-ipc.ts` | 透传主进程适配器依赖 |
-| `packages/sprite-core/preload/sprite-bridge.ts` | 暴露 ready、complete 和运行订阅 |
+| `packages/sprite-core/manager/sprite-manager.ts` | 注入适配器并提供独立 `warpTo/cancelWarp` 与 Purpose 执行入口 |
+| `packages/sprite-core/handler/sprite-manager-ipc.ts` | 透传适配器依赖并注册独立移动 IPC |
+| `packages/sprite-core/preload/sprite-bridge.ts` | 暴露 ready、complete、运行订阅和 `warpTo/cancelWarp` |
+| `packages/sprite-core/purpose/*` | 新增共享移动目标、`warpTo` step、Planner 校验与 Routine 分发 |
 | `electron/main/config/window.ts` | 注册独立 `spriteMotionEffect` 窗口 |
-| `electron/main/handlers/sprite-motion-effect.ts` | 新增窗口生命周期和同步协调器 |
+| `electron/main/handlers/sprite-motion-effect.ts` | 新增窗口生命周期、同步协调器和准备阶段请求失效保护 |
 | `electron/main/handlers/index.ts` | 初始化控制器并注入 SpriteManager |
 | `src/features/sprite-motion-effect/*` | 新增 Canvas 页面、粒子生成和绘制 |
 | `src/features/sprite-assistant/hooks/useAssistantMotionEffect.ts` | 新增角色显隐同步 Hook |
@@ -349,6 +404,8 @@ pnpm exec tsc --noEmit
 7. 关闭特效窗口或模拟加载失败后，角色仍能到达并保持可见。
 8. 多显示器、负坐标显示器和不同缩放比例下路径位置正确。
 9. 开启系统“减少动态效果”后使用短淡出/淡入，不播放长尾迹。
+10. 在任意 Renderer 调用 `window.YUA.sprite.warpTo(x, y)` 可独立瞬移，不需要先播放精灵动画。
+11. 瞬移准备或播放期间调用 `walkTo`、直接定位或拖拽，不应出现迟到的旧瞬移。
 
 性能基线：
 
@@ -376,6 +433,9 @@ pnpm exec tsc --noEmit
 - 新增主角色溶解/重组 Hook，并与首次登场遮罩使用不同包装层。
 - 在视频动画编辑器和已保存动画属性编辑器中增加“移动流光 -> 流光瞬移”。
 - `animation` 和 `behavior` 触发的 `walkTo + warp` 都会进入新协调器；适配器不可用时回落到普通 `walkTo`。
+- 新增独立 `SpriteManager.warpTo/cancelWarp`、Renderer IPC bridge 和 Purpose `warpTo` step，可脱离精灵动画单独调用。
+- AI Planner 的默认 step allowlist 已包含 `warpTo`，并要求 `timeoutMs` 形成有界任务计划。
+- 新增移动抢占语义和主进程请求版本保护，行走、定位、拖拽及 Routine 取消可终止正在准备或播放的瞬移。
 - `dash-trail` 类型和协议保留，但 UI 尚未开放，按 Phase 2 实施。
 
 自动验证结果：
@@ -384,11 +444,11 @@ pnpm exec tsc --noEmit
 pnpm exec tsc --noEmit --pretty false
 结果：通过
 
-流光、窗口、桥接、Renderer 与首次登场相关测试
-结果：8 个测试文件、57 项测试全部通过
+独立调用、流光控制器、移动协调器、Planner、Routine、IPC 与桥接定向测试
+结果：8 个测试文件、56 项相关测试全部通过
 
 lint（本次涉及文件）
-结果：0 error；仓库旧文件仍有已有 Prettier warning
+结果：0 error；仓库旧文件仍有 53 条已有 Prettier warning
 ```
 
 已知基线：

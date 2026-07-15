@@ -366,6 +366,7 @@ export type {
   SpriteRoutineDraft,
   SpriteRoutineGuideGoalDefinition,
   SpriteRoutineGuideGoalKind,
+  SpriteRoutineMovementTarget,
   SpriteRoutineRunResult,
   SpriteRoutineSource,
   SpriteRoutineStatus,

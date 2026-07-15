@@ -125,6 +125,7 @@ export const DEFAULT_SPRITE_PURPOSE_PLANNER_PREFERENCES: SpritePurposePlannerPre
 export const DEFAULT_SPRITE_PURPOSE_PLANNER_STEP_TYPES = [
   'playAnimation',
   'walkTo',
+  'warpTo',
   'wait',
   'waitForEvent',
   'speak',
@@ -157,6 +158,7 @@ export const DEFAULT_SPRITE_PURPOSE_PLANNER_EVENTS = [
 const STEP_SCHEMA_DESCRIPTIONS: Record<SpriteRoutineStepType, string> = {
   playAnimation: 'Play an allowlisted animation trigger or animation id. Omitted waitFor is fire-and-forget; waitFor:duration or waitFor:complete requires durationMs or timeoutMs. Set allowMovementDuringPlayback:false for presentation-first animations such as dancing.',
   walkTo: 'Move the sprite to center, corner, previous, or a bounded point; timeoutMs is required.',
+  warpTo: 'Teleport the sprite with a screen-space particle trail to center, corner, previous, or a bounded point; timeoutMs is required.',
   wait: 'Pause for a bounded durationMs.',
   waitForEvent: 'Wait for an allowlisted runtime event; timeoutMs is required.',
   speak: 'Show a short speech bubble, optionally with cooldown metadata.',
@@ -176,7 +178,7 @@ const STEP_SCHEMA_DESCRIPTIONS: Record<SpriteRoutineStepType, string> = {
 export function createSpritePurposePlannerStepSchema(stepTypes: readonly SpriteRoutineStepType[] = DEFAULT_SPRITE_PURPOSE_PLANNER_STEP_TYPES): SpritePurposePlannerStepSchemaEntry[] {
   return stepTypes.map((type) => ({
     type,
-    requiresTimeout: type === 'walkTo' || type === 'waitForEvent' || type === 'openWindow' || type === 'loopUntil',
+    requiresTimeout: type === 'walkTo' || type === 'warpTo' || type === 'waitForEvent' || type === 'openWindow' || type === 'loopUntil',
     description: STEP_SCHEMA_DESCRIPTIONS[type]
   }));
 }
@@ -358,6 +360,7 @@ function validateStep(step: unknown, path: string, state: ValidationState): numb
       duration = validatePlayAnimationStep(record, path, state);
       break;
     case 'walkTo':
+    case 'warpTo':
       duration = validateWalkToStep(record, path, state);
       break;
     case 'wait':

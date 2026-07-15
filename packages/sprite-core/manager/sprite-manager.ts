@@ -53,6 +53,7 @@ import {
   type SpritePurposeSnapshot,
   type SpritePurposeStartResult,
   type SpriteRoutine,
+  type SpriteRoutineMovementTarget,
   SpriteRoutineRunner,
   type SpriteRoutineStep,
   type StartSpritePurposeRequest
@@ -351,13 +352,14 @@ export class SpriteManager {
           playPosition: movement.windowAnimationPlayPosition,
           ...(playbackSize ? { playbackSize } : {})
         }),
-      playMotionEffect: (type, targetX, targetY) => this.motionEffectAdapter?.play({ type, targetX, targetY }) ?? Promise.resolve(false),
+      playMotionEffect: (type, targetX, targetY) => (type === 'warp' ? this.warpTo(targetX, targetY) : (this.motionEffectAdapter?.play({ type, targetX, targetY }) ?? Promise.resolve(false))),
       cancelMotionEffect: () => this.motionEffectAdapter?.cancel?.()
     });
     this.purposeManager = new SpritePurposeManager({
       runner: new SpriteRoutineRunner({
         playAnimation: (step, signal, routine) => this.runPurposeAnimationStep(step, signal, routine),
         walkTo: (step, signal, routine) => this.runPurposeWalkStep(step, signal, routine),
+        warpTo: (step, signal, routine) => this.runPurposeWarpStep(step, signal, routine),
         waitForEvent: (step, signal, routine) => this.purposeEventWaiter.wait(step, routine, signal),
         speak: (step, _signal, routine) => this.runPurposeSpeakStep(step, routine),
         showToast: (step, routine) =>
@@ -1691,9 +1693,24 @@ export class SpriteManager {
 
   /** 行走到目标位置 */
   async walkTo(x: number, y: number, speed?: number): Promise<void> {
+    this.cancelWarp();
     if (this.windowController) {
       await this.windowController.walkTo(x, y, speed);
     }
+  }
+
+  /** 通过屏幕空间粒子流光瞬移到目标位置。 */
+  async warpTo(x: number, y: number): Promise<boolean> {
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !this.motionEffectAdapter) return false;
+    this.stopWalk();
+    this.movementCoordinator.stopAutoMove();
+    const target = this.windowController?.clampPosition?.(x, y) ?? { x: Math.round(x), y: Math.round(y) };
+    return this.motionEffectAdapter.play({ type: 'warp', targetX: target.x, targetY: target.y });
+  }
+
+  /** 终止当前独立瞬移；角色可见性由主进程协调器负责恢复。 */
+  cancelWarp(): void {
+    this.motionEffectAdapter?.cancel?.();
   }
 
   /** 停止行走 */
@@ -1714,6 +1731,7 @@ export class SpriteManager {
 
   /** 设置窗口位置 */
   setPosition(x: number, y: number): void {
+    this.cancelWarp();
     if (this.windowController) {
       this.windowController.setPosition(x, y);
     } else {
@@ -1723,6 +1741,7 @@ export class SpriteManager {
 
   /** 开始拖拽 */
   startDrag(offsetX: number, offsetY: number): void {
+    this.cancelWarp();
     this.stopWalk();
     this.transitionTo('dragging');
     if (this.windowController) {
@@ -2709,6 +2728,8 @@ export class SpriteManager {
         return 0;
       case 'walkTo':
         return step.timeoutMs ?? 10000;
+      case 'warpTo':
+        return step.timeoutMs ?? 2400;
       case 'speak':
         return step.timeoutMs ?? step.bubbleDuration ?? 4000;
       case 'showToast':
@@ -2881,7 +2902,7 @@ export class SpriteManager {
     const priority = this.resolveRoutinePriority(routine);
     const lockTtlMs = Math.max(1000, step.timeoutMs ?? 8000);
     const lockAcquired = this.shouldAcquirePurposeStepLock(routine) ? this.presentationLock.acquire(routine.purposeId, priority, lockTtlMs, `routine:${routine.id}:${step.id}`) : false;
-    const [x, y] = this.resolvePurposeWalkTarget(step.target);
+    const [x, y] = this.resolvePurposeMovementTarget(step.target);
     const owner: SpritePresentationOwnerContext = { ownerId: routine.purposeId, priority };
     try {
       const walk = this.withStateDrivenPresentationOwner(owner, () => this.walkTo(x, y, step.speed));
@@ -2911,6 +2932,35 @@ export class SpriteManager {
     }
   }
 
+  private async runPurposeWarpStep(step: Extract<SpriteRoutineStep, { type: 'warpTo' }>, signal: AbortSignal, routine: SpriteRoutine): Promise<void> {
+    const priority = this.resolveRoutinePriority(routine);
+    const lockTtlMs = Math.max(1000, step.timeoutMs ?? 2400);
+    const lockAcquired = this.shouldAcquirePurposeStepLock(routine) ? this.presentationLock.acquire(routine.purposeId, priority, lockTtlMs, `routine:${routine.id}:${step.id}`) : false;
+    const [x, y] = this.resolvePurposeMovementTarget(step.target);
+    let completed = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    try {
+      const warp = this.warpTo(x, y);
+      const boundedWarp =
+        step.timeoutMs == null
+          ? warp
+          : new Promise<boolean>((resolve, reject) => {
+              timeoutId = setTimeout(() => {
+                this.cancelWarp();
+                reject(new Error('Warp step timed out'));
+              }, step.timeoutMs);
+              warp.then(resolve, reject);
+            });
+      const played = await this.racePurposeSignal(boundedWarp, signal);
+      if (!played) throw new Error('Warp effect is unavailable');
+      completed = true;
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+      if (!completed) this.cancelWarp();
+      if (lockAcquired) this.presentationLock.release(routine.purposeId);
+    }
+  }
+
   private async runPurposeOpenWindowStep(step: Extract<SpriteRoutineStep, { type: 'openWindow' }>, signal: AbortSignal): Promise<void> {
     if (!this.purposeWindowAdapter) {
       throw new Error('Purpose window adapter is not configured');
@@ -2919,13 +2969,13 @@ export class SpriteManager {
     await this.racePurposeSignal(Promise.resolve(this.purposeWindowAdapter.open(step.window, step.payload)), signal);
   }
 
-  private resolvePurposeWalkTarget(target: Extract<SpriteRoutineStep, { type: 'walkTo' }>['target']): [number, number] {
+  private resolvePurposeMovementTarget(target: SpriteRoutineMovementTarget): [number, number] {
     if (typeof target === 'object' && 'x' in target) {
       return [target.x, target.y];
     }
 
     if (typeof target === 'object' && 'window' in target) {
-      return this.resolvePurposeWindowWalkTarget(target);
+      return this.resolvePurposeWindowMovementTarget(target);
     }
 
     if (target === 'previous') {
@@ -2945,10 +2995,10 @@ export class SpriteManager {
     return [Math.max(0, screen.width - winWidth - 20), Math.max(0, screen.height - winHeight - 40)];
   }
 
-  private resolvePurposeWindowWalkTarget(target: Extract<Extract<SpriteRoutineStep, { type: 'walkTo' }>['target'], { window: string }>): [number, number] {
+  private resolvePurposeWindowMovementTarget(target: Extract<SpriteRoutineMovementTarget, { window: string }>): [number, number] {
     const bounds = this.purposeWindowAdapter?.getBounds?.(target.window);
     if (!bounds) {
-      return this.resolvePurposeWalkTarget('center');
+      return this.resolvePurposeMovementTarget('center');
     }
 
     const screen = this.getScreenSize();

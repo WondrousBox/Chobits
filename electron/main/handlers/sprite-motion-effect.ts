@@ -24,6 +24,8 @@ export class SpriteMotionEffectController {
   private effectReadyWindowId: number | null = null;
   private observedEffectWindowId: number | null = null;
   private readonly readyWaiters = new Set<(windowId: number) => void>();
+  private pendingRequestVersion: number | null = null;
+  private requestVersion = 0;
   private disposed = false;
 
   constructor(private readonly mainWindow: BrowserWindow) {
@@ -37,11 +39,18 @@ export class SpriteMotionEffectController {
       return false;
     }
 
+    const requestVersion = ++this.requestVersion;
+    this.pendingRequestVersion = requestVersion;
     this.finishActive('superseded');
 
     try {
       const effectWindow = await this.ensureEffectWindow();
-      if (!effectWindow || effectWindow.isDestroyed() || !(await this.waitForEffectReady(effectWindow))) {
+      if (!effectWindow || effectWindow.isDestroyed() || requestVersion !== this.requestVersion) {
+        if (this.pendingRequestVersion === requestVersion) this.pendingRequestVersion = null;
+        return false;
+      }
+      if (!(await this.waitForEffectReady(effectWindow)) || requestVersion !== this.requestVersion) {
+        if (this.pendingRequestVersion === requestVersion) this.pendingRequestVersion = null;
         return false;
       }
 
@@ -65,11 +74,16 @@ export class SpriteMotionEffectController {
       effectWindow.setBounds(run.overlayBounds, false);
       this.configureEffectWindow(effectWindow);
       const visibleWindow = await windowManager.show(SPRITE_MOTION_EFFECT_WINDOW_KEY);
-      if (!visibleWindow || visibleWindow.isDestroyed()) return false;
+      if (!visibleWindow || visibleWindow.isDestroyed() || requestVersion !== this.requestVersion) {
+        if (this.pendingRequestVersion === requestVersion) this.pendingRequestVersion = null;
+        if (!this.active && this.pendingRequestVersion == null) this.hideEffectWindow();
+        return false;
+      }
       visibleWindow.setBounds(run.overlayBounds, false);
       this.configureEffectWindow(visibleWindow);
 
       return await new Promise<boolean>((resolve) => {
+        this.pendingRequestVersion = null;
         const startDelay = Math.max(0, run.startsAt - Date.now());
         const jumpAtMs = (run.timeline.travelStartMs + run.timeline.travelEndMs) / 2;
         const active: ActiveMotionEffect = {
@@ -97,19 +111,31 @@ export class SpriteMotionEffectController {
       });
     } catch (error) {
       console.warn('[sprite-motion-effect] prepare failed:', error);
-      this.finishActive('failed');
+      if (this.pendingRequestVersion === requestVersion) this.pendingRequestVersion = null;
+      if (requestVersion === this.requestVersion) {
+        this.finishActive('failed');
+        if (!this.active) this.hideEffectWindow();
+      }
       return false;
     }
   }
 
   cancel(): void {
+    this.requestVersion += 1;
+    this.pendingRequestVersion = null;
+    const hadActiveRun = this.active != null;
     this.finishActive('cancelled');
+    if (!hadActiveRun) this.hideEffectWindow();
   }
 
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.requestVersion += 1;
+    this.pendingRequestVersion = null;
+    const hadActiveRun = this.active != null;
     this.finishActive('disposed');
+    if (!hadActiveRun) this.hideEffectWindow();
     this.readyWaiters.clear();
     ipcMain.removeHandler(SPRITE_MOTION_EFFECT_IPC_CHANNELS.READY);
     ipcMain.removeHandler(SPRITE_MOTION_EFFECT_IPC_CHANNELS.COMPLETE);
@@ -218,9 +244,13 @@ export class SpriteMotionEffectController {
     if (!this.mainWindow.isDestroyed()) this.mainWindow.webContents.send(SPRITE_MOTION_EFFECT_IPC_CHANNELS.CANCEL, payload);
     const effectWindow = this.resolveEffectWindow();
     if (effectWindow) effectWindow.webContents.send(SPRITE_MOTION_EFFECT_IPC_CHANNELS.CANCEL, payload);
-    void windowManager.hide(SPRITE_MOTION_EFFECT_WINDOW_KEY).catch(() => undefined);
+    this.hideEffectWindow();
     active.resolve(true);
     console.info('[sprite-motion-effect] finished', { runId: active.run.runId, reason });
+  }
+
+  private hideEffectWindow(): void {
+    void windowManager.hide(SPRITE_MOTION_EFFECT_WINDOW_KEY).catch(() => undefined);
   }
 
   private prefersReducedMotion(): boolean {

@@ -40,7 +40,7 @@ function createTestWindow(): {
   return { win, sent };
 }
 
-function createManager(options: { purposeWindowAdapter?: any; behaviorScheduler?: any; windowAnimationAdapter?: any } = {}): {
+function createManager(options: { purposeWindowAdapter?: any; behaviorScheduler?: any; windowAnimationAdapter?: any; motionEffectAdapter?: any } = {}): {
   mgr: SpriteManager;
   sent: Array<{ channel: string; payload: unknown }>;
   dataDir: string;
@@ -54,6 +54,7 @@ function createManager(options: { purposeWindowAdapter?: any; behaviorScheduler?
     appName: 'SpriteTest',
     purposeWindowAdapter: options.purposeWindowAdapter,
     windowAnimationAdapter: options.windowAnimationAdapter,
+    motionEffectAdapter: options.motionEffectAdapter,
     behaviorScheduler: options.behaviorScheduler
   });
 
@@ -2072,6 +2073,44 @@ describe('sprite manager regression coverage', () => {
         padding: 0
       }
     });
+  });
+
+  it('runs warpTo as a bounded standalone move and lets direct movement cancel it', async () => {
+    const play = vi.fn(async () => true);
+    const cancel = vi.fn();
+    const { mgr, dataDir } = createManager({ motionEffectAdapter: { play, cancel } });
+    dataDirs.add(dataDir);
+
+    const walkTo = vi.fn(async () => undefined);
+    const stopWalk = vi.fn();
+    const stopAutoMove = vi.fn();
+    const setPosition = vi.fn();
+    const startDrag = vi.fn();
+    (mgr as any).windowController = {
+      clampPosition: vi.fn(() => ({ x: 920, y: 480 })),
+      walkTo,
+      stopWalk,
+      stopAutoMove,
+      isAutoMoving: () => true,
+      getAutoMoveDirection: () => 'right',
+      setPosition,
+      startDrag
+    };
+
+    await expect(mgr.warpTo(5000, 4000)).resolves.toBe(true);
+    expect(stopWalk).toHaveBeenCalledOnce();
+    expect(stopAutoMove).toHaveBeenCalledOnce();
+    expect(play).toHaveBeenCalledWith({ type: 'warp', targetX: 920, targetY: 480 });
+
+    cancel.mockClear();
+    await mgr.walkTo(300, 240);
+    mgr.setPosition(320, 260);
+    mgr.startDrag(10, 20);
+
+    expect(cancel).toHaveBeenCalledTimes(3);
+    expect(walkTo).toHaveBeenCalledWith(300, 240, undefined);
+    expect(setPosition).toHaveBeenCalledWith(320, 260);
+    expect(startDrag).toHaveBeenCalledWith(10, 20);
   });
 
   it('auto-walk behavior delegates movement execution to the unified runtime entry', async () => {

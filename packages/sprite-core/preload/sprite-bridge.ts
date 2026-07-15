@@ -164,6 +164,8 @@ export type SpriteBridgeType = {
   previewMovement(config: SpriteMovementPreviewConfig): Promise<void>;
   stopMovementPreview(): Promise<void>;
   setMovementAvoidRegions(regions: WindowControllerAvoidRegion[]): Promise<{ ok: boolean }>;
+  warpTo(x: number, y: number): Promise<boolean>;
+  cancelWarp(): Promise<void>;
 
   // 语音合成 (Speak)
   speak(text: string, options?: { showBubble?: boolean; bubbleDuration?: number }): Promise<SpeakResult>;
@@ -278,6 +280,8 @@ export const spriteBridge: SpriteBridgeType = {
   previewMovement: (config) => ipcRenderer.invoke('sprite:previewMovement', config),
   stopMovementPreview: () => ipcRenderer.invoke('sprite:stopMovementPreview'),
   setMovementAvoidRegions: (regions) => ipcRenderer.invoke('sprite:movement:setAvoidRegions', { regions }),
+  warpTo: (x, y) => ipcRenderer.invoke('sprite:movement:warpTo', { x, y }),
+  cancelWarp: () => ipcRenderer.invoke('sprite:movement:cancelWarp'),
 
   // ── 语音合成 (Speak) ──────────────────────────────────────
   speak: (text, options) => ipcRenderer.invoke('sprite:speak', { text, showBubble: options?.showBubble, bubbleDuration: options?.bubbleDuration }),

@@ -119,6 +119,14 @@ describe('sprite preload bridge', () => {
     expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:movement:setAvoidRegions', { regions });
   });
 
+  it('exposes standalone warp movement and cancellation through IPC', async () => {
+    await spriteBridge.warpTo(480, 320);
+    await spriteBridge.cancelWarp();
+
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:movement:warpTo', { x: 480, y: 320 });
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(2, 'sprite:movement:cancelWarp');
+  });
+
   it('forwards animation playlist mode config calls', async () => {
     await spriteBridge.getAnimationPlaylistMode();
     await spriteBridge.setAnimationPlaylistMode('list-loop');

@@ -106,6 +106,29 @@ describe('SpriteMotionEffectController', () => {
     controller.dispose();
   });
 
+  it('does not start a pending warp after it has been cancelled', async () => {
+    const mainWindow = createWindow(8, { x: 50, y: 80, width: 200, height: 260 });
+    const effectWindow = createWindow(9, { x: 0, y: 0, width: 1, height: 1 });
+    windowManagerState.get.mockReturnValue(effectWindow);
+    windowManagerState.create.mockResolvedValue(effectWindow);
+    windowManagerState.show.mockResolvedValue(effectWindow);
+
+    const { initSpriteMotionEffectController } = await import('../electron/main/handlers/sprite-motion-effect');
+    const { SPRITE_MOTION_EFFECT_IPC_CHANNELS } = await import('../packages/sprite-core/types');
+    const controller = initSpriteMotionEffectController(mainWindow);
+    const playPromise = controller.play({ type: 'warp', targetX: 700, targetY: 440 });
+
+    controller.cancel();
+    ipcHandlers.get(SPRITE_MOTION_EFFECT_IPC_CHANNELS.READY)?.({ sender: effectWindow.webContents });
+    await vi.advanceTimersByTimeAsync(0);
+
+    await expect(playPromise).resolves.toBe(false);
+    expect(effectWindow.webContents.send).not.toHaveBeenCalledWith(SPRITE_MOTION_EFFECT_IPC_CHANNELS.START, expect.anything());
+    expect(mainWindow.setBounds).not.toHaveBeenCalled();
+    expect(windowManagerState.hide).toHaveBeenCalledWith('spriteMotionEffect');
+    controller.dispose();
+  });
+
   it('moves to the destination and restores the main renderer when the effect window closes mid-run', async () => {
     const mainWindow = createWindow(6, { x: 30, y: 40, width: 180, height: 240 });
     const effectWindow = createWindow(7, { x: 0, y: 0, width: 1, height: 1 });

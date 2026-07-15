@@ -100,6 +100,10 @@ export class WindowController {
     return [bounds.x, bounds.y];
   }
 
+  clampPosition(x: number, y: number): { x: number; y: number } {
+    return clampWindowPosition({ x, y }, this.getViewport());
+  }
+
   setPosition(x: number, y: number): void {
     const nextPosition = clampWindowPosition({ x, y }, this.getViewport());
     this.platform.setPosition(nextPosition.x, nextPosition.y);

@@ -1313,6 +1313,18 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     return { ok: true };
   });
 
+  ipcMain.handle('sprite:movement:warpTo', async (_e, p: { x?: number; y?: number } | undefined) => {
+    ensureCapabilityUnlocked('movement');
+    const x = p?.x;
+    const y = p?.y;
+    if (typeof x !== 'number' || !Number.isFinite(x) || typeof y !== 'number' || !Number.isFinite(y)) return false;
+    return mgr.warpTo(x, y);
+  });
+
+  ipcMain.handle('sprite:movement:cancelWarp', () => {
+    mgr.cancelWarp();
+  });
+
   ipcMain.handle('sprite:spontaneous:getPreferences', async () => {
     return (await deps.spontaneousUtteranceExecutor?.getSpontaneousUtterancePreferences?.()) ?? null;
   });

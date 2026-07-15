@@ -36,6 +36,30 @@ async function waitFor(predicate: () => boolean, timeoutMs = 200): Promise<void>
 }
 
 describe('SpriteRoutineRunner', () => {
+  it('dispatches standalone warpTo steps without requiring an animation step', async () => {
+    const warpTo = vi.fn(async () => true);
+    const runner = new SpriteRoutineRunner({
+      playAnimation: vi.fn(),
+      walkTo: vi.fn(),
+      warpTo,
+      speak: vi.fn(),
+      showToast: vi.fn()
+    });
+
+    const result = await runner.run({
+      id: 'routine-warp',
+      purposeId: 'purpose-warp',
+      source: 'preset',
+      status: 'queued',
+      steps: [{ id: 'warp-center', type: 'warpTo', target: 'center', timeoutMs: 1800 }],
+      cursor: 0,
+      createdAt: Date.now()
+    });
+
+    expect(result.ok, result.error).toBe(true);
+    expect(warpTo).toHaveBeenCalledWith(expect.objectContaining({ type: 'warpTo', target: 'center' }), expect.any(AbortSignal), expect.objectContaining({ id: 'routine-warp' }));
+  });
+
   it('runs routine steps in order', async () => {
     const calls: string[] = [];
     const runner = new SpriteRoutineRunner({
