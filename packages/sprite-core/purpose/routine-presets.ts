@@ -485,17 +485,18 @@ function shouldLockChatApiConfigGuideProvider(purpose: SpritePurpose): boolean {
 function createWorkspaceCreateRoutineSteps(): SpriteRoutineStepInput[] {
   return [
     'playAnimation welcome silent',
+    1000,
     {
       id: 'speak-workspace-assistant-intro',
       type: 'speak',
-      text: getCharacterRoutineText('onboarding.workspace.create.assistant-intro', undefined, '你好，我是你的专属桌面助手。'),
+      text: getCharacterRoutineText('onboarding.workspace.create.assistant-intro', undefined, '你好，我是你的AI助手。'),
       bubbleDuration: 3600,
       waitAfter: true
     },
     {
       id: 'speak-workspace-growth-promise',
       type: 'speak',
-      text: getCharacterRoutineText('onboarding.workspace.create.growth-promise', undefined, '我会陪伴你学习和工作，一起共同成长。'),
+      text: getCharacterRoutineText('onboarding.workspace.create.growth-promise', undefined, '我会协助你学习或工作，不断成长。'),
       bubbleDuration: 4200,
       waitAfter: true
     },
@@ -546,7 +547,10 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStepInput[] {
                       id: 'guide-near-wizard',
                       type: 'parallel',
                       body: [
-                        [{ id: 'warp-near-wizard', type: 'warpTo', target: { window: 'workspaceWizard', placement: 'right', offset: 16 }, timeoutMs: 2400 }, 'playAnimation lookLeft silent'],
+                        [
+                          { id: 'walk-near-wizard', type: 'walkTo', target: { window: 'workspaceWizard', placement: 'right', offset: 16 }, speed: 130, timeoutMs: 10000 },
+                          'playAnimation lookLeft silent'
+                        ],
                         {
                           id: 'await-wizard-result',
                           type: 'loopUntil',
@@ -697,7 +701,7 @@ function createOnboardingFileDropRoutineSteps(): SpriteRoutineStepInput[] {
       by: 'firstFileDropResult.event.event',
       cases: {
         RESOURCE_CREATED: [
-          { id: 'first-file-drop-celebrate', type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
+          { id: 'first-file-drop-celebrate', type: 'playAnimation', trigger: 'success', durationMs: 1400, waitFor: 'duration', silent: true },
           {
             id: 'first-file-drop-done',
             type: 'speak',
@@ -706,7 +710,7 @@ function createOnboardingFileDropRoutineSteps(): SpriteRoutineStepInput[] {
           }
         ],
         SPRITE_RESOURCE_IMPORT_COMPLETE: [
-          { id: 'first-file-drop-celebrate', type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
+          { id: 'first-file-drop-celebrate', type: 'playAnimation', trigger: 'success', durationMs: 1400, waitFor: 'duration', silent: true },
           {
             id: 'first-file-drop-done',
             type: 'speak',
@@ -764,7 +768,6 @@ function createFirstChatRoutineSteps(): SpriteRoutineStepInput[] {
       ignoreHistory: false,
       body: [{ id: 'first-chat-wait-window-pause', type: 'wait', durationMs: 300 }]
     },
-    { id: 'first-chat-celebrate', type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
     3000,
     {
       id: 'first-chat-done',
@@ -822,7 +825,7 @@ function createOpenResourceLibraryRoutineSteps(): SpriteRoutineStepInput[] {
       ignoreHistory: true
     },
     { id: 'clear-resource-menu-notice', type: 'clearMessage', messageId: OPEN_INVENTORY_NOTICE_ID, messageType: 'notice' },
-    { id: 'resource-menu-celebrate', type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
+    { id: 'resource-menu-celebrate', type: 'playAnimation', trigger: 'success', durationMs: 1400, waitFor: 'duration', silent: true },
     {
       id: 'resource-menu-done',
       type: 'speak',
@@ -928,7 +931,7 @@ function createChatApiConfigGuideSteps(purpose: SpritePurpose): SpriteRoutineSte
     }
   );
   if (openSettingsDirectly) {
-    return [...openSettingsSteps, { id: 'chat-api-config-return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }];
+    return [...openSettingsSteps, { id: 'chat-api-config-return-corner', type: 'warpTo', target: 'corner', timeoutMs: 10000 }];
   }
   return [
     {
@@ -973,6 +976,7 @@ function createChatApiConfigGuideSteps(purpose: SpritePurpose): SpriteRoutineSte
       default: []
     },
     { id: 'chat-api-config-return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
+    // { id: 'chat-api-config-return-corner', type: 'warpTo', target: 'corner', timeoutMs: 10000 }
   ];
 }
 

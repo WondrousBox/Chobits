@@ -404,7 +404,7 @@ export const CHARACTER_MESSAGE_SPECS = [
     key: 'onboarding.workspace.create.assistant-intro',
     label: '工作空间引导助手自我介绍',
     maxItems: 4,
-    neutral: () => ['你好，我是你的专属桌面助手。']
+    neutral: () => ['你好，我是你的AI助手。']
   },
   {
     field: 'workspaceCreateGrowthPromise',
@@ -412,7 +412,7 @@ export const CHARACTER_MESSAGE_SPECS = [
     key: 'onboarding.workspace.create.growth-promise',
     label: '工作空间引导陪伴说明',
     maxItems: 4,
-    neutral: () => ['我会陪伴你学习和工作，一起共同成长。']
+    neutral: () => ['我会协助你学习或工作，不断成长。']
   },
   {
     field: 'workspaceCreateInvite',

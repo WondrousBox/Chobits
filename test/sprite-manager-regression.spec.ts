@@ -2088,6 +2088,7 @@ describe('sprite manager regression coverage', () => {
     const startDrag = vi.fn();
     (mgr as any).windowController = {
       clampPosition: vi.fn(() => ({ x: 920, y: 480 })),
+      getPosition: vi.fn(() => [100, 100]),
       walkTo,
       stopWalk,
       stopAutoMove,
@@ -2111,6 +2112,27 @@ describe('sprite manager regression coverage', () => {
     expect(walkTo).toHaveBeenCalledWith(300, 240, undefined);
     expect(setPosition).toHaveBeenCalledWith(320, 260);
     expect(startDrag).toHaveBeenCalledWith(10, 20);
+  });
+
+  it('treats warpTo at the current window position as a silent success', async () => {
+    const play = vi.fn(async () => true);
+    const stopWalk = vi.fn();
+    const stopAutoMove = vi.fn();
+    const { mgr, dataDir } = createManager({ motionEffectAdapter: { play } });
+    dataDirs.add(dataDir);
+    (mgr as any).windowController = {
+      clampPosition: vi.fn(() => ({ x: 320.4, y: 239.6 })),
+      getPosition: vi.fn(() => [320, 240]),
+      stopWalk,
+      stopAutoMove,
+      isAutoMoving: () => true,
+      getAutoMoveDirection: () => 'right'
+    };
+
+    await expect(mgr.warpTo(320.4, 239.6)).resolves.toBe(true);
+    expect(play).not.toHaveBeenCalled();
+    expect(stopWalk).not.toHaveBeenCalled();
+    expect(stopAutoMove).not.toHaveBeenCalled();
   });
 
   it('auto-walk behavior delegates movement execution to the unified runtime entry', async () => {

@@ -1699,12 +1699,16 @@ export class SpriteManager {
     }
   }
 
-  /** 通过屏幕空间粒子流光瞬移到目标位置。 */
+  /** 通过屏幕空间粒子流光瞬移到目标位置；目标与当前位置一致时视为成功但不播放特效。 */
   async warpTo(x: number, y: number): Promise<boolean> {
-    if (!Number.isFinite(x) || !Number.isFinite(y) || !this.motionEffectAdapter) return false;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+    const clampedTarget = this.windowController?.clampPosition?.(x, y) ?? { x, y };
+    const target = { x: Math.round(clampedTarget.x), y: Math.round(clampedTarget.y) };
+    const [currentX, currentY] = this.getPosition();
+    if (Math.round(currentX) === target.x && Math.round(currentY) === target.y) return true;
+    if (!this.motionEffectAdapter) return false;
     this.stopWalk();
     this.movementCoordinator.stopAutoMove();
-    const target = this.windowController?.clampPosition?.(x, y) ?? { x: Math.round(x), y: Math.round(y) };
     return this.motionEffectAdapter.play({ type: 'warp', targetX: target.x, targetY: target.y });
   }
 

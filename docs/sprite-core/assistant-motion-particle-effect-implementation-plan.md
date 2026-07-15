@@ -291,7 +291,7 @@ interface SpriteMotionEffectAdapter {
 Renderer / IPC：
 
 ```ts
-const played = await window.YUA.sprite.warpTo(480, 320);
+const handled = await window.YUA.sprite.warpTo(480, 320);
 // 需要抢占或终止时：
 await window.YUA.sprite.cancelWarp();
 ```
@@ -301,7 +301,7 @@ Electron main / 内部 Node：
 ```ts
 import { SpriteManager } from '@packages/sprite-core/manager';
 
-const played = await SpriteManager.getInstance().warpTo(480, 320);
+const handled = await SpriteManager.getInstance().warpTo(480, 320);
 SpriteManager.getInstance().cancelWarp();
 ```
 
@@ -316,12 +316,13 @@ Purpose / 新手任务编排：
 }
 ```
 
-`warpTo` 与 `walkTo` 共用目标语义：`center`、`corner`、`previous`、绝对 `{ x, y }`，以及业务窗口相对位置。直接坐标会通过 `WindowController` 限制到可移动区域；开始瞬移前会停止普通行走和方向自动移动。Routine 被取消或超时时会调用 `cancelWarp()`，主进程负责恢复角色可见性。
+`warpTo` 与 `walkTo` 共用目标语义：`center`、`corner`、`previous`、绝对 `{ x, y }`，以及业务窗口相对位置。直接坐标会通过 `WindowController` 限制到可移动区域并按真实窗口坐标取整；若目标与当前位置一致，调用直接按成功完成，不停止现有移动，也不创建或播放流光特效。真正开始瞬移前才会停止普通行走和方向自动移动。Routine 被取消或超时时会调用 `cancelWarp()`，主进程负责恢复角色可见性。
 
 移动抢占规则：
 
 | 新动作 | 当前动作 | 处理 |
 | --- | --- | --- |
+| `warpTo` | 目标与当前窗口位置一致 | 静默成功，不停止当前移动，不播放特效 |
 | `warpTo` | 普通行走或方向自动移动 | 停止旧移动后播放瞬移 |
 | `warpTo` | 另一次瞬移 | 新请求取代旧请求 |
 | `walkTo`、`setPosition` 或拖拽 | 正在播放或准备中的瞬移 | 取消瞬移，再执行新动作 |
@@ -406,6 +407,7 @@ pnpm exec tsc --noEmit
 9. 开启系统“减少动态效果”后使用短淡出/淡入，不播放长尾迹。
 10. 在任意 Renderer 调用 `window.YUA.sprite.warpTo(x, y)` 可独立瞬移，不需要先播放精灵动画。
 11. 瞬移准备或播放期间调用 `walkTo`、直接定位或拖拽，不应出现迟到的旧瞬移。
+12. `warpTo` 目标与当前窗口位置一致时不隐藏角色、不创建特效窗口、不播放动画，也不打断当前移动。
 
 性能基线：
 
