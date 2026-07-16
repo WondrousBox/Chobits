@@ -1282,10 +1282,7 @@ describe('SpriteRoutinePresetRegistry', () => {
       'ack-drop',
       'thinking',
       'wait-file-drop-resources-ready',
-      'prompt-action',
-      'open-file-actions-menu',
-      'wait-menu-result',
-      'result-branch',
+      'import-result-branch',
       'return-corner'
     ]);
     expect(routine.steps[0]).toMatchObject({ type: 'playAnimation', trigger: 'fileDrop' });
@@ -1296,19 +1293,32 @@ describe('SpriteRoutinePresetRegistry', () => {
       match: { correlationId: 'drop-1' },
       assignTo: 'fileDropReady'
     });
-    expect(routine.steps.find((step) => step.id === 'open-file-actions-menu')).toMatchObject({
+    const importResultBranch = routine.steps.find((step) => step.id === 'import-result-branch');
+    expect(importResultBranch).toMatchObject({
+      type: 'branch',
+      by: 'fileDropReady.payload.importStatus',
+      cases: {
+        failed: expect.arrayContaining([expect.objectContaining({ id: 'import-failed-reaction', type: 'playAnimation', trigger: 'failure' })]),
+        partial: expect.arrayContaining([expect.objectContaining({ id: 'import-partial-toast', type: 'showToast', category: 'warning' })])
+      }
+    });
+    if (!importResultBranch || importResultBranch.type !== 'branch') {
+      throw new Error('file drop import result branch is missing');
+    }
+    const successSteps = importResultBranch.default ?? [];
+    expect(successSteps.find((step) => step.id === 'open-file-actions-menu')).toMatchObject({
       type: 'openWindow',
       window: 'fileActionsMenu',
       payloadFrom: 'fileDropReady.payload.fileActionsMenuPayload'
     });
-    expect(routine.steps.find((step) => step.id === 'wait-menu-result')).toMatchObject({
+    expect(successSteps.find((step) => step.id === 'wait-menu-result')).toMatchObject({
       type: 'waitForEvent',
       source: 'purpose-event',
       event: 'fileAction:resolved',
       match: { correlationId: 'drop-1' },
       assignTo: 'menuResult'
     });
-    expect(routine.steps.find((step) => step.id === 'result-branch')).toMatchObject({
+    expect(successSteps.find((step) => step.id === 'result-branch')).toMatchObject({
       type: 'branch',
       by: 'menuResult.payload.outcome',
       cases: {
@@ -1398,6 +1408,7 @@ describe('SpriteRoutinePresetRegistry', () => {
       'cancelled-confused',
       'cancelled-toast',
       'result-branch',
+      'import-result-branch',
       'return-corner'
     ]);
     expect(calls).toContain('open:fileActionsMenu:drop-1');
@@ -1484,6 +1495,7 @@ describe('SpriteRoutinePresetRegistry', () => {
       'failed-reaction',
       'failed-toast',
       'result-branch',
+      'import-result-branch',
       'return-corner'
     ]);
     expect(calls).toContain('open:fileActionsMenu:drop-1');

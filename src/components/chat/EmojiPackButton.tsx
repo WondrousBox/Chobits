@@ -1,5 +1,5 @@
-import type * as PopoverPrimitive from '@radix-ui/react-popover';
 import type { EmojiPacksDisplayTarget } from '@packages/ai/types';
+import type * as PopoverPrimitive from '@radix-ui/react-popover';
 import { Archive, FolderOpen, FolderPlus, ImagePlus, Loader2, PackageOpen, SmilePlus } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { getLocalPathForFile } from '@/lib/local-file-path';
 import { cn } from '@/lib/utils';
 
 import type { EmojiPackImportResult, EmojiPackSummary } from '../../../electron/main/handlers/emoji-packs/types';
@@ -26,7 +27,7 @@ interface EmojiPackButtonProps {
 }
 
 function extractDroppedPaths(files: File[]): string[] {
-  return files.map((file) => (file as File & { path?: string }).path).filter((filePath): filePath is string => Boolean(filePath));
+  return files.map(getLocalPathForFile).filter((filePath): filePath is string => Boolean(filePath));
 }
 
 function summarizeImportResults(results: EmojiPackImportResult[]): void {

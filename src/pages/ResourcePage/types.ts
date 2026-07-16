@@ -20,6 +20,8 @@ export type ResourceTypes =
 export type SelectedResourceFileType = {
   _id?: string;
   path: string;
+  localPath?: string;
+  relativePath?: string;
   name?: string;
   url?: string;
   size?: number;

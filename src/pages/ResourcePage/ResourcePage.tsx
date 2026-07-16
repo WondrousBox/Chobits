@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SidebarProvider } from '@/components/ui/sidebar';
+import { getLocalPathForFile } from '@/lib/local-file-path';
 import AnalyticsPage from '@/pages/AnalyticsPage/AnalyticsPage';
 import ChatPage from '@/pages/ChatPage/ChatPage';
 import SettingsPage, { SettingsCategory } from '@/pages/SettingsPage/SettingsPage';
@@ -454,11 +455,12 @@ const ResourcePage: React.FC = () => {
         if (item.kind === 'file') {
           const file = item.getAsFile();
           if (file) {
-            // Electron environment: File object has 'path' property
-            // For pasted images from web, path might be empty, but we still want to upload them
-            const path = (file as any).path || '';
+            // Native clipboard files have a disk path; web-generated images use the upload fallback.
+            const localPath = getLocalPathForFile(file) || '';
             files.push({
-              path: path,
+              path: localPath,
+              localPath: localPath || undefined,
+              relativePath: `./${file.name}`,
               name: file.name,
               size: file.size,
               type: 'file',

@@ -6,20 +6,37 @@
  */
 import { useRef, useState } from 'react';
 
+import { getLocalPathForFile, isAbsoluteLocalFilePath } from '@/lib/local-file-path';
 import { SelectedResourceFileType } from '@/pages/ResourcePage/types';
 
 import { addResourcesFromDataTransfer, addResourcesFromSelectedFiles } from '../../../pages/ResourcePage/services/resourceService';
 
-type FileDropPayloadItem = { name: string; path?: string };
-type FileDropResourceItem = { id?: string; title?: string; [key: string]: unknown };
+type FileDropPayloadItem = { name?: string; path?: string };
+type FileDropResourceItem = { id?: string; title?: string; filePath?: string; [key: string]: unknown };
+
+function getLocalPath(file: SelectedResourceFileType): string | undefined {
+  if (isAbsoluteLocalFilePath(file.localPath)) return file.localPath;
+  if (file.file) {
+    return getLocalPathForFile(file.file);
+  }
+  return isAbsoluteLocalFilePath(file.path) ? file.path : undefined;
+}
 
 function createFileDropCorrelationId(): string {
   return `file-drop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-async function emitFileDropResourcesReady(correlationId: string, files: FileDropPayloadItem[], resources: FileDropResourceItem[] | null | undefined): Promise<void> {
+async function emitFileDropResourcesReady(correlationId: string, attemptedFiles: FileDropPayloadItem[], resources: FileDropResourceItem[] | null | undefined): Promise<void> {
   try {
     const safeResources = resources ?? [];
+    const importedFiles = safeResources.map((resource) => ({
+      name: resource.title || (resource.filePath ? resource.filePath.split(/[/\\]/).pop() || '' : ''),
+      ...(resource.filePath ? { path: resource.filePath } : {})
+    }));
+    const files = importedFiles.length ? importedFiles : attemptedFiles;
+    const attemptedCount = attemptedFiles.length;
+    const failedCount = Math.max(0, attemptedCount - safeResources.length);
+    const importStatus = failedCount === 0 ? 'success' : safeResources.length ? 'partial' : 'failed';
     const fileActionsMenuPayload = {
       files,
       resources: safeResources,
@@ -32,11 +49,14 @@ async function emitFileDropResourcesReady(correlationId: string, files: FileDrop
       correlationId,
       payload: {
         purposeSource: 'sprite-drop',
+        importStatus,
+        attemptedCount,
+        failedCount,
         files,
         resources: safeResources,
         fileActionsMenuPayload,
-        fileCount: files.length,
-        fileNames: files.map((file) => file.name).filter(Boolean),
+        fileCount: attemptedCount,
+        fileNames: attemptedFiles.map((file) => file.name).filter(Boolean),
         resourceIds: safeResources.map((resource) => resource.id).filter(Boolean),
         primaryResourceName: safeResources[0]?.title
       }
@@ -94,17 +114,23 @@ export function useFileDropCollector(): {
     dragCounterRef.current = 0;
     setIsFileDragOver(false);
 
-    const files = Array.from(e.dataTransfer?.files || []) as any[];
-    const payload = files.map((f) => ({ name: f.name, path: (f as any).path as string | undefined }));
+    const files = Array.from(e.dataTransfer?.files || []) as File[];
+    const payload = files.map((file) => {
+      const path = getLocalPathForFile(file);
+      return { name: file.name, ...(path ? { path } : {}) };
+    });
     const correlationId = dragCorrelationIdRef.current ?? createFileDropCorrelationId();
     dragCorrelationIdRef.current = null;
     await window.YUA.sprite.fileDrop(payload, { correlationId });
 
     // 资源导入（保留原有逻辑）
-    const resources = await addResourcesFromDataTransfer(e.dataTransfer!, { source: 'sprite-drop' });
-    if (payload.length) {
-      await emitFileDropResourcesReady(correlationId, payload, resources);
+    let resources: FileDropResourceItem[] = [];
+    try {
+      resources = await addResourcesFromDataTransfer(e.dataTransfer!, { source: 'sprite-drop' });
+    } catch (error) {
+      console.error('[useFileDropCollector] failed to import dropped files', error);
     }
+    await emitFileDropResourcesReady(correlationId, payload, resources);
   };
 
   const handleDropFiles = async (files: SelectedResourceFileType[]): Promise<void> => {
@@ -112,21 +138,21 @@ export function useFileDropCollector(): {
     setIsFileDragOver(false);
     dragCorrelationIdRef.current = null;
 
-    const payload = files.map((f) => ({ name: f.name, path: f.path }));
+    const payload = files.map((f) => {
+      const path = getLocalPath(f);
+      return { name: f.name, ...(path ? { path } : {}) };
+    });
     const correlationId = createFileDropCorrelationId();
     await window.YUA.sprite.fileDrop(payload, { correlationId });
 
     // 资源导入（保留原有逻辑）
-    const resources = await addResourcesFromSelectedFiles(files, { source: 'sprite-drop' });
-    if (resources) {
-      const resPayload = resources.map((res) => ({
-        name: res.title || (res.filePath ? res.filePath.split(/[/\\]/).pop() || '' : ''),
-        path: res.filePath
-      }));
-      if (resPayload.length) {
-        await emitFileDropResourcesReady(correlationId, resPayload, resources);
-      }
+    let resources: FileDropResourceItem[] = [];
+    try {
+      resources = await addResourcesFromSelectedFiles(files, { source: 'sprite-drop' });
+    } catch (error) {
+      console.error('[useFileDropCollector] failed to import dropped files', error);
     }
+    await emitFileDropResourcesReady(correlationId, payload, resources);
   };
 
   return { isFileDragOver, handleDragEnter, handleDragLeave, handleDrop, handleDropFiles };

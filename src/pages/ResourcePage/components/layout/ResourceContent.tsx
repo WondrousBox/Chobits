@@ -432,7 +432,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
                 ? `${workflowProgress.workflowName || '工作流'}: ${workflowProgress.message}`
                 : importProgress.visible
                   ? importProgress.message
-                  : `正在上传 (${uploadProgress.current}/${uploadProgress.total})`}
+                  : `正在导入 (${uploadProgress.current}/${uploadProgress.total})`}
             </span>
             <span>{Math.round(workflowProgress.visible ? workflowProgress.progress : importProgress.visible ? importProgress.percent : uploadProgress.percent)}%</span>
           </div>

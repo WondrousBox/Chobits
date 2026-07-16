@@ -9,6 +9,7 @@ import { BrowserWindow } from 'electron';
 import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
 import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from '../../db/repositories';
+import { isAbsoluteFileSystemPath, shouldDeleteWorkspaceStagingSource } from '../../utils/local-file-path';
 import { detectBasicType, generateThumbnailForResource } from '../../utils/thumbnail';
 import { ensureUniquePath, getLinkedFolderContext, getRelativePathWithinMount } from '../folder/linked-utils';
 import type { Resource } from './ipc-renderer';
@@ -196,8 +197,9 @@ export async function ensureDailyFolder(workspaceId: string, rootPath: string): 
   return newFolder.id;
 }
 
-export async function addResource(r: { resource: Resource }): Promise<{ success: boolean; data: Resource | null; error?: string }> {
+export async function addResource(r: { resource: Resource; requireManagedCopy?: boolean }): Promise<{ success: boolean; data: Resource | null; error?: string }> {
   const res = r.resource || {};
+  const requireManagedCopy = r.requireManagedCopy === true;
   console.log(res);
 
   res.status = 'new';
@@ -232,6 +234,16 @@ export async function addResource(r: { resource: Resource }): Promise<{ success:
     } else {
       ws = await WorkspacesRepo.getDefault();
       if (ws) workspaceId = ws.id;
+    }
+
+    if (requireManagedCopy) {
+      if (!isAbsoluteFileSystemPath(filePath)) {
+        return { success: false, data: null, error: filePath ? 'source-path-not-absolute' : 'source-path-required' };
+      }
+      const sourceStat = await fs.stat(filePath);
+      if (!sourceStat.isFile()) {
+        return { success: false, data: null, error: 'source-not-file' };
+      }
     }
 
     // 统一：只要有工作空间根目录且未显式指定 folderId，就默认放到当天的文件夹下
@@ -317,12 +329,15 @@ export async function addResource(r: { resource: Resource }): Promise<{ success:
             await fs.copyFile(filePath, target);
             // 注意：不再复制 .segments.json 伴随文件
             // segments 文件将由 handleSegmentsForSubtitle 移动到项目文件夹
-            // 删除工作空间资源目录内的原始文件，避免复制后产生重复文件
-            // （仅当原始文件位于工作空间 resources 目录内时才删除，不会删除用户系统中的外部文件）
+            // 仅清理旧上传链路写入 workspace/resources 的暂存文件；路径导入必须保留用户源文件。
             try {
-              const resolvedOrig = path.resolve(filePath!);
-              const resolvedResDir = path.resolve(path.join(ws.rootPath, 'resources'));
-              if (resolvedOrig.startsWith(resolvedResDir + path.sep)) {
+              if (
+                shouldDeleteWorkspaceStagingSource({
+                  sourcePath: filePath,
+                  resourcesDir: path.join(ws.rootPath, 'resources'),
+                  requireManagedCopy
+                })
+              ) {
                 await fs.unlink(filePath!);
               }
             } catch {
@@ -332,13 +347,21 @@ export async function addResource(r: { resource: Resource }): Promise<{ success:
           }
         } catch (e) {
           console.warn('[workspace] copy file into workspace failed', e);
+          if (requireManagedCopy) {
+            return { success: false, data: null, error: e instanceof Error ? e.message : 'managed-copy-failed' };
+          }
         }
       }
+    } else if (requireManagedCopy) {
+      return { success: false, data: null, error: 'no-workspace' };
     }
   } catch (e) {
     console.warn('[addResource] add resource failed', e);
     if (linkedFolderContext) {
       return { success: false, data: null, error: 'linked-folder-write-failed' };
+    }
+    if (requireManagedCopy) {
+      return { success: false, data: null, error: e instanceof Error ? e.message : 'managed-copy-failed' };
     }
   }
 

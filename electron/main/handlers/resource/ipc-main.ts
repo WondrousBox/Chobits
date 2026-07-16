@@ -315,7 +315,7 @@ export function initResourceHandlers(): void {
     return { canceled: false, success: true };
   });
 
-  ipcMain.handle('resource:add', async (_event, payload: { resource: Resource }) => {
+  ipcMain.handle('resource:add', async (_event, payload: { resource: Resource; requireManagedCopy?: boolean }) => {
     return addResource(payload);
   });
   ipcMain.handle('resource:list', async (_event, payload?: { workspaceId?: string; deletedAt?: number }) => {

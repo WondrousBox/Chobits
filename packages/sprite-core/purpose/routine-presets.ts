@@ -205,31 +205,27 @@ function createFileDropIntakeSteps(purpose: SpritePurpose, options: { waitForRes
   const waitForResourcesReady = options.waitForResourcesReady ?? false;
   const readyStep: SpriteRoutineStepInput[] = waitForResourcesReady
     ? [
-      {
-        id: 'wait-file-drop-resources-ready',
-        type: 'waitForEvent',
-        source: 'purpose-event',
-        event: 'fileDrop:resources-ready',
-        match,
-        timeoutMs: 2 * 60 * 1000,
-        assignTo: 'fileDropReady'
-      }
-    ]
+        {
+          id: 'wait-file-drop-resources-ready',
+          type: 'waitForEvent',
+          source: 'purpose-event',
+          event: 'fileDrop:resources-ready',
+          match,
+          timeoutMs: 2 * 60 * 1000,
+          assignTo: 'fileDropReady'
+        }
+      ]
     : [];
   const openWindowStep: SpriteRoutineStepInput = waitForResourcesReady
     ? {
-      id: 'open-file-actions-menu',
-      type: 'openWindow',
-      window: 'fileActionsMenu',
-      payloadFrom: 'fileDropReady.payload.fileActionsMenuPayload',
-      timeoutMs: 10000
-    }
+        id: 'open-file-actions-menu',
+        type: 'openWindow',
+        window: 'fileActionsMenu',
+        payloadFrom: 'fileDropReady.payload.fileActionsMenuPayload',
+        timeoutMs: 10000
+      }
     : { id: 'open-file-actions-menu', type: 'openWindow', window: 'fileActionsMenu', payload: createFileActionsMenuPayload(purpose), timeoutMs: 10000 };
-
-  return [
-    { id: 'ack-drop', type: 'playAnimation', trigger: 'fileDrop', durationMs: 900, waitFor: 'duration', silent: true },
-    { id: 'thinking', type: 'playAnimation', trigger: 'thinking', durationMs: 1200, waitFor: 'duration', silent: true },
-    ...readyStep,
+  const actionSteps: SpriteRoutineStepInput[] = [
     { id: 'prompt-action', type: 'showToast', content: getCharacterRoutineText('file.drop.intake.prompt', ctx, '要怎么处理这个文件？'), category: 'question', duration: 2600 },
     openWindowStep,
     { id: 'wait-menu-result', type: 'waitForEvent', source: 'purpose-event', event: 'fileAction:resolved', match, timeoutMs: 5 * 60 * 1000, assignTo: 'menuResult' },
@@ -252,8 +248,41 @@ function createFileDropIntakeSteps(purpose: SpritePurpose, options: { waitForRes
         ]
       },
       default: [{ id: 'default-done', type: 'playAnimation', trigger: 'success', durationMs: 900, waitFor: 'duration', silent: true }]
+    }
+  ];
+  const initialSteps: SpriteRoutineStepInput[] = [
+    { id: 'ack-drop', type: 'playAnimation', trigger: 'fileDrop', durationMs: 900, waitFor: 'duration', silent: true },
+    { id: 'thinking', type: 'playAnimation', trigger: 'thinking', durationMs: 1200, waitFor: 'duration', silent: true },
+    ...readyStep
+  ];
+  const returnStep: SpriteRoutineStepInput = { id: 'return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 };
+
+  if (!waitForResourcesReady) {
+    return [...initialSteps, ...actionSteps, returnStep];
+  }
+
+  return [
+    ...initialSteps,
+    {
+      id: 'import-result-branch',
+      type: 'branch',
+      by: 'fileDropReady.payload.importStatus',
+      cases: {
+        failed: [
+          { id: 'import-failed-reaction', type: 'playAnimation', trigger: 'failure', durationMs: 1200, waitFor: 'duration', silent: true },
+          {
+            id: 'import-failed-toast',
+            type: 'showToast',
+            content: getCharacterRoutineText('file.drop.intake.failed', ctx, '文件没有导入成功，请检查文件权限或工作空间。'),
+            category: 'failure',
+            duration: 2600
+          }
+        ],
+        partial: [{ id: 'import-partial-toast', type: 'showToast', content: '部分文件没有导入成功。', category: 'warning', duration: 2200 }, ...actionSteps]
+      },
+      default: actionSteps
     },
-    { id: 'return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
+    returnStep
   ];
 }
 

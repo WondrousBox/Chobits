@@ -1,6 +1,10 @@
 /**
  * 资源服务：处理拖拽/选择文件并写入资源库
  */
+import { getLocalPathForFile, isAbsoluteLocalFilePath } from '@/lib/local-file-path';
+
+import type { SelectedResourceFileType } from '../types';
+
 // import { Resource } from 'electron/preload/apis/resource';
 export type Resource = {
   id: string;
@@ -46,8 +50,6 @@ export type Resource = {
   embedding?: ArrayBuffer | Uint8Array;
 };
 
-import type { SelectedResourceFileType } from '../types';
-
 type ResourceLocationOptions = {
   folderId?: string | null;
   workspaceId?: string | null;
@@ -74,7 +76,7 @@ const withResourceSourceMetadata = (resource: Partial<Resource>, options?: Resou
   return mergeResourceMetadata(resource, { source: 'sprite-drop' });
 };
 
-const getLocationPatch = (options?: ResourceLocationOptions) => {
+const getLocationPatch = (options?: ResourceLocationOptions): Partial<Pick<Resource, 'folderId' | 'workspaceId'>> => {
   const patch: Partial<Pick<Resource, 'folderId' | 'workspaceId'>> = {};
   if (options?.folderId) {
     patch.folderId = options.folderId;
@@ -87,8 +89,8 @@ const getLocationPatch = (options?: ResourceLocationOptions) => {
 
 export async function addResourcesFromDataTransfer(dt: DataTransfer, options?: ResourceLocationOptions): Promise<Resource[]> {
   const items = Array.from(dt.items || []) as DataTransferItem[];
-  const files = Array.from(dt.files || []) as File[];
   const fileListForIPC: Array<{ name: string; path: string; isDirectory: boolean }> = [];
+  const filesForUpload: SelectedResourceFileType[] = [];
   const resources: Resource[] = [];
 
   items.forEach((item: DataTransferItem) => {
@@ -104,14 +106,21 @@ export async function addResourcesFromDataTransfer(dt: DataTransfer, options?: R
         fileListForIPC.push({ name: entry.name, path: '', isDirectory: true });
       } else {
         const f = item.getAsFile();
-        if (f) fileListForIPC.push({ name: f.name, path: (f as any).path || '', isDirectory: false });
+        if (f) {
+          const filePath = getLocalPathForFile(f) || '';
+          if (filePath) {
+            fileListForIPC.push({ name: f.name, path: filePath, isDirectory: false });
+          } else {
+            filesForUpload.push({ path: `./${f.name}`, relativePath: `./${f.name}`, name: f.name, size: f.size, file: f });
+          }
+        }
       }
     }
   });
 
   // Insert to DB（资源类型统一由主进程在接收后判断，不在渲染进程侧决策）
   for (const f of fileListForIPC) {
-    if (f.isDirectory) continue;
+    if (f.isDirectory || !f.path) continue;
     const resource = {
       title: f.name,
       filePath: f.path,
@@ -119,7 +128,7 @@ export async function addResourcesFromDataTransfer(dt: DataTransfer, options?: R
       ...getLocationPatch(options)
     };
     try {
-      const res = await window.YUA.resource['resource:add']({ resource: withResourceSourceMetadata(resource, options) });
+      const res = await window.YUA.resource['resource:add']({ resource: withResourceSourceMetadata(resource, options), requireManagedCopy: true });
       if (res.success && res.data) {
         resources.push(res.data as Resource);
       }
@@ -127,10 +136,22 @@ export async function addResourcesFromDataTransfer(dt: DataTransfer, options?: R
       /* noop */
     }
   }
+
+  if (filesForUpload.length) {
+    resources.push(...(await addResourcesFromSelectedFiles(filesForUpload, options)));
+  }
   return resources;
 }
 
 export type UploadProgressCallback = (currentFileIndex: number, totalFiles: number, currentFilePercent: number) => void;
+
+function resolveLocalPath(file: SelectedResourceFileType): string | undefined {
+  if (isAbsoluteLocalFilePath(file.localPath)) return file.localPath;
+  if (file.file) {
+    return getLocalPathForFile(file.file);
+  }
+  return isAbsoluteLocalFilePath(file.path) ? file.path : undefined;
+}
 
 export async function addResourcesFromSelectedFiles(files: SelectedResourceFileType[], options?: ResourceLocationOptions, onProgress?: UploadProgressCallback): Promise<Resource[]> {
   const resources: Resource[] = [];
@@ -138,11 +159,12 @@ export async function addResourcesFromSelectedFiles(files: SelectedResourceFileT
     const f = files[i];
     if (onProgress) onProgress(i, files.length, 0);
 
-    const safeName = f.name || (f.path ? f.path.split(/[/\\]/).pop() || '' : '');
-    let finalFilePath: string | undefined = f.path;
+    const localPath = resolveLocalPath(f);
+    const safeName = f.name || (localPath ? localPath.split(/[/\\]/).pop() || '' : '');
+    let finalFilePath: string | undefined = localPath;
     let fileHash: string | undefined;
 
-    if (f.file) {
+    if (!finalFilePath && f.file) {
       try {
         const fileSize = f.file.size;
         // 大于 50MB 使用流式上传，避免内存问题
@@ -220,6 +242,8 @@ export async function addResourcesFromSelectedFiles(files: SelectedResourceFileT
           if (uploaded?.success && uploaded.filePath) {
             finalFilePath = uploaded.filePath;
             fileHash = uploaded.hash;
+          } else {
+            throw new Error(`Upload failed: ${uploaded?.error || 'unknown error'}`);
           }
         }
       } catch (error) {
@@ -228,6 +252,10 @@ export async function addResourcesFromSelectedFiles(files: SelectedResourceFileT
     }
 
     if (onProgress) onProgress(i, files.length, 100);
+    if (!finalFilePath) {
+      console.warn('[resourceService] skipped resource without a final file path', safeName);
+      continue;
+    }
 
     // 资源类型统一由主进程根据文件路径/内容判断，这里不再设置 type
     const resource: Partial<Resource> = {
@@ -238,9 +266,11 @@ export async function addResourcesFromSelectedFiles(files: SelectedResourceFileT
       ...(fileHash ? { metadata: JSON.stringify({ hashSha256: fileHash }) } : {})
     };
     try {
-      const res = await window.YUA.resource['resource:add']({ resource: withResourceSourceMetadata(resource, options) });
+      const res = await window.YUA.resource['resource:add']({ resource: withResourceSourceMetadata(resource, options), requireManagedCopy: Boolean(localPath) });
       if (res.success && res.data) {
         resources.push(res.data as Resource);
+      } else {
+        console.error('[resourceService] resource:add failed', safeName, res.error || 'unknown error');
       }
     } catch (error) {
       console.error('addResourcesFromSelectedFiles error', error);

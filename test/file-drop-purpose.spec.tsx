@@ -4,9 +4,9 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { resetSpriteCapabilityRuntime } from '../packages/sprite-core/capability-runtime';
 import { SpriteManager } from '../packages/sprite-core/manager/sprite-manager';
 import { resetPersonaRulesRuntime } from '../packages/sprite-core/persona-rules';
-import { resetSpriteCapabilityRuntime } from '../packages/sprite-core/capability-runtime';
 import { installMiniDom } from './utils/minidom';
 
 const resourceServiceMocks = vi.hoisted(() => ({
@@ -113,7 +113,7 @@ describe('file drop purpose integration', () => {
   });
 
   it('bridges drag/drop events into the unified file.drop routine contract', async () => {
-    const { act } = await import('react');
+    const { act, useEffect } = await import('react');
     const { createRoot } = await import('react-dom/client');
     const { useFileDropCollector } = await import('../src/features/sprite-assistant/hooks/useFileDropCollector');
 
@@ -130,6 +130,9 @@ describe('file drop purpose integration', () => {
     ]);
 
     (env.window as any).YUA = {
+      file: {
+        getPathForFile: (file: { path?: string }) => file.path || ''
+      },
       sprite: {
         fileDrop,
         emitPurposeEvent,
@@ -139,7 +142,10 @@ describe('file drop purpose integration', () => {
 
     let hook: ReturnType<typeof useFileDropCollector> | undefined;
     function Probe(): JSX.Element {
-      hook = useFileDropCollector();
+      const currentHook = useFileDropCollector();
+      useEffect(() => {
+        hook = currentHook;
+      }, [currentHook]);
       return <div />;
     }
 
@@ -203,7 +209,7 @@ describe('file drop purpose integration', () => {
   });
 
   it('emits file drag leave with the active file drop correlation', async () => {
-    const { act } = await import('react');
+    const { act, useEffect } = await import('react');
     const { createRoot } = await import('react-dom/client');
     const { useFileDropCollector } = await import('../src/features/sprite-assistant/hooks/useFileDropCollector');
 
@@ -227,7 +233,10 @@ describe('file drop purpose integration', () => {
 
     let hook: ReturnType<typeof useFileDropCollector> | undefined;
     function Probe(): JSX.Element {
-      hook = useFileDropCollector();
+      const currentHook = useFileDropCollector();
+      useEffect(() => {
+        hook = currentHook;
+      }, [currentHook]);
       return <div />;
     }
 
@@ -272,7 +281,7 @@ describe('file drop purpose integration', () => {
   });
 
   it('bridges selected dropped files into the same file.drop routine contract', async () => {
-    const { act } = await import('react');
+    const { act, useEffect } = await import('react');
     const { createRoot } = await import('react-dom/client');
     const { useFileDropCollector } = await import('../src/features/sprite-assistant/hooks/useFileDropCollector');
 
@@ -293,7 +302,10 @@ describe('file drop purpose integration', () => {
 
     let hook: ReturnType<typeof useFileDropCollector> | undefined;
     function Probe(): JSX.Element {
-      hook = useFileDropCollector();
+      const currentHook = useFileDropCollector();
+      useEffect(() => {
+        hook = currentHook;
+      }, [currentHook]);
       return <div />;
     }
 
@@ -329,6 +341,66 @@ describe('file drop purpose integration', () => {
         fileNames: ['notes.docx'],
         resourceIds: ['resource-1'],
         primaryResourceName: 'notes.docx'
+      })
+    });
+
+    await act(async () => {
+      root.unmount();
+      await flushPromises();
+    });
+    env.cleanup();
+  });
+
+  it('emits a failed import result when selected dropped files cannot be imported', async () => {
+    const { act, useEffect } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+    const { useFileDropCollector } = await import('../src/features/sprite-assistant/hooks/useFileDropCollector');
+
+    const env = installMiniDom();
+    const fileDrop = vi.fn(async () => undefined);
+    const emitPurposeEvent = vi.fn(async () => ({ matched: 1 }));
+    resourceServiceMocks.addResourcesFromSelectedFiles.mockResolvedValue([]);
+
+    (env.window as any).YUA = {
+      sprite: {
+        fileDrop,
+        emitPurposeEvent,
+        interact: vi.fn()
+      }
+    };
+
+    let hook: ReturnType<typeof useFileDropCollector> | undefined;
+    function Probe(): JSX.Element {
+      const currentHook = useFileDropCollector();
+      useEffect(() => {
+        hook = currentHook;
+      }, [currentHook]);
+      return <div />;
+    }
+
+    const root = createRoot(env.container as any);
+    await act(async () => {
+      root.render(<Probe />);
+      await flushPromises();
+    });
+
+    await act(async () => {
+      await hook?.handleDropFiles([{ name: 'failed.docx', path: 'F:/tmp/failed.docx', size: 1234 }]);
+      await flushPromises();
+    });
+
+    const correlationId = fileDrop.mock.calls[0][1].correlationId;
+    expect(emitPurposeEvent).toHaveBeenCalledWith({
+      source: 'purpose-event',
+      event: 'fileDrop:resources-ready',
+      correlationId,
+      payload: expect.objectContaining({
+        importStatus: 'failed',
+        attemptedCount: 1,
+        failedCount: 1,
+        resources: [],
+        fileCount: 1,
+        fileNames: ['failed.docx']
       })
     });
 
@@ -419,5 +491,46 @@ describe('file drop purpose integration', () => {
         expect.objectContaining({ eventType: 'step:completed', stepId: 'wait-menu-result', status: 'completed' })
       ])
     );
+  });
+
+  it('finishes file.drop without opening the actions menu when import fails', async () => {
+    const opened: Array<{ windowKey: string; payload?: Record<string, unknown> }> = [];
+    const calls: string[] = [];
+    const { mgr, dataDir } = createManager({
+      purposeWindowAdapter: {
+        open(windowKey: string, payload?: Record<string, unknown>) {
+          opened.push({ windowKey, payload });
+        }
+      }
+    });
+    dataDirs.add(dataDir);
+
+    (mgr as any).runPurposeAnimationStep = async (step: any) => {
+      calls.push(`play:${step.trigger ?? step.animationId}`);
+    };
+    (mgr as any).runPurposeWalkStep = async (step: any) => {
+      calls.push(`walk:${typeof step.target === 'string' ? step.target : 'point'}`);
+    };
+    vi.spyOn(mgr, 'showToast').mockImplementation((_content?: string, options?: any) => {
+      calls.push(`toast:${options?.category ?? 'none'}`);
+    });
+
+    await mgr.handleFileDrop([{ name: 'failed.docx', path: 'F:/tmp/failed.docx' }], { correlationId: 'drop-failed' });
+    await waitFor(() => mgr.getPurposeSnapshot().current?.kind === 'file.drop');
+    mgr.emitPurposeEvent({
+      source: 'purpose-event',
+      event: 'fileDrop:resources-ready',
+      correlationId: 'drop-failed',
+      payload: {
+        importStatus: 'failed',
+        attemptedCount: 1,
+        failedCount: 1,
+        resources: []
+      }
+    });
+
+    await waitFor(() => mgr.getPurposeSnapshot().current?.kind === 'idle.presence');
+    expect(opened).toEqual([]);
+    expect(calls).toEqual(['play:fileDrop', 'play:thinking', 'play:failure', 'toast:failure', 'walk:corner']);
   });
 });

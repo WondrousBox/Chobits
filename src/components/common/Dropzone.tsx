@@ -4,6 +4,7 @@ import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
 import { TbFileDownload } from 'react-icons/tb';
 
+import { getLocalPathForFile } from '@/lib/local-file-path';
 import { SelectedResourceFileType } from '@/pages/ResourcePage/types';
 
 interface DropzoneProps {
@@ -59,10 +60,15 @@ function Dropzone({ children, customDropzone, customDropzoneInside, className, o
         return;
       }
       const fl: SelectedResourceFileType[] = acceptedFiles.map((i) => {
-        const ext = getExt(i.name || (i as any).path);
+        const fileWithPath = i as File & { relativePath?: string; webkitRelativePath?: string };
+        const localPath = getLocalPathForFile(i);
+        const relativePath = fileWithPath.relativePath || fileWithPath.webkitRelativePath || `./${i.name}`;
+        const ext = getExt(i.name);
         const type = getTypeFromExt(ext);
         return {
-          path: (i as any).path,
+          path: localPath || relativePath,
+          localPath,
+          relativePath,
           name: i.name,
           size: i.size,
           extension: ext,

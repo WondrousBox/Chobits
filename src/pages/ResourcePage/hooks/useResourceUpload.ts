@@ -13,6 +13,18 @@ interface UseResourceUploadProps {
   loadFolders: (wsId?: string) => Promise<void>;
 }
 
+function showImportResult(importedCount: number, totalCount: number): void {
+  const failedCount = Math.max(0, totalCount - importedCount);
+  if (failedCount === 0) {
+    toast.success('已添加拖拽的文件');
+    return;
+  }
+
+  toast.error(importedCount === 0 ? '文件导入失败' : '部分文件导入失败', {
+    description: `成功 ${importedCount} 个，失败 ${failedCount} 个`
+  });
+}
+
 export function useResourceUpload({ folderFilter, wsFilter, folders, load, loadFolders }: UseResourceUploadProps): {
   onDropFiles: (files: SelectedResourceFileType[]) => Promise<void>;
   uploadProgress: {
@@ -44,7 +56,7 @@ export function useResourceUpload({ folderFilter, wsFilter, folders, load, loadF
       };
 
       const filesWithFolder = files.map((f) => {
-        const p = normalize(f.path);
+        const p = normalize(f.relativePath);
         // compute folder path by removing the final segment if it matches the file name
         let folder = '';
         if (p) {
@@ -84,10 +96,10 @@ export function useResourceUpload({ folderFilter, wsFilter, folders, load, loadF
         if (folderPaths.length === 0) {
           setUploadProgress({ visible: true, current: 0, total: files.length, percent: 0 });
           try {
-            await addResourcesFromSelectedFiles(files, { folderId: folderFilter || undefined, workspaceId: wsFilter || undefined }, (current, total, percent) => {
+            const imported = await addResourcesFromSelectedFiles(files, { folderId: folderFilter || undefined, workspaceId: wsFilter || undefined }, (current, total, percent) => {
               setUploadProgress({ visible: true, current: current + 1, total, percent });
             });
-            toast.success('已添加拖拽的文件');
+            showImportResult(imported.length, files.length);
             await load();
             await loadFolders(wsFilter || undefined);
           } catch (err) {
@@ -150,21 +162,23 @@ export function useResourceUpload({ folderFilter, wsFilter, folders, load, loadF
         // Upload groups sequentially and update aggregated progress
         const totalFiles = files.length;
         let uploadedSoFar = 0;
+        let importedCount = 0;
         setUploadProgress({ visible: true, current: 0, total: totalFiles, percent: 0 });
 
         for (const [folderPath, groupFiles] of Object.entries(groups)) {
           const targetFolderId = folderPath ? (folderPathToId[folderPath] ?? rootParentId) : rootParentId;
           // call upload helper for this group
-          await addResourcesFromSelectedFiles(groupFiles, { folderId: targetFolderId || undefined, workspaceId: wsFilter || undefined }, (currentIndex, groupTotal, percent) => {
+          const imported = await addResourcesFromSelectedFiles(groupFiles, { folderId: targetFolderId || undefined, workspaceId: wsFilter || undefined }, (currentIndex, groupTotal, percent) => {
             // currentIndex is 0-based within this group
             const absoluteIndex = uploadedSoFar + currentIndex;
             const overallPercent = Math.round(((absoluteIndex + percent / 100) / totalFiles) * 100);
             setUploadProgress({ visible: true, current: absoluteIndex + 1, total: totalFiles, percent: overallPercent });
           });
+          importedCount += imported.length;
           uploadedSoFar += groupFiles.length;
         }
 
-        toast.success('已添加拖拽的文件');
+        showImportResult(importedCount, totalFiles);
         await load();
         await loadFolders(wsFilter || undefined);
       } catch (err) {

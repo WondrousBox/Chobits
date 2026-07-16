@@ -3,6 +3,7 @@ import React, { useCallback, useState } from 'react';
 import { TbFileImport, TbPhoto, TbUpload, TbVideo, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
+import { getLocalPathForFile } from '@/lib/local-file-path';
 
 import { useConfigAdapter, useIdGeneratorAdapter, useMediaAdapter } from '../../context';
 import { useLabels } from '../../context/TimelineContext';
@@ -137,8 +138,7 @@ export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({ open, onClos
       const filePaths: string[] = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        // Electron adds a 'path' property to File objects
-        const filePath = (file as File & { path?: string }).path;
+        const filePath = getLocalPathForFile(file) || '';
         if (filePath) {
           filePaths.push(filePath);
         }

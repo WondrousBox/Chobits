@@ -1,6 +1,5 @@
-import { ipcMain } from 'electron';
-
 import { AppEvent, eventManager } from '@packages/event';
+import { ipcMain } from 'electron';
 
 import { RecycleBinRepo } from '../../db/repositories';
 import { cleanupMemoryForConversations } from '../memory/memory-cleanup';
@@ -10,8 +9,15 @@ export function initTrashHandlers(): void {
     return RecycleBinRepo.list(payload?.filter || {}, payload?.limit ?? 100, payload?.offset ?? 0);
   });
   ipcMain.handle('trash:restore', async (_e, payload: { recycleIds: string[] }) => {
-    const restored = await RecycleBinRepo.restoreEntitiesByRecycleIds(payload.recycleIds || []);
+    const recycleIds = payload.recycleIds || [];
+    const restored = await RecycleBinRepo.restoreEntitiesByRecycleIds(recycleIds);
     if (restored > 0) {
+      // 恢复会同时更新资源/文件夹表和磁盘文件，但此前只通知了回收站提示，
+      // 资源页会继续使用旧列表，直到应用重启才重新查询。广播刷新事件让所有窗口
+      // 在恢复完成后重新加载资源、标签和文件夹状态。
+      const refreshPayload = { action: 'restored', recycleIds };
+      eventManager.emit(AppEvent.RESOURCE_UPDATED, refreshPayload);
+      eventManager.emit(AppEvent.FOLDER_UPDATED, refreshPayload);
       eventManager.emit(AppEvent.SPRITE_TRASH_RESTORE, { message: `已恢复 ${restored} 个项目` });
     }
     return { restored };
@@ -22,9 +28,7 @@ export function initTrashHandlers(): void {
     const deleted = await RecycleBinRepo.purgeEntitiesByRecycleIds(payload.recycleIds || []);
     // 异步清理记忆（不阻塞 purge 响应）
     if (convIds.length) {
-      cleanupMemoryForConversations(convIds).catch((e) =>
-        console.warn('[Trash] Memory cleanup after purge failed:', e)
-      );
+      cleanupMemoryForConversations(convIds).catch((e) => console.warn('[Trash] Memory cleanup after purge failed:', e));
     }
     if (deleted > 0) {
       eventManager.emit(AppEvent.SPRITE_TRASH_DELETE, { message: `已清除 ${deleted} 个项目` });
@@ -38,9 +42,7 @@ export function initTrashHandlers(): void {
     const deleted = await RecycleBinRepo.empty(payload?.filter || {});
     // 异步清理记忆
     if (convIds.length) {
-      cleanupMemoryForConversations(convIds).catch((e) =>
-        console.warn('[Trash] Memory cleanup after empty failed:', e)
-      );
+      cleanupMemoryForConversations(convIds).catch((e) => console.warn('[Trash] Memory cleanup after empty failed:', e));
     }
     if (deleted > 0) {
       eventManager.emit(AppEvent.SPRITE_TRASH_DELETE, { message: '回收站已清空' });
@@ -54,9 +56,7 @@ async function collectConversationIdsFromRecycleBin(recycleIds: string[]): Promi
   if (!recycleIds.length) return [];
   try {
     const items = await RecycleBinRepo.list({}, 10000, 0);
-    return items
-      .filter((i: any) => recycleIds.includes(i.id) && i.entityType === 'conversation')
-      .map((i: any) => i.entityId);
+    return items.filter((i: any) => recycleIds.includes(i.id) && i.entityType === 'conversation').map((i: any) => i.entityId);
   } catch {
     return [];
   }

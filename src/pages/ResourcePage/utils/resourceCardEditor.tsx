@@ -2,6 +2,7 @@ import { FileUp } from 'lucide-react';
 
 import type { ResourceCardData, ResourceUploadHandler, SlashCommandItem } from '@/components/Editor/extensions';
 import { insertResourceCardFromFile } from '@/components/Editor/extensions';
+import { getLocalPathForFile } from '@/lib/local-file-path';
 
 import { addResourcesFromSelectedFiles } from '../services/resourceService';
 import type { SelectedResourceFileType } from '../types';
@@ -14,9 +15,12 @@ export type ResourceUploadContext = {
 
 export const createResourceUploadHandler = (context: ResourceUploadContext): ResourceUploadHandler => {
   return async (file) => {
+    const localPath = getLocalPathForFile(file);
     const files: SelectedResourceFileType[] = [
       {
-        path: (file as any).path || file.name,
+        path: localPath || file.name,
+        localPath,
+        relativePath: `./${file.name}`,
         name: file.name,
         size: file.size,
         file

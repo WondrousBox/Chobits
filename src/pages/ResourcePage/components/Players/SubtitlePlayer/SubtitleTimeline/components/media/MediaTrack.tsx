@@ -2,6 +2,8 @@ import clsx from 'clsx';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { TbUpload } from 'react-icons/tb';
 
+import { getLocalPathForFile } from '@/lib/local-file-path';
+
 import { useConfigAdapter, useIdGeneratorAdapter, useLabels, useMediaAdapter } from '../../context';
 import type { MediaSegment, MediaSource, MediaTool, MediaTrackData, ViewportState } from '../../types';
 import { DEFAULT_CONFIG, DEFAULT_TRANSFORM, MEDIA_CONFIG } from '../../types';
@@ -208,7 +210,7 @@ export const MediaTrack: React.FC<MediaTrackProps> = ({
       const filePaths: string[] = [];
 
       for (let i = 0; i < files.length; i++) {
-        const filePath = (files[i] as File & { path?: string }).path;
+        const filePath = getLocalPathForFile(files[i]) || '';
         if (filePath) {
           filePaths.push(filePath);
         }

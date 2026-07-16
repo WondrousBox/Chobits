@@ -1,5 +1,6 @@
-import { ipcRenderer } from 'electron';
+import { ipcRenderer, webUtils } from 'electron';
 
+import { isAbsoluteFileSystemPath } from '../../utils/local-file-path';
 import type { IpcParams } from '../types';
 
 export type FileIpcParams = {
@@ -59,6 +60,8 @@ const methods: Array<keyof FileIpcParams> = ['file:pickDir', 'file:pickFile', 'f
 
 export type FileIpcType = {
   [K in keyof FileIpcParams]: (...args: FileIpcParams[K]['request']) => Promise<FileIpcParams[K]['response']>;
+} & {
+  getPathForFile: (file: File) => string;
 };
 
 const newIpc: Record<string, any> = {};
@@ -66,4 +69,20 @@ methods.forEach((m) => {
   newIpc[m] = (...args: any[]) => ipcRenderer.invoke(m as string, ...args);
 });
 
-export const fileIpcRenderer = newIpc as FileIpcType;
+export const fileIpcRenderer = {
+  ...newIpc,
+  getPathForFile: (file: File): string => {
+    try {
+      const filePath = webUtils.getPathForFile(file);
+      if (filePath) return filePath;
+    } catch {
+      // Fall through for older Electron versions or non-native File objects.
+    }
+
+    const fileWithPaths = file as File & { path?: string; relativePath?: string; webkitRelativePath?: string };
+    const legacyPath = fileWithPaths.path;
+    const selectorPaths = [fileWithPaths.relativePath, fileWithPaths.webkitRelativePath].filter(Boolean);
+    if (typeof legacyPath !== 'string' || selectorPaths.includes(legacyPath)) return '';
+    return isAbsoluteFileSystemPath(legacyPath) ? legacyPath : '';
+  }
+} as FileIpcType;

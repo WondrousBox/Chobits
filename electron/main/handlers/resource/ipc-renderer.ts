@@ -64,7 +64,10 @@ export type Resource = {
 };
 
 export type ResourceIpcParams = {
-  'resource:add': IpcParams<[{ resource: PartialByKey<Resource, 'id' | 'type'> }], { success: boolean; data: Resource | null; error?: string }>;
+  'resource:add': IpcParams<
+    [{ resource: PartialByKey<Resource, 'id' | 'type'>; requireManagedCopy?: boolean }],
+    { success: boolean; data: Resource | null; error?: string }
+  >;
   'resource:list': IpcParams<[{ workspaceId?: string; deletedAt?: number }?], Resource[]>;
   /** 按父资源 ID 查询子资源列表 */
   'resource:listChildren': IpcParams<[{ parentResourceId: string; limit?: number; offset?: number }], Resource[]>;

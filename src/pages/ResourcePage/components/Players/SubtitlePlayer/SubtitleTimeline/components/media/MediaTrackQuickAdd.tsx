@@ -3,6 +3,7 @@ import React, { useCallback, useState } from 'react';
 import { TbFileImport, TbUpload, TbVideo } from 'react-icons/tb';
 
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
+import { getLocalPathForFile } from '@/lib/local-file-path';
 
 import { useConfigAdapter, useIdGeneratorAdapter, useMediaAdapter } from '../../context';
 import { useLabels } from '../../context/TimelineContext';
@@ -183,8 +184,7 @@ export const MediaTrackQuickAdd: React.FC<MediaTrackQuickAddProps> = ({ children
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        // Electron 添加了 'path' 属性
-        const filePath = (file as File & { path?: string }).path;
+        const filePath = getLocalPathForFile(file) || '';
         if (filePath) {
           filePaths.push(filePath);
         }
@@ -320,7 +320,7 @@ export const useMediaDrop = (options: {
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const filePath = (file as File & { path?: string }).path;
+        const filePath = getLocalPathForFile(file) || '';
         if (filePath) {
           filePaths.push(filePath);
         }
