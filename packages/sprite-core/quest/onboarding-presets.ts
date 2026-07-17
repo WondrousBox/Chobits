@@ -412,7 +412,7 @@ export function createFirstFileDropQuest(deps: OnboardingPresetDeps): Onboarding
     recommendation: {
       questId: 'open-resource-library',
       delayMs: 4500,
-      prompt: '收到了，要不要打开背包着看？',
+      prompt: '收到了，要不要打开背包？',
       confirmLabel: '去看看'
     },
     reward: {
