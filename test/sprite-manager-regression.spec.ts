@@ -10,6 +10,7 @@ import { registerDefaultBehaviors } from '../packages/sprite-core/manager/defaul
 import { SpriteManager } from '../packages/sprite-core/manager/sprite-manager';
 import { mapStateToEventType } from '../packages/sprite-core/manager/state-mapping';
 import { removePersonaRulesLayer, resetPersonaRulesRuntime, setPersonaRulesProvider, upsertPersonaRulesLayer } from '../packages/sprite-core/persona-rules';
+import { DEFAULT_AI_PROVIDER_SPEAK_CONFIG } from '../packages/sprite-core/speak/types';
 import type { SpriteAnimation, SpriteMovementConfig } from '../packages/sprite-core/types';
 
 function createTestWindow(): {
@@ -171,6 +172,23 @@ describe('sprite manager regression coverage', () => {
       rmSync(dataDir, { recursive: true, force: true });
     }
     dataDirs.clear();
+  });
+
+  it('enables default AI provider speech without changing playback volume', () => {
+    const { mgr, dataDir } = createManager();
+    dataDirs.add(dataDir);
+    mgr.setSpeakConfig({ volume: 0.65 });
+
+    const config = mgr.enableAiProviderSpeech();
+
+    expect(config).toMatchObject({
+      engine: 'ai-provider',
+      volume: 0.65,
+      aiProvider: {
+        ...DEFAULT_AI_PROVIDER_SPEAK_CONFIG,
+        audioSetting: expect.objectContaining(DEFAULT_AI_PROVIDER_SPEAK_CONFIG.audioSetting)
+      }
+    });
   });
 
   it('trigger() selects conditional animations with persona state', () => {

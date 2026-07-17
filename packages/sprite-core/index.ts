@@ -339,6 +339,7 @@ export type {
   SpritePurposeHistoryReader,
   SpritePurposeHistoryWriter,
   SpritePurposeInterruptPolicy,
+  SpritePurposePresentationMode,
   SpritePurposePlannerExecutor,
   SpritePurposePlannerInput,
   SpritePurposePlannerLastResult,

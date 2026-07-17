@@ -59,14 +59,15 @@ import {
   type StartSpritePurposeRequest
 } from '../purpose';
 import { SpeakService, type SpriteRealtimeSpeechSession } from '../speak/speak-service';
-import type {
-  SpeakResult,
-  SpriteRealtimeSpeechAvailabilityRequest,
-  SpriteRealtimeSpeechEvent,
-  SpriteRealtimeSpeechSessionRequest,
-  SpriteSpeakConfig,
-  SpriteSpeakPayload,
-  SpriteSpeakPlaybackContext
+import {
+  DEFAULT_AI_PROVIDER_SPEAK_CONFIG,
+  type SpeakResult,
+  type SpriteRealtimeSpeechAvailabilityRequest,
+  type SpriteRealtimeSpeechEvent,
+  type SpriteRealtimeSpeechSessionRequest,
+  type SpriteSpeakConfig,
+  type SpriteSpeakPayload,
+  type SpriteSpeakPlaybackContext
 } from '../speak/types';
 import type { SpriteReactionState, SpriteState } from '../state-machine';
 import { SpriteStateMachine } from '../state-machine';
@@ -391,6 +392,7 @@ export class SpriteManager {
         showBusy: (step) => this.showBusy(step.content, step.progress),
         updateBusy: (step) => this.updateBusy(step.progress ?? 0, step.content),
         clearBusy: () => this.clearBusy(),
+        enableAiProviderSpeech: () => this.enableAiProviderSpeech(),
         openWindow: (step, signal) => this.runPurposeOpenWindowStep(step, signal),
         onStepStart: (routine, step) => this.recordPurposeStepEvent('step:started', routine, step),
         onStepComplete: (routine, step, result) => {
@@ -1420,6 +1422,17 @@ export class SpriteManager {
   /** 更新语音合成配置 */
   setSpeakConfig(partial: Partial<SpriteSpeakConfig>): SpriteSpeakConfig {
     return this.speakService.setConfig(partial);
+  }
+
+  /** 使用核心默认参数启用 AI Provider 语音合成。 */
+  enableAiProviderSpeech(): SpriteSpeakConfig {
+    return this.setSpeakConfig({
+      engine: 'ai-provider',
+      aiProvider: {
+        ...DEFAULT_AI_PROVIDER_SPEAK_CONFIG,
+        audioSetting: { ...DEFAULT_AI_PROVIDER_SPEAK_CONFIG.audioSetting }
+      }
+    });
   }
 
   /** 重置语音合成配置 */

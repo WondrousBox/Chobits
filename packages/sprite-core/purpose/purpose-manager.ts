@@ -69,6 +69,12 @@ interface CurrentRoutineStepState {
   step: SpriteRoutineStep;
 }
 
+interface PausedPurposeState {
+  purpose: SpritePurpose;
+  routine: SpriteRoutine;
+  fallbackPreset?: SpriteRoutinePresetDefinition;
+}
+
 export class SpritePurposeManager {
   private readonly presets: SpriteRoutinePresetRegistry;
   private readonly now: () => number;
@@ -80,6 +86,9 @@ export class SpritePurposeManager {
   private currentStep: CurrentRoutineStepState | null = null;
   private queue: SpritePurpose[] = [];
   private activeAbort: AbortController | null = null;
+  private pausedPurpose: PausedPurposeState | null = null;
+  private pauseRequestedPurposeIds = new Set<string>();
+  private currentFallbackPreset: SpriteRoutinePresetDefinition | undefined;
   private idlePresenceReady: Promise<SpritePurpose | null> = Promise.resolve(null);
 
   constructor(private readonly deps: SpritePurposeManagerDeps) {
@@ -119,6 +128,7 @@ export class SpritePurposeManager {
       status: 'queued',
       priority: request.priority ?? preset?.defaultPriority ?? DEFAULT_PRIORITY_BY_KIND[request.kind] ?? 50,
       interruptPolicy: request.interruptPolicy ?? 'interruptible',
+      presentationMode: request.presentationMode ?? 'parallel',
       presetId: request.presetId ?? preset?.id,
       correlationId: request.correlationId,
       coalesceKey: request.coalesceKey,
@@ -204,7 +214,12 @@ export class SpritePurposeManager {
         current: this.describePurposeForLog(this.current),
         currentStep: this.describeCurrentStepForLog()
       });
-      await this.supersedeCurrent(purpose.id);
+      if (purpose.presentationMode === 'occupy-main-flow' && this.currentRoutine?.status === 'running' && !this.pausedPurpose) {
+        purpose.parentPurposeId = this.current.id;
+        await this.pauseCurrentFor(purpose.id);
+      } else {
+        await this.supersedeCurrent(purpose.id);
+      }
     }
 
     const routine = await this.activatePurpose(purpose, preset, now);
@@ -228,6 +243,26 @@ export class SpritePurposeManager {
 
   async cancel(purposeId?: string, reason = 'cancelled'): Promise<boolean> {
     if (!this.current || (purposeId && this.current.id !== purposeId)) {
+      if (purposeId && this.pausedPurpose?.purpose.id === purposeId) {
+        const paused = this.pausedPurpose;
+        this.pausedPurpose = null;
+        paused.purpose.status = 'cancelled';
+        paused.purpose.endedAt = this.now();
+        paused.routine.status = 'cancelled';
+        await this.record({
+          timestamp: paused.purpose.endedAt,
+          eventType: 'purpose:cancelled',
+          purposeId: paused.purpose.id,
+          purposeKind: paused.purpose.kind,
+          priority: paused.purpose.priority,
+          source: paused.purpose.source,
+          status: 'cancelled',
+          summary: paused.purpose.reason,
+          error: reason
+        });
+        this.emitSnapshot();
+        return true;
+      }
       const before = this.queue.length;
       this.queue = this.queue.filter((purpose) => purpose.id !== purposeId);
       this.emitSnapshot();
@@ -280,6 +315,7 @@ export class SpritePurposeManager {
       status: 'active',
       priority: preset?.defaultPriority ?? DEFAULT_PRIORITY_BY_KIND['idle.presence'],
       interruptPolicy: 'interruptible',
+      presentationMode: 'parallel',
       presetId: preset?.id ?? 'idle.presence',
       startedAt: now
     };
@@ -316,6 +352,7 @@ export class SpritePurposeManager {
   private async runRoutine(purpose: SpritePurpose, routine: SpriteRoutine, fallbackPreset?: SpriteRoutinePresetDefinition): Promise<void> {
     const controller = new AbortController();
     this.activeAbort = controller;
+    this.currentFallbackPreset = fallbackPreset;
 
     await this.record({
       timestamp: this.now(),
@@ -330,10 +367,16 @@ export class SpritePurposeManager {
     await this.deps.onRoutineStart?.(purpose, routine);
     const result = await this.deps.runner.run(routine, {
       signal: controller.signal,
+      pauseRequested: () => this.pauseRequestedPurposeIds.has(purpose.id),
       onStepStart: (_routine, step) => this.handleRoutineStepStart(purpose, routine, step),
       onStepComplete: (_routine, step) => this.handleRoutineStepComplete(purpose, routine, step)
     });
     await this.deps.onRoutineFinish?.(purpose, routine, result);
+    const pauseRequested = this.pauseRequestedPurposeIds.delete(purpose.id);
+    if (pauseRequested || result.status === 'paused') {
+      await this.recordRoutineResult('routine:paused', purpose, routine, result);
+      return;
+    }
     if (purpose.supersededBy || this.current?.id !== purpose.id) {
       return;
     }
@@ -445,6 +488,41 @@ export class SpritePurposeManager {
     this.currentRoutine = null;
     this.currentStep = null;
     this.activeAbort = null;
+    this.currentFallbackPreset = undefined;
+    this.emitSnapshot();
+  }
+
+  private async pauseCurrentFor(nextPurposeId: string): Promise<void> {
+    if (!this.current || !this.currentRoutine || this.pausedPurpose) {
+      return;
+    }
+
+    const purpose = this.current;
+    const routine = this.currentRoutine;
+    purpose.status = 'paused';
+    routine.status = 'paused';
+    this.pauseRequestedPurposeIds.add(purpose.id);
+    this.pausedPurpose = {
+      purpose,
+      routine,
+      fallbackPreset: this.currentFallbackPreset
+    };
+    this.activeAbort?.abort();
+    this.current = null;
+    this.currentRoutine = null;
+    this.currentStep = null;
+    this.activeAbort = null;
+    this.currentFallbackPreset = undefined;
+    await this.record({
+      timestamp: this.now(),
+      eventType: 'purpose:paused',
+      purposeId: purpose.id,
+      purposeKind: purpose.kind,
+      priority: purpose.priority,
+      source: purpose.source,
+      status: 'paused',
+      result: { pausedFor: nextPurposeId }
+    });
     this.emitSnapshot();
   }
 
@@ -534,6 +612,7 @@ export class SpritePurposeManager {
 
   private getQueueReason(next: SpritePurpose): string | null {
     if (!this.current) return null;
+    if (this.pausedPurpose) return 'main-flow-already-occupied';
     if (this.current.interruptPolicy === 'never') return 'current-purpose-never-interrupts';
     if (next.interruptPolicy === 'urgent') return null;
     if (next.priority <= this.current.priority) return 'current-purpose-has-higher-priority';
@@ -600,6 +679,11 @@ export class SpritePurposeManager {
   }
 
   private async startNextQueued(): Promise<void> {
+    if (this.pausedPurpose) {
+      await this.resumePausedPurpose();
+      return;
+    }
+
     const next = this.queue.shift();
     if (!next) {
       if (this.idlePresence.enabled) {
@@ -620,6 +704,43 @@ export class SpritePurposeManager {
       presetId: next.presetId
     });
     await this.activatePurpose(next, preset, this.now());
+  }
+
+  private async resumePausedPurpose(): Promise<void> {
+    const paused = this.pausedPurpose;
+    if (!paused || this.current) {
+      return;
+    }
+
+    this.pausedPurpose = null;
+    paused.purpose.status = 'active';
+    paused.routine.status = 'paused';
+    this.current = paused.purpose;
+    this.currentRoutine = paused.routine;
+    this.currentStep = null;
+    this.emitSnapshot();
+    await this.record({
+      timestamp: this.now(),
+      eventType: 'purpose:resumed',
+      purposeId: paused.purpose.id,
+      purposeKind: paused.purpose.kind,
+      priority: paused.purpose.priority,
+      source: paused.purpose.source,
+      status: 'active',
+      result: { routineId: paused.routine.id, cursor: paused.routine.cursor }
+    });
+    await this.record({
+      timestamp: this.now(),
+      eventType: 'routine:resumed',
+      purposeId: paused.purpose.id,
+      routineId: paused.routine.id,
+      purposeKind: paused.purpose.kind,
+      priority: paused.purpose.priority,
+      source: paused.routine.source,
+      status: 'running',
+      result: { cursor: paused.routine.cursor }
+    });
+    void this.runRoutine(paused.purpose, paused.routine, paused.fallbackPreset);
   }
 
   private async activatePurpose(purpose: SpritePurpose, preset: SpriteRoutinePresetDefinition | undefined, now = this.now()): Promise<SpriteRoutine | undefined> {
@@ -682,6 +803,7 @@ export class SpritePurposeManager {
       status: purpose.status,
       priority: purpose.priority,
       source: purpose.source,
+      presentationMode: purpose.presentationMode,
       presetId: purpose.presetId,
       coalesceKey: purpose.coalesceKey,
       correlationId: purpose.correlationId
@@ -740,7 +862,7 @@ export class SpritePurposeManager {
   }
 
   private async startQueuedInterruptIfReady(): Promise<void> {
-    if (!this.current || this.isCurrentStepCritical()) {
+    if (!this.current || this.pausedPurpose || this.isCurrentStepCritical()) {
       return;
     }
 
@@ -760,12 +882,17 @@ export class SpritePurposeManager {
       source: next.source,
       presetId: next.presetId
     });
-    await this.supersedeCurrent(next.id);
+    if (next.presentationMode === 'occupy-main-flow' && this.currentRoutine?.status === 'running' && !this.pausedPurpose) {
+      next.parentPurposeId = this.current.id;
+      await this.pauseCurrentFor(next.id);
+    } else {
+      await this.supersedeCurrent(next.id);
+    }
     await this.activatePurpose(next, preset, this.now());
   }
 
   private async recordRoutineResult(
-    eventType: 'routine:completed' | 'routine:cancelled' | 'routine:failed',
+    eventType: 'routine:completed' | 'routine:paused' | 'routine:cancelled' | 'routine:failed',
     purpose: SpritePurpose,
     routine: SpriteRoutine,
     result: SpriteRoutineRunResult
@@ -779,7 +906,7 @@ export class SpritePurposeManager {
       source: routine.source,
       status: result.status,
       error: result.error,
-      result: { elapsedMs: result.elapsedMs, stepCount: result.steps.length }
+      result: { elapsedMs: result.elapsedMs, stepCount: result.steps.length, cursor: routine.cursor }
     });
   }
 

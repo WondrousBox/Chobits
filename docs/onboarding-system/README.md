@@ -75,6 +75,8 @@
 - `open-resource-library` 已补成第三个固定新手 Quest：前置为已有工作空间，不配置 `autoStartEvents`；启动 `onboarding.resource.open-library` preset-only routine；右键菜单点击“背包”会派发 `ASSISTANT_MENU_ITEM_SELECTED`，只有 payload 标记 `itemId=inventory` 且 `source=assistant-context-menu` 时才结算。
 - routine preset 现在可以声明 `goal`。`onboarding.workspace.create` 的 goal 是 `workspace.exists`，右键菜单等需要工作空间的入口会先评估这个 goal；没有工作空间时启动 `workspace.create` Quest 并阻断原动作，不再裸开业务窗口。
 - `chat.api-config-guide` 的 goal 是 `ai.chat-provider-configured`。双击助手打开聊天、菜单打开聊天、发送消息前都会先检查这个 goal；没有可用 API Key / preset 时只启动配置引导，原聊天动作等配置完成后再继续。配置引导不会直接跳转设置页，而是先展示“去配置”按钮；用户点击后才打开设置页并定位到 `category=ai` 的模型服务配置区，若已解析到 preset 则展开对应预设。
+- 当配置成功的 provider 是 MiniMax 时，会启动独立的 `easter-egg.chat-api-config-minimax` purpose：先展示音乐彩蛋，气泡自然结束后再展示“需要 / 不需要”语音选择；确认语句也会等待说完后再继续，选择“需要”时使用主进程默认 MiniMax 语音参数切换说话引擎，拒绝或关闭则保持现有 Edge 语音配置。
+- 该彩蛋 purpose 声明 `presentationMode: 'occupy-main-flow'`，因此当前新手引导会暂停，彩蛋完成、取消或超时后从原 routine 游标恢复；“开始聊天”等推荐提示也会等彩蛋释放展示权后再出现。
 
 目的规划器（`SpritePurpose` + `Routine`）已经能驱动桌面助手完成"调 AI → 拿到一串连续步骤 → 按步骤引导用户交互"的闭环。但对**新手引导**这类**确定性、不需要 AI 生成**的引导流程：
 
@@ -117,10 +119,10 @@ Quest 定义（声明前置/完成事件/奖励）
 
 当前内置 goal：
 
-| Goal Kind | 使用 preset | 达成条件 | 未达成时 |
-| --- | --- | --- | --- |
-| `workspace.exists` | `onboarding.workspace.create` | 至少存在一个未删除 workspace | 启动 `workspace.create` Quest，阻断原入口 |
-| `ai.chat-provider-configured` | `chat.api-config-guide` | 至少一个聊天 provider preset 有可用 API Key；发送时检查当前 provider / preset | 展示带“去配置”按钮的 AI 配置引导；用户点击后打开设置页 AI 分类并定位 provider / preset，阻断聊天打开或发送 |
+| Goal Kind                     | 使用 preset                   | 达成条件                                                                      | 未达成时                                                                                                   |
+| ----------------------------- | ----------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `workspace.exists`            | `onboarding.workspace.create` | 至少存在一个未删除 workspace                                                  | 启动 `workspace.create` Quest，阻断原入口                                                                  |
+| `ai.chat-provider-configured` | `chat.api-config-guide`       | 至少一个聊天 provider preset 有可用 API Key；发送时检查当前 provider / preset | 展示带“去配置”按钮的 AI 配置引导；用户点击后打开设置页 AI 分类并定位 provider / preset，阻断聊天打开或发送 |
 
 它和 Quest `completion` 的分工不同：`completion` 负责任务生命周期和奖励，`goal` 负责业务入口是否放行。比如用户双击助手想打开聊天，入口先评估 `ai.chat-provider-configured`；没达成就执行配置引导并返回，聊天窗口不会提前打开，引导也不会未经确认自动打开设置页。用户点击“去配置”后，routine 才打开设置页 AI 分类；保存 API Key 后会发出 `AI_PROVIDER_CONFIG_UPDATED`，相关任务和 routine 等待可以继续推进。
 
@@ -228,12 +230,15 @@ interface OnboardingState {
   /** 用户主动跳过整个新手引导 */
   skipped?: boolean;
   /** 每个 Quest 的运行时状态 */
-  quests: Record<string, {
-    status: 'pending' | 'active' | 'done' | 'skipped';
-    activatedAt?: number;
-    completedAt?: number;
-    lastPurposeId?: string;
-  }>;
+  quests: Record<
+    string,
+    {
+      status: 'pending' | 'active' | 'done' | 'skipped';
+      activatedAt?: number;
+      completedAt?: number;
+      lastPurposeId?: string;
+    }
+  >;
 }
 ```
 
@@ -493,14 +498,14 @@ const handleContextMenu = async (e: React.MouseEvent) => {
 
 ## 8. 默认 Quest 目录
 
-| Quest ID              | 前置条件                                 | 启动方式                                  | 完成事件                                                                                         | 奖励                                          | 推荐下一任务 |
-| --------------------- | ---------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------- | ------------ |
-| `workspace.create`    | 无 workspace                             | `APP_STARTED` 自动启动；任务列表/AI/推荐显式启动 | `app-event WORKSPACE_CREATED`                                                                    | xp 20, favor 3, achievement `first-workspace` | `first-file-drop` |
-| `first-file-drop`     | 已完成 workspace.create 或已有 workspace | 任务列表/AI/推荐显式启动，不随启动自动弹出      | `app-event RESOURCE_CREATED` 或 `SPRITE_RESOURCE_IMPORT_COMPLETE`，需业务来源 `sprite-drop` | xp 15, favor 2, achievement `first-import`    | `open-resource-library` |
-| `open-resource-library` | 已完成 workspace.create 或已有 workspace | 任务列表/AI/推荐显式启动，不随启动自动弹出      | `app-event ASSISTANT_MENU_ITEM_SELECTED`，需 `itemId=inventory` 且来源为助手右键菜单              | xp 10, favor 1, achievement `first-resource-library-open` | 无 |
-| `feature.*`（25 个功能自述任务） | 已完成 workspace.create 或已有 workspace | 任务列表/AI/推荐显式启动，不随启动自动弹出 | 由 `FEATURE_INTRO_QUEST_CATALOG.completion` 定义，覆盖文件动作、助手菜单、窗口打开、AI 配置保存、AI 完成、记忆写入等事件 | P0: xp 12；P1: xp 10；P2: xp 8；P3: xp 6；均 favor 1 | catalog 可选配置 |
-| `first-chat`          | 已完成 workspace.create                  | 待定                                      | `app-event SPRITE_CHAT_FIRST_REPLY`                                                              | xp 15, favor 2                                |
-| `unlock-context-menu` | 完成 workspace.create                    | 自动（其他 quest 完成时触发）              | 自动                                                                                             | 解锁右键菜单                                  |
+| Quest ID                         | 前置条件                                 | 启动方式                                         | 完成事件                                                                                                                 | 奖励                                                      | 推荐下一任务            |
+| -------------------------------- | ---------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------- | ----------------------- |
+| `workspace.create`               | 无 workspace                             | `APP_STARTED` 自动启动；任务列表/AI/推荐显式启动 | `app-event WORKSPACE_CREATED`                                                                                            | xp 20, favor 3, achievement `first-workspace`             | `first-file-drop`       |
+| `first-file-drop`                | 已完成 workspace.create 或已有 workspace | 任务列表/AI/推荐显式启动，不随启动自动弹出       | `app-event RESOURCE_CREATED` 或 `SPRITE_RESOURCE_IMPORT_COMPLETE`，需业务来源 `sprite-drop`                              | xp 15, favor 2, achievement `first-import`                | `open-resource-library` |
+| `open-resource-library`          | 已完成 workspace.create 或已有 workspace | 任务列表/AI/推荐显式启动，不随启动自动弹出       | `app-event ASSISTANT_MENU_ITEM_SELECTED`，需 `itemId=inventory` 且来源为助手右键菜单                                     | xp 10, favor 1, achievement `first-resource-library-open` | 无                      |
+| `feature.*`（25 个功能自述任务） | 已完成 workspace.create 或已有 workspace | 任务列表/AI/推荐显式启动，不随启动自动弹出       | 由 `FEATURE_INTRO_QUEST_CATALOG.completion` 定义，覆盖文件动作、助手菜单、窗口打开、AI 配置保存、AI 完成、记忆写入等事件 | P0: xp 12；P1: xp 10；P2: xp 8；P3: xp 6；均 favor 1      | catalog 可选配置        |
+| `first-chat`                     | 已完成 workspace.create                  | 待定                                             | `app-event SPRITE_CHAT_FIRST_REPLY`                                                                                      | xp 15, favor 2                                            |
+| `unlock-context-menu`            | 完成 workspace.create                    | 自动（其他 quest 完成时触发）                    | 自动                                                                                                                     | 解锁右键菜单                                              |
 
 详细 routine 见 [workspace-onboarding-quest.md](./workspace-onboarding-quest.md)、[file-drop-onboarding-quest.md](./file-drop-onboarding-quest.md)、[open-resource-library-onboarding-quest.md](./open-resource-library-onboarding-quest.md) 和 [feature-introduction-quest-catalog.md](./feature-introduction-quest-catalog.md)。
 
@@ -530,6 +535,7 @@ const handleContextMenu = async (e: React.MouseEvent) => {
 - `character-messages.spec.ts`：验证工作空间引导的 routine 文案 key 已进入共享规格与内置角色包，避免角色包文案漂移
 - `routine-show-notice.spec.ts`：notice step + 按钮点击 → purpose-event 解锁 waitForEvent
 - `chat-api-config-guide.spec.ts`：验证 `ai.chat-provider-configured` / `workspace.exists` goal 评估、阻断式引导和冷却行为；`sprite-purpose-routine.spec.ts` 覆盖聊天 API 配置 guide 必须先展示按钮，点击后才打开设置页 AI 分类并定位 provider / preset
+- `sprite-event-listener.spec.ts`：验证 MiniMax 彩蛋统一启动占用型 purpose，并在配置引导消费事件后延迟到 waiter 消费完成再暂停主流程。
 - `persona-claim-idempotent.spec.ts`：重复 grantReward 不重复加 XP
 - `daily-care-service.spec.ts`：onboarding focus gate 阻止自动 daily care 派发，但不阻止手动触发
 

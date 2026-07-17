@@ -155,6 +155,7 @@ export interface StartSpritePurposeRequest {
   title?: string;
   priority?: number;
   interruptPolicy?: 'never' | 'cooperative' | 'interruptible' | 'urgent';
+  presentationMode?: 'parallel' | 'occupy-main-flow';
   presetId?: string;
   context?: Record<string, unknown>;
   correlationId?: string;
@@ -202,6 +203,7 @@ export type SpriteRoutineStep =
   | { id: string; type: 'showBusy'; content?: string; progress?: number }
   | { id: string; type: 'updateBusy'; content?: string; progress?: number; contentFrom?: string; progressFrom?: string }
   | { id: string; type: 'clearBusy' }
+  | { id: string; type: 'enableAiProviderSpeech' }
   | {
       id: string;
       type: 'openWindow';
@@ -238,6 +240,8 @@ export type SpriteRoutineStep =
 ```
 
 普通 `speak` / `showToast` 只负责台词和轻量提示；多句台词用 step 顺序和 `waitAfter` 控制节奏，也可以用 `parallel` 表达边走边说。若一个并行分支内部仍需要先后关系，用 `sequence` 包住这组子步骤，例如“外层同时等待窗口结果，内层先 `walkTo`，到达后再 `playAnimation lookLeft`”。需要用户确认或选择时使用 `showNotice.buttons`，再通过 `bubble:action` 回到 routine。
+
+`enableAiProviderSpeech` 是主进程受控的 preset-only 动作：它使用核心默认的 AI Provider 语音参数并切换 `SpriteSpeakConfig.engine`，不允许 AI planner 任意写入语音配置。该动作适合配置引导这类明确的用户确认流程。
 
 #### 4.2.1 Preset shorthand 与等待写法
 
@@ -681,6 +685,7 @@ daily.rest-reminder:
   - [x] same kind coalesce（active/queued 均覆盖；优先使用显式 `coalesceKey`、correlation/run/drop identity，`idle.presence` 与 `daily.rest-reminder` 作为 singleton 合并）
   - [x] lower priority ignore / queue limit 策略（默认低于 `minQueuedPriority` 的非 idle purpose 直接 rejected；队列满时更高优先级 purpose 可替换最低优先级 queued purpose）
   - [x] current critical step defer interrupt（`interruptible: false` step 执行中会暂缓更高优先级 purpose；critical step 完成后再启动 queued interrupt）
+  - [x] `presentationMode: 'occupy-main-flow'` 可暂停当前 routine，保留 runner cursor / variables，彩蛋结束后恢复；默认 `parallel` 不改变原有 supersede / queue 行为
 - [x] 默认创建 `idle.presence` semantic purpose。
 - [x] 改造少量默认行为：
   - [x] 保持大多数单点行为不动。
@@ -694,6 +699,7 @@ daily.rest-reminder:
 - [x] 文件投递能打断休息提醒。
 - [x] idle ambient 不会打断文件处理。
 - [x] 高优先级目的完成后能恢复 idle purpose。
+- [x] 占用型彩蛋结束、取消、超时或失败后能恢复被暂停的新手引导。
 
 测试：
 
@@ -702,6 +708,7 @@ daily.rest-reminder:
 - [x] `test/sprite-manager-regression.spec.ts`
 - [x] `test/sprite-event-listener.spec.ts`
 - [x] `test/sprite-purpose-routine.spec.ts`
+- [x] `test/sprite-purpose-routine.spec.ts` 覆盖占用型 purpose 的暂停、cursor 保留和恢复。
 - [x] `test/daily-care-service.spec.ts`
 - [x] `test/sprite-manager-ipc.spec.ts`
 

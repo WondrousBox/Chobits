@@ -550,6 +550,33 @@ export const CHARACTER_MESSAGE_SPECS = [
     neutral: () => ['MiniMax 还可以制作音乐，以后可以和我说哦']
   },
   {
+    field: 'chatApiConfigGuideMiniMaxSpeechPrompt',
+    section: 'routines',
+    key: 'chat.api-config-guide.minimax-speech-prompt',
+    label: '聊天 API 配置引导 MiniMax 语音选择提示',
+    maxItems: 4,
+    maxLength: 280,
+    neutral: () => ['需要我用 MiniMax 的声音说话吗？']
+  },
+  {
+    field: 'chatApiConfigGuideMiniMaxSpeechEnabled',
+    section: 'routines',
+    key: 'chat.api-config-guide.minimax-speech-enabled',
+    label: '聊天 API 配置引导 MiniMax 语音已启用',
+    maxItems: 4,
+    maxLength: 240,
+    neutral: () => ['好呀，接下来我会使用 MiniMax 来说话。']
+  },
+  {
+    field: 'chatApiConfigGuideMiniMaxSpeechEdge',
+    section: 'routines',
+    key: 'chat.api-config-guide.minimax-speech-edge',
+    label: '聊天 API 配置引导保持 Edge 语音',
+    maxItems: 4,
+    maxLength: 240,
+    neutral: () => ['好的，我会继续使用 Edge TTS 说话。']
+  },
+  {
     field: 'featureFileVideoTranscriptionInvite',
     section: 'routines',
     key: 'feature.file-video-transcription.invite',

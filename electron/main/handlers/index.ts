@@ -761,6 +761,21 @@ async function initOnboardingQuestEngine(
       const mgr = SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
       if (!mgr) return;
 
+      // Recommendation notices are not purpose-owned. Wait until an occupying
+      // easter egg releases the presentation slot, otherwise this notice can
+      // replace the easter egg's own interaction prompt.
+      if (completedQuest.id === 'chat.api-config') {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      const waitStartedAt = Date.now();
+      while (Date.now() - waitStartedAt < 30 * 60 * 1000) {
+        const current = mgr.getPurposeSnapshot().current;
+        if (current?.presentationMode !== 'occupy-main-flow') {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
       const buttons: MessageButton[] = [
         {
           id: 'start-recommended-quest',

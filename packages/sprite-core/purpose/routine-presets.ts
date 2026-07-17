@@ -205,25 +205,25 @@ function createFileDropIntakeSteps(purpose: SpritePurpose, options: { waitForRes
   const waitForResourcesReady = options.waitForResourcesReady ?? false;
   const readyStep: SpriteRoutineStepInput[] = waitForResourcesReady
     ? [
-        {
-          id: 'wait-file-drop-resources-ready',
-          type: 'waitForEvent',
-          source: 'purpose-event',
-          event: 'fileDrop:resources-ready',
-          match,
-          timeoutMs: 2 * 60 * 1000,
-          assignTo: 'fileDropReady'
-        }
-      ]
+      {
+        id: 'wait-file-drop-resources-ready',
+        type: 'waitForEvent',
+        source: 'purpose-event',
+        event: 'fileDrop:resources-ready',
+        match,
+        timeoutMs: 2 * 60 * 1000,
+        assignTo: 'fileDropReady'
+      }
+    ]
     : [];
   const openWindowStep: SpriteRoutineStepInput = waitForResourcesReady
     ? {
-        id: 'open-file-actions-menu',
-        type: 'openWindow',
-        window: 'fileActionsMenu',
-        payloadFrom: 'fileDropReady.payload.fileActionsMenuPayload',
-        timeoutMs: 10000
-      }
+      id: 'open-file-actions-menu',
+      type: 'openWindow',
+      window: 'fileActionsMenu',
+      payloadFrom: 'fileDropReady.payload.fileActionsMenuPayload',
+      timeoutMs: 10000
+    }
     : { id: 'open-file-actions-menu', type: 'openWindow', window: 'fileActionsMenu', payload: createFileActionsMenuPayload(purpose), timeoutMs: 10000 };
   const actionSteps: SpriteRoutineStepInput[] = [
     { id: 'prompt-action', type: 'showToast', content: getCharacterRoutineText('file.drop.intake.prompt', ctx, '要怎么处理这个文件？'), category: 'question', duration: 2600 },
@@ -475,6 +475,9 @@ const FEATURE_INTRO_WAIT_MS = 30 * 60 * 1000;
 const FEATURE_INTRO_HELP_COOLDOWN_MS = 60_000;
 const CHAT_API_CONFIG_NOTICE_ID = 'chat.api-config-guide.invite';
 const CHAT_API_CONFIG_OPEN_SETTINGS_ACTION = 'open-ai-provider-settings';
+const CHAT_API_CONFIG_MINIMAX_SPEECH_NOTICE_ID = 'chat.api-config-guide.minimax-speech';
+const CHAT_API_CONFIG_MINIMAX_USE_SPEECH_ACTION = 'use-minimax-speech';
+const CHAT_API_CONFIG_MINIMAX_KEEP_EDGE_ACTION = 'keep-edge-speech';
 const CHAT_API_CONFIG_GUIDE_WAIT_MS = 30 * 60 * 1000;
 const CHAT_API_CONFIG_COMPLETION_ACTIONS = [
   'provider-secrets-updated',
@@ -486,10 +489,20 @@ const CHAT_API_CONFIG_COMPLETION_ACTIONS = [
 ];
 
 function getChatApiConfigDoneText(providerId: string): string {
-  if (providerId === 'minimax') {
-    return getCharacterRoutineText('chat.api-config-guide.done.minimax', { providerId }, 'MiniMax 还可以制作音乐，以后可以和我说哦');
-  }
   return getCharacterRoutineText('chat.api-config-guide.done', { providerId }, '配置保存好了，现在可以开始聊天。');
+}
+
+function createMiniMaxConfigEasterEggSteps(): SpriteRoutineStepInput[] {
+  return [
+    {
+      id: 'chat-api-config-minimax-easter-egg-speak',
+      type: 'speak',
+      text: getCharacterRoutineText('chat.api-config-guide.done.minimax', { providerId: 'minimax' }, 'MiniMax 还可以制作音乐，以后可以和我说哦'),
+      bubbleDuration: 6200,
+      waitAfter: true
+    },
+    ...createMiniMaxSpeechChoiceSteps()
+  ];
 }
 
 function isPurposeContextFlagEnabled(purpose: SpritePurpose, key: string): boolean {
@@ -499,6 +512,99 @@ function isPurposeContextFlagEnabled(purpose: SpritePurpose, key: string): boole
 function shouldLockChatApiConfigGuideProvider(purpose: SpritePurpose): boolean {
   const trigger = getPurposeContextString(purpose, 'trigger');
   return trigger === 'chat-send' || trigger === 'sidebar-send' || isPurposeContextFlagEnabled(purpose, 'strictProviderMatch');
+}
+
+function createMiniMaxSpeechChoiceSteps(): SpriteRoutineStepInput[] {
+  return [
+    {
+      id: 'chat-api-config-minimax-speech-notice',
+      type: 'showNotice',
+      messageId: CHAT_API_CONFIG_MINIMAX_SPEECH_NOTICE_ID,
+      content: getCharacterRoutineText('chat.api-config-guide.minimax-speech-prompt', { providerId: 'minimax' }, '需要我用 MiniMax 的声音说话吗？'),
+      level: 'info',
+      persistent: true,
+      buttons: [
+        { id: CHAT_API_CONFIG_MINIMAX_USE_SPEECH_ACTION, label: '需要', variant: 'default', purposeAction: CHAT_API_CONFIG_MINIMAX_USE_SPEECH_ACTION },
+        { id: CHAT_API_CONFIG_MINIMAX_KEEP_EDGE_ACTION, label: '不需要', variant: 'secondary', purposeAction: CHAT_API_CONFIG_MINIMAX_KEEP_EDGE_ACTION }
+      ],
+      speak: true
+    },
+    {
+      id: 'chat-api-config-minimax-speech-wait-choice',
+      type: 'loopUntil',
+      source: 'purpose-event',
+      untilEvent: ['bubble:action', 'bubble:dismissed'],
+      match: { messageId: CHAT_API_CONFIG_MINIMAX_SPEECH_NOTICE_ID },
+      maxDurationMs: CHAT_API_CONFIG_GUIDE_WAIT_MS,
+      assignTo: 'chatApiConfigMiniMaxSpeechChoice',
+      ignoreHistory: true,
+      body: [{ id: 'chat-api-config-minimax-speech-wait-pause', type: 'wait', durationMs: 1000 }]
+    },
+    {
+      id: 'chat-api-config-minimax-speech-choice-branch',
+      type: 'branch',
+      by: 'chatApiConfigMiniMaxSpeechChoice.event.event',
+      cases: {
+        'bubble:action': [
+          {
+            id: 'chat-api-config-minimax-speech-action-branch',
+            type: 'branch',
+            by: 'chatApiConfigMiniMaxSpeechChoice.event.payload.purposeAction',
+            cases: {
+              [CHAT_API_CONFIG_MINIMAX_USE_SPEECH_ACTION]: [
+                {
+                  id: 'chat-api-config-minimax-speech-clear-notice',
+                  type: 'clearMessage',
+                  messageId: CHAT_API_CONFIG_MINIMAX_SPEECH_NOTICE_ID,
+                  messageType: 'notice'
+                },
+                { id: 'chat-api-config-minimax-speech-enable', type: 'enableAiProviderSpeech' },
+                {
+                  id: 'chat-api-config-minimax-speech-enabled',
+                  type: 'speak',
+                  text: getCharacterRoutineText('chat.api-config-guide.minimax-speech-enabled', { providerId: 'minimax' }, '好呀，接下来我会使用 MiniMax 来说话。'),
+                  bubbleDuration: 3600,
+                  waitAfter: true
+                }
+              ],
+              [CHAT_API_CONFIG_MINIMAX_KEEP_EDGE_ACTION]: [
+                {
+                  id: 'chat-api-config-minimax-speech-clear-notice',
+                  type: 'clearMessage',
+                  messageId: CHAT_API_CONFIG_MINIMAX_SPEECH_NOTICE_ID,
+                  messageType: 'notice'
+                },
+                {
+                  id: 'chat-api-config-minimax-speech-keep-edge',
+                  type: 'speak',
+                  text: getCharacterRoutineText('chat.api-config-guide.minimax-speech-edge', { providerId: 'minimax' }, '好的，我会继续使用 Edge TTS 说话。'),
+                  bubbleDuration: 3600,
+                  waitAfter: true
+                }
+              ]
+            },
+            default: [
+              {
+                id: 'chat-api-config-minimax-speech-clear-unknown-action',
+                type: 'clearMessage',
+                messageId: CHAT_API_CONFIG_MINIMAX_SPEECH_NOTICE_ID,
+                messageType: 'notice'
+              }
+            ]
+          }
+        ],
+        'bubble:dismissed': [
+          {
+            id: 'chat-api-config-minimax-speech-clear-dismissed',
+            type: 'clearMessage',
+            messageId: CHAT_API_CONFIG_MINIMAX_SPEECH_NOTICE_ID,
+            messageType: 'notice'
+          }
+        ]
+      },
+      default: []
+    }
+  ];
 }
 
 /**
@@ -803,8 +909,7 @@ function createFirstChatRoutineSteps(): SpriteRoutineStepInput[] {
       type: 'speak',
       text: getCharacterRoutineText('onboarding.chat.start.done', undefined, '打开啦！'),
       bubbleDuration: 3800
-    },
-    { id: 'first-chat-return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
+    }
   ];
 }
 
@@ -936,14 +1041,8 @@ function createChatApiConfigGuideSteps(purpose: SpritePurpose): SpriteRoutineSte
             type: 'branch',
             by: 'chatApiConfigResult.event.payload.providerId',
             cases: {
-              minimax: [
-                {
-                  id: 'chat-api-config-done',
-                  type: 'speak',
-                  text: getChatApiConfigDoneText('minimax'),
-                  bubbleDuration: 4200
-                }
-              ]
+              minimax: [],
+              minimaxi: []
             },
             default: [
               {
@@ -1275,6 +1374,13 @@ export const DEFAULT_SPRITE_ROUTINE_PRESETS: SpriteRoutinePresetDefinition[] = [
     defaultPriority: 66,
     goal: CHAT_API_CONFIGURED_GUIDE_GOAL,
     steps: createChatApiConfigGuideSteps
+  },
+  {
+    id: 'easter-egg.chat-api-config-minimax',
+    title: 'MiniMax 配置彩蛋',
+    purposeKind: 'easter-egg.chat-api-config-minimax',
+    defaultPriority: 80,
+    steps: createMiniMaxConfigEasterEggSteps
   },
   {
     id: 'onboarding.workspace.create',

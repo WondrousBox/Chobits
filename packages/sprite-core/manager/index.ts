@@ -20,6 +20,7 @@ export type {
   SpritePurposeRetrospectiveQuery,
   SpritePurposeRoutinePlanner,
   SpritePurposeRoutinePlannerContext,
+  SpritePurposePresentationMode,
   SpritePurposeRuntimeEvent,
   SpritePurposeRuntimeEventInput,
   SpritePurposeRuntimeEventSource,

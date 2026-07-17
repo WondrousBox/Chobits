@@ -60,6 +60,7 @@ export type {
   SpritePurposeHistoryReader,
   SpritePurposeHistoryWriter,
   SpritePurposeInterruptPolicy,
+  SpritePurposePresentationMode,
   SpritePurposeRetrospectiveItem,
   SpritePurposeRetrospectiveQuery,
   SpritePurposeRuntimeEvent,

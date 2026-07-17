@@ -86,7 +86,6 @@ function eventText(eventType: string, data?: SpriteEventPayload, fallback?: stri
 }
 
 const MINIMAX_CHAT_API_CONFIG_EASTER_EGG_COOLDOWN_MS = 5 * 60 * 1000;
-const MINIMAX_CHAT_API_CONFIG_EASTER_EGG_BUBBLE_MS = 6200;
 const CHAT_API_CONFIG_SAVE_ACTIONS = new Set([
   'provider-secrets-updated',
   'provider-api-keys-updated',
@@ -115,10 +114,6 @@ function isMiniMaxChatApiConfigSave(data?: SpriteEventPayload): boolean {
 
   const action = normalizeText(data?.action);
   return !action || CHAT_API_CONFIG_SAVE_ACTIONS.has(action);
-}
-
-function getMiniMaxChatApiConfigEasterEggText(): string {
-  return getCharacterRoutineText('chat.api-config-guide.done.minimax', { providerId: 'minimax' }, 'MiniMax 还可以制作音乐，以后可以和我说哦');
 }
 
 function shouldSuppressAiEventSpeech(mgr: SpriteManager, data?: SpriteEventPayload): boolean {
@@ -265,24 +260,32 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
   handlers.push({
     event: AppEvent.AI_PROVIDER_CONFIG_UPDATED,
     handler: (data, context) => {
-      if (context?.purposeMatches && context.purposeMatches > 0) {
-        return;
-      }
       if (!isMiniMaxChatApiConfigSave(data)) {
         return;
       }
 
       const now = Date.now();
-      if (now - lastMiniMaxChatApiConfigEasterEggAt < MINIMAX_CHAT_API_CONFIG_EASTER_EGG_COOLDOWN_MS) {
+      const guideConsumedEvent = (context?.purposeMatches ?? 0) > 0;
+      if (!guideConsumedEvent && now - lastMiniMaxChatApiConfigEasterEggAt < MINIMAX_CHAT_API_CONFIG_EASTER_EGG_COOLDOWN_MS) {
         return;
       }
       lastMiniMaxChatApiConfigEasterEggAt = now;
 
-      const text = getMiniMaxChatApiConfigEasterEggText();
-      if (!text) {
-        return;
-      }
-      void mgr.speak(text, { bubbleDuration: MINIMAX_CHAT_API_CONFIG_EASTER_EGG_BUBBLE_MS }).catch(() => { });
+      // 让当前 purpose-event waiter 和 routine cursor 先完成，再暂停当前流程进入彩蛋。
+      setTimeout(() => {
+        void mgr.startPurpose({
+          kind: 'easter-egg.chat-api-config-minimax',
+          reason: 'MiniMax 配置完成后的语音彩蛋',
+          source: 'app-event',
+          title: 'MiniMax 配置彩蛋',
+          priority: 80,
+          interruptPolicy: 'urgent',
+          presentationMode: 'occupy-main-flow',
+          presetId: 'easter-egg.chat-api-config-minimax',
+          plannerMode: 'preset-only',
+          coalesceKey: 'easter-egg.chat-api-config-minimax'
+        }).catch(() => { });
+      }, 0);
     }
   });
 

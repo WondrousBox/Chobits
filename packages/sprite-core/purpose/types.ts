@@ -6,6 +6,9 @@ export type SpritePurposeStatus = 'queued' | 'active' | 'paused' | 'completed' |
 
 export type SpritePurposeInterruptPolicy = 'never' | 'cooperative' | 'interruptible' | 'urgent';
 
+/** Controls whether a purpose runs alongside the active flow or temporarily owns it. */
+export type SpritePurposePresentationMode = 'parallel' | 'occupy-main-flow';
+
 export type SpriteRoutineSource = 'preset' | 'ai' | 'system' | 'user';
 
 export type SpriteRoutineStatus = 'queued' | 'running' | 'paused' | 'completed' | 'cancelled' | 'failed';
@@ -34,6 +37,8 @@ export interface StartSpritePurposeRequest {
   title?: string;
   priority?: number;
   interruptPolicy?: SpritePurposeInterruptPolicy;
+  /** `occupy-main-flow` pauses the active routine and resumes it after this purpose ends. */
+  presentationMode?: SpritePurposePresentationMode;
   presetId?: string;
   context?: Record<string, unknown>;
   correlationId?: string;
@@ -51,6 +56,7 @@ export interface SpritePurpose {
   status: SpritePurposeStatus;
   priority: number;
   interruptPolicy: SpritePurposeInterruptPolicy;
+  presentationMode?: SpritePurposePresentationMode;
   presetId?: string;
   correlationId?: string;
   coalesceKey?: string;
@@ -76,6 +82,7 @@ export type SpriteRoutineStepType =
   | /** 展示 busy/progress 状态，适合后台任务、导入、工作流等待。 */ 'showBusy'
   | /** 更新当前 busy/progress 状态，可从 runner variables 读取进度和文案。 */ 'updateBusy'
   | /** 清理 busy/progress 状态。 */ 'clearBusy'
+  | /** 使用核心默认参数启用 AI Provider 语音合成。 */ 'enableAiProviderSpeech'
   | /** 打开或聚焦一个由 purposeWindowAdapter 支持的窗口。 */ 'openWindow'
   | /** 循环执行 body，直到等到目标事件或达到 maxDurationMs。 */ 'loopUntil'
   | /** 顺序执行多个子步骤，常用于 parallel 中包一组有先后关系的小流程。 */ 'sequence'
@@ -267,6 +274,10 @@ type UpdateBusyStep = BaseRoutineStep<'updateBusy'> & {
 type ClearBusyStep = BaseRoutineStep<'clearBusy'> & {
 };
 
+/** 使用核心默认参数启用 AI Provider 语音合成。 */
+type EnableAiProviderSpeechStep = BaseRoutineStep<'enableAiProviderSpeech'> & {
+};
+
 /** 打开或聚焦一个由 purposeWindowAdapter 支持的窗口。 */
 type OpenWindowStep = BaseRoutineStep<'openWindow'> & {
   /** 窗口 key；AI planner 会受 allowlist 限制，preset routine 不受 planner allowlist 限制。 */
@@ -376,6 +387,7 @@ export type SpriteRoutineStepInput =
   | MakeRoutineStepInput<ShowBusyStep>
   | MakeRoutineStepInput<UpdateBusyStep>
   | MakeRoutineStepInput<ClearBusyStep>
+  | MakeRoutineStepInput<EnableAiProviderSpeechStep>
   | MakeRoutineStepInput<OpenWindowStep>
   | LoopUntilStepInput
   | ParallelStepInput
@@ -409,6 +421,7 @@ export type SpriteRoutineStep =
   | ShowBusyStep
   | UpdateBusyStep
   | ClearBusyStep
+  | EnableAiProviderSpeechStep
   | OpenWindowStep
   | LoopUntilStep
   | SequenceStep
@@ -440,7 +453,7 @@ export interface SpriteRoutineStepResult {
 
 export interface SpriteRoutineRunResult {
   ok: boolean;
-  status: 'completed' | 'cancelled' | 'failed';
+  status: 'completed' | 'paused' | 'cancelled' | 'failed';
   purposeId: string;
   routineId: string;
   currentStepId?: string;
@@ -467,6 +480,8 @@ export type SpritePurposeEventType =
   | 'purpose:created'
   | 'purpose:started'
   | 'purpose:completed'
+  | 'purpose:paused'
+  | 'purpose:resumed'
   | 'purpose:cancelled'
   | 'purpose:coalesced'
   | 'purpose:rejected'
@@ -476,6 +491,8 @@ export type SpritePurposeEventType =
   | 'planner:fallback'
   | 'routine:started'
   | 'routine:completed'
+  | 'routine:paused'
+  | 'routine:resumed'
   | 'routine:cancelled'
   | 'routine:failed'
   | 'step:started'

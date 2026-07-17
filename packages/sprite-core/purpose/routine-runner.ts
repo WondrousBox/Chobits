@@ -19,6 +19,7 @@ export interface SpriteRoutineRunnerDeps {
   showBusy?: (step: Extract<SpriteRoutineStep, { type: 'showBusy' }>) => Promise<unknown> | unknown;
   updateBusy?: (step: Extract<SpriteRoutineStep, { type: 'updateBusy' }>) => Promise<unknown> | unknown;
   clearBusy?: () => Promise<unknown> | unknown;
+  enableAiProviderSpeech?: (step: Extract<SpriteRoutineStep, { type: 'enableAiProviderSpeech' }>, routine: SpriteRoutine) => Promise<unknown> | unknown;
   openWindow?: (step: Extract<SpriteRoutineStep, { type: 'openWindow' }>, signal: AbortSignal, routine: SpriteRoutine) => Promise<unknown> | unknown;
   onStepStart?: (routine: SpriteRoutine, step: SpriteRoutineStep) => void | Promise<void>;
   onStepComplete?: (routine: SpriteRoutine, step: SpriteRoutineStep, result: SpriteRoutineStepResult) => void | Promise<void>;
@@ -29,6 +30,8 @@ export interface SpriteRoutineRunnerDeps {
 
 export interface SpriteRoutineRunOptions {
   signal?: AbortSignal;
+  /** Returns true when the current run is being interrupted for a resumable pause. */
+  pauseRequested?: () => boolean;
   onStepStart?: (routine: SpriteRoutine, step: SpriteRoutineStep) => void | Promise<void>;
   onStepComplete?: (routine: SpriteRoutine, step: SpriteRoutineStep, result: SpriteRoutineStepResult) => void | Promise<void>;
 }
@@ -52,6 +55,7 @@ export class SpriteRoutineRunner {
   private readonly now: () => number;
   private readonly scheduleTimeout: typeof globalThis.setTimeout;
   private readonly cancelTimeout: typeof globalThis.clearTimeout;
+  private readonly contexts = new WeakMap<SpriteRoutine, SpriteRoutineRunContext>();
 
   constructor(private readonly deps: SpriteRoutineRunnerDeps) {
     this.now = deps.now ?? (() => Date.now());
@@ -61,13 +65,14 @@ export class SpriteRoutineRunner {
 
   async run(routine: SpriteRoutine, options?: SpriteRoutineRunOptions): Promise<SpriteRoutineRunResult> {
     const startedAt = this.now();
-    const context: SpriteRoutineRunContext = {
+    const context = this.contexts.get(routine) ?? {
       results: [],
       variables: {},
       cooldowns: {}
     };
+    this.contexts.set(routine, context);
     routine.status = 'running';
-    routine.startedAt = startedAt;
+    routine.startedAt ??= startedAt;
 
     try {
       for (let index = routine.cursor; index < routine.steps.length; index += 1) {
@@ -76,8 +81,22 @@ export class SpriteRoutineRunner {
         const step = routine.steps[index];
         const result = await this.runStep(routine, step, context, options, true);
         if (!result.ok) {
-          routine.status = result.status === 'cancelled' ? 'cancelled' : 'failed';
+          const paused = options?.pauseRequested?.() === true && result.status === 'cancelled';
+          routine.status = paused ? 'paused' : result.status === 'cancelled' ? 'cancelled' : 'failed';
+          if (paused) {
+            return {
+              ok: false,
+              status: 'paused',
+              purposeId: routine.purposeId,
+              routineId: routine.id,
+              currentStepId: step.id,
+              error: result.error,
+              elapsedMs: this.now() - startedAt,
+              steps: context.results
+            };
+          }
           routine.endedAt = this.now();
+          this.contexts.delete(routine);
           return {
             ok: false,
             status: routine.status,
@@ -94,7 +113,7 @@ export class SpriteRoutineRunner {
       routine.status = 'completed';
       routine.cursor = routine.steps.length;
       routine.endedAt = this.now();
-      return {
+      const result: SpriteRoutineRunResult = {
         ok: true,
         status: 'completed',
         purposeId: routine.purposeId,
@@ -102,9 +121,24 @@ export class SpriteRoutineRunner {
         elapsedMs: routine.endedAt - startedAt,
         steps: context.results
       };
+      this.contexts.delete(routine);
+      return result;
     } catch (error) {
-      routine.status = isCancelled(error) ? 'cancelled' : 'failed';
+      const paused = options?.pauseRequested?.() === true && isCancelled(error);
+      routine.status = paused ? 'paused' : isCancelled(error) ? 'cancelled' : 'failed';
+      if (paused) {
+        return {
+          ok: false,
+          status: 'paused',
+          purposeId: routine.purposeId,
+          routineId: routine.id,
+          error: error instanceof Error ? error.message : String(error),
+          elapsedMs: this.now() - startedAt,
+          steps: context.results
+        };
+      }
       routine.endedAt = this.now();
+      this.contexts.delete(routine);
       return {
         ok: false,
         status: routine.status,
@@ -129,7 +163,13 @@ export class SpriteRoutineRunner {
     const signal = effectiveOptions.signal;
     await this.deps.onStepStart?.(routine, step);
     await effectiveOptions.onStepStart?.(routine, step);
-    let result: SpriteRoutineStepResult;
+    let result: SpriteRoutineStepResult = {
+      ok: false,
+      status: 'failed',
+      stepId: step.id,
+      error: 'step did not produce a result',
+      elapsedMs: 0
+    };
     try {
       this.throwIfAborted(signal);
       const skipped = this.prepareStepSkip(step, context);
@@ -174,11 +214,11 @@ export class SpriteRoutineRunner {
         };
       }
     } finally {
-      if (updateCursor) {
+      if (updateCursor && result && result.status !== 'cancelled') {
         routine.cursor = Math.min(routine.cursor + 1, routine.steps.length);
       }
     }
-    context.results.push(result);
+    context.results.push(result!);
     await this.deps.onStepComplete?.(routine, step, result);
     await effectiveOptions.onStepComplete?.(routine, step, result);
     return result;
@@ -237,6 +277,11 @@ export class SpriteRoutineRunner {
         return this.runUpdateBusy(step, context);
       case 'clearBusy':
         return this.deps.clearBusy?.();
+      case 'enableAiProviderSpeech':
+        if (!this.deps.enableAiProviderSpeech) {
+          throw new Error('enableAiProviderSpeech step is not supported by this runner');
+        }
+        return this.deps.enableAiProviderSpeech(step, routine);
       case 'openWindow':
         return this.runOpenWindow(routine, step, signal, context);
       case 'loopUntil':

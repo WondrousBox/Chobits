@@ -168,6 +168,7 @@ const STEP_SCHEMA_DESCRIPTIONS: Record<SpriteRoutineStepType, string> = {
   showBusy: 'Show busy/progress state.',
   updateBusy: 'Update busy/progress state from fixed values or assigned event paths.',
   clearBusy: 'Clear busy/progress state.',
+  enableAiProviderSpeech: 'Enable AI Provider speech with the application default provider voice settings. This is reserved for trusted preset routines.',
   openWindow: 'Open an allowlisted window; timeoutMs is required.',
   loopUntil: 'Repeat bounded body steps until allowlisted event; maxDurationMs is required.',
   sequence: 'Run bounded child steps in order; duration is estimated as the sum of child steps.',
@@ -388,6 +389,9 @@ function validateStep(step: unknown, path: string, state: ValidationState): numb
     case 'showBusy':
     case 'updateBusy':
     case 'clearBusy':
+      duration = 0;
+      break;
+    case 'enableAiProviderSpeech':
       duration = 0;
       break;
     case 'openWindow':

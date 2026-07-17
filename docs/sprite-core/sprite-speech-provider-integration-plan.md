@@ -117,7 +117,12 @@ UI 分层：
 需要扩展的前端类型：
 
 - `SpeakSettings.tsx` 的本地 `SpriteSpeakConfig` 应改为从 `@packages/sprite-core/speak/types` 引入，避免 UI 和主进程类型分叉。
+- `SpeakSettings.tsx` 的默认 AI Provider 参数应复用 `DEFAULT_AI_PROVIDER_SPEAK_CONFIG`，避免 UI 与主进程的 provider/model/voice 默认值漂移。
 - `ProviderModelSelect` 的 `ModelRow` 应允许读取 `speechSynthesis?: { modes?: string[]; transports?: string[]; audioFormats?: string[]; voices?: unknown[] }` 这类 metadata，用于运行时策略和后续 UI 状态提示。
+
+### 4.1 MiniMax 配置引导联动
+
+MiniMax 配置成功后由独立的 `easter-egg.chat-api-config-minimax` purpose 保留原有音乐彩蛋，并在音乐彩蛋气泡自然展示结束后追加一个带“需要 / 不需要”按钮的语音选择提示。该 purpose 使用 `presentationMode: 'occupy-main-flow'` 暂停当前主流程，结束、取消或超时后恢复原 routine。点击“需要”或“不需要”后，确认语句也会等待气泡自然展示结束，再允许后续流程继续；点击“需要”时由主进程受控 routine step 使用 `DEFAULT_AI_PROVIDER_SPEAK_CONFIG` 切换到 `ai-provider` 引擎，拒绝或关闭提示则不修改现有配置，继续使用 Edge。该动作不通过设置页跳转，也不开放给 AI planner 任意修改语音配置。
 
 ## 5. 主进程运行链路
 
@@ -366,6 +371,7 @@ durationMs?: number;
 - [x] `SpeakService` 增加 AI Provider engine 分支，构造通用 `SpeechSynthesisRequest`。
 - [x] `SpeakSettings.tsx` 增加 Edge / AI Provider 引擎切换、ProviderModelSelect、voiceId、自动策略说明和配置入口。
 - [x] `SpeakSettings.tsx` 支持选择当前 Provider 的 preset，适配 MiniMax Token Plan 多预设。
+- [x] MiniMax 聊天 API 配置引导追加语音引擎选择，并通过主进程统一配置入口启用默认 AI Provider 语音。
 - [x] 试听、缓存、talk 动画保持当前行为。
 
 ### Phase 2：AI 聊天实时朗读 + PCM 播放

@@ -245,7 +245,7 @@ describe('sprite event listener', () => {
     cleanup();
   });
 
-  it('speaks the MiniMax music easter egg when a MiniMax API key config save is not handled by a guide routine', () => {
+  it('starts the MiniMax music easter egg purpose when a guide routine does not handle the save', async () => {
     const mgr = createManagerStub();
     const cleanup = initSpriteEventListener(mgr as any);
 
@@ -254,6 +254,7 @@ describe('sprite event listener', () => {
       presetId: 'preset-minimax',
       action: 'preset-secrets-updated'
     });
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
     expect(mgr.emitPurposeEvent).toHaveBeenCalledWith({
       source: 'app-event',
@@ -264,14 +265,24 @@ describe('sprite event listener', () => {
         action: 'preset-secrets-updated'
       }
     });
-    expect(mgr.speak).toHaveBeenCalledWith('MiniMax 还可以制作音乐，以后可以和我说哦', {
-      bubbleDuration: 6200
+    expect(mgr.startPurpose).toHaveBeenCalledWith({
+      kind: 'easter-egg.chat-api-config-minimax',
+      reason: 'MiniMax 配置完成后的语音彩蛋',
+      source: 'app-event',
+      title: 'MiniMax 配置彩蛋',
+      priority: 80,
+      interruptPolicy: 'urgent',
+      presentationMode: 'occupy-main-flow',
+      presetId: 'easter-egg.chat-api-config-minimax',
+      plannerMode: 'preset-only',
+      coalesceKey: 'easter-egg.chat-api-config-minimax'
     });
+    expect(mgr.speak).not.toHaveBeenCalled();
 
     cleanup();
   });
 
-  it('lets the chat API config guide own the MiniMax easter egg when it captures the save event', () => {
+  it('starts the MiniMax easter egg after the chat API config guide captures the save event', async () => {
     const mgr = createManagerStub();
     mgr.emitPurposeEvent.mockReturnValue({ matched: 1 });
     const cleanup = initSpriteEventListener(mgr as any);
@@ -281,8 +292,12 @@ describe('sprite event listener', () => {
       presetId: 'preset-minimax',
       action: 'preset-secrets-updated'
     });
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-    expect(mgr.speak).not.toHaveBeenCalled();
+    expect(mgr.startPurpose).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'easter-egg.chat-api-config-minimax',
+      presentationMode: 'occupy-main-flow'
+    }));
 
     cleanup();
   });

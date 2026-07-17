@@ -36,6 +36,30 @@ async function waitFor(predicate: () => boolean, timeoutMs = 200): Promise<void>
 }
 
 describe('SpriteRoutineRunner', () => {
+  it('dispatches the trusted AI provider speech enable step', async () => {
+    const enableAiProviderSpeech = vi.fn(() => ({ engine: 'ai-provider' }));
+    const runner = new SpriteRoutineRunner({
+      playAnimation: vi.fn(),
+      walkTo: vi.fn(),
+      speak: vi.fn(),
+      showToast: vi.fn(),
+      enableAiProviderSpeech
+    });
+
+    const result = await runner.run({
+      id: 'routine-enable-ai-speech',
+      purposeId: 'purpose-enable-ai-speech',
+      source: 'preset',
+      status: 'queued',
+      steps: [{ id: 'enable-ai-speech', type: 'enableAiProviderSpeech' }],
+      cursor: 0,
+      createdAt: Date.now()
+    });
+
+    expect(result.ok, result.error).toBe(true);
+    expect(enableAiProviderSpeech).toHaveBeenCalledWith(expect.objectContaining({ type: 'enableAiProviderSpeech' }), expect.objectContaining({ id: 'routine-enable-ai-speech' }));
+  });
+
   it('dispatches standalone warpTo steps without requiring an animation step', async () => {
     const warpTo = vi.fn(async () => true);
     const runner = new SpriteRoutineRunner({
@@ -1065,6 +1089,128 @@ describe('SpritePurposeManager', () => {
       purposeId: 'purpose-execution-fallback',
       status: 'completed'
     });
+  });
+
+  it('pauses and resumes the active routine for an occupying purpose', async () => {
+    const history: SpritePurposeHistoryEntry[] = [];
+    const calls: string[] = [];
+    const runner = new SpriteRoutineRunner({
+      playAnimation: vi.fn(),
+      walkTo: vi.fn(),
+      speak: vi.fn(),
+      showToast: (step) => {
+        calls.push(step.content ?? '');
+      }
+    });
+    const manager = new SpritePurposeManager({
+      runner,
+      presets: new SpriteRoutinePresetRegistry([
+        {
+          id: 'main.flow',
+          title: '主流程',
+          purposeKind: 'main.flow',
+          defaultPriority: 60,
+          steps: [
+            { id: 'main-wait', type: 'wait', durationMs: 25 },
+            { id: 'main-toast', type: 'showToast', content: 'main-resumed' }
+          ]
+        },
+        {
+          id: 'easter.egg',
+          title: '彩蛋',
+          purposeKind: 'easter.egg',
+          defaultPriority: 80,
+          steps: [{ id: 'egg-toast', type: 'showToast', content: 'egg' }]
+        }
+      ]),
+      history: {
+        append(entry) {
+          history.push(entry);
+        }
+      },
+      idFactory: () => `purpose-${history.length}`
+    });
+
+    const main = await manager.start({
+      kind: 'main.flow',
+      reason: '主引导',
+      source: 'system-event',
+      presetId: 'main.flow'
+    });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const egg = await manager.start({
+      kind: 'easter.egg',
+      reason: '占用主流程的彩蛋',
+      source: 'app-event',
+      presetId: 'easter.egg',
+      priority: 80,
+      interruptPolicy: 'urgent',
+      presentationMode: 'occupy-main-flow'
+    });
+
+    expect(egg.status).toBe('started');
+    await waitFor(() => manager.getSnapshot().current === null, 1000);
+    expect(calls).toEqual(['egg', 'main-resumed']);
+    expect(history).toEqual(expect.arrayContaining([
+      expect.objectContaining({ eventType: 'purpose:paused', purposeId: main.purpose.id }),
+      expect.objectContaining({ eventType: 'routine:paused', purposeId: main.purpose.id, result: expect.objectContaining({ cursor: 0 }) }),
+      expect.objectContaining({ eventType: 'purpose:resumed', purposeId: main.purpose.id }),
+      expect.objectContaining({ eventType: 'routine:resumed', purposeId: main.purpose.id })
+    ]));
+  });
+
+  it('resumes the paused routine when an occupying purpose is cancelled', async () => {
+    const calls: string[] = [];
+    const runner = new SpriteRoutineRunner({
+      playAnimation: vi.fn(),
+      walkTo: vi.fn(),
+      speak: vi.fn(),
+      showToast: (step) => calls.push(step.content ?? '')
+    });
+    const manager = new SpritePurposeManager({
+      runner,
+      presets: new SpriteRoutinePresetRegistry([
+        {
+          id: 'cancel-main.flow',
+          title: '主流程',
+          purposeKind: 'cancel-main.flow',
+          defaultPriority: 60,
+          steps: [
+            { id: 'cancel-main-wait', type: 'wait', durationMs: 10 },
+            { id: 'cancel-main-toast', type: 'showToast', content: 'main-after-cancel' }
+          ]
+        },
+        {
+          id: 'cancel-easter.egg',
+          title: '彩蛋',
+          purposeKind: 'cancel-easter.egg',
+          defaultPriority: 80,
+          steps: [{ id: 'cancel-egg-wait', type: 'wait', durationMs: 1000 }]
+        }
+      ]),
+      idFactory: () => `cancel-purpose-${Date.now()}-${Math.random()}`
+    });
+
+    await manager.start({
+      kind: 'cancel-main.flow',
+      reason: '主引导',
+      source: 'system-event',
+      presetId: 'cancel-main.flow'
+    });
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    const egg = await manager.start({
+      kind: 'cancel-easter.egg',
+      reason: '可取消彩蛋',
+      source: 'app-event',
+      presetId: 'cancel-easter.egg',
+      priority: 80,
+      interruptPolicy: 'urgent',
+      presentationMode: 'occupy-main-flow'
+    });
+
+    await manager.cancel(egg.purpose.id, '用户关闭彩蛋');
+    await waitFor(() => manager.getSnapshot().current === null, 1000);
+    expect(calls).toEqual(['main-after-cancel']);
   });
 });
 
@@ -2202,34 +2348,34 @@ describe('SpriteRoutinePresetRegistry', () => {
     const result = await pending;
 
     expect(result.ok, result.error).toBe(true);
-    expect(calls).toContain('speak:chat-api-config-done:MiniMax 还可以制作音乐，以后可以和我说哦');
+    expect(calls).not.toContain('speak:chat-api-config-done:MiniMax 还可以制作音乐，以后可以和我说哦');
   });
 
-  it('speaks a MiniMax music easter egg after the MiniMax chat API config is saved', async () => {
+  it('offers MiniMax speech after the MiniMax chat API config is saved', async () => {
     const registry = new SpriteRoutinePresetRegistry();
-    const preset = registry.get('chat.api-config-guide');
+    const preset = registry.get('easter-egg.chat-api-config-minimax');
     expect(preset).toBeDefined();
 
     const routine = registry.createRoutine(
       {
-        id: 'purpose-chat-api-config-guide',
-        kind: 'chat.api-config-guide',
-        title: 'chat api config guide',
-        reason: 'missing api key',
-        source: 'user-event',
+        id: 'purpose-minimax-easter-egg',
+        kind: 'easter-egg.chat-api-config-minimax',
+        title: 'MiniMax config easter egg',
+        reason: 'MiniMax config saved',
+        source: 'app-event',
         status: 'active',
-        priority: 72,
-        interruptPolicy: 'interruptible',
-        context: {
-          providerId: 'minimax',
-          presetId: 'preset-minimax',
-          fields: ['apiKey']
-        }
+        priority: 80,
+        interruptPolicy: 'urgent',
+        presentationMode: 'occupy-main-flow'
       },
       preset!,
       1000
     );
     const calls: string[] = [];
+    const enableAiProviderSpeech = vi.fn(() => {
+      calls.push('enable-ai-provider-speech');
+      return { engine: 'ai-provider' };
+    });
     const pending = (signal?: AbortSignal): Promise<any> =>
       new Promise((_, reject) => {
         if (signal?.aborted) {
@@ -2248,6 +2394,7 @@ describe('SpriteRoutinePresetRegistry', () => {
       showNotice: vi.fn(),
       clearMessage: vi.fn(),
       openWindow: vi.fn(),
+      enableAiProviderSpeech,
       waitForEvent: (step, signal) => {
         if (step.event === 'bubble:action') {
           return {
@@ -2255,20 +2402,8 @@ describe('SpriteRoutinePresetRegistry', () => {
             event: 'bubble:action',
             timestamp: Date.now(),
             payload: {
-              messageId: 'chat.api-config-guide.invite',
-              purposeAction: 'open-ai-provider-settings'
-            }
-          };
-        }
-        if (step.event === 'AI_PROVIDER_CONFIG_UPDATED') {
-          return {
-            source: 'app-event',
-            event: 'AI_PROVIDER_CONFIG_UPDATED',
-            timestamp: Date.now(),
-            payload: {
-              providerId: 'minimax',
-              presetId: 'preset-minimax',
-              action: 'preset-secrets-updated'
+              messageId: 'chat.api-config-guide.minimax-speech',
+              purposeAction: 'use-minimax-speech'
             }
           };
         }
@@ -2279,7 +2414,51 @@ describe('SpriteRoutinePresetRegistry', () => {
     const result = await runner.run(routine);
 
     expect(result.ok, result.error).toBe(true);
-    expect(calls).toContain('speak:chat-api-config-done:MiniMax 还可以制作音乐，以后可以和我说哦');
+    expect(calls).toContain('speak:chat-api-config-minimax-easter-egg-speak:MiniMax 还可以制作音乐，以后可以和我说哦');
+    expect(calls).toContain('enable-ai-provider-speech');
+    expect(calls).toContain('speak:chat-api-config-minimax-speech-enabled:好呀，接下来我会使用 MiniMax 来说话。');
+    expect(enableAiProviderSpeech).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers an explicit Edge fallback in the MiniMax speech choice branch', () => {
+    const registry = new SpriteRoutinePresetRegistry();
+    const preset = registry.get('easter-egg.chat-api-config-minimax');
+    expect(preset).toBeDefined();
+
+    const routine = registry.createRoutine(
+      {
+        id: 'purpose-minimax-easter-egg',
+        kind: 'easter-egg.chat-api-config-minimax',
+        title: 'MiniMax config easter egg',
+        reason: 'MiniMax config saved',
+        source: 'app-event',
+        status: 'active',
+        priority: 80,
+        interruptPolicy: 'urgent',
+        presentationMode: 'occupy-main-flow'
+      },
+      preset!,
+      1000
+    );
+
+    const collectSteps = (steps: typeof routine.steps): typeof routine.steps =>
+      steps.flatMap((step) => {
+        if (step.type === 'branch') {
+          return [step, ...Object.values(step.cases).flatMap((nested) => collectSteps(nested)), ...(step.default ? collectSteps(step.default) : [])];
+        }
+        if (step.type === 'loopUntil' || step.type === 'sequence' || step.type === 'parallel') {
+          return [step, ...collectSteps(step.body)];
+        }
+        return [step];
+      });
+    const allSteps = collectSteps(routine.steps);
+    const actionBranch = allSteps.find((step) => step.id === 'chat-api-config-minimax-speech-action-branch');
+    const keepEdgeSteps = actionBranch && actionBranch.type === 'branch' ? actionBranch.cases['keep-edge-speech'] : undefined;
+
+    expect(allSteps).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'chat-api-config-minimax-speech-notice', type: 'showNotice' })]));
+    expect(allSteps).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'chat-api-config-minimax-speech-clear-notice', type: 'clearMessage' })]));
+    expect(allSteps).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'chat-api-config-minimax-speech-keep-edge', type: 'speak', text: '好的，我会继续使用 Edge TTS 说话。', waitAfter: true })]));
+    expect(keepEdgeSteps?.some((step) => step.type === 'enableAiProviderSpeech')).toBe(false);
   });
 
   it('creates first chat onboarding routines that wait for double click and chat entry open', () => {

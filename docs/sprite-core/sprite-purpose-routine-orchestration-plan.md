@@ -174,6 +174,8 @@ interface SpritePurpose {
   status: SpritePurposeStatus;
   priority: number;
   interruptPolicy: 'never' | 'cooperative' | 'interruptible' | 'urgent';
+  /** `parallel` runs alongside the active flow; `occupy-main-flow` pauses it and resumes it after completion. */
+  presentationMode?: 'parallel' | 'occupy-main-flow';
   startedAt?: number;
   endedAt?: number;
   parentPurposeId?: string;
@@ -245,6 +247,7 @@ Routine 可以理解为“成套行为方案”。它不是决定行为是否发
 - `wait`：等待固定时间。
 - `waitForEvent`：等待事件，如 `file-drop`、用户选择、任务完成。
 - `showToast` / `speak` / `showNotice` / `showBusy`：展示与说话。
+- `enableAiProviderSpeech`：由主进程使用核心默认参数启用 AI Provider 语音，仅供受信任的 preset 引导动作使用，不进入默认 AI planner allowlist。
 - `openWindow`：打开选择框，例如 `fileActionsMenu`。
 - `runTask`：启动后台任务或 workflow。
 - `loopUntil`：在任务未完成时循环播放等待动画或提示。
@@ -278,6 +281,7 @@ type SpriteRoutineStep =
   | { id: string; type: 'waitForEvent'; event: string; timeoutMs?: number; assignTo?: string }
   | { id: string; type: 'speak'; text: string; bubbleDuration?: number; waitAfter?: number | boolean }
   | { id: string; type: 'showNotice'; content: string; buttons?: Array<{ id: string; label: string }> }
+  | { id: string; type: 'enableAiProviderSpeech' }
   | { id: string; type: 'openWindow'; window: string; payload?: Record<string, unknown>; waitForEvent?: string }
   | { id: string; type: 'runTask'; task: string; input?: Record<string, unknown>; assignTo?: string }
   | { id: string; type: 'loopUntil'; untilEvent: string; body: SpriteRoutineStep[]; maxDurationMs?: number }
@@ -506,9 +510,13 @@ mgr.startPurpose({
 
 ```text
 新 purpose priority > 当前 priority 且当前 interruptPolicy 允许
-  -> cancel 当前 RoutineRunner
-  -> 当前 purpose 标记 superseded
+  -> `presentationMode = occupy-main-flow` 时暂停当前 RoutineRunner，保留 cursor / context
+  -> 否则 cancel 当前 RoutineRunner，当前 purpose 标记 superseded
   -> 启动新 purpose
+
+占用型 purpose 完成、取消、超时或失败
+  -> 释放彩蛋的 presentation lock
+  -> 恢复被暂停的 purpose / routine，从原 cursor 继续
 
 新 purpose priority 接近当前 purpose
   -> 如果当前 step 是 interruptible，切换
@@ -524,6 +532,7 @@ mgr.startPurpose({
 - 用户拖进文件。
 - `file.intake` priority 100 高于 `daily.rest-reminder` priority 60。
 - 休息提醒被标记 `superseded`，角色改为接收文件。
+- 彩蛋若声明 `presentationMode: 'occupy-main-flow'`，主引导会记录 `paused`，彩蛋结束后恢复；默认 `parallel` 行为保持现有仲裁规则。
 
 ## 8. 与现有系统的集成点
 

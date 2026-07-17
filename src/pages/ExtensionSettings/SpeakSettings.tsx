@@ -5,7 +5,7 @@
  */
 import { getProviderVoiceCatalog } from '@packages/ai/providers/voice-catalogs';
 import type { ProviderPresetRecord } from '@packages/ai/types';
-import type { SpriteSpeakAIProviderConfig, SpriteSpeakConfig } from '@packages/sprite-core/speak/types';
+import { DEFAULT_AI_PROVIDER_SPEAK_CONFIG, type SpriteSpeakAIProviderConfig, type SpriteSpeakConfig } from '@packages/sprite-core/speak/types';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { TbSettings, TbTrash, TbVolume } from 'react-icons/tb';
 
@@ -41,26 +41,11 @@ const EDGE_VOICES = [
   { value: 'es-ES-ElviraNeural', label: 'Elvira (Mujer)', lang: 'Español' }
 ];
 
-const DEFAULT_AI_PROVIDER_CONFIG: SpriteSpeakAIProviderConfig = {
-  providerId: 'minimax',
-  model: 'speech-2.8-turbo',
-  voiceId: 'female-shaonv',
-  audioSetting: {
-    format: 'mp3',
-    sampleRate: 32000,
-    bitrate: 128000,
-    channels: 1
-  },
-  speed: 1,
-  pitch: 0,
-  voiceVolume: 1
-};
-
 const mergeAiProviderConfig = (config?: SpriteSpeakAIProviderConfig): SpriteSpeakAIProviderConfig => ({
-  ...DEFAULT_AI_PROVIDER_CONFIG,
+  ...DEFAULT_AI_PROVIDER_SPEAK_CONFIG,
   ...(config || {}),
   audioSetting: {
-    ...DEFAULT_AI_PROVIDER_CONFIG.audioSetting,
+    ...DEFAULT_AI_PROVIDER_SPEAK_CONFIG.audioSetting,
     ...(config?.audioSetting || {})
   }
 });
