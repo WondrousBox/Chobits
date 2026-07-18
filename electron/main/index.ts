@@ -15,7 +15,7 @@ import { logger } from './logger';
 import { addAllowedResourceRoot, addWorkspaceResourceRoot, setupResourceProtocol } from './resource-protocol';
 import { registerGlobalShortcuts, unregisterGlobalShortcuts } from './shortcuts';
 import { update } from './update';
-import { Env } from './utils';
+import { Env, getRuntimeDataDir } from './utils';
 import { getResourcePath } from './utils/resources-path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -245,10 +245,10 @@ app.whenReady().then(async () => {
     console.warn('[protocol res] add workspace root failed', e);
   }
 
-  // Add userData/data directory as allowed root for sprite speak cache etc.
+  // Add the runtime data directory as an allowed root for sprite speak cache etc.
   updateSplashLog('registering userData resource root');
   try {
-    const userDataDir = path.join(app.getPath('userData'), 'data');
+    const userDataDir = path.join(getRuntimeDataDir(), 'data');
     addAllowedResourceRoot(userDataDir);
   } catch (e) {
     console.warn('[protocol res] add userData root failed', e);

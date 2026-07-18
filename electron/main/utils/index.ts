@@ -2,6 +2,8 @@ import { app } from 'electron';
 import fs from 'fs';
 import path from 'path';
 
+import { resolveRuntimeDataDir } from './runtime-data';
+
 /**
  * 输入一个文件地址，如果文件已经存在，则更换文件名
  *
@@ -42,6 +44,10 @@ export const Env = {
     return !app.isPackaged;
   }
 };
+
+export function getRuntimeDataDir(): string {
+  return resolveRuntimeDataDir(app.getPath('userData'), app.isPackaged);
+}
 
 export function getRealPath(prodPath: string, devPath: string, basePath: string = app.getAppPath()): string {
   return path.resolve(basePath, Env.isProd() ? prodPath : devPath);

@@ -113,6 +113,8 @@ Quest 定义（声明前置/完成事件/奖励）
 
 **Quest 不替代 Purpose，是它的上层调度器**。
 
+正式包与开发环境的引导状态、人格成就和 Sprite 运行时状态使用不同的 mutable data root。正式包继续使用 `<userData>/data`，开发环境使用 `<userData>/dev/data`，避免正式包完成引导后污染 `pnpm dev` 的首次启动体验。
+
 ## 2.1 Routine Goal 与阻断式引导
 
 `SpriteRoutinePresetDefinition.goal` 是 preset routine 的“目标状态”声明，适合被聊天、菜单、设置页等入口复用。它只描述目标，不包含 IPC 实现；renderer / main 根据 `goal.kind` 绑定实际检查函数。

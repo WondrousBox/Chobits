@@ -34,6 +34,7 @@ import { getMainSchedulerService, initSchedulerIPC } from '../scheduler';
 import { initScreenshotHandlers } from '../screenshot';
 import { initSelectedTextLearningHandlers } from '../selected-text/ipc-main';
 import { initSkillTreeHandlers } from '../skillTreeWindow';
+import { getRuntimeDataDir } from '../utils';
 import { getResourcePath } from '../utils/resources-path';
 import { initAnalyticsHandlers } from './analytics/ipc-main';
 import { initAnnotationHandlers } from './annotation/ipc-main';
@@ -407,6 +408,7 @@ function resolveChatApiConfigGuideContext(): Record<string, unknown> {
 
 export async function initHandlers(win: BrowserWindow): Promise<void> {
   console.log(process.versions);
+  const runtimeDataDir = getRuntimeDataDir();
   const { WorkspacesRepo } = await import('../db/repositories');
   const countWorkspaces = async (): Promise<number> => {
     try {
@@ -520,14 +522,14 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initProjectTrackingHandlers();
   initAnalyticsHandlers();
   initUserProfileHandlers();
-  const purposeHistoryStore = new SpritePurposeHistoryStore(app.getPath('userData'));
+  const purposeHistoryStore = new SpritePurposeHistoryStore(runtimeDataDir);
   const purposeRetrospectiveProvider = (query?: Parameters<SpritePurposeHistoryStore['getDailyRetrospective']>[0]): ReturnType<SpritePurposeHistoryStore['getDailyRetrospective']> =>
     purposeHistoryStore.getDailyRetrospective(query);
   registerPurposeRetrospectiveMemoryProvider(purposeRetrospectiveProvider);
   const spontaneousUtteranceService = new SpriteSpontaneousUtteranceService({
     purposeRetrospectiveProvider
   });
-  const purposePlannerPreferencesStore = new SpritePurposePlannerPreferencesStore(app.getPath('userData'));
+  const purposePlannerPreferencesStore = new SpritePurposePlannerPreferencesStore(runtimeDataDir);
   const purposePlannerContextTracker = new SpritePurposePlannerRuntimeContextTracker();
   const purposePlannerService = new SpritePurposePlannerService({
     preferences: purposePlannerPreferencesStore.read(),
@@ -540,6 +542,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   });
   initSpritePurposePlannerIPC(purposePlannerService, purposePlannerPreferencesStore);
   await initSpriteManagerIPC(win, {
+    dataDir: runtimeDataDir,
     addAllowedResourceRoot: (await import('../resource-protocol')).addAllowedResourceRoot,
     registerCharacterPersonaPromptProvider: async (resolveCharacterPersonaPrompt) => {
       const { registerSystemPromptEnricher } = await import('../../../packages/ai/system-prompt-enricher');

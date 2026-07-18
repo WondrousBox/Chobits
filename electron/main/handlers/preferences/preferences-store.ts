@@ -1,11 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { app } from 'electron';
-
 import type { MusicReactivityPreferences } from '../../../../packages/audio-reactivity/types';
 import { DEFAULT_MUSIC_REACTIVITY_PREFERENCES, normalizeMusicReactivityPreferences } from '../../../../packages/audio-reactivity/types';
 import type { OnboardingState } from '../../../../packages/sprite-core/quest';
+import { getRuntimeDataDir } from '../../utils';
 
 // 预览模式类型: 'window' 表示弹窗，'panel' 表示右侧面板
 export type PreviewMode = 'window' | 'panel';
@@ -33,7 +32,7 @@ type StoreShape = {
   preferences: PreferencesConfig;
 };
 
-const STORE_DIR = path.join(app.getPath('userData'), 'data');
+const STORE_DIR = path.join(getRuntimeDataDir(), 'data');
 const STORE_FILE = path.join(STORE_DIR, 'preferences-config.json');
 
 /**

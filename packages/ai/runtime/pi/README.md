@@ -52,6 +52,7 @@
 - `profiles.md` + `profile-markdown.ts` + `profile-descriptors.ts`
   - 与 `toolbox.md` 相同思路：**改 Markdown 即可调整**各 profile 的 `label` / `description` / `executionMode` / `supportsToolCalls` / `defaultToolIds`（可用 `@session`、`@coder`）以及完整系统提示。
   - 每个 profile 以 `## profile:<id>` 分段，正文在 `### system prompt` 之下（instructions 内可自由使用 `##` 小标题，避免与 profile 边界冲突）。
+  - `chat` 和 `assistant` 默认要求简洁自然地回复；用户要求自我介绍时使用独立的短话术，非必要不输出复杂 Markdown。
 - `profile-registry.ts`
   - 对外暴露 UI 可选的 agent/profile 列表，内部读 `profile-descriptors`。
 

@@ -106,6 +106,8 @@ import { initSpriteEventListener, type SpriteEventListenerOptions } from './spri
 
 export interface SpriteManagerDeps {
   addAllowedResourceRoot: (root: string) => void;
+  /** Runtime-scoped mutable data root; dev and packaged launches use separate roots. */
+  dataDir?: string;
   registerCharacterPersonaPromptProvider?: (provider: () => string | null) => void | Promise<void>;
   spontaneousUtteranceExecutor?: SpriteSpontaneousUtteranceExecutor;
   speechSynthesisExecutor?: SpriteSpeechSynthesisExecutor;
@@ -370,7 +372,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   // 初始化 SpriteManager
   const mgr = SpriteManager.init({
     win: win as any,
-    dataDir: app.getPath('userData'),
+    dataDir: deps.dataDir ?? app.getPath('userData'),
     getScreenSize: () => screen.getPrimaryDisplay().workAreaSize,
     appName: 'Chobits',
     spontaneousUtteranceExecutor: deps.spontaneousUtteranceExecutor,
