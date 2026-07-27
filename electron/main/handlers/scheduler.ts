@@ -98,7 +98,7 @@ export async function executeAutomationRule(rule: AutomationRuleRow | undefined,
     }
 
     try {
-      const workflow = await getWorkflow(config.workflowId);
+      const workflow = await getWorkflow(config.workflowId, rule.workspaceId ?? undefined);
       if (!workflow) {
         console.error(`[Scheduler] Workflow ${config.workflowId} not found for rule ${rule.id}`);
         return { ok: false, reason: 'workflow-not-found' };
@@ -106,7 +106,14 @@ export async function executeAutomationRule(rule: AutomationRuleRow | undefined,
 
       console.log(`[Scheduler] Running workflow ${workflow.name} for rule ${rule.id}`);
       const inputs = buildWorkflowInputs(config.inputs || {}, trigger);
-      await runWorkflow(workflow, inputs);
+      const record = await runWorkflow(workflow, inputs, { workspaceId: rule.workspaceId ?? workflow.workspaceId });
+      if (record.status !== 'completed') {
+        console.error(`[Scheduler] Workflow ${workflow.id} finished with status ${record.status}: ${record.error ?? 'unknown error'}`);
+        return {
+          ok: false,
+          reason: record.status === 'canceled' ? 'workflow-canceled' : record.error || 'workflow-execution-failed'
+        };
+      }
       return { ok: true };
     } catch (error) {
       console.error(`[Scheduler] Error executing workflow for rule ${rule.id}:`, error);

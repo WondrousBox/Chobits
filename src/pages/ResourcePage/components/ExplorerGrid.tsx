@@ -784,12 +784,12 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   const [workflows, setWorkflows] = useState<any[]>([]);
   useEffect(() => {
     window.ipcRenderer
-      .invoke('wf:listDefinitions')
+      .invoke('wf:listDefinitions', { workspaceId })
       .then((defs: any[]) => {
         setWorkflows(defs || []);
       })
       .catch(() => { });
-  }, []);
+  }, [workspaceId]);
 
   // 获取工作流的开始节点输入模式
   const getWorkflowInputMode = useCallback((wf: any): 'resource' | 'text' | 'url' | 'file' | 'folder' => {

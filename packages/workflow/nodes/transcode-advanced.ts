@@ -2,6 +2,7 @@ import path from 'node:path';
 
 import ffmpeg from 'fluent-ffmpeg';
 
+import { onAbort } from '../abort';
 import { NodeHandler } from '../types';
 
 // 音频格式列表
@@ -30,7 +31,7 @@ export const TranscodeAdvancedNode: NodeHandler = {
     ],
     outputs: [{ key: 'output', label: '输出文件', type: 'file' }]
   },
-  async run({ input, config }) {
+  async run({ input, config, ctx }) {
     const src = String(input.input);
     if (!src) throw new Error('缺少输入文件');
 
@@ -56,6 +57,7 @@ export const TranscodeAdvancedNode: NodeHandler = {
 
     await new Promise<void>((resolve, reject) => {
       const cmd = ffmpeg(src);
+      const removeAbortListener = onAbort(ctx.signal, () => cmd.kill('SIGKILL'));
 
       // 如果输出是音频格式，禁用视频轨道
       if (isAudioFormat(fmt)) {
@@ -78,10 +80,12 @@ export const TranscodeAdvancedNode: NodeHandler = {
           console.log('[transcode-advanced] stderr:', stderrLine);
         })
         .on('end', () => {
+          removeAbortListener();
           console.log('[transcode-advanced] End:', out);
           resolve();
         })
         .on('error', (e: Error) => {
+          removeAbortListener();
           const errorMsg = `转码失败: ${e.message}\nFFmpeg stderr:\n${stderrOutput}`;
           console.log('[transcode-advanced] Error:', errorMsg);
           console.log('[transcode-advanced] 错误消息:', e.message);

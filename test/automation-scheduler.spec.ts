@@ -40,6 +40,7 @@ function createRule(patch?: Record<string, unknown>): any {
     triggerConfig: { cron: '* * * * *' },
     actionType: 'workflow',
     actionConfig: { workflowId: 'workflow-1' },
+    workspaceId: 'workspace-1',
     ...patch
   };
 }
@@ -91,14 +92,14 @@ describe('automation scheduler', () => {
     });
     const workflow = { id: 'workflow-1', name: 'Workflow One' };
     getWorkflowMock.mockResolvedValue(workflow);
-    runWorkflowMock.mockResolvedValue({ runId: 'run-1' });
+    runWorkflowMock.mockResolvedValue({ runId: 'run-1', status: 'completed' });
 
     const { scheduleRule } = await import('../electron/main/handlers/scheduler');
 
     scheduleRule(createRule({ actionConfig: { workflowId: 'workflow-1', inputs: { source: 'rule' } } }));
     await scheduledCallback?.(new Date('2026-05-05T09:05:00Z'));
 
-    expect(getWorkflowMock).toHaveBeenCalledWith('workflow-1');
+    expect(getWorkflowMock).toHaveBeenCalledWith('workflow-1', 'workspace-1');
     expect(runWorkflowMock).toHaveBeenCalledWith(
       workflow,
       expect.objectContaining({
@@ -106,14 +107,15 @@ describe('automation scheduler', () => {
         triggerType: 'schedule',
         scheduledFor: new Date('2026-05-05T09:05:00Z').getTime(),
         triggeredAt: expect.any(Number)
-      })
+      }),
+      { workspaceId: 'workspace-1' }
     );
   });
 
   it('executes manual, system, and resource rules through scheduler audit and control', async () => {
     const workflow = { id: 'workflow-1', name: 'Workflow One' };
     getWorkflowMock.mockResolvedValue(workflow);
-    runWorkflowMock.mockResolvedValue({ runId: 'run-1' });
+    runWorkflowMock.mockResolvedValue({ runId: 'run-1', status: 'completed' });
 
     const { getMainSchedulerService } = await import('../electron/main/scheduler');
     const { getAutomationSchedulerSnapshot, runAutomationRule, scheduleRule } = await import('../electron/main/handlers/scheduler');
@@ -154,7 +156,8 @@ describe('automation scheduler', () => {
       expect.objectContaining({
         source: 'manual',
         triggerType: 'manual'
-      })
+      }),
+      { workspaceId: 'workspace-1' }
     );
     expect(runWorkflowMock).toHaveBeenNthCalledWith(
       2,
@@ -163,7 +166,8 @@ describe('automation scheduler', () => {
         source: 'system',
         triggerType: 'system_event',
         eventType: 'app_started'
-      })
+      }),
+      { workspaceId: 'workspace-1' }
     );
     expect(runWorkflowMock).toHaveBeenNthCalledWith(
       3,
@@ -173,7 +177,8 @@ describe('automation scheduler', () => {
         triggerType: 'resource_event',
         eventType: 'resource_created',
         resourceId: 'res-1'
-      })
+      }),
+      { workspaceId: 'workspace-1' }
     );
 
     expect(
@@ -193,5 +198,18 @@ describe('automation scheduler', () => {
         expect.objectContaining({ jobId: 'automation:resource-rule', status: 'success', trigger: 'event' })
       ])
     );
+  });
+
+  it('reports a failed workflow run as an automation failure', async () => {
+    const workflow = { id: 'workflow-1', name: 'Workflow One' };
+    getWorkflowMock.mockResolvedValue(workflow);
+    runWorkflowMock.mockResolvedValue({ runId: 'run-1', status: 'failed', error: 'node failed' });
+
+    const { executeAutomationRule } = await import('../electron/main/handlers/scheduler');
+
+    await expect(executeAutomationRule(createRule(), { type: 'manual' })).resolves.toEqual({
+      ok: false,
+      reason: 'node failed'
+    });
   });
 });

@@ -928,7 +928,9 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
   }
 
   private async recordUsageEventSafely(input: RecordAiUsageEventInput): Promise<void> {
-    await emitAiUsageObservedEvent(input, { producer: 'ChatService' });
+    const workflowAttempt = input.metadata?.workflowAttempt;
+    const attemptIndex = typeof workflowAttempt === 'number' && Number.isInteger(workflowAttempt) && workflowAttempt > 0 ? workflowAttempt - 1 : undefined;
+    await emitAiUsageObservedEvent({ ...input, ...(input.attemptIndex === undefined && attemptIndex !== undefined ? { attemptIndex } : {}) }, { producer: 'ChatService' });
   }
 
   private async recordChatUsageEvent(params: {

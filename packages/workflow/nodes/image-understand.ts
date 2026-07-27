@@ -137,6 +137,7 @@ export const ImageUnderstandNode: NodeHandler = {
       model,
       providerId,
       providerPresetId,
+      signal: ctx.signal,
       workflowAiUsage: buildWorkflowAiUsageContext(ctx, {
         nodeLabel: '图片理解',
         nodeType: 'image/image-understand',

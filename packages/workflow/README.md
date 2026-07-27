@@ -4,18 +4,26 @@
 
 - **节点（Node）**：有显式的输入 / 输出定义，支持基础运行时校验和动态端口（inputs/outputs 随配置变化）。
 - **插件（Plugin）**：声明能力与安装检测（如 FFmpeg / Tesseract / Whisper），可在运行前准备环境。
-- **执行引擎**：基于 DAG 拓扑排序顺序执行，支持「失败即停止」与「失败继续(errorStrategy: 'continue')」。
+- **执行引擎**：基于 DAG 拓扑层执行，支持并发上限、取消、「失败即停止」与「失败继续(errorStrategy: 'continue')」。
 - **IPC 接口**：渲染进程可以通过 IPC 构建 / 校验 / 运行工作流，并订阅运行状态和日志。
-- **持久化**：工作流定义与运行记录存放在 `userData` 目录（通过 `WorkflowStore` 管理），并支持预设工作流。
+- **持久化**：自定义工作流定义与运行记录通过 `WorkflowStore` 存入应用数据库，并支持文件形式的预设工作流。
 
 ---
 
 ## 目录结构
 
-- `types.ts`：工作流 / 节点 / 插件 / 运行记录等核心类型与事件定义。
-- `registry.ts`：节点和插件注册表，提供 `registerNode` / `getNode` / `listNodes` 等方法。
-- `engine.ts`：核心执行引擎与校验逻辑（`WorkflowEngine` + `createEngine`）。
-- `store.ts`：基于 JSON 文件的简单工作流定义与运行记录存储。
+- `types.ts`：工作流 / 节点 / 插件 / 运行记录与 runtime service ports 等公共契约。
+- `core/`：不依赖 Electron、数据库或 React 的 DAG planner、执行调度器、运行状态机、事件类型和 registry。
+- `registry.ts`：兼容入口，重新导出 `core/registry` 的同一个注册表实例。
+- `engine.ts`：执行编排与校验逻辑（`WorkflowEngine` + `createEngine`），调用 `core/` 中的纯规划、调度和状态函数。
+- `application-service.ts`：定义、运行、workspace 授权和历史访问的应用用例，通过存储端口注入外部实现。
+- `run-event-coordinator.ts`：运行状态持久化、进度聚合、广播和生命周期回调的协调器。
+- `run-history-retention.ts`：终态运行历史的 workspace 级保留策略与节流控制器。
+- `ipc-adapter.ts`：`wf:*` 请求解析及 IPC 返回契约，不直接依赖 Electron 实现。
+- `resource-event-adapter.ts`：资源创建、更新、下载和运行上下文事件适配，通过仓储、文件系统和网络端口接入应用设施。
+- `resource-project-adapter.ts`：把应用现有的资源项目目录服务适配为工作流执行上下文端口。
+- `html-screenshot-adapter.ts`：Electron `BrowserWindow` 截图实现，通过执行上下文注入图片节点并支持取消。
+- `store.ts`：工作流定义、运行记录和预设定义缓存的持久化适配。
 - `plugins/`：内置插件
   - `ffmpeg.ts`：音视频转码、截图等能力。
   - `tesseract.ts`：OCR 能力。
@@ -41,10 +49,11 @@
   - 注册内置插件：`FfmpegPlugin` / `TesseractPlugin` / `WhisperPlugin`。
   - 注册所有内置节点（见上文 `nodes/` 列表）。
   - 创建 `engine = createEngine()`。
-  - 监听引擎事件（`run:status` / `node:status` / `node:progress` / `run:log` 等），并广播到所有窗口：
+  - 向 `ExecutionContext.services` 注入资源、文件夹、workspace 仓储读取端口和 HTML 截图端口；节点本身不直接依赖数据库或 Electron。
+  - 通过 `run-event-coordinator` 监听引擎事件（`run:status` / `node:status` / `run:log` 等），并广播到所有窗口：
     - 通过 `BrowserWindow.getAllWindows().forEach(win => win.webContents.send(...))`。
     - 同步至 `WorkflowStore`，用于在 UI 中展示历史运行记录。
-  - 处理资源相关事件，和应用现有的 `ResourcesRepo` / `FoldersRepo` / `WorkspacesRepo` 与 `eventManager` 对接：
+  - 通过 `resource-event-adapter` 处理资源相关事件，和应用现有的 `ResourcesRepo` / `FoldersRepo` / `WorkspacesRepo` 与 `eventManager` 对接：
     - `resource:create-request`
     - `resource:update-request`
     - `resource:download-request`
@@ -54,7 +63,7 @@
 
 ## IPC 接口一览
 
-所有 IPC 接口前缀为 `wf:`，在主进程 `ipcMain.handle` 中注册，渲染进程通过 `ipcRenderer.invoke` 调用。
+所有 IPC 接口前缀为 `wf:`，由 `ipc-adapter.ts` 注册到主进程传入的 registrar，渲染进程通过 `ipcRenderer.invoke` 调用。
 
 - **节点 & 插件元信息**
   - `wf:listNodes` → `NodeSpec[]`
@@ -93,8 +102,9 @@
 ## 运行时行为说明
 
 - **执行顺序**
-  - 使用 `topoSort` 对工作流中的节点进行拓扑排序，只支持有向无环图（DAG），如有环会直接报错。
-  - 当前实现为**串行执行**（按拓扑顺序），但代码结构已预留并发调度扩展点。
+  - 使用 `core/dag-planner.ts` 生成稳定拓扑顺序、执行层和终端节点，只支持有向无环图（DAG），非法边或环会直接报错。
+  - `core/execution-scheduler.ts` 按拓扑层调度，同一层节点受 `options.concurrency` 限制并发；默认值为 1，最大值为 64。
+  - fail-fast 会停止调度后续批次，但同批已经启动的节点允许结束；`continue` 会继续执行，并在终态保留失败结果。
 
 - **Start 节点输入**
   - Start 节点会将两部分数据合并作为输入：
@@ -109,12 +119,24 @@
   - 在 `validate` 阶段会检查需要的插件是否存在、是否已安装。
   - 在 `run` 阶段首次使用某插件时，会调用其 `prepare` 方法做一次性初始化。
 
+- **取消传播**
+  - `wf:cancelRun` 会触发当前运行的 `AbortSignal`。
+  - AI 对话、图片生成、音乐生成、HTML 截图、资源下载和媒体/OCR 外部进程会继续向实际 provider、网络请求、窗口或子进程传递该信号。
+  - AI 请求取消会记录为 `cancelled`，不会作为普通 provider 失败统计。
+
 - **进度 & 日志**
   - 引擎内部记录并广播：
     - `run:status`：整体运行状态 & 进度。
     - `node:status`：节点级别状态（`pending/running/completed/failed/skipped`）。
-    - `node:progress`：节点内部细粒度进度（如转码百分比），并推算整体进度。
-    - `run:log`：结构化日志，每条带有 `runId / nodeId / level / timestamp`。
+    - `node:progress`：节点内部细粒度进度（如转码百分比）；整体进度会聚合所有并发节点，持久化更新按 run 合并。
+    - `run:log`：结构化日志，每条带有 `runId / nodeId / attempt / level / errorReason / timestamp`（无节点或尚未开始执行时省略不适用字段）。
+  - 节点状态持久化 `attempt` 和有界 attempt 摘要；重新执行时保留先前 attempt 的状态、耗时和错误原因，并清除新 attempt 上的旧终态字段。
+  - workflow AI 的请求 ID、analytics metadata 和统一用量事件使用同一 attempt；用量表中的 `attemptIndex` 保持从 0 开始。
+
+- **运行历史保留**
+  - 数据库按 workspace 默认保留最近 1000 条终态运行，并清理 90 天前的终态运行；`queued/running` 永不参与自动删除。
+  - 清理按 250 条分批执行，同一 workspace 最多每小时触发一次；首次新终态写入会回收已有的过期或超额历史。
+  - 该策略复用现有 `workspace_id / status / started_at`，不需要额外数据库字段。
 
 ---
 

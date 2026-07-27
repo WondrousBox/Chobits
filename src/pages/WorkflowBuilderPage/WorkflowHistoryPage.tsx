@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { TbBolt, TbSparkles } from 'react-icons/tb';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
@@ -14,6 +15,8 @@ import type { ExecutionStatus, WorkflowRunRecord } from './types';
 const invoke = window.ipcRenderer.invoke;
 
 const WorkflowHistoryPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const workspaceId = searchParams.get('workspaceId') || undefined;
   const [runs, setRuns] = useState<WorkflowRunRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshTick, setRefreshTick] = useState(0);
@@ -23,7 +26,7 @@ const WorkflowHistoryPage: React.FC = () => {
   useEffect(() => {
     let mounted = true;
     setLoading(true);
-    invoke('wf:listRuns')
+    invoke('wf:listRuns', { workspaceId })
       .then((data: any[]) => {
         if (mounted && Array.isArray(data)) {
           // Sort by createdAt desc
@@ -41,7 +44,7 @@ const WorkflowHistoryPage: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, [refreshTick]);
+  }, [refreshTick, workspaceId]);
 
   const formatTime = (ts: number): string => {
     return new Date(ts).toLocaleString('zh-CN', {
@@ -184,7 +187,7 @@ const WorkflowHistoryPage: React.FC = () => {
           <>
             <ResizableHandle className="hover:bg-primary" withHandle />
             <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
-              <AIChatSidebar onClose={() => setAiChatOpen(false)} />
+              <AIChatSidebar onClose={() => setAiChatOpen(false)} workspaceId={workspaceId} />
             </ResizablePanel>
           </>
         )}

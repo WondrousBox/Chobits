@@ -1,7 +1,7 @@
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
 
-import { getWorkflow, listAllWorkflowDefinitions, startWorkflow } from '../../../../workflow';
+import { getWorkflow, listAllWorkflowDefinitions, startValidatedWorkflow } from '../../../../workflow';
 import type { NodeRunState, WorkflowDefinition, WorkflowRunRecord } from '../../../../workflow/types';
 import { resolveGuardedToolExecution } from '../skills';
 import type { PiSessionToolContext } from '../tool-context';
@@ -212,7 +212,8 @@ export function createPiWorkflowRunTool(toolContext: PiSessionToolContext): Tool
 
       if (action === 'list') {
         try {
-          const definitions = await listAllWorkflowDefinitions();
+          const metadata = await resolveWorkflowMetadata(toolContext);
+          const definitions = await listAllWorkflowDefinitions(metadata.workspaceId);
           const workflows = definitions.filter((definition) => definition.id !== 'blank').map(extractWorkflowSummary);
           return createJsonToolResult({ success: true, workflows, total: workflows.length });
         } catch (error: any) {
@@ -226,7 +227,8 @@ export function createPiWorkflowRunTool(toolContext: PiSessionToolContext): Tool
         }
 
         try {
-          const definitions = await listAllWorkflowDefinitions();
+          const metadata = await resolveWorkflowMetadata(toolContext);
+          const definitions = await listAllWorkflowDefinitions(metadata.workspaceId);
           const normalizedQuery = query.toLowerCase();
           const results = definitions
             .filter((definition) => definition.id !== 'blank')
@@ -265,7 +267,8 @@ export function createPiWorkflowRunTool(toolContext: PiSessionToolContext): Tool
             return createJsonToolResult(guardResolution.details);
           }
 
-          const definition = await getWorkflow(workflowId);
+          const metadata = await resolveWorkflowMetadata(toolContext, workflowInput || {});
+          const definition = await getWorkflow(workflowId, metadata.workspaceId);
           if (!definition) {
             return createJsonToolResult({
               success: false,
@@ -279,7 +282,6 @@ export function createPiWorkflowRunTool(toolContext: PiSessionToolContext): Tool
             runInput.__configOverrides__ = configOverrides;
           }
 
-          const metadata = await resolveWorkflowMetadata(toolContext, runInput);
           console.log('[workflowRunTool] run metadata:', metadata);
 
           const onProgress = toolContext.reportProgress
@@ -288,7 +290,7 @@ export function createPiWorkflowRunTool(toolContext: PiSessionToolContext): Tool
               }
             : undefined;
 
-          const runHandle = startWorkflow(definition, runInput, metadata, onProgress);
+          const runHandle = await startValidatedWorkflow(definition, runInput, metadata, onProgress);
           const runPromise = runHandle.completionPromise;
 
           if (!shouldWait) {

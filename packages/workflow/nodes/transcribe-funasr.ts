@@ -5,6 +5,7 @@ import path from 'node:path';
 
 import ffmpeg from 'fluent-ffmpeg';
 
+import { onAbort } from '../abort';
 import { NodeConfig, NodeHandler, PortSchema, ValueType } from '../types';
 
 // 转录片段接口
@@ -76,7 +77,7 @@ async function checkAudioFormat(filePath: string): Promise<boolean> {
 }
 
 // 转码音频为 FunASR 要求的格式
-async function transcodeAudio(filePath: string, outputDir: string): Promise<string> {
+async function transcodeAudio(filePath: string, outputDir: string, signal?: AbortSignal): Promise<string> {
   const fileName = path.basename(filePath, path.extname(filePath));
   const targetPath = path.join(outputDir, `${fileName}_16k.wav`);
 
@@ -87,16 +88,20 @@ async function transcodeAudio(filePath: string, outputDir: string): Promise<stri
 
   console.log('[funasr] 开始转码:', filePath, '->', targetPath);
   return new Promise((resolve, reject) => {
-    ffmpeg(filePath)
+    const cmd = ffmpeg(filePath)
       .toFormat('wav')
       .audioFrequency(16000)
       .audioChannels(1)
-      .audioCodec('pcm_s16le')
+      .audioCodec('pcm_s16le');
+    const removeAbortListener = onAbort(signal, () => cmd.kill('SIGKILL'));
+    cmd
       .on('error', (err) => {
+        removeAbortListener();
         console.error('[funasr] 转码失败:', err);
         reject(err);
       })
       .on('end', () => {
+        removeAbortListener();
         console.log('[funasr] 转码完成');
         resolve(targetPath);
       })
@@ -105,7 +110,7 @@ async function transcodeAudio(filePath: string, outputDir: string): Promise<stri
 }
 
 // 运行 FunASR CLI
-async function runFunASR(args: string[], onProgress?: (progress: number, message: string) => void, totalDuration?: number | null): Promise<{ success: boolean }> {
+async function runFunASR(args: string[], onProgress?: (progress: number, message: string) => void, totalDuration?: number | null, signal?: AbortSignal): Promise<{ success: boolean }> {
   const { pluginResourceManager } = await import('../../plugins');
   const binaryName = platform() === 'win32' ? 'funasr.exe' : 'funasr';
   const cliPath = pluginResourceManager.getEnginePath('plugin:funasr', binaryName);
@@ -118,7 +123,7 @@ async function runFunASR(args: string[], onProgress?: (progress: number, message
   console.log('[funasr] args:', args.join(' '));
 
   return new Promise<{ success: boolean }>((resolve, reject) => {
-    const child = spawn(cliPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(cliPath, args, { stdio: ['ignore', 'pipe', 'pipe'], signal });
 
     let stdout = '';
     let stderr = '';
@@ -301,7 +306,7 @@ export const TranscribeFunASRNode: NodeHandler = {
       emit('node:progress', { progress: 0, message: '正在转码音频...' });
       try {
         // 转码的中间文件存放在 cache 目录（可复用）
-        finalSrc = await transcodeAudio(src, cacheDir);
+        finalSrc = await transcodeAudio(src, cacheDir, ctx.signal);
       } catch (err) {
         const error = err as Error;
         throw new Error(`音频转码失败: ${error.message}`);
@@ -397,7 +402,7 @@ export const TranscribeFunASRNode: NodeHandler = {
     };
 
     // 运行 FunASR
-    const result = await runFunASR(args, onProgress, totalDuration);
+    const result = await runFunASR(args, onProgress, totalDuration, ctx.signal);
 
     if (!result.success) {
       throw new Error('FunASR 转录失败');

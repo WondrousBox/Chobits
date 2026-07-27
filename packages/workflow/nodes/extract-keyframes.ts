@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import ffmpeg from 'fluent-ffmpeg';
 
+import { onAbort } from '../abort';
 import { NodeHandler } from '../types';
 
 function clampNumber(value: number, options: { min?: number; max?: number }): number {
@@ -100,6 +101,7 @@ export const ExtractKeyframesNode: NodeHandler = {
       ];
 
       const cmd = ffmpeg(src).output(outputPattern).outputOptions(outputOptions);
+      const removeAbortListener = onAbort(ctx.signal, () => cmd.kill('SIGKILL'));
 
       // 如果设置了 maxFrames，限制输出帧数
       if (maxFrames) {
@@ -125,10 +127,12 @@ export const ExtractKeyframesNode: NodeHandler = {
           emit('node:progress', { progress: percent, message: '提取关键帧中...' });
         })
         .on('end', () => {
+          removeAbortListener();
           console.log('[extract-keyframes] End:', outputPattern);
           resolve();
         })
         .on('error', (err: Error) => {
+          removeAbortListener();
           console.error('[extract-keyframes] Error:', err);
           reject(new Error(`提取关键帧失败: ${err.message}`));
         });

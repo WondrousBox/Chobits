@@ -6,6 +6,7 @@ import { writeFile, writeLocalJSON } from '@aim-packages/file-utils';
 import { filter, parser, tools } from '@aim-packages/subtitle';
 import ffmpeg from 'fluent-ffmpeg';
 
+import { onAbort } from '../abort';
 import { NodeHandler } from '../types';
 
 // Parakeet 模型定义
@@ -178,7 +179,7 @@ async function checkAudioFormat(filePath: string): Promise<boolean> {
 }
 
 // 转码音频为 parakeet 要求的格式
-async function transcodeAudio(filePath: string, outputDir: string): Promise<string> {
+async function transcodeAudio(filePath: string, outputDir: string, signal?: AbortSignal): Promise<string> {
   const fileName = path.basename(filePath, path.extname(filePath));
   const targetPath = path.join(outputDir, `${fileName}_16k.wav`);
 
@@ -189,16 +190,20 @@ async function transcodeAudio(filePath: string, outputDir: string): Promise<stri
 
   console.log('[parakeet] 开始转码:', filePath, '->', targetPath);
   return new Promise((resolve, reject) => {
-    ffmpeg(filePath)
+    const cmd = ffmpeg(filePath)
       .toFormat('wav')
       .audioFrequency(16000)
       .audioChannels(1)
-      .audioCodec('pcm_s16le')
+      .audioCodec('pcm_s16le');
+    const removeAbortListener = onAbort(signal, () => cmd.kill('SIGKILL'));
+    cmd
       .on('error', (err) => {
+        removeAbortListener();
         console.error('[parakeet] 转码失败:', err);
         reject(err);
       })
       .on('end', () => {
+        removeAbortListener();
         console.log('[parakeet] 转码完成');
         resolve(targetPath);
       })
@@ -207,7 +212,7 @@ async function transcodeAudio(filePath: string, outputDir: string): Promise<stri
 }
 
 // 运行 Parakeet CLI
-async function runParakeet(args: string[], onProgress?: (progress: number, message: string) => void): Promise<void> {
+async function runParakeet(args: string[], onProgress?: (progress: number, message: string) => void, signal?: AbortSignal): Promise<void> {
   const { pluginResourceManager } = await import('../../plugins');
   const { platform } = await import('node:os');
   const binaryName = platform() === 'win32' ? 'parakeet.exe' : 'parakeet';
@@ -221,7 +226,7 @@ async function runParakeet(args: string[], onProgress?: (progress: number, messa
   console.log('[parakeet] args:', args.join(' '));
 
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(cliPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(cliPath, args, { stdio: ['ignore', 'pipe', 'pipe'], signal });
 
     let stdout = '';
     let stderr = '';
@@ -361,7 +366,7 @@ export const TranscribeParakeetNode: NodeHandler = {
       emit('node:progress', { progress: 0, message: '正在转码音频...' });
       try {
         // 转码的中间文件存放在 cache 目录（可复用）
-        finalSrc = await transcodeAudio(src, cacheDir);
+        finalSrc = await transcodeAudio(src, cacheDir, ctx.signal);
       } catch (err) {
         const error = err as Error;
         throw new Error(`音频转码失败: ${error.message}`);
@@ -406,7 +411,7 @@ export const TranscribeParakeetNode: NodeHandler = {
 
     console.log(args.join(' '));
 
-    await runParakeet(args, onProgress);
+    await runParakeet(args, onProgress, ctx.signal);
 
     // 读取 JSON 输出文件
     const jsonFilePath = path.join(outDir, `${base}.json`);

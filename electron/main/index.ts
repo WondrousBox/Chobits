@@ -6,10 +6,11 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron';
 
 import { eventManager } from '../../packages/event';
 import { AppEvent } from '../../packages/event/events';
-import { initWorkflowSystem } from '../../packages/workflow/index';
+import { flushWorkflowPersistence, initWorkflowSystem } from '../../packages/workflow/index';
 import { ytdlpService } from '../../packages/ytdlp';
 import { initHandlers } from './handlers';
 import { cookieManager } from './handlers/downloader/cookie-manager';
+import { ensureResourceProjectDir } from './handlers/resource/resource-project';
 import { initScheduler } from './handlers/scheduler';
 import { logger } from './logger';
 import { addAllowedResourceRoot, addWorkspaceResourceRoot, setupResourceProtocol } from './resource-protocol';
@@ -52,6 +53,8 @@ if (!app.requestSingleInstanceLock()) {
 
 let win: BrowserWindow | null = null;
 let splashWin: BrowserWindow | null = null;
+let workflowPersistenceFlushStarted = false;
+let workflowPersistenceFlushed = false;
 const preload = path.join(__dirname, '../preload/index.mjs');
 const indexHtml = path.join(RENDERER_DIST, 'index.html');
 
@@ -62,14 +65,14 @@ export function getMainWindow(): BrowserWindow | null {
 
 function updateSplashStatus(text: string): void {
   if (splashWin && !splashWin.isDestroyed()) {
-    splashWin.webContents.executeJavaScript(`document.getElementById('status-text').textContent = ${JSON.stringify(text)}`).catch(() => { });
+    splashWin.webContents.executeJavaScript(`document.getElementById('status-text').textContent = ${JSON.stringify(text)}`).catch(() => {});
   }
 }
 
 function updateSplashLog(text: string): void {
   if (splashWin && !splashWin.isDestroyed()) {
     console.log('>> ' + text);
-    splashWin.webContents.executeJavaScript(`typeof updateLog==='function'&&updateLog(${JSON.stringify(text)})`).catch(() => { });
+    splashWin.webContents.executeJavaScript(`typeof updateLog==='function'&&updateLog(${JSON.stringify(text)})`).catch(() => {});
   }
 }
 
@@ -277,7 +280,10 @@ app.whenReady().then(async () => {
   updateSplashStatus('正在加载工作流引擎');
   updateSplashLog('registering workflow nodes & plugins');
   try {
-    initWorkflowSystem({ getWorkflowDefinitionsPath: () => getResourcePath('workflows') || '' });
+    initWorkflowSystem({
+      getWorkflowDefinitionsPath: () => getResourcePath('workflows') || '',
+      ensureResourceProjectDir: (resourceId, workspaceId) => ensureResourceProjectDir(resourceId, workspaceId)
+    });
     updateSplashLog('workflow engine ready');
   } catch (e) {
     console.warn('[workflow] init failed', e);
@@ -362,17 +368,23 @@ app.on('activate', () => {
   }
 });
 
-app.on('will-quit', async () => {
+app.on('will-quit', (event) => {
+  if (workflowPersistenceFlushed) return;
+  event.preventDefault();
+  if (workflowPersistenceFlushStarted) return;
+  workflowPersistenceFlushStarted = true;
+
   eventManager.emit(AppEvent.SPRITE_SYSTEM_QUIT);
   // Ensure shortcuts are fully unregistered on app quit
   unregisterGlobalShortcuts();
-  // Flush workflow store
-  try {
-    const { WorkflowStore } = await import('../../packages/workflow/store');
-    await WorkflowStore.flushStore();
-  } catch (e) {
-    console.warn('[workflow] flush store failed', e);
-  }
+  void flushWorkflowPersistence()
+    .catch((error) => {
+      console.warn('[workflow] flush persistence failed', error);
+    })
+    .finally(() => {
+      workflowPersistenceFlushed = true;
+      app.quit();
+    });
 });
 
 // New window example arg: new windows url

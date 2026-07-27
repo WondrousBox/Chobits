@@ -2,12 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 const getWorkflowMock = vi.hoisted(() => vi.fn());
 const listAllWorkflowDefinitionsMock = vi.hoisted(() => vi.fn());
-const startWorkflowMock = vi.hoisted(() => vi.fn());
+const startValidatedWorkflowMock = vi.hoisted(() => vi.fn());
 
 vi.mock('../packages/workflow', () => ({
   getWorkflow: getWorkflowMock,
   listAllWorkflowDefinitions: listAllWorkflowDefinitionsMock,
-  startWorkflow: startWorkflowMock
+  startValidatedWorkflow: startValidatedWorkflowMock
 }));
 
 vi.mock('../packages/ai/runtime/pi/skills', () => ({
@@ -28,7 +28,7 @@ describe('workflowRunTool resource outputs', () => {
       ],
       edges: []
     });
-    startWorkflowMock.mockReturnValue({
+    startValidatedWorkflowMock.mockResolvedValue({
       runId: 'run-1',
       workflowId: 'sample:transcribe',
       completionPromise: Promise.resolve({

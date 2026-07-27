@@ -36,6 +36,7 @@ const ResourceFooter: React.FC<ResourceFooterProps> = ({
   filtered,
   list
 }) => {
+  const workspaceId = filtered[0]?.workspaceId || list[0]?.workspaceId;
   // 只有多选（超过1个）时才显示选择操作栏
   const showSelectionBar = selectedItems.size > 1;
 
@@ -43,12 +44,12 @@ const ResourceFooter: React.FC<ResourceFooterProps> = ({
   const [workflows, setWorkflows] = useState<any[]>([]);
   useEffect(() => {
     window.ipcRenderer
-      .invoke('wf:listDefinitions')
+      .invoke('wf:listDefinitions', { workspaceId })
       .then((defs: any[]) => {
         setWorkflows(defs || []);
       })
       .catch(() => { });
-  }, []);
+  }, [workspaceId]);
 
   // 获取选中的资源列表
   const selectedResources = useMemo(() => {

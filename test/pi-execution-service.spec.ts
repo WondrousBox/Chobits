@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
+  chatEphemeralMock,
+  chatStreamMock,
   emitAiUsageObservedEventMock,
   getAllSecretsMock,
   getFirstApiKeyMock,
@@ -14,6 +16,8 @@ const {
   supportsProviderCapabilityMock,
   toCanonicalProviderIdMock
 } = vi.hoisted(() => ({
+  chatEphemeralMock: vi.fn(),
+  chatStreamMock: vi.fn(),
   emitAiUsageObservedEventMock: vi.fn(),
   getAllSecretsMock: vi.fn(),
   getFirstApiKeyMock: vi.fn(),
@@ -74,8 +78,11 @@ vi.mock('../packages/ai/settings-store', () => ({
 
 vi.mock('../packages/ai/runtime/pi/session-service', () => ({
   PiSessionService: class {
-    getAvailability() {
-      return { available: false, reason: 'mocked in speech synthesis tests' };
+    chatEphemeral = chatEphemeralMock;
+    chatStream = chatStreamMock;
+
+    getAvailability(): { available: boolean; reason: string } {
+      return { available: true, reason: '' };
     }
   }
 }));
@@ -87,6 +94,12 @@ describe('PiExecutionService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
+    chatEphemeralMock.mockResolvedValue({ message: { content: 'completed', role: 'assistant' } });
+    chatStreamMock.mockImplementation(async (_request, emit) => {
+      emit({ type: 'delta', data: { text: 'streamed' } });
+      emit({ type: 'message_completed', data: { message: { content: 'streamed', role: 'assistant' }, usage: { totalTokens: 3 } } });
+    });
+
     toCanonicalProviderIdMock.mockImplementation((providerId?: string) => providerId || '');
     resolveKnownProviderIdMock.mockImplementation((providerId: string) => providerId);
     listProviderSecretKeysMock.mockReturnValue(['apiKey', 'baseUrl']);
@@ -94,6 +107,77 @@ describe('PiExecutionService', () => {
     getAllSecretsMock.mockResolvedValue({});
     getFirstApiKeyMock.mockImplementation((value: string | undefined) => value);
     supportsProviderCapabilityMock.mockReturnValue(true);
+  });
+
+  it('records streaming workflow text with the same attempt identity', async () => {
+    const request = {
+      extras: {
+        analyticsUsage: {
+          metadata: { workflowAttempt: 3 },
+          operationKey: 'chat',
+          sourceId: 'node-1',
+          sourceType: 'workflow',
+          usageCategory: 'workflow',
+          usageFeature: 'workflow_ai',
+          usageStage: 'generate'
+        },
+        requestId: 'run-1:node-1:attempt-3:chat'
+      },
+      messages: [{ role: 'user' as const, content: 'hello' }],
+      providerId: 'openai'
+    };
+
+    await expect(new PiExecutionService().streamText(request)).resolves.toBe('streamed');
+    expect(emitAiUsageObservedEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attemptIndex: 2,
+        requestId: 'run-1:node-1:attempt-3:chat',
+        status: 'completed',
+        usage: expect.objectContaining({ totalTokens: 3 })
+      }),
+      { producer: 'PiExecutionService:streamText' }
+    );
+  });
+
+  it('forwards cancellation to non-streaming text execution', async () => {
+    const signal = new AbortController().signal;
+    const request = {
+      extras: {
+        analyticsUsage: {
+          metadata: { workflowAttempt: 2 },
+          operationKey: 'chat',
+          sourceId: 'node-1',
+          sourceLabel: 'AI chat',
+          sourceType: 'workflow',
+          usageCategory: 'workflow',
+          usageFeature: 'workflow_ai',
+          usageStage: 'generate'
+        },
+        model: 'gpt-test',
+        requestId: 'run-1:node-1:attempt-2:chat'
+      },
+      messages: [{ role: 'user' as const, content: 'hello' }],
+      providerId: 'openai'
+    };
+
+    await expect(new PiExecutionService().completeText(request, signal)).resolves.toBe('completed');
+    expect(chatEphemeralMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ...request,
+        extras: expect.objectContaining(request.extras)
+      }),
+      signal
+    );
+    expect(emitAiUsageObservedEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attemptIndex: 1,
+        operationKey: 'chat',
+        requestId: 'run-1:node-1:attempt-2:chat',
+        status: 'completed',
+        usageFeature: 'workflow_ai'
+      }),
+      { producer: 'PiExecutionService:completeText' }
+    );
   });
 
   it('resolves a usable preset for speech synthesis when providerPresetId is automatic', async () => {

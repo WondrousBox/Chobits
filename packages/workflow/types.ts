@@ -1,5 +1,3 @@
-import { EventEmitter } from 'node:events';
-
 import type { PluginResourceManager } from '../plugins';
 
 // Basic value types supported across nodes
@@ -107,13 +105,15 @@ export type Edge = {
 export type WorkflowDefinition = {
   id: string;
   name: string;
+  schemaVersion?: number;
+  workspaceId?: string;
   description?: string;
   icon?: string; // SVG 图标字符串
   nodes: NodeInstance[];
   edges: Edge[];
   // execution options
   options?: {
-    concurrency?: number; // default 2
+    concurrency?: number; // default 1
     errorStrategy?: 'fail-fast' | 'continue';
   };
   // 是否为预设工作流
@@ -124,12 +124,27 @@ export type ExecutionStatus = 'queued' | 'running' | 'completed' | 'failed' | 'c
 
 export type NodeRunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
 
+export type WorkflowNodeAttemptStatus = 'running' | 'completed' | 'failed' | 'canceled';
+
+export type WorkflowNodeAttempt = {
+  attempt: number;
+  status: WorkflowNodeAttemptStatus;
+  startedAt: number;
+  finishedAt?: number;
+  duration?: number;
+  error?: string;
+  errorReason?: string;
+};
+
 export type NodeRunState = {
   nodeId: string;
   status: NodeRunStatus;
+  attempt?: number;
+  attempts?: WorkflowNodeAttempt[];
   startedAt?: number;
   finishedAt?: number;
   error?: string;
+  errorReason?: string;
   input?: Record<string, any>;
   output?: Record<string, any>;
   progress?: number;
@@ -140,6 +155,7 @@ export type NodeRunState = {
 export type WorkflowRunRecord = {
   runId: string;
   workflowId: string;
+  workspaceId?: string;
   createdAt: number;
   status: ExecutionStatus;
   nodes: Record<string, NodeRunState>;
@@ -161,6 +177,8 @@ export type WorkflowRunLogEntry = {
   level: WorkflowRunLogLevel;
   message: string;
   nodeId?: string;
+  attempt?: number;
+  errorReason?: string;
   timestamp: number;
 };
 
@@ -170,9 +188,47 @@ export type ResourceProjectContext = {
   folderId?: string;
 };
 
+export type WorkflowDataRecord = Record<string, any>;
+
+export interface WorkflowResourceReader {
+  getById(id: string): Promise<WorkflowDataRecord | undefined>;
+  list(filter: WorkflowDataRecord, limit: number, offset: number): Promise<WorkflowDataRecord[]>;
+}
+
+export interface WorkflowFolderReader {
+  list(filter: WorkflowDataRecord, limit: number, offset: number): Promise<WorkflowDataRecord[]>;
+}
+
+export interface WorkflowWorkspaceReader {
+  getById(id: string): Promise<WorkflowDataRecord | undefined>;
+}
+
+export interface WorkflowHtmlScreenshotRequest {
+  html: string;
+  outputPath: string;
+  width: number;
+  height: number;
+  contentHeightMode?: 'fixed' | 'exact' | 'expand';
+  captureDelayMs?: number;
+  jpegQuality?: number;
+  signal?: AbortSignal;
+  onProgress?: (progress: number) => void;
+}
+
+export type WorkflowHtmlScreenshotRenderer = (request: WorkflowHtmlScreenshotRequest) => Promise<string>;
+
+export interface WorkflowRuntimeServices {
+  resources?: WorkflowResourceReader;
+  folders?: WorkflowFolderReader;
+  workspaces?: WorkflowWorkspaceReader;
+  renderHtmlScreenshot?: WorkflowHtmlScreenshotRenderer;
+}
+
 export type ExecutionContext = {
   // root temp directory to generate files
   tmpDir: string;
+  // Abort signal for cooperative cancellation of long-running node work.
+  signal?: AbortSignal;
   // 当前工作流定义 ID / 名称与运行实例信息
   workflowId?: string;
   workflowName?: string;
@@ -180,12 +236,16 @@ export type ExecutionContext = {
   workflowNodeId?: string;
   workflowNodeType?: string;
   workflowNodeLabel?: string;
+  workflowAttempt?: number;
   // workspace ID for resource operations (required)
   workspaceId?: string;
   // folder ID for resource operations (optional)
   folderId?: string;
   // resource ID for the current task (optional, set when running on a resource)
   resourceId?: string;
+  // Runtime-owned data and rendering adapters. Nodes depend on these ports
+  // instead of importing Electron or database repositories directly.
+  services?: WorkflowRuntimeServices;
   // 可选：应用级注入的插件资源管理器，用于查找插件相关的 engine/model 路径
   pluginResourceManager?: PluginResourceManager;
   // 可选：应用级注入的 FFmpeg/FFprobe 路径，避免在 workflow 层直接依赖 Electron 资源工具
@@ -193,7 +253,10 @@ export type ExecutionContext = {
   ffprobePath?: string;
   // 可选：获取资源项目目录的回调函数
   // 自动使用上下文中的 resourceId、workspaceId 来获取项目目录
-  getResourceProjectDirs?: (taskType: string, context?: ResourceProjectContext) => Promise<{
+  getResourceProjectDirs?: (
+    taskType: string,
+    context?: ResourceProjectContext
+  ) => Promise<{
     isResource: boolean;
     resourceId?: string;
     workspaceId?: string;
@@ -254,8 +317,34 @@ export type Plugin = {
 export type ValidateResult = {
   ok: boolean;
   errors?: string[];
+  issues?: WorkflowValidationIssue[];
   missingPlugins?: { id: string; hint?: string }[];
   missingModels?: MissingModel[];
+};
+
+export type WorkflowValidationIssueCode =
+  | 'invalid-definition'
+  | 'invalid-run-request'
+  | 'unsupported-schema-version'
+  | 'duplicate-node-id'
+  | 'duplicate-edge-id'
+  | 'invalid-edge-node'
+  | 'invalid-output-port'
+  | 'invalid-input-port'
+  | 'incompatible-port-types'
+  | 'duplicate-input-connection'
+  | 'missing-required-input'
+  | 'invalid-input-default'
+  | 'invalid-node-port'
+  | 'invalid-node-config'
+  | 'invalid-graph';
+
+export type WorkflowValidationIssue = {
+  code: WorkflowValidationIssueCode;
+  message: string;
+  path: Array<string | number>;
+  nodeId?: string;
+  edgeId?: string;
 };
 
 export type WorkflowNodeDraft = {
@@ -276,25 +365,13 @@ export type WorkflowEdgeDraft = {
 export type WorkflowDraft = {
   id: string;
   name: string;
+  schemaVersion?: number;
+  workspaceId?: string;
   description?: string;
   icon?: string; // SVG 图标字符串
   nodes: WorkflowNodeDraft[];
   edges: WorkflowEdgeDraft[];
+  options?: WorkflowDefinition['options'];
 };
 
-export interface IEngineEvents {
-  'run:status': (rec: WorkflowRunRecord) => void;
-  'node:status': (rec: WorkflowRunRecord, node: NodeRunState) => void;
-  'node:progress': (runId: string, nodeId: string, progress: number, message?: string, detail?: any) => void;
-  'run:log': (runId: string, entry: WorkflowRunLogEntry) => void;
-}
-
-export class EngineEmitter extends EventEmitter {
-  emitTyped<K extends keyof IEngineEvents>(event: K, ...args: Parameters<IEngineEvents[K]>): boolean {
-    return super.emit(event as unknown as string, ...(args as unknown as any[]));
-  }
-  onTyped<K extends keyof IEngineEvents>(event: K, listener: IEngineEvents[K]): this {
-    super.on(event as unknown as string, listener as unknown as (...args: any[]) => void);
-    return this;
-  }
-}
+export { EngineEmitter, type WorkflowEngineEvents as IEngineEvents, type WorkflowEngineEvents } from './core/events';

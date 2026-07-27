@@ -1,8 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { BrowserWindow } from 'electron';
-
 import { NodeHandler } from '../types';
 
 type Vocabulary = {
@@ -204,90 +202,6 @@ function createLearningCardHtml(vocabulary: Vocabulary[], sentences: Sentence[],
 </html>`;
 }
 
-/**
- * Render HTML to image using BrowserWindow
- */
-async function renderHtmlToImage(html: string, outputPath: string, width: number, emit: (event: string, payload?: any) => void): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let window: BrowserWindow | null = null;
-
-    const cleanup = (): void => {
-      if (window && !window.isDestroyed()) {
-        window.close();
-        window = null;
-      }
-    };
-
-    try {
-      emit('node:progress', { progress: 30, message: 'Creating render window...' });
-
-      // Height will be adjusted automatically
-      window = new BrowserWindow({
-        width,
-        height: 800,
-        show: false,
-        webPreferences: {
-          nodeIntegration: false,
-          contextIsolation: true
-        }
-      });
-
-      emit('node:progress', { progress: 50, message: 'Loading content...' });
-
-      const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
-      window.loadURL(dataUrl);
-
-      window.webContents.once('did-finish-load', async () => {
-        emit('node:progress', { progress: 70, message: 'Rendering page...' });
-
-        try {
-          if (window && !window.isDestroyed()) {
-            // Get actual content height
-            const contentHeight = await window.webContents.executeJavaScript('document.body.scrollHeight');
-
-            // Resize window to fit content
-            window.setContentSize(width, contentHeight);
-          }
-        } catch (err) {
-          console.warn('Failed to resize window:', err);
-        }
-
-        setTimeout(() => {
-          if (!window || window.isDestroyed()) {
-            reject(new Error('Window closed unexpectedly'));
-            return;
-          }
-
-          emit('node:progress', { progress: 80, message: 'Capturing...' });
-
-          window.webContents
-            .capturePage()
-            .then((image) => {
-              const format = outputPath.toLowerCase().endsWith('.jpg') || outputPath.toLowerCase().endsWith('.jpeg') ? 'jpeg' : 'png';
-              const buffer = format === 'jpeg' ? image.toJPEG(90) : image.toPNG();
-              fs.writeFileSync(outputPath, buffer);
-              cleanup();
-              emit('node:progress', { progress: 100, message: 'Done' });
-              resolve(outputPath);
-            })
-            .catch((err) => {
-              cleanup();
-              reject(err);
-            });
-        }, 500);
-      });
-
-      window.webContents.once('did-fail-load', (_, errorCode, errorDescription) => {
-        cleanup();
-        reject(new Error(`Page failed to load: ${errorDescription} (${errorCode})`));
-      });
-    } catch (err) {
-      cleanup();
-      reject(err);
-    }
-  });
-}
-
 export const GenerateLearningCardNode: NodeHandler = {
   spec: {
     id: 'image/generate-learning-card',
@@ -378,7 +292,24 @@ export const GenerateLearningCardNode: NodeHandler = {
     const html = createLearningCardHtml(vocabulary, sentences, width, backgroundColor);
     fs.writeFileSync(htmlOutputPath, html);
 
-    await renderHtmlToImage(html, outputPath, width, emit);
+    const renderHtmlScreenshot = ctx.services?.renderHtmlScreenshot;
+    if (!renderHtmlScreenshot) throw new Error('工作流 HTML 截图服务未配置');
+    const progressMessages: Record<number, string> = {
+      30: 'Creating render window...',
+      50: 'Loading content...',
+      70: 'Rendering page...',
+      80: 'Capturing...',
+      100: 'Done'
+    };
+    await renderHtmlScreenshot({
+      html,
+      outputPath,
+      width,
+      height: 800,
+      contentHeightMode: 'exact',
+      signal: ctx.signal,
+      onProgress: (progress) => emit('node:progress', { progress, message: progressMessages[progress] })
+    });
 
     return {
       image: outputPath,

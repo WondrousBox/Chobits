@@ -1099,7 +1099,9 @@ export const workflowRuns = sqliteTable(
     id: text('id')
       .primaryKey()
       .$defaultFn(() => randomUUID()),
-    workflowId: text('workflow_id').references(() => workflows.id, { onDelete: 'cascade' }),
+    // Preset workflows are file-backed and do not have a row in `workflows`.
+    workflowId: text('workflow_id'),
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }),
 
     // 运行状态: 'queued' | 'running' | 'completed' | 'failed' | 'canceled'
     status: text('status').notNull(),
@@ -1125,6 +1127,7 @@ export const workflowRuns = sqliteTable(
   },
   (t) => ({
     idxWorkflowRunsWorkflow: index('idx_workflow_runs_workflow').on(t.workflowId),
+    idxWorkflowRunsWorkspace: index('idx_workflow_runs_workspace').on(t.workspaceId),
     idxWorkflowRunsStatus: index('idx_workflow_runs_status').on(t.status),
     idxWorkflowRunsStarted: index('idx_workflow_runs_started').on(t.startedAt)
   })

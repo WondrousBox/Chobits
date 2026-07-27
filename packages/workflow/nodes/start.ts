@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ResourcesRepo } from '../../common/db';
 import { NodeConfig, NodeHandler, PortSchema } from '../types';
 
 type StartInputMode = 'resource' | 'text' | 'file' | 'url' | 'folder';
@@ -304,9 +303,9 @@ export const StartNode: NodeHandler = {
         }
 
         // 如果有 ID，尝试从数据库获取完整资源信息
-        if (resourceId) {
+        if (resourceId && ctx.services?.resources) {
           try {
-            const fullResource = await ResourcesRepo.getById(resourceId);
+            const fullResource = await ctx.services.resources.getById(resourceId);
             if (fullResource) {
               resource = fullResource;
               if (fullResource.filePath) inputFilePath = fullResource.filePath;

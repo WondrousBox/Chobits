@@ -1,6 +1,5 @@
 import path from 'node:path';
 
-import { ResourcesRepo } from '../../common/db';
 import { NodeHandler } from '../types';
 
 export const ResourceLoadNode: NodeHandler = {
@@ -24,11 +23,13 @@ export const ResourceLoadNode: NodeHandler = {
       { key: 'parentResourceId', label: '父级资源 ID', type: 'string', description: '父级资源ID（用于记录资源来源关系）' }
     ]
   },
-  async run({ input }) {
+  async run({ input, ctx }) {
     const resourceId = String(input.resourceId || '').trim();
     if (!resourceId) throw new Error('缺少资源 ID');
 
-    const resource = await ResourcesRepo.getById(resourceId);
+    const resources = ctx.services?.resources;
+    if (!resources) throw new Error('工作流资源查询服务未配置');
+    const resource = await resources.getById(resourceId);
     if (!resource) throw new Error(`未找到 ID 为 ${resourceId} 的资源`);
 
     const ext = resource.filePath ? path.extname(resource.filePath).toLowerCase() : '';

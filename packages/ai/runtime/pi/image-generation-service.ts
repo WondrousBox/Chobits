@@ -23,6 +23,7 @@ export interface GeneratePiImageOptions {
   responseFormat?: 'url' | 'b64_json';
   secrets: ProviderSecrets;
   sessionId?: string;
+  signal?: AbortSignal;
   size?: string;
 }
 
@@ -167,6 +168,7 @@ export function normalizeOpenAIImageUsage(usage: any): TokenUsage | undefined {
 
 export class PiImageGenerationService {
   async generateImage(options: GeneratePiImageOptions): Promise<ImageGenerationResponse> {
+    options.signal?.throwIfAborted();
     const { model, prompt, providerId, quality = 'standard', responseFormat = 'url', size = '1024x1024' } = options;
     const secrets = await resolveProviderSecrets(providerId, options.secrets);
     const apiKey = normalizeApiKey(secrets);
@@ -190,23 +192,28 @@ export class PiImageGenerationService {
       prompt
     });
     const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
-    const response = await client.images.generate({
-      model,
-      prompt,
-      response_format: responseFormat,
-      quality,
-      size,
-      ...(options.outputFormat ? { output_format: options.outputFormat } : {}),
-      ...(typeof options.outputCompression === 'number' ? { output_compression: options.outputCompression } : {}),
-      ...(typeof options.partialImages === 'number' ? { partial_images: options.partialImages } : {}),
-      ...(options.sessionId ? { session_id: options.sessionId } : {})
-    } as any);
+    const response = await client.images.generate(
+      {
+        model,
+        prompt,
+        response_format: responseFormat,
+        quality,
+        size,
+        ...(options.outputFormat ? { output_format: options.outputFormat } : {}),
+        ...(typeof options.outputCompression === 'number' ? { output_compression: options.outputCompression } : {}),
+        ...(typeof options.partialImages === 'number' ? { partial_images: options.partialImages } : {}),
+        ...(options.sessionId ? { session_id: options.sessionId } : {})
+      } as any,
+      options.signal ? { signal: options.signal } : undefined
+    );
+    options.signal?.throwIfAborted();
     const artifacts = await materializeImageResponse(response, {
       model,
       outputDir: options.outputDir,
       outputFormat: options.outputFormat,
       requestKind: 'generation'
     });
+    options.signal?.throwIfAborted();
     const imageUrl = artifacts[0]?.imageUrl || getFirstImageUrl(response);
     const filePath = artifacts[0]?.filePath;
     const revisedPrompt = artifacts[0]?.revisedPrompt || getFirstRevisedPrompt(response);
@@ -321,7 +328,7 @@ export class PiImageGenerationService {
     return response.imageUrl;
   }
 
-  async generateImageFromRequest(request: GeneratePiImageRequest): Promise<ImageGenerationResponse> {
+  async generateImageFromRequest(request: GeneratePiImageRequest, signal?: AbortSignal): Promise<ImageGenerationResponse> {
     const normalizedRequest = normalizeProviderPreset(request);
     const { model, outputCompression, outputFormat, partialImages, prompt, quality, responseFormat, sessionId, size } = normalizedRequest;
     const resolved = await resolvePiModelConfig({
@@ -346,16 +353,17 @@ export class PiImageGenerationService {
       responseFormat,
       secrets: resolved.model.secrets,
       sessionId,
+      signal,
       size
     });
   }
 
-  async generateImageUrlFromRequest(request: GeneratePiImageRequest): Promise<string> {
-    const response = await this.generateImageFromRequest(request);
+  async generateImageUrlFromRequest(request: GeneratePiImageRequest, signal?: AbortSignal): Promise<string> {
+    const response = await this.generateImageFromRequest(request, signal);
     return response.imageUrl;
   }
 
-  async generateImageArtifactFromRequest(request: GeneratePiImageRequest): Promise<ImageGenerationResponse> {
+  async generateImageArtifactFromRequest(request: GeneratePiImageRequest, signal?: AbortSignal): Promise<ImageGenerationResponse> {
     const normalizedRequest = normalizeProviderPreset(request);
     const resolved = await resolvePiModelConfig({
       ...normalizedRequest,
@@ -378,6 +386,7 @@ export class PiImageGenerationService {
       quality: normalizedRequest.quality,
       secrets: resolved.model.secrets,
       sessionId: normalizedRequest.sessionId,
+      signal,
       size: normalizedRequest.size
     });
   }

@@ -29,7 +29,7 @@ export const AutomationRulesDialog: React.FC<{
   };
 
   const loadWorkflows = async (): Promise<void> => {
-    const res = await window.ipcRenderer.invoke('wf:listDefinitions');
+    const res = await window.ipcRenderer.invoke('wf:listDefinitions', { workspaceId: currentWorkspaceId });
     setWorkflows(res);
   };
 
@@ -40,7 +40,7 @@ export const AutomationRulesDialog: React.FC<{
         loadWorkflows();
       }, 0);
     }
-  }, [open]);
+  }, [open, currentWorkspaceId]);
 
   // 弹窗关闭时重置视图到列表
   useEffect(() => {

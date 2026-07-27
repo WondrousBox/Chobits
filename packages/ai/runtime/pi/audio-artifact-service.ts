@@ -123,6 +123,7 @@ export class PiAudioArtifactService {
     response: TResponse,
     options: MaterializeAudioResponseOptions<TRequest>
   ): Promise<TResponse> {
+    options.signal?.throwIfAborted();
     if (!response.artifacts.length) {
       return response;
     }
@@ -132,6 +133,7 @@ export class PiAudioArtifactService {
 
     const artifacts = await Promise.all(
       response.artifacts.map(async (artifact, index) => {
+        options.signal?.throwIfAborted();
         if (artifact.filePath) {
           return stripLargePayload(artifact);
         }
@@ -144,7 +146,9 @@ export class PiAudioArtifactService {
         const extension = inferExtension(artifact, options.request);
         const baseName = sanitizeFileSegment(`${options.request.model}-${index + 1}`);
         const filePath = path.join(outputDir, `${Date.now()}-${baseName}-${options.requestId || randomUUID()}${extension}`);
+        options.signal?.throwIfAborted();
         await fs.writeFile(filePath, audioBuffer);
+        options.signal?.throwIfAborted();
 
         return stripLargePayload({
           ...artifact,
@@ -153,6 +157,7 @@ export class PiAudioArtifactService {
         });
       })
     );
+    options.signal?.throwIfAborted();
 
     const firstArtifact = artifacts[0];
     const { audioBase64: _audioBase64, audioUrl: _audioUrl, filePath: _filePath, artifacts: _artifacts, ...rest } = response;

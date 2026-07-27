@@ -98,6 +98,7 @@ export const AiPromptOptimizerNode: NodeHandler = {
       model,
       providerId,
       providerPresetId,
+      signal: ctx.signal,
       workflowAiUsage: buildWorkflowAiUsageContext(ctx, {
         nodeLabel: 'AI提示词优化',
         nodeType: 'ai/prompt-optimizer',

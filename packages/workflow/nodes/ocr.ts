@@ -29,7 +29,7 @@ export const OCRNode: NodeHandler = {
     if (lang) args.push('-l', lang);
 
     await new Promise<void>((resolve, reject) => {
-      const child = spawn('tesseract', args);
+      const child = spawn('tesseract', args, { signal: ctx.signal });
       child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error('tesseract failed: ' + code))));
       child.on('error', (e) => reject(e));
     });

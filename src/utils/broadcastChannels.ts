@@ -38,12 +38,18 @@ export type WorkflowEventMessage =
       type: 'definition-upserted';
       def?: unknown;
       id?: string;
+      workspaceId: string;
     }
   | {
       type: 'run-started';
       defId: string;
       resourceId?: string;
+      workspaceId: string;
     };
+
+export function matchesWorkflowWorkspace(currentWorkspaceId: string | undefined, eventWorkspaceId: string | undefined): boolean {
+  return !currentWorkspaceId || currentWorkspaceId === eventWorkspaceId;
+}
 
 // Channel 名称常量
 export const CHANNEL_NAMES = {

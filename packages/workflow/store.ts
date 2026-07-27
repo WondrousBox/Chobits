@@ -1,9 +1,12 @@
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 
 import { getOrm, Schema } from './../common/db';
+import type { WorkflowRunRetentionPolicy } from './run-history-retention';
+import { sanitizeWorkflowRunRecord } from './sanitize';
+import { normalizeWorkflowDefinition } from './schema';
 import type { WorkflowDefinition, WorkflowRunRecord } from './types';
 
 // 预设工作流ID集合（从JSON文件加载）
@@ -35,7 +38,7 @@ export const WorkflowStore = {
         return [];
       }
       const txt = await fsp.readFile(file, 'utf8');
-      const workflows = JSON.parse(txt) as WorkflowDefinition[];
+      const workflows = (JSON.parse(txt) as unknown[]).map((workflow) => normalizeWorkflowDefinition(workflow));
       // 为所有预设工作流设置 isPreset 字段
       const workflowsWithPresetFlag = workflows.map((w) => ({ ...w, isPreset: true }));
       // 更新预设工作流ID集合
@@ -65,64 +68,78 @@ export const WorkflowStore = {
     // no-op
   },
 
-  async list(): Promise<WorkflowDefinition[]> {
+  async list(workspaceId: string): Promise<WorkflowDefinition[]> {
     const db = getOrm();
     if (!db) return [];
 
-    const rows = await db.select().from(Schema.workflows).orderBy(desc(Schema.workflows.updatedAt));
+    const rows = await db.select().from(Schema.workflows).where(eq(Schema.workflows.workspaceId, workspaceId)).orderBy(desc(Schema.workflows.updatedAt));
 
     return rows.map((row: any) => {
       const def = JSON.parse(row.definition);
-      return {
+      return normalizeWorkflowDefinition({
         id: row.id,
         name: row.name,
+        schemaVersion: def.schemaVersion,
+        workspaceId: row.workspaceId,
         description: row.description,
         icon: def.icon,
         nodes: def.nodes || [],
         edges: def.edges || [],
         options: def.options,
         isPreset: false // 用户自定义工作流不是预设
-        // 如果 WorkflowDefinition 类型将来支持 workspaceId，可以在这里添加
-        // workspaceId: row.workspaceId
-      };
+      });
     });
   },
 
-  async get(id: string): Promise<WorkflowDefinition | undefined> {
+  async get(id: string, workspaceId: string): Promise<WorkflowDefinition | undefined> {
     const db = getOrm();
     if (!db) return undefined;
 
-    const [row] = await db.select().from(Schema.workflows).where(eq(Schema.workflows.id, id)).limit(1);
+    const [row] = await db
+      .select()
+      .from(Schema.workflows)
+      .where(and(eq(Schema.workflows.id, id), eq(Schema.workflows.workspaceId, workspaceId)))
+      .limit(1);
 
     if (!row) return undefined;
 
     const def = JSON.parse(row.definition);
-    return {
+    return normalizeWorkflowDefinition({
       id: row.id,
       name: row.name,
+      schemaVersion: def.schemaVersion,
+      workspaceId: row.workspaceId,
       description: row.description,
       icon: def.icon,
       nodes: def.nodes || [],
       edges: def.edges || [],
       options: def.options,
       isPreset: false // 用户自定义工作流不是预设
-    };
+    });
   },
 
   async upsert(def: WorkflowDefinition): Promise<void> {
+    const normalizedDef = normalizeWorkflowDefinition(def);
     // 不允许保存预设工作流
-    if (this.isPresetWorkflow(def.id)) {
-      throw new Error(`不能修改预设工作流: ${def.id}`);
+    if (this.isPresetWorkflow(normalizedDef.id)) {
+      throw new Error(`不能修改预设工作流: ${normalizedDef.id}`);
     }
 
     const db = getOrm();
     if (!db) throw new Error('Database not initialized');
+    if (!normalizedDef.workspaceId) throw new Error('workspaceId is required');
+
+    const [existing] = await db.select({ workspaceId: Schema.workflows.workspaceId }).from(Schema.workflows).where(eq(Schema.workflows.id, normalizedDef.id)).limit(1);
+    if (existing && existing.workspaceId !== normalizedDef.workspaceId) {
+      throw new Error(`Workflow ${normalizedDef.id} belongs to another workspace`);
+    }
 
     const definition = JSON.stringify({
-      nodes: def.nodes,
-      edges: def.edges,
-      options: def.options,
-      icon: def.icon
+      schemaVersion: normalizedDef.schemaVersion,
+      nodes: normalizedDef.nodes,
+      edges: normalizedDef.edges,
+      options: normalizedDef.options,
+      icon: normalizedDef.icon
     });
 
     const now = Date.now();
@@ -130,26 +147,26 @@ export const WorkflowStore = {
     await db
       .insert(Schema.workflows)
       .values({
-        id: def.id,
-        name: def.name,
-        description: def.description,
+        id: normalizedDef.id,
+        name: normalizedDef.name,
+        description: normalizedDef.description,
         definition,
+        workspaceId: normalizedDef.workspaceId,
         updatedAt: now
-        // 注意：这里没有传入 workspaceId，如果 WorkflowDefinition 中没有 workspaceId，
-        // 那么新创建的工作流 workspaceId 将为 null。
       })
       .onConflictDoUpdate({
         target: Schema.workflows.id,
         set: {
-          name: def.name,
-          description: def.description,
+          name: normalizedDef.name,
+          description: normalizedDef.description,
           definition,
+          workspaceId: normalizedDef.workspaceId,
           updatedAt: now
         }
       });
   },
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, workspaceId: string): Promise<void> {
     // 不允许删除预设工作流
     if (this.isPresetWorkflow(id)) {
       throw new Error(`不能删除预设工作流: ${id}`);
@@ -158,70 +175,80 @@ export const WorkflowStore = {
     const db = getOrm();
     if (!db) return;
 
-    await db.delete(Schema.workflows).where(eq(Schema.workflows.id, id));
+    await db.delete(Schema.workflowRuns).where(and(eq(Schema.workflowRuns.workflowId, id), eq(Schema.workflowRuns.workspaceId, workspaceId)));
+    await db.delete(Schema.workflows).where(and(eq(Schema.workflows.id, id), eq(Schema.workflows.workspaceId, workspaceId)));
   },
 
   async addRun(rec: WorkflowRunRecord): Promise<void> {
     const db = getOrm();
     if (!db) return;
+    const record = sanitizeWorkflowRunRecord(rec);
 
     await db.insert(Schema.workflowRuns).values({
-      id: rec.runId,
-      workflowId: rec.workflowId,
-      status: rec.status,
-      input: rec.input ? JSON.stringify(rec.input) : null,
-      output: rec.output ? JSON.stringify(rec.output) : null,
-      error: rec.error ? (typeof rec.error === 'string' ? rec.error : JSON.stringify(rec.error)) : null,
-      nodes: rec.nodes ? JSON.stringify(rec.nodes) : null,
-      metadata: rec.metadata ? JSON.stringify(rec.metadata) : null,
-      duration: rec.duration,
-      startedAt: rec.startedAt,
-      completedAt: rec.completedAt
+      id: record.runId,
+      workflowId: record.workflowId,
+      workspaceId: record.workspaceId ?? record.metadata?.workspaceId ?? null,
+      status: record.status,
+      input: record.input ? JSON.stringify(record.input) : null,
+      output: record.output ? JSON.stringify(record.output) : null,
+      error: record.error ? (typeof record.error === 'string' ? record.error : JSON.stringify(record.error)) : null,
+      nodes: record.nodes ? JSON.stringify(record.nodes) : null,
+      metadata: record.metadata ? JSON.stringify(record.metadata) : null,
+      duration: record.duration,
+      startedAt: record.startedAt,
+      completedAt: record.completedAt
     });
   },
 
   async updateRun(rec: WorkflowRunRecord): Promise<void> {
     const db = getOrm();
     if (!db) return;
+    const record = sanitizeWorkflowRunRecord(rec);
 
     await db
       .insert(Schema.workflowRuns)
       .values({
-        id: rec.runId,
-        workflowId: rec.workflowId,
-        status: rec.status,
-        input: rec.input ? JSON.stringify(rec.input) : null,
-        output: rec.output ? JSON.stringify(rec.output) : null,
-        error: rec.error ? (typeof rec.error === 'string' ? rec.error : JSON.stringify(rec.error)) : null,
-        nodes: rec.nodes ? JSON.stringify(rec.nodes) : null,
-        metadata: rec.metadata ? JSON.stringify(rec.metadata) : null,
-        duration: rec.duration,
-        startedAt: rec.startedAt,
-        completedAt: rec.completedAt
+        id: record.runId,
+        workflowId: record.workflowId,
+        workspaceId: record.workspaceId ?? record.metadata?.workspaceId ?? null,
+        status: record.status,
+        input: record.input ? JSON.stringify(record.input) : null,
+        output: record.output ? JSON.stringify(record.output) : null,
+        error: record.error ? (typeof record.error === 'string' ? record.error : JSON.stringify(record.error)) : null,
+        nodes: record.nodes ? JSON.stringify(record.nodes) : null,
+        metadata: record.metadata ? JSON.stringify(record.metadata) : null,
+        duration: record.duration,
+        startedAt: record.startedAt,
+        completedAt: record.completedAt
       })
       .onConflictDoUpdate({
         target: Schema.workflowRuns.id,
         set: {
-          status: rec.status,
-          input: rec.input ? JSON.stringify(rec.input) : null,
-          output: rec.output ? JSON.stringify(rec.output) : null,
-          error: rec.error ? (typeof rec.error === 'string' ? rec.error : JSON.stringify(rec.error)) : null,
-          nodes: rec.nodes ? JSON.stringify(rec.nodes) : null,
-          metadata: rec.metadata ? JSON.stringify(rec.metadata) : null,
-          duration: rec.duration,
-          completedAt: rec.completedAt
+          status: record.status,
+          workspaceId: record.workspaceId ?? record.metadata?.workspaceId ?? null,
+          input: record.input ? JSON.stringify(record.input) : null,
+          output: record.output ? JSON.stringify(record.output) : null,
+          error: record.error ? (typeof record.error === 'string' ? record.error : JSON.stringify(record.error)) : null,
+          nodes: record.nodes ? JSON.stringify(record.nodes) : null,
+          metadata: record.metadata ? JSON.stringify(record.metadata) : null,
+          duration: record.duration,
+          completedAt: record.completedAt
         }
       });
   },
 
-  async listRuns(workflowId?: string, limit = 100, resourceId?: string, workspaceId?: string): Promise<WorkflowRunRecord[]> {
+  async listRuns(workspaceId: string, workflowId?: string, limit = 100, resourceId?: string): Promise<WorkflowRunRecord[]> {
     const db = getOrm();
     if (!db) return [];
+    const normalizedLimit = Number.isFinite(limit) ? Math.max(1, Math.min(500, Math.trunc(limit))) : 100;
 
     // 构建查询条件
-    const conditions = [];
+    const conditions = [eq(Schema.workflowRuns.workspaceId, workspaceId)];
     if (workflowId) {
       conditions.push(eq(Schema.workflowRuns.workflowId, workflowId));
+    }
+    if (resourceId) {
+      conditions.push(sql`json_valid(${Schema.workflowRuns.metadata}) AND json_extract(${Schema.workflowRuns.metadata}, '$.resourceId') = ${resourceId}`);
     }
 
     let query = db.select().from(Schema.workflowRuns);
@@ -230,14 +257,14 @@ export const WorkflowStore = {
       query = query.where(and(...conditions));
     }
 
-    // 多取一些以供内存过滤
-    query = query.orderBy(desc(Schema.workflowRuns.startedAt)).limit(limit * 5);
+    query = query.orderBy(desc(Schema.workflowRuns.startedAt)).limit(normalizedLimit);
 
     const rows = await query;
 
-    let results = rows.map((row: any) => ({
+    return rows.map((row: any) => ({
       runId: row.id,
       workflowId: row.workflowId,
+      workspaceId: row.workspaceId,
       status: row.status as any,
       createdAt: row.startedAt,
       input: undefined,
@@ -249,29 +276,24 @@ export const WorkflowStore = {
       duration: row.duration,
       metadata: row.metadata ? JSON.parse(row.metadata) : undefined
     }));
-
-    if (resourceId) {
-      results = results.filter((r: any) => r.metadata?.resourceId === resourceId);
-    }
-
-    if (workspaceId) {
-      results = results.filter((r: any) => r.metadata?.workspaceId === workspaceId);
-    }
-
-    return results.slice(0, limit);
   },
 
-  async getRun(runId: string): Promise<WorkflowRunRecord | undefined> {
+  async getRun(runId: string, workspaceId: string): Promise<WorkflowRunRecord | undefined> {
     const db = getOrm();
     if (!db) return undefined;
 
-    const [row] = await db.select().from(Schema.workflowRuns).where(eq(Schema.workflowRuns.id, runId)).limit(1);
+    const [row] = await db
+      .select()
+      .from(Schema.workflowRuns)
+      .where(and(eq(Schema.workflowRuns.id, runId), eq(Schema.workflowRuns.workspaceId, workspaceId)))
+      .limit(1);
 
     if (!row) return undefined;
 
     return {
       runId: row.id,
       workflowId: row.workflowId,
+      workspaceId: row.workspaceId,
       status: row.status as any,
       createdAt: row.startedAt,
       input: row.input ? JSON.parse(row.input) : undefined,
@@ -285,11 +307,58 @@ export const WorkflowStore = {
     };
   },
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async removeRun(runId: string, workspaceId?: string): Promise<void> {
+  async removeRun(runId: string, workspaceId: string): Promise<void> {
     const db = getOrm();
     if (!db) return;
 
-    await db.delete(Schema.workflowRuns).where(eq(Schema.workflowRuns.id, runId));
+    await db.delete(Schema.workflowRuns).where(and(eq(Schema.workflowRuns.id, runId), eq(Schema.workflowRuns.workspaceId, workspaceId)));
+  },
+
+  async pruneRuns(workspaceId: string, policy: WorkflowRunRetentionPolicy): Promise<number> {
+    const db = getOrm();
+    if (!db) return 0;
+
+    const batchSize = Math.max(1, Math.trunc(policy.batchSize));
+    const maxRunsPerWorkspace = Math.max(1, Math.trunc(policy.maxRunsPerWorkspace));
+    const cutoff = policy.asOf - Math.max(1, Math.trunc(policy.maxAgeMs));
+    const terminalRunCondition = and(eq(Schema.workflowRuns.workspaceId, workspaceId), inArray(Schema.workflowRuns.status, ['completed', 'failed', 'canceled']));
+    let deleted = 0;
+
+    const deleteRows = async (rows: Array<{ id: string }>): Promise<number> => {
+      if (rows.length === 0) return 0;
+      await db.delete(Schema.workflowRuns).where(
+        inArray(
+          Schema.workflowRuns.id,
+          rows.map((row) => row.id)
+        )
+      );
+      return rows.length;
+    };
+
+    while (true) {
+      const expired = await db
+        .select({ id: Schema.workflowRuns.id })
+        .from(Schema.workflowRuns)
+        .where(and(terminalRunCondition, or(isNull(Schema.workflowRuns.startedAt), lt(Schema.workflowRuns.startedAt, cutoff))))
+        .limit(batchSize);
+      const removed = await deleteRows(expired);
+      deleted += removed;
+      if (removed < batchSize) break;
+    }
+
+    while (true) {
+      const overflow = await db
+        .select({ id: Schema.workflowRuns.id })
+        .from(Schema.workflowRuns)
+        .where(terminalRunCondition)
+        .orderBy(desc(Schema.workflowRuns.startedAt))
+        .limit(batchSize)
+        .offset(maxRunsPerWorkspace);
+      const removed = await deleteRows(overflow);
+      deleted += removed;
+      if (removed < batchSize) break;
+    }
+
+    return deleted;
   }
 };

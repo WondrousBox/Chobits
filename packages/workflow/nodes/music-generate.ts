@@ -165,6 +165,7 @@ export const MusicGenerateNode: NodeHandler = {
       providerId,
       providerPresetId,
       referenceAudioUrl,
+      signal: ctx.signal,
       workflowAiUsage: buildWorkflowAiUsageContext(ctx, {
         nodeLabel: '音乐生成',
         nodeType: 'music/music-generate',

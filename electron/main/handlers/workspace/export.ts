@@ -52,10 +52,7 @@ export async function exportWorkspace(workspaceId: string, destPath: string): Pr
       db.select().from(resource_tags).where(eq(resource_tags.workspaceId, workspaceId)),
       db.select().from(conversations).where(eq(conversations.workspaceId, workspaceId)),
       db.select().from(workflows).where(eq(workflows.workspaceId, workspaceId)),
-      db
-        .select()
-        .from(workflowRuns)
-        .where(inArray(workflowRuns.workflowId, db.select({ id: workflows.id }).from(workflows).where(eq(workflows.workspaceId, workspaceId)))),
+      db.select().from(workflowRuns).where(eq(workflowRuns.workspaceId, workspaceId)),
       db.select().from(automation_rules).where(eq(automation_rules.workspaceId, workspaceId)),
       db
         .select()
@@ -365,16 +362,15 @@ export async function importWorkspace(sourcePath: string): Promise<{ success: bo
 
       // 11. 导入工作流运行记录
       for (const run of exportData.workflowRuns) {
-        const newWorkflowId = idMappings.workflows.get(run.workflowId);
-        if (newWorkflowId) {
-          tx.insert(workflowRuns)
-            .values({
-              ...run,
-              id: randomUUID(),
-              workflowId: newWorkflowId
-            })
-            .run?.();
-        }
+        const newWorkflowId = idMappings.workflows.get(run.workflowId) || run.workflowId;
+        tx.insert(workflowRuns)
+          .values({
+            ...run,
+            id: randomUUID(),
+            workflowId: newWorkflowId,
+            workspaceId: newWorkspaceId
+          })
+          .run?.();
       }
 
       // 12. 导入自动化规则
@@ -492,9 +488,6 @@ export async function deleteWorkspaceCompletely(workspaceId: string, options?: {
         const conversationRows = tx.select({ id: conversations.id }).from(conversations).where(eq(conversations.workspaceId, workspaceId)).all?.() ?? [];
         const conversationIds = conversationRows.map((c: any) => c.id);
 
-        const workflowRows = tx.select({ id: workflows.id }).from(workflows).where(eq(workflows.workspaceId, workspaceId)).all?.() ?? [];
-        const workflowIds = workflowRows.map((w: any) => w.id);
-
         const resourceRows = tx.select({ id: resources.id }).from(resources).where(eq(resources.workspaceId, workspaceId)).all?.() ?? [];
         const resourceIds = resourceRows.map((r: any) => r.id);
 
@@ -504,9 +497,7 @@ export async function deleteWorkspaceCompletely(workspaceId: string, options?: {
 
         tx.delete(conversations).where(eq(conversations.workspaceId, workspaceId)).run?.();
 
-        if (workflowIds.length > 0) {
-          tx.delete(workflowRuns).where(inArray(workflowRuns.workflowId, workflowIds)).run?.();
-        }
+        tx.delete(workflowRuns).where(eq(workflowRuns.workspaceId, workspaceId)).run?.();
 
         tx.delete(workflows).where(eq(workflows.workspaceId, workspaceId)).run?.();
 

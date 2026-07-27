@@ -39,12 +39,12 @@ const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
 
   // Load workflow definitions once
   useEffect(() => {
-    window.ipcRenderer.invoke('wf:listDefinitions').then((defs: any[]) => {
+    window.ipcRenderer.invoke('wf:listDefinitions', { workspaceId }).then((defs: any[]) => {
       const map: Record<string, string> = {};
       defs.forEach((d) => (map[d.id] = d.name));
       setWorkflowNames(map);
     });
-  }, []);
+  }, [workspaceId]);
 
   const loadTasks = useCallback(async (): Promise<void> => {
     try {
@@ -91,7 +91,7 @@ const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
       if (expandedIds.length > 0) {
         expandedIds.forEach(async (id) => {
           try {
-            const details = await window.ipcRenderer.invoke('wf:getRun', { runId: id });
+            const details = await window.ipcRenderer.invoke('wf:getRun', { runId: id, workspaceId });
             if (details) {
               setTasks((prev) => prev.map((t) => (t.runId === id ? { ...t, ...details } : t)));
             }
@@ -121,7 +121,7 @@ const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
 
   const handleStop = async (runId: string) => {
     try {
-      await window.ipcRenderer.invoke('wf:cancelRun', { runId });
+      await window.ipcRenderer.invoke('wf:cancelRun', { runId, workspaceId });
       loadTasks();
     } catch (e) {
       console.error('Failed to stop run', e);
@@ -138,7 +138,7 @@ const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
       const task = tasks.find((t) => t.runId === runId);
       if (task && (!task.nodes || Object.keys(task.nodes).length === 0)) {
         try {
-          const details = await window.ipcRenderer.invoke('wf:getRun', { runId });
+          const details = await window.ipcRenderer.invoke('wf:getRun', { runId, workspaceId });
           if (details) {
             setTasks((prev) => prev.map((t) => (t.runId === runId ? { ...t, ...details } : t)));
           }

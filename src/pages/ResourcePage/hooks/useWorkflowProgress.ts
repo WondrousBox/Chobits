@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 
+import { matchesWorkflowWorkspace } from '@/utils/broadcastChannels';
+
 interface WorkflowProgress {
   visible: boolean;
   progress: number;
@@ -8,7 +10,7 @@ interface WorkflowProgress {
   runId?: string;
 }
 
-export function useWorkflowProgress(): WorkflowProgress {
+export function useWorkflowProgress(workspaceId?: string): WorkflowProgress {
   const [progress, setProgress] = useState<WorkflowProgress>({
     visible: false,
     progress: 0,
@@ -22,6 +24,8 @@ export function useWorkflowProgress(): WorkflowProgress {
 
     const handleRunStatus = async (_event: any, rec: any): Promise<void> => {
       if (!rec || !rec.runId) return;
+      const runWorkspaceId = rec.workspaceId ?? rec.metadata?.workspaceId;
+      if (!matchesWorkflowWorkspace(workspaceId, runWorkspaceId)) return;
 
       // 只显示运行中的工作流进度
       if (rec.status === 'running') {
@@ -33,7 +37,7 @@ export function useWorkflowProgress(): WorkflowProgress {
         if (!workflowName) {
           workflowName = '工作流';
           try {
-            const def = await window.ipcRenderer.invoke('wf:getDefinition', { id: rec.workflowId });
+            const def = await window.ipcRenderer.invoke('wf:getDefinition', { id: rec.workflowId, workspaceId: rec.workspaceId ?? rec.metadata?.workspaceId });
             if (def?.name) {
               workflowName = def.name;
               workflowNameCache.set(rec.workflowId, workflowName || '');
@@ -82,7 +86,7 @@ export function useWorkflowProgress(): WorkflowProgress {
     return () => {
       window.ipcRenderer.off('wf:run-status', handleRunStatus);
     };
-  }, []);
+  }, [workspaceId]);
 
   return progress;
 }

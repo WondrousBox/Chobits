@@ -1,8 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { BrowserWindow } from 'electron';
-
 import { NodeHandler } from '../types';
 
 /**
@@ -191,94 +189,6 @@ function createHtmlPage(content: string, width: number, height: number, backgrou
 </html>`;
 }
 
-/**
- * 使用 BrowserWindow 渲染 HTML 并截图
- */
-async function renderHtmlToImage(html: string, outputPath: string, width: number, height: number, emit: (event: string, payload?: any) => void): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let window: BrowserWindow | null = null;
-
-    const cleanup = (): void => {
-      if (window && !window.isDestroyed()) {
-        window.close();
-        window = null;
-      }
-    };
-
-    try {
-      emit('node:progress', { progress: 30, message: '创建渲染窗口...' });
-
-      window = new BrowserWindow({
-        width,
-        height,
-        show: false,
-        webPreferences: {
-          nodeIntegration: false,
-          contextIsolation: true
-        }
-      });
-
-      emit('node:progress', { progress: 50, message: '加载内容...' });
-
-      // 将 HTML 编码为 data URL
-      const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
-      window.loadURL(dataUrl);
-
-      window.webContents.once('did-finish-load', async () => {
-        emit('node:progress', { progress: 70, message: '渲染页面...' });
-
-        try {
-          if (window && !window.isDestroyed()) {
-            // 获取实际内容高度
-            const contentHeight = await window.webContents.executeJavaScript('document.body.scrollHeight');
-
-            // 如果内容高度超过当前窗口高度，调整窗口大小
-            if (contentHeight > height) {
-              window.setContentSize(width, contentHeight);
-            }
-          }
-        } catch (err) {
-          console.warn('调整窗口大小失败:', err);
-        }
-
-        // 等待一小段时间确保内容完全渲染
-        setTimeout(() => {
-          if (!window || window.isDestroyed()) {
-            reject(new Error('窗口已关闭'));
-            return;
-          }
-
-          emit('node:progress', { progress: 80, message: '截图...' });
-
-          window.webContents
-            .capturePage()
-            .then((image) => {
-              // 根据输出格式选择不同的编码方法
-              const format = outputPath.toLowerCase().endsWith('.jpg') || outputPath.toLowerCase().endsWith('.jpeg') ? 'jpeg' : 'png';
-              const buffer = format === 'jpeg' ? image.toJPEG(90) : image.toPNG();
-              fs.writeFileSync(outputPath, buffer);
-              cleanup();
-              emit('node:progress', { progress: 100, message: '完成' });
-              resolve(outputPath);
-            })
-            .catch((err) => {
-              cleanup();
-              reject(err);
-            });
-        }, 500); // 等待 500ms 确保内容渲染完成
-      });
-
-      window.webContents.once('did-fail-load', (_, errorCode, errorDescription) => {
-        cleanup();
-        reject(new Error(`页面加载失败: ${errorDescription} (${errorCode})`));
-      });
-    } catch (err) {
-      cleanup();
-      reject(err);
-    }
-  });
-}
-
 export const TextToImageNode: NodeHandler = {
   spec: {
     id: 'text/to-image',
@@ -386,8 +296,24 @@ export const TextToImageNode: NodeHandler = {
     // 创建 HTML 页面
     const html = createHtmlPage(text, width, height, backgroundColor, padding);
 
-    // 渲染为图片
-    await renderHtmlToImage(html, outputPath, width, height, emit);
+    const renderHtmlScreenshot = ctx.services?.renderHtmlScreenshot;
+    if (!renderHtmlScreenshot) throw new Error('工作流 HTML 截图服务未配置');
+    const progressMessages: Record<number, string> = {
+      30: '创建渲染窗口...',
+      50: '加载内容...',
+      70: '渲染页面...',
+      80: '截图...',
+      100: '完成'
+    };
+    await renderHtmlScreenshot({
+      html,
+      outputPath,
+      width,
+      height,
+      contentHeightMode: 'expand',
+      signal: ctx.signal,
+      onProgress: (progress) => emit('node:progress', { progress, message: progressMessages[progress] })
+    });
 
     return {
       image: outputPath

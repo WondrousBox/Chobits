@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { WorkspacesRepo } from '../../common/db';
 import { NodeHandler } from '../types';
 
 /**
@@ -231,7 +230,9 @@ export const ResourceCreateNode: NodeHandler = {
     // 获取工作空间信息以确定目标文件夹路径
     let finalFilePath = filePath;
     try {
-      const ws = await WorkspacesRepo.getById(ctx.workspaceId);
+      const workspaces = ctx.services?.workspaces;
+      if (!workspaces) throw new Error('工作流工作空间查询服务未配置');
+      const ws = await workspaces.getById(ctx.workspaceId);
 
       if (ws?.rootPath) {
         // 确定目标文件夹路径

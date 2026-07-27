@@ -608,12 +608,12 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
   const [workflows, setWorkflows] = useState<any[]>([]);
   useEffect(() => {
     window.ipcRenderer
-      .invoke('wf:listDefinitions')
+      .invoke('wf:listDefinitions', { workspaceId })
       .then((defs: any[]) => {
         setWorkflows(defs || []);
       })
       .catch(() => { });
-  }, []);
+  }, [workspaceId]);
 
   // 获取第一个选中的资源
   const firstSelectedId = selectedItems.size > 0 ? Array.from(selectedItems)[0] : undefined;

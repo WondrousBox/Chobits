@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import ffmpeg from 'fluent-ffmpeg';
 
+import { onAbort } from '../abort';
 import { NodeConfig, NodeHandler, PortSchema, ValueType } from '../types';
 
 function fileExists(p: string): boolean {
@@ -83,7 +84,7 @@ async function checkAudioFormat(filePath: string): Promise<boolean> {
 }
 
 // 转码音频为 whisper 要求的格式
-async function transcodeAudio(filePath: string, outputDir: string): Promise<string> {
+async function transcodeAudio(filePath: string, outputDir: string, signal?: AbortSignal): Promise<string> {
   const fileName = path.basename(filePath, path.extname(filePath));
   const targetPath = path.join(outputDir, `${fileName}_16k.wav`);
 
@@ -95,16 +96,20 @@ async function transcodeAudio(filePath: string, outputDir: string): Promise<stri
 
   console.log('[fast-whisper] 开始转码:', filePath, '->', targetPath);
   return new Promise((resolve, reject) => {
-    ffmpeg(filePath)
+    const cmd = ffmpeg(filePath)
       .toFormat('wav')
       .audioFrequency(16000)
       .audioChannels(1)
-      .audioCodec('pcm_s16le')
+      .audioCodec('pcm_s16le');
+    const removeAbortListener = onAbort(signal, () => cmd.kill('SIGKILL'));
+    cmd
       .on('error', (err) => {
+        removeAbortListener();
         console.error('[fast-whisper] 转码失败:', err);
         reject(err);
       })
       .on('end', () => {
+        removeAbortListener();
         console.log('[fast-whisper] 转码完成');
         resolve(targetPath);
       })
@@ -126,7 +131,7 @@ async function runFastWhisper(args: string[], _ctx: any, onProgress?: (progress:
 
   await new Promise<void>((resolve, reject) => {
     console.log('[fast-whisper] exec: ', whisperCmd + ' ' + args.join(' '));
-    const child = spawn(whisperCmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(whisperCmd, args, { stdio: ['ignore', 'pipe', 'pipe'], signal: _ctx.signal });
 
     let stdout = '';
     let stderr = '';
@@ -486,7 +491,7 @@ export const TranscribeFastWhisperNode: NodeHandler = {
       emit('node:progress', { progress: 0, message: '正在转码音频...' });
       try {
         // 转码的中间文件存放在 cache 目录（可复用）
-        finalSrc = await transcodeAudio(src, cacheDir);
+        finalSrc = await transcodeAudio(src, cacheDir, _ctx.signal);
       } catch (err) {
         const error = err as Error;
         throw new Error(`音频转码失败: ${error.message}`);

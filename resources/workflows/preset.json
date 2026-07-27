@@ -77,11 +77,11 @@
         "id": "e1",
         "from": {
           "nodeId": "start",
-          "port": "resource"
+          "port": "resourceId"
         },
         "to": {
           "nodeId": "load",
-          "port": "resource"
+          "port": "resourceId"
         }
       },
       {
@@ -705,7 +705,22 @@
         "type": "core/end",
         "x": 1176,
         "y": 374,
-        "config": {}
+        "config": {
+          "inputs": [
+            {
+              "key": "sourceResourceId",
+              "label": "源资源 ID"
+            },
+            {
+              "key": "subtitleResourceId",
+              "label": "字幕资源 ID"
+            },
+            {
+              "key": "jsonResource",
+              "label": "JSON 资源"
+            }
+          ]
+        }
       },
       {
         "id": "resource/update-798N",
@@ -760,7 +775,7 @@
         },
         "to": {
           "nodeId": "end",
-          "port": "result"
+          "port": "sourceResourceId"
         }
       },
       {
@@ -771,7 +786,7 @@
         },
         "to": {
           "nodeId": "end",
-          "port": "result"
+          "port": "subtitleResourceId"
         }
       },
       {
@@ -837,7 +852,7 @@
         },
         "to": {
           "nodeId": "end",
-          "port": "result"
+          "port": "jsonResource"
         }
       }
     ],

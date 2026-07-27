@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { BroadcastChannelManager, CHANNEL_NAMES, type WorkflowEventMessage } from '@/utils/broadcastChannels';
+import { BroadcastChannelManager, CHANNEL_NAMES, matchesWorkflowWorkspace, type WorkflowEventMessage } from '@/utils/broadcastChannels';
 
 interface WorkflowBrief {
   id: string;
@@ -27,8 +27,12 @@ type RunBrief = { workflowId: string; status: ExecutionStatus; createdAt: number
 
 const invoke = window.ipcRenderer.invoke;
 
-const WorkflowPage: React.FC = () => {
+const WorkflowPage: React.FC<{ workspaceId?: string }> = ({ workspaceId }) => {
   const navigate = useNavigate();
+  const withWorkspace = (path: string): string => {
+    if (!workspaceId) return path;
+    return `${path}${path.includes('?') ? '&' : '?'}workspaceId=${encodeURIComponent(workspaceId)}`;
+  };
   const [list, setList] = useState<WorkflowBrief[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
@@ -65,14 +69,14 @@ const WorkflowPage: React.FC = () => {
         //
       });
 
-    invoke('wf:listDefinitions')
+    invoke('wf:listDefinitions', { workspaceId })
       .then((defs: WorkflowBrief[]) => {
         if (mounted) setList(defs || []);
       })
       .finally(() => mounted && setLoading(false));
 
     // also fetch recent runs to surface last-run status
-    invoke('wf:listRuns')
+    invoke('wf:listRuns', { workspaceId })
       .then((runs: any[]) => {
         if (!mounted || !Array.isArray(runs)) return;
         const map: Record<string, RunBrief> = {};
@@ -89,7 +93,7 @@ const WorkflowPage: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, [refreshTick]);
+  }, [refreshTick, workspaceId]);
 
   // validate each workflow definition in background to show badges
   useEffect(() => {
@@ -122,6 +126,7 @@ const WorkflowPage: React.FC = () => {
 
     const handleMessage = (event: MessageEvent<WorkflowEventMessage>): void => {
       const { type } = event.data;
+      if (!matchesWorkflowWorkspace(workspaceId, event.data.workspaceId)) return;
       if (type === 'definition-upserted') {
         const { def, id } = event.data;
         setList((prev) => {
@@ -145,7 +150,7 @@ const WorkflowPage: React.FC = () => {
       channel.removeEventListener('message', handleMessage);
       BroadcastChannelManager.release(CHANNEL_NAMES.WF_EVENTS);
     };
-  }, []);
+  }, [workspaceId]);
 
   const filtered = useMemo(() => {
     const f = filter.trim().toLowerCase();
@@ -169,13 +174,13 @@ const WorkflowPage: React.FC = () => {
       console.error('加载预设工作流失败:', err);
     }
     // 如果没有预设，使用默认的空白预设，采用路由方式跳转并通过查询参数传递
-    navigate('/workflow?mode=create&presetId=blank');
+    navigate(withWorkspace('/workflow?mode=create&presetId=blank'));
   };
 
   const handleCreateFromPreset = async (): Promise<void> => {
     const targetPresetId = selectedPresetId || 'blank';
     // 通过路由跳转，并将 mode 和 presetId 作为查询参数传递
-    navigate(`/workflow?mode=create&presetId=${encodeURIComponent(targetPresetId)}`);
+    navigate(withWorkspace(`/workflow?mode=create&presetId=${encodeURIComponent(targetPresetId)}`));
     setShowPresetDialog(false);
     setSelectedPresetId('');
     setPresetPopoverOpen(false);
@@ -183,7 +188,7 @@ const WorkflowPage: React.FC = () => {
 
   const openExisting = async (id: string): Promise<void> => {
     // 使用路由参数方式打开已有工作流
-    navigate(`/workflow/${encodeURIComponent(id)}`);
+    navigate(withWorkspace(`/workflow/${encodeURIComponent(id)}`));
   };
 
   const deleteOne = async (e: React.MouseEvent, id: string): Promise<void> => {
@@ -197,7 +202,7 @@ const WorkflowPage: React.FC = () => {
     // optimistic removal
     setList((prev) => prev.filter((w) => w.id !== id));
     try {
-      await invoke('wf:deleteDefinition', { id });
+      await invoke('wf:deleteDefinition', { id, workspaceId });
     } catch {
       // rollback on failure
       setRefreshTick((t) => t + 1);
@@ -291,7 +296,7 @@ const WorkflowPage: React.FC = () => {
               <Button size="sm" variant="outline" onClick={() => setRefreshTick((t) => t + 1)} disabled={loading}>
                 刷新
               </Button>
-              <Button size="sm" variant="outline" onClick={() => navigate('/workflow-history')}>
+              <Button size="sm" variant="outline" onClick={() => navigate(withWorkspace('/workflow-history'))}>
                 执行记录
               </Button>
               <Button size="sm" onClick={openNew}>

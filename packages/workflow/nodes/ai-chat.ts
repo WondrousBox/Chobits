@@ -70,6 +70,7 @@ export const AiChatNode: NodeHandler = {
       },
       providerId,
       providerPresetId,
+      signal: ctx.signal,
       workflowAiUsage: buildWorkflowAiUsageContext(ctx, {
         nodeLabel: '大模型对话',
         nodeType: 'ai/chat',

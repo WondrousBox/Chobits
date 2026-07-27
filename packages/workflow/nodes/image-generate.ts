@@ -88,6 +88,7 @@ export const ImageGenerateNode: NodeHandler = {
       model,
       prompt,
       quality,
+      signal: ctx.signal,
       size,
       workflowAiUsage: buildWorkflowAiUsageContext(ctx, {
         nodeLabel: '图像生成',

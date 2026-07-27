@@ -1,4 +1,3 @@
-import { FoldersRepo, ResourcesRepo } from '../../common/db';
 import { NodeHandler } from '../types';
 
 /**
@@ -52,6 +51,9 @@ export const CollectFolderTextsNode: NodeHandler = {
     if (!workspaceId) {
       throw new Error('工作流执行上下文缺少工作空间 ID (workspaceId)');
     }
+    const folders = ctx.services?.folders;
+    const resources = ctx.services?.resources;
+    if (!folders || !resources) throw new Error('工作流资源查询服务未配置');
 
     emit('node:progress', { progress: 10, message: '正在查找文件夹...' });
 
@@ -60,7 +62,7 @@ export const CollectFolderTextsNode: NodeHandler = {
     if (folderId) {
       // 如果指定了 folderId，只查询该文件夹及其子文件夹
       // 先获取整个 workspace 下的所有文件夹（用于构建树结构）
-      const allFolders = await FoldersRepo.list(
+      const allFolders = await folders.list(
         {
           workspaceId,
           deletedAt: 0
@@ -90,7 +92,7 @@ export const CollectFolderTextsNode: NodeHandler = {
       targetFolders = allFolders.filter((f) => descendantIds.has(f.id));
     } else {
       // 如果没有指定 folderId，查询整个工作空间下的所有文件夹
-      targetFolders = await FoldersRepo.list(
+      targetFolders = await folders.list(
         {
           workspaceId,
           deletedAt: 0
@@ -116,7 +118,7 @@ export const CollectFolderTextsNode: NodeHandler = {
 
     // 分批查询资源（避免一次性查询过多）
     for (const fid of folderIds) {
-      const resources = await ResourcesRepo.list(
+      const folderResources = await resources.list(
         {
           folderId: fid,
           deletedAt: 0
@@ -124,7 +126,7 @@ export const CollectFolderTextsNode: NodeHandler = {
         10000,
         0
       );
-      allResources.push(...resources);
+      allResources.push(...folderResources);
     }
 
     emit('node:progress', { progress: 80, message: `正在提取 ${allResources.length} 个资源的文本内容...` });

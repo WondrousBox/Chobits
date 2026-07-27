@@ -78,7 +78,7 @@ const ResourcePage: React.FC = () => {
     loadFolders
   });
 
-  const workflowProgress = useWorkflowProgress();
+  const workflowProgress = useWorkflowProgress(wsFilter);
 
   const navigateByWindowPayload = useCallback(
     (payload: unknown): void => {
@@ -603,7 +603,7 @@ const ResourcePage: React.FC = () => {
           <Route path="home" element={<ChatPage hideTitleBar />} />
           <Route path="analytics" element={<AnalyticsPage workspaceId={wsFilter} />} />
           <Route path="tasks" element={<TaskList workspaceId={wsFilter} />} />
-          <Route path="workflows" element={<WorkflowPage />} />
+          <Route path="workflows" element={<WorkflowPage workspaceId={wsFilter} />} />
           <Route path="recycle" element={<RecycleBinPage hideTitleBar />} />
           <Route path="preview/:resourceId" element={<ResourcePreviewWindow />} />
           <Route path="rss/:resourceId" element={<RssFeedPage />} />

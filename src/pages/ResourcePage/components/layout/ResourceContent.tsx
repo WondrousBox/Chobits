@@ -130,12 +130,12 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
   const [workflows, setWorkflows] = useState<any[]>([]);
   useEffect(() => {
     window.ipcRenderer
-      .invoke('wf:listDefinitions')
+      .invoke('wf:listDefinitions', { workspaceId: wsFilter })
       .then((defs: any[]) => {
         setWorkflows(defs || []);
       })
       .catch(() => { });
-  }, []);
+  }, [wsFilter]);
 
   // 预览面板状态
   const [previewResource, setPreviewResource] = useState<ResourceItem | null>(null);

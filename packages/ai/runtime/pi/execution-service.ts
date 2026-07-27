@@ -84,10 +84,56 @@ function toAnalyticsUsage(usage?: TokenUsage): RecordAiUsageEventInput['usage'] 
 }
 
 async function recordExecutionUsageEventSafely(
-  context: 'embed' | 'transcribe' | 'generateImage' | 'generateLyrics' | 'generateMusic' | 'synthesizeSpeech',
+  context: 'completeText' | 'embed' | 'streamText' | 'transcribe' | 'generateImage' | 'generateLyrics' | 'generateMusic' | 'synthesizeSpeech',
   input: RecordAiUsageEventInput
 ): Promise<void> {
-  await emitAiUsageObservedEvent(input, { producer: `PiExecutionService:${context}` });
+  const workflowAttempt = input.metadata?.workflowAttempt;
+  const attemptIndex = typeof workflowAttempt === 'number' && Number.isInteger(workflowAttempt) && workflowAttempt > 0 ? workflowAttempt - 1 : undefined;
+  await emitAiUsageObservedEvent({ ...input, ...(input.attemptIndex === undefined && attemptIndex !== undefined ? { attemptIndex } : {}) }, { producer: `PiExecutionService:${context}` });
+}
+
+async function recordTextExecutionUsage(
+  context: 'completeText' | 'streamText',
+  request: ChatRequest,
+  params: {
+    completedAt: number;
+    error?: unknown;
+    response?: ChatResponse;
+    startedAt: number;
+    status: RecordAiUsageEventInput['status'];
+  }
+): Promise<void> {
+  const requestId = request.requestId || resolveExecutionRequestId(request);
+  const usageOverride = resolveExecutionUsageOverride(request);
+  const rawUsage = params.response?.metadata?.rawUsage ?? params.response?.metadata?.piRawUsage ?? params.response?.message?.metadata?.rawUsage ?? params.response?.message?.metadata?.piRawUsage;
+
+  await recordExecutionUsageEventSafely(context, {
+    traceId: requestId,
+    requestId,
+    operationKey: usageOverride?.operationKey || 'generate',
+    sourceType: usageOverride?.sourceType || 'other',
+    sourceId: usageOverride?.sourceId || requestId,
+    sourceLabel: usageOverride?.sourceLabel || 'Pi text execution',
+    usageCategory: usageOverride?.usageCategory || 'other',
+    usageFeature: usageOverride?.usageFeature || 'other',
+    usageStage: usageOverride?.usageStage || 'generate',
+    providerId: params.response?.providerId || request.providerId || 'unknown',
+    providerPresetId: resolveProviderPresetId(request),
+    model: typeof request.extras?.model === 'string' && request.extras.model ? request.extras.model : 'unknown',
+    agentId: request.agentId || 'pi-execution',
+    status: params.status,
+    usage: toAnalyticsUsage(params.response?.usage),
+    rawUsage,
+    meteringSource: 'provider_reported',
+    startedAt: params.startedAt,
+    completedAt: params.completedAt,
+    metadata: {
+      ...(params.error !== undefined ? { errorMessage: params.error instanceof Error ? params.error.message : String(params.error) } : {}),
+      messageChars: params.response?.message?.content?.length ?? null,
+      runtime: 'pi',
+      ...(usageOverride?.metadata || {})
+    }
+  });
 }
 
 function resolveExecutionRequestId(payload: AnalyticsExtrasCarrier): string {
@@ -215,13 +261,20 @@ export class PiExecutionService {
     return this.sessionService.getAvailability(req);
   }
 
-  async chatEphemeral(req: ChatRequest): Promise<ChatResponse> {
-    return this.sessionService.chatEphemeral(forcePiRuntimeRequest(normalizeProviderPreset(req)));
+  async chatEphemeral(req: ChatRequest, signal?: AbortSignal): Promise<ChatResponse> {
+    return this.sessionService.chatEphemeral(forcePiRuntimeRequest(normalizeProviderPreset(req)), signal);
   }
 
-  async completeText(req: ChatRequest): Promise<string> {
-    const response = await this.chatEphemeral(req);
-    return response.message?.content || '';
+  async completeText(req: ChatRequest, signal?: AbortSignal): Promise<string> {
+    const startedAt = Date.now();
+    try {
+      const response = await this.chatEphemeral(req, signal);
+      await recordTextExecutionUsage('completeText', req, { completedAt: Date.now(), response, startedAt, status: 'completed' });
+      return response.message?.content || '';
+    } catch (error) {
+      await recordTextExecutionUsage('completeText', req, { completedAt: Date.now(), error, startedAt, status: signal?.aborted ? 'cancelled' : 'failed' });
+      throw error;
+    }
   }
 
   async streamText(req: ChatRequest, onDelta?: (delta: string, accumulated: string) => void, signal?: AbortSignal): Promise<string> {
@@ -234,36 +287,46 @@ export class PiExecutionService {
 
     let accumulatedText = '';
     let completedText = '';
+    let completedResponse: ChatResponse | undefined;
     let streamError: Error | undefined;
+    const startedAt = Date.now();
 
-    await this.sessionService.chatStream(
-      forcedRequest,
-      (event) => {
-        switch (event.type) {
-          case 'delta':
-            if (event.data.text) {
-              accumulatedText += event.data.text;
-              onDelta?.(event.data.text, accumulatedText);
-            }
-            return;
-          case 'message_completed':
-            completedText = event.data.message?.content || accumulatedText;
-            return;
-          case 'error':
-            streamError = new Error(event.data.message || 'Pi runtime execution failed');
-            return;
-          default:
-            return;
-        }
-      },
-      signal
-    );
+    try {
+      await this.sessionService.chatStream(
+        forcedRequest,
+        (event) => {
+          switch (event.type) {
+            case 'delta':
+              if (event.data.text) {
+                accumulatedText += event.data.text;
+                onDelta?.(event.data.text, accumulatedText);
+              }
+              return;
+            case 'message_completed':
+              completedText = event.data.message?.content || accumulatedText;
+              completedResponse = {
+                message: event.data.message,
+                providerId: forcedRequest.providerId,
+                usage: event.data.usage
+              };
+              return;
+            case 'error':
+              streamError = new Error(event.data.message || 'Pi runtime execution failed');
+              return;
+            default:
+              return;
+          }
+        },
+        signal
+      );
 
-    if (streamError) {
-      throw streamError;
+      if (streamError) throw streamError;
+      await recordTextExecutionUsage('streamText', req, { completedAt: Date.now(), response: completedResponse, startedAt, status: 'completed' });
+      return completedText || accumulatedText;
+    } catch (error) {
+      await recordTextExecutionUsage('streamText', req, { completedAt: Date.now(), error, response: completedResponse, startedAt, status: signal?.aborted ? 'cancelled' : 'failed' });
+      throw error;
     }
-
-    return completedText || accumulatedText;
   }
 
   async embed(payload: EmbeddingRequest): Promise<EmbeddingResponse> {
@@ -441,7 +504,7 @@ export class PiExecutionService {
     }
   }
 
-  async generateImage(payload: ImageGenerationRequest): Promise<ImageGenerationResponse> {
+  async generateImage(payload: ImageGenerationRequest, signal?: AbortSignal): Promise<ImageGenerationResponse> {
     const providerPresetId = resolveProviderPresetId(payload);
     const resolved = await this.resolveProviderCapability(payload.providerId, providerPresetId);
 
@@ -459,7 +522,7 @@ export class PiExecutionService {
     });
 
     try {
-      const response = await this.imageGenerationService.generateImageFromRequest(request);
+      const response = await this.imageGenerationService.generateImageFromRequest(request, signal);
       const providerUsageMetadata = extractProviderUsageMetadata(response.rawUsage);
 
       await recordExecutionUsageEventSafely('generateImage', {
@@ -510,7 +573,7 @@ export class PiExecutionService {
         providerPresetId: resolved.model.presetId || providerPresetId,
         model: payload.model || getProviderDefinitionDefaultModel(resolved.provider.id, 'imageGeneration', resolved.provider.id) || 'unknown',
         agentId: 'pi-execution',
-        status: 'failed',
+        status: signal?.aborted ? 'cancelled' : 'failed',
         meteringSource: 'provider_reported',
         startedAt,
         completedAt: Date.now(),
@@ -528,11 +591,14 @@ export class PiExecutionService {
     }
   }
 
-  async generateImageArtifact(payload: ImageGenerationRequest): Promise<ImageGenerationResponse> {
-    return this.generateImage({
-      ...payload,
-      responseFormat: 'b64_json'
-    });
+  async generateImageArtifact(payload: ImageGenerationRequest, signal?: AbortSignal): Promise<ImageGenerationResponse> {
+    return this.generateImage(
+      {
+        ...payload,
+        responseFormat: 'b64_json'
+      },
+      signal
+    );
   }
 
   async editImage(payload: ImageEditRequest): Promise<ImageGenerationResponse> {
@@ -708,7 +774,7 @@ export class PiExecutionService {
         providerPresetId: resolved.model.presetId || providerPresetId,
         model: payload.model || getProviderDefinitionDefaultModel(resolved.provider.id, 'musicGeneration', resolved.provider.id) || 'unknown',
         agentId: 'pi-execution',
-        status: 'failed',
+        status: signal?.aborted ? 'cancelled' : 'failed',
         meteringSource: 'provider_reported',
         startedAt,
         completedAt: Date.now(),
@@ -1047,7 +1113,7 @@ export class PiExecutionService {
         providerPresetId: resolved.model.presetId || providerPresetId,
         model: payload.model || 'lyrics_generation',
         agentId: 'pi-execution',
-        status: 'failed',
+        status: signal?.aborted ? 'cancelled' : 'failed',
         meteringSource: 'provider_reported',
         startedAt,
         completedAt: Date.now(),

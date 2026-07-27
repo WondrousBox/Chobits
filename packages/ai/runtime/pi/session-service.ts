@@ -992,7 +992,7 @@ export class PiSessionService {
     };
   }
 
-  async chat(req: ChatRequest): Promise<ChatResponse> {
+  async chat(req: ChatRequest, signal?: AbortSignal): Promise<ChatResponse> {
     const preview = await this.preview(req);
     const codingWorkspaceMessage = getCodingWorkspaceRequiredMessage(preview.resolved);
     if (codingWorkspaceMessage) {
@@ -1008,7 +1008,7 @@ export class PiSessionService {
     const sessionPrompt = canUseCodingSession(effectiveResolved) ? splitSessionPrompt(context.messages) : undefined;
 
     if (sessionPrompt) {
-      const sessionResult = await this.chatWithCodingSession(effectiveResolved, model, context, skillRuntime);
+      const sessionResult = await this.chatWithCodingSession(effectiveResolved, model, context, skillRuntime, signal);
 
       if (sessionResult.response) {
         return sessionResult.response;
@@ -1030,13 +1030,13 @@ export class PiSessionService {
       source: 'pi-session',
       transport: 'pi-ai.completeSimple'
     });
-    const completion = ensurePiCompletion(await ai.completeSimple(model, context, buildSimpleOptions(effectiveResolved)));
+    const completion = ensurePiCompletion(await ai.completeSimple(model, context, buildSimpleOptions(effectiveResolved, signal)));
 
     return toChatResponse(completion, effectiveResolved);
   }
 
-  async chatEphemeral(req: ChatRequest): Promise<ChatResponse> {
-    return this.chat(req);
+  async chatEphemeral(req: ChatRequest, signal?: AbortSignal): Promise<ChatResponse> {
+    return this.chat(req, signal);
   }
 
   async chatStream(req: ChatRequest, emit: (event: StreamEvent) => void, signal?: AbortSignal): Promise<void> {
@@ -1513,7 +1513,8 @@ export class PiSessionService {
     resolved: ResolvedPiRequest,
     model: PiModel,
     context: PiContext,
-    skillRuntime?: PiSkillRuntimeContext
+    skillRuntime?: PiSkillRuntimeContext,
+    signal?: AbortSignal
   ): Promise<{ response?: ChatResponse; usedSession: boolean; error?: Error }> {
     const promptState = splitSessionPrompt(context.messages);
     if (!promptState) return { usedSession: false };
@@ -1548,6 +1549,10 @@ export class PiSessionService {
       toolContext
     });
 
+    const abortHandler = (): void => session.agent.abort();
+    if (signal?.aborted) abortHandler();
+    else signal?.addEventListener('abort', abortHandler, { once: true });
+
     try {
       replaceAgentMessages(session, promptState.history);
       inspectCodingSessionPrompt({
@@ -1574,6 +1579,7 @@ export class PiSessionService {
       console.error('[PiSessionService] Non-streaming coding session failed:', err);
       return { error: err, usedSession: true };
     } finally {
+      signal?.removeEventListener('abort', abortHandler);
       dispose();
     }
   }

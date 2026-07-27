@@ -71,6 +71,7 @@ export interface ExecuteWorkflowTextRequestOptions extends ProviderPresetFields 
   model?: string;
   onDelta?: (delta: string, accumulated: string) => void;
   providerId: string;
+  signal?: AbortSignal;
   temperature?: number;
   workflowAiUsage?: WorkflowAiUsageContext;
 }
@@ -82,22 +83,26 @@ export interface ExecuteWorkflowChatRequestOptions extends ProviderPresetFields 
   model?: string;
   onDelta?: (delta: string, accumulated: string) => void;
   providerId: string;
+  signal?: AbortSignal;
   temperature?: number;
   workflowAiUsage?: WorkflowAiUsageContext;
 }
 
 export interface ExecuteWorkflowImageGenerationRequestOptions extends ImageGenerationRequest {
   emit?: WorkflowEmit;
+  signal?: AbortSignal;
   workflowAiUsage?: WorkflowAiUsageContext;
 }
 
 export interface ExecuteWorkflowMusicGenerationRequestOptions extends MusicGenerationRequest {
   emit?: WorkflowEmit;
+  signal?: AbortSignal;
   workflowAiUsage?: WorkflowAiUsageContext;
 }
 
 export interface ExecuteWorkflowLyricsGenerationRequestOptions extends LyricsGenerationRequest {
   emit?: WorkflowEmit;
+  signal?: AbortSignal;
   workflowAiUsage?: WorkflowAiUsageContext;
 }
 
@@ -108,6 +113,7 @@ export interface WorkflowAiUsageContext {
   usageStage: WorkflowAiUsageStage;
   workflowId?: string;
   workflowName?: string;
+  workflowAttempt?: number;
   workflowNodeId?: string;
   workflowNodeLabel?: string;
   workflowNodeType?: string;
@@ -164,6 +170,7 @@ function buildWorkflowAnalyticsUsage(context?: WorkflowAiUsageContext): Record<s
     metadata: {
       workflowId: context.workflowId || null,
       workflowName: context.workflowName || null,
+      workflowAttempt: context.workflowAttempt || null,
       workflowNodeId: context.workflowNodeId || null,
       workflowNodeLabel: context.workflowNodeLabel || null,
       workflowNodeType: context.workflowNodeType || null,
@@ -184,7 +191,9 @@ function buildWorkflowRequestId(context?: WorkflowAiUsageContext): string | unde
     return undefined;
   }
 
-  const parts = [context.workflowRunId, context.workflowNodeId || context.workflowNodeType, context.operationKey].filter((part): part is string => typeof part === 'string' && part.trim().length > 0);
+  const parts = [context.workflowRunId, context.workflowNodeId || context.workflowNodeType, context.workflowAttempt ? `attempt-${context.workflowAttempt}` : undefined, context.operationKey].filter(
+    (part): part is string => typeof part === 'string' && part.trim().length > 0
+  );
 
   return parts.length ? parts.join(':') : undefined;
 }
@@ -214,11 +223,13 @@ function extractWorkflowRawUsage(response?: ChatResponse): unknown {
 }
 
 async function recordWorkflowUsageEventSafely(input: RecordAiUsageEventInput): Promise<void> {
-  await emitAiUsageObservedEvent(input, { producer: 'WorkflowAI' });
+  const workflowAttempt = input.metadata?.workflowAttempt;
+  const attemptIndex = typeof workflowAttempt === 'number' && Number.isInteger(workflowAttempt) && workflowAttempt > 0 ? workflowAttempt - 1 : undefined;
+  await emitAiUsageObservedEvent({ ...input, ...(input.attemptIndex === undefined && attemptIndex !== undefined ? { attemptIndex } : {}) }, { producer: 'WorkflowAI' });
 }
 
 export function buildWorkflowAiUsageContext(
-  ctx: Pick<ExecutionContext, 'workflowId' | 'workflowName' | 'workflowNodeId' | 'workflowNodeLabel' | 'workflowNodeType' | 'workflowRunId'>,
+  ctx: Pick<ExecutionContext, 'workflowId' | 'workflowName' | 'workflowNodeId' | 'workflowNodeLabel' | 'workflowNodeType' | 'workflowRunId' | 'workflowAttempt'>,
   defaults: {
     nodeLabel: string;
     nodeType: string;
@@ -231,6 +242,7 @@ export function buildWorkflowAiUsageContext(
     usageStage: defaults.usageStage,
     workflowId: ctx.workflowId,
     workflowName: ctx.workflowName,
+    workflowAttempt: ctx.workflowAttempt,
     workflowNodeId: ctx.workflowNodeId,
     workflowNodeLabel: ctx.workflowNodeLabel || defaults.nodeLabel,
     workflowNodeType: ctx.workflowNodeType || defaults.nodeType,
@@ -395,7 +407,7 @@ export async function executeWorkflowTextRequest(options: ExecuteWorkflowTextReq
 
 export async function executeWorkflowChatRequest(options: ExecuteWorkflowChatRequestOptions): Promise<{ runtime: 'legacy' | 'pi'; text: string }> {
   const normalizedOptions = normalizeProviderPreset(options);
-  const { emit, maxTokens, messages, model, onDelta, providerId, temperature, workflowAiUsage } = normalizedOptions;
+  const { emit, maxTokens, messages, model, onDelta, providerId, signal, temperature, workflowAiUsage } = normalizedOptions;
   const resolvedProviderPresetId = resolveProviderPresetId(normalizedOptions);
   const analyticsUsage = buildWorkflowAnalyticsUsage(workflowAiUsage);
   const requestId = buildWorkflowRequestId(workflowAiUsage);
@@ -417,7 +429,7 @@ export async function executeWorkflowChatRequest(options: ExecuteWorkflowChatReq
 
   if (availability.available) {
     try {
-      const text = onDelta ? await getPiExecutionService().streamText(request, onDelta) : await getPiExecutionService().completeText(request);
+      const text = onDelta ? await getPiExecutionService().streamText(request, onDelta, signal) : await getPiExecutionService().completeText(request, signal);
       return {
         runtime: 'pi',
         text
@@ -463,7 +475,8 @@ export async function executeWorkflowChatRequest(options: ExecuteWorkflowChatReq
               onDelta(event.data.text, accumulatedText);
             }
           }
-        : undefined
+        : undefined,
+      signal
     );
 
     if (workflowAiUsage) {
@@ -491,6 +504,7 @@ export async function executeWorkflowChatRequest(options: ExecuteWorkflowChatReq
           runtime: 'legacy',
           workflowId: workflowAiUsage.workflowId || null,
           workflowName: workflowAiUsage.workflowName || null,
+          workflowAttempt: workflowAiUsage.workflowAttempt || null,
           workflowNodeId: workflowAiUsage.workflowNodeId || null,
           workflowNodeLabel: workflowAiUsage.workflowNodeLabel || null,
           workflowNodeType: workflowAiUsage.workflowNodeType || null,
@@ -519,7 +533,7 @@ export async function executeWorkflowChatRequest(options: ExecuteWorkflowChatReq
         providerPresetId: resolvedProviderPresetId,
         model: model || 'unknown',
         agentId: 'workflow',
-        status: 'failed',
+        status: signal?.aborted ? 'cancelled' : 'failed',
         meteringSource: 'provider_reported',
         startedAt,
         completedAt: Date.now(),
@@ -528,6 +542,7 @@ export async function executeWorkflowChatRequest(options: ExecuteWorkflowChatReq
           runtime: 'legacy',
           workflowId: workflowAiUsage.workflowId || null,
           workflowName: workflowAiUsage.workflowName || null,
+          workflowAttempt: workflowAiUsage.workflowAttempt || null,
           workflowNodeId: workflowAiUsage.workflowNodeId || null,
           workflowNodeLabel: workflowAiUsage.workflowNodeLabel || null,
           workflowNodeType: workflowAiUsage.workflowNodeType || null,
@@ -542,7 +557,7 @@ export async function executeWorkflowChatRequest(options: ExecuteWorkflowChatReq
 
 export async function executeWorkflowImageGenerationRequest(options: ExecuteWorkflowImageGenerationRequestOptions): Promise<{ imageUrl: string }> {
   const normalizedOptions = normalizeProviderPreset(options);
-  const { emit, model, prompt, providerId, quality, size, workflowAiUsage } = normalizedOptions;
+  const { emit, model, prompt, providerId, quality, signal, size, workflowAiUsage } = normalizedOptions;
   const resolvedProviderPresetId = resolveProviderPresetId(normalizedOptions);
   const analyticsUsage = buildWorkflowAnalyticsUsage(workflowAiUsage);
   const requestId = buildWorkflowRequestId(workflowAiUsage);
@@ -560,7 +575,8 @@ export async function executeWorkflowImageGenerationRequest(options: ExecuteWork
         providerPresetId: resolvedProviderPresetId,
         quality,
         size
-      })
+      }),
+      signal
     );
   } catch (error) {
     if (isMissingWorkflowProviderConfigError(error)) {
@@ -573,7 +589,7 @@ export async function executeWorkflowImageGenerationRequest(options: ExecuteWork
 
 export async function executeWorkflowMusicGenerationRequest(options: ExecuteWorkflowMusicGenerationRequestOptions): Promise<MusicGenerationResponse> {
   const normalizedOptions = normalizeProviderPreset(options);
-  const { emit, model, prompt, providerId, workflowAiUsage } = normalizedOptions;
+  const { emit, model, prompt, providerId, signal, workflowAiUsage, ...requestOptions } = normalizedOptions;
   const resolvedProviderPresetId = resolveProviderPresetId(normalizedOptions);
   const analyticsUsage = buildWorkflowAnalyticsUsage(workflowAiUsage);
   const requestId = buildWorkflowRequestId(workflowAiUsage);
@@ -581,7 +597,7 @@ export async function executeWorkflowMusicGenerationRequest(options: ExecuteWork
   try {
     return await getPiExecutionService().generateMusic(
       normalizeProviderPreset({
-        ...normalizedOptions,
+        ...requestOptions,
         extras: {
           ...(normalizedOptions.extras || {}),
           ...(analyticsUsage ? { analyticsUsage } : {}),
@@ -591,7 +607,8 @@ export async function executeWorkflowMusicGenerationRequest(options: ExecuteWork
         prompt,
         providerId,
         providerPresetId: resolvedProviderPresetId
-      })
+      }),
+      signal
     );
   } catch (error) {
     if (isMissingWorkflowProviderConfigError(error)) {
@@ -604,7 +621,7 @@ export async function executeWorkflowMusicGenerationRequest(options: ExecuteWork
 
 export async function executeWorkflowLyricsGenerationRequest(options: ExecuteWorkflowLyricsGenerationRequestOptions): Promise<LyricsGenerationResponse> {
   const normalizedOptions = normalizeProviderPreset(options);
-  const { emit, lyrics, mode, prompt, providerId, workflowAiUsage } = normalizedOptions;
+  const { emit, lyrics, mode, prompt, providerId, signal, workflowAiUsage, ...requestOptions } = normalizedOptions;
   const resolvedProviderPresetId = resolveProviderPresetId(normalizedOptions);
   const analyticsUsage = buildWorkflowAnalyticsUsage(workflowAiUsage);
   const requestId = buildWorkflowRequestId(workflowAiUsage);
@@ -613,7 +630,7 @@ export async function executeWorkflowLyricsGenerationRequest(options: ExecuteWor
     return await getPiExecutionService().generateLyrics(
       normalizeProviderPreset({
         extras: {
-          ...(normalizedOptions.extras || {}),
+          ...(requestOptions.extras || {}),
           ...(analyticsUsage ? { analyticsUsage } : {}),
           ...(requestId ? { requestId } : {})
         },
@@ -622,7 +639,8 @@ export async function executeWorkflowLyricsGenerationRequest(options: ExecuteWor
         prompt,
         providerId,
         providerPresetId: resolvedProviderPresetId
-      })
+      }),
+      signal
     );
   } catch (error) {
     if (isMissingWorkflowProviderConfigError(error)) {
