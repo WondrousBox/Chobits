@@ -71,10 +71,19 @@
       "to": "./7zip/${platform}/${arch}"
     },
     {
-      "from": "resources/windows",
-      "to": "./windows"
+      "from": "resources/html",
+      "to": "./html"
     }
   ],
+  "linux": {
+    "artifactName": "${productName}_${version}_${platform}_${arch}.${ext}",
+    "target": [
+      "AppImage",
+      "deb"
+    ],
+    "category": "Utility",
+    "icon": "build/icons"
+  },
   "mac": {
     "artifactName": "${productName}_${version}_${platform}_${arch}.${ext}",
     "target": [

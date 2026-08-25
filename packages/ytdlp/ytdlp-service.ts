@@ -6,18 +6,18 @@ import { app } from 'electron';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 
-import { getResourcePath } from '../../electron/main/utils/resources-path';
 import { getHttpProxy } from '../../electron/main/handlers/proxy/proxy';
-
+import { getResourceBinaryName } from '../../electron/main/utils/os';
+import { getResourcePath } from '../../electron/main/utils/resources-path';
+import type { ICookieManager, YtDlpBinaryInfo, YtDlpConfig, YtDlpServiceOptions } from './types';
 import { YtDlpConfigStore } from './ytdlp-config-store';
 import { YtDlpExecutor, ytdlpExecutor } from './ytdlp-executor';
-import type { ICookieManager, YtDlpBinaryInfo, YtDlpConfig, YtDlpServiceOptions } from './types';
 
 /**
  * 获取默认的二进制文件名
  */
 function getDefaultBinaryName(): string {
-  return os.platform() === 'darwin' ? 'yt-dlp_macos' : 'yt-dlp.exe';
+  return getResourceBinaryName('yt-dlp');
 }
 
 /**
@@ -273,7 +273,11 @@ export class YtDlpService {
   async getVideoInfo(url: string, signal?: AbortSignal): Promise<any> {
     const baseArgs = [url, '--prefer-free-formats'];
     const args = await this.buildArgsAsync(baseArgs);
-    return this.executor.getVideoInfo(url, args.filter((a) => a !== url), signal);
+    return this.executor.getVideoInfo(
+      url,
+      args.filter((a) => a !== url),
+      signal
+    );
   }
 
   /**
@@ -285,7 +289,11 @@ export class YtDlpService {
       baseArgs.push('--playlist-end', String(options.limit));
     }
     const args = await this.buildArgsAsync(baseArgs);
-    return this.executor.getPlaylistInfo(url, args.filter((a) => a !== url), signal);
+    return this.executor.getPlaylistInfo(
+      url,
+      args.filter((a) => a !== url),
+      signal
+    );
   }
 }
 

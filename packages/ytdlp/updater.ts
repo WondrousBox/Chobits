@@ -1,13 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { app } from 'electron';
 import fetch from 'node-fetch';
 
 import { getHttpProxy } from '../../electron/main/handlers/proxy/proxy';
-
-import { ytdlpService } from './ytdlp-service';
 import type { YtDlpAsset, YtDlpDownloadProgress, YtDlpInstallResult, YtDlpReleaseInfo, YtDlpUpdateInfo } from './types';
+import { ytdlpService } from './ytdlp-service';
 
 /**
  * 获取最新的 release 信息
@@ -179,6 +177,21 @@ async function unzipFile(zipPath: string, destDir: string): Promise<void> {
 import os from 'node:os';
 
 /**
+ * yt-dlp GitHub release 中按平台发布的资产名
+ * （与本地存储文件名不同：linux 官方二进制叫 yt-dlp_linux）
+ */
+function getYtDlpAssetName(): string {
+  switch (os.platform()) {
+    case 'darwin':
+      return 'yt-dlp_macos';
+    case 'win32':
+      return 'yt-dlp.exe';
+    default:
+      return 'yt-dlp_linux';
+  }
+}
+
+/**
  * 下载并安装指定版本的 yt-dlp
  * @param release 要安装的 release 信息，如果不传则安装最新版本
  * @param onProgress 进度回调
@@ -189,14 +202,14 @@ export async function downloadAndInstallVersion(release?: YtDlpReleaseInfo, onPr
     release = await fetchLatestRelease();
   }
 
-  const binaryName = os.platform() === 'darwin' ? 'yt-dlp_macos' : 'yt-dlp.exe';
+  const assetName = getYtDlpAssetName();
   const isMacOS = os.platform() === 'darwin';
 
-  // macOS 优先查找 zip 文件，Windows 优先查找 exe 文件
-  const zipAssetName = `${binaryName}.zip`;
+  // macOS 优先查找 zip 文件，Windows / Linux 优先查找可执行文件
+  const zipAssetName = `${assetName}.zip`;
   const asset = isMacOS
-    ? release.assets.find((a) => a.name === zipAssetName) || release.assets.find((a) => a.name === binaryName)
-    : release.assets.find((a) => a.name === binaryName) || release.assets.find((a) => a.name === zipAssetName);
+    ? release.assets.find((a) => a.name === zipAssetName) || release.assets.find((a) => a.name === assetName)
+    : release.assets.find((a) => a.name === assetName) || release.assets.find((a) => a.name === zipAssetName);
 
   if (!asset) {
     throw new Error('未找到匹配平台的 yt-dlp 资产');
@@ -206,7 +219,7 @@ export async function downloadAndInstallVersion(release?: YtDlpReleaseInfo, onPr
 
   console.log('[yt-dlp] downloadAndInstallVersion', { version: release.tag_name, asset: asset.name });
 
-  // macOS 使用 zip 文件下载并解压，Windows 直接下载 exe
+  // macOS 优先使用 zip 下载并解压，Windows / Linux 优先直接下载可执行文件
   if (asset.name.endsWith('.zip')) {
     // 下载 zip 并解压
     const tmpZip = destPath + '.zip.downloading';
@@ -226,8 +239,8 @@ export async function downloadAndInstallVersion(release?: YtDlpReleaseInfo, onPr
 
       onProgress?.({ received: 0, status: 'installing', message: '正在安装...' });
 
-      // 递归查找二进制文件
-      const foundPath = findBinaryFile(tmpExtractDir, binaryName);
+      // 递归查找二进制文件（压缩包内的文件名与 release 资产名一致）
+      const foundPath = findBinaryFile(tmpExtractDir, assetName);
       if (!foundPath) {
         throw new Error('压缩包中未找到 yt-dlp 可执行文件');
       }
@@ -263,6 +276,19 @@ export async function downloadAndInstallVersion(release?: YtDlpReleaseInfo, onPr
 
       // 复制整个目录结构到目标目录
       await copyFolderRecursive(foundDir, destDir);
+
+      // 资产名与本地存储名可能不同（如 linux 的 yt-dlp_linux → yt-dlp），需要重命名
+      const copiedPath = path.join(destDir, path.basename(foundPath));
+      if (copiedPath !== destPath && fs.existsSync(copiedPath)) {
+        try {
+          if (fs.existsSync(destPath)) {
+            fs.unlinkSync(destPath);
+          }
+        } catch {
+          /* ignore */
+        }
+        fs.renameSync(copiedPath, destPath);
+      }
 
       // 清理临时文件和目录
       try {

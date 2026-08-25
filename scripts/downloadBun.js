@@ -32,6 +32,14 @@ const config = {
     extractFolder: 'bun-darwin-aarch64',
     nestedArchive: null,
     executable: 'bun'
+  },
+  'linux-x64': {
+    url: `https://github.com/oven-sh/bun/releases/download/${BUN_VERSION}/bun-linux-x64.zip`,
+    folder: 'resources/bun/linux/x64',
+    zipName: 'bun.zip',
+    extractFolder: 'bun-linux-x64',
+    nestedArchive: null,
+    executable: 'bun'
   }
 };
 
@@ -90,6 +98,25 @@ async function downloadFile(url, dest) {
 }
 
 async function extractZip(zipPath, targetDir) {
+  // Linux 下直接使用系统 unzip（项目内的 7za 只有 win/mac 版）
+  if (PLATFORM === 'linux') {
+    return new Promise((resolve, reject) => {
+      const child = spawn('unzip', ['-o', zipPath, '-d', targetDir], { stdio: 'inherit' });
+
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`unzip extraction failed with code ${code}`));
+        }
+      });
+
+      child.on('error', (err) => {
+        reject(err);
+      });
+    });
+  }
+
   const sevenZipPath = get7zPath();
 
   if (!fs.existsSync(sevenZipPath)) {

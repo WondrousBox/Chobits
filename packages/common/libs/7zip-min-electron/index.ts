@@ -4,11 +4,11 @@ import path from 'node:path';
 import { app } from 'electron';
 import os from 'os';
 
+import { getResourceBinaryName } from '../../../../electron/main/utils/os';
+
 const path7za = path.resolve(
   app.getAppPath(),
-  app.isPackaged
-    ? `../7zip/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? '7za' : '7za.exe'}`
-    : `./resources/7zip/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? '7za' : '7za.exe'}`
+  app.isPackaged ? `../7zip/${os.platform()}/${os.arch()}/${getResourceBinaryName('7za')}` : `./resources/7zip/${os.platform()}/${os.arch()}/${getResourceBinaryName('7za')}`
 );
 
 type CallbackFn = (err: Error | null, result?: any) => void;
