@@ -91,6 +91,14 @@ export default defineConfig(({ command }) => {
           port: +url.port
         };
       })(),
-    clearScreen: false
+    clearScreen: false,
+    css: {
+      preprocessorOptions: {
+        scss: {
+          // 使用 Sass 现代编译器 API，消除 legacy-js-api 弃用警告
+          api: 'modern-compiler'
+        }
+      }
+    }
   };
 });

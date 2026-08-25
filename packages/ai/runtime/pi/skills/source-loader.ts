@@ -31,7 +31,8 @@ type SkillFileCandidate = {
 }
 
 export function resolveDefaultBundledSkillRoot(): string {
-  return fileURLToPath(new URL('./bundled', import.meta.url))
+  // bundled 目录当前为空占位，路径在运行时解析；抑制 vite 的构建期检查警告
+  return fileURLToPath(new URL(/* @vite-ignore */ './bundled', import.meta.url))
 }
 
 export async function collectProjectSkillRoots(workspaceRoot: string): Promise<string[]> {
