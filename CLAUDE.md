@@ -1,9 +1,3 @@
-## shadcn 组件使用规范
+# CLAUDE.md
 
-- Button组件内图标不设置 w-、 h-、mr-、ml- 这几类样式，Button会自动处理
-- 我说把Button中的文本去掉保留单个图标时，就把这个文本改成tooltip展示方式
-- 原本sizes="sm"的按钮如果改成只有图标，那Button的className要加 w-8 h-8
-
-## 数据库
-
-数据库的表字段变更升级都要优先走schema定义，再走db:generate才行
+本文件已合并到 [AGENTS.md](./AGENTS.md)，请以此为准。

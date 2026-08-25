@@ -3,31 +3,23 @@ import os from 'node:os';
 import { app } from 'electron';
 
 import { getRealPath } from '.';
+import { getResourceBinaryName } from './os';
 
 export function getResourcePath(
-  binName: 'ffmpeg' | 'recorder' | 'sherpa' | 'ffprobe' | 'yt-dlp' | 'sprites' | 'resources' | 'plugins' | 'providers' | 'logs' | 'workflows' | 'bun' | 'windows'
+  binName: 'ffmpeg' | 'recorder' | 'sherpa' | 'ffprobe' | 'yt-dlp' | 'sprites' | 'resources' | 'plugins' | 'providers' | 'logs' | 'workflows' | 'bun' | 'html'
 ): string | undefined {
+  const platform = os.platform();
+  const arch = os.arch();
+
   switch (binName) {
     case 'ffmpeg':
-      return getRealPath(
-        `../ffmpeg/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? 'ffmpeg' : 'ffmpeg.exe'}`,
-        `./resources/ffmpeg/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? 'ffmpeg' : 'ffmpeg.exe'}`
-      );
+      return getRealPath(`../ffmpeg/${platform}/${arch}/${getResourceBinaryName('ffmpeg')}`, `./resources/ffmpeg/${platform}/${arch}/${getResourceBinaryName('ffmpeg')}`);
     case 'ffprobe':
-      return getRealPath(
-        `../ffmpeg/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? 'ffprobe' : 'ffprobe.exe'}`,
-        `./resources/ffmpeg/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? 'ffprobe' : 'ffprobe.exe'}`
-      );
+      return getRealPath(`../ffmpeg/${platform}/${arch}/${getResourceBinaryName('ffprobe')}`, `./resources/ffmpeg/${platform}/${arch}/${getResourceBinaryName('ffprobe')}`);
     case 'yt-dlp':
-      return getRealPath(
-        `../yt-dlp/${os.platform()}/${os.platform() === 'darwin' ? 'yt-dlp_macos' : 'yt-dlp.exe'}`,
-        `./resources/yt-dlp/${os.platform()}/${os.platform() === 'darwin' ? 'yt-dlp_macos' : 'yt-dlp.exe'}`
-      );
+      return getRealPath(`../yt-dlp/${platform}/${getResourceBinaryName('yt-dlp')}`, `./resources/yt-dlp/${platform}/${getResourceBinaryName('yt-dlp')}`);
     case 'bun':
-      return getRealPath(
-        `../bun/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? 'bun' : 'bun.exe'}`,
-        `./resources/bun/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? 'bun' : 'bun.exe'}`
-      );
+      return getRealPath(`../bun/${platform}/${arch}/${getResourceBinaryName('bun')}`, `./resources/bun/${platform}/${arch}/${getResourceBinaryName('bun')}`);
     case 'sherpa':
       return getRealPath(`../sherpa`, `./resources/sherpa`);
     case 'resources':
@@ -42,17 +34,11 @@ export function getResourcePath(
       return getRealPath(`../workflows/preset.json`, `./resources/workflows/preset.json`);
     case 'logs':
       return app.getPath('logs');
-    case 'windows':
-      return getRealPath(`../windows`, `./resources/windows`);
+    case 'html':
+      return getRealPath(`../html`, `./resources/html`);
     case 'recorder':
-      return getRealPath(
-        `../recorder/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? 'recorder' : 'recorder.exe'}`,
-        `./resources/recorder/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? 'recorder' : 'recorder.exe'}`
-      );
+      return getRealPath(`../recorder/${platform}/${arch}/${getResourceBinaryName('recorder')}`, `./resources/recorder/${platform}/${arch}/${getResourceBinaryName('recorder')}`);
     default:
-      return getRealPath(
-        `../ffmpeg/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? 'ffmpeg' : 'ffmpeg.exe'}`,
-        `./resources/ffmpeg/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? 'ffmpeg' : 'ffmpeg.exe'}`
-      );
+      return getRealPath(`../ffmpeg/${platform}/${arch}/${getResourceBinaryName('ffmpeg')}`, `./resources/ffmpeg/${platform}/${arch}/${getResourceBinaryName('ffmpeg')}`);
   }
 }

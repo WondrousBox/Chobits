@@ -75,8 +75,8 @@ function updateSplashLog(text: string): void {
 
 function createSplashWindow(): Promise<void> {
   return new Promise((resolve) => {
-    const windowsDir = getResourcePath('windows');
-    const splashHtml = path.join(windowsDir!, 'splash.html');
+    const htmlDir = getResourcePath('html');
+    const splashHtml = path.join(htmlDir!, 'splash.html');
 
     splashWin = new BrowserWindow({
       width: 480,
