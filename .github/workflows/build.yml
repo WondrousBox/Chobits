@@ -43,6 +43,18 @@ jobs:
           # CPU 版二进制已随 npm 包内置，跳过即可
           ONNXRUNTIME_NODE_INSTALL: skip
 
+      - name: Download Platform Resources (Linux)
+        if: runner.os == 'Linux'
+        run: pnpm run download-linux-resources && pnpm run download-bun-linux-x64
+
+      - name: Download Platform Resources (macOS)
+        if: runner.os == 'macOS'
+        run: pnpm run download-ffmpeg-darwin-arm64 && pnpm run download-ytdlp-darwin && pnpm run download-bun-darwin-arm64
+
+      - name: Download Platform Resources (Windows)
+        if: runner.os == 'Windows'
+        run: pnpm run download-ffmpeg-win32-x64 && pnpm run download-ytdlp-win32 && pnpm run download-bun-win32-x64
+
       - name: Build Release Files
         run: pnpm run build
         env:
