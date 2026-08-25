@@ -37,6 +37,11 @@
     "db:studio": "drizzle-kit studio",
     "check:permissions": "node scripts/check-permissions.mjs"
   },
+  "pnpm": {
+    "overrides": {
+      "@huggingface/transformers>onnxruntime-node": "$onnxruntime-node"
+    }
+  },
   "dependencies": {
     "@earendil-works/pi-agent-core": "^0.80.2",
     "@earendil-works/pi-ai": "^0.80.2",
