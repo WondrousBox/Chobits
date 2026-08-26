@@ -1,11 +1,13 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import { platform } from 'node:os';
 import path from 'node:path';
 
 import { writeFile, writeLocalJSON } from '@aim-packages/file-utils';
 import { filter, parser, tools } from '@aim-packages/subtitle';
 import ffmpeg from 'fluent-ffmpeg';
 
+import { pluginResourceManager } from '../../plugins';
 import { NodeHandler } from '../types';
 
 // Parakeet 模型定义
@@ -208,8 +210,6 @@ async function transcodeAudio(filePath: string, outputDir: string): Promise<stri
 
 // 运行 Parakeet CLI
 async function runParakeet(args: string[], onProgress?: (progress: number, message: string) => void): Promise<void> {
-  const { pluginResourceManager } = await import('../../plugins');
-  const { platform } = await import('node:os');
   const binaryName = platform() === 'win32' ? 'parakeet.exe' : 'parakeet';
   const cliPath = pluginResourceManager.getEnginePath('plugin:parakeet', binaryName);
 
@@ -388,7 +388,6 @@ export const TranscribeParakeetNode: NodeHandler = {
     if (!modelId) {
       throw new Error('请选择转录模型');
     }
-    const { pluginResourceManager } = await import('../../plugins');
     const modelDir = pluginResourceManager.getModelPath('plugin:parakeet', modelId);
 
     if (!fs.existsSync(modelDir)) {

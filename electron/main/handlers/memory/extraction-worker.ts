@@ -13,9 +13,11 @@ import type { RecordAiUsageEventInput } from '../../../../packages/ai/analytics/
 import { createPiTaskChatRuntimeFromRequest, type PiTaskChatFunction } from '../../../../packages/ai/runtime/pi/task-chat';
 import { buildNonReasoningTaskRuntimeRequest, resolveNonReasoningTaskModel } from '../../../../packages/ai/runtime/pi/task-model-policy';
 import { buildTopicCanonicalizer, buildWriteDbOps } from '../../../../packages/ai/runtime/pi/tools/memory-db-deps';
+import { generateDailyIndex } from '../../../../packages/ai/services/memory-content-gen';
 import { formatMemoryDate, getNextMemoryDate, getRelativeMemoryDate, getTodayMemoryDate } from '../../../../packages/ai/services/memory-date';
 import { runExtractionPipeline } from '../../../../packages/ai/services/memory-extraction-service';
 import { parseFrontmatter } from '../../../../packages/ai/services/memory-note-parser';
+import { buildNotePath } from '../../../../packages/ai/services/memory-note-writer';
 import { backfillRecallCues, findRecallCueBackfillCandidates, type RecallCueBackfillNoteRow } from '../../../../packages/ai/services/memory-recall-cue-backfill';
 import { logMemoryTrace, shortTraceId } from '../../../../packages/ai/services/memory-trace';
 import type { AgentLoopCompletePayload, ExtractionResult, MemoryChatFn, MemoryChatInvocation, MemoryNoteFrontmatter, MemoryUsageEvent } from '../../../../packages/ai/services/memory-types';
@@ -238,7 +240,6 @@ async function findExistingNote(date: string, topicSlug: string, workspaceId: st
   // 策略 2（回退）：通过构造的 filePath 直接查找
   // 解决 LLM 生成拼音 slug 而 DB 中存储中文 topic label 导致 slugify 不匹配的问题
   if (!matchingNote) {
-    const { buildNotePath } = await import('../../../../packages/ai/services/memory-note-writer');
     const expectedFilePath = buildNotePath(date, topicSlug);
     matchingNote = await MemoryNoteRepo.getByFilePath(expectedFilePath, workspaceId);
     if (matchingNote) {
@@ -1145,7 +1146,6 @@ export async function memoryDailyMaintenanceTick(): Promise<void> {
   // 生成昨日的 daily index（如果有笔记的话）
   try {
     const yesterday = getRelativeMemoryDate(-1);
-    const { generateDailyIndex } = await import('../../../../packages/ai/services/memory-content-gen');
     const ws = await WorkspacesRepo.getDefault();
     if (ws?.rootPath) {
       await syncSpritePurposeRetrospectiveToMemory({ date: yesterday, workspaceId: ws.id }).catch((error) => {

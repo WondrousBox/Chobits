@@ -1,5 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
 
+vi.mock('@aim-packages/window-manager', () => ({
+  windowManager: {
+    createOrShow: vi.fn(),
+    get: vi.fn()
+  }
+}));
+
+vi.mock('../../electron/main/handlers/window-events', () => ({
+  attachAppWindowClosedReporter: vi.fn(),
+  emitAppWindowOpened: vi.fn(),
+  rememberWindowPayload: vi.fn()
+}));
+
 import { INITIAL_ACTIVE_SESSION_TOOL_IDS, listPiToolDescriptors, resolvePiToolId } from '../../packages/ai/runtime/pi/tool-registry';
 import { searchToolbox } from '../../packages/ai/runtime/pi/toolbox';
 import { createPiAppWindowTool } from '../../packages/ai/runtime/pi/tools/app-window';

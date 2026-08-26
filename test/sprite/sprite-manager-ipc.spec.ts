@@ -40,6 +40,13 @@ vi.mock('electron', () => ({
   }
 }));
 
+vi.mock('@aim-packages/window-manager', () => ({
+  windowManager: {
+    get: () => null,
+    hide: vi.fn(async () => undefined)
+  }
+}));
+
 const listSpritesMock = vi.fn();
 const getDefaultSpritesDirMock = vi.fn(async () => '/tmp/test-sprites');
 const setSpriteAssetsChangeHandlerMock = vi.fn();

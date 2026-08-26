@@ -36,6 +36,8 @@ import { randomUUID } from 'node:crypto';
 
 import { app, BrowserWindow, ipcMain, screen } from 'electron';
 
+import { windowManager } from '@aim-packages/window-manager';
+
 import { getDailyCareService } from '../../../electron/main/daily';
 import type { DailyCareRoutineDispatch } from '../../../electron/main/daily/types';
 import { isFeatureEnabled } from '../../../electron/main/feature-flags';
@@ -184,12 +186,7 @@ function syncSpriteBubbleWindows(windowManager: SpriteBubbleWindowManager | null
 }
 
 async function resolveSpriteBubbleWindowManager(): Promise<SpriteBubbleWindowManager | null> {
-  try {
-    const mod = await import('@aim-packages/window-manager');
-    return mod.windowManager as unknown as SpriteBubbleWindowManager;
-  } catch {
-    return null;
-  }
+  return windowManager as unknown as SpriteBubbleWindowManager;
 }
 
 export function buildDailyCarePurposeRequest(event: DailyCareRoutineDispatch): StartSpritePurposeRequest {

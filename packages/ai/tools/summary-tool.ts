@@ -6,6 +6,7 @@
 
 import { z } from 'zod';
 
+import { executeSummarize } from '../ipc-handler-helpers';
 import { normalizeProviderPreset, resolveProviderPresetId } from '../provider-preset';
 import { createTool } from './tool-definition';
 
@@ -102,9 +103,6 @@ export const createSummaryTool = (bindings?: { runtime?: SummaryToolRuntimeBindi
           languageNames,
           options
         });
-
-        // 导入并调用 executeSummarize
-        const { executeSummarize } = await import('../ipc-handler-helpers');
 
         // 调用总结任务（不等待结果）
         executeSummarize(payload).catch((error) => {

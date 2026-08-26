@@ -22,7 +22,7 @@ import {
   normalizeCharacterGalleryItemId,
   normalizeCharacterGalleryItemPatch
 } from './character-gallery';
-import { type CharacterPackSource, getActiveCharacterPack } from './character-pack-manager';
+import { type CharacterPackSource, getActiveCharacterPack, listCharacterPacks } from './character-pack-manager';
 import { isResolvedPathContainedByRoot, resolvePackRelativeAssetPath } from './character-pack-paths';
 
 export interface CharacterGalleryListResult {
@@ -131,7 +131,7 @@ async function getTargetPack(options?: { packId?: string; source?: CharacterPack
     return getActiveCharacterPack();
   }
 
-  const packs = await import('./character-pack-manager').then((mod) => mod.listCharacterPacks());
+  const packs = await listCharacterPacks();
   const packId = options.packId.trim();
   return (
     packs.find((pack) => pack.id === packId && (!options.source || pack.source === options.source)) ??

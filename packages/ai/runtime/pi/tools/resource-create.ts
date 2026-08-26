@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { Type, type Static } from 'typebox';
 
+import { addResource, FoldersRepo } from '../../../../common/db';
 import type { ChatCardType } from '../../../types';
 import { resolveGuardedToolExecution } from '../skills';
 import type { PiSessionToolContext } from '../tool-context';
@@ -66,7 +67,6 @@ export interface ResourceCreateToolBindings {
 }
 
 async function getDefaultResourceCreator(): Promise<ResourceCreator> {
-  const { addResource } = await import('../../../../common/db');
   return async (resource) => addResource({ resource } as any) as any;
 }
 
@@ -150,7 +150,6 @@ async function resolveWorkspaceId(toolContext: PiSessionToolContext, explicitWor
   }
 
   if (folderId) {
-    const { FoldersRepo } = await import('../../../../common/db');
     const folder = await FoldersRepo.getById(folderId);
     if (folder?.workspaceId) {
       return folder.workspaceId;

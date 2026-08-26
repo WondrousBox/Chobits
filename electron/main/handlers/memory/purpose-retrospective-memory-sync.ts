@@ -1,7 +1,10 @@
+import { buildWriteDbOps } from '../../../../packages/ai/runtime/pi/tools/memory-db-deps';
 import { writeMemory as defaultWriteMemory, type WriteDbOps } from '../../../../packages/ai/services/memory-extraction-service';
 import { buildNotePath, generateNoteId as defaultGenerateNoteId } from '../../../../packages/ai/services/memory-note-writer';
 import { normalizeRecallCueSection } from '../../../../packages/ai/services/memory-recall-cue-utils';
 import type { MemoryNoteFrontmatter, MergedNote, WriteStats } from '../../../../packages/ai/services/memory-types';
+import { MemoryNoteRepo } from '../../db/memory-repositories';
+import { WorkspacesRepo } from '../../db/repositories';
 
 const TOPIC_LABEL = 'Sprite Purpose Retrospective';
 const TOPIC_SLUG = 'sprite-purpose-retrospective';
@@ -183,12 +186,6 @@ export async function syncSpritePurposeRetrospectiveToMemory(
 }
 
 async function createDefaultDeps(): Promise<PurposeRetrospectiveMemorySyncDeps> {
-  const [{ buildWriteDbOps }, { MemoryNoteRepo }, { WorkspacesRepo }] = await Promise.all([
-    import('../../../../packages/ai/runtime/pi/tools/memory-db-deps'),
-    import('../../db/memory-repositories'),
-    import('../../db/repositories')
-  ]);
-
   return {
     dbOps: buildWriteDbOps(),
     getExistingNoteByFilePath: (filePath, workspaceId) => MemoryNoteRepo.getByFilePath(filePath, workspaceId),

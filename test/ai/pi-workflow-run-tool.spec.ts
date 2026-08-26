@@ -14,6 +14,12 @@ vi.mock('../../packages/ai/runtime/pi/skills', () => ({
   resolveGuardedToolExecution: vi.fn()
 }));
 
+vi.mock('../../packages/common/db', () => ({
+  WorkspacesRepo: {
+    getDefault: vi.fn()
+  }
+}));
+
 import { createPiWorkflowRunTool } from '../../packages/ai/runtime/pi/tools/workflow-run';
 
 describe('workflowRunTool resource outputs', () => {

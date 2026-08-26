@@ -6,6 +6,8 @@
 
 import { ipcMain } from 'electron';
 
+import { clearRecallCache } from '../../../../packages/ai/services/memory-auto-recall';
+import { generateAllTopicArchives, generateDailyIndex, generateMemoryIndex } from '../../../../packages/ai/services/memory-content-gen';
 import * as retrieval from '../../../../packages/ai/services/memory-retrieval-service';
 import { MemoryFTSRepo } from '../../db/memory-fts-repo';
 import { MemoryEdgeRepo, MemoryKeywordRepo, MemoryNoteKeywordRepo, MemoryNoteRepo, MemorySectionRepo, MemorySyncJobRepo, MemoryTopicRepo } from '../../db/memory-repositories';
@@ -14,6 +16,9 @@ import { memoryExtractionQueue } from './extraction-queue';
 import { initMemoryExtractionWorker } from './extraction-worker';
 import { initMemoryAutoRecallEnricher } from './memory-auto-recall-enricher';
 import { cleanupMemoryForConversations, clearAllMemory } from './memory-cleanup';
+import { getMemoryConfig, setMemoryConfig } from './memory-config';
+import { validateMemoryIndex } from './memory-index-audit';
+import { syncSpritePurposeRetrospectiveToMemory } from './purpose-retrospective-memory-sync';
 import { buildRetrievalDbDeps } from './retrieval-db-deps';
 
 // ━━ DB Deps Adapter ━━
@@ -259,7 +264,6 @@ export function initMemoryHandlers(): void {
 
   ipcMain.handle('memory:validateIndex', async (_event, params?: { workspaceId?: string; issueLimit?: number }) => {
     try {
-      const { validateMemoryIndex } = await import('./memory-index-audit');
       const wsId = params?.workspaceId || (await WorkspacesRepo.getDefault())?.id;
       if (!wsId) return { ok: false, error: 'no workspace' };
       const report = await validateMemoryIndex(wsId, { issueLimit: params?.issueLimit });
@@ -393,7 +397,6 @@ export function initMemoryHandlers(): void {
 
   ipcMain.handle('memory:clearRecallCache', async (_event, conversationId?: string) => {
     try {
-      const { clearRecallCache } = await import('../../../../packages/ai/services/memory-auto-recall');
       clearRecallCache(conversationId);
       return { success: true };
     } catch (e: any) {
@@ -406,7 +409,6 @@ export function initMemoryHandlers(): void {
 
   ipcMain.handle('memory:getConfig', async () => {
     try {
-      const { getMemoryConfig } = await import('./memory-config');
       return { ok: true, config: getMemoryConfig() };
     } catch (e: any) {
       console.error('[Memory] getConfig failed:', e);
@@ -416,7 +418,6 @@ export function initMemoryHandlers(): void {
 
   ipcMain.handle('memory:setConfig', async (_event, patch: Record<string, unknown>) => {
     try {
-      const { setMemoryConfig } = await import('./memory-config');
       const config = setMemoryConfig(patch as any);
       return { ok: true, config };
     } catch (e: any) {
@@ -436,12 +437,10 @@ export function initMemoryHandlers(): void {
 
   ipcMain.handle('memory:generateDailyIndex', async (_event, params: { date: string; workspaceId?: string }) => {
     try {
-      const { generateDailyIndex } = await import('../../../../packages/ai/services/memory-content-gen');
       const wsId = params.workspaceId || (await WorkspacesRepo.getDefault())?.id;
       if (!wsId) return { ok: false, error: 'no workspace' };
       const ws = await WorkspacesRepo.getById(wsId);
       if (!ws?.rootPath) return { ok: false, error: 'workspace has no root path' };
-      const { syncSpritePurposeRetrospectiveToMemory } = await import('./purpose-retrospective-memory-sync');
       await syncSpritePurposeRetrospectiveToMemory({ date: params.date, workspaceId: wsId }).catch((error) => {
         console.warn('[Memory] sprite purpose retrospective sync before daily index failed:', error);
       });
@@ -455,7 +454,6 @@ export function initMemoryHandlers(): void {
 
   ipcMain.handle('memory:generateTopicArchives', async (_event, params?: { workspaceId?: string }) => {
     try {
-      const { generateAllTopicArchives } = await import('../../../../packages/ai/services/memory-content-gen');
       const wsId = params?.workspaceId || (await WorkspacesRepo.getDefault())?.id;
       if (!wsId) return { ok: false, error: 'no workspace' };
       const ws = await WorkspacesRepo.getById(wsId);
@@ -470,12 +468,10 @@ export function initMemoryHandlers(): void {
 
   ipcMain.handle('memory:generateMemoryIndex', async (_event, params?: { workspaceId?: string }) => {
     try {
-      const { generateMemoryIndex } = await import('../../../../packages/ai/services/memory-content-gen');
       const wsId = params?.workspaceId || (await WorkspacesRepo.getDefault())?.id;
       if (!wsId) return { ok: false, error: 'no workspace' };
       const ws = await WorkspacesRepo.getById(wsId);
       if (!ws?.rootPath) return { ok: false, error: 'workspace has no root path' };
-      const { syncSpritePurposeRetrospectiveToMemory } = await import('./purpose-retrospective-memory-sync');
       await syncSpritePurposeRetrospectiveToMemory({ workspaceId: wsId }).catch((error) => {
         console.warn('[Memory] sprite purpose retrospective sync before memory index failed:', error);
       });

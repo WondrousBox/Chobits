@@ -4,6 +4,13 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('../../packages/common/db', () => ({
+  addResource: vi.fn(),
+  FoldersRepo: {
+    getById: vi.fn()
+  }
+}));
+
 import { listPiToolDescriptors, resolvePiToolId } from '../../packages/ai/runtime/pi/tool-registry';
 import { searchToolbox } from '../../packages/ai/runtime/pi/toolbox';
 import { createPiResourceCreateTool } from '../../packages/ai/runtime/pi/tools/resource-create';

@@ -1,5 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
 
+vi.mock('../../packages/ai/runtime/pi/tools/memory-db-deps', () => ({
+  buildWriteDbOps: vi.fn()
+}));
+
+vi.mock('../../electron/main/db/memory-repositories', () => ({
+  MemoryNoteRepo: {
+    getByFilePath: vi.fn()
+  }
+}));
+
+vi.mock('../../electron/main/db/repositories', () => ({
+  WorkspacesRepo: {
+    getById: vi.fn(),
+    getDefault: vi.fn()
+  }
+}));
+
 import { syncSpritePurposeRetrospectiveToMemory, type PurposeDailyRetrospective, type PurposeRetrospectiveMemorySyncDeps } from '../../electron/main/handlers/memory/purpose-retrospective-memory-sync';
 
 function createRetrospective(overrides: Partial<PurposeDailyRetrospective> = {}): PurposeDailyRetrospective {

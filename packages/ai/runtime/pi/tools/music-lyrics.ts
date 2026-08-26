@@ -4,6 +4,7 @@ import { type Static, Type } from 'typebox';
 import { normalizeProviderPreset } from '../../../provider-preset';
 import { getProviderDefinition, supportsProviderCapability, toCanonicalProviderId } from '../../../providers/service';
 import type { LyricsGenerationMode, LyricsGenerationRequest, LyricsGenerationResponse } from '../../../types';
+import { PiExecutionService } from '../execution-service';
 import { resolveGuardedToolExecution } from '../skills';
 import type { PiSessionToolContext } from '../tool-context';
 import { createResourceRecord, type ResourceCreateToolBindings } from './resource-create';
@@ -17,7 +18,6 @@ let defaultExecutionService: LyricsGenerationExecutor | undefined;
 
 async function getDefaultExecutionService(): Promise<LyricsGenerationExecutor> {
   if (!defaultExecutionService) {
-    const { PiExecutionService } = await import('../execution-service');
     defaultExecutionService = new PiExecutionService();
   }
 

@@ -15,7 +15,7 @@ import { createHash } from 'node:crypto';
 
 import { emitAiUsageObservedEvent } from '../../../../packages/ai/analytics/events';
 import type { RecordAiUsageEventInput } from '../../../../packages/ai/analytics/types';
-import type { PiTaskChatFunction } from '../../../../packages/ai/runtime/pi/task-chat';
+import { createPiTaskChatRuntimeFromRequest, type PiTaskChatFunction } from '../../../../packages/ai/runtime/pi/task-chat';
 import { buildNonReasoningTaskRuntimeRequest, resolveNonReasoningTaskModel } from '../../../../packages/ai/runtime/pi/task-model-policy';
 import { type AutoRecallDeps, getActivePrefetch, performAutoRecall, registerPrefetch } from '../../../../packages/ai/services/memory-auto-recall';
 import type { RetrievalDbDeps } from '../../../../packages/ai/services/memory-retrieval-service';
@@ -24,6 +24,7 @@ import type { MemoryChatFn, MemoryChatInvocation, MemoryUsageEvent } from '../..
 import { registerSystemPromptEnricher } from '../../../../packages/ai/system-prompt-enricher';
 import type { ChatRequest, TokenUsage } from '../../../../packages/ai/types';
 import { ChatRepo, WorkspacesRepo } from '../../db/repositories';
+import { getMemoryConfig } from './memory-config';
 
 const TAG = '[MemoryAutoRecall:Enricher] 🧠🔍';
 
@@ -230,7 +231,6 @@ async function getOrCreateChatFn(providerId: string, providerPresetId?: string):
   }
 
   try {
-    const { createPiTaskChatRuntimeFromRequest } = await import('../../../../packages/ai/runtime/pi/task-chat');
     const fastModel = resolveNonReasoningTaskModel(providerId);
 
     const runtime = await createPiTaskChatRuntimeFromRequest(
@@ -390,7 +390,6 @@ export function initMemoryAutoRecallEnricher(db: RetrievalDbDeps): void {
 
       // 检查记忆系统配置
       try {
-        const { getMemoryConfig } = await import('./memory-config');
         const cfg = getMemoryConfig();
         if (!cfg.memoryEnabled || !cfg.autoRecallEnabled) {
           console.log(`${TAG} [resolve] Skipped: memoryEnabled=${cfg.memoryEnabled}, autoRecallEnabled=${cfg.autoRecallEnabled}`);

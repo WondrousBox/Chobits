@@ -50,6 +50,10 @@ vi.mock('../../packages/ai/system-prompt-enricher', () => ({
   resolveSystemPromptEnrichments: vi.fn().mockResolvedValue([])
 }));
 
+vi.mock('../../packages/ai/runtime/pi/tools/emoji-packs', () => ({
+  createPiEmojiSendTool: vi.fn()
+}));
+
 import { PiSessionService } from '../../packages/ai/runtime/pi/session-service';
 
 describe('PiSessionService coder workspace guard', () => {

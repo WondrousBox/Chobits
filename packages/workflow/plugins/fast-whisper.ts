@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { platform } from 'node:os';
 
+import { PluginResourceStore } from '../../plugins/plugin-resource-store';
 import type { MissingModel, Plugin } from '../types';
 
 export const FastWhisperPlugin: Plugin = {
@@ -40,7 +41,6 @@ export const FastWhisperPlugin: Plugin = {
       const modelPath = ctx.pluginResourceManager.getModelPath(pluginId, modelName);
       if (!fs.existsSync(modelPath)) {
         // 尝试从已安装的资源中查找模型资源ID
-        const { PluginResourceStore } = await import('../../plugins/plugin-resource-store');
         const installedModels = PluginResourceStore.listByType(pluginId, 'model');
         const modelResource = installedModels.find((r) => r.name === modelName);
 

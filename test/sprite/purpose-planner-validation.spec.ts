@@ -4,6 +4,10 @@ import path from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
+vi.mock('../../packages/ai/runtime/pi/task-chat', () => ({
+  createPiTaskChatRuntimeFromRequest: vi.fn()
+}));
+
 import { SpritePurposePlannerPreferencesStore } from '../../electron/main/handlers/sprite/purpose-planner-preferences';
 import { buildSpritePurposePlannerPrompt, createSpritePurposePiPlannerExecutor, parseSpritePurposePlannerOutput } from '../../electron/main/handlers/sprite/purpose-planner-runtime';
 import { createSpritePurposeRoutinePlanner, SpritePurposePlannerService } from '../../electron/main/handlers/sprite/purpose-planner-service';

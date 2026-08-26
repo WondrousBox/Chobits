@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -158,8 +159,6 @@ async function copyFolderRecursive(src: string, dest: string): Promise<void> {
  */
 async function unzipFile(zipPath: string, destDir: string): Promise<void> {
   // 使用 adm-zip 或者系统命令解压
-  const { execSync } = await import('child_process');
-
   if (os.platform() === 'darwin') {
     // macOS 使用 unzip 命令
     execSync(`unzip -o "${zipPath}" -d "${destDir}"`, { stdio: 'pipe' });

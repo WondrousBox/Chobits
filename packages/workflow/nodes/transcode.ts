@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import ffmpeg from 'fluent-ffmpeg';
 
+import { getTaskOutputPath } from '../task-results';
 import { NodeHandler } from '../types';
 
 // 音频格式列表
@@ -157,7 +158,6 @@ export const TranscodeNode: NodeHandler = {
     const qualitySettings = getQualitySettings(quality, fmt, isAudio);
 
     // 使用新的存储结构：在同级目录下的 transcode 文件夹
-    const { getTaskOutputPath } = await import('../task-results');
     const { name } = path.parse(src);
     const fileName = `${name}.${fmt}`;
     const out = await getTaskOutputPath(src, 'transcode', fileName);

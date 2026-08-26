@@ -1,6 +1,7 @@
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
 
+import { WorkspacesRepo } from '../../../../common/db';
 import { getWorkflow, listAllWorkflowDefinitions, startWorkflow } from '../../../../workflow';
 import type { NodeRunState, WorkflowDefinition, WorkflowRunRecord } from '../../../../workflow/types';
 import { resolveGuardedToolExecution } from '../skills';
@@ -26,7 +27,6 @@ async function resolveWorkflowMetadata(toolContext: PiSessionToolContext, workfl
 
   if (!metadata.workspaceId) {
     try {
-      const { WorkspacesRepo } = await import('../../../../common/db');
       const workspace = await WorkspacesRepo.getDefault();
       if (workspace?.id) {
         metadata.workspaceId = workspace.id;

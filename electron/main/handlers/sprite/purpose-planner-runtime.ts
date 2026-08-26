@@ -1,4 +1,4 @@
-import type { CreatePiTaskRuntimeRequest, PiTaskChatFunction } from '../../../../packages/ai/runtime/pi/task-chat';
+import { createPiTaskChatRuntimeFromRequest, type CreatePiTaskRuntimeRequest, type PiTaskChatFunction } from '../../../../packages/ai/runtime/pi/task-chat';
 import { buildNonReasoningTaskRuntimeRequest } from '../../../../packages/ai/runtime/pi/task-model-policy';
 import { collectTaskChatText, createActivityAwareTaskTimeoutController, type TaskChatTimeoutConfig } from '../../../../packages/ai/services/task-chat-runner';
 import type {
@@ -128,7 +128,6 @@ export class SpritePurposePiPlannerExecutor implements SpritePurposePlannerExecu
 }
 
 async function createDefaultPurposePlannerRuntime(request: CreatePiTaskRuntimeRequest): ReturnType<SpritePurposePlannerRuntimeFactory> {
-  const { createPiTaskChatRuntimeFromRequest } = await import('../../../../packages/ai/runtime/pi/task-chat');
   return createPiTaskChatRuntimeFromRequest(request);
 }
 

@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import { platform } from 'node:os';
 import path from 'node:path';
 const fsp = fs.promises;
 
@@ -7,6 +8,7 @@ import { writeFile, writeLocalJSON } from '@aim-packages/file-utils';
 import { filter, parser, tools, utils } from '@aim-packages/subtitle';
 import ffmpeg from 'fluent-ffmpeg';
 
+import { pluginResourceManager } from '../../plugins';
 import { NodeHandler } from '../types';
 
 // 模型名称映射：文件名 -> 简化名称（用于 dtw 参数）
@@ -402,8 +404,6 @@ async function transcodeAudio(filePath: string, outputDir: string): Promise<stri
 // https://github.com/ggml-org/whisper.cpp/tree/master/examples/cli
 async function runWhisper(args: string[], ctx: any, onProgress?: (progress: number, message: string) => void, totalDuration?: number | null): Promise<void> {
   // 优先使用资源管理器中的engine，否则回退到PATH中的whisper-cli
-  const { pluginResourceManager } = await import('../../plugins');
-  const { platform } = await import('node:os');
   const binaryName = platform() === 'win32' ? 'whisper-cli.exe' : 'whisper-cli';
   const enginePath = pluginResourceManager.getEnginePath('plugin:whisper', binaryName);
   const whisperCmd = fs.existsSync(enginePath) ? enginePath : 'whisper-cli';
@@ -795,7 +795,6 @@ export const TranscribeWhisperNode: NodeHandler = {
     const modelKey = String(config?.model || 'ggml-base.bin');
     let modelPath: string | null = null;
     try {
-      const { pluginResourceManager } = await import('../../plugins');
       modelPath = pluginResourceManager.getModelPath('plugin:whisper', modelKey);
       // 检查模型文件是否存在
       if (fs.existsSync(modelPath)) {
@@ -843,7 +842,6 @@ export const TranscribeWhisperNode: NodeHandler = {
       let vadModelPath: string | null = null;
 
       try {
-        const { pluginResourceManager } = await import('../../plugins');
         vadModelPath = pluginResourceManager.getModelPath('plugin:whisper', vadModelName);
 
         // 检查 VAD 模型文件是否存在

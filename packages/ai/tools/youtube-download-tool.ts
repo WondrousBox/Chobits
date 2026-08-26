@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import * as mainProcessDownloaderServices from '../../../electron/main/handlers/downloader';
 import { createTool } from './tool-definition';
 
 /**
@@ -19,7 +20,7 @@ import { createTool } from './tool-definition';
  * 注意：此工具同时支持主进程和渲染进程环境
  */
 
-// 主进程服务（延迟加载，避免循环依赖）
+// 主进程服务（静态导入，保留缓存语义）
 let mainProcessServices: any = null;
 
 /**
@@ -27,13 +28,7 @@ let mainProcessServices: any = null;
  */
 async function getMainProcessServices(): Promise<any> {
   if (!mainProcessServices) {
-    // 动态导入主进程服务
-    try {
-      mainProcessServices = await import('../../../electron/main/handlers/downloader');
-    } catch (error) {
-      console.error('[youtube-download-tool] Failed to load main process services:', error);
-      mainProcessServices = null;
-    }
+    mainProcessServices = mainProcessDownloaderServices;
   }
   return mainProcessServices;
 }

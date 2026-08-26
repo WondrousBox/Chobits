@@ -1,4 +1,4 @@
-import type { WindowKey } from '@aim-packages/window-manager';
+import { windowManager, type WindowKey } from '@aim-packages/window-manager';
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { type Static, Type } from 'typebox';
 
@@ -6,6 +6,7 @@ import { getAppWindowToolEntry, listAppWindowSummaries, sanitizeAppWindowPayload
 import { resolveGuardedToolExecution } from '../skills';
 import type { PiSessionToolContext } from '../tool-context';
 import { createJsonToolResult } from './result';
+import { attachAppWindowClosedReporter, emitAppWindowOpened, rememberWindowPayload } from '../../../../../electron/main/handlers/window-events';
 
 type Payload = Record<string, unknown>;
 
@@ -29,8 +30,6 @@ export interface AppWindowToolBindings {
 }
 
 async function openWindowWithManager(windowKey: WindowKey, payload?: Payload): Promise<void> {
-  const { windowManager } = await import('@aim-packages/window-manager');
-  const { attachAppWindowClosedReporter, emitAppWindowOpened, rememberWindowPayload } = await import('../../../../../electron/main/handlers/window-events');
   rememberWindowPayload(String(windowKey), payload);
   const opened = await windowManager.createOrShow(windowKey, payload);
   attachAppWindowClosedReporter(opened, String(windowKey), 'ai-app-window-tool');

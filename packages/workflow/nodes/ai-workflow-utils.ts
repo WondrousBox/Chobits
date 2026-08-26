@@ -7,6 +7,7 @@ import type { RecordAiUsageEventInput } from '../../ai/analytics/types';
 import { getPreset, getPresetSecrets, listPresets } from '../../ai/preset-service';
 import { normalizeProviderPreset, resolveProviderPresetId } from '../../ai/provider-preset';
 import { getProviderCapabilities, listProviderDefinitions, listProviderRuntimeModels, listProviderSecretKeys } from '../../ai/providers/service';
+import { getProvider } from '../../ai/registry';
 import { PiExecutionService } from '../../ai/runtime/pi/execution-service';
 import { getAllSecrets, getFirstApiKey } from '../../ai/settings-store';
 import type {
@@ -352,7 +353,6 @@ function getProviderPresetOptions(providerId?: string): Array<{ value: string; l
 }
 
 export async function resolveWorkflowProviderContext(reference: WorkflowProviderReference): Promise<WorkflowProviderContext> {
-  const { getProvider } = await import('../../ai/registry');
   const { emit, providerId } = reference;
   const resolvedProviderPresetId = resolveProviderPresetId(reference);
   const providerPreset = getPreset(resolvedProviderPresetId);

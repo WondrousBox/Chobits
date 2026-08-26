@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import ffmpeg from 'fluent-ffmpeg';
 
+import { ensureTaskTypeDir } from '../task-results';
 import { NodeHandler } from '../types';
 
 function clampNumber(value: number, options: { min?: number; max?: number }): number {
@@ -70,7 +71,6 @@ export const ExtractKeyframesNode: NodeHandler = {
     const quality = Math.round(clampNumber(Number(config?.quality ?? 4), { min: 1, max: 31 }));
 
     // 使用新的存储结构：在同级目录下的 keyframes 文件夹
-    const { ensureTaskTypeDir } = await import('../task-results');
     const outDir = await ensureTaskTypeDir(src, 'keyframes');
     const outputPattern = path.join(outDir, 'frame-%04d.jpg');
 

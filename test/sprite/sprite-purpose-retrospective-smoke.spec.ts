@@ -4,6 +4,23 @@ import path from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
+vi.mock('../../packages/ai/runtime/pi/tools/memory-db-deps', () => ({
+  buildWriteDbOps: vi.fn()
+}));
+
+vi.mock('../../electron/main/db/memory-repositories', () => ({
+  MemoryNoteRepo: {
+    getByFilePath: vi.fn()
+  }
+}));
+
+vi.mock('../../electron/main/db/repositories', () => ({
+  WorkspacesRepo: {
+    getById: vi.fn(),
+    getDefault: vi.fn()
+  }
+}));
+
 import { syncSpritePurposeRetrospectiveToMemory, type PurposeRetrospectiveMemorySyncDeps } from '../../electron/main/handlers/memory/purpose-retrospective-memory-sync';
 import { buildSpontaneousPurposeRetrospectiveContext, formatSpontaneousPurposeRetrospectiveContext } from '../../electron/main/handlers/sprite/purpose-retrospective-context';
 import { SpritePurposeHistoryStore, type SpritePurposeHistoryEntry } from '../../packages/sprite-core/purpose';

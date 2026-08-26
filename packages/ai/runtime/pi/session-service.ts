@@ -1,6 +1,7 @@
 import { findPackageJSON } from 'node:module';
 
 import { logMemoryTrace, shortTraceId } from '../../services/memory-trace';
+import { preWarmEnrichers, resolveSystemPromptEnrichments } from '../../system-prompt-enricher';
 import type { ChatRequest, ChatResponse, StreamEvent, TokenUsage } from '../../types';
 import { cancelPendingChoice, waitForUserChoice } from '../../user-choice-registry';
 import type { PiRuntimeAvailability, PiRuntimePreview, ResolvedPiRequest } from './contracts';
@@ -27,6 +28,7 @@ import { createLegacyAssistantMessage, createLegacyStreamEmitter, normalizePiErr
 import type { PiSessionToolContext } from './tool-context';
 import { normalizePiToolIds, resolvePiToolDescriptors, resolvePiToolId } from './tool-registry';
 import { getPiToolChatDisplayByName } from './tools/display';
+import { createPiEmojiSendTool } from './tools/emoji-packs';
 
 const PI_PACKAGE_NAMES = ['@earendil-works/pi-agent-core', '@earendil-works/pi-ai', '@earendil-works/pi-coding-agent', '@earendil-works/pi-tui'];
 
@@ -510,7 +512,6 @@ async function buildPiContext(resolved: ResolvedPiRequest, model: PiModel, skill
   });
 
   // Resolve dynamic system prompt enrichments from registered enrichers
-  const { resolveSystemPromptEnrichments } = await import('../../system-prompt-enricher');
   const enrichments = await resolveSystemPromptEnrichments(resolved.request);
   const instructionFiles = shouldEnableInstructionPromptChain(resolved)
     ? await loadInstructionFiles({
@@ -877,7 +878,6 @@ async function runEmojiFallbackSend(
   }
   | undefined
 > {
-  const { createPiEmojiSendTool } = await import('./tools/emoji-packs');
   const sendTool = createPiEmojiSendTool(toolContext);
   const sendArgs: Record<string, unknown> = query ? { query } : {};
   const sendCallId = `emoji-fallback-send-${Date.now()}`;
@@ -1042,7 +1042,6 @@ export class PiSessionService {
   async chatStream(req: ChatRequest, emit: (event: StreamEvent) => void, signal?: AbortSignal): Promise<void> {
     // Pre-warm enrichers early — lets memory auto-recall start prefetch
     // while preview() and buildPiModel() are running
-    const { preWarmEnrichers } = await import('../../system-prompt-enricher');
     logMemoryTrace({
       conversationId: shortTraceId(req.conversationId),
       event: 'pi_chat_stream.prewarm.start',

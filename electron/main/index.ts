@@ -7,9 +7,12 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { eventManager } from '../../packages/event';
 import { AppEvent } from '../../packages/event/events';
 import { initWorkflowSystem } from '../../packages/workflow/index';
+import { WorkflowStore } from '../../packages/workflow/store';
 import { ytdlpService } from '../../packages/ytdlp';
+import { LinkedFolderMountsRepo, WorkspacesRepo } from './db/repositories';
 import { initHandlers } from './handlers';
 import { cookieManager } from './handlers/downloader/cookie-manager';
+import { restoreLinkedMountWatchers } from './handlers/folder/linked-sync';
 import { initScheduler } from './handlers/scheduler';
 import { logger } from './logger';
 import { addAllowedResourceRoot, addWorkspaceResourceRoot, setupResourceProtocol } from './resource-protocol';
@@ -247,8 +250,6 @@ app.whenReady().then(async () => {
   updateSplashStatus('正在加载工作区');
   updateSplashLog('loading default workspace');
   try {
-    const { LinkedFolderMountsRepo, WorkspacesRepo } = await import('./db/repositories');
-    const { restoreLinkedMountWatchers } = await import('./handlers/folder/linked-sync');
     const ws = await WorkspacesRepo.getDefault();
     if (ws?.rootPath) {
       const resRoot = path.join(ws.rootPath, 'resources');
@@ -395,7 +396,6 @@ app.on('will-quit', async () => {
   unregisterGlobalShortcuts();
   // Flush workflow store
   try {
-    const { WorkflowStore } = await import('../../packages/workflow/store');
     await WorkflowStore.flushStore();
   } catch (e) {
     console.warn('[workflow] flush store failed', e);

@@ -12,6 +12,8 @@
  * 可扩展：实现新的 TTS 适配器并在 synthesizeWithService() 中注册即可
  */
 
+import fs from 'node:fs/promises';
+
 import { getProviderDefinitionModel } from '../../ai/providers/service';
 import type { SpeechSynthesisRequest, SpeechSynthesisStreamEvent, SpeechTextInputChunk } from '../../ai/types';
 import { stripEmoji } from '../../tts/common';
@@ -217,7 +219,6 @@ function decodeHex(value: string): Buffer | undefined {
 
 async function readAudioArtifactToBuffer(artifact: any): Promise<Buffer | undefined> {
   if (typeof artifact?.filePath === 'string' && artifact.filePath.trim()) {
-    const fs = await import('node:fs/promises');
     return fs.readFile(artifact.filePath);
   }
   if (typeof artifact?.audioBase64 === 'string' && artifact.audioBase64.trim()) {

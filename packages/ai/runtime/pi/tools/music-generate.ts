@@ -3,9 +3,11 @@ import path from 'node:path';
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { type Static, Type } from 'typebox';
 
+import { WorkspacesRepo } from '../../../../common/db';
 import { normalizeProviderPreset } from '../../../provider-preset';
 import { getProviderDefaultModels, getProviderDefinition, supportsProviderCapability, toCanonicalProviderId } from '../../../providers/service';
 import type { MusicGenerationMode, MusicGenerationRequest, MusicGenerationResponse } from '../../../types';
+import { PiExecutionService } from '../execution-service';
 import { resolveGuardedToolExecution } from '../skills';
 import type { PiSessionToolContext } from '../tool-context';
 import { createResourceRecord, type ResourceCreateToolBindings } from './resource-create';
@@ -19,7 +21,6 @@ let defaultExecutionService: MusicGenerationExecutor | undefined;
 
 async function getDefaultExecutionService(): Promise<MusicGenerationExecutor> {
   if (!defaultExecutionService) {
-    const { PiExecutionService } = await import('../execution-service');
     defaultExecutionService = new PiExecutionService();
   }
 
@@ -75,7 +76,6 @@ async function resolveMusicOutputDir(toolContext: PiSessionToolContext, input: M
       ? trimString((await toolContext.chatRepo.ensureConversation({ id: toolContext.conversationId }))?.workspaceId)
       : undefined);
 
-  const { WorkspacesRepo } = await import('../../../../common/db');
   const workspace = workspaceId ? await WorkspacesRepo.getById(workspaceId) : await WorkspacesRepo.getDefault();
   if (!workspace?.rootPath) {
     return undefined;

@@ -32,6 +32,14 @@ vi.mock('../../electron/main/db/repositories', () => ({
   }
 }));
 
+vi.mock('../../packages/ai/runtime/pi/task-chat', () => ({
+  createPiTaskChatRuntimeFromRequest: vi.fn()
+}));
+
+vi.mock('../../electron/main/handlers/memory/memory-config', () => ({
+  getMemoryConfig: vi.fn(() => ({ autoRecallEnabled: true, memoryEnabled: true }))
+}));
+
 import { initMemoryAutoRecallEnricher } from '../../electron/main/handlers/memory/memory-auto-recall-enricher';
 import { clearCriticalFactsCache, clearRecallCache, performAutoRecall } from '../../packages/ai/services/memory-auto-recall';
 import { preWarmEnrichers, resolveSystemPromptEnrichments, unregisterSystemPromptEnricher } from '../../packages/ai/system-prompt-enricher';

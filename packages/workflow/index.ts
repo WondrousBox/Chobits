@@ -49,6 +49,7 @@ import {
 import { FastWhisperPlugin, FfmpegPlugin, FunASRPlugin, PaddleOcrPlugin, ParakeetPlugin, TesseractPlugin, WhisperPlugin } from './plugins';
 import { getNode, listNodes, listPlugins, registerNode, registerPlugin } from './registry';
 import { WorkflowStore } from './store';
+import { scanTaskResults } from './task-results';
 import type { NodeConfig, ResourceProjectContext, WorkflowDefinition, WorkflowRunRecord } from './types';
 
 // 存储获取插件配置文件路径的方法
@@ -836,7 +837,6 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
       if (!payload.filePath) {
         return { ok: false, error: '缺少文件路径' };
       }
-      const { scanTaskResults } = await import('./task-results');
       const results = await scanTaskResults(payload.filePath);
       return { ok: true, data: results };
     } catch (e: any) {

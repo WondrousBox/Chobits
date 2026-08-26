@@ -1,5 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
 
+vi.mock('../../packages/common/db', () => ({
+  addResource: vi.fn(),
+  FoldersRepo: {
+    getById: vi.fn()
+  },
+  WorkspacesRepo: {
+    getById: vi.fn(),
+    getDefault: vi.fn()
+  }
+}));
+
+vi.mock('../../packages/ai/runtime/pi/execution-service', () => ({
+  PiExecutionService: vi.fn()
+}));
+
 import { INITIAL_ACTIVE_SESSION_TOOL_IDS, listPiToolDescriptors, resolvePiToolId } from '../../packages/ai/runtime/pi/tool-registry';
 import { searchToolbox } from '../../packages/ai/runtime/pi/toolbox';
 import { createPiMusicGenerateTool } from '../../packages/ai/runtime/pi/tools/music-generate';

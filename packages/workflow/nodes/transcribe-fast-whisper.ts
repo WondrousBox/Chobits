@@ -1,9 +1,11 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import { platform } from 'node:os';
 import path from 'node:path';
 
 import ffmpeg from 'fluent-ffmpeg';
 
+import { pluginResourceManager } from '../../plugins';
 import { NodeConfig, NodeHandler, PortSchema, ValueType } from '../types';
 
 function fileExists(p: string): boolean {
@@ -115,8 +117,6 @@ async function transcodeAudio(filePath: string, outputDir: string): Promise<stri
 // fast-whisper CLI 执行函数
 async function runFastWhisper(args: string[], _ctx: any, onProgress?: (progress: number, message: string) => void, totalDuration?: number | null): Promise<void> {
   // 优先使用资源管理器中的engine，否则回退到PATH中的fast-whisper-cli
-  const { pluginResourceManager } = await import('../../plugins');
-  const { platform } = await import('node:os');
   const binaryName = platform() === 'win32' ? 'fast-whisper-cli.exe' : 'fast-whisper-cli';
   const enginePath = pluginResourceManager.getEnginePath('plugin:fast-whisper', binaryName);
   const whisperCmd = fs.existsSync(enginePath) ? enginePath : 'fast-whisper-cli';
@@ -515,7 +515,6 @@ export const TranscribeFastWhisperNode: NodeHandler = {
     const modelName = String(config?.model || 'faster-whisper-tiny');
     let modelPath: string;
     try {
-      const { pluginResourceManager } = await import('../../plugins');
       modelPath = pluginResourceManager.getModelPath('plugin:fast-whisper', modelName);
       if (!modelPath || !fs.existsSync(modelPath)) {
         throw new Error(`模型路径不存在，请先在插件管理中下载模型 "${modelName}"。路径: ${modelPath || '(空)'}`);

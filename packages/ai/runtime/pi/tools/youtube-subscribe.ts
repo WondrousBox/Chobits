@@ -7,6 +7,11 @@ import { Type } from 'typebox';
 import { resolveGuardedToolExecution } from '../skills';
 import type { PiSessionToolContext } from '../tool-context';
 import { createJsonToolResult } from './result';
+import * as dbRepositories from '../../../../../electron/main/db/repositories';
+import { getVideoInfo } from '../../../../../electron/main/handlers/downloader';
+import { getHttpProxy } from '../../../../../electron/main/handlers/proxy/proxy';
+import { resolveRssResourceDestination } from '../../../../../electron/main/handlers/rss/rss-resource-destination';
+import { rssSourceRegistry } from '../../../../../electron/main/handlers/rss/rss-source-registry';
 
 const youtubeSubscribeParameters = Type.Object({
   channelIdOrUrl: Type.String({ description: 'YouTube 频道 ID、频道 URL、或带频道上下文的输入' }),
@@ -43,16 +48,10 @@ async function loadRssServices(): Promise<{
   resolveRssResourceDestination: typeof import('../../../../../electron/main/handlers/rss/rss-resource-destination').resolveRssResourceDestination;
   rssSourceRegistry: typeof import('../../../../../electron/main/handlers/rss/rss-source-registry').rssSourceRegistry;
 }> {
-  const [repos, registryModule, destinationModule] = await Promise.all([
-    import('../../../../../electron/main/db/repositories'),
-    import('../../../../../electron/main/handlers/rss/rss-source-registry'),
-    import('../../../../../electron/main/handlers/rss/rss-resource-destination')
-  ]);
-
   return {
-    repos: repos as RssServices,
-    resolveRssResourceDestination: destinationModule.resolveRssResourceDestination,
-    rssSourceRegistry: registryModule.rssSourceRegistry
+    repos: dbRepositories as RssServices,
+    resolveRssResourceDestination,
+    rssSourceRegistry
   };
 }
 
@@ -94,7 +93,6 @@ async function normalizeYoutubeChannelTarget(input: string): Promise<{ channelNa
     return { target: input };
   }
 
-  const { getVideoInfo } = await import('../../../../../electron/main/handlers/downloader');
   const videoInfo = (await getVideoInfo(input, 30000)) as YoutubeVideoInfo;
 
   return {
@@ -130,8 +128,6 @@ function parseYouTubeFeed(xml: string, limit: number): YoutubeFeedPreviewItem[] 
 }
 
 async function fetchFeedXml(feedUrl: string, signal?: AbortSignal): Promise<string> {
-  const { getHttpProxy } = await import('../../../../../electron/main/handlers/proxy/proxy');
-
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
       reject(new Error('Operation aborted'));

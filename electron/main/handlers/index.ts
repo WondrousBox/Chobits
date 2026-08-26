@@ -5,6 +5,8 @@ import { initAIHandlers } from '../../../packages/ai/ipc-main';
 import { listPresets, resolveUsablePreset } from '../../../packages/ai/preset-service';
 import { getProviderDefinitionSchema, listProviderDefinitions } from '../../../packages/ai/providers/service';
 import { PiExecutionService } from '../../../packages/ai/runtime/pi/execution-service';
+import { setCharacterToolLabels } from '../../../packages/ai/runtime/pi/tool-labels';
+import { registerSystemPromptEnricher } from '../../../packages/ai/system-prompt-enricher';
 import { broadcastMusicReactivitySnapshot, initMusicReactivityHandlers } from '../../../packages/audio-reactivity/ipc-main';
 import { MusicReactivityService } from '../../../packages/audio-reactivity/music-reactivity-service';
 import { AppEvent, eventManager } from '../../../packages/event';
@@ -31,6 +33,8 @@ import { initTTSHandlers } from '../../../packages/tts/ipc-main';
 import { initYtDlpIpcHandlers } from '../../../packages/ytdlp';
 import { createMainWindowAnimationPresetTimeline, isWindowAnimationPresetId, type WindowAnimationPresetDirection } from '../../../src/lib/window-animation-presets';
 import { initDailyCare } from '../daily';
+import { WorkspacesRepo } from '../db/repositories';
+import { addAllowedResourceRoot } from '../resource-protocol';
 import { getMainSchedulerService, initSchedulerIPC } from '../scheduler';
 import { initScreenshotHandlers } from '../screenshot';
 import { initSelectedTextLearningHandlers } from '../selected-text/ipc-main';
@@ -44,6 +48,7 @@ import { initConversationRouteHandlers } from './conversation-route/ipc-main';
 import { initDownloadHandlers } from './downloader/ipc-main';
 import { initVectorHandlers } from './embedding/ipc-main';
 import { initEmojiPackHandlers } from './emoji-packs/ipc-main';
+import { registerEmojiPackPromptEnricher } from './emoji-packs/prompt';
 import { initFFmpegHandlers } from './ffmpeg/ipc-main';
 import { initFileHandlers } from './file/ipc-main';
 import { initFolderHandlers } from './folder/ipc-main';
@@ -407,7 +412,6 @@ function resolveChatApiConfigGuideContext(): Record<string, unknown> {
 
 export async function initHandlers(win: BrowserWindow): Promise<void> {
   console.log(process.versions);
-  const { WorkspacesRepo } = await import('../db/repositories');
   const countWorkspaces = async (): Promise<number> => {
     try {
       const list = await WorkspacesRepo.list({ deletedAt: 0 } as any, 1, 0);
@@ -462,7 +466,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initSchedulerIPC();
   initDownloadHandlers(win);
   initSpriteHandlers({
-    addAllowedResourceRoot: (await import('../resource-protocol')).addAllowedResourceRoot,
+    addAllowedResourceRoot,
     getResourcePath,
     assertCapabilityUnlocked: assertSpriteCapabilityUnlocked
   });
@@ -485,7 +489,6 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initStatusHandlers(win);
   await initAIHandlers(win);
   if (isFeatureEnabled('emojiPacks')) {
-    const { registerEmojiPackPromptEnricher } = await import('./emoji-packs/prompt');
     registerEmojiPackPromptEnricher();
   }
   if (isFeatureEnabled('recording')) {
@@ -557,9 +560,8 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   });
   initSpritePurposePlannerIPC(purposePlannerService, purposePlannerPreferencesStore);
   await initSpriteManagerIPC(win, {
-    addAllowedResourceRoot: (await import('../resource-protocol')).addAllowedResourceRoot,
+    addAllowedResourceRoot,
     registerCharacterPersonaPromptProvider: async (resolveCharacterPersonaPrompt) => {
-      const { registerSystemPromptEnricher } = await import('../../../packages/ai/system-prompt-enricher');
       registerSystemPromptEnricher({
         id: 'character-persona',
         resolve: (ctx) => {
@@ -575,7 +577,6 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
       stream: (request, onEvent, input, signal) => spriteSpeechPiExecutionService.streamSpeechSynthesis(request, onEvent, signal, input)
     },
     syncCharacterToolLabels: async (labels) => {
-      const { setCharacterToolLabels } = await import('../../../packages/ai/runtime/pi/tool-labels');
       setCharacterToolLabels(labels);
     },
     purposeWindowAdapter: {

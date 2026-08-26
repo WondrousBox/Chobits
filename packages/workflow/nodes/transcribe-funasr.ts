@@ -5,6 +5,7 @@ import path from 'node:path';
 
 import ffmpeg from 'fluent-ffmpeg';
 
+import { pluginResourceManager } from '../../plugins';
 import { NodeConfig, NodeHandler, PortSchema, ValueType } from '../types';
 
 // 转录片段接口
@@ -106,7 +107,6 @@ async function transcodeAudio(filePath: string, outputDir: string): Promise<stri
 
 // 运行 FunASR CLI
 async function runFunASR(args: string[], onProgress?: (progress: number, message: string) => void, totalDuration?: number | null): Promise<{ success: boolean }> {
-  const { pluginResourceManager } = await import('../../plugins');
   const binaryName = platform() === 'win32' ? 'funasr.exe' : 'funasr';
   const cliPath = pluginResourceManager.getEnginePath('plugin:funasr', binaryName);
 
@@ -327,7 +327,6 @@ export const TranscribeFunASRNode: NodeHandler = {
     const ffmpegPath = ctx.ffmpegPath;
 
     // 获取模型目录
-    const { pluginResourceManager } = await import('../../plugins');
     const modelsDir = pluginResourceManager.getPluginResourceDir('plugin:funasr', 'model');
 
     if (!fs.existsSync(modelsDir)) {

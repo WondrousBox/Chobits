@@ -24,8 +24,11 @@
  *   由 electron/main/handlers/memory/ipc-main.ts 提供 DB 依赖和 chatFn。
  */
 
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+
 import type { ChatMessage } from '../types';
-import type { RetrievalDbDeps } from './memory-retrieval-service';
+import { analyzeQuery, type RetrievalDbDeps, searchWithContent } from './memory-retrieval-service';
 import { logMemoryTrace, shortTraceId } from './memory-trace';
 import type { MemoryChatFn, MemoryUsageEvent } from './memory-types';
 
@@ -683,7 +686,6 @@ export async function performAutoRecall(messages: ChatMessage[], deps: AutoRecal
   }
 
   // ─── Stage 3: Search ───
-  const { analyzeQuery, searchWithContent } = await import('./memory-retrieval-service');
   const searchQuery = keywords.join(' ');
   const baseAnalysis = analyzeQuery(userContent);
   const recallAnalysis = {
@@ -840,8 +842,6 @@ export async function loadAlwaysLoadedMemory(workspaceRoot: string): Promise<Alw
   }
 
   try {
-    const fs = await import('node:fs/promises');
-    const path = await import('node:path');
     const memoryMdPath = path.join(workspaceRoot, 'memory', 'MEMORY.md');
     const content = await fs.readFile(memoryMdPath, 'utf-8');
     const sections = createEmptyAlwaysLoadedMemory();

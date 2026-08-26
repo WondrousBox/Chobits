@@ -1,6 +1,6 @@
 import { BrowserWindow, ipcMain } from 'electron';
 
-import { deleteVectors, insertVectors, searchVectors, VectorInsertItem } from '../../db';
+import { deleteVectors, getDB, insertVectors, searchVectors, VectorInsertItem } from '../../db';
 
 const DEFAULT_DIM = 384;
 
@@ -20,7 +20,6 @@ export function initVectorHandlers(_win: BrowserWindow): void {
 
   // 获取向量统计信息（按服务商和模型分组）
   ipcMain.handle('vector:getStatistics', async () => {
-    const { getDB } = await import('../../db');
     const database = getDB();
     if (!database) return { providers: [] };
 

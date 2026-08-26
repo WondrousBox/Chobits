@@ -5,6 +5,7 @@ import { resolveGuardedToolExecution } from '../skills';
 import type { PiSessionToolContext } from '../tool-context';
 import { waitForLongTaskOrBackground } from './long-task-control';
 import { createJsonToolResult } from './result';
+import * as downloaderModule from '../../../../../electron/main/handlers/downloader';
 
 const youtubeDownloadParameters = Type.Object({
   url: Type.String({ description: 'YouTube 视频的 URL 地址' }),
@@ -71,7 +72,7 @@ interface DownloadCompletionResult {
 }
 
 async function loadYoutubeDownloader(): Promise<DownloaderModule> {
-  return import('../../../../../electron/main/handlers/downloader') as Promise<DownloaderModule>;
+  return downloaderModule as DownloaderModule;
 }
 
 function isYouTubeUrl(url: string): boolean {
