@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { TbAdjustments, TbBook, TbCpu, TbFolderOpen, TbKeyboard, TbLanguage, TbMessage2, TbNetwork, TbPlug, TbToggleLeft, TbUser } from 'react-icons/tb';
 
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 
 import DragAbleTitle from '../../components/common/DragAbleTitle';
 import AiSettings from './components/AiSettings';
@@ -108,14 +109,18 @@ interface SettingsPageProps {
 }
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = EMPTY_EXTRA_CATEGORIES, hideTitleBar = false, defaultCategory }) => {
+  const { isEnabled } = useFeatureFlags();
+  const showUserProfile = isEnabled('gamification');
+
   // 合并分类，将扩展分类放在偏好设置之后 (index 1)
   const allCategories = React.useMemo(() => {
     const cats = [...defaultCategories];
     if (extraCategories.length > 0) {
       cats.splice(1, 0, ...extraCategories);
     }
-    return cats;
-  }, [extraCategories]);
+    // gamification 关闭时隐藏「用户画像」入口（仅隐藏 UI，renderCurrentCategoryContent 仍支持该分类）
+    return showUserProfile ? cats : cats.filter((c) => c.id !== 'user-profile');
+  }, [extraCategories, showUserProfile]);
 
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>(defaultCategory || allCategories[0]?.id || 'preferences');
   const [initialAiProviderId, setInitialAiProviderId] = useState<string | null>(null);
@@ -128,6 +133,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = EM
       setActiveCategory(defaultCategory);
     }
   }, [defaultCategory]);
+
+  // 防御性处理：当前分类被功能旗标隐藏时，切回偏好设置
+  useEffect(() => {
+    if (activeCategory === 'user-profile' && !showUserProfile) {
+      setActiveCategory('preferences');
+    }
+  }, [activeCategory, showUserProfile]);
 
   const applyWindowPayload = React.useCallback(
     (payload: any): void => {

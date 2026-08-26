@@ -346,7 +346,11 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
           window.YUA.window['window:open']('settings');
         }
       }
-    ],
+    ].filter((item) => {
+      // 按功能旗标隐藏游戏化菜单项
+      if (item.id === 'quests' || item.id === 'skill-tree') return isEnabled('gamification');
+      return true;
+    }),
     [bubbleMode, capabilitySnapshot, debugOverlay, emitAssistantMenuItemSelected, isASRRunning, isEnabled, refreshCapabilitySnapshot, setSpriteBubbleMode, showLockedCapabilityToast, toggleDebugOverlay]
   );
 

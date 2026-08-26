@@ -466,20 +466,22 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
     getResourcePath,
     assertCapabilityUnlocked: assertSpriteCapabilityUnlocked
   });
-  initDailyCare(
-    () => {
-      if (win && !win.isDestroyed()) return win;
-      const existing = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
-      return existing || null;
-    },
-    () => {
-      return SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
-    },
-    {
-      scheduler,
-      autoDispatchGate: () => (onboardingFocusActive ? { accepted: false, reason: 'onboarding-workspace-required' } : true)
-    }
-  );
+  if (isFeatureEnabled('gamification')) {
+    initDailyCare(
+      () => {
+        if (win && !win.isDestroyed()) return win;
+        const existing = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
+        return existing || null;
+      },
+      () => {
+        return SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
+      },
+      {
+        scheduler,
+        autoDispatchGate: () => (onboardingFocusActive ? { accepted: false, reason: 'onboarding-workspace-required' } : true)
+      }
+    );
+  }
   initStatusHandlers(win);
   await initAIHandlers(win);
   if (isFeatureEnabled('emojiPacks')) {
@@ -517,7 +519,9 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
     initSpleeterHandlers(win);
   }
   initYtDlpIpcHandlers(win);
-  initSkillTreeHandlers();
+  if (isFeatureEnabled('gamification')) {
+    initSkillTreeHandlers();
+  }
   initClipHandlers();
   initMediaTrackHandlers();
   initAnnotationHandlers();
@@ -670,16 +674,18 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   }
 
   // ----------------------------------------------------------------------
-  // Quest / 新手引导系统
+  // Quest / 新手引导系统（游戏化功能,默认关闭）
   // ----------------------------------------------------------------------
-  await initOnboardingQuestEngine(win, {
-    countWorkspaces,
-    hasChatApiConfigured: hasConfiguredChatProviderPreset,
-    resolveChatApiConfigGuideContext,
-    hasNoWorkspace,
-    setOnboardingFocus,
-    isOnboardingFocusActive: () => onboardingFocusActive
-  });
+  if (isFeatureEnabled('gamification')) {
+    await initOnboardingQuestEngine(win, {
+      countWorkspaces,
+      hasChatApiConfigured: hasConfiguredChatProviderPreset,
+      resolveChatApiConfigGuideContext,
+      hasNoWorkspace,
+      setOnboardingFocus,
+      isOnboardingFocusActive: () => onboardingFocusActive
+    });
+  }
 }
 
 /**
