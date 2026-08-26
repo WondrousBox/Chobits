@@ -491,7 +491,9 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   if (isFeatureEnabled('recording')) {
     initRecorderHandlers();
   }
-  initSherpaHandlers();
+  if (isFeatureEnabled('localAi')) {
+    initSherpaHandlers();
+  }
   initTTSHandlers();
   initShortcutsHandlers(win);
   initPreferencesHandlers();
@@ -512,7 +514,9 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
       }
     }
   });
-  initOcrHandlers();
+  if (isFeatureEnabled('localAi')) {
+    initOcrHandlers();
+  }
   initThemeHandlers();
   initScreenshotHandlers();
   if (isFeatureEnabled('spleeter')) {

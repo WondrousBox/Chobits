@@ -1,3 +1,4 @@
+import type { FeatureKey } from '@packages/common/feature-flags';
 import type { PluginConfig } from '@packages/plugins/plugin-config-store';
 import { isPluginCompatibleWithPlatform, isSystemPresetPlugin, PluginCategory, PluginDefinition } from '@packages/plugins/types';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -7,7 +8,19 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { cn } from '@/lib/utils';
+
+// 插件与功能旗标的映射：旗标关闭时隐藏对应插件，未列出的插件始终显示
+const PLUGIN_FEATURE_FLAGS: Record<string, FeatureKey> = {
+  'whisper-cli': 'localAi',
+  'sherpa-onnx': 'localAi',
+  'parakeet-cli': 'localAi',
+  'funasr-cli': 'localAi',
+  'fast-whisper-cli': 'localAi',
+  'paddle-ocr-runtime': 'localAi',
+  spleeter: 'spleeter'
+};
 
 // 分类配置：中文名称和显示顺序
 const CATEGORY_CONFIG: { value: PluginCategory; label: string }[] = [
@@ -103,6 +116,17 @@ const PluginPage: React.FC<PluginPageProps> = () => {
   const [selectedPluginId, setSelectedPluginId] = useState<string | null>(null);
   const [showNetworkDialog, setShowNetworkDialog] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<PluginCategory | null>(null);
+  const { isEnabled } = useFeatureFlags();
+
+  // 按功能旗标过滤插件列表（localAi / spleeter 关闭时隐藏对应插件）
+  const visibleSupported = useMemo(
+    () =>
+      supported.filter((plugin) => {
+        const flag = PLUGIN_FEATURE_FLAGS[plugin.pluginId];
+        return flag ? isEnabled(flag) : true;
+      }),
+    [supported, isEnabled]
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -134,14 +158,14 @@ const PluginPage: React.FC<PluginPageProps> = () => {
   // 获取当前可用的分类列表（只显示有插件的分类）
   const availableCategories = useMemo(() => {
     const categories = new Set<PluginCategory>();
-    supported.forEach((plugin) => {
+    visibleSupported.forEach((plugin) => {
       if (plugin.category) {
         const cats = Array.isArray(plugin.category) ? plugin.category : [plugin.category];
         cats.forEach((c) => categories.add(c));
       }
     });
     return CATEGORY_CONFIG.filter((c) => categories.has(c.value));
-  }, [supported]);
+  }, [visibleSupported]);
 
   useEffect(() => {
     let mounted = true;
@@ -306,7 +330,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
         .filter((m) => m.status === 'installed')
         .map((m) => {
           // 从支持的插件列表中找到对应的 PluginDefinition
-          const resource = supported.find((s) => s.pluginId === m.pluginId && s.name === m.name);
+          const resource = visibleSupported.find((s) => s.pluginId === m.pluginId && s.name === m.name);
           // 如果找不到，创建一个基本的 PluginDefinition
           return (
             resource || {
@@ -322,7 +346,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
         });
 
       // 添加系统预设插件
-      const systemPresetPlugins = supported.filter((s) => isSystemPresetPlugin(s));
+      const systemPresetPlugins = visibleSupported.filter((s) => isSystemPresetPlugin(s));
       const installedIds = new Set(installedResources.map((r) => r.id));
       systemPresetPlugins.forEach((plugin) => {
         if (!installedIds.has(plugin.id)) {
@@ -333,7 +357,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
       resources = installedResources;
     } else {
       // 可用插件标签页：返回所有支持的资源（状态会通过 installedResource prop 传递）
-      resources = supported;
+      resources = visibleSupported;
     }
 
     // 应用分类筛选
@@ -370,7 +394,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
     if (tabValue === 'installed') {
       Object.keys(grouped).forEach((pluginId) => {
         // 从支持的资源中获取该插件下所有模型
-        const allModels = supported.filter((s) => s.pluginId === pluginId && s.type === 'model');
+        const allModels = visibleSupported.filter((s) => s.pluginId === pluginId && s.type === 'model');
         // 合并已安装的模型和所有可用的模型，去重
         const existingModelIds = new Set(grouped[pluginId].models.map((m) => m.id));
         allModels.forEach((model) => {
