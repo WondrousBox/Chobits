@@ -32,7 +32,7 @@ describe('provider model listing', () => {
     registerBuiltinProviderDefinitions();
     registerBuiltInProviders();
 
-    const openaiCompatibleIds = ['deepseek', 'openai', 'qwen', 'zai', 'zhipu'];
+    const openaiCompatibleIds = ['deepseek', 'kimi', 'openai', 'qwen', 'zai', 'zhipu'];
     for (const id of openaiCompatibleIds) {
       const provider = getProvider(id);
       expect(provider, `provider ${id} should be registered`).toBeTruthy();

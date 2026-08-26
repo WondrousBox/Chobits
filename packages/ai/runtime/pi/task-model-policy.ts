@@ -4,6 +4,7 @@ const NON_REASONING_TASK_MODELS: Record<string, string> = {
   anthropic: 'claude-sonnet-4-20250514',
   deepseek: 'deepseek-chat',
   gemini: 'gemini-2.0-flash',
+  kimi: 'kimi-k2.6',
   openai: 'gpt-4o-mini',
   qwen: 'qwen-turbo',
   zai: 'glm-4.5-air',
