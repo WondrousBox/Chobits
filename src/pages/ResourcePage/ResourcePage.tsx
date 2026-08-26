@@ -38,6 +38,7 @@ const ResourcePage: React.FC = () => {
   const { isEnabled } = useFeatureFlags();
   const rssEnabled = isEnabled('rss');
   const analyticsEnabled = isEnabled('analytics');
+  const workflowEnabled = isEnabled('workflow');
   // 当前页面不再提供空间切换，始终使用"当前选中的默认空间"进行筛选
   const [wsFilter, setWsFilter] = useState<string | undefined>(undefined);
   const [tagFilter, setTagFilter] = useState<string>(''); // '' means all
@@ -605,7 +606,7 @@ const ResourcePage: React.FC = () => {
           <Route path="home" element={<ChatPage hideTitleBar />} />
           {analyticsEnabled && <Route path="analytics" element={<AnalyticsPage workspaceId={wsFilter} />} />}
           <Route path="tasks" element={<TaskList workspaceId={wsFilter} />} />
-          <Route path="workflows" element={<WorkflowPage />} />
+          {workflowEnabled && <Route path="workflows" element={<WorkflowPage />} />}
           <Route path="recycle" element={<RecycleBinPage hideTitleBar />} />
           <Route path="preview/:resourceId" element={<ResourcePreviewWindow />} />
           {rssEnabled && <Route path="rss/:resourceId" element={<RssFeedPage />} />}

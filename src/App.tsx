@@ -128,7 +128,7 @@ function StandardAppRoutes(): JSX.Element {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <Toaster />
-        <WorkflowStartInputSheet />
+        {flags.workflow && <WorkflowStartInputSheet />}
       </div>
     </ChatSelectionProvider>
   );

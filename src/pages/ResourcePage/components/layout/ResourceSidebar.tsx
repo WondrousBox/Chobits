@@ -65,6 +65,7 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
   const location = useLocation();
   const { isEnabled } = useFeatureFlags();
   const analyticsEnabled = isEnabled('analytics');
+  const workflowEnabled = isEnabled('workflow');
   const isTasksRoute = location.pathname.includes('/tasks');
   const isWorkflowsRoute = location.pathname.includes('/workflows');
   const isAnalyticsRoute = location.pathname.includes('/analytics');
@@ -152,22 +153,25 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
               任务
             </SidebarMenuButton>
           </SidebarMenuItem>
-          <SidebarMenuItem
-            key={'workflow'}
-            onClick={() => {
-              navigate('/resources/workflows', { replace: true });
-              setFavoriteFilter(false);
-              setFolderFilter('');
-            }}
-          >
-            <SidebarMenuButton
-              variant={isWorkflowsRoute ? 'outline' : 'default'}
-              className={`h-8 transition-colors ${isWorkflowsRoute ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground' : ''}`}
+          {/* 工作流 - 功能旗标控制 */}
+          {workflowEnabled && (
+            <SidebarMenuItem
+              key={'workflow'}
+              onClick={() => {
+                navigate('/resources/workflows', { replace: true });
+                setFavoriteFilter(false);
+                setFolderFilter('');
+              }}
             >
-              <TbLine />
-              工作流
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+              <SidebarMenuButton
+                variant={isWorkflowsRoute ? 'outline' : 'default'}
+                className={`h-8 transition-colors ${isWorkflowsRoute ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground' : ''}`}
+              >
+                <TbLine />
+                工作流
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
         </SidebarMenu>
       </SidebarHeader>
       {/* 左侧文件夹 */}
