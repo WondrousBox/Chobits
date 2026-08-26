@@ -1,3 +1,5 @@
+import { getFeatureFlags } from '../../../../electron/main/feature-flags';
+
 import { getPreset, getPresetSecrets } from '../../preset-service';
 import { resolveProviderPresetId } from '../../provider-preset';
 import { getProviderDefinitionDefaultModel, listProviderSecretKeys, resolveKnownProviderId, toCanonicalProviderId } from '../../providers/service';
@@ -8,7 +10,7 @@ import type { PiCodingWorkspaceContext, ResolvedPiModelConfig, ResolvedPiRequest
 import { getPiAgentProfile } from './profile-registry';
 import { isPiRuntimeRequested } from './runtime-switch';
 import { normalizeRequestedSkillInvocation } from './skills';
-import { DEFAULT_EMOJI_PACK_TOOL_IDS, normalizePiToolIds } from './tool-registry';
+import { DEFAULT_EMOJI_PACK_TOOL_IDS, normalizePiToolIds, TOOL_FEATURE_GATE } from './tool-registry';
 
 type SecretValues = Record<string, string | undefined>;
 
@@ -49,7 +51,12 @@ function resolveEnabledToolIds(req: ChatRequest, preset: ProviderPresetRecord | 
     }
   }
 
-  return toolIds;
+  // 全局功能旗标:剔除被关闭功能对应的工具
+  const flags = getFeatureFlags();
+  return toolIds.filter((id) => {
+    const gate = TOOL_FEATURE_GATE[id];
+    return !gate || flags[gate];
+  });
 }
 
 function resolveCodingWorkspace(req: ChatRequest): PiCodingWorkspaceContext | undefined {

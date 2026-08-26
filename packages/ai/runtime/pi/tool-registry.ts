@@ -252,6 +252,17 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
 
 export const DEFAULT_EMOJI_PACK_TOOL_IDS = ['emoji-send'];
 
+/** 工具 → 功能旗标：旗标关闭时,对应工具从会话 allowlist 中剔除 */
+export const TOOL_FEATURE_GATE: Record<string, 'gamification' | 'music' | 'rss' | 'projectTracking' | 'emojiPacks' | 'workflow'> = {
+  'persona-update': 'gamification',
+  'music-generate': 'music',
+  'music-lyrics': 'music',
+  'youtube-subscribe': 'rss',
+  'project-tracking': 'projectTracking',
+  'emoji-send': 'emojiPacks',
+  'workflow-run': 'workflow'
+};
+
 const TOOL_NAME_TO_ID = buildToolNameToIdMap();
 export const DEFAULT_SKILL_TOOL_IDS = ['skill-search', 'skill-use'];
 

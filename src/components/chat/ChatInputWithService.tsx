@@ -7,6 +7,7 @@ import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import {
   applySkillPickerSelection,
   extractSkillCommandArgs,
@@ -70,6 +71,8 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
     setEmojiPacksDisplayTarget,
     setCharacterPersonaEnabled
   } = useChatSelection();
+  const { isEnabled } = useFeatureFlags();
+  const emojiPacksAvailable = isEnabled('emojiPacks');
   const inputRef = useRef<UnifiedChatInputHandle>(null);
   const [draft, setDraft] = useState('');
   const [skills, setSkills] = useState<SkillInfo[]>([]);
@@ -169,8 +172,8 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
       agentId,
       webSearchEnabled,
       characterPersonaEnabled,
-      emojiPacksEnabled,
-      emojiPacksDisplayTarget,
+      emojiPacksEnabled: emojiPacksAvailable && emojiPacksEnabled,
+      emojiPacksDisplayTarget: emojiPacksAvailable ? emojiPacksDisplayTarget : undefined,
       ...(isCoder && codingWorkspaceRoot
         ? {
             codingWorkspaceRoot,
@@ -324,7 +327,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
             </Tooltip>
           )}
           <WebSearchToggle enabled={webSearchEnabled} onToggle={setWebSearchEnabled} onOpenChange={onMenuOpenChange} {...floatingMenuProps} />
-          {!isCoder && (
+          {!isCoder && emojiPacksAvailable && (
             <EmojiPackButton
               displayTarget={emojiPacksDisplayTarget}
               enabled={emojiPacksEnabled}

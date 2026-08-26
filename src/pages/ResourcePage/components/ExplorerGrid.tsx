@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { runWorkflow } from '@/lib/workflow-runner';
 
 import { useResourceTaskStatus } from '../hooks/useResourceTaskStatus';
@@ -325,6 +326,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
 }) => {
   const navigate = useNavigate();
   const taskStatuses = useResourceTaskStatus();
+  const { isEnabled } = useFeatureFlags();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -1003,7 +1005,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
               )}
 
               {/* RSS 订阅专属选项 */}
-              {firstSelectedItem?.type === 'rss' && (
+              {isEnabled('rss') && firstSelectedItem?.type === 'rss' && (
                 <>
                   <ContextMenuItem
                     onSelect={async () => {
@@ -1139,7 +1141,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                 </ContextMenuSubContent>
               </ContextMenuSub>
               {/* Spleeter 音频分离 - 仅对单个音频文件显示 */}
-              {selectedCount === 1 && firstSelectedItem?.filePath && isAudioFile(firstSelectedItem.filePath) && (
+              {isEnabled('spleeter') && selectedCount === 1 && firstSelectedItem?.filePath && isAudioFile(firstSelectedItem.filePath) && (
                 <>
                   <ContextMenuSeparator />
                   <ContextMenuItem onSelect={handleSpleeterSeparate}>

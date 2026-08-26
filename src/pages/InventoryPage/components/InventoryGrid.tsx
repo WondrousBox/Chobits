@@ -33,6 +33,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { runWorkflow } from '@/lib/workflow-runner';
 import { type ResourceTaskStatus, useResourceTaskStatus } from '@/pages/ResourcePage/hooks/useResourceTaskStatus';
 import { ResourceItem } from '@/pages/ResourcePage/types';
@@ -544,6 +545,7 @@ export const InventoryGrid: React.FC<InventoryGridProps> = ({
 }) => {
   const navigate = useNavigate();
   const taskStatuses = useResourceTaskStatus();
+  const { isEnabled } = useFeatureFlags();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -1370,7 +1372,7 @@ export const InventoryGrid: React.FC<InventoryGridProps> = ({
                 </ContextMenuSubContent>
               </ContextMenuSub>
               {/* Spleeter 音频分离 - 仅对单个音频文件显示 */}
-              {selectedCount === 1 && firstSelectedItem?.filePath && isAudioFile(firstSelectedItem.filePath) && (
+              {isEnabled('spleeter') && selectedCount === 1 && firstSelectedItem?.filePath && isAudioFile(firstSelectedItem.filePath) && (
                 <>
                   <ContextMenuSeparator />
                   <ContextMenuItem onSelect={handleSpleeterSeparate}>

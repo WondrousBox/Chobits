@@ -18,6 +18,7 @@ import { initSpriteHandlers, initSpriteManagerIPC } from '../../../packages/spri
 import { SpriteManager } from '../../../packages/sprite-core/manager';
 import { DEFAULT_SPRITE_ROUTINE_PRESETS, SpritePurposeHistoryStore } from '../../../packages/sprite-core/purpose';
 import { createOnboardingQuestRegistry, QuestEngine } from '../../../packages/sprite-core/quest';
+import { isFeatureEnabled } from '../feature-flags';
 import {
   type MessageButton,
   SPRITE_EVENT_TYPES,
@@ -446,8 +447,12 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initFFmpegHandlers(win);
   initVectorHandlers(win);
   initResourceHandlers();
-  await initEmojiPackHandlers();
-  initRssHandlers();
+  if (isFeatureEnabled('emojiPacks')) {
+    await initEmojiPackHandlers();
+  }
+  if (isFeatureEnabled('rss')) {
+    initRssHandlers();
+  }
   initAutomationHandlers();
   initFolderHandlers?.();
   initTrashHandlers();
@@ -477,7 +482,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   );
   initStatusHandlers(win);
   await initAIHandlers(win);
-  {
+  if (isFeatureEnabled('emojiPacks')) {
     const { registerEmojiPackPromptEnricher } = await import('./emoji-packs/prompt');
     registerEmojiPackPromptEnricher();
   }
@@ -506,7 +511,9 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initOcrHandlers();
   initThemeHandlers();
   initScreenshotHandlers();
-  initSpleeterHandlers(win);
+  if (isFeatureEnabled('spleeter')) {
+    initSpleeterHandlers(win);
+  }
   initYtDlpIpcHandlers(win);
   initSkillTreeHandlers();
   initClipHandlers();
@@ -641,20 +648,22 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
     })
   });
   initSelectedTextLearningHandlers(win);
-  const musicReactivityService = new MusicReactivityService({
-    getSpriteManager: () => {
-      return SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
-    },
-    preferences: PreferencesStore.getMusicReactivity(),
-    onSnapshot: (snapshot) => {
-      broadcastMusicReactivitySnapshot(snapshot);
-      notifyMusicSpectrumDanceState(snapshot.state === 'dancing');
-    }
-  });
-  initMusicReactivityHandlers(musicReactivityService, {
-    savePreferences: (preferences) => PreferencesStore.setMusicReactivity(preferences),
-    onSpectrumFrame: () => notifyMusicSpectrumFrameReceived()
-  });
+  if (isFeatureEnabled('music')) {
+    const musicReactivityService = new MusicReactivityService({
+      getSpriteManager: () => {
+        return SpriteManager.hasInstance() ? SpriteManager.getInstance() : null;
+      },
+      preferences: PreferencesStore.getMusicReactivity(),
+      onSnapshot: (snapshot) => {
+        broadcastMusicReactivitySnapshot(snapshot);
+        notifyMusicSpectrumDanceState(snapshot.state === 'dancing');
+      }
+    });
+    initMusicReactivityHandlers(musicReactivityService, {
+      savePreferences: (preferences) => PreferencesStore.setMusicReactivity(preferences),
+      onSpectrumFrame: () => notifyMusicSpectrumFrameReceived()
+    });
+  }
 
   // ----------------------------------------------------------------------
   // Quest / 新手引导系统

@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SidebarProvider } from '@/components/ui/sidebar';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import AnalyticsPage from '@/pages/AnalyticsPage/AnalyticsPage';
 import ChatPage from '@/pages/ChatPage/ChatPage';
 import SettingsPage, { SettingsCategory } from '@/pages/SettingsPage/SettingsPage';
@@ -34,6 +35,8 @@ import WorkflowPage from './WorkflowPage';
 
 const ResourcePage: React.FC = () => {
   const navigate = useNavigate();
+  const { isEnabled } = useFeatureFlags();
+  const rssEnabled = isEnabled('rss');
   // 当前页面不再提供空间切换，始终使用"当前选中的默认空间"进行筛选
   const [wsFilter, setWsFilter] = useState<string | undefined>(undefined);
   const [tagFilter, setTagFilter] = useState<string>(''); // '' means all
@@ -604,7 +607,7 @@ const ResourcePage: React.FC = () => {
           <Route path="workflows" element={<WorkflowPage />} />
           <Route path="recycle" element={<RecycleBinPage hideTitleBar />} />
           <Route path="preview/:resourceId" element={<ResourcePreviewWindow />} />
-          <Route path="rss/:resourceId" element={<RssFeedPage />} />
+          {rssEnabled && <Route path="rss/:resourceId" element={<RssFeedPage />} />}
           {/* 资源浏览路由 */}
           <Route
             path="browse/*"
@@ -644,8 +647,8 @@ const ResourcePage: React.FC = () => {
                 // 面包屑导航
                 currentFolderPath={currentFolderPath}
                 // RSS 相关
-                onOpenRssSettings={handleOpenRssSettings}
-                onRefreshRss={handleRefreshRss}
+                onOpenRssSettings={rssEnabled ? handleOpenRssSettings : undefined}
+                onRefreshRss={rssEnabled ? handleRefreshRss : undefined}
               />
             }
           />
@@ -654,7 +657,7 @@ const ResourcePage: React.FC = () => {
 
       <RenameFolderDialog renameOpen={renameOpen} setRenameOpen={setRenameOpen} renameName={renameName} setRenameName={setRenameName} handleRenameConfirm={handleRenameConfirm} />
 
-      <EditRssSettingsDialog open={rssSettingsOpen} onOpenChange={setRssSettingsOpen} item={rssSettingsItem} onSuccess={load} />
+      {rssEnabled && <EditRssSettingsDialog open={rssSettingsOpen} onOpenChange={setRssSettingsOpen} item={rssSettingsItem} onSuccess={load} />}
 
       <Dialog open={settingsModalCategory !== null} onOpenChange={(open) => !open && setSettingsModalCategory(null)}>
         <DialogHeader className="hidden">

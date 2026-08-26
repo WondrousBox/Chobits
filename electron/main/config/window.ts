@@ -1,6 +1,7 @@
 import { WindowConfig, WindowKey } from '@aim-packages/window-manager';
 import { ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY, ACHIEVEMENT_UNLOCK_WINDOW_KEY, ACHIEVEMENT_UNLOCK_WINDOW_ROUTE_HASH } from '@packages/sprite-core/achievement-window';
 
+import { isFeatureEnabled, type FeatureKey } from '../feature-flags';
 import { Env } from '../utils';
 
 declare module '@aim-packages/window-manager' {
@@ -936,3 +937,30 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
 };
 
 export default defaultWindowConfigs;
+
+/** 窗口 key → 功能旗标：旗标关闭时对应窗口不注册（含全部后续批次用到的映射） */
+const WINDOW_FEATURE_GATE: Partial<Record<WindowKey, FeatureKey>> = {
+  musicSpectrum: 'music',
+  webRecorder: 'recording',
+  projectTracking: 'projectTracking',
+  achievementUnlock: 'gamification',
+  questList: 'gamification',
+  skillTree: 'gamification',
+  levelUp: 'gamification',
+  asr: 'localAi',
+  asrConfig: 'localAi'
+};
+
+/**
+ * 按功能旗标过滤后的窗口配置表
+ *
+ * 被关闭功能的窗口不注册到 windowManager,createOrShow 时将无对应配置可用。
+ */
+export function getEnabledWindowConfigs(): Record<WindowKey, WindowConfig> {
+  return Object.fromEntries(
+    Object.entries(defaultWindowConfigs).filter(([key]) => {
+      const gate = WINDOW_FEATURE_GATE[key as WindowKey];
+      return !gate || isFeatureEnabled(gate);
+    })
+  ) as Record<WindowKey, WindowConfig>;
+}

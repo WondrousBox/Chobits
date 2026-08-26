@@ -8,6 +8,7 @@ import { AchievementUnlockPage, AIAssistant, LevelUpPage, StatusPage } from '@/f
 import { SpriteBubblePage } from '@/features/sprite-bubble';
 import { SpriteEffectPage } from '@/features/sprite-effect';
 import { useAIProviderConfig } from '@/hooks/useAIProviderConfig';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { useWorkspaceCheck } from '@/hooks/useWorkspaceCheck';
 import { ChatSelectionProvider } from '@/pages/ChatPage/context/ChatSelectionContext';
 import ExtensionSettings from '@/pages/ExtensionSettings/ExtensionSettings';
@@ -50,6 +51,12 @@ import WorkspaceWizard from './pages/WorkspacePage/WorkspaceWizard';
 function StandardAppRoutes(): JSX.Element {
   useWorkspaceCheck();
   useAIProviderConfig();
+  const { flags, loading } = useFeatureFlags();
+
+  // 等待旗标加载完成再渲染路由,避免直达被开启功能的路由时因默认值闪烁而回退
+  if (loading) {
+    return <div className="w-full h-full overflow-hidden" />;
+  }
 
   return (
     <ChatSelectionProvider>
@@ -57,8 +64,8 @@ function StandardAppRoutes(): JSX.Element {
         <Routes>
           <Route path="/" element={<AIAssistant />} />
           <Route path="/status" element={<StatusPage />} />
-          <Route path="/asr-config" element={<ASRConfigPage />} />
-          <Route path="/asr" element={<RecordingPage />} />
+          {flags.localAi && <Route path="/asr-config" element={<ASRConfigPage />} />}
+          {flags.localAi && <Route path="/asr" element={<RecordingPage />} />}
           <Route path="/tts-config" element={<TTSConfigPage />} />
           <Route path="/tts" element={<TTSPage />} />
           <Route path="/menu" element={<AssistantMenuPage />} />
@@ -97,27 +104,27 @@ function StandardAppRoutes(): JSX.Element {
           <Route path="/selected-text-explain" element={<SelectedTextExplainPage />} />
           <Route path="/plugin-manager" element={<PluginPage />} />
           <Route path="/plugin-download" element={<PluginDownloadPage />} />
-          <Route path="/workflow" element={<WorkflowBuilderPage />} />
-          <Route path="/workflow/:id" element={<WorkflowBuilderPage />} />
-          <Route path="/workflow-page" element={<WorkflowPage />} />
+          {flags.workflow && <Route path="/workflow" element={<WorkflowBuilderPage />} />}
+          {flags.workflow && <Route path="/workflow/:id" element={<WorkflowBuilderPage />} />}
+          {flags.workflow && <Route path="/workflow-page" element={<WorkflowPage />} />}
           <Route path="/screenshot" element={<Screenshot />} />
-          <Route path="/workflow-history" element={<WorkflowHistoryPage />} />
+          {flags.workflow && <Route path="/workflow-history" element={<WorkflowHistoryPage />} />}
           <Route path="/ai-provider-config" element={<AiProviderConfigWindow />} />
           <Route path="/tagger" element={<TaggingPage />} />
           <Route path="/resource-preview" element={<ResourcePreviewWindow />} />
           <Route path="/download" element={<DownloadFloating />} />
-          <Route path="/skill-tree" element={<SkillTreeSettings />} />
-          <Route path="/level-up" element={<LevelUpPage />} />
-          <Route path="/achievement-unlock" element={<AchievementUnlockPage />} />
-          <Route path="/quest-list" element={<QuestListPage />} />
-          <Route path="/web-recorder" element={<WebRecorderWindow />} />
+          {flags.gamification && <Route path="/skill-tree" element={<SkillTreeSettings />} />}
+          {flags.gamification && <Route path="/level-up" element={<LevelUpPage />} />}
+          {flags.gamification && <Route path="/achievement-unlock" element={<AchievementUnlockPage />} />}
+          {flags.gamification && <Route path="/quest-list" element={<QuestListPage />} />}
+          {flags.recording && <Route path="/web-recorder" element={<WebRecorderWindow />} />}
           <Route path="/memory-graph" element={<MemoryGraphPage />} />
-          <Route path="/project-tracking" element={<ProjectTrackingPage />} />
+          {flags.projectTracking && <Route path="/project-tracking" element={<ProjectTrackingPage />} />}
           <Route path="/character-pack-editor" element={<SpritePackEditorWindow />} />
           <Route path="/window-animation-editor" element={<WindowAnimationEditor />} />
           <Route path="/sprite-bubble" element={<SpriteBubblePage />} />
           <Route path="/sprite-effect" element={<SpriteEffectPage />} />
-          <Route path="/music-spectrum" element={<MusicSpectrumPage />} />
+          {flags.music && <Route path="/music-spectrum" element={<MusicSpectrumPage />} />}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <Toaster />
@@ -129,7 +136,8 @@ function StandardAppRoutes(): JSX.Element {
 
 function AppRoutes(): JSX.Element {
   const location = useLocation();
-  const isAchievementUnlockWindow = location.pathname === '/achievement-unlock';
+  const { flags } = useFeatureFlags();
+  const isAchievementUnlockWindow = flags.gamification && location.pathname === '/achievement-unlock';
 
   if (isAchievementUnlockWindow) {
     return (

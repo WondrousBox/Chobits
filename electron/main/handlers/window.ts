@@ -6,7 +6,7 @@ import type { IpcMainInvokeEvent } from 'electron';
 import { BrowserWindow, ipcMain } from 'electron';
 import { app, screen } from 'electron';
 
-import defaultWindowConfigs from '../config/window';
+import defaultWindowConfigs, { getEnabledWindowConfigs } from '../config/window';
 import { globalInputMonitor } from '../global-input-monitor';
 import { attachAppWindowClosedReporter, emitAppWindowOpened, rememberWindowPayload } from './window-events';
 import { emitWorkspaceWizardClosedIfStillEmpty } from './workspace/ipc-main';
@@ -241,7 +241,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
     anchorWidth: assistantWidth, // 初始为 0，等待渲染进程设置
     loadURL: process.env.VITE_DEV_SERVER_URL,
     loadFile: path.join(process.env.APP_ROOT || app.getAppPath(), 'dist'),
-    windowConfigs: defaultWindowConfigs,
+    windowConfigs: getEnabledWindowConfigs(),
     onBeforeFollowerShow: () => {
       stopHoverMonitor();
     },

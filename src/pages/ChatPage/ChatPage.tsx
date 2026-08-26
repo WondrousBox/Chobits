@@ -51,6 +51,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAutoScroll } from '@/hooks/useAutoScroll';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { useRealtimeChatSpeech } from '@/hooks/useRealtimeChatSpeech';
 import { ensureChatApiConfigGoal, guideChatApiConfigIfNeeded } from '@/lib/chat-api-config-guide';
 import { buildExplicitSkillInvocationInput } from '@/lib/chat-explicit-skill-invocation';
@@ -117,6 +118,8 @@ function getChatWindowPayloadKey(payload: ChatWindowPayload): string {
 
 export default function ChatPage({ hideTitleBar = false, presentation = 'standard', payloadWindowKey = 'chat' }: ChatPageProps): JSX.Element {
   const isOverlay = presentation === 'overlay';
+  const { isEnabled } = useFeatureFlags();
+  const emojiPacksAvailable = isEnabled('emojiPacks');
   const realtimeSpeech = useRealtimeChatSpeech('mainChat');
   const cancelRealtimeSpeech = realtimeSpeech.cancel;
   const refreshRealtimeSpeechEnabled = realtimeSpeech.refreshEnabled;
@@ -636,8 +639,8 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
           ...(explicitSkillInvocation ? { explicitSkillInvocation } : {}),
           ...(params.webSearchEnabled ? { webSearchEnabled: true } : {}),
           ...(params.characterPersonaEnabled ? { characterPersonaEnabled: true } : {}),
-          ...(params.emojiPacksEnabled ? { emojiPacksEnabled: true } : {}),
-          ...(params.emojiPacksDisplayTarget ? { emojiPacksDisplayTarget: params.emojiPacksDisplayTarget } : {}),
+          ...(params.emojiPacksEnabled && emojiPacksAvailable ? { emojiPacksEnabled: true } : {}),
+          ...(params.emojiPacksEnabled && emojiPacksAvailable && params.emojiPacksDisplayTarget ? { emojiPacksDisplayTarget: params.emojiPacksDisplayTarget } : {}),
           ...(selectedAgentId === 'coder' && selectedCodingWorkspaceRoot
             ? {
                 codingWorkspaceRoot: selectedCodingWorkspaceRoot,

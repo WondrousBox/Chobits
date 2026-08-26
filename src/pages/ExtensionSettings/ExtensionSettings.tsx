@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { getSpriteCapabilityLockedReason, getSpriteCapabilityState } from '@/features/sprite-assistant/capability-ui';
 import { useSpriteCapabilitySnapshot } from '@/features/sprite-assistant/hooks/useSpriteCapabilitySnapshot';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 
 import { ChatEntryDetailContent, ChatEntryItem } from './ChatEntrySettings';
 import { DailyCareDetailContent, DailyCareItem, useDailyCareSettings } from './DailyCareSettings';
@@ -43,6 +44,8 @@ type SkillKey =
 const ExtensionSettings: React.FC = () => {
   const [selected, setSelected] = useState<SkillKey>('chatEntry');
   const { snapshot: capabilitySnapshot, refresh: refreshCapabilitySnapshot } = useSpriteCapabilitySnapshot();
+  const { isEnabled } = useFeatureFlags();
+  const musicEnabled = isEnabled('music');
 
   const handleCapabilityBlocked = React.useCallback((capability: SpriteCapabilityState) => {
     toast.info(`${capability.name} 尚未解锁`, {
@@ -77,7 +80,7 @@ const ExtensionSettings: React.FC = () => {
       case 'dailyCare':
         return <DailyCareDetailContent state={dailyCareState} capability={dailyCareCapability} />;
       case 'danceAnimation':
-        return <DanceAnimationDetailContent state={musicDanceState} />;
+        return musicEnabled ? <DanceAnimationDetailContent state={musicDanceState} /> : null;
       case 'movToWebm':
         return <MovToWebmConverterDetailContent />;
       case 'windowAnimation':
@@ -108,7 +111,9 @@ const ExtensionSettings: React.FC = () => {
             <MovementItem state={movementState} capability={movementCapability} selected={selected === 'movement'} onSelect={() => setSelected('movement')} />
             <SpeakItem state={speakState} selected={selected === 'speak'} onSelect={() => setSelected('speak')} />
             <DailyCareItem state={dailyCareState} capability={dailyCareCapability} selected={selected === 'dailyCare'} onSelect={() => setSelected('dailyCare')} />
-            <DanceAnimationItem state={musicDanceState} selected={selected === 'danceAnimation'} onSelect={() => setSelected('danceAnimation')} />
+            {musicEnabled && (
+              <DanceAnimationItem state={musicDanceState} selected={selected === 'danceAnimation'} onSelect={() => setSelected('danceAnimation')} />
+            )}
             <MovToWebmConverterItem selected={selected === 'movToWebm'} onSelect={() => setSelected('movToWebm')} />
             <WindowAnimationItem selected={selected === 'windowAnimation'} onSelect={() => setSelected('windowAnimation')} />
             <SpontaneousUtteranceItem state={spontaneousUtteranceState} selected={selected === 'spontaneous'} onSelect={() => setSelected('spontaneous')} />
