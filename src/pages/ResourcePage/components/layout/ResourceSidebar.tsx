@@ -3,6 +3,7 @@ import { TbChartBar, TbFilter, TbHeart, TbHome, TbLine, TbTrash } from 'react-ic
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 
 import FolderSidebar, { type UIFolder } from '../FolderSidebar';
 import WorkspaceSwitcher from '../WorkspaceSwitcher';
@@ -62,6 +63,8 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isEnabled } = useFeatureFlags();
+  const analyticsEnabled = isEnabled('analytics');
   const isTasksRoute = location.pathname.includes('/tasks');
   const isWorkflowsRoute = location.pathname.includes('/workflows');
   const isAnalyticsRoute = location.pathname.includes('/analytics');
@@ -114,22 +117,25 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
-          <SidebarMenuItem
-            key={'analytics'}
-            onClick={() => {
-              navigate('/resources/analytics', { replace: true });
-              setFavoriteFilter(false);
-              setFolderFilter('');
-            }}
-          >
-            <SidebarMenuButton
-              variant={isAnalyticsRoute ? 'outline' : 'default'}
-              className={`h-8 transition-colors ${isAnalyticsRoute ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground' : ''}`}
+          {/* 统计分析 - 功能旗标控制 */}
+          {analyticsEnabled && (
+            <SidebarMenuItem
+              key={'analytics'}
+              onClick={() => {
+                navigate('/resources/analytics', { replace: true });
+                setFavoriteFilter(false);
+                setFolderFilter('');
+              }}
             >
-              <TbChartBar />
-              统计
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+              <SidebarMenuButton
+                variant={isAnalyticsRoute ? 'outline' : 'default'}
+                className={`h-8 transition-colors ${isAnalyticsRoute ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground' : ''}`}
+              >
+                <TbChartBar />
+                统计
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem
             key={'tasks'}
             onClick={() => {

@@ -486,7 +486,9 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
     const { registerEmojiPackPromptEnricher } = await import('./emoji-packs/prompt');
     registerEmojiPackPromptEnricher();
   }
-  initRecorderHandlers();
+  if (isFeatureEnabled('recording')) {
+    initRecorderHandlers();
+  }
   initSherpaHandlers();
   initTTSHandlers();
   initShortcutsHandlers(win);
@@ -522,7 +524,9 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initMediaHandlers(win);
   initMemoryHandlers();
   initConversationRouteHandlers();
-  initProjectTrackingHandlers();
+  if (isFeatureEnabled('projectTracking')) {
+    initProjectTrackingHandlers();
+  }
   initAnalyticsHandlers();
   initUserProfileHandlers();
   const purposeHistoryStore = new SpritePurposeHistoryStore(app.getPath('userData'));

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 
 import { SettingGroup, SettingItem } from './SettingComponents';
 
@@ -21,6 +22,7 @@ interface MemoryConfig {
 }
 
 const MemoryManagementSettings: React.FC = () => {
+  const { isEnabled } = useFeatureFlags();
   const [isClearing, setIsClearing] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [noteCount, setNoteCount] = useState<number | null>(null);
@@ -179,16 +181,18 @@ const MemoryManagementSettings: React.FC = () => {
             </Button>
           }
         />
-        <SettingItem
-          title="项目中心"
-          description="查看跨会话项目、项目快照、时间线、里程碑和关联对话"
-          action={
-            <Button size="sm" variant="outline" onClick={() => window.YUA.window['window:open']('projectTracking' as any)}>
-              <TbBriefcase />
-              打开项目
-            </Button>
-          }
-        />
+        {isEnabled('projectTracking') && (
+          <SettingItem
+            title="项目中心"
+            description="查看跨会话项目、项目快照、时间线、里程碑和关联对话"
+            action={
+              <Button size="sm" variant="outline" onClick={() => window.YUA.window['window:open']('projectTracking' as any)}>
+                <TbBriefcase />
+                打开项目
+              </Button>
+            }
+          />
+        )}
         <SettingItem
           title="清除所有记忆"
           description={noteCount !== null ? `删除所有记忆笔记、主题和关联数据（当前 ${noteCount} 条记忆），此操作不可恢复` : '删除所有记忆笔记、主题和关联数据，此操作不可恢复'}

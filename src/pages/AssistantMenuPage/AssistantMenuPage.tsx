@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 
 import { getFirstLockedSpriteCapability, getSpriteCapabilityLockedReason } from '@/features/sprite-assistant/capability-ui';
 import { useSpriteCapabilitySnapshot } from '@/features/sprite-assistant/hooks/useSpriteCapabilitySnapshot';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { ensureChatApiConfigGoal } from '@/lib/chat-api-config-guide';
 
 import RadialMenu, { RadialMenuItem } from '../../components/common/RadialMenu/RadialMenu';
@@ -26,6 +27,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
   const [debugOverlay, setDebugOverlay] = useState(false);
   const [bubbleMode, setBubbleMode] = useState<SpriteBubbleMode>('fixed-top');
   const { snapshot: capabilitySnapshot, refresh: refreshCapabilitySnapshot } = useSpriteCapabilitySnapshot({ enabled: isOpen });
+  const { isEnabled } = useFeatureFlags();
 
   // 查询 ASR 服务状态
   const checkASRStatus = useCallback(async () => {
@@ -203,7 +205,14 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
               window.YUA.window['window:open']('ttsConfig');
             }
           }
-        ]
+        ].filter((item) => {
+          // 按功能旗标隐藏录制类菜单项
+          if (item.id === 'asr-service') return isEnabled('localAi');
+          if (item.id === 'mic-recording' || item.id === 'system-audio-recording' || item.id === 'web-recorder') {
+            return isEnabled('recording');
+          }
+          return true;
+        })
       },
       {
         id: 'tagger',
@@ -338,7 +347,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         }
       }
     ],
-    [bubbleMode, capabilitySnapshot, debugOverlay, emitAssistantMenuItemSelected, isASRRunning, refreshCapabilitySnapshot, setSpriteBubbleMode, showLockedCapabilityToast, toggleDebugOverlay]
+    [bubbleMode, capabilitySnapshot, debugOverlay, emitAssistantMenuItemSelected, isASRRunning, isEnabled, refreshCapabilitySnapshot, setSpriteBubbleMode, showLockedCapabilityToast, toggleDebugOverlay]
   );
 
   // 处理菜单关闭请求（播放退出动画后关闭窗口）
