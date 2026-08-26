@@ -20,6 +20,8 @@ export interface PreferencesConfig {
   musicReactivity: MusicReactivityPreferences;
   /** 新手引导 / Quest 系统状态（由 QuestEngine 持久化，结构由 sprite-core/quest 定义） */
   onboardingState?: OnboardingState;
+  /** 全局功能旗标覆盖（键为 FeatureKey，未设置的项用 packages/common/feature-flags 中的默认值） */
+  featureFlags?: Record<string, boolean>;
 }
 
 // 默认配置
@@ -62,7 +64,8 @@ function read(): StoreShape {
         webRecorderDeviceId: data.preferences?.webRecorderDeviceId,
         assistantMiniWindowEnabled: typeof data.preferences?.assistantMiniWindowEnabled === 'boolean' ? data.preferences.assistantMiniWindowEnabled : DEFAULT_CONFIG.assistantMiniWindowEnabled,
         musicReactivity: normalizeMusicReactivityPreferences(data.preferences?.musicReactivity),
-        onboardingState: data.preferences?.onboardingState
+        onboardingState: data.preferences?.onboardingState,
+        featureFlags: data.preferences?.featureFlags
       }
     };
   } catch (error) {

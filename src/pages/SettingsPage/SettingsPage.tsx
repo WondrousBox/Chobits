@@ -1,11 +1,12 @@
 import clsx from 'clsx';
 import React, { useEffect, useState } from 'react';
-import { TbAdjustments, TbBook, TbCpu, TbFolderOpen, TbKeyboard, TbLanguage, TbMessage2, TbNetwork, TbPlug, TbUser } from 'react-icons/tb';
+import { TbAdjustments, TbBook, TbCpu, TbFolderOpen, TbKeyboard, TbLanguage, TbMessage2, TbNetwork, TbPlug, TbToggleLeft, TbUser } from 'react-icons/tb';
 
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
 
 import DragAbleTitle from '../../components/common/DragAbleTitle';
 import AiSettings from './components/AiSettings';
+import FeatureFlagsSettings from './components/FeatureFlagsSettings';
 import GlossarySettings from './components/glossary/GlossarySettings';
 import PreferencesSettings from './components/PreferencesSettings';
 import PromptSetting from './components/PromptSetting';
@@ -16,7 +17,7 @@ import UserProfileSettings from './components/UserProfileSettings';
 import Workspace from './components/Workspace';
 import PluginPage from './PluginPage';
 
-export type DefaultSettingsCategory = 'preferences' | 'workspace' | 'ai' | 'user-profile' | 'prompt' | 'glossary' | 'selected-text-learning' | 'plugins' | 'shortcuts' | 'proxy';
+export type DefaultSettingsCategory = 'preferences' | 'workspace' | 'ai' | 'user-profile' | 'prompt' | 'glossary' | 'selected-text-learning' | 'plugins' | 'shortcuts' | 'proxy' | 'features';
 
 export type SettingsCategory = DefaultSettingsCategory | (string & {});
 
@@ -71,6 +72,12 @@ const defaultCategories: SettingsCategoryDef[] = [
     label: '划词学习',
     icon: TbLanguage,
     description: '长按 Ctrl 解析选中的英文文本'
+  },
+  {
+    id: 'features',
+    label: '功能管理',
+    icon: TbToggleLeft,
+    description: '开启或关闭可选功能'
   },
   {
     id: 'plugins',
@@ -184,6 +191,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = EM
         return <Workspace />;
       case 'plugins':
         return <PluginPage />;
+      case 'features':
+        return <FeatureFlagsSettings />;
       case 'ai':
         return <AiSettings initialProviderId={initialAiProviderId || undefined} initialPresetId={initialAiPresetId || undefined} focusRevision={aiPayloadRevision} />;
       case 'user-profile':

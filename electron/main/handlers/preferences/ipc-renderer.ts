@@ -11,6 +11,7 @@ export interface PreferencesConfig {
   webRecorderDeviceId?: string;
   assistantMiniWindowEnabled: boolean;
   musicReactivity: MusicReactivityPreferences;
+  featureFlags?: Record<string, boolean>;
 }
 
 export type PreferencesIpcType = typeof preferencesIpcRenderer;

@@ -38,6 +38,7 @@ import { app, BrowserWindow, ipcMain, screen } from 'electron';
 
 import { getDailyCareService } from '../../../electron/main/daily';
 import type { DailyCareRoutineDispatch } from '../../../electron/main/daily/types';
+import { isFeatureEnabled } from '../../../electron/main/feature-flags';
 import { getMainSchedulerService } from '../../../electron/main/scheduler';
 import { loadShortcutEnabledConfig, saveShortcutEnabledConfig } from '../../../electron/main/shortcut-store';
 import { AppEvent, eventManager } from '../../event';
@@ -602,7 +603,9 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     }
 
     return {
-      personaLevel: persona.level,
+      // 游戏化功能关闭时等级不再增长,将所有 capability 视为已达等级要求,
+      // 避免截图 / 快捷键等基础能力被技能树锁死
+      personaLevel: isFeatureEnabled('gamification') ? persona.level : Number.MAX_SAFE_INTEGER,
       achievements: persona.achievements,
       featureFlags,
       personaFlags,
