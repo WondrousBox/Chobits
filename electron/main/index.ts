@@ -55,21 +55,47 @@ let splashWin: BrowserWindow | null = null;
 const preload = path.join(__dirname, '../preload/index.mjs');
 const indexHtml = path.join(RENDERER_DIST, 'index.html');
 
+// splash 页面未完成加载时，executeJavaScript 会堆积 did-stop-loading 监听器
+// （触发 MaxListenersExceededWarning），所以加载完成前只缓存最新一条文本
+let splashLoaded = false;
+let pendingSplashStatus: string | null = null;
+let pendingSplashLog: string | null = null;
+
 // 获取主窗口的函数
 export function getMainWindow(): BrowserWindow | null {
   return win && !win.isDestroyed() ? win : null;
 }
 
 function updateSplashStatus(text: string): void {
-  if (splashWin && !splashWin.isDestroyed()) {
-    splashWin.webContents.executeJavaScript(`document.getElementById('status-text').textContent = ${JSON.stringify(text)}`).catch(() => { });
+  if (!splashWin || splashWin.isDestroyed()) return;
+  if (!splashLoaded) {
+    pendingSplashStatus = text;
+    return;
   }
+  splashWin.webContents.executeJavaScript(`document.getElementById('status-text').textContent = ${JSON.stringify(text)}`).catch(() => { });
 }
 
 function updateSplashLog(text: string): void {
-  if (splashWin && !splashWin.isDestroyed()) {
-    console.log('>> ' + text);
-    splashWin.webContents.executeJavaScript(`typeof updateLog==='function'&&updateLog(${JSON.stringify(text)})`).catch(() => { });
+  if (!splashWin || splashWin.isDestroyed()) return;
+  console.log('>> ' + text);
+  if (!splashLoaded) {
+    pendingSplashLog = text;
+    return;
+  }
+  splashWin.webContents.executeJavaScript(`typeof updateLog==='function'&&updateLog(${JSON.stringify(text)})`).catch(() => { });
+}
+
+function flushSplashPending(): void {
+  splashLoaded = true;
+  if (pendingSplashStatus !== null) {
+    const text = pendingSplashStatus;
+    pendingSplashStatus = null;
+    updateSplashStatus(text);
+  }
+  if (pendingSplashLog !== null) {
+    const text = pendingSplashLog;
+    pendingSplashLog = null;
+    updateSplashLog(text);
   }
 }
 
@@ -97,6 +123,7 @@ function createSplashWindow(): Promise<void> {
     });
 
     splashWin.loadFile(splashHtml);
+    splashWin.webContents.once('did-finish-load', flushSplashPending);
     splashWin.once('ready-to-show', () => {
       if (splashWin && !splashWin.isDestroyed()) {
         splashWin.show();
