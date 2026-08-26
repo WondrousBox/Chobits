@@ -6,9 +6,16 @@ export { FEATURE_DEFINITIONS, type FeatureKey };
 
 /**
  * 读取完整功能旗标表(默认值 + 用户覆盖)
+ *
+ * 存储不可用时(如测试环境或配置损坏)回退到默认值
  */
 export function getFeatureFlags(): Record<FeatureKey, boolean> {
-  return resolveFeatureFlags(PreferencesStore.getConfig().featureFlags);
+  try {
+    return resolveFeatureFlags(PreferencesStore.getConfig().featureFlags);
+  } catch (error) {
+    console.warn('[FeatureFlags] failed to read flags, falling back to defaults:', error);
+    return resolveFeatureFlags();
+  }
 }
 
 /**

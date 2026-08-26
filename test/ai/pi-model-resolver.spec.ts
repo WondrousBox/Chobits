@@ -65,7 +65,24 @@ vi.mock('../../packages/ai/runtime/pi/runtime-switch', () => ({
 
 vi.mock('../../packages/ai/runtime/pi/tool-registry', () => ({
   DEFAULT_EMOJI_PACK_TOOL_IDS: ['emoji-send'],
+  TOOL_FEATURE_GATE: {
+    'persona-update': 'gamification',
+    'music-generate': 'music',
+    'music-lyrics': 'music',
+    'youtube-subscribe': 'rss',
+    'project-tracking': 'projectTracking',
+    'emoji-send': 'emojiPacks',
+    'workflow-run': 'workflow'
+  },
   normalizePiToolIds: normalizePiToolIdsMock
+}));
+
+// 本套件验证 resolver 的工具装配行为,功能旗标一律视为开启(保持旗标机制引入前的行为)
+vi.mock('../../electron/main/feature-flags', () => ({
+  getFeatureFlags: () =>
+    new Proxy({} as Record<string, boolean>, {
+      get: () => true
+    })
 }));
 
 import { resolvePiRequest } from '../../packages/ai/runtime/pi/model-resolver';

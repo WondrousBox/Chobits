@@ -53,6 +53,11 @@ vi.mock('../../electron/main/handlers/workspace/ipc-main', () => ({
   emitWorkspaceWizardClosedIfStillEmpty: vi.fn()
 }));
 
+// 本套件验证窗口管理行为本身,功能旗标一律视为开启(保持旗标机制引入前的行为)
+vi.mock('../../electron/main/feature-flags', () => ({
+  isFeatureEnabled: () => true
+}));
+
 vi.mock('electron', () => ({
   app: {
     getAppPath: () => '/app'

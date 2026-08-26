@@ -35,28 +35,35 @@ type StoreShape = {
   preferences: PreferencesConfig;
 };
 
-const STORE_DIR = path.join(app.getPath('userData'), 'data');
-const STORE_FILE = path.join(STORE_DIR, 'preferences-config.json');
+/**
+ * 惰性计算存储路径:避免在模块加载时调用 app.getPath(测试环境中 electron app 不可用)
+ */
+function getStorePaths(): { dir: string; file: string } {
+  const dir = path.join(app.getPath('userData'), 'data');
+  return { dir, file: path.join(dir, 'preferences-config.json') };
+}
 
 /**
  * 确保存储文件存在
  */
-function ensureStore(): void {
-  if (!fs.existsSync(STORE_DIR)) {
-    fs.mkdirSync(STORE_DIR, { recursive: true });
+function ensureStore(): { dir: string; file: string } {
+  const { dir, file } = getStorePaths();
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
   }
-  if (!fs.existsSync(STORE_FILE)) {
-    fs.writeFileSync(STORE_FILE, JSON.stringify({ preferences: DEFAULT_CONFIG } as StoreShape, null, 2));
+  if (!fs.existsSync(file)) {
+    fs.writeFileSync(file, JSON.stringify({ preferences: DEFAULT_CONFIG } as StoreShape, null, 2));
   }
+  return { dir, file };
 }
 
 /**
  * 读取配置
  */
 function read(): StoreShape {
-  ensureStore();
+  const { file } = ensureStore();
   try {
-    const raw = fs.readFileSync(STORE_FILE, 'utf-8');
+    const raw = fs.readFileSync(file, 'utf-8');
     const data = JSON.parse(raw);
     return {
       preferences: {
@@ -78,9 +85,9 @@ function read(): StoreShape {
  * 写入配置
  */
 function write(next: StoreShape): void {
-  ensureStore();
+  const { file } = ensureStore();
   try {
-    fs.writeFileSync(STORE_FILE, JSON.stringify(next, null, 2));
+    fs.writeFileSync(file, JSON.stringify(next, null, 2));
   } catch (error) {
     console.error('[PreferencesStore] 写入配置失败:', error);
     throw error;
@@ -92,8 +99,7 @@ function write(next: StoreShape): void {
  */
 export const PreferencesStore = {
   getStoreLocation(): { file: string; dir: string } {
-    ensureStore();
-    return { file: STORE_FILE, dir: STORE_DIR };
+    return ensureStore();
   },
 
   /**

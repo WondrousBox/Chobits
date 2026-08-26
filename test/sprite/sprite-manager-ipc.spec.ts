@@ -259,6 +259,11 @@ vi.mock('../../electron/main/daily', () => ({
   getDailyCareService: getDailyCareServiceMock
 }));
 
+// 本套件验证 capability 快照的等级传递行为,游戏化旗标视为开启(保持旗标旁路引入前的行为)
+vi.mock('../../electron/main/feature-flags', () => ({
+  isFeatureEnabled: () => true
+}));
+
 const loadShortcutEnabledConfigMock = vi.fn(() => ({ screenshot: false }));
 const saveShortcutEnabledConfigMock = vi.fn((partial: { screenshot?: boolean }) => ({ screenshot: partial.screenshot ?? false }));
 vi.mock('../../electron/main/shortcut-store', () => ({
