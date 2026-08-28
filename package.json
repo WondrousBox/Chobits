@@ -71,7 +71,7 @@
     "@electron/rebuild": "^3.6.0",
     "@google/generative-ai": "^0.24.1",
     "@langchain/community": "^0.3.57",
-    "@langchain/core": "^0.3.78",
+    "@langchain/core": "^1.1.24",
     "@langchain/openai": "^0.6.16",
     "@lobehub/icons-static-svg": "^1.86.0",
     "@playwright/test": "^1.48.2",
