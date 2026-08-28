@@ -2,10 +2,16 @@
 	<img src="public/icon.png" alt="Chobits Logo" width="120" height="120" />
 	<h1>Chobits</h1>
 	<p><b>叽～</b> 你的 AI 桌面精灵 / 助手 / 工具</p>
-	<p>An AI desktop assistant built with Electron, Vite, and React. Cross-platform, extensible, and private-by-default.</p>
+	<p>基于 Electron、Vite 与 React 打造的 AI 桌面助手：跨平台、可扩展、隐私优先。</p>
 	<p>
-		<a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-green.svg"></a>
+		<a href="./README.md">简体中文</a> ｜ <a href="./README.ja.md">日本語</a>
+	</p>
+	<p>
 		<a href="https://github.com/WondrousBox/Chobits"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-Chobits-181717?logo=github"></a>
+		<a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-green.svg"></a>
+		<a href="https://madewithlove.org.in"><img alt="Made with Love" src="https://img.shields.io/badge/Made%20with-Love-ff69b4.svg"></a>
+	</p>
+	<p>
 		<img alt="Node" src="https://img.shields.io/badge/Node-%E2%89%A518.x-339933?logo=node.js&logoColor=white" />
 		<img alt="Electron" src="https://img.shields.io/badge/Electron-39-blue?logo=electron&logoColor=white" />
 		<img alt="Vite" src="https://img.shields.io/badge/Vite-5-646CFF?logo=vite&logoColor=white" />
@@ -14,11 +20,6 @@
 </div>
 
 > 💖 如果这个项目对你有帮助，欢迎在 [GitHub](https://github.com/WondrousBox/Chobits) 点个 Star —— 你的支持能让更多人发现小叽！
-
-> 「主人，要一起工作吗？叽～」
->
-> 一只住在桌面角落的小叽：能聊天、会记事、帮你整理资源、还能跑工作流。
-> 数据默认留在本地，API Key 存在系统钥匙串里——你的秘密，小叽不外传。(*´∀`*)
 
 ## ✨ 功能特性
 
@@ -196,9 +197,3 @@ Linux 特别提示：精灵是透明无边框窗口，需要桌面混成器（GN
 - **自由使用**：可自由使用、复制、修改、分发，包括商业用途。
 - **保留声明**：分发时须保留原始版权与许可声明。
 - **无担保**：软件按「现状」提供，作者不承担任何担保责任。
-
----
-
-<div align="center">
-	<p>叽～下次见。Made with ❤️ using Electron, Vite and React.</p>
-</div>
