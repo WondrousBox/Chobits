@@ -5,12 +5,15 @@
 	<p>An AI desktop assistant built with Electron, Vite, and React. Cross-platform, extensible, and private-by-default.</p>
 	<p>
 		<a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-green.svg"></a>
+		<a href="https://github.com/WondrousBox/Chobits"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-Chobits-181717?logo=github"></a>
 		<img alt="Node" src="https://img.shields.io/badge/Node-%E2%89%A518.x-339933?logo=node.js&logoColor=white" />
 		<img alt="Electron" src="https://img.shields.io/badge/Electron-39-blue?logo=electron&logoColor=white" />
 		<img alt="Vite" src="https://img.shields.io/badge/Vite-5-646CFF?logo=vite&logoColor=white" />
 		<img alt="React" src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black" />
 	</p>
 </div>
+
+> 💖 如果这个项目对你有帮助，欢迎在 [GitHub](https://github.com/WondrousBox/Chobits) 点个 Star —— 你的支持能让更多人发现小叽！
 
 > 「主人，要一起工作吗？叽～」
 >
@@ -137,14 +140,15 @@ test/
 ## 🗂 项目结构
 
 ```text
-electron/        主进程 + preload（窗口、IPC、数据库、快捷键等）
-src/             渲染进程（React 页面与组件）
-packages/        领域包：ai / workflow / sherpa / tts / ocr / sprite-core / plugins ...
-resources/       随附资源（平台二进制、精灵素材、工作流预设等；二进制用上面的脚本下载）
-drizzle/         数据库迁移（drizzle-kit 生成）
-docs/            各子系统设计文档
-test/            vitest 测试（按域分目录）
-scripts/         构建与资源下载脚本
+Chobits/
+├── electron/     # 主进程 + preload（窗口、IPC、数据库、快捷键等）
+├── src/          # 渲染进程（React 页面与组件）
+├── packages/     # 领域包：ai / workflow / sherpa / tts / ocr / sprite-core / plugins ...
+├── resources/    # 随附资源（平台二进制、精灵素材、工作流预设等；二进制用上面的脚本下载）
+├── drizzle/      # 数据库迁移（drizzle-kit 生成）
+├── docs/         # 各子系统设计文档
+├── test/         # vitest 测试（按域分目录）
+└── scripts/      # 构建与资源下载脚本
 ```
 
 ## ⚙️ 开发约定
@@ -187,7 +191,11 @@ Linux 特别提示：精灵是透明无边框窗口，需要桌面混成器（GN
 
 ## 📄 许可证
 
-本项目使用 MIT 许可证，详见 [LICENSE](./LICENSE)。
+本项目以 [MIT 许可证](./LICENSE) 发布：
+
+- **自由使用**：可自由使用、复制、修改、分发，包括商业用途。
+- **保留声明**：分发时须保留原始版权与许可声明。
+- **无担保**：软件按「现状」提供，作者不承担任何担保责任。
 
 ---
 
