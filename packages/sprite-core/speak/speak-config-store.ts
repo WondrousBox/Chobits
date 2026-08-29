@@ -43,6 +43,7 @@ function normalizeAiProviderConfig(raw: unknown): SpriteSpeakAIProviderConfig {
     voiceId: typeof source.voiceId === 'string' && source.voiceId.trim() ? source.voiceId.trim() : DEFAULT_AI_PROVIDER_SPEAK_CONFIG.voiceId,
     voice: typeof source.voice === 'string' && source.voice.trim() ? source.voice.trim() : undefined,
     language: typeof source.language === 'string' && source.language.trim() ? source.language.trim() : undefined,
+    speechLanguage: source.speechLanguage === 'zh' || source.speechLanguage === 'ja' ? source.speechLanguage : DEFAULT_AI_PROVIDER_SPEAK_CONFIG.speechLanguage,
     audioSetting: {
       ...DEFAULT_AI_PROVIDER_SPEAK_CONFIG.audioSetting,
       ...(audioSetting || {})

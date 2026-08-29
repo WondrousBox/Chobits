@@ -7,6 +7,9 @@ import type { SpeechSynthesisRequest, SpeechSynthesisResponse, SpeechSynthesisSt
 export type SpeakServiceType = 'Edge' | string;
 export type SpriteSpeakEngine = 'edge' | 'ai-provider';
 
+/** 朗读语言：auto = 跟随显示文本（不翻译）；zh/ja = 朗读前按需翻译成目标语言 */
+export type SpriteSpeechLanguage = 'auto' | 'zh' | 'ja';
+
 export type SpriteRealtimeSpeechSource = 'chat';
 export type SpriteRealtimeSpeechScope = 'mainChat' | 'resourceChatSidebar';
 export type SpriteRealtimeSpeechSampleFormat = 's16le' | 'f32le' | string;
@@ -18,6 +21,8 @@ export interface SpriteSpeakAIProviderConfig {
   voiceId: string;
   voice?: string;
   language?: string;
+  /** 朗读语言。与文本实际语言不一致时，先用 LLM 翻译成目标语言再合成；气泡显示不受影响 */
+  speechLanguage?: SpriteSpeechLanguage;
   audioSetting?: {
     format?: string;
     sampleRate?: number;
@@ -86,6 +91,7 @@ export const DEFAULT_AI_PROVIDER_SPEAK_CONFIG: SpriteSpeakAIProviderConfig = {
   providerId: 'minimax',
   model: 'speech-2.8-turbo',
   voiceId: 'female-shaonv',
+  speechLanguage: 'auto',
   audioSetting: {
     format: 'mp3',
     sampleRate: 32000,
@@ -141,6 +147,13 @@ export interface SpriteSpeechSynthesisExecutor {
   stream?(req: SpeechSynthesisRequest, onEvent: (event: SpeechSynthesisStreamEvent) => void, input?: AsyncIterable<SpeechTextInputChunk>, signal?: AbortSignal): Promise<SpeechSynthesisResponse>;
 }
 
+/** 说话前文本翻译器（由主进程注入；不可用时 SpeakService 降级为原文合成） */
+export interface SpriteSpeechTextTranslator {
+  translate(req: { text: string; sourceLang: 'zh' | 'ja'; targetLang: 'zh' | 'ja' }): Promise<string>;
+  /** 最近一次翻译实际使用的后端（provider/模型），由实现方更新，仅用于日志 */
+  lastBackend?: { providerId: string; model?: string };
+}
+
 // ============================================================================
 // Cache
 // ============================================================================
@@ -161,6 +174,7 @@ export interface SpeakCacheEntry {
       voiceId: string;
       voice?: string;
       language?: string;
+      speechLanguage?: SpriteSpeechLanguage;
       audioFormat?: string;
       speed?: number;
       pitch?: number;

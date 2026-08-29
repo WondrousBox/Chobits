@@ -21,6 +21,7 @@ import EdgeTTS from '../../tts/edge';
 import { RealtimeSpeechTextParser, type RealtimeSpeechTextSegment } from './realtime-text-parser';
 import { SpeakCache } from './speak-cache';
 import { SpeakConfigStore } from './speak-config-store';
+import { detectSpeechTextLanguage } from './speech-language';
 import type {
   SpeakCacheEntry,
   SpeakCacheMetadata,
@@ -36,7 +37,9 @@ import type {
   SpriteSpeakEngine,
   SpriteSpeakPayload,
   SpriteSpeakPlaybackContext,
-  SpriteSpeechSynthesisExecutor
+  SpriteSpeechLanguage,
+  SpriteSpeechSynthesisExecutor,
+  SpriteSpeechTextTranslator
 } from './types';
 
 type SynthesisOutput = {
@@ -78,6 +81,11 @@ function speakTextLogPayload(text: string): { text: string; textLength: number }
 
 function logSpeakService(message: string, data?: Record<string, any>): void {
   console.log(`[SpeakService] ${message} ${JSON.stringify({ at: new Date().toISOString(), ...(data || {}) })}`);
+}
+
+function logSpeechTranslate(event: 'done' | 'skip' | 'fallback', data: Record<string, any>): void {
+  const log = event === 'fallback' ? console.warn : console.log;
+  log(`[SpeechTranslate] ${event} ${JSON.stringify(data || {})}`);
 }
 
 function asStringArray(value: unknown): string[] {
@@ -263,6 +271,7 @@ function buildAiProviderCacheConfig(aiProvider: SpriteSpeakAIProviderConfig): Sp
       pitch: aiProvider.pitch,
       providerId: aiProvider.providerId,
       providerPresetId: aiProvider.providerPresetId,
+      speechLanguage: aiProvider.speechLanguage,
       speed: aiProvider.speed,
       voice: aiProvider.voice,
       voiceId: aiProvider.voiceId,
@@ -272,8 +281,13 @@ function buildAiProviderCacheConfig(aiProvider: SpriteSpeakAIProviderConfig): Sp
 }
 
 function buildAiProviderCacheKeyConfig(aiProvider: SpriteSpeakAIProviderConfig): Record<string, unknown> {
+  const base = buildAiProviderCacheConfig(aiProvider);
+  if (base.aiProvider && (!base.aiProvider.speechLanguage || base.aiProvider.speechLanguage === 'auto')) {
+    // auto = 不翻译，与历史缓存 key 保持一致（stableJson 会过滤 undefined 字段）
+    base.aiProvider.speechLanguage = undefined;
+  }
   return {
-    ...buildAiProviderCacheConfig(aiProvider),
+    ...base,
     audioSetting: aiProvider.audioSetting,
     extras: cloneStableExtras(aiProvider.extras),
     pronunciationDict: aiProvider.pronunciationDict,
@@ -281,7 +295,23 @@ function buildAiProviderCacheKeyConfig(aiProvider: SpriteSpeakAIProviderConfig):
   };
 }
 
-function buildCompleteSpeechSynthesisRequest(aiProvider: SpriteSpeakAIProviderConfig, text: string, usage: Record<string, any>): SpeechSynthesisRequest {
+/**
+ * 清洗 LLM 译文：trim、去标签行前缀（如「译文：」）、去成对的首尾引号、
+ * 合并多余换行（Qwen2.5-7B 偶尔会带出解释行或引号包裹）。
+ */
+function sanitizeTranslatedText(raw: string): string {
+  const lines = String(raw || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/^(译文|翻译结果|翻译|訳文|翻訳|日文|日语|中文|Japanese|Chinese|Translation)\s*[:：]\s*/i, ''))
+    .filter(Boolean);
+  const text = lines
+    .join('')
+    .replace(/^[「『"“'‘]+/, '')
+    .replace(/[」』"”'’]+$/, '');
+  return text.trim();
+}
+
+function buildCompleteSpeechSynthesisRequest(aiProvider: SpriteSpeakAIProviderConfig, text: string, usage: Record<string, any>, languageOverride?: string): SpeechSynthesisRequest {
   return {
     audioSetting: aiProvider.audioSetting,
     emotion: aiProvider.emotion,
@@ -289,7 +319,7 @@ function buildCompleteSpeechSynthesisRequest(aiProvider: SpriteSpeakAIProviderCo
       ...(aiProvider.extras || {}),
       usage
     },
-    language: aiProvider.language,
+    language: languageOverride ?? aiProvider.language,
     mode: 'complete',
     model: aiProvider.model,
     pitch: aiProvider.pitch,
@@ -844,6 +874,8 @@ export class SpeakService {
   private cache: SpeakCache;
   private edgeTTS: EdgeTTS;
   private speechSynthesisExecutor?: SpriteSpeechSynthesisExecutor;
+  private textTranslator?: SpriteSpeechTextTranslator;
+  private translationFallbackWarned = false;
   private initialized = false;
   private activeRealtimeSessions = new Map<SpriteRealtimeSpeechScope, SpriteRealtimeSpeechSession>();
   private realtimeSessionCounter = 0;
@@ -852,11 +884,12 @@ export class SpeakService {
   private onPlayAudio: ((payload: SpriteSpeakPayload, context?: SpriteSpeakPlaybackContext) => void) | null = null;
   private onRealtimeSpeechEvent: RealtimeSpeechEventHandler | null = null;
 
-  constructor(dataDir: string, speechSynthesisExecutor?: SpriteSpeechSynthesisExecutor) {
+  constructor(dataDir: string, speechSynthesisExecutor?: SpriteSpeechSynthesisExecutor, textTranslator?: SpriteSpeechTextTranslator) {
     this.configStore = new SpeakConfigStore(dataDir);
     this.cache = new SpeakCache(dataDir);
     this.edgeTTS = new EdgeTTS();
     this.speechSynthesisExecutor = speechSynthesisExecutor;
+    this.textTranslator = textTranslator;
   }
 
   /** 初始化：加载配置和缓存索引 */
@@ -1222,6 +1255,70 @@ export class SpeakService {
     return aiProvider;
   }
 
+  /**
+   * 解析实际送入 TTS 的文本与语言（显示文本与朗读文本分离）。
+   *
+   * - speechLanguage = auto：不翻译，沿用配置里的 language
+   * - 文本语言与朗读语言一致：直接合成，language 传朗读语言
+   * - 无法判断语言：跳过翻译按原文合成，language 传朗读语言
+   * - 不一致且有 translator：翻译后用译文合成，language 传朗读语言
+   * - 无 translator / 翻译失败：降级为原文合成，language 传检测出的源语言，
+   *   避免把中文文本硬配 ja 发给 TTS
+   */
+  private async resolveSpokenText(aiProvider: SpriteSpeakAIProviderConfig, text: string): Promise<{ text: string; language?: string }> {
+    const speechLanguage: SpriteSpeechLanguage = aiProvider.speechLanguage || 'auto';
+    if (speechLanguage === 'auto') {
+      return { text };
+    }
+
+    const detected = detectSpeechTextLanguage(text);
+    if (!detected) {
+      logSpeechTranslate('skip', { reason: 'language-undetected', sourceText: text, targetLang: speechLanguage });
+      return { language: speechLanguage, text };
+    }
+    if (detected === speechLanguage) {
+      logSpeechTranslate('skip', { reason: 'already-target-language', sourceLang: detected, sourceText: text });
+      return { language: speechLanguage, text };
+    }
+
+    if (!this.textTranslator) {
+      return this.degradeToOriginalText(text, detected, speechLanguage, 'translator-unavailable');
+    }
+
+    const startedAt = Date.now();
+    try {
+      const raw = await this.textTranslator.translate({ sourceLang: detected, targetLang: speechLanguage, text });
+      const translated = sanitizeTranslatedText(raw);
+      if (!translated) {
+        throw new Error('translator returned empty text');
+      }
+      logSpeechTranslate('done', {
+        durationMs: Date.now() - startedAt,
+        model: this.textTranslator.lastBackend?.model,
+        providerId: this.textTranslator.lastBackend?.providerId,
+        sourceLang: detected,
+        sourceText: text,
+        targetLang: speechLanguage,
+        translatedText: translated
+      });
+      return { language: speechLanguage, text: translated };
+    } catch (error) {
+      return this.degradeToOriginalText(text, detected, speechLanguage, error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  private degradeToOriginalText(text: string, sourceLang: 'zh' | 'ja', targetLang: SpriteSpeechLanguage, reason: string): { text: string; language: string } {
+    // 同一进程内降级只 warn 一次，避免刷屏；后续的用 console.log 记录
+    const payload = { reason, sourceLang, sourceText: text, targetLang };
+    if (this.translationFallbackWarned) {
+      console.log(`[SpeechTranslate] fallback ${JSON.stringify(payload)}`);
+    } else {
+      this.translationFallbackWarned = true;
+      logSpeechTranslate('fallback', payload);
+    }
+    return { language: sourceLang, text };
+  }
+
   private async synthesizeWithAIProvider(text: string, config: SpriteSpeakConfig): Promise<SynthesisOutput> {
     const executor = this.speechSynthesisExecutor;
     if (!executor) {
@@ -1229,14 +1326,21 @@ export class SpeakService {
     }
 
     const aiProvider = this.resolveAiProviderConfig(config);
-    const request = buildCompleteSpeechSynthesisRequest(aiProvider, text, {
-      sourceId: 'sprite-speak',
-      sourceLabel: '角色说话',
-      sourceType: 'sprite_speech',
-      usageFeature: 'sprite_speech'
-    });
+    const spoken = await this.resolveSpokenText(aiProvider, text);
+    const request = buildCompleteSpeechSynthesisRequest(
+      aiProvider,
+      spoken.text,
+      {
+        sourceId: 'sprite-speak',
+        sourceLabel: '角色说话',
+        sourceType: 'sprite_speech',
+        usageFeature: 'sprite_speech'
+      },
+      spoken.language
+    );
 
     logSpeakService('AI Provider speech request', {
+      language: request.language,
       mode: request.mode,
       model: aiProvider.model,
       providerId: aiProvider.providerId,
@@ -1244,7 +1348,7 @@ export class SpeakService {
       transportPreference: request.transportPreference,
       voice: aiProvider.voice,
       voiceId: aiProvider.voiceId,
-      ...speakTextLogPayload(text)
+      ...speakTextLogPayload(spoken.text)
     });
 
     const response = await executor.synthesize(request);

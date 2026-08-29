@@ -45,6 +45,7 @@ const DEFAULT_AI_PROVIDER_CONFIG: SpriteSpeakAIProviderConfig = {
   providerId: 'minimax',
   model: 'speech-2.8-turbo',
   voiceId: 'female-shaonv',
+  speechLanguage: 'auto',
   audioSetting: {
     format: 'mp3',
     sampleRate: 32000,
@@ -300,6 +301,20 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">朗读语言</label>
+            <Select value={aiProvider.speechLanguage || 'auto'} onValueChange={(value) => updateAiProvider({ speechLanguage: value === 'ja' ? value : 'auto' })}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">跟随显示文本</SelectItem>
+                <SelectItem value="ja">日文</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">与文本语言不一致时将先用 LLM 翻译再朗读，气泡仍显示原文。</p>
           </div>
         </div>
       )}

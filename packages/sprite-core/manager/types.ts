@@ -1,6 +1,6 @@
 import type { PersonaState } from '../persona-state';
 import type { SpritePurposeRoutinePlanner } from '../purpose';
-import type { SpriteSpeechSynthesisExecutor } from '../speak/types';
+import type { SpriteSpeechSynthesisExecutor, SpriteSpeechTextTranslator } from '../speak/types';
 import type { SpriteWindowAnimationPlayPosition } from '../types';
 
 // ============================================================================
@@ -112,6 +112,8 @@ export interface SpriteManagerOptions {
   spontaneousUtteranceExecutor?: SpriteSpontaneousUtteranceExecutor;
   /** AI Provider speech synthesis executor for sprite speech. */
   speechSynthesisExecutor?: SpriteSpeechSynthesisExecutor;
+  /** Optional translator that converts display text into the configured speech language before synthesis. */
+  textTranslator?: SpriteSpeechTextTranslator;
   /** Adapter injected by Electron main for Purpose/Routine window actions. */
   purposeWindowAdapter?: SpritePurposeWindowAdapter;
   /** Adapter injected by Electron main for sprite animation triggered window presets. */

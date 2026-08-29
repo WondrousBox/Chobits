@@ -86,7 +86,7 @@ import type { SpritePurposeRoutinePlanner, SpritePurposeWindowAdapter, SpriteSpo
 import { SpriteManager } from '../manager';
 import { getPersonaRuleDimensionSchema } from '../persona-rules';
 import type { SpritePurposeHistoryQuery, SpritePurposeRetrospectiveQuery, SpritePurposeRuntimeEventInput, StartSpritePurposeRequest } from '../purpose';
-import type { SpeakRequest, SpriteRealtimeSpeechSessionRequest, SpriteSpeakConfig, SpriteSpeechSynthesisExecutor } from '../speak/types';
+import type { SpeakRequest, SpriteRealtimeSpeechSessionRequest, SpriteSpeakConfig, SpriteSpeechSynthesisExecutor, SpriteSpeechTextTranslator } from '../speak/types';
 import type {
   SpriteAnimationPlaylistMode,
   SpriteAnimationTrigger,
@@ -112,6 +112,7 @@ export interface SpriteManagerDeps {
   registerCharacterPersonaPromptProvider?: (provider: () => string | null) => void | Promise<void>;
   spontaneousUtteranceExecutor?: SpriteSpontaneousUtteranceExecutor;
   speechSynthesisExecutor?: SpriteSpeechSynthesisExecutor;
+  textTranslator?: SpriteSpeechTextTranslator;
   purposeWindowAdapter?: SpritePurposeWindowAdapter;
   windowAnimationAdapter?: SpriteWindowAnimationAdapter;
   purposeRoutinePlanner?: SpritePurposeRoutinePlanner;
@@ -372,6 +373,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     appName: 'Chobits',
     spontaneousUtteranceExecutor: deps.spontaneousUtteranceExecutor,
     speechSynthesisExecutor: deps.speechSynthesisExecutor,
+    textTranslator: deps.textTranslator,
     purposeWindowAdapter: deps.purposeWindowAdapter,
     windowAnimationAdapter: deps.windowAnimationAdapter,
     purposeRoutinePlanner: deps.purposeRoutinePlanner,
