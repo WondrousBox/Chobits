@@ -124,31 +124,6 @@
             transition: opacity 0.3s;
         }
 
-        /* Fast-scrolling log line (like archive extraction progress) */
-        .splash-log {
-            position: fixed;
-            bottom: 80px;
-            left: 50%;
-            transform: translateX(-50%);
-            height: 14px;
-            overflow: hidden;
-            z-index: 2;
-        }
-
-        .splash-log-text {
-            font-size: 10px;
-            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-            color: rgba(179, 187, 200, 0.7);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            transition: opacity 0.15s;
-        }
-
-        .splash-log-text.flash {
-            color: rgba(148, 163, 184, 0.9);
-        }
-
         /* Dot loading indicator */
         .loading-dots {
             display: inline-flex;
@@ -316,30 +291,11 @@
         <div class="splash-title">Chobits</div>
 
         <div class="splash-status">
-            <span id="status-text">正在初始化</span>
             <span class="loading-dots">
                 <span></span><span></span><span></span>
             </span>
         </div>
     </div>
-
-    <!-- Fast log line at bottom -->
-    <div class="splash-log">
-        <div class="splash-log-text" id="log-text"></div>
-    </div>
-
-    <script>
-        // Fast log text updater — brief flash then dim
-        const logEl = document.getElementById('log-text');
-        let logTimer = null;
-        function updateLog(text) {
-            if (!logEl) return;
-            logEl.textContent = text;
-            logEl.classList.add('flash');
-            clearTimeout(logTimer);
-            logTimer = setTimeout(() => logEl.classList.remove('flash'), 200);
-        }
-    </script>
 </body>
 
 </html>

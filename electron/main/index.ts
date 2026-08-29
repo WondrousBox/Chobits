@@ -58,48 +58,14 @@ let splashWin: BrowserWindow | null = null;
 const preload = path.join(__dirname, '../preload/index.mjs');
 const indexHtml = path.join(RENDERER_DIST, 'index.html');
 
-// splash 页面未完成加载时，executeJavaScript 会堆积 did-stop-loading 监听器
-// （触发 MaxListenersExceededWarning），所以加载完成前只缓存最新一条文本
-let splashLoaded = false;
-let pendingSplashStatus: string | null = null;
-let pendingSplashLog: string | null = null;
-
 // 获取主窗口的函数
 export function getMainWindow(): BrowserWindow | null {
   return win && !win.isDestroyed() ? win : null;
 }
 
-function updateSplashStatus(text: string): void {
-  if (!splashWin || splashWin.isDestroyed()) return;
-  if (!splashLoaded) {
-    pendingSplashStatus = text;
-    return;
-  }
-  splashWin.webContents.executeJavaScript(`document.getElementById('status-text').textContent = ${JSON.stringify(text)}`).catch(() => { });
-}
-
+// splash 不再展示状态/日志文字，仅保留终端日志
 function updateSplashLog(text: string): void {
-  if (!splashWin || splashWin.isDestroyed()) return;
   console.log('>> ' + text);
-  if (!splashLoaded) {
-    pendingSplashLog = text;
-    return;
-  }
-  splashWin.webContents.executeJavaScript(`typeof updateLog==='function'&&updateLog(${JSON.stringify(text)})`).catch(() => { });
-}
-
-function flushSplashPending(): void {
-  splashLoaded = true;
-  if (pendingSplashStatus !== null) {
-    const text = pendingSplashStatus;
-    pendingSplashStatus = null;
-    updateSplashStatus(text);
-  }
-  if (pendingSplashLog !== null) {
-    const text = pendingSplashLog;
-    pendingSplashLog = null;
-    updateSplashLog(text);
-  }
 }
 
 function createSplashWindow(): Promise<void> {
@@ -126,7 +92,6 @@ function createSplashWindow(): Promise<void> {
     });
 
     splashWin.loadFile(splashHtml);
-    splashWin.webContents.once('did-finish-load', flushSplashPending);
     splashWin.once('ready-to-show', () => {
       if (splashWin && !splashWin.isDestroyed()) {
         splashWin.show();
@@ -226,7 +191,6 @@ app.whenReady().then(async () => {
   await createSplashWindow();
 
   // Setup custom resource protocol (modern protocol.handle API)
-  updateSplashStatus('正在初始化协议');
   updateSplashLog('setup res:// protocol handler');
   try {
     await setupResourceProtocol();
@@ -236,7 +200,6 @@ app.whenReady().then(async () => {
   }
 
   // Initialize yt-dlp service with cookie manager
-  updateSplashStatus('正在初始化服务');
   updateSplashLog('initializing yt-dlp service');
   try {
     ytdlpService.initialize({ cookieManager });
@@ -247,7 +210,6 @@ app.whenReady().then(async () => {
   }
 
   // Add workspace root if exists
-  updateSplashStatus('正在加载工作区');
   updateSplashLog('loading default workspace');
   try {
     const ws = await WorkspacesRepo.getDefault();
@@ -296,13 +258,11 @@ app.whenReady().then(async () => {
     });
   });
 
-  updateSplashStatus('正在创建窗口');
   updateSplashLog('creating main BrowserWindow');
   await createWindow();
   updateSplashLog('main window created, loading IPC handlers');
 
   // Initialize workflow system (nodes, plugins, IPC endpoints)
-  updateSplashStatus('正在加载工作流引擎');
   updateSplashLog('registering workflow nodes & plugins');
   try {
     initWorkflowSystem({ getWorkflowDefinitionsPath: () => getResourcePath('workflows') || '' });
@@ -312,7 +272,6 @@ app.whenReady().then(async () => {
   }
 
   // Initialize scheduler
-  updateSplashStatus('正在启动调度器');
   updateSplashLog('starting task scheduler');
   try {
     await initScheduler();
@@ -322,12 +281,10 @@ app.whenReady().then(async () => {
   }
 
   // Register all global shortcuts (assistant toggle, devtools, etc.)
-  updateSplashStatus('正在注册快捷键');
   updateSplashLog('registering global shortcuts');
   registerGlobalShortcuts(getMainWindow);
 
   // --- Wait for renderer to be fully ready ---
-  updateSplashStatus('正在加载界面');
   updateSplashLog('waiting for renderer React mount...');
 
   // 2) Minimum 2 seconds splash display
@@ -344,7 +301,6 @@ app.whenReady().then(async () => {
   await Promise.all([Promise.race([rendererReady, safetyTimeout]), minSplashTime]);
 
   // All ready — show main window, then close splash
-  updateSplashStatus('即将就绪');
   if (win && !win.isDestroyed()) {
     win.show();
   }
