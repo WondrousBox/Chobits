@@ -159,9 +159,22 @@ export function initWindowHandlers(win: BrowserWindow): void {
     // }
     try {
       unsubscribeMouseMove = globalInputMonitor.on('mousemove', (e: { x: number; y: number }) => {
-        applyInsideState(pointInside(e.x, e.y));
+        // uiohook 上报的是屏幕物理像素坐标，而窗口 bounds 与轮询路径都是 DIP 坐标。
+        // Linux HiDPI（scaleFactor > 1）下两者不一致会导致区域判定永远失败、窗口被永久穿透。
+        let x = e.x;
+        let y = e.y;
+        try {
+          const dip = screen.screenToDipPoint({ x, y });
+          x = dip.x;
+          y = dip.y;
+        } catch {
+          /* ignore: 转换不可用时按原始坐标处理 */
+        }
+        applyInsideState(pointInside(x, y));
       });
       hookActive = true;
+      // Linux 下 uiohook 可能 start 成功但事件不上报（如 XRecord 不可用），叠加轮询兜底
+      if (process.platform === 'linux') startPolling();
     } catch {
       // 模块不可用或启动失败，回退轮询
       hookActive = false;
