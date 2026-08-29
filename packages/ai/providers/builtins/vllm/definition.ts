@@ -4,7 +4,7 @@ import vllmModels from './models';
 
 const vllmSchema: ProviderConfig = {
   id: 'vllm',
-  label: 'vLLM（私有部署）',
+  label: 'vLLM（自托管）',
   enabled: true,
   locales: {
     en: {
@@ -16,7 +16,7 @@ const vllmSchema: ProviderConfig = {
       }
     },
     'zh-CN': {
-      label: 'vLLM（私有部署）',
+      label: 'vLLM（自托管）',
       fields: {
         allowInsecureTls: 'TLS 证书校验',
         apiKey: 'API Key',
@@ -44,7 +44,7 @@ export const vllmDefinition: BuiltinProviderDefinition = {
   aliases: ['vllm'],
   source: 'builtin',
   display: {
-    label: 'vLLM（私有部署）',
+    label: 'vLLM（自托管）',
     description: '对接自托管的 vLLM 推理服务（OpenAI 兼容 API），模型列表以服务端 /v1/models 为准，支持自签名 HTTPS 证书。',
     website: 'https://docs.vllm.ai'
   },

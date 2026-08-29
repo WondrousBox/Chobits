@@ -22,6 +22,9 @@ type ProviderRow = {
 };
 type Preset = { id: string; providerId: string; name: string; systemPrompt?: string; overrides?: Record<string, any>; enabledTools?: string[]; createdAt?: number };
 type ModelOpt = { id: string; label?: string; type?: string; context?: number; pricing?: any; tags?: string[]; description?: string; free?: boolean };
+
+// 自托管 provider 置顶分组
+const SELF_HOSTED_PROVIDER_IDS = new Set(['gpt-sovits', 'vllm']);
 // Templates are now loaded within PresetFormDialog
 
 const createPresetSuffix = (): string => {
@@ -49,6 +52,14 @@ export default function AiSettings({ initialProviderId, initialPresetId, focusRe
   const [providerFocusRevision, setProviderFocusRevision] = useState(0);
 
   const selectedProvider = useMemo(() => resolveProviderIdentity(providers, selectedProviderId || undefined) || null, [providers, selectedProviderId]);
+  const providerGroups = useMemo(() => {
+    const selfHosted = providers.filter((p) => SELF_HOSTED_PROVIDER_IDS.has(p.id));
+    const cloud = providers.filter((p) => !SELF_HOSTED_PROVIDER_IDS.has(p.id));
+    return [
+      { label: '自托管', items: selfHosted },
+      { label: '云服务', items: cloud }
+    ].filter((group) => group.items.length > 0);
+  }, [providers]);
   const currentLang = navigator.language?.toLowerCase?.() || 'en';
   const pickLocale = (locales?: Record<string, { label?: string; fields?: Record<string, string> }>): { label?: string; fields?: Record<string, string> } | undefined => {
     if (!locales) return undefined;
@@ -237,31 +248,36 @@ export default function AiSettings({ initialProviderId, initialPresetId, focusRe
       <div className="h-full w-full flex">
         <div className="h-full w-60 overflow-y-auto border-ring p-2 box-border" style={{ borderRightWidth: 1, borderRightStyle: 'solid' }}>
           <div className="space-y-1">
-            {providers.map((p) => {
-              const loc = pickLocale(p.schema?.locales);
-              const label = loc?.label || p.label;
-              return (
-                <Button
-                  key={p.id}
-                  variant={selectedProviderId === p.id ? 'default' : 'outline'}
-                  className="w-full"
-                  onClick={() => {
-                    setExpandedPresetId(null);
-                    setShowCreateForm(false);
-                    setErrors((prev) => ({ ...prev, __new__: {} }));
-                    setSelectedProviderId(p.id);
-                  }}
-                >
-                  <div className="w-full flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      {p.schema?.icon && <TintableSvg src={p.schema?.icon || ''} alt={label} className="w-4 h-4" />}
-                      <span>{label}</span>
-                    </span>
-                    <span className={`text-xs ${p.configured ? 'text-green-600' : 'text-gray-400'}`}>{p.configured ? '已配置' : ''}</span>
-                  </div>
-                </Button>
-              );
-            })}
+            {providerGroups.map((group) => (
+              <div key={group.label} className="space-y-1">
+                <div className="px-2 pt-2 pb-1 text-xs font-medium text-muted-foreground">{group.label}</div>
+                {group.items.map((p) => {
+                  const loc = pickLocale(p.schema?.locales);
+                  const label = loc?.label || p.label;
+                  return (
+                    <Button
+                      key={p.id}
+                      variant={selectedProviderId === p.id ? 'default' : 'outline'}
+                      className="w-full"
+                      onClick={() => {
+                        setExpandedPresetId(null);
+                        setShowCreateForm(false);
+                        setErrors((prev) => ({ ...prev, __new__: {} }));
+                        setSelectedProviderId(p.id);
+                      }}
+                    >
+                      <div className="w-full flex items-center justify-between">
+                        <span className="flex items-center gap-2">
+                          {p.schema?.icon && <TintableSvg src={p.schema?.icon || ''} alt={label} className="w-4 h-4" />}
+                          <span>{label}</span>
+                        </span>
+                        <span className={`text-xs ${p.configured ? 'text-green-600' : 'text-gray-400'}`}>{p.configured ? '已配置' : ''}</span>
+                      </div>
+                    </Button>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>
         {/* Right: Presets */}

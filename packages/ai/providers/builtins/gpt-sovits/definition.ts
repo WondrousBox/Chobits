@@ -4,21 +4,21 @@ import gptSovitsModels from './models';
 
 const gptSovitsSchema: ProviderConfig = {
   id: 'gpt-sovits',
-  label: 'GPT-SoVITS (local)',
+  label: 'GPT-SoVITS (self-hosted)',
   enabled: true,
   locales: {
     en: {
-      label: 'GPT-SoVITS (local)',
+      label: 'GPT-SoVITS (self-hosted)',
       fields: {
-        apiKey: 'API Key (optional)',
+        apiKey: 'API Key',
         baseUrl: 'Base URL',
         allowInsecureTls: 'TLS Certificate Verification'
       }
     },
     'zh-CN': {
-      label: 'GPT-SoVITS（本地）',
+      label: 'GPT-SoVITS（自托管）',
       fields: {
-        apiKey: 'API Key（可选）',
+        apiKey: 'API Key',
         baseUrl: 'Base URL',
         allowInsecureTls: 'TLS 证书校验'
       }
@@ -26,7 +26,7 @@ const gptSovitsSchema: ProviderConfig = {
   },
   fields: [
     { key: 'baseUrl', label: 'Base URL', type: 'text' },
-    { key: 'apiKey', label: 'API Key（可选，反向代理鉴权时使用）', type: 'password' },
+    { key: 'apiKey', label: 'API Key（服务端启用鉴权时必填）', type: 'password' },
     {
       key: 'allowInsecureTls',
       label: 'TLS 证书校验（自签名证书时选「允许自签名」）',
@@ -44,7 +44,7 @@ export const gptSovitsDefinition: BuiltinProviderDefinition = {
   aliases: ['gpt-sovits', 'gptsovits'],
   source: 'builtin',
   display: {
-    label: 'GPT-SoVITS (local)',
+    label: 'GPT-SoVITS (self-hosted)',
     description: '对接自部署的 GPT-SoVITS 语音克隆 TTS 服务（api_v2.py），本地服务无需 API Key，仅支持语音合成。',
     website: 'https://github.com/RVC-Boss/GPT-SoVITS'
   },
