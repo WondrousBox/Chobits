@@ -14,6 +14,7 @@
   "type": "module",
   "scripts": {
     "dev": "node -e \"if (process.platform === 'win32') process.exit(1)\" || chcp 65001 && vite",
+    "dev:fresh-voice": "node scripts/clean-speak-cache.js && npm run dev",
     "build": "tsc && vite build && electron-builder",
     "postinstall": "electron-builder install-app-deps",
     "build:rebuild": "pnpm rebuild && pnpm build",
@@ -21,6 +22,7 @@
     "pretest": "vite build --mode=test",
     "test": "vitest run",
     "lint": "eslint --cache .",
+    "clean:speak-cache": "node scripts/clean-speak-cache.js",
     "build:icon": "electron-icon-builder --input=./build/icon.png --output=./build --flatten",
     "rebuild:sqlite": "electron-rebuild -f -w better-sqlite3",
     "rebuild:sqlite-vec": "electron-rebuild -f -w sqlite-vec",
