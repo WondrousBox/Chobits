@@ -224,7 +224,7 @@ class OpenAIStylePluginProvider extends DefinitionBackedPluginProvider {
 
     return executeOpenAIChat(
       {
-        client: this.client(overrideSecrets),
+        client: await this.client(overrideSecrets),
         request: req,
         providerId: this.id,
         defaultModel,
@@ -246,7 +246,7 @@ class OpenAIStylePluginProvider extends DefinitionBackedPluginProvider {
     const resolvedSecrets = this.resolveSecrets(overrideSecrets);
 
     return executeOpenAIEmbedding({
-      client: this.client(overrideSecrets),
+      client: await this.client(overrideSecrets),
       request: req,
       providerId: this.id,
       defaultModel,
@@ -262,7 +262,7 @@ class OpenAIStylePluginProvider extends DefinitionBackedPluginProvider {
     }
 
     return executeOpenAITranscription({
-      client: this.client(options?.secrets as Partial<OpenAIRuntimeSecrets> | undefined),
+      client: await this.client(options?.secrets as Partial<OpenAIRuntimeSecrets> | undefined),
       file,
       options,
       providerId: this.id,
@@ -277,7 +277,7 @@ class OpenAIStylePluginProvider extends DefinitionBackedPluginProvider {
 
     const resolvedSecrets = this.resolveSecrets(opts?.secrets);
     return listOpenAIModels({
-      client: this.client(opts?.secrets),
+      client: await this.client(opts?.secrets),
       providerId: this.id,
       configuredModel: resolvedSecrets.model,
       defaultModel: resolveDefaultModel(this.definition, 'chat')

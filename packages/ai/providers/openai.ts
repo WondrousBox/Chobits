@@ -10,7 +10,7 @@ export class OpenAIProvider implements ProviderAdapter {
   readonly id = this.definition.id;
   readonly label = this.definition.display.label;
   private secrets: OpenAISecrets = {};
-  private readonly defaultModel = this.defaultModels.chat;
+  private readonly defaultModel = this.defaultModels.chat!;
   private readonly defaultBaseUrl = this.definition.protocol.baseUrl;
   private readonly defaultEmbeddingModel = getRequiredBuiltinProviderDefaultModel('openai', 'embeddings');
   private readonly defaultTranscribeModel = getRequiredBuiltinProviderDefaultModel('openai', 'transcribe');
@@ -43,7 +43,7 @@ export class OpenAIProvider implements ProviderAdapter {
 
     return executeOpenAIChat(
       {
-        client: this.client(overrideSecrets),
+        client: await this.client(overrideSecrets),
         request: req,
         providerId: this.id,
         defaultModel: this.defaultModel,
@@ -59,7 +59,7 @@ export class OpenAIProvider implements ProviderAdapter {
     const resolvedSecrets = this.resolveSecrets(overrideSecrets);
 
     return executeOpenAIEmbedding({
-      client: this.client(overrideSecrets),
+      client: await this.client(overrideSecrets),
       request: req,
       providerId: this.id,
       defaultModel: this.defaultEmbeddingModel,
@@ -69,7 +69,7 @@ export class OpenAIProvider implements ProviderAdapter {
 
   async transcribe(file: File | Blob | Buffer | ArrayBuffer, options?: TranscribeOptions): Promise<TranscriptionResponse> {
     return executeOpenAITranscription({
-      client: this.client(options?.secrets as Partial<OpenAISecrets> | undefined),
+      client: await this.client(options?.secrets as Partial<OpenAISecrets> | undefined),
       file,
       options,
       providerId: this.id,
@@ -80,7 +80,7 @@ export class OpenAIProvider implements ProviderAdapter {
   async listModels(opts?: { secrets?: Partial<OpenAISecrets> }): Promise<Array<{ id: string }>> {
     const resolvedSecrets = this.resolveSecrets(opts?.secrets);
     return listOpenAIModels({
-      client: this.client(opts?.secrets),
+      client: await this.client(opts?.secrets),
       providerId: this.id,
       configuredModel: resolvedSecrets.model,
       defaultModel: this.defaultModel

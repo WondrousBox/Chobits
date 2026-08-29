@@ -1,7 +1,7 @@
 import type { ProviderAdapter, ProviderCapabilities, ProviderConfig, ProviderDefaultModels } from '../types';
 import type { ProviderModelDefinition } from './model-types';
 
-export type BuiltinProviderId = 'anthropic' | 'deepseek' | 'gemini' | 'gpteam' | 'kimi' | 'minimax' | 'ollama' | 'openai' | 'qwen' | 'zai' | 'zhipu';
+export type BuiltinProviderId = 'anthropic' | 'deepseek' | 'gemini' | 'gpt-sovits' | 'gpteam' | 'kimi' | 'minimax' | 'ollama' | 'openai' | 'qwen' | 'vllm' | 'zai' | 'zhipu';
 
 export type BuiltinProviderKind = 'anthropic' | 'gemini' | 'ollama' | 'openai' | 'openai-compatible';
 
@@ -90,7 +90,8 @@ export interface BuiltinProviderDefinition extends Omit<ProviderDefinition, 'id'
   source: 'builtin';
   protocol: ProviderProtocolDefinition & { kind: BuiltinProviderKind };
   defaults: {
-    models: ProviderDefaultModels & { chat: string };
+    // chat 不是必填：部分内置 provider（如 gpt-sovits）只提供语音合成能力
+    models: ProviderDefaultModels;
     config?: Record<string, any>;
   };
   schema: ProviderConfig;

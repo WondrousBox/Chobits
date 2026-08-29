@@ -4,12 +4,15 @@ import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/reso
 
 import type { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent, TokenUsage, TranscribeOptions, TranscriptionResponse } from '../types';
 import { listProviderRuntimeModels } from './service';
+import { type InsecureFetchFactory, resolveFetch } from './tls';
 
 export type OpenAIRuntimeSecrets = {
   apiKey?: string;
   baseUrl?: string;
   model?: string;
   organization?: string;
+  /** 为 'true' 时允许自签名 TLS 证书（自托管服务），缺省为严格校验 */
+  allowInsecureTls?: string;
 };
 
 export interface OpenAIChatRuntimeOptions {
@@ -186,7 +189,7 @@ async function streamOpenAIChat(
   return { message, providerId };
 }
 
-export function createOpenAIClient(secrets: OpenAIRuntimeSecrets): OpenAI {
+export async function createOpenAIClient(secrets: OpenAIRuntimeSecrets, options?: { fetchFactory?: InsecureFetchFactory }): Promise<OpenAI> {
   const cfg: any = {};
   if (secrets.apiKey) cfg.apiKey = secrets.apiKey;
   if (secrets.baseUrl) cfg.baseURL = secrets.baseUrl;
@@ -195,6 +198,13 @@ export function createOpenAIClient(secrets: OpenAIRuntimeSecrets): OpenAI {
   // Actual API calls will still fail; this only allows curated-model listing to work
   // without a configured key.
   if (!cfg.apiKey) cfg.apiKey = 'not-configured';
+  // 自托管服务（如私有 vLLM）可能使用自签名证书，仅显式开启时才放宽 TLS 校验。
+  // 不能用 fetchOptions.dispatcher：npm undici 的 Agent 与 SDK 内部的全局 fetch
+  //（Node 内置 undici）跨版本不兼容，改为给 SDK 传 client 级自定义 fetch。
+  const insecureFetch = await resolveFetch(secrets, options?.fetchFactory);
+  if (insecureFetch) {
+    cfg.fetch = insecureFetch;
+  }
   return new OpenAI(cfg);
 }
 

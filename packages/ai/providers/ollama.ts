@@ -10,7 +10,7 @@ export class OllamaProvider implements ProviderAdapter {
   readonly id = this.definition.id;
   readonly label = this.definition.display.label;
   private secrets: OllamaSecrets = {};
-  private readonly defaultModel = this.defaultModels.chat;
+  private readonly defaultModel = this.defaultModels.chat!;
   private readonly defaultBaseUrl = this.definition.protocol.baseUrl;
   private readonly defaultEmbeddingModel = getRequiredBuiltinProviderDefaultModel('ollama', 'embeddings');
 

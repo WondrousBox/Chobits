@@ -10,7 +10,7 @@ export class GeminiProvider implements ProviderAdapter {
   readonly id = this.definition.id;
   readonly label = this.definition.display.label;
   private secrets: GeminiSecrets = {};
-  private readonly defaultModel = this.defaultModels.chat;
+  private readonly defaultModel = this.defaultModels.chat!;
 
   isConfigured(): boolean {
     return !!this.secrets.apiKey;
