@@ -47,10 +47,14 @@ function normalizeEmojiPacksDisplayTarget(value: unknown): EmojiPacksDisplayTarg
   return value === 'sprite-bubble' ? 'sprite-bubble' : 'chat';
 }
 
+// 对话默认使用自托管 vLLM（无本地存储记录时的兜底，以及历史默认值迁移目标）
+const DEFAULT_CHAT_PROVIDER_ID = 'vllm';
+const LS_MIGRATION_SELF_HOSTED_KEY = 'chat.sel.migratedSelfHosted';
+
 export function ChatSelectionProvider({ children }: { children: React.ReactNode }): JSX.Element {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [providerId, setProviderIdState] = useState<string>(() => localStorage.getItem(LS_KEYS.providerId) || 'openai');
+  const [providerId, setProviderIdState] = useState<string>(() => localStorage.getItem(LS_KEYS.providerId) || DEFAULT_CHAT_PROVIDER_ID);
   const [modelId, setModelId] = useState<string>(() => localStorage.getItem(LS_KEYS.modelId) || '');
   const [presetId, setPresetIdState] = useState<string>(() => localStorage.getItem(LS_KEYS.presetId) || '');
   const [agentId, setAgentId] = useState<string>(() => localStorage.getItem(LS_KEYS.agentId) || 'assistant');
@@ -167,6 +171,23 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
   useEffect(() => {
     try {
       localStorage.removeItem('chat.sel.recents');
+    } catch {
+      /* noop */
+    }
+  }, []);
+
+  // 一次性迁移：仍停留在历史默认 openai（即从未显式改选过）时，切到自托管 vLLM
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(LS_MIGRATION_SELF_HOSTED_KEY) === 'true') return;
+      localStorage.setItem(LS_MIGRATION_SELF_HOSTED_KEY, 'true');
+      if ((localStorage.getItem(LS_KEYS.providerId) || 'openai') !== 'openai') return;
+      const timer = window.setTimeout(() => {
+        setProviderIdState(DEFAULT_CHAT_PROVIDER_ID);
+        setPresetIdState('');
+        setModelId('');
+      }, 0);
+      return () => window.clearTimeout(timer);
     } catch {
       /* noop */
     }
