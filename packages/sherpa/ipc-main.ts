@@ -204,6 +204,42 @@ export function getASRStatusSnapshot(): { running: boolean } {
   return { running: !!instance };
 }
 
+/**
+ * localAi 功能旗标关闭时注册的降级 handler:
+ * 查询类返回禁用态默认值,操作类返回 { success: false },均不做副作用,
+ * 渲染侧现有逻辑按"服务未运行"静默降级,避免 "No handler registered" 噪音。
+ */
+export function initSherpaStubHandlers(): void {
+  const disabled = (): { success: boolean; error: string } => ({ success: false, error: 'Local AI feature is disabled' });
+
+  ipcMain.handle('sherpa:getASRConfig', () => cloneASRConfig(DEFAULT_ASR_CONFIG));
+  ipcMain.handle('sherpa:saveASRConfig', (_, partial: Partial<ASRConfig>) => ({
+    ...cloneASRConfig(DEFAULT_ASR_CONFIG),
+    ...(partial || {}),
+    enabled: false,
+    local: { ...DEFAULT_ASR_CONFIG.local, ...(partial?.local || {}) },
+    cloud: { ...DEFAULT_ASR_CONFIG.cloud, ...(partial?.cloud || {}) }
+  }));
+  ipcMain.handle('sherpa:createInstance', async () => false);
+  ipcMain.handle('sherpa:freeInstance', async () => true);
+  ipcMain.handle('sherpa:getStatus', async () => ({ running: false }));
+  ipcMain.handle('sherpa:sendData', async () => false);
+  ipcMain.handle('sherpa:startRecording', async () => disabled());
+  ipcMain.handle('sherpa:resumeRecording', async () => disabled());
+  ipcMain.handle('sherpa:stopRecording', async () => disabled());
+  ipcMain.handle('sherpa:appendSubtitle', async () => disabled());
+  ipcMain.handle('sherpa:saveSubtitle', async () => disabled());
+  ipcMain.handle('sherpa:checkPendingRecording', async () => disabled());
+  ipcMain.handle('sherpa:cleanupStreams', async () => ({ success: true }));
+  ipcMain.handle('sherpa:getRecordingHistory', async () => ({ success: true, data: [] }));
+  ipcMain.handle('sherpa:deleteRecording', async () => disabled());
+  ipcMain.handle('sherpa:readSubtitleContent', async () => disabled());
+  ipcMain.handle('sherpa:tts:createInstance', async () => disabled());
+  ipcMain.handle('sherpa:tts:freeInstance', async () => ({ success: true }));
+  ipcMain.handle('sherpa:tts:generate', async (_, data?: { requestId?: string }) => ({ ...disabled(), requestId: data?.requestId ?? '' }));
+  ipcMain.handle('sherpa:tts:generateToFile', async (_, data?: { requestId?: string }) => ({ ...disabled(), requestId: data?.requestId ?? '' }));
+}
+
 export function initSherpaHandlers(): void {
   ensureASRConfigLoaded();
   const currentASRConfig = getASRConfigSnapshot();

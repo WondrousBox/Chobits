@@ -33,6 +33,21 @@ function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * music 功能旗标关闭时注册的降级 handler:
+ * 统一返回 { ok: false },渲染侧现有逻辑均按失败分支静默降级,避免 "No handler registered" 噪音。
+ * ('music-reactivity:emit-spectrum-frame' 是 send 通道,无主进程监听时天然静默,无需 stub)
+ */
+export function initMusicReactivityStubHandlers(): void {
+  const disabled = (): { ok: boolean; error: string } => ({ ok: false, error: 'Music feature is disabled' });
+  ipcMain.handle('music-reactivity:getPreferences', async () => disabled());
+  ipcMain.handle('music-reactivity:updatePreferences', async () => disabled());
+  ipcMain.handle('music-reactivity:getSnapshot', async () => disabled());
+  ipcMain.handle('music-reactivity:ingestAnalysis', async () => disabled());
+  ipcMain.handle('music-reactivity:testDance', async () => disabled());
+  ipcMain.handle('music-reactivity:reset', async () => disabled());
+}
+
 export function initMusicReactivityHandlers(service: MusicReactivityService, options: MusicReactivityHandlerOptions = {}): void {
   ipcMain.handle('music-reactivity:getPreferences', async () => {
     try {

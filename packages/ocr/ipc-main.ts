@@ -20,6 +20,17 @@ function serializeError(error: unknown): { error: string; code?: string; data?: 
   };
 }
 
+/**
+ * localAi 功能旗标关闭时注册的降级 handler:
+ * 统一返回 { ok: false },渲染侧按既有失败分支降级,避免 "No handler registered" 噪音。
+ */
+export function initOcrStubHandlers(): void {
+  const disabled = (): { ok: boolean; error: string } => ({ ok: false, error: 'Local AI feature is disabled' });
+  ipcMain.handle('ocr:listModels', async () => disabled());
+  ipcMain.handle('ocr:recognizeImage', async () => disabled());
+  ipcMain.handle('ocr:destroyRuntime', async () => ({ ok: true }));
+}
+
 export function initOcrHandlers(): void {
   ipcMain.handle('ocr:listModels', async () => {
     try {

@@ -44,6 +44,59 @@ async function resolveWorkspaceId(workspaceId?: string): Promise<string | undefi
   return (await WorkspacesRepo.getDefault())?.id;
 }
 
+/**
+ * projectTracking 功能旗标关闭时注册的降级 handler:
+ * 列表类返回空数组、操作类返回 { ok: false },渲染侧按既有空态/失败分支静默降级,
+ * 避免 "No handler registered" 噪音。
+ */
+export function initProjectTrackingStubHandlers(): void {
+  const disabled = (): { ok: boolean; error: string } => ({ ok: false, error: 'Project tracking feature is disabled' });
+
+  ipcMain.handle('projectTracking:getConfig', async () => disabled());
+  ipcMain.handle('projectTracking:setConfig', async () => disabled());
+  ipcMain.handle('projectTracking:listProjects', async () => []);
+  ipcMain.handle('projectTracking:getProject', async () => null);
+  ipcMain.handle('projectTracking:searchProjects', async () => []);
+  ipcMain.handle('projectTracking:listLinksByTarget', async () => []);
+  ipcMain.handle('projectTracking:linkConversation', async () => disabled());
+  ipcMain.handle('projectTracking:unlinkConversation', async () => disabled());
+  ipcMain.handle('projectTracking:createProject', async () => disabled());
+  ipcMain.handle('projectTracking:updateProject', async () => disabled());
+  ipcMain.handle('projectTracking:archiveProject', async () => disabled());
+  ipcMain.handle('projectTracking:updatePrivacySettings', async () => disabled());
+  ipcMain.handle('projectTracking:exportProject', async () => disabled());
+  ipcMain.handle('projectTracking:previewProjectImpact', async () => disabled());
+  ipcMain.handle('projectTracking:inspectProjectOrphans', async () => disabled());
+  ipcMain.handle('projectTracking:softDeleteProject', async () => disabled());
+  ipcMain.handle('projectTracking:restoreProject', async () => disabled());
+  ipcMain.handle('projectTracking:hardDeleteProject', async () => disabled());
+  ipcMain.handle('projectTracking:mergeProjects', async () => disabled());
+  ipcMain.handle('projectTracking:splitProject', async () => disabled());
+  ipcMain.handle('projectTracking:listCandidates', async () => []);
+  ipcMain.handle('projectTracking:confirmCandidate', async () => disabled());
+  ipcMain.handle('projectTracking:dismissCandidate', async () => disabled());
+  ipcMain.handle('projectTracking:listEvents', async () => []);
+  ipcMain.handle('projectTracking:addEvent', async () => disabled());
+  ipcMain.handle('projectTracking:updateEvent', async () => disabled());
+  ipcMain.handle('projectTracking:reviewEvent', async () => disabled());
+  ipcMain.handle('projectTracking:listAuditLogs', async () => []);
+  ipcMain.handle('projectTracking:listReminderSuggestions', async () => []);
+  ipcMain.handle('projectTracking:listReminderLinks', async () => []);
+  ipcMain.handle('projectTracking:createReminderFromSuggestion', async () => disabled());
+  ipcMain.handle('projectTracking:cancelReminder', async () => disabled());
+  ipcMain.handle('projectTracking:updateReminder', async () => disabled());
+  ipcMain.handle('projectTracking:resyncReminder', async () => disabled());
+  ipcMain.handle('projectTracking:markReminderDone', async () => disabled());
+  ipcMain.handle('projectTracking:completeProject', async () => disabled());
+  ipcMain.handle('projectTracking:reopenProject', async () => disabled());
+  ipcMain.handle('projectTracking:generateCompletionSummary', async () => disabled());
+  ipcMain.handle('projectTracking:promoteRetrospectiveToMemory', async () => disabled());
+  ipcMain.handle('projectTracking:rebuildSnapshot', async () => disabled());
+  ipcMain.handle('projectTracking:listMilestones', async () => []);
+  ipcMain.handle('projectTracking:addMilestone', async () => disabled());
+  ipcMain.handle('projectTracking:updateMilestone', async () => disabled());
+}
+
 export function initProjectTrackingHandlers(): void {
   initProjectTrackingEnricher();
   initProjectTrackingWorker();

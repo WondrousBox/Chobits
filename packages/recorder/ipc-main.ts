@@ -78,6 +78,18 @@ function broadcastRecorderStatus(): void {
   notifySpriteCapabilityChanged({ source: 'recorder.status' });
 }
 
+/**
+ * recording 功能旗标关闭时注册的降级 handler:
+ * 只返回禁用态默认值,不做任何副作用,避免渲染侧无条件调用刷 "No handler registered" 错误。
+ */
+export function initRecorderStubHandlers(): void {
+  ipcMain.handle('recorder:start', async () => false);
+  ipcMain.handle('recorder:stop', async () => true);
+  ipcMain.handle('recorder:status', async () => false);
+  ipcMain.handle('recorder:getConfig', () => ({ ...defaultConfig }));
+  ipcMain.handle('recorder:updateConfig', () => ({ ...defaultConfig }));
+}
+
 export function initRecorderHandlers(): void {
   ensureRecorderConfigLoaded();
 

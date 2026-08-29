@@ -7,14 +7,14 @@ import { getProviderDefinitionSchema, listProviderDefinitions } from '../../../p
 import { PiExecutionService } from '../../../packages/ai/runtime/pi/execution-service';
 import { setCharacterToolLabels } from '../../../packages/ai/runtime/pi/tool-labels';
 import { registerSystemPromptEnricher } from '../../../packages/ai/system-prompt-enricher';
-import { broadcastMusicReactivitySnapshot, initMusicReactivityHandlers } from '../../../packages/audio-reactivity/ipc-main';
+import { broadcastMusicReactivitySnapshot, initMusicReactivityHandlers, initMusicReactivityStubHandlers } from '../../../packages/audio-reactivity/ipc-main';
 import { MusicReactivityService } from '../../../packages/audio-reactivity/music-reactivity-service';
 import { AppEvent, eventManager } from '../../../packages/event';
-import { initOcrHandlers } from '../../../packages/ocr/ipc-main';
+import { initOcrHandlers, initOcrStubHandlers } from '../../../packages/ocr/ipc-main';
 import type { DownloadProgress } from '../../../packages/plugins';
 import { initPluginResourceHandlers } from '../../../packages/plugins/ipc-main';
-import { initRecorderHandlers } from '../../../packages/recorder/ipc-main';
-import { initSherpaHandlers } from '../../../packages/sherpa/ipc-main';
+import { initRecorderHandlers, initRecorderStubHandlers } from '../../../packages/recorder/ipc-main';
+import { initSherpaHandlers, initSherpaStubHandlers } from '../../../packages/sherpa/ipc-main';
 import { assertSpriteCapabilityUnlocked } from '../../../packages/sprite-core/capability-runtime';
 import { initSpriteHandlers, initSpriteManagerIPC } from '../../../packages/sprite-core/handler';
 import { SpriteManager } from '../../../packages/sprite-core/manager';
@@ -33,6 +33,7 @@ import { initTTSHandlers } from '../../../packages/tts/ipc-main';
 import { initYtDlpIpcHandlers } from '../../../packages/ytdlp';
 import { createMainWindowAnimationPresetTimeline, isWindowAnimationPresetId, type WindowAnimationPresetDirection } from '../../../src/lib/window-animation-presets';
 import { initDailyCare } from '../daily';
+import { initDailyCareStubIPC } from '../daily/ipc-main';
 import { WorkspacesRepo } from '../db/repositories';
 import { addAllowedResourceRoot } from '../resource-protocol';
 import { getMainSchedulerService, initSchedulerIPC } from '../scheduler';
@@ -58,7 +59,7 @@ import { initMemoryHandlers } from './memory/ipc-main';
 import { registerPurposeRetrospectiveMemoryProvider } from './memory/purpose-retrospective-memory-sync';
 import { initPreferencesHandlers } from './preferences/ipc-main';
 import { PreferencesStore } from './preferences/preferences-store';
-import { initProjectTrackingHandlers } from './project-tracking/ipc-main';
+import { initProjectTrackingHandlers, initProjectTrackingStubHandlers } from './project-tracking/ipc-main';
 import { initProxyHandlers } from './proxy/ipc-main';
 import { getHttpProxy } from './proxy/proxy';
 import { initQuestHandlers } from './quest/ipc-main';
@@ -71,6 +72,7 @@ import { initSpritePurposePlannerIPC } from './sprite/purpose-planner-ipc';
 import { SpritePurposePlannerPreferencesStore } from './sprite/purpose-planner-preferences';
 import { createSpritePurposePiPlannerExecutor } from './sprite/purpose-planner-runtime';
 import { createSpritePurposeRoutinePlanner, SpritePurposePlannerService } from './sprite/purpose-planner-service';
+import { createSpriteSpeechTextTranslator } from './sprite/speech-text-translator';
 import { SpriteSpontaneousUtteranceService } from './sprite/spontaneous-utterance-service';
 import { initStatusHandlers } from './status';
 import { initSystemHandlers } from './system/ipc-main';
@@ -485,6 +487,8 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
         autoDispatchGate: () => (onboardingFocusActive ? { accepted: false, reason: 'onboarding-workspace-required' } : true)
       }
     );
+  } else {
+    initDailyCareStubIPC();
   }
   initStatusHandlers(win);
   await initAIHandlers(win);
@@ -493,9 +497,13 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   }
   if (isFeatureEnabled('recording')) {
     initRecorderHandlers();
+  } else {
+    initRecorderStubHandlers();
   }
   if (isFeatureEnabled('localAi')) {
     initSherpaHandlers();
+  } else {
+    initSherpaStubHandlers();
   }
   initTTSHandlers();
   initShortcutsHandlers(win);
@@ -519,6 +527,8 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   });
   if (isFeatureEnabled('localAi')) {
     initOcrHandlers();
+  } else {
+    initOcrStubHandlers();
   }
   initThemeHandlers();
   initScreenshotHandlers();
@@ -537,6 +547,8 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initConversationRouteHandlers();
   if (isFeatureEnabled('projectTracking')) {
     initProjectTrackingHandlers();
+  } else {
+    initProjectTrackingStubHandlers();
   }
   initAnalyticsHandlers();
   initUserProfileHandlers();
@@ -576,6 +588,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
       synthesize: (request) => spriteSpeechPiExecutionService.synthesizeSpeech(request),
       stream: (request, onEvent, input, signal) => spriteSpeechPiExecutionService.streamSpeechSynthesis(request, onEvent, signal, input)
     },
+    textTranslator: createSpriteSpeechTextTranslator(),
     syncCharacterToolLabels: async (labels) => {
       setCharacterToolLabels(labels);
     },
@@ -676,6 +689,8 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
       savePreferences: (preferences) => PreferencesStore.setMusicReactivity(preferences),
       onSpectrumFrame: () => notifyMusicSpectrumFrameReceived()
     });
+  } else {
+    initMusicReactivityStubHandlers();
   }
 
   // ----------------------------------------------------------------------
