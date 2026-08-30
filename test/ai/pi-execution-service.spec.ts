@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
-  emitAiUsageObservedEventMock,
   getAllSecretsMock,
   getFirstApiKeyMock,
   getPresetMock,
@@ -14,7 +13,6 @@ const {
   supportsProviderCapabilityMock,
   toCanonicalProviderIdMock
 } = vi.hoisted(() => ({
-  emitAiUsageObservedEventMock: vi.fn(),
   getAllSecretsMock: vi.fn(),
   getFirstApiKeyMock: vi.fn(),
   getPresetMock: vi.fn(),
@@ -26,10 +24,6 @@ const {
   resolveUsablePresetMock: vi.fn(),
   supportsProviderCapabilityMock: vi.fn(),
   toCanonicalProviderIdMock: vi.fn()
-}));
-
-vi.mock('../../packages/ai/analytics/events', () => ({
-  emitAiUsageObservedEvent: emitAiUsageObservedEventMock
 }));
 
 vi.mock('../../electron/main/logger', () => ({

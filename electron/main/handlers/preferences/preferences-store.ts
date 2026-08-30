@@ -3,10 +3,6 @@ import path from 'node:path';
 
 import { app } from 'electron';
 
-import type { MusicReactivityPreferences } from '../../../../packages/audio-reactivity/types';
-import { DEFAULT_MUSIC_REACTIVITY_PREFERENCES, normalizeMusicReactivityPreferences } from '../../../../packages/audio-reactivity/types';
-import type { OnboardingState } from '../../../../packages/sprite-core/quest';
-
 // 预览模式类型: 'window' 表示弹窗，'panel' 表示右侧面板
 export type PreviewMode = 'window' | 'panel';
 
@@ -17,9 +13,6 @@ export interface PreferencesConfig {
   // WebRecorder 麦克风设备ID
   webRecorderDeviceId?: string;
   assistantMiniWindowEnabled: boolean;
-  musicReactivity: MusicReactivityPreferences;
-  /** 新手引导 / Quest 系统状态（由 QuestEngine 持久化，结构由 sprite-core/quest 定义） */
-  onboardingState?: OnboardingState;
   /** 全局功能旗标覆盖（键为 FeatureKey，未设置的项用 packages/common/feature-flags 中的默认值） */
   featureFlags?: Record<string, boolean>;
 }
@@ -27,8 +20,7 @@ export interface PreferencesConfig {
 // 默认配置
 const DEFAULT_CONFIG: PreferencesConfig = {
   previewMode: 'window',
-  assistantMiniWindowEnabled: false,
-  musicReactivity: DEFAULT_MUSIC_REACTIVITY_PREFERENCES
+  assistantMiniWindowEnabled: false
 };
 
 type StoreShape = {
@@ -70,8 +62,6 @@ function read(): StoreShape {
         previewMode: data.preferences?.previewMode || DEFAULT_CONFIG.previewMode,
         webRecorderDeviceId: data.preferences?.webRecorderDeviceId,
         assistantMiniWindowEnabled: typeof data.preferences?.assistantMiniWindowEnabled === 'boolean' ? data.preferences.assistantMiniWindowEnabled : DEFAULT_CONFIG.assistantMiniWindowEnabled,
-        musicReactivity: normalizeMusicReactivityPreferences(data.preferences?.musicReactivity),
-        onboardingState: data.preferences?.onboardingState,
         featureFlags: data.preferences?.featureFlags
       }
     };
@@ -148,38 +138,5 @@ export const PreferencesStore = {
    */
   setWebRecorderDeviceId(deviceId: string | undefined): PreferencesConfig {
     return this.setConfig({ webRecorderDeviceId: deviceId });
-  },
-
-  /**
-   * 获取音乐响应配置
-   */
-  getMusicReactivity(): MusicReactivityPreferences {
-    return this.getConfig().musicReactivity;
-  },
-
-  /**
-   * 设置音乐响应配置
-   */
-  setMusicReactivity(config: Partial<MusicReactivityPreferences>): PreferencesConfig {
-    return this.setConfig({
-      musicReactivity: normalizeMusicReactivityPreferences({
-        ...this.getMusicReactivity(),
-        ...config
-      })
-    });
-  },
-
-  /**
-   * 获取新手引导/Quest 状态
-   */
-  getOnboardingState(): OnboardingState | undefined {
-    return this.getConfig().onboardingState;
-  },
-
-  /**
-   * 设置新手引导/Quest 状态（QuestEngine 持久化用）
-   */
-  setOnboardingState(state: OnboardingState): PreferencesConfig {
-    return this.setConfig({ onboardingState: state });
   }
 };

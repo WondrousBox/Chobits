@@ -1,8 +1,6 @@
-import { FEATURE_INTRO_QUEST_CATALOG, type FeatureIntroQuestCatalogItem } from '../feature-intro-catalog';
 import { getCharacterRoutineText } from '../messages/character';
 import {
   CHAT_API_CONFIGURED_GUIDE_GOAL,
-  createAchievementUnlockedGuideGoal,
   FIRST_CHAT_GUIDE_GOAL,
   FIRST_FILE_DROP_GUIDE_GOAL,
   OPEN_RESOURCE_LIBRARY_GUIDE_GOAL,
@@ -442,8 +440,6 @@ const FIRST_CHAT_WAIT_MS = 30 * 60 * 1000;
 const FIRST_CHAT_HELP_COOLDOWN_MS = 60_000;
 const OPEN_INVENTORY_NOTICE_ID = 'onboarding.resource.open-library.invite';
 const OPEN_INVENTORY_WAIT_MS = 5 * 60 * 1000;
-const FEATURE_INTRO_WAIT_MS = 30 * 60 * 1000;
-const FEATURE_INTRO_HELP_COOLDOWN_MS = 60_000;
 const CHAT_API_CONFIG_NOTICE_ID = 'chat.api-config-guide.invite';
 const CHAT_API_CONFIG_OPEN_SETTINGS_ACTION = 'open-ai-provider-settings';
 const CHAT_API_CONFIG_GUIDE_WAIT_MS = 30 * 60 * 1000;
@@ -979,222 +975,6 @@ function createChatApiConfigGuideSteps(purpose: SpritePurpose): SpriteRoutineSte
   ];
 }
 
-function getFeatureIntroDefaultPriority(priority: FeatureIntroQuestCatalogItem['priority']): number {
-  if (priority === 'P0') return 64;
-  if (priority === 'P1') return 62;
-  if (priority === 'P2') return 60;
-  return 58;
-}
-
-function shouldEndFeatureIntroOnWindowClose(item: FeatureIntroQuestCatalogItem): boolean {
-  return item.routine.kind === 'window' && Boolean(item.routine.windowKey) && !item.routine.waitEvents?.includes('APP_WINDOW_CLOSED') && item.routine.waitEvent !== 'APP_WINDOW_OPENED';
-}
-
-function buildFeatureIntroWaitSteps(item: FeatureIntroQuestCatalogItem): SpriteRoutineStepInput[] {
-  const routine = item.routine;
-  const baseWaitEvents = routine.waitEvents ?? (routine.waitEvent ? [routine.waitEvent] : []);
-  const waitEvents = shouldEndFeatureIntroOnWindowClose(item) ? [...baseWaitEvents, 'APP_WINDOW_CLOSED'] : baseWaitEvents;
-  const waitMatch = routine.waitMatch;
-  const windowCloseMatch = routine.windowKey ? { windowKey: routine.windowKey } : undefined;
-  const eventMatches = windowCloseMatch
-    ? {
-      ...(waitMatch && waitEvents.length > 0 ? Object.fromEntries(baseWaitEvents.map((event) => [event, waitMatch])) : {}),
-      APP_WINDOW_CLOSED: windowCloseMatch
-    }
-    : undefined;
-  const waitId = `${item.id}.wait`;
-
-  if (routine.kind === 'assistant-menu') {
-    return [
-      {
-        id: `${waitId}.context-menu`,
-        type: 'waitForEvent',
-        source: 'sprite-event-bus',
-        event: 'interact:context-menu',
-        match: { open: true },
-        timeoutMs: FEATURE_INTRO_WAIT_MS,
-        assignTo: 'featureIntroMenuOpen',
-        ignoreHistory: true
-      },
-      {
-        id: `${waitId}.menu-tip`,
-        type: 'speak',
-        text: routine.instruction,
-        bubbleDuration: 4200
-      },
-      {
-        id: `${waitId}.selected`,
-        type: 'waitForEvent',
-        source: 'app-event',
-        event: 'ASSISTANT_MENU_ITEM_SELECTED',
-        match: {
-          itemId: routine.menuItemId,
-          ...(routine.menuWindowKey ? { windowKey: routine.menuWindowKey } : {}),
-          'payload.source': 'assistant-context-menu'
-        },
-        timeoutMs: FEATURE_INTRO_WAIT_MS,
-        assignTo: 'featureIntroResult',
-        ignoreHistory: true
-      }
-    ];
-  }
-
-  const steps: SpriteRoutineStepInput[] = [];
-  if (routine.windowKey && (routine.kind === 'window' || routine.kind === 'app-event')) {
-    steps.push({
-      id: `${item.id}.open-window`,
-      type: 'openWindow',
-      window: routine.windowKey,
-      payload: routine.windowPayload,
-      timeoutMs: 10000
-    });
-    steps.push({
-      id: `${item.id}.walk-to-window`,
-      type: 'walkTo',
-      target: { window: routine.windowKey, placement: 'right', offset: 16 },
-      speed: 120,
-      timeoutMs: 10000
-    });
-  }
-
-  if (routine.kind === 'file-workflow' || routine.kind === 'file-action') {
-    steps.push(
-      { id: `${item.id}.walk-drop-target`, type: 'walkTo', target: 'center', speed: 130, timeoutMs: 8000 },
-      {
-        id: `${item.id}.wait-file-action`,
-        type: 'loopUntil',
-        source: 'app-event',
-        untilEvent: waitEvents.length > 0 ? waitEvents : ['FILE_ACTION_SELECTED', 'FILE_ACTION_WORKFLOW_STARTED'],
-        match: waitMatch,
-        maxDurationMs: FEATURE_INTRO_WAIT_MS,
-        assignTo: 'featureIntroResult',
-        ignoreHistory: true,
-        body: [
-          {
-            id: `${item.id}.file-tip`,
-            type: 'speak',
-            text: routine.instruction,
-            bubbleDuration: 5200,
-            cooldownKey: `${item.id}.file-tip`,
-            cooldownMs: FEATURE_INTRO_HELP_COOLDOWN_MS
-          },
-          { id: `${item.id}.file-pulse`, type: 'playAnimation', trigger: 'thinking', durationMs: 1200, waitFor: 'duration', silent: true },
-          { id: `${item.id}.file-pause`, type: 'wait', durationMs: 5000 }
-        ]
-      }
-    );
-    return steps;
-  }
-
-  if (waitEvents.length > 1) {
-    steps.push({
-      id: `${item.id}.wait-events`,
-      type: 'loopUntil',
-      source: 'app-event',
-      untilEvent: waitEvents,
-      match: eventMatches ? undefined : waitMatch,
-      eventMatches,
-      maxDurationMs: FEATURE_INTRO_WAIT_MS,
-      assignTo: 'featureIntroResult',
-      ignoreHistory: true,
-      body: [
-        {
-          id: `${item.id}.progress-tip`,
-          type: 'speak',
-          text: routine.instruction,
-          bubbleDuration: 4600,
-          cooldownKey: `${item.id}.progress-tip`,
-          cooldownMs: FEATURE_INTRO_HELP_COOLDOWN_MS
-        },
-        { id: `${item.id}.progress-pause`, type: 'wait', durationMs: 5000 }
-      ]
-    });
-    return steps;
-  }
-
-  if (waitEvents.length === 1) {
-    steps.push({
-      id: `${item.id}.wait-event`,
-      type: 'waitForEvent',
-      source: 'app-event',
-      event: waitEvents[0],
-      match: waitMatch,
-      timeoutMs: FEATURE_INTRO_WAIT_MS,
-      assignTo: 'featureIntroResult',
-      ignoreHistory: waitEvents[0] === 'APP_WINDOW_OPENED' ? false : true
-    });
-  } else {
-    steps.push({ id: `${item.id}.settle`, type: 'wait', durationMs: 800 });
-  }
-
-  return steps;
-}
-
-function createFeatureIntroRoutineSteps(item: FeatureIntroQuestCatalogItem): SpriteRoutineStepInput[] {
-  const noticeId = `${item.id}.invite`;
-  const completionSteps: SpriteRoutineStepInput[] = [
-    { id: `${item.id}.celebrate`, type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
-    {
-      id: `${item.id}.done`,
-      type: 'speak',
-      text: item.routine.done,
-      bubbleDuration: 4200
-    }
-  ];
-  const cancelOnWindowClose = shouldEndFeatureIntroOnWindowClose(item);
-  return [
-    { id: `${item.id}.wave`, type: 'playAnimation', trigger: 'wave', durationMs: 900, waitFor: 'duration', silent: true },
-    {
-      id: `${item.id}.intro-notice`,
-      type: 'showNotice',
-      messageId: noticeId,
-      content: item.routine.intro,
-      level: 'info',
-      persistent: true,
-      speak: true
-    },
-    {
-      id: `${item.id}.instruction`,
-      type: 'speak',
-      text: item.routine.instruction,
-      bubbleDuration: 4600
-    },
-    ...buildFeatureIntroWaitSteps(item),
-    { id: `${item.id}.clear-notice`, type: 'clearMessage', messageId: noticeId, messageType: 'notice' },
-    ...(cancelOnWindowClose
-      ? [
-        {
-          id: `${item.id}.result-branch`,
-          type: 'branch',
-          by: 'featureIntroResult.event.event',
-          cases: {
-            APP_WINDOW_CLOSED: []
-          },
-          default: completionSteps
-        } satisfies SpriteRoutineStepInput
-      ]
-      : completionSteps),
-    { id: `${item.id}.return-corner`, type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
-  ];
-}
-
-function createFeatureIntroRoutinePreset(item: FeatureIntroQuestCatalogItem): SpriteRoutinePresetDefinition {
-  return {
-    id: item.id,
-    title: `功能自述：${item.title}`,
-    purposeKind: item.id,
-    defaultPriority: getFeatureIntroDefaultPriority(item.priority),
-    goal: createAchievementUnlockedGuideGoal({
-      achievementId: item.achievementId,
-      id: `${item.id}.achievement`,
-      description: `功能自述「${item.title}」的完成成就已解锁。`
-    }),
-    steps: () => createFeatureIntroRoutineSteps(item)
-  };
-}
-
-const FEATURE_INTRO_ROUTINE_PRESETS = FEATURE_INTRO_QUEST_CATALOG.map(createFeatureIntroRoutinePreset);
-
 export const DEFAULT_SPRITE_ROUTINE_PRESETS: SpriteRoutinePresetDefinition[] = [
   {
     id: 'idle.presence',
@@ -1277,8 +1057,7 @@ export const DEFAULT_SPRITE_ROUTINE_PRESETS: SpriteRoutinePresetDefinition[] = [
     defaultPriority: 66,
     goal: OPEN_RESOURCE_LIBRARY_GUIDE_GOAL,
     steps: createOpenResourceLibraryRoutineSteps
-  },
-  ...FEATURE_INTRO_ROUTINE_PRESETS
+  }
 ];
 
 export class SpriteRoutinePresetRegistry {

@@ -15,20 +15,12 @@ export type { PushCardToolContext } from './push-card-tool';
 export { createPushCardTool } from './push-card-tool';
 export { createReadSubtitleTool, readSubtitleTool } from './read-subtitle-tool';
 export { createResourceQueryTool, resourceQueryTool } from './resource-query-tool';
-export type { SummaryToolRuntimeBinding } from './summary-tool';
-export { createSummaryTool } from './summary-tool';
-export type { TranslationToolRuntimeBinding } from './translation-tool';
-export { createTranslationTool } from './translation-tool';
 
 // 导入用于类型和工具列表
 import type { PushCardToolContext } from './push-card-tool';
 import { createPushCardTool } from './push-card-tool';
 import { readSubtitleTool } from './read-subtitle-tool';
 import { resourceQueryTool } from './resource-query-tool';
-import type { SummaryToolRuntimeBinding } from './summary-tool';
-import { createSummaryTool } from './summary-tool';
-import type { TranslationToolRuntimeBinding } from './translation-tool';
-import { createTranslationTool } from './translation-tool';
 
 // ============================================================================
 // 工具集合
@@ -39,15 +31,11 @@ import { createTranslationTool } from './translation-tool';
  *
  * AI 工具（需要绑定依赖）：
  * - readSubtitleTool: 读取字幕文件内容
- * - translationTool: 字幕翻译
- * - summaryTool: 内容总结
  * - resourceQueryTool: 资源智能查询
  * - pushCardTool: 推送资源卡片
  */
 export interface LegacyToolBindings {
   pushCard?: PushCardToolContext;
-  summaryRuntime?: SummaryToolRuntimeBinding;
-  translationRuntime?: TranslationToolRuntimeBinding;
 }
 
 /**
@@ -57,8 +45,6 @@ export interface LegacyToolBindings {
  */
 export function getAITools(bindings: LegacyToolBindings = {}) {
   return {
-    translationTool: createTranslationTool(bindings.translationRuntime ? { runtime: bindings.translationRuntime } : undefined),
-    summaryTool: createSummaryTool(bindings.summaryRuntime ? { runtime: bindings.summaryRuntime } : undefined),
     resourceQueryTool,
     pushCardTool: createPushCardTool(bindings.pushCard)
   };
@@ -72,8 +58,6 @@ export function getAITools(bindings: LegacyToolBindings = {}) {
 export function getAllTools(bindings: LegacyToolBindings = {}) {
   return {
     readSubtitleTool,
-    translationTool: createTranslationTool(bindings.translationRuntime ? { runtime: bindings.translationRuntime } : undefined),
-    summaryTool: createSummaryTool(bindings.summaryRuntime ? { runtime: bindings.summaryRuntime } : undefined),
     resourceQueryTool,
     pushCardTool: createPushCardTool(bindings.pushCard)
   };
@@ -82,7 +66,7 @@ export function getAllTools(bindings: LegacyToolBindings = {}) {
 /**
  * 根据名称获取工具
  *
- * @param name - 工具名称（如 'translationTool', 'resourceQueryTool'）
+ * @param name - 工具名称（如 'resourceQueryTool'）
  * @returns 对应的工具实例，如果不存在则返回 undefined
  */
 export function getTool(name: string, bindings: LegacyToolBindings = {}) {
@@ -92,14 +76,12 @@ export function getTool(name: string, bindings: LegacyToolBindings = {}) {
 /**
  * 根据工具 ID 获取工具
  *
- * @param id - 工具 ID（如 'translate-subtitles', 'query-resources'）
+ * @param id - 工具 ID（如 'query-resources'）
  * @returns 对应的工具实例，如果不存在则返回 undefined
  */
 export function getToolById(id: string, bindings: LegacyToolBindings = {}) {
   const allTools = getAllTools(bindings);
   const toolMap: Record<string, any> = {
-    'translate-subtitles': allTools.translationTool,
-    'summarize-content': allTools.summaryTool,
     'query-resources': resourceQueryTool,
     'push-card': allTools.pushCardTool,
     'read-subtitle': readSubtitleTool
@@ -115,7 +97,7 @@ export type ToolName = keyof ReturnType<typeof getAllTools>;
 /**
  * 工具 ID 类型定义
  */
-export type ToolId = 'translate-subtitles' | 'summarize-content' | 'query-resources' | 'push-card' | 'read-subtitle';
+export type ToolId = 'query-resources' | 'push-card' | 'read-subtitle';
 
 /**
  * 工具信息类型
@@ -147,16 +129,6 @@ export function listToolInfos(): ToolInfo[] {
       id: 'read-subtitle',
       name: 'readSubtitleTool',
       description: '读取字幕文件内容'
-    },
-    {
-      id: 'translate-subtitles',
-      name: 'translationTool',
-      description: '翻译字幕内容'
-    },
-    {
-      id: 'summarize-content',
-      name: 'summaryTool',
-      description: '总结字幕和文本内容'
     },
     {
       id: 'web-search',

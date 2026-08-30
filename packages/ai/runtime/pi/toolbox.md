@@ -3,29 +3,6 @@
 > 本文件描述所有可用工具的详细使用方法。通过 toolboxLookupTool 按需加载。
 > 每个 `##` 章节是一个技能，包含触发词、使用流程和注意事项。
 
-## 资源字幕链路
-
-**触发词：** 看不懂视频、帮我理解视频、转写翻译、视频转写翻译、字幕链路、media chain
-
-**涉及工具：** workflowRunTool, translationTool
-
-**工作流程：**
-
-1. 用户想理解已有视频/音频资源时，先规划完整链路：转写/提取字幕 -> 翻译字幕。
-2. 调用 `workflowRunTool` 搜索或执行转写工作流。执行时传入 `input: { resourceId: 目标资源ID }`，并优先 `waitForCompletion: true`。
-3. 转写完成后必须使用 `workflowRunTool` 返回的 `outputResourceId`、`next.resourceId`、`createdResources[0].id` 或 `producedResourceIds[0]` 作为新字幕资源 ID。
-4. 调用 `translationTool({ resourceId: 上一步转写得到的字幕资源ID, targetLanguage, waitForCompletion: true })`。
-
-**关键规则：**
-
-- 刚由工具创建或返回的资源 ID 是权威链路状态。只要上一步结果里有 `resourceId`、`outputResourceId`、`createdResources`、`producedResourceIds` 或 `next.resourceId`，就必须直接传给下一步。
-- 不要为了继续处理刚转写出来的资源而调用 `resourceQueryTool`。
-- 只有在用户要处理“已有资源”，且当前对话没有确切资源 ID 时，才使用 `resourceQueryTool`。
-- 不要用视频标题、文件名或同名字幕搜索来猜测下一步输入；这会误命中历史同名资源。
-- 如果转写被切到后台，当前链路不能继续执行依赖产物的下一步，除非后续能拿到明确的产物 ID。
-
----
-
 ## 资源查询与推送
 
 **触发词：** 查找资源、找视频、找音频、找字幕、预览资源、打开资源、查看资源、播放资源、打开文件、预览文件、有没有、给我看看、最新的、查询
@@ -112,37 +89,6 @@
 
 ---
 
-## 工作流执行
-
-**触发词：** 转写、提取字幕、OCR、文字识别、提取音频、提取关键帧、生成图片、理解图片、工作流
-
-**涉及工具：** workflowRunTool
-
-**工作流程：**
-
-1. 当用户需要执行 AI 无法直接完成的任务时（如视频转文字、音频提取等），先用 workflowRunTool 的 search 或 list 查找合适的工作流
-2. 确认找到合适的工作流后，用 run 执行工作流
-3. 工作流在后台异步执行，告诉用户已启动
-
-**常见场景与对应输入：**
-
-- **视频/音频转写（语音转文字）：** 搜索"转写"或"字幕"，输入 `{ resourceId: "资源ID" }`
-- **提取音频（视频转MP3）：** 搜索"音频"或"transcode"，输入 `{ resourceId: "资源ID" }`
-- **图片文字识别（OCR）：** 搜索"OCR"或"文字识别"，输入 `{ resourceId: "资源ID" }`
-- **提取视频关键帧：** 搜索"关键帧"或"keyframe"，输入 `{ resourceId: "资源ID" }`
-- **AI 图片生成：** 搜索"生成图片"，输入 `{ text: "提示词" }`
-- **理解图片内容：** 搜索"理解图片"，输入 `{ resourceId: "资源ID" }`
-
-**注意：**
-
-- 大多数工作流需要 resourceId 作为输入。如果上一步工具刚产生了 resourceId，必须直接使用；只有没有明确 ID 且要处理已有资源时，才用 resourceQueryTool 查找目标资源
-- 工作流执行是异步的，返回 runId 不代表执行完成
-- 当工作流完成结果里有 outputResourceId、createdResources、producedResourceIds 或 next.resourceId 时，这就是后续工具的输入，不要再搜索同名资源
-- 如果不确定用哪个工作流，先用 list 列出所有工作流查看描述
-- 如果有多个类似工作流（如多种转写引擎），可以根据描述选择合适的
-
----
-
 ## 应用窗口
 
 **触发词：** 打开窗口、打开设置、打开资源库、打开资源、预览资源、查看资源、播放资源、打开文件、预览文件、设置、资源库、聊天窗口、助手窗口、插件管理、窗口动画、window、settings、preview
@@ -167,7 +113,7 @@
 
 ## 长任务等待与进度
 
-**适用工具：** `translationTool`、`summaryTool`、`workflowRunTool`
+**适用工具：** `translationTool`、`summaryTool`
 
 **使用原则：**
 

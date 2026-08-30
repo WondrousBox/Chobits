@@ -4,7 +4,6 @@ import { requiresSkillSourceCaution } from './source-info'
 import type { SkillExecutionContext, SkillSource, SkillSourcePolicy } from './types'
 
 const GUARDED_TOOL_CATEGORIES = new Set(['file', 'shell', 'ui-side-effect'])
-const GUARDED_TOOL_IDS = new Set(['workflow-run'])
 
 export function getSkillSourcePolicy(
   record: Pick<SkillSourcePolicyInput, 'source' | 'allowedToolIds' | 'activationToolIds' | 'executionContext' | 'sourcePolicy'>
@@ -90,20 +89,15 @@ function resolveSensitiveTools(toolIds: string[]): SensitiveToolResolution {
     const descriptor = getPiToolDescriptor(toolId)
     const category = descriptor?.category
     const matchesGuardedCategory = Boolean(category && GUARDED_TOOL_CATEGORIES.has(category))
-    const matchesGuardedToolId = GUARDED_TOOL_IDS.has(toolId)
 
-    if (!matchesGuardedCategory && !matchesGuardedToolId) {
+    if (!matchesGuardedCategory) {
       continue
     }
 
     sensitiveToolIds.push(toolId)
 
-    if (matchesGuardedCategory && category) {
+    if (category) {
       sensitiveToolCategories.add(category)
-    }
-
-    if (matchesGuardedToolId && !matchesGuardedCategory) {
-      sensitiveToolLabels.push(descriptor?.name || toolId)
     }
   }
 

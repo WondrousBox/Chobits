@@ -135,13 +135,6 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
     compatName: 'webReadTool',
     name: 'webReadTool',
     status: 'ready-for-pi-runtime'
-  },
-  'workflow-run': {
-    category: 'background-task',
-    description: '查找和执行工作流，可完成视频转写、音频提取、OCR、关键帧提取、AI图片生成等任务',
-    compatName: 'workflowRunTool',
-    name: 'workflowRunTool',
-    status: 'ready-for-pi-runtime'
   }
 };
 
@@ -159,7 +152,6 @@ export const DEFAULT_SESSION_TOOL_IDS = [
   'push-card',
   'app-window',
   'toolbox-lookup',
-  'workflow-run',
   'web-search',
   'web-read',
   'ask-user',

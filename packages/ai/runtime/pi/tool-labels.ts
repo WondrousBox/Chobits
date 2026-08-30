@@ -64,10 +64,6 @@ const DEFAULT_TOOL_LABELS: Record<string, ToolLabelDefinition> = {
   pushCardTool: {
     default: { calling: '推送卡片', done: '推送卡片完成' }
   },
-  resourceCreateTool: {
-    default: { calling: '创建资源：{title}', done: '资源已创建' },
-    conditions: [{ when: { mediaKind: 'music' }, calling: '保存音乐资源：{title}', done: '音乐资源已保存' }]
-  },
   translationTool: {
     default: { calling: '翻译字幕', done: '翻译字幕完成' }
   },
@@ -76,53 +72,6 @@ const DEFAULT_TOOL_LABELS: Record<string, ToolLabelDefinition> = {
   },
   readSubtitleTool: {
     default: { calling: '读取字幕', done: '读取字幕完成' }
-  },
-  youtubeDownloadTool: {
-    default: { calling: '下载视频：{url}', done: '下载视频任务已创建' }
-  },
-  youtubeSubscribeTool: {
-    default: { calling: '订阅频道', done: '订阅频道完成' }
-  },
-  memorySearchTool: {
-    default: { calling: '搜索记忆：{query}', done: '搜索记忆完成' }
-  },
-  memoryGetTool: {
-    default: { calling: '获取记忆', done: '获取记忆完成' }
-  },
-  memoryTopicsTool: {
-    default: { calling: '浏览记忆主题', done: '浏览记忆主题完成' }
-  },
-  memorySaveTool: {
-    default: { calling: '保存记忆：{topic}', done: '记忆已保存' }
-  },
-  memoryDiaryTool: {
-    default: { calling: '记录日志', done: '日志已记录' }
-  },
-  memoryRefreshCriticalTool: {
-    default: { calling: '刷新关键记忆', done: '关键记忆已刷新' }
-  },
-  musicGenerateTool: {
-    default: { calling: '生成音乐：{prompt}', done: '音乐生成完成' },
-    conditions: [
-      { when: { mode: 'instrumental' }, calling: '生成纯音乐：{prompt}', done: '纯音乐生成完成' },
-      { when: { mode: 'lyrics-to-song' }, calling: '根据歌词生成歌曲：{prompt}', done: '歌曲生成完成' },
-      { when: { mode: 'cover' }, calling: '生成翻唱/参考音频：{prompt}', done: '翻唱/参考音频生成完成' }
-    ]
-  },
-  musicLyricsTool: {
-    default: { calling: '生成歌词：{prompt}', done: '歌词生成完成' },
-    conditions: [{ when: { mode: 'edit' }, calling: '修改歌词', done: '歌词修改完成' }]
-  },
-  personaUpdateTool: {
-    default: { calling: '更新用户画像', done: '用户画像已更新' }
-  },
-  workflowRunTool: {
-    default: { calling: '执行工作流', done: '工作流完成' },
-    conditions: [
-      { when: { action: 'search' }, calling: '查找工作流：{query}', done: '查找工作流完成' },
-      { when: { action: 'list' }, calling: '列出工作流', done: '列出工作流完成' },
-      { when: { action: 'run' }, calling: '运行工作流：{workflowId}', done: '工作流运行完成' }
-    ]
   },
   askUserTool: {
     default: { calling: '等待用户选择', done: '用户已选择' }

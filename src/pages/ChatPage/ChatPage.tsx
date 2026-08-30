@@ -93,8 +93,6 @@ interface ChatWindowPayload {
   codingWorkspaceLabel?: string;
   webSearchEnabled?: boolean;
   characterPersonaEnabled?: boolean;
-  emojiPacksEnabled?: boolean;
-  emojiPacksDisplayTarget?: 'chat' | 'sprite-bubble';
   overlaySide?: ChatOverlaySide;
 }
 
@@ -125,8 +123,6 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     codingWorkspaceRoot,
     codingWorkspaceLabel,
     webSearchEnabled,
-    emojiPacksEnabled,
-    emojiPacksDisplayTarget,
     characterPersonaEnabled,
     setProviderId,
     setModelId,
@@ -134,8 +130,6 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     setAgentId,
     setCodingWorkspace,
     setWebSearchEnabled,
-    setEmojiPacksEnabled,
-    setEmojiPacksDisplayTarget,
     setCharacterPersonaEnabled
   } = useChatSelection();
   const [messages, setMessages] = useState<ChatUiMessage[]>([]);
@@ -368,8 +362,6 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
         codingWorkspaceLabel?: string;
         webSearchEnabled?: boolean;
         characterPersonaEnabled?: boolean;
-        emojiPacksEnabled?: boolean;
-        emojiPacksDisplayTarget?: 'chat' | 'sprite-bubble';
       }) => Promise<void>
     >();
 
@@ -396,17 +388,11 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
       if (typeof payload.webSearchEnabled === 'boolean') {
         setWebSearchEnabled(payload.webSearchEnabled);
       }
-      if (typeof payload.emojiPacksEnabled === 'boolean') {
-        setEmojiPacksEnabled(payload.emojiPacksEnabled);
-      }
-      if (payload.emojiPacksDisplayTarget === 'chat' || payload.emojiPacksDisplayTarget === 'sprite-bubble') {
-        setEmojiPacksDisplayTarget(payload.emojiPacksDisplayTarget);
-      }
       if (typeof payload.characterPersonaEnabled === 'boolean') {
         setCharacterPersonaEnabled(payload.characterPersonaEnabled);
       }
     },
-    [setAgentId, setCharacterPersonaEnabled, setCodingWorkspace, setEmojiPacksDisplayTarget, setEmojiPacksEnabled, setModelId, setPresetId, setProviderId, setWebSearchEnabled]
+    [setAgentId, setCharacterPersonaEnabled, setCodingWorkspace, setModelId, setPresetId, setProviderId, setWebSearchEnabled]
   );
 
   // Listen for initial message or mode switch payload from assistant/chat windows.
@@ -452,9 +438,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
           codingWorkspaceRoot: payload.codingWorkspaceRoot,
           codingWorkspaceLabel: payload.codingWorkspaceLabel,
           webSearchEnabled: payload.webSearchEnabled,
-          characterPersonaEnabled: payload.characterPersonaEnabled,
-          emojiPacksEnabled: payload.emojiPacksEnabled,
-          emojiPacksDisplayTarget: payload.emojiPacksDisplayTarget
+          characterPersonaEnabled: payload.characterPersonaEnabled
         });
       }, 50);
     };
@@ -517,8 +501,6 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     codingWorkspaceLabel?: string;
     webSearchEnabled?: boolean;
     characterPersonaEnabled?: boolean;
-    emojiPacksEnabled?: boolean;
-    emojiPacksDisplayTarget?: 'chat' | 'sprite-bubble';
   }): Promise<void> => {
     const content = params.content;
     const selectedProviderId = params.providerId || providerId;
@@ -837,8 +819,6 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
       codingWorkspaceLabel,
       webSearchEnabled,
       characterPersonaEnabled,
-      emojiPacksEnabled,
-      emojiPacksDisplayTarget,
       ...(targetOverlay ? { overlaySide } : {})
     }),
     [
@@ -847,8 +827,6 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
       codingWorkspaceLabel,
       codingWorkspaceRoot,
       conversationId,
-      emojiPacksDisplayTarget,
-      emojiPacksEnabled,
       modelId,
       overlaySide,
       presetId,

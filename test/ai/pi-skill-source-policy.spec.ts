@@ -21,22 +21,6 @@ describe('skill source policy', () => {
     expect(policy.message).not.toContain('query-resources')
   })
 
-  it('treats explicit mutating tool ids as guarded even without a guarded category', () => {
-    const policy = buildSkillSourcePolicy({
-      activationToolIds: [],
-      allowedToolIds: ['query-resources', 'workflow-run'],
-      source: 'plugin'
-    })
-
-    expect(policy).toMatchObject({
-      riskLevel: 'guarded',
-      sensitiveToolCategories: [],
-      sensitiveToolIds: ['workflow-run']
-    })
-    expect(policy.message).toContain('workflowRunTool')
-    expect(policy.message).not.toContain('query-resources')
-  })
-
   it('keeps tool-level sensitive ids empty when guarded only by fork execution', () => {
     const policy = buildSkillSourcePolicy({
       activationToolIds: [],

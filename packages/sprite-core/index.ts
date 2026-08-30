@@ -382,18 +382,6 @@ export {
   validateSpritePurposePlannerOutput,
   WORKSPACE_EXISTS_GUIDE_GOAL
 } from './purpose';
-export type {
-  OnboardingPresetDeps,
-  OnboardingQuestDefinition,
-  OnboardingQuestReward,
-  OnboardingQuestRuntimeState,
-  OnboardingState,
-  QuestCategory,
-  QuestEngineDeps,
-  QuestPredicate,
-  QuestPredicateContext
-} from './quest';
-export { createEmptyOnboardingState, createFirstChatQuest, createWorkspaceCreateQuest, QuestEngine, QuestRegistry } from './quest';
 export type { SpriteReactionState, SpriteState, SpriteSubState, StateConfig, StateTransition } from './state-machine';
 export { SpriteStateMachine } from './state-machine';
 

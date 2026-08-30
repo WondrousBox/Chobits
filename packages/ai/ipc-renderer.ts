@@ -1,24 +1,15 @@
-import { AimSegments } from '@aim-packages/subtitle';
 import { ipcRenderer } from 'electron';
 
 import { normalizeProviderPreset } from './provider-preset';
 import type {
   ConversationRecord,
   EmbeddingRequest,
-  ImageEditRequest,
-  ImageGenerationRequest,
-  LyricsGenerationRequest,
-  MindmapRequest,
-  MusicGenerationRequest,
   ProviderPresetCreatePayload,
   ProviderPresetUpdatePatch,
   PushedCard,
-  SelectedTextExplainRequest,
   SpeechSynthesisStreamEvent,
   SpeechSynthesisRequest,
-  SummarizeRequest,
   TranscriptionRequest,
-  TranslateRequest,
   UserChoiceResponse
 } from './types';
 
@@ -81,21 +72,6 @@ export const aiBridge = {
       fileToSend = Buffer.from(payload.file);
     }
     return ipcRenderer.invoke('ai:transcribe', { ...normalizeProviderPreset(payload), file: fileToSend });
-  },
-  async generateImage(payload: ImageGenerationRequest) {
-    return ipcRenderer.invoke('ai:generateImage', normalizeProviderPreset(payload));
-  },
-  async generateImageArtifact(payload: ImageGenerationRequest) {
-    return ipcRenderer.invoke('ai:generateImageArtifact', normalizeProviderPreset(payload));
-  },
-  async editImage(payload: ImageEditRequest) {
-    return ipcRenderer.invoke('ai:editImage', normalizeProviderPreset(payload));
-  },
-  async generateMusic(payload: MusicGenerationRequest) {
-    return ipcRenderer.invoke('ai:generateMusic', normalizeProviderPreset(payload));
-  },
-  async generateLyrics(payload: LyricsGenerationRequest) {
-    return ipcRenderer.invoke('ai:generateLyrics', normalizeProviderPreset(payload));
   },
   async synthesizeSpeech(payload: SpeechSynthesisRequest) {
     return ipcRenderer.invoke('ai:synthesizeSpeech', normalizeProviderPreset(payload));
@@ -297,147 +273,6 @@ export const aiBridge = {
   /** Send user's choice response back to main process (for ask-user tool) */
   async sendUserChoiceResponse(response: UserChoiceResponse) {
     return ipcRenderer.invoke('ai:userChoiceResponse', response);
-  },
-  // Utilities
-  async autoTagText(text: string, maxLabels?: number): Promise<{ success: true; tags: string[] }> {
-    return ipcRenderer.invoke('ai:autoTagText', { text, maxLabels });
-  },
-  // 字幕翻译：在主进程中处理，通过 renderer-message 发送消息
-  // 事件会直接发送到所有窗口，需要监听的地方直接监听 renderer-message 事件即可
-  async translate(payload: TranslateRequest & { segments: Array<AimSegments> }) {
-    const res = await ipcRenderer.invoke('ai:translate', normalizeProviderPreset(payload));
-    return { requestId: res.requestId as string };
-  },
-  async cancelTranslate(requestId: string) {
-    return ipcRenderer.invoke('ai:cancelTranslate', { requestId });
-  },
-  async getTranslationTasks() {
-    return ipcRenderer.invoke('ai:getTranslationTasks');
-  },
-  async getResourceTranslations(resourceId: string) {
-    return ipcRenderer.invoke('ai:getResourceTranslations', { resourceId });
-  },
-  async updateTranslationSegment(payload: { translationResourceId: string; segmentIndex: number; patch: { st?: string; et?: string; text?: string } }) {
-    return ipcRenderer.invoke('ai:updateTranslationSegment', payload);
-  },
-  async insertTranslationSegment(payload: { translationResourceId: string; insertIndex: number; segment: { st: string; et: string; text: string } }) {
-    return ipcRenderer.invoke('ai:insertTranslationSegment', payload);
-  },
-  async deleteTranslationSegment(payload: { translationResourceId: string; segmentIndex: number }) {
-    return ipcRenderer.invoke('ai:deleteTranslationSegment', payload);
-  },
-  async getAllTranslationHistory(resourceId: string) {
-    return ipcRenderer.invoke('ai:getAllTranslationHistory', { resourceId });
-  },
-  async getTranslatedSegments(requestId: string) {
-    return ipcRenderer.invoke('ai:getTranslatedSegments', { requestId });
-  },
-
-  // ==================== 翻译术语管理 ====================
-
-  // 分类管理
-  async listGlossaryCategories() {
-    return ipcRenderer.invoke('ai:listGlossaryCategories');
-  },
-  async createGlossaryCategory(payload: { name: string; description?: string }) {
-    return ipcRenderer.invoke('ai:createGlossaryCategory', payload);
-  },
-  async updateGlossaryCategory(id: string, patch: { name?: string; description?: string }) {
-    return ipcRenderer.invoke('ai:updateGlossaryCategory', { id, patch });
-  },
-  async deleteGlossaryCategory(id: string) {
-    return ipcRenderer.invoke('ai:deleteGlossaryCategory', { id });
-  },
-
-  // 术语表管理
-  async listGlossaries(categoryId?: string) {
-    return ipcRenderer.invoke('ai:listGlossaries', { categoryId });
-  },
-  async getGlossary(id: string) {
-    return ipcRenderer.invoke('ai:getGlossary', { id });
-  },
-  async createGlossary(payload: {
-    categoryId: string;
-    name: string;
-    description?: string;
-    entries: Array<{ source: string; target: string; note?: string }>;
-    sourceFile?: string;
-    sourceFormat?: string;
-  }) {
-    return ipcRenderer.invoke('ai:createGlossary', payload);
-  },
-  async updateGlossary(id: string, patch: { categoryId?: string; name?: string; description?: string; entries?: Array<{ source: string; target: string; note?: string }> }) {
-    return ipcRenderer.invoke('ai:updateGlossary', { id, patch });
-  },
-  async deleteGlossary(id: string) {
-    return ipcRenderer.invoke('ai:deleteGlossary', { id });
-  },
-  async addGlossaryEntries(glossaryId: string, entries: Array<{ source: string; target: string; note?: string }>) {
-    return ipcRenderer.invoke('ai:addGlossaryEntries', { glossaryId, entries });
-  },
-  async removeGlossaryEntry(glossaryId: string, source: string) {
-    return ipcRenderer.invoke('ai:removeGlossaryEntry', { glossaryId, source });
-  },
-  async updateGlossaryEntry(glossaryId: string, oldSource: string, newEntry: { source: string; target: string; note?: string }) {
-    return ipcRenderer.invoke('ai:updateGlossaryEntry', { glossaryId, oldSource, newEntry });
-  },
-
-  // 导入解析
-  async parseGlossaryContent(content: string, fileName?: string) {
-    return ipcRenderer.invoke('ai:parseGlossaryContent', { content, fileName });
-  },
-  async mergeGlossaries(ids: string[]) {
-    return ipcRenderer.invoke('ai:mergeGlossaries', { ids });
-  },
-
-  // ==================== 总结相关 ====================
-
-  // 总结内容
-  async getResourceSummary(resourceId: string) {
-    return ipcRenderer.invoke('ai:getResourceSummary', { resourceId });
-  },
-  async summarize(payload: SummarizeRequest) {
-    const res = await ipcRenderer.invoke('ai:summarize', normalizeProviderPreset(payload));
-    return { requestId: res.requestId as string };
-  },
-
-  // 取消总结任务
-  async cancelSummary(requestId: string) {
-    return ipcRenderer.invoke('ai:cancelSummary', { requestId });
-  },
-
-  // 获取所有活跃的总结任务
-  async getSummaryTasks() {
-    return ipcRenderer.invoke('ai:getSummaryTasks');
-  },
-
-  // ==================== 脑图相关 ====================
-
-  async getResourceMindmap(resourceId: string) {
-    return ipcRenderer.invoke('ai:getResourceMindmap', { resourceId });
-  },
-  async generateMindmap(payload: MindmapRequest) {
-    const res = await ipcRenderer.invoke('ai:generateMindmap', normalizeProviderPreset(payload));
-    return { requestId: res.requestId as string };
-  },
-  async cancelMindmap(requestId: string) {
-    return ipcRenderer.invoke('ai:cancelMindmap', { requestId });
-  },
-  async explainSelectedText(payload: SelectedTextExplainRequest) {
-    const res = await ipcRenderer.invoke('ai:selectedTextExplain', normalizeProviderPreset(payload));
-    return { eventsChannel: res.eventsChannel as string, requestId: res.requestId as string };
-  },
-  async cancelSelectedTextExplain(requestId: string) {
-    return ipcRenderer.invoke('ai:cancelSelectedTextExplain', { requestId });
-  },
-
-  // ==================== 笔记相关 ====================
-
-  async saveNote(payload: { resourceId: string; content: string; title?: string }) {
-    return ipcRenderer.invoke('ai:saveNote', payload);
-  },
-  async getResourceNote(resourceId: string) {
-    return ipcRenderer.invoke('ai:getResourceNote', { resourceId });
   }
 };
 

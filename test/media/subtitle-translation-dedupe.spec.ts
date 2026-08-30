@@ -84,13 +84,6 @@ vi.mock('../../packages/ai/services/summary-service', () => ({
   }
 }));
 
-vi.mock('../../packages/ai/services/mindmap-service', () => ({
-  MindmapService: {
-    cancelMindmap: vi.fn(),
-    generateMindmap: vi.fn()
-  }
-}));
-
 beforeEach(() => {
   resourcesGetByIdMock.mockReset();
   translateSubtitlesMock.mockReset();

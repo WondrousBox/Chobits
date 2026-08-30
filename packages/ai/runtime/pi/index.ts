@@ -1,6 +1,5 @@
 export * from './contracts';
 export * from './execution-service';
-export * from './image-generation-service';
 export * from './model-resolver';
 export * from './profile-registry';
 export * from './runtime-switch';

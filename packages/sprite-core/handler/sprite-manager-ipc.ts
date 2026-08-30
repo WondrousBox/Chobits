@@ -40,7 +40,6 @@ import { windowManager } from '@aim-packages/window-manager';
 
 import { loadShortcutEnabledConfig, saveShortcutEnabledConfig } from '../../../electron/main/shortcut-store';
 import { AppEvent, eventManager } from '../../event';
-import { getRecorderStatusSnapshot } from '../../recorder/ipc-main';
 import { disableASRRuntime, getASRConfigSnapshot, getASRStatusSnapshot } from '../../sherpa/ipc-main';
 import { SPRITE_CAPABILITY_SIGNALS, type SpriteCapabilityResolutionContext } from '../capability-registry';
 import { assertSpriteCapabilityUnlocked, getSpriteCapabilitySnapshot, initSpriteCapabilityRuntime } from '../capability-runtime';
@@ -502,13 +501,6 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     const persona = mgr.getPersonaState();
     const { featureFlags, personaFlags } = getCharacterCapabilityContextFlags(persona);
 
-    let recorderEnabled = false;
-    try {
-      recorderEnabled = Boolean(getRecorderStatusSnapshot().running);
-    } catch {
-      recorderEnabled = false;
-    }
-
     let screenshotEnabled = false;
     try {
       screenshotEnabled = Boolean(loadShortcutEnabledConfig().screenshot);
@@ -533,7 +525,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       activeSignals: {
         [SPRITE_CAPABILITY_SIGNALS.movementAutoWalk]: mgr.isAutoWalkEnabled(),
         [SPRITE_CAPABILITY_SIGNALS.dailyCareEnabled]: false,
-        [SPRITE_CAPABILITY_SIGNALS.recorderEnabled]: recorderEnabled,
+        [SPRITE_CAPABILITY_SIGNALS.recorderEnabled]: false,
         [SPRITE_CAPABILITY_SIGNALS.screenshotEnabled]: screenshotEnabled,
         [SPRITE_CAPABILITY_SIGNALS.asrRunning]: asrRunning
       }

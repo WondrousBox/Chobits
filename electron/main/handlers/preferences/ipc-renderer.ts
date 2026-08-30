@@ -1,7 +1,5 @@
 import { ipcRenderer } from 'electron';
 
-import type { MusicReactivityPreferences } from '../../../../packages/audio-reactivity/types';
-
 // 预览模式类型: 'window' 表示弹窗，'panel' 表示右侧面板
 export type PreviewMode = 'window' | 'panel';
 
@@ -10,7 +8,6 @@ export interface PreferencesConfig {
   previewMode: PreviewMode;
   webRecorderDeviceId?: string;
   assistantMiniWindowEnabled: boolean;
-  musicReactivity: MusicReactivityPreferences;
   featureFlags?: Record<string, boolean>;
 }
 

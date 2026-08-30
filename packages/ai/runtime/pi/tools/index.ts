@@ -20,7 +20,6 @@ import { createPiToolboxLookupTool } from './toolbox-lookup';
 import { createPiTranslationTool } from './translation';
 import { createPiWebReadTool } from './web-read';
 import { createPiWebSearchTool } from './web-search';
-import { createPiWorkflowRunTool } from './workflow-run';
 
 type PiToolFactory = (toolContext: PiSessionToolContext) => unknown;
 
@@ -43,8 +42,7 @@ const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
   'translate-subtitles': createPiTranslationTool,
   'web-read': createPiWebReadTool,
   'web-search': createPiWebSearchTool,
-  'toolbox-lookup': createPiToolboxLookupTool,
-  'workflow-run': createPiWorkflowRunTool
+  'toolbox-lookup': createPiToolboxLookupTool
 };
 
 /** compatName → toolId 映射，供 toolbox proxy execute 按名称查找 */
@@ -67,8 +65,7 @@ const COMPAT_NAME_TO_TOOL_ID: Record<string, string> = {
   translationTool: 'translate-subtitles',
   webReadTool: 'web-read',
   webSearchTool: 'web-search',
-  toolboxTool: 'toolbox-lookup',
-  workflowRunTool: 'workflow-run'
+  toolboxTool: 'toolbox-lookup'
 };
 
 export function createPiCustomTools(enabledToolIds: string[], toolContext: PiSessionToolContext): ToolDefinition[] {

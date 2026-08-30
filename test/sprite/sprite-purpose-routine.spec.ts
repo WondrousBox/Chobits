@@ -4,7 +4,6 @@ import path from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { FEATURE_INTRO_QUEST_CATALOG } from '../../packages/sprite-core/feature-intro-catalog';
 import {
   CHAT_API_CONFIGURED_GUIDE_GOAL,
   FIRST_CHAT_GUIDE_GOAL,
@@ -1753,18 +1752,6 @@ describe('SpriteRoutinePresetRegistry', () => {
     expect(registry.get('onboarding.resource.open-library')?.goal).toEqual(OPEN_RESOURCE_LIBRARY_GUIDE_GOAL);
   });
 
-  it('declares achievement goals for every feature intro routine preset', () => {
-    const registry = new SpriteRoutinePresetRegistry();
-
-    for (const item of FEATURE_INTRO_QUEST_CATALOG) {
-      expect(registry.get(item.id)?.goal).toMatchObject({
-        id: `${item.id}.achievement`,
-        kind: 'achievement.unlocked',
-        achievementId: item.achievementId
-      });
-    }
-  });
-
   it('declares a blocking chat API config goal on the chat guide preset', () => {
     const registry = new SpriteRoutinePresetRegistry();
     const preset = registry.get('chat.api-config-guide');
@@ -2565,149 +2552,6 @@ describe('SpriteRoutinePresetRegistry', () => {
         }),
         expect.objectContaining({ id: 'clear-resource-menu-notice', type: 'clearMessage', messageId: 'onboarding.resource.open-library.invite', messageType: 'notice' }),
         expect.objectContaining({ id: 'resource-menu-celebrate', type: 'playAnimation', trigger: 'celebrate' })
-      ])
-    );
-  });
-
-  it('registers feature introduction routine presets for every catalog item', () => {
-    const registry = new SpriteRoutinePresetRegistry();
-
-    for (const item of FEATURE_INTRO_QUEST_CATALOG) {
-      const preset = registry.get(item.id);
-      expect(preset, item.id).toBeDefined();
-      expect(preset).toMatchObject({
-        id: item.id,
-        purposeKind: item.id,
-        title: `功能自述：${item.title}`
-      });
-    }
-  });
-
-  it('creates generic feature introduction routines for file transcription workflow', () => {
-    const registry = new SpriteRoutinePresetRegistry();
-    const preset = registry.get('feature.file-video-transcription');
-    expect(preset).toBeDefined();
-
-    const routine = registry.createRoutine(
-      {
-        id: 'purpose-feature-file-transcription',
-        kind: 'feature.file-video-transcription',
-        title: 'file transcription feature intro',
-        reason: 'introduce file transcription',
-        source: 'system-event',
-        status: 'active',
-        priority: 64,
-        interruptPolicy: 'interruptible'
-      },
-      preset!,
-      1000
-    );
-
-    expect(preset!.defaultPriority).toBe(64);
-    expect(routine.steps).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: 'feature.file-video-transcription.walk-drop-target', type: 'walkTo', target: 'center' }),
-        expect.objectContaining({
-          id: 'feature.file-video-transcription.intro-notice',
-          type: 'showNotice',
-          messageId: 'feature.file-video-transcription.invite',
-          content: '把视频或音频拖给我，我会先放进资源库，再让你选择转写等处理方式。'
-        }),
-        expect.objectContaining({
-          id: 'feature.file-video-transcription.wait-file-action',
-          type: 'loopUntil',
-          source: 'app-event',
-          untilEvent: ['FILE_ACTION_WORKFLOW_STARTED'],
-          match: { workflowId: 'sample:transcribe' },
-          assignTo: 'featureIntroResult'
-        }),
-        expect.objectContaining({
-          id: 'feature.file-video-transcription.instruction',
-          type: 'speak',
-          text: '菜单弹出来后，视频请选择「视频转写」，音频请选择「识别文字（转写）」。'
-        }),
-        expect.objectContaining({ id: 'feature.file-video-transcription.clear-notice', type: 'clearMessage', messageId: 'feature.file-video-transcription.invite', messageType: 'notice' }),
-        expect.objectContaining({ id: 'feature.file-video-transcription.celebrate', type: 'playAnimation', trigger: 'celebrate' })
-      ])
-    );
-  });
-
-  it('creates feature introduction routines for assistant menu and window tasks', () => {
-    const registry = new SpriteRoutinePresetRegistry();
-    const menuPreset = registry.get('feature.skill-tree');
-    const windowPreset = registry.get('feature.workflow-gallery');
-    expect(menuPreset).toBeDefined();
-    expect(windowPreset).toBeDefined();
-
-    const menuRoutine = registry.createRoutine(
-      {
-        id: 'purpose-feature-skill-tree',
-        kind: 'feature.skill-tree',
-        title: 'skill tree feature intro',
-        reason: 'introduce skill tree',
-        source: 'system-event',
-        status: 'active',
-        priority: 58,
-        interruptPolicy: 'interruptible'
-      },
-      menuPreset!,
-      1000
-    );
-    expect(menuRoutine.steps).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: 'feature.skill-tree.wait.context-menu',
-          type: 'waitForEvent',
-          source: 'sprite-event-bus',
-          event: 'interact:context-menu',
-          match: { open: true }
-        }),
-        expect.objectContaining({
-          id: 'feature.skill-tree.wait.selected',
-          type: 'waitForEvent',
-          source: 'app-event',
-          event: 'ASSISTANT_MENU_ITEM_SELECTED',
-          match: {
-            itemId: 'skill-tree',
-            windowKey: 'skillTree',
-            'payload.source': 'assistant-context-menu'
-          }
-        })
-      ])
-    );
-
-    const windowRoutine = registry.createRoutine(
-      {
-        id: 'purpose-feature-workflow-gallery',
-        kind: 'feature.workflow-gallery',
-        title: 'workflow gallery feature intro',
-        reason: 'introduce workflow gallery',
-        source: 'system-event',
-        status: 'active',
-        priority: 60,
-        interruptPolicy: 'interruptible'
-      },
-      windowPreset!,
-      1000
-    );
-    expect(windowRoutine.steps).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: 'feature.workflow-gallery.open-window',
-          type: 'openWindow',
-          window: 'resources',
-          payload: { route: 'workflows' }
-        }),
-        expect.objectContaining({
-          id: 'feature.workflow-gallery.wait-event',
-          type: 'waitForEvent',
-          source: 'app-event',
-          event: 'APP_WINDOW_OPENED',
-          match: { windowKey: 'resources', route: 'workflows' },
-          ignoreHistory: false
-        }),
-        expect.objectContaining({ id: 'feature.workflow-gallery.clear-notice', type: 'clearMessage', messageId: 'feature.workflow-gallery.invite', messageType: 'notice' }),
-        expect.objectContaining({ id: 'feature.workflow-gallery.celebrate', type: 'playAnimation', trigger: 'celebrate' })
       ])
     );
   });

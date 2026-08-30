@@ -6,26 +6,6 @@ import { ChatRepo } from '../common/db';
 import { AppEvent, eventManager } from '../event';
 import { pushCardToWindows } from './card-push';
 import { ChatService } from './chat-service';
-import { GlossaryStore } from './glossary-store';
-import {
-  cancelMindmap,
-  cleanupTranslationResources,
-  deleteTranslationSegment,
-  executeMindmap,
-  executeSelectedTextExplain,
-  executeSubtitleTranslation,
-  executeSummarize,
-  insertTranslationSegment,
-  loadAllTranslationHistory,
-  loadResourceMindmap,
-  loadResourceNote,
-  loadResourceSummary,
-  loadTranslatedSubtitles,
-  saveResourceNote,
-  SummarizePayload,
-  TranslatePayload,
-  updateTranslationSegment
-} from './ipc-handler-helpers';
 import { createPreset, deletePreset, getPreset, getPresetSecrets, listPresets, resolveUsablePreset, setPresetSecrets, updatePreset } from './preset-service';
 import { PromptsStore } from './prompts-store';
 import { normalizeProviderPreset } from './provider-preset';
@@ -43,10 +23,6 @@ import {
 import { getProvider, listAgents, listProviders } from './registry';
 import { PiExecutionService } from './runtime/pi/execution-service';
 import { createSkillRegistry, getSkillSourceInfo } from './runtime/pi/skills';
-import { SelectedTextExplainService } from './services/selected-text-explain-service';
-import { SummaryService } from './services/summary-service';
-import { TaggingService } from './services/tagging-service';
-import { TranslationService } from './services/translation-service';
 import {
   addApiKey,
   clearAllSecrets,
@@ -61,10 +37,6 @@ import {
 } from './settings-store';
 import { listToolInfos } from './tools';
 import type {
-  ImageEditRequest,
-  ImageGenerationRequest,
-  LyricsGenerationRequest,
-  MusicGenerationRequest,
   ProviderPresetCreatePayload,
   ProviderPresetUpdatePatch,
   PushedCard,
@@ -97,19 +69,8 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     }
   >();
   chat.registerIpc();
-  // Register AI utility IPCs (e.g., auto-tagging)
-  TaggingService.registerIpc();
   // Register user choice IPC (for ask-user tool)
   registerUserChoiceIpc();
-
-  // 取消翻译任务
-  ipcMain.handle('ai:cancelTranslate', async (_e, payload: { requestId: string }) => {
-    const success = TranslationService.cancelTranslation(payload.requestId);
-    if (success) {
-      return { success: true };
-    }
-    return { success: false, message: 'Task not found' };
-  });
 
   // Settings & registry inspection
   ipcMain.handle('ai:getProviders', async () => {
@@ -287,26 +248,6 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
 
   ipcMain.handle('ai:transcribe', async (_e, payload: TranscriptionRequest) => {
     return piExecutionService.transcribe(normalizeProviderPreset(payload));
-  });
-
-  ipcMain.handle('ai:generateImage', async (_e, payload: ImageGenerationRequest) => {
-    return piExecutionService.generateImage(normalizeProviderPreset(payload));
-  });
-
-  ipcMain.handle('ai:generateImageArtifact', async (_e, payload: ImageGenerationRequest) => {
-    return piExecutionService.generateImageArtifact(normalizeProviderPreset(payload));
-  });
-
-  ipcMain.handle('ai:editImage', async (_e, payload: ImageEditRequest) => {
-    return piExecutionService.editImage(normalizeProviderPreset(payload));
-  });
-
-  ipcMain.handle('ai:generateMusic', async (_e, payload: MusicGenerationRequest) => {
-    return piExecutionService.generateMusic(normalizeProviderPreset(payload));
-  });
-
-  ipcMain.handle('ai:generateLyrics', async (_e, payload: LyricsGenerationRequest) => {
-    return piExecutionService.generateLyrics(normalizeProviderPreset(payload));
   });
 
   ipcMain.handle('ai:synthesizeSpeech', async (_e, payload: SpeechSynthesisRequest) => {
@@ -541,146 +482,6 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
   ipcMain.handle('ai:hardDeleteConversation', async (_e, payload: { id: string }) => {
     const ok = await ChatRepo.deleteConversation(payload.id);
     return { ok };
-  });
-
-  // 获取所有活跃的翻译任务
-  ipcMain.handle('ai:getTranslationTasks', async () => {
-    // The service already excludes internal properties (controller, translator)
-    return TranslationService.getAllActiveTranslations();
-  });
-
-  // 获取指定任务已翻译的片段
-  ipcMain.handle('ai:getTranslatedSegments', async (_e, payload: { requestId: string }) => {
-    return TranslationService.getTranslatedSegments(payload.requestId);
-  });
-
-  // ==================== 翻译术语管理 ====================
-
-  // 分类管理
-  ipcMain.handle('ai:listGlossaryCategories', async () => GlossaryStore.listCategories());
-  ipcMain.handle('ai:createGlossaryCategory', async (_e, payload: { name: string; description?: string }) => GlossaryStore.createCategory(payload));
-  ipcMain.handle('ai:updateGlossaryCategory', async (_e, payload: { id: string; patch: { name?: string; description?: string } }) => GlossaryStore.updateCategory(payload.id, payload.patch));
-  ipcMain.handle('ai:deleteGlossaryCategory', async (_e, payload: { id: string }) => ({ ok: GlossaryStore.deleteCategory(payload.id) }));
-
-  // 术语表管理
-  ipcMain.handle('ai:listGlossaries', async (_e, payload?: { categoryId?: string }) => GlossaryStore.listGlossaries(payload?.categoryId));
-  ipcMain.handle('ai:getGlossary', async (_e, payload: { id: string }) => GlossaryStore.getGlossary(payload.id));
-  ipcMain.handle('ai:createGlossary', async (_e, payload: { categoryId: string; name: string; description?: string; entries: any[]; sourceFile?: string; sourceFormat?: string }) =>
-    GlossaryStore.createGlossary(payload)
-  );
-  ipcMain.handle('ai:updateGlossary', async (_e, payload: { id: string; patch: { categoryId?: string; name?: string; description?: string; entries?: any[] } }) =>
-    GlossaryStore.updateGlossary(payload.id, payload.patch)
-  );
-  ipcMain.handle('ai:deleteGlossary', async (_e, payload: { id: string }) => ({ ok: GlossaryStore.deleteGlossary(payload.id) }));
-  ipcMain.handle('ai:addGlossaryEntries', async (_e, payload: { glossaryId: string; entries: any[] }) => GlossaryStore.addEntries(payload.glossaryId, payload.entries));
-  ipcMain.handle('ai:removeGlossaryEntry', async (_e, payload: { glossaryId: string; source: string }) => GlossaryStore.removeEntry(payload.glossaryId, payload.source));
-  ipcMain.handle('ai:updateGlossaryEntry', async (_e, payload: { glossaryId: string; oldSource: string; newEntry: any }) =>
-    GlossaryStore.updateEntry(payload.glossaryId, payload.oldSource, payload.newEntry)
-  );
-
-  // 导入解析
-  ipcMain.handle('ai:parseGlossaryContent', async (_e, payload: { content: string; fileName?: string }) => GlossaryStore.parseContent(payload.content, payload.fileName));
-  ipcMain.handle('ai:mergeGlossaries', async (_e, payload: { ids: string[] }) => GlossaryStore.mergeGlossaries(payload.ids));
-
-  // 字幕翻译：在主进程中处理，向所有窗口发送消息
-  ipcMain.handle('ai:translate', async (_e, payload: TranslatePayload) => {
-    return executeSubtitleTranslation(payload);
-  });
-
-  // 获取资源的翻译历史（每种语言最新的一个）
-  ipcMain.handle('ai:getResourceTranslations', async (_e, payload: { resourceId: string }) => {
-    return loadTranslatedSubtitles(payload.resourceId);
-  });
-
-  // 获取资源的所有翻译历史（包括同语言的多个版本）
-  ipcMain.handle('ai:getAllTranslationHistory', async (_e, payload: { resourceId: string }) => {
-    return loadAllTranslationHistory(payload.resourceId);
-  });
-
-  // 更新翻译 JSON 中某片段（时间或文本，时间轴拖拽/编辑后写回）
-  ipcMain.handle(
-    'ai:updateTranslationSegment',
-    async (_e, payload: { subtitleResourceId: string; translationEntryId: string; segmentIndex: number; patch: { st?: string; et?: string; text?: string } }) => {
-      return updateTranslationSegment(payload);
-    }
-  );
-
-  // 在翻译 JSON 中插入新片段（翻译轨道空白处新增字幕块后保存）
-  ipcMain.handle(
-    'ai:insertTranslationSegment',
-    async (_e, payload: { subtitleResourceId: string; translationEntryId: string; insertIndex: number; segment: { st: string; et: string; text: string } }) => {
-      return insertTranslationSegment(payload);
-    }
-  );
-
-  ipcMain.handle('ai:deleteTranslationSegment', async (_e, payload: { subtitleResourceId: string; translationEntryId: string; segmentIndex: number }) => {
-    return deleteTranslationSegment(payload);
-  });
-
-  // 清理数据库中的翻译类型资源（迁移到项目文件夹后的清理）
-  ipcMain.handle('ai:cleanupTranslationResources', async (_e, payload: { subtitleResourceId?: string }) => {
-    return cleanupTranslationResources(payload.subtitleResourceId);
-  });
-
-  // ==================== 总结相关 ====================
-
-  // 取消总结任务
-  ipcMain.handle('ai:cancelSummary', async (_e, payload: { requestId: string }) => {
-    const success = SummaryService.cancelSummary(payload.requestId);
-    if (success) {
-      return { ok: true };
-    }
-    return { ok: false, message: 'Task not found' };
-  });
-
-  // 获取所有活跃的总结任务
-  ipcMain.handle('ai:getSummaryTasks', async () => {
-    return SummaryService.getAllActiveSummaries();
-  });
-
-  // 字幕/文本总结
-  ipcMain.handle('ai:summarize', async (_e, payload: SummarizePayload) => {
-    return executeSummarize(payload);
-  });
-
-  // 获取资源的总结数据
-  ipcMain.handle('ai:getResourceSummary', async (_e, payload: { resourceId: string }) => {
-    return loadResourceSummary(payload.resourceId);
-  });
-
-  // 获取资源的脑图数据
-  ipcMain.handle('ai:getResourceMindmap', async (_e, payload: { resourceId: string }) => {
-    return loadResourceMindmap(payload.resourceId);
-  });
-
-  // 脑图生成
-  ipcMain.handle('ai:generateMindmap', async (_e, payload: any) => {
-    return executeMindmap(payload);
-  });
-
-  // 取消脑图生成
-  ipcMain.handle('ai:cancelMindmap', async (_e, payload: { requestId: string }) => {
-    return { ok: cancelMindmap(payload.requestId) };
-  });
-
-  ipcMain.handle('ai:selectedTextExplain', async (_e, payload: any) => {
-    return executeSelectedTextExplain(payload);
-  });
-
-  ipcMain.handle('ai:cancelSelectedTextExplain', async (_e, payload: { requestId: string }) => {
-    return { ok: SelectedTextExplainService.cancel(payload.requestId) };
-  });
-
-  // ==================== 笔记相关 ====================
-
-  // 保存笔记
-  ipcMain.handle('ai:saveNote', async (_e, payload: { resourceId: string; content: string; title?: string }) => {
-    return saveResourceNote(payload);
-  });
-
-  // 获取笔记
-  ipcMain.handle('ai:getResourceNote', async (_e, payload: { resourceId: string }) => {
-    return loadResourceNote(payload.resourceId);
   });
 
   // ==================== 卡片推送 ====================

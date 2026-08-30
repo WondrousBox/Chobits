@@ -68,8 +68,6 @@ export type ChatRequestExtras = Record<string, any> & {
   codingMode?: 'safe';
   workspaceId?: string;
   explicitSkillInvocation?: ExplicitSkillInvocationInput;
-  emojiPacksEnabled?: boolean;
-  emojiPacksDisplayTarget?: EmojiPacksDisplayTarget;
   spriteRealtimeSpeechScope?: 'mainChat' | 'resourceChatSidebar';
   spriteRealtimeSpeech?: {
     enabled?: boolean;
@@ -78,8 +76,6 @@ export type ChatRequestExtras = Record<string, any> & {
     voiceId?: string;
   };
 };
-
-export type EmojiPacksDisplayTarget = 'chat' | 'sprite-bubble';
 
 export type ChatRequest = ProviderScopedRequest & {
   conversationId?: string;
@@ -664,24 +660,7 @@ export type AIApi = {
   // Stateless chat (no history persistence)
   chatEphemeral(payload: ChatRequest): Promise<{ message: { role: string; content: string } }>;
   chatStream(payload: ChatRequest, onEvent: (ev: { type: string; data?: any }) => void): Promise<{ requestId: string; dispose: () => void; cancel: () => Promise<any> }>;
-  // Subtitle translation: handled in main process, sends messages to all windows
-  translate(payload: TranslateRequest): Promise<{ requestId: string }>;
-  cancelTranslate(requestId: string): Promise<{ ok: boolean }>;
-  getTranslationTasks(): Promise<ActiveAiTaskSnapshot[]>;
-  getTranslatedSegments(requestId: string): Promise<TranslatedSegmentSnapshot[]>;
-  getResourceTranslations(resourceId: string): Promise<Array<{ id: string; language?: string; title?: string; filePath?: string; segments?: Array<{ index: number; text: string }> }>>;
-  updateTranslationSegment(payload: { translationResourceId: string; segmentIndex: number; patch: { st?: string; et?: string; text?: string } }): Promise<{ success: boolean; message?: string }>;
-  insertTranslationSegment(payload: { translationResourceId: string; insertIndex: number; segment: { st: string; et: string; text: string } }): Promise<{ success: boolean; message?: string }>;
-  deleteTranslationSegment(payload: { translationResourceId: string; segmentIndex: number }): Promise<{ success: boolean; message?: string }>;
-  getAllTranslationHistory(
-    resourceId: string
-  ): Promise<Array<{ id: string; language?: string; title?: string; filePath?: string; segments?: Array<{ index: number; text: string }>; createdAt?: number; updatedAt?: number }>>;
   transcribe(payload: TranscriptionRequest): Promise<TranscriptionResponse>;
-  generateImage(payload: ImageGenerationRequest): Promise<ImageGenerationResponse>;
-  generateImageArtifact(payload: ImageGenerationRequest): Promise<ImageGenerationResponse>;
-  editImage(payload: ImageEditRequest): Promise<ImageGenerationResponse>;
-  generateMusic(payload: MusicGenerationRequest): Promise<MusicGenerationResponse>;
-  generateLyrics(payload: LyricsGenerationRequest): Promise<LyricsGenerationResponse>;
   synthesizeSpeech(payload: SpeechSynthesisRequest): Promise<SpeechSynthesisResponse>;
   streamSpeechSynthesis(payload: SpeechSynthesisRequest, onEvent: (ev: SpeechSynthesisStreamEvent) => void): Promise<SpeechSynthesisStreamHandle>;
   embed(payload: EmbeddingRequest): Promise<{ vectors: number[][]; dim: number }>;
@@ -711,162 +690,5 @@ export type AIApi = {
   onCardPushed(callback: (card: PushedCard) => void): () => void;
   /** Send user's choice response back to main process (for ask-user tool) */
   sendUserChoiceResponse(response: UserChoiceResponse): Promise<{ success: boolean; error?: string }>;
-  // Glossary management
-  listGlossaryCategories(): Promise<Array<{ id: string; name: string; description?: string; createdAt: number; updatedAt: number }>>;
-  createGlossaryCategory(payload: { name: string; description?: string }): Promise<{ id: string; name: string; description?: string; createdAt: number; updatedAt: number }>;
-  updateGlossaryCategory(id: string, patch: { name?: string; description?: string }): Promise<{ id: string; name: string; description?: string; createdAt: number; updatedAt: number } | undefined>;
-  deleteGlossaryCategory(id: string): Promise<{ ok: boolean }>;
-  listGlossaries(categoryId?: string): Promise<
-    Array<{
-      id: string;
-      categoryId: string;
-      name: string;
-      description?: string;
-      entries: Array<{ source: string; target: string; note?: string }>;
-      sourceFile?: string;
-      sourceFormat?: string;
-      createdAt: number;
-      updatedAt: number;
-    }>
-  >;
-  getGlossary(id: string): Promise<
-    | {
-      id: string;
-      categoryId: string;
-      name: string;
-      description?: string;
-      entries: Array<{ source: string; target: string; note?: string }>;
-      sourceFile?: string;
-      sourceFormat?: string;
-      createdAt: number;
-      updatedAt: number;
-    }
-    | undefined
-  >;
-  createGlossary(payload: {
-    categoryId: string;
-    name: string;
-    description?: string;
-    entries: Array<{ source: string; target: string; note?: string }>;
-    sourceFile?: string;
-    sourceFormat?: string;
-  }): Promise<{
-    id: string;
-    categoryId: string;
-    name: string;
-    description?: string;
-    entries: Array<{ source: string; target: string; note?: string }>;
-    sourceFile?: string;
-    sourceFormat?: string;
-    createdAt: number;
-    updatedAt: number;
-  }>;
-  updateGlossary(
-    id: string,
-    patch: { categoryId?: string; name?: string; description?: string; entries?: Array<{ source: string; target: string; note?: string }> }
-  ): Promise<
-    | {
-      id: string;
-      categoryId: string;
-      name: string;
-      description?: string;
-      entries: Array<{ source: string; target: string; note?: string }>;
-      sourceFile?: string;
-      sourceFormat?: string;
-      createdAt: number;
-      updatedAt: number;
-    }
-    | undefined
-  >;
-  deleteGlossary(id: string): Promise<{ ok: boolean }>;
-  addGlossaryEntries(
-    glossaryId: string,
-    entries: Array<{ source: string; target: string; note?: string }>
-  ): Promise<
-    | {
-      id: string;
-      categoryId: string;
-      name: string;
-      description?: string;
-      entries: Array<{ source: string; target: string; note?: string }>;
-      sourceFile?: string;
-      sourceFormat?: string;
-      createdAt: number;
-      updatedAt: number;
-    }
-    | undefined
-  >;
-  removeGlossaryEntry(
-    glossaryId: string,
-    source: string
-  ): Promise<
-    | {
-      id: string;
-      categoryId: string;
-      name: string;
-      description?: string;
-      entries: Array<{ source: string; target: string; note?: string }>;
-      sourceFile?: string;
-      sourceFormat?: string;
-      createdAt: number;
-      updatedAt: number;
-    }
-    | undefined
-  >;
-  updateGlossaryEntry(
-    glossaryId: string,
-    oldSource: string,
-    newEntry: { source: string; target: string; note?: string }
-  ): Promise<
-    | {
-      id: string;
-      categoryId: string;
-      name: string;
-      description?: string;
-      entries: Array<{ source: string; target: string; note?: string }>;
-      sourceFile?: string;
-      sourceFormat?: string;
-      createdAt: number;
-      updatedAt: number;
-    }
-    | undefined
-  >;
-  parseGlossaryContent(
-    content: string,
-    fileName?: string
-  ): Promise<{ success: boolean; entries: Array<{ source: string; target: string; note?: string }>; format: string; error?: string; suggestedName?: string }>;
-  mergeGlossaries(ids: string[]): Promise<Array<{ source: string; target: string; note?: string }>>;
 
-  // ==================== 总结相关 ====================
-
-  getResourceSummary(resourceId: string): Promise<any | null>;
-  summarize(payload: SummarizeRequest): Promise<{ requestId: string }>;
-  cancelSummary(requestId: string): Promise<{ ok: boolean; message?: string }>;
-  getSummaryTasks(): Promise<ActiveAiTaskSnapshot[]>;
-
-  // ==================== 脑图相关 ====================
-
-  getResourceMindmap(resourceId: string): Promise<{ markdown: string } | null>;
-  generateMindmap(payload: MindmapRequest): Promise<{ requestId: string }>;
-  cancelMindmap(requestId: string): Promise<{ ok: boolean }>;
-  explainSelectedText(payload: SelectedTextExplainRequest & { requestId?: string }): Promise<{ eventsChannel: string; requestId: string }>;
-  cancelSelectedTextExplain(requestId: string): Promise<{ ok: boolean }>;
-
-  // ==================== 笔记相关 ====================
-
-  /**
-   * 保存或更新笔记内容
-   * @param resourceId 源资源ID
-   * @param content 笔记内容（HTML或Markdown）
-   * @param title 笔记标题（可选）
-   * @returns 笔记资源ID
-   */
-  saveNote(payload: { resourceId: string; content: string; title?: string }): Promise<{ success: boolean; noteId?: string; message?: string }>;
-
-  /**
-   * 获取资源的笔记内容
-   * @param resourceId 源资源ID
-   * @returns 笔记数据
-   */
-  getResourceNote(resourceId: string): Promise<{ id: string; content: string; title?: string; filePath?: string; createdAt?: number; updatedAt?: number } | null>;
 };

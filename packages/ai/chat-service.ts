@@ -5,14 +5,11 @@ import { BrowserWindow, ipcMain, WebContents } from 'electron';
 import { ChatRepo, WorkspacesRepo } from '../common/db';
 import { eventManager } from '../event';
 import { AppEvent } from '../event/events';
-import { emitAiUsageObservedEvent } from './analytics/events';
-import { AI_USAGE_CATEGORIES, AI_USAGE_FEATURES, AI_USAGE_SOURCE_TYPES, AI_USAGE_STAGES, type RecordAiUsageEventInput } from './analytics/types';
 import { buildConversationPlaceholderTitle, normalizeGeneratedConversationTitle } from './conversation-title';
 import { getChatMessageUsage, withChatMessageUsage } from './message-usage';
 import { normalizeProviderPreset, resolveProviderPresetId } from './provider-preset';
 import { getProviderDefinitionSchema } from './providers/service';
 import { PiExecutionService } from './runtime/pi/execution-service';
-import { readProviderRequestId } from './runtime/pi/provider-request-id';
 import { PiSessionService } from './runtime/pi/session-service';
 import { generatePiConversationTitle } from './runtime/pi/tasks/title';
 import type { AgentLoopCompletePayload } from './services/memory-types';
@@ -52,10 +49,6 @@ function forcePiRuntime(req: ChatRequest): ChatRequest {
 
 /** IPC channel for broadcasting conversation title updates to all renderer windows */
 const CONV_TITLE_UPDATED_CHANNEL = 'ai:conversation-title-updated';
-
-type ChatUsageOverride = Partial<Pick<RecordAiUsageEventInput, 'operationKey' | 'sourceType' | 'sourceId' | 'sourceLabel' | 'usageCategory' | 'usageFeature' | 'usageStage'>> & {
-  metadata?: Record<string, unknown>;
-};
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -334,7 +327,6 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
       ...req,
       requestId: req.requestId || safeUuid()
     };
-    const usageOverride = this.resolveUsageOverride(runtimeReq);
     const preview = await this.piSessionService.preview(runtimeReq);
     const providerPresetId = resolveProviderPresetId(req);
 
@@ -357,30 +349,10 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
       await this.persistConversationMessage(conv.id, lastUserMessage);
     }
 
-    const startedAt = Date.now();
-    let resp: ChatResponse;
-
-    try {
-      resp = await this.piSessionService.chat({
-        ...runtimeReq,
-        conversationId: conv.id
-      });
-    } catch (error) {
-      await this.recordChatUsageEvent({
-        agentId: runtimeReq.agentId || preview.resolved.profile.id,
-        completedAt: Date.now(),
-        conversationId: conv.id,
-        model: preview.resolved.model.modelId,
-        providerId: preview.resolved.model.providerId,
-        providerPresetId,
-        requestId: runtimeReq.requestId!,
-        startedAt,
-        status: 'failed',
-        usageOverride,
-        workspaceId: conv.workspaceId || undefined
-      });
-      throw error;
-    }
+    let resp: ChatResponse = await this.piSessionService.chat({
+      ...runtimeReq,
+      conversationId: conv.id
+    });
 
     resp = {
       ...resp,
@@ -396,32 +368,13 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
         : {})
     };
 
-    let assistantMessageId: string | undefined;
     if (resp.message) {
       try {
-        assistantMessageId = (await this.persistConversationMessage(conv.id, resp.message)).id;
+        await this.persistConversationMessage(conv.id, resp.message);
       } catch (error) {
         console.warn('[ChatService] Failed to persist assistant conversation message:', error);
       }
     }
-
-    await this.recordChatUsageEvent({
-      agentId: resp.agentId || runtimeReq.agentId || preview.resolved.profile.id,
-      assistantMessageId,
-      completedAt: Date.now(),
-      conversationId: conv.id,
-      model: String(resp.metadata?.model || preview.resolved.model.modelId),
-      providerId: resp.providerId || preview.resolved.model.providerId,
-      providerPresetId,
-      providerRequestId: this.getProviderRequestId(resp.message?.metadata) ?? this.getProviderRequestId(resp.metadata),
-      rawUsage: this.getMessageRawUsage(resp.message) ?? resp.metadata?.rawUsage,
-      requestId: runtimeReq.requestId!,
-      startedAt,
-      status: 'completed',
-      usage: resp.usage || getChatMessageUsage(resp.message),
-      usageOverride,
-      workspaceId: conv.workspaceId || undefined
-    });
 
     return {
       ...resp,
@@ -434,7 +387,6 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
 
   private async chatStreamWithPi(sender: WebContents, req: ChatRequest, emit: (event: StreamEvent) => void, ctrl: AbortController): Promise<void> {
     const requestId = req.requestId || safeUuid();
-    const usageOverride = this.resolveUsageOverride(req);
     const preview = await this.piSessionService.preview(req);
     const providerPresetId = resolveProviderPresetId(req);
 
@@ -487,7 +439,6 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
     let fullText = '';
     let thinkingText = '';
     let errorMessage: string | undefined;
-    const startedAt = Date.now();
     const collectedToolCalls: Array<{ callId: string; name: string; args?: any; label?: string; display?: ToolCallDisplay; result?: any }> = [];
     const displayParts: ChatMessageDisplayPart[] = [];
     const inlineThinkingParser = shouldNormalizeInlineThinkingTags(preview.resolved.model.canonicalProviderId) ? createThinkingTagStreamParser() : undefined;
@@ -605,19 +556,6 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
       );
     } catch (error) {
       errorMessage = error instanceof Error ? error.message : String(error);
-      await this.recordChatUsageEvent({
-        agentId: req.agentId || preview.resolved.profile.id,
-        completedAt: Date.now(),
-        conversationId: conv?.id || req.conversationId,
-        model: preview.resolved.model.modelId,
-        providerId: preview.resolved.model.providerId,
-        providerPresetId,
-        requestId,
-        startedAt,
-        status: ctrl.signal.aborted ? 'cancelled' : 'failed',
-        usageOverride,
-        workspaceId: conv?.workspaceId || resolvedWorkspaceId
-      });
       throw error;
     }
 
@@ -655,25 +593,9 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
       finalMessage = { ...finalMessage, metadata: { ...finalMessage.metadata, toolCalls: collectedToolCalls } };
     }
 
-    const assistantMessageId = conv && finalMessage ? await this.persistConversationMessageSafely(conv.id, finalMessage, emit, 'assistant') : undefined;
-
-    await this.recordChatUsageEvent({
-      agentId: req.agentId || preview.resolved.profile.id,
-      assistantMessageId,
-      completedAt: Date.now(),
-      conversationId: conv?.id || req.conversationId,
-      model: preview.resolved.model.modelId,
-      providerId: preview.resolved.model.providerId,
-      providerPresetId,
-      providerRequestId: this.getProviderRequestId(finalMessage?.metadata),
-      rawUsage: this.getMessageRawUsage(finalMessage),
-      requestId,
-      startedAt,
-      status: ctrl.signal.aborted ? 'cancelled' : errorMessage && !finalMessage ? 'failed' : 'completed',
-      usage: finalMessage ? getChatMessageUsage(finalMessage) : undefined,
-      usageOverride,
-      workspaceId: conv?.workspaceId || resolvedWorkspaceId
-    });
+    if (conv && finalMessage) {
+      await this.persistConversationMessageSafely(conv.id, finalMessage, emit, 'assistant');
+    }
 
     if (conv && finalMessage?.content && this.shouldAutoGenerateConversationTitle(conv.title, placeholderTitle)) {
       this.generateConversationTitle(conv.id, lastUserMessage?.content || '', finalMessage.content, req, placeholderTitle).catch((e) => {
@@ -873,186 +795,6 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
     return userContent ? buildConversationPlaceholderTitle(userContent) : '';
   }
 
-  private getMessageRawUsage(message?: ChatMessage | null): unknown {
-    if (!message?.metadata || typeof message.metadata !== 'object') {
-      return undefined;
-    }
-
-    return (message.metadata as Record<string, unknown>).piRawUsage;
-  }
-
-  private getProviderRequestId(value?: unknown): string | undefined {
-    return readProviderRequestId(value);
-  }
-
-  private resolveUsageOverride(req: ChatRequest): ChatUsageOverride | undefined {
-    const rawOverride = req.extras?.analyticsUsage;
-    if (!isPlainRecord(rawOverride)) {
-      return undefined;
-    }
-
-    const sourceType =
-      typeof rawOverride.sourceType === 'string' && AI_USAGE_SOURCE_TYPES.includes(rawOverride.sourceType as (typeof AI_USAGE_SOURCE_TYPES)[number]) ? rawOverride.sourceType : undefined;
-    const usageCategory =
-      typeof rawOverride.usageCategory === 'string' && AI_USAGE_CATEGORIES.includes(rawOverride.usageCategory as (typeof AI_USAGE_CATEGORIES)[number]) ? rawOverride.usageCategory : undefined;
-    const usageFeature =
-      typeof rawOverride.usageFeature === 'string' && AI_USAGE_FEATURES.includes(rawOverride.usageFeature as (typeof AI_USAGE_FEATURES)[number]) ? rawOverride.usageFeature : undefined;
-    const usageStage = typeof rawOverride.usageStage === 'string' && AI_USAGE_STAGES.includes(rawOverride.usageStage as (typeof AI_USAGE_STAGES)[number]) ? rawOverride.usageStage : undefined;
-    const operationKey = typeof rawOverride.operationKey === 'string' && rawOverride.operationKey.trim() ? rawOverride.operationKey.trim() : undefined;
-    const sourceId = typeof rawOverride.sourceId === 'string' && rawOverride.sourceId.trim() ? rawOverride.sourceId.trim() : undefined;
-    const sourceLabel = typeof rawOverride.sourceLabel === 'string' && rawOverride.sourceLabel.trim() ? rawOverride.sourceLabel.trim() : undefined;
-    const metadata = isPlainRecord(rawOverride.metadata) ? rawOverride.metadata : undefined;
-    const hasClassificationOverride = !!sourceType || !!usageCategory || !!usageFeature || !!usageStage;
-    const shouldApplyClassificationOverride = !!sourceType && !!usageCategory && !!usageFeature && !!usageStage;
-
-    if (!hasClassificationOverride && !operationKey && !sourceId && !sourceLabel && !metadata) {
-      return undefined;
-    }
-
-    const classificationOverride: Partial<ChatUsageOverride> = shouldApplyClassificationOverride
-      ? {
-          sourceType: sourceType as ChatUsageOverride['sourceType'],
-          usageCategory: usageCategory as ChatUsageOverride['usageCategory'],
-          usageFeature: usageFeature as ChatUsageOverride['usageFeature'],
-          usageStage: usageStage as ChatUsageOverride['usageStage']
-        }
-      : {};
-
-    return {
-      ...(metadata ? { metadata } : {}),
-      ...(operationKey ? { operationKey } : {}),
-      ...(sourceId ? { sourceId } : {}),
-      ...(sourceLabel ? { sourceLabel } : {}),
-      ...classificationOverride
-    };
-  }
-
-  private async recordUsageEventSafely(input: RecordAiUsageEventInput): Promise<void> {
-    await emitAiUsageObservedEvent(input, { producer: 'ChatService' });
-  }
-
-  private async recordChatUsageEvent(params: {
-    assistantMessageId?: string;
-    workspaceId?: string;
-    requestId: string;
-    conversationId?: string;
-    providerId: string;
-    providerPresetId?: string;
-    model: string;
-    agentId?: string;
-    status: 'completed' | 'failed' | 'cancelled';
-    providerRequestId?: string;
-    usage?: ChatResponse['usage'];
-    rawUsage?: unknown;
-    startedAt: number;
-    completedAt: number;
-    usageOverride?: ChatUsageOverride;
-  }): Promise<void> {
-    const usageOverride = params.usageOverride;
-
-    await this.recordUsageEventSafely({
-      workspaceId: params.workspaceId,
-      traceId: params.requestId,
-      requestId: params.requestId,
-      operationKey: usageOverride?.operationKey || 'reply',
-      conversationId: params.conversationId,
-      sourceType: usageOverride?.sourceType || 'chat',
-      sourceId: usageOverride?.sourceId || params.conversationId || params.requestId,
-      sourceLabel: usageOverride?.sourceLabel || '聊天',
-      usageCategory: usageOverride?.usageCategory || 'conversation',
-      usageFeature: usageOverride?.usageFeature || 'chat',
-      usageStage: usageOverride?.usageStage || 'generate',
-      providerId: params.providerId,
-      providerPresetId: params.providerPresetId,
-      providerRequestId: params.providerRequestId,
-      model: params.model,
-      agentId: params.agentId,
-      status: params.status,
-      usage: params.usage
-        ? {
-            billableInputTokens: params.usage.billableInputTokens,
-            billableOutputTokens: params.usage.billableOutputTokens,
-            billableTotalTokens: params.usage.billableTotalTokens,
-            cacheReadTokens: params.usage.cacheReadTokens,
-            cacheWriteTokens: params.usage.cacheWriteTokens,
-            estimatedCost: params.usage.cost,
-            inputTokens: params.usage.inputTokens,
-            outputTokens: params.usage.outputTokens,
-            reasoningTokens: params.usage.reasoningTokens,
-            totalTokens: params.usage.totalTokens
-          }
-        : undefined,
-      rawUsage: params.rawUsage,
-      meteringSource: 'provider_reported',
-      startedAt: params.startedAt,
-      completedAt: params.completedAt,
-      metadata: {
-        ...(params.assistantMessageId ? { assistantMessageId: params.assistantMessageId } : {}),
-        conversationId: params.conversationId || null,
-        runtime: 'pi',
-        ...(usageOverride?.metadata || {})
-      }
-    });
-  }
-
-  private async recordConversationTitleUsageEvent(params: {
-    workspaceId?: string;
-    requestId: string;
-    conversationId: string;
-    providerId: string;
-    providerPresetId?: string;
-    model: string;
-    status: 'completed' | 'failed' | 'cancelled';
-    providerRequestId?: string;
-    usage?: ChatResponse['usage'];
-    rawUsage?: unknown;
-    startedAt: number;
-    completedAt: number;
-    runtime?: string;
-  }): Promise<void> {
-    await this.recordUsageEventSafely({
-      workspaceId: params.workspaceId,
-      traceId: params.requestId,
-      requestId: params.requestId,
-      operationKey: 'generate',
-      conversationId: params.conversationId,
-      sourceType: 'conversation_title',
-      sourceId: params.conversationId,
-      sourceLabel: '对话标题',
-      usageCategory: 'conversation',
-      usageFeature: 'conversation_title',
-      usageStage: 'generate',
-      providerId: params.providerId,
-      providerPresetId: params.providerPresetId,
-      providerRequestId: params.providerRequestId,
-      model: params.model,
-      agentId: 'chat',
-      status: params.status,
-      usage: params.usage
-        ? {
-            billableInputTokens: params.usage.billableInputTokens,
-            billableOutputTokens: params.usage.billableOutputTokens,
-            billableTotalTokens: params.usage.billableTotalTokens,
-            cacheReadTokens: params.usage.cacheReadTokens,
-            cacheWriteTokens: params.usage.cacheWriteTokens,
-            estimatedCost: params.usage.cost,
-            inputTokens: params.usage.inputTokens,
-            outputTokens: params.usage.outputTokens,
-            reasoningTokens: params.usage.reasoningTokens,
-            totalTokens: params.usage.totalTokens
-          }
-        : undefined,
-      rawUsage: params.rawUsage,
-      meteringSource: 'provider_reported',
-      startedAt: params.startedAt,
-      completedAt: params.completedAt,
-      metadata: {
-        conversationId: params.conversationId,
-        runtime: params.runtime || 'pi'
-      }
-    });
-  }
-
   private shouldAutoGenerateConversationTitle(currentTitle?: string | null, placeholderTitle?: string): boolean {
     const normalizedCurrentTitle = (currentTitle || '').trim();
     const normalizedPlaceholderTitle = (placeholderTitle || '').trim();
@@ -1068,15 +810,7 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
   private async generateConversationTitle(conversationId: string, userContent: string, assistantContent: string, resolved: ChatRequest, placeholderTitle: string): Promise<void> {
     // Notify all windows that title generation has started (for shimmer animation)
     this.broadcastToAllWindows(CONV_TITLE_UPDATED_CHANNEL, { conversationId, title: null, status: 'generating' });
-    const titleRequestId = safeUuid();
-    const titleStartedAt = Date.now();
     const providerPresetId = resolveProviderPresetId(resolved);
-    const baseConversation = await ChatRepo.getConversation(conversationId).catch((error) => {
-      console.warn('[ChatService] Failed to load base conversation for title usage tracking:', error);
-      return null;
-    });
-    const titleWorkspaceId = baseConversation?.workspaceId || undefined;
-    let usageRecorded = false;
 
     try {
       const titleMessages: ChatMessage[] = [
@@ -1097,14 +831,6 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
       });
       let title = '';
       const shouldFallbackToLegacy = !this.piSessionService.getAvailability(titleReq).available;
-      let titleUsage: {
-        model?: string;
-        providerRequestId?: string;
-        providerId?: string;
-        rawUsage?: unknown;
-        runtime?: string;
-        usage?: ChatResponse['usage'];
-      } = {};
 
       try {
         const titleResult = await generatePiConversationTitle({
@@ -1115,14 +841,6 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
           userContent
         });
         title = titleResult.title;
-        titleUsage = {
-          model: titleResult.model,
-          providerRequestId: titleResult.providerRequestId,
-          providerId: titleResult.providerId,
-          rawUsage: titleResult.rawUsage,
-          runtime: titleResult.runtime,
-          usage: titleResult.usage
-        };
       } catch (error) {
         if (!shouldFallbackToLegacy) {
           throw error;
@@ -1131,32 +849,7 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
         console.warn('[ChatService] Pi title generation unavailable, falling back to legacy:', error);
         const resp = await this.chatEphemeral(this.defaultWin, titleReq);
         title = normalizeGeneratedConversationTitle(resp?.message?.content || '');
-        titleUsage = {
-          model: typeof resp.metadata?.model === 'string' ? resp.metadata.model : (resolved.extras?.model as string | undefined),
-          providerRequestId: this.getProviderRequestId(resp.message?.metadata) ?? this.getProviderRequestId(resp.metadata),
-          providerId: resp.providerId || resolved.providerId,
-          rawUsage: this.getMessageRawUsage(resp.message) ?? resp.metadata?.rawUsage,
-          runtime: typeof resp.metadata?.runtime === 'string' ? resp.metadata.runtime : 'pi',
-          usage: resp.usage || getChatMessageUsage(resp.message)
-        };
       }
-
-      await this.recordConversationTitleUsageEvent({
-        completedAt: Date.now(),
-        conversationId,
-        model: titleUsage.model || (resolved.extras?.model as string | undefined) || 'unknown',
-        providerId: titleUsage.providerId || resolved.providerId,
-        providerPresetId,
-        providerRequestId: titleUsage.providerRequestId,
-        rawUsage: titleUsage.rawUsage,
-        requestId: titleRequestId,
-        runtime: titleUsage.runtime,
-        startedAt: titleStartedAt,
-        status: 'completed',
-        usage: titleUsage.usage,
-        workspaceId: titleWorkspaceId
-      });
-      usageRecorded = true;
 
       const latestConversation = await ChatRepo.getConversation(conversationId);
       if (latestConversation && !this.shouldAutoGenerateConversationTitle(latestConversation.title, placeholderTitle)) {
@@ -1171,19 +864,6 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
         this.broadcastToAllWindows(CONV_TITLE_UPDATED_CHANNEL, { conversationId, title: latestConversation?.title || placeholderTitle || null, status: 'done' });
       }
     } catch (e) {
-      if (!usageRecorded) {
-        await this.recordConversationTitleUsageEvent({
-          completedAt: Date.now(),
-          conversationId,
-          model: (resolved.extras?.model as string | undefined) || 'unknown',
-          providerId: resolved.providerId,
-          providerPresetId,
-          requestId: titleRequestId,
-          startedAt: titleStartedAt,
-          status: 'failed',
-          workspaceId: titleWorkspaceId
-        });
-      }
       console.warn('[ChatService] Title generation failed:', e);
       this.broadcastToAllWindows(CONV_TITLE_UPDATED_CHANNEL, { conversationId, title: null, status: 'error' });
     }
