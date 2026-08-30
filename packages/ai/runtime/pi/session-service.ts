@@ -28,7 +28,6 @@ import { createLegacyAssistantMessage, createLegacyStreamEmitter, normalizePiErr
 import type { PiSessionToolContext } from './tool-context';
 import { normalizePiToolIds, resolvePiToolDescriptors, resolvePiToolId } from './tool-registry';
 import { getPiToolChatDisplayByName } from './tools/display';
-import { createPiEmojiSendTool } from './tools/emoji-packs';
 
 const PI_PACKAGE_NAMES = ['@earendil-works/pi-agent-core', '@earendil-works/pi-ai', '@earendil-works/pi-coding-agent', '@earendil-works/pi-tui'];
 
@@ -806,93 +805,8 @@ function ensurePiCompletion(message: PiAssistantMessage): PiAssistantMessage {
   return message;
 }
 
-function isSuccessfulEmojiSendResult(result: unknown): boolean {
-  const details = (result as any)?.details || result;
-  return Boolean((details as any)?.success && (details as any)?.emoji);
-}
-
-function isEmojiSendToolName(name: string | undefined): boolean {
-  return name === 'emojiSendTool' || name === 'emoji-send';
-}
-
-function shouldRunEmojiFallback(resolved: ResolvedPiRequest): boolean {
-  return Boolean(resolved.request.extras?.emojiPacksEnabled);
-}
-
 function resolveToolCallDisplay(toolContext: PiSessionToolContext | undefined, toolName: string | undefined) {
   return getPiToolChatDisplayByName(toolName, toolContext?.session?.getAllTools());
-}
-
-const MAX_FALLBACK_QUERY_TOKENS = 16;
-const MAX_FALLBACK_QUERY_LENGTH = 160;
-
-/** Extract a search-friendly token bag from natural-language text. Returns a space-joined query. */
-function buildEmojiFallbackQuery(text: string): string {
-  if (!text) return '';
-  const tokens = new Set<string>();
-
-  // English / digits / underscore — keep words of length >= 2.
-  for (const match of text.matchAll(/[A-Za-z0-9_]{2,}/g)) {
-    tokens.add(match[0].toLowerCase());
-  }
-
-  // CJK runs: keep the whole run if short, plus 2-char sliding windows so the existing
-  // tokenizer (which only splits on whitespace) can still match unsegmented Chinese phrases.
-  for (const match of text.matchAll(/[\u3040-\u30ff\u4e00-\u9fff\uac00-\ud7af]+/g)) {
-    const run = match[0];
-    if (run.length === 1) {
-      // Single character is too noisy to add on its own.
-      continue;
-    }
-    if (run.length <= 4) {
-      tokens.add(run);
-    }
-    for (let index = 0; index + 2 <= run.length; index += 1) {
-      tokens.add(run.slice(index, index + 2));
-    }
-  }
-
-  const ordered = Array.from(tokens).slice(0, MAX_FALLBACK_QUERY_TOKENS);
-  const joined = ordered.join(' ');
-  return joined.length > MAX_FALLBACK_QUERY_LENGTH ? joined.slice(0, MAX_FALLBACK_QUERY_LENGTH) : joined;
-}
-
-function resolveLatestUserMessageText(resolved: ResolvedPiRequest): string {
-  const messages = resolved.messages;
-  if (!Array.isArray(messages)) return '';
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message?.role === 'user' && typeof message.content === 'string') {
-      return message.content;
-    }
-  }
-  return '';
-}
-
-async function runEmojiFallbackSend(
-  toolContext: PiSessionToolContext,
-  query: string
-): Promise<
-  | {
-    send: { args: Record<string, unknown>; callId: string; result: unknown };
-  }
-  | undefined
-> {
-  const sendTool = createPiEmojiSendTool(toolContext);
-  const sendArgs: Record<string, unknown> = query ? { query } : {};
-  const sendCallId = `emoji-fallback-send-${Date.now()}`;
-  const sendResult = await (sendTool.execute as (toolCallId: string, input: Record<string, unknown>) => Promise<unknown>)(sendCallId, sendArgs);
-  if (!isSuccessfulEmojiSendResult(sendResult)) {
-    return undefined;
-  }
-
-  return {
-    send: {
-      args: sendArgs,
-      callId: sendCallId,
-      result: sendResult
-    }
-  };
 }
 
 function toChatResponse(message: PiAssistantMessage, resolved: ResolvedPiRequest): ChatResponse {
@@ -1370,29 +1284,7 @@ export class PiSessionService {
     let sawEvents = false;
     let terminalPromise: Promise<void> | undefined;
     let terminalEmitted = false;
-    let emojiSendCompleted = false;
     let lastAssistant: PiAssistantMessage | undefined;
-
-    const emitEmojiFallbackIfNeeded = async (assistant?: PiAssistantMessage): Promise<void> => {
-      if (emojiSendCompleted || !assistant || assistant.stopReason === 'error' || assistant.stopReason === 'aborted' || !shouldRunEmojiFallback(resolved)) {
-        return;
-      }
-      emojiSendCompleted = true;
-
-      try {
-        const assistantText = extractAssistantText(assistant);
-        const userText = resolveLatestUserMessageText(resolved);
-        const query = buildEmojiFallbackQuery(`${assistantText} ${userText}`);
-
-        const fallback = await runEmojiFallbackSend(toolContext, query);
-        if (!fallback) return;
-
-        legacy.toolCall('emojiSendTool', fallback.send.args, fallback.send.callId, resolveToolCallDisplay(toolContext, 'emojiSendTool'));
-        legacy.toolResult(fallback.send.callId, fallback.send.result);
-      } catch (error) {
-        console.warn('[PiSessionService] Emoji fallback skipped:', error);
-      }
-    };
 
     const emitTerminalFromAssistant = async (assistant?: PiAssistantMessage): Promise<void> => {
       if (terminalEmitted) return;
@@ -1403,7 +1295,6 @@ export class PiSessionService {
         return;
       }
 
-      await emitEmojiFallbackIfNeeded(assistant);
       this.completeFromAssistantMessage(assistant, legacy, resolved);
       terminalEmitted = true;
     };
@@ -1428,9 +1319,6 @@ export class PiSessionService {
           }
           return;
         case 'tool_execution_end':
-          if (isEmojiSendToolName(toolCallNames.get(event.toolCallId)) && isSuccessfulEmojiSendResult(event.result)) {
-            emojiSendCompleted = true;
-          }
           legacy.toolResult(event.toolCallId, event.result);
           return;
         case 'message_end':

@@ -38,10 +38,6 @@ import { app, BrowserWindow, ipcMain, screen } from 'electron';
 
 import { windowManager } from '@aim-packages/window-manager';
 
-import { getDailyCareService } from '../../../electron/main/daily';
-import type { DailyCareRoutineDispatch } from '../../../electron/main/daily/types';
-import { isFeatureEnabled } from '../../../electron/main/feature-flags';
-import { getMainSchedulerService } from '../../../electron/main/scheduler';
 import { loadShortcutEnabledConfig, saveShortcutEnabledConfig } from '../../../electron/main/shortcut-store';
 import { AppEvent, eventManager } from '../../event';
 import { getRecorderStatusSnapshot } from '../../recorder/ipc-main';
@@ -93,14 +89,11 @@ import type {
   SpriteBubbleMode,
   SpriteConfirmNoticeRequest,
   SpriteConfirmNoticeResult,
-  SpriteEffectBridgePayload,
-  SpriteEffectClearPayload,
-  SpriteEffectPayload,
   SpriteFeedbackRequest,
   SpriteMovementPreviewConfig,
   SpriteTriggerRequest
 } from '../types';
-import { isBubbleWindowMode, MESSAGE_IPC_CHANNELS, SPRITE_EFFECT_IPC_CHANNELS } from '../types';
+import { MESSAGE_IPC_CHANNELS } from '../types';
 import { WindowController } from '../window-controller';
 import type { WindowControllerAvoidRegion } from '../window-controller-model';
 import { notifySpriteCapabilityChanged } from './capability-events';
@@ -133,7 +126,6 @@ type SpriteBubbleWindowManager = {
 
 const SPRITE_BUBBLE_WINDOW_KEYS = ['spriteBubbleFixedTop'] as const;
 type SpriteBubbleWindowKey = (typeof SPRITE_BUBBLE_WINDOW_KEYS)[number];
-const SPRITE_EFFECT_WINDOW_KEY = 'spriteEffect';
 const SPRITE_BUBBLE_READY_TIMEOUT_MS = 1500;
 
 function getSpriteBubbleWindowKeyForMode(mode: SpriteBubbleMode): SpriteBubbleWindowKey | null {
@@ -145,19 +137,6 @@ function clearSpriteBubbleWindow(window: BrowserWindow | null): void {
   if (!window || window.isDestroyed()) return;
   try {
     window.webContents.send(MESSAGE_IPC_CHANNELS.BRIDGE, { kind: 'clear', payload: { type: 'all' } });
-  } catch {
-    /* ignore */
-  }
-}
-
-function clearSpriteEffectWindow(window: BrowserWindow | null): void {
-  if (!window || window.isDestroyed()) return;
-  try {
-    window.webContents.send(SPRITE_EFFECT_IPC_CHANNELS.BRIDGE, {
-      kind: 'clear',
-      payload: { type: 'all' },
-      source: 'app'
-    });
   } catch {
     /* ignore */
   }
@@ -176,55 +155,10 @@ function syncSpriteBubbleWindows(windowManager: SpriteBubbleWindowManager | null
       void windowManager.hide(key).catch(() => undefined);
     }
   }
-
-  const effectWindow = windowManager.get(SPRITE_EFFECT_WINDOW_KEY);
-  if (clearAll) {
-    clearSpriteEffectWindow(effectWindow);
-  }
-  if (clearAll || !isBubbleWindowMode(activeMode)) {
-    void windowManager.hide(SPRITE_EFFECT_WINDOW_KEY).catch(() => undefined);
-  }
 }
 
 async function resolveSpriteBubbleWindowManager(): Promise<SpriteBubbleWindowManager | null> {
   return windowManager as unknown as SpriteBubbleWindowManager;
-}
-
-export function buildDailyCarePurposeRequest(event: DailyCareRoutineDispatch): StartSpritePurposeRequest {
-  const nightGuard = event.routine.kind === 'nightGuard';
-  const urgent = event.routine.severity === 'urgent';
-  const warning = event.routine.severity === 'warning';
-  const kind = nightGuard ? 'daily.rest-reminder' : 'daily.care.reminder';
-  return {
-    kind,
-    reason: event.message || event.routine.title,
-    source: 'system-event',
-    presetId: kind,
-    priority: nightGuard ? (urgent ? 90 : 75) : warning ? 70 : 55,
-    coalesceKey: `daily-care:${event.routine.id}`,
-    context: {
-      routineId: event.routine.id,
-      routineTitle: event.routine.title,
-      routineKind: event.routine.kind,
-      severity: event.routine.severity,
-      message: event.message,
-      manual: event.manual,
-      triggeredAt: event.triggeredAt,
-      tags: event.routine.tags,
-      metadata: event.routine.metadata,
-      source: event.routine.source
-    }
-  };
-}
-
-function bindDailyCarePurposeBridge(mgr: SpriteManager): void {
-  const dailyCareService = getDailyCareService();
-  dailyCareService?.onRoutineDispatched?.((event) => {
-    if (event.suppressed) {
-      return;
-    }
-    void mgr.startPurpose(buildDailyCarePurposeRequest(event));
-  });
 }
 
 export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManagerDeps): Promise<void> {
@@ -377,7 +311,6 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     purposeWindowAdapter: deps.purposeWindowAdapter,
     windowAnimationAdapter: deps.windowAnimationAdapter,
     purposeRoutinePlanner: deps.purposeRoutinePlanner,
-    behaviorScheduler: getMainSchedulerService(),
     // 额外接收消息桥的窗口：当前气泡窗口模式对应的独立窗口。
     getMessageRecipients: () => {
       const mode = spriteManagerRef?.getBubbleMode() ?? 'inline';
@@ -401,10 +334,6 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
         }
       }
 
-      const effectWindow = spriteBubbleWindowManager?.get(SPRITE_EFFECT_WINDOW_KEY) ?? null;
-      if (effectWindow && !effectWindow.isDestroyed()) {
-        recipients.push(effectWindow);
-      }
       return recipients as any[];
     }
   });
@@ -573,13 +502,6 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     const persona = mgr.getPersonaState();
     const { featureFlags, personaFlags } = getCharacterCapabilityContextFlags(persona);
 
-    let dailyCareEnabled = false;
-    try {
-      dailyCareEnabled = Boolean(getDailyCareService()?.getSnapshot().enabled);
-    } catch {
-      dailyCareEnabled = false;
-    }
-
     let recorderEnabled = false;
     try {
       recorderEnabled = Boolean(getRecorderStatusSnapshot().running);
@@ -602,15 +524,15 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     }
 
     return {
-      // 游戏化功能关闭时等级不再增长,将所有 capability 视为已达等级要求,
+      // mini 分支无游戏化等级系统,将所有 capability 视为已达等级要求,
       // 避免截图 / 快捷键等基础能力被技能树锁死
-      personaLevel: isFeatureEnabled('gamification') ? persona.level : Number.MAX_SAFE_INTEGER,
+      personaLevel: Number.MAX_SAFE_INTEGER,
       achievements: persona.achievements,
       featureFlags,
       personaFlags,
       activeSignals: {
         [SPRITE_CAPABILITY_SIGNALS.movementAutoWalk]: mgr.isAutoWalkEnabled(),
-        [SPRITE_CAPABILITY_SIGNALS.dailyCareEnabled]: dailyCareEnabled,
+        [SPRITE_CAPABILITY_SIGNALS.dailyCareEnabled]: false,
         [SPRITE_CAPABILITY_SIGNALS.recorderEnabled]: recorderEnabled,
         [SPRITE_CAPABILITY_SIGNALS.screenshotEnabled]: screenshotEnabled,
         [SPRITE_CAPABILITY_SIGNALS.asrRunning]: asrRunning
@@ -636,14 +558,6 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     if (screenshotCapability?.status === 'locked' && loadShortcutEnabledConfig().screenshot) {
       saveShortcutEnabledConfig({ screenshot: false });
       broadcastShortcutEnabledConfig();
-    }
-
-    const dailyCareCapability = snapshot.capabilities.dailyCare;
-    if (dailyCareCapability?.status === 'locked') {
-      const dailyCareService = getDailyCareService();
-      if (dailyCareService?.getSnapshot().enabled) {
-        dailyCareService.updateSettings({ enabled: false });
-      }
     }
 
     const speechRecognitionCapability = snapshot.capabilities.speechRecognition;
@@ -730,55 +644,6 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   // 获取初始状态
   ipcMain.handle('sprite:get-initial-state', () => {
     return mgr.getInitialState();
-  });
-
-  async function getSpriteEffectTargetWindow(): Promise<BrowserWindow | null> {
-    const useWindowMode = isBubbleWindowMode(mgr.getBubbleMode());
-    if (useWindowMode) {
-      const effectWindow = spriteBubbleWindowManager?.get(SPRITE_EFFECT_WINDOW_KEY) ?? null;
-      if (effectWindow && !effectWindow.isDestroyed()) return effectWindow;
-      const created = (await spriteBubbleWindowManager?.create(SPRITE_EFFECT_WINDOW_KEY)) ?? null;
-      return created && !created.isDestroyed() ? created : null;
-    }
-    return win && !win.isDestroyed() ? win : null;
-  }
-
-  async function sendSpriteEffectBridge(payload: SpriteEffectBridgePayload): Promise<{ success: boolean; error?: string }> {
-    try {
-      const target = await getSpriteEffectTargetWindow();
-      if (!target || target.isDestroyed()) {
-        return { success: false, error: 'sprite effect target window not available' };
-      }
-      target.webContents.send(SPRITE_EFFECT_IPC_CHANNELS.BRIDGE, payload);
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: String(error) };
-    }
-  }
-
-  ipcMain.removeHandler(SPRITE_EFFECT_IPC_CHANNELS.SHOW);
-  ipcMain.handle(SPRITE_EFFECT_IPC_CHANNELS.SHOW, (_e, payload: SpriteEffectPayload) => {
-    if (!payload || typeof payload.type !== 'string' || !payload.type.trim()) {
-      return { success: false, error: 'effect type is required' };
-    }
-
-    return sendSpriteEffectBridge({
-      kind: 'show',
-      payload: {
-        ...payload,
-        type: payload.type.trim()
-      },
-      source: 'sprite'
-    });
-  });
-
-  ipcMain.removeHandler(SPRITE_EFFECT_IPC_CHANNELS.CLEAR);
-  ipcMain.handle(SPRITE_EFFECT_IPC_CHANNELS.CLEAR, (_e, payload?: SpriteEffectClearPayload) => {
-    return sendSpriteEffectBridge({
-      kind: 'clear',
-      payload: payload ?? { type: 'all' },
-      source: 'sprite'
-    });
   });
 
   // ===== 人格化 API =====
@@ -1614,7 +1479,6 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
 
   // ===== 初始化事件监听器（订阅业务事件触发动画） =====
   initSpriteEventListener(mgr, deps.spriteEventListener);
-  bindDailyCarePurposeBridge(mgr);
 
   // ===== 事件转发：persona:* → 主窗口 =====
   // 渲染进程负责打开窗口和处理数据

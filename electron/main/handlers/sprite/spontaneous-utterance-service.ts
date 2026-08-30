@@ -11,9 +11,7 @@ import { app } from 'electron';
 
 import { getPreset } from '../../../../packages/ai/preset-service';
 import { createPiTaskChatRuntimeFromRequest } from '../../../../packages/ai/runtime/pi/task-chat';
-import { extractKeywordsFromMessage } from '../../../../packages/ai/services/memory-auto-recall';
-import { type RetrievalDbDeps, searchWithContent } from '../../../../packages/ai/services/memory-retrieval-service';
-import { logMemoryTrace, shortTraceId } from '../../../../packages/ai/services/memory-trace';
+import { logMemoryTrace } from '../../../../packages/ai/services/memory-trace';
 import type { AgentLoopCompletePayload } from '../../../../packages/ai/services/memory-types';
 import { extractSnapshot, extractTopFacts, parsePersonaMarkdown } from '../../../../packages/ai/services/persona-document';
 import { PERSONA_FILENAME } from '../../../../packages/ai/services/persona-types';
@@ -33,7 +31,6 @@ import type {
   SpriteSpontaneousUtteranceTonePreference
 } from '../../../../packages/sprite-core/manager';
 import { ChatRepo, WorkspacesRepo } from '../../db/repositories';
-import { buildRetrievalDbDeps } from '../memory/retrieval-db-deps';
 import { getStoredRoleProfile } from '../status';
 import {
   buildSpontaneousPurposeRetrospectiveContext,
@@ -50,11 +47,6 @@ const MESSAGE_LIMIT = 16;
 const RECENT_MESSAGE_SLICE = 12;
 const MAX_MESSAGE_CHARS = 240;
 const MAX_PROFILE_FACTS = 6;
-const MEMORY_CONTEXT_MAX_CHARS = 1800;
-const MAX_MEMORY_KEYWORDS = 10;
-const RECENT_DIALOGUE_DIGEST_LIMIT = 3;
-const IMPORTANT_MEMORY_DIGEST_LIMIT = 3;
-const IMPORTANT_DIGEST_LIMIT = 5;
 const EXECUTION_CONTEXT_TTL_MS = 15 * 60 * 1000;
 const HISTORY_FILE_PREFIX = 'sprite-spontaneous-utterances-';
 const HISTORY_FILE_SUFFIX = '.jsonl';
@@ -136,13 +128,6 @@ type ImportantDialogueDigest = {
   freshness: 'current' | 'recent' | 'background';
   relativeTime?: string;
   summary: string;
-};
-
-type ImportantMemoryNote = {
-  date?: string | null;
-  summary?: string | null;
-  importance?: number;
-  topics?: string | string[] | null;
 };
 
 type PendingExecutionContext = {
@@ -239,60 +224,6 @@ function safeParseJson<T>(text: string): T | null {
 
 function truncateText(text: string, maxChars: number): string {
   return text.length <= maxChars ? text : `${text.slice(0, Math.max(0, maxChars - 3))}...`;
-}
-
-function stripMarkdownFrontmatter(text: string): string {
-  return text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
-}
-
-function parseFrontmatterCount(content: string, key: 'noteCount' | 'topicCount'): number {
-  const match = content.match(new RegExp(`${key}:\\s*(\\d+)`));
-  return match ? Number.parseInt(match[1], 10) || 0 : 0;
-}
-
-function extractMemoryIndexContext(content: string, maxChars: number): { context: string; noteCount: number; topicCount: number } {
-  const noteCount = parseFrontmatterCount(content, 'noteCount');
-  const topicCount = parseFrontmatterCount(content, 'topicCount');
-  const lines: string[] = [];
-
-  for (const line of stripMarkdownFrontmatter(content).split(/\r?\n/)) {
-    if (line.trim() === '## 全部主题') {
-      break;
-    }
-    lines.push(line);
-  }
-
-  return {
-    context: truncateText(lines.join('\n').trim(), maxChars),
-    noteCount,
-    topicCount
-  };
-}
-
-function formatPersistentMemorySection(title: string, content: string): string {
-  const normalized = content.trim();
-  if (!normalized) {
-    return '';
-  }
-
-  return `### ${title}\n${normalized}`;
-}
-
-function mergePersistentMemoryContexts(primary: PersistentMemoryContext, secondary: PersistentMemoryContext, maxChars: number): PersistentMemoryContext {
-  const primaryBudget = Math.max(400, Math.round(maxChars * 0.58));
-  const secondaryBudget = Math.max(240, maxChars - primaryBudget - 64);
-  const primarySection = formatPersistentMemorySection('MEMORY.md 摘要', truncateText(primary.context, primaryBudget));
-  const secondaryTitle = secondary.source === 'targeted_search' ? '定向命中记忆' : '补充记忆';
-  const secondarySection = formatPersistentMemorySection(secondaryTitle, truncateText(secondary.context, secondaryBudget));
-
-  return {
-    query: truncateText(uniqueStrings([primary.query, secondary.query].filter(Boolean)).join(' / '), 160),
-    keywords: uniqueStrings([...primary.keywords, ...secondary.keywords]).slice(0, MAX_MEMORY_KEYWORDS),
-    context: truncateText([primarySection, secondarySection].filter(Boolean).join('\n\n'), maxChars),
-    noteCount: secondary.noteCount || primary.noteCount,
-    topicCount: Math.max(primary.topicCount, secondary.topicCount),
-    source: 'combined'
-  };
 }
 
 function normalizeSingleLine(text: string): string {
@@ -458,23 +389,6 @@ function evaluateHistoryNoise(candidate: SpriteSpontaneousUtteranceResult, histo
   return { shouldSkip: false };
 }
 
-function parseStringArray(value: string | string[] | null | undefined): string[] {
-  if (Array.isArray(value)) {
-    return uniqueStrings(value.filter((item): item is string => typeof item === 'string'));
-  }
-
-  if (typeof value !== 'string' || !value.trim()) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? uniqueStrings(parsed.filter((item): item is string => typeof item === 'string')) : [];
-  } catch {
-    return [];
-  }
-}
-
 function formatRecentMessages(messages: RecentMessage[]): string {
   if (!messages.length) {
     return '无近期聊天可用。';
@@ -513,120 +427,6 @@ function formatImportantDialogueDigests(digests: ImportantDialogueDigest[]): str
   }
 
   return digests.map((digest) => `- [${digest.source}/${digest.reason}/${digest.freshness}${digest.relativeTime ? `/${digest.relativeTime}` : ''}] ${digest.summary}`).join('\n');
-}
-
-function inferRecentDialogueReason(text: string): ImportantDialogueDigest['reason'] | null {
-  if (/(焦虑|担心|压力|烦|累|卡住|难受|崩溃|没状态|纠结|拖延|stress|anxious|stuck|tired|burnout|overwhelmed|frustrated)/i.test(text)) {
-    return 'recent_struggle';
-  }
-
-  if (/(我要|我会|先做|先把|接下来|马上|今晚|今天先|准备开始|开始做|立刻|我打算先|i will|i'm going to|next i'll)/i.test(text)) {
-    return 'recent_commitment';
-  }
-
-  if (/(计划|安排|打算|准备|目标|下一步|明天|本周|下周|todo|待办|截止|deadline|roadmap|milestone|launch)/i.test(text)) {
-    return 'recent_goal';
-  }
-
-  if (/(感觉|发现|意识到|想明白|原来|突然明白|好像|似乎|我发现|i realized|i noticed|it feels like)/i.test(text)) {
-    return 'recent_reflection';
-  }
-
-  return null;
-}
-
-function buildRecentDialogueDigests(messages: RecentMessage[]): ImportantDialogueDigest[] {
-  const userMessages = messages
-    .filter((message) => message.role === 'user')
-    .slice(-6)
-    .reverse();
-  const digests: ImportantDialogueDigest[] = [];
-
-  for (let index = 0; index < userMessages.length; index += 1) {
-    const message = userMessages[index];
-    const summary = truncateText(normalizeSingleLine(message.content), 72);
-    const reason = inferRecentDialogueReason(summary);
-
-    if (!summary || !reason) continue;
-
-    digests.push({
-      source: 'recent-chat',
-      reason,
-      freshness: index < 2 ? 'current' : 'recent',
-      relativeTime: formatRelativeTimeLabel(message.createdAt),
-      summary
-    });
-
-    if (digests.length >= RECENT_DIALOGUE_DIGEST_LIMIT) {
-      break;
-    }
-  }
-
-  return digests;
-}
-
-function buildImportantMemoryDigests(notes: ImportantMemoryNote[]): ImportantDialogueDigest[] {
-  const digests: ImportantDialogueDigest[] = [];
-
-  for (const note of notes) {
-    const summary = normalizeSingleLine(note.summary || '');
-    if (!summary) continue;
-
-    const topics = parseStringArray(note.topics);
-    const topicPrefix = topics.length ? `[${topics.slice(0, 2).join(' / ')}] ` : '';
-    const freshness: ImportantDialogueDigest['freshness'] = note.date && localDateStamp(Date.now() - 3 * 24 * 60 * 60 * 1000) <= note.date ? 'recent' : 'background';
-
-    digests.push({
-      source: 'memory-note',
-      reason: 'important_memory',
-      freshness,
-      relativeTime: formatRelativeTimeLabel(note.date),
-      summary: truncateText(`${topicPrefix}${summary}`, 72)
-    });
-
-    if (digests.length >= IMPORTANT_MEMORY_DIGEST_LIMIT) {
-      break;
-    }
-  }
-
-  return digests;
-}
-
-function dedupeDigests(digests: ImportantDialogueDigest[]): ImportantDialogueDigest[] {
-  const seen = new Set<string>();
-  const result: ImportantDialogueDigest[] = [];
-
-  for (const digest of digests) {
-    const key = normalizeSingleLine(digest.summary).toLowerCase();
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    result.push(digest);
-  }
-
-  return result;
-}
-
-function buildMemorySearchQuery(recentMessages: RecentMessage[], persona: PersonaSummary): { query: string; keywords: string[] } {
-  const userSignals = recentMessages
-    .filter((message) => message.role === 'user')
-    .slice(-4)
-    .map((message) => message.content);
-  const personaSignals = [persona.snapshot || '', ...persona.facts.slice(0, 2)];
-
-  const keywordPool = uniqueStrings([...userSignals, ...personaSignals].flatMap((text) => extractKeywordsFromMessage(text)).map((keyword) => keyword.slice(0, 24)));
-
-  const fallbackPool = uniqueStrings(
-    [...userSignals, ...personaSignals]
-      .map((text) => normalizeSingleLine(text))
-      .filter(Boolean)
-      .map((text) => text.slice(0, 24))
-  );
-
-  const keywords = (keywordPool.length ? keywordPool : fallbackPool).slice(0, MAX_MEMORY_KEYWORDS);
-  return {
-    query: keywords.join(' '),
-    keywords
-  };
 }
 
 function buildPrompt(
@@ -960,8 +760,8 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
     let generationAbortReason: string | undefined;
     let ctx: ResolvedConversationContext | undefined;
     let persona: PersonaSummary = { snapshot: null, facts: [] };
-    let persistentMemory = createEmptyMemoryContext();
-    let importantDialogueDigests: ImportantDialogueDigest[] = [];
+    const persistentMemory = createEmptyMemoryContext();
+    const importantDialogueDigests: ImportantDialogueDigest[] = [];
     let purposeRetrospective: SpontaneousPurposeRetrospectiveContext | null = null;
 
     try {
@@ -975,16 +775,8 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
 
       const roleProfilePromise = getStoredRoleProfile();
       persona = await this.loadPersonaSummary(ctx.workspaceId);
-      const db = buildRetrievalDbDeps();
-      const [roleProfile, resolvedMemory, resolvedDigests, resolvedPurposeRetrospective] = await Promise.all([
-        roleProfilePromise,
-        this.collectPersistentMemoryContext(ctx, persona, db),
-        this.collectImportantDialogueDigests(ctx, db),
-        this.collectPurposeRetrospectiveContext()
-      ]);
+      const [roleProfile, resolvedPurposeRetrospective] = await Promise.all([roleProfilePromise, this.collectPurposeRetrospectiveContext()]);
 
-      persistentMemory = resolvedMemory;
-      importantDialogueDigests = resolvedDigests;
       purposeRetrospective = resolvedPurposeRetrospective;
 
       const roleSummary = [
@@ -1302,226 +1094,6 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
       await fs.writeFile(filePath, `${JSON.stringify(this.spontaneousUtterancePreferences, null, 2)}\n`, 'utf-8');
     } catch (error) {
       console.warn(`${TAG} preferences save failed:`, error instanceof Error ? error.message : error);
-    }
-  }
-
-  private buildPersistentMemoryTraceBase(ctx: ResolvedConversationContext, persona: PersonaSummary, query: string, keywords: string[]): Record<string, unknown> {
-    return {
-      conversationId: shortTraceId(ctx.conversationId),
-      hasPersonaSnapshot: !!persona.snapshot,
-      keywordCount: keywords.length,
-      keywords: keywords.length ? keywords : undefined,
-      personaFactCount: persona.facts.length,
-      query: query || undefined,
-      recentMessageCount: ctx.recentMessages.length,
-      userMessageCount: ctx.recentMessages.filter((message) => message.role === 'user').length,
-      workspaceId: shortTraceId(ctx.workspaceId)
-    };
-  }
-
-  private async loadMemoryIndexContext(ctx: ResolvedConversationContext, query: string, keywords: string[], traceBase: Record<string, unknown>): Promise<PersistentMemoryContext | null> {
-    if (!ctx.workspaceRoot) {
-      logMemoryTrace(
-        {
-          ...traceBase,
-          event: 'spontaneous_memory.index.skip',
-          reason: 'workspace_root_missing'
-        },
-        'warn'
-      );
-      return null;
-    }
-
-    const filePath = path.join(ctx.workspaceRoot, 'memory', 'MEMORY.md');
-
-    try {
-      const content = await fs.readFile(filePath, 'utf-8');
-      const extracted = extractMemoryIndexContext(content, MEMORY_CONTEXT_MAX_CHARS);
-
-      if (!extracted.context) {
-        logMemoryTrace(
-          {
-            ...traceBase,
-            event: 'spontaneous_memory.index.skip',
-            filePath: 'memory/MEMORY.md',
-            reason: 'empty_index'
-          },
-          'warn'
-        );
-        return null;
-      }
-
-      logMemoryTrace({
-        ...traceBase,
-        contextChars: extracted.context.length,
-        event: 'spontaneous_memory.index.result',
-        filePath: 'memory/MEMORY.md',
-        noteCount: extracted.noteCount,
-        topicCount: extracted.topicCount
-      });
-
-      return {
-        query: truncateText(query ? `${query} / MEMORY.md` : 'MEMORY.md', 160),
-        keywords,
-        context: extracted.context,
-        noteCount: extracted.noteCount,
-        topicCount: extracted.topicCount,
-        source: 'memory_index'
-      };
-    } catch (error) {
-      logMemoryTrace(
-        {
-          ...traceBase,
-          error: error instanceof Error ? error.message : String(error),
-          event: 'spontaneous_memory.index.error',
-          filePath: 'memory/MEMORY.md'
-        },
-        'warn'
-      );
-      return null;
-    }
-  }
-
-  private async collectPersistentMemoryContext(ctx: ResolvedConversationContext, persona: PersonaSummary, db: RetrievalDbDeps): Promise<PersistentMemoryContext> {
-    const { query, keywords } = buildMemorySearchQuery(ctx.recentMessages, persona);
-    const traceBase = this.buildPersistentMemoryTraceBase(ctx, persona, query, keywords);
-
-    if (!ctx.workspaceId) {
-      logMemoryTrace(
-        {
-          ...traceBase,
-          event: 'spontaneous_memory.collect.skip',
-          reason: 'workspace_missing'
-        },
-        'warn'
-      );
-      return createEmptyMemoryContext();
-    }
-
-    logMemoryTrace({
-      ...traceBase,
-      event: 'spontaneous_memory.collect.start'
-    });
-
-    const runSearch = async (searchQuery: string, source: PersistentMemorySource): Promise<PersistentMemoryContext | null> => {
-      const startedAt = Date.now();
-
-      try {
-        logMemoryTrace({
-          ...traceBase,
-          event: 'spontaneous_memory.search.start',
-          source,
-          searchQuery: searchQuery || undefined
-        });
-
-        const result = await searchWithContent(searchQuery, ctx.workspaceId!, db, MEMORY_CONTEXT_MAX_CHARS);
-        logMemoryTrace({
-          ...traceBase,
-          contextChars: result.context.length,
-          durationMs: Date.now() - startedAt,
-          event: 'spontaneous_memory.search.result',
-          noteCount: result.noteCount,
-          source,
-          topicCount: result.topicCount
-        });
-
-        if (result.noteCount <= 0 || !result.context.trim()) {
-          return null;
-        }
-
-        return {
-          query: truncateText(searchQuery || '最近记忆', 160),
-          keywords,
-          context: truncateText(result.context, MEMORY_CONTEXT_MAX_CHARS),
-          noteCount: result.noteCount,
-          topicCount: result.topicCount,
-          source
-        };
-      } catch (error) {
-        logMemoryTrace(
-          {
-            ...traceBase,
-            durationMs: Date.now() - startedAt,
-            error: error instanceof Error ? error.message : String(error),
-            event: 'spontaneous_memory.search.error',
-            source
-          },
-          'warn'
-        );
-        return null;
-      }
-    };
-
-    const memoryIndexContext = await this.loadMemoryIndexContext(ctx, query, keywords, traceBase);
-    const targetedResult = query ? await runSearch(query, 'targeted_search') : null;
-
-    if (memoryIndexContext && targetedResult) {
-      const combined = mergePersistentMemoryContexts(memoryIndexContext, targetedResult, MEMORY_CONTEXT_MAX_CHARS);
-      logMemoryTrace({
-        ...traceBase,
-        contextChars: combined.context.length,
-        event: 'spontaneous_memory.combine.result',
-        noteCount: combined.noteCount,
-        sources: ['memory_index', 'targeted_search'],
-        topicCount: combined.topicCount
-      });
-      return combined;
-    }
-
-    if (memoryIndexContext) {
-      return memoryIndexContext;
-    }
-
-    if (targetedResult) {
-      return targetedResult;
-    }
-
-    logMemoryTrace({
-      ...traceBase,
-      event: 'spontaneous_memory.search.fallback',
-      fallbackSource: 'broad_recall',
-      reason: query ? 'targeted_and_index_empty' : 'query_and_index_empty'
-    });
-
-    const broadRecallResult = await runSearch('', 'broad_recall');
-    if (broadRecallResult) {
-      return {
-        ...broadRecallResult,
-        query: truncateText(query ? `${query} / 最近记忆` : '最近记忆', 160)
-      };
-    }
-
-    logMemoryTrace(
-      {
-        ...traceBase,
-        event: 'spontaneous_memory.collect.empty',
-        reason: 'no_memory_context'
-      },
-      'warn'
-    );
-
-    return {
-      query: truncateText(query, 160),
-      keywords,
-      context: '',
-      noteCount: 0,
-      topicCount: 0
-    };
-  }
-
-  private async collectImportantDialogueDigests(ctx: ResolvedConversationContext, db: RetrievalDbDeps): Promise<ImportantDialogueDigest[]> {
-    const recentDigests = buildRecentDialogueDigests(ctx.recentMessages);
-
-    if (!ctx.workspaceId || !db.listRecentImportant) {
-      return recentDigests.slice(0, IMPORTANT_DIGEST_LIMIT);
-    }
-
-    try {
-      const recentImportantNotes = await db.listRecentImportant(ctx.workspaceId, 0.7, 14, IMPORTANT_MEMORY_DIGEST_LIMIT);
-      return dedupeDigests([...recentDigests, ...buildImportantMemoryDigests(recentImportantNotes)]).slice(0, IMPORTANT_DIGEST_LIMIT);
-    } catch (error) {
-      console.warn(`${TAG} important digest recall failed:`, error instanceof Error ? error.message : error);
-      return recentDigests.slice(0, IMPORTANT_DIGEST_LIMIT);
     }
   }
 

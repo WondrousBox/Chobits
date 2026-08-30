@@ -1,4 +1,4 @@
-import { CHAT_API_CONFIGURED_GUIDE_GOAL, WORKSPACE_EXISTS_GUIDE_GOAL, type SpriteRoutineGuideGoalDefinition, type SpriteRoutineGuideGoalKind } from '@packages/sprite-core/purpose/guide-goals';
+import { CHAT_API_CONFIGURED_GUIDE_GOAL, type SpriteRoutineGuideGoalDefinition, type SpriteRoutineGuideGoalKind } from '@packages/sprite-core/purpose/guide-goals';
 import type { ProviderRecord } from '@packages/ai/types';
 
 import { resolveProviderIdentity } from '@/lib/ai-provider-identity';
@@ -87,21 +87,6 @@ async function resolvePresetIdForGuide(providerId: string, preferredPresetId?: s
   return presets?.[0]?.id;
 }
 
-async function evaluateWorkspaceExistsGoal(goal: SpriteRoutineGuideGoalDefinition): Promise<GuideGoalEvaluationResult> {
-  try {
-    const workspaces = await window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 } as any, limit: 1, offset: 0 });
-    const achieved = Array.isArray(workspaces) && workspaces.length > 0;
-    return {
-      goal,
-      achieved,
-      reason: achieved ? 'achieved' : 'missing-workspace'
-    };
-  } catch (error) {
-    console.warn('[guide-goals] failed to check workspace goal:', error);
-    return { goal, achieved: false, reason: 'check-failed' };
-  }
-}
-
 async function evaluateChatProviderConfiguredGoal(goal: SpriteRoutineGuideGoalDefinition, options: Pick<GuideGoalEnsureOptions, 'providerId' | 'preferredPresetId' | 'trigger'>): Promise<GuideGoalEvaluationResult> {
   try {
     const providers = await window.YUA.ai.getProviders().catch(() => []);
@@ -157,24 +142,12 @@ async function evaluateAchievementUnlockedGoal(goal: SpriteRoutineGuideGoalDefin
 
 export async function evaluateGuideGoal(goal: SpriteRoutineGuideGoalDefinition, options: Pick<GuideGoalEnsureOptions, 'providerId' | 'preferredPresetId' | 'trigger'>): Promise<GuideGoalEvaluationResult> {
   switch (goal.kind as SpriteRoutineGuideGoalKind) {
-    case 'workspace.exists':
-      return evaluateWorkspaceExistsGoal(goal);
     case 'ai.chat-provider-configured':
       return evaluateChatProviderConfiguredGoal(goal, options);
     case 'achievement.unlocked':
       return evaluateAchievementUnlockedGoal(goal);
     default:
       return { goal, achieved: false, reason: 'unsupported-goal' };
-  }
-}
-
-async function startWorkspaceCreateGuide(): Promise<boolean> {
-  try {
-    const result = await window.YUA.quest['quest:start']({ id: 'workspace.create', source: 'task-list' });
-    return result?.ok !== false && result?.startResult?.accepted !== false;
-  } catch (error) {
-    console.warn('[guide-goals] failed to start workspace guide:', error);
-    return false;
   }
 }
 
@@ -215,8 +188,6 @@ async function startChatApiConfigGuide(options: GuideGoalEnsureOptions, evaluati
 
 async function startGuideForGoal(options: GuideGoalEnsureOptions, evaluation: GuideGoalEvaluationResult): Promise<{ guided: boolean; presetId?: string; attempted: boolean }> {
   switch (options.goal.kind as SpriteRoutineGuideGoalKind) {
-    case 'workspace.exists':
-      return { guided: await startWorkspaceCreateGuide(), attempted: true };
     case 'ai.chat-provider-configured':
       if (!evaluation.providerId && evaluation.reason === 'missing-provider') {
         return { guided: false, attempted: false };
@@ -275,4 +246,4 @@ export function resetGuideGoalStateForTest(): void {
   inflightEnsures.clear();
 }
 
-export { CHAT_API_CONFIGURED_GUIDE_GOAL, WORKSPACE_EXISTS_GUIDE_GOAL };
+export { CHAT_API_CONFIGURED_GUIDE_GOAL };

@@ -6,13 +6,42 @@ import * as path from 'node:path';
 import { stripEmoji } from '@packages/tts/common';
 import { app, BrowserWindow, ipcMain } from 'electron';
 
-import { ResourcesRepo, WorkspacesRepo } from '../../electron/main/db/repositories';
-import { ensureDailyFolder } from '../../electron/main/handlers/resource';
+import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from '../../electron/main/db/repositories';
 import { assertSpriteCapabilityActive, assertSpriteCapabilityUnlocked } from '../sprite-core/capability-runtime';
 import { notifySpriteCapabilityChanged } from '../sprite-core/handler/capability-events';
 import { getASRInstance } from './asr-instance-manager';
 import { AllModels, CommonConfig } from './common';
 import { ASR_createInstance, ASR_freeInstance, ASR_sendData, TTS_createInstance, TTS_freeInstance, TTS_generateSpeech } from './index';
+
+/**
+ * 确保工作空间下存在以当天日期命名的顶层文件夹（原 handlers/resource 的同名实现，
+ * mini 分支随 resource handler 删除后内联于此，仅供 ASR 录音落盘使用）。
+ */
+async function ensureDailyFolder(workspaceId: string, rootPath: string): Promise<string> {
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  // 只在“未删除”的顶层文件夹中查找，避免命中回收站里的文件夹
+  const siblings = await FoldersRepo.list({ workspaceId, parentId: null, deletedAt: 0 } as any, 2000, 0);
+  const existing = siblings.find((s: any) => s.name === today);
+
+  if (existing) {
+    return existing.id;
+  }
+
+  const newFolder = {
+    id: randomUUID(),
+    name: today,
+    parentId: null,
+    workspaceId
+  };
+
+  await FoldersRepo.create(newFolder as any);
+
+  const dirPath = path.join(rootPath, 'resources', 'folders', newFolder.id);
+  await fs.mkdir(dirPath, { recursive: true });
+
+  return newFolder.id;
+}
 
 // ASR 配置类型（面向未来多后端扩展）
 export interface ASRConfig {

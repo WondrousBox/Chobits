@@ -18,30 +18,6 @@ function shouldHandleBridgeEvent(surface: MessageSurface, event: MessageBridgePa
   return event.target !== 'sprite';
 }
 
-async function releaseFileDropPurposeBeforeOpenResourceLibrary(): Promise<void> {
-  const snapshot = await window.YUA.sprite?.getPurposeSnapshot?.().catch((error) => {
-    console.warn('[MessageContext] get purpose snapshot before open-resource-library failed', error);
-    return null;
-  });
-  const currentPurpose = snapshot?.current;
-  if (currentPurpose?.kind !== 'file.drop') {
-    return;
-  }
-
-  console.info('[MessageContext] releasing file.drop before open resource library quest', {
-    purposeId: currentPurpose.id,
-    kind: currentPurpose.kind,
-    priority: currentPurpose.priority
-  });
-
-  await window.YUA.window?.['window:close']?.('fileActionsMenu' as any).catch((error) => {
-    console.warn('[MessageContext] close fileActionsMenu before open-resource-library failed', error);
-  });
-  await window.YUA.sprite?.cancelPurpose?.(currentPurpose.id, 'open-resource-library-recommendation').catch((error) => {
-    console.warn('[MessageContext] cancel file.drop before open-resource-library failed', error);
-  });
-}
-
 export function MessageProvider({ children, surface = 'app' }: MessageProviderProps): JSX.Element {
   const { current, showToast, showNotice, showBusy, updateBusy, clearBusy, clearByType, dismiss, clearAll, currentNotice } = useMessageQueue();
 
@@ -79,62 +55,6 @@ export function MessageProvider({ children, surface = 'app' }: MessageProviderPr
         return;
       }
 
-      if (typeof button.action === 'string' && button.action.startsWith('quest:start:')) {
-        const questId = button.action.slice('quest:start:'.length).trim();
-        if (!questId) return;
-        try {
-          if (questId === 'first-file-drop' || questId === 'open-resource-library') {
-            console.info('[MessageContext] quest recommendation button clicked', {
-              questId,
-              buttonId: button.id,
-              label: button.label
-            });
-          }
-          if (questId === 'open-resource-library') {
-            await releaseFileDropPurposeBeforeOpenResourceLibrary();
-          }
-          const result = await window.YUA.quest?.['quest:start']?.({ id: questId, source: 'recommendation' });
-          if (questId === 'first-file-drop' || questId === 'open-resource-library') {
-            console.info('[MessageContext] quest recommendation start result', {
-              questId,
-              ok: result?.ok,
-              error: result?.error,
-              startResult: result?.startResult
-                ? {
-                    accepted: result.startResult.accepted,
-                    status: result.startResult.status,
-                    reason: result.startResult.reason,
-                    purpose: result.startResult.purpose
-                      ? {
-                          id: result.startResult.purpose.id,
-                          kind: result.startResult.purpose.kind,
-                          status: result.startResult.purpose.status,
-                          priority: result.startResult.purpose.priority
-                        }
-                      : undefined
-                  }
-                : null
-            });
-          }
-          if (!result?.ok) {
-            throw new Error(result?.error || '启动任务失败');
-          }
-          showToast({
-            content: result.startResult ? '任务引导已启动' : '任务已完成',
-            level: 'success',
-            duration: 2500
-          });
-          dismissMessage(undefined, 'button');
-        } catch (error) {
-          showToast({
-            content: error instanceof Error ? error.message : String(error),
-            level: 'error',
-            duration: 4000
-          });
-        }
-        return;
-      }
-
       // Purpose routine 按钮：约定 action 形如 'purpose:<actionKey>'
       // 派发 purpose-event 'bubble:action'，供 routine 的 waitForEvent / loopUntil 解锁
       if (typeof button.action === 'string' && button.action.startsWith('purpose:')) {
@@ -158,14 +78,6 @@ export function MessageProvider({ children, surface = 'app' }: MessageProviderPr
           dismissMessage(undefined, 'button');
         }
         return;
-      }
-
-      if (currentNotice?.routineId) {
-        try {
-          await window.YUA.dailyCare?.['dailyCare:handleButtonClick']?.(currentNotice.routineId, button.id, button.action);
-        } catch (error) {
-          console.warn('[MessageContext] handleButtonClick failed', error);
-        }
       }
 
       if (button.action !== 'keep-open') {

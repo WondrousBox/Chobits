@@ -10,9 +10,7 @@ import { isBubbleWindowMode } from '@packages/sprite-core/types';
 import React, { useEffect, useRef } from 'react';
 
 import Dropzone from '@/components/common/Dropzone';
-import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { ensureChatApiConfigGoal } from '@/lib/chat-api-config-guide';
-import { ensureGuideGoal, WORKSPACE_EXISTS_GUIDE_GOAL } from '@/lib/guide-goals';
 
 import { useSpriteState } from './context/hooks';
 import { useDragCollector } from './hooks/useDragCollector';
@@ -38,7 +36,6 @@ const AIAssistantInner: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const { onMouseDown, isDragging, isDragReady } = useDragCollector();
   const { handleDragEnter, handleDragLeave, handleDropFiles } = useFileDropCollector();
-  const { isEnabled: isFeatureEnabled } = useFeatureFlags();
   const lastClickInteractionAtRef = useRef(0);
 
   // 全局语音播放
@@ -123,17 +120,6 @@ const AIAssistantInner: React.FC = () => {
   const handleContextMenu = (e: React.MouseEvent): void => {
     e.preventDefault();
     void (async () => {
-      // 游戏化(Quest)关闭时引导系统不可用,跳过 workspace 前置检查,直接打开菜单
-      if (isFeatureEnabled('gamification')) {
-        const workspaceGoal = await ensureGuideGoal({
-          goal: WORKSPACE_EXISTS_GUIDE_GOAL,
-          trigger: 'workspace-entry',
-          forceGuide: true
-        });
-        if (!workspaceGoal.achieved) {
-          return;
-        }
-      }
       void window.YUA.sprite.interact('context-menu', { open: true });
       void window.YUA.window['window:open']('menu');
     })();

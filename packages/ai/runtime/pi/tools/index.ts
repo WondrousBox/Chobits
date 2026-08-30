@@ -3,27 +3,14 @@ import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
 import type { PiSessionToolContext } from '../tool-context';
 import { createPiAppWindowTool } from './app-window';
 import { createPiAskUserTool } from './ask-user';
-import { createPiConversationRouteTool } from './conversation-route';
-import { createPiEmojiSendTool } from './emoji-packs';
 import { createPiFileEditTool } from './file-edit';
 import { createPiFileGlobTool } from './file-glob';
 import { createPiFileGrepTool } from './file-grep';
 import { createPiFileListTool } from './file-list';
 import { createPiFileReadTool } from './file-read';
 import { createPiFileWriteTool } from './file-write';
-import { createPiMemoryDiaryTool } from './memory-diary';
-import { createPiMemoryGetTool } from './memory-get';
-import { createPiMemoryRefreshCriticalTool } from './memory-refresh-critical';
-import { createPiMemorySaveTool } from './memory-save';
-import { createPiMemorySearchTool } from './memory-search';
-import { createPiMemoryTopicsTool } from './memory-topics';
-import { createPiMusicGenerateTool } from './music-generate';
-import { createPiMusicLyricsTool } from './music-lyrics';
-import { createPiPersonaUpdateTool } from './persona-update';
-import { createPiProjectTrackingTool } from './project-tracking';
 import { createPiPushCardTool } from './push-card';
 import { createPiReadSubtitleTool } from './read-subtitle';
-import { createPiResourceCreateTool } from './resource-create';
 import { createPiResourceQueryTool } from './resource-query';
 import { createPiShellExecTool } from './shell-exec';
 import { createPiSkillSearchTool } from './skill-search';
@@ -34,16 +21,12 @@ import { createPiTranslationTool } from './translation';
 import { createPiWebReadTool } from './web-read';
 import { createPiWebSearchTool } from './web-search';
 import { createPiWorkflowRunTool } from './workflow-run';
-import { createPiYoutubeDownloadTool } from './youtube-download';
-import { createPiYoutubeSubscribeTool } from './youtube-subscribe';
 
 type PiToolFactory = (toolContext: PiSessionToolContext) => unknown;
 
 const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
   'app-window': createPiAppWindowTool,
   'ask-user': createPiAskUserTool,
-  'conversation-route': createPiConversationRouteTool,
-  'emoji-send': createPiEmojiSendTool,
   'file-edit': createPiFileEditTool,
   'file-glob': createPiFileGlobTool,
   'file-grep': createPiFileGrepTool,
@@ -51,7 +34,6 @@ const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
   'file-read': createPiFileReadTool,
   'file-write': createPiFileWriteTool,
   'push-card': createPiPushCardTool,
-  'resource-create': createPiResourceCreateTool,
   'query-resources': createPiResourceQueryTool,
   'read-subtitle': createPiReadSubtitleTool,
   'shell-exec': createPiShellExecTool,
@@ -61,18 +43,6 @@ const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
   'translate-subtitles': createPiTranslationTool,
   'web-read': createPiWebReadTool,
   'web-search': createPiWebSearchTool,
-  'youtube-download': createPiYoutubeDownloadTool,
-  'youtube-subscribe': createPiYoutubeSubscribeTool,
-  'memory-search': createPiMemorySearchTool,
-  'memory-get': createPiMemoryGetTool,
-  'memory-save': createPiMemorySaveTool,
-  'memory-topics': createPiMemoryTopicsTool,
-  'memory-diary': createPiMemoryDiaryTool,
-  'memory-refresh-critical': createPiMemoryRefreshCriticalTool,
-  'music-generate': createPiMusicGenerateTool,
-  'music-lyrics': createPiMusicLyricsTool,
-  'persona-update': createPiPersonaUpdateTool,
-  'project-tracking': createPiProjectTrackingTool,
   'toolbox-lookup': createPiToolboxLookupTool,
   'workflow-run': createPiWorkflowRunTool
 };
@@ -81,8 +51,6 @@ const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
 const COMPAT_NAME_TO_TOOL_ID: Record<string, string> = {
   appWindowTool: 'app-window',
   askUserTool: 'ask-user',
-  conversationRouteTool: 'conversation-route',
-  emojiSendTool: 'emoji-send',
   fileEditTool: 'file-edit',
   fileGlobTool: 'file-glob',
   fileGrepTool: 'file-grep',
@@ -90,7 +58,6 @@ const COMPAT_NAME_TO_TOOL_ID: Record<string, string> = {
   fileReadTool: 'file-read',
   fileWriteTool: 'file-write',
   pushCardTool: 'push-card',
-  resourceCreateTool: 'resource-create',
   resourceQueryTool: 'query-resources',
   readSubtitleTool: 'read-subtitle',
   shellExecTool: 'shell-exec',
@@ -100,18 +67,6 @@ const COMPAT_NAME_TO_TOOL_ID: Record<string, string> = {
   translationTool: 'translate-subtitles',
   webReadTool: 'web-read',
   webSearchTool: 'web-search',
-  youtubeDownloadTool: 'youtube-download',
-  youtubeSubscribeTool: 'youtube-subscribe',
-  memorySearchTool: 'memory-search',
-  memoryGetTool: 'memory-get',
-  memorySaveTool: 'memory-save',
-  memoryTopicsTool: 'memory-topics',
-  memoryDiaryTool: 'memory-diary',
-  memoryRefreshCriticalTool: 'memory-refresh-critical',
-  musicGenerateTool: 'music-generate',
-  musicLyricsTool: 'music-lyrics',
-  personaUpdateTool: 'persona-update',
-  projectTrackingTool: 'project-tracking',
   toolboxTool: 'toolbox-lookup',
   workflowRunTool: 'workflow-run'
 };

@@ -64,25 +64,7 @@ vi.mock('../../packages/ai/runtime/pi/runtime-switch', () => ({
 }));
 
 vi.mock('../../packages/ai/runtime/pi/tool-registry', () => ({
-  DEFAULT_EMOJI_PACK_TOOL_IDS: ['emoji-send'],
-  TOOL_FEATURE_GATE: {
-    'persona-update': 'gamification',
-    'music-generate': 'music',
-    'music-lyrics': 'music',
-    'youtube-subscribe': 'rss',
-    'project-tracking': 'projectTracking',
-    'emoji-send': 'emojiPacks',
-    'workflow-run': 'workflow'
-  },
   normalizePiToolIds: normalizePiToolIdsMock
-}));
-
-// 本套件验证 resolver 的工具装配行为,功能旗标一律视为开启(保持旗标机制引入前的行为)
-vi.mock('../../electron/main/feature-flags', () => ({
-  getFeatureFlags: () =>
-    new Proxy({} as Record<string, boolean>, {
-      get: () => true
-    })
 }));
 
 import { resolvePiRequest } from '../../packages/ai/runtime/pi/model-resolver';
@@ -255,36 +237,4 @@ describe('resolvePiRequest', () => {
     expect(resolved.messages).toEqual([{ role: 'user', content: 'Translate this subtitle' }]);
   });
 
-  it('enables emoji send by default when emoji mode is on', async () => {
-    getPresetMock.mockReturnValue(undefined);
-    getPresetSecretsMock.mockResolvedValue({});
-    getProviderMock.mockReturnValue({
-      id: 'openai',
-      label: 'OpenAI',
-      getSecrets: () => ({})
-    });
-    getAllSecretsMock.mockResolvedValue({});
-    getPiAgentProfileMock.mockReturnValue({
-      id: 'assistant',
-      label: 'Agent模式',
-      description: 'Assistant mode',
-      executionMode: 'session',
-      supportsToolCalls: true,
-      instructions: 'emoji profile',
-      defaultToolIds: ['toolbox-lookup', 'ask-user']
-    });
-
-    const resolved = await resolvePiRequest({
-      providerId: 'openai',
-      agentId: 'assistant',
-      messages: [{ role: 'user', content: '哈哈这个太离谱了' }],
-      extras: {
-        emojiPacksEnabled: true
-      }
-    } as any);
-
-    expect(resolved.enabledToolIds).toEqual(['toolbox-lookup', 'ask-user', 'emoji-send']);
-    expect(resolved.enabledToolIds).not.toContain('emoji-search');
-    expect(resolved.enabledToolIds).not.toContain('emoji-list');
-  });
 });

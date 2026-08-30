@@ -20,10 +20,6 @@ export { createSummaryTool } from './summary-tool';
 export type { TranslationToolRuntimeBinding } from './translation-tool';
 export { createTranslationTool } from './translation-tool';
 
-// YouTube 工具
-export { createYoutubeDownloadTool, youtubeDownloadTool } from './youtube-download-tool';
-export { createYoutubeSubscribeTool, youtubeSubscribeTool } from './youtube-subscribe-tool';
-
 // 导入用于类型和工具列表
 import type { PushCardToolContext } from './push-card-tool';
 import { createPushCardTool } from './push-card-tool';
@@ -33,8 +29,6 @@ import type { SummaryToolRuntimeBinding } from './summary-tool';
 import { createSummaryTool } from './summary-tool';
 import type { TranslationToolRuntimeBinding } from './translation-tool';
 import { createTranslationTool } from './translation-tool';
-import { youtubeDownloadTool } from './youtube-download-tool';
-import { youtubeSubscribeTool } from './youtube-subscribe-tool';
 
 // ============================================================================
 // 工具集合
@@ -49,10 +43,6 @@ import { youtubeSubscribeTool } from './youtube-subscribe-tool';
  * - summaryTool: 内容总结
  * - resourceQueryTool: 资源智能查询
  * - pushCardTool: 推送资源卡片
- *
- * YouTube 工具：
- * - youtubeDownloadTool: 下载 YouTube 视频
- * - youtubeSubscribeTool: 订阅 YouTube 频道
  */
 export interface LegacyToolBindings {
   pushCard?: PushCardToolContext;
@@ -85,9 +75,7 @@ export function getAllTools(bindings: LegacyToolBindings = {}) {
     translationTool: createTranslationTool(bindings.translationRuntime ? { runtime: bindings.translationRuntime } : undefined),
     summaryTool: createSummaryTool(bindings.summaryRuntime ? { runtime: bindings.summaryRuntime } : undefined),
     resourceQueryTool,
-    pushCardTool: createPushCardTool(bindings.pushCard),
-    youtubeDownloadTool,
-    youtubeSubscribeTool
+    pushCardTool: createPushCardTool(bindings.pushCard)
   };
 }
 
@@ -114,8 +102,6 @@ export function getToolById(id: string, bindings: LegacyToolBindings = {}) {
     'summarize-content': allTools.summaryTool,
     'query-resources': resourceQueryTool,
     'push-card': allTools.pushCardTool,
-    'youtube-download': youtubeDownloadTool,
-    'youtube-subscribe': youtubeSubscribeTool,
     'read-subtitle': readSubtitleTool
   };
   return toolMap[id];
@@ -129,7 +115,7 @@ export type ToolName = keyof ReturnType<typeof getAllTools>;
 /**
  * 工具 ID 类型定义
  */
-export type ToolId = 'translate-subtitles' | 'summarize-content' | 'query-resources' | 'push-card' | 'youtube-download' | 'youtube-subscribe' | 'read-subtitle';
+export type ToolId = 'translate-subtitles' | 'summarize-content' | 'query-resources' | 'push-card' | 'read-subtitle';
 
 /**
  * 工具信息类型
@@ -171,16 +157,6 @@ export function listToolInfos(): ToolInfo[] {
       id: 'summarize-content',
       name: 'summaryTool',
       description: '总结字幕和文本内容'
-    },
-    {
-      id: 'youtube-download',
-      name: 'youtubeDownloadTool',
-      description: youtubeDownloadTool.description || '下载 YouTube 视频'
-    },
-    {
-      id: 'youtube-subscribe',
-      name: 'youtubeSubscribeTool',
-      description: youtubeSubscribeTool.description || '订阅 YouTube 频道'
     },
     {
       id: 'web-search',

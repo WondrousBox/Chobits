@@ -159,20 +159,6 @@ describe('guideChatApiConfigIfNeeded', () => {
     harness.env.cleanup();
   });
 
-  it('evaluates the shared workspace goal and starts the workspace quest when missing', async () => {
-    const harness = installGuideHarness();
-    const { ensureGuideGoal, resetGuideGoalStateForTest, WORKSPACE_EXISTS_GUIDE_GOAL } = await import('../../src/lib/guide-goals');
-    resetGuideGoalStateForTest();
-
-    const result = await ensureGuideGoal({ goal: WORKSPACE_EXISTS_GUIDE_GOAL, trigger: 'workspace-entry', forceGuide: true });
-
-    expect(result).toMatchObject({ achieved: false, guided: true, blocked: true, reason: 'missing-workspace' });
-    expect(harness.listWorkspaces).toHaveBeenCalledWith({ filter: { deletedAt: 0 }, limit: 1, offset: 0 });
-    expect(harness.startQuest).toHaveBeenCalledWith({ id: 'workspace.create', source: 'task-list' });
-    expect(harness.startPurpose).not.toHaveBeenCalled();
-    harness.env.cleanup();
-  });
-
   it('evaluates achievement guide goals without starting a guide', async () => {
     const harness = installGuideHarness();
     harness.getPersonaState.mockResolvedValue({

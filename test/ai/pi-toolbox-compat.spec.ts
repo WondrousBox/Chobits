@@ -69,15 +69,15 @@ describe('toolbox compatibility layer', () => {
     const toolContext = createMockToolContext(process.cwd())
     const toolboxTool = createPiToolboxLookupTool(toolContext as any)
 
-    const searchResult = (await toolboxTool.execute('call-chain', { action: 'search', query: '看不懂这个 YouTube 视频 帮我下载转写翻译' })).details as any
+    const searchResult = (await toolboxTool.execute('call-chain', { action: 'search', query: '看不懂这个视频 帮我转写翻译' })).details as any
 
     expect(searchResult.success).toBe(true)
-    expect(searchResult.results[0].name).toBe('链式资源处理')
-    expect(searchResult.results[0].content).toContain('下载视频 -> 转写/提取字幕 -> 翻译字幕')
-    expect(searchResult.results[0].content).toContain('不要按标题搜索资源')
-    expect(searchResult.results[0].content).toContain('不要为了继续处理刚下载或刚转写出来的资源而调用 `resourceQueryTool`')
-    expect(searchResult.activatedTools).toEqual(expect.arrayContaining(['youtubeDownloadTool', 'workflowRunTool', 'translationTool']))
-    expect(toolContext.session.getActiveToolNames()).toEqual(expect.arrayContaining(['toolboxTool', 'youtubeDownloadTool', 'workflowRunTool', 'translationTool']))
+    expect(searchResult.results[0].name).toBe('资源字幕链路')
+    expect(searchResult.results[0].content).toContain('转写/提取字幕 -> 翻译字幕')
+    expect(searchResult.results[0].content).toContain('不要用视频标题、文件名或同名字幕搜索来猜测下一步输入')
+    expect(searchResult.results[0].content).toContain('不要为了继续处理刚转写出来的资源而调用 `resourceQueryTool`')
+    expect(searchResult.activatedTools).toEqual(expect.arrayContaining(['workflowRunTool', 'translationTool']))
+    expect(toolContext.session.getActiveToolNames()).toEqual(expect.arrayContaining(['toolboxTool', 'workflowRunTool', 'translationTool']))
   })
 })
 

@@ -1,45 +1,22 @@
 import { WindowConfig, WindowKey } from '@aim-packages/window-manager';
-import { ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY, ACHIEVEMENT_UNLOCK_WINDOW_KEY, ACHIEVEMENT_UNLOCK_WINDOW_ROUTE_HASH } from '@packages/sprite-core/achievement-window';
-
-import { isFeatureEnabled, type FeatureKey } from '../feature-flags';
-import { Env } from '../utils';
 
 declare module '@aim-packages/window-manager' {
   interface CustomWindowKeys {
     status: void;
     menu: void;
-    fileActionsMenu: void;
     settings: void;
-    workspaceWizard: void;
-    resources: void;
-    inventory: void;
     assistant: void;
     assistantMini: void;
-    pluginManager: void;
     chat: void;
     chatOverlay: void;
-    selectedTextExplain: void;
-    resourcePreview: void;
-    downloadFloating: void;
-    pluginDownload: void;
-    tagger: void;
     aiProviderConfig: void;
     asrConfig: void;
     asr: void;
     ttsConfig: void;
     tts: void;
-    skillTree: void;
-    levelUp: void;
-    achievementUnlock: void;
-    questList: void;
-    webRecorder: void;
-    memoryGraph: void;
-    projectTracking: void;
     characterPackEditor: void;
     windowAnimationEditor: void;
     spriteBubbleFixedTop: void;
-    spriteEffect: void;
-    musicSpectrum: void;
   }
 }
 
@@ -97,32 +74,6 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       darwin: { options: { hasShadow: false } }
     }
   },
-  fileActionsMenu: {
-    routeHash: 'file-actions',
-    followMain: true,
-    followerPreferMode: 'overlap-center',
-    enableOverlapTransparency: true,
-    forceCenterAlignment: true,
-    suspendHoverMonitorOnShow: true,
-    parent: 'main',
-    closeOnBlur: true,
-    showOnReady: false,
-    options: {
-      width: 640,
-      height: 640,
-      frame: false,
-      transparent: true,
-      resizable: false,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      show: false,
-      backgroundColor: '#00000000',
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
-    },
-    platformOverlays: {
-      darwin: { options: { hasShadow: false } }
-    }
-  },
   settings: {
     routeHash: 'settings',
     showOnReady: false,
@@ -139,93 +90,6 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       skipTaskbar: false,
       show: false,
       backgroundColor: '#00000000',
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
-    },
-    platformOverlays: {
-      darwin: {
-        options: {
-          titleBarStyle: 'hiddenInset',
-          titleBarOverlay: true,
-          trafficLightPosition: { x: 20, y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2 },
-          frame: true
-        }
-      }
-    }
-  },
-  workspaceWizard: {
-    routeHash: 'workspace-wizard',
-    autoCenterOn: 'parent-display',
-    showOnReady: false,
-    openDevTools: false,
-    options: {
-      width: 440,
-      height: 440,
-      titleBarStyle: 'hidden',
-      titleBarOverlay: { color: '#FFFFFF', symbolColor: '#111111', height: 32 },
-      resizable: false,
-      alwaysOnTop: false,
-      skipTaskbar: false,
-      show: false,
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
-    },
-    platformOverlays: {
-      darwin: {
-        options: {
-          titleBarStyle: 'hiddenInset',
-          trafficLightPosition: { x: 20, y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2 }
-        }
-      }
-    }
-  },
-  resources: {
-    routeHash: 'resources',
-    autoCenterOn: 'parent-display',
-    showOnReady: true,
-    openDevTools: false,
-    rememberState: true,
-    options: {
-      width: 1300,
-      height: 720,
-      frame: false,
-      transparent: false,
-      resizable: true,
-      alwaysOnTop: false,
-      skipTaskbar: false,
-      backgroundColor: '#ffffff',
-      show: false,
-      autoHideMenuBar: true,
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
-    },
-    platformOverlays: {
-      darwin: {
-        options: {
-          titleBarStyle: 'hiddenInset',
-          titleBarOverlay: true,
-          trafficLightPosition: { x: 20, y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2 },
-          frame: true
-        }
-      }
-    }
-  },
-  inventory: {
-    routeHash: 'inventory',
-    autoCenterOn: 'parent-display',
-    showOnReady: true,
-    openDevTools: false,
-    rememberState: true,
-    options: {
-      width: 680,
-      height: 640,
-      minWidth: 680,
-      minHeight: 420,
-      frame: false,
-      transparent: false,
-      resizable: true,
-      alwaysOnTop: false,
-      skipTaskbar: false,
-      backgroundColor: '#ffffff',
-      show: false,
-      autoHideMenuBar: true,
       webPreferences: { nodeIntegration: true, contextIsolation: true }
     },
     platformOverlays: {
@@ -288,35 +152,6 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       darwin: { options: { hasShadow: false } }
     }
   },
-  pluginManager: {
-    routeHash: 'plugin-manager',
-    autoCenterOn: 'parent-display',
-    showOnReady: false,
-    openDevTools: false,
-    options: {
-      width: 800,
-      height: 600,
-      minWidth: 640,
-      minHeight: 480,
-      frame: false,
-      resizable: true,
-      alwaysOnTop: false,
-      skipTaskbar: false,
-      show: false,
-      autoHideMenuBar: true,
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
-    },
-    platformOverlays: {
-      darwin: {
-        options: {
-          titleBarStyle: 'hiddenInset',
-          titleBarOverlay: true,
-          trafficLightPosition: { x: 20, y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2 },
-          frame: true
-        }
-      }
-    }
-  },
   chat: {
     routeHash: 'chat',
     autoCenterOn: 'parent-display',
@@ -366,142 +201,6 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       show: false,
       autoHideMenuBar: true,
       webPreferences: { nodeIntegration: true, contextIsolation: true }
-    }
-  },
-  selectedTextExplain: {
-    routeHash: 'selected-text-explain',
-    autoCenterOn: 'none',
-    showOnReady: false,
-    openDevTools: false,
-    hideOnClose: true,
-    options: {
-      width: 460,
-      height: 540,
-      minWidth: 360,
-      minHeight: 360,
-      frame: false,
-      transparent: true,
-      resizable: true,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      hasShadow: false,
-      backgroundColor: '#00000000',
-      show: false,
-      autoHideMenuBar: true,
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
-    }
-  },
-  resourcePreview: {
-    routeHash: 'resource-preview',
-    autoCenterOn: 'parent-display',
-    showOnReady: true,
-    openDevTools: Env.isDev(),
-    startMaximized: true,
-    options: {
-      width: 600,
-      height: 420,
-      frame: false,
-      transparent: false,
-      resizable: true,
-      alwaysOnTop: false,
-      skipTaskbar: false,
-      backgroundColor: '#ffffff',
-      show: false,
-      autoHideMenuBar: true,
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
-    },
-    platformOverlays: {
-      darwin: {
-        options: {
-          titleBarStyle: 'hiddenInset',
-          titleBarOverlay: true,
-          trafficLightPosition: { x: 20, y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2 },
-          frame: true
-        }
-      }
-    }
-  },
-  downloadFloating: {
-    routeHash: 'download',
-    autoCenterOn: 'none',
-    showOnReady: false,
-    openDevTools: false,
-    options: {
-      width: 340,
-      height: 140,
-      minWidth: 300,
-      minHeight: 120,
-      frame: false,
-      transparent: true,
-      resizable: false,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      show: false,
-      hasShadow: false,
-      backgroundColor: '#00000000',
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
-    }
-  },
-  pluginDownload: {
-    routeHash: 'plugin-download',
-    autoCenterOn: 'parent-display',
-    showOnReady: true,
-    openDevTools: false,
-    rememberState: true,
-    options: {
-      width: 600,
-      height: 500,
-      minWidth: 500,
-      minHeight: 400,
-      frame: false,
-      transparent: false,
-      resizable: true,
-      alwaysOnTop: false,
-      skipTaskbar: false,
-      backgroundColor: '#ffffff',
-      show: false,
-      autoHideMenuBar: true,
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
-    },
-    platformOverlays: {
-      darwin: {
-        options: {
-          titleBarStyle: 'hiddenInset',
-          titleBarOverlay: true,
-          trafficLightPosition: { x: 20, y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2 },
-          frame: true
-        }
-      }
-    }
-  },
-  tagger: {
-    routeHash: 'tagger',
-    autoCenterOn: 'parent-display',
-    showOnReady: false,
-    openDevTools: false,
-    rememberState: true,
-    options: {
-      width: 1100,
-      height: 720,
-      frame: false,
-      transparent: false,
-      resizable: true,
-      alwaysOnTop: false,
-      skipTaskbar: false,
-      backgroundColor: '#ffffff',
-      show: false,
-      autoHideMenuBar: true,
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
-    },
-    platformOverlays: {
-      darwin: {
-        options: {
-          titleBarStyle: 'hiddenInset',
-          titleBarOverlay: true,
-          trafficLightPosition: { x: 20, y: 10 },
-          frame: true
-        }
-      }
     }
   },
   aiProviderConfig: {
@@ -613,173 +312,6 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       webPreferences: { nodeIntegration: true, contextIsolation: true }
     }
   },
-  skillTree: {
-    routeHash: 'skill-tree',
-    // trueFullscreen 需要在 ready-to-show 时立即 show，
-    // 这样 window-manager 才会在 macOS 上补 setAlwaysOnTop(..., 'screen-saver')
-    // 去覆盖 Dock / 菜单栏；若延后手动 show，会丢失这一步。
-    showOnReady: true,
-    openDevTools: false,
-    trueFullscreen: true,
-    options: {
-      frame: false,
-      transparent: true,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      resizable: false,
-      movable: false,
-      hasShadow: false,
-      enableLargerThanScreen: true,
-      show: false,
-      backgroundColor: '#00000000',
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
-    }
-  },
-  levelUp: {
-    routeHash: 'level-up',
-    autoCenterOn: 'parent-display',
-    showOnReady: false,
-    openDevTools: false,
-    options: {
-      width: 500,
-      height: 400,
-      frame: false,
-      transparent: true,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      resizable: false,
-      movable: false,
-      focusable: false,
-      hasShadow: false,
-      show: false,
-      backgroundColor: '#00000000',
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
-    }
-  },
-  [ACHIEVEMENT_UNLOCK_WINDOW_KEY]: {
-    routeHash: ACHIEVEMENT_UNLOCK_WINDOW_ROUTE_HASH,
-    autoCenterOn: 'none',
-    showOnReady: false,
-    openDevTools: false,
-    preferShowInactive: true,
-    options: {
-      width: ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY.width,
-      height: ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY.height,
-      frame: false,
-      transparent: true,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      resizable: false,
-      movable: false,
-      focusable: true,
-      acceptFirstMouse: true,
-      hasShadow: false,
-      show: false,
-      backgroundColor: '#00000000',
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
-    }
-  },
-  questList: {
-    routeHash: 'quest-list',
-    autoCenterOn: 'parent-display',
-    showOnReady: false,
-    openDevTools: false,
-    rememberState: true,
-    options: {
-      width: 520,
-      height: 640,
-      minWidth: 460,
-      minHeight: 420,
-      frame: false,
-      transparent: false,
-      resizable: true,
-      alwaysOnTop: false,
-      skipTaskbar: false,
-      show: false,
-      backgroundColor: '#ffffff',
-      autoHideMenuBar: true,
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
-    },
-    platformOverlays: {
-      darwin: {
-        options: {
-          titleBarStyle: 'hiddenInset',
-          titleBarOverlay: true,
-          trafficLightPosition: { x: 20, y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2 },
-          frame: true
-        }
-      }
-    }
-  },
-  webRecorder: {
-    routeHash: 'web-recorder',
-    autoCenterOn: 'parent-display',
-    showOnReady: false,
-    openDevTools: false, // 开启调试面板，调试完成后改为 false
-    options: {
-      width: 280,
-      height: 48,
-      frame: false,
-      transparent: true,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      resizable: false,
-      movable: true,
-      hasShadow: true,
-      show: false,
-      backgroundColor: '#00000000',
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
-    }
-  },
-  memoryGraph: {
-    routeHash: 'memory-graph',
-    showOnReady: true,
-    openDevTools: false,
-    trueFullscreen: true,
-    options: {
-      frame: false,
-      transparent: true,
-      resizable: false,
-      movable: false,
-      hasShadow: false,
-      enableLargerThanScreen: true,
-      show: false,
-      backgroundColor: '#00000000',
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
-    }
-  },
-  projectTracking: {
-    routeHash: 'project-tracking',
-    autoCenterOn: 'parent-display',
-    showOnReady: true,
-    openDevTools: false,
-    rememberState: true,
-    options: {
-      width: 1180,
-      height: 760,
-      minWidth: 960,
-      minHeight: 620,
-      frame: false,
-      transparent: false,
-      resizable: true,
-      alwaysOnTop: false,
-      skipTaskbar: false,
-      show: false,
-      backgroundColor: '#ffffff',
-      autoHideMenuBar: true,
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
-    },
-    platformOverlays: {
-      darwin: {
-        options: {
-          titleBarStyle: 'hiddenInset',
-          titleBarOverlay: true,
-          trafficLightPosition: { x: 20, y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2 },
-          frame: true
-        }
-      }
-    }
-  },
   characterPackEditor: {
     routeHash: 'character-pack-editor',
     autoCenterOn: 'parent-display',
@@ -872,95 +404,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     platformOverlays: {
       darwin: { options: { hasShadow: false } }
     }
-  },
-  spriteEffect: {
-    routeHash: 'sprite-effect',
-    followMain: true,
-    followerPreferMode: 'overlap-center',
-    enableOverlapTransparency: true,
-    forceCenterAlignment: true,
-    preferShowInactive: true,
-    suspendHoverMonitorOnShow: false,
-    parent: 'main',
-    hideOnClose: true,
-    showOnReady: false,
-    openDevTools: false,
-    options: {
-      width: 420,
-      height: 260,
-      minWidth: 360,
-      minHeight: 220,
-      frame: false,
-      transparent: true,
-      resizable: true,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      focusable: false,
-      hasShadow: false,
-      show: false,
-      backgroundColor: '#00000000',
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
-    },
-    platformOverlays: {
-      darwin: { options: { hasShadow: false } }
-    }
-  },
-  musicSpectrum: {
-    routeHash: 'music-spectrum',
-    followMain: true,
-    followerPreferMode: 'fixed-bottom',
-    followerClampToWorkArea: false,
-    preferShowInactive: true,
-    suspendHoverMonitorOnShow: false,
-    parent: 'main',
-    hideOnClose: true,
-    showOnReady: false,
-    openDevTools: false,
-    options: {
-      width: 360,
-      height: 48,
-      frame: false,
-      transparent: true,
-      resizable: true,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      focusable: false,
-      hasShadow: false,
-      show: false,
-      backgroundColor: '#00000000',
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
-    },
-    platformOverlays: {
-      darwin: { options: { hasShadow: false } }
-    }
   }
 };
 
 export default defaultWindowConfigs;
-
-/** 窗口 key → 功能旗标：旗标关闭时对应窗口不注册（含全部后续批次用到的映射） */
-const WINDOW_FEATURE_GATE: Partial<Record<WindowKey, FeatureKey>> = {
-  musicSpectrum: 'music',
-  webRecorder: 'recording',
-  projectTracking: 'projectTracking',
-  achievementUnlock: 'gamification',
-  questList: 'gamification',
-  skillTree: 'gamification',
-  levelUp: 'gamification',
-  asr: 'localAi',
-  asrConfig: 'localAi'
-};
-
-/**
- * 按功能旗标过滤后的窗口配置表
- *
- * 被关闭功能的窗口不注册到 windowManager,createOrShow 时将无对应配置可用。
- */
-export function getEnabledWindowConfigs(): Record<WindowKey, WindowConfig> {
-  return Object.fromEntries(
-    Object.entries(defaultWindowConfigs).filter(([key]) => {
-      const gate = WINDOW_FEATURE_GATE[key as WindowKey];
-      return !gate || isFeatureEnabled(gate);
-    })
-  ) as Record<WindowKey, WindowConfig>;
-}

@@ -11,7 +11,7 @@ import { getResourcePath } from '../common/utils';
 import { eventManager, sendAppBusyEnd, sendAppBusyProgress, sendAppBusyStart } from '../event';
 import { AppEvent } from '../event/events';
 import { pluginResourceManager } from '../plugins';
-import { addResource, FoldersRepo, ResourcesRepo, WorkspacesRepo } from './../common/db';
+import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from './../common/db';
 import { createEngine, WorkflowEngine } from './engine';
 import {
   AiChatNode,
@@ -290,7 +290,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
 
       console.log(resourceData);
 
-      // Create Resource：交给主进程资源创建逻辑统一处理（复用 addResource）
+      // Create Resource：直接落库（mini 分支已移除 handlers/resource 的 addResource 管线）
       const resource = {
         title: resourceData.title,
         filePath: resourceData.filePath,
@@ -305,9 +305,9 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
       console.log(resource);
 
       try {
-        const result = await addResource({ resource } as any);
+        const row = await ResourcesRepo.upsert({ ...resource, status: 'ready' } as any);
         if (callback) {
-          callback(result?.data || null);
+          callback(row || null);
         }
       } catch (e) {
         console.warn('[workflow][resource:create-request] failed:', e);

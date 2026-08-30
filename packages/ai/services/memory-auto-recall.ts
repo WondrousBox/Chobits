@@ -21,7 +21,7 @@
  *
  * 集成方式:
  *   通过 SystemPromptEnricher 注册，在 buildPiContext() 阶段自动注入。
- *   由 electron/main/handlers/memory/ipc-main.ts 提供 DB 依赖和 chatFn。
+ *   DB 依赖和 chatFn 由调用方注入（mini 分支已移除 memory handler，此服务暂未被接线）。
  */
 
 import * as fs from 'node:fs/promises';

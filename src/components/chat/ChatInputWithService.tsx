@@ -7,7 +7,6 @@ import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import {
   applySkillPickerSelection,
   extractSkillCommandArgs,
@@ -24,7 +23,6 @@ import { useChatSelection } from '@/pages/ChatPage/context/ChatSelectionContext'
 import ChatAgentSelect from './ChatAgentSelect';
 import ChatFooterActions from './ChatFooterActions';
 import CodingWorkspaceButton from './CodingWorkspaceButton';
-import EmojiPackButton from './EmojiPackButton';
 import SkillPickerButton from './SkillPickerButton';
 import UnifiedChatInput, { UnifiedChatInputHandle, UnifiedChatInputProps } from './UnifiedChatInput';
 import { mergeTranscriptWithInput, useSpeechInput } from './useSpeechInput';
@@ -41,8 +39,6 @@ export interface ChatInputWithServiceProps extends Omit<UnifiedChatInputProps, '
     codingWorkspaceLabel?: string;
     webSearchEnabled?: boolean;
     characterPersonaEnabled?: boolean;
-    emojiPacksEnabled?: boolean;
-    emojiPacksDisplayTarget?: 'chat' | 'sprite-bubble';
   }) => void | Promise<void>;
   onMenuOpenChange?: (open: boolean) => void;
   onMenuOpenPrepare?: () => void;
@@ -59,20 +55,14 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
     codingWorkspaceRoot,
     codingWorkspaceLabel,
     webSearchEnabled,
-    emojiPacksEnabled,
-    emojiPacksDisplayTarget,
     characterPersonaEnabled,
     setProviderId,
     setModelId,
     setAgentId,
     setCodingWorkspace,
     setWebSearchEnabled,
-    setEmojiPacksEnabled,
-    setEmojiPacksDisplayTarget,
     setCharacterPersonaEnabled
   } = useChatSelection();
-  const { isEnabled } = useFeatureFlags();
-  const emojiPacksAvailable = isEnabled('emojiPacks');
   const inputRef = useRef<UnifiedChatInputHandle>(null);
   const [draft, setDraft] = useState('');
   const [skills, setSkills] = useState<SkillInfo[]>([]);
@@ -172,8 +162,6 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
       agentId,
       webSearchEnabled,
       characterPersonaEnabled,
-      emojiPacksEnabled: emojiPacksAvailable && emojiPacksEnabled,
-      emojiPacksDisplayTarget: emojiPacksAvailable ? emojiPacksDisplayTarget : undefined,
       ...(isCoder && codingWorkspaceRoot
         ? {
             codingWorkspaceRoot,
@@ -326,16 +314,6 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
             </Tooltip>
           )}
           <WebSearchToggle enabled={webSearchEnabled} onToggle={setWebSearchEnabled} onOpenChange={onMenuOpenChange} {...floatingMenuProps} />
-          {!isCoder && emojiPacksAvailable && (
-            <EmojiPackButton
-              displayTarget={emojiPacksDisplayTarget}
-              enabled={emojiPacksEnabled}
-              onDisplayTargetChange={setEmojiPacksDisplayTarget}
-              onEnabledChange={setEmojiPacksEnabled}
-              onOpenChange={onMenuOpenChange}
-              {...floatingMenuProps}
-            />
-          )}
           {!isCoder && (
             <Tooltip>
               <TooltipTrigger asChild>

@@ -4,7 +4,6 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
 import { AIAssistant, StatusPage } from '@/features/sprite-assistant';
 import { SpriteBubblePage } from '@/features/sprite-bubble';
-import { SpriteEffectPage } from '@/features/sprite-effect';
 import { useAIProviderConfig } from '@/hooks/useAIProviderConfig';
 import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { ChatSelectionProvider } from '@/pages/ChatPage/context/ChatSelectionContext';
@@ -74,7 +73,6 @@ function StandardAppRoutes(): JSX.Element {
           <Route path="/character-pack-editor" element={<SpritePackEditorWindow />} />
           <Route path="/window-animation-editor" element={<WindowAnimationEditor />} />
           <Route path="/sprite-bubble" element={<SpriteBubblePage />} />
-          <Route path="/sprite-effect" element={<SpriteEffectPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <Toaster />

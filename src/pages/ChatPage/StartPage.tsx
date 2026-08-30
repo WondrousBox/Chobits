@@ -106,9 +106,7 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
     codingWorkspaceRoot,
     codingWorkspaceLabel,
     webSearchEnabled,
-    characterPersonaEnabled,
-    emojiPacksEnabled,
-    emojiPacksDisplayTarget
+    characterPersonaEnabled
   }: AssistantStartParams): Promise<void> => {
     if (!content.trim() || !providerId || !modelId) return;
     if (sendingRef.current) return;
@@ -139,8 +137,6 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
         codingWorkspaceLabel,
         webSearchEnabled,
         characterPersonaEnabled,
-        emojiPacksEnabled,
-        emojiPacksDisplayTarget,
         ...(targetWindow === 'chatOverlay' ? { overlaySide: CHAT_OVERLAY_SETTINGS.side } : {})
       });
       // 关闭助手窗口

@@ -172,11 +172,8 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
             }
           }
         ].filter((item) => {
-          // 按功能旗标隐藏录制类菜单项
-          if (item.id === 'asr-service') return isEnabled('localAi');
-          if (item.id === 'mic-recording' || item.id === 'system-audio-recording') {
-            return isEnabled('recording');
-          }
+          // 本地 ASR 相关菜单项仅在 localAi 开启时可见
+          if (item.id === 'asr-service' || item.id === 'mic-recording' || item.id === 'system-audio-recording') return isEnabled('localAi');
           return true;
         })
       },

@@ -1,7 +1,6 @@
 import { windowManager } from '@aim-packages/window-manager';
 import { BrowserWindow, globalShortcut } from 'electron';
 
-import { screenshotManager } from './screenshot';
 import { getShortcutSchema, isShortcutEnabled, loadShortcutsConfig, onShortcutEnabledChanged, onShortcutsConfigChanged, resolveAcceleratorsForPlatform, type ShortcutsConfig } from './shortcut-store';
 
 // Keep track of what we registered so we can cleanly unregister later
@@ -50,12 +49,6 @@ function applyRegistration(getMainWindow: GetMainWindow): void {
       } catch (e) {
         console.warn('[shortcut] toggle main window error', e);
       }
-    },
-    screenshot: () => {
-      console.log('[shortcut] screenshot');
-      void screenshotManager.start().catch((error) => {
-        console.warn('[shortcut] screenshot start blocked', error);
-      });
     }
   };
 

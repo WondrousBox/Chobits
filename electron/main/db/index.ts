@@ -1,26 +1,21 @@
 // Use default import; better-sqlite3 exports a callable/constructable function.
 // Using namespace import causes 'is not a constructor' at runtime.
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 
 import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { app } from 'electron';
-const require = createRequire(import.meta.url);
 import { inArray } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+import { app } from 'electron';
 
-import { parseFrontmatter, readLines } from '../../../packages/ai/services/memory-note-parser';
 import { binPathLog } from '../logger';
 import { Env } from '../utils';
-import { isLegacyContentlessMemoryFtsSql, MEMORY_FTS_CREATE_SQL, MEMORY_FTS_TABLE_NAME } from './memory-fts';
 import { documents } from './schema';
 
-// We'll dynamically load the sqlite-vec extension (ship prebuilt per-platform binaries)
-
 let db: Database.Database | null = null;
-let vecReady = false;
+// mini 分支已移除 sqlite-vec 扩展加载,向量功能不可用,相关函数静默降级
+const vecReady = false;
 
 export interface VectorInsertItem {
   id?: string;
@@ -35,44 +30,6 @@ function ensureDir(dir: string): void {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
-function getSqliteVecPath(): string | null {
-  try {
-    // 在开发环境中，直接使用 node_modules
-    if (!app.isPackaged) {
-      const sqliteVecPath = path.join(process.cwd(), 'node_modules', 'sqlite-vec');
-      if (fs.existsSync(sqliteVecPath)) {
-        console.log('[vector] Found sqlite-vec in dev mode:', sqliteVecPath);
-        return sqliteVecPath;
-      }
-    }
-
-    // 在打包后的应用中，尝试多个可能的路径
-    const possiblePaths = [
-      path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', 'sqlite-vec'),
-      path.join(process.resourcesPath, 'node_modules', 'sqlite-vec'),
-      path.join(app.getAppPath(), 'node_modules', 'sqlite-vec')
-    ];
-
-    console.log('[vector] Searching for sqlite-vec in packaged app...');
-    console.log('[vector] process.resourcesPath:', process.resourcesPath);
-    console.log('[vector] app.getAppPath():', app.getAppPath());
-
-    for (const possiblePath of possiblePaths) {
-      console.log('[vector] Checking path:', possiblePath);
-      if (fs.existsSync(possiblePath)) {
-        console.log('[vector] Found sqlite-vec at:', possiblePath);
-        return possiblePath;
-      }
-    }
-
-    console.warn('[vector] sqlite-vec not found in any expected location');
-    return null;
-  } catch (e) {
-    console.warn('[vector] Error finding sqlite-vec path:', e);
-    return null;
-  }
-}
-
 export function getDB(): Database.Database | null {
   if (db) return db;
   const userDir = app.getPath('userData');
@@ -85,49 +42,6 @@ export function getDB(): Database.Database | null {
   db!.pragma('journal_mode = WAL');
   db!.pragma('synchronous = NORMAL');
   initSchema();
-  // load sqlite-vec (idempotent)
-  try {
-    console.log('[vector] Attempting to load sqlite-vec extension...');
-
-    // 首先尝试直接 require sqlite-vec（适用于大多数情况）
-    try {
-      const sqlite_vec = require('sqlite-vec');
-      sqlite_vec.load(db as any);
-      const versionRow = (db as any).prepare('select vec_version() as v').get();
-      if (versionRow?.v) {
-        vecReady = true;
-        console.log('[vector] sqlite-vec loaded successfully, version:', versionRow.v);
-        return db;
-      } else {
-        console.warn('[vector] sqlite-vec loaded but vec_version() unavailable');
-      }
-    } catch (requireError: any) {
-      console.log('[vector] Direct require failed, trying path-based loading:', requireError?.message || requireError);
-
-      // 如果直接 require 失败，尝试从特定路径加载
-      const sqliteVecPath = getSqliteVecPath();
-      if (sqliteVecPath) {
-        try {
-          const sqlite_vec = require(sqliteVecPath);
-          sqlite_vec.load(db as any);
-          const versionRow = (db as any).prepare('select vec_version() as v').get();
-          if (versionRow?.v) {
-            vecReady = true;
-            console.log('[vector] sqlite-vec loaded from path, version:', versionRow.v);
-            return db;
-          }
-        } catch (pathError: any) {
-          console.warn('[vector] Path-based loading also failed:', pathError?.message || pathError);
-        }
-      }
-
-      // 如果所有方法都失败，抛出原始错误
-      throw requireError;
-    }
-  } catch (e) {
-    vecReady = false;
-    console.warn('[vector] failed to load sqlite-vec extension (package not installed or binary missing)', e);
-  }
   return db;
 }
 
@@ -337,162 +251,6 @@ function ensureChatMessageSequenceIndex(): void {
   }
 }
 
-/**
- * 迁移旧的 vec_docs 表到新的按维度分表结构
- * 如果存在旧的 vec_docs 表，尝试从 documents 表重建索引到新的维度表
- */
-/**
- * 创建记忆系统 FTS5 虚拟表（contentless 模式）
- * FTS5 虚拟表不在 Drizzle schema 中定义（Drizzle 不支持 FTS5 声明），
- * 通过 raw SQL 在 initSchema 中创建。
- */
-function ensureMemoryFTS(): void {
-  if (!db) return;
-  try {
-    const existing = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name = ?`).get(MEMORY_FTS_TABLE_NAME) as { sql?: string | null } | undefined;
-    const needsCreate = !existing;
-    const needsMigration = isLegacyContentlessMemoryFtsSql(existing?.sql);
-
-    if (needsMigration) {
-      db.exec(`DROP TABLE IF EXISTS ${MEMORY_FTS_TABLE_NAME}`);
-    }
-
-    if (needsCreate || needsMigration) {
-      db.exec(MEMORY_FTS_CREATE_SQL);
-      const rebuilt = rebuildMemoryFtsFromDerivedSources();
-      const action = needsMigration ? 'migrated' : 'created';
-      console.log(`[memory] FTS5 virtual table ${action}${rebuilt > 0 ? ` and rebuilt ${rebuilt} notes` : ''}`);
-      return;
-    }
-
-    console.log('[memory] FTS5 virtual table ensured');
-  } catch (e) {
-    console.warn('[memory] Failed to create memory_notes_fts virtual table:', e);
-  }
-}
-
-function rebuildMemoryFtsFromDerivedSources(): number {
-  if (!db) return 0;
-
-  const notes = db.prepare('SELECT * FROM memory_notes WHERE deleted_at IS NULL').all() as Array<{
-    id: string;
-    summary?: string | null;
-    keywords?: string | null;
-    aliases?: string | null;
-    entities?: string | null;
-    topics?: string | null;
-    workspace_id?: string | null;
-    file_path?: string | null;
-  }>;
-
-  if (notes.length === 0) {
-    return 0;
-  }
-
-  const selectSections = db.prepare('SELECT * FROM memory_sections WHERE note_id = ? ORDER BY section_order');
-  const selectWorkspace = db.prepare('SELECT root_path FROM workspaces WHERE id = ? LIMIT 1') as { get: (workspaceId: string) => { root_path?: string | null } | undefined };
-  const clearStmt = db.prepare(`DELETE FROM ${MEMORY_FTS_TABLE_NAME}`);
-  const insertNoteStmt = db.prepare(
-    `INSERT INTO ${MEMORY_FTS_TABLE_NAME}(entry_id, entry_type, note_id, title, summary, keywords, aliases, entities, body)
-       VALUES (?, 'note', ?, ?, ?, ?, ?, ?, ?)`
-  );
-  const insertSectionStmt = db.prepare(
-    `INSERT INTO ${MEMORY_FTS_TABLE_NAME}(entry_id, entry_type, note_id, title, summary, keywords, aliases, entities, body)
-       VALUES (?, 'section', ?, ?, ?, ?, ?, ?, ?)`
-  );
-
-  db.transaction(() => {
-    clearStmt.run();
-
-    for (const note of notes) {
-      const topics = safeJsonArray(note.topics);
-      const keywords = safeJsonArray(note.keywords);
-      const aliases = safeJsonArray(note.aliases);
-      const entities = safeJsonArray(note.entities);
-      const sections = selectSections.all(note.id) as Array<{
-        id: string;
-        heading: string;
-        summary?: string | null;
-        keywords?: string | null;
-        line_start?: number;
-        line_end?: number;
-      }>;
-      const { noteBody, sectionBodies } = loadMemoryFtsBodies(note, sections, selectWorkspace);
-
-      insertNoteStmt.run(note.id, note.id, topics.join(' '), note.summary || '', keywords.join(' '), aliases.join(' '), entities.map((entity: any) => entity?.name || entity).join(' '), noteBody);
-
-      for (const section of sections) {
-        const sectionKeywords = safeJsonArray(section.keywords);
-        insertSectionStmt.run(section.id, note.id, section.heading, section.summary || '', sectionKeywords.join(' '), '', '', sectionBodies.get(section.id) || section.summary || '');
-      }
-    }
-  })();
-
-  return notes.length;
-}
-
-function loadMemoryFtsBodies(
-  note: {
-    summary?: string | null;
-    workspace_id?: string | null;
-    file_path?: string | null;
-  },
-  sections: Array<{
-    id: string;
-    summary?: string | null;
-    line_start?: number;
-    line_end?: number;
-  }>,
-  selectWorkspace: { get: (workspaceId: string) => { root_path?: string | null } | undefined }
-): { noteBody: string; sectionBodies: Map<string, string> } {
-  const sectionBodies = new Map<string, string>();
-
-  if (!note.workspace_id || !note.file_path) {
-    return { noteBody: note.summary || '', sectionBodies };
-  }
-
-  try {
-    const workspace = selectWorkspace.get(note.workspace_id);
-    if (!workspace?.root_path) {
-      return { noteBody: note.summary || '', sectionBodies };
-    }
-
-    const absolutePath = path.join(workspace.root_path, note.file_path);
-    const content = fs.readFileSync(absolutePath, 'utf-8');
-    const { bodyStartLine } = parseFrontmatter(content);
-    const lines = content.split('\n');
-    const noteBody =
-      lines
-        .slice(Math.max(0, bodyStartLine - 1))
-        .join('\n')
-        .trim() ||
-      note.summary ||
-      '';
-
-    for (const section of sections) {
-      if (!section.line_start || !section.line_end) continue;
-      const body = readLines(content, section.line_start, section.line_end).trim();
-      if (body) {
-        sectionBodies.set(section.id, body);
-      }
-    }
-
-    return { noteBody, sectionBodies };
-  } catch {
-    return { noteBody: note.summary || '', sectionBodies };
-  }
-}
-
-function safeJsonArray(value: string | null | undefined): any[] {
-  if (!value) return [];
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
 function migrateOldVecTable(): void {
   if (!db || !ensureVecLoaded()) return;
   try {
@@ -682,8 +440,6 @@ function initSchema(): void {
   setupTriggers();
   // 迁移旧的 vec_docs 表（如果存在）
   migrateOldVecTable();
-  // 创建记忆系统 FTS5 虚拟表
-  ensureMemoryFTS();
 }
 
 /**
@@ -979,8 +735,7 @@ export function rebuildVectorsAuto(ids: string[]): { restored: number } {
     for (const id of idsInner) {
       // 使用原始 SQL 查询文档的 embedDim 和 rowid
       const doc = database.prepare(`SELECT embed_dim as embedDim, rowid FROM documents WHERE id = ? AND embedding IS NOT NULL AND embed_dim IS NOT NULL`).get(id) as
-        | { embedDim: number; rowid: number }
-        | undefined;
+        { embedDim: number; rowid: number } | undefined;
       if (!doc || !doc.embedDim) continue;
       const dim = doc.embedDim;
       const tableName = getVecTableName(dim);

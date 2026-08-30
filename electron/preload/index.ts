@@ -2,48 +2,20 @@ import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
 // 使用当前的 AI IPC bridge
 import { aiBridge } from '../../packages/ai/ipc-renderer';
-import { musicReactivityIpcRenderer } from '../../packages/audio-reactivity/ipc-renderer';
 import { APP_EVENT_CHANNEL, AppEventPayload } from '../../packages/event/events';
-import { ocrIpcRenderer } from '../../packages/ocr/ipc-renderer';
 import { pluginResourceIpcRenderer } from '../../packages/plugins/ipc-renderer';
-import { recorderIpcRenderer } from '../../packages/recorder/ipc-renderer';
 import { sherpaIpcRenderer } from '../../packages/sherpa/ipc-renderer';
 import { spriteBridge } from '../../packages/sprite-core/preload';
 import { MESSAGE_IPC_CHANNELS, type MessageBridgePayload } from '../../packages/sprite-core/types';
-import { createTTSIpcRenderer } from '../../packages/tts/ipc-renderer';
-import { ytdlpIpcRenderer } from '../../packages/ytdlp/ipc-renderer';
-import { dailyCareBridge } from '../main/daily/ipc-renderer';
-import { createAnnotationIpcRenderer } from '../main/handlers/annotation/ipc-renderer';
-import { createClipIpcRenderer } from '../main/handlers/clip/ipc-renderer';
-import downloaderIpcRenderer from '../main/handlers/downloader/ipc-renderer';
-import { vectorIpcRenderer } from '../main/handlers/embedding/ipc-renderer';
-import { emojiPacksIpcRenderer } from '../main/handlers/emoji-packs/ipc-renderer';
-import { ffmpegIpcRenderer } from '../main/handlers/ffmpeg/ipc-renderer';
 import { fileIpcRenderer } from '../main/handlers/file/ipc-renderer';
-import { folderIpcRenderer } from '../main/handlers/folder/ipc-renderer';
-import { mediaIpcRenderer } from '../main/handlers/media/ipc-renderer';
-import { createMediaTrackIpcRenderer } from '../main/handlers/mediaTrack/ipc-renderer';
 import { preferencesIpcRenderer } from '../main/handlers/preferences/ipc-renderer';
 import { proxyIpcRenderer } from '../main/handlers/proxy/ipc-renderer';
-import { questIpcRenderer } from '../main/handlers/quest/ipc-renderer';
-import { resourceIpcRenderer } from '../main/handlers/resource/ipc-renderer';
-import { createRssApi } from '../main/handlers/rss/ipc-renderer';
-import { spleeterIpcRenderer } from '../main/handlers/spleeter/ipc-renderer';
 import { systemIpcRenderer } from '../main/handlers/system/ipc-renderer';
 import { themeIpcRenderer } from '../main/handlers/theme/ipc-renderer';
-import { trashIpcRenderer } from '../main/handlers/trash/ipc-renderer';
-import { workspaceIpcRenderer } from '../main/handlers/workspace/ipc-renderer';
-import { schedulerBridge } from '../main/scheduler/ipc-renderer';
-import { selectedTextLearningBridge } from '../main/selected-text/ipc-renderer';
 import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
-import { analyticsApi } from './apis/analytics';
-import { conversationRouteApi } from './apis/conversation-route';
-import { memoryApi } from './apis/memory';
 import { personaApi } from './apis/persona';
-import { projectTrackingApi } from './apis/project-tracking';
 import { shortcutsBridge } from './apis/shortcuts';
 import { statusBridge } from './apis/status';
-import { userProfileApi } from './apis/user-profile';
 import { windowBridge } from './apis/window';
 
 const handles: Record<string, (...arg: any) => any> = {};
@@ -102,57 +74,24 @@ contextBridge.exposeInMainWorld('YUA', {
   isProd: process.env.NODE_ENV !== 'development',
   isDev: process.env.NODE_ENV === 'development',
   window: windowBridge,
-  ffmpeg: ffmpegIpcRenderer,
-  vector: vectorIpcRenderer,
-  resource: resourceIpcRenderer,
-  trash: trashIpcRenderer,
-  workspace: workspaceIpcRenderer,
   file: fileIpcRenderer,
   system: systemIpcRenderer,
-  folder: folderIpcRenderer,
-  videoDownloader: downloaderIpcRenderer,
   sprite: spriteBridge,
   status: statusBridge,
   persona: personaApi,
   shortcuts: shortcutsBridge,
   ai: aiBridge,
-  recorder: recorderIpcRenderer,
-  dailyCare: dailyCareBridge,
-  scheduler: schedulerBridge,
-  selectedTextLearning: selectedTextLearningBridge,
-  emojiPacks: emojiPacksIpcRenderer,
-  ocr: ocrIpcRenderer,
   pluginResource: pluginResourceIpcRenderer,
   proxy: proxyIpcRenderer,
   theme: themeIpcRenderer,
   sherpa: sherpaIpcRenderer,
   preferences: preferencesIpcRenderer,
-  quest: questIpcRenderer,
-  musicReactivity: musicReactivityIpcRenderer,
-  ytdlp: ytdlpIpcRenderer,
-  spleeter: spleeterIpcRenderer,
-  rss: createRssApi(ipcRenderer),
-  tts: createTTSIpcRenderer(ipcRenderer),
-  clip: createClipIpcRenderer(ipcRenderer),
-  mediaTrack: createMediaTrackIpcRenderer(ipcRenderer),
-  annotation: createAnnotationIpcRenderer(ipcRenderer),
-  media: mediaIpcRenderer,
-  memory: memoryApi,
-  conversationRoute: conversationRouteApi,
-  projectTracking: projectTrackingApi,
-  analytics: analyticsApi,
-  userProfile: userProfileApi,
   messages: {
     on: (callback: (payload: MessageBridgePayload) => void) => {
       const subscription = (_event: any, payload: MessageBridgePayload): void => callback(payload);
       ipcRenderer.on(MESSAGE_IPC_CHANNELS.BRIDGE, subscription);
       return () => ipcRenderer.off(MESSAGE_IPC_CHANNELS.BRIDGE, subscription);
     }
-  },
-  effects: {
-    on: spriteBridge.onEffect,
-    show: spriteBridge.effectShow,
-    clear: spriteBridge.effectClear
   },
   events: {
     on: (callback: (payload: AppEventPayload) => void) => {
@@ -175,99 +114,3 @@ contextBridge.exposeInMainWorld('YUA', {
     }
   }
 });
-
-// --------- Preload scripts loading ---------
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function domReady(condition: DocumentReadyState[] = ['complete', 'interactive']): Promise<boolean> {
-  return new Promise((resolve) => {
-    if (condition.includes(document.readyState)) {
-      resolve(true);
-    } else {
-      document.addEventListener('readystatechange', () => {
-        if (condition.includes(document.readyState)) {
-          resolve(true);
-        }
-      });
-    }
-  });
-}
-
-const safeDOM = {
-  append(parent: HTMLElement, child: HTMLElement) {
-    if (!Array.from(parent.children).find((e) => e === child)) {
-      return parent.appendChild(child);
-    }
-  },
-  remove(parent: HTMLElement, child: HTMLElement) {
-    if (Array.from(parent.children).find((e) => e === child)) {
-      return parent.removeChild(child);
-    }
-  }
-};
-
-/**
- * https://tobiasahlin.com/spinkit
- * https://connoratherton.com/loaders
- * https://projects.lukehaas.me/css-loaders
- * https://matejkustec.github.io/SpinThatShit
- */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function makeLoadingHelpers(): { appendLoading: () => void; removeLoading: () => void } {
-  const className = `loaders-css__square-spin`;
-  const styleContent = `
-@keyframes square-spin {
-  25% { transform: perspective(100px) rotateX(180deg) rotateY(0); }
-  50% { transform: perspective(100px) rotateX(180deg) rotateY(180deg); }
-  75% { transform: perspective(100px) rotateX(0) rotateY(180deg); }
-  100% { transform: perspective(100px) rotateX(0) rotateY(0); }
-}
-.${className} > div {
-  animation-fill-mode: both;
-  width: 50px;
-  height: 50px;
-  background: #fff;
-  animation: square-spin 3s 0s cubic-bezier(0.09, 0.57, 0.49, 0.9) infinite;
-}
-.app-loading-wrap {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #282c34;
-  z-index: 9;
-}
-    `;
-  const oStyle = document.createElement('style');
-  const oDiv = document.createElement('div');
-
-  oStyle.id = 'app-loading-style';
-  oStyle.innerHTML = styleContent;
-  oDiv.className = 'app-loading-wrap';
-  oDiv.innerHTML = `<div class="${className}"><div></div></div>`;
-
-  return {
-    appendLoading() {
-      safeDOM.append(document.head, oStyle);
-      safeDOM.append(document.body, oDiv);
-    },
-    removeLoading() {
-      safeDOM.remove(document.head, oStyle);
-      safeDOM.remove(document.body, oDiv);
-    }
-  };
-}
-
-// ----------------------------------------------------------------------
-
-// const { appendLoading, removeLoading } = makeLoadingHelpers();
-// domReady().then(appendLoading);
-
-// window.onmessage = (ev) => {
-//   ev.data.payload === 'removeLoading' && removeLoading();
-// };
-
-// setTimeout(removeLoading, 4999);

@@ -34,7 +34,7 @@ export default function AssistantMiniInputWithService({
   onMenuOpenChange,
   onMenuOpenPrepare
 }: AssistantMiniInputWithServiceProps): JSX.Element {
-  const { providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, webSearchEnabled, emojiPacksEnabled, emojiPacksDisplayTarget, characterPersonaEnabled, setProviderId, setModelId } =
+  const { providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, webSearchEnabled, characterPersonaEnabled, setProviderId, setModelId } =
     useChatSelection();
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -73,8 +73,6 @@ export default function AssistantMiniInputWithService({
       agentId,
       webSearchEnabled,
       characterPersonaEnabled,
-      emojiPacksEnabled,
-      emojiPacksDisplayTarget,
       ...(isCoder && codingWorkspaceRoot
         ? {
           codingWorkspaceRoot,
@@ -90,8 +88,6 @@ export default function AssistantMiniInputWithService({
     codingWorkspaceRoot,
     disabled,
     draft,
-    emojiPacksDisplayTarget,
-    emojiPacksEnabled,
     isCoder,
     loading,
     modelId,

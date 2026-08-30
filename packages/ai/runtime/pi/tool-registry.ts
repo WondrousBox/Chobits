@@ -17,13 +17,6 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
     name: 'askUserTool',
     status: 'ready-for-pi-runtime'
   },
-  'emoji-send': {
-    category: 'ui-side-effect',
-    description: '根据关键词或情绪在已导入的表情包中随机挑选一张并发送到配置的展示位置，留空 query 时随机抽取',
-    compatName: 'emojiSendTool',
-    name: 'emojiSendTool',
-    status: 'ready-for-pi-runtime'
-  },
   'file-edit': {
     category: 'file',
     description: 'Edit a text file inside the selected coding workspace by replacing exact text.',
@@ -94,13 +87,6 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
     name: 'pushCardTool',
     status: 'ready-for-pi-runtime'
   },
-  'resource-create': {
-    category: 'content',
-    description: '从本地文件、URL 或文本创建资源库条目',
-    compatName: 'resourceCreateTool',
-    name: 'resourceCreateTool',
-    status: 'ready-for-pi-runtime'
-  },
   'query-resources': {
     category: 'query',
     description: '智能查询资源库中的内容',
@@ -127,97 +113,6 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
     description: '翻译字幕内容',
     compatName: 'translationTool',
     name: 'translationTool',
-    status: 'ready-for-pi-runtime'
-  },
-  'youtube-download': {
-    category: 'integration',
-    description: '下载 YouTube 视频',
-    compatName: 'youtubeDownloadTool',
-    name: 'youtubeDownloadTool',
-    status: 'ready-for-pi-runtime'
-  },
-  'youtube-subscribe': {
-    category: 'integration',
-    description: '订阅 YouTube 频道',
-    compatName: 'youtubeSubscribeTool',
-    name: 'youtubeSubscribeTool',
-    status: 'ready-for-pi-runtime'
-  },
-  'memory-search': {
-    category: 'query',
-    description: '搜索长期记忆，回忆过去对话中的要点、决策和偏好',
-    compatName: 'memorySearchTool',
-    name: 'memorySearchTool',
-    status: 'ready-for-pi-runtime'
-  },
-  'memory-get': {
-    category: 'content',
-    description: '读取记忆 note 的具体段落内容',
-    compatName: 'memoryGetTool',
-    name: 'memoryGetTool',
-    status: 'ready-for-pi-runtime'
-  },
-  'memory-topics': {
-    category: 'query',
-    description: '浏览记忆主题图谱，查看主题层级和关联',
-    compatName: 'memoryTopicsTool',
-    name: 'memoryTopicsTool',
-    status: 'ready-for-pi-runtime'
-  },
-  'memory-save': {
-    category: 'content',
-    description: '将重要信息保存到长期记忆（用户要求记住或对话中出现重要内容时自主保存）',
-    compatName: 'memorySaveTool',
-    name: 'memorySaveTool',
-    status: 'ready-for-pi-runtime'
-  },
-  'memory-diary': {
-    category: 'content',
-    description: '写入 AI 助手日志，记录对话中的观察、经验和处理策略。该日志不会进入长期记忆检索或自动召回',
-    compatName: 'memoryDiaryTool',
-    name: 'memoryDiaryTool',
-    status: 'ready-for-pi-runtime'
-  },
-  'memory-refresh-critical': {
-    category: 'content',
-    description: '立即刷新 MEMORY.md 关键记忆索引，使新保存的重要记忆在后续对话中自动注入',
-    compatName: 'memoryRefreshCriticalTool',
-    name: 'memoryRefreshCriticalTool',
-    status: 'ready-for-pi-runtime'
-  },
-  'conversation-route': {
-    category: 'query',
-    description: '查询当前会话线路记忆，包括当前目标、话题转折、待办、用户纠正、关键线索和事件时间线',
-    compatName: 'conversationRouteTool',
-    name: 'conversationRouteTool',
-    status: 'ready-for-pi-runtime'
-  },
-  'music-generate': {
-    category: 'integration',
-    description: 'Generate music through a provider with musicGeneration capability from prompt, lyrics, or reference audio.',
-    compatName: 'musicGenerateTool',
-    name: 'musicGenerateTool',
-    status: 'ready-for-pi-runtime'
-  },
-  'music-lyrics': {
-    category: 'integration',
-    description: 'Generate or rewrite song lyrics through a musicGeneration provider before music generation.',
-    compatName: 'musicLyricsTool',
-    name: 'musicLyricsTool',
-    status: 'ready-for-pi-runtime'
-  },
-  'persona-update': {
-    category: 'content',
-    description: '主动更新用户画像，将对话中发现的用户偏好、目标、活动等立即写入 USER_PERSONA.md',
-    compatName: 'personaUpdateTool',
-    name: 'personaUpdateTool',
-    status: 'ready-for-pi-runtime'
-  },
-  'project-tracking': {
-    category: 'content',
-    description: '查询和维护跨会话项目跟踪记忆，包括项目快照、时间线事件、里程碑和会话关联',
-    compatName: 'projectTrackingTool',
-    name: 'projectTrackingTool',
     status: 'ready-for-pi-runtime'
   },
   'toolbox-lookup': {
@@ -250,19 +145,6 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
   }
 };
 
-export const DEFAULT_EMOJI_PACK_TOOL_IDS = ['emoji-send'];
-
-/** 工具 → 功能旗标：旗标关闭时,对应工具从会话 allowlist 中剔除 */
-export const TOOL_FEATURE_GATE: Record<string, 'gamification' | 'music' | 'rss' | 'projectTracking' | 'emojiPacks' | 'workflow'> = {
-  'persona-update': 'gamification',
-  'music-generate': 'music',
-  'music-lyrics': 'music',
-  'youtube-subscribe': 'rss',
-  'project-tracking': 'projectTracking',
-  'emoji-send': 'emojiPacks',
-  'workflow-run': 'workflow'
-};
-
 const TOOL_NAME_TO_ID = buildToolNameToIdMap();
 export const DEFAULT_SKILL_TOOL_IDS = ['skill-search', 'skill-use'];
 
@@ -275,19 +157,6 @@ export const DEFAULT_SESSION_TOOL_IDS = [
   'translate-subtitles',
   'summarize-content',
   'push-card',
-  'resource-create',
-  'youtube-download',
-  'youtube-subscribe',
-  'memory-search',
-  'memory-get',
-  'memory-topics',
-  'memory-save',
-  'memory-refresh-critical',
-  'conversation-route',
-  'music-generate',
-  'music-lyrics',
-  'persona-update',
-  'project-tracking',
   'app-window',
   'toolbox-lookup',
   'workflow-run',

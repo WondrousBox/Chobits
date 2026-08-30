@@ -1,15 +1,13 @@
 import path from 'node:path';
 
 import { initIpcMain, windowManager } from '@aim-packages/window-manager';
-import { ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY, ACHIEVEMENT_UNLOCK_WINDOW_KEY } from '@packages/sprite-core/achievement-window';
 import type { IpcMainInvokeEvent } from 'electron';
 import { BrowserWindow, ipcMain } from 'electron';
 import { app, screen } from 'electron';
 
-import defaultWindowConfigs, { getEnabledWindowConfigs } from '../config/window';
+import defaultWindowConfigs from '../config/window';
 import { globalInputMonitor } from '../global-input-monitor';
 import { attachAppWindowClosedReporter, emitAppWindowOpened, rememberWindowPayload } from './window-events';
-import { emitWorkspaceWizardClosedIfStillEmpty } from './workspace/ipc-main';
 
 const SPRITE_BUBBLE_WINDOW_KEYS = ['spriteBubbleFixedTop'] as const;
 type SpriteBubbleWindowKey = (typeof SPRITE_BUBBLE_WINDOW_KEYS)[number];
@@ -17,9 +15,7 @@ const SPRITE_BUBBLE_MIN_WIDTH = 40;
 const SPRITE_BUBBLE_MIN_HEIGHT = 24;
 const SPRITE_BUBBLE_MAX_WIDTH = 504;
 const SPRITE_BUBBLE_MAX_HEIGHT = 392;
-const SPRITE_EFFECT_WINDOW_KEY = 'spriteEffect' as const;
 type AssistantInteractiveRegion = { x: number; y: number; width: number; height: number };
-const WORKSPACE_WIZARD_WINDOW_KEY = 'workspaceWizard';
 
 function clampWindowDimension(value: number | undefined, min: number, max: number): number {
   const numericValue = Number(value ?? 0);
@@ -44,21 +40,6 @@ function normalizeInteractiveRegion(region: Partial<AssistantInteractiveRegion> 
     width: Math.ceil(width),
     height: Math.ceil(height)
   };
-}
-
-function positionAchievementUnlockWindow(targetWindow: BrowserWindow, referenceWindow: BrowserWindow | null): void {
-  try {
-    const display = referenceWindow && !referenceWindow.isDestroyed() ? screen.getDisplayMatching(referenceWindow.getBounds()) : screen.getPrimaryDisplay();
-    const workArea = display.workArea;
-    targetWindow.setBounds({
-      x: Math.round(workArea.x + workArea.width - ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY.width - ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY.margin),
-      y: Math.round(workArea.y + ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY.margin),
-      width: ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY.width,
-      height: ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY.height
-    });
-  } catch (error) {
-    console.warn('[window] failed to position achievement unlock window:', error);
-  }
 }
 
 export function initWindowHandlers(win: BrowserWindow): void {
@@ -254,7 +235,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
     anchorWidth: assistantWidth, // 初始为 0，等待渲染进程设置
     loadURL: process.env.VITE_DEV_SERVER_URL,
     loadFile: path.join(process.env.APP_ROOT || app.getAppPath(), 'dist'),
-    windowConfigs: getEnabledWindowConfigs(),
+    windowConfigs: defaultWindowConfigs,
     onBeforeFollowerShow: () => {
       stopHoverMonitor();
     },
@@ -262,16 +243,6 @@ export function initWindowHandlers(win: BrowserWindow): void {
       syncHoverMonitor();
     }
   });
-
-  const attachWorkspaceWizardClosedReporter = (workspaceWindow: BrowserWindow | null): void => {
-    if (!workspaceWindow || workspaceWindow.isDestroyed()) return;
-    if ((workspaceWindow as any).__workspaceWizardClosedReporterAttached) return;
-    (workspaceWindow as any).__workspaceWizardClosedReporterAttached = true;
-    const sourceWindowId = workspaceWindow.webContents.id;
-    workspaceWindow.once('closed', () => {
-      void emitWorkspaceWizardClosedIfStillEmpty('window-closed', sourceWindowId);
-    });
-  };
 
   // ---------------- Assistant Size IPC --------------------
   // 渲染进程通过此接口设置窗口大小和 padding
@@ -370,11 +341,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
         if (opener && !opener.isDestroyed()) {
           windowManager.setOpener(windowKey, opener);
         }
-        if (String(windowKey) === ACHIEVEMENT_UNLOCK_WINDOW_KEY) {
-          opened = await windowManager.createOrShow(windowKey, payload, {
-            beforeShow: (targetWindow) => positionAchievementUnlockWindow(targetWindow, opener)
-          });
-        } else if (options?.sameDisplayAsSender && opener && !opener.isDestroyed()) {
+        if (options?.sameDisplayAsSender && opener && !opener.isDestroyed()) {
           const display = screen.getDisplayMatching(opener.getBounds());
           opened = await windowManager.createOrShowOnDisplay(windowKey, display, payload);
         }
@@ -384,9 +351,6 @@ export function initWindowHandlers(win: BrowserWindow): void {
 
       opened = opened ?? (await windowManager.createOrShow(windowKey, payload));
       attachAppWindowClosedReporter(opened, String(windowKey), 'renderer-window-open');
-      if (windowKey === WORKSPACE_WIZARD_WINDOW_KEY) {
-        attachWorkspaceWizardClosedReporter(opened);
-      }
       emitAppWindowOpened(String(windowKey), payload, 'renderer-window-open');
       return true;
     } catch {
@@ -463,57 +427,11 @@ export function initWindowHandlers(win: BrowserWindow): void {
     }
   });
 
-  // 调整特效独立窗口的尺寸，并保持其居中跟随主精灵窗口。
-  ipcMain.removeHandler('sprite:effect:resize');
-  ipcMain.handle('sprite:effect:resize', async (_event, payload: { width: number; height: number }) => {
-    try {
-      const effectWindow = await ensureSpriteEffectWindow();
-      if (!effectWindow || effectWindow.isDestroyed()) {
-        return { success: false, error: 'spriteEffect window not available' };
-      }
-      const width = Math.max(120, Math.round(payload?.width ?? 0));
-      const height = Math.max(80, Math.round(payload?.height ?? 0));
-      effectWindow.setSize(width, height, false);
-      updateSpriteEffectPosition();
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: String(error) };
-    }
-  });
-
-  ipcMain.removeHandler('sprite:effect:setVisible');
-  ipcMain.handle('sprite:effect:setVisible', async (_event, payload: { visible: boolean }) => {
-    try {
-      const effectWindow = payload?.visible ? await ensureSpriteEffectWindow() : resolveSpriteEffectWindow();
-      if (!effectWindow) {
-        if (!payload?.visible) {
-          return { success: true };
-        }
-        return { success: false, error: 'spriteEffect window not available' };
-      }
-      configureSpriteEffectWindow(effectWindow);
-      if (payload?.visible) {
-        configureSpriteEffectWindow(await windowManager.show(SPRITE_EFFECT_WINDOW_KEY));
-      } else {
-        configureSpriteEffectWindow(await windowManager.hide(SPRITE_EFFECT_WINDOW_KEY));
-      }
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: String(error) };
-    }
-  });
-
   // Pre-create menu window in hidden state for faster first-open
   // This reduces the loading delay when user right-clicks for the first time
   windowManager.create('menu');
   // 预创建固定在主窗口上方的气泡窗口；需要时由渲染进程调 sprite:bubble:setVisible 显示。
   windowManager.create('spriteBubbleFixedTop');
-  void windowManager
-    .create(SPRITE_EFFECT_WINDOW_KEY)
-    .then((effectWindow) => {
-      configureSpriteEffectWindow(effectWindow);
-    })
-    .catch(() => undefined);
 
   function resolveSpriteBubbleEventTarget(event: IpcMainInvokeEvent): { key: SpriteBubbleWindowKey; window: BrowserWindow } | null {
     const senderWindow = BrowserWindow.fromWebContents(event.sender);
@@ -537,36 +455,6 @@ export function initWindowHandlers(win: BrowserWindow): void {
   }
 
   function updateSpriteBubblePosition(): void {
-    try {
-      windowManager.updateFollowerPositionsManually();
-    } catch {
-      /* ignore */
-    }
-  }
-
-  function resolveSpriteEffectWindow(): BrowserWindow | null {
-    const effectWindow = windowManager.get(SPRITE_EFFECT_WINDOW_KEY);
-    return effectWindow && !effectWindow.isDestroyed() ? effectWindow : null;
-  }
-
-  async function ensureSpriteEffectWindow(): Promise<BrowserWindow | null> {
-    const existing = resolveSpriteEffectWindow();
-    if (existing) return existing;
-    const created = await windowManager.create(SPRITE_EFFECT_WINDOW_KEY);
-    configureSpriteEffectWindow(created);
-    return created;
-  }
-
-  function configureSpriteEffectWindow(effectWindow: BrowserWindow | null): void {
-    if (!effectWindow || effectWindow.isDestroyed()) return;
-    try {
-      effectWindow.setIgnoreMouseEvents(true, { forward: true });
-    } catch {
-      /* ignore */
-    }
-  }
-
-  function updateSpriteEffectPosition(): void {
     try {
       windowManager.updateFollowerPositionsManually();
     } catch {

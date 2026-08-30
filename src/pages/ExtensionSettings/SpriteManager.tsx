@@ -1,7 +1,14 @@
 import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
-import type { SpriteMovementConfig, SpriteMovementDirection, SpriteMovementMode, SpriteMovementTrigger, SpriteWindowAnimationDirection, SpriteWindowAnimationPresetId } from '@packages/sprite-core/types';
+import type {
+  SpriteMovementConfig,
+  SpriteMovementDirection,
+  SpriteMovementMode,
+  SpriteMovementTrigger,
+  SpriteWindowAnimationDirection,
+  SpriteWindowAnimationPresetId
+} from '@packages/sprite-core/types';
 import React, { useCallback, useEffect, useState } from 'react';
-import { TbPencil, TbPlayerPlay, TbTools, TbTrash, TbX } from 'react-icons/tb';
+import { TbPencil, TbPlayerPlay, TbTrash, TbX } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -23,10 +30,9 @@ import { makeResSrc } from '@/lib/resource-protocol';
 import { createSpriteAnimationMetaDraft, formatSpriteAnimationConditionInput, formatSpriteTriggerAliasesInput, parseSpriteAnimationConditionInput } from './components/sprite-animation-meta-utils';
 import SpriteAnimationConditionBuilder from './components/SpriteAnimationConditionBuilder';
 import SpriteAnimationMetaPopover from './components/SpriteAnimationMetaPopover';
-import SpriteWindowAnimationPositionEditor from './components/SpriteWindowAnimationPositionEditor';
 import SpriteTriggerPicker from './components/SpriteTriggerPicker';
+import SpriteWindowAnimationPositionEditor from './components/SpriteWindowAnimationPositionEditor';
 import SpritePackManager from './SpritePackManager';
-import SpriteVideoEditor, { type SpriteVideoConfig } from './SpriteVideoEditor';
 import { isWindowAnimationPresetId, WINDOW_ANIMATION_PRESET_DIRECTIONS, WINDOW_ANIMATION_PRESETS } from './window-animation-presets';
 
 type SpriteLoopMode = 'none' | 'finite' | 'infinite';
@@ -44,10 +50,6 @@ function baseName(p: string): string {
   const parts = withoutQuery.replace(/\\/g, '/').split('/');
   const last = parts[parts.length - 1] || '';
   return last;
-}
-
-function getPlaybackSize(outputSize: number, playbackScale?: number): number {
-  return Math.max(1, Math.round(outputSize / Math.max(1, playbackScale || 1)));
 }
 
 function getPositiveNumber(value: string, fallback: number): number {
@@ -160,13 +162,23 @@ function SpriteAnimationConfigEditor({
           <div className="space-y-2">
             <div className="rounded-md border p-2">
               {animation.source?.localPath || animation.source?.src ? (
-                <video className="aspect-[3/4] w-full rounded bg-transparent object-contain" src={animation.source.localPath ? makeResSrc(animation.source.localPath) : animation.source.src} controls muted playsInline />
+                <video
+                  className="aspect-[3/4] w-full rounded bg-transparent object-contain"
+                  src={animation.source.localPath ? makeResSrc(animation.source.localPath) : animation.source.src}
+                  controls
+                  muted
+                  playsInline
+                />
               ) : (
                 <div className="aspect-[3/4] w-full rounded bg-muted" />
               )}
             </div>
             <div className="text-xs text-muted-foreground break-all">ID: {animation.meta.id}</div>
-            {sourceLabel && <div className="text-xs text-muted-foreground truncate" title={sourceLabel}>{sourceLabel}</div>}
+            {sourceLabel && (
+              <div className="text-xs text-muted-foreground truncate" title={sourceLabel}>
+                {sourceLabel}
+              </div>
+            )}
           </div>
 
           <div className="space-y-4">
@@ -310,7 +322,10 @@ function SpriteAnimationConfigEditor({
                           />
                         </div>
                       </div>
-                      <SpriteWindowAnimationPositionEditor value={movement.windowAnimationPlayPosition} onChange={(value) => setMovement((prev) => ({ ...prev, windowAnimationPlayPosition: value }))} />
+                      <SpriteWindowAnimationPositionEditor
+                        value={movement.windowAnimationPlayPosition}
+                        onChange={(value) => setMovement((prev) => ({ ...prev, windowAnimationPlayPosition: value }))}
+                      />
                     </div>
                   ) : (
                     <>
@@ -465,11 +480,8 @@ export function SpriteAnimationManager({
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({}); // 分类折叠状态
   const [globalCat, setGlobalCat] = useState<SpriteAnimationTrigger | ''>(''); // 全局导入选择的分类
   // 工具弹窗状态
-  const [toolOpen, setToolOpen] = useState(false);
   // 精灵导入状态
   const [editingSprite, setEditingSprite] = useState<SpriteAnimation | null>(null);
-  const [spriteConfig, setSpriteConfig] = useState<Partial<SpriteVideoConfig>>({});
-  const [spriteProcessing, setSpriteProcessing] = useState(false);
   const [defaultAnimationPlaylistMode, setDefaultAnimationPlaylistMode] = useState<SpriteAnimationPlaylistMode>('list-loop');
   const [animationPlaylistModes, setAnimationPlaylistModes] = useState<SpriteAnimationPlaylistModeMap>({});
   // 默认的内置分类：使用全部预设事件类型（不包含 custom）
@@ -484,7 +496,7 @@ export function SpriteAnimationManager({
     window.YUA.sprite
       .getAnimationPlaylistMode()
       .then(setDefaultAnimationPlaylistMode)
-      .catch(() => { });
+      .catch(() => {});
 
     window.YUA.sprite
       .getInitialState()
@@ -495,7 +507,7 @@ export function SpriteAnimationManager({
         }
         setAnimationPlaylistModes(normalizeSpriteAnimationPlaylistModeMap(config?.animationPlaylistModes));
       })
-      .catch(() => { });
+      .catch(() => {});
 
     return window.YUA.sprite.onConfig((config) => {
       if (config.animationPlaylistMode) {
@@ -693,20 +705,6 @@ export function SpriteAnimationManager({
           <Button size="sm" variant="outline" onClick={refresh} disabled={loading}>
             刷新
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              if (!ensureCanAuthorAnimations()) return;
-              setSpriteConfig({});
-              setToolOpen(true);
-            }}
-            disabled={!canAuthorAnimations}
-            title={authoringLockedTitle}
-          >
-            <TbTools />
-            工具
-          </Button>
         </div>
       </div>
       {/* 精灵导入工具弹窗 */}
@@ -719,101 +717,6 @@ export function SpriteAnimationManager({
           onSaved={refresh}
         />
       )}
-      {toolOpen && (
-        <div className="h-[100vh] w-[100vw] max-w-[unset] overflow-none fixed top-0 left-0 z-[40] bg-background">
-          <div className="p-2 box-border flex justify-between items-center">
-            精灵视频导入
-            <Button
-              size="icon"
-              variant={'ghost'}
-              onClick={() => {
-                setToolOpen(false);
-                setSpriteConfig({});
-              }}
-            >
-              <TbX />
-            </Button>
-          </div>
-
-          <div className="overflow-hidden h-full w-full p-2 box-border" style={{ height: 'calc(100% - 52px)' }}>
-            <SpriteVideoEditor
-              initialConfig={spriteConfig}
-              onConfigChange={setSpriteConfig}
-              isProcessing={spriteProcessing}
-              assetAuthoringCapability={assetAuthoringCapability}
-              onCapabilityBlocked={onCapabilityBlocked}
-              onImportComplete={async () => {
-                await refresh();
-                setToolOpen(false);
-                setSpriteConfig({});
-              }}
-              onProcess={async (config) => {
-                // FFmpeg 路径（无色度键时）
-                if (!config.inputPath) return;
-                if (!ensureCanAuthorAnimations()) return;
-
-                const outputPath = config.inputPath.replace(/\.[^.\\/]+$/i, '') + '.sprite.webm';
-                setSpriteProcessing(true);
-                try {
-                  await window.YUA.ffmpeg.convertToSpriteAnimation({
-                    inputPath: config.inputPath,
-                    outputPath,
-                    segments: config.segments,
-                    speeds: config.speeds,
-                    output: config.output,
-                    chromaKey: { enabled: false, color: '#00ff00', similarity: 0, blend: 0 },
-                    meta: {
-                      title: config.title,
-                      primaryTrigger: config.primaryTrigger,
-                      triggerAliases: config.triggerAliases,
-                      priority: config.priority,
-                      condition: config.condition
-                    }
-                  });
-                  // 注册精灵（根据倍速调整 loop 时间）
-                  const id = 'sprite-' + Math.random().toString(36).slice(2, 10);
-                  const hasLoop = config.segments.loopEnd > config.segments.loopStart;
-                  const sp = config.speeds;
-                  const introDur = hasLoop ? (config.segments.loopStart - config.segments.start) / sp.intro : (config.segments.end - config.segments.start) / sp.intro;
-                  const loopDur = hasLoop ? (config.segments.loopEnd - config.segments.loopStart) / sp.loop : 0;
-                  const outroDur = hasLoop ? (config.segments.end - config.segments.loopEnd) / sp.outro : 0;
-                  const spriteWidth = getPlaybackSize(config.output.width, config.playbackScale);
-                  const spriteHeight = getPlaybackSize(config.output.height, config.playbackScale);
-                  await window.YUA.sprite.register({
-                    filePath: outputPath,
-                    width: spriteWidth,
-                    height: spriteHeight,
-                    padding: config.padding,
-                    loopStartMs: hasLoop ? introDur : undefined,
-                    loopEndMs: hasLoop ? introDur + loopDur : undefined,
-                    durationMs: introDur + loopDur + outroDur,
-                    autoIdle: config.autoIdle,
-                    loop: config.loop,
-                    loopCount: config.loopCount,
-                    movement: config.movement.enabled ? config.movement : undefined,
-                    meta: {
-                      id,
-                      title: config.title || '自定义动画',
-                      primaryTrigger: config.primaryTrigger || undefined,
-                      triggerAliases: config.triggerAliases,
-                      priority: config.priority,
-                      condition: config.condition
-                    }
-                  });
-                  await refresh();
-                  setToolOpen(false);
-                  setSpriteConfig({});
-                } catch (e: any) {
-                  console.error('精灵导入失败:', e);
-                } finally {
-                  setSpriteProcessing(false);
-                }
-              }}
-            />
-          </div>
-        </div>
-      )}
-
       {/* 防止窗口增高时 Grid 行被平均拉伸：content-start(items-start) 让多余空间留在容器底部 */}
       <div className="pr-1">
         {hasAny ? (

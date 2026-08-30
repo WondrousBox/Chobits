@@ -6,18 +6,11 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron';
 
 import { eventManager } from '../../packages/event';
 import { AppEvent } from '../../packages/event/events';
-import { initWorkflowSystem } from '../../packages/workflow/index';
-import { WorkflowStore } from '../../packages/workflow/store';
-import { ytdlpService } from '../../packages/ytdlp';
-import { LinkedFolderMountsRepo, WorkspacesRepo } from './db/repositories';
+import { WorkspacesRepo } from './db/repositories';
 import { initHandlers } from './handlers';
-import { cookieManager } from './handlers/downloader/cookie-manager';
-import { restoreLinkedMountWatchers } from './handlers/folder/linked-sync';
-import { initScheduler } from './handlers/scheduler';
 import { logger } from './logger';
 import { addAllowedResourceRoot, addWorkspaceResourceRoot, setupResourceProtocol } from './resource-protocol';
 import { registerGlobalShortcuts, unregisterGlobalShortcuts } from './shortcuts';
-import { update } from './update';
 import { Env } from './utils';
 import { getResourcePath } from './utils/resources-path';
 
@@ -180,9 +173,6 @@ async function createWindow(): Promise<void> {
       if (win && !win.isDestroyed()) win.show();
     });
   });
-
-  // Auto update
-  update(win);
 }
 
 app.whenReady().then(async () => {
@@ -199,16 +189,6 @@ app.whenReady().then(async () => {
     console.warn('[protocol res] setup failed', e);
   }
 
-  // Initialize yt-dlp service with cookie manager
-  updateSplashLog('initializing yt-dlp service');
-  try {
-    ytdlpService.initialize({ cookieManager });
-    updateSplashLog('yt-dlp service ready');
-    console.log('[ytdlp] Service initialized');
-  } catch (e) {
-    console.warn('[ytdlp] Service initialization failed', e);
-  }
-
   // Add workspace root if exists
   updateSplashLog('loading default workspace');
   try {
@@ -218,18 +198,6 @@ app.whenReady().then(async () => {
       addAllowedResourceRoot(resRoot);
       addWorkspaceResourceRoot(ws.id, resRoot);
       updateSplashLog(`workspace root: ${ws.rootPath}`);
-    }
-    const activeMounts = await LinkedFolderMountsRepo.list({ status: 'active' } as any, 10000, 0);
-    for (const mount of activeMounts) {
-      if (mount.absolutePath) {
-        addAllowedResourceRoot(mount.absolutePath);
-      }
-    }
-    if (activeMounts.length > 0) {
-      updateSplashLog(`linked roots restored: ${activeMounts.length}`);
-    }
-    if (activeMounts.length > 0) {
-      void restoreLinkedMountWatchers({ syncOnStart: true });
     }
   } catch (e) {
     console.warn('[protocol res] add workspace root failed', e);
@@ -261,24 +229,6 @@ app.whenReady().then(async () => {
   updateSplashLog('creating main BrowserWindow');
   await createWindow();
   updateSplashLog('main window created, loading IPC handlers');
-
-  // Initialize workflow system (nodes, plugins, IPC endpoints)
-  updateSplashLog('registering workflow nodes & plugins');
-  try {
-    initWorkflowSystem({ getWorkflowDefinitionsPath: () => getResourcePath('workflows') || '' });
-    updateSplashLog('workflow engine ready');
-  } catch (e) {
-    console.warn('[workflow] init failed', e);
-  }
-
-  // Initialize scheduler
-  updateSplashLog('starting task scheduler');
-  try {
-    await initScheduler();
-    updateSplashLog('scheduler ready');
-  } catch (e) {
-    console.warn('[scheduler] init failed', e);
-  }
 
   // Register all global shortcuts (assistant toggle, devtools, etc.)
   updateSplashLog('registering global shortcuts');
@@ -350,12 +300,6 @@ app.on('will-quit', async () => {
   eventManager.emit(AppEvent.SPRITE_SYSTEM_QUIT);
   // Ensure shortcuts are fully unregistered on app quit
   unregisterGlobalShortcuts();
-  // Flush workflow store
-  try {
-    await WorkflowStore.flushStore();
-  } catch (e) {
-    console.warn('[workflow] flush store failed', e);
-  }
 });
 
 // New window example arg: new windows url

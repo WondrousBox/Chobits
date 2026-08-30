@@ -118,8 +118,6 @@ describe('SkillRegistry', () => {
       userInvocable: true
     })
 
-    const personaUpdate = entries.find((entry) => entry.record.name === '画像即时更新')
-    expect(personaUpdate?.record.userInvocable).toBe(false)
   })
 })
 
