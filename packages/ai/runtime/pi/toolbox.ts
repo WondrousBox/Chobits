@@ -177,8 +177,6 @@ const SYNONYM_TABLE: Record<string, string[]> = {
   订阅: ['subscribe', 'subscription', '关注'],
   subscribe: ['订阅'],
   subscription: ['订阅'],
-  工作流: ['workflow'],
-  workflow: ['工作流'],
   转写: ['transcribe', 'transcription'],
   transcribe: ['转写'],
   transcription: ['转写'],

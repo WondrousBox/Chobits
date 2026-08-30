@@ -1,5 +1,7 @@
 # Sprite Purpose/Routine 完整实施方案
 
+> **mini 分支注记**：文中提到的长期记忆系统（Memory Note 复盘消费面）已移除；purpose/routine 运行时与复盘摘要面本身仍然保留。
+
 > 状态：Phase 1-8 基础闭环已完成；受限 AI planner 默认关闭；剩余为真实 provider 手动冒烟、体验打磨与产品化 backlog。
 > 日期：2026-05-03
 > 前置文档：[sprite-purpose-routine-orchestration-plan.md](./sprite-purpose-routine-orchestration-plan.md)

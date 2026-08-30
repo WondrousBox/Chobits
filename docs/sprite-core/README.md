@@ -1,4 +1,6 @@
-﻿# sprite-core — 桌面精灵人格化核心引擎
+# sprite-core — 桌面精灵人格化核心引擎
+
+> **mini 分支注记**：本文中涉及的 Memory（记忆系统）、RSS、workflow、资源库等外部系统已在 mini 分支移除；sprite-core 本体（purpose/routine、capability、character pack 等）仍然有效。相关段落仅作历史记录保留。
 
 > **当前状态** (2026-04-24)：主进程统一运行时已全面落地，本轮收尾冻结；后续暂不继续修改 sprite runtime 主线。
 >

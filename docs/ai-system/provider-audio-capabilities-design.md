@@ -1,5 +1,7 @@
 # AI Provider 音频能力统一设计
 
+> **mini 分支注记**：文中“资源库保存”与 Analytics（使用量统计）相关章节对应的系统已在 mini 分支移除；Provider capability 声明与 artifact 落盘部分仍然有效。
+
 更新时间：2026-06-23
 
 ## 1. 背景
