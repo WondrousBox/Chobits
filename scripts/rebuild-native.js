@@ -23,10 +23,6 @@ try {
   console.log('🔨 重建 better-sqlite3...');
   execSync('npx @electron/rebuild -f -w better-sqlite3', { stdio: 'inherit' });
 
-  // 重建 sqlite-vec
-  console.log('🔨 重建 sqlite-vec...');
-  execSync('npx @electron/rebuild -f -w sqlite-vec', { stdio: 'inherit' });
-
   // 重建 sharp（可选）
   try {
     console.log('🔨 重建 sharp...');
