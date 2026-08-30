@@ -238,7 +238,6 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
           }, 0);
         }
       }}
-      showSaveButton={false}
       footerLeft={
         <div className="flex items-center gap-1 shrink-0 no-drag">
           <ChatAgentSelect agents={agents} value={agentId} onValueChange={setAgentId} onOpenChange={onMenuOpenChange} onOpenPrepare={onMenuOpenPrepare} {...floatingMenuProps} />

@@ -1,24 +1,17 @@
 import { TbMoodKid, TbSparkles } from 'react-icons/tb';
-import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import { Toaster } from '@/components/ui/sonner';
-import { DownloadFloating } from '@/features/download';
-import { MusicSpectrumPage } from '@/features/music-spectrum';
-import { AchievementUnlockPage, AIAssistant, LevelUpPage, StatusPage } from '@/features/sprite-assistant';
+import { AIAssistant, StatusPage } from '@/features/sprite-assistant';
 import { SpriteBubblePage } from '@/features/sprite-bubble';
 import { SpriteEffectPage } from '@/features/sprite-effect';
 import { useAIProviderConfig } from '@/hooks/useAIProviderConfig';
 import { useFeatureFlags } from '@/hooks/useFeatureFlags';
-import { useWorkspaceCheck } from '@/hooks/useWorkspaceCheck';
 import { ChatSelectionProvider } from '@/pages/ChatPage/context/ChatSelectionContext';
 import ExtensionSettings from '@/pages/ExtensionSettings/ExtensionSettings';
-import SkillTreeSettings from '@/pages/ExtensionSettings/SkillTreeSettings';
 import SpritePackEditorWindow from '@/pages/ExtensionSettings/SpritePackEditorWindow';
 import SpriteSettings from '@/pages/ExtensionSettings/SpriteSettings';
 import WindowAnimationEditor from '@/pages/ExtensionSettings/WindowAnimationEditor';
-import FileActionsMenu from '@/pages/FileActionsMenu/FileActionsMenu';
-import WebRecorderWindow from '@/pages/RecordingPage/WebRecorderWindow';
-import ResourcePreviewWindow from '@/pages/ResourcePage/ResourcePreviewWindow';
 import { ThemeProvider } from '@/pages/SettingsPage/providers/ThemeProvider';
 
 import { TooltipProvider } from './components/ui/tooltip';
@@ -26,30 +19,12 @@ import AiProviderConfigWindow from './pages/AiProviderConfigWindow/AiProviderCon
 import AssistantMenuPage from './pages/AssistantMenuPage/AssistantMenuPage';
 import ChatPage from './pages/ChatPage/ChatPage';
 import AssistantPage from './pages/ChatPage/StartPage';
-import InventoryPage from './pages/InventoryPage/InventoryPage';
-import MemoryGraphPage from './pages/MemoryGraphPage/MemoryGraphPage';
-import ProjectTrackingPage from './pages/ProjectTrackingPage';
-import QuestListPage from './pages/QuestListPage/QuestListPage';
 import ASRConfigPage from './pages/RecordingPage/ASRConfigPage';
 import RecordingPage from './pages/RecordingPage/RecordingPage';
-import ResourcePage from './pages/ResourcePage/ResourcePage';
-import WorkflowPage from './pages/ResourcePage/WorkflowPage';
-import Screenshot from './pages/Screenshot';
-import SelectedTextExplainPage from './pages/SelectedTextExplainPage/SelectedTextExplainPage';
-import WorkspacePage from './pages/SettingsPage/components/Workspace';
-import PluginDownloadPage from './pages/SettingsPage/PluginDownloadPage';
-import PluginPage from './pages/SettingsPage/PluginPage';
 import SettingsPage from './pages/SettingsPage/SettingsPage';
-import TaggingPage from './pages/TaggingPage/TaggingPage';
 import TTSConfigPage from './pages/TTSPage/TTSConfigPage';
-import TTSPage from './pages/TTSPage/TTSPage';
-import WorkflowBuilderPage from './pages/WorkflowBuilderPage/WorkflowBuilderPage';
-import WorkflowHistoryPage from './pages/WorkflowBuilderPage/WorkflowHistoryPage';
-import WorkflowStartInputSheet from './pages/WorkflowBuilderPage/WorkflowStartInputSheet';
-import WorkspaceWizard from './pages/WorkspacePage/WorkspaceWizard';
 
 function StandardAppRoutes(): JSX.Element {
-  useWorkspaceCheck();
   useAIProviderConfig();
   const { flags, loading } = useFeatureFlags();
 
@@ -67,9 +42,7 @@ function StandardAppRoutes(): JSX.Element {
           {flags.localAi && <Route path="/asr-config" element={<ASRConfigPage />} />}
           {flags.localAi && <Route path="/asr" element={<RecordingPage />} />}
           <Route path="/tts-config" element={<TTSConfigPage />} />
-          <Route path="/tts" element={<TTSPage />} />
           <Route path="/menu" element={<AssistantMenuPage />} />
-          <Route path="/file-actions" element={<FileActionsMenu />} />
           <Route
             path="/settings"
             element={
@@ -79,7 +52,7 @@ function StandardAppRoutes(): JSX.Element {
                     id: 'extensions',
                     label: '机能扩展',
                     icon: TbSparkles,
-                    description: '自由移动、日常关怀、角色包和精灵能力',
+                    description: '自由移动、角色包和精灵能力',
                     component: <ExtensionSettings />
                   },
                   {
@@ -93,64 +66,21 @@ function StandardAppRoutes(): JSX.Element {
               />
             }
           />
-          <Route path="/workspace-wizard" element={<WorkspaceWizard />} />
-          <Route path="/resources/*" element={<ResourcePage />} />
-          <Route path="/inventory" element={<InventoryPage />} />
-          <Route path="/workspace" element={<WorkspacePage />} />
           <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/assistant-mini" element={<AssistantPage mode="mini" />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/chat-overlay" element={<ChatPage presentation="overlay" payloadWindowKey="chatOverlay" />} />
-          <Route path="/selected-text-explain" element={<SelectedTextExplainPage />} />
-          <Route path="/plugin-manager" element={<PluginPage />} />
-          <Route path="/plugin-download" element={<PluginDownloadPage />} />
-          {flags.workflow && <Route path="/workflow" element={<WorkflowBuilderPage />} />}
-          {flags.workflow && <Route path="/workflow/:id" element={<WorkflowBuilderPage />} />}
-          {flags.workflow && <Route path="/workflow-page" element={<WorkflowPage />} />}
-          <Route path="/screenshot" element={<Screenshot />} />
-          {flags.workflow && <Route path="/workflow-history" element={<WorkflowHistoryPage />} />}
           <Route path="/ai-provider-config" element={<AiProviderConfigWindow />} />
-          <Route path="/tagger" element={<TaggingPage />} />
-          <Route path="/resource-preview" element={<ResourcePreviewWindow />} />
-          <Route path="/download" element={<DownloadFloating />} />
-          {flags.gamification && <Route path="/skill-tree" element={<SkillTreeSettings />} />}
-          {flags.gamification && <Route path="/level-up" element={<LevelUpPage />} />}
-          {flags.gamification && <Route path="/achievement-unlock" element={<AchievementUnlockPage />} />}
-          {flags.gamification && <Route path="/quest-list" element={<QuestListPage />} />}
-          {flags.recording && <Route path="/web-recorder" element={<WebRecorderWindow />} />}
-          <Route path="/memory-graph" element={<MemoryGraphPage />} />
-          {flags.projectTracking && <Route path="/project-tracking" element={<ProjectTrackingPage />} />}
           <Route path="/character-pack-editor" element={<SpritePackEditorWindow />} />
           <Route path="/window-animation-editor" element={<WindowAnimationEditor />} />
           <Route path="/sprite-bubble" element={<SpriteBubblePage />} />
           <Route path="/sprite-effect" element={<SpriteEffectPage />} />
-          {flags.music && <Route path="/music-spectrum" element={<MusicSpectrumPage />} />}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <Toaster />
-        {flags.workflow && <WorkflowStartInputSheet />}
       </div>
     </ChatSelectionProvider>
   );
-}
-
-function AppRoutes(): JSX.Element {
-  const location = useLocation();
-  const { flags } = useFeatureFlags();
-  const isAchievementUnlockWindow = flags.gamification && location.pathname === '/achievement-unlock';
-
-  if (isAchievementUnlockWindow) {
-    return (
-      <div className="w-full h-full overflow-hidden bg-transparent">
-        <Routes>
-          <Route path="/achievement-unlock" element={<AchievementUnlockPage />} />
-          <Route path="*" element={<Navigate to="/achievement-unlock" replace />} />
-        </Routes>
-      </div>
-    );
-  }
-
-  return <StandardAppRoutes />;
 }
 
 function App(): JSX.Element {
@@ -158,7 +88,7 @@ function App(): JSX.Element {
     <ThemeProvider>
       <HashRouter>
         <TooltipProvider delayDuration={0}>
-          <AppRoutes />
+          <StandardAppRoutes />
         </TooltipProvider>
       </HashRouter>
     </ThemeProvider>

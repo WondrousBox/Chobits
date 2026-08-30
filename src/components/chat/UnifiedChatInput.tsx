@@ -1,7 +1,7 @@
 import { useSize } from 'ahooks';
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { TbBookmark, TbLoader2, TbSend, TbSquare } from 'react-icons/tb';
+import { TbLoader2, TbSend, TbSquare } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,8 +15,6 @@ export interface UnifiedChatInputProps {
 
   // 发送消息回调 (用于聊天)
   onSend?: (content: string) => void | Promise<void>;
-  // 保存内容回调 (用于保存为资源)
-  onSave?: (content: string) => void | Promise<void>;
   // 停止生成回调
   onStop?: () => void;
 
@@ -33,7 +31,7 @@ export interface UnifiedChatInputProps {
 
   // 底部左侧工具栏内容
   footerLeft?: React.ReactNode;
-  // 底部右侧额外内容 (在发送/保存按钮之前)
+  // 底部右侧额外内容 (在发送按钮之前)
   footerRightExtra?: React.ReactNode;
 
   // 发送后自动清空 (默认 true)
@@ -48,8 +46,6 @@ export interface UnifiedChatInputProps {
 
   // 是否显示发送按钮 (默认 true)
   showSendButton?: boolean;
-  // 是否显示保存按钮 (默认 true)
-  showSaveButton?: boolean;
 
   // 文本区域的最大高度 (px)
   maxHeight?: number;
@@ -64,7 +60,7 @@ export interface UnifiedChatInputHandle {
   setValue: (value: string) => void;
 }
 
-const DEFAULT_PLACEHOLDERS = ['输入问题，开始对话...', '让我帮你分析一段文字', '帮我把这段中文翻译成英文', '写一个代码示例', '检索资源库中的内容'];
+const DEFAULT_PLACEHOLDERS = ['输入问题，开始对话...', '让我帮你分析一段文字', '帮我把这段中文翻译成英文', '写一个代码示例', '陪我聊聊天'];
 const SHORTCUT_HINT_MIN_WIDTH = 640;
 
 const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInputProps>(function UnifiedChatInput(
@@ -73,7 +69,6 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
     defaultValue,
     onChange,
     onSend,
-    onSave,
     onStop,
     loading = false,
     placeholders = DEFAULT_PLACEHOLDERS,
@@ -86,7 +81,6 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
     autoFocus = false,
     onKeyDown,
     showSendButton = true,
-    showSaveButton = true,
     maxHeight = 200,
     onHeightChange
   }: UnifiedChatInputProps,
@@ -194,19 +188,6 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
     }
   };
 
-  // 保存内容
-  const doSave = async (): Promise<void> => {
-    if (disabled || !onSave) return;
-    const content = (text || '').trim();
-    if (!content) return;
-    try {
-      await onSave(content);
-      if (autoClear) setText('');
-    } catch {
-      // 让父组件处理错误
-    }
-  };
-
   // 停止生成
   const doStop = (): void => {
     if (disabled) return;
@@ -256,18 +237,6 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
 
         {/* 右侧额外内容 */}
         {footerRightExtra}
-
-        {/* 保存按钮 */}
-        {showSaveButton && onSave && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button onClick={doSave} size="icon" variant="outline" disabled={disabled || !hasContent} className="rounded-full" aria-label="保存">
-                <TbBookmark />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>保存为资源</TooltipContent>
-          </Tooltip>
-        )}
 
         {/* 发送/停止按钮 */}
         {showSendButton && onSend && (

@@ -21,7 +21,6 @@ import { MessageProvider, SpriteMessage } from './message';
 import { Renderer } from './renderers';
 import { useSpriteSpeak } from './speak/useSpriteSpeak';
 import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
-import PersonaGainEffects from './ui/PersonaGainEffects';
 import StatusIndicator from './ui/StatusIndicator';
 
 const showBlock = false; // 开发时显示
@@ -55,27 +54,6 @@ const AIAssistantInner: React.FC = () => {
     return () => {
       window.removeEventListener('dragover', prevent);
       window.removeEventListener('drop', prevent);
-    };
-  }, []);
-
-  // 订阅升级事件，打开升级动画窗口
-  useEffect(() => {
-    const unsub = window.YUA.persona.onLevelUp(async (data) => {
-      // 打开升级窗口并传递数据
-      await window.YUA.window['window:open']('levelUp', data);
-    });
-    return () => {
-      unsub();
-    };
-  }, []);
-
-  // 订阅成就解锁事件，打开右上角独立成就动画窗口
-  useEffect(() => {
-    const unsub = window.YUA.persona.onAchievementUnlocked(async (data) => {
-      await window.YUA.window['window:open']('achievementUnlock' as any, data);
-    });
-    return () => {
-      unsub();
     };
   }, []);
 
@@ -199,7 +177,6 @@ const AIAssistantInner: React.FC = () => {
       <PaddingDebugOverlay padding={effectivePadding} />
       {/* inline 模式下才在主窗口内嵌入气泡；独立窗口模式交给气泡窗口 */}
       {!isBubbleWindow && <SpriteMessage />}
-      <PersonaGainEffects />
       <Dropzone
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}

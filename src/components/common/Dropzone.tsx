@@ -4,7 +4,15 @@ import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
 import { TbFileDownload } from 'react-icons/tb';
 
-import { SelectedResourceFileType } from '@/pages/ResourcePage/types';
+/** 拖放进入的文件描述 */
+export interface DroppedFileInfo {
+  path?: string;
+  name: string;
+  size: number;
+  extension?: string;
+  type: 'image' | 'video' | 'audio' | 'document' | 'text' | 'file';
+  file: File;
+}
 
 interface DropzoneProps {
   children?: ReactNode;
@@ -12,7 +20,7 @@ interface DropzoneProps {
   customDropzone?: ReactNode;
   customDropzoneInside?: ReactNode;
   onDrop?: (files: React.DragEvent<HTMLElement>) => void;
-  onDropFiles?: (files: SelectedResourceFileType[]) => void;
+  onDropFiles?: (files: DroppedFileInfo[]) => void;
   onDragEnter?: (e: React.DragEvent<HTMLElement>) => void;
   onDragLeave?: (e: React.DragEvent<HTMLElement>) => void;
   onDragOver?: (e: React.DragEvent<HTMLElement>) => void;
@@ -58,7 +66,7 @@ function Dropzone({ children, customDropzone, customDropzoneInside, className, o
       if (acceptedFiles.length === 0) {
         return;
       }
-      const fl: SelectedResourceFileType[] = acceptedFiles.map((i) => {
+      const fl: DroppedFileInfo[] = acceptedFiles.map((i) => {
         const ext = getExt(i.name || (i as any).path);
         const type = getTypeFromExt(ext);
         return {

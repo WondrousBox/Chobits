@@ -1,1 +1,0 @@
-export { createAimAdapters } from './aimAdapters';

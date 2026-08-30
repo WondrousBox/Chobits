@@ -1,24 +1,18 @@
 import clsx from 'clsx';
 import React, { useEffect, useState } from 'react';
-import { TbAdjustments, TbBook, TbCpu, TbFolderOpen, TbKeyboard, TbLanguage, TbMessage2, TbNetwork, TbPlug, TbToggleLeft, TbUser } from 'react-icons/tb';
+import { TbAdjustments, TbCpu, TbKeyboard, TbMessage2, TbNetwork, TbToggleLeft } from 'react-icons/tb';
 
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
-import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 
 import DragAbleTitle from '../../components/common/DragAbleTitle';
 import AiSettings from './components/AiSettings';
 import FeatureFlagsSettings from './components/FeatureFlagsSettings';
-import GlossarySettings from './components/glossary/GlossarySettings';
 import PreferencesSettings from './components/PreferencesSettings';
 import PromptSetting from './components/PromptSetting';
 import ProxySettings from './components/ProxySettings';
-import SelectedTextLearningSettings from './components/SelectedTextLearningSettings';
 import ShortcutsSettings from './components/ShortcutsSettings';
-import UserProfileSettings from './components/UserProfileSettings';
-import Workspace from './components/Workspace';
-import PluginPage from './PluginPage';
 
-export type DefaultSettingsCategory = 'preferences' | 'workspace' | 'ai' | 'user-profile' | 'prompt' | 'glossary' | 'selected-text-learning' | 'plugins' | 'shortcuts' | 'proxy' | 'features';
+export type DefaultSettingsCategory = 'preferences' | 'ai' | 'prompt' | 'shortcuts' | 'proxy' | 'features';
 
 export type SettingsCategory = DefaultSettingsCategory | (string & {});
 
@@ -39,22 +33,10 @@ const defaultCategories: SettingsCategoryDef[] = [
     description: '主题外观和文件夹设置'
   },
   {
-    id: 'workspace',
-    label: '工作空间',
-    icon: TbFolderOpen,
-    description: '工作空间管理与默认空间设置'
-  },
-  {
     id: 'ai',
     label: '对话设置',
     icon: TbMessage2,
     description: 'AI 提供商、API Key、对话参数'
-  },
-  {
-    id: 'user-profile',
-    label: '用户画像',
-    icon: TbUser,
-    description: '查看 AI 自动提取的用户偏好画像'
   },
   {
     id: 'prompt',
@@ -63,28 +45,10 @@ const defaultCategories: SettingsCategoryDef[] = [
     description: '提示词管理与设置'
   },
   {
-    id: 'glossary',
-    label: '翻译术语',
-    icon: TbBook,
-    description: '翻译术语表管理'
-  },
-  {
-    id: 'selected-text-learning',
-    label: '划词学习',
-    icon: TbLanguage,
-    description: '长按 Ctrl 解析选中的英文文本'
-  },
-  {
     id: 'features',
     label: '功能管理',
     icon: TbToggleLeft,
     description: '开启或关闭可选功能'
-  },
-  {
-    id: 'plugins',
-    label: '插件管理',
-    icon: TbPlug,
-    description: '插件管理'
   },
   {
     id: 'shortcuts',
@@ -109,18 +73,14 @@ interface SettingsPageProps {
 }
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = EMPTY_EXTRA_CATEGORIES, hideTitleBar = false, defaultCategory }) => {
-  const { isEnabled } = useFeatureFlags();
-  const showUserProfile = isEnabled('gamification');
-
   // 合并分类，将扩展分类放在偏好设置之后 (index 1)
   const allCategories = React.useMemo(() => {
     const cats = [...defaultCategories];
     if (extraCategories.length > 0) {
       cats.splice(1, 0, ...extraCategories);
     }
-    // gamification 关闭时隐藏「用户画像」入口（仅隐藏 UI，renderCurrentCategoryContent 仍支持该分类）
-    return showUserProfile ? cats : cats.filter((c) => c.id !== 'user-profile');
-  }, [extraCategories, showUserProfile]);
+    return cats;
+  }, [extraCategories]);
 
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>(defaultCategory || allCategories[0]?.id || 'preferences');
   const [initialAiProviderId, setInitialAiProviderId] = useState<string | null>(null);
@@ -133,13 +93,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = EM
       setActiveCategory(defaultCategory);
     }
   }, [defaultCategory]);
-
-  // 防御性处理：当前分类被功能旗标隐藏时，切回偏好设置
-  useEffect(() => {
-    if (activeCategory === 'user-profile' && !showUserProfile) {
-      setActiveCategory('preferences');
-    }
-  }, [activeCategory, showUserProfile]);
 
   const applyWindowPayload = React.useCallback(
     (payload: any): void => {
@@ -199,22 +152,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = EM
     switch (activeCategory) {
       case 'preferences':
         return <PreferencesSettings />;
-      case 'workspace':
-        return <Workspace />;
-      case 'plugins':
-        return <PluginPage />;
       case 'features':
         return <FeatureFlagsSettings />;
       case 'ai':
         return <AiSettings initialProviderId={initialAiProviderId || undefined} initialPresetId={initialAiPresetId || undefined} focusRevision={aiPayloadRevision} />;
-      case 'user-profile':
-        return <UserProfileSettings />;
       case 'prompt':
         return <PromptSetting />;
-      case 'glossary':
-        return <GlossarySettings />;
-      case 'selected-text-learning':
-        return <SelectedTextLearningSettings />;
       case 'shortcuts':
         return <ShortcutsSettings />;
       case 'proxy':

@@ -8,7 +8,8 @@ import { cn } from '@/lib/utils';
 
 const CHAT_REALTIME_SCOPES: SpriteSpeakConfig['chatRealtimeSpeech']['scopes'] = {
   mainChat: true,
-  resourceChatSidebar: true
+  // mini 分支已移除资源库侧栏，该 scope 常驻关闭
+  resourceChatSidebar: false
 };
 
 function canShowAiSpeechToggle(config: SpriteSpeakConfig | null): boolean {

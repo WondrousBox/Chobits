@@ -1,6 +1,7 @@
 /**
  * 聊天消息渲染器
- * 支持解析消息中的卡片标记 [card:type:id] 并渲染为对应的卡片组件
+ * 支持解析消息中的图片标记 [image:url] 并渲染为内嵌图片；
+ * 历史消息中的 [card:type:id] 资源卡片标记不再渲染，直接忽略
  */
 
 import type { SpeechDisplayTextFilter } from '@packages/ai/speech-display-filter';
@@ -10,7 +11,6 @@ import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
 
-import { ResourceCard } from './cards';
 import { parseMessageContent } from './types';
 
 interface ChatMessageRendererProps {
@@ -18,8 +18,6 @@ interface ChatMessageRendererProps {
   content: string;
   /** 自定义类名 */
   className?: string;
-  /** 是否使用紧凑模式的卡片 */
-  compactCards?: boolean;
   /** Text filter for speech-only tags that should be hidden from chat display. */
   speechDisplayTextFilter?: SpeechDisplayTextFilter;
 }
@@ -50,9 +48,10 @@ const markdownComponents = {
 
 /**
  * 聊天消息渲染器组件
- * 解析消息内容中的卡片标记，将文本和卡片混合渲染
+ * 解析消息内容中的标记，将文本和图片混合渲染；
+ * 已移除资源卡片支持，[card:type:id] 标记直接忽略
  */
-const ChatMessageRenderer: React.FC<ChatMessageRendererProps> = ({ content, className, compactCards = false, speechDisplayTextFilter }) => {
+const ChatMessageRenderer: React.FC<ChatMessageRendererProps> = ({ content, className, speechDisplayTextFilter }) => {
   const displayContent = useMemo(() => sanitizeSpeechTextForDisplay(content, speechDisplayTextFilter), [content, speechDisplayTextFilter]);
   // 解析消息内容
   const parsedParts = useMemo(() => parseMessageContent(displayContent), [displayContent]);
@@ -82,11 +81,6 @@ const ChatMessageRenderer: React.FC<ChatMessageRendererProps> = ({ content, clas
               </ReactMarkdown>
             </div>
           );
-        }
-
-        if (part.type === 'card' && part.card) {
-          const { cardType, id } = part.card;
-          return <ResourceCard key={`card-${index}-${id}`} resourceId={id} cardType={cardType as any} compact={compactCards} />;
         }
 
         if (part.type === 'image' && part.image) {

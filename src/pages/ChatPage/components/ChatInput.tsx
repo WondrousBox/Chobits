@@ -56,7 +56,6 @@ export default function ChatInput({
       disabled={disabled}
       autoFocus={autoFocus}
       onKeyDown={onKeyDown}
-      showSaveButton={false}
       footerLeft={
         <>
           <div className="shrink-0">

@@ -1,33 +1,22 @@
 import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
-import type {
-  CharacterGalleryCanvasLayout,
-  CharacterGalleryItem,
-  CharacterGalleryItemDraft,
-  CharacterGalleryItemKind,
-  CharacterGalleryReferenceRole,
-  CharacterGalleryViewAngle
-} from '@packages/sprite-core/character-gallery';
-import { MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES } from '@packages/sprite-core/character-gallery';
+import type { CharacterGalleryItem, CharacterGalleryItemDraft, CharacterGalleryItemKind, CharacterGalleryReferenceRole, CharacterGalleryViewAngle } from '@packages/sprite-core/character-gallery';
 import type { CharacterPackSource } from '@packages/sprite-core/character-pack-manager';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbChevronLeft, TbChevronRight, TbEdit, TbFilter, TbPencil, TbRefresh, TbSend, TbTrash, TbX } from 'react-icons/tb';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { TbChevronLeft, TbChevronRight, TbEdit, TbPencil, TbPhotoPlus, TbRefresh, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import type { ImageGenerationCanvasHandle } from '@/features/image-generation-canvas/types';
 import { ensureSpriteCapabilityAccessible, SpriteCapabilityLockedNotice } from '@/features/sprite-assistant/capability-ui';
-import { cn } from '@/lib/utils';
 import { makeResSrc } from '@/lib/resource-protocol';
+import { cn } from '@/lib/utils';
 
-import CharacterGalleryCanvas from './CharacterGalleryCanvas';
 import { joinEditorLines, splitEditorLines } from './SpritePackEditorModel';
 
 interface CharacterGalleryManagerProps {
@@ -101,17 +90,6 @@ const REFERENCE_ROLE_OPTIONS: Array<{ value: CharacterGalleryReferenceRole; labe
   { value: 'custom', label: '自定义' }
 ];
 
-const STORYBOARD_REFERENCE_ACTIONS = ['idle', 'stand', 'front', 'left', 'right', 'back', 'jump', 'point', 'walk', 'run'];
-const STORYBOARD_REFERENCE_VIEWS: CharacterGalleryViewAngle[] = ['front', 'left', 'right', 'back', 'three-quarter-left', 'three-quarter-right'];
-const ACTION_KEYWORDS: Record<string, string[]> = {
-  idle: ['idle', 'stand', 'standing', 'default', 'neutral', '待机', '站立', '正面'],
-  left: ['left', 'walk-left', 'turn-left', '左', '向左', '左侧'],
-  right: ['right', 'walk-right', 'turn-right', '右', '向右', '右侧'],
-  back: ['back', 'behind', 'rear', '背', '背面', '后背'],
-  jump: ['jump', 'jumping', 'leap', '跳', '跳跃'],
-  point: ['point', 'pointing', '指', '指向', '指路']
-};
-
 function emptyDraft(): GalleryDraftState {
   return {
     title: '',
@@ -178,16 +156,12 @@ function getKindLabel(kind: CharacterGalleryItemKind): string {
   return KIND_OPTIONS.find((option) => option.value === kind)?.label ?? kind;
 }
 
-function getViewLabel(view?: CharacterGalleryViewAngle): string {
-  return view ? (VIEW_OPTIONS.find((option) => option.value === view)?.label ?? view) : '未设置';
-}
-
-function getRoleLabel(role?: CharacterGalleryReferenceRole): string {
-  return REFERENCE_ROLE_OPTIONS.find((option) => option.value === role)?.label ?? role ?? '角色一致性';
-}
-
 function makeFullSrc(item: CharacterGalleryItem): string {
   return makeResSrc(item.source.localPath);
+}
+
+function makeThumbSrc(item: CharacterGalleryItem): string {
+  return makeResSrc(item.thumbnail?.localPath || item.source.localPath);
 }
 
 function fileName(filePath: string): string {
@@ -215,33 +189,6 @@ function itemSearchText(item: CharacterGalleryItem): string {
     .toLowerCase();
 }
 
-function itemMatchesActionKeyword(item: CharacterGalleryItem, action: string): boolean {
-  const normalizedAction = action.trim().toLowerCase();
-  if (!normalizedAction) return false;
-  const haystack = itemSearchText(item);
-  return [normalizedAction, ...(ACTION_KEYWORDS[normalizedAction] ?? [])].some((keyword) => haystack.includes(keyword.toLowerCase()));
-}
-
-function summarizeReferenceItems(items: CharacterGalleryItem[]): string {
-  return items
-    .map((item, index) => {
-      const details = [
-        item.semantic?.action ? `动作 ${item.semantic.action}` : '',
-        item.semantic?.view ? `角度 ${getViewLabel(item.semantic.view)}` : '',
-        item.ai?.referenceRole ? `用途 ${getRoleLabel(item.ai.referenceRole)}` : '',
-        item.tags?.length ? `标签 ${item.tags.join(', ')}` : ''
-      ]
-        .filter(Boolean)
-        .join('，');
-      return `${index + 1}. ${item.title}${details ? `：${details}` : ''}`;
-    })
-    .join('\n');
-}
-
-function mergeItemIds(current: string[], next: string[]): string[] {
-  return Array.from(new Set([...current, ...next])).slice(0, MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES);
-}
-
 function IconTooltipButton({
   'aria-label': ariaLabel,
   className,
@@ -264,10 +211,7 @@ function IconTooltipButton({
 }
 
 export default function CharacterGalleryManager({ packId, source, assetAuthoringCapability, onCapabilityBlocked }: CharacterGalleryManagerProps): JSX.Element {
-  const canvasRef = useRef<ImageGenerationCanvasHandle | null>(null);
-  const canvasLayoutRef = useRef<CharacterGalleryCanvasLayout | null>(null);
   const [state, setState] = useState<CharacterGalleryListState | null>(null);
-  const [canvasLayout, setCanvasLayout] = useState<CharacterGalleryCanvasLayout | null>(null);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<CharacterGalleryItem | null>(null);
@@ -276,7 +220,6 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
   const [pendingFilePath, setPendingFilePath] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [selectedReferenceIds, setSelectedReferenceIds] = useState<string[]>([]);
   const canWrite = !!state?.pack.writable && assetAuthoringCapability?.status !== 'locked';
   const lockedTitle =
     assetAuthoringCapability?.status === 'locked' ? `${assetAuthoringCapability.name} 尚未解锁` : state?.pack.writable === false ? '内置角色包需要另存为本地版本后才能编辑图集' : undefined;
@@ -284,11 +227,8 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
     try {
-      const [result, layoutResult] = await Promise.all([window.YUA.persona.listCharacterGallery({ packId, source }), window.YUA.persona.getCharacterGalleryCanvasLayout({ packId, source })]);
+      const result = await window.YUA.persona.listCharacterGallery({ packId, source });
       setState(result);
-      const nextLayout = layoutResult?.layout ?? { version: 1, nodes: [] };
-      canvasLayoutRef.current = nextLayout;
-      setCanvasLayout(nextLayout);
     } catch (error) {
       console.warn('[CharacterGalleryManager] list failed', error);
       toast.error('读取角色图集失败', {
@@ -312,16 +252,6 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
 
   const selectedIndex = useMemo(() => filteredItems.findIndex((item) => item.id === selected?.id), [filteredItems, selected?.id]);
   const previewItem = selectedIndex >= 0 ? filteredItems[selectedIndex] : selected;
-  const itemById = useMemo(() => new Map((state?.items ?? []).map((item) => [item.id, item])), [state?.items]);
-  const selectedReferenceItems = useMemo(() => selectedReferenceIds.map((itemId) => itemById.get(itemId)).filter((item): item is CharacterGalleryItem => !!item), [itemById, selectedReferenceIds]);
-  const allFilteredSelected = filteredItems.length > 0 && filteredItems.every((item) => selectedReferenceIds.includes(item.id));
-  const selectedReferenceSummary = useMemo(() => summarizeReferenceItems(selectedReferenceItems), [selectedReferenceItems]);
-
-  useEffect(() => {
-    if (!state) return;
-    const availableIds = new Set(state.items.map((item) => item.id));
-    setSelectedReferenceIds((current) => current.filter((itemId) => availableIds.has(itemId)));
-  }, [state]);
 
   const ensureCanWrite = useCallback((): boolean => {
     if (!ensureSpriteCapabilityAccessible(assetAuthoringCapability, onCapabilityBlocked)) {
@@ -375,68 +305,6 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
     setSelected(item);
     setPreviewOpen(true);
   }, []);
-
-  const toggleReferenceSelection = useCallback((itemId: string, checked?: boolean): void => {
-    setSelectedReferenceIds((current) => {
-      const exists = current.includes(itemId);
-      const shouldSelect = checked ?? !exists;
-      if (!shouldSelect) return current.filter((id) => id !== itemId);
-      if (exists) return current;
-      if (current.length >= MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES) {
-        toast.warning(`一次最多选择 ${MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES} 张参考图`);
-        return current;
-      }
-      return [...current, itemId];
-    });
-  }, []);
-
-  const selectReferenceItems = useCallback((items: CharacterGalleryItem[], mode: 'add' | 'replace' = 'replace'): void => {
-    const nextIds = items.map((item) => item.id);
-    if (nextIds.length === 0) {
-      toast.warning('没有找到匹配的参考图');
-      return;
-    }
-    setSelectedReferenceIds((current) => {
-      const next = mode === 'add' ? mergeItemIds(current, nextIds) : Array.from(new Set(nextIds)).slice(0, MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES);
-      if (next.length < (mode === 'add' ? new Set([...current, ...nextIds]).size : new Set(nextIds).size)) {
-        toast.warning(`一次最多选择 ${MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES} 张参考图`);
-      }
-      return next;
-    });
-  }, []);
-
-  const toggleSelectFilteredItems = useCallback((): void => {
-    if (!filteredItems.length) return;
-    if (allFilteredSelected) {
-      const filteredIds = new Set(filteredItems.map((item) => item.id));
-      setSelectedReferenceIds((current) => current.filter((itemId) => !filteredIds.has(itemId)));
-    } else {
-      selectReferenceItems(filteredItems, 'add');
-    }
-  }, [allFilteredSelected, filteredItems, selectReferenceItems]);
-
-  const selectReferenceSet = useCallback(
-    (preset: 'storyboard' | 'idle' | 'left-right' | 'back' | 'jump-point'): void => {
-      const items = state?.items ?? [];
-      const matched =
-        preset === 'storyboard'
-          ? items.filter((item) => {
-              const viewMatch = item.semantic?.view ? STORYBOARD_REFERENCE_VIEWS.includes(item.semantic.view) : false;
-              const actionMatch = STORYBOARD_REFERENCE_ACTIONS.some((action) => itemMatchesActionKeyword(item, action));
-              const roleMatch = item.ai?.referenceRole === 'storyboard' || item.ai?.referenceRole === 'character' || item.ai?.referenceRole === 'pose';
-              return roleMatch && (viewMatch || actionMatch);
-            })
-          : preset === 'idle'
-            ? items.filter((item) => itemMatchesActionKeyword(item, 'idle') || item.semantic?.view === 'front')
-            : preset === 'left-right'
-              ? items.filter((item) => itemMatchesActionKeyword(item, 'left') || itemMatchesActionKeyword(item, 'right') || item.semantic?.view === 'left' || item.semantic?.view === 'right')
-              : preset === 'back'
-                ? items.filter((item) => itemMatchesActionKeyword(item, 'back') || item.semantic?.view === 'back')
-                : items.filter((item) => itemMatchesActionKeyword(item, 'jump') || itemMatchesActionKeyword(item, 'point'));
-      selectReferenceItems(matched);
-    },
-    [selectReferenceItems, state?.items]
-  );
 
   const closePreviewDialog = useCallback((open: boolean): void => {
     setPreviewOpen(open);
@@ -549,80 +417,6 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
     [ensureCanWrite, packId, refresh, selected?.id, source]
   );
 
-  const handleAIImageChanged = useCallback(
-    async (item?: CharacterGalleryItem): Promise<void> => {
-      await refresh();
-      if (item) {
-        setSelected(item);
-        setPreviewOpen(true);
-      }
-    },
-    [refresh]
-  );
-
-  const saveCanvasLayout = useCallback(
-    async (layout: CharacterGalleryCanvasLayout): Promise<void> => {
-      if (!canWrite) return;
-      const shouldMergeHiddenNodes = !!query.trim();
-      const previousNodes = shouldMergeHiddenNodes ? (canvasLayoutRef.current?.nodes ?? []) : [];
-      const nextNodeIds = new Set(layout.nodes.map((node) => node.id));
-      const nextLayout: CharacterGalleryCanvasLayout = {
-        ...layout,
-        nodes: [...layout.nodes, ...previousNodes.filter((node) => !nextNodeIds.has(node.id))]
-      };
-      canvasLayoutRef.current = nextLayout;
-      try {
-        const result = await window.YUA.persona.saveCharacterGalleryCanvasLayout({
-          packId,
-          source,
-          layout: nextLayout
-        });
-        if (result?.layout) {
-          canvasLayoutRef.current = result.layout;
-        }
-      } catch (error) {
-        console.warn('[CharacterGalleryManager] save canvas layout failed', error);
-      }
-    },
-    [canWrite, packId, query, source]
-  );
-
-  const openCanvasEditForm = useCallback(
-    (item: CharacterGalleryItem): void => {
-      if (!ensureCanWrite()) return;
-      setPreviewOpen(false);
-      canvasRef.current?.createEditForm(item.id);
-    },
-    [ensureCanWrite]
-  );
-
-  const openSelectedReferenceEditForm = useCallback(async (): Promise<void> => {
-    if (!ensureCanWrite()) return;
-    if (selectedReferenceIds.length === 0) {
-      toast.warning('请先选择要发送给 AI 的参考图');
-      return;
-    }
-    try {
-      const context = await window.YUA.persona.buildCharacterGalleryAIEditContext({
-        packId,
-        source,
-        draft: {
-          itemIds: selectedReferenceIds,
-          prompt: 'Create a new storyboard/action frame using all selected character references.'
-        }
-      });
-      const ids = context.images.map((image) => image.id);
-      canvasRef.current?.createEditForm(ids);
-      toast.success(`已整理 ${context.images.length} 张参考图`, {
-        description: context.referenceSet.summary
-      });
-    } catch (error) {
-      toast.error('整理多图参考失败', {
-        description: error instanceof Error ? error.message : String(error)
-      });
-    }
-  }, [ensureCanWrite, packId, selectedReferenceIds, source]);
-
   return (
     <TooltipProvider>
       <div className="space-y-4">
@@ -635,6 +429,10 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Input value={query} onChange={(event) => setQuery(event.target.value)} className="h-8 w-56" placeholder="搜索名称、动作、角度、标签" />
+            <Button type="button" size="sm" onClick={() => void openAddDialog()} disabled={!canWrite} title={lockedTitle}>
+              <TbPhotoPlus />
+              导入图片
+            </Button>
             <IconTooltipButton label="刷新图集" type="button" size="sm" variant="outline" onClick={() => void refresh()} disabled={loading}>
               <TbRefresh />
             </IconTooltipButton>
@@ -647,83 +445,30 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
           </div>
         )}
 
-        <div className="space-y-3 rounded-md border border-border/60 bg-muted/20 p-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              <Checkbox
-                checked={allFilteredSelected ? true : selectedReferenceIds.length > 0 ? 'indeterminate' : false}
-                onCheckedChange={() => toggleSelectFilteredItems()}
-                aria-label="选择当前筛选结果"
-              />
-              <div className="min-w-0">
-                <div className="text-sm font-medium text-foreground">多图参考</div>
-                <div className="truncate text-xs text-muted-foreground">
-                  已选择 {selectedReferenceIds.length} / {MAX_CHARACTER_GALLERY_AI_EDIT_REFERENCES} 张，可按角度和动作成套发送给 AI
+        {filteredItems.length > 0 ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            {filteredItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className="group flex flex-col overflow-hidden rounded-md border border-border/60 bg-muted/20 text-left transition-colors hover:border-primary/50 hover:bg-muted/40"
+                onClick={() => selectPreviewItem(item)}
+              >
+                <div className="flex aspect-square items-center justify-center overflow-hidden bg-muted/60">
+                  <img src={makeThumbSrc(item)} alt={item.title} loading="lazy" className="max-h-full max-w-full object-contain" draggable={false} />
                 </div>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <Button type="button" size="sm" variant="outline" onClick={() => selectReferenceSet('storyboard')}>
-                <TbFilter />
-                分镜套组
-              </Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => selectReferenceSet('idle')}>
-                idle
-              </Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => selectReferenceSet('left-right')}>
-                左/右
-              </Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => selectReferenceSet('back')}>
-                背面
-              </Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => selectReferenceSet('jump-point')}>
-                跳跃/指向
-              </Button>
-              <Button type="button" size="sm" onClick={() => void openSelectedReferenceEditForm()} disabled={!canWrite || selectedReferenceIds.length === 0} title={lockedTitle}>
-                <TbSend />
-                用选中参考生成
-              </Button>
-              {selectedReferenceIds.length > 0 ? (
-                <IconTooltipButton label="清空选择" type="button" size="sm" variant="ghost" onClick={() => setSelectedReferenceIds([])}>
-                  <TbX />
-                </IconTooltipButton>
-              ) : null}
-            </div>
+                <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+                  <span className="truncate text-xs text-foreground">{item.title}</span>
+                  <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px]">
+                    {getKindLabel(item.kind)}
+                  </Badge>
+                </div>
+              </button>
+            ))}
           </div>
-          {selectedReferenceItems.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {selectedReferenceItems.map((item) => (
-                <Badge key={item.id} variant="secondary" className="max-w-[220px] gap-1 px-2 py-1">
-                  <span className="truncate">{item.title}</span>
-                  <button type="button" className="ml-1 text-muted-foreground hover:text-foreground" onClick={() => toggleReferenceSelection(item.id, false)} aria-label={`移除 ${item.title}`}>
-                    <TbX />
-                  </button>
-                </Badge>
-              ))}
-            </div>
-          ) : null}
-          {selectedReferenceSummary ? (
-            <pre className="max-h-24 overflow-auto whitespace-pre-wrap rounded border bg-background/70 px-3 py-2 text-xs text-muted-foreground">{selectedReferenceSummary}</pre>
-          ) : null}
-        </div>
-
-        <CharacterGalleryCanvas
-          ref={canvasRef}
-          canWrite={canWrite}
-          items={filteredItems}
-          selectedReferenceIds={selectedReferenceIds}
-          layout={canvasLayout}
-          loading={loading}
-          lockedTitle={lockedTitle}
-          packId={packId}
-          source={source}
-          onChanged={handleAIImageChanged}
-          onDeleteItem={removeItem}
-          onImportImage={openAddDialog}
-          onLayoutChange={saveCanvasLayout}
-          onPreviewItem={selectPreviewItem}
-          onToggleReferenceItem={toggleReferenceSelection}
-        />
+        ) : (
+          <div className="rounded-md border border-dashed border-border/60 px-3 py-8 text-center text-xs text-muted-foreground">{loading ? '读取中...' : '图集暂无图片，点击「导入图片」添加。'}</div>
+        )}
 
         <Dialog open={previewOpen && !!previewItem} onOpenChange={closePreviewDialog}>
           <DialogContent className="flex h-[min(860px,90vh)] w-[min(1120px,calc(100vw-32px))] max-w-none flex-col gap-0 overflow-hidden p-0">
@@ -768,10 +513,6 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
                     {previewItem.tags?.length ? <div className="text-xs text-muted-foreground">标签：{previewItem.tags.join(', ')}</div> : null}
                     {previewItem.ai?.promptHint ? <div className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">{previewItem.ai.promptHint}</div> : null}
                     <div className="space-y-2 border-t pt-3">
-                      <Button type="button" size="sm" className="w-full justify-center" onClick={() => openCanvasEditForm(previewItem)} disabled={!canWrite} title={lockedTitle}>
-                        <TbSend />
-                        以此图生成
-                      </Button>
                       <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
                         <Button
                           type="button"

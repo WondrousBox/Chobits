@@ -8,13 +8,12 @@ import type { ToolActivity } from './ToolCallActivity';
 import ToolCallActivity from './ToolCallActivity';
 
 interface AssistantMessageTimelineProps {
-  compactCards?: boolean;
   speechDisplayTextFilter?: SpeechDisplayTextFilter;
   message: TimelineMessage;
   onUserChoiceSubmit?: (choiceId: string, answers: Record<string, string[]>) => void;
 }
 
-const AssistantMessageTimeline: FC<AssistantMessageTimelineProps> = ({ compactCards = false, message, onUserChoiceSubmit, speechDisplayTextFilter: fallbackSpeechDisplayTextFilter }) => {
+const AssistantMessageTimeline: FC<AssistantMessageTimelineProps> = ({ message, onUserChoiceSubmit, speechDisplayTextFilter: fallbackSpeechDisplayTextFilter }) => {
   const speechDisplayTextFilter = message.speechDisplayTextFilter ?? fallbackSpeechDisplayTextFilter;
 
   if (message.displayParts?.length) {
@@ -29,7 +28,7 @@ const AssistantMessageTimeline: FC<AssistantMessageTimelineProps> = ({ compactCa
             return <ToolCallActivity key={part.id} activities={[part.activity]} onUserChoiceSubmit={onUserChoiceSubmit} />;
           }
 
-          return <ChatMessageRenderer key={part.id} content={part.content} compactCards={compactCards} speechDisplayTextFilter={speechDisplayTextFilter} />;
+          return <ChatMessageRenderer key={part.id} content={part.content} speechDisplayTextFilter={speechDisplayTextFilter} />;
         })}
       </>
     );
@@ -45,7 +44,7 @@ const AssistantMessageTimeline: FC<AssistantMessageTimelineProps> = ({ compactCa
     <>
       {message.thinking && <ThinkingActivity thinking={message.thinking} isThinking={!!message.isThinking} />}
       {activities.length > 0 && <ToolCallActivity activities={activities} onUserChoiceSubmit={onUserChoiceSubmit} />}
-      {message.content ? <ChatMessageRenderer content={message.content} compactCards={compactCards} speechDisplayTextFilter={speechDisplayTextFilter} /> : null}
+      {message.content ? <ChatMessageRenderer content={message.content} speechDisplayTextFilter={speechDisplayTextFilter} /> : null}
     </>
   );
 };

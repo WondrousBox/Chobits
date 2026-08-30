@@ -2,8 +2,6 @@
  * 聊天卡片消息类型定义
  */
 
-import type { ResourceItem } from '@/pages/ResourcePage/types';
-
 /** 卡片类型 */
 export type ChatCardType = 'resource' | 'video' | 'audio' | 'image' | 'document' | 'link' | 'file';
 
@@ -14,7 +12,7 @@ export interface ChatCard {
   /** 资源 ID（用于从数据库加载完整资源信息） */
   resourceId?: string;
   /** 内嵌的资源数据（用于临时卡片，无需从数据库加载） */
-  data?: Partial<ResourceItem> & { id: string };
+  data?: { id: string } & Record<string, unknown>;
 }
 
 /** 扩展的消息 metadata */

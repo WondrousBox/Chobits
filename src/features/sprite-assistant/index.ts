@@ -83,8 +83,6 @@ export {
 } from './types';
 
 // ── Pages ───────────────────────────────────────────────────
-export { default as AchievementUnlockPage } from './pages/AchievementUnlock';
-export { default as LevelUpPage } from './pages/LevelUp';
 export { StatusPage } from './pages/StatusPage';
 
 // ── Utils ───────────────────────────────────────────────────

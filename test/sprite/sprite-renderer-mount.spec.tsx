@@ -4,7 +4,7 @@ import type { SpriteConfig, SpriteInitialState, SpritePlayCommand, SpriteStateSn
 import type { SpriteStateContextValue } from '../../src/features/sprite-assistant/context/sprite-state-context';
 import { installMiniDom, isFakeVideoElement } from '../utils/minidom';
 
-vi.mock('@/pages/ResourcePage/utils/resourceProtocol', () => ({
+vi.mock('@/lib/resource-protocol', () => ({
   makeResSrc: (absPath: string) => 'res://local/' + encodeURIComponent(absPath.replace(/\\/g, '/'))
 }));
 

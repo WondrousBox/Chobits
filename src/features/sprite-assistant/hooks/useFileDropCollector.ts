@@ -1,49 +1,17 @@
 /**
  * useFileDropCollector
  *
- * 文件拖放采集器：处理 DOM 拖放事件，上报到主进程，调用资源服务导入。
- * 保留原有资源导入逻辑，新增向主进程上报 sprite:file-drop。
+ * 文件拖放采集器：处理 DOM 拖放事件，向主进程上报 sprite 文件拖放交互。
+ * mini 分支已移除资源库，拖放文件不再入库。
  */
 import { useRef, useState } from 'react';
 
-import { SelectedResourceFileType } from '@/pages/ResourcePage/types';
-
-import { addResourcesFromDataTransfer, addResourcesFromSelectedFiles } from '../../../pages/ResourcePage/services/resourceService';
+import type { DroppedFileInfo } from '@/components/common/Dropzone';
 
 type FileDropPayloadItem = { name: string; path?: string };
-type FileDropResourceItem = { id?: string; title?: string; [key: string]: unknown };
 
 function createFileDropCorrelationId(): string {
   return `file-drop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-async function emitFileDropResourcesReady(correlationId: string, files: FileDropPayloadItem[], resources: FileDropResourceItem[] | null | undefined): Promise<void> {
-  try {
-    const safeResources = resources ?? [];
-    const fileActionsMenuPayload = {
-      files,
-      resources: safeResources,
-      source: 'drop',
-      correlationId
-    };
-    await window.YUA.sprite.emitPurposeEvent({
-      source: 'purpose-event',
-      event: 'fileDrop:resources-ready',
-      correlationId,
-      payload: {
-        purposeSource: 'sprite-drop',
-        files,
-        resources: safeResources,
-        fileActionsMenuPayload,
-        fileCount: files.length,
-        fileNames: files.map((file) => file.name).filter(Boolean),
-        resourceIds: safeResources.map((resource) => resource.id).filter(Boolean),
-        primaryResourceName: safeResources[0]?.title
-      }
-    });
-  } catch (err) {
-    console.warn('[useFileDropCollector] failed to emit file drop resources-ready event', err);
-  }
 }
 
 export function useFileDropCollector(): {
@@ -51,7 +19,7 @@ export function useFileDropCollector(): {
   handleDragEnter: (e: React.DragEvent<HTMLElement>) => void;
   handleDragLeave: (e: React.DragEvent<HTMLElement>) => void;
   handleDrop: (e: React.DragEvent<HTMLElement>) => Promise<void>;
-  handleDropFiles: (files: SelectedResourceFileType[]) => Promise<void>;
+  handleDropFiles: (files: DroppedFileInfo[]) => Promise<void>;
 } {
   const [isFileDragOver, setIsFileDragOver] = useState(false);
   const dragCounterRef = useRef(0);
@@ -88,6 +56,12 @@ export function useFileDropCollector(): {
     }
   };
 
+  const reportFileDrop = async (payload: FileDropPayloadItem[]): Promise<void> => {
+    const correlationId = dragCorrelationIdRef.current ?? createFileDropCorrelationId();
+    dragCorrelationIdRef.current = null;
+    await window.YUA.sprite.fileDrop(payload, { correlationId });
+  };
+
   const handleDrop = async (e: React.DragEvent<HTMLElement>): Promise<void> => {
     e.preventDefault();
     e.stopPropagation();
@@ -96,37 +70,15 @@ export function useFileDropCollector(): {
 
     const files = Array.from(e.dataTransfer?.files || []) as any[];
     const payload = files.map((f) => ({ name: f.name, path: (f as any).path as string | undefined }));
-    const correlationId = dragCorrelationIdRef.current ?? createFileDropCorrelationId();
-    dragCorrelationIdRef.current = null;
-    await window.YUA.sprite.fileDrop(payload, { correlationId });
-
-    // 资源导入（保留原有逻辑）
-    const resources = await addResourcesFromDataTransfer(e.dataTransfer!, { source: 'sprite-drop' });
-    if (payload.length) {
-      await emitFileDropResourcesReady(correlationId, payload, resources);
-    }
+    await reportFileDrop(payload);
   };
 
-  const handleDropFiles = async (files: SelectedResourceFileType[]): Promise<void> => {
+  const handleDropFiles = async (files: DroppedFileInfo[]): Promise<void> => {
     dragCounterRef.current = 0;
     setIsFileDragOver(false);
-    dragCorrelationIdRef.current = null;
 
     const payload = files.map((f) => ({ name: f.name, path: f.path }));
-    const correlationId = createFileDropCorrelationId();
-    await window.YUA.sprite.fileDrop(payload, { correlationId });
-
-    // 资源导入（保留原有逻辑）
-    const resources = await addResourcesFromSelectedFiles(files, { source: 'sprite-drop' });
-    if (resources) {
-      const resPayload = resources.map((res) => ({
-        name: res.title || (res.filePath ? res.filePath.split(/[/\\]/).pop() || '' : ''),
-        path: res.filePath
-      }));
-      if (resPayload.length) {
-        await emitFileDropResourcesReady(correlationId, resPayload, resources);
-      }
-    }
+    await reportFileDrop(payload);
   };
 
   return { isFileDragOver, handleDragEnter, handleDragLeave, handleDrop, handleDropFiles };

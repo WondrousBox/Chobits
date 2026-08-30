@@ -2,14 +2,12 @@
 /**
  * 工具调用活动指示器
  * 在 AI 回复时展示工具调用状态（调用中 / 已完成），支持折叠查看参数和结果。
- * pushCardTool 的调用会直接渲染为资源卡片。
  */
 
 import { LONG_TASK_BACKGROUND_CHOICE_QUESTION_ID, LONG_TASK_BACKGROUND_CHOICE_VALUE, type ToolCallDisplay, type UserChoiceRequest } from '@packages/ai/types';
 import { useState } from 'react';
 import { TbCheck, TbChevronDown, TbChevronRight, TbClock, TbCopy, TbLoader2, TbTool } from 'react-icons/tb';
 
-import { ResourceCard } from './cards';
 import UserChoiceCard from './UserChoiceCard';
 
 export interface ToolActivity {
@@ -31,7 +29,6 @@ interface ToolCallActivityProps {
   onUserChoiceSubmit?: (choiceId: string, answers: Record<string, string[]>) => void;
 }
 
-const CARD_TOOL_NAMES = new Set(['pushCardTool', 'push-card']);
 const ASK_USER_TOOL_NAMES = new Set(['askUserTool', 'ask-user']);
 const EMOJI_SEND_TOOL_NAMES = new Set(['emojiSendTool', 'emoji-send']);
 
@@ -146,18 +143,6 @@ function isLongTaskChoiceRequest(request?: UserChoiceRequest): boolean {
 function isBackgroundExecutionResult(result: any): boolean {
   return result?.executionMode === 'background' || result?.backgrounded === true;
 }
-
-const CardToolItem: React.FC<{ activity: ToolActivity }> = ({ activity }) => {
-  const args = parseToolArgs(activity.args);
-  if (!args) return null;
-
-  return (
-    <div className="py-0.5">
-      {args.text && <div className="mb-1 text-xs text-muted-foreground">{args.text}</div>}
-      <ResourceCard resourceId={args.resourceId} data={args.data} cardType={args.type} compact />
-    </div>
-  );
-};
 
 function getEmojiArgSummary(args: any): string | undefined {
   const query = typeof args?.query === 'string' ? args.query.trim() : '';
@@ -285,7 +270,6 @@ const LongTaskChoiceItem: React.FC<{ activity: ToolActivity; onSubmit?: (choiceI
 const ToolCallItem: React.FC<{ activity: ToolActivity; onUserChoiceSubmit?: (choiceId: string, answers: Record<string, string[]>) => void }> = ({ activity, onUserChoiceSubmit }) => {
   const [expanded, setExpanded] = useState(false);
 
-  if (CARD_TOOL_NAMES.has(activity.name)) return <CardToolItem activity={activity} />;
   if (ASK_USER_TOOL_NAMES.has(activity.name)) return <AskUserToolItem activity={activity} onSubmit={onUserChoiceSubmit} />;
   if (EMOJI_SEND_TOOL_NAMES.has(activity.name)) return <EmojiSendToolItem activity={activity} />;
 

@@ -4,7 +4,6 @@ import type { SpeechDisplayTextFilter } from '@packages/ai/speech-display-filter
 import { getSpeechDisplayTextFilter, getSpeechDisplayTextFilterFromMetadata, normalizeSpeechDisplayTextFilter } from '@packages/ai/speech-display-filter';
 import { extractThinkingTextFromMetadata } from '@packages/ai/thinking-content';
 import type { TokenUsage } from '@packages/ai/types';
-import { AppEvent } from '@packages/event/events';
 import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -59,9 +58,6 @@ import { formatDateTime, formatRelativeTime } from '@/lib/time';
 import { speakToolResultSpeech } from '@/lib/tool-speech';
 
 import { CHAT_OVERLAY_SETTINGS, type ChatOverlaySide, resolveChatOverlaySide } from './chat-overlay-settings';
-import { ConversationRoutePanel } from './components/ConversationRoutePanel';
-import { ProjectCandidatePrompt } from './components/ProjectCandidatePrompt';
-import { ProjectContextBar } from './components/ProjectContextBar';
 import { useChatSelection } from './context/ChatSelectionContext';
 
 const CHAT_WINDOW_PAYLOAD_DEDUPE_MS = 30_000;
@@ -158,7 +154,6 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
   const [newTitle, setNewTitle] = useState('');
   const [pendingConversationTitle, setPendingConversationTitle] = useState<string | null>(null);
   const [switchingWindowMode, setSwitchingWindowMode] = useState(false);
-  const [projectRefreshKey, setProjectRefreshKey] = useState(0);
   // Track conversations that are waiting for AI-generated titles
   const [generatingTitleIds, setGeneratingTitleIds] = useState<Set<string>>(new Set());
 
@@ -174,7 +169,6 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
   const initialConfigGuideRanRef = useRef(false);
   const handledPayloadKeysRef = useRef<Map<string, number>>(new Map());
   const pendingPayloadStartTimerRef = useRef<number | null>(null);
-  const projectCandidateRefreshTimerRef = useRef<number | null>(null);
 
   const currentConversation = useMemo(() => conversations.find((c) => c.id === conversationId) || null, [conversations, conversationId]);
   const conversationUsage = useMemo(() => sumTokenUsage(messages), [messages]);
@@ -187,36 +181,6 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     window.clearTimeout(pendingPayloadStartTimerRef.current);
     pendingPayloadStartTimerRef.current = null;
   }, []);
-
-  const scheduleProjectCandidateRefresh = useCallback((): void => {
-    if (projectCandidateRefreshTimerRef.current !== null) {
-      window.clearTimeout(projectCandidateRefreshTimerRef.current);
-    }
-    projectCandidateRefreshTimerRef.current = window.setTimeout(() => {
-      projectCandidateRefreshTimerRef.current = null;
-      setProjectRefreshKey((prev) => prev + 1);
-    }, 700);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (projectCandidateRefreshTimerRef.current !== null) {
-        window.clearTimeout(projectCandidateRefreshTimerRef.current);
-        projectCandidateRefreshTimerRef.current = null;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    const unsubscribe = window.YUA.events.on((payload) => {
-      if (payload.type !== AppEvent.PROJECT_CANDIDATE_CREATED) return;
-      const candidateConversationId = typeof payload.data?.conversationId === 'string' ? payload.data.conversationId : undefined;
-      if (candidateConversationId && candidateConversationId === conversationId) {
-        setProjectRefreshKey((prev) => prev + 1);
-      }
-    });
-    return () => unsubscribe();
-  }, [conversationId]);
 
   const markPayloadHandled = useCallback((payloadKey: string): boolean => {
     const now = Date.now();
@@ -340,7 +304,6 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     setConversationId(undefined);
     setPendingConversationTitle(null);
     setMessages([]);
-    setProjectRefreshKey((prev) => prev + 1);
   }, [clearPendingPayloadStartTimer, stopRealtimeSpeech]);
 
   const handleAiSpeechEnabledChange = useCallback(
@@ -775,7 +738,6 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
           disposerRef.current = null;
           // Refresh conversation list to show updated message count
           loadConversations();
-          scheduleProjectCandidateRefresh();
         }
         if (ev?.type === 'error') {
           void realtimeSpeech.cancel();
@@ -1105,7 +1067,6 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
         <DragAbleTitle
           actions={
             <>
-              <ConversationRoutePanel conversationId={conversationId} />
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="inline-flex" title={canSwitchWindowMode ? '切换到侧边栏窗口' : windowModeSwitchDisabledText}>
@@ -1240,11 +1201,6 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
               </Button>
             </div>
           )}
-          {conversationId && (!isOverlay || overlayExpanded) && (
-            <div className={isOverlay ? 'shrink-0 pt-12' : 'shrink-0'}>
-              <ProjectContextBar conversationId={conversationId} refreshKey={projectRefreshKey} />
-            </div>
-          )}
           {showEmptyStart && (
             <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
               <div className="text-center text-lg mb-4">今天有什么能帮到你？</div>
@@ -1321,7 +1277,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
                         >
                           {m.role === 'assistant' ? (
                             <>
-                              <AssistantMessageTimeline message={m} compactCards onUserChoiceSubmit={handleUserChoiceSubmit} />
+                              <AssistantMessageTimeline message={m} onUserChoiceSubmit={handleUserChoiceSubmit} />
                               {!isOverlay && m.usage && <ChatTokenUsage usage={m.usage} label="本轮" className="mt-2" />}
                               {!hasTimelineContent(m) && loading && i === messages.length - 1 && (
                                 <span className="inline-flex items-center gap-2 text-muted-foreground">
@@ -1414,7 +1370,6 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <ProjectCandidatePrompt conversationId={conversationId} refreshKey={projectRefreshKey} onProjectCreated={() => setProjectRefreshKey((prev) => prev + 1)} />
     </div>
   );
 }
