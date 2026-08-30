@@ -11,7 +11,7 @@
     "pointer": true
   },
   "lipSync": {
-    "paramId": "ParamMouthOpenY",
+    "paramId": "ParamA",
     "gain": 2.0
   },
   "triggers": {

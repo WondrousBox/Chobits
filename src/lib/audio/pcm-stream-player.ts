@@ -1,3 +1,5 @@
+import { attachAudioContext, detachLipSyncSource } from './lip-sync-source';
+
 export type PcmSampleFormat = 's16le' | 'f32le' | string;
 
 export interface PcmStreamPlayerOptions {
@@ -115,6 +117,7 @@ export class PcmStreamPlayer {
     this.gain = this.context.createGain();
     this.gain.gain.value = Math.max(0, Math.min(1, this.options.volume));
     this.gain.connect(this.context.destination);
+    attachAudioContext(this.context, this.gain);
     if (this.context.state === 'suspended') {
       await this.context.resume().catch(() => undefined);
     }
@@ -202,6 +205,7 @@ export class PcmStreamPlayer {
 
   cancel(): void {
     this.clearEndTimer();
+    detachLipSyncSource();
     for (const source of this.sources) {
       try {
         source.stop();

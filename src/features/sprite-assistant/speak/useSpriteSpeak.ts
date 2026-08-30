@@ -1,4 +1,4 @@
-﻿/**
+/**
  * useSpriteSpeak Hook
  *
  * 在渲染进程中监听语音合成播放事件，
@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 
 import { makeResSrc } from '@/lib/resource-protocol';
+import { attachMediaElement, detachLipSyncSource } from '@/lib/audio/lip-sync-source';
 
 /**
  * 监听 SpriteManager 的 speak 事件并播放音频
@@ -26,6 +27,7 @@ export function useSpriteSpeak(): { stop: () => void } {
 
   /** 停止当前正在播放的音频 */
   const stop = useCallback(() => {
+    detachLipSyncSource();
     if (audioRef.current) {
       const audio = audioRef.current;
       audioRef.current = null; // 先清空 ref，防止回调中的操作
@@ -77,6 +79,7 @@ export function useSpriteSpeak(): { stop: () => void } {
 
         // 设置当前音频（必须在 play() 之前设置）
         audioRef.current = audio;
+        attachMediaElement(audio);
 
         audio.play().catch((err) => {
           console.error('[useSpriteSpeak] Failed to play audio:', err);

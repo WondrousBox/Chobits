@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { destroyLive2DRuntime, initLive2DRuntime } from '../live2d/Live2DRuntime';
 import { loadLive2DConfig, resolveTriggerMapping, type Live2DConfig } from '../live2d/live2d-config';
 import { useSpriteState } from '../context/hooks';
+import { getCurrentRMS } from '@/lib/audio/lip-sync-source';
 import { LAppLive2DManager } from '@/live2d-sdk/src/lapplive2dmanager';
 import * as LAppDefine from '@/live2d-sdk/src/lappdefine';
 
@@ -138,6 +139,34 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
       activePlaybackRef.current = null;
     }
   }, [currentAnimation, runtimeReady, config]);
+
+  // lip-sync rAF 循环
+  useEffect(() => {
+    if (!runtimeReady) return;
+
+    const paramId = config?.lipSync?.paramId ?? 'ParamA';
+    const gain = config?.lipSync?.gain ?? 2.0;
+    let rafId = 0;
+
+    const tick = (): void => {
+      const rms = getCurrentRMS();
+      if (rms > 0.001) {
+        const manager = LAppLive2DManager.getInstance();
+        const model = manager?.getModel(0);
+        if (model) {
+          try {
+            model.getModel().addParameterValueById(paramId, rms * gain, 4.0);
+          } catch {
+            // 参数不存在时静默忽略
+          }
+        }
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [runtimeReady, config]);
 
   // walkDirection 翻转
   const shouldFlip = walkDirection === 'right';
