@@ -1,14 +1,10 @@
-import type { CharacterPackSummary } from '@packages/sprite-core/character-pack-manager';
 import type { SpritePurposeDailyRetrospective } from '@packages/sprite-core/purpose';
-import type { PersonaSnapshot } from '@packages/sprite-core/types';
 import React, { useEffect, useState } from 'react';
 import { TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
-import PersonaStatusPanel from '../ui/PersonaStatusPanel';
 import PurposeRetrospectivePanel from '../ui/PurposeRetrospectivePanel';
-import RadarChart, { RadarDimension } from '../ui/RadarChart';
 
 type CharacterHeaderProfile = {
   name: string;
@@ -17,9 +13,6 @@ type CharacterHeaderProfile = {
 
 export const StatusPage: React.FC = () => {
   const [role, setRole] = useState<CharacterHeaderProfile | null>(null);
-  const [persona, setPersona] = useState<PersonaSnapshot | null>(null);
-  const [activePack, setActivePack] = useState<CharacterPackSummary | null>(null);
-  const [dimensions, setDimensions] = useState<RadarDimension[] | null>(null);
   const [purposeRetrospective, setPurposeRetrospective] = useState<SpritePurposeDailyRetrospective | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -27,7 +20,7 @@ export const StatusPage: React.FC = () => {
     let mounted = true;
     const load = async (): Promise<void> => {
       try {
-        const [characterInfo, roleRes, personaRes, dimsRes, activePackRes, purposeRes] = await Promise.all([
+        const [characterInfo, roleRes, activePackRes, purposeRes] = await Promise.all([
           window.YUA.persona.getCharacterInfo().catch((error) => {
             console.warn('[StatusPage] failed to load character info', error);
             return null;
@@ -36,8 +29,6 @@ export const StatusPage: React.FC = () => {
             console.warn('[StatusPage] failed to load role profile', error);
             return null;
           }),
-          window.YUA.persona.getState(),
-          window.YUA.persona.getDimensions(),
           window.YUA.persona.getActiveCharacterPack().catch((error) => {
             console.warn('[StatusPage] failed to load active character pack', error);
             return null;
@@ -50,13 +41,6 @@ export const StatusPage: React.FC = () => {
 
         if (!mounted) return;
         setRole(characterInfo ?? (activePackRes ? { name: activePackRes.name, tagline: activePackRes.description } : null) ?? roleRes?.role ?? null);
-        if (personaRes?.ok && personaRes.state) {
-          setPersona(personaRes.state);
-        }
-        if (dimsRes) {
-          setDimensions(dimsRes);
-        }
-        setActivePack(activePackRes);
         setPurposeRetrospective(purposeRes);
       } finally {
         if (mounted) setLoading(false);
@@ -86,15 +70,7 @@ export const StatusPage: React.FC = () => {
         </Button>
       </div>
 
-      {/* 精灵状态面板 */}
-      <div className="shrink-0">
-        <PersonaStatusPanel persona={persona} companionSince={activePack?.companionSince} />
-      </div>
-
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        {/* 维度雷达图 */}
-        {dimensions && dimensions.length >= 3 && <RadarChart dimensions={dimensions} className="w-full" />}
-
         {/* 今日目的复盘 */}
         <PurposeRetrospectivePanel retrospective={purposeRetrospective} />
       </div>

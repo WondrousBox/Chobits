@@ -9,7 +9,6 @@ import { initSpriteCapabilityRuntime, resetSpriteCapabilityRuntime } from '../..
 import { registerDefaultBehaviors } from '../../packages/sprite-core/manager/default-behaviors';
 import { SpriteManager } from '../../packages/sprite-core/manager/sprite-manager';
 import { mapStateToEventType } from '../../packages/sprite-core/manager/state-mapping';
-import { removePersonaRulesLayer, resetPersonaRulesRuntime, setPersonaRulesProvider, upsertPersonaRulesLayer } from '../../packages/sprite-core/persona-rules';
 import type { SpriteAnimation, SpriteMovementConfig } from '../../packages/sprite-core/types';
 
 function createTestWindow(): {
@@ -163,7 +162,6 @@ describe('sprite manager regression coverage', () => {
   afterEach(async () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
-    resetPersonaRulesRuntime();
     resetSpriteCapabilityRuntime();
     await destroyManager();
     for (const dataDir of dataDirs) {
@@ -830,9 +828,7 @@ describe('sprite manager regression coverage', () => {
       createdAt: Date.now()
     };
 
-    await expect(
-      (mgr as any).runPurposeAnimationStep({ id: 'play', type: 'playAnimation', trigger: 'thinking', durationMs: 10_000 }, new AbortController().signal, routine)
-    ).resolves.toBeUndefined();
+    await expect((mgr as any).runPurposeAnimationStep({ id: 'play', type: 'playAnimation', trigger: 'thinking', durationMs: 10_000 }, new AbortController().signal, routine)).resolves.toBeUndefined();
     expect(mgr.getCurrentAnimation()?.animationId).toBe('thinking-purpose');
   });
 
@@ -1494,137 +1490,6 @@ describe('sprite manager regression coverage', () => {
     expect(opened).toEqual([{ windowKey: 'fileActionsMenu', payload: { correlationId: 'drop-1' } }]);
   });
 
-  it('recordConversationEvent() routes base reward through the event bus and respects cooldown', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-04-21T10:00:00Z'));
-
-    const { mgr, dataDir } = createManager();
-    dataDirs.add(dataDir);
-
-    expect(mgr.getPersonaState()).toMatchObject({
-      xp: 0,
-      favor: 50
-    });
-
-    expect(
-      mgr.recordConversationEvent({
-        assistantContentLength: 640,
-        toolCallCount: 2
-      })
-    ).toBe(true);
-
-    expect(mgr.getPersonaState()).toMatchObject({
-      xp: 15,
-      favor: 51.5
-    });
-
-    expect(mgr.recordConversationEvent()).toBe(false);
-    expect(mgr.getPersonaState()).toMatchObject({
-      xp: 15,
-      favor: 51.5
-    });
-  });
-
-  it('recordConversationEvent() reads rewards and dimensions from a single injected provider snapshot', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-04-21T10:00:00Z'));
-
-    setPersonaRulesProvider({
-      getSnapshot: () => ({
-        conversationRewards: {
-          xpPerConversation: 7,
-          favorPerConversation: 0.4,
-          cooldownMs: 30_000,
-          bonusConditions: []
-        },
-        activityRewards: {
-          'workflow-complete': { xp: 1, favor: 0, dimensionGrowth: undefined }
-        },
-        dimensionSchema: [
-          {
-            id: 'conversation',
-            name: 'Conversation',
-            icon: 'chat',
-            description: 'conversation',
-            maxValue: 100,
-            initialValue: 0,
-            growthSources: ['conversation']
-          },
-          {
-            id: 'tooling',
-            name: 'Tooling',
-            icon: 'tool',
-            description: 'tooling',
-            maxValue: 80,
-            initialValue: 0,
-            growthSources: ['tool-usage', 'task-completion']
-          }
-        ]
-      })
-    });
-
-    const { mgr, dataDir } = createManager();
-    dataDirs.add(dataDir);
-
-    expect(
-      mgr.recordConversationEvent({
-        toolCallCount: 1
-      })
-    ).toBe(true);
-
-    expect(mgr.getPersonaState()).toMatchObject({
-      xp: 7,
-      favor: 50.4
-    });
-    expect(mgr.getPersonaState().dimensions.conversation).toBeCloseTo(1.01, 5);
-    expect(mgr.getPersonaState().dimensions.tooling).toBeCloseTo(0.81, 5);
-  });
-
-  it('syncs live persona rule layers into the manager runtime', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-04-21T10:00:00Z'));
-
-    const { mgr, dataDir } = createManager();
-    dataDirs.add(dataDir);
-
-    upsertPersonaRulesLayer('extension:conversation', {
-      conversationRewards: {
-        xpPerConversation: 22,
-        favorPerConversation: 2.2,
-        cooldownMs: 5_000
-      },
-      moodRules: [
-        {
-          id: 'extension-joy',
-          trigger: (state) => state.favor >= 50,
-          targetMood: 'joyful',
-          intensity: 90,
-          priority: 20
-        }
-      ]
-    });
-
-    (mgr as any).eventBus.emit('ai:message-sent', undefined, 'test-layer');
-    expect(mgr.getPersonaState()).toMatchObject({
-      xp: 22,
-      favor: 52.2
-    });
-
-    (mgr as any).personaState.evaluateMood();
-    expect(mgr.getPersonaState()).toMatchObject({
-      mood: 'joyful',
-      moodIntensity: 90
-    });
-
-    removePersonaRulesLayer('extension:conversation');
-    (mgr as any).eventBus.emit('ai:message-sent', undefined, 'test-layer');
-
-    expect(mgr.getPersonaState()).toMatchObject({
-      xp: 37,
-      favor: 53.7
-    });
-  });
-
   it('trigger() does not fall back to idle when explicit event animation is missing', () => {
     const { mgr, dataDir } = createManager();
     dataDirs.add(dataDir);
@@ -1913,7 +1778,6 @@ describe('sprite manager regression coverage', () => {
     dataDirs.add(dataDir);
     initSpriteCapabilityRuntime({
       resolveContext: () => ({
-        personaLevel: 10,
         activeSignals: {}
       })
     });
@@ -1960,7 +1824,6 @@ describe('sprite manager regression coverage', () => {
     dataDirs.add(dataDir);
     initSpriteCapabilityRuntime({
       resolveContext: () => ({
-        personaLevel: 10,
         activeSignals: {}
       })
     });
@@ -2029,7 +1892,6 @@ describe('sprite manager regression coverage', () => {
     dataDirs.add(dataDir);
     initSpriteCapabilityRuntime({
       resolveContext: () => ({
-        personaLevel: 10,
         activeSignals: {}
       })
     });
@@ -2117,7 +1979,6 @@ describe('sprite manager regression coverage', () => {
     dataDirs.add(dataDir);
     initSpriteCapabilityRuntime({
       resolveContext: () => ({
-        personaLevel: 1,
         activeSignals: {}
       })
     });
@@ -2165,7 +2026,6 @@ describe('sprite manager regression coverage', () => {
     dataDirs.add(dataDir);
     initSpriteCapabilityRuntime({
       resolveContext: () => ({
-        personaLevel: 1,
         activeSignals: {}
       })
     });
@@ -2219,7 +2079,6 @@ describe('sprite manager regression coverage', () => {
     dataDirs.add(dataDir);
     initSpriteCapabilityRuntime({
       resolveContext: () => ({
-        personaLevel: 1,
         activeSignals: {}
       })
     });
@@ -2263,7 +2122,6 @@ describe('sprite manager regression coverage', () => {
     dataDirs.add(dataDir);
     initSpriteCapabilityRuntime({
       resolveContext: () => ({
-        personaLevel: 1,
         activeSignals: {}
       })
     });
@@ -2355,7 +2213,6 @@ describe('sprite manager regression coverage', () => {
     dataDirs.add(dataDir);
     initSpriteCapabilityRuntime({
       resolveContext: () => ({
-        personaLevel: 1,
         activeSignals: {}
       })
     });
@@ -2542,9 +2399,7 @@ describe('sprite manager regression coverage', () => {
 
     initSpriteCapabilityRuntime({
       resolveContext: () => ({
-        personaLevel: 1,
         featureFlags: { 'character:loaded': true, 'pack:has-custom-animations': true, 'character:has-custom-appearance': true },
-        personaFlags: {},
         activeSignals: {}
       })
     });
@@ -2554,9 +2409,7 @@ describe('sprite manager regression coverage', () => {
 
     initSpriteCapabilityRuntime({
       resolveContext: () => ({
-        personaLevel: 20,
         featureFlags: { 'character:loaded': true, 'pack:has-custom-animations': true, 'character:has-custom-appearance': true },
-        personaFlags: { 'persona:bonded': true },
         activeSignals: { 'movement.autoWalk': true }
       })
     });

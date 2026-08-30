@@ -23,20 +23,10 @@ export type SpriteStateEvent = 'state:idle' | 'state:walking' | 'state:running' 
 export type SpriteAnimationEvent = 'anim:play' | 'anim:stop' | 'anim:complete' | 'anim:phase:intro' | 'anim:phase:loop' | 'anim:phase:outro';
 
 /** 行为/AI 事件 */
-export type SpriteBehaviorEvent = 'behavior:walk-triggered' | 'behavior:sleep-triggered' | 'behavior:bored-triggered' | 'behavior:message-triggered' | 'behavior:emotion-triggered' | 'ai:message-sent';
+export type SpriteBehaviorEvent = 'behavior:walk-triggered' | 'behavior:sleep-triggered' | 'behavior:bored-triggered' | 'behavior:message-triggered' | 'behavior:emotion-triggered';
 
-/** 人格成长事件 */
-export type SpritePersonaProgressEvent =
-  | 'persona:xp-gained'
-  | 'persona:level-up'
-  | 'persona:favor-changed'
-  | 'persona:mood-changed'
-  | 'persona:dimension-updated'
-  | 'persona:achievement-unlocked'
-  | 'persona:character-switched'
-  | 'persona:skill-unlocked'
-  | 'persona:daily-login'
-  | 'persona:streak-bonus';
+/** 人格事件（养成数值事件已移除，仅保留角色切换通知） */
+export type SpritePersonaProgressEvent = 'persona:character-switched';
 
 /** 系统事件 */
 export type SpriteSystemEvent = 'system:init' | 'system:config-changed' | 'system:animation-loaded' | 'system:error';

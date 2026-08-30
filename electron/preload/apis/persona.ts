@@ -39,29 +39,6 @@ import type {
 import type { PersonaPromptBuildOptions } from '../../../packages/sprite-core/character-service';
 import type { PersonaSnapshot, SpritePersonaStateResult, SpriteStateSnapshot } from '../../../packages/sprite-core/types';
 
-export interface PersonaXPGainedPayload {
-  amount: number;
-  source?: string;
-  newXP: number;
-}
-
-export interface PersonaFavorChangedPayload {
-  oldFavor: number;
-  newFavor: number;
-  delta: number;
-  reason?: string;
-  levelChanged: boolean;
-  newLevel?: string;
-}
-
-export interface PersonaRewardGrantPayload {
-  xp?: number;
-  favor?: number;
-  dimensions?: Array<{ id: string; delta: number; maxValue?: number }>;
-  source?: string;
-  achievementId?: string;
-}
-
 export interface CharacterGalleryListResult {
   ok: true;
   pack: {
@@ -124,24 +101,6 @@ export const personaApi = {
   /** 获取完整人格状态 */
   getState: (): Promise<SpritePersonaStateResult> => ipcRenderer.invoke('sprite:persona:getState'),
 
-  /** 统一应用人格奖励 */
-  grantReward: (payload: PersonaRewardGrantPayload) => ipcRenderer.invoke('sprite:persona:grantReward', payload),
-
-  /** 增加经验值（兼容入口，内部走统一 reward） */
-  addXP: (amount: number) => ipcRenderer.invoke('sprite:persona:grantReward', { xp: amount, source: 'persona:addXP' }),
-
-  /** 修改好感度（兼容入口，内部走统一 reward） */
-  changeFavor: (delta: number, reason?: string) => ipcRenderer.invoke('sprite:persona:grantReward', { favor: delta, source: reason ?? 'persona:changeFavor' }),
-
-  /** 记录每日登录 */
-  recordLogin: () => ipcRenderer.invoke('sprite:persona:recordLogin'),
-
-  /** 解锁成就（兼容入口，内部走统一 reward） */
-  unlockAchievement: (achievementId: string) => ipcRenderer.invoke('sprite:persona:grantReward', { achievementId, source: 'persona:unlockAchievement' }),
-
-  /** 重置人格状态（等级、经验、好感度等） */
-  resetState: (): Promise<SpritePersonaStateResult> => ipcRenderer.invoke('sprite:persona:reset'),
-
   /** 获取运行时 capability snapshot */
   getCapabilitySnapshot: (): Promise<SpriteCapabilitySnapshot> => ipcRenderer.invoke('sprite:capabilities:getSnapshot'),
 
@@ -161,41 +120,6 @@ export const personaApi = {
     };
     ipcRenderer.on('sprite:state', handler);
     return () => ipcRenderer.off('sprite:state', handler);
-  },
-
-  /** 订阅升级事件 */
-  onLevelUp: (callback: (data: { oldLevel: number; newLevel: number }) => void) => {
-    const handler = (_: any, data: { oldLevel: number; newLevel: number }): void => callback(data);
-    ipcRenderer.on('persona:level-up', handler);
-    return () => ipcRenderer.removeListener('persona:level-up', handler);
-  },
-
-  /** 订阅经验增长事件 */
-  onXPGained: (callback: (data: PersonaXPGainedPayload) => void) => {
-    const handler = (_: any, data: PersonaXPGainedPayload): void => callback(data);
-    ipcRenderer.on('persona:xp-gained', handler);
-    return () => ipcRenderer.removeListener('persona:xp-gained', handler);
-  },
-
-  /** 订阅好感度变化事件 */
-  onFavorChanged: (callback: (data: PersonaFavorChangedPayload) => void) => {
-    const handler = (_: any, data: PersonaFavorChangedPayload): void => callback(data);
-    ipcRenderer.on('persona:favor-changed', handler);
-    return () => ipcRenderer.removeListener('persona:favor-changed', handler);
-  },
-
-  /** 订阅每日登录事件 */
-  onDailyLogin: (callback: (data: { streak: number; xpBonus: number }) => void) => {
-    const handler = (_: any, data: { streak: number; xpBonus: number }): void => callback(data);
-    ipcRenderer.on('persona:daily-login', handler);
-    return () => ipcRenderer.removeListener('persona:daily-login', handler);
-  },
-
-  /** 订阅成就解锁事件 */
-  onAchievementUnlocked: (callback: (data: { achievementId: string }) => void) => {
-    const handler = (_: any, data: { achievementId: string }): void => callback(data);
-    ipcRenderer.on('persona:achievement-unlocked', handler);
-    return () => ipcRenderer.removeListener('persona:achievement-unlocked', handler);
   },
 
   // --- 角色人格 API ---
@@ -327,12 +251,7 @@ export const personaApi = {
     ): void => callback(payload);
     ipcRenderer.on('persona:character-switched', handler);
     return () => ipcRenderer.off('persona:character-switched', handler);
-  },
-
-  // --- 维度 API ---
-
-  /** 获取维度数据（包含 schema 定义和当前值） */
-  getDimensions: () => ipcRenderer.invoke('sprite:dimensions:get')
+  }
 };
 
 export type PersonaApiBridgeType = typeof personaApi;

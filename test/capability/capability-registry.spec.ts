@@ -8,15 +8,13 @@ describe('capability registry', () => {
     resetSpriteCapabilityRuntime();
   });
 
-  it('unlocks movement at level 1 and activates it when auto-walk is on', () => {
+  it('keeps movement unlocked and activates it when auto-walk is on', () => {
     const snapshot = DEFAULT_SPRITE_CAPABILITY_REGISTRY.resolveSnapshot({
-      personaLevel: 1,
       activeSignals: {
         [SPRITE_CAPABILITY_SIGNALS.movementAutoWalk]: true
       }
     });
 
-    expect(snapshot.capabilities.movement.requiredLevel).toBe(1);
     expect(snapshot.capabilities.movement.status).toBe('active');
     expect(snapshot.capabilities.movement.active).toBe(true);
     expect(snapshot.capabilities.movement.unlockReady).toBe(true);
@@ -24,7 +22,6 @@ describe('capability registry', () => {
 
   it('treats passive prerequisites as unlocked while runtime-bound prerequisites still require active signals', () => {
     const snapshot = DEFAULT_SPRITE_CAPABILITY_REGISTRY.resolveSnapshot({
-      personaLevel: 10,
       activeSignals: {
         [SPRITE_CAPABILITY_SIGNALS.recorderEnabled]: true
       }
@@ -40,8 +37,7 @@ describe('capability registry', () => {
     expect(snapshot.capabilities.customAppearance.missingFeatureFlags).toEqual(['character:loaded', 'character:has-custom-appearance']);
     expect(snapshot.capabilities.aiChat.status).toBe('unlocked');
     expect(snapshot.capabilities.docUnderstanding.status).toBe('unlocked');
-    expect(snapshot.capabilities.smartAssistant.status).toBe('locked');
-    expect(snapshot.capabilities.smartAssistant.missingPersonaFlags).toEqual(['persona:advanced-level']);
+    expect(snapshot.capabilities.smartAssistant.status).toBe('unlocked');
     expect(snapshot.capabilities.actionChoreography.status).toBe('locked');
     expect(snapshot.capabilities.actionChoreography.inactivePrerequisites).toEqual(['movement']);
     expect(snapshot.capabilities.actionChoreography.missingPrerequisites).toEqual(['customAppearance']);
@@ -50,7 +46,6 @@ describe('capability registry', () => {
 
   it('distinguishes inactive runtime prerequisites from actually locked prerequisites', () => {
     const snapshot = DEFAULT_SPRITE_CAPABILITY_REGISTRY.resolveSnapshot({
-      personaLevel: 10,
       activeSignals: {}
     });
 
@@ -60,7 +55,7 @@ describe('capability registry', () => {
     expect(snapshot.capabilities.speechRecognition.missingPrerequisites).toEqual([]);
   });
 
-  it('supports level, achievement, feature-flag and persona-flag gating in one resolver', () => {
+  it('supports prerequisite, feature-flag and activation-signal gating in one resolver', () => {
     const registry = new CapabilityRegistry([
       {
         id: 'capability-a',
@@ -81,31 +76,21 @@ describe('capability registry', () => {
         column: 1,
         row: 0,
         prerequisites: ['capability-a'],
-        requiredLevel: 7,
-        requiredAchievements: ['ach:one'],
         requiredFeatureFlags: ['feature:one'],
-        requiredPersonaFlags: ['persona:one'],
         activationSignals: ['signal:a', 'signal:b'],
         activationSignalMode: 'all'
       }
     ]);
 
     const lockedSnapshot = registry.resolveSnapshot({
-      personaLevel: 6,
-      achievements: ['ach:one'],
-      featureFlags: { 'feature:one': true },
-      personaFlags: {}
+      featureFlags: {}
     });
 
     expect(lockedSnapshot.capabilities['capability-b'].status).toBe('locked');
-    expect(lockedSnapshot.capabilities['capability-b'].missingPersonaFlags).toEqual(['persona:one']);
-    expect(lockedSnapshot.capabilities['capability-b'].meetsLevelRequirement).toBe(false);
+    expect(lockedSnapshot.capabilities['capability-b'].missingFeatureFlags).toEqual(['feature:one']);
 
     const activeSnapshot = registry.resolveSnapshot({
-      personaLevel: 8,
-      achievements: ['ach:one'],
       featureFlags: { 'feature:one': true },
-      personaFlags: { 'persona:one': true },
       activeSignals: {
         'signal:a': true,
         'signal:b': true
@@ -116,17 +101,12 @@ describe('capability registry', () => {
     expect(activeSnapshot.capabilities['capability-b'].status).toBe('active');
   });
 
-  it('lets default avatar capabilities consume character feature flags and persona flags', () => {
+  it('lets default avatar capabilities consume character feature flags', () => {
     const snapshot = DEFAULT_SPRITE_CAPABILITY_REGISTRY.resolveSnapshot({
-      personaLevel: 15,
       featureFlags: {
         'character:loaded': true,
         'character:has-custom-appearance': true,
         'pack:has-custom-animations': true
-      },
-      personaFlags: {
-        'persona:bonded': true,
-        'persona:advanced-level': true
       },
       activeSignals: {
         [SPRITE_CAPABILITY_SIGNALS.movementAutoWalk]: true
@@ -142,7 +122,6 @@ describe('capability registry', () => {
 
   it('keeps action choreography locked until the active pack declares custom animations', () => {
     const snapshot = DEFAULT_SPRITE_CAPABILITY_REGISTRY.resolveSnapshot({
-      personaLevel: 15,
       featureFlags: {
         'character:loaded': true,
         'character:has-custom-appearance': true
@@ -157,17 +136,6 @@ describe('capability registry', () => {
     expect(snapshot.capabilities.actionChoreography.missingFeatureFlags).toEqual(['pack:has-custom-animations']);
   });
 
-  it('keeps smart assistant locked until the persona reaches the advanced milestone flag', () => {
-    const snapshot = DEFAULT_SPRITE_CAPABILITY_REGISTRY.resolveSnapshot({
-      personaLevel: 15
-    });
-
-    expect(snapshot.capabilities.docUnderstanding.status).toBe('unlocked');
-    expect(snapshot.capabilities.translation.status).toBe('unlocked');
-    expect(snapshot.capabilities.smartAssistant.status).toBe('locked');
-    expect(snapshot.capabilities.smartAssistant.missingPersonaFlags).toEqual(['persona:advanced-level']);
-  });
-
   it('fails closed when runtime authority is unavailable or the capability id is unknown', () => {
     resetSpriteCapabilityRuntime();
     expect(() => assertSpriteCapabilityUnlocked('movement')).toThrow('Sprite capability runtime unavailable: movement');
@@ -175,7 +143,6 @@ describe('capability registry', () => {
 
     initSpriteCapabilityRuntime({
       resolveContext: () => ({
-        personaLevel: 99,
         activeSignals: {}
       })
     });
@@ -187,7 +154,6 @@ describe('capability registry', () => {
   it('distinguishes unlocked capability access from active runtime access', () => {
     initSpriteCapabilityRuntime({
       resolveContext: () => ({
-        personaLevel: 99,
         activeSignals: {
           [SPRITE_CAPABILITY_SIGNALS.recorderEnabled]: true
         }
@@ -199,7 +165,6 @@ describe('capability registry', () => {
 
     initSpriteCapabilityRuntime({
       resolveContext: () => ({
-        personaLevel: 99,
         activeSignals: {
           [SPRITE_CAPABILITY_SIGNALS.recorderEnabled]: true,
           [SPRITE_CAPABILITY_SIGNALS.asrRunning]: true

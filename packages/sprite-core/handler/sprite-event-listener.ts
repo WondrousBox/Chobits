@@ -7,11 +7,9 @@
 
 import { AppEvent, eventManager } from '@packages/event';
 
-import type { ActivityRewardId } from '../character-service';
 import type { SpriteManager } from '../manager';
 import { ProgressSpeechAnnouncer, type ProgressSpeechKind } from '../manager/progress-speech-announcer';
 import { getCharacterRoutineText, getCharacterSpriteEventText } from '../messages/character';
-import { getResolvedActivityPersonaReward } from '../persona-rules';
 import type { SpriteRealtimeSpeechScope } from '../speak/types';
 
 export interface SpriteEventPayload {
@@ -33,7 +31,7 @@ export interface SpriteEventPayload {
   presetId?: string;
   field?: string;
   action?: string;
-  // AI conversation reward fields
+  // AI conversation metadata fields
   conversationId?: string;
   messageCount?: number;
   toolCallCount?: number;
@@ -226,10 +224,6 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
     }
   });
 
-  const grantActivityReward = (activityId: ActivityRewardId): void => {
-    mgr.applyPersonaReward(getResolvedActivityPersonaReward(activityId), activityId);
-  };
-
   // AI 聊天事件
   handlers.push({
     event: AppEvent.SPRITE_AI_START,
@@ -246,10 +240,6 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
       const suppressSpeech = shouldSuppressAiEventSpeech(mgr, data);
       mgr.showToast(data?.message || eventText('aiComplete', data), { category: 'success', duration: 1500, ...(suppressSpeech ? { speak: false } : {}) });
       mgr.trigger('celebrate', { durationMs: 1500, silent: true });
-      mgr.recordConversationEvent({
-        assistantContentLength: data?.assistantContentLength,
-        toolCallCount: data?.toolCallCount
-      });
     }
   });
 
@@ -329,7 +319,6 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
     event: AppEvent.SPRITE_WORKFLOW_COMPLETE,
     handler: (data) => {
       if (routeMode.workflow !== 'trigger' && isWorkflowWaitingPurposeHandling(mgr, data)) {
-        grantActivityReward('workflow-complete');
         return;
       }
       progressSpeech.complete({
@@ -340,7 +329,6 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
       mgr.clearBusy();
       mgr.showToast(data?.message || eventText('workflowComplete', data), { category: 'celebrate', duration: 2000, speak: false });
       mgr.trigger('celebrate', { durationMs: 2000, silent: true });
-      grantActivityReward('workflow-complete');
     }
   });
 
@@ -412,7 +400,6 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
     event: AppEvent.SPRITE_RESOURCE_IMPORT_COMPLETE,
     handler: (data) => {
       if (routeMode.resourceImport !== 'trigger' && isResourceImportPurposeHandling(mgr, data)) {
-        grantActivityReward('resource-import-complete');
         return;
       }
       progressSpeech.complete({
@@ -423,7 +410,6 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
       mgr.clearBusy();
       mgr.showToast(data?.message || eventText('importComplete', data), { category: 'success', duration: 1500, speak: false });
       mgr.trigger('celebrate', { durationMs: 1500, silent: true });
-      grantActivityReward('resource-import-complete');
     }
   });
 
@@ -483,7 +469,6 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
       mgr.clearBusy();
       mgr.trigger('success', { silent: true });
       mgr.showToast(data?.message || eventText('downloadComplete', data, '下载完成！'), { category: 'success', duration: 1500, speak: false });
-      grantActivityReward('download-complete');
     }
   });
 
@@ -502,7 +487,6 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
     event: AppEvent.SPRITE_PLUGIN_INSTALL,
     handler: (data) => {
       mgr.trigger('install', { message: data?.message || eventText('pluginInstall', data, '插件安装完成！'), silent: true });
-      grantActivityReward('plugin-install');
     }
   });
 
@@ -510,7 +494,6 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
     event: AppEvent.SPRITE_PLUGIN_REMOVE,
     handler: (data) => {
       mgr.trigger('remove', { message: data?.message || eventText('pluginRemove', data, '插件已移除') });
-      grantActivityReward('plugin-remove');
     }
   });
 
@@ -518,7 +501,6 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
     event: AppEvent.SPRITE_PLUGIN_UPDATE,
     handler: (data) => {
       mgr.trigger('update', { message: data?.message || eventText('pluginUpdate', data, '插件已更新！') });
-      grantActivityReward('plugin-update');
     }
   });
 
@@ -594,7 +576,6 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
         mgr.trigger('error', { message: data?.message || eventText('mediaProcessFail', data, '媒体处理失败') });
         return;
       }
-      grantActivityReward('media-process-complete');
       mgr.trigger('success', { message: data?.message || eventText('mediaProcessComplete', data, '媒体处理完成！') });
     }
   });
@@ -627,7 +608,6 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
   handlers.push({
     event: AppEvent.SPRITE_TRASH_RESTORE,
     handler: (data) => {
-      grantActivityReward('trash-restore');
       mgr.trigger('success', { message: data?.message || eventText('trashRestore', data, '已从回收站恢复！') });
     }
   });
@@ -657,7 +637,6 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
       mgr.clearBusy();
       mgr.showToast(data?.message || eventText('memoryExtractComplete', data), { category: 'success', duration: 2000 });
       mgr.trigger('write', { silent: true });
-      grantActivityReward('memory-extraction-completed');
     }
   });
 
@@ -685,7 +664,6 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
     handler: (data) => {
       mgr.showToast(data?.message || eventText('personaUpdateComplete', data), { category: 'success', duration: 2000 });
       mgr.trigger('celebrate', { durationMs: 1500, silent: true });
-      grantActivityReward('user-persona-update-completed');
     }
   });
 

@@ -6,7 +6,7 @@
  *
  * 架构概览：
  * - StateMachine: 有限状态机引擎 —— 管理精灵视觉状态转换
- * - PersonaStateManager: 人格状态管理器 —— 经验值/等级/好感度/心情
+ * - PersonaStateManager: 人格状态管理器 —— 静态人格快照（养成数值已移除）
  * - InteractionTracker: 交互追踪器 —— 记录并量化用户交互
  * - BehaviorEngine: 行为引擎 —— 可扩展、条件驱动的自主行为调度
  * - AnimationRegistry: 动画注册表 —— 统一索引与按 trigger 查询
@@ -66,6 +66,12 @@ export type {
   SpriteMovementDirection,
   SpriteMovementMode,
   SpriteMovementTrigger,
+  SpritePersonaStateResult,
+  SpritePlayCommand,
+  SpriteStateSnapshot,
+  SpriteTriggerOptions,
+  SpriteTriggerRequest,
+  SpriteWalkState,
   SpriteWindowAnimationAnchor,
   SpriteWindowAnimationCoordinateFitMode,
   SpriteWindowAnimationCoordinateSpace,
@@ -78,20 +84,9 @@ export type {
   SpriteWindowAnimationPoint,
   SpriteWindowAnimationPresetId,
   SpriteWindowAnimationSizeMode,
-  SpritePersonaStateResult,
-  SpritePlayCommand,
-  SpriteStateSnapshot,
-  SpriteTriggerOptions,
-  SpriteTriggerRequest,
-  SpriteWalkState,
   ToastInput,
   ToastMessage
 } from './types';
-export {
-  ACHIEVEMENT_UNLOCK_WINDOW_GEOMETRY,
-  ACHIEVEMENT_UNLOCK_WINDOW_KEY,
-  ACHIEVEMENT_UNLOCK_WINDOW_ROUTE_HASH
-} from './achievement-window';
 export {
   compileSpriteAnimationCondition,
   DEFAULT_DURATION,
@@ -119,12 +114,10 @@ export {
 // ----- Modules -----
 export { AnimationRegistry } from './animation-registry';
 export type { BehaviorCondition, BehaviorContext, BehaviorDefinition, BehaviorPriority, BehaviorRunAttemptResult, BehaviorRunOptions, BehaviorRunSkipReason } from './behavior-engine';
-export { BehaviorEngine, createAutoWalkBehavior, createBoredBehavior, createFavorDecayBehavior, createRandomMessageBehavior, createSleepyBehavior } from './behavior-engine';
+export { BehaviorEngine, createAutoWalkBehavior, createBoredBehavior, createRandomMessageBehavior, createSleepyBehavior } from './behavior-engine';
 export type {
-  CapabilityLevelUnlockDefinition,
   SpriteCapabilityBranch,
   SpriteCapabilityDefinition,
-  SpriteCapabilityLevelUnlockType,
   SpriteCapabilityResolutionContext,
   SpriteCapabilityShortcut,
   SpriteCapabilitySignalMode,
@@ -134,7 +127,7 @@ export type {
   SpriteCapabilityTier,
   SpriteCapabilityTotals
 } from './capability-registry';
-export { CapabilityRegistry, DEFAULT_SPRITE_CAPABILITY_DEFINITIONS, DEFAULT_SPRITE_CAPABILITY_REGISTRY, getSpriteCapabilityLevelUnlocks, SPRITE_CAPABILITY_SIGNALS } from './capability-registry';
+export { CapabilityRegistry, DEFAULT_SPRITE_CAPABILITY_DEFINITIONS, DEFAULT_SPRITE_CAPABILITY_REGISTRY, SPRITE_CAPABILITY_SIGNALS } from './capability-registry';
 export type { SpriteCapabilityRuntimeResolver } from './capability-runtime';
 export {
   assertSpriteCapabilityActive,
@@ -290,27 +283,7 @@ export type { SpriteInteractionEvent, SpriteInteractionIntent, SpriteInteraction
 export { isSpriteInteractionEvent, isSpriteInteractionIntent, SPRITE_INTERACTION_EVENT_BY_INTENT, SPRITE_INTERACTION_EVENTS, SPRITE_INTERACTION_INTENTS } from './interaction-contract';
 export type { InteractionEvent, InteractionStats, InteractionType } from './interaction-tracker';
 export { InteractionTracker } from './interaction-tracker';
-export type { ConversationBonusMatcher, ConversationRewardContext, PersonaDimensionReward, PersonaRewardGrant, PersonaRulesLayer, PersonaRulesProvider, PersonaRulesSnapshot } from './persona-rules';
-export {
-  clearPersonaRulesLayers,
-  getConversationRewardCooldownMs,
-  getConversationRewardEventRules,
-  getPersonaRuleDimensionSchema,
-  getPersonaRulesProvider,
-  getPersonaRulesSnapshot,
-  getResolvedActivityPersonaReward,
-  getResolvedConversationPersonaReward,
-  getResolvedConversationPersonaRewardBonus,
-  registerConversationBonusMatcher,
-  removePersonaRulesLayer,
-  resetPersonaRulesProvider,
-  resetPersonaRulesRuntime,
-  setPersonaRulesProvider,
-  subscribePersonaRulesChanges,
-  unregisterConversationBonusMatcher,
-  upsertPersonaRulesLayer
-} from './persona-rules';
-export type { FavorLevel, LevelConfig, MoodType, PersonaState } from './persona-state';
+export type { FavorLevel, MoodType, PersonaState } from './persona-state';
 export { PersonaStateManager } from './persona-state';
 export type {
   AchievementUnlockedGuideGoalDefinition,
@@ -393,15 +366,5 @@ export { SpriteManager } from './manager';
 export type { WindowControllerOptions } from './window-controller';
 export { WindowController } from './window-controller';
 
-// ----- Config -----
-export {
-  DEFAULT_ACTIVITY_REWARDS,
-  DEFAULT_CONVERSATION_REWARDS,
-  DEFAULT_FAVOR_MODIFIERS,
-  DEFAULT_MOOD_RULES,
-  DEFAULT_XP_SOURCES,
-  mergeActivityRewards,
-  resolveActivityReward,
-  resolveConversationReward,
-  resolveDimensionRewards
-} from './config/persona-rules';
+// ----- Config (character pack schema defaults) -----
+export { DEFAULT_ACTIVITY_REWARDS, DEFAULT_CONVERSATION_REWARDS, mergeActivityRewards } from './character-service';

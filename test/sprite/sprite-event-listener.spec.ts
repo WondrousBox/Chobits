@@ -88,18 +88,6 @@ vi.mock('../../packages/sprite-core/character-service', () => ({
   getCharacterPackDefinition: () => null,
   getCharacterDefinition: () => null,
   getCharacterPackSource: () => null,
-  getActivityRewards: () => ({
-    'workflow-complete': { xp: 0, favor: 0, dimensionGrowth: undefined },
-    'resource-import-complete': { xp: 0, favor: 0, dimensionGrowth: undefined },
-    'memory-extraction-completed': { xp: 0, favor: 0, dimensionGrowth: undefined },
-    'user-persona-update-completed': { xp: 0, favor: 0, dimensionGrowth: undefined }
-  }),
-  getConversationRewards: () => ({
-    cooldownMs: 0,
-    xpPerConversation: 0,
-    favorPerConversation: 0,
-    bonusConditions: []
-  }),
   getDimensionSchema: () => []
 }));
 
@@ -115,11 +103,6 @@ function createManagerStub(): {
   trigger: ReturnType<typeof vi.fn>;
   speak: ReturnType<typeof vi.fn>;
   playOnce: ReturnType<typeof vi.fn>;
-  recordConversationEvent: ReturnType<typeof vi.fn>;
-  applyPersonaReward: ReturnType<typeof vi.fn>;
-  addXP: ReturnType<typeof vi.fn>;
-  changeFavor: ReturnType<typeof vi.fn>;
-  updateDimension: ReturnType<typeof vi.fn>;
   emitPurposeEvent: ReturnType<typeof vi.fn>;
   startPurpose: ReturnType<typeof vi.fn>;
   getPurposeSnapshot: ReturnType<typeof vi.fn>;
@@ -133,11 +116,6 @@ function createManagerStub(): {
     trigger: vi.fn(),
     speak: vi.fn(async () => ({ success: true })),
     playOnce: vi.fn(),
-    recordConversationEvent: vi.fn(),
-    applyPersonaReward: vi.fn(),
-    addXP: vi.fn(),
-    changeFavor: vi.fn(),
-    updateDimension: vi.fn(),
     emitPurposeEvent: vi.fn(() => ({ matched: 0 })),
     startPurpose: vi.fn(async () => ({ accepted: true, status: 'started' })),
     getPurposeSnapshot: vi.fn(() => ({ current: null, routine: null, queue: [] })),
@@ -196,18 +174,7 @@ describe('sprite event listener', () => {
       ['celebrate', { durationMs: 2000, silent: true }],
       ['celebrate', { durationMs: 1500, silent: true }]
     ]);
-    expect(mgr.recordConversationEvent).toHaveBeenCalledWith({
-      assistantContentLength: undefined,
-      toolCallCount: undefined
-    });
-    expect(mgr.applyPersonaReward.mock.calls).toEqual([
-      [{ xp: 0, favor: 0, dimensions: [] }, 'workflow-complete'],
-      [{ xp: 0, favor: 0, dimensions: [] }, 'resource-import-complete']
-    ]);
     expect(mgr.playOnce).not.toHaveBeenCalled();
-    expect(mgr.addXP).not.toHaveBeenCalled();
-    expect(mgr.changeFavor).not.toHaveBeenCalled();
-    expect(mgr.updateDimension).not.toHaveBeenCalled();
 
     cleanup();
   });
@@ -331,7 +298,6 @@ describe('sprite event listener', () => {
     expect(mgr.clearBusy).not.toHaveBeenCalled();
     expect(mgr.showToast).not.toHaveBeenCalled();
     expect(mgr.trigger).not.toHaveBeenCalled();
-    expect(mgr.applyPersonaReward).toHaveBeenCalledWith({ xp: 0, favor: 0, dimensions: [] }, 'workflow-complete');
 
     cleanup();
   });

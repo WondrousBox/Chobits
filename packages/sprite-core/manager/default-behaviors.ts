@@ -13,7 +13,6 @@ import {
   createAutoWalkBehavior,
   createBoredBehavior,
   createEmotionBehavior,
-  createFavorDecayBehavior,
   createIdleSleepyBehavior,
   createRandomMessageBehavior,
   createSeasonalBehavior,
@@ -150,13 +149,6 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
     mgr.showToast(undefined, { category: 'tip', ambientContext: 'behavior' });
   };
   mgr.registerBehavior(msgDef);
-
-  // 好感度衰减
-  const decayDef = createFavorDecayBehavior();
-  decayDef.action = (_ctx: BehaviorContext) => {
-    mgr.changeFavor(-1, 'idle-decay');
-  };
-  mgr.registerBehavior(decayDef);
 
   // ===== 情感自发行为 =====
   const emotionDef = createEmotionBehavior();

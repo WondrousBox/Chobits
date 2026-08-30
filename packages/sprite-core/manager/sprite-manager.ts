@@ -27,14 +27,6 @@ import { SpriteEventBus } from '../event-bus';
 import { SPRITE_INTERACTION_EVENT_BY_INTENT, type SpriteInteractionIntent, type SpriteInteractionPayload } from '../interaction-contract';
 import { InteractionTracker } from '../interaction-tracker';
 import { getCharacterCategoryText, getCharacterSpriteEventText } from '../messages/character';
-import {
-  type ConversationRewardContext,
-  getConversationRewardEventRules,
-  getPersonaRulesSnapshot,
-  getResolvedConversationPersonaRewardBonus,
-  type PersonaRewardGrant,
-  subscribePersonaRulesChanges
-} from '../persona-rules';
 import type { MoodType, PersonaState } from '../persona-state';
 import { PersonaStateManager } from '../persona-state';
 import {
@@ -268,8 +260,6 @@ export class SpriteManager {
 
   // 欢迎消息只在首次 rendererReady 时发送
   private _welcomeSent = false;
-  private lastConversationRewardTime = 0;
-  private unsubscribePersonaRulesChanges: (() => void) | null = null;
 
   // 单例
   private static instance: SpriteManager | null = null;
@@ -288,13 +278,8 @@ export class SpriteManager {
     this.eventBus = new SpriteEventBus();
     this.stateMachine = new SpriteStateMachine({ eventBus: this.eventBus });
     this.personaState = new PersonaStateManager({
-      eventBus: this.eventBus,
       initialState: { name: options.appName ?? 'Chobits' },
       onStateChange: () => this.onPersonaStateChange()
-    });
-    this.syncPersonaRules(getPersonaRulesSnapshot());
-    this.unsubscribePersonaRulesChanges = subscribePersonaRulesChanges((snapshot) => {
-      this.syncPersonaRules(snapshot);
     });
     this.interactionTracker = new InteractionTracker({ eventBus: this.eventBus });
     this.behaviorEngine = new BehaviorEngine({
@@ -483,31 +468,21 @@ export class SpriteManager {
 
   /** 启动引擎 */
   async start(): Promise<void> {
-    this.syncPersonaRules();
-
     // 1. 加载自动行走配置 + 气泡模式
     this.autoWalkConfig.load();
     this.bubbleModeConfig.load();
     this.spriteConfig.bubbleMode = this.bubbleModeConfig.mode;
 
-    // 2. 加载持久化的人格状态
+    // 2. 加载持久化的人格状态（读取时忽略旧文件中的养成字段）
     const saved = await this.persistence.load(this.activePersonaStateId);
     if (saved) {
       this.personaState.loadState({
         name: this.activePersonaIdentity.name,
         ...(this.activePersonaIdentity.description !== undefined ? { description: this.activePersonaIdentity.description } : { description: saved.description }),
-        xp: saved.xp,
-        level: saved.level,
-        favor: saved.favor,
         mood: saved.mood,
         moodIntensity: saved.moodIntensity,
-        totalInteractions: saved.totalInteractions,
-        totalSessionTime: saved.totalSessionTime,
-        loginStreak: saved.loginStreak,
-        lastLoginDate: saved.lastLoginDate,
         achievements: saved.achievements,
         dimensions: saved.dimensions,
-        claimedRewards: saved.claimedRewards,
         createdAt: saved.createdAt,
         updatedAt: saved.updatedAt
       });
@@ -530,26 +505,12 @@ export class SpriteManager {
     } else {
       this.behaviorEngine.start();
     }
-
-    // 7. 启动心情衰减
-    this.personaState.startMoodDecay();
-
-    // 8. 记录日常登录
-    const loginResult = this.personaState.recordDailyLogin();
-    if (loginResult.isNewDay) {
-      this.sendToRenderer('sprite:state', {
-        state: this.getState(),
-        subState: this.getSubState(),
-        personaSnapshot: this.personaState.getState()
-      });
-    }
   }
 
   /** 停止引擎 */
   stop(): void {
     this.stopBehaviorScheduler();
     this.behaviorEngine.stop();
-    this.personaState.stopMoodDecay();
     this.persistence.stopAutoSave();
     if (this.stateBroadcastTimer) {
       clearTimeout(this.stateBroadcastTimer);
@@ -560,8 +521,6 @@ export class SpriteManager {
   /** 销毁并清理 */
   async destroy(): Promise<void> {
     this.stop();
-    this.unsubscribePersonaRulesChanges?.();
-    this.unsubscribePersonaRulesChanges = null;
     await this.purposeManager.waitForIdlePresence();
 
     // 保存最终状态
@@ -1435,66 +1394,6 @@ export class SpriteManager {
   // 人格化 API
   // ============================================================================
 
-  /** 增加经验值 */
-  addXP(amount: number, source?: string): { xpGained: number; leveledUp: boolean; newLevel?: number } {
-    const result = this.personaState.addXP(amount, source);
-    this.persistence.markDirty();
-
-    if (result.leveledUp) {
-      this.sendToRenderer('sprite:state', {
-        state: this.getState(),
-        subState: this.getSubState(),
-        personaSnapshot: this.personaState.getState()
-      });
-      this.trigger('powerUp', { message: `升级了！当前等级 ${result.newLevel} ⭐` });
-    }
-    return result;
-  }
-
-  /** 修改好感度 */
-  changeFavor(delta: number, reason?: string): { oldFavor: number; newFavor: number; levelChanged: boolean } {
-    const result = this.personaState.changeFavor(delta, reason);
-    this.persistence.markDirty();
-    return result;
-  }
-
-  /** 统一应用 persona reward，收口 XP / favor / dimension 的业务结算入口 */
-  applyPersonaReward(reward: PersonaRewardGrant, source?: string): void {
-    if (reward.xp > 0) {
-      this.addXP(reward.xp, source);
-    }
-    if (reward.favor !== 0) {
-      this.changeFavor(reward.favor, source);
-    }
-    for (const dimension of reward.dimensions) {
-      if (dimension.delta !== 0) {
-        this.updateDimension(dimension.id, dimension.delta, dimension.maxValue);
-      }
-    }
-  }
-
-  /** 记录一次 AI 对话完成，让对话奖励重新回到 runtime event rule 主链路。 */
-  recordConversationEvent(context?: ConversationRewardContext): boolean {
-    const rulesSnapshot = getPersonaRulesSnapshot();
-    this.syncPersonaRules(rulesSnapshot);
-
-    const { cooldownMs } = getConversationRewardEventRules(rulesSnapshot);
-    const now = Date.now();
-    if (now - this.lastConversationRewardTime < cooldownMs) {
-      return false;
-    }
-
-    this.lastConversationRewardTime = now;
-    this.eventBus.emit('ai:message-sent', context, 'sprite-manager');
-
-    const bonusReward = getResolvedConversationPersonaRewardBonus(context, rulesSnapshot);
-    if (bonusReward.xp > 0 || bonusReward.favor !== 0 || bonusReward.dimensions.length > 0) {
-      this.applyPersonaReward(bonusReward, 'conversation');
-    }
-
-    return true;
-  }
-
   /** 设置心情 */
   setMood(mood: MoodType, intensity?: number): void {
     this.personaState.setMood(mood, intensity);
@@ -1527,8 +1426,6 @@ export class SpriteManager {
     this.configurePersonaStateSlot(slotId, identity);
 
     const saved = await this.persistence.load(this.activePersonaStateId);
-    this.personaState.resetRuntimeCaches();
-    this.lastConversationRewardTime = 0;
 
     if (saved) {
       this.personaState.loadState({
@@ -1549,90 +1446,10 @@ export class SpriteManager {
     };
   }
 
-  /** 记录每日登录 */
-  recordDailyLogin(): { isNewDay: boolean; streak: number; xpBonus: number } {
-    const result = this.personaState.recordDailyLogin();
-    if (result.isNewDay) {
-      this.persistence.markDirty();
-    }
-    return result;
-  }
-
-  /** 解锁成就 */
-  unlockAchievement(id: string): boolean {
-    const result = this.personaState.unlockAchievement(id);
-    if (result) {
-      this.persistence.markDirty();
-      this.trigger('sparkle', { message: '成就解锁！✨', silent: true });
-    }
-    return result;
-  }
-
-  /** 检查指定成就是否已经解锁 */
-  hasAchievement(id: string): boolean {
-    return this.personaState.hasAchievement(id);
-  }
-
-  removeAchievements(ids: Iterable<string>): string[] {
-    return this.personaState.removeAchievements(ids);
-  }
-
-  /** 检查指定 source 的奖励是否已经发放过（用于 Quest / 新手引导幂等） */
-  hasClaimedReward(source: string): boolean {
-    return this.personaState.hasClaimedReward(source);
-  }
-
-  /** 标记指定 source 的奖励已发放，返回是否为新增 */
-  markRewardClaimed(source: string, at?: number): boolean {
-    const result = this.personaState.markRewardClaimed(source, at);
-    if (result) {
-      this.persistence.markDirty();
-    }
-    return result;
-  }
-
-  removeClaimedRewards(sources: Iterable<string>): string[] {
-    return this.personaState.removeClaimedRewards(sources);
-  }
-
-  /** 更新维度值 */
-  updateDimension(id: string, delta: number, maxValue?: number): { oldValue: number; newValue: number } {
-    const result = this.personaState.updateDimension(id, delta, maxValue);
-    this.persistence.markDirty();
-    return result;
-  }
-
   /** 批量初始化维度（仅对尚未初始化的维度设置初始值） */
   initDimensions(defs: Array<{ id: string; initialValue: number }>): void {
     this.personaState.initDimensions(defs);
     this.persistence.markDirty();
-  }
-
-  /** 重置人格状态（等级、经验、好感度等） */
-  resetPersonaState(): PersonaState {
-    const now = Date.now();
-    this.personaState.loadState({
-      name: this.personaState.getState().name,
-      xp: 0,
-      level: 1,
-      xpToNextLevel: 100,
-      favor: 50,
-      favorLevel: 'friend',
-      mood: 'neutral',
-      moodIntensity: 50,
-      totalInteractions: 0,
-      totalSessionTime: 0,
-      loginStreak: 0,
-      lastLoginDate: '',
-      achievements: [],
-      dimensions: {},
-      claimedRewards: {},
-      createdAt: now,
-      updatedAt: now
-    });
-    this.persistence.markDirty();
-    this.broadcastState();
-    return this.personaState.getState();
   }
 
   // ============================================================================
@@ -3014,12 +2831,6 @@ export class SpriteManager {
     ]);
   }
 
-  private syncPersonaRules(snapshot = getPersonaRulesSnapshot()): void {
-    this.personaState.setXPSources(snapshot.xpSources);
-    this.personaState.setFavorModifiers(snapshot.favorModifiers);
-    this.personaState.setMoodRules(snapshot.moodRules);
-  }
-
   private setSpriteMetrics(metrics: Pick<SpriteConfig, 'width' | 'height' | 'padding'>): void {
     this.spriteConfig.width = metrics.width;
     this.spriteConfig.height = metrics.height;
@@ -3125,18 +2936,10 @@ export class SpriteManager {
       version: 2,
       name: state.name,
       description: state.description,
-      xp: state.xp,
-      level: state.level,
-      favor: state.favor,
       mood: state.mood,
       moodIntensity: state.moodIntensity,
-      totalInteractions: state.totalInteractions,
-      totalSessionTime: state.totalSessionTime,
-      loginStreak: state.loginStreak,
-      lastLoginDate: state.lastLoginDate,
       achievements: [...state.achievements],
       dimensions: { ...state.dimensions },
-      claimedRewards: state.claimedRewards ? { ...state.claimedRewards } : undefined,
       createdAt: state.createdAt,
       updatedAt: state.updatedAt
     };
@@ -3147,20 +2950,10 @@ export class SpriteManager {
     return {
       name: this.activePersonaIdentity.name,
       ...(this.activePersonaIdentity.description !== undefined ? { description: this.activePersonaIdentity.description } : {}),
-      xp: 0,
-      level: 1,
-      xpToNextLevel: 100,
-      favor: 50,
-      favorLevel: 'friend',
       mood: 'neutral',
       moodIntensity: 50,
-      totalInteractions: 0,
-      totalSessionTime: 0,
-      loginStreak: 0,
-      lastLoginDate: '',
       achievements: [],
       dimensions: {},
-      claimedRewards: {},
       createdAt: now,
       updatedAt: now
     };

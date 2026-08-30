@@ -235,11 +235,7 @@ export interface SpriteTriggerRequest extends SpriteTriggerOptions {
   trigger?: SpriteAnimationTrigger;
 }
 
-export type SpriteFeedbackKind =
-  | 'quest-record'
-  | 'purpose-link'
-  | 'memory-record'
-  | (string & {});
+export type SpriteFeedbackKind = 'quest-record' | 'purpose-link' | 'memory-record' | (string & {});
 
 export interface SpriteFeedbackRequest {
   trigger?: SpriteAnimationTrigger;
@@ -257,10 +253,8 @@ export type SpriteFeedbackResult =
 
 export type { PersonaSnapshot };
 export type {
-  CapabilityLevelUnlockDefinition,
   SpriteCapabilityBranch,
   SpriteCapabilityDefinition,
-  SpriteCapabilityLevelUnlockType,
   SpriteCapabilityResolutionContext,
   SpriteCapabilityShortcut,
   SpriteCapabilitySignalMode,

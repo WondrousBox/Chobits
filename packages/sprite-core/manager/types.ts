@@ -235,24 +235,16 @@ export interface SpriteSpontaneousUtteranceExecutor {
   listSpontaneousUtterances?(query?: SpriteSpontaneousUtteranceHistoryQuery): Promise<SpriteSpontaneousUtteranceHistoryItem[]>;
 }
 
-/** 人格状态持久化快照（JSON 文件） */
+/** 人格状态持久化快照（JSON 文件）。养成字段（xp/level/favor/loginStreak/claimedRewards 等）已移除，读取旧文件时忽略。 */
 export interface PersonaStatePersistenceRow {
   id: string;
   version: 2;
   name: PersonaState['name'];
   description?: PersonaState['description'];
-  xp: PersonaState['xp'];
-  level: PersonaState['level'];
-  favor: PersonaState['favor'];
   mood: PersonaState['mood'];
   moodIntensity: PersonaState['moodIntensity'];
-  totalInteractions: PersonaState['totalInteractions'];
-  totalSessionTime: PersonaState['totalSessionTime'];
-  loginStreak: PersonaState['loginStreak'];
-  lastLoginDate: PersonaState['lastLoginDate'];
   achievements: PersonaState['achievements'];
   dimensions: PersonaState['dimensions'];
-  claimedRewards?: PersonaState['claimedRewards'];
   createdAt: PersonaState['createdAt'];
   updatedAt: PersonaState['updatedAt'];
 }

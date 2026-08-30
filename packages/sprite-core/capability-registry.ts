@@ -4,8 +4,6 @@ export type SpriteCapabilityTier = 'beginner' | 'intermediate' | 'advanced' | 'p
 
 export type SpriteCapabilityBranch = 'core' | 'perception' | 'care' | 'avatar' | 'intelligence' | (string & {});
 
-export type SpriteCapabilityLevelUnlockType = 'skill' | 'feature';
-
 export type SpriteCapabilitySignalMode = 'all' | 'any';
 
 export interface SpriteCapabilityShortcut {
@@ -26,24 +24,15 @@ export interface SpriteCapabilityDefinition {
   row: number;
   prerequisites: string[];
   settingsKey?: string;
-  unlockCondition?: string;
-  requiredLevel?: number;
-  requiredAchievements?: string[];
   requiredFeatureFlags?: string[];
-  requiredPersonaFlags?: string[];
   requiredShortcut?: SpriteCapabilityShortcut;
   activationSignals?: string[];
   activationSignalMode?: SpriteCapabilitySignalMode;
-  levelUnlockType?: SpriteCapabilityLevelUnlockType;
-  levelUnlockIcon?: string;
 }
 
 export interface SpriteCapabilityResolutionContext {
-  personaLevel?: number;
   activeSignals?: Record<string, boolean | null | undefined>;
-  achievements?: Iterable<string>;
   featureFlags?: Record<string, boolean | null | undefined>;
-  personaFlags?: Record<string, boolean | null | undefined>;
 }
 
 export interface SpriteCapabilityState extends SpriteCapabilityDefinition {
@@ -51,12 +40,9 @@ export interface SpriteCapabilityState extends SpriteCapabilityDefinition {
   active: boolean;
   unlocked: boolean;
   unlockReady: boolean;
-  meetsLevelRequirement: boolean;
   inactivePrerequisites: string[];
   missingPrerequisites: string[];
-  missingAchievements: string[];
   missingFeatureFlags: string[];
-  missingPersonaFlags: string[];
 }
 
 export interface SpriteCapabilityTotals {
@@ -67,19 +53,9 @@ export interface SpriteCapabilityTotals {
 }
 
 export interface SpriteCapabilitySnapshot {
-  personaLevel: number;
   capabilities: Record<string, SpriteCapabilityState>;
   ordered: SpriteCapabilityState[];
   totals: SpriteCapabilityTotals;
-}
-
-export interface CapabilityLevelUnlockDefinition {
-  level: number;
-  type: SpriteCapabilityLevelUnlockType;
-  id: string;
-  name: string;
-  description: string;
-  icon?: string;
 }
 
 export const SPRITE_CAPABILITY_SIGNALS = {
@@ -228,9 +204,7 @@ const DEFAULT_CAPABILITY_DEFINITIONS: SpriteCapabilityDefinition[] = [
     column: 0,
     row: 3,
     prerequisites: ['scheduleReminder'],
-    requiredLevel: 20,
-    levelUnlockType: 'skill',
-    levelUnlockIcon: '🔔'
+    settingsKey: 'dailyCare'
   },
   {
     id: 'spriteManage',
@@ -254,10 +228,7 @@ const DEFAULT_CAPABILITY_DEFINITIONS: SpriteCapabilityDefinition[] = [
     row: 6,
     prerequisites: [],
     settingsKey: 'movement',
-    requiredLevel: 1,
-    activationSignals: [SPRITE_CAPABILITY_SIGNALS.movementAutoWalk],
-    levelUnlockType: 'skill',
-    levelUnlockIcon: '🏃'
+    activationSignals: [SPRITE_CAPABILITY_SIGNALS.movementAutoWalk]
   },
   {
     id: 'customAppearance',
@@ -268,10 +239,7 @@ const DEFAULT_CAPABILITY_DEFINITIONS: SpriteCapabilityDefinition[] = [
     column: 0,
     row: 5,
     prerequisites: ['spriteManage'],
-    requiredFeatureFlags: ['character:loaded', 'character:has-custom-appearance'],
-    requiredLevel: 10,
-    levelUnlockType: 'feature',
-    levelUnlockIcon: '🎨'
+    requiredFeatureFlags: ['character:loaded', 'character:has-custom-appearance']
   },
   {
     id: 'actionChoreography',
@@ -282,8 +250,7 @@ const DEFAULT_CAPABILITY_DEFINITIONS: SpriteCapabilityDefinition[] = [
     column: 0,
     row: 5,
     prerequisites: ['customAppearance', 'movement'],
-    requiredFeatureFlags: ['character:loaded', 'pack:has-custom-animations'],
-    requiredLevel: 12
+    requiredFeatureFlags: ['character:loaded', 'pack:has-custom-animations']
   },
   {
     id: 'emotionExpression',
@@ -293,11 +260,7 @@ const DEFAULT_CAPABILITY_DEFINITIONS: SpriteCapabilityDefinition[] = [
     tier: 'professional',
     column: 0,
     row: 5,
-    prerequisites: ['actionChoreography'],
-    requiredPersonaFlags: ['persona:bonded'],
-    requiredLevel: 15,
-    levelUnlockType: 'feature',
-    levelUnlockIcon: '✨'
+    prerequisites: ['actionChoreography']
   },
   {
     id: 'aiChat',
@@ -337,8 +300,7 @@ const DEFAULT_CAPABILITY_DEFINITIONS: SpriteCapabilityDefinition[] = [
     tier: 'advanced',
     column: 0,
     row: 7,
-    prerequisites: ['docUnderstanding', 'translation'],
-    requiredPersonaFlags: ['persona:advanced-level']
+    prerequisites: ['docUnderstanding', 'translation']
   },
   {
     id: 'autoAgent',
@@ -358,9 +320,7 @@ const DEFAULT_CAPABILITY_DEFINITIONS: SpriteCapabilityDefinition[] = [
     tier: 'master',
     column: 0,
     row: 7,
-    prerequisites: ['autoAgent', 'emotionExpression', 'videoAnalysis', 'smartReminder'],
-    unlockCondition: '解锁所有专业级技能',
-    requiredLevel: 50
+    prerequisites: ['autoAgent', 'emotionExpression', 'videoAnalysis', 'smartReminder']
   }
 ];
 
@@ -380,9 +340,7 @@ function cloneDefinition(definition: SpriteCapabilityDefinition): SpriteCapabili
   return {
     ...definition,
     prerequisites: [...definition.prerequisites],
-    requiredAchievements: definition.requiredAchievements ? [...definition.requiredAchievements] : undefined,
     requiredFeatureFlags: definition.requiredFeatureFlags ? [...definition.requiredFeatureFlags] : undefined,
-    requiredPersonaFlags: definition.requiredPersonaFlags ? [...definition.requiredPersonaFlags] : undefined,
     requiredShortcut: definition.requiredShortcut ? { ...definition.requiredShortcut } : undefined,
     activationSignals: definition.activationSignals ? [...definition.activationSignals] : undefined
   };
@@ -407,11 +365,8 @@ export class CapabilityRegistry {
   }
 
   resolveSnapshot(context: SpriteCapabilityResolutionContext = {}): SpriteCapabilitySnapshot {
-    const personaLevel = context.personaLevel ?? 1;
     const activeSignals = context.activeSignals ?? {};
-    const achievementSet = new Set(context.achievements ?? []);
     const featureFlags = context.featureFlags ?? {};
-    const personaFlags = context.personaFlags ?? {};
     const activeCapabilityIds = new Set<string>();
     const resolvedStates = new Map<string, SpriteCapabilityState>();
 
@@ -452,17 +407,8 @@ export class CapabilityRegistry {
 
         return !resolveState(prerequisiteId, nextAncestry).unlockReady;
       });
-      const missingAchievements = (definition.requiredAchievements ?? []).filter((achievement) => !achievementSet.has(achievement));
       const missingFeatureFlags = (definition.requiredFeatureFlags ?? []).filter((flag) => !featureFlags[flag]);
-      const missingPersonaFlags = (definition.requiredPersonaFlags ?? []).filter((flag) => !personaFlags[flag]);
-      const meetsLevelRequirement = !definition.requiredLevel || personaLevel >= definition.requiredLevel;
-      const unlockReady =
-        meetsLevelRequirement &&
-        inactivePrerequisites.length === 0 &&
-        missingPrerequisites.length === 0 &&
-        missingAchievements.length === 0 &&
-        missingFeatureFlags.length === 0 &&
-        missingPersonaFlags.length === 0;
+      const unlockReady = inactivePrerequisites.length === 0 && missingPrerequisites.length === 0 && missingFeatureFlags.length === 0;
       const active = unlockReady && activeCapabilityIds.has(definition.id);
       const status: SpriteCapabilityStatus = active ? 'active' : unlockReady ? 'unlocked' : 'locked';
 
@@ -472,12 +418,9 @@ export class CapabilityRegistry {
         active,
         unlocked: status !== 'locked',
         unlockReady,
-        meetsLevelRequirement,
         inactivePrerequisites,
         missingPrerequisites,
-        missingAchievements,
-        missingFeatureFlags,
-        missingPersonaFlags
+        missingFeatureFlags
       } satisfies SpriteCapabilityState;
       resolvedStates.set(definitionId, state);
       return state;
@@ -498,34 +441,13 @@ export class CapabilityRegistry {
     );
 
     return {
-      personaLevel,
       capabilities,
       ordered,
       totals
     };
-  }
-
-  getLevelUnlocks(): CapabilityLevelUnlockDefinition[] {
-    return this.definitions
-      .filter((definition): definition is SpriteCapabilityDefinition & Required<Pick<SpriteCapabilityDefinition, 'requiredLevel' | 'levelUnlockType'>> => {
-        return typeof definition.requiredLevel === 'number' && Boolean(definition.levelUnlockType);
-      })
-      .map((definition) => ({
-        level: definition.requiredLevel,
-        type: definition.levelUnlockType,
-        id: definition.id,
-        name: definition.name,
-        description: definition.description,
-        icon: definition.levelUnlockIcon
-      }))
-      .sort((left, right) => left.level - right.level);
   }
 }
 
 export const DEFAULT_SPRITE_CAPABILITY_DEFINITIONS = DEFAULT_CAPABILITY_DEFINITIONS.map((definition) => cloneDefinition(definition));
 
 export const DEFAULT_SPRITE_CAPABILITY_REGISTRY = new CapabilityRegistry(DEFAULT_SPRITE_CAPABILITY_DEFINITIONS);
-
-export function getSpriteCapabilityLevelUnlocks(): CapabilityLevelUnlockDefinition[] {
-  return DEFAULT_SPRITE_CAPABILITY_REGISTRY.getLevelUnlocks();
-}

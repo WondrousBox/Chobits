@@ -29,10 +29,6 @@ export function getFirstLockedSpriteCapability(snapshot: SpriteCapabilitySnapsho
 export function getSpriteCapabilityLockedReason(capability?: SpriteCapabilityState | null): string {
   if (!capability || capability.status !== 'locked') return '';
 
-  if (!capability.meetsLevelRequirement && capability.requiredLevel) {
-    return `需要精灵达到 Lv.${capability.requiredLevel}`;
-  }
-
   if (capability.inactivePrerequisites.length > 0) {
     const prerequisiteNames = capability.inactivePrerequisites.map((id) => capabilityNameMap.get(id) ?? id);
     return `需要先启用前置能力：${prerequisiteNames.join('、')}`;
@@ -43,16 +39,8 @@ export function getSpriteCapabilityLockedReason(capability?: SpriteCapabilitySta
     return `需要先解锁前置能力：${prerequisiteNames.join('、')}`;
   }
 
-  if (capability.missingAchievements.length > 0) {
-    return `需要先完成成就：${capability.missingAchievements.join('、')}`;
-  }
-
   if (capability.missingFeatureFlags.length > 0) {
     return '当前版本尚未开放此能力';
-  }
-
-  if (capability.missingPersonaFlags.length > 0) {
-    return '当前人格条件尚未满足';
   }
 
   return '当前尚未解锁此能力';

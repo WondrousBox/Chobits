@@ -15,7 +15,6 @@ import * as path from 'node:path';
 
 import type { SpriteAnimationCondition } from './animation-condition';
 import { resolvePackRelativeAssetPath } from './character-pack-paths';
-import { DEFAULT_CONVERSATION_REWARDS, mergeActivityRewards } from './config/persona-rules';
 import type { MoodType } from './persona-state';
 import type { MessageCategory } from './types';
 
@@ -399,6 +398,121 @@ export function getCharacterDefinition(): CharacterDefinition | null {
   cachedCharacter = character;
   console.log(`[CharacterService] Loaded character: ${cachedCharacter.name} (${cachedCharacter.id})`);
   return cachedCharacter;
+}
+
+// ━━ Reward schema defaults (pack file format defaults; 养成结算逻辑已移除) ━━
+
+export const DEFAULT_CONVERSATION_REWARDS: ConversationRewards = {
+  xpPerConversation: 15,
+  favorPerConversation: 1.5,
+  cooldownMs: 60_000,
+  bonusConditions: []
+};
+
+export const DEFAULT_ACTIVITY_REWARDS: Record<ActivityRewardId, ActivityReward> = {
+  'workflow-complete': {
+    xp: 12,
+    favor: 0.4,
+    dimensionGrowth: {
+      'workflow-usage': 1.0,
+      'task-completion': 0.6
+    }
+  },
+  'resource-import-complete': {
+    xp: 8,
+    favor: 0.2,
+    dimensionGrowth: {
+      'task-completion': 0.5
+    }
+  },
+  'download-complete': {
+    xp: 8,
+    favor: 0.2,
+    dimensionGrowth: {
+      'task-completion': 0.4
+    }
+  },
+  'plugin-install': {
+    xp: 10,
+    favor: 0.3,
+    dimensionGrowth: {
+      'tool-usage': 0.8,
+      'task-completion': 0.5
+    }
+  },
+  'plugin-update': {
+    xp: 6,
+    favor: 0.2,
+    dimensionGrowth: {
+      'tool-usage': 0.6,
+      'task-completion': 0.4
+    }
+  },
+  'plugin-remove': {
+    xp: 4,
+    favor: 0,
+    dimensionGrowth: {
+      'tool-usage': 0.4
+    }
+  },
+  'media-process-complete': {
+    xp: 9,
+    favor: 0.2,
+    dimensionGrowth: {
+      'task-completion': 0.5,
+      'tool-usage': 0.3
+    }
+  },
+  'memory-extraction-completed': {
+    xp: 3,
+    favor: 0.1,
+    dimensionGrowth: {
+      conversation: 0.3,
+      'task-completion': 0.2
+    }
+  },
+  'user-persona-update-completed': {
+    xp: 5,
+    favor: 0.3,
+    dimensionGrowth: {
+      conversation: 0.4,
+      'task-completion': 0.3
+    }
+  },
+  'trash-restore': {
+    xp: 4,
+    favor: 0.1,
+    dimensionGrowth: {
+      'task-completion': 0.2
+    }
+  }
+};
+
+export function mergeActivityRewards(overrides?: Partial<Record<ActivityRewardId, ActivityReward>>): Record<ActivityRewardId, ActivityReward> {
+  const activityIds = Array.from(new Set<ActivityRewardId>([...(Object.keys(DEFAULT_ACTIVITY_REWARDS) as ActivityRewardId[]), ...((Object.keys(overrides ?? {}) as ActivityRewardId[]) ?? [])]));
+
+  return activityIds.reduce(
+    (acc, activityId) => {
+      const base = DEFAULT_ACTIVITY_REWARDS[activityId];
+      const override = overrides?.[activityId];
+      if (!base && !override) {
+        return acc;
+      }
+
+      const mergedDimensionGrowth = {
+        ...(base?.dimensionGrowth ?? {}),
+        ...(override?.dimensionGrowth ?? {})
+      };
+
+      acc[activityId] = {
+        ...(base ?? { xp: 0, favor: 0 }),
+        ...override,
+        dimensionGrowth: Object.keys(mergedDimensionGrowth).length > 0 ? mergedDimensionGrowth : undefined
+      };
+      return acc;
+    },
+    {} as Record<ActivityRewardId, ActivityReward>
+  );
 }
 
 /**

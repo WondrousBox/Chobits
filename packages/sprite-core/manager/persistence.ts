@@ -17,7 +17,6 @@ type LegacyPersonaStatePersistenceRow = Partial<Omit<PersonaStatePersistenceRow,
   version?: unknown;
   achievements?: unknown;
   dimensions?: unknown;
-  claimedRewards?: unknown;
 };
 
 interface PersonaStatePersistenceStore {
@@ -67,21 +66,7 @@ function normalizeDimensions(value: unknown): Record<string, number> {
   return dimensions;
 }
 
-function normalizeClaimedRewards(value: unknown): PersonaStatePersistenceRow['claimedRewards'] {
-  if (!isPlainObject(value)) return undefined;
-
-  const rewards: NonNullable<PersonaStatePersistenceRow['claimedRewards']> = {};
-  for (const [source, record] of Object.entries(value)) {
-    if (!source) continue;
-    const at = isPlainObject(record) ? normalizeNumber(record.at, 0) : 0;
-    if (at > 0) {
-      rewards[source] = { at };
-    }
-  }
-
-  return Object.keys(rewards).length > 0 ? rewards : undefined;
-}
-
+/** 兼容旧版 persona-state.json：养成字段（xp/level/favor/loginStreak/claimedRewards 等）直接忽略。 */
 function normalizeLoadedState(raw: unknown): PersonaStatePersistenceRow | null {
   if (!isPlainObject(raw)) return null;
 
@@ -93,18 +78,10 @@ function normalizeLoadedState(raw: unknown): PersonaStatePersistenceRow | null {
     version: 2,
     name: normalizeString(parsed.name, 'Chobits'),
     description: typeof parsed.description === 'string' ? parsed.description : undefined,
-    xp: normalizeNumber(parsed.xp, 0),
-    level: Math.max(1, normalizeNumber(parsed.level, 1)),
-    favor: normalizeNumber(parsed.favor, 50),
     mood: normalizeString(parsed.mood, 'neutral') as PersonaStatePersistenceRow['mood'],
     moodIntensity: normalizeNumber(parsed.moodIntensity, 50),
-    totalInteractions: normalizeNumber(parsed.totalInteractions, 0),
-    totalSessionTime: normalizeNumber(parsed.totalSessionTime, 0),
-    loginStreak: normalizeNumber(parsed.loginStreak, 0),
-    lastLoginDate: normalizeString(parsed.lastLoginDate, ''),
     achievements: normalizeAchievements(parsed.achievements),
     dimensions: normalizeDimensions(parsed.dimensions),
-    claimedRewards: normalizeClaimedRewards(parsed.claimedRewards),
     createdAt: normalizeNumber(parsed.createdAt, now),
     updatedAt: normalizeNumber(parsed.updatedAt, now)
   };

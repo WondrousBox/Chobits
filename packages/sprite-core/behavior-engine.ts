@@ -65,8 +65,6 @@ export type BehaviorRunSkipReason =
   | 'cooldown'
   | 'state-not-allowed'
   | 'state-blocked'
-  | 'min-favor'
-  | 'min-level'
   | 'time-window'
   | 'condition-failed'
   | 'probability';
@@ -136,13 +134,6 @@ export interface BehaviorDefinition {
   allowedStates?: SpriteState[];
   /** 在这些精灵状态下禁止触发 */
   blockedStates?: SpriteState[];
-
-  // --- 游戏化约束 ---
-
-  /** 最低好感度要求 */
-  minFavor?: number;
-  /** 最低等级要求 */
-  minLevel?: number;
 }
 
 // ============ 行为运行时状态 ============
@@ -255,27 +246,6 @@ export function createRandomMessageBehavior(): BehaviorDefinition {
     },
     allowedStates: ['idle'],
     blockedStates: ['dragging', 'walking', 'sleeping']
-  };
-}
-
-/** 创建好感度衰减行为（长时间不使用） */
-export function createFavorDecayBehavior(): BehaviorDefinition {
-  return {
-    id: 'favor-decay',
-    name: '好感度自然衰减',
-    enabled: true,
-    priority: 'low',
-    schedule: { type: 'interval', intervalMs: 3600000 }, // 每小时
-    conditions: [
-      (ctx) => ctx.interactionStats.idleDuration > 1800000, // 30 分钟无交互
-      (ctx) => ctx.personaState.favor > 20 // 不低于 20
-    ],
-    probability: 1,
-    action: () => {
-      //
-    },
-    allowedStates: ['idle', 'sleeping', 'bored'],
-    dailyLimit: 5
   };
 }
 
@@ -567,10 +537,6 @@ export class BehaviorEngine {
     // 状态约束
     if (def.allowedStates && !def.allowedStates.includes(ctx.spriteState)) return this.skip(runtime, 'state-not-allowed');
     if (def.blockedStates && def.blockedStates.includes(ctx.spriteState)) return this.skip(runtime, 'state-blocked');
-
-    // 游戏化约束
-    if (def.minFavor != null && ctx.personaState.favor < def.minFavor) return this.skip(runtime, 'min-favor');
-    if (def.minLevel != null && ctx.personaState.level < def.minLevel) return this.skip(runtime, 'min-level');
 
     // 时间窗口
     if (!force && def.schedule.timeWindow) {

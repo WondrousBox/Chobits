@@ -1,15 +1,9 @@
-import { compileSpriteAnimationCondition } from './animation-condition';
-import { getCharacterDefinition, getCharacterPackDefinition, type CharacterCapabilityPersonaFlagDefinition, type CharacterDefinition, type CharacterPackDefinition } from './character-service';
-import type { PersonaState } from './persona-state';
+import { type CharacterDefinition, type CharacterPackDefinition, getCharacterDefinition, getCharacterPackDefinition } from './character-service';
 
 export interface CharacterCapabilityContextFlags {
   characterId: string | null;
   featureFlags: Record<string, boolean>;
-  personaFlags: Record<string, boolean>;
 }
-
-const BONDED_FAVOR_LEVELS = new Set<PersonaState['favorLevel']>(['close-friend', 'bestie', 'soulmate']);
-const ADVANCED_PERSONA_LEVEL = 15;
 
 function normalizeFlagId(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -95,55 +89,12 @@ function collectFeatureFlags(character: CharacterDefinition | null | undefined, 
   return featureFlags;
 }
 
-function collectBuiltinPersonaFlags(personaState: Readonly<PersonaState>): Set<string> {
-  const personaFlags = new Set<string>([`persona:mood:${personaState.mood}`, `persona:favor-level:${personaState.favorLevel}`]);
-
-  if (BONDED_FAVOR_LEVELS.has(personaState.favorLevel)) {
-    personaFlags.add('persona:bonded');
-  }
-
-  if (personaState.level >= ADVANCED_PERSONA_LEVEL) {
-    personaFlags.add('persona:advanced-level');
-  }
-
-  return personaFlags;
-}
-
-function resolveCustomPersonaFlag(definition: CharacterCapabilityPersonaFlagDefinition, personaState: Readonly<PersonaState>): string | null {
-  const normalizedId = normalizeFlagId(definition.id);
-  const matches = compileSpriteAnimationCondition(definition.when);
-  if (!normalizedId || !matches) {
-    return null;
-  }
-
-  return matches(personaState as PersonaState) ? normalizedId : null;
-}
-
-function collectPersonaFlags(personaState: Readonly<PersonaState>, character: CharacterDefinition | null | undefined): Set<string> {
-  const personaFlags = collectBuiltinPersonaFlags(personaState);
-
-  for (const definition of character?.capabilityFlags?.personaFlags ?? []) {
-    const matchedFlag = resolveCustomPersonaFlag(definition, personaState);
-    if (matchedFlag) {
-      personaFlags.add(matchedFlag);
-    }
-  }
-
-  return personaFlags;
-}
-
-export function getCharacterCapabilityContextFlags(
-  personaState: Readonly<PersonaState>,
-  character = getCharacterDefinition(),
-  pack = getCharacterPackDefinition()
-): CharacterCapabilityContextFlags {
+export function getCharacterCapabilityContextFlags(character = getCharacterDefinition(), pack = getCharacterPackDefinition()): CharacterCapabilityContextFlags {
   const featureFlags = collectFeatureFlags(character, pack);
-  const personaFlags = collectPersonaFlags(personaState, character);
   const normalizedCharacterId = character ? normalizeFlagId(character.id) : null;
 
   return {
     characterId: normalizedCharacterId,
-    featureFlags: toTrueRecord(featureFlags),
-    personaFlags: toTrueRecord(personaFlags)
+    featureFlags: toTrueRecord(featureFlags)
   };
 }

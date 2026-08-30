@@ -11,11 +11,6 @@
  *   sprite:ready            — 渲染进程就绪
  *   sprite:get-initial-state — 获取初始状态
  *   sprite:persona:getState  — 获取人格状态
- *   sprite:persona:grantReward — 统一应用人格奖励
- *   sprite:persona:addXP     — 增加经验（兼容入口）
- *   sprite:persona:changeFavor — 修改好感度（兼容入口）
- *   sprite:persona:recordLogin — 记录登录
- *   sprite:persona:unlockAchievement — 解锁成就（兼容入口）
  *   sprite:config:getAutoWalk — 获取自动行走开关
  *   sprite:config:setAutoWalk — 设置自动行走开关
  *   sprite:spontaneous:getPreferences — 获取主动发言偏好
@@ -34,9 +29,8 @@
 
 import { randomUUID } from 'node:crypto';
 
-import { app, BrowserWindow, ipcMain, screen } from 'electron';
-
 import { windowManager } from '@aim-packages/window-manager';
+import { app, BrowserWindow, ipcMain, screen } from 'electron';
 
 import { loadShortcutEnabledConfig, saveShortcutEnabledConfig } from '../../../electron/main/shortcut-store';
 import { AppEvent, eventManager } from '../../event';
@@ -74,12 +68,18 @@ import {
   saveCharacterPackEditorDraft
 } from '../character-pack-manager';
 import { type CharacterPersonaRuntimeSyncResult, reloadCharacterPersonaRuntime, syncCharacterPersonaRuntime } from '../character-runtime';
-import { buildCharacterPersonaPrompt, getCharacterDefinition, getCharacterInfo, getCharacterToolLabels, initCharacterService, type ToolLabelDefinition } from '../character-service';
-import type { PersonaRewardGrant } from '../config/persona-rules';
+import {
+  buildCharacterPersonaPrompt,
+  getCharacterDefinition,
+  getCharacterInfo,
+  getCharacterToolLabels,
+  getDimensionSchema,
+  initCharacterService,
+  type ToolLabelDefinition
+} from '../character-service';
 import { isSpriteInteractionIntent, type SpriteInteractionPayload } from '../interaction-contract';
 import type { SpritePurposeRoutinePlanner, SpritePurposeWindowAdapter, SpriteSpontaneousUtteranceExecutor, SpriteWindowAnimationAdapter } from '../manager';
 import { SpriteManager } from '../manager';
-import { getPersonaRuleDimensionSchema } from '../persona-rules';
 import type { SpritePurposeHistoryQuery, SpritePurposeRetrospectiveQuery, SpritePurposeRuntimeEventInput, StartSpritePurposeRequest } from '../purpose';
 import type { SpeakRequest, SpriteRealtimeSpeechSessionRequest, SpriteSpeakConfig, SpriteSpeechSynthesisExecutor, SpriteSpeechTextTranslator } from '../speak/types';
 import type {
@@ -111,11 +111,6 @@ export interface SpriteManagerDeps {
   spriteEventListener?: SpriteEventListenerOptions;
   syncCharacterToolLabels?: (labels: Record<string, ToolLabelDefinition> | undefined) => void | Promise<void>;
 }
-
-type SpritePersonaRewardGrantRequest = Partial<Pick<PersonaRewardGrant, 'xp' | 'favor' | 'dimensions'>> & {
-  source?: string;
-  achievementId?: string;
-};
 
 type SpriteBubbleWindowManager = {
   get: (key: string) => BrowserWindow | null;
@@ -388,7 +383,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   }
 
   function initCharacterDimensions(): void {
-    const dimSchema = getPersonaRuleDimensionSchema();
+    const dimSchema = getDimensionSchema();
     if (dimSchema) {
       mgr.initDimensions(dimSchema.map((d) => ({ id: d.id, initialValue: d.initialValue })));
     }
@@ -498,8 +493,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   }
 
   function resolveCapabilityContext(): SpriteCapabilityResolutionContext {
-    const persona = mgr.getPersonaState();
-    const { featureFlags, personaFlags } = getCharacterCapabilityContextFlags(persona);
+    const { featureFlags } = getCharacterCapabilityContextFlags();
 
     let screenshotEnabled = false;
     try {
@@ -516,12 +510,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     }
 
     return {
-      // mini 分支无游戏化等级系统,将所有 capability 视为已达等级要求,
-      // 避免截图 / 快捷键等基础能力被技能树锁死
-      personaLevel: Number.MAX_SAFE_INTEGER,
-      achievements: persona.achievements,
       featureFlags,
-      personaFlags,
       activeSignals: {
         [SPRITE_CAPABILITY_SIGNALS.movementAutoWalk]: mgr.isAutoWalkEnabled(),
         [SPRITE_CAPABILITY_SIGNALS.dailyCareEnabled]: false,
@@ -644,99 +633,6 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     return { ok: true, state: mgr.getPersonaState() };
   });
 
-  function grantPersonaReward(payload: SpritePersonaRewardGrantRequest = {}): { ok: boolean;[key: string]: unknown } {
-    const source = typeof payload.source === 'string' && payload.source.trim() ? payload.source.trim() : 'persona:reward';
-    const xp = typeof payload.xp === 'number' && Number.isFinite(payload.xp) ? payload.xp : 0;
-    const favor = typeof payload.favor === 'number' && Number.isFinite(payload.favor) ? payload.favor : 0;
-    const dimensions = Array.isArray(payload.dimensions) ? payload.dimensions : [];
-    const reward: PersonaRewardGrant = { xp, favor, dimensions };
-
-    const previousState = mgr.getPersonaState();
-
-    // 幂等：source 以 'quest:' 开头表示新手引导/任务奖励，重复发放则直接返回当前状态
-    // （包含 idempotent: true 标记，供 Quest Engine 区分新发放和重复请求）
-    const isQuestReward = source.startsWith('quest:');
-    if (isQuestReward && mgr.hasClaimedReward(source)) {
-      return {
-        ok: true,
-        source,
-        idempotent: true,
-        applied: { xp: 0, favor: 0, dimensions: [] },
-        xpGained: 0,
-        leveledUp: false,
-        oldFavor: previousState.favor,
-        newFavor: previousState.favor,
-        levelChanged: false,
-        favorChanged: false,
-        achievementUnlocked: false,
-        state: previousState
-      };
-    }
-
-    mgr.applyPersonaReward(reward, source);
-
-    let achievementUnlocked = false;
-    if (typeof payload.achievementId === 'string' && payload.achievementId.trim()) {
-      achievementUnlocked = mgr.unlockAchievement(payload.achievementId.trim());
-    }
-
-    if (isQuestReward) {
-      mgr.markRewardClaimed(source);
-    }
-
-    const state = mgr.getPersonaState();
-    const leveledUp = state.level !== previousState.level;
-    const favorLevelChanged = state.favorLevel !== previousState.favorLevel;
-    return {
-      ok: true,
-      source,
-      applied: {
-        xp,
-        favor,
-        dimensions,
-        ...(payload.achievementId ? { achievementId: payload.achievementId, achievementUnlocked } : {})
-      },
-      xpGained: Math.max(0, xp),
-      leveledUp,
-      ...(leveledUp ? { newLevel: state.level } : {}),
-      oldFavor: previousState.favor,
-      newFavor: state.favor,
-      levelChanged: favorLevelChanged,
-      favorChanged: state.favor !== previousState.favor,
-      achievementUnlocked,
-      state
-    };
-  }
-
-  ipcMain.handle('sprite:persona:grantReward', (_e, p: SpritePersonaRewardGrantRequest) => {
-    return grantPersonaReward(p);
-  });
-
-  ipcMain.handle('sprite:persona:addXP', (_e, p: { amount: number; source?: string }) => {
-    const result = grantPersonaReward({ xp: p.amount, source: p.source ?? 'persona:addXP' });
-    return result;
-  });
-
-  ipcMain.handle('sprite:persona:changeFavor', (_e, p: { delta: number; reason?: string }) => {
-    return grantPersonaReward({ favor: p.delta, source: p.reason ?? 'persona:changeFavor' });
-  });
-
-  ipcMain.handle('sprite:persona:recordLogin', () => {
-    const result = mgr.recordDailyLogin();
-    return { ok: true, ...result, state: mgr.getPersonaState() };
-  });
-
-  ipcMain.handle('sprite:persona:unlockAchievement', (_e, p: { id: string }) => {
-    const result = grantPersonaReward({ achievementId: p.id, source: 'persona:unlockAchievement' });
-    return { ok: true, unlocked: result.achievementUnlocked, state: result.state };
-  });
-
-  ipcMain.handle('sprite:persona:reset', () => {
-    const state = mgr.resetPersonaState();
-    enforceCapabilityBoundRuntime();
-    return { ok: true, state };
-  });
-
   ipcMain.handle('sprite:capabilities:getSnapshot', () => {
     return getSpriteCapabilitySnapshot();
   });
@@ -809,10 +705,10 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   type InstalledPackChangeResponse = {
     ok: true;
   } & Awaited<ReturnType<typeof installCharacterPackFromArchive>> & {
-    character?: ReturnType<typeof getCharacterInfo>;
-    runtime?: CharacterPersonaRuntimeSyncResult;
-    personaSlot?: { slotId: string; restored: boolean; switched: boolean };
-  };
+      character?: ReturnType<typeof getCharacterInfo>;
+      runtime?: CharacterPersonaRuntimeSyncResult;
+      personaSlot?: { slotId: string; restored: boolean; switched: boolean };
+    };
 
   async function finalizeInstalledPackChange(
     result: Awaited<ReturnType<typeof installCharacterPackFromArchive>>,
@@ -1103,22 +999,6 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       runtime: reload.runtime,
       personaSlot: reload.personaSlot
     };
-  });
-
-  // ===== 维度 API =====
-
-  ipcMain.handle('sprite:dimensions:get', () => {
-    const schema = getPersonaRuleDimensionSchema();
-    if (!schema) return null;
-    const persona = mgr.getPersonaState();
-    return schema.map((def) => ({
-      id: def.id,
-      name: def.name,
-      icon: def.icon,
-      description: def.description,
-      maxValue: def.maxValue,
-      value: persona.dimensions[def.id] ?? def.initialValue
-    }));
   });
 
   // ===== 配置 =====
@@ -1472,7 +1352,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   // ===== 初始化事件监听器（订阅业务事件触发动画） =====
   initSpriteEventListener(mgr, deps.spriteEventListener);
 
-  // ===== 事件转发：persona:* → 主窗口 =====
+  // ===== 事件转发：persona:character-switched → 主窗口 =====
   // 渲染进程负责打开窗口和处理数据
   const forwardPersonaEvent = (eventName: string, channel: string): void => {
     mgr.on(eventName, (event) => {
@@ -1486,12 +1366,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     });
   };
 
-  forwardPersonaEvent('persona:level-up', 'persona:level-up');
-  forwardPersonaEvent('persona:xp-gained', 'persona:xp-gained');
-  forwardPersonaEvent('persona:favor-changed', 'persona:favor-changed');
   forwardPersonaEvent('persona:character-switched', 'persona:character-switched');
-  forwardPersonaEvent('persona:daily-login', 'persona:daily-login');
-  forwardPersonaEvent('persona:achievement-unlocked', 'persona:achievement-unlocked');
 
   // ===== 临时资源根目录（用于视频预览等场景） =====
   ipcMain.handle('sprite:addTempResourceRoot', (_e, root: string) => {

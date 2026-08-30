@@ -84,14 +84,6 @@ export const SPRITE_ANIMATION_CONDITION_FIELD_OPTIONS: SpriteAnimationConditionB
     placeholder: '例如 10'
   },
   {
-    key: 'loginStreak',
-    field: 'loginStreak',
-    kind: 'number',
-    label: '连续登录 loginStreak',
-    operators: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte'],
-    placeholder: '例如 7'
-  },
-  {
     key: 'mood',
     field: 'mood',
     kind: 'enum',

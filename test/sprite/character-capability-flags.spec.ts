@@ -4,9 +4,8 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { initCharacterService, setCharacterFilePath, setCharacterPackFilePath } from '../../packages/sprite-core/character-service';
 import { getCharacterCapabilityContextFlags } from '../../packages/sprite-core/character-capability-flags';
-import { PersonaStateManager, type PersonaState } from '../../packages/sprite-core/persona-state';
+import { initCharacterService, setCharacterFilePath, setCharacterPackFilePath } from '../../packages/sprite-core/character-service';
 
 function writeCharacterFile(rootDir: string, payload: unknown): void {
   writeFileSync(path.join(rootDir, 'character.json'), JSON.stringify(payload, null, 2), 'utf-8');
@@ -15,18 +14,6 @@ function writeCharacterFile(rootDir: string, payload: unknown): void {
 function writeJsonFile(filePath: string, payload: unknown): void {
   mkdirSync(path.dirname(filePath), { recursive: true });
   writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf-8');
-}
-
-function createPersonaState(initialState?: Partial<PersonaState>) {
-  return new PersonaStateManager({
-    initialState: {
-      level: 1,
-      favor: 50,
-      mood: 'neutral',
-      moodIntensity: 50,
-      ...initialState
-    }
-  }).getState();
 }
 
 describe('character capability context flags', () => {
@@ -41,7 +28,7 @@ describe('character capability context flags', () => {
     }
   });
 
-  it('derives feature flags and persona flags from the active character and persona snapshot', () => {
+  it('derives feature flags from the active character', () => {
     tempDir = mkdtempSync(path.join(os.tmpdir(), 'character-capability-flags-'));
     writeCharacterFile(tempDir, {
       version: 1,
@@ -75,36 +62,7 @@ describe('character capability context flags', () => {
         bonusConditions: []
       },
       capabilityFlags: {
-        featureFlags: ['pack:voice', 'pack:custom-appearance', '  '],
-        personaFlags: [
-          {
-            id: 'persona:bonded',
-            when: {
-              type: 'compare',
-              field: 'favor',
-              operator: 'gte',
-              value: 60
-            }
-          },
-          {
-            id: 'persona:advanced-level',
-            when: {
-              type: 'compare',
-              field: 'level',
-              operator: 'gte',
-              value: 15
-            }
-          },
-          {
-            id: 'persona:invalid',
-            when: {
-              type: 'compare',
-              field: '',
-              operator: 'eq',
-              value: 'x'
-            }
-          }
-        ]
+        featureFlags: ['pack:voice', 'pack:custom-appearance', '  ']
       },
       meta: {
         author: 'test',
@@ -119,13 +77,7 @@ describe('character capability context flags', () => {
 
     initCharacterService(tempDir);
 
-    const flags = getCharacterCapabilityContextFlags(
-      createPersonaState({
-        level: 18,
-        favor: 72,
-        mood: 'joyful'
-      })
-    );
+    const flags = getCharacterCapabilityContextFlags();
 
     expect(flags.characterId).toBe('character-a');
     expect(flags.featureFlags).toMatchObject({
@@ -134,52 +86,15 @@ describe('character capability context flags', () => {
       'pack:voice': true,
       'pack:custom-appearance': true
     });
-    expect(flags.personaFlags).toMatchObject({
-      'persona:mood:joyful': true,
-      'persona:favor-level:close-friend': true,
-      'persona:bonded': true,
-      'persona:advanced-level': true
-    });
-    expect(flags.personaFlags['persona:invalid']).toBeUndefined();
   });
 
-  it('still exposes builtin persona flags when no character is loaded', () => {
+  it('exposes no feature flags when no character is loaded', () => {
     setCharacterFilePath(null);
 
-    const flags = getCharacterCapabilityContextFlags(
-      createPersonaState({
-        favor: 10,
-        mood: 'curious'
-      }),
-      null
-    );
+    const flags = getCharacterCapabilityContextFlags(null, null);
 
     expect(flags.characterId).toBeNull();
     expect(flags.featureFlags).toEqual({});
-    expect(flags.personaFlags).toEqual({
-      'persona:mood:curious': true,
-      'persona:favor-level:stranger': true
-    });
-  });
-
-  it('exposes builtin milestone persona flags even without custom character declarations', () => {
-    setCharacterFilePath(null);
-
-    const flags = getCharacterCapabilityContextFlags(
-      createPersonaState({
-        level: 16,
-        favor: 72,
-        mood: 'joyful'
-      }),
-      null
-    );
-
-    expect(flags.personaFlags).toEqual({
-      'persona:mood:joyful': true,
-      'persona:favor-level:close-friend': true,
-      'persona:bonded': true,
-      'persona:advanced-level': true
-    });
   });
 
   it('merges pack manifest capabilities into feature flags', () => {
@@ -247,7 +162,7 @@ describe('character capability context flags', () => {
 
     initCharacterService(tempDir);
 
-    const flags = getCharacterCapabilityContextFlags(createPersonaState());
+    const flags = getCharacterCapabilityContextFlags();
 
     expect(flags.featureFlags).toMatchObject({
       'pack:loaded': true,

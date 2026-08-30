@@ -78,7 +78,7 @@ describe('sprite interaction runtime', () => {
     dataDirs.clear();
   });
 
-  it('routes click interaction through event bus into tracker stats and persona rewards', () => {
+  it('routes click interaction through event bus into tracker stats', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-21T12:00:00.000Z'));
 
@@ -87,33 +87,17 @@ describe('sprite interaction runtime', () => {
     vi.spyOn(mgr, 'playOnce').mockReturnValue(true);
     vi.spyOn(mgr, 'showToast').mockImplementation(() => undefined);
 
-    expect(mgr.getPersonaState()).toMatchObject({
-      xp: 0,
-      favor: 50,
-      totalInteractions: 0
-    });
-
     mgr.reportInteraction('click');
-    expect(mgr.getPersonaState()).toMatchObject({
-      xp: 2,
-      favor: 50.5,
-      totalInteractions: 1
-    });
-
     mgr.reportInteraction('click');
-    expect(mgr.getPersonaState()).toMatchObject({
-      xp: 4,
-      favor: 50.5,
-      totalInteractions: 2
-    });
 
     vi.advanceTimersByTime(5_000);
     mgr.reportInteraction('click');
 
+    // 养成数值已移除，人格状态保持固定展示值
     expect(mgr.getPersonaState()).toMatchObject({
-      xp: 6,
-      favor: 51,
-      totalInteractions: 3
+      favor: 50,
+      favorLevel: 'friend',
+      mood: 'neutral'
     });
 
     const stats = (mgr as any).interactionTracker.getStats();
@@ -125,7 +109,7 @@ describe('sprite interaction runtime', () => {
     expect(stats.byType.click).toBe(3);
   });
 
-  it('keeps file-drop on the same interaction -> reaction -> reward entry', () => {
+  it('keeps file-drop on the same interaction -> reaction entry', () => {
     const { mgr, dataDir } = createManager();
     dataDirs.add(dataDir);
     const playOnceSpy = vi.spyOn(mgr, 'playOnce').mockReturnValue(true);
@@ -133,11 +117,6 @@ describe('sprite interaction runtime', () => {
 
     mgr.reportInteraction('file-drop', { fileCount: 2 });
 
-    expect(mgr.getPersonaState()).toMatchObject({
-      xp: 10,
-      favor: 51,
-      totalInteractions: 1
-    });
     expect(playOnceSpy).toHaveBeenCalledWith('file-drop', { durationMs: 800 });
     expect(showToastSpy).not.toHaveBeenCalled();
 
