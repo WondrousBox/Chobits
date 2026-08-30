@@ -5,42 +5,13 @@ import type { SkillRecord, SkillSearchResult } from './types'
 
 /** Bidirectional synonym table for cross-language matching */
 const SYNONYM_TABLE: Record<string, string[]> = {
-  audio: ['音频'],
-  caption: ['字幕'],
   download: ['下载'],
   find: ['查找', '查询'],
-  memory: ['记忆', '记住'],
-  ocr: ['文字识别'],
-  remember: ['记住', '记忆'],
-  resource: ['资源'],
   search: ['查找', '查询', '搜索'],
-  subtitle: ['字幕'],
-  subscribe: ['订阅'],
-  subscription: ['订阅'],
-  summarize: ['总结', '摘要'],
-  summary: ['总结', '摘要'],
-  transcription: ['转写'],
-  transcribe: ['转写'],
-  translate: ['翻译'],
-  translation: ['翻译'],
-  video: ['视频'],
   下载: ['download'],
-  字幕: ['subtitle', 'caption', 'srt'],
-  总结: ['summarize', 'summary', '概括', '摘要'],
-  文字识别: ['ocr'],
   查找: ['search', 'find', 'query', '查询', '搜索'],
   查询: ['search', 'find', 'query', '查找', '搜索'],
-  概括: ['summary', 'summarize'],
-  订阅: ['subscribe', 'subscription', '关注'],
-  视频: ['video'],
-  记住: ['remember', 'save', '保存', '记忆'],
-  记忆: ['memory', '记住'],
-  翻译: ['translate', 'translation'],
-  资源: ['resource'],
-  转写: ['transcribe', 'transcription'],
-  搜索: ['search', 'find', '查找', '查询'],
-  摘要: ['summary', 'summarize'],
-  音频: ['audio']
+  搜索: ['search', 'find', '查找', '查询']
 }
 
 export interface MatchSkillOptions {

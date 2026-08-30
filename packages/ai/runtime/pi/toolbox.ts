@@ -37,7 +37,7 @@ import TOOLBOX_CONTENT from './toolbox.md?raw';
 // ━━ Parser ━━
 
 function parseTriggersLine(line: string): string[] {
-  // "**触发词：** 查找资源、找视频、找音频" → ["查找资源", "找视频", "找音频"]
+  // "**触发词：** 搜索网页、找资料" → ["搜索网页", "找资料"]
   const match = line.match(/\*\*触发词[：:]\*\*\s*(.+)/);
   if (!match) return [];
   return match[1]
@@ -47,7 +47,7 @@ function parseTriggersLine(line: string): string[] {
 }
 
 function parseToolsLine(line: string): string[] {
-  // "**涉及工具：** resourceQueryTool, pushCardTool" → ["resourceQueryTool", "pushCardTool"]
+  // "**涉及工具：** webSearchTool, pushCardTool" → ["webSearchTool", "pushCardTool"]
   const match = line.match(/\*\*涉及工具[：:]\*\*\s*(.+)/);
   if (!match) return [];
   return match[1]
@@ -141,17 +141,8 @@ export function resetToolboxCache(): void {
 
 /** Bidirectional synonym table for cross-language matching */
 const SYNONYM_TABLE: Record<string, string[]> = {
-  翻译: ['translate', 'translation'],
-  translate: ['翻译'],
-  translation: ['翻译'],
   下载: ['download'],
   download: ['下载'],
-  字幕: ['subtitle', 'caption', 'srt'],
-  subtitle: ['字幕'],
-  caption: ['字幕'],
-  总结: ['summarize', 'summary', '概括', '摘要'],
-  summarize: ['总结', '摘要'],
-  summary: ['总结', '摘要'],
   查找: ['search', 'find', 'query', '查询', '搜索'],
   查询: ['search', 'find', 'query', '查找', '搜索'],
   搜索: ['search', 'find', '查找', '查询'],
@@ -159,33 +150,8 @@ const SYNONYM_TABLE: Record<string, string[]> = {
   create: ['创建'],
   保存: ['save', 'create'],
   save: ['保存'],
-  导入: ['import', 'create'],
-  import: ['导入'],
   search: ['查找', '查询', '搜索'],
-  find: ['查找', '查询'],
-  视频: ['video'],
-  video: ['视频'],
-  音频: ['audio'],
-  audio: ['音频'],
-  音乐: ['music', 'song', 'soundtrack'],
-  music: ['音乐', 'song', 'soundtrack'],
-  song: ['音乐', 'music'],
-  配乐: ['music', 'soundtrack'],
-  作曲: ['music', 'compose'],
-  记忆: ['memory', '记住'],
-  memory: ['记忆', '记住'],
-  订阅: ['subscribe', 'subscription', '关注'],
-  subscribe: ['订阅'],
-  subscription: ['订阅'],
-  转写: ['transcribe', 'transcription'],
-  transcribe: ['转写'],
-  transcription: ['转写'],
-  ocr: ['文字识别'],
-  文字识别: ['ocr'],
-  资源: ['resource'],
-  resource: ['资源'],
-  记住: ['remember', 'save', '保存', '记忆'],
-  remember: ['记住', '记忆']
+  find: ['查找', '查询']
 };
 
 /**
@@ -273,7 +239,7 @@ function expandWithSynonyms(tokens: string[]): string[] {
 
 /**
  * Parse camelCase tool names into searchable parts.
- * "resourceQueryTool" → ["resource", "query", "tool"]
+ * "webSearchTool" → ["web", "search", "tool"]
  */
 function parseToolNameParts(name: string): string[] {
   return name
