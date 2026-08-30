@@ -26,13 +26,13 @@ describe('PurposeRetrospectivePanel', () => {
             completedCount: 1,
             cancelledCount: 0,
             failedCount: 1,
-            kindCounts: { 'file.drop.intake': 1, 'workflow.waiting': 1 },
+            kindCounts: { 'file.drop': 1, 'chat.guide': 1 },
             memoryCandidateCount: 1,
-            recallCues: ['- [event] Sprite purpose file.drop.intake completed'],
+            recallCues: ['- [event] Sprite purpose file.drop completed'],
             items: [
               {
                 purposeId: 'purpose-file',
-                purposeKind: 'file.drop.intake',
+                purposeKind: 'file.drop',
                 status: 'completed',
                 source: 'user-event',
                 priority: 100,
@@ -46,22 +46,22 @@ describe('PurposeRetrospectivePanel', () => {
                 failedStepIds: [],
                 memoryWorthiness: 0.82,
                 memoryCandidate: true,
-                recallCue: '- [event] Sprite purpose file.drop.intake completed'
+                recallCue: '- [event] Sprite purpose file.drop completed'
               },
               {
-                purposeId: 'purpose-workflow',
-                purposeKind: 'workflow.waiting',
+                purposeId: 'purpose-guide',
+                purposeKind: 'chat.guide',
                 status: 'failed',
                 source: 'app-event',
                 priority: 65,
                 startedAt: 200,
                 endedAt: 4200,
                 durationMs: 4000,
-                summary: '等待工作流完成',
+                summary: '等待用户完成引导',
                 outcome: 'failed after 4000ms with 3 steps',
                 stepCount: 3,
                 completedStepIds: [],
-                failedStepIds: ['wait-workflow-terminal'],
+                failedStepIds: ['wait-guide-finish'],
                 memoryWorthiness: 0.61,
                 memoryCandidate: false
               }
@@ -73,9 +73,9 @@ describe('PurposeRetrospectivePanel', () => {
     });
 
     expect(env.container.textContent).toContain('今日目的');
-    expect(env.container.textContent).toContain('文件处理');
+    expect(env.container.textContent).toContain('文件投递');
     expect(env.container.textContent).toContain('完成');
-    expect(env.container.textContent).toContain('任务等待');
+    expect(env.container.textContent).toContain('chat.guide');
     expect(env.container.textContent).toContain('失败');
 
     await act(async () => {

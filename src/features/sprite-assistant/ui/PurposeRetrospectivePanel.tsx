@@ -23,14 +23,6 @@ function getPurposeKindLabel(kind: string): string {
   switch (kind) {
     case 'file.drop':
       return '文件投递';
-    case 'workflow.waiting':
-      return '任务等待';
-    case 'resource.import.waiting':
-      return '资源导入';
-    case 'daily.rest-reminder':
-      return '休息提醒';
-    case 'daily.care.reminder':
-      return '日常关怀';
     default:
       return kind;
   }

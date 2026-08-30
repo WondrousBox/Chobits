@@ -1,7 +1,7 @@
 import path from 'node:path';
 
 import type { BrowserWindow } from 'electron';
-import { _electron as electron, type ElectronApplication, type JSHandle, type Page } from 'playwright';
+import type { ElectronApplication, JSHandle, Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 
 import pkg from '../../package.json';
@@ -15,6 +15,7 @@ if (process.platform === 'linux') {
   test(() => expect(true).true);
 } else {
   beforeAll(async () => {
+    const { _electron: electron } = await import('playwright');
     electronApp = await electron.launch({
       args: ['.', '--no-sandbox'],
       cwd: root,

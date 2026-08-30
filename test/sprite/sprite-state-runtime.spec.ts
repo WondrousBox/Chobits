@@ -245,22 +245,27 @@ describe('SpriteStateRuntimeController', () => {
   });
 
   it('marks ready and reports init errors without throwing', async () => {
-    const error = new Error('init failed');
-    const harness = createBridgeHarness({
-      initialStatePromise: Promise.reject(error)
-    });
-    const onChange = vi.fn();
-    const onError = vi.fn();
-    const controller = new SpriteStateRuntimeController(harness.bridge as any, onChange, onError);
+    vi.useFakeTimers();
+    try {
+      const error = new Error('init failed');
+      const harness = createBridgeHarness({
+        initialStatePromise: Promise.reject(error)
+      });
+      const onChange = vi.fn();
+      const onError = vi.fn();
+      const controller = new SpriteStateRuntimeController(harness.bridge as any, onChange, onError);
 
-    controller.start();
-    await Promise.resolve();
-    await Promise.resolve();
+      controller.start();
+      // 初始状态拉取失败会按 INITIAL_STATE_RETRY_DELAYS_MS 重试，耗尽后标记 ready 并上报
+      await vi.advanceTimersByTimeAsync(60_000);
 
-    expect(onError).toHaveBeenCalledWith(error);
-    expect(controller.getSnapshot().ready).toBe(true);
-    expect(harness.bridge.ready).not.toHaveBeenCalled();
-    controller.dispose();
+      expect(onError).toHaveBeenCalledWith(error);
+      expect(controller.getSnapshot().ready).toBe(true);
+      expect(harness.bridge.ready).toHaveBeenCalled();
+      controller.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('ignores late init results and bridge events after dispose', async () => {

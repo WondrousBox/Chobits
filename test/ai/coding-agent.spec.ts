@@ -14,6 +14,7 @@ vi.mock('node:child_process', () => ({
 }));
 
 import { DEFAULT_CODER_TOOL_IDS } from '../../packages/ai/runtime/pi/tool-registry';
+import { createPiAskUserTool } from '../../packages/ai/runtime/pi/tools/ask-user';
 import { createPiFileEditTool } from '../../packages/ai/runtime/pi/tools/file-edit';
 import { createPiFileGlobTool } from '../../packages/ai/runtime/pi/tools/file-glob';
 import { createPiFileGrepTool } from '../../packages/ai/runtime/pi/tools/file-grep';
@@ -65,7 +66,8 @@ function createCoderTools(workspaceRoot: string): any[] {
     createPiFileGrepTool(toolContext),
     createPiFileWriteTool(toolContext),
     createPiFileEditTool(toolContext),
-    createPiShellExecTool(toolContext)
+    createPiShellExecTool(toolContext),
+    createPiAskUserTool(toolContext)
   ];
 }
 
@@ -97,7 +99,7 @@ describe('coding agent tool integration', () => {
   it('registers the default coder toolchain in the expected order', () => {
     const tools = createCoderTools(process.cwd());
 
-    expect(DEFAULT_CODER_TOOL_IDS).toEqual(['file-list', 'file-read', 'file-glob', 'file-grep', 'file-write', 'file-edit', 'shell-exec']);
+    expect(DEFAULT_CODER_TOOL_IDS).toEqual(['file-list', 'file-read', 'file-glob', 'file-grep', 'file-write', 'file-edit', 'shell-exec', 'ask-user']);
     expect(tools.map((tool) => tool.name)).toEqual([
       'fileListTool',
       'fileReadTool',
@@ -105,7 +107,8 @@ describe('coding agent tool integration', () => {
       'fileGrepTool',
       'fileWriteTool',
       'fileEditTool',
-      'shellExecTool'
+      'shellExecTool',
+      'askUserTool'
     ]);
   });
 

@@ -2350,7 +2350,7 @@ describe('SpriteRoutinePresetRegistry', () => {
     const result = await runner.run(routine);
 
     expect(result.ok, result.error).toBe(true);
-    expect(calls).toEqual(expect.arrayContaining(['play:wave', 'play:celebrate', 'speak:first-chat-done:打开啦！以后双击我就可以开始聊天。', 'walk:corner']));
+    expect(calls).toEqual(expect.arrayContaining(['play:wave', 'play:celebrate', 'speak:first-chat-done:打开啦！', 'walk:corner']));
     expect(calls.some((call) => call.startsWith('notice:'))).toBe(false);
     expect(calls.some((call) => call.startsWith('clear:'))).toBe(false);
   });
@@ -2446,9 +2446,8 @@ describe('SpriteRoutinePresetRegistry', () => {
         expect.objectContaining({ id: 'playAnimation-1', type: 'playAnimation', trigger: 'welcome' }),
         expect.objectContaining({
           id: 'invite-file-drop-notice',
-          type: 'showNotice',
-          messageId: 'onboarding.file.drop.invite',
-          content: '可以把文件拖拽给我'
+          type: 'speak',
+          text: '可以把文件拖拽给我'
         }),
         expect.objectContaining({
           id: 'wait-first-file-drop',
@@ -2617,8 +2616,7 @@ describe('SpriteRoutinePresetRegistry', () => {
     expect(calls).toEqual(
       expect.arrayContaining([
         'play:welcome',
-        'notice:onboarding.file.drop.invite:可以把文件拖拽给我',
-        'clear:onboarding.file.drop.invite',
+        'speak:invite-file-drop-notice:可以把文件拖拽给我',
         'play:celebrate',
         'speak:first-file-drop-done:收到啦！已经放到背包。'
       ])

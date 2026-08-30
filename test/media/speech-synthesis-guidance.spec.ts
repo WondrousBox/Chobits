@@ -14,7 +14,7 @@ describe('speech synthesis prompt guidance', () => {
       }
     });
 
-    expect(guidance).toContain('<#x#>');
+    expect(guidance).toContain('<#0.4#>');
     expect(guidance).toContain('(laughs)');
     expect(guidance).toContain('语气词标签');
   });
