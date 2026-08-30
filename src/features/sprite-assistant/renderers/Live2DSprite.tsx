@@ -168,6 +168,80 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
     return () => cancelAnimationFrame(rafId);
   }, [runtimeReady, config]);
 
+  // 视线追踪：将鼠标位置映射到 Live2D 视图坐标
+  useEffect(() => {
+    if (!runtimeReady || !config?.lookAt?.enabled) return;
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleMouseMove = (e: MouseEvent): void => {
+      const rect = container.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+
+      // 将鼠标位置映射到 [-1, 1] 视图坐标
+      const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      const y = -(((e.clientY - rect.top) / rect.height) * 2 - 1); // Y 轴翻转
+
+      const manager = LAppLive2DManager.getInstance();
+      const model = manager?.getModel(0);
+      if (model) {
+        try {
+          model.setDragging(x, y);
+        } catch {
+          // ignore
+        }
+      }
+    };
+
+    const handleMouseLeave = (): void => {
+      const manager = LAppLive2DManager.getInstance();
+      const model = manager?.getModel(0);
+      if (model) {
+        try {
+          model.setDragging(0, 0);
+        } catch {
+          // ignore
+        }
+      }
+    };
+
+    container.addEventListener('mousemove', handleMouseMove);
+    container.addEventListener('mouseleave', handleMouseLeave);
+    return () => {
+      container.removeEventListener('mousemove', handleMouseMove);
+      container.removeEventListener('mouseleave', handleMouseLeave);
+    };
+  }, [runtimeReady, config]);
+
+  // 点击反馈：hit area 检测
+  const handleClick = (e: React.MouseEvent): void => {
+    if (!runtimeReady) return;
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+
+    const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
+
+    const manager = LAppLive2DManager.getInstance();
+    const model = manager?.getModel(0);
+    if (!model) return;
+
+    try {
+      if (model.hitTest(LAppDefine.HitAreaNameHead, x, y)) {
+        model.setRandomExpression();
+      } else if (model.hitTest(LAppDefine.HitAreaNameBody, x, y)) {
+        model.startRandomMotion(LAppDefine.MotionGroupTapBody, LAppDefine.PriorityNormal);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   // walkDirection 翻转
   const shouldFlip = walkDirection === 'right';
 
@@ -177,6 +251,7 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
   return (
     <div
       ref={containerRef}
+      onClick={handleClick}
       style={{
         position: 'relative',
         width: w,
