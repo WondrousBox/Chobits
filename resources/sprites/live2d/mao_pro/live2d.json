@@ -1,0 +1,59 @@
+{
+  "model": "mao_pro.model3.json",
+  "canvas": {
+    "width": 300,
+    "height": 400,
+    "padding": 40,
+    "scale": 1.0
+  },
+  "lookAt": {
+    "enabled": true,
+    "pointer": true
+  },
+  "lipSync": {
+    "paramId": "ParamMouthOpenY",
+    "gain": 2.0
+  },
+  "triggers": {
+    "idle": {
+      "motion": { "group": "Idle", "index": 0 },
+      "loop": true
+    },
+    "talk": {
+      "motion": { "group": "", "index": 0 },
+      "loop": true
+    },
+    "walk": {
+      "motion": { "group": "", "index": 1 },
+      "loop": true
+    },
+    "wave": {
+      "motion": { "group": "", "index": 3 },
+      "loop": false
+    },
+    "welcome": {
+      "motion": { "group": "", "index": 4 },
+      "expression": "exp_02",
+      "loop": false
+    },
+    "celebrate": {
+      "motion": { "group": "", "index": 5 },
+      "expression": "exp_01",
+      "loop": false
+    },
+    "thinking": {
+      "motion": { "group": "", "index": 2 },
+      "loop": true
+    },
+    "success": {
+      "motion": { "group": "", "index": 3 },
+      "expression": "exp_01",
+      "loop": false
+    },
+    "error": {
+      "motion": { "group": "", "index": 2 },
+      "expression": "exp_08",
+      "loop": false
+    }
+  }
+}
