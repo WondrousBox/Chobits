@@ -19,6 +19,6 @@ export const DEFAULT_ASSISTANT_PADDING = 100;
 // (Previously: export const SHOW_PADDING_DEBUG = false)
 export const SHOW_PADDING_DEBUG = false;
 
-// Renderer mode toggle: 'video' (current sprite videos) or 'three' (3D demo)
-export type AssistantRendererMode = 'video' | 'three';
+// Renderer mode toggle: 'video' (current sprite videos), 'three' (3D demo), or 'live2d'
+export type AssistantRendererMode = 'video' | 'three' | 'live2d';
 export const ASSISTANT_RENDERER_MODE: AssistantRendererMode = 'video';

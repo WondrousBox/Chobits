@@ -25,6 +25,9 @@
       ],
       "@main/*": [
         "electron/main/*"
+      ],
+      "@framework/*": [
+        "src/live2d-sdk/Framework/src/*"
       ]
     },
   },

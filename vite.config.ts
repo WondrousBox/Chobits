@@ -20,7 +20,8 @@ export default defineConfig(({ command }) => {
       alias: {
         '@': path.join(__dirname, 'src'),
         '@packages': path.join(__dirname, 'packages'),
-        '@main': path.join(__dirname, 'electron/main')
+        '@main': path.join(__dirname, 'electron/main'),
+        '@framework': path.join(__dirname, 'src/live2d-sdk/Framework/src')
       }
     },
     plugins: [

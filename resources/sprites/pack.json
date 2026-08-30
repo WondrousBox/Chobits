@@ -31,7 +31,7 @@
   "signature": {
     "algorithm": "sha256",
     "keyId": "builtin:yua-default",
-    "digest": "209b5c619c18e583dafa079d8318f347152abf5f8030c9549595a2e1ec7eb7a8"
+    "digest": "e7eee446c7d300c191d8a1cf07edbc23214e6a547a55cf740ba798716303bf1a"
   },
   "capabilities": {
     "hasVoice": false,
