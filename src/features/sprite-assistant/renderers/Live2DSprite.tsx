@@ -55,6 +55,19 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
         });
         if (!mounted) return;
         setRuntimeReady(true);
+
+        // 校正主窗口尺寸以匹配 Live2D 画布
+        if (loadedConfig) {
+          try {
+            await window.YUA.window.setAssistantSize({
+              width: loadedConfig.canvas.width,
+              height: loadedConfig.canvas.height,
+              padding: loadedConfig.canvas.padding
+            });
+          } catch (e) {
+            console.warn('[Live2DSprite] setAssistantSize failed', e);
+          }
+        }
       } catch (error) {
         console.error('[Live2DSprite] init failed', error);
       }
