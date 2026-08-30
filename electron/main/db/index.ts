@@ -4,27 +4,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import Database from 'better-sqlite3';
-import { inArray } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { app } from 'electron';
 
 import { binPathLog } from '../logger';
 import { Env } from '../utils';
-import { documents } from './schema';
 
 let db: Database.Database | null = null;
-// mini 分支已移除 sqlite-vec 扩展加载,向量功能不可用,相关函数静默降级
-const vecReady = false;
-
-export interface VectorInsertItem {
-  id?: string;
-  content: string;
-  metadata?: any;
-  embedding: number[]; // assume float vector
-  providerId?: string; // 服务商ID（如 'openai', 'ollama', 'transformers'）
-  model?: string; // 模型名称（如 'text-embedding-3-small'）
-}
 
 function ensureDir(dir: string): void {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -54,141 +41,49 @@ export function getOrm(): any {
   return orm;
 }
 
-function ensureVecLoaded(): boolean {
-  if (!db) return false;
-  if (!vecReady) return false;
-  try {
-    const r = (db as any).prepare('select vec_version() as v').get();
-    return !!r?.v;
-  } catch {
-    return false;
-  }
-}
-
+/**
+ * 清理历史遗留触发器。
+ * mini 分支已删除 recycle_bin/documents/resources/folders 等表，
+ * 旧库上残留的触发器引用了这些表，若不删除会在软删/删除会话等操作时
+ * 报 "no such table" 错误，这里统一 DROP。
+ */
 function setupTriggers(): void {
   if (!db) return;
   try {
-    // Documents: soft delete -> remove from all vec tables and upsert recycle_bin
-    // 注意：由于 SQLite 触发器限制，我们无法在触发器中动态遍历所有维度表
-    // 因此向量表的清理将在应用层的 deleteVectors 函数中处理
-    // 这里只处理 recycle_bin
-    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_documents_soft_delete
-AFTER UPDATE OF deleted_at ON documents
-WHEN NEW.deleted_at IS NOT NULL AND (OLD.deleted_at IS NULL OR OLD.deleted_at != NEW.deleted_at)
-BEGIN
-  INSERT INTO recycle_bin (id, entity_type, entity_id, title, summary, reason, deleted_at, deleted_by, payload, expire_at)
-  VALUES ('doc:' || NEW.id, 'document', NEW.id, COALESCE(NEW.title, substr(NEW.content,1,80)), substr(NEW.content,1,160), 'soft-delete', NEW.deleted_at, 'trigger', NULL, NULL)
-  ON CONFLICT(id) DO UPDATE SET deleted_at=excluded.deleted_at, title=excluded.title, summary=excluded.summary;
-END;`);
-
-    // Documents: restore -> reinsert into vec table from stored embedding, remove recycle_bin
-    // 注意：向量表的恢复需要在应用层处理，因为需要知道 embedDim
-    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_documents_restore
-AFTER UPDATE OF deleted_at ON documents
-WHEN NEW.deleted_at IS NULL AND OLD.deleted_at IS NOT NULL
-BEGIN
-  DELETE FROM recycle_bin WHERE entity_type='document' AND entity_id=NEW.id;
-END;`);
-
-    // Documents: hard delete -> cleanup recycle_bin
-    // 注意：向量表的清理在应用层的 deleteVectors 中处理
-    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_documents_delete
-AFTER DELETE ON documents
-BEGIN
-  DELETE FROM recycle_bin WHERE entity_type='document' AND entity_id=OLD.id;
-END;`);
-
-    // Resources: soft delete -> upsert recycle_bin (drop old trigger to update payload logic)
-    db.exec(`DROP TRIGGER IF EXISTS trg_resources_soft_delete`);
-    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_resources_soft_delete
-AFTER UPDATE OF deleted_at ON resources
-WHEN NEW.deleted_at IS NOT NULL AND (OLD.deleted_at IS NULL OR OLD.deleted_at != NEW.deleted_at)
-BEGIN
-  INSERT INTO recycle_bin (id, entity_type, entity_id, title, summary, reason, deleted_at, deleted_by, payload, expire_at)
-  VALUES ('res:' || NEW.id, 'resource', NEW.id, NEW.title, COALESCE(NEW.content_text, NEW.description), 'soft-delete', NEW.deleted_at, 'trigger', json_object('id', NEW.id, 'originalFilePath', NEW.file_path), NULL)
-  ON CONFLICT(id) DO UPDATE SET deleted_at=excluded.deleted_at, title=excluded.title, summary=excluded.summary, payload=excluded.payload;
-END;`);
-
-    // Resources: restore -> remove recycle_bin
-    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_resources_restore
-AFTER UPDATE OF deleted_at ON resources
-WHEN NEW.deleted_at IS NULL AND OLD.deleted_at IS NOT NULL
-BEGIN
-  DELETE FROM recycle_bin WHERE entity_type='resource' AND entity_id=NEW.id;
-END;`);
-
-    // Resources: hard delete -> cleanup recycle_bin
-    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_resources_delete
-AFTER DELETE ON resources
-BEGIN
-  DELETE FROM recycle_bin WHERE entity_type='resource' AND entity_id=OLD.id;
-END;`);
-
-    // Conversations: soft delete -> upsert recycle_bin
-    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_conversations_soft_delete
-AFTER UPDATE OF deleted_at ON conversations
-WHEN NEW.deleted_at IS NOT NULL AND (OLD.deleted_at IS NULL OR OLD.deleted_at != NEW.deleted_at)
-BEGIN
-  INSERT INTO recycle_bin (id, entity_type, entity_id, title, summary, reason, deleted_at, deleted_by, payload, expire_at)
-  VALUES (
-    'conv:' || NEW.id,
-    'conversation',
-    NEW.id,
-    COALESCE(
-      NEW.title,
-      (SELECT substr(content, 1, 80) FROM chat_messages WHERE conversation_id = NEW.id AND role = 'user' ORDER BY seq LIMIT 1)
-    ),
-    (SELECT substr(content, 1, 160) FROM chat_messages WHERE conversation_id = NEW.id ORDER BY seq DESC LIMIT 1),
-    'soft-delete',
-    NEW.deleted_at,
-    'trigger',
-    NULL,
-    NULL
-  )
-  ON CONFLICT(id) DO UPDATE SET deleted_at=excluded.deleted_at, title=excluded.title, summary=excluded.summary;
-END;`);
-
-    // Conversations: restore -> remove recycle_bin
-    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_conversations_restore
-AFTER UPDATE OF deleted_at ON conversations
-WHEN NEW.deleted_at IS NULL AND OLD.deleted_at IS NOT NULL
-BEGIN
-  DELETE FROM recycle_bin WHERE entity_type='conversation' AND entity_id=NEW.id;
-END;`);
-
-    // Conversations: hard delete -> cleanup recycle_bin
-    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_conversations_delete
-AFTER DELETE ON conversations
-BEGIN
-  DELETE FROM recycle_bin WHERE entity_type='conversation' AND entity_id=OLD.id;
-END;`);
-
-    // Folders: soft delete -> upsert recycle_bin
-    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_folders_soft_delete
-AFTER UPDATE OF deleted_at ON folders
-WHEN NEW.deleted_at IS NOT NULL AND (OLD.deleted_at IS NULL OR OLD.deleted_at != NEW.deleted_at)
-BEGIN
-  INSERT INTO recycle_bin (id, entity_type, entity_id, title, summary, reason, deleted_at, deleted_by, payload, expire_at)
-  VALUES ('folder:' || NEW.id, 'folder', NEW.id, NEW.name, COALESCE(NEW.description, NULL), 'soft-delete', NEW.deleted_at, 'trigger', NULL, NULL)
-  ON CONFLICT(id) DO UPDATE SET deleted_at=excluded.deleted_at, title=excluded.title, summary=excluded.summary;
-END;`);
-
-    // Folders: restore -> remove recycle_bin
-    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_folders_restore
-AFTER UPDATE OF deleted_at ON folders
-WHEN NEW.deleted_at IS NULL AND OLD.deleted_at IS NOT NULL
-BEGIN
-  DELETE FROM recycle_bin WHERE entity_type='folder' AND entity_id=NEW.id;
-END;`);
-
-    // Folders: hard delete -> cleanup recycle_bin
-    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_folders_delete
-AFTER DELETE ON folders
-BEGIN
-  DELETE FROM recycle_bin WHERE entity_type='folder' AND entity_id=OLD.id;
-END;`);
+    const legacyTriggers = [
+      'trg_documents_soft_delete',
+      'trg_documents_restore',
+      'trg_documents_delete',
+      'trg_resources_soft_delete',
+      'trg_resources_restore',
+      'trg_resources_delete',
+      'trg_conversations_soft_delete',
+      'trg_conversations_restore',
+      'trg_conversations_delete',
+      'trg_folders_soft_delete',
+      'trg_folders_restore',
+      'trg_folders_delete'
+    ];
+    for (const name of legacyTriggers) {
+      db.exec(`DROP TRIGGER IF EXISTS ${name}`);
+    }
   } catch (e) {
     console.warn('[db] setupTriggers failed', e);
+  }
+}
+
+/**
+ * 清理 drizzle 迁移无法覆盖的遗留对象。
+ * memory_notes_fts 是早期迁移用原生 SQL 创建的 FTS5 虚拟表，
+ * 不在 drizzle schema/snapshot 中，0022 的 DROP 系列不会触碰它，
+ * 其主体表 memory_notes 已删除，这里连带影子表一起清理。
+ */
+function dropLegacyOrphanTables(): void {
+  if (!db) return;
+  try {
+    db.exec(`DROP TABLE IF EXISTS memory_notes_fts`);
+  } catch (e) {
+    console.warn('[db] dropLegacyOrphanTables failed', e);
   }
 }
 
@@ -251,64 +146,6 @@ function ensureChatMessageSequenceIndex(): void {
   }
 }
 
-function migrateOldVecTable(): void {
-  if (!db || !ensureVecLoaded()) return;
-  try {
-    // 检查是否存在旧的 vec_docs 表
-    const oldTable = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='vec_docs'`).get() as { name: string } | undefined;
-    if (!oldTable) {
-      // 没有旧表，无需迁移
-      return;
-    }
-
-    console.log('[vector] Found old vec_docs table, starting migration to dimension-based tables...');
-
-    // 从 documents 表中获取所有有 embedding 的文档及其维度
-    const docsWithEmbedding = db.prepare(`SELECT id, embed_dim as embedDim FROM documents WHERE embedding IS NOT NULL AND embed_dim IS NOT NULL AND deleted_at IS NULL`).all() as {
-      id: string;
-      embedDim: number;
-    }[];
-
-    if (docsWithEmbedding.length === 0) {
-      console.log('[vector] No documents with embeddings found, dropping old vec_docs table');
-      db.exec(`DROP TABLE IF EXISTS vec_docs`);
-      return;
-    }
-
-    // 按维度分组
-    const docsByDim = new Map<number, string[]>();
-    for (const doc of docsWithEmbedding) {
-      if (!docsByDim.has(doc.embedDim)) {
-        docsByDim.set(doc.embedDim, []);
-      }
-      docsByDim.get(doc.embedDim)!.push(doc.id);
-    }
-
-    // 为每个维度重建索引
-    let migratedCount = 0;
-    for (const [dim, ids] of docsByDim.entries()) {
-      try {
-        ensureVecTableForDim(dim);
-        const result = rebuildVectors(ids, dim);
-        migratedCount += result.restored;
-        console.log(`[vector] Migrated ${result.restored} vectors to vec_docs_${dim}`);
-      } catch (e) {
-        console.warn(`[vector] Failed to migrate vectors for dimension ${dim}:`, e);
-      }
-    }
-
-    // 删除旧的 vec_docs 表
-    try {
-      db.exec(`DROP TABLE IF EXISTS vec_docs`);
-      console.log(`[vector] Migration completed: ${migratedCount} vectors migrated, old vec_docs table dropped`);
-    } catch (e) {
-      console.warn('[vector] Failed to drop old vec_docs table:', e);
-    }
-  } catch (e) {
-    console.warn('[vector] Migration from old vec_docs table failed:', e);
-  }
-}
-
 /**
  * Pre-migration compatibility fixes.
  *
@@ -324,6 +161,11 @@ function migrateOldVecTable(): void {
  * compat fix inserted a row with `Date.now()` as `created_at`, this
  * timestamp may exceed later migrations' `folderMillis`, causing them
  * to be permanently skipped.  We detect and clean up such phantom rows.
+ *
+ * mini 分支注意：0022 起 memory_* 等表会被 DROP，不能再以 memory_topics
+ * 是否存在来判断 0010 是否已应用，必须改查 __drizzle_migrations 里
+ * 0010 的 hash，否则已应用 0022 的库会被误判为"0010 未应用"，
+ * 导致 0022 的迁移记录被当作 phantom row 删掉、下次启动重复执行 DROP。
  */
 function preMigrationCompat(): void {
   if (!db) return;
@@ -337,15 +179,21 @@ function preMigrationCompat(): void {
 
     const HASH_0009 = 'e5218191d7af6dc4a542277c5863573c4e946c8eda7ba4d368390e3f0635156e';
     const MILLIS_0009 = 1773487817867;
+    const HASH_0010 = '851995b79b251091833e27e11d95a823b80505d64ce0130e0ae583fab0c7c806';
+
+    // 0010 是否已真正应用过（以迁移记录为准，而非 memory 表是否存在）
+    const m0010Applied = !!db.prepare(`SELECT 1 FROM __drizzle_migrations WHERE hash = ?`).get(HASH_0010);
 
     const memoryTablesExist = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='memory_topics'`).get();
+    // 0010 尚未应用的旧库才需要下面的 phantom 清理与 0010 兼容修复
+    const needsCompat0010 = !m0010Applied && !memoryTablesExist;
 
     // --- Cleanup: remove phantom migration records --------------------------------
-    // If memory tables don't exist, migration 0010 was never successfully applied.
-    // Delete any __drizzle_migrations rows at/after 0009's timestamp that aren't
-    // the correct 0009 record — these are leftovers from buggy previous compat
+    // If migration 0010 was never successfully applied, delete any
+    // __drizzle_migrations rows at/after 0009's timestamp that aren't the
+    // correct 0009 record — these are leftovers from buggy previous compat
     // fixes that used Date.now() as created_at, blocking subsequent migrations.
-    if (!memoryTablesExist) {
+    if (needsCompat0010) {
       const suspectRows = db.prepare(`SELECT id, hash, created_at FROM __drizzle_migrations WHERE created_at >= ?`).all(MILLIS_0009) as Array<{ id: number; hash: string; created_at: number }>;
 
       for (const row of suspectRows) {
@@ -382,7 +230,7 @@ function preMigrationCompat(): void {
     // ensureChatMessageSequenceIndex() (run after every boot) may have already
     // created uq_chat_messages_conv_seq, causing the CREATE to fail and rolling
     // back the entire migration (including all memory tables).
-    if (!memoryTablesExist) {
+    if (needsCompat0010) {
       try {
         db.exec(`DROP INDEX IF EXISTS uq_chat_messages_conv_seq`);
         console.log('[db] Pre-migration compat: dropped pre-existing uq_chat_messages_conv_seq for migration 0010');
@@ -434,354 +282,8 @@ function initSchema(): void {
     console.warn('[db] failed to run migrations. Ensure you ran "pnpm run db:generate" or "pnpm run db:push" to create ./drizzle', e);
   }
   ensureChatMessageSequenceIndex();
-  // vec_docs_* tables are managed by sqlite-vec extension; created lazily per dimension
-  // Each dimension has its own virtual table (e.g., vec_docs_384, vec_docs_768)
-  // This allows multiple embedding dimensions to coexist in the same database
   setupTriggers();
-  // 迁移旧的 vec_docs 表（如果存在）
-  migrateOldVecTable();
-}
-
-/**
- * 获取指定维度对应的虚拟表名
- * 使用维度作为表名后缀，支持多维度并存
- */
-function getVecTableName(dim: number): string {
-  return `vec_docs_${dim}`;
-}
-
-/**
- * 确保指定维度的虚拟表存在
- * 每个维度使用独立的虚拟表，支持多维度并存
- */
-function ensureVecTableForDim(dim: number): void {
-  if (!db) return;
-  if (!ensureVecLoaded()) {
-    console.warn('[vector] sqlite-vec not ready, skip creating vec table');
-    return;
-  }
-  const tableName = getVecTableName(dim);
-  // 检查表是否已存在
-  const row = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`).get(tableName);
-  if (!row) {
-    try {
-      db.exec(`CREATE VIRTUAL TABLE ${tableName} USING vec0(embedding float[${dim}]);`);
-      console.log(`[vector] Created virtual table ${tableName} with dimension ${dim}`);
-    } catch (e) {
-      console.error(`[vector] failed to create ${tableName} table (vec0 not available)`, e);
-    }
-  }
-}
-
-/**
- * 获取所有已存在的向量表维度列表
- */
-function getExistingVecTableDims(): number[] {
-  if (!db) return [];
-  try {
-    const rows = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'vec_docs_%'`).all() as { name: string }[];
-    return rows
-      .map((r) => {
-        const match = r.name.match(/^vec_docs_(\d+)$/);
-        return match ? parseInt(match[1], 10) : null;
-      })
-      .filter((dim): dim is number => dim !== null)
-      .sort((a, b) => a - b);
-  } catch {
-    return [];
-  }
-}
-
-function float32ArrayToBuffer(arr: number[]): any {
-  const buf = Buffer.allocUnsafe(arr.length * 4);
-  for (let i = 0; i < arr.length; i++) buf.writeFloatLE(arr[i], i * 4);
-  return buf;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function bufferToFloat32Array(buf: any, dim: number): number[] {
-  const out: number[] = new Array(dim);
-  for (let i = 0; i < dim; i++) out[i] = buf.readFloatLE(i * 4);
-  return out;
-}
-
-function fitToDimLocal(vec: number[], targetDim: number): number[] {
-  if (!Array.isArray(vec)) return new Array(targetDim).fill(0);
-  if (vec.length === targetDim) return vec;
-  if (vec.length > targetDim) return vec.slice(0, targetDim);
-  const out = new Array(targetDim);
-  for (let i = 0; i < targetDim; i++) out[i] = i < vec.length ? vec[i] : 0;
-  return out;
-}
-
-// Ensure sqlite-vec extension table exists for given dimension
-// function ensureVecTable(dim: number) {
-//   if (!db) return;
-//   if (!ensureVecLoaded()) {
-//     console.warn('[vector] sqlite-vec not ready, skip creating vec_docs');
-//     return;
-//   }
-//   // quick check
-//   const row = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='vec_docs'`).get();
-//   if (!row) {
-//     try {
-//       db.exec(`CREATE VIRTUAL TABLE vec_docs USING vec0(embedding float[${dim}]);`);
-//     } catch (e) {
-//       console.error('[vector] failed to create vec_docs table (vec0 not available)', e);
-//     }
-//   }
-// }
-
-export function insertVectors(items: VectorInsertItem[], dim: number): { inserted: number } {
-  const database = getDB();
-  ensureVecTableForDim(dim);
-  if (!database || !ensureVecLoaded()) {
-    console.warn('[vector] insertVectors: database or vec extension not ready');
-    return { inserted: 0 };
-  }
-  const d = getOrm();
-  const tableName = getVecTableName(dim);
-  // 获取所有已存在的维度表，用于清理旧数据
-  const existingDims = getExistingVecTableDims();
-  // Statements for vector index maintenance - 使用维度特定的表名
-  const delVecById = database.prepare(`DELETE FROM ${tableName} WHERE rowid = (SELECT rowid FROM documents WHERE id=@id)`);
-  const insertVec = database!.prepare(`INSERT INTO ${tableName}(rowid, embedding) VALUES((SELECT rowid FROM documents WHERE id=@id), @embedding)`);
-  // 为每个维度表创建删除语句（用于清理旧维度的数据）
-  const delFromOtherDims = existingDims
-    .filter((d) => d !== dim)
-    .map((otherDim) => {
-      const otherTableName = getVecTableName(otherDim);
-      return database.prepare(`DELETE FROM ${otherTableName} WHERE rowid = (SELECT rowid FROM documents WHERE id=@id)`);
-    });
-  let insertedCount = 0;
-  const tx = database!.transaction((rows: VectorInsertItem[]) => {
-    for (const r of rows) {
-      try {
-        const id = r.id || crypto.randomUUID();
-        // 验证 embedding 维度
-        if (!Array.isArray(r.embedding)) {
-          console.warn(`[vector] insertVectors: invalid embedding for id ${id}, skipping`);
-          continue;
-        }
-        const fitted = fitToDimLocal(r.embedding, dim);
-        const embBuf = float32ArrayToBuffer(fitted);
-        const now = Date.now();
-        // Upsert into documents via Drizzle ORM
-        d.insert(documents)
-          .values({
-            id,
-            content: r.content,
-            metadata: r.metadata ? JSON.stringify(r.metadata) : null,
-            embedding: embBuf,
-            embedModel: r.model || null,
-            embedProviderId: r.providerId || null,
-            embedDim: dim,
-            embedAt: now,
-            workspaceId: r.metadata?.workspaceId || null,
-            updatedAt: now
-          })
-          .onConflictDoUpdate({
-            target: documents.id,
-            set: {
-              content: r.content,
-              metadata: r.metadata ? JSON.stringify(r.metadata) : null,
-              embedding: embBuf,
-              embedModel: r.model || null,
-              embedProviderId: r.providerId || null,
-              embedDim: dim,
-              embedAt: now,
-              workspaceId: r.metadata?.workspaceId || null,
-              updatedAt: now
-            }
-          })
-          .run?.();
-        // 从所有其他维度表中删除旧数据（如果文档之前使用其他维度）
-        for (const delStmt of delFromOtherDims) {
-          try {
-            delStmt.run({ id });
-          } catch (e) {
-            // 表可能不存在，忽略错误
-            console.warn(`[vector] Failed to delete from other dim table:`, e);
-          }
-        }
-        // 删除当前维度表中的旧数据（如果存在），然后插入新数据
-        delVecById.run({ id });
-        insertVec.run({ id, embedding: embBuf });
-        insertedCount++;
-      } catch (e) {
-        console.error(`[vector] insertVectors: failed to insert item ${r.id || 'unknown'}:`, e);
-        // 继续处理其他项
-      }
-    }
-  });
-  try {
-    tx(items);
-    console.log(`[vector] insertVectors: inserted ${insertedCount}/${items.length} items into ${tableName}`);
-  } catch (e) {
-    console.error('[vector] insertVectors: transaction failed:', e);
-    return { inserted: 0 };
-  }
-  return { inserted: insertedCount };
-}
-
-export interface VectorSearchResult {
-  id: string;
-  content: string;
-  metadata: any;
-  score: number;
-  embedding?: number[];
-}
-
-export interface VectorSearchOptions {
-  providerId?: string; // 只搜索指定服务商的向量（可选）
-  model?: string; // 只搜索指定模型的向量（可选）
-}
-
-export function searchVectors(queryEmbedding: number[], k: number, dim: number, options?: VectorSearchOptions): VectorSearchResult[] {
-  const database = getDB();
-  ensureVecTableForDim(dim);
-  if (!database || !ensureVecLoaded()) {
-    console.warn('[vector] searchVectors: database or vec extension not ready');
-    return [];
-  }
-  const tableName = getVecTableName(dim);
-  try {
-    // 验证查询向量的维度
-    if (!Array.isArray(queryEmbedding)) {
-      console.warn('[vector] searchVectors: invalid query embedding, expected array');
-      return [];
-    }
-    const queryBuf = float32ArrayToBuffer(fitToDimLocal(queryEmbedding, dim));
-
-    // 构建 WHERE 条件：只搜索相同服务商和模型的向量
-    const conditions: string[] = ['d.deleted_at IS NULL'];
-    const params: any[] = [];
-
-    if (options?.providerId) {
-      conditions.push('d.embed_provider_id = ?');
-      params.push(options.providerId);
-    }
-    if (options?.model) {
-      conditions.push('d.embed_model = ?');
-      params.push(options.model);
-    }
-
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-    // Add k = ? constraint for sqlite-vec KNN queries - 使用维度特定的表名
-    const stmt = database.prepare(
-      `SELECT d.id, d.content, d.metadata, v.distance AS distance, d.embed_provider_id as providerId, d.embed_model as model
-       FROM ${tableName} v
-       JOIN documents d ON d.rowid = v.rowid
-       ${whereClause}
-         AND v.embedding MATCH ? AND k = ?
-       ORDER BY v.distance
-       LIMIT ?`
-    );
-    const rows = stmt.all(...params, queryBuf, k, k) as any[];
-    const results = rows.map((r) => ({
-      id: r.id,
-      content: r.content,
-      metadata: r.metadata ? JSON.parse(r.metadata) : null,
-      score: typeof r.distance === 'number' ? r.distance : 0
-    }));
-    console.log(`[vector] searchVectors: found ${results.length} results from ${tableName} (dim=${dim}, k=${k}, providerId=${options?.providerId || 'any'}, model=${options?.model || 'any'})`);
-    return results;
-  } catch (e) {
-    console.error(`[vector] searchVectors: failed to search in ${tableName}:`, e);
-    return [];
-  }
-}
-
-export function deleteVectors(ids: string[]): { deleted: number } {
-  if (!ids || ids.length === 0) return { deleted: 0 };
-  const database = getDB();
-  if (!database || !ensureVecLoaded()) return { deleted: 0 };
-  // Fetch rowids first to delete from vec table (rowid isn't in schema, use raw SQL)
-  const selectRowids = database.prepare(`SELECT rowid FROM documents WHERE id IN (${ids.map(() => '?').join(',')})`);
-  const rows = selectRowids.all(...ids) as { rowid: number }[];
-  if (rows.length === 0) return { deleted: 0 };
-  const rowIds = rows.map((r) => r.rowid);
-  const d = getOrm();
-  const tx = database.transaction(() => {
-    // 从所有维度表中删除（因为一个文档可能在不同维度表中都有数据）
-    const existingDims = getExistingVecTableDims();
-    for (const dim of existingDims) {
-      const tableName = getVecTableName(dim);
-      try {
-        const delVec = database.prepare(`DELETE FROM ${tableName} WHERE rowid IN (${rowIds.map(() => '?').join(',')})`);
-        delVec.run(...rowIds);
-      } catch (e) {
-        // 表可能不存在，忽略错误
-        console.warn(`[vector] Failed to delete from ${tableName}:`, e);
-      }
-    }
-    // Delete from documents via Drizzle ORM
-    d.delete(documents).where(inArray(documents.id, ids)).run?.();
-  });
-  tx();
-  return { deleted: rows.length };
-}
-
-/**
- * 重建指定文档的向量索引（根据文档的 embedDim 自动选择对应的维度表）
- * 如果文档没有 embedDim，则跳过
- */
-export function rebuildVectorsAuto(ids: string[]): { restored: number } {
-  const database = getDB();
-  if (!database || !ensureVecLoaded()) return { restored: 0 };
-  let totalRestored = 0;
-  const tx = database.transaction((idsInner: string[]) => {
-    for (const id of idsInner) {
-      // 使用原始 SQL 查询文档的 embedDim 和 rowid
-      const doc = database.prepare(`SELECT embed_dim as embedDim, rowid FROM documents WHERE id = ? AND embedding IS NOT NULL AND embed_dim IS NOT NULL`).get(id) as
-        { embedDim: number; rowid: number } | undefined;
-      if (!doc || !doc.embedDim) continue;
-      const dim = doc.embedDim;
-      const tableName = getVecTableName(dim);
-      ensureVecTableForDim(dim);
-      // 删除旧数据，然后从 documents 表重新插入
-      try {
-        database.prepare(`DELETE FROM ${tableName} WHERE rowid = ?`).run(doc.rowid);
-        database
-          .prepare(
-            `INSERT INTO ${tableName}(rowid, embedding)
-             SELECT rowid, embedding FROM documents WHERE id = ? AND embedding IS NOT NULL AND embed_dim = ?`
-          )
-          .run(id, dim);
-        totalRestored++;
-      } catch (e) {
-        console.warn(`[vector] Failed to rebuild vector for ${id} with dim ${dim}:`, e);
-      }
-    }
-  });
-  tx(ids);
-  return { restored: totalRestored };
-}
-
-/**
- * 重建指定维度的向量索引（显式指定维度）
- */
-export function rebuildVectors(ids: string[], dim: number): { restored: number } {
-  const database = getDB();
-  ensureVecTableForDim(dim);
-  if (!database || !ensureVecLoaded()) return { restored: 0 };
-  const tableName = getVecTableName(dim);
-  // Re-insert into dimension-specific vec table from documents table using rowid & stored embedding
-  // 只重建指定维度且 embedDim 匹配的文档
-  const delVec = database.prepare(`DELETE FROM ${tableName} WHERE rowid = (SELECT rowid FROM documents WHERE id=?)`);
-  const insertFromDoc = database.prepare(
-    `INSERT INTO ${tableName}(rowid, embedding)
-     SELECT rowid, embedding FROM documents WHERE id = ? AND embedding IS NOT NULL AND embed_dim = ?`
-  );
-  const tx = database.transaction((idsInner: string[]) => {
-    for (const id of idsInner) {
-      delVec.run(id);
-      insertFromDoc.run(id, dim);
-    }
-  });
-  tx(ids);
-  return { restored: ids.length };
+  dropLegacyOrphanTables();
 }
 
 // ==================== Database Backup ====================
@@ -869,6 +371,7 @@ export function listBackups(customPath?: string): { ok: true; backups: BackupInf
     return { ok: true, backups };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('[db] Backup failed:', errorMsg);
     return { ok: false, error: errorMsg };
   }
 }
@@ -887,6 +390,7 @@ export function deleteBackup(backupPath: string): { ok: true } | { ok: false; er
     return { ok: true };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('[db] Backup failed:', errorMsg);
     return { ok: false, error: errorMsg };
   }
 }
@@ -993,7 +497,7 @@ export async function importBackup(sourcePath: string, options?: { restore?: boo
     const backupFileName = `${dbFileName}.backup.${timestamp}.imported`;
     const backupPath = path.join(backupDir, backupFileName);
 
-    // Copy the file to backup directory
+    // Copy the file to the backup directory
     fs.copyFileSync(sourcePath, backupPath);
     console.log(`[db] Backup imported to ${backupPath}`);
 

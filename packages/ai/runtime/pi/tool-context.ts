@@ -1,8 +1,8 @@
-import { ChatRepo, ResourcesRepo } from '../../../common/db';
+import { ChatRepo } from '../../../common/db';
 import { pushCardToWindows } from '../../card-push';
 import type { UserChoiceRequest, UserChoiceResponse } from '../../types';
 import type { PiCodingWorkspaceContext, ResolvedPiRequest } from './contracts';
-import type { SkillExecutionResult, SkillSessionState, SkillRegistry } from './skills';
+import type { SkillExecutionResult, SkillRegistry, SkillSessionState } from './skills';
 
 type PiAgentThinkingLevel = import('@earendil-works/pi-agent-core').ThinkingLevel;
 
@@ -32,7 +32,6 @@ export interface PiSessionToolContext {
   pushCardToWindows: typeof pushCardToWindows;
   reportProgress?: (callId: string, progress: number, message?: string) => void;
   resolved: ResolvedPiRequest;
-  resourcesRepo: typeof ResourcesRepo;
   targetWindowId?: number;
   emitToolCall?: (name: string, args: unknown, callId: string) => void;
   emitToolResult?: (callId: string, result: unknown) => void;
@@ -75,7 +74,6 @@ export function createPiSessionToolContext(resolved: ResolvedPiRequest): PiSessi
     conversationId: resolveConversationId(resolved),
     pushCardToWindows,
     resolved,
-    resourcesRepo: ResourcesRepo,
     targetWindowId: resolveTargetWindowId(resolved)
   };
 }

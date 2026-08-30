@@ -13,14 +13,10 @@
 // AI 工具（需要绑定依赖）
 export type { PushCardToolContext } from './push-card-tool';
 export { createPushCardTool } from './push-card-tool';
-export { createReadSubtitleTool, readSubtitleTool } from './read-subtitle-tool';
-export { createResourceQueryTool, resourceQueryTool } from './resource-query-tool';
 
 // 导入用于类型和工具列表
 import type { PushCardToolContext } from './push-card-tool';
 import { createPushCardTool } from './push-card-tool';
-import { readSubtitleTool } from './read-subtitle-tool';
-import { resourceQueryTool } from './resource-query-tool';
 
 // ============================================================================
 // 工具集合
@@ -30,8 +26,6 @@ import { resourceQueryTool } from './resource-query-tool';
  * 所有工具的集合（Map 结构）
  *
  * AI 工具（需要绑定依赖）：
- * - readSubtitleTool: 读取字幕文件内容
- * - resourceQueryTool: 资源智能查询
  * - pushCardTool: 推送资源卡片
  */
 export interface LegacyToolBindings {
@@ -45,7 +39,6 @@ export interface LegacyToolBindings {
  */
 export function getAITools(bindings: LegacyToolBindings = {}) {
   return {
-    resourceQueryTool,
     pushCardTool: createPushCardTool(bindings.pushCard)
   };
 }
@@ -57,8 +50,6 @@ export function getAITools(bindings: LegacyToolBindings = {}) {
  */
 export function getAllTools(bindings: LegacyToolBindings = {}) {
   return {
-    readSubtitleTool,
-    resourceQueryTool,
     pushCardTool: createPushCardTool(bindings.pushCard)
   };
 }
@@ -66,7 +57,7 @@ export function getAllTools(bindings: LegacyToolBindings = {}) {
 /**
  * 根据名称获取工具
  *
- * @param name - 工具名称（如 'resourceQueryTool'）
+ * @param name - 工具名称（如 'pushCardTool'）
  * @returns 对应的工具实例，如果不存在则返回 undefined
  */
 export function getTool(name: string, bindings: LegacyToolBindings = {}) {
@@ -76,15 +67,13 @@ export function getTool(name: string, bindings: LegacyToolBindings = {}) {
 /**
  * 根据工具 ID 获取工具
  *
- * @param id - 工具 ID（如 'query-resources'）
+ * @param id - 工具 ID（如 'push-card'）
  * @returns 对应的工具实例，如果不存在则返回 undefined
  */
 export function getToolById(id: string, bindings: LegacyToolBindings = {}) {
   const allTools = getAllTools(bindings);
   const toolMap: Record<string, any> = {
-    'query-resources': resourceQueryTool,
-    'push-card': allTools.pushCardTool,
-    'read-subtitle': readSubtitleTool
+    'push-card': allTools.pushCardTool
   };
   return toolMap[id];
 }
@@ -97,7 +86,7 @@ export type ToolName = keyof ReturnType<typeof getAllTools>;
 /**
  * 工具 ID 类型定义
  */
-export type ToolId = 'query-resources' | 'push-card' | 'read-subtitle';
+export type ToolId = 'push-card';
 
 /**
  * 工具信息类型
@@ -116,19 +105,9 @@ export type ToolInfo = {
 export function listToolInfos(): ToolInfo[] {
   return [
     {
-      id: 'query-resources',
-      name: 'resourceQueryTool',
-      description: '智能查询资源库中的内容'
-    },
-    {
       id: 'push-card',
       name: 'pushCardTool',
       description: '在聊天中推送资源卡片'
-    },
-    {
-      id: 'read-subtitle',
-      name: 'readSubtitleTool',
-      description: '读取字幕文件内容'
     },
     {
       id: 'web-search',

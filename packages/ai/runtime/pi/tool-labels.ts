@@ -64,15 +64,6 @@ const DEFAULT_TOOL_LABELS: Record<string, ToolLabelDefinition> = {
   pushCardTool: {
     default: { calling: '推送卡片', done: '推送卡片完成' }
   },
-  translationTool: {
-    default: { calling: '翻译字幕', done: '翻译字幕完成' }
-  },
-  summaryTool: {
-    default: { calling: '总结内容', done: '总结内容完成' }
-  },
-  readSubtitleTool: {
-    default: { calling: '读取字幕', done: '读取字幕完成' }
-  },
   askUserTool: {
     default: { calling: '等待用户选择', done: '用户已选择' }
   },

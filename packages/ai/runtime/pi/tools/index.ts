@@ -10,14 +10,10 @@ import { createPiFileListTool } from './file-list';
 import { createPiFileReadTool } from './file-read';
 import { createPiFileWriteTool } from './file-write';
 import { createPiPushCardTool } from './push-card';
-import { createPiReadSubtitleTool } from './read-subtitle';
-import { createPiResourceQueryTool } from './resource-query';
 import { createPiShellExecTool } from './shell-exec';
 import { createPiSkillSearchTool } from './skill-search';
 import { createPiSkillUseTool } from './skill-use';
-import { createPiSummaryTool } from './summary';
 import { createPiToolboxLookupTool } from './toolbox-lookup';
-import { createPiTranslationTool } from './translation';
 import { createPiWebReadTool } from './web-read';
 import { createPiWebSearchTool } from './web-search';
 
@@ -33,13 +29,9 @@ const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
   'file-read': createPiFileReadTool,
   'file-write': createPiFileWriteTool,
   'push-card': createPiPushCardTool,
-  'query-resources': createPiResourceQueryTool,
-  'read-subtitle': createPiReadSubtitleTool,
   'shell-exec': createPiShellExecTool,
   'skill-search': createPiSkillSearchTool,
   'skill-use': createPiSkillUseTool,
-  'summarize-content': createPiSummaryTool,
-  'translate-subtitles': createPiTranslationTool,
   'web-read': createPiWebReadTool,
   'web-search': createPiWebSearchTool,
   'toolbox-lookup': createPiToolboxLookupTool
@@ -56,13 +48,9 @@ const COMPAT_NAME_TO_TOOL_ID: Record<string, string> = {
   fileReadTool: 'file-read',
   fileWriteTool: 'file-write',
   pushCardTool: 'push-card',
-  resourceQueryTool: 'query-resources',
-  readSubtitleTool: 'read-subtitle',
   shellExecTool: 'shell-exec',
   skillSearchTool: 'skill-search',
   skillUseTool: 'skill-use',
-  summaryTool: 'summarize-content',
-  translationTool: 'translate-subtitles',
   webReadTool: 'web-read',
   webSearchTool: 'web-search',
   toolboxTool: 'toolbox-lookup'

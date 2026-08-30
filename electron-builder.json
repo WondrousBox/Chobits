@@ -4,7 +4,6 @@
   "asar": true,
   "asarUnpack": [
     "node_modules/better-sqlite3/**/*",
-    "node_modules/sqlite-vec/**/*",
     "node_modules/sharp/**/*",
     "node_modules/@img/sharp-*/**/*",
     "node_modules/@img/sharp-libvips-*/**/*",
@@ -20,7 +19,6 @@
     "dist-electron",
     "dist",
     "node_modules/better-sqlite3/**/*",
-    "node_modules/sqlite-vec/**/*",
     "node_modules/sharp/**/*",
     "node_modules/@img/sharp-*/**/*",
     "node_modules/@img/sharp-libvips-*/**/*",
@@ -53,18 +51,6 @@
     {
       "from": "resources/plugins",
       "to": "./plugins"
-    },
-    {
-      "from": "resources/workflows",
-      "to": "./workflows"
-    },
-    {
-      "from": "resources/recorder/${platform}/${arch}",
-      "to": "./recorder/${platform}/${arch}"
-    },
-    {
-      "from": "resources/yt-dlp/${platform}/",
-      "to": "./yt-dlp/${platform}/"
     },
     {
       "from": "resources/7zip/${platform}/${arch}",

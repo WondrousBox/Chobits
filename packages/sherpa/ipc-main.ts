@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import * as fscb from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
@@ -6,7 +5,7 @@ import * as path from 'node:path';
 import { stripEmoji } from '@packages/tts/common';
 import { app, BrowserWindow, ipcMain } from 'electron';
 
-import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from '../../electron/main/db/repositories';
+import { WorkspacesRepo } from '../../electron/main/db/repositories';
 import { assertSpriteCapabilityActive, assertSpriteCapabilityUnlocked } from '../sprite-core/capability-runtime';
 import { notifySpriteCapabilityChanged } from '../sprite-core/handler/capability-events';
 import { getASRInstance } from './asr-instance-manager';
@@ -14,33 +13,44 @@ import { AllModels, CommonConfig } from './common';
 import { ASR_createInstance, ASR_freeInstance, ASR_sendData, TTS_createInstance, TTS_freeInstance, TTS_generateSpeech } from './index';
 
 /**
- * 确保工作空间下存在以当天日期命名的顶层文件夹（原 handlers/resource 的同名实现，
- * mini 分支随 resource handler 删除后内联于此，仅供 ASR 录音落盘使用）。
+ * mini 分支录音只落盘、不再写库（folders/resources 表已删除）：
+ * 录音文件存放在 <workspaceRoot>/recordings/<YYYY-MM-DD>/ 下，
+ * 录音 ID 即文件主名（asr-recording-<timestamp>），历史记录通过扫描目录得到。
  */
-async function ensureDailyFolder(workspaceId: string, rootPath: string): Promise<string> {
+async function ensureDailyRecordingDir(rootPath: string): Promise<string> {
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  // 只在“未删除”的顶层文件夹中查找，避免命中回收站里的文件夹
-  const siblings = await FoldersRepo.list({ workspaceId, parentId: null, deletedAt: 0 } as any, 2000, 0);
-  const existing = siblings.find((s: any) => s.name === today);
-
-  if (existing) {
-    return existing.id;
-  }
-
-  const newFolder = {
-    id: randomUUID(),
-    name: today,
-    parentId: null,
-    workspaceId
-  };
-
-  await FoldersRepo.create(newFolder as any);
-
-  const dirPath = path.join(rootPath, 'resources', 'folders', newFolder.id);
+  const dirPath = path.join(rootPath, 'recordings', today);
   await fs.mkdir(dirPath, { recursive: true });
+  return dirPath;
+}
 
-  return newFolder.id;
+/** 在单个工作空间的 recordings 目录下按录音 ID（文件主名）查找音频文件 */
+async function findRecordingAudioPath(rootPath: string, resourceId: string): Promise<string | null> {
+  const recRoot = path.join(rootPath, 'recordings');
+  let dateDirs: string[];
+  try {
+    dateDirs = await fs.readdir(recRoot);
+  } catch {
+    return null;
+  }
+  for (const dir of dateDirs) {
+    const candidate = path.join(recRoot, dir, `${resourceId}.pcm`);
+    if (fscb.existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+/** 跨工作空间解析录音 ID 对应的音频文件路径 */
+async function resolveRecordingAudioPath(resourceId: string, preferredWorkspaceId?: string): Promise<{ audioFilePath: string; workspaceId: string } | null> {
+  const workspaces = await WorkspacesRepo.list({ deletedAt: 0 } as any, 100, 0);
+  const ordered = preferredWorkspaceId ? [...workspaces].sort((a, b) => (a.id === preferredWorkspaceId ? -1 : b.id === preferredWorkspaceId ? 1 : 0)) : workspaces;
+  for (const ws of ordered) {
+    if (!ws.rootPath) continue;
+    const audioFilePath = await findRecordingAudioPath(ws.rootPath, resourceId);
+    if (audioFilePath) return { audioFilePath, workspaceId: ws.id };
+  }
+  return null;
 }
 
 // ASR 配置类型（面向未来多后端扩展）
@@ -76,7 +86,6 @@ interface RecordingStream {
   audioWriteStream: fscb.WriteStream;
   subtitleWriteStream: fscb.WriteStream;
   workspaceId: string;
-  folderId: string;
   startTime: number;
   segmentCount: number; // 字幕片段计数
 }
@@ -371,7 +380,7 @@ export function initSherpaHandlers(): void {
     try {
       assertSpriteCapabilityActive('speechRecognition');
       console.log('[Sherpa] 收到开始录音请求，data:', data);
-      let { workspaceId, folderId } = data;
+      let { workspaceId } = data;
 
       // 获取工作空间
       let ws;
@@ -391,27 +400,18 @@ export function initSherpaHandlers(): void {
 
       console.log('[Sherpa] 工作空间获取成功，id:', ws.id, 'rootPath:', ws.rootPath);
 
-      // 确保当天文件夹存在
-      if (!folderId) {
-        console.log('[Sherpa] 确保当天文件夹存在');
-        folderId = await ensureDailyFolder(ws.id, ws.rootPath);
-        console.log('[Sherpa] 当天文件夹ID:', folderId);
-      }
-
-      // 创建资源ID
-      const resourceId = randomUUID();
+      // 录音 ID 即文件主名，保证重启后可按 ID 找回文件
       const timestamp = Date.now();
-      const baseName = `asr-recording-${timestamp}`;
-      const baseDir = path.join(ws.rootPath, 'resources', 'folders', folderId);
-      console.log('[Sherpa] 创建目录:', baseDir);
-      await fs.mkdir(baseDir, { recursive: true });
+      const resourceId = `asr-recording-${timestamp}`;
+      const baseDir = await ensureDailyRecordingDir(ws.rootPath);
+      console.log('[Sherpa] 录音目录:', baseDir);
 
       // 音频文件路径
-      const audioFilePath = path.join(baseDir, `${baseName}.pcm`);
+      const audioFilePath = path.join(baseDir, `${resourceId}.pcm`);
       console.log('[Sherpa] 音频文件路径:', audioFilePath);
 
       // 字幕文件路径（SRT 格式，流式写入）
-      const subtitleFilePath = path.join(baseDir, `${baseName}.srt`);
+      const subtitleFilePath = path.join(baseDir, `${resourceId}.srt`);
       console.log('[Sherpa] 字幕文件路径:', subtitleFilePath);
 
       // 创建音频写入流（Float32 PCM，16kHz）
@@ -430,31 +430,12 @@ export function initSherpaHandlers(): void {
         audioWriteStream,
         subtitleWriteStream,
         workspaceId: ws.id,
-        folderId,
         startTime: timestamp,
         segmentCount: 0
       };
 
       recordingStreams.set('stream', stream);
       console.log('[Sherpa] 录音流已保存到Map，resourceId:', resourceId);
-
-      // 创建音频资源记录（状态为new，等待完成）
-      const audioResource = {
-        id: resourceId,
-        title: `录音-${new Date(timestamp).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}`,
-        filePath: audioFilePath,
-        type: 'recording', // 使用 'recording' 类型标识录音资源，与普通 'audio' 区分
-        workspaceId: ws.id,
-        folderId,
-        status: 'new',
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        collectedAt: timestamp
-      };
-
-      console.log('[Sherpa] 准备创建音频资源记录:', JSON.stringify(audioResource, null, 2));
-      await ResourcesRepo.upsert(audioResource as any);
-      console.log('[Sherpa] 音频资源记录创建成功，resourceId:', resourceId);
 
       // 通过事件发送给渲染进程
       BrowserWindow.getAllWindows().forEach((w) => {
@@ -463,8 +444,7 @@ export function initSherpaHandlers(): void {
             w.webContents.send('asr:recording-started', {
               resourceId,
               startTime: timestamp,
-              workspaceId: ws.id,
-              folderId
+              workspaceId: ws.id
             });
             console.log('[Sherpa] 已发送录音开始事件到窗口');
           } catch (error) {
@@ -494,20 +474,13 @@ export function initSherpaHandlers(): void {
         return { success: false, error: 'Already has an active recording stream' };
       }
 
-      // 获取资源记录
-      const resource = await ResourcesRepo.getById(data.resourceId);
-      if (!resource) {
+      // 按录音 ID 查找音频文件
+      const found = await resolveRecordingAudioPath(data.resourceId);
+      if (!found) {
         return { success: false, error: 'Resource not found' };
       }
 
-      if (resource.status === 'ready') {
-        return { success: false, error: 'Recording already completed, cannot resume' };
-      }
-
-      const audioFilePath = resource.filePath;
-      if (!audioFilePath) {
-        return { success: false, error: 'Audio file path not found' };
-      }
+      const audioFilePath = found.audioFilePath;
 
       // 构建字幕文件路径（与音频文件同名，扩展名为 .srt）
       const subtitleFilePath = audioFilePath.replace(/\.pcm$/, '.srt');
@@ -550,20 +523,13 @@ export function initSherpaHandlers(): void {
         subtitleFilePath,
         audioWriteStream,
         subtitleWriteStream,
-        workspaceId: resource.workspaceId || '',
-        folderId: resource.folderId || '',
-        startTime: resource.createdAt || Date.now(),
+        workspaceId: found.workspaceId,
+        startTime: Date.now(),
         segmentCount: existingSegmentCount
       };
 
       recordingStreams.set('stream', stream);
       console.log('[Sherpa] 录音流已保存到Map（继续录音），resourceId:', data.resourceId);
-
-      // 更新资源状态为 new（正在录音）
-      await ResourcesRepo.update(data.resourceId, {
-        status: 'new',
-        updatedAt: Date.now()
-      });
 
       // 通过事件发送给渲染进程
       BrowserWindow.getAllWindows().forEach((w) => {
@@ -571,8 +537,7 @@ export function initSherpaHandlers(): void {
           try {
             w.webContents.send('asr:recording-resumed', {
               resourceId: data.resourceId,
-              workspaceId: resource.workspaceId,
-              folderId: resource.folderId,
+              workspaceId: found.workspaceId,
               segmentCount: existingSegmentCount
             });
             console.log('[Sherpa] 已发送录音恢复事件到窗口');
@@ -643,49 +608,21 @@ export function initSherpaHandlers(): void {
             const audioStats = await fs.stat(stream.audioFilePath);
             console.log('[Sherpa] 音频文件大小:', audioStats.size);
 
-            // 获取字幕文件大小
-            let subtitleStats;
+            // 字幕文件有内容则保留（流式写入已落盘），为空则删除
             let srtResourceId: string | undefined;
             try {
-              subtitleStats = await fs.stat(stream.subtitleFilePath);
+              const subtitleStats = await fs.stat(stream.subtitleFilePath);
               console.log('[Sherpa] 字幕文件大小:', subtitleStats.size);
 
-              // 如果字幕文件有内容，创建字幕资源记录
               if (subtitleStats.size > 0) {
-                srtResourceId = randomUUID();
-                const audioName = path.basename(stream.audioFilePath, path.extname(stream.audioFilePath));
-                const srtResource = {
-                  id: srtResourceId,
-                  title: `${audioName}.srt`,
-                  filePath: stream.subtitleFilePath,
-                  type: 'subtitle',
-                  workspaceId: stream.workspaceId,
-                  folderId: stream.folderId,
-                  parentResourceId: stream.resourceId, // 关联到音频资源（作为父资源）
-                  sizeBytes: subtitleStats.size,
-                  status: 'ready',
-                  createdAt: Date.now(),
-                  updatedAt: Date.now(),
-                  collectedAt: Date.now()
-                };
-                await ResourcesRepo.upsert(srtResource as any);
-                console.log('[Sherpa] 字幕资源记录创建成功，srtResourceId:', srtResourceId);
+                srtResourceId = `${stream.resourceId}.srt`;
               } else {
-                // 字幕文件为空，删除它
                 console.log('[Sherpa] 字幕文件为空，删除它');
                 await fs.unlink(stream.subtitleFilePath).catch(() => {});
               }
             } catch (error) {
               console.log('[Sherpa] 字幕文件不存在或无法访问:', error);
             }
-
-            // 更新音频资源状态和大小
-            await ResourcesRepo.update(stream.resourceId, {
-              status: 'ready',
-              sizeBytes: audioStats.size,
-              updatedAt: Date.now()
-            });
-            console.log('[Sherpa] 音频资源状态已更新为ready，resourceId:', stream.resourceId);
 
             recordingStreams.delete('stream');
             resolve({
@@ -727,57 +664,23 @@ export function initSherpaHandlers(): void {
       const { resourceId, srtContent } = data;
       console.log('[Sherpa] 收到保存SRT请求，resourceId:', resourceId, 'SRT内容长度:', srtContent.length);
 
-      // 获取资源信息
-      console.log('[Sherpa] 查询资源信息，resourceId:', resourceId);
-      const resource = await ResourcesRepo.getById(resourceId);
-      if (!resource) {
-        console.error('[Sherpa] 资源不存在，resourceId:', resourceId);
+      // 按录音 ID 查找音频文件
+      const found = await resolveRecordingAudioPath(resourceId);
+      if (!found) {
+        console.error('[Sherpa] 录音不存在，resourceId:', resourceId);
         return { success: false, error: 'Resource not found' };
       }
 
-      if (!resource.filePath) {
-        console.error('[Sherpa] 资源没有文件路径，resourceId:', resourceId, 'resource:', JSON.stringify(resource, null, 2));
-        return { success: false, error: 'Resource filePath is missing' };
-      }
-
-      console.log('[Sherpa] 资源信息获取成功，filePath:', resource.filePath);
-
-      // 生成SRT文件路径（与音频文件同目录）
-      const audioDir = path.dirname(resource.filePath);
-      const audioName = path.basename(resource.filePath, path.extname(resource.filePath));
-      const srtPath = path.join(audioDir, `${audioName}.srt`);
+      // 生成SRT文件路径（与音频文件同目录同名）
+      const audioDir = path.dirname(found.audioFilePath);
+      const srtPath = path.join(audioDir, `${resourceId}.srt`);
       console.log('[Sherpa] SRT文件路径:', srtPath);
 
-      // 确保目录存在
-      await fs.mkdir(audioDir, { recursive: true });
-      console.log('[Sherpa] 目录已确保存在:', audioDir);
-
       // 写入SRT文件
-      console.log('[Sherpa] 开始写入SRT文件');
       await fs.writeFile(srtPath, srtContent, 'utf8');
       console.log('[Sherpa] SRT文件写入成功:', srtPath);
 
-      // 创建SRT资源记录
-      const srtResourceId = randomUUID();
-      const srtResource = {
-        id: srtResourceId,
-        title: `${audioName}.srt`,
-        filePath: srtPath,
-        type: 'subtitle',
-        workspaceId: resource.workspaceId,
-        folderId: resource.folderId,
-        parentResourceId: resourceId, // 关联到音频资源（作为父资源）
-        sizeBytes: Buffer.from(srtContent, 'utf8').byteLength,
-        status: 'ready',
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        collectedAt: Date.now()
-      };
-
-      console.log('[Sherpa] 准备创建SRT资源记录:', JSON.stringify(srtResource, null, 2));
-      await ResourcesRepo.upsert(srtResource as any);
-      console.log('[Sherpa] SRT资源记录创建成功，srtResourceId:', srtResourceId);
-
+      const srtResourceId = `${resourceId}.srt`;
       return { success: true, srtResourceId };
     } catch (error) {
       console.error('[Sherpa] 保存SRT文件失败:', error);
@@ -793,37 +696,22 @@ export function initSherpaHandlers(): void {
     try {
       const { resourceId } = data;
 
-      // 检查资源是否存在
-      const resource = await ResourcesRepo.getById(resourceId);
-      if (!resource) {
+      // 按录音 ID 查找音频文件
+      const found = await resolveRecordingAudioPath(resourceId);
+      if (!found) {
         return { success: false, error: 'Resource not found' };
       }
 
-      // 检查音频文件是否存在
-      if (!resource.filePath || !fscb.existsSync(resource.filePath)) {
-        return { success: false, error: 'Audio file not found' };
-      }
-
       // 检查文件大小
-      const stats = await fs.stat(resource.filePath);
+      const stats = await fs.stat(found.audioFilePath);
       if (stats.size === 0) {
-        // 文件为空，标记为删除（设置deletedAt）
-        console.log('[Sherpa] 音频文件为空，标记资源为已删除');
-        await ResourcesRepo.update(resourceId, {
-          deletedAt: Date.now()
-        });
+        // 文件为空，直接删除
+        console.log('[Sherpa] 音频文件为空，删除它');
+        await fs.unlink(found.audioFilePath).catch(() => {});
         return { success: false, error: 'Audio file is empty' };
       }
 
-      // 更新资源状态
-      console.log('[Sherpa] 更新资源状态为ready，文件大小:', stats.size);
-      await ResourcesRepo.update(resourceId, {
-        status: 'ready',
-        sizeBytes: stats.size,
-        updatedAt: Date.now()
-      });
-
-      return { success: true, resourceId, filePath: resource.filePath };
+      return { success: true, resourceId, filePath: found.audioFilePath };
     } catch (error) {
       console.error('检查待恢复录音失败:', error);
       return { success: false, error: String(error) };
@@ -889,38 +777,70 @@ export function initSherpaHandlers(): void {
     }
   });
 
-  // 获取录音历史记录
+  // 获取录音历史记录（扫描各工作空间 recordings 目录下的 .pcm 文件）
   ipcMain.handle('sherpa:getRecordingHistory', async (_, data: { limit?: number; offset?: number }) => {
     try {
       const { limit = 50, offset = 0 } = data || {};
 
-      // 查询所有录音类型的资源（未删除的，按创建时间倒序）
-      const audioResources = await ResourcesRepo.list({ type: 'recording', deletedAt: 0 } as any, limit, offset);
+      const workspaces = await WorkspacesRepo.list({ deletedAt: 0 } as any, 100, 0);
+      const items: Array<Record<string, any>> = [];
 
-      // 为每个音频资源查找关联的字幕资源（通过 parentResourceId 关联）
-      const result = await Promise.all(
-        audioResources.map(async (audio: any) => {
-          // 查找与此音频关联的字幕（通过 parentResourceId 关联）
-          const subtitles = await ResourcesRepo.listChildren(audio.id, 10, 0);
-          // 筛选出字幕类型的子资源
-          const subtitle = (subtitles as any[]).find((s) => s.type === 'subtitle' && !s.deletedAt);
+      for (const ws of workspaces) {
+        if (!ws.rootPath) continue;
+        const recRoot = path.join(ws.rootPath, 'recordings');
+        let dateDirs: string[];
+        try {
+          dateDirs = await fs.readdir(recRoot);
+        } catch {
+          continue;
+        }
+        for (const dir of dateDirs) {
+          const dirPath = path.join(recRoot, dir);
+          let files: string[];
+          try {
+            files = await fs.readdir(dirPath);
+          } catch {
+            continue;
+          }
+          for (const file of files) {
+            const match = file.match(/^(asr-recording-(\d+))\.pcm$/);
+            if (!match) continue;
+            const id = match[1];
+            const timestamp = Number(match[2]);
+            const audioFilePath = path.join(dirPath, file);
+            try {
+              const stats = await fs.stat(audioFilePath);
+              if (stats.size === 0) continue;
+              const subtitleFilePath = path.join(dirPath, `${id}.srt`);
+              let hasSubtitle = false;
+              try {
+                hasSubtitle = (await fs.stat(subtitleFilePath)).size > 0;
+              } catch {
+                hasSubtitle = false;
+              }
+              items.push({
+                id,
+                title: `录音-${new Date(timestamp).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}`,
+                audioFilePath,
+                subtitleFilePath: hasSubtitle ? subtitleFilePath : null,
+                subtitleResourceId: hasSubtitle ? `${id}.srt` : null,
+                duration: 0,
+                sizeBytes: stats.size,
+                createdAt: timestamp,
+                updatedAt: stats.mtimeMs,
+                workspaceId: ws.id,
+                folderId: dir,
+                status: 'ready'
+              });
+            } catch {
+              // 单个文件读取失败不影响整体列表
+            }
+          }
+        }
+      }
 
-          return {
-            id: audio.id,
-            title: audio.title,
-            audioFilePath: audio.filePath,
-            subtitleFilePath: subtitle?.filePath || null,
-            subtitleResourceId: subtitle?.id || null,
-            duration: audio.durationMs || 0,
-            sizeBytes: audio.sizeBytes || 0,
-            createdAt: audio.createdAt,
-            updatedAt: audio.updatedAt,
-            workspaceId: audio.workspaceId,
-            folderId: audio.folderId,
-            status: audio.status
-          };
-        })
-      );
+      items.sort((a, b) => b.createdAt - a.createdAt);
+      const result = items.slice(offset, offset + limit);
 
       return { success: true, data: result };
     } catch (error) {
@@ -929,21 +849,20 @@ export function initSherpaHandlers(): void {
     }
   });
 
-  // 删除录音记录（软删除音频和关联的字幕）
+  // 删除录音记录（删除音频文件和关联的字幕文件）
   ipcMain.handle('sherpa:deleteRecording', async (_, data: { resourceId: string }) => {
     try {
       const { resourceId } = data;
 
-      // 查找并软删除关联的字幕
-      const subtitles = await ResourcesRepo.listChildren(resourceId, 10, 0);
-      for (const sub of subtitles as any[]) {
-        if (sub.type === 'subtitle') {
-          await ResourcesRepo.update(sub.id, { deletedAt: Date.now() } as any);
-        }
+      const found = await resolveRecordingAudioPath(resourceId);
+      if (!found) {
+        return { success: false, error: 'Resource not found' };
       }
 
-      // 软删除音频资源
-      await ResourcesRepo.update(resourceId, { deletedAt: Date.now() } as any);
+      // 删除关联的字幕文件与音频文件
+      const subtitleFilePath = found.audioFilePath.replace(/\.pcm$/, '.srt');
+      await fs.unlink(subtitleFilePath).catch(() => {});
+      await fs.unlink(found.audioFilePath).catch(() => {});
 
       console.log('[Sherpa] 录音记录已删除，resourceId:', resourceId);
       return { success: true };

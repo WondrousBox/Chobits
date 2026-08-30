@@ -49,20 +49,16 @@ function getOSVersion(): string {
 export { arch, cpus, cpuStr, getOSVersion, isLinux, isMac, isMacIntel, isWindows, osName, platform };
 
 /** 随应用打包/下载的第三方二进制种类 */
-export type ResourceBinaryName = 'ffmpeg' | 'ffprobe' | 'yt-dlp' | 'bun' | 'recorder' | '7za';
+export type ResourceBinaryName = 'ffmpeg' | 'ffprobe' | '7za';
 
 /**
  * 获取第三方二进制在当前平台上的文件名
  * - win32 统一带 `.exe` 后缀
- * - darwin 的 yt-dlp 官方二进制名为 `yt-dlp_macos`
- * - linux 无后缀
+ * - linux/macos 无后缀
  */
 export function getResourceBinaryName(name: ResourceBinaryName, p: NodeJS.Platform = platform): string {
   if (p === 'win32') {
     return `${name}.exe`;
-  }
-  if (name === 'yt-dlp' && p === 'darwin') {
-    return 'yt-dlp_macos';
   }
   return name;
 }

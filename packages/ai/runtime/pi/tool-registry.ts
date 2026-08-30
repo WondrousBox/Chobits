@@ -87,34 +87,6 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
     name: 'pushCardTool',
     status: 'ready-for-pi-runtime'
   },
-  'query-resources': {
-    category: 'query',
-    description: '智能查询资源库中的内容',
-    compatName: 'resourceQueryTool',
-    name: 'resourceQueryTool',
-    status: 'ready-for-pi-runtime'
-  },
-  'read-subtitle': {
-    category: 'content',
-    description: '读取字幕文件内容',
-    compatName: 'readSubtitleTool',
-    name: 'readSubtitleTool',
-    status: 'ready-for-pi-runtime'
-  },
-  'summarize-content': {
-    category: 'background-task',
-    description: '总结字幕和文本内容',
-    compatName: 'summaryTool',
-    name: 'summaryTool',
-    status: 'ready-for-pi-runtime'
-  },
-  'translate-subtitles': {
-    category: 'background-task',
-    description: '翻译字幕内容',
-    compatName: 'translationTool',
-    name: 'translationTool',
-    status: 'ready-for-pi-runtime'
-  },
   'toolbox-lookup': {
     category: 'meta',
     description: '万能工具箱：搜索技能、了解工具用法、执行工具',
@@ -145,10 +117,6 @@ export const DEFAULT_CODER_TOOL_IDS = ['file-list', 'file-read', 'file-glob', 'f
 
 /** All tools available to the assistant profile (registered into session registry) */
 export const DEFAULT_SESSION_TOOL_IDS = [
-  'query-resources',
-  'read-subtitle',
-  'translate-subtitles',
-  'summarize-content',
   'push-card',
   'app-window',
   'toolbox-lookup',

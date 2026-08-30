@@ -37,10 +37,10 @@ name: subtitle-translate
 description: Reliable subtitle translation workflow.
 when_to_use: When the user wants subtitle translation.
 allowed-tools:
-  - resourceQueryTool
-  - translationTool
+  - pushCardTool
+  - webSearchTool
 activation-tools:
-  - translationTool
+  - webSearchTool
 aliases:
   - 翻译字幕
 argument-hint: resourceId, targetLanguage
@@ -70,8 +70,8 @@ arguments:
     expect(searchResult.success).toBe(true)
     expect(searchResult.results).toHaveLength(1)
     expect(searchResult.results[0]).toMatchObject({
-      activationToolIds: ['translate-subtitles'],
-      allowedToolIds: ['query-resources', 'translate-subtitles'],
+      activationToolIds: ['web-search'],
+      allowedToolIds: ['push-card', 'web-search'],
       executionContext: 'inline',
       isDiscovered: true,
       name: 'subtitle-translate'
@@ -99,11 +99,11 @@ arguments:
     })).details as any
 
     expect(inlineResult.success).toBe(true)
-    expect(inlineResult.activatedToolNames).toEqual(['translationTool'])
-    expect(toolContext.session.getActiveToolNames()).toEqual(['skillSearchTool', 'skillUseTool', 'translationTool'])
+    expect(inlineResult.activatedToolNames).toEqual(['webSearchTool'])
+    expect(toolContext.session.getActiveToolNames()).toEqual(['skillSearchTool', 'skillUseTool', 'webSearchTool'])
     expect(toolContext.skillSessionState.loadedSkillNames.has('subtitle-translate')).toBe(true)
     expect(toolContext.skillSessionState.activeSkillNames.has('subtitle-translate')).toBe(true)
-    expect(toolContext.skillSessionState.activatedToolNames.has('translationTool')).toBe(true)
+    expect(toolContext.skillSessionState.activatedToolNames.has('webSearchTool')).toBe(true)
   })
 
   it('can use synthetic toolbox skills and activate their suggested tools', async () => {
@@ -114,15 +114,15 @@ arguments:
 
     const result = (await executeTool(skillUseTool, 'call-4', {
       mode: 'inline',
-      skill: '字幕翻译'
+      skill: '网络搜索与网页读取'
     })).details as any
 
     expect(result.success).toBe(true)
     expect(result.executionContext).toBe('inline')
-    expect(result.skill).toBe('字幕翻译')
-    expect(result.activatedToolNames).toEqual(['resourceQueryTool', 'translationTool'])
-    expect(result.content).toContain('translationTool')
-    expect(toolContext.skillSessionState.activeSkillNames.has('字幕翻译')).toBe(true)
+    expect(result.skill).toBe('网络搜索与网页读取')
+    expect(result.activatedToolNames).toEqual(['webSearchTool', 'webReadTool'])
+    expect(result.content).toContain('webSearchTool')
+    expect(toolContext.skillSessionState.activeSkillNames.has('网络搜索与网页读取')).toBe(true)
   })
 
   it('surfaces fork/model/effort execution hints without activating the current session tools', async () => {

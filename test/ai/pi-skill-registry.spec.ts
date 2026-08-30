@@ -109,11 +109,11 @@ describe('SkillRegistry', () => {
 
     expect(issues).toEqual([])
 
-    const subtitleTranslate = entries.find((entry) => entry.record.name === '字幕翻译')
-    expect(subtitleTranslate?.record).toMatchObject({
-      activationToolIds: ['query-resources', 'translate-subtitles'],
-      allowedToolIds: ['query-resources', 'translate-subtitles'],
-      aliases: ['翻译', 'translate', '翻译字幕', '翻成'],
+    const cardPush = entries.find((entry) => entry.record.name === '卡片推送')
+    expect(cardPush?.record).toMatchObject({
+      activationToolIds: ['push-card'],
+      allowedToolIds: ['push-card'],
+      aliases: ['给我看看', '推送卡片', '推荐', '分享链接'],
       source: 'synthetic-toolbox',
       userInvocable: true
     })

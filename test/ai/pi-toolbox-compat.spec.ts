@@ -25,44 +25,44 @@ describe('toolbox compatibility layer', () => {
     const toolboxTool = createPiToolboxLookupTool(toolContext as any)
 
     const listResult = (await toolboxTool.execute('call-1', { action: 'list' })).details as any
-    const listedSkill = listResult.skills.find((skill: any) => skill.name === '字幕翻译')
+    const listedSkill = listResult.skills.find((skill: any) => skill.name === '网络搜索与网页读取')
 
     expect(listResult.success).toBe(true)
-    expect(listedSkill.name).toBe('字幕翻译')
-    expect(listedSkill.triggers).toContain('翻译字幕')
-    expect(listedSkill.tools).toEqual(expect.arrayContaining(['resourceQueryTool', 'translationTool']))
+    expect(listedSkill.name).toBe('网络搜索与网页读取')
+    expect(listedSkill.triggers).toContain('搜索')
+    expect(listedSkill.tools).toEqual(expect.arrayContaining(['webSearchTool', 'webReadTool']))
 
-    const getResult = (await toolboxTool.execute('call-2', { action: 'get', query: '字幕翻译' })).details as any
+    const getResult = (await toolboxTool.execute('call-2', { action: 'get', query: '网络搜索与网页读取' })).details as any
 
     expect(getResult).toMatchObject({
       success: true,
-      name: '字幕翻译'
+      name: '网络搜索与网页读取'
     })
     expect(getResult.content).toContain('**工作流程：**')
     expect(getResult.content).not.toContain('## 工作流程')
 
-    const searchResult = (await toolboxTool.execute('call-3', { action: 'search', query: '翻译字幕' })).details as any
+    const searchResult = (await toolboxTool.execute('call-3', { action: 'search', query: '网页' })).details as any
 
     expect(searchResult.success).toBe(true)
-    expect(searchResult.results[0].name).toBe('字幕翻译')
+    expect(searchResult.results[0].name).toBe('网络搜索与网页读取')
     expect(searchResult.results[0].content).toContain('**工作流程：**')
     expect(searchResult.results[0].content).not.toContain('## 工作流程')
-    expect(searchResult.activatedTools).toEqual(expect.arrayContaining(['resourceQueryTool', 'translationTool']))
-    expect(toolContext.session.getActiveToolNames()).toEqual(expect.arrayContaining(['toolboxTool', 'resourceQueryTool', 'translationTool']))
+    expect(searchResult.activatedTools).toEqual(expect.arrayContaining(['webSearchTool', 'webReadTool']))
+    expect(toolContext.session.getActiveToolNames()).toEqual(expect.arrayContaining(['toolboxTool', 'webSearchTool', 'webReadTool']))
   })
 
   it('falls back to legacy toolbox parsing when no skill registry is present', async () => {
     const toolContext = createMockToolContext(process.cwd())
     const toolboxTool = createPiToolboxLookupTool(toolContext as any)
 
-    const searchResult = (await toolboxTool.execute('call-4', { action: 'search', query: '翻译字幕' })).details as any
+    const searchResult = (await toolboxTool.execute('call-4', { action: 'search', query: '网页' })).details as any
 
     expect(searchResult.success).toBe(true)
-    expect(searchResult.results[0].name).toBe('字幕翻译')
+    expect(searchResult.results[0].name).toBe('网络搜索与网页读取')
     expect(searchResult.results[0].content).toContain('**工作流程：**')
     expect(searchResult.results[0].content).not.toContain('## 工作流程')
-    expect(searchResult.activatedTools).toEqual(expect.arrayContaining(['resourceQueryTool', 'translationTool']))
-    expect(toolContext.session.getActiveToolNames()).toEqual(expect.arrayContaining(['toolboxTool', 'resourceQueryTool', 'translationTool']))
+    expect(searchResult.activatedTools).toEqual(expect.arrayContaining(['webSearchTool', 'webReadTool']))
+    expect(toolContext.session.getActiveToolNames()).toEqual(expect.arrayContaining(['toolboxTool', 'webSearchTool', 'webReadTool']))
   })
 })
 

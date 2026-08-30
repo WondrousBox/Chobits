@@ -50,7 +50,7 @@ describe('appWindowTool', () => {
 
     const previewResults = searchToolbox('预览资源');
     expect(previewResults.some((skill) => skill.tools.includes('appWindowTool'))).toBe(true);
-    expect(previewResults.some((skill) => skill.name === '资源查询与推送' && skill.tools.includes('resourceQueryTool') && skill.tools.includes('appWindowTool'))).toBe(true);
+    expect(previewResults.some((skill) => skill.name === '应用窗口' && skill.tools.includes('appWindowTool'))).toBe(true);
   });
 
   it('lists allowlisted app windows with payload field summaries', async () => {
