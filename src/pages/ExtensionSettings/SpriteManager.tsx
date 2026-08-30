@@ -18,7 +18,7 @@ import {
   SPRITE_EVENT_TYPES
 } from '@/features/sprite-assistant';
 import { ensureSpriteCapabilityAccessible, SpriteCapabilityLockedNotice } from '@/features/sprite-assistant/capability-ui';
-import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
+import { makeResSrc } from '@/lib/resource-protocol';
 
 import { createSpriteAnimationMetaDraft, formatSpriteAnimationConditionInput, formatSpriteTriggerAliasesInput, parseSpriteAnimationConditionInput } from './components/sprite-animation-meta-utils';
 import SpriteAnimationConditionBuilder from './components/SpriteAnimationConditionBuilder';

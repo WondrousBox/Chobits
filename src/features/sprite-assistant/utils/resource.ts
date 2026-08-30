@@ -1,4 +1,4 @@
-import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
+import { makeResSrc } from '@/lib/resource-protocol';
 
 import { SpriteAnimation } from '../types';
 

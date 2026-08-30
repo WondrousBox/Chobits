@@ -14,7 +14,7 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 
-import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
+import { makeResSrc } from '@/lib/resource-protocol';
 
 /**
  * 监听 SpriteManager 的 speak 事件并播放音频

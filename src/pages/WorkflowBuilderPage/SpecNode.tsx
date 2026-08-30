@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
+import { makeResSrc } from '@/lib/resource-protocol';
 
 import { ConfigFieldRenderer } from './ConfigFieldRenderer';
 import { getGradientBackgroundStyle, getIconComponent } from './nodeUtils';

@@ -24,7 +24,7 @@ import type {
   ImageGenerationCanvasHandle,
   ImageGenerationCanvasLayout
 } from '@/features/image-generation-canvas/types';
-import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
+import { makeResSrc } from '@/lib/resource-protocol';
 
 interface CharacterGalleryCanvasProps {
   canWrite: boolean;

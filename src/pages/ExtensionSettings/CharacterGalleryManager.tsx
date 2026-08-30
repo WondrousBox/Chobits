@@ -25,7 +25,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import type { ImageGenerationCanvasHandle } from '@/features/image-generation-canvas/types';
 import { ensureSpriteCapabilityAccessible, SpriteCapabilityLockedNotice } from '@/features/sprite-assistant/capability-ui';
 import { cn } from '@/lib/utils';
-import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
+import { makeResSrc } from '@/lib/resource-protocol';
 
 import CharacterGalleryCanvas from './CharacterGalleryCanvas';
 import { joinEditorLines, splitEditorLines } from './SpritePackEditorModel';

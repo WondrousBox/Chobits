@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { maskPath } from '@/lib/helpers';
-import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
+import { makeResSrc } from '@/lib/resource-protocol';
 import { SettingGroup, SettingItem, SettingPath } from '@/pages/SettingsPage/components/SettingComponents';
 
 import { SpritePackEditorContent } from './SpritePackEditor';

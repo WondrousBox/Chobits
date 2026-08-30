@@ -1,7 +1,7 @@
 import { utils } from '@aim-packages/subtitle';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
+import { makeResSrc } from '@/lib/resource-protocol';
 
 import type { SubtitleStyleConfig } from './types';
 
