@@ -1,0 +1,20 @@
+allowBuilds:
+  '@google/genai': false
+  '@parcel/watcher': true
+  better-sqlite3: true
+  electron: true
+  esbuild: true
+  keytar: true
+  onnxruntime-node: false
+  phantomjs-prebuilt: false
+  protobufjs: false
+  sharp: true
+  uiohook-napi: true
+
+blockExoticSubdeps: false
+
+catalog:
+  onnxruntime-node: ^1.27.0
+
+overrides:
+  '@huggingface/transformers>onnxruntime-node': 'catalog:'
