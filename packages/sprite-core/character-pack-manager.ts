@@ -1486,12 +1486,6 @@ function createFallbackCharacterDefinition(draft: CharacterPackEditorDraft): Cha
       schema: [],
       extensible: true
     },
-    conversationRewards: {
-      xpPerConversation: 15,
-      favorPerConversation: 1,
-      cooldownMs: 60000,
-      bonusConditions: []
-    },
     messages,
     meta: {
       author: draft.pack.author,

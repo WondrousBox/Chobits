@@ -6,9 +6,17 @@
   "author": "Chobits",
   "description": "温暖友善的桌面精灵伙伴",
   "license": "MIT",
-  "tags": ["default", "friendly", "zh-CN"],
+  "tags": [
+    "default",
+    "friendly",
+    "zh-CN"
+  ],
   "minAppVersion": "1.0.0",
-  "platform": ["darwin", "win32", "linux"],
+  "platform": [
+    "darwin",
+    "win32",
+    "linux"
+  ],
   "assets": {
     "character": "character.json",
     "animations": "index.json",
@@ -23,13 +31,15 @@
   "signature": {
     "algorithm": "sha256",
     "keyId": "builtin:yua-default",
-    "digest": "sha256:863e12c72e0b3167817580828c46e4b03e60c588c734df926282db4e5020d5aa"
+    "digest": "209b5c619c18e583dafa079d8318f347152abf5f8030c9549595a2e1ec7eb7a8"
   },
   "capabilities": {
     "hasVoice": false,
     "hasCustomAnimations": true,
     "has3DModel": false,
-    "supportedLanguages": ["zh-CN"],
+    "supportedLanguages": [
+      "zh-CN"
+    ],
     "dimensionExtensions": []
   }
 }

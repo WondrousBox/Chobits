@@ -232,24 +232,14 @@ export { createCharacterPackSignaturePayload, loadCharacterPackTrustRoot, verify
 export type { CharacterPersonaRuntimeSyncResult } from './character-runtime';
 export { reloadCharacterPersonaRuntime, syncCharacterPersonaRuntime } from './character-runtime';
 export type {
-  ActivityReward,
-  ActivityRewardId,
-  BuiltinActivityRewardId,
   CharacterCapabilityFlagsConfig,
-  CharacterCapabilityPersonaFlagDefinition,
-  CharacterConversationBonusMatcherDefinition,
   CharacterDefinition,
-  CharacterFavorModifierDefinition,
-  CharacterMoodRuleDefinition,
   CharacterPackAssets,
   CharacterPackCapabilities,
   CharacterPackDefinition,
   CharacterPackProvenance,
   CharacterPackSignature,
-  CharacterPersonaRulesConfig,
-  CharacterXPSourceDefinition,
   ConditionalToolLabel,
-  ConversationRewards,
   DimensionDef,
   FavorPersonaEntry,
   MoodExpression,
@@ -259,7 +249,6 @@ export type {
 } from './character-service';
 export {
   buildCharacterPersonaPrompt,
-  getActivityRewards,
   getCharacterCapabilityContextFlags,
   getCharacterDefinition,
   getCharacterInfo,
@@ -268,7 +257,6 @@ export {
   getCharacterPackFilePath,
   getCharacterPackRootDir,
   getCharacterToolLabels,
-  getConversationRewards,
   getDimensionSchema,
   getFavorPersonaOverlay,
   initCharacterService,
@@ -365,6 +353,3 @@ export { SpriteManager } from './manager';
 // ----- WindowController -----
 export type { WindowControllerOptions } from './window-controller';
 export { WindowController } from './window-controller';
-
-// ----- Config (character pack schema defaults) -----
-export { DEFAULT_ACTIVITY_REWARDS, DEFAULT_CONVERSATION_REWARDS, mergeActivityRewards } from './character-service';

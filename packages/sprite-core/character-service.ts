@@ -63,40 +63,6 @@ export interface DimensionDef {
   custom?: boolean;
 }
 
-export interface ConversationBonusCondition {
-  id: string;
-  description: string;
-  xpBonus: number;
-  favorBonus: number;
-}
-
-export interface ConversationRewards {
-  xpPerConversation: number;
-  favorPerConversation: number;
-  cooldownMs: number;
-  bonusConditions: ConversationBonusCondition[];
-}
-
-export type BuiltinActivityRewardId =
-  | 'workflow-complete'
-  | 'resource-import-complete'
-  | 'download-complete'
-  | 'plugin-install'
-  | 'plugin-update'
-  | 'plugin-remove'
-  | 'media-process-complete'
-  | 'memory-extraction-completed'
-  | 'user-persona-update-completed'
-  | 'trash-restore';
-
-export type ActivityRewardId = BuiltinActivityRewardId | (string & {});
-
-export interface ActivityReward {
-  xp: number;
-  favor: number;
-  dimensionGrowth?: Record<string, number>;
-}
-
 export interface ToolLabelTemplate {
   calling: string;
   done: string;
@@ -129,48 +95,8 @@ export interface CharacterMessagesConfig {
   progress?: CharacterProgressMessagesConfig;
 }
 
-export interface CharacterXPSourceDefinition {
-  id: string;
-  event: string;
-  baseXP: number;
-  dailyLimit?: number;
-}
-
-export interface CharacterFavorModifierDefinition {
-  id: string;
-  event: string;
-  delta: number;
-  dailyLimit?: number;
-  cooldown?: number;
-}
-
-export interface CharacterMoodRuleDefinition {
-  id: string;
-  when: SpriteAnimationCondition;
-  targetMood: MoodType;
-  intensity: number;
-  priority: number;
-}
-
-export interface CharacterConversationBonusMatcherDefinition {
-  when: SpriteAnimationCondition;
-}
-
-export interface CharacterCapabilityPersonaFlagDefinition {
-  id: string;
-  when: SpriteAnimationCondition;
-}
-
 export interface CharacterCapabilityFlagsConfig {
   featureFlags?: string[];
-  personaFlags?: CharacterCapabilityPersonaFlagDefinition[];
-}
-
-export interface CharacterPersonaRulesConfig {
-  xpSources?: CharacterXPSourceDefinition[];
-  favorModifiers?: CharacterFavorModifierDefinition[];
-  moodRules?: CharacterMoodRuleDefinition[];
-  conversationBonusMatchers?: Record<string, CharacterConversationBonusMatcherDefinition>;
 }
 
 export interface CharacterMeta {
@@ -196,9 +122,6 @@ export interface CharacterDefinition {
     schema: DimensionDef[];
     extensible: boolean;
   };
-  conversationRewards: ConversationRewards;
-  activityRewards?: Partial<Record<ActivityRewardId, ActivityReward>>;
-  personaRules?: CharacterPersonaRulesConfig;
   capabilityFlags?: CharacterCapabilityFlagsConfig;
   /** Character-specific bubble/speech copy overrides for sprite reactions and routines */
   messages?: CharacterMessagesConfig;
@@ -398,140 +321,6 @@ export function getCharacterDefinition(): CharacterDefinition | null {
   cachedCharacter = character;
   console.log(`[CharacterService] Loaded character: ${cachedCharacter.name} (${cachedCharacter.id})`);
   return cachedCharacter;
-}
-
-// ━━ Reward schema defaults (pack file format defaults; 养成结算逻辑已移除) ━━
-
-export const DEFAULT_CONVERSATION_REWARDS: ConversationRewards = {
-  xpPerConversation: 15,
-  favorPerConversation: 1.5,
-  cooldownMs: 60_000,
-  bonusConditions: []
-};
-
-export const DEFAULT_ACTIVITY_REWARDS: Record<ActivityRewardId, ActivityReward> = {
-  'workflow-complete': {
-    xp: 12,
-    favor: 0.4,
-    dimensionGrowth: {
-      'workflow-usage': 1.0,
-      'task-completion': 0.6
-    }
-  },
-  'resource-import-complete': {
-    xp: 8,
-    favor: 0.2,
-    dimensionGrowth: {
-      'task-completion': 0.5
-    }
-  },
-  'download-complete': {
-    xp: 8,
-    favor: 0.2,
-    dimensionGrowth: {
-      'task-completion': 0.4
-    }
-  },
-  'plugin-install': {
-    xp: 10,
-    favor: 0.3,
-    dimensionGrowth: {
-      'tool-usage': 0.8,
-      'task-completion': 0.5
-    }
-  },
-  'plugin-update': {
-    xp: 6,
-    favor: 0.2,
-    dimensionGrowth: {
-      'tool-usage': 0.6,
-      'task-completion': 0.4
-    }
-  },
-  'plugin-remove': {
-    xp: 4,
-    favor: 0,
-    dimensionGrowth: {
-      'tool-usage': 0.4
-    }
-  },
-  'media-process-complete': {
-    xp: 9,
-    favor: 0.2,
-    dimensionGrowth: {
-      'task-completion': 0.5,
-      'tool-usage': 0.3
-    }
-  },
-  'memory-extraction-completed': {
-    xp: 3,
-    favor: 0.1,
-    dimensionGrowth: {
-      conversation: 0.3,
-      'task-completion': 0.2
-    }
-  },
-  'user-persona-update-completed': {
-    xp: 5,
-    favor: 0.3,
-    dimensionGrowth: {
-      conversation: 0.4,
-      'task-completion': 0.3
-    }
-  },
-  'trash-restore': {
-    xp: 4,
-    favor: 0.1,
-    dimensionGrowth: {
-      'task-completion': 0.2
-    }
-  }
-};
-
-export function mergeActivityRewards(overrides?: Partial<Record<ActivityRewardId, ActivityReward>>): Record<ActivityRewardId, ActivityReward> {
-  const activityIds = Array.from(new Set<ActivityRewardId>([...(Object.keys(DEFAULT_ACTIVITY_REWARDS) as ActivityRewardId[]), ...((Object.keys(overrides ?? {}) as ActivityRewardId[]) ?? [])]));
-
-  return activityIds.reduce(
-    (acc, activityId) => {
-      const base = DEFAULT_ACTIVITY_REWARDS[activityId];
-      const override = overrides?.[activityId];
-      if (!base && !override) {
-        return acc;
-      }
-
-      const mergedDimensionGrowth = {
-        ...(base?.dimensionGrowth ?? {}),
-        ...(override?.dimensionGrowth ?? {})
-      };
-
-      acc[activityId] = {
-        ...(base ?? { xp: 0, favor: 0 }),
-        ...override,
-        dimensionGrowth: Object.keys(mergedDimensionGrowth).length > 0 ? mergedDimensionGrowth : undefined
-      };
-      return acc;
-    },
-    {} as Record<ActivityRewardId, ActivityReward>
-  );
-}
-
-/**
- * Get the conversation reward config from the current character.
- * Returns defaults if character is not loaded.
- */
-export function getConversationRewards(): ConversationRewards {
-  const char = getCharacterDefinition();
-  if (char?.conversationRewards) return char.conversationRewards;
-  return { ...DEFAULT_CONVERSATION_REWARDS, bonusConditions: [...DEFAULT_CONVERSATION_REWARDS.bonusConditions] };
-}
-
-/**
- * Get the activity reward config for non-conversation user-visible completions.
- * Returns defaults if character is not loaded, and merges per-activity overrides.
- */
-export function getActivityRewards(): Record<ActivityRewardId, ActivityReward> {
-  const char = getCharacterDefinition();
-  return mergeActivityRewards(char?.activityRewards);
 }
 
 /**
