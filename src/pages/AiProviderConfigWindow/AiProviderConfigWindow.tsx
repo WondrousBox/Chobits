@@ -16,6 +16,7 @@ type ProviderRow = {
   id: string;
   aliases?: string[];
   label: string;
+  defaultConfig?: Record<string, string>;
   schema?: {
     icon?: string;
     locales?: Record<string, { label?: string; fields?: Record<string, string> }>;
@@ -79,7 +80,8 @@ export default function AiProviderConfigWindow(): JSX.Element {
         if (!mounted) return;
         const scopedSecrets = targetPresetId ? await window.YUA.ai.getPresetSecrets(targetPresetId).catch(() => ({})) : await window.YUA.ai.getProviderSecrets(resolvedProviderId).catch(() => ({}));
         if (!mounted) return;
-        setValues((scopedSecrets || {}) as Record<string, string>);
+        // 已保存的值优先，未保存的字段用 provider 内置默认配置预填展示
+        setValues({ ...(p.defaultConfig || {}), ...((scopedSecrets || {}) as Record<string, string>) });
       } catch {
         // ignore
       } finally {

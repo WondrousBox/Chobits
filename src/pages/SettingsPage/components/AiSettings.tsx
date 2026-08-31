@@ -14,6 +14,7 @@ type ProviderRow = {
   aliases?: string[];
   label: string;
   configured?: boolean;
+  defaultConfig?: Record<string, string>;
   schema?: {
     icon?: string;
     locales?: Record<string, { label?: string; fields?: Record<string, string> }>;
@@ -144,11 +145,13 @@ export default function AiSettings({ initialProviderId, initialPresetId, focusRe
   };
 
   const emptyPresetValues = (): PresetFormValues => ({
-    secrets: {}
+    // 新建预设时用 provider 的内置默认配置预填（如自托管服务的默认 baseUrl/apiKey）
+    secrets: { ...(selectedProvider?.defaultConfig || {}) }
   });
 
   const presetFormValues = (preset: Preset): PresetFormValues => ({
-    secrets: presetSecrets[preset.id] || {}
+    // 已保存的值优先，未保存的字段回落到内置默认配置做展示
+    secrets: { ...(selectedProvider?.defaultConfig || {}), ...(presetSecrets[preset.id] || {}) }
   });
 
   const openCreatePresetForm = (): void => {

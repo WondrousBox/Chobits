@@ -92,6 +92,7 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
           defaultModels,
           kind: definition.protocol.kind,
           defaultModel: definition.defaults.models.chat || defaultModels.chat,
+          ...(definition.defaults.config ? { defaultConfig: { ...definition.defaults.config } } : {}),
           schema
         };
       })

@@ -538,6 +538,8 @@ export type ProviderRecord = {
   defaultModel?: string;
   capabilities?: ProviderCapabilities;
   defaultModels?: ProviderDefaultModels;
+  // 内置默认配置（如自托管 provider 的默认 baseUrl/apiKey），用于设置页表单预填
+  defaultConfig?: Record<string, string>;
   schema?: {
     icon?: string;
     locales?: Record<string, { label?: string; fields?: Record<string, string> }>;

@@ -45,12 +45,12 @@ export const gptSovitsDefinition: BuiltinProviderDefinition = {
   source: 'builtin',
   display: {
     label: 'GPT-SoVITS (self-hosted)',
-    description: '对接自部署的 GPT-SoVITS 语音克隆 TTS 服务（api_v2.py），本地服务无需 API Key，仅支持语音合成。',
+    description: '对接自部署的 GPT-SoVITS 语音克隆 TTS 服务（OpenAI 兼容 /v1/audio/speech 接口），仅支持语音合成。',
     website: 'https://github.com/RVC-Boss/GPT-SoVITS'
   },
   catalog: {
     name: 'GPT-SoVITS',
-    checkModel: 'chi-e10',
+    checkModel: 'chi-tts',
     defaultShowBrowserRequest: true,
     settings: {
       defaultShowBrowserRequest: true,
@@ -59,21 +59,27 @@ export const gptSovitsDefinition: BuiltinProviderDefinition = {
   },
   protocol: {
     kind: 'openai-compatible',
-    baseUrl: 'http://127.0.0.1:9880',
-    piBaseUrl: 'http://127.0.0.1:9880'
+    baseUrl: 'https://124.221.9.24:9880',
+    piBaseUrl: 'https://124.221.9.24:9880'
   },
   capabilities: {
     chat: false,
     embeddings: false,
     imageGeneration: false,
-    modelListing: false,
+    modelListing: true,
     musicGeneration: false,
     speechSynthesis: true,
     transcribe: false
   },
   defaults: {
     models: {
-      speechSynthesis: 'chi-e10'
+      speechSynthesis: 'chi-tts'
+    },
+    // 内置默认服务器：运行时回落与设置页表单预填共用这份配置
+    config: {
+      allowInsecureTls: 'true',
+      apiKey: '9479f6c491217e258c7f8643d4df4da8af295f1d8b816883',
+      baseUrl: 'https://124.221.9.24:9880'
     }
   },
   models: {

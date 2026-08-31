@@ -28,6 +28,9 @@ vi.mock('undici', () => ({
 
 import { createSpriteSpeechTextTranslator } from '../../electron/main/handlers/sprite/speech-text-translator';
 
+const GATEWAY_URL = 'https://124.221.9.24:8080/v1/chat/completions';
+const BUILTIN_DEFAULT_KEY = 'S8-ae2yp0H0DxYG5A7I9g3xBAvaqiUmOSDDuzEcjxms';
+
 function mockGatewayResponse(payload: unknown, status = 200): ReturnType<typeof vi.fn> {
   return vi.fn(async () => {
     return {
@@ -40,6 +43,10 @@ function mockGatewayResponse(payload: unknown, status = 200): ReturnType<typeof 
   });
 }
 
+function translateResponse(translation: string): unknown {
+  return { choices: [{ message: { content: translation } }] };
+}
+
 function arrangeSecrets(secrets: Record<string, string>): void {
   mocks.getAllSecrets.mockResolvedValue({});
   mocks.getPresetSecrets.mockResolvedValue(secrets);
@@ -48,8 +55,9 @@ function arrangeSecrets(secrets: Record<string, string>): void {
 describe('speech text translator gateway', () => {
   beforeEach(() => {
     mocks.resolveUsablePreset.mockResolvedValue({ id: 'vllm-chi-cloud', providerId: 'vllm', name: 'vllm-chi-cloud' } as any);
-    arrangeSecrets({ apiKey: 'gateway-key' });
-    undiciFetchMock.mockImplementation(async () => mockGatewayResponse({ direction: 'zh2ja', translation: 'おはよう' })());
+    // 内置 defaults.config 里 allowInsecureTls 默认为 'true'，显式 'false' 让用例走全局 fetch
+    arrangeSecrets({ allowInsecureTls: 'false', apiKey: 'gateway-key' });
+    undiciFetchMock.mockImplementation(async () => mockGatewayResponse(translateResponse('おはよう'))());
   });
 
   afterEach(() => {
@@ -57,8 +65,8 @@ describe('speech text translator gateway', () => {
     vi.clearAllMocks();
   });
 
-  it('posts text and direction to the gateway with the preset Bearer key', async () => {
-    const fetchMock = mockGatewayResponse({ direction: 'zh2ja', translation: 'おはよう' });
+  it('posts an OpenAI chat completion with the chi-translate model and the preset Bearer key', async () => {
+    const fetchMock = mockGatewayResponse(translateResponse('おはよう'));
     vi.stubGlobal('fetch', fetchMock);
 
     const translator = createSpriteSpeechTextTranslator();
@@ -68,23 +76,34 @@ describe('speech text translator gateway', () => {
     expect(mocks.resolveUsablePreset).toHaveBeenCalledWith('vllm');
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://124.221.9.24:8080/translate');
+    expect(url).toBe(GATEWAY_URL);
     expect(init.method).toBe('POST');
-    expect(JSON.parse(String(init.body))).toEqual({ direction: 'zh2ja', text: '早上好' });
+    // 方向由服务端按内容自动判断，客户端只透传原文
+    expect(JSON.parse(String(init.body))).toEqual({
+      messages: [{ content: '早上好', role: 'user' }],
+      model: 'chi-translate',
+      stream: false
+    });
     expect(init.headers).toMatchObject({ Authorization: 'Bearer gateway-key' });
     expect(init.signal).toBeInstanceOf(AbortSignal);
-    expect(translator.lastBackend).toEqual({ model: 'server-side', providerId: 'chi-llm-gateway' });
+    expect(translator.lastBackend).toEqual({ model: 'chi-translate', providerId: 'vllm' });
   });
 
-  it('maps ja -> zh to the ja2zh direction', async () => {
-    const fetchMock = mockGatewayResponse({ direction: 'ja2zh', translation: '早上好' });
-    vi.stubGlobal('fetch', fetchMock);
+  it('falls back to the built-in default server and API key when no usable preset exists', async () => {
+    mocks.resolveUsablePreset.mockResolvedValue(undefined as any);
+    const globalFetchMock = mockGatewayResponse(translateResponse('unused'));
+    vi.stubGlobal('fetch', globalFetchMock);
 
     const translator = createSpriteSpeechTextTranslator();
-    await translator.translate({ sourceLang: 'ja', targetLang: 'zh', text: 'おはよう' });
+    const result = await translator.translate({ sourceLang: 'zh', targetLang: 'ja', text: '早上好' });
 
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(JSON.parse(String(init.body))).toEqual({ direction: 'ja2zh', text: 'おはよう' });
+    expect(result).toBe('おはよう');
+    // 内置默认是 https 自签名 → 默认放宽 TLS，走 undici fetch
+    expect(globalFetchMock).not.toHaveBeenCalled();
+    expect(undiciFetchMock).toHaveBeenCalledOnce();
+    const [url, init] = undiciFetchMock.mock.calls[0] as [string, Record<string, any>];
+    expect(url).toBe(GATEWAY_URL);
+    expect(init.headers).toMatchObject({ Authorization: `Bearer ${BUILTIN_DEFAULT_KEY}` });
   });
 
   it.each([
@@ -92,7 +111,8 @@ describe('speech text translator gateway', () => {
     [400, 'bad request'],
     [502, 'upstream exploded']
   ])('throws with the status code and server message on %i', async (status, message) => {
-    const fetchMock = mockGatewayResponse({ message }, status);
+    // OpenAI 标准错误格式
+    const fetchMock = mockGatewayResponse({ error: { message, type: 'invalid_request_error' } }, status);
     vi.stubGlobal('fetch', fetchMock);
 
     const translator = createSpriteSpeechTextTranslator();
@@ -100,7 +120,7 @@ describe('speech text translator gateway', () => {
   });
 
   it('throws when the gateway returns an empty translation', async () => {
-    const fetchMock = mockGatewayResponse({ direction: 'zh2ja', translation: '  ' });
+    const fetchMock = mockGatewayResponse(translateResponse('  '));
     vi.stubGlobal('fetch', fetchMock);
 
     const translator = createSpriteSpeechTextTranslator();
@@ -120,18 +140,13 @@ describe('speech text translator gateway', () => {
     expect(globalFetchMock).not.toHaveBeenCalled();
     expect(undiciFetchMock).toHaveBeenCalledOnce();
     const [url, init] = undiciFetchMock.mock.calls[0] as [string, Record<string, any>];
-    expect(url).toBe('https://124.221.9.24:8080/translate');
+    expect(url).toBe(GATEWAY_URL);
     expect(init.dispatcher).toBeDefined();
     expect(init.headers).toMatchObject({ Authorization: 'Bearer gateway-key' });
   });
 
-  it('throws when no usable vllm preset exists', async () => {
-    mocks.resolveUsablePreset.mockResolvedValue(undefined as any);
-    const fetchMock = mockGatewayResponse({});
-    vi.stubGlobal('fetch', fetchMock);
-
+  it('rejects same-language translation requests', async () => {
     const translator = createSpriteSpeechTextTranslator();
-    await expect(translator.translate({ sourceLang: 'zh', targetLang: 'ja', text: '早上好' })).rejects.toThrow('No usable vllm provider preset');
-    expect(fetchMock).not.toHaveBeenCalled();
+    await expect(translator.translate({ sourceLang: 'zh', targetLang: 'zh', text: '早上好' })).rejects.toThrow('Unsupported speech translation direction');
   });
 });

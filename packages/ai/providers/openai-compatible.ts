@@ -4,7 +4,7 @@ import { createOpenAIClient, executeOpenAIChat, executeOpenAIEmbedding, listOpen
 import type { BuiltinProviderId, BuiltinProviderDefinition } from './types';
 
 export class OpenAICompatibleProvider implements ProviderAdapter {
-  private readonly definition: BuiltinProviderDefinition;
+  protected readonly definition: BuiltinProviderDefinition;
   readonly id: string;
   readonly label: string;
   private defaults: { baseUrl?: string; model?: string };

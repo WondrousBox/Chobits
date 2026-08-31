@@ -2,35 +2,32 @@
  * 精灵说话前的文本翻译器
  *
  * 显示文本与朗读文本分离：当朗读语言（如日语 TTS 声线）与显示文本语言
- * 不一致时，把原文发给自部署的翻译网关，拿到译文后再送 TTS。
+ * 不一致时，把原文发给自部署的翻译服务，拿到译文后再送 TTS。
  *
+ * 服务端（serve.py 门面）按 OpenAI 兼容协议的 model 名路由：model 固定
+ * chi-translate，翻译方向由服务端自动判断（含假名 → ja2zh，否则 zh2ja）；
  * 翻译的 system prompt 与译名表（ちぃ↔小叽、ひでき↔秀树等）全部收敛在
- * 服务端网关内部，客户端只做透传。网关与 vLLM 共用 Bearer key，取自
- * vllm provider 预设（如 vllm-chi-cloud）的 secrets；网关为自签名 HTTPS，
- * TLS 校验沿用该预设的 allowInsecureTls 配置（packages/ai/providers/tls.ts）。
+ * 服务端内部，客户端只做透传。
  *
- * 预设不可用或网关报错时抛错，由 SpeakService 降级为原文合成。
+ * 鉴权与 TLS 配置取自 vllm provider：预设/服务商存储的 secrets 优先，
+ * 未配置时回落到 vllm 定义里的内置默认服务器（defaults.config）。
+ *
+ * 服务不可用或报错时抛错，由 SpeakService 降级为原文合成。
  */
 
 import { getPresetSecrets, resolveUsablePreset } from '../../../../packages/ai/preset-service';
-import { listProviderSecretKeys } from '../../../../packages/ai/providers/service';
+import { getBuiltinProviderDefinitionOrThrow, listProviderSecretKeys } from '../../../../packages/ai/providers/service';
 import { resolveFetch } from '../../../../packages/ai/providers/tls';
 import { getAllSecrets, getFirstApiKey } from '../../../../packages/ai/settings-store';
 import type { SpriteSpeechTextTranslator } from '../../../../packages/sprite-core/speak/types';
 
-// 自部署的中日互译网关（vLLM 前置代理），随部署调整
-const TRANSLATE_GATEWAY_BASE_URL = 'https://124.221.9.24:8080';
+// 翻译路由模型：serve.py 门面按 model 名分发到翻译逻辑
+const TRANSLATE_MODEL = 'chi-translate';
 
 const TRANSLATE_TIMEOUT_MS = 60_000;
 
 /** 翻译只认 vllm provider 预设（读 Bearer key 与 TLS 配置用） */
 const TRANSLATE_PROVIDER_ID = 'vllm';
-
-function resolveDirection(sourceLang: 'zh' | 'ja', targetLang: 'zh' | 'ja'): 'zh2ja' | 'ja2zh' {
-  if (sourceLang === 'zh' && targetLang === 'ja') return 'zh2ja';
-  if (sourceLang === 'ja' && targetLang === 'zh') return 'ja2zh';
-  throw new Error(`Unsupported speech translation direction: ${sourceLang} -> ${targetLang}`);
-}
 
 async function readGatewayErrorMessage(response: Response): Promise<string> {
   try {
@@ -38,7 +35,9 @@ async function readGatewayErrorMessage(response: Response): Promise<string> {
     if (text.trim()) {
       try {
         const parsed = JSON.parse(text) as Record<string, any>;
-        const message = parsed?.message ?? parsed?.error ?? parsed?.detail;
+        // OpenAI 标准错误格式 { error: { message } }，兼容 { message } / { detail }
+        const nested = parsed?.error && typeof parsed.error === 'object' ? (parsed.error as Record<string, any>).message : undefined;
+        const message = nested ?? parsed?.error ?? parsed?.message ?? parsed?.detail;
         if (typeof message === 'string' && message.trim()) return message.trim();
       } catch {
         // 非 JSON 错误体，原样返回
@@ -54,26 +53,36 @@ async function readGatewayErrorMessage(response: Response): Promise<string> {
 export function createSpriteSpeechTextTranslator(): SpriteSpeechTextTranslator {
   const translator: SpriteSpeechTextTranslator = {
     async translate({ text, sourceLang, targetLang }) {
-      const direction = resolveDirection(sourceLang, targetLang);
-
-      const preset = await resolveUsablePreset(TRANSLATE_PROVIDER_ID);
-      if (!preset) {
-        throw new Error('No usable vllm provider preset for speech translation');
+      if (sourceLang === targetLang) {
+        throw new Error(`Unsupported speech translation direction: ${sourceLang} -> ${targetLang}`);
       }
 
+      // 内置默认服务器配置（baseUrl 含 /v1 后缀、apiKey、allowInsecureTls），
+      // 存储层（provider 级 / 预设级）的值覆盖默认值
+      const defaults = (getBuiltinProviderDefinitionOrThrow(TRANSLATE_PROVIDER_ID).defaults.config || {}) as Record<string, string>;
       const secretKeys = listProviderSecretKeys(TRANSLATE_PROVIDER_ID);
-      const providerSecrets = await getAllSecrets(TRANSLATE_PROVIDER_ID, secretKeys).catch(() => ({}));
-      const presetSecrets = await getPresetSecrets(preset.id, secretKeys).catch(() => ({}));
-      const secrets = { ...providerSecrets, ...presetSecrets };
+      const preset = await resolveUsablePreset(TRANSLATE_PROVIDER_ID);
+      const providerSecrets: Record<string, string> = await getAllSecrets(TRANSLATE_PROVIDER_ID, secretKeys).catch(() => ({}));
+      const presetSecrets: Record<string, string> = preset ? await getPresetSecrets(preset.id, secretKeys).catch(() => ({})) : {};
+      const secrets = { ...defaults, ...providerSecrets, ...presetSecrets };
       const apiKey = getFirstApiKey(secrets.apiKey);
       if (!apiKey) {
-        throw new Error('vllm provider preset has no API key for speech translation');
+        throw new Error('vllm provider has no API key for speech translation');
       }
 
-      // 网关是自签名 HTTPS：预设里开启 allowInsecureTls 时走 tls.ts 的宽松 fetch
+      const baseUrl = String(secrets.baseUrl || '').trim().replace(/\/+$/, '');
+      if (!baseUrl) {
+        throw new Error('vllm provider has no baseUrl for speech translation');
+      }
+
+      // 网关是自签名 HTTPS：预设里开启 allowInsecureTls（或走内置默认）时走 tls.ts 的宽松 fetch
       const fetchImpl = (await resolveFetch(secrets)) ?? fetch;
-      const response = await fetchImpl(`${TRANSLATE_GATEWAY_BASE_URL}/translate`, {
-        body: JSON.stringify({ direction, text }),
+      const response = await fetchImpl(`${baseUrl}/chat/completions`, {
+        body: JSON.stringify({
+          messages: [{ content: text, role: 'user' }],
+          model: TRANSLATE_MODEL,
+          stream: false
+        }),
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
@@ -87,13 +96,14 @@ export function createSpriteSpeechTextTranslator(): SpriteSpeechTextTranslator {
         throw new Error(`Speech translation gateway failed (${response.status}): ${message}`);
       }
 
-      const payload = (await response.json().catch(() => undefined)) as { translation?: unknown } | undefined;
-      const translation = typeof payload?.translation === 'string' ? payload.translation.trim() : '';
+      const payload = (await response.json().catch(() => undefined)) as { choices?: Array<{ message?: { content?: unknown } }> } | undefined;
+      const content = payload?.choices?.[0]?.message?.content;
+      const translation = typeof content === 'string' ? content.trim() : '';
       if (!translation) {
         throw new Error('Speech translation gateway returned empty translation');
       }
 
-      translator.lastBackend = { model: 'server-side', providerId: 'chi-llm-gateway' };
+      translator.lastBackend = { model: TRANSLATE_MODEL, providerId: TRANSLATE_PROVIDER_ID };
       return translation;
     }
   };
