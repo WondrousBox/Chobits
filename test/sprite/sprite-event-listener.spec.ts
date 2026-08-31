@@ -134,9 +134,11 @@ describe('sprite event listener', () => {
     cleanup();
   });
 
-  it('suppresses AI event toast speech when chat realtime speech is enabled for the scope', () => {
+  it('suppresses AI event toast speech for chat-scoped events regardless of the realtime speech toggle', () => {
     const mgr = createManagerStub();
-    mgr.isRealtimeSpeechEnabled.mockReturnValue(true);
+    // 「AI 说话」开启时实时朗读会读回复，状态 toast 静音避免重复；
+    // 关闭时用户已明确静音聊天语音，状态 toast 同样不读
+    mgr.isRealtimeSpeechEnabled.mockReturnValue(false);
     const cleanup = initSpriteEventListener(mgr as any);
 
     eventHarness.emit(AppEvent.SPRITE_AI_START, {
@@ -152,7 +154,6 @@ describe('sprite event listener', () => {
       spriteRealtimeSpeechScope: 'mainChat'
     });
 
-    expect(mgr.isRealtimeSpeechEnabled).toHaveBeenCalledWith({ source: 'chat', scope: 'mainChat' });
     expect(mgr.showToast.mock.calls).toEqual([
       ['思考中...', { category: 'loading', speak: false }],
       ['完成啦', { category: 'success', duration: 1500, speak: false }],
@@ -163,6 +164,18 @@ describe('sprite event listener', () => {
       ['celebrate', { durationMs: 1500, silent: true }],
       ['error', { durationMs: 1500, silent: true }]
     ]);
+
+    cleanup();
+  });
+
+  it('keeps toast speech for AI events without a chat speech scope', () => {
+    const mgr = createManagerStub();
+    const cleanup = initSpriteEventListener(mgr as any);
+
+    // 非聊天来源（后台任务等）的 AI 事件维持原行为：状态 toast 照常朗读
+    eventHarness.emit(AppEvent.SPRITE_AI_ERROR, { error: '后台失败' });
+
+    expect(mgr.showToast.mock.calls).toEqual([['后台失败', { category: 'error', duration: 2000 }]]);
 
     cleanup();
   });
