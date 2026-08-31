@@ -43,7 +43,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     }
 
     ipcRenderer.on(channel, wrappedListener);
-    return () => ipcRenderer.off(channel, listener);
+    return () => ipcRenderer.off(channel, wrappedListener);
   },
   off(...args: Parameters<typeof ipcRenderer.off>) {
     const [channel, listener] = args;

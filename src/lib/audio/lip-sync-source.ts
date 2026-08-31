@@ -27,19 +27,46 @@ const state: LipSyncSourceState = {
   release: 0.12
 };
 
+// 媒体元素链路复用同一个 AudioContext（模块级单例），避免每次播放都新建实例造成泄漏
+let mediaContext: AudioContext | null = null;
+let mediaAnalyser: AnalyserNode | null = null;
+// 同一元素在同一 context 上只能 createMediaElementSource 一次，做缓存复用
+const mediaElementSources = new WeakMap<HTMLAudioElement, MediaElementAudioSourceNode>();
+
 /**
  * 为 HTMLAudioElement 挂载分析器。
  * MediaElementSource 会同时接到 destination，不改变原播放行为。
  */
 export function attachMediaElement(audio: HTMLAudioElement): void {
   try {
-    const ctx = new AudioContext();
-    const source = ctx.createMediaElementSource(audio);
+    if (!mediaContext || mediaContext.state === 'closed') {
+      mediaContext = new AudioContext();
+    }
+    if (mediaContext.state === 'suspended') {
+      void mediaContext.resume();
+    }
+    const ctx = mediaContext;
+
+    let source = mediaElementSources.get(audio);
+    if (!source) {
+      source = ctx.createMediaElementSource(audio);
+      mediaElementSources.set(audio, source);
+    }
+
+    // 断开旧的媒体分析器与 source 的历史连接，避免旧节点一直挂在 destination 上
+    mediaAnalyser?.disconnect();
+    try {
+      source.disconnect();
+    } catch {
+      // 无连接时忽略
+    }
+
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 256;
     analyser.smoothingTimeConstant = 0.5;
     source.connect(analyser);
     analyser.connect(ctx.destination);
+    mediaAnalyser = analyser;
 
     state.analyser = analyser;
     state.dataArray = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
@@ -80,6 +107,9 @@ export function detachLipSyncSource(): void {
       state.analyser.disconnect();
     } catch {
       // ignore
+    }
+    if (state.analyser === mediaAnalyser) {
+      mediaAnalyser = null;
     }
   }
   state.analyser = null;

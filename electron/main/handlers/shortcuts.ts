@@ -1,7 +1,7 @@
 import { BrowserWindow, ipcMain } from 'electron';
 
-import { notifySpriteCapabilityChanged } from '../../../packages/sprite-core/handler/capability-events';
 import { assertSpriteCapabilityUnlocked } from '../../../packages/sprite-core/capability-runtime';
+import { notifySpriteCapabilityChanged } from '../../../packages/sprite-core/handler/capability-events';
 import {
   getShortcutSchema,
   loadShortcutEnabledConfig,
@@ -44,12 +44,7 @@ export function initShortcutsHandlers(win: BrowserWindow): void {
   ipcMain.handle('shortcuts:setConfig', (_evt, partial: Partial<ShortcutsConfig>) => {
     try {
       const next = saveShortcutsConfig(partial);
-      // notify renderers
-      try {
-        win?.webContents?.send('shortcuts-config-updated', next);
-      } catch {
-        /* ignore */
-      }
+      // notify renderers（notifyShortcutsUpdatedTo 内部会重新读取最新配置并发送 shortcuts-config-updated）
       notifyShortcutsUpdatedTo(win);
       return { ok: true, data: next };
     } catch (e: any) {
@@ -76,12 +71,7 @@ export function initShortcutsHandlers(win: BrowserWindow): void {
       if (typeof partial.screenshot === 'boolean') {
         notifySpriteCapabilityChanged({ source: 'shortcuts.screenshot' });
       }
-      // notify renderers
-      try {
-        win?.webContents?.send('shortcuts-enabled-updated', next);
-      } catch {
-        /* ignore */
-      }
+      // notify renderers（notifyShortcutEnabledUpdatedTo 内部会重新读取最新配置并发送 shortcuts-enabled-updated）
       notifyShortcutEnabledUpdatedTo(win);
       return { ok: true, data: next };
     } catch (e: any) {
