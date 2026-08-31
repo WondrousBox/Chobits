@@ -2,7 +2,6 @@
  * 持久化模块
  *
  * - PersonaStatePersistence: 人格状态持久化（自动保存 + debounce）
- * - AutoWalkConfig: 自动行走配置持久化
  */
 
 import fs from 'node:fs';
@@ -10,7 +9,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 
 import type { SpriteBubbleMode } from '../types';
-import { DEFAULT_SPRITE_AUTO_WALK_ENABLED, DEFAULT_SPRITE_BUBBLE_MODE, normalizeSpriteBubbleMode } from '../types';
+import { DEFAULT_SPRITE_BUBBLE_MODE, normalizeSpriteBubbleMode } from '../types';
 import type { PersonaStatePersistenceRow } from './types';
 
 type LegacyPersonaStatePersistenceRow = Partial<Omit<PersonaStatePersistenceRow, 'version' | 'achievements' | 'dimensions'>> & {
@@ -211,50 +210,6 @@ export class PersonaStatePersistence {
     } catch {
       return { version: 1, slots: {} };
     }
-  }
-}
-
-// ============================================================================
-// Auto-walk 配置持久化
-// ============================================================================
-
-export class AutoWalkConfig {
-  private filePath: string;
-  private _enabled = DEFAULT_SPRITE_AUTO_WALK_ENABLED;
-
-  constructor(dataDir: string) {
-    this.filePath = path.join(dataDir, 'data', 'auto-walk-config.json');
-  }
-
-  load(): void {
-    try {
-      if (fs.existsSync(this.filePath)) {
-        const txt = fs.readFileSync(this.filePath, 'utf8');
-        const parsed = JSON.parse(txt);
-        this._enabled = typeof parsed.enabled === 'boolean' ? parsed.enabled : DEFAULT_SPRITE_AUTO_WALK_ENABLED;
-      }
-    } catch {
-      this._enabled = DEFAULT_SPRITE_AUTO_WALK_ENABLED;
-    }
-  }
-
-  save(): void {
-    try {
-      const dir = path.dirname(this.filePath);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(this.filePath, JSON.stringify({ enabled: this._enabled }, null, 2), 'utf8');
-    } catch {
-      /* ignore */
-    }
-  }
-
-  get enabled(): boolean {
-    return this._enabled;
-  }
-
-  set enabled(v: boolean) {
-    this._enabled = v;
-    this.save();
   }
 }
 

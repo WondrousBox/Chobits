@@ -20,7 +20,6 @@ function createCoordinatorHarness(options?: { canUseMovement?: () => boolean; ge
     width: 200,
     height: 200,
     padding: 100,
-    autoWalkEnabled: true,
     showDebugOverlay: false
   };
   let autoMoving = false;
@@ -255,7 +254,7 @@ describe('MovementCoordinator', () => {
     expect(harness.getConfig()).toMatchObject({ width: 200, height: 200, padding: 100 });
   });
 
-  it('keeps movement capability as the shared gate for preview, animation and behavior movement', async () => {
+  it('keeps movement suspension as the shared gate for preview, animation and behavior movement', async () => {
     const harness = createCoordinatorHarness({ canUseMovement: () => false });
 
     harness.coordinator.previewMovement({

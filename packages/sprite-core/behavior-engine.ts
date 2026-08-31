@@ -149,22 +149,6 @@ interface BehaviorRuntime {
 
 // ============ 预置行为工厂 ============
 
-/** 创建自动行走行为 */
-export function createAutoWalkBehavior(walkAction: (ctx: BehaviorContext) => Promise<void>): BehaviorDefinition {
-  return {
-    id: 'auto-walk',
-    name: '自动行走',
-    enabled: true,
-    priority: 'low',
-    schedule: { type: 'random', minMs: 20000, maxMs: 60000 },
-    conditions: [(ctx) => ctx.spriteState === 'idle' || ctx.spriteState === 'bored', (ctx) => ctx.interactionStats.idleDuration > 5000],
-    probability: 0.8,
-    action: walkAction,
-    allowedStates: ['idle', 'bored'],
-    blockedStates: ['dragging', 'sleeping', 'reacting']
-  };
-}
-
 /** 创建夜间困倦行为 */
 export function createSleepyBehavior(): BehaviorDefinition {
   return {

@@ -22,7 +22,6 @@ import type { AnimationEntry } from '../animation-registry';
 import { AnimationRegistry } from '../animation-registry';
 import type { BehaviorContext, BehaviorDefinition } from '../behavior-engine';
 import { BehaviorEngine } from '../behavior-engine';
-import { getSpriteCapabilityRuntimeState } from '../capability-runtime';
 import { SpriteEventBus } from '../event-bus';
 import { SPRITE_INTERACTION_EVENT_BY_INTENT, type SpriteInteractionIntent, type SpriteInteractionPayload } from '../interaction-contract';
 import { InteractionTracker } from '../interaction-tracker';
@@ -92,7 +91,7 @@ import {
 import type { WindowControllerAvoidRegion } from '../window-controller-model';
 import { registerDefaultBehaviors } from './default-behaviors';
 import { MovementCoordinator } from './movement-coordinator';
-import { AutoWalkConfig, BubbleModeConfig, PersonaStatePersistence } from './persistence';
+import { BubbleModeConfig, PersonaStatePersistence } from './persistence';
 import { mapStateToEventType } from './state-mapping';
 import type {
   PersonaStatePersistenceRow,
@@ -173,7 +172,6 @@ interface SpriteFileDropOptions {
 }
 
 const SPRITE_BEHAVIOR_SCHEDULER_OWNER = 'sprite.behavior';
-const SPRITE_AUTO_MOVE_SCHEDULER_GATE = 'sprite.canAutoMove';
 const SPRITE_TRIGGER_DEBUG_PREFIX = '[SpriteManager][trigger]';
 const MUSIC_DANCE_TRIGGER = 'music:dance' as SpriteAnimationTrigger;
 const MUSIC_DANCE_FALLBACK_TRIGGER = 'dance' as SpriteAnimationTrigger;
@@ -196,7 +194,6 @@ export class SpriteManager {
   private behaviorSchedulerStarted = false;
   private behaviorSchedulerJobIds = new Set<string>();
   private unbindBehaviorSchedulerHandler: (() => void) | null = null;
-  private unbindBehaviorSchedulerGate: (() => void) | null = null;
   private animationRegistry: AnimationRegistry;
   private purposeManager: SpritePurposeManager;
   private purposeEventWaiter: SpritePurposeEventWaiter;
@@ -206,7 +203,6 @@ export class SpriteManager {
 
   // 内建持久化
   private persistence: PersonaStatePersistence;
-  private autoWalkConfig: AutoWalkConfig;
   private bubbleModeConfig: BubbleModeConfig;
   private movementSuspensionReasons = new Set<string>();
   private animationMovementSuspensionReasons = new Map<string, string>();
@@ -401,7 +397,6 @@ export class SpriteManager {
 
     // 持久化
     this.persistence = new PersonaStatePersistence(options.dataDir);
-    this.autoWalkConfig = new AutoWalkConfig(options.dataDir);
     this.bubbleModeConfig = new BubbleModeConfig(options.dataDir);
 
     // 额外消息接收方
@@ -468,8 +463,7 @@ export class SpriteManager {
 
   /** 启动引擎 */
   async start(): Promise<void> {
-    // 1. 加载自动行走配置 + 气泡模式
-    this.autoWalkConfig.load();
+    // 1. 加载气泡模式
     this.bubbleModeConfig.load();
     this.spriteConfig.bubbleMode = this.bubbleModeConfig.mode;
 
@@ -530,8 +524,6 @@ export class SpriteManager {
     this.behaviorEngine.destroy();
     this.unbindBehaviorSchedulerHandler?.();
     this.unbindBehaviorSchedulerHandler = null;
-    this.unbindBehaviorSchedulerGate?.();
-    this.unbindBehaviorSchedulerGate = null;
     this.interactionTracker.destroy();
     this.personaState.destroy();
     this.stateMachine.destroy();
@@ -1677,7 +1669,6 @@ export class SpriteManager {
       ...restConfig,
       animationPlaylistMode: normalizeSpriteAnimationPlaylistMode(this.spriteConfig.animationPlaylistMode),
       ...(Object.keys(animationPlaylistModes).length > 0 ? { animationPlaylistModes } : {}),
-      autoWalkEnabled: this.autoWalkConfig.enabled,
       bubbleMode: this.bubbleModeConfig.mode
     };
   }
@@ -1711,7 +1702,7 @@ export class SpriteManager {
 
   /** 设置精灵配置 */
   setSpriteConfig(config: Partial<SpriteConfig>): void {
-    const { autoWalkEnabled, animationPlaylistMode, animationPlaylistModes, bubbleMode, ...restConfig } = config;
+    const { animationPlaylistMode, animationPlaylistModes, bubbleMode, ...restConfig } = config;
     Object.assign(this.spriteConfig, restConfig);
     if (animationPlaylistMode !== undefined) {
       this.spriteConfig.animationPlaylistMode = normalizeSpriteAnimationPlaylistMode(animationPlaylistMode);
@@ -1725,12 +1716,6 @@ export class SpriteManager {
       }
       this.activeAnimationPlaylist = null;
     }
-    if (typeof autoWalkEnabled === 'boolean') {
-      this.autoWalkConfig.enabled = autoWalkEnabled;
-      if (!autoWalkEnabled) {
-        this.stopWalk();
-      }
-    }
     if (bubbleMode !== undefined) {
       const normalized = normalizeSpriteBubbleMode(bubbleMode);
       if (this.bubbleModeConfig.mode !== normalized) {
@@ -1741,23 +1726,8 @@ export class SpriteManager {
     this.emitConfigChanged();
   }
 
-  /** 自动行走是否启用 */
-  isAutoWalkEnabled(): boolean {
-    return this.autoWalkConfig.enabled;
-  }
-
   private canUseMovement(): boolean {
-    const movementCapability = getSpriteCapabilityRuntimeState('movement');
-    return movementCapability !== null && movementCapability.status !== 'locked' && !this.isMovementSuspended();
-  }
-
-  private getAutoWalkBlockReason(): string | null {
-    if (!this.autoWalkConfig.enabled) return 'auto-walk-disabled';
-    if (!this.windowController) return 'window-controller-unavailable';
-    const movementCapability = getSpriteCapabilityRuntimeState('movement');
-    if (!movementCapability || movementCapability.status === 'locked') return 'movement-locked';
-    if (this.isMovementSuspended()) return 'movement-suspended';
-    return null;
+    return !this.isMovementSuspended();
   }
 
   private isMovementSuspended(): boolean {
@@ -1775,18 +1745,6 @@ export class SpriteManager {
     if (suspended && !hadReason) {
       this.stopWalk();
       this.stopAutoMove();
-    }
-  }
-
-  /** 设置自动行走开关 */
-  setAutoWalkEnabled(enabled: boolean): void {
-    const changed = this.autoWalkConfig.enabled !== enabled;
-    this.autoWalkConfig.enabled = enabled;
-    if (!enabled) {
-      this.stopWalk();
-    }
-    if (changed) {
-      this.emitConfigChanged();
     }
   }
 
@@ -2057,11 +2015,6 @@ export class SpriteManager {
       }
       return { status: 'success' as const };
     });
-
-    this.unbindBehaviorSchedulerGate = this.behaviorScheduler.registerGate<SpriteBehaviorSchedulerPayload>(SPRITE_AUTO_MOVE_SCHEDULER_GATE, () => {
-      const reason = this.getAutoWalkBlockReason();
-      return reason ? { accepted: false, reason } : true;
-    });
   }
 
   private startBehaviorScheduler(): void {
@@ -2105,14 +2058,7 @@ export class SpriteManager {
         singletonKey: jobId,
         maxConcurrent: 1,
         misfire: 'skip'
-      },
-      ...(definition.id === 'auto-walk'
-        ? {
-          admission: {
-            customGate: SPRITE_AUTO_MOVE_SCHEDULER_GATE
-          }
-        }
-        : {})
+      }
     });
   }
 

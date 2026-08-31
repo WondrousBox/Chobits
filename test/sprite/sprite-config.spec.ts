@@ -66,7 +66,7 @@ describe('sprite config authority', () => {
     await destroyManager();
   });
 
-  it('broadcasts runtime sprite metrics immediately but only persists auto-walk authority across restart', async () => {
+  it('broadcasts runtime sprite metrics immediately without persisting them across restart', async () => {
     const dataDir = mkdtempSync(path.join(os.tmpdir(), 'sprite-config-test-'));
 
     const first = createManager(dataDir);
@@ -74,8 +74,7 @@ describe('sprite config authority', () => {
       width: 260,
       height: 210,
       padding: 40,
-      showDebugOverlay: true,
-      autoWalkEnabled: false
+      showDebugOverlay: true
     });
 
     expect(first.mgr.getInitialState().config).toEqual({
@@ -83,7 +82,6 @@ describe('sprite config authority', () => {
       height: 210,
       padding: 40,
       animationPlaylistMode: 'list-loop',
-      autoWalkEnabled: false,
       showDebugOverlay: true,
       bubbleMode: 'fixed-top'
     });
@@ -94,14 +92,10 @@ describe('sprite config authority', () => {
         height: 210,
         padding: 40,
         animationPlaylistMode: 'list-loop',
-        autoWalkEnabled: false,
         showDebugOverlay: true,
         bubbleMode: 'fixed-top'
       }
     });
-
-    const autoWalkFile = JSON.parse(readFileSync(path.join(dataDir, 'data', 'auto-walk-config.json'), 'utf8'));
-    expect(autoWalkFile).toEqual({ enabled: false });
 
     await first.mgr.destroy();
 
@@ -114,7 +108,6 @@ describe('sprite config authority', () => {
       height: 200,
       padding: 100,
       animationPlaylistMode: 'list-loop',
-      autoWalkEnabled: false,
       showDebugOverlay: false,
       bubbleMode: 'fixed-top'
     });

@@ -1699,7 +1699,6 @@ describe('sprite manager regression coverage', () => {
       height: 200,
       padding: 100,
       animationPlaylistMode: 'list-loop',
-      autoWalkEnabled: false,
       bubbleMode: 'fixed-top',
       showDebugOverlay: false
     });
@@ -1715,7 +1714,6 @@ describe('sprite manager regression coverage', () => {
       height: 260,
       padding: 24,
       animationPlaylistMode: 'list-loop',
-      autoWalkEnabled: false,
       bubbleMode: 'fixed-top',
       showDebugOverlay: false
     });
@@ -1728,48 +1726,8 @@ describe('sprite manager regression coverage', () => {
       height: 200,
       padding: 100,
       animationPlaylistMode: 'list-loop',
-      autoWalkEnabled: false,
       bubbleMode: 'fixed-top',
       showDebugOverlay: false
-    });
-  });
-
-  it('auto-walk config is exposed through the shared sprite config snapshot', () => {
-    const { mgr, dataDir, sent } = createManager();
-    dataDirs.add(dataDir);
-
-    expect(mgr.getSpriteConfig().autoWalkEnabled).toBe(false);
-
-    mgr.setAutoWalkEnabled(true);
-
-    expect(mgr.getSpriteConfig().autoWalkEnabled).toBe(true);
-    expect(sent).toContainEqual({
-      channel: 'sprite:config',
-      payload: {
-        width: 200,
-        height: 200,
-        padding: 100,
-        animationPlaylistMode: 'list-loop',
-        autoWalkEnabled: true,
-        bubbleMode: 'fixed-top',
-        showDebugOverlay: false
-      }
-    });
-
-    mgr.setAutoWalkEnabled(false);
-
-    expect(mgr.getSpriteConfig().autoWalkEnabled).toBe(false);
-    expect(sent).toContainEqual({
-      channel: 'sprite:config',
-      payload: {
-        width: 200,
-        height: 200,
-        padding: 100,
-        animationPlaylistMode: 'list-loop',
-        autoWalkEnabled: false,
-        bubbleMode: 'fixed-top',
-        showDebugOverlay: false
-      }
     });
   });
 
@@ -1936,45 +1894,7 @@ describe('sprite manager regression coverage', () => {
     });
   });
 
-  it('auto-walk behavior delegates movement execution to the unified runtime entry', async () => {
-    const registered = new Map<string, any>();
-    const runBehaviorMovement = vi.fn(async () => true);
-    const movement: SpriteMovementConfig = {
-      enabled: true,
-      trigger: 'behavior',
-      mode: 'direction',
-      direction: 'left',
-      speed: 48
-    };
-
-    const resolveWalkAnimation = (): AnimationEntry => ({
-      id: 'walk-default',
-      title: 'walk',
-      eventTypes: ['walk'],
-      source: {},
-      playback: {
-        movement
-      }
-    });
-
-    const fakeManager = {
-      findAnimationByTrigger: resolveWalkAnimation,
-      registerBehavior: (behavior: any) => {
-        registered.set(behavior.id, behavior);
-      },
-      isAutoWalkEnabled: () => true,
-      runBehaviorMovement
-    };
-
-    registerDefaultBehaviors(fakeManager as any);
-    const autoWalk = registered.get('auto-walk');
-    expect(autoWalk).toBeTruthy();
-
-    await autoWalk.action({} as any);
-    expect(runBehaviorMovement).toHaveBeenCalledWith(movement);
-  });
-
-  it('pauses movement while the assistant context menu is open without changing auto-walk settings', async () => {
+  it('pauses movement while the assistant context menu is open', async () => {
     const { mgr, dataDir } = createManager();
     dataDirs.add(dataDir);
     initSpriteCapabilityRuntime({
@@ -2003,12 +1923,8 @@ describe('sprite manager regression coverage', () => {
       speed: 48
     };
 
-    mgr.setAutoWalkEnabled(true);
-    expect(mgr.isAutoWalkEnabled()).toBe(true);
-
     mgr.reportInteraction('context-menu', { open: true });
 
-    expect(mgr.isAutoWalkEnabled()).toBe(true);
     expect(stopWalk).toHaveBeenCalledOnce();
     expect(stopAutoMove).toHaveBeenCalledOnce();
     await expect(mgr.runBehaviorMovement(movement)).resolves.toBe(false);
@@ -2187,66 +2103,21 @@ describe('sprite manager regression coverage', () => {
     expect(scheduler.start).toHaveBeenCalledOnce();
     expect(legacyStart).not.toHaveBeenCalled();
     expect(scheduler.registerHandler).toHaveBeenCalledWith('sprite.behavior', expect.any(Function));
-    expect(scheduler.registerGate).toHaveBeenCalledWith('sprite.canAutoMove', expect.any(Function));
-    expect(scheduler.jobs.get('sprite.behavior:auto-walk')).toMatchObject({
-      id: 'sprite.behavior:auto-walk',
+    expect(scheduler.registerGate).not.toHaveBeenCalled();
+    expect(scheduler.jobs.has('sprite.behavior:auto-walk')).toBe(false);
+    expect(scheduler.jobs.get('sprite.behavior:night-sleepy')).toMatchObject({
+      id: 'sprite.behavior:night-sleepy',
       owner: 'sprite.behavior',
-      name: '自动行走',
+      name: '夜间困倦',
       enabled: true,
       schedule: {
-        kind: 'randomInterval',
-        minMs: 20_000,
-        maxMs: 60_000
+        kind: 'interval',
+        everyMs: 60_000
       },
       payload: {
-        behaviorId: 'auto-walk'
-      },
-      admission: {
-        customGate: 'sprite.canAutoMove'
+        behaviorId: 'night-sleepy'
       }
     });
-  });
-
-  it('blocks scheduled auto-walk while the assistant context menu is open', async () => {
-    const { scheduler } = createBehaviorSchedulerHarness();
-    const { mgr, dataDir } = createManager({ behaviorScheduler: scheduler });
-    dataDirs.add(dataDir);
-    initSpriteCapabilityRuntime({
-      resolveContext: () => ({
-        activeSignals: {}
-      })
-    });
-    (mgr as any).windowController = {
-      stopWalk: vi.fn(),
-      stopAutoMove: vi.fn(),
-      isAutoMoving: () => false
-    };
-    mgr.setAutoWalkEnabled(true);
-
-    await mgr.start();
-    const gate = scheduler.gates.get('sprite.canAutoMove');
-
-    await expect(
-      Promise.resolve(
-        gate({
-          payload: { behaviorId: 'auto-walk' },
-          scheduledFor: Date.now(),
-          triggeredAt: Date.now()
-        })
-      )
-    ).resolves.toBe(true);
-
-    mgr.reportInteraction('context-menu', { open: true });
-
-    await expect(
-      Promise.resolve(
-        gate({
-          payload: { behaviorId: 'auto-walk' },
-          scheduledFor: Date.now(),
-          triggeredAt: Date.now()
-        })
-      )
-    ).resolves.toEqual({ accepted: false, reason: 'movement-suspended' });
   });
 
   it('routes night sleepy behavior through the daily rest purpose', async () => {
@@ -2259,7 +2130,6 @@ describe('sprite manager regression coverage', () => {
       registerBehavior: (behavior: any) => {
         registered.set(behavior.id, behavior);
       },
-      isAutoWalkEnabled: () => false,
       runBehaviorMovement: vi.fn(),
       startPurpose,
       playOnce,
@@ -2302,7 +2172,6 @@ describe('sprite manager regression coverage', () => {
       registerBehavior: (behavior: any) => {
         registered.set(behavior.id, behavior);
       },
-      isAutoWalkEnabled: () => false,
       runBehaviorMovement: vi.fn(),
       startPurpose,
       playOnce,
@@ -2337,7 +2206,6 @@ describe('sprite manager regression coverage', () => {
       registerBehavior: (behavior: any) => {
         registered.set(behavior.id, behavior);
       },
-      isAutoWalkEnabled: () => false,
       runBehaviorMovement: vi.fn(),
       startPurpose: vi.fn(),
       playOnce: vi.fn(),
@@ -2377,7 +2245,6 @@ describe('sprite manager regression coverage', () => {
       registerBehavior: (behavior: any) => {
         registered.set(behavior.id, behavior);
       },
-      isAutoWalkEnabled: () => false,
       trigger,
       transitionTo: vi.fn(),
       showToast: vi.fn(),
@@ -2395,7 +2262,7 @@ describe('sprite manager regression coverage', () => {
 
     initSpriteCapabilityRuntime({
       resolveContext: () => ({
-        featureFlags: { 'character:loaded': true, 'pack:has-custom-animations': true, 'character:has-custom-appearance': true },
+        featureFlags: { 'character:loaded': true, 'pack:has-custom-animations': true, 'character:has-custom-appearance': false },
         activeSignals: {}
       })
     });
@@ -2406,7 +2273,7 @@ describe('sprite manager regression coverage', () => {
     initSpriteCapabilityRuntime({
       resolveContext: () => ({
         featureFlags: { 'character:loaded': true, 'pack:has-custom-animations': true, 'character:has-custom-appearance': true },
-        activeSignals: { 'movement.autoWalk': true }
+        activeSignals: {}
       })
     });
 

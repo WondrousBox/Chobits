@@ -11,8 +11,6 @@
  *   sprite:ready            — 渲染进程就绪
  *   sprite:get-initial-state — 获取初始状态
  *   sprite:persona:getState  — 获取人格状态
- *   sprite:config:getAutoWalk — 获取自动行走开关
- *   sprite:config:setAutoWalk — 设置自动行走开关
  *   sprite:spontaneous:getPreferences — 获取主动发言偏好
  *   sprite:spontaneous:updatePreferences — 更新主动发言偏好
  *   sprite:spontaneous:listHistory — 查询主动发言历史
@@ -520,7 +518,6 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     return {
       featureFlags,
       activeSignals: {
-        [SPRITE_CAPABILITY_SIGNALS.movementAutoWalk]: mgr.isAutoWalkEnabled(),
         [SPRITE_CAPABILITY_SIGNALS.dailyCareEnabled]: false,
         [SPRITE_CAPABILITY_SIGNALS.recorderEnabled]: false,
         [SPRITE_CAPABILITY_SIGNALS.screenshotEnabled]: screenshotEnabled,
@@ -529,19 +526,9 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     };
   }
 
-  function ensureCapabilityUnlocked(capabilityId: string): void {
-    assertSpriteCapabilityUnlocked(capabilityId);
-  }
-
   function enforceCapabilityBoundRuntime(): void {
     const snapshot = getSpriteCapabilitySnapshot();
     if (!snapshot) return;
-
-    const movementCapability = snapshot.capabilities.movement;
-    if (movementCapability?.status === 'locked' && mgr.isAutoWalkEnabled()) {
-      mgr.setAutoWalkEnabled(false);
-      broadcastAutoWalkConfig();
-    }
 
     const screenshotCapability = snapshot.capabilities.screenshot;
     if (screenshotCapability?.status === 'locked' && loadShortcutEnabledConfig().screenshot) {
@@ -554,23 +541,6 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     if (speechRecognitionCapability?.status === 'locked' && (asrConfig.enabled || getASRStatusSnapshot().running)) {
       disableASRRuntime({ disableConfig: true });
     }
-  }
-
-  function broadcastAutoWalkConfig(): void {
-    const configSnapshot = mgr.getSpriteConfig();
-    for (const candidate of BrowserWindow.getAllWindows()) {
-      if (!candidate || candidate.isDestroyed()) continue;
-
-      if (candidate !== win) {
-        try {
-          candidate.webContents.send('sprite:config', configSnapshot);
-        } catch {
-          /* ignore */
-        }
-      }
-    }
-
-    notifySpriteCapabilityChanged({ source: 'movement.autoWalk' });
   }
 
   function broadcastShortcutEnabledConfig(): void {
@@ -1011,19 +981,6 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
 
   // ===== 配置 =====
 
-  ipcMain.handle('sprite:config:getAutoWalk', () => {
-    return mgr.isAutoWalkEnabled();
-  });
-
-  ipcMain.handle('sprite:config:setAutoWalk', (_e, p: { enabled: boolean }) => {
-    if (p.enabled) {
-      ensureCapabilityUnlocked('movement');
-    }
-    mgr.setAutoWalkEnabled(p.enabled);
-    broadcastAutoWalkConfig();
-    return p.enabled;
-  });
-
   ipcMain.handle('sprite:config:getDebugOverlay', () => {
     return mgr.isDebugOverlayEnabled();
   });
@@ -1072,9 +1029,6 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
 
   // 预览窗口移动效果
   ipcMain.handle('sprite:previewMovement', (_e, p: SpriteMovementPreviewConfig) => {
-    if (p.movement?.enabled) {
-      ensureCapabilityUnlocked('movement');
-    }
     mgr.previewMovement(p);
   });
 

@@ -7,16 +7,14 @@ import { getSpriteCapabilityLockedReason, getSpriteCapabilityState } from '@/fea
 import { useSpriteCapabilitySnapshot } from '@/features/sprite-assistant/hooks/useSpriteCapabilitySnapshot';
 
 import { ChatEntryDetailContent, ChatEntryItem } from './ChatEntrySettings';
-import { MovementDetailContent, MovementItem } from './MovementSettings';
 import { SpeakDetailContent, SpeakItem, useSpeakSettings } from './SpeakSettings';
 import { SpeechRecognitionDetailContent, SpeechRecognitionItem, useSpeechRecognitionSettings } from './SpeechRecognitionSettings';
 import { SpontaneousUtteranceDetailContent, SpontaneousUtteranceItem } from './SpontaneousUtteranceSettings';
 import { useChatEntrySettings } from './useChatEntrySettings';
-import { useMovementSettings } from './useMovementSettings';
 import { useSpontaneousUtteranceSettings } from './useSpontaneousUtteranceSettings';
 import { WindowAnimationDetailContent, WindowAnimationItem } from './WindowAnimationSettings';
 
-type SkillKey = 'chatEntry' | 'movement' | 'speak' | 'windowAnimation' | 'spontaneous' | 'speechRecognition';
+type SkillKey = 'chatEntry' | 'speak' | 'windowAnimation' | 'spontaneous' | 'speechRecognition';
 
 const ExtensionSettings: React.FC = () => {
   const [selected, setSelected] = useState<SkillKey>('chatEntry');
@@ -28,10 +26,8 @@ const ExtensionSettings: React.FC = () => {
     });
   }, []);
 
-  const movementCapability = getSpriteCapabilityState(capabilitySnapshot, 'movement');
   const speechRecognitionCapability = getSpriteCapabilityState(capabilitySnapshot, 'speechRecognition');
   const chatEntryState = useChatEntrySettings();
-  const movementState = useMovementSettings({ capability: movementCapability, onBlocked: handleCapabilityBlocked, afterChange: refreshCapabilitySnapshot });
   const speakState = useSpeakSettings();
   const spontaneousUtteranceState = useSpontaneousUtteranceSettings();
   const speechRecState = useSpeechRecognitionSettings({ capability: speechRecognitionCapability, onBlocked: handleCapabilityBlocked, afterChange: refreshCapabilitySnapshot });
@@ -40,8 +36,6 @@ const ExtensionSettings: React.FC = () => {
     switch (selected) {
       case 'chatEntry':
         return <ChatEntryDetailContent state={chatEntryState} />;
-      case 'movement':
-        return <MovementDetailContent state={movementState} capability={movementCapability} />;
       case 'speak':
         return <SpeakDetailContent state={speakState} />;
       case 'windowAnimation':
@@ -61,7 +55,6 @@ const ExtensionSettings: React.FC = () => {
         <ScrollArea className="h-full">
           <div className="space-y-1 pr-2">
             <ChatEntryItem state={chatEntryState} selected={selected === 'chatEntry'} onSelect={() => setSelected('chatEntry')} />
-            <MovementItem state={movementState} capability={movementCapability} selected={selected === 'movement'} onSelect={() => setSelected('movement')} />
             <SpeakItem state={speakState} selected={selected === 'speak'} onSelect={() => setSelected('speak')} />
             <WindowAnimationItem selected={selected === 'windowAnimation'} onSelect={() => setSelected('windowAnimation')} />
             <SpontaneousUtteranceItem state={spontaneousUtteranceState} selected={selected === 'spontaneous'} onSelect={() => setSelected('spontaneous')} />

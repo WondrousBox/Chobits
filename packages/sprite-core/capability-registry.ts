@@ -59,7 +59,6 @@ export interface SpriteCapabilitySnapshot {
 }
 
 export const SPRITE_CAPABILITY_SIGNALS = {
-  movementAutoWalk: 'movement.autoWalk',
   dailyCareEnabled: 'dailyCare.enabled',
   recorderEnabled: 'recorder.enabled',
   screenshotEnabled: 'shortcuts.screenshot',
@@ -219,18 +218,6 @@ const DEFAULT_CAPABILITY_DEFINITIONS: SpriteCapabilityDefinition[] = [
     requiredFeatureFlags: ['character:loaded']
   },
   {
-    id: 'movement',
-    name: '自由移动',
-    description: '精灵在桌面自由走动',
-    branch: 'avatar',
-    tier: 'beginner',
-    column: 0,
-    row: 6,
-    prerequisites: [],
-    settingsKey: 'movement',
-    activationSignals: [SPRITE_CAPABILITY_SIGNALS.movementAutoWalk]
-  },
-  {
     id: 'customAppearance',
     name: '外观定制',
     description: '自定义精灵外观和配色',
@@ -249,7 +236,7 @@ const DEFAULT_CAPABILITY_DEFINITIONS: SpriteCapabilityDefinition[] = [
     tier: 'advanced',
     column: 0,
     row: 5,
-    prerequisites: ['customAppearance', 'movement'],
+    prerequisites: ['customAppearance'],
     requiredFeatureFlags: ['character:loaded', 'pack:has-custom-animations']
   },
   {

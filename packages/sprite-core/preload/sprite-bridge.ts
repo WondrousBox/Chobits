@@ -108,8 +108,6 @@ export type SpriteBridgeType = {
   ready(): Promise<void>;
 
   // 配置
-  getAutoWalk(): Promise<boolean>;
-  setAutoWalk(enabled: boolean): Promise<boolean>;
   getDebugOverlay(): Promise<boolean>;
   setDebugOverlay(enabled: boolean): Promise<boolean>;
   getAnimationPlaylistMode(trigger?: SpriteAnimationTrigger): Promise<SpriteAnimationPlaylistMode>;
@@ -216,8 +214,6 @@ export const spriteBridge: SpriteBridgeType = {
   ready: () => ipcRenderer.invoke('sprite:ready'),
 
   // ── 配置 ─────────────────────────────────────────────────
-  getAutoWalk: () => ipcRenderer.invoke('sprite:config:getAutoWalk'),
-  setAutoWalk: (enabled) => ipcRenderer.invoke('sprite:config:setAutoWalk', { enabled }),
   getDebugOverlay: () => ipcRenderer.invoke('sprite:config:getDebugOverlay'),
   setDebugOverlay: (enabled) => ipcRenderer.invoke('sprite:config:setDebugOverlay', { enabled }),
   getAnimationPlaylistMode: (trigger) => (trigger ? ipcRenderer.invoke('sprite:config:getAnimationPlaylistMode', { trigger }) : ipcRenderer.invoke('sprite:config:getAnimationPlaylistMode')),

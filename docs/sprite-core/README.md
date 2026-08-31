@@ -89,7 +89,7 @@ packages/sprite-core/
 │   ├── movement-coordinator.ts # movement 策略协调器
 │   ├── sprite-manager.ts       # SpriteManager 主类（单例门面）
 │   ├── types.ts                # 平台抽象接口/初始化选项
-│   ├── persistence.ts          # 人格状态持久化 + 自动行走配置
+│   ├── persistence.ts          # 人格状态持久化
 │   ├── state-mapping.ts        # 状态→事件映射函数
 │   ├── progress-speech-announcer.ts # 忙碌进度语音播报
 │   └── default-behaviors.ts    # 默认自发行为注册
@@ -221,8 +221,6 @@ sprite.getCurrentAnimation();
 // ===== 配置 =====
 sprite.getSpriteConfig();
 sprite.setSpriteConfig({ width: 200, height: 200 });
-sprite.isAutoWalkEnabled();
-sprite.setAutoWalkEnabled(true);
 sprite.isDebugOverlayEnabled();
 sprite.setDebugOverlayEnabled(true);
 sprite.getAnimationPlaylistMode();
@@ -245,9 +243,9 @@ sprite.registerBehavior(myCustomBehavior);
 | -------- | ------------------------------ | -------------------------------------------------------------------- |
 | 类型定义 | `manager/types.ts`             | `SpriteWindow`、`SpriteManagerOptions`、`PersonaStatePersistenceRow` |
 | 移动策略 | `manager/movement-coordinator.ts` | preview / animation / behavior movement 的统一策略分发             |
-| 持久化   | `manager/persistence.ts`       | `PersonaStatePersistence`（JSON 文件 + 自动保存）、`AutoWalkConfig`  |
+| 持久化   | `manager/persistence.ts`       | `PersonaStatePersistence`（JSON 文件 + 自动保存）                  |
 | 状态映射 | `manager/state-mapping.ts`     | `mapStateToEventType()` — 状态机 → AnimationRegistry 事件类型        |
-| 默认行为 | `manager/default-behaviors.ts` | 9 个内置自发行为的注册函数                                           |
+| 默认行为 | `manager/default-behaviors.ts` | 8 个内置自发行为的注册函数                                           |
 
 ### 2. SpriteEventBus — 统一事件总线
 
@@ -413,11 +411,10 @@ engine.setContextProvider(() => ({
 engine.start();
 ```
 
-**预置行为工厂函数**（共 9 个，均从 `behavior-engine.ts` 导出）:
+**预置行为工厂函数**（共 8 个，均从 `behavior-engine.ts` 导出）:
 
 | 函数                            | 说明                                          |
 | ------------------------------- | --------------------------------------------- |
-| `createAutoWalkBehavior()`      | 自动行走到屏幕随机位置                        |
 | `createSleepyBehavior()`        | 22:00-06:00 打哈欠（接入 `daily.rest-reminder` purpose） |
 | `createIdleSleepyBehavior()`    | 空闲 >100 秒打哈欠                            |
 | `createBoredBehavior()`         | 空闲 >2 分钟无聊状态                          |
@@ -960,7 +957,6 @@ sprite.trigger('success');
 
 | 行为 ID           | 触发条件                         | 动作                       |
 | ----------------- | -------------------------------- | -------------------------- |
-| `auto-walk`       | idle/bored，空闲 >5 秒，80% 概率 | 随机行走到屏幕某位置       |
 | `night-sleepy`    | 22:00-06:00 时间窗口             | `startPurpose(daily.rest-reminder)` |
 | `idle-sleepy`     | 空闲 >100 秒                     | `playOnce('sleepy')`       |
 | `long-idle-bored` | 空闲 >2 分钟                     | `transitionTo('bored')`    |
@@ -1026,8 +1022,6 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 | `sprite:character:gallery:remove`   | `{ packId?, source?, itemId, deleteFile? }`         | 删除图集条目       |
 | `sprite:character:gallery:buildAIEditContext` | `{ packId?, source?, draft }`              | 构建 AI 编辑上下文 |
 | `sprite:character:reload`           | -                                                   | 重载角色并同步规则 |
-| `sprite:config:getAutoWalk`         | -                                                   | 获取自动行走开关   |
-| `sprite:config:setAutoWalk`         | `{ enabled }`                                       | 设置自动行走开关   |
 | `sprite:config:getDebugOverlay`     | -                                                   | 获取调试辅助线开关 |
 | `sprite:config:setDebugOverlay`     | `{ enabled }`                                       | 设置调试辅助线开关 |
 | `sprite:config:getAnimationPlaylistMode` | `{ trigger? }`                                | 获取默认或指定 trigger 的动画列表播放模式 |
@@ -1068,7 +1062,7 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 | `sprite:state`       | `SpriteStateSnapshot`    | 状态变化广播              |
 | `sprite:message`     | `MessageIPCPayload`      | 消息（toast/notice/busy） |
 | `sprite:walk`        | `{ active, direction? }` | 行走状态                  |
-| `sprite:config`      | `SpriteConfig`           | 配置变化（含 `autoWalkEnabled`、`animationPlaylistMode`、`animationPlaylistModes`） |
+| `sprite:config`      | `SpriteConfig`           | 配置变化（含 `animationPlaylistMode`、`animationPlaylistModes`） |
 | `sprite:purpose:state` | `SpritePurposeSnapshot` | Purpose / Routine 快照变化 |
 | `sprite:busy:update` | `{ progress, message? }` | 忙碌进度更新              |
 | `sprite:busy:clear`  | -                        | 清除忙碌状态              |
@@ -1082,12 +1076,12 @@ await window.YUA.sprite.trigger('celebrate', { message: '太好了！' });
 
 **`window.YUA.sprite` / 交互上报**: `interact(type: SpriteInteractionIntent)`, `dragStart()`, `dragEnd()`, `animComplete()`, `fileDrop()`
 
-**`window.YUA.sprite` / 状态、配置与目的编排**: `getInitialState()`, `ready()`, `getAutoWalk()`, `setAutoWalk()`, `getDebugOverlay()`, `setDebugOverlay()`, `getAnimationPlaylistMode()`, `setAnimationPlaylistMode()`, `getBubbleMode()`, `setBubbleMode()`, `getSpontaneousUtterancePreferences()`, `updateSpontaneousUtterancePreferences()`, `listSpontaneousUtteranceHistory()`, `startPurpose()`, `cancelPurpose()`, `getPurposeSnapshot()`, `emitPurposeEvent()`, `listPurposeHistory()`, `getPurposeDailyRetrospective()`, `getPurposePlannerPreferences()`, `updatePurposePlannerPreferences()`, `getPurposePlannerStatus()`, `confirmNotice()`
+**`window.YUA.sprite` / 状态、配置与目的编排**: `getInitialState()`, `ready()`, `getDebugOverlay()`, `setDebugOverlay()`, `getAnimationPlaylistMode()`, `setAnimationPlaylistMode()`, `getBubbleMode()`, `setBubbleMode()`, `getSpontaneousUtterancePreferences()`, `updateSpontaneousUtterancePreferences()`, `listSpontaneousUtteranceHistory()`, `startPurpose()`, `cancelPurpose()`, `getPurposeSnapshot()`, `emitPurposeEvent()`, `listPurposeHistory()`, `getPurposeDailyRetrospective()`, `getPurposePlannerPreferences()`, `updatePurposePlannerPreferences()`, `getPurposePlannerStatus()`, `confirmNotice()`
 
 说明：
 
-- `getAutoWalk()` / `setAutoWalk()` 是当前正式的 auto-walk 配置入口
-- `onConfig()` 收到的 `SpriteConfig` 快照已包含 `autoWalkEnabled`、默认 `animationPlaylistMode` 与按 trigger 覆盖的 `animationPlaylistModes`
+- auto-walk（自由移动）功能已移除：`getAutoWalk()` / `setAutoWalk()` bridge、`sprite:config:getAutoWalk` / `sprite:config:setAutoWalk` IPC 与 `movement` 能力节点均已删除，`SpriteConfig` 不再包含 `autoWalkEnabled`
+- `onConfig()` 收到的 `SpriteConfig` 快照包含默认 `animationPlaylistMode` 与按 trigger 覆盖的 `animationPlaylistModes`
 - AI 自发说话偏好 / 历史、Purpose / Routine 编排、每日目的复盘、AI 目的规划器偏好 / 状态当前通过 `window.YUA.sprite.*` 暴露，而不是挂在 `persona` bridge 下
 
 **`window.YUA.sprite` / 移动预览与避让**: `previewMovement()`, `stopMovementPreview()`, `setMovementAvoidRegions()`
@@ -1261,11 +1255,10 @@ case 'dancing': return 'dance';
   - 激活 pack 后 runtime reload
   - 删除当前 active pack 后自动回退到 fallback pack
 - movement 链路：
-  - auto-walk 开关
   - movement preview 开始 / 停止后尺寸与 padding 恢复
   - `behavior + direction` 组合确实按配置方向移动
 - capability 链路：
-  - movement / dailyCare / screenshot / recorder / speechRecognition 分别关闭后，renderer 入口与主进程真实入口都被拒绝
+  - dailyCare / screenshot / recorder / speechRecognition 分别关闭后，renderer 入口与主进程真实入口都被拒绝
 - persona 链路：
   - 切换角色后 persona slot 正确恢复，不串档
 - 动画链路：

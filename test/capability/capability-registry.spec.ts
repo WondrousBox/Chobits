@@ -8,18 +8,6 @@ describe('capability registry', () => {
     resetSpriteCapabilityRuntime();
   });
 
-  it('keeps movement unlocked and activates it when auto-walk is on', () => {
-    const snapshot = DEFAULT_SPRITE_CAPABILITY_REGISTRY.resolveSnapshot({
-      activeSignals: {
-        [SPRITE_CAPABILITY_SIGNALS.movementAutoWalk]: true
-      }
-    });
-
-    expect(snapshot.capabilities.movement.status).toBe('active');
-    expect(snapshot.capabilities.movement.active).toBe(true);
-    expect(snapshot.capabilities.movement.unlockReady).toBe(true);
-  });
-
   it('treats passive prerequisites as unlocked while runtime-bound prerequisites still require active signals', () => {
     const snapshot = DEFAULT_SPRITE_CAPABILITY_REGISTRY.resolveSnapshot({
       activeSignals: {
@@ -39,7 +27,7 @@ describe('capability registry', () => {
     expect(snapshot.capabilities.docUnderstanding.status).toBe('unlocked');
     expect(snapshot.capabilities.smartAssistant.status).toBe('unlocked');
     expect(snapshot.capabilities.actionChoreography.status).toBe('locked');
-    expect(snapshot.capabilities.actionChoreography.inactivePrerequisites).toEqual(['movement']);
+    expect(snapshot.capabilities.actionChoreography.inactivePrerequisites).toEqual([]);
     expect(snapshot.capabilities.actionChoreography.missingPrerequisites).toEqual(['customAppearance']);
     expect(snapshot.capabilities.actionChoreography.missingFeatureFlags).toEqual(['character:loaded', 'pack:has-custom-animations']);
   });
@@ -108,9 +96,7 @@ describe('capability registry', () => {
         'character:has-custom-appearance': true,
         'pack:has-custom-animations': true
       },
-      activeSignals: {
-        [SPRITE_CAPABILITY_SIGNALS.movementAutoWalk]: true
-      }
+      activeSignals: {}
     });
 
     expect(snapshot.capabilities.spriteManage.status).toBe('unlocked');
@@ -126,9 +112,7 @@ describe('capability registry', () => {
         'character:loaded': true,
         'character:has-custom-appearance': true
       },
-      activeSignals: {
-        [SPRITE_CAPABILITY_SIGNALS.movementAutoWalk]: true
-      }
+      activeSignals: {}
     });
 
     expect(snapshot.capabilities.customAppearance.status).toBe('unlocked');
@@ -138,8 +122,8 @@ describe('capability registry', () => {
 
   it('fails closed when runtime authority is unavailable or the capability id is unknown', () => {
     resetSpriteCapabilityRuntime();
-    expect(() => assertSpriteCapabilityUnlocked('movement')).toThrow('Sprite capability runtime unavailable: movement');
-    expect(() => assertSpriteCapabilityActive('movement')).toThrow('Sprite capability runtime unavailable: movement');
+    expect(() => assertSpriteCapabilityUnlocked('speechRecognition')).toThrow('Sprite capability runtime unavailable: speechRecognition');
+    expect(() => assertSpriteCapabilityActive('speechRecognition')).toThrow('Sprite capability runtime unavailable: speechRecognition');
 
     initSpriteCapabilityRuntime({
       resolveContext: () => ({

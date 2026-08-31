@@ -1,6 +1,5 @@
 import {
   DEFAULT_SPRITE_ANIMATION_PLAYLIST_MODE,
-  DEFAULT_SPRITE_AUTO_WALK_ENABLED,
   DEFAULT_SPRITE_BUBBLE_MODE,
   normalizeSpriteAnimationPlaylistMode,
   normalizeSpriteAnimationPlaylistModeMap,
@@ -16,7 +15,6 @@ export const DEFAULT_SPRITE_CONFIG: SpriteConfig = {
   height: 240,
   padding: 100,
   animationPlaylistMode: DEFAULT_SPRITE_ANIMATION_PLAYLIST_MODE,
-  autoWalkEnabled: DEFAULT_SPRITE_AUTO_WALK_ENABLED,
   showDebugOverlay: false,
   bubbleMode: DEFAULT_SPRITE_BUBBLE_MODE
 };
@@ -32,7 +30,6 @@ export function resolveInitialSpriteConfig(initial: Pick<SpriteInitialState, 'co
     padding: config.padding ?? playback?.padding ?? DEFAULT_SPRITE_CONFIG.padding,
     animationPlaylistMode: normalizeSpriteAnimationPlaylistMode(config.animationPlaylistMode),
     ...(Object.keys(animationPlaylistModes).length > 0 ? { animationPlaylistModes } : {}),
-    autoWalkEnabled: config.autoWalkEnabled ?? DEFAULT_SPRITE_CONFIG.autoWalkEnabled,
     showDebugOverlay: config.showDebugOverlay ?? DEFAULT_SPRITE_CONFIG.showDebugOverlay,
     bubbleMode: normalizeSpriteBubbleMode(config.bubbleMode ?? DEFAULT_SPRITE_CONFIG.bubbleMode)
   };
@@ -52,7 +49,6 @@ export function mergePlayCommandIntoSpriteConfig(prev: SpriteConfig, playCommand
     animationPlaylistMode: prev.animationPlaylistMode,
     ...(prev.animationPlaylistModes ? { animationPlaylistModes: prev.animationPlaylistModes } : {}),
     showDebugOverlay: prev.showDebugOverlay,
-    autoWalkEnabled: prev.autoWalkEnabled,
     bubbleMode: prev.bubbleMode
   };
 }

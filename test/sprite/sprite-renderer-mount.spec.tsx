@@ -96,7 +96,6 @@ describe('sprite renderer mount', () => {
         height: 220,
         padding: 80,
         animationPlaylistMode: 'list-loop',
-        autoWalkEnabled: false,
         showDebugOverlay: false,
         bubbleMode: 'fixed-top'
       }
@@ -153,7 +152,6 @@ describe('sprite renderer mount', () => {
         height: 240,
         padding: 100,
         animationPlaylistMode: 'list-loop',
-        autoWalkEnabled: true,
         showDebugOverlay: true,
         bubbleMode: 'fixed-top'
       }
@@ -210,7 +208,6 @@ describe('sprite renderer mount', () => {
         height: 220,
         padding: 80,
         animationPlaylistMode: 'list-loop',
-        autoWalkEnabled: false,
         showDebugOverlay: true
       }
     } as SpriteInitialState);
@@ -350,7 +347,6 @@ describe('sprite renderer mount', () => {
         height: 240,
         padding: 16,
         animationPlaylistMode: 'list-loop',
-        autoWalkEnabled: true,
         showDebugOverlay: false
       }
     } as SpriteInitialState);
@@ -440,7 +436,6 @@ describe('sprite renderer mount', () => {
         height: 240,
         padding: 100,
         animationPlaylistMode: 'list-loop',
-        autoWalkEnabled: true,
         showDebugOverlay: false
       }
     } as SpriteInitialState);
@@ -559,7 +554,6 @@ describe('sprite renderer mount', () => {
         height: 240,
         padding: 100,
         animationPlaylistMode: 'list-loop',
-        autoWalkEnabled: true,
         showDebugOverlay: false
       }
     } as SpriteInitialState);
@@ -657,7 +651,6 @@ describe('sprite renderer mount', () => {
         height: 240,
         padding: 100,
         animationPlaylistMode: 'list-loop',
-        autoWalkEnabled: true,
         showDebugOverlay: false
       }
     } as SpriteInitialState);

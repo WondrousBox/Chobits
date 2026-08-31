@@ -22,8 +22,7 @@ describe('sprite state sync helpers', () => {
       config: {
         width: 200,
         height: 220,
-        padding: 80,
-        autoWalkEnabled: false
+        padding: 80
       }
     } satisfies Partial<SpriteInitialState>;
 
@@ -32,7 +31,6 @@ describe('sprite state sync helpers', () => {
       height: 220,
       padding: 80,
       animationPlaylistMode: 'list-loop',
-      autoWalkEnabled: false,
       showDebugOverlay: false,
       bubbleMode: 'fixed-top'
     });
@@ -41,7 +39,6 @@ describe('sprite state sync helpers', () => {
   it('falls back to playback metrics when config is missing dimensions', () => {
     const initial = {
       config: {
-        autoWalkEnabled: true,
         showDebugOverlay: true
       },
       currentAnimation: {
@@ -60,7 +57,6 @@ describe('sprite state sync helpers', () => {
       height: 280,
       padding: 32,
       animationPlaylistMode: 'list-loop',
-      autoWalkEnabled: true,
       showDebugOverlay: true,
       bubbleMode: 'fixed-top'
     });
@@ -85,7 +81,6 @@ describe('sprite state sync helpers', () => {
       height: 240,
       padding: 100,
       animationPlaylistMode: 'list-loop',
-      autoWalkEnabled: false,
       showDebugOverlay: true
     };
     const playCommand: SpritePlayCommand = {
@@ -102,7 +97,6 @@ describe('sprite state sync helpers', () => {
       height: 240,
       padding: 48,
       animationPlaylistMode: 'list-loop',
-      autoWalkEnabled: false,
       showDebugOverlay: true
     });
   });
@@ -113,7 +107,6 @@ describe('sprite state sync helpers', () => {
       height: 420,
       padding: 20,
       animationPlaylistMode: 'list-loop',
-      autoWalkEnabled: false,
       showDebugOverlay: true
     };
     const playCommand: SpritePlayCommand = {
@@ -130,7 +123,6 @@ describe('sprite state sync helpers', () => {
       height: DEFAULT_SPRITE_CONFIG.height,
       padding: DEFAULT_SPRITE_CONFIG.padding,
       animationPlaylistMode: 'list-loop',
-      autoWalkEnabled: false,
       showDebugOverlay: true
     });
   });

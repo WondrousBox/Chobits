@@ -51,7 +51,7 @@ function StandardAppRoutes(): JSX.Element {
                     id: 'extensions',
                     label: '机能扩展',
                     icon: TbSparkles,
-                    description: '自由移动、角色包和精灵能力',
+                    description: '角色包和精灵能力',
                     component: <ExtensionSettings />
                   },
                   {

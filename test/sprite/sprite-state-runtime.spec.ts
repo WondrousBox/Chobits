@@ -89,7 +89,6 @@ describe('sprite state runtime helpers', () => {
         height: 240,
         padding: 100,
         animationPlaylistMode: 'list-loop',
-        autoWalkEnabled: false,
         showDebugOverlay: false,
         bubbleMode: 'fixed-top'
       },
@@ -112,7 +111,6 @@ describe('sprite state runtime helpers', () => {
         height: 220,
         padding: 48,
         animationPlaylistMode: 'list-loop',
-        autoWalkEnabled: false,
         showDebugOverlay: true
       }
     } as SpriteInitialState);
@@ -133,7 +131,6 @@ describe('sprite state runtime helpers', () => {
       height: 180,
       padding: 12,
       animationPlaylistMode: 'list-once',
-      autoWalkEnabled: true,
       showDebugOverlay: false
     });
 
@@ -148,7 +145,6 @@ describe('sprite state runtime helpers', () => {
         height: 180,
         padding: 12,
         animationPlaylistMode: 'list-once',
-        autoWalkEnabled: true,
         showDebugOverlay: false
       },
       ready: true
@@ -174,7 +170,6 @@ describe('SpriteStateRuntimeController', () => {
           height: 220,
           padding: 80,
           animationPlaylistMode: 'list-loop',
-          autoWalkEnabled: false,
           showDebugOverlay: true
         }
       } as SpriteInitialState
@@ -198,7 +193,6 @@ describe('SpriteStateRuntimeController', () => {
         height: 220,
         padding: 80,
         animationPlaylistMode: 'list-loop',
-        autoWalkEnabled: false,
         showDebugOverlay: true
       },
       ready: true
@@ -220,7 +214,6 @@ describe('SpriteStateRuntimeController', () => {
       height: 244,
       padding: 16,
       animationPlaylistMode: 'list-once',
-      autoWalkEnabled: true,
       showDebugOverlay: false
     });
 
@@ -235,7 +228,6 @@ describe('SpriteStateRuntimeController', () => {
         height: 244,
         padding: 16,
         animationPlaylistMode: 'list-once',
-        autoWalkEnabled: true,
         showDebugOverlay: false
       }
     });
@@ -291,7 +283,6 @@ describe('SpriteStateRuntimeController', () => {
         height: 200,
         padding: 20,
         animationPlaylistMode: 'list-loop',
-        autoWalkEnabled: true,
         showDebugOverlay: false
       }
     } as SpriteInitialState);

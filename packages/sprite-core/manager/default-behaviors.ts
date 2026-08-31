@@ -2,7 +2,7 @@
 /**
  * 默认行为注册
  *
- * 将所有内置自发行为（自动行走、困倦、无聊、随机消息等）
+ * 将所有内置自发行为（困倦、无聊、随机消息等）
  * 从 SpriteManager 中抽取为独立函数。
  */
 
@@ -10,7 +10,6 @@ import type { BehaviorContext } from '../behavior-engine';
 import {
   createActionBehavior,
   createAmbientBehavior,
-  createAutoWalkBehavior,
   createBoredBehavior,
   createEmotionBehavior,
   createIdleSleepyBehavior,
@@ -68,42 +67,6 @@ async function reportIdleActionExecution(
 
 /** 注册所有默认行为到 SpriteManager */
 export function registerDefaultBehaviors(mgr: SpriteManager): void {
-  // 自动行走：从 walk 动画的 movement 配置读取参数
-  const walkAnim = mgr.findAnimationByTrigger('walk');
-  const walkMovement = walkAnim?.playback?.movement;
-
-  // 根据 movement 配置构建 auto-walk 行为
-  const autoWalkDef = createAutoWalkBehavior(async (_ctx) => {
-    if (!mgr.isAutoWalkEnabled()) return;
-
-    // 重新查找以获取最新配置
-    const currentWalkAnim = mgr.findAnimationByTrigger('walk');
-    const movement = currentWalkAnim?.playback?.movement;
-    await mgr.runBehaviorMovement(movement);
-  });
-
-  // 使用 walk 动画配置中的 behaviorSchedule 覆盖默认调度参数
-  if (walkMovement?.trigger === 'behavior' && walkMovement.behaviorSchedule) {
-    const bs = walkMovement.behaviorSchedule;
-    autoWalkDef.schedule = {
-      type: bs.type ?? 'random',
-      intervalMs: bs.intervalMs,
-      minMs: bs.minMs ?? 10000,
-      maxMs: bs.maxMs ?? 25000
-    };
-    if (bs.probability != null) {
-      autoWalkDef.probability = bs.probability;
-    }
-    if (bs.minIdleMs != null) {
-      autoWalkDef.conditions = [
-        (ctx: BehaviorContext) => ctx.spriteState === 'idle' || ctx.spriteState === 'bored',
-        (ctx: BehaviorContext) => ctx.interactionStats.idleDuration > (bs.minIdleMs ?? 5000)
-      ];
-    }
-  }
-
-  mgr.registerBehavior(autoWalkDef);
-
   // 困倦
   const sleepyDef = createSleepyBehavior();
   sleepyDef.action = async (ctx: BehaviorContext) => {

@@ -33,11 +33,11 @@ describe('capability UI helpers', () => {
         unlockReady: false,
         meetsLevelRequirement: true,
         inactivePrerequisites: [],
-        missingPrerequisites: ['customAppearance', 'movement'],
+        missingPrerequisites: ['customAppearance'],
         missingAchievements: [],
         missingFeatureFlags: [],
         missingPersonaFlags: []
       })
-    ).toBe('需要先解锁前置能力：外观定制、自由移动');
+    ).toBe('需要先解锁前置能力：外观定制');
   });
 });

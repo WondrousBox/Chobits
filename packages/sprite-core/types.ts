@@ -652,9 +652,6 @@ export function isBubbleWindowMode(mode?: SpriteBubbleMode | null): boolean {
   return mode === 'fixed-top';
 }
 
-/** 默认自动行走开关 */
-export const DEFAULT_SPRITE_AUTO_WALK_ENABLED = false;
-
 /** 精灵配置 */
 export interface SpriteConfig {
   width: number;
@@ -664,8 +661,6 @@ export interface SpriteConfig {
   animationPlaylistMode?: SpriteAnimationPlaylistMode;
   /** 按 trigger/动画类型分别设置的播放列表模式 */
   animationPlaylistModes?: SpriteAnimationPlaylistModeMap;
-  /** 自动行走是否启用 */
-  autoWalkEnabled?: boolean;
   /** 是否显示调试辅助线 */
   showDebugOverlay?: boolean;
   /** 气泡展示模式（默认 'fixed-top'） */
