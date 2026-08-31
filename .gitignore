@@ -33,3 +33,6 @@ yarn.lock
 /playwright/.cache/
 
 .eslintcache
+
+# e2e 测试自动生成的截图（每次运行覆盖）
+/test/screenshots/e2e.png
