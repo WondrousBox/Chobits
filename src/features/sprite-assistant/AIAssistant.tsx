@@ -20,7 +20,6 @@ import { MessageProvider, SpriteMessage } from './message';
 import { Renderer } from './renderers';
 import { useSpriteSpeak } from './speak/useSpriteSpeak';
 import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
-import StatusIndicator from './ui/StatusIndicator';
 import { alignMainWindowToBottomRight } from './utils/positioning';
 
 const showBlock = false; // 开发时显示
@@ -28,7 +27,7 @@ const CLICK_INTERACTION_DEDUP_MS = 300;
 
 /** 内部组件：包含实际逻辑 */
 const AIAssistantInner: React.FC = () => {
-  const { currentAnimation, walkDirection, isWalking, spriteConfig, ready } = useSpriteState();
+  const { currentAnimation, walkDirection, spriteConfig, ready } = useSpriteState();
   const { width, height, padding, bubbleMode } = spriteConfig;
 
   // 独立窗口气泡模式下运行期 padding 强制为 0（不修改持久化的原 padding）
@@ -36,7 +35,7 @@ const AIAssistantInner: React.FC = () => {
   const effectivePadding = isBubbleWindow ? 0 : padding;
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const { onMouseDown, isDragging, isDragReady } = useDragCollector();
+  const { onMouseDown, isDragReady } = useDragCollector();
   const { handleDragEnter, handleDragLeave, handleDropFiles } = useFileDropCollector();
   const lastClickInteractionAtRef = useRef(0);
 
@@ -176,7 +175,6 @@ const AIAssistantInner: React.FC = () => {
       >
         <Renderer width={width} height={height} walkDirection={walkDirection} />
       </Dropzone>
-      <StatusIndicator isDragging={isDragging} isWalking={isWalking} />
     </div>
   );
 };
