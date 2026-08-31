@@ -1,6 +1,6 @@
 import { BrowserWindow } from 'electron';
 
-import { MESSAGE_IPC_CHANNELS, type MessageBridgeClearPayload, type MessageBridgePayload, type MessageButton, type MessageIPCPayload, type MessageLevel, type MessageType } from '../sprite-core/types';
+import { MESSAGE_IPC_CHANNELS, type MessageBridgeClearPayload, type MessageBridgePayload, type MessageButton, type MessageIPCPayload, type MessageLevel, type MessageType } from './messages';
 
 export type AppNoticeLevel = MessageLevel;
 export type AppNoticeButton = MessageButton;
