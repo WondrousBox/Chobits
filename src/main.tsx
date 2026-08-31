@@ -23,7 +23,3 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
 window.ipcRenderer.invoke('app:renderer-ready').catch(() => { });
 
 postMessage({ payload: 'removeLoading' }, '*');
-
-window.ipcRenderer.on('main-process-message', (_event, ...args) => {
-  console.log('[Receive Main-process message]:', ...args);
-});

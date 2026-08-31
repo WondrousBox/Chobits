@@ -2266,7 +2266,6 @@ describe('sprite manager regression coverage', () => {
       showToast,
       trigger: vi.fn(),
       transitionTo: vi.fn(),
-      changeFavor: vi.fn(),
       getSpontaneousUtteranceExecutor: vi.fn()
     };
 
@@ -2310,7 +2309,6 @@ describe('sprite manager regression coverage', () => {
       showToast,
       trigger: vi.fn(),
       transitionTo: vi.fn(),
-      changeFavor: vi.fn(),
       getSpontaneousUtteranceExecutor: vi.fn()
     };
 
@@ -2346,7 +2344,6 @@ describe('sprite manager regression coverage', () => {
       showToast: vi.fn(),
       trigger,
       transitionTo: vi.fn(),
-      changeFavor: vi.fn(),
       speak,
       getSpontaneousUtteranceExecutor: () => ({
         generateForIdleAction
@@ -2384,7 +2381,6 @@ describe('sprite manager regression coverage', () => {
       trigger,
       transitionTo: vi.fn(),
       showToast: vi.fn(),
-      changeFavor: vi.fn(),
       getSpontaneousUtteranceExecutor: vi.fn()
     };
     const context = {

@@ -146,14 +146,6 @@ async function createWindow(): Promise<void> {
     }
   });
 
-  // Test actively push message to the Electron-Renderer
-  win.webContents.on('did-finish-load', () => {
-    win?.webContents.send('main-process-message', new Date().toLocaleString());
-  });
-
-  // win.on('focus', () => eventManager.emit(AppEvent.SPRITE_SYSTEM_FOCUS));
-  // win.on('blur', () => eventManager.emit(AppEvent.SPRITE_SYSTEM_BLUR));
-
   // Make all links open with the browser, not with the application
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https:')) shell.openExternal(url);
@@ -300,21 +292,4 @@ app.on('will-quit', async () => {
   eventManager.emit(AppEvent.SPRITE_SYSTEM_QUIT);
   // Ensure shortcuts are fully unregistered on app quit
   unregisterGlobalShortcuts();
-});
-
-// New window example arg: new windows url
-ipcMain.handle('open-win', (_, arg) => {
-  const childWindow = new BrowserWindow({
-    webPreferences: {
-      preload,
-      nodeIntegration: true,
-      contextIsolation: false
-    }
-  });
-
-  if (VITE_DEV_SERVER_URL) {
-    childWindow.loadURL(`${VITE_DEV_SERVER_URL}#${arg}`);
-  } else {
-    childWindow.loadFile(indexHtml, { hash: arg });
-  }
 });

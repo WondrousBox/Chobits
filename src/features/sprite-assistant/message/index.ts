@@ -48,9 +48,6 @@
 export { MessageProvider } from './MessageContext';
 export { useMessage, useMessageSafe } from './useMessage';
 
-// 同步 hook
-export { useMessageSync } from './useMessageSync';
-
 // 统一消息组件
 export { SpriteMessage } from './SpriteMessage';
 
