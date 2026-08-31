@@ -127,7 +127,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     routeHash: 'assistant-mini',
     followMain: true,
     followerPreferMode: 'fixed-bottom',
-    followerClampToWorkArea: false,
+    // 保持默认钳制（true）：精灵贴屏幕底部时迷你框会越出屏幕下边缘，需钳回工作区内
     preferShowInactive: false,
     suspendHoverMonitorOnShow: true,
     parent: 'main',
