@@ -5,6 +5,7 @@ allowBuilds:
   electron: true
   esbuild: true
   keytar: true
+  phantomjs-prebuilt: false
   protobufjs: false
   sharp: true
   uiohook-napi: true
