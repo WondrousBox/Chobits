@@ -17,7 +17,7 @@
 1. AI 可以列出或搜索可打开的业务窗口。
 2. AI 可以按白名单打开窗口，并传递受控 payload。
 3. 工具复用现有 window manager，不新增窗口生命周期系统。
-4. 默认不暴露内部浮层、气泡、升级动画、精灵特效等系统窗口。
+4. 默认不暴露内部浮层、气泡等系统窗口。
 
 ## 架构
 
@@ -48,20 +48,20 @@ flowchart LR
 
 ## 发现策略
 
-窗口工具不能只靠“打开窗口”这个显式说法触发。很多用户意图实际是窗口动作，但表达会落在业务词上，例如“预览这个资源”“播放这个视频”“打开这张图片”“进入资源库”。
+窗口工具不能只靠“打开窗口”这个显式说法触发。很多用户意图实际是窗口动作，但表达会落在业务词上，例如“打开设置”“进入聊天”“配置一下语音识别”。
 
 因此发现链路分三层：
 
-1. assistant profile 中明确提示：遇到“打开、预览、查看、播放、进入某个界面”时，要搜索应用窗口能力。
-2. `toolbox.md` 的“资源查询与推送”章节同时挂载 `appWindowTool`，并说明拿到 `resourceId` 后可打开 `resourcePreview`。
-3. `app-window-directory.ts` 的窗口目录为 `resourcePreview` 增加动作型别名，并使用 token 打分搜索，避免自然语言整句无法命中。
+1. assistant profile 中明确提示：遇到“打开、查看、进入某个界面”时，要搜索应用窗口能力。
+2. `toolbox.md` 的“应用窗口”章节挂载 `appWindowTool`，说明先用 `search` 按自然语言查找窗口、不确定时用 `list`，打开前先看返回的 payload 字段说明。
+3. `app-window-directory.ts` 的窗口目录为每个窗口维护标题、描述与动作型别名，并使用 token 打分搜索，避免自然语言整句无法命中。
 
-典型资源预览流程：
+典型调用流程：
 
 ```ts
-toolboxTool({ action: 'search', query: '预览资源 打开资源' })
-resourceQueryTool({ query: '用户要看的资源' })
-appWindowTool({ action: 'open', windowKey: 'resourcePreview', payload: { resourceId: '...' } })
+toolboxTool({ action: 'search', query: '打开窗口 进入界面' })
+appWindowTool({ action: 'search', query: 'AI 设置' })
+appWindowTool({ action: 'open', windowKey: 'settings', payload: { category: 'ai' } })
 ```
 
 ## 白名单策略
@@ -72,39 +72,26 @@ appWindowTool({ action: 'open', windowKey: 'resourcePreview', payload: { resourc
 - payload schema 是业务语义，应该放在 chobits。
 - 内部窗口可能存在调试、动画、透明浮层等特殊行为，不应该被 AI 任意打开。
 
-第一批可开放窗口：
+当前可开放窗口（与 `app-window-directory.ts` 保持一致，均为 `electron/main/config/window.ts` 中已注册的窗口）：
 
 - `settings`
-- `resources`
 - `chat`
 - `chatOverlay`
 - `assistant`
 - `assistantMini`
-- `pluginManager`
-- `pluginDownload`
-- `workspaceWizard`
-- `resourcePreview`
-- `tagger`
 - `aiProviderConfig`
 - `asrConfig`
 - `asr`
 - `ttsConfig`
 - `tts`
-- `webRecorder`
-- `memoryGraph`
 - `characterPackEditor`
 - `windowAnimationEditor`
 
-排除窗口：
+排除窗口（已注册但不开放给 AI）：
 
 - `menu`
 - `status`
-- `fileActionsMenu`
-- `downloadFloating`
-- `skillTree`
-- `levelUp`
 - `spriteBubbleFixedTop`
-- `spriteEffect`
 
 ## Payload 规则
 
@@ -112,12 +99,12 @@ appWindowTool({ action: 'open', windowKey: 'resourcePreview', payload: { resourc
 
 当前支持：
 
-- `settings`: `category`, `aiProviderId`, `aiPresetId`
+- `settings`: `category`, `tab`, `aiProviderId`, `aiPresetId`
 - `aiProviderConfig`: `providerId`, `presetId`, `fields`
 - `asr`: `mode`, `cloudProviderId`, `cloudProviderPresetId`, `cloudModelId`, `audioSource`
-- `chat` / `chatOverlay` / `assistant` / `assistantMini`: `initialMessage`, `providerId`, `modelId`, `preferredPresetId`, `presetId`, `agentId`, `codingWorkspaceRoot`, `codingWorkspaceLabel`, `webSearchEnabled`, `emojiPacksEnabled`, `characterPersonaEnabled`, `overlaySide`
+- `chat` / `chatOverlay` / `assistant` / `assistantMini`: `initialMessage`, `providerId`, `modelId`, `preferredPresetId`, `presetId`, `agentId`, `codingWorkspaceRoot`, `codingWorkspaceLabel`, `webSearchEnabled`, `characterPersonaEnabled`, `overlaySide`
+- `asrConfig` / `ttsConfig` / `tts` / `characterPackEditor`: no payload
 - `windowAnimationEditor`: no payload; presets are direct playback actions and are not loaded into this editor
-- `resourcePreview`: `resourceId`
 
 ## 当前实现
 

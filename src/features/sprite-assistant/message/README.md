@@ -9,8 +9,8 @@
 | 组件              | 用途                         | 触发方式                   | 位置                 |
 | ----------------- | ---------------------------- | -------------------------- | -------------------- |
 | 轻量提示组件      | 轻量提示 (welcome/drag/drop) | 通过 prop (`messageState`) | `-top-[32px]`        |
-| `SpriteNotice`    | 带等级的通知+按钮交互        | IPC (`app:notice`)         | `-top-[32px]`        |
-| `BusyProgressBar` | 忙碌/进度状态                | IPC (`app:busy:*`)         | `-top-[height*0.15]` |
+| `NoticeRenderer`（renderers/） | 带等级的通知+按钮交互 | IPC (`app:notice`)         | `-top-[32px]`        |
+| `BusyRenderer`（renderers/）   | 忙碌/进度状态         | IPC (`app:busy:*`)         | `-top-[height*0.15]` |
 
 ### 主要问题
 
@@ -89,20 +89,19 @@ Toast 只用于轻量文本、图片和预设文案；需要按钮交互时使�
 ## 📁 文件结构
 
 ```
-src/components/AIAssistant/message/
+src/features/sprite-assistant/message/
 ├── index.ts                    # 模块导出
-├── types.ts                    # 类型定义
+├── types.ts                    # 类型定义（复用 @packages/sprite-core/types 消息类型）
 ├── MessageContext.tsx          # Context + Provider + IPC 监听
+├── message-context-value.ts    # Context value 组装
+├── useMessage.ts               # 消息读写 hook
 ├── useMessageQueue.ts          # 消息队列管理 hook
-├── useMessageSync.ts           # messageState 同步 hook（兼容）
 ├── SpriteMessage.tsx           # 统一消息组件
 ├── renderers/
 │   ├── index.ts                # 渲染器导出
 │   ├── ToastRenderer.tsx       # Toast 样式渲染
 │   ├── NoticeRenderer.tsx      # Notice 样式渲染
 │   └── BusyRenderer.tsx        # Busy 样式渲染
-├── catalog/
-│   └── zh-CN.ts                # 预设文案
 └── README.md                   # 本文档
 ```
 
@@ -164,7 +163,7 @@ import {
   sendAppBusyStart,
   sendAppBusyEnd,
   sendAppBusyProgress
-} from '@chobits/event';
+} from '@packages/event';
 
 // 新 API - 推荐
 sendToast('操作完成', { level: 'success' });

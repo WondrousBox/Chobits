@@ -2,7 +2,7 @@
 
 更新时间：2026-03-17
 
-本文档系统整理了当前 AI 模块（已迁移到 `packages/ai`）的总体设计，实现对话、向量嵌入（embeddings）、多 Provider/预设管理、Pi profile 调度、自动打标签等能力，目标是形成一个“可抽离为插件”的、主进程优先的独立模块，满足：
+本文档系统整理了当前 AI 模块（已迁移到 `packages/ai`）的总体设计，实现对话、向量嵌入（embeddings）、多 Provider/预设管理、Pi profile 调度等能力，目标是形成一个“可抽离为插件”的、主进程优先的独立模块，满足：
 
 - 支持可扩展的服务商（OpenAI、Anthropic、Gemini、Ollama、DeepSeek、Qwen、智谱等，以及兼容 OpenAI 协议的自定义服务）
 - 对话与消息持久化逻辑在主进程实现，渲染进程仅通过 IPC 调用
@@ -14,7 +14,7 @@
 
 - 分层：Main（核心逻辑/安全/IPC） → Preload（桥接） → Renderer（UI调用，不接触秘钥）
 - 可扩展：Provider definition / adapter / Pi profile 都通过统一注册表管理；新增服务商无需改动核心逻辑
-- 可移植：整个 `electron/main/ai` 模块可独立打包为插件（未来迁移到 `packages/ai`）
+- 可移植：AI 模块已从 `electron/main/ai` 迁移到 `packages/ai`，可独立打包为插件
 - 安全：秘钥仅存于主进程
 - 流式：统一事件协议，支持取消（Abort）
 
@@ -34,25 +34,22 @@ AI 模块目前作为独立包位于 `packages/ai` 下，由主进程在启动�
 - `packages/ai/settings-storage.ts`：`settings-store.ts` 与 `preset-secrets-store.ts` 共享的底层文件存储 helper
 - `packages/ai/presets-store.ts`：Provider 预设（Preset）底层存储 helper，负责基础持久化、历史数据兼容读取与 canonical provider id 归一化
 - `packages/ai/prompts-store.ts`：提示词模板（Prompt Template）存储与 CRUD
-- `packages/ai/services/tagging-service.ts`：自动选预设 + 文本自动打标签服务，暴露 `ai:autoTagText`
 - `packages/ai/ipc-main.ts`：AI 相关 IPC 处理器入口（注册 builtin provider、初始化 ChatService、注册设置/预设/模板/会话等 IPC）
-- `packages/ai/ipc-renderer.ts`：渲染进程可用的 `aiBridge` 封装，通过 `ipcRenderer` 调用上述 IPC
 - `packages/ai/providers/builtins/*`：内建 Provider 的 definition / models 真相源
 - `packages/ai/providers/*`：各服务商 thin adapter 与 runtime helper（如：`openai.ts`、`anthropic.ts`、`gemini.ts`、`ollama.ts`、`openai-runtime.ts` 等）
 - `packages/ai/runtime/pi/profiles.md`：Pi profile 系统提示与元数据的 Markdown 真相源（与 `toolbox.md` 同模式，Vite `?raw` 加载）
 - `packages/ai/runtime/pi/profile-markdown.ts`：从 `profiles.md` 解析出 `PiProfileDescriptor`
 - `packages/ai/runtime/pi/profile-descriptors.ts`：组装并导出 `getPiProfileDescriptor` / `listPiProfileDescriptors`
 - `packages/ai/runtime/pi/profile-registry.ts`：Pi profile 注册表，对外提供 UI agent/profile 元数据
-- `packages/ai/selection-strategy.ts`：自动选择最佳预设的策略配置与评分
 
 Preload：
 
-- `electron/preload/apis/ai.ts`（约定）：基于 `aiBridge` 暴露 `window.YUA.ai`，包含 getProviders/getAgents/chat/chatStream/embed/cancel 等方法以及预设/模板/历史等扩展接口。
+- `packages/ai/ipc-renderer.ts`：渲染进程可用的 `aiBridge` 封装，通过 `ipcRenderer` 调用上述 IPC
+- `electron/preload/index.ts`：通过 `contextBridge` 把 `aiBridge` 暴露为 `window.YUA.ai`，包含 getProviders/getAgents/chat/chatStream/embed/cancel 等方法以及预设/模板/历史等扩展接口。
 
 Renderer（示例约定，实际路径视实现为准）：
 
-- `src/lib/aiClient.ts`：简单客户端封装，便于在组件/页面中调用 `window.YUA.ai`
-- 设置页/对话页组件：使用 `getProviders`/`listPresets`/`listPromptTemplates`/`listConversations` 等接口渲染配置和会话列表
+- 设置页/对话页组件：直接通过 `window.YUA.ai` 使用 `getProviders`/`listPresets`/`listPromptTemplates`/`listConversations` 等接口渲染配置和会话列表
   - 主聊天入口正向 model-first 迁移：界面选择 `provider + model`，发送前再解析隐藏 preset
 
 ## 3. 关键接口（Contract）
@@ -239,14 +236,6 @@ Renderer → Preload → Main：
   - **`ai:deleteConversation`** `({ id })` → `{ ok }`（软删除）
   - **`ai:restoreConversation`** `({ id })` → `{ ok }`
 
-### 4.5 自动打标签与预设选择
-
-`TaggingService` 额外提供：
-
-- **`ai:autoTagText`** `({ text, maxLabels? })` → `{ success: true; tags: string[] }`
-  - 内部会调用 `chooseBestChatPreset()` 自动选择一个最合适的聊天预设（参考 Provider 能力、配置是否齐全、最近更新时间及用户策略）。
-  - 当前通过 `TaggingService` + Pi one-shot / `ChatService.chatEphemeral()` 路径执行，并结合分段策略合并标签结果。
-
 ## 5. 流式对话设计
 
 - ChatService 使用 `AbortController` 管理取消，请求 id 统一使用 `abortId` 或内部生成的 `requestId`。
@@ -326,7 +315,7 @@ Provider 适配要点：
   - 由 `packages/ai/runtime/pi/profile-registry.ts` 提供 UI 可选 profile 元数据；
   - 主聊天、session tool 调度、one-shot execution 都基于 profile descriptor 决定行为。
 - **业务服务**
-  - 例如 `TaggingService`、`PiExecutionService`、workflow helper、subtitle/summarize/mindmap 任务；
+  - 例如 `PiExecutionService`、`SummaryService`、后台任务 chat runner 等；
   - 这些服务直接复用 `ProviderService`、Pi runtime 和 preset/secrets 解析，而不是通过独立 Agent 类再包一层。
 
 后续如果需要恢复更强的“智能体”抽象，建议建立在 Pi profile / tool registry / execution service 之上，而不是回到旧的 `agents/*` 目录模式。
@@ -432,13 +421,6 @@ if (openai) {
 }
 ```
 
-- **使用最佳预设自动打标签**：
-
-```ts
-const res = await window.YUA.ai.autoTagText('这是一段需要自动打标签的中文文本', 8);
-console.log(res.tags);
-```
-
 ## 13. 后续工作清单
 
 - [ ] 衔接 UI（Provider/预设/Prompt/会话管理界面）与当前 API，提升可视化管理体验
@@ -449,7 +431,7 @@ console.log(res.tags);
 ## 13.1 Coding Profile Notes
 
 - Pi profiles now include a `coder` profile for repository-aware editing sessions（`coder` 节见 `profiles.md`）。
-- The main chat page and the resource AI sidebar both pass `agentId` together with `extras.codingWorkspaceRoot` and `extras.codingWorkspaceLabel` when `coder` is active.
+- The main chat page（`src/pages/ChatPage/ChatPage.tsx`）passes `agentId` together with `extras.codingWorkspaceRoot` and `extras.codingWorkspaceLabel` when `coder` is active.
 - `packages/ai/runtime/pi/model-resolver.ts` resolves that workspace into `ResolvedPiRequest.coding`.
 - `packages/ai/runtime/pi/session-factory.ts` uses the selected workspace root as the Pi session `cwd`.
 - `packages/ai/runtime/pi/session-service.ts` blocks `coder` requests that do not have a selected workspace and returns a fixed assistant message instead of relying on model behavior.

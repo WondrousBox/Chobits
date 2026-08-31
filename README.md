@@ -21,52 +21,37 @@
 
 > 💖 如果这个项目对你有帮助，欢迎在 [GitHub](https://github.com/WondrousBox/Chobits) 点个 Star —— 你的支持能让更多人发现小叽！
 
+
+
 ## ✨ 功能特性
 
-- **多模型 / 多厂商支持**
-  支持 OpenAI、Anthropic、Gemini、DeepSeek、Qwen、智谱、Ollama 等厂商，统一在应用内配置 API Key，随时切换或为不同会话选择不同模型。
+- **Live2D 桌面精灵**
+  - 透明无边框的桌面小精灵，默认使用 Live2D 渲染（也支持视频精灵）。
+  - 支持 trigger 动画、说话时的 lip-sync 口型、视线追踪与点击反馈。
+  - 角色包管理：安装、切换、校验精灵角色包。
 
-- **桌面精灵式对话助手**
-  - 浮在桌面上的小精灵形态，随时唤起对话。
-  - 支持多会话、多系统提示词（角色预设）、上下文管理。
-  - 可一键复制回复、整理内容、续写、润色等。
+- **多厂商 AI 对话**
+  - 支持 OpenAI、Anthropic、Gemini、DeepSeek、Qwen、智谱、Kimi、Ollama、vLLM 等厂商，统一配置 API Key，随时切换或为不同会话选择不同模型。
+  - 多会话、多角色预设（系统提示词）、上下文管理。
 
-- **资源与知识库管理**
-  - 将网页、文档、音视频、截图等收集为「资源」，集中管理。
-  - 支持标签、工作区、回收站，方便按主题或项目归档。
-  - 资源详情页支持预览、播放、查看关联的工作流任务结果。
+- **语音能力**
+  - Edge TTS 朗读：让小叽把回复读出来。
+  - 录音转写（ASR）：本地 sherpa-onnx 离线识别，或走云端 transcribe。
+  - 实时字幕与翻译。
 
-- **媒体处理与下载**
-  - 内置 ffmpeg 与 yt-dlp 的集成能力，可下载视频 / 音频并自动整理。
-  - 支持转码、抽帧、压制等常见处理场景，通过工作流一键执行。
-
-- **工作流与自动化（可视化）**
-  - 通过画布拖拽节点，编排「Start → 处理节点 → 展示 / 输出」的流程。
-  - 内置 OCR、转码、文档转 Markdown、AI 生成 / 理解、多媒体展示等节点。
-  - 支持预设工作流和历史记录查看，方便复用与排查。
-
-- **插件与扩展能力**
-  - 提供插件管理页，可查看 / 安装 / 更新插件能力（如 ffmpeg / Tesseract / Whisper 等）。
-  - 支持为工作流、下载、资源处理等扩展新的节点和能力。
-
-- **标签与自动化规则**
-  - 为资源打标签、建工作区，用于区分不同项目或生活领域。
-  - 通过自动化规则，根据文件来源、类型、名称等条件自动打标签或分配到指定工作区。
+- **精灵包编辑**
+  - 内置精灵包管理器与编辑器（SpritePackManager / SpritePackEditor）、角色画廊（CharacterGallery）。
+  - 窗口动画编辑器（WindowAnimationEditor），编排精灵的移动与演出。
 
 - **全局快捷键与辅助机能**
-  - 注册系统级快捷键，快速唤起助手、收藏当前资源等（可在设置中配置）。
-  - 提供截图窗口、下载浮窗等辅助页面，更方便地把日常操作接入到 Chobits。
-
-- **自动更新与跨平台**
-  - 内置自动更新能力，保持应用保持最新。
-  - 支持 macOS / Windows / Linux 三大桌面平台，统一体验。
+  - 系统级快捷键：唤起助手、开关主窗口、截图等（可在设置中配置）。
+  - 右键菜单快速操作；设置页覆盖提供商、快捷键、主题外观、网络代理、数据库备份等。
 
 ## 💡 典型使用场景
 
-- **日常知识助手**：写代码、写文案、翻译、查资料——在桌面角落随手唤起一个聊天精灵，问题问完就收起。
-- **个人资料库 / 第二大脑**：把看过的文章、视频、PDF、截图存成「资源」，用标签和工作区按主题整理，再用工作流跑 OCR、提要、总结。
-- **内容创作流水线**：为「剪视频 / 做播客 / 写博客」设计专用工作流：自动下载素材 → 转码 → 抽帧 / 转文字 → 生成大纲 / 文案。
-- **多模型对比与调优**：在一个统一界面里配置多个模型，对同一问题同时试不同模型的效果，迭代自己的提示词模板。
+- **桌面精灵陪伴**：一只住在桌面角落的小叽，待机、走动、打招呼；戳一戳有反应，闲下来也会自己找点事做。
+- **随手可得的 AI 对话**：写代码、写文案、翻译、查资料——快捷键唤起小助手，问完就收起；不同会话用不同模型和角色预设。
+- **语音转写与朗读**：录音实时转文字（本地离线或云端），开会、访谈、随手记录都能用；回复用 Edge TTS 读出来，解放眼睛。
 
 ## 🚀 快速开始
 
@@ -75,7 +60,7 @@
 | 依赖 | 版本 | 说明 |
 | --- | --- | --- |
 | Node.js | ≥ 18（建议 LTS） | 运行与构建 |
-| pnpm | 9.x | **Node 18 用户请装 `pnpm@9`**（最新版 pnpm 要求 Node ≥ 22）：`npm i -g pnpm@9` |
+| pnpm | ≥ 10 | `pnpm-workspace.yaml` 使用了 `allowBuilds` 字段，需要 pnpm 10+ |
 | Xcode CLT | 仅 macOS | 原生模块编译 |
 | libsecret | 仅 Linux | `keytar` 存取 API Key 所需，桌面版发行版一般自带（gnome-keyring / KWallet） |
 
@@ -92,25 +77,22 @@ pnpm install
 pnpm dev
 ```
 
-> **小叽提示 (・ω・)ノ**：如果 `pnpm install` 卡在 `onnxruntime-node` 的 postinstall
->（它的 CUDA 下载脚本不处理 302 跳转），跳过即可，CPU 版二进制已随包内置：
->
-> ```bash
-> ONNXRUNTIME_NODE_INSTALL=skip pnpm install
-> ```
+> **小叽提示 (・ω・)ノ**：请务必用 **pnpm 10+** 安装依赖——仓库通过 `pnpm-workspace.yaml`
+> 的 `allowBuilds` 白名单控制哪些依赖允许跑安装脚本（better-sqlite3、keytar、sharp 等），
+> 旧版 pnpm 不认识这个字段，原生模块可能编译不出来。
 
 ### 可选：下载平台资源二进制
 
-以下功能依赖随附的第三方二进制，按平台执行对应脚本即可（也可以在「插件管理」页按需安装）：
+媒体下载 / 转码依赖随附的 ffmpeg 与 yt-dlp，按平台执行对应脚本即可：
 
 | 平台 | 命令 |
 | --- | --- |
-| macOS (Apple Silicon) | `pnpm download-ffmpeg-darwin-arm64` `pnpm download-ytdlp-darwin` `pnpm download-bun-darwin-arm64` |
-| macOS (Intel) | `pnpm download-bun-darwin-x64` |
-| Windows | `pnpm download-ffmpeg-win32-x64` `pnpm download-ytdlp-win32` `pnpm download-bun-win32-x64` |
-| Linux | `pnpm download-linux-resources` `pnpm download-bun-linux-x64` |
+| macOS (Apple Silicon) | `pnpm download-ffmpeg-darwin-arm64` `pnpm download-ytdlp-darwin` |
+| macOS (Intel) | `pnpm download-ytdlp-darwin` |
+| Windows | `pnpm download-ffmpeg-win32-x64` `pnpm download-ytdlp-win32` |
+| Linux | 暂无预置脚本，请自行安装 ffmpeg / yt-dlp |
 
-不下载也能正常启动和聊天，只是视频下载 / 转码、部分插件、录屏等功能不可用。
+不下载也能正常启动、聊天和语音转写，只是视频下载 / 转码等功能不可用。
 
 ### 打包
 
@@ -126,16 +108,15 @@ pnpm build    # 输出到 release/<version>/，按当前平台生成安装包
 
 ```bash
 pnpm test     # vitest 全量测试
-pnpm lint     # eslint
+pnpm lint     # eslint + 目录边界检查
 npx tsc       # 类型检查
 ```
 
-测试用例按域分目录组织（与 `docs/` 的系统划分一一对应）：
+测试用例按域分目录组织：
 
 ```text
 test/
-  ai/  sprite/  memory/  media/  workflow/  resource/
-  scheduler/  capability/  persona/  onboarding/  analytics/  misc/
+  ai/  capability/  media/  misc/  resource/  sprite/  utils/
 ```
 
 ## 🗂 项目结构
@@ -143,9 +124,9 @@ test/
 ```text
 Chobits/
 ├── electron/     # 主进程 + preload（窗口、IPC、数据库、快捷键等）
-├── src/          # 渲染进程（React 页面与组件）
-├── packages/     # 领域包：ai / workflow / sherpa / tts / ocr / sprite-core / plugins ...
-├── resources/    # 随附资源（平台二进制、精灵素材、工作流预设等；二进制用上面的脚本下载）
+├── src/          # 渲染进程（React 页面与组件，含 vendored live2d-sdk）
+├── packages/     # 领域包：ai / common / event / plugins / sherpa / sprite-core / tts
+├── resources/    # 随附资源（平台二进制、精灵素材等；二进制用上面的脚本下载）
 ├── drizzle/      # 数据库迁移（drizzle-kit 生成）
 ├── docs/         # 各子系统设计文档
 ├── test/         # vitest 测试（按域分目录）
@@ -162,24 +143,22 @@ Chobits/
 
 | 能力 | macOS | Windows | Linux |
 | --- | --- | --- | --- |
-| 核心功能（对话 / 资源 / 工作流） | ✅ | ✅ | ✅ |
-| 媒体下载 / 转码 | ✅ | ✅ | ✅（需跑下载脚本） |
+| 核心功能（精灵 / 对话 / 语音） | ✅ | ✅ | ✅ |
+| 媒体下载 / 转码 | ✅（需跑下载脚本） | ✅（需跑下载脚本） | 自行安装 ffmpeg / yt-dlp |
 | 打包发布 | dmg / zip | nsis | AppImage / deb |
-| 全局快捷键 / 划词 | ✅ | ✅ | 仅 X11，Wayland 下不可用 |
+| 全局快捷键 | ✅ | ✅ | 仅 X11，Wayland 下不可用 |
 
 Linux 特别提示：精灵是透明无边框窗口，需要桌面混成器（GNOME / KDE 默认开启）；
 `keytar` 依赖系统 secret service 保存 API Key。
 
 ## ❓ 常见问题
 
-- **`pnpm install` 报 `onnxruntime-node` 下载失败（HTTP 302）**
-  用 `ONNXRUNTIME_NODE_INSTALL=skip pnpm install`，见上文「小叽提示」。
-- **启动时报 `VERS_1.21.0 not found` 之类的 onnxruntime 符号错误**
-  仓库已通过 `package.json` 的 pnpm overrides 统一 onnxruntime-node 版本；请务必用 **pnpm**（而不是 npm）安装依赖，overrides 才生效。
 - **Linux 下 API Key 存不进 / 读不出**
   确认系统里有 secret service 在运行（gnome-keyring 或 KWallet）。
 - **Wayland 会话下全局快捷键不生效**
   全局输入监听依赖 X11，请切换到 X11 会话使用。
+- **视频下载 / 转码提示找不到 ffmpeg / yt-dlp**
+  按上文「下载平台资源二进制」执行对应脚本即可。
 
 ## 📸 截图
 

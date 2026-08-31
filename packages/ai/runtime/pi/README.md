@@ -12,7 +12,7 @@
 - `session-service.ts`
   - 负责流式聊天、非流式聊天、coding session 调度，以及 Pi 事件到现有聊天输出格式的收口。
 - `execution-service.ts`
-  - 负责 one-shot / workflow / background task 复用的统一执行入口。
+  - 无会话持久化的 one-shot 统一执行入口：`chatEphemeral` / `completeText` / `streamText` 强制走 Pi runtime，并统一 embed / 语音转写 / 语音合成的 provider 能力解析与音频产物落盘。
 - `session-factory.ts`
   - 创建 `pi-coding-agent` session，并根据请求上下文决定 session 的 `cwd`。
 - `stream-adapter.ts`
@@ -92,8 +92,8 @@
   - 在 `coder` 模式下提供“选择项目”入口，并把 `extras.codingWorkspaceRoot` / `extras.codingWorkspaceLabel` 带入请求。
 - `src/pages/ChatPage/ChatPage.tsx`
   - 真实聊天页面入口；会把 coder workspace 一起传给 `chatStream`。
-- `src/pages/ResourcePage/components/AIChatSidebar.tsx`
-  - 资源页侧边栏也支持 `coder` 模式下选择项目目录，并把 workspace extras 一起传给 `chatStream`。
+- `src/pages/ChatPage/StartPage.tsx`
+  - 助手起始页，复用 `ChatInputWithService` / `AssistantMiniInputWithService`；`coder` 模式下同样支持选择项目目录并把 workspace extras 一起传给 `chatStream`。
 - `packages/ai/runtime/pi/profiles.md`
   - 定义 `chat` / `assistant` / `coder` 等 profile 的系统提示与元数据（构建时由 `profile-descriptors.ts` 经 `?raw` 加载）。
 - `packages/ai/runtime/pi/session-service.ts`
@@ -145,13 +145,13 @@
 
 ## 当前状态总结
 
-- Pi runtime 已承担主聊天、one-shot、workflow 和 tool execution 的核心职责。
+- Pi runtime 已承担主聊天、one-shot 任务和 tool execution 的核心职责。
 - `coder` profile 已经接入真实 Chat UI，而不是停留在独立 demo 组件。
 - 默认 `assistant` 现在已接入 `SKILL.md` protocol：
   - 会接入 `AGENTS.md` / `CLAUDE.md` instruction files
   - 会注入 skill listing / discovery / explicit invocation 提示
   - 请求层已支持 `extras.explicitSkillInvocation` 这类结构化 skill 调用协议
-  - 主聊天页与资源页 AI 侧栏已在发送请求时注入这类结构化协议
+  - 主聊天页已在发送请求时注入这类结构化协议
   - 输入框已提供 skill picker，并支持 `/foo` 触发的轻量 slash menu
   - picker 会展示 `whenToUse` / `argumentHint`，输入框也会提示当前命中的 skill
   - 输入 `/foo` 时已支持 `Tab` 补全匹配 skill；当参数尚未填写时，会显示 argument hint 提示
@@ -160,13 +160,15 @@
   - 如果请求层没有提供结构化 skill 调用，再回退到 slash 文本解析
 - `toolboxTool` 和原有 tools 仍保持可用；skill 是新增协议，不替代 legacy toolbox workflow。
 - 仓库默认仍不内置 bundled tool-wrapper skills，`packages/ai/runtime/pi/skills/bundled/` 保持为空壳。
-- 用户现在可以在聊天页和资源页 AI 侧边栏中选择一个项目目录，并在该 workspace 内完成读、搜、写、精确编辑和受限验证命令执行。
+- 用户现在可以在聊天页（含起始页与侧边浮层）中选择一个项目目录，并在该 workspace 内完成读、搜、写、精确编辑和受限验证命令执行。
 - 新增的 coding 服务已经有针对路径越界、文本编辑、搜索过滤和受限 shell 的单测保护。
 ## Long-running tool waits
 
 Updated: 2026-04-17
 
-- `translationTool`、`summaryTool`、`youtubeDownloadTool`、`workflowRunTool` 现在支持 wait-with-progress 流程。
-- 在等待模式下，工具会通过 `tool_progress` 持续推送进度百分比和状态文本。
-- 等待中的长任务会额外发出 `user_choice_request`，前端可以让用户把当前等待切到后台执行。
-- 资源页侧边栏和主聊天页都已接入这套 user choice 提交流程，因此长任务等待体验保持一致。
+- 工具执行中暂停等待用户输入的机制统一走 `user_choice_request`（由 `stream-adapter.ts` 映射为 stream 事件）：
+  - `askUserTool`（`tools/ask-user.ts`）通过它向用户提问并等待答复；
+  - `skillUseTool`（`tools/skill-use.ts`）与 skill runtime guard（`skills/runtime-guard.ts`）通过它做 skill 调用确认；
+  - 等待 / 取消状态由主进程 `user-choice-registry.ts` 管理。
+- 进度回报走 `tool_progress`：forked skill 子 session 会把执行进度映射回父 tool call，经 `stream-adapter.ts` 持续推送给前端。
+- 主聊天页（`src/pages/ChatPage/ChatPage.tsx`）已接入这套 user choice 提交流程。
