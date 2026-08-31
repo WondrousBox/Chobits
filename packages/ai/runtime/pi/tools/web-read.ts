@@ -1,8 +1,8 @@
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
-import { Type } from 'typebox';
+import { getHttpProxy } from '@packages/common/net/proxy-agent';
 import fetch from 'node-fetch';
+import { Type } from 'typebox';
 
-import { getHttpProxy } from '../../../../../electron/main/handlers/proxy/proxy';
 import type { PiSessionToolContext } from '../tool-context';
 import { createJsonToolResult } from './result';
 
@@ -20,8 +20,7 @@ export function createPiWebReadTool(toolContext: PiSessionToolContext): ToolDefi
   return {
     name: 'webReadTool',
     label: 'webReadTool',
-    description:
-      '读取指定网页的内容，返回 Markdown 格式的正文。适用于：深入阅读搜索结果中的某个页面、获取文章或文档的详细内容。通常在 webSearchTool 之后使用，对感兴趣的搜索结果进行深度阅读。',
+    description: '读取指定网页的内容，返回 Markdown 格式的正文。适用于：深入阅读搜索结果中的某个页面、获取文章或文档的详细内容。通常在 webSearchTool 之后使用，对感兴趣的搜索结果进行深度阅读。',
     parameters: webReadParameters,
     async execute(_toolCallId, input, signal) {
       const { maxLength = 10000, url } = input;

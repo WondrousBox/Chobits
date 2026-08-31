@@ -32,11 +32,12 @@ import { randomUUID } from 'node:crypto';
 import { windowManager } from '@aim-packages/window-manager';
 import { app, BrowserWindow, ipcMain, screen } from 'electron';
 
-import { loadShortcutEnabledConfig, saveShortcutEnabledConfig } from '../../../electron/main/shortcut-store';
+import { loadShortcutEnabledConfig, saveShortcutEnabledConfig } from '../../common/shortcut-store';
 import { AppEvent, eventManager } from '../../event';
+import { setSherpaCapabilityGuards } from '../../sherpa/capability-guard';
 import { disableASRRuntime, getASRConfigSnapshot, getASRStatusSnapshot } from '../../sherpa/ipc-main';
 import { SPRITE_CAPABILITY_SIGNALS, type SpriteCapabilityResolutionContext } from '../capability-registry';
-import { assertSpriteCapabilityUnlocked, getSpriteCapabilitySnapshot, initSpriteCapabilityRuntime } from '../capability-runtime';
+import { assertSpriteCapabilityActive, assertSpriteCapabilityUnlocked, getSpriteCapabilitySnapshot, initSpriteCapabilityRuntime } from '../capability-runtime';
 import { getCharacterCapabilityContextFlags } from '../character-capability-flags';
 import type { CharacterGalleryAIEditDraft } from '../character-gallery';
 import {
@@ -121,6 +122,14 @@ type SpriteBubbleWindowManager = {
 const SPRITE_BUBBLE_WINDOW_KEYS = ['spriteBubbleFixedTop'] as const;
 type SpriteBubbleWindowKey = (typeof SPRITE_BUBBLE_WINDOW_KEYS)[number];
 const SPRITE_BUBBLE_READY_TIMEOUT_MS = 1500;
+
+// sherpa ↔ sprite-core 解环：sherpa 不 import sprite-core，能力守卫经依赖注入接线。
+// 三个函数均为模块级纯函数，无 this/闭包绑定问题，直接透传。
+setSherpaCapabilityGuards({
+  assertActive: assertSpriteCapabilityActive,
+  assertUnlocked: assertSpriteCapabilityUnlocked,
+  notifyChanged: notifySpriteCapabilityChanged
+});
 
 function getSpriteBubbleWindowKeyForMode(mode: SpriteBubbleMode): SpriteBubbleWindowKey | null {
   if (mode === 'fixed-top') return 'spriteBubbleFixedTop';

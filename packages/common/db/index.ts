@@ -8,7 +8,6 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { app } from 'electron';
 
-import { binPathLog } from '../logger';
 import { Env } from '../utils';
 
 let db: Database.Database | null = null;
@@ -25,7 +24,6 @@ export function getDB(): Database.Database | null {
   const dbPath = path.join(dbDir, Env.isDev() ? 'app-dev.db' : 'app.db');
   db = new (Database as any)(dbPath);
   // PRAGMA for performance (safe defaults)
-  console.log('dbPath', dbPath);
   db!.pragma('journal_mode = WAL');
   db!.pragma('synchronous = NORMAL');
   initSchema();
@@ -274,7 +272,7 @@ function initSchema(): void {
       migrationsFolder = path.resolve(process.cwd(), 'drizzle');
     }
 
-    binPathLog(migrationsFolder, 'migrationsFolder');
+    console.log('[db] migrationsFolder:', migrationsFolder);
 
     migrate(d, { migrationsFolder });
     console.log('[db] migrations applied from', migrationsFolder);
@@ -518,4 +516,5 @@ export async function importBackup(sourcePath: string, options?: { restore?: boo
   }
 }
 
+export * from './repositories';
 export * as Schema from './schema';

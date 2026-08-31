@@ -3,9 +3,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 
+import { getResourcePath } from '@packages/common/utils';
 import { app, protocol } from 'electron';
-
-import { getResourcePath } from './utils/resources-path';
 
 // Register scheme privileges early (module import time)
 protocol.registerSchemesAsPrivileged([

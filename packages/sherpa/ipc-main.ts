@@ -5,10 +5,9 @@ import * as path from 'node:path';
 import { stripEmoji } from '@packages/tts/common';
 import { app, BrowserWindow, ipcMain } from 'electron';
 
-import { WorkspacesRepo } from '../../electron/main/db/repositories';
-import { assertSpriteCapabilityActive, assertSpriteCapabilityUnlocked } from '../sprite-core/capability-runtime';
-import { notifySpriteCapabilityChanged } from '../sprite-core/handler/capability-events';
+import { WorkspacesRepo } from '../common/db/repositories';
 import { getASRInstance } from './asr-instance-manager';
+import { assertSherpaCapabilityActive, assertSherpaCapabilityUnlocked, notifySherpaCapabilityChanged } from './capability-guard';
 import { AllModels, CommonConfig } from './common';
 import { ASR_createInstance, ASR_freeInstance, ASR_sendData, TTS_createInstance, TTS_freeInstance, TTS_generateSpeech } from './index';
 
@@ -222,7 +221,7 @@ function broadcastASRStatus(): void {
     }
   }
 
-  notifySpriteCapabilityChanged({ source: 'speechRecognition.status' });
+  notifySherpaCapabilityChanged({ source: 'speechRecognition.status' });
 }
 
 export function disableASRRuntime(options?: { disableConfig?: boolean }): void {
@@ -328,13 +327,13 @@ export function initSherpaHandlers(): void {
   // IPC: save ASR config
   ipcMain.handle('sherpa:saveASRConfig', (_, partial: Partial<ASRConfig>) => {
     if (partial.enabled === true) {
-      assertSpriteCapabilityUnlocked('speechRecognition');
+      assertSherpaCapabilityUnlocked('speechRecognition');
     }
     return updateASRConfigSnapshot(partial);
   });
 
   ipcMain.handle('sherpa:createInstance', async (_, data: { model?: AllModels; punctuationModel?: string; language?: string; type?: 'online' | 'offline' | 'vad'; commonConfig?: CommonConfig }) => {
-    assertSpriteCapabilityUnlocked('speechRecognition');
+    assertSherpaCapabilityUnlocked('speechRecognition');
     const ins = await ASR_createInstance({
       uuid: 'stream',
       model: data.model,
@@ -378,7 +377,7 @@ export function initSherpaHandlers(): void {
   // 开始录音存储（同时创建音频和字幕流）
   ipcMain.handle('sherpa:startRecording', async (_, data: { workspaceId?: string; folderId?: string }) => {
     try {
-      assertSpriteCapabilityActive('speechRecognition');
+      assertSherpaCapabilityActive('speechRecognition');
       console.log('[Sherpa] 收到开始录音请求，data:', data);
       let { workspaceId } = data;
 
@@ -466,7 +465,7 @@ export function initSherpaHandlers(): void {
   // 继续之前的录音（追加模式打开已有文件）
   ipcMain.handle('sherpa:resumeRecording', async (_, data: { resourceId: string }) => {
     try {
-      assertSpriteCapabilityActive('speechRecognition');
+      assertSherpaCapabilityActive('speechRecognition');
       console.log('[Sherpa] 收到继续录音请求，resourceId:', data.resourceId);
 
       // 检查是否已有活动的录音流
@@ -737,7 +736,7 @@ export function initSherpaHandlers(): void {
         ];
       }
     ) => {
-      assertSpriteCapabilityActive('speechRecognition');
+      assertSherpaCapabilityActive('speechRecognition');
       ASR_sendData({ uuid: 'stream' }, data.data);
 
       // 如果启用了保存，将音频数据写入文件流

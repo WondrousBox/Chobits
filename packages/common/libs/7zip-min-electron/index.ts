@@ -4,7 +4,7 @@ import path from 'node:path';
 import { app } from 'electron';
 import os from 'os';
 
-import { getResourceBinaryName } from '../../../../electron/main/utils/os';
+import { getResourceBinaryName } from '../../utils/os';
 
 const path7za = path.resolve(
   app.getAppPath(),

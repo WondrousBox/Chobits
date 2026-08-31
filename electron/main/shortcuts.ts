@@ -1,7 +1,14 @@
 import { windowManager } from '@aim-packages/window-manager';
+import {
+  getShortcutSchema,
+  isShortcutEnabled,
+  loadShortcutsConfig,
+  onShortcutEnabledChanged,
+  onShortcutsConfigChanged,
+  resolveAcceleratorsForPlatform,
+  type ShortcutsConfig
+} from '@packages/common/shortcut-store';
 import { BrowserWindow, globalShortcut } from 'electron';
-
-import { getShortcutSchema, isShortcutEnabled, loadShortcutsConfig, onShortcutEnabledChanged, onShortcutsConfigChanged, resolveAcceleratorsForPlatform, type ShortcutsConfig } from './shortcut-store';
 
 // Keep track of what we registered so we can cleanly unregister later
 const registered: Set<string> = new Set();
@@ -59,7 +66,7 @@ function applyRegistration(getMainWindow: GetMainWindow): void {
       continue;
     }
     const list = resolved[act.id] || [];
-    const handler = actions[act.id] || (() => { });
+    const handler = actions[act.id] || (() => {});
     list.forEach((accel) => {
       try {
         if (!accel) return;
@@ -110,7 +117,7 @@ export async function validateShortcutsConfig(proposed: Partial<ShortcutsConfig>
   const toTest = resolveAcceleratorsForPlatform(merged);
 
   // Temporarily release current, test, then restore
-  const reapply = lastGetMainWindow ? () => applyRegistration(lastGetMainWindow as GetMainWindow) : () => { };
+  const reapply = lastGetMainWindow ? () => applyRegistration(lastGetMainWindow as GetMainWindow) : () => {};
   const tempRegistered: string[] = [];
   const details: Record<string, { accel: string; ok: boolean; error?: string }[]> = {};
   try {
@@ -120,7 +127,7 @@ export async function validateShortcutsConfig(proposed: Partial<ShortcutsConfig>
       details[act.id] = [];
       for (const accel of toTest[act.id] || []) {
         try {
-          const ok = globalShortcut.register(accel, () => { });
+          const ok = globalShortcut.register(accel, () => {});
           if (ok) tempRegistered.push(accel);
           details[act.id].push({ accel, ok });
           if (!ok) {

@@ -1,9 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import type { ThemeSource } from '@packages/common/types/theme';
 import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron';
-
-type ThemeSource = 'system' | 'light' | 'dark';
 
 type ThemePayload = {
   themeSource: ThemeSource;

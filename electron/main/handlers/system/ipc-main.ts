@@ -1,11 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { backupDatabase, deleteBackup, importBackup, listBackups, restoreBackup } from '@packages/common/db';
+import { Env, getResourcePath } from '@packages/common/utils';
 import { app, ipcMain, shell } from 'electron';
-
-import { backupDatabase, deleteBackup, importBackup, listBackups, restoreBackup } from '../../db';
-import { Env } from '../../utils';
-import { getResourcePath } from '../../utils/resources-path';
 
 /**
  * System-level handlers: database paths/open and logs paths/open.

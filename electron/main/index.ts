@@ -2,17 +2,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { WorkspacesRepo } from '@packages/common/db/repositories';
+import { Env, getResourcePath } from '@packages/common/utils';
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 
 import { eventManager } from '../../packages/event';
 import { AppEvent } from '../../packages/event/events';
-import { WorkspacesRepo } from './db/repositories';
 import { initHandlers } from './handlers';
 import { logger } from './logger';
 import { addAllowedResourceRoot, addWorkspaceResourceRoot, setupResourceProtocol } from './resource-protocol';
 import { registerGlobalShortcuts, unregisterGlobalShortcuts } from './shortcuts';
-import { Env } from './utils';
-import { getResourcePath } from './utils/resources-path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

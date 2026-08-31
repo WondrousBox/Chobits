@@ -1,8 +1,8 @@
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
-import { Type } from 'typebox';
+import { getHttpProxy } from '@packages/common/net/proxy-agent';
 import fetch from 'node-fetch';
+import { Type } from 'typebox';
 
-import { getHttpProxy } from '../../../../../electron/main/handlers/proxy/proxy';
 import type { PiSessionToolContext } from '../tool-context';
 import { createJsonToolResult } from './result';
 import { getWebSearchApiKey } from './web-search-config';
@@ -44,8 +44,7 @@ export function createPiWebSearchTool(toolContext: PiSessionToolContext): ToolDe
   return {
     name: 'webSearchTool',
     label: 'webSearchTool',
-    description:
-      '搜索互联网获取最新信息。适用于：查询实时新闻、最新技术文档、当前事件、价格和产品信息、学术论文、人物信息等需要联网才能回答的问题。不要用于已知信息或本地资源查询。',
+    description: '搜索互联网获取最新信息。适用于：查询实时新闻、最新技术文档、当前事件、价格和产品信息、学术论文、人物信息等需要联网才能回答的问题。不要用于已知信息或本地资源查询。',
     parameters: webSearchParameters,
     async execute(_toolCallId, input, signal) {
       const { includeAnswer = true, maxResults = 5, query, searchDepth = 'basic', topic = 'general' } = input;

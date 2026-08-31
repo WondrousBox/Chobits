@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import Mustache from 'mustache';
 
-import { getResourcePath } from '../../electron/main/utils/resources-path';
+import { getResourcePath } from '../common/utils';
 import ChildProcessManager from './child-process-manager';
 import { SHERPA_CONFIG } from './sherpa-config';
 

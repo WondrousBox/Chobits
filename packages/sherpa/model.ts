@@ -2,7 +2,7 @@ import fs from 'node:fs';
 
 import { cloneDeep } from 'lodash-es';
 
-import { getResourcePath } from '../../electron/main/utils/resources-path';
+import { getResourcePath } from '../common/utils';
 import { pluginResourceManager } from '../plugins';
 import { loadPluginDefinitions } from '../plugins/plugin-loader';
 import type { PluginDefinition } from '../plugins/types';

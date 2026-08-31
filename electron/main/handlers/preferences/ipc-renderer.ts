@@ -1,15 +1,7 @@
+import type { PreferencesConfig, PreviewMode } from '@packages/common/types/preferences';
 import { ipcRenderer } from 'electron';
 
-// 预览模式类型: 'window' 表示弹窗，'panel' 表示右侧面板
-export type PreviewMode = 'window' | 'panel';
-
-// 偏好设置配置接口
-export interface PreferencesConfig {
-  previewMode: PreviewMode;
-  webRecorderDeviceId?: string;
-  assistantMiniWindowEnabled: boolean;
-  featureFlags?: Record<string, boolean>;
-}
+export type { PreferencesConfig, PreviewMode } from '@packages/common/types/preferences';
 
 export type PreferencesIpcType = typeof preferencesIpcRenderer;
 

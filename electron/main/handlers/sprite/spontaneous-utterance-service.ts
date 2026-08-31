@@ -5,6 +5,7 @@ import * as fsSync from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
+import { ChatRepo, WorkspacesRepo } from '@packages/common/db/repositories';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { app } from 'electron';
@@ -30,7 +31,6 @@ import type {
   SpriteSpontaneousUtteranceResult,
   SpriteSpontaneousUtteranceTonePreference
 } from '../../../../packages/sprite-core/manager';
-import { ChatRepo, WorkspacesRepo } from '../../db/repositories';
 import { getStoredRoleProfile } from '../status';
 import {
   buildSpontaneousPurposeRetrospectiveContext,

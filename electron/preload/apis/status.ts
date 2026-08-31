@@ -1,14 +1,9 @@
+import type { RoleProfile } from '@packages/common/types/status';
 import { ipcRenderer } from 'electron';
 
 import type { IPCParams } from '../type';
 
-export type RoleProfile = {
-  name: string;
-  mood?: string;
-  level?: number;
-  favor?: number;
-  description?: string;
-};
+export type { RoleProfile } from '@packages/common/types/status';
 
 export type StatusBridgeParams = {
   'status:getRole': IPCParams<[void], { ok: boolean; role: RoleProfile }>;

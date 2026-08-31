@@ -1,3 +1,4 @@
+import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '@packages/common/utils/os';
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
 // 使用当前的 AI IPC bridge
@@ -12,7 +13,6 @@ import { preferencesIpcRenderer } from '../main/handlers/preferences/ipc-rendere
 import { proxyIpcRenderer } from '../main/handlers/proxy/ipc-renderer';
 import { systemIpcRenderer } from '../main/handlers/system/ipc-renderer';
 import { themeIpcRenderer } from '../main/handlers/theme/ipc-renderer';
-import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
 import { personaApi } from './apis/persona';
 import { shortcutsBridge } from './apis/shortcuts';
 import { statusBridge } from './apis/status';

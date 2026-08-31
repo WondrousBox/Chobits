@@ -2,26 +2,10 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { app, BrowserWindow } from 'electron';
+import type { PlatformKey, ShortcutAction, ShortcutEnabledConfig, ShortcutsConfig } from '@packages/common/types/shortcuts';
+import { app, type BrowserWindow } from 'electron';
 
-export type PlatformKey = 'darwin' | 'win32' | 'linux';
-export type SingleAccel = string | Partial<Record<PlatformKey, string>>;
-export type MultiAccel = string[] | Partial<Record<PlatformKey, string[]>>;
-export type ShortcutValue = SingleAccel | MultiAccel;
-export type ShortcutsConfig = Record<string, ShortcutValue>;
-
-// 快捷键功能的启用状态配置
-export type ShortcutEnabledConfig = {
-  screenshot: boolean;
-};
-
-export type ShortcutAction = {
-  id: string;
-  label: string;
-  description?: string;
-  type: 'single' | 'multi';
-  defaults: Partial<Record<PlatformKey, string | string[]>>;
-};
+export type { MultiAccel, PlatformKey, ShortcutAction, ShortcutEnabledConfig, ShortcutsConfig, ShortcutValue, SingleAccel } from '@packages/common/types/shortcuts';
 
 export const SHORTCUT_SCHEMA: ShortcutAction[] = [
   {

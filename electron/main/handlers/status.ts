@@ -2,21 +2,16 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 
+import type { RoleProfile } from '@packages/common/types/status';
 import { app, BrowserWindow, ipcMain } from 'electron';
 
 import pkg from '../../../package.json';
 import { getCharacterInfo, getCharacterPackDefinition } from '../../../packages/sprite-core/character-service';
 
+export type { RoleProfile } from '@packages/common/types/status';
+
 const SETTINGS_DIR = path.join(app.getPath('userData'), 'data');
 const ROLE_FILE = path.join(SETTINGS_DIR, 'role.json');
-
-export type RoleProfile = {
-  name: string;
-  mood?: string;
-  level?: number;
-  favor?: number; // 0-100
-  description?: string;
-};
 
 function getCurrentCharacterRoleInfo(): Pick<RoleProfile, 'name' | 'description'> | null {
   const pack = getCharacterPackDefinition();

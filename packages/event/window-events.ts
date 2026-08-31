@@ -1,6 +1,6 @@
-import { BrowserWindow } from 'electron';
+import type { BrowserWindow } from 'electron';
 
-import { AppEvent, eventManager } from '../../../packages/event';
+import { AppEvent, eventManager } from './index';
 
 type AppWindowClosePayload = Record<string, unknown> & {
   source?: string;

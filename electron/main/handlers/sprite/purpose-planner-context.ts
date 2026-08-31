@@ -1,8 +1,9 @@
+import { ChatRepo, WorkspacesRepo } from '@packages/common/db/repositories';
+
 import { getPreset } from '../../../../packages/ai/preset-service';
 import type { AgentLoopCompletePayload } from '../../../../packages/ai/services/memory-types';
 import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
-import { ChatRepo, WorkspacesRepo } from '../../db/repositories';
 import type { SpritePurposePlannerRuntimeContext } from './purpose-planner-runtime';
 
 const CONVERSATION_CONTEXT_LIMIT = 20;

@@ -1,13 +1,13 @@
 import path from 'node:path';
 
 import { initIpcMain, windowManager } from '@aim-packages/window-manager';
+import { attachAppWindowClosedReporter, emitAppWindowOpened, rememberWindowPayload } from '@packages/event/window-events';
 import type { IpcMainInvokeEvent } from 'electron';
 import { BrowserWindow, ipcMain } from 'electron';
 import { app, screen } from 'electron';
 
 import defaultWindowConfigs from '../config/window';
 import { globalInputMonitor } from '../global-input-monitor';
-import { attachAppWindowClosedReporter, emitAppWindowOpened, rememberWindowPayload } from './window-events';
 
 const SPRITE_BUBBLE_WINDOW_KEYS = ['spriteBubbleFixedTop'] as const;
 type SpriteBubbleWindowKey = (typeof SPRITE_BUBBLE_WINDOW_KEYS)[number];

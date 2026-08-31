@@ -1,7 +1,3 @@
-import { BrowserWindow, ipcMain } from 'electron';
-
-import { assertSpriteCapabilityUnlocked } from '../../../packages/sprite-core/capability-runtime';
-import { notifySpriteCapabilityChanged } from '../../../packages/sprite-core/handler/capability-events';
 import {
   getShortcutSchema,
   loadShortcutEnabledConfig,
@@ -12,7 +8,11 @@ import {
   saveShortcutsConfig,
   type ShortcutEnabledConfig,
   type ShortcutsConfig
-} from '../shortcut-store';
+} from '@packages/common/shortcut-store';
+import { BrowserWindow, ipcMain } from 'electron';
+
+import { assertSpriteCapabilityUnlocked } from '../../../packages/sprite-core/capability-runtime';
+import { notifySpriteCapabilityChanged } from '../../../packages/sprite-core/handler/capability-events';
 import { validateShortcutsConfig } from '../shortcuts';
 
 export function initShortcutsHandlers(win: BrowserWindow): void {

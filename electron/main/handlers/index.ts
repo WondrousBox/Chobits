@@ -1,4 +1,7 @@
 import { windowManager } from '@aim-packages/window-manager';
+import { getResourcePath } from '@packages/common/utils';
+import { createMainWindowAnimationPresetTimeline, isWindowAnimationPresetId, type WindowAnimationPresetDirection } from '@packages/common/window-animation-presets';
+import { attachAppWindowClosedReporter, emitAppWindowOpened, rememberWindowPayload } from '@packages/event/window-events';
 import { app, BrowserWindow, screen } from 'electron';
 
 import { initAIHandlers } from '../../../packages/ai/ipc-main';
@@ -11,7 +14,6 @@ import { initSherpaHandlers, initSherpaStubHandlers } from '../../../packages/sh
 import { assertSpriteCapabilityUnlocked } from '../../../packages/sprite-core/capability-runtime';
 import { initSpriteHandlers, initSpriteManagerIPC } from '../../../packages/sprite-core/handler';
 import { DEFAULT_SPRITE_ROUTINE_PRESETS, SpritePurposeHistoryStore } from '../../../packages/sprite-core/purpose';
-import { isFeatureEnabled } from '../feature-flags';
 import {
   SPRITE_EVENT_TYPES,
   type SpriteWindowAnimationDisplay,
@@ -19,9 +21,8 @@ import {
   type SpriteWindowAnimationPlacement,
   type SpriteWindowAnimationPlayPosition
 } from '../../../packages/sprite-core/types';
-import { createMainWindowAnimationPresetTimeline, isWindowAnimationPresetId, type WindowAnimationPresetDirection } from '../../../src/lib/window-animation-presets';
+import { isFeatureEnabled } from '../feature-flags';
 import { addAllowedResourceRoot } from '../resource-protocol';
-import { getResourcePath } from '../utils/resources-path';
 import { initFileHandlers } from './file/ipc-main';
 import { initPreferencesHandlers } from './preferences/ipc-main';
 import { initProxyHandlers } from './proxy/ipc-main';
@@ -38,7 +39,6 @@ import { initStatusHandlers } from './status';
 import { initSystemHandlers } from './system/ipc-main';
 import { initThemeHandlers } from './theme/ipc-main';
 import { initWindowHandlers } from './window';
-import { attachAppWindowClosedReporter, emitAppWindowOpened, rememberWindowPayload } from './window-events';
 
 const DEFAULT_SPRITE_WINDOW_ANIMATION_TARGET = 'main';
 const WINDOW_ANIMATION_DIRECTIONS = new Set<WindowAnimationPresetDirection>(['top', 'top-right', 'right', 'bottom-right', 'bottom', 'bottom-left', 'left', 'top-left']);

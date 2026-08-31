@@ -1,7 +1,7 @@
+import { type CustomProxy, type ProxyConfig, ProxyStore } from '@packages/common/net/proxy-store';
 import { BrowserWindow, ipcMain } from 'electron';
 
 import { getSystemProxy, testProxy } from './proxy';
-import { type CustomProxy, type ProxyConfig, ProxyStore } from './proxy-store';
 
 export async function initProxyHandlers(win: BrowserWindow): Promise<void> {
   // 应用启动时，如果配置为系统代理，自动获取系统代理

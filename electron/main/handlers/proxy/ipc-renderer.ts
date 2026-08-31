@@ -1,19 +1,7 @@
+import type { CustomProxy, ProxyConfig } from '@packages/common/types/proxy';
 import { ipcRenderer } from 'electron';
 
-export type ProxyType = 'none' | 'system' | 'custom';
-export type ProxyAgentType = 'http' | 'socks5';
-
-export interface CustomProxy {
-  type: ProxyAgentType;
-  hostname: string;
-  port: number;
-  active: boolean;
-}
-
-export interface ProxyConfig {
-  type: ProxyType;
-  proxies?: CustomProxy[];
-}
+export type { CustomProxy, ProxyAgentType, ProxyConfig, ProxyType } from '@packages/common/types/proxy';
 
 export type ProxyIpcType = typeof proxyIpcRenderer;
 

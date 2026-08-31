@@ -1,6 +1,6 @@
+import type { BackupInfo } from '@packages/common/db';
 import { ipcRenderer } from 'electron';
 
-import type { BackupInfo } from '../../db';
 import type { IpcParams } from '../types';
 
 export type SystemIpcParams = {

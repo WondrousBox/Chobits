@@ -1,6 +1,7 @@
+import type { ThemeSource } from '@packages/common/types/theme';
 import { ipcRenderer, type IpcRendererEvent } from 'electron';
 
-export type ThemeSource = 'system' | 'light' | 'dark';
+export type { ThemeSource } from '@packages/common/types/theme';
 
 export type ThemeBridgeResponse = {
   ok: boolean;

@@ -1,6 +1,6 @@
 import path from 'path';
 
-import { getResourcePath } from '../../electron/main/utils/resources-path';
+import { getResourcePath } from '../common/utils';
 import { pluginResourceManager } from '../plugins';
 import ChildProcessManager from './child-process-manager';
 import { getTTSModelConfig, TTSInstances, TTSModelConfig } from './common';

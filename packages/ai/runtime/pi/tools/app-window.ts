@@ -1,12 +1,12 @@
-import { windowManager, type WindowKey } from '@aim-packages/window-manager';
+import { type WindowKey, windowManager } from '@aim-packages/window-manager';
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
+import { attachAppWindowClosedReporter, emitAppWindowOpened, rememberWindowPayload } from '@packages/event/window-events';
 import { type Static, Type } from 'typebox';
 
 import { getAppWindowToolEntry, listAppWindowSummaries, sanitizeAppWindowPayload, searchAppWindowSummaries } from '../app-window-directory';
 import { resolveGuardedToolExecution } from '../skills';
 import type { PiSessionToolContext } from '../tool-context';
 import { createJsonToolResult } from './result';
-import { attachAppWindowClosedReporter, emitAppWindowOpened, rememberWindowPayload } from '../../../../../electron/main/handlers/window-events';
 
 type Payload = Record<string, unknown>;
 

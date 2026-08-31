@@ -1,7 +1,29 @@
 import * as crypto from 'crypto';
 import fs from 'fs';
+import path from 'path';
 
 import { list, packDirectoryContents, unpack } from '../libs/7zip-min-electron';
+
+/**
+ * 输入一个文件地址，如果文件已经存在，则更换文件名
+ *
+ * @export
+ * @param {string} filePath
+ * @return {*}  {string}
+ */
+export function findUniqueFileName(filePath: string): string {
+  const baseName = path.basename(filePath);
+  const dirName = path.dirname(filePath);
+  let counter = 1;
+
+  while (fs.existsSync(filePath)) {
+    const nameWithSuffix = `${baseName.split('.')[0]}_${counter}${path.extname(baseName)}`;
+    filePath = path.join(dirName, nameWithSuffix);
+    counter++;
+  }
+
+  return filePath;
+}
 
 export interface ArchiveListEntry {
   name?: string;

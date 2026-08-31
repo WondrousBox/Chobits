@@ -2,12 +2,10 @@ import os from 'node:os';
 
 import { app } from 'electron';
 
-import { getRealPath } from '.';
+import { getRealPath } from './env';
 import { getResourceBinaryName } from './os';
 
-export function getResourcePath(
-  binName: 'ffmpeg' | 'sherpa' | 'ffprobe' | 'sprites' | 'resources' | 'plugins' | 'providers' | 'logs' | 'html'
-): string | undefined {
+export function getResourcePath(binName: 'ffmpeg' | 'sherpa' | 'ffprobe' | 'sprites' | 'resources' | 'plugins' | 'providers' | 'logs' | 'html'): string | undefined {
   const platform = os.platform();
   const arch = os.arch();
 

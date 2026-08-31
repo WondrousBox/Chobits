@@ -1,8 +1,8 @@
+import { getResourcePath } from '@packages/common/utils';
 import dayjs from 'dayjs';
 import log, { LogFunctions } from 'electron-log';
 
 import { LOG_LEVEL } from '../config';
-import { getResourcePath } from '../utils/resources-path';
 
 console.log('log initialize');
 // It preloads electron-log IPC code in renderer processes

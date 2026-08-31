@@ -7,7 +7,7 @@ vi.mock('@aim-packages/window-manager', () => ({
   }
 }));
 
-vi.mock('../../electron/main/handlers/window-events', () => ({
+vi.mock('../../packages/event/window-events', () => ({
   attachAppWindowClosedReporter: vi.fn(),
   emitAppWindowOpened: vi.fn(),
   rememberWindowPayload: vi.fn()

@@ -1,22 +1,9 @@
+import type { ShortcutAction, ShortcutEnabledConfig, ShortcutsConfig } from '@packages/common/types/shortcuts';
 import { ipcRenderer } from 'electron';
 
 import type { IPCParams } from '../type';
 
-export type PlatformKey = 'darwin' | 'win32' | 'linux';
-export type ShortcutsConfig = Record<string, string | string[] | Partial<Record<PlatformKey, string | string[]>>>;
-
-// 快捷键功能的启用状态配置
-export type ShortcutEnabledConfig = {
-  screenshot: boolean;
-};
-
-export type ShortcutAction = {
-  id: string;
-  label: string;
-  description?: string;
-  type: 'single' | 'multi';
-  defaults: Partial<Record<PlatformKey, string | string[]>>;
-};
+export type { PlatformKey, ShortcutAction, ShortcutEnabledConfig, ShortcutsConfig } from '@packages/common/types/shortcuts';
 
 export type ShortcutsBridgeParams = {
   'shortcuts:getConfig': IPCParams<[void], { ok: boolean; data?: ShortcutsConfig; error?: string }>;

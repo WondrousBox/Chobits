@@ -1,6 +1,6 @@
 import path from 'path';
 
-import { getResourcePath } from '../../electron/main/utils/resources-path';
+import { getResourcePath } from '../common/utils';
 import { pluginResourceManager } from '../plugins';
 import ChildProcessManager from './child-process-manager';
 import { AllModels, CommonConfig, getModelConfig, punctuationModelConfig, StreamInstances, vadModelConfig } from './common';
@@ -111,9 +111,9 @@ export async function createASRInstance(data: CreateInstanceOptions): Promise<St
 
       const punctuationModelConfigData = data.punctuationModel
         ? punctuationModelConfig({
-          modelDir: modelDir,
-          model: data.punctuationModel as any
-        })
+            modelDir: modelDir,
+            model: data.punctuationModel as any
+          })
         : undefined;
 
       const startData: any = {

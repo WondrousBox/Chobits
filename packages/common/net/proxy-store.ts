@@ -1,23 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import type { CustomProxy, ProxyConfig } from '@packages/common/types/proxy';
 import { app } from 'electron';
 
-export type ProxyType = 'none' | 'system' | 'custom';
-
-export type ProxyAgentType = 'http' | 'socks5';
-
-export interface CustomProxy {
-  type: ProxyAgentType;
-  hostname: string;
-  port: number;
-  active: boolean;
-}
-
-export interface ProxyConfig {
-  type: ProxyType;
-  proxies?: CustomProxy[]; // 仅当 type === 'custom' 时使用
-}
+export type { CustomProxy, ProxyAgentType, ProxyConfig, ProxyType } from '@packages/common/types/proxy';
 
 type StoreShape = {
   proxy: ProxyConfig;
