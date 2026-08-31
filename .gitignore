@@ -24,9 +24,8 @@ release
 *.sln
 *.sw?
 
-#lockfile
+#lockfile（项目用 pnpm，pnpm-lock.yaml 纳入版本管理以锁定依赖版本）
 package-lock.json
-pnpm-lock.yaml
 yarn.lock
 /test-results/
 /playwright-report/
