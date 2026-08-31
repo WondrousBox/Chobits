@@ -16,21 +16,24 @@ type PiModel = import('@earendil-works/pi-ai/compat').Model<any>;
 type PiAgentThinkingLevel = import('@earendil-works/pi-agent-core').ThinkingLevel;
 
 type PiCodingSdkModule = Pick<typeof import('@earendil-works/pi-coding-agent'), 'createAgentSession'>;
-type PiCodingAuthStorage = {
-  set: (providerId: string, credential: { key: string; type: 'api_key' }) => void;
-};
+// pi-coding-agent 0.80.10+：AuthStorage 实现 CredentialStore（只读 modify 接口），
+// 凭证在 inMemory(data) 构造时注入；ModelRegistry 被 ModelRuntime 取代
+type PiCodingAuthCredential = { key: string; type: 'api_key' };
+type PiCodingAuthStorage = unknown;
 type PiCodingAuthStorageClass = {
   AuthStorage: {
-    inMemory: (data?: Record<string, unknown>) => PiCodingAuthStorage;
+    inMemory: (data?: Record<string, PiCodingAuthCredential>) => PiCodingAuthStorage;
   };
 }['AuthStorage'];
-type PiCodingModelRegistryClass = {
-  ModelRegistry: {
-    create?: (authStorage: PiCodingAuthStorage, modelsPath?: string) => unknown;
-    inMemory?: (authStorage: PiCodingAuthStorage) => unknown;
-    new (authStorage: PiCodingAuthStorage, modelsPath: string): unknown;
+type PiCodingModelRuntime = {
+  getProvider: (providerId: string) => unknown;
+  registerProvider: (providerId: string, config: Record<string, unknown>) => void;
+};
+type PiCodingModelRuntimeClass = {
+  ModelRuntime: {
+    create: (options: { allowModelNetwork?: boolean; credentials: PiCodingAuthStorage; modelsPath?: string | null }) => Promise<PiCodingModelRuntime>;
   };
-}['ModelRegistry'];
+}['ModelRuntime'];
 type PiCodingSettingsManager = unknown;
 type PiCodingSettingsManagerClass = {
   SettingsManager: {
@@ -51,7 +54,7 @@ type PiCodingSessionManagerClass = {
 type PiCodingCoreModules = {
   AuthStorage: PiCodingAuthStorageClass;
   DefaultResourceLoader: PiCodingResourceLoaderClass;
-  ModelRegistry: PiCodingModelRegistryClass;
+  ModelRuntime: PiCodingModelRuntimeClass;
   SessionManager: PiCodingSessionManagerClass;
   SettingsManager: PiCodingSettingsManagerClass;
   createAgentSession: PiCodingSdkModule['createAgentSession'];
@@ -95,9 +98,9 @@ async function importPiCodingCoreModule<TModule>(fileName: string): Promise<TMod
 }
 
 async function loadPiCodingCore(): Promise<PiCodingCoreModules> {
-  const [authStorageModule, modelRegistryModule, resourceLoaderModule, sdkModule, sessionManagerModule, settingsManagerModule] = await Promise.all([
+  const [authStorageModule, modelRuntimeModule, resourceLoaderModule, sdkModule, sessionManagerModule, settingsManagerModule] = await Promise.all([
     importPiCodingCoreModule<{ AuthStorage: PiCodingAuthStorageClass }>('auth-storage.js'),
-    importPiCodingCoreModule<{ ModelRegistry: PiCodingModelRegistryClass }>('model-registry.js'),
+    importPiCodingCoreModule<{ ModelRuntime: PiCodingModelRuntimeClass }>('model-runtime.js'),
     importPiCodingCoreModule<{ DefaultResourceLoader: PiCodingResourceLoaderClass }>('resource-loader.js'),
     importPiCodingCoreModule<PiCodingSdkModule>('sdk.js'),
     importPiCodingCoreModule<{ SessionManager: PiCodingSessionManagerClass }>('session-manager.js'),
@@ -107,23 +110,55 @@ async function loadPiCodingCore(): Promise<PiCodingCoreModules> {
   return {
     AuthStorage: authStorageModule.AuthStorage,
     DefaultResourceLoader: resourceLoaderModule.DefaultResourceLoader,
-    ModelRegistry: modelRegistryModule.ModelRegistry,
+    ModelRuntime: modelRuntimeModule.ModelRuntime,
     SessionManager: sessionManagerModule.SessionManager,
     SettingsManager: settingsManagerModule.SettingsManager,
     createAgentSession: sdkModule.createAgentSession
   };
 }
 
-function seedRuntimeApiKeys(authStorage: PiCodingAuthStorage, resolved: ResolvedPiRequest, model: PiModel): void {
+function buildRuntimeApiKeyData(resolved: ResolvedPiRequest, model: PiModel): Record<string, PiCodingAuthCredential> {
   const apiKey = resolved.model.apiKey?.trim();
-  if (!apiKey) return;
+  if (!apiKey) return {};
 
   const providerIds = new Set<string>([resolved.model.providerId, resolved.model.canonicalProviderId, String(model.provider || '')].filter(Boolean));
 
+  const data: Record<string, PiCodingAuthCredential> = {};
   for (const providerId of providerIds) {
-    authStorage.set(providerId, {
+    data[providerId] = {
       key: apiKey,
       type: 'api_key'
+    };
+  }
+  return data;
+}
+
+/**
+ * 0.80.10 的 ModelRuntime 只认识 pi-ai 内置/已注册的 provider：自定义 provider（如自托管
+ * vllm）不注册的话，即使凭证已注入，hasConfiguredAuth/checkAuth 也恒为 false。
+ * 这里把解析出的 baseUrl + 模型注册进运行时；pi-ai 已内置的 provider 跳过。
+ */
+function registerRuntimeProviders(modelRuntime: PiCodingModelRuntime, resolved: ResolvedPiRequest, model: PiModel): void {
+  const providerIds = new Set<string>([resolved.model.providerId, resolved.model.canonicalProviderId, String(model.provider || '')].filter(Boolean));
+  const modelAny = model as Record<string, any>;
+  const baseUrl = resolved.model.baseUrl?.trim() || (typeof modelAny.baseUrl === 'string' ? modelAny.baseUrl : undefined);
+
+  for (const providerId of providerIds) {
+    if (modelRuntime.getProvider(providerId)) continue;
+    modelRuntime.registerProvider(providerId, {
+      api: modelAny.api,
+      baseUrl,
+      models: [
+        {
+          contextWindow: modelAny.contextWindow || 8192,
+          cost: modelAny.cost || { cacheRead: 0, cacheWrite: 0, input: 0, output: 0 },
+          id: modelAny.id,
+          input: modelAny.input || ['text'],
+          maxTokens: modelAny.maxTokens || 8192,
+          name: modelAny.name || modelAny.id,
+          reasoning: Boolean(modelAny.reasoning)
+        }
+      ]
     });
   }
 }
@@ -137,25 +172,12 @@ function resolvePiRuntimeAgentDir(): string {
   return path.join(os.tmpdir(), 'chobits-pi-runtime');
 }
 
-function createPiRuntimeModelRegistry(ModelRegistry: PiCodingModelRegistryClass, authStorage: PiCodingAuthStorage): unknown {
-  if (typeof ModelRegistry.inMemory === 'function') {
-    return ModelRegistry.inMemory(authStorage);
-  }
-
-  if (typeof ModelRegistry.create === 'function') {
-    return ModelRegistry.create(authStorage);
-  }
-
-  return new ModelRegistry(authStorage, '');
-}
-
 export class PiSessionFactory {
   async createCodingSession(options: CreatePiCodingSessionOptions): Promise<PiCodingSessionHandle> {
-    const { AuthStorage, DefaultResourceLoader, ModelRegistry, SessionManager, SettingsManager, createAgentSession } = await loadPiCodingCore();
+    const { AuthStorage, DefaultResourceLoader, ModelRuntime, SessionManager, SettingsManager, createAgentSession } = await loadPiCodingCore();
     const cwd = options.resolved.coding?.rootPath?.trim() || process.cwd();
     const agentDir = resolvePiRuntimeAgentDir();
-    const authStorage = AuthStorage.inMemory();
-    seedRuntimeApiKeys(authStorage, options.resolved, options.model);
+    const authStorage = AuthStorage.inMemory(buildRuntimeApiKeyData(options.resolved, options.model));
     const toolContext = createPiSessionToolContext(options.resolved);
 
     const shouldAttachSkillRuntime = Boolean(options.skillRegistry || options.skillSessionState || hasSkillToolsEnabled(options.resolved));
@@ -190,7 +212,13 @@ export class PiSessionFactory {
 
     console.log('[PiSession] mode:', injectionMode, '| registered:', allTools.length, 'tools, initially active:', initialActiveNames.length);
 
-    const modelRegistry = createPiRuntimeModelRegistry(ModelRegistry, authStorage);
+    // ModelRuntime 取代旧 ModelRegistry：凭证走 CredentialStore，模型目录不持久化、不走网络
+    const modelRuntime = await ModelRuntime.create({
+      allowModelNetwork: false,
+      credentials: authStorage,
+      modelsPath: null
+    });
+    registerRuntimeProviders(modelRuntime, options.resolved, options.model);
     const settingsManager = SettingsManager.inMemory({
       enableSkillCommands: false,
       followUpMode: 'one-at-a-time',
@@ -215,12 +243,10 @@ export class PiSessionFactory {
 
     const { session } = await (createAgentSession as any)({
       agentDir,
-      authStorage,
       customTools: allTools,
       cwd,
-      initialActiveToolNames: initialActiveNames,
       model: options.model,
-      modelRegistry,
+      modelRuntime,
       resourceLoader,
       sessionManager: SessionManager.inMemory(cwd),
       settingsManager,

@@ -1,4 +1,5 @@
 import { getProviderDefinition, getProviderDefinitionDefaultModel, getProviderDefinitionModel, getProviderDefinitionPiBaseUrl } from '../../providers/service';
+import { allowInsecureTlsOrigin, isInsecureTlsAllowed } from '../../providers/tls';
 import type { ResolvedPiModelConfig, ResolvedPiRequest } from './contracts';
 
 type PiAiModule = typeof import('@earendil-works/pi-ai/compat');
@@ -143,6 +144,12 @@ export function buildPiModelHeaders(model: ResolvedPiModelConfig): Record<string
 }
 
 export async function buildPiModel(ai: PiAiModule, resolved: ResolvedPiRequest): Promise<PiModel> {
+  // pi 运行时的请求（pi-ai → openai SDK）走全局 fetch，无法注入宽松 TLS 的 fetch；
+  // 用户显式允许自签名时，把该 origin 登记进 tls.ts 的全局中继白名单
+  if (isInsecureTlsAllowed(resolved.model.secrets)) {
+    allowInsecureTlsOrigin(resolved.model.baseUrl);
+  }
+
   const fallbackModelId = resolvePiFallbackModelId(resolved.model.canonicalProviderId, resolved.model.modelId);
   const builtinProvider = resolvePiBuiltinProvider(resolved.model);
 

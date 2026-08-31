@@ -18,4 +18,9 @@ export class VllmProvider extends OpenAICompatibleProvider {
     }
     return merged;
   }
+
+  getSecrets(): OpenAIRuntimeSecrets {
+    // pi 运行时从 adapterSecrets 取 TLS 配置，需要把 https 条件默认值也带出去
+    return this.resolveSecrets();
+  }
 }

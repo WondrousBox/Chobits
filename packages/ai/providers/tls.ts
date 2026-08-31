@@ -62,3 +62,54 @@ export async function resolveFetch(secrets: Record<string, unknown> | undefined 
   if (!isInsecureTlsAllowed(secrets)) return undefined;
   return factory();
 }
+
+// ---------------------------------------------------------------------------
+// pi 运行时的 TLS 中继
+//
+// pi 运行时（pi-ai → openai SDK）内部直接 new OpenAI({ baseURL })，不支持注入
+// 自定义 fetch/dispatcher，只能走全局 fetch。这里对全局 fetch 做一次按 origin
+// 白名单的中继：仅当某 https origin 被显式登记为「允许自签名」时才转到宽松
+// undici Agent，其余请求原样透传给原始全局 fetch，不全局关闭 TLS 校验。
+// ---------------------------------------------------------------------------
+
+const insecureTlsOrigins = new Set<string>();
+let globalRelayInstalled = false;
+
+function installGlobalInsecureFetchRelay(): void {
+  if (globalRelayInstalled) return;
+  if (typeof globalThis.fetch !== 'function') return;
+  globalRelayInstalled = true;
+
+  const originalFetch = globalThis.fetch.bind(globalThis);
+  globalThis.fetch = (async (input: any, init?: any) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input?.url;
+    if (url) {
+      try {
+        if (insecureTlsOrigins.has(new URL(url).origin)) {
+          const insecureFetch = await createInsecureFetch();
+          return insecureFetch(url, init);
+        }
+      } catch {
+        // URL 解析失败等异常不影响主流程，落回原始 fetch
+      }
+    }
+    return originalFetch(input, init);
+  }) as typeof globalThis.fetch;
+}
+
+/**
+ * 把一个 https URL/origin 登记为「允许自签名证书」，供无法注入自定义 fetch 的
+ * 调用方（pi 运行时的 openai SDK）使用。非 https 或非法 URL 直接忽略。
+ */
+export function allowInsecureTlsOrigin(urlOrOrigin?: string): void {
+  if (!urlOrOrigin) return;
+  let origin: string;
+  try {
+    origin = new URL(urlOrOrigin).origin;
+  } catch {
+    return;
+  }
+  if (!origin.startsWith('https:')) return;
+  insecureTlsOrigins.add(origin);
+  installGlobalInsecureFetchRelay();
+}
