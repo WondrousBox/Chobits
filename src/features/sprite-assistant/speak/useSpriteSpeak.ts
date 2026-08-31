@@ -14,8 +14,8 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 
-import { makeResSrc } from '@/lib/resource-protocol';
 import { attachMediaElement, detachLipSyncSource } from '@/lib/audio/lip-sync-source';
+import { makeResSrc } from '@/lib/resource-protocol';
 
 /**
  * 监听 SpriteManager 的 speak 事件并播放音频
@@ -58,7 +58,11 @@ export function useSpriteSpeak(): { stop: () => void } {
       try {
         // 将绝对路径转为 res:// 协议 URL
         const src = makeResSrc(audioPath);
-        const audio = new Audio(src);
+        const audio = new Audio();
+        // res:// 相对页面源是跨域的；lip-sync 的 createMediaElementSource 会接管元素输出，
+        // 若资源未以 CORS 方式加载会被 Chromium 置为静音，因此必须设置 crossOrigin
+        audio.crossOrigin = 'anonymous';
+        audio.src = src;
         audio.volume = Math.max(0, Math.min(1, volume));
         audio.preload = 'auto';
 
