@@ -88,21 +88,12 @@ const ASRPage: React.FC = () => {
           if (savedRecording) {
             const parsed = JSON.parse(savedRecording);
             const { resourceId } = parsed;
-            console.log('[ASR] 发现未完成的录音记录，resourceId:', resourceId);
 
             // 完成音频和字幕文件的保存（更新状态为 ready，创建字幕资源记录）
-            const result = await window.YUA.sherpa.checkPendingRecording({ resourceId });
-            console.log('[ASR] checkPendingRecording 结果:', result);
-
-            if (result.success && result.filePath) {
-              console.log('[ASR] 未完成的录音已恢复，资源ID:', resourceId, '文件路径:', result.filePath);
-            } else {
-              console.log('[ASR] 资源不存在或文件为空，error:', result.error);
-            }
+            await window.YUA.sherpa.checkPendingRecording({ resourceId });
 
             // 清除 localStorage 中的录音记录
             localStorage.removeItem('asr-current-recording');
-            console.log('[ASR] 已清除 localStorage 中的录音记录');
           }
         } catch (error) {
           console.error('[ASR] 检查未完成录音失败:', error);
@@ -110,7 +101,7 @@ const ASRPage: React.FC = () => {
           localStorage.removeItem('asr-current-recording');
         }
       } catch (error) {
-        console.error('获取配置参数失败:', error);
+        console.error('[ASR] 获取配置参数失败:', error);
       }
     })();
     return () => {
@@ -169,7 +160,7 @@ const ASRPage: React.FC = () => {
       setPreviewRecording(null);
       setPreviewSegments([]);
     } catch (error) {
-      console.error('继续录音失败:', error);
+      console.error('[ASR] 继续录音失败:', error);
     }
   }, [previewRecording, resumeRecording]);
 
@@ -188,9 +179,7 @@ const ASRPage: React.FC = () => {
     try {
       // 第一步：如果正在录音，先停止录音（这会同时关闭音频和字幕写入流）
       if (isRecording) {
-        console.log('[ASR] 正在停止录音...');
         await stopRecording();
-        console.log('[ASR] 录音已停止，音频和字幕流已关闭');
       }
 
       // 第二步：关闭 WebSocket 连接
@@ -210,7 +199,7 @@ const ASRPage: React.FC = () => {
       // 第五步：关闭窗口
       window.YUA.window['window:close:self']();
     } catch (error) {
-      console.error('关闭录音窗口失败:', error);
+      console.error('[ASR] 关闭录音窗口失败:', error);
       setIsLoading(false);
       pendingCloseRef.current = false;
     }
@@ -263,11 +252,9 @@ const ASRPage: React.FC = () => {
           targetHeight = baseHeight;
         }
 
-        console.log('调整窗口大小:', { targetWidth, targetHeight, isSubtitleMode, showLeftPanel, showRightPanel });
-
         await window.YUA.window['window:size:set']('asr', targetWidth, targetHeight);
       } catch (error) {
-        console.error('调整窗口大小失败:', error);
+        console.error('[ASR] 调整窗口大小失败:', error);
       }
     };
 
@@ -386,9 +373,6 @@ const ASRPage: React.FC = () => {
                           size="icon"
                           className="w-8 h-8 rounded-full no-drag"
                           onClick={() => {
-                            console.log('[ASR] 录音按钮被点击');
-                            console.log('[ASR] isASRRunning:', isASRRunning);
-                            console.log('[ASR] isLoading:', isLoading);
                             startRecording();
                           }}
                           disabled={!isASRRunning || isLoading}
