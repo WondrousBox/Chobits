@@ -1,18 +1,20 @@
-import type { SpritePlayCommand } from '@packages/sprite-core/types';
 import { useEffect, useRef, useState } from 'react';
 
-import { destroyLive2DRuntime, initLive2DRuntime } from '../live2d/Live2DRuntime';
-import { loadLive2DConfig, resolveTriggerMapping, type Live2DConfig } from '../live2d/live2d-config';
-import { useSpriteState } from '../context/hooks';
 import { getCurrentRMS } from '@/lib/audio/lip-sync-source';
-import { LAppLive2DManager } from '@/live2d-sdk/src/lapplive2dmanager';
 import * as LAppDefine from '@/live2d-sdk/src/lappdefine';
+import { LAppLive2DManager } from '@/live2d-sdk/src/lapplive2dmanager';
+
+import { useSpriteState } from '../context/hooks';
+import { type Live2DConfig, loadLive2DConfig, resolveTriggerMapping } from '../live2d/live2d-config';
+import { destroyLive2DRuntime, initLive2DRuntime } from '../live2d/Live2DRuntime';
 
 const CANVAS_ID = 'live2d-assistant-canvas';
 const MODEL_BASE_URL = 'res://local/sprites/live2d/';
+const MODEL_ROOT_DIR = 'mao_pro';
 const MODEL_DIR = 'mao_pro/runtime';
 const MODEL_FILE = 'mao_pro';
-const MODEL_DIR_URL = `${MODEL_BASE_URL}${MODEL_DIR}/`;
+// live2d.json 放在模型根目录（与 index.json 同级），而不是 runtime/ 子目录
+const MODEL_ROOT_URL = `${MODEL_BASE_URL}${MODEL_ROOT_DIR}/`;
 
 /** 当前正在播放的 live2d 动画记录，用于 loop 重播与完成上报 */
 interface ActiveLive2DPlayback {
@@ -41,7 +43,7 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
 
     const boot = async (): Promise<void> => {
       try {
-        const loadedConfig = await loadLive2DConfig(MODEL_DIR_URL);
+        const loadedConfig = await loadLive2DConfig(MODEL_ROOT_URL);
         if (!mounted) return;
         setConfig(loadedConfig);
 
@@ -255,11 +257,11 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
     }
   };
 
-  // walkDirection 翻转
+  // live2d 模式下画布尺寸以 live2d.json 配置为准（与 setAssistantSize 同源），外部传入的 width/height 仅作加载前兜底
   const shouldFlip = walkDirection === 'right';
 
-  const w = width ?? config?.canvas.width ?? 300;
-  const h = height ?? config?.canvas.height ?? 400;
+  const w = config?.canvas.width ?? width ?? 300;
+  const h = config?.canvas.height ?? height ?? 400;
 
   return (
     <div

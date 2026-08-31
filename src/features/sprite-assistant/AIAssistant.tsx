@@ -12,6 +12,7 @@ import React, { useEffect, useRef } from 'react';
 import Dropzone from '@/components/common/Dropzone';
 import { ensureChatApiConfigGoal } from '@/lib/chat-api-config-guide';
 
+import { ASSISTANT_RENDERER_MODE } from './constants';
 import { useSpriteState } from './context/hooks';
 import { useDragCollector } from './hooks/useDragCollector';
 import { useFileDropCollector } from './hooks/useFileDropCollector';
@@ -78,8 +79,9 @@ const AIAssistantInner: React.FC = () => {
   }, [ready, width, height, effectivePadding]);
 
   // 当动画切换、尺寸或气泡模式变化时，同步到主进程调整主窗口尺寸。
+  // live2d 渲染模式下窗口尺寸由 Live2DSprite 按 live2d.json 画布配置统一管理，此处跳过以避免互相覆盖。
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || ASSISTANT_RENDERER_MODE === 'live2d') return;
     const playback = currentAnimation?.playback;
     const targetWidth = playback?.width ?? width;
     const targetHeight = playback?.height ?? height;
