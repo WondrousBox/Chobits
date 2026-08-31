@@ -28,44 +28,7 @@ export interface AppWindowSummary {
 
 const SETTINGS_CATEGORIES = new Set(['preferences', 'workspace', 'ai', 'user-profile', 'prompt', 'glossary', 'selected-text-learning', 'plugins', 'shortcuts', 'proxy']);
 const CHAT_AGENT_IDS = new Set(['assistant', 'chat', 'coder', 'assistant-skills']);
-const CJK_SEARCH_TERMS = [
-  '打开物品栏',
-  '打开背包',
-  '打开资源库',
-  '预览资源',
-  '打开资源',
-  '查看资源',
-  '播放资源',
-  '打开文件',
-  '预览文件',
-  '查看文件',
-  '打开图片',
-  '打开视频',
-  '打开音频',
-  '播放视频',
-  '播放音频',
-  '物品栏',
-  '背包',
-  '资源库',
-  '设置',
-  '资源',
-  '预览',
-  '查看',
-  '播放',
-  '打开',
-  '文件',
-  '视频',
-  '图片',
-  '音频',
-  '聊天',
-  '助手',
-  '插件',
-  '项目',
-  '项目中心',
-  '项目跟踪',
-  '窗口',
-  '动画'
-].sort((a, b) => b.length - a.length);
+const CJK_SEARCH_TERMS = ['设置', '打开', '聊天', '助手', '插件', '窗口', '动画'].sort((a, b) => b.length - a.length);
 
 function isRecord(value: unknown): value is Payload {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -157,21 +120,6 @@ function sanitizeChatPayload(payload: unknown): Payload | undefined {
   return emptyToUndefined(next);
 }
 
-function sanitizeSelectedTextExplainPayload(payload: unknown): Payload | undefined {
-  if (!isRecord(payload)) return undefined;
-  const next: Payload = {};
-  pickString(payload, next, 'text', { maxLength: 4000, trim: false });
-  const trigger = readString(payload, 'trigger', { maxLength: 32 });
-  if (trigger) next.trigger = trigger;
-  return emptyToUndefined(next);
-}
-
-function sanitizeResourcePreviewPayload(payload: unknown): Payload | undefined {
-  if (!isRecord(payload)) return undefined;
-  const resourceId = readString(payload, 'resourceId', { maxLength: 160 });
-  return resourceId ? { resourceId } : undefined;
-}
-
 const chatPayloadFields: AppWindowPayloadField[] = [
   { name: 'initialMessage', type: 'string', description: '打开后立即发送的初始消息' },
   { name: 'agentId', type: 'assistant | chat | coder | assistant-skills', description: '目标对话角色' },
@@ -196,18 +144,6 @@ export const APP_WINDOW_TOOL_DIRECTORY: AppWindowToolEntry[] = [
     sanitizePayload: sanitizeSettingsPayload
   },
   {
-    key: 'resources',
-    title: '资源库',
-    description: '打开资源管理窗口。适用于用户想浏览、查找、管理资源库时。',
-    aliases: ['资源', '资源库', '文件库', '打开资源库', '浏览资源', '管理资源', 'resources']
-  },
-  {
-    key: 'inventory',
-    title: '背包',
-    description: '打开游戏化物品栏窗口，以纯网格方式浏览和管理资源库内容。',
-    aliases: ['背包', '物品栏', '道具栏', '打开背包', '打开物品栏', 'inventory']
-  },
-  {
     key: 'chat',
     title: '聊天窗口',
     description: '打开独立聊天窗口，可带一条初始消息。',
@@ -224,17 +160,6 @@ export const APP_WINDOW_TOOL_DIRECTORY: AppWindowToolEntry[] = [
     sanitizePayload: sanitizeChatPayload
   },
   {
-    key: 'selectedTextExplain',
-    title: 'Selected text explain',
-    description: 'Open the lightweight selected-text English explanation floating window.',
-    aliases: ['selected text explain', 'selection explain', 'selected text translation', '划词解释', '划词翻译'],
-    payloadFields: [
-      { name: 'text', type: 'string', description: 'Selected English text to explain', required: true },
-      { name: 'trigger', type: 'string', description: 'Trigger source' }
-    ],
-    sanitizePayload: sanitizeSelectedTextExplainPayload
-  },
-  {
     key: 'assistant',
     title: '助手窗口',
     description: '打开完整助手输入窗口。',
@@ -249,44 +174,6 @@ export const APP_WINDOW_TOOL_DIRECTORY: AppWindowToolEntry[] = [
     aliases: ['迷你助手', '迷你输入框', 'assistant mini'],
     payloadFields: chatPayloadFields,
     sanitizePayload: sanitizeChatPayload
-  },
-  {
-    key: 'pluginManager',
-    title: '插件管理器',
-    description: '打开插件管理窗口。',
-    aliases: ['插件管理器', '插件管理', 'plugin manager']
-  },
-  {
-    key: 'pluginDownload',
-    title: '插件下载',
-    description: '打开插件下载窗口。',
-    aliases: ['插件下载', '下载插件', 'plugin download']
-  },
-  {
-    key: 'workspaceWizard',
-    title: '工作空间向导',
-    description: '打开工作空间创建和选择向导。',
-    aliases: ['工作空间向导', '创建工作空间', 'workspace wizard']
-  },
-  {
-    key: 'questList',
-    title: '任务列表',
-    description: '打开新手引导、奖励和任务进度窗口。',
-    aliases: ['任务', '任务列表', '新手任务', '新手引导任务', 'quest list']
-  },
-  {
-    key: 'resourcePreview',
-    title: '资源预览',
-    description: '打开单个资源的预览窗口。适用于用户明确要求打开、查看、预览、播放某个具体资源时，可传 resourceId。',
-    aliases: ['资源预览', '预览资源', '打开资源', '查看资源', '播放资源', '打开文件', '查看文件', '预览文件', '打开图片', '打开视频', '打开音频', 'resource preview'],
-    payloadFields: [{ name: 'resourceId', type: 'string', description: '要预览的资源 ID' }],
-    sanitizePayload: sanitizeResourcePreviewPayload
-  },
-  {
-    key: 'tagger',
-    title: '标签工具',
-    description: '打开资源标签/分类工具。',
-    aliases: ['标签', '打标签', '分类', 'tagger']
   },
   {
     key: 'aiProviderConfig',
@@ -331,24 +218,6 @@ export const APP_WINDOW_TOOL_DIRECTORY: AppWindowToolEntry[] = [
     title: '语音合成',
     description: '打开 TTS 语音合成窗口。',
     aliases: ['语音合成', '朗读', 'tts']
-  },
-  {
-    key: 'webRecorder',
-    title: '网页录制',
-    description: '打开网页录制悬浮工具。',
-    aliases: ['网页录制', '录屏', 'web recorder']
-  },
-  {
-    key: 'memoryGraph',
-    title: '记忆图谱',
-    description: '打开长期记忆图谱窗口。',
-    aliases: ['记忆图谱', '记忆', 'memory graph']
-  },
-  {
-    key: 'projectTracking',
-    title: '项目中心',
-    description: '打开项目跟踪中心，查看跨会话项目、项目快照、时间线、里程碑和关联对话。',
-    aliases: ['项目中心', '项目跟踪', '项目记忆', '项目管理', 'project tracking']
   },
   {
     key: 'characterPackEditor',

@@ -14,7 +14,7 @@ const appWindowParameters = Type.Object({
   action: Type.Union([Type.Literal('list'), Type.Literal('search'), Type.Literal('open')], {
     description: 'list=列出允许 AI 打开的应用窗口, search=按打开/预览/查看等意图搜索窗口能力, open=打开指定窗口'
   }),
-  query: Type.Optional(Type.String({ description: 'search 时的窗口关键词或用户动作，例如 设置、打开资源库、预览资源、查看文件、播放视频、聊天、窗口动画。' })),
+  query: Type.Optional(Type.String({ description: 'search 时的窗口关键词或用户动作，例如 设置、AI 设置、聊天、助手、语音识别、窗口动画。' })),
   windowKey: Type.Optional(Type.String({ description: 'open 时使用的窗口 key，必须来自 list/search 返回结果。' })),
   payload: Type.Optional(
     Type.Record(Type.String(), Type.Any(), {

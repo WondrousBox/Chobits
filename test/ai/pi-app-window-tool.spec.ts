@@ -48,7 +48,7 @@ describe('appWindowTool', () => {
     const results = searchToolbox('打开设置');
     expect(results.some((skill) => skill.name === '应用窗口' && skill.tools.includes('appWindowTool'))).toBe(true);
 
-    const previewResults = searchToolbox('预览资源');
+    const previewResults = searchToolbox('窗口动画');
     expect(previewResults.some((skill) => skill.tools.includes('appWindowTool'))).toBe(true);
     expect(previewResults.some((skill) => skill.name === '应用窗口' && skill.tools.includes('appWindowTool'))).toBe(true);
   });
@@ -65,7 +65,7 @@ describe('appWindowTool', () => {
     expect(details.windows).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ key: 'settings', title: '设置' }),
-        expect.objectContaining({ key: 'resources', title: '资源库' }),
+        expect.objectContaining({ key: 'chat', title: '聊天窗口' }),
         expect.objectContaining({ key: 'assistantMini', title: '迷你助手输入框' })
       ])
     );
@@ -82,10 +82,10 @@ describe('appWindowTool', () => {
     expect(details.success).toBe(true);
     expect(details.results).toEqual(expect.arrayContaining([expect.objectContaining({ key: 'settings' })]));
 
-    const previewResult = await tool.execute('call-app-window-search-preview', { action: 'search', query: '打开这个视频资源' });
+    const previewResult = await tool.execute('call-app-window-search-preview', { action: 'search', query: '打开窗口动画编辑器' });
     const previewDetails = previewResult.details as any;
     expect(previewDetails.success).toBe(true);
-    expect(previewDetails.results).toEqual(expect.arrayContaining([expect.objectContaining({ key: 'resourcePreview' })]));
+    expect(previewDetails.results).toEqual(expect.arrayContaining([expect.objectContaining({ key: 'windowAnimationEditor' })]));
   });
 
   it('opens an allowlisted window with sanitized payload', async () => {

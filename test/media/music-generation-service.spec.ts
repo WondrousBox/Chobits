@@ -4,12 +4,11 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { PiMusicGenerationService } from '../../packages/ai/runtime/pi/music-generation-service';
 import { PiAudioArtifactService } from '../../packages/ai/runtime/pi/audio-artifact-service';
 
 const tempDirs: string[] = [];
 
-describe('PiMusicGenerationService', () => {
+describe('PiAudioArtifactService', () => {
   afterEach(async () => {
     await Promise.all(tempDirs.splice(0).map((dir) => fs.rm(dir, { force: true, recursive: true })));
   });
@@ -18,7 +17,7 @@ describe('PiMusicGenerationService', () => {
     const outputDir = await fs.mkdtemp(path.join(os.tmpdir(), 'chobits-music-generation-'));
     tempDirs.push(outputDir);
 
-    const response = await new PiMusicGenerationService().materializeMusicResponse(
+    const response = await new PiAudioArtifactService().materializeMusicResponse(
       {
         artifacts: [
           {

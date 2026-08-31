@@ -33,14 +33,6 @@ const mockedAppEvent = vi.hoisted(
       SPRITE_NETWORK_TIMEOUT: 'SPRITE_NETWORK_TIMEOUT',
       SPRITE_MEDIA_PROCESS_START: 'SPRITE_MEDIA_PROCESS_START',
       SPRITE_MEDIA_PROCESS_COMPLETE: 'SPRITE_MEDIA_PROCESS_COMPLETE',
-      SPRITE_RSS_REFRESH: 'SPRITE_RSS_REFRESH',
-      SPRITE_RSS_NEW_CONTENT: 'SPRITE_RSS_NEW_CONTENT',
-      SPRITE_TRASH_DELETE: 'SPRITE_TRASH_DELETE',
-      SPRITE_TRASH_RESTORE: 'SPRITE_TRASH_RESTORE',
-      MEMORY_EXTRACTION_STARTED: 'MEMORY_EXTRACTION_STARTED',
-      MEMORY_EXTRACTION_PROGRESS: 'MEMORY_EXTRACTION_PROGRESS',
-      MEMORY_EXTRACTION_COMPLETED: 'MEMORY_EXTRACTION_COMPLETED',
-      MEMORY_EXTRACTION_FAILED: 'MEMORY_EXTRACTION_FAILED',
       USER_PERSONA_UPDATE_STARTED: 'USER_PERSONA_UPDATE_STARTED',
       USER_PERSONA_UPDATE_COMPLETED: 'USER_PERSONA_UPDATE_COMPLETED',
       USER_PERSONA_UPDATE_FAILED: 'USER_PERSONA_UPDATE_FAILED',
@@ -139,8 +131,6 @@ describe('sprite event listener', () => {
     eventHarness.emit(AppEvent.SPRITE_WORKFLOW_FAIL, { error: 'failed' });
     eventHarness.emit(AppEvent.SPRITE_RESOURCE_IMPORT_START, { message: '开始导入' });
     eventHarness.emit(AppEvent.SPRITE_RESOURCE_IMPORT_ERROR, { error: 'import failed' });
-    eventHarness.emit(AppEvent.MEMORY_EXTRACTION_COMPLETED, { message: '记住啦' });
-    eventHarness.emit(AppEvent.MEMORY_EXTRACTION_FAILED, { error: 'memory failed' });
     eventHarness.emit(AppEvent.USER_PERSONA_UPDATE_COMPLETED, { message: '画像更新完成' });
     eventHarness.emit(AppEvent.USER_PERSONA_UPDATE_FAILED, { error: 'persona failed' });
 
@@ -150,8 +140,6 @@ describe('sprite event listener', () => {
       ['processing', { durationMs: 1500, silent: true }],
       ['failure', { durationMs: 1500, silent: true }],
       ['loading', { durationMs: 1500, silent: true }],
-      ['error', { durationMs: 1500, silent: true }],
-      ['write', { silent: true }],
       ['error', { durationMs: 1500, silent: true }],
       ['celebrate', { durationMs: 1500, silent: true }],
       ['error', { durationMs: 1500, silent: true }]
