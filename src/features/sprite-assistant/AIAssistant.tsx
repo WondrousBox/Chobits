@@ -21,6 +21,7 @@ import { Renderer } from './renderers';
 import { useSpriteSpeak } from './speak/useSpriteSpeak';
 import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
 import StatusIndicator from './ui/StatusIndicator';
+import { alignMainWindowToBottomRight } from './utils/positioning';
 
 const showBlock = false; // 开发时显示
 const CLICK_INTERACTION_DEDUP_MS = 300;
@@ -56,20 +57,18 @@ const AIAssistantInner: React.FC = () => {
   }, []);
 
   // 首次挂载：初始定位窗口
+  // live2d 渲染模式下窗口尺寸由 Live2DSprite 按 live2d.json 异步校正，右下角对齐也在那边完成，此处跳过
   const isInitialMountRef = useRef(true);
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || ASSISTANT_RENDERER_MODE === 'live2d') return;
     const positionWindow = async (): Promise<void> => {
       try {
-        const screenSize = await window.YUA.window['screen:size:get']();
         const winWidth = width + effectivePadding * 2;
         const winHeight = height + effectivePadding * 2;
 
         if (isInitialMountRef.current) {
           isInitialMountRef.current = false;
-          const winX = Math.max(0, screenSize.width - winWidth - 20);
-          const winY = Math.max(0, screenSize.height - winHeight - 40);
-          await window.YUA.window['window:move']({ x: winX, y: winY });
+          await alignMainWindowToBottomRight(winWidth, winHeight);
         }
       } catch (error) {
         console.error('Failed to handle window position:', error);

@@ -306,7 +306,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   const mgr = SpriteManager.init({
     win: win as any,
     dataDir: app.getPath('userData'),
-    getScreenSize: () => screen.getPrimaryDisplay().workAreaSize,
+    getScreenSize: () => (win.isDestroyed() ? screen.getPrimaryDisplay() : screen.getDisplayMatching(win.getBounds())).workArea,
     appName: 'Chobits',
     spontaneousUtteranceExecutor: deps.spontaneousUtteranceExecutor,
     speechSynthesisExecutor: deps.speechSynthesisExecutor,
@@ -345,7 +345,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   // 初始化 WindowController 并注入
   const windowCtrl = new WindowController({
     getWindow: () => (win.isDestroyed() ? null : (win as any)),
-    getScreenSize: () => screen.getPrimaryDisplay().workAreaSize,
+    getScreenSize: () => (win.isDestroyed() ? screen.getPrimaryDisplay() : screen.getDisplayMatching(win.getBounds())).workArea,
     getCursorScreenPoint: () => screen.getCursorScreenPoint(),
     getPadding: () => mgr.getEffectivePadding(),
     getSpriteSize: () => {

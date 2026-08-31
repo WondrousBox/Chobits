@@ -104,8 +104,8 @@ export interface SpriteManagerOptions {
   win: SpriteWindow;
   /** 用户数据目录（用于持久化），通常为 app.getPath('userData') */
   dataDir: string;
-  /** 获取主屏幕工作区尺寸 */
-  getScreenSize: () => { width: number; height: number };
+  /** 获取精灵窗口所在屏幕的工作区（含原点 x/y） */
+  getScreenSize: () => { width: number; height: number; x?: number; y?: number };
   /** 应用名称 */
   appName?: string;
   /** AI 自发说话执行器（可选） */

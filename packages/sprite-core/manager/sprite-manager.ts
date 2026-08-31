@@ -224,7 +224,7 @@ export class SpriteManager {
 
   // Electron 依赖
   private win: SpriteWindow;
-  private getScreenSize: () => { width: number; height: number };
+  private getScreenSize: () => { width: number; height: number; x?: number; y?: number };
   private spontaneousUtteranceExecutor?: SpriteSpontaneousUtteranceExecutor;
   private activePersonaStateId = 'default';
   private activePersonaIdentity: { name: string; description?: string };
@@ -2746,16 +2746,18 @@ export class SpriteManager {
     }
 
     const screen = this.getScreenSize();
+    const originX = screen.x ?? 0;
+    const originY = screen.y ?? 0;
     const { width, height } = this.getSpriteConfig();
     const padding = this.getEffectivePadding();
     const winWidth = width + padding * 2;
     const winHeight = height + padding * 2;
 
     if (target === 'center') {
-      return [Math.max(0, (screen.width - winWidth) / 2), Math.max(0, (screen.height - winHeight) / 2)];
+      return [Math.max(originX, originX + (screen.width - winWidth) / 2), Math.max(originY, originY + (screen.height - winHeight) / 2)];
     }
 
-    return [Math.max(0, screen.width - winWidth - 20), Math.max(0, screen.height - winHeight - 40)];
+    return [Math.max(originX, originX + screen.width - winWidth - 20), Math.max(originY, originY + screen.height - winHeight - 40)];
   }
 
   private resolvePurposeWindowWalkTarget(target: Extract<Extract<SpriteRoutineStep, { type: 'walkTo' }>['target'], { window: string }>): [number, number] {
@@ -2765,14 +2767,16 @@ export class SpriteManager {
     }
 
     const screen = this.getScreenSize();
+    const originX = screen.x ?? 0;
+    const originY = screen.y ?? 0;
     const { width, height } = this.getSpriteConfig();
     const padding = this.getEffectivePadding();
     const winWidth = width + padding * 2;
     const winHeight = height + padding * 2;
     const offset = Math.max(0, target.offset ?? 16);
     const placement = target.placement ?? 'right';
-    const clampX = (x: number): number => Math.max(0, Math.min(Math.max(0, screen.width - winWidth), x));
-    const clampY = (y: number): number => Math.max(0, Math.min(Math.max(0, screen.height - winHeight), y));
+    const clampX = (x: number): number => Math.max(originX, Math.min(Math.max(originX, originX + screen.width - winWidth), x));
+    const clampY = (y: number): number => Math.max(originY, Math.min(Math.max(originY, originY + screen.height - winHeight), y));
 
     switch (placement) {
       case 'left':

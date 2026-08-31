@@ -3,6 +3,9 @@ import type { SpriteMovementDirection } from './types';
 export interface WindowControllerViewport {
   screenWidth: number;
   screenHeight: number;
+  /** 工作区原点（多屏或 macOS 菜单栏/Dock 时非 0），缺省按 0 处理 */
+  screenX?: number;
+  screenY?: number;
   spriteWidth: number;
   spriteHeight: number;
   padding: number;
@@ -56,11 +59,13 @@ interface WindowControllerRect {
 }
 
 export function getWindowClampBounds(viewport: WindowControllerViewport): WindowControllerClampBounds {
+  const originX = viewport.screenX ?? 0;
+  const originY = viewport.screenY ?? 0;
   return {
-    minX: -viewport.padding,
-    maxX: viewport.screenWidth - viewport.spriteWidth - viewport.padding,
-    minY: -viewport.padding,
-    maxY: viewport.screenHeight - viewport.spriteHeight - viewport.padding
+    minX: originX - viewport.padding,
+    maxX: originX + viewport.screenWidth - viewport.spriteWidth - viewport.padding,
+    minY: originY - viewport.padding,
+    maxY: originY + viewport.screenHeight - viewport.spriteHeight - viewport.padding
   };
 }
 

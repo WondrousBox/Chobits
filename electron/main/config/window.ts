@@ -50,7 +50,8 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     followMain: true,
     followerPreferMode: 'overlap-center',
     enableOverlapTransparency: true,
-    forceCenterAlignment: true,
+    // forceCenterAlignment 为 true 时 overlap-center 会跳过 workArea 钳制（精灵贴右下角时菜单越屏），保持 false 让居中结果再钳回屏幕内
+    forceCenterAlignment: false,
     suspendHoverMonitorOnShow: true,
     parent: 'main',
     // closeOnBlur: true, // 移除，改为在页面中处理，以便播放退出动画

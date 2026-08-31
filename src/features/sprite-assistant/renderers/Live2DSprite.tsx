@@ -1,3 +1,4 @@
+import { isBubbleWindowMode } from '@packages/sprite-core/types';
 import { useEffect, useRef, useState } from 'react';
 
 import { getCurrentRMS } from '@/lib/audio/lip-sync-source';
@@ -7,6 +8,7 @@ import { LAppLive2DManager } from '@/live2d-sdk/src/lapplive2dmanager';
 import { useSpriteState } from '../context/hooks';
 import { type Live2DConfig, loadLive2DConfig, resolveTriggerMapping } from '../live2d/live2d-config';
 import { destroyLive2DRuntime, initLive2DRuntime } from '../live2d/Live2DRuntime';
+import { alignMainWindowToBottomRight } from '../utils/positioning';
 
 const CANVAS_ID = 'live2d-assistant-canvas';
 const MODEL_BASE_URL = 'res://local/sprites/live2d/';
@@ -29,10 +31,17 @@ interface ActiveLive2DPlayback {
 export default function Live2DSprite({ width, height, walkDirection }: { width?: number; height?: number; walkDirection?: 'left' | 'right' | null }): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const { currentAnimation } = useSpriteState();
+  const { currentAnimation, spriteConfig } = useSpriteState();
   const [config, setConfig] = useState<Live2DConfig | null>(null);
   const [runtimeReady, setRuntimeReady] = useState(false);
   const activePlaybackRef = useRef<ActiveLive2DPlayback | null>(null);
+  // 右下角对齐只做一次（初始化后），避免动画切换时把用户拖走的窗口抢回来
+  const hasAlignedToBottomRightRef = useRef(false);
+  // boot effect 只跑一次，通过 ref 读取最新的气泡模式
+  const spriteConfigRef = useRef(spriteConfig);
+  useEffect(() => {
+    spriteConfigRef.current = spriteConfig;
+  }, [spriteConfig]);
 
   // 初始化运行时与配置
   useEffect(() => {
@@ -61,11 +70,18 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
         // 校正主窗口尺寸以匹配 Live2D 画布
         if (loadedConfig) {
           try {
-            await window.YUA.window.setAssistantSize({
+            // 独立窗口气泡模式下运行期 padding 强制为 0（与主进程 getEffectivePadding 口径一致）
+            const padding = isBubbleWindowMode(spriteConfigRef.current.bubbleMode) ? 0 : loadedConfig.canvas.padding;
+            const result = await window.YUA.window.setAssistantSize({
               width: loadedConfig.canvas.width,
               height: loadedConfig.canvas.height,
-              padding: loadedConfig.canvas.padding
+              padding
             });
+            // 主进程 setSize 以左上角为锚，会破坏更早的右下角定位，这里补齐一次
+            if (result?.success && !hasAlignedToBottomRightRef.current) {
+              hasAlignedToBottomRightRef.current = true;
+              await alignMainWindowToBottomRight(loadedConfig.canvas.width + padding * 2, loadedConfig.canvas.height + padding * 2);
+            }
           } catch (e) {
             console.warn('[Live2DSprite] setAssistantSize failed', e);
           }

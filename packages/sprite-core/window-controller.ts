@@ -10,7 +10,7 @@ const TICK_INTERVAL = 16;
 
 export interface WindowControllerOptions {
   getWindow: () => SpriteWindow | null;
-  getScreenSize: () => { width: number; height: number };
+  getScreenSize: () => { width: number; height: number; x?: number; y?: number };
   getCursorScreenPoint: () => { x: number; y: number };
   getPadding: () => number;
   getSpriteSize: () => { width: number; height: number };
@@ -232,6 +232,8 @@ export class WindowController {
     return {
       screenWidth: screen.width,
       screenHeight: screen.height,
+      screenX: screen.x ?? 0,
+      screenY: screen.y ?? 0,
       spriteWidth: sprite.width,
       spriteHeight: sprite.height,
       padding: this.opts.getPadding(),

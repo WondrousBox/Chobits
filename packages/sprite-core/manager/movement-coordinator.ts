@@ -25,7 +25,7 @@ const RESOLVABLE_DIRECTIONS = Object.keys(DIRECTION_VECTORS) as Array<keyof type
 export interface MovementCoordinatorDeps {
   canMove: () => boolean;
   canUseMovement: () => boolean;
-  getScreenSize: () => { width: number; height: number };
+  getScreenSize: () => { width: number; height: number; x?: number; y?: number };
   getPosition: () => [number, number];
   getSpriteConfig: () => SpriteConfig;
   getAvoidRegions?: () => WindowControllerAvoidRegion[];
@@ -242,11 +242,13 @@ export class MovementCoordinator {
     return { targetX: target.x, targetY: target.y };
   }
 
-  private getViewport(screen: { width: number; height: number }, config: SpriteSizeSnapshot): WindowControllerViewport {
+  private getViewport(screen: { width: number; height: number; x?: number; y?: number }, config: SpriteSizeSnapshot): WindowControllerViewport {
     const liveConfig = this.deps.getSpriteConfig();
     return {
       screenWidth: screen.width,
       screenHeight: screen.height,
+      screenX: screen.x ?? 0,
+      screenY: screen.y ?? 0,
       spriteWidth: config.width,
       spriteHeight: config.height,
       padding: resolveEffectivePadding(config.padding, liveConfig.bubbleMode),
