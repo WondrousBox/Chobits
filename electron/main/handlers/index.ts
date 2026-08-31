@@ -71,12 +71,12 @@ function getWindowAnimationAnchorOffset(
     case 'bottom-left':
       return { x: 0, y: size.height };
     case 'bottom':
-      return { x: size.width, y: size.height };
+      return { x: size.width / 2, y: size.height };
     case 'bottom-right':
       return { x: size.width, y: size.height };
     case 'center':
     default:
-      return { x: 0, y: size.height / 2 };
+      return { x: size.width / 2, y: size.height / 2 };
   }
 }
 
@@ -245,8 +245,6 @@ function resolveSpritePlaybackWindowBounds(current: WindowAnimationAdapterBounds
 }
 
 export async function initHandlers(win: BrowserWindow): Promise<void> {
-  console.log(process.versions);
-
   initWindowHandlers(win);
   // Load proxy settings before any handlers that trigger startup network requests.
   await initProxyHandlers(win);
