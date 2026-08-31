@@ -4,6 +4,7 @@ import {
   CHARACTER_MESSAGE_SPECS,
   CHARACTER_PROGRESS_KIND_LABEL_SPECS,
   CHARACTER_PROGRESS_MESSAGE_SPECS,
+  type CharacterMessageSpec,
   type CharacterPackEditorMessageField,
   type CharacterProgressKindLabelKey,
   type CharacterProgressMessageKey
@@ -291,7 +292,7 @@ export function SpritePackEditorContent({ editor, setEditor, className, extra }:
             <div className="text-xs text-muted-foreground">每行一条，会随机选一句。可使用 {'{workflowName}'}、{'{count}'}、{'{progress}'} 这类占位符。</div>
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {CHARACTER_MESSAGE_SPECS.map((spec) => renderMessageTextarea(spec.field, spec.label, 'placeholder' in spec ? spec.placeholder : undefined))}
+            {CHARACTER_MESSAGE_SPECS.map((spec) => renderMessageTextarea(spec.field, spec.label, (spec as CharacterMessageSpec).placeholder))}
           </div>
         </div>
 

@@ -13,19 +13,12 @@ import { getCharacterRoutineText, getCharacterSpriteEventText } from '../message
 import type { SpriteRealtimeSpeechScope } from '../speak/types';
 
 export interface SpriteEventPayload {
-  runId?: string;
-  workflowRunId?: string;
-  workflowId?: string;
-  message?: string;
-  progress?: number;
-  workflowName?: string;
   taskId?: string;
   resourceId?: string;
-  workspaceId?: string;
-  folderId?: string;
   count?: number;
   error?: string;
-  success?: boolean;
+  message?: string;
+  progress?: number;
   operationKind?: ProgressSpeechKind;
   providerId?: string;
   presetId?: string;
@@ -44,32 +37,6 @@ interface SpriteHandlerContext {
 }
 
 type SpriteHandler = (data?: SpriteEventPayload, context?: SpriteHandlerContext) => void;
-export type SpriteEventListenerRouteMode = 'auto' | 'trigger' | 'purpose';
-
-export interface SpriteEventListenerOptions {
-  workflow?: SpriteEventListenerRouteMode;
-  resourceImport?: SpriteEventListenerRouteMode;
-}
-
-interface ResolvedSpriteEventListenerOptions {
-  workflow: SpriteEventListenerRouteMode;
-  resourceImport: SpriteEventListenerRouteMode;
-}
-
-function resolveOptions(options?: SpriteEventListenerOptions): ResolvedSpriteEventListenerOptions {
-  return {
-    workflow: options?.workflow ?? 'purpose',
-    resourceImport: options?.resourceImport ?? 'purpose'
-  };
-}
-
-function getWorkflowRunId(data?: SpriteEventPayload): string | undefined {
-  return data?.workflowRunId ?? data?.runId;
-}
-
-function getResourceImportCorrelationId(data?: SpriteEventPayload): string | undefined {
-  return data?.resourceId ?? data?.folderId ?? data?.workspaceId;
-}
 
 function getProgressSpeechId(scope: string, id?: string): string {
   return `${scope}:${id || 'global'}`;
@@ -127,95 +94,12 @@ function shouldSuppressAiEventSpeech(mgr: SpriteManager, data?: SpriteEventPaylo
   return mgr.isRealtimeSpeechEnabled({ source: 'chat', scope });
 }
 
-function getActiveWorkflowWaitingRunId(mgr: SpriteManager): string | undefined {
-  const current = mgr.getPurposeSnapshot().current;
-  if (current?.kind !== 'workflow.waiting') {
-    return undefined;
-  }
-
-  const workflowRunId = current.context?.workflowRunId ?? current.context?.runId;
-  return typeof workflowRunId === 'string' && workflowRunId.trim() ? workflowRunId : undefined;
-}
-
-function isWorkflowWaitingPurposeHandling(mgr: SpriteManager, data?: SpriteEventPayload): boolean {
-  const current = mgr.getPurposeSnapshot().current;
-  if (current?.kind !== 'workflow.waiting') {
-    return false;
-  }
-
-  const activeRunId = getActiveWorkflowWaitingRunId(mgr);
-  const eventRunId = getWorkflowRunId(data);
-  if (!activeRunId) {
-    return true;
-  }
-  if (!eventRunId) {
-    return false;
-  }
-  return activeRunId === eventRunId;
-}
-
-function isResourceImportPurposeHandling(mgr: SpriteManager, data?: SpriteEventPayload): boolean {
-  const current = mgr.getPurposeSnapshot().current;
-  if (current?.kind !== 'resource.import.waiting') {
-    return false;
-  }
-
-  const activeCorrelationId = getResourceImportCorrelationId(current.context as SpriteEventPayload | undefined);
-  const eventCorrelationId = getResourceImportCorrelationId(data);
-  if (!activeCorrelationId) {
-    return true;
-  }
-  if (!eventCorrelationId) {
-    return false;
-  }
-  return activeCorrelationId === eventCorrelationId;
-}
-
-function startWorkflowWaitingPurpose(mgr: SpriteManager, data?: SpriteEventPayload): boolean {
-  const workflowRunId = getWorkflowRunId(data);
-  if (!workflowRunId) {
-    return false;
-  }
-
-  void mgr.startPurpose({
-    kind: 'workflow.waiting',
-    reason: data?.message || data?.workflowName || 'Workflow started',
-    source: 'app-event',
-    presetId: 'workflow.waiting',
-    priority: 65,
-    correlationId: workflowRunId,
-    coalesceKey: `workflow:${workflowRunId}`,
-    context: {
-      ...data,
-      runId: workflowRunId,
-      workflowRunId
-    }
-  });
-  return true;
-}
-
-function startResourceImportPurpose(mgr: SpriteManager, data?: SpriteEventPayload): boolean {
-  const correlationId = getResourceImportCorrelationId(data) ?? `resource-import:${Date.now()}`;
-  void mgr.startPurpose({
-    kind: 'resource.import.waiting',
-    reason: data?.message || 'Resource import started',
-    source: 'app-event',
-    presetId: 'resource.import.waiting',
-    priority: 65,
-    correlationId,
-    coalesceKey: `resource-import:${correlationId}`,
-    context: data ? { ...data } : { correlationId }
-  });
-  return true;
-}
-
 /**
  * 初始化精灵事件监听器
  *
  * 订阅业务模块发送的精灵触发事件，并调用 SpriteManager 触发动画
  */
-export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEventListenerOptions): () => void {
-  const routeMode = resolveOptions(options);
+export function initSpriteEventListener(mgr: SpriteManager): () => void {
   const handlers: Array<{ event: AppEvent; handler: SpriteHandler }> = [];
   let lastMiniMaxChatApiConfigEasterEggAt = 0;
   const progressSpeech = new ProgressSpeechAnnouncer({
@@ -273,156 +157,6 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
         return;
       }
       void mgr.speak(text, { bubbleDuration: MINIMAX_CHAT_API_CONFIG_EASTER_EGG_BUBBLE_MS }).catch(() => {});
-    }
-  });
-
-  // 工作流事件
-  handlers.push({
-    event: AppEvent.SPRITE_WORKFLOW_START,
-    handler: (data) => {
-      if (routeMode.workflow !== 'trigger' && isWorkflowWaitingPurposeHandling(mgr, data)) {
-        return;
-      }
-      if (routeMode.workflow === 'purpose' && startWorkflowWaitingPurpose(mgr, data)) {
-        return;
-      }
-      progressSpeech.start({
-        id: getProgressSpeechId('workflow', getWorkflowRunId(data)),
-        kind: 'workflow',
-        progress: data?.progress ?? 0,
-        message: data?.message || data?.workflowName
-      });
-      mgr.showBusy(data?.message || data?.workflowName || eventText('workflowStart', data), 0);
-      mgr.trigger('processing', { durationMs: 1500, silent: true });
-    }
-  });
-
-  handlers.push({
-    event: AppEvent.SPRITE_WORKFLOW_PROGRESS,
-    handler: (data) => {
-      if (routeMode.workflow !== 'trigger' && isWorkflowWaitingPurposeHandling(mgr, data)) {
-        return;
-      }
-      if (data?.progress !== undefined) {
-        progressSpeech.update({
-          id: getProgressSpeechId('workflow', getWorkflowRunId(data)),
-          kind: data.operationKind,
-          progress: data.progress,
-          message: data.message
-        });
-        mgr.updateBusy(data.progress, data.message);
-      }
-    }
-  });
-
-  handlers.push({
-    event: AppEvent.SPRITE_WORKFLOW_COMPLETE,
-    handler: (data) => {
-      if (routeMode.workflow !== 'trigger' && isWorkflowWaitingPurposeHandling(mgr, data)) {
-        return;
-      }
-      progressSpeech.complete({
-        id: getProgressSpeechId('workflow', getWorkflowRunId(data)),
-        kind: data?.operationKind,
-        message: data?.message || data?.workflowName
-      });
-      mgr.clearBusy();
-      mgr.showToast(data?.message || eventText('workflowComplete', data), { category: 'celebrate', duration: 2000, speak: false });
-      mgr.trigger('celebrate', { durationMs: 2000, silent: true });
-    }
-  });
-
-  handlers.push({
-    event: AppEvent.SPRITE_WORKFLOW_FAIL,
-    handler: (data) => {
-      if (routeMode.workflow !== 'trigger' && isWorkflowWaitingPurposeHandling(mgr, data)) {
-        return;
-      }
-      progressSpeech.reset(getProgressSpeechId('workflow', getWorkflowRunId(data)));
-      mgr.clearBusy();
-      mgr.showToast(data?.message || data?.error || eventText('workflowFail', data), { category: 'error', duration: 2000 });
-      mgr.trigger('failure', { durationMs: 1500, silent: true });
-    }
-  });
-
-  handlers.push({
-    event: AppEvent.SPRITE_WORKFLOW_CANCEL,
-    handler: (data) => {
-      if (routeMode.workflow !== 'trigger' && isWorkflowWaitingPurposeHandling(mgr, data)) {
-        return;
-      }
-      progressSpeech.reset(getProgressSpeechId('workflow', getWorkflowRunId(data)));
-      mgr.clearBusy();
-      mgr.showToast(eventText('workflowCancel', data), { category: 'info', duration: 1000 });
-    }
-  });
-
-  // 资源导入事件
-  handlers.push({
-    event: AppEvent.SPRITE_RESOURCE_IMPORT_START,
-    handler: (data) => {
-      if (routeMode.resourceImport !== 'trigger' && isResourceImportPurposeHandling(mgr, data)) {
-        return;
-      }
-      if (routeMode.resourceImport === 'purpose' && startResourceImportPurpose(mgr, data)) {
-        return;
-      }
-      progressSpeech.start({
-        id: getProgressSpeechId('import', getResourceImportCorrelationId(data)),
-        kind: 'import',
-        progress: data?.progress ?? 0,
-        message: data?.message
-      });
-      mgr.showBusy(data?.message || eventText('importStart', data), 0);
-      mgr.trigger('loading', { durationMs: 1500, silent: true });
-    }
-  });
-
-  handlers.push({
-    event: AppEvent.SPRITE_RESOURCE_IMPORT_PROGRESS,
-    handler: (data) => {
-      if (routeMode.resourceImport !== 'trigger' && isResourceImportPurposeHandling(mgr, data)) {
-        return;
-      }
-      if (data?.progress !== undefined) {
-        progressSpeech.update({
-          id: getProgressSpeechId('import', getResourceImportCorrelationId(data)),
-          kind: 'import',
-          progress: data.progress,
-          message: data.message
-        });
-        mgr.updateBusy(data.progress, data.message);
-      }
-    }
-  });
-
-  handlers.push({
-    event: AppEvent.SPRITE_RESOURCE_IMPORT_COMPLETE,
-    handler: (data) => {
-      if (routeMode.resourceImport !== 'trigger' && isResourceImportPurposeHandling(mgr, data)) {
-        return;
-      }
-      progressSpeech.complete({
-        id: getProgressSpeechId('import', getResourceImportCorrelationId(data)),
-        kind: 'import',
-        message: data?.message
-      });
-      mgr.clearBusy();
-      mgr.showToast(data?.message || eventText('importComplete', data), { category: 'success', duration: 1500, speak: false });
-      mgr.trigger('celebrate', { durationMs: 1500, silent: true });
-    }
-  });
-
-  handlers.push({
-    event: AppEvent.SPRITE_RESOURCE_IMPORT_ERROR,
-    handler: (data) => {
-      if (routeMode.resourceImport !== 'trigger' && isResourceImportPurposeHandling(mgr, data)) {
-        return;
-      }
-      progressSpeech.reset(getProgressSpeechId('import', getResourceImportCorrelationId(data)));
-      mgr.clearBusy();
-      mgr.showToast(data?.message || data?.error || eventText('importError', data), { category: 'error', duration: 2000 });
-      mgr.trigger('error', { durationMs: 1500, silent: true });
     }
   });
 
@@ -555,61 +289,6 @@ export function initSpriteEventListener(mgr: SpriteManager, options?: SpriteEven
     event: AppEvent.SPRITE_NETWORK_TIMEOUT,
     handler: (data) => {
       mgr.trigger('timeout', { message: data?.message });
-    }
-  });
-
-  // ===== 媒体处理事件 =====
-
-  handlers.push({
-    event: AppEvent.SPRITE_MEDIA_PROCESS_START,
-    handler: (data) => {
-      mgr.showBusy(data?.message || eventText('mediaProcessStart', data, '媒体处理中...'), 0);
-      mgr.trigger('processing', { silent: true });
-    }
-  });
-
-  handlers.push({
-    event: AppEvent.SPRITE_MEDIA_PROCESS_COMPLETE,
-    handler: (data) => {
-      mgr.clearBusy();
-      if (data?.success === false) {
-        mgr.trigger('error', { message: data?.message || eventText('mediaProcessFail', data, '媒体处理失败') });
-        return;
-      }
-      mgr.trigger('success', { message: data?.message || eventText('mediaProcessComplete', data, '媒体处理完成！') });
-    }
-  });
-
-  // ===== 用户画像更新事件 =====
-
-  handlers.push({
-    event: AppEvent.USER_PERSONA_UPDATE_STARTED,
-    handler: (data) => {
-      mgr.showToast(data?.message || eventText('personaUpdateStart', data), { category: 'processing' });
-      mgr.trigger('thinking', { durationMs: 2000, silent: true });
-    }
-  });
-
-  handlers.push({
-    event: AppEvent.USER_PERSONA_UPDATE_COMPLETED,
-    handler: (data) => {
-      mgr.showToast(data?.message || eventText('personaUpdateComplete', data), { category: 'success', duration: 2000 });
-      mgr.trigger('celebrate', { durationMs: 1500, silent: true });
-    }
-  });
-
-  handlers.push({
-    event: AppEvent.USER_PERSONA_UPDATE_FAILED,
-    handler: (data) => {
-      mgr.showToast(data?.message || data?.error || eventText('personaUpdateFail', data), { category: 'error', duration: 2000 });
-      mgr.trigger('error', { durationMs: 1500, silent: true });
-    }
-  });
-
-  handlers.push({
-    event: AppEvent.USER_PERSONA_UPDATE_SKIPPED,
-    handler: (data) => {
-      mgr.showToast(data?.message || eventText('personaUpdateSkipped', data), { category: 'info', duration: 1500, speak: false });
     }
   });
 

@@ -3,7 +3,6 @@ import {
   CHAT_API_CONFIGURED_GUIDE_GOAL,
   FIRST_CHAT_GUIDE_GOAL,
   FIRST_FILE_DROP_GUIDE_GOAL,
-  OPEN_RESOURCE_LIBRARY_GUIDE_GOAL,
   type SpriteRoutineGuideGoalDefinition,
   WORKSPACE_EXISTS_GUIDE_GOAL
 } from './guide-goals';
@@ -264,149 +263,6 @@ function getPurposeContextString(purpose: SpritePurpose, key: string): string | 
   return typeof value === 'string' && value.trim() ? value : undefined;
 }
 
-function createWorkflowWaitingSteps(purpose: SpritePurpose): SpriteRoutineStepInput[] {
-  const workflowRunId = getPurposeContextString(purpose, 'workflowRunId') ?? getPurposeContextString(purpose, 'runId');
-  const workflowName = getPurposeContextString(purpose, 'workflowName') ?? '工作流';
-  const match = workflowRunId ? { runId: workflowRunId } : undefined;
-  const ctx = {
-    purposeKind: purpose.kind,
-    workflowRunId,
-    workflowName
-  };
-  return [
-    { id: 'busy-start', type: 'showBusy', content: getCharacterRoutineText('workflow.waiting.busyStart', ctx, '正在处理：{workflowName}'), progress: 0 },
-    {
-      id: 'wait-workflow-terminal',
-      type: 'loopUntil',
-      source: 'app-event',
-      untilEvent: ['SPRITE_WORKFLOW_COMPLETE', 'SPRITE_WORKFLOW_FAIL', 'SPRITE_WORKFLOW_CANCEL'],
-      match,
-      maxDurationMs: 30 * 60 * 1000,
-      assignTo: 'workflowResult',
-      body: [
-        {
-          id: 'wait-workflow-progress',
-          type: 'waitForEvent',
-          source: 'app-event',
-          event: 'SPRITE_WORKFLOW_PROGRESS',
-          match,
-          timeoutMs: 2500,
-          assignTo: 'workflowProgress',
-          optional: true,
-          ignoreHistory: true
-        },
-        {
-          id: 'busy-progress',
-          type: 'updateBusy',
-          progressFrom: 'workflowProgress.payload.progress',
-          contentFrom: 'workflowProgress.payload.message'
-        },
-        { id: 'waiting-thinking', type: 'playAnimation', trigger: 'thinking', durationMs: 2400, waitFor: 'duration', silent: true },
-        { id: 'waiting-pause', type: 'wait', durationMs: 5000 },
-        {
-          id: 'waiting-speak',
-          type: 'speak',
-          text: getCharacterRoutineText('workflow.waiting.progressSpeak', ctx, '我还在等 {workflowName} 完成。'),
-          bubbleDuration: 2400,
-          cooldownKey: 'workflow.waiting.progress',
-          cooldownMs: 60_000
-        }
-      ]
-    },
-    { id: 'busy-clear', type: 'clearBusy' },
-    {
-      id: 'workflow-result-branch',
-      type: 'branch',
-      by: 'workflowResult.event.event',
-      cases: {
-        SPRITE_WORKFLOW_COMPLETE: [
-          { id: 'workflow-success', type: 'playAnimation', trigger: 'success', durationMs: 1500, waitFor: 'duration', silent: true },
-          { id: 'workflow-success-toast', type: 'showToast', content: getCharacterRoutineText('workflow.waiting.complete', ctx, '处理完成了。'), category: 'success', duration: 2200 }
-        ],
-        SPRITE_WORKFLOW_FAIL: [
-          { id: 'workflow-failure', type: 'playAnimation', trigger: 'failure', durationMs: 1500, waitFor: 'duration', silent: true },
-          { id: 'workflow-failure-toast', type: 'showToast', content: getCharacterRoutineText('workflow.waiting.fail', ctx, '处理失败了，我把状态收起来了。'), category: 'failure', duration: 2600 }
-        ],
-        SPRITE_WORKFLOW_CANCEL: [
-          { id: 'workflow-cancelled', type: 'playAnimation', trigger: 'confused', durationMs: 1200, waitFor: 'duration', silent: true },
-          { id: 'workflow-cancelled-toast', type: 'showToast', content: getCharacterRoutineText('workflow.waiting.cancel', ctx, '任务已经取消。'), category: 'cancellation', duration: 2200 }
-        ]
-      },
-      default: [{ id: 'workflow-default', type: 'playAnimation', trigger: 'success', durationMs: 1000, waitFor: 'duration', silent: true }]
-    },
-    { id: 'return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
-  ];
-}
-
-function createResourceImportWaitingSteps(purpose: SpritePurpose): SpriteRoutineStepInput[] {
-  const resourceId = getPurposeContextString(purpose, 'resourceId');
-  const workspaceId = getPurposeContextString(purpose, 'workspaceId');
-  const folderId = getPurposeContextString(purpose, 'folderId');
-  const match: Record<string, unknown> = {};
-  if (resourceId) match.resourceId = resourceId;
-  if (workspaceId) match.workspaceId = workspaceId;
-  if (folderId) match.folderId = folderId;
-  const effectiveMatch = Object.keys(match).length > 0 ? match : undefined;
-  const ctx = {
-    purposeKind: purpose.kind,
-    resourceId,
-    workspaceId,
-    folderId
-  };
-
-  return [
-    { id: 'busy-start', type: 'showBusy', content: getCharacterRoutineText('resource.import.waiting.busyStart', ctx, '正在导入资源'), progress: 0 },
-    {
-      id: 'wait-resource-terminal',
-      type: 'loopUntil',
-      source: 'app-event',
-      untilEvent: ['SPRITE_RESOURCE_IMPORT_COMPLETE', 'SPRITE_RESOURCE_IMPORT_ERROR'],
-      match: effectiveMatch,
-      maxDurationMs: 30 * 60 * 1000,
-      assignTo: 'resourceResult',
-      body: [
-        {
-          id: 'wait-resource-progress',
-          type: 'waitForEvent',
-          source: 'app-event',
-          event: 'SPRITE_RESOURCE_IMPORT_PROGRESS',
-          match: effectiveMatch,
-          timeoutMs: 2500,
-          assignTo: 'resourceProgress',
-          optional: true,
-          ignoreHistory: true
-        },
-        {
-          id: 'busy-progress',
-          type: 'updateBusy',
-          progressFrom: 'resourceProgress.payload.progress',
-          contentFrom: 'resourceProgress.payload.message'
-        },
-        { id: 'import-loading', type: 'playAnimation', trigger: 'loading', durationMs: 1800, waitFor: 'duration', silent: true },
-        { id: 'import-pause', type: 'wait', durationMs: 3500 }
-      ]
-    },
-    { id: 'busy-clear', type: 'clearBusy' },
-    {
-      id: 'resource-result-branch',
-      type: 'branch',
-      by: 'resourceResult.event.event',
-      cases: {
-        SPRITE_RESOURCE_IMPORT_COMPLETE: [
-          { id: 'resource-success', type: 'playAnimation', trigger: 'success', durationMs: 1400, waitFor: 'duration', silent: true },
-          { id: 'resource-success-toast', type: 'showToast', content: getCharacterRoutineText('resource.import.waiting.complete', ctx, '资源导入完成。'), category: 'success', duration: 1800 }
-        ],
-        SPRITE_RESOURCE_IMPORT_ERROR: [
-          { id: 'resource-error', type: 'playAnimation', trigger: 'error', durationMs: 1400, waitFor: 'duration', silent: true },
-          { id: 'resource-error-toast', type: 'showToast', content: getCharacterRoutineText('resource.import.waiting.error', ctx, '资源导入失败了。'), category: 'error', duration: 2200 }
-        ]
-      },
-      default: [{ id: 'resource-default', type: 'playAnimation', trigger: 'success', durationMs: 1000, waitFor: 'duration', silent: true }]
-    },
-    { id: 'return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
-  ];
-}
-
 function getDailyCareReminderTrigger(purpose: SpritePurpose): string {
   const routineKind = getPurposeContextString(purpose, 'routineKind');
   const severity = getPurposeContextString(purpose, 'severity');
@@ -438,8 +294,6 @@ const FIRST_FILE_DROP_HELP_COOLDOWN_MS = 60_000;
 const FIRST_FILE_DROP_PROMPT_CYCLE_MS = 6500;
 const FIRST_CHAT_WAIT_MS = 30 * 60 * 1000;
 const FIRST_CHAT_HELP_COOLDOWN_MS = 60_000;
-const OPEN_INVENTORY_NOTICE_ID = 'onboarding.resource.open-library.invite';
-const OPEN_INVENTORY_WAIT_MS = 5 * 60 * 1000;
 const CHAT_API_CONFIG_NOTICE_ID = 'chat.api-config-guide.invite';
 const CHAT_API_CONFIG_OPEN_SETTINGS_ACTION = 'open-ai-provider-settings';
 const CHAT_API_CONFIG_GUIDE_WAIT_MS = 30 * 60 * 1000;
@@ -652,7 +506,7 @@ function createWorkspaceCreateRoutineSteps(): SpriteRoutineStepInput[] {
  * 新手引导 — 引导用户把第一个文件拖到角色身上。
  *
  * 真实导入仍由 useFileDropCollector 触发统一的 file.drop routine 接管；
- * 这里负责展示任务引导、说明拖拽价值，并等待资源创建事件后给出祝贺反馈。
+ * 这里负责展示任务引导、说明拖拽价值，并等待拖放交互事件后给出祝贺反馈。
  */
 function createOnboardingFileDropRoutineSteps(): SpriteRoutineStepInput[] {
   return [
@@ -666,9 +520,9 @@ function createOnboardingFileDropRoutineSteps(): SpriteRoutineStepInput[] {
     {
       id: 'wait-first-file-drop',
       type: 'loopUntil',
-      source: 'app-event',
-      untilEvent: ['RESOURCE_CREATED', 'SPRITE_RESOURCE_IMPORT_COMPLETE'],
-      match: { purposeSource: 'sprite-drop' },
+      source: 'sprite-event-bus',
+      untilEvent: 'interact:file-drop',
+      ignoreHistory: true,
       maxDurationMs: FIRST_FILE_DROP_WAIT_MS,
       assignTo: 'firstFileDropResult',
       body: [
@@ -695,16 +549,7 @@ function createOnboardingFileDropRoutineSteps(): SpriteRoutineStepInput[] {
       type: 'branch',
       by: 'firstFileDropResult.event.event',
       cases: {
-        RESOURCE_CREATED: [
-          { id: 'first-file-drop-celebrate', type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
-          {
-            id: 'first-file-drop-done',
-            type: 'speak',
-            text: getCharacterRoutineText('onboarding.file.drop.done', undefined, '收到啦！已经放到背包。'),
-            bubbleDuration: 3600
-          }
-        ],
-        SPRITE_RESOURCE_IMPORT_COMPLETE: [
+        'interact:file-drop': [
           { id: 'first-file-drop-celebrate', type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
           {
             id: 'first-file-drop-done',
@@ -772,63 +617,6 @@ function createFirstChatRoutineSteps(): SpriteRoutineStepInput[] {
       bubbleDuration: 3800
     },
     { id: 'first-chat-return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
-  ];
-}
-
-/**
- * 新手引导 — 引导用户通过右键助手菜单打开背包。
- */
-function createOpenResourceLibraryRoutineSteps(): SpriteRoutineStepInput[] {
-  return [
-    { id: 'resource-menu-wave', type: 'playAnimation', trigger: 'wave', durationMs: 900, waitFor: 'duration', silent: true },
-    {
-      id: 'resource-menu-invite',
-      type: 'showNotice',
-      messageId: OPEN_INVENTORY_NOTICE_ID,
-      content: getCharacterRoutineText('onboarding.resource.open-library.invite', undefined, '右键点我，打开菜单里的背包。'),
-      level: 'info',
-      persistent: true,
-      speak: true
-    },
-    {
-      id: 'wait-context-menu-open',
-      type: 'waitForEvent',
-      source: 'sprite-event-bus',
-      event: 'interact:context-menu',
-      match: { open: true },
-      timeoutMs: OPEN_INVENTORY_WAIT_MS,
-      assignTo: 'contextMenuOpenEvent',
-      ignoreHistory: true
-    },
-    {
-      id: 'resource-menu-tip',
-      type: 'speak',
-      text: getCharacterRoutineText('onboarding.resource.open-library.menu-tip', undefined, '现在点菜单里的「背包」。'),
-      bubbleDuration: 3600
-    },
-    {
-      id: 'wait-inventory-open',
-      type: 'waitForEvent',
-      source: 'app-event',
-      event: 'ASSISTANT_MENU_ITEM_SELECTED',
-      match: {
-        itemId: 'inventory',
-        windowKey: 'inventory',
-        'payload.source': 'assistant-context-menu'
-      },
-      timeoutMs: OPEN_INVENTORY_WAIT_MS,
-      assignTo: 'inventoryOpenEvent',
-      ignoreHistory: true
-    },
-    { id: 'clear-resource-menu-notice', type: 'clearMessage', messageId: OPEN_INVENTORY_NOTICE_ID, messageType: 'notice' },
-    { id: 'resource-menu-celebrate', type: 'playAnimation', trigger: 'celebrate', durationMs: 1400, waitFor: 'duration', silent: true },
-    {
-      id: 'resource-menu-done',
-      type: 'speak',
-      text: getCharacterRoutineText('onboarding.resource.open-library.done', undefined, '打开啦！以后导入的文件都可以在背包里整理。'),
-      bubbleDuration: 3800
-    },
-    { id: 'return-corner', type: 'walkTo', target: 'corner', speed: 110, timeoutMs: 10000 }
   ];
 }
 
@@ -998,20 +786,6 @@ export const DEFAULT_SPRITE_ROUTINE_PRESETS: SpriteRoutinePresetDefinition[] = [
     steps: createRestReminderSteps
   },
   {
-    id: 'workflow.waiting',
-    title: '工作流等待',
-    purposeKind: 'workflow.waiting',
-    defaultPriority: 65,
-    steps: createWorkflowWaitingSteps
-  },
-  {
-    id: 'resource.import.waiting',
-    title: '资源导入等待',
-    purposeKind: 'resource.import.waiting',
-    defaultPriority: 65,
-    steps: createResourceImportWaitingSteps
-  },
-  {
     id: 'daily.care.reminder',
     title: '日常关怀提醒',
     purposeKind: 'daily.care.reminder',
@@ -1049,14 +823,6 @@ export const DEFAULT_SPRITE_ROUTINE_PRESETS: SpriteRoutinePresetDefinition[] = [
     defaultPriority: 68,
     goal: FIRST_FILE_DROP_GUIDE_GOAL,
     steps: createOnboardingFileDropRoutineSteps
-  },
-  {
-    id: 'onboarding.resource.open-library',
-    title: '新手引导：打开背包',
-    purposeKind: 'onboarding.resource.open-library',
-    defaultPriority: 66,
-    goal: OPEN_RESOURCE_LIBRARY_GUIDE_GOAL,
-    steps: createOpenResourceLibraryRoutineSteps
   }
 ];
 

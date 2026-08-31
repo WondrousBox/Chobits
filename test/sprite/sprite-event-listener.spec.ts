@@ -9,15 +9,6 @@ const mockedAppEvent = vi.hoisted(
       AI_PROVIDER_CONFIG_UPDATED: 'AI_PROVIDER_CONFIG_UPDATED',
       APP_WINDOW_CLOSED: 'APP_WINDOW_CLOSED',
       APP_WINDOW_OPENED: 'APP_WINDOW_OPENED',
-      SPRITE_WORKFLOW_START: 'SPRITE_WORKFLOW_START',
-      SPRITE_WORKFLOW_PROGRESS: 'SPRITE_WORKFLOW_PROGRESS',
-      SPRITE_WORKFLOW_COMPLETE: 'SPRITE_WORKFLOW_COMPLETE',
-      SPRITE_WORKFLOW_FAIL: 'SPRITE_WORKFLOW_FAIL',
-      SPRITE_WORKFLOW_CANCEL: 'SPRITE_WORKFLOW_CANCEL',
-      SPRITE_RESOURCE_IMPORT_START: 'SPRITE_RESOURCE_IMPORT_START',
-      SPRITE_RESOURCE_IMPORT_PROGRESS: 'SPRITE_RESOURCE_IMPORT_PROGRESS',
-      SPRITE_RESOURCE_IMPORT_COMPLETE: 'SPRITE_RESOURCE_IMPORT_COMPLETE',
-      SPRITE_RESOURCE_IMPORT_ERROR: 'SPRITE_RESOURCE_IMPORT_ERROR',
       SPRITE_DOWNLOAD_START: 'SPRITE_DOWNLOAD_START',
       SPRITE_DOWNLOAD_COMPLETE: 'SPRITE_DOWNLOAD_COMPLETE',
       SPRITE_DOWNLOAD_FAIL: 'SPRITE_DOWNLOAD_FAIL',
@@ -30,13 +21,7 @@ const mockedAppEvent = vi.hoisted(
       SPRITE_SYSTEM_BLUR: 'SPRITE_SYSTEM_BLUR',
       SPRITE_NETWORK_CONNECT: 'SPRITE_NETWORK_CONNECT',
       SPRITE_NETWORK_DISCONNECT: 'SPRITE_NETWORK_DISCONNECT',
-      SPRITE_NETWORK_TIMEOUT: 'SPRITE_NETWORK_TIMEOUT',
-      SPRITE_MEDIA_PROCESS_START: 'SPRITE_MEDIA_PROCESS_START',
-      SPRITE_MEDIA_PROCESS_COMPLETE: 'SPRITE_MEDIA_PROCESS_COMPLETE',
-      USER_PERSONA_UPDATE_STARTED: 'USER_PERSONA_UPDATE_STARTED',
-      USER_PERSONA_UPDATE_COMPLETED: 'USER_PERSONA_UPDATE_COMPLETED',
-      USER_PERSONA_UPDATE_FAILED: 'USER_PERSONA_UPDATE_FAILED',
-      USER_PERSONA_UPDATE_SKIPPED: 'USER_PERSONA_UPDATE_SKIPPED'
+      SPRITE_NETWORK_TIMEOUT: 'SPRITE_NETWORK_TIMEOUT'
     }) as const
 );
 
@@ -123,25 +108,13 @@ describe('sprite event listener', () => {
 
   it('routes business animation semantics through trigger() instead of playOnce()', () => {
     const mgr = createManagerStub();
-    const cleanup = initSpriteEventListener(mgr as any, { workflow: 'trigger', resourceImport: 'trigger' });
+    const cleanup = initSpriteEventListener(mgr as any);
 
     eventHarness.emit(AppEvent.SPRITE_AI_START, { message: '思考中...' });
     eventHarness.emit(AppEvent.SPRITE_AI_ERROR, { error: 'boom' });
-    eventHarness.emit(AppEvent.SPRITE_WORKFLOW_START, { workflowName: '整理文档' });
-    eventHarness.emit(AppEvent.SPRITE_WORKFLOW_FAIL, { error: 'failed' });
-    eventHarness.emit(AppEvent.SPRITE_RESOURCE_IMPORT_START, { message: '开始导入' });
-    eventHarness.emit(AppEvent.SPRITE_RESOURCE_IMPORT_ERROR, { error: 'import failed' });
-    eventHarness.emit(AppEvent.USER_PERSONA_UPDATE_COMPLETED, { message: '画像更新完成' });
-    eventHarness.emit(AppEvent.USER_PERSONA_UPDATE_FAILED, { error: 'persona failed' });
 
     expect(mgr.trigger.mock.calls).toEqual([
       ['thinking', { durationMs: 2000, silent: true }],
-      ['error', { durationMs: 1500, silent: true }],
-      ['processing', { durationMs: 1500, silent: true }],
-      ['failure', { durationMs: 1500, silent: true }],
-      ['loading', { durationMs: 1500, silent: true }],
-      ['error', { durationMs: 1500, silent: true }],
-      ['celebrate', { durationMs: 1500, silent: true }],
       ['error', { durationMs: 1500, silent: true }]
     ]);
     expect(mgr.playOnce).not.toHaveBeenCalled();
@@ -154,14 +127,8 @@ describe('sprite event listener', () => {
     const cleanup = initSpriteEventListener(mgr as any);
 
     eventHarness.emit(AppEvent.SPRITE_AI_COMPLETE, { message: '完成啦' });
-    eventHarness.emit(AppEvent.SPRITE_WORKFLOW_COMPLETE, { message: '工作流完成' });
-    eventHarness.emit(AppEvent.SPRITE_RESOURCE_IMPORT_COMPLETE, { message: '导入完成', count: 2 });
 
-    expect(mgr.trigger.mock.calls).toEqual([
-      ['celebrate', { durationMs: 1500, silent: true }],
-      ['celebrate', { durationMs: 2000, silent: true }],
-      ['celebrate', { durationMs: 1500, silent: true }]
-    ]);
+    expect(mgr.trigger.mock.calls).toEqual([['celebrate', { durationMs: 1500, silent: true }]]);
     expect(mgr.playOnce).not.toHaveBeenCalled();
 
     cleanup();
@@ -238,201 +205,6 @@ describe('sprite event listener', () => {
     });
 
     expect(mgr.speak).not.toHaveBeenCalled();
-
-    cleanup();
-  });
-
-  it('lets an active workflow.waiting purpose own workflow busy presentation', () => {
-    const mgr = createManagerStub();
-    mgr.getPurposeSnapshot.mockReturnValue({
-      current: {
-        kind: 'workflow.waiting',
-        context: { workflowRunId: 'run-1' }
-      },
-      routine: null,
-      queue: []
-    });
-    const cleanup = initSpriteEventListener(mgr as any);
-
-    eventHarness.emit(AppEvent.SPRITE_WORKFLOW_START, { runId: 'run-1', workflowName: '转录' });
-    eventHarness.emit(AppEvent.SPRITE_WORKFLOW_PROGRESS, { runId: 'run-1', progress: 42, message: '转录中' });
-    eventHarness.emit(AppEvent.SPRITE_WORKFLOW_COMPLETE, { runId: 'run-1', message: '完成' });
-
-    expect(mgr.emitPurposeEvent.mock.calls).toEqual([
-      [
-        {
-          source: 'app-event',
-          event: AppEvent.SPRITE_WORKFLOW_START,
-          payload: { runId: 'run-1', workflowName: '转录' }
-        }
-      ],
-      [
-        {
-          source: 'app-event',
-          event: AppEvent.SPRITE_WORKFLOW_PROGRESS,
-          payload: { runId: 'run-1', progress: 42, message: '转录中' }
-        }
-      ],
-      [
-        {
-          source: 'app-event',
-          event: AppEvent.SPRITE_WORKFLOW_COMPLETE,
-          payload: { runId: 'run-1', message: '完成' }
-        }
-      ]
-    ]);
-    expect(mgr.showBusy).not.toHaveBeenCalled();
-    expect(mgr.updateBusy).not.toHaveBeenCalled();
-    expect(mgr.clearBusy).not.toHaveBeenCalled();
-    expect(mgr.showToast).not.toHaveBeenCalled();
-    expect(mgr.trigger).not.toHaveBeenCalled();
-
-    cleanup();
-  });
-
-  it('routes workflow start events into workflow.waiting purpose mode by default', () => {
-    const mgr = createManagerStub();
-    const cleanup = initSpriteEventListener(mgr as any);
-
-    eventHarness.emit(AppEvent.SPRITE_WORKFLOW_START, {
-      runId: 'run-default-purpose',
-      workflowId: 'wf-default',
-      workflowName: 'Default workflow purpose'
-    });
-
-    expect(mgr.startPurpose).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: 'workflow.waiting',
-        presetId: 'workflow.waiting',
-        source: 'app-event',
-        correlationId: 'run-default-purpose',
-        coalesceKey: 'workflow:run-default-purpose',
-        context: expect.objectContaining({
-          runId: 'run-default-purpose',
-          workflowRunId: 'run-default-purpose',
-          workflowId: 'wf-default',
-          workflowName: 'Default workflow purpose'
-        })
-      })
-    );
-    expect(mgr.showBusy).not.toHaveBeenCalled();
-    expect(mgr.trigger).not.toHaveBeenCalled();
-
-    cleanup();
-  });
-
-  it('routes resource import start events into resource.import.waiting purpose mode by default', () => {
-    const mgr = createManagerStub();
-    const cleanup = initSpriteEventListener(mgr as any);
-
-    eventHarness.emit(AppEvent.SPRITE_RESOURCE_IMPORT_START, {
-      resourceId: 'resource-default',
-      workspaceId: 'workspace-default',
-      message: 'Importing by default'
-    });
-
-    expect(mgr.startPurpose).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: 'resource.import.waiting',
-        presetId: 'resource.import.waiting',
-        source: 'app-event',
-        correlationId: 'resource-default',
-        coalesceKey: 'resource-import:resource-default',
-        context: expect.objectContaining({
-          resourceId: 'resource-default',
-          workspaceId: 'workspace-default',
-          message: 'Importing by default'
-        })
-      })
-    );
-    expect(mgr.showBusy).not.toHaveBeenCalled();
-    expect(mgr.trigger).not.toHaveBeenCalled();
-
-    cleanup();
-  });
-
-  it('keeps legacy workflow presentation for unmatched active workflow purposes', () => {
-    const mgr = createManagerStub();
-    mgr.getPurposeSnapshot.mockReturnValue({
-      current: {
-        kind: 'workflow.waiting',
-        context: { workflowRunId: 'run-1' }
-      },
-      routine: null,
-      queue: []
-    });
-    const cleanup = initSpriteEventListener(mgr as any, { workflow: 'auto' });
-
-    eventHarness.emit(AppEvent.SPRITE_WORKFLOW_PROGRESS, { runId: 'run-2', progress: 64, message: '另一个任务' });
-    eventHarness.emit(AppEvent.SPRITE_WORKFLOW_PROGRESS, { progress: 70, message: '旧事件' });
-
-    expect(mgr.updateBusy.mock.calls).toEqual([
-      [64, '另一个任务'],
-      [70, '旧事件']
-    ]);
-
-    cleanup();
-  });
-
-  it('can route workflow start events into workflow.waiting purpose mode', () => {
-    const mgr = createManagerStub();
-    const cleanup = initSpriteEventListener(mgr as any, { workflow: 'purpose' });
-
-    eventHarness.emit(AppEvent.SPRITE_WORKFLOW_START, {
-      runId: 'run-purpose-1',
-      workflowId: 'wf-1',
-      workflowName: 'Transcribe'
-    });
-
-    expect(mgr.startPurpose).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: 'workflow.waiting',
-        presetId: 'workflow.waiting',
-        source: 'app-event',
-        priority: 65,
-        correlationId: 'run-purpose-1',
-        coalesceKey: 'workflow:run-purpose-1',
-        context: expect.objectContaining({
-          runId: 'run-purpose-1',
-          workflowRunId: 'run-purpose-1',
-          workflowId: 'wf-1',
-          workflowName: 'Transcribe'
-        })
-      })
-    );
-    expect(mgr.showBusy).not.toHaveBeenCalled();
-    expect(mgr.trigger).not.toHaveBeenCalled();
-
-    cleanup();
-  });
-
-  it('can route resource import start events into resource.import.waiting purpose mode', () => {
-    const mgr = createManagerStub();
-    const cleanup = initSpriteEventListener(mgr as any, { resourceImport: 'purpose' });
-
-    eventHarness.emit(AppEvent.SPRITE_RESOURCE_IMPORT_START, {
-      resourceId: 'resource-1',
-      workspaceId: 'workspace-1',
-      message: 'Importing resource'
-    });
-
-    expect(mgr.startPurpose).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: 'resource.import.waiting',
-        presetId: 'resource.import.waiting',
-        source: 'app-event',
-        priority: 65,
-        correlationId: 'resource-1',
-        coalesceKey: 'resource-import:resource-1',
-        context: expect.objectContaining({
-          resourceId: 'resource-1',
-          workspaceId: 'workspace-1',
-          message: 'Importing resource'
-        })
-      })
-    );
-    expect(mgr.showBusy).not.toHaveBeenCalled();
-    expect(mgr.trigger).not.toHaveBeenCalled();
 
     cleanup();
   });

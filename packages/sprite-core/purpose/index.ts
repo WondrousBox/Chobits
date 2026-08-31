@@ -10,7 +10,6 @@ export {
   createAchievementUnlockedGuideGoal,
   FIRST_CHAT_GUIDE_GOAL,
   FIRST_FILE_DROP_GUIDE_GOAL,
-  OPEN_RESOURCE_LIBRARY_GUIDE_GOAL,
   WORKSPACE_EXISTS_GUIDE_GOAL
 } from './guide-goals';
 export type { SpritePresentationLockSnapshot, SpritePresentationRequest } from './presentation-lock';

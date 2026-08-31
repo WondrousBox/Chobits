@@ -1203,8 +1203,8 @@ describe('character pack manager', () => {
     expect(existsSync(path.join(installedRoot, 'index.json'))).toBe(false);
     expectCharacterMessagesCoverSpecs(character.messages);
     expect(character.messages.categories.welcome).toEqual(['Custom Alpha上线了。', '你回来啦，今天想先处理什么？', '我在这里。']);
-    expect(character.messages.events.workflowComplete).toEqual(['任务完成了。', '工作流执行成功。']);
-    expect(character.messages.routines['workflow.waiting.progressSpeak']).toBe('我还在等 {workflowName} 完成。');
+    expect(character.messages.events.aiComplete).toEqual(['回答好了。', '搞定了。']);
+    expect(character.messages.routines['file.drop.intake.selected']).toBe('交给我吧。');
   });
 
   it('saves editor message overrides into custom character definitions', async () => {
@@ -1258,17 +1258,9 @@ describe('character pack manager', () => {
           aiThinking: ['自定义思考'],
           aiComplete: ['自定义完成'],
           aiError: ['自定义错误'],
-          workflowStart: ['自定义开始'],
-          workflowComplete: ['自定义流程完成 {workflowName}'],
-          workflowFail: ['自定义失败'],
-          importComplete: ['自定义导入 {count}'],
           downloadComplete: ['自定义下载完成'],
-          memoryExtractComplete: ['自定义记忆'],
-          personaUpdateComplete: ['自定义画像'],
           dailyRestReminder: ['自定义休息提醒'],
-          fileDropPrompt: ['自定义文件询问'],
-          workflowWaitingProgress: ['自定义等待 {workflowName}'],
-          workflowWaitingComplete: ['自定义等待完成']
+          fileDropPrompt: ['自定义文件询问']
         }
       },
       {
@@ -1283,8 +1275,7 @@ describe('character pack manager', () => {
     expect(character.messages.categories.welcome).toBe('自定义欢迎');
     expect(character.messages.categories.fileDrop).toBe('自定义收文件');
     expect(character.messages.events.aiThinking).toBe('自定义思考');
-    expect(character.messages.events.workflowComplete).toBe('自定义流程完成 {workflowName}');
-    expect(character.messages.routines['workflow.waiting.progressSpeak']).toBe('自定义等待 {workflowName}');
+    expect(character.messages.events.downloadComplete).toBe('自定义下载完成');
     expect(getCharacterMessageTemplateLines(character.messages.events.appear)).toEqual(['咱来了。', '已经就位。']);
     expect(character.messages.routines['file.drop.intake.selected']).toBe('交给我吧。');
     expectCharacterMessagesCoverSpecs(character.messages);

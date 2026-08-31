@@ -98,7 +98,7 @@ import { WindowController } from '../window-controller';
 import type { WindowControllerAvoidRegion } from '../window-controller-model';
 import { notifySpriteCapabilityChanged } from './capability-events';
 import { getDefaultSpritesDir, listSprites, setSpriteAssetsChangeHandler } from './sprite-assets';
-import { initSpriteEventListener, type SpriteEventListenerOptions } from './sprite-event-listener';
+import { initSpriteEventListener } from './sprite-event-listener';
 
 export interface SpriteManagerDeps {
   addAllowedResourceRoot: (root: string) => void;
@@ -109,7 +109,6 @@ export interface SpriteManagerDeps {
   purposeWindowAdapter?: SpritePurposeWindowAdapter;
   windowAnimationAdapter?: SpriteWindowAnimationAdapter;
   purposeRoutinePlanner?: SpritePurposeRoutinePlanner;
-  spriteEventListener?: SpriteEventListenerOptions;
   syncCharacterToolLabels?: (labels: Record<string, ToolLabelDefinition> | undefined) => void | Promise<void>;
 }
 
@@ -1359,7 +1358,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
   }
 
   // ===== 初始化事件监听器（订阅业务事件触发动画） =====
-  initSpriteEventListener(mgr, deps.spriteEventListener);
+  initSpriteEventListener(mgr);
 
   // ===== 事件转发：persona:character-switched → 主窗口 =====
   // 渲染进程负责打开窗口和处理数据

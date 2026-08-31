@@ -143,16 +143,7 @@ export const DEFAULT_SPRITE_PURPOSE_PLANNER_STEP_TYPES = [
 
 export const DEFAULT_SPRITE_PURPOSE_PLANNER_WINDOWS = ['fileActionsMenu'] as const;
 
-export const DEFAULT_SPRITE_PURPOSE_PLANNER_EVENTS = [
-  'fileAction:resolved',
-  'SPRITE_WORKFLOW_PROGRESS',
-  'SPRITE_WORKFLOW_COMPLETE',
-  'SPRITE_WORKFLOW_FAIL',
-  'SPRITE_WORKFLOW_CANCEL',
-  'SPRITE_RESOURCE_IMPORT_PROGRESS',
-  'SPRITE_RESOURCE_IMPORT_COMPLETE',
-  'SPRITE_RESOURCE_IMPORT_ERROR'
-] as const;
+export const DEFAULT_SPRITE_PURPOSE_PLANNER_EVENTS = ['fileAction:resolved'] as const;
 
 const STEP_SCHEMA_DESCRIPTIONS: Record<SpriteRoutineStepType, string> = {
   playAnimation: 'Play an allowlisted animation trigger or animation id. Omitted waitFor is fire-and-forget; waitFor:duration or waitFor:complete requires durationMs or timeoutMs. Set allowMovementDuringPlayback:false for presentation-first animations such as dancing.',

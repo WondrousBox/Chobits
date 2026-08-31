@@ -938,7 +938,7 @@ eventManager.emit(AppEvent.SPRITE_AI_COMPLETE, { message: '生成完成！' });
 | `SPRITE_SYSTEM_READY/QUIT`            | 系统生命周期 | appear/disappear 动画                   | `spriteEventMessages.appear/disappear` |
 | `SPRITE_SYSTEM_FOCUS/BLUR`            | 窗口焦点     | wake/sleep                              | `spriteEventMessages.wake/sleep`       |
 
-说明：mini 分支已移除 RSS、回收站、资源库、workflow、Memory 等业务系统。其中 `SPRITE_RSS_*` / `SPRITE_TRASH_*` / `MEMORY_EXTRACTION_*` / `MEMORY_SAVED` 因全仓无任何 emitter 与消费方，已从 `AppEvent` 枚举与 `sprite-event-listener.ts` 中删除；`SPRITE_RESOURCE_IMPORT_*` / `SPRITE_WORKFLOW_*` / `SPRITE_MEDIA_PROCESS_*` / `USER_PERSONA_UPDATE_*` 等事件当前同样没有生产环境触发源，但 purpose preset / planner 仍以字符串形式消费前两者，对应兼容 handler 仅作历史保留，新增事件应接入上表中的活跃链路。
+说明：mini 分支已移除 RSS、回收站、资源库、workflow、Memory、媒体处理等业务系统。`SPRITE_RSS_*` / `SPRITE_TRASH_*` / `MEMORY_EXTRACTION_*` / `MEMORY_SAVED` / `SPRITE_RESOURCE_IMPORT_*` / `SPRITE_WORKFLOW_*` / `SPRITE_MEDIA_PROCESS_*` / `USER_PERSONA_UPDATE_*` 因全仓无任何 emitter 与消费方，已从 `AppEvent` 枚举与 `sprite-event-listener.ts` 中删除，对应的 events/routines 文案 key 与 `workflow.waiting` / `resource.import.waiting` / `onboarding.resource.open-library` preset 也已一并移除。新增事件应接入上表中的活跃链路。
 
 ### C. 旧场景映射兼容层已移除
 

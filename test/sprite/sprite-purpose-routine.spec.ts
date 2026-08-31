@@ -8,7 +8,6 @@ import {
   CHAT_API_CONFIGURED_GUIDE_GOAL,
   FIRST_CHAT_GUIDE_GOAL,
   FIRST_FILE_DROP_GUIDE_GOAL,
-  OPEN_RESOURCE_LIBRARY_GUIDE_GOAL,
   type SpritePurposeHistoryEntry,
   type SpriteRoutinePresetDefinition,
   WORKSPACE_EXISTS_GUIDE_GOAL
@@ -331,7 +330,7 @@ describe('SpriteRoutineRunner', () => {
 
     waiter.emit({
       source: 'app-event',
-      event: 'SPRITE_WORKFLOW_PROGRESS',
+      event: 'demo:progress',
       payload: { runId: 'run-1', progress: 10 }
     });
 
@@ -340,7 +339,7 @@ describe('SpriteRoutineRunner', () => {
         id: 'wait-progress',
         type: 'waitForEvent',
         source: 'app-event',
-        event: 'SPRITE_WORKFLOW_PROGRESS',
+        event: 'demo:progress',
         match: { runId: 'run-1' },
         ignoreHistory: true,
         timeoutMs: 200
@@ -351,12 +350,12 @@ describe('SpriteRoutineRunner', () => {
     await Promise.resolve();
     waiter.emit({
       source: 'app-event',
-      event: 'SPRITE_WORKFLOW_PROGRESS',
+      event: 'demo:progress',
       payload: { runId: 'run-1', progress: 35, message: '转录中' }
     });
 
     await expect(promise).resolves.toMatchObject({
-      event: 'SPRITE_WORKFLOW_PROGRESS',
+      event: 'demo:progress',
       payload: { runId: 'run-1', progress: 35, message: '转录中' }
     });
   });
@@ -529,7 +528,7 @@ describe('SpriteRoutineRunner', () => {
           id: 'wait-progress',
           type: 'waitForEvent',
           source: 'app-event',
-          event: 'SPRITE_WORKFLOW_PROGRESS',
+          event: 'demo:progress',
           match: { runId: 'run-1' },
           timeoutMs: 100,
           assignTo: 'workflowProgress',
@@ -546,7 +545,7 @@ describe('SpriteRoutineRunner', () => {
           id: 'wait-progress-timeout',
           type: 'waitForEvent',
           source: 'app-event',
-          event: 'SPRITE_WORKFLOW_PROGRESS',
+          event: 'demo:progress',
           match: { runId: 'run-1' },
           timeoutMs: 100,
           assignTo: 'workflowProgress',
@@ -573,7 +572,7 @@ describe('SpriteRoutineRunner', () => {
     ]);
     expect(result.steps.find((step) => step.stepId === 'wait-progress-timeout')?.value).toMatchObject({
       reason: 'timeout',
-      event: 'SPRITE_WORKFLOW_PROGRESS',
+      event: 'demo:progress',
       source: 'app-event'
     });
     expect(calls).toEqual(['busy:37:转录中']);
@@ -622,7 +621,7 @@ describe('SpriteRoutineRunner', () => {
         calls.push(`toast:${step.content}`);
         resolveTerminals[0]?.({
           source: 'app-event',
-          event: 'SPRITE_WORKFLOW_COMPLETE',
+          event: 'demo:complete',
           timestamp: Date.now(),
           payload: { runId: 'run-1' }
         });
@@ -639,7 +638,7 @@ describe('SpriteRoutineRunner', () => {
           id: 'loop',
           type: 'loopUntil',
           source: 'app-event',
-          untilEvent: ['SPRITE_WORKFLOW_COMPLETE', 'SPRITE_WORKFLOW_FAIL'],
+          untilEvent: ['demo:complete', 'demo:fail'],
           match: { runId: 'run-1' },
           assignTo: 'workflowResult',
           body: [{ id: 'waiting-toast', type: 'showToast', content: '等待中' }]
@@ -649,7 +648,7 @@ describe('SpriteRoutineRunner', () => {
           type: 'branch',
           by: 'workflowResult.event.event',
           cases: {
-            SPRITE_WORKFLOW_COMPLETE: [{ id: 'done-toast', type: 'showToast', content: '完成' }]
+            'demo:complete': [{ id: 'done-toast', type: 'showToast', content: '完成' }]
           }
         }
       ],
@@ -659,7 +658,7 @@ describe('SpriteRoutineRunner', () => {
 
     expect(result.ok).toBe(true);
     expect(result.steps.map((step) => step.stepId)).toEqual(['waiting-toast', 'loop', 'done-toast', 'branch']);
-    expect(calls).toEqual(['wait:SPRITE_WORKFLOW_COMPLETE', 'wait:SPRITE_WORKFLOW_FAIL', 'toast:等待中', 'toast:完成']);
+    expect(calls).toEqual(['wait:demo:complete', 'wait:demo:fail', 'toast:等待中', 'toast:完成']);
   });
 
   it('skips repeated loop speak steps until their cooldown expires', async () => {
@@ -687,7 +686,7 @@ describe('SpriteRoutineRunner', () => {
         if (iterations >= 3) {
           resolveTerminals[0]?.({
             source: 'app-event',
-            event: 'SPRITE_WORKFLOW_COMPLETE',
+            event: 'demo:complete',
             timestamp: now,
             payload: { runId: 'run-1' }
           });
@@ -705,7 +704,7 @@ describe('SpriteRoutineRunner', () => {
           id: 'loop',
           type: 'loopUntil',
           source: 'app-event',
-          untilEvent: 'SPRITE_WORKFLOW_COMPLETE',
+          untilEvent: 'demo:complete',
           match: { runId: 'run-1' },
           body: [
             { id: 'progress-speak', type: 'speak', text: '还在等。', cooldownKey: 'workflow-progress', cooldownMs: 1000 },
@@ -719,7 +718,7 @@ describe('SpriteRoutineRunner', () => {
 
     expect(result.ok).toBe(true);
     expect(result.steps.filter((step) => step.stepId === 'progress-speak').map((step) => step.status)).toEqual(['completed', 'skipped', 'completed']);
-    expect(calls).toEqual(['wait:SPRITE_WORKFLOW_COMPLETE', 'speak:还在等。', 'tick:1', 'tick:2', 'speak:还在等。', 'tick:3']);
+    expect(calls).toEqual(['wait:demo:complete', 'speak:还在等。', 'tick:1', 'tick:2', 'speak:还在等。', 'tick:3']);
   });
 
   it('passes ignoreHistory from loopUntil to terminal event waits', async () => {
@@ -1467,126 +1466,6 @@ describe('SpriteRoutinePresetRegistry', () => {
     expect(calls).toContain('walk:corner');
   });
 
-  it('creates workflow waiting routines that loop until terminal workflow events', () => {
-    const registry = new SpriteRoutinePresetRegistry();
-    const preset = registry.get('workflow.waiting');
-    expect(preset).toBeDefined();
-
-    const routine = registry.createRoutine(
-      {
-        id: 'purpose-workflow',
-        kind: 'workflow.waiting',
-        title: '工作流等待',
-        reason: '等待工作流完成',
-        source: 'app-event',
-        status: 'active',
-        priority: 65,
-        interruptPolicy: 'interruptible',
-        context: {
-          workflowRunId: 'run-1',
-          workflowName: '整理文档'
-        }
-      },
-      preset!,
-      1000
-    );
-
-    expect(routine.steps.find((step) => step.id === 'wait-workflow-terminal')).toMatchObject({
-      type: 'loopUntil',
-      source: 'app-event',
-      untilEvent: ['SPRITE_WORKFLOW_COMPLETE', 'SPRITE_WORKFLOW_FAIL', 'SPRITE_WORKFLOW_CANCEL'],
-      match: { runId: 'run-1' },
-      assignTo: 'workflowResult'
-    });
-    expect(routine.steps.find((step) => step.id === 'workflow-result-branch')).toMatchObject({
-      type: 'branch',
-      by: 'workflowResult.event.event'
-    });
-    const loopStep = routine.steps.find((step) => step.id === 'wait-workflow-terminal');
-    expect(loopStep).toMatchObject({
-      type: 'loopUntil',
-      body: expect.arrayContaining([
-        expect.objectContaining({
-          id: 'wait-workflow-progress',
-          type: 'waitForEvent',
-          event: 'SPRITE_WORKFLOW_PROGRESS',
-          optional: true,
-          ignoreHistory: true,
-          assignTo: 'workflowProgress'
-        }),
-        expect.objectContaining({
-          id: 'busy-progress',
-          type: 'updateBusy',
-          progressFrom: 'workflowProgress.payload.progress',
-          contentFrom: 'workflowProgress.payload.message'
-        }),
-        expect.objectContaining({
-          id: 'waiting-speak',
-          type: 'speak',
-          cooldownKey: 'workflow.waiting.progress',
-          cooldownMs: 60_000
-        })
-      ])
-    });
-  });
-
-  it('creates resource import waiting routines that consume progress and terminal app events', () => {
-    const registry = new SpriteRoutinePresetRegistry();
-    const preset = registry.get('resource.import.waiting');
-    expect(preset).toBeDefined();
-
-    const routine = registry.createRoutine(
-      {
-        id: 'purpose-resource',
-        kind: 'resource.import.waiting',
-        title: 'resource import waiting',
-        reason: 'wait for resource import',
-        source: 'app-event',
-        status: 'active',
-        priority: 65,
-        interruptPolicy: 'interruptible',
-        context: {
-          resourceId: 'resource-1',
-          workspaceId: 'workspace-1'
-        }
-      },
-      preset!,
-      1000
-    );
-
-    expect(routine.steps.find((step) => step.id === 'wait-resource-terminal')).toMatchObject({
-      type: 'loopUntil',
-      source: 'app-event',
-      untilEvent: ['SPRITE_RESOURCE_IMPORT_COMPLETE', 'SPRITE_RESOURCE_IMPORT_ERROR'],
-      match: { resourceId: 'resource-1', workspaceId: 'workspace-1' },
-      assignTo: 'resourceResult'
-    });
-    expect(routine.steps.find((step) => step.id === 'resource-result-branch')).toMatchObject({
-      type: 'branch',
-      by: 'resourceResult.event.event'
-    });
-    const loopStep = routine.steps.find((step) => step.id === 'wait-resource-terminal');
-    expect(loopStep).toMatchObject({
-      type: 'loopUntil',
-      body: expect.arrayContaining([
-        expect.objectContaining({
-          id: 'wait-resource-progress',
-          type: 'waitForEvent',
-          event: 'SPRITE_RESOURCE_IMPORT_PROGRESS',
-          optional: true,
-          ignoreHistory: true,
-          assignTo: 'resourceProgress'
-        }),
-        expect.objectContaining({
-          id: 'busy-progress',
-          type: 'updateBusy',
-          progressFrom: 'resourceProgress.payload.progress',
-          contentFrom: 'resourceProgress.payload.message'
-        })
-      ])
-    });
-  });
-
   it('creates daily care reminder routines from routine dispatch context', () => {
     const registry = new SpriteRoutinePresetRegistry();
     const preset = registry.get('daily.care.reminder');
@@ -1749,7 +1628,6 @@ describe('SpriteRoutinePresetRegistry', () => {
 
     expect(registry.get('onboarding.chat.start')?.goal).toEqual(FIRST_CHAT_GUIDE_GOAL);
     expect(registry.get('onboarding.file.drop')?.goal).toEqual(FIRST_FILE_DROP_GUIDE_GOAL);
-    expect(registry.get('onboarding.resource.open-library')?.goal).toEqual(OPEN_RESOURCE_LIBRARY_GUIDE_GOAL);
   });
 
   it('declares a blocking chat API config goal on the chat guide preset', () => {
@@ -2420,7 +2298,7 @@ describe('SpriteRoutinePresetRegistry', () => {
     expect(calls.some((call) => call.includes('first-chat-done'))).toBe(false);
   });
 
-  it('creates first file drop onboarding routines that invite drag-to-sprite and wait for resource events', () => {
+  it('creates first file drop onboarding routines that invite drag-to-sprite and wait for the drop interaction', () => {
     const registry = new SpriteRoutinePresetRegistry();
     const preset = registry.get('onboarding.file.drop');
     expect(preset).toBeDefined();
@@ -2452,9 +2330,9 @@ describe('SpriteRoutinePresetRegistry', () => {
         expect.objectContaining({
           id: 'wait-first-file-drop',
           type: 'loopUntil',
-          source: 'app-event',
-          untilEvent: ['RESOURCE_CREATED', 'SPRITE_RESOURCE_IMPORT_COMPLETE'],
-          match: { purposeSource: 'sprite-drop' },
+          source: 'sprite-event-bus',
+          untilEvent: 'interact:file-drop',
+          ignoreHistory: true,
           assignTo: 'firstFileDropResult'
         }),
         expect.objectContaining({
@@ -2497,65 +2375,7 @@ describe('SpriteRoutinePresetRegistry', () => {
     });
   });
 
-  it('creates inventory onboarding routines that wait for right-click menu selection', () => {
-    const registry = new SpriteRoutinePresetRegistry();
-    const preset = registry.get('onboarding.resource.open-library');
-    expect(preset).toBeDefined();
-
-    const routine = registry.createRoutine(
-      {
-        id: 'purpose-open-library-onboarding',
-        kind: 'onboarding.resource.open-library',
-        title: 'open library onboarding',
-        reason: 'open resource library',
-        source: 'system-event',
-        status: 'active',
-        priority: 66,
-        interruptPolicy: 'interruptible'
-      },
-      preset!,
-      1000
-    );
-
-    expect(preset!.defaultPriority).toBe(66);
-    expect(routine.steps).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: 'resource-menu-invite',
-          type: 'showNotice',
-          messageId: 'onboarding.resource.open-library.invite',
-          content: '右键点我，打开菜单里的背包。'
-        }),
-        expect.objectContaining({
-          id: 'wait-context-menu-open',
-          type: 'waitForEvent',
-          source: 'sprite-event-bus',
-          event: 'interact:context-menu',
-          match: { open: true }
-        }),
-        expect.objectContaining({
-          id: 'resource-menu-tip',
-          type: 'speak',
-          text: '现在点菜单里的「背包」。'
-        }),
-        expect.objectContaining({
-          id: 'wait-inventory-open',
-          type: 'waitForEvent',
-          source: 'app-event',
-          event: 'ASSISTANT_MENU_ITEM_SELECTED',
-          match: {
-            itemId: 'inventory',
-            windowKey: 'inventory',
-            'payload.source': 'assistant-context-menu'
-          }
-        }),
-        expect.objectContaining({ id: 'clear-resource-menu-notice', type: 'clearMessage', messageId: 'onboarding.resource.open-library.invite', messageType: 'notice' }),
-        expect.objectContaining({ id: 'resource-menu-celebrate', type: 'playAnimation', trigger: 'celebrate' })
-      ])
-    );
-  });
-
-  it('runs first file drop onboarding completion feedback when a resource is created', async () => {
+  it('runs first file drop onboarding completion feedback when the file drop interaction fires', async () => {
     const registry = new SpriteRoutinePresetRegistry();
     const preset = registry.get('onboarding.file.drop');
     expect(preset).toBeDefined();
@@ -2592,12 +2412,12 @@ describe('SpriteRoutinePresetRegistry', () => {
         calls.push(`clear:${step.messageId}`);
       },
       waitForEvent: (step, signal) => {
-        if (step.event === 'RESOURCE_CREATED') {
+        if (step.event === 'interact:file-drop') {
           return {
-            source: 'app-event',
-            event: 'RESOURCE_CREATED',
+            source: 'sprite-event-bus',
+            event: 'interact:file-drop',
             timestamp: Date.now(),
-            payload: { id: 'resource-1', purposeSource: 'sprite-drop', metadata: JSON.stringify({ source: 'sprite-drop' }) }
+            payload: { fileCount: 1, correlationId: 'file-drop-1' }
           };
         }
         return new Promise((_, reject) => {

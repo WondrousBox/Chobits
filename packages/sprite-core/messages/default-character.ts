@@ -152,56 +152,6 @@ export const CHARACTER_MESSAGE_SPECS = [
     neutral: () => ['思考时出了点问题。', '刚才没有处理成功。']
   },
   {
-    field: 'workflowStart',
-    section: 'events',
-    key: 'workflowStart',
-    label: '工作流开始',
-    neutral: () => ['任务开始执行。', '工作流启动了。']
-  },
-  {
-    field: 'workflowComplete',
-    section: 'events',
-    key: 'workflowComplete',
-    label: '工作流完成',
-    neutral: () => ['任务完成了。', '工作流执行成功。']
-  },
-  {
-    field: 'workflowFail',
-    section: 'events',
-    key: 'workflowFail',
-    label: '工作流失败',
-    neutral: () => ['任务执行失败了。', '工作流出错了。']
-  },
-  {
-    field: 'workflowCancel',
-    section: 'events',
-    key: 'workflowCancel',
-    label: '工作流取消',
-    neutral: () => ['任务已取消。', '工作流已停止。']
-  },
-  {
-    field: 'importStart',
-    section: 'events',
-    key: 'importStart',
-    label: '导入开始',
-    neutral: () => ['开始导入。', '正在准备导入。']
-  },
-  {
-    field: 'importComplete',
-    section: 'events',
-    key: 'importComplete',
-    label: '导入完成',
-    placeholder: '例如：已导入 {count} 个文件。',
-    neutral: () => ['已导入 {count} 个文件。', '导入完成。']
-  },
-  {
-    field: 'importError',
-    section: 'events',
-    key: 'importError',
-    label: '导入失败',
-    neutral: () => ['导入失败了。', '导入时出了点问题。']
-  },
-  {
     field: 'downloadStart',
     section: 'events',
     key: 'downloadStart',
@@ -249,112 +199,6 @@ export const CHARACTER_MESSAGE_SPECS = [
     key: 'pluginUpdate',
     label: '插件更新',
     neutral: () => ['插件已更新。']
-  },
-  {
-    field: 'mediaProcessStart',
-    section: 'events',
-    key: 'mediaProcessStart',
-    label: '媒体处理开始',
-    neutral: () => ['媒体处理中。']
-  },
-  {
-    field: 'mediaProcessFail',
-    section: 'events',
-    key: 'mediaProcessFail',
-    label: '媒体处理失败',
-    neutral: () => ['媒体处理失败了。']
-  },
-  {
-    field: 'mediaProcessComplete',
-    section: 'events',
-    key: 'mediaProcessComplete',
-    label: '媒体处理完成',
-    neutral: () => ['媒体处理完成。']
-  },
-  {
-    field: 'rssRefresh',
-    section: 'events',
-    key: 'rssRefresh',
-    label: 'RSS 刷新',
-    neutral: () => ['正在刷新订阅。']
-  },
-  {
-    field: 'rssNewContent',
-    section: 'events',
-    key: 'rssNewContent',
-    label: 'RSS 新内容',
-    neutral: () => ['有新内容更新。']
-  },
-  {
-    field: 'trashDelete',
-    section: 'events',
-    key: 'trashDelete',
-    label: '移入回收站',
-    neutral: () => ['已移到回收站。']
-  },
-  {
-    field: 'trashRestore',
-    section: 'events',
-    key: 'trashRestore',
-    label: '回收站恢复',
-    neutral: () => ['已从回收站恢复。']
-  },
-  {
-    field: 'memoryExtractStart',
-    section: 'events',
-    key: 'memoryExtractStart',
-    label: '记忆整理开始',
-    neutral: ({ firstPerson }) => ['正在整理记忆。', `${firstPerson}回忆一下。`]
-  },
-  {
-    field: 'memoryExtractProgress',
-    section: 'events',
-    key: 'memoryExtractProgress',
-    label: '记忆整理进度',
-    placeholder: '例如：记忆整理中，{progress}%。',
-    neutral: () => ['记忆整理中，{progress}%。']
-  },
-  {
-    field: 'memoryExtractComplete',
-    section: 'events',
-    key: 'memoryExtractComplete',
-    label: '记忆整理完成',
-    neutral: ({ firstPerson }) => ['记忆整理好了。', `${firstPerson}记住了。`]
-  },
-  {
-    field: 'memoryExtractFail',
-    section: 'events',
-    key: 'memoryExtractFail',
-    label: '记忆整理失败',
-    neutral: () => ['记忆整理失败了。']
-  },
-  {
-    field: 'personaUpdateStart',
-    section: 'events',
-    key: 'personaUpdateStart',
-    label: '用户画像开始',
-    neutral: () => ['正在刷新对你的印象。']
-  },
-  {
-    field: 'personaUpdateComplete',
-    section: 'events',
-    key: 'personaUpdateComplete',
-    label: '用户画像更新完成',
-    neutral: ({ firstPerson, addressUser }) => [`${firstPerson}更了解${addressUser}了。`, '用户画像更新完成。']
-  },
-  {
-    field: 'personaUpdateFail',
-    section: 'events',
-    key: 'personaUpdateFail',
-    label: '用户画像失败',
-    neutral: () => ['用户画像更新失败了。']
-  },
-  {
-    field: 'personaUpdateSkipped',
-    section: 'events',
-    key: 'personaUpdateSkipped',
-    label: '用户画像跳过',
-    neutral: () => ['了解了。']
   },
   {
     field: 'dailyRestReminder',
@@ -476,27 +320,6 @@ export const CHARACTER_MESSAGE_SPECS = [
     neutral: () => ['收到啦！已经放到背包。']
   },
   {
-    field: 'onboardingResourceOpenLibraryInvite',
-    section: 'routines',
-    key: 'onboarding.resource.open-library.invite',
-    label: '打开背包引导',
-    neutral: () => ['右键点我，打开菜单里的背包。']
-  },
-  {
-    field: 'onboardingResourceOpenLibraryMenuTip',
-    section: 'routines',
-    key: 'onboarding.resource.open-library.menu-tip',
-    label: '打开背包菜单提示',
-    neutral: () => ['现在点菜单里的「背包」。']
-  },
-  {
-    field: 'onboardingResourceOpenLibraryDone',
-    section: 'routines',
-    key: 'onboarding.resource.open-library.done',
-    label: '打开背包完成',
-    neutral: () => ['打开啦！以后导入的文件都可以在背包里整理。']
-  },
-  {
     field: 'onboardingChatStartTip',
     section: 'routines',
     key: 'onboarding.chat.start.tip',
@@ -548,97 +371,6 @@ export const CHARACTER_MESSAGE_SPECS = [
     maxItems: 4,
     maxLength: 280,
     neutral: () => ['MiniMax 还可以制作音乐，以后可以和我说哦']
-  },
-  {
-    field: 'featureFileVideoTranscriptionInvite',
-    section: 'routines',
-    key: 'feature.file-video-transcription.invite',
-    label: '功能自述：文件转写邀请',
-    maxItems: 4,
-    maxLength: 240,
-    neutral: () => ['把视频或音频拖给我，我会先放进资源库，再让你选择转写等处理方式。']
-  },
-  {
-    field: 'featureFileVideoTranscriptionResourceIntro',
-    section: 'routines',
-    key: 'feature.file-video-transcription.resource-intro',
-    label: '功能自述：资源库说明',
-    maxItems: 4,
-    maxLength: 240,
-    neutral: () => ['拖进来的文件会保存到资源库，后续还能预览、管理，或者继续交给工作流处理。']
-  },
-  {
-    field: 'featureFileVideoTranscriptionActionTip',
-    section: 'routines',
-    key: 'feature.file-video-transcription.action-tip',
-    label: '功能自述：转写动作提示',
-    maxItems: 4,
-    maxLength: 240,
-    neutral: () => ['菜单弹出来后，视频请选择「视频转写」，音频请选择「识别文字（转写）」。']
-  },
-  {
-    field: 'featureFileVideoTranscriptionDone',
-    section: 'routines',
-    key: 'feature.file-video-transcription.done',
-    label: '功能自述：转写开始完成',
-    neutral: () => ['转写工作流已经开始啦。之后我会继续陪你等处理结果。']
-  },
-  {
-    field: 'workflowWaitingBusyStart',
-    section: 'routines',
-    key: 'workflow.waiting.busyStart',
-    label: '等待工作流忙碌',
-    neutral: () => ['正在处理：{workflowName}']
-  },
-  {
-    field: 'workflowWaitingProgress',
-    section: 'routines',
-    key: 'workflow.waiting.progressSpeak',
-    label: '等待工作流进度',
-    placeholder: '例如：我还在等 {workflowName} 完成。',
-    neutral: ({ firstPerson }) => [`${firstPerson}还在等 {workflowName} 完成。`]
-  },
-  {
-    field: 'workflowWaitingComplete',
-    section: 'routines',
-    key: 'workflow.waiting.complete',
-    label: '等待工作流完成',
-    neutral: () => ['处理完成了。']
-  },
-  {
-    field: 'workflowWaitingFail',
-    section: 'routines',
-    key: 'workflow.waiting.fail',
-    label: '等待工作流失败',
-    neutral: () => ['处理失败了，我把状态收起来了。']
-  },
-  {
-    field: 'workflowWaitingCancel',
-    section: 'routines',
-    key: 'workflow.waiting.cancel',
-    label: '等待工作流取消',
-    neutral: () => ['任务已经取消。']
-  },
-  {
-    field: 'resourceImportWaitingBusyStart',
-    section: 'routines',
-    key: 'resource.import.waiting.busyStart',
-    label: '等待资源导入忙碌',
-    neutral: () => ['正在导入资源。']
-  },
-  {
-    field: 'resourceImportWaitingComplete',
-    section: 'routines',
-    key: 'resource.import.waiting.complete',
-    label: '等待资源导入完成',
-    neutral: () => ['资源导入完成。']
-  },
-  {
-    field: 'resourceImportWaitingError',
-    section: 'routines',
-    key: 'resource.import.waiting.error',
-    label: '等待资源导入失败',
-    neutral: () => ['资源导入失败了。']
   }
 ] as const satisfies readonly CharacterMessageSpec[];
 
@@ -697,7 +429,7 @@ export function buildDefaultCharacterMessages(profile?: DefaultCharacterMessageP
     } else if (spec.section === 'events') {
       messages.events![spec.key] = spec.neutral(normalizedProfile);
     } else {
-      messages.routines![spec.key] = spec.neutral(normalizedProfile);
+      messages.routines![spec.key] = spec.neutral();
     }
   }
 

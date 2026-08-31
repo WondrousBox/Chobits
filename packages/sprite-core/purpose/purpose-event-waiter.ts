@@ -48,12 +48,10 @@ export class SpritePurposeEventWaiter {
       const matchResult = this.getMatchResult(waiter.step, waiter.routine, event);
       if (!matchResult.matched) {
         this.logChatApiConfigMatchMiss(waiter.step, waiter.routine, event, matchResult.reason);
-        this.logOpenResourceLibraryMatchMiss(waiter.step, waiter.routine, event, matchResult.reason);
         continue;
       }
       matched += 1;
       this.logChatApiConfigMatchHit(waiter.step, waiter.routine, event);
-      this.logOpenResourceLibraryMatchHit(waiter.step, waiter.routine, event);
       waiter.cleanup();
       waiter.resolve(event);
     }
@@ -62,7 +60,6 @@ export class SpritePurposeEventWaiter {
 
   wait(step: WaitForEventStep, routine: SpriteRoutine, signal?: AbortSignal): Promise<SpritePurposeRuntimeEvent> {
     this.logChatApiConfigWaitStart(step, routine);
-    this.logOpenResourceLibraryWaitStart(step, routine);
     if (!step.ignoreHistory) {
       const existing = this.history.find((event) => this.matches(step, routine, event));
       if (existing) {
@@ -174,7 +171,7 @@ export class SpritePurposeEventWaiter {
     return actual === expected;
   }
 
-  private isChatApiConfigWait(step: WaitForEventStep, routine: SpriteRoutine, event?: SpritePurposeRuntimeEvent): boolean {
+  private isChatApiConfigWait(step: WaitForEventStep, routine: SpriteRoutine): boolean {
     return (
       routine.presetId === 'chat.api-config-guide' ||
       step.id.includes('chat-api-config')
@@ -182,7 +179,7 @@ export class SpritePurposeEventWaiter {
   }
 
   private logChatApiConfigMatchMiss(step: WaitForEventStep, routine: SpriteRoutine, event: SpritePurposeRuntimeEvent, reason: string): void {
-    if (!this.isChatApiConfigWait(step, routine, event)) return;
+    if (!this.isChatApiConfigWait(step, routine)) return;
     if (event.event !== step.event && event.event !== 'AI_PROVIDER_CONFIG_UPDATED' && event.event !== 'APP_WINDOW_CLOSED') return;
     console.info('[SpritePurposeEventWaiter] chat api config event miss', {
       stepId: step.id,
@@ -214,59 +211,8 @@ export class SpritePurposeEventWaiter {
   }
 
   private logChatApiConfigMatchHit(step: WaitForEventStep, routine: SpriteRoutine, event: SpritePurposeRuntimeEvent): void {
-    if (!this.isChatApiConfigWait(step, routine, event)) return;
+    if (!this.isChatApiConfigWait(step, routine)) return;
     console.info('[SpritePurposeEventWaiter] chat api config event matched', {
-      stepId: step.id,
-      waitingFor: step.event,
-      match: step.match,
-      routineId: routine.id,
-      purposeId: routine.purposeId,
-      presetId: routine.presetId,
-      event: event.event,
-      source: event.source,
-      payload: event.payload
-    });
-  }
-
-  private isOpenResourceLibraryWait(step: WaitForEventStep, routine: SpriteRoutine): boolean {
-    return routine.presetId === 'onboarding.resource.open-library' || step.id === 'wait-context-menu-open' || step.id === 'wait-inventory-open';
-  }
-
-  private logOpenResourceLibraryWaitStart(step: WaitForEventStep, routine: SpriteRoutine): void {
-    if (!this.isOpenResourceLibraryWait(step, routine)) return;
-    console.info('[SpritePurposeEventWaiter] open resource library wait start', {
-      stepId: step.id,
-      waitingFor: step.event,
-      source: step.source,
-      match: step.match,
-      ignoreHistory: step.ignoreHistory,
-      timeoutMs: step.timeoutMs,
-      routineId: routine.id,
-      purposeId: routine.purposeId,
-      presetId: routine.presetId
-    });
-  }
-
-  private logOpenResourceLibraryMatchMiss(step: WaitForEventStep, routine: SpriteRoutine, event: SpritePurposeRuntimeEvent, reason: string): void {
-    if (!this.isOpenResourceLibraryWait(step, routine)) return;
-    if (event.event !== step.event && event.event !== 'interact:context-menu' && event.event !== 'ASSISTANT_MENU_ITEM_SELECTED') return;
-    console.info('[SpritePurposeEventWaiter] open resource library event miss', {
-      stepId: step.id,
-      waitingFor: step.event,
-      match: step.match,
-      routineId: routine.id,
-      purposeId: routine.purposeId,
-      presetId: routine.presetId,
-      event: event.event,
-      source: event.source,
-      payload: event.payload,
-      reason
-    });
-  }
-
-  private logOpenResourceLibraryMatchHit(step: WaitForEventStep, routine: SpriteRoutine, event: SpritePurposeRuntimeEvent): void {
-    if (!this.isOpenResourceLibraryWait(step, routine)) return;
-    console.info('[SpritePurposeEventWaiter] open resource library event matched', {
       stepId: step.id,
       waitingFor: step.event,
       match: step.match,

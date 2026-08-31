@@ -27,7 +27,7 @@ const validationOptions = {
   presetIds: DEFAULT_SPRITE_ROUTINE_PRESETS.map((preset) => preset.id),
   animationTriggers: ['wave', 'thinking', 'success'],
   windows: ['fileActionsMenu'],
-  events: ['fileAction:resolved', 'SPRITE_WORKFLOW_COMPLETE'],
+  events: ['fileAction:resolved'],
   maxSteps: 8,
   maxDurationMs: 20_000,
   maxStepTimeoutMs: 10_000

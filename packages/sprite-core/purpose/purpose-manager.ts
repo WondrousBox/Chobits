@@ -1,4 +1,4 @@
-import { SpriteRoutinePresetRegistry, type SpriteRoutinePresetDefinition } from './routine-presets';
+import { type SpriteRoutinePresetDefinition, SpriteRoutinePresetRegistry } from './routine-presets';
 import { SpriteRoutineRunner } from './routine-runner';
 import type {
   SpritePurpose,
@@ -61,7 +61,7 @@ const DEFAULT_QUEUE_POLICY: Required<SpritePurposeQueuePolicyOptions> = {
 
 const SINGLETON_PURPOSE_KINDS = new Set(['idle.presence', 'daily.rest-reminder']);
 const CONTEXT_COALESCE_KEYS = ['correlationId', 'workflowRunId', 'runId', 'dropId'];
-const DIAGNOSTIC_PURPOSE_KINDS = new Set(['onboarding.resource.open-library', 'onboarding.file.drop', 'file.drop']);
+const DIAGNOSTIC_PURPOSE_KINDS = new Set(['onboarding.file.drop', 'file.drop']);
 
 interface CurrentRoutineStepState {
   purposeId: string;
