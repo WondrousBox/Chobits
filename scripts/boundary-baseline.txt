@@ -1,0 +1,2 @@
+# 分层边界历史违规基线（check-boundaries.mjs）
+# 格式：file<TAB>import。修复一条删一条；新增违规会导致检查失败。

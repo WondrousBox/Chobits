@@ -21,7 +21,7 @@
     "preview": "vite preview",
     "pretest": "vite build --mode=test",
     "test": "vitest run",
-    "lint": "eslint --cache .",
+    "lint": "eslint --cache . && node scripts/check-boundaries.mjs",
     "clean:speak-cache": "node scripts/clean-speak-cache.js",
     "build:icon": "electron-icon-builder --input=./build/icon.png --output=./build --flatten",
     "rebuild:sqlite": "electron-rebuild -f -w better-sqlite3",
