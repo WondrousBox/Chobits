@@ -1,0 +1,173 @@
+{
+  "Version": 3,
+  "FileReferences": {
+    "Moc": "chii.moc3",
+    "Textures": [
+      "textures/000_tex_00_hair_back.png",
+      "textures/001_tex_01_arm_r_up.png",
+      "textures/002_tex_01_arm_r_lo.png",
+      "textures/003_tex_02_arm_l_up.png",
+      "textures/004_tex_02_arm_l_lo.png",
+      "textures/005_tex_03_clothing.png",
+      "textures/006_tex_04_clothing.png",
+      "textures/007_tex_05_neck.png",
+      "textures/008_tex_06_clothing.png",
+      "textures/009_tex_07_ear_l.png",
+      "textures/010_tex_08_hair_front.png",
+      "textures/011_tex_09_face_base.png",
+      "textures/012_tex_10_blush_l.png",
+      "textures/013_tex_10_blush_r.png",
+      "textures/014_tex_10_nose.png",
+      "textures/015_tex_11_mouth_cavity.png",
+      "textures/016_tex_11_mouth.png",
+      "textures/017_tex_12_eyebrow_l.png",
+      "textures/018_tex_13_eyebrow_r.png",
+      "textures/019_tex_14_eye_l.png",
+      "textures/020_tex_14_eye_closed_l.png",
+      "textures/021_tex_15_eye_r.png",
+      "textures/022_tex_15_eye_closed_r.png",
+      "textures/023_tex_16_pupil_l.png",
+      "textures/024_tex_17_pupil_r.png"
+    ],
+    "Physics": "chii.physics3.json",
+    "DisplayInfo": "chii.cdi3.json",
+    "Motions": {
+      "Idle": [
+        {
+          "File": "chii.idle.motion3.json"
+        }
+      ],
+      "Smile": [
+        {
+          "File": "chii.smile.motion3.json"
+        },
+        {
+          "File": "chii.smile.motion3.json"
+        }
+      ],
+      "Surprise": [
+        {
+          "File": "chii.surprise.motion3.json"
+        }
+      ],
+      "Sad": [
+        {
+          "File": "chii.sad.motion3.json"
+        }
+      ],
+      "Angry": [
+        {
+          "File": "chii.angry.motion3.json"
+        }
+      ],
+      "Shy": [
+        {
+          "File": "chii.shy.motion3.json"
+        }
+      ],
+      "Head_yaw": [
+        {
+          "File": "chii.head_yaw.motion3.json"
+        }
+      ],
+      "Head_pitch": [
+        {
+          "File": "chii.head_pitch.motion3.json"
+        }
+      ],
+      "Head_roll": [
+        {
+          "File": "chii.head_roll.motion3.json"
+        }
+      ],
+      "Head_shake": [
+        {
+          "File": "chii.head_shake.motion3.json"
+        }
+      ],
+      "Body_sway": [
+        {
+          "File": "chii.body_sway.motion3.json"
+        }
+      ],
+      "Body_bow": [
+        {
+          "File": "chii.body_bow.motion3.json"
+        }
+      ],
+      "Arms_raise": [
+        {
+          "File": "chii.arms_raise.motion3.json"
+        }
+      ],
+      "Arms_swing": [
+        {
+          "File": "chii.arms_swing.motion3.json"
+        }
+      ],
+      "Talk": [
+        {
+          "File": "chii.talk.motion3.json"
+        }
+      ],
+      "Smirk": [
+        {
+          "File": "chii.smirk.motion3.json"
+        }
+      ],
+      "Cheek": [
+        {
+          "File": "chii.cheek.motion3.json"
+        }
+      ],
+      "Look": [
+        {
+          "File": "chii.look.motion3.json"
+        }
+      ],
+      "Blink": [
+        {
+          "File": "chii.blink.motion3.json"
+        }
+      ],
+      "Brows": [
+        {
+          "File": "chii.brows.motion3.json"
+        }
+      ],
+      "Brow_form": [
+        {
+          "File": "chii.brow_form.motion3.json"
+        }
+      ],
+      "Sweep": [
+        {
+          "File": "chii.sweep.motion3.json"
+        }
+      ]
+    }
+  },
+  "Groups": [
+    {
+      "Target": "Parameter",
+      "Name": "EyeBlink",
+      "Ids": [
+        "ParamEyeLOpen",
+        "ParamEyeROpen"
+      ]
+    },
+    {
+      "Target": "Parameter",
+      "Name": "LipSync",
+      "Ids": [
+        "ParamMouthOpenY"
+      ]
+    }
+  ],
+  "HitAreas": [
+    {
+      "Id": "09_face_base",
+      "Name": "Head"
+    }
+  ]
+}

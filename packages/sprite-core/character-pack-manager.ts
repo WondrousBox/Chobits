@@ -330,6 +330,7 @@ function normalizePackAssets(value: unknown): CharacterPackAssets | undefined {
     ...(typeof value.animations === 'string' ? { animations: value.animations } : {}),
     ...(typeof value.gallery === 'string' ? { gallery: value.gallery } : {}),
     ...(typeof value.voices === 'string' ? { voices: value.voices } : {}),
+    ...(typeof value.live2d === 'string' ? { live2d: value.live2d } : {}),
     ...(preview && Object.keys(preview).length > 0 ? { preview } : {})
   };
 

@@ -1,0 +1,71 @@
+{
+  "model": "chii.model3.json",
+  "canvas": {
+    "width": 300,
+    "height": 300,
+    "padding": 40,
+    "scale": 1.0
+  },
+  "lookAt": {
+    "enabled": true,
+    "pointer": true
+  },
+  "lipSync": {
+    "paramId": "ParamMouthOpenY",
+    "gain": 2.0
+  },
+  "triggers": {
+    "idle": {
+      "motion": { "group": "Idle", "index": 0 },
+      "loop": true
+    },
+    "talk": {
+      "motion": { "group": "Talk", "index": 0 },
+      "loop": true
+    },
+    "walk": {
+      "motion": { "group": "Arms_swing", "index": 0 },
+      "loop": true
+    },
+    "wave": {
+      "motion": { "group": "Arms_raise", "index": 0 },
+      "loop": false
+    },
+    "welcome": {
+      "motion": { "group": "Body_bow", "index": 0 },
+      "loop": false
+    },
+    "celebrate": {
+      "motion": { "group": "Smile", "index": 0 },
+      "loop": false
+    },
+    "thinking": {
+      "motion": { "group": "Look", "index": 0 },
+      "loop": true
+    },
+    "processing": {
+      "motion": { "group": "Body_sway", "index": 0 },
+      "loop": true
+    },
+    "loading": {
+      "motion": { "group": "Body_sway", "index": 0 },
+      "loop": true
+    },
+    "write": {
+      "motion": { "group": "Talk", "index": 0 },
+      "loop": true
+    },
+    "success": {
+      "motion": { "group": "Smile", "index": 0 },
+      "loop": false
+    },
+    "error": {
+      "motion": { "group": "Head_shake", "index": 0 },
+      "loop": false
+    },
+    "failure": {
+      "motion": { "group": "Head_shake", "index": 0 },
+      "loop": false
+    }
+  }
+}

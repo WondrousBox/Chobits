@@ -12,11 +12,14 @@ import { alignMainWindowToBottomRight } from '../utils/positioning';
 
 const CANVAS_ID = 'live2d-assistant-canvas';
 const MODEL_BASE_URL = 'res://local/sprites/live2d/';
-const MODEL_ROOT_DIR = 'mao_pro';
-const MODEL_DIR = 'mao_pro/runtime';
-const MODEL_FILE = 'mao_pro';
+/** 默认模型目录名;激活角色包可通过 pack.json 的 assets.live2d 指定其他模型(约定 model3.json 文件名与目录同名) */
+const DEFAULT_MODEL_DIR_NAME = 'chii';
+
 // live2d.json 放在模型根目录（与 index.json 同级），而不是 runtime/ 子目录
-const MODEL_ROOT_URL = `${MODEL_BASE_URL}${MODEL_ROOT_DIR}/`;
+function resolveModelDirName(pack: { assets?: { live2d?: string } } | null | undefined): string {
+  const dir = pack?.assets?.live2d?.trim();
+  return dir || DEFAULT_MODEL_DIR_NAME;
+}
 
 /** 当前正在播放的 live2d 动画记录，用于 loop 重播与完成上报 */
 interface ActiveLive2DPlayback {
@@ -34,6 +37,8 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
   const { currentAnimation, spriteConfig } = useSpriteState();
   const [config, setConfig] = useState<Live2DConfig | null>(null);
   const [runtimeReady, setRuntimeReady] = useState(false);
+  // 当前 Live2D 模型目录名（由激活角色包的 assets.live2d 决定，null 表示尚未解析）
+  const [modelDirName, setModelDirName] = useState<string | null>(null);
   const activePlaybackRef = useRef<ActiveLive2DPlayback | null>(null);
   // 右下角对齐只做一次（初始化后），避免动画切换时把用户拖走的窗口抢回来
   const hasAlignedToBottomRightRef = useRef(false);
@@ -43,16 +48,47 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
     spriteConfigRef.current = spriteConfig;
   }, [spriteConfig]);
 
-  // 初始化运行时与配置
+  // 启动时按激活角色包解析模型目录
   useEffect(() => {
+    let mounted = true;
+    window.YUA.persona
+      .getActiveCharacterPack()
+      .then((pack) => {
+        if (mounted) setModelDirName(resolveModelDirName(pack));
+      })
+      .catch((e) => {
+        console.warn('[Live2DSprite] getActiveCharacterPack failed, fallback to default model', e);
+        if (mounted) setModelDirName(DEFAULT_MODEL_DIR_NAME);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // 角色包切换时切换模型（目录相同则不动）
+  useEffect(() => {
+    const unsubscribe = window.YUA.persona.onCharacterSwitched((payload) => {
+      const dir = resolveModelDirName(payload.nextPack);
+      setModelDirName((prev) => (prev === dir ? prev : dir));
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  // 初始化运行时与配置（模型目录变化时重建）
+  useEffect(() => {
+    if (!modelDirName) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     let mounted = true;
+    // 换模型后允许重新做一次右下角对齐
+    hasAlignedToBottomRightRef.current = false;
 
     const boot = async (): Promise<void> => {
       try {
-        const loadedConfig = await loadLive2DConfig(MODEL_ROOT_URL);
+        const loadedConfig = await loadLive2DConfig(`${MODEL_BASE_URL}${modelDirName}/`);
         if (!mounted) return;
         setConfig(loadedConfig);
 
@@ -60,8 +96,8 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
           canvasId: CANVAS_ID,
           model: {
             resourcesBaseUrl: MODEL_BASE_URL,
-            modelDir: MODEL_DIR,
-            modelFileName: MODEL_FILE
+            modelDir: `${modelDirName}/runtime`,
+            modelFileName: modelDirName
           }
         });
         if (!mounted) return;
@@ -99,7 +135,7 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
       activePlaybackRef.current = null;
       destroyLive2DRuntime();
     };
-  }, []);
+  }, [modelDirName]);
 
   // 根据 currentAnimation 播放 motion / expression
   useEffect(() => {

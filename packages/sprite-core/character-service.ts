@@ -135,6 +135,8 @@ export interface CharacterPackAssets {
   animations?: string;
   gallery?: string;
   voices?: string;
+  /** Live2D 模型目录名(位于应用 sprites/live2d/ 下),live2d 渲染模式下切换角色时切换模型 */
+  live2d?: string;
   preview?: {
     avatar?: string;
     gif?: string;

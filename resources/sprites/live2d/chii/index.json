@@ -1,0 +1,265 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "meta": {
+        "id": "live2d-idle",
+        "title": "Live2D idle",
+        "primaryTrigger": "idle",
+        "deletable": false
+      },
+      "source": {
+        "type": "live2d",
+        "localPath": "chii"
+      },
+      "width": 300,
+      "height": 300,
+      "padding": 40,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": true,
+      "autoIdle": false
+    },
+    {
+      "meta": {
+        "id": "live2d-talk",
+        "title": "Live2D talk",
+        "primaryTrigger": "talk",
+        "deletable": false
+      },
+      "source": {
+        "type": "live2d",
+        "localPath": "chii"
+      },
+      "width": 300,
+      "height": 300,
+      "padding": 40,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": true,
+      "autoIdle": false
+    },
+    {
+      "meta": {
+        "id": "live2d-walk",
+        "title": "Live2D walk",
+        "primaryTrigger": "walk",
+        "deletable": false
+      },
+      "source": {
+        "type": "live2d",
+        "localPath": "chii"
+      },
+      "width": 300,
+      "height": 300,
+      "padding": 40,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": true,
+      "autoIdle": false
+    },
+    {
+      "meta": {
+        "id": "live2d-wave",
+        "title": "Live2D wave",
+        "primaryTrigger": "wave",
+        "deletable": false
+      },
+      "source": {
+        "type": "live2d",
+        "localPath": "chii"
+      },
+      "width": 300,
+      "height": 300,
+      "padding": 40,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false,
+      "autoIdle": true
+    },
+    {
+      "meta": {
+        "id": "live2d-welcome",
+        "title": "Live2D welcome",
+        "primaryTrigger": "welcome",
+        "deletable": false
+      },
+      "source": {
+        "type": "live2d",
+        "localPath": "chii"
+      },
+      "width": 300,
+      "height": 300,
+      "padding": 40,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false,
+      "autoIdle": true
+    },
+    {
+      "meta": {
+        "id": "live2d-celebrate",
+        "title": "Live2D celebrate",
+        "primaryTrigger": "celebrate",
+        "deletable": false
+      },
+      "source": {
+        "type": "live2d",
+        "localPath": "chii"
+      },
+      "width": 300,
+      "height": 300,
+      "padding": 40,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false,
+      "autoIdle": true
+    },
+    {
+      "meta": {
+        "id": "live2d-thinking",
+        "title": "Live2D thinking",
+        "primaryTrigger": "thinking",
+        "deletable": false
+      },
+      "source": {
+        "type": "live2d",
+        "localPath": "chii"
+      },
+      "width": 300,
+      "height": 300,
+      "padding": 40,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": true,
+      "autoIdle": false
+    },
+    {
+      "meta": {
+        "id": "live2d-processing",
+        "title": "Live2D processing",
+        "primaryTrigger": "processing",
+        "deletable": false
+      },
+      "source": {
+        "type": "live2d",
+        "localPath": "chii"
+      },
+      "width": 300,
+      "height": 300,
+      "padding": 40,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": true,
+      "autoIdle": false
+    },
+    {
+      "meta": {
+        "id": "live2d-loading",
+        "title": "Live2D loading",
+        "primaryTrigger": "loading",
+        "deletable": false
+      },
+      "source": {
+        "type": "live2d",
+        "localPath": "chii"
+      },
+      "width": 300,
+      "height": 300,
+      "padding": 40,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": true,
+      "autoIdle": false
+    },
+    {
+      "meta": {
+        "id": "live2d-write",
+        "title": "Live2D write",
+        "primaryTrigger": "write",
+        "deletable": false
+      },
+      "source": {
+        "type": "live2d",
+        "localPath": "chii"
+      },
+      "width": 300,
+      "height": 300,
+      "padding": 40,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": true,
+      "autoIdle": false
+    },
+    {
+      "meta": {
+        "id": "live2d-success",
+        "title": "Live2D success",
+        "primaryTrigger": "success",
+        "deletable": false
+      },
+      "source": {
+        "type": "live2d",
+        "localPath": "chii"
+      },
+      "width": 300,
+      "height": 300,
+      "padding": 40,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false,
+      "autoIdle": true
+    },
+    {
+      "meta": {
+        "id": "live2d-error",
+        "title": "Live2D error",
+        "primaryTrigger": "error",
+        "deletable": false
+      },
+      "source": {
+        "type": "live2d",
+        "localPath": "chii"
+      },
+      "width": 300,
+      "height": 300,
+      "padding": 40,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false,
+      "autoIdle": true
+    },
+    {
+      "meta": {
+        "id": "live2d-failure",
+        "title": "Live2D failure",
+        "primaryTrigger": "failure",
+        "deletable": false
+      },
+      "source": {
+        "type": "live2d",
+        "localPath": "chii"
+      },
+      "width": 300,
+      "height": 300,
+      "padding": 40,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false,
+      "autoIdle": true
+    }
+  ]
+}
