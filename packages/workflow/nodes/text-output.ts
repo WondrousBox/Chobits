@@ -1,4 +1,4 @@
-import { NodeHandler } from '../types';
+import type { NodeHandler } from '../types.js';
 
 /**
  * 文本输出节点

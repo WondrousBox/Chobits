@@ -1,14 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 const getWorkflowMock = vi.hoisted(() => vi.fn());
-const listAllWorkflowDefinitionsMock = vi.hoisted(() => vi.fn());
 const startValidatedWorkflowMock = vi.hoisted(() => vi.fn());
-
-vi.mock('../packages/workflow', () => ({
-  getWorkflow: getWorkflowMock,
-  listAllWorkflowDefinitions: listAllWorkflowDefinitionsMock,
-  startValidatedWorkflow: startValidatedWorkflowMock
-}));
 
 vi.mock('../packages/ai/runtime/pi/skills', () => ({
   resolveGuardedToolExecution: vi.fn()
@@ -67,16 +60,22 @@ describe('workflowRunTool resource outputs', () => {
       resourcesRepo: {
         getById: vi.fn().mockResolvedValue({ id: 'video-1', workspaceId: 'workspace-1', folderId: 'folder-1' })
       },
-      resolved: {}
+      resolved: {},
+      workflowRuntime: {
+        getDefinition: getWorkflowMock,
+        startValidatedDefinition: startValidatedWorkflowMock
+      }
     };
     const tool = createPiWorkflowRunTool(toolContext as any);
 
-    const result = (await tool.execute('call-1', {
-      action: 'run',
-      workflowId: 'sample:transcribe',
-      input: { resourceId: 'video-1' },
-      waitForCompletion: true
-    })).details as any;
+    const result = (
+      await tool.execute('call-1', {
+        action: 'run',
+        workflowId: 'sample:transcribe',
+        input: { resourceId: 'video-1' },
+        waitForCompletion: true
+      })
+    ).details as any;
 
     expect(result.success).toBe(true);
     expect(result.outputResourceId).toBe('subtitle-1');

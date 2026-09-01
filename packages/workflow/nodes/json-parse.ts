@@ -1,4 +1,4 @@
-import { NodeHandler } from '../types';
+import type { NodeHandler } from '../types.js';
 
 export const JsonParseNode: NodeHandler = {
   spec: {

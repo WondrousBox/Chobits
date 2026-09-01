@@ -1,4 +1,4 @@
-import { NodeConfig, NodeHandler, PortSchema } from '../types';
+import { type NodeConfig, type NodeHandler, type PortSchema } from '../types.js';
 
 export const ConditionNode: NodeHandler = {
   spec: {

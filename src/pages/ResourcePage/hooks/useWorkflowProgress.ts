@@ -1,5 +1,7 @@
+import type { WorkflowRunStatusEvent } from '@workflow/integrations/client';
 import { useEffect, useState } from 'react';
 
+import { workflowClient } from '@/lib/workflow-client';
 import { matchesWorkflowWorkspace } from '@/utils/broadcastChannels';
 
 interface WorkflowProgress {
@@ -22,7 +24,7 @@ export function useWorkflowProgress(workspaceId?: string): WorkflowProgress {
   useEffect(() => {
     const workflowNameCache = new Map<string, string>();
 
-    const handleRunStatus = async (_event: any, rec: any): Promise<void> => {
+    const handleRunStatus = async (rec: WorkflowRunStatusEvent): Promise<void> => {
       if (!rec || !rec.runId) return;
       const runWorkspaceId = rec.workspaceId ?? rec.metadata?.workspaceId;
       if (!matchesWorkflowWorkspace(workspaceId, runWorkspaceId)) return;
@@ -37,7 +39,7 @@ export function useWorkflowProgress(workspaceId?: string): WorkflowProgress {
         if (!workflowName) {
           workflowName = '工作流';
           try {
-            const def = await window.ipcRenderer.invoke('wf:getDefinition', { id: rec.workflowId, workspaceId: rec.workspaceId ?? rec.metadata?.workspaceId });
+            const def = await workflowClient.getDefinition({ id: rec.workflowId, workspaceId: rec.workspaceId ?? rec.metadata?.workspaceId });
             if (def?.name) {
               workflowName = def.name;
               workflowNameCache.set(rec.workflowId, workflowName || '');
@@ -81,11 +83,9 @@ export function useWorkflowProgress(workspaceId?: string): WorkflowProgress {
     };
 
     // 监听工作流状态事件
-    window.ipcRenderer.on('wf:run-status', handleRunStatus);
+    const unsubscribe = workflowClient.onRunStatus((record) => void handleRunStatus(record));
 
-    return () => {
-      window.ipcRenderer.off('wf:run-status', handleRunStatus);
-    };
+    return unsubscribe;
   }, [workspaceId]);
 
   return progress;

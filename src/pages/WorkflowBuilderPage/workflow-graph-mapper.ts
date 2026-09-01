@@ -1,4 +1,4 @@
-import type { WorkflowEdgeDraft, WorkflowNodeDraft } from '@packages/workflow/types';
+import type { WorkflowEdgeDraft, WorkflowNodeDraft } from '@chobits/workflow';
 import type { Connection, Edge, Node } from 'reactflow';
 
 import type { NodeData, NodeSpec } from './types';

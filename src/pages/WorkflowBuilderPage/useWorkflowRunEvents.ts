@@ -1,6 +1,9 @@
+import type { WorkflowNodeStatusEvent, WorkflowRunLogEvent, WorkflowRunStatusEvent } from '@workflow/integrations/client';
 import type { Dispatch, SetStateAction } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Edge, Node } from 'reactflow';
+
+import { workflowClient } from '@/lib/workflow-client';
 
 import type { ExecutionStatus, NodeData, WorkflowRunLogEntry } from './types';
 import { classifyWorkflowRunEvent } from './workflow-run-events';
@@ -47,7 +50,7 @@ export function useWorkflowRunEvents({ workflowId, workspaceId, setNodes, setEdg
     activeScopeRef.current = workflowScope;
     currentRunIdRef.current = null;
 
-    const handleRunStatus = (_event: any, record: any): void => {
+    const handleRunStatus = (record: WorkflowRunStatusEvent): void => {
       const action = classifyWorkflowRunEvent(record, workflowId, workspaceId, currentRunIdRef.current);
       if (action === 'ignore') return;
 
@@ -65,8 +68,8 @@ export function useWorkflowRunEvents({ workflowId, workspaceId, setNodes, setEdg
           }))
         );
         setEdges((edges) => edges.map((edge) => ({ ...edge, animated: false, style: {} })));
-        window.ipcRenderer
-          .invoke('wf:getRunLogs', { runId: record.runId, workspaceId })
+        workflowClient
+          .getRunLogs({ runId: record.runId, workspaceId })
           .then((logs: WorkflowRunLogEntry[]) => {
             if (Array.isArray(logs) && activeScopeRef.current === workflowScope && currentRunIdRef.current === record.runId) {
               setRunLogs((current) => mergeRunLogs(logs, current));
@@ -85,7 +88,7 @@ export function useWorkflowRunEvents({ workflowId, workspaceId, setNodes, setEdg
       }
     };
 
-    const handleNodeStatus = (_event: any, payload: any): void => {
+    const handleNodeStatus = (payload: WorkflowNodeStatusEvent): void => {
       if (payload.workflowId !== workflowId || payload.runId !== currentRunIdRef.current) return;
       const nodeState = payload.node;
       setNodes((nodes) => nodes.map((node) => (node.id === nodeState.nodeId ? { ...node, data: { ...node.data, runtime: nodeState } } : node)));
@@ -99,7 +102,7 @@ export function useWorkflowRunEvents({ workflowId, workspaceId, setNodes, setEdg
       }
     };
 
-    const handleRunLog = (_event: any, payload: any): void => {
+    const handleRunLog = (payload: WorkflowRunLogEvent): void => {
       if (payload.runId !== currentRunIdRef.current) return;
       setRunLogs((logs) => {
         const next = [...logs, payload.entry];
@@ -107,15 +110,15 @@ export function useWorkflowRunEvents({ workflowId, workspaceId, setNodes, setEdg
       });
     };
 
-    window.ipcRenderer.on('wf:run-status', handleRunStatus);
-    window.ipcRenderer.on('wf:node-status', handleNodeStatus);
-    window.ipcRenderer.on('wf:run-log', handleRunLog);
+    const unsubscribeRunStatus = workflowClient.onRunStatus(handleRunStatus);
+    const unsubscribeNodeStatus = workflowClient.onNodeStatus(handleNodeStatus);
+    const unsubscribeRunLog = workflowClient.onRunLog(handleRunLog);
 
     return () => {
       if (activeScopeRef.current === workflowScope) activeScopeRef.current = null;
-      window.ipcRenderer.off('wf:run-status', handleRunStatus);
-      window.ipcRenderer.off('wf:node-status', handleNodeStatus);
-      window.ipcRenderer.off('wf:run-log', handleRunLog);
+      unsubscribeRunStatus();
+      unsubscribeNodeStatus();
+      unsubscribeRunLog();
     };
   }, [workflowId, workspaceId, workflowScope, setNodes, setEdges]);
 

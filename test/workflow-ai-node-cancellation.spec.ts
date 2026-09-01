@@ -16,7 +16,7 @@ vi.mock('../packages/ai/providers/service', () => ({
   toCanonicalProviderId: vi.fn((providerId: string) => providerId)
 }));
 
-vi.mock('../packages/workflow/nodes/ai-workflow-utils', () => ({
+vi.mock('../packages/workflow-integrations/src/nodes/ai/ai-workflow-utils', () => ({
   buildWorkflowAiUsageContext: vi.fn(() => ({ operationKey: 'test', usageStage: 'generate' })),
   executeWorkflowChatRequest: chatRequestMock,
   executeWorkflowImageGenerationRequest: imageRequestMock,
@@ -32,7 +32,10 @@ import { AiPromptOptimizerNode } from '../packages/workflow/nodes/ai-prompt-opti
 import { ImageGenerateNode } from '../packages/workflow/nodes/image-generate';
 import { ImageUnderstandNode } from '../packages/workflow/nodes/image-understand';
 import { MusicGenerateNode } from '../packages/workflow/nodes/music-generate';
+import { createWorkflowCapabilities } from '../packages/workflow/src/runtime/capabilities';
 import type { ExecutionContext } from '../packages/workflow/types';
+import { createWorkflowIntegrationAiCapability } from '../packages/workflow-integrations/src/adapters/ai';
+import { WORKFLOW_AI } from '../packages/workflow-integrations/src/capabilities/ai';
 
 const tempDirs: string[] = [];
 const getPlugin = (): undefined => undefined;
@@ -62,12 +65,13 @@ describe('workflow AI node cancellation', () => {
     const signal = new AbortController().signal;
     const ctx: ExecutionContext = { signal, tmpDir: tempDir };
     const emit = vi.fn();
+    const capabilities = createWorkflowCapabilities([[WORKFLOW_AI, createWorkflowIntegrationAiCapability()]]);
 
-    await AiChatNode.run({ input: { message: 'hello' }, ctx, emit, getPlugin });
-    await AiPromptOptimizerNode.run({ input: { prompt: 'improve this' }, ctx, emit, getPlugin });
-    await ImageGenerateNode.run({ input: { prompt: 'draw this' }, ctx, emit, getPlugin });
-    await ImageUnderstandNode.run({ input: { image: imagePath }, ctx, emit, getPlugin });
-    await MusicGenerateNode.run({ input: { prompt: 'make music' }, ctx, emit, getPlugin });
+    await AiChatNode.run({ input: { message: 'hello' }, ctx, capabilities, emit, getPlugin });
+    await AiPromptOptimizerNode.run({ input: { prompt: 'improve this' }, ctx, capabilities, emit, getPlugin });
+    await ImageGenerateNode.run({ input: { prompt: 'draw this' }, ctx, capabilities, emit, getPlugin });
+    await ImageUnderstandNode.run({ input: { image: imagePath }, ctx, capabilities, emit, getPlugin });
+    await MusicGenerateNode.run({ input: { prompt: 'make music' }, ctx, capabilities, emit, getPlugin });
 
     expect(textRequestMock).toHaveBeenCalledTimes(2);
     expect(textRequestMock.mock.calls.every(([options]) => options.signal === signal)).toBe(true);

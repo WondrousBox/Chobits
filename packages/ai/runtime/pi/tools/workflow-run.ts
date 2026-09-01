@@ -1,7 +1,6 @@
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
 
-import { getWorkflow, listAllWorkflowDefinitions, startValidatedWorkflow } from '../../../../workflow';
 import type { NodeRunState, WorkflowDefinition, WorkflowRunRecord } from '../../../../workflow/types';
 import { resolveGuardedToolExecution } from '../skills';
 import type { PiSessionToolContext } from '../tool-context';
@@ -200,6 +199,7 @@ const workflowRunParameters = Type.Object({
 });
 
 export function createPiWorkflowRunTool(toolContext: PiSessionToolContext): ToolDefinition<typeof workflowRunParameters> {
+  const workflowRuntime = toolContext.workflowRuntime;
   return {
     name: 'workflowRunTool',
     label: 'workflowRunTool',
@@ -213,7 +213,8 @@ export function createPiWorkflowRunTool(toolContext: PiSessionToolContext): Tool
       if (action === 'list') {
         try {
           const metadata = await resolveWorkflowMetadata(toolContext);
-          const definitions = await listAllWorkflowDefinitions(metadata.workspaceId);
+          if (!workflowRuntime) throw new Error('Workflow runtime is not available.');
+          const definitions = await workflowRuntime.listDefinitions(metadata.workspaceId);
           const workflows = definitions.filter((definition) => definition.id !== 'blank').map(extractWorkflowSummary);
           return createJsonToolResult({ success: true, workflows, total: workflows.length });
         } catch (error: any) {
@@ -228,7 +229,8 @@ export function createPiWorkflowRunTool(toolContext: PiSessionToolContext): Tool
 
         try {
           const metadata = await resolveWorkflowMetadata(toolContext);
-          const definitions = await listAllWorkflowDefinitions(metadata.workspaceId);
+          if (!workflowRuntime) throw new Error('Workflow runtime is not available.');
+          const definitions = await workflowRuntime.listDefinitions(metadata.workspaceId);
           const normalizedQuery = query.toLowerCase();
           const results = definitions
             .filter((definition) => definition.id !== 'blank')
@@ -268,7 +270,8 @@ export function createPiWorkflowRunTool(toolContext: PiSessionToolContext): Tool
           }
 
           const metadata = await resolveWorkflowMetadata(toolContext, workflowInput || {});
-          const definition = await getWorkflow(workflowId, metadata.workspaceId);
+          if (!workflowRuntime) throw new Error('Workflow runtime is not available.');
+          const definition = await workflowRuntime.getDefinition(workflowId, metadata.workspaceId);
           if (!definition) {
             return createJsonToolResult({
               success: false,
@@ -290,7 +293,7 @@ export function createPiWorkflowRunTool(toolContext: PiSessionToolContext): Tool
               }
             : undefined;
 
-          const runHandle = await startValidatedWorkflow(definition, runInput, metadata, onProgress);
+          const runHandle = await workflowRuntime.startValidatedDefinition(definition, runInput, metadata, onProgress);
           const runPromise = runHandle.completionPromise;
 
           if (!shouldWait) {

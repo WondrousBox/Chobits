@@ -1,4 +1,4 @@
-import type { NodeRunState } from './types';
+import type { NodeRunState } from './types.js';
 
 export function calculateWorkflowProgress(nodes: Record<string, NodeRunState>): number {
   const states = Object.values(nodes);

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
+import { workflowClient } from '@/lib/workflow-client';
 import { runWorkflow } from '@/lib/workflow-runner';
 import { BroadcastChannelManager, CHANNEL_NAMES, type PreferencesMessage } from '@/utils/broadcastChannels';
 
@@ -129,9 +130,9 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
   // 工作流列表（提升到父组件，避免 SelectionActionBar 每次挂载时重新加载）
   const [workflows, setWorkflows] = useState<any[]>([]);
   useEffect(() => {
-    window.ipcRenderer
-      .invoke('wf:listDefinitions', { workspaceId: wsFilter })
-      .then((defs: any[]) => {
+    workflowClient
+      .listDefinitions({ workspaceId: wsFilter })
+      .then((defs) => {
         setWorkflows(defs || []);
       })
       .catch(() => { });

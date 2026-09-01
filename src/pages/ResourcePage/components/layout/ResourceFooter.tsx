@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { workflowClient } from '@/lib/workflow-client';
 import { runWorkflow } from '@/lib/workflow-runner';
 
 import { ResourceItem } from '../../types';
@@ -43,9 +44,9 @@ const ResourceFooter: React.FC<ResourceFooterProps> = ({
   // 工作流列表
   const [workflows, setWorkflows] = useState<any[]>([]);
   useEffect(() => {
-    window.ipcRenderer
-      .invoke('wf:listDefinitions', { workspaceId })
-      .then((defs: any[]) => {
+    workflowClient
+      .listDefinitions({ workspaceId })
+      .then((defs) => {
         setWorkflows(defs || []);
       })
       .catch(() => { });

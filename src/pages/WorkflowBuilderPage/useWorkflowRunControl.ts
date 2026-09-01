@@ -1,4 +1,4 @@
-import type { WorkflowDraft } from '@packages/workflow/types';
+import type { WorkflowDraft } from '@chobits/workflow';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { Node } from 'reactflow';
 import { toast } from 'sonner';

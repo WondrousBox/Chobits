@@ -10,7 +10,11 @@ export interface WorkflowRunEventCoordinatorPorts {
   engine: WorkflowEngine;
   persistence: RunPersistenceQueue;
   loadDefinition(id: string, workspaceId?: string): Promise<WorkflowDefinition | undefined>;
-  broadcast(channel: 'wf:run-status' | 'wf:node-status' | 'wf:run-log', payload: unknown): void;
+  broadcast: {
+    runStatus(payload: unknown): void;
+    nodeStatus(payload: unknown): void;
+    runLog(payload: unknown): void;
+  };
   emitLifecycle(event: WorkflowRunLifecycleEvent, payload: Record<string, any>): void;
   busy: {
     start(progress: number, message: string): void;
@@ -72,7 +76,7 @@ export function attachWorkflowRunEventCoordinator(ports: WorkflowRunEventCoordin
     }
 
     void persistence(record).catch(() => {});
-    ports.broadcast('wf:run-status', sanitizeWorkflowRunRecord(record));
+    ports.broadcast.runStatus(sanitizeWorkflowRunRecord(record));
 
     if (isFirstRunningStatus) {
       ports.emitLifecycle('start', buildLifecyclePayload(record));
@@ -117,15 +121,15 @@ export function attachWorkflowRunEventCoordinator(ports: WorkflowRunEventCoordin
       void persistence(record).catch(() => {});
     }
 
-    ports.broadcast('wf:node-status', { runId: record.runId, workflowId: record.workflowId, node: sanitizeWorkflowNodeState(node) });
+    ports.broadcast.nodeStatus({ runId: record.runId, workflowId: record.workflowId, node: sanitizeWorkflowNodeState(node) });
     if (progressState) {
-      ports.broadcast('wf:run-status', sanitizeWorkflowRunRecord(record));
+      ports.broadcast.runStatus(sanitizeWorkflowRunRecord(record));
       ports.emitLifecycle('progress', buildLifecyclePayload(record));
     }
   };
 
   const handleRunLog = (runId: string, entry: WorkflowRunLogEntry): void => {
-    ports.broadcast('wf:run-log', { runId, entry: sanitizeWorkflowRunLogEntry(entry) });
+    ports.broadcast.runLog({ runId, entry: sanitizeWorkflowRunLogEntry(entry) });
   };
 
   engine.onTyped('run:status', handleRunStatus);

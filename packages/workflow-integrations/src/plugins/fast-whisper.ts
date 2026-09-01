@@ -1,0 +1,58 @@
+import fs from 'node:fs';
+import { platform } from 'node:os';
+
+import type { MissingModel, Plugin } from '@chobits/workflow';
+
+export const FastWhisperPlugin: Plugin = {
+  id: 'plugin:fast-whisper',
+  label: 'Fast Whisper CLI',
+  description: 'Fast Whisper 命令行工具，用于快速音频和视频转录',
+  capabilities: ['transcribe'],
+  installHint: '通过插件资源管理器下载 Fast Whisper 转录插件',
+
+  async isInstalled(ctx) {
+    // 首先通过 ExecutionContext 暴露的能力，检查资源管理器中是否已安装
+    if (!ctx.pluginResourceManager) {
+      return false;
+    }
+    const enginePath = ctx.pluginResourceManager.getEnginePath('plugin:fast-whisper', platform() === 'win32' ? 'fast-whisper-cli.exe' : 'fast-whisper-cli');
+    if (fs.existsSync(enginePath)) {
+      return true;
+    }
+    return false;
+  },
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async prepare(ctx) {
+    // 如果资源管理器中安装了engine，可以在这里设置环境变量或路径
+    // 目前fast-whisper CLI通常通过PATH访问，所以暂时不需要额外准备
+    // 后续可以在这里添加模型预下载逻辑
+  },
+  async checkRequiredModels(ctx, nodeConfig): Promise<MissingModel[]> {
+    const missingModels: MissingModel[] = [];
+    if (!ctx.pluginResourceManager) {
+      return missingModels;
+    }
+
+    // 检查配置中的模型
+    const modelName = String(nodeConfig?.model || '');
+    if (modelName) {
+      const pluginId = 'plugin:fast-whisper';
+      const modelPath = ctx.pluginResourceManager.getModelPath(pluginId, modelName);
+      if (!fs.existsSync(modelPath)) {
+        // 尝试从已安装的资源中查找模型资源ID
+        const { PluginResourceStore } = await import('../../../plugins/plugin-resource-store');
+        const installedModels = PluginResourceStore.listByType(pluginId, 'model');
+        const modelResource = installedModels.find((r) => r.name === modelName);
+
+        missingModels.push({
+          pluginId,
+          modelName,
+          resourceId: modelResource?.resourceId,
+          displayName: modelResource?.displayName
+        });
+      }
+    }
+
+    return missingModels;
+  }
+};

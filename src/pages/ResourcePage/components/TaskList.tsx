@@ -4,6 +4,7 @@ import { TbArrowRight, TbChevronDown, TbChevronRight, TbCircleFilled, TbFolderOp
 import PageToolbar from '@/components/common/PageToolbar';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { workflowClient } from '@/lib/workflow-client';
 
 import { makeResSrc } from '../utils/resourceProtocol';
 
@@ -39,7 +40,7 @@ const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
 
   // Load workflow definitions once
   useEffect(() => {
-    window.ipcRenderer.invoke('wf:listDefinitions', { workspaceId }).then((defs: any[]) => {
+    workflowClient.listDefinitions({ workspaceId }).then((defs) => {
       const map: Record<string, string> = {};
       defs.forEach((d) => (map[d.id] = d.name));
       setWorkflowNames(map);
@@ -48,7 +49,7 @@ const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
 
   const loadTasks = useCallback(async (): Promise<void> => {
     try {
-      const res = await window.ipcRenderer.invoke('wf:listRuns', { limit: 100, workspaceId: workspaceId });
+      const res = await workflowClient.listRuns({ limit: 100, workspaceId });
       if (Array.isArray(res)) {
         setTasks((prev) => {
           const prevMap = new Map(prev.map((t) => [t.runId, t]));
@@ -91,11 +92,11 @@ const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
       if (expandedIds.length > 0) {
         expandedIds.forEach(async (id) => {
           try {
-            const details = await window.ipcRenderer.invoke('wf:getRun', { runId: id, workspaceId });
+            const details = await workflowClient.getRun({ runId: id, workspaceId });
             if (details) {
               setTasks((prev) => prev.map((t) => (t.runId === id ? { ...t, ...details } : t)));
             }
-          } catch (e) {
+          } catch {
             // ignore
           }
         });
@@ -110,25 +111,25 @@ const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
     window.YUA.file['file:reveal'](path);
   };
 
-  const handleDelete = async (runId: string) => {
+  const handleDelete = async (runId: string): Promise<void> => {
     try {
-      await window.ipcRenderer.invoke('wf:deleteRun', { runId, workspaceId: workspaceId });
+      await workflowClient.deleteRun({ runId, workspaceId });
       loadTasks();
     } catch (e) {
       console.error('Failed to delete run', e);
     }
   };
 
-  const handleStop = async (runId: string) => {
+  const handleStop = async (runId: string): Promise<void> => {
     try {
-      await window.ipcRenderer.invoke('wf:cancelRun', { runId, workspaceId });
+      await workflowClient.cancelRun({ runId, workspaceId });
       loadTasks();
     } catch (e) {
       console.error('Failed to stop run', e);
     }
   };
 
-  const toggleExpand = async (runId: string) => {
+  const toggleExpand = async (runId: string): Promise<void> => {
     const newSet = new Set(expandedTasks);
     if (newSet.has(runId)) {
       newSet.delete(runId);
@@ -138,7 +139,7 @@ const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
       const task = tasks.find((t) => t.runId === runId);
       if (task && (!task.nodes || Object.keys(task.nodes).length === 0)) {
         try {
-          const details = await window.ipcRenderer.invoke('wf:getRun', { runId, workspaceId });
+          const details = await workflowClient.getRun({ runId, workspaceId });
           if (details) {
             setTasks((prev) => prev.map((t) => (t.runId === runId ? { ...t, ...details } : t)));
           }

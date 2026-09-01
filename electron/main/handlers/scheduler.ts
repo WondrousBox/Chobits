@@ -1,10 +1,12 @@
-import { getWorkflow, runWorkflow } from '../../../packages/workflow';
+import type { WorkflowRuntimeFacade } from '@chobits/workflow/application';
+
 import { AutomationRulesRepo } from '../db/repositories';
 import { AutomationRuleRow } from '../db/schema';
 import { getMainSchedulerService, type MainSchedulerService, type SchedulerJobDefinition, type SchedulerRunContext, type SchedulerRunTrigger, type ScheduleSpec } from '../scheduler';
 
 const AUTOMATION_OWNER = 'automation';
 const automationScheduler = getMainSchedulerService();
+let workflowRuntime: WorkflowRuntimeFacade | undefined;
 
 export type AutomationRuleTrigger =
   | { type: 'schedule'; scheduledFor?: number; triggeredAt?: number }
@@ -40,7 +42,8 @@ automationScheduler.registerHandler(AUTOMATION_OWNER, async (context: SchedulerR
   return { status: 'success' as const };
 });
 
-export async function initScheduler(): Promise<void> {
+export async function initScheduler(runtime: WorkflowRuntimeFacade): Promise<void> {
+  workflowRuntime = runtime;
   console.log('[Scheduler] Initializing...');
   const rules = await AutomationRulesRepo.list();
   const enabledRules = rules.filter((r) => r.enabled);
@@ -85,7 +88,11 @@ export function unscheduleRule(ruleId: string): void {
   }
 }
 
-export async function executeAutomationRule(rule: AutomationRuleRow | undefined, trigger: AutomationRuleTrigger): Promise<AutomationRuleExecutionResult> {
+export async function executeAutomationRule(
+  rule: AutomationRuleRow | undefined,
+  trigger: AutomationRuleTrigger,
+  runtime: WorkflowRuntimeFacade = getWorkflowRuntime()
+): Promise<AutomationRuleExecutionResult> {
   if (!rule) {
     return { ok: false, reason: 'missing-rule' };
   }
@@ -98,7 +105,7 @@ export async function executeAutomationRule(rule: AutomationRuleRow | undefined,
     }
 
     try {
-      const workflow = await getWorkflow(config.workflowId, rule.workspaceId ?? undefined);
+      const workflow = await runtime.getDefinition(config.workflowId, rule.workspaceId ?? undefined);
       if (!workflow) {
         console.error(`[Scheduler] Workflow ${config.workflowId} not found for rule ${rule.id}`);
         return { ok: false, reason: 'workflow-not-found' };
@@ -106,7 +113,7 @@ export async function executeAutomationRule(rule: AutomationRuleRow | undefined,
 
       console.log(`[Scheduler] Running workflow ${workflow.name} for rule ${rule.id}`);
       const inputs = buildWorkflowInputs(config.inputs || {}, trigger);
-      const record = await runWorkflow(workflow, inputs, { workspaceId: rule.workspaceId ?? workflow.workspaceId });
+      const record = await runtime.runDefinition(workflow, inputs, { workspaceId: rule.workspaceId ?? workflow.workspaceId });
       if (record.status !== 'completed') {
         console.error(`[Scheduler] Workflow ${workflow.id} finished with status ${record.status}: ${record.error ?? 'unknown error'}`);
         return {
@@ -123,6 +130,15 @@ export async function executeAutomationRule(rule: AutomationRuleRow | undefined,
     console.warn(`[Scheduler] Unsupported action type ${rule.actionType} for rule ${rule.id}`);
     return { ok: false, reason: 'unsupported-action-type' };
   }
+}
+
+export function configureAutomationWorkflowRuntime(runtime: WorkflowRuntimeFacade | undefined): void {
+  workflowRuntime = runtime;
+}
+
+function getWorkflowRuntime(): WorkflowRuntimeFacade {
+  if (!workflowRuntime) throw new Error('Workflow runtime is not initialized');
+  return workflowRuntime;
 }
 
 export async function runAutomationRule(rule: AutomationRuleRow | undefined, trigger: AutomationRuleTrigger): Promise<AutomationRuleExecutionResult> {

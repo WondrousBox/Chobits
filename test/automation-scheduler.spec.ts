@@ -1,5 +1,6 @@
 import { rmSync } from 'node:fs';
 
+import type { WorkflowRuntimeFacade } from '@chobits/workflow/application';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const scheduleJobMock = vi.hoisted(() => vi.fn());
@@ -18,11 +19,6 @@ vi.mock('node-schedule', () => ({
   default: {
     scheduleJob: scheduleJobMock
   }
-}));
-
-vi.mock('../packages/workflow', () => ({
-  getWorkflow: getWorkflowMock,
-  runWorkflow: runWorkflowMock
 }));
 
 vi.mock('../electron/main/db/repositories', () => ({
@@ -45,6 +41,13 @@ function createRule(patch?: Record<string, unknown>): any {
   };
 }
 
+function createWorkflowRuntime(): WorkflowRuntimeFacade {
+  return {
+    getDefinition: getWorkflowMock,
+    runDefinition: runWorkflowMock
+  } as unknown as WorkflowRuntimeFacade;
+}
+
 describe('automation scheduler', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -59,7 +62,8 @@ describe('automation scheduler', () => {
     const cancel = vi.fn();
     scheduleJobMock.mockReturnValue({ cancel });
 
-    const { scheduleRule } = await import('../electron/main/handlers/scheduler');
+    const { configureAutomationWorkflowRuntime, scheduleRule } = await import('../electron/main/handlers/scheduler');
+    configureAutomationWorkflowRuntime(createWorkflowRuntime());
 
     scheduleRule(createRule());
     scheduleRule(createRule({ enabled: 0 }));
@@ -94,7 +98,8 @@ describe('automation scheduler', () => {
     getWorkflowMock.mockResolvedValue(workflow);
     runWorkflowMock.mockResolvedValue({ runId: 'run-1', status: 'completed' });
 
-    const { scheduleRule } = await import('../electron/main/handlers/scheduler');
+    const { configureAutomationWorkflowRuntime, scheduleRule } = await import('../electron/main/handlers/scheduler');
+    configureAutomationWorkflowRuntime(createWorkflowRuntime());
 
     scheduleRule(createRule({ actionConfig: { workflowId: 'workflow-1', inputs: { source: 'rule' } } }));
     await scheduledCallback?.(new Date('2026-05-05T09:05:00Z'));
@@ -118,7 +123,8 @@ describe('automation scheduler', () => {
     runWorkflowMock.mockResolvedValue({ runId: 'run-1', status: 'completed' });
 
     const { getMainSchedulerService } = await import('../electron/main/scheduler');
-    const { getAutomationSchedulerSnapshot, runAutomationRule, scheduleRule } = await import('../electron/main/handlers/scheduler');
+    const { configureAutomationWorkflowRuntime, getAutomationSchedulerSnapshot, runAutomationRule, scheduleRule } = await import('../electron/main/handlers/scheduler');
+    configureAutomationWorkflowRuntime(createWorkflowRuntime());
 
     const manualRule = createRule({
       id: 'manual-rule',
@@ -207,9 +213,20 @@ describe('automation scheduler', () => {
 
     const { executeAutomationRule } = await import('../electron/main/handlers/scheduler');
 
-    await expect(executeAutomationRule(createRule(), { type: 'manual' })).resolves.toEqual({
+    await expect(executeAutomationRule(createRule(), { type: 'manual' }, createWorkflowRuntime())).resolves.toEqual({
       ok: false,
       reason: 'node failed'
+    });
+  });
+
+  it('maps a canceled workflow run to a scheduler cancellation reason', async () => {
+    getWorkflowMock.mockResolvedValue({ id: 'workflow-1', name: 'Workflow One' });
+    runWorkflowMock.mockResolvedValue({ runId: 'run-1', status: 'canceled' });
+    const { executeAutomationRule } = await import('../electron/main/handlers/scheduler');
+
+    await expect(executeAutomationRule(createRule(), { type: 'manual' }, createWorkflowRuntime())).resolves.toEqual({
+      ok: false,
+      reason: 'workflow-canceled'
     });
   });
 });

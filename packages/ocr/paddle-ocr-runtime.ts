@@ -4,9 +4,12 @@ import path from 'node:path';
 import type { FlattenedPaddleOcrResult, PaddleOcrResult, ProcessingEngine, RecognitionStrategy } from 'ppu-paddle-ocr';
 import { PaddleOcrService } from 'ppu-paddle-ocr';
 
-import type { PluginResourceManager } from '../plugins';
 import { DEFAULT_PADDLE_OCR_MODEL, normalizePaddleOcrModelName, PADDLE_OCR_MODEL_SPECS, PADDLE_OCR_PLUGIN_ID, resolvePaddleOcrModelFiles } from './paddle-ocr-models';
 import { OcrModelMissingError } from './types';
+
+export interface PaddleOcrModelPathResolver {
+  getModelPath(pluginId: string, modelName: string): string;
+}
 
 export type PaddleOcrRuntimeOptions = {
   model?: string;
@@ -79,7 +82,7 @@ function toArrayBuffer(buffer: Buffer): ArrayBuffer {
   return arrayBuffer;
 }
 
-export function resolvePaddleOcrModel(pluginResourceManager: PluginResourceManager | undefined, modelNameInput?: string): ResolvedPaddleOcrModel {
+export function resolvePaddleOcrModel(pluginResourceManager: PaddleOcrModelPathResolver | undefined, modelNameInput?: string): ResolvedPaddleOcrModel {
   if (!pluginResourceManager) {
     throw new Error('Paddle OCR 模型管理器不可用');
   }
@@ -111,7 +114,7 @@ export function resolvePaddleOcrModel(pluginResourceManager: PluginResourceManag
   };
 }
 
-async function getService(pluginResourceManager: PluginResourceManager, options: PaddleOcrRuntimeOptions): Promise<RuntimeCacheEntry> {
+async function getService(pluginResourceManager: PaddleOcrModelPathResolver, options: PaddleOcrRuntimeOptions): Promise<RuntimeCacheEntry> {
   const model = resolvePaddleOcrModel(pluginResourceManager, options.model);
   const strategy = normalizeStrategy(options.strategy);
   const processingEngine = normalizeProcessingEngine(options.processingEngine);
@@ -164,7 +167,7 @@ async function getService(pluginResourceManager: PluginResourceManager, options:
 
 export async function recognizeWithPaddleOcr(
   imagePath: string,
-  pluginResourceManager: PluginResourceManager | undefined,
+  pluginResourceManager: PaddleOcrModelPathResolver | undefined,
   options: PaddleOcrRuntimeOptions = {}
 ): Promise<{ text: string; results: unknown; confidence?: number; model: ResolvedPaddleOcrModel }> {
   if (!pluginResourceManager) {

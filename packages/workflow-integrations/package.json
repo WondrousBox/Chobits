@@ -1,0 +1,44 @@
+{
+  "name": "@workflow/integrations",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Private host-application capabilities, nodes, and workflow adapters",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./ai": "./src/ai.ts",
+    "./composition": "./src/composition.ts",
+    "./client": "./src/client.ts",
+    "./capabilities": "./src/capabilities/index.ts",
+    "./adapters": "./src/adapters/index.ts",
+    "./adapters/resource": "./src/adapters/resource.ts",
+    "./adapters/rendering": "./src/adapters/rendering.ts",
+    "./nodes": "./src/nodes/index.ts",
+    "./nodes/ai": "./src/nodes/ai/index.ts",
+    "./nodes/ai/*": "./src/nodes/ai/*.ts",
+    "./nodes/core": "./src/nodes/core/index.ts",
+    "./nodes/core/*": "./src/nodes/core/*.ts",
+    "./nodes/display": "./src/nodes/display/index.ts",
+    "./nodes/display/*": "./src/nodes/display/*.ts",
+    "./nodes/media": "./src/nodes/media/index.ts",
+    "./nodes/media/*": "./src/nodes/media/*.ts",
+    "./nodes/ocr": "./src/nodes/ocr/index.ts",
+    "./nodes/ocr/*": "./src/nodes/ocr/*.ts",
+    "./nodes/rendering": "./src/nodes/rendering/index.ts",
+    "./nodes/rendering/*": "./src/nodes/rendering/*.ts",
+    "./nodes/resource": "./src/nodes/resource/index.ts",
+    "./nodes/resource/*": "./src/nodes/resource/*.ts",
+    "./persistence": "./src/persistence/index.ts",
+    "./plugins": "./src/plugins/index.ts"
+  },
+  "scripts": {
+    "precheck": "node ./scripts/check-private-boundary.mjs",
+    "check": "node ../workflow/scripts/run-tsc.mjs -p ./tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@chobits/workflow": "0.1.0"
+  }
+}

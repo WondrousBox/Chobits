@@ -1,5 +1,8 @@
+import type { WorkflowAiMissingProviderEvent } from '@workflow/integrations/client';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
+
+import { workflowClient } from '@/lib/workflow-client';
 
 /**
  * useAIProviderConfig
@@ -8,7 +11,7 @@ import { toast } from 'sonner';
  */
 export function useAIProviderConfig(): void {
   useEffect(() => {
-    const handleMissingProvider = (_e: any, payload: any): void => {
+    const handleMissingProvider = (payload: WorkflowAiMissingProviderEvent): void => {
       const pid: string = payload?.providerId || 'zhipu';
       const fields: string[] = Array.isArray(payload?.fields) && payload.fields.length ? payload.fields : ['apiKey'];
       console.log('[AI Provider Config] 检测到缺少配置，准备打开配置窗口:', { providerId: pid, fields });
@@ -24,15 +27,16 @@ export function useAIProviderConfig(): void {
         });
     };
 
+    let unsubscribe: (() => void) | undefined;
     try {
-      window.ipcRenderer.on('wf:ai-missing-provider', handleMissingProvider);
+      unsubscribe = workflowClient.onAiMissingProvider(handleMissingProvider);
     } catch (err) {
       console.error('[AI Provider Config] 注册全局事件监听器失败:', err);
     }
 
     return () => {
       try {
-        window.ipcRenderer.off('wf:ai-missing-provider', handleMissingProvider);
+        unsubscribe?.();
       } catch (err) {
         console.error('[AI Provider Config] 移除全局事件监听器失败:', err);
       }

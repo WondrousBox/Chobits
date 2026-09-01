@@ -5,13 +5,12 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { workflowClient } from '@/lib/workflow-client';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
 import { ConfigFieldRenderer } from './ConfigFieldRenderer';
 import { getGradientBackgroundStyle, getIconComponent } from './nodeUtils';
 import type { NodeData, NodeSpec } from './types';
-
-const invoke = window.ipcRenderer.invoke;
 
 function toArray<T>(v: T | T[] | undefined): T[] {
   if (v === undefined) return [];
@@ -49,8 +48,9 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ id, data, selected }) => {
 
   useEffect(() => {
     // 通过 IPC 调用后端获取动态输入
-    invoke('wf:getNodeInputs', { nodeId: spec.id, config })
-      .then((result: any) => {
+    workflowClient
+      .getNodeInputs({ nodeId: spec.id, config })
+      .then((result) => {
         if (result?.ok && Array.isArray(result.inputs)) {
           setDynamicInputs(result.inputs);
         } else {
@@ -63,8 +63,9 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ id, data, selected }) => {
         setDynamicInputs(spec.inputs || []);
       });
     // 通过 IPC 调用后端获取动态输出
-    invoke('wf:getNodeOutputs', { nodeId: spec.id, config })
-      .then((result: any) => {
+    workflowClient
+      .getNodeOutputs({ nodeId: spec.id, config })
+      .then((result) => {
         if (result?.ok && Array.isArray(result.outputs)) {
           setDynamicOutputs(result.outputs);
         } else {
@@ -78,8 +79,9 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ id, data, selected }) => {
       });
     // 通过 IPC 调用后端获取动态配置
     if (spec.hasDynamicConfig) {
-      invoke('wf:getNodeConfig', { nodeId: spec.id, config })
-        .then((result: any) => {
+      workflowClient
+        .getNodeConfig({ nodeId: spec.id, config })
+        .then((result) => {
           if (result?.ok && Array.isArray(result.config)) {
             setDynamicConfig(result.config);
           } else {

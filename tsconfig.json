@@ -25,6 +25,18 @@
       ],
       "@main/*": [
         "electron/main/*"
+      ],
+      "@chobits/workflow": [
+        "packages/workflow/src/index.ts"
+      ],
+      "@chobits/workflow/*": [
+        "packages/workflow/src/*"
+      ],
+      "@workflow/integrations": [
+        "packages/workflow-integrations/src/index.ts"
+      ],
+      "@workflow/integrations/*": [
+        "packages/workflow-integrations/src/*"
       ]
     },
   },

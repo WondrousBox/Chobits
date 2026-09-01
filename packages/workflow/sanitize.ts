@@ -1,4 +1,4 @@
-import type { NodeRunState, WorkflowRunLogEntry, WorkflowRunRecord } from './types';
+import type { NodeRunState, WorkflowRunLogEntry, WorkflowRunRecord } from './types.js';
 
 const REDACTED = '[REDACTED]';
 const TRUNCATED = '[Truncated]';

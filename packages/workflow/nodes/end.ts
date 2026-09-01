@@ -1,4 +1,4 @@
-import { NodeConfig, NodeHandler, PortSchema } from '../types';
+import { type NodeConfig, type NodeHandler, type PortSchema } from '../types.js';
 
 const defaultInputs: PortSchema[] = [{ key: 'result', label: '结果', type: 'any', required: false, description: '最终要返回的结果对象或值' }];
 

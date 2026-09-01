@@ -1,17 +1,9 @@
-import type { WorkflowEngine } from './engine';
-import { calculateWorkflowProgress } from './progress';
-import type { ExecutionStatus, NodeRunState, ValidateResult, WorkflowDefinition, WorkflowRunLogEntry, WorkflowRunRecord } from './types';
+import type { WorkflowEngine } from './engine.js';
+import { calculateWorkflowProgress } from './progress.js';
+import type { WorkflowApplicationStore } from './src/ports/store.js';
+import type { ExecutionStatus, NodeRunState, ValidateResult, WorkflowDefinition, WorkflowRunLogEntry, WorkflowRunRecord } from './types.js';
 
-export interface WorkflowApplicationStore {
-  listPresets(): Promise<WorkflowDefinition[]>;
-  listDefinitions(workspaceId: string): Promise<WorkflowDefinition[]>;
-  getDefinition(id: string, workspaceId: string): Promise<WorkflowDefinition | undefined>;
-  saveDefinition(definition: WorkflowDefinition): Promise<void>;
-  deleteDefinition(id: string, workspaceId: string): Promise<void>;
-  listRuns(workspaceId: string, workflowId?: string, limit?: number, resourceId?: string): Promise<WorkflowRunRecord[]>;
-  getRun(runId: string, workspaceId: string): Promise<WorkflowRunRecord | undefined>;
-  deleteRun(runId: string, workspaceId: string): Promise<void>;
-}
+export type { WorkflowApplicationStore } from './src/ports/store.js';
 
 export interface WorkflowRunHandle {
   runId: string;
@@ -44,6 +36,13 @@ function applyConfigOverrides(definition: WorkflowDefinition, input: Record<stri
       config: overrides[node.id] ? { ...node.config, ...overrides[node.id] } : node.config
     }))
   };
+}
+
+function withoutConfigOverrides(input: Record<string, any>): Record<string, any> {
+  if (!Object.prototype.hasOwnProperty.call(input, '__configOverrides__')) return input;
+  const executionInput = { ...input };
+  delete executionInput.__configOverrides__;
+  return executionInput;
 }
 
 function executionWorkspaceId(input: Record<string, any>, metadata?: Record<string, any>): string | undefined {
@@ -79,7 +78,7 @@ export class WorkflowApplicationService {
     const preparation = await this.prepareExecution(definition, input);
     if (preparation.failure) return preparation.failure;
 
-    const record = await this.engine.run(preparation.definition, input, metadata);
+    const record = await this.engine.run(preparation.definition, withoutConfigOverrides(input), metadata);
     if (record.status === 'completed') {
       return { ok: true, runId: record.runId, status: record.status, record };
     }
@@ -133,7 +132,7 @@ export class WorkflowApplicationService {
   }
 
   startDefinition(definition: WorkflowDefinition, input: Record<string, any> = {}, metadata?: Record<string, any>, onProgress?: (progress: number, message?: string) => void): WorkflowRunHandle {
-    const handle = this.engine.start(definition, input, metadata);
+    const handle = this.engine.start(definition, withoutConfigOverrides(input), metadata);
     if (!onProgress) return { ...handle, workflowId: definition.id };
 
     const progressHandler = (record: WorkflowRunRecord, node: NodeRunState): void => {

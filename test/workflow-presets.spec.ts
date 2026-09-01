@@ -28,7 +28,7 @@ vi.mock('../packages/common/db', () => ({
   ResourcesRepo: {},
   WorkspacesRepo: {}
 }));
-vi.mock('../packages/workflow/nodes/ai-workflow-utils', () => ({
+vi.mock('../packages/workflow-integrations/src/nodes/ai/ai-workflow-utils', () => ({
   buildWorkflowAiUsageContext: vi.fn(),
   executeWorkflowChatRequest: vi.fn(),
   executeWorkflowImageGenerationRequest: vi.fn(),

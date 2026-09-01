@@ -4,10 +4,11 @@ import os from 'node:os';
 import path from 'node:path';
 import util from 'node:util';
 
-import { planWorkflowDag } from './core/dag-planner';
-import { EngineEmitter } from './core/events';
-import { executeWorkflowSchedule } from './core/execution-scheduler';
-import { getNode, getPlugin } from './core/registry';
+import { onAbort } from './abort.js';
+import { planWorkflowDag } from './core/dag-planner.js';
+import { EngineEmitter } from './core/events.js';
+import { executeWorkflowSchedule } from './core/execution-scheduler.js';
+import { defaultWorkflowRegistry, type WorkflowRegistry } from './core/registry.js';
 import {
   applyTerminalWorkflowOutput,
   cancelWorkflowRun,
@@ -19,22 +20,43 @@ import {
   skipWorkflowNodes,
   transitionWorkflowNode,
   updateWorkflowNode
-} from './core/run-state-machine';
-import { MAX_WORKFLOW_LOG_ENTRIES, MAX_WORKFLOW_LOG_MESSAGE_LENGTH, sanitizeWorkflowString, sanitizeWorkflowValue } from './sanitize';
-import { parseWorkflowDefinition } from './schema';
-import type { ExecutionContext, PortSchema, ValidateResult, ValueType, WorkflowDefinition, WorkflowRunLogEntry, WorkflowRunLogLevel, WorkflowRunRecord, WorkflowValidationIssue } from './types';
+} from './core/run-state-machine.js';
+import { MAX_WORKFLOW_LOG_ENTRIES, MAX_WORKFLOW_LOG_MESSAGE_LENGTH, sanitizeWorkflowString, sanitizeWorkflowValue } from './sanitize.js';
+import { parseWorkflowDefinition } from './schema.js';
+import { createWorkflowCapabilities } from './src/runtime/capabilities.js';
+import { randomWorkflowIdFactory, systemWorkflowClock } from './src/runtime/control.js';
+import { unlimitedWorkflowExecutionLimiter } from './src/runtime/limiter.js';
+import type {
+  ExecutionContext,
+  NodeHandler,
+  PortSchema,
+  ValidateResult,
+  ValueType,
+  WorkflowCapabilityResolver,
+  WorkflowClock,
+  WorkflowDefinition,
+  WorkflowExecutionLease,
+  WorkflowExecutionLimiter,
+  WorkflowIdFactory,
+  WorkflowNodeExecutionPolicy,
+  WorkflowRunLogEntry,
+  WorkflowRunLogLevel,
+  WorkflowRunRecord,
+  WorkflowValidationIssue
+} from './types.js';
 
 const WORKFLOW_TMP_ROOT = path.join(os.tmpdir(), 'workflow');
 const DEFAULT_COMPLETED_RUN_TEMP_TTL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_MAX_CACHED_RUNS = 100;
 
-function now(): number {
-  return Date.now();
-}
-
 export type WorkflowEngineOptions = {
   completedRunTempTtlMs?: number;
   maxCachedRuns?: number;
+  registry?: WorkflowRegistry;
+  capabilities?: WorkflowCapabilityResolver;
+  clock?: WorkflowClock;
+  idFactory?: WorkflowIdFactory;
+  limiter?: WorkflowExecutionLimiter;
 };
 
 export type WorkflowEngineRunHandle = {
@@ -42,9 +64,9 @@ export type WorkflowEngineRunHandle = {
   completionPromise: Promise<WorkflowRunRecord>;
 };
 
-async function cleanupExpiredWorkflowTempDirs(retentionMs: number, protectedDirs: Set<string>): Promise<void> {
+async function cleanupExpiredWorkflowTempDirs(retentionMs: number, protectedDirs: Set<string>, currentTime: number): Promise<void> {
   const entries = await fsPromises.readdir(WORKFLOW_TMP_ROOT, { withFileTypes: true }).catch(() => []);
-  const cutoff = now() - retentionMs;
+  const cutoff = currentTime - retentionMs;
   await Promise.all(
     entries.map(async (entry) => {
       if (!entry.isDirectory()) return;
@@ -56,6 +78,24 @@ async function cleanupExpiredWorkflowTempDirs(retentionMs: number, protectedDirs
       }
     })
   );
+}
+
+class WorkflowNodeTimeoutError extends Error {
+  readonly code = 'timeout';
+
+  constructor(readonly timeoutMs: number) {
+    super(`Node execution timed out after ${timeoutMs}ms`);
+    this.name = 'WorkflowNodeTimeoutError';
+  }
+}
+
+function retryDelay(policy: WorkflowNodeExecutionPolicy | undefined, completedAttempts: number): number {
+  const retry = policy?.retry;
+  if (!retry) return 0;
+  const baseDelay = Math.max(0, retry.delayMs || 0);
+  const multiplier = Math.max(1, retry.backoffMultiplier || 1);
+  const delay = baseDelay * multiplier ** Math.max(0, completedAttempts - 1);
+  return Math.min(delay, retry.maxDelayMs ?? Number.POSITIVE_INFINITY);
 }
 
 function mergeInputValues(def: WorkflowDefinition, nodeId: string, nodeOutputMap: Map<string, Record<string, any>>): Record<string, any> {
@@ -151,12 +191,23 @@ export class WorkflowEngine extends EngineEmitter {
   private abortControllers = new Map<string, AbortController>();
   private readonly completedRunTempTtlMs: number;
   private readonly maxCachedRuns: number;
+  private readonly capabilities: WorkflowCapabilityResolver;
+  private readonly clock: WorkflowClock;
+  private readonly idFactory: WorkflowIdFactory;
+  private readonly limiter: WorkflowExecutionLimiter;
+  private disposed = false;
+  readonly registry: WorkflowRegistry;
 
   constructor(
     private baseCtx: Omit<ExecutionContext, 'tmpDir'>,
     options: WorkflowEngineOptions = {}
   ) {
     super();
+    this.registry = options.registry || defaultWorkflowRegistry;
+    this.capabilities = options.capabilities || createWorkflowCapabilities();
+    this.clock = options.clock || systemWorkflowClock;
+    this.idFactory = options.idFactory || randomWorkflowIdFactory;
+    this.limiter = options.limiter || unlimitedWorkflowExecutionLimiter;
     this.completedRunTempTtlMs = Math.max(0, options.completedRunTempTtlMs ?? DEFAULT_COMPLETED_RUN_TEMP_TTL_MS);
     this.maxCachedRuns = Math.max(1, Math.floor(options.maxCachedRuns ?? DEFAULT_MAX_CACHED_RUNS));
     void this.cleanupExpiredTempDirs();
@@ -165,7 +216,7 @@ export class WorkflowEngine extends EngineEmitter {
   private cleanupExpiredTempDirs(): Promise<void> {
     if (this.completedRunTempTtlMs === 0) return Promise.resolve();
     const protectedDirs = new Set([...this.runContexts.values()].map((context) => context.tmpDir));
-    return cleanupExpiredWorkflowTempDirs(this.completedRunTempTtlMs, protectedDirs);
+    return cleanupExpiredWorkflowTempDirs(this.completedRunTempTtlMs, protectedDirs, this.clock.now());
   }
 
   private pruneRunCache(protectedRunId: string): void {
@@ -201,7 +252,7 @@ export class WorkflowEngine extends EngineEmitter {
       nodeId,
       ...(nodeId && this.runs.get(runId)?.nodes[nodeId]?.attempt ? { attempt: this.runs.get(runId)?.nodes[nodeId]?.attempt } : {}),
       ...(nodeId && this.runs.get(runId)?.nodes[nodeId]?.errorReason ? { errorReason: this.runs.get(runId)?.nodes[nodeId]?.errorReason } : {}),
-      timestamp: now()
+      timestamp: this.clock.now()
     };
     const existing = this.runLogs.get(runId);
     if (existing) {
@@ -217,7 +268,6 @@ export class WorkflowEngine extends EngineEmitter {
 
   buildCtx(): ExecutionContext {
     const tmpDir = path.join(WORKFLOW_TMP_ROOT, randomUUID());
-    console.log('buildCtx', tmpDir);
 
     const ctx: ExecutionContext = {
       ...this.baseCtx,
@@ -281,7 +331,7 @@ export class WorkflowEngine extends EngineEmitter {
     type ResolvedPorts = { inputs: PortSchema[]; outputs: PortSchema[] };
     const portsByNodeId = new Map<string, ResolvedPorts>();
     for (const [nodeId, node] of nodeById) {
-      const handler = getNode(node.type);
+      const handler = this.registry.getNode(node.type);
       if (!handler) {
         const nodeIndex = nodeIndexById.get(nodeId) ?? 0;
         issues.push({
@@ -442,15 +492,39 @@ export class WorkflowEngine extends EngineEmitter {
       return issues.length > 0 ? issuesResult(issues) : { ok: true };
     }
 
+    const missingCapabilityNodes = new Map<string, string[]>();
+    for (const node of def.nodes) {
+      const handler = this.registry.getNode(node.type);
+      for (const capability of handler?.requiredCapabilities || []) {
+        if (this.capabilities.has(capability)) continue;
+        const nodeIds = missingCapabilityNodes.get(capability.id) || [];
+        nodeIds.push(node.id);
+        missingCapabilityNodes.set(capability.id, nodeIds);
+        issues.push({
+          code: 'missing-capability',
+          message: `Node ${node.id} requires missing capability: ${capability.id}`,
+          path: ['nodes', nodeIndexById.get(node.id) ?? 0, 'type'],
+          nodeId: node.id,
+          capabilityId: capability.id
+        });
+      }
+    }
+    if (missingCapabilityNodes.size > 0) {
+      return {
+        ...issuesResult(issues),
+        missingCapabilities: [...missingCapabilityNodes].map(([id, nodeIds]) => ({ id, nodeIds }))
+      };
+    }
+
     // plugins
     const ctx = this.buildCtx();
     const reqs = new Set<string>();
     for (const n of def.nodes) {
-      const h = getNode(n.type);
+      const h = this.registry.getNode(n.type);
       h?.spec.requires?.forEach((r) => reqs.add(r));
     }
     for (const id of reqs) {
-      const p = getPlugin(id);
+      const p = this.registry.getPlugin(id);
       if (!p) {
         issues.push({ code: 'invalid-definition', message: `Required plugin not registered: ${id}`, path: ['nodes'] });
         continue;
@@ -461,13 +535,13 @@ export class WorkflowEngine extends EngineEmitter {
     // models - check through plugins
     const missingModels: { pluginId: string; modelName: string; resourceId?: string; displayName?: string }[] = [];
     for (const n of def.nodes) {
-      const handler = getNode(n.type);
+      const handler = this.registry.getNode(n.type);
       if (!handler) continue;
 
       // 检查节点所需的插件
       const requiredPlugins = handler.spec.requires || [];
       for (const pluginId of requiredPlugins) {
-        const plugin = getPlugin(pluginId);
+        const plugin = this.registry.getPlugin(pluginId);
         if (!plugin) continue;
 
         // 如果插件支持模型检查，调用其检查方法
@@ -505,7 +579,7 @@ export class WorkflowEngine extends EngineEmitter {
   ): Promise<{ nodeId: string; nodeLabel: string; nodeType: string; missingFields: PortSchema[]; currentConfig: Record<string, any>; icon?: string; backgroundColor?: string }[]> {
     const missingConfigs: { nodeId: string; nodeLabel: string; nodeType: string; missingFields: PortSchema[]; currentConfig: Record<string, any>; icon?: string; backgroundColor?: string }[] = [];
     for (const node of def.nodes) {
-      const handler = getNode(node.type);
+      const handler = this.registry.getNode(node.type);
       if (!handler) continue;
 
       const missingFields: PortSchema[] = [];
@@ -577,6 +651,37 @@ export class WorkflowEngine extends EngineEmitter {
     return missingConfigs;
   }
 
+  private async executeHandlerWithTimeout(handler: NodeHandler, args: Parameters<NodeHandler['run']>[0], timeoutMs: number | undefined, runSignal: AbortSignal): Promise<Record<string, any>> {
+    const attemptController = new AbortController();
+    const detachRunAbort = onAbort(runSignal, () => attemptController.abort());
+    const invocation = Promise.resolve().then(() =>
+      handler.run({
+        ...args,
+        ctx: { ...args.ctx, signal: attemptController.signal }
+      })
+    );
+
+    if (timeoutMs === undefined) {
+      try {
+        return await invocation;
+      } finally {
+        detachRunAbort();
+      }
+    }
+
+    const timeoutController = new AbortController();
+    const timeout = this.clock.sleep(timeoutMs, timeoutController.signal).then(() => {
+      attemptController.abort();
+      throw new WorkflowNodeTimeoutError(timeoutMs);
+    });
+    try {
+      return await Promise.race([invocation, timeout]);
+    } finally {
+      timeoutController.abort();
+      detachRunAbort();
+    }
+  }
+
   getRun(runId: string): WorkflowRunRecord | undefined {
     return this.runs.get(runId);
   }
@@ -604,24 +709,35 @@ export class WorkflowEngine extends EngineEmitter {
     if (!r || (r.status !== 'queued' && r.status !== 'running')) return;
 
     this.abortControllers.get(runId)?.abort();
-    for (const state of cancelWorkflowRun(r, now())) {
+    for (const state of cancelWorkflowRun(r, this.clock.now())) {
       this.log(runId, 'warn', state.nodeId, `[WorkflowEngine] 节点 ${state.nodeId} 已取消`);
       this.emitTyped('node:status', r, state);
     }
     this.emitTyped('run:status', r);
   }
 
+  async dispose(): Promise<void> {
+    if (this.disposed) return;
+    this.disposed = true;
+    const activeRunIds = [...this.runs.values()].filter((record) => record.status === 'queued' || record.status === 'running').map((record) => record.runId);
+    await Promise.all(activeRunIds.map((runId) => this.cancel(runId)));
+    this.removeAllListeners();
+  }
+
   start(def: WorkflowDefinition, initialInput: Record<string, any> = {}, metadata?: Record<string, any>): WorkflowEngineRunHandle {
-    const runId = randomUUID();
+    if (this.disposed) throw new Error('Workflow engine is disposed');
+    const runId = this.idFactory.createRunId();
     return {
       runId,
       completionPromise: this.run(def, initialInput, metadata, runId)
     };
   }
 
-  async run(def: WorkflowDefinition, initialInput: Record<string, any> = {}, metadata?: Record<string, any>, runId = randomUUID()): Promise<WorkflowRunRecord> {
+  async run(def: WorkflowDefinition, initialInput: Record<string, any> = {}, metadata?: Record<string, any>, runId = this.idFactory.createRunId()): Promise<WorkflowRunRecord> {
+    if (this.disposed) throw new Error('Workflow engine is disposed');
     if (this.runs.has(runId)) throw new Error(`Workflow run already exists: ${runId}`);
-    const rec = createWorkflowRunRecord({ definition: def, runId, input: initialInput, metadata, createdAt: now(), startedAt: now() });
+    const startedAt = this.clock.now();
+    const rec = createWorkflowRunRecord({ definition: def, runId, input: initialInput, metadata, createdAt: startedAt, startedAt });
     const nodesState = rec.nodes;
     this.runs.set(runId, rec);
     this.emitTyped('run:status', rec);
@@ -657,6 +773,9 @@ runId: ${runId}
     if (metadata?.folderId) {
       ctx.folderId = metadata.folderId;
     }
+    if (metadata?.resourceId) {
+      ctx.resourceId = metadata.resourceId;
+    }
     // 从 initialInput 中的 resource 对象获取工作空间、文件夹和资源ID信息
     if (initialInput?.resource) {
       const resource = initialInput.resource;
@@ -685,7 +804,7 @@ runId: ${runId}
       await this.cleanupExpiredTempDirs().catch(() => {});
       await fsPromises.mkdir(ctx.tmpDir, { recursive: true }).catch(() => {});
       if (abortController.signal.aborted || rec.status === 'canceled') {
-        for (const state of skipWorkflowNodes(rec, ['pending', 'running'], 'canceled', now(), 'canceled')) {
+        for (const state of skipWorkflowNodes(rec, ['pending', 'running'], 'canceled', this.clock.now(), 'canceled')) {
           this.emitTyped('node:status', rec, state);
         }
         return rec;
@@ -693,7 +812,7 @@ runId: ${runId}
 
       // Concurrent nodes share plugin preparation work within the same run.
       const pluginPreparation = new Map<string, Promise<{ ok: boolean; error?: string }>>();
-      const getPluginFn = (id: string): ReturnType<typeof getPlugin> => getPlugin(id);
+      const getPluginFn = (id: string): ReturnType<WorkflowRegistry['getPlugin']> => this.registry.getPlugin(id);
 
       setWorkflowRunStatus(rec, 'running');
       this.emitTyped('run:status', rec);
@@ -703,7 +822,7 @@ runId: ${runId}
         dagPlan = planWorkflowDag(def);
       } catch (err: any) {
         setWorkflowRunStatus(rec, 'failed', String(err?.message || err));
-        finishWorkflowRun(rec, now());
+        finishWorkflowRun(rec, this.clock.now());
         this.log(runId, 'error', undefined, `[WorkflowEngine] 工作流拓扑校验失败: ${rec.error}`);
         this.emitTyped('run:status', rec);
         return rec;
@@ -724,7 +843,7 @@ runId: ${runId}
         if (existing) return existing;
 
         const preparation = (async () => {
-          const plugin = getPlugin(pluginId);
+          const plugin = this.registry.getPlugin(pluginId);
           if (!plugin) return { ok: false, error: `Plugin not registered: ${pluginId}` };
 
           this.log(runId, 'info', nodeId, `[WorkflowEngine] 检查插件 ${pluginId} 是否已安装...`);
@@ -750,12 +869,26 @@ runId: ${runId}
         }
 
         const inst = nodeMap.get(nodeId)!;
-        const handler = getNode(inst.type);
+        const handler = this.registry.getNode(inst.type);
         if (!handler) {
           const error = `Unknown node: ${inst.type}`;
-          const state = transitionWorkflowNode(rec, nodeId, 'failed', { finishedAt: now(), error, errorReason: 'unknown-node' });
+          const state = transitionWorkflowNode(rec, nodeId, 'failed', { finishedAt: this.clock.now(), error, errorReason: 'unknown-node' });
           setWorkflowRunStatus(rec, 'failed', error);
           this.log(runId, 'error', nodeId, `[WorkflowEngine] 节点 ${nodeId} (${inst.type}) 执行失败: ${error}`);
+          this.emitTyped('node:status', rec, state);
+          return 'failed';
+        }
+
+        const missingCapability = handler.requiredCapabilities?.find((capability) => !this.capabilities.has(capability));
+        if (missingCapability) {
+          const error = `Missing workflow capability: ${missingCapability.id}`;
+          const state = transitionWorkflowNode(rec, nodeId, 'failed', {
+            finishedAt: this.clock.now(),
+            error,
+            errorReason: 'missing-capability'
+          });
+          setWorkflowRunStatus(rec, 'failed', error);
+          this.log(runId, 'error', nodeId, `[WorkflowEngine] 节点 ${nodeId} 缺少能力: ${missingCapability.id}`);
           this.emitTyped('node:status', rec, state);
           return 'failed';
         }
@@ -765,7 +898,7 @@ runId: ${runId}
           inputPorts = handler.getInputs ? handler.getInputs(inst.config) : handler.spec.inputs || [];
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          const state = transitionWorkflowNode(rec, nodeId, 'failed', { finishedAt: now(), error: message, errorReason: 'invalid-node-inputs' });
+          const state = transitionWorkflowNode(rec, nodeId, 'failed', { finishedAt: this.clock.now(), error: message, errorReason: 'invalid-node-inputs' });
           setWorkflowRunStatus(rec, 'failed', message);
           this.log(runId, 'error', nodeId, `[WorkflowEngine] 节点 ${nodeId} 输入端口解析失败: ${message}`);
           this.emitTyped('node:status', rec, state);
@@ -778,7 +911,7 @@ runId: ${runId}
           return output !== undefined && Object.prototype.hasOwnProperty.call(output, edge.from.port);
         });
         if (incomingEdges.length > 0 && activeIncomingEdges.length === 0) {
-          const state = transitionWorkflowNode(rec, nodeId, 'skipped', { finishedAt: now(), error: 'upstream branch was not selected', errorReason: 'branch-not-selected' });
+          const state = transitionWorkflowNode(rec, nodeId, 'skipped', { finishedAt: this.clock.now(), error: 'upstream branch was not selected', errorReason: 'branch-not-selected' });
           this.emitTyped('node:status', rec, state);
           return 'skipped';
         }
@@ -792,7 +925,7 @@ runId: ${runId}
         if (missingRequiredPorts.length > 0) {
           const missingKeys = missingRequiredPorts.map((port) => port.key).join(', ');
           const state = transitionWorkflowNode(rec, nodeId, 'skipped', {
-            finishedAt: now(),
+            finishedAt: this.clock.now(),
             error: `required upstream input was not produced: ${missingKeys}`,
             errorReason: 'required-input-missing'
           });
@@ -805,10 +938,10 @@ runId: ${runId}
           for (const pluginId of handler.spec.requires) {
             const result = await preparePlugin(pluginId, nodeId);
             if (!result.ok) {
-              const plugin = getPlugin(pluginId);
+              const plugin = this.registry.getPlugin(pluginId);
               const error = result.error || `Plugin unavailable: ${pluginId}`;
               const hintArgs = plugin?.installHint ? [`提示: ${plugin.installHint}`] : [];
-              const state = transitionWorkflowNode(rec, nodeId, 'failed', { finishedAt: now(), error, errorReason: 'plugin-unavailable' });
+              const state = transitionWorkflowNode(rec, nodeId, 'failed', { finishedAt: this.clock.now(), error, errorReason: 'plugin-unavailable' });
               setWorkflowRunStatus(rec, 'failed', error);
               this.log(runId, 'error', nodeId, `[WorkflowEngine] 节点 ${nodeId} 所需插件不可用: ${pluginId}`, ...hintArgs);
               this.emitTyped('node:status', rec, state);
@@ -835,7 +968,7 @@ runId: ${runId}
             (inputMode === 'folder' && !input.folderId && !initialData.folderId && !ctx.folderId);
           if (missingInput) {
             const error = `开始节点需要${inputMode === 'text' ? '文本' : inputMode === 'url' ? '链接' : inputMode === 'file' ? '文件' : '文件夹'}输入，请提供输入后重试。`;
-            const state = transitionWorkflowNode(rec, nodeId, 'failed', { finishedAt: now(), error, errorReason: 'required-input-missing' });
+            const state = transitionWorkflowNode(rec, nodeId, 'failed', { finishedAt: this.clock.now(), error, errorReason: 'required-input-missing' });
             setWorkflowRunStatus(rec, 'failed', error);
             this.log(runId, 'error', nodeId, `[WorkflowEngine] ${error}`);
             this.emitTyped('node:status', rec, state);
@@ -851,72 +984,119 @@ runId: ${runId}
           };
         }
 
-        const runningState = transitionWorkflowNode(rec, nodeId, 'running', { startedAt: now(), input });
-        this.emitTyped('node:status', rec, runningState);
-        this.log(runId, 'info', nodeId, `[WorkflowEngine] 节点 ${nodeId} (${inst.type}) 开始执行`);
-        this.log(runId, 'info', nodeId, `[WorkflowEngine] 节点 ${nodeId} 输入:`, input);
-        if (inst.config) this.log(runId, 'info', nodeId, `[WorkflowEngine] 节点 ${nodeId} 配置:`, inst.config);
-        const startTime = now();
-        try {
-          const nodeEmit = (ev: string, payload?: any): void => {
-            if (ev === 'node:progress') {
-              const progress = payload?.progress !== undefined ? Math.max(0, Math.min(100, payload.progress)) : 0;
-              const message = payload?.message;
-              const detail = payload?.detail;
-              if (nodesState[nodeId]) {
-                const state = updateWorkflowNode(rec, nodeId, { progress, progressMessage: message, progressDetail: detail });
-                this.emitTyped('node:status', rec, state);
-              }
-              this.emitTyped('node:progress', runId, nodeId, progress, message, detail);
-            } else {
-              const payloadWithRunId = payload ? { ...payload, __runId: runId } : { __runId: runId };
-              this.emit(ev, payloadWithRunId);
+        const nodeEmit = (ev: string, payload?: any): void => {
+          if (ev === 'node:progress') {
+            const progress = payload?.progress !== undefined ? Math.max(0, Math.min(100, payload.progress)) : 0;
+            const message = payload?.message;
+            const detail = payload?.detail;
+            if (nodesState[nodeId]) {
+              const state = updateWorkflowNode(rec, nodeId, { progress, progressMessage: message, progressDetail: detail });
+              this.emitTyped('node:status', rec, state);
+            }
+            this.emitTyped('node:progress', runId, nodeId, progress, message, detail);
+          } else {
+            const payloadWithRunId = payload ? { ...payload, __runId: runId } : { __runId: runId };
+            this.emit(ev, payloadWithRunId);
+          }
+        };
+
+        const policy = handler.execution;
+        const maxAttempts = policy?.retry?.maxAttempts || 1;
+        for (let completedAttempts = 0; completedAttempts < maxAttempts; completedAttempts += 1) {
+          const runningState = transitionWorkflowNode(rec, nodeId, 'running', { startedAt: this.clock.now(), input });
+          this.emitTyped('node:status', rec, runningState);
+          this.log(runId, 'info', nodeId, `[WorkflowEngine] 节点 ${nodeId} (${inst.type}) 开始执行，attempt: ${runningState.attempt}`);
+          this.log(runId, 'info', nodeId, `[WorkflowEngine] 节点 ${nodeId} 输入:`, input);
+          if (inst.config) this.log(runId, 'info', nodeId, `[WorkflowEngine] 节点 ${nodeId} 配置:`, inst.config);
+
+          const startTime = this.clock.now();
+          let lease: WorkflowExecutionLease | undefined;
+          const releaseLease = async (): Promise<void> => {
+            const currentLease = lease;
+            lease = undefined;
+            if (!currentLease) return;
+            try {
+              await currentLease.release();
+            } catch (error) {
+              this.log(runId, 'warn', nodeId, `[WorkflowEngine] 节点 ${nodeId} 释放执行组失败:`, error);
             }
           };
-          const out = await handler.run({
-            input,
-            config: inst.config,
-            ctx: {
-              ...ctx,
-              workflowNodeId: nodeId,
-              workflowNodeLabel: inst.name || handler.spec.label || inst.type,
-              workflowNodeType: inst.type,
-              workflowAttempt: runningState.attempt
-            },
-            emit: nodeEmit,
-            getPlugin: getPluginFn
-          });
-          const duration = now() - startTime;
-          if (abortController.signal.aborted || this.runs.get(runId)?.status === 'canceled') {
-            const state = transitionWorkflowNode(rec, nodeId, 'skipped', { finishedAt: now(), error: 'canceled', errorReason: 'canceled' });
+
+          try {
+            if (policy?.group) lease = await this.limiter.acquire(policy.group, abortController.signal);
+            const out = await this.executeHandlerWithTimeout(
+              handler,
+              {
+                input,
+                config: inst.config,
+                ctx: {
+                  ...ctx,
+                  workflowNodeId: nodeId,
+                  workflowNodeLabel: inst.name || handler.spec.label || inst.type,
+                  workflowNodeType: inst.type,
+                  workflowAttempt: runningState.attempt,
+                  workflowIdempotencyKey: policy?.idempotent ? `${runId}:${nodeId}` : undefined
+                },
+                capabilities: this.capabilities,
+                emit: nodeEmit,
+                getPlugin: getPluginFn
+              },
+              policy?.timeoutMs,
+              abortController.signal
+            );
+            const duration = this.clock.now() - startTime;
+            if (abortController.signal.aborted || this.runs.get(runId)?.status === 'canceled') {
+              const state = transitionWorkflowNode(rec, nodeId, 'skipped', { finishedAt: this.clock.now(), error: 'canceled', errorReason: 'canceled' });
+              this.emitTyped('node:status', rec, state);
+              return 'canceled';
+            }
+            const output = out || {};
+            const completedState = transitionWorkflowNode(rec, nodeId, 'completed', { finishedAt: this.clock.now(), output });
+            nodeOutput.set(nodeId, output);
+            this.log(runId, 'info', nodeId, `[WorkflowEngine] 节点 ${nodeId} 执行成功，耗时: ${duration}ms`);
+            if (Object.keys(output).length > 0) this.log(runId, 'info', nodeId, `[WorkflowEngine] 节点 ${nodeId} 输出:`, output);
+            this.emitTyped('node:status', rec, completedState);
+            return 'completed';
+          } catch (error: unknown) {
+            const duration = this.clock.now() - startTime;
+            if (abortController.signal.aborted || this.runs.get(runId)?.status === 'canceled') {
+              const state = transitionWorkflowNode(rec, nodeId, 'skipped', { finishedAt: this.clock.now(), error: 'canceled', errorReason: 'canceled' });
+              this.emitTyped('node:status', rec, state);
+              return 'canceled';
+            }
+
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            const errorReason = error instanceof WorkflowNodeTimeoutError ? 'timeout' : 'execution-error';
+            const state = transitionWorkflowNode(rec, nodeId, 'failed', { finishedAt: this.clock.now(), error: errorMsg, errorReason });
+            this.log(runId, 'error', nodeId, `[WorkflowEngine] 节点 ${nodeId} 执行失败，耗时: ${duration}ms, 错误:`, errorMsg);
+            if (error instanceof Error && error.stack) this.log(runId, 'error', nodeId, `[WorkflowEngine] 节点 ${nodeId} 错误堆栈:`, error.stack);
             this.emitTyped('node:status', rec, state);
-            return 'canceled';
+            await releaseLease();
+
+            if (completedAttempts + 1 < maxAttempts) {
+              const delayMs = retryDelay(policy, completedAttempts + 1);
+              this.log(runId, 'warn', nodeId, `[WorkflowEngine] 节点 ${nodeId} 将重试，delay: ${delayMs}ms`);
+              try {
+                await this.clock.sleep(delayMs, abortController.signal);
+              } catch {
+                const canceledState = transitionWorkflowNode(rec, nodeId, 'skipped', { finishedAt: this.clock.now(), error: 'canceled', errorReason: 'canceled' });
+                this.emitTyped('node:status', rec, canceledState);
+                return 'canceled';
+              }
+              continue;
+            }
+
+            setWorkflowRunStatus(rec, 'failed', errorMsg);
+            if (def.options?.errorStrategy === 'continue') {
+              this.log(runId, 'warn', nodeId, `[WorkflowEngine] 节点 ${nodeId} 失败，但继续执行后续节点`);
+            }
+            return 'failed';
+          } finally {
+            await releaseLease();
           }
-          const output = out || {};
-          const completedState = transitionWorkflowNode(rec, nodeId, 'completed', { finishedAt: now(), output });
-          nodeOutput.set(nodeId, output);
-          this.log(runId, 'info', nodeId, `[WorkflowEngine] 节点 ${nodeId} 执行成功，耗时: ${duration}ms`);
-          if (Object.keys(output).length > 0) this.log(runId, 'info', nodeId, `[WorkflowEngine] 节点 ${nodeId} 输出:`, output);
-          this.emitTyped('node:status', rec, completedState);
-          return 'completed';
-        } catch (err: any) {
-          const duration = now() - startTime;
-          const errorMsg = String(err?.message || err);
-          if (abortController.signal.aborted || this.runs.get(runId)?.status === 'canceled') {
-            const state = transitionWorkflowNode(rec, nodeId, 'skipped', { finishedAt: now(), error: 'canceled', errorReason: 'canceled' });
-            this.emitTyped('node:status', rec, state);
-            return 'canceled';
-          }
-          const state = transitionWorkflowNode(rec, nodeId, 'failed', { finishedAt: now(), error: errorMsg, errorReason: 'execution-error' });
-          setWorkflowRunStatus(rec, 'failed', errorMsg);
-          this.log(runId, 'error', nodeId, `[WorkflowEngine] 节点 ${nodeId} 执行失败，耗时: ${duration}ms, 错误:`, errorMsg);
-          if (err?.stack) this.log(runId, 'error', nodeId, `[WorkflowEngine] 节点 ${nodeId} 错误堆栈:`, err.stack);
-          this.emitTyped('node:status', rec, state);
-          if (def.options?.errorStrategy === 'continue') {
-            this.log(runId, 'warn', nodeId, `[WorkflowEngine] 节点 ${nodeId} 失败，但继续执行后续节点`);
-          }
-          return 'failed';
         }
+
+        return 'failed';
       };
 
       const schedule = await executeWorkflowSchedule({
@@ -928,13 +1108,13 @@ runId: ${runId}
       });
 
       if (schedule.failedFast && !schedule.canceled) {
-        for (const state of skipWorkflowNodes(rec, ['pending'], 'not scheduled after fail-fast', now(), 'not-scheduled')) {
+        for (const state of skipWorkflowNodes(rec, ['pending'], 'not scheduled after fail-fast', this.clock.now(), 'not-scheduled')) {
           this.emitTyped('node:status', rec, state);
         }
       }
 
       const canceled = schedule.canceled || abortController.signal.aborted || this.runs.get(runId)?.status === 'canceled';
-      for (const state of finalizeWorkflowRunStatus(rec, canceled, now())) {
+      for (const state of finalizeWorkflowRunStatus(rec, canceled, this.clock.now())) {
         this.emitTyped('node:status', rec, state);
       }
 
@@ -942,7 +1122,7 @@ runId: ${runId}
       const terminalOutput = collectTerminalWorkflowOutput(terminalNodeIds, nodeOutput);
       applyTerminalWorkflowOutput(rec, terminalOutput);
       if (terminalOutput.collisionError && !canceled) this.log(runId, 'error', undefined, `[WorkflowEngine] ${terminalOutput.collisionError}`);
-      finishWorkflowRun(rec, now());
+      finishWorkflowRun(rec, this.clock.now());
       this.log(runId, 'info', undefined, `[WorkflowEngine] 工作流执行完成: ${def.name} (${def.id}), 状态: ${rec.status}`);
       if (Object.keys(terminalOutput.output).length > 0) this.log(runId, 'info', undefined, `[WorkflowEngine] 工作流最终输出:`, terminalOutput.output);
       this.emitTyped('run:status', rec);

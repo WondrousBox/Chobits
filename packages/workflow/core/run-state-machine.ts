@@ -1,4 +1,4 @@
-import type { ExecutionStatus, NodeRunState, NodeRunStatus, WorkflowDefinition, WorkflowNodeAttempt, WorkflowNodeAttemptStatus, WorkflowRunRecord } from '../types';
+import type { ExecutionStatus, NodeRunState, NodeRunStatus, WorkflowDefinition, WorkflowNodeAttempt, WorkflowNodeAttemptStatus, WorkflowRunRecord } from '../types.js';
 
 type NodeStatePatch = Omit<Partial<NodeRunState>, 'attempt' | 'attempts' | 'nodeId' | 'status'>;
 
@@ -156,5 +156,5 @@ export function applyTerminalWorkflowOutput(record: WorkflowRunRecord, result: T
 
 export function finishWorkflowRun(record: WorkflowRunRecord, completedAt: number): void {
   record.completedAt = completedAt;
-  if (record.startedAt) record.duration = completedAt - record.startedAt;
+  if (record.startedAt !== undefined) record.duration = completedAt - record.startedAt;
 }

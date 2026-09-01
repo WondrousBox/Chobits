@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { workflowClient } from '@/lib/workflow-client';
 import { runWorkflow } from '@/lib/workflow-runner';
 
 import { useResourceTaskStatus } from '../hooks/useResourceTaskStatus';
@@ -783,9 +784,9 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
 
   const [workflows, setWorkflows] = useState<any[]>([]);
   useEffect(() => {
-    window.ipcRenderer
-      .invoke('wf:listDefinitions', { workspaceId })
-      .then((defs: any[]) => {
+    workflowClient
+      .listDefinitions({ workspaceId })
+      .then((defs) => {
         setWorkflows(defs || []);
       })
       .catch(() => { });

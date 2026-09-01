@@ -1,4 +1,4 @@
-import type { WorkflowDefinition } from '../types';
+import type { WorkflowDefinition } from '../types.js';
 
 export type WorkflowGraph = Pick<WorkflowDefinition, 'nodes' | 'edges'>;
 

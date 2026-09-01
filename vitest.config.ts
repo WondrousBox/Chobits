@@ -7,7 +7,9 @@ export default defineConfig({
     alias: {
       '@': path.join(__dirname, 'src'),
       '@packages': path.join(__dirname, 'packages'),
-      '@main': path.join(__dirname, 'electron/main')
+      '@main': path.join(__dirname, 'electron/main'),
+      '@chobits/workflow': path.join(__dirname, 'packages/workflow/src'),
+      '@workflow/integrations': path.join(__dirname, 'packages/workflow-integrations/src')
     }
   },
   test: {

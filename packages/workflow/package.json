@@ -1,0 +1,86 @@
+{
+  "name": "@chobits/workflow",
+  "version": "0.1.0",
+  "description": "Node-first workflow runtime kernel",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./application": {
+      "types": "./dist/src/application.d.ts",
+      "import": "./dist/src/application.js"
+    },
+    "./core": {
+      "types": "./dist/src/core.d.ts",
+      "import": "./dist/src/core.js"
+    },
+    "./contracts": {
+      "types": "./dist/src/contracts.d.ts",
+      "import": "./dist/src/contracts.js"
+    },
+    "./node": {
+      "types": "./dist/src/node.d.ts",
+      "import": "./dist/src/node.js"
+    },
+    "./nodes": {
+      "types": "./dist/src/nodes.d.ts",
+      "import": "./dist/src/nodes.js"
+    },
+    "./ports": {
+      "types": "./dist/src/ports.d.ts",
+      "import": "./dist/src/ports.js"
+    },
+    "./runtime": {
+      "types": "./dist/src/runtime.d.ts",
+      "import": "./dist/src/runtime.js"
+    },
+    "./schema": {
+      "types": "./dist/src/schema.d.ts",
+      "import": "./dist/src/schema.js"
+    },
+    "./sdk": {
+      "types": "./dist/src/sdk.d.ts",
+      "import": "./dist/src/sdk.js"
+    },
+    "./testing": {
+      "types": "./dist/src/testing.d.ts",
+      "import": "./dist/src/testing.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "prebuild": "node ./scripts/check-release.mjs && node ./scripts/check-public-boundary.mjs",
+    "build": "node ./scripts/run-tsc.mjs -p ./tsconfig.build.json",
+    "precheck": "node ./scripts/check-release.mjs && node ./scripts/check-public-boundary.mjs",
+    "check": "node ./scripts/run-tsc.mjs -p ./tsconfig.build.json --noEmit",
+    "check:boundary": "node ./scripts/check-public-boundary.mjs",
+    "check:release": "node ./scripts/prepare-package.mjs",
+    "check:types": "node ./scripts/run-tsc.mjs -p ./tsconfig.build.json --noEmit",
+    "prepack": "node ./scripts/prepare-package.mjs",
+    "test:consumer": "node ./scripts/test-consumer.mjs"
+  },
+  "dependencies": {
+    "@types/node": "^24.2.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.2"
+  }
+}

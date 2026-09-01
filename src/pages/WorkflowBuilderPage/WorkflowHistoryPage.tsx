@@ -8,11 +8,10 @@ import { Button } from '@/components/ui/button';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { workflowClient } from '@/lib/workflow-client';
 
 import AIChatSidebar from '../ResourcePage/components/AIChatSidebar';
 import type { ExecutionStatus, WorkflowRunRecord } from './types';
-
-const invoke = window.ipcRenderer.invoke;
 
 const WorkflowHistoryPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -25,9 +24,9 @@ const WorkflowHistoryPage: React.FC = () => {
 
   useEffect(() => {
     let mounted = true;
-    setLoading(true);
-    invoke('wf:listRuns', { workspaceId })
-      .then((data: any[]) => {
+    workflowClient
+      .listRuns({ workspaceId })
+      .then((data) => {
         if (mounted && Array.isArray(data)) {
           // Sort by createdAt desc
           const sorted = data.sort((a, b) => b.createdAt - a.createdAt);
@@ -131,7 +130,15 @@ const WorkflowHistoryPage: React.FC = () => {
           <div className="h-full flex flex-col">
             {/* 工具栏 */}
             <div className="flex items-center justify-end px-3 py-2 border-b bg-background shrink-0">
-              <Button size="sm" variant="outline" onClick={() => setRefreshTick((t) => t + 1)} disabled={loading}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setLoading(true);
+                  setRefreshTick((t) => t + 1);
+                }}
+                disabled={loading}
+              >
                 刷新
               </Button>
             </div>

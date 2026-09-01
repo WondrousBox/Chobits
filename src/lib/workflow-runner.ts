@@ -1,5 +1,7 @@
 import { toast } from 'sonner';
 
+import { workflowClient } from './workflow-client';
+
 export interface RunWorkflowOptions {
   defId: string;
   input?: Record<string, any>;
@@ -71,7 +73,7 @@ export async function runWorkflow(options: RunWorkflowOptions): Promise<void> {
   const { defId, input = {}, metadata = {}, onSuccess, onError } = options;
 
   try {
-    const result = await window.ipcRenderer.invoke('wf:run', {
+    const result = await workflowClient.run({
       defId,
       input,
       metadata

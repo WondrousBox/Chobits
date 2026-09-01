@@ -1,13 +1,8 @@
 import { EventEmitter } from 'node:events';
 
-import type { NodeRunState, WorkflowRunLogEntry, WorkflowRunRecord } from '../types';
+import type { WorkflowEngineEvents } from '../src/contracts/events.js';
 
-export interface WorkflowEngineEvents {
-  'run:status': (record: WorkflowRunRecord) => void;
-  'node:status': (record: WorkflowRunRecord, node: NodeRunState) => void;
-  'node:progress': (runId: string, nodeId: string, progress: number, message?: string, detail?: any) => void;
-  'run:log': (runId: string, entry: WorkflowRunLogEntry) => void;
-}
+export type { WorkflowEngineEvents } from '../src/contracts/events.js';
 
 export class EngineEmitter extends EventEmitter {
   emitTyped<K extends keyof WorkflowEngineEvents>(event: K, ...args: Parameters<WorkflowEngineEvents[K]>): boolean {

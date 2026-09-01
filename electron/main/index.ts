@@ -6,7 +6,6 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron';
 
 import { eventManager } from '../../packages/event';
 import { AppEvent } from '../../packages/event/events';
-import { flushWorkflowPersistence, initWorkflowSystem } from '../../packages/workflow/index';
 import { ytdlpService } from '../../packages/ytdlp';
 import { initHandlers } from './handlers';
 import { cookieManager } from './handlers/downloader/cookie-manager';
@@ -18,6 +17,7 @@ import { registerGlobalShortcuts, unregisterGlobalShortcuts } from './shortcuts'
 import { update } from './update';
 import { Env, getRuntimeDataDir } from './utils';
 import { getResourcePath } from './utils/resources-path';
+import { flushWorkflowPersistence, getMainWorkflowRuntime, initWorkflowSystem } from './workflow';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -293,7 +293,7 @@ app.whenReady().then(async () => {
   updateSplashStatus('正在启动调度器');
   updateSplashLog('starting task scheduler');
   try {
-    await initScheduler();
+    await initScheduler(getMainWorkflowRuntime());
     updateSplashLog('scheduler ready');
   } catch (e) {
     console.warn('[scheduler] init failed', e);

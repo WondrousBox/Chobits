@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { workflowClient } from '@/lib/workflow-client';
 import { runWorkflow } from '@/lib/workflow-runner';
 
 import { ConfigFieldRenderer } from './ConfigFieldRenderer';
@@ -28,8 +29,6 @@ type IncomingPayload = {
   missingConfigs?: MissingConfig[];
   originalInput?: Record<string, any>; // 保留原始输入，包括 resource 对象等
 };
-
-const invoke = window.ipcRenderer.invoke;
 
 type Folder = {
   id: string;
@@ -203,7 +202,7 @@ export default function WorkflowStartInputSheet(): JSX.Element {
 
         try {
           // 调用后端获取最新的配置 schema
-          const result = await invoke('wf:getNodeConfig', {
+          const result = await workflowClient.getNodeConfig({
             nodeId: node.nodeType,
             config: effectiveConfig
           });

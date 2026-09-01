@@ -1,8 +1,10 @@
+import type { WorkflowRuntimeFacade } from '@chobits/workflow/application';
+
 import { ChatRepo, ResourcesRepo } from '../../../common/db';
 import { pushCardToWindows } from '../../card-push';
 import type { UserChoiceRequest, UserChoiceResponse } from '../../types';
 import type { PiCodingWorkspaceContext, ResolvedPiRequest } from './contracts';
-import type { SkillExecutionResult, SkillSessionState, SkillRegistry } from './skills';
+import type { SkillExecutionResult, SkillRegistry, SkillSessionState } from './skills';
 
 type PiAgentThinkingLevel = import('@earendil-works/pi-agent-core').ThinkingLevel;
 
@@ -33,6 +35,7 @@ export interface PiSessionToolContext {
   reportProgress?: (callId: string, progress: number, message?: string) => void;
   resolved: ResolvedPiRequest;
   resourcesRepo: typeof ResourcesRepo;
+  workflowRuntime?: WorkflowRuntimeFacade;
   targetWindowId?: number;
   emitToolCall?: (name: string, args: unknown, callId: string) => void;
   emitToolResult?: (callId: string, result: unknown) => void;
@@ -51,6 +54,12 @@ export interface PiSessionToolContext {
   runForkedSkill?: (execution: SkillExecutionResult, options?: PiForkedSkillRunOptions) => Promise<PiForkedSkillResult>;
   skillRegistry?: SkillRegistry;
   skillSessionState?: SkillSessionState;
+}
+
+let configuredWorkflowRuntime: WorkflowRuntimeFacade | undefined;
+
+export function configurePiWorkflowRuntime(runtime: WorkflowRuntimeFacade | undefined): void {
+  configuredWorkflowRuntime = runtime;
 }
 
 function resolveConversationId(resolved: ResolvedPiRequest): string | undefined {
@@ -76,6 +85,7 @@ export function createPiSessionToolContext(resolved: ResolvedPiRequest): PiSessi
     pushCardToWindows,
     resolved,
     resourcesRepo: ResourcesRepo,
+    workflowRuntime: configuredWorkflowRuntime,
     targetWindowId: resolveTargetWindowId(resolved)
   };
 }

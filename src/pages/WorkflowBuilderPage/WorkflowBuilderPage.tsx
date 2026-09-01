@@ -1,6 +1,6 @@
 import 'reactflow/dist/style.css';
 
-import type { WorkflowDefinition } from '@packages/workflow/types';
+import type { WorkflowDefinition } from '@chobits/workflow';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TbBolt, TbCheck, TbCode, TbIcons, TbLayout, TbPencil, TbPlayerPlay, TbSparkles } from 'react-icons/tb';
 import { useParams, useSearchParams } from 'react-router-dom';
@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { workflowClient } from '@/lib/workflow-client';
 import { BroadcastChannelManager, CHANNEL_NAMES } from '@/utils/broadcastChannels';
 
 import AIChatSidebar from '../ResourcePage/components/AIChatSidebar';
@@ -31,17 +32,17 @@ import WorkflowJsonDialog from './WorkflowJsonDialog';
 import WorkflowRunConsole from './WorkflowRunConsole';
 import WorkflowSidebar from './WorkflowSidebar';
 
-// IPC helper
-const invoke = window.ipcRenderer.invoke;
-
 async function loadWorkflowDefinition(id: string, workspaceId?: string): Promise<WorkflowDefinition | null> {
-  return invoke('wf:getDefinition', { id, workspaceId }).catch(() => null);
+  return workflowClient.getDefinition({ id, workspaceId }).then(
+    (definition) => definition || null,
+    () => null
+  );
 }
 
 function useNodeSpecs(): NodeSpec[] {
   const [specs, setSpecs] = useState<NodeSpec[]>([]);
   useEffect(() => {
-    invoke('wf:listNodes').then((list: NodeSpec[]) => setSpecs(list || []));
+    workflowClient.listNodes().then((list) => setSpecs(list || []));
   }, []);
   return specs;
 }

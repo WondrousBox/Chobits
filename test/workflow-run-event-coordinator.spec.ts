@@ -35,7 +35,11 @@ describe('workflow run event coordinator', () => {
     let current = runningRecord();
     const engine = Object.assign(emitter, { getRun: vi.fn(() => current) }) as unknown as WorkflowEngine;
     const persist = persistence();
-    const broadcast = vi.fn<WorkflowRunEventCoordinatorPorts['broadcast']>();
+    const broadcast = {
+      runStatus: vi.fn<WorkflowRunEventCoordinatorPorts['broadcast']['runStatus']>(),
+      nodeStatus: vi.fn<WorkflowRunEventCoordinatorPorts['broadcast']['nodeStatus']>(),
+      runLog: vi.fn<WorkflowRunEventCoordinatorPorts['broadcast']['runLog']>()
+    };
     const emitLifecycle = vi.fn<WorkflowRunEventCoordinatorPorts['emitLifecycle']>();
     const busy = {
       start: vi.fn(),
@@ -83,7 +87,7 @@ describe('workflow run event coordinator', () => {
     expect(persist).toHaveBeenCalledTimes(2);
     expect(emitLifecycle).toHaveBeenCalledWith('complete', expect.objectContaining({ workflowName: 'Friendly Workflow' }));
     expect(busy.end).toHaveBeenCalledOnce();
-    expect(broadcast).toHaveBeenCalledWith('wf:run-status', expect.objectContaining({ runId: 'run-1' }));
+    expect(broadcast.runStatus).toHaveBeenCalledWith(expect.objectContaining({ runId: 'run-1' }));
 
     dispose();
     expect(emitter.listenerCount('run:status')).toBe(0);
@@ -101,7 +105,7 @@ describe('workflow run event coordinator', () => {
       engine,
       persistence: persist,
       loadDefinition: vi.fn().mockResolvedValue(undefined),
-      broadcast: vi.fn(),
+      broadcast: { runStatus: vi.fn(), nodeStatus: vi.fn(), runLog: vi.fn() },
       emitLifecycle: vi.fn(),
       busy: { start: vi.fn(), progress: vi.fn(), end: vi.fn() }
     });

@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "noEmitOnError": true,
+    "rootDir": ".",
+    "outDir": "./dist"
+  },
+  "files": ["src/index.ts", "src/application.ts", "src/contracts.ts", "src/core.ts", "src/node.ts", "src/nodes.ts", "src/ports.ts", "src/runtime.ts", "src/schema.ts", "src/sdk.ts", "src/testing.ts"],
+  "exclude": ["dist"]
+}

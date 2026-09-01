@@ -90,7 +90,7 @@ describe('WorkflowApplicationService', () => {
         nodes: [expect.objectContaining({ config: { original: false, runtime: true } })]
       })
     );
-    expect(fake.engine.run).toHaveBeenCalledWith(expect.any(Object), expect.any(Object), { source: 'test', workspaceId: 'workspace-1' });
+    expect(fake.engine.run).toHaveBeenCalledWith(expect.any(Object), { resource: { workspaceId: 'workspace-1' } }, { source: 'test', workspaceId: 'workspace-1' });
     expect(preset.nodes[0].config).toEqual({ original: true });
   });
 

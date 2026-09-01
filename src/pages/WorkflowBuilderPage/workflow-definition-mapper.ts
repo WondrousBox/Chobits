@@ -1,5 +1,5 @@
-import { CURRENT_WORKFLOW_SCHEMA_VERSION } from '@packages/workflow/schema';
-import type { WorkflowDefinition, WorkflowDraft, WorkflowNodeDraft } from '@packages/workflow/types';
+import type { WorkflowDefinition, WorkflowDraft, WorkflowNodeDraft } from '@chobits/workflow';
+import { CURRENT_WORKFLOW_SCHEMA_VERSION } from '@chobits/workflow/schema';
 import type { Edge, Node } from 'reactflow';
 
 import type { NodeData, NodeSpec } from './types';

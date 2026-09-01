@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "com.chobits.ai",
+  "appId": "com.workflow.integration.ai",
   "asar": true,
   "asarUnpack": [
     "node_modules/better-sqlite3/**/*",

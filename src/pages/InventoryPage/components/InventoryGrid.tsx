@@ -33,7 +33,9 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { workflowClient } from '@/lib/workflow-client';
 import { runWorkflow } from '@/lib/workflow-runner';
+import type { UIFolder } from '@/pages/ResourcePage/components/FolderSidebar';
 import { type ResourceTaskStatus, useResourceTaskStatus } from '@/pages/ResourcePage/hooks/useResourceTaskStatus';
 import { ResourceItem } from '@/pages/ResourcePage/types';
 import {
@@ -65,7 +67,6 @@ import {
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 import { getFileCoverByPath, getResourceSummary } from '@/pages/ResourcePage/utils/resourceUtils';
 import { ResourceItemWithSubtitles } from '@/pages/ResourcePage/utils/subtitleUtils';
-import type { UIFolder } from '@/pages/ResourcePage/components/FolderSidebar';
 
 const INVENTORY_COLUMNS = 8;
 const INVENTORY_SLOT_SIZE = 72;
@@ -527,8 +528,6 @@ export const InventoryGrid: React.FC<InventoryGridProps> = ({
   highlightedIds,
   onDelete,
   onDeleteMany,
-  onToggleFavorite,
-  onToggleVisibility,
   onOpenFolder,
   onDropResourcesToFolder,
   onRenameFolder,
@@ -537,7 +536,6 @@ export const InventoryGrid: React.FC<InventoryGridProps> = ({
   onMoveFolder,
   onFolderCreated,
   onPreview,
-  totalCount = 0,
   onOpenRssSettings,
   onOpenRssFeed,
   onRefreshRss
@@ -1002,9 +1000,9 @@ export const InventoryGrid: React.FC<InventoryGridProps> = ({
 
   const [workflows, setWorkflows] = useState<any[]>([]);
   useEffect(() => {
-    window.ipcRenderer
-      .invoke('wf:listDefinitions', { workspaceId })
-      .then((defs: any[]) => {
+    workflowClient
+      .listDefinitions({ workspaceId })
+      .then((defs) => {
         setWorkflows(defs || []);
       })
       .catch(() => { });

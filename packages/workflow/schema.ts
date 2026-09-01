@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import type { WorkflowDefinition, WorkflowValidationIssue } from './types';
+import type { WorkflowDefinition, WorkflowRunRequest, WorkflowValidationIssue } from './types.js';
 
 export const CURRENT_WORKFLOW_SCHEMA_VERSION = 1;
 
@@ -51,12 +51,29 @@ export const workflowRunRequestSchema = z.object({
   metadata: stringRecordSchema.optional()
 });
 
+export const workflowRuntimeRunRequestSchema = z
+  .object({
+    definitionId: z.string().trim().min(1).optional(),
+    definition: z.unknown().optional(),
+    input: stringRecordSchema.optional(),
+    scope: z.object({ kind: z.string().trim().min(1), id: z.string().trim().min(1) }).optional(),
+    trigger: z.object({ type: z.string().trim().min(1), id: z.string().trim().min(1).optional() }).optional(),
+    actor: z.object({ type: z.string().trim().min(1), id: z.string().trim().min(1).optional() }).optional(),
+    context: stringRecordSchema.optional(),
+    configOverrides: z.record(z.string(), stringRecordSchema).optional()
+  })
+  .refine((request) => Boolean(request.definitionId || request.definition), {
+    message: 'Workflow definitionId or definition is required',
+    path: ['definitionId']
+  });
+
 export const workflowSaveRequestSchema = z.object({
   def: z.unknown().refine((value) => value !== undefined, { message: 'Workflow definition is required' }),
   workspaceId: z.string().trim().min(1).optional()
 });
 
 export type WorkflowDefinitionParseResult = { ok: true; definition: WorkflowDefinition } | { ok: false; issues: WorkflowValidationIssue[] };
+export type WorkflowRunRequestParseResult = { ok: true; request: WorkflowRunRequest } | { ok: false; issues: WorkflowValidationIssue[] };
 
 export function zodIssuesToWorkflowIssues(issues: z.core.$ZodIssue[], code: WorkflowValidationIssue['code'] = 'invalid-definition'): WorkflowValidationIssue[] {
   return issues.map((issue) => ({
@@ -93,4 +110,24 @@ export function normalizeWorkflowDefinition(value: unknown): WorkflowDefinition 
     throw new Error(parsed.issues.map((issue) => `${issue.path.join('.') || 'workflow'}: ${issue.message}`).join('; '));
   }
   return parsed.definition;
+}
+
+export function parseWorkflowRuntimeRunRequest(value: unknown): WorkflowRunRequestParseResult {
+  const parsed = workflowRuntimeRunRequestSchema.safeParse(value);
+  if (!parsed.success) {
+    return { ok: false, issues: zodIssuesToWorkflowIssues(parsed.error.issues, 'invalid-run-request') };
+  }
+
+  if (parsed.data.definition !== undefined) {
+    const definition = parseWorkflowDefinition(parsed.data.definition);
+    if (!definition.ok) {
+      return {
+        ok: false,
+        issues: definition.issues.map((issue) => ({ ...issue, path: ['definition', ...issue.path] }))
+      };
+    }
+    return { ok: true, request: { ...parsed.data, definition: definition.definition } as WorkflowRunRequest };
+  }
+
+  return { ok: true, request: parsed.data as WorkflowRunRequest };
 }

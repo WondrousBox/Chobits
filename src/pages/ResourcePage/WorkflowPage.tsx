@@ -1,3 +1,4 @@
+import type { WorkflowDefinition } from '@chobits/workflow';
 import React, { useEffect, useMemo, useState } from 'react';
 import { TbCheck, TbChevronDown, TbDots, TbEdit, TbEye, TbTopologyRing3, TbTrash } from 'react-icons/tb';
 import { useNavigate } from 'react-router-dom';
@@ -10,22 +11,16 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { workflowClient } from '@/lib/workflow-client';
 import { BroadcastChannelManager, CHANNEL_NAMES, matchesWorkflowWorkspace, type WorkflowEventMessage } from '@/utils/broadcastChannels';
 
-interface WorkflowBrief {
-  id: string;
-  name: string;
-  description?: string;
-  nodes?: any[];
-  edges?: any[];
+interface WorkflowBrief extends WorkflowDefinition {
   updatedAt?: string;
   createdAt?: string;
 }
 
 type ExecutionStatus = 'queued' | 'running' | 'completed' | 'failed' | 'canceled';
 type RunBrief = { workflowId: string; status: ExecutionStatus; createdAt: number };
-
-const invoke = window.ipcRenderer.invoke;
 
 const WorkflowPage: React.FC<{ workspaceId?: string }> = ({ workspaceId }) => {
   const navigate = useNavigate();
@@ -59,8 +54,9 @@ const WorkflowPage: React.FC<{ workspaceId?: string }> = ({ workspaceId }) => {
   useEffect(() => {
     let mounted = true;
     // 加载预设工作流 ID 列表
-    invoke('wf:listPresets')
-      .then((presetList: WorkflowBrief[]) => {
+    workflowClient
+      .listPresets()
+      .then((presetList) => {
         if (mounted) {
           setPresetIds(new Set(presetList.map((p) => p.id)));
         }
@@ -69,18 +65,20 @@ const WorkflowPage: React.FC<{ workspaceId?: string }> = ({ workspaceId }) => {
         //
       });
 
-    invoke('wf:listDefinitions', { workspaceId })
-      .then((defs: WorkflowBrief[]) => {
+    workflowClient
+      .listDefinitions({ workspaceId })
+      .then((defs) => {
         if (mounted) setList(defs || []);
       })
       .finally(() => mounted && setLoading(false));
 
     // also fetch recent runs to surface last-run status
-    invoke('wf:listRuns', { workspaceId })
-      .then((runs: any[]) => {
+    workflowClient
+      .listRuns({ workspaceId })
+      .then((runs) => {
         if (!mounted || !Array.isArray(runs)) return;
         const map: Record<string, RunBrief> = {};
-        for (const r of runs as any[]) {
+        for (const r of runs) {
           const cur = map[r.workflowId];
           if (!cur || r.createdAt > cur.createdAt) map[r.workflowId] = { workflowId: r.workflowId, status: r.status, createdAt: r.createdAt };
         }
@@ -103,7 +101,7 @@ const WorkflowPage: React.FC<{ workspaceId?: string }> = ({ workspaceId }) => {
       const results = await Promise.all(
         entries.map(async (d) => {
           try {
-            const res = await invoke('wf:validate', { def: d });
+            const res = await workflowClient.validate({ def: d });
             return [d.id, res] as const;
           } catch {
             return [d.id, { ok: false, errors: ['校验失败'] }] as const;
@@ -161,7 +159,7 @@ const WorkflowPage: React.FC<{ workspaceId?: string }> = ({ workspaceId }) => {
   const openNew = async (): Promise<void> => {
     // 加载预设工作流列表
     try {
-      const presetList = await invoke('wf:listPresets');
+      const presetList = await workflowClient.listPresets();
       if (presetList && presetList.length > 0) {
         setPresets(presetList);
         // 默认选中空白模板
@@ -202,7 +200,7 @@ const WorkflowPage: React.FC<{ workspaceId?: string }> = ({ workspaceId }) => {
     // optimistic removal
     setList((prev) => prev.filter((w) => w.id !== id));
     try {
-      await invoke('wf:deleteDefinition', { id, workspaceId });
+      await workflowClient.deleteDefinition({ id, workspaceId });
     } catch {
       // rollback on failure
       setRefreshTick((t) => t + 1);

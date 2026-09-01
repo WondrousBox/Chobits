@@ -1,11 +1,14 @@
 # 工作流文档
 
-本目录统一维护工作流系统的架构、实施计划和直接集成方案。文档必须明确区分当前实现与目标状态，目标 API 和目录在对应实施阶段完成前不能视为已经存在。
+本目录统一维护工作流系统的架构、公共 API、发布策略、实施计划和直接集成方案。文档必须明确区分当前实现与未来路线，尚未实现的 API 不能写成现状。
 
 ## 核心文档
 
-- [目标架构](./architecture.md)：公共 Node-first 内核、Chobits 私有扩展、宿主层和客户端的职责与依赖边界。
-- [优化实施计划](./implementation-plan.md)：Phase 1-5 已完成记录，以及 Phase 6-10 的包化实施批次、验收标准和数据库约束。
+- [目标架构](./architecture.md)：公共 Node-first 内核、宿主应用工作流集成层、宿主层和客户端的职责与依赖边界。
+- [公共 API 与扩展指南](./public-api.md)：公开 exports、runtime、节点 SDK、store/capability/control adapters 和生命周期。
+- [发布与版本策略](./release-and-versioning.md)：首次外部发布前清理策略、Node/ESM 支持范围、SemVer、自动发布门槛和发布步骤。
+- [优化实施计划](./implementation-plan.md)：Phase 1-11 的范围、实施记录、验收结果和数据库约束。
+- [旧版兼容清理计划](./legacy-removal-plan.md)：Phase 11 的删除清单、数据迁移边界、保留项、实施批次和验收门槛。
 - [Agent 媒体链工作流计划](./agent-media-chain-plan.md)：AI 工具作为工作流宿主消费者时的资源链和结果契约。
 
 源码模块的当前结构、运行语义和扩展说明见 [工作流模块 README](../../packages/workflow/README.md)。

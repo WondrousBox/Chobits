@@ -1,4 +1,4 @@
-import type { WorkflowDraft } from '@packages/workflow/types';
+import type { WorkflowDraft } from '@chobits/workflow';
 import { nanoid } from 'nanoid';
 import type { Dispatch, SetStateAction } from 'react';
 import { useCallback, useEffect, useState } from 'react';

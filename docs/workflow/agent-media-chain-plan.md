@@ -44,9 +44,9 @@ The current system exposes useful tools, but the workflow contract is too loose:
 This plan describes an AI-tool consumer of the workflow runtime, not functionality that belongs inside the publishable workflow package. Under the [workflow target architecture](./architecture.md):
 
 - `workflowRunTool` receives a host-provided runtime facade and uses only its public run contract.
-- Permission checks, synchronous waiting versus background execution, tool-result normalization, and fresh-resource chain hints remain responsibilities of the Chobits AI-tool layer.
-- The public workflow runtime owns execution, cancellation, events, and terminal run records, but does not import agent tools, resource search, translation, or Chobits providers.
-- Resource, AI, transcription, and translation behavior enters the runtime through Chobits nodes and capabilities.
+- Permission checks, synchronous waiting versus background execution, tool-result normalization, and fresh-resource chain hints remain responsibilities of the host application's AI-tool layer.
+- The public workflow runtime owns execution, cancellation, events, and terminal run records, but does not import agent tools, resource search, translation, or host providers.
+- Resource, AI, transcription, and translation behavior enters the runtime through integration nodes and capabilities.
 
 ## Implementation Plan
 

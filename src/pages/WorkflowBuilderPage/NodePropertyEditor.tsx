@@ -3,10 +3,10 @@ import { AnimatePresence, motion } from 'framer-motion';
 import React, { useEffect, useMemo, useState } from 'react';
 import { TbChevronDown, TbChevronRight } from 'react-icons/tb';
 
+import { workflowClient } from '@/lib/workflow-client';
+
 import { ConfigFieldRenderer } from './ConfigFieldRenderer';
 import type { NodeData, NodeSpec } from './types';
-
-const invoke = window.ipcRenderer.invoke;
 
 type ConfigSchema = NonNullable<NodeSpec['config']>[number];
 
@@ -38,7 +38,7 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
 
       try {
         setLoadingConfig(true);
-        const result = await invoke('wf:getNodeConfig', {
+        const result = await workflowClient.getNodeConfig({
           nodeId: spec.id,
           config: currentConfig || data.config || {}
         });

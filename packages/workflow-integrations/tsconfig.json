@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "noEmit": true,
+    "types": ["node"],
+    "paths": {
+      "@/*": ["../../src/*"],
+      "@packages/*": ["../*"],
+      "@main/*": ["../../electron/main/*"],
+      "@chobits/workflow": ["../workflow/src/index.ts"],
+      "@chobits/workflow/*": ["../workflow/src/*"],
+      "@workflow/integrations": ["./src/index.ts"],
+      "@workflow/integrations/*": ["./src/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "../../src/vite-env.d.ts"]
+}

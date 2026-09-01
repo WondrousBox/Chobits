@@ -16,7 +16,7 @@ const projectRoot = join(__dirname, '..');
 
 // 读取 package.json 获取应用信息
 const pkg = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf-8'));
-const APP_BUNDLE_ID = 'com.chobits.ai';
+const APP_BUNDLE_ID = 'com.workflow.integration.ai';
 const APP_NAME = pkg.name || 'Chobits';
 
 console.log('========================================');

@@ -10,7 +10,10 @@ import { ResourceCreateNode } from '../packages/workflow/nodes/resource-create';
 import { ResourceLoadNode } from '../packages/workflow/nodes/resource-load';
 import { StartNode } from '../packages/workflow/nodes/start';
 import { TextToImageNode } from '../packages/workflow/nodes/text-to-image';
+import { createWorkflowCapabilities } from '../packages/workflow/src/runtime/capabilities';
 import type { ExecutionContext, WorkflowHtmlScreenshotRequest } from '../packages/workflow/types';
+import { createWorkflowIntegrationResourceReadCapability, createWorkflowIntegrationResourceWriteCapability } from '../packages/workflow-integrations/src/adapters/resource';
+import { WORKFLOW_RENDERING, WORKFLOW_RESOURCE_READ, WORKFLOW_RESOURCE_WRITE } from '../packages/workflow-integrations/src/capabilities';
 
 const getPlugin = (): undefined => undefined;
 
@@ -24,15 +27,20 @@ describe('workflow node runtime services', () => {
       type: 'document',
       contentText: 'loaded content'
     }));
-    const ctx: ExecutionContext = {
-      tmpDir: os.tmpdir(),
-      services: {
-        resources: { getById, list: async () => [] }
-      }
-    };
+    const ctx: ExecutionContext = { tmpDir: os.tmpdir() };
+    const capabilities = createWorkflowCapabilities([
+      [
+        WORKFLOW_RESOURCE_READ,
+        createWorkflowIntegrationResourceReadCapability({
+          resources: { getById, list: async () => [] },
+          folders: { list: async () => [] },
+          workspaces: { getById: async () => undefined }
+        })
+      ]
+    ]);
 
-    const loaded = await ResourceLoadNode.run({ input: { resourceId: 'resource-1' }, ctx, emit: vi.fn(), getPlugin });
-    const started = await StartNode.run({ input: { resource: { id: 'resource-1' } }, config: { inputMode: 'resource' }, ctx, emit: vi.fn(), getPlugin });
+    const loaded = await ResourceLoadNode.run({ input: { resourceId: 'resource-1' }, ctx, capabilities, emit: vi.fn(), getPlugin });
+    const started = await StartNode.run({ input: { resource: { id: 'resource-1' } }, config: { inputMode: 'resource' }, ctx, capabilities, emit: vi.fn(), getPlugin });
 
     expect(getById).toHaveBeenCalledTimes(2);
     expect(loaded).toMatchObject({ resourceId: 'resource-1', path: '/missing/example.md', contentText: 'loaded content' });
@@ -51,14 +59,20 @@ describe('workflow node runtime services', () => {
     const ctx: ExecutionContext = {
       tmpDir: os.tmpdir(),
       workspaceId: 'workspace-1',
-      folderId: 'root',
-      services: {
-        folders: { list: listFolders },
-        resources: { getById: async () => undefined, list: listResources }
-      }
+      folderId: 'root'
     };
+    const capabilities = createWorkflowCapabilities([
+      [
+        WORKFLOW_RESOURCE_READ,
+        createWorkflowIntegrationResourceReadCapability({
+          resources: { getById: async () => undefined, list: listResources },
+          folders: { list: listFolders },
+          workspaces: { getById: async () => undefined }
+        })
+      ]
+    ]);
 
-    const output = await CollectFolderTextsNode.run({ input: {}, ctx, emit: vi.fn(), getPlugin });
+    const output = await CollectFolderTextsNode.run({ input: {}, ctx, capabilities, emit: vi.fn(), getPlugin });
 
     expect(listFolders).toHaveBeenCalledWith({ workspaceId: 'workspace-1', deletedAt: 0 }, 10000, 0);
     expect(listResources.mock.calls.map(([filter]) => filter.folderId)).toEqual(['root', 'child']);
@@ -72,19 +86,24 @@ describe('workflow node runtime services', () => {
       const workspaceRoot = path.join(tempDir, 'workspace');
       await fsPromises.writeFile(sourcePath, 'content');
       const getById = vi.fn(async () => ({ id: 'workspace-1', rootPath: workspaceRoot }));
-      const emit = vi.fn((event: string, payload?: any) => {
-        if (event === 'resource:create-request') payload.callback({ id: 'created-1', type: 'file', ...payload.resourceData });
+      const writeCapability = createWorkflowIntegrationResourceWriteCapability({
+        addResource: async ({ resource }) => ({ data: { id: 'created-1', type: 'file', ...resource } }),
+        resources: { getById: async () => undefined, update: async () => undefined },
+        folders: { list: async () => [], create: async (folder) => folder },
+        workspaces: { getById, getDefault: async () => undefined },
+        onResourceUpdated: vi.fn()
       });
+      const capabilities = createWorkflowCapabilities([[WORKFLOW_RESOURCE_WRITE, writeCapability]]);
 
       const output = await ResourceCreateNode.run({
         input: { file: sourcePath },
         ctx: {
           tmpDir: tempDir,
           workspaceId: 'workspace-1',
-          folderId: 'folder-1',
-          services: { workspaces: { getById } }
+          folderId: 'folder-1'
         },
-        emit,
+        capabilities,
+        emit: vi.fn(),
         getPlugin
       });
 
@@ -106,7 +125,8 @@ describe('workflow node runtime services', () => {
       return request.outputPath;
     });
     const emit = vi.fn();
-    const ctx: ExecutionContext = { tmpDir: tempDir, services: { renderHtmlScreenshot } };
+    const ctx: ExecutionContext = { tmpDir: tempDir };
+    const capabilities = createWorkflowCapabilities([[WORKFLOW_RENDERING, { renderHtmlScreenshot }]]);
 
     try {
       await GenerateLearningCardNode.run({
@@ -116,10 +136,11 @@ describe('workflow node runtime services', () => {
         },
         config: { width: 640 },
         ctx,
+        capabilities,
         emit,
         getPlugin
       });
-      await TextToImageNode.run({ input: { text: '# Heading' }, config: { width: 720, height: 480 }, ctx, emit, getPlugin });
+      await TextToImageNode.run({ input: { text: '# Heading' }, config: { width: 720, height: 480 }, ctx, capabilities, emit, getPlugin });
 
       expect(requests).toHaveLength(2);
       expect(requests[0]).toMatchObject({ width: 640, height: 800, contentHeightMode: 'exact' });

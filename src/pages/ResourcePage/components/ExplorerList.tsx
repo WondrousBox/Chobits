@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { workflowClient } from '@/lib/workflow-client';
 import { runWorkflow } from '@/lib/workflow-runner';
 
 import { ResourceItem, SortField, SortOrder } from '../types';
@@ -607,9 +608,9 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
   // 工作流列表
   const [workflows, setWorkflows] = useState<any[]>([]);
   useEffect(() => {
-    window.ipcRenderer
-      .invoke('wf:listDefinitions', { workspaceId })
-      .then((defs: any[]) => {
+    workflowClient
+      .listDefinitions({ workspaceId })
+      .then((defs) => {
         setWorkflows(defs || []);
       })
       .catch(() => { });

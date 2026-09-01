@@ -3,6 +3,7 @@ import { TbArrowLeft } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { workflowClient } from '@/lib/workflow-client';
 
 import { AutomationRuleForm } from './AutomationRuleForm';
 import { AutomationRulesList } from './AutomationRulesList';
@@ -29,7 +30,7 @@ export const AutomationRulesDialog: React.FC<{
   };
 
   const loadWorkflows = async (): Promise<void> => {
-    const res = await window.ipcRenderer.invoke('wf:listDefinitions', { workspaceId: currentWorkspaceId });
+    const res = await workflowClient.listDefinitions({ workspaceId: currentWorkspaceId });
     setWorkflows(res);
   };
 

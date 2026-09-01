@@ -1,13 +1,14 @@
+import type { WorkflowRuntimeFacade } from '@chobits/workflow/application';
+import { WORKFLOW_IPC_CHANNELS } from '@workflow/integrations/client';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { WorkflowApplicationService } from '../packages/workflow/application-service';
 import type { WorkflowIpcRegistrar } from '../packages/workflow/ipc-adapter';
 import { registerWorkflowIpcHandlers } from '../packages/workflow/ipc-adapter';
 
 type IpcHandler = (event: unknown, payload?: any) => unknown;
 
 type IpcTestContext = {
-  application: WorkflowApplicationService;
+  application: WorkflowRuntimeFacade;
   handlers: Map<string, IpcHandler>;
   invoke(channel: string, payload?: any): Promise<any>;
 };
@@ -33,8 +34,8 @@ function setup(): IpcTestContext {
     deleteRun: vi.fn().mockResolvedValue(undefined),
     cancelRun: vi.fn().mockResolvedValue(true),
     getRunLogs: vi.fn().mockResolvedValue([])
-  } as unknown as WorkflowApplicationService;
-  registerWorkflowIpcHandlers(ipc, application);
+  } as unknown as WorkflowRuntimeFacade;
+  registerWorkflowIpcHandlers(ipc, application, { scanTaskResults: vi.fn() });
 
   return {
     application,
@@ -48,6 +49,11 @@ function setup(): IpcTestContext {
 }
 
 describe('workflow IPC adapter', () => {
+  it('registers every channel from the shared contract exactly once', () => {
+    const context = setup();
+    expect([...context.handlers.keys()].sort()).toEqual(Object.values(WORKFLOW_IPC_CHANNELS).sort());
+  });
+
   it('rejects malformed run requests before reaching the application service', async () => {
     const context = setup();
 
@@ -78,5 +84,18 @@ describe('workflow IPC adapter', () => {
     const workflow = { id: 'workflow-1', name: 'Workflow One', nodes: [{ id: 'node-1', type: 'test/node' }], edges: [] };
     await expect(context.invoke('wf:saveDefinition', { def: workflow, workspaceId: 'workspace-1' })).resolves.toEqual({ ok: true });
     expect(context.application.saveDefinition).toHaveBeenCalledWith(workflow, 'workspace-1');
+  });
+
+  it('preserves workspace scope for reads and cancellation results', async () => {
+    const context = setup();
+
+    await context.invoke(WORKFLOW_IPC_CHANNELS.getDefinition, { id: 'workflow-1', workspaceId: 'workspace-2' });
+    expect(context.application.getDefinition).toHaveBeenCalledWith('workflow-1', 'workspace-2');
+
+    await expect(context.invoke(WORKFLOW_IPC_CHANNELS.cancelRun, { runId: 'run-1', workspaceId: 'workspace-2' })).resolves.toEqual({ ok: true });
+    expect(context.application.cancelRun).toHaveBeenCalledWith('run-1', 'workspace-2');
+
+    vi.mocked(context.application.cancelRun).mockResolvedValueOnce(false);
+    await expect(context.invoke(WORKFLOW_IPC_CHANNELS.cancelRun, { runId: 'missing', workspaceId: 'workspace-2' })).resolves.toEqual({ ok: false, error: 'Workflow run not found' });
   });
 });

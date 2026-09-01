@@ -1,4 +1,4 @@
-import type { ExecutionStatus } from '@packages/workflow/types';
+import type { ExecutionStatus } from '@chobits/workflow';
 
 import { matchesWorkflowWorkspace } from '@/utils/broadcastChannels';
 

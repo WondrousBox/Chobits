@@ -1,6 +1,8 @@
-import type { MissingModel, ValidateResult, WorkflowDefinition, WorkflowDraft, WorkflowValidationIssue } from '@packages/workflow/types';
+import type { MissingModel, ValidateResult, WorkflowDefinition, WorkflowDraft, WorkflowValidationIssue } from '@chobits/workflow';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+
+import { workflowClient } from '@/lib/workflow-client';
 
 import { toPersistedWorkflowDefinition } from './workflow-definition-mapper';
 
@@ -68,8 +70,8 @@ interface SaveAttempt {
 }
 
 const defaultClient: WorkflowPersistenceClient = {
-  validate: (definition) => window.ipcRenderer.invoke('wf:validate', { def: definition }),
-  save: (definition, workspaceId) => window.ipcRenderer.invoke('wf:saveDefinition', { def: definition, workspaceId })
+  validate: (definition) => workflowClient.validate({ def: definition }),
+  save: (definition, workspaceId) => workflowClient.saveDefinition({ def: definition, workspaceId })
 };
 
 const defaultPluginResources: WorkflowPluginResourceClient = {
