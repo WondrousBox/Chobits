@@ -127,15 +127,16 @@ function matchCondition(condition: ConditionalToolLabel, args: Record<string, an
 
 // ━━ Public API ━━
 
-/** 角色覆盖标签缓存 */
-let characterOverrides: Record<string, ToolLabelDefinition> | null = null;
+/** 角色覆盖标签 resolver（pull 模型：查询时实时调用取最新值） */
+let characterLabelsResolver: (() => Record<string, ToolLabelDefinition> | undefined) | null = null;
 
 /**
- * 设置角色自定义的工具标签（从 character.json 的 toolLabels 字段加载）。
+ * 注册角色自定义工具标签的 resolver（标签来自 character.json 的 toolLabels 字段）。
  * 合并策略：角色标签优先，缺省使用默认标签。
+ * 由 wiring 层注入一次，之后每次查询实时取最新值，无需手动刷新推送。
  */
-export function setCharacterToolLabels(overrides: Record<string, ToolLabelDefinition> | undefined): void {
-  characterOverrides = overrides ?? null;
+export function registerCharacterToolLabelsResolver(resolver: (() => Record<string, ToolLabelDefinition> | undefined) | null): void {
+  characterLabelsResolver = resolver;
 }
 
 /**
@@ -149,8 +150,8 @@ export function setCharacterToolLabels(overrides: Record<string, ToolLabelDefini
 export function resolveToolLabel(toolName: string, args: Record<string, any> | undefined, phase: 'calling' | 'done', useCharacterOverrides = false): string {
   const safeArgs = args ?? {};
 
-  // 仅在角色人格注入开启时使用角色覆盖标签
-  const def = (useCharacterOverrides ? characterOverrides?.[toolName] : undefined) ?? DEFAULT_TOOL_LABELS[toolName];
+  // 仅在角色人格注入开启时使用角色覆盖标签（经 resolver 实时取最新值）
+  const def = (useCharacterOverrides ? characterLabelsResolver?.()?.[toolName] : undefined) ?? DEFAULT_TOOL_LABELS[toolName];
 
   if (!def) {
     // 没有定义标签的工具，使用工具名

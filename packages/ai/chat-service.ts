@@ -5,6 +5,18 @@ import { BrowserWindow, ipcMain, WebContents } from 'electron';
 import { ChatRepo, WorkspacesRepo } from '../common/db';
 import { eventManager } from '../event';
 import { AppEvent } from '../event/events';
+import {
+  appendTextDisplayPart,
+  appendThinkingDisplayPart,
+  appendToolDisplayPart,
+  attachDisplayParts,
+  extractResourceContextIds,
+  finalizeDisplayParts,
+  getRealtimeSpeechScope,
+  normalizeAssistantThinkingMessage,
+  shouldAppendToolDisplayPart,
+  shouldNormalizeInlineThinkingTags
+} from './chat-message-parts';
 import { buildConversationPlaceholderTitle, normalizeGeneratedConversationTitle } from './conversation-title';
 import { getChatMessageUsage, withChatMessageUsage } from './message-usage';
 import { normalizeProviderPreset, resolveProviderPresetId } from './provider-preset';
@@ -15,18 +27,8 @@ import { generatePiConversationTitle } from './runtime/pi/tasks/title';
 import type { AgentLoopCompletePayload } from './services/memory-types';
 import { attachSpeechDisplayTextFilterToMessage, getRealtimeSpeechDisplayTextFilter } from './speech-display-filter';
 import { appendRealtimeSpeechPromptGuidance } from './speech-synthesis-guidance';
-import { createThinkingTagStreamParser, extractThinkingTextFromMetadata, readThinkingBlocksFromMetadata, splitThinkingTagsFromText, type ThinkingMetadataBlock } from './thinking-content';
-import {
-  CHAT_MESSAGE_DISPLAY_PARTS_METADATA_KEY,
-  ChatMessage,
-  ChatMessageDisplayPart,
-  ChatRequest,
-  ChatResponse,
-  EmbeddingRequest,
-  EmbeddingResponse,
-  StreamEvent,
-  type ToolCallDisplay
-} from './types';
+import { createThinkingTagStreamParser, extractThinkingTextFromMetadata } from './thinking-content';
+import { ChatMessage, ChatMessageDisplayPart, ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent, type ToolCallDisplay } from './types';
 
 // local UUID fallback if uuid not present
 function safeUuid(): string {
@@ -49,200 +51,6 @@ function forcePiRuntime(req: ChatRequest): ChatRequest {
 
 /** IPC channel for broadcasting conversation title updates to all renderer windows */
 const CONV_TITLE_UPDATED_CHANNEL = 'ai:conversation-title-updated';
-
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-}
-
-function shouldNormalizeInlineThinkingTags(providerId?: string): boolean {
-  return providerId === 'minimax';
-}
-
-function toThinkingBlocks(thinking: string): ThinkingMetadataBlock[] | undefined {
-  if (!thinking.trim()) {
-    return undefined;
-  }
-
-  return [{ type: 'thinking', thinking }];
-}
-
-function getSpriteRealtimeSpeechScope(req: ChatRequest): 'mainChat' | 'resourceChatSidebar' | undefined {
-  const scope = req.extras?.spriteRealtimeSpeechScope;
-  return scope === 'mainChat' || scope === 'resourceChatSidebar' ? scope : undefined;
-}
-
-function appendTextDisplayPart(parts: ChatMessageDisplayPart[], text: string): void {
-  const last = parts[parts.length - 1];
-  if (last?.type === 'text') {
-    last.text += text;
-    return;
-  }
-
-  parts.push({ text, type: 'text' });
-}
-
-function appendThinkingDisplayPart(parts: ChatMessageDisplayPart[], thinking: string): void {
-  const last = parts[parts.length - 1];
-  if (last?.type === 'thinking') {
-    last.thinking += thinking;
-    return;
-  }
-
-  parts.push({ thinking, type: 'thinking' });
-}
-
-function appendToolDisplayPart(parts: ChatMessageDisplayPart[], callId: string): void {
-  if (!callId || parts.some((part) => part.type === 'tool' && part.callId === callId)) {
-    return;
-  }
-
-  parts.push({ callId, type: 'tool' });
-}
-
-function extractResourceContextIds(req: ChatRequest, messages?: ChatMessage[], toolCalls?: Array<{ args?: any; name?: string; result?: any }>): string[] {
-  const ids = new Set<string>();
-  const visit = (value: unknown, hint?: string): void => {
-    if (!value) return;
-    if (typeof value === 'string') {
-      for (const match of value.matchAll(/\[card:(?:resource|video|audio|image|document|link|file):([a-zA-Z0-9_-]+)\]/g)) {
-        ids.add(match[1]);
-      }
-      if ((hint === 'resource-id' || hint === 'resource') && value.trim()) {
-        ids.add(value.trim());
-      }
-      return;
-    }
-    if (Array.isArray(value)) {
-      value.forEach((item) => visit(item, hint));
-      return;
-    }
-    if (typeof value !== 'object') return;
-    const record = value as Record<string, unknown>;
-    if (hint === 'resource' && typeof record.id === 'string' && record.id.trim()) {
-      ids.add(record.id.trim());
-    }
-    for (const key of ['resourceId', 'resourceIds']) {
-      visit(record[key], 'resource-id');
-    }
-    visit(record.resources, 'resource');
-    for (const key of ['content', 'text', 'parts', 'messages']) {
-      visit(record[key]);
-    }
-  };
-
-  visit(req.extras);
-  visit(messages ?? req.messages);
-  visit(toolCalls);
-  return Array.from(ids);
-}
-
-function shouldAppendToolDisplayPart(display?: ToolCallDisplay): boolean {
-  return display?.mode !== 'hidden';
-}
-
-function normalizeDisplayParts(parts: ChatMessageDisplayPart[]): ChatMessageDisplayPart[] | undefined {
-  const normalized = parts.filter((part) => {
-    if (part.type === 'text') return !!part.text;
-    if (part.type === 'thinking') return !!part.thinking;
-    return !!part.callId;
-  });
-
-  if (!normalized.length || isLegacyEquivalentDisplayParts(normalized)) {
-    return undefined;
-  }
-
-  return normalized;
-}
-
-function isLegacyEquivalentDisplayParts(parts: ChatMessageDisplayPart[]): boolean {
-  let phase: 'thinking' | 'tool' | 'text' = 'thinking';
-
-  for (const part of parts) {
-    if (part.type === 'thinking') {
-      if (phase !== 'thinking') return false;
-      continue;
-    }
-
-    if (part.type === 'tool') {
-      if (phase === 'text') return false;
-      phase = 'tool';
-      continue;
-    }
-
-    phase = 'text';
-  }
-
-  return true;
-}
-
-function attachDisplayParts(message: ChatMessage, parts: ChatMessageDisplayPart[]): ChatMessage {
-  const displayParts = normalizeDisplayParts(parts);
-  if (!displayParts) {
-    return message;
-  }
-
-  return {
-    ...message,
-    metadata: {
-      ...(message.metadata || {}),
-      [CHAT_MESSAGE_DISPLAY_PARTS_METADATA_KEY]: displayParts
-    }
-  };
-}
-
-function finalizeDisplayParts(parts: ChatMessageDisplayPart[], message?: ChatMessage): ChatMessageDisplayPart[] {
-  const next = parts.slice();
-
-  if (message) {
-    const thinking = extractThinkingTextFromMetadata(message.metadata);
-    const thinkingPartIndexes = next.flatMap((part, index) => (part.type === 'thinking' && part.thinking ? [index] : []));
-    if (thinkingPartIndexes.length === 1 && thinking) {
-      next[thinkingPartIndexes[0]] = { thinking, type: 'thinking' };
-    } else if (thinkingPartIndexes.length === 0 && thinking) {
-      next.unshift({ thinking, type: 'thinking' });
-    }
-
-    const textPartIndexes = next.flatMap((part, index) => (part.type === 'text' && part.text ? [index] : []));
-    if (textPartIndexes.length === 1 && message.content) {
-      next[textPartIndexes[0]] = { text: message.content, type: 'text' };
-    } else if (textPartIndexes.length === 0 && message.content) {
-      next.push({ text: message.content, type: 'text' });
-    }
-  }
-
-  return normalizeDisplayParts(next) || [];
-}
-
-function normalizeAssistantThinkingMessage(
-  message: ChatMessage | undefined,
-  options: {
-    fallbackContent?: string;
-    fallbackThinking?: string;
-    providerId?: string;
-  }
-): ChatMessage | undefined {
-  if (!message) {
-    return undefined;
-  }
-
-  const metadata = isPlainRecord(message.metadata) ? message.metadata : undefined;
-  const existingBlocks = readThinkingBlocksFromMetadata(metadata);
-  const metadataThinking = extractThinkingTextFromMetadata(metadata);
-  const inlineThinking = typeof message.content === 'string' && shouldNormalizeInlineThinkingTags(options.providerId) ? splitThinkingTagsFromText(message.content) : undefined;
-  const normalizedContent = options.fallbackContent ?? (inlineThinking?.hadThinkingTags ? inlineThinking.content : message.content);
-  const normalizedThinking = options.fallbackThinking ?? metadataThinking ?? inlineThinking?.thinking;
-  const normalizedBlocks = existingBlocks || (normalizedThinking ? toThinkingBlocks(normalizedThinking) : undefined);
-
-  if (normalizedContent === message.content && normalizedBlocks === existingBlocks) {
-    return message;
-  }
-
-  return {
-    ...message,
-    content: normalizedContent,
-    ...(normalizedBlocks ? { metadata: { ...(metadata || {}), thinkingBlocks: normalizedBlocks } } : metadata ? { metadata } : {})
-  };
-}
 
 export class ChatService {
   private controllers = new Map<string, AbortController>();
@@ -270,14 +78,15 @@ export class ChatService {
   // Ephemeral chat: call provider/agent and return response without touching conversation history
   async chatEphemeral(win: BrowserWindow | undefined, req: ChatRequest): Promise<ChatResponse> {
     void win;
-    return this.piSessionService.chatEphemeral(this.toPiRequest(req));
+    return this.piSessionService.chat(this.toPiRequest(req));
   }
 
   private async chatStream(sender: WebContents, req: ChatRequest): Promise<{ requestId: string; eventsChannel: string }> {
     // Prepare identifiers and controller
     const requestId = req.abortId || req['requestId'] || safeUuid();
     const eventsChannel = `ai:stream:${requestId}`;
-    const streamReq = this.withRealtimeSpeechPrompt({
+    // toPiRequest 是 runtime='pi' 的唯一权威强制点，这里顺带完成 realtime speech prompt 拼接
+    const streamReq = this.toPiRequest({
       ...req,
       requestId
     });
@@ -294,10 +103,10 @@ export class ChatService {
         console.log(`
 ====  Starting chat stream  =============================
 
-${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
+${JSON.stringify(streamReq, null, 2)}
 =========================================================
 `);
-        await this.chatStreamWithPi(sender, forcePiRuntime(streamReq), emit, ctrl);
+        await this.chatStreamWithPi(sender, streamReq, emit, ctrl);
       } catch (error: any) {
         console.error('Stream 错误:', error);
 
@@ -349,10 +158,13 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
       await this.persistConversationMessage(conv.id, lastUserMessage);
     }
 
-    let resp: ChatResponse = await this.piSessionService.chat({
-      ...runtimeReq,
-      conversationId: conv.id
-    });
+    let resp: ChatResponse = await this.piSessionService.chat(
+      {
+        ...runtimeReq,
+        conversationId: conv.id
+      },
+      preview
+    );
 
     resp = {
       ...resp,
@@ -391,7 +203,7 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
     const providerPresetId = resolveProviderPresetId(req);
 
     if (!preview.availability.available) {
-      await this.piSessionService.chatStream(req, emit, ctrl.signal);
+      await this.piSessionService.chatStream(req, emit, ctrl.signal, preview);
       return;
     }
 
@@ -444,10 +256,10 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
     const inlineThinkingParser = shouldNormalizeInlineThinkingTags(preview.resolved.model.canonicalProviderId) ? createThinkingTagStreamParser() : undefined;
     const speechDisplayTextFilter = getRealtimeSpeechDisplayTextFilter(req.extras);
 
-    const spriteRealtimeSpeechScope = getSpriteRealtimeSpeechScope(req);
+    const realtimeSpeechScope = getRealtimeSpeechScope(req);
     eventManager.emit(AppEvent.SPRITE_AI_START, {
       message: '思考中...',
-      ...(spriteRealtimeSpeechScope ? { spriteRealtimeSpeechScope } : {})
+      ...(realtimeSpeechScope ? { realtimeSpeechScope } : {})
     });
 
     try {
@@ -552,7 +364,8 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
 
           emit(event);
         },
-        ctrl.signal
+        ctrl.signal,
+        preview
       );
     } catch (error) {
       errorMessage = error instanceof Error ? error.message : String(error);
@@ -606,7 +419,7 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
     if (errorMessage) {
       eventManager.emit(AppEvent.SPRITE_AI_ERROR, {
         message: errorMessage,
-        ...(spriteRealtimeSpeechScope ? { spriteRealtimeSpeechScope } : {})
+        ...(realtimeSpeechScope ? { realtimeSpeechScope } : {})
       });
     } else {
       const resourceContextIds = extractResourceContextIds(req, streamMessages, collectedToolCalls);
@@ -617,7 +430,7 @@ ${JSON.stringify(forcePiRuntime(streamReq), null, 2)}
         assistantContentLength: fullText.length,
         hasResourceContext: resourceContextIds.length > 0,
         resourceIds: resourceContextIds,
-        ...(spriteRealtimeSpeechScope ? { spriteRealtimeSpeechScope } : {})
+        ...(realtimeSpeechScope ? { realtimeSpeechScope } : {})
       });
 
       if (conv?.id) {

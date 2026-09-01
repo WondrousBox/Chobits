@@ -112,7 +112,7 @@ describe('Sprite speak AI Provider config', () => {
       model: 'speech-2.8-turbo',
       voiceId: 'female-shaonv'
     });
-    expect(config.chatRealtimeSpeech).toMatchObject({
+    expect(config.realtimeSpeech).toMatchObject({
       enabled: false,
       audioSetting: {
         format: 'pcm',
@@ -124,6 +124,49 @@ describe('Sprite speak AI Provider config', () => {
         resourceChatSidebar: true
       }
     });
+  });
+
+  it('reads legacy chatRealtimeSpeech key and rewrites it as realtimeSpeech on save', () => {
+    const dataDir = makeTempDir();
+    const configDir = path.join(dataDir, 'data');
+    mkdirSync(configDir, { recursive: true });
+    const configPath = path.join(configDir, 'sprite-speak-config.json');
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        enabled: true,
+        chatRealtimeSpeech: {
+          enabled: true,
+          scopes: {
+            mainChat: false,
+            resourceChatSidebar: true
+          }
+        }
+      }),
+      { encoding: 'utf8', flag: 'w' }
+    );
+
+    const store = new SpeakConfigStore(dataDir);
+    const config = store.load();
+
+    expect(config.realtimeSpeech).toMatchObject({
+      enabled: true,
+      scopes: {
+        mainChat: false,
+        resourceChatSidebar: true
+      }
+    });
+
+    store.setConfig({ volume: 0.5 });
+    const persisted = JSON.parse(readFileSync(configPath, 'utf8'));
+    expect(persisted.realtimeSpeech).toMatchObject({
+      enabled: true,
+      scopes: {
+        mainChat: false,
+        resourceChatSidebar: true
+      }
+    });
+    expect(persisted.chatRealtimeSpeech).toBeUndefined();
   });
 
   it('keeps legacy Edge cache ids unchanged', () => {
@@ -329,8 +372,8 @@ describe('Sprite speak AI Provider synthesis', () => {
     await expect(service.startRealtimeSession({ source: 'chat', scope: 'mainChat' })).rejects.toThrow('disabled');
 
     service.setConfig({
-      chatRealtimeSpeech: {
-        ...service.getConfig().chatRealtimeSpeech,
+      realtimeSpeech: {
+        ...service.getConfig().realtimeSpeech,
         enabled: true
       }
     });
@@ -394,8 +437,8 @@ describe('Sprite speak AI Provider synthesis', () => {
         voiceId: 'female-shaonv',
         audioSetting: { format: 'mp3' }
       },
-      chatRealtimeSpeech: {
-        ...service.getConfig().chatRealtimeSpeech,
+      realtimeSpeech: {
+        ...service.getConfig().realtimeSpeech,
         enabled: true,
         scopes: {
           mainChat: true,
@@ -458,8 +501,8 @@ describe('Sprite speak AI Provider synthesis', () => {
         voiceId: 'female-shaonv',
         audioSetting: { format: 'mp3' }
       },
-      chatRealtimeSpeech: {
-        ...service.getConfig().chatRealtimeSpeech,
+      realtimeSpeech: {
+        ...service.getConfig().realtimeSpeech,
         enabled: true
       }
     });
@@ -517,8 +560,8 @@ describe('Sprite speak AI Provider synthesis', () => {
         voiceId: 'voice-1',
         audioSetting: { format: 'mp3' }
       },
-      chatRealtimeSpeech: {
-        ...service.getConfig().chatRealtimeSpeech,
+      realtimeSpeech: {
+        ...service.getConfig().realtimeSpeech,
         enabled: true
       }
     });
@@ -578,8 +621,8 @@ describe('Sprite speak AI Provider synthesis', () => {
         voiceId: 'voice-1',
         audioSetting: { format: 'mp3' }
       },
-      chatRealtimeSpeech: {
-        ...service.getConfig().chatRealtimeSpeech,
+      realtimeSpeech: {
+        ...service.getConfig().realtimeSpeech,
         enabled: true
       }
     });
@@ -649,8 +692,8 @@ describe('Sprite speak AI Provider synthesis', () => {
         voiceId: 'female-shaonv',
         audioSetting: { format: 'mp3' }
       },
-      chatRealtimeSpeech: {
-        ...service.getConfig().chatRealtimeSpeech,
+      realtimeSpeech: {
+        ...service.getConfig().realtimeSpeech,
         enabled: true
       }
     });
@@ -721,8 +764,8 @@ describe('Sprite speak AI Provider synthesis', () => {
         voiceId: 'female-shaonv',
         audioSetting: { format: 'pcm' }
       },
-      chatRealtimeSpeech: {
-        ...service.getConfig().chatRealtimeSpeech,
+      realtimeSpeech: {
+        ...service.getConfig().realtimeSpeech,
         enabled: true
       }
     });

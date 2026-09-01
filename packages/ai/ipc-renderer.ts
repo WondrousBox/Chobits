@@ -147,10 +147,6 @@ export const aiBridge = {
         runtime: 'pi' // 强制使用 Pi 运行时以获得更好的流式支持和元数据
       }
     });
-    normalizedPayload.extras = {
-      ...(normalizedPayload.extras || {}),
-      runtime: 'pi' // 强制使用 Pi 运行时以获得更好的流式支持和元数据
-    };
     const res = await ipcRenderer.invoke('ai:chatStream', normalizedPayload);
     const channel: string = res.eventsChannel;
     const listeners = new Set<StreamCallback>();

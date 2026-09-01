@@ -6,12 +6,13 @@ import { app, BrowserWindow, screen } from 'electron';
 
 import { initAIHandlers } from '../../../packages/ai/ipc-main';
 import { PiExecutionService } from '../../../packages/ai/runtime/pi/execution-service';
-import { setCharacterToolLabels } from '../../../packages/ai/runtime/pi/tool-labels';
+import { registerCharacterToolLabelsResolver } from '../../../packages/ai/runtime/pi/tool-labels';
 import { registerSystemPromptEnricher } from '../../../packages/ai/system-prompt-enricher';
 import type { DownloadProgress } from '../../../packages/plugins';
 import { initPluginResourceHandlers } from '../../../packages/plugins/ipc-main';
 import { initSherpaHandlers, initSherpaStubHandlers } from '../../../packages/sherpa/ipc-main';
 import { assertSpriteCapabilityUnlocked } from '../../../packages/sprite-core/capability-runtime';
+import { getCharacterDefinition } from '../../../packages/sprite-core/character-service';
 import { initSpriteHandlers, initSpriteManagerIPC } from '../../../packages/sprite-core/handler';
 import { DEFAULT_SPRITE_ROUTINE_PRESETS, SpritePurposeHistoryStore } from '../../../packages/sprite-core/purpose';
 import {
@@ -318,8 +319,9 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
       stream: (request, onEvent, input, signal) => spriteSpeechPiExecutionService.streamSpeechSynthesis(request, onEvent, signal, input)
     },
     textTranslator: createSpriteSpeechTextTranslator(),
-    syncCharacterToolLabels: async (labels) => {
-      setCharacterToolLabels(labels);
+    characterSpeechLanguageResolver: () => getCharacterDefinition()?.speechStyle?.language ?? null,
+    registerCharacterToolLabelsResolver: (resolver) => {
+      registerCharacterToolLabelsResolver(resolver);
     },
     purposeWindowAdapter: {
       async open(windowKey, payload) {

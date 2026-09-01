@@ -55,7 +55,7 @@ export class PiExecutionService {
   }
 
   async chatEphemeral(req: ChatRequest): Promise<ChatResponse> {
-    return this.sessionService.chatEphemeral(forcePiRuntimeRequest(normalizeProviderPreset(req)));
+    return this.sessionService.chat(forcePiRuntimeRequest(normalizeProviderPreset(req)));
   }
 
   async completeText(req: ChatRequest): Promise<string> {

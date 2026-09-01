@@ -20,7 +20,7 @@ function readSpeechSynthesisPromptGuidance(providerId?: string, modelId?: string
 }
 
 export function getRealtimeSpeechPromptGuidance(extras?: ChatRequestExtras): string | undefined {
-  const realtimeSpeech = isRecord(extras?.spriteRealtimeSpeech) ? extras?.spriteRealtimeSpeech : undefined;
+  const realtimeSpeech = isRecord(extras?.realtimeSpeech) ? extras?.realtimeSpeech : undefined;
   if (!realtimeSpeech?.enabled) return undefined;
 
   return readSpeechSynthesisPromptGuidance(trimString(realtimeSpeech.providerId), trimString(realtimeSpeech.model));

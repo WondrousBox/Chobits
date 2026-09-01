@@ -98,6 +98,7 @@ Renderer（示例约定，实际路径视实现为准）：
   - `label: string`
   - `isConfigured(): Promise<boolean> | boolean`
   - `setSecrets(secrets: ProviderSecrets)`
+  - `clearSecrets?(): Promise<void> | void`（清空内存中的用户秘钥，回落到内置默认值）
   - `getSecrets(): ProviderSecrets`
 - 能力方法（可选）：
   - `getCapabilities?(): ProviderCapabilities`
@@ -204,7 +205,7 @@ Renderer → Preload → Main：
 - **`ai:setProviderSecrets`** `({ providerId, secrets })` → `{ ok: true }`
   - 写入 keytar/回退 JSON，并调用 Provider 的 `setSecrets`。
 - **`ai:clearProviderSecrets`** `({ providerId })` → `{ ok: true }`
-  - 清除 keytar 与回退 JSON 中该 Provider 的所有秘钥，并尝试调用 `setSecrets({})`。
+  - 清除 keytar 与回退 JSON 中该 Provider 的所有秘钥，并调用 `clearSecrets()` 清空 adapter 内存中的秘钥（未实现的外部插件 adapter 退化为 `setSecrets({})`）。
 - **`ai:getAgents`** → `[{ id, label, description }]`
 - **`ai:listModels`** `({ providerId, presetId? })` → `Array<{ id, label? }>`
   - builtin/compat 模型优先来自 `ProviderService`；

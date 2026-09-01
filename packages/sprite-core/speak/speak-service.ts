@@ -21,7 +21,7 @@ import EdgeTTS from '../../tts/edge';
 import { RealtimeSpeechTextParser, type RealtimeSpeechTextSegment } from './realtime-text-parser';
 import { SpeakCache } from './speak-cache';
 import { SpeakConfigStore } from './speak-config-store';
-import { detectSpeechTextLanguage } from './speech-language';
+import { detectSpeechTextLanguage, normalizeCharacterSpeechLanguage } from './speech-language';
 import type {
   SpeakCacheEntry,
   SpeakCacheMetadata,
@@ -32,7 +32,7 @@ import type {
   SpriteRealtimeSpeechScope,
   SpriteRealtimeSpeechSessionRequest,
   SpriteSpeakAIProviderConfig,
-  SpriteSpeakChatRealtimeSpeechConfig,
+  SpriteSpeakRealtimeSpeechConfig,
   SpriteSpeakConfig,
   SpriteSpeakEngine,
   SpriteSpeakPayload,
@@ -396,10 +396,12 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
   private readonly emit: (event: SpriteRealtimeSpeechEvent) => void;
   private readonly executor: SpriteSpeechSynthesisExecutor;
   private readonly inputQueue = new SpeechTextInputQueue();
-  private readonly realtimeConfig: SpriteSpeakChatRealtimeSpeechConfig;
+  private readonly realtimeConfig: SpriteSpeakRealtimeSpeechConfig;
+  private readonly resolveSpeechLanguage: () => 'zh' | 'ja' | undefined;
   private readonly strategies: RealtimeSpeechStrategy[];
   private readonly source: string;
   private readonly textParser: RealtimeSpeechTextParser;
+  private readonly textTranslator?: SpriteSpeechTextTranslator;
   private readonly unregister: () => void;
   private audioSequence = 0;
   private audioEmitted = false;
@@ -407,27 +409,34 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
   private playbackStarted = false;
   private started = false;
   private terminalSent = false;
+  // 翻译是异步的，用 promise 链串行化所有「翻译→入队」及 flush/close 动作，
+  // 保证 appendText/flush/finish 快速连续调用时入队顺序不被打乱
+  private translateChain: Promise<void> = Promise.resolve();
 
   constructor(options: {
     aiProvider: SpriteSpeakAIProviderConfig;
     emit: (event: SpriteRealtimeSpeechEvent) => void;
     executor: SpriteSpeechSynthesisExecutor;
-    realtimeConfig: SpriteSpeakChatRealtimeSpeechConfig;
+    realtimeConfig: SpriteSpeakRealtimeSpeechConfig;
+    resolveSpeechLanguage: () => 'zh' | 'ja' | undefined;
     scope: SpriteRealtimeSpeechScope;
     sessionId: string;
     source: string;
     strategies: RealtimeSpeechStrategy[];
+    textTranslator?: SpriteSpeechTextTranslator;
     unregister: () => void;
   }) {
     this.aiProvider = options.aiProvider;
     this.emit = options.emit;
     this.executor = options.executor;
     this.realtimeConfig = options.realtimeConfig;
+    this.resolveSpeechLanguage = options.resolveSpeechLanguage;
     this.scope = options.scope;
     this.sessionId = options.sessionId;
     this.source = options.source;
     this.strategies = options.strategies;
     this.textParser = new RealtimeSpeechTextParser(options.realtimeConfig.chunking);
+    this.textTranslator = options.textTranslator;
     this.unregister = options.unregister;
   }
 
@@ -461,7 +470,9 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
     if (segments.length) {
       this.ensureStarted();
     } else if (this.started) {
-      this.inputQueue.enqueue({ type: 'flush' });
+      this.scheduleQueueTask(() => {
+        this.inputQueue.enqueue({ type: 'flush' });
+      });
     }
   }
 
@@ -478,7 +489,9 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
       this.unregister();
       return;
     }
-    this.inputQueue.close();
+    this.scheduleQueueTask(() => {
+      this.inputQueue.close();
+    });
   }
 
   async cancel(reason?: string): Promise<void> {
@@ -491,6 +504,22 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
     this.unregister();
   }
 
+  /** 所有「翻译→入队」及 flush/close 动作排进同一条链，cancel 后链上剩余动作直接跳过 */
+  private scheduleQueueTask(task: () => Promise<void> | void): void {
+    this.translateChain = this.translateChain
+      .then(async () => {
+        if (this.done) return;
+        await task();
+      })
+      .catch((error) => {
+        // 翻译失败已在 translateSegmentText 内降级，这里兜底防链断裂打断语音会话
+        logSpeakService('Realtime speech queue task failed', {
+          error: error instanceof Error ? error.message : String(error),
+          sessionId: this.sessionId
+        });
+      });
+  }
+
   private enqueueTextSegments(segments: RealtimeSpeechTextSegment[]): void {
     for (const segment of segments) {
       logSpeakService('Realtime speech text segment', {
@@ -500,10 +529,64 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
         text: segment.text,
         textLength: segment.text.length
       });
-      this.inputQueue.enqueue({ type: 'text', text: segment.text });
-      if (segment.flush) {
-        this.inputQueue.enqueue({ type: 'flush' });
+      this.scheduleQueueTask(async () => {
+        const text = await this.translateSegmentText(segment.text);
+        this.inputQueue.enqueue({ type: 'text', text });
+        if (segment.flush) {
+          this.inputQueue.enqueue({ type: 'flush' });
+        }
+      });
+    }
+  }
+
+  /**
+   * 入队前翻译文本段，判断逻辑与 resolveSpokenText 一致：
+   * 目标语言未知 / 检测不出 / 已是目标语言 → 原文；无 translator 或翻译失败 → 原文降级
+   */
+  private async translateSegmentText(text: string): Promise<string> {
+    const targetLang = this.resolveSpeechLanguage();
+    if (!targetLang) return text;
+
+    const detected = detectSpeechTextLanguage(text);
+    if (!detected) {
+      logSpeakService('Realtime speech translate skip', { reason: 'language-undetected', sessionId: this.sessionId, targetLang, text });
+      return text;
+    }
+    if (detected === targetLang) {
+      logSpeakService('Realtime speech translate skip', { reason: 'already-target-language', sessionId: this.sessionId, sourceLang: detected, text });
+      return text;
+    }
+
+    if (!this.textTranslator) {
+      logSpeakService('Realtime speech translate fallback', { reason: 'translator-unavailable', sessionId: this.sessionId, sourceLang: detected, targetLang, text });
+      return text;
+    }
+
+    try {
+      const raw = await this.textTranslator.translate({ sourceLang: detected, targetLang, text });
+      const translated = sanitizeTranslatedText(raw);
+      if (!translated) {
+        throw new Error('translator returned empty text');
       }
+      logSpeakService('Realtime speech translate done', {
+        model: this.textTranslator.lastBackend?.model,
+        providerId: this.textTranslator.lastBackend?.providerId,
+        sessionId: this.sessionId,
+        sourceLang: detected,
+        targetLang,
+        text,
+        translatedText: translated
+      });
+      return translated;
+    } catch (error) {
+      logSpeakService('Realtime speech translate fallback', {
+        reason: error instanceof Error ? error.message : String(error),
+        sessionId: this.sessionId,
+        sourceLang: detected,
+        targetLang,
+        text
+      });
+      return text;
     }
   }
 
@@ -526,7 +609,7 @@ class RealtimeSpeechSessionImpl implements SpriteRealtimeSpeechSession {
           usageFeature: 'sprite_chat_realtime_speech'
         }
       },
-      language: this.aiProvider.language,
+      language: this.resolveSpeechLanguage() ?? this.aiProvider.language,
       mode: strategy.mode,
       model: this.aiProvider.model,
       pitch: this.aiProvider.pitch,
@@ -875,6 +958,8 @@ export class SpeakService {
   private edgeTTS: EdgeTTS;
   private speechSynthesisExecutor?: SpriteSpeechSynthesisExecutor;
   private textTranslator?: SpriteSpeechTextTranslator;
+  /** 角色定义 speechStyle.language 解析器（每次调用实时求值，角色切换即时生效） */
+  private characterSpeechLanguageResolver?: () => string | null | undefined;
   private translationFallbackWarned = false;
   private initialized = false;
   private activeRealtimeSessions = new Map<SpriteRealtimeSpeechScope, SpriteRealtimeSpeechSession>();
@@ -884,12 +969,18 @@ export class SpeakService {
   private onPlayAudio: ((payload: SpriteSpeakPayload, context?: SpriteSpeakPlaybackContext) => void) | null = null;
   private onRealtimeSpeechEvent: RealtimeSpeechEventHandler | null = null;
 
-  constructor(dataDir: string, speechSynthesisExecutor?: SpriteSpeechSynthesisExecutor, textTranslator?: SpriteSpeechTextTranslator) {
+  constructor(
+    dataDir: string,
+    speechSynthesisExecutor?: SpriteSpeechSynthesisExecutor,
+    textTranslator?: SpriteSpeechTextTranslator,
+    characterSpeechLanguageResolver?: () => string | null | undefined
+  ) {
     this.configStore = new SpeakConfigStore(dataDir);
     this.cache = new SpeakCache(dataDir);
     this.edgeTTS = new EdgeTTS();
     this.speechSynthesisExecutor = speechSynthesisExecutor;
     this.textTranslator = textTranslator;
+    this.characterSpeechLanguageResolver = characterSpeechLanguageResolver;
   }
 
   /** 初始化：加载配置和缓存索引 */
@@ -944,7 +1035,7 @@ export class SpeakService {
     }
 
     const config = this.configStore.getConfig();
-    const realtimeConfig = config.chatRealtimeSpeech;
+    const realtimeConfig = config.realtimeSpeech;
 
     if (!realtimeConfig.enabled) {
       throw new Error('AI chat realtime speech is disabled');
@@ -985,10 +1076,12 @@ export class SpeakService {
       },
       executor: this.speechSynthesisExecutor,
       realtimeConfig,
+      resolveSpeechLanguage: () => this.resolveEffectiveSpeechLanguage(aiProvider),
       scope: request.scope,
       sessionId,
       source: request.source,
       strategies,
+      textTranslator: this.textTranslator,
       unregister: () => {
         if (this.activeRealtimeSessions.get(request.scope) === session) {
           this.activeRealtimeSessions.delete(request.scope);
@@ -1002,7 +1095,7 @@ export class SpeakService {
 
   isRealtimeSpeechEnabled(request: SpriteRealtimeSpeechAvailabilityRequest): boolean {
     const config = this.configStore.getConfig();
-    const realtimeConfig = config.chatRealtimeSpeech;
+    const realtimeConfig = config.realtimeSpeech;
 
     if (!config.enabled || normalizeEngine(config) !== 'ai-provider' || !realtimeConfig.enabled) {
       return false;
@@ -1207,7 +1300,7 @@ export class SpeakService {
    */
   private generateCacheId(config: SpriteSpeakConfig, text: string): string {
     if (normalizeEngine(config) === 'ai-provider') {
-      const aiProvider = this.resolveAiProviderConfig(config);
+      const aiProvider = this.resolveCacheAiProviderConfig(config);
       return SpeakCache.generateCacheId(buildAiProviderCacheKeyConfig(aiProvider), text);
     }
 
@@ -1256,9 +1349,27 @@ export class SpeakService {
   }
 
   /**
+   * 有效朗读语言：手动设置 zh/ja 优先（手动覆盖）；
+   * 否则（auto/未设置）跟随角色定义的 speechStyle.language；
+   * 都无法识别时视为 auto（不翻译）。
+   */
+  private resolveEffectiveSpeechLanguage(aiProvider: SpriteSpeakAIProviderConfig): 'zh' | 'ja' | undefined {
+    if (aiProvider.speechLanguage === 'zh' || aiProvider.speechLanguage === 'ja') {
+      return aiProvider.speechLanguage;
+    }
+    return normalizeCharacterSpeechLanguage(this.characterSpeechLanguageResolver?.());
+  }
+
+  /** 供缓存使用的 aiProvider 副本：speechLanguage 盖章为有效朗读语言，角色语言切换后不命中旧缓存 */
+  private resolveCacheAiProviderConfig(config: SpriteSpeakConfig): SpriteSpeakAIProviderConfig {
+    const aiProvider = this.resolveAiProviderConfig(config);
+    return { ...aiProvider, speechLanguage: this.resolveEffectiveSpeechLanguage(aiProvider) };
+  }
+
+  /**
    * 解析实际送入 TTS 的文本与语言（显示文本与朗读文本分离）。
    *
-   * - speechLanguage = auto：不翻译，沿用配置里的 language
+   * - 有效朗读语言为 undefined（auto 且角色语言无法识别）：不翻译，沿用配置里的 language
    * - 文本语言与朗读语言一致：直接合成，language 传朗读语言
    * - 无法判断语言：跳过翻译按原文合成，language 传朗读语言
    * - 不一致且有 translator：翻译后用译文合成，language 传朗读语言
@@ -1266,8 +1377,8 @@ export class SpeakService {
    *   避免把中文文本硬配 ja 发给 TTS
    */
   private async resolveSpokenText(aiProvider: SpriteSpeakAIProviderConfig, text: string): Promise<{ text: string; language?: string }> {
-    const speechLanguage: SpriteSpeechLanguage = aiProvider.speechLanguage || 'auto';
-    if (speechLanguage === 'auto') {
+    const speechLanguage = this.resolveEffectiveSpeechLanguage(aiProvider);
+    if (!speechLanguage) {
       return { text };
     }
 
@@ -1363,7 +1474,7 @@ export class SpeakService {
     return {
       buffer,
       cacheMeta: {
-        config: buildAiProviderCacheConfig(aiProvider),
+        config: buildAiProviderCacheConfig(this.resolveCacheAiProviderConfig(config)),
         durationMs: artifact?.durationMs,
         extension: extensionFromMimeOrFormat(format, artifact?.mimeType),
         mimeType: artifact?.mimeType,

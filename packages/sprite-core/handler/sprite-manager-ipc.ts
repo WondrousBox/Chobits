@@ -80,7 +80,7 @@ import { isSpriteInteractionIntent, type SpriteInteractionPayload } from '../int
 import type { SpritePurposeRoutinePlanner, SpritePurposeWindowAdapter, SpriteSpontaneousUtteranceExecutor, SpriteWindowAnimationAdapter } from '../manager';
 import { SpriteManager } from '../manager';
 import type { SpritePurposeHistoryQuery, SpritePurposeRetrospectiveQuery, SpritePurposeRuntimeEventInput, StartSpritePurposeRequest } from '../purpose';
-import type { SpeakRequest, SpriteRealtimeSpeechSessionRequest, SpriteSpeakConfig, SpriteSpeechSynthesisExecutor, SpriteSpeechTextTranslator } from '../speak/types';
+import type { SpeakRequest, SpriteRealtimeSpeechEvent, SpriteRealtimeSpeechSessionRequest, SpriteSpeakConfig, SpriteSpeechSynthesisExecutor, SpriteSpeechTextTranslator } from '../speak/types';
 import type {
   SpriteAnimationPlaylistMode,
   SpriteAnimationTrigger,
@@ -104,10 +104,11 @@ export interface SpriteManagerDeps {
   spontaneousUtteranceExecutor?: SpriteSpontaneousUtteranceExecutor;
   speechSynthesisExecutor?: SpriteSpeechSynthesisExecutor;
   textTranslator?: SpriteSpeechTextTranslator;
+  characterSpeechLanguageResolver?: () => string | null | undefined;
   purposeWindowAdapter?: SpritePurposeWindowAdapter;
   windowAnimationAdapter?: SpriteWindowAnimationAdapter;
   purposeRoutinePlanner?: SpritePurposeRoutinePlanner;
-  syncCharacterToolLabels?: (labels: Record<string, ToolLabelDefinition> | undefined) => void | Promise<void>;
+  registerCharacterToolLabelsResolver?: (resolver: () => Record<string, ToolLabelDefinition> | undefined) => void;
 }
 
 type SpriteBubbleWindowManager = {
@@ -308,6 +309,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     spontaneousUtteranceExecutor: deps.spontaneousUtteranceExecutor,
     speechSynthesisExecutor: deps.speechSynthesisExecutor,
     textTranslator: deps.textTranslator,
+    characterSpeechLanguageResolver: deps.characterSpeechLanguageResolver,
     purposeWindowAdapter: deps.purposeWindowAdapter,
     windowAnimationAdapter: deps.windowAnimationAdapter,
     purposeRoutinePlanner: deps.purposeRoutinePlanner,
@@ -380,13 +382,8 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     addAllowedResourceRoot: deps.addAllowedResourceRoot
   });
 
-  async function syncCharacterToolLabels(): Promise<void> {
-    try {
-      await deps.syncCharacterToolLabels?.(getCharacterToolLabels());
-    } catch {
-      // External tool label bridge not available — skip sync.
-    }
-  }
+  // tool labels 采用 pull 模型：注册一次 resolver，消费方查询时实时取最新值，无需随 reload 链手动推送
+  deps.registerCharacterToolLabelsResolver?.(() => getCharacterToolLabels());
 
   function initCharacterDimensions(): void {
     const dimSchema = getDimensionSchema();
@@ -397,7 +394,6 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
 
   async function syncCharacterRuntime(options?: { reload?: boolean; initDimensions?: boolean }): Promise<CharacterPersonaRuntimeSyncResult> {
     const result = options?.reload ? reloadCharacterPersonaRuntime() : syncCharacterPersonaRuntime();
-    await syncCharacterToolLabels();
     if (options?.initDimensions) {
       initCharacterDimensions();
     }
@@ -474,16 +470,19 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     };
   }
 
-  function emitCharacterSwitched(payload: {
-    previousPack: CharacterPackSummary | null;
-    nextPack: CharacterPackSummary;
-    previousCharacter: ReturnType<typeof getCharacterInfo>;
-    nextCharacter: ReturnType<typeof getCharacterInfo>;
-    personaSlotId: string;
-  }): void {
+  function emitCharacterSwitched(
+    payload: {
+      previousPack: CharacterPackSummary | null;
+      nextPack: CharacterPackSummary;
+      previousCharacter: ReturnType<typeof getCharacterInfo>;
+      nextCharacter: ReturnType<typeof getCharacterInfo>;
+      personaSlotId: string;
+    },
+    options?: { force?: boolean }
+  ): void {
     const packChanged = !payload.previousPack || payload.previousPack.id !== payload.nextPack.id || payload.previousPack.source !== payload.nextPack.source;
     const characterChanged = payload.previousCharacter?.id !== payload.nextCharacter?.id;
-    if (!packChanged && !characterChanged) {
+    if (!options?.force && !packChanged && !characterChanged) {
       return;
     }
 
@@ -846,13 +845,17 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     });
     const nextCharacter = getCharacterInfo();
 
-    emitCharacterSwitched({
-      previousPack,
-      nextPack: result.pack,
-      previousCharacter,
-      nextCharacter,
-      personaSlotId: reload.personaSlot.slotId
-    });
+    // 编辑器保存可能只改了同 id 角色的人设内容，强制广播让订阅方刷新快照
+    emitCharacterSwitched(
+      {
+        previousPack,
+        nextPack: result.pack,
+        previousCharacter,
+        nextCharacter,
+        personaSlotId: reload.personaSlot.slotId
+      },
+      { force: true }
+    );
 
     return {
       ok: true,
@@ -1077,8 +1080,14 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
 
   ipcMain.handle('sprite:speak:realtime:start', async (event, p: SpriteRealtimeSpeechSessionRequest) => {
     let eventsChannel = '';
-    const session = await mgr.startRealtimeSpeechSession(p, (streamEvent) => {
-      if (!eventsChannel) return;
+    // eventsChannel 赋值前到达的事件先缓冲，赋值后按序 flush，避免早期事件被静默丢弃；
+    // session 启动失败时缓冲区随局部变量一并丢弃，不会残留。
+    let pendingEvents: SpriteRealtimeSpeechEvent[] | null = [];
+    const sendStreamEvent = (streamEvent: SpriteRealtimeSpeechEvent): void => {
+      if (pendingEvents) {
+        pendingEvents.push(streamEvent);
+        return;
+      }
       try {
         if (!event.sender.isDestroyed()) {
           event.sender.send(eventsChannel, streamEvent);
@@ -1086,8 +1095,14 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       } catch {
         // The requesting chat window may already be closed.
       }
-    });
+    };
+    const session = await mgr.startRealtimeSpeechSession(p, sendStreamEvent);
     eventsChannel = `sprite:speak:realtime:${session.sessionId}:${randomUUID()}`;
+    const buffered = pendingEvents;
+    pendingEvents = null;
+    for (const streamEvent of buffered ?? []) {
+      sendStreamEvent(streamEvent);
+    }
     return {
       enabled: true,
       eventsChannel,
@@ -1306,7 +1321,7 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     // External prompt bridge not available — skip registration.
   }
 
-  // Character tool labels are exposed through the optional external bridge above.
+  // Character tool labels are resolved live via the registered resolver (pull model).
   if (getCharacterToolLabels()) {
     console.log('[SpriteManager] Character tool labels loaded:', Object.keys(getCharacterToolLabels() ?? {}).length, 'tools');
   }

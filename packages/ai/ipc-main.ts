@@ -120,12 +120,10 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
   ipcMain.handle('ai:clearProviderSecrets', async (_e, payload: { providerId: string }) => {
     await clearSecretsStore(payload.providerId);
     const p = getProvider(payload.providerId);
-    // If the provider has a way to clear secrets in memory, we might want to call it,
-    // but usually setSecrets({}) or similar might be enough if we wanted to clear it,
-    // but here we just clear the store.
-    // If the provider caches secrets, it might need a reload or re-fetch.
-    // For now, we assume the provider fetches secrets when needed or we can set empty secrets.
-    if (p?.setSecrets) await Promise.resolve(p.setSecrets({}));
+    // 同步清掉 adapter 内存里的秘钥，否则聊天链路会继续用旧 key 直到重启；
+    // 未实现 clearSecrets 的外部插件 adapter 退化为 setSecrets({})（合并语义，尽力而为）
+    if (p?.clearSecrets) await Promise.resolve(p.clearSecrets());
+    else if (p?.setSecrets) await Promise.resolve(p.setSecrets({}));
     eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
       providerId: payload.providerId,
       action: 'provider-secrets-cleared'
@@ -193,12 +191,11 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     // 清理所有 provider 的内存中的 secrets
     const providers = listProviders();
     for (const p of providers) {
-      if (p?.setSecrets) {
-        try {
-          await Promise.resolve(p.setSecrets({}));
-        } catch {
-          // ignore
-        }
+      try {
+        if (p?.clearSecrets) await Promise.resolve(p.clearSecrets());
+        else if (p?.setSecrets) await Promise.resolve(p.setSecrets({}));
+      } catch {
+        // ignore
       }
     }
     return { ok: true };

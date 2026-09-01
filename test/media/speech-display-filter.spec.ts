@@ -5,7 +5,7 @@ import { getRealtimeSpeechDisplayTextFilter, sanitizeSpeechTextForDisplay } from
 describe('speech display text filter', () => {
   it('reads MiniMax realtime speech display filter from provider model metadata', () => {
     const filter = getRealtimeSpeechDisplayTextFilter({
-      spriteRealtimeSpeech: {
+      realtimeSpeech: {
         enabled: true,
         model: 'speech-2.8-turbo',
         providerId: 'minimax',
@@ -19,7 +19,7 @@ describe('speech display text filter', () => {
 
   it('hides MiniMax speech-only tags from rendered text', () => {
     const filter = getRealtimeSpeechDisplayTextFilter({
-      spriteRealtimeSpeech: {
+      realtimeSpeech: {
         enabled: true,
         model: 'speech-2.8-turbo',
         providerId: 'minimax'

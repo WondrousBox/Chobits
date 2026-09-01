@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SpeakConfigStore } from '../../packages/sprite-core/speak/speak-config-store';
 import { SpeakService } from '../../packages/sprite-core/speak/speak-service';
-import { detectSpeechTextLanguage } from '../../packages/sprite-core/speak/speech-language';
+import { detectSpeechTextLanguage, normalizeCharacterSpeechLanguage } from '../../packages/sprite-core/speak/speech-language';
 import type { SpriteSpeakAIProviderConfig, SpriteSpeechSynthesisExecutor, SpriteSpeechTextTranslator } from '../../packages/sprite-core/speak/types';
 
 const tempDirs: string[] = [];
@@ -46,6 +46,34 @@ afterEach(() => {
     const dir = tempDirs.pop();
     if (dir) rmSync(dir, { recursive: true, force: true });
   }
+});
+
+describe('normalizeCharacterSpeechLanguage', () => {
+  it('normalizes Chinese aliases to zh', () => {
+    expect(normalizeCharacterSpeechLanguage('zh-CN')).toBe('zh');
+    expect(normalizeCharacterSpeechLanguage('zh')).toBe('zh');
+    expect(normalizeCharacterSpeechLanguage('ZH-Hans')).toBe('zh');
+    expect(normalizeCharacterSpeechLanguage('中文')).toBe('zh');
+    expect(normalizeCharacterSpeechLanguage('Chinese')).toBe('zh');
+  });
+
+  it('normalizes Japanese aliases to ja', () => {
+    expect(normalizeCharacterSpeechLanguage('ja')).toBe('ja');
+    expect(normalizeCharacterSpeechLanguage('ja-JP')).toBe('ja');
+    expect(normalizeCharacterSpeechLanguage('JA')).toBe('ja');
+    expect(normalizeCharacterSpeechLanguage('日语')).toBe('ja');
+    expect(normalizeCharacterSpeechLanguage('日文')).toBe('ja');
+    expect(normalizeCharacterSpeechLanguage('Japanese')).toBe('ja');
+  });
+
+  it('returns undefined for unrecognized or empty values', () => {
+    expect(normalizeCharacterSpeechLanguage('en-US')).toBeUndefined();
+    expect(normalizeCharacterSpeechLanguage('Klingon')).toBeUndefined();
+    expect(normalizeCharacterSpeechLanguage('')).toBeUndefined();
+    expect(normalizeCharacterSpeechLanguage('   ')).toBeUndefined();
+    expect(normalizeCharacterSpeechLanguage(null)).toBeUndefined();
+    expect(normalizeCharacterSpeechLanguage(undefined)).toBeUndefined();
+  });
 });
 
 describe('detectSpeechTextLanguage', () => {
@@ -208,5 +236,229 @@ describe('SpeakService speech language translation', () => {
     expect(third.cacheId).not.toBe(first.cacheId);
     expect(translate).toHaveBeenCalledTimes(2);
     expect(synthesize).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('SpeakService character speech language', () => {
+  it.each([
+    { characterLanguage: 'ja', targetLang: 'ja' },
+    { characterLanguage: 'zh-CN', targetLang: 'zh' },
+    { characterLanguage: '日语', targetLang: 'ja' }
+  ])('translates to $targetLang driven by character language "$characterLanguage" when speechLanguage is auto', async ({ characterLanguage, targetLang }) => {
+    const dataDir = makeTempDir();
+    const synthesize = makeSynthesize();
+    const translate = vi.fn<SpriteSpeechTextTranslator['translate']>(async ({ targetLang: lang }) => (lang === 'ja' ? 'おはよう' : '早上好'));
+    const service = new SpeakService(dataDir, { synthesize }, { translate }, () => characterLanguage);
+
+    service.setConfig({ engine: 'ai-provider', aiProvider: makeAiProviderConfig({ speechLanguage: 'auto' }) });
+
+    const sourceText = targetLang === 'ja' ? '早上好' : 'おはよう';
+    const result = await service.synthesize(sourceText);
+
+    expect(result.success).toBe(true);
+    expect(translate).toHaveBeenCalledWith({ sourceLang: targetLang === 'ja' ? 'zh' : 'ja', targetLang, text: sourceText });
+    expect(synthesize).toHaveBeenCalledWith(expect.objectContaining({ language: targetLang, text: targetLang === 'ja' ? 'おはよう' : '早上好' }));
+  });
+
+  it.each([{ characterLanguage: 'Klingon' }, { characterLanguage: undefined }])(
+    'does not translate when character language "$characterLanguage" is unrecognized and speechLanguage is auto',
+    async ({ characterLanguage }) => {
+      const dataDir = makeTempDir();
+      const synthesize = makeSynthesize();
+      const translate = vi.fn<SpriteSpeechTextTranslator['translate']>(async () => 'unused');
+      const service = new SpeakService(dataDir, { synthesize }, { translate }, () => characterLanguage);
+
+      service.setConfig({ engine: 'ai-provider', aiProvider: makeAiProviderConfig({ speechLanguage: 'auto' }) });
+
+      const result = await service.synthesize('早上好');
+
+      expect(result.success).toBe(true);
+      expect(translate).not.toHaveBeenCalled();
+      expect(synthesize).toHaveBeenCalledWith(expect.objectContaining({ language: undefined, text: '早上好' }));
+    }
+  );
+
+  it('manual zh overrides the character ja language', async () => {
+    const dataDir = makeTempDir();
+    const synthesize = makeSynthesize();
+    const translate = vi.fn<SpriteSpeechTextTranslator['translate']>(async () => '早上好');
+    const service = new SpeakService(dataDir, { synthesize }, { translate }, () => 'ja');
+
+    service.setConfig({ engine: 'ai-provider', aiProvider: makeAiProviderConfig({ speechLanguage: 'zh' }) });
+
+    // 中文文本已是目标语言，不翻译
+    const chinese = await service.synthesize('你好');
+    expect(chinese.success).toBe(true);
+    expect(translate).not.toHaveBeenCalled();
+    expect(synthesize).toHaveBeenCalledWith(expect.objectContaining({ language: 'zh', text: '你好' }));
+
+    // 日文文本翻译成中文，而不是角色定义的日文
+    const japanese = await service.synthesize('おはよう');
+    expect(japanese.success).toBe(true);
+    expect(translate).toHaveBeenCalledWith({ sourceLang: 'ja', targetLang: 'zh', text: 'おはよう' });
+    expect(synthesize).toHaveBeenCalledWith(expect.objectContaining({ language: 'zh', text: '早上好' }));
+  });
+
+  it('includes the effective character language in the cache key', async () => {
+    const dataDir = makeTempDir();
+    const synthesize = makeSynthesize();
+    const translate = vi.fn<SpriteSpeechTextTranslator['translate']>(async () => 'おはよう');
+    let characterLanguage: string | undefined = 'ja';
+    const service = new SpeakService(dataDir, { synthesize }, { translate }, () => characterLanguage);
+
+    service.setConfig({ engine: 'ai-provider', aiProvider: makeAiProviderConfig({ speechLanguage: 'auto' }) });
+
+    const japanese = await service.synthesize('早上好');
+
+    characterLanguage = undefined;
+    const fallbackAuto = await service.synthesize('早上好');
+
+    characterLanguage = 'zh';
+    const chinese = await service.synthesize('早上好');
+
+    expect(japanese.success && fallbackAuto.success && chinese.success).toBe(true);
+    // 角色语言切换后同一原文不串缓存；无法识别时维持历史 auto key
+    expect(japanese.cacheId).not.toBe(fallbackAuto.cacheId);
+    expect(japanese.cacheId).not.toBe(chinese.cacheId);
+    expect(fallbackAuto.cacheId).not.toBe(chinese.cacheId);
+    expect(synthesize).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('SpeakService realtime speech translation', () => {
+  function makeRealtimeStream(sentTexts: string[]): ReturnType<typeof vi.fn<NonNullable<SpriteSpeechSynthesisExecutor['stream']>>> {
+    return vi.fn<NonNullable<SpriteSpeechSynthesisExecutor['stream']>>(async (request, onEvent, input) => {
+      for await (const chunk of input || []) {
+        if (chunk.type === 'text') {
+          sentTexts.push(chunk.text);
+          onEvent({
+            type: 'audio_delta',
+            data: {
+              chunk: Buffer.from([1, 2, 3, 4]),
+              channels: request.audioSetting?.channels,
+              format: 'pcm',
+              sampleFormat: 's16le',
+              sampleRate: request.audioSetting?.sampleRate
+            }
+          });
+        }
+        if (chunk.type === 'close') break;
+      }
+
+      return {
+        artifacts: [{ audioBase64: audioBase64('duplex-audio'), format: 'pcm', mimeType: 'audio/pcm' }],
+        model: request.model,
+        providerId: request.providerId,
+        voiceId: request.voiceId
+      };
+    });
+  }
+
+  function enableRealtimeSpeech(service: SpeakService): void {
+    service.setConfig({
+      engine: 'ai-provider',
+      aiProvider: {
+        providerId: 'minimax',
+        model: 'speech-2.8-turbo',
+        voiceId: 'female-shaonv',
+        audioSetting: { format: 'mp3' },
+        speechLanguage: 'auto'
+      },
+      realtimeSpeech: {
+        ...service.getConfig().realtimeSpeech,
+        enabled: true
+      }
+    });
+  }
+
+  it('translates realtime text segments before enqueue driven by the character language', async () => {
+    const dataDir = makeTempDir();
+    const sentTexts: string[] = [];
+    const stream = makeRealtimeStream(sentTexts);
+    const translations: Record<string, string> = { '早上好！': 'おはよう！', '晚安！': 'おやすみ！' };
+    const translate = vi.fn<SpriteSpeechTextTranslator['translate']>(async ({ text }) => translations[text] ?? text);
+    const service = new SpeakService(dataDir, { synthesize: vi.fn<SpriteSpeechSynthesisExecutor['synthesize']>(), stream }, { translate }, () => 'ja');
+    enableRealtimeSpeech(service);
+
+    const session = await service.startRealtimeSession({ source: 'chat', scope: 'mainChat' });
+    await session.appendText('早上好！');
+    await session.flush();
+    await session.appendText('晚安！');
+    await session.flush();
+    await session.finish();
+
+    await vi.waitFor(() => {
+      expect(sentTexts).toEqual(['おはよう！', 'おやすみ！']);
+    });
+    expect(translate).toHaveBeenCalledTimes(2);
+    // 朗读请求语言跟随有效朗读语言
+    expect(stream).toHaveBeenCalledWith(expect.objectContaining({ language: 'ja' }), expect.any(Function), expect.any(Object), expect.any(AbortSignal));
+  });
+
+  it('does not translate realtime segments when the character language is unrecognized', async () => {
+    const dataDir = makeTempDir();
+    const sentTexts: string[] = [];
+    const stream = makeRealtimeStream(sentTexts);
+    const translate = vi.fn<SpriteSpeechTextTranslator['translate']>(async () => 'unused');
+    const service = new SpeakService(dataDir, { synthesize: vi.fn<SpriteSpeechSynthesisExecutor['synthesize']>(), stream }, { translate }, () => undefined);
+    enableRealtimeSpeech(service);
+
+    const session = await service.startRealtimeSession({ source: 'chat', scope: 'mainChat' });
+    await session.appendText('早上好！');
+    await session.flush();
+    await session.finish();
+
+    await vi.waitFor(() => {
+      expect(sentTexts).toEqual(['早上好！']);
+    });
+    expect(translate).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the original segment text when realtime translation fails', async () => {
+    const dataDir = makeTempDir();
+    const sentTexts: string[] = [];
+    const stream = makeRealtimeStream(sentTexts);
+    const translate = vi.fn<SpriteSpeechTextTranslator['translate']>(async () => {
+      throw new Error('vllm unavailable');
+    });
+    const service = new SpeakService(dataDir, { synthesize: vi.fn<SpriteSpeechSynthesisExecutor['synthesize']>(), stream }, { translate }, () => 'ja');
+    enableRealtimeSpeech(service);
+
+    const session = await service.startRealtimeSession({ source: 'chat', scope: 'mainChat' });
+    await session.appendText('早上好！');
+    await session.flush();
+    await session.finish();
+
+    await vi.waitFor(() => {
+      expect(sentTexts).toEqual(['早上好！']);
+    });
+    expect(translate).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps realtime segment order even when earlier translations resolve later', async () => {
+    const dataDir = makeTempDir();
+    const sentTexts: string[] = [];
+    const stream = makeRealtimeStream(sentTexts);
+    const translate = vi.fn<SpriteSpeechTextTranslator['translate']>(async ({ text }) => {
+      // 第一段翻译故意变慢，验证入队仍按追加顺序
+      if (text === '早上好！') {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        return 'おはよう！';
+      }
+      return 'おやすみ！';
+    });
+    const service = new SpeakService(dataDir, { synthesize: vi.fn<SpriteSpeechSynthesisExecutor['synthesize']>(), stream }, { translate }, () => 'ja');
+    enableRealtimeSpeech(service);
+
+    const session = await service.startRealtimeSession({ source: 'chat', scope: 'mainChat' });
+    await session.appendText('早上好！');
+    await session.flush();
+    await session.appendText('晚安！');
+    await session.flush();
+    await session.finish();
+
+    await vi.waitFor(() => {
+      expect(sentTexts).toEqual(['おはよう！', 'おやすみ！']);
+    });
   });
 });

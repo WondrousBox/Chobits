@@ -177,6 +177,11 @@ abstract class DefinitionBackedPluginProvider implements ProviderAdapter {
     };
   }
 
+  clearSecrets(): void {
+    // resolveBaseSecrets 会重新叠加 definition 的内置默认配置，这里只需丢掉用户配置
+    this.secrets = {};
+  }
+
   getSecrets(): ProviderSecrets {
     return {
       ...(this.secrets || {})

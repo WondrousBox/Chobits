@@ -47,8 +47,13 @@ export const StatusPage: React.FC = () => {
       }
     };
     load();
+    // 订阅角色切换事件（含编辑器保存同 id 角色），收到后重新拉取角色信息
+    const unsubscribe = window.YUA.persona.onCharacterSwitched(() => {
+      void load();
+    });
     return () => {
       mounted = false;
+      unsubscribe();
     };
   }, []);
 

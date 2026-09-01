@@ -132,7 +132,7 @@ export function getSpeechDisplayTextFilter(providerId?: string, modelId?: string
 }
 
 export function getRealtimeSpeechDisplayTextFilter(extras?: ChatRequestExtras): SpeechDisplayTextFilter | undefined {
-  const realtimeSpeech = isRecord(extras?.spriteRealtimeSpeech) ? extras?.spriteRealtimeSpeech : undefined;
+  const realtimeSpeech = isRecord(extras?.realtimeSpeech) ? extras?.realtimeSpeech : undefined;
   if (!realtimeSpeech?.enabled) return undefined;
 
   return getSpeechDisplayTextFilter(trimString(realtimeSpeech.providerId), trimString(realtimeSpeech.model));

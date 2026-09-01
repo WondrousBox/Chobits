@@ -143,15 +143,15 @@ describe('sprite event listener', () => {
 
     eventHarness.emit(AppEvent.SPRITE_AI_START, {
       message: '思考中...',
-      spriteRealtimeSpeechScope: 'mainChat'
+      realtimeSpeechScope: 'mainChat'
     });
     eventHarness.emit(AppEvent.SPRITE_AI_COMPLETE, {
       message: '完成啦',
-      spriteRealtimeSpeechScope: 'mainChat'
+      realtimeSpeechScope: 'mainChat'
     });
     eventHarness.emit(AppEvent.SPRITE_AI_ERROR, {
       error: '失败了',
-      spriteRealtimeSpeechScope: 'mainChat'
+      realtimeSpeechScope: 'mainChat'
     });
 
     expect(mgr.showToast.mock.calls).toEqual([

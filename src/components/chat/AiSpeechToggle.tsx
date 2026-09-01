@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
-const CHAT_REALTIME_SCOPES: SpriteSpeakConfig['chatRealtimeSpeech']['scopes'] = {
+const CHAT_REALTIME_SCOPES: SpriteSpeakConfig['realtimeSpeech']['scopes'] = {
   mainChat: true,
   // mini 分支已移除资源库侧栏，该 scope 常驻关闭
   resourceChatSidebar: false
@@ -55,7 +55,7 @@ export default function AiSpeechToggle({ className, onEnabledChange }: AiSpeechT
     return null;
   }
 
-  const checked = Boolean(config?.chatRealtimeSpeech.enabled);
+  const checked = Boolean(config?.realtimeSpeech.enabled);
   const disabled = loading || saving;
 
   const handleCheckedChange = async (nextChecked: boolean): Promise<void> => {
@@ -64,15 +64,15 @@ export default function AiSpeechToggle({ className, onEnabledChange }: AiSpeechT
     setSaving(true);
     try {
       const updated = await window.YUA.sprite.setSpeakConfig({
-        chatRealtimeSpeech: {
-          ...config.chatRealtimeSpeech,
+        realtimeSpeech: {
+          ...config.realtimeSpeech,
           enabled: nextChecked,
           scopes: nextChecked
             ? {
-                ...config.chatRealtimeSpeech.scopes,
+                ...config.realtimeSpeech.scopes,
                 ...CHAT_REALTIME_SCOPES
               }
-            : config.chatRealtimeSpeech.scopes
+            : config.realtimeSpeech.scopes
         }
       });
       setConfig(updated);

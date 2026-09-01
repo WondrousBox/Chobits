@@ -405,7 +405,7 @@ export class SpriteManager {
     this.getConfigRecipients = options.getConfigRecipients;
 
     // 语音合成服务
-    this.speakService = new SpeakService(options.dataDir, options.speechSynthesisExecutor, options.textTranslator);
+    this.speakService = new SpeakService(options.dataDir, options.speechSynthesisExecutor, options.textTranslator, options.characterSpeechLanguageResolver);
     this.speakService.setPlayAudioCallback((payload: SpriteSpeakPayload, context?: SpriteSpeakPlaybackContext) => {
       this.triggerTalkForSpeech(payload, context);
       this.sendToRenderer('sprite:speak', payload);

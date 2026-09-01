@@ -21,3 +21,17 @@ export function detectSpeechTextLanguage(text: string): DetectedSpeechTextLangua
   if (CJK_PATTERN.test(value)) return 'zh';
   return undefined;
 }
+
+/**
+ * 角色定义 speechStyle.language 是自由文本，归一化为 zh/ja（大小写不敏感）：
+ * - zh-CN / zh / 中文 / Chinese → zh
+ * - ja / ja-JP / 日语 / 日文 / Japanese → ja
+ * - 无法识别 → undefined，调用方视为 auto（不翻译）
+ */
+export function normalizeCharacterSpeechLanguage(value: string | null | undefined): 'zh' | 'ja' | undefined {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return undefined;
+  if (raw.startsWith('zh') || raw === '中文' || raw === 'chinese') return 'zh';
+  if (raw.startsWith('ja') || raw === '日语' || raw === '日文' || raw === 'japanese') return 'ja';
+  return undefined;
+}

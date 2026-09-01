@@ -312,7 +312,7 @@ durationMs?: number;
 
 第二阶段 AI 聊天实时朗读已完成第一版：
 
-- `SpriteSpeakConfig` 已增加 `chatRealtimeSpeech.enabled`，默认关闭。
+- `SpriteSpeakConfig` 已增加 `realtimeSpeech.enabled`，默认关闭。
 - 设置页已增加“AI 回复实时朗读”开关。只有用户明确开启后，聊天 assistant 正文 delta 才会进入 TTS。
 - `SpeakService` 已新增实时 session API，使用可重放文本输入队列和自动策略候选。
 - 实时朗读候选顺序为 `duplex-stream/websocket` -> `output-stream/http-stream` -> `complete/http`。候选必须被 provider/model 的 `speechSynthesis` metadata 声明支持；未声明 metadata 的 provider 只保守使用 `complete/http`。
@@ -370,7 +370,7 @@ durationMs?: number;
 
 ### Phase 2：AI 聊天实时朗读 + PCM 播放
 
-- [x] `SpriteSpeakConfig` 增加 `chatRealtimeSpeech`，默认关闭。
+- [x] `SpriteSpeakConfig` 增加 `realtimeSpeech`，默认关闭。
 - [x] 设置页增加“AI 回复实时朗读”开关、scope 和 PCM 参数。
 - [x] `SpeakService` 增加实时 session API，支持 `appendText()`、`flush()`、`finish()`、`cancel()`。
 - [x] `SpeakService` 实时 session 支持 WS -> HTTP 流式 -> HTTP 完整的 capability 驱动自动策略和失败降级。

@@ -6,7 +6,7 @@ import type { ChatMessage } from '../../packages/ai/types';
 describe('speech synthesis prompt guidance', () => {
   it('reads MiniMax realtime speech guidance from provider model metadata', () => {
     const guidance = getRealtimeSpeechPromptGuidance({
-      spriteRealtimeSpeech: {
+      realtimeSpeech: {
         enabled: true,
         model: 'speech-2.8-turbo',
         providerId: 'minimax',
@@ -26,7 +26,7 @@ describe('speech synthesis prompt guidance', () => {
     ];
 
     const disabled = appendRealtimeSpeechPromptGuidance(messages, {
-      spriteRealtimeSpeech: {
+      realtimeSpeech: {
         enabled: false,
         model: 'speech-2.8-turbo',
         providerId: 'minimax'
@@ -35,7 +35,7 @@ describe('speech synthesis prompt guidance', () => {
     expect(disabled).toBe(messages);
 
     const enabled = appendRealtimeSpeechPromptGuidance(messages, {
-      spriteRealtimeSpeech: {
+      realtimeSpeech: {
         enabled: true,
         model: 'speech-2.8-turbo',
         providerId: 'minimax'

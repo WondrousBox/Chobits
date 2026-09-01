@@ -1,4 +1,4 @@
-import type { SpriteRealtimeSpeechHandle, SpriteRealtimeSpeechScope, SpriteSpeakChatRealtimeSpeechConfig, SpriteSpeakConfig } from '@packages/sprite-core/speak/types';
+import type { SpriteRealtimeSpeechHandle, SpriteRealtimeSpeechScope, SpriteSpeakRealtimeSpeechConfig, SpriteSpeakConfig } from '@packages/sprite-core/speak/types';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { PcmStreamPlayer } from '@/lib/audio/pcm-stream-player';
@@ -20,7 +20,7 @@ function shouldSkipText(text: string): boolean {
   return false;
 }
 
-function shouldFlush(buffer: string, config: SpriteSpeakChatRealtimeSpeechConfig): boolean {
+function shouldFlush(buffer: string, config: SpriteSpeakRealtimeSpeechConfig): boolean {
   const trimmed = buffer.trim();
   if (!trimmed) return false;
   if (buffer.includes('\n')) return true;
@@ -31,12 +31,12 @@ function shouldFlush(buffer: string, config: SpriteSpeakChatRealtimeSpeechConfig
 }
 
 function isRealtimeSpeechConfigEnabled(config: SpriteSpeakConfig): boolean {
-  const realtimeConfig = config.chatRealtimeSpeech;
+  const realtimeConfig = config.realtimeSpeech;
   return Boolean(config.enabled && config.engine === 'ai-provider' && realtimeConfig.enabled);
 }
 
-function normalizeRealtimeSpeechConfig(config: SpriteSpeakConfig, scope: SpriteRealtimeSpeechScope): SpriteSpeakChatRealtimeSpeechConfig {
-  const realtimeConfig = config.chatRealtimeSpeech;
+function normalizeRealtimeSpeechConfig(config: SpriteSpeakConfig, scope: SpriteRealtimeSpeechScope): SpriteSpeakRealtimeSpeechConfig {
+  const realtimeConfig = config.realtimeSpeech;
   return {
     ...realtimeConfig,
     scopes: {
@@ -62,7 +62,7 @@ function buildRealtimeSpeechPromptContext(config: SpriteSpeakConfig, scope: Spri
 export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
   const handleRef = useRef<SpriteRealtimeSpeechHandle | null>(null);
   const playerRef = useRef<PcmStreamPlayer | null>(null);
-  const configRef = useRef<SpriteSpeakChatRealtimeSpeechConfig | null>(null);
+  const configRef = useRef<SpriteSpeakRealtimeSpeechConfig | null>(null);
   const textBufferRef = useRef('');
   const flushTimerRef = useRef<number | null>(null);
   const startingRef = useRef<Promise<SpriteRealtimeSpeechHandle | null> | null>(null);

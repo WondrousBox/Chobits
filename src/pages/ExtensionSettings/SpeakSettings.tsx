@@ -305,16 +305,17 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">朗读语言</label>
-            <Select value={aiProvider.speechLanguage || 'auto'} onValueChange={(value) => updateAiProvider({ speechLanguage: value === 'ja' ? value : 'auto' })}>
+            <Select value={aiProvider.speechLanguage || 'auto'} onValueChange={(value) => updateAiProvider({ speechLanguage: value as SpriteSpeakAIProviderConfig['speechLanguage'] })}>
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="auto">跟随显示文本</SelectItem>
+                <SelectItem value="auto">自动（跟随角色语言）</SelectItem>
+                <SelectItem value="zh">中文</SelectItem>
                 <SelectItem value="ja">日文</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">与文本语言不一致时将先用 LLM 翻译再朗读，气泡仍显示原文。</p>
+            <p className="text-xs text-muted-foreground">自动时跟随角色定义的语言；文本语言与朗读语言不一致时先用 LLM 翻译再朗读，气泡仍显示原文；对话实时朗读同样生效。</p>
           </div>
         </div>
       )}

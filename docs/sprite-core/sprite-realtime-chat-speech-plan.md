@@ -42,12 +42,12 @@
 在 `SpriteSpeakConfig` 下新增实时聊天朗读配置。它和现有 `enabled` 不互相替代：
 
 - `enabled`：控制普通角色说话能力，例如 `sprite.speak()`、工具结果 speech、系统提示朗读。
-- `chatRealtimeSpeech.enabled`：控制 AI 聊天 assistant 回复是否实时朗读，默认关闭。
+- `realtimeSpeech.enabled`：控制 AI 聊天 assistant 回复是否实时朗读，默认关闭。
 
 建议类型：
 
 ```ts
-export interface SpriteSpeakChatRealtimeSpeechConfig {
+export interface SpriteSpeakRealtimeSpeechConfig {
   enabled: boolean;
   audioSetting: {
     format: 'pcm';
@@ -80,14 +80,14 @@ export interface SpriteSpeakConfig {
   engine: SpriteSpeakEngine;
   volume: number;
   aiProvider?: SpriteSpeakAIProviderConfig;
-  chatRealtimeSpeech?: SpriteSpeakChatRealtimeSpeechConfig;
+  realtimeSpeech?: SpriteSpeakRealtimeSpeechConfig;
 }
 ```
 
 默认值：
 
 ```ts
-chatRealtimeSpeech: {
+realtimeSpeech: {
   enabled: false,
   audioSetting: {
     format: 'pcm',
@@ -180,14 +180,14 @@ Chat stream delta
 - 在 assistant 消息开始时准备 controller。
 - 把 `delta` 文本喂给 controller。
 - 在 `message_completed`、取消、错误、页面卸载时 finish/cancel。
-- 发送请求前刷新实时朗读配置，把 `spriteRealtimeSpeechScope` 透传到 AI 请求；当该 scope 的实时朗读开启时，同时把当前角色说话使用的 TTS `providerId`、`model`、`voiceId` 放入 `extras.spriteRealtimeSpeech`，供后端按 provider/model metadata 注入实时朗读提示词。
+- 发送请求前刷新实时朗读配置，把 `realtimeSpeechScope` 透传到 AI 请求；当该 scope 的实时朗读开启时，同时把当前角色说话使用的 TTS `providerId`、`model`、`voiceId` 放入 `extras.realtimeSpeech`，供后端按 provider/model metadata 注入实时朗读提示词。
 - 当该 scope 的实时朗读开启时，聊天页跳过工具结果 `speech`，主进程 AI 事件也只展示提示和动画，不触发普通 TTS。
 
 LLM system prompt 注入规则：
 
-- 只有 `chatRealtimeSpeech.enabled === true`、当前 scope 开启、角色说话 engine 为 `ai-provider` 时才注入。
+- 只有 `realtimeSpeech.enabled === true`、当前 scope 开启、角色说话 engine 为 `ai-provider` 时才注入。
 - 注入内容来自当前 TTS provider/model 的 `speechSynthesis.realtimeSpeechPromptGuidance`，例如 MiniMax 的段落换行、`<#0.4#>` 停顿标签和语气词标签说明。
-- 聊天层只识别统一的 `extras.spriteRealtimeSpeech` 上下文，不硬编码 MiniMax 私有标签。新增服务商时在模型 metadata 中声明自己的实时朗读提示词即可。
+- 聊天层只识别统一的 `extras.realtimeSpeech` 上下文，不硬编码 MiniMax 私有标签。新增服务商时在模型 metadata 中声明自己的实时朗读提示词即可。
 - 关闭实时朗读时不注入，避免普通文字聊天被 TTS 风格约束污染。
 
 ## 6. IPC 与 Preload
@@ -278,8 +278,8 @@ const request: SpeechSynthesisRequest = {
   language: aiProvider.language,
   audioSetting: {
     format: 'pcm',
-    sampleRate: chatRealtimeSpeech.audioSetting.sampleRate,
-    channels: chatRealtimeSpeech.audioSetting.channels
+    sampleRate: realtimeSpeech.audioSetting.sampleRate,
+    channels: realtimeSpeech.audioSetting.channels
   },
   speed: aiProvider.speed,
   pitch: aiProvider.pitch,
@@ -431,7 +431,7 @@ src/lib/audio/pcm-stream-worklet.ts
 
 - [x] 明确实时聊天朗读配置默认关闭。
 - [x] 明确 PCM 播放器和 Provider 自动策略的职责边界。
-- [x] `SpriteSpeakConfig` 增加 `chatRealtimeSpeech`。
+- [x] `SpriteSpeakConfig` 增加 `realtimeSpeech`。
 - [x] `SpeakConfigStore` 增加默认值迁移。
 - [x] 设置页增加开关、scope 和 PCM 参数。
 

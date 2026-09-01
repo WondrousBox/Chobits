@@ -28,6 +28,10 @@ export class OpenAICompatibleProvider implements ProviderAdapter {
   setSecrets(secrets: ProviderSecrets): void {
     this.secrets = { ...this.defaults, ...(this.secrets || {}), ...(secrets as any) };
   }
+  clearSecrets(): void {
+    // resolveSecrets 会重新叠加 this.defaults，这里只需丢掉用户配置
+    this.secrets = {};
+  }
   getSecrets(): ProviderSecrets {
     return this.secrets;
   }

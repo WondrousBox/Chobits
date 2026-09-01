@@ -30,7 +30,7 @@ function summarizeToolResultForLog(result: any): unknown {
   };
 }
 
-type LegacyStreamEmitter = {
+type ChatStreamEmitter = {
   connected: () => void;
   delta: (text: string) => void;
   metadata: (data: Record<string, any>) => void;
@@ -44,12 +44,12 @@ type LegacyStreamEmitter = {
   done: () => void;
 };
 
-export interface LegacyStreamEmitterOptions {
+export interface ChatStreamEmitterOptions {
   /** Whether character persona is enabled — controls character-specific tool labels */
   characterPersonaEnabled?: boolean;
 }
 
-export function createLegacyStreamEmitter(emit: (event: StreamEvent) => void, options?: LegacyStreamEmitterOptions): LegacyStreamEmitter {
+export function createChatStreamEmitter(emit: (event: StreamEvent) => void, options?: ChatStreamEmitterOptions): ChatStreamEmitter {
   const useCharacterLabels = options?.characterPersonaEnabled ?? false;
   return {
     connected() {
@@ -131,7 +131,7 @@ export function normalizePiError(error: unknown): { message: string; code?: stri
   };
 }
 
-export function coercePiEventToLegacy(event: UnknownPiEvent): StreamEvent | undefined {
+export function coercePiEventToChatEvent(event: UnknownPiEvent): StreamEvent | undefined {
   const eventType = String(event.type || '').toLowerCase();
   const data = event.data || {};
 

@@ -10,12 +10,12 @@ import path from 'node:path';
 
 import {
   DEFAULT_AI_PROVIDER_SPEAK_CONFIG,
-  DEFAULT_CHAT_REALTIME_SPEECH_CONFIG,
+  DEFAULT_REALTIME_SPEECH_CONFIG,
   DEFAULT_SPEAK_CONFIG,
   type SpriteSpeakAIProviderConfig,
-  type SpriteSpeakChatRealtimeSpeechConfig,
   type SpriteSpeakConfig,
-  type SpriteSpeakEngine
+  type SpriteSpeakEngine,
+  type SpriteSpeakRealtimeSpeechConfig
 } from './types';
 
 function isRecord(value: unknown): value is Record<string, any> {
@@ -63,7 +63,7 @@ function finiteNumber(value: unknown, fallback: number, min?: number, max?: numb
   return Math.max(min ?? -Infinity, Math.min(max ?? Infinity, next));
 }
 
-function normalizeChatRealtimeSpeechConfig(raw: unknown): SpriteSpeakChatRealtimeSpeechConfig {
+function normalizeRealtimeSpeechConfig(raw: unknown): SpriteSpeakRealtimeSpeechConfig {
   const source = isRecord(raw) ? raw : {};
   const audioSetting = isRecord(source.audioSetting) ? source.audioSetting : {};
   const chunking = isRecord(source.chunking) ? source.chunking : {};
@@ -71,32 +71,32 @@ function normalizeChatRealtimeSpeechConfig(raw: unknown): SpriteSpeakChatRealtim
   const scopes = isRecord(source.scopes) ? source.scopes : {};
 
   return {
-    ...DEFAULT_CHAT_REALTIME_SPEECH_CONFIG,
-    enabled: typeof source.enabled === 'boolean' ? source.enabled : DEFAULT_CHAT_REALTIME_SPEECH_CONFIG.enabled,
+    ...DEFAULT_REALTIME_SPEECH_CONFIG,
+    enabled: typeof source.enabled === 'boolean' ? source.enabled : DEFAULT_REALTIME_SPEECH_CONFIG.enabled,
     audioSetting: {
       format: 'pcm',
-      sampleRate: Math.round(finiteNumber(audioSetting.sampleRate, DEFAULT_CHAT_REALTIME_SPEECH_CONFIG.audioSetting.sampleRate, 8000, 48000)),
+      sampleRate: Math.round(finiteNumber(audioSetting.sampleRate, DEFAULT_REALTIME_SPEECH_CONFIG.audioSetting.sampleRate, 8000, 48000)),
       channels: audioSetting.channels === 2 ? 2 : 1,
-      sampleFormat: typeof audioSetting.sampleFormat === 'string' && audioSetting.sampleFormat.trim() ? audioSetting.sampleFormat.trim() : DEFAULT_CHAT_REALTIME_SPEECH_CONFIG.audioSetting.sampleFormat
+      sampleFormat: typeof audioSetting.sampleFormat === 'string' && audioSetting.sampleFormat.trim() ? audioSetting.sampleFormat.trim() : DEFAULT_REALTIME_SPEECH_CONFIG.audioSetting.sampleFormat
     },
     chunking: {
-      minChars: Math.round(finiteNumber(chunking.minChars, DEFAULT_CHAT_REALTIME_SPEECH_CONFIG.chunking.minChars, 1, 200)),
-      maxChars: Math.round(finiteNumber(chunking.maxChars, DEFAULT_CHAT_REALTIME_SPEECH_CONFIG.chunking.maxChars, 8, 500)),
-      maxDelayMs: Math.round(finiteNumber(chunking.maxDelayMs, DEFAULT_CHAT_REALTIME_SPEECH_CONFIG.chunking.maxDelayMs, 50, 3000)),
-      flushOnPunctuation: typeof chunking.flushOnPunctuation === 'boolean' ? chunking.flushOnPunctuation : DEFAULT_CHAT_REALTIME_SPEECH_CONFIG.chunking.flushOnPunctuation
+      minChars: Math.round(finiteNumber(chunking.minChars, DEFAULT_REALTIME_SPEECH_CONFIG.chunking.minChars, 1, 200)),
+      maxChars: Math.round(finiteNumber(chunking.maxChars, DEFAULT_REALTIME_SPEECH_CONFIG.chunking.maxChars, 8, 500)),
+      maxDelayMs: Math.round(finiteNumber(chunking.maxDelayMs, DEFAULT_REALTIME_SPEECH_CONFIG.chunking.maxDelayMs, 50, 3000)),
+      flushOnPunctuation: typeof chunking.flushOnPunctuation === 'boolean' ? chunking.flushOnPunctuation : DEFAULT_REALTIME_SPEECH_CONFIG.chunking.flushOnPunctuation
     },
     playback: {
-      startBufferMs: Math.round(finiteNumber(playback.startBufferMs, DEFAULT_CHAT_REALTIME_SPEECH_CONFIG.playback.startBufferMs, 0, 5000)),
-      maxBufferMs: Math.round(finiteNumber(playback.maxBufferMs, DEFAULT_CHAT_REALTIME_SPEECH_CONFIG.playback.maxBufferMs, 500, 30000)),
-      fadeInMs: Math.round(finiteNumber(playback.fadeInMs, DEFAULT_CHAT_REALTIME_SPEECH_CONFIG.playback.fadeInMs, 0, 1000)),
-      fadeOutMs: Math.round(finiteNumber(playback.fadeOutMs, DEFAULT_CHAT_REALTIME_SPEECH_CONFIG.playback.fadeOutMs, 0, 1000)),
+      startBufferMs: Math.round(finiteNumber(playback.startBufferMs, DEFAULT_REALTIME_SPEECH_CONFIG.playback.startBufferMs, 0, 5000)),
+      maxBufferMs: Math.round(finiteNumber(playback.maxBufferMs, DEFAULT_REALTIME_SPEECH_CONFIG.playback.maxBufferMs, 500, 30000)),
+      fadeInMs: Math.round(finiteNumber(playback.fadeInMs, DEFAULT_REALTIME_SPEECH_CONFIG.playback.fadeInMs, 0, 1000)),
+      fadeOutMs: Math.round(finiteNumber(playback.fadeOutMs, DEFAULT_REALTIME_SPEECH_CONFIG.playback.fadeOutMs, 0, 1000)),
       volume: typeof playback.volume === 'number' && Number.isFinite(playback.volume) ? Math.max(0, Math.min(1, playback.volume)) : undefined
     },
     scopes: {
-      mainChat: typeof scopes.mainChat === 'boolean' ? scopes.mainChat : DEFAULT_CHAT_REALTIME_SPEECH_CONFIG.scopes.mainChat,
-      resourceChatSidebar: typeof scopes.resourceChatSidebar === 'boolean' ? scopes.resourceChatSidebar : DEFAULT_CHAT_REALTIME_SPEECH_CONFIG.scopes.resourceChatSidebar
+      mainChat: typeof scopes.mainChat === 'boolean' ? scopes.mainChat : DEFAULT_REALTIME_SPEECH_CONFIG.scopes.mainChat,
+      resourceChatSidebar: typeof scopes.resourceChatSidebar === 'boolean' ? scopes.resourceChatSidebar : DEFAULT_REALTIME_SPEECH_CONFIG.scopes.resourceChatSidebar
     },
-    writeFinalCache: typeof source.writeFinalCache === 'boolean' ? source.writeFinalCache : DEFAULT_CHAT_REALTIME_SPEECH_CONFIG.writeFinalCache
+    writeFinalCache: typeof source.writeFinalCache === 'boolean' ? source.writeFinalCache : DEFAULT_REALTIME_SPEECH_CONFIG.writeFinalCache
   };
 }
 
@@ -125,7 +125,8 @@ export class SpeakConfigStore {
           pitch: DEFAULT_SPEAK_CONFIG.pitch,
           volume: parsed.volume ?? DEFAULT_SPEAK_CONFIG.volume,
           aiProvider: normalizeAiProviderConfig(parsed.aiProvider),
-          chatRealtimeSpeech: normalizeChatRealtimeSpeechConfig(parsed.chatRealtimeSpeech)
+          // 向后兼容：旧版配置文件使用 chatRealtimeSpeech 键，读旧写新（保存时只写 realtimeSpeech）
+          realtimeSpeech: normalizeRealtimeSpeechConfig(parsed.realtimeSpeech ?? parsed.chatRealtimeSpeech)
         };
       }
     } catch (err) {
@@ -162,28 +163,28 @@ export class SpeakConfigStore {
       rate: DEFAULT_SPEAK_CONFIG.rate,
       pitch: DEFAULT_SPEAK_CONFIG.pitch,
       aiProvider: partial.aiProvider ? normalizeAiProviderConfig({ ...this.config.aiProvider, ...partial.aiProvider }) : this.config.aiProvider,
-      chatRealtimeSpeech: partial.chatRealtimeSpeech
-        ? normalizeChatRealtimeSpeechConfig({
-          ...this.config.chatRealtimeSpeech,
-          ...partial.chatRealtimeSpeech,
+      realtimeSpeech: partial.realtimeSpeech
+        ? normalizeRealtimeSpeechConfig({
+          ...this.config.realtimeSpeech,
+          ...partial.realtimeSpeech,
           audioSetting: {
-            ...this.config.chatRealtimeSpeech.audioSetting,
-            ...partial.chatRealtimeSpeech.audioSetting
+            ...this.config.realtimeSpeech.audioSetting,
+            ...partial.realtimeSpeech.audioSetting
           },
           chunking: {
-            ...this.config.chatRealtimeSpeech.chunking,
-            ...partial.chatRealtimeSpeech.chunking
+            ...this.config.realtimeSpeech.chunking,
+            ...partial.realtimeSpeech.chunking
           },
           playback: {
-            ...this.config.chatRealtimeSpeech.playback,
-            ...partial.chatRealtimeSpeech.playback
+            ...this.config.realtimeSpeech.playback,
+            ...partial.realtimeSpeech.playback
           },
           scopes: {
-            ...this.config.chatRealtimeSpeech.scopes,
-            ...partial.chatRealtimeSpeech.scopes
+            ...this.config.realtimeSpeech.scopes,
+            ...partial.realtimeSpeech.scopes
           }
         })
-        : this.config.chatRealtimeSpeech
+        : this.config.realtimeSpeech
     };
     this.save();
     return { ...this.config };

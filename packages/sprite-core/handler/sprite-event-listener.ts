@@ -29,7 +29,7 @@ export interface SpriteEventPayload {
   messageCount?: number;
   toolCallCount?: number;
   assistantContentLength?: number;
-  spriteRealtimeSpeechScope?: SpriteRealtimeSpeechScope;
+  realtimeSpeechScope?: SpriteRealtimeSpeechScope;
 }
 
 interface SpriteHandlerContext {
@@ -87,7 +87,7 @@ function getMiniMaxChatApiConfigEasterEggText(): string {
 }
 
 function shouldSuppressAiEventSpeech(data?: SpriteEventPayload): boolean {
-  const scope = data?.spriteRealtimeSpeechScope;
+  const scope = data?.realtimeSpeechScope;
   if (!scope) {
     return false;
   }

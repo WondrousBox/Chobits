@@ -7,7 +7,7 @@ import type { SpeechSynthesisRequest, SpeechSynthesisResponse, SpeechSynthesisSt
 export type SpeakServiceType = 'Edge' | string;
 export type SpriteSpeakEngine = 'edge' | 'ai-provider';
 
-/** 朗读语言：auto = 跟随显示文本（不翻译）；zh/ja = 朗读前按需翻译成目标语言 */
+/** 朗读语言：auto = 跟随角色定义的语言（无法识别则不翻译）；zh/ja = 朗读前按需翻译成目标语言（手动覆盖角色语言） */
 export type SpriteSpeechLanguage = 'auto' | 'zh' | 'ja';
 
 export type SpriteRealtimeSpeechSource = 'chat';
@@ -41,7 +41,7 @@ export interface SpriteSpeakAIProviderConfig {
   extras?: Record<string, any>;
 }
 
-export interface SpriteSpeakChatRealtimeSpeechConfig {
+export interface SpriteSpeakRealtimeSpeechConfig {
   enabled: boolean;
   audioSetting: {
     format: 'pcm';
@@ -84,7 +84,7 @@ export interface SpriteSpeakConfig {
   /** AI Provider speech synthesis settings. */
   aiProvider?: SpriteSpeakAIProviderConfig;
   /** Optional realtime speech for AI chat assistant deltas. Default disabled. */
-  chatRealtimeSpeech: SpriteSpeakChatRealtimeSpeechConfig;
+  realtimeSpeech: SpriteSpeakRealtimeSpeechConfig;
 }
 
 export const DEFAULT_AI_PROVIDER_SPEAK_CONFIG: SpriteSpeakAIProviderConfig = {
@@ -103,7 +103,7 @@ export const DEFAULT_AI_PROVIDER_SPEAK_CONFIG: SpriteSpeakAIProviderConfig = {
   voiceVolume: 1
 };
 
-export const DEFAULT_CHAT_REALTIME_SPEECH_CONFIG: SpriteSpeakChatRealtimeSpeechConfig = {
+export const DEFAULT_REALTIME_SPEECH_CONFIG: SpriteSpeakRealtimeSpeechConfig = {
   enabled: false,
   audioSetting: {
     format: 'pcm',
@@ -139,7 +139,7 @@ export const DEFAULT_SPEAK_CONFIG: SpriteSpeakConfig = {
   pitch: 0,
   volume: 1,
   aiProvider: { ...DEFAULT_AI_PROVIDER_SPEAK_CONFIG },
-  chatRealtimeSpeech: { ...DEFAULT_CHAT_REALTIME_SPEECH_CONFIG }
+  realtimeSpeech: { ...DEFAULT_REALTIME_SPEECH_CONFIG }
 };
 
 export interface SpriteSpeechSynthesisExecutor {
@@ -253,12 +253,16 @@ export type SpriteRealtimeSpeechEvent =
   | { type: 'done' };
 
 export interface SpriteRealtimeSpeechSessionRequest {
+  /** 发起实时朗读的业务来源（目前仅 'chat'，即 AI 对话朗读）。与 scope 分工：source 决定走哪条业务链路与开关判断，scope 表示该来源内的具体 UI 区域。 */
   source: SpriteRealtimeSpeechSource;
+  /** 来源内的具体区域（如主聊天区 mainChat、资源侧栏 resourceChatSidebar），用于按区域隔离会话（同 scope 新会话会替换旧会话）。 */
   scope: SpriteRealtimeSpeechScope;
 }
 
 export interface SpriteRealtimeSpeechAvailabilityRequest {
+  /** 业务来源，见 SpriteRealtimeSpeechSessionRequest.source；目前仅 'chat' 会被判定为可用。 */
   source: SpriteRealtimeSpeechSource;
+  /** 区域，见 SpriteRealtimeSpeechSessionRequest.scope；预留字段，当前可用性判断不区分 scope。 */
   scope?: SpriteRealtimeSpeechScope;
 }
 

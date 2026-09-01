@@ -20,6 +20,9 @@ export class OllamaProvider implements ProviderAdapter {
   setSecrets(secrets: ProviderSecrets): void {
     this.secrets = { ...this.secrets, ...(secrets as any) };
   }
+  clearSecrets(): void {
+    this.secrets = {};
+  }
   getSecrets(): ProviderSecrets {
     return this.secrets;
   }

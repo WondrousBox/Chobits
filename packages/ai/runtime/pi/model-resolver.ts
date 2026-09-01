@@ -105,9 +105,10 @@ export async function resolvePiModelConfig(req: ChatRequest): Promise<{ preset?:
   };
 }
 
-export async function resolvePiRequest(req: ChatRequest): Promise<ResolvedPiRequest> {
+export async function resolvePiRequest(req: ChatRequest, preloaded?: { model: ResolvedPiModelConfig; preset?: ProviderPresetRecord }): Promise<ResolvedPiRequest> {
   const profile = getPiAgentProfile(req.agentId || 'assistant');
-  const { preset, model } = await resolvePiModelConfig(req);
+  // 传入 preloaded 时复用已解析的 model/preset，跳过 secrets 的重复读取
+  const { preset, model } = preloaded ?? (await resolvePiModelConfig(req));
   const messages = prependSystemPrompt(req.messages || [], preset?.systemPrompt);
   const requestedSkillInvocation = normalizeRequestedSkillInvocation(req.extras?.explicitSkillInvocation);
 

@@ -576,8 +576,8 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
         stream: true,
         extras: {
           model: selectedModelId,
-          spriteRealtimeSpeechScope: 'mainChat',
-          ...(realtimeSpeechPromptContext ? { spriteRealtimeSpeech: realtimeSpeechPromptContext } : {}),
+          realtimeSpeechScope: 'mainChat',
+          ...(realtimeSpeechPromptContext ? { realtimeSpeech: realtimeSpeechPromptContext } : {}),
           ...(explicitSkillInvocation ? { explicitSkillInvocation } : {}),
           ...(params.webSearchEnabled ? { webSearchEnabled: true } : {}),
           ...(params.characterPersonaEnabled ? { characterPersonaEnabled: true } : {}),

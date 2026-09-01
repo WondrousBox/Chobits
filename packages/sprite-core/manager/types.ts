@@ -114,6 +114,8 @@ export interface SpriteManagerOptions {
   speechSynthesisExecutor?: SpriteSpeechSynthesisExecutor;
   /** Optional translator that converts display text into the configured speech language before synthesis. */
   textTranslator?: SpriteSpeechTextTranslator;
+  /** 角色定义 speechStyle.language 解析器，auto 朗读语言时作为有效朗读语言来源。 */
+  characterSpeechLanguageResolver?: () => string | null | undefined;
   /** Adapter injected by Electron main for Purpose/Routine window actions. */
   purposeWindowAdapter?: SpritePurposeWindowAdapter;
   /** Adapter injected by Electron main for sprite animation triggered window presets. */

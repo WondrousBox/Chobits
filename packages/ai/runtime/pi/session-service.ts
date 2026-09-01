@@ -24,7 +24,7 @@ import {
   type SkillRegistry,
   type SkillSessionState
 } from './skills';
-import { createLegacyAssistantMessage, createLegacyStreamEmitter, normalizePiError } from './stream-adapter';
+import { createChatStreamEmitter, createLegacyAssistantMessage, normalizePiError } from './stream-adapter';
 import type { PiSessionToolContext } from './tool-context';
 import { normalizePiToolIds, resolvePiToolDescriptors, resolvePiToolId } from './tool-registry';
 import { getPiToolChatDisplayByName } from './tools/display';
@@ -897,8 +897,9 @@ export class PiSessionService {
     };
   }
 
-  async preview(req: ChatRequest): Promise<PiRuntimePreview> {
-    const resolved = await resolvePiRequest(req);
+  async preview(req: ChatRequest, preloadedPreview?: PiRuntimePreview): Promise<PiRuntimePreview> {
+    // 复用上游已解析的 model/preset（避免重复读取 provider/preset secrets 的文件 I/O），其余部分按当前请求重新推导
+    const resolved = await resolvePiRequest(req, preloadedPreview ? { model: preloadedPreview.resolved.model, preset: preloadedPreview.resolved.preset } : undefined);
     return {
       availability: this.getAvailability(req),
       resolved,
@@ -906,8 +907,8 @@ export class PiSessionService {
     };
   }
 
-  async chat(req: ChatRequest): Promise<ChatResponse> {
-    const preview = await this.preview(req);
+  async chat(req: ChatRequest, preloadedPreview?: PiRuntimePreview): Promise<ChatResponse> {
+    const preview = await this.preview(req, preloadedPreview);
     const codingWorkspaceMessage = getCodingWorkspaceRequiredMessage(preview.resolved);
     if (codingWorkspaceMessage) {
       return createCodingWorkspaceRequiredResponse(preview.resolved);
@@ -949,11 +950,7 @@ export class PiSessionService {
     return toChatResponse(completion, effectiveResolved);
   }
 
-  async chatEphemeral(req: ChatRequest): Promise<ChatResponse> {
-    return this.chat(req);
-  }
-
-  async chatStream(req: ChatRequest, emit: (event: StreamEvent) => void, signal?: AbortSignal): Promise<void> {
+  async chatStream(req: ChatRequest, emit: (event: StreamEvent) => void, signal?: AbortSignal, preloadedPreview?: PiRuntimePreview): Promise<void> {
     // Pre-warm enrichers early — lets memory auto-recall start prefetch
     // while preview() and buildPiModel() are running
     logMemoryTrace({
@@ -968,16 +965,16 @@ export class PiSessionService {
       event: 'pi_chat_stream.prewarm.dispatched'
     });
 
-    const preview = await this.preview(req);
-    const legacy = createLegacyStreamEmitter(emit, {
+    const preview = await this.preview(req, preloadedPreview);
+    const emitter = createChatStreamEmitter(emit, {
       characterPersonaEnabled: !!preview.resolved.request.extras?.characterPersonaEnabled
     });
 
-    legacy.connected();
+    emitter.connected();
 
     const codingWorkspaceMessage = getCodingWorkspaceRequiredMessage(preview.resolved);
     if (codingWorkspaceMessage) {
-      legacy.metadata({
+      emitter.metadata({
         enabledToolIds: preview.resolved.enabledToolIds,
         model: preview.resolved.model.modelId,
         profileId: preview.resolved.profile.id,
@@ -985,13 +982,13 @@ export class PiSessionService {
         runtime: 'pi',
         workspaceRequired: true
       });
-      legacy.complete(createLegacyAssistantMessage(codingWorkspaceMessage, { runtime: 'pi', workspaceRequired: true }));
-      legacy.done();
+      emitter.complete(createLegacyAssistantMessage(codingWorkspaceMessage, { runtime: 'pi', workspaceRequired: true }));
+      emitter.done();
       return;
     }
 
     if (!preview.availability.available) {
-      legacy.metadata({
+      emitter.metadata({
         enabledToolIds: preview.resolved.enabledToolIds,
         model: preview.resolved.model.modelId,
         piReadyToolIds: listReadyPiToolIds(preview),
@@ -1002,10 +999,10 @@ export class PiSessionService {
         toolBridge: resolveToolBridgeState(preview),
         transport: 'unavailable'
       });
-      legacy.error({
+      emitter.error({
         message: preview.availability.reason || 'Pi runtime packages are not installed yet.'
       });
-      legacy.done();
+      emitter.done();
       return;
     }
 
@@ -1017,7 +1014,7 @@ export class PiSessionService {
       const context = await buildPiContext(effectiveResolved, model, skillRuntime);
       const sessionPrompt = canUseCodingSession(effectiveResolved) ? splitSessionPrompt(context.messages) : undefined;
 
-      legacy.metadata({
+      emitter.metadata({
         enabledToolIds: effectiveResolved.enabledToolIds,
         model: effectiveResolved.model.modelId || model.id,
         piReadyToolIds: listReadyPiToolIds(preview),
@@ -1030,25 +1027,25 @@ export class PiSessionService {
       });
 
       if (sessionPrompt) {
-        const sessionResult = await this.chatStreamWithCodingSession(effectiveResolved, model, context, legacy, signal, skillRuntime);
+        const sessionResult = await this.chatStreamWithCodingSession(effectiveResolved, model, context, emitter, signal, skillRuntime);
 
         if (sessionResult.usedSession) {
           return;
         }
 
         const codingSessionError = sessionResult.error?.message || 'Pi coding session unavailable';
-        legacy.metadata({
+        emitter.metadata({
           codingSessionError,
           sessionFallback: 'pi-ai',
           transport: 'pi-ai'
         });
 
         if (effectiveResolved.profile.supportsToolCalls && effectiveResolved.enabledToolIds.length > 0) {
-          legacy.error({
+          emitter.error({
             cause: sessionResult.error,
             message: `${codingSessionError}. Current request has tools enabled, so falling back to plain text mode would disable tool execution.`
           });
-          legacy.done();
+          emitter.done();
           return;
         }
       }
@@ -1063,7 +1060,7 @@ export class PiSessionService {
       let accumulatedText = '';
 
       for await (const event of stream) {
-        const handled = this.handlePiStreamEvent(event, legacy, effectiveResolved);
+        const handled = this.handlePiStreamEvent(event, emitter, effectiveResolved);
 
         if (event.type === 'text_delta') {
           accumulatedText += event.delta;
@@ -1075,12 +1072,12 @@ export class PiSessionService {
       }
 
       if (accumulatedText) {
-        legacy.complete(createLegacyAssistantMessage(accumulatedText, { runtime: 'pi' }));
+        emitter.complete(createLegacyAssistantMessage(accumulatedText, { runtime: 'pi' }));
       }
-      legacy.done();
+      emitter.done();
     } catch (error) {
-      legacy.error(normalizePiError(error));
-      legacy.done();
+      emitter.error(normalizePiError(error));
+      emitter.done();
     }
   }
 
@@ -1227,7 +1224,7 @@ export class PiSessionService {
     resolved: ResolvedPiRequest,
     model: PiModel,
     context: PiContext,
-    legacy: ReturnType<typeof createLegacyStreamEmitter>,
+    emitter: ReturnType<typeof createChatStreamEmitter>,
     signal?: AbortSignal,
     skillRuntime?: PiSkillRuntimeContext
   ): Promise<{ usedSession: boolean; error?: Error }> {
@@ -1258,17 +1255,17 @@ export class PiSessionService {
     const { dispose, session, toolContext } = sessionHandle;
     // Wire tool progress reporting to stream emitter
     toolContext.reportProgress = (callId: string, progress: number, message?: string) => {
-      legacy.toolProgress(callId, progress, message);
+      emitter.toolProgress(callId, progress, message);
     };
     toolContext.emitToolCall = (name, args, callId) => {
-      legacy.toolCall(name, args, callId, resolveToolCallDisplay(toolContext, name));
+      emitter.toolCall(name, args, callId, resolveToolCallDisplay(toolContext, name));
     };
     toolContext.emitToolResult = (callId, result) => {
-      legacy.toolResult(callId, result);
+      emitter.toolResult(callId, result);
     };
     // Wire user choice support
     toolContext.emitUserChoiceRequest = (request) => {
-      legacy.userChoiceRequest(request);
+      emitter.userChoiceRequest(request);
     };
     toolContext.waitForUserChoiceResponse = (choiceId) => waitForUserChoice(choiceId);
     toolContext.cancelUserChoiceRequest = (choiceId) => cancelPendingChoice(choiceId);
@@ -1290,12 +1287,12 @@ export class PiSessionService {
       if (terminalEmitted) return;
 
       if (!assistant) {
-        legacy.done();
+        emitter.done();
         terminalEmitted = true;
         return;
       }
 
-      this.completeFromAssistantMessage(assistant, legacy, resolved);
+      this.completeFromAssistantMessage(assistant, emitter, resolved);
       terminalEmitted = true;
     };
 
@@ -1309,17 +1306,17 @@ export class PiSessionService {
 
       switch (event.type) {
         case 'message_update':
-          this.handleCodingSessionMessageUpdate(event, legacy, emittedToolCalls, toolCallNames, toolContext);
+          this.handleCodingSessionMessageUpdate(event, emitter, emittedToolCalls, toolCallNames, toolContext);
           return;
         case 'tool_execution_start':
           toolCallNames.set(event.toolCallId, event.toolName);
           if (!emittedToolCalls.has(event.toolCallId)) {
             emittedToolCalls.add(event.toolCallId);
-            legacy.toolCall(event.toolName, event.args, event.toolCallId, resolveToolCallDisplay(toolContext, event.toolName));
+            emitter.toolCall(event.toolName, event.args, event.toolCallId, resolveToolCallDisplay(toolContext, event.toolName));
           }
           return;
         case 'tool_execution_end':
-          legacy.toolResult(event.toolCallId, event.result);
+          emitter.toolResult(event.toolCallId, event.result);
           return;
         case 'message_end':
           if (event.message.role === 'assistant') {
@@ -1367,8 +1364,8 @@ export class PiSessionService {
           await terminalPromise.catch((terminalError) => {
             console.warn('[PiSessionService] Terminal stream emission failed:', terminalError);
             if (!terminalEmitted) {
-              legacy.error(normalizePiError(terminalError));
-              legacy.done();
+              emitter.error(normalizePiError(terminalError));
+              emitter.done();
               terminalEmitted = true;
             }
           });
@@ -1376,8 +1373,8 @@ export class PiSessionService {
         }
 
         if (!terminalEmitted) {
-          legacy.error(normalizePiError(error));
-          legacy.done();
+          emitter.error(normalizePiError(error));
+          emitter.done();
           terminalEmitted = true;
         }
 
@@ -1470,13 +1467,13 @@ export class PiSessionService {
     throw new Error(availability.reason || 'Pi runtime packages are not installed yet.');
   }
 
-  private completeFromAssistantMessage(message: PiAssistantMessage, legacy: ReturnType<typeof createLegacyStreamEmitter>, resolved: ResolvedPiRequest): void {
+  private completeFromAssistantMessage(message: PiAssistantMessage, emitter: ReturnType<typeof createChatStreamEmitter>, resolved: ResolvedPiRequest): void {
     if (message.stopReason === 'error' || message.stopReason === 'aborted') {
-      legacy.error({
+      emitter.error({
         cause: message,
         message: message.errorMessage || (message.stopReason === 'aborted' ? 'Pi runtime execution aborted' : 'Pi runtime execution failed')
       });
-      legacy.done();
+      emitter.done();
       return;
     }
 
@@ -1484,7 +1481,7 @@ export class PiSessionService {
     const usage = extractPiTokenUsage(message);
     const rawUsage = extractPiRawUsage(message);
     const providerRequestId = extractPiProviderRequestId(message);
-    legacy.complete(
+    emitter.complete(
       createLegacyAssistantMessage(
         extractAssistantText(message),
         {
@@ -1499,12 +1496,12 @@ export class PiSessionService {
         usage
       )
     );
-    legacy.done();
+    emitter.done();
   }
 
   private handleCodingSessionMessageUpdate(
     event: Extract<PiAgentSessionEvent, { type: 'message_update' }>,
-    legacy: ReturnType<typeof createLegacyStreamEmitter>,
+    emitter: ReturnType<typeof createChatStreamEmitter>,
     emittedToolCalls: Set<string>,
     toolCallNames?: Map<string, string>,
     toolContext?: PiSessionToolContext
@@ -1513,16 +1510,16 @@ export class PiSessionService {
 
     switch (assistantEvent.type) {
       case 'text_delta':
-        legacy.delta(assistantEvent.delta);
+        emitter.delta(assistantEvent.delta);
         return;
       case 'thinking_delta':
-        legacy.thinkingDelta(assistantEvent.delta);
+        emitter.thinkingDelta(assistantEvent.delta);
         return;
       case 'toolcall_end':
         toolCallNames?.set(assistantEvent.toolCall.id, assistantEvent.toolCall.name);
         if (!emittedToolCalls.has(assistantEvent.toolCall.id)) {
           emittedToolCalls.add(assistantEvent.toolCall.id);
-          legacy.toolCall(assistantEvent.toolCall.name, assistantEvent.toolCall.arguments, assistantEvent.toolCall.id, resolveToolCallDisplay(toolContext, assistantEvent.toolCall.name));
+          emitter.toolCall(assistantEvent.toolCall.name, assistantEvent.toolCall.arguments, assistantEvent.toolCall.id, resolveToolCallDisplay(toolContext, assistantEvent.toolCall.name));
         }
         return;
       default:
@@ -1530,23 +1527,23 @@ export class PiSessionService {
     }
   }
 
-  private handlePiStreamEvent(event: PiAssistantMessageEvent, legacy: ReturnType<typeof createLegacyStreamEmitter>, resolved: ResolvedPiRequest): 'continue' | 'done' {
+  private handlePiStreamEvent(event: PiAssistantMessageEvent, emitter: ReturnType<typeof createChatStreamEmitter>, resolved: ResolvedPiRequest): 'continue' | 'done' {
     switch (event.type) {
       case 'text_delta':
-        legacy.delta(event.delta);
+        emitter.delta(event.delta);
         return 'continue';
       case 'thinking_delta':
-        legacy.thinkingDelta(event.delta);
+        emitter.thinkingDelta(event.delta);
         return 'continue';
       case 'toolcall_end':
-        legacy.toolCall(event.toolCall.name, event.toolCall.arguments, event.toolCall.id);
+        emitter.toolCall(event.toolCall.name, event.toolCall.arguments, event.toolCall.id);
         return 'continue';
       case 'done': {
         const thinkingBlocks = extractThinkingBlocks(event.message);
         const usage = extractPiTokenUsage(event.message);
         const rawUsage = extractPiRawUsage(event.message);
         const providerRequestId = extractPiProviderRequestId(event.message);
-        legacy.complete(
+        emitter.complete(
           createLegacyAssistantMessage(
             extractAssistantText(event.message),
             {
@@ -1561,15 +1558,15 @@ export class PiSessionService {
             usage
           )
         );
-        legacy.done();
+        emitter.done();
         return 'done';
       }
       case 'error':
-        legacy.error({
+        emitter.error({
           cause: event.error,
           message: event.error.errorMessage || 'Pi runtime execution failed'
         });
-        legacy.done();
+        emitter.done();
         return 'done';
       default:
         return 'continue';

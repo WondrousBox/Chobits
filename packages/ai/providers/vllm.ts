@@ -2,11 +2,19 @@ import { OpenAICompatibleProvider } from './openai-compatible';
 import type { OpenAIRuntimeSecrets } from './openai-runtime';
 
 export class VllmProvider extends OpenAICompatibleProvider {
+  // 内置默认服务器（Chi 门面 serve.py）的 API Key，用户未配置时回落到该值
+  private readonly defaultApiKey?: string;
+
   constructor() {
     super('vllm');
-    // 内置默认服务器（Chi 门面 serve.py）的 API Key，用户未配置时回落到该值
-    const defaultApiKey = this.definition.defaults.config?.apiKey;
-    if (defaultApiKey) this.setSecrets({ apiKey: defaultApiKey });
+    this.defaultApiKey = this.definition.defaults.config?.apiKey;
+    if (this.defaultApiKey) this.setSecrets({ apiKey: this.defaultApiKey });
+  }
+
+  clearSecrets(): void {
+    super.clearSecrets();
+    // 清除用户配置后仍需回落到内置默认服务器的 API Key
+    if (this.defaultApiKey) this.setSecrets({ apiKey: this.defaultApiKey });
   }
 
   protected resolveSecrets(override?: Partial<OpenAIRuntimeSecrets>): OpenAIRuntimeSecrets {

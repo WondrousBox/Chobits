@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createLegacyStreamEmitter } from '../../packages/ai/runtime/pi/stream-adapter';
+import { createChatStreamEmitter } from '../../packages/ai/runtime/pi/stream-adapter';
 import { createJsonToolResult } from '../../packages/ai/runtime/pi/tools/result';
 import { extractToolSpeechFromResult, normalizeToolSpeech } from '../../packages/ai/tool-speech';
 
@@ -43,7 +43,7 @@ describe('tool speech metadata', () => {
 
   it('emits tool result speech for the renderer without changing the raw result', () => {
     const emit = vi.fn();
-    const legacy = createLegacyStreamEmitter(emit);
+    const emitter = createChatStreamEmitter(emit);
     const result = createJsonToolResult(
       {
         success: true
@@ -56,7 +56,7 @@ describe('tool speech metadata', () => {
       }
     );
 
-    legacy.toolResult('tool-call-1', result);
+    emitter.toolResult('tool-call-1', result);
 
     expect(emit).toHaveBeenCalledWith({
       data: {

@@ -603,7 +603,7 @@ Analytics 建议：
 
 ### Phase 4.5：AI 聊天实时朗读
 
-- `sprite-core/speak` 增加 `chatRealtimeSpeech` 配置，默认关闭。
+- `sprite-core/speak` 增加 `realtimeSpeech` 配置，默认关闭。
 - 新增 sprite 实时语音 session API，封装 Provider 自动策略输入队列，优先 `duplex-stream`，可降级到 `output-stream` 或 `complete`。
 - Renderer 增加 PCM streaming player，消费 `audio_delta`。
 - ChatPage 和 Resource AIChatSidebar 只把 assistant 正文 delta 送入 session。

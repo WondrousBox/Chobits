@@ -68,8 +68,8 @@ export type ChatRequestExtras = Record<string, any> & {
   codingMode?: 'safe';
   workspaceId?: string;
   explicitSkillInvocation?: ExplicitSkillInvocationInput;
-  spriteRealtimeSpeechScope?: 'mainChat' | 'resourceChatSidebar';
-  spriteRealtimeSpeech?: {
+  realtimeSpeechScope?: 'mainChat' | 'resourceChatSidebar';
+  realtimeSpeech?: {
     enabled?: boolean;
     providerId?: string;
     model?: string;
@@ -575,6 +575,8 @@ export interface ProviderAdapter {
   getDefaultModels?(): ProviderDefaultModels;
   getConfigSchema?(): ProviderConfig;
   setSecrets(secrets: ProviderSecrets): Promise<void> | void;
+  // 清空内存中的用户秘钥，回落到 provider 内置默认值（clear 路径专用，区别于合并语义的 setSecrets）
+  clearSecrets?(): Promise<void> | void;
   getSecrets(): Promise<ProviderSecrets> | ProviderSecrets;
   // Chat
   chat?(req: ChatRequest, onStream?: (event: StreamEvent) => void, signal?: AbortSignal): Promise<ChatResponse>;

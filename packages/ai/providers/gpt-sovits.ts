@@ -87,6 +87,11 @@ export class GptSovitsProvider implements ProviderAdapter {
     this.secrets = { ...this.secrets, ...(secrets as any) };
   }
 
+  clearSecrets(): void {
+    // resolveSecrets 会重新叠加 defaults.config 的内置默认服务器配置，这里只需丢掉用户配置
+    this.secrets = {};
+  }
+
   getSecrets(): ProviderSecrets {
     return this.secrets;
   }
