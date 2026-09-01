@@ -20,6 +20,10 @@ export type SystemIpcParams = {
   // Logs
   'logs:getPath': IpcParams<[], { ok: boolean; dir?: string; error?: string }>;
   'logs:openLocation': IpcParams<[], { ok: boolean; error?: string }>;
+
+  // Microphone
+  'system:microphone:getStatus': IpcParams<[], { ok: boolean; status?: string; error?: string }>;
+  'system:microphone:requestAccess': IpcParams<[], { ok: boolean; granted?: boolean; error?: string }>;
 };
 
 const methods: Array<keyof SystemIpcParams> = [
@@ -33,7 +37,9 @@ const methods: Array<keyof SystemIpcParams> = [
   'app:relaunch',
   'app:openExternalUrl',
   'logs:getPath',
-  'logs:openLocation'
+  'logs:openLocation',
+  'system:microphone:getStatus',
+  'system:microphone:requestAccess'
 ];
 
 export type SystemIpcType = {

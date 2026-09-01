@@ -3,7 +3,8 @@ import path from 'node:path';
 
 import { backupDatabase, deleteBackup, importBackup, listBackups, restoreBackup } from '@packages/common/db';
 import { Env, getResourcePath } from '@packages/common/utils';
-import { app, ipcMain, shell } from 'electron';
+import { notifySpriteCapabilityChanged } from '@packages/sprite-core/handler/capability-events';
+import { app, ipcMain, shell, systemPreferences } from 'electron';
 
 /**
  * System-level handlers: database paths/open and logs paths/open.
@@ -125,6 +126,40 @@ export function initSystemHandlers(): void {
       } catch {
         return { ok: false, error: result } as const;
       }
+    } catch (error) {
+      return { ok: false, error: String(error) } as const;
+    }
+  });
+
+  // ---------------- 麦克风权限 ----------------
+  // 「麦克风录音」能力的激活信号取自系统授权状态(见 sprite-manager-ipc.ts 的 resolveCapabilityContext);
+  // 这里提供状态查询与主动请求授权的入口,授权变化后广播能力变更让设置页刷新
+  ipcMain.handle('system:microphone:getStatus', async () => {
+    try {
+      // Linux 无系统级授权接口,视为已授权
+      if (process.platform === 'linux') {
+        return { ok: true, status: 'granted' } as const;
+      }
+      return { ok: true, status: systemPreferences.getMediaAccessStatus('microphone') } as const;
+    } catch (error) {
+      return { ok: false, error: String(error) } as const;
+    }
+  });
+
+  ipcMain.handle('system:microphone:requestAccess', async () => {
+    try {
+      if (process.platform === 'linux') {
+        return { ok: true, granted: true } as const;
+      }
+      if (process.platform === 'darwin') {
+        const granted = await systemPreferences.askForMediaAccess('microphone');
+        notifySpriteCapabilityChanged({ source: 'microphone-access' });
+        return { ok: true, granted } as const;
+      }
+      // Windows 无运行时请求接口,授权在系统设置里管理,这里只回报当前状态
+      const granted = systemPreferences.getMediaAccessStatus('microphone') === 'granted';
+      notifySpriteCapabilityChanged({ source: 'microphone-access' });
+      return { ok: true, granted } as const;
     } catch (error) {
       return { ok: false, error: String(error) } as const;
     }

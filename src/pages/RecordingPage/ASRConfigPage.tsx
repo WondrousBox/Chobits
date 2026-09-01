@@ -208,6 +208,8 @@ const ASRConfigPage: React.FC = () => {
   const [availableCloudProviderIds, setAvailableCloudProviderIds] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('local');
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  // 麦克风授权状态(macOS/Windows 需要系统授权;该状态同时是「麦克风录音」能力的激活信号)
+  const [micStatus, setMicStatus] = useState<string>('unknown');
   const cloudProviderSelectRef = React.useRef<ProviderModelSelectRef>(null);
 
   // 查询 ASR 引擎当前运行状态 & 加载上次保存的配置
@@ -236,6 +238,27 @@ const ASRConfigPage: React.FC = () => {
     return () => {
       mounted = false;
     };
+  }, []);
+
+  // 查询麦克风授权状态(macOS/Windows;Linux 无系统级授权,不显示横幅)
+  useEffect(() => {
+    if (!window.YUA.isMac && !window.YUA.isWindows) return;
+    window.YUA.system['system:microphone:getStatus']()
+      .then((res) => {
+        if (res.ok && res.status) setMicStatus(res.status);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const handleRequestMicAccess = useCallback(async (): Promise<void> => {
+    const res = await window.YUA.system['system:microphone:requestAccess']();
+    if (res.ok && res.granted) {
+      setMicStatus('granted');
+      toast.success('麦克风授权成功');
+    } else {
+      setMicStatus('denied');
+      toast.error('麦克风授权被拒绝，请在系统设置中允许访问麦克风');
+    }
   }, []);
 
   // 加载 sherpa 模型列表
@@ -646,6 +669,15 @@ const ASRConfigPage: React.FC = () => {
           </Tabs>
         </div>
         <ScrollArea className="space-y-4 flex-1 overflow-y-auto px-4 no-drag">
+          {/* macOS/Windows 需要系统麦克风授权,未授权时给出引导(语音识别能力树依赖该授权信号) */}
+          {micStatus !== 'granted' && micStatus !== 'unknown' && (
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400">
+              <span>语音识别需要麦克风权限，当前未授权。</span>
+              <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={handleRequestMicAccess}>
+                授权麦克风
+              </Button>
+            </div>
+          )}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsContent value="local" className="space-y-4 mt-0">
               {/* 场景选择 */}

@@ -28,7 +28,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { windowManager } from '@aim-packages/window-manager';
-import { app, BrowserWindow, ipcMain, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, screen, systemPreferences } from 'electron';
 
 import { loadShortcutEnabledConfig, saveShortcutEnabledConfig } from '../../common/shortcut-store';
 import { AppEvent, eventManager } from '../../event';
@@ -516,11 +516,21 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
       asrRunning = false;
     }
 
+    // 「麦克风录音」能力的激活信号:mini 分支已移除独立的录音服务(原信号源是
+    // recorder 服务运行状态),改用系统麦克风授权状态。Linux 无系统级授权接口,视为已授权。
+    let recorderEnabled = false;
+    try {
+      recorderEnabled =
+        process.platform === 'linux' || systemPreferences.getMediaAccessStatus('microphone') === 'granted';
+    } catch {
+      recorderEnabled = false;
+    }
+
     return {
       featureFlags,
       activeSignals: {
         [SPRITE_CAPABILITY_SIGNALS.dailyCareEnabled]: false,
-        [SPRITE_CAPABILITY_SIGNALS.recorderEnabled]: false,
+        [SPRITE_CAPABILITY_SIGNALS.recorderEnabled]: recorderEnabled,
         [SPRITE_CAPABILITY_SIGNALS.screenshotEnabled]: screenshotEnabled,
         [SPRITE_CAPABILITY_SIGNALS.asrRunning]: asrRunning
       }
