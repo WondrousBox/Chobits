@@ -634,6 +634,10 @@ const ASRConfigPage: React.FC = () => {
             punctuationModel: selectedPunctuationModel
           }
         });
+
+        // 打开识别测试窗口并关闭配置页面（与 TTS 流程一致）
+        window.YUA.window['window:open']('asrTest' as any, { model: selectedModel, language });
+        window.YUA.window['window:close']('asrConfig');
       } else {
         await window.YUA.sherpa.saveASRConfig({
           enabled: true,

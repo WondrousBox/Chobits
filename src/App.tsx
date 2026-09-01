@@ -19,9 +19,11 @@ import AssistantMenuPage from './pages/AssistantMenuPage/AssistantMenuPage';
 import ChatPage from './pages/ChatPage/ChatPage';
 import AssistantPage from './pages/ChatPage/StartPage';
 import ASRConfigPage from './pages/RecordingPage/ASRConfigPage';
+import ASRTestPage from './pages/RecordingPage/ASRTestPage';
 import RecordingPage from './pages/RecordingPage/RecordingPage';
 import SettingsPage from './pages/SettingsPage/SettingsPage';
 import TTSConfigPage from './pages/TTSPage/TTSConfigPage';
+import TTSPage from './pages/TTSPage/TTSPage';
 
 function StandardAppRoutes(): JSX.Element {
   useAIProviderConfig();
@@ -40,7 +42,9 @@ function StandardAppRoutes(): JSX.Element {
           <Route path="/status" element={<StatusPage />} />
           {flags.localAi && <Route path="/asr-config" element={<ASRConfigPage />} />}
           {flags.localAi && <Route path="/asr" element={<RecordingPage />} />}
+          {flags.localAi && <Route path="/asr-test" element={<ASRTestPage />} />}
           <Route path="/tts-config" element={<TTSConfigPage />} />
+          <Route path="/tts" element={<TTSPage />} />
           <Route path="/menu" element={<AssistantMenuPage />} />
           <Route
             path="/settings"

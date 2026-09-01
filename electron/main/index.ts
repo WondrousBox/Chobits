@@ -45,6 +45,16 @@ if (!app.requestSingleInstanceLock()) {
   process.exit(0);
 }
 
+// dev 看门狗：vite-plugin-electron 通过带 ipc 的 stdio spawn 本进程。
+// 父进程（vite）异常退出时（Ctrl+C 竞态、崩溃、被强杀）ipc 通道断开，
+// 这里兜底退出，避免 Electron 残留为孤儿进程。生产环境无 ipc 通道，不生效。
+if (process.channel) {
+  process.on('disconnect', () => {
+    app.quit();
+    process.exit(0);
+  });
+}
+
 let win: BrowserWindow | null = null;
 let splashWin: BrowserWindow | null = null;
 const preload = path.join(__dirname, '../preload/index.mjs');

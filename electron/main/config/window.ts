@@ -313,6 +313,27 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       webPreferences: { nodeIntegration: true, contextIsolation: true }
     }
   },
+  asrTest: {
+    routeHash: 'asr-test',
+    autoCenterOn: 'parent-display',
+    showOnReady: true,
+    openDevTools: false,
+    options: {
+      width: 520,
+      height: 480,
+      minWidth: 400,
+      minHeight: 360,
+      show: false,
+      autoHideMenuBar: true,
+      frame: false,
+      transparent: true,
+      resizable: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      backgroundColor: '#00000000',
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
+    }
+  },
   characterPackEditor: {
     routeHash: 'character-pack-editor',
     autoCenterOn: 'parent-display',
