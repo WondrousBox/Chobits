@@ -41,11 +41,15 @@ jobs:
 
       - name: Download Platform Resources (macOS)
         if: runner.os == 'macOS'
-        run: pnpm run download-ffmpeg-darwin-arm64 && pnpm run download-ytdlp-darwin
+        run: pnpm run download-ffmpeg-darwin-arm64 && pnpm run download-ytdlp-darwin && pnpm run download-7zip-darwin-arm64
 
       - name: Download Platform Resources (Windows)
         if: runner.os == 'Windows'
-        run: pnpm run download-ffmpeg-win32-x64 && pnpm run download-ytdlp-win32
+        run: pnpm run download-ffmpeg-win32-x64 && pnpm run download-ytdlp-win32 && pnpm run download-7zip-win32-x64
+
+      - name: Download Platform Resources (Linux)
+        if: runner.os == 'Linux'
+        run: pnpm run download-7zip-linux-x64
 
       - name: Build Release Files
         run: pnpm run build

@@ -35,3 +35,7 @@ yarn.lock
 
 # e2e 测试自动生成的截图（每次运行覆盖）
 /test/screenshots/e2e.png
+
+# 7zip 二进制改为 scripts/download-7zip.mjs 按需下载,不入库
+resources/7zip/**/7za
+resources/7zip/**/7za.exe
