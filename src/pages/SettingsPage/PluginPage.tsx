@@ -391,20 +391,9 @@ const PluginPage: React.FC<PluginPageProps> = () => {
       {} as Record<string, { engines: PluginDefinition[]; models: PluginDefinition[] }>
     );
 
-    // 如果是已安装标签页，需要补充该插件下所有可用的模型（用于展示模型列表）
-    if (tabValue === 'installed') {
-      Object.keys(grouped).forEach((pluginId) => {
-        // 从支持的资源中获取该插件下所有模型
-        const allModels = visibleSupported.filter((s) => s.pluginId === pluginId && s.type === 'model');
-        // 合并已安装的模型和所有可用的模型，去重
-        const existingModelIds = new Set(grouped[pluginId].models.map((m) => m.id));
-        allModels.forEach((model) => {
-          if (!existingModelIds.has(model.id)) {
-            grouped[pluginId].models.push(model);
-          }
-        });
-      });
-    }
+    // 注意:已安装标签页不再回填插件下的全部模型 —— 系统预设引擎(如 sherpa-onnx)常驻已安装列表,
+    // 回填会让该插件的所有模型(含未安装)都显示出来,使「已安装」筛选失去意义。
+    // 语义划分:可用插件页 = 发现/安装;已安装页 = 已装内容的查看/卸载。
 
     // 过滤掉没有引擎的分组（引擎不兼容当前平台时，其模型也不应展示）
     for (const pluginId of Object.keys(grouped)) {
