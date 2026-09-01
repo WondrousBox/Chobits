@@ -152,10 +152,25 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
     if (!runtimeReady || !currentAnimation) return;
 
     const trigger = currentAnimation.trigger ?? 'idle';
+
+    // 同一指令(同 animationId + playId)只处理一次:
+    // 去重必须放在所有上报路径之前,否则主进程因兜底上报重发同一指令时会形成回环风暴
+    const prev = activePlaybackRef.current;
+    if (prev && prev.animationId === currentAnimation.animationId && prev.playId === currentAnimation.playId) {
+      return;
+    }
+
     const mapping = resolveTriggerMapping(config, trigger);
     if (!mapping?.motion) {
-      // 没有映射时回退到 idle（SDK 会自动处理 idle 循环），并兜底上报完成，避免主进程干等
-      activePlaybackRef.current = null;
+      // 没有映射时回退到 idle（SDK 会自动处理 idle 循环）,留占位记录去重,并兜底上报完成一次
+      activePlaybackRef.current = {
+        animationId: currentAnimation.animationId,
+        playId: currentAnimation.playId,
+        trigger,
+        loop: true,
+        motionGroup: '',
+        motionIndex: -1
+      };
       reportAnimComplete(currentAnimation.animationId, currentAnimation.playId);
       return;
     }
@@ -166,12 +181,6 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
 
     const { group, index } = mapping.motion;
     const loop = mapping.loop === true;
-
-    // 避免重复触发同一个动画
-    const prev = activePlaybackRef.current;
-    if (prev && prev.animationId === currentAnimation.animationId && prev.playId === currentAnimation.playId) {
-      return;
-    }
 
     const record: ActiveLive2DPlayback = {
       animationId: currentAnimation.animationId,
@@ -212,6 +221,11 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
       } else {
         console.warn('[Live2DSprite] startMotion refused', { group, index, trigger });
       }
+      if (loop) {
+        // loop 动画没有"完成"语义：被拒绝通常是同优先级的它自己还在播。
+        // 保留记录用于去重且不上报,否则主进程会把完成上报当成重发信号,形成回环风暴
+        return;
+      }
       if (activePlaybackRef.current === record) {
         activePlaybackRef.current = null;
       }
@@ -219,7 +233,10 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
     };
 
     try {
-      const handle = model.startMotion(group, index, LAppDefine.PriorityNormal, onFinished);
+      // loop 动画(如 idle)用 PriorityIdle,一次性动画用 PriorityNormal:
+      // 否则循环 idle 会挡住同优先级的一次性动画,导致 welcome/wave 等永远播不出来
+      const priority = loop ? LAppDefine.PriorityIdle : LAppDefine.PriorityNormal;
+      const handle = model.startMotion(group, index, priority, onFinished);
       if (handle === InvalidMotionQueueEntryHandleValue) {
         failAndReport();
       }

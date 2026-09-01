@@ -1915,6 +1915,20 @@ export class SpriteManager {
       this._pendingIdleAfterOutro = false;
     }
 
+    // 循环 idle 动画上报完成后无需再回 idle 重放:
+    // 状态已是 idle 且完成的就是 idle 动画本身时,重发只会和渲染端形成回环;
+    // 注意不能扩大到其他 loop 动画(如分段 walk 的 outro 完成后仍需正常回 idle)
+    const completedEntry = this.animationRegistry.get(animId);
+    if (
+      this.getState() === 'idle' &&
+      this.getSubState() == null &&
+      this.currentAnimation?.animationId === animId &&
+      completedEntry?.playback?.loop === true &&
+      completedEntry.eventTypes.includes('idle')
+    ) {
+      return;
+    }
+
     this.activeAnimationPlaylist = null;
     console.log('❤❤❤❤❤ transition to idle after completion: ' + animId);
 
