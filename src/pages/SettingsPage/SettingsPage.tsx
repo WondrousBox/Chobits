@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React, { useEffect, useState } from 'react';
-import { TbAdjustments, TbCpu, TbKeyboard, TbMessage2, TbNetwork, TbToggleLeft } from 'react-icons/tb';
+import { TbAdjustments, TbCpu, TbKeyboard, TbMessage2, TbNetwork, TbPlug, TbToggleLeft } from 'react-icons/tb';
 
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
 
@@ -11,8 +11,9 @@ import PreferencesSettings from './components/PreferencesSettings';
 import PromptSetting from './components/PromptSetting';
 import ProxySettings from './components/ProxySettings';
 import ShortcutsSettings from './components/ShortcutsSettings';
+import PluginPage from './PluginPage';
 
-export type DefaultSettingsCategory = 'preferences' | 'ai' | 'prompt' | 'shortcuts' | 'proxy' | 'features';
+export type DefaultSettingsCategory = 'preferences' | 'ai' | 'prompt' | 'shortcuts' | 'proxy' | 'features' | 'plugins';
 
 export type SettingsCategory = DefaultSettingsCategory | (string & {});
 
@@ -49,6 +50,12 @@ const defaultCategories: SettingsCategoryDef[] = [
     label: '功能管理',
     icon: TbToggleLeft,
     description: '开启或关闭可选功能'
+  },
+  {
+    id: 'plugins',
+    label: '插件管理',
+    icon: TbPlug,
+    description: '管理本地引擎与模型插件'
   },
   {
     id: 'shortcuts',
@@ -154,6 +161,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = EM
         return <PreferencesSettings />;
       case 'features':
         return <FeatureFlagsSettings />;
+      case 'plugins':
+        return <PluginPage />;
       case 'ai':
         return <AiSettings initialProviderId={initialAiProviderId || undefined} initialPresetId={initialAiPresetId || undefined} focusRevision={aiPayloadRevision} />;
       case 'prompt':

@@ -3,6 +3,7 @@ import { AllModels, CommonConfig } from '@packages/sherpa/common';
 import { ScrollArea } from '@radix-ui/react-scroll-area';
 import React, { useCallback, useEffect, useState } from 'react';
 import { TbChevronDown, TbChevronUp, TbLoader2, TbPlayerPlay, TbPlayerStop } from 'react-icons/tb';
+import { toast } from 'sonner';
 
 import { ProviderModelSelect, ProviderModelSelectRef } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
@@ -549,7 +550,10 @@ const ASRConfigPage: React.FC = () => {
         return;
       }
       if (!selectedModelInfo.isInstalled) {
-        console.error('模型未安装，请先在插件管理中安装');
+        // 模型未安装时给出可跳转的提示，避免用户卡在死路
+        toast.error('模型未安装，请先在插件管理中安装', {
+          action: { label: '去安装', onClick: () => window.YUA.window['window:open']('settings' as any, { category: 'plugins' }) }
+        });
         return;
       }
 
@@ -557,7 +561,9 @@ const ASRConfigPage: React.FC = () => {
       if (selectedPunctuationModel) {
         const selectedPunctuationModelInfo = punctuationModels.find((m) => m.id === selectedPunctuationModel);
         if (selectedPunctuationModelInfo && !selectedPunctuationModelInfo.isInstalled) {
-          console.error('标点模型未安装，请先在插件管理中安装');
+          toast.error('标点模型未安装，请先在插件管理中安装', {
+            action: { label: '去安装', onClick: () => window.YUA.window['window:open']('settings' as any, { category: 'plugins' }) }
+          });
           return;
         }
       }

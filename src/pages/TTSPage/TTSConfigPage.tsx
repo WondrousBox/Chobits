@@ -2,6 +2,7 @@ import { PluginDefinition } from '@packages/plugins/types';
 import { ScrollArea } from '@radix-ui/react-scroll-area';
 import React, { useEffect, useState } from 'react';
 import { TbLoader2, TbPlayerPlay } from 'react-icons/tb';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -99,7 +100,10 @@ const TTSConfigPage: React.FC = () => {
       return;
     }
     if (!selectedModelInfo.isInstalled) {
-      console.error('模型未安装，请先在插件管理中安装');
+      // 模型未安装时给出可跳转的提示，避免用户卡在死路
+      toast.error('模型未安装，请先在插件管理中安装', {
+        action: { label: '去安装', onClick: () => window.YUA.window['window:open']('settings' as any, { category: 'plugins' }) }
+      });
       return;
     }
 
