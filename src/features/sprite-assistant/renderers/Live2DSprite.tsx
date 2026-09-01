@@ -261,9 +261,11 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
     };
 
     try {
-      // loop 动画(如 idle)用 PriorityIdle,一次性动画用 PriorityNormal:
-      // 否则循环 idle 会挡住同优先级的一次性动画,导致 welcome/wave 等永远播不出来
-      const priority = loop ? LAppDefine.PriorityIdle : LAppDefine.PriorityNormal;
+      // 只有 idle 用 PriorityIdle,其余(loop 的 talk/walk、一次性动画)都用 PriorityNormal:
+      // SDK 在队列空闲时会以 PriorityIdle 自动播 idle(lappmodel.update),
+      // 若 loop 动画也用 PriorityIdle 会被自动 idle 同优先级拒绝,说话时 talk 播不出来;
+      // 而 idle 用 Normal 又会反过来挡住一次性动画(welcome/wave 播不出来)
+      const priority = trigger === 'idle' ? LAppDefine.PriorityIdle : LAppDefine.PriorityNormal;
       const handle = model.startMotion(group, index, priority, onFinished);
       if (handle === InvalidMotionQueueEntryHandleValue) {
         failAndReport();
