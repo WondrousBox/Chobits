@@ -529,9 +529,7 @@ export class SpriteManager {
     this.stateMachine.destroy();
     this.eventBus.clear();
     this.animationRegistry.clear();
-    for (const playId of Array.from(this.animationMovementSuspensionReasons.keys())) {
-      this.releaseAnimationMovementSuspension(playId);
-    }
+    this.releaseAllAnimationMovementSuspensions();
 
     if (this.windowController) {
       this.windowController.destroy?.();
@@ -668,6 +666,13 @@ export class SpriteManager {
     const reason = this.getAnimationMovementSuspensionReason(playId);
     this.animationMovementSuspensionReasons.set(playId, reason);
     this.setMovementSuspended(reason, true);
+  }
+
+  /** 释放所有动画移动悬挂（destroy 与 replaceAnimations 共用） */
+  private releaseAllAnimationMovementSuspensions(): void {
+    for (const playId of Array.from(this.animationMovementSuspensionReasons.keys())) {
+      this.releaseAnimationMovementSuspension(playId);
+    }
   }
 
   private releaseAnimationMovementSuspension(playId?: string): void {
@@ -1642,6 +1647,12 @@ export class SpriteManager {
     this.currentAnimation = null;
     this.currentAnimationPresentationOwner = null;
     this.activeAnimationPlaylist = null;
+    // 清理进行中的悬挂状态：移动悬挂、完成等待者（立即放行，避免等满 timeout）、自动移动
+    this.releaseAllAnimationMovementSuspensions();
+    for (const playId of Array.from(this.animationCompletionWaiters.keys())) {
+      this.resolveAnimationCompletionWaiter(playId);
+    }
+    this.stopAutoMove();
     this.registerAnimations(anims);
 
     if (options?.refreshCurrentState !== false) {

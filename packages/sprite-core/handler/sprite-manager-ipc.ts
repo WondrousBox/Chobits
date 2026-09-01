@@ -100,6 +100,8 @@ import { initSpriteEventListener } from './sprite-event-listener';
 
 export interface SpriteManagerDeps {
   addAllowedResourceRoot: (root: string) => void;
+  /** 校验路径是否在已注册资源根之内(用于 addTempResourceRoot 的注册前校验) */
+  isPathWithinAllowedRoots?: (target: string) => boolean;
   registerCharacterPersonaPromptProvider?: (provider: () => string | null) => void | Promise<void>;
   spontaneousUtteranceExecutor?: SpriteSpontaneousUtteranceExecutor;
   speechSynthesisExecutor?: SpriteSpeechSynthesisExecutor;
@@ -1347,6 +1349,11 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
 
   // ===== 临时资源根目录（用于视频预览等场景） =====
   ipcMain.handle('sprite:addTempResourceRoot', (_e, root: string) => {
+    // 只允许注册已可信根（userData / 工作区 / 资源目录）之内的路径,防止渲染进程把 res:// 扩大成任意文件读
+    if (typeof root !== 'string' || !deps.isPathWithinAllowedRoots?.(root)) {
+      console.warn('[sprite:addTempResourceRoot] rejected root outside allowed roots:', root);
+      return { success: false };
+    }
     deps.addAllowedResourceRoot(root);
     return { success: true };
   });

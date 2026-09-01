@@ -43,12 +43,26 @@ export class LAppLive2DManager {
   }
 
   /**
+   * 仅在实例已存在时返回单例，绝不触发创建。
+   * 用于销毁后仍可能运行的轮询/回调，避免 getInstance() 把 manager 用旧配置复活。
+   */
+  public static getInstanceIfExists(): LAppLive2DManager | null {
+    return s_instance ?? null;
+  }
+
+  /**
    * クラスのインスタンス（シングルトン）を解放する。
-   * 
+   *
    * 释放类的实例（单例）。
    */
   public static releaseInstance(): void {
     if (s_instance != null) {
+      // 置空前先释放模型资源，避免模型/纹理泄漏
+      try {
+        s_instance.releaseAllModel();
+      } catch (e) {
+        console.warn('[APP] releaseAllModel failed during releaseInstance', e);
+      }
       s_instance = void 0;
     }
 

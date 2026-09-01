@@ -667,6 +667,12 @@ export class LAppModel extends CubismUserModel {
 
     const motionFileName = this._modelSetting.getMotionFileName(group, no);
 
+    // group/index 不存在时直接按失败处理，避免 fetch 出 '<dir>null' 的 404 且 onFinished 永不回调
+    if (motionFileName == null) {
+      console.warn(`[APP] startMotion: motion file not found for group '${group}', index ${no}`);
+      return InvalidMotionQueueEntryHandleValue;
+    }
+
     // ex) idle_0 or _0 if group is ""
     const name = `${group}_${no}`;
     let motion: CubismMotion = this._motions.getValue(name) as CubismMotion;

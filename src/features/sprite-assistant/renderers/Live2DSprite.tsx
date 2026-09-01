@@ -2,6 +2,7 @@ import { isBubbleWindowMode } from '@packages/sprite-core/types';
 import { useEffect, useRef, useState } from 'react';
 
 import { getCurrentRMS } from '@/lib/audio/lip-sync-source';
+import { InvalidMotionQueueEntryHandleValue } from '@/live2d-sdk/Framework/src/motion/cubismmotionqueuemanager';
 import * as LAppDefine from '@/live2d-sdk/src/lappdefine';
 import { LAppLive2DManager } from '@/live2d-sdk/src/lapplive2dmanager';
 
@@ -29,6 +30,15 @@ interface ActiveLive2DPlayback {
   loop: boolean;
   motionGroup: string;
   motionIndex: number;
+}
+
+/** 上报动画完成（phase 固定 'full'，主进程只处理 full/outro）；所有失败路径也走这里兜底，主进程不能干等 */
+function reportAnimComplete(animationId: string, playId?: string): void {
+  if (playId) {
+    window.YUA.sprite.animComplete(animationId, 'full', playId);
+  } else {
+    window.YUA.sprite.animComplete(animationId, 'full');
+  }
 }
 
 export default function Live2DSprite({ width, height, walkDirection }: { width?: number; height?: number; walkDirection?: 'left' | 'right' | null }): JSX.Element {
@@ -144,8 +154,9 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
     const trigger = currentAnimation.trigger ?? 'idle';
     const mapping = resolveTriggerMapping(config, trigger);
     if (!mapping?.motion) {
-      // 没有映射时回退到 idle（SDK 会自动处理 idle 循环）
+      // 没有映射时回退到 idle（SDK 会自动处理 idle 循环），并兜底上报完成，避免主进程干等
       activePlaybackRef.current = null;
+      reportAnimComplete(currentAnimation.animationId, currentAnimation.playId);
       return;
     }
 
@@ -162,7 +173,7 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
       return;
     }
 
-    activePlaybackRef.current = {
+    const record: ActiveLive2DPlayback = {
       animationId: currentAnimation.animationId,
       playId: currentAnimation.playId,
       trigger,
@@ -170,6 +181,7 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
       motionGroup: group,
       motionIndex: index
     };
+    activePlaybackRef.current = record;
 
     // 播放表情
     if (mapping.expression) {
@@ -180,30 +192,39 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
       }
     }
 
-    // 播放动作
+    // 播放动作（loop 与非 loop 同一入口；非 loop 注册完成回调）
+    const { animationId, playId } = currentAnimation;
     const onFinished = loop
       ? undefined
       : (): void => {
-          const active = activePlaybackRef.current;
-          if (!active) return;
-          activePlaybackRef.current = null;
-          if (active.playId) {
-            window.YUA.sprite.animComplete(active.animationId, 'main', active.playId);
-          } else {
-            window.YUA.sprite.animComplete(active.animationId, 'main');
+          // 闭包捕获本次的 animationId/playId：记录仍属于自己时才清除；
+          // 即使已被新动画顶替，也只上报自己的完成而不动 ref（避免张冠李戴）
+          if (activePlaybackRef.current === record) {
+            activePlaybackRef.current = null;
           }
+          reportAnimComplete(animationId, playId);
         };
 
-    try {
-      if (loop) {
-        // loop 动作：使用 PriorityNormal 确保打断 idle，结束后由 SDK 自动回 idle
-        model.startMotion(group, index, LAppDefine.PriorityNormal, onFinished);
+    // startMotion 被框架拒绝（同优先级占用、资源缺失）时返回无效句柄而不抛错，需要检查返回值
+    const failAndReport = (e?: unknown): void => {
+      if (e) {
+        console.warn('[Live2DSprite] startMotion failed', { group, index, trigger }, e);
       } else {
-        model.startMotion(group, index, LAppDefine.PriorityNormal, onFinished);
+        console.warn('[Live2DSprite] startMotion refused', { group, index, trigger });
+      }
+      if (activePlaybackRef.current === record) {
+        activePlaybackRef.current = null;
+      }
+      reportAnimComplete(animationId, playId);
+    };
+
+    try {
+      const handle = model.startMotion(group, index, LAppDefine.PriorityNormal, onFinished);
+      if (handle === InvalidMotionQueueEntryHandleValue) {
+        failAndReport();
       }
     } catch (e) {
-      console.warn('[Live2DSprite] startMotion failed', { group, index, trigger }, e);
-      activePlaybackRef.current = null;
+      failAndReport(e);
     }
   }, [currentAnimation, runtimeReady, config]);
 

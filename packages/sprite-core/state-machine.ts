@@ -233,8 +233,9 @@ export class SpriteStateMachine {
       this.metadata = { ...this.metadata, ...metadata };
     }
 
-    // 记录稳定状态（非临时状态）
-    if (!newConfig?.ephemeral) {
+    // 记录稳定状态（非临时状态；reacting 只是临时容器，不作为稳定状态记录，
+    // 否则 playOnce 在 reacting 中再次触发时 fallback 会取到 reacting 自身导致卡死）
+    if (!newConfig?.ephemeral && target !== 'reacting') {
       this.previousStableState = target;
     }
 

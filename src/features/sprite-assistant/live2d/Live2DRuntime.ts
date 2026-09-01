@@ -33,6 +33,9 @@ export interface Live2DRuntimeOptions {
 
 const DEFAULT_READY_TIMEOUT_MS = 15000;
 
+// 单调递增的运行时代际：init/destroy 都会推进，用于让销毁后残留的轮询立即失效
+let runtimeGeneration = 0;
+
 let coreScriptPromise: Promise<void> | null = null;
 
 /**
@@ -71,6 +74,8 @@ export async function initLive2DRuntime(options: Live2DRuntimeOptions): Promise<
 
   // 重复初始化前先释放旧实例（StrictMode / 热更新场景）
   destroyLive2DRuntime();
+  // 推进代际并捕获本次 init 的代际，供 waitForModelReady 轮询判活
+  const generation = ++runtimeGeneration;
 
   LAppGlManager.canvasId = canvasId;
 
@@ -94,7 +99,7 @@ export async function initLive2DRuntime(options: Live2DRuntimeOptions): Promise<
     modelUrl: `${model.resourcesBaseUrl}${model.modelDir}/${model.modelFileName}.model3.json`
   });
 
-  await waitForModelReady(readyTimeoutMs);
+  await waitForModelReady(readyTimeoutMs, generation);
 }
 
 /**
@@ -102,6 +107,8 @@ export async function initLive2DRuntime(options: Live2DRuntimeOptions): Promise<
  * 幂等；内部吞掉 SDK 释放路径上的非致命异常。
  */
 export function destroyLive2DRuntime(): void {
+  // 使当前代际失效，销毁后仍在跑的轮询会立即退出
+  ++runtimeGeneration;
   try {
     LAppDelegate.releaseInstance();
   } catch (e) {
@@ -115,11 +122,18 @@ export function destroyLive2DRuntime(): void {
 }
 
 /** 轮询等待首个模型完成加载（LoadStep 全部走完）。超时仅告警，不阻断渲染循环。 */
-function waitForModelReady(timeoutMs: number): Promise<void> {
+function waitForModelReady(timeoutMs: number, generation: number): Promise<void> {
   const startedAt = Date.now();
   return new Promise((resolve) => {
     const timer = window.setInterval(() => {
-      const manager = LAppLive2DManager.getInstance();
+      // 代际已变（运行时被销毁/重建）说明本次等待已过期，立即收尾；
+      // 且只用非创建式访问器取实例，避免 getInstance() 在销毁后把 manager 复活
+      if (generation !== runtimeGeneration) {
+        window.clearInterval(timer);
+        resolve();
+        return;
+      }
+      const manager = LAppLive2DManager.getInstanceIfExists();
       const model = manager?.getModel(0);
       if (model && model.isInitialized()) {
         window.clearInterval(timer);

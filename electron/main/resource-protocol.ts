@@ -66,6 +66,15 @@ function isAllowed(target: string): boolean {
   return allowedRoots.some((r) => target === r || target.startsWith(r + path.sep));
 }
 
+/** 校验目标路径是否位于任一已注册资源根之内(供 IPC 入口在注册临时根前校验,防止任意目录注册) */
+export function isPathWithinAllowedRoots(target: string): boolean {
+  try {
+    return isAllowed(path.resolve(target));
+  } catch {
+    return false;
+  }
+}
+
 // URL Patterns:
 // 1) Absolute path:  res://local/<encodeURIComponent(C:/path/to/file.ext with forward slashes)>
 // 2) Workspace rel:  res://ws/<workspaceId>/<encodeURIComponent(relative/path.ext)>

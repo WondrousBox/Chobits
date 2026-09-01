@@ -23,7 +23,7 @@ import {
   type SpriteWindowAnimationPlayPosition
 } from '../../../packages/sprite-core/types';
 import { isFeatureEnabled } from '../feature-flags';
-import { addAllowedResourceRoot } from '../resource-protocol';
+import { addAllowedResourceRoot, isPathWithinAllowedRoots } from '../resource-protocol';
 import { initFileHandlers } from './file/ipc-main';
 import { initPreferencesHandlers } from './preferences/ipc-main';
 import { initProxyHandlers } from './proxy/ipc-main';
@@ -303,6 +303,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initSpritePurposePlannerIPC(purposePlannerService, purposePlannerPreferencesStore);
   await initSpriteManagerIPC(win, {
     addAllowedResourceRoot,
+    isPathWithinAllowedRoots,
     registerCharacterPersonaPromptProvider: async (resolveCharacterPersonaPrompt) => {
       registerSystemPromptEnricher({
         id: 'character-persona',
