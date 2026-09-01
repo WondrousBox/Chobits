@@ -47,6 +47,7 @@
 - 内置节点覆盖资源读写、FFmpeg 转码、视频关键帧、文档转 Markdown、Whisper / Fast-Whisper / FunASR / Parakeet 转写、Tesseract / PaddleOCR、AI 对话、图片理解 / 生成、音乐生成和结果展示。
 - 工作流运行状态会同步到资源库和精灵；运行记录按工作空间保存，支持历史查询、失败诊断、敏感信息脱敏和自动保留策略。
 - 通过插件管理器安装和维护 FFmpeg、Tesseract、Whisper、PaddleOCR、Sherpa-ONNX 等引擎及模型，按需启用本地能力。
+- 工作流文档统一收录于 [工作流文档索引](docs/workflow/README.md)，当前模块和迁移状态见 [工作流模块 README](packages/workflow/README.md)。
 
 ### 内容订阅与系统辅助
 

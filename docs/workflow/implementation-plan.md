@@ -2,62 +2,64 @@
 
 ## 1. 目标
 
-将当前工作流系统从“主进程内可运行的功能集合”演进为具备稳定运行契约、明确边界和可测试性的工作流应用模块。
+Phase 1 至 Phase 5 已经将工作流从“主进程内可运行的功能集合”演进为具备稳定运行契约、明确边界和可测试性的应用模块。本计划下一阶段是在不破坏 Chobits 现有工作流的前提下，将通用控制逻辑提取为可发布、可被其他 Node/Electron 项目复用的 Node-first 工作流内核。
 
-本计划优先保证以下结果：
+后续实施优先保证以下结果：
 
-- 运行成功、失败、取消的状态在引擎、IPC、调度器、AI 工具和 UI 之间保持一致。
-- DAG 的终端输出、条件分支、输入合并和错误策略符合定义语义。
-- 工作流和运行记录按 workspace 正确隔离。
-- 异常、取消和进程退出时不会遗留运行上下文、临时目录或无限增长的内存状态。
-- 核心引擎可以脱离 Electron、数据库和具体业务节点进行单元测试。
+- `@chobits/workflow` 只管理定义、DAG、调度、状态机、运行生命周期、事件和扩展契约。
+- Chobits 的资源、AI、媒体、OCR、数据库和 Electron 能力通过 ports、capabilities 和 adapters 注入。
+- 公共包使用实例化 registry/runtime，不依赖模块级单例或导入副作用。
+- scheduler、AI 工具、Electron IPC 和 React UI 只通过公开 facade/contract 使用工作流。
+- 保持现有 workflow JSON、node ID、preset ID、数据库模型和用户运行语义兼容。
+- 通过 tarball 消费者 fixture 验证包可以脱离 Chobits 仓库安装和运行。
+
+架构决策和边界以 [工作流目标架构](./architecture.md) 为准；本文档负责把该架构拆成可验证的实施批次。
 
 ## 2. 当前基线
 
-### 已有优点
+### Phase 1-5 已完成基础
 
-- `NodeHandler`、`Plugin`、`ExecutionContext` 已经提供了可扩展接口。
-- 节点规格可以驱动编辑器的输入配置和动态端口。
-- 引擎通过事件发布运行状态，渲染层不直接调用节点实现。
-- `WorkflowStore` 已经集中处理工作流定义和运行记录持久化。
+- 运行成功、失败、取消的状态在引擎、IPC、调度器、AI 工具和 UI 之间保持一致。
+- DAG 终端输出、条件分支、输入合并、错误策略和并发调度已有明确语义与回归测试。
+- 定义 schema、迁移、端口校验、workspace 隔离和持久化顺序已经落地。
+- 取消信号可以传到 AI、网络、BrowserWindow、FFmpeg、ASR 和 OCR 执行链。
+- DAG planner、调度器、状态机、事件、application service 和主要 adapters 已完成初步拆分。
+- 日志、状态、临时目录、内存缓存和数据库运行历史具备脱敏、限流和保留策略。
+- React 编辑器已拆为加载、图编辑、运行、事件和持久化 hooks。
 
-### 已确认的问题
+### 当前包化差距
 
-- `wf:run` 等待执行完成后仍无条件返回 `ok: true`，失败运行会被 UI 当作成功。
-- 引擎的终端节点计算方向相反，最终输出可能来自开始节点。
-- 条件节点只选择输出端口，但执行器仍会执行所有后继节点。
-- 调度器直接调用引擎 API，绕过 IPC 层的校验和缺失输入处理，并且不检查最终状态。
-- 数据库存在 `workspaceId` 字段，但工作流定义的保存、读取、删除和运行记录删除没有完成隔离。
-- 提前返回和异常路径没有统一清理；取消不会中止正在运行的外部进程。
-- 编辑器保存时强制覆盖 `options`，可能改变已有工作流的错误策略。
-- 端口类型、必填输入、重复输入连接和配置值没有统一运行时校验。
-- 工作流 package 的入口同时承担 Electron IPC、数据库、事件、资源适配和节点注册，节点直接依赖业务基础设施。
-- 现有 `test/workflow.spec.ts` 仍引用已不存在的 `electron/workflow` 路径。
+- `packages/workflow` 仍是源码目录，缺少独立 `package.json`、build、declaration、exports 和消费者验证。
+- registry 和 application service 仍存在模块级单例，导入与实例生命周期没有完全隔离。
+- 公共类型仍混入 Chobits plugin resource、workspace 和 UI/宿主字段。
+- `index.ts`、`store.ts`、HTML render、AI、OCR 和部分媒体实现仍在公共目标目录的依赖闭包内。
+- 业务节点还没有统一使用类型化 capability token 声明和获取宿主能力。
+- 单个 workflow 的并发限制不能约束多个 run 对 GPU、FFmpeg、ASR 和 OCR 的竞争。
+- scheduler 和 AI 工具仍依赖兼容入口；renderer 存在深层类型导入和分散的 `wf:*` 字符串。
+- 当前测试证明仓库内可用，但还不能证明打包后能由独立项目只通过公开 exports 使用。
 
 ## 3. 目标架构
 
+完整设计见 [工作流目标架构](./architecture.md)。目标物理边界为：
+
 ```text
-workflow-core
-  类型、定义校验、DAG 规划、执行状态机、节点/插件接口
-
-workflow-runtime
-  内置节点、插件和 AI/媒体/OCR 适配器
-
-workflow-app
-  Electron IPC、数据库仓储、资源服务、事件广播和调度器适配
-
-workflow-client
-  类型安全的 IPC client、编辑器状态、运行状态 hooks 和 UI 组件
+@chobits/workflow              可发布的 Node-first runtime kernel
+@chobits/workflow-chobits      私有 Chobits capabilities、nodes 和 adapters
+electron/main/workflow         Electron bootstrap、IPC 和事件传输
+src/features/workflow          Chobits React editor 和 client
 ```
 
 依赖方向必须保持：
 
 ```text
-workflow-client -> workflow-app contract
-workflow-app -> workflow-core + runtime adapters
-workflow-runtime -> workflow-core contracts
-workflow-core -> no Electron / no database / no React
+React / scheduler / AI tool / Electron IPC
+                    -> Chobits composition root
+                    -> Chobits capabilities and nodes
+                    -> public workflow runtime
+                    -> application / core / contracts
 ```
+
+公共包定义扩展契约，宿主实现契约并负责组合。公共包根入口不得加载 Electron、React、Drizzle、AI provider 或原生媒体依赖。
 
 ## 4. 实施阶段
 
@@ -144,6 +146,86 @@ workflow-core -> no Electron / no database / no React
 - 大文件和大文本不会被完整复制到每次节点状态更新中。
 - 日志能关联 run、node、attempt 和错误原因，但不泄露秘钥。
 
+### Phase 6：真实包边界与公共契约（待实施）
+
+范围：
+
+- 为 `packages/workflow` 建立独立 manifest、TypeScript build、declaration、ESM exports 和 files 白名单。
+- 建立 `contracts/`、`core/`、`application/`、`ports/` 和 `sdk/` 公共边界，整理稳定根导出和 `node`、`testing` 子路径导出。
+- 将定义、运行请求、运行结果、事件、错误和迁移 contract 从 Chobits 类型中分离。
+- 保留旧根路径的兼容导出，先让现有调用方无行为变化地迁移到公开 API。
+- 增加依赖边界检查，禁止公共包导入 Electron、React、Drizzle 和 Chobits 私有模块。
+
+验收标准：
+
+- 公共包可以独立 build 并生成 declarations。
+- 公开类型不包含 Chobits repository、plugin resource、Electron 或 React 类型。
+- Chobits 当前测试和预设继续通过，且本阶段不修改数据库 schema。
+
+### Phase 7：实例 runtime 与能力系统（待实施）
+
+范围：
+
+- 将 registry、application service 和 runtime 生命周期改为显式实例，不再依赖模块级单例。
+- 引入类型化 capability token、缺失能力预检和 node SDK。
+- 统一通用运行请求中的 `scope/trigger/actor/context`，由兼容 adapter 映射现有 workspace/resource 字段。
+- 增加节点 timeout、可选 retry/idempotency contract 和 runtime 级命名执行组限流。
+- 提供 memory store、fake capabilities、clock 和 ID factory 等测试实现。
+
+验收标准：
+
+- 同一进程可以创建多个互不污染的 registry/runtime。
+- 缺失 capability 在节点启动前返回结构化错误。
+- timeout、取消和全局资源限流有确定性测试；有副作用节点默认不自动重试。
+
+### Phase 8：Chobits 私有扩展迁移（待实施）
+
+范围：
+
+- 建立私有 `@chobits/workflow-chobits` 包。
+- 将 SQLite/Drizzle store、预设 loader、resource/folder/workspace 能力迁入私有适配层。
+- 将 AI、media、ASR、OCR、HTML render 和 display 节点按 capability 接入。
+- 由 Chobits composition root 注册业务节点和实现，不让公共包反向导入宿主。
+- 保留现有 workflow JSON、node ID、preset ID 和运行记录映射。
+
+验收标准：
+
+- 公共包依赖图不再出现 Chobits、Electron、Drizzle、AI/OCR/media 业务实现。
+- 现有预设通过兼容回归，结果和取消语义保持一致。
+- 私有 adapter 可以使用 fake port 独立测试。
+
+### Phase 9：宿主入口与类型安全客户端（待实施）
+
+范围：
+
+- Electron main 在 `electron/main/workflow` 中创建并注入 runtime。
+- scheduler 和 AI workflow tool 改为接收 runtime facade，继续由各自领域管理触发、等待、后台执行和结果格式。
+- 建立共享 IPC channel/request/result/event contract 和 renderer client。
+- React editor 只依赖定义、node manifest 和 client contract，不深层导入 runtime 内部文件。
+- 保留兼容门面，在调用方完成迁移前不一次性删除旧入口。
+
+验收标准：
+
+- scheduler、AI tool、IPC 和 UI 只使用公开 facade/contract。
+- `wf:*` 通道在一个共享 contract 中维护，renderer 不再使用 `any` payload 或重复字符串。
+- 各入口的成功、失败、取消和 workspace 隔离回归继续通过。
+
+### Phase 10：发布加固与兼容清理（待实施）
+
+范围：
+
+- 使用 `pnpm pack` 生成 tarball，并在仓库内隔离 fixture 中安装和执行。
+- 验证第三方节点、capability、store、运行、取消和事件订阅只依赖公开 exports。
+- 增加 package 边界、类型、exports、side effects 和依赖闭包测试。
+- 补齐 API、节点 SDK、adapter 和版本兼容文档。
+- 在全部调用方迁移且兼容期结束后，删除废弃深层入口和临时门面。
+
+验收标准：
+
+- 独立消费者不引用 Chobits 源码即可完成一轮工作流执行和取消。
+- tarball 不包含数据库、缓存、宿主配置或未声明内部源码。
+- 公共 API、版本策略和兼容窗口有明确文档，所有包化验收项通过。
+
 ## 5. 测试策略
 
 ### 引擎单元测试
@@ -163,6 +245,14 @@ workflow-core -> no Electron / no database / no React
 - AI 工具对同步等待和后台运行的处理。
 - workspace 读写和删除隔离。
 
+### Package 与边界测试
+
+- 公共包独立 build、declaration 和 exports 校验。
+- 禁止 Electron、React、Drizzle 和 Chobits 私有依赖进入公共包。
+- 多 runtime 实例隔离、capability 预检和全局执行组限流。
+- tarball fixture 安装、第三方节点注册、执行、取消和事件订阅。
+- Chobits 旧入口、预设定义和运行记录的兼容回归。
+
 ### 回归测试门槛
 
 ```text
@@ -171,15 +261,17 @@ pnpm lint
 pnpm exec vitest run
 ```
 
-工作流测试不能引用已删除的 `electron/workflow` 路径；所有新增行为必须有最小回归测试。
+工作流测试不能依赖未导出的内部路径；所有新增行为必须有最小回归测试。Phase 10 必须执行真实 tarball 消费者测试，不能只依赖仓库内 path alias。
 
 ## 6. 实施约束
 
-- 本计划不在第一阶段进行无关 UI 重构。
-- 先修复运行语义，再调整数据库模型，最后做 package 拆分。
+- Phase 6 从包边界和公共 contract 开始，不同时重写全部业务节点。
+- 先建立兼容导出和实例 API，再按能力域迁移 Chobits adapters，最后清理旧入口。
 - 数据库字段变更必须先修改 schema，再执行 `pnpm db:generate`，并检查 migration。
+- Phase 6 至 Phase 10 默认不修改现有数据库模型；包化、目录移动和 adapter 提取本身不构成数据库升级理由。
 - 每个阶段保持可构建、可测试；阶段之间使用小步提交，便于回滚。
-- 不改变现有预设工作流的业务意图；定义迁移必须保留旧数据可运行性。
+- 不改变现有 workflow JSON、node ID、preset ID 和预设业务意图；定义迁移必须保留旧数据可运行性。
+- 首个公共版本只支持 Node.js 18+ 和 ESM，不同时承诺浏览器、分布式 worker 或崩溃断点恢复。
 
 ## 7. 当前执行队列
 
@@ -189,8 +281,13 @@ pnpm exec vitest run
 - [completed] Phase 3：workspace 隔离和持久化一致性。
 - [completed] Phase 4：core 规划/调度/状态/事件/registry、application service、Electron/资源适配器、节点 runtime service ports 和 client hooks 均已拆分并完成独立回归。
 - [completed] Phase 5：并发调度、有序持久化、运行与日志缓存、临时目录、脱敏限流、数据库历史保留、真实取消链和 attempt 级可观测性均已实施并完成定向回归。
+- [pending] Phase 6：独立 package、公共 contracts/exports、兼容入口和依赖边界检查。
+- [pending] Phase 7：实例 runtime/registry、capability system、通用运行请求、timeout/retry 和全局资源限制。
+- [pending] Phase 8：Chobits store、resource、AI、media、OCR 和 rendering 私有适配层迁移。
+- [pending] Phase 9：scheduler/AI runtime 注入、Electron composition root、类型安全 IPC/client。
+- [pending] Phase 10：tarball consumer fixture、发布边界加固、文档和兼容清理。
 
-## 8. 本轮实施记录
+## 8. Phase 1-5 已完成记录
 
 ### 已落地
 
@@ -257,4 +354,6 @@ Chobits app.db/app-dev.db main timestamps   unchanged; app-dev WAL already had a
 
 ### 下一步
 
-Phase 1 至 Phase 5 已完成。工作流主线后续可转入按产品需求新增节点重试策略、持久化日志查询或运维配置入口；这些不属于本优化计划既定验收范围。全仓测试仍有 onboarding/sprite、selected-text、scheduler storage、资源签名和 Electron mock 等既有失败，全量 lint 仍受 `dist-electron`、`.vscode` 及历史源码/测试问题影响，本轮未将这些无关问题混入修改。
+Phase 1 至 Phase 5 已完成，下一实施批次为 Phase 6“真实包边界与公共契约”。建议先完成独立 manifest/build/exports、公共 contract 抽取、兼容导出和依赖边界测试，再进入实例 runtime 与业务节点迁移；这样每一批都可以保持现有 Chobits 工作流可运行，并且不需要数据库升级。
+
+全仓测试仍有 onboarding/sprite、selected-text、scheduler storage、资源签名和 Electron mock 等既有失败，全量 lint 仍受 `dist-electron`、`.vscode` 及历史源码/测试问题影响。它们不属于工作流包化范围，实施时继续通过定向测试与全仓基线对照区分。

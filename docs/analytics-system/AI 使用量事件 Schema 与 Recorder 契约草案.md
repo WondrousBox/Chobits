@@ -2,7 +2,7 @@
 
 更新时间：2026-04-15
 
-本文档是 Phase 1 的技术草案，用于把 [AI 统计看板设计与开发计划](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E7%BB%9F%E8%AE%A1%E7%9C%8B%E6%9D%BF%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%BC%80%E5%8F%91%E8%AE%A1%E5%88%92.md) 与 [AI 使用量分类与计量规范](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E5%88%86%E7%B1%BB%E4%B8%8E%E8%AE%A1%E9%87%8F%E8%A7%84%E8%8C%83.md) 细化成可直接编码的 schema 草案与 recorder 契约。
+本文档是 Phase 1 的技术草案，用于把 [AI 统计看板设计与开发计划](./AI%20%E7%BB%9F%E8%AE%A1%E7%9C%8B%E6%9D%BF%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%BC%80%E5%8F%91%E8%AE%A1%E5%88%92.md) 与 [AI 使用量分类与计量规范](./AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E5%88%86%E7%B1%BB%E4%B8%8E%E8%AE%A1%E9%87%8F%E8%A7%84%E8%8C%83.md) 细化成可直接编码的 schema 草案与 recorder 契约。
 
 本文档的目标是冻结两件事：
 
@@ -111,7 +111,7 @@
 
 ## 2.4 Drizzle schema 草案
 
-建议在 [schema.ts](/Users/yuqian/Documents/projects/chobits/electron/main/db/schema.ts) 中按以下结构新增：
+建议在 [schema.ts](../../electron/main/db/schema.ts) 中按以下结构新增：
 
 ```ts
 export const ai_usage_events = sqliteTable(
@@ -195,7 +195,7 @@ export const ai_usage_events = sqliteTable(
 
 ## 2.5 类型导出草案
 
-建议在 [schema.ts](/Users/yuqian/Documents/projects/chobits/electron/main/db/schema.ts) 同步导出：
+建议在 [schema.ts](../../electron/main/db/schema.ts) 同步导出：
 
 ```ts
 export type AiUsageEventRow = InferSelectModel<typeof ai_usage_events>;
@@ -324,12 +324,12 @@ recordAiUsageEvent(input: RecordAiUsageEventInput): Promise<RecordAiUsageEventRe
 
 建议放在：
 
-- [usage-recorder.ts](/Users/yuqian/Documents/projects/chobits/electron/main/handlers/analytics/usage-recorder.ts)
-- [events.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/analytics/events.ts)
+- [usage-recorder.ts](../../electron/main/handlers/analytics/usage-recorder.ts)
+- [events.ts](../../packages/ai/analytics/events.ts)
   - AI 域发布 usage 观察事件
-- [fingerprint.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/analytics/fingerprint.ts)
+- [fingerprint.ts](../../packages/ai/analytics/fingerprint.ts)
   - AI 域与 analytics 域共享 usage 事件幂等指纹算法
-- [usage-event-listener.ts](/Users/yuqian/Documents/projects/chobits/electron/main/handlers/analytics/usage-event-listener.ts)
+- [usage-event-listener.ts](../../electron/main/handlers/analytics/usage-event-listener.ts)
   - analytics 域注册 durable writer，把事件先写入 outbox，再 drain 到 recorder
 
 ## 4.2 入参类型草案

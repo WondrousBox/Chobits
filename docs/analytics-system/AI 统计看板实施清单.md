@@ -6,9 +6,9 @@
 
 相关文档：
 
-- [AI 统计看板设计与开发计划](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E7%BB%9F%E8%AE%A1%E7%9C%8B%E6%9D%BF%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%BC%80%E5%8F%91%E8%AE%A1%E5%88%92.md)
-- [AI 使用量分类与计量规范](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E5%88%86%E7%B1%BB%E4%B8%8E%E8%AE%A1%E9%87%8F%E8%A7%84%E8%8C%83.md)
-- [AI 使用量事件 Schema 与 Recorder 契约草案](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E4%BA%8B%E4%BB%B6%20Schema%20%E4%B8%8E%20Recorder%20%E5%A5%91%E7%BA%A6%E8%8D%89%E6%A1%88.md)
+- [AI 统计看板设计与开发计划](./AI%20%E7%BB%9F%E8%AE%A1%E7%9C%8B%E6%9D%BF%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%BC%80%E5%8F%91%E8%AE%A1%E5%88%92.md)
+- [AI 使用量分类与计量规范](./AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E5%88%86%E7%B1%BB%E4%B8%8E%E8%AE%A1%E9%87%8F%E8%A7%84%E8%8C%83.md)
+- [AI 使用量事件 Schema 与 Recorder 契约草案](./AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E4%BA%8B%E4%BB%B6%20Schema%20%E4%B8%8E%20Recorder%20%E5%A5%91%E7%BA%A6%E8%8D%89%E6%A1%88.md)
 
 ## 0. 当前已完成项
 
@@ -109,7 +109,7 @@
 
 ### 4.1 数据库与 migration
 
-- [x] 在 [schema.ts](/Users/yuqian/Documents/projects/chobits/electron/main/db/schema.ts) 新增 `ai_usage_events`
+- [x] 在 [schema.ts](../../electron/main/db/schema.ts) 新增 `ai_usage_events`
 - [x] 字段按规范文档一次性补齐，至少包括：
   - `traceId`
   - `requestId`
@@ -154,14 +154,14 @@
   - `traceId`
 - [x] 运行 `pnpm run db:generate`
 - [x] 检查 `drizzle/` 中已生成新 migration
-- [ ] 确认 [index.ts](/Users/yuqian/Documents/projects/chobits/electron/main/db/index.ts) 的 `migrate()` 在新库创建和旧库升级两条路径都能创建该表
+- [ ] 确认 [index.ts](../../electron/main/db/index.ts) 的 `migrate()` 在新库创建和旧库升级两条路径都能创建该表
 - [ ] 如果首轮发现 migration 无法覆盖某些兼容逻辑，再补充最小 raw SQL 兼容修复，不要直接跳过 migration
 
 ### 4.2 repository
 
 建议新增文件：
 
-- [analytics-repositories.ts](/Users/yuqian/Documents/projects/chobits/electron/main/db/analytics-repositories.ts)
+- [analytics-repositories.ts](../../electron/main/db/analytics-repositories.ts)
 
 首版 repository 建议最少包含：
 
@@ -188,9 +188,9 @@
 
 建议新增文件：
 
-- [types.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/types.ts)
+- [types.ts](../../packages/ai/types.ts)
   - 仅在确定需要被现有 AI bridge 复用时扩展
-- [analytics](/Users/yuqian/Documents/projects/chobits/packages/ai)
+- [analytics](../../packages/ai)
   - 建议新增 `packages/ai/analytics/types.ts`
 
 推荐拆分：
@@ -227,10 +227,10 @@ Phase 1 验收：
 
 建议新增文件：
 
-- [usage-recorder.ts](/Users/yuqian/Documents/projects/chobits/electron/main/handlers/analytics/usage-recorder.ts)
-- [events.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/analytics/events.ts)
-- [fingerprint.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/analytics/fingerprint.ts)
-- [usage-event-listener.ts](/Users/yuqian/Documents/projects/chobits/electron/main/handlers/analytics/usage-event-listener.ts)
+- [usage-recorder.ts](../../electron/main/handlers/analytics/usage-recorder.ts)
+- [events.ts](../../packages/ai/analytics/events.ts)
+- [fingerprint.ts](../../packages/ai/analytics/fingerprint.ts)
+- [usage-event-listener.ts](../../electron/main/handlers/analytics/usage-event-listener.ts)
 
 推荐能力：
 
@@ -279,9 +279,9 @@ Phase 2 验收：
 
 核心文件：
 
-- [chat-service.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/chat-service.ts)
-- [session-service.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/runtime/pi/session-service.ts)
-- [stream-adapter.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/runtime/pi/stream-adapter.ts)
+- [chat-service.ts](../../packages/ai/chat-service.ts)
+- [session-service.ts](../../packages/ai/runtime/pi/session-service.ts)
+- [stream-adapter.ts](../../packages/ai/runtime/pi/stream-adapter.ts)
 
 清单：
 
@@ -299,8 +299,8 @@ Phase 2 验收：
 
 核心文件：
 
-- [chat-service.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/chat-service.ts)
-- [title.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/runtime/pi/tasks/title.ts)
+- [chat-service.ts](../../packages/ai/chat-service.ts)
+- [title.ts](../../packages/ai/runtime/pi/tasks/title.ts)
 
 清单：
 
@@ -315,8 +315,8 @@ Phase 2 验收：
 
 核心文件：
 
-- [translation-service.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/services/translation-service.ts)
-- [ipc-handler-helpers.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/ipc-handler-helpers.ts)
+- [translation-service.ts](../../packages/ai/services/translation-service.ts)
+- [ipc-handler-helpers.ts](../../packages/ai/ipc-handler-helpers.ts)
 
 清单：
 
@@ -342,8 +342,8 @@ Phase 2 验收：
 
 核心文件：
 
-- [summary-service.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/services/summary-service.ts)
-- [ipc-handler-helpers.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/ipc-handler-helpers.ts)
+- [summary-service.ts](../../packages/ai/services/summary-service.ts)
+- [ipc-handler-helpers.ts](../../packages/ai/ipc-handler-helpers.ts)
 
 清单：
 
@@ -358,8 +358,8 @@ Phase 2 验收：
 
 核心文件：
 
-- [mindmap-service.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/services/mindmap-service.ts)
-- [ipc-handler-helpers.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/ipc-handler-helpers.ts)
+- [mindmap-service.ts](../../packages/ai/services/mindmap-service.ts)
+- [ipc-handler-helpers.ts](../../packages/ai/ipc-handler-helpers.ts)
 
 清单：
 
@@ -373,7 +373,7 @@ Phase 2 验收：
 
 核心文件：
 
-- [memory-extraction-service.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/services/memory-extraction-service.ts)
+- [memory-extraction-service.ts](../../packages/ai/services/memory-extraction-service.ts)
 
 清单：
 
@@ -397,14 +397,14 @@ Phase 3 验收：
 
 建议新增文件：
 
-- [ipc-main.ts](/Users/yuqian/Documents/projects/chobits/electron/main/handlers/analytics/ipc-main.ts)
-- [analytics.ts](/Users/yuqian/Documents/projects/chobits/electron/preload/apis/analytics.ts)
+- [ipc-main.ts](../../electron/main/handlers/analytics/ipc-main.ts)
+- [analytics.ts](../../electron/preload/apis/analytics.ts)
 
 建议改动文件：
 
-- [index.ts](/Users/yuqian/Documents/projects/chobits/electron/main/handlers/index.ts)
-- [index.ts](/Users/yuqian/Documents/projects/chobits/electron/preload/index.ts)
-- [renderer.d.ts](/Users/yuqian/Documents/projects/chobits/src/renderer.d.ts)
+- [index.ts](../../electron/main/handlers/index.ts)
+- [index.ts](../../electron/preload/index.ts)
+- [renderer.d.ts](../../src/renderer.d.ts)
 
 清单：
 
@@ -439,13 +439,13 @@ Phase 4 验收：
 
 建议新增文件：
 
-- [AnalyticsPage.tsx](/Users/yuqian/Documents/projects/chobits/src/pages/AnalyticsPage/AnalyticsPage.tsx)
-- [components](/Users/yuqian/Documents/projects/chobits/src/pages/AnalyticsPage/components)
+- [AnalyticsPage.tsx](../../src/pages/AnalyticsPage/AnalyticsPage.tsx)
+- [components](../../src/pages/AnalyticsPage/components)
 
 建议改动文件：
 
-- [ResourceSidebar.tsx](/Users/yuqian/Documents/projects/chobits/src/pages/ResourcePage/components/layout/ResourceSidebar.tsx)
-- [ResourcePage.tsx](/Users/yuqian/Documents/projects/chobits/src/pages/ResourcePage/ResourcePage.tsx)
+- [ResourceSidebar.tsx](../../src/pages/ResourcePage/components/layout/ResourceSidebar.tsx)
+- [ResourcePage.tsx](../../src/pages/ResourcePage/ResourcePage.tsx)
 
 清单：
 
@@ -543,11 +543,11 @@ Phase 6 验收：
 
 对应入口：
 
-- [memory-retrieval-service.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/services/memory-retrieval-service.ts)
-- [tagging-service.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/services/tagging-service.ts)
-- [tag.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/runtime/pi/tasks/tag.ts)
-- [execution-service.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/runtime/pi/execution-service.ts)
-- [image-generation-service.ts](/Users/yuqian/Documents/projects/chobits/packages/ai/runtime/pi/image-generation-service.ts)
+- [memory-retrieval-service.ts](../../packages/ai/services/memory-retrieval-service.ts)
+- [tagging-service.ts](../../packages/ai/services/tagging-service.ts)
+- [tag.ts](../../packages/ai/runtime/pi/tasks/tag.ts)
+- [execution-service.ts](../../packages/ai/runtime/pi/execution-service.ts)
+- [image-generation-service.ts](../../packages/ai/runtime/pi/image-generation-service.ts)
 
 ## 11. 验证矩阵
 

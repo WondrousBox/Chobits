@@ -1,175 +1,258 @@
-## 工作流系统（Electron 主进程）
+# 工作流模块
 
-这个模块是在 Electron 主进程里运行的「可插拔工作流引擎」，主要负责围绕资源（Resource）做一系列可视化编排的批处理任务，例如转码、OCR、文档转 Markdown、AI 生成/理解、多媒体展示等。
+## 当前状态
 
-- **节点（Node）**：有显式的输入 / 输出定义，支持基础运行时校验和动态端口（inputs/outputs 随配置变化）。
-- **插件（Plugin）**：声明能力与安装检测（如 FFmpeg / Tesseract / Whisper），可在运行前准备环境。
-- **执行引擎**：基于 DAG 拓扑层执行，支持并发上限、取消、「失败即停止」与「失败继续(errorStrategy: 'continue')」。
-- **IPC 接口**：渲染进程可以通过 IPC 构建 / 校验 / 运行工作流，并订阅运行状态和日志。
-- **持久化**：自定义工作流定义与运行记录通过 `WorkflowStore` 存入应用数据库，并支持文件形式的预设工作流。
+`packages/workflow` 当前是 Chobits 根项目中的工作流源码目录，已经具备稳定的定义校验、DAG 执行、状态管理、取消、持久化队列和可观测性能力，但还不是可独立安装的发布包。
 
----
+后续目标不是让工作流与业务零耦合，而是把通用控制逻辑留在公共内核，把资源、AI、媒体、数据库和 Electron 能力改为由宿主通过 ports、capabilities 和 adapters 注入。
 
-## 目录结构
+- 文档索引：[工作流文档](../../docs/workflow/README.md)
+- 目标架构：[工作流目标架构](../../docs/workflow/architecture.md)
+- 实施路线：[工作流系统优化实施计划](../../docs/workflow/implementation-plan.md)
 
-- `types.ts`：工作流 / 节点 / 插件 / 运行记录与 runtime service ports 等公共契约。
-- `core/`：不依赖 Electron、数据库或 React 的 DAG planner、执行调度器、运行状态机、事件类型和 registry。
-- `registry.ts`：兼容入口，重新导出 `core/registry` 的同一个注册表实例。
-- `engine.ts`：执行编排与校验逻辑（`WorkflowEngine` + `createEngine`），调用 `core/` 中的纯规划、调度和状态函数。
-- `application-service.ts`：定义、运行、workspace 授权和历史访问的应用用例，通过存储端口注入外部实现。
-- `run-event-coordinator.ts`：运行状态持久化、进度聚合、广播和生命周期回调的协调器。
-- `run-history-retention.ts`：终态运行历史的 workspace 级保留策略与节流控制器。
-- `ipc-adapter.ts`：`wf:*` 请求解析及 IPC 返回契约，不直接依赖 Electron 实现。
-- `resource-event-adapter.ts`：资源创建、更新、下载和运行上下文事件适配，通过仓储、文件系统和网络端口接入应用设施。
-- `resource-project-adapter.ts`：把应用现有的资源项目目录服务适配为工作流执行上下文端口。
-- `html-screenshot-adapter.ts`：Electron `BrowserWindow` 截图实现，通过执行上下文注入图片节点并支持取消。
-- `store.ts`：工作流定义、运行记录和预设定义缓存的持久化适配。
-- `plugins/`：内置插件
-  - `ffmpeg.ts`：音视频转码、截图等能力。
-  - `tesseract.ts`：OCR 能力。
-  - `whisper.ts`：语音转文本（STT）能力。
-- `nodes/`：内置节点
-  - 核心：`start` / `end`
-  - 资源：`resource-load` / `resource-create` / `resource-update`
-  - 转码：`transcode` / `transcode-advanced` / `extract-keyframes`
-  - 文字与文档：`ocr` / `doc-to-md` / `transcribe-whisper`
-  - AI：`ai-chat` / `image-understand` / `image-generate`
-  - 展示：`display-text` / `display-image` / `display-media` / `display-resource-card`
-- `task-results.ts`：基于文件路径扫描工作流任务输出结果。
-- `index.ts`：工作流系统入口，初始化引擎、注册节点与插件、暴露 IPC 接口并与应用数据库打通。
+本文档同时说明当前代码和迁移目标。标记为“目标”的 API 或目录在对应实施阶段完成前不能视为已经存在。
 
----
+## 产品用途
 
-## 与 Electron 主进程的集成方式
+Chobits 使用工作流处理本地资源和长任务，主要入口包括：
 
-主进程通过调用 `initWorkflowSystem` 启动工作流系统：
+- 可视化编辑器手动运行。
+- 文件操作、资源菜单和批量资源处理。
+- schedule、system event、resource event 和 manual automation。
+- AI 工具同步等待或切换到后台执行。
 
-- 传入 `getWorkflowDefinitionsPath`，用于告诉系统预设工作流 JSON 文件所在路径。
-- 在函数内部：
-  - 注册内置插件：`FfmpegPlugin` / `TesseractPlugin` / `WhisperPlugin`。
-  - 注册所有内置节点（见上文 `nodes/` 列表）。
-  - 创建 `engine = createEngine()`。
-  - 向 `ExecutionContext.services` 注入资源、文件夹、workspace 仓储读取端口和 HTML 截图端口；节点本身不直接依赖数据库或 Electron。
-  - 通过 `run-event-coordinator` 监听引擎事件（`run:status` / `node:status` / `run:log` 等），并广播到所有窗口：
-    - 通过 `BrowserWindow.getAllWindows().forEach(win => win.webContents.send(...))`。
-    - 同步至 `WorkflowStore`，用于在 UI 中展示历史运行记录。
-  - 通过 `resource-event-adapter` 处理资源相关事件，和应用现有的 `ResourcesRepo` / `FoldersRepo` / `WorkspacesRepo` 与 `eventManager` 对接：
-    - `resource:create-request`
-    - `resource:update-request`
-    - `resource:download-request`
-  - 根据运行状态更新「精灵忙碌状态」（`sendSpriteBusyStart/Progress/End`），在 UI 中展示工作流执行进度。
+内置节点覆盖资源读写、FFmpeg、ASR、OCR、AI、图片和结果展示。运行发生在 Electron main process，定义和历史按 workspace 持久化。
 
----
+## 当前模块组成
 
-## IPC 接口一览
+```text
+packages/workflow/
+  core/                         DAG、调度、状态机、事件和 registry
+  nodes/                        通用节点与 Chobits 业务节点
+  plugins/                      FFmpeg、ASR、OCR 等插件检查
+  runtime/                      当前仅有少量兼容转发
+  application-service.ts       定义、运行、取消和历史用例
+  engine.ts                    执行器、校验和运行生命周期
+  schema.ts                    定义和请求 schema
+  types.ts                     当前共享类型
+  store.ts                     SQLite 与预设文件适配
+  ipc-adapter.ts               IPC handler contract 映射
+  resource-event-adapter.ts    资源事件适配
+  run-event-coordinator.ts     持久化、广播、进度和生命周期
+  run-persistence-queue.ts     有序持久化队列
+  run-history-retention.ts     数据库运行历史保留策略
+  sanitize.ts                  脱敏和有界快照
+  index.ts                     当前 Electron composition root 和兼容入口
+```
 
-所有 IPC 接口前缀为 `wf:`，由 `ipc-adapter.ts` 注册到主进程传入的 registrar，渲染进程通过 `ipcRenderer.invoke` 调用。
+当前边界中的优点：
 
-- **节点 & 插件元信息**
-  - `wf:listNodes` → `NodeSpec[]`
-    - 返回所有已注册节点的规格信息（包含是否有动态配置/端口：`hasDynamicConfig/Inputs/Outputs`）。
-  - `wf:getNodeConfig` → `{ ok, config }`
-  - `wf:getNodeInputs` → `{ ok, inputs }`
-  - `wf:getNodeOutputs` → `{ ok, outputs }`
-  - `wf:listPlugins` → `{ id, label, installed }[]`
+- `core/` 中的规划、调度和状态函数可以独立测试。
+- `WorkflowApplicationService` 通过 store port 组织用例。
+- IPC、资源事件和运行事件已有 adapter 接口。
+- 资源、folder、workspace 和 HTML render 已有部分 runtime service 注入。
+- 引擎不直接访问 Electron 或数据库。
 
-- **工作流定义管理**
-  - `wf:listDefinitions` → 预设 + 自定义所有工作流定义列表。
-  - `wf:listPresets` → 仅预设工作流列表。
-  - `wf:isPreset` → 判断某个 `id` 是否为预设工作流。
-  - `wf:getDefinition` → 根据 `id` 获取工作流定义（优先预设，其次用户自定义）。
-  - `wf:saveDefinition` → 保存/更新自定义工作流定义。
-  - `wf:deleteDefinition` → 删除自定义工作流定义。
+当前尚未达到发布包要求的部分：
 
-- **校验与运行**
-  - `wf:validate` → `ValidateResult`
-    - 校验节点类型是否存在、端口是否匹配、DAG 是否有环、依赖插件是否安装等。
-  - `wf:run` → `{ ok: boolean; runId?: string; validation?: ValidateResult; error?: string }`
-    - 自动从预设 + 自定义中查找 `defId` 对应工作流。
-    - 根据 `def.options.errorStrategy` 控制失败后的行为（停止 / 继续）。
-  - `wf:getRun` → 单次运行详情 `WorkflowRunRecord`
-  - `wf:listRuns` → 历史运行列表（支持按 `defId` / `resourceId` / `workspaceId` 等过滤）。
-  - `wf:deleteRun` → 删除某次运行记录。
-  - `wf:cancelRun` → 取消运行中的工作流。
-  - `wf:getRunLogs` → 获取运行日志数组。
+- 缺少独立 `package.json`、build、declaration 和 exports。
+- registry 和 application service 使用模块级单例。
+- `types.ts` 仍引用 Chobits plugin resource 类型，并混合 core、UI 和宿主字段。
+- AI、OCR 和部分媒体节点直接导入其他业务包。
+- `index.ts`、`store.ts` 和 HTML screenshot adapter 仍包含 Electron/数据库实现。
+- renderer 直接深层导入类型并分散维护 `wf:*` IPC 字符串。
 
-- **其他**
-  - `wf:getTaskResults` → `{ ok, data }`  
-    根据文件路径读取该文件相关的任务结果（例如转码 / OCR 的中间产物）。
+## 当前执行模型
 
----
+当前工作流定义由以下主要字段组成：
 
-## 运行时行为说明
+```ts
+interface WorkflowDefinition {
+  id: string;
+  name: string;
+  schemaVersion?: number;
+  workspaceId?: string;
+  nodes: NodeInstance[];
+  edges: Edge[];
+  options?: {
+    concurrency?: number;
+    errorStrategy?: 'fail-fast' | 'continue';
+  };
+}
+```
 
-- **执行顺序**
-  - 使用 `core/dag-planner.ts` 生成稳定拓扑顺序、执行层和终端节点，只支持有向无环图（DAG），非法边或环会直接报错。
-  - `core/execution-scheduler.ts` 按拓扑层调度，同一层节点受 `options.concurrency` 限制并发；默认值为 1，最大值为 64。
-  - fail-fast 会停止调度后续批次，但同批已经启动的节点允许结束；`continue` 会继续执行，并在终态保留失败结果。
+引擎会：
 
-- **Start 节点输入**
-  - Start 节点会将两部分数据合并作为输入：
-    - `wf:run` 传入的 `initialInput`（例如 `resource` 对象）。
-    - 画布上配置的 `inputDefaults`。
-  - 支持多种输入模式（`config.inputMode`）：
-    - `text`：需要文本输入，否则会触发 `wf:start-input-required` 事件，请求前端弹窗收集输入。
-    - `url`：需要 URL 输入，逻辑同上。
-    - `file`：需要文件输入，逻辑同上。
+1. 解析和迁移定义 schema。
+2. 校验节点、边、端口、配置、默认值和 DAG。
+3. 创建稳定 `runId` 和运行上下文。
+4. 按拓扑层和 `concurrency` 调度节点。
+5. 传递 `AbortSignal` 并处理 fail-fast/continue。
+6. 记录 node attempt、进度、日志和终态。
+7. 合并终端节点输出并清理临时资源。
 
-- **插件检查与准备**
-  - 在 `validate` 阶段会检查需要的插件是否存在、是否已安装。
-  - 在 `run` 阶段首次使用某插件时，会调用其 `prepare` 方法做一次性初始化。
+## 当前可靠性保证
 
-- **取消传播**
-  - `wf:cancelRun` 会触发当前运行的 `AbortSignal`。
-  - AI 对话、图片生成、音乐生成、HTML 截图、资源下载和媒体/OCR 外部进程会继续向实际 provider、网络请求、窗口或子进程传递该信号。
-  - AI 请求取消会记录为 `cancelled`，不会作为普通 provider 失败统计。
+- 失败和取消会形成明确终态，不会被入口当作成功。
+- 条件分支只执行命中路径，未命中节点标记为 skipped。
+- 多终端同名输出返回明确冲突错误。
+- 同一 run 的数据库写入按顺序串行化。
+- 进度写入合并，节点状态和终态立即持久化。
+- 日志、输入、输出和 metadata 会脱敏并限制大小。
+- 内存运行和日志缓存有上限。
+- 临时目录有保留和清理策略。
+- 数据库终态历史按 workspace、时间和数量清理。
+- 外部进程和 AI 请求尽量使用同一个取消信号。
 
-- **进度 & 日志**
-  - 引擎内部记录并广播：
-    - `run:status`：整体运行状态 & 进度。
-    - `node:status`：节点级别状态（`pending/running/completed/failed/skipped`）。
-    - `node:progress`：节点内部细粒度进度（如转码百分比）；整体进度会聚合所有并发节点，持久化更新按 run 合并。
-    - `run:log`：结构化日志，每条带有 `runId / nodeId / attempt / level / errorReason / timestamp`（无节点或尚未开始执行时省略不适用字段）。
-  - 节点状态持久化 `attempt` 和有界 attempt 摘要；重新执行时保留先前 attempt 的状态、耗时和错误原因，并清除新 attempt 上的旧终态字段。
-  - workflow AI 的请求 ID、analytics metadata 和统一用量事件使用同一 attempt；用量表中的 `attemptIndex` 保持从 0 开始。
+## 当前主进程接入
 
-- **运行历史保留**
-  - 数据库按 workspace 默认保留最近 1000 条终态运行，并清理 90 天前的终态运行；`queued/running` 永不参与自动删除。
-  - 清理按 250 条分批执行，同一 workspace 最多每小时触发一次；首次新终态写入会回收已有的过期或超额历史。
-  - 该策略复用现有 `workspace_id / status / started_at`，不需要额外数据库字段。
+Electron main 调用 `initWorkflowSystem`：
 
----
+```ts
+initWorkflowSystem({
+  getWorkflowDefinitionsPath,
+  ensureResourceProjectDir
+});
+```
 
-## 扩展指南
+当前入口负责：
 
-- **新增节点（Node）**
-  1. 在 `nodes/` 下创建一个文件，实现一个 `NodeHandler`：
-     - 定义 `spec`：`id` / `label` / `inputs` / `outputs` / `requires` 等。
-     - 实现 `run({ input, config, ctx, emit, getPlugin })`。
-     - 如需要动态端口，额外实现 `getInputs(config)` / `getOutputs(config)`。
-  2. 在 `initWorkflowSystem` 中通过 `registerNode(MyNode)` 注册。
+- 注册全部节点和插件。
+- 创建 engine 和 application service。
+- 绑定 SQLite store、资源 repositories 和 HTML render。
+- 转发运行状态、日志、AppEvent 和精灵忙碌状态。
+- 注册 `wf:*` IPC handlers。
+- 为调度器和 AI 工具提供兼容函数。
 
-  渲染进程调用 `wf:listNodes` 后即可在可视化编辑器中使用该节点。
+这属于过渡期 composition root。目标状态下，这些 Chobits 实现会迁入私有扩展和 Electron 宿主目录，公共包只导出实例化 runtime API。
 
-- **新增插件（Plugin）**
-  1. 在 `plugins/` 下创建一个插件实现：
-     - 导出 `id` / `label`。
-     - 实现 `isInstalled(ctx)`：检测当前环境是否可用（如检查 ffmpeg 可执行文件）。
-     - 可选实现 `prepare(ctx)`：做一次性初始化（下载模型、创建临时目录等）。
-  2. 在 `initWorkflowSystem` 中通过 `registerPlugin(MyPlugin)` 注册。
-  3. 在节点 `spec.requires` 中声明依赖该插件的 `id`。
+## 当前 IPC 能力
 
-- **新增预设工作流**
-  - 将 JSON 定义放到 `getWorkflowDefinitionsPath()` 指向的路径下，格式为 `WorkflowDefinition`：
-    - `id` / `name` / `nodes` / `edges` / `options`。
-  - 启动应用后，`wf:listPresets` / `wf:listDefinitions` 中会自动包含这些预设工作流。
+当前 renderer 使用以下通道：
 
----
+- 定义：`wf:listDefinitions`、`wf:listPresets`、`wf:getDefinition`、`wf:saveDefinition`、`wf:deleteDefinition`
+- 节点：`wf:listNodes`、`wf:getNodeConfig`、`wf:getNodeInputs`、`wf:getNodeOutputs`
+- 校验和运行：`wf:validate`、`wf:run`、`wf:cancelRun`
+- 历史：`wf:getRun`、`wf:listRuns`、`wf:deleteRun`、`wf:getRunLogs`
+- 事件：`wf:run-status`、`wf:node-status`、`wf:run-log`
 
-## 典型使用场景示例（概念层）
+目标状态下通道名称和请求/返回类型由共享 contract 定义，Electron IPC 只是 transport adapter，React 页面不再直接维护字符串和 `any` payload。
 
-- **OCR 工作流**：Start（选择文件） → LoadResource → OCR(Tesseract) → ResourceUpdate(保存文本) → End。
-- **音视频转码工作流**：Start（选择文件） → LoadResource → Transcode(FFmpeg) → ExtractKeyframes → End。
-- **AI 处理工作流**：Start（文本或资源） → AiChat / ImageUnderstand / ImageGenerate → DisplayText / DisplayImage / DisplayResourceCard。
+## 目标公共包边界
 
-实际的预设工作流 JSON 可以在 `resources` 目录中查看或通过 `wf:listPresets` 在前端调试。
+可发布的工作流包内部管理：
+
+- definition schema 和迁移。
+- DAG、端口、调度和状态机。
+- runtime 实例和 run lifecycle。
+- 取消、超时、可选重试和资源限制。
+- 事件、日志、进度、脱敏和保留策略。
+- store/capability ports。
+- 节点 SDK、registry 和通用节点。
+
+宿主注入：
+
+- SQLite 或其他定义/运行存储。
+- resource、folder、workspace。
+- AI provider、secret、模型和 usage。
+- 文件、artifact、FFmpeg、ASR 和 OCR。
+- HTML render、Electron IPC 和 AppEvent。
+- 权限、模型下载和产品 UI。
+
+## 目标使用方式
+
+以下为目标 API，不代表当前已经可调用：
+
+```ts
+const registry = createWorkflowRegistry();
+registry.registerNode(StartNode);
+registry.registerNode(EndNode);
+registry.registerNode(customNode);
+
+const runtime = createWorkflowRuntime({
+  registry,
+  definitions,
+  runs,
+  createRunScope,
+  capabilities
+});
+
+const handle = runtime.start({
+  definitionId: 'example',
+  input: { text: 'hello' },
+  scope: { kind: 'workspace', id: 'workspace-1' },
+  trigger: { type: 'manual' }
+});
+
+const record = await handle.completionPromise;
+```
+
+公共 API 不使用全局 registry。每个 runtime 拥有自己的节点集合、能力和生命周期。
+
+## 节点开发原则
+
+### 通用节点
+
+Start、End、Condition、JSON 等通用节点进入公共包。通用节点不能导入 Chobits repository、AI provider、Electron 或 React。
+
+### 业务节点
+
+资源、AI、媒体、OCR 和展示节点留在 Chobits 私有扩展，通过 capability token 获取业务能力。
+
+目标写法：
+
+```ts
+const RESOURCES = defineCapability<ResourceCapability>('resources');
+
+export const LoadResourceNode = defineNode({
+  spec: {
+    id: 'resource/load',
+    requiredCapabilities: [RESOURCES]
+  },
+  async run({ capabilities, input }) {
+    return capabilities.require(RESOURCES).getById(input.resourceId);
+  }
+});
+```
+
+节点必须声明：
+
+- 稳定 ID 和版本。
+- 输入、输出和配置 schema。
+- capability 和 asset requirements。
+- timeout、执行组和是否允许重试。
+- 非兼容配置变化的迁移函数。
+
+默认不自动重试有副作用的节点。
+
+## 预设工作流
+
+当前预设位于 `resources/workflows/preset.json`。包化期间保持现有 preset ID、node ID 和 JSON 兼容，不把 Chobits 预设放入公共包。
+
+公共包可以提供只包含通用节点的示例定义；业务预设由宿主随应用发布。
+
+## 测试与发布门槛
+
+当前回归仍使用仓库根测试配置。包化后至少需要：
+
+```text
+pnpm exec tsc --noEmit --pretty false
+pnpm exec vitest run <workflow tests>
+pnpm exec eslint <workflow package and adapters>
+pnpm exec prettier --check <workflow docs and sources>
+pnpm pack
+```
+
+还必须在独立 fixture 中安装 tarball，并验证：
+
+- 不引用 Chobits 源码即可创建 runtime。
+- 可以注册第三方节点和 capability。
+- 可以执行、取消和订阅运行。
+- 公共根入口不会加载 Electron、React、Drizzle 或原生媒体依赖。
+- 消费者不需要深层导入内部文件。
+
+## 数据库约束
+
+包化本身不要求数据库升级。第一批保留现有 definition/run 数据模型，并通过 adapter 映射 workspace scope。
+
+如后续确需修改表字段，必须先修改 `electron/main/db/schema.ts`，再执行 `pnpm db:generate` 并检查生成 migration。

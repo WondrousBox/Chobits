@@ -4,11 +4,11 @@
 
 本文档用于指导项目内“AI 统计看板”的设计与落地。第一阶段目标不是只做一个“token 展示效果”，而是建立一套可长期演进的、尽可能精确的 AI 使用量计量体系：既能按服务商、模型统计，也必须能按业务用途分类统计，并为后续付费系统、额度系统、成本核算、组织级账单提供稳定基础。
 
-分类字典、事件粒度、计量精度与计费口径，另见配套规范文档：[AI 使用量分类与计量规范](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E5%88%86%E7%B1%BB%E4%B8%8E%E8%AE%A1%E9%87%8F%E8%A7%84%E8%8C%83.md)。
+分类字典、事件粒度、计量精度与计费口径，另见配套规范文档：[AI 使用量分类与计量规范](./AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E5%88%86%E7%B1%BB%E4%B8%8E%E8%AE%A1%E9%87%8F%E8%A7%84%E8%8C%83.md)。
 
-具体实施顺序、文件落点与验收 checklist，另见：[AI 统计看板实施清单](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E7%BB%9F%E8%AE%A1%E7%9C%8B%E6%9D%BF%E5%AE%9E%E6%96%BD%E6%B8%85%E5%8D%95.md)。
+具体实施顺序、文件落点与验收 checklist，另见：[AI 统计看板实施清单](./AI%20%E7%BB%9F%E8%AE%A1%E7%9C%8B%E6%9D%BF%E5%AE%9E%E6%96%BD%E6%B8%85%E5%8D%95.md)。
 
-Phase 1 的字段级 schema 与 recorder 契约草案，另见：[AI 使用量事件 Schema 与 Recorder 契约草案](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E4%BA%8B%E4%BB%B6%20Schema%20%E4%B8%8E%20Recorder%20%E5%A5%91%E7%BA%A6%E8%8D%89%E6%A1%88.md)。
+Phase 1 的字段级 schema 与 recorder 契约草案，另见：[AI 使用量事件 Schema 与 Recorder 契约草案](./AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E4%BA%8B%E4%BB%B6%20Schema%20%E4%B8%8E%20Recorder%20%E5%A5%91%E7%BA%A6%E8%8D%89%E6%A1%88.md)。
 
 当前实现进度（2026-04-14）：
 
@@ -758,9 +758,9 @@ recordAiUsageEvent({
 产出：
 
 - 本设计文档
-- [AI 使用量分类与计量规范](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E5%88%86%E7%B1%BB%E4%B8%8E%E8%AE%A1%E9%87%8F%E8%A7%84%E8%8C%83.md)
-- [AI 统计看板实施清单](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E7%BB%9F%E8%AE%A1%E7%9C%8B%E6%9D%BF%E5%AE%9E%E6%96%BD%E6%B8%85%E5%8D%95.md)
-- [AI 使用量事件 Schema 与 Recorder 契约草案](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E4%BA%8B%E4%BB%B6%20Schema%20%E4%B8%8E%20Recorder%20%E5%A5%91%E7%BA%A6%E8%8D%89%E6%A1%88.md)
+- [AI 使用量分类与计量规范](./AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E5%88%86%E7%B1%BB%E4%B8%8E%E8%AE%A1%E9%87%8F%E8%A7%84%E8%8C%83.md)
+- [AI 统计看板实施清单](./AI%20%E7%BB%9F%E8%AE%A1%E7%9C%8B%E6%9D%BF%E5%AE%9E%E6%96%BD%E6%B8%85%E5%8D%95.md)
+- [AI 使用量事件 Schema 与 Recorder 契约草案](./AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E4%BA%8B%E4%BB%B6%20Schema%20%E4%B8%8E%20Recorder%20%E5%A5%91%E7%BA%A6%E8%8D%89%E6%A1%88.md)
 
 ## Phase 1：计量模型、分类字典与 recorder
 
@@ -974,7 +974,7 @@ recordAiUsageEvent({
 
 文档确认后，如确认开始开发，再进入 Phase 1：
 
-- 先确认 [AI 使用量分类与计量规范](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E5%88%86%E7%B1%BB%E4%B8%8E%E8%AE%A1%E9%87%8F%E8%A7%84%E8%8C%83.md)
+- 先确认 [AI 使用量分类与计量规范](./AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E5%88%86%E7%B1%BB%E4%B8%8E%E8%AE%A1%E9%87%8F%E8%A7%84%E8%8C%83.md)
 - 冻结分类字典
 - 冻结精度等级与计费口径
 - 建表

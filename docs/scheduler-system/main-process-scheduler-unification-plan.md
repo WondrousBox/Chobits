@@ -53,6 +53,8 @@ behavior completed: ❤❤❤❤❤ 自动行走 ❤❤❤❤❤
 
 `automation:create/update/delete/toggle` 仍调用 `scheduleRule/unscheduleRule` 这个兼容命名的 adapter API，但内部已经先 remove 旧 job，再按新 triggerType upsert 新 job，因此 disabled 或 triggerType 改变不会留下旧 cron job。
 
+按照 [工作流目标架构](../workflow/architecture.md)，scheduler 始终是 Chobits 宿主侧的触发适配器：它决定何时触发并管理 misfire、admission 和 audit，通过注入的 workflow runtime facade 发起运行。scheduler 不进入可发布工作流包，也不直接访问公共包内部 registry、store 或节点实现。
+
 ## 设计原则
 
 1. 调度必须在 Electron main process 里运行，renderer 只负责配置和交互事件上报。
@@ -84,7 +86,7 @@ flowchart TD
 
   DailyCare --> Purpose["SpritePurposeManager"]
   SpriteBehavior --> Purpose
-  AutomationExec --> Workflow["WorkflowEngine"]
+  AutomationExec --> Workflow["Injected Workflow Runtime Facade"]
   Workflow --> Purpose
 ```
 
@@ -133,16 +135,16 @@ type ScheduleSpec =
 
 映射关系：
 
-| 现有系统 | 当前字段 | 目标 ScheduleSpec |
-| --- | --- | --- |
-| BehaviorEngine | `schedule.type = interval` | `interval` |
-| BehaviorEngine | `schedule.type = random` | `randomInterval` |
-| BehaviorEngine | `schedule.type = cron-like` | 暂未正式映射；当前 adapter 会按 interval 兜底 |
-| DailyCare | `RoutineSchedule.interval` | `interval` |
-| DailyCare | `RoutineSchedule.fixed` | adapter 转成 `cron` |
-| DailyCare | `RoutineSchedule.calendar` | adapter 转成每日 `cron`，业务日期仍由 daily-care 判断 |
-| Automation | `triggerConfig.cron` | `cron` |
-| Automation | `resource_event/system_event/manual` | `event` / `manual` |
+| 现有系统       | 当前字段                             | 目标 ScheduleSpec                                     |
+| -------------- | ------------------------------------ | ----------------------------------------------------- |
+| BehaviorEngine | `schedule.type = interval`           | `interval`                                            |
+| BehaviorEngine | `schedule.type = random`             | `randomInterval`                                      |
+| BehaviorEngine | `schedule.type = cron-like`          | 暂未正式映射；当前 adapter 会按 interval 兜底         |
+| DailyCare      | `RoutineSchedule.interval`           | `interval`                                            |
+| DailyCare      | `RoutineSchedule.fixed`              | adapter 转成 `cron`                                   |
+| DailyCare      | `RoutineSchedule.calendar`           | adapter 转成每日 `cron`，业务日期仍由 daily-care 判断 |
+| Automation     | `triggerConfig.cron`                 | `cron`                                                |
+| Automation     | `resource_event/system_event/manual` | `event` / `manual`                                    |
 
 ### SchedulerJobDefinition
 
@@ -280,13 +282,13 @@ interface SchedulerRuntimeState {
 
 不同业务默认策略不同：
 
-| 业务 | App 关闭期间错过 | 休眠/锁屏后恢复 | 系统 idle |
-| --- | --- | --- | --- |
-| 自动行走/idle 小动作 | skip | skip 到下一次随机时间 | skip |
-| 普通 daily-care | 默认 skip | resume cooldown 后 run-once 可选 | skip |
-| urgent/nightGuard | run-once 可选 | 可绕过普通 cooldown | allow |
-| workflow cron | 默认 skip | 下一次 cron | 不关心 idle |
-| 用户手动触发 | 立即执行 | 立即执行 | 不关心 idle |
+| 业务                 | App 关闭期间错过 | 休眠/锁屏后恢复                  | 系统 idle   |
+| -------------------- | ---------------- | -------------------------------- | ----------- |
+| 自动行走/idle 小动作 | skip             | skip 到下一次随机时间            | skip        |
+| 普通 daily-care      | 默认 skip        | resume cooldown 后 run-once 可选 | skip        |
+| urgent/nightGuard    | run-once 可选    | 可绕过普通 cooldown              | allow       |
+| workflow cron        | 默认 skip        | 下一次 cron                      | 不关心 idle |
+| 用户手动触发         | 立即执行         | 立即执行                         | 不关心 idle |
 
 调度器只做通用 misfire 策略；具体要不要补一次由 job policy 配置。
 

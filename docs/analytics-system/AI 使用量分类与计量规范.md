@@ -2,7 +2,7 @@
 
 更新时间：2026-04-14
 
-本文档是 [AI 统计看板设计与开发计划](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E7%BB%9F%E8%AE%A1%E7%9C%8B%E6%9D%BF%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%BC%80%E5%8F%91%E8%AE%A1%E5%88%92.md) 的配套规范，用于冻结 AI 使用量统计的分类字典、事件粒度、计量精度、计费口径与扩展规则。后续所有 AI 链路接入 recorder、建设统计看板、做额度系统或付费系统时，均以本文档为准。
+本文档是 [AI 统计看板设计与开发计划](./AI%20%E7%BB%9F%E8%AE%A1%E7%9C%8B%E6%9D%BF%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%BC%80%E5%8F%91%E8%AE%A1%E5%88%92.md) 的配套规范，用于冻结 AI 使用量统计的分类字典、事件粒度、计量精度、计费口径与扩展规则。后续所有 AI 链路接入 recorder、建设统计看板、做额度系统或付费系统时，均以本文档为准。
 
 ## 1. 文档目标
 
@@ -525,11 +525,11 @@
 
 职责划分如下：
 
-- [AI 统计看板设计与开发计划](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E7%BB%9F%E8%AE%A1%E7%9C%8B%E6%9D%BF%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%BC%80%E5%8F%91%E8%AE%A1%E5%88%92.md)
+- [AI 统计看板设计与开发计划](./AI%20%E7%BB%9F%E8%AE%A1%E7%9C%8B%E6%9D%BF%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%BC%80%E5%8F%91%E8%AE%A1%E5%88%92.md)
   - 负责产品目标、页面结构、阶段计划、开发顺序
-- [AI 统计看板实施清单](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E7%BB%9F%E8%AE%A1%E7%9C%8B%E6%9D%BF%E5%AE%9E%E6%96%BD%E6%B8%85%E5%8D%95.md)
+- [AI 统计看板实施清单](./AI%20%E7%BB%9F%E8%AE%A1%E7%9C%8B%E6%9D%BF%E5%AE%9E%E6%96%BD%E6%B8%85%E5%8D%95.md)
   - 负责具体文件落点、执行步骤、验收清单与验证矩阵
-- [AI 使用量事件 Schema 与 Recorder 契约草案](/Users/yuqian/Documents/projects/chobits/docs/analytics-system/AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E4%BA%8B%E4%BB%B6%20Schema%20%E4%B8%8E%20Recorder%20%E5%A5%91%E7%BA%A6%E8%8D%89%E6%A1%88.md)
+- [AI 使用量事件 Schema 与 Recorder 契约草案](./AI%20%E4%BD%BF%E7%94%A8%E9%87%8F%E4%BA%8B%E4%BB%B6%20Schema%20%E4%B8%8E%20Recorder%20%E5%A5%91%E7%BA%A6%E8%8D%89%E6%A1%88.md)
   - 负责 `ai_usage_events` 的列级 schema、索引、唯一性策略与 recorder 入参契约
 - 本文档
   - 负责事件粒度、分类字典、计量精度、计费口径、扩展准入规则
