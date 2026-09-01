@@ -14,7 +14,8 @@ import { alignMainWindowToBottomRight } from '../utils/positioning';
 const CANVAS_ID = 'live2d-assistant-canvas';
 const MODEL_BASE_URL = 'res://local/sprites/live2d/';
 /** 默认模型目录名;激活角色包可通过 pack.json 的 assets.live2d 指定其他模型(约定 model3.json 文件名与目录同名) */
-const DEFAULT_MODEL_DIR_NAME = 'chii';
+// 现阶段默认使用官方示例模型 mao_pro,chii 模型待后续升级后再作为默认
+const DEFAULT_MODEL_DIR_NAME = 'mao_pro';
 
 // live2d.json 放在模型根目录（与 index.json 同级），而不是 runtime/ 子目录
 function resolveModelDirName(pack: { assets?: { live2d?: string } } | null | undefined): string {
@@ -49,6 +50,8 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
   const [runtimeReady, setRuntimeReady] = useState(false);
   // 当前 Live2D 模型目录名（由激活角色包的 assets.live2d 决定，null 表示尚未解析）
   const [modelDirName, setModelDirName] = useState<string | null>(null);
+  // live2d.json 已加载(可能为 null 配置)并提交 DOM 的模型目录;用于把 SDK init 推迟到画布尺寸生效之后
+  const [configReadyFor, setConfigReadyFor] = useState<string | null>(null);
   const activePlaybackRef = useRef<ActiveLive2DPlayback | null>(null);
   // 右下角对齐只做一次（初始化后），避免动画切换时把用户拖走的窗口抢回来
   const hasAlignedToBottomRightRef = useRef(false);
@@ -87,21 +90,66 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
   }, []);
 
   // 初始化运行时与配置（模型目录变化时重建）
+  // 拆成两步：先加载 live2d.json 并让 React 把新画布尺寸提交到 DOM，
+  // 再初始化 SDK —— SDK 的 _resizeCanvas 读 canvas.clientWidth/Height,
+  // 如果 init 早于 DOM 提交,WebGL backing store 会沿用上一个模型的尺寸,模型被压扁/拉伸
   useEffect(() => {
     if (!modelDirName) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
 
     let mounted = true;
     // 换模型后允许重新做一次右下角对齐
     hasAlignedToBottomRightRef.current = false;
 
+    destroyLive2DRuntime();
+    setRuntimeReady(false);
+    setConfig(null);
+    activePlaybackRef.current = null;
+
+    const loadConfig = async (): Promise<void> => {
+      const loadedConfig = await loadLive2DConfig(`${MODEL_BASE_URL}${modelDirName}/`);
+      if (!mounted) return;
+      setConfig(loadedConfig);
+      // 标记配置已就绪(可能为 null),init 在下一个 effect 中等 DOM 提交后执行
+      setConfigReadyFor(modelDirName);
+
+      // 校正主窗口尺寸以匹配 Live2D 画布
+      if (loadedConfig) {
+        try {
+          // 独立窗口气泡模式下运行期 padding 强制为 0（与主进程 getEffectivePadding 口径一致）
+          const padding = isBubbleWindowMode(spriteConfigRef.current.bubbleMode) ? 0 : loadedConfig.canvas.padding;
+          const result = await window.YUA.window.setAssistantSize({
+            width: loadedConfig.canvas.width,
+            height: loadedConfig.canvas.height,
+            padding
+          });
+          // 主进程 setSize 以左上角为锚，会破坏更早的右下角定位，这里补齐一次
+          if (result?.success && !hasAlignedToBottomRightRef.current) {
+            hasAlignedToBottomRightRef.current = true;
+            await alignMainWindowToBottomRight(loadedConfig.canvas.width + padding * 2, loadedConfig.canvas.height + padding * 2);
+          }
+        } catch (e) {
+          console.warn('[Live2DSprite] setAssistantSize failed', e);
+        }
+      }
+    };
+
+    void loadConfig();
+
+    return () => {
+      mounted = false;
+    };
+  }, [modelDirName]);
+
+  // 配置提交到 DOM 后再初始化运行时（effect 在 DOM commit 后执行,此时 canvas.clientWidth 已是新画布尺寸）
+  useEffect(() => {
+    if (!modelDirName || configReadyFor !== modelDirName) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    let mounted = true;
+
     const boot = async (): Promise<void> => {
       try {
-        const loadedConfig = await loadLive2DConfig(`${MODEL_BASE_URL}${modelDirName}/`);
-        if (!mounted) return;
-        setConfig(loadedConfig);
-
         await initLive2DRuntime({
           canvasId: CANVAS_ID,
           model: {
@@ -112,26 +160,6 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
         });
         if (!mounted) return;
         setRuntimeReady(true);
-
-        // 校正主窗口尺寸以匹配 Live2D 画布
-        if (loadedConfig) {
-          try {
-            // 独立窗口气泡模式下运行期 padding 强制为 0（与主进程 getEffectivePadding 口径一致）
-            const padding = isBubbleWindowMode(spriteConfigRef.current.bubbleMode) ? 0 : loadedConfig.canvas.padding;
-            const result = await window.YUA.window.setAssistantSize({
-              width: loadedConfig.canvas.width,
-              height: loadedConfig.canvas.height,
-              padding
-            });
-            // 主进程 setSize 以左上角为锚，会破坏更早的右下角定位，这里补齐一次
-            if (result?.success && !hasAlignedToBottomRightRef.current) {
-              hasAlignedToBottomRightRef.current = true;
-              await alignMainWindowToBottomRight(loadedConfig.canvas.width + padding * 2, loadedConfig.canvas.height + padding * 2);
-            }
-          } catch (e) {
-            console.warn('[Live2DSprite] setAssistantSize failed', e);
-          }
-        }
       } catch (error) {
         console.error('[Live2DSprite] init failed', error);
       }
@@ -145,7 +173,7 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
       activePlaybackRef.current = null;
       destroyLive2DRuntime();
     };
-  }, [modelDirName]);
+  }, [modelDirName, configReadyFor]);
 
   // 根据 currentAnimation 播放 motion / expression
   useEffect(() => {
