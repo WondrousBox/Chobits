@@ -2192,6 +2192,48 @@ describe('sprite manager regression coverage', () => {
     expect(showToast).toHaveBeenCalledWith('有点困了呢...', { category: 'info', duration: 2000, ambientContext: 'behavior' });
   });
 
+  it('reminds idle sleepy once per idle period and re-arms after interaction', async () => {
+    vi.useFakeTimers();
+    try {
+      const registered = new Map<string, any>();
+      const playOnce = vi.fn();
+      const showToast = vi.fn();
+      const fakeManager = {
+        findAnimationByTrigger: vi.fn(),
+        registerBehavior: (behavior: any) => {
+          registered.set(behavior.id, behavior);
+        },
+        runBehaviorMovement: vi.fn(),
+        startPurpose: vi.fn(),
+        playOnce,
+        showToast,
+        trigger: vi.fn(),
+        transitionTo: vi.fn(),
+        getSpontaneousUtteranceExecutor: vi.fn()
+      };
+
+      registerDefaultBehaviors(fakeManager as any);
+      const idleSleepy = registered.get('idle-sleepy');
+      const ctx = (idleDuration: number) => ({ interactionStats: { idleDuration } }) as any;
+
+      vi.setSystemTime(new Date('2026-09-03T12:00:00'));
+      await idleSleepy.action(ctx(360_000));
+      expect(showToast).toHaveBeenCalledTimes(1);
+
+      // 同一闲置周期内再次触发：不再提醒
+      vi.setSystemTime(new Date('2026-09-03T12:02:00'));
+      await idleSleepy.action(ctx(420_000));
+      expect(showToast).toHaveBeenCalledTimes(1);
+
+      // 产生交互后进入新的闲置周期：到达 5 分钟后再次提醒
+      vi.setSystemTime(new Date('2026-09-03T12:10:00'));
+      await idleSleepy.action(ctx(300_001));
+      expect(showToast).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('offers talk as an idle spontaneous action candidate', async () => {
     const registered = new Map<string, any>();
     const generateForIdleAction = vi.fn(async () => ({

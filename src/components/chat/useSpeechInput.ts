@@ -5,6 +5,9 @@ import { WebRecorder } from '@/lib/web-recorder';
 
 type SpeechInputStatus = 'idle' | 'starting' | 'listening' | 'stopping';
 
+// 长按不足该时长视为误触，不触发自动发送
+const MIN_SPEECH_DURATION_MS = 800;
+
 interface SpeechInputASRConfig {
   backend: 'local' | 'cloud';
   cloud: {
@@ -16,6 +19,12 @@ interface SpeechInputASRConfig {
 
 interface UseSpeechInputOptions {
   onTranscriptFinal?: (text: string) => void;
+  // 识别中间结果（未确定的分句），用于在输入框实时展示
+  onTranscriptInterim?: (text: string) => void;
+  // 语音输入会话结束（用户停止录音）时触发，用于自动发送等场景
+  onStopped?: () => void;
+  // 用户取消（松开时在取消按钮上）时触发，用于回滚本次识别的文字
+  onCancelled?: () => void;
 }
 
 interface UseSpeechInputResult {
@@ -25,6 +34,7 @@ interface UseSpeechInputResult {
   start: () => Promise<void>;
   status: SpeechInputStatus;
   stop: () => Promise<void>;
+  cancel: () => Promise<void>;
   toggle: () => Promise<void>;
 }
 
@@ -92,7 +102,23 @@ export function mergeTranscriptWithInput(existing: string, transcript: string): 
   return `${trimmedExisting}${trimmedTranscript}`;
 }
 
-export function useSpeechInput({ onTranscriptFinal }: UseSpeechInputOptions = {}): UseSpeechInputResult {
+// sherpa 的端点检测由音频驱动：停止录音后推送一段尾部静音，把最后一句话的识别结果"冲"出来
+async function pushTrailingSilence(): Promise<void> {
+  const chunk = new Float32Array(4000); // 0.25s @ 16kHz
+  for (let i = 0; i < 8; i++) {
+    try {
+      await window.chobits.sherpa.sendData({ uuid: 'stream', data: chunk, shouldSave: false });
+    } catch {
+      break;
+    }
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+export function useSpeechInput({ onTranscriptFinal, onTranscriptInterim, onStopped, onCancelled }: UseSpeechInputOptions = {}): UseSpeechInputResult {
   const [status, setStatus] = useState<SpeechInputStatus>('idle');
   const [interimText, setInterimText] = useState('');
 
@@ -101,8 +127,35 @@ export function useSpeechInput({ onTranscriptFinal }: UseSpeechInputOptions = {}
   const isActiveRef = useRef(false);
   const pendingCloudTasksRef = useRef(0);
   const recentTranscriptRef = useRef<string[]>([]);
+  const onStoppedRef = useRef(onStopped);
+  const onCancelledRef = useRef(onCancelled);
+  const onTranscriptInterimRef = useRef(onTranscriptInterim);
+  // 长按交互：启动过程中松开时记录停止意图（含是否发送），启动完成后立即停止
+  const pendingStopRef = useRef<{ shouldSend: boolean } | null>(null);
+  const sessionStartedAtRef = useRef(0);
+  // 停止录音后的收尾等待：端点结果/云端分段是否已返回
+  const endpointArrivedRef = useRef(false);
+  const cloudSegmentArrivedRef = useRef(false);
+  const interimRef = useRef('');
+
+  useEffect(() => {
+    onStoppedRef.current = onStopped;
+  }, [onStopped]);
+
+  useEffect(() => {
+    onCancelledRef.current = onCancelled;
+  }, [onCancelled]);
+
+  useEffect(() => {
+    onTranscriptInterimRef.current = onTranscriptInterim;
+  }, [onTranscriptInterim]);
   // eslint-disable-next-line react-hooks/purity -- useRef 初始值仅首次渲染生效,随机 handler 名用于避免多实例冲突
   const handlerNameRef = useRef(`chat-speech:${Math.random().toString(36).slice(2)}`);
+
+  const updateInterim = useCallback((text: string): void => {
+    interimRef.current = text;
+    setInterimText(text);
+  }, []);
 
   const rememberTranscript = useCallback(
     (text: string): void => {
@@ -145,14 +198,16 @@ export function useSpeechInput({ onTranscriptFinal }: UseSpeechInputOptions = {}
         return;
       }
 
+      cloudSegmentArrivedRef.current = true;
+
       const { providerId, providerPresetId, modelId } = asrConfig.cloud;
       if (!providerId || !providerPresetId) {
-        setInterimText('');
+        updateInterim('');
         return;
       }
 
       pendingCloudTasksRef.current += 1;
-      setInterimText('正在识别...');
+      updateInterim('正在识别...');
 
       try {
         const samples = new Float32Array(data.samples || []);
@@ -177,11 +232,11 @@ export function useSpeechInput({ onTranscriptFinal }: UseSpeechInputOptions = {}
       } finally {
         pendingCloudTasksRef.current = Math.max(0, pendingCloudTasksRef.current - 1);
         if (pendingCloudTasksRef.current === 0) {
-          setInterimText('');
+          updateInterim('');
         }
       }
     },
-    [rememberTranscript]
+    [rememberTranscript, updateInterim]
   );
 
   const attachMessageHandler = useCallback((): void => {
@@ -201,21 +256,27 @@ export function useSpeechInput({ onTranscriptFinal }: UseSpeechInputOptions = {}
         return;
       }
 
+      if (data.isEndpoint) {
+        endpointArrivedRef.current = true;
+        updateInterim('');
+        onTranscriptInterimRef.current?.('');
+        if (data.text) {
+          rememberTranscript(String(data.text));
+        }
+        return;
+      }
+
       if (!data.text) {
         return;
       }
 
-      if (data.isEndpoint) {
-        setInterimText('');
-        rememberTranscript(String(data.text));
-        return;
-      }
-
-      setInterimText(String(data.text).trim());
+      const partialText = String(data.text).trim();
+      updateInterim(partialText);
+      onTranscriptInterimRef.current?.(partialText);
     };
 
     window.chobits.handleMessage(handleASRMessage, handlerNameRef.current);
-  }, [handleCloudSegment, rememberTranscript]);
+  }, [handleCloudSegment, rememberTranscript, updateInterim]);
 
   const buildRecorder = useCallback((deviceId?: string): WebRecorder => {
     const recorder = new WebRecorder({
@@ -242,15 +303,70 @@ export function useSpeechInput({ onTranscriptFinal }: UseSpeechInputOptions = {}
     return recorder;
   }, []);
 
+  const stopSession = useCallback(
+    async (shouldSend: boolean): Promise<void> => {
+      setStatus('stopping');
+      const asrConfig = asrConfigRef.current;
+      await teardownRecorder();
+
+      if (shouldSend) {
+        // 端点检测由音频驱动：补一段尾部静音，让最后一句话的识别结果返回
+        await pushTrailingSilence();
+
+        if (asrConfig?.backend === 'cloud') {
+          // 等 VAD 吐出最后一个分段，再等云端识别完成
+          const segmentDeadline = Date.now() + 2000;
+          while (!cloudSegmentArrivedRef.current && Date.now() < segmentDeadline) {
+            await sleep(100);
+          }
+          const drainDeadline = Date.now() + 4000;
+          while (pendingCloudTasksRef.current > 0 && Date.now() < drainDeadline) {
+            await sleep(100);
+          }
+        } else if (interimRef.current.trim()) {
+          // 本地识别：有未完结的语句时等待端点结果返回
+          const endpointDeadline = Date.now() + 3500;
+          while (!endpointArrivedRef.current && Date.now() < endpointDeadline) {
+            await sleep(100);
+          }
+        }
+      }
+
+      isActiveRef.current = false;
+      pendingCloudTasksRef.current = 0;
+      updateInterim('');
+      onTranscriptInterimRef.current?.('');
+      asrConfigRef.current = null;
+      detachMessageHandler();
+      setStatus('idle');
+
+      if (!shouldSend) {
+        onCancelledRef.current?.();
+        return;
+      }
+
+      // 长按时间过短视为误触（参考微信），不触发自动发送
+      if (Date.now() - sessionStartedAtRef.current >= MIN_SPEECH_DURATION_MS) {
+        onStoppedRef.current?.();
+      } else {
+        toast.warning('按住时间太短，未发送');
+      }
+    },
+    [detachMessageHandler, teardownRecorder, updateInterim]
+  );
+
   const start = useCallback(async (): Promise<void> => {
     if (status !== 'idle') {
       return;
     }
 
     setStatus('starting');
-    setInterimText('');
+    updateInterim('');
     recentTranscriptRef.current = [];
     pendingCloudTasksRef.current = 0;
+    pendingStopRef.current = null;
+    endpointArrivedRef.current = false;
+    cloudSegmentArrivedRef.current = false;
 
     try {
       const [asrStatus, asrConfig, deviceResult] = await Promise.all([
@@ -294,14 +410,22 @@ export function useSpeechInput({ onTranscriptFinal }: UseSpeechInputOptions = {}
       }
 
       recorderRef.current = recorder;
+      sessionStartedAtRef.current = Date.now();
       setStatus('listening');
+
+      // 长按已松开但启动刚完成，立即停止（含取消发送的情况）
+      if (pendingStopRef.current) {
+        const { shouldSend } = pendingStopRef.current;
+        pendingStopRef.current = null;
+        await stopSession(shouldSend);
+      }
     } catch (error: any) {
       console.error('[SpeechInput] 启动语音输入失败:', error);
       isActiveRef.current = false;
       asrConfigRef.current = null;
       detachMessageHandler();
       await teardownRecorder();
-      setInterimText('');
+      updateInterim('');
       setStatus('idle');
 
       if (error?.name === 'NotAllowedError' || error?.name === 'PermissionDeniedError') {
@@ -314,22 +438,35 @@ export function useSpeechInput({ onTranscriptFinal }: UseSpeechInputOptions = {}
         toast.error('启动语音输入失败');
       }
     }
-  }, [attachMessageHandler, buildRecorder, detachMessageHandler, status, teardownRecorder]);
+  }, [attachMessageHandler, buildRecorder, detachMessageHandler, status, stopSession, teardownRecorder, updateInterim]);
 
   const stop = useCallback(async (): Promise<void> => {
     if (status === 'idle' || status === 'stopping') {
       return;
     }
 
-    setStatus('stopping');
-    isActiveRef.current = false;
-    pendingCloudTasksRef.current = 0;
-    setInterimText('');
-    asrConfigRef.current = null;
-    detachMessageHandler();
-    await teardownRecorder();
-    setStatus('idle');
-  }, [detachMessageHandler, status, teardownRecorder]);
+    // 还在启动中：记录停止意图，由 start 完成后处理
+    if (status === 'starting') {
+      pendingStopRef.current = { shouldSend: true };
+      return;
+    }
+
+    await stopSession(true);
+  }, [status, stopSession]);
+
+  // 结束录音但不触发自动发送（上滑取消）
+  const cancel = useCallback(async (): Promise<void> => {
+    if (status === 'idle' || status === 'stopping') {
+      return;
+    }
+
+    if (status === 'starting') {
+      pendingStopRef.current = { shouldSend: false };
+      return;
+    }
+
+    await stopSession(false);
+  }, [status, stopSession]);
 
   const toggle = useCallback(async (): Promise<void> => {
     if (status === 'idle') {
@@ -358,6 +495,7 @@ export function useSpeechInput({ onTranscriptFinal }: UseSpeechInputOptions = {}
     start,
     status,
     stop,
+    cancel,
     toggle
   };
 }

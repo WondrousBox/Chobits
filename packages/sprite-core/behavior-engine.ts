@@ -159,15 +159,17 @@ export function createSleepyBehavior(): BehaviorDefinition {
     schedule: {
       type: 'interval',
       intervalMs: 60000, // 每分钟检查
-      timeWindow: { startHour: 22, endHour: 6 }
+      timeWindow: { startHour: 23, endHour: 6 }
     },
+    // 触发的 rest-reminder 目的会执行 speak，冷却 30 分钟避免夜间频繁发言
+    cooldownMs: 30 * 60 * 1000,
     conditions: [
       (ctx) => {
         const h = ctx.now.getHours();
-        return h >= 22 || h < 6;
+        return h >= 23 || h < 6;
       }
     ],
-    probability: 0.3,
+    probability: 0.1,
     action: () => {
       // 通过 EventBus 触发，不直接操作状态机
     },
@@ -183,11 +185,11 @@ export function createIdleSleepyBehavior(): BehaviorDefinition {
     name: '长时间闲置困倦',
     enabled: true,
     priority: 'normal',
-    schedule: { type: 'interval', intervalMs: 150000 }, // 每150秒检查
+    schedule: { type: 'interval', intervalMs: 60000 }, // 每分钟检查
     conditions: [
-      (ctx) => ctx.interactionStats.idleDuration > 100000 // 100秒无交互
+      (ctx) => ctx.interactionStats.idleDuration > 300000 // 5分钟无交互
     ],
-    probability: 0.5, // 50% 概率触发
+    probability: 1, // 到点即触发；每个闲置周期只提醒一次由 action 内守卫保证
     action: () => {
       // 通过 EventBus 触发困倦反应
     },
@@ -222,7 +224,7 @@ export function createRandomMessageBehavior(): BehaviorDefinition {
     name: '随机消息',
     enabled: true,
     priority: 'low',
-    schedule: { type: 'random', minMs: 300000, maxMs: 1800000 }, // 5-30分钟
+    schedule: { type: 'random', minMs: 600000, maxMs: 1800000 }, // 10-30分钟
     conditions: [(ctx) => ctx.spriteState === 'idle', (ctx) => ctx.interactionStats.idleDuration > 60000],
     probability: 1,
     action: () => {

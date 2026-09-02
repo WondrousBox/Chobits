@@ -36,24 +36,19 @@ export default function AssistantMiniInputWithService({
 }: AssistantMiniInputWithServiceProps): JSX.Element {
   const { providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, webSearchEnabled, characterPromptEnabled, setProviderId, setModelId } = useChatSelection();
   const [draft, setDraft] = useState('');
+  // 语音识别中的临时文字（仅展示，未写入草稿）
+  const [speechInterim, setSpeechInterim] = useState('');
   const inputRef = useRef<HTMLInputElement | null>(null);
   const isCoder = agentId === 'coder';
-  const hasContent = draft.trim().length > 0;
+  // 输入框显示值 = 已确定草稿 + 识别中的临时文字
+  const displayValue = speechInterim ? mergeTranscriptWithInput(draft, speechInterim) : draft;
+  const hasContent = displayValue.trim().length > 0;
 
   useEffect(() => {
     if (!autoFocus) return;
     const timer = window.setTimeout(() => inputRef.current?.focus(), 20);
     return () => window.clearTimeout(timer);
   }, [autoFocus]);
-
-  const handleTranscriptFinal = useCallback((text: string): void => {
-    setDraft((current) => mergeTranscriptWithInput(current, text));
-    window.setTimeout(() => inputRef.current?.focus(), 0);
-  }, []);
-
-  const speechInput = useSpeechInput({
-    onTranscriptFinal: handleTranscriptFinal
-  });
 
   const handleSend = useCallback(async (): Promise<void> => {
     const content = draft.trim();
@@ -82,6 +77,49 @@ export default function AssistantMiniInputWithService({
     setDraft('');
   }, [agentId, characterPromptEnabled, codingWorkspaceLabel, codingWorkspaceRoot, disabled, draft, isCoder, isLoading, modelId, onStart, presetId, providerId, webSearchEnabled]);
 
+  const handleSendRef = useRef(handleSend);
+  useEffect(() => {
+    handleSendRef.current = handleSend;
+  });
+
+  // 按下语音按钮时的输入快照，用于取消时回滚本次识别的文字
+  const preSpeechDraftRef = useRef<string | null>(null);
+
+  // 停止语音输入后自动发送已识别的内容（handleSend 内部会校验空内容/禁用状态）
+  const handleSpeechStopped = useCallback((): void => {
+    preSpeechDraftRef.current = null;
+    setSpeechInterim('');
+    void handleSendRef.current();
+  }, []);
+
+  // 取消语音输入：回滚到按下前的输入内容
+  const handleSpeechCancelled = useCallback((): void => {
+    const snapshot = preSpeechDraftRef.current;
+    preSpeechDraftRef.current = null;
+    setSpeechInterim('');
+    if (snapshot !== null) {
+      setDraft(snapshot);
+    }
+  }, []);
+
+  const handleTranscriptFinal = useCallback((text: string): void => {
+    setSpeechInterim('');
+    setDraft((current) => mergeTranscriptWithInput(current, text));
+    window.setTimeout(() => inputRef.current?.focus(), 0);
+  }, []);
+
+  // 识别中间结果：实时显示在输入框（未转正，端点确认后由 handleTranscriptFinal 合并）
+  const handleTranscriptInterim = useCallback((text: string): void => {
+    setSpeechInterim(text);
+  }, []);
+
+  const speechInput = useSpeechInput({
+    onTranscriptFinal: handleTranscriptFinal,
+    onTranscriptInterim: handleTranscriptInterim,
+    onStopped: handleSpeechStopped,
+    onCancelled: handleSpeechCancelled
+  });
+
   return (
     <div className={cn('no-drag pointer-events-auto m-1 flex h-12 w-[calc(100%-0.5rem)] items-center gap-1 rounded-full border bg-background/95 p-1 shadow-lg backdrop-blur box-border', className)}>
       <ProviderModelSelect
@@ -109,7 +147,7 @@ export default function AssistantMiniInputWithService({
 
       <Input
         ref={inputRef}
-        value={draft}
+        value={displayValue}
         disabled={disabled}
         placeholder={placeholder}
         className="h-9 min-w-0 flex-1 border-0 bg-transparent px-2 shadow-none focus-visible:ring-0"
@@ -130,7 +168,12 @@ export default function AssistantMiniInputWithService({
         interimText={speechInput.interimText}
         isBusy={speechInput.isBusy}
         isListening={speechInput.isListening}
-        onToggle={speechInput.toggle}
+        onPressStart={() => {
+          preSpeechDraftRef.current = draft;
+          void speechInput.start();
+        }}
+        onPressEnd={speechInput.stop}
+        onCancel={speechInput.cancel}
         buttonVariant="ghost"
         className="h-8 w-8 shrink-0"
       />

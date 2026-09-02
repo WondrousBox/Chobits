@@ -98,6 +98,7 @@ import type {
   SpriteAmbientMessageContext,
   SpriteBehaviorScheduler,
   SpriteManagerOptions,
+  SpriteProactiveSpeechGate,
   SpritePurposeWindowAdapter,
   SpriteSchedulerScheduleSpec,
   SpriteSpontaneousUtteranceExecutor,
@@ -222,6 +223,7 @@ export class SpriteManager {
   private win: SpriteWindow;
   private getScreenSize: () => { width: number; height: number; x?: number; y?: number };
   private spontaneousUtteranceExecutor?: SpriteSpontaneousUtteranceExecutor;
+  private proactiveSpeechGate?: SpriteProactiveSpeechGate;
   private activeCharacterStateId = 'default';
   private activeCharacterIdentity: { name: string; description?: string };
 
@@ -264,6 +266,7 @@ export class SpriteManager {
     this.win = options.win;
     this.getScreenSize = options.getScreenSize;
     this.spontaneousUtteranceExecutor = options.spontaneousUtteranceExecutor;
+    this.proactiveSpeechGate = options.proactiveSpeechGate;
     this.purposeWindowAdapter = options.purposeWindowAdapter;
     this.windowAnimationAdapter = options.windowAnimationAdapter;
     this.activeCharacterIdentity = {
@@ -2653,12 +2656,24 @@ export class SpriteManager {
   }
 
   private async runPurposeSpeakStep(step: Extract<SpriteRoutineStep, { type: 'speak' }>, routine: SpriteRoutine): Promise<SpeakResult> {
-    return this.speak(step.text, {
+    // routine 的 speak 均为主动发言。氛围型发言（休息提醒、AI 规划等）受"主动发言间隔"节制；
+    // 关怀提醒是调度器按时间点派发的日程提醒，不被冷却阻塞，但发言后仍写入共享时钟。
+    const isCareReminder = routine.presetId === 'daily.care.reminder';
+    if (this.proactiveSpeechGate && !isCareReminder && !this.proactiveSpeechGate.shouldAllow()) {
+      console.log(`[SpriteManager] routine speak skipped: proactive speech cooldown active (routine=${routine.id}, step=${step.id})`);
+      return { ok: false, error: 'proactive_speech_cooldown' };
+    }
+
+    const result = await this.speak(step.text, {
       bubbleEnabled: true,
       bubbleDuration: step.bubbleDuration,
       ownerPurposeId: routine.purposeId,
       priority: this.resolveRoutinePriority(routine)
     });
+    if (result.ok) {
+      this.proactiveSpeechGate?.recordSpoken();
+    }
+    return result;
   }
 
   private async runPurposeWalkStep(step: Extract<SpriteRoutineStep, { type: 'walkTo' }>, signal: AbortSignal, routine: SpriteRoutine): Promise<void> {

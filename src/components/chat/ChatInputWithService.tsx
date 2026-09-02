@@ -65,6 +65,8 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
   } = useChatSelection();
   const inputRef = useRef<UnifiedChatInputHandle>(null);
   const [draft, setDraft] = useState('');
+  // 语音识别中的临时文字（仅展示，未写入草稿）
+  const [speechInterim, setSpeechInterim] = useState('');
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [isSkillsLoading, setIsSkillsLoading] = useState(false);
   const [highlightedSkillIndex, setHighlightedSkillIndex] = useState(0);
@@ -171,26 +173,74 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
     });
   };
 
+  const handleSendRef = useRef(handleSend);
+  useEffect(() => {
+    handleSendRef.current = handleSend;
+  });
+
   const handleTranscriptFinal = useCallback((text: string): void => {
+    setSpeechInterim('');
+    setDraft((current) => mergeTranscriptWithInput(current, text));
+    inputRef.current?.focus();
+  }, []);
+
+  // 识别中间结果：实时显示在输入框（未转正，端点确认后由 handleTranscriptFinal 合并）
+  const handleTranscriptInterim = useCallback((text: string): void => {
+    setSpeechInterim(text);
+  }, []);
+
+  // 按下语音按钮时的输入框快照，用于取消时回滚本次识别的文字
+  const preSpeechDraftRef = useRef<string | null>(null);
+
+  // 停止语音输入后，若输入框已有识别内容则直接发送
+  const handleSpeechStopped = useCallback((): void => {
     const input = inputRef.current;
-    if (!input) {
+    const content = input?.getValue().trim() || '';
+    preSpeechDraftRef.current = null;
+    setSpeechInterim('');
+    if (!input || !content) {
       return;
     }
 
-    input.setValue(mergeTranscriptWithInput(input.getValue(), text));
-    input.focus();
+    void (async () => {
+      try {
+        await handleSendRef.current(content);
+        input.setValue('');
+      } catch {
+        // 发送失败时保留输入内容
+      }
+    })();
+  }, []);
+
+  // 取消语音输入：回滚到按下前的输入内容
+  const handleSpeechCancelled = useCallback((): void => {
+    const input = inputRef.current;
+    const snapshot = preSpeechDraftRef.current;
+    preSpeechDraftRef.current = null;
+    setSpeechInterim('');
+    if (!input || snapshot === null) {
+      return;
+    }
+
+    input.setValue(snapshot);
   }, []);
 
   const speechInput = useSpeechInput({
-    onTranscriptFinal: handleTranscriptFinal
+    onTranscriptFinal: handleTranscriptFinal,
+    onTranscriptInterim: handleTranscriptInterim,
+    onStopped: handleSpeechStopped,
+    onCancelled: handleSpeechCancelled
   });
+
+  // 输入框显示值 = 已确定草稿 + 识别中的临时文字
+  const displayValue = speechInterim ? mergeTranscriptWithInput(draft, speechInterim) : draft;
 
   return (
     <UnifiedChatInput
       ref={inputRef}
       {...rest}
       disabled={disabled}
-      value={draft}
+      value={displayValue}
       onChange={setDraft}
       onSend={handleSend}
       onKeyDown={(event, value) => {
@@ -354,7 +404,12 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
             interimText: speechInput.interimText,
             isBusy: speechInput.isBusy,
             isListening: speechInput.isListening,
-            onToggle: speechInput.toggle
+            onPressStart: () => {
+              preSpeechDraftRef.current = inputRef.current?.getValue() || '';
+              void speechInput.start();
+            },
+            onPressEnd: speechInput.stop,
+            onCancel: speechInput.cancel
           }}
         >
           {footerRightExtra}

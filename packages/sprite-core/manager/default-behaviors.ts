@@ -90,9 +90,17 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
   };
   mgr.registerBehavior(sleepyDef);
 
-  // 长时间闲置困倦（100秒无交互）
+  // 长时间闲置困倦（5分钟无交互提醒一次；产生交互后才会再次提醒）
+  let idleSleepyRemindedAt = 0;
   const idleSleepyDef = createIdleSleepyBehavior();
-  idleSleepyDef.action = (_ctx: BehaviorContext) => {
+  idleSleepyDef.action = (ctx: BehaviorContext) => {
+    // 本次闲置周期的起点；已在本周期提醒过则跳过
+    const idlePeriodStartedAt = Date.now() - (ctx.interactionStats?.idleDuration ?? 0);
+    if (idleSleepyRemindedAt >= idlePeriodStartedAt) {
+      return;
+    }
+
+    idleSleepyRemindedAt = Date.now();
     mgr.playOnce('sleepy');
     mgr.showToast(getCharacterRoutineText('idle.sleepy.toast', undefined, '有点困了呢...'), { category: 'info', duration: 2000, ambientContext: 'behavior' });
   };

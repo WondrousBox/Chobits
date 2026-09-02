@@ -33,6 +33,7 @@ type WindowBridgeParams = {
   'sprite:interactive-regions:set': IpcParams<[{ regions: Array<{ x: number; y: number; width: number; height: number }> }], { ok: boolean; error?: string }>;
   'screen:work-area:get': IpcParams<[string?], { x: number; y: number; width: number; height: number }>;
   'window:bounds:set': IpcParams<[string, { x: number; y: number; width: number; height: number }], { ok: boolean; bounds?: { x: number; y: number; width: number; height: number }; error?: string }>;
+  'window:toggle': IpcParams<[string, any?], boolean>;
   'window:animation:play': IpcParams<[string, WindowAnimationTimeline], WindowAnimationPlaybackResult>;
   'window:animation:stop': IpcParams<[string, WindowAnimationStopOptions?], WindowAnimationPlaybackResult>;
   'window:animation:state': IpcParams<[string?], WindowAnimationState>;
@@ -43,6 +44,7 @@ const methods: Array<keyof WindowBridgeParams> = [
   'sprite:interactive-regions:set',
   'screen:work-area:get',
   'window:bounds:set',
+  'window:toggle',
   'window:animation:play',
   'window:animation:stop',
   'window:animation:state'

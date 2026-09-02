@@ -141,9 +141,10 @@ const SpriteAppInner: React.FC = () => {
       try {
         const result = await window.chobits.preferences['preferences:get-config']();
         const targetWindow = result.ok && result.config?.miniChatWindowEnabled ? 'chatMini' : 'chatPanel';
-        await window.chobits.window['window:open'](targetWindow);
+        // 双击是开关式交互：窗口已打开时再次双击关闭
+        await window.chobits.window['window:toggle'](targetWindow);
       } catch {
-        await window.chobits.window['window:open']('chatPanel');
+        await window.chobits.window['window:toggle']('chatPanel');
       }
     })();
   };

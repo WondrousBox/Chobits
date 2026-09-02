@@ -316,6 +316,10 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
       });
     },
     spontaneousUtteranceExecutor: spontaneousUtteranceService,
+    proactiveSpeechGate: {
+      shouldAllow: () => spontaneousUtteranceService.shouldAllowProactiveSpeech(),
+      recordSpoken: () => spontaneousUtteranceService.recordProactiveSpeech()
+    },
     speechSynthesisExecutor: {
       synthesize: (request) => spriteSpeechPiExecutionService.synthesizeSpeech(request),
       stream: (request, onEvent, input, signal) => spriteSpeechPiExecutionService.streamSpeechSynthesis(request, onEvent, signal, input)

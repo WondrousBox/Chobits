@@ -698,7 +698,8 @@ function matchesHistoryQuery(item: SpriteSpontaneousUtteranceHistoryItem, query:
 export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtteranceExecutor {
   private activeHint?: ActiveConversationHint;
   private isGenerating = false;
-  private lastSuccessAt = 0;
+  /** 最近一次主动发言时间（AI 生成成功或预置提醒 speak 成功），由 proactiveSpeechGate 共享 */
+  private lastProactiveSpeechAt = 0;
   private dailyDate = formatLocalDateStamp();
   private dailyCount = 0;
   private pendingExecutionContexts = new Map<string, PendingExecutionContext>();
@@ -751,7 +752,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
     }
 
     const cooldownMs = preferences.cooldownMinutes * 60 * 1000;
-    if (this.lastSuccessAt && Date.now() - this.lastSuccessAt < cooldownMs) {
+    if (this.lastProactiveSpeechAt && Date.now() - this.lastProactiveSpeechAt < cooldownMs) {
       console.log(`${TAG} skipped: cooldown active`);
       await this.appendSkippedGenerationLog(input, 'cooldown_active');
       return null;
@@ -860,7 +861,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
         return null;
       }
 
-      this.lastSuccessAt = Date.now();
+      this.lastProactiveSpeechAt = Date.now();
       this.dailyCount += 1;
       const utteranceId = randomUUID();
       const result = {
@@ -961,6 +962,20 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
 
   async getSpontaneousUtterancePreferences(): Promise<SpriteSpontaneousUtterancePreferences> {
     return clonePreferences(this.spontaneousUtterancePreferences);
+  }
+
+  /** 主动发言闸门：当前是否允许主动发言（不在冷却期内） */
+  shouldAllowProactiveSpeech(): boolean {
+    const cooldownMs = this.spontaneousUtterancePreferences.cooldownMinutes * 60 * 1000;
+    if (!this.lastProactiveSpeechAt) {
+      return true;
+    }
+    return Date.now() - this.lastProactiveSpeechAt >= cooldownMs;
+  }
+
+  /** 主动发言闸门：记录一次实际发生的主动发言（含预置提醒），重启冷却计时 */
+  recordProactiveSpeech(): void {
+    this.lastProactiveSpeechAt = Date.now();
   }
 
   async updateSpontaneousUtterancePreferences(patch: Partial<SpriteSpontaneousUtterancePreferences>): Promise<SpriteSpontaneousUtterancePreferences> {
