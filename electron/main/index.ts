@@ -9,6 +9,7 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { eventManager } from '../../packages/event';
 import { AppEvent } from '../../packages/event/events';
 import { initHandlers } from './handlers';
+import { PreferencesStore } from './handlers/preferences/preferences-store';
 import { logger } from './logger';
 import { addAllowedResourceRoot, addWorkspaceResourceRoot, setupResourceProtocol } from './resource-protocol';
 import { registerGlobalShortcuts, unregisterGlobalShortcuts } from './shortcuts';
@@ -213,6 +214,14 @@ app.whenReady().then(async () => {
     addAllowedResourceRoot(userDataDir);
   } catch (e) {
     console.warn('[protocol res] add userData root failed', e);
+  }
+
+  // Apply persisted "launch at login" preference
+  logStartupStep('applying launch-at-login preference');
+  try {
+    app.setLoginItemSettings({ openAtLogin: PreferencesStore.getConfig().launchAtLoginEnabled });
+  } catch (e) {
+    console.warn('[main] 应用开机自启动设置失败', e);
   }
 
   // Register renderer-ready handler BEFORE creating the window, so the handler

@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { app, ipcMain } from 'electron';
 
 import { type PreferencesConfig, PreferencesStore, type PreviewMode } from './preferences-store';
 
@@ -20,6 +20,14 @@ export function initPreferencesHandlers(): void {
   ipcMain.handle('preferences:set-config', async (_event, payload: { config: Partial<PreferencesConfig> }) => {
     try {
       const config = PreferencesStore.setConfig(payload.config);
+      // 开机自启动立即生效;失败仅记录日志,下次启动时会按持久化配置重试
+      if (typeof payload.config.launchAtLoginEnabled === 'boolean') {
+        try {
+          app.setLoginItemSettings({ openAtLogin: payload.config.launchAtLoginEnabled });
+        } catch (error) {
+          console.error('[Preferences] 应用开机自启动设置失败:', error);
+        }
+      }
       return { ok: true, config };
     } catch (error: any) {
       console.error('[Preferences] 设置配置失败:', error);

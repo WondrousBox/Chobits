@@ -9,7 +9,8 @@ export type { PreferencesConfig, PreviewMode } from '@packages/common/types/pref
 // 默认配置
 const DEFAULT_CONFIG: PreferencesConfig = {
   previewMode: 'window',
-  miniChatWindowEnabled: true
+  miniChatWindowEnabled: true,
+  launchAtLoginEnabled: false
 };
 
 type StoreShape = {
@@ -51,6 +52,7 @@ function read(): StoreShape {
         previewMode: data.preferences?.previewMode || DEFAULT_CONFIG.previewMode,
         webRecorderDeviceId: data.preferences?.webRecorderDeviceId,
         miniChatWindowEnabled: typeof data.preferences?.miniChatWindowEnabled === 'boolean' ? data.preferences.miniChatWindowEnabled : DEFAULT_CONFIG.miniChatWindowEnabled,
+        launchAtLoginEnabled: typeof data.preferences?.launchAtLoginEnabled === 'boolean' ? data.preferences.launchAtLoginEnabled : DEFAULT_CONFIG.launchAtLoginEnabled,
         featureFlags: data.preferences?.featureFlags
       }
     };
