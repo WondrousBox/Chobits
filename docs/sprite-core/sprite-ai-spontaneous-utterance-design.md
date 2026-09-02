@@ -120,4 +120,4 @@ AI 生成当前由 activity-aware timeout controller 控制，绝对最长上限
 
 失败时也记录（skipped: true + reason）。
 
-主进程日志前缀：`[SpriteAIUtterance]`
+主进程日志前缀：`[SpriteSpontaneousUtterance]`

@@ -39,8 +39,8 @@
   - 录音转写（ASR）：本地 sherpa-onnx 离线识别，或走云端 transcribe。
   - 实时字幕与翻译。
 
-- **精灵包编辑**
-  - 内置精灵包管理器与编辑器（SpritePackManager / SpritePackEditor）、角色画廊（CharacterGallery）。
+- **角色包编辑**
+  - 内置角色包管理器与编辑器（CharacterPackManager / CharacterPackEditor）、角色画廊（CharacterGallery）。
   - 窗口动画编辑器（WindowAnimationEditor），编排精灵的移动与演出。
 
 - **全局快捷键与辅助机能**

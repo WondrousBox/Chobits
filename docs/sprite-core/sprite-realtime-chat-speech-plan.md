@@ -8,7 +8,7 @@
 - 开启后，ChatPage 和资源侧边栏 AI Chat 的 assistant 正文 delta 可以实时送入语音合成。
 - 优先使用 AI Provider `speechSynthesis` 的 `duplex-stream` + `websocket`，面向 LLM token/delta 输入；不可用时自动降级到 HTTP 流式，再不可用时降级到 HTTP 完整合成。
 - 音频输出优先使用 PCM，renderer 使用 Web Audio PCM 播放器消费 `audio_delta`，不等待完整音频文件。
-- 保留现有 `window.YUA.sprite.speak()` 的完整合成、缓存、播放语义。普通角色说话和聊天实时朗读是两个入口。
+- 保留现有 `window.chobits.sprite.speak()` 的完整合成、缓存、播放语义。普通角色说话和聊天实时朗读是两个入口。
 - 对费用和误触发做保护：默认关闭、只朗读 assistant 正文、不朗读 thinking、不朗读用户输入、不自动朗读工具调用文本。
 
 非目标：
@@ -26,7 +26,7 @@
   - `complete`：HTTP 非流式。
   - `output-stream`：HTTP 流式，完整文本输入。
   - `duplex-stream`：WebSocket 双向流，文本分片输入、音频分片输出。
-- Renderer 侧 `window.YUA.ai.streamSpeechSynthesis()` 已提供 `appendText()`、`flush()`、`finish()`、`cancel()`。
+- Renderer 侧 `window.chobits.ai.streamSpeechSynthesis()` 已提供 `appendText()`、`flush()`、`finish()`、`cancel()`。
 - 角色说话已接入 AI Provider。普通 `sprite.speak()` 固定 `complete/http` 并缓存；实时聊天朗读使用独立 session 自动选择流式或完整合成策略。
 
 缺口：
@@ -152,12 +152,12 @@ UI 控制：
 
 ## 5. 运行时架构
 
-推荐新增 sprite 级实时语音会话 API，而不是让聊天页直接调用 `window.YUA.ai.streamSpeechSynthesis()`。
+推荐新增 sprite 级实时语音会话 API，而不是让聊天页直接调用 `window.chobits.ai.streamSpeechSynthesis()`。
 
 ```text
 Chat stream delta
   -> useRealtimeChatSpeech()
-  -> window.YUA.sprite.startRealtimeSpeechSession({ source: 'chat', scope: 'mainChat' })
+  -> window.chobits.sprite.startRealtimeSpeechSession({ source: 'chat', scope: 'mainChat' })
   -> handle.appendText(deltaText)
   -> SpeakService realtime session
   -> resolve strategies from provider/model speechSynthesis metadata
@@ -230,7 +230,7 @@ export interface SpriteRealtimeSpeechHandle {
 IPC：
 
 - `sprite:speak:realtime:start`
-- `sprite:speak:realtime:appendText`
+- `sprite:speak:realtime:append-text`
 - `sprite:speak:realtime:flush`
 - `sprite:speak:realtime:finish`
 - `sprite:speak:realtime:cancel`

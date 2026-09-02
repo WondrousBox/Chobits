@@ -24,20 +24,20 @@
 | `SpriteManager.transitionTo(state, options)` | 是 | 状态变化后调用 `resolveAndSendAnimation()` | 进入持久状态，例如 `walking`、`dragging`、`sleeping`、`bored`。动画按状态映射解析，`sessionMode = 'state-bound'`。如果状态和子状态没有变化且未 `force`，不会播放。 |
 | `SpriteManager.playOnce(subState, options)` | 是 | 内部 `transitionTo('reacting', { subState, force: true })`，定时回退 | 用于真实临时反应，例如点击、文件 drop、sleepy。会先进入 `reacting/<subState>`，再回到 fallback 状态。 |
 | `SpriteManager.trigger(trigger, options)` | 否 | 直接查 `AnimationRegistry` 并 `playAnimationEntry()` | 显式事件动画。会替换 `currentAnimation`，但不会修改 `SpriteState`。`sessionMode = 'trigger'`。 |
-| `SpriteManager.triggerById(animationId, options)` / `window.YUA.sprite.testAnimation()` | 否 | 直接按动画 id `playAnimationEntry()` | 开发测试或精确播放资源用。不走状态机，也不按 trigger fallback。 |
-| `SpriteManager.playFeedbackAnimation(request)` / `window.YUA.sprite.playFeedback()` | 否 | 校验 feedback 请求和展示锁后调用 `trigger()` | feedback 本质仍是显式 trigger 动画，不改状态。 |
+| `SpriteManager.triggerById(animationId, options)` / `window.chobits.sprite.testAnimation()` | 否 | 直接按动画 id `playAnimationEntry()` | 开发测试或精确播放资源用。不走状态机，也不按 trigger fallback。 |
+| `SpriteManager.playFeedbackAnimation(request)` / `window.chobits.sprite.playFeedback()` | 否 | 校验 feedback 请求和展示锁后调用 `trigger()` | feedback 本质仍是显式 trigger 动画，不改状态。 |
 | `SpriteManager.resolveAndSendAnimation(state, subState, options)` | 否，本身不改 | 根据状态映射 trigger 后 `playAnimationEntry()` | 这是状态机变化后的内部播放函数。状态已经在调用它之前被改掉。 |
 | `SpriteManager.transitionToIdleAnimation(options)` | 条件触发 | 非 idle 时 `transitionTo('idle')`；已 idle 时直接重播 idle 动画 | 常用于动画完成后回 idle。当前已经是 `idle/null` 时不会改状态，只会重新解析并播放 idle。 |
 | `SpriteManager.handleAnimationComplete(animId, phase, playId)` | 条件触发 | 可能推进 playlist，或调用 `transitionToIdleAnimation()` | 渲染进程上报 `full/outro` 后触发。若当前动画 `autoIdle !== false`，会回到 idle 展示；如果当时状态不是 idle，会产生状态变更。 |
-| `SpriteManager.speak(text, options)` / `window.YUA.sprite.speak()` | 否 | 显示气泡并走 TTS；真实音频播放前可能触发 `talk` | `talk` 是系统级语音播放伴随动画，不是状态。只有 TTS 成功并准备下发 `sprite:speak` 音频播放事件时才会尝试播放。 |
+| `SpriteManager.speak(text, options)` / `window.chobits.sprite.speak()` | 否 | 显示气泡并走 TTS；真实音频播放前可能触发 `talk` | `talk` 是系统级语音播放伴随动画，不是状态。只有 TTS 成功并准备下发 `sprite:speak` 音频播放事件时才会尝试播放。 |
 
 所有真正发送给渲染进程的动画播放命令都会经过 `playAnimationEntry()`，该函数会更新 `currentAnimation`、设置 `sessionMode`、下发 `sprite:play`，但它自己不调用状态机。
 
 ## 播放尺寸同步
 
-精灵视频动画的 `width` / `height` / `padding` 是播放窗口尺寸配置，不是视频文件本身的尺寸。`SpriteManager.registerAnimation()` 会把这些字段复制到 `AnimationEntry.playback`；`playAnimationEntry()` 再把它们下发到 `SpritePlayCommand.playback`，同时更新运行时的 `spriteConfig`。渲染进程收到 `sprite:play` 后会合并这些播放尺寸，`AIAssistant` 会调用 `window.YUA.window.setAssistantSize({ width, height, padding })` 调整精灵窗口大小。
+精灵视频动画的 `width` / `height` / `padding` 是播放窗口尺寸配置，不是视频文件本身的尺寸。`SpriteManager.registerAnimation()` 会把这些字段复制到 `AnimationEntry.playback`；`playAnimationEntry()` 再把它们下发到 `SpritePlayCommand.playback`，同时更新运行时的 `spriteConfig`。渲染进程收到 `sprite:play` 后会合并这些播放尺寸，`SpriteApp` 会调用 `window.chobits.window['sprite:size:set']({ width, height, padding })` 调整精灵窗口大小。
 
-当动画的 `movement.mode` 是 `windowAnimation` 时，`playAnimationEntry()` 会把当前动画的有效播放尺寸快照一起传给注入的 `windowAnimationAdapter`。这是为了弥补主进程窗口动画和渲染进程 `setAssistantSize` 之间的时序差：飞入、淡入、抖动这类稀疏窗口预设不写 `width/height`，窗口管理器会从播放开始时的目标窗口 bounds 继承尺寸。adapter 在主窗口播放这类稀疏预设前，会优先把窗口尺寸同步到当前精灵动画的播放尺寸；如果窗口预设本身写了 `width/height`（例如缩放、脉冲），则关键帧尺寸优先。
+当动画的 `movement.mode` 是 `windowAnimation` 时，`playAnimationEntry()` 会把当前动画的有效播放尺寸快照一起传给注入的 `windowAnimationAdapter`。这是为了弥补主进程窗口动画和渲染进程 `sprite:size:set` 之间的时序差：飞入、淡入、抖动这类稀疏窗口预设不写 `width/height`，窗口管理器会从播放开始时的目标窗口 bounds 继承尺寸。adapter 在主窗口播放这类稀疏预设前，会优先把窗口尺寸同步到当前精灵动画的播放尺寸；如果窗口预设本身写了 `width/height`（例如缩放、脉冲），则关键帧尺寸优先。
 
 ## 状态机到动画 trigger 的映射
 
@@ -65,16 +65,16 @@
 
 | 外部入口 | 主进程路径 | 是否触发状态变更 | 说明 |
 | --- | --- | --- | --- |
-| `window.YUA.sprite.trigger()` / `sprite:trigger` | `SpriteManager.trigger()` | 否 | 显式事件播放。 |
-| `window.YUA.sprite.testAnimation()` / `sprite:triggerById` | `SpriteManager.triggerById()` | 否 | 按动画 id 测试播放。 |
-| `window.YUA.sprite.playFeedback()` / `sprite:feedback:play` | `SpriteManager.playFeedbackAnimation()` | 否 | feedback 入口，最终走 `trigger()`。 |
-| `window.YUA.sprite.animComplete()` / `sprite:anim-complete` | `SpriteManager.handleAnimationComplete()` | 条件触发 | 可能因 `autoIdle` 回 idle，也可能只推进 playlist。 |
-| `window.YUA.sprite.ready()` / `sprite:ready` | `SpriteManager.handleRendererReady()` | 否 | 下发初始状态/当前动画，并延迟 `trigger('welcome')`；`welcome` 本身不改状态。 |
-| `window.YUA.sprite.speak()` / `sprite:speak` | `SpriteManager.speak()` | 否 | 说话和显示气泡；TTS 成功播放时由系统级 speech hook 尝试播放 `talk`。 |
-| `window.YUA.sprite.interact()` / `sprite:interact` | `SpriteManager.reportInteraction()` | 条件触发 | 点击、文件拖拽等会走状态机；普通 hover / 双击 / context-menu 只上报事件或暂停移动。 |
-| `window.YUA.sprite.dragStart()` / `sprite:drag start` | `SpriteManager.startDrag()` | 是 | `transitionTo('dragging')`。 |
-| `window.YUA.sprite.dragEnd()` / `sprite:drag end` | `SpriteManager.endDrag()` | 是 | `transitionTo('idle')`。 |
-| `window.YUA.sprite.fileDrop()` / `sprite:file-drop` | `SpriteManager.handleFileDrop()` | 是 | 内部 `reportInteraction('file-drop')`，走 `playOnce('file-drop')`。 |
+| `window.chobits.sprite.trigger()` / `sprite:trigger` | `SpriteManager.trigger()` | 否 | 显式事件播放。 |
+| `window.chobits.sprite.testAnimation()` / `sprite:trigger-by-id` | `SpriteManager.triggerById()` | 否 | 按动画 id 测试播放。 |
+| `window.chobits.sprite.playFeedback()` / `sprite:feedback:play` | `SpriteManager.playFeedbackAnimation()` | 否 | feedback 入口，最终走 `trigger()`。 |
+| `window.chobits.sprite.animComplete()` / `sprite:anim-complete` | `SpriteManager.handleAnimationComplete()` | 条件触发 | 可能因 `autoIdle` 回 idle，也可能只推进 playlist。 |
+| `window.chobits.sprite.ready()` / `sprite:ready` | `SpriteManager.handleRendererReady()` | 否 | 下发初始状态/当前动画，并延迟 `trigger('welcome')`；`welcome` 本身不改状态。 |
+| `window.chobits.sprite.speak()` / `sprite:speak` | `SpriteManager.speak()` | 否 | 说话和显示气泡；TTS 成功播放时由系统级 speech hook 尝试播放 `talk`。 |
+| `window.chobits.sprite.interact()` / `sprite:interact` | `SpriteManager.reportInteraction()` | 条件触发 | 点击、文件拖拽等会走状态机；普通 hover / 双击 / context-menu 只上报事件或暂停移动。 |
+| `window.chobits.sprite.dragStart()` / `sprite:drag start` | `SpriteManager.startDrag()` | 是 | `transitionTo('dragging')`。 |
+| `window.chobits.sprite.dragEnd()` / `sprite:drag end` | `SpriteManager.endDrag()` | 是 | `transitionTo('idle')`。 |
+| `window.chobits.sprite.fileDrop()` / `sprite:file-drop` | `SpriteManager.handleFileDrop()` | 是 | 内部 `reportInteraction('file-drop')`，走 `playOnce('file-drop')`。 |
 
 ## Routine step 入口
 

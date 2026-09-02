@@ -555,7 +555,7 @@ waitForSpriteEvent(input): Promise<StepResult>;
 - `sprite:purpose:start`
 - `sprite:purpose:cancel`
 - `sprite:purpose:getCurrent`
-- `sprite:purpose:listHistory`
+- `sprite:purpose:list-history`
 - `sprite:purpose:state` 下行广播
 
 ### 8.3 FileDropCollector
@@ -656,7 +656,7 @@ AI planner 的入口也应优先来自现有行为体系。例如某个 Behavior
 实施补充（2026-05-03）：
 
 - 已新增每日 retrospective 数据面：从 PurposeHistory JSONL 汇总每日目的统计、高价值 purpose 与 Memory-compatible recall cues。
-- 已通过 `sprite:purpose:getDailyRetrospective` 暴露给状态页，并由主进程组合层把 retrospective provider 注册给 Memory 模块，在 Memory index / daily index 生成前自动写成 `Sprite Purpose Retrospective` Memory Note。
+- 已通过 `sprite:purpose:get-daily-retrospective` 暴露给状态页，并由主进程组合层把 retrospective provider 注册给 Memory 模块，在 Memory index / daily index 生成前自动写成 `Sprite Purpose Retrospective` Memory Note。
 - 自发说话已通过构造注入的 retrospective provider 读取每日复盘摘要作为 prompt 上下文；长期记忆与闲置表达都消费每日复盘摘要，而不是逐 step 直写。
 
 ## 10. 关键实现注意事项

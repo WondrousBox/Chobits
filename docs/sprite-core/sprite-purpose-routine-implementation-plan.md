@@ -12,18 +12,18 @@
 
 - 已新增 `packages/sprite-core/purpose/` 基础运行时：`SpritePurposeManager`、`SpriteRoutineRunner`、`SpriteRoutinePresetRegistry`、默认 preset、history writer 抽象。
 - `SpriteManager` 已持有 PurposeManager，并暴露 `startPurpose()`、`cancelPurpose()`、`getPurposeSnapshot()`。
-- preload / IPC 已接入 `sprite:purpose:start`、`sprite:purpose:cancel`、`sprite:purpose:getSnapshot`。
+- preload / IPC 已接入 `sprite:purpose:start`、`sprite:purpose:cancel`、`sprite:purpose:get-snapshot`。
 - 动画播放指令已支持 `playId`，渲染层完成上报可回传 `playId`。
 - `playAnimation` step 已支持 `waitFor: 'duration'`、按 `playId` 等待 `waitFor: 'complete'`，以及省略 `waitFor` / `waitFor: 'none'` 的 fire-and-forget 触发语义。
 - 已新增 `SpritePresentationLock`，高优先级 routine 动画/行走期间会阻止低优先级 ambient trigger 抢占展示。
 - Phase 2.5 已把展示锁扩展到状态机驱动的动画解析链路，并新增 routine 生命周期级展示锁。
 - routine 自己触发的行走状态会带 owner 上下文通过展示锁；routine 结束释放锁后会按当前状态刷新动画。
-- Phase 3 基础版已新增 `PurposeEventWaiter`、`waitForEvent` step、`sprite:purpose:event`、`sprite:purpose:listHistory`、JSONL history store 与 step 生命周期历史。
+- Phase 3 基础版已新增 `PurposeEventWaiter`、`waitForEvent` step、`sprite:purpose:event`、`sprite:purpose:list-history`、JSONL history store 与 step 生命周期历史。
 - SpriteEventBus 事件与 AppEvent 已会转入 purpose-event 等待层；workflow 的 `SPRITE_WORKFLOW_*` payload 已带 `runId/workflowId/status/progress/resourceId` 等 correlation 字段。
 - Phase 4/5 已完成文件投递与 workflow 等待链路：`file.drop.intake`、FileActionsMenu purpose event 回报、`branch` / `loopUntil`、`workflow.waiting`、progress/updateBusy、取消/失败/完成收尾、UI/e2e 风格验收与低频 speak/cooldown 均已接入。
 - 文件投递已补齐 drop 前邀请段：`file.drop.invite` 会在 `file-drag-over` 时走向屏幕中心，等待 `interact:file-drop` / `interact:file-drag-leave`；drop 后沿用 `file.drop.intake` 接管菜单与处理链路。
 - Phase 6 已完成目的仲裁与行为接入：priority arbitration、同类 purpose coalesce、默认 `idle.presence`、`night-sleepy` 升级为 `daily.rest-reminder`、critical step defer interrupt、队列策略、workflow/resource purpose 路由、DailyCare dispatch -> purpose bridge 均已覆盖。
-- Phase 7 已完成 planner 接口、服务骨架、安全校验器、prompt/output digest、history 记录、AI draft -> routine helper、live planner 执行入口、Electron main 默认关闭接线、真实 Pi runtime executor/prompt、持久化 preferences + `sprite:purposePlanner:*` IPC/preload 入口、`SpritePurposeHistoryQuery.eventType` 过滤，以及扩展设置页目的规划器入口 / 最近结果 / planner 历史列表；默认仍关闭，启用后非法输出只会 fallback 到 preset。
+- Phase 7 已完成 planner 接口、服务骨架、安全校验器、prompt/output digest、history 记录、AI draft -> routine helper、live planner 执行入口、Electron main 默认关闭接线、真实 Pi runtime executor/prompt、持久化 preferences + `sprite:purpose-planner:*` IPC/preload 入口、`SpritePurposeHistoryQuery.eventType` 过滤，以及扩展设置页目的规划器入口 / 最近结果 / planner 历史列表；默认仍关闭，启用后非法输出只会 fallback 到 preset。
 - 长期记忆/复盘的数据面与首批消费入口已接入：`SpritePurposeHistoryStore.getDailyRetrospective()` 会生成每日目的摘要、高价值 purpose、Memory-compatible recall cues，并通过 `SpriteManager` / IPC / preload 暴露；状态页已展示“今日目的”摘要；Memory index / daily index 生成前会经由主进程组合层注册的 retrospective provider 把高价值复盘自动写成 `Sprite Purpose Retrospective` Memory Note；自发说话也通过注入的 provider 读取这层摘要作为安静上下文，避免 AI/Memory 模块直接依赖 sprite-core 实现。
 
 当前剩余主要是真实 provider 手动冒烟与更细的运行态体验打磨；核心运行时仍保持默认 preset 行为不受影响。
@@ -135,8 +135,8 @@ electron/main/handlers/sprite/
 | `src/features/sprite-assistant/renderers/VideoSprite.tsx`        | `animComplete` 回传 `playId`                                                   |
 | `src/features/sprite-assistant/renderers/video-sprite-driver.ts` | 完成回调透传 `playId` 所需上下文                                               |
 | `packages/sprite-core/preload/sprite-bridge.ts`                  | 增加 `purpose` 相关 IPC                                                        |
-| `packages/sprite-core/handler/sprite-manager-ipc.ts`             | 注册 `sprite:purpose:*` IPC                                                    |
-| `packages/sprite-core/handler/sprite-event-listener.ts`          | workflow 事件可选升级为 Purpose/Routine                                        |
+| `packages/sprite-core/handlers/sprite-manager-ipc.ts`             | 注册 `sprite:purpose:*` IPC                                                    |
+| `packages/sprite-core/handlers/sprite-event-listener.ts`          | workflow 事件可选升级为 Purpose/Routine                                        |
 | `src/features/sprite-assistant/hooks/useFileDropCollector.ts`    | 阶段性保持现状；后续可改为 startPurpose                                        |
 | `src/pages/FileActionsMenu/FileActionsMenu.tsx`                  | 上报 action selected/cancelled/workflow started                                |
 | `packages/workflow/index.ts`                                     | workflow AppEvent payload 增加 runId/workflowId/status/progress                |
@@ -346,7 +346,7 @@ export interface SpriteRoutineStepResult {
 
 1. `SpritePlayCommand` 增加 `playId?: string`。
 2. `SpriteManager.playAnimationAndWait()` 每次生成唯一 `playId`。
-3. `VideoSprite` 调用 `window.YUA.sprite.animComplete(animationId, phase, playId)`。
+3. `VideoSprite` 调用 `window.chobits.sprite.animComplete(animationId, phase, playId)`。
 4. 主进程等待时优先匹配 `playId`，旧调用无 `playId` 时继续按 `animId` 兼容。
 
 ### 5.2 EventBus 事件名要和 IPC 通道分开
@@ -461,7 +461,7 @@ type SpritePurposeWindowAdapter = {
 - [x] IPC 增加：
   - `sprite:purpose:start`
   - `sprite:purpose:cancel`
-  - `sprite:purpose:getSnapshot`
+  - `sprite:purpose:get-snapshot`
 
 第一批 preset：
 
@@ -476,7 +476,7 @@ daily.rest-reminder:
 
 验收：
 
-- 从 DevTools 或测试调用 `window.YUA.sprite.startPurpose({ presetId: 'daily.rest-reminder' })` 后，角色能连续走、播放、说话、回角落。
+- 从 DevTools 或测试调用 `window.chobits.sprite.startPurpose({ presetId: 'daily.rest-reminder' })` 后，角色能连续走、播放、说话、回角落。
 - 现有 idle 行为仍然正常。
 
 测试：
@@ -557,7 +557,7 @@ daily.rest-reminder:
 - [x] 新增 `purpose:event` 内部事件入口。
 - [x] IPC 增加：
   - [x] `sprite:purpose:event`
-  - [x] `sprite:purpose:listHistory`
+  - [x] `sprite:purpose:list-history`
   - [x] `sprite:purpose:state` 下行广播
 - [x] 实现 `purpose-history.ts` JSONL store：
   - 路径：`<userData>/data/sprite-purpose-history-YYYY-MM-DD.jsonl`
@@ -741,7 +741,7 @@ daily.rest-reminder:
 - [x] 将 planned AI routine 接入 live `PurposeManager` / `SpriteManager` 可注入执行路径，并保留 preset fallback。
 - [x] Electron main 实例化默认关闭的 `SpritePurposePlannerService`，并通过 adapter 注入 `purposeRoutinePlanner`；disabled/fallback 时仍走 preset。
 - [x] 接入真实 AI executor / runtime prompt：`purpose-planner-runtime.ts` 通过 Pi task runtime 生成 JSON-only draft，`purpose-planner-context.ts` 复用最近 AI 会话/provider 上下文，Electron main 默认关闭但已注入 executor。
-- [x] 接入持久化 planner preferences 与观测状态：`sprite:purposePlanner:getPreferences`、`sprite:purposePlanner:updatePreferences`、`sprite:purposePlanner:getStatus`，preload bridge 同步暴露。
+- [x] 接入持久化 planner preferences 与观测状态：`sprite:purpose-planner:get-preferences`、`sprite:purpose-planner:update-preferences`、`sprite:purpose-planner:get-status`，preload bridge 同步暴露。
 - [x] 接入扩展设置页 UI：`PurposePlannerSettings` / `usePurposePlannerSettings` 暴露 enabled、historyLimit、executor 状态与最近一次 planner 结果摘要。
 - [x] 接入 planner 历史列表：`SpritePurposeHistoryQuery.eventType` 支持过滤 `planner:planned` / `planner:fallback`，设置页观测页展示 planner 历史 digest、fallback 原因、校验状态和错误/警告摘要。
 - [x] 接入设置页手动试跑：触发低风险 `daily.care.reminder` purpose，用于验证真实 planner / fallback / history 链路。
@@ -785,7 +785,7 @@ daily.rest-reminder:
   - [x] `memoryWorthiness` 评分与 `memoryCandidate`
   - [x] Memory Note 可直接复用的 `recallCues`
 - [x] `SpritePurposeHistoryStore.getDailyRetrospective()` 暴露 store 级查询。
-- [x] `SpriteManager.getPurposeDailyRetrospective()`、`sprite:purpose:getDailyRetrospective`、preload `getPurposeDailyRetrospective()` 已接入。
+- [x] `SpriteManager.getPurposeDailyRetrospective()`、`sprite:purpose:get-daily-retrospective`、preload `getPurposeDailyRetrospective()` 已接入。
 - [x] 状态页接入 `PurposeRetrospectivePanel`，展示今日完成/异常/记忆候选统计与最近目的。
 - [x] Memory index / daily index 生成前通过注册的 retrospective provider 自动同步 `Sprite Purpose Retrospective` Memory Note，写入高价值目的的 `Recall Cues`。
 - [x] 自发说话服务通过构造注入的 retrospective provider 读取每日 retrospective，把高价值 purpose 与 recall cues 注入 prompt，并过滤 `idle.presence` 噪声。
@@ -1008,7 +1008,7 @@ playQuestRecordAnimation()
 它们直接调用：
 
 ```ts
-window.YUA.sprite?.trigger('write', { silent: true });
+window.chobits.sprite?.trigger('write', { silent: true });
 ```
 
 实际风险是：这个调用经由 `sprite:trigger` 进入 `SpriteManager.trigger('write')` 后，会被 `presentationLock.shouldAllow()` 检查。若 `quest:start` 已经启动了某个 purpose routine，routine lifecycle lock 可能已经存在；这次 renderer 外部触发没有 `ownerPurposeId + priority`，因此即使它在产品语义上属于“启动任务的衔接反馈”，也会被当前 active purpose 的 lock 拦住。
@@ -1045,7 +1045,7 @@ window.YUA.sprite?.trigger('write', { silent: true });
 在 preload 暴露一个窄接口，不扩展普通 `sprite.trigger()` 的权限面：
 
 ```ts
-window.YUA.sprite.playFeedback({
+window.chobits.sprite.playFeedback({
   trigger: 'write',
   kind: 'quest-record',
   silent: true,
@@ -1110,7 +1110,7 @@ type SpriteFeedbackResult =
 不要让 renderer 直接调用：
 
 ```ts
-window.YUA.sprite.trigger('write', {
+window.chobits.sprite.trigger('write', {
   silent: true,
   ignorePresentationLock: true
 });
@@ -1133,13 +1133,13 @@ window.YUA.sprite.trigger('write', {
   - 新增 `playFeedbackAnimation(request)`。
   - 提供内部 helper：`resolveCurrentPresentationOwnerForFeedback(kind)`。
   - 不暴露 `ignorePresentationLock` 给 renderer。
-- `packages/sprite-core/handler/sprite-manager-ipc.ts`
+- `packages/sprite-core/handlers/sprite-manager-ipc.ts`
   - 新增 IPC：`sprite:feedback:play`。
   - 只接收 `SpriteFeedbackRequest` 白名单字段。
 - `packages/sprite-core/preload/sprite-bridge.ts`
   - 暴露 `playFeedback(request)`。
 - `src/features/sprite-assistant/message/MessageContext.tsx`
-  - 将 `playQuestRecordAnimation()` 改为调用 `window.YUA.sprite.playFeedback({ trigger: 'write', kind: 'quest-record', silent: true })`。
+  - 将 `playQuestRecordAnimation()` 改为调用 `window.chobits.sprite.playFeedback({ trigger: 'write', kind: 'quest-record', silent: true })`。
 - `src/pages/QuestListPage/QuestListPage.tsx`
   - 同步改为同一个 helper；后续可抽一个 renderer 侧小工具，避免重复实现。
 
@@ -1170,7 +1170,7 @@ window.YUA.sprite.trigger('write', {
 - 已新增 `SpriteFeedbackKind` / `SpriteFeedbackRequest` / `SpriteFeedbackResult`，并从 sprite-core 与 sprite-assistant 类型出口导出。
 - `SpriteManager.playFeedbackAnimation()` 已实现主进程受控的 owner 借用：先校验 request，再先查动画候选；有 lock 时只接受 active routine owner 或当前 active purpose owner，随后用内部 `ownerPurposeId + priority` 调用 `trigger()`。
 - `sprite:feedback:play` IPC 只转发 `trigger/kind/silent/durationMs/message/ctx` 白名单字段，renderer 传入的 `ownerPurposeId`、`priority`、`ignorePresentationLock` 会被丢弃。
-- preload 已暴露 `window.YUA.sprite.playFeedback(request)`；任务推荐气泡和任务列表页的 `playQuestRecordAnimation()` 已迁移到 `playFeedback({ trigger: 'write', kind: 'quest-record', silent: true })`。
+- preload 已暴露 `window.chobits.sprite.playFeedback(request)`；任务推荐气泡和任务列表页的 `playQuestRecordAnimation()` 已迁移到 `playFeedback({ trigger: 'write', kind: 'quest-record', silent: true })`。
 - 已补充 manager 回归测试覆盖 active purpose lifecycle lock、非当前 owner lock、无 lock、缺失动画候选、非法 request；IPC 测试覆盖窄 payload；消息队列测试覆盖推荐任务启动后的 `playFeedback` 调用。
 - `no-renderer` 暂作为 `SpriteFeedbackResult` 的预留可观测原因；当前 manager 版本还没有独立的 renderer availability 判断，因此第一版不会主动返回该 reason。
 

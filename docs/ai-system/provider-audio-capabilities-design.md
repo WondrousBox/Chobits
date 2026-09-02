@@ -467,7 +467,7 @@ MiniMax WebSocket 私有事件不应透出到 workflow/UI；必要调试信息�
 当前实现状态：
 
 - `MiniMaxProvider.streamSpeechSynthesis()` 已支持 `mode: 'duplex-stream'` 或 `transportPreference: 'websocket'`。
-- Renderer bridge `window.YUA.ai.streamSpeechSynthesis()` 已返回可持续输入的 stream handle。
+- Renderer bridge `window.chobits.ai.streamSpeechSynthesis()` 已返回可持续输入的 stream handle。
 - WebSocket 会话支持完整文本一次性输入，也支持 AsyncIterable / IPC 队列分段输入。
 
 ### 11.4 MiniMax 模型声明
@@ -511,13 +511,13 @@ Execution service：
 
 IPC / preload：
 
-- `ai:generateMusic` / `window.YUA.ai.generateMusic`
-- `ai:synthesizeSpeech` / `window.YUA.ai.synthesizeSpeech`
-- `ai:streamSpeechSynthesis` / `window.YUA.ai.streamSpeechSynthesis`
-- `ai:appendSpeechSynthesisText`
-- `ai:flushSpeechSynthesis`
-- `ai:finishSpeechSynthesis`
-- `ai:cancelSpeechSynthesis`
+- `ai:generateMusic` / `window.chobits.ai.generateMusic`
+- `ai:synthesize-speech` / `window.chobits.ai.synthesizeSpeech`
+- `ai:stream-speech-synthesis` / `window.chobits.ai.streamSpeechSynthesis`
+- `ai:append-speech-synthesis-text`
+- `ai:flush-speech-synthesis`
+- `ai:finish-speech-synthesis`
+- `ai:cancel-speech-synthesis`
 
 Workflow：
 

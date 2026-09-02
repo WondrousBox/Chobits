@@ -201,7 +201,7 @@ Sprite-triggered window animation has an explicit size priority:
 2. If the generated keyframes omit size, and the currently playing sprite animation has playback `width` / `height` / `padding`, Electron main first applies that effective sprite playback size to the main sprite window. The sparse timeline then inherits the correct current size from `@aim-packages/window-manager`.
 3. If there is no sprite playback size, playback falls back to the window manager's normal inheritance from the target window's current bounds or the previous resolved keyframe.
 
-This avoids a race where `SpriteManager.playAnimationEntry()` sends `sprite:play`, immediately triggers a window preset, and the renderer-side `AIAssistant` effect has not yet called `setAssistantSize`. Without the adapter preparation step, sparse presets such as fly, fade, and shake can inherit the old native window bounds and keep writing that old size during the animation.
+This avoids a race where `SpriteManager.playAnimationEntry()` sends `sprite:play`, immediately triggers a window preset, and the renderer-side `SpriteApp` effect has not yet called `sprite:size:set`. Without the adapter preparation step, sparse presets such as fly, fade, and shake can inherit the old native window bounds and keep writing that old size during the animation.
 
 `SpriteMovementConfig.windowAnimationPlayPosition` controls the optional placement step before preset playback:
 

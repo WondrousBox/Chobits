@@ -37,8 +37,8 @@
   - 録音・文字起こし（ASR）：ローカルの sherpa-onnx によるオフライン認識、またはクラウド transcribe。
   - リアルタイム字幕と翻訳。
 
-- **スプライトパック編集**
-  - スプライトパックマネージャー / エディター（SpritePackManager / SpritePackEditor）、キャラクターギャラリー（CharacterGallery）を内蔵。
+- **キャラクターパック編集**
+  - キャラクターパックマネージャー / エディター（CharacterPackManager / CharacterPackEditor）、キャラクターギャラリー（CharacterGallery）を内蔵。
   - ウィンドウアニメーションエディター（WindowAnimationEditor）で、妖精の動きや演出を編成できます。
 
 - **グローバルショートカットと補助機能**

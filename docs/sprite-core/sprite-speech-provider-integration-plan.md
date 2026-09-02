@@ -28,7 +28,7 @@ MiniMax 的语音合成底座已经在 `packages/ai` 中具备三种请求方式
 
 - 角色机能扩展中的“语音合成/角色说话”支持选择 `Edge` 或 `AI Provider`。
 - AI Provider 模式使用统一 `speechSynthesis` capability，未来可接 MiniMax、OpenAI、ElevenLabs、火山、腾讯、阿里等服务商。
-- 保留现有 `window.YUA.sprite.speak()`、`synthesizeSpeech()`、气泡展示、talk 动画触发和缓存行为。
+- 保留现有 `window.chobits.sprite.speak()`、`synthesizeSpeech()`、气泡展示、talk 动画触发和缓存行为。
 - 普通角色说话使用 `complete/http`，保证“合成完成 -> 缓存 -> 播放”的稳定体验。
 - AI 聊天 delta 的实时朗读走独立开关，默认关闭，优先使用 WebSocket `duplex-stream` + PCM 播放器；不支持时按能力降级到 HTTP 流式或完整 HTTP 合成。
 
@@ -112,7 +112,7 @@ UI 分层：
    - 音色使用 provider voice 选择器。第一阶段可先提供“常用 MiniMax 音色 + 手动输入 voiceId”，后续再扩展统一 voice catalog。
    - 合成模式不在配置页暴露。普通说话由系统固定走 `complete/http`；AI 回复实时朗读由系统按模型 metadata 中的 `speechSynthesis.modes/transports/audioFormats` 自动选择。
    - 展示 Provider 配置状态。未配置 API key 或 preset 时，提供“去配置”入口。
-   - 试听按钮仍调用 `window.YUA.sprite.speak()`，让测试覆盖真实角色说话链路。
+   - 试听按钮仍调用 `window.chobits.sprite.speak()`，让测试覆盖真实角色说话链路。
 
 需要扩展的前端类型：
 
@@ -334,20 +334,20 @@ durationMs?: number;
 
 现有 IPC 可以继续承载新配置：
 
-- `sprite:speak:getConfig`
-- `sprite:speak:setConfig`
-- `sprite:speak:resetConfig`
+- `sprite:speak:get-config`
+- `sprite:speak:set-config`
+- `sprite:speak:reset-config`
 - `sprite:speak:synthesize`
 - `sprite:speak`
-- `sprite:speak:getCacheStats`
-- `sprite:speak:clearCache`
+- `sprite:speak:get-cache-stats`
+- `sprite:speak:clear-cache`
 
-第一阶段无需新增角色说话 IPC。设置页选择 provider/model 可以直接复用 `window.YUA.ai.getProviders()`、`window.YUA.ai.listModels()`、`window.YUA.ai.resolveUsablePreset()` 和 Provider 配置窗口。
+第一阶段无需新增角色说话 IPC。设置页选择 provider/model 可以直接复用 `window.chobits.ai.getProviders()`、`window.chobits.ai.listModels()`、`window.chobits.ai.resolveUsablePreset()` 和 Provider 配置窗口。
 
 聊天实时朗读需要新增实时会话 IPC：
 
 - `sprite:speak:realtime:start`
-- `sprite:speak:realtime:appendText`
+- `sprite:speak:realtime:append-text`
 - `sprite:speak:realtime:flush`
 - `sprite:speak:realtime:finish`
 - `sprite:speak:realtime:cancel`
@@ -395,7 +395,7 @@ durationMs?: number;
 
 - 旧配置文件没有 `engine` 时仍按 Edge 正常朗读。
 - 选择 Edge 时，现有音色、语速、音高、播放音量、缓存、试听不回退。
-- 选择 AI Provider + MiniMax + `speech-2.8-turbo` + 合法 `voiceId` 时，`window.YUA.sprite.speak()` 能合成、缓存并播放。
+- 选择 AI Provider + MiniMax + `speech-2.8-turbo` + 合法 `voiceId` 时，`window.chobits.sprite.speak()` 能合成、缓存并播放。
 - 未配置 Provider API key 时，设置页能明确引导配置，不在 speak 时静默失败。
 - 切换 provider、model、voiceId、speed、pitch、emotion 后缓存 key 变化。
 - 普通 `sprite.speak()` 即使旧配置中存在 `duplex-stream/websocket`，也仍使用 `complete/http` 和同一套缓存 key。
