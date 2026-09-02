@@ -13,7 +13,7 @@ const KeyManagementSettings: React.FC = () => {
   const handleClearAllKeys = async (): Promise<void> => {
     setIsClearing(true);
     try {
-      const result = await window.YUA.ai.clearAllSecrets();
+      const result = await window.chobits.ai.clearAllSecrets();
       if (result.ok) {
         setShowConfirmDialog(false);
       }

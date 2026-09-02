@@ -4,8 +4,8 @@ import { TbAdjustments, TbCpu, TbKeyboard, TbMessage2, TbNetwork, TbPlug, TbTogg
 
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
 
-import DragAbleTitle from '../../components/common/DragAbleTitle';
-import AiSettings from './components/AiSettings';
+import DraggableTitle from '../../components/common/DraggableTitle';
+import AISettings from './components/AISettings';
 import FeatureFlagsSettings from './components/FeatureFlagsSettings';
 import PreferencesSettings from './components/PreferencesSettings';
 import PromptSetting from './components/PromptSetting';
@@ -90,9 +90,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = EM
   }, [extraCategories]);
 
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>(defaultCategory || allCategories[0]?.id || 'preferences');
-  const [initialAiProviderId, setInitialAiProviderId] = useState<string | null>(null);
-  const [initialAiPresetId, setInitialAiPresetId] = useState<string | null>(null);
-  const [aiPayloadRevision, setAiPayloadRevision] = useState(0);
+  const [initialAIProviderId, setInitialAIProviderId] = useState<string | null>(null);
+  const [initialAIPresetId, setInitialAIPresetId] = useState<string | null>(null);
+  const [aiPayloadRevision, setAIPayloadRevision] = useState(0);
 
   // 当 defaultCategory 变化时，更新 activeCategory
   useEffect(() => {
@@ -105,17 +105,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = EM
     (payload: any): void => {
       if (!payload || typeof payload !== 'object') return;
 
-      const hasAiTarget = typeof payload.aiProviderId === 'string' || typeof payload.aiPresetId === 'string';
+      const hasAITarget = typeof payload.aiProviderId === 'string' || typeof payload.aiPresetId === 'string';
       if (payload.category && allCategories.some((c) => c.id === payload.category)) {
         setActiveCategory(payload.category as SettingsCategory);
-      } else if (hasAiTarget && allCategories.some((c) => c.id === 'ai')) {
+      } else if (hasAITarget && allCategories.some((c) => c.id === 'ai')) {
         setActiveCategory('ai');
       }
 
-      if (hasAiTarget) {
-        setInitialAiProviderId(typeof payload.aiProviderId === 'string' ? payload.aiProviderId : null);
-        setInitialAiPresetId(typeof payload.aiPresetId === 'string' ? payload.aiPresetId : null);
-        setAiPayloadRevision((prev) => prev + 1);
+      if (hasAITarget) {
+        setInitialAIProviderId(typeof payload.aiProviderId === 'string' ? payload.aiProviderId : null);
+        setInitialAIPresetId(typeof payload.aiPresetId === 'string' ? payload.aiPresetId : null);
+        setAIPayloadRevision((prev) => prev + 1);
       }
     },
     [allCategories]
@@ -135,7 +135,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = EM
     // 如果 settings 窗口已存在，后续 createOrShow 会走上面的 IPC 事件重新定位。
     (async () => {
       try {
-        const payload = await window.YUA.window['window:payload:get']('settings' as any);
+        const payload = await window.chobits.window['window:payload:get']('settings' as any);
         handlePayload(payload);
       } catch {
         // ignore
@@ -164,7 +164,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = EM
       case 'plugins':
         return <PluginPage />;
       case 'ai':
-        return <AiSettings initialProviderId={initialAiProviderId || undefined} initialPresetId={initialAiPresetId || undefined} focusRevision={aiPayloadRevision} />;
+        return <AISettings initialProviderId={initialAIProviderId || undefined} initialPresetId={initialAIPresetId || undefined} focusRevision={aiPayloadRevision} />;
       case 'prompt':
         return <PromptSetting />;
       case 'shortcuts':
@@ -178,7 +178,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = EM
 
   return (
     <div className="h-full w-full bg-background">
-      {!hideTitleBar && <DragAbleTitle title={<span>⚙️ 设置</span>} />}
+      {!hideTitleBar && <DraggableTitle title={<span>⚙️ 设置</span>} />}
       <SidebarProvider className="w-full h-full min-h-[unset]">
         <Sidebar>
           <SidebarContent className="gap-0">

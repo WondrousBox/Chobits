@@ -5,7 +5,7 @@ import {
   createWindowAnimationPresetFrames,
   serializeWindowAnimationPresetFrames,
   type WindowAnimationPresetFrame
-} from '../../src/pages/ExtensionSettings/window-animation-presets';
+} from '../../src/lib/window-animation-presets';
 
 const workArea = { x: 0, y: 0, width: 1440, height: 900 };
 

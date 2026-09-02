@@ -175,7 +175,7 @@ sendBusy('处理中...', 50);
 clearBusy();
 
 // 旧 API - 仍然支持（会被映射到统一 bridge）
-sendAppNotice({ message: '提示消息', level: 'info' });
+sendAppNotice({ content: '提示消息', level: 'info' });
 sendAppBusyStart(0, '加载中...');
 sendAppBusyProgress(50, '处理中...');
 sendAppBusyEnd();

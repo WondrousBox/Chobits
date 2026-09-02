@@ -14,7 +14,7 @@ describe('MessageProvider surface routing', () => {
     const env = installMiniDom();
     let bridgeHandler: ((payload: MessageBridgePayload) => void) | null = null;
     let messageContext: MessageContextValue | null = null;
-    (env.window as any).YUA = {
+    (env.window as any).chobits = {
       sprite: {},
       messages: {
         on: (callback: (payload: MessageBridgePayload) => void) => {
@@ -85,7 +85,7 @@ describe('MessageProvider surface routing', () => {
 
     const env = installMiniDom();
     let bridgeHandler: ((payload: MessageBridgePayload) => void) | null = null;
-    (env.window as any).YUA = {
+    (env.window as any).chobits = {
       sprite: {},
       messages: {
         on: (callback: (payload: MessageBridgePayload) => void) => {

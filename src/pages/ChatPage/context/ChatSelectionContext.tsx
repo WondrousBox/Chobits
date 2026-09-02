@@ -164,12 +164,12 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
 
   const refresh = useCallback(async () => {
     try {
-      setProviders((await window.YUA.ai.getProviders()) || []);
+      setProviders((await window.chobits.ai.getProviders()) || []);
     } catch {
       /* noop */
     }
     try {
-      setAgents((await window.YUA.ai.getAgents()) || []);
+      setAgents((await window.chobits.ai.getAgents()) || []);
     } catch {
       /* noop */
     }

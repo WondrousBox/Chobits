@@ -5,12 +5,12 @@ import { Button } from '@/components/ui/button';
 
 interface AudioPlayerProps {
   audioFilePath: string;
-  isTransparent?: boolean;
+  isSubtitleMode?: boolean;
   onTimeUpdate?: (currentTime: number) => void;
   className?: string;
 }
 
-export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioFilePath, isTransparent = false, onTimeUpdate, className = '' }) => {
+export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioFilePath, isSubtitleMode = false, onTimeUpdate, className = '' }) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -109,21 +109,21 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioFilePath, isTrans
     <div className={`flex items-center gap-2 px-3 py-2 ${className}`}>
       {/* 播放/暂停按钮 */}
       <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={togglePlay}>
-        {isPlaying ? <TbPlayerPause className={`h-4 w-4 ${isTransparent ? 'text-white' : ''}`} /> : <TbPlayerPlay className={`h-4 w-4 ${isTransparent ? 'text-white' : ''}`} />}
+        {isPlaying ? <TbPlayerPause className={`h-4 w-4 ${isSubtitleMode ? 'text-white' : ''}`} /> : <TbPlayerPlay className={`h-4 w-4 ${isSubtitleMode ? 'text-white' : ''}`} />}
       </Button>
 
       {/* 时间显示 */}
-      <span className={`text-xs tabular-nums w-10 ${isTransparent ? 'text-white/70' : 'text-muted-foreground'}`}>{formatTime(currentTime)}</span>
+      <span className={`text-xs tabular-nums w-10 ${isSubtitleMode ? 'text-white/70' : 'text-muted-foreground'}`}>{formatTime(currentTime)}</span>
 
       {/* 进度条 */}
       <input type="range" className="flex-1 h-1 accent-primary cursor-pointer" value={currentTime} max={duration || 100} step={0.1} onChange={handleSeek} />
 
       {/* 总时长 */}
-      <span className={`text-xs tabular-nums w-10 ${isTransparent ? 'text-white/70' : 'text-muted-foreground'}`}>{formatTime(duration)}</span>
+      <span className={`text-xs tabular-nums w-10 ${isSubtitleMode ? 'text-white/70' : 'text-muted-foreground'}`}>{formatTime(duration)}</span>
 
       {/* 音量控制 */}
       <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={toggleMute}>
-        {isMuted || volume === 0 ? <TbVolumeOff className={`h-4 w-4 ${isTransparent ? 'text-white' : ''}`} /> : <TbVolume className={`h-4 w-4 ${isTransparent ? 'text-white' : ''}`} />}
+        {isMuted || volume === 0 ? <TbVolumeOff className={`h-4 w-4 ${isSubtitleMode ? 'text-white' : ''}`} /> : <TbVolume className={`h-4 w-4 ${isSubtitleMode ? 'text-white' : ''}`} />}
       </Button>
 
       <input type="range" className="w-16 h-1 accent-primary cursor-pointer" value={isMuted ? 0 : volume} max={1} step={0.01} onChange={handleVolumeChange} />

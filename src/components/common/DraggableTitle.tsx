@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { Button } from '../ui/button';
 
-interface DragAbleTitleProps {
+interface DraggableTitleProps {
   title: React.ReactNode | string;
   icon?: React.ReactNode;
   fixed?: boolean;
@@ -16,22 +16,22 @@ interface DragAbleTitleProps {
   onClose?: () => void;
 }
 
-function DragAbleTitle({ title, icon, center, actions, showBack = false, fixed, onClose }: DragAbleTitleProps): React.ReactElement {
-  const [maximized, setMaximized] = useState(false);
-  const [caps, setCaps] = useState({ minimizable: true, maximizable: true, resizable: true });
+function DraggableTitle({ title, icon, center, actions, showBack = false, fixed, onClose }: DraggableTitleProps): React.ReactElement {
+  const [isMaximized, setIsMaximized] = useState(false);
+  const [windowCapabilities, setWindowCapabilities] = useState({ minimizable: true, maximizable: true, resizable: true });
   const navigate = useNavigate();
 
   useEffect(() => {
     let mounted = true;
-    if (window.YUA.isWindows) {
-      window.YUA.window['window:maximized:get']().then((v) => {
-        if (mounted) setMaximized(!!v);
+    if (window.chobits.isWindows) {
+      window.chobits.window['window:maximized:get']().then((v) => {
+        if (mounted) setIsMaximized(!!v);
       });
-      window.YUA.window['window:capabilities:get']().then((c) => {
-        if (mounted) setCaps(c);
+      window.chobits.window['window:capabilities:get']().then((c) => {
+        if (mounted) setWindowCapabilities(c);
       });
       const listener = (_: any, state: boolean): void => {
-        if (mounted) setMaximized(state);
+        if (mounted) setIsMaximized(state);
       };
       window.ipcRenderer.on('window-maximize-changed', listener);
       return () => {
@@ -45,7 +45,7 @@ function DragAbleTitle({ title, icon, center, actions, showBack = false, fixed, 
   }, []);
   return (
     <div className={clsx(['flex items-center w-full drag-region gap-2 h-9 px-2 box-border bg-background', fixed && 'fixed top-0 left-0 right-0'])}>
-      {window.YUA.isMac && <div className="w-20"></div>}
+      {window.chobits.isMac && <div className="w-20"></div>}
       {showBack && (
         <Button variant="ghost" size="icon" className="h-8 w-8 no-drag" onClick={() => navigate(-1)}>
           <TbArrowLeft />
@@ -56,29 +56,29 @@ function DragAbleTitle({ title, icon, center, actions, showBack = false, fixed, 
       {center && <div className="absolute left-1/2 -translate-x-1/2 flex items-center">{center}</div>}
       {actions && <div className="no-drag flex items-center gap-2">{actions}</div>}
       {/* Windows 自定义窗口控制按钮（Mac 使用系统 traffic lights 不再重复） */}
-      {window.YUA.isWindows && (
+      {window.chobits.isWindows && (
         <div className="no-drag flex items-center ml-2 -mr-2 select-none">
           <Button
             title="Minimize"
-            disabled={!caps.minimizable}
+            disabled={!windowCapabilities.minimizable}
             className="rounded-none border-0 shadow-none disabled:opacity-40 disabled:cursor-not-allowed"
             variant={'outline'}
-            onClick={() => caps.minimizable && window.YUA.window['window:minimize']()}
+            onClick={() => windowCapabilities.minimizable && window.chobits.window['window:minimize']()}
           >
             <VscChromeMinimize />
           </Button>
           <Button
-            title={maximized ? 'Restore' : 'Maximize'}
-            disabled={!(caps.maximizable && caps.resizable)}
+            title={isMaximized ? 'Restore' : 'Maximize'}
+            disabled={!(windowCapabilities.maximizable && windowCapabilities.resizable)}
             className="rounded-none border-0 shadow-none disabled:opacity-40 disabled:cursor-not-allowed"
             variant={'outline'}
             onClick={async () => {
-              if (!(caps.maximizable && caps.resizable)) return;
-              const r = await window.YUA.window['window:maximize']();
-              setMaximized(!!r.maximized);
+              if (!(windowCapabilities.maximizable && windowCapabilities.resizable)) return;
+              const r = await window.chobits.window['window:maximize']();
+              setIsMaximized(!!r.maximized);
             }}
           >
-            {maximized ? <VscChromeRestore /> : <VscChromeMaximize />}
+            {isMaximized ? <VscChromeRestore /> : <VscChromeMaximize />}
           </Button>
           <Button
             title="Close"
@@ -86,7 +86,7 @@ function DragAbleTitle({ title, icon, center, actions, showBack = false, fixed, 
             variant={'outline'}
             onClick={() => {
               if (onClose) onClose();
-              else window.YUA.window['window:close:self']();
+              else window.chobits.window['window:close:self']();
             }}
           >
             <VscChromeClose />
@@ -94,7 +94,7 @@ function DragAbleTitle({ title, icon, center, actions, showBack = false, fixed, 
         </div>
       )}
       {/* 兼容保留自定义 onClose（非 Windows 或者想要额外的关闭按钮） */}
-      {onClose && !window.YUA.isWindows && (
+      {onClose && !window.chobits.isWindows && (
         <Button className="w-8 h-8" onClick={onClose}>
           Close
         </Button>
@@ -103,4 +103,4 @@ function DragAbleTitle({ title, icon, center, actions, showBack = false, fixed, 
   );
 }
 
-export default DragAbleTitle;
+export default DraggableTitle;

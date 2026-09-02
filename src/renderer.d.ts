@@ -5,7 +5,7 @@ import type { PreferencesIpcType } from '../electron/main/handlers/preferences/i
 import type { ProxyIpcType } from '../electron/main/handlers/proxy/ipc-renderer';
 import type { SystemIpcType } from '../electron/main/handlers/system/ipc-renderer';
 import type { ThemeIpcType } from '../electron/main/handlers/theme/ipc-renderer';
-import type { PersonaApiBridgeType } from '../electron/preload/apis/persona';
+import type { CharacterApiBridgeType } from '../electron/preload/apis/character';
 import type { ShortcutsBridgeType } from '../electron/preload/apis/shortcuts';
 import type { StatusBridgeType } from '../electron/preload/apis/status';
 import type { WindowBridgeType } from '../electron/preload/apis/window';
@@ -18,7 +18,7 @@ import type { MessageBridgePayload } from '../packages/sprite-core/types';
 
 declare global {
   interface Window {
-    YUA: {
+    chobits: {
       isMac: boolean;
       isWindows: boolean;
       isLinux: boolean;
@@ -33,7 +33,7 @@ declare global {
       system: SystemIpcType;
       sprite: SpriteBridgeType;
       status: StatusBridgeType;
-      persona: PersonaApiBridgeType;
+      character: CharacterApiBridgeType;
       shortcuts: ShortcutsBridgeType;
       pluginResource: PluginResourceIpcType;
       proxy: ProxyIpcType;
@@ -47,8 +47,8 @@ declare global {
       events: {
         on: (callback: (payload: AppEventPayload) => void) => () => void;
       };
-      handleMessage: (handleFunction: (event: IpcRendererEvent, data: { type: string; data: any }) => any, name: string) => Promise<void>;
-      removeHandler: (name?: string) => Promise<void>;
+      handleMessage: (handler: (event: IpcRendererEvent, data: { type: string; data: any }) => any, name: string) => Promise<void>;
+      removeMessageHandler: (name?: string) => Promise<void>;
     };
     ipcRenderer: import('electron').IpcRenderer;
   }

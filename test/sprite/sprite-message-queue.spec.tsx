@@ -229,7 +229,7 @@ describe('useMessageQueue', () => {
     const env = installMiniDom();
     const emitPurposeEvent = vi.fn(async () => ({ matched: 1 }));
     const openWindow = vi.fn(async () => true);
-    (env.window as any).YUA = {
+    (env.window as any).chobits = {
       sprite: {
         emitPurposeEvent
       },

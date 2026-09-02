@@ -56,8 +56,6 @@ import { PluginListItem } from './components/PluginListItem';
 import SelectModelFolder from './components/SelectModelFolder';
 import type { InstalledResource } from './components/types';
 
-interface PluginPageProps {}
-
 type DownloadSettingKey =
   | 'deletePartialDownloadOnCancel'
   | 'deletePartialDownloadOnFailure'
@@ -103,11 +101,11 @@ const DOWNLOAD_SETTING_ITEMS: Array<{
   }
 ];
 
-const PluginPage: React.FC<PluginPageProps> = () => {
+const PluginPage: React.FC = () => {
   const [supported, setSupported] = useState<PluginDefinition[]>([]);
   const [installed, setInstalled] = useState<InstalledResource[]>([]);
   const [downloadConfig, setDownloadConfig] = useState<PluginConfig | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [tabValue, setTabValue] = useState<'available' | 'installed'>('available');
   const [installing, setInstalling] = useState<string | null>(null);
   const [installingIds, setInstallingIds] = useState<Set<string>>(() => new Set());
@@ -133,7 +131,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
       try {
         // 读取设置窗口打开时传入的 payload；category 跳转由 SettingsPage 处理，
         // 这里只处理插件页自身的 tab / 分类筛选 / 选中插件
-        const payload = await window.YUA.window['window:payload:get']('settings' as any);
+        const payload = await window.chobits.window['window:payload:get']('settings' as any);
         if (!mounted || !payload || typeof payload !== 'object') return;
         const tab = (payload as any).tab;
         const category = (payload as any).category;
@@ -172,19 +170,19 @@ const PluginPage: React.FC<PluginPageProps> = () => {
     let mounted = true;
     (async () => {
       try {
-        const sup = await window.YUA.pluginResource['plugin-resource:listSupported']();
-        const inst = await window.YUA.pluginResource['plugin-resource:list']();
-        const configRes = await window.YUA.pluginResource['plugin-resource:getConfig']();
+        const sup = await window.chobits.pluginResource['plugin-resource:list-supported']();
+        const inst = await window.chobits.pluginResource['plugin-resource:list']();
+        const configRes = await window.chobits.pluginResource['plugin-resource:get-config']();
         if (!mounted) return;
         // 过滤掉不兼容当前平台的插件
-        const compatibleSup = sup.filter((plugin: PluginDefinition) => isPluginCompatibleWithPlatform(plugin, window.YUA.platform, window.YUA.arch));
+        const compatibleSup = sup.filter((plugin: PluginDefinition) => isPluginCompatibleWithPlatform(plugin, window.chobits.platform, window.chobits.arch));
         setSupported(compatibleSup);
         setInstalled(inst);
         if (configRes.ok && configRes.config) {
           setDownloadConfig(configRes.config);
         }
       } finally {
-        if (mounted) setLoading(false);
+        if (mounted) setIsLoading(false);
       }
     })();
 
@@ -244,7 +242,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
     setInstalling(resourceId);
     setInstallingIds((prev) => new Set(prev).add(resourceId));
     try {
-      const res = await window.YUA.pluginResource['plugin-resource:install']({ pluginId, resourceId, deleteAfterInstall: true });
+      const res = await window.chobits.pluginResource['plugin-resource:install']({ pluginId, resourceId, deleteAfterInstall: true });
       if (res.ok && res.data) {
         const data: InstalledResource = res.data;
         // 进度事件会通过监听器更新，这里确保资源已添加到列表
@@ -270,7 +268,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
   };
 
   const cancel = async (id: string): Promise<void> => {
-    await window.YUA.pluginResource['plugin-resource:cancel']({ id });
+    await window.chobits.pluginResource['plugin-resource:cancel']({ id });
   };
 
   const retry = async (id: string): Promise<void> => {
@@ -280,7 +278,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
     installingIdsRef.current.add(resource.resourceId);
     setInstallingIds((prev) => new Set(prev).add(resource.resourceId));
     try {
-      const res = await window.YUA.pluginResource['plugin-resource:install']({
+      const res = await window.chobits.pluginResource['plugin-resource:install']({
         pluginId: resource.pluginId,
         resourceId: resource.resourceId,
         deleteAfterInstall: true
@@ -299,7 +297,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
   };
 
   const remove = async (id: string): Promise<void> => {
-    const res = await window.YUA.pluginResource['plugin-resource:remove']({ id, deleteFiles: true });
+    const res = await window.chobits.pluginResource['plugin-resource:remove']({ id, deleteFiles: true });
     if (res.ok) {
       setInstalled((prev) => prev.filter((m) => m.id !== id));
     }
@@ -307,7 +305,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
 
   const updateDownloadConfig = async (patch: Partial<PluginConfig>): Promise<void> => {
     setDownloadConfig((prev) => ({ ...(prev || {}), ...patch }));
-    const res = await window.YUA.pluginResource['plugin-resource:setConfig'](patch);
+    const res = await window.chobits.pluginResource['plugin-resource:set-config'](patch);
     if (res.ok && res.config) {
       setDownloadConfig(res.config);
     }
@@ -431,7 +429,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
     return <PluginListItem key={resource.id} resource={resource} installedResource={installedResource} isInstalling={busy} onInstall={install} onCancel={cancel} onRetry={retry} onRemove={remove} />;
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="p-4 flex items-center justify-center text-muted-foreground">
         <TbLoader className="h-4 w-4 mr-2 animate-spin" />
@@ -536,7 +534,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
         </Button>
       </div>
 
-      <NetworkCheckDialog open={showNetworkDialog} onOpenChange={setShowNetworkDialog} />
+      <NetworkCheckDialog isOpen={showNetworkDialog} onOpenChange={setShowNetworkDialog} />
 
       {/* 左右布局：引擎列表 + 模型详情 */}
       <div className="flex-1 overflow-hidden flex">

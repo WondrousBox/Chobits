@@ -19,15 +19,15 @@ function FolderSetting(): JSX.Element {
   const [downloadDir, setDownloadDir] = useState<string>('');
   const [logsDir, setLogsDir] = useState<string>('');
   const [dataDir, setDataDir] = useState<string>('');
-  const [loading, setLoading] = useState(true);
-  const [moving, setMoving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isMoving, setIsMoving] = useState(false);
   const [moveProgress, setMoveProgress] = useState<MoveProgress | null>(null);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const res = await window.YUA.system['database:getPath']();
+        const res = await window.chobits.system['database:get-path']();
         if (!mounted) return;
         if (res.ok && res.dir) {
           setDataDir(res.dir);
@@ -45,7 +45,7 @@ function FolderSetting(): JSX.Element {
     let mounted = true;
     (async () => {
       try {
-        const res = await window.YUA.pluginResource['plugin-resource:getPluginsDir']();
+        const res = await window.chobits.pluginResource['plugin-resource:get-plugins-dir']();
         if (!mounted) return;
         if (res.ok && res.path) {
           setPluginsDir(res.path);
@@ -53,7 +53,7 @@ function FolderSetting(): JSX.Element {
       } catch {
         // ignore
       } finally {
-        if (mounted) setLoading(false);
+        if (mounted) setIsLoading(false);
       }
     })();
     return () => {
@@ -65,7 +65,7 @@ function FolderSetting(): JSX.Element {
     let mounted = true;
     (async () => {
       try {
-        const res = await window.YUA.pluginResource['plugin-resource:getDownloadDir']();
+        const res = await window.chobits.pluginResource['plugin-resource:get-download-dir']();
         if (!mounted) return;
         if (res.ok && res.path) {
           setDownloadDir(res.path);
@@ -83,7 +83,7 @@ function FolderSetting(): JSX.Element {
     let mounted = true;
     (async () => {
       try {
-        const res = await window.YUA.system['logs:getPath']();
+        const res = await window.chobits.system['logs:get-path']();
         if (!mounted) return;
         if (res.ok && res.dir) {
           setLogsDir(res.dir);
@@ -111,21 +111,21 @@ function FolderSetting(): JSX.Element {
   }, []);
 
   const openDatabaseLocation = async (): Promise<void> => {
-    window.YUA.system['database:openLocation']();
+    window.chobits.system['database:open-location']();
   };
 
   const openLogsLocation = async (): Promise<void> => {
-    window.YUA.system['logs:openLocation']();
+    window.chobits.system['logs:open-location']();
   };
 
   const pickPluginsDir = async (): Promise<void> => {
     try {
-      const r = await window.YUA.file['file:pickDir']({ allowCreate: true, defaultPath: pluginsDir });
-      if (!r.canceled && r.path) {
-        setMoving(true);
+      const r = await window.chobits.file['file:pick-dir']({ allowCreate: true, defaultPath: pluginsDir });
+      if (r.ok && r.path) {
+        setIsMoving(true);
         setMoveProgress(null);
         try {
-          const res = await window.YUA.pluginResource['plugin-resource:setPluginsDir']({ dir: r.path });
+          const res = await window.chobits.pluginResource['plugin-resource:set-plugins-dir']({ dir: r.path });
           if (res.ok) {
             setPluginsDir(r.path);
           } else {
@@ -135,13 +135,13 @@ function FolderSetting(): JSX.Element {
         } finally {
           // 延迟清除进度，让用户看到完成状态
           setTimeout(() => {
-            setMoving(false);
+            setIsMoving(false);
             setMoveProgress(null);
           }, 500);
         }
       }
     } catch (error) {
-      setMoving(false);
+      setIsMoving(false);
       setMoveProgress(null);
       console.error('选择插件目录失败:', error);
     }
@@ -150,7 +150,7 @@ function FolderSetting(): JSX.Element {
   const openPluginsLocation = async (): Promise<void> => {
     if (!pluginsDir) return;
     try {
-      await window.YUA.file['file:openPath'](pluginsDir);
+      await window.chobits.file['file:open-path'](pluginsDir);
     } catch {
       // ignore
     }
@@ -159,7 +159,7 @@ function FolderSetting(): JSX.Element {
   const openDownloadLocation = async (): Promise<void> => {
     if (!downloadDir) return;
     try {
-      await window.YUA.file['file:openPath'](downloadDir);
+      await window.chobits.file['file:open-path'](downloadDir);
     } catch {
       // ignore
     }
@@ -212,14 +212,14 @@ function FolderSetting(): JSX.Element {
         title="插件资源目录"
         description="插件引擎和模型文件存储位置"
         action={
-          loading ? (
+          isLoading ? (
             <span className="text-xs text-muted-foreground">加载中...</span>
           ) : (
             <div className="flex flex-col gap-2 w-full">
               <div className="flex items-center gap-2">
                 <SettingPath path={maskPath(pluginsDir)} placeholder="未设置" />
-                <Button size="sm" variant="outline" onClick={pickPluginsDir} disabled={moving}>
-                  {moving ? (
+                <Button size="sm" variant="outline" onClick={pickPluginsDir} disabled={isMoving}>
+                  {isMoving ? (
                     <>
                       <TbLoader className="h-4 w-4 mr-1 animate-spin" />
                       移动中
@@ -228,14 +228,14 @@ function FolderSetting(): JSX.Element {
                     '选择'
                   )}
                 </Button>
-                {pluginsDir && !moving && (
+                {pluginsDir && !isMoving && (
                   <Button size="sm" variant="outline" onClick={openPluginsLocation}>
                     <TbFolderOpen />
                     打开
                   </Button>
                 )}
               </div>
-              {moving && moveProgress && (
+              {isMoving && moveProgress && (
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">

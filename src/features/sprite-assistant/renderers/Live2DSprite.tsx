@@ -36,9 +36,9 @@ interface ActiveLive2DPlayback {
 /** 上报动画完成（phase 固定 'full'，主进程只处理 full/outro）；所有失败路径也走这里兜底，主进程不能干等 */
 function reportAnimComplete(animationId: string, playId?: string): void {
   if (playId) {
-    window.YUA.sprite.animComplete(animationId, 'full', playId);
+    window.chobits.sprite.animComplete(animationId, 'full', playId);
   } else {
-    window.YUA.sprite.animComplete(animationId, 'full');
+    window.chobits.sprite.animComplete(animationId, 'full');
   }
 }
 
@@ -64,7 +64,7 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
   // 启动时按激活角色包解析模型目录
   useEffect(() => {
     let mounted = true;
-    window.YUA.persona
+    window.chobits.character
       .getActiveCharacterPack()
       .then((pack) => {
         if (mounted) setModelDirName(resolveModelDirName(pack));
@@ -80,7 +80,7 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
 
   // 角色包切换时切换模型（目录相同则不动）
   useEffect(() => {
-    const unsubscribe = window.YUA.persona.onCharacterSwitched((payload) => {
+    const unsubscribe = window.chobits.character.onCharacterSwitched((payload) => {
       const dir = resolveModelDirName(payload.nextPack);
       setModelDirName((prev) => (prev === dir ? prev : dir));
     });
@@ -117,18 +117,18 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
         try {
           // 独立窗口气泡模式下运行期 padding 强制为 0（与主进程 getEffectivePadding 口径一致）
           const padding = isBubbleWindowMode(spriteConfigRef.current.bubbleMode) ? 0 : loadedConfig.canvas.padding;
-          const result = await window.YUA.window.setAssistantSize({
+          const result = await window.chobits.window['sprite:size:set']({
             width: loadedConfig.canvas.width,
             height: loadedConfig.canvas.height,
             padding
           });
           // 主进程 setSize 以左上角为锚，会破坏更早的右下角定位，这里补齐一次
-          if (result?.success && !hasAlignedToBottomRightRef.current) {
+          if (result?.ok && !hasAlignedToBottomRightRef.current) {
             hasAlignedToBottomRightRef.current = true;
             await alignMainWindowToBottomRight(loadedConfig.canvas.width + padding * 2, loadedConfig.canvas.height + padding * 2);
           }
         } catch (e) {
-          console.warn('[Live2DSprite] setAssistantSize failed', e);
+          console.warn('[Live2DSprite] sprite:size:set failed', e);
         }
       }
     };
@@ -377,7 +377,7 @@ export default function Live2DSprite({ width, height, walkDirection }: { width?:
     }
   };
 
-  // live2d 模式下画布尺寸以 live2d.json 配置为准（与 setAssistantSize 同源），外部传入的 width/height 仅作加载前兜底
+  // live2d 模式下画布尺寸以 live2d.json 配置为准（与 sprite:size:set 同源），外部传入的 width/height 仅作加载前兜底
   const shouldFlip = walkDirection === 'right';
 
   const w = config?.canvas.width ?? width ?? 300;

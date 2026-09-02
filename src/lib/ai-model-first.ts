@@ -18,7 +18,7 @@ export async function resolveModelFirstSelection(params: ResolveModelFirstParams
     return null;
   }
 
-  const preset = await window.YUA.ai.resolveUsablePreset(providerId, params.preferredPresetId);
+  const preset = await window.chobits.ai.resolveUsablePreset(providerId, params.preferredPresetId);
   if (!preset?.id) {
     return null;
   }

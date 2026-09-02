@@ -37,7 +37,7 @@ type HistoryFilterState = {
 
 export type SpontaneousUtteranceSettingsState = {
   preferences: SpontaneousUtterancePreferences;
-  loading: boolean;
+  isLoading: boolean;
   history: SpontaneousUtteranceHistoryItem[];
   historyLoading: boolean;
   query: string;
@@ -68,7 +68,7 @@ function mergePreferences(preferences: SpontaneousUtterancePreferences | null | 
 
 export function useSpontaneousUtteranceSettings(): SpontaneousUtteranceSettingsState {
   const [preferences, setPreferences] = useState<SpontaneousUtterancePreferences>(DEFAULT_PREFERENCES);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [history, setHistory] = useState<SpontaneousUtteranceHistoryItem[]>([]);
   const [query, setQuery] = useState('');
@@ -77,13 +77,13 @@ export function useSpontaneousUtteranceSettings(): SpontaneousUtteranceSettingsS
 
   const loadPreferences = useCallback(async (): Promise<void> => {
     try {
-      const next = await window.YUA.sprite.getSpontaneousUtterancePreferences();
+      const next = await window.chobits.sprite.getSpontaneousUtterancePreferences();
       setPreferences(mergePreferences(next || undefined));
     } catch (error) {
       console.error('加载主动发言偏好失败:', error);
       setPreferences(DEFAULT_PREFERENCES);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   }, []);
 
@@ -91,7 +91,7 @@ export function useSpontaneousUtteranceSettings(): SpontaneousUtteranceSettingsS
     async (nextQuery?: Partial<HistoryFilterState>): Promise<void> => {
       setHistoryLoading(true);
       try {
-        const result = await window.YUA.sprite.listSpontaneousUtteranceHistory({
+        const result = await window.chobits.sprite.listSpontaneousUtteranceHistory({
           limit: 120,
           query: nextQuery?.query ?? query,
           status: nextQuery?.status ?? statusFilter,
@@ -127,7 +127,7 @@ export function useSpontaneousUtteranceSettings(): SpontaneousUtteranceSettingsS
 
   const updatePreferences = useCallback(async (patch: Partial<SpontaneousUtterancePreferences>): Promise<void> => {
     try {
-      const next = await window.YUA.sprite.updateSpontaneousUtterancePreferences(patch);
+      const next = await window.chobits.sprite.updateSpontaneousUtterancePreferences(patch);
       setPreferences(mergePreferences(next || undefined));
     } catch (error) {
       console.error('更新主动发言偏好失败:', error);
@@ -136,7 +136,7 @@ export function useSpontaneousUtteranceSettings(): SpontaneousUtteranceSettingsS
 
   return {
     preferences,
-    loading,
+    isLoading,
     history,
     historyLoading,
     query,

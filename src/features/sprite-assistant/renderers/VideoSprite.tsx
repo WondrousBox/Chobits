@@ -67,10 +67,10 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
         onAnimationComplete: (animationId, phase, playId) => {
           console.info('[SpriteVideo] animation complete -> ipc', { animationId, phase, playId });
           if (playId) {
-            window.YUA.sprite.animComplete(animationId, phase, playId);
+            window.chobits.sprite.animComplete(animationId, phase, playId);
             return;
           }
-          window.YUA.sprite.animComplete(animationId, phase);
+          window.chobits.sprite.animComplete(animationId, phase);
         }
       })
   );

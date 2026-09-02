@@ -9,7 +9,7 @@
  * - 使用播放序列号防止竞态条件
  * - 正确清理事件监听器，防止内存泄漏
  *
- * 使用方式：在 AIAssistant 组件中调用 useSpriteSpeak() 即可。
+ * 使用方式：在 SpriteApp 组件中调用 useSpriteSpeak() 即可。
  */
 
 import { useCallback, useEffect, useRef } from 'react';
@@ -101,7 +101,7 @@ export function useSpriteSpeak(): { stop: () => void } {
 
   // 订阅 sprite:speak 事件
   useEffect(() => {
-    const sprite = window.YUA?.sprite;
+    const sprite = window.chobits?.sprite;
     if (!sprite?.onSpeak) {
       console.warn('[useSpriteSpeak] sprite.onSpeak not available');
       return;

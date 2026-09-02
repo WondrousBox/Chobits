@@ -4,11 +4,13 @@ import React, { useEffect, useState } from 'react';
 import { TbLoader2, TbPlayerPlay } from 'react-icons/tb';
 import { toast } from 'sonner';
 
+import { ModelInstallCard } from '@/components/common/ModelInstallCard';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { usePluginModelInstall } from '@/hooks/usePluginModelInstall';
 
-interface TTSModel extends PluginDefinition {
+interface TTSModelItem extends PluginDefinition {
   isInstalled: boolean;
 }
 
@@ -18,8 +20,13 @@ const RECOMMENDED_MODEL_IDS = ['kokoro-int8-multi-lang-v1_0'];
 const TTSConfigPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>('');
-  const [ttsModels, setTTSModels] = useState<TTSModel[]>([]);
+  const [ttsModels, setTTSModels] = useState<TTSModelItem[]>([]);
   const [loadingModels, setLoadingModels] = useState(true);
+
+  // 选中的未安装模型的一键安装引导（安装成功后视为已安装，无需刷新列表）
+  const selectedModelInfo = selectedModel ? ttsModels.find((m) => m.id === selectedModel) : undefined;
+  const { state: installState, install: installModel, cancel: cancelInstall } = usePluginModelInstall(selectedModel || undefined);
+  const isSelectedInstalled = (selectedModelInfo?.isInstalled ?? false) || installState.status === 'installed';
 
   // 加载 TTS 模型列表
   useEffect(() => {
@@ -28,9 +35,9 @@ const TTSConfigPage: React.FC = () => {
       try {
         setLoadingModels(true);
         // 获取所有支持的插件
-        const supported = await window.YUA.pluginResource['plugin-resource:listSupported']();
+        const supported = await window.chobits.pluginResource['plugin-resource:list-supported']();
         // 获取已安装的资源
-        const installed = await window.YUA.pluginResource['plugin-resource:list']({
+        const installed = await window.chobits.pluginResource['plugin-resource:list']({
           pluginId: 'plugin:sherpa-onnx',
           type: 'model'
         });
@@ -50,7 +57,7 @@ const TTSConfigPage: React.FC = () => {
         });
 
         // 合并模型信息和安装状态
-        const modelsWithStatus: TTSModel[] = ttsModelDefinitions.map((model: PluginDefinition) => ({
+        const modelsWithStatus: TTSModelItem[] = ttsModelDefinitions.map((model: PluginDefinition) => ({
           ...model,
           isInstalled: installedIds.has(model.id) || installedIds.has(model.name)
         }));
@@ -93,17 +100,14 @@ const TTSConfigPage: React.FC = () => {
   const handleStartTTS = async (): Promise<void> => {
     if (isLoading || !selectedModel) return;
 
-    // 检查模型是否已安装
-    const selectedModelInfo = ttsModels.find((m) => m.id === selectedModel);
+    // 检查模型是否已安装（含一键安装刚完成的场景）
     if (!selectedModelInfo) {
       console.error('未找到选中的模型');
       return;
     }
-    if (!selectedModelInfo.isInstalled) {
+    if (!isSelectedInstalled) {
       // 模型未安装时给出可跳转的提示，避免用户卡在死路
-      toast.error('模型未安装，请先在插件管理中安装', {
-        action: { label: '去安装', onClick: () => window.YUA.window['window:open']('settings' as any, { category: 'plugins' }) }
-      });
+      toast.error('模型未安装，请先使用一键安装');
       return;
     }
 
@@ -111,23 +115,23 @@ const TTSConfigPage: React.FC = () => {
 
     try {
       // 启动 TTS 服务
-      const result = await window.YUA.sherpa.ttsCreateInstance({
+      const result = await window.chobits.sherpa.ttsCreateInstance({
         model: selectedModel,
         numThreads: 2,
         maxNumSentences: 1
       });
 
-      if (!result.success) {
+      if (!result.ok) {
         console.error('启动 TTS 失败:', result.error);
         setIsLoading(false);
         return;
       }
 
       // 启动成功后，打开测试页面并关闭配置页面
-      window.YUA.window['window:open']('tts', {
+      window.chobits.window['window:open']('tts', {
         model: selectedModel
       });
-      window.YUA.window['window:close']('ttsConfig');
+      window.chobits.window['window:close']('ttsConfig');
     } catch (error) {
       console.error('启动 TTS 失败:', error);
     } finally {
@@ -186,16 +190,29 @@ const TTSConfigPage: React.FC = () => {
                 })}
               </SelectContent>
             </Select>
-            {selectedModel && !ttsModels.find((m) => m.id === selectedModel)?.isInstalled && <div className="text-xs text-amber-600 dark:text-amber-400">该模型未安装，请先在插件管理中安装</div>}
+            {selectedModelInfo && !isSelectedInstalled && (
+              <ModelInstallCard
+                items={[
+                  {
+                    id: selectedModelInfo.id,
+                    name: selectedModelInfo.displayName || selectedModelInfo.name,
+                    sizeBytes: selectedModelInfo.platforms?.[0]?.sizeBytes,
+                    state: installState
+                  }
+                ]}
+                onInstall={() => void installModel()}
+                onCancel={() => void cancelInstall()}
+              />
+            )}
           </div>
         </div>
       </ScrollArea>
 
       <div className="flex gap-2 border-t p-2 px-4">
-        <Button variant="outline" className="flex-1 no-drag" onClick={() => window.YUA.window['window:close']('ttsConfig')}>
+        <Button variant="outline" className="flex-1 no-drag" onClick={() => window.chobits.window['window:close']('ttsConfig')}>
           取消
         </Button>
-        <Button disabled={isLoading || !selectedModel || !ttsModels.find((m) => m.id === selectedModel)?.isInstalled} onClick={handleStartTTS} className="flex-1 no-drag">
+        <Button disabled={isLoading || !selectedModel || !isSelectedInstalled} onClick={handleStartTTS} className="flex-1 no-drag">
           {isLoading ? (
             <>
               <TbLoader2 className="animate-spin" />

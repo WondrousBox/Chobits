@@ -1,5 +1,5 @@
 /**
- * AIAssistant 组装层 (重构后)
+ * SpriteApp 组装层 (重构后)
  *
  * 职责：纯展示层 + 交互采集器
  * - 从 SpriteStateContext 被动接收状态
@@ -12,7 +12,7 @@ import React, { useEffect, useRef } from 'react';
 import Dropzone from '@/components/common/Dropzone';
 import { ensureChatApiConfigGoal } from '@/lib/chat-api-config-guide';
 
-import { ASSISTANT_RENDERER_MODE } from './constants';
+import { SPRITE_RENDERER_MODE } from './constants';
 import { useSpriteState } from './context/hooks';
 import { useDragCollector } from './hooks/useDragCollector';
 import { useFileDropCollector } from './hooks/useFileDropCollector';
@@ -26,7 +26,7 @@ const showBlock = false; // 开发时显示
 const CLICK_INTERACTION_DEDUP_MS = 300;
 
 /** 内部组件：包含实际逻辑 */
-const AIAssistantInner: React.FC = () => {
+const SpriteAppInner: React.FC = () => {
   const { currentAnimation, walkDirection, spriteConfig, ready } = useSpriteState();
   const { width, height, padding, bubbleMode } = spriteConfig;
 
@@ -59,7 +59,7 @@ const AIAssistantInner: React.FC = () => {
   // live2d 渲染模式下窗口尺寸由 Live2DSprite 按 live2d.json 异步校正，右下角对齐也在那边完成，此处跳过
   const isInitialMountRef = useRef(true);
   useEffect(() => {
-    if (!ready || ASSISTANT_RENDERER_MODE === 'live2d') return;
+    if (!ready || SPRITE_RENDERER_MODE === 'live2d') return;
     const positionWindow = async (): Promise<void> => {
       try {
         const winWidth = width + effectivePadding * 2;
@@ -79,7 +79,7 @@ const AIAssistantInner: React.FC = () => {
   // 当动画切换、尺寸或气泡模式变化时，同步到主进程调整主窗口尺寸。
   // live2d 渲染模式下窗口尺寸由 Live2DSprite 按 live2d.json 画布配置统一管理，此处跳过以避免互相覆盖。
   useEffect(() => {
-    if (!ready || ASSISTANT_RENDERER_MODE === 'live2d') return;
+    if (!ready || SPRITE_RENDERER_MODE === 'live2d') return;
     const playback = currentAnimation?.playback;
     const targetWidth = playback?.width ?? width;
     const targetHeight = playback?.height ?? height;
@@ -87,13 +87,13 @@ const AIAssistantInner: React.FC = () => {
     const targetPadding = isBubbleWindow ? 0 : rawPadding;
     const setSize = async (): Promise<void> => {
       try {
-        await window.YUA.window.setAssistantSize({
+        await window.chobits.window['sprite:size:set']({
           width: targetWidth,
           height: targetHeight,
           padding: targetPadding
         });
       } catch (error) {
-        console.error('Failed to set assistant size:', error);
+        console.error('Failed to set sprite size:', error);
       }
     };
     setSize();
@@ -106,27 +106,27 @@ const AIAssistantInner: React.FC = () => {
       return;
     }
     lastClickInteractionAtRef.current = now;
-    window.YUA.sprite.interact('click');
+    window.chobits.sprite.interact('click');
   };
 
   const handleMouseEnter = (): void => {
-    window.YUA.sprite.interact('hover-enter');
+    window.chobits.sprite.interact('hover-enter');
   };
 
   const handleMouseLeave = (): void => {
-    window.YUA.sprite.interact('hover-leave');
+    window.chobits.sprite.interact('hover-leave');
   };
 
   const handleContextMenu = (e: React.MouseEvent): void => {
     e.preventDefault();
     void (async () => {
-      void window.YUA.sprite.interact('context-menu', { open: true });
-      void window.YUA.window['window:open']('menu');
+      void window.chobits.sprite.interact('context-menu', { open: true });
+      void window.chobits.window['window:open']('menu');
     })();
   };
 
   const handleDoubleClick = (): void => {
-    window.YUA.sprite.interact('double-click');
+    window.chobits.sprite.interact('double-click');
     void (async () => {
       const guide = await ensureChatApiConfigGoal({ trigger: 'assistant-double-click' });
       if (!guide.configured) {
@@ -134,11 +134,11 @@ const AIAssistantInner: React.FC = () => {
       }
 
       try {
-        const result = await window.YUA.preferences['preferences:getConfig']();
+        const result = await window.chobits.preferences['preferences:get-config']();
         const targetWindow = result.ok && result.config?.assistantMiniWindowEnabled ? 'assistantMini' : 'assistant';
-        await window.YUA.window['window:open'](targetWindow);
+        await window.chobits.window['window:open'](targetWindow);
       } catch {
-        await window.YUA.window['window:open']('assistant');
+        await window.chobits.window['window:open']('assistant');
       }
     })();
   };
@@ -179,11 +179,11 @@ const AIAssistantInner: React.FC = () => {
   );
 };
 
-/** AIAssistant 组件：包裹 MessageProvider */
-export const AIAssistant: React.FC = () => {
+/** SpriteApp 组件：包裹 MessageProvider */
+export const SpriteApp: React.FC = () => {
   return (
     <MessageProvider surface="app">
-      <AIAssistantInner />
+      <SpriteAppInner />
     </MessageProvider>
   );
 };

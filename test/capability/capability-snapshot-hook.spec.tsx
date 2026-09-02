@@ -9,12 +9,12 @@ describe('useSpriteCapabilitySnapshot', () => {
     const env = installMiniDom();
 
     let currentLevel = 1;
-    let personaListener: (() => void) | undefined;
+    let characterStateListener: (() => void) | undefined;
     let capabilityListener: (() => void) | undefined;
     let callCount = 0;
 
-    (env.window as any).YUA = {
-      persona: {
+    (env.window as any).chobits = {
+      character: {
         getCapabilitySnapshot: async () => {
           callCount += 1;
           return {
@@ -25,9 +25,9 @@ describe('useSpriteCapabilitySnapshot', () => {
           };
         },
         onStateChanged: (listener: () => void) => {
-          personaListener = listener;
+          characterStateListener = listener;
           return () => {
-            personaListener = undefined;
+            characterStateListener = undefined;
           };
         },
         onCapabilityChanged: (listener: () => void) => {
@@ -71,7 +71,7 @@ describe('useSpriteCapabilitySnapshot', () => {
 
     currentLevel = 12;
     await act(async () => {
-      personaListener?.();
+      characterStateListener?.();
       await Promise.resolve();
       await Promise.resolve();
     });

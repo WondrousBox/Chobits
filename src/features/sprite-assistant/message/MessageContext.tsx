@@ -24,7 +24,7 @@ export function MessageProvider({ children, surface = 'app' }: MessageProviderPr
   const emitNoticeDismissed = useCallback(async (notice: NoticeMessage | null | undefined, reason: 'button' | 'close' | 'clear' | 'auto' = 'close') => {
     if (!notice?.id) return;
     try {
-      await window.YUA.sprite?.emitPurposeEvent?.({
+      await window.chobits.sprite?.emitPurposeEvent?.({
         source: 'purpose-event',
         event: 'bubble:dismissed',
         payload: {
@@ -61,7 +61,7 @@ export function MessageProvider({ children, surface = 'app' }: MessageProviderPr
         const purposeAction = button.action.slice('purpose:'.length);
         const shouldDismiss = button.action !== 'keep-open';
         try {
-          await window.YUA.sprite?.emitPurposeEvent?.({
+          await window.chobits.sprite?.emitPurposeEvent?.({
             source: 'purpose-event',
             event: 'bubble:action',
             payload: {
@@ -88,7 +88,7 @@ export function MessageProvider({ children, surface = 'app' }: MessageProviderPr
   );
 
   useEffect(() => {
-    if (!window.YUA?.messages?.on) return;
+    if (!window.chobits?.messages?.on) return;
 
     const handleMessage = (payload?: {
       type?: 'toast' | 'notice' | 'busy';
@@ -171,7 +171,7 @@ export function MessageProvider({ children, surface = 'app' }: MessageProviderPr
       }
     };
 
-    return window.YUA.messages.on((event: MessageBridgePayload) => {
+    return window.chobits.messages.on((event: MessageBridgePayload) => {
       const shouldHandle = shouldHandleBridgeEvent(surface, event);
       if (!shouldHandle) return;
 

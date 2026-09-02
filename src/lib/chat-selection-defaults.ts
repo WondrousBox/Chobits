@@ -53,8 +53,8 @@ export async function selectChatDefaultsForProvider(input: {
     return { providerId, presetId, modelId: '' };
   }
 
-  const provider = input.provider ?? ((await window.YUA.ai.getProviders().then((providers) => providers.find((item: ProviderRow) => item.id === providerId)).catch(() => undefined)) as ProviderRow | undefined);
-  const models = ((await window.YUA.ai.listModels(providerId, presetId).catch(() => [])) || []) as ModelRow[];
+  const provider = input.provider ?? ((await window.chobits.ai.getProviders().then((providers) => providers.find((item: ProviderRow) => item.id === providerId)).catch(() => undefined)) as ProviderRow | undefined);
+  const models = ((await window.chobits.ai.listModels(providerId, presetId).catch(() => [])) || []) as ModelRow[];
   const modelId = resolveChatModelId(provider, models);
   writeSelection(providerId, presetId, modelId);
   return { providerId, presetId, modelId };

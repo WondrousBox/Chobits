@@ -12,7 +12,7 @@ import { SettingGroup, SettingItem } from './SettingComponents';
  * 主进程的 IPC handler 与窗口在启动时注册,切换开关后需重启应用才能完全生效。
  */
 export default function FeatureFlagsSettings(): JSX.Element {
-  const { definitions, flags, loading, setFeatureFlag } = useFeatureFlags();
+  const { definitions, flags, isLoading, setFeatureFlag } = useFeatureFlags();
 
   return (
     <div className="p-4 space-y-4 max-w-2xl">
@@ -22,7 +22,7 @@ export default function FeatureFlagsSettings(): JSX.Element {
             key={def.key}
             title={def.label}
             description={def.description}
-            action={<Switch checked={flags[def.key]} disabled={loading} onCheckedChange={(checked) => void setFeatureFlag(def.key, checked)} />}
+            action={<Switch checked={flags[def.key]} disabled={isLoading} onCheckedChange={(checked) => void setFeatureFlag(def.key, checked)} />}
           />
         ))}
       </SettingGroup>

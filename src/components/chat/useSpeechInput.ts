@@ -134,7 +134,7 @@ export function useSpeechInput({ onTranscriptFinal }: UseSpeechInputOptions = {}
   }, []);
 
   const detachMessageHandler = useCallback((): void => {
-    window.YUA.removeHandler(handlerNameRef.current);
+    window.chobits.removeMessageHandler(handlerNameRef.current);
   }, []);
 
   const handleCloudSegment = useCallback(
@@ -160,7 +160,7 @@ export function useSpeechInput({ onTranscriptFinal }: UseSpeechInputOptions = {}
         }
 
         const wavBuffer = await float32ToWav(samples).arrayBuffer();
-        const result = await window.YUA.ai.transcribe({
+        const result = await window.chobits.ai.transcribe({
           providerId,
           providerPresetId,
           file: wavBuffer,
@@ -213,7 +213,7 @@ export function useSpeechInput({ onTranscriptFinal }: UseSpeechInputOptions = {}
       setInterimText(String(data.text).trim());
     };
 
-    window.YUA.handleMessage(handleASRMessage, handlerNameRef.current);
+    window.chobits.handleMessage(handleASRMessage, handlerNameRef.current);
   }, [handleCloudSegment, rememberTranscript]);
 
   const buildRecorder = useCallback((deviceId?: string): WebRecorder => {
@@ -227,11 +227,11 @@ export function useSpeechInput({ onTranscriptFinal }: UseSpeechInputOptions = {}
         return;
       }
 
-      window.YUA.sherpa
+      window.chobits.sherpa
         .sendData({
           uuid: 'stream',
           data: payload.data,
-          save: false
+          shouldSave: false
         })
         .catch((error) => {
           console.error('[SpeechInput] 发送音频到 ASR 失败:', error);
@@ -252,18 +252,18 @@ export function useSpeechInput({ onTranscriptFinal }: UseSpeechInputOptions = {}
     pendingCloudTasksRef.current = 0;
 
     try {
-      const [asrStatus, asrConfig, deviceResult] = await Promise.all([window.YUA.sherpa.getStatus(), window.YUA.sherpa.getASRConfig(), window.YUA.preferences['preferences:getWebRecorderDeviceId']()]);
+      const [asrStatus, asrConfig, deviceResult] = await Promise.all([window.chobits.sherpa.getStatus(), window.chobits.sherpa.getASRConfig(), window.chobits.preferences['preferences:get-web-recorder-device-id']()]);
 
       if (!asrStatus.running) {
         toast.error('请先启动语音识别服务');
-        window.YUA.window['window:open']('asrConfig');
+        window.chobits.window['window:open']('asrConfig');
         setStatus('idle');
         return;
       }
 
       if (asrConfig.backend === 'cloud' && (!asrConfig.cloud?.providerId || !asrConfig.cloud?.providerPresetId)) {
         toast.error('云端语音识别配置不完整');
-        window.YUA.window['window:open']('asrConfig');
+        window.chobits.window['window:open']('asrConfig');
         setStatus('idle');
         return;
       }

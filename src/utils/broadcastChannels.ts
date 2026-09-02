@@ -5,19 +5,19 @@
 
 // 偏好设置消息类型
 export type PreferencesMessage = {
-  type: 'previewModeChanged';
+  type: 'preview-mode-changed';
   previewMode: 'window' | 'panel';
 };
 
 // 媒体播放同步消息类型
 export type MediaSyncMessage =
   | {
-      type: 'playbackProgress';
+      type: 'playback-progress';
       resourceId: string;
       currentTime: number;
     }
   | {
-      type: 'playStarted';
+      type: 'play-started';
       source: 'window' | 'panel';
       resourceId: string;
     }

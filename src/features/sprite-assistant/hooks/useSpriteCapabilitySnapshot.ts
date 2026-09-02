@@ -3,40 +3,40 @@ import { useCallback, useEffect, useState } from 'react';
 
 export function useSpriteCapabilitySnapshot(options?: { enabled?: boolean }): {
   snapshot: SpriteCapabilitySnapshot | null;
-  loading: boolean;
+  isLoading: boolean;
   refresh: () => Promise<SpriteCapabilitySnapshot | null>;
 } {
   const enabled = options?.enabled ?? true;
   const [snapshot, setSnapshot] = useState<SpriteCapabilitySnapshot | null>(null);
-  const [loading, setLoading] = useState(enabled);
+  const [isLoading, setIsLoading] = useState(enabled);
 
   const refresh = useCallback(async (): Promise<SpriteCapabilitySnapshot | null> => {
     if (!enabled) return null;
 
     try {
-      const nextSnapshot = await window.YUA.persona.getCapabilitySnapshot();
+      const nextSnapshot = await window.chobits.character.getCapabilitySnapshot();
       setSnapshot(nextSnapshot);
       return nextSnapshot;
     } catch (error) {
       console.warn('加载 capability snapshot 失败:', error);
       return null;
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   }, [enabled]);
 
   useEffect(() => {
     if (!enabled) {
-      setLoading(false);
+      setIsLoading(false);
       return;
     }
 
     void refresh();
 
-    const unsubscribePersona = window.YUA.persona.onStateChanged(() => {
+    const unsubscribeCharacterState = window.chobits.character.onStateChanged(() => {
       void refresh();
     });
-    const unsubscribeCapability = window.YUA.persona.onCapabilityChanged(() => {
+    const unsubscribeCapability = window.chobits.character.onCapabilityChanged(() => {
       void refresh();
     });
 
@@ -47,11 +47,11 @@ export function useSpriteCapabilitySnapshot(options?: { enabled?: boolean }): {
     window.addEventListener('focus', handleWindowFocus);
 
     return () => {
-      unsubscribePersona();
+      unsubscribeCharacterState();
       unsubscribeCapability();
       window.removeEventListener('focus', handleWindowFocus);
     };
   }, [enabled, refresh]);
 
-  return { snapshot, loading, refresh };
+  return { snapshot, isLoading, refresh };
 }

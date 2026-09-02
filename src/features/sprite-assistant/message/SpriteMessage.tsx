@@ -21,7 +21,7 @@ interface SpriteMessageProps {
 
 export function SpriteMessage({ className, placement = 'inline' }: SpriteMessageProps): JSX.Element | null {
   const { current, dismiss, handleButtonClick } = useMessage();
-  const [visible, setVisible] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
   const [displayMessage, setDisplayMessage] = useState(current);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -33,14 +33,14 @@ export function SpriteMessage({ className, placement = 'inline' }: SpriteMessage
     const showMessage = (message: typeof current): void => {
       if (!message) return;
       setDisplayMessage(message);
-      setVisible(true);
+      setIsVisible(true);
     };
 
     if (current) {
       // 有新消息，先隐藏再显示（如果之前有消息）
       if (displayMessage && displayMessage.id !== current.id) {
         raf = requestAnimationFrame(() => {
-          setVisible(false);
+          setIsVisible(false);
           timer = setTimeout(() => {
             showMessage(current);
           }, 150); // 等待淡出动画完成
@@ -51,14 +51,14 @@ export function SpriteMessage({ className, placement = 'inline' }: SpriteMessage
       }
     } else {
       if (!displayMessage) {
-        raf = requestAnimationFrame(() => setVisible(false));
+        raf = requestAnimationFrame(() => setIsVisible(false));
         return () => {
           if (raf !== null) cancelAnimationFrame(raf);
         };
       }
       // 没有消息，淡出
       raf = requestAnimationFrame(() => {
-        setVisible(false);
+        setIsVisible(false);
         timer = setTimeout(() => {
           setDisplayMessage(null);
         }, 200); // 等待淡出动画完成后清除消息
@@ -73,10 +73,10 @@ export function SpriteMessage({ className, placement = 'inline' }: SpriteMessage
 
   useEffect(() => {
     if (placement !== 'inline') return;
-    const setInteractiveRegions = window.YUA?.window?.setAssistantInteractiveRegions;
+    const setInteractiveRegions = window.chobits?.window?.['sprite:interactive-regions:set'];
     if (typeof setInteractiveRegions !== 'function') return;
 
-    if (!displayMessage || !visible) {
+    if (!displayMessage || !isVisible) {
       void setInteractiveRegions({ regions: [] }).catch(() => undefined);
       return;
     }
@@ -121,7 +121,7 @@ export function SpriteMessage({ className, placement = 'inline' }: SpriteMessage
       }
       void setInteractiveRegions({ regions: [] }).catch(() => undefined);
     };
-  }, [placement, displayMessage, visible]);
+  }, [placement, displayMessage, isVisible]);
 
   // 如果没有消息要显示，返回 null
   if (!displayMessage) return null;
@@ -153,7 +153,7 @@ export function SpriteMessage({ className, placement = 'inline' }: SpriteMessage
         placement === 'inline' ? 'absolute -top-[32px] left-1/2 -translate-x-1/2 z-10' : 'relative z-10 inline-flex max-w-full justify-center',
         // 动画
         'transition-all duration-200 ease-out',
-        visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1',
+        isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1',
         className
       )}
     >

@@ -139,7 +139,7 @@ describe('SpeakService speech language translation', () => {
 
     const result = await service.synthesize('你好');
 
-    expect(result.success).toBe(true);
+    expect(result.ok).toBe(true);
     expect(translate).not.toHaveBeenCalled();
     expect(synthesize).toHaveBeenCalledWith(expect.objectContaining({ language: undefined, text: '你好' }));
   });
@@ -155,14 +155,14 @@ describe('SpeakService speech language translation', () => {
 
     const result = await service.synthesize('早上好，主人');
 
-    expect(result.success).toBe(true);
+    expect(result.ok).toBe(true);
     expect(translate).toHaveBeenCalledWith({ sourceLang: 'zh', targetLang: 'ja', text: '早上好，主人' });
     // 合成收到的是清洗后的译文（去引号、去多余换行），language 为目标语言
     expect(synthesize).toHaveBeenCalledWith(expect.objectContaining({ language: 'ja', text: 'おはよう、ご主人' }));
 
     // 同一原文重复说话命中缓存，不再重复翻译
     const cached = await service.synthesize('早上好，主人');
-    expect(cached).toMatchObject({ fromCache: true, success: true });
+    expect(cached).toMatchObject({ fromCache: true, ok: true });
     expect(translate).toHaveBeenCalledTimes(1);
     expect(synthesize).toHaveBeenCalledTimes(1);
   });
@@ -177,7 +177,7 @@ describe('SpeakService speech language translation', () => {
 
     const result = await service.synthesize('おはよう');
 
-    expect(result.success).toBe(true);
+    expect(result.ok).toBe(true);
     expect(translate).not.toHaveBeenCalled();
     expect(synthesize).toHaveBeenCalledWith(expect.objectContaining({ language: 'ja', text: 'おはよう' }));
   });
@@ -195,7 +195,7 @@ describe('SpeakService speech language translation', () => {
 
     const result = await service.synthesize('早上好');
 
-    expect(result.success).toBe(true);
+    expect(result.ok).toBe(true);
     expect(synthesize).toHaveBeenCalledWith(expect.objectContaining({ language: 'zh', text: '早上好' }));
     expect(warn).toHaveBeenCalledOnce();
     expect(String(warn.mock.calls[0][0])).toContain('[SpeechTranslate] fallback');
@@ -210,7 +210,7 @@ describe('SpeakService speech language translation', () => {
 
     const result = await service.synthesize('早上好');
 
-    expect(result.success).toBe(true);
+    expect(result.ok).toBe(true);
     expect(synthesize).toHaveBeenCalledWith(expect.objectContaining({ language: 'zh', text: '早上好' }));
   });
 
@@ -229,7 +229,7 @@ describe('SpeakService speech language translation', () => {
     service.setConfig({ aiProvider: makeAiProviderConfig({ speechLanguage: 'zh' }) });
     const third = await service.synthesize('おはよう');
 
-    expect(first.success && second.success && third.success).toBe(true);
+    expect(first.ok && second.ok && third.ok).toBe(true);
     // 同一原文在不同朗读语言下不串缓存
     expect(first.cacheId).not.toBe(second.cacheId);
     // auto 与历史 key 构造保持一致：auto 等价于未设置 speechLanguage
@@ -255,7 +255,7 @@ describe('SpeakService character speech language', () => {
     const sourceText = targetLang === 'ja' ? '早上好' : 'おはよう';
     const result = await service.synthesize(sourceText);
 
-    expect(result.success).toBe(true);
+    expect(result.ok).toBe(true);
     expect(translate).toHaveBeenCalledWith({ sourceLang: targetLang === 'ja' ? 'zh' : 'ja', targetLang, text: sourceText });
     expect(synthesize).toHaveBeenCalledWith(expect.objectContaining({ language: targetLang, text: targetLang === 'ja' ? 'おはよう' : '早上好' }));
   });
@@ -272,7 +272,7 @@ describe('SpeakService character speech language', () => {
 
       const result = await service.synthesize('早上好');
 
-      expect(result.success).toBe(true);
+      expect(result.ok).toBe(true);
       expect(translate).not.toHaveBeenCalled();
       expect(synthesize).toHaveBeenCalledWith(expect.objectContaining({ language: undefined, text: '早上好' }));
     }
@@ -288,13 +288,13 @@ describe('SpeakService character speech language', () => {
 
     // 中文文本已是目标语言，不翻译
     const chinese = await service.synthesize('你好');
-    expect(chinese.success).toBe(true);
+    expect(chinese.ok).toBe(true);
     expect(translate).not.toHaveBeenCalled();
     expect(synthesize).toHaveBeenCalledWith(expect.objectContaining({ language: 'zh', text: '你好' }));
 
     // 日文文本翻译成中文，而不是角色定义的日文
     const japanese = await service.synthesize('おはよう');
-    expect(japanese.success).toBe(true);
+    expect(japanese.ok).toBe(true);
     expect(translate).toHaveBeenCalledWith({ sourceLang: 'ja', targetLang: 'zh', text: 'おはよう' });
     expect(synthesize).toHaveBeenCalledWith(expect.objectContaining({ language: 'zh', text: '早上好' }));
   });
@@ -316,7 +316,7 @@ describe('SpeakService character speech language', () => {
     characterLanguage = 'zh';
     const chinese = await service.synthesize('早上好');
 
-    expect(japanese.success && fallbackAuto.success && chinese.success).toBe(true);
+    expect(japanese.ok && fallbackAuto.ok && chinese.ok).toBe(true);
     // 角色语言切换后同一原文不串缓存；无法识别时维持历史 auto key
     expect(japanese.cacheId).not.toBe(fallbackAuto.cacheId);
     expect(japanese.cacheId).not.toBe(chinese.cacheId);

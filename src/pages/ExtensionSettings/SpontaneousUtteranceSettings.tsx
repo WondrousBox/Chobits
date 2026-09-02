@@ -132,7 +132,7 @@ export const SpontaneousUtteranceItem: React.FC<{
       <div className="line-clamp-1 text-xs text-muted-foreground">控制主动发言频率、风格偏好，并查看历史记录。</div>
     </div>
     <div onClick={(event) => event.stopPropagation()}>
-      <Switch checked={state.preferences.enabled} onCheckedChange={(checked) => void state.updatePreferences({ enabled: checked })} disabled={state.loading} />
+      <Switch checked={state.preferences.enabled} onCheckedChange={(checked) => void state.updatePreferences({ enabled: checked })} disabled={state.isLoading} />
     </div>
   </div>
 );
@@ -174,7 +174,7 @@ function HistoryCard({ item }: { item: SpontaneousUtteranceHistoryItem }): JSX.E
 }
 
 export const SpontaneousUtteranceDetailContent: React.FC<{ state: SpontaneousUtteranceSettingsState }> = ({ state }) => {
-  const { preferences, loading, history, historyLoading, query, setQuery, statusFilter, setStatusFilter, intentFilter, setIntentFilter, loadHistory, updatePreferences } = state;
+  const { preferences, isLoading, history, historyLoading, query, setQuery, statusFilter, setStatusFilter, intentFilter, setIntentFilter, loadHistory, updatePreferences } = state;
 
   const latestSpoken = useMemo(() => history.find((item) => item.status === 'spoken'), [history]);
   const allowedSet = useMemo(() => new Set(preferences.allowedIntentCategories), [preferences.allowedIntentCategories]);
@@ -194,7 +194,7 @@ export const SpontaneousUtteranceDetailContent: React.FC<{ state: SpontaneousUtt
     [preferences.allowedIntentCategories, updatePreferences]
   );
 
-  if (loading) {
+  if (isLoading) {
     return <div className="p-4 text-sm text-muted-foreground">加载中...</div>;
   }
 

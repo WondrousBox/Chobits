@@ -156,7 +156,7 @@ function getEmojiArgSummary(args: any): string | undefined {
 }
 
 const EmojiSendToolItem: React.FC<{ activity: ToolActivity }> = ({ activity }) => {
-  const [expanded, setExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const args = parseToolArgs(activity.args) || {};
   const details = readToolDetails(activity.result) || {};
   const emoji = details.emoji;
@@ -180,20 +180,20 @@ const EmojiSendToolItem: React.FC<{ activity: ToolActivity }> = ({ activity }) =
 
   return (
     <div className="overflow-hidden rounded-lg border border-border/50 text-xs">
-      <button type="button" className="flex max-w-full items-center gap-1.5 px-2 py-1 text-left transition-colors hover:bg-muted/50" onClick={() => setExpanded(!expanded)}>
+      <button type="button" className="flex max-w-full items-center gap-1.5 px-2 py-1 text-left transition-colors hover:bg-muted/50" onClick={() => setIsExpanded(!isExpanded)}>
         {activity.status === 'calling' ? <TbLoader2 className="h-3 w-3 shrink-0 animate-spin text-blue-500" /> : <TbCheck className="h-3 w-3 shrink-0 text-green-500" />}
         <TbTool className="h-3 w-3 shrink-0 text-muted-foreground" />
         <span className="truncate text-muted-foreground max-w-52">{statusText}</span>
-        {expanded ? <TbChevronDown className="h-3 w-3" /> : <TbChevronRight className="h-3 w-3" />}
+        {isExpanded ? <TbChevronDown className="h-3 w-3" /> : <TbChevronRight className="h-3 w-3" />}
       </button>
 
-      {argSummary && !expanded && (
+      {argSummary && !isExpanded && (
         <div className="border-t border-border/30 bg-muted/20 px-2 py-1 text-[11px] text-muted-foreground">
           <span className="break-all">{argSummary}</span>
         </div>
       )}
 
-      {expanded && (
+      {isExpanded && (
         <div className="max-h-64 space-y-1 overflow-auto border-t border-border/50 bg-muted/30 px-2 py-1">
           {activity.args != null && <DetailBlock label="参数" value={activity.args} />}
           {activity.status === 'done' && activity.result != null && <DetailBlock label="结果" value={activity.result} />}
@@ -268,7 +268,7 @@ const LongTaskChoiceItem: React.FC<{ activity: ToolActivity; onSubmit?: (choiceI
 };
 
 const ToolCallItem: React.FC<{ activity: ToolActivity; onUserChoiceSubmit?: (choiceId: string, answers: Record<string, string[]>) => void }> = ({ activity, onUserChoiceSubmit }) => {
-  const [expanded, setExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   if (ASK_USER_TOOL_NAMES.has(activity.name)) return <AskUserToolItem activity={activity} onSubmit={onUserChoiceSubmit} />;
   if (EMOJI_SEND_TOOL_NAMES.has(activity.name)) return <EmojiSendToolItem activity={activity} />;
@@ -293,7 +293,7 @@ const ToolCallItem: React.FC<{ activity: ToolActivity; onUserChoiceSubmit?: (cho
 
   return (
     <div className="overflow-hidden rounded-lg border border-border/50 text-xs">
-      <button className="flex items-center gap-1.5 px-2 py-1 text-left transition-colors hover:bg-muted/50" onClick={() => setExpanded(!expanded)}>
+      <button className="flex items-center gap-1.5 px-2 py-1 text-left transition-colors hover:bg-muted/50" onClick={() => setIsExpanded(!isExpanded)}>
         {activity.status === 'calling' ? (
           hasProgress ? (
             <CircularProgress size={12} progress={activity.progress!} />
@@ -307,12 +307,12 @@ const ToolCallItem: React.FC<{ activity: ToolActivity; onUserChoiceSubmit?: (cho
         )}
         <TbTool className="h-3 w-3 shrink-0 text-muted-foreground" />
         <span className="truncate text-muted-foreground max-w-52">{statusText}</span>
-        {expanded ? <TbChevronDown className="h-3 w-3" /> : <TbChevronRight className="h-3 w-3" />}
+        {isExpanded ? <TbChevronDown className="h-3 w-3" /> : <TbChevronRight className="h-3 w-3" />}
       </button>
 
       {showLongTaskChoice && <LongTaskChoiceItem activity={activity} onSubmit={onUserChoiceSubmit} />}
 
-      {expanded && (
+      {isExpanded && (
         <div className="max-h-64 space-y-1 overflow-auto border-t border-border/50 bg-muted/30 px-2 py-1">
           {activity.args != null && <DetailBlock label="参数" value={activity.args} />}
           {activity.status === 'done' && activity.result != null && <DetailBlock label="结果" value={activity.result} />}
@@ -348,7 +348,7 @@ const CircularProgress: React.FC<{ size: number; progress: number }> = ({ size, 
 };
 
 const DetailBlock: React.FC<{ label: string; value: any }> = ({ label, value }) => {
-  const [copied, setCopied] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
   const { text, lang } = formatValue(value);
   const canCopy =
     typeof document !== 'undefined' &&
@@ -359,10 +359,10 @@ const DetailBlock: React.FC<{ label: string; value: any }> = ({ label, value }) 
     try {
       const copiedText = await copyValueToClipboard(stringifyValue(value));
       if (!copiedText) return;
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1200);
+      setIsCopied(true);
+      window.setTimeout(() => setIsCopied(false), 1200);
     } catch {
-      setCopied(false);
+      setIsCopied(false);
     }
   };
 
@@ -375,10 +375,10 @@ const DetailBlock: React.FC<{ label: string; value: any }> = ({ label, value }) 
           className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-transparent text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
           onClick={handleCopy}
           disabled={!canCopy}
-          title={canCopy ? (copied ? `${label}已复制` : `复制${label}`) : '当前环境不支持复制'}
-          aria-label={copied ? `${label}已复制` : `复制${label}`}
+          title={canCopy ? (isCopied ? `${label}已复制` : `复制${label}`) : '当前环境不支持复制'}
+          aria-label={isCopied ? `${label}已复制` : `复制${label}`}
         >
-          {copied ? <TbCheck className="h-3 w-3 text-green-500" /> : <TbCopy className="h-3 w-3" />}
+          {isCopied ? <TbCheck className="h-3 w-3 text-green-500" /> : <TbCopy className="h-3 w-3" />}
         </button>
       </div>
       {lang !== undefined ? (

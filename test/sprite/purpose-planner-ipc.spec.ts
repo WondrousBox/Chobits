@@ -24,7 +24,7 @@ vi.mock('electron', () => ({
   }
 }));
 
-import { initSpritePurposePlannerIPC } from '../../electron/main/handlers/sprite/purpose-planner-ipc';
+import { initSpritePurposePlannerHandlers } from '../../electron/main/handlers/sprite/purpose-planner-ipc';
 import { SpritePurposePlannerPreferencesStore } from '../../electron/main/handlers/sprite/purpose-planner-preferences';
 import { SpritePurposePlannerService } from '../../electron/main/handlers/sprite/purpose-planner-service';
 import { DEFAULT_SPRITE_ROUTINE_PRESETS } from '../../packages/sprite-core/purpose';
@@ -48,11 +48,11 @@ describe('sprite purpose planner IPC', () => {
       preferences: store.read()
     });
 
-    initSpritePurposePlannerIPC(service, store);
+    initSpritePurposePlannerHandlers(service, store);
 
-    const getPreferences = electronHarness.handlers.get('sprite:purposePlanner:getPreferences');
-    const updatePreferences = electronHarness.handlers.get('sprite:purposePlanner:updatePreferences');
-    const getStatus = electronHarness.handlers.get('sprite:purposePlanner:getStatus');
+    const getPreferences = electronHarness.handlers.get('sprite:purpose-planner:get-preferences');
+    const updatePreferences = electronHarness.handlers.get('sprite:purpose-planner:update-preferences');
+    const getStatus = electronHarness.handlers.get('sprite:purpose-planner:get-status');
 
     expect(getPreferences).toBeTypeOf('function');
     expect(updatePreferences).toBeTypeOf('function');

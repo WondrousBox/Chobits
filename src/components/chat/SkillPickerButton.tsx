@@ -14,7 +14,7 @@ import { getSkillTrustPresentation } from '@/lib/skill-trust';
 interface SkillPickerButtonProps {
   agentId: string;
   highlightedSkillName?: string;
-  loading?: boolean;
+  isLoading?: boolean;
   onSelect: (nextValue: string) => void;
   onHighlightSkill?: (skillName: string) => void;
   suggestions?: SkillInfo[];
@@ -29,7 +29,7 @@ interface SkillPickerButtonProps {
 export default function SkillPickerButton({
   agentId,
   highlightedSkillName,
-  loading = false,
+  isLoading = false,
   contentSide,
   contentAlign = 'start',
   avoidCollisions,
@@ -40,63 +40,63 @@ export default function SkillPickerButton({
   skills,
   value
 }: SkillPickerButtonProps): JSX.Element | null {
-  const enabled = shouldEnableSkillPicker(agentId);
-  const autoOpen = enabled && isTypingSlashSkillQuery(value);
+  const isEnabled = shouldEnableSkillPicker(agentId);
+  const isAutoOpen = isEnabled && isTypingSlashSkillQuery(value);
   const [manualOpen, setManualOpen] = useState(false);
   const [query, setQuery] = useState('');
 
-  const open = enabled && (manualOpen || autoOpen);
+  const isOpen = isEnabled && (manualOpen || isAutoOpen);
 
   useEffect(() => {
-    onOpenChange?.(open);
-  }, [onOpenChange, open]);
+    onOpenChange?.(isOpen);
+  }, [onOpenChange, isOpen]);
 
   useEffect(() => {
-    if (!enabled) {
+    if (!isEnabled) {
       const timer = window.setTimeout(() => setManualOpen(false), 0);
       return () => window.clearTimeout(timer);
     }
 
     const timer = window.setTimeout(() => {
-      if (autoOpen) {
+      if (isAutoOpen) {
         setQuery(deriveSkillPickerQuery(value));
       } else if (!manualOpen) {
         setQuery('');
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [autoOpen, enabled, manualOpen, value]);
+  }, [isAutoOpen, isEnabled, manualOpen, value]);
 
   const pickerItems = useMemo(
     () =>
-      (autoOpen && suggestions?.length ? suggestions : skills).map((skill) => ({
+      (isAutoOpen && suggestions?.length ? suggestions : skills).map((skill) => ({
         ...skill,
         keywords: [skill.name, ...skill.aliases, skill.description, skill.whenToUse || ''].filter(Boolean)
       })),
-    [autoOpen, skills, suggestions]
+    [isAutoOpen, skills, suggestions]
   );
 
-  if (!enabled) {
+  if (!isEnabled) {
     return null;
   }
 
   return (
     <Popover
-      open={open}
+      open={isOpen}
       onOpenChange={(nextOpen) => {
         if (!nextOpen) {
           setManualOpen(false);
           return;
         }
 
-        setQuery(autoOpen ? deriveSkillPickerQuery(value) : '');
+        setQuery(isAutoOpen ? deriveSkillPickerQuery(value) : '');
         setManualOpen(true);
       }}
     >
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button type="button" variant={open ? 'default' : 'outline'} size="icon" className="h-8 w-8 rounded-full" aria-label="选择 Skill">
+            <Button type="button" variant={isOpen ? 'default' : 'outline'} size="icon" className="h-8 w-8 rounded-full" aria-label="选择 Skill">
               <TbSparkles />
             </Button>
           </PopoverTrigger>
@@ -110,7 +110,7 @@ export default function SkillPickerButton({
         <Command shouldFilter>
           <CommandInput placeholder="搜索 skills..." value={query} onValueChange={setQuery} />
           <CommandList>
-            <CommandEmpty>{loading ? '正在加载 skills...' : '没有匹配的 skill'}</CommandEmpty>
+            <CommandEmpty>{isLoading ? '正在加载 skills...' : '没有匹配的 skill'}</CommandEmpty>
             <CommandGroup heading="Available Skills">
               {pickerItems.map((skill) =>
                 (() => {

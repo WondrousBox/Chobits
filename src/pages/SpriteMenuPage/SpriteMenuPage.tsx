@@ -8,28 +8,26 @@ import { ensureChatApiConfigGoal } from '@/lib/chat-api-config-guide';
 
 import RadialMenu, { RadialMenuItem } from '../../components/common/RadialMenu/RadialMenu';
 
-interface AssistantMenuPageProps {}
-
-const characterPosition: { x: number; y: number } = { x: 300, y: 300 };
+const menuAnchor: { x: number; y: number } = { x: 300, y: 300 };
 
 /** 退出动画时长 (ms) */
 const EXIT_ANIMATION_DURATION = 450;
 
-const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
+const SpriteMenuPage: React.FC = () => {
   // 控制菜单显示状态，初始为 false，等待窗口显示事件后再展开
   const [isOpen, setIsOpen] = useState(false);
   // 是否正在播放关闭动画
   const [isClosing, setIsClosing] = useState(false);
   // ASR 服务运行状态
   const [isASRRunning, setIsASRRunning] = useState(false);
-  const [debugOverlay, setDebugOverlay] = useState(false);
+  const [isDebugOverlayEnabled, setIsDebugOverlayEnabled] = useState(false);
   const [bubbleMode, setBubbleMode] = useState<SpriteBubbleMode>('fixed-top');
   const { isEnabled } = useFeatureFlags();
 
   // 查询 ASR 服务状态
   const checkASRStatus = useCallback(async () => {
     try {
-      const status = await window.YUA.sherpa.getStatus();
+      const status = await window.chobits.sherpa.getStatus();
       setIsASRRunning(status.running);
     } catch (error) {
       console.error('查询 ASR 状态失败:', error);
@@ -39,16 +37,16 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
 
   const checkDebugOverlay = useCallback(async () => {
     try {
-      setDebugOverlay(await window.YUA.sprite.getDebugOverlay());
+      setIsDebugOverlayEnabled(await window.chobits.sprite.getDebugOverlay());
     } catch (error) {
       console.error('查询调试线框状态失败:', error);
-      setDebugOverlay(false);
+      setIsDebugOverlayEnabled(false);
     }
   }, []);
 
   const checkBubbleMode = useCallback(async () => {
     try {
-      setBubbleMode(await window.YUA.sprite.getBubbleMode());
+      setBubbleMode(await window.chobits.sprite.getBubbleMode());
     } catch (error) {
       console.error('查询气泡模式失败:', error);
       setBubbleMode('fixed-top');
@@ -59,7 +57,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
     async (mode: SpriteBubbleMode) => {
       setBubbleMode(mode);
       try {
-        const applied = await window.YUA.sprite.setBubbleMode(mode);
+        const applied = await window.chobits.sprite.setBubbleMode(mode);
         setBubbleMode(applied);
       } catch {
         void checkBubbleMode();
@@ -68,8 +66,8 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
     [checkBubbleMode]
   );
 
-  const emitAssistantMenuItemSelected = useCallback((itemId: string, windowKey?: string, payload?: Record<string, unknown>) => {
-    void window.YUA.sprite.emitPurposeEvent({
+  const emitSpriteMenuItemSelected = useCallback((itemId: string, windowKey?: string, payload?: Record<string, unknown>) => {
+    void window.chobits.sprite.emitPurposeEvent({
       source: 'app-event',
       event: 'ASSISTANT_MENU_ITEM_SELECTED',
       payload: {
@@ -82,17 +80,17 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
   }, []);
 
   const toggleDebugOverlay = useCallback(async () => {
-    const next = !debugOverlay;
-    setDebugOverlay(next);
+    const next = !isDebugOverlayEnabled;
+    setIsDebugOverlayEnabled(next);
     try {
-      const applied = await window.YUA.sprite.setDebugOverlay(next);
-      setDebugOverlay(applied);
+      const applied = await window.chobits.sprite.setDebugOverlay(next);
+      setIsDebugOverlayEnabled(applied);
       toast.success(applied ? '调试线框已开启' : '调试线框已关闭');
     } catch (error) {
-      setDebugOverlay(debugOverlay);
+      setIsDebugOverlayEnabled(isDebugOverlayEnabled);
       toast.error('切换调试线框失败', { description: error instanceof Error ? error.message : String(error) });
     }
-  }, [debugOverlay]);
+  }, [isDebugOverlayEnabled]);
 
   const menuItems: RadialMenuItem[] = useMemo(
     () => [
@@ -109,7 +107,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         icon: '💬',
         shortcut: 'i',
         action: () => {
-          window.YUA.window['window:open']('status');
+          window.chobits.window['window:open']('status');
         }
       },
       {
@@ -119,46 +117,24 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         shortcut: 'a',
         children: [
           {
-            id: 'asr-service',
-            label: isASRRunning ? '停止识别服务' : '启动识别服务',
-            icon: isASRRunning ? '⏹️' : '🧠',
-            shortcut: 's',
+            id: 'asr-test',
+            label: 'ASR 测试',
+            icon: '🎧',
+            shortcut: 'r',
             action: async () => {
               if (isASRRunning) {
-                emitAssistantMenuItemSelected('asr-service', undefined, { action: 'stop' });
-                // 停止 ASR 服务
-                try {
-                  await window.YUA.sherpa.freeInstance();
-                  await window.YUA.sherpa.saveASRConfig({ enabled: false });
-                  setIsASRRunning(false);
-                } catch (error) {
-                  console.error('停止 ASR 服务失败:', error);
-                }
+                // 服务已运行：直接打开测试窗口
+                const savedConfig = await window.chobits.sherpa.getASRConfig();
+                emitSpriteMenuItemSelected('asr-test', 'asrTest');
+                window.chobits.window['window:open']('asrTest' as any, {
+                  model: savedConfig?.local?.model,
+                  language: savedConfig?.local?.language
+                });
               } else {
-                // 打开 ASR 配置页面来启动服务
-                emitAssistantMenuItemSelected('asr-service', 'asrConfig', { action: 'start' });
-                window.YUA.window['window:open']('asrConfig');
+                // 服务未运行：先打开配置页选择模型并启动（启动成功后会自动进入测试窗口）
+                emitSpriteMenuItemSelected('asr-test', 'asrConfig', { action: 'start' });
+                window.chobits.window['window:open']('asrConfig');
               }
-            }
-          },
-          {
-            id: 'mic-recording',
-            label: '麦克风识别',
-            icon: '🎤',
-            shortcut: 'm',
-            action: () => {
-              emitAssistantMenuItemSelected('mic-recording', 'asr', { audioSource: 'microphone' });
-              window.YUA.window['window:open']('asr' as any, { audioSource: 'microphone' });
-            }
-          },
-          {
-            id: 'system-audio-recording',
-            label: '电脑声音识别',
-            icon: '🔉',
-            shortcut: 'e',
-            action: () => {
-              emitAssistantMenuItemSelected('system-audio-recording', 'asr', { audioSource: 'system-audio' });
-              window.YUA.window['window:open']('asr' as any, { audioSource: 'system-audio' });
             }
           },
           {
@@ -167,13 +143,13 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
             icon: '🔊',
             shortcut: 'v',
             action: () => {
-              emitAssistantMenuItemSelected('tts-config', 'ttsConfig');
-              window.YUA.window['window:open']('ttsConfig');
+              emitSpriteMenuItemSelected('tts-config', 'ttsConfig');
+              window.chobits.window['window:open']('ttsConfig');
             }
           }
         ].filter((item) => {
           // 本地 ASR 相关菜单项仅在 localAi 开启时可见
-          if (item.id === 'asr-service' || item.id === 'mic-recording' || item.id === 'system-audio-recording') return isEnabled('localAi');
+          if (item.id === 'asr-test') return isEnabled('localAi');
           return true;
         })
       },
@@ -188,8 +164,8 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
             if (!guide.configured) {
               return;
             }
-            emitAssistantMenuItemSelected('chat', 'chat');
-            window.YUA.window['window:open']('chat');
+            emitSpriteMenuItemSelected('chat', 'chat');
+            window.chobits.window['window:open']('chat');
           })();
         }
       },
@@ -198,7 +174,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
       //   label: '回收站',
       //   icon: '🗑️',
       //   shortcut: 'b',
-      //   action: () => window.YUA.window['window:open']('recycle')
+      //   action: () => window.chobits.window['window:open']('recycle')
       // },
       {
         id: 'debug-test',
@@ -207,8 +183,8 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         children: [
           {
             id: 'debug-overlay',
-            label: debugOverlay ? '关闭线框' : '调试线框',
-            icon: debugOverlay ? <BugOff className="h-6 w-6" /> : <Bug className="h-6 w-6" />,
+            label: isDebugOverlayEnabled ? '关闭线框' : '调试线框',
+            icon: isDebugOverlayEnabled ? <BugOff className="h-6 w-6" /> : <Bug className="h-6 w-6" />,
             shortcut: 'd',
             action: toggleDebugOverlay
           },
@@ -227,11 +203,11 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         icon: '⚙️',
         shortcut: 's',
         action: () => {
-          window.YUA.window['window:open']('settings');
+          window.chobits.window['window:open']('settings');
         }
       }
     ],
-    [bubbleMode, debugOverlay, emitAssistantMenuItemSelected, isASRRunning, isEnabled, setSpriteBubbleMode, toggleDebugOverlay]
+    [bubbleMode, isDebugOverlayEnabled, emitSpriteMenuItemSelected, isASRRunning, isEnabled, setSpriteBubbleMode, toggleDebugOverlay]
   );
 
   // 处理菜单关闭请求（播放退出动画后关闭窗口）
@@ -244,8 +220,8 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
 
       // 等待退出动画完成后再关闭窗口
       setTimeout(() => {
-        window.YUA.window['window:close']('menu');
-        void window.YUA.sprite.interact('context-menu', { open: false });
+        window.chobits.window['window:close']('menu');
+        void window.chobits.sprite.interact('context-menu', { open: false });
         setIsClosing(false);
       }, EXIT_ANIMATION_DURATION);
     },
@@ -260,14 +236,14 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
 
       if (data.visible) {
         // 窗口显示时，查询 ASR 状态并播放入场动画
-        void window.YUA.sprite.interact('context-menu', { open: true });
+        void window.chobits.sprite.interact('context-menu', { open: true });
         checkASRStatus();
         checkDebugOverlay();
         checkBubbleMode();
         setIsOpen(true);
         setIsClosing(false);
       } else {
-        void window.YUA.sprite.interact('context-menu', { open: false });
+        void window.chobits.sprite.interact('context-menu', { open: false });
       }
       // 注意：隐藏事件在窗口已经隐藏后发送，此时无法播放动画
       // 关闭动画通过 onClose 回调触发
@@ -281,7 +257,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
 
   useEffect(() => {
     return () => {
-      void window.YUA.sprite.interact('context-menu', { open: false });
+      void window.chobits.sprite.interact('context-menu', { open: false });
     };
   }, []);
 
@@ -300,7 +276,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
     };
   }, [isOpen, isClosing, handleClose]);
 
-  return <RadialMenu items={menuItems} open={isOpen} anchor={characterPosition} onClose={handleClose} />;
+  return <RadialMenu items={menuItems} isOpen={isOpen} anchor={menuAnchor} onClose={handleClose} />;
 };
 
-export default AssistantMenuPage;
+export default SpriteMenuPage;

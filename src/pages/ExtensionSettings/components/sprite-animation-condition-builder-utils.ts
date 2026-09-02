@@ -111,7 +111,7 @@ export const SPRITE_ANIMATION_CONDITION_FIELD_OPTIONS: SpriteAnimationConditionB
     key: 'custom',
     field: '',
     kind: 'string',
-    label: '自定义 persona 路径',
+    label: '自定义角色状态路径',
     operators: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'includes', 'notIncludes'],
     placeholder: '例如 dimensions.focus'
   }

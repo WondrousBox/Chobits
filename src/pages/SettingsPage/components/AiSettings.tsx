@@ -40,7 +40,7 @@ const createPresetSuffix = (): string => {
   return Math.random().toString(36).slice(2, 6).toUpperCase();
 };
 
-export default function AiSettings({ initialProviderId, initialPresetId, focusRevision = 0 }: { initialProviderId?: string; initialPresetId?: string; focusRevision?: number }): JSX.Element {
+export default function AISettings({ initialProviderId, initialPresetId, focusRevision = 0 }: { initialProviderId?: string; initialPresetId?: string; focusRevision?: number }): JSX.Element {
   const [providers, setProviders] = useState<ProviderRow[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [presets, setPresets] = useState<Preset[]>([]);
@@ -70,14 +70,14 @@ export default function AiSettings({ initialProviderId, initialPresetId, focusRe
   };
 
   const refreshProviders = async (preferredProviderId?: string | null): Promise<void> => {
-    const provs = await window.YUA.ai.getProviders();
-    setProviders(provs || []);
+    const fetchedProviders = await window.chobits.ai.getProviders();
+    setProviders(fetchedProviders || []);
 
     if (preferredProviderId !== undefined) {
       setExpandedPresetId(null);
       setShowCreateForm(false);
       setErrors((prev) => ({ ...prev, __new__: {} }));
-      const preferred = (preferredProviderId ? resolveProviderIdentity(provs || [], preferredProviderId) : undefined) || provs?.[0] || null;
+      const preferred = (preferredProviderId ? resolveProviderIdentity(fetchedProviders || [], preferredProviderId) : undefined) || fetchedProviders?.[0] || null;
       setSelectedProviderId(preferred?.id || null);
       setProviderFocusRevision((prev) => prev + 1);
     }
@@ -94,7 +94,7 @@ export default function AiSettings({ initialProviderId, initialPresetId, focusRe
   useEffect(() => {
     if (!selectedProviderId) return;
     (async () => {
-      const list = await window.YUA.ai.listPresets(selectedProviderId);
+      const list = await window.chobits.ai.listPresets(selectedProviderId);
       setPresets(list || []);
       const targetPreset = initialPresetId ? (list || []).find((preset) => preset.id === initialPresetId) : undefined;
       if (targetPreset) {
@@ -103,7 +103,7 @@ export default function AiSettings({ initialProviderId, initialPresetId, focusRe
         await loadPresetSecrets(targetPreset.id);
       }
       try {
-        const ms = await window.YUA.ai.listModels(selectedProviderId);
+        const ms = await window.chobits.ai.listModels(selectedProviderId);
         if (Array.isArray(ms) && ms.length) setModels((prev) => ({ ...prev, [selectedProviderId]: ms }));
       } catch {
         /* ignore */
@@ -126,7 +126,7 @@ export default function AiSettings({ initialProviderId, initialPresetId, focusRe
     const preset = presets.find((item) => item.id === presetId);
     if (!preset) return;
     try {
-      const ms = await window.YUA.ai.listModels(preset.providerId, preset.id);
+      const ms = await window.chobits.ai.listModels(preset.providerId, preset.id);
       if (Array.isArray(ms) && ms.length) setModels((prev) => ({ ...prev, [preset.providerId]: ms }));
     } catch {
       /* ignore */
@@ -134,7 +134,7 @@ export default function AiSettings({ initialProviderId, initialPresetId, focusRe
   };
 
   const loadPresetSecrets = async (presetId: string): Promise<void> => {
-    const secrets = await window.YUA.ai.getPresetSecrets(presetId).catch(() => ({}));
+    const secrets = await window.chobits.ai.getPresetSecrets(presetId).catch(() => ({}));
     setPresetSecrets((prev) => ({ ...prev, [presetId]: secrets || {} }));
   };
 
@@ -161,7 +161,7 @@ export default function AiSettings({ initialProviderId, initialPresetId, focusRe
     setErrors((prev) => ({ ...prev, __new__: {} }));
   };
 
-  const onCreatePreset = async (vals: PresetFormValues): Promise<void> => {
+  const handleCreatePreset = async (vals: PresetFormValues): Promise<void> => {
     if (!selectedProvider) return;
     const schema = schemaForProvider(selectedProvider);
     const parsed = schema.safeParse(vals.secrets);
@@ -176,16 +176,16 @@ export default function AiSettings({ initialProviderId, initialPresetId, focusRe
       return;
     }
     setErrors((prev) => ({ ...prev, __new__: {} }));
-    const created = await window.YUA.ai.createPreset({
+    const created = await window.chobits.ai.createPreset({
       providerId: selectedProvider.id,
       name: buildPresetName(selectedProvider),
       overrides: {}
     });
     if (created?.id) {
-      await window.YUA.ai.setPresetSecrets(created.id, vals.secrets);
+      await window.chobits.ai.setPresetSecrets(created.id, vals.secrets);
       await selectChatDefaultsForProvider({ providerId: selectedProvider.id, presetId: created.id, provider: selectedProvider });
     }
-    const list = await window.YUA.ai.listPresets(selectedProvider.id);
+    const list = await window.chobits.ai.listPresets(selectedProvider.id);
     setPresets(list || []);
     await refreshProviders(selectedProvider.id);
     setShowCreateForm(false);
@@ -193,7 +193,7 @@ export default function AiSettings({ initialProviderId, initialPresetId, focusRe
     setErrors((prev) => ({ ...prev, __new__: {} }));
   };
 
-  const onSavePreset = async (preset: Preset, vals: PresetFormValues): Promise<void> => {
+  const handleSavePreset = async (preset: Preset, vals: PresetFormValues): Promise<void> => {
     if (!selectedProvider) return;
     const schema = schemaForProvider(selectedProvider);
     const parsed = schema.safeParse(vals.secrets || {});
@@ -207,17 +207,17 @@ export default function AiSettings({ initialProviderId, initialPresetId, focusRe
       return;
     }
     setErrors((prev) => ({ ...prev, [preset.id]: {} }));
-    await window.YUA.ai.setPresetSecrets(preset.id, vals.secrets || {});
+    await window.chobits.ai.setPresetSecrets(preset.id, vals.secrets || {});
     await selectChatDefaultsForProvider({ providerId: preset.providerId, presetId: preset.id, provider: selectedProvider });
-    const list = await window.YUA.ai.listPresets(preset.providerId);
+    const list = await window.chobits.ai.listPresets(preset.providerId);
     setPresets(list || []);
     await refreshProviders(preset.providerId);
     setExpandedPresetId(null);
   };
 
-  const onQuickTest = async (preset: Preset): Promise<void> => {
+  const handleQuickTest = async (preset: Preset): Promise<void> => {
     try {
-      await window.YUA.ai.chat({
+      await window.chobits.ai.chat({
         agentId: 'chat',
         providerPresetId: preset.id,
         messages: [
@@ -232,10 +232,10 @@ export default function AiSettings({ initialProviderId, initialPresetId, focusRe
     }
   };
 
-  const onDeletePreset = async (preset: Preset): Promise<void> => {
+  const handleDeletePreset = async (preset: Preset): Promise<void> => {
     if (!confirm('删除该预设？')) return;
-    await window.YUA.ai.deletePreset(preset.id);
-    const list = await window.YUA.ai.listPresets(preset.providerId);
+    await window.chobits.ai.deletePreset(preset.id);
+    const list = await window.chobits.ai.listPresets(preset.providerId);
     setPresets(list || []);
     await refreshProviders(preset.providerId);
     setExpandedPresetId((prev) => (prev === preset.id ? null : prev));
@@ -318,7 +318,7 @@ export default function AiSettings({ initialProviderId, initialPresetId, focusRe
                               {isExpanded ? <TbChevronDown className="w-4 h-4" /> : <TbChevronRight className="w-4 h-4" />}
                               {isExpanded ? '收起' : '编辑'}
                             </Button>
-                            <Button size="sm" variant="outline" onClick={() => onQuickTest(preset)}>
+                            <Button size="sm" variant="outline" onClick={() => handleQuickTest(preset)}>
                               测试
                             </Button>
                           </div>
@@ -335,8 +335,8 @@ export default function AiSettings({ initialProviderId, initialPresetId, focusRe
                               submitLabel="保存预设"
                               cancelLabel="收起"
                               onCancel={() => setExpandedPresetId(null)}
-                              onDelete={() => void onDeletePreset(preset)}
-                              onSubmit={(vals) => onSavePreset(preset, vals)}
+                              onDelete={() => void handleDeletePreset(preset)}
+                              onSubmit={(vals) => handleSavePreset(preset, vals)}
                             />
                           </div>
                         )}
@@ -371,7 +371,7 @@ export default function AiSettings({ initialProviderId, initialPresetId, focusRe
                       }
                       : undefined
                   }
-                  onSubmit={onCreatePreset}
+                  onSubmit={handleCreatePreset}
                 />
               )}
             </div>

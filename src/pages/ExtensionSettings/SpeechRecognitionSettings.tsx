@@ -10,12 +10,12 @@ import { cn } from '@/lib/utils';
 /* ─── Hook ─── */
 export function useSpeechRecognitionSettings(options?: SpriteCapabilityGuardOptions) {
   const [isRunning, setIsRunning] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [checking, setChecking] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
 
   const checkStatus = async (): Promise<void> => {
     try {
-      const status = await window.YUA.sherpa.getStatus();
+      const status = await window.chobits.sherpa.getStatus();
       setIsRunning(status.running);
     } catch (error) {
       console.error('查询 ASR 状态失败:', error);
@@ -29,7 +29,7 @@ export function useSpeechRecognitionSettings(options?: SpriteCapabilityGuardOpti
       try {
         await checkStatus();
       } finally {
-        if (!cancelled) setChecking(false);
+        if (!cancelled) setIsChecking(false);
       }
     })();
     return () => {
@@ -51,24 +51,24 @@ export function useSpeechRecognitionSettings(options?: SpriteCapabilityGuardOpti
     if (checked && !ensureSpriteCapabilityAccessible(options?.capability, options?.onBlocked)) {
       return;
     }
-    setLoading(true);
+    setIsLoading(true);
     try {
       if (checked) {
-        window.YUA.window['window:open']('asrConfig');
+        window.chobits.window['window:open']('asrConfig');
       } else {
-        await window.YUA.sherpa.freeInstance();
-        await window.YUA.sherpa.saveASRConfig({ enabled: false });
+        await window.chobits.sherpa.destroyInstance();
+        await window.chobits.sherpa.saveASRConfig({ enabled: false });
         setIsRunning(false);
       }
     } catch (error) {
       console.error('切换 ASR 服务失败:', error);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
       await options?.afterChange?.();
     }
   };
 
-  return { isRunning, loading, checking, capability: options?.capability ?? null, handleToggle, checkStatus };
+  return { isRunning, isLoading, isChecking, capability: options?.capability ?? null, handleToggle, checkStatus };
 }
 
 export type SpeechRecognitionSettingsState = ReturnType<typeof useSpeechRecognitionSettings>;
@@ -92,8 +92,8 @@ export const SpeechRecognitionItem: React.FC<{
       <div className="text-xs text-muted-foreground line-clamp-1">实时语音识别，将语音转为文字。</div>
     </div>
     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-      {(state.loading || state.checking) && <TbLoader2 className="animate-spin h-4 w-4 text-muted-foreground" />}
-      <Switch checked={state.isRunning} onCheckedChange={state.handleToggle} disabled={state.loading || state.checking || capability?.status === 'locked'} />
+      {(state.isLoading || state.isChecking) && <TbLoader2 className="animate-spin h-4 w-4 text-muted-foreground" />}
+      <Switch checked={state.isRunning} onCheckedChange={state.handleToggle} disabled={state.isLoading || state.isChecking || capability?.status === 'locked'} />
     </div>
   </div>
 );
@@ -104,7 +104,7 @@ export const SpeechRecognitionDetailContent: React.FC<{ state: SpeechRecognition
     return <SpriteCapabilityLockedNotice capability={capability} hint="语音识别属于成长型能力，解锁后才会允许打开配置页和启动运行态服务。" />;
   }
 
-  const { isRunning, loading, handleToggle } = state;
+  const { isRunning, isLoading, handleToggle } = state;
 
   return (
     <div className="space-y-4">
@@ -120,15 +120,15 @@ export const SpeechRecognitionDetailContent: React.FC<{ state: SpeechRecognition
 
       <div className="flex gap-2">
         {isRunning ? (
-          <Button size="sm" variant="destructive" disabled={loading} onClick={() => handleToggle(false)} className="gap-2">
+          <Button size="sm" variant="destructive" disabled={isLoading} onClick={() => handleToggle(false)} className="gap-2">
             <TbPlayerStop /> 停止服务
           </Button>
         ) : (
-          <Button size="sm" variant="default" disabled={loading} onClick={() => handleToggle(true)} className="gap-2">
+          <Button size="sm" variant="default" disabled={isLoading} onClick={() => handleToggle(true)} className="gap-2">
             <TbPlayerPlay /> 启动服务
           </Button>
         )}
-        <Button size="sm" variant="outline" onClick={() => window.YUA.window['window:open']('asrConfig')} className="gap-2" disabled={loading}>
+        <Button size="sm" variant="outline" onClick={() => window.chobits.window['window:open']('asrConfig')} className="gap-2" disabled={isLoading}>
           <TbSettings /> 识别配置
         </Button>
       </div>

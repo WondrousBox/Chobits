@@ -6,27 +6,11 @@ import { extractThinkingTextFromMetadata } from '@packages/ai/thinking-content';
 import type { TokenUsage } from '@packages/ai/types';
 import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  TbArrowDown,
-  TbChevronLeft,
-  TbChevronRight,
-  TbDots,
-  TbEdit,
-  TbHistory,
-  TbLayoutSidebarRightExpand,
-  TbLoader2,
-  TbPin,
-  TbPlus,
-  TbRefresh,
-  TbShare,
-  TbTrash,
-  TbWindow,
-  TbX
-} from 'react-icons/tb';
+import { TbArrowDown, TbChevronRight, TbDots, TbEdit, TbHistory, TbLoader2, TbPin, TbPlus, TbRefresh, TbShare, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import {
-  AiSpeechToggle,
+  AISpeechToggle,
   appendTextPart,
   appendThinkingPart,
   appendToolPart,
@@ -42,13 +26,12 @@ import {
   type ToolActivity,
   updateToolPart
 } from '@/components/chat';
-import DragAbleTitle from '@/components/common/DragAbleTitle';
+import DraggableTitle from '@/components/common/DraggableTitle';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAutoScroll } from '@/hooks/useAutoScroll';
 import { useRealtimeChatSpeech } from '@/hooks/useRealtimeChatSpeech';
 import { ensureChatApiConfigGoal, guideChatApiConfigIfNeeded } from '@/lib/chat-api-config-guide';
@@ -56,16 +39,9 @@ import { buildExplicitSkillInvocationInput } from '@/lib/chat-explicit-skill-inv
 import { formatDateTime, formatRelativeTime } from '@/lib/time';
 import { speakToolResultSpeech } from '@/lib/tool-speech';
 
-import { CHAT_OVERLAY_SETTINGS, type ChatOverlaySide, resolveChatOverlaySide } from './chat-overlay-settings';
 import { useChatSelection } from './context/ChatSelectionContext';
 
 const CHAT_WINDOW_PAYLOAD_DEDUPE_MS = 30_000;
-
-interface ChatPageProps {
-  hideTitleBar?: boolean;
-  presentation?: 'standard' | 'overlay';
-  payloadWindowKey?: 'chat' | 'chatOverlay';
-}
 
 interface ChatUiMessage {
   role: 'user' | 'assistant';
@@ -93,24 +69,23 @@ interface ChatWindowPayload {
   codingWorkspaceLabel?: string;
   webSearchEnabled?: boolean;
   characterPersonaEnabled?: boolean;
-  overlaySide?: ChatOverlaySide;
 }
 
 async function resolveInitialChatModelId(providerId: string, presetId?: string): Promise<string> {
-  const models = await window.YUA.ai.listModels(providerId, presetId).catch(() => []);
+  const models = await window.chobits.ai.listModels(providerId, presetId).catch(() => []);
   return models.find((item) => item?.type === 'chat')?.id || models[0]?.id || '';
 }
 
 function getChatWindowPayloadKey(payload: ChatWindowPayload): string {
   if (payload.requestId) return `request:${payload.requestId}`;
   if (payload.source === 'chat-mode-switch' && payload.conversationId) {
-    return `mode-switch:${payload.conversationId}:${payload.overlaySide || 'standard'}`;
+    return `mode-switch:${payload.conversationId}`;
   }
   return `initial:${payload.initialMessage || ''}:${payload.providerId || ''}:${payload.modelId || ''}:${payload.preferredPresetId || payload.presetId || ''}`;
 }
 
-export default function ChatPage({ hideTitleBar = false, presentation = 'standard', payloadWindowKey = 'chat' }: ChatPageProps): JSX.Element {
-  const isOverlay = presentation === 'overlay';
+export default function ChatPage(): JSX.Element {
+  const payloadWindowKey = 'chat';
   const realtimeSpeech = useRealtimeChatSpeech('mainChat');
   const cancelRealtimeSpeech = realtimeSpeech.cancel;
   const refreshRealtimeSpeechEnabled = realtimeSpeech.refreshEnabled;
@@ -133,18 +108,17 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     setCharacterPersonaEnabled
   } = useChatSelection();
   const [messages, setMessages] = useState<ChatUiMessage[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
   const disposerRef = useRef<{ dispose: () => void; cancel: () => Promise<any> } | null>(null);
   const assistantIndexRef = useRef<number>(-1);
   const [conversations, setConversations] = useState<any[]>([]);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
-  const [loadingConvs, setLoadingConvs] = useState(false);
+  const [loadingConversations, setLoadingConversations] = useState(false);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renamingConvId, setRenamingConvId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [pendingConversationTitle, setPendingConversationTitle] = useState<string | null>(null);
-  const [switchingWindowMode, setSwitchingWindowMode] = useState(false);
   // Track conversations that are waiting for AI-generated titles
   const [generatingTitleIds, setGeneratingTitleIds] = useState<Set<string>>(new Set());
 
@@ -154,18 +128,13 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
   // 删除确认弹窗状态
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingConvId, setDeletingConvId] = useState<string | null>(null);
-  const [overlaySide, setOverlaySide] = useState<ChatOverlaySide>(CHAT_OVERLAY_SETTINGS.side);
-  const [overlayExpanded, setOverlayExpanded] = useState(!isOverlay);
-  const overlayCollapseTimerRef = useRef<number | null>(null);
   const initialConfigGuideRanRef = useRef(false);
   const handledPayloadKeysRef = useRef<Map<string, number>>(new Map());
   const pendingPayloadStartTimerRef = useRef<number | null>(null);
 
   const currentConversation = useMemo(() => conversations.find((c) => c.id === conversationId) || null, [conversations, conversationId]);
   const conversationUsage = useMemo(() => sumTokenUsage(messages), [messages]);
-  const showEmptyStart = !isOverlay && messages.length === 0;
-  const canSwitchWindowMode = Boolean(conversationId);
-  const windowModeSwitchDisabledText = '发送一条消息后可切换窗口模式';
+  const showEmptyStart = messages.length === 0;
 
   const clearPendingPayloadStartTimer = useCallback((): void => {
     if (pendingPayloadStartTimerRef.current === null) return;
@@ -187,14 +156,14 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
 
   // Load conversations list
   const loadConversations = async (): Promise<void> => {
-    setLoadingConvs(true);
+    setLoadingConversations(true);
     try {
-      const rows = await window.YUA.ai.listConversations({ includeDeleted: false, limit: 200 });
+      const rows = await window.chobits.ai.listConversations({ includeDeleted: false, limit: 200 });
       setConversations(rows || []);
     } catch {
       // Let parent surface errors
     }
-    setLoadingConvs(false);
+    setLoadingConversations(false);
   };
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -230,7 +199,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     setConversationId(id);
     setPendingConversationTitle(null);
     try {
-      const rows = await window.YUA.ai.listMessages(id, 2000, 0);
+      const rows = await window.chobits.ai.listMessages(id, 2000, 0);
       const mapped = (rows || []).map((r: any) => {
         let activities: ToolActivity[] | undefined;
         let usage: TokenUsage | undefined;
@@ -297,7 +266,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     setMessages([]);
   }, [clearPendingPayloadStartTimer, stopRealtimeSpeech]);
 
-  const handleAiSpeechEnabledChange = useCallback(
+  const handleAISpeechEnabledChange = useCallback(
     (enabled: boolean): void => {
       if (enabled) {
         void refreshRealtimeSpeechEnabled();
@@ -319,7 +288,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
   // Apply rename
   const applyRename = async (): Promise<void> => {
     if (!renamingConvId) return;
-    await window.YUA.ai.renameConversation(renamingConvId, newTitle.trim() || '未命名会话');
+    await window.chobits.ai.renameConversation(renamingConvId, newTitle.trim() || '未命名会话');
     setRenameDialogOpen(false);
     await loadConversations();
   };
@@ -336,7 +305,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     const id = deletingConvId;
     const prevSelected = selectedConvId;
     try {
-      await window.YUA.ai.hardDeleteConversation(id);
+      await window.chobits.ai.hardDeleteConversation(id);
       setConversations((prev) => prev.filter((c) => c.id !== id));
       if (prevSelected === id) newConversation();
       toast.success('已删除会话');
@@ -406,16 +375,11 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
         return;
       }
       clearPendingPayloadStartTimer();
-      if (isOverlay) {
-        setOverlaySide(resolveChatOverlaySide(payload.overlaySide));
-        setOverlayExpanded(false);
-        window.setTimeout(() => setOverlayExpanded(true), 30);
-      }
       if (disposerRef.current) {
         void disposerRef.current.cancel().catch(() => {});
         disposerRef.current.dispose?.();
         disposerRef.current = null;
-        setLoading(false);
+        setIsLoading(false);
       }
       applyChatWindowPayloadSelection(payload);
 
@@ -452,7 +416,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
       if (fallbackDone) return;
       fallbackDone = true;
       try {
-        const cached = (await window.YUA.window['window:payload:get'](payloadWindowKey)) as ChatWindowPayload | undefined;
+        const cached = (await window.chobits.window['window:payload:get'](payloadWindowKey)) as ChatWindowPayload | undefined;
         if (cached?.initialMessage) handlePayload(cached);
         else if (cached?.conversationId) handlePayload(cached);
       } catch {
@@ -465,11 +429,11 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
       clearTimeout(timer);
       clearPendingPayloadStartTimer();
     };
-  }, [applyChatWindowPayloadSelection, clearPendingPayloadStartTimer, isOverlay, markPayloadHandled, newConversation, payloadWindowKey, selectConversation]);
+  }, [applyChatWindowPayloadSelection, clearPendingPayloadStartTimer, markPayloadHandled, newConversation, payloadWindowKey, selectConversation]);
 
   // Listen for conversation title updates from main process
   useEffect(() => {
-    const dispose = window.YUA.ai.onConversationTitleUpdated((data) => {
+    const dispose = window.chobits.ai.onConversationTitleUpdated((data) => {
       if (data.status === 'generating') {
         setGeneratingTitleIds((prev) => new Set(prev).add(data.conversationId));
       } else {
@@ -490,6 +454,9 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     });
     return () => dispose();
   }, []);
+
+  // Smart auto-scroll: only scrolls when user is at bottom（声明需在 start 之前，后者会调用 resetAutoScroll）
+  const { containerRef: scrollContainerRef, showScrollButton, scrollToBottom, resetAutoScroll } = useAutoScroll([messages, isLoading]);
 
   const start = async (params: {
     content: string;
@@ -516,7 +483,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
 
     const placeholderTitle = !conversationId ? buildConversationPlaceholderTitle(content) : '';
 
-    const resolvedPreset = await window.YUA.ai.resolveUsablePreset(selectedProviderId, preferredPresetId);
+    const resolvedPreset = await window.chobits.ai.resolveUsablePreset(selectedProviderId, preferredPresetId);
     if (!resolvedPreset?.id) {
       setPendingConversationTitle(null);
       await ensureChatApiConfigGoal({ providerId: selectedProviderId, preferredPresetId, trigger: 'chat-send' });
@@ -546,7 +513,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
       assistantIndexRef.current = next.length - 1;
       return next;
     });
-    setLoading(true);
+    setIsLoading(true);
     // User sent a message → force auto-scroll to bottom
     resetAutoScroll();
     const suppressAuxiliarySpeech = await realtimeSpeech.refreshEnabled();
@@ -566,7 +533,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     // 2) 构造上下文（包含历史消息 + 新用户消息）
     const history = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content, createdAt: m.createdAt }));
 
-    const disposer = await window.YUA.ai.chatStream(
+    const disposer = await window.chobits.ai.chatStream(
       {
         conversationId,
         messages: history as any,
@@ -703,14 +670,14 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
             };
             return copy;
           });
-          setLoading(false);
+          setIsLoading(false);
           void realtimeSpeech.complete();
           // capture conversationId from completed metadata if present
           const metaConvId = ev.data?.message?.metadata?.conversationId;
           if (metaConvId && !conversationId) setConversationId(metaConvId);
         }
         if (ev?.type === 'message_completed') {
-          setLoading(false);
+          setIsLoading(false);
           disposerRef.current?.dispose?.();
           disposerRef.current = null;
           // Refresh conversation list to show updated message count
@@ -726,7 +693,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
             copy[idx] = appendTextPart(m, `\n[错误] ${ev.data?.message || ''}`);
             return copy;
           });
-          setLoading(false);
+          setIsLoading(false);
         }
         if (ev?.type === 'done') {
           void realtimeSpeech.complete();
@@ -753,7 +720,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     });
     // Send response to main process to unblock the tool
     try {
-      await window.YUA.ai.sendUserChoiceResponse({ choiceId, answers });
+      await window.chobits.ai.sendUserChoiceResponse({ choiceId, answers });
     } catch (e) {
       console.error('[ChatPage] Failed to send user choice response:', e);
     }
@@ -775,7 +742,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
           disposerRef.current?.dispose?.();
           disposerRef.current = null;
           void realtimeSpeech.cancel();
-          setLoading(false);
+          setIsLoading(false);
           // Reset to new conversation
           newConversation();
           // Auto-send the saved message in the new conversation after state reset
@@ -800,278 +767,25 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
     }
     disposerRef.current?.dispose?.();
     await cancelRealtimeSpeech();
-    setLoading(false);
+    setIsLoading(false);
   }, [cancelRealtimeSpeech]);
 
-  // Smart auto-scroll: only scrolls when user is at bottom
-  const { containerRef: scrollContainerRef, showScrollButton, scrollToBottom, resetAutoScroll } = useAutoScroll([messages, loading]);
-
-  const buildModeSwitchPayload = useCallback(
-    (targetOverlay: boolean): ChatWindowPayload => ({
-      requestId: `chat-mode-switch-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      source: 'chat-mode-switch',
-      conversationId,
-      providerId,
-      modelId,
-      presetId,
-      agentId,
-      codingWorkspaceRoot,
-      codingWorkspaceLabel,
-      webSearchEnabled,
-      characterPersonaEnabled,
-      ...(targetOverlay ? { overlaySide } : {})
-    }),
-    [
-      agentId,
-      characterPersonaEnabled,
-      codingWorkspaceLabel,
-      codingWorkspaceRoot,
-      conversationId,
-      modelId,
-      overlaySide,
-      presetId,
-      providerId,
-      webSearchEnabled
-    ]
-  );
-
-  const clearOverlayCollapseTimer = useCallback((): void => {
-    if (overlayCollapseTimerRef.current) {
-      window.clearTimeout(overlayCollapseTimerRef.current);
-      overlayCollapseTimerRef.current = null;
-    }
-  }, []);
-
-  const clearOverlaySpriteAvoidRegion = useCallback(async (): Promise<void> => {
-    if (!isOverlay) return;
-    try {
-      await window.YUA.sprite.setMovementAvoidRegions([]);
-    } catch (error) {
-      console.warn('[ChatPage] failed to clear overlay sprite avoid region:', error);
-    }
-  }, [isOverlay]);
-
-  const switchChatWindowMode = useCallback(
-    async (target: 'standard' | 'overlay'): Promise<void> => {
-      if (switchingWindowMode) return;
-      if (!conversationId) {
-        toast.info('当前对话还没有保存，发送一条消息后就可以切换窗口模式');
-        return;
-      }
-
-      setSwitchingWindowMode(true);
-      const targetWindowKey = target === 'overlay' ? 'chatOverlay' : 'chat';
-      const targetOverlay = target === 'overlay';
-
-      try {
-        clearPendingPayloadStartTimer();
-        await stop();
-        if (isOverlay) {
-          clearOverlayCollapseTimer();
-          await clearOverlaySpriteAvoidRegion();
-        }
-
-        const opened = await window.YUA.window['window:open'](targetWindowKey as any, buildModeSwitchPayload(targetOverlay), { sameDisplayAsSender: true });
-        if (!opened) {
-          toast.error('切换聊天窗口模式失败');
-          return;
-        }
-        await window.YUA.window['window:close'](payloadWindowKey as any);
-      } catch (error) {
-        console.warn('[ChatPage] failed to switch chat window mode:', error);
-        toast.error('切换聊天窗口模式失败');
-      } finally {
-        setSwitchingWindowMode(false);
-      }
-    },
-    [buildModeSwitchPayload, clearOverlayCollapseTimer, clearOverlaySpriteAvoidRegion, clearPendingPayloadStartTimer, conversationId, isOverlay, payloadWindowKey, stop, switchingWindowMode]
-  );
-
-  const positionOverlayWindow = useCallback(async (): Promise<void> => {
-    if (!isOverlay) return;
-    try {
-      const area = await window.YUA.window['screen:work-area:get'](payloadWindowKey);
-      const expandedWidth = Math.min(CHAT_OVERLAY_SETTINGS.expandedWidth, Math.max(CHAT_OVERLAY_SETTINGS.collapsedWidth, area.width));
-      const width = overlayExpanded ? expandedWidth : CHAT_OVERLAY_SETTINGS.collapsedWidth;
-      const height = area.height;
-      const x = overlaySide === 'right' ? area.x + area.width - width : area.x;
-      const targetBounds = { x, y: area.y, width, height };
-      const result = await window.YUA.window['window:bounds:set'](payloadWindowKey, targetBounds);
-      if (!overlayExpanded) {
-        await clearOverlaySpriteAvoidRegion();
-        return;
-      }
-
-      const appliedBounds = result.bounds ?? targetBounds;
-      const gap = CHAT_OVERLAY_SETTINGS.spriteAvoidGap;
-      const avoidRegion = overlaySide === 'right' ? { ...appliedBounds, x: appliedBounds.x - gap, width: appliedBounds.width + gap } : { ...appliedBounds, width: appliedBounds.width + gap };
-      await window.YUA.sprite.setMovementAvoidRegions([avoidRegion]);
-    } catch (error) {
-      console.warn('[ChatPage] failed to position overlay chat window:', error);
-    }
-  }, [clearOverlaySpriteAvoidRegion, isOverlay, overlayExpanded, overlaySide, payloadWindowKey]);
-
-  const scheduleOverlayCollapse = useCallback(
-    (delayMs = CHAT_OVERLAY_SETTINGS.autoCollapseDelayMs): void => {
-      if (!isOverlay || loading || !CHAT_OVERLAY_SETTINGS.autoCollapseEnabled) return;
-      clearOverlayCollapseTimer();
-      overlayCollapseTimerRef.current = window.setTimeout(() => {
-        setOverlayExpanded(false);
-      }, delayMs);
-    },
-    [clearOverlayCollapseTimer, isOverlay, loading]
-  );
-
-  const expandOverlay = useCallback((): void => {
-    if (!isOverlay) return;
-    clearOverlayCollapseTimer();
-    setOverlayExpanded(true);
-    scheduleOverlayCollapse();
-  }, [clearOverlayCollapseTimer, isOverlay, scheduleOverlayCollapse]);
-
-  const collapseOverlay = useCallback((): void => {
-    if (!isOverlay) return;
-    clearOverlayCollapseTimer();
-    setOverlayExpanded(false);
-  }, [clearOverlayCollapseTimer, isOverlay]);
-
-  const closeOverlayWindow = useCallback(async (): Promise<void> => {
-    if (!isOverlay) return;
-    clearOverlayCollapseTimer();
-    clearPendingPayloadStartTimer();
-    try {
-      await disposerRef.current?.cancel();
-    } catch {
-      // Closing should not be blocked by stream cancellation failures.
-    }
-    disposerRef.current?.dispose?.();
-    disposerRef.current = null;
-    await cancelRealtimeSpeech();
-    setLoading(false);
-    await clearOverlaySpriteAvoidRegion();
-    await window.YUA.window['window:close'](payloadWindowKey as any);
-  }, [cancelRealtimeSpeech, clearOverlayCollapseTimer, clearOverlaySpriteAvoidRegion, clearPendingPayloadStartTimer, isOverlay, payloadWindowKey]);
-
-  useEffect(() => {
-    void positionOverlayWindow();
-  }, [positionOverlayWindow]);
-
-  useEffect(() => {
-    if (!isOverlay) return;
-    const onResize = (): void => {
-      void positionOverlayWindow();
-    };
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, [isOverlay, positionOverlayWindow]);
-
-  useEffect(() => {
-    if (!isOverlay || !overlayExpanded || loading || messages.length === 0) return;
-    scheduleOverlayCollapse();
-  }, [isOverlay, loading, messages.length, overlayExpanded, scheduleOverlayCollapse]);
-
-  useEffect(() => clearOverlayCollapseTimer, [clearOverlayCollapseTimer]);
-
-  useEffect(() => {
-    if (!isOverlay) return;
-    return () => {
-      void clearOverlaySpriteAvoidRegion();
-    };
-  }, [clearOverlaySpriteAvoidRegion, isOverlay]);
-
   return (
-    <div
-      className={
-        isOverlay ? 'relative w-full h-full bg-transparent text-foreground overflow-hidden flex flex-col' : 'relative w-full h-full bg-background text-foreground overflow-hidden flex flex-col'
-      }
-    >
-      {isOverlay && !overlayExpanded && (
-        <>
-          <div className={`absolute inset-y-3 ${overlaySide === 'right' ? 'right-1' : 'left-1'} w-1 rounded-full bg-primary/45 shadow-[0_0_18px_rgba(96,165,250,0.5)]`} />
-          <Button
-            aria-label="展开对话"
-            className={`no-drag pointer-events-auto absolute top-1/2 z-30 h-7 w-7 -translate-y-1/2 rounded-full bg-background/90 shadow-lg backdrop-blur ${overlaySide === 'right' ? 'right-0' : 'left-0'}`}
-            size="icon"
-            title="展开对话"
-            variant="outline"
-            onClick={expandOverlay}
-          >
-            {overlaySide === 'right' ? <TbChevronLeft className="h-4 w-4" /> : <TbChevronRight className="h-4 w-4" />}
-          </Button>
-        </>
-      )}
-      {isOverlay && overlayExpanded && (
-        <div className={`no-drag pointer-events-auto absolute top-3 z-30 flex items-center gap-2 ${overlaySide === 'right' ? 'right-3' : 'left-3'}`}>
-          <Button
-            aria-label="关闭对话"
-            className="h-8 w-8 rounded-full bg-background/80 shadow-lg backdrop-blur"
-            size="icon"
-            title="关闭对话"
-            variant="outline"
-            onClick={() => void closeOverlayWindow()}
-          >
-            <TbX className="h-4 w-4" />
-          </Button>
-          <Button aria-label="收起对话" className="h-8 w-8 rounded-full bg-background/80 shadow-lg backdrop-blur" size="icon" title="收起对话" variant="outline" onClick={collapseOverlay}>
-            {overlaySide === 'right' ? <TbChevronRight className="h-4 w-4" /> : <TbChevronLeft className="h-4 w-4" />}
-          </Button>
-          <AiSpeechToggle onEnabledChange={handleAiSpeechEnabledChange} />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex" title={canSwitchWindowMode ? '切换到独立聊天窗口' : windowModeSwitchDisabledText}>
-                <Button
-                  aria-label="切换到独立聊天窗口"
-                  className="h-8 w-8 rounded-full bg-background/80 shadow-lg backdrop-blur"
-                  disabled={switchingWindowMode || !canSwitchWindowMode}
-                  size="icon"
-                  variant="outline"
-                  onClick={() => void switchChatWindowMode('standard')}
-                >
-                  <TbWindow />
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>{canSwitchWindowMode ? '切换到独立聊天窗口' : windowModeSwitchDisabledText}</TooltipContent>
-          </Tooltip>
-        </div>
-      )}
-      {/* 顶部可拖拽导航栏 - 根据 hideTitleBar 控制显示 */}
-      {!isOverlay && !hideTitleBar && (
-        <DragAbleTitle
-          actions={
-            <>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="inline-flex" title={canSwitchWindowMode ? '切换到侧边栏窗口' : windowModeSwitchDisabledText}>
-                    <Button
-                      aria-label="切换到侧边栏窗口"
-                      className="h-8 w-8 rounded-full"
-                      disabled={switchingWindowMode || !canSwitchWindowMode}
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => void switchChatWindowMode('overlay')}
-                    >
-                      <TbLayoutSidebarRightExpand />
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>{canSwitchWindowMode ? '切换到侧边栏窗口' : windowModeSwitchDisabledText}</TooltipContent>
-              </Tooltip>
-            </>
-          }
-          title={
-            <div className="flex items-center gap-2 w-full">
-              <span>🗨️</span>
-              <div className="text-left truncate flex-1">{currentConversation?.title || pendingConversationTitle || '未命名会话'}</div>
-            </div>
-          }
-        />
-      )}
+    <div className="relative w-full h-full bg-background text-foreground overflow-hidden flex flex-col">
+      {/* 顶部可拖拽导航栏 */}
+      <DraggableTitle
+        title={
+          <div className="flex items-center gap-2 w-full">
+            <span>🗨️</span>
+            <div className="text-left truncate flex-1">{currentConversation?.title || pendingConversationTitle || '未命名会话'}</div>
+          </div>
+        }
+      />
 
       {/* 主体：左侧历史列表（可折叠） + 右侧聊天区 */}
       <div className="flex-1 min-h-0 flex overflow-hidden">
         {/* 左侧：历史会话（可折叠，默认隐藏） */}
-        {!isOverlay && showHistory && (
+        {showHistory && (
           <div className="w-64 border-r shrink-0 flex flex-col bg-muted">
             <div className="p-2 flex items-center gap-1 shrink-0">
               <Button size="icon" variant="outline" className="w-8 h-8 rounded-full" onClick={loadConversations} title="刷新列表">
@@ -1086,8 +800,8 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
               <span>最近会话</span>
             </div>
             <div className="flex-1 overflow-auto min-h-0">
-              {loadingConvs && <div className="p-2 text-xs text-muted-foreground">加载中…</div>}
-              {!loadingConvs && conversations.length === 0 && <div className="p-2 text-xs text-muted-foreground">暂无会话，点击“新对话”开始</div>}
+              {loadingConversations && <div className="p-2 text-xs text-muted-foreground">加载中…</div>}
+              {!loadingConversations && conversations.length === 0 && <div className="p-2 text-xs text-muted-foreground">暂无会话，点击“新对话”开始</div>}
               <div className="flex flex-col">
                 {conversations.map((c) => {
                   const isGenerating = generatingTitleIds.has(c.id);
@@ -1162,18 +876,13 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
         )}
 
         {/* 右侧：聊天窗口 */}
-        <div
-          className={`flex-1 min-w-0 flex flex-col overflow-hidden relative transition-all ease-out ${isOverlay ? (overlayExpanded ? 'no-drag pointer-events-auto opacity-100 translate-x-0' : overlaySide === 'right' ? 'opacity-0 translate-x-6 pointer-events-none' : 'opacity-0 -translate-x-6 pointer-events-none') : ''}`}
-          style={isOverlay ? { transitionDuration: `${CHAT_OVERLAY_SETTINGS.entryAnimationMs}ms` } : undefined}
-        >
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden relative">
           {/* 展开/收起历史按钮 */}
-          {!isOverlay && (
-            <div className="absolute top-2 left-2 z-10">
-              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setShowHistory(!showHistory)} title={showHistory ? '收起历史' : '展开历史'}>
-                {showHistory ? <TbChevronRight className="w-4 h-4" /> : <TbHistory className="w-4 h-4" />}
-              </Button>
-            </div>
-          )}
+          <div className="absolute top-2 left-2 z-10">
+            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setShowHistory(!showHistory)} title={showHistory ? '收起历史' : '展开历史'}>
+              {showHistory ? <TbChevronRight className="w-4 h-4" /> : <TbHistory className="w-4 h-4" />}
+            </Button>
+          </div>
           {showEmptyStart && (
             <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
               <div className="text-center text-lg mb-4">今天有什么能帮到你？</div>
@@ -1217,42 +926,36 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
                   </div>
                 </button>
               </div>
-              <ChatInputWithService loading={loading} onStart={start} onStop={stop} />
+              <ChatInputWithService isLoading={isLoading} onStart={start} onStop={stop} />
             </div>
           )}
           {messages.length > 0 && (
             <>
-              {!isOverlay && (
-                <div className="no-drag pointer-events-auto flex shrink-0 justify-end px-3 pt-2">
-                  <AiSpeechToggle onEnabledChange={handleAiSpeechEnabledChange} />
-                </div>
-              )}
+              <div className="no-drag pointer-events-auto flex shrink-0 justify-end px-3 pt-2">
+                <AISpeechToggle onEnabledChange={handleAISpeechEnabledChange} />
+              </div>
               <ScrollAreaPrimitive.Root className="relative flex-1 min-h-0 w-full overflow-hidden">
-                <ScrollAreaPrimitive.Viewport ref={scrollContainerRef} className={isOverlay ? 'h-full w-full px-3 pb-4 pt-14 box-border' : 'h-full w-full p-2 box-border'}>
-                  <div className={isOverlay ? 'flex min-h-full flex-col justify-end gap-3 pb-44' : 'flex flex-col gap-2'}>
-                    {!isOverlay && conversationUsage && (
+                <ScrollAreaPrimitive.Viewport ref={scrollContainerRef} className="h-full w-full p-2 box-border">
+                  <div className="flex flex-col gap-2">
+                    {conversationUsage && (
                       <div className="flex justify-center pt-2">
                         <ChatTokenUsage usage={conversationUsage} label="会话累计" variant="conversation" />
                       </div>
                     )}
                     {messages.map((m, i) => (
-                      <div key={i} className={`${m.role === 'user' ? 'flex justify-end' : 'flex justify-start'} ${!isOverlay && i === messages.length - 1 ? 'mb-24' : ''}`}>
+                      <div key={i} className={`${m.role === 'user' ? 'flex justify-end' : 'flex justify-start'} ${i === messages.length - 1 ? 'mb-24' : ''}`}>
                         <div
                           className={
-                            isOverlay
-                              ? m.role === 'user'
-                                ? 'chat-overlay-bubble chat-overlay-bubble-user max-w-[88%] rounded-3xl rounded-br-md px-4 py-2.5 break-words text-primary-foreground whitespace-pre-wrap'
-                                : 'chat-overlay-bubble chat-overlay-bubble-assistant max-w-[94%] rounded-3xl rounded-bl-md px-4 py-3 break-words text-foreground'
-                              : m.role === 'user'
-                                ? 'max-w-[80%] rounded-2xl px-3 py-2 break-words bg-primary text-primary-foreground whitespace-pre-wrap'
-                                : 'w-full rounded-2xl px-3 py-2 break-words text-foreground'
+                            m.role === 'user'
+                              ? 'max-w-[80%] rounded-2xl px-3 py-2 break-words bg-primary text-primary-foreground whitespace-pre-wrap'
+                              : 'w-full rounded-2xl px-3 py-2 break-words text-foreground'
                           }
                         >
                           {m.role === 'assistant' ? (
                             <>
                               <AssistantMessageTimeline message={m} onUserChoiceSubmit={handleUserChoiceSubmit} />
-                              {!isOverlay && m.usage && <ChatTokenUsage usage={m.usage} label="本轮" className="mt-2" />}
-                              {!hasTimelineContent(m) && loading && i === messages.length - 1 && (
+                              {m.usage && <ChatTokenUsage usage={m.usage} label="本轮" className="mt-2" />}
+                              {!hasTimelineContent(m) && isLoading && i === messages.length - 1 && (
                                 <span className="inline-flex items-center gap-2 text-muted-foreground">
                                   <TbLoader2 className="h-4 w-4 animate-spin" /> 正在思考...
                                 </span>
@@ -1262,7 +965,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
                             <ChatMessageRenderer content={m.content} />
                           ) : (
                             m.content ||
-                            (loading && i === messages.length - 1 ? (
+                            (isLoading && i === messages.length - 1 ? (
                               <span className="inline-flex items-center gap-2 text-muted-foreground">
                                 <TbLoader2 className="h-4 w-4 animate-spin" /> 正在思考...
                               </span>
@@ -1275,14 +978,7 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
                     ))}
                   </div>
                 </ScrollAreaPrimitive.Viewport>
-                <ScrollAreaPrimitive.ScrollAreaScrollbar
-                  className={
-                    isOverlay && CHAT_OVERLAY_SETTINGS.hideMessageScrollbar
-                      ? 'flex h-full w-2.5 touch-none select-none border-l border-l-transparent p-[1px] opacity-0 pointer-events-none'
-                      : 'flex h-full w-2.5 touch-none select-none border-l border-l-transparent p-[1px] transition-colors'
-                  }
-                  orientation="vertical"
-                >
+                <ScrollAreaPrimitive.ScrollAreaScrollbar className="flex h-full w-2.5 touch-none select-none border-l border-l-transparent p-[1px] transition-colors" orientation="vertical">
                   <ScrollAreaPrimitive.ScrollAreaThumb className="relative flex-1 rounded-full bg-border" />
                 </ScrollAreaPrimitive.ScrollAreaScrollbar>
                 <ScrollAreaPrimitive.Corner />
@@ -1290,15 +986,15 @@ export default function ChatPage({ hideTitleBar = false, presentation = 'standar
               {/* Scroll-to-bottom button */}
               {showScrollButton && (
                 <button
-                  className={`${isOverlay ? 'absolute bottom-40 right-4' : 'absolute bottom-24 right-6'} z-20 flex items-center justify-center w-9 h-9 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-opacity`}
+                  className="absolute bottom-24 right-6 z-20 flex items-center justify-center w-9 h-9 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-opacity"
                   onClick={() => scrollToBottom(true)}
                   title="滚动到底部"
                 >
                   <TbArrowDown className="w-5 h-5" />
                 </button>
               )}
-              <div className={isOverlay ? 'no-drag pointer-events-auto absolute bottom-3 left-2 right-2 flex justify-center' : 'absolute bottom-0 left-0 right-0 flex justify-center'}>
-                <ChatInputWithService loading={loading} onStart={start} onStop={stop} className={isOverlay ? 'mx-0 w-full max-w-none drop-shadow-2xl' : undefined} />
+              <div className="absolute bottom-0 left-0 right-0 flex justify-center">
+                <ChatInputWithService isLoading={isLoading} onStart={start} onStop={stop} />
               </div>
             </>
           )}

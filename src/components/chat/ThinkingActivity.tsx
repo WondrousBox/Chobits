@@ -13,13 +13,13 @@ interface ThinkingActivityProps {
 }
 
 const ThinkingActivity: React.FC<ThinkingActivityProps> = ({ thinking, isThinking }: ThinkingActivityProps) => {
-  const [expanded, setExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   if (!thinking && !isThinking) return null;
 
   return (
     <div className="text-xs border border-border/50 rounded-lg overflow-hidden mb-1">
-      <button className="flex items-center gap-1.5 px-2 py-1 hover:bg-muted/50 transition-colors text-left" onClick={() => setExpanded(!expanded)}>
+      <button className="flex items-center gap-1.5 px-2 py-1 hover:bg-muted/50 transition-colors text-left" onClick={() => setIsExpanded(!isExpanded)}>
         {isThinking ? (
           <span className="relative flex h-3 w-3 shrink-0">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-50" />
@@ -29,9 +29,9 @@ const ThinkingActivity: React.FC<ThinkingActivityProps> = ({ thinking, isThinkin
           <TbCheck className="h-3 w-3 text-green-500 shrink-0" />
         )}
         <span className="text-muted-foreground truncate">{isThinking ? '思考中...' : '已思考'}</span>
-        {expanded ? <TbChevronDown className="h-3 w-3 ml-auto shrink-0" /> : <TbChevronRight className="h-3 w-3 ml-auto shrink-0" />}
+        {isExpanded ? <TbChevronDown className="h-3 w-3 ml-auto shrink-0" /> : <TbChevronRight className="h-3 w-3 ml-auto shrink-0" />}
       </button>
-      {expanded && thinking && (
+      {isExpanded && thinking && (
         <div className="px-2.5 py-1.5 bg-muted/30 border-t border-border/50 max-h-64 overflow-auto">
           <pre className="text-[11px] whitespace-pre-wrap break-words text-muted-foreground/80 leading-relaxed select-text">{thinking}</pre>
         </div>

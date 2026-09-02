@@ -83,7 +83,7 @@ describe('tool speech metadata', () => {
   it('plays renderer tool result speech through the sprite bridge', async () => {
     const speak = vi.fn(async () => ({ success: true }));
     (globalThis as any).window = {
-      YUA: {
+      chobits: {
         sprite: {
           speak
         }
@@ -113,7 +113,7 @@ describe('tool speech metadata', () => {
   it('skips renderer tool result speech when auxiliary speech is suppressed', async () => {
     const speak = vi.fn(async () => ({ success: true }));
     (globalThis as any).window = {
-      YUA: {
+      chobits: {
         sprite: {
           speak
         }

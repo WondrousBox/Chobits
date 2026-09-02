@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { TbLoader2 } from 'react-icons/tb';
 import { toast } from 'sonner';
 
-import DragAbleTitle from '@/components/common/DragAbleTitle';
+import DraggableTitle from '@/components/common/DraggableTitle';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getSpriteCapabilityLockedReason, getSpriteCapabilityState } from '@/features/sprite-assistant/capability-ui';
@@ -12,20 +12,20 @@ import { useSpriteCapabilitySnapshot } from '@/features/sprite-assistant/hooks/u
 
 import { SpriteAnimationManager } from './SpriteManager';
 import CharacterGalleryManager from './CharacterGalleryManager';
-import { SpritePackEditorContent } from './SpritePackEditor';
+import { CharacterPackEditorContent } from './CharacterPackEditor';
 import {
-  buildCreateSpritePackEditorState,
-  emitSpritePackEditorEvent,
-  getSpritePackEditorDescription,
-  getSpritePackEditorTitle,
-  loadSpritePackEditorStateForPack,
-  saveSpritePackEditorState,
-  SPRITE_PACK_EDITOR_WINDOW_KEY,
-  type SpritePackEditorState,
-  type SpritePackEditorWindowPayload
-} from './SpritePackEditorModel';
+  buildCreateCharacterPackEditorState,
+  emitCharacterPackEditorEvent,
+  getCharacterPackEditorDescription,
+  getCharacterPackEditorTitle,
+  loadCharacterPackEditorStateForPack,
+  saveCharacterPackEditorState,
+  CHARACTER_PACK_EDITOR_WINDOW_KEY,
+  type CharacterPackEditorState,
+  type CharacterPackEditorWindowPayload
+} from './character-pack-editor-model';
 
-function resolveEditorTargetPack(payload: SpritePackEditorWindowPayload | null | undefined, packs: CharacterPackSummary[]): CharacterPackSummary | null {
+function resolveEditorTargetPack(payload: CharacterPackEditorWindowPayload | null | undefined, packs: CharacterPackSummary[]): CharacterPackSummary | null {
   if (!payload?.packId) {
     return null;
   }
@@ -33,30 +33,30 @@ function resolveEditorTargetPack(payload: SpritePackEditorWindowPayload | null |
   return packs.find((pack) => pack.id === payload.packId && (!payload.source || pack.source === payload.source)) ?? packs.find((pack) => pack.id === payload.packId) ?? null;
 }
 
-export default function SpritePackEditorWindow(): JSX.Element {
+export default function CharacterPackEditorWindow(): JSX.Element {
   const [packs, setPacks] = useState<CharacterPackSummary[]>([]);
-  const [editor, setEditor] = useState<SpritePackEditorState | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [editor, setEditor] = useState<CharacterPackEditorState | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'profile' | 'gallery' | 'animations'>('profile');
   const { snapshot: capabilitySnapshot } = useSpriteCapabilitySnapshot();
 
-  const loadEditor = useCallback(async (payload?: SpritePackEditorWindowPayload | null): Promise<void> => {
-    setLoading(true);
+  const loadEditor = useCallback(async (payload?: CharacterPackEditorWindowPayload | null): Promise<void> => {
+    setIsLoading(true);
     setError(null);
     try {
-      const nextPacks = (await window.YUA.persona.listCharacterPacks()) ?? [];
+      const nextPacks = (await window.chobits.character.listCharacterPacks()) ?? [];
       const targetPack = resolveEditorTargetPack(payload, nextPacks);
       const shouldEdit = payload?.mode === 'edit' || !!payload?.packId;
       if (shouldEdit) {
         if (!targetPack) {
           throw new Error('未找到要编辑的角色包。');
         }
-        setEditor(await loadSpritePackEditorStateForPack(targetPack, nextPacks));
+        setEditor(await loadCharacterPackEditorStateForPack(targetPack, nextPacks));
       } else {
         const basePack = nextPacks.find((pack) => pack.isActive) ?? nextPacks.find((pack) => pack.source === 'builtin') ?? nextPacks[0] ?? undefined;
-        setEditor(buildCreateSpritePackEditorState(basePack, nextPacks));
+        setEditor(buildCreateCharacterPackEditorState(basePack, nextPacks));
       }
       setPacks(nextPacks);
     } catch (loadError) {
@@ -65,12 +65,12 @@ export default function SpritePackEditorWindow(): JSX.Element {
       setError(message);
       toast.error(message);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    const handler = (_event: Electron.IpcRendererEvent | null, payload?: SpritePackEditorWindowPayload): void => {
+    const handler = (_event: Electron.IpcRendererEvent | null, payload?: CharacterPackEditorWindowPayload): void => {
       void loadEditor(payload);
     };
 
@@ -78,14 +78,14 @@ export default function SpritePackEditorWindow(): JSX.Element {
 
     const bootstrap = async (): Promise<void> => {
       try {
-        const payload = (await window.YUA.window['window:payload:get'](SPRITE_PACK_EDITOR_WINDOW_KEY as any)) as SpritePackEditorWindowPayload | undefined;
+        const payload = (await window.chobits.window['window:payload:get'](CHARACTER_PACK_EDITOR_WINDOW_KEY as any)) as CharacterPackEditorWindowPayload | undefined;
         await loadEditor(payload);
       } catch (bootstrapError) {
-        console.warn('[SpritePackEditorWindow] payload bootstrap failed', bootstrapError);
+        console.warn('[CharacterPackEditorWindow] payload bootstrap failed', bootstrapError);
         await loadEditor(null);
       } finally {
         try {
-          await window.YUA.window['window:open:ready'](SPRITE_PACK_EDITOR_WINDOW_KEY as any);
+          await window.chobits.window['window:open:ready'](CHARACTER_PACK_EDITOR_WINDOW_KEY as any);
         } catch {
           // ignore
         }
@@ -99,8 +99,8 @@ export default function SpritePackEditorWindow(): JSX.Element {
     };
   }, [loadEditor]);
 
-  const title = useMemo(() => getSpritePackEditorTitle(editor), [editor]);
-  const description = useMemo(() => getSpritePackEditorDescription(editor), [editor]);
+  const title = useMemo(() => getCharacterPackEditorTitle(editor), [editor]);
+  const description = useMemo(() => getCharacterPackEditorDescription(editor), [editor]);
   const assetAuthoringCapability = useMemo(() => getSpriteCapabilityState(capabilitySnapshot, 'spriteManage'), [capabilitySnapshot]);
 
   const handleCapabilityBlocked = useCallback((capability: SpriteCapabilityState): void => {
@@ -110,16 +110,16 @@ export default function SpritePackEditorWindow(): JSX.Element {
   }, []);
 
   const handleClose = useCallback((): void => {
-    void window.YUA.window['window:close:self']();
+    void window.chobits.window['window:close:self']();
   }, []);
 
   const handleSave = useCallback(async (): Promise<void> => {
     if (!editor) return;
 
-    setSaving(true);
+    setIsSaving(true);
     try {
-      const result = await saveSpritePackEditorState(editor, packs);
-      emitSpritePackEditorEvent({
+      const result = await saveCharacterPackEditorState(editor, packs);
+      emitCharacterPackEditorEvent({
         type: 'saved',
         packId: result.pack?.id,
         packName: result.pack?.name ?? editor.draft.pack.name,
@@ -132,13 +132,13 @@ export default function SpritePackEditorWindow(): JSX.Element {
       const message = saveError instanceof Error && saveError.message ? saveError.message : '保存角色包失败';
       toast.error(message);
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   }, [editor, handleClose, packs]);
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-background text-foreground">
-      <DragAbleTitle title={<div className="truncate text-xs font-medium">{title || '角色包编辑'}</div>} />
+      <DraggableTitle title={<div className="truncate text-xs font-medium">{title || '角色包编辑'}</div>} />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="border-b border-border/60 px-6 py-5">
           <div className="text-lg font-semibold text-foreground">{title || '角色包编辑'}</div>
@@ -146,7 +146,7 @@ export default function SpritePackEditorWindow(): JSX.Element {
         </div>
 
         <div className="min-h-0 flex-1 overflow-hidden">
-          {loading ? (
+          {isLoading ? (
             <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
               <TbLoader2 className="h-4 w-4 animate-spin" />
               正在读取角色包...
@@ -163,7 +163,7 @@ export default function SpritePackEditorWindow(): JSX.Element {
                 </TabsList>
               </div>
               <TabsContent value="profile" className="m-0 min-h-0 flex-1 overflow-y-auto px-6 py-5">
-                <SpritePackEditorContent editor={editor} setEditor={setEditor} />
+                <CharacterPackEditorContent editor={editor} setEditor={setEditor} />
               </TabsContent>
               <TabsContent value="gallery" className="m-0 min-h-0 flex-1 overflow-y-auto px-6 py-5">
                 <CharacterGalleryManager
@@ -183,12 +183,12 @@ export default function SpritePackEditorWindow(): JSX.Element {
         </div>
 
         <div className="flex shrink-0 justify-end gap-2 border-t border-border/60 px-6 py-4">
-          <Button variant="outline" onClick={handleClose} disabled={saving}>
+          <Button variant="outline" onClick={handleClose} disabled={isSaving}>
             {activeTab === 'profile' ? '取消' : '关闭'}
           </Button>
           {activeTab === 'profile' && (
-            <Button onClick={() => void handleSave()} disabled={!editor || loading || saving}>
-              {saving && <TbLoader2 className="animate-spin" />}
+            <Button onClick={() => void handleSave()} disabled={!editor || isLoading || isSaving}>
+              {isSaving && <TbLoader2 className="animate-spin" />}
               保存角色包
             </Button>
           )}

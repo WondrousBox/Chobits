@@ -2,20 +2,20 @@ import { TbMoodKid, TbSparkles } from 'react-icons/tb';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import { Toaster } from '@/components/ui/sonner';
-import { AIAssistant, StatusPage } from '@/features/sprite-assistant';
+import { SpriteApp, StatusPage } from '@/features/sprite-assistant';
 import { SpriteBubblePage } from '@/features/sprite-bubble';
 import { useAIProviderConfig } from '@/hooks/useAIProviderConfig';
 import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { ChatSelectionProvider } from '@/pages/ChatPage/context/ChatSelectionContext';
 import ExtensionSettings from '@/pages/ExtensionSettings/ExtensionSettings';
-import SpritePackEditorWindow from '@/pages/ExtensionSettings/SpritePackEditorWindow';
+import CharacterPackEditorWindow from '@/pages/ExtensionSettings/CharacterPackEditorWindow';
 import SpriteSettings from '@/pages/ExtensionSettings/SpriteSettings';
 import WindowAnimationEditor from '@/pages/ExtensionSettings/WindowAnimationEditor';
 import { ThemeProvider } from '@/pages/SettingsPage/providers/ThemeProvider';
 
 import { TooltipProvider } from './components/ui/tooltip';
-import AiProviderConfigWindow from './pages/AiProviderConfigWindow/AiProviderConfigWindow';
-import AssistantMenuPage from './pages/AssistantMenuPage/AssistantMenuPage';
+import AIProviderConfigWindow from './pages/AIProviderConfigWindow/AIProviderConfigWindow';
+import SpriteMenuPage from './pages/SpriteMenuPage/SpriteMenuPage';
 import ChatPage from './pages/ChatPage/ChatPage';
 import AssistantPage from './pages/ChatPage/StartPage';
 import ASRConfigPage from './pages/RecordingPage/ASRConfigPage';
@@ -27,10 +27,10 @@ import TTSPage from './pages/TTSPage/TTSPage';
 
 function StandardAppRoutes(): JSX.Element {
   useAIProviderConfig();
-  const { flags, loading } = useFeatureFlags();
+  const { flags, isLoading } = useFeatureFlags();
 
   // 等待旗标加载完成再渲染路由,避免直达被开启功能的路由时因默认值闪烁而回退
-  if (loading) {
+  if (isLoading) {
     return <div className="w-full h-full overflow-hidden" />;
   }
 
@@ -38,14 +38,14 @@ function StandardAppRoutes(): JSX.Element {
     <ChatSelectionProvider>
       <div className="w-full h-full overflow-hidden">
         <Routes>
-          <Route path="/" element={<AIAssistant />} />
+          <Route path="/" element={<SpriteApp />} />
           <Route path="/status" element={<StatusPage />} />
           {flags.localAi && <Route path="/asr-config" element={<ASRConfigPage />} />}
           {flags.localAi && <Route path="/asr" element={<RecordingPage />} />}
           {flags.localAi && <Route path="/asr-test" element={<ASRTestPage />} />}
           <Route path="/tts-config" element={<TTSConfigPage />} />
           <Route path="/tts" element={<TTSPage />} />
-          <Route path="/menu" element={<AssistantMenuPage />} />
+          <Route path="/menu" element={<SpriteMenuPage />} />
           <Route
             path="/settings"
             element={
@@ -72,9 +72,8 @@ function StandardAppRoutes(): JSX.Element {
           <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/assistant-mini" element={<AssistantPage mode="mini" />} />
           <Route path="/chat" element={<ChatPage />} />
-          <Route path="/chat-overlay" element={<ChatPage presentation="overlay" payloadWindowKey="chatOverlay" />} />
-          <Route path="/ai-provider-config" element={<AiProviderConfigWindow />} />
-          <Route path="/character-pack-editor" element={<SpritePackEditorWindow />} />
+          <Route path="/ai-provider-config" element={<AIProviderConfigWindow />} />
+          <Route path="/character-pack-editor" element={<CharacterPackEditorWindow />} />
           <Route path="/window-animation-editor" element={<WindowAnimationEditor />} />
           <Route path="/sprite-bubble" element={<SpriteBubblePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

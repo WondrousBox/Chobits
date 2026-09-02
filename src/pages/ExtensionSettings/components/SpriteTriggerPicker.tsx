@@ -37,14 +37,14 @@ export default function SpriteTriggerPicker({
   popoverClassName,
   value = ''
 }: SpriteTriggerPickerProps): JSX.Element {
-  const [open, setOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [customValue, setCustomValue] = useState('');
   const presentation = useMemo(() => getSpriteTriggerPresentation(value, emptyLabel), [emptyLabel, value]);
 
   const applyValue = (nextValue: SpriteAnimationTrigger | ''): void => {
     onChange(nextValue);
-    setOpen(false);
+    setIsOpen(false);
   };
 
   const applyCustomValue = (): void => {
@@ -53,10 +53,10 @@ export default function SpriteTriggerPicker({
 
   return (
     <Popover
-      open={open}
+      open={isOpen}
       onOpenChange={(nextOpen) => {
         if (disabled) return;
-        setOpen(nextOpen);
+        setIsOpen(nextOpen);
         setQuery('');
         if (nextOpen) {
           setCustomValue(isCustomSpriteAnimationTrigger(value) ? value : '');

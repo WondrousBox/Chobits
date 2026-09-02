@@ -12,29 +12,29 @@ const CHAT_REALTIME_SCOPES: SpriteSpeakConfig['realtimeSpeech']['scopes'] = {
   resourceChatSidebar: false
 };
 
-function canShowAiSpeechToggle(config: SpriteSpeakConfig | null): boolean {
+function canShowAISpeechToggle(config: SpriteSpeakConfig | null): boolean {
   return Boolean(config?.enabled && config.engine === 'ai-provider');
 }
 
-export interface AiSpeechToggleProps {
+export interface AISpeechToggleProps {
   className?: string;
   onEnabledChange?: (enabled: boolean) => void;
 }
 
-export default function AiSpeechToggle({ className, onEnabledChange }: AiSpeechToggleProps): JSX.Element | null {
+export default function AISpeechToggle({ className, onEnabledChange }: AISpeechToggleProps): JSX.Element | null {
   const [config, setConfig] = useState<SpriteSpeakConfig | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   const refresh = useCallback(async (): Promise<void> => {
     try {
-      const nextConfig = await window.YUA.sprite.getSpeakConfig();
+      const nextConfig = await window.chobits.sprite.getSpeakConfig();
       setConfig(nextConfig);
     } catch (error) {
-      console.warn('[AiSpeechToggle] Failed to load speak config:', error);
+      console.warn('[AISpeechToggle] Failed to load speak config:', error);
       setConfig(null);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   }, []);
 
@@ -50,20 +50,20 @@ export default function AiSpeechToggle({ className, onEnabledChange }: AiSpeechT
     };
   }, [refresh]);
 
-  const visible = canShowAiSpeechToggle(config);
-  if (!visible) {
+  const isVisible = canShowAISpeechToggle(config);
+  if (!isVisible) {
     return null;
   }
 
-  const checked = Boolean(config?.realtimeSpeech.enabled);
-  const disabled = loading || saving;
+  const isChecked = Boolean(config?.realtimeSpeech.enabled);
+  const isDisabled = isLoading || isSaving;
 
   const handleCheckedChange = async (nextChecked: boolean): Promise<void> => {
-    if (!config || saving) return;
+    if (!config || isSaving) return;
 
-    setSaving(true);
+    setIsSaving(true);
     try {
-      const updated = await window.YUA.sprite.setSpeakConfig({
+      const updated = await window.chobits.sprite.setSpeakConfig({
         realtimeSpeech: {
           ...config.realtimeSpeech,
           enabled: nextChecked,
@@ -78,14 +78,14 @@ export default function AiSpeechToggle({ className, onEnabledChange }: AiSpeechT
       setConfig(updated);
       onEnabledChange?.(nextChecked);
     } catch (error) {
-      console.warn('[AiSpeechToggle] Failed to update realtime speech config:', error);
+      console.warn('[AISpeechToggle] Failed to update realtime speech config:', error);
       await refresh();
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   };
 
-  const content = checked ? 'AI 说话已开启，点击关闭' : 'AI 说话已关闭，点击开启';
+  const content = isChecked ? 'AI 说话已开启，点击关闭' : 'AI 说话已关闭，点击开启';
 
   return (
     <Tooltip>
@@ -93,18 +93,18 @@ export default function AiSpeechToggle({ className, onEnabledChange }: AiSpeechT
         <Button
           type="button"
           size="icon"
-          variant={checked ? 'default' : 'outline'}
-          disabled={disabled}
-          aria-label={checked ? '关闭 AI 说话' : '开启 AI 说话'}
-          aria-pressed={checked}
+          variant={isChecked ? 'default' : 'outline'}
+          disabled={isDisabled}
+          aria-label={isChecked ? '关闭 AI 说话' : '开启 AI 说话'}
+          aria-pressed={isChecked}
           className={cn(
             'h-8 w-8 shrink-0 rounded-full shadow-sm backdrop-blur',
-            checked ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'bg-background/90 text-muted-foreground hover:text-foreground',
+            isChecked ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'bg-background/90 text-muted-foreground hover:text-foreground',
             className
           )}
-          onClick={() => void handleCheckedChange(!checked)}
+          onClick={() => void handleCheckedChange(!isChecked)}
         >
-          {checked ? <TbVolume /> : <TbVolumeOff />}
+          {isChecked ? <TbVolume /> : <TbVolumeOff />}
         </Button>
       </TooltipTrigger>
       <TooltipContent>{content}</TooltipContent>

@@ -35,7 +35,7 @@ describe('provider clearSecrets', () => {
   });
 
   it('keeps setSecrets merge semantics for partial field updates', () => {
-    // ai:setProviderSecrets 的调用方（设置页自动保存）只传部分字段，合并语义必须保留
+    // ai:set-provider-secrets 的调用方（设置页自动保存）只传部分字段，合并语义必须保留
     const provider = new OpenAIProvider();
     provider.setSecrets({ baseUrl: 'https://example.com/v1' });
     provider.setSecrets({ apiKey: 'user-key' });

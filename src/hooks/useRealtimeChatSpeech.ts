@@ -93,7 +93,7 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
 
   const refreshEnabled = useCallback(async (): Promise<boolean> => {
     try {
-      const config = await window.YUA.sprite.getSpeakConfig();
+      const config = await window.chobits.sprite.getSpeakConfig();
       const realtimeConfig = normalizeRealtimeSpeechConfig(config, scope);
       configRef.current = realtimeConfig;
       const enabled = isRealtimeSpeechConfigEnabled(config);
@@ -108,7 +108,7 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
 
   const getPromptContext = useCallback(async () => {
     try {
-      const config = await window.YUA.sprite.getSpeakConfig();
+      const config = await window.chobits.sprite.getSpeakConfig();
       const realtimeConfig = normalizeRealtimeSpeechConfig(config, scope);
       configRef.current = realtimeConfig;
       const enabled = isRealtimeSpeechConfigEnabled(config);
@@ -175,7 +175,7 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
 
     startingRef.current = (async () => {
       try {
-        const config = await window.YUA.sprite.getSpeakConfig();
+        const config = await window.chobits.sprite.getSpeakConfig();
         const realtimeConfig = normalizeRealtimeSpeechConfig(config, scope);
         configRef.current = realtimeConfig;
         const enabled = isRealtimeSpeechConfigEnabled(config);
@@ -185,7 +185,7 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
         }
 
         finishingRef.current = false;
-        const handle = await window.YUA.sprite.startRealtimeSpeechSession({ source: 'chat', scope });
+        const handle = await window.chobits.sprite.startRealtimeSpeechSession({ source: 'chat', scope });
         handle.on((event) => {
           if (event.type === 'started') {
             if (!playerRef.current) {

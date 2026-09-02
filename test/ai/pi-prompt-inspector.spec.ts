@@ -2,17 +2,17 @@ import { describe, expect, it } from 'vitest';
 
 import { AI_PROMPT_INSPECTOR_SETTINGS } from '../../packages/ai/runtime/pi/prompt-inspector-settings';
 import {
-  clearRecentAiPromptInspections,
-  formatAiPromptInspection,
-  inspectAiPrompt,
-  isAiPromptInspectionEnabled,
-  listRecentAiPromptInspections
+  clearRecentAIPromptInspections,
+  formatAIPromptInspection,
+  inspectAIPrompt,
+  isAIPromptInspectionEnabled,
+  listRecentAIPromptInspections
 } from '../../packages/ai/runtime/pi/prompt-inspector';
 
 describe('AI prompt inspector', () => {
   it('formats full prompt content without truncating messages', () => {
     const longPrompt = 'x'.repeat(350);
-    const formatted = formatAiPromptInspection({
+    const formatted = formatAIPromptInspection({
       agentId: 'chat',
       messages: [
         { content: 'previous assistant message', role: 'assistant' },
@@ -31,8 +31,8 @@ describe('AI prompt inspector', () => {
   });
 
   it('stores recent inspections only when explicitly enabled', () => {
-    clearRecentAiPromptInspections();
-    inspectAiPrompt(
+    clearRecentAIPromptInspections();
+    inspectAIPrompt(
       {
         messages: [{ content: 'hidden prompt', role: 'user' }],
         source: 'pi-task-chat',
@@ -45,10 +45,10 @@ describe('AI prompt inspector', () => {
         }
       }
     );
-    expect(listRecentAiPromptInspections()).toHaveLength(0);
+    expect(listRecentAIPromptInspections()).toHaveLength(0);
 
     const logs: string[] = [];
-    const stored = inspectAiPrompt(
+    const stored = inspectAIPrompt(
       {
         messages: [{ content: 'visible prompt', role: 'user' }],
         requestExtras: { debugPrompt: true },
@@ -61,7 +61,7 @@ describe('AI prompt inspector', () => {
     );
 
     expect(stored?.id).toMatch(/^prompt-/);
-    expect(listRecentAiPromptInspections()).toHaveLength(1);
+    expect(listRecentAIPromptInspections()).toHaveLength(1);
     expect(logs[0]).toContain('visible prompt');
   });
 
@@ -85,8 +85,8 @@ describe('AI prompt inspector', () => {
     it('blocks agents not in agentIdAllowlist when global enabled', () => {
       withSettings({ agentIdAllowlist: ['conversation-route'] });
       try {
-        expect(isAiPromptInspectionEnabled(undefined, 'pi-task-chat', 'title-generation')).toBe(false);
-        expect(isAiPromptInspectionEnabled(undefined, 'pi-task-chat', 'conversation-route')).toBe(true);
+        expect(isAIPromptInspectionEnabled(undefined, 'pi-task-chat', 'title-generation')).toBe(false);
+        expect(isAIPromptInspectionEnabled(undefined, 'pi-task-chat', 'conversation-route')).toBe(true);
       } finally {
         restore();
       }
@@ -95,8 +95,8 @@ describe('AI prompt inspector', () => {
     it('blocks sources not in sourceAllowlist when global enabled', () => {
       withSettings({ sourceAllowlist: ['pi-task-chat'] });
       try {
-        expect(isAiPromptInspectionEnabled(undefined, 'pi-session', 'chat')).toBe(false);
-        expect(isAiPromptInspectionEnabled(undefined, 'pi-task-chat', 'conversation-route')).toBe(true);
+        expect(isAIPromptInspectionEnabled(undefined, 'pi-session', 'chat')).toBe(false);
+        expect(isAIPromptInspectionEnabled(undefined, 'pi-task-chat', 'conversation-route')).toBe(true);
       } finally {
         restore();
       }
@@ -106,11 +106,11 @@ describe('AI prompt inspector', () => {
       withSettings({ agentIdAllowlist: ['conversation-route'], sourceAllowlist: ['pi-task-chat'] });
       try {
         // source 不命中
-        expect(isAiPromptInspectionEnabled(undefined, 'pi-session', 'conversation-route')).toBe(false);
+        expect(isAIPromptInspectionEnabled(undefined, 'pi-session', 'conversation-route')).toBe(false);
         // agentId 不命中
-        expect(isAiPromptInspectionEnabled(undefined, 'pi-task-chat', 'title-generation')).toBe(false);
+        expect(isAIPromptInspectionEnabled(undefined, 'pi-task-chat', 'title-generation')).toBe(false);
         // 两个都命中
-        expect(isAiPromptInspectionEnabled(undefined, 'pi-task-chat', 'conversation-route')).toBe(true);
+        expect(isAIPromptInspectionEnabled(undefined, 'pi-task-chat', 'conversation-route')).toBe(true);
       } finally {
         restore();
       }
@@ -119,7 +119,7 @@ describe('AI prompt inspector', () => {
     it('short-circuits to false when global disabled, even with allowlist set', () => {
       withSettings({ agentIdAllowlist: ['conversation-route'], enabled: false });
       try {
-        expect(isAiPromptInspectionEnabled(undefined, 'pi-task-chat', 'conversation-route')).toBe(false);
+        expect(isAIPromptInspectionEnabled(undefined, 'pi-task-chat', 'conversation-route')).toBe(false);
       } finally {
         restore();
       }
@@ -129,20 +129,20 @@ describe('AI prompt inspector', () => {
       withSettings({ agentIdAllowlist: ['conversation-route'] });
       try {
         // agentId 不在 allowlist，但 requestExtras 强制打开
-        expect(isAiPromptInspectionEnabled({ debugPrompt: true }, 'pi-task-chat', 'title-generation')).toBe(true);
+        expect(isAIPromptInspectionEnabled({ debugPrompt: true }, 'pi-task-chat', 'title-generation')).toBe(true);
         // 反之 extras=false 也能强制关
-        expect(isAiPromptInspectionEnabled({ debugPrompt: false }, 'pi-task-chat', 'conversation-route')).toBe(false);
+        expect(isAIPromptInspectionEnabled({ debugPrompt: false }, 'pi-task-chat', 'conversation-route')).toBe(false);
       } finally {
         restore();
       }
     });
 
-    it('inspectAiPrompt honors allowlist (no log, no recent)', () => {
+    it('inspectAIPrompt honors allowlist (no log, no recent)', () => {
       withSettings({ agentIdAllowlist: ['conversation-route'] });
       try {
-        clearRecentAiPromptInspections();
+        clearRecentAIPromptInspections();
         const logs: string[] = [];
-        const stored = inspectAiPrompt(
+        const stored = inspectAIPrompt(
           {
             agentId: 'title-generation',
             messages: [{ content: 'should be filtered out', role: 'user' }],
@@ -153,7 +153,7 @@ describe('AI prompt inspector', () => {
         );
 
         expect(stored).toBeUndefined();
-        expect(listRecentAiPromptInspections()).toHaveLength(0);
+        expect(listRecentAIPromptInspections()).toHaveLength(0);
         expect(logs).toHaveLength(0);
       } finally {
         restore();

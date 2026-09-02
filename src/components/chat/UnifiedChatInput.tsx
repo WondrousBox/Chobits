@@ -19,7 +19,7 @@ export interface UnifiedChatInputProps {
   onStop?: () => void;
 
   // 是否正在加载/生成中
-  loading?: boolean;
+  isLoading?: boolean;
 
   // 占位文字数组，会滚动展示
   placeholders?: string[];
@@ -70,7 +70,7 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
     onChange,
     onSend,
     onStop,
-    loading = false,
+    isLoading = false,
     placeholders = DEFAULT_PLACEHOLDERS,
     placeholderInterval = 3000,
     className,
@@ -100,8 +100,8 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
   );
 
   // 占位文字轮换
-  const [phIndex, setPhIndex] = useState(() => Math.floor(Math.random() * placeholders.length));
-  const [phVisible, setPhVisible] = useState(true);
+  const [placeholderIndex, setPlaceholderIndex] = useState(() => Math.floor(Math.random() * placeholders.length));
+  const [isPlaceholderVisible, setIsPlaceholderVisible] = useState(true);
 
   useEffect(() => {
     const isEmpty = !text.trim();
@@ -109,17 +109,17 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
 
     const interval = setInterval(() => {
       // 先淡出
-      setPhVisible(false);
+      setIsPlaceholderVisible(false);
       setTimeout(() => {
-        setPhIndex((i) => (i + 1) % placeholders.length);
-        setPhVisible(true);
+        setPlaceholderIndex((i) => (i + 1) % placeholders.length);
+        setIsPlaceholderVisible(true);
       }, 150);
     }, placeholderInterval);
 
     return () => clearInterval(interval);
   }, [text, placeholders.length, placeholderInterval]);
 
-  const currentPlaceholder = placeholders[phIndex % placeholders.length];
+  const currentPlaceholder = placeholders[placeholderIndex % placeholders.length];
 
   // textarea 引用和滚动状态
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -177,7 +177,7 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
 
   // 发送消息
   const doSend = async (): Promise<void> => {
-    if (disabled || loading || !onSend) return;
+    if (disabled || isLoading || !onSend) return;
     const content = (text || '').trim();
     if (!content) return;
     try {
@@ -217,14 +217,14 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
           if (e.defaultPrevented) return;
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            if (!loading && onSend) doSend();
+            if (!isLoading && onSend) doSend();
           }
         }}
       />
 
       {/* 自定义占位文字，带淡入淡出效果 */}
       {!text && (
-        <div className={clsx('absolute top-3 left-3 text-muted-foreground pointer-events-none transition-opacity duration-150', phVisible ? 'opacity-100' : 'opacity-0')}>{currentPlaceholder}</div>
+        <div className={clsx('absolute top-3 left-3 text-muted-foreground pointer-events-none transition-opacity duration-150', isPlaceholderVisible ? 'opacity-100' : 'opacity-0')}>{currentPlaceholder}</div>
       )}
 
       {/* 底部工具栏 */}
@@ -241,7 +241,7 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
         {/* 发送/停止按钮 */}
         {showSendButton && onSend && (
           <>
-            {!loading ? (
+            {!isLoading ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button onClick={doSend} size="icon" disabled={disabled || !hasContent} className="rounded-full" aria-label="发送">

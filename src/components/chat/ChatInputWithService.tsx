@@ -98,7 +98,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
       }
     }, 0);
 
-    window.YUA.ai
+    window.chobits.ai
       .listSkills({
         agentId,
         ...(codingWorkspaceRoot ? { workspaceRoot: codingWorkspaceRoot } : {})
@@ -233,8 +233,8 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
             providerId={providerId}
             presetId={presetId || undefined}
             modelId={modelId || undefined}
-            onChange={(pid, nextModelId) => {
-              setProviderId(pid);
+            onChange={(nextProviderId, nextModelId) => {
+              setProviderId(nextProviderId);
               setModelId(nextModelId);
             }}
             buttonVariant="ghost"
@@ -249,7 +249,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
           <SkillPickerButton
             agentId={agentId}
             highlightedSkillName={highlightedSkillInfo?.name}
-            loading={skillsLoading}
+            isLoading={skillsLoading}
             onHighlightSkill={(skillName) => {
               const nextIndex = slashSuggestions.findIndex((skill) => skill.name === skillName);
               if (nextIndex >= 0) {
@@ -313,7 +313,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
               </TooltipContent>
             </Tooltip>
           )}
-          <WebSearchToggle enabled={webSearchEnabled} onToggle={setWebSearchEnabled} onOpenChange={onMenuOpenChange} {...floatingMenuProps} />
+          <WebSearchToggle isEnabled={webSearchEnabled} onToggle={setWebSearchEnabled} onOpenChange={onMenuOpenChange} {...floatingMenuProps} />
           {!isCoder && (
             <Tooltip>
               <TooltipTrigger asChild>

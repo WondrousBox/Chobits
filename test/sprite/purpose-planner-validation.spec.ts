@@ -368,7 +368,7 @@ describe('SpritePurposePlanner validation', () => {
   it('falls back when an enabled planner returns invalid output', async () => {
     const history: SpritePurposeHistoryEntry[] = [];
     const service = new SpritePurposePlannerService({
-      enabled: true,
+      isEnabled: true,
       presets: DEFAULT_SPRITE_ROUTINE_PRESETS,
       animationTriggers: ['wave'],
       validation: validationOptions,
@@ -440,7 +440,7 @@ describe('SpritePurposePlanner validation', () => {
       presetId: 'daily.care.reminder'
     };
     const service = new SpritePurposePlannerService({
-      enabled: true,
+      isEnabled: true,
       presets: DEFAULT_SPRITE_ROUTINE_PRESETS,
       animationTriggers: ['wave'],
       validation: validationOptions,
@@ -490,7 +490,7 @@ describe('SpritePurposePlanner validation', () => {
   it('adapts the planner service into a live routine planner with history and screen context', async () => {
     const capturedInputs: Array<any> = [];
     const service = new SpritePurposePlannerService({
-      enabled: true,
+      isEnabled: true,
       presets: DEFAULT_SPRITE_ROUTINE_PRESETS,
       animationTriggers: ['wave'],
       validation: validationOptions,
@@ -627,7 +627,7 @@ describe('SpritePurposePlanner validation', () => {
       timeouts: { maxTimeoutMs: 1000 }
     });
     const service = new SpritePurposePlannerService({
-      enabled: true,
+      isEnabled: true,
       executor,
       presets: DEFAULT_SPRITE_ROUTINE_PRESETS,
       animationTriggers: ['wave'],

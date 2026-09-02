@@ -23,7 +23,7 @@ export const SpriteStateProvider: React.FC<React.PropsWithChildren> = ({ childre
   const [value, setValue] = useState<SpriteStateContextValue>(() => createDefaultSpriteStateContextValue());
 
   useEffect(() => {
-    const controller = new SpriteStateRuntimeController(window.YUA.sprite, setValue, (error) => {
+    const controller = new SpriteStateRuntimeController(window.chobits.sprite, setValue, (error) => {
       console.error('[SpriteStateContext] Init failed:', error);
     });
 

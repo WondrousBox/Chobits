@@ -75,7 +75,7 @@ const formatSize = (bytes: number): string => {
 /* ─── Hook ─── */
 export function useSpeakSettings() {
   const [config, setConfig] = useState<SpriteSpeakConfig | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [testLoading, setTestLoading] = useState(false);
   const [cacheStats, setCacheStats] = useState<{ totalEntries: number; totalSizeBytes: number } | null>(null);
 
@@ -83,14 +83,14 @@ export function useSpeakSettings() {
     let cancelled = false;
     (async () => {
       try {
-        const cfg = await window.YUA.sprite.getSpeakConfig();
-        if (!cancelled) setConfig(cfg);
-        const stats = await window.YUA.sprite.getSpeakCacheStats();
+        const speakConfig = await window.chobits.sprite.getSpeakConfig();
+        if (!cancelled) setConfig(speakConfig);
+        const stats = await window.chobits.sprite.getSpeakCacheStats();
         if (!cancelled) setCacheStats(stats);
       } catch (err) {
         console.error('加载语音配置失败:', err);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     })();
     return () => {
@@ -100,7 +100,7 @@ export function useSpeakSettings() {
 
   const updateConfig = useCallback(async (partial: Partial<SpriteSpeakConfig>) => {
     try {
-      const updated = await window.YUA.sprite.setSpeakConfig(partial);
+      const updated = await window.chobits.sprite.setSpeakConfig(partial);
       setConfig(updated);
     } catch (err) {
       console.error('更新语音配置失败:', err);
@@ -111,7 +111,7 @@ export function useSpeakSettings() {
     if (testLoading) return;
     setTestLoading(true);
     try {
-      await window.YUA.sprite.speak('你好，我是你的桌面精灵助手！');
+      await window.chobits.sprite.speak('你好，我是你的桌面精灵助手！');
     } catch (err) {
       console.error('测试语音失败:', err);
     } finally {
@@ -121,15 +121,15 @@ export function useSpeakSettings() {
 
   const handleClearCache = useCallback(async () => {
     try {
-      await window.YUA.sprite.clearSpeakCache();
-      const stats = await window.YUA.sprite.getSpeakCacheStats();
+      await window.chobits.sprite.clearSpeakCache();
+      const stats = await window.chobits.sprite.getSpeakCacheStats();
       setCacheStats(stats);
     } catch (err) {
       console.error('清空语音缓存失败:', err);
     }
   }, []);
 
-  return { config, loading, testLoading, cacheStats, updateConfig, handleTest, handleClearCache };
+  return { config, isLoading, testLoading, cacheStats, updateConfig, handleTest, handleClearCache };
 }
 
 export type SpeakSettingsState = ReturnType<typeof useSpeakSettings>;
@@ -154,14 +154,14 @@ export const SpeakItem: React.FC<{
       <div className="text-xs text-muted-foreground line-clamp-1">选择 Edge 或服务商语音合成。</div>
     </div>
     <div onClick={(e) => e.stopPropagation()}>
-      <Switch checked={state.config?.enabled ?? false} onCheckedChange={(checked) => state.updateConfig({ enabled: checked })} disabled={state.loading} />
+      <Switch checked={state.config?.enabled ?? false} onCheckedChange={(checked) => state.updateConfig({ enabled: checked })} disabled={state.isLoading} />
     </div>
   </div>
 );
 
 /* ─── Right-panel detail ─── */
 export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ state }) => {
-  const { config, loading, testLoading, cacheStats, updateConfig, handleTest, handleClearCache } = state;
+  const { config, isLoading, testLoading, cacheStats, updateConfig, handleTest, handleClearCache } = state;
   const aiProvider = useMemo(() => mergeAiProviderConfig(config?.aiProvider), [config?.aiProvider]);
   const voiceCatalog = useMemo(() => getProviderVoiceCatalog(aiProvider.providerId), [aiProvider.providerId]);
   const [presets, setPresets] = useState<ProviderPresetRecord[]>([]);
@@ -172,7 +172,7 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
       return;
     }
     let cancelled = false;
-    void window.YUA.ai
+    void window.chobits.ai
       .listPresets(aiProvider.providerId)
       .then((rows) => {
         if (!cancelled) setPresets(rows || []);
@@ -185,7 +185,7 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
     };
   }, [aiProvider.providerId, config]);
 
-  if (loading || !config) {
+  if (isLoading || !config) {
     return <div className="text-sm text-muted-foreground">加载中...</div>;
   }
 
@@ -258,7 +258,7 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
                   })
                 }
               />
-              <Button variant="outline" size="sm" className="shrink-0" onClick={() => window.YUA.window['window:open']('settings' as any, { category: 'ai', aiProviderId: aiProvider.providerId })}>
+              <Button variant="outline" size="sm" className="shrink-0" onClick={() => window.chobits.window['window:open']('settings' as any, { category: 'ai', aiProviderId: aiProvider.providerId })}>
                 <TbSettings />
                 配置
               </Button>

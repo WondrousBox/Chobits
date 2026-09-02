@@ -9,7 +9,7 @@ import {
   WINDOW_ANIMATION_PRESET_CATEGORIES,
   WINDOW_ANIMATION_PRESETS,
   type WindowAnimationPresetId
-} from './window-animation-presets';
+} from '@/lib/window-animation-presets';
 
 const MAIN_WINDOW_KEY = 'main';
 
@@ -29,12 +29,12 @@ export const WindowAnimationItem: React.FC<{
 );
 
 function openEditor(): void {
-  void window.YUA.window['window:open']('windowAnimationEditor');
+  void window.chobits.window['window:open']('windowAnimationEditor');
 }
 
 async function playMainWindowPreset(presetId: WindowAnimationPresetId): Promise<void> {
   try {
-    const [boundsResult, workArea] = await Promise.all([window.YUA.window['window:size:get'](MAIN_WINDOW_KEY), window.YUA.window['screen:work-area:get'](MAIN_WINDOW_KEY)]);
+    const [boundsResult, workArea] = await Promise.all([window.chobits.window['window:size:get'](MAIN_WINDOW_KEY), window.chobits.window['screen:work-area:get'](MAIN_WINDOW_KEY)]);
     if (!boundsResult.success || !boundsResult.bounds) {
       toast.error('窗口动画播放失败', { description: boundsResult.error || '主窗口不可用' });
       return;
@@ -46,7 +46,7 @@ async function playMainWindowPreset(presetId: WindowAnimationPresetId): Promise<
       workArea,
       windowKey: MAIN_WINDOW_KEY
     });
-    const result = await window.YUA.window['window:animation:play'](MAIN_WINDOW_KEY, timeline);
+    const result = await window.chobits.window['window:animation:play'](MAIN_WINDOW_KEY, timeline);
     if (result.ok) {
       toast.success('窗口动画已开始播放');
     } else {

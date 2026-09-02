@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 
-interface TTSResult {
+interface TTSSynthesisResult {
   requestId: string;
   samples?: number[];
   sampleRate?: number;
@@ -84,7 +84,7 @@ const TTSPage: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioData, setAudioData] = useState<{ samples: Float32Array; sampleRate: number } | null>(null);
-  const [result, setResult] = useState<TTSResult | null>(null);
+  const [result, setResult] = useState<TTSSynthesisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -111,7 +111,7 @@ const TTSPage: React.FC = () => {
 
   // 监听 TTS 结果并自动播放
   useEffect(() => {
-    const handleMessage = async (_event: any, message: { type: string; data: TTSResult }): Promise<void> => {
+    const handleMessage = async (_event: any, message: { type: string; data: TTSSynthesisResult }): Promise<void> => {
       if (message.type === 'sherpa:tts:message') {
         const data = message.data;
         console.log('[TTS] Received result:', data);
@@ -184,9 +184,9 @@ const TTSPage: React.FC = () => {
       }
     };
 
-    window.ipcRenderer?.on('renderer-message', handleMessage);
+    window.ipcRenderer?.on('app:renderer-message', handleMessage);
     return () => {
-      window.ipcRenderer?.off('renderer-message', handleMessage);
+      window.ipcRenderer?.off('app:renderer-message', handleMessage);
     };
   }, []);
 
@@ -235,14 +235,14 @@ const TTSPage: React.FC = () => {
     requestIdRef.current = requestId;
 
     try {
-      const response = await window.YUA.sherpa.ttsGenerate({
+      const response = await window.chobits.sherpa.ttsGenerate({
         text: text.trim(),
         sid: speakerId,
         speed,
         requestId
       });
 
-      if (!response.success) {
+      if (!response.ok) {
         setError(response.error || '生成失败');
         setIsGenerating(false);
       }
@@ -327,8 +327,8 @@ const TTSPage: React.FC = () => {
   // 关闭页面时释放资源
   const handleClose = useCallback(() => {
     handleStop();
-    window.YUA.sherpa.ttsFreeInstance();
-    window.YUA.window['window:close']('tts');
+    window.chobits.sherpa.ttsDestroyInstance();
+    window.chobits.window['window:close']('tts');
   }, [handleStop]);
 
   // 组件卸载时清理

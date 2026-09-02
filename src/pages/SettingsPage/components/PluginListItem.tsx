@@ -20,8 +20,8 @@ interface PluginListItemProps {
 
 // 获取当前平台对应的包大小
 const getPackageSize = (resource: PluginDefinition): number | undefined => {
-  const platform = window.YUA?.platform || 'win32';
-  const arch = window.YUA?.arch || 'x64';
+  const platform = window.chobits?.platform || 'win32';
+  const arch = window.chobits?.arch || 'x64';
 
   // 优先匹配精确的平台和架构
   let match = resource.platforms.find((p) => p.platform === platform && p.arch === arch);

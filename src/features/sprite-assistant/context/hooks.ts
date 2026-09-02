@@ -1,4 +1,4 @@
-import type { PersonaSnapshot } from '@packages/sprite-core/types';
+import type { CharacterSnapshot } from '@packages/sprite-core/types';
 import { useContext } from 'react';
 
 import { SpriteStateContext, type SpriteStateContextValue } from './sprite-state-context';
@@ -10,10 +10,10 @@ export function useSpriteState(): SpriteStateContextValue {
   return ctx;
 }
 
-/** 仅获取人格状态快照 */
-export function usePersonaState(): PersonaSnapshot | null {
-  const { personaState } = useSpriteState();
-  return personaState;
+/** 仅获取角色状态快照 */
+export function useCharacterState(): CharacterSnapshot | null {
+  const { characterState } = useSpriteState();
+  return characterState;
 }
 
 /** 仅获取精灵主状态 */

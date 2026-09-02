@@ -12,14 +12,14 @@ export type PromptTemplateFormValues = {
 };
 
 export default function PromptTemplateFormDialog(props: {
-  open: boolean;
+  isOpen: boolean;
   mode: 'create' | 'edit';
   title?: string;
   initialValues: PromptTemplateFormValues;
   onClose: () => void;
   onSubmit: (values: PromptTemplateFormValues) => void;
 }): JSX.Element {
-  const { open, mode, title, initialValues, onClose, onSubmit } = props;
+  const { isOpen, mode, title, initialValues, onClose, onSubmit } = props;
   const [values, setValues] = useState<PromptTemplateFormValues>(initialValues);
 
   // Initialize values when dialog opens using onOpenChange to avoid setState in effect lint warning
@@ -34,7 +34,7 @@ export default function PromptTemplateFormDialog(props: {
 
   return (
     <Dialog
-      open={open}
+      open={isOpen}
       onOpenChange={(o) => {
         if (!o) onClose();
         else setValues(initialValues);

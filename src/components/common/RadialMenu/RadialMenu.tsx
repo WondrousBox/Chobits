@@ -24,7 +24,7 @@ export interface RadialMenuItem {
 
 export interface RadialMenuProps {
   items: RadialMenuItem[];
-  open?: boolean;
+  isOpen?: boolean;
   /** The anchor point (screen coordinates) where the menu is centered around. Defaults to viewport center. */
   anchor?: { x: number; y: number };
   /** Container square size. Default: 600 */
@@ -217,7 +217,7 @@ const CenterHub: React.FC<{ cx: number; cy: number; id: string }> = ({ cx, cy, i
 
 const defaultRadii = { level1: 140, level2: 130 } as const;
 
-export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anchor, size = 600, radii, className, onClose }) => {
+export const RadialMenu: React.FC<RadialMenuProps> = ({ items, isOpen = true, anchor, size = 600, radii, className, onClose }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isSubMenuOpen, setIsSubMenuOpen] = useState(false);
   const [activeParentIndex, setActiveParentIndex] = useState<number | null>(null);
@@ -276,7 +276,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
   );
 
   useEffect(() => {
-    if (!open) return;
+    if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent): void => {
       // ESC to close / back
@@ -345,7 +345,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [activeParentIndex, isSubMenuOpen, items, open, runChildAction, runItemAction, selectedIndex, subSelectedIndex, onClose]);
+  }, [activeParentIndex, isSubMenuOpen, items, isOpen, runChildAction, runItemAction, selectedIndex, subSelectedIndex, onClose]);
 
   // Reset the one-shot flag after level-1 is shown again
   useEffect(() => {
@@ -376,12 +376,12 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
           top: resolvedAnchor.y - size / 2,
           width: size,
           height: size,
-          pointerEvents: open ? 'auto' : 'none'
+          pointerEvents: isOpen ? 'auto' : 'none'
         }}
         initial={{ opacity: 0 }}
-        animate={{ opacity: open ? 1 : 0 }}
+        animate={{ opacity: isOpen ? 1 : 0 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: open ? 0.2 : 0.35 }}
+        transition={{ duration: isOpen ? 0.2 : 0.35 }}
         onClick={() => {
           if (isSubMenuOpen) {
             setSkipL1Stagger(true);
@@ -405,9 +405,9 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
             }
           }}
           initial={{ opacity: 0 }}
-          animate={{ opacity: open ? 1 : 0 }}
+          animate={{ opacity: isOpen ? 1 : 0 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: open ? 0.2 : 0.35 }}
+          transition={{ duration: isOpen ? 0.2 : 0.35 }}
         />
 
         <LayoutGroup>
@@ -460,10 +460,10 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
                         top: `calc(50% + ${position.y}px - 32px)`
                       }}
                       initial={skipL1Stagger ? false : { x: -position.x, y: -position.y, scale: 0.25, opacity: 0 }}
-                      animate={open ? { x: 0, y: 0, scale: isSelected ? 1.1 : 1, opacity: 1 } : { x: -position.x, y: -position.y, scale: 0.25, opacity: 0 }}
+                      animate={isOpen ? { x: 0, y: 0, scale: isSelected ? 1.1 : 1, opacity: 1 } : { x: -position.x, y: -position.y, scale: 0.25, opacity: 0 }}
                       exit={{ x: -position.x, y: -position.y, scale: 0.25, opacity: 0 }}
                       transition={{
-                        ...(open ? { type: 'spring', stiffness: 400, damping: 25 } : { duration: 0.22, ease: 'easeInOut' }),
+                        ...(isOpen ? { type: 'spring', stiffness: 400, damping: 25 } : { duration: 0.22, ease: 'easeInOut' }),
                         delay: skipL1Stagger ? 0 : index * 0.02,
                         layout: { duration: 0.2 }
                       }}
@@ -553,10 +553,10 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
                         top: `calc(50% + ${position.y}px - 32px)`
                       }}
                       initial={{ x: -position.x, y: -position.y, scale: 0.25, opacity: 0 }}
-                      animate={open ? { x: 0, y: 0, scale: isSelected ? 1.1 : 1, opacity: 1 } : { x: -position.x, y: -position.y, scale: 0.25, opacity: 0 }}
+                      animate={isOpen ? { x: 0, y: 0, scale: isSelected ? 1.1 : 1, opacity: 1 } : { x: -position.x, y: -position.y, scale: 0.25, opacity: 0 }}
                       exit={{ x: -position.x, y: -position.y, scale: 0.25, opacity: 0 }}
                       transition={{
-                        ...(open ? { type: 'spring', stiffness: 400, damping: 25 } : { duration: 0.22, ease: 'easeInOut' }),
+                        ...(isOpen ? { type: 'spring', stiffness: 400, damping: 25 } : { duration: 0.22, ease: 'easeInOut' }),
                         delay: index * 0.02
                       }}
                       onClick={(e) => {

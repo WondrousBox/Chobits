@@ -10,20 +10,20 @@ interface SelectModelFolderProps {
 
 const SelectModelFolder: React.FC<SelectModelFolderProps> = ({ onConfigured }) => {
   const [pluginsDir, setPluginsDir] = useState<string>('');
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const prevDirRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const res = await window.YUA.pluginResource['plugin-resource:getPluginsDir']();
+        const res = await window.chobits.pluginResource['plugin-resource:get-plugins-dir']();
         if (!mounted) return;
         if (res.ok && res.path) {
           setPluginsDir(res.path);
         }
       } finally {
-        if (mounted) setLoading(false);
+        if (mounted) setIsLoading(false);
       }
     })();
     return () => {
@@ -33,16 +33,16 @@ const SelectModelFolder: React.FC<SelectModelFolderProps> = ({ onConfigured }) =
 
   // 初次加载不触发 onConfigured，只记录当前目录便于后续比较
   useEffect(() => {
-    if (loading) return;
+    if (isLoading) return;
     if (pluginsDir) {
       prevDirRef.current = pluginsDir;
     }
-  }, [loading]);
+  }, [isLoading]);
 
   const pickDir = async (): Promise<void> => {
-    const r = await window.YUA.file['file:pickDir']({ allowCreate: true, defaultPath: pluginsDir });
-    if (!r.canceled && r.path) {
-      const res = await window.YUA.pluginResource['plugin-resource:setPluginsDir']({ dir: r.path });
+    const r = await window.chobits.file['file:pick-dir']({ allowCreate: true, defaultPath: pluginsDir });
+    if (r.ok && r.path) {
+      const res = await window.chobits.pluginResource['plugin-resource:set-plugins-dir']({ dir: r.path });
       if (res.ok) {
         setPluginsDir(r.path);
         // 仅在用户主动选择后触发回调
@@ -55,13 +55,13 @@ const SelectModelFolder: React.FC<SelectModelFolderProps> = ({ onConfigured }) =
   const openFolder = async (): Promise<void> => {
     if (!pluginsDir) return;
     try {
-      await window.YUA.file['file:openPath'](pluginsDir);
+      await window.chobits.file['file:open-path'](pluginsDir);
     } catch {
       // ignore
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
         <TbLoader className="h-4 w-4 mr-2 animate-spin" />

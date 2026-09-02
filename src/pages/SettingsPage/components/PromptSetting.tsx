@@ -21,7 +21,7 @@ export default function PromptSetting(): JSX.Element {
   const [draftContent, setDraftContent] = useState<string>('');
 
   const refresh = useCallback(async (): Promise<void> => {
-    const tmpl = await window.YUA.ai.listPromptTemplates().catch(() => []);
+    const tmpl = await window.chobits.ai.listPromptTemplates().catch(() => []);
     setTemplates(tmpl || []);
     const list: Template[] = tmpl || [];
     if (!selectedId || !list.find((t) => t.id === selectedId)) {
@@ -52,9 +52,9 @@ export default function PromptSetting(): JSX.Element {
 
   const submitForm = async (vals: PromptTemplateFormValues): Promise<void> => {
     if (formMode === 'create') {
-      await window.YUA.ai.createPromptTemplate({ name: vals.name, content: vals.content, type: vals.type || 'user' });
+      await window.chobits.ai.createPromptTemplate({ name: vals.name, content: vals.content, type: vals.type || 'user' });
     } else if (formMode === 'edit' && editingId) {
-      await window.YUA.ai.updatePromptTemplate(editingId, { name: vals.name, content: vals.content, type: vals.type || 'user' });
+      await window.chobits.ai.updatePromptTemplate(editingId, { name: vals.name, content: vals.content, type: vals.type || 'user' });
     }
     setFormOpen(false);
     setEditingId(null);
@@ -63,7 +63,7 @@ export default function PromptSetting(): JSX.Element {
 
   const deleteTemplate = async (id: string): Promise<void> => {
     if (!confirm('删除该模板？')) return;
-    await window.YUA.ai.deletePromptTemplate(id);
+    await window.chobits.ai.deletePromptTemplate(id);
     await refresh();
   };
 
@@ -76,7 +76,7 @@ export default function PromptSetting(): JSX.Element {
 
   const saveDraft = async (): Promise<void> => {
     if (!selected) return;
-    await window.YUA.ai.updatePromptTemplate(selected.id, {
+    await window.chobits.ai.updatePromptTemplate(selected.id, {
       name: selected.name,
       content: draftContent,
       type: selected.type || 'user'
@@ -167,7 +167,7 @@ export default function PromptSetting(): JSX.Element {
       </div>
 
       {/* 新建对话框 */}
-      <PromptTemplateFormDialog open={formOpen} mode={formMode} title="新建模板" initialValues={formValues} onClose={() => setFormOpen(false)} onSubmit={submitForm} />
+      <PromptTemplateFormDialog isOpen={formOpen} mode={formMode} title="新建模板" initialValues={formValues} onClose={() => setFormOpen(false)} onSubmit={submitForm} />
     </div>
   );
 }

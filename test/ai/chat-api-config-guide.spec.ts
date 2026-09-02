@@ -10,7 +10,7 @@ function installGuideHarness(options: { providers?: any[]; presets?: any[]; usab
   startPurpose: ReturnType<typeof vi.fn>;
   startQuest: ReturnType<typeof vi.fn>;
   listWorkspaces: ReturnType<typeof vi.fn>;
-  getPersonaState: ReturnType<typeof vi.fn>;
+  getCharacterState: ReturnType<typeof vi.fn>;
 } {
   const env = installMiniDom();
   const getProviders = vi.fn(async () => options.providers ?? []);
@@ -23,9 +23,9 @@ function installGuideHarness(options: { providers?: any[]; presets?: any[]; usab
     purpose: { id: 'purpose-chat-config', kind: request.kind, title: request.title, reason: request.reason, source: request.source, status: 'active', priority: request.priority, interruptPolicy: request.interruptPolicy }
   }));
   const startQuest = vi.fn(async () => ({ ok: true, startResult: { accepted: true, status: 'started' } }));
-  const getPersonaState = vi.fn(async () => ({ ok: true, state: { achievements: [] } }));
+  const getCharacterState = vi.fn(async () => ({ ok: true, characterState: { achievements: [] } }));
 
-  (env.window as any).YUA = {
+  (env.window as any).chobits = {
     ai: {
       getProviders,
       listPresets,
@@ -37,15 +37,15 @@ function installGuideHarness(options: { providers?: any[]; presets?: any[]; usab
     quest: {
       'quest:start': startQuest
     },
-    persona: {
-      getState: getPersonaState
+    character: {
+      getState: getCharacterState
     },
     sprite: {
       startPurpose
     }
   };
 
-  return { env, getProviders, listPresets, resolveUsablePreset, startPurpose, startQuest, listWorkspaces, getPersonaState };
+  return { env, getProviders, listPresets, resolveUsablePreset, startPurpose, startQuest, listWorkspaces, getCharacterState };
 }
 
 describe('guideChatApiConfigIfNeeded', () => {
@@ -161,9 +161,9 @@ describe('guideChatApiConfigIfNeeded', () => {
 
   it('evaluates achievement guide goals without starting a guide', async () => {
     const harness = installGuideHarness();
-    harness.getPersonaState.mockResolvedValue({
+    harness.getCharacterState.mockResolvedValue({
       ok: true,
-      state: {
+      characterState: {
         achievements: ['first-import']
       }
     });
@@ -174,7 +174,7 @@ describe('guideChatApiConfigIfNeeded', () => {
     const result = await ensureGuideGoal({ goal: FIRST_FILE_DROP_GUIDE_GOAL, trigger: 'workspace-entry', forceGuide: true });
 
     expect(result).toMatchObject({ achieved: true, guided: false, blocked: false, achievementId: 'first-import', reason: 'achieved' });
-    expect(harness.getPersonaState).toHaveBeenCalledTimes(1);
+    expect(harness.getCharacterState).toHaveBeenCalledTimes(1);
     expect(harness.startQuest).not.toHaveBeenCalled();
     expect(harness.startPurpose).not.toHaveBeenCalled();
     harness.env.cleanup();

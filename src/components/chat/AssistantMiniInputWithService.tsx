@@ -15,7 +15,7 @@ import { mergeTranscriptWithInput, useSpeechInput } from './useSpeechInput';
 
 export interface AssistantMiniInputWithServiceProps {
   onStart: ChatInputWithServiceProps['onStart'];
-  loading?: boolean;
+  isLoading?: boolean;
   disabled?: boolean;
   autoFocus?: boolean;
   placeholder?: string;
@@ -26,7 +26,7 @@ export interface AssistantMiniInputWithServiceProps {
 
 export default function AssistantMiniInputWithService({
   onStart,
-  loading = false,
+  isLoading = false,
   disabled = false,
   autoFocus = false,
   placeholder = '问点什么...',
@@ -58,7 +58,7 @@ export default function AssistantMiniInputWithService({
 
   const handleSend = useCallback(async (): Promise<void> => {
     const content = draft.trim();
-    if (disabled || loading || !content || !providerId || !modelId) return;
+    if (disabled || isLoading || !content || !providerId || !modelId) return;
 
     if (isCoder && !codingWorkspaceRoot) {
       toast.error('代码助手需要先选择项目目录');
@@ -89,7 +89,7 @@ export default function AssistantMiniInputWithService({
     disabled,
     draft,
     isCoder,
-    loading,
+    isLoading,
     modelId,
     onStart,
     presetId,
@@ -103,8 +103,8 @@ export default function AssistantMiniInputWithService({
         providerId={providerId}
         presetId={presetId || undefined}
         modelId={modelId || undefined}
-        onChange={(pid, nextModelId) => {
-          setProviderId(pid);
+        onChange={(nextProviderId, nextModelId) => {
+          setProviderId(nextProviderId);
           setModelId(nextModelId);
         }}
         buttonVariant="ghost"
@@ -152,11 +152,11 @@ export default function AssistantMiniInputWithService({
 
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button type="button" size="icon" className="h-8 w-8 shrink-0 rounded-full" disabled={disabled || loading || !hasContent} aria-label="发送" onClick={() => void handleSend()}>
-            {loading ? <TbLoader2 className="animate-spin" /> : <TbSend />}
+          <Button type="button" size="icon" className="h-8 w-8 shrink-0 rounded-full" disabled={disabled || isLoading || !hasContent} aria-label="发送" onClick={() => void handleSend()}>
+            {isLoading ? <TbLoader2 className="animate-spin" /> : <TbSend />}
           </Button>
         </TooltipTrigger>
-        <TooltipContent>{loading ? '正在打开对话' : '发送消息'}</TooltipContent>
+        <TooltipContent>{isLoading ? '正在打开对话' : '发送消息'}</TooltipContent>
       </Tooltip>
     </div>
   );

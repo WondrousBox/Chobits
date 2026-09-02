@@ -63,7 +63,7 @@ describe('sprite preload bridge', () => {
     await spriteBridge.previewMovement(previewConfig);
     await spriteBridge.trigger('celebrate', { durationMs: 1500, silent: true });
 
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:previewMovement', previewConfig);
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:preview-movement', previewConfig);
     expect(electronHarness.invoke).toHaveBeenNthCalledWith(2, 'sprite:trigger', {
       trigger: 'celebrate',
       durationMs: 1500,
@@ -75,7 +75,7 @@ describe('sprite preload bridge', () => {
     await spriteBridge.listByTrigger('celebrate');
 
     expect(electronHarness.invoke).toHaveBeenCalledTimes(1);
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:listByTrigger', {
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:list-by-trigger', {
       trigger: 'celebrate'
     });
   });
@@ -94,7 +94,7 @@ describe('sprite preload bridge', () => {
     });
 
     expect(electronHarness.invoke).toHaveBeenCalledTimes(1);
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:updateConfig', {
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:update-config', {
       id: 'wave-1',
       patch: {
         width: 180,
@@ -116,7 +116,7 @@ describe('sprite preload bridge', () => {
     await spriteBridge.setMovementAvoidRegions(regions);
 
     expect(electronHarness.invoke).toHaveBeenCalledTimes(1);
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:movement:setAvoidRegions', { regions });
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:movement:set-avoid-regions', { regions });
   });
 
   it('forwards animation playlist mode config calls', async () => {
@@ -125,10 +125,10 @@ describe('sprite preload bridge', () => {
     await spriteBridge.getAnimationPlaylistMode('idle');
     await spriteBridge.setAnimationPlaylistMode('list-once', 'idle');
 
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:config:getAnimationPlaylistMode');
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(2, 'sprite:config:setAnimationPlaylistMode', { mode: 'list-loop' });
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(3, 'sprite:config:getAnimationPlaylistMode', { trigger: 'idle' });
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(4, 'sprite:config:setAnimationPlaylistMode', { mode: 'list-once', trigger: 'idle' });
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:config:get-animation-playlist-mode');
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(2, 'sprite:config:set-animation-playlist-mode', { mode: 'list-loop' });
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(3, 'sprite:config:get-animation-playlist-mode', { trigger: 'idle' });
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(4, 'sprite:config:set-animation-playlist-mode', { mode: 'list-once', trigger: 'idle' });
   });
 
   it('forwards animation completion with an optional playId', async () => {
@@ -158,11 +158,11 @@ describe('sprite preload bridge', () => {
       correlationId: 'drop-1',
       payload: { actionId: 'summarize' }
     });
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(2, 'sprite:purpose:listHistory', {
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(2, 'sprite:purpose:list-history', {
       kind: 'file.drop.intake',
       limit: 20
     });
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(3, 'sprite:purpose:getDailyRetrospective', {
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(3, 'sprite:purpose:get-daily-retrospective', {
       date: '2026-05-03',
       limit: 5
     });
@@ -173,12 +173,12 @@ describe('sprite preload bridge', () => {
     await spriteBridge.updatePurposePlannerPreferences({ enabled: true, historyLimit: 12 });
     await spriteBridge.getPurposePlannerStatus();
 
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:purposePlanner:getPreferences');
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(2, 'sprite:purposePlanner:updatePreferences', {
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(1, 'sprite:purpose-planner:get-preferences');
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(2, 'sprite:purpose-planner:update-preferences', {
       enabled: true,
       historyLimit: 12
     });
-    expect(electronHarness.invoke).toHaveBeenNthCalledWith(3, 'sprite:purposePlanner:getStatus');
+    expect(electronHarness.invoke).toHaveBeenNthCalledWith(3, 'sprite:purpose-planner:get-status');
   });
 
   it('subscribes to sprite:config and removes the same listener on cleanup', () => {

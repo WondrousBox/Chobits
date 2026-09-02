@@ -22,7 +22,7 @@ export interface RecordingHistoryItem {
 }
 
 interface HistoryPanelProps {
-  isTransparent?: boolean;
+  isSubtitleMode?: boolean;
   isRecording?: boolean; // 是否正在录音
   currentRecordingId?: string | null; // 当前录音的ID
   selectedId?: string | null; // 当前选中的历史记录ID
@@ -30,7 +30,7 @@ interface HistoryPanelProps {
   onRefresh?: () => void; // 外部触发刷新
 }
 
-export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isTransparent = false, isRecording = false, currentRecordingId = null, selectedId = null, onSelectRecording, onRefresh }) => {
+export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isSubtitleMode = false, isRecording = false, currentRecordingId = null, selectedId = null, onSelectRecording, onRefresh }) => {
   const [history, setHistory] = useState<RecordingHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,8 +40,8 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isTransparent = fals
     setIsLoading(true);
     setError(null);
     try {
-      const result = await window.YUA.sherpa.getRecordingHistory({ limit: 50, offset: 0 });
-      if (result.success) {
+      const result = await window.chobits.sherpa.getRecordingHistory({ limit: 50, offset: 0 });
+      if (result.ok) {
         setHistory(result.data);
       } else {
         setError(result.error || '加载失败');
@@ -70,8 +70,8 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isTransparent = fals
   const handleDelete = async (e: React.MouseEvent, id: string): Promise<void> => {
     e.stopPropagation();
     try {
-      const result = await window.YUA.sherpa.deleteRecording({ resourceId: id });
-      if (result.success) {
+      const result = await window.chobits.sherpa.deleteRecording({ resourceId: id });
+      if (result.ok) {
         setHistory((prev) => prev.filter((item) => item.id !== id));
       } else {
         console.error('删除失败:', result.error);
@@ -91,8 +91,8 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isTransparent = fals
     let subtitleContent: string | undefined;
     if (item.subtitleFilePath) {
       try {
-        const result = await window.YUA.sherpa.readSubtitleContent({ filePath: item.subtitleFilePath });
-        if (result.success && result.content) {
+        const result = await window.chobits.sherpa.readSubtitleContent({ filePath: item.subtitleFilePath });
+        if (result.ok && result.content) {
           subtitleContent = result.content;
         }
       } catch (err) {
@@ -119,7 +119,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isTransparent = fals
 
   return (
     <div className="flex flex-col h-full border-r bg-background">
-      <div className={`flex items-center justify-between px-4 py-2 border-b ${isTransparent ? 'border-border/50' : ''}`}>
+      <div className={`flex items-center justify-between px-4 py-2 border-b ${isSubtitleMode ? 'border-border/50' : ''}`}>
         <div className="flex items-center gap-2">
           <TbClock className="h-4 w-4" />
           <span className="text-sm font-medium">历史记录</span>
@@ -131,19 +131,19 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isTransparent = fals
       <ScrollArea className="flex-1 no-drag">
         <div className="p-2 space-y-2">
           {isLoading && history.length === 0 ? (
-            <div className={`flex items-center justify-center py-8 gap-2 text-sm ${isTransparent ? 'text-white/70' : 'text-muted-foreground'}`}>
+            <div className={`flex items-center justify-center py-8 gap-2 text-sm ${isSubtitleMode ? 'text-white/70' : 'text-muted-foreground'}`}>
               <TbLoader2 className="h-4 w-4 animate-spin" />
               <span>加载中...</span>
             </div>
           ) : error ? (
-            <div className={`text-center py-8 text-sm ${isTransparent ? 'text-white/70' : 'text-muted-foreground'}`}>
+            <div className={`text-center py-8 text-sm ${isSubtitleMode ? 'text-white/70' : 'text-muted-foreground'}`}>
               <p>{error}</p>
               <Button size="sm" variant="ghost" className="mt-2" onClick={refreshHistory}>
                 重试
               </Button>
             </div>
           ) : history.length === 0 ? (
-            <div className={`text-center py-8 text-sm ${isTransparent ? 'text-white/70' : 'text-muted-foreground'}`}>暂无历史记录</div>
+            <div className={`text-center py-8 text-sm ${isSubtitleMode ? 'text-white/70' : 'text-muted-foreground'}`}>暂无历史记录</div>
           ) : (
             history.map((item) => {
               const isSelected = selectedId === item.id;
@@ -153,7 +153,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isTransparent = fals
               return (
                 <div
                   key={item.id}
-                  className={`p-3 rounded-lg border transition-colors ${isSelected ? 'border-primary bg-primary/10' : isCurrentRecording ? 'border-orange-500 bg-orange-500/10' : isTransparent ? 'border-border/50 bg-background/50' : 'border-border'
+                  className={`p-3 rounded-lg border transition-colors ${isSelected ? 'border-primary bg-primary/10' : isCurrentRecording ? 'border-orange-500 bg-orange-500/10' : isSubtitleMode ? 'border-border/50 bg-background/50' : 'border-border'
                     } ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-muted/50'}`}
                   onClick={() => !isDisabled && handleClick(item)}
                 >

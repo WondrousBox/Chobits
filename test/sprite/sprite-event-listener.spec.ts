@@ -4,16 +4,16 @@ const mockedAppEvent = vi.hoisted(
   () =>
     ({
       SPRITE_AI_START: 'SPRITE_AI_START',
-      SPRITE_AI_COMPLETE: 'SPRITE_AI_COMPLETE',
+      SPRITE_AI_COMPLETED: 'SPRITE_AI_COMPLETED',
       SPRITE_AI_ERROR: 'SPRITE_AI_ERROR',
       AI_PROVIDER_CONFIG_UPDATED: 'AI_PROVIDER_CONFIG_UPDATED',
       APP_WINDOW_CLOSED: 'APP_WINDOW_CLOSED',
       APP_WINDOW_OPENED: 'APP_WINDOW_OPENED',
       SPRITE_DOWNLOAD_START: 'SPRITE_DOWNLOAD_START',
       SPRITE_DOWNLOAD_COMPLETE: 'SPRITE_DOWNLOAD_COMPLETE',
-      SPRITE_DOWNLOAD_FAIL: 'SPRITE_DOWNLOAD_FAIL',
-      SPRITE_PLUGIN_INSTALL: 'SPRITE_PLUGIN_INSTALL',
-      SPRITE_PLUGIN_REMOVE: 'SPRITE_PLUGIN_REMOVE',
+      SPRITE_DOWNLOAD_FAILED: 'SPRITE_DOWNLOAD_FAILED',
+      SPRITE_PLUGIN_INSTALLED: 'SPRITE_PLUGIN_INSTALLED',
+      SPRITE_PLUGIN_REMOVED: 'SPRITE_PLUGIN_REMOVED',
       SPRITE_PLUGIN_UPDATE: 'SPRITE_PLUGIN_UPDATE',
       SPRITE_SYSTEM_READY: 'SPRITE_SYSTEM_READY',
       SPRITE_SYSTEM_QUIT: 'SPRITE_SYSTEM_QUIT',
@@ -70,7 +70,7 @@ vi.mock('../../packages/sprite-core/character-service', () => ({
 
 import { AppEvent } from '@packages/event';
 
-import { initSpriteEventListener } from '../../packages/sprite-core/handler/sprite-event-listener';
+import { initSpriteEventListener } from '../../packages/sprite-core/handlers/sprite-event-listener';
 
 function createManagerStub(): {
   showToast: ReturnType<typeof vi.fn>;
@@ -91,7 +91,7 @@ function createManagerStub(): {
     updateBusy: vi.fn(),
     clearBusy: vi.fn(),
     trigger: vi.fn(),
-    speak: vi.fn(async () => ({ success: true })),
+    speak: vi.fn(async () => ({ ok: true })),
     playOnce: vi.fn(),
     emitPurposeEvent: vi.fn(() => ({ matched: 0 })),
     startPurpose: vi.fn(async () => ({ accepted: true, status: 'started' })),
@@ -126,7 +126,7 @@ describe('sprite event listener', () => {
     const mgr = createManagerStub();
     const cleanup = initSpriteEventListener(mgr as any);
 
-    eventHarness.emit(AppEvent.SPRITE_AI_COMPLETE, { message: '完成啦' });
+    eventHarness.emit(AppEvent.SPRITE_AI_COMPLETED, { message: '完成啦' });
 
     expect(mgr.trigger.mock.calls).toEqual([['celebrate', { durationMs: 1500, silent: true }]]);
     expect(mgr.playOnce).not.toHaveBeenCalled();
@@ -145,7 +145,7 @@ describe('sprite event listener', () => {
       message: '思考中...',
       realtimeSpeechScope: 'mainChat'
     });
-    eventHarness.emit(AppEvent.SPRITE_AI_COMPLETE, {
+    eventHarness.emit(AppEvent.SPRITE_AI_COMPLETED, {
       message: '完成啦',
       realtimeSpeechScope: 'mainChat'
     });

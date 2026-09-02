@@ -13,7 +13,7 @@ import { RecognizedSegment } from '../types';
 
 interface AIActionsPanelProps {
   segments: RecognizedSegment[];
-  isTransparent?: boolean;
+  isSubtitleMode?: boolean;
   onTranslationUpdate?: (segmentIndex: number, translation: string) => void;
 }
 
@@ -50,7 +50,7 @@ const TARGET_LANGUAGES = [
   { value: 'fr', label: '法语' }
 ];
 
-export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTransparent = false, onTranslationUpdate }) => {
+export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isSubtitleMode = false, onTranslationUpdate }) => {
   // AI 配置状态
   const [selectedProviderId, setSelectedProviderId] = useState<string>(() => loadPreferences().selectedProviderId || '');
   const [selectedPresetId, setSelectedPresetId] = useState<string>(() => loadPreferences().selectedPresetId || '');
@@ -60,7 +60,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
   const providerSelectRef = useRef<ProviderModelSelectRef>(null);
 
   // 翻译状态
-  const [enableTranslation, setEnableTranslation] = useState(false);
+  const [translationEnabled, setTranslationEnabled] = useState(false);
   const [targetLanguage, setTargetLanguage] = useState('zh');
   const [showLanguageSelect, setShowLanguageSelect] = useState(false); // 是否显示语言选择
   const [isTranslating, setIsTranslating] = useState(false);
@@ -138,7 +138,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
   const handleOpenProviderConfig = useCallback(async () => {
     try {
       if (!selectedProviderId) {
-        await window.YUA.window['window:open']('settings' as any, { category: 'ai' });
+        await window.chobits.window['window:open']('settings' as any, { category: 'ai' });
         return;
       }
       providerSelectRef.current?.openConfig(selectedProviderId, selectedPresetId);
@@ -258,7 +258,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
             const targetLangName = languageNames[targetLanguage] || targetLanguage;
             const prompt = `你是一个专业的语言翻译助手，你在翻译完成之后会检查原文有没有高级的词汇，如果有,将高难度的词汇找出来，用<word></word>标签包裹。如：\n翻译内容\n<word></word>\n\n请将以下文本翻译成${targetLangName}，只返回翻译结果和一个高级的英文单词原文，没有高级单词就不要返回<word></word>，不要添加任何解释或说明：\n\n${segment.text}`;
 
-            window.YUA.ai
+            window.chobits.ai
               .chatStream(
                 {
                   messages: [{ role: 'user', content: prompt }],
@@ -322,32 +322,32 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
 
   // 监听segments变化，继续翻译新增的
   useEffect(() => {
-    if (enableTranslation && canUseAI && !translatingRef.current) {
+    if (translationEnabled && canUseAI && !translatingRef.current) {
       // 检查是否有未翻译的
       const hasUntranslated = segments.some((s) => !s.translation);
       if (hasUntranslated) {
         void translateAllSegments();
       }
     }
-  }, [canUseAI, enableTranslation, segments, translateAllSegments]);
+  }, [canUseAI, translationEnabled, segments, translateAllSegments]);
 
   // 点击翻译按钮
   const handleTranslationClick = useCallback(() => {
-    if (enableTranslation) {
+    if (translationEnabled) {
       // 已开启，点击关闭
-      setEnableTranslation(false);
+      setTranslationEnabled(false);
       translationAbortRef.current = true;
       setShowLanguageSelect(false);
     } else {
       // 未开启，显示语言选择
       setShowLanguageSelect(true);
     }
-  }, [enableTranslation]);
+  }, [translationEnabled]);
 
   // 确认开启翻译
   const handleConfirmTranslation = useCallback(() => {
     setShowLanguageSelect(false);
-    setEnableTranslation(true);
+    setTranslationEnabled(true);
     // 开始翻译
     void translateAllSegments();
   }, [translateAllSegments]);
@@ -383,7 +383,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
       const prompt = `请对以下语音识别内容进行简洁的总结，突出主要内容和关键信息：\n\n${allText}`;
 
       let currentResult = '';
-      await window.YUA.ai.chatStream(
+      await window.chobits.ai.chatStream(
         {
           messages: [{ role: 'user', content: prompt }],
           providerId: resolvedSelection.providerId,
@@ -455,7 +455,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
         await new Promise<void>((resolve, reject) => {
           let wordExplanation = '';
 
-          window.YUA.ai
+          window.chobits.ai
             .chatStream(
               {
                 messages: [{ role: 'user', content: prompt }],
@@ -553,7 +553,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
       const prompt = `请从以下语音识别内容中提取最重要、最精彩或最值得关注的内容片段，并简要说明为什么这些内容值得关注：\n\n${allText}`;
 
       let currentResult = '';
-      await window.YUA.ai.chatStream(
+      await window.chobits.ai.chatStream(
         {
           messages: [{ role: 'user', content: prompt }],
           providerId: resolvedSelection.providerId,
@@ -649,18 +649,18 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
 
   // 获取翻译进度
   const getTranslationProgress = useCallback(() => {
-    if (!enableTranslation) return null;
+    if (!translationEnabled) return null;
     const total = segments.length;
     const translated = segments.filter((s) => s.translation).length;
     return { total, translated };
-  }, [segments, enableTranslation]);
+  }, [segments, translationEnabled]);
 
   const translationProgress = getTranslationProgress();
 
   return (
     <div className="flex flex-col h-full border-l bg-background no-drag">
       {/* 头部：AI服务配置 */}
-      <div className={`px-3 py-2 border-b ${isTransparent ? 'border-border/50' : ''}`}>
+      <div className={`px-3 py-2 border-b ${isSubtitleMode ? 'border-border/50' : ''}`}>
         {showProviderConfig ? (
           // 展开的配置表单
           <div className="space-y-2">
@@ -813,7 +813,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
       </ScrollArea>
 
       {/* 底部：功能按钮 */}
-      <div className={`px-3 py-2 border-t space-y-2 ${isTransparent ? 'border-border/50' : ''}`}>
+      <div className={`px-3 py-2 border-t space-y-2 ${isSubtitleMode ? 'border-border/50' : ''}`}>
         {/* 高级词汇（从翻译结果 <word>...</word> 提取，去重） */}
         {advancedWords.length > 0 && (
           <div className="flex items-start justify-between gap-2 p-2 rounded-lg border bg-muted/30">
@@ -856,11 +856,11 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
           {/* 翻译按钮 */}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button size="icon" variant={enableTranslation ? 'default' : 'outline'} className="h-8 w-8" onClick={handleTranslationClick} disabled={!canUseAI || isProcessing !== null}>
+              <Button size="icon" variant={translationEnabled ? 'default' : 'outline'} className="h-8 w-8" onClick={handleTranslationClick} disabled={!canUseAI || isProcessing !== null}>
                 {isTranslating ? <TbLoader2 className="h-4 w-4 animate-spin" /> : <TbLanguage className="h-4 w-4" />}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{enableTranslation ? (translationProgress ? `翻译中 ${translationProgress.translated}/${translationProgress.total}` : '翻译中...') : '翻译'}</TooltipContent>
+            <TooltipContent>{translationEnabled ? (translationProgress ? `翻译中 ${translationProgress.translated}/${translationProgress.total}` : '翻译中...') : '翻译'}</TooltipContent>
           </Tooltip>
 
           {/* 总结按钮 */}

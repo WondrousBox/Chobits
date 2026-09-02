@@ -86,7 +86,7 @@ describe('sprite assets pack manifest integration', () => {
   });
 
   afterEach(async () => {
-    const spriteAssets = await import('../../packages/sprite-core/handler/sprite-assets');
+    const spriteAssets = await import('../../packages/sprite-core/handlers/sprite-assets');
     spriteAssets.setSpriteAssetsChangeHandler(null);
 
     const characterService = await import('../../packages/sprite-core/character-service');
@@ -142,7 +142,7 @@ describe('sprite assets pack manifest integration', () => {
     characterService.initCharacterService(rootDir);
 
     const addAllowedResourceRoot = vi.fn();
-    const spriteAssets = await import('../../packages/sprite-core/handler/sprite-assets');
+    const spriteAssets = await import('../../packages/sprite-core/handlers/sprite-assets');
     spriteAssets.initSpriteHandlers({
       addAllowedResourceRoot,
       getResourcePath: () => rootDir
@@ -249,7 +249,7 @@ describe('sprite assets pack manifest integration', () => {
     const characterService = await import('../../packages/sprite-core/character-service');
     characterService.initCharacterService(rootDir);
 
-    const spriteAssets = await import('../../packages/sprite-core/handler/sprite-assets');
+    const spriteAssets = await import('../../packages/sprite-core/handlers/sprite-assets');
     spriteAssets.initSpriteHandlers({
       addAllowedResourceRoot: vi.fn(),
       getResourcePath: () => rootDir
@@ -322,7 +322,7 @@ describe('sprite assets pack manifest integration', () => {
     const characterService = await import('../../packages/sprite-core/character-service');
     characterService.initCharacterService(installedRoot, { source: 'installed' });
 
-    const spriteAssets = await import('../../packages/sprite-core/handler/sprite-assets');
+    const spriteAssets = await import('../../packages/sprite-core/handlers/sprite-assets');
     spriteAssets.initSpriteHandlers({
       addAllowedResourceRoot: vi.fn(),
       getResourcePath: () => builtinRoot
@@ -340,8 +340,8 @@ describe('sprite assets pack manifest integration', () => {
       }
     });
 
-    const registerFromData = electronState.handlers.get('sprite:registerFromData') as ((_: unknown, payload: { data: Buffer; meta: Record<string, unknown> }) => Promise<any>) | undefined;
-    const updateConfig = electronState.handlers.get('sprite:updateConfig') as ((_: unknown, payload: { id: string; patch: Record<string, unknown> }) => Promise<any>) | undefined;
+    const registerFromData = electronState.handlers.get('sprite:register-from-data') as ((_: unknown, payload: { data: Buffer; meta: Record<string, unknown> }) => Promise<any>) | undefined;
+    const updateConfig = electronState.handlers.get('sprite:update-config') as ((_: unknown, payload: { id: string; patch: Record<string, unknown> }) => Promise<any>) | undefined;
     const removeSprite = electronState.handlers.get('sprite:remove') as ((_: unknown, payload: { id: string; deleteFile?: boolean }) => Promise<any>) | undefined;
 
     expect(registerFromData).toBeDefined();
@@ -457,7 +457,7 @@ describe('sprite assets pack manifest integration', () => {
     const sourcePath = path.join(rootDir, 'primary-trigger-only.webm');
     writeFileSync(sourcePath, 'fake-webm', 'utf-8');
 
-    const spriteAssets = await import('../../packages/sprite-core/handler/sprite-assets');
+    const spriteAssets = await import('../../packages/sprite-core/handlers/sprite-assets');
     spriteAssets.initSpriteHandlers({
       addAllowedResourceRoot: vi.fn(),
       getResourcePath: () => rootDir
@@ -517,13 +517,13 @@ describe('sprite assets pack manifest integration', () => {
     });
     writeFileSync(path.join(rootDir, 'default-wave.webm'), 'default-wave-webm', 'utf-8');
 
-    const spriteAssets = await import('../../packages/sprite-core/handler/sprite-assets');
+    const spriteAssets = await import('../../packages/sprite-core/handlers/sprite-assets');
     spriteAssets.initSpriteHandlers({
       addAllowedResourceRoot: vi.fn(),
       getResourcePath: () => rootDir
     });
 
-    const updateConfig = electronState.handlers.get('sprite:updateConfig') as ((_: unknown, payload: { id: string; patch: Record<string, unknown> }) => Promise<any>) | undefined;
+    const updateConfig = electronState.handlers.get('sprite:update-config') as ((_: unknown, payload: { id: string; patch: Record<string, unknown> }) => Promise<any>) | undefined;
 
     expect(updateConfig).toBeDefined();
 
@@ -603,7 +603,7 @@ describe('sprite assets pack manifest integration', () => {
     writeFileSync(firstSourcePath, 'first-webm', 'utf-8');
     writeFileSync(secondSourcePath, 'second-webm', 'utf-8');
 
-    const spriteAssets = await import('../../packages/sprite-core/handler/sprite-assets');
+    const spriteAssets = await import('../../packages/sprite-core/handlers/sprite-assets');
     spriteAssets.initSpriteHandlers({
       addAllowedResourceRoot: vi.fn(),
       getResourcePath: () => rootDir
@@ -648,16 +648,16 @@ describe('sprite assets pack manifest integration', () => {
     });
   });
 
-  it('keeps legacy eventType-only input compatible on sprite:registerFromData without persisting a mirror field', async () => {
+  it('keeps legacy eventType-only input compatible on sprite:register-from-data without persisting a mirror field', async () => {
     const rootDir = spritesRoot!;
 
-    const spriteAssets = await import('../../packages/sprite-core/handler/sprite-assets');
+    const spriteAssets = await import('../../packages/sprite-core/handlers/sprite-assets');
     spriteAssets.initSpriteHandlers({
       addAllowedResourceRoot: vi.fn(),
       getResourcePath: () => rootDir
     });
 
-    const registerFromData = electronState.handlers.get('sprite:registerFromData') as
+    const registerFromData = electronState.handlers.get('sprite:register-from-data') as
       | ((_: unknown, payload: { data: Buffer; meta: Record<string, unknown>; loop?: boolean; loopCount?: number }) => Promise<any>)
       | undefined;
 
@@ -693,7 +693,7 @@ describe('sprite assets pack manifest integration', () => {
       throw new Error(`locked:${capabilityId}`);
     });
 
-    const spriteAssets = await import('../../packages/sprite-core/handler/sprite-assets');
+    const spriteAssets = await import('../../packages/sprite-core/handlers/sprite-assets');
     spriteAssets.initSpriteHandlers({
       addAllowedResourceRoot: vi.fn(),
       getResourcePath: () => rootDir,
@@ -701,9 +701,9 @@ describe('sprite assets pack manifest integration', () => {
     });
 
     const registerSprite = electronState.handlers.get('sprite:register') as ((_: unknown, payload: { filePath: string; meta: Record<string, unknown> }) => Promise<any>) | undefined;
-    const registerFromData = electronState.handlers.get('sprite:registerFromData') as ((_: unknown, payload: { data: Buffer; meta: Record<string, unknown> }) => Promise<any>) | undefined;
-    const updateConfig = electronState.handlers.get('sprite:updateConfig') as ((_: unknown, payload: { id: string; patch: Record<string, unknown> }) => Promise<any>) | undefined;
-    const updateMeta = electronState.handlers.get('sprite:updateMeta') as ((_: unknown, payload: { id: string; meta: Record<string, unknown> }) => Promise<any>) | undefined;
+    const registerFromData = electronState.handlers.get('sprite:register-from-data') as ((_: unknown, payload: { data: Buffer; meta: Record<string, unknown> }) => Promise<any>) | undefined;
+    const updateConfig = electronState.handlers.get('sprite:update-config') as ((_: unknown, payload: { id: string; patch: Record<string, unknown> }) => Promise<any>) | undefined;
+    const updateMeta = electronState.handlers.get('sprite:update-meta') as ((_: unknown, payload: { id: string; meta: Record<string, unknown> }) => Promise<any>) | undefined;
     const removeSprite = electronState.handlers.get('sprite:remove') as ((_: unknown, payload: { id: string }) => Promise<any>) | undefined;
 
     await expect(registerSprite!(undefined, { filePath: sourcePath, meta: { id: 'locked-authoring' } })).rejects.toThrow('locked:spriteManage');

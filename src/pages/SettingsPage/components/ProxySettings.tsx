@@ -26,8 +26,8 @@ interface ProxyConfig {
 
 const ProxySettings: React.FC = () => {
   const [config, setConfig] = useState<ProxyConfig>({ type: 'none' });
-  const [loading, setLoading] = useState(false);
-  const [testing, setTesting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [systemProxyInfo, setSystemProxyInfo] = useState<{ host: string; port: string } | null>(null);
   const debounceTimersRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
@@ -45,7 +45,7 @@ const ProxySettings: React.FC = () => {
 
   const loadConfig = async (): Promise<void> => {
     try {
-      const result = await window.YUA.proxy['proxy:getConfig']();
+      const result = await window.chobits.proxy['proxy:get-config']();
       if (result) {
         setConfig(result);
       }
@@ -56,9 +56,9 @@ const ProxySettings: React.FC = () => {
   };
 
   const handleTypeChange = async (type: ProxyType): Promise<void> => {
-    setLoading(true);
+    setIsLoading(true);
     try {
-      const result = await window.YUA.proxy['proxy:setConfig']({ config: { type } });
+      const result = await window.chobits.proxy['proxy:set-config']({ config: { type } });
       if (result?.ok && result.config) {
         setConfig(result.config);
         toast.success('设置成功', { description: '代理配置已更新' });
@@ -71,13 +71,13 @@ const ProxySettings: React.FC = () => {
     } catch (error: any) {
       toast.error('设置失败', { description: error.message || '无法更新代理配置' });
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   const loadSystemProxy = async (): Promise<void> => {
     try {
-      const result = await window.YUA.proxy['proxy:getSystemProxy']();
+      const result = await window.chobits.proxy['proxy:get-system-proxy']();
       if (result?.ok && result.proxy) {
         setSystemProxyInfo(result.proxy);
       } else {
@@ -90,10 +90,10 @@ const ProxySettings: React.FC = () => {
   };
 
   const handleTestProxy = async (): Promise<void> => {
-    setTesting(true);
+    setIsTesting(true);
     setTestResult(null);
     try {
-      const result = await window.YUA.proxy['proxy:test']();
+      const result = await window.chobits.proxy['proxy:test']();
       if (result?.ok) {
         setTestResult({ ok: true, message: `连接正常，延迟: ${result.latency}ms` });
       } else {
@@ -102,7 +102,7 @@ const ProxySettings: React.FC = () => {
     } catch (error: any) {
       setTestResult({ ok: false, message: error.message || '无法连接到代理服务器' });
     } finally {
-      setTesting(false);
+      setIsTesting(false);
     }
   };
 
@@ -114,7 +114,7 @@ const ProxySettings: React.FC = () => {
     };
 
     try {
-      const result = await window.YUA.proxy['proxy:addCustom']({ proxy: newProxy });
+      const result = await window.chobits.proxy['proxy:add-custom']({ proxy: newProxy });
       if (result?.ok && result.config) {
         setConfig(result.config);
         if (result.config.proxies) {
@@ -131,7 +131,7 @@ const ProxySettings: React.FC = () => {
 
   const handleUpdateProxyImmediate = async (index: number, updates: Partial<CustomProxy>): Promise<void> => {
     try {
-      const result = await window.YUA.proxy['proxy:updateCustom']({ index, proxy: updates });
+      const result = await window.chobits.proxy['proxy:update-custom']({ index, proxy: updates });
       if (result?.ok && result.config) {
         setConfig(result.config);
         if (result.config.proxies) {
@@ -162,7 +162,7 @@ const ProxySettings: React.FC = () => {
 
     const timer = setTimeout(async () => {
       try {
-        const result = await window.YUA.proxy['proxy:updateCustom']({ index, proxy: updates });
+        const result = await window.chobits.proxy['proxy:update-custom']({ index, proxy: updates });
         if (result?.ok && result.config) {
           setConfig(result.config);
           if (result.config.proxies) {
@@ -198,7 +198,7 @@ const ProxySettings: React.FC = () => {
     }
 
     try {
-      const result = await window.YUA.proxy['proxy:removeCustom']({ index });
+      const result = await window.chobits.proxy['proxy:remove-custom']({ index });
       if (result?.ok && result.config) {
         setConfig(result.config);
         if (result.config.proxies) {
@@ -226,7 +226,7 @@ const ProxySettings: React.FC = () => {
           title="代理类型"
           description="选择网络代理模式"
           action={
-            <RadioGroup value={config.type} onValueChange={(v) => handleTypeChange(v as ProxyType)} className="flex items-center gap-4" disabled={loading}>
+            <RadioGroup value={config.type} onValueChange={(v) => handleTypeChange(v as ProxyType)} className="flex items-center gap-4" disabled={isLoading}>
               <div className="flex items-center gap-1.5">
                 <RadioGroupItem value="none" id="none" />
                 <label htmlFor="none" className="text-sm cursor-pointer">
@@ -330,9 +330,9 @@ const ProxySettings: React.FC = () => {
               {testResult && (
                 <span className={`text-xs ${testResult.ok ? 'text-green-600' : 'text-destructive'}`}>{testResult.message}</span>
               )}
-              <Button size="sm" variant="outline" onClick={handleTestProxy} disabled={testing}>
-                {testing ? <TbLoader className="h-4 w-4 mr-1 animate-spin" /> : <TbTestPipe className="h-4 w-4 mr-1" />}
-                {testing ? '测试中...' : '测试'}
+              <Button size="sm" variant="outline" onClick={handleTestProxy} disabled={isTesting}>
+                {isTesting ? <TbLoader className="h-4 w-4 mr-1 animate-spin" /> : <TbTestPipe className="h-4 w-4 mr-1" />}
+                {isTesting ? '测试中...' : '测试'}
               </Button>
             </div>
           }

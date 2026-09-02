@@ -26,14 +26,14 @@ import {
 } from '@/features/sprite-assistant';
 import { ensureSpriteCapabilityAccessible, SpriteCapabilityLockedNotice } from '@/features/sprite-assistant/capability-ui';
 import { makeResSrc } from '@/lib/resource-protocol';
+import { isWindowAnimationPresetId, WINDOW_ANIMATION_PRESET_DIRECTIONS, WINDOW_ANIMATION_PRESETS } from '@/lib/window-animation-presets';
 
 import { createSpriteAnimationMetaDraft, formatSpriteAnimationConditionInput, formatSpriteTriggerAliasesInput, parseSpriteAnimationConditionInput } from './components/sprite-animation-meta-utils';
 import SpriteAnimationConditionBuilder from './components/SpriteAnimationConditionBuilder';
 import SpriteAnimationMetaPopover from './components/SpriteAnimationMetaPopover';
 import SpriteTriggerPicker from './components/SpriteTriggerPicker';
 import SpriteWindowAnimationPositionEditor from './components/SpriteWindowAnimationPositionEditor';
-import SpritePackManager from './SpritePackManager';
-import { isWindowAnimationPresetId, WINDOW_ANIMATION_PRESET_DIRECTIONS, WINDOW_ANIMATION_PRESETS } from './window-animation-presets';
+import CharacterPackManager from './CharacterPackManager';
 
 type SpriteLoopMode = 'none' | 'finite' | 'infinite';
 const DEFAULT_WINDOW_ANIMATION_PRESET_ID: SpriteWindowAnimationPresetId = 'fly-in';
@@ -75,7 +75,7 @@ function SpriteAnimationConfigEditor({
   onClose: () => void;
   onSaved: () => Promise<void> | void;
 }): JSX.Element {
-  const [saving, setSaving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [title, setTitle] = useState(animation.meta.title || animation.meta.id);
   const [primaryTrigger, setPrimaryTrigger] = useState<SpriteAnimationTrigger | ''>(getPrimarySpriteAnimationTrigger(animation.meta) || '');
@@ -108,13 +108,13 @@ function SpriteAnimationConfigEditor({
   const windowAnimationSupportsDirection = selectedWindowAnimationPreset?.supportsDirection ?? false;
 
   const handleSave = async (): Promise<void> => {
-    if (saving || parsedCondition.error) return;
+    if (isSaving || parsedCondition.error) return;
     if (!ensureSpriteCapabilityAccessible(assetAuthoringCapability, onCapabilityBlocked)) return;
 
-    setSaving(true);
+    setIsSaving(true);
     setSaveError(null);
     try {
-      const result = await window.YUA.sprite.updateConfig(animation.meta.id, {
+      const result = await window.chobits.sprite.updateConfig(animation.meta.id, {
         width,
         height,
         padding,
@@ -144,7 +144,7 @@ function SpriteAnimationConfigEditor({
       setSaveError(error instanceof Error ? error.message : message);
       toast.error(message, { description: error instanceof Error ? error.message : String(error) });
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   };
 
@@ -380,11 +380,11 @@ function SpriteAnimationConfigEditor({
             {saveError && <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{saveError}</div>}
 
             <div className="flex items-center justify-end gap-2 border-t pt-4">
-              <Button variant="ghost" onClick={onClose} disabled={saving}>
+              <Button variant="ghost" onClick={onClose} disabled={isSaving}>
                 取消
               </Button>
-              <Button onClick={() => void handleSave()} disabled={!canAuthorAnimations || saving || !!parsedCondition.error}>
-                {saving ? '保存中…' : '保存属性'}
+              <Button onClick={() => void handleSave()} disabled={!canAuthorAnimations || isSaving || !!parsedCondition.error}>
+                {isSaving ? '保存中…' : '保存属性'}
               </Button>
             </div>
           </div>
@@ -472,7 +472,7 @@ export function SpriteAnimationManager({
   onCapabilityBlocked?: (capability: SpriteCapabilityState) => void;
 }): JSX.Element {
   const [list, setList] = useState<SpriteAnimation[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [addingMap, setAddingMap] = useState<Record<string, boolean>>({}); // 某分类中的添加状态
   const [categories, setCategories] = useState<string[]>([]); // 事件分类列表
   const [activeAddCat, setActiveAddCat] = useState<string | null>(null); // 当前触发的添加分类（用于弹窗后回填）
@@ -493,12 +493,12 @@ export function SpriteAnimationManager({
 
   // 初始化读取播放列表状态
   useEffect(() => {
-    window.YUA.sprite
+    window.chobits.sprite
       .getAnimationPlaylistMode()
       .then(setDefaultAnimationPlaylistMode)
       .catch(() => {});
 
-    window.YUA.sprite
+    window.chobits.sprite
       .getInitialState()
       .then((state) => {
         const config = state?.config;
@@ -509,7 +509,7 @@ export function SpriteAnimationManager({
       })
       .catch(() => {});
 
-    return window.YUA.sprite.onConfig((config) => {
+    return window.chobits.sprite.onConfig((config) => {
       if (config.animationPlaylistMode) {
         setDefaultAnimationPlaylistMode(config.animationPlaylistMode);
       }
@@ -520,13 +520,13 @@ export function SpriteAnimationManager({
   const updateAnimationPlaylistMode = useCallback(async (mode: SpriteAnimationPlaylistMode, trigger?: SpriteAnimationTrigger) => {
     if (trigger) {
       setAnimationPlaylistModes((prev) => ({ ...prev, [trigger]: mode }));
-      const next = await window.YUA.sprite.setAnimationPlaylistMode(mode, trigger);
+      const next = await window.chobits.sprite.setAnimationPlaylistMode(mode, trigger);
       setAnimationPlaylistModes((prev) => ({ ...prev, [trigger]: next }));
       return;
     }
 
     setDefaultAnimationPlaylistMode(mode);
-    const next = await window.YUA.sprite.setAnimationPlaylistMode(mode);
+    const next = await window.chobits.sprite.setAnimationPlaylistMode(mode);
     setDefaultAnimationPlaylistMode(next);
   }, []);
 
@@ -539,9 +539,9 @@ export function SpriteAnimationManager({
   );
 
   const refresh = React.useCallback(async (): Promise<void> => {
-    setLoading(true);
+    setIsLoading(true);
     try {
-      const items = await window.YUA.sprite.list();
+      const items = await window.chobits.sprite.list();
       setList(items || []);
       // 统计分类（meta.primaryTrigger / normalized trigger）
       const setCat = new Set<string>();
@@ -555,7 +555,7 @@ export function SpriteAnimationManager({
     } catch (e) {
       console.warn('sprite:list failed', e);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   }, [BUILTIN]);
 
@@ -563,7 +563,7 @@ export function SpriteAnimationManager({
     refresh();
   }, [refresh]);
 
-  const onImport = async (primaryTrigger?: SpriteAnimationTrigger): Promise<void> => {
+  const handleImport = async (primaryTrigger?: SpriteAnimationTrigger): Promise<void> => {
     if (!ensureCanAuthorAnimations()) return;
 
     // 使用局部 catKey，避免并发导入时 activeAddCat 被后一次覆盖导致前一次 finally 复位错误
@@ -571,17 +571,17 @@ export function SpriteAnimationManager({
     setActiveAddCat(catKey || null);
     setAddingMap((m) => ({ ...m, [catKey]: true }));
     try {
-      const pick = await window.YUA.file['file:pickFile']({
+      const pick = await window.chobits.file['file:pick-file']({
         filters: [
           { name: 'Videos', extensions: ['webm', 'mp4', 'mov', 'mkv', 'ogg', 'ogv'] },
           { name: 'All Files', extensions: ['*'] }
         ],
         multi: false
       });
-      if (pick.canceled || !pick.path) return;
+      if (!pick.ok || !pick.path) return;
       const title = baseName(pick.path);
       const id = 'sprite-' + Math.random().toString(36).slice(2, 10);
-      await window.YUA.sprite.register({
+      await window.chobits.sprite.register({
         filePath: pick.path,
         meta: {
           id,
@@ -598,11 +598,11 @@ export function SpriteAnimationManager({
     }
   };
 
-  const onRemove = async (id: string): Promise<void> => {
+  const handleRemove = async (id: string): Promise<void> => {
     if (!ensureCanAuthorAnimations()) return;
 
     try {
-      await window.YUA.sprite.remove(id, true);
+      await window.chobits.sprite.remove(id, true);
       await refresh();
     } catch (e) {
       console.warn('sprite:remove failed', e);
@@ -611,11 +611,11 @@ export function SpriteAnimationManager({
 
   const [testingId, setTestingId] = useState<string | null>(null);
 
-  const onUpdatePrimaryTrigger = useCallback(
+  const handleUpdatePrimaryTrigger = useCallback(
     async (id: string, primaryTrigger: SpriteAnimationTrigger | ''): Promise<void> => {
       if (!ensureCanAuthorAnimations()) return;
 
-      await window.YUA.sprite.updateMeta(id, {
+      await window.chobits.sprite.updateMeta(id, {
         primaryTrigger: primaryTrigger || undefined
       });
       await refresh();
@@ -623,28 +623,28 @@ export function SpriteAnimationManager({
     [ensureCanAuthorAnimations, refresh]
   );
 
-  const onUpdateAnimationMeta = useCallback(
+  const handleUpdateAnimationMeta = useCallback(
     async (id: string, meta: Pick<SpriteAnimation['meta'], 'condition' | 'primaryTrigger' | 'triggerAliases' | 'priority'>): Promise<void> => {
       if (!ensureCanAuthorAnimations()) return;
 
-      await window.YUA.sprite.updateMeta(id, meta);
+      await window.chobits.sprite.updateMeta(id, meta);
       await refresh();
     },
     [ensureCanAuthorAnimations, refresh]
   );
 
-  const onTestPlay = async (item: SpriteAnimation): Promise<void> => {
+  const handleTestPlay = async (item: SpriteAnimation): Promise<void> => {
     setTestingId(item.meta.id);
     try {
-      await window.YUA.sprite.testAnimation(item.meta.id);
+      await window.chobits.sprite.testAnimation(item.meta.id);
     } catch (e) {
-      console.warn('sprite:triggerById failed', e);
+      console.warn('sprite:trigger-by-id failed', e);
     } finally {
       setTimeout(() => setTestingId(null), 1500);
     }
   };
 
-  const onEditSprite = useCallback(
+  const handleEditSprite = useCallback(
     async (item: SpriteAnimation): Promise<void> => {
       if (!ensureCanAuthorAnimations()) return;
       setEditingSprite(item);
@@ -699,10 +699,10 @@ export function SpriteAnimationManager({
               ))}
             </SelectContent>
           </Select>
-          <Button size="sm" onClick={() => onImport(globalCat || undefined)} disabled={!canAuthorAnimations || !!addingMap[globalCat || '']} title={authoringLockedTitle}>
+          <Button size="sm" onClick={() => handleImport(globalCat || undefined)} disabled={!canAuthorAnimations || !!addingMap[globalCat || '']} title={authoringLockedTitle}>
             {addingMap[globalCat || ''] ? '导入中…' : '导入视频'}
           </Button>
-          <Button size="sm" variant="outline" onClick={refresh} disabled={loading}>
+          <Button size="sm" variant="outline" onClick={refresh} disabled={isLoading}>
             刷新
           </Button>
         </div>
@@ -746,7 +746,7 @@ export function SpriteAnimationManager({
                     </Select>
                   )}
                   {cat !== 'uncategorized' && (
-                    <Button size="sm" variant="ghost" onClick={() => window.YUA.sprite.trigger(cat)} title={`触发 ${cat} 事件：播放动画 + 显示气泡`}>
+                    <Button size="sm" variant="ghost" onClick={() => window.chobits.sprite.trigger(cat)} title={`触发 ${cat} 事件：播放动画 + 显示气泡`}>
                       <TbPlayerPlay className="h-3 w-3 mr-1" />
                       测试
                     </Button>
@@ -754,7 +754,7 @@ export function SpriteAnimationManager({
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => onImport(cat === 'uncategorized' ? undefined : (cat as SpriteAnimationTrigger))}
+                    onClick={() => handleImport(cat === 'uncategorized' ? undefined : (cat as SpriteAnimationTrigger))}
                     disabled={!canAuthorAnimations || addingMap[cat]}
                     title={authoringLockedTitle}
                   >
@@ -784,7 +784,7 @@ export function SpriteAnimationManager({
                                 size="icon"
                                 variant="secondary"
                                 className="w-8 h-8"
-                                onClick={() => onTestPlay(item)}
+                                onClick={() => handleTestPlay(item)}
                                 disabled={testingId === item.meta.id}
                                 title="测试播放：在桌面精灵上预览此动画"
                               >
@@ -793,7 +793,7 @@ export function SpriteAnimationManager({
                               <SpriteTriggerPicker
                                 value={primaryTrigger || ''}
                                 onChange={(nextValue) => {
-                                  void onUpdatePrimaryTrigger(item.meta.id, nextValue);
+                                  void handleUpdatePrimaryTrigger(item.meta.id, nextValue);
                                 }}
                                 disabled={!canAuthorAnimations}
                                 buttonSize="sm"
@@ -805,7 +805,7 @@ export function SpriteAnimationManager({
                                 meta={item.meta}
                                 disabled={!canAuthorAnimations}
                                 onSave={async (nextMeta) => {
-                                  await onUpdateAnimationMeta(item.meta.id, nextMeta);
+                                  await handleUpdateAnimationMeta(item.meta.id, nextMeta);
                                 }}
                               />
 
@@ -814,7 +814,7 @@ export function SpriteAnimationManager({
                                   size="icon"
                                   variant="secondary"
                                   className="w-8 h-8"
-                                  onClick={() => void onEditSprite(item)}
+                                  onClick={() => void handleEditSprite(item)}
                                   disabled={!canAuthorAnimations}
                                   title={canAuthorAnimations ? '编辑此精灵属性' : authoringLockedTitle}
                                 >
@@ -822,7 +822,7 @@ export function SpriteAnimationManager({
                                 </Button>
                               )}
                               {item.meta.deletable !== false && (
-                                <Button size="icon" variant="destructive" className="w-8 h-8" onClick={() => onRemove(item.meta.id)} disabled={!canAuthorAnimations} title={authoringLockedTitle}>
+                                <Button size="icon" variant="destructive" className="w-8 h-8" onClick={() => handleRemove(item.meta.id)} disabled={!canAuthorAnimations} title={authoringLockedTitle}>
                                   <TbTrash />
                                 </Button>
                               )}
@@ -837,7 +837,7 @@ export function SpriteAnimationManager({
                               {primaryTrigger && <div className="mt-1 text-[10px] inline-block px-1 py-[1px] rounded bg-primary/70 text-white w-fit">{primaryTrigger}</div>}
                               {triggerAliases.length > 0 && <div className="mt-1 text-[10px] opacity-80 truncate">aliases: {triggerAliases.join(', ')}</div>}
                               {priority !== undefined && <div className="mt-1 text-[10px] opacity-80 truncate">priority: {priority}</div>}
-                              {item.meta.condition && <div className="mt-1 text-[10px] opacity-80 truncate">condition: persona-gated</div>}
+                              {item.meta.condition && <div className="mt-1 text-[10px] opacity-80 truncate">condition: character-gated</div>}
                               {/* 结束覆盖层 */}
                             </div>
                             {/* 结束相对容器 */}
@@ -848,7 +848,7 @@ export function SpriteAnimationManager({
                     {/* 分类尾部添加卡片 */}
                     <Button
                       className="h-[240px] w-[180px]"
-                      onClick={() => onImport(cat === 'uncategorized' ? undefined : (cat as SpriteAnimationTrigger))}
+                      onClick={() => handleImport(cat === 'uncategorized' ? undefined : (cat as SpriteAnimationTrigger))}
                       disabled={!canAuthorAnimations || addingMap[cat]}
                       variant="ghost"
                       title={authoringLockedTitle}
@@ -879,7 +879,7 @@ export default function SpriteManager({
 }): JSX.Element {
   return (
     <div className={className}>
-      <SpritePackManager
+      <CharacterPackManager
         editorPresentation="window"
         editorExtra={<SpriteAnimationManager className="border-t border-border/60 pt-4" assetAuthoringCapability={assetAuthoringCapability} onCapabilityBlocked={onCapabilityBlocked} />}
       />

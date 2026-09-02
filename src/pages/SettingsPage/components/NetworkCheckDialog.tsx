@@ -6,11 +6,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import type { NetworkCheckResult } from './types';
 
 interface NetworkCheckDialogProps {
-  open: boolean;
+  isOpen: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export const NetworkCheckDialog: React.FC<NetworkCheckDialogProps> = ({ open, onOpenChange }) => {
+export const NetworkCheckDialog: React.FC<NetworkCheckDialogProps> = ({ isOpen, onOpenChange }) => {
   const [networkChecking, setNetworkChecking] = useState(false);
   const [networkResults, setNetworkResults] = useState<NetworkCheckResult[]>([]);
 
@@ -18,7 +18,7 @@ export const NetworkCheckDialog: React.FC<NetworkCheckDialogProps> = ({ open, on
     setNetworkChecking(true);
     setNetworkResults([]);
     try {
-      const res = await window.YUA.pluginResource['plugin-resource:checkNetwork']();
+      const res = await window.chobits.pluginResource['plugin-resource:check-network']();
       if (res.ok && res.results) {
         setNetworkResults(res.results);
       }
@@ -35,17 +35,17 @@ export const NetworkCheckDialog: React.FC<NetworkCheckDialogProps> = ({ open, on
 
   // 当对话框打开时自动开始检测
   useEffect(() => {
-    if (open) {
+    if (isOpen) {
       checkNetwork();
     } else {
       // 关闭时重置状态
       setNetworkChecking(false);
       setNetworkResults([]);
     }
-  }, [open]);
+  }, [isOpen]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>网络连通性检测</DialogTitle>

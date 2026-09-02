@@ -49,7 +49,7 @@ export default function ProviderVoiceSelect({
   className,
   disabled = false
 }: ProviderVoiceSelectProps): JSX.Element {
-  const [open, setOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const selected = useMemo(() => findSelectedVoice(groups, value), [groups, value]);
@@ -70,7 +70,7 @@ export default function ProviderVoiceSelect({
 
   const handleSelect = (voiceId: string): void => {
     onChange(voiceId);
-    setOpen(false);
+    setIsOpen(false);
     setSearchQuery('');
   };
 
@@ -79,9 +79,9 @@ export default function ProviderVoiceSelect({
 
   return (
     <DropdownMenu
-      open={open}
+      open={isOpen}
       onOpenChange={(nextOpen) => {
-        setOpen(nextOpen);
+        setIsOpen(nextOpen);
         if (!nextOpen) setSearchQuery('');
       }}
     >

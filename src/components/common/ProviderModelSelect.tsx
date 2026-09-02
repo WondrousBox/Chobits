@@ -262,7 +262,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
 
         setLoadingModels((prev) => ({ ...prev, [cacheKey]: true }));
         try {
-          const modelList = ((await window.YUA.ai.listModels(targetProviderId, targetPresetId)) || []) as ModelRow[];
+          const modelList = ((await window.chobits.ai.listModels(targetProviderId, targetPresetId)) || []) as ModelRow[];
           setModelsMap((prev) => ({ ...prev, [cacheKey]: modelList }));
 
           const shouldAutoSelect = options?.forceAutoSelect || targetProviderId === resolvedProviderId;
@@ -321,13 +321,13 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
           }
 
           const preferredPresetId = targetPresetId ?? (resolvedId === resolvedProviderId ? presetId : undefined);
-          const resolvedPreset = await window.YUA.ai.resolveUsablePreset(resolvedId, preferredPresetId);
+          const resolvedPreset = await window.chobits.ai.resolveUsablePreset(resolvedId, preferredPresetId);
           if (!resolvedPreset?.id) {
             onProviderConfigChange?.(resolvedId, false);
             return false;
           }
 
-          const secrets = (await window.YUA.ai.getPresetSecrets(resolvedPreset.id).catch(() => ({}))) as Record<string, unknown>;
+          const secrets = (await window.chobits.ai.getPresetSecrets(resolvedPreset.id).catch(() => ({}))) as Record<string, unknown>;
 
           // 检查所有 required 字段是否都有值
           const allConfigured = requiredFields.every((f: any) => {
@@ -365,11 +365,11 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
         const schema = provider.schema;
         const fields = schema?.fields?.map((f: any) => f.key).filter(Boolean) || [];
         const preferredPresetId = targetPresetId ?? (idToUse === resolvedProviderId ? presetId : undefined);
-        const resolvedPreset = await window.YUA.ai.resolveUsablePreset(idToUse, preferredPresetId);
+        const resolvedPreset = await window.chobits.ai.resolveUsablePreset(idToUse, preferredPresetId);
         const resolvedPresetId = resolvedPreset?.id;
 
         if (!resolvedPresetId) {
-          void window.YUA.window['window:open']('settings' as any, { category: 'ai', aiProviderId: idToUse });
+          void window.chobits.window['window:open']('settings' as any, { category: 'ai', aiProviderId: idToUse });
           return;
         }
 
@@ -378,7 +378,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
           return;
         }
 
-        void window.YUA.window['window:open']('aiProviderConfig' as any, { providerId: idToUse, presetId: resolvedPresetId, fields }, { sameDisplayAsSender: true });
+        void window.chobits.window['window:open']('aiProviderConfig' as any, { providerId: idToUse, presetId: resolvedPresetId, fields }, { sameDisplayAsSender: true });
       },
       [availableProviders, onOpenConfig, presetId, providers, resolvedProviderId]
     );
@@ -398,10 +398,10 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
       let mounted = true;
       (async () => {
         try {
-          const provs = await window.YUA.ai.getProviders();
+          const fetchedProviders = await window.chobits.ai.getProviders();
           if (!mounted) return;
-          setProviders(provs || []);
-          const visibleProviders = providerFilter ? (provs || []).filter((provider) => providerFilter(provider)) : provs || [];
+          setProviders(fetchedProviders || []);
+          const visibleProviders = providerFilter ? (fetchedProviders || []).filter((provider) => providerFilter(provider)) : fetchedProviders || [];
           // 通知父组件 providers 已加载
           onProvidersLoaded?.(visibleProviders);
           // 默认选择第一个 provider，并优先命中 catalog 里的默认模型

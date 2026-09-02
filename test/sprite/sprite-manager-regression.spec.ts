@@ -70,10 +70,10 @@ function registerTalkAnimation(mgr: SpriteManager, playback: AnimationEntry['pla
   });
 }
 
-function mockSpeechPlayback(mgr: SpriteManager, result: { success: boolean; error?: string } = { success: true }): ReturnType<typeof vi.spyOn> {
+function mockSpeechPlayback(mgr: SpriteManager, result: { ok: boolean; error?: string } = { ok: true }): ReturnType<typeof vi.spyOn> {
   const service = (mgr as any).speakService;
   return vi.spyOn(service, 'speak').mockImplementation(async (text: string, context?: any) => {
-    if (result.success) {
+    if (result.ok) {
       service.onPlayAudio?.(
         {
           text,
@@ -83,7 +83,7 @@ function mockSpeechPlayback(mgr: SpriteManager, result: { success: boolean; erro
         },
         context
       );
-      return { success: true, cacheId: 'speech-cache', audioPath: '/tmp/speech.mp3' };
+      return { ok: true, cacheId: 'speech-cache', audioPath: '/tmp/speech.mp3' };
     }
     return result;
   });
@@ -188,7 +188,7 @@ describe('sprite manager regression coverage', () => {
       title: 'Celebrate High Favor',
       eventTypes: ['celebrate'],
       priority: 10,
-      condition: (personaState) => personaState.favor >= 80,
+      condition: (characterState) => characterState.favor >= 80,
       source: { localPath: './high.webm', type: 'video/webm' },
       playback: { durationMs: 800 }
     };
@@ -196,11 +196,11 @@ describe('sprite manager regression coverage', () => {
     registry.register(baseAnimation);
     registry.register(gatedAnimation);
 
-    (mgr as any).personaState.loadState({ favor: 10 });
+    (mgr as any).characterState.loadState({ favor: 10 });
     mgr.trigger('celebrate', { silent: true });
     expect(mgr.getCurrentAnimation()?.animationId).toBe('celebrate-default');
 
-    (mgr as any).personaState.loadState({ favor: 95 });
+    (mgr as any).characterState.loadState({ favor: 95 });
     mgr.trigger('celebrate', { silent: true });
     expect(mgr.getCurrentAnimation()?.animationId).toBe('celebrate-high-favor');
   });
@@ -719,11 +719,11 @@ describe('sprite manager regression coverage', () => {
       durationMs: 800
     });
 
-    (mgr as any).personaState.loadState({ favor: 90, mood: 'neutral' });
+    (mgr as any).characterState.loadState({ favor: 90, mood: 'neutral' });
     mgr.trigger('celebrate', { silent: true });
     expect(mgr.getCurrentAnimation()?.animationId).toBe('celebrate-default-meta');
 
-    (mgr as any).personaState.loadState({ favor: 90, mood: 'joyful' });
+    (mgr as any).characterState.loadState({ favor: 90, mood: 'joyful' });
     mgr.trigger('celebrate', { silent: true });
     expect(mgr.getCurrentAnimation()?.animationId).toBe('celebrate-bestie-meta');
   });
@@ -844,7 +844,7 @@ describe('sprite manager regression coverage', () => {
       loopEndMs: 1200
     });
 
-    await expect(mgr.speak('我来说一下。', { bubbleDuration: 1400 })).resolves.toMatchObject({ success: true });
+    await expect(mgr.speak('我来说一下。', { bubbleDuration: 1400 })).resolves.toMatchObject({ ok: true });
 
     expect(speak).toHaveBeenCalledWith('我来说一下。', expect.objectContaining({ talkDurationMs: 1400 }));
     expect(mgr.getCurrentAnimation()).toMatchObject({
@@ -877,7 +877,7 @@ describe('sprite manager regression coverage', () => {
           createdAt: Date.now()
         }
       )
-    ).resolves.toMatchObject({ success: true });
+    ).resolves.toMatchObject({ ok: true });
 
     expect(mgr.getCurrentAnimation()).toMatchObject({
       animationId: 'talk-purpose',
@@ -912,7 +912,7 @@ describe('sprite manager regression coverage', () => {
     });
     mgr.transitionTo('walking', { force: true });
 
-    await expect(mgr.speak('边走边说。', { bubbleDuration: 1000 })).resolves.toMatchObject({ success: true });
+    await expect(mgr.speak('边走边说。', { bubbleDuration: 1000 })).resolves.toMatchObject({ ok: true });
 
     expect(mgr.getCurrentAnimation()?.animationId).not.toBe('talk-purpose');
     expect(speak).toHaveBeenCalledWith('边走边说。', expect.objectContaining({ talkDurationMs: 1000 }));
@@ -937,7 +937,7 @@ describe('sprite manager regression coverage', () => {
     expect(mgr.getState()).toBe('idle');
     expect(mgr.getCurrentAnimation()?.animationId).toBe('welcome-purpose');
 
-    await expect(mgr.speak('你好，我是你的专属桌面助手。', { bubbleDuration: 3600 })).resolves.toMatchObject({ success: true });
+    await expect(mgr.speak('你好，我是你的专属桌面助手。', { bubbleDuration: 3600 })).resolves.toMatchObject({ ok: true });
 
     expect(mgr.getCurrentAnimation()?.animationId).toBe('welcome-purpose');
     expect(speak).toHaveBeenCalledWith('你好，我是你的专属桌面助手。', expect.objectContaining({ talkDurationMs: 3600 }));
@@ -1030,11 +1030,11 @@ describe('sprite manager regression coverage', () => {
   it('does not play talk animation when speech synthesis does not produce audio', async () => {
     const { mgr, dataDir } = createManager();
     dataDirs.add(dataDir);
-    const speak = mockSpeechPlayback(mgr, { success: false, error: 'TTS is disabled' });
+    const speak = mockSpeechPlayback(mgr, { ok: false, error: 'TTS is disabled' });
 
     registerTalkAnimation(mgr, { durationMs: 800 });
 
-    await expect(mgr.speak('不会真的播放。', { bubbleDuration: 1000 })).resolves.toEqual({ success: false, error: 'TTS is disabled' });
+    await expect(mgr.speak('不会真的播放。', { bubbleDuration: 1000 })).resolves.toEqual({ ok: false, error: 'TTS is disabled' });
 
     expect(speak).toHaveBeenCalledWith('不会真的播放。', expect.objectContaining({ talkDurationMs: 1000 }));
     expect(mgr.getCurrentAnimation()).toBeNull();
@@ -2199,7 +2199,7 @@ describe('sprite manager regression coverage', () => {
       recommendedAction: 'talk',
       actionSource: 'model'
     }));
-    const speak = vi.fn(async () => ({ success: true }));
+    const speak = vi.fn(async () => ({ ok: true }));
     const trigger = vi.fn();
     const fakeManager = {
       findAnimationByTrigger: vi.fn(),
@@ -2225,7 +2225,7 @@ describe('sprite manager regression coverage', () => {
     await idleAction.action({
       spriteState: 'idle',
       interactionStats: { idleDuration: 120_000 },
-      personaState: { favor: 20, mood: 'neutral', moodIntensity: 0.5, level: 1 }
+      characterState: { favor: 20, mood: 'neutral', moodIntensity: 0.5, level: 1 }
     } as any);
 
     expect(generateForIdleAction).toHaveBeenCalledWith(
@@ -2253,7 +2253,7 @@ describe('sprite manager regression coverage', () => {
     const context = {
       spriteState: 'idle',
       interactionStats: { idleDuration: 120_000 },
-      personaState: { favor: 70 }
+      characterState: { favor: 70 }
     };
 
     registerDefaultBehaviors(fakeManager as any);

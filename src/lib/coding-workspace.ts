@@ -10,11 +10,11 @@ export interface CodingWorkspaceSelection {
 }
 
 export async function pickCodingWorkspace(defaultPath?: string): Promise<CodingWorkspaceSelection | null> {
-  const result = await window.YUA.file['file:pickDir']({
+  const result = await window.chobits.file['file:pick-dir']({
     defaultPath: defaultPath || undefined
   });
 
-  if (result?.canceled || !result.path) {
+  if (!result?.ok || !result.path) {
     return null;
   }
 

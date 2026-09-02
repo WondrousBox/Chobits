@@ -31,8 +31,8 @@ function getMetaDraftSnapshot(meta: { condition?: unknown; primaryTrigger?: stri
 }
 
 export default function SpriteAnimationMetaPopover({ disabled = false, meta, onSave }: SpriteAnimationMetaPopoverProps): JSX.Element {
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [primaryTrigger, setPrimaryTrigger] = useState<SpriteAnimationTrigger | ''>(getPrimarySpriteAnimationTrigger(meta) || '');
   const [triggerAliasesInput, setTriggerAliasesInput] = useState<string>(formatSpriteTriggerAliasesInput(getSpriteAnimationTriggerAliases(meta)));
   const [priorityInput, setPriorityInput] = useState<string>(meta.priority !== undefined ? String(meta.priority) : '');
@@ -75,21 +75,21 @@ export default function SpriteAnimationMetaPopover({ disabled = false, meta, onS
   const resolvedTriggers = [draft.primaryTrigger, ...(draft.triggerAliases ?? [])].filter(Boolean).join(', ') || '未设置';
 
   const handleSave = async (): Promise<void> => {
-    if (saving || !hasChanges) return;
-    setSaving(true);
+    if (isSaving || !hasChanges) return;
+    setIsSaving(true);
     try {
       await onSave(draft);
-      setOpen(false);
+      setIsOpen(false);
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   };
 
   return (
     <Popover
-      open={open}
+      open={isOpen}
       onOpenChange={(nextOpen) => {
-        setOpen(nextOpen);
+        setIsOpen(nextOpen);
         if (nextOpen) hydrateFromMeta();
       }}
     >
@@ -139,16 +139,16 @@ export default function SpriteAnimationMetaPopover({ disabled = false, meta, onS
             onClick={() => {
               hydrateFromMeta();
             }}
-            disabled={saving}
+            disabled={isSaving}
           >
             重置
           </Button>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setOpen(false)} disabled={saving}>
+            <Button size="sm" variant="ghost" onClick={() => setIsOpen(false)} disabled={isSaving}>
               取消
             </Button>
-            <Button size="sm" onClick={() => void handleSave()} disabled={saving || !hasChanges || !!parsedCondition.error}>
-              {saving ? '保存中…' : '保存'}
+            <Button size="sm" onClick={() => void handleSave()} disabled={isSaving || !hasChanges || !!parsedCondition.error}>
+              {isSaving ? '保存中…' : '保存'}
             </Button>
           </div>
         </div>

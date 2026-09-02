@@ -25,7 +25,7 @@ export function createDefaultSpriteStateContextValue(): SpriteStateContextValue 
   return {
     spriteState: 'idle',
     subState: null,
-    personaState: null,
+    characterState: null,
     currentAnimation: null,
     walkDirection: null,
     isWalking: false,
@@ -40,7 +40,7 @@ export function applyInitialSpriteState(value: SpriteStateContextValue, initial:
     ...value,
     spriteState: initial.state ?? 'idle',
     subState: initial.subState ?? null,
-    personaState: initial.personaState ?? null,
+    characterState: initial.characterState ?? null,
     currentAnimation: initial.currentAnimation ?? null,
     spriteConfig: resolveInitialSpriteConfig(initial),
     ready: true
@@ -52,7 +52,7 @@ export function applySpriteStateSnapshot(value: SpriteStateContextValue, data: S
     ...value,
     spriteState: data.state || value.spriteState,
     subState: data.subState !== undefined ? data.subState : value.subState,
-    personaState: data.personaSnapshot || value.personaState
+    characterState: data.characterState || value.characterState
   };
 }
 

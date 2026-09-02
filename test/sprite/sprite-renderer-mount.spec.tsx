@@ -88,7 +88,7 @@ describe('sprite renderer mount', () => {
     const initialState: SpriteInitialState = {
       state: 'idle',
       subState: null,
-      personaState: null,
+      characterState: null,
       animations: [],
       currentAnimation: null,
       config: {
@@ -141,7 +141,7 @@ describe('sprite renderer mount', () => {
     const state = {
       spriteState: 'idle',
       subState: null,
-      personaState: null,
+      characterState: null,
       currentAnimation: null,
       walkDirection: null,
       isWalking: false,
@@ -191,7 +191,7 @@ describe('sprite renderer mount', () => {
     const harness = createSpriteBridgeHarness({
       state: 'idle',
       subState: null,
-      personaState: { favor: 50 } as any,
+      characterState: { favor: 50 } as any,
       animations: [],
       currentAnimation: {
         animationId: 'idle-default',
@@ -212,7 +212,7 @@ describe('sprite renderer mount', () => {
       }
     } as SpriteInitialState);
 
-    (env.window as any).YUA = { sprite: harness.bridge };
+    (env.window as any).chobits = { sprite: harness.bridge };
 
     const { SpriteStateProvider } = await import('../../src/features/sprite-assistant/context/SpriteStateContext');
     const { useSpriteState } = await import('../../src/features/sprite-assistant/context/hooks');
@@ -256,7 +256,7 @@ describe('sprite renderer mount', () => {
       harness.emitState({
         state: 'walking',
         subState: null,
-        personaSnapshot: { favor: 52 } as any
+        characterState: { favor: 52 } as any
       });
       harness.emitWalk({ active: true, direction: 'right' });
       harness.emitPlay({
@@ -329,7 +329,7 @@ describe('sprite renderer mount', () => {
     const harness = createSpriteBridgeHarness({
       state: 'idle',
       subState: null,
-      personaState: null,
+      characterState: null,
       animations: [],
       currentAnimation: {
         animationId: 'loading-loop',
@@ -351,7 +351,7 @@ describe('sprite renderer mount', () => {
       }
     } as SpriteInitialState);
 
-    (env.window as any).YUA = { sprite: harness.bridge };
+    (env.window as any).chobits = { sprite: harness.bridge };
 
     const { SpriteStateProvider } = await import('../../src/features/sprite-assistant/context/SpriteStateContext');
     const { useSpriteState } = await import('../../src/features/sprite-assistant/context/hooks');
@@ -417,7 +417,7 @@ describe('sprite renderer mount', () => {
     const harness = createSpriteBridgeHarness({
       state: 'idle',
       subState: null,
-      personaState: null,
+      characterState: null,
       animations: [],
       currentAnimation: {
         animationId: 'idle-default',
@@ -440,7 +440,7 @@ describe('sprite renderer mount', () => {
       }
     } as SpriteInitialState);
 
-    (env.window as any).YUA = { sprite: harness.bridge };
+    (env.window as any).chobits = { sprite: harness.bridge };
 
     const { SpriteStateProvider } = await import('../../src/features/sprite-assistant/context/SpriteStateContext');
     const { useSpriteState } = await import('../../src/features/sprite-assistant/context/hooks');
@@ -532,7 +532,7 @@ describe('sprite renderer mount', () => {
     const harness = createSpriteBridgeHarness({
       state: 'walking',
       subState: null,
-      personaState: null,
+      characterState: null,
       animations: [],
       currentAnimation: {
         animationId: 'walk-segmented',
@@ -558,7 +558,7 @@ describe('sprite renderer mount', () => {
       }
     } as SpriteInitialState);
 
-    (env.window as any).YUA = { sprite: harness.bridge };
+    (env.window as any).chobits = { sprite: harness.bridge };
 
     const { SpriteStateProvider } = await import('../../src/features/sprite-assistant/context/SpriteStateContext');
     const { useSpriteState } = await import('../../src/features/sprite-assistant/context/hooks');
@@ -597,7 +597,7 @@ describe('sprite renderer mount', () => {
       harness.emitState({
         state: 'idle',
         subState: null,
-        personaSnapshot: { favor: 52 } as any
+        characterState: { favor: 52 } as any
       });
       harness.emitWalk({ active: false });
       await Promise.resolve();
@@ -629,7 +629,7 @@ describe('sprite renderer mount', () => {
     const harness = createSpriteBridgeHarness({
       state: 'idle',
       subState: null,
-      personaState: null,
+      characterState: null,
       animations: [],
       currentAnimation: {
         animationId: 'idle-segmented',
@@ -655,7 +655,7 @@ describe('sprite renderer mount', () => {
       }
     } as SpriteInitialState);
 
-    (env.window as any).YUA = { sprite: harness.bridge };
+    (env.window as any).chobits = { sprite: harness.bridge };
 
     const { SpriteStateProvider } = await import('../../src/features/sprite-assistant/context/SpriteStateContext');
     const { useSpriteState } = await import('../../src/features/sprite-assistant/context/hooks');

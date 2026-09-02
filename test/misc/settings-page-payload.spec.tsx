@@ -37,7 +37,7 @@ describe('SettingsPage payload handling', () => {
         if (ipcListeners.get(event) === listener) ipcListeners.delete(event);
       })
     };
-    (env.window as any).YUA = {
+    (env.window as any).chobits = {
       ai: {
         getProviders: vi.fn(async () => [
           { id: 'openai', label: 'OpenAI', configured: false, capabilities: { chat: true }, schema: { fields: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }] } }
@@ -68,8 +68,8 @@ describe('SettingsPage payload handling', () => {
     expect(env.container.textContent).toContain('对话设置');
     expect(env.container.textContent).toContain('OpenAI');
     expect(env.container.textContent).toContain('编辑预设 · OpenAI');
-    expect((env.window as any).YUA.ai.listPresets).toHaveBeenCalledWith('openai');
-    expect((env.window as any).YUA.ai.getPresetSecrets).toHaveBeenCalledWith('preset-openai');
+    expect((env.window as any).chobits.ai.listPresets).toHaveBeenCalledWith('openai');
+    expect((env.window as any).chobits.ai.getPresetSecrets).toHaveBeenCalledWith('preset-openai');
 
     await act(async () => {
       root.unmount();

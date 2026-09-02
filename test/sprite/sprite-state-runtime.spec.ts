@@ -79,7 +79,7 @@ describe('sprite state runtime helpers', () => {
     expect(createDefaultSpriteStateContextValue()).toEqual({
       spriteState: 'idle',
       subState: null,
-      personaState: null,
+      characterState: null,
       currentAnimation: null,
       walkDirection: null,
       isWalking: false,
@@ -100,7 +100,7 @@ describe('sprite state runtime helpers', () => {
     const initial = applyInitialSpriteState(createDefaultSpriteStateContextValue(), {
       state: 'walking',
       subState: 'custom',
-      personaState: { favor: 88 } as any,
+      characterState: { favor: 88 } as any,
       currentAnimation: {
         animationId: 'intro',
         source: { localPath: './intro.webm', type: 'video/webm' },
@@ -118,7 +118,7 @@ describe('sprite state runtime helpers', () => {
     const withState = applySpriteStateSnapshot(initial, {
       state: 'reacting',
       subState: 'click',
-      personaSnapshot: { favor: 90 } as any
+      characterState: { favor: 90 } as any
     });
     const withPlay = applySpritePlayCommand(withState, {
       animationId: 'thinking',
@@ -158,7 +158,7 @@ describe('SpriteStateRuntimeController', () => {
       initialState: {
         state: 'idle',
         subState: null,
-        personaState: { favor: 50 } as any,
+        characterState: { favor: 50 } as any,
         currentAnimation: {
           animationId: 'idle-default',
           source: { localPath: './idle.webm', type: 'video/webm' },
@@ -187,7 +187,7 @@ describe('SpriteStateRuntimeController', () => {
     expect(harness.bridge.ready).toHaveBeenCalledTimes(1);
     expect(controller.getSnapshot()).toMatchObject({
       spriteState: 'idle',
-      personaState: { favor: 50 },
+      characterState: { favor: 50 },
       spriteConfig: {
         width: 200,
         height: 220,
@@ -201,7 +201,7 @@ describe('SpriteStateRuntimeController', () => {
     harness.emitState({
       state: 'walking',
       subState: 'custom',
-      personaSnapshot: { favor: 52 } as any
+      characterState: { favor: 52 } as any
     });
     harness.emitPlay({
       animationId: 'wave',
@@ -275,7 +275,7 @@ describe('SpriteStateRuntimeController', () => {
     resolveInitial?.({
       state: 'walking',
       subState: null,
-      personaState: null,
+      characterState: null,
       currentAnimation: null,
       animations: [],
       config: {

@@ -18,20 +18,20 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 
-import { joinEditorLines, slugifyCharacterPackId, splitEditorLines, type SpritePackEditorState, withSpritePackEditorDraft } from './SpritePackEditorModel';
+import { joinEditorLines, slugifyCharacterPackId, splitEditorLines, type CharacterPackEditorState, withCharacterPackEditorDraft } from './character-pack-editor-model';
 
-interface SpritePackEditorContentProps {
-  editor: SpritePackEditorState;
-  setEditor: Dispatch<SetStateAction<SpritePackEditorState | null>>;
+interface CharacterPackEditorContentProps {
+  editor: CharacterPackEditorState;
+  setEditor: Dispatch<SetStateAction<CharacterPackEditorState | null>>;
   className?: string;
   extra?: ReactNode;
 }
 
-export function SpritePackEditorContent({ editor, setEditor, className, extra }: SpritePackEditorContentProps): JSX.Element {
+export function CharacterPackEditorContent({ editor, setEditor, className, extra }: CharacterPackEditorContentProps): JSX.Element {
   const updateEditorPack = useCallback(
     (patch: Partial<CharacterPackEditorDraft['pack']>): void => {
       setEditor((current) =>
-        withSpritePackEditorDraft(current, (draft) => ({
+        withCharacterPackEditorDraft(current, (draft) => ({
           ...draft,
           pack: {
             ...draft.pack,
@@ -46,7 +46,7 @@ export function SpritePackEditorContent({ editor, setEditor, className, extra }:
   const updateEditorCharacter = useCallback(
     (patch: Partial<CharacterPackEditorDraft['character']>): void => {
       setEditor((current) =>
-        withSpritePackEditorDraft(current, (draft) => ({
+        withCharacterPackEditorDraft(current, (draft) => ({
           ...draft,
           character: {
             ...draft.character,
@@ -61,7 +61,7 @@ export function SpritePackEditorContent({ editor, setEditor, className, extra }:
   const updateEditorMessages = useCallback(
     (patch: Partial<NonNullable<CharacterPackEditorDraft['messages']>>): void => {
       setEditor((current) =>
-        withSpritePackEditorDraft(current, (draft) => ({
+        withCharacterPackEditorDraft(current, (draft) => ({
           ...draft,
           messages: {
             ...buildDefaultCharacterMessageEditorFields({
@@ -81,7 +81,7 @@ export function SpritePackEditorContent({ editor, setEditor, className, extra }:
   const updateEditorExample = useCallback(
     (index: number, patch: Partial<CharacterPackEditorDraft['character']['speechExamples'][number]>): void => {
       setEditor((current) =>
-        withSpritePackEditorDraft(current, (draft) => {
+        withCharacterPackEditorDraft(current, (draft) => {
           const speechExamples = draft.character.speechExamples.map((entry, entryIndex) => (entryIndex === index ? { ...entry, ...patch } : entry));
           return {
             ...draft,
@@ -99,7 +99,7 @@ export function SpritePackEditorContent({ editor, setEditor, className, extra }:
   const removeEditorExample = useCallback(
     (index: number): void => {
       setEditor((current) =>
-        withSpritePackEditorDraft(current, (draft) => ({
+        withCharacterPackEditorDraft(current, (draft) => ({
           ...draft,
           character: {
             ...draft.character,
@@ -113,7 +113,7 @@ export function SpritePackEditorContent({ editor, setEditor, className, extra }:
 
   const addEditorExample = useCallback((): void => {
     setEditor((current) =>
-      withSpritePackEditorDraft(current, (draft) => ({
+      withCharacterPackEditorDraft(current, (draft) => ({
         ...draft,
         character: {
           ...draft.character,
@@ -168,7 +168,7 @@ export function SpritePackEditorContent({ editor, setEditor, className, extra }:
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="space-y-2">
             <Label>角色包 ID</Label>
-            <Input value={editor.draft.pack.id} onChange={(event) => updateEditorPack({ id: slugifyCharacterPackId(event.target.value) })} disabled={editor.mode === 'edit'} />
+            <Input value={editor.draft.pack.id} onChange={(event) => updateEditorPack({ id: slugifyCharacterPackId(event.target.value) })} disabled={editor.saveMode === 'edit'} />
           </div>
           <div className="space-y-2">
             <Label>角色包名称</Label>

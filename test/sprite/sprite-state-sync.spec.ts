@@ -8,7 +8,7 @@ describe('sprite state sync helpers', () => {
     const initial = {
       state: 'idle',
       subState: null,
-      personaState: null,
+      characterState: null,
       animations: [],
       currentAnimation: {
         animationId: 'idle-default',

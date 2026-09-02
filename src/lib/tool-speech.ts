@@ -15,7 +15,7 @@ export function speakToolResultSpeech(data: any, options?: SpeakToolResultSpeech
   const speech = readToolResultSpeech(data);
   if (!speech || typeof window === 'undefined') return;
 
-  const speak = window.YUA?.sprite?.speak;
+  const speak = window.chobits?.sprite?.speak;
   if (typeof speak !== 'function') return;
 
   const run = (): void => {

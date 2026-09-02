@@ -2,7 +2,7 @@ import { debounce } from 'lodash-es';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
-import DragAbleTitle from '@/components/common/DragAbleTitle';
+import DraggableTitle from '@/components/common/DraggableTitle';
 import TintableSvg from '@/components/common/TintableSvg';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,7 +32,7 @@ type IncomingPayload = {
   fields?: string[];
 };
 
-export default function AiProviderConfigWindow(): JSX.Element {
+export default function AIProviderConfigWindow(): JSX.Element {
   const [providerId, setProviderId] = useState<string>('zhipu');
   const [presetId, setPresetId] = useState<string | undefined>(undefined);
   const [limitedFields, setLimitedFields] = useState<string[]>([]);
@@ -40,8 +40,8 @@ export default function AiProviderConfigWindow(): JSX.Element {
   const [provider, setProvider] = useState<ProviderRow | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<FieldError>({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   const currentLang = navigator.language?.toLowerCase?.() || 'en';
   const pickLocale = useCallback(
@@ -59,45 +59,45 @@ export default function AiProviderConfigWindow(): JSX.Element {
     let mounted = true;
     const bootstrap = async (): Promise<void> => {
       try {
-        const payload = (await window.YUA.window['window:payload:get']('aiProviderConfig' as any)) as IncomingPayload | undefined;
-        const pid = payload?.providerId || 'zhipu';
+        const payload = (await window.chobits.window['window:payload:get']('aiProviderConfig' as any)) as IncomingPayload | undefined;
+        const requestedProviderId = payload?.providerId || 'zhipu';
         const targetPresetId = payload?.presetId?.trim() || undefined;
-        const flds = Array.isArray(payload?.fields) ? payload.fields!.filter(Boolean) : [];
+        const payloadFields = Array.isArray(payload?.fields) ? payload.fields!.filter(Boolean) : [];
 
-        const provs = (await window.YUA.ai.getProviders()) as ProviderRow[];
-        const p = resolveProviderIdentity(provs || [], pid) || null;
-        const resolvedProviderId = p?.id || pid;
+        const providers = (await window.chobits.ai.getProviders()) as ProviderRow[];
+        const p = resolveProviderIdentity(providers || [], requestedProviderId) || null;
+        const resolvedProviderId = p?.id || requestedProviderId;
         if (!mounted) return;
         setProviderId(resolvedProviderId);
         setPresetId(targetPresetId);
-        setLimitedFields(flds);
+        setLimitedFields(payloadFields);
         setProvider(p);
         if (!p) {
-          setLoading(false);
+          setIsLoading(false);
           return;
         }
 
         if (!mounted) return;
-        const scopedSecrets = targetPresetId ? await window.YUA.ai.getPresetSecrets(targetPresetId).catch(() => ({})) : await window.YUA.ai.getProviderSecrets(resolvedProviderId).catch(() => ({}));
+        const scopedSecrets = targetPresetId ? await window.chobits.ai.getPresetSecrets(targetPresetId).catch(() => ({})) : await window.chobits.ai.getProviderSecrets(resolvedProviderId).catch(() => ({}));
         if (!mounted) return;
         // 已保存的值优先，未保存的字段用 provider 内置默认配置预填展示
         setValues({ ...(p.defaultConfig || {}), ...((scopedSecrets || {}) as Record<string, string>) });
       } catch {
         // ignore
       } finally {
-        if (mounted) setLoading(false);
+        if (mounted) setIsLoading(false);
       }
 
       // 通知主进程：窗口已准备就绪
       try {
-        await window.YUA.window['window:open:ready']('aiProviderConfig' as any);
+        await window.chobits.window['window:open:ready']('aiProviderConfig' as any);
       } catch {
         // ignore
       }
     };
 
     bootstrap().catch(() => {
-      if (mounted) setLoading(false);
+      if (mounted) setIsLoading(false);
     });
 
     return () => {
@@ -122,7 +122,7 @@ export default function AiProviderConfigWindow(): JSX.Element {
   const debouncedAutoSave = useMemo(
     () =>
       debounce(
-        async (pid: string, currentValues: Record<string, string>, currentFields: typeof displayFields) => {
+        async (targetProviderId: string, currentValues: Record<string, string>, currentFields: typeof displayFields) => {
           try {
             if (!currentFields.length) return;
             const payload: Record<string, string> = {};
@@ -132,18 +132,18 @@ export default function AiProviderConfigWindow(): JSX.Element {
               }
             });
             if (Object.keys(payload).length === 0) return;
-            setSaving(true);
+            setIsSaving(true);
             if (presetId) {
-              await window.YUA.ai.setPresetSecrets(presetId, payload);
-              await selectChatDefaultsForProvider({ providerId: pid, presetId, provider: provider ?? undefined });
+              await window.chobits.ai.setPresetSecrets(presetId, payload);
+              await selectChatDefaultsForProvider({ providerId: targetProviderId, presetId, provider: provider ?? undefined });
             } else {
-              await window.YUA.ai.setProviderSecrets(pid, payload);
-              await selectChatDefaultsForProvider({ providerId: pid, provider: provider ?? undefined });
+              await window.chobits.ai.setProviderSecrets(targetProviderId, payload);
+              await selectChatDefaultsForProvider({ providerId: targetProviderId, provider: provider ?? undefined });
             }
           } catch (e: any) {
             toast.error('自动保存失败', { description: e?.message || String(e) });
           } finally {
-            setSaving(false);
+            setIsSaving(false);
           }
         },
         500,
@@ -177,7 +177,7 @@ export default function AiProviderConfigWindow(): JSX.Element {
     window.close();
   }, [debouncedAutoSave]);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="w-full h-full flex items-center justify-center text-sm">
         <span>载入中...</span>
@@ -195,7 +195,7 @@ export default function AiProviderConfigWindow(): JSX.Element {
 
   return (
     <div className="w-full h-full">
-      <DragAbleTitle title={<span>{presetId ? '🔑 预设秘钥配置' : '🔑 服务商配置'}</span>} />
+      <DraggableTitle title={<span>{presetId ? '🔑 预设秘钥配置' : '🔑 服务商配置'}</span>} />
       <div className="w-full h-[calc(100%-36px)] px-4 box-border">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -250,8 +250,8 @@ export default function AiProviderConfigWindow(): JSX.Element {
         </div>
 
         <div className="flex justify-end gap-2 mt-2">
-          {saving && <div className="mr-auto text-xs text-muted-foreground">正在自动保存...</div>}
-          <Button variant="outline" size="sm" disabled={saving} onClick={handleClose}>
+          {isSaving && <div className="mr-auto text-xs text-muted-foreground">正在自动保存...</div>}
+          <Button variant="outline" size="sm" disabled={isSaving} onClick={handleClose}>
             取消
           </Button>
         </div>

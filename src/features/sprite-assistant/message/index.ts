@@ -7,7 +7,7 @@
  *    ```tsx
  *    import { MessageProvider } from './message';
  *    <MessageProvider>
- *      <AIAssistant />
+ *      <SpriteApp />
  *    </MessageProvider>
  *    ```
  *

@@ -5,7 +5,7 @@
  * 1. 订阅主进程消息桥（沿用 MessageProvider）渲染 toast/notice/busy 气泡。
  * 2. 通过离屏测量层和 ResizeObserver 测量内容尺寸，节流后调用 `sprite:bubble:resize`
  *    让主进程调整窗口大小，并触发对应的跟随/固定定位刷新。
- * 3. 根据当前是否有消息，调用 `sprite:bubble:setVisible` 显示/隐藏窗口；隐藏延迟到
+ * 3. 根据当前是否有消息，调用 `sprite:bubble:set-visible` 显示/隐藏窗口；隐藏延迟到
  *    淡出动画结束之后，避免抖动。
  *
  * 注意：本页面服务于独立窗口气泡模式；inline 模式下窗口保持隐藏即可。
@@ -51,7 +51,7 @@ function SpriteBubbleContent(): JSX.Element | null {
     const setVisible = (visible: boolean): void => {
       if (lastVisibleRef.current === visible) return;
       lastVisibleRef.current = visible;
-      void window.YUA.sprite.bubbleSetVisible(visible).catch(() => undefined);
+      void window.chobits.sprite.bubbleSetVisible(visible).catch(() => undefined);
     };
 
     if (!isWindowMode) {
@@ -106,7 +106,7 @@ function SpriteBubbleContent(): JSX.Element | null {
       const last = lastSizeRef.current;
       if (last.width === width && last.height === height) return;
       lastSizeRef.current = { width, height };
-      void window.YUA.sprite.bubbleResize(width, height).catch(() => undefined);
+      void window.chobits.sprite.bubbleResize(width, height).catch(() => undefined);
     };
 
     const schedule = (): void => {

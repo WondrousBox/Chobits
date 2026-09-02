@@ -38,7 +38,7 @@ export function useFileDropCollector(): {
     if (dragCounterRef.current === 1) {
       const correlationId = dragCorrelationIdRef.current ?? createFileDropCorrelationId();
       dragCorrelationIdRef.current = correlationId;
-      window.YUA.sprite.interact('file-drag-over', { correlationId });
+      window.chobits.sprite.interact('file-drag-over', { correlationId });
     }
   };
 
@@ -51,7 +51,7 @@ export function useFileDropCollector(): {
       setIsFileDragOver(false);
       // 上报交互：文件拖出 → 结束 fileDragOver 动画
       const correlationId = dragCorrelationIdRef.current;
-      window.YUA.sprite.interact('file-drag-leave', correlationId ? { correlationId } : undefined);
+      window.chobits.sprite.interact('file-drag-leave', correlationId ? { correlationId } : undefined);
       dragCorrelationIdRef.current = null;
     }
   };
@@ -59,7 +59,7 @@ export function useFileDropCollector(): {
   const reportFileDrop = async (payload: FileDropPayloadItem[]): Promise<void> => {
     const correlationId = dragCorrelationIdRef.current ?? createFileDropCorrelationId();
     dragCorrelationIdRef.current = null;
-    await window.YUA.sprite.fileDrop(payload, { correlationId });
+    await window.chobits.sprite.fileDrop(payload, { correlationId });
   };
 
   const handleDrop = async (e: React.DragEvent<HTMLElement>): Promise<void> => {

@@ -49,7 +49,7 @@ describe('selectChatDefaultsForProvider', () => {
       { id: 'MiniMax-M2.7', type: 'chat' },
       { id: 'MiniMax-M2.7-highspeed', type: 'chat' }
     ]);
-    (env.window as any).YUA = { ai: { getProviders, listModels } };
+    (env.window as any).chobits = { ai: { getProviders, listModels } };
 
     const { selectChatDefaultsForProvider } = await import('../../src/lib/chat-selection-defaults');
     const result = await selectChatDefaultsForProvider({
@@ -68,7 +68,7 @@ describe('selectChatDefaultsForProvider', () => {
   it('falls back to provider default chat model when no model list is available', async () => {
     const getProviders = vi.fn(async () => [{ id: 'openai', defaultModels: { chat: 'gpt-4o-mini' } }]);
     const listModels = vi.fn(async () => []);
-    (env.window as any).YUA = { ai: { getProviders, listModels } };
+    (env.window as any).chobits = { ai: { getProviders, listModels } };
 
     const { selectChatDefaultsForProvider } = await import('../../src/lib/chat-selection-defaults');
     const result = await selectChatDefaultsForProvider({ providerId: 'openai' });

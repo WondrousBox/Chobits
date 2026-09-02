@@ -5,29 +5,29 @@ export const CHAT_ENTRY_DESCRIPTION = '开启后，双击桌面精灵会打开�
 
 export function useChatEntrySettings(): {
   description: string;
-  enabled: boolean;
-  loading: boolean;
-  pending: boolean;
+  isEnabled: boolean;
+  isLoading: boolean;
+  isPending: boolean;
   setEnabled: (enabled: boolean) => Promise<void>;
 } {
-  const [enabled, setEnabledState] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [pending, setPending] = useState(false);
+  const [isEnabled, setIsEnabledValue] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isPending, setIsPending] = useState(false);
 
   useEffect(() => {
     let disposed = false;
 
     const load = async (): Promise<void> => {
       try {
-        const result = await window.YUA.preferences['preferences:getConfig']();
+        const result = await window.chobits.preferences['preferences:get-config']();
         if (!disposed && result.ok && result.config) {
-          setEnabledState(Boolean(result.config.assistantMiniWindowEnabled));
+          setIsEnabledValue(Boolean(result.config.assistantMiniWindowEnabled));
         }
       } catch (error) {
         console.warn('[ChatEntrySettings] failed to load assistant mini window setting:', error);
       } finally {
         if (!disposed) {
-          setLoading(false);
+          setIsLoading(false);
         }
       }
     };
@@ -40,31 +40,31 @@ export function useChatEntrySettings(): {
 
   const setEnabled = useCallback(
     async (nextEnabled: boolean): Promise<void> => {
-      if (pending) return;
-      const previous = enabled;
-      setEnabledState(nextEnabled);
-      setPending(true);
+      if (isPending) return;
+      const previous = isEnabled;
+      setIsEnabledValue(nextEnabled);
+      setIsPending(true);
       try {
-        const result = await window.YUA.preferences['preferences:setConfig']({
+        const result = await window.chobits.preferences['preferences:set-config']({
           config: { assistantMiniWindowEnabled: nextEnabled }
         });
         if (!result.ok || !result.config) {
           throw new Error(result.error || '设置迷你输入窗失败');
         }
-        setEnabledState(Boolean(result.config.assistantMiniWindowEnabled));
+        setIsEnabledValue(Boolean(result.config.assistantMiniWindowEnabled));
       } catch (error) {
-        setEnabledState(previous);
+        setIsEnabledValue(previous);
         toast.error('设置迷你输入窗失败', {
           description: error instanceof Error ? error.message : String(error)
         });
       } finally {
-        setPending(false);
+        setIsPending(false);
       }
     },
-    [enabled, pending]
+    [isEnabled, isPending]
   );
 
-  return { description: CHAT_ENTRY_DESCRIPTION, enabled, loading, pending, setEnabled };
+  return { description: CHAT_ENTRY_DESCRIPTION, isEnabled, isLoading, isPending, setEnabled };
 }
 
 export type ChatEntrySettingsState = ReturnType<typeof useChatEntrySettings>;

@@ -2,11 +2,11 @@
  * Sprite Assistant — renderer feature module
  *
  * 渲染进程只需:
- *   import { AIAssistant, SpriteStateProvider } from '@/features/sprite-assistant'
+ *   import { SpriteApp, SpriteStateProvider } from '@/features/sprite-assistant'
  */
 
 // ── Components ──────────────────────────────────────────────
-export { AIAssistant } from './AIAssistant';
+export { SpriteApp } from './SpriteApp';
 export { useSpriteState } from './context/hooks';
 export { SpriteStateProvider } from './context/SpriteStateContext';
 

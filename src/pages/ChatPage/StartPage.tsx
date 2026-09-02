@@ -6,7 +6,6 @@ import { AssistantMiniInputWithService, ChatInputWithService, type ChatInputWith
 import { Button } from '@/components/ui/button';
 import { ensureChatApiConfigGoal, guideChatApiConfigIfNeeded } from '@/lib/chat-api-config-guide';
 
-import { CHAT_OVERLAY_SETTINGS } from './chat-overlay-settings';
 import { useChatSelection } from './context/ChatSelectionContext';
 
 const PLACEHOLDERS = [
@@ -30,9 +29,9 @@ interface AssistantPageProps {
 const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
   const isMini = mode === 'mini';
   const windowKey = isMini ? 'assistantMini' : 'assistant';
-  const [opening, setOpening] = useState(true);
-  const [closing, setClosing] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [isOpening, setIsOpening] = useState(true);
+  const [isClosing, setIsClosing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const contentRootRef = useRef<HTMLDivElement | null>(null);
   const inputBlockRef = useRef<HTMLDivElement | null>(null);
   // 控制当模型下拉展开时，暂停自动尺寸调整
@@ -50,7 +49,7 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
 
   // 进场动画结束标记
   useEffect(() => {
-    const t = setTimeout(() => setOpening(false), 180);
+    const t = setTimeout(() => setIsOpening(false), 180);
     return () => clearTimeout(t);
   }, []);
 
@@ -60,11 +59,11 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
       if (visibilityOpenTimerRef.current) {
         window.clearTimeout(visibilityOpenTimerRef.current);
       }
-      setClosing(false);
-      setOpening(true);
+      setIsClosing(false);
+      setIsOpening(true);
       visibilityOpenTimerRef.current = window.setTimeout(() => {
         visibilityOpenTimerRef.current = null;
-        setOpening(false);
+        setIsOpening(false);
       }, 180);
     };
 
@@ -79,10 +78,10 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
   }, [windowKey]);
 
   const close = useCallback(() => {
-    if (closing) return;
-    setClosing(true);
-    setTimeout(() => window.YUA.window['window:close'](windowKey), 160);
-  }, [closing, windowKey]);
+    if (isClosing) return;
+    setIsClosing(true);
+    setTimeout(() => window.chobits.window['window:close'](windowKey), 160);
+  }, [isClosing, windowKey]);
 
   // ESC 关闭
   useEffect(() => {
@@ -111,9 +110,9 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
     if (!content.trim() || !providerId || !modelId) return;
     if (sendingRef.current) return;
     sendingRef.current = true;
-    setLoading(true);
+    setIsLoading(true);
     try {
-      const resolvedPreset = await window.YUA.ai.resolveUsablePreset(providerId, preferredPresetId);
+      const resolvedPreset = await window.chobits.ai.resolveUsablePreset(providerId, preferredPresetId);
       if (!resolvedPreset?.id) {
         await ensureChatApiConfigGoal({ providerId, preferredPresetId, trigger: 'chat-send' });
         toast.error('当前服务商还没有可用预设，请先到 AI 设置中完成配置');
@@ -124,9 +123,8 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
       }
 
       // 打开聊天独立窗口，传递初始消息数据
-      const targetWindow = CHAT_OVERLAY_SETTINGS.enabledFromAssistantInput ? 'chatOverlay' : 'chat';
       const requestId = `assistant-chat-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      await window.YUA.window['window:open'](targetWindow as any, {
+      await window.chobits.window['window:open']('chat' as any, {
         requestId,
         initialMessage: content,
         providerId,
@@ -136,8 +134,7 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
         codingWorkspaceRoot,
         codingWorkspaceLabel,
         webSearchEnabled,
-        characterPersonaEnabled,
-        ...(targetWindow === 'chatOverlay' ? { overlaySide: CHAT_OVERLAY_SETTINGS.side } : {})
+        characterPersonaEnabled
       });
       // 关闭助手窗口
       setTimeout(() => close(), 150);
@@ -146,7 +143,7 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
       toast.error('打开聊天窗口失败');
     } finally {
       sendingRef.current = false;
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -159,14 +156,14 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
       const extraMargin = 12;
       const contentHeight = Math.ceil((blockRect?.bottom ?? window.innerHeight) + extraMargin);
       const currentWidth = window.innerWidth || html.clientWidth;
-      const screen = await window.YUA.window['screen:size:get']();
+      const screen = await window.chobits.window['screen:size:get']();
       const maxW = screen.width;
       const maxH = screen.height;
       const minW = isMini ? 320 : 360;
       const minH = isMini ? 56 : 100;
       const desiredWidth = Math.max(minW, Math.min(currentWidth, maxW));
       const desiredHeight = Math.max(minH, Math.min(contentHeight, maxH));
-      await window.YUA.window['window:size:set'](windowKey, desiredWidth, desiredHeight);
+      await window.chobits.window['window:size:set'](windowKey, desiredWidth, desiredHeight);
     } catch {
       //
     }
@@ -180,14 +177,14 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
       const extraMargin = 12;
       const contentHeight = Math.ceil((blockRect?.bottom ?? window.innerHeight) + extraMargin);
       const currentWidth = window.innerWidth || html.clientWidth;
-      const screen = await window.YUA.window['screen:size:get']();
+      const screen = await window.chobits.window['screen:size:get']();
       const maxW = screen.width;
       const maxH = screen.height;
       const minW = isMini ? 320 : 360;
       const minH = isMini ? 56 : 100;
       const desiredWidth = Math.max(minW, Math.min(currentWidth, maxW));
       const desiredHeight = Math.max(minH, Math.min(contentHeight + MENU_RESERVE_HEIGHT, maxH));
-      await window.YUA.window['window:size:set'](windowKey, desiredWidth, desiredHeight);
+      await window.chobits.window['window:size:set'](windowKey, desiredWidth, desiredHeight);
     } catch {
       //
     }
@@ -286,7 +283,7 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
 
   return (
     <div ref={contentRootRef} className="w-full h-full font-sans pointer-events-auto select-none relative drag-region">
-      <div className={`w-full flex flex-col overflow-hidden transition-all duration-180 ${opening ? 'opacity-0 scale-95' : closing ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
+      <div className={`w-full flex flex-col overflow-hidden transition-all duration-180 ${isOpening ? 'opacity-0 scale-95' : isClosing ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
         {!isMini && (
           <Button className="rounded-full no-drag absolute top-2 right-2 z-10" size={'icon'} variant={'ghost'} onClick={close}>
             <TbX />
@@ -300,7 +297,7 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
               {isMini ? (
                 <AssistantMiniInputWithService
                   autoFocus
-                  loading={loading}
+                  isLoading={isLoading}
                   placeholder="问点什么..."
                   onStart={handleSend}
                   onMenuOpenChange={handleMenuOpenChange}
@@ -310,7 +307,7 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
                 <ChatInputWithService
                   placeholders={PLACEHOLDERS}
                   autoFocus
-                  loading={loading}
+                  isLoading={isLoading}
                   menuPlacement="assistant-floating"
                   onStart={handleSend}
                   onHeightChange={handleInputHeightChange}

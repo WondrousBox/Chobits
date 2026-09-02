@@ -49,7 +49,7 @@ const ASRPage: React.FC = () => {
     let mounted = true;
     (async () => {
       try {
-        const payload = (await window.YUA.window['window:payload:get']('asr' as any)) as
+        const payload = (await window.chobits.window['window:payload:get']('asr' as any)) as
           | {
               mode?: 'local' | 'cloud';
               cloudProviderId?: string;
@@ -72,7 +72,7 @@ const ASRPage: React.FC = () => {
 
         // 检查 ASR 引擎状态
         try {
-          const status = await window.YUA.sherpa.getStatus();
+          const status = await window.chobits.sherpa.getStatus();
           if (mounted) {
             setAsrEngineReady(status.running);
           }
@@ -90,7 +90,7 @@ const ASRPage: React.FC = () => {
             const { resourceId } = parsed;
 
             // 完成音频和字幕文件的保存（更新状态为 ready，创建字幕资源记录）
-            await window.YUA.sherpa.checkPendingRecording({ resourceId });
+            await window.chobits.sherpa.checkPendingRecording({ resourceId });
 
             // 清除 localStorage 中的录音记录
             localStorage.removeItem('asr-current-recording');
@@ -109,15 +109,15 @@ const ASRPage: React.FC = () => {
     };
   }, []);
 
-  const onAudioLevel = useCallback((level: number) => {
+  const handleAudioLevel = useCallback((level: number) => {
     waveformRef.current?.addBar(level);
   }, []);
 
   // 翻译功能已移至 AIActionsPanel，这里禁用内置翻译
   const { isRecording, isASRRunning, recognizedSegments, pendingSegments, progressText, recordingDuration, startRecording, stopRecording, resumeRecording, wsRef, updateSegmentTranslation } = useASR({
-    enableTranslation: false,
+    translationEnabled: false,
     translateText: async () => {},
-    onAudioLevel,
+    onAudioLevel: handleAudioLevel,
     mode,
     cloudProviderId,
     cloudProviderPresetId,
@@ -191,13 +191,13 @@ const ASRPage: React.FC = () => {
       // 注意：不再停止 ASR 识别服务，服务生命周期由右键菜单独立控制
 
       // 第三步：清理录音流（以防万一）
-      await window.YUA.sherpa.cleanupStreams();
+      await window.chobits.sherpa.cleanupStreams();
 
       // 第四步：清除 localStorage 中的录音记录
       localStorage.removeItem('asr-current-recording');
 
       // 第五步：关闭窗口
-      window.YUA.window['window:close:self']();
+      window.chobits.window['window:close:self']();
     } catch (error) {
       console.error('[ASR] 关闭录音窗口失败:', error);
       setIsLoading(false);
@@ -252,7 +252,7 @@ const ASRPage: React.FC = () => {
           targetHeight = baseHeight;
         }
 
-        await window.YUA.window['window:size:set']('asr', targetWidth, targetHeight);
+        await window.chobits.window['window:size:set']('asr', targetWidth, targetHeight);
       } catch (error) {
         console.error('[ASR] 调整窗口大小失败:', error);
       }
@@ -264,8 +264,8 @@ const ASRPage: React.FC = () => {
   // ASR 引擎未启动时，自动打开 ASRConfig 面板并关闭当前窗口
   useEffect(() => {
     if (asrEngineReady === false) {
-      window.YUA.window['window:open']('asrConfig' as any);
-      window.YUA.window['window:close:self']();
+      window.chobits.window['window:open']('asrConfig' as any);
+      window.chobits.window['window:close:self']();
     }
   }, [asrEngineReady]);
 
@@ -285,7 +285,7 @@ const ASRPage: React.FC = () => {
     <>
       <div className="flex h-full w-full">
         {showLeftPanel && (
-          <HistoryPanel isTransparent={isSubtitleMode} isRecording={isRecording} selectedId={viewMode === 'preview' ? previewRecording?.id : null} onSelectRecording={handleSelectRecording} />
+          <HistoryPanel isSubtitleMode={isSubtitleMode} isRecording={isRecording} selectedId={viewMode === 'preview' ? previewRecording?.id : null} onSelectRecording={handleSelectRecording} />
         )}
         <div className={`flex flex-col h-full group drag-region overflow-hidden box-border ${isSubtitleMode ? 'bg-transparent' : 'bg-muted'}`}>
           {/* 顶部工具栏 */}
@@ -355,8 +355,8 @@ const ASRPage: React.FC = () => {
                   segments={viewMode === 'preview' ? previewSegments : isSubtitleMode && recognizedSegments.length > 0 ? [recognizedSegments[recognizedSegments.length - 1]] : recognizedSegments}
                   pendingSegments={viewMode === 'preview' ? [] : pendingSegments}
                   progressText={viewMode === 'preview' ? '' : progressText}
-                  enableTranslation={true}
-                  isTransparent={isSubtitleMode}
+                  translationEnabled={true}
+                  isSubtitleMode={isSubtitleMode}
                 />
 
                 <div className={clsx(['flex', isSubtitleMode ? 'bg-gradient-to-t from-background/20 via-background/5 to-transparent' : 'bg-background'])}>
@@ -394,7 +394,7 @@ const ASRPage: React.FC = () => {
                   <div className="flex-1">
                     {/* 预览模式显示音频播放器，录音模式显示波形控制栏 */}
                     {viewMode === 'preview' && previewRecording ? (
-                      <AudioPlayer audioFilePath={previewRecording.audioFilePath} isTransparent={isSubtitleMode} />
+                      <AudioPlayer audioFilePath={previewRecording.audioFilePath} isSubtitleMode={isSubtitleMode} />
                     ) : (
                       <ControlBar isRecording={isRecording} progressText={progressText} waveformRef={waveformRef} isSubtitleMode={isSubtitleMode} />
                     )}
@@ -407,7 +407,7 @@ const ASRPage: React.FC = () => {
             {/* 右侧面板：AI操作 */}
             {showRightPanel && !isSubtitleMode && (
               <div style={{ width: rightPanelWidth }}>
-                <AIActionsPanel segments={viewMode === 'preview' ? previewSegments : recognizedSegments} isTransparent={isSubtitleMode} onTranslationUpdate={handleTranslationUpdate} />
+                <AIActionsPanel segments={viewMode === 'preview' ? previewSegments : recognizedSegments} isSubtitleMode={isSubtitleMode} onTranslationUpdate={handleTranslationUpdate} />
               </div>
             )}
           </div>

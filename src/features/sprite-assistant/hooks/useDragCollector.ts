@@ -69,7 +69,7 @@ export function useDragCollector(): {
         setIsDragging(true);
 
         // 上报拖拽开始（主进程启动光标轮询）
-        window.YUA.sprite.dragStart(offsetX, offsetY);
+        window.chobits.sprite.dragStart(offsetX, offsetY);
       }, HOLD_DELAY_MS);
     },
     [cancelHold]
@@ -80,7 +80,7 @@ export function useDragCollector(): {
     if (!isDragging) return;
 
     const onUp = (): void => {
-      window.YUA.sprite.dragEnd();
+      window.chobits.sprite.dragEnd();
       setIsDragging(false);
       setIsDragReady(false);
     };

@@ -2146,7 +2146,7 @@ describe('SpriteRoutinePresetRegistry', () => {
           type: 'loopUntil',
           source: 'app-event',
           untilEvent: ['APP_WINDOW_OPENED'],
-          match: { windowKey: ['assistant', 'assistantMini', 'chat', 'chatOverlay'] },
+          match: { windowKey: ['assistant', 'assistantMini', 'chat'] },
           assignTo: 'firstChatWindowOpened'
         })
       ])

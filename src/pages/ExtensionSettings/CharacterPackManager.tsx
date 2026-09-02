@@ -1,4 +1,4 @@
-﻿import { CHARACTER_PACK_ARCHIVE_EXTENSION, CHARACTER_PACK_ARCHIVE_EXTENSION_NAME } from '@packages/sprite-core/character-pack-archive';
+import { CHARACTER_PACK_ARCHIVE_EXTENSION, CHARACTER_PACK_ARCHIVE_EXTENSION_NAME } from '@packages/sprite-core/character-pack-archive';
 import type { CharacterPackExportResult, CharacterPackSummary, CharacterPackTrustAssessment } from '@packages/sprite-core/character-pack-manager';
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { TbArchive, TbCheck, TbDownload, TbFolderOpen, TbLoader2, TbPencil, TbPlus, TbRefresh, TbShieldX, TbTrash } from 'react-icons/tb';
@@ -13,28 +13,28 @@ import { maskPath } from '@/lib/helpers';
 import { makeResSrc } from '@/lib/resource-protocol';
 import { SettingGroup, SettingItem, SettingPath } from '@/pages/SettingsPage/components/SettingComponents';
 
-import { SpritePackEditorContent } from './SpritePackEditor';
+import { CharacterPackEditorContent } from './CharacterPackEditor';
 import {
-  buildCreateSpritePackEditorState,
-  getSpritePackEditorDescription,
-  getSpritePackEditorTitle,
-  loadSpritePackEditorStateForPack,
-  saveSpritePackEditorState,
-  SPRITE_PACK_EDITOR_WINDOW_KEY,
-  type SpritePackEditorPresentation,
-  type SpritePackEditorState,
-  type SpritePackEditorWindowPayload,
-  subscribeSpritePackEditorEvents
-} from './SpritePackEditorModel';
+  buildCreateCharacterPackEditorState,
+  getCharacterPackEditorDescription,
+  getCharacterPackEditorTitle,
+  loadCharacterPackEditorStateForPack,
+  saveCharacterPackEditorState,
+  CHARACTER_PACK_EDITOR_WINDOW_KEY,
+  type CharacterPackEditorPresentation,
+  type CharacterPackEditorState,
+  type CharacterPackEditorWindowPayload,
+  subscribeCharacterPackEditorEvents
+} from './character-pack-editor-model';
 
-interface SpritePackManagerProps {
+interface CharacterPackManagerProps {
   afterRuntimeChange?: () => Promise<void> | void;
   editorExtra?: ReactNode;
-  editorPresentation?: SpritePackEditorPresentation;
+  editorPresentation?: CharacterPackEditorPresentation;
 }
 
 interface ImportPromptState {
-  inspection: Awaited<ReturnType<typeof window.YUA.persona.inspectCharacterPackFromArchive>>;
+  inspection: Awaited<ReturnType<typeof window.chobits.character.inspectCharacterPackFromArchive>>;
   activateAfterInstall: boolean;
 }
 
@@ -49,7 +49,7 @@ interface CharacterPackMutationResult {
   removedPack?: CharacterPackSummary;
   activePack?: CharacterPackSummary | null;
   character?: { id: string; name: string; nameAliases: string[]; tagline: string } | null;
-  personaSlot?: {
+  characterSlot?: {
     slotId: string;
     restored: boolean;
     switched: boolean;
@@ -353,30 +353,30 @@ function getPackMetadataBadges(pack: Pick<CharacterPackSummary, 'formatVersion' 
   ].filter((value): value is string => !!value);
 }
 
-export default function SpritePackManager({ afterRuntimeChange, editorExtra, editorPresentation = 'window' }: SpritePackManagerProps): JSX.Element {
+export default function CharacterPackManager({ afterRuntimeChange, editorExtra, editorPresentation = 'window' }: CharacterPackManagerProps): JSX.Element {
   const [packs, setPacks] = useState<CharacterPackSummary[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [importPrompt, setImportPrompt] = useState<ImportPromptState | null>(null);
   const [removeTarget, setRemoveTarget] = useState<CharacterPackSummary | null>(null);
-  const [editor, setEditor] = useState<SpritePackEditorState | null>(null);
+  const [editor, setEditor] = useState<CharacterPackEditorState | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
-    setLoading(true);
+    setIsLoading(true);
     try {
-      const nextPacks = await window.YUA.persona.listCharacterPacks();
+      const nextPacks = await window.chobits.character.listCharacterPacks();
       setPacks(nextPacks ?? []);
     } catch (error) {
       console.error('Failed to load character packs:', error);
       toast.error('读取角色包失败');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void refresh();
-    const unsubscribe = window.YUA.persona.onCharacterSwitched(async () => {
+    const unsubscribe = window.chobits.character.onCharacterSwitched(async () => {
       await refresh();
       await afterRuntimeChange?.();
     });
@@ -393,7 +393,7 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra, edi
   }, [afterRuntimeChange, refresh]);
 
   useEffect(() => {
-    return subscribeSpritePackEditorEvents(() => {
+    return subscribeCharacterPackEditorEvents(() => {
       void runAfterPackMutation();
     });
   }, [runAfterPackMutation]);
@@ -403,7 +403,7 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra, edi
       const actionKey = getPackBusyKey('activate', pack);
       setBusyKey(actionKey);
       try {
-        const result = (await window.YUA.persona.activateCharacterPack(pack.id, pack.source)) as CharacterPackMutationResult | null;
+        const result = (await window.chobits.character.activateCharacterPack(pack.id, pack.source)) as CharacterPackMutationResult | null;
         if (!result?.ok) {
           throw new Error(result?.error || `激活角色包失败: ${pack.name}`);
         }
@@ -420,7 +420,7 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra, edi
     [runAfterPackMutation]
   );
 
-  const openImportPrompt = useCallback((inspection: Awaited<ReturnType<typeof window.YUA.persona.inspectCharacterPackFromArchive>>): void => {
+  const openImportPrompt = useCallback((inspection: Awaited<ReturnType<typeof window.chobits.character.inspectCharacterPackFromArchive>>): void => {
     setImportPrompt({
       inspection,
       activateAfterInstall: false
@@ -431,7 +431,7 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra, edi
     async (archivePath: string): Promise<void> => {
       setBusyKey('inspect-archive');
       try {
-        const inspection = await window.YUA.persona.inspectCharacterPackFromArchive(archivePath);
+        const inspection = await window.chobits.character.inspectCharacterPackFromArchive(archivePath);
         openImportPrompt(inspection);
       } catch (error) {
         console.error('Failed to inspect character pack archive:', error);
@@ -447,7 +447,7 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra, edi
     async (archivePath: string, options?: CharacterPackMutationOptions): Promise<void> => {
       setBusyKey('install-archive');
       try {
-        const result = (await window.YUA.persona.installCharacterPackFromArchive(archivePath, {
+        const result = (await window.chobits.character.installCharacterPackFromArchive(archivePath, {
           replaceExisting: options?.replaceExisting,
           activate: options?.activate
         })) as CharacterPackMutationResult | null;
@@ -473,7 +473,7 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra, edi
   );
 
   const handleImportArchive = useCallback(async (): Promise<void> => {
-    const pick = await window.YUA.file['file:pickFile']({
+    const pick = await window.chobits.file['file:pick-file']({
       filters: [
         { name: 'Chobits Character Pack', extensions: [CHARACTER_PACK_ARCHIVE_EXTENSION_NAME] },
         { name: 'Zip Archive', extensions: ['zip'] }
@@ -481,7 +481,7 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra, edi
       multi: false
     });
 
-    if (pick.canceled || !pick.path) {
+    if (!pick.ok || !pick.path) {
       return;
     }
 
@@ -489,7 +489,7 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra, edi
   }, [inspectArchiveImport]);
 
   const handleExportPack = useCallback(async (pack: CharacterPackSummary): Promise<void> => {
-    const save = await window.YUA.file['file:saveFile']({
+    const save = await window.chobits.file['file:save-file']({
       title: '导出角色包',
       defaultPath: buildCharacterPackExportFilename(pack),
       filters: [
@@ -498,20 +498,20 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra, edi
       ]
     });
 
-    if (save.canceled || !save.path) {
+    if (!save.ok || !save.path) {
       return;
     }
 
     const actionKey = getPackBusyKey('export', pack);
     setBusyKey(actionKey);
     try {
-      const result = (await window.YUA.persona.exportCharacterPack(pack.id, save.path, pack.source)) as (CharacterPackExportResult & { ok: true }) | null;
+      const result = (await window.chobits.character.exportCharacterPack(pack.id, save.path, pack.source)) as (CharacterPackExportResult & { ok: true }) | null;
       if (!result?.ok) {
         throw new Error(`导出角色包失败: ${pack.name}`);
       }
 
       toast.success(`${result.pack.name} 已导出为 zip`);
-      await window.YUA.file['file:reveal'](result.outputPath);
+      await window.chobits.file['file:reveal'](result.outputPath);
     } catch (error) {
       console.error('Failed to export character pack:', error);
       toast.error(formatActionError('导出角色包失败', error));
@@ -539,7 +539,7 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra, edi
     const target = removeTarget;
     setBusyKey(getPackBusyKey('remove', target));
     try {
-      const result = (await window.YUA.persona.removeCharacterPack(target.id, target.source)) as CharacterPackMutationResult | null;
+      const result = (await window.chobits.character.removeCharacterPack(target.id, target.source)) as CharacterPackMutationResult | null;
       if (!result?.ok) {
         throw new Error(result?.error || `删除角色包失败: ${target.name}`);
       }
@@ -559,8 +559,8 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra, edi
     }
   }, [removeTarget, runAfterPackMutation]);
 
-  const openEditorWindow = useCallback(async (payload: SpritePackEditorWindowPayload): Promise<void> => {
-    await window.YUA.window['window:open'](SPRITE_PACK_EDITOR_WINDOW_KEY as any, payload, { sameDisplayAsSender: true });
+  const openEditorWindow = useCallback(async (payload: CharacterPackEditorWindowPayload): Promise<void> => {
+    await window.chobits.window['window:open'](CHARACTER_PACK_EDITOR_WINDOW_KEY as any, payload, { sameDisplayAsSender: true });
   }, []);
 
   const handleCreatePack = useCallback((): void => {
@@ -570,7 +570,7 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra, edi
     }
 
     const basePack = activePack ?? packs.find((pack) => pack.source === 'builtin') ?? packs[0] ?? undefined;
-    setEditor(buildCreateSpritePackEditorState(basePack, packs));
+    setEditor(buildCreateCharacterPackEditorState(basePack, packs));
   }, [activePack, editorPresentation, openEditorWindow, packs]);
 
   const handleEditPack = useCallback(
@@ -582,7 +582,7 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra, edi
 
       setBusyKey(getPackBusyKey('editor-draft', pack));
       try {
-        setEditor(await loadSpritePackEditorStateForPack(pack, packs));
+        setEditor(await loadCharacterPackEditorStateForPack(pack, packs));
       } catch (error) {
         console.error('Failed to load character pack editor:', error);
         toast.error(formatActionError('读取角色包草稿失败', error));
@@ -598,7 +598,7 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra, edi
 
     setBusyKey('editor-save');
     try {
-      const result = await saveSpritePackEditorState(editor, packs);
+      const result = await saveCharacterPackEditorState(editor, packs);
       setEditor(null);
       await runAfterPackMutation();
       toast.success(editor.activateAfterSave ? `${result.pack?.name ?? editor.draft.pack.name} 已保存并切换` : `${result.pack?.name ?? editor.draft.pack.name} 已保存`);
@@ -635,8 +635,8 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra, edi
               {busyKey === 'inspect-archive' || busyKey === 'install-archive' ? <TbLoader2 className="animate-spin" /> : <TbArchive />}
               导入
             </Button>
-            <Button size="icon" className="w-8 h-8" variant="ghost" onClick={() => void refresh()} disabled={loading}>
-              {loading ? <TbLoader2 className="animate-spin" /> : <TbRefresh />}
+            <Button size="icon" className="w-8 h-8" variant="ghost" onClick={() => void refresh()} disabled={isLoading}>
+              {isLoading ? <TbLoader2 className="animate-spin" /> : <TbRefresh />}
             </Button>
           </div>
         </div>
@@ -667,7 +667,7 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra, edi
                             {packBusyState.key === getPackBusyKey('activate', pack) ? <TbLoader2 className="h-4 w-4 animate-spin" /> : <TbCheck className="h-4 w-4" />}
                           </PackActionButton>
                         )}
-                        <PackActionButton label="打开" onClick={() => void window.YUA.file['file:openPath'](pack.rootDir)}>
+                        <PackActionButton label="打开" onClick={() => void window.chobits.file['file:open-path'](pack.rootDir)}>
                           <TbFolderOpen className="h-4 w-4" />
                         </PackActionButton>
                         <PackActionButton label="导出" onClick={() => void handleExportPack(pack)} disabled={packBusyState.active}>
@@ -923,13 +923,13 @@ export default function SpritePackManager({ afterRuntimeChange, editorExtra, edi
       <Dialog open={!!editor} onOpenChange={(open) => !open && setEditor(null)}>
         <DialogContent className={editorDialogContentClassName}>
           <DialogHeader className={editorHeaderClassName}>
-            <DialogTitle>{getSpritePackEditorTitle(editor)}</DialogTitle>
-            <DialogDescription>{getSpritePackEditorDescription(editor)}</DialogDescription>
+            <DialogTitle>{getCharacterPackEditorTitle(editor)}</DialogTitle>
+            <DialogDescription>{getCharacterPackEditorDescription(editor)}</DialogDescription>
           </DialogHeader>
 
           <div className={editorBodyClassName}>
             {editor && (
-              <SpritePackEditorContent
+              <CharacterPackEditorContent
                 editor={editor}
                 setEditor={setEditor}
                 extra={editorExtra ? <div className={editorUsesExpandedModal ? 'mt-5 border-t border-border/60 pt-5' : 'mt-4'}>{editorExtra}</div> : undefined}

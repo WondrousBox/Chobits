@@ -18,10 +18,10 @@ const applyDocumentTheme = (isDark: boolean): void => {
   root.classList.toggle('dark', isDark);
 };
 
-const ensureThemeIpcRenderer = (): Window['YUA']['theme'] | null => {
+const ensureThemeIpcRenderer = (): Window['chobits']['theme'] | null => {
   if (typeof window === 'undefined') return null;
   try {
-    return window.YUA?.theme ?? null;
+    return window.chobits?.theme ?? null;
   } catch {
     return null;
   }

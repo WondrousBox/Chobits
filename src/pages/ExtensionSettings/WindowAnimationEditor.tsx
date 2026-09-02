@@ -347,7 +347,7 @@ export default function WindowAnimationEditor(): JSX.Element {
   const [frames, setFrames] = useState<EditableKeyframe[]>(() => createDefaultFrames());
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [dragOperation, setDragOperation] = useState<DragOperation | null>(null);
-  const [clampToWorkArea, setClampToWorkArea] = useState(false);
+  const [shouldClampToWorkArea, setShouldClampToWorkArea] = useState(false);
   const [coordinateSpaceEnabled, setCoordinateSpaceEnabled] = useState(true);
   const [positionAnchor, setPositionAnchor] = useState<WindowAnimationAnchor>(DEFAULT_POSITION_ANCHOR);
   const [sizeMode, setSizeMode] = useState<EditorSizeMode>('explicit');
@@ -367,11 +367,11 @@ export default function WindowAnimationEditor(): JSX.Element {
       positionAnchor,
       createIfMissing: targetWindow !== 'main',
       showBeforePlay: true,
-      clampToWorkArea,
+      clampToWorkArea: shouldClampToWorkArea,
       suspendFollowMainDuringPlay: true,
       refreshFollowerAfterPlay: false
     }),
-    [clampToWorkArea, frames, normalizedCoordinateSpace, positionAnchor, sizeMode, targetWindow]
+    [shouldClampToWorkArea, frames, normalizedCoordinateSpace, positionAnchor, sizeMode, targetWindow]
   );
   const timelineJson = useMemo(() => JSON.stringify(timeline, null, 2), [timeline]);
 
@@ -483,7 +483,7 @@ export default function WindowAnimationEditor(): JSX.Element {
   }, []);
 
   const play = useCallback(async () => {
-    const result = await window.YUA.window['window:animation:play'](targetWindow, timeline);
+    const result = await window.chobits.window['window:animation:play'](targetWindow, timeline);
     if (result.ok) {
       toast.success('窗口动画已开始播放');
     } else {
@@ -492,7 +492,7 @@ export default function WindowAnimationEditor(): JSX.Element {
   }, [targetWindow, timeline]);
 
   const stop = useCallback(async () => {
-    await window.YUA.window['window:animation:stop'](targetWindow);
+    await window.chobits.window['window:animation:stop'](targetWindow);
   }, [targetWindow]);
 
   const updateNumeric = useCallback(
@@ -532,7 +532,7 @@ export default function WindowAnimationEditor(): JSX.Element {
           variant="ghost"
           className="h-8 w-8"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-          onClick={() => window.YUA.window['window:close']('windowAnimationEditor' as any)}
+          onClick={() => window.chobits.window['window:close']('windowAnimationEditor' as any)}
         >
           <TbX />
         </Button>
@@ -566,7 +566,7 @@ export default function WindowAnimationEditor(): JSX.Element {
               JSON
             </Button>
             <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
-              <input type="checkbox" checked={clampToWorkArea} onChange={(event) => setClampToWorkArea(event.target.checked)} />
+              <input type="checkbox" checked={shouldClampToWorkArea} onChange={(event) => setShouldClampToWorkArea(event.target.checked)} />
               限制在工作区内
             </label>
           </div>

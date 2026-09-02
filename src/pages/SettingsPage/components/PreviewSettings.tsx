@@ -13,7 +13,7 @@ type PreviewMode = 'window' | 'panel';
 const PreviewSettings: React.FC = () => {
   const [mode, setMode] = useState<PreviewMode>('window');
   const [pending, setPending] = useState<PreviewMode | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
   // 预览模式选项
   const options = useMemo(
@@ -36,14 +36,14 @@ const PreviewSettings: React.FC = () => {
   useEffect(() => {
     const loadConfig = async (): Promise<void> => {
       try {
-        const result = await window.YUA.preferences['preferences:getPreviewMode']();
+        const result = await window.chobits.preferences['preferences:get-preview-mode']();
         if (result.ok && result.previewMode) {
           setMode(result.previewMode);
         }
       } catch (error) {
         console.warn('加载预览模式配置失败:', error);
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
     loadConfig();
@@ -55,12 +55,12 @@ const PreviewSettings: React.FC = () => {
       if (pending || value === mode) return;
       setPending(value);
       try {
-        const result = await window.YUA.preferences['preferences:setPreviewMode']({ mode: value });
+        const result = await window.chobits.preferences['preferences:set-preview-mode']({ mode: value });
         if (result.ok && result.config) {
           setMode(result.config.previewMode);
           // 使用 BroadcastChannel 通知其他窗口配置已更新
           BroadcastChannelManager.postMessage(CHANNEL_NAMES.PREFERENCES, {
-            type: 'previewModeChanged',
+            type: 'preview-mode-changed',
             previewMode: result.config.previewMode
           });
         }
@@ -84,13 +84,13 @@ const PreviewSettings: React.FC = () => {
         action={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" disabled={loading || pending !== null} className="min-w-[100px]">
-                {loading || pending !== null ? (
+              <Button variant="outline" size="sm" disabled={isLoading || pending !== null} className="min-w-[100px]">
+                {isLoading || pending !== null ? (
                   <TbLoader2 className="h-4 w-4 animate-spin mr-1.5" />
                 ) : (
                   <CurrentIcon className="h-4 w-4 mr-1.5" />
                 )}
-                {loading ? '加载中...' : pending !== null ? '切换中...' : currentOption.label}
+                {isLoading ? '加载中...' : pending !== null ? '切换中...' : currentOption.label}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">

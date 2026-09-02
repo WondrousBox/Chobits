@@ -83,13 +83,13 @@ async function resolvePresetIdForGuide(providerId: string, preferredPresetId?: s
     return preferred;
   }
 
-  const presets = await window.YUA.ai.listPresets(providerId).catch(() => []);
+  const presets = await window.chobits.ai.listPresets(providerId).catch(() => []);
   return presets?.[0]?.id;
 }
 
 async function evaluateChatProviderConfiguredGoal(goal: SpriteRoutineGuideGoalDefinition, options: Pick<GuideGoalEnsureOptions, 'providerId' | 'preferredPresetId' | 'trigger'>): Promise<GuideGoalEvaluationResult> {
   try {
-    const providers = await window.YUA.ai.getProviders().catch(() => []);
+    const providers = await window.chobits.ai.getProviders().catch(() => []);
     if (!providers.length && !normalizeId(options.providerId)) {
       return { goal, achieved: false, reason: 'missing-provider' };
     }
@@ -107,7 +107,7 @@ async function evaluateChatProviderConfiguredGoal(goal: SpriteRoutineGuideGoalDe
     }
 
     const providerId = provider.id;
-    const usablePreset = await window.YUA.ai.resolveUsablePreset(providerId, options.preferredPresetId).catch(() => null);
+    const usablePreset = await window.chobits.ai.resolveUsablePreset(providerId, options.preferredPresetId).catch(() => null);
     if (usablePreset?.id) {
       return { goal, achieved: true, providerId, presetId: usablePreset.id, reason: 'achieved' };
     }
@@ -126,8 +126,8 @@ async function evaluateAchievementUnlockedGoal(goal: SpriteRoutineGuideGoalDefin
   }
 
   try {
-    const result = await window.YUA.persona.getState();
-    const achieved = Array.isArray(result?.state?.achievements) && result.state.achievements.includes(achievementId);
+    const result = await window.chobits.character.getState();
+    const achieved = Array.isArray(result?.characterState?.achievements) && result.characterState.achievements.includes(achievementId);
     return {
       goal,
       achieved,
@@ -152,7 +152,7 @@ export async function evaluateGuideGoal(goal: SpriteRoutineGuideGoalDefinition, 
 }
 
 async function startChatApiConfigGuide(options: GuideGoalEnsureOptions, evaluation: GuideGoalEvaluationResult): Promise<{ guided: boolean; presetId?: string; attempted: boolean }> {
-  const providers = await window.YUA.ai.getProviders().catch(() => []);
+  const providers = await window.chobits.ai.getProviders().catch(() => []);
   const provider = resolveProviderForGuide(providers || [], evaluation.providerId || options.providerId);
   if (!provider?.id) {
     return { guided: false, attempted: false };
@@ -161,7 +161,7 @@ async function startChatApiConfigGuide(options: GuideGoalEnsureOptions, evaluati
   const providerId = provider.id;
   const presetId = await resolvePresetIdForGuide(providerId, options.preferredPresetId);
   try {
-    const result = await window.YUA.sprite.startPurpose({
+    const result = await window.chobits.sprite.startPurpose({
       kind: CHAT_API_CONFIG_GUIDE_PURPOSE_ID,
       reason: '聊天入口缺少可用的 AI API Key 配置',
       source: 'user-event',

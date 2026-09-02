@@ -17,7 +17,7 @@ import { ensureSpriteCapabilityAccessible, SpriteCapabilityLockedNotice } from '
 import { makeResSrc } from '@/lib/resource-protocol';
 import { cn } from '@/lib/utils';
 
-import { joinEditorLines, splitEditorLines } from './SpritePackEditorModel';
+import { joinEditorLines, splitEditorLines } from './character-pack-editor-model';
 
 interface CharacterGalleryManagerProps {
   packId?: string;
@@ -212,22 +212,22 @@ function IconTooltipButton({
 
 export default function CharacterGalleryManager({ packId, source, assetAuthoringCapability, onCapabilityBlocked }: CharacterGalleryManagerProps): JSX.Element {
   const [state, setState] = useState<CharacterGalleryListState | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<CharacterGalleryItem | null>(null);
   const [dialogMode, setDialogMode] = useState<GalleryDialogMode | null>(null);
   const [draft, setDraft] = useState<GalleryDraftState>(emptyDraft);
   const [pendingFilePath, setPendingFilePath] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const canWrite = !!state?.pack.writable && assetAuthoringCapability?.status !== 'locked';
   const lockedTitle =
     assetAuthoringCapability?.status === 'locked' ? `${assetAuthoringCapability.name} 尚未解锁` : state?.pack.writable === false ? '内置角色包需要另存为本地版本后才能编辑图集' : undefined;
 
   const refresh = useCallback(async (): Promise<void> => {
-    setLoading(true);
+    setIsLoading(true);
     try {
-      const result = await window.YUA.persona.listCharacterGallery({ packId, source });
+      const result = await window.chobits.character.listCharacterGallery({ packId, source });
       setState(result);
     } catch (error) {
       console.warn('[CharacterGalleryManager] list failed', error);
@@ -235,7 +235,7 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
         description: error instanceof Error ? error.message : String(error)
       });
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   }, [packId, source]);
 
@@ -268,14 +268,14 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
 
   const openAddDialog = useCallback(async (): Promise<void> => {
     if (!ensureCanWrite()) return;
-    const pick = await window.YUA.file['file:pickFile']({
+    const pick = await window.chobits.file['file:pick-file']({
       filters: [
         { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] },
         { name: 'All Files', extensions: ['*'] }
       ],
       multi: false
     });
-    if (pick.canceled || !pick.path) return;
+    if (!pick.ok || !pick.path) return;
     setPendingFilePath(pick.path);
     setDraft({
       ...emptyDraft(),
@@ -298,7 +298,7 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
   const closeDialog = useCallback((): void => {
     setDialogMode(null);
     setPendingFilePath(null);
-    setSaving(false);
+    setIsSaving(false);
   }, []);
 
   const selectPreviewItem = useCallback((item: CharacterGalleryItem): void => {
@@ -328,11 +328,11 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
       return;
     }
 
-    setSaving(true);
+    setIsSaving(true);
     try {
       if (dialogMode === 'add') {
         if (!pendingFilePath) throw new Error('缺少要导入的图片文件');
-        await window.YUA.persona.importCharacterGalleryItem({
+        await window.chobits.character.importCharacterGalleryItem({
           packId,
           source,
           filePath: pendingFilePath,
@@ -340,7 +340,7 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
         });
         toast.success('图片已加入角色图集');
       } else if (selected) {
-        const result = await window.YUA.persona.updateCharacterGalleryItem({
+        const result = await window.chobits.character.updateCharacterGalleryItem({
           packId,
           source,
           itemId: selected.id,
@@ -356,22 +356,22 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
         description: error instanceof Error ? error.message : String(error)
       });
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   }, [closeDialog, dialogMode, draft, ensureCanWrite, packId, pendingFilePath, refresh, selected, source]);
 
   const replaceImage = useCallback(
     async (item: CharacterGalleryItem): Promise<void> => {
       if (!ensureCanWrite()) return;
-      const pick = await window.YUA.file['file:pickFile']({
+      const pick = await window.chobits.file['file:pick-file']({
         filters: [
           { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] },
           { name: 'All Files', extensions: ['*'] }
         ],
         multi: false
       });
-      if (pick.canceled || !pick.path) return;
-      const result = await window.YUA.persona.replaceCharacterGalleryItemImage({
+      if (!pick.ok || !pick.path) return;
+      const result = await window.chobits.character.replaceCharacterGalleryItemImage({
         packId,
         source,
         itemId: item.id,
@@ -396,7 +396,7 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
   const removeItem = useCallback(
     async (item: CharacterGalleryItem): Promise<boolean> => {
       if (!ensureCanWrite()) return false;
-      const result = await window.YUA.persona.removeCharacterGalleryItem({
+      const result = await window.chobits.character.removeCharacterGalleryItem({
         packId,
         source,
         itemId: item.id,
@@ -433,7 +433,7 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
               <TbPhotoPlus />
               导入图片
             </Button>
-            <IconTooltipButton label="刷新图集" type="button" size="sm" variant="outline" onClick={() => void refresh()} disabled={loading}>
+            <IconTooltipButton label="刷新图集" type="button" size="sm" variant="outline" onClick={() => void refresh()} disabled={isLoading}>
               <TbRefresh />
             </IconTooltipButton>
           </div>
@@ -467,7 +467,7 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
             ))}
           </div>
         ) : (
-          <div className="rounded-md border border-dashed border-border/60 px-3 py-8 text-center text-xs text-muted-foreground">{loading ? '读取中...' : '图集暂无图片，点击「导入图片」添加。'}</div>
+          <div className="rounded-md border border-dashed border-border/60 px-3 py-8 text-center text-xs text-muted-foreground">{isLoading ? '读取中...' : '图集暂无图片，点击「导入图片」添加。'}</div>
         )}
 
         <Dialog open={previewOpen && !!previewItem} onOpenChange={closePreviewDialog}>
@@ -635,11 +635,11 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
               </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={closeDialog} disabled={saving}>
+              <Button type="button" variant="outline" onClick={closeDialog} disabled={isSaving}>
                 取消
               </Button>
-              <Button type="button" onClick={() => void saveDialog()} disabled={saving}>
-                {saving ? '保存中...' : '保存'}
+              <Button type="button" onClick={() => void saveDialog()} disabled={isSaving}>
+                {isSaving ? '保存中...' : '保存'}
               </Button>
             </DialogFooter>
           </DialogContent>

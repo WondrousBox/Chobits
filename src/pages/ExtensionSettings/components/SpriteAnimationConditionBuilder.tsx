@@ -156,7 +156,7 @@ export default function SpriteAnimationConditionBuilder({ conditionInput, onChan
                       })
                     )
                   }
-                  placeholder="persona 路径，例如 dimensions.focus"
+                  placeholder="角色状态路径，例如 dimensions.focus"
                   className="h-8 text-xs"
                 />
               )}
@@ -273,7 +273,7 @@ export default function SpriteAnimationConditionBuilder({ conditionInput, onChan
   return (
     <div className="space-y-3">
       <div className="space-y-1.5">
-        <Label className="text-[11px] text-muted-foreground">常用 Persona 条件</Label>
+        <Label className="text-[11px] text-muted-foreground">常用角色状态条件</Label>
         <div className="flex flex-wrap gap-2">
           {SPRITE_ANIMATION_CONDITION_PRESETS.map((preset) => (
             <Button key={preset.id} size="sm" variant="outline" className="h-7 gap-2 px-2.5 text-[11px]" onClick={() => onChange(formatSpriteAnimationConditionInput(preset.condition))}>
@@ -349,7 +349,7 @@ export default function SpriteAnimationConditionBuilder({ conditionInput, onChan
           className="min-h-[132px] resize-y font-mono text-[11px]"
         />
         <div className={`text-[10px] ${parsedCondition.error ? 'text-destructive' : 'text-muted-foreground'}`}>
-          {parsedCondition.error || '支持 compare / all / any / not；field 可写 favor、level、mood、achievements、dimensions.focus 等 persona 路径。'}
+          {parsedCondition.error || '支持 compare / all / any / not；field 可写 favor、level、mood、achievements、dimensions.focus 等角色状态路径。'}
         </div>
       </div>
     </div>

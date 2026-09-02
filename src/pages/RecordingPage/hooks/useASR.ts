@@ -4,15 +4,15 @@ import { PendingSegment, PunctuationSegment, RecognizedSegment } from '../types'
 
 export type AudioSource = 'microphone' | 'system-audio';
 
-interface UseASRProps {
-  enableTranslation: boolean;
+interface UseASROptions {
+  translationEnabled: boolean;
   translateText: (text: string, onUpdate?: (translation: string) => void) => Promise<void>;
   onAudioLevel?: (level: number) => void;
   mode?: 'local' | 'cloud';
   cloudProviderId?: string;
   cloudProviderPresetId?: string;
   cloudModelId?: string;
-  enableSmallSegments?: boolean; // 是否启用分小段模式（按标点符号拆分）
+  smallSegmentsEnabled?: boolean; // 是否启用分小段模式（按标点符号拆分）
   audioSource?: AudioSource; // 音频来源：麦克风或系统音频
 }
 
@@ -78,16 +78,16 @@ function resampleTo16kHz(inputBuffer: Float32Array, inputSampleRate: number): Fl
 }
 
 export const useASR = ({
-  enableTranslation,
+  translationEnabled,
   translateText,
   onAudioLevel,
   mode = 'local',
   cloudProviderId,
   cloudProviderPresetId,
   cloudModelId,
-  enableSmallSegments = true, // 默认开启分小段模式
+  smallSegmentsEnabled = true, // 默认开启分小段模式
   audioSource = 'system-audio'
-}: UseASRProps): {
+}: UseASROptions): {
   isRecording: boolean;
   isASRRunning: boolean;
   setIsASRRunning: React.Dispatch<React.SetStateAction<boolean>>;
@@ -179,10 +179,10 @@ export const useASR = ({
             // 发送给 ASR 服务
             if (isASRRunningRef.current) {
               try {
-                await window.YUA.sherpa.sendData({
+                await window.chobits.sherpa.sendData({
                   uuid: 'stream',
                   data: float32Array,
-                  save: isRecordingRef.current && recordingResourceIdRef.current !== null // 如果正在录音且有资源ID，则保存
+                  shouldSave: isRecordingRef.current && recordingResourceIdRef.current !== null // 如果正在录音且有资源ID，则保存
                 });
                 // 累加已发送的采样点数
                 setTotalSamples((prev) => prev + float32Array.length);
@@ -212,9 +212,9 @@ export const useASR = ({
   // 创建录音存储资源（共用逻辑）
   const createRecordingResource = useCallback(async (): Promise<void> => {
     try {
-      const result = await window.YUA.sherpa.startRecording({});
+      const result = await window.chobits.sherpa.startRecording({});
 
-      if (result.success && result.resourceId) {
+      if (result.ok && result.resourceId) {
         recordingResourceIdRef.current = result.resourceId;
         const sessionInfo = {
           resourceId: result.resourceId,
@@ -261,10 +261,10 @@ export const useASR = ({
 
         // 发送给 ASR 服务
         try {
-          await window.YUA.sherpa.sendData({
+          await window.chobits.sherpa.sendData({
             uuid: 'stream',
             data: resampled,
-            save: isRecordingRef.current && recordingResourceIdRef.current !== null
+            shouldSave: isRecordingRef.current && recordingResourceIdRef.current !== null
           });
           setTotalSamples((prev) => prev + resampled.length);
         } catch (error) {
@@ -358,9 +358,9 @@ export const useASR = ({
 
       if (recordingResourceIdRef.current) {
         try {
-          const result = await window.YUA.sherpa.stopRecording();
+          const result = await window.chobits.sherpa.stopRecording();
 
-          if (result.success) {
+          if (result.ok) {
             // 清空ref
             recordingResourceIdRef.current = null;
           } else {
@@ -399,9 +399,9 @@ export const useASR = ({
 
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
           // 调用继续录音接口
-          const result = await window.YUA.sherpa.resumeRecording({ resourceId });
+          const result = await window.chobits.sherpa.resumeRecording({ resourceId });
 
-          if (result.success && result.resourceId) {
+          if (result.ok && result.resourceId) {
             recordingResourceIdRef.current = result.resourceId;
 
             // 保存到 localStorage
@@ -458,7 +458,7 @@ export const useASR = ({
           setProgressEnd(data.start + data.duration);
 
           // 调用云端识别
-          const result = await window.YUA.ai.transcribe({
+          const result = await window.chobits.ai.transcribe({
             providerId: cloudProviderId,
             providerPresetId: cloudProviderPresetId,
             file: wavBuffer as any,
@@ -477,12 +477,12 @@ export const useASR = ({
             setRecognizedSegments((prev) => [...prev, newSegment]);
 
             // 流式写入字幕文件
-            window.YUA.sherpa.appendSubtitle({ segment: newSegment }).catch((err) => {
+            window.chobits.sherpa.appendSubtitle({ segment: newSegment }).catch((err) => {
               console.error('[ASR] 流式写入字幕失败:', err);
             });
 
             // 翻译
-            if (enableTranslation && result.text.trim()) {
+            if (translationEnabled && result.text.trim()) {
               translateText(result.text, (translation) => {
                 setRecognizedSegments((prev) => {
                   const updated = [...prev];
@@ -511,7 +511,7 @@ export const useASR = ({
           // 如果是端点，清空临时展示的片段，添加到完整结果列表
           setPendingSegments([]);
 
-          if (enableSmallSegments && resultWithPunctuation && resultWithPunctuation.length > 0) {
+          if (smallSegmentsEnabled && resultWithPunctuation && resultWithPunctuation.length > 0) {
             // 分小段模式：将每个标点分割的片段都作为独立的已识别片段
             const smallSegments: RecognizedSegment[] = resultWithPunctuation.map((seg, index) => ({
               text: seg.text + (seg.punctuation || ''),
@@ -523,13 +523,13 @@ export const useASR = ({
 
             // 流式写入字幕文件（每个小段都写入）
             smallSegments.forEach((segment) => {
-              window.YUA.sherpa.appendSubtitle({ segment }).catch((err) => {
+              window.chobits.sherpa.appendSubtitle({ segment }).catch((err) => {
                 console.error('[ASR] 流式写入字幕失败:', err);
               });
             });
 
             // 翻译每个小段（翻译完成后更新字幕文件）
-            if (enableTranslation) {
+            if (translationEnabled) {
               smallSegments.forEach((segment) => {
                 if (segment.text.trim()) {
                   translateText(segment.text, (translation) => {
@@ -558,12 +558,12 @@ export const useASR = ({
             setRecognizedSegments((prev) => [...prev, newSegment]);
 
             // 流式写入字幕文件
-            window.YUA.sherpa.appendSubtitle({ segment: newSegment }).catch((err) => {
+            window.chobits.sherpa.appendSubtitle({ segment: newSegment }).catch((err) => {
               console.error('[ASR] 流式写入字幕失败:', err);
             });
 
             // 翻译完整片段
-            if (enableTranslation && data.text.trim()) {
+            if (translationEnabled && data.text.trim()) {
               translateText(data.text, (translation) => {
                 setRecognizedSegments((prev) => {
                   const updated = [...prev];
@@ -582,7 +582,7 @@ export const useASR = ({
           setProgressEnd(0);
         } else {
           // 非 endpoint，处理实时识别结果
-          if (enableSmallSegments && resultWithPunctuation && resultWithPunctuation.length > 0) {
+          if (smallSegmentsEnabled && resultWithPunctuation && resultWithPunctuation.length > 0) {
             // 如果有多个片段，把非最后一段放入 pendingSegments
             if (resultWithPunctuation.length > 1) {
               const pendingItems = resultWithPunctuation.slice(0, -1).map((seg, index) => ({
@@ -610,12 +610,12 @@ export const useASR = ({
       }
     };
 
-    window.YUA.handleMessage(handleASRMessage, 'sherpa:message');
+    window.chobits.handleMessage(handleASRMessage, 'sherpa:message');
 
     return () => {
-      window.YUA.removeHandler('sherpa:message');
+      window.chobits.removeMessageHandler('sherpa:message');
     };
-  }, [enableTranslation, translateText, mode, cloudProviderId, cloudProviderPresetId, cloudModelId, enableSmallSegments]);
+  }, [translationEnabled, translateText, mode, cloudProviderId, cloudProviderPresetId, cloudModelId, smallSegmentsEnabled]);
 
   // 自动开始录音
   useEffect(() => {

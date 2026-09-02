@@ -93,8 +93,8 @@ describe('sprite interaction runtime', () => {
     vi.advanceTimersByTime(5_000);
     mgr.reportInteraction('click');
 
-    // 养成数值已移除，人格状态保持固定展示值
-    expect(mgr.getPersonaState()).toMatchObject({
+    // 养成数值已移除，角色状态保持固定展示值
+    expect(mgr.getCharacterState()).toMatchObject({
       favor: 50,
       favorLevel: 'friend',
       mood: 'neutral'

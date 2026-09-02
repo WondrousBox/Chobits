@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { PersonaStatePersistence } from '../../packages/sprite-core/manager/persistence';
+import { CharacterStatePersistence } from '../../packages/sprite-core/manager/persistence';
 import { SpriteManager } from '../../packages/sprite-core/manager/sprite-manager';
 
 function createTestWindow(): {
@@ -91,7 +91,7 @@ describe('sprite persistence', () => {
       'utf8'
     );
 
-    const persistence = new PersonaStatePersistence(dataDir);
+    const persistence = new CharacterStatePersistence(dataDir);
     await expect(persistence.load()).resolves.toEqual({
       id: 'default',
       version: 2,
@@ -115,11 +115,11 @@ describe('sprite persistence', () => {
     const dataDir = mkdtempSync(path.join(os.tmpdir(), 'sprite-persistence-test-'));
 
     const first = createManager(dataDir);
-    vi.spyOn((first as any).speakService, 'speak').mockResolvedValue({ success: false } as any);
+    vi.spyOn((first as any).speakService, 'speak').mockResolvedValue({ ok: false } as any);
 
     first.setMood('joyful', 72);
     first.initDimensions([{ id: 'curiosity', initialValue: 5 }]);
-    (first as any).personaState.loadState({
+    (first as any).characterState.loadState({
       achievements: ['first-chat']
     });
 
@@ -129,7 +129,7 @@ describe('sprite persistence', () => {
     vi.spyOn((second as any).speakService, 'init').mockResolvedValue(undefined);
     await second.start();
 
-    expect(second.getPersonaState()).toMatchObject({
+    expect(second.getCharacterState()).toMatchObject({
       // 养成字段已移除，等级/好感度为固定展示值
       level: 1,
       favor: 50,
@@ -138,7 +138,7 @@ describe('sprite persistence', () => {
       moodIntensity: 72,
       achievements: ['first-chat']
     });
-    expect(second.getPersonaState().dimensions).toEqual({
+    expect(second.getCharacterState().dimensions).toEqual({
       curiosity: 5
     });
 
@@ -148,7 +148,7 @@ describe('sprite persistence', () => {
 
   it('stores independent persona slots for different characters in the same persistence file', async () => {
     const dataDir = mkdtempSync(path.join(os.tmpdir(), 'sprite-persistence-test-'));
-    const persistence = new PersonaStatePersistence(dataDir);
+    const persistence = new CharacterStatePersistence(dataDir);
 
     await persistence.save({
       id: 'character:alpha',
@@ -198,7 +198,7 @@ describe('sprite persistence', () => {
 
   it('loads the configured character persona slot on startup', async () => {
     const dataDir = mkdtempSync(path.join(os.tmpdir(), 'sprite-persistence-test-'));
-    const persistence = new PersonaStatePersistence(dataDir);
+    const persistence = new CharacterStatePersistence(dataDir);
     await persistence.save({
       id: 'character:alpha',
       version: 2,
@@ -215,17 +215,17 @@ describe('sprite persistence', () => {
 
     const manager = createManager(dataDir);
     vi.spyOn((manager as any).speakService, 'init').mockResolvedValue(undefined);
-    manager.configurePersonaStateSlot('character:alpha', { name: 'Alpha' });
+    manager.configureCharacterStateSlot('character:alpha', { name: 'Alpha' });
 
     await manager.start();
 
-    expect(manager.getActivePersonaStateId()).toBe('character:alpha');
-    expect(manager.getPersonaState()).toMatchObject({
+    expect(manager.getActiveCharacterStateId()).toBe('character:alpha');
+    expect(manager.getCharacterState()).toMatchObject({
       name: 'Alpha',
       mood: 'joyful',
       achievements: ['alpha-memory']
     });
-    expect(manager.getPersonaState().dimensions).toEqual({
+    expect(manager.getCharacterState().dimensions).toEqual({
       curiosity: 9
     });
 

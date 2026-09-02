@@ -1,19 +1,21 @@
 import { PluginDefinition } from '@packages/plugins/types';
-import { AllModels, CommonConfig } from '@packages/sherpa/common';
+import { SherpaModel as SherpaModelId, CommonConfig } from '@packages/sherpa/common';
 import { ScrollArea } from '@radix-ui/react-scroll-area';
 import React, { useCallback, useEffect, useState } from 'react';
 import { TbChevronDown, TbChevronUp, TbLoader2, TbPlayerPlay, TbPlayerStop } from 'react-icons/tb';
 import { toast } from 'sonner';
 
+import { ModelInstallCard } from '@/components/common/ModelInstallCard';
 import { ProviderModelSelect, ProviderModelSelectRef } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { usePluginModelInstall } from '@/hooks/usePluginModelInstall';
 import { resolveModelFirstSelection } from '@/lib/ai-model-first';
 
-interface SherpaModel extends PluginDefinition {
+interface SherpaModelItem extends PluginDefinition {
   isInstalled: boolean;
 }
 
@@ -114,7 +116,7 @@ interface SceneConfig {
   description: string;
   recommendedModelIds: string[]; // 推荐模型ID列表（按优先级排序）
   defaultLanguage: string;
-  enableTranslation: boolean;
+  translationEnabled: boolean;
   targetLanguage?: string; // 如果启用翻译，目标语言
   recommendedPunctuationModelId?: string; // 推荐的标点符号模型ID（如果为空则不启用）
   commonConfig?: CommonConfig; // 场景特定的 common 配置
@@ -128,7 +130,7 @@ const SCENE_CONFIGS: SceneConfig[] = [
     description: '适用于中文会议场景，自动识别中文语音',
     recommendedModelIds: ['sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13'],
     defaultLanguage: 'zh',
-    enableTranslation: false,
+    translationEnabled: false,
     recommendedPunctuationModelId: 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8', // 中英文标点
     commonConfig: {
       enableEndpoint: true
@@ -141,7 +143,7 @@ const SCENE_CONFIGS: SceneConfig[] = [
     description: '适用于英语学习场景，自动识别英语语音',
     recommendedModelIds: ['sherpa-onnx-streaming-zipformer-ctc-small-2024-03-18'],
     defaultLanguage: 'en',
-    enableTranslation: true,
+    translationEnabled: true,
     targetLanguage: 'zh', // 翻译成中文
     recommendedPunctuationModelId: 'sherpa-onnx-online-punct-en-2024-08-06', // 英文标点
     commonConfig: {
@@ -155,7 +157,7 @@ const SCENE_CONFIGS: SceneConfig[] = [
     description: '适用于中英双语场景，自动识别中英文混合语音',
     recommendedModelIds: ['sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20'],
     defaultLanguage: 'zh',
-    enableTranslation: false,
+    translationEnabled: false,
     recommendedPunctuationModelId: 'sherpa-onnx-online-punct-en-2024-08-06', // 中英文标点
     commonConfig: {
       enableEndpoint: true,
@@ -170,7 +172,7 @@ const SCENE_CONFIGS: SceneConfig[] = [
     description: '适用于中英双语场景，自动识别中英文混合语音',
     recommendedModelIds: ['sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20'],
     defaultLanguage: 'zh',
-    enableTranslation: false,
+    translationEnabled: false,
     recommendedPunctuationModelId: 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8', // 中英文标点
     commonConfig: {
       enableEndpoint: true
@@ -183,7 +185,7 @@ const SCENE_CONFIGS: SceneConfig[] = [
     description: '适用于多语言场景，支持多种语言识别',
     recommendedModelIds: ['sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13'],
     defaultLanguage: 'zh',
-    enableTranslation: false,
+    translationEnabled: false,
     recommendedPunctuationModelId: 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8', // 中英文标点
     commonConfig: {
       enableEndpoint: true
@@ -199,8 +201,8 @@ const ASRConfigPage: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [language, setLanguage] = useState('zh');
   const [selectedPunctuationModel, setSelectedPunctuationModel] = useState<string>('');
-  const [sherpaModels, setSherpaModels] = useState<SherpaModel[]>([]);
-  const [punctuationModels, setPunctuationModels] = useState<SherpaModel[]>([]);
+  const [sherpaModels, setSherpaModels] = useState<SherpaModelItem[]>([]);
+  const [punctuationModels, setPunctuationModels] = useState<SherpaModelItem[]>([]);
   const [loadingModels, setLoadingModels] = useState(true);
   const [cloudProviderId, setCloudProviderId] = useState<string>('');
   const [cloudProviderPresetId, setCloudProviderPresetId] = useState<string>('');
@@ -212,12 +214,49 @@ const ASRConfigPage: React.FC = () => {
   const [micStatus, setMicStatus] = useState<string>('unknown');
   const cloudProviderSelectRef = React.useRef<ProviderModelSelectRef>(null);
 
+  // 选中的未安装模型的一键安装引导（安装成功后视为已安装，无需刷新列表）
+  const selectedInstalledInfo = selectedModel ? sherpaModels.find((m) => m.id === selectedModel) : undefined;
+  const { state: installState, install: installModel, cancel: cancelInstall } = usePluginModelInstall(selectedModel || undefined);
+  const isSelectedInstalled = (selectedInstalledInfo?.isInstalled ?? false) || installState.status === 'installed';
+
+  // 场景推荐的标点模型同样纳入一键安装（未选择标点模型时无需安装）
+  const selectedPunctuationInfo = selectedPunctuationModel ? punctuationModels.find((m) => m.id === selectedPunctuationModel) : undefined;
+  const { state: punctInstallState, install: installPunctModel, cancel: cancelPunctInstall } = usePluginModelInstall(selectedPunctuationModel || undefined);
+  const isPunctInstalled = !selectedPunctuationModel || (selectedPunctuationInfo?.isInstalled ?? false) || punctInstallState.status === 'installed';
+
+  // 待安装项（ASR 模型 + 标点模型，只包含尚未安装的）
+  const installItems = [
+    ...(selectedInstalledInfo && !isSelectedInstalled
+      ? [{ id: selectedInstalledInfo.id, name: selectedInstalledInfo.displayName || selectedInstalledInfo.name, sizeBytes: selectedInstalledInfo.platforms?.[0]?.sizeBytes, state: installState }]
+      : []),
+    ...(selectedPunctuationInfo && !isPunctInstalled
+      ? [
+          {
+            id: selectedPunctuationInfo.id,
+            name: selectedPunctuationInfo.displayName || selectedPunctuationInfo.name,
+            sizeBytes: selectedPunctuationInfo.platforms?.[0]?.sizeBytes,
+            state: punctInstallState
+          }
+        ]
+      : [])
+  ];
+
+  const handleInstallAll = (): void => {
+    if (selectedInstalledInfo && !isSelectedInstalled) void installModel();
+    if (selectedPunctuationInfo && !isPunctInstalled) void installPunctModel();
+  };
+
+  const handleCancelAll = (): void => {
+    void cancelInstall();
+    void cancelPunctInstall();
+  };
+
   // 查询 ASR 引擎当前运行状态 & 加载上次保存的配置
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const [status, savedConfig] = await Promise.all([window.YUA.sherpa.getStatus(), window.YUA.sherpa.getASRConfig()]);
+        const [status, savedConfig] = await Promise.all([window.chobits.sherpa.getStatus(), window.chobits.sherpa.getASRConfig()]);
         if (!mounted) return;
         setIsASRRunning(status.running);
         // 用保存的配置作为默认值
@@ -242,8 +281,8 @@ const ASRConfigPage: React.FC = () => {
 
   // 查询麦克风授权状态(macOS/Windows;Linux 无系统级授权,不显示横幅)
   useEffect(() => {
-    if (!window.YUA.isMac && !window.YUA.isWindows) return;
-    window.YUA.system['system:microphone:getStatus']()
+    if (!window.chobits.isMac && !window.chobits.isWindows) return;
+    window.chobits.system['system:microphone:get-status']()
       .then((res) => {
         if (res.ok && res.status) setMicStatus(res.status);
       })
@@ -251,7 +290,7 @@ const ASRConfigPage: React.FC = () => {
   }, []);
 
   const handleRequestMicAccess = useCallback(async (): Promise<void> => {
-    const res = await window.YUA.system['system:microphone:requestAccess']();
+    const res = await window.chobits.system['system:microphone:request-access']();
     if (res.ok && res.granted) {
       setMicStatus('granted');
       toast.success('麦克风授权成功');
@@ -268,9 +307,9 @@ const ASRConfigPage: React.FC = () => {
       try {
         setLoadingModels(true);
         // 获取所有支持的插件
-        const supported = await window.YUA.pluginResource['plugin-resource:listSupported']();
+        const supported = await window.chobits.pluginResource['plugin-resource:list-supported']();
         // 获取已安装的资源
-        const installed = await window.YUA.pluginResource['plugin-resource:list']({
+        const installed = await window.chobits.pluginResource['plugin-resource:list']({
           pluginId: 'plugin:sherpa-onnx',
           type: 'model'
         });
@@ -293,13 +332,13 @@ const ASRConfigPage: React.FC = () => {
         });
 
         // 合并 ASR 模型信息和安装状态
-        const modelsWithStatus: SherpaModel[] = sherpaModelDefinitions.map((model: PluginDefinition) => ({
+        const modelsWithStatus: SherpaModelItem[] = sherpaModelDefinitions.map((model: PluginDefinition) => ({
           ...model,
           isInstalled: installedIds.has(model.id) || installedIds.has(model.name)
         }));
 
         // 合并标点符号模型信息和安装状态
-        const punctuationModelsWithStatus: SherpaModel[] = punctuationModelDefinitions.map((model: PluginDefinition) => ({
+        const punctuationModelsWithStatus: SherpaModelItem[] = punctuationModelDefinitions.map((model: PluginDefinition) => ({
           ...model,
           isInstalled: installedIds.has(model.id) || installedIds.has(model.name)
         }));
@@ -401,103 +440,104 @@ const ASRConfigPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 当场景改变时，自动应用场景配置
-  useEffect(() => {
-    if (!selectedScene) return;
+  // 当场景改变时，自动应用场景配置（render 期间用 prev 对比调整状态，避免在 effect 中同步 setState）
+  const [prevSceneInputs, setPrevSceneInputs] = useState({ selectedScene, sherpaModels, punctuationModels });
+  if (prevSceneInputs.selectedScene !== selectedScene || prevSceneInputs.sherpaModels !== sherpaModels || prevSceneInputs.punctuationModels !== punctuationModels) {
+    setPrevSceneInputs({ selectedScene, sherpaModels, punctuationModels });
     const sceneConfig = SCENE_CONFIGS.find((s) => s.id === selectedScene);
-    if (!sceneConfig) return;
+    if (sceneConfig) {
+      // 设置语言
+      setLanguage(sceneConfig.defaultLanguage);
 
-    // 设置语言
-    setLanguage(sceneConfig.defaultLanguage);
+      // 翻译配置现在由 ASR 页面的 AI 面板控制
 
-    // 翻译配置现在由 ASR 页面的 AI 面板控制
-
-    // 根据场景选择推荐模型
-    if (sherpaModels.length > 0) {
-      let foundModel = null;
-      for (const modelId of sceneConfig.recommendedModelIds) {
-        const model = sherpaModels.find((m) => m.id === modelId);
-        if (model && model.isInstalled) {
-          foundModel = model;
-          break;
-        }
-      }
-      if (!foundModel && sceneConfig.recommendedModelIds.length > 0) {
-        const model = sherpaModels.find((m) => m.id === sceneConfig.recommendedModelIds[0]);
-        if (model) {
-          foundModel = model;
-        }
-      }
-      if (foundModel) {
-        setSelectedModel(foundModel.id);
-      }
-    }
-
-    // 根据场景选择推荐标点符号模型
-    if (punctuationModels.length > 0 && sceneConfig.recommendedPunctuationModelId) {
-      const punctuationModel = punctuationModels.find((m) => m.id === sceneConfig.recommendedPunctuationModelId);
-      if (punctuationModel) {
-        // 优先选择已安装的标点模型
-        if (punctuationModel.isInstalled) {
-          setSelectedPunctuationModel(punctuationModel.id);
-        } else {
-          // 如果推荐模型未安装，尝试查找同类型的已安装模型
-          const alternativeModel = punctuationModels.find((m) => m.isInstalled && m.languages?.some((lang) => punctuationModel.languages?.includes(lang)));
-          if (alternativeModel) {
-            setSelectedPunctuationModel(alternativeModel.id);
-          } else {
-            // 如果都没有安装，仍然选择推荐的模型（用户会看到提示）
-            setSelectedPunctuationModel(punctuationModel.id);
+      // 根据场景选择推荐模型
+      if (sherpaModels.length > 0) {
+        let foundModel = null;
+        for (const modelId of sceneConfig.recommendedModelIds) {
+          const model = sherpaModels.find((m) => m.id === modelId);
+          if (model && model.isInstalled) {
+            foundModel = model;
+            break;
           }
         }
+        if (!foundModel && sceneConfig.recommendedModelIds.length > 0) {
+          const model = sherpaModels.find((m) => m.id === sceneConfig.recommendedModelIds[0]);
+          if (model) {
+            foundModel = model;
+          }
+        }
+        if (foundModel) {
+          setSelectedModel(foundModel.id);
+        }
       }
-    } else if (!sceneConfig.recommendedPunctuationModelId) {
-      // 如果场景没有推荐标点模型，清空选择
-      setSelectedPunctuationModel('');
+
+      // 根据场景选择推荐标点符号模型
+      if (punctuationModels.length > 0 && sceneConfig.recommendedPunctuationModelId) {
+        const punctuationModel = punctuationModels.find((m) => m.id === sceneConfig.recommendedPunctuationModelId);
+        if (punctuationModel) {
+          // 优先选择已安装的标点模型
+          if (punctuationModel.isInstalled) {
+            setSelectedPunctuationModel(punctuationModel.id);
+          } else {
+            // 如果推荐模型未安装，尝试查找同类型的已安装模型
+            const alternativeModel = punctuationModels.find((m) => m.isInstalled && m.languages?.some((lang) => punctuationModel.languages?.includes(lang)));
+            if (alternativeModel) {
+              setSelectedPunctuationModel(alternativeModel.id);
+            } else {
+              // 如果都没有安装，仍然选择推荐的模型（用户会看到提示）
+              setSelectedPunctuationModel(punctuationModel.id);
+            }
+          }
+        }
+      } else if (!sceneConfig.recommendedPunctuationModelId) {
+        // 如果场景没有推荐标点模型，清空选择
+        setSelectedPunctuationModel('');
+      }
     }
-  }, [selectedScene, sherpaModels, punctuationModels]);
+  }
 
   // 当模型改变时，检查并重置语言选择（仅在高级设置中手动修改时生效）
-  useEffect(() => {
-    if (!selectedModel || !showAdvancedSettings) return;
-    const selectedModelInfo = sherpaModels.find((m) => m.id === selectedModel);
-    if (!selectedModelInfo) return;
-
-    const supportedLanguages = selectedModelInfo.languages || [];
-    // 如果模型支持 multi，则支持所有语言，不需要重置
-    if (supportedLanguages.includes('multi')) return;
-
-    // 如果只有一种语言，自动设置为该语言
-    if (supportedLanguages.length === 1) {
-      setLanguage(supportedLanguages[0]);
-      return;
+  const [prevLanguageInputs, setPrevLanguageInputs] = useState({ selectedModel, sherpaModels, language, showAdvancedSettings });
+  if (
+    prevLanguageInputs.selectedModel !== selectedModel ||
+    prevLanguageInputs.sherpaModels !== sherpaModels ||
+    prevLanguageInputs.language !== language ||
+    prevLanguageInputs.showAdvancedSettings !== showAdvancedSettings
+  ) {
+    setPrevLanguageInputs({ selectedModel, sherpaModels, language, showAdvancedSettings });
+    const selectedModelInfo = selectedModel ? sherpaModels.find((m) => m.id === selectedModel) : undefined;
+    if (selectedModel && showAdvancedSettings && selectedModelInfo) {
+      const supportedLanguages = selectedModelInfo.languages || [];
+      // 如果模型支持 multi，则支持所有语言，不需要重置
+      if (!supportedLanguages.includes('multi')) {
+        // 如果只有一种语言，自动设置为该语言
+        if (supportedLanguages.length === 1) {
+          setLanguage(supportedLanguages[0]);
+        } else if (supportedLanguages.length > 0 && !supportedLanguages.includes(language)) {
+          // 如果当前选择的语言不在支持列表中，重置为第一个支持的语言
+          setLanguage(supportedLanguages[0]);
+        }
+        // 如果没有指定语言，保持当前选择
+      }
     }
+  }
 
-    // 如果当前选择的语言不在支持列表中，重置为第一个支持的语言
-    if (supportedLanguages.length > 0 && !supportedLanguages.includes(language)) {
-      setLanguage(supportedLanguages[0]);
-    } else if (supportedLanguages.length === 0) {
-      // 如果没有指定语言，保持当前选择
-      return;
-    }
-  }, [selectedModel, sherpaModels, language, showAdvancedSettings]);
-
-  useEffect(() => {
-    if (!cloudProviderId || availableCloudProviderIds.length === 0) {
-      return;
-    }
-
-    if (!availableCloudProviderIds.includes(cloudProviderId)) {
+  // 云端服务商列表变化后，若当前选择已不可用则清空
+  const [prevCloudInputs, setPrevCloudInputs] = useState({ availableCloudProviderIds, cloudProviderId });
+  if (prevCloudInputs.availableCloudProviderIds !== availableCloudProviderIds || prevCloudInputs.cloudProviderId !== cloudProviderId) {
+    setPrevCloudInputs({ availableCloudProviderIds, cloudProviderId });
+    if (cloudProviderId && availableCloudProviderIds.length > 0 && !availableCloudProviderIds.includes(cloudProviderId)) {
       setCloudProviderId('');
       setCloudProviderPresetId('');
       setCloudModelId('');
     }
-  }, [availableCloudProviderIds, cloudProviderId]);
+  }
 
   const handleOpenCloudProviderConfig = useCallback(async (): Promise<void> => {
     try {
       if (!cloudProviderId) {
-        await window.YUA.window['window:open']('settings' as any, { category: 'ai' });
+        await window.chobits.window['window:open']('settings' as any, { category: 'ai' });
         return;
       }
       cloudProviderSelectRef.current?.openConfig(cloudProviderId, cloudProviderPresetId);
@@ -538,8 +578,8 @@ const ASRConfigPage: React.FC = () => {
   const handleStopASR = async (): Promise<void> => {
     setIsLoading(true);
     try {
-      await window.YUA.sherpa.freeInstance();
-      await window.YUA.sherpa.saveASRConfig({ enabled: false });
+      await window.chobits.sherpa.destroyInstance();
+      await window.chobits.sherpa.saveASRConfig({ enabled: false });
       setIsASRRunning(false);
     } catch (error) {
       console.error('停止 ASR 失败:', error);
@@ -550,13 +590,11 @@ const ASRConfigPage: React.FC = () => {
 
   // 启动ASR服务
   const handleStartASR = async (): Promise<void> => {
-    let resolvedCloudSelection:
-      | {
-        providerId: string;
-        providerPresetId: string;
-        modelId: string;
-      }
-      | null = null;
+    let resolvedCloudSelection: {
+      providerId: string;
+      providerPresetId: string;
+      modelId: string;
+    } | null = null;
 
     if (activeTab === 'cloud') {
       resolvedCloudSelection = await resolveCloudSelection();
@@ -566,29 +604,21 @@ const ASRConfigPage: React.FC = () => {
     } else {
       if (isLoading || !selectedModel) return;
 
-      // 检查模型是否已安装
-      const selectedModelInfo = sherpaModels.find((m) => m.id === selectedModel);
-      if (!selectedModelInfo) {
+      // 检查模型是否已安装（含一键安装刚完成的场景）
+      if (!selectedInstalledInfo) {
         console.error('未找到选中的模型');
         return;
       }
-      if (!selectedModelInfo.isInstalled) {
+      if (!isSelectedInstalled) {
         // 模型未安装时给出可跳转的提示，避免用户卡在死路
-        toast.error('模型未安装，请先在插件管理中安装', {
-          action: { label: '去安装', onClick: () => window.YUA.window['window:open']('settings' as any, { category: 'plugins' }) }
-        });
+        toast.error('模型未安装，请先使用上方一键安装');
         return;
       }
 
-      // 如果选择了标点模型，检查是否已安装
-      if (selectedPunctuationModel) {
-        const selectedPunctuationModelInfo = punctuationModels.find((m) => m.id === selectedPunctuationModel);
-        if (selectedPunctuationModelInfo && !selectedPunctuationModelInfo.isInstalled) {
-          toast.error('标点模型未安装，请先在插件管理中安装', {
-            action: { label: '去安装', onClick: () => window.YUA.window['window:open']('settings' as any, { category: 'plugins' }) }
-          });
-          return;
-        }
+      // 如果选择了标点模型，检查是否已安装（含一键安装刚完成的场景）
+      if (selectedPunctuationModel && !isPunctInstalled) {
+        toast.error('标点模型未安装，请先使用上方一键安装');
+        return;
       }
     }
 
@@ -604,15 +634,15 @@ const ASRConfigPage: React.FC = () => {
         const commonConfig = sceneConfig?.commonConfig;
 
         // 启动 ASR 服务
-        success = await window.YUA.sherpa.createInstance({
-          model: selectedModel as AllModels,
+        success = await window.chobits.sherpa.createInstance({
+          model: selectedModel as SherpaModelId,
           language: language,
           punctuationModel: selectedPunctuationModel || undefined,
           commonConfig: commonConfig
         });
       } else {
         // 启动 VAD 服务
-        success = await window.YUA.sherpa.createInstance({
+        success = await window.chobits.sherpa.createInstance({
           type: 'vad'
         });
       }
@@ -624,7 +654,7 @@ const ASRConfigPage: React.FC = () => {
 
       // 启动成功后保存配置并更新状态
       if (activeTab === 'local') {
-        await window.YUA.sherpa.saveASRConfig({
+        await window.chobits.sherpa.saveASRConfig({
           enabled: true,
           backend: 'local',
           local: {
@@ -636,10 +666,10 @@ const ASRConfigPage: React.FC = () => {
         });
 
         // 打开识别测试窗口并关闭配置页面（与 TTS 流程一致）
-        window.YUA.window['window:open']('asrTest' as any, { model: selectedModel, language });
-        window.YUA.window['window:close']('asrConfig');
+        window.chobits.window['window:open']('asrTest' as any, { model: selectedModel, language });
+        window.chobits.window['window:close']('asrConfig');
       } else {
-        await window.YUA.sherpa.saveASRConfig({
+        await window.chobits.sherpa.saveASRConfig({
           enabled: true,
           backend: 'cloud',
           cloud: {
@@ -700,6 +730,9 @@ const ASRConfigPage: React.FC = () => {
                   ))}
                 </div>
               </div>
+
+              {/* 选中模型（含场景推荐的标点模型）未安装时的一键安装引导，不依赖展开自定义 */}
+              {installItems.length > 0 && <ModelInstallCard items={installItems} onInstall={handleInstallAll} onCancel={handleCancelAll} />}
 
               {/* 高级设置 */}
               <div className="space-y-2 border rounded-lg">
@@ -798,9 +831,6 @@ const ASRConfigPage: React.FC = () => {
                           </Select>
                         );
                       })()}
-                      {selectedModel && !sherpaModels.find((m) => m.id === selectedModel)?.isInstalled && (
-                        <div className="text-xs text-amber-600 dark:text-amber-400">该模型未安装，请先在插件管理中安装</div>
-                      )}
                     </div>
                     {(() => {
                       const selectedModelInfo = sherpaModels.find((m) => m.id === selectedModel);
@@ -933,9 +963,6 @@ const ASRConfigPage: React.FC = () => {
                             })()}
                           </SelectContent>
                         </Select>
-                        {selectedPunctuationModel && !punctuationModels.find((m) => m.id === selectedPunctuationModel)?.isInstalled && (
-                          <div className="text-xs text-amber-600 dark:text-amber-400">该标点模型未安装，请先在插件管理中安装</div>
-                        )}
                       </div>
                     )}
                   </div>
@@ -990,7 +1017,7 @@ const ASRConfigPage: React.FC = () => {
         </ScrollArea>
 
         <div className="flex gap-2 border-t p-2 px-4">
-          <Button variant="outline" className="flex-1 no-drag" onClick={() => window.YUA.window['window:close']('asrConfig')}>
+          <Button variant="outline" className="flex-1 no-drag" onClick={() => window.chobits.window['window:close']('asrConfig')}>
             关闭
           </Button>
           {isASRRunning ? (

@@ -49,7 +49,7 @@ const DatabaseBackupSettings: React.FC = () => {
   const loadBackups = useCallback(async () => {
     setIsLoading(true);
     try {
-      const result = await window.YUA.system['database:listBackups']();
+      const result = await window.chobits.system['database:list-backups']();
       if (result.ok && result.backups) {
         setBackups(result.backups);
       }
@@ -67,7 +67,7 @@ const DatabaseBackupSettings: React.FC = () => {
   const handleBackup = async () => {
     setIsBackingUp(true);
     try {
-      const result = await window.YUA.system['database:backup']();
+      const result = await window.chobits.system['database:backup']();
       if (result.ok) {
         await loadBackups();
       } else {
@@ -85,7 +85,7 @@ const DatabaseBackupSettings: React.FC = () => {
 
     setIsDeleting(true);
     try {
-      const result = await window.YUA.system['database:deleteBackup'](deleteTarget.path);
+      const result = await window.chobits.system['database:delete-backup'](deleteTarget.path);
       if (result.ok) {
         setBackups((prev) => prev.filter((b) => b.path !== deleteTarget.path));
         setDeleteTarget(null);
@@ -104,7 +104,7 @@ const DatabaseBackupSettings: React.FC = () => {
 
     setIsRestoring(true);
     try {
-      const result = await window.YUA.system['database:restoreBackup'](restoreTarget.path);
+      const result = await window.chobits.system['database:restore-backup'](restoreTarget.path);
       if (result.ok) {
         setRestoreTarget(null);
         setShowRestartDialog(true);
@@ -122,15 +122,15 @@ const DatabaseBackupSettings: React.FC = () => {
     setIsImporting(true);
     try {
       // 打开文件选择对话框
-      const result = await window.YUA.file['file:pickFile']({
+      const result = await window.chobits.file['file:pick-file']({
         filters: [{ name: 'SQLite 数据库', extensions: ['db', 'sqlite', 'sqlite3'] }]
       });
 
-      if (result.canceled || !result.path) {
+      if (!result.ok || !result.path) {
         return;
       }
 
-      const importResult = await window.YUA.system['database:importBackup'](result.path);
+      const importResult = await window.chobits.system['database:import-backup'](result.path);
 
       if (importResult.ok) {
         await loadBackups();
@@ -146,7 +146,7 @@ const DatabaseBackupSettings: React.FC = () => {
 
   const handleRestart = async () => {
     try {
-      await window.YUA.system['app:relaunch']();
+      await window.chobits.system['app:relaunch']();
     } catch (error) {
       console.error('Failed to relaunch:', error);
     }

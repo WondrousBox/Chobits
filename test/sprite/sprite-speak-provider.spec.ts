@@ -219,7 +219,7 @@ describe('Sprite speak AI Provider synthesis', () => {
 
     const result = await service.synthesize('你好 😄');
 
-    expect(result.success).toBe(true);
+    expect(result.ok).toBe(true);
     expect(result.audioPath).toMatch(/\.wav$/);
     expect(readFileSync(result.audioPath!, 'utf8')).toBe('provider-audio');
     expect(synthesize).toHaveBeenCalledTimes(1);
@@ -241,7 +241,7 @@ describe('Sprite speak AI Provider synthesis', () => {
     );
 
     const cached = await service.synthesize('你好 😄');
-    expect(cached).toMatchObject({ success: true, cacheId: result.cacheId, fromCache: true });
+    expect(cached).toMatchObject({ ok: true, cacheId: result.cacheId, fromCache: true });
     expect(synthesize).toHaveBeenCalledTimes(1);
   });
 
@@ -276,8 +276,8 @@ describe('Sprite speak AI Provider synthesis', () => {
     });
     const second = await service.synthesize('同一句话');
 
-    expect(first.success).toBe(true);
-    expect(second.success).toBe(true);
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
     expect(first.cacheId).not.toBe(second.cacheId);
     expect(synthesize).toHaveBeenCalledTimes(2);
   });
@@ -307,7 +307,7 @@ describe('Sprite speak AI Provider synthesis', () => {
 
     const result = await service.synthesize('流式你好');
 
-    expect(result.success).toBe(true);
+    expect(result.ok).toBe(true);
     expect(stream).not.toHaveBeenCalled();
     expect(synthesize).toHaveBeenCalledWith(
       expect.objectContaining({

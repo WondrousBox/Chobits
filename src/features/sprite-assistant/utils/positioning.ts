@@ -11,8 +11,8 @@ const BOTTOM_MARGIN = 40;
 
 /** 将主窗口对齐到其所在屏幕 workArea 的右下角 */
 export async function alignMainWindowToBottomRight(windowWidth: number, windowHeight: number): Promise<void> {
-  const workArea = await window.YUA.window['screen:work-area:get']();
+  const workArea = await window.chobits.window['screen:work-area:get']();
   const winX = Math.max(workArea.x, workArea.x + workArea.width - windowWidth - RIGHT_MARGIN);
   const winY = Math.max(workArea.y, workArea.y + workArea.height - windowHeight - BOTTOM_MARGIN);
-  await window.YUA.window['window:move']({ x: winX, y: winY });
+  await window.chobits.window['window:move']({ x: winX, y: winY });
 }

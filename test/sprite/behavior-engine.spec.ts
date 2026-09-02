@@ -6,7 +6,7 @@ import { BehaviorEngine } from '../../packages/sprite-core/behavior-engine';
 function createContext(): BehaviorContext {
   return {
     spriteState: 'idle',
-    personaState: {
+    characterState: {
       name: 'Test',
       description: '',
       mood: 'neutral',

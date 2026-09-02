@@ -13,19 +13,19 @@ import { FEATURE_DEFINITIONS, resolveFeatureFlags, type FeatureKey } from '@pack
 export function useFeatureFlags(): {
   definitions: typeof FEATURE_DEFINITIONS;
   flags: Record<FeatureKey, boolean>;
-  loading: boolean;
+  isLoading: boolean;
   isEnabled: (key: FeatureKey) => boolean;
   setFeatureFlag: (key: FeatureKey, enabled: boolean) => Promise<void>;
 } {
   const [flags, setFlags] = useState<Record<FeatureKey, boolean>>(() => resolveFeatureFlags());
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let disposed = false;
 
     const load = async (): Promise<void> => {
       try {
-        const result = await window.YUA.preferences['preferences:getConfig']();
+        const result = await window.chobits.preferences['preferences:get-config']();
         if (!disposed && result.ok && result.config) {
           setFlags(resolveFeatureFlags(result.config.featureFlags));
         }
@@ -33,7 +33,7 @@ export function useFeatureFlags(): {
         console.warn('[FeatureFlags] failed to load feature flags:', error);
       } finally {
         if (!disposed) {
-          setLoading(false);
+          setIsLoading(false);
         }
       }
     };
@@ -51,7 +51,7 @@ export function useFeatureFlags(): {
     const next = { ...flags, [key]: enabled };
     setFlags(next);
     try {
-      const result = await window.YUA.preferences['preferences:setConfig']({
+      const result = await window.chobits.preferences['preferences:set-config']({
         config: { featureFlags: next }
       });
       if (!result.ok) {
@@ -65,5 +65,5 @@ export function useFeatureFlags(): {
     }
   }, [flags]);
 
-  return { definitions: FEATURE_DEFINITIONS, flags, loading, isEnabled, setFeatureFlag };
+  return { definitions: FEATURE_DEFINITIONS, flags, isLoading, isEnabled, setFeatureFlag };
 }

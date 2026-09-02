@@ -9,12 +9,12 @@ import { toast } from 'sonner';
 export function useAIProviderConfig(): void {
   useEffect(() => {
     const handleMissingProvider = (_e: any, payload: any): void => {
-      const pid: string = payload?.providerId || 'zhipu';
+      const providerId: string = payload?.providerId || 'zhipu';
       const fields: string[] = Array.isArray(payload?.fields) && payload.fields.length ? payload.fields : ['apiKey'];
-      console.log('[AI Provider Config] 检测到缺少配置，准备打开配置窗口:', { providerId: pid, fields });
+      console.log('[AI Provider Config] 检测到缺少配置，准备打开配置窗口:', { providerId, fields });
 
       // 预设已经成为 AI 配置的主入口，这里直接引导用户前往设置页管理预设
-      window.YUA.window['window:open']('settings' as any, { category: 'ai', aiProviderId: pid }, { sameDisplayAsSender: true })
+      window.chobits.window['window:open']('settings' as any, { category: 'ai', aiProviderId: providerId }, { sameDisplayAsSender: true })
         .then(() => {
           console.log('[AI Provider Config] 已打开 AI 设置页');
         })
