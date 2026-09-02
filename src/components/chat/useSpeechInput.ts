@@ -101,6 +101,7 @@ export function useSpeechInput({ onTranscriptFinal }: UseSpeechInputOptions = {}
   const isActiveRef = useRef(false);
   const pendingCloudTasksRef = useRef(0);
   const recentTranscriptRef = useRef<string[]>([]);
+  // eslint-disable-next-line react-hooks/purity -- useRef 初始值仅首次渲染生效,随机 handler 名用于避免多实例冲突
   const handlerNameRef = useRef(`chat-speech:${Math.random().toString(36).slice(2)}`);
 
   const rememberTranscript = useCallback(
@@ -252,7 +253,11 @@ export function useSpeechInput({ onTranscriptFinal }: UseSpeechInputOptions = {}
     pendingCloudTasksRef.current = 0;
 
     try {
-      const [asrStatus, asrConfig, deviceResult] = await Promise.all([window.chobits.sherpa.getStatus(), window.chobits.sherpa.getASRConfig(), window.chobits.preferences['preferences:get-web-recorder-device-id']()]);
+      const [asrStatus, asrConfig, deviceResult] = await Promise.all([
+        window.chobits.sherpa.getStatus(),
+        window.chobits.sherpa.getASRConfig(),
+        window.chobits.preferences['preferences:get-web-recorder-device-id']()
+      ]);
 
       if (!asrStatus.running) {
         toast.error('请先启动语音识别服务');

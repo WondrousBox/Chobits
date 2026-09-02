@@ -1,10 +1,10 @@
-import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
-import { Type } from 'typebox'
+import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
+import { Type } from 'typebox';
 
-import { createSkillSessionState, findSkillByReference, getSkillSourceInfo, getSkillSourcePolicy, isSkillPathMatched, markSkillDiscovered, searchSkills } from '../skills'
-import type { PiSessionToolContext } from '../tool-context'
-import type { SkillRecord, SkillSessionState } from '../skills'
-import { createJsonToolResult } from './result'
+import type { SkillRecord, SkillSessionState } from '../skills';
+import { createSkillSessionState, findSkillByReference, getSkillSourceInfo, getSkillSourcePolicy, isSkillPathMatched, markSkillDiscovered, searchSkills } from '../skills';
+import type { PiSessionToolContext } from '../tool-context';
+import { createJsonToolResult } from './result';
 
 const skillSearchParameters = Type.Object({
   action: Type.Union([Type.Literal('list'), Type.Literal('search'), Type.Literal('get')], {
@@ -12,72 +12,71 @@ const skillSearchParameters = Type.Object({
   }),
   limit: Type.Optional(Type.Number({ minimum: 1, maximum: 50, description: '返回 skill 数量上限，默认 10' })),
   query: Type.Optional(Type.String({ description: 'search 时填搜索词，get 时填 skill 名称或别名' }))
-})
+});
 
 export function createPiSkillSearchTool(toolContext: PiSessionToolContext): ToolDefinition<typeof skillSearchParameters> {
   return {
     name: 'skillSearchTool',
     label: 'skillSearchTool',
-    description:
-      '搜索和查看当前 session 可用的 skills。list 返回 skill 列表，search 按意图匹配相关 skills，get 按名称获取某个 skill 的 metadata。不会加载 skill 正文。',
+    description: '搜索和查看当前 session 可用的 skills。list 返回 skill 列表，search 按意图匹配相关 skills，get 按名称获取某个 skill 的 metadata。不会加载 skill 正文。',
     parameters: skillSearchParameters,
     async execute(_toolCallId, input) {
-      const registry = toolContext.skillRegistry
+      const registry = toolContext.skillRegistry;
       if (!registry) {
         return createJsonToolResult({
           success: false,
           error: 'Skill registry is not available in the current session.'
-        })
+        });
       }
 
-      const state = toolContext.skillSessionState || (toolContext.skillSessionState = createSkillSessionState())
-      const visibleRecords = registry.listModelVisible()
-      const workspaceRoot = toolContext.coding?.rootPath?.trim() || process.cwd()
-      const limit = input.limit ?? 10
+      const state = toolContext.skillSessionState || (toolContext.skillSessionState = createSkillSessionState());
+      const visibleRecords = registry.listModelVisible();
+      const workspaceRoot = toolContext.coding?.rootPath?.trim() || process.cwd();
+      const limit = input.limit ?? 10;
 
       if (input.action === 'list') {
-        const results = visibleRecords.slice(0, limit).map((record) => buildSkillMetadata(record, state, workspaceRoot))
+        const results = visibleRecords.slice(0, limit).map((record) => buildSkillMetadata(record, state, workspaceRoot));
         return createJsonToolResult({
           success: true,
           skills: results,
           total: visibleRecords.length
-        })
+        });
       }
 
       if (input.action === 'get') {
         if (!input.query?.trim()) {
-          return createJsonToolResult({ success: false, error: 'get 需要提供 query（skill 名称或别名）' })
+          return createJsonToolResult({ success: false, error: 'get 需要提供 query（skill 名称或别名）' });
         }
 
-        const record = findSkillByReference(visibleRecords, input.query)
+        const record = findSkillByReference(visibleRecords, input.query);
         if (!record) {
           return createJsonToolResult({
             success: false,
             error: `未找到 skill "${input.query}"`,
             availableSkills: visibleRecords.map((skill) => skill.name)
-          })
+          });
         }
 
-        markSkillDiscovered(state, record.name)
+        markSkillDiscovered(state, record.name);
 
         return createJsonToolResult({
           success: true,
           skill: buildSkillMetadata(record, state, workspaceRoot)
-        })
+        });
       }
 
       if (!input.query?.trim()) {
-        return createJsonToolResult({ success: false, error: 'search 需要提供 query' })
+        return createJsonToolResult({ success: false, error: 'search 需要提供 query' });
       }
 
       const matches = searchSkills(visibleRecords, {
         limit,
         query: input.query,
         workspaceRoot
-      })
+      });
 
       for (const match of matches) {
-        markSkillDiscovered(state, match.record.name)
+        markSkillDiscovered(state, match.record.name);
       }
 
       return createJsonToolResult({
@@ -89,19 +88,14 @@ export function createPiSkillSearchTool(toolContext: PiSessionToolContext): Tool
           score: match.score
         })),
         total: matches.length
-      })
+      });
     }
-  }
+  };
 }
 
-function buildSkillMetadata(
-  record: SkillRecord,
-  state: SkillSessionState,
-  workspaceRoot: string,
-  pathsMatched = isSkillPathMatched(record, workspaceRoot)
-) {
-  const sourceInfo = getSkillSourceInfo(record)
-  const sourcePolicy = getSkillSourcePolicy(record)
+function buildSkillMetadata(record: SkillRecord, state: SkillSessionState, workspaceRoot: string, pathsMatched = isSkillPathMatched(record, workspaceRoot)) {
+  const sourceInfo = getSkillSourceInfo(record);
+  const sourcePolicy = getSkillSourcePolicy(record);
   return {
     activationToolIds: record.activationToolIds,
     aliases: record.aliases,
@@ -128,5 +122,5 @@ function buildSkillMetadata(
     trustLevel: sourceInfo.trustLevel,
     userInvocable: record.userInvocable,
     whenToUse: record.whenToUse
-  }
+  };
 }

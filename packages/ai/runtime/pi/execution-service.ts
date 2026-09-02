@@ -9,16 +9,16 @@ import type {
   ChatResponse,
   EmbeddingRequest,
   EmbeddingResponse,
-  SpeechSynthesisStreamEvent,
   SpeechSynthesisRequest,
   SpeechSynthesisResponse,
+  SpeechSynthesisStreamEvent,
   SpeechTextInputChunk,
   TranscriptionRequest,
   TranscriptionResponse
 } from '../../types';
+import { PiAudioArtifactService } from './audio-artifact-service';
 import type { PiRuntimeAvailability } from './contracts';
 import { resolvePiModelConfig } from './model-resolver';
-import { PiAudioArtifactService } from './audio-artifact-service';
 import { PiSessionService } from './session-service';
 
 function forcePiRuntimeRequest(req: ChatRequest): ChatRequest {

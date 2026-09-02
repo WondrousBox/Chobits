@@ -13,9 +13,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import type { SpriteAnimationCondition } from './animation-condition';
 import { resolvePackRelativeAssetPath } from './character-pack-paths';
-import type { MoodType } from './character-state';
 import type { MessageCategory } from './types';
 
 // ━━ Type Definitions ━━
@@ -41,7 +39,7 @@ export interface CharacterSpeechStyle {
   quirks: string[];
 }
 
-export interface FavorPersonaEntry {
+export interface FavorTier {
   range: [number, number];
   style: string;
   systemPromptOverlay: string;
@@ -116,7 +114,7 @@ export interface CharacterDefinition {
   nameAliases: string[];
   identity: CharacterIdentity;
   speechStyle: CharacterSpeechStyle;
-  favorPersona: Record<string, FavorPersonaEntry>;
+  favorTiers: Record<string, FavorTier>;
   moodExpressions: Record<string, MoodExpression>;
   dimensions: {
     schema: DimensionDef[];
@@ -135,7 +133,7 @@ export interface CharacterPackAssets {
   animations?: string;
   gallery?: string;
   voices?: string;
-  /** Live2D 模型目录名(位于应用 sprites/live2d/ 下),live2d 渲染模式下切换角色时切换模型 */
+  /** Live2D 模型目录名(位于应用 characters/live2d/ 下),live2d 渲染模式下切换角色时切换模型 */
   live2d?: string;
   preview?: {
     avatar?: string;
@@ -270,14 +268,14 @@ export function getCharacterPackRootDir(): string | null {
 }
 
 /**
- * Initialize the character service with the sprites directory path.
+ * Initialize the character service with the character pack root directory path.
  * Call this once during app bootstrap (after sprite assets are initialized).
  */
-export function initCharacterService(spritesDir: string, options: { source?: CharacterPackRuntimeSource | null } = {}): void {
-  const resolvedSpritesDir = path.resolve(spritesDir);
-  setCharacterPackFilePath(path.join(resolvedSpritesDir, 'pack.json'));
+export function initCharacterService(packRootDir: string, options: { source?: CharacterPackRuntimeSource | null } = {}): void {
+  const resolvedPackRootDir = path.resolve(packRootDir);
+  setCharacterPackFilePath(path.join(resolvedPackRootDir, 'pack.json'));
   setCharacterPackSource(options.source);
-  const characterPath = resolveCharacterFilePathFromPack(getCharacterPackDefinition(), characterPackFilePath) ?? path.join(resolvedSpritesDir, 'character.json');
+  const characterPath = resolveCharacterFilePathFromPack(getCharacterPackDefinition(), characterPackFilePath) ?? path.join(resolvedPackRootDir, 'character.json');
   setCharacterFilePath(characterPath);
 }
 
@@ -326,11 +324,11 @@ export function getCharacterDefinition(): CharacterDefinition | null {
 }
 
 /**
- * Get the favor persona overlay for a given favor level.
+ * Get the favor tier overlay for a given favor level.
  */
-export function getFavorPersonaOverlay(favorLevel: string): FavorPersonaEntry | null {
+export function getFavorTierOverlay(favorLevel: string): FavorTier | null {
   const char = getCharacterDefinition();
-  return char?.favorPersona?.[favorLevel] ?? null;
+  return char?.favorTiers?.[favorLevel] ?? null;
 }
 
 /**
@@ -365,40 +363,40 @@ export function reloadCharacterPack(): CharacterPackDefinition | null {
   return pack;
 }
 
-// ━━ Persona Prompt Builder (Phase 2) ━━
+// ━━ Character Prompt Builder (Phase 2) ━━
 
-export interface PersonaPromptContext {
+export interface CharacterPromptContext {
   favorLevel: string; // e.g. 'stranger', 'friend', 'bestie'
   mood: string; // e.g. 'neutral', 'joyful', 'curious'
   level: number;
 }
 
-export type PersonaPromptSection = 'identity' | 'coreTraits' | 'relationship' | 'speechStyle' | 'mood' | 'boundaries';
-export type PersonaIdentityField = 'name' | 'background' | 'tagline';
-export type PersonaSpeechStyleField = 'tone' | 'language' | 'firstPerson' | 'addressUser' | 'quirks' | 'examples';
+export type CharacterPromptSection = 'identity' | 'coreTraits' | 'relationship' | 'speechStyle' | 'mood' | 'boundaries';
+export type CharacterIdentityField = 'name' | 'background' | 'tagline';
+export type CharacterSpeechStyleField = 'tone' | 'language' | 'firstPerson' | 'addressUser' | 'quirks' | 'examples';
 
-export interface PersonaPromptBuildOptions {
-  sections?: PersonaPromptSection[];
-  identityFields?: PersonaIdentityField[];
-  speechStyleFields?: PersonaSpeechStyleField[];
+export interface CharacterPromptBuildOptions {
+  sections?: CharacterPromptSection[];
+  identityFields?: CharacterIdentityField[];
+  speechStyleFields?: CharacterSpeechStyleField[];
 }
 
-const DEFAULT_PERSONA_PROMPT_SECTIONS: PersonaPromptSection[] = ['identity', 'coreTraits', 'relationship', 'speechStyle', 'mood', 'boundaries'];
-const DEFAULT_IDENTITY_FIELDS: PersonaIdentityField[] = ['name', 'background'];
-const DEFAULT_SPEECH_STYLE_FIELDS: PersonaSpeechStyleField[] = ['tone', 'firstPerson', 'quirks', 'examples'];
+const DEFAULT_CHARACTER_PROMPT_SECTIONS: CharacterPromptSection[] = ['identity', 'coreTraits', 'relationship', 'speechStyle', 'mood', 'boundaries'];
+const DEFAULT_IDENTITY_FIELDS: CharacterIdentityField[] = ['name', 'background'];
+const DEFAULT_SPEECH_STYLE_FIELDS: CharacterSpeechStyleField[] = ['tone', 'firstPerson', 'quirks', 'examples'];
 
 /**
- * Build a character persona system prompt based on the current character definition
- * and the user's persona state (favor level, mood, etc.).
+ * Build a character system prompt based on the current character definition
+ * and the character state (favor level, mood, etc.).
  *
  * Returns null if no character is loaded.
  */
-export function buildCharacterPersonaPrompt(ctx: PersonaPromptContext, options?: PersonaPromptBuildOptions): string | null {
+export function buildCharacterPrompt(ctx: CharacterPromptContext, options?: CharacterPromptBuildOptions): string | null {
   const char = getCharacterDefinition();
   if (!char) return null;
 
   const sections: string[] = [];
-  const selectedSections = new Set(options?.sections ?? DEFAULT_PERSONA_PROMPT_SECTIONS);
+  const selectedSections = new Set(options?.sections ?? DEFAULT_CHARACTER_PROMPT_SECTIONS);
   const selectedIdentityFields = new Set(options?.identityFields ?? DEFAULT_IDENTITY_FIELDS);
   const selectedSpeechStyleFields = new Set(options?.speechStyleFields ?? DEFAULT_SPEECH_STYLE_FIELDS);
 
@@ -432,10 +430,10 @@ export function buildCharacterPersonaPrompt(ctx: PersonaPromptContext, options?:
     sections.push(`## 性格特征\n${char.identity.coreTraits.map((t) => `- ${t}`).join('\n')}`);
   }
 
-  // Favor-based persona overlay
-  const favorEntry = char.favorPersona[ctx.favorLevel];
-  if (selectedSections.has('relationship') && favorEntry) {
-    sections.push(`## 当前关系\n${favorEntry.systemPromptOverlay}`);
+  // Favor-based prompt overlay
+  const favorTier = char.favorTiers[ctx.favorLevel];
+  if (selectedSections.has('relationship') && favorTier) {
+    sections.push(`## 当前关系\n${favorTier.systemPromptOverlay}`);
   }
 
   // Speech style

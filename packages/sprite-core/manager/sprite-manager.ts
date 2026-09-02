@@ -22,12 +22,12 @@ import type { AnimationEntry } from '../animation-registry';
 import { AnimationRegistry } from '../animation-registry';
 import type { BehaviorContext, BehaviorDefinition } from '../behavior-engine';
 import { BehaviorEngine } from '../behavior-engine';
+import type { CharacterState, MoodType } from '../character-state';
+import { CharacterStateManager } from '../character-state';
 import { SpriteEventBus } from '../event-bus';
 import { SPRITE_INTERACTION_EVENT_BY_INTENT, type SpriteInteractionIntent, type SpriteInteractionPayload } from '../interaction-contract';
 import { InteractionTracker } from '../interaction-tracker';
 import { getCharacterCategoryText, getCharacterSpriteEventText } from '../messages/character';
-import type { MoodType, CharacterState } from '../character-state';
-import { CharacterStateManager } from '../character-state';
 import {
   SpritePresentationLock,
   type SpritePurpose,
@@ -153,7 +153,7 @@ type SpriteSpeechPlaybackOptions = {
   talkDurationMs?: number;
   ownerPurposeId?: string;
   priority?: number;
-  ignorePresentationLock?: boolean;
+  shouldIgnorePresentationLock?: boolean;
 };
 
 type SpritePlaybackMetrics = Pick<SpriteConfig, 'width' | 'height' | 'padding'>;
@@ -234,7 +234,7 @@ export class SpriteManager {
   private presentationLock = new SpritePresentationLock();
   private activeRoutinePresentationOwner: SpritePresentationOwnerContext | null = null;
   private stateDrivenPresentationOwner: SpritePresentationOwnerContext | null = null;
-  private spriteConfig: SpriteConfig = { width: 200, height: 200, padding: 100, animationPlaylistMode: DEFAULT_SPRITE_ANIMATION_PLAYLIST_MODE, showDebugOverlay: false };
+  private spriteConfig: SpriteConfig = { width: 200, height: 200, padding: 100, animationPlaylistMode: DEFAULT_SPRITE_ANIMATION_PLAYLIST_MODE, debugOverlayEnabled: false };
   private movementCoordinator: MovementCoordinator;
 
   // 状态广播节流
@@ -722,17 +722,17 @@ export class SpriteManager {
       playbackSession: this.buildPlaybackSession(anim.playback, resolvedDurationMs, options.sessionMode),
       playback: anim.playback
         ? {
-          width: playbackMetrics!.width,
-          height: playbackMetrics!.height,
-          padding: playbackMetrics!.padding,
-          loop: playbackLoop,
-          loopCount: playbackLoopCount,
-          loopStartMs: anim.playback.loopStartMs,
-          loopEndMs: anim.playback.loopEndMs,
-          durationMs: resolvedDurationMs,
-          autoIdle: anim.playback.autoIdle ?? true,
-          movement: anim.playback.movement
-        }
+            width: playbackMetrics!.width,
+            height: playbackMetrics!.height,
+            padding: playbackMetrics!.padding,
+            loop: playbackLoop,
+            loopCount: playbackLoopCount,
+            loopStartMs: anim.playback.loopStartMs,
+            loopEndMs: anim.playback.loopEndMs,
+            durationMs: resolvedDurationMs,
+            autoIdle: anim.playback.autoIdle ?? true,
+            movement: anim.playback.movement
+          }
         : { durationMs: options.durationMs ?? 2000, loop: playbackLoop, loopCount: playbackLoopCount, autoIdle: true }
     };
     this.currentAnimationPresentationOwner = options.presentationOwner ? { ...options.presentationOwner } : null;
@@ -793,7 +793,7 @@ export class SpriteManager {
     return this.presentationLock.shouldAllow({
       ownerId: options?.ownerPurposeId,
       priority: options?.priority,
-      ignoreLock: options?.ignorePresentationLock
+      ignoreLock: options?.shouldIgnorePresentationLock
     });
   }
 
@@ -862,7 +862,7 @@ export class SpriteManager {
         silent: options?.silent,
         priority: options?.priority,
         ownerPurposeId: options?.ownerPurposeId,
-        ignorePresentationLock: options?.ignorePresentationLock,
+        shouldIgnorePresentationLock: options?.shouldIgnorePresentationLock,
         playlistMode,
         requestedCandidateCount,
         candidateCount: candidates.length,
@@ -1103,7 +1103,7 @@ export class SpriteManager {
       ambientContext?: SpriteAmbientMessageContext;
       ownerPurposeId?: string;
       priority?: number;
-      ignorePresentationLock?: boolean;
+      shouldIgnorePresentationLock?: boolean;
     }
   ): void {
     if (this.shouldSuppressAmbientMessage(options?.ambientContext)) {
@@ -1130,8 +1130,8 @@ export class SpriteManager {
           talkDurationMs: options?.duration,
           ownerPurposeId: options?.ownerPurposeId,
           priority: options?.priority,
-          ignorePresentationLock: options?.ignorePresentationLock
-        }).catch(() => { });
+          shouldIgnorePresentationLock: options?.shouldIgnorePresentationLock
+        }).catch(() => {});
       }
     }
   }
@@ -1150,7 +1150,7 @@ export class SpriteManager {
       ambientContext?: SpriteAmbientMessageContext;
       ownerPurposeId?: string;
       priority?: number;
-      ignorePresentationLock?: boolean;
+      shouldIgnorePresentationLock?: boolean;
     }
   ): boolean {
     if (this.shouldSuppressAmbientMessage(options?.ambientContext)) {
@@ -1176,8 +1176,8 @@ export class SpriteManager {
         talkDurationMs: options?.duration,
         ownerPurposeId: options?.ownerPurposeId,
         priority: options?.priority,
-        ignorePresentationLock: options?.ignorePresentationLock
-      }).catch(() => { });
+        shouldIgnorePresentationLock: options?.shouldIgnorePresentationLock
+      }).catch(() => {});
     }
     return true;
   }
@@ -1244,31 +1244,31 @@ export class SpriteManager {
   async speak(
     text: string,
     options?: {
-      showBubble?: boolean;
+      bubbleEnabled?: boolean;
       bubbleDuration?: number;
       ambientContext?: SpriteAmbientMessageContext;
       ownerPurposeId?: string;
       priority?: number;
-      ignorePresentationLock?: boolean;
+      shouldIgnorePresentationLock?: boolean;
     }
   ): Promise<SpeakResult> {
     if (this.shouldSuppressAmbientMessage(options?.ambientContext)) {
       return { ok: false, error: 'suppressed-by-onboarding' };
     }
 
-    const showBubble = options?.showBubble ?? true;
+    const bubbleEnabled = options?.bubbleEnabled ?? true;
 
     this._speakGuard = true;
     try {
       const bubbleDuration = options?.bubbleDuration ?? Math.max(3000, text.length * 200);
-      if (showBubble) {
+      if (bubbleEnabled) {
         this.showToast(text, { duration: bubbleDuration, category: 'message' });
       }
       return await this.playSpeechAudio(text, {
         talkDurationMs: bubbleDuration,
         ownerPurposeId: options?.ownerPurposeId,
         priority: options?.priority,
-        ignorePresentationLock: options?.ignorePresentationLock
+        shouldIgnorePresentationLock: options?.shouldIgnorePresentationLock
       });
     } finally {
       this._speakGuard = false;
@@ -1284,7 +1284,7 @@ export class SpriteManager {
     return {
       talkDurationMs: options?.talkDurationMs ?? Math.max(3000, text.length * 200),
       ...(owner ? { ownerPurposeId: owner.ownerId, priority: owner.priority } : {}),
-      ...(options?.ignorePresentationLock ? { ignorePresentationLock: true } : {})
+      ...(options?.shouldIgnorePresentationLock ? { shouldIgnorePresentationLock: true } : {})
     };
   }
 
@@ -1314,7 +1314,7 @@ export class SpriteManager {
       silent: true,
       ownerPurposeId: context?.ownerPurposeId,
       priority: context?.priority,
-      ignorePresentationLock: context?.ignorePresentationLock
+      shouldIgnorePresentationLock: context?.shouldIgnorePresentationLock
     });
   }
 
@@ -1417,7 +1417,7 @@ export class SpriteManager {
   }
 
   /** 切换到新的角色状态存档：先保存当前 slot，再恢复目标 slot。 */
-  async switchCharacterStateSlot(slotId: string, identity?: { name?: string; description?: string }): Promise<{ restored: boolean; state: CharacterState }> {
+  async switchCharacterStateSlot(slotId: string, identity?: { name?: string; description?: string }): Promise<{ wasRestored: boolean; state: CharacterState }> {
     await this.persistence.save(this.getCharacterStateForPersistence());
 
     this.configureCharacterStateSlot(slotId, identity);
@@ -1438,7 +1438,7 @@ export class SpriteManager {
     this.broadcastState();
 
     return {
-      restored: !!saved,
+      wasRestored: !!saved,
       state: this.characterState.getState()
     };
   }
@@ -1761,12 +1761,12 @@ export class SpriteManager {
 
   /** 获取是否显示调试辅助线 */
   isDebugOverlayEnabled(): boolean {
-    return this.spriteConfig.showDebugOverlay ?? false;
+    return this.spriteConfig.debugOverlayEnabled ?? false;
   }
 
   /** 设置调试辅助线开关 */
   setDebugOverlayEnabled(enabled: boolean): void {
-    this.spriteConfig.showDebugOverlay = enabled;
+    this.spriteConfig.debugOverlayEnabled = enabled;
     this.emitConfigChanged();
   }
 
@@ -2468,7 +2468,7 @@ export class SpriteManager {
         return;
       }
 
-      this.resolveAndSendAnimation(this.getState(), this.getSubState(), { ignorePresentationLock: true });
+      this.resolveAndSendAnimation(this.getState(), this.getSubState(), { shouldIgnorePresentationLock: true });
     }
   }
 
@@ -2544,10 +2544,10 @@ export class SpriteManager {
     const currentPurpose = this.purposeManager.getSnapshot().current;
     const resultPayload: Record<string, unknown> | undefined = result
       ? {
-        elapsedMs: result.elapsedMs,
-        value: result.value,
-        stepType: step.type
-      }
+          elapsedMs: result.elapsedMs,
+          value: result.value,
+          stepType: step.type
+        }
       : { stepType: step.type };
 
     await this.purposeHistory.append({
@@ -2654,7 +2654,7 @@ export class SpriteManager {
 
   private async runPurposeSpeakStep(step: Extract<SpriteRoutineStep, { type: 'speak' }>, routine: SpriteRoutine): Promise<SpeakResult> {
     return this.speak(step.text, {
-      showBubble: true,
+      bubbleEnabled: true,
       bubbleDuration: step.bubbleDuration,
       ownerPurposeId: routine.purposeId,
       priority: this.resolveRoutinePriority(routine)

@@ -1,5 +1,5 @@
-import { listProviderRuntimeModels } from './service';
 import type { ChatMessage, ChatResponse, StreamEvent } from '../types';
+import { listProviderRuntimeModels } from './service';
 
 export function createAssistantMessage(content: string, createdAt = Date.now()): ChatMessage {
   return {

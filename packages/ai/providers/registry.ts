@@ -4,17 +4,13 @@ const definitions = new Map<string, ProviderDefinition>();
 const aliasToCanonical = new Map<string, string>();
 
 function normalizeProviderId(providerId?: string): string {
-  return String(providerId || '').trim().toLowerCase();
+  return String(providerId || '')
+    .trim()
+    .toLowerCase();
 }
 
 function normalizeAliases(providerId: string, aliases?: string[]): string[] {
-  return Array.from(
-    new Set(
-      [providerId, ...(aliases || [])]
-        .map((alias) => normalizeProviderId(alias))
-        .filter(Boolean)
-    )
-  );
+  return Array.from(new Set([providerId, ...(aliases || [])].map((alias) => normalizeProviderId(alias)).filter(Boolean)));
 }
 
 function validateDefinition(definition: ProviderDefinition): { aliases: string[]; id: string } {

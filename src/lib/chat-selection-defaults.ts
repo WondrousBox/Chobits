@@ -42,18 +42,19 @@ function writeSelection(providerId: string, presetId: string | undefined, modelI
   }
 }
 
-export async function selectChatDefaultsForProvider(input: {
-  providerId: string;
-  presetId?: string;
-  provider?: ProviderRow;
-}): Promise<{ providerId: string; presetId?: string; modelId: string }> {
+export async function selectChatDefaultsForProvider(input: { providerId: string; presetId?: string; provider?: ProviderRow }): Promise<{ providerId: string; presetId?: string; modelId: string }> {
   const providerId = input.providerId.trim();
   const presetId = input.presetId?.trim() || undefined;
   if (!providerId) {
     return { providerId, presetId, modelId: '' };
   }
 
-  const provider = input.provider ?? ((await window.chobits.ai.getProviders().then((providers) => providers.find((item: ProviderRow) => item.id === providerId)).catch(() => undefined)) as ProviderRow | undefined);
+  const provider =
+    input.provider ??
+    ((await window.chobits.ai
+      .getProviders()
+      .then((providers) => providers.find((item: ProviderRow) => item.id === providerId))
+      .catch(() => undefined)) as ProviderRow | undefined);
   const models = ((await window.chobits.ai.listModels(providerId, presetId).catch(() => [])) || []) as ModelRow[];
   const modelId = resolveChatModelId(provider, models);
   writeSelection(providerId, presetId, modelId);

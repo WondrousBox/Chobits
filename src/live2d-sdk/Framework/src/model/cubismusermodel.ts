@@ -145,10 +145,7 @@ export class CubismUserModel {
     }
 
     this._model.saveParameters();
-    this._modelMatrix = new CubismModelMatrix(
-      this._model.getCanvasWidth(),
-      this._model.getCanvasHeight()
-    );
+    this._modelMatrix = new CubismModelMatrix(this._model.getCanvasWidth(), this._model.getCanvasHeight());
     this._modelMatrix.scale(kScale, kScale);
   }
 
@@ -160,12 +157,7 @@ export class CubismUserModel {
    * @param onFinishedMotionHandler モーション再生終了時に呼び出されるコールバック関数
    * @return モーションクラス
    */
-  public loadMotion(
-    buffer: ArrayBuffer,
-    size: number,
-    name: string,
-    onFinishedMotionHandler?: FinishedMotionCallback
-  ): CubismMotion {
+  public loadMotion(buffer: ArrayBuffer, size: number, name: string, onFinishedMotionHandler?: FinishedMotionCallback): CubismMotion {
     if (buffer == null || size == 0) {
       CubismLogError('Failed to loadMotion().');
       return null;
@@ -179,11 +171,7 @@ export class CubismUserModel {
    * @param size バッファのサイズ
    * @param name 表情の名前
    */
-  public loadExpression(
-    buffer: ArrayBuffer,
-    size: number,
-    name: string
-  ): ACubismMotion {
+  public loadExpression(buffer: ArrayBuffer, size: number, name: string): ACubismMotion {
     if (buffer == null || size == 0) {
       CubismLogError('Failed to loadExpression().');
       return null;
@@ -238,11 +226,7 @@ export class CubismUserModel {
    * @return true ヒットしている
    * @return false ヒットしていない
    */
-  public isHit(
-    drawableId: CubismIdHandle,
-    pointX: number,
-    pointY: number
-  ): boolean {
+  public isHit(drawableId: CubismIdHandle, pointX: number, pointY: number): boolean {
     const drawIndex: number = this._model.getDrawableIndex(drawableId);
 
     if (drawIndex < 0) {
@@ -346,11 +330,7 @@ export class CubismUserModel {
    * @param eventValue 発火したイベントの文字列データ
    * @param customData CubismUserModelを継承したインスタンスを想定
    */
-  public static cubismDefaultMotionEventCallback(
-    caller: CubismMotionQueueManager,
-    eventValue: csmString,
-    customData: CubismUserModel
-  ): void {
+  public static cubismDefaultMotionEventCallback(caller: CubismMotionQueueManager, eventValue: csmString, customData: CubismUserModel): void {
     const model: CubismUserModel = customData;
 
     if (model != null) {
@@ -390,10 +370,7 @@ export class CubismUserModel {
 
     // モーションマネージャーを作成
     this._motionManager = new CubismMotionManager();
-    this._motionManager.setEventCallback(
-      CubismUserModel.cubismDefaultMotionEventCallback,
-      this
-    );
+    this._motionManager.setEventCallback(CubismUserModel.cubismDefaultMotionEventCallback, this);
 
     // 表情マネージャーを作成
     this._expressionManager = new CubismExpressionMotionManager();

@@ -27,10 +27,10 @@ const ASRPage: React.FC = () => {
   const [cloudProviderPresetId, setCloudProviderPresetId] = useState<string>('');
   const [cloudModelId, setCloudModelId] = useState<string>('');
   const [audioSource, setAudioSource] = useState<AudioSource>('system-audio');
-  const [asrEngineReady, setAsrEngineReady] = useState<boolean | null>(null); // null=checking, true=ready, false=not running
+  const [isASREngineReady, setIsASREngineReady] = useState<boolean | null>(null); // null=checking, true=ready, false=not running
   const [isSubtitleMode, setIsSubtitleMode] = useState(false); // 字幕模式（合并了透明和收起功能）
-  const [showLeftPanel, setShowLeftPanel] = useState(false); // 默认显示左侧面板
-  const [showRightPanel, setShowRightPanel] = useState(true); // 默认显示右侧 AI 面板
+  const [isLeftPanelVisible, setIsLeftPanelVisible] = useState(false); // 默认显示左侧面板
+  const [isRightPanelVisible, setIsRightPanelVisible] = useState(true); // 默认显示右侧 AI 面板
 
   // 预览模式状态
   const [viewMode, setViewMode] = useState<ViewMode>('recording');
@@ -74,11 +74,11 @@ const ASRPage: React.FC = () => {
         try {
           const status = await window.chobits.sherpa.getStatus();
           if (mounted) {
-            setAsrEngineReady(status.running);
+            setIsASREngineReady(status.running);
           }
         } catch (error) {
           console.error('[ASR] 检查引擎状态失败:', error);
-          if (mounted) setAsrEngineReady(false);
+          if (mounted) setIsASREngineReady(false);
         }
 
         // 检查是否有未完成的录音需要恢复
@@ -221,17 +221,17 @@ const ASRPage: React.FC = () => {
   const handleToggleSubtitleMode = useCallback(() => {
     if (isSubtitleMode) {
       // 退出字幕模式：恢复之前保存的状态
-      setShowLeftPanel(savedLeftPanelStateRef.current);
-      setShowRightPanel(savedRightPanelStateRef.current);
+      setIsLeftPanelVisible(savedLeftPanelStateRef.current);
+      setIsRightPanelVisible(savedRightPanelStateRef.current);
     } else {
       // 进入字幕模式：保存当前状态并设置字幕模式
-      savedLeftPanelStateRef.current = showLeftPanel;
-      savedRightPanelStateRef.current = showRightPanel;
-      setShowLeftPanel(false); // 隐藏左侧面板
-      setShowRightPanel(true); // 显示右侧面板
+      savedLeftPanelStateRef.current = isLeftPanelVisible;
+      savedRightPanelStateRef.current = isRightPanelVisible;
+      setIsLeftPanelVisible(false); // 隐藏左侧面板
+      setIsRightPanelVisible(true); // 显示右侧面板
     }
     setIsSubtitleMode(!isSubtitleMode);
-  }, [isSubtitleMode, showLeftPanel, showRightPanel]);
+  }, [isSubtitleMode, isLeftPanelVisible, isRightPanelVisible]);
 
   // 根据字幕模式和面板显示状态调整窗口大小
   useEffect(() => {
@@ -247,8 +247,8 @@ const ASRPage: React.FC = () => {
         } else {
           // 正常模式：根据实际显示的面板计算宽度
           targetWidth = baseWidth;
-          if (showLeftPanel) targetWidth += leftPanelWidth;
-          if (showRightPanel) targetWidth += rightPanelWidth;
+          if (isLeftPanelVisible) targetWidth += leftPanelWidth;
+          if (isRightPanelVisible) targetWidth += rightPanelWidth;
           targetHeight = baseHeight;
         }
 
@@ -259,18 +259,18 @@ const ASRPage: React.FC = () => {
     };
 
     adjustWindowSize();
-  }, [isSubtitleMode, showLeftPanel, showRightPanel, baseWidth, leftPanelWidth, rightPanelWidth, baseHeight, subtitleModeHeight]);
+  }, [isSubtitleMode, isLeftPanelVisible, isRightPanelVisible, baseWidth, leftPanelWidth, rightPanelWidth, baseHeight, subtitleModeHeight]);
 
   // ASR 引擎未启动时，自动打开 ASRConfig 面板并关闭当前窗口
   useEffect(() => {
-    if (asrEngineReady === false) {
+    if (isASREngineReady === false) {
       window.chobits.window['window:open']('asrConfig' as any);
       window.chobits.window['window:close:self']();
     }
-  }, [asrEngineReady]);
+  }, [isASREngineReady]);
 
   // 检查中或引擎未就绪时显示 loading
-  if (asrEngineReady !== true) {
+  if (isASREngineReady !== true) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-muted">
         <div className="flex flex-col items-center gap-3">
@@ -284,7 +284,7 @@ const ASRPage: React.FC = () => {
   return (
     <>
       <div className="flex h-full w-full">
-        {showLeftPanel && (
+        {isLeftPanelVisible && (
           <HistoryPanel isSubtitleMode={isSubtitleMode} isRecording={isRecording} selectedId={viewMode === 'preview' ? previewRecording?.id : null} onSelectRecording={handleSelectRecording} />
         )}
         <div className={`flex flex-col h-full group drag-region overflow-hidden box-border ${isSubtitleMode ? 'bg-transparent' : 'bg-muted'}`}>
@@ -294,7 +294,7 @@ const ASRPage: React.FC = () => {
             {!isSubtitleMode && (
               <PanelLeft
                 className={`h-4 w-4 mx-2 cursor-pointer no-drag ${isSubtitleMode ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`}
-                onClick={() => setShowLeftPanel(!showLeftPanel)}
+                onClick={() => setIsLeftPanelVisible(!isLeftPanelVisible)}
               />
             )}
             {<div className="flex-1"></div>}
@@ -312,11 +312,11 @@ const ASRPage: React.FC = () => {
               {!isSubtitleMode && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button size="icon" variant={showRightPanel ? 'secondary' : 'ghost'} className="no-drag w-8 h-8" onClick={() => setShowRightPanel(!showRightPanel)}>
+                    <Button size="icon" variant={isRightPanelVisible ? 'secondary' : 'ghost'} className="no-drag w-8 h-8" onClick={() => setIsRightPanelVisible(!isRightPanelVisible)}>
                       <PanelRight className={`h-4 w-4 ${isSubtitleMode ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>{showRightPanel ? '隐藏AI操作' : '显示AI操作'}</TooltipContent>
+                  <TooltipContent>{isRightPanelVisible ? '隐藏AI操作' : '显示AI操作'}</TooltipContent>
                 </Tooltip>
               )}
               {!isSubtitleMode && (
@@ -405,7 +405,7 @@ const ASRPage: React.FC = () => {
             </div>
 
             {/* 右侧面板：AI操作 */}
-            {showRightPanel && !isSubtitleMode && (
+            {isRightPanelVisible && !isSubtitleMode && (
               <div style={{ width: rightPanelWidth }}>
                 <AIActionsPanel segments={viewMode === 'preview' ? previewSegments : recognizedSegments} isSubtitleMode={isSubtitleMode} onTranslationUpdate={handleTranslationUpdate} />
               </div>

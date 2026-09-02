@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { GptSovitsProvider } from '../../packages/ai/providers/gpt-sovits';
 import { gptSovitsDefinition } from '../../packages/ai/providers/builtins/gpt-sovits/definition';
+import { GptSovitsProvider } from '../../packages/ai/providers/gpt-sovits';
 import { getProviderCapabilities, getProviderDefaultModels, getProviderDefinitionModel, registerBuiltinProviderDefinitions } from '../../packages/ai/providers/service';
 
 // 测试环境 Node 18 无法加载传递依赖 undici@8（且不应真的发 TLS 请求），
@@ -421,7 +421,9 @@ describe('GPT-SoVITS streaming speech synthesis', () => {
     const provider = new GptSovitsProvider();
 
     await expect(provider.streamSpeechSynthesis({ model: 'chi-tts', mode: 'duplex-stream', providerId: 'gpt-sovits', text: 'hi' }, () => undefined)).rejects.toThrow('mode "duplex-stream"');
-    await expect(provider.streamSpeechSynthesis({ model: 'chi-tts', providerId: 'gpt-sovits', text: 'hi', transportPreference: 'websocket' }, () => undefined)).rejects.toThrow('transport "websocket"');
+    await expect(provider.streamSpeechSynthesis({ model: 'chi-tts', providerId: 'gpt-sovits', text: 'hi', transportPreference: 'websocket' }, () => undefined)).rejects.toThrow(
+      'transport "websocket"'
+    );
   });
 
   it('rejects when the server returns an error before streaming starts', async () => {

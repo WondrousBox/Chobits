@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { SpriteConfig, SpriteInitialState, SpritePlayCommand, SpriteStateSnapshot, SpriteWalkState } from '../../packages/sprite-core/types';
-import type { SpriteStateContextValue } from '../../src/features/sprite-assistant/context/sprite-state-context';
+import type { SpriteStateContextValue } from '../../src/features/sprite/context/sprite-state-context';
 import { installMiniDom, isFakeVideoElement } from '../utils/minidom';
 
 vi.mock('@/lib/resource-protocol', () => ({
@@ -84,7 +84,7 @@ function createSpriteBridgeHarness(initialState: SpriteInitialState): {
 describe('sprite renderer mount', () => {
   it('retries renderer initial state and sends ready after a transient failure', async () => {
     vi.useFakeTimers();
-    const { SpriteStateRuntimeController } = await import('../../src/features/sprite-assistant/context/sprite-state-runtime');
+    const { SpriteStateRuntimeController } = await import('../../src/features/sprite/context/sprite-state-runtime');
     const initialState: SpriteInitialState = {
       state: 'idle',
       subState: null,
@@ -96,7 +96,7 @@ describe('sprite renderer mount', () => {
         height: 220,
         padding: 80,
         animationPlaylistMode: 'list-loop',
-        showDebugOverlay: false,
+        debugOverlayEnabled: false,
         bubbleMode: 'fixed-top'
       }
     };
@@ -135,8 +135,8 @@ describe('sprite renderer mount', () => {
 
     const env = installMiniDom();
 
-    const { SpriteStateContext } = await import('../../src/features/sprite-assistant/context/sprite-state-context');
-    const { default: PaddingDebugOverlay } = await import('../../src/features/sprite-assistant/ui/PaddingDebugOverlay');
+    const { SpriteStateContext } = await import('../../src/features/sprite/context/sprite-state-context');
+    const { default: PaddingDebugOverlay } = await import('../../src/features/sprite/ui/PaddingDebugOverlay');
 
     const state = {
       spriteState: 'idle',
@@ -152,7 +152,7 @@ describe('sprite renderer mount', () => {
         height: 240,
         padding: 100,
         animationPlaylistMode: 'list-loop',
-        showDebugOverlay: true,
+        debugOverlayEnabled: true,
         bubbleMode: 'fixed-top'
       }
     } satisfies SpriteStateContextValue;
@@ -208,15 +208,15 @@ describe('sprite renderer mount', () => {
         height: 220,
         padding: 80,
         animationPlaylistMode: 'list-loop',
-        showDebugOverlay: true
+        debugOverlayEnabled: true
       }
     } as SpriteInitialState);
 
     (env.window as any).chobits = { sprite: harness.bridge };
 
-    const { SpriteStateProvider } = await import('../../src/features/sprite-assistant/context/SpriteStateContext');
-    const { useSpriteState } = await import('../../src/features/sprite-assistant/context/hooks');
-    const { default: VideoSprite } = await import('../../src/features/sprite-assistant/renderers/VideoSprite');
+    const { SpriteStateProvider } = await import('../../src/features/sprite/context/SpriteStateContext');
+    const { useSpriteState } = await import('../../src/features/sprite/context/hooks');
+    const { default: VideoSprite } = await import('../../src/features/sprite/renderers/VideoSprite');
 
     function MountedSprite(): JSX.Element {
       const { ready, walkDirection } = useSpriteState();
@@ -347,15 +347,15 @@ describe('sprite renderer mount', () => {
         height: 240,
         padding: 16,
         animationPlaylistMode: 'list-loop',
-        showDebugOverlay: false
+        debugOverlayEnabled: false
       }
     } as SpriteInitialState);
 
     (env.window as any).chobits = { sprite: harness.bridge };
 
-    const { SpriteStateProvider } = await import('../../src/features/sprite-assistant/context/SpriteStateContext');
-    const { useSpriteState } = await import('../../src/features/sprite-assistant/context/hooks');
-    const { default: VideoSprite } = await import('../../src/features/sprite-assistant/renderers/VideoSprite');
+    const { SpriteStateProvider } = await import('../../src/features/sprite/context/SpriteStateContext');
+    const { useSpriteState } = await import('../../src/features/sprite/context/hooks');
+    const { default: VideoSprite } = await import('../../src/features/sprite/renderers/VideoSprite');
 
     function MountedSprite(): JSX.Element | null {
       const { walkDirection } = useSpriteState();
@@ -436,15 +436,15 @@ describe('sprite renderer mount', () => {
         height: 240,
         padding: 100,
         animationPlaylistMode: 'list-loop',
-        showDebugOverlay: false
+        debugOverlayEnabled: false
       }
     } as SpriteInitialState);
 
     (env.window as any).chobits = { sprite: harness.bridge };
 
-    const { SpriteStateProvider } = await import('../../src/features/sprite-assistant/context/SpriteStateContext');
-    const { useSpriteState } = await import('../../src/features/sprite-assistant/context/hooks');
-    const { default: VideoSprite } = await import('../../src/features/sprite-assistant/renderers/VideoSprite');
+    const { SpriteStateProvider } = await import('../../src/features/sprite/context/SpriteStateContext');
+    const { useSpriteState } = await import('../../src/features/sprite/context/hooks');
+    const { default: VideoSprite } = await import('../../src/features/sprite/renderers/VideoSprite');
 
     function MountedSprite(): JSX.Element | null {
       const { walkDirection } = useSpriteState();
@@ -554,15 +554,15 @@ describe('sprite renderer mount', () => {
         height: 240,
         padding: 100,
         animationPlaylistMode: 'list-loop',
-        showDebugOverlay: false
+        debugOverlayEnabled: false
       }
     } as SpriteInitialState);
 
     (env.window as any).chobits = { sprite: harness.bridge };
 
-    const { SpriteStateProvider } = await import('../../src/features/sprite-assistant/context/SpriteStateContext');
-    const { useSpriteState } = await import('../../src/features/sprite-assistant/context/hooks');
-    const { default: VideoSprite } = await import('../../src/features/sprite-assistant/renderers/VideoSprite');
+    const { SpriteStateProvider } = await import('../../src/features/sprite/context/SpriteStateContext');
+    const { useSpriteState } = await import('../../src/features/sprite/context/hooks');
+    const { default: VideoSprite } = await import('../../src/features/sprite/renderers/VideoSprite');
 
     function MountedSprite(): JSX.Element | null {
       const { walkDirection } = useSpriteState();
@@ -651,15 +651,15 @@ describe('sprite renderer mount', () => {
         height: 240,
         padding: 100,
         animationPlaylistMode: 'list-loop',
-        showDebugOverlay: false
+        debugOverlayEnabled: false
       }
     } as SpriteInitialState);
 
     (env.window as any).chobits = { sprite: harness.bridge };
 
-    const { SpriteStateProvider } = await import('../../src/features/sprite-assistant/context/SpriteStateContext');
-    const { useSpriteState } = await import('../../src/features/sprite-assistant/context/hooks');
-    const { default: VideoSprite } = await import('../../src/features/sprite-assistant/renderers/VideoSprite');
+    const { SpriteStateProvider } = await import('../../src/features/sprite/context/SpriteStateContext');
+    const { useSpriteState } = await import('../../src/features/sprite/context/hooks');
+    const { default: VideoSprite } = await import('../../src/features/sprite/renderers/VideoSprite');
 
     function MountedSprite(): JSX.Element | null {
       const { walkDirection } = useSpriteState();

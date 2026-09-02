@@ -29,12 +29,7 @@ function toWarning(message: string, filePath?: string): ProviderPluginLoadWarnin
 }
 
 export function getProviderPluginSearchRoots(): string[] {
-  return Array.from(
-    new Set([
-      path.resolve(app.getPath('userData'), 'providers'),
-      path.resolve(PluginConfigStore.getPluginsDir(), 'providers')
-    ])
-  );
+  return Array.from(new Set([path.resolve(app.getPath('userData'), 'providers'), path.resolve(PluginConfigStore.getPluginsDir(), 'providers')]));
 }
 
 export function discoverProviderPluginManifestFiles(): string[] {
@@ -126,7 +121,7 @@ export async function registerProviderPluginDefinitions(): Promise<ProviderPlugi
     for (const definition of loaded.definitions) {
       const manifestPath = manifestFileById.get(definition.id.trim().toLowerCase());
 
-      if (builtinIds.has(definition.id as typeof BUILTIN_PROVIDER_DEFINITIONS[number]['id'])) {
+      if (builtinIds.has(definition.id as (typeof BUILTIN_PROVIDER_DEFINITIONS)[number]['id'])) {
         warnings.push(toWarning(`plugin provider id "${definition.id}" conflicts with a built-in provider`, manifestPath));
         continue;
       }

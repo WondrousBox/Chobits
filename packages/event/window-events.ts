@@ -7,15 +7,17 @@ type AppWindowClosePayload = Record<string, unknown> & {
   windowKey: string;
 };
 
+// 注意：存储键必须是 __lastWindowPayload，与 @aim-packages/window-manager 的
+// window:payload:get / window:payload:clear 处理器读写的是同一份全局缓存。
 function readWindowPayload(windowKey: string): Record<string, unknown> {
-  const payload = (globalThis as any).__chobitsLastWindowPayload?.[windowKey];
+  const payload = (globalThis as any).__lastWindowPayload?.[windowKey];
   return payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
 }
 
 export function rememberWindowPayload(windowKey: string, payload: unknown): void {
   if (!payload || typeof payload !== 'object') return;
-  (globalThis as any).__chobitsLastWindowPayload = (globalThis as any).__chobitsLastWindowPayload || {};
-  (globalThis as any).__chobitsLastWindowPayload[windowKey] = payload;
+  (globalThis as any).__lastWindowPayload = (globalThis as any).__lastWindowPayload || {};
+  (globalThis as any).__lastWindowPayload[windowKey] = payload;
 }
 
 export function emitAppWindowOpened(windowKey: string, payload: unknown, source: string): void {

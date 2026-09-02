@@ -32,7 +32,7 @@ export const ViewLogicalMaxBottom = -2.0;
 export const ViewLogicalMaxTop = 2.0;
 
 // Dynamic resource path that will be set by the model loader
-export let ResourcesPath = "";
+export let ResourcesPath = '';
 
 // Model directory and filename storage
 export let ModelDir: string[] = [];

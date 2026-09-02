@@ -1,7 +1,7 @@
 import { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ProviderAdapter, ProviderSecrets, StreamEvent } from '../types';
-import { getBuiltinProviderDefinitionOrThrow } from './service';
 import { createOpenAIClient, executeOpenAIChat, executeOpenAIEmbedding, listOpenAIModels, type OpenAIRuntimeSecrets } from './openai-runtime';
-import type { BuiltinProviderId, BuiltinProviderDefinition } from './types';
+import { getBuiltinProviderDefinitionOrThrow } from './service';
+import type { BuiltinProviderDefinition, BuiltinProviderId } from './types';
 
 export class OpenAICompatibleProvider implements ProviderAdapter {
   protected readonly definition: BuiltinProviderDefinition;

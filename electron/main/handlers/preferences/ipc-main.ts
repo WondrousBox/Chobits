@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 
-import { type PreferencesConfig, type PreviewMode, PreferencesStore } from './preferences-store';
+import { type PreferencesConfig, PreferencesStore, type PreviewMode } from './preferences-store';
 
 /**
  * 初始化偏好设置 IPC 处理程序

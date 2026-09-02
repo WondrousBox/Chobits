@@ -6,8 +6,8 @@ import { Button, type ButtonProps } from '@/components/ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import type { SpriteAnimationTrigger } from '@/features/sprite-assistant';
-import { isCustomSpriteAnimationTrigger } from '@/features/sprite-assistant';
+import type { SpriteAnimationTrigger } from '@/features/sprite';
+import { isCustomSpriteAnimationTrigger } from '@/features/sprite';
 import { cn } from '@/lib/utils';
 
 import { getSpriteTriggerPresentation, normalizeSpriteTriggerInput, SPRITE_TRIGGER_GROUP_OPTIONS } from './sprite-trigger-picker-utils';
@@ -30,7 +30,7 @@ export default function SpriteTriggerPicker({
   buttonClassName,
   buttonSize = 'default',
   buttonVariant = 'outline',
-  customPlaceholder = '例如：persona:daily-login',
+  customPlaceholder = '例如：character:daily-login',
   disabled = false,
   emptyLabel = '未分类',
   onChange,

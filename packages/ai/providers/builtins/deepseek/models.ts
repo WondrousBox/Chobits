@@ -5,11 +5,10 @@ const deepseekChatModels: ChatProviderModelCard[] = [
   {
     abilities: {
       functionCall: true,
-      structuredOutput: true,
+      structuredOutput: true
     },
     contextWindowTokens: 131_072,
-    description:
-      'DeepSeek V3.2 is DeepSeek’s latest general model with a hybrid reasoning architecture and stronger agent capabilities.',
+    description: 'DeepSeek V3.2 is DeepSeek’s latest general model with a hybrid reasoning architecture and stronger agent capabilities.',
     displayName: 'DeepSeek V3.2 Exp',
     enabled: true,
     id: 'deepseek-chat',
@@ -19,20 +18,19 @@ const deepseekChatModels: ChatProviderModelCard[] = [
       units: [
         { name: 'textInput_cacheRead', rate: 0.2, strategy: 'fixed', unit: 'millionTokens' },
         { name: 'textInput', rate: 2, strategy: 'fixed', unit: 'millionTokens' },
-        { name: 'textOutput', rate: 3, strategy: 'fixed', unit: 'millionTokens' },
-      ],
+        { name: 'textOutput', rate: 3, strategy: 'fixed', unit: 'millionTokens' }
+      ]
     },
     releasedAt: '2025-12-01',
-    type: 'chat',
+    type: 'chat'
   },
   {
     abilities: {
       functionCall: true,
-      reasoning: true,
+      reasoning: true
     },
     contextWindowTokens: 131_072,
-    description:
-      'DeepSeek V3.2 thinking mode outputs a chain-of-thought before the final answer to improve accuracy.',
+    description: 'DeepSeek V3.2 thinking mode outputs a chain-of-thought before the final answer to improve accuracy.',
     displayName: 'DeepSeek V3.2 Exp Thinking',
     enabled: true,
     id: 'deepseek-reasoner',
@@ -42,12 +40,12 @@ const deepseekChatModels: ChatProviderModelCard[] = [
       units: [
         { name: 'textInput_cacheRead', rate: 0.2, strategy: 'fixed', unit: 'millionTokens' },
         { name: 'textInput', rate: 2, strategy: 'fixed', unit: 'millionTokens' },
-        { name: 'textOutput', rate: 3, strategy: 'fixed', unit: 'millionTokens' },
-      ],
+        { name: 'textOutput', rate: 3, strategy: 'fixed', unit: 'millionTokens' }
+      ]
     },
     releasedAt: '2025-12-01',
-    type: 'chat',
-  },
+    type: 'chat'
+  }
 ];
 
 export const allModels = [...deepseekChatModels];

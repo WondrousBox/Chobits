@@ -21,10 +21,10 @@ export function useChatEntrySettings(): {
       try {
         const result = await window.chobits.preferences['preferences:get-config']();
         if (!disposed && result.ok && result.config) {
-          setIsEnabledValue(Boolean(result.config.assistantMiniWindowEnabled));
+          setIsEnabledValue(Boolean(result.config.miniChatWindowEnabled));
         }
       } catch (error) {
-        console.warn('[ChatEntrySettings] failed to load assistant mini window setting:', error);
+        console.warn('[ChatEntrySettings] failed to load mini chat window setting:', error);
       } finally {
         if (!disposed) {
           setIsLoading(false);
@@ -46,12 +46,12 @@ export function useChatEntrySettings(): {
       setIsPending(true);
       try {
         const result = await window.chobits.preferences['preferences:set-config']({
-          config: { assistantMiniWindowEnabled: nextEnabled }
+          config: { miniChatWindowEnabled: nextEnabled }
         });
         if (!result.ok || !result.config) {
           throw new Error(result.error || '设置迷你输入窗失败');
         }
-        setIsEnabledValue(Boolean(result.config.assistantMiniWindowEnabled));
+        setIsEnabledValue(Boolean(result.config.miniChatWindowEnabled));
       } catch (error) {
         setIsEnabledValue(previous);
         toast.error('设置迷你输入窗失败', {

@@ -7,7 +7,7 @@ export interface PreferencesConfig {
   previewMode: PreviewMode;
   // WebRecorder 麦克风设备ID
   webRecorderDeviceId?: string;
-  assistantMiniWindowEnabled: boolean;
+  miniChatWindowEnabled: boolean;
   /** 全局功能旗标覆盖（键为 FeatureKey，未设置的项用 packages/common/feature-flags 中的默认值） */
   featureFlags?: Record<string, boolean>;
 }

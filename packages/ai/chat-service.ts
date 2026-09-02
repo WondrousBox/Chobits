@@ -64,8 +64,8 @@ export class ChatService {
   registerIpc(): void {
     ipcMain.handle('ai:chat', async (e, req: ChatRequest) => this.chat(BrowserWindow.fromWebContents(e.sender) || this.defaultWin, normalizeProviderPreset(req)));
     ipcMain.handle('ai:chat-stream', async (e, req: ChatRequest) => this.chatStream(e.sender, normalizeProviderPreset(req)));
-    ipcMain.handle('ai:cancel', async (_e, payload: { requestId: string }) => this.cancel(payload.requestId));
-    ipcMain.handle('ai:embed', async (_e, payload: EmbeddingRequest) => this.embed(normalizeProviderPreset(payload)));
+    ipcMain.handle('ai:cancel', async (_event, payload: { requestId: string }) => this.cancel(payload.requestId));
+    ipcMain.handle('ai:embed', async (_event, payload: EmbeddingRequest) => this.embed(normalizeProviderPreset(payload)));
     // Stateless chat (no history persistence)
     ipcMain.handle('ai:chat-ephemeral', async (e, req: ChatRequest) => this.chatEphemeral(BrowserWindow.fromWebContents(e.sender) || this.defaultWin, normalizeProviderPreset(req)));
   }

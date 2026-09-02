@@ -74,10 +74,7 @@ export class CubismModelUserData {
    * @param size      バッファのサイズ
    */
   public parseUserData(buffer: ArrayBuffer, size: number): void {
-    let json: CubismModelUserDataJson = new CubismModelUserDataJson(
-      buffer,
-      size
-    );
+    let json: CubismModelUserDataJson = new CubismModelUserDataJson(buffer, size);
     if (!json) {
       json.release();
       json = void 0;
@@ -91,9 +88,7 @@ export class CubismModelUserData {
       const addNode: CubismModelUserDataNode = new CubismModelUserDataNode();
 
       addNode.targetId = json.getUserDataId(i);
-      addNode.targetType = CubismFramework.getIdManager().getId(
-        json.getUserDataTargetType(i)
-      );
+      addNode.targetType = CubismFramework.getIdManager().getId(json.getUserDataTargetType(i));
       addNode.value = new csmString(json.getUserDataValue(i));
       this._userDataNodes.pushBack(addNode);
 

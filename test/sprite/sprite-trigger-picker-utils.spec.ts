@@ -27,11 +27,11 @@ describe('sprite trigger picker utils', () => {
   });
 
   it('keeps custom trigger presentation explicit', () => {
-    expect(getSpriteTriggerPresentation(' persona:daily-login ')).toEqual({
+    expect(getSpriteTriggerPresentation(' character:daily-login ')).toEqual({
       kind: 'custom',
-      label: 'persona:daily-login',
+      label: 'character:daily-login',
       detail: '自定义',
-      value: 'persona:daily-login'
+      value: 'character:daily-login'
     });
   });
 });

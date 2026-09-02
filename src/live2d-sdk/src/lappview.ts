@@ -6,17 +6,17 @@
  * that can be found at https://www.live2d.com/eula/live2d-open-software-license-agreement_en.html.
  */
 
-import { CubismMatrix44 } from "@framework/math/cubismmatrix44";
-import { CubismViewMatrix } from "@framework/math/cubismviewmatrix";
+import { CubismMatrix44 } from '@framework/math/cubismmatrix44';
+import { CubismViewMatrix } from '@framework/math/cubismviewmatrix';
 
-import * as LAppDefine from "./lappdefine";
-import { LAppDelegate } from "./lappdelegate";
-import { canvas, gl } from "./lappglmanager";
-import { LAppLive2DManager } from "./lapplive2dmanager";
-import { LAppPal } from "./lapppal";
-import { LAppSprite } from "./lappsprite";
-import { TextureInfo } from "./lapptexturemanager";
-import { TouchManager } from "./touchmanager";
+import * as LAppDefine from './lappdefine';
+import { LAppDelegate } from './lappdelegate';
+import { canvas, gl } from './lappglmanager';
+import { LAppLive2DManager } from './lapplive2dmanager';
+import { LAppPal } from './lapppal';
+import { LAppSprite } from './lappsprite';
+import { TextureInfo } from './lapptexturemanager';
+import { TouchManager } from './touchmanager';
 
 /**
  * 描画クラス。
@@ -45,7 +45,7 @@ export class LAppView {
    */
   public initialize(): void {
     if (!canvas) {
-      console.warn("Canvas is null, cannot initialize LAppView");
+      console.warn('Canvas is null, cannot initialize LAppView');
       return;
     }
     const { width, height } = canvas;
@@ -74,12 +74,7 @@ export class LAppView {
     this._viewMatrix.setMinScale(LAppDefine.ViewMinScale); // 限界縮小率
 
     // 表示できる最大範囲
-    this._viewMatrix.setMaxScreenRect(
-      LAppDefine.ViewLogicalMaxLeft,
-      LAppDefine.ViewLogicalMaxRight,
-      LAppDefine.ViewLogicalMaxBottom,
-      LAppDefine.ViewLogicalMaxTop
-    );
+    this._viewMatrix.setMaxScreenRect(LAppDefine.ViewLogicalMaxLeft, LAppDefine.ViewLogicalMaxRight, LAppDefine.ViewLogicalMaxBottom, LAppDefine.ViewLogicalMaxTop);
   }
 
   /**
@@ -134,7 +129,7 @@ export class LAppView {
     const textureManager = LAppDelegate.getInstance().getTextureManager();
     const resourcesPath = LAppDefine.ResourcesPath;
 
-    let imageName = "";
+    let imageName = '';
 
     // 背景画像初期化
     imageName = LAppDefine.BackImageName;
@@ -187,10 +182,7 @@ export class LAppView {
    * @param pointY スクリーンY座標
    */
   public onTouchesBegan(pointX: number, pointY: number): void {
-    this._touchManager.touchesBegan(
-      pointX * window.devicePixelRatio,
-      pointY * window.devicePixelRatio
-    );
+    this._touchManager.touchesBegan(pointX * window.devicePixelRatio, pointY * window.devicePixelRatio);
   }
 
   /**
@@ -203,10 +195,7 @@ export class LAppView {
     const viewX: number = this.transformViewX(this._touchManager.getX());
     const viewY: number = this.transformViewY(this._touchManager.getY());
 
-    this._touchManager.touchesMoved(
-      pointX * window.devicePixelRatio,
-      pointY * window.devicePixelRatio
-    );
+    this._touchManager.touchesMoved(pointX * window.devicePixelRatio, pointY * window.devicePixelRatio);
 
     const live2DManager: LAppLive2DManager = LAppLive2DManager.getInstance();
     live2DManager.onDrag(viewX, viewY);
@@ -225,12 +214,8 @@ export class LAppView {
 
     {
       // シングルタップ
-      const x: number = this._deviceToScreen.transformX(
-        this._touchManager.getX()
-      ); // 論理座標変換した座標を取得。
-      const y: number = this._deviceToScreen.transformY(
-        this._touchManager.getY()
-      ); // 論理座標変化した座標を取得。
+      const x: number = this._deviceToScreen.transformX(this._touchManager.getX()); // 論理座標変換した座標を取得。
+      const y: number = this._deviceToScreen.transformY(this._touchManager.getY()); // 論理座標変化した座標を取得。
 
       if (LAppDefine.DebugTouchLogEnable) {
         LAppPal.printMessage(`[APP]touchesEnded x: ${x} y: ${y}`);

@@ -94,21 +94,21 @@ export interface SpritePurposePlannerValidationSummary {
 
 export type SpritePurposePlannerValidationResult =
   | {
-    ok: true;
-    routineDraft: SpriteRoutineDraft;
-    whyThisPlan?: string;
-    fallbackPresetId?: string;
-    warnings: string[];
-    summary: SpritePurposePlannerValidationSummary;
-  }
+      ok: true;
+      routineDraft: SpriteRoutineDraft;
+      whyThisPlan?: string;
+      fallbackPresetId?: string;
+      warnings: string[];
+      summary: SpritePurposePlannerValidationSummary;
+    }
   | {
-    ok: false;
-    reason: string;
-    errors: string[];
-    whyThisPlan?: string;
-    fallbackPresetId?: string;
-    summary: SpritePurposePlannerValidationSummary;
-  };
+      ok: false;
+      reason: string;
+      errors: string[];
+      whyThisPlan?: string;
+      fallbackPresetId?: string;
+      summary: SpritePurposePlannerValidationSummary;
+    };
 
 const DEFAULT_MAX_STEPS = 24;
 const DEFAULT_MAX_DURATION_MS = 5 * 60 * 1000;
@@ -146,7 +146,8 @@ export const DEFAULT_SPRITE_PURPOSE_PLANNER_WINDOWS = ['fileActionsMenu'] as con
 export const DEFAULT_SPRITE_PURPOSE_PLANNER_EVENTS = ['fileAction:resolved'] as const;
 
 const STEP_SCHEMA_DESCRIPTIONS: Record<SpriteRoutineStepType, string> = {
-  playAnimation: 'Play an allowlisted animation trigger or animation id. Omitted waitFor is fire-and-forget; waitFor:duration or waitFor:complete requires durationMs or timeoutMs. Set allowMovementDuringPlayback:false for presentation-first animations such as dancing.',
+  playAnimation:
+    'Play an allowlisted animation trigger or animation id. Omitted waitFor is fire-and-forget; waitFor:duration or waitFor:complete requires durationMs or timeoutMs. Set allowMovementDuringPlayback:false for presentation-first animations such as dancing.',
   walkTo: 'Move the sprite to center, corner, previous, or a bounded point; timeoutMs is required.',
   wait: 'Pause for a bounded durationMs.',
   waitForEvent: 'Wait for an allowlisted runtime event; timeoutMs is required.',

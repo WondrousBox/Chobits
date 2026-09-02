@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/explicit-function-return-type */
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -105,7 +104,6 @@ let vad;
 let punctuation;
 let buffer;
 
-let segmentIndex = 0;
 let duration = 0;
 let printed = false;
 
@@ -203,7 +201,6 @@ function sendData(samples) {
           isEndpoint: true
         }
       });
-      segmentIndex++;
     }
   }
 }
@@ -215,7 +212,6 @@ function stopASR() {
   punctuation = undefined;
   buffer = undefined;
 
-  segmentIndex = 0;
   duration = 0;
   printed = false;
 

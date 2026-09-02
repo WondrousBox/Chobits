@@ -59,9 +59,9 @@ flowchart LR
 典型调用流程：
 
 ```ts
-toolboxTool({ action: 'search', query: '打开窗口 进入界面' })
-appWindowTool({ action: 'search', query: 'AI 设置' })
-appWindowTool({ action: 'open', windowKey: 'settings', payload: { category: 'ai' } })
+toolboxTool({ action: 'search', query: '打开窗口 进入界面' });
+appWindowTool({ action: 'search', query: 'AI 设置' });
+appWindowTool({ action: 'open', windowKey: 'settings', payload: { category: 'ai' } });
 ```
 
 ## 白名单策略
@@ -76,8 +76,8 @@ appWindowTool({ action: 'open', windowKey: 'settings', payload: { category: 'ai'
 
 - `settings`
 - `chat`
-- `assistant`
-- `assistantMini`
+- `chatPanel`
+- `chatMini`
 - `aiProviderConfig`
 - `asrConfig`
 - `asr`
@@ -101,7 +101,7 @@ appWindowTool({ action: 'open', windowKey: 'settings', payload: { category: 'ai'
 - `settings`: `category`, `tab`, `aiProviderId`, `aiPresetId`
 - `aiProviderConfig`: `providerId`, `presetId`, `fields`
 - `asr`: `mode`, `cloudProviderId`, `cloudProviderPresetId`, `cloudModelId`, `audioSource`
-- `chat` / `assistant` / `assistantMini`: `initialMessage`, `providerId`, `modelId`, `preferredPresetId`, `presetId`, `agentId`, `codingWorkspaceRoot`, `codingWorkspaceLabel`, `webSearchEnabled`, `characterPersonaEnabled`
+- `chat` / `chatPanel` / `chatMini`: `initialMessage`, `providerId`, `modelId`, `preferredPresetId`, `presetId`, `agentId`, `codingWorkspaceRoot`, `codingWorkspaceLabel`, `webSearchEnabled`, `characterPromptEnabled`
 - `asrConfig` / `ttsConfig` / `tts` / `characterPackEditor`: no payload
 - `windowAnimationEditor`: no payload; presets are direct playback actions and are not loaded into this editor
 
@@ -121,9 +121,9 @@ appWindowTool({ action: 'open', windowKey: 'settings', payload: { category: 'ai'
 典型调用：
 
 ```ts
-appWindowTool({ action: 'search', query: 'AI 设置' })
-appWindowTool({ action: 'open', windowKey: 'settings', payload: { category: 'ai' } })
-appWindowTool({ action: 'open', windowKey: 'assistantMini', payload: { initialMessage: '帮我整理一下当前工作' } })
+appWindowTool({ action: 'search', query: 'AI 设置' });
+appWindowTool({ action: 'open', windowKey: 'settings', payload: { category: 'ai' } });
+appWindowTool({ action: 'open', windowKey: 'chatMini', payload: { initialMessage: '帮我整理一下当前工作' } });
 ```
 
 安全返回：

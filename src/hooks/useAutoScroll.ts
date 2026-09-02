@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  *   hasn't scrolled up to browse history.
  * - If the user scrolls up (breaking from the bottom), auto-scroll is paused.
  * - Auto-scroll resumes when the user scrolls back near the bottom.
- * - Exposes `showScrollButton` when the user is far enough from the bottom.
+ * - Exposes `isScrollButtonVisible` when the user is far enough from the bottom.
  *
  * Uses instant `scrollTop` assignment during streaming to avoid the flicker
  * caused by overlapping `scrollIntoView({ behavior: 'smooth' })` calls.
@@ -16,14 +16,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 export function useAutoScroll(deps: unknown[]): {
   containerRef: React.RefCallback<HTMLDivElement>;
   shouldAutoScroll: boolean;
-  showScrollButton: boolean;
+  isScrollButtonVisible: boolean;
   scrollToBottom: (smooth?: boolean) => void;
   resetAutoScroll: () => void;
 } {
   const containerElementRef = useRef<HTMLDivElement | null>(null);
   const [containerElement, setContainerElement] = useState<HTMLDivElement | null>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
-  const [showScrollButton, setShowScrollButton] = useState(false);
+  const [isScrollButtonVisible, setIsScrollButtonVisible] = useState(false);
   // Track whether the user is actively interacting (wheel / touch / pointer-drag on scrollbar)
   const userScrollingRef = useRef(false);
   // Use a ref mirror so the scroll-event handler always sees the latest value
@@ -52,7 +52,7 @@ export function useAutoScroll(deps: unknown[]): {
     const nearBottom = distanceFromBottom <= BOTTOM_THRESHOLD;
 
     // Show / hide the "scroll to bottom" button
-    setShowScrollButton(distanceFromBottom > BUTTON_THRESHOLD);
+    setIsScrollButtonVisible(distanceFromBottom > BUTTON_THRESHOLD);
 
     if (userScrollingRef.current) {
       // User-initiated scroll
@@ -156,7 +156,7 @@ export function useAutoScroll(deps: unknown[]): {
     /** Whether auto-scroll is currently active. */
     shouldAutoScroll,
     /** Whether the scroll-to-bottom button should be visible. */
-    showScrollButton,
+    isScrollButtonVisible,
     /** Scroll to the bottom (optionally smooth). */
     scrollToBottom,
     /** Force-enable auto-scroll and jump to bottom (e.g. after user sends a message). */

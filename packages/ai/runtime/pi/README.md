@@ -2,6 +2,8 @@
 
 更新时间：2026-04-02
 
+> 目录名 `pi` 来自外部运行时包 `@earendil-works/pi-coding-agent` / `@earendil-works/pi-agent-core`（Pi 编码代理框架），不是项目内部命名，保留不改。
+
 `packages/ai/runtime/pi` 是当前 Chobits AI 运行时里负责 Pi 接入的主目录。它不再只是实验代码，而是已经参与真实聊天、任务执行、工具调用和 coder session 的正式模块。
 当前聊天 UI 现在暴露 3 个用户可选模式：`chat`（对话模式）、`assistant`（Agent模式）和 `coder`（代码模式）。
 
@@ -162,6 +164,7 @@
 - 仓库默认仍不内置 bundled tool-wrapper skills，`packages/ai/runtime/pi/skills/bundled/` 保持为空壳。
 - 用户现在可以在聊天页（含起始页与侧边浮层）中选择一个项目目录，并在该 workspace 内完成读、搜、写、精确编辑和受限验证命令执行。
 - 新增的 coding 服务已经有针对路径越界、文本编辑、搜索过滤和受限 shell 的单测保护。
+
 ## Long-running tool waits
 
 Updated: 2026-04-17

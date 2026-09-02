@@ -42,10 +42,10 @@ export default function SkillPickerButton({
 }: SkillPickerButtonProps): JSX.Element | null {
   const isEnabled = shouldEnableSkillPicker(agentId);
   const isAutoOpen = isEnabled && isTypingSlashSkillQuery(value);
-  const [manualOpen, setManualOpen] = useState(false);
+  const [isManualOpen, setIsManualOpen] = useState(false);
   const [query, setQuery] = useState('');
 
-  const isOpen = isEnabled && (manualOpen || isAutoOpen);
+  const isOpen = isEnabled && (isManualOpen || isAutoOpen);
 
   useEffect(() => {
     onOpenChange?.(isOpen);
@@ -53,19 +53,19 @@ export default function SkillPickerButton({
 
   useEffect(() => {
     if (!isEnabled) {
-      const timer = window.setTimeout(() => setManualOpen(false), 0);
+      const timer = window.setTimeout(() => setIsManualOpen(false), 0);
       return () => window.clearTimeout(timer);
     }
 
     const timer = window.setTimeout(() => {
       if (isAutoOpen) {
         setQuery(deriveSkillPickerQuery(value));
-      } else if (!manualOpen) {
+      } else if (!isManualOpen) {
         setQuery('');
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [isAutoOpen, isEnabled, manualOpen, value]);
+  }, [isAutoOpen, isEnabled, isManualOpen, value]);
 
   const pickerItems = useMemo(
     () =>
@@ -85,12 +85,12 @@ export default function SkillPickerButton({
       open={isOpen}
       onOpenChange={(nextOpen) => {
         if (!nextOpen) {
-          setManualOpen(false);
+          setIsManualOpen(false);
           return;
         }
 
         setQuery(isAutoOpen ? deriveSkillPickerQuery(value) : '');
-        setManualOpen(true);
+        setIsManualOpen(true);
       }}
     >
       <Tooltip>
@@ -125,7 +125,7 @@ export default function SkillPickerButton({
                       onMouseEnter={() => onHighlightSkill?.(skill.name)}
                       onSelect={() => {
                         onSelect(applySkillPickerSelection(value, skill.name));
-                        setManualOpen(false);
+                        setIsManualOpen(false);
                       }}
                     >
                       <div className="min-w-0 flex-1">

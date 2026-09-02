@@ -236,5 +236,4 @@ describe('resolvePiRequest', () => {
     });
     expect(resolved.messages).toEqual([{ role: 'user', content: 'Translate this subtitle' }]);
   });
-
 });

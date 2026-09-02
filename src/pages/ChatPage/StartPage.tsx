@@ -19,16 +19,16 @@ const PLACEHOLDERS = [
 ];
 const MENU_RESERVE_HEIGHT = 360;
 
-type AssistantStartParams = Parameters<ChatInputWithServiceProps['onStart']>[0];
-type AssistantWindowMode = 'standard' | 'mini';
+type ChatStartParams = Parameters<ChatInputWithServiceProps['onStart']>[0];
+type ChatWindowMode = 'standard' | 'mini';
 
-interface AssistantPageProps {
-  mode?: AssistantWindowMode;
+interface ChatPanelPageProps {
+  mode?: ChatWindowMode;
 }
 
-const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
+const ChatPanelPage: React.FC<ChatPanelPageProps> = ({ mode = 'standard' }) => {
   const isMini = mode === 'mini';
-  const windowKey = isMini ? 'assistantMini' : 'assistant';
+  const windowKey = isMini ? 'chatMini' : 'chatPanel';
   const [isOpening, setIsOpening] = useState(true);
   const [isClosing, setIsClosing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -44,7 +44,7 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
   const { setPresetId } = useChatSelection();
 
   useEffect(() => {
-    void guideChatApiConfigIfNeeded({ trigger: 'assistant-window-open' });
+    void guideChatApiConfigIfNeeded({ trigger: 'sprite-window-open' });
   }, []);
 
   // 进场动画结束标记
@@ -105,8 +105,8 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
     codingWorkspaceRoot,
     codingWorkspaceLabel,
     webSearchEnabled,
-    characterPersonaEnabled
-  }: AssistantStartParams): Promise<void> => {
+    characterPromptEnabled
+  }: ChatStartParams): Promise<void> => {
     if (!content.trim() || !providerId || !modelId) return;
     if (sendingRef.current) return;
     sendingRef.current = true;
@@ -123,7 +123,7 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
       }
 
       // 打开聊天独立窗口，传递初始消息数据
-      const requestId = `assistant-chat-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const requestId = `${isMini ? 'chat-mini' : 'chat-panel'}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       await window.chobits.window['window:open']('chat' as any, {
         requestId,
         initialMessage: content,
@@ -134,7 +134,7 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
         codingWorkspaceRoot,
         codingWorkspaceLabel,
         webSearchEnabled,
-        characterPersonaEnabled
+        characterPromptEnabled
       });
       // 关闭助手窗口
       setTimeout(() => close(), 150);
@@ -308,7 +308,7 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
                   placeholders={PLACEHOLDERS}
                   autoFocus
                   isLoading={isLoading}
-                  menuPlacement="assistant-floating"
+                  menuPlacement="chat-floating"
                   onStart={handleSend}
                   onHeightChange={handleInputHeightChange}
                   onMenuOpenChange={handleMenuOpenChange}
@@ -323,4 +323,4 @@ const AssistantPage: React.FC<AssistantPageProps> = ({ mode = 'standard' }) => {
   );
 };
 
-export default AssistantPage;
+export default ChatPanelPage;

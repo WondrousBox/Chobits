@@ -6,17 +6,16 @@ vi.mock('@/lib/utils', () => ({
 }));
 
 let DEFAULT_SPRITE_CAPABILITY_REGISTRY: typeof import('../../packages/sprite-core/capability-registry').DEFAULT_SPRITE_CAPABILITY_REGISTRY;
-let getSpriteCapabilityLockedReason: typeof import('../../src/features/sprite-assistant/capability-ui').getSpriteCapabilityLockedReason;
+let getSpriteCapabilityLockedReason: typeof import('../../src/features/sprite/capability-guard').getSpriteCapabilityLockedReason;
 
 beforeAll(async () => {
   ({ DEFAULT_SPRITE_CAPABILITY_REGISTRY } = await import('../../packages/sprite-core/capability-registry'));
-  ({ getSpriteCapabilityLockedReason } = await import('../../src/features/sprite-assistant/capability-ui'));
+  ({ getSpriteCapabilityLockedReason } = await import('../../src/features/sprite/capability-guard'));
 });
 
 describe('capability UI helpers', () => {
   it('describes runtime-bound prerequisite gaps as activation requirements', () => {
     const snapshot = DEFAULT_SPRITE_CAPABILITY_REGISTRY.resolveSnapshot({
-      personaLevel: 10,
       activeSignals: {}
     });
 
@@ -35,8 +34,7 @@ describe('capability UI helpers', () => {
         inactivePrerequisites: [],
         missingPrerequisites: ['customAppearance'],
         missingAchievements: [],
-        missingFeatureFlags: [],
-        missingPersonaFlags: []
+        missingFeatureFlags: []
       })
     ).toBe('需要先解锁前置能力：外观定制');
   });

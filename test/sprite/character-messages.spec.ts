@@ -32,7 +32,9 @@ function expectMessagesCoverSpecs(messages: Record<string, any>): void {
 
 function expectMessagesDoNotHaveSpecDrift(messages: Record<string, any>): void {
   for (const section of ['categories', 'events', 'routines'] as const) {
-    const expectedKeys = CHARACTER_MESSAGE_SPECS.filter((spec) => spec.section === section).map((spec) => spec.key).sort();
+    const expectedKeys = CHARACTER_MESSAGE_SPECS.filter((spec) => spec.section === section)
+      .map((spec) => spec.key)
+      .sort();
     expect(Object.keys(messages[section] ?? {}).sort(), section).toEqual(expectedKeys);
   }
   expect(Object.keys(messages.progress?.kindLabels ?? {}).sort(), 'progress.kindLabels').toEqual(CHARACTER_PROGRESS_KIND_LABEL_SPECS.map((spec) => spec.key).sort());
@@ -68,7 +70,7 @@ function createCharacterPayload(overrides?: Record<string, unknown>): Record<str
       examples: [],
       quirks: []
     },
-    favorPersona: {},
+    favorTiers: {},
     moodExpressions: {},
     dimensions: {
       schema: [],
@@ -121,7 +123,7 @@ describe('character message overrides', () => {
   });
 
   it('keeps the builtin character pack copy aligned with the shared message specs', () => {
-    const character = JSON.parse(readFileSync(path.join(process.cwd(), 'resources', 'sprites', 'character.json'), 'utf-8'));
+    const character = JSON.parse(readFileSync(path.join(process.cwd(), 'resources', 'characters', 'character.json'), 'utf-8'));
 
     expectMessagesCoverSpecs(character.messages);
     expectMessagesDoNotHaveSpecDrift(character.messages);

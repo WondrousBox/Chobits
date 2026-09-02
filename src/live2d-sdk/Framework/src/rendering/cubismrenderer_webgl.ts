@@ -51,62 +51,21 @@ export class CubismClippingManager_WebGL extends CubismClippingManager<CubismCli
 
       for (let index = 0; index < this._renderTextureCount; index++) {
         this._maskColorBuffers.pushBack(this.gl.createTexture()); // 直接代入
-        this.gl.bindTexture(
-          this.gl.TEXTURE_2D,
-          this._maskColorBuffers.at(index)
-        );
-        this.gl.texImage2D(
-          this.gl.TEXTURE_2D,
-          0,
-          this.gl.RGBA,
-          size,
-          size,
-          0,
-          this.gl.RGBA,
-          this.gl.UNSIGNED_BYTE,
-          null
-        );
-        this.gl.texParameteri(
-          this.gl.TEXTURE_2D,
-          this.gl.TEXTURE_WRAP_S,
-          this.gl.CLAMP_TO_EDGE
-        );
-        this.gl.texParameteri(
-          this.gl.TEXTURE_2D,
-          this.gl.TEXTURE_WRAP_T,
-          this.gl.CLAMP_TO_EDGE
-        );
-        this.gl.texParameteri(
-          this.gl.TEXTURE_2D,
-          this.gl.TEXTURE_MIN_FILTER,
-          this.gl.LINEAR
-        );
-        this.gl.texParameteri(
-          this.gl.TEXTURE_2D,
-          this.gl.TEXTURE_MAG_FILTER,
-          this.gl.LINEAR
-        );
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this._maskColorBuffers.at(index));
+        this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, size, size, 0, this.gl.RGBA, this.gl.UNSIGNED_BYTE, null);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
         this.gl.bindTexture(this.gl.TEXTURE_2D, null);
 
         this._maskRenderTextures.pushBack(this.gl.createFramebuffer());
-        this.gl.bindFramebuffer(
-          this.gl.FRAMEBUFFER,
-          this._maskRenderTextures.at(index)
-        );
-        this.gl.framebufferTexture2D(
-          this.gl.FRAMEBUFFER,
-          this.gl.COLOR_ATTACHMENT0,
-          this.gl.TEXTURE_2D,
-          this._maskColorBuffers.at(index),
-          0
-        );
+        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this._maskRenderTextures.at(index));
+        this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, this.gl.TEXTURE_2D, this._maskColorBuffers.at(index), 0);
       }
       this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, s_fbo);
 
-      this._maskTexture = new CubismRenderTextureResource(
-        this._currentFrameNo,
-        this._maskRenderTextures
-      );
+      this._maskTexture = new CubismRenderTextureResource(this._currentFrameNo, this._maskRenderTextures);
     }
 
     return this._maskTexture.textures;
@@ -132,23 +91,15 @@ export class CubismClippingManager_WebGL extends CubismClippingManager<CubismCli
    * @param model モデルのインスタンス
    * @param renderer レンダラのインスタンス
    */
-  public setupClippingContext(
-    model: CubismModel,
-    renderer: CubismRenderer_WebGL
-  ): void {
+  public setupClippingContext(model: CubismModel, renderer: CubismRenderer_WebGL): void {
     this._currentFrameNo++;
 
     // 全てのクリッピングを用意する
     // 同じクリップ（複数の場合はまとめて一つのクリップ）を使う場合は1度だけ設定する
     let usingClipCount = 0;
-    for (
-      let clipIndex = 0;
-      clipIndex < this._clippingContextListForMask.getSize();
-      clipIndex++
-    ) {
+    for (let clipIndex = 0; clipIndex < this._clippingContextListForMask.getSize(); clipIndex++) {
       // 1つのクリッピングマスクに関して
-      const cc: CubismClippingContext_WebGL =
-        this._clippingContextListForMask.at(clipIndex);
+      const cc: CubismClippingContext_WebGL = this._clippingContextListForMask.at(clipIndex);
 
       // このクリップを利用する描画オブジェクト群全体を囲む矩形を計算
       this.calcClippedDrawTotalBounds(model, cc);
@@ -161,12 +112,7 @@ export class CubismClippingManager_WebGL extends CubismClippingManager<CubismCli
     // マスク作成処理
     if (usingClipCount > 0) {
       // 生成したFrameBufferと同じサイズでビューポートを設定
-      this.gl.viewport(
-        0,
-        0,
-        this._clippingMaskBufferSize,
-        this._clippingMaskBufferSize
-      );
+      this.gl.viewport(0, 0, this._clippingMaskBufferSize, this._clippingMaskBufferSize);
 
       // 後の計算のためにインデックスの最初をセット
       this._currentMaskRenderTexture = this.getMaskRenderTexture().at(0);
@@ -177,38 +123,24 @@ export class CubismClippingManager_WebGL extends CubismClippingManager<CubismCli
 
       // ---------- マスク描画処理 ----------
       // マスク用RenderTextureをactiveにセット
-      this.gl.bindFramebuffer(
-        this.gl.FRAMEBUFFER,
-        this._currentMaskRenderTexture
-      );
+      this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this._currentMaskRenderTexture);
 
       // サイズがレンダーテクスチャの枚数と合わない場合は合わせる
       if (this._clearedFrameBufferFlags.getSize() != this._renderTextureCount) {
         this._clearedFrameBufferFlags.clear();
-        this._clearedFrameBufferFlags = new csmVector<boolean>(
-          this._renderTextureCount
-        );
+        this._clearedFrameBufferFlags = new csmVector<boolean>(this._renderTextureCount);
       }
 
       // マスクのクリアフラグを毎フレーム開始時に初期化
-      for (
-        let index = 0;
-        index < this._clearedFrameBufferFlags.getSize();
-        index++
-      ) {
+      for (let index = 0; index < this._clearedFrameBufferFlags.getSize(); index++) {
         this._clearedFrameBufferFlags.set(index, false);
       }
 
       // 実際にマスクを生成する
       // 全てのマスクをどのようにレイアウトして描くかを決定し、ClipContext, ClippedDrawContextに記憶する
-      for (
-        let clipIndex = 0;
-        clipIndex < this._clippingContextListForMask.getSize();
-        clipIndex++
-      ) {
+      for (let clipIndex = 0; clipIndex < this._clippingContextListForMask.getSize(); clipIndex++) {
         // --- 実際に1つのマスクを描く ---
-        const clipContext: CubismClippingContext_WebGL =
-          this._clippingContextListForMask.at(clipIndex);
+        const clipContext: CubismClippingContext_WebGL = this._clippingContextListForMask.at(clipIndex);
         const allClipedDrawRect: csmRect = clipContext._allClippedDrawRect; // このマスクを使う、すべての描画オブジェクトの論理座標上の囲み矩形
         const layoutBoundsOnTex01: csmRect = clipContext._layoutBounds; // この中にマスクを収める
         const margin = 0.05; // モデル座標上の矩形を、適宜マージンを付けて使う
@@ -216,26 +148,18 @@ export class CubismClippingManager_WebGL extends CubismClippingManager<CubismCli
         let scaleY = 0;
 
         // clipContextに設定したレンダーテクスチャをインデックスで取得
-        const clipContextRenderTexture = this.getMaskRenderTexture().at(
-          clipContext._bufferIndex
-        );
+        const clipContextRenderTexture = this.getMaskRenderTexture().at(clipContext._bufferIndex);
 
         // 現在のレンダーテクスチャがclipContextのものと異なる場合
         if (this._currentMaskRenderTexture != clipContextRenderTexture) {
           this._currentMaskRenderTexture = clipContextRenderTexture;
           renderer.preDraw(); // バッファをクリアする
           // マスク用RenderTextureをactiveにセット
-          this.gl.bindFramebuffer(
-            this.gl.FRAMEBUFFER,
-            this._currentMaskRenderTexture
-          );
+          this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this._currentMaskRenderTexture);
         }
 
         this._tmpBoundsOnModel.setRect(allClipedDrawRect);
-        this._tmpBoundsOnModel.expand(
-          allClipedDrawRect.width * margin,
-          allClipedDrawRect.height * margin
-        );
+        this._tmpBoundsOnModel.expand(allClipedDrawRect.width * margin, allClipedDrawRect.height * margin);
         //########## 本来は割り当てられた領域の全体を使わず必要最低限のサイズがよい
 
         // シェーダ用の計算式を求める。回転を考慮しない場合は以下のとおり
@@ -254,15 +178,9 @@ export class CubismClippingManager_WebGL extends CubismClippingManager<CubismCli
           }
           {
             // view to layout0..1
-            this._tmpMatrix.translateRelative(
-              layoutBoundsOnTex01.x,
-              layoutBoundsOnTex01.y
-            );
+            this._tmpMatrix.translateRelative(layoutBoundsOnTex01.x, layoutBoundsOnTex01.y);
             this._tmpMatrix.scaleRelative(scaleX, scaleY); // new = [translate][scale]
-            this._tmpMatrix.translateRelative(
-              -this._tmpBoundsOnModel.x,
-              -this._tmpBoundsOnModel.y
-            );
+            this._tmpMatrix.translateRelative(-this._tmpBoundsOnModel.x, -this._tmpBoundsOnModel.y);
             // new = [translate][scale][translate]
           }
           // tmpMatrixForMaskが計算結果
@@ -274,15 +192,9 @@ export class CubismClippingManager_WebGL extends CubismClippingManager<CubismCli
           // シェーダに渡す行列を求める <<<<<<<<<<<<<<<<<<<<<<<< 要最適化（逆順に計算すればシンプルにできる）
           this._tmpMatrix.loadIdentity();
           {
-            this._tmpMatrix.translateRelative(
-              layoutBoundsOnTex01.x,
-              layoutBoundsOnTex01.y
-            );
+            this._tmpMatrix.translateRelative(layoutBoundsOnTex01.x, layoutBoundsOnTex01.y);
             this._tmpMatrix.scaleRelative(scaleX, scaleY); // new = [translate][scale]
-            this._tmpMatrix.translateRelative(
-              -this._tmpBoundsOnModel.x,
-              -this._tmpBoundsOnModel.y
-            );
+            this._tmpMatrix.translateRelative(-this._tmpBoundsOnModel.x, -this._tmpBoundsOnModel.y);
             // new = [translate][scale][translate]
           }
           this._tmpMatrixForDraw.setMatrix(this._tmpMatrix.getArray());
@@ -295,15 +207,11 @@ export class CubismClippingManager_WebGL extends CubismClippingManager<CubismCli
           const clipDrawIndex: number = clipContext._clippingIdList[i];
 
           // 頂点情報が更新されておらず、信頼性がない場合は描画をパスする
-          if (
-            !model.getDrawableDynamicFlagVertexPositionsDidChange(clipDrawIndex)
-          ) {
+          if (!model.getDrawableDynamicFlagVertexPositionsDidChange(clipDrawIndex)) {
             continue;
           }
 
-          renderer.setIsCulling(
-            model.getDrawableCulling(clipDrawIndex) != false
-          );
+          renderer.setIsCulling(model.getDrawableCulling(clipDrawIndex) != false);
 
           // マスクがクリアされていないなら処理する
           if (!this._clearedFrameBufferFlags.at(clipContext._bufferIndex)) {
@@ -326,12 +234,7 @@ export class CubismClippingManager_WebGL extends CubismClippingManager<CubismCli
       this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, s_fbo); // 描画対象を戻す
       renderer.setClippingContextBufferForMask(null);
 
-      this.gl.viewport(
-        s_viewport[0],
-        s_viewport[1],
-        s_viewport[2],
-        s_viewport[3]
-      );
+      this.gl.viewport(s_viewport[0], s_viewport[1], s_viewport[2], s_viewport[3]);
     }
   }
 
@@ -387,11 +290,7 @@ export class CubismClippingContext_WebGL extends CubismClippingContext {
   /**
    * 引数付きコンストラクタ
    */
-  public constructor(
-    manager: CubismClippingManager_WebGL,
-    clippingDrawableIndices: Int32Array,
-    clipCount: number
-  ) {
+  public constructor(manager: CubismClippingManager_WebGL, clippingDrawableIndices: Int32Array, clipCount: number) {
     super(clippingDrawableIndices, clipCount);
     this._owner = manager;
   }
@@ -417,57 +316,32 @@ export class CubismRendererProfile_WebGL {
     else this.gl.disable(index);
   }
 
-  private setGlEnableVertexAttribArray(
-    index: GLuint,
-    enabled: GLboolean
-  ): void {
+  private setGlEnableVertexAttribArray(index: GLuint, enabled: GLboolean): void {
     if (enabled) this.gl.enableVertexAttribArray(index);
     else this.gl.disableVertexAttribArray(index);
   }
 
   public save(): void {
     if (this.gl == null) {
-      CubismLogError(
-        "'gl' is null. WebGLRenderingContext is required.\nPlease call 'CubimRenderer_WebGL.startUp' function."
-      );
+      CubismLogError("'gl' is null. WebGLRenderingContext is required.\nPlease call 'CubimRenderer_WebGL.startUp' function.");
       return;
     }
     //-- push state --
-    this._lastArrayBufferBinding = this.gl.getParameter(
-      this.gl.ARRAY_BUFFER_BINDING
-    );
-    this._lastElementArrayBufferBinding = this.gl.getParameter(
-      this.gl.ELEMENT_ARRAY_BUFFER_BINDING
-    );
+    this._lastArrayBufferBinding = this.gl.getParameter(this.gl.ARRAY_BUFFER_BINDING);
+    this._lastElementArrayBufferBinding = this.gl.getParameter(this.gl.ELEMENT_ARRAY_BUFFER_BINDING);
     this._lastProgram = this.gl.getParameter(this.gl.CURRENT_PROGRAM);
 
     this._lastActiveTexture = this.gl.getParameter(this.gl.ACTIVE_TEXTURE);
     this.gl.activeTexture(this.gl.TEXTURE1); //テクスチャユニット1をアクティブに（以後の設定対象とする）
-    this._lastTexture1Binding2D = this.gl.getParameter(
-      this.gl.TEXTURE_BINDING_2D
-    );
+    this._lastTexture1Binding2D = this.gl.getParameter(this.gl.TEXTURE_BINDING_2D);
 
     this.gl.activeTexture(this.gl.TEXTURE0); //テクスチャユニット0をアクティブに（以後の設定対象とする）
-    this._lastTexture0Binding2D = this.gl.getParameter(
-      this.gl.TEXTURE_BINDING_2D
-    );
+    this._lastTexture0Binding2D = this.gl.getParameter(this.gl.TEXTURE_BINDING_2D);
 
-    this._lastVertexAttribArrayEnabled[0] = this.gl.getVertexAttrib(
-      0,
-      this.gl.VERTEX_ATTRIB_ARRAY_ENABLED
-    );
-    this._lastVertexAttribArrayEnabled[1] = this.gl.getVertexAttrib(
-      1,
-      this.gl.VERTEX_ATTRIB_ARRAY_ENABLED
-    );
-    this._lastVertexAttribArrayEnabled[2] = this.gl.getVertexAttrib(
-      2,
-      this.gl.VERTEX_ATTRIB_ARRAY_ENABLED
-    );
-    this._lastVertexAttribArrayEnabled[3] = this.gl.getVertexAttrib(
-      3,
-      this.gl.VERTEX_ATTRIB_ARRAY_ENABLED
-    );
+    this._lastVertexAttribArrayEnabled[0] = this.gl.getVertexAttrib(0, this.gl.VERTEX_ATTRIB_ARRAY_ENABLED);
+    this._lastVertexAttribArrayEnabled[1] = this.gl.getVertexAttrib(1, this.gl.VERTEX_ATTRIB_ARRAY_ENABLED);
+    this._lastVertexAttribArrayEnabled[2] = this.gl.getVertexAttrib(2, this.gl.VERTEX_ATTRIB_ARRAY_ENABLED);
+    this._lastVertexAttribArrayEnabled[3] = this.gl.getVertexAttrib(3, this.gl.VERTEX_ATTRIB_ARRAY_ENABLED);
 
     this._lastScissorTest = this.gl.isEnabled(this.gl.SCISSOR_TEST);
     this._lastStencilTest = this.gl.isEnabled(this.gl.STENCIL_TEST);
@@ -492,9 +366,7 @@ export class CubismRendererProfile_WebGL {
 
   public restore(): void {
     if (this.gl == null) {
-      CubismLogError(
-        "'gl' is null. WebGLRenderingContext is required.\nPlease call 'CubimRenderer_WebGL.startUp' function."
-      );
+      CubismLogError("'gl' is null. WebGLRenderingContext is required.\nPlease call 'CubimRenderer_WebGL.startUp' function.");
       return;
     }
     this.gl.useProgram(this._lastProgram);
@@ -512,18 +384,10 @@ export class CubismRendererProfile_WebGL {
 
     this.gl.frontFace(this._lastFrontFace);
 
-    this.gl.colorMask(
-      this._lastColorMask[0],
-      this._lastColorMask[1],
-      this._lastColorMask[2],
-      this._lastColorMask[3]
-    );
+    this.gl.colorMask(this._lastColorMask[0], this._lastColorMask[1], this._lastColorMask[2], this._lastColorMask[3]);
 
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this._lastArrayBufferBinding); //前にバッファがバインドされていたら破棄する必要がある
-    this.gl.bindBuffer(
-      this.gl.ELEMENT_ARRAY_BUFFER,
-      this._lastElementArrayBufferBinding
-    );
+    this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this._lastElementArrayBufferBinding);
 
     this.gl.activeTexture(this.gl.TEXTURE1); //テクスチャユニット1を復元
     this.gl.bindTexture(this.gl.TEXTURE_2D, this._lastTexture1Binding2D);
@@ -533,12 +397,7 @@ export class CubismRendererProfile_WebGL {
 
     this.gl.activeTexture(this._lastActiveTexture);
 
-    this.gl.blendFuncSeparate(
-      this._lastBlending[0],
-      this._lastBlending[1],
-      this._lastBlending[2],
-      this._lastBlending[3]
-    );
+    this.gl.blendFuncSeparate(this._lastBlending[0], this._lastBlending[1], this._lastBlending[2], this._lastBlending[3]);
   }
 
   public setGl(gl: WebGLRenderingContext): void {
@@ -625,8 +484,7 @@ export class CubismRenderer_WebGL extends CubismRenderer {
     }
 
     // インスタンス破棄前にレンダーテクスチャの数を保存
-    const renderTextureCount: number =
-      this._clippingManager.getRenderTextureCount();
+    const renderTextureCount: number = this._clippingManager.getRenderTextureCount();
 
     // FrameBufferのサイズを変更するためにインスタンスを破棄・再作成する
     this._clippingManager.release();
@@ -648,9 +506,7 @@ export class CubismRenderer_WebGL extends CubismRenderer {
    * @return クリッピングマスクバッファのサイズ
    */
   public getClippingMaskBufferSize(): number {
-    return this._model.isUsingMasking()
-      ? this._clippingManager.getClippingMaskBufferSize()
-      : -1;
+    return this._model.isUsingMasking() ? this._clippingManager.getClippingMaskBufferSize() : -1;
   }
 
   /**
@@ -658,9 +514,7 @@ export class CubismRenderer_WebGL extends CubismRenderer {
    * @return レンダーテクスチャの枚数
    */
   public getRenderTextureCount(): number {
-    return this._model.isUsingMasking()
-      ? this._clippingManager.getRenderTextureCount()
-      : -1;
+    return this._model.isUsingMasking() ? this._clippingManager.getRenderTextureCount() : -1;
   }
 
   /**
@@ -713,9 +567,7 @@ export class CubismRenderer_WebGL extends CubismRenderer {
    */
   public doDrawModel(): void {
     if (this.gl == null) {
-      CubismLogError(
-        "'gl' is null. WebGLRenderingContext is required.\nPlease call 'CubimRenderer_WebGL.startUp' function."
-      );
+      CubismLogError("'gl' is null. WebGLRenderingContext is required.\nPlease call 'CubimRenderer_WebGL.startUp' function.");
       return;
     }
 
@@ -724,10 +576,7 @@ export class CubismRenderer_WebGL extends CubismRenderer {
       this.preDraw();
 
       if (this.isUsingHighPrecisionMask()) {
-        this._clippingManager.setupMatrixForHighPrecision(
-          this.getModel(),
-          false
-        );
+        this._clippingManager.setupMatrixForHighPrecision(this.getModel(), false);
       } else {
         this._clippingManager.setupClippingContext(this.getModel(), this);
       }
@@ -754,35 +603,19 @@ export class CubismRenderer_WebGL extends CubismRenderer {
         continue;
       }
 
-      const clipContext =
-        this._clippingManager != null
-          ? this._clippingManager
-              .getClippingContextListForDraw()
-              .at(drawableIndex)
-          : null;
+      const clipContext = this._clippingManager != null ? this._clippingManager.getClippingContextListForDraw().at(drawableIndex) : null;
 
       if (clipContext != null && this.isUsingHighPrecisionMask()) {
         // 描くことになっていた
         if (clipContext._isUsing) {
           // 生成したFrameBufferと同じサイズでビューポートを設定
-          this.gl.viewport(
-            0,
-            0,
-            this._clippingManager.getClippingMaskBufferSize(),
-            this._clippingManager.getClippingMaskBufferSize()
-          );
+          this.gl.viewport(0, 0, this._clippingManager.getClippingMaskBufferSize(), this._clippingManager.getClippingMaskBufferSize());
 
           this.preDraw(); // バッファをクリアする
 
           // ---------- マスク描画処理 ----------
           // マスク用RenderTextureをactiveにセット
-          this.gl.bindFramebuffer(
-            this.gl.FRAMEBUFFER,
-            clipContext
-              .getClippingManager()
-              .getMaskRenderTexture()
-              .at(clipContext._bufferIndex)
-          );
+          this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, clipContext.getClippingManager().getMaskRenderTexture().at(clipContext._bufferIndex));
 
           // マスクをクリアする
           // (仮仕様) 1が無効（描かれない）領域、0が有効（描かれる）領域。（シェーダーCd*Csで0に近い値をかけてマスクを作る。1をかけると何も起こらない）
@@ -797,17 +630,11 @@ export class CubismRenderer_WebGL extends CubismRenderer {
             const clipDrawIndex: number = clipContext._clippingIdList[index];
 
             // 頂点情報が更新されておらず、信頼性がない場合は描画をパスする
-            if (
-              !this._model.getDrawableDynamicFlagVertexPositionsDidChange(
-                clipDrawIndex
-              )
-            ) {
+            if (!this._model.getDrawableDynamicFlagVertexPositionsDidChange(clipDrawIndex)) {
               continue;
             }
 
-            this.setIsCulling(
-              this._model.getDrawableCulling(clipDrawIndex) != false
-            );
+            this.setIsCulling(this._model.getDrawableCulling(clipDrawIndex) != false);
 
             // 今回専用の変換を適用して描く
             // チャンネルも切り替える必要がある(A,R,G,B)
@@ -822,12 +649,7 @@ export class CubismRenderer_WebGL extends CubismRenderer {
           this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, s_fbo); // 描画対象を戻す
           this.setClippingContextBufferForMask(null);
 
-          this.gl.viewport(
-            s_viewport[0],
-            s_viewport[1],
-            s_viewport[2],
-            s_viewport[3]
-          );
+          this.gl.viewport(s_viewport[0], s_viewport[1], s_viewport[2], s_viewport[3]);
 
           this.preDraw(); // バッファをクリアする
         }
@@ -858,27 +680,14 @@ export class CubismRenderer_WebGL extends CubismRenderer {
     this.gl.frontFace(this.gl.CCW); // Cubism SDK OpenGLはマスク・アートメッシュ共にCCWが表面
 
     if (this.isGeneratingMask()) {
-      CubismShader_WebGL.getInstance().setupShaderProgramForMask(
-        this,
-        model,
-        index
-      );
+      CubismShader_WebGL.getInstance().setupShaderProgramForMask(this, model, index);
     } else {
-      CubismShader_WebGL.getInstance().setupShaderProgramForDraw(
-        this,
-        model,
-        index
-      );
+      CubismShader_WebGL.getInstance().setupShaderProgramForDraw(this, model, index);
     }
 
     {
       const indexCount: number = model.getDrawableVertexIndexCount(index);
-      this.gl.drawElements(
-        this.gl.TRIANGLES,
-        indexCount,
-        this.gl.UNSIGNED_SHORT,
-        0
-      );
+      this.gl.drawElements(this.gl.TRIANGLES, indexCount, this.gl.UNSIGNED_SHORT, 0);
     }
 
     // 後処理
@@ -939,11 +748,7 @@ export class CubismRenderer_WebGL extends CubismRenderer {
     if (this.getAnisotropy() > 0.0 && this._extension) {
       for (let i = 0; i < this._textures.getSize(); ++i) {
         this.gl.bindTexture(this.gl.TEXTURE_2D, this._textures.getValue(i));
-        this.gl.texParameterf(
-          this.gl.TEXTURE_2D,
-          this._extension.TEXTURE_MAX_ANISOTROPY_EXT,
-          this.getAnisotropy()
-        );
+        this.gl.texParameterf(this.gl.TEXTURE_2D, this._extension.TEXTURE_MAX_ANISOTROPY_EXT, this.getAnisotropy());
       }
     }
   }
@@ -966,9 +771,7 @@ export class CubismRenderer_WebGL extends CubismRenderer {
   /**
    * 画面上に描画するクリッピングコンテキストをセットする
    */
-  public setClippingContextBufferForDraw(
-    clip: CubismClippingContext_WebGL
-  ): void {
+  public setClippingContextBufferForDraw(clip: CubismClippingContext_WebGL): void {
     this._clippingContextBufferForDraw = clip;
   }
 
@@ -1003,9 +806,7 @@ export class CubismRenderer_WebGL extends CubismRenderer {
 
     // 異方性フィルタリングが使用できるかチェック
     this._extension =
-      this.gl.getExtension('EXT_texture_filter_anisotropic') ||
-      this.gl.getExtension('WEBKIT_EXT_texture_filter_anisotropic') ||
-      this.gl.getExtension('MOZ_EXT_texture_filter_anisotropic');
+      this.gl.getExtension('EXT_texture_filter_anisotropic') || this.gl.getExtension('WEBKIT_EXT_texture_filter_anisotropic') || this.gl.getExtension('MOZ_EXT_texture_filter_anisotropic');
   }
 
   _textures: csmMap<number, WebGLTexture>; // モデルが参照するテクスチャとレンダラでバインドしているテクスチャとのマップ

@@ -11,8 +11,7 @@ import { getCharacterInfo, getCharacterPackDefinition } from '../../../packages/
 export type { CharacterProfile } from '@packages/common/types/status';
 
 const SETTINGS_DIR = path.join(app.getPath('userData'), 'data');
-// 落盘文件名为历史契约，保持 role.json 不变
-const CHARACTER_PROFILE_FILE = path.join(SETTINGS_DIR, 'role.json');
+const CHARACTER_PROFILE_FILE = path.join(SETTINGS_DIR, 'character-profile.json');
 
 function getCurrentCharacterProfile(): Pick<CharacterProfile, 'name' | 'description'> | null {
   const pack = getCharacterPackDefinition();

@@ -40,14 +40,13 @@ export type {
   SpriteBehaviorScheduler,
   SpriteManagerOptions,
   SpritePurposeWindowAdapter,
-  SpriteWindowAnimationAdapter,
   SpriteSchedulerGateContext,
   SpriteSchedulerGateResult,
   SpriteSchedulerJobDefinition,
   SpriteSchedulerJobHandlerResult,
   SpriteSchedulerRunContext,
-  SpriteSchedulerRunTrigger,
   SpriteSchedulerRuntimeJob,
+  SpriteSchedulerRunTrigger,
   SpriteSchedulerScheduleSpec,
   SpriteSpontaneousUtteranceActionSource,
   SpriteSpontaneousUtteranceExecutionReport,
@@ -60,5 +59,6 @@ export type {
   SpriteSpontaneousUtteranceRequest,
   SpriteSpontaneousUtteranceResult,
   SpriteSpontaneousUtteranceTonePreference,
-  SpriteWindow
+  SpriteWindow,
+  SpriteWindowAnimationAdapter
 } from './types';

@@ -12,11 +12,11 @@ interface DraggableTitleProps {
   fixed?: boolean;
   center?: React.ReactNode;
   actions?: React.ReactNode;
-  showBack?: boolean;
+  shouldShowBack?: boolean;
   onClose?: () => void;
 }
 
-function DraggableTitle({ title, icon, center, actions, showBack = false, fixed, onClose }: DraggableTitleProps): React.ReactElement {
+function DraggableTitle({ title, icon, center, actions, shouldShowBack = false, fixed, onClose }: DraggableTitleProps): React.ReactElement {
   const [isMaximized, setIsMaximized] = useState(false);
   const [windowCapabilities, setWindowCapabilities] = useState({ minimizable: true, maximizable: true, resizable: true });
   const navigate = useNavigate();
@@ -46,7 +46,7 @@ function DraggableTitle({ title, icon, center, actions, showBack = false, fixed,
   return (
     <div className={clsx(['flex items-center w-full drag-region gap-2 h-9 px-2 box-border bg-background', fixed && 'fixed top-0 left-0 right-0'])}>
       {window.chobits.isMac && <div className="w-20"></div>}
-      {showBack && (
+      {shouldShowBack && (
         <Button variant="ghost" size="icon" className="h-8 w-8 no-drag" onClick={() => navigate(-1)}>
           <TbArrowLeft />
         </Button>

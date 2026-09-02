@@ -21,8 +21,6 @@
 
 > 💖 如果这个项目对你有帮助，欢迎在 [GitHub](https://github.com/WondrousBox/Chobits) 点个 Star —— 你的支持能让更多人发现小叽！
 
-
-
 ## ✨ 功能特性
 
 - **Live2D 桌面精灵**
@@ -57,12 +55,12 @@
 
 ### 前置要求
 
-| 依赖 | 版本 | 说明 |
-| --- | --- | --- |
-| Node.js | ≥ 18（建议 LTS） | 运行与构建 |
-| pnpm | ≥ 10 | `pnpm-workspace.yaml` 使用了 `allowBuilds` 字段，需要 pnpm 10+ |
-| Xcode CLT | 仅 macOS | 原生模块编译 |
-| libsecret | 仅 Linux | `keytar` 存取 API Key 所需，桌面版发行版一般自带（gnome-keyring / KWallet） |
+| 依赖      | 版本             | 说明                                                                        |
+| --------- | ---------------- | --------------------------------------------------------------------------- |
+| Node.js   | ≥ 18（建议 LTS） | 运行与构建                                                                  |
+| pnpm      | ≥ 10             | `pnpm-workspace.yaml` 使用了 `allowBuilds` 字段，需要 pnpm 10+              |
+| Xcode CLT | 仅 macOS         | 原生模块编译                                                                |
+| libsecret | 仅 Linux         | `keytar` 存取 API Key 所需，桌面版发行版一般自带（gnome-keyring / KWallet） |
 
 ### 三步把小叽带回家
 
@@ -85,12 +83,12 @@ pnpm dev
 
 媒体下载 / 转码依赖随附的 ffmpeg 与 yt-dlp，按平台执行对应脚本即可：
 
-| 平台 | 命令 |
-| --- | --- |
+| 平台                  | 命令                                                             |
+| --------------------- | ---------------------------------------------------------------- |
 | macOS (Apple Silicon) | `pnpm download-ffmpeg-darwin-arm64` `pnpm download-ytdlp-darwin` |
-| macOS (Intel) | `pnpm download-ytdlp-darwin` |
-| Windows | `pnpm download-ffmpeg-win32-x64` `pnpm download-ytdlp-win32` |
-| Linux | 暂无预置脚本，请自行安装 ffmpeg / yt-dlp |
+| macOS (Intel)         | `pnpm download-ytdlp-darwin`                                     |
+| Windows               | `pnpm download-ffmpeg-win32-x64` `pnpm download-ytdlp-win32`     |
+| Linux                 | 暂无预置脚本，请自行安装 ffmpeg / yt-dlp                         |
 
 不下载也能正常启动、聊天和语音转写，只是视频下载 / 转码等功能不可用。
 
@@ -141,12 +139,12 @@ Chobits/
 
 ## 🐧 平台说明
 
-| 能力 | macOS | Windows | Linux |
-| --- | --- | --- | --- |
-| 核心功能（精灵 / 对话 / 语音） | ✅ | ✅ | ✅ |
-| 媒体下载 / 转码 | ✅（需跑下载脚本） | ✅（需跑下载脚本） | 自行安装 ffmpeg / yt-dlp |
-| 打包发布 | dmg / zip | nsis | AppImage / deb |
-| 全局快捷键 | ✅ | ✅ | 仅 X11，Wayland 下不可用 |
+| 能力                           | macOS              | Windows            | Linux                    |
+| ------------------------------ | ------------------ | ------------------ | ------------------------ |
+| 核心功能（精灵 / 对话 / 语音） | ✅                 | ✅                 | ✅                       |
+| 媒体下载 / 转码                | ✅（需跑下载脚本） | ✅（需跑下载脚本） | 自行安装 ffmpeg / yt-dlp |
+| 打包发布                       | dmg / zip          | nsis               | AppImage / deb           |
+| 全局快捷键                     | ✅                 | ✅                 | 仅 X11，Wayland 下不可用 |
 
 Linux 特别提示：精灵是透明无边框窗口，需要桌面混成器（GNOME / KDE 默认开启）；
 `keytar` 依赖系统 secret service 保存 API Key。

@@ -13,7 +13,7 @@
  * - 内存中维护滑动窗口，定期清理
  */
 
-import { SpriteEventBus, type SpriteBusEvent } from './event-bus';
+import { type SpriteBusEvent, SpriteEventBus } from './event-bus';
 import { isSpriteInteractionEvent, type SpriteInteractionEvent, type SpriteInteractionPayload } from './interaction-contract';
 
 // ============ 类型定义 ============

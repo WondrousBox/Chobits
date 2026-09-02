@@ -16,7 +16,7 @@ interface CustomProxy {
   type: ProxyAgentType;
   hostname: string;
   port: number;
-  active: boolean;
+  isActive: boolean;
 }
 
 interface ProxyConfig {
@@ -33,16 +33,6 @@ const ProxySettings: React.FC = () => {
   const debounceTimersRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
   const [localProxies, setLocalProxies] = useState<CustomProxy[]>([]);
 
-  useEffect(() => {
-    loadConfig();
-  }, []);
-
-  useEffect(() => {
-    if (config.proxies) {
-      setLocalProxies(config.proxies);
-    }
-  }, [config.proxies]);
-
   const loadConfig = async (): Promise<void> => {
     try {
       const result = await window.chobits.proxy['proxy:get-config']();
@@ -54,6 +44,18 @@ const ProxySettings: React.FC = () => {
       toast.error('加载失败', { description: '无法加载代理配置' });
     }
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 挂载时异步加载代理配置,setState 均在 await 之后
+    loadConfig();
+  }, []);
+
+  useEffect(() => {
+    if (config.proxies) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 配置加载后同步到本地编辑态,有意为之
+      setLocalProxies(config.proxies);
+    }
+  }, [config.proxies]);
 
   const handleTypeChange = async (type: ProxyType): Promise<void> => {
     setIsLoading(true);
@@ -107,7 +109,7 @@ const ProxySettings: React.FC = () => {
   };
 
   const handleAddProxy = async (): Promise<void> => {
-    const newProxy: Omit<CustomProxy, 'active'> = {
+    const newProxy: Omit<CustomProxy, 'isActive'> = {
       type: 'http',
       hostname: '127.0.0.1',
       port: 7890
@@ -213,12 +215,6 @@ const ProxySettings: React.FC = () => {
     }
   };
 
-  const proxyTypeLabel = {
-    none: '禁用代理',
-    system: '系统代理',
-    custom: '自定义代理'
-  };
-
   return (
     <div className="p-4 space-y-6">
       <SettingGroup title="代理模式">
@@ -287,22 +283,11 @@ const ProxySettings: React.FC = () => {
                         <SelectItem value="socks5">SOCKS5</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Input
-                      className="flex-1 h-8"
-                      value={proxy.hostname}
-                      onChange={(e) => handleUpdateProxyDebounced(index, { hostname: e.target.value })}
-                      placeholder="127.0.0.1"
-                    />
-                    <Input
-                      className="w-20 h-8"
-                      type="number"
-                      value={proxy.port}
-                      onChange={(e) => handleUpdateProxyDebounced(index, { port: parseInt(e.target.value) || 0 })}
-                      placeholder="7890"
-                    />
-                    <Button size="sm" variant={proxy.active ? 'default' : 'outline'} onClick={() => handleUpdateProxyImmediate(index, { active: true })} disabled={proxy.active}>
-                      {proxy.active && <TbCheck className="h-4 w-4 mr-1" />}
-                      {proxy.active ? '已启用' : '启用'}
+                    <Input className="flex-1 h-8" value={proxy.hostname} onChange={(e) => handleUpdateProxyDebounced(index, { hostname: e.target.value })} placeholder="127.0.0.1" />
+                    <Input className="w-20 h-8" type="number" value={proxy.port} onChange={(e) => handleUpdateProxyDebounced(index, { port: parseInt(e.target.value) || 0 })} placeholder="7890" />
+                    <Button size="sm" variant={proxy.isActive ? 'default' : 'outline'} onClick={() => handleUpdateProxyImmediate(index, { isActive: true })} disabled={proxy.isActive}>
+                      {proxy.isActive && <TbCheck className="h-4 w-4 mr-1" />}
+                      {proxy.isActive ? '已启用' : '启用'}
                     </Button>
                     <Button size="icon" variant="ghost" className="w-8 h-8 text-muted-foreground hover:text-destructive" onClick={() => handleRemoveProxy(index)}>
                       <TbTrash className="h-4 w-4" />
@@ -327,9 +312,7 @@ const ProxySettings: React.FC = () => {
           description="检测当前代理配置是否正常工作"
           action={
             <div className="flex items-center gap-3">
-              {testResult && (
-                <span className={`text-xs ${testResult.ok ? 'text-green-600' : 'text-destructive'}`}>{testResult.message}</span>
-              )}
+              {testResult && <span className={`text-xs ${testResult.ok ? 'text-green-600' : 'text-destructive'}`}>{testResult.message}</span>}
               <Button size="sm" variant="outline" onClick={handleTestProxy} disabled={isTesting}>
                 {isTesting ? <TbLoader className="h-4 w-4 mr-1 animate-spin" /> : <TbTestPipe className="h-4 w-4 mr-1" />}
                 {isTesting ? '测试中...' : '测试'}

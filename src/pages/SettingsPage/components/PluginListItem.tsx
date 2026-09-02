@@ -185,7 +185,7 @@ const StatusBadge: React.FC<{ status?: string }> = ({ status }) => {
 };
 
 export const PluginListItem: React.FC<PluginListItemProps> = ({ resource, installedResource, isInstalling, onInstall, onCancel, onRetry, onRemove }) => {
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const isSystemPreset = isSystemPresetPlugin(resource);
   const status = installedResource?.status as string | undefined;
   const percent = installedResource?.sizeBytes ? Math.round((((installedResource?.progressBytes as number) || 0) / ((installedResource?.sizeBytes as number) || 1)) * 100) : 0;
@@ -275,7 +275,7 @@ export const PluginListItem: React.FC<PluginListItemProps> = ({ resource, instal
           </Button>
         )}
         {isInstalled && installedResource?.id && onRemove && !isSystemPreset && (
-          <Button size="icon" variant={'destructive'} onClick={() => setShowDeleteDialog(true)}>
+          <Button size="icon" variant={'destructive'} onClick={() => setIsDeleteDialogOpen(true)}>
             <TbTrash />
           </Button>
         )}
@@ -302,21 +302,21 @@ export const PluginListItem: React.FC<PluginListItemProps> = ({ resource, instal
     <>
       <div className="px-4 py-3 flex items-center justify-between hover:bg-muted/20 transition-colors">{content}</div>
       {onRemove && installedResource?.id && (
-        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>删除{resourceLabel}</DialogTitle>
               <DialogDescription>确定要删除 &quot;{resource.displayName || resource.name}&quot; 吗？此操作会移除安装记录并删除本地已下载文件，之后再次使用需要重新下载。</DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
                 取消
               </Button>
               <Button
                 variant="destructive"
                 onClick={() => {
                   onRemove(installedResource.id);
-                  setShowDeleteDialog(false);
+                  setIsDeleteDialogOpen(false);
                 }}
               >
                 删除

@@ -171,11 +171,7 @@ export class CubismModelMatrix extends CubismMatrix44 {
     const keyLeft = 'left';
     const keyRight = 'right';
 
-    for (
-      const ite: iterator<string, number> = layout.begin();
-      ite.notEqual(layout.end());
-      ite.preIncrement()
-    ) {
+    for (const ite: iterator<string, number> = layout.begin(); ite.notEqual(layout.end()); ite.preIncrement()) {
       const key: string = ite.ptr().first;
       const value: number = ite.ptr().second;
 
@@ -186,11 +182,7 @@ export class CubismModelMatrix extends CubismMatrix44 {
       }
     }
 
-    for (
-      const ite: iterator<string, number> = layout.begin();
-      ite.notEqual(layout.end());
-      ite.preIncrement()
-    ) {
+    for (const ite: iterator<string, number> = layout.begin(); ite.notEqual(layout.end()); ite.preIncrement()) {
       const key: string = ite.ptr().first;
       const value: number = ite.ptr().second;
 

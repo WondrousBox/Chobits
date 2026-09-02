@@ -1,12 +1,6 @@
 #!/usr/bin/env node
 
 import { execSync } from 'child_process';
-import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 console.log('🔧 重建原生模块...');
 
@@ -14,7 +8,7 @@ try {
   // 检查是否安装了 @electron/rebuild
   try {
     await import('@electron/rebuild');
-  } catch (e) {
+  } catch {
     console.log('📦 安装 @electron/rebuild...');
     execSync('pnpm add -D @electron/rebuild', { stdio: 'inherit' });
   }
@@ -27,7 +21,7 @@ try {
   try {
     console.log('🔨 重建 sharp...');
     execSync('npx @electron/rebuild -f -w sharp', { stdio: 'inherit' });
-  } catch (e) {
+  } catch {
     console.log('ℹ️ 跳过重建 sharp（未安装或非必要）');
   }
 

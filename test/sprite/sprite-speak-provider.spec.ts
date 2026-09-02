@@ -4,12 +4,12 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { SpeakCache } from '../../packages/sprite-core/speak/speak-cache';
-import { SpeakConfigStore } from '../../packages/sprite-core/speak/speak-config-store';
-import { RealtimeSpeechTextParser } from '../../packages/sprite-core/speak/realtime-text-parser';
-import { SpeakService } from '../../packages/sprite-core/speak/speak-service';
 import { registerProviderDefinition } from '../../packages/ai/providers/registry';
 import type { ProviderDefinition } from '../../packages/ai/providers/types';
+import { RealtimeSpeechTextParser } from '../../packages/sprite-core/speak/realtime-text-parser';
+import { SpeakCache } from '../../packages/sprite-core/speak/speak-cache';
+import { SpeakConfigStore } from '../../packages/sprite-core/speak/speak-config-store';
+import { SpeakService } from '../../packages/sprite-core/speak/speak-service';
 import type { SpriteSpeechSynthesisExecutor } from '../../packages/sprite-core/speak/types';
 
 const tempDirs: string[] = [];
@@ -782,7 +782,7 @@ describe('Sprite speak AI Provider synthesis', () => {
 describe('RealtimeSpeechTextParser', () => {
   it('keeps incomplete fragments buffered until a speakable boundary arrives', () => {
     const parser = new RealtimeSpeechTextParser({
-      flushOnPunctuation: true,
+      shouldFlushOnPunctuation: true,
       maxChars: 80,
       minChars: 8
     });
@@ -800,7 +800,7 @@ describe('RealtimeSpeechTextParser', () => {
 
   it('preserves markdown block boundaries for headings and list items', () => {
     const parser = new RealtimeSpeechTextParser({
-      flushOnPunctuation: true,
+      shouldFlushOnPunctuation: true,
       maxChars: 80,
       minChars: 8
     });
@@ -825,36 +825,19 @@ describe('RealtimeSpeechTextParser', () => {
       '文件与代码',
       '帮你管理文件，读写都不在话下'
     ]);
-    expect(segments.map((segment) => segment.reason)).toEqual([
-      'sentence',
-      'sentence',
-      'block-boundary',
-      'block-boundary',
-      'block-boundary',
-      'block-boundary',
-      'block-boundary'
-    ]);
+    expect(segments.map((segment) => segment.reason)).toEqual(['sentence', 'sentence', 'block-boundary', 'block-boundary', 'block-boundary', 'block-boundary', 'block-boundary']);
   });
 
   it('uses newline-only chunks as structural boundaries', () => {
     const parser = new RealtimeSpeechTextParser({
-      flushOnPunctuation: true,
+      shouldFlushOnPunctuation: true,
       maxChars: 80,
       minChars: 8
     });
 
-    const segments = [
-      ...parser.append('日常小助手'),
-      ...parser.append('\n\n'),
-      ...parser.append('陪你聊天、解答问题、帮你出主意'),
-      ...parser.append('\n'),
-      ...parser.end()
-    ];
+    const segments = [...parser.append('日常小助手'), ...parser.append('\n\n'), ...parser.append('陪你聊天、解答问题、帮你出主意'), ...parser.append('\n'), ...parser.end()];
 
-    expect(segments.map((segment) => segment.text)).toEqual([
-      '日常小助手',
-      '陪你聊天、解答问题、帮你出主意'
-    ]);
+    expect(segments.map((segment) => segment.text)).toEqual(['日常小助手', '陪你聊天、解答问题、帮你出主意']);
     expect(segments.map((segment) => segment.reason)).toEqual(['block-boundary', 'block-boundary']);
   });
 });

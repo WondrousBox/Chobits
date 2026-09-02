@@ -78,7 +78,9 @@ export default function AIProviderConfigWindow(): JSX.Element {
         }
 
         if (!mounted) return;
-        const scopedSecrets = targetPresetId ? await window.chobits.ai.getPresetSecrets(targetPresetId).catch(() => ({})) : await window.chobits.ai.getProviderSecrets(resolvedProviderId).catch(() => ({}));
+        const scopedSecrets = targetPresetId
+          ? await window.chobits.ai.getPresetSecrets(targetPresetId).catch(() => ({}))
+          : await window.chobits.ai.getProviderSecrets(resolvedProviderId).catch(() => ({}));
         if (!mounted) return;
         // 已保存的值优先，未保存的字段用 provider 内置默认配置预填展示
         setValues({ ...(p.defaultConfig || {}), ...((scopedSecrets || {}) as Record<string, string>) });

@@ -56,6 +56,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isSubtitleMode = fal
 
   // 组件挂载时加载历史记录
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 挂载时异步加载历史记录,加载态切换是有意的
     loadHistory();
   }, [loadHistory]);
 
@@ -153,8 +154,9 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isSubtitleMode = fal
               return (
                 <div
                   key={item.id}
-                  className={`p-3 rounded-lg border transition-colors ${isSelected ? 'border-primary bg-primary/10' : isCurrentRecording ? 'border-orange-500 bg-orange-500/10' : isSubtitleMode ? 'border-border/50 bg-background/50' : 'border-border'
-                    } ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-muted/50'}`}
+                  className={`p-3 rounded-lg border transition-colors ${
+                    isSelected ? 'border-primary bg-primary/10' : isCurrentRecording ? 'border-orange-500 bg-orange-500/10' : isSubtitleMode ? 'border-border/50 bg-background/50' : 'border-border'
+                  } ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-muted/50'}`}
                   onClick={() => !isDisabled && handleClick(item)}
                 >
                   <div className="flex items-start justify-between gap-2 mb-1">

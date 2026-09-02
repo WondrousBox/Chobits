@@ -127,10 +127,7 @@ export abstract class ICubismModelSetting {
    * @param index 配列のインデックス値
    * @return サウンドファイルの名前
    */
-  public abstract getMotionSoundFileName(
-    groupName: string,
-    index: number
-  ): string;
+  public abstract getMotionSoundFileName(groupName: string, index: number): string;
 
   /**
    * モーション開始時のフェードイン処理時間を取得する
@@ -138,10 +135,7 @@ export abstract class ICubismModelSetting {
    * @param index 配列のインデックス値
    * @return フェードイン処理時間[秒]
    */
-  public abstract getMotionFadeInTimeValue(
-    groupName: string,
-    index: number
-  ): number;
+  public abstract getMotionFadeInTimeValue(groupName: string, index: number): number;
 
   /**
    * モーション終了時のフェードアウト処理時間を取得する
@@ -149,10 +143,7 @@ export abstract class ICubismModelSetting {
    * @param index 配列のインデックス値
    * @return フェードアウト処理時間[秒]
    */
-  public abstract getMotionFadeOutTimeValue(
-    groupName: string,
-    index: number
-  ): number;
+  public abstract getMotionFadeOutTimeValue(groupName: string, index: number): number;
 
   /**
    * ユーザーデータのファイル名を取得する

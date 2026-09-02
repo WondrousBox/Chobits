@@ -14,9 +14,9 @@
  * - 行为执行通过 EventBus 通知 UI 层
  */
 
+import type { CharacterState } from './character-state';
 import { SpriteEventBus } from './event-bus';
 import type { InteractionStats } from './interaction-tracker';
-import type { CharacterState } from './character-state';
 import type { SpriteState, SpriteStateMachine } from './state-machine';
 
 // ============ 类型定义 ============

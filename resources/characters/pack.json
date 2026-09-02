@@ -1,0 +1,36 @@
+{
+  "formatVersion": 1,
+  "id": "chii-default",
+  "name": "Chii（小叽）",
+  "version": "1.0.0",
+  "author": "Chobits",
+  "description": "温暖友善的桌面精灵伙伴",
+  "license": "MIT",
+  "tags": ["default", "friendly", "zh-CN"],
+  "minAppVersion": "1.0.0",
+  "platform": ["darwin", "win32", "linux"],
+  "assets": {
+    "character": "character.json",
+    "animations": "index.json",
+    "live2d": "chii",
+    "gallery": "gallery/index.json"
+  },
+  "provenance": {
+    "channel": "builtin",
+    "publisher": "Chobits",
+    "repository": "https://gitee.com/yu-qian/chobits",
+    "canonicalUrl": "https://gitee.com/yu-qian/chobits"
+  },
+  "signature": {
+    "algorithm": "sha256",
+    "keyId": "builtin:chii-default",
+    "digest": "sha256:5d554f6b443b2d1b1831279ee139b70c6b6267f9758fd5abd6cd70384dfa4f47"
+  },
+  "capabilities": {
+    "hasVoice": false,
+    "hasCustomAnimations": true,
+    "has3DModel": false,
+    "supportedLanguages": ["zh-CN"],
+    "dimensionExtensions": []
+  }
+}

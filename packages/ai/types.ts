@@ -39,7 +39,7 @@ export type ToolCallDisplay = {
 
 export type ToolSpeech = {
   text: string;
-  showBubble?: boolean;
+  bubbleEnabled?: boolean;
   bubbleDuration?: number;
   delayMs?: number;
 };
@@ -583,7 +583,7 @@ export interface ProviderAdapter {
   // Embeddings
   embed?(req: EmbeddingRequest): Promise<EmbeddingResponse>;
   // Models: return id + optional metadata; UI will use label if provided
-  listModels?(opts?: { secrets?: ProviderSecrets }): Promise<Array<{ id: string; label?: string;[k: string]: any }>>;
+  listModels?(opts?: { secrets?: ProviderSecrets }): Promise<Array<{ id: string; label?: string; [k: string]: any }>>;
   // ASR
   transcribe?(file: File | Blob | Buffer | ArrayBuffer, options?: TranscribeOptions): Promise<TranscriptionResponse>;
   // Music generation
@@ -648,7 +648,7 @@ export type AIApi = {
   getAgents(): Promise<any[]>;
   listTools(): Promise<ToolInfo[]>;
   listSkills(payload?: { agentId?: string; workspaceRoot?: string }): Promise<SkillInfo[]>;
-  listModels(providerId: string, presetId?: string): Promise<Array<{ id: string; label?: string;[k: string]: any }>>;
+  listModels(providerId: string, presetId?: string): Promise<Array<{ id: string; label?: string; [k: string]: any }>>;
   getProviderSecrets(providerId: string): Promise<Record<string, string>>;
   setProviderSecrets(providerId: string, secrets: Record<string, string>): Promise<{ ok: boolean }>;
   clearProviderSecrets(providerId: string): Promise<{ ok: boolean }>;
@@ -694,5 +694,4 @@ export type AIApi = {
   onCardPushed(callback: (card: PushedCard) => void): () => void;
   /** Send user's choice response back to main process (for ask-user tool) */
   sendUserChoiceResponse(response: UserChoiceResponse): Promise<{ ok: boolean; error?: string }>;
-
 };

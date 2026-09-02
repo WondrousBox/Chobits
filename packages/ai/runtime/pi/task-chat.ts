@@ -6,7 +6,7 @@ import { createResolvedPromptInspectionContext, inspectAIPrompt } from './prompt
 import { buildPiModel, buildPiModelHeaders } from './provider-model';
 import { extractPiProviderRequestId } from './provider-request-id';
 
-type PiAiModule = typeof import('@earendil-works/pi-ai/compat');
+type PiAIModule = typeof import('@earendil-works/pi-ai/compat');
 type PiAssistantMessage = import('@earendil-works/pi-ai/compat').AssistantMessage;
 type PiSimpleStreamOptions = import('@earendil-works/pi-ai/compat').SimpleStreamOptions;
 type PiThinkingLevel = import('@earendil-works/pi-ai/compat').ThinkingLevel;
@@ -27,7 +27,7 @@ export interface CreatePiTaskRuntimeRequest extends ProviderScopedRequest {
   temperature?: number;
 }
 
-async function loadPiAi(): Promise<PiAiModule> {
+async function loadPiAI(): Promise<PiAIModule> {
   return import('@earendil-works/pi-ai/compat');
 }
 
@@ -144,7 +144,7 @@ function createPromptContext(prompt: string): { messages: Array<{ content: strin
 }
 
 export async function createPiTaskChatRuntime(resolved: ResolvedPiRequest): Promise<{ chatFn: PiTaskChatFunction; modelId: string }> {
-  const ai = await loadPiAi();
+  const ai = await loadPiAI();
   const model = await buildPiModel(ai, resolved);
 
   return {

@@ -82,7 +82,12 @@ import {
   saveCharacterPackEditorDraft
 } from '../../packages/sprite-core/character-pack-manager';
 import { createCharacterPackSignaturePayload } from '../../packages/sprite-core/character-pack-signature';
-import { CHARACTER_MESSAGE_SPECS, CHARACTER_PROGRESS_KIND_LABEL_SPECS, CHARACTER_PROGRESS_MESSAGE_SPECS, getCharacterMessageTemplateLines } from '../../packages/sprite-core/messages/default-character';
+import {
+  CHARACTER_MESSAGE_SPECS,
+  CHARACTER_PROGRESS_KIND_LABEL_SPECS,
+  CHARACTER_PROGRESS_MESSAGE_SPECS,
+  getCharacterMessageTemplateLines
+} from '../../packages/sprite-core/messages/default-character';
 
 function expectCharacterMessagesCoverSpecs(messages: Record<string, any>): void {
   for (const spec of CHARACTER_MESSAGE_SPECS) {
@@ -356,7 +361,7 @@ describe('character pack manager', () => {
     const betaSince = activation?.pack.companionSince;
 
     expect(activation).toMatchObject({
-      changed: true,
+      didChange: true,
       pack: {
         id: 'pack-beta',
         source: 'installed',
@@ -378,7 +383,7 @@ describe('character pack manager', () => {
     });
 
     const reactivation = await activateCharacterPack('pack-beta', { source: 'installed' });
-    expect(reactivation?.changed).toBe(false);
+    expect(reactivation?.didChange).toBe(false);
     expect(reactivation?.pack.companionSince).toBe(betaCompanionSince);
   });
 
@@ -406,7 +411,7 @@ describe('character pack manager', () => {
     });
 
     expect(result).toMatchObject({
-      activated: true,
+      wasActivated: true,
       pack: {
         id: 'pack-delta',
         source: 'installed',
@@ -1177,8 +1182,8 @@ describe('character pack manager', () => {
     const animationIndex = JSON.parse(readFileSync(path.join(installedRoot, 'animations/index.json'), 'utf-8'));
 
     expect(result).toMatchObject({
-      created: true,
-      activated: true,
+      wasCreated: true,
+      wasActivated: true,
       pack: {
         id: 'custom-alpha',
         source: 'installed',
@@ -1658,7 +1663,7 @@ describe('character pack manager', () => {
         id: 'pack-alpha',
         source: 'builtin'
       },
-      switchedActivePack: false
+      didSwitchActivePack: false
     });
     expect(existsSync(installedRoot)).toBe(false);
   });

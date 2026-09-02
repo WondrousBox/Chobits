@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest';
 
-import { parseSkillMarkdown } from '../../packages/ai/runtime/pi/skills'
+import { parseSkillMarkdown } from '../../packages/ai/runtime/pi/skills';
 
 describe('parseSkillMarkdown', () => {
   it('parses supported frontmatter fields and normalizes tool identifiers', () => {
@@ -31,11 +31,11 @@ model: gpt-5.1
 effort: high
 ---
 # Subtitle Translate
-`
+`;
 
-    const parsed = parseSkillMarkdown(markdown, { filePath: '/tmp/SKILL.md' })
+    const parsed = parseSkillMarkdown(markdown, { filePath: '/tmp/SKILL.md' });
 
-    expect(parsed.issues).toEqual([])
+    expect(parsed.issues).toEqual([]);
     expect(parsed.metadata).toMatchObject({
       activationToolIds: ['push-card', 'web-search'],
       aliases: ['翻译字幕', '字幕翻译'],
@@ -52,8 +52,8 @@ effort: high
       tags: ['subtitles', 'translation'],
       userInvocable: false,
       whenToUse: 'Use when the user asks to translate subtitles.\nAsk for the target language when it is omitted.'
-    })
-  })
+    });
+  });
 
   it('reports unknown tools and missing frontmatter', () => {
     const parsedWithUnknownTool = parseSkillMarkdown(
@@ -65,24 +65,24 @@ allowed-tools: [ghostTool]
 body
 `,
       { filePath: '/tmp/invalid-skill.md' }
-    )
+    );
 
-    expect(parsedWithUnknownTool.metadata?.allowedToolIds).toEqual([])
+    expect(parsedWithUnknownTool.metadata?.allowedToolIds).toEqual([]);
     expect(parsedWithUnknownTool.issues).toEqual([
       expect.objectContaining({
         code: 'unknown-tool-reference',
         severity: 'warning'
       })
-    ])
+    ]);
 
-    const parsedWithoutFrontmatter = parseSkillMarkdown('# Just markdown', { filePath: '/tmp/no-frontmatter.md' })
-    expect(parsedWithoutFrontmatter.metadata).toBeUndefined()
+    const parsedWithoutFrontmatter = parseSkillMarkdown('# Just markdown', { filePath: '/tmp/no-frontmatter.md' });
+    expect(parsedWithoutFrontmatter.metadata).toBeUndefined();
     expect(parsedWithoutFrontmatter.issues).toEqual([
       expect.objectContaining({
         code: 'missing-frontmatter',
         severity: 'error'
       })
-    ])
+    ]);
 
     const parsedWithInvalidExecutionHints = parseSkillMarkdown(
       `---
@@ -94,17 +94,14 @@ effort: turbo
 body
 `,
       { filePath: '/tmp/weird-skill.md' }
-    )
+    );
 
     expect(parsedWithInvalidExecutionHints.metadata).toMatchObject({
       description: 'Weird skill.',
       name: 'weird-skill'
-    })
+    });
     expect(parsedWithInvalidExecutionHints.issues).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ code: 'invalid-skill-context', severity: 'warning' }),
-        expect.objectContaining({ code: 'invalid-skill-effort', severity: 'warning' })
-      ])
-    )
-  })
-})
+      expect.arrayContaining([expect.objectContaining({ code: 'invalid-skill-context', severity: 'warning' }), expect.objectContaining({ code: 'invalid-skill-effort', severity: 'warning' })])
+    );
+  });
+});

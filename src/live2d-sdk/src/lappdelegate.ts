@@ -18,21 +18,19 @@ import { canvas, gl } from './lappglmanager';
 export let s_instance: LAppDelegate | null = null;
 export let frameBuffer: WebGLFramebuffer | null = null;
 
-
-
 /**
  * アプリケーションクラス。
  * Cubism SDKの管理を行う。
- * 
+ *
  * 应用程序类。
  * 管理Cubism SDK。
- * 
+ *
  */
 export class LAppDelegate {
   /**
    * クラスのインスタンス（シングルトン）を返す。
    * インスタンスが生成されていない場合は内部でインスタンスを生成する。
-   * 
+   *
    * 返回类的实例（单例）。
    * 如果尚未创建实例，则在内部创建实例。
    *
@@ -48,9 +46,9 @@ export class LAppDelegate {
 
   /**
    * クラスのインスタンス（シングルトン）を解放する。
-   * 
+   *
    * 释放类的实例（单例）。
-   * 
+   *
    */
   public static releaseInstance(): void {
     if (s_instance != null) {
@@ -119,12 +117,12 @@ export class LAppDelegate {
    */
   public onResize(): void {
     this._resizeCanvas();
-    
+
     // Ensure view is properly initialized
     if (this._view && canvas) {
       this._view.initialize();
       this._view.initializeSprite();
-      
+
       // Try to get and center the model
       const manager = LAppLive2DManager.getInstance();
       if (manager) {
@@ -187,7 +185,6 @@ export class LAppDelegate {
 
       LAppPal.updateTime(true);
 
-
       // 画面の初期化
       // 屏幕初始化
       gl!.clearColor(0.0, 0.0, 0.0, 1.0);
@@ -236,15 +233,7 @@ export class LAppDelegate {
     }
 
     const vertexShader: string =
-      'precision mediump float;' +
-      'attribute vec3 position;' +
-      'attribute vec2 uv;' +
-      'varying vec2 vuv;' +
-      'void main(void)' +
-      '{' +
-      '   gl_Position = vec4(position, 1.0);' +
-      '   vuv = uv;' +
-      '}';
+      'precision mediump float;' + 'attribute vec3 position;' + 'attribute vec2 uv;' + 'varying vec2 vuv;' + 'void main(void)' + '{' + '   gl_Position = vec4(position, 1.0);' + '   vuv = uv;' + '}';
 
     gl!.shaderSource(vertexShaderId, vertexShader);
     gl!.compileShader(vertexShaderId);
@@ -257,14 +246,7 @@ export class LAppDelegate {
       return null;
     }
 
-    const fragmentShader: string =
-      'precision mediump float;' +
-      'varying vec2 vuv;' +
-      'uniform sampler2D texture;' +
-      'void main(void)' +
-      '{' +
-      '   gl_FragColor = texture2D(texture, vuv);' +
-      '}';
+    const fragmentShader: string = 'precision mediump float;' + 'varying vec2 vuv;' + 'uniform sampler2D texture;' + 'void main(void)' + '{' + '   gl_FragColor = texture2D(texture, vuv);' + '}';
 
     gl!.shaderSource(fragmentShaderId, fragmentShader);
     gl!.compileShader(fragmentShaderId);
@@ -338,7 +320,7 @@ export class LAppDelegate {
    */
   private _resizeCanvas(): void {
     if (!canvas) {
-      console.warn("Canvas is null, skipping resize");
+      console.warn('Canvas is null, skipping resize');
       return;
     }
     canvas.width = canvas.clientWidth * window.devicePixelRatio;

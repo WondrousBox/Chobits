@@ -12,14 +12,14 @@ export interface ChatSelectionContextValue {
   codingWorkspaceRoot: string;
   codingWorkspaceLabel: string;
   webSearchEnabled: boolean;
-  characterPersonaEnabled: boolean;
+  characterPromptEnabled: boolean;
   setProviderId: (id: string) => void;
   setModelId: (id: string) => void;
   setPresetId: (id: string) => void;
   setAgentId: (id: string) => void;
   setCodingWorkspace: (workspace: { root: string; label?: string } | null) => void;
   setWebSearchEnabled: (enabled: boolean) => void;
-  setCharacterPersonaEnabled: (enabled: boolean) => void;
+  setCharacterPromptEnabled: (enabled: boolean) => void;
   refresh: () => Promise<void>;
 }
 
@@ -33,7 +33,7 @@ const LS_KEYS = {
   codingWorkspaceRoot: 'chat.sel.codingWorkspaceRoot',
   codingWorkspaceLabel: 'chat.sel.codingWorkspaceLabel',
   webSearchEnabled: 'chat.sel.webSearchEnabled',
-  characterPersonaEnabled: 'chat.sel.characterPersonaEnabled'
+  characterPromptEnabled: 'chat.sel.characterPromptEnabled'
 };
 
 // 对话默认使用自托管 vLLM（无本地存储记录时的兜底，以及历史默认值迁移目标）
@@ -50,7 +50,7 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
   const [codingWorkspaceRoot, setCodingWorkspaceRootState] = useState<string>(() => localStorage.getItem(LS_KEYS.codingWorkspaceRoot) || '');
   const [codingWorkspaceLabel, setCodingWorkspaceLabelState] = useState<string>(() => localStorage.getItem(LS_KEYS.codingWorkspaceLabel) || '');
   const [webSearchEnabled, setWebSearchEnabledState] = useState<boolean>(() => localStorage.getItem(LS_KEYS.webSearchEnabled) === 'true');
-  const [characterPersonaEnabled, setCharacterPersonaEnabledState] = useState<boolean>(() => localStorage.getItem(LS_KEYS.characterPersonaEnabled) === 'true');
+  const [characterPromptEnabled, setCharacterPromptEnabledState] = useState<boolean>(() => localStorage.getItem(LS_KEYS.characterPromptEnabled) === 'true');
 
   // Persist selections
   useEffect(() => {
@@ -130,11 +130,11 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
 
   useEffect(() => {
     try {
-      localStorage.setItem(LS_KEYS.characterPersonaEnabled, characterPersonaEnabled ? 'true' : 'false');
+      localStorage.setItem(LS_KEYS.characterPromptEnabled, characterPromptEnabled ? 'true' : 'false');
     } catch {
       /* noop */
     }
-  }, [characterPersonaEnabled]);
+  }, [characterPromptEnabled]);
 
   // One-time cleanup for the removed preset-ordering compatibility state.
   useEffect(() => {
@@ -240,8 +240,8 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
     setWebSearchEnabledState(enabled);
   }, []);
 
-  const setCharacterPersonaEnabled = useCallback((enabled: boolean) => {
-    setCharacterPersonaEnabledState(enabled);
+  const setCharacterPromptEnabled = useCallback((enabled: boolean) => {
+    setCharacterPromptEnabledState(enabled);
   }, []);
 
   const value = useMemo<ChatSelectionContextValue>(
@@ -254,14 +254,14 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
       codingWorkspaceRoot,
       codingWorkspaceLabel,
       webSearchEnabled,
-      characterPersonaEnabled,
+      characterPromptEnabled,
       setProviderId,
       setModelId,
       setPresetId,
       setAgentId,
       setCodingWorkspace,
       setWebSearchEnabled,
-      setCharacterPersonaEnabled,
+      setCharacterPromptEnabled,
       refresh
     }),
     [
@@ -273,12 +273,12 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
       codingWorkspaceRoot,
       codingWorkspaceLabel,
       webSearchEnabled,
-      characterPersonaEnabled,
+      characterPromptEnabled,
       setProviderId,
       setPresetId,
       setCodingWorkspace,
       setWebSearchEnabled,
-      setCharacterPersonaEnabled,
+      setCharacterPromptEnabled,
       refresh
     ]
   );

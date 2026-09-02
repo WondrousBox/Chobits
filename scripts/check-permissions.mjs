@@ -35,7 +35,7 @@ function findApp() {
       const paths = result.split('\n').filter((p) => p);
       return paths[0]; // 返回第一个找到的路径
     }
-  } catch (e) {
+  } catch {
     // mdfind 可能失败，尝试其他方法
   }
 
@@ -47,7 +47,7 @@ function findApp() {
       const expanded = path.replace('~', process.env.HOME);
       const result = execSync(`ls -d ${expanded} 2>/dev/null`, { encoding: 'utf-8' }).trim();
       if (result) return result;
-    } catch (e) {
+    } catch {
       // 继续尝试
     }
   }
@@ -84,7 +84,7 @@ if (!appPath) {
       console.log('✅ 应用已签名');
       console.log(codesign.split('\n').slice(0, 5).join('\n'));
     }
-  } catch (e) {
+  } catch {
     console.log('⚠️  无法检查代码签名');
   }
   console.log('');
@@ -100,7 +100,7 @@ if (!appPath) {
 
     try {
       entitlements = execSync(`codesign -d --entitlements - "${mainExecutable}" 2>&1`, { encoding: 'utf-8' });
-    } catch (e) {
+    } catch {
       // 如果主可执行文件检查失败，尝试检查整个应用
       entitlements = execSync(`codesign -d --entitlements - "${appPath}" 2>&1`, { encoding: 'utf-8' });
     }
@@ -159,7 +159,7 @@ try {
       console.log('✅ 应用沙盒已禁用');
     }
   }
-} catch (e) {
+} catch {
   console.log('❌ 无法读取 public/entitlements.plist');
 }
 
@@ -179,7 +179,7 @@ try {
   } else {
     console.log('❌ electron-builder.json 缺少屏幕录制使用说明');
   }
-} catch (e) {
+} catch {
   console.log('❌ 无法读取 electron-builder.json');
 }
 

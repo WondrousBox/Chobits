@@ -7,8 +7,8 @@ import type {
   ProviderPresetCreatePayload,
   ProviderPresetUpdatePatch,
   PushedCard,
-  SpeechSynthesisStreamEvent,
   SpeechSynthesisRequest,
+  SpeechSynthesisStreamEvent,
   TranscriptionRequest,
   UserChoiceResponse
 } from './types';

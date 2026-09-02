@@ -21,7 +21,7 @@ import EdgeTTS from '../../tts/edge';
 import { RealtimeSpeechTextParser, type RealtimeSpeechTextSegment } from './realtime-text-parser';
 import { SpeakCache } from './speak-cache';
 import { SpeakConfigStore } from './speak-config-store';
-import { detectSpeechTextLanguage, normalizeCharacterSpeechLanguage } from './speech-language';
+import { detectSpeechTextLanguage, normalizeCharacterSpeechLanguage } from './speak-language';
 import type {
   SpeakCacheEntry,
   SpeakCacheMetadata,
@@ -32,11 +32,11 @@ import type {
   SpriteRealtimeSpeechScope,
   SpriteRealtimeSpeechSessionRequest,
   SpriteSpeakAIProviderConfig,
-  SpriteSpeakRealtimeSpeechConfig,
   SpriteSpeakConfig,
   SpriteSpeakEngine,
   SpriteSpeakPayload,
   SpriteSpeakPlaybackContext,
+  SpriteSpeakRealtimeSpeechConfig,
   SpriteSpeechLanguage,
   SpriteSpeechSynthesisExecutor,
   SpriteSpeechTextTranslator
@@ -1052,7 +1052,7 @@ export class SpeakService {
       await existing.cancel('replaced-by-new-session');
     }
 
-    const aiProvider = this.resolveAiProviderConfig(config);
+    const aiProvider = this.resolveAIProviderConfig(config);
     const strategies = resolveRealtimeSpeechStrategies(aiProvider, this.speechSynthesisExecutor);
     if (!strategies.length) {
       throw new Error('AI chat realtime speech could not find a supported speech synthesis strategy');
@@ -1108,7 +1108,7 @@ export class SpeakService {
     }
 
     try {
-      return resolveRealtimeSpeechStrategies(this.resolveAiProviderConfig(config), this.speechSynthesisExecutor).length > 0;
+      return resolveRealtimeSpeechStrategies(this.resolveAIProviderConfig(config), this.speechSynthesisExecutor).length > 0;
     } catch {
       return false;
     }
@@ -1334,7 +1334,7 @@ export class SpeakService {
     };
   }
 
-  private resolveAiProviderConfig(config: SpriteSpeakConfig): SpriteSpeakAIProviderConfig {
+  private resolveAIProviderConfig(config: SpriteSpeakConfig): SpriteSpeakAIProviderConfig {
     const aiProvider = config.aiProvider;
     if (!aiProvider?.providerId) {
       throw new Error('AI Provider speech synthesis requires providerId');
@@ -1362,7 +1362,7 @@ export class SpeakService {
 
   /** 供缓存使用的 aiProvider 副本：speechLanguage 盖章为有效朗读语言，角色语言切换后不命中旧缓存 */
   private resolveCacheAiProviderConfig(config: SpriteSpeakConfig): SpriteSpeakAIProviderConfig {
-    const aiProvider = this.resolveAiProviderConfig(config);
+    const aiProvider = this.resolveAIProviderConfig(config);
     return { ...aiProvider, speechLanguage: this.resolveEffectiveSpeechLanguage(aiProvider) };
   }
 
@@ -1436,7 +1436,7 @@ export class SpeakService {
       throw new Error('AI Provider speech synthesis executor is not configured');
     }
 
-    const aiProvider = this.resolveAiProviderConfig(config);
+    const aiProvider = this.resolveAIProviderConfig(config);
     const spoken = await this.resolveSpokenText(aiProvider, text);
     const request = buildCompleteSpeechSynthesisRequest(
       aiProvider,

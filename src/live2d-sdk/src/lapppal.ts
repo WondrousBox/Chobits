@@ -24,19 +24,16 @@ export class LAppPal {
    *      size        ファイルサイズ [File size]
    * }
    */
-  public static loadFileAsBytes(
-    filePath: string,
-    callback: (arrayBuffer: ArrayBuffer, size: number) => void
-  ): void {
+  public static loadFileAsBytes(filePath: string, callback: (arrayBuffer: ArrayBuffer, size: number) => void): void {
     fetch(filePath)
-      .then(response => response.arrayBuffer())
-      .then(arrayBuffer => callback(arrayBuffer, arrayBuffer.byteLength));
+      .then((response) => response.arrayBuffer())
+      .then((arrayBuffer) => callback(arrayBuffer, arrayBuffer.byteLength));
   }
 
   /**
    * デルタ時間（前回フレームとの差分）を取得する
    * @return デルタ時間[ms]
-   * 
+   *
    * 获取增量时间（与上一帧的差异）
    */
   public static getDeltaTime(): number {
@@ -55,7 +52,7 @@ export class LAppPal {
   /**
    * メッセージを出力する
    * @param message 文字列
-   * 
+   *
    * 输出消息
    */
   public static printMessage(message: string): void {

@@ -1,58 +1,53 @@
-import { randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto';
 
-import type { UserChoiceRequest } from '../../../types'
-import type { PiSessionToolContext } from '../tool-context'
-import { getPiToolDescriptor, resolvePiToolId } from '../tool-registry'
-
-import { getSkillSourceInfo } from './source-info'
-import { getSkillSourcePolicy } from './source-policy'
-import type { SkillRecord, SkillSourcePolicy } from './types'
+import type { UserChoiceRequest } from '../../../types';
+import type { PiSessionToolContext } from '../tool-context';
+import { getPiToolDescriptor, resolvePiToolId } from '../tool-registry';
+import { getSkillSourceInfo } from './source-info';
+import { getSkillSourcePolicy } from './source-policy';
+import type { SkillRecord, SkillSourcePolicy } from './types';
 
 type GuardedSkillCandidate = {
-  record: SkillRecord
-  sourceInfo: ReturnType<typeof getSkillSourceInfo>
-  sourcePolicy: SkillSourcePolicy
-}
+  record: SkillRecord;
+  sourceInfo: ReturnType<typeof getSkillSourceInfo>;
+  sourcePolicy: SkillSourcePolicy;
+};
 
 export type GuardedToolExecutionResolution =
   | {
-      kind: 'allow'
-      guardedSkills: GuardedSkillCandidate[]
-      warning?: string
+      kind: 'allow';
+      guardedSkills: GuardedSkillCandidate[];
+      warning?: string;
     }
   | {
-      details: Record<string, unknown>
-      kind: 'cancel'
+      details: Record<string, unknown>;
+      kind: 'cancel';
     }
   | {
-      details: Record<string, unknown>
-      kind: 'blocked'
-    }
+      details: Record<string, unknown>;
+      kind: 'blocked';
+    };
 
-export async function resolveGuardedToolExecution(
-  toolContext: PiSessionToolContext,
-  toolCallId: string,
-  toolNameOrId: string
-): Promise<GuardedToolExecutionResolution | undefined> {
-  const guardedSkills = collectPendingGuardedSkillsForTool(toolContext, toolNameOrId)
+export async function resolveGuardedToolExecution(toolContext: PiSessionToolContext, toolCallId: string, toolNameOrId: string): Promise<GuardedToolExecutionResolution | undefined> {
+  const guardedSkills = collectPendingGuardedSkillsForTool(toolContext, toolNameOrId);
   if (!guardedSkills.length) {
-    return undefined
+    return undefined;
   }
 
-  const toolId = resolvePiToolId(toolNameOrId) || toolNameOrId
-  const toolLabel = getPiToolDescriptor(toolId)?.name || toolNameOrId
+  const toolId = resolvePiToolId(toolNameOrId) || toolNameOrId;
+  const toolLabel = getPiToolDescriptor(toolId)?.name || toolNameOrId;
 
-  const decision = await promptForGuardedToolExecution(toolContext, toolCallId, guardedSkills, toolLabel)
+  const decision = await promptForGuardedToolExecution(toolContext, toolCallId, guardedSkills, toolLabel);
   if (decision === 'continue') {
     for (const guardedSkill of guardedSkills) {
-      toolContext.skillSessionState?.approvedGuardedSkillNames.add(guardedSkill.record.name)
+      toolContext.skillSessionState?.approvedGuardedSkillNames.add(guardedSkill.record.name);
     }
 
     return {
       kind: 'allow',
       guardedSkills,
       warning: `User explicitly confirmed guarded tool execution for ${guardedSkills.map((skill) => skill.record.name).join(', ')}.`
-    }
+    };
   }
 
   if (decision === 'cancel') {
@@ -66,7 +61,7 @@ export async function resolveGuardedToolExecution(
         requiresConfirmation: true,
         tool: toolLabel
       }
-    }
+    };
   }
 
   return {
@@ -79,46 +74,46 @@ export async function resolveGuardedToolExecution(
       requiresConfirmation: true,
       tool: toolLabel
     }
-  }
+  };
 }
 
 function collectPendingGuardedSkillsForTool(toolContext: PiSessionToolContext, toolNameOrId: string): GuardedSkillCandidate[] {
-  const toolId = resolvePiToolId(toolNameOrId) || toolNameOrId
-  const registry = toolContext.skillRegistry
-  const state = toolContext.skillSessionState
+  const toolId = resolvePiToolId(toolNameOrId) || toolNameOrId;
+  const registry = toolContext.skillRegistry;
+  const state = toolContext.skillSessionState;
 
   if (!registry || !state) {
-    return []
+    return [];
   }
 
-  const guardedSkills: GuardedSkillCandidate[] = []
+  const guardedSkills: GuardedSkillCandidate[] = [];
   for (const skillName of state.activeSkillNames) {
     if (state.approvedGuardedSkillNames.has(skillName)) {
-      continue
+      continue;
     }
 
-    const record = registry.get(skillName)
+    const record = registry.get(skillName);
     if (!record) {
-      continue
+      continue;
     }
 
-    const sourcePolicy = getSkillSourcePolicy(record)
+    const sourcePolicy = getSkillSourcePolicy(record);
     if (sourcePolicy.riskLevel !== 'guarded') {
-      continue
+      continue;
     }
 
     if (!sourcePolicy.sensitiveToolIds.includes(toolId)) {
-      continue
+      continue;
     }
 
     guardedSkills.push({
       record,
       sourceInfo: getSkillSourceInfo(record),
       sourcePolicy
-    })
+    });
   }
 
-  return guardedSkills
+  return guardedSkills;
 }
 
 async function promptForGuardedToolExecution(
@@ -127,12 +122,12 @@ async function promptForGuardedToolExecution(
   guardedSkills: GuardedSkillCandidate[],
   toolLabel: string
 ): Promise<'cancel' | 'continue' | undefined> {
-  const { emitUserChoiceRequest, waitForUserChoiceResponse } = toolContext
+  const { emitUserChoiceRequest, waitForUserChoiceResponse } = toolContext;
   if (!emitUserChoiceRequest || !waitForUserChoiceResponse) {
-    return undefined
+    return undefined;
   }
 
-  const choiceId = randomUUID()
+  const choiceId = randomUUID();
   const request: UserChoiceRequest = {
     choiceId,
     toolCallId,
@@ -141,9 +136,7 @@ async function promptForGuardedToolExecution(
       {
         id: 'guarded_tool_execution',
         title: `是否继续执行 ${toolLabel}？`,
-        description: guardedSkills
-          .map((skill) => `${skill.record.name} (${skill.sourceInfo.label}): ${skill.sourcePolicy.message}`)
-          .join(' '),
+        description: guardedSkills.map((skill) => `${skill.record.name} (${skill.sourceInfo.label}): ${skill.sourcePolicy.message}`).join(' '),
         multiple: false,
         options: [
           {
@@ -159,15 +152,15 @@ async function promptForGuardedToolExecution(
         ]
       }
     ]
-  }
+  };
 
-  emitUserChoiceRequest(request)
-  const response = await waitForUserChoiceResponse(choiceId)
-  const answer = response.answers['guarded_tool_execution']?.[0]
+  emitUserChoiceRequest(request);
+  const response = await waitForUserChoiceResponse(choiceId);
+  const answer = response.answers['guarded_tool_execution']?.[0];
   if (answer === 'continue' || answer === 'cancel') {
-    return answer
+    return answer;
   }
-  return 'cancel'
+  return 'cancel';
 }
 
 function formatGuardedSkillDetail(skill: GuardedSkillCandidate) {
@@ -177,5 +170,5 @@ function formatGuardedSkillDetail(skill: GuardedSkillCandidate) {
     sourceLabel: skill.sourceInfo.label,
     sourcePolicy: skill.sourcePolicy,
     trustLevel: skill.sourceInfo.trustLevel
-  }
+  };
 }

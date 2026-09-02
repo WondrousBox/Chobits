@@ -5,11 +5,11 @@ import {
   getPrimarySpriteAnimationTrigger,
   getSpriteAnimationTriggerAliases,
   getSpriteAnimationTriggers,
+  isBuiltinSpriteAnimationTrigger,
   matchesSpriteAnimationCondition,
   normalizeSpriteAnimationCondition,
   normalizeSpriteAnimationMeta,
   normalizeSpriteAnimationMetaPatch,
-  isBuiltinSpriteAnimationTrigger,
   SpriteEventGroups
 } from '../../packages/sprite-core/types';
 
@@ -69,7 +69,7 @@ describe('sprite animation metadata helpers', () => {
     });
   });
 
-  it('normalizes serialized persona conditions and compiles them for runtime matching', () => {
+  it('normalizes serialized character conditions and compiles them for runtime matching', () => {
     const meta = normalizeSpriteAnimationMeta({
       id: 'celebrate-bestie',
       title: 'Celebrate Bestie',

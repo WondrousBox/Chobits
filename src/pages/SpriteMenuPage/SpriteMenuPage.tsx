@@ -69,11 +69,11 @@ const SpriteMenuPage: React.FC = () => {
   const emitSpriteMenuItemSelected = useCallback((itemId: string, windowKey?: string, payload?: Record<string, unknown>) => {
     void window.chobits.sprite.emitPurposeEvent({
       source: 'app-event',
-      event: 'ASSISTANT_MENU_ITEM_SELECTED',
+      event: 'SPRITE_MENU_ITEM_SELECTED',
       payload: {
         itemId,
         windowKey,
-        source: 'assistant-context-menu',
+        source: 'sprite-context-menu',
         ...payload
       }
     });
@@ -148,8 +148,8 @@ const SpriteMenuPage: React.FC = () => {
             }
           }
         ].filter((item) => {
-          // 本地 ASR 相关菜单项仅在 localAi 开启时可见
-          if (item.id === 'asr-test') return isEnabled('localAi');
+          // 本地 ASR 相关菜单项仅在 localAI 开启时可见
+          if (item.id === 'asr-test') return isEnabled('localAI');
           return true;
         })
       },
@@ -160,7 +160,7 @@ const SpriteMenuPage: React.FC = () => {
         shortcut: 'c',
         action: () => {
           void (async () => {
-            const guide = await ensureChatApiConfigGoal({ trigger: 'assistant-menu-chat' });
+            const guide = await ensureChatApiConfigGoal({ trigger: 'sprite-menu-chat' });
             if (!guide.configured) {
               return;
             }

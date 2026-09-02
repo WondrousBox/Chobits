@@ -55,12 +55,12 @@
 
 ### 前提条件
 
-| 依存 | バージョン | 説明 |
-| --- | --- | --- |
-| Node.js | ≥ 18（LTS 推奨） | 実行とビルド |
-| pnpm | ≥ 10 | `pnpm-workspace.yaml` が `allowBuilds` フィールドを使用するため、pnpm 10 以上が必要 |
-| Xcode CLT | macOS のみ | ネイティブモジュールのコンパイル |
-| libsecret | Linux のみ | `keytar` が API キーの保存に必要。デスクトップ版ディストリビューションには通常同梱（gnome-keyring / KWallet） |
+| 依存      | バージョン       | 説明                                                                                                          |
+| --------- | ---------------- | ------------------------------------------------------------------------------------------------------------- |
+| Node.js   | ≥ 18（LTS 推奨） | 実行とビルド                                                                                                  |
+| pnpm      | ≥ 10             | `pnpm-workspace.yaml` が `allowBuilds` フィールドを使用するため、pnpm 10 以上が必要                           |
+| Xcode CLT | macOS のみ       | ネイティブモジュールのコンパイル                                                                              |
+| libsecret | Linux のみ       | `keytar` が API キーの保存に必要。デスクトップ版ディストリビューションには通常同梱（gnome-keyring / KWallet） |
 
 ### 3 ステップでちぃをお迎え
 
@@ -84,12 +84,12 @@ pnpm dev
 
 メディアのダウンロード / トランスコードは、同梱の ffmpeg と yt-dlp に依存します。プラットフォームに応じたスクリプトを実行してください：
 
-| プラットフォーム | コマンド |
-| --- | --- |
-| macOS (Apple Silicon) | `pnpm download-ffmpeg-darwin-arm64` `pnpm download-ytdlp-darwin` |
-| macOS (Intel) | `pnpm download-ytdlp-darwin` |
-| Windows | `pnpm download-ffmpeg-win32-x64` `pnpm download-ytdlp-win32` |
-| Linux | プリセットスクリプトはありません。ffmpeg / yt-dlp をご自身でインストールしてください |
+| プラットフォーム      | コマンド                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------ |
+| macOS (Apple Silicon) | `pnpm download-ffmpeg-darwin-arm64` `pnpm download-ytdlp-darwin`                     |
+| macOS (Intel)         | `pnpm download-ytdlp-darwin`                                                         |
+| Windows               | `pnpm download-ffmpeg-win32-x64` `pnpm download-ytdlp-win32`                         |
+| Linux                 | プリセットスクリプトはありません。ffmpeg / yt-dlp をご自身でインストールしてください |
 
 ダウンロードしなくても起動、チャット、音声文字起こしは正常に使えます。動画ダウンロード / トランスコードなどの機能が使えないだけです。
 
@@ -140,12 +140,12 @@ Chobits/
 
 ## 🐧 プラットフォーム説明
 
-| 機能 | macOS | Windows | Linux |
-| --- | --- | --- | --- |
-| コア機能（妖精 / チャット / 音声） | ✅ | ✅ | ✅ |
+| 機能                                  | macOS                              | Windows                            | Linux                                |
+| ------------------------------------- | ---------------------------------- | ---------------------------------- | ------------------------------------ |
+| コア機能（妖精 / チャット / 音声）    | ✅                                 | ✅                                 | ✅                                   |
 | メディアダウンロード / トランスコード | ✅（ダウンロードスクリプト要実行） | ✅（ダウンロードスクリプト要実行） | ffmpeg / yt-dlp を個別にインストール |
-| パッケージング | dmg / zip | nsis | AppImage / deb |
-| グローバルショートカット | ✅ | ✅ | X11 のみ、Wayland では利用不可 |
+| パッケージング                        | dmg / zip                          | nsis                               | AppImage / deb                       |
+| グローバルショートカット              | ✅                                 | ✅                                 | X11 のみ、Wayland では利用不可       |
 
 Linux 特記：妖精は透明なボーダーレスウィンドウのため、デスクトップコンポジターが必要です（GNOME / KDE はデフォルトで有効）。
 `keytar` は API キーの保存にシステムの secret service に依存します。

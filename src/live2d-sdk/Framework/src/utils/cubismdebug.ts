@@ -6,14 +6,7 @@
  * that can be found at https://www.live2d.com/eula/live2d-open-software-license-agreement_en.html.
  */
 
-import {
-  CSM_LOG_LEVEL,
-  CSM_LOG_LEVEL_DEBUG,
-  CSM_LOG_LEVEL_ERROR,
-  CSM_LOG_LEVEL_INFO,
-  CSM_LOG_LEVEL_VERBOSE,
-  CSM_LOG_LEVEL_WARNING
-} from '../cubismframeworkconfig';
+import { CSM_LOG_LEVEL, CSM_LOG_LEVEL_DEBUG, CSM_LOG_LEVEL_ERROR, CSM_LOG_LEVEL_INFO, CSM_LOG_LEVEL_VERBOSE, CSM_LOG_LEVEL_WARNING } from '../cubismframeworkconfig';
 import { CubismFramework, LogLevel } from '../live2dcubismframework';
 
 export const CubismLogPrint = (level: LogLevel, fmt: string, args: any[]) => {
@@ -115,8 +108,7 @@ export class CubismDebug {
       return;
     }
 
-    const logPrint: Live2DCubismCore.csmLogFunction =
-      CubismFramework.coreLogFunction;
+    const logPrint: Live2DCubismCore.csmLogFunction = CubismFramework.coreLogFunction;
 
     if (!logPrint) return;
 
@@ -134,11 +126,7 @@ export class CubismDebug {
    * @param data ダンプするデータ
    * @param length ダンプする長さ
    */
-  public static dumpBytes(
-    logLevel: LogLevel,
-    data: Uint8Array,
-    length: number
-  ): void {
+  public static dumpBytes(logLevel: LogLevel, data: Uint8Array, length: number): void {
     for (let i = 0; i < length; i++) {
       if (i % 16 == 0 && i > 0) this.print(logLevel, '\n');
       else if (i % 8 == 0 && i > 0) this.print(logLevel, '  ');

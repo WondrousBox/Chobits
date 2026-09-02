@@ -20,7 +20,7 @@ export let s_instance: LAppLive2DManager | null | undefined = null;
 /**
  * サンプルアプリケーションにおいてCubismModelを管理するクラス
  * モデル生成と破棄、タップイベントの処理、モデル切り替えを行う。
- * 
+ *
  * 在示例应用程序中管理CubismModel的类
  * 执行模型生成和销毁、触摸事件处理、模型切换。
  */
@@ -28,7 +28,7 @@ export class LAppLive2DManager {
   /**
    * クラスのインスタンス（シングルトン）を返す。
    * インスタンスが生成されていない場合は内部でインスタンスを生成する。
-   * 
+   *
    * 返回类的实例（单例）。
    * 如果尚未创建实例，则在内部创建实例。
    *
@@ -97,7 +97,7 @@ export class LAppLive2DManager {
 
   /**
    * 画面をドラッグした時の処理
-   * 
+   *
    * 当拖动屏幕时的处理
    *
    * @param x 画面のX座標
@@ -121,32 +121,20 @@ export class LAppLive2DManager {
    */
   public onTap(x: number, y: number): void {
     if (LAppDefine.DebugLogEnable) {
-      LAppPal.printMessage(
-        `[APP]tap point: {x: ${x.toFixed(2)} y: ${y.toFixed(2)}}`
-      );
+      LAppPal.printMessage(`[APP]tap point: {x: ${x.toFixed(2)} y: ${y.toFixed(2)}}`);
     }
 
     for (let i = 0; i < this._models.getSize(); i++) {
       if (this._models.at(i).hitTest(LAppDefine.HitAreaNameHead, x, y)) {
         if (LAppDefine.DebugLogEnable) {
-          LAppPal.printMessage(
-            `[APP]hit area: [${LAppDefine.HitAreaNameHead}]`
-          );
+          LAppPal.printMessage(`[APP]hit area: [${LAppDefine.HitAreaNameHead}]`);
         }
         this._models.at(i).setRandomExpression();
       } else if (this._models.at(i).hitTest(LAppDefine.HitAreaNameBody, x, y)) {
         if (LAppDefine.DebugLogEnable) {
-          LAppPal.printMessage(
-            `[APP]hit area: [${LAppDefine.HitAreaNameBody}]`
-          );
+          LAppPal.printMessage(`[APP]hit area: [${LAppDefine.HitAreaNameBody}]`);
         }
-        this._models
-          .at(i)
-          .startRandomMotion(
-            LAppDefine.MotionGroupTapBody,
-            LAppDefine.PriorityNormal,
-            this._finishedMotion
-          );
+        this._models.at(i).startRandomMotion(LAppDefine.MotionGroupTapBody, LAppDefine.PriorityNormal, this._finishedMotion);
       }
     }
   }
@@ -206,13 +194,10 @@ export class LAppLive2DManager {
     // Use the directory name and file name from our configuration
     const model: string = LAppDefine.ModelDir[index];
     const modelPath: string = LAppDefine.ResourcesPath + model + '/';
-    
+
     // Use ModelFileNames if available, otherwise fall back to ModelDir
-    let modelJsonName: string = LAppDefine.ModelFileNames && 
-                                LAppDefine.ModelFileNames[index] ? 
-                                LAppDefine.ModelFileNames[index] : 
-                                LAppDefine.ModelDir[index];
-                                
+    let modelJsonName: string = LAppDefine.ModelFileNames && LAppDefine.ModelFileNames[index] ? LAppDefine.ModelFileNames[index] : LAppDefine.ModelDir[index];
+
     modelJsonName += '.model3.json';
 
     if (LAppDefine.DebugLogEnable) {

@@ -23,9 +23,7 @@ export class CubismEyeBlink {
    * @return 作成されたインスタンス
    * @note 引数がNULLの場合、パラメータIDが設定されていない空のインスタンスを作成する。
    */
-  public static create(
-    modelSetting: ICubismModelSetting = null
-  ): CubismEyeBlink {
+  public static create(modelSetting: ICubismModelSetting = null): CubismEyeBlink {
     return new CubismEyeBlink(modelSetting);
   }
 
@@ -53,11 +51,7 @@ export class CubismEyeBlink {
    * @param closed    まぶたを閉じている動作の所要時間[秒]
    * @param opening   まぶたを開く動作の所要時間[秒]
    */
-  public setBlinkingSetting(
-    closing: number,
-    closed: number,
-    opening: number
-  ): void {
+  public setBlinkingSetting(closing: number, closed: number, opening: number): void {
     this._closingSeconds = closing;
     this._closedSeconds = closed;
     this._openingSeconds = opening;
@@ -92,9 +86,7 @@ export class CubismEyeBlink {
 
     switch (blinkingState) {
       case EyeState.EyeState_Closing:
-        t =
-          (this._userTimeSeconds - this._stateStartTimeSeconds) /
-          this._closingSeconds;
+        t = (this._userTimeSeconds - this._stateStartTimeSeconds) / this._closingSeconds;
 
         if (t >= 1.0) {
           t = 1.0;
@@ -106,9 +98,7 @@ export class CubismEyeBlink {
 
         break;
       case EyeState.EyeState_Closed:
-        t =
-          (this._userTimeSeconds - this._stateStartTimeSeconds) /
-          this._closedSeconds;
+        t = (this._userTimeSeconds - this._stateStartTimeSeconds) / this._closedSeconds;
 
         if (t >= 1.0) {
           this._blinkingState = EyeState.EyeState_Opening;
@@ -119,9 +109,7 @@ export class CubismEyeBlink {
 
         break;
       case EyeState.EyeState_Opening:
-        t =
-          (this._userTimeSeconds - this._stateStartTimeSeconds) /
-          this._openingSeconds;
+        t = (this._userTimeSeconds - this._stateStartTimeSeconds) / this._openingSeconds;
 
         if (t >= 1.0) {
           t = 1.0;
@@ -190,9 +178,7 @@ export class CubismEyeBlink {
    */
   public determinNextBlinkingTiming(): number {
     const r: number = Math.random();
-    return (
-      this._userTimeSeconds + r * (2.0 * this._blinkingIntervalSeconds - 1.0)
-    );
+    return this._userTimeSeconds + r * (2.0 * this._blinkingIntervalSeconds - 1.0);
   }
 
   _blinkingState: number; // 現在の状態

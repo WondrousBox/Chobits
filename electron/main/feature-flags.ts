@@ -1,5 +1,4 @@
-import { FEATURE_DEFINITIONS, resolveFeatureFlags, type FeatureKey } from '../../packages/common/feature-flags';
-
+import { FEATURE_DEFINITIONS, type FeatureKey, resolveFeatureFlags } from '../../packages/common/feature-flags';
 import { PreferencesStore } from './handlers/preferences/preferences-store';
 
 export { FEATURE_DEFINITIONS, type FeatureKey };

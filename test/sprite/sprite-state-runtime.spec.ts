@@ -9,7 +9,7 @@ import {
   applySpriteWalkState,
   createDefaultSpriteStateContextValue,
   SpriteStateRuntimeController
-} from '../../src/features/sprite-assistant/context/sprite-state-runtime';
+} from '../../src/features/sprite/context/sprite-state-runtime';
 
 function createBridgeHarness(options?: { initialState?: SpriteInitialState; initialStatePromise?: Promise<SpriteInitialState>; readyImpl?: () => Promise<void> }): {
   bridge: {
@@ -89,7 +89,7 @@ describe('sprite state runtime helpers', () => {
         height: 240,
         padding: 100,
         animationPlaylistMode: 'list-loop',
-        showDebugOverlay: false,
+        debugOverlayEnabled: false,
         bubbleMode: 'fixed-top'
       },
       ready: false
@@ -111,7 +111,7 @@ describe('sprite state runtime helpers', () => {
         height: 220,
         padding: 48,
         animationPlaylistMode: 'list-loop',
-        showDebugOverlay: true
+        debugOverlayEnabled: true
       }
     } as SpriteInitialState);
 
@@ -131,7 +131,7 @@ describe('sprite state runtime helpers', () => {
       height: 180,
       padding: 12,
       animationPlaylistMode: 'list-once',
-      showDebugOverlay: false
+      debugOverlayEnabled: false
     });
 
     expect(withConfig).toMatchObject({
@@ -145,7 +145,7 @@ describe('sprite state runtime helpers', () => {
         height: 180,
         padding: 12,
         animationPlaylistMode: 'list-once',
-        showDebugOverlay: false
+        debugOverlayEnabled: false
       },
       ready: true
     });
@@ -170,7 +170,7 @@ describe('SpriteStateRuntimeController', () => {
           height: 220,
           padding: 80,
           animationPlaylistMode: 'list-loop',
-          showDebugOverlay: true
+          debugOverlayEnabled: true
         }
       } as SpriteInitialState
     });
@@ -193,7 +193,7 @@ describe('SpriteStateRuntimeController', () => {
         height: 220,
         padding: 80,
         animationPlaylistMode: 'list-loop',
-        showDebugOverlay: true
+        debugOverlayEnabled: true
       },
       ready: true
     });
@@ -214,7 +214,7 @@ describe('SpriteStateRuntimeController', () => {
       height: 244,
       padding: 16,
       animationPlaylistMode: 'list-once',
-      showDebugOverlay: false
+      debugOverlayEnabled: false
     });
 
     expect(controller.getSnapshot()).toMatchObject({
@@ -228,7 +228,7 @@ describe('SpriteStateRuntimeController', () => {
         height: 244,
         padding: 16,
         animationPlaylistMode: 'list-once',
-        showDebugOverlay: false
+        debugOverlayEnabled: false
       }
     });
     expect(commits.length).toBeGreaterThanOrEqual(5);
@@ -283,7 +283,7 @@ describe('SpriteStateRuntimeController', () => {
         height: 200,
         padding: 20,
         animationPlaylistMode: 'list-loop',
-        showDebugOverlay: false
+        debugOverlayEnabled: false
       }
     } as SpriteInitialState);
 

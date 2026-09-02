@@ -24,8 +24,8 @@ export type SpontaneousUtteranceHistoryItem = {
   whyThisFits?: string;
   executedAction?: string;
   fallbackAction?: string;
-  spoken?: boolean;
-  fallbackUsed?: boolean;
+  wasSpoken?: boolean;
+  didUseFallback?: boolean;
   reason?: string;
 };
 
@@ -39,7 +39,7 @@ export type SpontaneousUtteranceSettingsState = {
   preferences: SpontaneousUtterancePreferences;
   isLoading: boolean;
   history: SpontaneousUtteranceHistoryItem[];
-  historyLoading: boolean;
+  isHistoryLoading: boolean;
   query: string;
   setQuery: Dispatch<SetStateAction<string>>;
   statusFilter: HistoryStatus | 'all';
@@ -69,7 +69,7 @@ function mergePreferences(preferences: SpontaneousUtterancePreferences | null | 
 export function useSpontaneousUtteranceSettings(): SpontaneousUtteranceSettingsState {
   const [preferences, setPreferences] = useState<SpontaneousUtterancePreferences>(DEFAULT_PREFERENCES);
   const [isLoading, setIsLoading] = useState(true);
-  const [historyLoading, setHistoryLoading] = useState(true);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const [history, setHistory] = useState<SpontaneousUtteranceHistoryItem[]>([]);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<HistoryStatus | 'all'>('all');
@@ -89,7 +89,7 @@ export function useSpontaneousUtteranceSettings(): SpontaneousUtteranceSettingsS
 
   const loadHistory = useCallback(
     async (nextQuery?: Partial<HistoryFilterState>): Promise<void> => {
-      setHistoryLoading(true);
+      setIsHistoryLoading(true);
       try {
         const result = await window.chobits.sprite.listSpontaneousUtteranceHistory({
           limit: 120,
@@ -102,13 +102,14 @@ export function useSpontaneousUtteranceSettings(): SpontaneousUtteranceSettingsS
         console.error('加载主动发言历史失败:', error);
         setHistory([]);
       } finally {
-        setHistoryLoading(false);
+        setIsHistoryLoading(false);
       }
     },
     [intentFilter, query, statusFilter]
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 挂载时异步加载偏好设置,setState 均在 await 之后
     void loadPreferences();
   }, [loadPreferences]);
 
@@ -138,7 +139,7 @@ export function useSpontaneousUtteranceSettings(): SpontaneousUtteranceSettingsS
     preferences,
     isLoading,
     history,
-    historyLoading,
+    isHistoryLoading,
     query,
     setQuery,
     statusFilter,

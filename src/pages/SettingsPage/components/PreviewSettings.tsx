@@ -85,11 +85,7 @@ const PreviewSettings: React.FC = () => {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" disabled={isLoading || pending !== null} className="min-w-[100px]">
-                {isLoading || pending !== null ? (
-                  <TbLoader2 className="h-4 w-4 animate-spin mr-1.5" />
-                ) : (
-                  <CurrentIcon className="h-4 w-4 mr-1.5" />
-                )}
+                {isLoading || pending !== null ? <TbLoader2 className="h-4 w-4 animate-spin mr-1.5" /> : <CurrentIcon className="h-4 w-4 mr-1.5" />}
                 {isLoading ? '加载中...' : pending !== null ? '切换中...' : currentOption.label}
               </Button>
             </DropdownMenuTrigger>

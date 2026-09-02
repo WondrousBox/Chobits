@@ -1,5 +1,5 @@
-import { CHAT_API_CONFIGURED_GUIDE_GOAL, type SpriteRoutineGuideGoalDefinition, type SpriteRoutineGuideGoalKind } from '@packages/sprite-core/purpose/guide-goals';
 import type { ProviderRecord } from '@packages/ai/types';
+import { CHAT_API_CONFIGURED_GUIDE_GOAL, type SpriteRoutineGuideGoalDefinition, type SpriteRoutineGuideGoalKind } from '@packages/sprite-core/purpose/guide-goals';
 
 import { resolveProviderIdentity } from '@/lib/ai-provider-identity';
 
@@ -11,7 +11,8 @@ const GUIDE_COOLDOWN_MS = 30_000;
 const lastGuideStartedAtByKey = new Map<string, number>();
 const inflightEnsures = new Map<string, Promise<GuideGoalEnsureResult>>();
 
-export type GuideGoalTrigger = 'assistant-double-click' | 'assistant-menu-chat' | 'assistant-window-open' | 'chat-window-open' | 'chat-window-focus' | 'chat-send' | 'sidebar-open' | 'sidebar-send' | 'workspace-entry';
+export type GuideGoalTrigger =
+  'sprite-double-click' | 'sprite-menu-chat' | 'sprite-window-open' | 'chat-window-open' | 'chat-window-focus' | 'chat-send' | 'sidebar-open' | 'sidebar-send' | 'workspace-entry';
 
 export interface GuideGoalEnsureOptions {
   goal: SpriteRoutineGuideGoalDefinition;
@@ -53,7 +54,11 @@ function isConfiguredChatProvider(provider: ProviderRecord): boolean {
 }
 
 function requiredFieldsForProvider(provider?: ProviderRecord): string[] {
-  const fields = provider?.schema?.fields?.filter((field) => field.required).map((field) => field.key).filter(Boolean) || [];
+  const fields =
+    provider?.schema?.fields
+      ?.filter((field) => field.required)
+      .map((field) => field.key)
+      .filter(Boolean) || [];
   return fields.length > 0 ? fields : DEFAULT_CHAT_API_FIELDS;
 }
 
@@ -87,7 +92,10 @@ async function resolvePresetIdForGuide(providerId: string, preferredPresetId?: s
   return presets?.[0]?.id;
 }
 
-async function evaluateChatProviderConfiguredGoal(goal: SpriteRoutineGuideGoalDefinition, options: Pick<GuideGoalEnsureOptions, 'providerId' | 'preferredPresetId' | 'trigger'>): Promise<GuideGoalEvaluationResult> {
+async function evaluateChatProviderConfiguredGoal(
+  goal: SpriteRoutineGuideGoalDefinition,
+  options: Pick<GuideGoalEnsureOptions, 'providerId' | 'preferredPresetId' | 'trigger'>
+): Promise<GuideGoalEvaluationResult> {
   try {
     const providers = await window.chobits.ai.getProviders().catch(() => []);
     if (!providers.length && !normalizeId(options.providerId)) {
@@ -140,7 +148,10 @@ async function evaluateAchievementUnlockedGoal(goal: SpriteRoutineGuideGoalDefin
   }
 }
 
-export async function evaluateGuideGoal(goal: SpriteRoutineGuideGoalDefinition, options: Pick<GuideGoalEnsureOptions, 'providerId' | 'preferredPresetId' | 'trigger'>): Promise<GuideGoalEvaluationResult> {
+export async function evaluateGuideGoal(
+  goal: SpriteRoutineGuideGoalDefinition,
+  options: Pick<GuideGoalEnsureOptions, 'providerId' | 'preferredPresetId' | 'trigger'>
+): Promise<GuideGoalEvaluationResult> {
   switch (goal.kind as SpriteRoutineGuideGoalKind) {
     case 'ai.chat-provider-configured':
       return evaluateChatProviderConfiguredGoal(goal, options);
@@ -199,7 +210,7 @@ async function startGuideForGoal(options: GuideGoalEnsureOptions, evaluation: Gu
 }
 
 function isBlockingTrigger(trigger: GuideGoalTrigger): boolean {
-  return trigger === 'assistant-double-click' || trigger === 'assistant-menu-chat' || trigger.endsWith('-send') || trigger === 'workspace-entry';
+  return trigger === 'sprite-double-click' || trigger === 'sprite-menu-chat' || trigger.endsWith('-send') || trigger === 'workspace-entry';
 }
 
 async function runEnsureGuideGoal(options: GuideGoalEnsureOptions): Promise<GuideGoalEnsureResult> {

@@ -31,7 +31,9 @@ function write(data: StoreShape) {
   try {
     fs.mkdirSync(path.dirname(FILE), { recursive: true });
     fs.writeFileSync(FILE, JSON.stringify(data, null, 2), 'utf8');
-  } catch { }
+  } catch {
+    // 写入失败时静默忽略,读取侧会回退到默认数据
+  }
 }
 
 export const PromptsStore = {

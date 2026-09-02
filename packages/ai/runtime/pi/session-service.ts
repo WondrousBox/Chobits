@@ -31,7 +31,7 @@ import { getPiToolChatDisplayByName } from './tools/display';
 
 const PI_PACKAGE_NAMES = ['@earendil-works/pi-agent-core', '@earendil-works/pi-ai', '@earendil-works/pi-coding-agent', '@earendil-works/pi-tui'];
 
-type PiAiModule = typeof import('@earendil-works/pi-ai/compat');
+type PiAIModule = typeof import('@earendil-works/pi-ai/compat');
 type PiAgentSessionEvent = import('@earendil-works/pi-coding-agent').AgentSessionEvent;
 type PiAgentThinkingLevel = import('@earendil-works/pi-agent-core').ThinkingLevel;
 type PiApi = import('@earendil-works/pi-ai/compat').Api;
@@ -61,7 +61,7 @@ function getMissingPackages(): string[] {
   return PI_PACKAGE_NAMES.filter((pkg) => !hasPackage(pkg));
 }
 
-async function loadPiAi(): Promise<PiAiModule> {
+async function loadPiAI(): Promise<PiAIModule> {
   return import('@earendil-works/pi-ai/compat');
 }
 
@@ -149,11 +149,11 @@ function createAssistantHistoryMessage(model: PiModel, content: string, createdA
     api: model.api,
     content: content
       ? [
-        {
-          text: normalizePiText(content),
-          type: 'text'
-        }
-      ]
+          {
+            text: normalizePiText(content),
+            type: 'text'
+          }
+        ]
       : [],
     model: model.id,
     provider: model.provider,
@@ -264,11 +264,11 @@ function mapChatHistoryMessage(message: ChatRequest['messages'][number], model: 
     return {
       content: textContent
         ? [
-          {
-            text: textContent,
-            type: 'text'
-          }
-        ]
+            {
+              text: textContent,
+              type: 'text'
+            }
+          ]
         : [],
       details: message.metadata,
       isError: false,
@@ -433,9 +433,9 @@ function prepareResolvedRequestForExplicitSkillInvocation(resolved: ResolvedPiRe
   if (!explicitSkillInvocation) {
     return resolved.explicitSkillInvocation
       ? {
-        ...resolved,
-        explicitSkillInvocation: undefined
-      }
+          ...resolved,
+          explicitSkillInvocation: undefined
+        }
       : resolved;
   }
 
@@ -456,9 +456,9 @@ function prepareResolvedRequestForExplicitSkillInvocation(resolved: ResolvedPiRe
   const messages = resolved.messages.map((message, index) =>
     index === latestUserMessageIndex
       ? {
-        ...message,
-        content: explicitSkillInvocation.remainingQuery!
-      }
+          ...message,
+          content: explicitSkillInvocation.remainingQuery!
+        }
       : message
   );
 
@@ -514,8 +514,8 @@ async function buildPiContext(resolved: ResolvedPiRequest, model: PiModel, skill
   const enrichments = await resolveSystemPromptEnrichments(resolved.request);
   const instructionFiles = shouldEnableInstructionPromptChain(resolved)
     ? await loadInstructionFiles({
-      workspaceRoot
-    })
+        workspaceRoot
+      })
     : undefined;
   const latestUserQuery = getLatestUserQuery(resolved.messages);
   const explicitSkillInvocation = resolved.explicitSkillInvocation;
@@ -915,7 +915,7 @@ export class PiSessionService {
     }
     this.assertAvailable(preview.availability);
 
-    const ai = await loadPiAi();
+    const ai = await loadPiAI();
     const model = await buildPiModel(ai, preview.resolved);
     const skillRuntime = await createSkillRuntimeContext(preview.resolved);
     const effectiveResolved = prepareResolvedRequestForExplicitSkillInvocation(preview.resolved, skillRuntime);
@@ -967,7 +967,7 @@ export class PiSessionService {
 
     const preview = await this.preview(req, preloadedPreview);
     const emitter = createChatStreamEmitter(emit, {
-      characterPersonaEnabled: !!preview.resolved.request.extras?.characterPersonaEnabled
+      characterPromptEnabled: !!preview.resolved.request.extras?.characterPromptEnabled
     });
 
     emitter.connected();
@@ -1007,7 +1007,7 @@ export class PiSessionService {
     }
 
     try {
-      const ai = await loadPiAi();
+      const ai = await loadPiAI();
       const model = await buildPiModel(ai, preview.resolved);
       const skillRuntime = await createSkillRuntimeContext(preview.resolved);
       const effectiveResolved = prepareResolvedRequestForExplicitSkillInvocation(preview.resolved, skillRuntime);
@@ -1115,13 +1115,13 @@ export class PiSessionService {
       enabledToolIds: childToolIds,
       model: options.execution.model
         ? {
-          ...options.resolved.model,
-          modelId: options.execution.model
-        }
+            ...options.resolved.model,
+            modelId: options.execution.model
+          }
         : options.resolved.model
     };
 
-    const childModel = options.execution.model && options.execution.model !== options.resolved.model.modelId ? await buildPiModel(await loadPiAi(), childResolved) : options.model;
+    const childModel = options.execution.model && options.execution.model !== options.resolved.model.modelId ? await buildPiModel(await loadPiAI(), childResolved) : options.model;
     const thinkingLevel = resolveForkedThinkingLevel(options.execution, childResolved);
     const sessionHandle = await this.sessionFactory.createCodingSession({
       model: childModel,
@@ -1152,32 +1152,32 @@ export class PiSessionService {
     const unsubscribe =
       typeof session.subscribe === 'function'
         ? session.subscribe((event) => {
-          switch (event.type) {
-            case 'tool_execution_start': {
-              const callId = createForkedChildToolCallId(options.parentToolCallId, event.toolCallId);
-              toolCalls.set(event.toolCallId, {
-                args: event.args,
-                callId,
-                toolName: event.toolName
-              });
-              options.toolContext.emitToolCall?.(event.toolName, event.args, callId);
-              reportForkProgress(Math.min(progress + 15, 80), `Forked skill is running ${event.toolName}.`);
-              return;
-            }
-            case 'tool_execution_end': {
-              const toolCall = toolCalls.get(event.toolCallId);
-              if (toolCall) {
-                toolCall.result = event.result;
-                options.toolContext.emitToolResult?.(toolCall.callId, event.result);
+            switch (event.type) {
+              case 'tool_execution_start': {
+                const callId = createForkedChildToolCallId(options.parentToolCallId, event.toolCallId);
+                toolCalls.set(event.toolCallId, {
+                  args: event.args,
+                  callId,
+                  toolName: event.toolName
+                });
+                options.toolContext.emitToolCall?.(event.toolName, event.args, callId);
+                reportForkProgress(Math.min(progress + 15, 80), `Forked skill is running ${event.toolName}.`);
+                return;
               }
-              reportForkProgress(Math.min(progress + 10, 92), 'Forked skill finished a child tool step.');
-              return;
+              case 'tool_execution_end': {
+                const toolCall = toolCalls.get(event.toolCallId);
+                if (toolCall) {
+                  toolCall.result = event.result;
+                  options.toolContext.emitToolResult?.(toolCall.callId, event.result);
+                }
+                reportForkProgress(Math.min(progress + 10, 92), 'Forked skill finished a child tool step.');
+                return;
+              }
+              default:
+                return;
             }
-            default:
-              return;
-          }
-        })
-        : () => { };
+          })
+        : () => {};
 
     try {
       replaceAgentMessages(session, options.promptState.history);
@@ -1239,9 +1239,9 @@ export class PiSessionService {
         resolved,
         ...(skillRuntime
           ? {
-            skillRegistry: skillRuntime.registry,
-            skillSessionState: skillRuntime.state
-          }
+              skillRegistry: skillRuntime.registry,
+              skillSessionState: skillRuntime.state
+            }
           : {}),
         systemPrompt: context.systemPrompt,
         thinkingLevel: resolveSessionThinkingLevel(resolved.request)
@@ -1410,9 +1410,9 @@ export class PiSessionService {
         resolved,
         ...(skillRuntime
           ? {
-            skillRegistry: skillRuntime.registry,
-            skillSessionState: skillRuntime.state
-          }
+              skillRegistry: skillRuntime.registry,
+              skillSessionState: skillRuntime.state
+            }
           : {}),
         systemPrompt: context.systemPrompt,
         thinkingLevel: resolveSessionThinkingLevel(resolved.request)

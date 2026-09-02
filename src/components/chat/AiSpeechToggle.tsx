@@ -39,6 +39,7 @@ export default function AISpeechToggle({ className, onEnabledChange }: AISpeechT
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 挂载/聚焦时异步刷新配置,setState 均在 await 之后
     void refresh();
 
     const handleFocus = (): void => {

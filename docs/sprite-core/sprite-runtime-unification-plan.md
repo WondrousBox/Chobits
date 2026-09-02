@@ -57,22 +57,23 @@
 
 ## 3. 重构清单完成状态
 
-| # | 项目 | 状态 |
-|---|------|------|
-| R1 | Persona 持久化模型收口 | ✅ 已完成 |
-| R2 | Persona DTO 单一化 | ✅ 已完成 |
-| R3 | 统一交互输入与事件契约 | ✅ 已完成 |
-| R4 | 分离 Runtime State 与 Animation Trigger | ✅ 已完成（`SpriteReactionState` + `trigger()` 解耦） |
-| R5 | 统一动画元数据模型 | ✅ 已完成（`primaryTrigger + triggerAliases + priority + condition`） |
-| R6 | 收口配置所有权 | ✅ 已完成（auto-walk legacy bridge 已全部移除） |
-| R7 | 交互统计改单源 | ✅ 已完成（EventBus 单源） |
-| R8 | 抽离 MovementCoordinator | ✅ 第一阶段已完成 |
-| R9 | Persona 规则配置化 | ✅ 已完成（`PersonaRulesProvider` / `PersonaRulesLayer` / `character-runtime`） |
-| R10 | Capability Runtime | ✅ 主线已完成 |
+| #   | 项目                                    | 状态                                                                            |
+| --- | --------------------------------------- | ------------------------------------------------------------------------------- |
+| R1  | Persona 持久化模型收口                  | ✅ 已完成                                                                       |
+| R2  | Persona DTO 单一化                      | ✅ 已完成                                                                       |
+| R3  | 统一交互输入与事件契约                  | ✅ 已完成                                                                       |
+| R4  | 分离 Runtime State 与 Animation Trigger | ✅ 已完成（`SpriteReactionState` + `trigger()` 解耦）                           |
+| R5  | 统一动画元数据模型                      | ✅ 已完成（`primaryTrigger + triggerAliases + priority + condition`）           |
+| R6  | 收口配置所有权                          | ✅ 已完成（auto-walk legacy bridge 已全部移除）                                 |
+| R7  | 交互统计改单源                          | ✅ 已完成（EventBus 单源）                                                      |
+| R8  | 抽离 MovementCoordinator                | ✅ 第一阶段已完成                                                               |
+| R9  | Persona 规则配置化                      | ✅ 已完成（`PersonaRulesProvider` / `PersonaRulesLayer` / `character-runtime`） |
+| R10 | Capability Runtime                      | ✅ 主线已完成                                                                   |
 
 ### 角色包 Lifecycle（R9/R10 之间）
 
 ✅ 已完成：
+
 - `pack.json` manifest 解析与 `assets.animations` 驱动
 - 按角色 slot 的 persona 持久化与切换存档
 - `CharacterPackManager`：builtin/installed pack 扫描、active pack 持久化、archive 导入
@@ -85,6 +86,7 @@
 ### 兼容层清理（Batch 7）
 
 ✅ 已完成：
+
 - Legacy `window.chobits.window.*` auto-walk bridge 已移除
 - `packages/sprite-core/index.ts` 已停止导出 `trigger-mapping` / `triggerSpriteAnimation`
 - `packages/sprite-core/config/trigger-mapping.ts` / `helper/trigger-animation.ts` 已删除，旧场景映射 helper 彻底退出仓库主链

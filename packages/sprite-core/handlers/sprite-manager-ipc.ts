@@ -66,16 +66,8 @@ import {
   removeCharacterPack,
   saveCharacterPackEditorDraft
 } from '../character-pack-manager';
-import { type CharacterPersonaRuntimeSyncResult, reloadCharacterPersonaRuntime, syncCharacterPersonaRuntime } from '../character-runtime';
-import {
-  buildCharacterPersonaPrompt,
-  getCharacterDefinition,
-  getCharacterInfo,
-  getCharacterToolLabels,
-  getDimensionSchema,
-  initCharacterService,
-  type ToolLabelDefinition
-} from '../character-service';
+import { type CharacterRuntimeSyncResult, reloadCharacterRuntime, syncCharacterRuntime } from '../character-runtime';
+import { buildCharacterPrompt, getCharacterDefinition, getCharacterInfo, getCharacterToolLabels, getDimensionSchema, initCharacterService, type ToolLabelDefinition } from '../character-service';
 import { isSpriteInteractionIntent, type SpriteInteractionPayload } from '../interaction-contract';
 import type { SpritePurposeRoutinePlanner, SpritePurposeWindowAdapter, SpriteSpontaneousUtteranceExecutor, SpriteWindowAnimationAdapter } from '../manager';
 import { SpriteManager } from '../manager';
@@ -95,14 +87,14 @@ import { MESSAGE_IPC_CHANNELS } from '../types';
 import { WindowController } from '../window-controller';
 import type { WindowControllerAvoidRegion } from '../window-controller-model';
 import { notifySpriteCapabilityChanged } from './capability-broadcast';
-import { getDefaultSpritesDir, listSprites, setSpriteAssetsChangeHandler } from './sprite-assets';
+import { getDefaultCharactersDir, listSprites, setSpriteAssetsChangeHandler } from './sprite-assets';
 import { initSpriteEventListener } from './sprite-event-listener';
 
 export interface SpriteManagerDeps {
   addAllowedResourceRoot: (root: string) => void;
   /** 校验路径是否在已注册资源根之内(用于 addTempResourceRoot 的注册前校验) */
   isPathWithinAllowedRoots?: (target: string) => boolean;
-  registerCharacterPersonaPromptProvider?: (provider: () => string | null) => void | Promise<void>;
+  registerCharacterPromptProvider?: (provider: () => string | null) => void | Promise<void>;
   spontaneousUtteranceExecutor?: SpriteSpontaneousUtteranceExecutor;
   speechSynthesisExecutor?: SpriteSpeechSynthesisExecutor;
   textTranslator?: SpriteSpeechTextTranslator;
@@ -394,8 +386,8 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     }
   }
 
-  async function syncCharacterRuntime(options?: { reload?: boolean; initDimensions?: boolean }): Promise<CharacterPersonaRuntimeSyncResult> {
-    const result = options?.reload ? reloadCharacterPersonaRuntime() : syncCharacterPersonaRuntime();
+  async function refreshCharacterRuntime(options?: { reload?: boolean; initDimensions?: boolean }): Promise<CharacterRuntimeSyncResult> {
+    const result = options?.reload ? reloadCharacterRuntime() : syncCharacterRuntime();
     if (options?.initDimensions) {
       initCharacterDimensions();
     }
@@ -415,7 +407,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     };
   }
 
-  async function syncActiveCharacterStateSlot(options?: { forceReload?: boolean }): Promise<{ slotId: string; restored: boolean; switched: boolean }> {
+  async function syncActiveCharacterStateSlot(options?: { forceReload?: boolean }): Promise<{ slotId: string; wasRestored: boolean; wasSwitched: boolean }> {
     const slot = resolveActiveCharacterSlot();
     const currentSlotId = mgr.getActiveCharacterStateId();
 
@@ -423,16 +415,16 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
       mgr.configureCharacterStateSlot(slot.id, slot.identity);
       return {
         slotId: slot.id,
-        restored: true,
-        switched: false
+        wasRestored: true,
+        wasSwitched: false
       };
     }
 
     const result = await mgr.switchCharacterStateSlot(slot.id, slot.identity);
     return {
       slotId: slot.id,
-      restored: result.restored,
-      switched: currentSlotId !== slot.id
+      wasRestored: result.wasRestored,
+      wasSwitched: currentSlotId !== slot.id
     };
   }
 
@@ -451,11 +443,11 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
   });
 
   async function reloadCharacterRuntimeChain(options?: { notifyCapabilitySource?: string }): Promise<{
-    runtime: CharacterPersonaRuntimeSyncResult;
-    characterSlot: { slotId: string; restored: boolean; switched: boolean };
+    runtime: CharacterRuntimeSyncResult;
+    characterSlot: { slotId: string; wasRestored: boolean; wasSwitched: boolean };
     animationsLoaded: number;
   }> {
-    const runtime = await syncCharacterRuntime({ reload: true });
+    const runtime = await refreshCharacterRuntime({ reload: true });
     const characterSlot = await syncActiveCharacterStateSlot({ forceReload: false });
     initCharacterDimensions();
     const animationsLoaded = await loadAndApplyRuntimeAnimations({ refreshCurrentState: true });
@@ -520,8 +512,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     // recorder 服务运行状态),改用系统麦克风授权状态。Linux 无系统级授权接口,视为已授权。
     let recorderEnabled = false;
     try {
-      recorderEnabled =
-        process.platform === 'linux' || systemPreferences.getMediaAccessStatus('microphone') === 'granted';
+      recorderEnabled = process.platform === 'linux' || systemPreferences.getMediaAccessStatus('microphone') === 'granted';
     } catch {
       recorderEnabled = false;
     }
@@ -572,7 +563,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
   // ===== 渲染进程 → 主进程 (handle) =====
 
   // 交互上报
-  ipcMain.handle('sprite:interact', (_e, payload: { type: string; data?: SpriteInteractionPayload }) => {
+  ipcMain.handle('sprite:interact', (_event, payload: { type: string; data?: SpriteInteractionPayload }) => {
     const interactionType = payload?.type ?? '';
     if (!isSpriteInteractionIntent(interactionType)) {
       throw new Error(`[sprite:interact] Unsupported interaction intent: ${String(payload?.type)}`);
@@ -581,7 +572,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
   });
 
   // 拖拽（主进程轮询光标位置，渲染进程只负责 start/end 信号）
-  ipcMain.handle('sprite:drag', (_e, payload: { phase: 'start' | 'end'; offsetX?: number; offsetY?: number }) => {
+  ipcMain.handle('sprite:drag', (_event, payload: { phase: 'start' | 'end'; offsetX?: number; offsetY?: number }) => {
     switch (payload.phase) {
       case 'start':
         mgr.startDrag(payload.offsetX!, payload.offsetY!);
@@ -593,13 +584,13 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
   });
 
   // 动画播放完成上报
-  ipcMain.handle('sprite:anim-complete', (_e, payload: { animId: string; phase: 'intro' | 'loop' | 'outro' | 'full'; playId?: string }) => {
+  ipcMain.handle('sprite:anim-complete', (_event, payload: { animId: string; phase: 'intro' | 'loop' | 'outro' | 'full'; playId?: string }) => {
     console.info('❤❤❤❤❤ ipc sprite:anim-complete', payload);
     mgr.handleAnimationComplete(payload.animId, payload.phase, payload.playId);
   });
 
   // 文件拖放
-  ipcMain.handle('sprite:file-drop', (_e, payload: { files: any[]; correlationId?: string }) => {
+  ipcMain.handle('sprite:file-drop', (_event, payload: { files: any[]; correlationId?: string }) => {
     return mgr.handleFileDrop(payload.files, { correlationId: payload.correlationId });
   });
 
@@ -632,9 +623,9 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     return getCharacterInfo();
   });
 
-  ipcMain.handle('sprite:character:get-persona-prompt', (_e, options?: import('../character-service').PersonaPromptBuildOptions) => {
+  ipcMain.handle('sprite:character:get-prompt', (_event, options?: import('../character-service').CharacterPromptBuildOptions) => {
     const characterState = mgr.getCharacterState();
-    return buildCharacterPersonaPrompt(
+    return buildCharacterPrompt(
       {
         favorLevel: characterState.favorLevel,
         mood: characterState.mood,
@@ -652,7 +643,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     return getActiveCharacterPack();
   });
 
-  ipcMain.handle('sprite:character:activate-pack', async (_e, payload: { packId: string; source?: CharacterPackSource }) => {
+  ipcMain.handle('sprite:character:activate-pack', async (_event, payload: { packId: string; source?: CharacterPackSource }) => {
     const previousPack = await getActiveCharacterPack();
     const previousCharacter = getCharacterInfo();
     const activation = await activateCharacterPack(payload.packId, {
@@ -679,7 +670,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
 
     return {
       ok: true,
-      changed: activation.changed,
+      didChange: activation.didChange,
       pack: activation.pack,
       character: nextCharacter,
       runtime: reload.runtime,
@@ -687,7 +678,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     };
   });
 
-  ipcMain.handle('sprite:character:inspect-pack-from-archive', async (_e, payload: { archivePath: string }) => {
+  ipcMain.handle('sprite:character:inspect-pack-from-archive', async (_event, payload: { archivePath: string }) => {
     return inspectCharacterPackFromArchive(payload.archivePath);
   });
 
@@ -695,8 +686,8 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     ok: true;
   } & Awaited<ReturnType<typeof installCharacterPackFromArchive>> & {
       character?: ReturnType<typeof getCharacterInfo>;
-      runtime?: CharacterPersonaRuntimeSyncResult;
-      characterSlot?: { slotId: string; restored: boolean; switched: boolean };
+      runtime?: CharacterRuntimeSyncResult;
+      characterSlot?: { slotId: string; wasRestored: boolean; wasSwitched: boolean };
     };
 
   async function finalizeInstalledPackChange(
@@ -707,7 +698,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
       capabilitySource: string;
     }
   ): Promise<InstalledPackChangeResponse> {
-    const shouldReloadRuntime = result.activated || result.pack.isActive;
+    const shouldReloadRuntime = result.wasActivated || result.pack.isActive;
     if (!shouldReloadRuntime) {
       return {
         ok: true,
@@ -738,7 +729,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     };
   }
 
-  ipcMain.handle('sprite:character:install-pack-from-archive', async (_e, payload: { archivePath: string; replaceExisting?: boolean; activate?: boolean }) => {
+  ipcMain.handle('sprite:character:install-pack-from-archive', async (_event, payload: { archivePath: string; replaceExisting?: boolean; activate?: boolean }) => {
     const previousPack = payload.activate || payload.replaceExisting ? await getActiveCharacterPack() : null;
     const previousCharacter = previousPack ? getCharacterInfo() : null;
     const result = await installCharacterPackFromArchive(payload.archivePath, {
@@ -753,7 +744,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     });
   });
 
-  ipcMain.handle('sprite:character:export-pack', async (_e, payload: { packId: string; outputPath: string; source?: CharacterPackSource }) => {
+  ipcMain.handle('sprite:character:export-pack', async (_event, payload: { packId: string; outputPath: string; source?: CharacterPackSource }) => {
     const result = await exportCharacterPack(payload.packId, payload.outputPath, {
       source: payload.source
     });
@@ -768,7 +759,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     };
   });
 
-  ipcMain.handle('sprite:character:remove-pack', async (_e, payload: { packId: string; source?: CharacterPackSource }) => {
+  ipcMain.handle('sprite:character:remove-pack', async (_event, payload: { packId: string; source?: CharacterPackSource }) => {
     const packs = await listCharacterPacks();
     const targetPack =
       packs.find((pack) => pack.id === payload.packId && (!payload.source || pack.source === payload.source)) ??
@@ -815,7 +806,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
         ok: true,
         removedPack: removal?.removedPack ?? targetPack,
         activePack: fallbackActivation.pack,
-        switchedActivePack: true,
+        didSwitchActivePack: true,
         character: nextCharacter,
         runtime: reload.runtime,
         characterSlot: reload.characterSlot
@@ -832,17 +823,17 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     };
   });
 
-  ipcMain.handle('sprite:character:get-editor-draft', async (_e, payload: { packId: string; source?: CharacterPackSource }) => {
+  ipcMain.handle('sprite:character:get-editor-draft', async (_event, payload: { packId: string; source?: CharacterPackSource }) => {
     return getCharacterPackEditorDraft(payload.packId, {
       source: payload.source
     });
   });
 
-  ipcMain.handle('sprite:character:save-editor-draft', async (_e, payload: { draft: CharacterPackEditorDraft; options?: CharacterPackEditorSaveOptions }) => {
+  ipcMain.handle('sprite:character:save-editor-draft', async (_event, payload: { draft: CharacterPackEditorDraft; options?: CharacterPackEditorSaveOptions }) => {
     const previousPack = await getActiveCharacterPack();
     const previousCharacter = getCharacterInfo();
     const result = await saveCharacterPackEditorDraft(payload.draft, payload.options);
-    const shouldReloadRuntime = result.activated || result.pack.isActive || (previousPack?.source === 'installed' && previousPack.id === result.pack.id);
+    const shouldReloadRuntime = result.wasActivated || result.pack.isActive || (previousPack?.source === 'installed' && previousPack.id === result.pack.id);
 
     if (!shouldReloadRuntime) {
       return {
@@ -878,11 +869,11 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     };
   });
 
-  ipcMain.handle('sprite:character:gallery:list', async (_e, payload: { packId?: string; source?: CharacterPackSource; query?: string } = {}) => {
+  ipcMain.handle('sprite:character:gallery:list', async (_event, payload: { packId?: string; source?: CharacterPackSource; query?: string } = {}) => {
     return listCharacterGalleryItems(payload);
   });
 
-  ipcMain.handle('sprite:character:gallery:canvas:get', async (_e, payload: { packId?: string; source?: CharacterPackSource } = {}) => {
+  ipcMain.handle('sprite:character:gallery:canvas:get', async (_event, payload: { packId?: string; source?: CharacterPackSource } = {}) => {
     return getCharacterGalleryCanvasLayout(payload);
   });
 
@@ -966,7 +957,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     }
   );
 
-  ipcMain.handle('sprite:character:gallery:remove', async (_e, payload: { packId?: string; source?: CharacterPackSource; itemId: string; deleteFile?: boolean }) => {
+  ipcMain.handle('sprite:character:gallery:remove', async (_event, payload: { packId?: string; source?: CharacterPackSource; itemId: string; deleteFile?: boolean }) => {
     assertSpriteCapabilityUnlocked('spriteManage');
     return removeCharacterGalleryItem(payload.itemId, {
       packId: payload.packId,
@@ -975,7 +966,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     });
   });
 
-  ipcMain.handle('sprite:character:gallery:build-ai-edit-context', async (_e, payload: { packId?: string; source?: CharacterPackSource; draft: CharacterGalleryAIEditDraft }) => {
+  ipcMain.handle('sprite:character:gallery:build-ai-edit-context', async (_event, payload: { packId?: string; source?: CharacterPackSource; draft: CharacterGalleryAIEditDraft }) => {
     return buildCharacterGalleryAIEditContext(payload.draft, {
       packId: payload.packId,
       source: payload.source
@@ -1000,16 +991,16 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     return mgr.isDebugOverlayEnabled();
   });
 
-  ipcMain.handle('sprite:config:set-debug-overlay', (_e, p: { enabled: boolean }) => {
+  ipcMain.handle('sprite:config:set-debug-overlay', (_event, p: { enabled: boolean }) => {
     mgr.setDebugOverlayEnabled(p.enabled);
     return p.enabled;
   });
 
-  ipcMain.handle('sprite:config:get-animation-playlist-mode', (_e, p?: { trigger?: SpriteAnimationTrigger }) => {
+  ipcMain.handle('sprite:config:get-animation-playlist-mode', (_event, p?: { trigger?: SpriteAnimationTrigger }) => {
     return mgr.getAnimationPlaylistMode(p?.trigger);
   });
 
-  ipcMain.handle('sprite:config:set-animation-playlist-mode', (_e, p: { mode: SpriteAnimationPlaylistMode; trigger?: SpriteAnimationTrigger }) => {
+  ipcMain.handle('sprite:config:set-animation-playlist-mode', (_event, p: { mode: SpriteAnimationPlaylistMode; trigger?: SpriteAnimationTrigger }) => {
     return mgr.setAnimationPlaylistMode(p.mode, p.trigger);
   });
 
@@ -1017,7 +1008,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     return mgr.getBubbleMode();
   });
 
-  ipcMain.handle('sprite:config:set-bubble-mode', (_e, p: { mode: SpriteBubbleMode }) => {
+  ipcMain.handle('sprite:config:set-bubble-mode', (_event, p: { mode: SpriteBubbleMode }) => {
     const prev = mgr.getBubbleMode();
     const next = mgr.setBubbleMode(p?.mode ?? 'inline');
     // 切换模式时清空并隐藏气泡窗口，避免旧承载窗口残留或之后恢复出过期消息。
@@ -1025,7 +1016,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     return next;
   });
 
-  ipcMain.handle('sprite:movement:set-avoid-regions', (_e, p: { regions?: WindowControllerAvoidRegion[] } | undefined) => {
+  ipcMain.handle('sprite:movement:set-avoid-regions', (_event, p: { regions?: WindowControllerAvoidRegion[] } | undefined) => {
     mgr.setMovementAvoidRegions(Array.isArray(p?.regions) ? p.regions : []);
     return { ok: true };
   });
@@ -1034,16 +1025,16 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     return (await deps.spontaneousUtteranceExecutor?.getSpontaneousUtterancePreferences?.()) ?? null;
   });
 
-  ipcMain.handle('sprite:spontaneous:update-preferences', async (_e, p: Record<string, unknown>) => {
+  ipcMain.handle('sprite:spontaneous:update-preferences', async (_event, p: Record<string, unknown>) => {
     return (await deps.spontaneousUtteranceExecutor?.updateSpontaneousUtterancePreferences?.(p as any)) ?? null;
   });
 
-  ipcMain.handle('sprite:spontaneous:list-history', async (_e, p: Record<string, unknown> | undefined) => {
+  ipcMain.handle('sprite:spontaneous:list-history', async (_event, p: Record<string, unknown> | undefined) => {
     return (await deps.spontaneousUtteranceExecutor?.listSpontaneousUtterances?.(p as any)) ?? [];
   });
 
   // 预览窗口移动效果
-  ipcMain.handle('sprite:preview-movement', (_e, p: SpriteMovementPreviewConfig) => {
+  ipcMain.handle('sprite:preview-movement', (_event, p: SpriteMovementPreviewConfig) => {
     mgr.previewMovement(p);
   });
 
@@ -1055,12 +1046,12 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
   // ===== 语音合成 (Speak) =====
 
   /** 让精灵说话：合成 + 播放 + 显示气泡 */
-  ipcMain.handle('sprite:speak', async (_e, p: SpeakRequest) => {
-    return mgr.speak(p.text, { showBubble: p.showBubble, bubbleDuration: p.bubbleDuration });
+  ipcMain.handle('sprite:speak', async (_event, p: SpeakRequest) => {
+    return mgr.speak(p.text, { bubbleEnabled: p.bubbleEnabled, bubbleDuration: p.bubbleDuration });
   });
 
   /** 仅合成语音（不播放，不显示气泡） */
-  ipcMain.handle('sprite:speak:synthesize', async (_e, p: { text: string }) => {
+  ipcMain.handle('sprite:speak:synthesize', async (_event, p: { text: string }) => {
     return mgr.synthesizeSpeech(p.text);
   });
 
@@ -1070,7 +1061,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
   });
 
   /** 更新语音合成配置 */
-  ipcMain.handle('sprite:speak:set-config', (_e, p: Partial<SpriteSpeakConfig>) => {
+  ipcMain.handle('sprite:speak:set-config', (_event, p: Partial<SpriteSpeakConfig>) => {
     return mgr.setSpeakConfig(p);
   });
 
@@ -1143,7 +1134,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
   });
 
   // ===== 统一事件触发 =====
-  ipcMain.handle('sprite:trigger', (_e, p: SpriteTriggerRequest) => {
+  ipcMain.handle('sprite:trigger', (_event, p: SpriteTriggerRequest) => {
     const trigger = p.trigger;
     if (!trigger) {
       throw new Error('[sprite:trigger] Missing trigger');
@@ -1159,7 +1150,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     });
   });
 
-  ipcMain.handle('sprite:feedback:play', (_e, p: SpriteFeedbackRequest | null | undefined) => {
+  ipcMain.handle('sprite:feedback:play', (_event, p: SpriteFeedbackRequest | null | undefined) => {
     const request = p ?? {};
     return mgr.playFeedbackAnimation({
       trigger: request.trigger,
@@ -1172,7 +1163,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
   });
 
   // ===== 按动画 ID 测试播放 =====
-  ipcMain.handle('sprite:trigger-by-id', (_e, p: { animationId: string; message?: string; duration?: number; durationMs?: number; silent?: boolean; allowMovementDuringPlayback?: boolean }) => {
+  ipcMain.handle('sprite:trigger-by-id', (_event, p: { animationId: string; message?: string; duration?: number; durationMs?: number; silent?: boolean; allowMovementDuringPlayback?: boolean }) => {
     return mgr.triggerById(p.animationId, {
       message: p.message,
       duration: p.duration,
@@ -1183,11 +1174,11 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
   });
 
   // ===== Purpose / Routine 编排 =====
-  ipcMain.handle('sprite:purpose:start', (_e, p: StartSpritePurposeRequest) => {
+  ipcMain.handle('sprite:purpose:start', (_event, p: StartSpritePurposeRequest) => {
     return mgr.startPurpose(p);
   });
 
-  ipcMain.handle('sprite:purpose:cancel', (_e, p: { purposeId?: string; reason?: string } | undefined) => {
+  ipcMain.handle('sprite:purpose:cancel', (_event, p: { purposeId?: string; reason?: string } | undefined) => {
     return mgr.cancelPurpose(p?.purposeId, p?.reason);
   });
 
@@ -1195,7 +1186,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     return mgr.getPurposeSnapshot();
   });
 
-  ipcMain.handle('sprite:purpose:event', (_e, p: SpritePurposeRuntimeEventInput) => {
+  ipcMain.handle('sprite:purpose:event', (_event, p: SpritePurposeRuntimeEventInput) => {
     if (p?.source === 'app-event' && Object.values(AppEvent).includes(p.event as AppEvent)) {
       eventManager.emit(p.event as AppEvent, p.payload);
       return { matched: 0 };
@@ -1282,27 +1273,27 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     }
   });
 
-  ipcMain.handle('sprite:purpose:list-history', (_e, p: SpritePurposeHistoryQuery | undefined) => {
+  ipcMain.handle('sprite:purpose:list-history', (_event, p: SpritePurposeHistoryQuery | undefined) => {
     return mgr.listPurposeHistory(p);
   });
 
-  ipcMain.handle('sprite:purpose:get-daily-retrospective', (_e, p: SpritePurposeRetrospectiveQuery | undefined) => {
+  ipcMain.handle('sprite:purpose:get-daily-retrospective', (_event, p: SpritePurposeRetrospectiveQuery | undefined) => {
     return mgr.getPurposeDailyRetrospective(p);
   });
 
   // ===== 启动引擎 =====
 
   // Initialize character pack authority first, then point CharacterService at the active pack root.
-  const spritesDir = await getDefaultSpritesDir();
+  const charactersDir = await getDefaultCharactersDir();
   initCharacterPackManager({
     userDataDir: app.getPath('userData'),
-    builtinPackRootDir: spritesDir,
+    builtinPackRootDir: charactersDir,
     appVersion: app.getVersion()
   });
   deps.addAllowedResourceRoot(getCharacterPackImportPreviewCacheRootDir());
   const activePack = await getActiveCharacterPack();
-  initCharacterService(activePack?.rootDir ?? spritesDir, { source: activePack?.source ?? 'builtin' });
-  await syncCharacterRuntime();
+  initCharacterService(activePack?.rootDir ?? charactersDir, { source: activePack?.source ?? 'builtin' });
+  await refreshCharacterRuntime();
   const initialCharacterSlot = resolveActiveCharacterSlot();
   mgr.configureCharacterStateSlot(initialCharacterSlot.id, initialCharacterSlot.identity);
 
@@ -1320,10 +1311,10 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
   enforceCapabilityBoundRuntime();
 
   try {
-    await deps.registerCharacterPersonaPromptProvider?.(() => {
+    await deps.registerCharacterPromptProvider?.(() => {
       if (!getCharacterDefinition()) return null;
       const characterState = mgr.getCharacterState();
-      return buildCharacterPersonaPrompt({
+      return buildCharacterPrompt({
         favorLevel: characterState.favorLevel,
         mood: characterState.mood,
         level: characterState.level
@@ -1358,7 +1349,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
   forwardCharacterEvent('sprite:character:switched', 'sprite:character:switched');
 
   // ===== 临时资源根目录（用于视频预览等场景） =====
-  ipcMain.handle('sprite:add-temp-resource-root', (_e, root: string) => {
+  ipcMain.handle('sprite:add-temp-resource-root', (_event, root: string) => {
     // 只允许注册已可信根（userData / 工作区 / 资源目录）之内的路径,防止渲染进程把 res:// 扩大成任意文件读
     if (typeof root !== 'string' || !deps.isPathWithinAllowedRoots?.(root)) {
       console.warn('[sprite:add-temp-resource-root] rejected root outside allowed roots:', root);

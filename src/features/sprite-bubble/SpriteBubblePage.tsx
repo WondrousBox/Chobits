@@ -14,8 +14,8 @@
 import { isBubbleWindowMode } from '@packages/sprite-core/types';
 import { type CSSProperties, useEffect, useLayoutEffect, useRef } from 'react';
 
-import { useSpriteState } from '@/features/sprite-assistant/context/hooks';
-import { MessageProvider, SpriteMessage, useMessage } from '@/features/sprite-assistant/message';
+import { useSpriteState } from '@/features/sprite/context/hooks';
+import { MessageProvider, SpriteMessage, useMessage } from '@/features/sprite/message';
 
 const HIDE_DELAY_MS = 220; // 比消息组件 200ms 淡出动画稍长，确保动画结束后再隐藏窗口
 const MIN_BUBBLE_WIDTH = 104;

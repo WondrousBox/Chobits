@@ -1,6 +1,6 @@
 import { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ProviderAdapter, ProviderSecrets, StreamEvent } from '../types';
-import { getBuiltinProviderDefinitionOrThrow, getRequiredBuiltinProviderDefaultModel } from './service';
 import { createOllamaClient, executeOllamaChat, executeOllamaEmbedding, listOllamaModels, type OllamaRuntimeSecrets } from './ollama-runtime';
+import { getBuiltinProviderDefinitionOrThrow, getRequiredBuiltinProviderDefaultModel } from './service';
 
 type OllamaSecrets = OllamaRuntimeSecrets;
 

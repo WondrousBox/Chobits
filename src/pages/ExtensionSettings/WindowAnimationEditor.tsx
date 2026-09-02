@@ -351,8 +351,8 @@ export default function WindowAnimationEditor(): JSX.Element {
   const [coordinateSpaceEnabled, setCoordinateSpaceEnabled] = useState(true);
   const [positionAnchor, setPositionAnchor] = useState<WindowAnimationAnchor>(DEFAULT_POSITION_ANCHOR);
   const [sizeMode, setSizeMode] = useState<EditorSizeMode>('explicit');
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [jsonDialogOpen, setJsonDialogOpen] = useState(false);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const [isJsonDialogOpen, setIsJsonDialogOpen] = useState(false);
   const [jsonCopied, setJsonCopied] = useState(false);
   const svgRef = useRef<SVGSVGElement | null>(null);
 
@@ -561,7 +561,7 @@ export default function WindowAnimationEditor(): JSX.Element {
               <TbPlayerStop />
               停止
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setJsonDialogOpen(true)}>
+            <Button size="sm" variant="outline" onClick={() => setIsJsonDialogOpen(true)}>
               <TbJson />
               JSON
             </Button>
@@ -692,14 +692,14 @@ export default function WindowAnimationEditor(): JSX.Element {
             <button
               type="button"
               className="flex w-full items-center justify-between rounded-md px-1 py-1.5 text-left text-xs font-medium transition-colors hover:bg-accent"
-              aria-expanded={advancedOpen}
-              onClick={() => setAdvancedOpen((open) => !open)}
+              aria-expanded={isAdvancedOpen}
+              onClick={() => setIsAdvancedOpen((open) => !open)}
             >
               <span>高级参数</span>
-              {advancedOpen ? <TbChevronDown className="h-4 w-4" /> : <TbChevronRight className="h-4 w-4" />}
+              {isAdvancedOpen ? <TbChevronDown className="h-4 w-4" /> : <TbChevronRight className="h-4 w-4" />}
             </button>
 
-            {advancedOpen && (
+            {isAdvancedOpen && (
               <div className="space-y-3 pb-1">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="col-span-2 space-y-1">
@@ -819,7 +819,7 @@ export default function WindowAnimationEditor(): JSX.Element {
         </aside>
       </main>
 
-      <Dialog open={jsonDialogOpen} onOpenChange={setJsonDialogOpen}>
+      <Dialog open={isJsonDialogOpen} onOpenChange={setIsJsonDialogOpen}>
         <DialogContent className="flex max-h-[82vh] w-[min(920px,calc(100vw-48px))] max-w-4xl flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>窗口动画 JSON</DialogTitle>

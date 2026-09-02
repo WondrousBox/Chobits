@@ -24,7 +24,7 @@ export interface CodingShellExecutionResult {
   stderr: string;
   stdout: string;
   hasTimedOut: boolean;
-  truncated: boolean;
+  wasTruncated: boolean;
 }
 
 type ResolvedCommandSpec = {
@@ -140,19 +140,7 @@ function validateGitArgs(args: string[]): string[] {
 }
 
 function validateTscArgs(args: string[]): string[] {
-  const disallowedFlags = new Set([
-    '-b',
-    '-w',
-    '--build',
-    '--emitDeclarationOnly',
-    '--generateTrace',
-    '--incremental',
-    '--init',
-    '--outDir',
-    '--outFile',
-    '--tsBuildInfoFile',
-    '--watch'
-  ]);
+  const disallowedFlags = new Set(['-b', '-w', '--build', '--emitDeclarationOnly', '--generateTrace', '--incremental', '--init', '--outDir', '--outFile', '--tsBuildInfoFile', '--watch']);
 
   for (const arg of args) {
     if (disallowedFlags.has(arg) || arg.startsWith('--outDir=') || arg.startsWith('--outFile=') || arg.startsWith('--tsBuildInfoFile=')) {
@@ -247,13 +235,7 @@ export class PiWorkspaceShellService {
     }
   }
 
-  async run(options: {
-    args?: string[];
-    command: CodingShellCommand;
-    cwd?: string;
-    maxOutputBytes?: number;
-    timeoutMs?: number;
-  }): Promise<CodingShellExecutionResult> {
+  async run(options: { args?: string[]; command: CodingShellCommand; cwd?: string; maxOutputBytes?: number; timeoutMs?: number }): Promise<CodingShellExecutionResult> {
     const sanitizedArgs = sanitizeArgs(options.args);
     const resolvedCwd = await this.resolveCommandCwd(options.cwd);
     const timeoutMs = clampInteger(options.timeoutMs ?? DEFAULT_TIMEOUT_MS, 1_000, MAX_TIMEOUT_MS);
@@ -277,12 +259,12 @@ export class PiWorkspaceShellService {
       let stderr = '';
       let outputBytes = 0;
       let hasTimedOut = false;
-      let truncated = false;
+      let wasTruncated = false;
       let settled = false;
 
       const appendChunk = (current: string, chunk: Buffer): string => {
         if (outputBytes >= maxOutputBytes) {
-          truncated = true;
+          wasTruncated = true;
           return current;
         }
 
@@ -291,7 +273,7 @@ export class PiWorkspaceShellService {
         outputBytes += acceptedBuffer.byteLength;
 
         if (acceptedBuffer.byteLength < chunk.byteLength) {
-          truncated = true;
+          wasTruncated = true;
         }
 
         return current + acceptedBuffer.toString('utf8');
@@ -313,7 +295,7 @@ export class PiWorkspaceShellService {
 
       const timeoutHandle = setTimeout(() => {
         hasTimedOut = true;
-        truncated = true;
+        wasTruncated = true;
         child.kill();
       }, timeoutMs);
 
@@ -323,14 +305,14 @@ export class PiWorkspaceShellService {
 
       child.stdout.on('data', (chunk: Buffer) => {
         stdout = appendChunk(stdout, chunk);
-        if (truncated) {
+        if (wasTruncated) {
           child.kill();
         }
       });
 
       child.stderr.on('data', (chunk: Buffer) => {
         stderr = appendChunk(stderr, chunk);
-        if (truncated) {
+        if (wasTruncated) {
           child.kill();
         }
       });
@@ -344,11 +326,11 @@ export class PiWorkspaceShellService {
           durationMs: Date.now() - startTime,
           exitCode,
           maxOutputBytes,
-          ok: exitCode === 0 && !hasTimedOut && !truncated,
+          ok: exitCode === 0 && !hasTimedOut && !wasTruncated,
           stderr,
           stdout,
           hasTimedOut,
-          truncated
+          wasTruncated
         });
       });
     });

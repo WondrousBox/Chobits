@@ -97,10 +97,13 @@ export class SpritePurposeHistoryStore implements SpritePurposeHistoryWriter, Sp
       limit: 5000,
       status: 'all'
     });
-    return buildSpritePurposeDailyRetrospective(entries.sort((a, b) => a.timestamp - b.timestamp), {
-      ...query,
-      date
-    });
+    return buildSpritePurposeDailyRetrospective(
+      entries.sort((a, b) => a.timestamp - b.timestamp),
+      {
+        ...query,
+        date
+      }
+    );
   }
 
   private resolveFilePath(timestamp: number): string {

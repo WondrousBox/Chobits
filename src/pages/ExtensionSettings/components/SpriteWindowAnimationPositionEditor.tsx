@@ -224,9 +224,7 @@ export default function SpriteWindowAnimationPositionEditor({
               <Select
                 value={(mode === 'point' ? value?.coordinateSpace?.display : value?.placement?.display) ?? 'current'}
                 onValueChange={(display) =>
-                  mode === 'point'
-                    ? updatePoint({ coordinateSpace: { display: display as SpriteWindowAnimationDisplay } })
-                    : updatePlacement({ display: display as SpriteWindowAnimationDisplay })
+                  mode === 'point' ? updatePoint({ coordinateSpace: { display: display as SpriteWindowAnimationDisplay } }) : updatePlacement({ display: display as SpriteWindowAnimationDisplay })
                 }
               >
                 <SelectTrigger className="h-8 w-32 text-xs">
@@ -241,7 +239,10 @@ export default function SpriteWindowAnimationPositionEditor({
                 </SelectContent>
               </Select>
               {mode === 'point' && (
-                <Select value={value?.coordinateSpace?.fitMode ?? 'stretch'} onValueChange={(fitMode) => updatePoint({ coordinateSpace: { fitMode: fitMode as SpriteWindowAnimationCoordinateFitMode } })}>
+                <Select
+                  value={value?.coordinateSpace?.fitMode ?? 'stretch'}
+                  onValueChange={(fitMode) => updatePoint({ coordinateSpace: { fitMode: fitMode as SpriteWindowAnimationCoordinateFitMode } })}
+                >
                   <SelectTrigger className="h-8 w-28 text-xs">
                     <SelectValue />
                   </SelectTrigger>

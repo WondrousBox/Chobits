@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "keys": [
+    {
+      "keyId": "builtin:chii-default",
+      "algorithm": "ed25519",
+      "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAcgJIFYbAMNz0nWK7VYO3fSfgRw0cf31Vb1qzTHdkZVg=\n-----END PUBLIC KEY-----\n",
+      "publishers": ["Chobits"],
+      "channels": ["builtin", "community"]
+    }
+  ]
+}

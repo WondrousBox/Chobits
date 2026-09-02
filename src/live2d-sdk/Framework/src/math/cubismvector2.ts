@@ -112,9 +112,7 @@ export class CubismVector2 {
    * @return ベクトルの距離
    */
   public getDistanceWith(a: CubismVector2): number {
-    return Math.sqrt(
-      (this.x - a.x) * (this.x - a.x) + (this.y - a.y) * (this.y - a.y)
-    );
+    return Math.sqrt((this.x - a.x) * (this.x - a.x) + (this.y - a.y) * (this.y - a.y));
   }
 
   /**

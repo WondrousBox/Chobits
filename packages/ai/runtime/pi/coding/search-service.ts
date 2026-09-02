@@ -228,7 +228,7 @@ export class PiWorkspaceSearchService {
     limit?: number;
     maxDepth?: number;
     pattern: string;
-  }): Promise<{ matches: WorkspaceGlobMatch[]; pattern: string; truncated: boolean }> {
+  }): Promise<{ matches: WorkspaceGlobMatch[]; pattern: string; wasTruncated: boolean }> {
     const rawPattern = options.pattern.trim();
     if (!rawPattern) {
       throw new Error('pattern is required.');
@@ -237,7 +237,7 @@ export class PiWorkspaceSearchService {
     const matcher = globToRegExp(rawPattern);
     const limit = clampInteger(options.limit ?? DEFAULT_MAX_RESULTS, 1, MAX_RESULTS);
     const matches: WorkspaceGlobMatch[] = [];
-    let truncated = false;
+    let wasTruncated = false;
 
     await this.walkWorkspaceFiles({
       basePath: options.basePath,
@@ -254,7 +254,7 @@ export class PiWorkspaceSearchService {
         }
 
         if (matches.length >= limit) {
-          truncated = true;
+          wasTruncated = true;
           return false;
         }
 
@@ -270,7 +270,7 @@ export class PiWorkspaceSearchService {
         }
 
         if (matches.length >= limit) {
-          truncated = true;
+          wasTruncated = true;
           return true;
         }
 
@@ -281,7 +281,7 @@ export class PiWorkspaceSearchService {
     return {
       matches,
       pattern: rawPattern,
-      truncated
+      wasTruncated
     };
   }
 
@@ -296,7 +296,7 @@ export class PiWorkspaceSearchService {
     maxDepth?: number;
     maxFileBytes?: number;
     pattern: string;
-  }): Promise<{ matches: WorkspaceGrepMatch[]; pattern: string; scannedFiles: number; truncated: boolean }> {
+  }): Promise<{ matches: WorkspaceGrepMatch[]; pattern: string; scannedFiles: number; wasTruncated: boolean }> {
     const rawPattern = options.pattern.trim();
     if (!rawPattern) {
       throw new Error('pattern is required.');
@@ -310,7 +310,7 @@ export class PiWorkspaceSearchService {
     const regex = isRegex ? new RegExp(rawPattern, ignoreCase ? 'gi' : 'g') : undefined;
     const matches: WorkspaceGrepMatch[] = [];
     let scannedFiles = 0;
-    let truncated = false;
+    let wasTruncated = false;
 
     await this.walkWorkspaceFiles({
       basePath: options.basePath,
@@ -354,7 +354,7 @@ export class PiWorkspaceSearchService {
           });
 
           if (matches.length >= limit) {
-            truncated = true;
+            wasTruncated = true;
             return true;
           }
         }
@@ -367,7 +367,7 @@ export class PiWorkspaceSearchService {
       matches,
       pattern: rawPattern,
       scannedFiles,
-      truncated
+      wasTruncated
     };
   }
 }

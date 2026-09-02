@@ -22,7 +22,7 @@ export const proxyIpcRenderer = {
     return await ipcRenderer.invoke('proxy:test', payload);
   },
 
-  'proxy:add-custom': async (payload: { proxy: Omit<CustomProxy, 'active'> }): Promise<{ ok: boolean; config?: ProxyConfig; error?: string }> => {
+  'proxy:add-custom': async (payload: { proxy: Omit<CustomProxy, 'isActive'> }): Promise<{ ok: boolean; config?: ProxyConfig; error?: string }> => {
     return await ipcRenderer.invoke('proxy:add-custom', payload);
   },
 

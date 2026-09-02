@@ -16,24 +16,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import type { SpriteAnimation, SpriteAnimationPlaylistMode, SpriteAnimationPlaylistModeMap, SpriteAnimationTrigger } from '@/features/sprite-assistant';
-import {
-  getPrimarySpriteAnimationTrigger,
-  getSpriteAnimationTriggerAliases,
-  getSpriteAnimationTriggers,
-  normalizeSpriteAnimationPlaylistModeMap,
-  SPRITE_EVENT_TYPES
-} from '@/features/sprite-assistant';
-import { ensureSpriteCapabilityAccessible, SpriteCapabilityLockedNotice } from '@/features/sprite-assistant/capability-ui';
+import type { SpriteAnimation, SpriteAnimationPlaylistMode, SpriteAnimationPlaylistModeMap, SpriteAnimationTrigger } from '@/features/sprite';
+import { getPrimarySpriteAnimationTrigger, getSpriteAnimationTriggerAliases, getSpriteAnimationTriggers, normalizeSpriteAnimationPlaylistModeMap, SPRITE_EVENT_TYPES } from '@/features/sprite';
+import { ensureSpriteCapabilityAccessible } from '@/features/sprite/capability-guard';
+import { SpriteCapabilityLockedNotice } from '@/features/sprite/capability-ui';
 import { makeResSrc } from '@/lib/resource-protocol';
 import { isWindowAnimationPresetId, WINDOW_ANIMATION_PRESET_DIRECTIONS, WINDOW_ANIMATION_PRESETS } from '@/lib/window-animation-presets';
 
+import CharacterPackManager from './CharacterPackManager';
 import { createSpriteAnimationMetaDraft, formatSpriteAnimationConditionInput, formatSpriteTriggerAliasesInput, parseSpriteAnimationConditionInput } from './components/sprite-animation-meta-utils';
 import SpriteAnimationConditionBuilder from './components/SpriteAnimationConditionBuilder';
 import SpriteAnimationMetaPopover from './components/SpriteAnimationMetaPopover';
 import SpriteTriggerPicker from './components/SpriteTriggerPicker';
 import SpriteWindowAnimationPositionEditor from './components/SpriteWindowAnimationPositionEditor';
-import CharacterPackManager from './CharacterPackManager';
 
 type SpriteLoopMode = 'none' | 'finite' | 'infinite';
 const DEFAULT_WINDOW_ANIMATION_PRESET_ID: SpriteWindowAnimationPresetId = 'fly-in';
@@ -560,6 +555,7 @@ export function SpriteAnimationManager({
   }, [BUILTIN]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 挂载时异步刷新动画列表,加载态切换是有意的
     refresh();
   }, [refresh]);
 

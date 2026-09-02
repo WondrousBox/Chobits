@@ -3,14 +3,16 @@ import React, { useState } from 'react';
 import { toast } from 'sonner';
 
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { getSpriteCapabilityLockedReason, getSpriteCapabilityState } from '@/features/sprite-assistant/capability-ui';
-import { useSpriteCapabilitySnapshot } from '@/features/sprite-assistant/hooks/useSpriteCapabilitySnapshot';
+import { getSpriteCapabilityLockedReason, getSpriteCapabilityState } from '@/features/sprite/capability-guard';
+import { useSpriteCapabilitySnapshot } from '@/features/sprite/hooks/useSpriteCapabilitySnapshot';
 
 import { ChatEntryDetailContent, ChatEntryItem } from './ChatEntrySettings';
-import { SpeakDetailContent, SpeakItem, useSpeakSettings } from './SpeakSettings';
-import { SpeechRecognitionDetailContent, SpeechRecognitionItem, useSpeechRecognitionSettings } from './SpeechRecognitionSettings';
+import { SpeakDetailContent, SpeakItem } from './SpeakSettings';
+import { SpeechRecognitionDetailContent, SpeechRecognitionItem } from './SpeechRecognitionSettings';
 import { SpontaneousUtteranceDetailContent, SpontaneousUtteranceItem } from './SpontaneousUtteranceSettings';
 import { useChatEntrySettings } from './useChatEntrySettings';
+import { useSpeakSettings } from './useSpeakSettings';
+import { useSpeechRecognitionSettings } from './useSpeechRecognitionSettings';
 import { useSpontaneousUtteranceSettings } from './useSpontaneousUtteranceSettings';
 import { WindowAnimationDetailContent, WindowAnimationItem } from './WindowAnimationSettings';
 

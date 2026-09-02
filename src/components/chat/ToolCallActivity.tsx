@@ -1,4 +1,3 @@
-/* eslint-disable react/prop-types */
 /**
  * 工具调用活动指示器
  * 在 AI 回复时展示工具调用状态（调用中 / 已完成），支持折叠查看参数和结果。
@@ -276,7 +275,7 @@ const ToolCallItem: React.FC<{ activity: ToolActivity; onUserChoiceSubmit?: (cho
   const displayName = getToolDisplayName(activity);
   const isBackgroundExecution = activity.status === 'done' && isBackgroundExecutionResult(activity.result);
   const hasProgress = activity.status === 'calling' && typeof activity.progress === 'number' && activity.progress > 0;
-  const showLongTaskChoice = activity.status === 'calling' && isLongTaskChoiceRequest(activity.choiceRequest);
+  const shouldShowLongTaskChoice = activity.status === 'calling' && isLongTaskChoiceRequest(activity.choiceRequest);
 
   let statusText = `${displayName} 完成`;
   if (activity.status === 'calling') {
@@ -310,7 +309,7 @@ const ToolCallItem: React.FC<{ activity: ToolActivity; onUserChoiceSubmit?: (cho
         {isExpanded ? <TbChevronDown className="h-3 w-3" /> : <TbChevronRight className="h-3 w-3" />}
       </button>
 
-      {showLongTaskChoice && <LongTaskChoiceItem activity={activity} onSubmit={onUserChoiceSubmit} />}
+      {shouldShowLongTaskChoice && <LongTaskChoiceItem activity={activity} onSubmit={onUserChoiceSubmit} />}
 
       {isExpanded && (
         <div className="max-h-64 space-y-1 overflow-auto border-t border-border/50 bg-muted/30 px-2 py-1">

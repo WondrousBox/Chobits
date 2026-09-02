@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildSpontaneousPurposeRetrospectiveContext, formatSpontaneousPurposeRetrospectiveContext, type SpontaneousPurposeDailyRetrospective } from '../../electron/main/handlers/sprite/purpose-retrospective-context';
+import {
+  buildSpontaneousPurposeRetrospectiveContext,
+  formatSpontaneousPurposeRetrospectiveContext,
+  type SpontaneousPurposeDailyRetrospective
+} from '../../electron/main/handlers/sprite/purpose-retrospective-context';
 
 function createRetrospective(): SpontaneousPurposeDailyRetrospective {
   return {

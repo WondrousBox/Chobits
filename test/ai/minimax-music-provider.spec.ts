@@ -108,17 +108,7 @@ describe('MiniMax music generation provider', () => {
     const musicModel = models.find((model) => model.id === 'music-2.6');
     const speechModel = models.find((model) => model.id === 'speech-2.8-turbo');
 
-    expect(chatModelIds).toEqual([
-      'MiniMax-M3',
-      'MiniMax-M2.7',
-      'MiniMax-M2.7-highspeed',
-      'MiniMax-M2.5',
-      'MiniMax-M2.5-highspeed',
-      'MiniMax-M2.1',
-      'MiniMax-M2.1-highspeed',
-      'MiniMax-M2',
-      'M2-her'
-    ]);
+    expect(chatModelIds).toEqual(['MiniMax-M3', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed', 'MiniMax-M2.5', 'MiniMax-M2.5-highspeed', 'MiniMax-M2.1', 'MiniMax-M2.1-highspeed', 'MiniMax-M2', 'M2-her']);
     expect(musicModel?.type).toBe('text2music');
     expect(musicModel?.capabilities?.music_generation).toBe(true);
     expect(speechModel?.type).toBe('tts');
@@ -343,10 +333,7 @@ describe('MiniMax music generation provider', () => {
   });
 
   it('streams MiniMax HTTP speech synthesis hex chunks and aggregates the final artifact', async () => {
-    const fetchMock = mockFetchStream([
-      'data: {"data":{"audio":"ff00"}}\n\n',
-      'data: {"data":{"audio":"01","status":2},"extra_info":{"audio_duration":50},"trace_id":"trace-stream"}\n\n'
-    ]);
+    const fetchMock = mockFetchStream(['data: {"data":{"audio":"ff00"}}\n\n', 'data: {"data":{"audio":"01","status":2},"extra_info":{"audio_duration":50},"trace_id":"trace-stream"}\n\n']);
     vi.stubGlobal('fetch', fetchMock);
 
     const provider = new MiniMaxProvider();

@@ -1,4 +1,4 @@
-import type { SpriteRealtimeSpeechHandle, SpriteRealtimeSpeechScope, SpriteSpeakRealtimeSpeechConfig, SpriteSpeakConfig } from '@packages/sprite-core/speak/types';
+import type { SpriteRealtimeSpeechHandle, SpriteRealtimeSpeechScope, SpriteSpeakConfig, SpriteSpeakRealtimeSpeechConfig } from '@packages/sprite-core/speak/types';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { PcmStreamPlayer } from '@/lib/audio/pcm-stream-player';
@@ -7,9 +7,7 @@ const SENTENCE_BOUNDARY_RE = /[。！？!?]$/;
 const SOFT_BOUNDARY_RE = /[，,、；;：:]$/;
 
 function normalizeDeltaText(text: string): string {
-  return text
-    .replace(/\r\n?/g, '\n')
-    .replace(/[ \t]+/g, ' ');
+  return text.replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ');
 }
 
 function shouldSkipText(text: string): boolean {
@@ -25,7 +23,7 @@ function shouldFlush(buffer: string, config: SpriteSpeakRealtimeSpeechConfig): b
   if (!trimmed) return false;
   if (buffer.includes('\n')) return true;
   if (trimmed.length >= config.chunking.maxChars) return true;
-  if (config.chunking.flushOnPunctuation && SENTENCE_BOUNDARY_RE.test(trimmed)) return true;
+  if (config.chunking.shouldFlushOnPunctuation && SENTENCE_BOUNDARY_RE.test(trimmed)) return true;
   if (trimmed.length >= Math.max(config.chunking.minChars, Math.floor(config.chunking.maxChars * 0.7)) && SOFT_BOUNDARY_RE.test(trimmed)) return true;
   return false;
 }
@@ -46,7 +44,7 @@ function normalizeRealtimeSpeechConfig(config: SpriteSpeakConfig, scope: SpriteR
   };
 }
 
-function buildRealtimeSpeechPromptContext(config: SpriteSpeakConfig, scope: SpriteRealtimeSpeechScope) {
+function buildRealtimeSpeechPromptContext(config: SpriteSpeakConfig, _scope: SpriteRealtimeSpeechScope) {
   if (!isRealtimeSpeechConfigEnabled(config)) return undefined;
   const aiProvider = config.aiProvider;
   if (!aiProvider?.providerId || !aiProvider.model) return undefined;
@@ -121,40 +119,43 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
     }
   }, [scope]);
 
-  const disposeHandle = useCallback(async (mode: 'finish' | 'cancel' = 'cancel') => {
-    clearFlushTimer();
-    textBufferRef.current = '';
-    const handle = handleRef.current;
-    if (mode === 'finish') {
-      if (finishingRef.current) return;
-      finishingRef.current = true;
-    } else {
-      finishingRef.current = false;
-      handleRef.current = null;
-      startingRef.current = null;
-    }
-    if (!handle) {
-      if (mode === 'cancel') {
-        stopPlayer('cancel');
-      }
-      return;
-    }
-    try {
+  const disposeHandle = useCallback(
+    async (mode: 'finish' | 'cancel' = 'cancel') => {
+      clearFlushTimer();
+      textBufferRef.current = '';
+      const handle = handleRef.current;
       if (mode === 'finish') {
-        await handle.finish();
-        return;
+        if (finishingRef.current) return;
+        finishingRef.current = true;
       } else {
-        await handle.cancel();
+        finishingRef.current = false;
+        handleRef.current = null;
+        startingRef.current = null;
       }
-    } catch {
-      //
-    } finally {
-      if (mode === 'cancel') {
-        handle.dispose();
-        stopPlayer('cancel');
+      if (!handle) {
+        if (mode === 'cancel') {
+          stopPlayer('cancel');
+        }
+        return;
       }
-    }
-  }, [clearFlushTimer, stopPlayer]);
+      try {
+        if (mode === 'finish') {
+          await handle.finish();
+          return;
+        } else {
+          await handle.cancel();
+        }
+      } catch {
+        //
+      } finally {
+        if (mode === 'cancel') {
+          handle.dispose();
+          stopPlayer('cancel');
+        }
+      }
+    },
+    [clearFlushTimer, stopPlayer]
+  );
 
   const ensureHandle = useCallback(async (): Promise<SpriteRealtimeSpeechHandle | null> => {
     if (finishingRef.current && handleRef.current) {
@@ -220,9 +221,12 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
                 volume
               });
               playerRef.current = player;
-              void player.start().then(() => player.append(event.data.chunk)).catch((error) => {
-                console.warn('[realtime-chat-speech] Failed to play PCM chunk:', error);
-              });
+              void player
+                .start()
+                .then(() => player.append(event.data.chunk))
+                .catch((error) => {
+                  console.warn('[realtime-chat-speech] Failed to play PCM chunk:', error);
+                });
               return;
             }
             playerRef.current.append(event.data.chunk);
@@ -263,18 +267,21 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
     return startingRef.current;
   }, [scope, stopPlayer]);
 
-  const flushBuffer = useCallback(async (withFlush = false) => {
-    clearFlushTimer();
-    const text = textBufferRef.current;
-    textBufferRef.current = '';
-    if (!text.trim() && !text.includes('\n')) return;
-    const handle = await ensureHandle();
-    if (!handle) return;
-    await handle.appendText(text);
-    if (withFlush) {
-      await handle.flush();
-    }
-  }, [clearFlushTimer, ensureHandle]);
+  const flushBuffer = useCallback(
+    async (withFlush = false) => {
+      clearFlushTimer();
+      const text = textBufferRef.current;
+      textBufferRef.current = '';
+      if (!text.trim() && !text.includes('\n')) return;
+      const handle = await ensureHandle();
+      if (!handle) return;
+      await handle.appendText(text);
+      if (withFlush) {
+        await handle.flush();
+      }
+    },
+    [clearFlushTimer, ensureHandle]
+  );
 
   const scheduleFlush = useCallback(() => {
     clearFlushTimer();
@@ -285,21 +292,24 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
     }, delay);
   }, [clearFlushTimer, flushBuffer]);
 
-  const appendDelta = useCallback((delta: string) => {
-    const text = normalizeDeltaText(delta || '');
-    if (shouldSkipText(text)) return;
+  const appendDelta = useCallback(
+    (delta: string) => {
+      const text = normalizeDeltaText(delta || '');
+      if (shouldSkipText(text)) return;
 
-    void ensureHandle().then(() => {
-      const config = configRef.current;
-      if (!config?.enabled) return;
-      textBufferRef.current += text;
-      if (shouldFlush(textBufferRef.current, config)) {
-        void flushBuffer(false);
-      } else if (textBufferRef.current.trim().length >= config.chunking.minChars) {
-        scheduleFlush();
-      }
-    });
-  }, [ensureHandle, flushBuffer, scheduleFlush]);
+      void ensureHandle().then(() => {
+        const config = configRef.current;
+        if (!config?.enabled) return;
+        textBufferRef.current += text;
+        if (shouldFlush(textBufferRef.current, config)) {
+          void flushBuffer(false);
+        } else if (textBufferRef.current.trim().length >= config.chunking.minChars) {
+          scheduleFlush();
+        }
+      });
+    },
+    [ensureHandle, flushBuffer, scheduleFlush]
+  );
 
   const complete = useCallback(async () => {
     await flushBuffer(true);
@@ -323,6 +333,7 @@ export function useRealtimeChatSpeech(scope: SpriteRealtimeSpeechScope) {
   }, [disposeHandle]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 挂载时异步刷新开关状态,setState 均在 await 之后
     void refreshEnabled();
   }, [refreshEnabled]);
 

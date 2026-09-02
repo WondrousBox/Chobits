@@ -36,7 +36,7 @@ import type {
   CharacterPackSource,
   CharacterPackSummary
 } from '../../../packages/sprite-core/character-pack-manager';
-import type { PersonaPromptBuildOptions } from '../../../packages/sprite-core/character-service';
+import type { CharacterPromptBuildOptions } from '../../../packages/sprite-core/character-service';
 import type { CharacterSnapshot, SpriteCharacterStateResult, SpriteStateSnapshot } from '../../../packages/sprite-core/types';
 
 export interface CharacterGalleryListResult {
@@ -46,7 +46,7 @@ export interface CharacterGalleryListResult {
     name: string;
     source: CharacterPackSource;
     rootDir: string;
-    writable: boolean;
+    isWritable: boolean;
   };
   indexPath: string;
   items: CharacterGalleryItem[];
@@ -56,7 +56,7 @@ export interface CharacterGalleryCanvasLayoutResult {
   layout: CharacterGalleryCanvasLayout;
   ok: true;
   path: string;
-  writable: boolean;
+  isWritable: boolean;
 }
 
 export interface CharacterGalleryImportPayload {
@@ -128,7 +128,7 @@ export const characterApi = {
   getCharacterInfo: () => ipcRenderer.invoke('sprite:character:get-info'),
 
   /** 获取基于当前好感度/心情动态生成的角色人格系统提示词 */
-  getCharacterPersonaPrompt: (options?: PersonaPromptBuildOptions) => ipcRenderer.invoke('sprite:character:get-persona-prompt', options),
+  getCharacterPrompt: (options?: CharacterPromptBuildOptions) => ipcRenderer.invoke('sprite:character:get-prompt', options),
 
   /** 获取当前可用角色包列表 */
   listCharacterPacks: (): Promise<CharacterPackSummary[]> => ipcRenderer.invoke('sprite:character:list-packs'),
@@ -174,7 +174,7 @@ export const characterApi = {
         ok: true;
         character?: { id: string; name: string; nameAliases: string[]; tagline: string } | null;
         runtime?: unknown;
-        characterSlot?: { slotId: string; restored: boolean; switched: boolean };
+        characterSlot?: { slotId: string; wasRestored: boolean; wasSwitched: boolean };
       })
     | null
   > => ipcRenderer.invoke('sprite:character:remove-pack', { packId, source }),
@@ -191,7 +191,7 @@ export const characterApi = {
         ok: true;
         character?: { id: string; name: string; nameAliases: string[]; tagline: string } | null;
         runtime?: unknown;
-        characterSlot?: { slotId: string; restored: boolean; switched: boolean };
+        characterSlot?: { slotId: string; wasRestored: boolean; wasSwitched: boolean };
       })
     | null
   > => ipcRenderer.invoke('sprite:character:save-editor-draft', { draft, options }),
@@ -226,7 +226,7 @@ export const characterApi = {
   buildCharacterGalleryAIEditContext: (payload: { packId?: string; source?: CharacterPackSource; draft: CharacterGalleryAIEditDraft }): Promise<CharacterGalleryAIEditContext> =>
     ipcRenderer.invoke('sprite:character:gallery:build-ai-edit-context', payload),
 
-  /** 重新加载当前角色定义并同步 runtime persona rules */
+  /** 重新加载当前角色定义并同步 runtime */
   reloadCharacter: () => ipcRenderer.invoke('sprite:character:reload'),
 
   /** 订阅角色切换事件 */

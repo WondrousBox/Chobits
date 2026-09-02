@@ -134,7 +134,7 @@ export type SpriteBridgeType = {
   setMovementAvoidRegions(regions: WindowControllerAvoidRegion[]): Promise<{ ok: boolean }>;
 
   // 语音合成 (Speak)
-  speak(text: string, options?: { showBubble?: boolean; bubbleDuration?: number }): Promise<SpeakResult>;
+  speak(text: string, options?: { bubbleEnabled?: boolean; bubbleDuration?: number }): Promise<SpeakResult>;
   synthesizeSpeech(text: string): Promise<SpeakResult>;
   getSpeakConfig(): Promise<SpriteSpeakConfig>;
   startRealtimeSpeechSession(request: SpriteRealtimeSpeechSessionRequest): Promise<SpriteRealtimeSpeechHandle>;
@@ -238,7 +238,7 @@ export const spriteBridge: SpriteBridgeType = {
   setMovementAvoidRegions: (regions) => ipcRenderer.invoke('sprite:movement:set-avoid-regions', { regions }),
 
   // ── 语音合成 (Speak) ──────────────────────────────────────
-  speak: (text, options) => ipcRenderer.invoke('sprite:speak', { text, showBubble: options?.showBubble, bubbleDuration: options?.bubbleDuration }),
+  speak: (text, options) => ipcRenderer.invoke('sprite:speak', { text, bubbleEnabled: options?.bubbleEnabled, bubbleDuration: options?.bubbleDuration }),
   synthesizeSpeech: (text) => ipcRenderer.invoke('sprite:speak:synthesize', { text }),
   getSpeakConfig: () => ipcRenderer.invoke('sprite:speak:get-config'),
   startRealtimeSpeechSession: async (request) => {

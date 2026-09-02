@@ -206,7 +206,7 @@ const minimaxSpeech2RealtimePromptGuidance = [
 ].join('\n');
 
 const minimaxSpeech2RealtimeDisplayTextFilter = {
-  collapseWhitespace: true,
+  shouldCollapseWhitespace: true,
   id: 'minimax-speech2-realtime-tags',
   rules: [
     {

@@ -1,10 +1,4 @@
-import {
-  DEFAULT_WALK_SPEED,
-  getWalkPathPosition,
-  sampleWindowWalkPath,
-  type WindowControllerPoint,
-  type WindowControllerWalkPath
-} from './window-controller-model';
+import { DEFAULT_WALK_SPEED, getWalkPathPosition, sampleWindowWalkPath, type WindowControllerPoint, type WindowControllerWalkPath } from './window-controller-model';
 
 const IPC_THROTTLE = 33.3;
 
@@ -38,13 +32,7 @@ export class WindowControllerWalkSession {
     this.options = options;
   }
 
-  start(input: {
-    startX: number;
-    startY: number;
-    targetX: number;
-    targetY: number;
-    speed?: number;
-  }): Promise<void> {
+  start(input: { startX: number; startY: number; targetX: number; targetY: number; speed?: number }): Promise<void> {
     const dx = input.targetX - input.startX;
     const dy = input.targetY - input.startY;
     const totalDist = Math.hypot(dx, dy);

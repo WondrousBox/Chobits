@@ -24,23 +24,16 @@
 Provider capability 使用语义能力，而不是媒体大类：
 
 ```ts
-export type ProviderCapabilityKey =
-  | 'chat'
-  | 'modelListing'
-  | 'embeddings'
-  | 'transcribe'
-  | 'imageGeneration'
-  | 'musicGeneration'
-  | 'speechSynthesis';
+export type ProviderCapabilityKey = 'chat' | 'modelListing' | 'embeddings' | 'transcribe' | 'imageGeneration' | 'musicGeneration' | 'speechSynthesis';
 ```
 
 各能力边界：
 
-| Capability | 输入 | 输出 | 典型场景 |
-| --- | --- | --- | --- |
-| `transcribe` | 音频 | 文本/字幕 | ASR、字幕转写 |
-| `speechSynthesis` | 文本/SSML/文本流 | 人声音频 | 字幕配音、精灵说话、旁白、语音预览 |
-| `musicGeneration` | prompt/歌词/参考音频 | 音乐音频 | 歌曲、配乐、纯音乐、翻唱 |
+| Capability        | 输入                 | 输出      | 典型场景                           |
+| ----------------- | -------------------- | --------- | ---------------------------------- |
+| `transcribe`      | 音频                 | 文本/字幕 | ASR、字幕转写                      |
+| `speechSynthesis` | 文本/SSML/文本流     | 人声音频  | 字幕配音、精灵说话、旁白、语音预览 |
+| `musicGeneration` | prompt/歌词/参考音频 | 音乐音频  | 歌曲、配乐、纯音乐、翻唱           |
 
 默认模型也按语义能力分开：
 
@@ -68,13 +61,7 @@ export type ProviderDefaultModels = {
 建议模型定义支持补充音频能力元数据：
 
 ```ts
-export type SpeechSynthesisTransport =
-  | 'http'
-  | 'http-stream'
-  | 'sse'
-  | 'websocket'
-  | 'webrtc'
-  | 'async-job';
+export type SpeechSynthesisTransport = 'http' | 'http-stream' | 'sse' | 'websocket' | 'webrtc' | 'async-job';
 
 export type SpeechSynthesisModelMetadata = {
   transports: SpeechSynthesisTransport[];
@@ -160,11 +147,7 @@ export type GeneratedAudioArtifact = {
 音乐生成接口保持小而稳定，差异字段放到 `extras.<providerId>`。`prompt`、`lyrics`、`mode`、`audioSetting`、`referenceAudioUrl` / `referenceAudioBase64` 这类跨服务商字段放在顶层；`stream`、歌词优化、cover feature id、provider 自有质量参数等放入 `extras.minimax`、`extras.suno`、`extras.<providerId>`。
 
 ```ts
-export type MusicGenerationMode =
-  | 'text-to-music'
-  | 'lyrics-to-song'
-  | 'instrumental'
-  | 'cover';
+export type MusicGenerationMode = 'text-to-music' | 'lyrics-to-song' | 'instrumental' | 'cover';
 
 export type MusicGenerationRequest = ProviderScopedRequest & {
   model: string;
@@ -220,29 +203,19 @@ TTS 的关键是分清用户语义和底层传输：
 - provider 私有的 `stream`、`output_format`、SSE header、WebSocket task event 只出现在 adapter 内部或 `extras.<providerId>`。
 
 ```ts
-export type SpeechSynthesisMode =
-  | 'complete'
-  | 'output-stream'
-  | 'duplex-stream'
-  | 'async-job';
+export type SpeechSynthesisMode = 'complete' | 'output-stream' | 'duplex-stream' | 'async-job';
 
-export type SpeechSynthesisTransportPreference =
-  | 'auto'
-  | 'http'
-  | 'http-stream'
-  | 'sse'
-  | 'websocket'
-  | 'webrtc';
+export type SpeechSynthesisTransportPreference = 'auto' | 'http' | 'http-stream' | 'sse' | 'websocket' | 'webrtc';
 ```
 
 模式含义：
 
-| Mode | 输入形态 | 输出形态 | 适合场景 |
-| --- | --- | --- | --- |
-| `complete` | 完整文本 | 完整音频 artifact | 字幕批量合成、缓存、稳定重试 |
-| `output-stream` | 完整文本 | 音频分片输出 + 最终 artifact | 长文本边生成边播放 |
-| `duplex-stream` | 文本分片输入 | 音频分片输出 + 最终 artifact | LLM token 流驱动实时说话 |
-| `async-job` | 完整长文本 | job id / 轮询 / 文件 URL | 超长文本、批量任务 |
+| Mode            | 输入形态     | 输出形态                     | 适合场景                     |
+| --------------- | ------------ | ---------------------------- | ---------------------------- |
+| `complete`      | 完整文本     | 完整音频 artifact            | 字幕批量合成、缓存、稳定重试 |
+| `output-stream` | 完整文本     | 音频分片输出 + 最终 artifact | 长文本边生成边播放           |
+| `duplex-stream` | 文本分片输入 | 音频分片输出 + 最终 artifact | LLM token 流驱动实时说话     |
+| `async-job`     | 完整长文本   | job id / 轮询 / 文件 URL     | 超长文本、批量任务           |
 
 ## 8. TTS 请求与响应
 
@@ -333,10 +306,7 @@ export type SpeechSynthesisStreamEvent =
   | { type: 'error'; data: { message: string; code?: string; cause?: any } }
   | { type: 'done' };
 
-export type SpeechTextInputChunk =
-  | { type: 'text'; text: string }
-  | { type: 'flush' }
-  | { type: 'close' };
+export type SpeechTextInputChunk = { type: 'text'; text: string } | { type: 'flush' } | { type: 'close' };
 ```
 
 规则：
@@ -398,23 +368,23 @@ MiniMax Token Plan 共享 `apiKey` 和 `baseUrl`，但音乐生成和 TTS endpoi
 
 通用字段映射：
 
-| 通用字段 | MiniMax 字段 |
-| --- | --- |
-| `model` | `model` |
-| `text` | `text` |
-| `voiceId` / `voice` | `voice_setting.voice_id` |
-| `speed` | `voice_setting.speed` |
-| `volume` | `voice_setting.vol` |
-| `pitch` | `voice_setting.pitch` |
-| `emotion` | `voice_setting.emotion` 或 `extras.minimax.voice_setting.emotion` |
-| `audioSetting.sampleRate` | `audio_setting.sample_rate` |
-| `audioSetting.bitrate` | `audio_setting.bitrate` |
-| `audioSetting.format` | `audio_setting.format` |
-| `audioSetting.channels` | `audio_setting.channel` |
-| `subtitle.enabled` | `subtitle_enable` |
-| `subtitle.type` | `subtitle_type` |
-| `pronunciationDict` | `pronunciation_dict` |
-| `language` | `language_boost` |
+| 通用字段                  | MiniMax 字段                                                      |
+| ------------------------- | ----------------------------------------------------------------- |
+| `model`                   | `model`                                                           |
+| `text`                    | `text`                                                            |
+| `voiceId` / `voice`       | `voice_setting.voice_id`                                          |
+| `speed`                   | `voice_setting.speed`                                             |
+| `volume`                  | `voice_setting.vol`                                               |
+| `pitch`                   | `voice_setting.pitch`                                             |
+| `emotion`                 | `voice_setting.emotion` 或 `extras.minimax.voice_setting.emotion` |
+| `audioSetting.sampleRate` | `audio_setting.sample_rate`                                       |
+| `audioSetting.bitrate`    | `audio_setting.bitrate`                                           |
+| `audioSetting.format`     | `audio_setting.format`                                            |
+| `audioSetting.channels`   | `audio_setting.channel`                                           |
+| `subtitle.enabled`        | `subtitle_enable`                                                 |
+| `subtitle.type`           | `subtitle_type`                                                   |
+| `pronunciationDict`       | `pronunciation_dict`                                              |
+| `language`                | `language_boost`                                                  |
 
 Adapter routing：
 
@@ -511,7 +481,7 @@ Execution service：
 
 IPC / preload：
 
-- `ai:generateMusic` / `window.chobits.ai.generateMusic`
+- `ai:generateMusic` / `window.chobits.ai.generateMusic`（规划未实现，代码中尚无此通道）
 - `ai:synthesize-speech` / `window.chobits.ai.synthesizeSpeech`
 - `ai:stream-speech-synthesis` / `window.chobits.ai.streamSpeechSynthesis`
 - `ai:append-speech-synthesis-text`
@@ -557,9 +527,9 @@ Pi agent 工具：
 
 Analytics 建议：
 
-| 能力 | operationKey | sourceType | usageFeature | metadata |
-| --- | --- | --- | --- | --- |
-| 音乐生成 | `generate_music` | `music_generation` | `music_generation` | prompt chars、lyrics chars、mode、duration、artifact count |
+| 能力     | operationKey        | sourceType         | usageFeature       | metadata                                                             |
+| -------- | ------------------- | ------------------ | ------------------ | -------------------------------------------------------------------- |
+| 音乐生成 | `generate_music`    | `music_generation` | `music_generation` | prompt chars、lyrics chars、mode、duration、artifact count           |
 | 语音合成 | `synthesize_speech` | `speech_synthesis` | `speech_synthesis` | text chars、voice、format、mode、transport、duration、artifact count |
 
 资源库保存：

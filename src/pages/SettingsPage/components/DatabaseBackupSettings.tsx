@@ -43,7 +43,7 @@ const DatabaseBackupSettings: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<BackupInfo | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
-  const [showRestartDialog, setShowRestartDialog] = useState(false);
+  const [isRestartDialogOpen, setIsRestartDialogOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
 
   const loadBackups = useCallback(async () => {
@@ -61,6 +61,7 @@ const DatabaseBackupSettings: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 挂载时异步加载备份列表,setState 均在 await 之后
     loadBackups();
   }, [loadBackups]);
 
@@ -107,7 +108,7 @@ const DatabaseBackupSettings: React.FC = () => {
       const result = await window.chobits.system['database:restore-backup'](restoreTarget.path);
       if (result.ok) {
         setRestoreTarget(null);
-        setShowRestartDialog(true);
+        setIsRestartDialogOpen(true);
       } else {
         console.error('Restore failed:', result.error);
       }
@@ -276,14 +277,14 @@ const DatabaseBackupSettings: React.FC = () => {
       </Dialog>
 
       {/* Restart dialog */}
-      <Dialog open={showRestartDialog} onOpenChange={setShowRestartDialog}>
+      <Dialog open={isRestartDialogOpen} onOpenChange={setIsRestartDialogOpen}>
         <DialogContent className="w-96">
           <DialogHeader>
             <DialogTitle>恢复完成</DialogTitle>
             <DialogDescription>数据库已成功恢复。需要重启应用以加载新的数据库。</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowRestartDialog(false)}>
+            <Button variant="outline" onClick={() => setIsRestartDialogOpen(false)}>
               稍后重启
             </Button>
             <Button onClick={handleRestart}>

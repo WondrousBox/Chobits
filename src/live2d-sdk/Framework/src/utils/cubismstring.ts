@@ -37,10 +37,7 @@ export class CubismString {
     let textIndex = 0;
     let startWordIndex = 0;
     while (startWord[startWordIndex] != '\0') {
-      if (
-        text[textIndex] == '\0' ||
-        text[textIndex++] != startWord[startWordIndex++]
-      ) {
+      if (text[textIndex] == '\0' || text[textIndex++] != startWord[startWordIndex++]) {
         return false;
       }
     }
@@ -56,12 +53,7 @@ export class CubismString {
    * @param outEndPos 一文字も読み込まなかった場合はエラー値(-1)が入る
    * @return 解析結果の数値
    */
-  public static stringToFloat(
-    string: string,
-    length: number,
-    position: number,
-    outEndPos: number[]
-  ): number {
+  public static stringToFloat(string: string, length: number, position: number, outEndPos: number[]): number {
     let i: number = position;
     let minus = false; // マイナスフラグ
     let period = false;

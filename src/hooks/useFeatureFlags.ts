@@ -1,7 +1,6 @@
+import { FEATURE_DEFINITIONS, type FeatureKey, resolveFeatureFlags } from '@packages/common/feature-flags';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-
-import { FEATURE_DEFINITIONS, resolveFeatureFlags, type FeatureKey } from '@packages/common/feature-flags';
 
 /**
  * 全局功能旗标(渲染侧)
@@ -46,24 +45,27 @@ export function useFeatureFlags(): {
 
   const isEnabled = useCallback((key: FeatureKey): boolean => flags[key], [flags]);
 
-  const setFeatureFlag = useCallback(async (key: FeatureKey, enabled: boolean): Promise<void> => {
-    const previous = flags;
-    const next = { ...flags, [key]: enabled };
-    setFlags(next);
-    try {
-      const result = await window.chobits.preferences['preferences:set-config']({
-        config: { featureFlags: next }
-      });
-      if (!result.ok) {
-        throw new Error(result.error || '更新功能开关失败');
+  const setFeatureFlag = useCallback(
+    async (key: FeatureKey, enabled: boolean): Promise<void> => {
+      const previous = flags;
+      const next = { ...flags, [key]: enabled };
+      setFlags(next);
+      try {
+        const result = await window.chobits.preferences['preferences:set-config']({
+          config: { featureFlags: next }
+        });
+        if (!result.ok) {
+          throw new Error(result.error || '更新功能开关失败');
+        }
+      } catch (error) {
+        setFlags(previous);
+        toast.error('更新功能开关失败', {
+          description: error instanceof Error ? error.message : String(error)
+        });
       }
-    } catch (error) {
-      setFlags(previous);
-      toast.error('更新功能开关失败', {
-        description: error instanceof Error ? error.message : String(error)
-      });
-    }
-  }, [flags]);
+    },
+    [flags]
+  );
 
   return { definitions: FEATURE_DEFINITIONS, flags, isLoading, isEnabled, setFeatureFlag };
 }

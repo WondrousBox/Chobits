@@ -10,7 +10,7 @@
  *   node scripts/gen-live2d-index.mjs <modelDir> [--dry-run]
  *
  * 示例：
- *   node scripts/gen-live2d-index.mjs resources/sprites/live2d/mao_pro
+ *   node scripts/gen-live2d-index.mjs resources/characters/live2d/mao_pro
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';

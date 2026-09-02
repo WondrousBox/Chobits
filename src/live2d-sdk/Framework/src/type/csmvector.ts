@@ -60,9 +60,7 @@ export class csmVector<T> {
    */
   public pushBack(value: T): void {
     if (this._size >= this._capacity) {
-      this.prepareCapacity(
-        this._capacity == 0 ? csmVector.DefaultSize : this._capacity * 2
-      );
+      this.prepareCapacity(this._capacity == 0 ? csmVector.DefaultSize : this._capacity * 2);
     }
 
     this._ptr[this._size++] = value;
@@ -113,11 +111,7 @@ export class csmVector<T> {
   /**
    * サイズ変更
    */
-  public updateSize(
-    newSize: number,
-    value: any = null,
-    callPlacementNew = true
-  ): void {
+  public updateSize(newSize: number, value: any = null, callPlacementNew = true): void {
     const curSize: number = this._size;
 
     if (curSize < newSize) {
@@ -153,11 +147,7 @@ export class csmVector<T> {
    * @param begin 挿入するコンテナの開始位置
    * @param end 挿入するコンテナの終端位置
    */
-  public insert(
-    position: iterator<T>,
-    begin: iterator<T>,
-    end: iterator<T>
-  ): void {
+  public insert(position: iterator<T>, begin: iterator<T>, end: iterator<T>): void {
     let dstSi: number = position._index;
     const srcSi: number = begin._index;
     const srcEi: number = end._index;
@@ -236,8 +226,7 @@ export class csmVector<T> {
    * コンテナの先頭要素を返す
    */
   public begin(): iterator<T> {
-    const ite: iterator<T> =
-      this._size == 0 ? this.end() : new iterator<T>(this, 0);
+    const ite: iterator<T> = this._size == 0 ? this.end() : new iterator<T>(this, 0);
     return ite;
   }
 

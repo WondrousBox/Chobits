@@ -41,11 +41,7 @@ function resolveSignalReason(signal: AbortSignal | undefined): string | undefine
   return undefined;
 }
 
-export function createActivityAwareTaskTimeoutController(options: {
-  externalSignal?: AbortSignal;
-  tag: string;
-  timeouts: TaskChatTimeoutConfig;
-}): TaskChatTimeoutController {
+export function createActivityAwareTaskTimeoutController(options: { externalSignal?: AbortSignal; tag: string; timeouts: TaskChatTimeoutConfig }): TaskChatTimeoutController {
   const controller = new AbortController();
   const startedAt = Date.now();
   const tag = options.tag;
@@ -193,10 +189,10 @@ export function createManagedTaskChatFn(
   return async (prompt: string, signal?: AbortSignal): Promise<string> => {
     const timeoutController = options.timeouts
       ? createActivityAwareTaskTimeoutController({
-        externalSignal: signal,
-        tag: options.tag,
-        timeouts: options.timeouts
-      })
+          externalSignal: signal,
+          tag: options.tag,
+          timeouts: options.timeouts
+        })
       : undefined;
 
     try {

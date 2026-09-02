@@ -2,11 +2,7 @@ import * as fsSync from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import {
-  DEFAULT_SPRITE_PURPOSE_PLANNER_PREFERENCES,
-  normalizeSpritePurposePlannerPreferences,
-  type SpritePurposePlannerPreferences
-} from '../../../../packages/sprite-core/purpose';
+import { DEFAULT_SPRITE_PURPOSE_PLANNER_PREFERENCES, normalizeSpritePurposePlannerPreferences, type SpritePurposePlannerPreferences } from '../../../../packages/sprite-core/purpose';
 
 const PREFERENCES_FILE = 'sprite-purpose-planner-preferences.json';
 

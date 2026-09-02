@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest';
 
-import { buildSkillSourcePolicy } from '../../packages/ai/runtime/pi/skills/source-policy'
+import { buildSkillSourcePolicy } from '../../packages/ai/runtime/pi/skills/source-policy';
 
 describe('skill source policy', () => {
   it('tracks only truly sensitive tool ids for guarded plugin skills', () => {
@@ -8,7 +8,7 @@ describe('skill source policy', () => {
       activationToolIds: [],
       allowedToolIds: ['query-resources', 'shell-exec'],
       source: 'plugin'
-    })
+    });
 
     expect(policy).toMatchObject({
       recommendedMode: 'preview',
@@ -17,9 +17,9 @@ describe('skill source policy', () => {
       riskLevel: 'guarded',
       sensitiveToolCategories: ['shell'],
       sensitiveToolIds: ['shell-exec']
-    })
-    expect(policy.message).not.toContain('query-resources')
-  })
+    });
+    expect(policy.message).not.toContain('query-resources');
+  });
 
   it('keeps tool-level sensitive ids empty when guarded only by fork execution', () => {
     const policy = buildSkillSourcePolicy({
@@ -27,13 +27,13 @@ describe('skill source policy', () => {
       allowedToolIds: ['query-resources'],
       executionContext: 'fork',
       source: 'plugin'
-    })
+    });
 
     expect(policy).toMatchObject({
       riskLevel: 'guarded',
       sensitiveToolCategories: [],
       sensitiveToolIds: []
-    })
-    expect(policy.message).toContain('forked execution context')
-  })
-})
+    });
+    expect(policy.message).toContain('forked execution context');
+  });
+});

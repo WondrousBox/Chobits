@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { VideoSpriteDriver, type VideoSpriteElementLike } from '../../src/features/sprite-assistant/renderers/video-sprite-driver';
+import { VideoSpriteDriver, type VideoSpriteElementLike } from '../../src/features/sprite/renderers/video-sprite-driver';
 
 function createVideo(overrides?: Partial<VideoSpriteElementLike> & { duration?: number; currentTime?: number }): VideoSpriteElementLike & {
   play: ReturnType<typeof vi.fn>;

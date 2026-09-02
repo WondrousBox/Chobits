@@ -36,6 +36,7 @@ export const NetworkCheckDialog: React.FC<NetworkCheckDialogProps> = ({ isOpen, 
   // 当对话框打开时自动开始检测
   useEffect(() => {
     if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 打开对话框即开始异步检测,检测中的 setState 是有意的进度反馈
       checkNetwork();
     } else {
       // 关闭时重置状态

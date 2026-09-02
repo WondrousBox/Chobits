@@ -1,13 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { clearRecentAIPromptInspections, formatAIPromptInspection, inspectAIPrompt, isAIPromptInspectionEnabled, listRecentAIPromptInspections } from '../../packages/ai/runtime/pi/prompt-inspector';
 import { AI_PROMPT_INSPECTOR_SETTINGS } from '../../packages/ai/runtime/pi/prompt-inspector-settings';
-import {
-  clearRecentAIPromptInspections,
-  formatAIPromptInspection,
-  inspectAIPrompt,
-  isAIPromptInspectionEnabled,
-  listRecentAIPromptInspections
-} from '../../packages/ai/runtime/pi/prompt-inspector';
 
 describe('AI prompt inspector', () => {
   it('formats full prompt content without truncating messages', () => {

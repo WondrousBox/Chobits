@@ -1,6 +1,6 @@
 import type { ProviderVoiceGroup, ProviderVoiceOption } from '@packages/ai/providers/voice-catalogs';
 import { Check, ChevronsUpDown } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';

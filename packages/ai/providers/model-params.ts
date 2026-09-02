@@ -9,6 +9,8 @@ export const CHAT_MODEL_IMAGE_GENERATION_PARAMS: ModelParamsSchema = {
   prompt: { default: '' }
 };
 
+// 仅用于 z.input<typeof ...> 推导 ModelParamsSchema 类型,运行时不再引用
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const MODEL_PARAMS_META_SCHEMA = z.object({
   prompt: z.object({
     default: z.string().optional().default(''),

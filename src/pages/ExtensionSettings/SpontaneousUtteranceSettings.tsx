@@ -165,7 +165,7 @@ function HistoryCard({ item }: { item: SpontaneousUtteranceHistoryItem }): JSX.E
         {item.executedAction && <span>动作: {item.executedAction}</span>}
         {item.fallbackAction && !item.executedAction && <span>回退动作: {item.fallbackAction}</span>}
         {item.reason && <span>原因: {getReasonLabel(item.reason)}</span>}
-        {item.fallbackUsed != null && <span>{item.fallbackUsed ? '使用了回退动作' : '动作来自 AI/风格映射'}</span>}
+        {item.didUseFallback != null && <span>{item.didUseFallback ? '使用了回退动作' : '动作来自 AI/风格映射'}</span>}
       </div>
 
       {item.whyThisFits && <p className="mt-2 text-xs leading-5 text-muted-foreground">{item.whyThisFits}</p>}
@@ -174,7 +174,7 @@ function HistoryCard({ item }: { item: SpontaneousUtteranceHistoryItem }): JSX.E
 }
 
 export const SpontaneousUtteranceDetailContent: React.FC<{ state: SpontaneousUtteranceSettingsState }> = ({ state }) => {
-  const { preferences, isLoading, history, historyLoading, query, setQuery, statusFilter, setStatusFilter, intentFilter, setIntentFilter, loadHistory, updatePreferences } = state;
+  const { preferences, isLoading, history, isHistoryLoading, query, setQuery, statusFilter, setStatusFilter, intentFilter, setIntentFilter, loadHistory, updatePreferences } = state;
 
   const latestSpoken = useMemo(() => history.find((item) => item.status === 'spoken'), [history]);
   const allowedSet = useMemo(() => new Set(preferences.allowedIntentCategories), [preferences.allowedIntentCategories]);
@@ -315,7 +315,7 @@ export const SpontaneousUtteranceDetailContent: React.FC<{ state: SpontaneousUtt
                 </SelectContent>
               </Select>
               <Button variant="outline" onClick={() => void loadHistory()}>
-                <TbRefresh className={cn('h-4 w-4', historyLoading && 'animate-spin')} />
+                <TbRefresh className={cn('h-4 w-4', isHistoryLoading && 'animate-spin')} />
                 刷新
               </Button>
             </div>
@@ -329,7 +329,7 @@ export const SpontaneousUtteranceDetailContent: React.FC<{ state: SpontaneousUtt
         <SettingGroup title="记录">
           <ScrollArea className="h-[480px]">
             <div className="space-y-3 p-3">
-              {historyLoading ? (
+              {isHistoryLoading ? (
                 <div className="py-10 text-center text-sm text-muted-foreground">加载历史中...</div>
               ) : history.length === 0 ? (
                 <div className="py-10 text-center text-sm text-muted-foreground">当前筛选条件下还没有主动发言记录。</div>

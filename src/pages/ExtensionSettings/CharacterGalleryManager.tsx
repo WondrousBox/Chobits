@@ -13,7 +13,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { ensureSpriteCapabilityAccessible, SpriteCapabilityLockedNotice } from '@/features/sprite-assistant/capability-ui';
+import { ensureSpriteCapabilityAccessible } from '@/features/sprite/capability-guard';
+import { SpriteCapabilityLockedNotice } from '@/features/sprite/capability-ui';
 import { makeResSrc } from '@/lib/resource-protocol';
 import { cn } from '@/lib/utils';
 
@@ -32,7 +33,7 @@ interface CharacterGalleryListState {
     name: string;
     source: CharacterPackSource;
     rootDir: string;
-    writable: boolean;
+    isWritable: boolean;
   };
   indexPath: string;
   items: CharacterGalleryItem[];
@@ -219,10 +220,10 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
   const [draft, setDraft] = useState<GalleryDraftState>(emptyDraft);
   const [pendingFilePath, setPendingFilePath] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const canWrite = !!state?.pack.writable && assetAuthoringCapability?.status !== 'locked';
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const canWrite = !!state?.pack.isWritable && assetAuthoringCapability?.status !== 'locked';
   const lockedTitle =
-    assetAuthoringCapability?.status === 'locked' ? `${assetAuthoringCapability.name} 尚未解锁` : state?.pack.writable === false ? '内置角色包需要另存为本地版本后才能编辑图集' : undefined;
+    assetAuthoringCapability?.status === 'locked' ? `${assetAuthoringCapability.name} 尚未解锁` : state?.pack.isWritable === false ? '内置角色包需要另存为本地版本后才能编辑图集' : undefined;
 
   const refresh = useCallback(async (): Promise<void> => {
     setIsLoading(true);
@@ -240,6 +241,7 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
   }, [packId, source]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 依赖变化时异步刷新图集列表,加载态切换是有意的
     void refresh();
   }, [refresh]);
 
@@ -257,14 +259,14 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
     if (!ensureSpriteCapabilityAccessible(assetAuthoringCapability, onCapabilityBlocked)) {
       return false;
     }
-    if (state?.pack.writable === false) {
+    if (state?.pack.isWritable === false) {
       toast.warning('内置角色包不可直接编辑', {
         description: '请先在角色资料中保存成本地自定义角色包，再维护角色图集。'
       });
       return false;
     }
     return true;
-  }, [assetAuthoringCapability, onCapabilityBlocked, state?.pack.writable]);
+  }, [assetAuthoringCapability, onCapabilityBlocked, state?.pack.isWritable]);
 
   const openAddDialog = useCallback(async (): Promise<void> => {
     if (!ensureCanWrite()) return;
@@ -303,11 +305,11 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
 
   const selectPreviewItem = useCallback((item: CharacterGalleryItem): void => {
     setSelected(item);
-    setPreviewOpen(true);
+    setIsPreviewOpen(true);
   }, []);
 
   const closePreviewDialog = useCallback((open: boolean): void => {
-    setPreviewOpen(open);
+    setIsPreviewOpen(open);
   }, []);
 
   const movePreview = useCallback(
@@ -316,7 +318,7 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
       const currentIndex = selectedIndex >= 0 ? selectedIndex : 0;
       const nextIndex = (currentIndex + delta + filteredItems.length) % filteredItems.length;
       setSelected(filteredItems[nextIndex]);
-      setPreviewOpen(true);
+      setIsPreviewOpen(true);
     },
     [filteredItems, selectedIndex]
   );
@@ -408,7 +410,7 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
       }
       if (selected?.id === item.id) {
         setSelected(null);
-        setPreviewOpen(false);
+        setIsPreviewOpen(false);
       }
       await refresh();
       toast.success('图集条目已删除');
@@ -439,7 +441,7 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
           </div>
         </div>
 
-        {state?.pack.writable === false && (
+        {state?.pack.isWritable === false && (
           <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
             当前是内置角色包，图集仅可预览。保存为本地自定义角色包后可以导入、替换和编辑图片。
           </div>
@@ -470,7 +472,7 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
           <div className="rounded-md border border-dashed border-border/60 px-3 py-8 text-center text-xs text-muted-foreground">{isLoading ? '读取中...' : '图集暂无图片，点击「导入图片」添加。'}</div>
         )}
 
-        <Dialog open={previewOpen && !!previewItem} onOpenChange={closePreviewDialog}>
+        <Dialog open={isPreviewOpen && !!previewItem} onOpenChange={closePreviewDialog}>
           <DialogContent className="flex h-[min(860px,90vh)] w-[min(1120px,calc(100vw-32px))] max-w-none flex-col gap-0 overflow-hidden p-0">
             {previewItem ? (
               <>
@@ -519,7 +521,7 @@ export default function CharacterGalleryManager({ packId, source, assetAuthoring
                           size="sm"
                           variant="outline"
                           onClick={() => {
-                            setPreviewOpen(false);
+                            setIsPreviewOpen(false);
                             openEditDialog(previewItem);
                           }}
                           disabled={!canWrite}

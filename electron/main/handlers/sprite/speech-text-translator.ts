@@ -70,7 +70,9 @@ export function createSpriteSpeechTextTranslator(): SpriteSpeechTextTranslator {
         throw new Error('vllm provider has no API key for speech translation');
       }
 
-      const baseUrl = String(secrets.baseUrl || '').trim().replace(/\/+$/, '');
+      const baseUrl = String(secrets.baseUrl || '')
+        .trim()
+        .replace(/\/+$/, '');
       if (!baseUrl) {
         throw new Error('vllm provider has no baseUrl for speech translation');
       }

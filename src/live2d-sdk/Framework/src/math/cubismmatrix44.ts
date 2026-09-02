@@ -27,15 +27,8 @@ export class CubismMatrix44 {
    * @param b 行列b
    * @return 乗算結果の行列
    */
-  public static multiply(
-    a: Float32Array,
-    b: Float32Array,
-    dst: Float32Array
-  ): void {
-    const c: Float32Array = new Float32Array([
-      0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-      0.0
-    ]);
+  public static multiply(a: Float32Array, b: Float32Array, dst: Float32Array): void {
+    const c: Float32Array = new Float32Array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
 
     const n = 4;
 
@@ -56,10 +49,7 @@ export class CubismMatrix44 {
    * 単位行列に初期化する
    */
   public loadIdentity(): void {
-    const c: Float32Array = new Float32Array([
-      1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
-      1.0
-    ]);
+    const c: Float32Array = new Float32Array([1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]);
 
     this.setMatrix(c);
   }
@@ -160,24 +150,7 @@ export class CubismMatrix44 {
    * @param y Y軸の移動量
    */
   public translateRelative(x: number, y: number): void {
-    const tr1: Float32Array = new Float32Array([
-      1.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      1.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      1.0,
-      0.0,
-      x,
-      y,
-      0.0,
-      1.0
-    ]);
+    const tr1: Float32Array = new Float32Array([1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, x, y, 0.0, 1.0]);
 
     CubismMatrix44.multiply(tr1, this._tr, this._tr);
   }
@@ -220,24 +193,7 @@ export class CubismMatrix44 {
    * @param y Y軸の拡大率
    */
   public scaleRelative(x: number, y: number): void {
-    const tr1: Float32Array = new Float32Array([
-      x,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      y,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      1.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      1.0
-    ]);
+    const tr1: Float32Array = new Float32Array([x, 0.0, 0.0, 0.0, 0.0, y, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]);
 
     CubismMatrix44.multiply(tr1, this._tr, this._tr);
   }

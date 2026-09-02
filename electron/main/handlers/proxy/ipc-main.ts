@@ -58,7 +58,7 @@ export async function initProxyHandlers(win: BrowserWindow): Promise<void> {
   });
 
   // 添加自定义代理
-  ipcMain.handle('proxy:add-custom', async (_event, payload: { proxy: Omit<CustomProxy, 'active'> }) => {
+  ipcMain.handle('proxy:add-custom', async (_event, payload: { proxy: Omit<CustomProxy, 'isActive'> }) => {
     try {
       const config = ProxyStore.getConfig();
       if (config.type !== 'custom') {
@@ -70,8 +70,8 @@ export async function initProxyHandlers(win: BrowserWindow): Promise<void> {
       const proxies = currentConfig.proxies || [];
 
       // 新代理默认激活，其他代理设为非激活
-      const newProxies = proxies.map((p) => ({ ...p, active: false }));
-      newProxies.push({ ...payload.proxy, active: true });
+      const newProxies = proxies.map((p) => ({ ...p, isActive: false }));
+      newProxies.push({ ...payload.proxy, isActive: true });
 
       const updatedConfig = ProxyStore.setConfig({ type: 'custom', proxies: newProxies });
       return { ok: true, config: updatedConfig };
@@ -93,10 +93,10 @@ export async function initProxyHandlers(win: BrowserWindow): Promise<void> {
         proxies[payload.index] = { ...proxies[payload.index], ...payload.proxy };
 
         // 如果设置为激活，其他代理设为非激活
-        if (payload.proxy.active) {
+        if (payload.proxy.isActive) {
           proxies.forEach((p, i) => {
             if (i !== payload.index) {
-              p.active = false;
+              p.isActive = false;
             }
           });
         }

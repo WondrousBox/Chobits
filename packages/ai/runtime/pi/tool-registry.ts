@@ -116,16 +116,7 @@ export const DEFAULT_SKILL_TOOL_IDS = ['skill-search', 'skill-use'];
 export const DEFAULT_CODER_TOOL_IDS = ['file-list', 'file-read', 'file-glob', 'file-grep', 'file-write', 'file-edit', 'shell-exec', 'ask-user'];
 
 /** All tools available to the assistant profile (registered into session registry) */
-export const DEFAULT_SESSION_TOOL_IDS = [
-  'push-card',
-  'app-window',
-  'toolbox-lookup',
-  'web-search',
-  'web-read',
-  'ask-user',
-  'skill-search',
-  'skill-use'
-];
+export const DEFAULT_SESSION_TOOL_IDS = ['push-card', 'app-window', 'toolbox-lookup', 'web-search', 'web-read', 'ask-user', 'skill-search', 'skill-use'];
 
 /** Initially active tools for assistant profile (others activated on-demand via toolbox) */
 export const INITIAL_ACTIVE_SESSION_TOOL_IDS = ['toolbox-lookup', 'ask-user'];

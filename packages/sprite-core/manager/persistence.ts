@@ -65,7 +65,7 @@ function normalizeDimensions(value: unknown): Record<string, number> {
   return dimensions;
 }
 
-/** 兼容旧版 persona-state.json（落盘文件名保留不变）：养成字段（xp/level/favor/loginStreak/claimedRewards 等）直接忽略。 */
+/** 养成字段（xp/level/favor/loginStreak/claimedRewards 等）直接忽略。 */
 function normalizeLoadedState(raw: unknown): CharacterStatePersistenceRow | null {
   if (!isPlainObject(raw)) return null;
 
@@ -130,8 +130,7 @@ export class CharacterStatePersistence {
 
   constructor(dataDir: string) {
     const settingsDir = path.join(dataDir, 'data');
-    // 落盘文件名为历史契约，保持 persona-state.json 不变
-    this.filePath = path.join(settingsDir, 'persona-state.json');
+    this.filePath = path.join(settingsDir, 'character-state.json');
   }
 
   /** 加载指定 slot 的状态 */

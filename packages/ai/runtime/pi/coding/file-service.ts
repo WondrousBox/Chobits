@@ -105,10 +105,7 @@ export class PiWorkspaceFileService {
 
   private async writeTextFileAtomic(absolutePath: string, content: string, mode?: number): Promise<void> {
     const directoryPath = path.dirname(absolutePath);
-    const tempPath = path.join(
-      directoryPath,
-      `.${path.basename(absolutePath)}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`
-    );
+    const tempPath = path.join(directoryPath, `.${path.basename(absolutePath)}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
     await fs.writeFile(tempPath, content, 'utf8');
 
@@ -138,7 +135,7 @@ export class PiWorkspaceFileService {
     maxDepth?: number;
     path?: string;
     recursive?: boolean;
-  }): Promise<{ basePath: string; entries: WorkspaceListEntry[]; limit: number; truncated: boolean; workspaceRoot: string }> {
+  }): Promise<{ basePath: string; entries: WorkspaceListEntry[]; limit: number; wasTruncated: boolean; workspaceRoot: string }> {
     const workspace = this.getWorkspace();
     const targetPath = options?.path?.trim() || '.';
     const resolvedPath = await resolveWorkspacePath(workspace, targetPath);
@@ -154,7 +151,7 @@ export class PiWorkspaceFileService {
     const maxDepth = clampInteger(options?.maxDepth ?? (recursive ? 3 : 1), 0, MAX_LIST_DEPTH);
     const limit = clampInteger(options?.limit ?? DEFAULT_MAX_LIST_ENTRIES, 1, MAX_LIST_ENTRIES);
     const entries: WorkspaceListEntry[] = [];
-    let truncated = false;
+    let wasTruncated = false;
 
     const walk = async (currentAbsolutePath: string, depth: number): Promise<void> => {
       const dirents = await fs.readdir(currentAbsolutePath, { withFileTypes: true });
@@ -185,7 +182,7 @@ export class PiWorkspaceFileService {
         });
 
         if (entries.length >= limit) {
-          truncated = true;
+          wasTruncated = true;
           return;
         }
 
@@ -194,7 +191,7 @@ export class PiWorkspaceFileService {
 
         if (shouldDescend && (!isLargeDirectory || includeIgnored)) {
           await walk(entryAbsolutePath, depth + 1);
-          if (truncated) {
+          if (wasTruncated) {
             return;
           }
         }
@@ -207,7 +204,7 @@ export class PiWorkspaceFileService {
       basePath: resolvedPath.relativePath,
       entries,
       limit,
-      truncated,
+      wasTruncated,
       workspaceRoot: resolvedPath.workspaceRoot
     };
   }
@@ -218,7 +215,7 @@ export class PiWorkspaceFileService {
     lineStart: number;
     path: string;
     totalLines: number;
-    truncated: boolean;
+    wasTruncated: boolean;
   }> {
     const workspace = this.getWorkspace();
     const resolvedPath = await resolveWorkspacePath(workspace, options.path);
@@ -230,11 +227,11 @@ export class PiWorkspaceFileService {
     const lineStart = hasRange ? clampInteger(options.startLine ?? 1, 1, Math.max(totalLines, 1)) : 1;
     const lineEnd = hasRange ? clampInteger(options.endLine ?? totalLines, lineStart, Math.max(totalLines, lineStart)) : totalLines;
     let slicedContent = hasRange ? lines.slice(lineStart - 1, lineEnd).join('\n') : content;
-    let truncated = false;
+    let wasTruncated = false;
 
     if (slicedContent.length > maxChars) {
       slicedContent = slicedContent.slice(0, maxChars);
-      truncated = true;
+      wasTruncated = true;
     }
 
     return {
@@ -243,7 +240,7 @@ export class PiWorkspaceFileService {
       lineStart,
       path: resolvedPath.relativePath,
       totalLines,
-      truncated
+      wasTruncated
     };
   }
 
@@ -293,13 +290,7 @@ export class PiWorkspaceFileService {
     };
   }
 
-  async edit(options: {
-    expectedReplacements?: number;
-    newText: string;
-    oldText: string;
-    path: string;
-    replaceAll?: boolean;
-  }): Promise<{
+  async edit(options: { expectedReplacements?: number; newText: string; oldText: string; path: string; replaceAll?: boolean }): Promise<{
     path: string;
     replacedOccurrences: number;
     totalOccurrences: number;
@@ -325,9 +316,7 @@ export class PiWorkspaceFileService {
     }
 
     if (!options.replaceAll && typeof options.expectedReplacements !== 'number' && totalOccurrences !== 1) {
-      throw new Error(
-        `Found ${totalOccurrences} matches in ${resolvedPath.relativePath}. Use replaceAll=true or set expectedReplacements to make the edit deterministic.`
-      );
+      throw new Error(`Found ${totalOccurrences} matches in ${resolvedPath.relativePath}. Use replaceAll=true or set expectedReplacements to make the edit deterministic.`);
     }
 
     const nextContent = options.replaceAll ? currentContent.split(oldText).join(newText) : replaceFirstOccurrence(currentContent, oldText, newText);

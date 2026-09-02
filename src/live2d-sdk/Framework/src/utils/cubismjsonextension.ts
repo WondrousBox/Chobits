@@ -6,15 +6,7 @@
  * that can be found at https://www.live2d.com/eula/live2d-open-software-license-agreement_en.html.
  */
 
-import {
-  JsonArray,
-  JsonBoolean,
-  JsonFloat,
-  JsonMap,
-  JsonNullvalue,
-  JsonString,
-  Value
-} from './cubismjson';
+import { JsonArray, JsonBoolean, JsonFloat, JsonMap, JsonNullvalue, JsonString, Value } from './cubismjson';
 
 /**
  * CubismJsonで実装されているJsonパーサを使用せず、
@@ -37,10 +29,7 @@ export class CubismJsonExtension {
       } else if (obj[key] instanceof Array) {
         map.put(key, CubismJsonExtension.parseJsonArray(obj[key]));
       } else if (obj[key] instanceof Object) {
-        map.put(
-          key,
-          CubismJsonExtension.parseJsonObject(obj[key], new JsonMap())
-        );
+        map.put(key, CubismJsonExtension.parseJsonObject(obj[key], new JsonMap()));
       } else if (obj[key] == null) {
         map.put(key, new JsonNullvalue());
       } else {

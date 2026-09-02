@@ -59,7 +59,7 @@ export function cancelPendingChoice(choiceId: string): void {
  * 注册 IPC handler：renderer -> main，用户提交选择结果
  */
 export function registerUserChoiceIpc(): void {
-  ipcMain.handle('ai:user-choice-response', async (_e, payload: UserChoiceResponse) => {
+  ipcMain.handle('ai:user-choice-response', async (_event, payload: UserChoiceResponse) => {
     const { choiceId } = payload;
     const pending = pendingChoices.get(choiceId);
     if (!pending) {

@@ -21,7 +21,7 @@ interface WebSearchToggleProps {
 }
 
 export default function WebSearchToggle({ isEnabled, contentSide, contentAlign = 'start', avoidCollisions, onOpenChange, onToggle }: WebSearchToggleProps): JSX.Element {
-  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [isLoaded, setIsLoaded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -43,19 +43,20 @@ export default function WebSearchToggle({ isEnabled, contentSide, contentAlign =
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 挂载时异步加载 API Key,setState 均在 await 之后
     void loadApiKey();
   }, []);
 
   useEffect(() => {
-    onOpenChange?.(popoverOpen);
-  }, [onOpenChange, popoverOpen]);
+    onOpenChange?.(isPopoverOpen);
+  }, [onOpenChange, isPopoverOpen]);
 
   const handleToggle = async (): Promise<void> => {
     if (!isEnabled) {
       if (!hasKey) {
         if (!isLoaded) await loadApiKey();
         if (!hasKey) {
-          setPopoverOpen(true);
+          setIsPopoverOpen(true);
           return;
         }
       }
@@ -76,7 +77,7 @@ export default function WebSearchToggle({ isEnabled, contentSide, contentAlign =
       setIsSaved(true);
       setTimeout(() => {
         setIsSaved(false);
-        setPopoverOpen(false);
+        setIsPopoverOpen(false);
         onToggle(true);
       }, 600);
     } catch {
@@ -88,9 +89,9 @@ export default function WebSearchToggle({ isEnabled, contentSide, contentAlign =
 
   return (
     <Popover
-      open={popoverOpen}
+      open={isPopoverOpen}
       onOpenChange={(open) => {
-        setPopoverOpen(open);
+        setIsPopoverOpen(open);
       }}
     >
       <Tooltip>

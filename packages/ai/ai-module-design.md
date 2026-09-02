@@ -259,6 +259,7 @@ Renderer → Preload → Main：
 所有 Pi runtime 最终发给模型的对话请求都应经过 `packages/ai/runtime/pi/prompt-inspector.ts` 统一观察，而不是在业务服务里散落 `console.log(prompt)`。
 
 覆盖入口：
+
 - `PiSessionService` 的 `pi-ai.completeSimple` / `pi-ai.streamSimple`
 - `PiSessionService` 的 `pi-coding-agent` session prompt
 - forked skill 子 session prompt

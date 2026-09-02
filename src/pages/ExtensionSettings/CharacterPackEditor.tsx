@@ -18,7 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 
-import { joinEditorLines, slugifyCharacterPackId, splitEditorLines, type CharacterPackEditorState, withCharacterPackEditorDraft } from './character-pack-editor-model';
+import { type CharacterPackEditorState, joinEditorLines, slugifyCharacterPackId, splitEditorLines, withCharacterPackEditorDraft } from './character-pack-editor-model';
 
 interface CharacterPackEditorContentProps {
   editor: CharacterPackEditorState;
@@ -289,7 +289,9 @@ export function CharacterPackEditorContent({ editor, setEditor, className, extra
         <div className="space-y-3">
           <div className="space-y-1">
             <Label>事件台词</Label>
-            <div className="text-xs text-muted-foreground">每行一条，会随机选一句。可使用 {'{workflowName}'}、{'{count}'}、{'{progress}'} 这类占位符。</div>
+            <div className="text-xs text-muted-foreground">
+              每行一条，会随机选一句。可使用 {'{workflowName}'}、{'{count}'}、{'{progress}'} 这类占位符。
+            </div>
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {CHARACTER_MESSAGE_SPECS.map((spec) => renderMessageTextarea(spec.field, spec.label, (spec as CharacterMessageSpec).placeholder))}

@@ -48,7 +48,7 @@ function createCharacterPayload(id: string): Record<string, unknown> {
       examples: [],
       quirks: []
     },
-    favorPersona: {},
+    favorTiers: {},
     moodExpressions: {},
     dimensions: {
       schema: [],
@@ -658,8 +658,7 @@ describe('sprite assets pack manifest integration', () => {
     });
 
     const registerFromData = electronState.handlers.get('sprite:register-from-data') as
-      | ((_: unknown, payload: { data: Buffer; meta: Record<string, unknown>; loop?: boolean; loopCount?: number }) => Promise<any>)
-      | undefined;
+      ((_: unknown, payload: { data: Buffer; meta: Record<string, unknown>; loop?: boolean; loopCount?: number }) => Promise<any>) | undefined;
 
     expect(registerFromData).toBeDefined();
 

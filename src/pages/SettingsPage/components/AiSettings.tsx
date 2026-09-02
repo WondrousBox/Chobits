@@ -48,7 +48,7 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
   const [presetSecrets, setPresetSecrets] = useState<Record<string, Record<string, string>>>({});
   const [errors, setErrors] = useState<Record<string, Record<string, string>>>({});
   const [expandedPresetId, setExpandedPresetId] = useState<string | null>(null);
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [isCreateFormVisible, setIsCreateFormVisible] = useState(false);
   const [createFormKey, setCreateFormKey] = useState(0);
   const [providerFocusRevision, setProviderFocusRevision] = useState(0);
 
@@ -75,7 +75,7 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
 
     if (preferredProviderId !== undefined) {
       setExpandedPresetId(null);
-      setShowCreateForm(false);
+      setIsCreateFormVisible(false);
       setErrors((prev) => ({ ...prev, __new__: {} }));
       const preferred = (preferredProviderId ? resolveProviderIdentity(fetchedProviders || [], preferredProviderId) : undefined) || fetchedProviders?.[0] || null;
       setSelectedProviderId(preferred?.id || null);
@@ -91,6 +91,11 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
 
   // 如果 initialProviderId 在挂载后才到达，首个 effect 已根据依赖更新，这里可省略二次设置以避免不必要的状态同步告警
 
+  const loadPresetSecrets = async (presetId: string): Promise<void> => {
+    const secrets = await window.chobits.ai.getPresetSecrets(presetId).catch(() => ({}));
+    setPresetSecrets((prev) => ({ ...prev, [presetId]: secrets || {} }));
+  };
+
   useEffect(() => {
     if (!selectedProviderId) return;
     (async () => {
@@ -98,7 +103,7 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
       setPresets(list || []);
       const targetPreset = initialPresetId ? (list || []).find((preset) => preset.id === initialPresetId) : undefined;
       if (targetPreset) {
-        setShowCreateForm(false);
+        setIsCreateFormVisible(false);
         setExpandedPresetId(targetPreset.id);
         await loadPresetSecrets(targetPreset.id);
       }
@@ -133,11 +138,6 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
     }
   };
 
-  const loadPresetSecrets = async (presetId: string): Promise<void> => {
-    const secrets = await window.chobits.ai.getPresetSecrets(presetId).catch(() => ({}));
-    setPresetSecrets((prev) => ({ ...prev, [presetId]: secrets || {} }));
-  };
-
   const buildPresetName = (provider: ProviderRow): string => {
     const localeLabel = pickLocale(provider.schema?.locales)?.label;
     const base = (localeLabel || provider.label || provider.id).trim() || provider.id;
@@ -156,7 +156,7 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
 
   const openCreatePresetForm = (): void => {
     setExpandedPresetId(null);
-    setShowCreateForm(true);
+    setIsCreateFormVisible(true);
     setCreateFormKey((prev) => prev + 1);
     setErrors((prev) => ({ ...prev, __new__: {} }));
   };
@@ -188,7 +188,7 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
     const list = await window.chobits.ai.listPresets(selectedProvider.id);
     setPresets(list || []);
     await refreshProviders(selectedProvider.id);
-    setShowCreateForm(false);
+    setIsCreateFormVisible(false);
     setExpandedPresetId(null);
     setErrors((prev) => ({ ...prev, __new__: {} }));
   };
@@ -244,7 +244,7 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
   // prompt setting filtered logic moved into component
 
   const providerModels: ModelOpt[] = selectedProvider ? models[selectedProvider.id] || [] : [];
-  const showInlineCreateForm = !!selectedProvider && (showCreateForm || presets.length === 0);
+  const shouldShowInlineCreateForm = !!selectedProvider && (isCreateFormVisible || presets.length === 0);
 
   return (
     <>
@@ -264,7 +264,7 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
                       className="w-full"
                       onClick={() => {
                         setExpandedPresetId(null);
-                        setShowCreateForm(false);
+                        setIsCreateFormVisible(false);
                         setErrors((prev) => ({ ...prev, __new__: {} }));
                         setSelectedProviderId(p.id);
                       }}
@@ -311,7 +311,7 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
                                 }
                                 if (!presetSecrets[preset.id]) await loadPresetSecrets(preset.id);
                                 await refreshPresetModels(preset.id);
-                                setShowCreateForm(false);
+                                setIsCreateFormVisible(false);
                                 setExpandedPresetId(preset.id);
                               }}
                             >
@@ -346,14 +346,14 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
                 </div>
               )}
 
-              {presets.length > 0 && !showCreateForm && (
+              {presets.length > 0 && !isCreateFormVisible && (
                 <Button size="sm" variant="outline" className="w-fit" onClick={openCreatePresetForm}>
                   <TbPlus className="w-4 h-4" />
                   新增预设
                 </Button>
               )}
 
-              {showInlineCreateForm && (
+              {shouldShowInlineCreateForm && (
                 <PresetFormDialog
                   key={`create-${selectedProvider.id}-${createFormKey}`}
                   title="新增预设"
@@ -366,9 +366,9 @@ export default function AISettings({ initialProviderId, initialPresetId, focusRe
                   onCancel={
                     presets.length > 0
                       ? () => {
-                        setShowCreateForm(false);
-                        setErrors((prev) => ({ ...prev, __new__: {} }));
-                      }
+                          setIsCreateFormVisible(false);
+                          setErrors((prev) => ({ ...prev, __new__: {} }));
+                        }
                       : undefined
                   }
                   onSubmit={handleCreatePreset}

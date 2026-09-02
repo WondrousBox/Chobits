@@ -80,7 +80,7 @@ export interface ProviderModelSelectProps {
   // 筛选的模型类型（数组），如果为空则不筛选
   modelTypes?: ModelType[];
   // 是否在二级菜单中显示模型的详细信息（描述、价格、是否免费、上下文大小等）
-  showModelDetails?: boolean;
+  shouldShowModelDetails?: boolean;
   // 当 providers 加载完成时的回调，用于向父组件传递 providers 数据
   onProvidersLoaded?: (providers: ProviderRow[]) => void;
   // 当 provider 配置状态变化时的回调
@@ -233,7 +233,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
       avoidCollisions,
       subMenuSide,
       modelTypes,
-      showModelDetails = false,
+      shouldShowModelDetails = false,
       onProvidersLoaded,
       onProviderConfigChange,
       onOpenConfig,
@@ -598,14 +598,14 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
                   <DropdownMenuSubContent
                     {...(subMenuSide ? { side: subMenuSide as any } : {})}
                     avoidCollisions={avoidCollisions}
-                    className={showModelDetails ? 'no-drag pointer-events-auto min-w-[320px] max-h-60 overflow-y-auto' : 'no-drag pointer-events-auto max-h-60 overflow-y-auto'}
+                    className={shouldShowModelDetails ? 'no-drag pointer-events-auto min-w-[320px] max-h-60 overflow-y-auto' : 'no-drag pointer-events-auto max-h-60 overflow-y-auto'}
                   >
                     {isLoading ? (
                       <div className="px-2 py-1.5 text-xs text-muted-foreground">加载中...</div>
                     ) : providerModels.length > 0 ? (
                       providerModels.map((model) => (
-                        <DropdownMenuItem key={model.id} onSelect={() => handleProviderModelSelect(provider.id, model.id)} className={showModelDetails ? 'flex-col items-start py-2' : ''}>
-                          {showModelDetails ? (
+                        <DropdownMenuItem key={model.id} onSelect={() => handleProviderModelSelect(provider.id, model.id)} className={shouldShowModelDetails ? 'flex-col items-start py-2' : ''}>
+                          {shouldShowModelDetails ? (
                             <div className="w-full space-y-1.5">
                               {/* 第一行：模型名称和标签 */}
                               <div className="flex items-center gap-2 flex-wrap">

@@ -5,18 +5,20 @@
  */
 import { getProviderVoiceCatalog } from '@packages/ai/providers/voice-catalogs';
 import type { ProviderPresetRecord } from '@packages/ai/types';
-import type { SpriteSpeakAIProviderConfig, SpriteSpeakConfig } from '@packages/sprite-core/speak/types';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import type { SpriteSpeakAIProviderConfig } from '@packages/sprite-core/speak/types';
+import React, { useEffect, useMemo, useState } from 'react';
 import { TbSettings, TbTrash, TbVolume } from 'react-icons/tb';
 
 import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import ProviderVoiceSelect from '@/components/common/ProviderVoiceSelect';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
+
+import type { SpeakSettingsState } from './useSpeakSettings';
+import { useSpeakSettings } from './useSpeakSettings';
 
 /** 支持的 Edge TTS 语音列表（常用子集） */
 const EDGE_VOICES = [
@@ -57,7 +59,7 @@ const DEFAULT_AI_PROVIDER_CONFIG: SpriteSpeakAIProviderConfig = {
   voiceVolume: 1
 };
 
-const mergeAiProviderConfig = (config?: SpriteSpeakAIProviderConfig): SpriteSpeakAIProviderConfig => ({
+const mergeAIProviderConfig = (config?: SpriteSpeakAIProviderConfig): SpriteSpeakAIProviderConfig => ({
   ...DEFAULT_AI_PROVIDER_CONFIG,
   ...(config || {}),
   audioSetting: {
@@ -71,68 +73,6 @@ const formatSize = (bytes: number): string => {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
-
-/* ─── Hook ─── */
-export function useSpeakSettings() {
-  const [config, setConfig] = useState<SpriteSpeakConfig | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [testLoading, setTestLoading] = useState(false);
-  const [cacheStats, setCacheStats] = useState<{ totalEntries: number; totalSizeBytes: number } | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const speakConfig = await window.chobits.sprite.getSpeakConfig();
-        if (!cancelled) setConfig(speakConfig);
-        const stats = await window.chobits.sprite.getSpeakCacheStats();
-        if (!cancelled) setCacheStats(stats);
-      } catch (err) {
-        console.error('加载语音配置失败:', err);
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const updateConfig = useCallback(async (partial: Partial<SpriteSpeakConfig>) => {
-    try {
-      const updated = await window.chobits.sprite.setSpeakConfig(partial);
-      setConfig(updated);
-    } catch (err) {
-      console.error('更新语音配置失败:', err);
-    }
-  }, []);
-
-  const handleTest = useCallback(async () => {
-    if (testLoading) return;
-    setTestLoading(true);
-    try {
-      await window.chobits.sprite.speak('你好，我是你的桌面精灵助手！');
-    } catch (err) {
-      console.error('测试语音失败:', err);
-    } finally {
-      setTestLoading(false);
-    }
-  }, [testLoading]);
-
-  const handleClearCache = useCallback(async () => {
-    try {
-      await window.chobits.sprite.clearSpeakCache();
-      const stats = await window.chobits.sprite.getSpeakCacheStats();
-      setCacheStats(stats);
-    } catch (err) {
-      console.error('清空语音缓存失败:', err);
-    }
-  }, []);
-
-  return { config, isLoading, testLoading, cacheStats, updateConfig, handleTest, handleClearCache };
-}
-
-export type SpeakSettingsState = ReturnType<typeof useSpeakSettings>;
 
 /* ─── Left-panel item ─── */
 export const SpeakItem: React.FC<{
@@ -161,13 +101,14 @@ export const SpeakItem: React.FC<{
 
 /* ─── Right-panel detail ─── */
 export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ state }) => {
-  const { config, isLoading, testLoading, cacheStats, updateConfig, handleTest, handleClearCache } = state;
-  const aiProvider = useMemo(() => mergeAiProviderConfig(config?.aiProvider), [config?.aiProvider]);
+  const { config, isLoading, isTesting, cacheStats, updateConfig, handleTest, handleClearCache } = state;
+  const aiProvider = useMemo(() => mergeAIProviderConfig(config?.aiProvider), [config?.aiProvider]);
   const voiceCatalog = useMemo(() => getProviderVoiceCatalog(aiProvider.providerId), [aiProvider.providerId]);
   const [presets, setPresets] = useState<ProviderPresetRecord[]>([]);
 
   useEffect(() => {
     if (!config || config.engine !== 'ai-provider' || !aiProvider.providerId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 配置不适用时清空预设列表,有意为之
       setPresets([]);
       return;
     }
@@ -195,7 +136,7 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
 
   const updateAiProvider = (patch: Partial<SpriteSpeakAIProviderConfig>) => {
     void updateConfig({
-      aiProvider: mergeAiProviderConfig({
+      aiProvider: mergeAIProviderConfig({
         ...aiProvider,
         ...patch,
         audioSetting: patch.audioSetting ? { ...aiProvider.audioSetting, ...patch.audioSetting } : aiProvider.audioSetting
@@ -331,9 +272,9 @@ export const SpeakDetailContent: React.FC<{ state: SpeakSettingsState }> = ({ st
 
       {/* 操作按钮 */}
       <div className="flex flex-wrap items-center gap-3 pt-2">
-        <Button variant="outline" size="sm" onClick={handleTest} disabled={testLoading}>
+        <Button variant="outline" size="sm" onClick={handleTest} disabled={isTesting}>
           <TbVolume />
-          {testLoading ? '合成中...' : '试听'}
+          {isTesting ? '合成中...' : '试听'}
         </Button>
 
         {cacheStats && cacheStats.totalEntries > 0 && (

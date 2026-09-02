@@ -4,7 +4,15 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { getCharacterDefinition, getCharacterPackAssetPath, getCharacterPackDefinition, initCharacterService, reloadCharacter, setCharacterFilePath, setCharacterPackFilePath } from '../../packages/sprite-core/character-service';
+import {
+  getCharacterDefinition,
+  getCharacterPackAssetPath,
+  getCharacterPackDefinition,
+  initCharacterService,
+  reloadCharacter,
+  setCharacterFilePath,
+  setCharacterPackFilePath
+} from '../../packages/sprite-core/character-service';
 
 function writeJsonFile(filePath: string, payload: unknown): void {
   mkdirSync(path.dirname(filePath), { recursive: true });
@@ -31,7 +39,7 @@ function createCharacterPayload(id: string, name: string): Record<string, unknow
       examples: [],
       quirks: []
     },
-    favorPersona: {},
+    favorTiers: {},
     moodExpressions: {},
     dimensions: {
       schema: [],

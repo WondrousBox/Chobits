@@ -190,7 +190,7 @@ export interface SpriteTriggerOptions {
   allowMovementDuringPlayback?: boolean;
   ownerPurposeId?: string;
   priority?: number;
-  ignorePresentationLock?: boolean;
+  shouldIgnorePresentationLock?: boolean;
 }
 
 export interface SpriteListByTriggerRequest {
@@ -662,7 +662,7 @@ export interface SpriteConfig {
   /** 按 trigger/动画类型分别设置的播放列表模式 */
   animationPlaylistModes?: SpriteAnimationPlaylistModeMap;
   /** 是否显示调试辅助线 */
-  showDebugOverlay?: boolean;
+  debugOverlayEnabled?: boolean;
   /** 气泡展示模式（默认 'fixed-top'） */
   bubbleMode?: SpriteBubbleMode;
 }

@@ -26,7 +26,7 @@ function resampleTo16kHz(inputBuffer: Float32Array, inputSampleRate: number): Fl
 
 const ASRTestPage: React.FC = () => {
   const [model, setModel] = useState<string>('');
-  const [engineReady, setEngineReady] = useState<boolean | null>(null); // null=checking
+  const [isEngineReady, setIsEngineReady] = useState<boolean | null>(null); // null=checking
   const [isTesting, setIsTesting] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   const [partialText, setPartialText] = useState('');
@@ -48,10 +48,10 @@ const ASRTestPage: React.FC = () => {
         if (payload?.model) setModel(payload.model);
 
         const status = await window.chobits.sherpa.getStatus();
-        if (mounted) setEngineReady(status.running);
+        if (mounted) setIsEngineReady(status.running);
       } catch (error) {
         console.error('[ASR测试] 初始化失败:', error);
-        if (mounted) setEngineReady(false);
+        if (mounted) setIsEngineReady(false);
       }
     })();
     return () => {
@@ -188,7 +188,7 @@ const ASRTestPage: React.FC = () => {
       </div>
 
       <ScrollArea className="flex-1 overflow-y-auto px-4 py-3 no-drag">
-        {engineReady === false ? (
+        {isEngineReady === false ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-sm text-muted-foreground">
             <span>语音识别服务未运行，请先在配置页启动</span>
             <Button size="sm" variant="outline" onClick={handleOpenConfig}>
@@ -229,8 +229,8 @@ const ASRTestPage: React.FC = () => {
             <TbPlayerStop />
           </Button>
         ) : (
-          <Button disabled={!engineReady} className="flex-1 no-drag" onClick={handleStartTest}>
-            {engineReady === null ? (
+          <Button disabled={!isEngineReady} className="flex-1 no-drag" onClick={handleStartTest}>
+            {isEngineReady === null ? (
               <>
                 <TbLoader2 className="animate-spin" />
                 检查中...

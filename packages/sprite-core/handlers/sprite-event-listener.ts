@@ -86,7 +86,7 @@ function getMiniMaxChatApiConfigEasterEggText(): string {
   return getCharacterRoutineText('chat.api-config-guide.done.minimax', { providerId: 'minimax' }, 'MiniMax 还可以制作音乐，以后可以和我说哦');
 }
 
-function shouldSuppressAiEventSpeech(data?: SpriteEventPayload): boolean {
+function shouldSuppressAIEventSpeech(data?: SpriteEventPayload): boolean {
   const scope = data?.realtimeSpeechScope;
   if (!scope) {
     return false;
@@ -107,7 +107,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   let lastMiniMaxChatApiConfigEasterEggAt = 0;
   const progressSpeech = new ProgressSpeechAnnouncer({
     speak: (text) => {
-      void mgr.speak(text, { showBubble: false }).catch(() => {});
+      void mgr.speak(text, { bubbleEnabled: false }).catch(() => {});
     }
   });
 
@@ -115,7 +115,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.SPRITE_AI_START,
     handler: (data) => {
-      const suppressSpeech = shouldSuppressAiEventSpeech(data);
+      const suppressSpeech = shouldSuppressAIEventSpeech(data);
       mgr.showToast(data?.message || eventText('aiThinking', data), { category: 'loading', ...(suppressSpeech ? { speak: false } : {}) });
       mgr.trigger('thinking', { durationMs: 2000, silent: true });
     }
@@ -124,7 +124,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.SPRITE_AI_COMPLETED,
     handler: (data) => {
-      const suppressSpeech = shouldSuppressAiEventSpeech(data);
+      const suppressSpeech = shouldSuppressAIEventSpeech(data);
       mgr.showToast(data?.message || eventText('aiComplete', data), { category: 'success', duration: 1500, ...(suppressSpeech ? { speak: false } : {}) });
       mgr.trigger('celebrate', { durationMs: 1500, silent: true });
     }
@@ -133,7 +133,7 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
   handlers.push({
     event: AppEvent.SPRITE_AI_ERROR,
     handler: (data) => {
-      const suppressSpeech = shouldSuppressAiEventSpeech(data);
+      const suppressSpeech = shouldSuppressAIEventSpeech(data);
       mgr.showToast(data?.message || data?.error || eventText('aiError', data), { category: 'error', duration: 2000, ...(suppressSpeech ? { speak: false } : {}) });
       mgr.trigger('error', { durationMs: 1500, silent: true });
     }

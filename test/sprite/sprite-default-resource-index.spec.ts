@@ -8,7 +8,7 @@ import type { SpriteAnimation } from '../../packages/sprite-core/types';
 
 describe('default sprite resource index metadata', () => {
   it('declares primaryTrigger without legacy eventType mirror fields', () => {
-    const indexPath = path.resolve(process.cwd(), 'resources/sprites/index.json');
+    const indexPath = path.resolve(process.cwd(), 'resources/characters/index.json');
     const raw = JSON.parse(readFileSync(indexPath, 'utf8')) as { items?: SpriteAnimation[] };
 
     expect(Array.isArray(raw.items)).toBe(true);
@@ -20,14 +20,14 @@ describe('default sprite resource index metadata', () => {
   });
 
   it('includes a default talk animation trigger', () => {
-    const indexPath = path.resolve(process.cwd(), 'resources/sprites/index.json');
+    const indexPath = path.resolve(process.cwd(), 'resources/characters/index.json');
     const raw = JSON.parse(readFileSync(indexPath, 'utf8')) as { items?: SpriteAnimation[] };
 
     expect(raw.items?.some((item) => item.meta.primaryTrigger === 'talk')).toBe(true);
   });
 
   it('keeps the default character pack sha256 payload digest in sync', async () => {
-    const packRoot = path.resolve(process.cwd(), 'resources/sprites');
+    const packRoot = path.resolve(process.cwd(), 'resources/characters');
     const packPath = path.join(packRoot, 'pack.json');
     const raw = JSON.parse(readFileSync(packPath, 'utf8')) as { signature?: { digest?: string } };
 

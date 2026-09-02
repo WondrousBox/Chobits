@@ -3,7 +3,7 @@ export type RealtimeSpeechTextSegmentReason = 'sentence' | 'soft-boundary' | 'bl
 export interface RealtimeSpeechTextParserOptions {
   minChars: number;
   maxChars: number;
-  flushOnPunctuation: boolean;
+  shouldFlushOnPunctuation: boolean;
 }
 
 export interface RealtimeSpeechTextSegment {
@@ -19,7 +19,7 @@ type Boundary = {
 };
 
 const DEFAULT_OPTIONS: RealtimeSpeechTextParserOptions = {
-  flushOnPunctuation: true,
+  shouldFlushOnPunctuation: true,
   maxChars: 80,
   minChars: 8
 };
@@ -35,7 +35,7 @@ function clampOptions(options?: Partial<RealtimeSpeechTextParserOptions>): Realt
   const minChars = Math.max(1, Math.round(options?.minChars ?? DEFAULT_OPTIONS.minChars));
   const maxChars = Math.max(minChars + 1, Math.round(options?.maxChars ?? DEFAULT_OPTIONS.maxChars));
   return {
-    flushOnPunctuation: options?.flushOnPunctuation ?? DEFAULT_OPTIONS.flushOnPunctuation,
+    shouldFlushOnPunctuation: options?.shouldFlushOnPunctuation ?? DEFAULT_OPTIONS.shouldFlushOnPunctuation,
     maxChars,
     minChars
   };
@@ -84,10 +84,7 @@ function normalizeMarkdownText(input: string): string {
 }
 
 function normalizeSegmentText(input: string): string {
-  return normalizeMarkdownText(input)
-    .replace(/\n+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return normalizeMarkdownText(input).replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function isEndPunctuation(text: string, index: number): boolean {
@@ -239,7 +236,7 @@ export class RealtimeSpeechTextParser {
       };
     }
 
-    if (this.options.flushOnPunctuation) {
+    if (this.options.shouldFlushOnPunctuation) {
       for (let index = 0; index < text.length; index += 1) {
         if (isEndPunctuation(text, index) || isLineEndPunctuation(text, index)) {
           return {
@@ -267,7 +264,7 @@ export class RealtimeSpeechTextParser {
     }
 
     const maxEnd = Math.min(this.options.maxChars, text.length);
-    if (this.options.flushOnPunctuation) {
+    if (this.options.shouldFlushOnPunctuation) {
       for (let index = maxEnd - 1; index >= this.options.minChars; index -= 1) {
         if (isEndPunctuation(text, index) || SOFT_PUNCTUATION.has(text[index])) {
           return {

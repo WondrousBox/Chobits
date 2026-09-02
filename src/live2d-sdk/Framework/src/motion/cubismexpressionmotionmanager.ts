@@ -6,10 +6,7 @@ import { csmVector, iterator } from '../type/csmvector';
 import { ACubismMotion } from './acubismmotion';
 import { CubismExpressionMotion } from './cubismexpressionmotion';
 import { CubismMotionQueueEntry } from './cubismmotionqueueentry';
-import {
-  CubismMotionQueueEntryHandle,
-  CubismMotionQueueManager
-} from './cubismmotionqueuemanager';
+import { CubismMotionQueueEntryHandle, CubismMotionQueueManager } from './cubismmotionqueuemanager';
 
 /**
  * @brief パラメータに適用する表情の値を持たせる構造体
@@ -106,11 +103,7 @@ export class CubismExpressionMotionManager extends CubismMotionQueueManager {
    * @param[in]   priority        優先度
    * @return                      開始したモーションの識別番号を返す。個別のモーションが終了したか否かを判定するIsFinished()の引数で使用する。開始できない時は「-1」
    */
-  public startMotionPriority(
-    motion: ACubismMotion,
-    autoDelete: boolean,
-    priority: number
-  ): CubismMotionQueueEntryHandle {
+  public startMotionPriority(motion: ACubismMotion, autoDelete: boolean, priority: number): CubismMotionQueueEntryHandle {
     if (priority == this.getReservePriority()) {
       this.setReservePriority(0);
     }
@@ -141,11 +134,7 @@ export class CubismExpressionMotionManager extends CubismMotionQueueManager {
 
     // ------- 処理を行う --------
     // 既にモーションがあれば終了フラグを立てる
-    for (
-      let ite: iterator<CubismMotionQueueEntry> = this._motions.begin();
-      ite.notEqual(this._motions.end());
-
-    ) {
+    for (let ite: iterator<CubismMotionQueueEntry> = this._motions.begin(); ite.notEqual(this._motions.end());) {
       const motionQueueEntry = ite.ptr();
 
       if (motionQueueEntry == null) {
@@ -153,9 +142,7 @@ export class CubismExpressionMotionManager extends CubismMotionQueueManager {
         continue;
       }
 
-      const expressionMotion = <CubismExpressionMotion>(
-        motionQueueEntry.getCubismMotion()
-      );
+      const expressionMotion = <CubismExpressionMotion>motionQueueEntry.getCubismMotion();
 
       if (expressionMotion == null) {
         csmDelete(motionQueueEntry);
@@ -175,10 +162,7 @@ export class CubismExpressionMotionManager extends CubismMotionQueueManager {
           let index = -1;
           // リストにパラメータIDが存在するか検索
           for (let j = 0; j < this._expressionParameterValues.getSize(); ++j) {
-            if (
-              this._expressionParameterValues.at(j).parameterId !=
-              expressionParameters.at(i).parameterId
-            ) {
+            if (this._expressionParameterValues.at(j).parameterId != expressionParameters.at(i).parameterId) {
               continue;
             }
 
@@ -201,42 +185,17 @@ export class CubismExpressionMotionManager extends CubismMotionQueueManager {
       }
 
       // ------ 値を計算する ------
-      expressionMotion.setupMotionQueueEntry(
-        motionQueueEntry,
-        this._userTimeSeconds
-      );
-      this._fadeWeights.set(
-        expressionIndex,
-        expressionMotion.updateFadeWeight(
-          motionQueueEntry,
-          this._userTimeSeconds
-        )
-      );
-      expressionMotion.calculateExpressionParameters(
-        model,
-        this._userTimeSeconds,
-        motionQueueEntry,
-        this._expressionParameterValues,
-        expressionIndex,
-        this._fadeWeights.at(expressionIndex)
-      );
+      expressionMotion.setupMotionQueueEntry(motionQueueEntry, this._userTimeSeconds);
+      this._fadeWeights.set(expressionIndex, expressionMotion.updateFadeWeight(motionQueueEntry, this._userTimeSeconds));
+      expressionMotion.calculateExpressionParameters(model, this._userTimeSeconds, motionQueueEntry, this._expressionParameterValues, expressionIndex, this._fadeWeights.at(expressionIndex));
 
-      expressionWeight +=
-        expressionMotion.getFadeInTime() == 0.0
-          ? 1.0
-          : CubismMath.getEasingSine(
-              (this._userTimeSeconds - motionQueueEntry.getFadeInStartTime()) /
-                expressionMotion.getFadeInTime()
-            );
+      expressionWeight += expressionMotion.getFadeInTime() == 0.0 ? 1.0 : CubismMath.getEasingSine((this._userTimeSeconds - motionQueueEntry.getFadeInStartTime()) / expressionMotion.getFadeInTime());
 
       updated = true;
 
       if (motionQueueEntry.isTriggeredFadeOut()) {
         // フェードアウト開始
-        motionQueueEntry.startFadeOut(
-          motionQueueEntry.getFadeOutSeconds(),
-          this._userTimeSeconds
-        );
+        motionQueueEntry.startFadeOut(motionQueueEntry.getFadeOutSeconds(), this._userTimeSeconds);
       }
 
       ite.preIncrement();
@@ -245,12 +204,8 @@ export class CubismExpressionMotionManager extends CubismMotionQueueManager {
 
     // ----- 最新のExpressionのフェードが完了していればそれ以前を削除する ------
     if (motions.getSize() > 1) {
-      const expressionMotion = <CubismExpressionMotion>(
-        motions.at(motions.getSize() - 1).getCubismMotion()
-      );
-      const latestFadeWeight: number = this._fadeWeights.at(
-        this._fadeWeights.getSize() - 1
-      );
+      const expressionMotion = <CubismExpressionMotion>motions.at(motions.getSize() - 1).getCubismMotion();
+      const latestFadeWeight: number = this._fadeWeights.at(this._fadeWeights.getSize() - 1);
       if (latestFadeWeight >= 1.0) {
         // 配列の最後の要素は削除しない
         for (let i = motions.getSize() - 2; i >= 0; --i) {
@@ -271,16 +226,12 @@ export class CubismExpressionMotionManager extends CubismMotionQueueManager {
       const expressionParameterValue = this._expressionParameterValues.at(i);
       model.setParameterValueById(
         expressionParameterValue.parameterId,
-        (expressionParameterValue.overwriteValue +
-          expressionParameterValue.additiveValue) *
-          expressionParameterValue.multiplyValue,
+        (expressionParameterValue.overwriteValue + expressionParameterValue.additiveValue) * expressionParameterValue.multiplyValue,
         expressionWeight
       );
 
-      expressionParameterValue.additiveValue =
-        CubismExpressionMotion.DefaultAdditiveValue;
-      expressionParameterValue.multiplyValue =
-        CubismExpressionMotion.DefaultMultiplyValue;
+      expressionParameterValue.additiveValue = CubismExpressionMotion.DefaultAdditiveValue;
+      expressionParameterValue.multiplyValue = CubismExpressionMotion.DefaultMultiplyValue;
     }
 
     return updated;

@@ -11,11 +11,11 @@ import {
 
 describe('sprite animation meta utils', () => {
   it('parses aliases from comma and newline separated input while excluding primary trigger', () => {
-    expect(parseSpriteTriggerAliasesInput('workflow:complete,\npersona:daily-login, celebrate', 'celebrate')).toEqual(['workflow:complete', 'persona:daily-login']);
+    expect(parseSpriteTriggerAliasesInput('workflow:complete,\ncharacter:daily-login, celebrate', 'celebrate')).toEqual(['workflow:complete', 'character:daily-login']);
   });
 
   it('formats aliases for editor hydration', () => {
-    expect(formatSpriteTriggerAliasesInput(['workflow:complete', 'persona:daily-login'])).toBe('workflow:complete, persona:daily-login');
+    expect(formatSpriteTriggerAliasesInput(['workflow:complete', 'character:daily-login'])).toBe('workflow:complete, character:daily-login');
   });
 
   it('creates normalized metadata draft for editor output', () => {

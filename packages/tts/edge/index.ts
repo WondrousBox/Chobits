@@ -1,6 +1,6 @@
 import { silenceAudio, stripEmoji } from '../common';
 import { BaseTTS, TTSOptions } from '../types';
-import { readAloud } from './edge/edge-api';
+import { readAloud } from './edge-api';
 
 export interface EdgeTTSOptions extends TTSOptions {
   rate: number;

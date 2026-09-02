@@ -53,7 +53,7 @@ export interface SpriteSpeakRealtimeSpeechConfig {
     minChars: number;
     maxChars: number;
     maxDelayMs: number;
-    flushOnPunctuation: boolean;
+    shouldFlushOnPunctuation: boolean;
   };
   playback: {
     startBufferMs: number;
@@ -63,7 +63,7 @@ export interface SpriteSpeakRealtimeSpeechConfig {
     volume?: number;
   };
   scopes: Record<SpriteRealtimeSpeechScope, boolean>;
-  writeFinalCache?: boolean;
+  shouldWriteFinalCache?: boolean;
 }
 
 export interface SpriteSpeakConfig {
@@ -115,7 +115,7 @@ export const DEFAULT_REALTIME_SPEECH_CONFIG: SpriteSpeakRealtimeSpeechConfig = {
     minChars: 8,
     maxChars: 80,
     maxDelayMs: 350,
-    flushOnPunctuation: true
+    shouldFlushOnPunctuation: true
   },
   playback: {
     startBufferMs: 160,
@@ -127,7 +127,7 @@ export const DEFAULT_REALTIME_SPEECH_CONFIG: SpriteSpeakRealtimeSpeechConfig = {
     mainChat: true,
     resourceChatSidebar: true
   },
-  writeFinalCache: false
+  shouldWriteFinalCache: false
 };
 
 export const DEFAULT_SPEAK_CONFIG: SpriteSpeakConfig = {
@@ -217,36 +217,36 @@ export interface SpriteSpeakPlaybackContext {
   talkDurationMs?: number;
   ownerPurposeId?: string;
   priority?: number;
-  ignorePresentationLock?: boolean;
+  shouldIgnorePresentationLock?: boolean;
 }
 
 export type SpriteRealtimeSpeechEvent =
   | {
-    type: 'started';
-    data: {
-      sessionId: string;
-      requestId?: string;
-      providerRequestId?: string;
-      mode?: string;
-      transport?: string;
-      format: 'pcm';
-      sampleRate: number;
-      channels: number;
-      sampleFormat: SpriteRealtimeSpeechSampleFormat;
-    };
-  }
+      type: 'started';
+      data: {
+        sessionId: string;
+        requestId?: string;
+        providerRequestId?: string;
+        mode?: string;
+        transport?: string;
+        format: 'pcm';
+        sampleRate: number;
+        channels: number;
+        sampleFormat: SpriteRealtimeSpeechSampleFormat;
+      };
+    }
   | {
-    type: 'audio_delta';
-    data: {
-      chunk: ArrayBuffer | Buffer | Uint8Array;
-      format: 'pcm';
-      mimeType?: string;
-      sampleRate: number;
-      channels: number;
-      sampleFormat: SpriteRealtimeSpeechSampleFormat;
-      sequence?: number;
-    };
-  }
+      type: 'audio_delta';
+      data: {
+        chunk: ArrayBuffer | Buffer | Uint8Array;
+        format: 'pcm';
+        mimeType?: string;
+        sampleRate: number;
+        channels: number;
+        sampleFormat: SpriteRealtimeSpeechSampleFormat;
+        sequence?: number;
+      };
+    }
   | { type: 'metadata'; data: Record<string, any> }
   | { type: 'completed'; data: { sessionId: string; filePath?: string; durationMs?: number } }
   | { type: 'error'; data: { message: string; code?: string } }
@@ -286,7 +286,7 @@ export interface SpriteRealtimeSpeechHandle {
 
 export interface SpeakRequest {
   text: string;
-  showBubble?: boolean;
+  bubbleEnabled?: boolean;
   bubbleDuration?: number;
 }
 

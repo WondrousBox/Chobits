@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { loadLive2DConfig, resolveTriggerMapping, type Live2DConfig } from '../../src/features/sprite-assistant/live2d/live2d-config';
+import { type Live2DConfig, resolveTriggerMapping } from '../../src/features/sprite/live2d/live2d-config';
 
 describe('live2d-config', () => {
   it('resolves direct trigger mapping', () => {

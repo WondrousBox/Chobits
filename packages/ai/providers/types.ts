@@ -32,12 +32,12 @@ export interface ProviderCatalogDefinition {
   defaultShowBrowserRequest?: boolean;
   disableBrowserRequest?: boolean;
   proxyUrl?:
-  | {
-    desc?: string;
-    placeholder: string;
-    title?: string;
-  }
-  | false;
+    | {
+        desc?: string;
+        placeholder: string;
+        title?: string;
+      }
+    | false;
   showApiKey?: boolean;
   settings?: Record<string, any>;
 }

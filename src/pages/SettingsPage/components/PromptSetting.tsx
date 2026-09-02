@@ -12,7 +12,7 @@ type Template = { id: string; name: string; type: 'system' | 'user'; content: st
 
 export default function PromptSetting(): JSX.Element {
   const [tmplSearch, setTmplSearch] = useState('');
-  const [formOpen, setFormOpen] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
   const [formValues, setFormValues] = useState<PromptTemplateFormValues>({ name: '', content: '', type: 'user' });
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -47,7 +47,7 @@ export default function PromptSetting(): JSX.Element {
     setFormMode('create');
     setEditingId(null);
     setFormValues({ name: '', content: '', type: 'user' });
-    setFormOpen(true);
+    setIsFormOpen(true);
   };
 
   const submitForm = async (vals: PromptTemplateFormValues): Promise<void> => {
@@ -56,7 +56,7 @@ export default function PromptSetting(): JSX.Element {
     } else if (formMode === 'edit' && editingId) {
       await window.chobits.ai.updatePromptTemplate(editingId, { name: vals.name, content: vals.content, type: vals.type || 'user' });
     }
-    setFormOpen(false);
+    setIsFormOpen(false);
     setEditingId(null);
     await refresh();
   };
@@ -97,18 +97,13 @@ export default function PromptSetting(): JSX.Element {
         <ScrollArea className="flex-1">
           <div className="px-2 pb-2">
             {filteredTemplates.length === 0 ? (
-              <div className="text-xs text-muted-foreground text-center py-6">
-                {templates.length === 0 ? '暂无模板' : '无匹配结果'}
-              </div>
+              <div className="text-xs text-muted-foreground text-center py-6">{templates.length === 0 ? '暂无模板' : '无匹配结果'}</div>
             ) : (
               <div className="space-y-0.5">
                 {filteredTemplates.map((t) => (
                   <div
                     key={t.id}
-                    className={
-                      'group flex items-center justify-between px-3 py-2 cursor-pointer transition-colors ' +
-                      (t.id === selectedId ? 'bg-accent text-accent-foreground' : 'hover:bg-muted/50')
-                    }
+                    className={'group flex items-center justify-between px-3 py-2 cursor-pointer transition-colors ' + (t.id === selectedId ? 'bg-accent text-accent-foreground' : 'hover:bg-muted/50')}
                     onClick={() => {
                       setSelectedId(t.id);
                       setDraftContent(t.content || '');
@@ -167,7 +162,7 @@ export default function PromptSetting(): JSX.Element {
       </div>
 
       {/* 新建对话框 */}
-      <PromptTemplateFormDialog isOpen={formOpen} mode={formMode} title="新建模板" initialValues={formValues} onClose={() => setFormOpen(false)} onSubmit={submitForm} />
+      <PromptTemplateFormDialog isOpen={isFormOpen} mode={formMode} title="新建模板" initialValues={formValues} onClose={() => setIsFormOpen(false)} onSubmit={submitForm} />
     </div>
   );
 }

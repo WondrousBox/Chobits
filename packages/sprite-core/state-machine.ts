@@ -11,7 +11,7 @@
  * 替代原有 useSpriteConductor 中的手动 switch/case。
  */
 
-import { SpriteEventBus, type SpriteBusEventType } from './event-bus';
+import { type SpriteBusEventType, SpriteEventBus } from './event-bus';
 
 // ============ 类型定义 ============
 

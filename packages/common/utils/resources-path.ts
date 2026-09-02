@@ -5,7 +5,7 @@ import { app } from 'electron';
 import { getRealPath } from './env';
 import { getResourceBinaryName } from './os';
 
-export function getResourcePath(binName: 'ffmpeg' | 'sherpa' | 'ffprobe' | 'sprites' | 'resources' | 'plugins' | 'providers' | 'logs' | 'html'): string | undefined {
+export function getResourcePath(binName: 'ffmpeg' | 'sherpa' | 'ffprobe' | 'characters' | 'resources' | 'plugins' | 'providers' | 'logs' | 'html'): string | undefined {
   const platform = os.platform();
   const arch = os.arch();
 
@@ -22,8 +22,8 @@ export function getResourcePath(binName: 'ffmpeg' | 'sherpa' | 'ffprobe' | 'spri
       return getRealPath(`../plugins/plugins.json`, `./resources/plugins/plugins.json`);
     case 'providers':
       return getRealPath(`../providers`, `./resources/providers`);
-    case 'sprites':
-      return getRealPath(`../sprites`, `./resources/sprites`);
+    case 'characters':
+      return getRealPath(`../characters`, `./resources/characters`);
     case 'logs':
       return app.getPath('logs');
     case 'html':

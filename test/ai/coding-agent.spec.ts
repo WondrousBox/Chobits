@@ -100,16 +100,7 @@ describe('coding agent tool integration', () => {
     const tools = createCoderTools(process.cwd());
 
     expect(DEFAULT_CODER_TOOL_IDS).toEqual(['file-list', 'file-read', 'file-glob', 'file-grep', 'file-write', 'file-edit', 'shell-exec', 'ask-user']);
-    expect(tools.map((tool) => tool.name)).toEqual([
-      'fileListTool',
-      'fileReadTool',
-      'fileGlobTool',
-      'fileGrepTool',
-      'fileWriteTool',
-      'fileEditTool',
-      'shellExecTool',
-      'askUserTool'
-    ]);
+    expect(tools.map((tool) => tool.name)).toEqual(['fileListTool', 'fileReadTool', 'fileGlobTool', 'fileGrepTool', 'fileWriteTool', 'fileEditTool', 'shellExecTool', 'askUserTool']);
   });
 
   it('executes a read-search-edit-write workflow inside the selected workspace', async () => {

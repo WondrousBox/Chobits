@@ -9,8 +9,8 @@ export type { MultiAccel, PlatformKey, ShortcutAction, ShortcutEnabledConfig, Sh
 
 export const SHORTCUT_SCHEMA: ShortcutAction[] = [
   {
-    id: 'toggleAssistant',
-    label: '助手面板切换',
+    id: 'toggleChatWindow',
+    label: 'AI 聊天面板切换',
     type: 'single',
     defaults: { darwin: 'CommandOrControl+K', win32: 'CommandOrControl+K', linux: 'CommandOrControl+K' }
   },
@@ -71,7 +71,7 @@ export function loadShortcutsConfig(): ShortcutsConfig {
     if (fs.existsSync(file)) {
       const txt = fs.readFileSync(file, 'utf8');
       const parsed = JSON.parse(txt);
-      cached = migrateLegacyConfig(parsed);
+      cached = { ...defaultConfigFromSchema(), ...(parsed as ShortcutsConfig) };
       return cached as ShortcutsConfig;
     }
   } catch {
@@ -115,19 +115,6 @@ export function notifyShortcutsUpdatedTo(win?: BrowserWindow | null): void {
 
 export function getShortcutSchema(): ShortcutAction[] {
   return SHORTCUT_SCHEMA;
-}
-
-function migrateLegacyConfig(parsed: any): ShortcutsConfig {
-  const next: ShortcutsConfig = {};
-  if (parsed && (parsed.assistantToggle || parsed.devtoolsToggle)) {
-    if (parsed.assistantToggle) next['toggleAssistant'] = typeof parsed.assistantToggle === 'string' ? parsed.assistantToggle : '';
-    if (parsed.devtoolsToggle) next['toggleDevtools'] = Array.isArray(parsed.devtoolsToggle) ? parsed.devtoolsToggle.filter(Boolean) : [];
-  }
-  Object.keys(parsed || {}).forEach((k) => {
-    if (k !== 'assistantToggle' && k !== 'devtoolsToggle') next[k] = (parsed as any)[k];
-  });
-  const defaults = defaultConfigFromSchema();
-  return { ...defaults, ...next };
 }
 
 function sanitizeConfig(partial: Partial<ShortcutsConfig>): ShortcutsConfig {

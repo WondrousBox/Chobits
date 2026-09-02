@@ -84,9 +84,7 @@ describe('pi coding services', () => {
       const workspaceRoot = await createTempDir('pi-path-policy-');
       tempDirs.add(workspaceRoot);
 
-      await expect(resolveWorkspacePath({ rootPath: workspaceRoot }, '../outside.txt')).rejects.toThrow(
-        'Path is outside the selected coding workspace'
-      );
+      await expect(resolveWorkspacePath({ rootPath: workspaceRoot }, '../outside.txt')).rejects.toThrow('Path is outside the selected coding workspace');
     });
 
     it('rejects symlink escapes when an intermediate path points outside the workspace', async () => {
@@ -105,9 +103,7 @@ describe('pi coding services', () => {
         return;
       }
 
-      await expect(resolveWorkspacePath({ rootPath: workspaceRoot }, 'linked-outside/file.txt')).rejects.toThrow(
-        'Path resolves outside the selected coding workspace'
-      );
+      await expect(resolveWorkspacePath({ rootPath: workspaceRoot }, 'linked-outside/file.txt')).rejects.toThrow('Path resolves outside the selected coding workspace');
     });
   });
 
@@ -417,7 +413,7 @@ describe('pi coding services', () => {
         });
 
         expect(child.kill).toHaveBeenCalledTimes(1);
-        expect(result.truncated).toBe(true);
+        expect(result.wasTruncated).toBe(true);
         expect(result.ok).toBe(false);
         expect(result.maxOutputBytes).toBe(8192);
         expect(result.stdout.length).toBe(8192);

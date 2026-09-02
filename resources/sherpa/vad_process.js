@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/explicit-function-return-type */
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';

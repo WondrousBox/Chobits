@@ -3,8 +3,8 @@ import React from 'react';
 import { TbMoodKid } from 'react-icons/tb';
 import { toast } from 'sonner';
 
-import { getSpriteCapabilityLockedReason, getSpriteCapabilityState } from '@/features/sprite-assistant/capability-ui';
-import { useSpriteCapabilitySnapshot } from '@/features/sprite-assistant/hooks/useSpriteCapabilitySnapshot';
+import { getSpriteCapabilityLockedReason, getSpriteCapabilityState } from '@/features/sprite/capability-guard';
+import { useSpriteCapabilitySnapshot } from '@/features/sprite/hooks/useSpriteCapabilitySnapshot';
 import { cn } from '@/lib/utils';
 
 import SpriteManager from './SpriteManager';

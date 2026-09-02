@@ -80,7 +80,7 @@ export function createPiWebReadTool(toolContext: PiSessionToolContext): ToolDefi
           url,
           content,
           contentLength: content.length,
-          truncated: content.length >= maxLength
+          wasTruncated: content.length >= maxLength
         });
       } catch (error: any) {
         if (error?.name === 'AbortError') {

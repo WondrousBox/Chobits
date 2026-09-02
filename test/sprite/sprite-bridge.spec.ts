@@ -188,8 +188,8 @@ describe('sprite preload bridge', () => {
     const handler = electronHarness.on.mock.calls[0]?.[1];
     expect(electronHarness.on).toHaveBeenCalledWith('sprite:config', expect.any(Function));
 
-    electronHarness.emit('sprite:config', { showDebugOverlay: false });
-    expect(callback).toHaveBeenCalledWith({ showDebugOverlay: false });
+    electronHarness.emit('sprite:config', { debugOverlayEnabled: false });
+    expect(callback).toHaveBeenCalledWith({ debugOverlayEnabled: false });
 
     cleanup();
     expect(electronHarness.off).toHaveBeenCalledWith('sprite:config', handler);

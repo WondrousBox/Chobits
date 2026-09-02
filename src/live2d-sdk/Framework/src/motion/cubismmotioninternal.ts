@@ -153,6 +153,5 @@ export namespace Live2DCubismFramework {
   export type CubismMotionSegment = $.CubismMotionSegment;
   export const CubismMotionSegmentType = $.CubismMotionSegmentType;
   export type CubismMotionSegmentType = $.CubismMotionSegmentType;
-  export type csmMotionSegmentEvaluationFunction =
-    $.csmMotionSegmentEvaluationFunction;
+  export type csmMotionSegmentEvaluationFunction = $.csmMotionSegmentEvaluationFunction;
 }

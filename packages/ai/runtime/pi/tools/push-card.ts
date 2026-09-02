@@ -7,15 +7,7 @@ import type { PiSessionToolContext } from '../tool-context';
 import { createJsonToolResult } from './result';
 
 const pushCardParameters = Type.Object({
-  type: Type.Union([
-    Type.Literal('resource'),
-    Type.Literal('video'),
-    Type.Literal('audio'),
-    Type.Literal('image'),
-    Type.Literal('document'),
-    Type.Literal('link'),
-    Type.Literal('file')
-  ]),
+  type: Type.Union([Type.Literal('resource'), Type.Literal('video'), Type.Literal('audio'), Type.Literal('image'), Type.Literal('document'), Type.Literal('link'), Type.Literal('file')]),
   resourceId: Type.Optional(Type.String({ description: 'Resource ID from the database.' })),
   data: Type.Optional(
     Type.Object({

@@ -38,11 +38,11 @@ export interface ChatInputWithServiceProps extends Omit<UnifiedChatInputProps, '
     codingWorkspaceRoot?: string;
     codingWorkspaceLabel?: string;
     webSearchEnabled?: boolean;
-    characterPersonaEnabled?: boolean;
+    characterPromptEnabled?: boolean;
   }) => void | Promise<void>;
   onMenuOpenChange?: (open: boolean) => void;
   onMenuOpenPrepare?: () => void;
-  menuPlacement?: 'auto' | 'assistant-floating';
+  menuPlacement?: 'auto' | 'chat-floating';
 }
 
 export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenuOpenPrepare, footerRightExtra, disabled, menuPlacement = 'auto', ...rest }: ChatInputWithServiceProps): JSX.Element {
@@ -55,18 +55,18 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
     codingWorkspaceRoot,
     codingWorkspaceLabel,
     webSearchEnabled,
-    characterPersonaEnabled,
+    characterPromptEnabled,
     setProviderId,
     setModelId,
     setAgentId,
     setCodingWorkspace,
     setWebSearchEnabled,
-    setCharacterPersonaEnabled
+    setCharacterPromptEnabled
   } = useChatSelection();
   const inputRef = useRef<UnifiedChatInputHandle>(null);
   const [draft, setDraft] = useState('');
   const [skills, setSkills] = useState<SkillInfo[]>([]);
-  const [skillsLoading, setSkillsLoading] = useState(false);
+  const [isSkillsLoading, setIsSkillsLoading] = useState(false);
   const [highlightedSkillIndex, setHighlightedSkillIndex] = useState(0);
 
   const isCoder = agentId === 'coder';
@@ -78,15 +78,15 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
   const slashMenuActive = skillPickerEnabled && isTypingSlashSkillQuery(draft) && slashSuggestions.length > 0;
   const highlightedSkillInfo = slashSuggestions[highlightedSkillIndex] || slashSuggestions[0];
   const activeSkillTrust = useMemo(() => (activeSkillInfo ? getSkillTrustPresentation(activeSkillInfo) : undefined), [activeSkillInfo]);
-  const floatingMenuProps = menuPlacement === 'assistant-floating' ? ({ contentSide: 'bottom' as const, contentAlign: 'start' as const, avoidCollisions: false } as const) : undefined;
+  const floatingMenuProps = menuPlacement === 'chat-floating' ? ({ contentSide: 'bottom' as const, contentAlign: 'start' as const, avoidCollisions: false } as const) : undefined;
   const floatingModelMenuProps =
-    menuPlacement === 'assistant-floating' ? ({ menuSide: 'bottom' as const, menuAlign: 'start' as const, subMenuSide: 'right' as const, avoidCollisions: false } as const) : undefined;
+    menuPlacement === 'chat-floating' ? ({ menuSide: 'bottom' as const, menuAlign: 'start' as const, subMenuSide: 'right' as const, avoidCollisions: false } as const) : undefined;
 
   useEffect(() => {
     if (!skillPickerEnabled) {
       const timer = window.setTimeout(() => {
         setSkills([]);
-        setSkillsLoading(false);
+        setIsSkillsLoading(false);
       }, 0);
       return () => window.clearTimeout(timer);
     }
@@ -94,7 +94,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
     let cancelled = false;
     const loadingTimer = window.setTimeout(() => {
       if (!cancelled) {
-        setSkillsLoading(true);
+        setIsSkillsLoading(true);
       }
     }, 0);
 
@@ -115,7 +115,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
       })
       .finally(() => {
         if (!cancelled) {
-          setSkillsLoading(false);
+          setIsSkillsLoading(false);
         }
       });
 
@@ -161,7 +161,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
       preferredPresetId: presetId || undefined,
       agentId,
       webSearchEnabled,
-      characterPersonaEnabled,
+      characterPromptEnabled,
       ...(isCoder && codingWorkspaceRoot
         ? {
             codingWorkspaceRoot,
@@ -249,7 +249,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
           <SkillPickerButton
             agentId={agentId}
             highlightedSkillName={highlightedSkillInfo?.name}
-            isLoading={skillsLoading}
+            isLoading={isSkillsLoading}
             onHighlightSkill={(skillName) => {
               const nextIndex = slashSuggestions.findIndex((skill) => skill.name === skillName);
               if (nextIndex >= 0) {
@@ -318,16 +318,16 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, onMenu
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  variant={characterPersonaEnabled ? 'default' : 'ghost'}
+                  variant={characterPromptEnabled ? 'default' : 'ghost'}
                   size="icon"
-                  className={`h-8 w-8 shrink-0 rounded-full ${characterPersonaEnabled ? 'bg-violet-600 hover:bg-violet-700 text-white' : ''}`}
-                  onClick={() => setCharacterPersonaEnabled(!characterPersonaEnabled)}
+                  className={`h-8 w-8 shrink-0 rounded-full ${characterPromptEnabled ? 'bg-violet-600 hover:bg-violet-700 text-white' : ''}`}
+                  onClick={() => setCharacterPromptEnabled(!characterPromptEnabled)}
                 >
                   <TbRobot />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>{characterPersonaEnabled ? '角色已注入' : '注入人格，好感度和心情会影响说话风格'}</p>
+                <p>{characterPromptEnabled ? '角色已注入' : '注入人格，好感度和心情会影响说话风格'}</p>
               </TooltipContent>
             </Tooltip>
           )}

@@ -9,11 +9,7 @@
     "version": "1.0.0",
     "binaryName": "",
     "archiveType": "none",
-    "category": [
-      "asr",
-      "tts",
-      "punctuation"
-    ],
+    "category": ["asr", "tts", "punctuation"],
     "platforms": [],
     "models": [
       {
@@ -26,13 +22,7 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "asr",
-        "languages": [
-          "zh",
-          "en",
-          "ja",
-          "ko",
-          "yue"
-        ],
+        "languages": ["zh", "en", "ja", "ko", "yue"],
         "platforms": [
           {
             "platform": "all",
@@ -53,13 +43,7 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "asr",
-        "languages": [
-          "zh",
-          "en",
-          "ja",
-          "ko",
-          "yue"
-        ],
+        "languages": ["zh", "en", "ja", "ko", "yue"],
         "platforms": [
           {
             "platform": "all",
@@ -80,10 +64,7 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "asr",
-        "languages": [
-          "zh",
-          "en"
-        ],
+        "languages": ["zh", "en"],
         "platforms": [
           {
             "platform": "all",
@@ -104,10 +85,7 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "asr",
-        "languages": [
-          "zh",
-          "en"
-        ],
+        "languages": ["zh", "en"],
         "platforms": [
           {
             "platform": "all",
@@ -128,9 +106,7 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "asr",
-        "languages": [
-          "en"
-        ],
+        "languages": ["en"],
         "platforms": [
           {
             "platform": "all",
@@ -151,10 +127,7 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "asr",
-        "languages": [
-          "zh",
-          "hans"
-        ],
+        "languages": ["zh", "hans"],
         "platforms": [
           {
             "platform": "all",
@@ -175,9 +148,7 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "asr",
-        "languages": [
-          "en"
-        ],
+        "languages": ["en"],
         "platforms": [
           {
             "platform": "all",
@@ -198,9 +169,7 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "asr",
-        "languages": [
-          "en"
-        ],
+        "languages": ["en"],
         "platforms": [
           {
             "platform": "all",
@@ -221,9 +190,7 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "asr",
-        "languages": [
-          "zh"
-        ],
+        "languages": ["zh"],
         "platforms": [
           {
             "platform": "all",
@@ -244,9 +211,7 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "asr",
-        "languages": [
-          "en"
-        ],
+        "languages": ["en"],
         "platforms": [
           {
             "platform": "all",
@@ -267,9 +232,7 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "tts",
-        "languages": [
-          "multi"
-        ],
+        "languages": ["multi"],
         "platforms": [
           {
             "platform": "all",
@@ -290,9 +253,7 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "tts",
-        "languages": [
-          "multi"
-        ],
+        "languages": ["multi"],
         "platforms": [
           {
             "platform": "all",
@@ -313,10 +274,7 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "punctuation",
-        "languages": [
-          "zh",
-          "en"
-        ],
+        "languages": ["zh", "en"],
         "platforms": [
           {
             "platform": "all",
@@ -337,10 +295,7 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "punctuation",
-        "languages": [
-          "zh",
-          "en"
-        ],
+        "languages": ["zh", "en"],
         "platforms": [
           {
             "platform": "all",
@@ -361,9 +316,7 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "punctuation",
-        "languages": [
-          "en"
-        ],
+        "languages": ["en"],
         "platforms": [
           {
             "platform": "all",

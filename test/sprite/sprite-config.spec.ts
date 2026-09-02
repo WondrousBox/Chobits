@@ -74,7 +74,7 @@ describe('sprite config authority', () => {
       width: 260,
       height: 210,
       padding: 40,
-      showDebugOverlay: true
+      debugOverlayEnabled: true
     });
 
     expect(first.mgr.getInitialState().config).toEqual({
@@ -82,7 +82,7 @@ describe('sprite config authority', () => {
       height: 210,
       padding: 40,
       animationPlaylistMode: 'list-loop',
-      showDebugOverlay: true,
+      debugOverlayEnabled: true,
       bubbleMode: 'fixed-top'
     });
     expect(first.sent).toContainEqual({
@@ -92,7 +92,7 @@ describe('sprite config authority', () => {
         height: 210,
         padding: 40,
         animationPlaylistMode: 'list-loop',
-        showDebugOverlay: true,
+        debugOverlayEnabled: true,
         bubbleMode: 'fixed-top'
       }
     });
@@ -108,7 +108,7 @@ describe('sprite config authority', () => {
       height: 200,
       padding: 100,
       animationPlaylistMode: 'list-loop',
-      showDebugOverlay: false,
+      debugOverlayEnabled: false,
       bubbleMode: 'fixed-top'
     });
 

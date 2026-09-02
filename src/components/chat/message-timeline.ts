@@ -4,9 +4,7 @@ import { CHAT_MESSAGE_DISPLAY_PARTS_METADATA_KEY } from '@packages/ai/types';
 import type { ToolActivity } from './ToolCallActivity';
 
 export type ChatMessageDisplayPart =
-  | { id: string; type: 'text'; content: string }
-  | { id: string; type: 'thinking'; thinking: string; isThinking?: boolean }
-  | { id: string; type: 'tool'; activity: ToolActivity };
+  { id: string; type: 'text'; content: string } | { id: string; type: 'thinking'; thinking: string; isThinking?: boolean } | { id: string; type: 'tool'; activity: ToolActivity };
 
 export interface TimelineMessage {
   content: string;

@@ -59,7 +59,7 @@ export interface SpriteSpeakRealtimeSpeechConfig {
     minChars: number;
     maxChars: number;
     maxDelayMs: number;
-    flushOnPunctuation: boolean;
+    shouldFlushOnPunctuation: boolean;
   };
   playback: {
     startBufferMs: number;
@@ -72,7 +72,7 @@ export interface SpriteSpeakRealtimeSpeechConfig {
     mainChat: boolean;
     resourceChatSidebar: boolean;
   };
-  writeFinalCache?: boolean;
+  shouldWriteFinalCache?: boolean;
 }
 
 export interface SpriteSpeakConfig {
@@ -99,7 +99,7 @@ realtimeSpeech: {
     minChars: 8,
     maxChars: 80,
     maxDelayMs: 350,
-    flushOnPunctuation: true
+    shouldFlushOnPunctuation: true
   },
   playback: {
     startBufferMs: 160,
@@ -111,7 +111,7 @@ realtimeSpeech: {
     mainChat: true,
     resourceChatSidebar: true
   },
-  writeFinalCache: false
+  shouldWriteFinalCache: false
 }
 ```
 
@@ -409,8 +409,8 @@ src/lib/audio/pcm-stream-worklet.ts
 聊天实时朗读：
 
 - 播放前不查缓存，因为开始播放时还没有完整文本，且聊天回复复用率很低。
-- 第一版 `writeFinalCache` 默认 `false`，避免每条聊天回复都落盘造成磁盘增长。
-- 如果后续开启 `writeFinalCache`：
+- 第一版 `shouldWriteFinalCache` 默认 `false`，避免每条聊天回复都落盘造成磁盘增长。
+- 如果后续开启 `shouldWriteFinalCache`：
   - session 结束后用完整 assistant 文本和实际使用的策略、provider、model、voice、PCM 参数生成 cache id。
   - 把聚合后的完整 PCM 或转码后的 WAV/MP3 写入 speak cache。
   - cache metadata 标记 `sourceType: 'chat_realtime_speech'`。
@@ -487,11 +487,11 @@ src/lib/audio/pcm-stream-worklet.ts
 
 ## 14. 风险与处理
 
-| 风险 | 处理 |
-| --- | --- |
-| TTS 比 LLM delta 慢，播放延迟明显 | 文本缓冲器按标点和时间 flush，播放器使用小 start buffer |
-| Provider 返回格式不是 PCM | 第一版拒绝实时播放并报错，后续增加解码路径 |
-| sample rate 与 AudioContext 不一致 | 播放器内做线性重采样 |
-| 聊天取消后流式连接未关闭 | session cancel 必须关闭输入队列、AbortController、播放器 |
-| 自动朗读造成费用浪费 | 默认关闭，且仅 assistant 正文触发 |
-| 多个聊天窗口同时朗读 | 按 scope 限制并发，后开始的 session 取消同 scope 旧 session |
+| 风险                               | 处理                                                        |
+| ---------------------------------- | ----------------------------------------------------------- |
+| TTS 比 LLM delta 慢，播放延迟明显  | 文本缓冲器按标点和时间 flush，播放器使用小 start buffer     |
+| Provider 返回格式不是 PCM          | 第一版拒绝实时播放并报错，后续增加解码路径                  |
+| sample rate 与 AudioContext 不一致 | 播放器内做线性重采样                                        |
+| 聊天取消后流式连接未关闭           | session cancel 必须关闭输入队列、AbortController、播放器    |
+| 自动朗读造成费用浪费               | 默认关闭，且仅 assistant 正文触发                           |
+| 多个聊天窗口同时朗读               | 按 scope 限制并发，后开始的 session 取消同 scope 旧 session |

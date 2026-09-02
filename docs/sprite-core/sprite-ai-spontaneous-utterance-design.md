@@ -23,13 +23,13 @@ BehaviorEngine idle-action 触发
 
 ### 关键文件
 
-| 文件 | 职责 |
-|------|------|
-| `packages/sprite-core/manager/types.ts` | `SpriteSpontaneousUtteranceExecutor` 接口定义 |
-| `packages/sprite-core/manager/sprite-manager.ts` | 持有注入的 executor |
-| `packages/sprite-core/manager/default-behaviors.ts` | `idle-action` 行为调用 executor |
-| `electron/main/handlers/sprite/spontaneous-utterance-service.ts` | 主进程 AI 编排服务 |
-| `electron/main/handlers/memory/retrieval-db-deps.ts` | 记忆检索依赖注入 |
+| 文件                                                             | 职责                                          |
+| ---------------------------------------------------------------- | --------------------------------------------- |
+| `packages/sprite-core/manager/types.ts`                          | `SpriteSpontaneousUtteranceExecutor` 接口定义 |
+| `packages/sprite-core/manager/sprite-manager.ts`                 | 持有注入的 executor                           |
+| `packages/sprite-core/manager/default-behaviors.ts`              | `idle-action` 行为调用 executor               |
+| `electron/main/handlers/sprite/spontaneous-utterance-service.ts` | 主进程 AI 编排服务                            |
+| `electron/main/handlers/memory/retrieval-db-deps.ts`             | 记忆检索依赖注入                              |
 
 ---
 
@@ -53,15 +53,15 @@ AI 生成当前由 activity-aware timeout controller 控制，绝对最长上限
 
 生成输入为结构化的 `IdleActionUtteranceRequest`：
 
-| 上下文来源 | 获取方式 | 截取策略 |
-|-----------|----------|----------|
-| 用户画像 | `USER_PERSONA.md` → `extractSnapshot()` + `extractTopFacts()` | snapshot + 最多 6 条 topFacts |
-| 助手角色 | `role.json` + `buildCharacterPersonaPrompt()` + preset `systemPrompt` | 角色摘要 |
-| 最近聊天 | `ChatRepo.listMessages()` | 最近 12-20 条，过滤工具噪音 |
-| 持久记忆 | `MemoryRetrievalService` + `MEMORY.md` | 轻量目标检索，3-5 条相关 note |
-| 重要对话 | 最近高信号片段 + 高重要度 note | 摘要格式 |
-| 目的复盘 | 主进程组合层注入的 retrospective provider | 当天高价值 purpose、recall cues，过滤 idle 噪声；自发说话服务不直接依赖 sprite-core store |
-| 精灵状态 | `BehaviorContext` + `SpriteManager` | mood / favor / level / idleDuration |
+| 上下文来源 | 获取方式                                                                    | 截取策略                                                                                  |
+| ---------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| 用户画像   | `USER_PERSONA.md` → `extractSnapshot()` + `extractTopFacts()`               | snapshot + 最多 6 条 topFacts                                                             |
+| 助手角色   | `character-profile.json` + `buildCharacterPrompt()` + preset `systemPrompt` | 角色摘要                                                                                  |
+| 最近聊天   | `ChatRepo.listMessages()`                                                   | 最近 12-20 条，过滤工具噪音                                                               |
+| 持久记忆   | `MemoryRetrievalService` + `MEMORY.md`                                      | 轻量目标检索，3-5 条相关 note                                                             |
+| 重要对话   | 最近高信号片段 + 高重要度 note                                              | 摘要格式                                                                                  |
+| 目的复盘   | 主进程组合层注入的 retrospective provider                                   | 当天高价值 purpose、recall cues，过滤 idle 噪声；自发说话服务不直接依赖 sprite-core store |
+| 精灵状态   | `BehaviorContext` + `SpriteManager`                                         | mood / favor / level / idleDuration                                                       |
 
 ---
 
@@ -78,14 +78,14 @@ AI 生成当前由 activity-aware timeout controller 控制，绝对最长上限
 }
 ```
 
-| 字段 | 值域 | 说明 |
-|------|------|------|
-| `text` | 8-36 汉字 | 唯一对外说出的内容 |
-| `intentCategory` | philosophy / encouragement / playful / reminder / planning / empathy / reflection | 意图类别 |
-| `tone` | gentle / playful / calm / firm / curious / tender | 口气 |
-| `emotion` | warm / hopeful / amused / thoughtful / soothing / bright | 情绪 |
-| `recommendedAction` | 映射到现有动作池 | 建议配合动作 |
-| `whyThisFits` | 自由文本 | 仅日志用 |
+| 字段                | 值域                                                                              | 说明               |
+| ------------------- | --------------------------------------------------------------------------------- | ------------------ |
+| `text`              | 8-36 汉字                                                                         | 唯一对外说出的内容 |
+| `intentCategory`    | philosophy / encouragement / playful / reminder / planning / empathy / reflection | 意图类别           |
+| `tone`              | gentle / playful / calm / firm / curious / tender                                 | 口气               |
+| `emotion`           | warm / hopeful / amused / thoughtful / soothing / bright                          | 情绪               |
+| `recommendedAction` | 映射到现有动作池                                                                  | 建议配合动作       |
+| `whyThisFits`       | 自由文本                                                                          | 仅日志用           |
 
 ---
 
@@ -104,10 +104,10 @@ AI 生成当前由 activity-aware timeout controller 控制，绝对最长上限
 
 ## 6. 限频与降噪
 
-| 控制层 | 默认值 |
-|--------|--------|
-| 全局冷却 | 20 分钟 |
-| 每日上限 | 8 次 |
+| 控制层   | 默认值                                                    |
+| -------- | --------------------------------------------------------- |
+| 全局冷却 | 20 分钟                                                   |
+| 每日上限 | 8 次                                                      |
 | 文案去重 | 最近 20 条完全相同拒绝；最近 5 条同 intentCategory 降概率 |
 
 ---
@@ -116,8 +116,8 @@ AI 生成当前由 activity-aware timeout controller 控制，绝对最长上限
 
 存储位置：`<workspace>/memory/logs/sprite-spontaneous-utterances-YYYY-MM-DD.jsonl`
 
-每条日志包含：timestamp、workspaceId、behaviorId、providerId、model、latencyMs、spriteState、contextDigest、result、executedAction、spoken、fallbackUsed。
+每条日志包含：timestamp、workspaceId、behaviorId、providerId、model、latencyMs、spriteState、contextDigest、result、executedAction、wasSpoken、didUseFallback。
 
-失败时也记录（skipped: true + reason）。
+失败时也记录（wasSkipped: true + reason）。
 
 主进程日志前缀：`[SpriteSpontaneousUtterance]`

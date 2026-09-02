@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/explicit-function-return-type */
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -105,7 +104,6 @@ let stream;
 // let display;
 let punctuation;
 
-let segmentIndex = 0;
 let duration = 0;
 let lastText = '';
 
@@ -392,7 +390,6 @@ function sendData(samples) {
       const resultWithPunctuation = splitByPunctuation(text, punctuatedText, result.tokens, result.timestamps, result.start_time);
 
       // display.print(segmentIndex, text);
-      segmentIndex += 1;
       process.send({
         event: 'asr:progress',
         data: {
@@ -502,8 +499,6 @@ function sendData(samples) {
               // 更新 firstReceivedTime 为下一段的开始时间
               // 这样后续的 progress 和 endpoint 消息会使用正确的开始时间
               firstReceivedTime = segmentsEndTime;
-
-              segmentIndex += 1;
             }
           }
         }
@@ -550,7 +545,6 @@ function stopASR() {
   // display = undefined;
   punctuation = undefined;
 
-  segmentIndex = 0;
   duration = 0;
   lastText = '';
 

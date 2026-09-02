@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-/* eslint-disable @typescript-eslint/explicit-function-return-type -- .mjs 脚本无类型标注 */
 /**
  * 分层边界守护：
  * 1. packages/** 禁止 import 本地 electron/ 源码树（允许 import 'electron' npm 包本身）

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import { installMiniDom } from '../utils/minidom';
 
 describe('useSpriteCapabilitySnapshot', () => {
@@ -18,7 +19,7 @@ describe('useSpriteCapabilitySnapshot', () => {
         getCapabilitySnapshot: async () => {
           callCount += 1;
           return {
-            personaLevel: currentLevel,
+            characterLevel: currentLevel,
             capabilities: {},
             ordered: [],
             totals: { total: 0, active: 0, unlocked: 0, locked: 0 }
@@ -39,11 +40,11 @@ describe('useSpriteCapabilitySnapshot', () => {
       }
     };
 
-    const { useSpriteCapabilitySnapshot } = await import('../../src/features/sprite-assistant/hooks/useSpriteCapabilitySnapshot');
+    const { useSpriteCapabilitySnapshot } = await import('../../src/features/sprite/hooks/useSpriteCapabilitySnapshot');
 
     function Probe(): JSX.Element {
       const { snapshot, loading } = useSpriteCapabilitySnapshot();
-      return <div data-level={String(snapshot?.personaLevel ?? -1)} data-loading={loading ? 'yes' : 'no'} />;
+      return <div data-level={String(snapshot?.characterLevel ?? -1)} data-loading={loading ? 'yes' : 'no'} />;
     }
 
     const root = createRoot(env.container as any);

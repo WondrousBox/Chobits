@@ -21,9 +21,7 @@ const ollamaSchema: ProviderConfig = {
       }
     }
   },
-  fields: [
-    { key: 'baseUrl', label: 'Base URL', type: 'text' }
-  ]
+  fields: [{ key: 'baseUrl', label: 'Base URL', type: 'text' }]
 };
 
 export const ollamaDefinition: BuiltinProviderDefinition = {
@@ -32,8 +30,7 @@ export const ollamaDefinition: BuiltinProviderDefinition = {
   source: 'builtin',
   display: {
     label: 'Ollama (local)',
-    description:
-      'Ollama offers models across code generation, math, multilingual processing, and chat, supporting both enterprise and local deployments.',
+    description: 'Ollama offers models across code generation, math, multilingual processing, and chat, supporting both enterprise and local deployments.',
     icon: 'providers/icons/ollama.svg',
     website: 'https://ollama.com'
   },

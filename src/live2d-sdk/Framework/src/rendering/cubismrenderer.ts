@@ -80,12 +80,7 @@ export abstract class CubismRenderer {
    * @param blue 青チャンネルの値
    * @param alpha αチャンネルの値
    */
-  public setModelColor(
-    red: number,
-    green: number,
-    blue: number,
-    alpha: number
-  ): void {
+  public setModelColor(red: number, green: number, blue: number, alpha: number): void {
     if (red < 0.0) {
       red = 0.0;
     } else if (red > 1.0) {

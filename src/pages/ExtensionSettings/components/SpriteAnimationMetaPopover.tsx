@@ -6,8 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
-import type { SpriteAnimationMeta, SpriteAnimationTrigger } from '@/features/sprite-assistant';
-import { getPrimarySpriteAnimationTrigger, getSpriteAnimationTriggerAliases } from '@/features/sprite-assistant';
+import type { SpriteAnimationMeta, SpriteAnimationTrigger } from '@/features/sprite';
+import { getPrimarySpriteAnimationTrigger, getSpriteAnimationTriggerAliases } from '@/features/sprite';
 
 import { createSpriteAnimationMetaDraft, formatSpriteAnimationConditionInput, formatSpriteTriggerAliasesInput, parseSpriteAnimationConditionInput } from './sprite-animation-meta-utils';
 import SpriteAnimationConditionBuilder from './SpriteAnimationConditionBuilder';
@@ -114,7 +114,7 @@ export default function SpriteAnimationMetaPopover({ disabled = false, meta, onS
           <Textarea
             value={triggerAliasesInput}
             onChange={(event) => setTriggerAliasesInput(event.target.value)}
-            placeholder="多个 trigger 用逗号或换行分隔，例如 workflow:complete, persona:daily-login"
+            placeholder="多个 trigger 用逗号或换行分隔，例如 workflow:complete, character:daily-login"
             className="min-h-[78px] resize-y text-xs"
           />
         </div>

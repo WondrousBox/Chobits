@@ -29,10 +29,13 @@ type AudioResponse = {
 };
 
 function sanitizeFileSegment(value: string): string {
-  return String(value || 'audio')
-    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
-    .replace(/\s+/g, '-')
-    .slice(0, 48);
+  return (
+    String(value || 'audio')
+      // eslint-disable-next-line no-control-regex -- 有意剔除文件名中的控制字符
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+      .replace(/\s+/g, '-')
+      .slice(0, 48)
+  );
 }
 
 function normalizeFormatCandidate(value: unknown): string {
@@ -119,10 +122,7 @@ async function resolveAudioBuffer(artifact: GeneratedAudioArtifact, signal?: Abo
 }
 
 export class PiAudioArtifactService {
-  async materializeAudioResponse<TResponse extends AudioResponse, TRequest extends AudioArtifactRequest>(
-    response: TResponse,
-    options: MaterializeAudioResponseOptions<TRequest>
-  ): Promise<TResponse> {
+  async materializeAudioResponse<TResponse extends AudioResponse, TRequest extends AudioArtifactRequest>(response: TResponse, options: MaterializeAudioResponseOptions<TRequest>): Promise<TResponse> {
     if (!response.artifacts.length) {
       return response;
     }
@@ -166,17 +166,11 @@ export class PiAudioArtifactService {
     } as TResponse;
   }
 
-  async materializeMusicResponse(
-    response: MusicGenerationResponse,
-    options: Omit<MaterializeAudioResponseOptions<MusicGenerationRequest>, 'mediaKind'>
-  ): Promise<MusicGenerationResponse> {
+  async materializeMusicResponse(response: MusicGenerationResponse, options: Omit<MaterializeAudioResponseOptions<MusicGenerationRequest>, 'mediaKind'>): Promise<MusicGenerationResponse> {
     return this.materializeAudioResponse(response, { ...options, mediaKind: 'music' });
   }
 
-  async materializeSpeechResponse(
-    response: SpeechSynthesisResponse,
-    options: Omit<MaterializeAudioResponseOptions<SpeechSynthesisRequest>, 'mediaKind'>
-  ): Promise<SpeechSynthesisResponse> {
+  async materializeSpeechResponse(response: SpeechSynthesisResponse, options: Omit<MaterializeAudioResponseOptions<SpeechSynthesisRequest>, 'mediaKind'>): Promise<SpeechSynthesisResponse> {
     return this.materializeAudioResponse(response, { ...options, mediaKind: 'speech' });
   }
 }

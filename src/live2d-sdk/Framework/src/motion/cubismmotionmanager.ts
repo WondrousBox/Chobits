@@ -8,10 +8,7 @@
 
 import { CubismModel } from '../model/cubismmodel';
 import { ACubismMotion } from './acubismmotion';
-import {
-  CubismMotionQueueEntryHandle,
-  CubismMotionQueueManager
-} from './cubismmotionqueuemanager';
+import { CubismMotionQueueEntryHandle, CubismMotionQueueManager } from './cubismmotionqueuemanager';
 
 /**
  * モーションの管理
@@ -60,11 +57,7 @@ export class CubismMotionManager extends CubismMotionQueueManager {
    * @param priority        優先度
    * @return                開始したモーションの識別番号を返す。個別のモーションが終了したか否かを判定するIsFinished()の引数で使用する。開始できない時は「-1」
    */
-  public startMotionPriority(
-    motion: ACubismMotion,
-    autoDelete: boolean,
-    priority: number
-  ): CubismMotionQueueEntryHandle {
+  public startMotionPriority(motion: ACubismMotion, autoDelete: boolean, priority: number): CubismMotionQueueEntryHandle {
     if (priority == this._reservePriority) {
       this._reservePriority = 0; // 予約を解除
     }
@@ -102,10 +95,7 @@ export class CubismMotionManager extends CubismMotionQueueManager {
    * @return  false   予約できなかった
    */
   public reserveMotion(priority: number): boolean {
-    if (
-      priority <= this._reservePriority ||
-      priority <= this._currentPriority
-    ) {
+    if (priority <= this._reservePriority || priority <= this._currentPriority) {
       return false;
     }
 

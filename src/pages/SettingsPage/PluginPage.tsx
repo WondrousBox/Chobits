@@ -13,12 +13,12 @@ import { cn } from '@/lib/utils';
 
 // 插件与功能旗标的映射：旗标关闭时隐藏对应插件，未列出的插件始终显示
 const PLUGIN_FEATURE_FLAGS: Record<string, FeatureKey> = {
-  'whisper-cli': 'localAi',
-  'sherpa-onnx': 'localAi',
-  'parakeet-cli': 'localAi',
-  'funasr-cli': 'localAi',
-  'fast-whisper-cli': 'localAi',
-  'paddle-ocr-runtime': 'localAi'
+  'whisper-cli': 'localAI',
+  'sherpa-onnx': 'localAI',
+  'parakeet-cli': 'localAI',
+  'funasr-cli': 'localAI',
+  'fast-whisper-cli': 'localAI',
+  'paddle-ocr-runtime': 'localAI'
 };
 
 // 分类配置：中文名称和显示顺序
@@ -57,12 +57,7 @@ import SelectModelFolder from './components/SelectModelFolder';
 import type { InstalledResource } from './components/types';
 
 type DownloadSettingKey =
-  | 'deletePartialDownloadOnCancel'
-  | 'deletePartialDownloadOnFailure'
-  | 'deleteDownloadedFileOnFailure'
-  | 'deleteArchiveAfterInstall'
-  | 'downloaderResumeValidation'
-  | 'downloaderDebug';
+  'deletePartialDownloadOnCancel' | 'deletePartialDownloadOnFailure' | 'deleteDownloadedFileOnFailure' | 'deleteArchiveAfterInstall' | 'downloaderResumeValidation' | 'downloaderDebug';
 
 const DOWNLOAD_SETTING_ITEMS: Array<{
   key: DownloadSettingKey;
@@ -111,11 +106,11 @@ const PluginPage: React.FC = () => {
   const [installingIds, setInstallingIds] = useState<Set<string>>(() => new Set());
   const installingIdsRef = useRef<Set<string>>(new Set());
   const [selectedPluginId, setSelectedPluginId] = useState<string | null>(null);
-  const [showNetworkDialog, setShowNetworkDialog] = useState(false);
+  const [isNetworkDialogOpen, setIsNetworkDialogOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<PluginCategory | null>(null);
   const { isEnabled } = useFeatureFlags();
 
-  // 按功能旗标过滤插件列表（localAi / spleeter 关闭时隐藏对应插件）
+  // 按功能旗标过滤插件列表（localAI / spleeter 关闭时隐藏对应插件）
   const visibleSupported = useMemo(
     () =>
       supported.filter((plugin) => {
@@ -528,13 +523,13 @@ const PluginPage: React.FC = () => {
             </div>
           </PopoverContent>
         </Popover>
-        <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setShowNetworkDialog(true)}>
+        <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setIsNetworkDialogOpen(true)}>
           <TbWifi />
           网络测试
         </Button>
       </div>
 
-      <NetworkCheckDialog isOpen={showNetworkDialog} onOpenChange={setShowNetworkDialog} />
+      <NetworkCheckDialog isOpen={isNetworkDialogOpen} onOpenChange={setIsNetworkDialogOpen} />
 
       {/* 左右布局：引擎列表 + 模型详情 */}
       <div className="flex-1 overflow-hidden flex">

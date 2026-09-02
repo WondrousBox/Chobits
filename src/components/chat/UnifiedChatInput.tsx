@@ -45,7 +45,7 @@ export interface UnifiedChatInputProps {
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>, value: string) => void;
 
   // 是否显示发送按钮 (默认 true)
-  showSendButton?: boolean;
+  shouldShowSendButton?: boolean;
 
   // 文本区域的最大高度 (px)
   maxHeight?: number;
@@ -80,7 +80,7 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
     disabled = false,
     autoFocus = false,
     onKeyDown,
-    showSendButton = true,
+    shouldShowSendButton = true,
     maxHeight = 200,
     onHeightChange
   }: UnifiedChatInputProps,
@@ -124,9 +124,9 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
   // textarea 引用和滚动状态
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [showScrollbar, setShowScrollbar] = useState(false);
+  const [isScrollbarVisible, setIsScrollbarVisible] = useState(false);
   const containerSize = useSize(containerRef);
-  const showShortcutHint = (containerSize?.width ?? SHORTCUT_HINT_MIN_WIDTH) >= SHORTCUT_HINT_MIN_WIDTH;
+  const shouldShowShortcutHint = (containerSize?.width ?? SHORTCUT_HINT_MIN_WIDTH) >= SHORTCUT_HINT_MIN_WIDTH;
 
   useImperativeHandle(
     ref,
@@ -160,7 +160,7 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
     const newHeight = Math.min(el.scrollHeight, maxHeight);
     el.style.height = newHeight + 'px';
     const isOverflowing = el.scrollHeight > maxHeight;
-    setShowScrollbar(isOverflowing);
+    setIsScrollbarVisible(isOverflowing);
 
     // 通知父组件高度变化
     if (onHeightChange && containerRef.current) {
@@ -204,7 +204,7 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
         disabled={disabled}
         className={clsx(
           'resize-none min-h-0 pr-24 pb-14 box-border rounded-2xl text-foreground bg-muted transition-all no-drag pointer-events-auto select-text cursor-text',
-          showScrollbar ? 'overflow-y-auto' : 'overflow-y-hidden',
+          isScrollbarVisible ? 'overflow-y-auto' : 'overflow-y-hidden',
           disabled ? 'opacity-60 cursor-not-allowed' : ''
         )}
         style={{ maxHeight: `${maxHeight}px` }}
@@ -224,7 +224,9 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
 
       {/* 自定义占位文字，带淡入淡出效果 */}
       {!text && (
-        <div className={clsx('absolute top-3 left-3 text-muted-foreground pointer-events-none transition-opacity duration-150', isPlaceholderVisible ? 'opacity-100' : 'opacity-0')}>{currentPlaceholder}</div>
+        <div className={clsx('absolute top-3 left-3 text-muted-foreground pointer-events-none transition-opacity duration-150', isPlaceholderVisible ? 'opacity-100' : 'opacity-0')}>
+          {currentPlaceholder}
+        </div>
       )}
 
       {/* 底部工具栏 */}
@@ -233,13 +235,13 @@ const UnifiedChatInput = React.forwardRef<UnifiedChatInputHandle, UnifiedChatInp
         {footerLeft}
 
         {/* 提示文字 */}
-        <div className="shrink-0 flex-1 text-xs text-muted-foreground no-drag select-none">{showShortcutHint && <span>Enter 发送，Shift+Enter 换行</span>}</div>
+        <div className="shrink-0 flex-1 text-xs text-muted-foreground no-drag select-none">{shouldShowShortcutHint && <span>Enter 发送，Shift+Enter 换行</span>}</div>
 
         {/* 右侧额外内容 */}
         {footerRightExtra}
 
         {/* 发送/停止按钮 */}
-        {showSendButton && onSend && (
+        {shouldShowSendButton && onSend && (
           <>
             {!isLoading ? (
               <Tooltip>

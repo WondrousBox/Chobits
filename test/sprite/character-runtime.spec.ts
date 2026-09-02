@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { reloadCharacterPersonaRuntime, syncCharacterPersonaRuntime } from '../../packages/sprite-core/character-runtime';
+import { reloadCharacterRuntime, syncCharacterRuntime } from '../../packages/sprite-core/character-runtime';
 import { initCharacterService, setCharacterFilePath } from '../../packages/sprite-core/character-service';
 
 function writeCharacterFile(rootDir: string, payload: unknown): void {
@@ -31,7 +31,7 @@ function createCharacterPayload(overrides?: Record<string, unknown>): Record<str
       examples: [],
       quirks: []
     },
-    favorPersona: {
+    favorTiers: {
       friend: {
         range: [40, 59],
         style: 'friendly',
@@ -67,7 +67,7 @@ function createCharacterPayload(overrides?: Record<string, unknown>): Record<str
   };
 }
 
-describe('character runtime persona bridge', () => {
+describe('character runtime bridge', () => {
   let tempDir: string | null = null;
 
   afterEach(() => {
@@ -83,7 +83,7 @@ describe('character runtime persona bridge', () => {
     writeCharacterFile(tempDir, createCharacterPayload());
 
     initCharacterService(tempDir);
-    expect(syncCharacterPersonaRuntime()).toEqual({ characterId: 'character-a' });
+    expect(syncCharacterRuntime()).toEqual({ characterId: 'character-a' });
   });
 
   it('reload picks up the updated character definition from disk', () => {
@@ -91,10 +91,10 @@ describe('character runtime persona bridge', () => {
     writeCharacterFile(tempDir, createCharacterPayload());
 
     initCharacterService(tempDir);
-    syncCharacterPersonaRuntime();
+    syncCharacterRuntime();
 
     writeCharacterFile(tempDir, createCharacterPayload({ id: 'character-b', name: 'Character B' }));
 
-    expect(reloadCharacterPersonaRuntime()).toEqual({ characterId: 'character-b' });
+    expect(reloadCharacterRuntime()).toEqual({ characterId: 'character-b' });
   });
 });

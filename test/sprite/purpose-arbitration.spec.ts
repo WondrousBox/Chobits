@@ -184,10 +184,7 @@ describe('Purpose arbitration', () => {
   });
 
   it('coalesces duplicate queued purposes instead of adding another queue item', async () => {
-    const { manager } = createManager([
-      holdPreset('file.drop.intake', 'file.drop.intake', 100),
-      holdPreset('daily.rest-reminder', 'daily.rest-reminder', 60)
-    ]);
+    const { manager } = createManager([holdPreset('file.drop.intake', 'file.drop.intake', 100), holdPreset('daily.rest-reminder', 'daily.rest-reminder', 60)]);
 
     const active = await manager.start({
       kind: 'file.drop.intake',
@@ -252,15 +249,12 @@ describe('Purpose arbitration', () => {
   });
 
   it('caps the queue and lets higher-priority queued work replace the lowest queued purpose', async () => {
-    const { manager, history } = createManager(
-      [holdPreset('file.drop.intake', 'file.drop.intake', 100)],
-      {
-        queuePolicy: {
-          maxQueueSize: 2,
-          minQueuedPriority: 0
-        }
+    const { manager, history } = createManager([holdPreset('file.drop.intake', 'file.drop.intake', 100)], {
+      queuePolicy: {
+        maxQueueSize: 2,
+        minQueuedPriority: 0
       }
-    );
+    });
 
     const active = await manager.start({
       kind: 'file.drop.intake',
@@ -320,10 +314,7 @@ describe('Purpose arbitration', () => {
   });
 
   it('lets file drop intake interrupt an active rest reminder', async () => {
-    const { manager, history } = createManager([
-      holdPreset('daily.rest-reminder', 'daily.rest-reminder', 60),
-      holdPreset('file.drop.intake', 'file.drop.intake', 100)
-    ]);
+    const { manager, history } = createManager([holdPreset('daily.rest-reminder', 'daily.rest-reminder', 60), holdPreset('file.drop.intake', 'file.drop.intake', 100)]);
 
     const rest = await manager.start({
       kind: 'daily.rest-reminder',

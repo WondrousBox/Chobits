@@ -6,7 +6,6 @@
 
 このフォルダーには、JavaScriptまたはTypeScriptアプリケーションを開発するためのコアライブラリファイルが含まれています。
 
-
 ## ファイルリスト
 
 ### live2dcubismcore.d.ts

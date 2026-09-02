@@ -92,10 +92,13 @@ export class SpritePurposeEventWaiter {
       };
 
       if (step.timeoutMs != null) {
-        entry.timer = this.setTimeout(() => {
-          entry.cleanup();
-          reject(new SpritePurposeEventTimeoutError(step.event));
-        }, Math.max(0, step.timeoutMs));
+        entry.timer = this.setTimeout(
+          () => {
+            entry.cleanup();
+            reject(new SpritePurposeEventTimeoutError(step.event));
+          },
+          Math.max(0, step.timeoutMs)
+        );
       }
 
       signal?.addEventListener('abort', onAbort, { once: true });
@@ -115,11 +118,7 @@ export class SpritePurposeEventWaiter {
     return this.getMatchResult(step, routine, event).matched;
   }
 
-  private getMatchResult(
-    step: WaitForEventStep,
-    routine: SpriteRoutine,
-    event: SpritePurposeRuntimeEvent
-  ): { matched: true } | { matched: false; reason: string } {
+  private getMatchResult(step: WaitForEventStep, routine: SpriteRoutine, event: SpritePurposeRuntimeEvent): { matched: true } | { matched: false; reason: string } {
     if (step.source && event.source !== step.source) {
       return { matched: false, reason: `source expected=${step.source} actual=${event.source}` };
     }
@@ -172,10 +171,7 @@ export class SpritePurposeEventWaiter {
   }
 
   private isChatApiConfigWait(step: WaitForEventStep, routine: SpriteRoutine): boolean {
-    return (
-      routine.presetId === 'chat.api-config-guide' ||
-      step.id.includes('chat-api-config')
-    );
+    return routine.presetId === 'chat.api-config-guide' || step.id.includes('chat-api-config');
   }
 
   private logChatApiConfigMatchMiss(step: WaitForEventStep, routine: SpriteRoutine, event: SpritePurposeRuntimeEvent, reason: string): void {

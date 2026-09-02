@@ -5,8 +5,8 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SpeakConfigStore } from '../../packages/sprite-core/speak/speak-config-store';
+import { detectSpeechTextLanguage, normalizeCharacterSpeechLanguage } from '../../packages/sprite-core/speak/speak-language';
 import { SpeakService } from '../../packages/sprite-core/speak/speak-service';
-import { detectSpeechTextLanguage, normalizeCharacterSpeechLanguage } from '../../packages/sprite-core/speak/speech-language';
 import type { SpriteSpeakAIProviderConfig, SpriteSpeechSynthesisExecutor, SpriteSpeechTextTranslator } from '../../packages/sprite-core/speak/types';
 
 const tempDirs: string[] = [];
@@ -30,7 +30,7 @@ function makeSynthesize(): ReturnType<typeof vi.fn<SpriteSpeechSynthesisExecutor
   }));
 }
 
-function makeAiProviderConfig(patch?: Partial<SpriteSpeakAIProviderConfig>): SpriteSpeakAIProviderConfig {
+function makeAIProviderConfig(patch?: Partial<SpriteSpeakAIProviderConfig>): SpriteSpeakAIProviderConfig {
   return {
     audioSetting: { format: 'wav' },
     model: 'chi-tts',
@@ -123,8 +123,8 @@ describe('SpeakConfigStore speechLanguage normalization', () => {
     const store = new SpeakConfigStore(dataDir);
     store.load();
 
-    expect(store.setConfig({ aiProvider: makeAiProviderConfig({ speechLanguage: 'ja' }) }).aiProvider?.speechLanguage).toBe('ja');
-    expect(store.setConfig({ aiProvider: makeAiProviderConfig({ speechLanguage: 'zh' }) }).aiProvider?.speechLanguage).toBe('zh');
+    expect(store.setConfig({ aiProvider: makeAIProviderConfig({ speechLanguage: 'ja' }) }).aiProvider?.speechLanguage).toBe('ja');
+    expect(store.setConfig({ aiProvider: makeAIProviderConfig({ speechLanguage: 'zh' }) }).aiProvider?.speechLanguage).toBe('zh');
   });
 });
 
@@ -135,7 +135,7 @@ describe('SpeakService speech language translation', () => {
     const translate = vi.fn<SpriteSpeechTextTranslator['translate']>(async () => 'unused');
     const service = new SpeakService(dataDir, { synthesize }, { translate });
 
-    service.setConfig({ engine: 'ai-provider', aiProvider: makeAiProviderConfig({ speechLanguage: 'auto' }) });
+    service.setConfig({ engine: 'ai-provider', aiProvider: makeAIProviderConfig({ speechLanguage: 'auto' }) });
 
     const result = await service.synthesize('你好');
 
@@ -151,7 +151,7 @@ describe('SpeakService speech language translation', () => {
     const translator: SpriteSpeechTextTranslator = { lastBackend: { model: 'Qwen2.5-7B-Instruct-AWQ', providerId: 'vllm' }, translate };
     const service = new SpeakService(dataDir, { synthesize }, translator);
 
-    service.setConfig({ engine: 'ai-provider', aiProvider: makeAiProviderConfig({ speechLanguage: 'ja' }) });
+    service.setConfig({ engine: 'ai-provider', aiProvider: makeAIProviderConfig({ speechLanguage: 'ja' }) });
 
     const result = await service.synthesize('早上好，主人');
 
@@ -173,7 +173,7 @@ describe('SpeakService speech language translation', () => {
     const translate = vi.fn<SpriteSpeechTextTranslator['translate']>();
     const service = new SpeakService(dataDir, { synthesize }, { translate });
 
-    service.setConfig({ engine: 'ai-provider', aiProvider: makeAiProviderConfig({ speechLanguage: 'ja' }) });
+    service.setConfig({ engine: 'ai-provider', aiProvider: makeAIProviderConfig({ speechLanguage: 'ja' }) });
 
     const result = await service.synthesize('おはよう');
 
@@ -191,7 +191,7 @@ describe('SpeakService speech language translation', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const service = new SpeakService(dataDir, { synthesize }, { translate });
 
-    service.setConfig({ engine: 'ai-provider', aiProvider: makeAiProviderConfig({ speechLanguage: 'ja' }) });
+    service.setConfig({ engine: 'ai-provider', aiProvider: makeAIProviderConfig({ speechLanguage: 'ja' }) });
 
     const result = await service.synthesize('早上好');
 
@@ -206,7 +206,7 @@ describe('SpeakService speech language translation', () => {
     const synthesize = makeSynthesize();
     const service = new SpeakService(dataDir, { synthesize });
 
-    service.setConfig({ engine: 'ai-provider', aiProvider: makeAiProviderConfig({ speechLanguage: 'ja' }) });
+    service.setConfig({ engine: 'ai-provider', aiProvider: makeAIProviderConfig({ speechLanguage: 'ja' }) });
 
     const result = await service.synthesize('早上好');
 
@@ -220,13 +220,13 @@ describe('SpeakService speech language translation', () => {
     const translate = vi.fn<SpriteSpeechTextTranslator['translate']>(async ({ targetLang }) => (targetLang === 'ja' ? 'おはよう' : '早上好'));
     const service = new SpeakService(dataDir, { synthesize }, { translate });
 
-    service.setConfig({ engine: 'ai-provider', aiProvider: makeAiProviderConfig({ speechLanguage: 'ja' }) });
+    service.setConfig({ engine: 'ai-provider', aiProvider: makeAIProviderConfig({ speechLanguage: 'ja' }) });
     const first = await service.synthesize('早上好');
 
-    service.setConfig({ aiProvider: makeAiProviderConfig({ speechLanguage: 'auto' }) });
+    service.setConfig({ aiProvider: makeAIProviderConfig({ speechLanguage: 'auto' }) });
     const second = await service.synthesize('早上好');
 
-    service.setConfig({ aiProvider: makeAiProviderConfig({ speechLanguage: 'zh' }) });
+    service.setConfig({ aiProvider: makeAIProviderConfig({ speechLanguage: 'zh' }) });
     const third = await service.synthesize('おはよう');
 
     expect(first.ok && second.ok && third.ok).toBe(true);
@@ -250,7 +250,7 @@ describe('SpeakService character speech language', () => {
     const translate = vi.fn<SpriteSpeechTextTranslator['translate']>(async ({ targetLang: lang }) => (lang === 'ja' ? 'おはよう' : '早上好'));
     const service = new SpeakService(dataDir, { synthesize }, { translate }, () => characterLanguage);
 
-    service.setConfig({ engine: 'ai-provider', aiProvider: makeAiProviderConfig({ speechLanguage: 'auto' }) });
+    service.setConfig({ engine: 'ai-provider', aiProvider: makeAIProviderConfig({ speechLanguage: 'auto' }) });
 
     const sourceText = targetLang === 'ja' ? '早上好' : 'おはよう';
     const result = await service.synthesize(sourceText);
@@ -268,7 +268,7 @@ describe('SpeakService character speech language', () => {
       const translate = vi.fn<SpriteSpeechTextTranslator['translate']>(async () => 'unused');
       const service = new SpeakService(dataDir, { synthesize }, { translate }, () => characterLanguage);
 
-      service.setConfig({ engine: 'ai-provider', aiProvider: makeAiProviderConfig({ speechLanguage: 'auto' }) });
+      service.setConfig({ engine: 'ai-provider', aiProvider: makeAIProviderConfig({ speechLanguage: 'auto' }) });
 
       const result = await service.synthesize('早上好');
 
@@ -284,7 +284,7 @@ describe('SpeakService character speech language', () => {
     const translate = vi.fn<SpriteSpeechTextTranslator['translate']>(async () => '早上好');
     const service = new SpeakService(dataDir, { synthesize }, { translate }, () => 'ja');
 
-    service.setConfig({ engine: 'ai-provider', aiProvider: makeAiProviderConfig({ speechLanguage: 'zh' }) });
+    service.setConfig({ engine: 'ai-provider', aiProvider: makeAIProviderConfig({ speechLanguage: 'zh' }) });
 
     // 中文文本已是目标语言，不翻译
     const chinese = await service.synthesize('你好');
@@ -306,7 +306,7 @@ describe('SpeakService character speech language', () => {
     let characterLanguage: string | undefined = 'ja';
     const service = new SpeakService(dataDir, { synthesize }, { translate }, () => characterLanguage);
 
-    service.setConfig({ engine: 'ai-provider', aiProvider: makeAiProviderConfig({ speechLanguage: 'auto' }) });
+    service.setConfig({ engine: 'ai-provider', aiProvider: makeAIProviderConfig({ speechLanguage: 'auto' }) });
 
     const japanese = await service.synthesize('早上好');
 

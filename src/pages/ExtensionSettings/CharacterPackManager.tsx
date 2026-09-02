@@ -13,19 +13,19 @@ import { maskPath } from '@/lib/helpers';
 import { makeResSrc } from '@/lib/resource-protocol';
 import { SettingGroup, SettingItem, SettingPath } from '@/pages/SettingsPage/components/SettingComponents';
 
-import { CharacterPackEditorContent } from './CharacterPackEditor';
 import {
   buildCreateCharacterPackEditorState,
-  getCharacterPackEditorDescription,
-  getCharacterPackEditorTitle,
-  loadCharacterPackEditorStateForPack,
-  saveCharacterPackEditorState,
   CHARACTER_PACK_EDITOR_WINDOW_KEY,
   type CharacterPackEditorPresentation,
   type CharacterPackEditorState,
   type CharacterPackEditorWindowPayload,
+  getCharacterPackEditorDescription,
+  getCharacterPackEditorTitle,
+  loadCharacterPackEditorStateForPack,
+  saveCharacterPackEditorState,
   subscribeCharacterPackEditorEvents
 } from './character-pack-editor-model';
+import { CharacterPackEditorContent } from './CharacterPackEditor';
 
 interface CharacterPackManagerProps {
   afterRuntimeChange?: () => Promise<void> | void;
@@ -41,18 +41,18 @@ interface ImportPromptState {
 interface CharacterPackMutationResult {
   ok: true;
   error?: string;
-  changed?: boolean;
-  replaced?: boolean;
-  activated?: boolean;
-  switchedActivePack?: boolean;
+  didChange?: boolean;
+  wasReplaced?: boolean;
+  wasActivated?: boolean;
+  didSwitchActivePack?: boolean;
   pack?: CharacterPackSummary;
   removedPack?: CharacterPackSummary;
   activePack?: CharacterPackSummary | null;
   character?: { id: string; name: string; nameAliases: string[]; tagline: string } | null;
   characterSlot?: {
     slotId: string;
-    restored: boolean;
-    switched: boolean;
+    wasRestored: boolean;
+    wasSwitched: boolean;
   };
 }
 
@@ -375,6 +375,7 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 挂载时异步加载角色包列表,加载态切换是有意的
     void refresh();
     const unsubscribe = window.chobits.character.onCharacterSwitched(async () => {
       await refresh();
@@ -546,7 +547,7 @@ export default function CharacterPackManager({ afterRuntimeChange, editorExtra, 
 
       setRemoveTarget(null);
       await runAfterPackMutation();
-      if (result.switchedActivePack && result.activePack?.name) {
+      if (result.didSwitchActivePack && result.activePack?.name) {
         toast.success(`已删除 ${target.name}，当前切回 ${result.activePack.name}`);
       } else {
         toast.success(`已删除 ${target.name}`);

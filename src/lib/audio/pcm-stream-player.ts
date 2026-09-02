@@ -193,10 +193,13 @@ export class PcmStreamPlayer {
     if (fadeOutSeconds > 0) {
       gain.gain.setTargetAtTime(0, Math.max(context.currentTime, stopAt - fadeOutSeconds), fadeOutSeconds / 4);
     }
-    this.endTimer = window.setTimeout(() => {
-      this.cancel();
-      onEnded?.();
-    }, Math.max(0, (stopAt - context.currentTime + fadeOutSeconds) * 1000 + 50));
+    this.endTimer = window.setTimeout(
+      () => {
+        this.cancel();
+        onEnded?.();
+      },
+      Math.max(0, (stopAt - context.currentTime + fadeOutSeconds) * 1000 + 50)
+    );
   }
 
   stop(): void {

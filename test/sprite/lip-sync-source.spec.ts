@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { getCurrentRMS, detachLipSyncSource } from '../../src/lib/audio/lip-sync-source';
+import { detachLipSyncSource, getCurrentRMS } from '../../src/lib/audio/lip-sync-source';
 
 describe('lip-sync-source', () => {
   it('returns 0 when no source is attached', () => {

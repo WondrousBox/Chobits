@@ -8,7 +8,7 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import { WorkspacesRepo } from '../common/db/repositories';
 import { getASRInstance } from './asr-instance-manager';
 import { assertSherpaCapabilityActive, assertSherpaCapabilityUnlocked, notifySherpaCapabilityChanged } from './capability-guard';
-import { SherpaModel, CommonConfig } from './common';
+import { CommonConfig, SherpaModel } from './common';
 import { ASR_createInstance, ASR_destroyInstance, ASR_sendData, TTS_createInstance, TTS_destroyInstance, TTS_generateSpeech } from './index';
 
 /**
@@ -242,7 +242,7 @@ export function getASRStatusSnapshot(): { running: boolean } {
 }
 
 /**
- * localAi 功能旗标关闭时注册的降级 handler:
+ * localAI 功能旗标关闭时注册的降级 handler:
  * 查询类返回禁用态默认值,操作类返回 { ok: false },均不做副作用,
  * 渲染侧现有逻辑按"服务未运行"静默降级,避免 "No handler registered" 噪音。
  */
@@ -250,7 +250,7 @@ export function initSherpaStubHandlers(): void {
   const disabled = (): { ok: boolean; error: string } => ({ ok: false, error: 'Local AI feature is disabled' });
 
   ipcMain.handle('sherpa:get-asr-config', () => cloneASRConfig(DEFAULT_ASR_CONFIG));
-  ipcMain.handle('sherpa:save-asr-config', (_, partial: Partial<ASRConfig>) => ({
+  ipcMain.handle('sherpa:save-asr-config', (_event, partial: Partial<ASRConfig>) => ({
     ...cloneASRConfig(DEFAULT_ASR_CONFIG),
     ...(partial || {}),
     enabled: false,
@@ -273,8 +273,8 @@ export function initSherpaStubHandlers(): void {
   ipcMain.handle('sherpa:read-subtitle-content', async () => disabled());
   ipcMain.handle('sherpa:tts:create-instance', async () => disabled());
   ipcMain.handle('sherpa:tts:destroy-instance', async () => ({ ok: true }));
-  ipcMain.handle('sherpa:tts:generate', async (_, data?: { requestId?: string }) => ({ ...disabled(), requestId: data?.requestId ?? '' }));
-  ipcMain.handle('sherpa:tts:generate-to-file', async (_, data?: { requestId?: string }) => ({ ...disabled(), requestId: data?.requestId ?? '' }));
+  ipcMain.handle('sherpa:tts:generate', async (_event, data?: { requestId?: string }) => ({ ...disabled(), requestId: data?.requestId ?? '' }));
+  ipcMain.handle('sherpa:tts:generate-to-file', async (_event, data?: { requestId?: string }) => ({ ...disabled(), requestId: data?.requestId ?? '' }));
 }
 
 export function initSherpaHandlers(): void {
@@ -325,44 +325,47 @@ export function initSherpaHandlers(): void {
   });
 
   // IPC: save ASR config
-  ipcMain.handle('sherpa:save-asr-config', (_, partial: Partial<ASRConfig>) => {
+  ipcMain.handle('sherpa:save-asr-config', (_event, partial: Partial<ASRConfig>) => {
     if (partial.enabled === true) {
       assertSherpaCapabilityUnlocked('speechRecognition');
     }
     return updateASRConfigSnapshot(partial);
   });
 
-  ipcMain.handle('sherpa:create-instance', async (_, data: { model?: SherpaModel; punctuationModel?: string; language?: string; type?: 'online' | 'offline' | 'vad'; commonConfig?: CommonConfig }) => {
-    assertSherpaCapabilityUnlocked('speechRecognition');
-    const ins = await ASR_createInstance({
-      uuid: 'stream',
-      model: data.model,
-      language: data.language,
-      punctuationModel: data.punctuationModel,
-      type: data.type,
-      commonConfig: data.commonConfig
-    });
-    if (ins) {
-      ins.handler = (d) => {
-        // send to all windows
-        BrowserWindow.getAllWindows().forEach((w) => {
-          if (!w.isDestroyed()) {
-            try {
-              w.webContents.send('app:renderer-message', { type: 'sherpa:message', data: d });
-            } catch (error) {
-              console.error('发送 ASR 识别结果失败:', error);
+  ipcMain.handle(
+    'sherpa:create-instance',
+    async (_event, data: { model?: SherpaModel; punctuationModel?: string; language?: string; type?: 'online' | 'offline' | 'vad'; commonConfig?: CommonConfig }) => {
+      assertSherpaCapabilityUnlocked('speechRecognition');
+      const ins = await ASR_createInstance({
+        uuid: 'stream',
+        model: data.model,
+        language: data.language,
+        punctuationModel: data.punctuationModel,
+        type: data.type,
+        commonConfig: data.commonConfig
+      });
+      if (ins) {
+        ins.handler = (d) => {
+          // send to all windows
+          BrowserWindow.getAllWindows().forEach((w) => {
+            if (!w.isDestroyed()) {
+              try {
+                w.webContents.send('app:renderer-message', { type: 'sherpa:message', data: d });
+              } catch (error) {
+                console.error('发送 ASR 识别结果失败:', error);
+              }
             }
-          }
-        });
-      };
+          });
+        };
+
+        broadcastASRStatus();
+        return true;
+      }
 
       broadcastASRStatus();
-      return true;
+      return false;
     }
-
-    broadcastASRStatus();
-    return false;
-  });
+  );
 
   ipcMain.handle('sherpa:destroy-instance', async () => {
     disableASRRuntime();
@@ -375,7 +378,7 @@ export function initSherpaHandlers(): void {
   });
 
   // 开始录音存储（同时创建音频和字幕流）
-  ipcMain.handle('sherpa:start-recording', async (_, data: { workspaceId?: string; folderId?: string }) => {
+  ipcMain.handle('sherpa:start-recording', async (_event, data: { workspaceId?: string; folderId?: string }) => {
     try {
       assertSherpaCapabilityActive('speechRecognition');
       console.log('[Sherpa] 收到开始录音请求，data:', data);
@@ -463,7 +466,7 @@ export function initSherpaHandlers(): void {
   });
 
   // 继续之前的录音（追加模式打开已有文件）
-  ipcMain.handle('sherpa:resume-recording', async (_, data: { resourceId: string }) => {
+  ipcMain.handle('sherpa:resume-recording', async (_event, data: { resourceId: string }) => {
     try {
       assertSherpaCapabilityActive('speechRecognition');
       console.log('[Sherpa] 收到继续录音请求，resourceId:', data.resourceId);
@@ -561,7 +564,7 @@ export function initSherpaHandlers(): void {
   });
 
   // 追加字幕片段（流式写入）
-  ipcMain.handle('sherpa:append-subtitle', async (_, data: { segment: SubtitleSegment }) => {
+  ipcMain.handle('sherpa:append-subtitle', async (_event, data: { segment: SubtitleSegment }) => {
     try {
       const stream = recordingStreams.get('stream');
       if (!stream) {
@@ -658,7 +661,7 @@ export function initSherpaHandlers(): void {
   });
 
   // 保存SRT字幕文件
-  ipcMain.handle('sherpa:save-subtitle', async (_, data: { resourceId: string; srtContent: string }) => {
+  ipcMain.handle('sherpa:save-subtitle', async (_event, data: { resourceId: string; srtContent: string }) => {
     try {
       const { resourceId, srtContent } = data;
       console.log('[Sherpa] 收到保存SRT请求，resourceId:', resourceId, 'SRT内容长度:', srtContent.length);
@@ -691,7 +694,7 @@ export function initSherpaHandlers(): void {
   });
 
   // 检查并恢复未完成的录音
-  ipcMain.handle('sherpa:check-pending-recording', async (_, data: { resourceId: string }) => {
+  ipcMain.handle('sherpa:check-pending-recording', async (_event, data: { resourceId: string }) => {
     try {
       const { resourceId } = data;
 
@@ -777,7 +780,7 @@ export function initSherpaHandlers(): void {
   });
 
   // 获取录音历史记录（扫描各工作空间 recordings 目录下的 .pcm 文件）
-  ipcMain.handle('sherpa:get-recording-history', async (_, data: { limit?: number; offset?: number }) => {
+  ipcMain.handle('sherpa:get-recording-history', async (_event, data: { limit?: number; offset?: number }) => {
     try {
       const { limit = 50, offset = 0 } = data || {};
 
@@ -849,7 +852,7 @@ export function initSherpaHandlers(): void {
   });
 
   // 删除录音记录（删除音频文件和关联的字幕文件）
-  ipcMain.handle('sherpa:delete-recording', async (_, data: { resourceId: string }) => {
+  ipcMain.handle('sherpa:delete-recording', async (_event, data: { resourceId: string }) => {
     try {
       const { resourceId } = data;
 
@@ -872,7 +875,7 @@ export function initSherpaHandlers(): void {
   });
 
   // 读取字幕文件内容
-  ipcMain.handle('sherpa:read-subtitle-content', async (_, data: { filePath: string }) => {
+  ipcMain.handle('sherpa:read-subtitle-content', async (_event, data: { filePath: string }) => {
     try {
       const { filePath } = data;
       if (!filePath || !fscb.existsSync(filePath)) {
@@ -890,7 +893,7 @@ export function initSherpaHandlers(): void {
   // ==================== TTS 相关 Handlers ====================
 
   // 创建 TTS 实例
-  ipcMain.handle('sherpa:tts:create-instance', async (_, data: { model: string; numThreads?: number; maxNumSentences?: number }) => {
+  ipcMain.handle('sherpa:tts:create-instance', async (_event, data: { model: string; numThreads?: number; maxNumSentences?: number }) => {
     try {
       const ins = await TTS_createInstance({
         uuid: 'tts-stream',

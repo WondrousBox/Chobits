@@ -125,7 +125,7 @@ export function initFileHandlers(_win: Electron.BrowserWindow): void {
       return {
         ok: true,
         content,
-        truncated: false,
+        wasTruncated: false,
         originalSize: stats.size
       };
     } catch (e: any) {

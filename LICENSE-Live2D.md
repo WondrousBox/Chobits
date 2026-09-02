@@ -1,25 +1,20 @@
 # Terms of Use for Live2D Cubism Sample Data
 
-
 Definition of Sample Data
 
 “Sample Data” means materials supplied by Live2D as sample, including without limitation any data, artwork, image, design, and trademark.
-
 
 Types of Sample Data
 
 The Live2D Cubism sample Data are categorized into three types: Live2D original characters, collaboration characters, and externally licensed characters. The terms of use are different for each type.
 
-
 Terms of Use for Live2D Original Characters
 
-These are Live2D original characters. When using these character data, you must consent to the following terms for using these Data and the Free Material License Agreement.   Any Material distributed by Live2D Inc. through associated download pages for services other than Live2D Cubism (including but not limited to nizima LIVE and nizima ACTION!!) are subject to the terms and conditions of the license agreement or terms of use provided by such services.
-
+These are Live2D original characters. When using these character data, you must consent to the following terms for using these Data and the Free Material License Agreement. Any Material distributed by Live2D Inc. through associated download pages for services other than Live2D Cubism (including but not limited to nizima LIVE and nizima ACTION!!) are subject to the terms and conditions of the license agreement or terms of use provided by such services.
 
 Characters categorized as Live2D original characters
 
 Izumi, Epsilon, Gantzert & Felixander, Kei, Koharu & Haruto, Shizuku, simple model, Chitose, Tororo & Hijiki, Mao Niziiro, Nito, Haru, Haru (receptionist version), Hibiki, Mark-kun, Mark-kun (video version), Miara, Hiyori Momose, Hiyori Momose (video version), Rice Glassfield, Wankoromochi
-
 
 Terms of Use for Individual Live2D Original Characters
 
@@ -47,7 +42,6 @@ Wankoromochi
 
 Respect the mochi theme when using this character.
 
-
 Note: If you would like to use a character in a way that does not conform to the above terms of use, please consult with Live2D Support.
 
 Note: If a Middle-Scale or Large-Scale Enterprise customer would like to temporarily use these characters for promotion please refer to Section 2.1.3.2 of Free Material License Agreement
@@ -71,19 +65,13 @@ In a case it is difficult or impossible to indicate long descriptions due to the
 
 “This content uses sample data owned and copyrighted by Live2D Inc.”
 
-
-
-
-
 Terms of Use for Collaboration Characters
 
 These are characters that were created in collaboration between Live2D and outside creators. Consent to the following terms for using these Data and the Free Material License Agreement is required. You may neither use Collaboration Character and the related data for commercial purposes nor alter nor distribute them.
 
-
 Characters categorized as collaboration characters
 
 Jin Natori, Tsumiki Harugasa
-
 
 Terms of Use for Individual Collaboration Characters
 
@@ -94,7 +82,6 @@ Individual terms of use
 Jin Natori
 
 Use of this character which ignores his identity as a butler is not permitted.
-
 
 Note: If you would like to use a character in a way that does not conform to the above terms of use, please consult with Live2D Support.
 
@@ -117,13 +104,9 @@ In a case it is difficult or impossible to indicate long descriptions due to the
 
 “This content uses sample data owned and copyrighted by Live2D Inc.”
 
-
-
-
-
 Terms of Use for Externally Licensed Characters
 
-These are characters owned by a third party for which modeling was performed by Live2D. Consent to the terms of use set by such third party  is required. You shall use the Externally Licensed Characters at your thorough self-responsibility and Live2D Inc. accepts no responsibility for any lawsuit, conflict and/or claim for damage between you and the third party arising from your bleach of the terms of use or any other reason.
+These are characters owned by a third party for which modeling was performed by Live2D. Consent to the terms of use set by such third party is required. You shall use the Externally Licensed Characters at your thorough self-responsibility and Live2D Inc. accepts no responsibility for any lawsuit, conflict and/or claim for damage between you and the third party arising from your bleach of the terms of use or any other reason.
 
 Externally licensed character
 
@@ -143,17 +126,13 @@ https://unity-chan.com/contents/guideline/
 
 https://unity-chan.com/contents/license_jp/
 
-
-
 Version 1.6
 
 Last update: February 3rd, 2025
 
 Live2D Inc.
 
-
 # Free Material License Agreement
-
 
 （English Translation, see Section 9.2）
 
@@ -163,7 +142,7 @@ This Agreement is a legal contract made between you and Live2D Inc. (hereinafter
 By checking the box with links to this Agreement, clicking “accept” or by downloading, installing or using the Material (as hereinafter defined), you are agreeing that you understand this Agreement and accept all of its terms. If you do not agree to the terms of this Agreement, you may not use the Material.
 
 1. Definitions
-1.1 “License” means the right to use the Material to an extent of the conditions agreed upon between Live2D and you.
+   1.1 “License” means the right to use the Material to an extent of the conditions agreed upon between Live2D and you.
 
 1.2 “Freeware” means the programs which Live2D distributes with indications of “free software” and “freeware” and any and all included unique script descriptions, images, documents, sample materials and additional information.
 
@@ -222,7 +201,7 @@ Enterprises that are otherwise considered substantially controlled by enterprise
 1.25 “Qualified Educational Institutions” shall mean institutions that use the Software for the purposes of education, practice, and/or research, and that are stipulated by the laws of each country as educational institutions or as public vocational training institutions. Live2D can determine, at its sole discretion, whether a Customer qualifies as a Qualified Educational Institution.
 
 2. License Grant
-Live2D grants the Customer a non-exclusive license (hereinafter “License”) to use the Material for the purpose (hereinafter “Purpose of Use”) and application defined according to License Type, provided such use is limited only for applications which does not correspond to Restricted Acts of this Agreement. Any Material distributed by Live2D Inc. through associated download pages for services other than Live2D Cubism (including but not limited to nizima LIVE and nizima ACTION!!) are subject to the terms and conditions of the license agreement or terms of use provided by such services.
+   Live2D grants the Customer a non-exclusive license (hereinafter “License”) to use the Material for the purpose (hereinafter “Purpose of Use”) and application defined according to License Type, provided such use is limited only for applications which does not correspond to Restricted Acts of this Agreement. Any Material distributed by Live2D Inc. through associated download pages for services other than Live2D Cubism (including but not limited to nizima LIVE and nizima ACTION!!) are subject to the terms and conditions of the license agreement or terms of use provided by such services.
 
 However, the License may be terminated without prior notice. Upon expiration or termination of the License Term, the Customer may not use the Material. When term of use is indicated respectively, the License shall be terminated by expiration of such term, then the Customer may not use the Material.
 
@@ -273,14 +252,14 @@ Purpose of Use: Internal or Supervision purpose
 The Customer, in the Derivative Work developed through using the Material, shall indicate the copyright notice designated in terms and conditions for utilizing each Live2D Original Character described in each download page thereof.
 
 3. Intellectual Property
-3.1 Unless expressly permitted hereunder, Live2D shall have intellectual property rights to the Material and copies thereof. These rights are protected by laws and regulations, including but not limited to the Copyright Acts of Japan and other countries and the provisions of international treaties.
+   3.1 Unless expressly permitted hereunder, Live2D shall have intellectual property rights to the Material and copies thereof. These rights are protected by laws and regulations, including but not limited to the Copyright Acts of Japan and other countries and the provisions of international treaties.
 
 3.2 Unless expressly provided for hereunder, Live2D will not grant or transfer to the Customers a license to exercise and use the intellectual property rights of the Material upon the execution of this Agreement. Any rights not expressly granted shall be vested in Live2D.
 
 3.3 The name of this Material and all related titles and logos are trademarks of Live2D in Japan and/or other countries.
 
 4. Restrictions and Requirements
-4.1 Restricted Acts
+   4.1 Restricted Acts
 
 4.1.1 No Redistribution
 
@@ -337,7 +316,7 @@ The Customer may not make unjust or false statements regarding this Agreement or
 The Customer may not otherwise engage in any acts which Live2D judges inappropriate.
 
 5. Confidentiality
-Neither Live2D nor the Customers shall divulge to any third party any information disclosed by the other party, technical and business secrets of the other party that become known to them or information that the other party identifies as secret (hereinafter collectively referred to as the “Confidential Information”) unless they obtain the prior written consent of the other party, except for the information set forth in the respective Items below:
+   Neither Live2D nor the Customers shall divulge to any third party any information disclosed by the other party, technical and business secrets of the other party that become known to them or information that the other party identifies as secret (hereinafter collectively referred to as the “Confidential Information”) unless they obtain the prior written consent of the other party, except for the information set forth in the respective Items below:
 
 5.1 Information that the receiving party obtains before the disclosing party provides it;
 
@@ -348,19 +327,19 @@ Neither Live2D nor the Customers shall divulge to any third party any informatio
 5.4 Information that is required by laws or any competent public authorities.
 
 6. Limited Warranty
-6.1 Live2D would not guarantee the performance and/or fitness of the Material for specific purpose, compatibility, non-infringement, or that the Material is error-free. In case the performance, function or quality of the Material Live2D expresses does not meet Customer’s purpose, Live2D would not be liable for disclosing information of, or correcting the Material.
+   6.1 Live2D would not guarantee the performance and/or fitness of the Material for specific purpose, compatibility, non-infringement, or that the Material is error-free. In case the performance, function or quality of the Material Live2D expresses does not meet Customer’s purpose, Live2D would not be liable for disclosing information of, or correcting the Material.
 
 6.2 Except for remedies that cannot be excluded or limited under the law, Live2D will not be liable to the Customer for any loss, damages, claims, or costs whatsoever including any consequential, indirect or incidental damages, any lost profits or lost savings, any damages resulting from business interruption, personal injury or failure to meet any duty of care, or claims by a third party, arising from use of the Material.
 
 7. Compensation for Damages and Cancellation
-7.1 The Customer (when the Customers are corporations or any other organizations, including their officers and the Representatives) shall be liable to Live2D for the damages arising out of engagement in any restricted actions set forth in “4. Restrictions and Requirements” or Customer's breach of this Agreement. In case Live2D takes legal actions due to Customer’s breach of this Agreement, the Customer shall be liable to Live2D for reasonable attorney’s fees.
+   7.1 The Customer (when the Customers are corporations or any other organizations, including their officers and the Representatives) shall be liable to Live2D for the damages arising out of engagement in any restricted actions set forth in “4. Restrictions and Requirements” or Customer's breach of this Agreement. In case Live2D takes legal actions due to Customer’s breach of this Agreement, the Customer shall be liable to Live2D for reasonable attorney’s fees.
 
 7.2 If any Customers fall under preceding section, Live2D may immediately cancel this Agreement without giving notice of demand to the Customers. Termination of the Agreement shall not prevent Live2D from exercising a claim for damages against the Customer.
 
 7.3 If this Agreement is terminated pursuant to Section 7.2, the Customer shall promptly destroy the Material, all copies thereof, and all Derivative Work including the Output Files and any other derivatives arising from use of the Material.
 
 8. Internet Connectivity and Privacy
-8.1 Automatic Connections to the Internet.
+   8.1 Automatic Connections to the Internet.
 
 The Freeware may cause Customer’s Computer, without notice, to automatically connect to the Internet and to communicate with a Live2D server system for purposes such as license validation, activation, updating, and providing the Customer with additional information, features, or functionality.
 
@@ -373,20 +352,20 @@ The Freeware may cause Customer’s Computer, without notice, to automatically c
 8.5 The Customer will refer to Live2D's Privacy Policy as set forth separately for matters concerning privacy.
 
 9. Governing Law and Jurisdiction
-9.1 This Agreement shall be governed by and construed in accordance with the law of Japan.
+   9.1 This Agreement shall be governed by and construed in accordance with the law of Japan.
 
 9.2 This Agreement shall be executed in Japanese language only, and the Japanese text shall prevail over any translation thereof.
 
 9.3 The parties submit to the exclusive jurisdiction of the Tokyo District Court of Japan for the first instance with respect to all controversies arising from the interpretation and performance of this Agreement.
 
 10. Survive
-The provisions of Sections 3. (Intellectual Property), 5. (Confidentiality), 6. (Limited Warranty), 7. (Compensation for Damages and Cancellation) and 9. (Governing Law and Jurisdiction) and the provisions hereof shall remain in effect after expiration or termination of this Agreement.
+    The provisions of Sections 3. (Intellectual Property), 5. (Confidentiality), 6. (Limited Warranty), 7. (Compensation for Damages and Cancellation) and 9. (Governing Law and Jurisdiction) and the provisions hereof shall remain in effect after expiration or termination of this Agreement.
 
 11. General Provisions.
-If any part of this Agreement is found void and unenforceable, it will not affect the validity of the balance of the Agreement, which will remain valid and enforceable according to its terms. Live2D may at any time amend the Agreement as it sees fit, in which case the updated version of the Agreement will be posted on Live2D's website and take effect immediately from the date of updating indicated in the Agreement. The Japanese version of this Agreement will be the version used when interpreting or construing this Agreement. This is the entire agreement between Live2D and the Customer relating to the Material, and it supersedes any prior representations, discussions, undertakings, communications, or advertising relating to the Material.
+    If any part of this Agreement is found void and unenforceable, it will not affect the validity of the balance of the Agreement, which will remain valid and enforceable according to its terms. Live2D may at any time amend the Agreement as it sees fit, in which case the updated version of the Agreement will be posted on Live2D's website and take effect immediately from the date of updating indicated in the Agreement. The Japanese version of this Agreement will be the version used when interpreting or construing this Agreement. This is the entire agreement between Live2D and the Customer relating to the Material, and it supersedes any prior representations, discussions, undertakings, communications, or advertising relating to the Material.
 
 12. Specific Provisions and Exceptions
-This section sets forth specific provisions related to certain products and components of the Material as well as limited exceptions to the above terms and conditions. To the extent that any provision in this section is in conflict with any other term or condition in this agreement, the terms stated in this section will supersede such other term or condition.
+    This section sets forth specific provisions related to certain products and components of the Material as well as limited exceptions to the above terms and conditions. To the extent that any provision in this section is in conflict with any other term or condition in this agreement, the terms stated in this section will supersede such other term or condition.
 
 12.1 Pre-release Version Additional Terms
 
@@ -406,7 +385,7 @@ Revised: February 3rd, 2025
 本契約へのリンクを含むボックスにチェックを入れる、「承諾」をクリックする、または本マテリアルをダウンロード、インストール、使用することにより、お客様は本契約を理解し、その条件にすべて合意したとみなされます。お客様は、本契約の条項全てに同意しない場合、本マテリアルを使用できません。
 
 1. 定義
-1.1 「ライセンス」とは、Live2D社とお客様とで合意した条件の範囲内で、本マテリアルを使用する権利を意味します。
+   1.1 「ライセンス」とは、Live2D社とお客様とで合意した条件の範囲内で、本マテリアルを使用する権利を意味します。
 
 1.2 「フリーウェア」とは、Live2D社により「フリーソフトウェア」「フリーウェア」と表示して配布されたプログラムと、同梱されている独自のスクリプト記述、画像、ドキュメント、サンプル素材および追加情報のすべてを意味します。
 
@@ -465,7 +444,7 @@ Revised: February 3rd, 2025
 1.25 「適格教育機関」とは、各国の法律で定められた学校法人及び公営の職業訓練施設のうち、練習、教育および研究の目的のみに本マテリアルを利用する機関が該当します。お客様が適格教育機関であるか否かについては、Live2D社が専らその裁量により判断し、決定することができます。
 
 2. ライセンス許諾
-Live2D社は、お客様に対し、本契約に記載のライセンスタイプに応じて定められた目的（以下「使用等目的」といいます）および用途の範囲内で、かつ本契約で禁止される行為に該当しない用途に限定し、本マテリアルの非独占的な使用権（以下「本件ライセンス」といいます。）を、無償で許諾します。なお、Live2D Cubismに係るダウンロードページ等以外の、Live2D社が提供する他のサービス（nizima LIVEやnizima ACTION!!を含みますがこれらに限られません。）のダウンロードページ等において頒布されるマテリアルの使用許諾の条件は、それらサービスにて定める使用許諾契約書や利用条件の定めに従うものとします。
+   Live2D社は、お客様に対し、本契約に記載のライセンスタイプに応じて定められた目的（以下「使用等目的」といいます）および用途の範囲内で、かつ本契約で禁止される行為に該当しない用途に限定し、本マテリアルの非独占的な使用権（以下「本件ライセンス」といいます。）を、無償で許諾します。なお、Live2D Cubismに係るダウンロードページ等以外の、Live2D社が提供する他のサービス（nizima LIVEやnizima ACTION!!を含みますがこれらに限られません。）のダウンロードページ等において頒布されるマテリアルの使用許諾の条件は、それらサービスにて定める使用許諾契約書や利用条件の定めに従うものとします。
 
 ただし、本件ライセンスの許諾は事前に通知することなく終了される場合があります。本件ライセンスの許諾が終了した場合、お客様は本マテリアルを使用することはできません。また、個別に使用可能な期間の表示がある場合は、その期間の終了をもって、本件ライセンスの許諾は終了するものとし、お客様は本マテリアルを使用することはできません。
 
@@ -516,14 +495,14 @@ https://www.live2d.com/business/SLP
 お客様は、ダウンロードページ等に記載された利用条件に定める著作権等に係る表示を本マテリアルを使用して制作した派生作品に行う義務を負うものとします。
 
 3. 知的財産権
-3.1 個別の明示がない限り、本マテリアルおよびそのコピーについては、Live2D社が知的財産権を有しており、日本およびその他の国の著作権法、ならびに国際条約の条項を含むがこれらに限定されない法律等によって保護されています。
+   3.1 個別の明示がない限り、本マテリアルおよびそのコピーについては、Live2D社が知的財産権を有しており、日本およびその他の国の著作権法、ならびに国際条約の条項を含むがこれらに限定されない法律等によって保護されています。
 
 3.2 本契約に明示的に規定される場合および個別の明示がない限り、Live2D社は、本契約の締結により、お客様に対し本マテリアルの知的財産権の実施、利用等の許諾または譲渡をするものではありません。明確に付与されていないすべての権利はLive2D社に帰属します。
 
 3.3 本マテリアルの名前およびすべての関連するタイトルやロゴは日本および/またはその他の国におけるLive2D社の商標です。
 
 4. 禁止事項
-4.1 禁止される行為
+   4.1 禁止される行為
 
 4.1.1 再配布の禁止
 
@@ -580,7 +559,7 @@ Live2D社による本マテリアル又はサービスの提供、若しくは�
 その他、Live2D社が不適切と判断する行為を行うこと。
 
 5. 秘密保持
-Live2D社およびお客様は、事前に相手方の書面による同意を得た場合を除き、相手方から開示された情報、知り得た相手方の技術上および営業上の秘密、相手方から秘密である旨の指定を受けた情報（以下総称して、「秘密情報」という。）を、第三者に漏洩してはならないものとします。ただし、次の各号に掲げるものについては、この限りではありません。
+   Live2D社およびお客様は、事前に相手方の書面による同意を得た場合を除き、相手方から開示された情報、知り得た相手方の技術上および営業上の秘密、相手方から秘密である旨の指定を受けた情報（以下総称して、「秘密情報」という。）を、第三者に漏洩してはならないものとします。ただし、次の各号に掲げるものについては、この限りではありません。
 
 5.1 相手方から知得する以前に取得していた情報
 
@@ -591,19 +570,19 @@ Live2D社およびお客様は、事前に相手方の書面による同意を�
 5.4 法令の定めに基づき、又は権限のある官公庁から要求された情報
 
 6. 免責
-6.1 Live2D社は、本マテリアルの性能、互換性、非侵害、エラーがないこと、または特定目的への適合性について、一切の保証をいたしません。また、Live2D社が明示している本マテリアルの性能・機能・品質が、お客様の使用目的に合致しなかったとしても、Live2D社は本マテリアルに関する情報の開示や修正などを行う一切の責任を負いません。
+   6.1 Live2D社は、本マテリアルの性能、互換性、非侵害、エラーがないこと、または特定目的への適合性について、一切の保証をいたしません。また、Live2D社が明示している本マテリアルの性能・機能・品質が、お客様の使用目的に合致しなかったとしても、Live2D社は本マテリアルに関する情報の開示や修正などを行う一切の責任を負いません。
 
 6.2 法律上除外または制限することのできない救済手段を除き、Live2D社は、本マテリアルの使用から直接または間接的に生起した問題について、直接損害、拡大損害、派生損害、間接損害、付随的損害、利益の喪失、貯蓄の喪失、または事業の中断、障害、注意義務違反もしくは第三者からの請求に基づくすべての損害を含むがこれらに限定されない一切の損失、損害、請求もしくは費用について、お客様に対して賠償する責を負わないものとします。
 
 7. 損害賠償及び契約の解除
-7.1 お客様（お客様が法人その他の団体の場合、その役員及び従業員等を含みます。）が、「4. 禁止事項」に規定される禁止行為をし、又はその他本契約の各条項に違反した場合、Live2D社は、お客様に対し、これによりLive2D社が被った損害の賠償を請求できるものとします。Live2D社がお客様に対して法的措置を取ることを決定した場合、お客様がLive2D社の合理的な弁護士費用を負担するものとします。
+   7.1 お客様（お客様が法人その他の団体の場合、その役員及び従業員等を含みます。）が、「4. 禁止事項」に規定される禁止行為をし、又はその他本契約の各条項に違反した場合、Live2D社は、お客様に対し、これによりLive2D社が被った損害の賠償を請求できるものとします。Live2D社がお客様に対して法的措置を取ることを決定した場合、お客様がLive2D社の合理的な弁護士費用を負担するものとします。
 
 7.2 Live2D社は、お客様が前項に該当した場合、お客様に対する催告を行うことなく、直ちに本契約を解除することができるものとします。本契約の解除がなされても、Live2D社は、お客様に対して有する損害賠償請求権の行使を妨げられません。
 
 7.3 7.2項に定める規定により本契約が終了した場合、お客様は、本マテリアルおよびその複製物、派生作品や出力ファイル、その他本マテリアルの使用により派生するものを直ちに廃棄しなくてはならないものとします。
 
 8. 接続およびプライバシー
-8.1 インターネットへの自動接続
+   8.1 インターネットへの自動接続
 
 フリーウェアは、追加の通知を行うことなく、お客様の互換コンピューターをインターネットに自動的に接続し、お客様への追加の情報や機能の提供およびライセンスの確認やアクティベーション、アップデートなどの目的のためにLive2D社のサーバと通信を行う場合があります。
 
@@ -616,20 +595,20 @@ Live2D社およびお客様は、事前に相手方の書面による同意を�
 8.5 プライバシーに関してはLive2D社のプライバシーポリシーを参照ください。
 
 9. 準拠法、管轄裁判所
-9.1 本契約は日本法に準拠し、日本法に従って解釈されるものとします。
+   9.1 本契約は日本法に準拠し、日本法に従って解釈されるものとします。
 
 9.2 本契約は、日本語で締結され、日本語による解釈がいかなる言語による翻訳にも優先されるものとします。
 
 9.3 本契約の解釈および履行に関して生じる一切の紛争の解決については、東京地方裁判所を第一審の専属的合意管轄裁判所とします。
 
 10. 残存条項
-本契約の終了後においても、3.（知的財産権）、5.（秘密保持）、6.（免責）、7.（損害賠償および契約の解除）、9. （準拠法、管轄裁判所）および本項の規定については、引き続き効力を有するものとします。
+    本契約の終了後においても、3.（知的財産権）、5.（秘密保持）、6.（免責）、7.（損害賠償および契約の解除）、9. （準拠法、管轄裁判所）および本項の規定については、引き続き効力を有するものとします。
 
 11. 一般条項
-本契約の一部が無効であり強制力を有しないものとされた場合においても、その他の有効な部分は影響を受けず、その条件に従って効力および強制力を維持します。Live2D社は、本契約を必要に応じて随時改定することができ、その場合、本契約書はウェブページ等に表示された後、そこに記載されている最新の改定日から効力を発するものとします。本契約書を解釈するにあたっては、本契約の日本語版を使用します。本契約はLive2D社およびお客様の本マテリアルに関する完全な合意であり、本マテリアルに関する本契約締結以前の表明、交渉、了解、通信連絡、広告のすべてに優先します。
+    本契約の一部が無効であり強制力を有しないものとされた場合においても、その他の有効な部分は影響を受けず、その条件に従って効力および強制力を維持します。Live2D社は、本契約を必要に応じて随時改定することができ、その場合、本契約書はウェブページ等に表示された後、そこに記載されている最新の改定日から効力を発するものとします。本契約書を解釈するにあたっては、本契約の日本語版を使用します。本契約はLive2D社およびお客様の本マテリアルに関する完全な合意であり、本マテリアルに関する本契約締結以前の表明、交渉、了解、通信連絡、広告のすべてに優先します。
 
 12. 個別規定および例外
-本条は、本マテリアルの一部またはすべてに関する固有の規定および上記条項に関する一部例外を規定します。本条の規定が本契約の他の条項と矛盾する場合、本条がそれらの条項に優先するものとします。
+    本条は、本マテリアルの一部またはすべてに関する固有の規定および上記条項に関する一部例外を規定します。本条の規定が本契約の他の条項と矛盾する場合、本条がそれらの条項に優先するものとします。
 
 12.1 プレリリース版の補足条件
 

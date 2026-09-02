@@ -1,5 +1,5 @@
 import { PluginDefinition } from '@packages/plugins/types';
-import { SherpaModel as SherpaModelId, CommonConfig } from '@packages/sherpa/common';
+import { CommonConfig, SherpaModel as SherpaModelId } from '@packages/sherpa/common';
 import { ScrollArea } from '@radix-ui/react-scroll-area';
 import React, { useCallback, useEffect, useState } from 'react';
 import { TbChevronDown, TbChevronUp, TbLoader2, TbPlayerPlay, TbPlayerStop } from 'react-icons/tb';
@@ -209,7 +209,7 @@ const ASRConfigPage: React.FC = () => {
   const [cloudModelId, setCloudModelId] = useState<string>('');
   const [availableCloudProviderIds, setAvailableCloudProviderIds] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('local');
-  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [isAdvancedSettingsVisible, setIsAdvancedSettingsVisible] = useState(false);
   // 麦克风授权状态(macOS/Windows 需要系统授权;该状态同时是「麦克风录音」能力的激活信号)
   const [micStatus, setMicStatus] = useState<string>('unknown');
   const cloudProviderSelectRef = React.useRef<ProviderModelSelectRef>(null);
@@ -291,7 +291,7 @@ const ASRConfigPage: React.FC = () => {
 
   const handleRequestMicAccess = useCallback(async (): Promise<void> => {
     const res = await window.chobits.system['system:microphone:request-access']();
-    if (res.ok && res.granted) {
+    if (res.ok && res.isGranted) {
       setMicStatus('granted');
       toast.success('麦克风授权成功');
     } else {
@@ -498,16 +498,16 @@ const ASRConfigPage: React.FC = () => {
   }
 
   // 当模型改变时，检查并重置语言选择（仅在高级设置中手动修改时生效）
-  const [prevLanguageInputs, setPrevLanguageInputs] = useState({ selectedModel, sherpaModels, language, showAdvancedSettings });
+  const [prevLanguageInputs, setPrevLanguageInputs] = useState({ selectedModel, sherpaModels, language, isAdvancedSettingsVisible });
   if (
     prevLanguageInputs.selectedModel !== selectedModel ||
     prevLanguageInputs.sherpaModels !== sherpaModels ||
     prevLanguageInputs.language !== language ||
-    prevLanguageInputs.showAdvancedSettings !== showAdvancedSettings
+    prevLanguageInputs.isAdvancedSettingsVisible !== isAdvancedSettingsVisible
   ) {
-    setPrevLanguageInputs({ selectedModel, sherpaModels, language, showAdvancedSettings });
+    setPrevLanguageInputs({ selectedModel, sherpaModels, language, isAdvancedSettingsVisible });
     const selectedModelInfo = selectedModel ? sherpaModels.find((m) => m.id === selectedModel) : undefined;
-    if (selectedModel && showAdvancedSettings && selectedModelInfo) {
+    if (selectedModel && isAdvancedSettingsVisible && selectedModelInfo) {
       const supportedLanguages = selectedModelInfo.languages || [];
       // 如果模型支持 multi，则支持所有语言，不需要重置
       if (!supportedLanguages.includes('multi')) {
@@ -738,13 +738,13 @@ const ASRConfigPage: React.FC = () => {
               <div className="space-y-2 border rounded-lg">
                 <button
                   type="button"
-                  onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                  onClick={() => setIsAdvancedSettingsVisible(!isAdvancedSettingsVisible)}
                   className="w-full flex items-center justify-between px-4 py-2 text-sm font-medium hover:bg-muted/50 transition-colors rounded-t-lg"
                 >
                   <span className="no-drag">自定义</span>
-                  {showAdvancedSettings ? <TbChevronUp className="h-4 w-4 no-drag" /> : <TbChevronDown className="h-4 w-4 no-drag" />}
+                  {isAdvancedSettingsVisible ? <TbChevronUp className="h-4 w-4 no-drag" /> : <TbChevronDown className="h-4 w-4 no-drag" />}
                 </button>
-                {showAdvancedSettings && (
+                {isAdvancedSettingsVisible && (
                   <div className="px-4 pb-4 space-y-4 border-t">
                     <div className="space-y-2 pt-4">
                       <Label className="no-drag" htmlFor="model">

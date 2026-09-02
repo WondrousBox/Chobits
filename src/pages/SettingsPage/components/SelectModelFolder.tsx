@@ -37,6 +37,7 @@ const SelectModelFolder: React.FC<SelectModelFolderProps> = ({ onConfigured }) =
     if (pluginsDir) {
       prevDirRef.current = pluginsDir;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 有意只在加载完成时记录基准目录,不随 pluginsDir 变化重跑
   }, [isLoading]);
 
   const pickDir = async (): Promise<void> => {

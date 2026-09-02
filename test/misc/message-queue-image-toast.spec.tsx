@@ -13,7 +13,7 @@ describe('useMessageQueue image toast priority', () => {
 
     const { act, useEffect } = await import('react');
     const { createRoot } = await import('react-dom/client');
-    const { useMessageQueue } = await import('../../src/features/sprite-assistant/message/useMessageQueue');
+    const { useMessageQueue } = await import('../../src/features/sprite/message/useMessageQueue');
     type UseMessageQueueReturn = ReturnType<typeof useMessageQueue>;
 
     const env = installMiniDom();

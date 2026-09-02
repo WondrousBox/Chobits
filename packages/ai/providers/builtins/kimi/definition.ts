@@ -35,8 +35,7 @@ export const kimiDefinition: BuiltinProviderDefinition = {
   source: 'builtin',
   display: {
     label: 'Kimi',
-    description:
-      'Kimi is Moonshot AI\'s OpenAI-compatible model family; the flagship Kimi K3 offers a 1M-token context window, while Kimi K2.7 Code targets coding agent scenarios.',
+    description: "Kimi is Moonshot AI's OpenAI-compatible model family; the flagship Kimi K3 offers a 1M-token context window, while Kimi K2.7 Code targets coding agent scenarios.",
     icon: 'providers/icons/kimi-color.svg',
     website: 'https://platform.kimi.com'
   },

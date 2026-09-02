@@ -7,23 +7,23 @@ import { toast } from 'sonner';
 import DraggableTitle from '@/components/common/DraggableTitle';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { getSpriteCapabilityLockedReason, getSpriteCapabilityState } from '@/features/sprite-assistant/capability-ui';
-import { useSpriteCapabilitySnapshot } from '@/features/sprite-assistant/hooks/useSpriteCapabilitySnapshot';
+import { getSpriteCapabilityLockedReason, getSpriteCapabilityState } from '@/features/sprite/capability-guard';
+import { useSpriteCapabilitySnapshot } from '@/features/sprite/hooks/useSpriteCapabilitySnapshot';
 
-import { SpriteAnimationManager } from './SpriteManager';
-import CharacterGalleryManager from './CharacterGalleryManager';
-import { CharacterPackEditorContent } from './CharacterPackEditor';
 import {
   buildCreateCharacterPackEditorState,
+  CHARACTER_PACK_EDITOR_WINDOW_KEY,
+  type CharacterPackEditorState,
+  type CharacterPackEditorWindowPayload,
   emitCharacterPackEditorEvent,
   getCharacterPackEditorDescription,
   getCharacterPackEditorTitle,
   loadCharacterPackEditorStateForPack,
-  saveCharacterPackEditorState,
-  CHARACTER_PACK_EDITOR_WINDOW_KEY,
-  type CharacterPackEditorState,
-  type CharacterPackEditorWindowPayload
+  saveCharacterPackEditorState
 } from './character-pack-editor-model';
+import CharacterGalleryManager from './CharacterGalleryManager';
+import { CharacterPackEditorContent } from './CharacterPackEditor';
+import { SpriteAnimationManager } from './SpriteManager';
 
 function resolveEditorTargetPack(payload: CharacterPackEditorWindowPayload | null | undefined, packs: CharacterPackSummary[]): CharacterPackSummary | null {
   if (!payload?.packId) {
@@ -123,7 +123,7 @@ export default function CharacterPackEditorWindow(): JSX.Element {
         type: 'saved',
         packId: result.pack?.id,
         packName: result.pack?.name ?? editor.draft.pack.name,
-        activated: result.activated
+        wasActivated: result.wasActivated
       });
       toast.success(editor.activateAfterSave ? `${result.pack?.name ?? editor.draft.pack.name} 已保存并切换` : `${result.pack?.name ?? editor.draft.pack.name} 已保存`);
       handleClose();

@@ -23,7 +23,7 @@ export type SystemIpcParams = {
 
   // Microphone
   'system:microphone:get-status': IpcParams<[], { ok: boolean; status?: string; error?: string }>;
-  'system:microphone:request-access': IpcParams<[], { ok: boolean; granted?: boolean; error?: string }>;
+  'system:microphone:request-access': IpcParams<[], { ok: boolean; isGranted?: boolean; error?: string }>;
 };
 
 const methods: Array<keyof SystemIpcParams> = [

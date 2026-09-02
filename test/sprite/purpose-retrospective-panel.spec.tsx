@@ -11,7 +11,7 @@ describe('PurposeRetrospectivePanel', () => {
   it('renders recent purpose retrospectives and empty state', async () => {
     const { act } = await import('react');
     const { createRoot } = await import('react-dom/client');
-    const { default: PurposeRetrospectivePanel } = await import('../../src/features/sprite-assistant/ui/PurposeRetrospectivePanel');
+    const { default: PurposeRetrospectivePanel } = await import('../../src/features/sprite/ui/PurposeRetrospectivePanel');
     const env = installMiniDom();
     const root = createRoot(env.container as any);
 

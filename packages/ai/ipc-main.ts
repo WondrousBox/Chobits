@@ -36,13 +36,7 @@ import {
   updateApiKey
 } from './settings-store';
 import { listToolInfos } from './tools';
-import type {
-  ProviderPresetCreatePayload,
-  ProviderPresetUpdatePatch,
-  PushedCard,
-  SpeechSynthesisRequest,
-  TranscriptionRequest
-} from './types';
+import type { ProviderPresetCreatePayload, ProviderPresetUpdatePatch, PushedCard, SpeechSynthesisRequest, TranscriptionRequest } from './types';
 import { registerUserChoiceIpc } from './user-choice-registry';
 
 async function hasUsablePreset(providerId: string): Promise<boolean> {
@@ -100,13 +94,13 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     return rows;
   });
 
-  ipcMain.handle('ai:get-provider-secrets', async (_e, payload: { providerId: string }) => {
+  ipcMain.handle('ai:get-provider-secrets', async (_event, payload: { providerId: string }) => {
     const keys = listProviderSecretKeys(payload.providerId);
     const values = await getAllSecrets(payload.providerId, keys);
     return values;
   });
 
-  ipcMain.handle('ai:set-provider-secrets', async (_e, payload: { providerId: string; secrets: Record<string, string> }) => {
+  ipcMain.handle('ai:set-provider-secrets', async (_event, payload: { providerId: string; secrets: Record<string, string> }) => {
     await setSecretsStore(payload.providerId, payload.secrets);
     const p = getProvider(payload.providerId);
     if (p?.setSecrets) await Promise.resolve(p.setSecrets(payload.secrets));
@@ -117,7 +111,7 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     return { ok: true };
   });
 
-  ipcMain.handle('ai:clear-provider-secrets', async (_e, payload: { providerId: string }) => {
+  ipcMain.handle('ai:clear-provider-secrets', async (_event, payload: { providerId: string }) => {
     await clearSecretsStore(payload.providerId);
     const p = getProvider(payload.providerId);
     // 同步清掉 adapter 内存里的秘钥，否则聊天链路会继续用旧 key 直到重启；
@@ -132,11 +126,11 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
   });
 
   // Multiple API Keys Management
-  ipcMain.handle('ai:get-provider-api-keys', async (_e, payload: { providerId: string; key: string }) => {
+  ipcMain.handle('ai:get-provider-api-keys', async (_event, payload: { providerId: string; key: string }) => {
     return await getApiKeys(payload.providerId, payload.key);
   });
 
-  ipcMain.handle('ai:set-provider-api-keys', async (_e, payload: { providerId: string; key: string; keys: Array<{ name: string; value: string; isDefault?: boolean }> }) => {
+  ipcMain.handle('ai:set-provider-api-keys', async (_event, payload: { providerId: string; key: string; keys: Array<{ name: string; value: string; isDefault?: boolean }> }) => {
     await setApiKeys(payload.providerId, payload.key, payload.keys);
     eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
       providerId: payload.providerId,
@@ -146,7 +140,7 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     return { ok: true };
   });
 
-  ipcMain.handle('ai:add-provider-api-key', async (_e, payload: { providerId: string; key: string; apiKey: { name: string; value: string } }) => {
+  ipcMain.handle('ai:add-provider-api-key', async (_event, payload: { providerId: string; key: string; apiKey: { name: string; value: string } }) => {
     await addApiKey(payload.providerId, payload.key, payload.apiKey);
     eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
       providerId: payload.providerId,
@@ -156,17 +150,20 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     return { ok: true };
   });
 
-  ipcMain.handle('ai:update-provider-api-key', async (_e, payload: { providerId: string; key: string; apiKeyName: string; updates: Partial<{ name: string; value: string; isDefault: boolean }> }) => {
-    await updateApiKey(payload.providerId, payload.key, payload.apiKeyName, payload.updates);
-    eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
-      providerId: payload.providerId,
-      field: payload.key,
-      action: 'provider-api-key-updated'
-    });
-    return { ok: true };
-  });
+  ipcMain.handle(
+    'ai:update-provider-api-key',
+    async (_event, payload: { providerId: string; key: string; apiKeyName: string; updates: Partial<{ name: string; value: string; isDefault: boolean }> }) => {
+      await updateApiKey(payload.providerId, payload.key, payload.apiKeyName, payload.updates);
+      eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
+        providerId: payload.providerId,
+        field: payload.key,
+        action: 'provider-api-key-updated'
+      });
+      return { ok: true };
+    }
+  );
 
-  ipcMain.handle('ai:remove-provider-api-key', async (_e, payload: { providerId: string; key: string; apiKeyName: string }) => {
+  ipcMain.handle('ai:remove-provider-api-key', async (_event, payload: { providerId: string; key: string; apiKeyName: string }) => {
     await removeApiKey(payload.providerId, payload.key, payload.apiKeyName);
     eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
       providerId: payload.providerId,
@@ -176,7 +173,7 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     return { ok: true };
   });
 
-  ipcMain.handle('ai:set-default-provider-api-key', async (_e, payload: { providerId: string; key: string; apiKeyName: string }) => {
+  ipcMain.handle('ai:set-default-provider-api-key', async (_event, payload: { providerId: string; key: string; apiKeyName: string }) => {
     await setDefaultApiKey(payload.providerId, payload.key, payload.apiKeyName);
     eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
       providerId: payload.providerId,
@@ -210,7 +207,7 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     return listToolInfos();
   });
 
-  ipcMain.handle('ai:list-skills', async (_e, payload?: { agentId?: string; workspaceRoot?: string }) => {
+  ipcMain.handle('ai:list-skills', async (_event, payload?: { agentId?: string; workspaceRoot?: string }) => {
     const agentId = typeof payload?.agentId === 'string' ? payload.agentId.trim() : '';
     if (agentId !== 'assistant' && agentId !== 'assistant-skills') {
       return [];
@@ -244,11 +241,11 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
       .sort((left, right) => left.name.localeCompare(right.name, 'zh-Hans-CN'));
   });
 
-  ipcMain.handle('ai:transcribe', async (_e, payload: TranscriptionRequest) => {
+  ipcMain.handle('ai:transcribe', async (_event, payload: TranscriptionRequest) => {
     return piExecutionService.transcribe(normalizeProviderPreset(payload));
   });
 
-  ipcMain.handle('ai:synthesize-speech', async (_e, payload: SpeechSynthesisRequest) => {
+  ipcMain.handle('ai:synthesize-speech', async (_event, payload: SpeechSynthesisRequest) => {
     return piExecutionService.synthesizeSpeech(normalizeProviderPreset(payload));
   });
 
@@ -340,7 +337,7 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     };
   });
 
-  ipcMain.handle('ai:cancel-speech-synthesis', async (_e, payload: { requestId: string }) => {
+  ipcMain.handle('ai:cancel-speech-synthesis', async (_event, payload: { requestId: string }) => {
     const controller = speechSynthesisControllers.get(payload.requestId);
     speechSynthesisInputs.get(payload.requestId)?.close();
     if (!controller) {
@@ -351,7 +348,7 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     return { ok: true };
   });
 
-  ipcMain.handle('ai:append-speech-synthesis-text', async (_e, payload: { requestId: string; text: string }) => {
+  ipcMain.handle('ai:append-speech-synthesis-text', async (_event, payload: { requestId: string; text: string }) => {
     const input = speechSynthesisInputs.get(payload.requestId);
     if (!input) {
       return { ok: false };
@@ -360,7 +357,7 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     return { ok: true };
   });
 
-  ipcMain.handle('ai:flush-speech-synthesis', async (_e, payload: { requestId: string }) => {
+  ipcMain.handle('ai:flush-speech-synthesis', async (_event, payload: { requestId: string }) => {
     const input = speechSynthesisInputs.get(payload.requestId);
     if (!input) {
       return { ok: false };
@@ -369,7 +366,7 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     return { ok: true };
   });
 
-  ipcMain.handle('ai:finish-speech-synthesis', async (_e, payload: { requestId: string }) => {
+  ipcMain.handle('ai:finish-speech-synthesis', async (_event, payload: { requestId: string }) => {
     const input = speechSynthesisInputs.get(payload.requestId);
     if (!input) {
       return { ok: false };
@@ -378,7 +375,7 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     return { ok: true };
   });
 
-  ipcMain.handle('ai:list-models', async (_e, payload: { providerId: string; presetId?: string }) => {
+  ipcMain.handle('ai:list-models', async (_event, payload: { providerId: string; presetId?: string }) => {
     const preset = getPreset(payload.presetId);
     const resolvedProviderId = preset?.providerId || payload.providerId;
     const p = getProvider(resolvedProviderId);
@@ -399,13 +396,13 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
   });
 
   // Provider Presets CRUD
-  ipcMain.handle('ai:list-presets', async (_e, payload?: { providerId?: string }) => {
+  ipcMain.handle('ai:list-presets', async (_event, payload?: { providerId?: string }) => {
     return listPresets(payload?.providerId);
   });
-  ipcMain.handle('ai:resolve-usable-preset', async (_e, payload: { providerId: string; preferredPresetId?: string }) => {
+  ipcMain.handle('ai:resolve-usable-preset', async (_event, payload: { providerId: string; preferredPresetId?: string }) => {
     return (await resolveUsablePreset(payload.providerId, payload.preferredPresetId)) || null;
   });
-  ipcMain.handle('ai:create-preset', async (_e, payload: ProviderPresetCreatePayload) => {
+  ipcMain.handle('ai:create-preset', async (_event, payload: ProviderPresetCreatePayload) => {
     const preset = createPreset(payload);
     eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
       providerId: preset.providerId,
@@ -414,7 +411,7 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     });
     return preset;
   });
-  ipcMain.handle('ai:update-preset', async (_e, payload: { id: string; patch: ProviderPresetUpdatePatch }) => {
+  ipcMain.handle('ai:update-preset', async (_event, payload: { id: string; patch: ProviderPresetUpdatePatch }) => {
     const preset = updatePreset(payload.id, payload.patch);
     if (preset) {
       eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
@@ -425,7 +422,7 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     }
     return preset;
   });
-  ipcMain.handle('ai:delete-preset', async (_e, payload: { id: string }) => {
+  ipcMain.handle('ai:delete-preset', async (_event, payload: { id: string }) => {
     const preset = getPreset(payload.id);
     const ok = await deletePreset(payload.id);
     if (ok) {
@@ -437,10 +434,10 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     }
     return { ok };
   });
-  ipcMain.handle('ai:get-preset-secrets', async (_e, payload: { presetId: string }) => {
+  ipcMain.handle('ai:get-preset-secrets', async (_event, payload: { presetId: string }) => {
     return await getPresetSecrets(payload.presetId);
   });
-  ipcMain.handle('ai:set-preset-secrets', async (_e, payload: { presetId: string; secrets: Record<string, string> }) => {
+  ipcMain.handle('ai:set-preset-secrets', async (_event, payload: { presetId: string; secrets: Record<string, string> }) => {
     await setPresetSecrets(payload.presetId, payload.secrets);
     const preset = getPreset(payload.presetId);
     eventManager.emit(AppEvent.AI_PROVIDER_CONFIG_UPDATED, {
@@ -453,31 +450,31 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
 
   // Prompt Templates CRUD
   ipcMain.handle('ai:list-prompt-templates', async () => PromptsStore.list());
-  ipcMain.handle('ai:create-prompt-template', async (_e, payload: { name: string; type: 'system' | 'user'; content: string; tags?: string[] }) => PromptsStore.create(payload));
-  ipcMain.handle('ai:update-prompt-template', async (_e, payload: { id: string; patch: any }) => PromptsStore.update(payload.id, payload.patch));
-  ipcMain.handle('ai:delete-prompt-template', async (_e, payload: { id: string }) => ({ ok: PromptsStore.delete(payload.id) }));
+  ipcMain.handle('ai:create-prompt-template', async (_event, payload: { name: string; type: 'system' | 'user'; content: string; tags?: string[] }) => PromptsStore.create(payload));
+  ipcMain.handle('ai:update-prompt-template', async (_event, payload: { id: string; patch: any }) => PromptsStore.update(payload.id, payload.patch));
+  ipcMain.handle('ai:delete-prompt-template', async (_event, payload: { id: string }) => ({ ok: PromptsStore.delete(payload.id) }));
 
   // Conversations & Messages (history)
-  ipcMain.handle('ai:list-conversations', async (_e, payload?: { includeDeleted?: boolean; limit?: number; offset?: number }) => {
+  ipcMain.handle('ai:list-conversations', async (_event, payload?: { includeDeleted?: boolean; limit?: number; offset?: number }) => {
     const rows = await ChatRepo.listConversations({ includeDeleted: payload?.includeDeleted }, payload?.limit ?? 200, payload?.offset ?? 0);
     return rows;
   });
-  ipcMain.handle('ai:list-messages', async (_e, payload: { conversationId: string; limit?: number; offset?: number }) => {
+  ipcMain.handle('ai:list-messages', async (_event, payload: { conversationId: string; limit?: number; offset?: number }) => {
     return ChatRepo.listMessages(payload.conversationId, payload?.limit ?? 2000, payload?.offset ?? 0);
   });
-  ipcMain.handle('ai:rename-conversation', async (_e, payload: { id: string; title: string }) => {
+  ipcMain.handle('ai:rename-conversation', async (_event, payload: { id: string; title: string }) => {
     const row = await ChatRepo.renameConversation(payload.id, payload.title);
     return row ? { ok: true, row } : { ok: false };
   });
-  ipcMain.handle('ai:delete-conversation', async (_e, payload: { id: string }) => {
+  ipcMain.handle('ai:delete-conversation', async (_event, payload: { id: string }) => {
     const row = await ChatRepo.softDeleteConversation(payload.id);
     return row ? { ok: true } : { ok: false };
   });
-  ipcMain.handle('ai:restore-conversation', async (_e, payload: { id: string }) => {
+  ipcMain.handle('ai:restore-conversation', async (_event, payload: { id: string }) => {
     const row = await ChatRepo.restoreConversation(payload.id);
     return row ? { ok: true } : { ok: false };
   });
-  ipcMain.handle('ai:hard-delete-conversation', async (_e, payload: { id: string }) => {
+  ipcMain.handle('ai:hard-delete-conversation', async (_event, payload: { id: string }) => {
     const ok = await ChatRepo.deleteConversation(payload.id);
     return { ok };
   });
@@ -488,7 +485,7 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
    * Push a card to chat window(s)
    * Can target specific conversation or broadcast to all windows
    */
-  ipcMain.handle('ai:push-card', async (_e, payload: { card: Omit<PushedCard, 'timestamp'>; targetWindowId?: number }) => {
+  ipcMain.handle('ai:push-card', async (_event, payload: { card: Omit<PushedCard, 'timestamp'>; targetWindowId?: number }) => {
     pushCardToWindows(payload.card, payload.targetWindowId);
     return { ok: true };
   });

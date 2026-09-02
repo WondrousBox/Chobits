@@ -16,7 +16,7 @@ export function findPnpmModulePath(basePath: string, moduleName: string): string
           return modulePath;
         }
       }
-    } catch (e) {
+    } catch {
       // ignore
     }
   }
@@ -56,7 +56,7 @@ export function findSherpaOnnxNodePath(): string | null {
     try {
       const resolvedPath = require.resolve('sherpa-onnx-node/package.json');
       return path.dirname(resolvedPath);
-    } catch (e) {
+    } catch {
       // ignore
     }
   }

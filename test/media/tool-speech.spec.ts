@@ -20,7 +20,7 @@ describe('tool speech metadata', () => {
       {
         speech: {
           delayMs: 150,
-          showBubble: false,
+          bubbleEnabled: false,
           text: '  表情 名称  '
         }
       }
@@ -29,14 +29,14 @@ describe('tool speech metadata', () => {
     expect(result.details).toEqual({
       speech: {
         delayMs: 150,
-        showBubble: false,
+        bubbleEnabled: false,
         text: '表情 名称'
       },
       success: true
     });
     expect(extractToolSpeechFromResult(result)).toEqual({
       delayMs: 150,
-      showBubble: false,
+      bubbleEnabled: false,
       text: '表情 名称'
     });
   });
@@ -50,7 +50,7 @@ describe('tool speech metadata', () => {
       },
       {
         speech: {
-          showBubble: false,
+          bubbleEnabled: false,
           text: '表情名称'
         }
       }
@@ -63,7 +63,7 @@ describe('tool speech metadata', () => {
         callId: 'tool-call-1',
         result,
         speech: {
-          showBubble: false,
+          bubbleEnabled: false,
           text: '表情名称'
         }
       },
@@ -73,9 +73,9 @@ describe('tool speech metadata', () => {
 
   it('normalizes unsafe or empty speech payloads', () => {
     expect(normalizeToolSpeech({ text: '   ' })).toBeUndefined();
-    expect(normalizeToolSpeech({ bubbleDuration: -1, delayMs: 999_999, showBubble: true, text: 'ok' })).toEqual({
+    expect(normalizeToolSpeech({ bubbleDuration: -1, delayMs: 999_999, bubbleEnabled: true, text: 'ok' })).toEqual({
       delayMs: 10000,
-      showBubble: true,
+      bubbleEnabled: true,
       text: 'ok'
     });
   });
@@ -97,7 +97,7 @@ describe('tool speech metadata', () => {
         {
           speech: {
             bubbleDuration: 1200,
-            showBubble: false,
+            bubbleEnabled: false,
             text: '发送表情'
           }
         }
@@ -106,7 +106,7 @@ describe('tool speech metadata', () => {
 
     expect(speak).toHaveBeenCalledWith('发送表情', {
       bubbleDuration: 1200,
-      showBubble: false
+      bubbleEnabled: false
     });
   });
 
@@ -127,7 +127,7 @@ describe('tool speech metadata', () => {
           { success: true },
           {
             speech: {
-              showBubble: false,
+              bubbleEnabled: false,
               text: '发送表情'
             }
           }

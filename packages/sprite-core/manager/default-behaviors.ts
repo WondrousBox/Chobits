@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 /**
  * 默认行为注册
  *
@@ -34,8 +33,8 @@ async function reportIdleActionExecution(
     triggeredAt: number;
     executedAction: string;
     actionSource: SpriteSpontaneousUtteranceActionSource;
-    spoken: boolean;
-    fallbackUsed: boolean;
+    wasSpoken: boolean;
+    didUseFallback: boolean;
     error?: string;
   }
 ): Promise<void> {
@@ -56,8 +55,8 @@ async function reportIdleActionExecution(
       whyThisFits: utterance.whyThisFits,
       executedAction: payload.executedAction,
       actionSource: payload.actionSource,
-      spoken: payload.spoken,
-      fallbackUsed: payload.fallbackUsed,
+      wasSpoken: payload.wasSpoken,
+      didUseFallback: payload.didUseFallback,
       ...(payload.error ? { error: payload.error } : {})
     });
   } catch {
@@ -188,14 +187,14 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
 
       mgr.trigger(picked, { silent: true });
       actionTriggered = true;
-      const speakResult = await mgr.speak(utterance.text.trim(), { showBubble: true, ambientContext: 'behavior' });
+      const speakResult = await mgr.speak(utterance.text.trim(), { bubbleEnabled: true, ambientContext: 'behavior' });
       await reportIdleActionExecution(mgr, utterance, {
         behaviorId: actionDef.id,
         triggeredAt,
         executedAction: picked,
         actionSource,
-        spoken: !!speakResult?.ok,
-        fallbackUsed: actionSource === 'random-fallback' || !speakResult?.ok,
+        wasSpoken: !!speakResult?.ok,
+        didUseFallback: actionSource === 'random-fallback' || !speakResult?.ok,
         ...(speakResult?.error ? { error: speakResult.error } : {})
       });
     } catch (error) {
@@ -207,8 +206,8 @@ export function registerDefaultBehaviors(mgr: SpriteManager): void {
         triggeredAt,
         executedAction: actionTriggered && utterance?.recommendedAction ? utterance.recommendedAction : fallbackAction,
         actionSource: actionTriggered && utterance?.recommendedAction ? (utterance.actionSource ?? 'model') : 'random-fallback',
-        spoken: false,
-        fallbackUsed: true,
+        wasSpoken: false,
+        didUseFallback: true,
         ...(error instanceof Error ? { error: error.message } : {})
       });
     }

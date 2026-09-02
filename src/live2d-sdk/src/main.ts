@@ -7,20 +7,17 @@
  * that can be found at https://www.live2d.com/eula/live2d-open-software-license-agreement_en.html.
  */
 
-import { LAppDelegate } from "./lappdelegate";
-import * as LAppDefine from "./lappdefine";
-import { LAppGlManager } from "./lappglmanager";
-import { LAppLive2DManager } from "./lapplive2dmanager";
+import { LAppDelegate } from './lappdelegate';
+import * as LAppDefine from './lappdefine';
+import { LAppGlManager } from './lappglmanager';
+import { LAppLive2DManager } from './lapplive2dmanager';
 
 /**
  * Initialize the Live2D application
  */
 export function initializeLive2D(): void {
-  console.log(
-    "Initializing Live2D with resourcePath:",
-    LAppDefine.ResourcesPath
-  );
-  console.log("Model directories:", LAppDefine.ModelDir);
+  console.log('Initializing Live2D with resourcePath:', LAppDefine.ResourcesPath);
+  console.log('Model directories:', LAppDefine.ModelDir);
 
   // Clean up any existing instances first
   if (LAppDelegate.getInstance()) {
@@ -28,11 +25,8 @@ export function initializeLive2D(): void {
     LAppLive2DManager.releaseInstance();
   }
 
-  if (
-    !LAppGlManager.getInstance() ||
-    !LAppDelegate.getInstance().initialize()
-  ) {
-    console.error("Failed to initialize Live2D");
+  if (!LAppGlManager.getInstance() || !LAppDelegate.getInstance().initialize()) {
+    console.error('Failed to initialize Live2D');
     return;
   }
 
@@ -48,9 +42,9 @@ export function initializeLive2D(): void {
   }
 
   if ((window as any).api?.setIgnoreMouseEvent) {
-    const parent = document.getElementById("live2d");
+    const parent = document.getElementById('live2d');
 
-    parent?.addEventListener("pointermove", (e) => {
+    parent?.addEventListener('pointermove', (e) => {
       const model = LAppLive2DManager.getInstance().getModel(0);
       const view = LAppDelegate.getInstance().getView();
 
@@ -63,7 +57,7 @@ export function initializeLive2D(): void {
     });
 
     // Add pointerdown event listener
-    parent?.addEventListener("pointerdown", (e) => {
+    parent?.addEventListener('pointerdown', (e) => {
       const model = LAppLive2DManager.getInstance().getModel(0);
       const view = LAppDelegate.getInstance().getView();
 
@@ -74,7 +68,7 @@ export function initializeLive2D(): void {
       // Test hit and log result
       const hitAreaName = model?.anyhitTest(x, y);
       const isHit = hitAreaName !== null || model?.isHitOnModel(x, y);
-      console.log("Model clicked:", isHit, hitAreaName ? `in area: ${hitAreaName}` : '');
+      console.log('Model clicked:', isHit, hitAreaName ? `in area: ${hitAreaName}` : '');
     });
   }
 }
@@ -97,19 +91,15 @@ window.addEventListener(
  * 終了時の処理
  * 结束时的处理
  */
-window.addEventListener(
-  "beforeunload",
-  (): void => LAppDelegate.releaseInstance(),
-  { passive: true }
-);
+window.addEventListener('beforeunload', (): void => LAppDelegate.releaseInstance(), { passive: true });
 
 /**
  * Process when changing screen size.
  */
 window.addEventListener(
-  "resize",
+  'resize',
   () => {
-    if (LAppDefine.CanvasSize === "auto") {
+    if (LAppDefine.CanvasSize === 'auto') {
       LAppDelegate.getInstance().onResize();
     }
   },

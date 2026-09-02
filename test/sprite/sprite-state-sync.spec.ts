@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { SpriteConfig, SpriteInitialState, SpritePlayCommand } from '../../packages/sprite-core/types';
-import { DEFAULT_SPRITE_CONFIG, mergePlayCommandIntoSpriteConfig, resolveInitialSpriteConfig, resolveWalkState } from '../../src/features/sprite-assistant/context/sprite-state-sync';
+import { DEFAULT_SPRITE_CONFIG, mergePlayCommandIntoSpriteConfig, resolveInitialSpriteConfig, resolveWalkState } from '../../src/features/sprite/context/sprite-state-sync';
 
 describe('sprite state sync helpers', () => {
   it('resolves initial config from snapshot config first, then playback fallback', () => {
@@ -31,7 +31,7 @@ describe('sprite state sync helpers', () => {
       height: 220,
       padding: 80,
       animationPlaylistMode: 'list-loop',
-      showDebugOverlay: false,
+      debugOverlayEnabled: false,
       bubbleMode: 'fixed-top'
     });
   });
@@ -39,7 +39,7 @@ describe('sprite state sync helpers', () => {
   it('falls back to playback metrics when config is missing dimensions', () => {
     const initial = {
       config: {
-        showDebugOverlay: true
+        debugOverlayEnabled: true
       },
       currentAnimation: {
         animationId: 'celebrate',
@@ -57,7 +57,7 @@ describe('sprite state sync helpers', () => {
       height: 280,
       padding: 32,
       animationPlaylistMode: 'list-loop',
-      showDebugOverlay: true,
+      debugOverlayEnabled: true,
       bubbleMode: 'fixed-top'
     });
   });
@@ -81,7 +81,7 @@ describe('sprite state sync helpers', () => {
       height: 240,
       padding: 100,
       animationPlaylistMode: 'list-loop',
-      showDebugOverlay: true
+      debugOverlayEnabled: true
     };
     const playCommand: SpritePlayCommand = {
       animationId: 'thinking',
@@ -97,7 +97,7 @@ describe('sprite state sync helpers', () => {
       height: 240,
       padding: 48,
       animationPlaylistMode: 'list-loop',
-      showDebugOverlay: true
+      debugOverlayEnabled: true
     });
   });
 
@@ -107,7 +107,7 @@ describe('sprite state sync helpers', () => {
       height: 420,
       padding: 20,
       animationPlaylistMode: 'list-loop',
-      showDebugOverlay: true
+      debugOverlayEnabled: true
     };
     const playCommand: SpritePlayCommand = {
       animationId: 'idle-default',
@@ -123,12 +123,12 @@ describe('sprite state sync helpers', () => {
       height: DEFAULT_SPRITE_CONFIG.height,
       padding: DEFAULT_SPRITE_CONFIG.padding,
       animationPlaylistMode: 'list-loop',
-      showDebugOverlay: true
+      debugOverlayEnabled: true
     });
   });
 
   it('keeps config unchanged when play command has no playback payload', () => {
-    const previous = { ...DEFAULT_SPRITE_CONFIG, showDebugOverlay: true };
+    const previous = { ...DEFAULT_SPRITE_CONFIG, debugOverlayEnabled: true };
     const playCommand: SpritePlayCommand = {
       animationId: 'message-only',
       source: { localPath: './message.webm', type: 'video/webm' }

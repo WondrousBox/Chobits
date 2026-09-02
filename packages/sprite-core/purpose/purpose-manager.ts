@@ -792,20 +792,7 @@ export class SpritePurposeManager {
     if (!context) return undefined;
 
     const digest: Record<string, unknown> = {};
-    const includeKeys = [
-      'source',
-      'fileCount',
-      'fileNames',
-      'resourceIds',
-      'primaryResourceName',
-      'workflowRunId',
-      'runId',
-      'workflowId',
-      'workflowName',
-      'resourceId',
-      'routineKind',
-      'severity'
-    ];
+    const includeKeys = ['source', 'fileCount', 'fileNames', 'resourceIds', 'primaryResourceName', 'workflowRunId', 'runId', 'workflowId', 'workflowName', 'resourceId', 'routineKind', 'severity'];
     for (const key of includeKeys) {
       const value = context[key];
       if (value == null) continue;

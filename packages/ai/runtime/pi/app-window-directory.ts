@@ -114,7 +114,7 @@ function sanitizeChatPayload(payload: unknown): Payload | undefined {
   pickString(payload, next, 'codingWorkspaceRoot', { maxLength: 1000 });
   pickString(payload, next, 'codingWorkspaceLabel', { maxLength: 200 });
   pickBoolean(payload, next, 'webSearchEnabled');
-  pickBoolean(payload, next, 'characterPersonaEnabled');
+  pickBoolean(payload, next, 'characterPromptEnabled');
   return emptyToUndefined(next);
 }
 
@@ -150,18 +150,18 @@ export const APP_WINDOW_TOOL_DIRECTORY: AppWindowToolEntry[] = [
     sanitizePayload: sanitizeChatPayload
   },
   {
-    key: 'assistant',
-    title: '助手窗口',
-    description: '打开完整助手输入窗口。',
-    aliases: ['助手', 'assistant'],
+    key: 'chatPanel',
+    title: '聊天面板窗口',
+    description: '打开完整聊天输入面板窗口。',
+    aliases: ['聊天面板', '助手', 'chat panel'],
     payloadFields: chatPayloadFields,
     sanitizePayload: sanitizeChatPayload
   },
   {
-    key: 'assistantMini',
-    title: '迷你助手输入框',
+    key: 'chatMini',
+    title: '迷你聊天输入框',
     description: '打开角色底部的迷你对话输入框。',
-    aliases: ['迷你助手', '迷你输入框', 'assistant mini'],
+    aliases: ['迷你助手', '迷你输入框', 'chat mini'],
     payloadFields: chatPayloadFields,
     sanitizePayload: sanitizeChatPayload
   },

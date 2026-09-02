@@ -127,19 +127,19 @@ electron/main/handlers/sprite/
 
 ### 3.3 需要改动的现有文件
 
-| 文件                                                             | 改动                                                                           |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `packages/sprite-core/manager/sprite-manager.ts`                 | 持有 PurposeManager，新增 start/cancel/get/list API，新增 playAnimationAndWait |
-| `packages/sprite-core/manager/types.ts`                          | 扩展 SpriteManagerOptions，注入 purpose history/openWindow/event adapter       |
-| `packages/sprite-core/types.ts`                                  | `SpritePlayCommand` 增加可选 `playId`                                          |
-| `src/features/sprite-assistant/renderers/VideoSprite.tsx`        | `animComplete` 回传 `playId`                                                   |
-| `src/features/sprite-assistant/renderers/video-sprite-driver.ts` | 完成回调透传 `playId` 所需上下文                                               |
-| `packages/sprite-core/preload/sprite-bridge.ts`                  | 增加 `purpose` 相关 IPC                                                        |
-| `packages/sprite-core/handlers/sprite-manager-ipc.ts`             | 注册 `sprite:purpose:*` IPC                                                    |
-| `packages/sprite-core/handlers/sprite-event-listener.ts`          | workflow 事件可选升级为 Purpose/Routine                                        |
-| `src/features/sprite-assistant/hooks/useFileDropCollector.ts`    | 阶段性保持现状；后续可改为 startPurpose                                        |
-| `src/pages/FileActionsMenu/FileActionsMenu.tsx`                  | 上报 action selected/cancelled/workflow started                                |
-| `packages/workflow/index.ts`                                     | workflow AppEvent payload 增加 runId/workflowId/status/progress                |
+| 文件                                                     | 改动                                                                           |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `packages/sprite-core/manager/sprite-manager.ts`         | 持有 PurposeManager，新增 start/cancel/get/list API，新增 playAnimationAndWait |
+| `packages/sprite-core/manager/types.ts`                  | 扩展 SpriteManagerOptions，注入 purpose history/openWindow/event adapter       |
+| `packages/sprite-core/types.ts`                          | `SpritePlayCommand` 增加可选 `playId`                                          |
+| `src/features/sprite/renderers/VideoSprite.tsx`          | `animComplete` 回传 `playId`                                                   |
+| `src/features/sprite/renderers/video-sprite-driver.ts`   | 完成回调透传 `playId` 所需上下文                                               |
+| `packages/sprite-core/preload/sprite-bridge.ts`          | 增加 `purpose` 相关 IPC                                                        |
+| `packages/sprite-core/handlers/sprite-manager-ipc.ts`    | 注册 `sprite:purpose:*` IPC                                                    |
+| `packages/sprite-core/handlers/sprite-event-listener.ts` | workflow 事件可选升级为 Purpose/Routine                                        |
+| `src/features/sprite/hooks/useFileDropCollector.ts`      | 阶段性保持现状；后续可改为 startPurpose                                        |
+| `src/pages/FileActionsMenu/FileActionsMenu.tsx`          | 上报 action selected/cancelled/workflow started                                |
+| `packages/workflow/index.ts`                             | workflow AppEvent payload 增加 runId/workflowId/status/progress                |
 
 ## 4. 核心类型草案
 
@@ -958,9 +958,9 @@ parallel(
   - 扩展 idle handoff helper，允许携带 owner/priority。
   - `runPurposeWalkStep()` 在 success/stop/timeout 路径完成 owner-aware idle handoff。
   - pending-idle fallback 触发时保留 owner 上下文，避免被同一 routine lifecycle lock 拦住。
-- `src/features/sprite-assistant/renderers/VideoSprite.tsx`
+- `src/features/sprite/renderers/VideoSprite.tsx`
   - 调整 `activeIsPlaying` 和 `fallbackIsPlaying` 的计算，避免三段式 state-bound walk 在 idle 后继续 loop。
-- `src/features/sprite-assistant/renderers/video-sprite-driver.ts`
+- `src/features/sprite/renderers/video-sprite-driver.ts`
   - 如有必要，补一个显式 `syncPlayingState(false)` 后从 loop seek 到 `loopEndMs` 并进入 outro 的测试路径；现有 driver 逻辑已经支持该行为，重点是 renderer 传参。
 
 ### 回归测试
@@ -1002,7 +1002,7 @@ playQuestRecordAnimation()
 
 当前 renderer 侧实现位于：
 
-- `src/features/sprite-assistant/message/MessageContext.tsx`
+- `src/features/sprite/message/MessageContext.tsx`
 - `src/pages/QuestListPage/QuestListPage.tsx`
 
 它们直接调用：
@@ -1035,7 +1035,7 @@ window.chobits.sprite?.trigger('write', { silent: true });
 
 - 任务启动、任务记录、推荐气泡转任务等链接态反馈可以播放 `write` 这类动画。
 - 如果当前 active purpose 正持有 presentation lock，反馈动画可以借用同一个 purpose owner 播放，但只能借用当前 owner，不能绕过其他 owner 的 lock。
-- renderer 不能直接传 `ignorePresentationLock`、`ownerPurposeId` 或任意 priority。
+- renderer 不能直接传 `shouldIgnorePresentationLock`、`ownerPurposeId` 或任意 priority。
 - 如果没有 active purpose 且没有 lock，反馈动画按普通 trigger 播放。
 - 如果存在不属于当前可解释 purpose 的 lock，反馈动画不播放，并返回可观测原因。
 - 如果没有对应动画资源，返回可观测原因，不显示错误 toast。
@@ -1100,19 +1100,19 @@ type SpriteFeedbackResult =
    - 这表示反馈动画借用当前 purpose 的展示权。
 6. 如果有 lock，但 lock owner 与当前 active purpose 不一致：
    - 返回 `blocked-by-lock`。
-   - 不使用 `ignorePresentationLock`。
+   - 不使用 `shouldIgnorePresentationLock`。
 7. 如果 trigger 调用成功但由于候选消失或 race 没播出，返回可观测结果；第一版可以由 feedback helper 自己在调用前完成候选与 lock 检查，暂不强制把 `trigger()` 从 `void` 改为返回值。
 
 这个 helper 可以允许高优先级 active purpose 的链接态反馈替换当前动画，但不能让低可信 renderer 任意覆盖别的 routine、ambient 或开发测试动画。
 
-### 为什么不开放 ignorePresentationLock
+### 为什么不开放 shouldIgnorePresentationLock
 
 不要让 renderer 直接调用：
 
 ```ts
 window.chobits.sprite.trigger('write', {
   silent: true,
-  ignorePresentationLock: true
+  shouldIgnorePresentationLock: true
 });
 ```
 
@@ -1120,7 +1120,7 @@ window.chobits.sprite.trigger('write', {
 
 - 这会让任何页面都可以绕过 presentation lock，破坏 routine 对关键引导、业务窗口等待、动画收尾的保护。
 - 它无法区分“当前 purpose 的链接态反馈”和“不相关页面的随手动画”。
-- 后续一旦出现更多 UI 反馈动画，会演变成所有调用点都加 `ignorePresentationLock`，presentation lock 失去意义。
+- 后续一旦出现更多 UI 反馈动画，会演变成所有调用点都加 `shouldIgnorePresentationLock`，presentation lock 失去意义。
 
 正确边界是 renderer 表达意图，主进程判断是否允许借用当前 owner。
 
@@ -1132,13 +1132,13 @@ window.chobits.sprite.trigger('write', {
 - `packages/sprite-core/manager/sprite-manager.ts`
   - 新增 `playFeedbackAnimation(request)`。
   - 提供内部 helper：`resolveCurrentPresentationOwnerForFeedback(kind)`。
-  - 不暴露 `ignorePresentationLock` 给 renderer。
+  - 不暴露 `shouldIgnorePresentationLock` 给 renderer。
 - `packages/sprite-core/handlers/sprite-manager-ipc.ts`
   - 新增 IPC：`sprite:feedback:play`。
   - 只接收 `SpriteFeedbackRequest` 白名单字段。
 - `packages/sprite-core/preload/sprite-bridge.ts`
   - 暴露 `playFeedback(request)`。
-- `src/features/sprite-assistant/message/MessageContext.tsx`
+- `src/features/sprite/message/MessageContext.tsx`
   - 将 `playQuestRecordAnimation()` 改为调用 `window.chobits.sprite.playFeedback({ trigger: 'write', kind: 'quest-record', silent: true })`。
 - `src/pages/QuestListPage/QuestListPage.tsx`
   - 同步改为同一个 helper；后续可抽一个 renderer 侧小工具，避免重复实现。
@@ -1151,7 +1151,7 @@ window.chobits.sprite.trigger('write', {
   - 没有 lock 时，按普通 trigger 播放。
   - 没有 `write` 动画候选时，返回 `missing-animation`。
 - `test/sprite-manager-ipc.spec.ts`
-  - `sprite:feedback:play` 不接受 renderer 传入的 `ownerPurposeId` / `priority` / `ignorePresentationLock`。
+  - `sprite:feedback:play` 不接受 renderer 传入的 `ownerPurposeId` / `priority` / `shouldIgnorePresentationLock`。
   - IPC 返回结构化 result。
 - `test/sprite-message-queue.spec.tsx`
   - 推荐气泡 `quest:start:*` 成功后调用 `playFeedback({ trigger: 'write', kind: 'quest-record', silent: true })`。
@@ -1167,9 +1167,9 @@ window.chobits.sprite.trigger('write', {
 
 ### 落地记录
 
-- 已新增 `SpriteFeedbackKind` / `SpriteFeedbackRequest` / `SpriteFeedbackResult`，并从 sprite-core 与 sprite-assistant 类型出口导出。
+- 已新增 `SpriteFeedbackKind` / `SpriteFeedbackRequest` / `SpriteFeedbackResult`，并从 sprite-core 与 sprite 类型出口导出。
 - `SpriteManager.playFeedbackAnimation()` 已实现主进程受控的 owner 借用：先校验 request，再先查动画候选；有 lock 时只接受 active routine owner 或当前 active purpose owner，随后用内部 `ownerPurposeId + priority` 调用 `trigger()`。
-- `sprite:feedback:play` IPC 只转发 `trigger/kind/silent/durationMs/message/ctx` 白名单字段，renderer 传入的 `ownerPurposeId`、`priority`、`ignorePresentationLock` 会被丢弃。
+- `sprite:feedback:play` IPC 只转发 `trigger/kind/silent/durationMs/message/ctx` 白名单字段，renderer 传入的 `ownerPurposeId`、`priority`、`shouldIgnorePresentationLock` 会被丢弃。
 - preload 已暴露 `window.chobits.sprite.playFeedback(request)`；任务推荐气泡和任务列表页的 `playQuestRecordAnimation()` 已迁移到 `playFeedback({ trigger: 'write', kind: 'quest-record', silent: true })`。
 - 已补充 manager 回归测试覆盖 active purpose lifecycle lock、非当前 owner lock、无 lock、缺失动画候选、非法 request；IPC 测试覆盖窄 payload；消息队列测试覆盖推荐任务启动后的 `playFeedback` 调用。
 - `no-renderer` 暂作为 `SpriteFeedbackResult` 的预留可观测原因；当前 manager 版本还没有独立的 renderer availability 判断，因此第一版不会主动返回该 reason。

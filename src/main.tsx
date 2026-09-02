@@ -5,7 +5,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
-import { SpriteStateProvider } from '@/features/sprite-assistant';
+import { SpriteStateProvider } from '@/features/sprite';
 
 import App from './App';
 
@@ -20,6 +20,6 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
 );
 
 // Notify main process that renderer is mounted and ready
-window.ipcRenderer.invoke('app:renderer-ready').catch(() => { });
+window.ipcRenderer.invoke('app:renderer-ready').catch(() => {});
 
 postMessage({ payload: 'removeLoading' }, '*');

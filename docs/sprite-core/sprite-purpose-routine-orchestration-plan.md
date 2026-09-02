@@ -376,16 +376,7 @@ AI 未来可以输出 Routine DSL，但必须先通过校验器：
 interface SpritePurposeHistoryEntry {
   timestamp: number;
   eventType:
-    | 'purpose.created'
-    | 'purpose.started'
-    | 'purpose.superseded'
-    | 'purpose.completed'
-    | 'purpose.failed'
-    | 'routine.started'
-    | 'step.started'
-    | 'step.completed'
-    | 'step.failed'
-    | 'step.cancelled';
+    'purpose.created' | 'purpose.started' | 'purpose.superseded' | 'purpose.completed' | 'purpose.failed' | 'routine.started' | 'step.started' | 'step.completed' | 'step.failed' | 'step.cancelled';
   purposeId: string;
   routineId?: string;
   stepId?: string;

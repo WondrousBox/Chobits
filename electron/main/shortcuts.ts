@@ -23,14 +23,14 @@ function applyRegistration(getMainWindow: GetMainWindow): void {
   const resolved = resolveAcceleratorsForPlatform(config);
 
   const actions: Record<string, () => void> = {
-    toggleAssistant: () => {
+    toggleChatWindow: () => {
       try {
-        const existing = windowManager.get('assistant' as any);
+        const existing = windowManager.get('chatPanel' as any);
         if (existing) {
           if (existing.isVisible()) existing.close();
-          else windowManager.show('assistant' as any);
+          else windowManager.show('chatPanel' as any);
         } else {
-          windowManager.createOrShow('assistant' as any);
+          windowManager.createOrShow('chatPanel' as any);
         }
       } catch {
         /* noop */

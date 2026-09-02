@@ -13,7 +13,7 @@ describe('useMessageQueue', () => {
 
     const { act } = await import('react');
     const { createRoot } = await import('react-dom/client');
-    const { useMessageQueue } = await import('../../src/features/sprite-assistant/message/useMessageQueue');
+    const { useMessageQueue } = await import('../../src/features/sprite/message/useMessageQueue');
 
     const env = installMiniDom();
     let queue: ReturnType<typeof useMessageQueue> | null = null;
@@ -66,7 +66,7 @@ describe('useMessageQueue', () => {
 
     const { act } = await import('react');
     const { createRoot } = await import('react-dom/client');
-    const { useMessageQueue } = await import('../../src/features/sprite-assistant/message/useMessageQueue');
+    const { useMessageQueue } = await import('../../src/features/sprite/message/useMessageQueue');
 
     const env = installMiniDom();
     let queue: ReturnType<typeof useMessageQueue> | null = null;
@@ -124,7 +124,7 @@ describe('useMessageQueue', () => {
 
     const { act } = await import('react');
     const { createRoot } = await import('react-dom/client');
-    const { useMessageQueue } = await import('../../src/features/sprite-assistant/message/useMessageQueue');
+    const { useMessageQueue } = await import('../../src/features/sprite/message/useMessageQueue');
 
     const env = installMiniDom();
     let queue: ReturnType<typeof useMessageQueue> | null = null;
@@ -170,7 +170,7 @@ describe('useMessageQueue', () => {
 
     const { act } = await import('react');
     const { createRoot } = await import('react-dom/client');
-    const { useMessageQueue } = await import('../../src/features/sprite-assistant/message/useMessageQueue');
+    const { useMessageQueue } = await import('../../src/features/sprite/message/useMessageQueue');
 
     const env = installMiniDom();
     let queue: ReturnType<typeof useMessageQueue> | null = null;
@@ -221,10 +221,10 @@ describe('useMessageQueue', () => {
 
     const { act } = await import('react');
     const { createRoot } = await import('react-dom/client');
-    const { MessageProvider } = await import('../../src/features/sprite-assistant/message/MessageContext');
-    const { useMessage } = await import('../../src/features/sprite-assistant/message/useMessage');
-    type MessageContextValue = import('../../src/features/sprite-assistant/message/types').MessageContextValue;
-    type MessageButton = import('../../src/features/sprite-assistant/message/types').MessageButton;
+    const { MessageProvider } = await import('../../src/features/sprite/message/MessageContext');
+    const { useMessage } = await import('../../src/features/sprite/message/useMessage');
+    type MessageContextValue = import('../../src/features/sprite/message/types').MessageContextValue;
+    type MessageButton = import('../../src/features/sprite/message/types').MessageButton;
 
     const env = installMiniDom();
     const emitPurposeEvent = vi.fn(async () => ({ matched: 1 }));

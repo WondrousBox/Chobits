@@ -32,10 +32,7 @@ type WindowBridgeParams = {
   'sprite:size:set': IpcParams<[{ width: number; height: number; padding: number }], { ok: boolean; error?: string }>;
   'sprite:interactive-regions:set': IpcParams<[{ regions: Array<{ x: number; y: number; width: number; height: number }> }], { ok: boolean; error?: string }>;
   'screen:work-area:get': IpcParams<[string?], { x: number; y: number; width: number; height: number }>;
-  'window:bounds:set': IpcParams<
-    [string, { x: number; y: number; width: number; height: number }],
-    { ok: boolean; bounds?: { x: number; y: number; width: number; height: number }; error?: string }
-  >;
+  'window:bounds:set': IpcParams<[string, { x: number; y: number; width: number; height: number }], { ok: boolean; bounds?: { x: number; y: number; width: number; height: number }; error?: string }>;
   'window:animation:play': IpcParams<[string, WindowAnimationTimeline], WindowAnimationPlaybackResult>;
   'window:animation:stop': IpcParams<[string, WindowAnimationStopOptions?], WindowAnimationPlaybackResult>;
   'window:animation:state': IpcParams<[string?], WindowAnimationState>;

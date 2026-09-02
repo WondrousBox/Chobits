@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isTimedPlaybackActive, resolveSegmentPlaybackStep } from '../../src/features/sprite-assistant/renderers/video-playback';
+import { isTimedPlaybackActive, resolveSegmentPlaybackStep } from '../../src/features/sprite/renderers/video-playback';
 
 describe('video playback helpers', () => {
   it('computes timed playback activity from playback session', () => {

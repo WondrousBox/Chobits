@@ -17,10 +17,10 @@ export type SpeechDisplayTextFilterRule =
     };
 
 export interface SpeechDisplayTextFilter {
-  collapseWhitespace?: boolean;
+  shouldCollapseWhitespace?: boolean;
   id?: string;
   rules: SpeechDisplayTextFilterRule[];
-  trim?: boolean;
+  shouldTrim?: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, any> {
@@ -68,10 +68,10 @@ export function normalizeSpeechDisplayTextFilter(value: unknown): SpeechDisplayT
   }
 
   return {
-    collapseWhitespace: typeof value.collapseWhitespace === 'boolean' ? value.collapseWhitespace : undefined,
+    shouldCollapseWhitespace: typeof value.shouldCollapseWhitespace === 'boolean' ? value.shouldCollapseWhitespace : undefined,
     id: trimString(value.id),
     rules,
-    trim: typeof value.trim === 'boolean' ? value.trim : undefined
+    shouldTrim: typeof value.shouldTrim === 'boolean' ? value.shouldTrim : undefined
   };
 }
 
@@ -105,7 +105,7 @@ function applyRule(text: string, rule: SpeechDisplayTextFilterRule): string {
 function cleanupFilteredText(text: string, filter: SpeechDisplayTextFilter): string {
   let result = text;
 
-  if (filter.collapseWhitespace !== false) {
+  if (filter.shouldCollapseWhitespace !== false) {
     result = result
       .replace(/[ \t]{2,}/g, ' ')
       .replace(/[ \t]+([,.;:!?，。！？、；：])/g, '$1')
@@ -113,7 +113,7 @@ function cleanupFilteredText(text: string, filter: SpeechDisplayTextFilter): str
       .replace(/\s+([)\]}）】])/g, '$1');
   }
 
-  return filter.trim === false ? result : result.trim();
+  return filter.shouldTrim === false ? result : result.trim();
 }
 
 export function sanitizeSpeechTextForDisplay(text: string, filter?: SpeechDisplayTextFilter): string {

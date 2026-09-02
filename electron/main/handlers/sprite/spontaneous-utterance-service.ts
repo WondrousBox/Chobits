@@ -19,7 +19,7 @@ import { PERSONA_FILENAME } from '../../../../packages/ai/services/persona-types
 import { collectTaskChatText, createActivityAwareTaskTimeoutController, type TaskChatActivityKind } from '../../../../packages/ai/services/task-chat-runner';
 import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
-import { buildCharacterPersonaPrompt } from '../../../../packages/sprite-core/character-service';
+import { buildCharacterPrompt } from '../../../../packages/sprite-core/character-service';
 import type {
   SpriteSpontaneousUtteranceExecutionReport,
   SpriteSpontaneousUtteranceExecutor,
@@ -148,7 +148,7 @@ type SpontaneousUtteranceLogEntry = {
   workspaceId?: string;
   conversationId?: string;
   behaviorId?: string;
-  skipped?: boolean;
+  wasSkipped?: boolean;
   reason?: string;
   triggerReason?: string;
   providerId?: string;
@@ -165,8 +165,8 @@ type SpontaneousUtteranceLogEntry = {
   executedAction?: string;
   fallbackAction?: string;
   actionSource?: SpriteSpontaneousUtteranceHistoryItem['actionSource'];
-  spoken?: boolean;
-  fallbackUsed?: boolean;
+  wasSpoken?: boolean;
+  didUseFallback?: boolean;
   error?: string;
 };
 
@@ -265,7 +265,9 @@ function normalizeIntentCategories(value: unknown): SpriteSpontaneousUtteranceIn
 
   const categories = value.map((item) => normalizeIntentCategory(item)).filter((item): item is SpriteSpontaneousUtteranceIntentCategory => !!item);
 
-  return deduplicateStrings(categories).length ? (deduplicateStrings(categories) as SpriteSpontaneousUtteranceIntentCategory[]) : [...DEFAULT_SPONTANEOUS_UTTERANCE_PREFERENCES.allowedIntentCategories];
+  return deduplicateStrings(categories).length
+    ? (deduplicateStrings(categories) as SpriteSpontaneousUtteranceIntentCategory[])
+    : [...DEFAULT_SPONTANEOUS_UTTERANCE_PREFERENCES.allowedIntentCategories];
 }
 
 function normalizeSpontaneousUtterancePreferences(value: unknown): SpriteSpontaneousUtterancePreferences {
@@ -440,7 +442,7 @@ function buildPrompt(
   preferences: SpriteSpontaneousUtterancePreferences
 ): string {
   const preset = ctx.providerPresetId ? getPreset(ctx.providerPresetId) : undefined;
-  const characterPersonaPrompt = buildCharacterPersonaPrompt(
+  const characterPrompt = buildCharacterPrompt(
     {
       favorLevel: resolveFavorLevel(input.sprite.favor),
       mood: input.sprite.mood,
@@ -461,7 +463,7 @@ function buildPrompt(
 ## 你的任务
 根据你知道的信息，抒发想法，表达关心，文本要简短，有哲理或诗意或者复函人文气息，其中不乏旅游、美食、历史、文化、健康、生活的见解和思考。
 
-${characterPersonaPrompt ? truncateText(characterPersonaPrompt, 1800) : ''}
+${characterPrompt ? truncateText(characterPrompt, 1800) : ''}
 
 你的状态: ${input.sprite.state}
 - 心情: ${input.sprite.mood}
@@ -609,7 +611,7 @@ function createEmptyHistoryAccumulator(entry: SpontaneousUtteranceLogEntry): His
     workspaceId: entry.workspaceId,
     conversationId: entry.conversationId,
     behaviorId: entry.behaviorId,
-    status: entry.skipped ? 'skipped' : 'generated',
+    status: entry.wasSkipped ? 'skipped' : 'generated',
     reason: entry.reason,
     fallbackAction: entry.fallbackAction,
     triggerReason: entry.triggerReason,
@@ -650,17 +652,17 @@ function applyHistoryLogEntry(base: HistoryAccumulator, entry: SpontaneousUttera
   if (entry.eventType === 'execution') {
     next.executedAction = entry.executedAction ?? next.executedAction;
     next.actionSource = entry.actionSource ?? next.actionSource;
-    next.spoken = entry.spoken ?? next.spoken;
-    next.fallbackUsed = entry.fallbackUsed ?? next.fallbackUsed;
-    if (!next.fallbackAction && entry.fallbackUsed && entry.executedAction) {
+    next.wasSpoken = entry.wasSpoken ?? next.wasSpoken;
+    next.didUseFallback = entry.didUseFallback ?? next.didUseFallback;
+    if (!next.fallbackAction && entry.didUseFallback && entry.executedAction) {
       next.fallbackAction = entry.executedAction;
     }
-    next.status = entry.spoken ? 'spoken' : 'failed';
-    if (!entry.spoken) {
+    next.status = entry.wasSpoken ? 'spoken' : 'failed';
+    if (!entry.wasSpoken) {
       next.reason = entry.reason ?? entry.error ?? next.reason;
     }
-  } else if (entry.skipped) {
-    next.skipped = true;
+  } else if (entry.wasSkipped) {
+    next.wasSkipped = true;
     next.reason = entry.reason ?? next.reason;
     next.status = 'skipped';
   } else if (next.status !== 'spoken' && next.status !== 'failed') {
@@ -949,10 +951,10 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
         ...(report.whyThisFits ? { whyThisFits: report.whyThisFits } : {})
       },
       executedAction: report.executedAction,
-      ...(report.fallbackUsed ? { fallbackAction: report.executedAction } : {}),
+      ...(report.didUseFallback ? { fallbackAction: report.executedAction } : {}),
       actionSource: report.actionSource,
-      spoken: report.spoken,
-      fallbackUsed: report.fallbackUsed,
+      wasSpoken: report.wasSpoken,
+      didUseFallback: report.didUseFallback,
       ...(report.error ? { error: truncateText(report.error, 240), reason: truncateText(report.error, 240) } : {})
     });
   }
@@ -1217,7 +1219,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
       conversationId: context.conversationId,
       behaviorId: input.behaviorId,
       triggerReason: 'small-action-idle',
-      skipped: true,
+      wasSkipped: true,
       reason,
       providerId: context.providerId,
       providerPresetId: context.providerPresetId,

@@ -5,8 +5,8 @@ declare module '@aim-packages/window-manager' {
     status: void;
     menu: void;
     settings: void;
-    assistant: void;
-    assistantMini: void;
+    chatPanel: void;
+    chatMini: void;
     chat: void;
     aiProviderConfig: void;
     asrConfig: void;
@@ -104,8 +104,8 @@ const DEFAULT_WINDOW_CONFIGS: Record<WindowKey, WindowConfig> = {
       }
     }
   },
-  assistant: {
-    routeHash: 'assistant',
+  chatPanel: {
+    routeHash: 'chat-panel',
     autoCenterOn: 'none',
     showOnReady: false,
     openDevTools: false,
@@ -123,8 +123,8 @@ const DEFAULT_WINDOW_CONFIGS: Record<WindowKey, WindowConfig> = {
       webPreferences: { nodeIntegration: true, contextIsolation: true }
     }
   },
-  assistantMini: {
-    routeHash: 'assistant-mini',
+  chatMini: {
+    routeHash: 'chat-mini',
     followMain: true,
     followerPreferMode: 'fixed-bottom',
     // 保持默认钳制（true）：精灵贴屏幕底部时迷你框会越出屏幕下边缘，需钳回工作区内

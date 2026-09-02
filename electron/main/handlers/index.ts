@@ -258,7 +258,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   });
   initStatusHandlers(win);
   await initAIHandlers(win);
-  if (isFeatureEnabled('localAi')) {
+  if (isFeatureEnabled('localAI')) {
     initSherpaHandlers();
   } else {
     initSherpaStubHandlers();
@@ -305,13 +305,13 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   await initSpriteManagerHandlers(win, {
     addAllowedResourceRoot,
     isPathWithinAllowedRoots,
-    registerCharacterPersonaPromptProvider: async (resolveCharacterPersonaPrompt) => {
+    registerCharacterPromptProvider: async (resolveCharacterPrompt) => {
       registerSystemPromptEnricher({
-        id: 'character-persona',
+        id: 'character-prompt',
         resolve: (ctx) => {
-          if (!ctx.request.extras?.characterPersonaEnabled) return null;
+          if (!ctx.request.extras?.characterPromptEnabled) return null;
           if (ctx.request.agentId === 'coder') return null;
-          return resolveCharacterPersonaPrompt();
+          return resolveCharacterPrompt();
         }
       });
     },

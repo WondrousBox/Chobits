@@ -5,6 +5,7 @@
 > **当前状态** (2026-04-24)：主进程统一运行时已全面落地，本轮收尾冻结；后续暂不继续修改 sprite runtime 主线。
 >
 > **已完成的主要子系统**：
+>
 > - 主进程 `SpriteManager` 单例门面 + 渲染层退化为纯展示
 > - `CharacterState` 持久化（含按角色 slot 存档）、typed `sprite:interact`、统一 trigger metadata
 > - `PersonaRulesProvider` / `PersonaRulesLayer` 规则注入与 live sync
@@ -15,6 +16,7 @@
 > - AI 自发说话：`SpriteSpontaneousUtteranceService`（详见 [sprite-ai-spontaneous-utterance-design.md](./sprite-ai-spontaneous-utterance-design.md)）
 >
 > **后续 Backlog**（本轮不继续推进，详见 [sprite-runtime-unification-plan.md](./sprite-runtime-unification-plan.md) §4 剩余工作）：
+>
 > - 更多 pack/character flags 的默认 capability 消费（avatar load-state / `smartAssistant` / sprite asset authoring 已接入，仍可继续扩展）
 > - 少量旧 metadata 输入 fallback 清理
 > - Trust-root publisher key rotation / 发布流程补强（revocation 已落地）
@@ -57,8 +59,8 @@
 packages/sprite-core/
 ├── event-bus.ts                # 统一事件总线
 ├── state-machine.ts            # 精灵有限状态机
-├── persona-state.ts            # 人格状态快照（静态展示值 / 心情 / 维度）
-├── character-runtime.ts        # 角色声明 → runtime persona layer 桥接
+├── character-state.ts          # 角色状态快照（静态展示值 / 心情 / 维度）
+├── character-runtime.ts        # 角色声明 → runtime 桥接
 ├── character-service.ts        # 角色定义服务（人格模板、维度、工具标签）
 ├── character-pack-manager.ts   # 角色包扫描 / 安装 / 激活 authority
 ├── character-pack-archive.ts   # 角色包压缩包（.cbpk / zip）读写
@@ -67,7 +69,7 @@ packages/sprite-core/
 ├── character-pack-signature.ts # trust-root 公钥验签
 ├── character-gallery.ts        # 角色图集共享类型 / 索引规范
 ├── character-gallery-manager.ts # 角色图集文件与索引管理
-├── character-capability-flags.ts # 角色声明 / persona snapshot → capability flags 桥接
+├── character-capability-flags.ts # 角色声明 / 角色状态 → capability flags 桥接
 ├── interaction-tracker.ts      # 交互追踪器
 ├── capability-registry.ts      # capability 定义 / 解锁 / 激活快照统一入口
 ├── capability-runtime.ts       # capability 运行时守卫与状态
@@ -75,7 +77,7 @@ packages/sprite-core/
 ├── behavior-engine.ts          # 行为引擎（自主行为调度）
 ├── purpose/                    # Purpose/Routine 连续动作编排
 ├── animation-registry.ts       # 动画注册表
-├── animation-condition.ts      # 动画条件编译（persona 条件选片）
+├── animation-condition.ts      # 动画条件编译（角色状态条件选片）
 ├── interaction-contract.ts     # 交互输入 / EventBus 事件共享契约
 ├── window-controller.ts        # 窗口控制器（行走/拖拽/位置）
 ├── window-controller-model.ts  # 路径采样 / 边界约束 / 步进纯计算
@@ -109,7 +111,7 @@ packages/sprite-core/
 │   ├── speak-cache.ts          # 语音缓存管理
 │   ├── speak-config-store.ts   # 语音配置持久化
 │   ├── realtime-text-parser.ts # 实时朗读文本 parser（markdown 降噪 / 断句缓冲）
-│   ├── speech-language.ts      # 语音语种解析
+│   ├── speak-language.ts      # 语音语种解析
 │   └── types.ts                # 语音类型定义
 └── preload/                    # Preload 桥接层
     ├── index.ts
@@ -239,13 +241,13 @@ sprite.registerBehavior(myCustomBehavior);
 
 #### SpriteManager 内部模块
 
-| 模块     | 文件                           | 职责                                                                 |
-| -------- | ------------------------------ | -------------------------------------------------------------------- |
-| 类型定义 | `manager/types.ts`             | `SpriteWindow`、`SpriteManagerOptions`、`CharacterStatePersistenceRow` |
-| 移动策略 | `manager/movement-coordinator.ts` | preview / animation / behavior movement 的统一策略分发             |
-| 持久化   | `manager/persistence.ts`       | `CharacterStatePersistence`（JSON 文件 + 自动保存）                  |
-| 状态映射 | `manager/state-mapping.ts`     | `mapStateToEventType()` — 状态机 → AnimationRegistry 事件类型        |
-| 默认行为 | `manager/default-behaviors.ts` | 8 个内置自发行为的注册函数                                           |
+| 模块     | 文件                              | 职责                                                                   |
+| -------- | --------------------------------- | ---------------------------------------------------------------------- |
+| 类型定义 | `manager/types.ts`                | `SpriteWindow`、`SpriteManagerOptions`、`CharacterStatePersistenceRow` |
+| 移动策略 | `manager/movement-coordinator.ts` | preview / animation / behavior movement 的统一策略分发                 |
+| 持久化   | `manager/persistence.ts`          | `CharacterStatePersistence`（JSON 文件 + 自动保存）                    |
+| 状态映射 | `manager/state-mapping.ts`        | `mapStateToEventType()` — 状态机 → AnimationRegistry 事件类型          |
+| 默认行为 | `manager/default-behaviors.ts`    | 8 个内置自发行为的注册函数                                             |
 
 ### 2. SpriteEventBus — 统一事件总线
 
@@ -413,16 +415,16 @@ engine.start();
 
 **预置行为工厂函数**（共 8 个，均从 `behavior-engine.ts` 导出）:
 
-| 函数                            | 说明                                          |
-| ------------------------------- | --------------------------------------------- |
-| `createSleepyBehavior()`        | 22:00-06:00 打哈欠（接入 `daily.rest-reminder` purpose） |
-| `createIdleSleepyBehavior()`    | 空闲 >100 秒打哈欠                            |
-| `createBoredBehavior()`         | 空闲 >2 分钟无聊状态                          |
-| `createRandomMessageBehavior()` | 空闲 >1 分钟随机消息                          |
+| 函数                            | 说明                                                             |
+| ------------------------------- | ---------------------------------------------------------------- |
+| `createSleepyBehavior()`        | 22:00-06:00 打哈欠（接入 `daily.rest-reminder` purpose）         |
+| `createIdleSleepyBehavior()`    | 空闲 >100 秒打哈欠                                               |
+| `createBoredBehavior()`         | 空闲 >2 分钟无聊状态                                             |
+| `createRandomMessageBehavior()` | 空闲 >1 分钟随机消息                                             |
 | `createEmotionBehavior()`       | 随机情感（按好感度分池；受 `emotionExpression` capability 门控） |
-| `createActionBehavior()`        | 随机动作（高好感解锁更多，可接入 AI 自发说话） |
-| `createAmbientBehavior()`       | 氛围微动画（breath/blink/float）              |
-| `createSeasonalBehavior()`      | 季节/节日行为                                 |
+| `createActionBehavior()`        | 随机动作（高好感解锁更多，可接入 AI 自发说话）                   |
+| `createAmbientBehavior()`       | 氛围微动画（breath/blink/float）                                 |
+| `createSeasonalBehavior()`      | 季节/节日行为                                                    |
 
 ### 7. AnimationRegistry — 动画注册表
 
@@ -437,7 +439,7 @@ registry.register({
   eventTypes: ['idle'],
   priority: 10,
   condition: (characterState) => characterState.favor >= 80,
-  source: { localPath: '/sprites/idle-happy.webm' },
+  source: { localPath: '/characters/idle-happy.webm' },
   playback: { width: 180, height: 240, loop: true, loopCount: 2 }
 });
 
@@ -464,9 +466,9 @@ import {
   initCharacterService,
   getCharacterInfo,
   getCharacterDefinition,
-  buildCharacterPersonaPrompt,
+  buildCharacterPrompt,
   getDimensionSchema,
-  getFavorPersonaOverlay,
+  getFavorTierOverlay,
   getCharacterToolLabels,
   reloadCharacter
 } from '@packages/sprite-core/character-service';
@@ -565,16 +567,16 @@ await sprite.clearSpeakCache();
 
 **SpriteSpeakConfig**:
 
-| 字段          | 类型     | 说明                                  |
-| ------------- | -------- | ------------------------------------- |
-| `enabled`     | boolean  | 是否启用语音合成                      |
-| `serviceType` | `'Edge'` | Legacy TTS 服务类型；Edge 引擎继续使用该字段 |
-| `engine`      | `'edge' \| 'ai-provider'` | 说话引擎选择，缺失时由 `serviceType` 兼容推导 |
-| `aiProvider`  | object   | AI Provider、preset、model、voiceId、音频格式和声音参数等配置 |
-| `voiceName`   | string   | 语音名称（如 `zh-CN-XiaoxiaoNeural`） |
-| `rate`        | number   | 语速 (-100 ~ 200)                     |
-| `pitch`       | number   | 音高 (-100 ~ 200)                     |
-| `volume`      | number   | 音量 (0 ~ 1)                          |
+| 字段          | 类型                      | 说明                                                          |
+| ------------- | ------------------------- | ------------------------------------------------------------- |
+| `enabled`     | boolean                   | 是否启用语音合成                                              |
+| `serviceType` | `'Edge'`                  | Legacy TTS 服务类型；Edge 引擎继续使用该字段                  |
+| `engine`      | `'edge' \| 'ai-provider'` | 说话引擎选择，缺失时由 `serviceType` 兼容推导                 |
+| `aiProvider`  | object                    | AI Provider、preset、model、voiceId、音频格式和声音参数等配置 |
+| `voiceName`   | string                    | 语音名称（如 `zh-CN-XiaoxiaoNeural`）                         |
+| `rate`        | number                    | 语速 (-100 ~ 200)                                             |
+| `pitch`       | number                    | 音高 (-100 ~ 200)                                             |
+| `volume`      | number                    | 音量 (0 ~ 1)                                                  |
 
 #### 语音工作流程
 
@@ -652,7 +654,7 @@ IPC: sprite:play → 渲染进程播放
 └─────────┴──────────────────┴─────────┘
 ```
 
-配置示例（`sprites/index.json`）：
+配置示例（`characters/index.json`）：
 
 ```json
 {
@@ -758,7 +760,7 @@ mgr.showToast(data?.message || '处理完成！', { category: 'success' });
 
 ### 动画配置文件
 
-- 默认动画：`resources/sprites/index.json`
+- 默认动画：`resources/characters/index.json`
 - 角色包动画：`{userData}/data/character-packs/<packId>/animations/index.json`
 - 全局用户动画兜底：`{userData}/data/sprites/index.json`
 
@@ -766,7 +768,7 @@ mgr.showToast(data?.message || '处理完成！', { category: 'success' });
 
 ### 角色图集配置文件
 
-- 内置默认图集：`resources/sprites/gallery/index.json`
+- 内置默认图集：`resources/characters/gallery/index.json`
 - 角色包图集：`{userData}/data/character-packs/<packId>/gallery/index.json`
 - 图片文件：`gallery/images/*`
 - 缩略图：`gallery/thumbs/*`
@@ -899,18 +901,18 @@ const enabled = await window.chobits.sprite.getDebugOverlay();
 
 ### A. 用户交互触发
 
-| 交互     | 触发位置               | IPC                | 主进程处理                                                 |
-| -------- | ---------------------- | ------------------ | ---------------------------------------------------------- |
-| 点击     | `SpriteApp`          | `sprite:interact`  | `reportInteraction('click')` → `playOnce('click')`         |
-| 双击     | `SpriteApp`          | `sprite:interact`  | `reportInteraction('double-click')`                        |
-| 右键     | `SpriteApp`          | `sprite:interact`  | `reportInteraction('context-menu')`                        |
-| hover 进入 | `SpriteApp`        | `sprite:interact`  | `reportInteraction('hover-enter')`                         |
-| hover 离开 | `SpriteApp`        | `sprite:interact`  | `reportInteraction('hover-leave')`                         |
-| 拖拽开始 | `useDragCollector`     | `sprite:drag`      | `transitionTo('dragging')` + `emit('interact:drag:start')` |
-| 拖拽结束 | `useDragCollector`     | `sprite:drag`      | `transitionTo('idle')` + `emit('interact:drag:end')`       |
-| 文件悬停 | `useFileDropCollector` | `sprite:interact`  | `reportInteraction('file-drag-over')`                      |
-| 文件离开 | `useFileDropCollector` | `sprite:interact`  | `reportInteraction('file-drag-leave')`                     |
-| 文件拖放 | `useFileDropCollector` | `sprite:file-drop` | `reportInteraction('file-drop')`                           |
+| 交互       | 触发位置               | IPC                | 主进程处理                                                 |
+| ---------- | ---------------------- | ------------------ | ---------------------------------------------------------- |
+| 点击       | `SpriteApp`            | `sprite:interact`  | `reportInteraction('click')` → `playOnce('click')`         |
+| 双击       | `SpriteApp`            | `sprite:interact`  | `reportInteraction('double-click')`                        |
+| 右键       | `SpriteApp`            | `sprite:interact`  | `reportInteraction('context-menu')`                        |
+| hover 进入 | `SpriteApp`            | `sprite:interact`  | `reportInteraction('hover-enter')`                         |
+| hover 离开 | `SpriteApp`            | `sprite:interact`  | `reportInteraction('hover-leave')`                         |
+| 拖拽开始   | `useDragCollector`     | `sprite:drag`      | `transitionTo('dragging')` + `emit('interact:drag:start')` |
+| 拖拽结束   | `useDragCollector`     | `sprite:drag`      | `transitionTo('idle')` + `emit('interact:drag:end')`       |
+| 文件悬停   | `useFileDropCollector` | `sprite:interact`  | `reportInteraction('file-drag-over')`                      |
+| 文件离开   | `useFileDropCollector` | `sprite:interact`  | `reportInteraction('file-drag-leave')`                     |
+| 文件拖放   | `useFileDropCollector` | `sprite:file-drop` | `reportInteraction('file-drop')`                           |
 
 ### B. 业务事件触发 (AppEvent → sprite-event-listener)
 
@@ -924,16 +926,16 @@ eventManager.emit(AppEvent.SPRITE_AI_START);
 eventManager.emit(AppEvent.SPRITE_AI_COMPLETED, { message: '生成完成！' });
 ```
 
-| 事件                                  | 触发时机     | 效果                                    | 文案来源                               |
-| ------------------------------------- | ------------ | --------------------------------------- | -------------------------------------- |
-| `SPRITE_AI_START`                     | AI 开始处理  | `showToast()` + `trigger('thinking', { silent: true })`   | `spriteEventMessages.aiThinking`       |
-| `SPRITE_AI_COMPLETED`                  | AI 处理完成  | `showToast()` + `trigger('celebrate', { silent: true })`  | `spriteEventMessages.aiComplete`       |
-| `SPRITE_AI_ERROR`                     | AI 处理出错  | `showToast()` + `trigger('error', { silent: true })`      | `spriteEventMessages.aiError`          |
-| `AI_PROVIDER_CONFIG_UPDATED`          | AI Provider 配置更新 | toast                          | `trigger()` 自动查找                   |
-| `SPRITE_DOWNLOAD_COMPLETE/FAILED`     | 插件下载     | toast                                   | `catalog.download/error`               |
-| `SPRITE_PLUGIN_INSTALLED/REMOVED`       | 插件操作     | toast                                   | `catalog.install/remove`               |
-| `SPRITE_SYSTEM_READY/QUIT`            | 系统生命周期 | appear/disappear 动画                   | `spriteEventMessages.appear/disappear` |
-| `SPRITE_SYSTEM_FOCUS/BLUR`            | 窗口焦点     | wake/sleep                              | `spriteEventMessages.wake/sleep`       |
+| 事件                              | 触发时机             | 效果                                                     | 文案来源                               |
+| --------------------------------- | -------------------- | -------------------------------------------------------- | -------------------------------------- |
+| `SPRITE_AI_START`                 | AI 开始处理          | `showToast()` + `trigger('thinking', { silent: true })`  | `spriteEventMessages.aiThinking`       |
+| `SPRITE_AI_COMPLETED`             | AI 处理完成          | `showToast()` + `trigger('celebrate', { silent: true })` | `spriteEventMessages.aiComplete`       |
+| `SPRITE_AI_ERROR`                 | AI 处理出错          | `showToast()` + `trigger('error', { silent: true })`     | `spriteEventMessages.aiError`          |
+| `AI_PROVIDER_CONFIG_UPDATED`      | AI Provider 配置更新 | toast                                                    | `trigger()` 自动查找                   |
+| `SPRITE_DOWNLOAD_COMPLETE/FAILED` | 插件下载             | toast                                                    | `catalog.download/error`               |
+| `SPRITE_PLUGIN_INSTALLED/REMOVED` | 插件操作             | toast                                                    | `catalog.install/remove`               |
+| `SPRITE_SYSTEM_READY/QUIT`        | 系统生命周期         | appear/disappear 动画                                    | `spriteEventMessages.appear/disappear` |
+| `SPRITE_SYSTEM_FOCUS/BLUR`        | 窗口焦点             | wake/sleep                                               | `spriteEventMessages.wake/sleep`       |
 
 说明：mini 分支已移除 RSS、回收站、资源库、workflow、Memory、媒体处理等业务系统。`SPRITE_RSS_*` / `SPRITE_TRASH_*` / `MEMORY_EXTRACTION_*` / `MEMORY_SAVED` / `SPRITE_RESOURCE_IMPORT_*` / `SPRITE_WORKFLOW_*` / `SPRITE_MEDIA_PROCESS_*` / `USER_PERSONA_UPDATE_*` 因全仓无任何 emitter 与消费方，已从 `AppEvent` 枚举与 `sprite-event-listener.ts` 中删除，对应的 events/routines 文案 key 与 `workflow.waiting` / `resource.import.waiting` / `onboarding.resource.open-library` preset 也已一并移除。新增事件应接入上表中的活跃链路。
 
@@ -955,16 +957,16 @@ sprite.trigger('success');
 
 ### D. 自发行为触发 (BehaviorEngine)
 
-| 行为 ID           | 触发条件                         | 动作                       |
-| ----------------- | -------------------------------- | -------------------------- |
-| `night-sleepy`    | 22:00-06:00 时间窗口             | `startPurpose(daily.rest-reminder)` |
-| `idle-sleepy`     | 空闲 >100 秒                     | `playOnce('sleepy')`       |
-| `long-idle-bored` | 空闲 >2 分钟                     | `transitionTo('bored')`    |
-| `random-message`  | idle，空闲 >1 分钟               | `showToast(random tip)`    |
-| `emotion`         | idle 3-5 分钟                    | 按好感度池随机触发情感事件 |
-| `action`          | idle 5-10 分钟                   | 按好感度池随机触发动作事件 |
-| `ambient`         | 30-60 秒循环                     | breath/blink/float 微动画  |
-| `seasonal`        | 每天首次打开                     | 按日期触发季节/节日事件    |
+| 行为 ID           | 触发条件             | 动作                                |
+| ----------------- | -------------------- | ----------------------------------- |
+| `night-sleepy`    | 22:00-06:00 时间窗口 | `startPurpose(daily.rest-reminder)` |
+| `idle-sleepy`     | 空闲 >100 秒         | `playOnce('sleepy')`                |
+| `long-idle-bored` | 空闲 >2 分钟         | `transitionTo('bored')`             |
+| `random-message`  | idle，空闲 >1 分钟   | `showToast(random tip)`             |
+| `emotion`         | idle 3-5 分钟        | 按好感度池随机触发情感事件          |
+| `action`          | idle 5-10 分钟       | 按好感度池随机触发动作事件          |
+| `ambient`         | 30-60 秒循环         | breath/blink/float 微动画           |
+| `seasonal`        | 每天首次打开         | 按日期触发季节/节日事件             |
 
 ### E. 渲染进程直接调用
 
@@ -988,85 +990,85 @@ await window.chobits.sprite.trigger('celebrate', { message: '太好了！' });
 
 ### 上行（渲染进程 → 主进程）
 
-| 通道                                | 载荷                                                | 说明               |
-| ----------------------------------- | --------------------------------------------------- | ------------------ |
-| `sprite:interact`                   | `{ type: SpriteInteractionIntent, data? }`          | 用户交互上报       |
-| `sprite:drag`                       | `{ phase, screenX?, screenY?, offsetX?, offsetY? }` | 拖拽事件           |
-| `sprite:anim-complete`              | `{ animId, phase, playId? }`                        | 动画播放完成       |
-| `sprite:file-drop`                  | `{ files }`                                         | 文件拖放           |
-| `sprite:ready`                      | -                                                   | 渲染进程就绪       |
-| `sprite:get-initial-state`          | -                                                   | 获取初始全量状态   |
-| `sprite:list` / `sprite:list-by-trigger` / `sprite:get` | -                           | 查询动画资源       |
-| `sprite:register` / `sprite:register-from-data` | 动画定义 / 文件数据               | 注册动画资源（`spriteManage` guard） |
-| `sprite:remove`                     | `{ id, deleteFile? }`                               | 删除动画资源（`spriteManage` guard） |
-| `sprite:update-config` / `sprite:update-meta` | `{ id, patch }` / `{ id, meta }`        | 更新动画播放配置 / 元数据（`spriteManage` guard） |
-| `sprite:character:get-state`         | -                                                   | 获取角色状态       |
-| `sprite:capabilities:get-snapshot`   | -                                                   | 获取 runtime capability snapshot |
-| `sprite:character:get-info`          | -                                                   | 获取角色信息       |
-| `sprite:character:get-persona-prompt` | `{ context }`                                       | 获取人格 prompt    |
-| `sprite:character:list-packs`        | -                                                   | 获取角色包列表     |
-| `sprite:character:get-active-pack`    | -                                                   | 获取当前激活角色包 |
-| `sprite:character:activate-pack`     | `{ packId, source? }`                               | 激活角色包         |
-| `sprite:character:inspect-pack-from-archive` | `{ archivePath }`                              | 预检压缩包角色包   |
-| `sprite:character:install-pack-from-archive` | `{ archivePath, replaceExisting?, activate? }` | 从压缩包安装角色包 |
-| `sprite:character:remove-pack`       | `{ packId, source? }`                               | 删除已安装角色包   |
-| `sprite:character:export-pack`       | `{ packId, outputPath, source? }`                   | 导出角色包为压缩包 |
-| `sprite:character:get-editor-draft`   | `{ packId, source? }`                               | 获取角色包编辑草稿 |
-| `sprite:character:save-editor-draft`  | `{ draft, options? }`                               | 保存角色包编辑草稿 |
-| `sprite:character:gallery:list`     | `{ packId?, source?, query? }`                      | 列出角色图集       |
-| `sprite:character:gallery:canvas:get` | `{ packId?, source? }`                            | 获取图集画布布局   |
-| `sprite:character:gallery:canvas:save` | `{ packId?, source?, layout }`                   | 保存图集画布布局（`spriteManage` guard） |
-| `sprite:character:gallery:import`   | `{ packId?, source?, filePath, draft? }`            | 导入图集图片       |
-| `sprite:character:gallery:update`   | `{ packId?, source?, itemId, patch }`               | 更新图集元数据     |
-| `sprite:character:gallery:replace-image` | `{ packId?, source?, itemId, filePath, origin? }` | 替换图集图片       |
-| `sprite:character:gallery:remove`   | `{ packId?, source?, itemId, deleteFile? }`         | 删除图集条目       |
-| `sprite:character:gallery:build-ai-edit-context` | `{ packId?, source?, draft }`              | 构建 AI 编辑上下文 |
-| `sprite:character:reload`           | -                                                   | 重载角色并同步规则 |
-| `sprite:config:get-debug-overlay`     | -                                                   | 获取调试辅助线开关 |
-| `sprite:config:set-debug-overlay`     | `{ enabled }`                                       | 设置调试辅助线开关 |
-| `sprite:config:get-animation-playlist-mode` | `{ trigger? }`                                | 获取默认或指定 trigger 的动画列表播放模式 |
-| `sprite:config:set-animation-playlist-mode` | `{ mode, trigger? }`                          | 设置默认或指定 trigger 的动画列表播放模式 |
-| `sprite:config:get-bubble-mode`       | -                                                   | 获取气泡窗口模式   |
-| `sprite:config:set-bubble-mode`       | `{ mode }`                                          | 设置气泡窗口模式   |
-| `sprite:movement:set-avoid-regions`   | `{ regions? }`                                      | 设置移动避让区域   |
-| `sprite:spontaneous:get-preferences` | -                                                   | 获取 AI 自发说话偏好 |
-| `sprite:spontaneous:update-preferences` | `Partial<SpriteSpontaneousUtterancePreferences>` | 更新 AI 自发说话偏好 |
-| `sprite:spontaneous:list-history`    | `{ limit?, query?, status?, intentCategory? }`      | 查询 AI 自发说话历史 |
-| `sprite:purpose:start`              | `StartSpritePurposeRequest`                         | 启动 Purpose / Routine |
-| `sprite:purpose:cancel`             | `{ purposeId?, reason? }`                           | 取消当前或指定 Purpose |
-| `sprite:purpose:get-snapshot`        | -                                                   | 获取当前 Purpose / Routine 快照 |
-| `sprite:purpose:event`              | `SpritePurposeRuntimeEventInput`                    | 上报供 Routine 等待的 purpose event |
-| `sprite:purpose:list-history`        | `{ limit?, kind?, status?, eventType? }`            | 查询目的 / planner 历史 |
-| `sprite:purpose:get-daily-retrospective` | `{ date?, limit?, includeIdle?, minMemoryWorthiness? }` | 查询每日目的复盘摘要 |
-| `sprite:purpose-planner:get-preferences` | -                                                | 获取 AI 目的规划偏好 |
-| `sprite:purpose-planner:update-preferences` | `Partial<SpritePurposePlannerPreferences>`    | 更新 AI 目的规划偏好 |
-| `sprite:purpose-planner:get-status`   | -                                                   | 查询 planner executor 与最近结果 |
-| `sprite:preview-movement`            | `{ width, height, padding, movement }`              | 预览窗口移动效果   |
-| `sprite:stop-movement-preview`        | -                                                   | 停止移动预览       |
-| `sprite:speak`                      | `{ text, showBubble?, bubbleDuration? }`            | 合成并播放语音 + 气泡 |
-| `sprite:speak:synthesize`           | `{ text }`                                          | 仅合成语音         |
-| `sprite:speak:get-config` / `setConfig` / `resetConfig` | - / `Partial<SpriteSpeakConfig>` / - | 语音合成配置读写 / 重置 |
-| `sprite:speak:get-cache-stats` / `clearCache` | - / -                                  | 语音缓存统计 / 清空 |
-| `sprite:speak:realtime:*`           | 会话参数                                            | AI 回复实时朗读会话（start / appendText / flush / finish / cancel） |
-| `sprite:trigger`                    | `SpriteTriggerRequest`                              | 统一事件触发       |
-| `sprite:feedback:play`              | `SpriteFeedbackRequest`                             | 播放反馈动画       |
-| `sprite:trigger-by-id`                | `{ animationId, ... }`                              | 按动画 ID 测试播放 |
-| `sprite:message:confirm`            | `SpriteConfirmNoticeRequest`                        | 弹出确认气泡并等待用户选择 |
-| `sprite:add-temp-resource-root`        | `root: string`                                      | 添加临时资源根目录 |
+| 通道                                                    | 载荷                                                    | 说明                                                                |
+| ------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------- |
+| `sprite:interact`                                       | `{ type: SpriteInteractionIntent, data? }`              | 用户交互上报                                                        |
+| `sprite:drag`                                           | `{ phase, screenX?, screenY?, offsetX?, offsetY? }`     | 拖拽事件                                                            |
+| `sprite:anim-complete`                                  | `{ animId, phase, playId? }`                            | 动画播放完成                                                        |
+| `sprite:file-drop`                                      | `{ files }`                                             | 文件拖放                                                            |
+| `sprite:ready`                                          | -                                                       | 渲染进程就绪                                                        |
+| `sprite:get-initial-state`                              | -                                                       | 获取初始全量状态                                                    |
+| `sprite:list` / `sprite:list-by-trigger` / `sprite:get` | -                                                       | 查询动画资源                                                        |
+| `sprite:register` / `sprite:register-from-data`         | 动画定义 / 文件数据                                     | 注册动画资源（`spriteManage` guard）                                |
+| `sprite:remove`                                         | `{ id, deleteFile? }`                                   | 删除动画资源（`spriteManage` guard）                                |
+| `sprite:update-config` / `sprite:update-meta`           | `{ id, patch }` / `{ id, meta }`                        | 更新动画播放配置 / 元数据（`spriteManage` guard）                   |
+| `sprite:character:get-state`                            | -                                                       | 获取角色状态                                                        |
+| `sprite:capabilities:get-snapshot`                      | -                                                       | 获取 runtime capability snapshot                                    |
+| `sprite:character:get-info`                             | -                                                       | 获取角色信息                                                        |
+| `sprite:character:get-prompt`                           | `{ context }`                                           | 获取人格 prompt                                                     |
+| `sprite:character:list-packs`                           | -                                                       | 获取角色包列表                                                      |
+| `sprite:character:get-active-pack`                      | -                                                       | 获取当前激活角色包                                                  |
+| `sprite:character:activate-pack`                        | `{ packId, source? }`                                   | 激活角色包                                                          |
+| `sprite:character:inspect-pack-from-archive`            | `{ archivePath }`                                       | 预检压缩包角色包                                                    |
+| `sprite:character:install-pack-from-archive`            | `{ archivePath, replaceExisting?, activate? }`          | 从压缩包安装角色包                                                  |
+| `sprite:character:remove-pack`                          | `{ packId, source? }`                                   | 删除已安装角色包                                                    |
+| `sprite:character:export-pack`                          | `{ packId, outputPath, source? }`                       | 导出角色包为压缩包                                                  |
+| `sprite:character:get-editor-draft`                     | `{ packId, source? }`                                   | 获取角色包编辑草稿                                                  |
+| `sprite:character:save-editor-draft`                    | `{ draft, options? }`                                   | 保存角色包编辑草稿                                                  |
+| `sprite:character:gallery:list`                         | `{ packId?, source?, query? }`                          | 列出角色图集                                                        |
+| `sprite:character:gallery:canvas:get`                   | `{ packId?, source? }`                                  | 获取图集画布布局                                                    |
+| `sprite:character:gallery:canvas:save`                  | `{ packId?, source?, layout }`                          | 保存图集画布布局（`spriteManage` guard）                            |
+| `sprite:character:gallery:import`                       | `{ packId?, source?, filePath, draft? }`                | 导入图集图片                                                        |
+| `sprite:character:gallery:update`                       | `{ packId?, source?, itemId, patch }`                   | 更新图集元数据                                                      |
+| `sprite:character:gallery:replace-image`                | `{ packId?, source?, itemId, filePath, origin? }`       | 替换图集图片                                                        |
+| `sprite:character:gallery:remove`                       | `{ packId?, source?, itemId, deleteFile? }`             | 删除图集条目                                                        |
+| `sprite:character:gallery:build-ai-edit-context`        | `{ packId?, source?, draft }`                           | 构建 AI 编辑上下文                                                  |
+| `sprite:character:reload`                               | -                                                       | 重载角色并同步规则                                                  |
+| `sprite:config:get-debug-overlay`                       | -                                                       | 获取调试辅助线开关                                                  |
+| `sprite:config:set-debug-overlay`                       | `{ enabled }`                                           | 设置调试辅助线开关                                                  |
+| `sprite:config:get-animation-playlist-mode`             | `{ trigger? }`                                          | 获取默认或指定 trigger 的动画列表播放模式                           |
+| `sprite:config:set-animation-playlist-mode`             | `{ mode, trigger? }`                                    | 设置默认或指定 trigger 的动画列表播放模式                           |
+| `sprite:config:get-bubble-mode`                         | -                                                       | 获取气泡窗口模式                                                    |
+| `sprite:config:set-bubble-mode`                         | `{ mode }`                                              | 设置气泡窗口模式                                                    |
+| `sprite:movement:set-avoid-regions`                     | `{ regions? }`                                          | 设置移动避让区域                                                    |
+| `sprite:spontaneous:get-preferences`                    | -                                                       | 获取 AI 自发说话偏好                                                |
+| `sprite:spontaneous:update-preferences`                 | `Partial<SpriteSpontaneousUtterancePreferences>`        | 更新 AI 自发说话偏好                                                |
+| `sprite:spontaneous:list-history`                       | `{ limit?, query?, status?, intentCategory? }`          | 查询 AI 自发说话历史                                                |
+| `sprite:purpose:start`                                  | `StartSpritePurposeRequest`                             | 启动 Purpose / Routine                                              |
+| `sprite:purpose:cancel`                                 | `{ purposeId?, reason? }`                               | 取消当前或指定 Purpose                                              |
+| `sprite:purpose:get-snapshot`                           | -                                                       | 获取当前 Purpose / Routine 快照                                     |
+| `sprite:purpose:event`                                  | `SpritePurposeRuntimeEventInput`                        | 上报供 Routine 等待的 purpose event                                 |
+| `sprite:purpose:list-history`                           | `{ limit?, kind?, status?, eventType? }`                | 查询目的 / planner 历史                                             |
+| `sprite:purpose:get-daily-retrospective`                | `{ date?, limit?, includeIdle?, minMemoryWorthiness? }` | 查询每日目的复盘摘要                                                |
+| `sprite:purpose-planner:get-preferences`                | -                                                       | 获取 AI 目的规划偏好                                                |
+| `sprite:purpose-planner:update-preferences`             | `Partial<SpritePurposePlannerPreferences>`              | 更新 AI 目的规划偏好                                                |
+| `sprite:purpose-planner:get-status`                     | -                                                       | 查询 planner executor 与最近结果                                    |
+| `sprite:preview-movement`                               | `{ width, height, padding, movement }`                  | 预览窗口移动效果                                                    |
+| `sprite:stop-movement-preview`                          | -                                                       | 停止移动预览                                                        |
+| `sprite:speak`                                          | `{ text, bubbleEnabled?, bubbleDuration? }`             | 合成并播放语音 + 气泡                                               |
+| `sprite:speak:synthesize`                               | `{ text }`                                              | 仅合成语音                                                          |
+| `sprite:speak:get-config` / `setConfig` / `resetConfig` | - / `Partial<SpriteSpeakConfig>` / -                    | 语音合成配置读写 / 重置                                             |
+| `sprite:speak:get-cache-stats` / `clearCache`           | - / -                                                   | 语音缓存统计 / 清空                                                 |
+| `sprite:speak:realtime:*`                               | 会话参数                                                | AI 回复实时朗读会话（start / appendText / flush / finish / cancel） |
+| `sprite:trigger`                                        | `SpriteTriggerRequest`                                  | 统一事件触发                                                        |
+| `sprite:feedback:play`                                  | `SpriteFeedbackRequest`                                 | 播放反馈动画                                                        |
+| `sprite:trigger-by-id`                                  | `{ animationId, ... }`                                  | 按动画 ID 测试播放                                                  |
+| `sprite:message:confirm`                                | `SpriteConfirmNoticeRequest`                            | 弹出确认气泡并等待用户选择                                          |
+| `sprite:add-temp-resource-root`                         | `root: string`                                          | 添加临时资源根目录                                                  |
 
 ### 下行（主进程 → 渲染进程）
 
-| 通道                 | 载荷                     | 说明                      |
-| -------------------- | ------------------------ | ------------------------- |
-| `sprite:play`        | `SpritePlayCommand`      | 播放动画命令              |
-| `sprite:state`       | `SpriteStateSnapshot`    | 状态变化广播              |
-| `sprite:message`     | `MessageIPCPayload`      | 消息（toast/notice/busy） |
-| `sprite:walk`        | `{ active, direction? }` | 行走状态                  |
-| `sprite:config`      | `SpriteConfig`           | 配置变化（含 `animationPlaylistMode`、`animationPlaylistModes`） |
-| `sprite:purpose:state` | `SpritePurposeSnapshot` | Purpose / Routine 快照变化 |
-| `sprite:busy:update` | `{ progress, message? }` | 忙碌进度更新              |
-| `sprite:busy:clear`  | -                        | 清除忙碌状态              |
-| `sprite:speak`       | `SpriteSpeakPayload`     | 语音播放指令              |
+| 通道                   | 载荷                     | 说明                                                             |
+| ---------------------- | ------------------------ | ---------------------------------------------------------------- |
+| `sprite:play`          | `SpritePlayCommand`      | 播放动画命令                                                     |
+| `sprite:state`         | `SpriteStateSnapshot`    | 状态变化广播                                                     |
+| `sprite:message`       | `MessageIPCPayload`      | 消息（toast/notice/busy）                                        |
+| `sprite:walk`          | `{ active, direction? }` | 行走状态                                                         |
+| `sprite:config`        | `SpriteConfig`           | 配置变化（含 `animationPlaylistMode`、`animationPlaylistModes`） |
+| `sprite:purpose:state` | `SpritePurposeSnapshot`  | Purpose / Routine 快照变化                                       |
+| `sprite:busy:update`   | `{ progress, message? }` | 忙碌进度更新                                                     |
+| `sprite:busy:clear`    | -                        | 清除忙碌状态                                                     |
+| `sprite:speak`         | `SpriteSpeakPayload`     | 语音播放指令                                                     |
 
 ### Preload 桥接 API
 
@@ -1098,7 +1100,7 @@ await window.chobits.sprite.trigger('celebrate', { message: '太好了！' });
 
 **`window.chobits.character` / 角色状态与 capability**: `getState()`, `getCapabilitySnapshot()`
 
-**`window.chobits.character` / 角色与角色包**: `getCharacterInfo()`, `getCharacterPersonaPrompt()`, `listCharacterPacks()`, `getActiveCharacterPack()`, `activateCharacterPack()`, `inspectCharacterPackFromArchive()`, `installCharacterPackFromArchive()`, `exportCharacterPack()`, `removeCharacterPack()`, `getCharacterPackEditorDraft()`, `saveCharacterPackEditorDraft()`, `listCharacterGallery()`, `getCharacterGalleryCanvasLayout()`, `saveCharacterGalleryCanvasLayout()`, `importCharacterGalleryItem()`, `updateCharacterGalleryItem()`, `replaceCharacterGalleryItemImage()`, `removeCharacterGalleryItem()`, `buildCharacterGalleryAIEditContext()`, `reloadCharacter()`
+**`window.chobits.character` / 角色与角色包**: `getCharacterInfo()`, `getCharacterPrompt()`, `listCharacterPacks()`, `getActiveCharacterPack()`, `activateCharacterPack()`, `inspectCharacterPackFromArchive()`, `installCharacterPackFromArchive()`, `exportCharacterPack()`, `removeCharacterPack()`, `getCharacterPackEditorDraft()`, `saveCharacterPackEditorDraft()`, `listCharacterGallery()`, `getCharacterGalleryCanvasLayout()`, `saveCharacterGalleryCanvasLayout()`, `importCharacterGalleryItem()`, `updateCharacterGalleryItem()`, `replaceCharacterGalleryItemImage()`, `removeCharacterGalleryItem()`, `buildCharacterGalleryAIEditContext()`, `reloadCharacter()`
 
 **`window.chobits.character` / 事件订阅**: `onStateChanged()`, `onCapabilityChanged()`, `onCharacterSwitched()`
 
@@ -1133,43 +1135,43 @@ await window.chobits.sprite.trigger('celebrate', { message: '太好了！' });
 
 ## 文件路径汇总
 
-| 组件                 | 文件路径                                                       |
-| -------------------- | -------------------------------------------------------------- |
-| SpriteManager        | `packages/sprite-core/manager/sprite-manager.ts`               |
-| Manager Types        | `packages/sprite-core/manager/types.ts`                        |
-| Persistence          | `packages/sprite-core/manager/persistence.ts`                  |
-| State Mapping        | `packages/sprite-core/manager/state-mapping.ts`                |
-| Default Behaviors    | `packages/sprite-core/manager/default-behaviors.ts`            |
-| StateMachine         | `packages/sprite-core/state-machine.ts`                        |
-| CharacterStateManager | `packages/sprite-core/character-state.ts`                      |
-| AnimationRegistry    | `packages/sprite-core/animation-registry.ts`                   |
-| BehaviorEngine       | `packages/sprite-core/behavior-engine.ts`                      |
-| InteractionTracker   | `packages/sprite-core/interaction-tracker.ts`                  |
-| EventBus             | `packages/sprite-core/event-bus.ts`                            |
-| CharacterService     | `packages/sprite-core/character-service.ts`                    |
-| CharacterGallery     | `packages/sprite-core/character-gallery.ts`                    |
-| CharacterGalleryManager | `packages/sprite-core/character-gallery-manager.ts`         |
-| WindowController     | `packages/sprite-core/window-controller.ts`                    |
-| WindowController Model | `packages/sprite-core/window-controller-model.ts`            |
-| WindowController Platform | `packages/sprite-core/window-controller-platform.ts`      |
-| WindowController Drag Session | `packages/sprite-core/window-controller-drag-session.ts` |
-| WindowController Walk Session | `packages/sprite-core/window-controller-walk-session.ts` |
+| 组件                               | 文件路径                                                      |
+| ---------------------------------- | ------------------------------------------------------------- |
+| SpriteManager                      | `packages/sprite-core/manager/sprite-manager.ts`              |
+| Manager Types                      | `packages/sprite-core/manager/types.ts`                       |
+| Persistence                        | `packages/sprite-core/manager/persistence.ts`                 |
+| State Mapping                      | `packages/sprite-core/manager/state-mapping.ts`               |
+| Default Behaviors                  | `packages/sprite-core/manager/default-behaviors.ts`           |
+| StateMachine                       | `packages/sprite-core/state-machine.ts`                       |
+| CharacterStateManager              | `packages/sprite-core/character-state.ts`                     |
+| AnimationRegistry                  | `packages/sprite-core/animation-registry.ts`                  |
+| BehaviorEngine                     | `packages/sprite-core/behavior-engine.ts`                     |
+| InteractionTracker                 | `packages/sprite-core/interaction-tracker.ts`                 |
+| EventBus                           | `packages/sprite-core/event-bus.ts`                           |
+| CharacterService                   | `packages/sprite-core/character-service.ts`                   |
+| CharacterGallery                   | `packages/sprite-core/character-gallery.ts`                   |
+| CharacterGalleryManager            | `packages/sprite-core/character-gallery-manager.ts`           |
+| WindowController                   | `packages/sprite-core/window-controller.ts`                   |
+| WindowController Model             | `packages/sprite-core/window-controller-model.ts`             |
+| WindowController Platform          | `packages/sprite-core/window-controller-platform.ts`          |
+| WindowController Drag Session      | `packages/sprite-core/window-controller-drag-session.ts`      |
+| WindowController Walk Session      | `packages/sprite-core/window-controller-walk-session.ts`      |
 | WindowController Auto Move Session | `packages/sprite-core/window-controller-auto-move-session.ts` |
-| IPC Handler          | `packages/sprite-core/handlers/sprite-manager-ipc.ts`           |
-| Event Listener       | `packages/sprite-core/handlers/sprite-event-listener.ts`        |
-| Sprite Assets        | `packages/sprite-core/handlers/sprite-assets.ts`                |
-| Messages Catalog     | `packages/sprite-core/messages/zh-CN.ts`                       |
-| SpeakService         | `packages/sprite-core/speak/speak-service.ts`                  |
-| Speak Types          | `packages/sprite-core/speak/types.ts`                          |
-| Preload Bridge       | `packages/sprite-core/preload/sprite-bridge.ts`                |
-| Shared Types         | `packages/sprite-core/types.ts`                                |
-| 动画配置             | `resources/sprites/index.json`                                 |
-| 角色图集配置         | `resources/sprites/gallery/index.json`                         |
-| SpriteStateContext   | `src/features/sprite-assistant/context/SpriteStateContext.tsx` |
-| VideoSprite          | `src/features/sprite-assistant/renderers/VideoSprite.tsx`      |
-| useDragCollector     | `src/features/sprite-assistant/hooks/useDragCollector.ts`      |
-| useFileDropCollector | `src/features/sprite-assistant/hooks/useFileDropCollector.ts`  |
-| useSpriteSpeak       | `src/features/sprite-assistant/speak/useSpriteSpeak.ts`        |
+| IPC Handler                        | `packages/sprite-core/handlers/sprite-manager-ipc.ts`         |
+| Event Listener                     | `packages/sprite-core/handlers/sprite-event-listener.ts`      |
+| Sprite Assets                      | `packages/sprite-core/handlers/sprite-assets.ts`              |
+| Messages Catalog                   | `packages/sprite-core/messages/zh-CN.ts`                      |
+| SpeakService                       | `packages/sprite-core/speak/speak-service.ts`                 |
+| Speak Types                        | `packages/sprite-core/speak/types.ts`                         |
+| Preload Bridge                     | `packages/sprite-core/preload/sprite-bridge.ts`               |
+| Shared Types                       | `packages/sprite-core/types.ts`                               |
+| 动画配置                           | `resources/characters/index.json`                             |
+| 角色图集配置                       | `resources/characters/gallery/index.json`                     |
+| SpriteStateContext                 | `src/features/sprite/context/SpriteStateContext.tsx`          |
+| VideoSprite                        | `src/features/sprite/renderers/VideoSprite.tsx`               |
+| useDragCollector                   | `src/features/sprite/hooks/useDragCollector.ts`               |
+| useFileDropCollector               | `src/features/sprite/hooks/useFileDropCollector.ts`           |
+| useSpriteSpeak                     | `src/features/sprite/speak/useSpriteSpeak.ts`                 |
 
 ---
 

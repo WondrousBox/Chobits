@@ -90,18 +90,14 @@ export abstract class Value {
    * 添字演算子[index]
    */
   public getValueByIndex(index: number): Value {
-    return Value.errorValue.setErrorNotForClientCall(
-      CSM_JSON_ERROR_TYPE_MISMATCH
-    );
+    return Value.errorValue.setErrorNotForClientCall(CSM_JSON_ERROR_TYPE_MISMATCH);
   }
 
   /**
    * 添字演算子[string | csmString]
    */
   public getValueByString(s: string | csmString): Value {
-    return Value.nullValue.setErrorNotForClientCall(
-      CSM_JSON_ERROR_TYPE_MISMATCH
-    );
+    return Value.nullValue.setErrorNotForClientCall(CSM_JSON_ERROR_TYPE_MISMATCH);
   }
 
   /**
@@ -251,11 +247,7 @@ export class CubismJson {
    */
   public static create(buffer: ArrayBuffer, size: number) {
     const json = new CubismJson();
-    const succeeded: boolean = json.parseBytes(
-      buffer,
-      size,
-      json._parseCallback
-    );
+    const succeeded: boolean = json.parseBytes(buffer, size, json._parseCallback);
 
     if (!succeeded) {
       CubismJson.delete(json);
@@ -313,11 +305,7 @@ export class CubismJson {
    * return true : 成功
    * return false: 失敗
    */
-  public parseBytes(
-    buffer: ArrayBuffer,
-    size: number,
-    parseCallback?: parseJsonObject
-  ): boolean {
+  public parseBytes(buffer: ArrayBuffer, size: number, parseCallback?: parseJsonObject): boolean {
     const endPos: number[] = new Array<number>(1); // 参照渡しにするため配列
     const decodeBuffer: string = CubismJson.arrayBufferToString(buffer);
 
@@ -366,12 +354,7 @@ export class CubismJson {
    * @param   outEndPos   パース終了時の位置
    * @return      パースから取得したValueオブジェクト
    */
-  protected parseValue(
-    buffer: string,
-    length: number,
-    begin: number,
-    outEndPos: number[]
-  ) {
+  protected parseValue(buffer: string, length: number, begin: number, outEndPos: number[]) {
     if (this._error) return null;
 
     let o: Value = null;
@@ -399,9 +382,7 @@ export class CubismJson {
           return new JsonFloat(f);
         }
         case '"':
-          return new JsonString(
-            this.parseString(buffer, length, i + 1, outEndPos)
-          ); // \"の次の文字から
+          return new JsonString(this.parseString(buffer, length, i + 1, outEndPos)); // \"の次の文字から
         case '[':
           o = this.parseArray(buffer, length, i + 1, outEndPos);
           return o;
@@ -463,12 +444,7 @@ export class CubismJson {
    * @param  outEndPos   ->  パース終了時の位置
    * @return      パースした文F字列要素
    */
-  protected parseString(
-    string: string,
-    length: number,
-    begin: number,
-    outEndPos: number[]
-  ): string {
+  protected parseString(string: string, length: number, begin: number, outEndPos: number[]): string {
     if (this._error) {
       return null;
     }
@@ -561,12 +537,7 @@ export class CubismJson {
    * @param outEndPos パース終了時の位置
    * @return パースから取得したValueオブジェクト
    */
-  protected parseObject(
-    buffer: string,
-    length: number,
-    begin: number,
-    outEndPos: number[]
-  ): Value {
+  protected parseObject(buffer: string, length: number, begin: number, outEndPos: number[]): Value {
     if (this._error) {
       return null;
     }
@@ -688,12 +659,7 @@ export class CubismJson {
    * @param outEndPos パース終了時の位置
    * @return パースから取得したValueオブジェクト
    */
-  protected parseArray(
-    buffer: string,
-    length: number,
-    begin: number,
-    outEndPos: number[]
-  ): Value {
+  protected parseArray(buffer: string, length: number, begin: number, outEndPos: number[]): Value {
     if (this._error) {
       return null;
     }
@@ -1050,11 +1016,7 @@ export class JsonArray extends Value {
    * デストラクタ相当の処理
    */
   public release(): void {
-    for (
-      let ite: csmVector_iterator<Value> = this._array.begin();
-      ite.notEqual(this._array.end());
-      ite.preIncrement()
-    ) {
+    for (let ite: csmVector_iterator<Value> = this._array.begin(); ite.notEqual(this._array.end()); ite.preIncrement()) {
       let v: Value = ite.ptr();
 
       if (v && !v.isStatic()) {
@@ -1076,9 +1038,7 @@ export class JsonArray extends Value {
    */
   public getValueByIndex(index: number): Value {
     if (index < 0 || this._array.getSize() <= index) {
-      return Value.errorValue.setErrorNotForClientCall(
-        CSM_JSON_ERROR_INDEX_OF_BOUNDS
-      );
+      return Value.errorValue.setErrorNotForClientCall(CSM_JSON_ERROR_INDEX_OF_BOUNDS);
     }
 
     const v: Value = this._array.at(index);
@@ -1094,9 +1054,7 @@ export class JsonArray extends Value {
    * 添字演算子[string | csmString]
    */
   public getValueByString(s: string | csmString): Value {
-    return Value.errorValue.setErrorNotForClientCall(
-      CSM_JSON_ERROR_TYPE_MISMATCH
-    );
+    return Value.errorValue.setErrorNotForClientCall(CSM_JSON_ERROR_TYPE_MISMATCH);
   }
 
   /**
@@ -1105,11 +1063,7 @@ export class JsonArray extends Value {
   public getString(defaultValue: string, indent: string): string {
     const stringBuffer: string = indent + '[\n';
 
-    for (
-      let ite: csmVector_iterator<Value> = this._array.begin();
-      ite.notEqual(this._array.end());
-      ite.increment()
-    ) {
+    for (let ite: csmVector_iterator<Value> = this._array.begin(); ite.notEqual(this._array.end()); ite.increment()) {
       const v: Value = ite.ptr();
       this._stringBuffer += indent + '' + v.getString(indent + ' ') + '\n';
     }
@@ -1193,11 +1147,7 @@ export class JsonMap extends Value {
       return ret;
     }
 
-    for (
-      let iter: csmMap_iterator<string, Value> = this._map.begin();
-      iter.notEqual(this._map.end());
-      iter.preIncrement()
-    ) {
+    for (let iter: csmMap_iterator<string, Value> = this._map.begin(); iter.notEqual(this._map.end()); iter.preIncrement()) {
       if (iter.ptr().first == s) {
         if (iter.ptr().second == null) {
           return Value.nullValue;
@@ -1213,9 +1163,7 @@ export class JsonMap extends Value {
    * 添字演算子[index]
    */
   public getValueByIndex(index: number): Value {
-    return Value.errorValue.setErrorNotForClientCall(
-      CSM_JSON_ERROR_TYPE_MISMATCH
-    );
+    return Value.errorValue.setErrorNotForClientCall(CSM_JSON_ERROR_TYPE_MISMATCH);
   }
 
   /**
@@ -1229,8 +1177,7 @@ export class JsonMap extends Value {
       const key = ite.ptr().first;
       const v: Value = ite.ptr().second;
 
-      this._stringBuffer +=
-        indent + ' ' + key + ' : ' + v.getString(indent + '   ') + ' \n';
+      this._stringBuffer += indent + ' ' + key + ' : ' + v.getString(indent + '   ') + ' \n';
       ite.preIncrement();
     }
 

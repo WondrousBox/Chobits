@@ -6,10 +6,10 @@ describe('MessageProvider surface routing', () => {
   it('keeps sprite-targeted bridge messages out of the app message surface', async () => {
     const { act, useEffect } = await import('react');
     const { createRoot } = await import('react-dom/client');
-    const { MessageProvider } = await import('../../src/features/sprite-assistant/message/MessageContext');
-    const { useMessage } = await import('../../src/features/sprite-assistant/message/useMessage');
-    type MessageBridgePayload = import('../../src/features/sprite-assistant/message/types').MessageBridgePayload;
-    type MessageContextValue = import('../../src/features/sprite-assistant/message/types').MessageContextValue;
+    const { MessageProvider } = await import('../../src/features/sprite/message/MessageContext');
+    const { useMessage } = await import('../../src/features/sprite/message/useMessage');
+    type MessageBridgePayload = import('../../src/features/sprite/message/types').MessageBridgePayload;
+    type MessageContextValue = import('../../src/features/sprite/message/types').MessageContextValue;
 
     const env = installMiniDom();
     let bridgeHandler: ((payload: MessageBridgePayload) => void) | null = null;
@@ -79,9 +79,9 @@ describe('MessageProvider surface routing', () => {
   it('accepts sprite-targeted bridge messages on the sprite bubble surface', async () => {
     const { act } = await import('react');
     const { createRoot } = await import('react-dom/client');
-    const { MessageProvider } = await import('../../src/features/sprite-assistant/message/MessageContext');
-    const { useMessage } = await import('../../src/features/sprite-assistant/message/useMessage');
-    type MessageBridgePayload = import('../../src/features/sprite-assistant/message/types').MessageBridgePayload;
+    const { MessageProvider } = await import('../../src/features/sprite/message/MessageContext');
+    const { useMessage } = await import('../../src/features/sprite/message/useMessage');
+    type MessageBridgePayload = import('../../src/features/sprite/message/types').MessageBridgePayload;
 
     const env = installMiniDom();
     let bridgeHandler: ((payload: MessageBridgePayload) => void) | null = null;

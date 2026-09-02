@@ -2,26 +2,26 @@ import { TbMoodKid, TbSparkles } from 'react-icons/tb';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import { Toaster } from '@/components/ui/sonner';
-import { SpriteApp, StatusPage } from '@/features/sprite-assistant';
+import { SpriteApp, StatusPage } from '@/features/sprite';
 import { SpriteBubblePage } from '@/features/sprite-bubble';
 import { useAIProviderConfig } from '@/hooks/useAIProviderConfig';
 import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { ChatSelectionProvider } from '@/pages/ChatPage/context/ChatSelectionContext';
-import ExtensionSettings from '@/pages/ExtensionSettings/ExtensionSettings';
 import CharacterPackEditorWindow from '@/pages/ExtensionSettings/CharacterPackEditorWindow';
+import ExtensionSettings from '@/pages/ExtensionSettings/ExtensionSettings';
 import SpriteSettings from '@/pages/ExtensionSettings/SpriteSettings';
 import WindowAnimationEditor from '@/pages/ExtensionSettings/WindowAnimationEditor';
 import { ThemeProvider } from '@/pages/SettingsPage/providers/ThemeProvider';
 
 import { TooltipProvider } from './components/ui/tooltip';
 import AIProviderConfigWindow from './pages/AIProviderConfigWindow/AIProviderConfigWindow';
-import SpriteMenuPage from './pages/SpriteMenuPage/SpriteMenuPage';
 import ChatPage from './pages/ChatPage/ChatPage';
-import AssistantPage from './pages/ChatPage/StartPage';
+import ChatPanelPage from './pages/ChatPage/StartPage';
 import ASRConfigPage from './pages/RecordingPage/ASRConfigPage';
 import ASRTestPage from './pages/RecordingPage/ASRTestPage';
 import RecordingPage from './pages/RecordingPage/RecordingPage';
 import SettingsPage from './pages/SettingsPage/SettingsPage';
+import SpriteMenuPage from './pages/SpriteMenuPage/SpriteMenuPage';
 import TTSConfigPage from './pages/TTSPage/TTSConfigPage';
 import TTSPage from './pages/TTSPage/TTSPage';
 
@@ -40,9 +40,9 @@ function StandardAppRoutes(): JSX.Element {
         <Routes>
           <Route path="/" element={<SpriteApp />} />
           <Route path="/status" element={<StatusPage />} />
-          {flags.localAi && <Route path="/asr-config" element={<ASRConfigPage />} />}
-          {flags.localAi && <Route path="/asr" element={<RecordingPage />} />}
-          {flags.localAi && <Route path="/asr-test" element={<ASRTestPage />} />}
+          {flags.localAI && <Route path="/asr-config" element={<ASRConfigPage />} />}
+          {flags.localAI && <Route path="/asr" element={<RecordingPage />} />}
+          {flags.localAI && <Route path="/asr-test" element={<ASRTestPage />} />}
           <Route path="/tts-config" element={<TTSConfigPage />} />
           <Route path="/tts" element={<TTSPage />} />
           <Route path="/menu" element={<SpriteMenuPage />} />
@@ -69,8 +69,8 @@ function StandardAppRoutes(): JSX.Element {
               />
             }
           />
-          <Route path="/assistant" element={<AssistantPage />} />
-          <Route path="/assistant-mini" element={<AssistantPage mode="mini" />} />
+          <Route path="/chat-panel" element={<ChatPanelPage />} />
+          <Route path="/chat-mini" element={<ChatPanelPage mode="mini" />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/ai-provider-config" element={<AIProviderConfigWindow />} />
           <Route path="/character-pack-editor" element={<CharacterPackEditorWindow />} />

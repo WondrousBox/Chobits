@@ -6,7 +6,7 @@ export interface CustomProxy {
   type: ProxyAgentType;
   hostname: string;
   port: number;
-  active: boolean;
+  isActive: boolean;
 }
 
 export interface ProxyConfig {

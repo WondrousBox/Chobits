@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createOpenAIClient } from '../../packages/ai/providers/openai-runtime';
 import { vllmDefinition } from '../../packages/ai/providers/builtins/vllm/definition';
+import { createOpenAIClient } from '../../packages/ai/providers/openai-runtime';
 import { getProviderCapabilities, getProviderDefaultModels, getProviderDefinitionSchema, registerBuiltinProviderDefinitions } from '../../packages/ai/providers/service';
 import { VllmProvider } from '../../packages/ai/providers/vllm';
 

@@ -1,7 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest';
 
-import { buildExplicitSkillInvocationPrompt, normalizeRequestedSkillInvocation, resolveExplicitSkillInvocation, resolveRequestedSkillInvocation, SkillRegistry } from '../../packages/ai/runtime/pi/skills'
-import type { SkillRegistryEntry } from '../../packages/ai/runtime/pi/skills'
+import type { SkillRegistryEntry } from '../../packages/ai/runtime/pi/skills';
+import {
+  buildExplicitSkillInvocationPrompt,
+  normalizeRequestedSkillInvocation,
+  resolveExplicitSkillInvocation,
+  resolveRequestedSkillInvocation,
+  SkillRegistry
+} from '../../packages/ai/runtime/pi/skills';
 
 describe('explicit skill invocation helpers', () => {
   it('resolves slash-invoked user skills and keeps the remaining natural-language request', () => {
@@ -10,9 +16,9 @@ describe('explicit skill invocation helpers', () => {
         aliases: ['download'],
         name: 'YouTube 下载'
       })
-    ])
+    ]);
 
-    const invocation = resolveExplicitSkillInvocation('/YouTube 下载 https://youtu.be/demo', registry)
+    const invocation = resolveExplicitSkillInvocation('/YouTube 下载 https://youtu.be/demo', registry);
 
     expect(invocation).toEqual({
       effort: undefined,
@@ -34,8 +40,8 @@ describe('explicit skill invocation helpers', () => {
       },
       trustLevel: 'trusted',
       trustNote: expect.stringContaining('Built-in skill')
-    })
-  })
+    });
+  });
 
   it('ignores slash invocations for non-user-invocable skills', () => {
     const registry = SkillRegistry.fromEntries([
@@ -43,10 +49,10 @@ describe('explicit skill invocation helpers', () => {
         name: '画像即时更新',
         userInvocable: false
       })
-    ])
+    ]);
 
-    expect(resolveExplicitSkillInvocation('/画像即时更新', registry)).toBeUndefined()
-  })
+    expect(resolveExplicitSkillInvocation('/画像即时更新', registry)).toBeUndefined();
+  });
 
   it('normalizes and resolves structured explicit skill invocation input', () => {
     const registry = SkillRegistry.fromEntries([
@@ -54,19 +60,19 @@ describe('explicit skill invocation helpers', () => {
         aliases: ['download'],
         name: 'YouTube 下载'
       })
-    ])
+    ]);
 
     const requested = normalizeRequestedSkillInvocation({
       matchedReference: ' download ',
       remainingQuery: ' https://youtu.be/demo ',
       source: 'slash-command'
-    })
+    });
 
     expect(requested).toEqual({
       matchedReference: 'download',
       remainingQuery: 'https://youtu.be/demo',
       source: 'slash-command'
-    })
+    });
     expect(resolveRequestedSkillInvocation(requested!, registry)).toEqual({
       effort: undefined,
       executionContext: undefined,
@@ -87,13 +93,13 @@ describe('explicit skill invocation helpers', () => {
       },
       trustLevel: 'trusted',
       trustNote: expect.stringContaining('Built-in skill')
-    })
-  })
+    });
+  });
 
   it('ignores invalid structured explicit skill invocation input', () => {
-    const registry = SkillRegistry.fromEntries([createEntry({ name: '字幕翻译' })])
+    const registry = SkillRegistry.fromEntries([createEntry({ name: '字幕翻译' })]);
 
-    expect(normalizeRequestedSkillInvocation({ matchedReference: '   ' })).toBeUndefined()
+    expect(normalizeRequestedSkillInvocation({ matchedReference: '   ' })).toBeUndefined();
     expect(
       resolveRequestedSkillInvocation(
         {
@@ -103,8 +109,8 @@ describe('explicit skill invocation helpers', () => {
         },
         registry
       )
-    ).toBeUndefined()
-  })
+    ).toBeUndefined();
+  });
 
   it('builds a prompt block that forces the explicitly selected skill', () => {
     const prompt = buildExplicitSkillInvocationPrompt({
@@ -127,22 +133,22 @@ describe('explicit skill invocation helpers', () => {
       },
       trustLevel: 'plugin',
       trustNote: 'Plugin-provided skill. Verify the plugin source and requested actions before using it on sensitive tasks or repositories.'
-    })
+    });
 
-    expect(prompt).toContain('## Explicit Skill Invocation')
-    expect(prompt).toContain("skillUseTool({ skill: '字幕翻译', mode: 'inline' })")
-    expect(prompt).toContain('Skill source: Plugin: review-pack.')
-    expect(prompt).toContain('Source caution: Plugin-provided skill.')
-    expect(prompt).toContain('Execution guard:')
-    expect(prompt).toContain('context: fork')
-    expect(prompt).toContain('gpt-5.1')
-    expect(prompt).toContain('high')
-    expect(prompt).toContain('把这个字幕翻成英文')
-  })
-})
+    expect(prompt).toContain('## Explicit Skill Invocation');
+    expect(prompt).toContain("skillUseTool({ skill: '字幕翻译', mode: 'inline' })");
+    expect(prompt).toContain('Skill source: Plugin: review-pack.');
+    expect(prompt).toContain('Source caution: Plugin-provided skill.');
+    expect(prompt).toContain('Execution guard:');
+    expect(prompt).toContain('context: fork');
+    expect(prompt).toContain('gpt-5.1');
+    expect(prompt).toContain('high');
+    expect(prompt).toContain('把这个字幕翻成英文');
+  });
+});
 
 function createEntry(overrides: Partial<SkillRegistryEntry['record']> = {}): SkillRegistryEntry {
-  const name = overrides.name || 'skill'
+  const name = overrides.name || 'skill';
 
   return {
     locator: { kind: 'skill-file' },
@@ -167,5 +173,5 @@ function createEntry(overrides: Partial<SkillRegistryEntry['record']> = {}): Ski
       whenToUse: undefined,
       ...overrides
     }
-  }
+  };
 }

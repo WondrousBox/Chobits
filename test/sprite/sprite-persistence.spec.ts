@@ -58,10 +58,10 @@ describe('sprite persistence', () => {
     await destroyManager();
   });
 
-  it('normalizes legacy persona-state snapshots on load and ignores progression fields', async () => {
+  it('normalizes legacy character-state snapshots on load and ignores progression fields', async () => {
     const dataDir = mkdtempSync(path.join(os.tmpdir(), 'sprite-persistence-test-'));
     const settingsDir = path.join(dataDir, 'data');
-    const filePath = path.join(settingsDir, 'persona-state.json');
+    const filePath = path.join(settingsDir, 'character-state.json');
     mkdirSync(settingsDir, { recursive: true });
 
     writeFileSync(
@@ -111,7 +111,7 @@ describe('sprite persistence', () => {
     rmSync(dataDir, { recursive: true, force: true });
   });
 
-  it('round-trips persona state through manager destroy/start with the same data dir', async () => {
+  it('round-trips character state through manager destroy/start with the same data dir', async () => {
     const dataDir = mkdtempSync(path.join(os.tmpdir(), 'sprite-persistence-test-'));
 
     const first = createManager(dataDir);
@@ -146,7 +146,7 @@ describe('sprite persistence', () => {
     rmSync(dataDir, { recursive: true, force: true });
   });
 
-  it('stores independent persona slots for different characters in the same persistence file', async () => {
+  it('stores independent character state slots for different characters in the same persistence file', async () => {
     const dataDir = mkdtempSync(path.join(os.tmpdir(), 'sprite-persistence-test-'));
     const persistence = new CharacterStatePersistence(dataDir);
 
@@ -196,7 +196,7 @@ describe('sprite persistence', () => {
     rmSync(dataDir, { recursive: true, force: true });
   });
 
-  it('loads the configured character persona slot on startup', async () => {
+  it('loads the configured character state slot on startup', async () => {
     const dataDir = mkdtempSync(path.join(os.tmpdir(), 'sprite-persistence-test-'));
     const persistence = new CharacterStatePersistence(dataDir);
     await persistence.save({

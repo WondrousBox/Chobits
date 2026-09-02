@@ -5,7 +5,7 @@
  * 旗标存储于 preferences-config.json 的 featureFlags 字段。
  */
 
-export type FeatureKey = 'localAi';
+export type FeatureKey = 'localAI';
 
 export interface FeatureDefinition {
   key: FeatureKey;
@@ -16,7 +16,7 @@ export interface FeatureDefinition {
 
 export const FEATURE_DEFINITIONS: FeatureDefinition[] = [
   {
-    key: 'localAi',
+    key: 'localAI',
     label: '本地 AI 推理',
     description: '本地语音识别(sherpa),无需联网但占用更多磁盘与内存',
     defaultEnabled: true

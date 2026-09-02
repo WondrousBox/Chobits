@@ -90,8 +90,9 @@ export default function UserChoiceCard({ request, onSubmit, submitted, submitted
                   return (
                     <span
                       key={opt.value}
-                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs transition-colors ${isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-                        }`}
+                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs transition-colors ${
+                        isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                      }`}
                     >
                       {isSelected && <TbCheck className="h-3 w-3" />}
                       {opt.label}
@@ -136,14 +137,16 @@ export default function UserChoiceCard({ request, onSubmit, submitted, submitted
             return (
               <button
                 key={opt.value}
-                className={`flex items-start gap-2 rounded-lg px-3 py-2 text-left text-sm transition-all border ${isSelected ? 'border-primary bg-primary/10 text-foreground' : 'border-border/50 bg-muted/20 hover:bg-muted/40 text-foreground/80'
-                  }`}
+                className={`flex items-start gap-2 rounded-lg px-3 py-2 text-left text-sm transition-all border ${
+                  isSelected ? 'border-primary bg-primary/10 text-foreground' : 'border-border/50 bg-muted/20 hover:bg-muted/40 text-foreground/80'
+                }`}
                 onClick={() => toggleOption(currentQuestion.id, opt.value, !!currentQuestion.multiple)}
               >
                 {/* 选中指示器 */}
                 <span
-                  className={`mt-0.5 shrink-0 flex items-center justify-center rounded-full border transition-colors ${currentQuestion.multiple ? 'w-4 h-4' : 'w-4 h-4'
-                    } ${isSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40'}`}
+                  className={`mt-0.5 shrink-0 flex items-center justify-center rounded-full border transition-colors ${
+                    currentQuestion.multiple ? 'w-4 h-4' : 'w-4 h-4'
+                  } ${isSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40'}`}
                   style={currentQuestion.multiple ? { borderRadius: '4px' } : {}}
                 >
                   {isSelected && <TbCheck className="h-2.5 w-2.5" />}

@@ -6,7 +6,6 @@ import { getDB, getOrm } from '.';
 import { chat_messages, type ChatMessageRow, type ConversationRow, conversations, type NewChatMessage, type NewConversation, type NewWorkspace, type WorkspaceRow, workspaces } from './schema';
 
 function omitId<T extends { id?: any }>(obj: T): Omit<T, 'id'> {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { id, ...rest } = obj || ({} as any);
   return rest as any;
 }

@@ -5,15 +5,15 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { type ArchiveListEntry, listArchiveEntriesWith7Z, unzipFileWith7Z, zipDirectoryContentsWith7Z } from '../common/utils/file';
+import { DEFAULT_CHARACTER_GALLERY_INDEX_PATH } from './character-gallery';
 import { CHARACTER_PACK_ARCHIVE_EXTENSION } from './character-pack-archive';
 import { assessCharacterPackDigest, calculateCharacterPackPayloadDigest, type CharacterPackDigestVerification } from './character-pack-integrity';
 import { isPathContainedByRoot, isResolvedPathContainedByRoot, resolvePackRelativeAssetPath, resolvePackRelativeAssetPathWithDiagnostics } from './character-pack-paths';
 import { type CharacterPackSignatureVerification, type CharacterPackTrustRoot, loadCharacterPackTrustRoot, verifyCharacterPackSignature } from './character-pack-signature';
-import { DEFAULT_CHARACTER_GALLERY_INDEX_PATH } from './character-gallery';
 import type {
   CharacterDefinition,
-  CharacterMessageTemplateEntry,
   CharacterMessagesConfig,
+  CharacterMessageTemplateEntry,
   CharacterPackAssets,
   CharacterPackCapabilities,
   CharacterPackDefinition,
@@ -28,23 +28,15 @@ import {
   CHARACTER_MESSAGE_SPECS,
   CHARACTER_PROGRESS_KIND_LABEL_SPECS,
   CHARACTER_PROGRESS_MESSAGE_SPECS,
-  createCharacterMessageEditorFields,
   type CharacterMessageSpec,
-  type CharacterPackEditorMessageFields
+  type CharacterPackEditorMessageFields,
+  createCharacterMessageEditorFields
 } from './messages/default-character';
 
 export type CharacterPackSource = 'builtin' | 'installed';
 export type CharacterPackTrustLevel = 'unsigned' | 'publisher-declared' | 'signature-declared';
 export type CharacterPackTrustVerificationStatus =
-  | 'none'
-  | 'declared-unverified'
-  | 'builtin-bundled'
-  | 'digest-verified'
-  | 'digest-mismatch'
-  | 'signature-verified'
-  | 'signature-mismatch'
-  | 'signature-revoked'
-  | 'signature-untrusted';
+  'none' | 'declared-unverified' | 'builtin-bundled' | 'digest-verified' | 'digest-mismatch' | 'signature-verified' | 'signature-mismatch' | 'signature-revoked' | 'signature-untrusted';
 export type CharacterPackTrustLinkLabel = 'homepage' | 'repository' | 'support' | 'canonical';
 
 export interface ResolvedCharacterPackAssets {
@@ -87,7 +79,7 @@ export interface CharacterPackSummary extends CharacterPackDefinition {
 }
 
 export interface CharacterPackActivationResult {
-  changed: boolean;
+  didChange: boolean;
   pack: CharacterPackSummary;
 }
 
@@ -97,8 +89,8 @@ export interface CharacterPackInstallOptions {
 }
 
 export interface CharacterPackInstallResult {
-  replaced: boolean;
-  activated: boolean;
+  wasReplaced: boolean;
+  wasActivated: boolean;
   pack: CharacterPackSummary;
 }
 
@@ -164,7 +156,7 @@ export interface CharacterPackImportInspection {
 export interface CharacterPackRemovalResult {
   removedPack: CharacterPackSummary;
   activePack: CharacterPackSummary | null;
-  switchedActivePack: boolean;
+  didSwitchActivePack: boolean;
 }
 
 export interface CharacterPackEditorPackFields {
@@ -213,8 +205,8 @@ export interface CharacterPackEditorSaveOptions {
 }
 
 export interface CharacterPackEditorSaveResult extends CharacterPackInstallResult {
-  created: boolean;
-  updated: boolean;
+  wasCreated: boolean;
+  wasUpdated: boolean;
 }
 
 export interface CharacterPackManagerOptions {
@@ -1353,11 +1345,7 @@ function collectDefinedMessageEntries(source: Record<string, CharacterMessageTem
   return result;
 }
 
-function mergeEditorMessages(
-  baseMessages: CharacterMessagesConfig | undefined,
-  draftMessages: CharacterPackEditorMessagesFields,
-  fallbackMessages: CharacterMessagesConfig
-): CharacterMessagesConfig {
+function mergeEditorMessages(baseMessages: CharacterMessagesConfig | undefined, draftMessages: CharacterPackEditorMessagesFields, fallbackMessages: CharacterMessagesConfig): CharacterMessagesConfig {
   const progress: CharacterProgressMessagesConfig | undefined = baseMessages?.progress ?? fallbackMessages.progress;
   const categories: Record<string, CharacterMessageTemplateEntry> = {
     ...collectDefinedMessageEntries(fallbackMessages.categories),
@@ -1440,7 +1428,11 @@ function sanitizeEditorDraft(draft: CharacterPackEditorDraft): CharacterPackEdit
 }
 
 function createFallbackCharacterDefinition(draft: CharacterPackEditorDraft): CharacterDefinition {
-  const messages = mergeEditorMessages(undefined, draft.messages ?? sanitizeEditorMessages(undefined, buildDefaultCharacterMessageEditorFields(draft.character)), buildDefaultCharacterMessages(draft.character));
+  const messages = mergeEditorMessages(
+    undefined,
+    draft.messages ?? sanitizeEditorMessages(undefined, buildDefaultCharacterMessageEditorFields(draft.character)),
+    buildDefaultCharacterMessages(draft.character)
+  );
 
   return {
     version: 1,
@@ -1461,7 +1453,7 @@ function createFallbackCharacterDefinition(draft: CharacterPackEditorDraft): Cha
       examples: draft.character.speechExamples,
       quirks: draft.character.quirks
     },
-    favorPersona: {
+    favorTiers: {
       stranger: {
         range: [0, 19],
         style: '礼貌但有些拘谨',
@@ -1750,7 +1742,7 @@ export class CharacterPackManager {
     await this.writeActiveState(usage.state);
 
     return {
-      changed: !targetPack.isActive,
+      didChange: !targetPack.isActive,
       pack: withPackCompanionSince(
         {
           ...targetPack,
@@ -1799,13 +1791,13 @@ export class CharacterPackManager {
       throw new Error(`Installed character pack is invalid: ${destinationRootDir}`);
     }
 
-    let activated = false;
+    let wasActivated = false;
     let finalPack = installedPack;
 
     if (options?.activate) {
       const activation = await this.activatePack(installedPack.id, { source: 'installed' });
       if (activation) {
-        activated = true;
+        wasActivated = true;
         finalPack = activation.pack;
       }
     } else {
@@ -1817,8 +1809,8 @@ export class CharacterPackManager {
     }
 
     return {
-      replaced: destinationExists && !isSameDirectory,
-      activated,
+      wasReplaced: destinationExists && !isSameDirectory,
+      wasActivated,
       pack: finalPack
     };
   }
@@ -1954,7 +1946,7 @@ export class CharacterPackManager {
     return {
       removedPack: targetPack,
       activePack,
-      switchedActivePack: false
+      didSwitchActivePack: false
     };
   }
 
@@ -2046,12 +2038,12 @@ export class CharacterPackManager {
       throw new Error(`Saved character pack is invalid: ${destinationRootDir}`);
     }
 
-    let activated = false;
+    let wasActivated = false;
     let finalPack = installedPack;
     if (options?.activate) {
       const activation = await this.activatePack(installedPack.id, { source: 'installed' });
       if (activation) {
-        activated = true;
+        wasActivated = true;
         finalPack = activation.pack;
       }
     } else {
@@ -2063,10 +2055,10 @@ export class CharacterPackManager {
     }
 
     return {
-      created: !destinationExists,
-      updated: destinationExists,
-      replaced: destinationExists,
-      activated,
+      wasCreated: !destinationExists,
+      wasUpdated: destinationExists,
+      wasReplaced: destinationExists,
+      wasActivated,
       pack: finalPack
     };
   }

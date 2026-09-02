@@ -66,7 +66,7 @@ describe('appWindowTool', () => {
       expect.arrayContaining([
         expect.objectContaining({ key: 'settings', title: '设置' }),
         expect.objectContaining({ key: 'chat', title: '聊天窗口' }),
-        expect.objectContaining({ key: 'assistantMini', title: '迷你助手输入框' })
+        expect.objectContaining({ key: 'chatMini', title: '迷你聊天输入框' })
       ])
     );
     expect(details.windows.find((window: any) => window.key === 'settings').payloadFields).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'category' })]));

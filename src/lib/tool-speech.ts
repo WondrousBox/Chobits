@@ -21,7 +21,7 @@ export function speakToolResultSpeech(data: any, options?: SpeakToolResultSpeech
   const run = (): void => {
     void speak(speech.text, {
       bubbleDuration: speech.bubbleDuration,
-      showBubble: speech.showBubble
+      bubbleEnabled: speech.bubbleEnabled
     }).catch((error: unknown) => {
       console.warn('[tool-speech] Failed to speak tool result:', error);
     });

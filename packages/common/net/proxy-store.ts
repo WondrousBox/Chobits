@@ -78,6 +78,6 @@ export const ProxyStore = {
     if (config.type !== 'custom' || !config.proxies) {
       return null;
     }
-    return config.proxies.find((p) => p.active) || null;
+    return config.proxies.find((p) => p.isActive) || null;
   }
 };

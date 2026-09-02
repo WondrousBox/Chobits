@@ -1,77 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
+import type React from 'react';
 import { TbEar, TbLoader2, TbPlayerPlay, TbPlayerStop, TbSettings } from 'react-icons/tb';
 
-import type { SpriteCapabilityState } from '@packages/sprite-core/capability-registry';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { SpriteCapabilityLockedNotice, ensureSpriteCapabilityAccessible, type SpriteCapabilityGuardOptions } from '@/features/sprite-assistant/capability-ui';
+import { SpriteCapabilityLockedNotice } from '@/features/sprite/capability-ui';
 import { cn } from '@/lib/utils';
 
-/* ─── Hook ─── */
-export function useSpeechRecognitionSettings(options?: SpriteCapabilityGuardOptions) {
-  const [isRunning, setIsRunning] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isChecking, setIsChecking] = useState(true);
-
-  const checkStatus = async (): Promise<void> => {
-    try {
-      const status = await window.chobits.sherpa.getStatus();
-      setIsRunning(status.running);
-    } catch (error) {
-      console.error('查询 ASR 状态失败:', error);
-      setIsRunning(false);
-    }
-  };
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        await checkStatus();
-      } finally {
-        if (!cancelled) setIsChecking(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleFocus = (): void => {
-      checkStatus();
-    };
-    window.addEventListener('focus', handleFocus);
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, []);
-
-  const handleToggle = async (checked: boolean): Promise<void> => {
-    if (checked && !ensureSpriteCapabilityAccessible(options?.capability, options?.onBlocked)) {
-      return;
-    }
-    setIsLoading(true);
-    try {
-      if (checked) {
-        window.chobits.window['window:open']('asrConfig');
-      } else {
-        await window.chobits.sherpa.destroyInstance();
-        await window.chobits.sherpa.saveASRConfig({ enabled: false });
-        setIsRunning(false);
-      }
-    } catch (error) {
-      console.error('切换 ASR 服务失败:', error);
-    } finally {
-      setIsLoading(false);
-      await options?.afterChange?.();
-    }
-  };
-
-  return { isRunning, isLoading, isChecking, capability: options?.capability ?? null, handleToggle, checkStatus };
-}
-
-export type SpeechRecognitionSettingsState = ReturnType<typeof useSpeechRecognitionSettings>;
+import type { SpeechRecognitionSettingsState } from './useSpeechRecognitionSettings';
+import { useSpeechRecognitionSettings } from './useSpeechRecognitionSettings';
 
 /* ─── Left-panel item ─── */
 export const SpeechRecognitionItem: React.FC<{
@@ -82,7 +19,11 @@ export const SpeechRecognitionItem: React.FC<{
 }> = ({ state, capability, selected, onSelect }) => (
   <div
     onClick={onSelect}
-    className={cn('flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors hover:bg-accent/50', selected && 'bg-accent ring-1 ring-primary/30', capability?.status === 'locked' && 'opacity-70')}
+    className={cn(
+      'flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors hover:bg-accent/50',
+      selected && 'bg-accent ring-1 ring-primary/30',
+      capability?.status === 'locked' && 'opacity-70'
+    )}
   >
     <div className={cn('flex h-10 w-10 items-center justify-center rounded-full shrink-0 transition-colors', state.isRunning ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')}>
       <TbEar className="h-5 w-5" />

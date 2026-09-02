@@ -13,8 +13,8 @@ vi.mock('node:child_process', () => ({
   spawn: spawnMock
 }));
 
-import { createSkillSessionState, SkillRegistry } from '../../packages/ai/runtime/pi/skills';
 import type { SkillRegistryEntry } from '../../packages/ai/runtime/pi/skills';
+import { createSkillSessionState, SkillRegistry } from '../../packages/ai/runtime/pi/skills';
 import { createPiFileWriteTool } from '../../packages/ai/runtime/pi/tools/file-write';
 import { createPiPushCardTool } from '../../packages/ai/runtime/pi/tools/push-card';
 import { createPiShellExecTool } from '../../packages/ai/runtime/pi/tools/shell-exec';

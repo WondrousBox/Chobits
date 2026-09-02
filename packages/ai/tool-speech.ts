@@ -45,7 +45,7 @@ export function normalizeToolSpeech(input: ToolSpeechInput): ToolSpeech | undefi
 
   return {
     text,
-    ...(typeof input.showBubble === 'boolean' ? { showBubble: input.showBubble } : {}),
+    ...(typeof input.bubbleEnabled === 'boolean' ? { bubbleEnabled: input.bubbleEnabled } : {}),
     ...(bubbleDuration ? { bubbleDuration } : {}),
     ...(delayMs ? { delayMs } : {})
   };

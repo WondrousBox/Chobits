@@ -40,11 +40,7 @@ export class CubismModelUserDataJson {
    * @return ユーザーデータの個数
    */
   public getUserDataCount(): number {
-    return this._json
-      .getRoot()
-      .getValueByString(Meta)
-      .getValueByString(UserDataCount)
-      .toInt();
+    return this._json.getRoot().getValueByString(Meta).getValueByString(UserDataCount).toInt();
   }
 
   /**
@@ -53,11 +49,7 @@ export class CubismModelUserDataJson {
    * @return ユーザーデータ総文字列数
    */
   public getTotalUserDataSize(): number {
-    return this._json
-      .getRoot()
-      .getValueByString(Meta)
-      .getValueByString(TotalUserDataSize)
-      .toInt();
+    return this._json.getRoot().getValueByString(Meta).getValueByString(TotalUserDataSize).toInt();
   }
 
   /**
@@ -66,12 +58,7 @@ export class CubismModelUserDataJson {
    * @return ユーザーデータのタイプ
    */
   public getUserDataTargetType(i: number): string {
-    return this._json
-      .getRoot()
-      .getValueByString(UserData)
-      .getValueByIndex(i)
-      .getValueByString(Target)
-      .getRawString();
+    return this._json.getRoot().getValueByString(UserData).getValueByIndex(i).getValueByString(Target).getRawString();
   }
 
   /**
@@ -81,14 +68,7 @@ export class CubismModelUserDataJson {
    * @return ユーザーデータターゲットID
    */
   public getUserDataId(i: number): CubismIdHandle {
-    return CubismFramework.getIdManager().getId(
-      this._json
-        .getRoot()
-        .getValueByString(UserData)
-        .getValueByIndex(i)
-        .getValueByString(Id)
-        .getRawString()
-    );
+    return CubismFramework.getIdManager().getId(this._json.getRoot().getValueByString(UserData).getValueByIndex(i).getValueByString(Id).getRawString());
   }
 
   /**
@@ -98,12 +78,7 @@ export class CubismModelUserDataJson {
    * @return ユーザーデータ
    */
   public getUserDataValue(i: number): string {
-    return this._json
-      .getRoot()
-      .getValueByString(UserData)
-      .getValueByIndex(i)
-      .getValueByString(Value)
-      .getRawString();
+    return this._json.getRoot().getValueByString(UserData).getValueByIndex(i).getValueByString(Value).getRawString();
   }
 
   private _json: CubismJson;

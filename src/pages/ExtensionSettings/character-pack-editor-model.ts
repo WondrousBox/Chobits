@@ -27,7 +27,7 @@ export interface CharacterPackEditorSavedEvent {
   type: 'saved';
   packId?: string;
   packName?: string;
-  activated?: boolean;
+  wasActivated?: boolean;
 }
 
 export function splitEditorLines(value: string): string[] {
@@ -111,7 +111,7 @@ export function buildCreateCharacterPackEditorState(basePack: CharacterPackSumma
           { situation: '完成任务', response: '搞定啦。' }
         ],
         metaDescription: '本地创建的自定义角色',
-        metaTags: ['custom', 'assistant']
+        metaTags: ['custom']
       },
       messages: buildDefaultCharacterMessageEditorFields({
         name: seed,

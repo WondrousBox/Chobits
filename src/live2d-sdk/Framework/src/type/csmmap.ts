@@ -161,12 +161,10 @@ export class csmMap<_KeyT, _ValT> {
   public prepareCapacity(newSize: number, fitToSize: boolean): void {
     if (newSize > this._keyValues.length) {
       if (this._keyValues.length == 0) {
-        if (!fitToSize && newSize < csmMap.DefaultSize)
-          newSize = csmMap.DefaultSize;
+        if (!fitToSize && newSize < csmMap.DefaultSize) newSize = csmMap.DefaultSize;
         this._keyValues.length = newSize;
       } else {
-        if (!fitToSize && newSize < this._keyValues.length * 2)
-          newSize = this._keyValues.length * 2;
+        if (!fitToSize && newSize < this._keyValues.length * 2) newSize = this._keyValues.length * 2;
         this._keyValues.length = newSize;
       }
     }
@@ -184,10 +182,7 @@ export class csmMap<_KeyT, _ValT> {
    * コンテナの終端要素を返す
    */
   public end(): iterator<_KeyT, _ValT> {
-    const ite: iterator<_KeyT, _ValT> = new iterator<_KeyT, _ValT>(
-      this,
-      this._size
-    ); // 終了
+    const ite: iterator<_KeyT, _ValT> = new iterator<_KeyT, _ValT>(this, this._size); // 終了
     return ite;
   }
 
@@ -206,10 +201,7 @@ export class csmMap<_KeyT, _ValT> {
     this._keyValues.splice(index, 1);
     --this._size;
 
-    const ite2: iterator<_KeyT, _ValT> = new iterator<_KeyT, _ValT>(
-      this,
-      index
-    ); // 終了
+    const ite2: iterator<_KeyT, _ValT> = new iterator<_KeyT, _ValT>(this, index); // 終了
     return ite2;
   }
 

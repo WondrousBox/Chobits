@@ -190,9 +190,9 @@ export interface SpriteSpontaneousUtteranceHistoryItem {
   executedAction?: string;
   fallbackAction?: string;
   actionSource?: SpriteSpontaneousUtteranceActionSource;
-  spoken?: boolean;
-  fallbackUsed?: boolean;
-  skipped?: boolean;
+  wasSpoken?: boolean;
+  didUseFallback?: boolean;
+  wasSkipped?: boolean;
   reason?: string;
   triggerReason?: string;
   providerId?: string;
@@ -224,8 +224,8 @@ export interface SpriteSpontaneousUtteranceExecutionReport {
   whyThisFits?: string;
   executedAction: string;
   actionSource: SpriteSpontaneousUtteranceActionSource;
-  spoken: boolean;
-  fallbackUsed: boolean;
+  wasSpoken: boolean;
+  didUseFallback: boolean;
   error?: string;
 }
 

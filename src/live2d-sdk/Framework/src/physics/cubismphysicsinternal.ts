@@ -137,13 +137,7 @@ export interface normalizedPhysicsParameterValueGetter {
  * @return 値
  */
 export interface physicsValueGetter {
-  (
-    translation: CubismVector2,
-    particles: CubismPhysicsParticle[],
-    particleIndex: number,
-    isInverted: boolean,
-    parentGravity: CubismVector2
-  ): number;
+  (translation: CubismVector2, particles: CubismPhysicsParticle[], particleIndex: number, isInverted: boolean, parentGravity: CubismVector2): number;
 }
 
 /**
@@ -246,8 +240,7 @@ export namespace Live2DCubismFramework {
   export type CubismPhysicsTargetType = $.CubismPhysicsTargetType;
   export const PhysicsJsonEffectiveForces = $.PhysicsJsonEffectiveForces;
   export type PhysicsJsonEffectiveForces = $.PhysicsJsonEffectiveForces;
-  export type normalizedPhysicsParameterValueGetter =
-    $.normalizedPhysicsParameterValueGetter;
+  export type normalizedPhysicsParameterValueGetter = $.normalizedPhysicsParameterValueGetter;
   export type physicsScaleGetter = $.physicsScaleGetter;
   export type physicsValueGetter = $.physicsValueGetter;
 }

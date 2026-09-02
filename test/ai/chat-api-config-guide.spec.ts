@@ -20,7 +20,16 @@ function installGuideHarness(options: { providers?: any[]; presets?: any[]; usab
   const startPurpose = vi.fn(async (request: any) => ({
     accepted: true,
     status: 'started',
-    purpose: { id: 'purpose-chat-config', kind: request.kind, title: request.title, reason: request.reason, source: request.source, status: 'active', priority: request.priority, interruptPolicy: request.interruptPolicy }
+    purpose: {
+      id: 'purpose-chat-config',
+      kind: request.kind,
+      title: request.title,
+      reason: request.reason,
+      source: request.source,
+      status: 'active',
+      priority: request.priority,
+      interruptPolicy: request.interruptPolicy
+    }
   }));
   const startQuest = vi.fn(async () => ({ ok: true, startResult: { accepted: true, status: 'started' } }));
   const getCharacterState = vi.fn(async () => ({ ok: true, characterState: { achievements: [] } }));

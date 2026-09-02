@@ -1177,7 +1177,7 @@ if (event.type === 'message_completed' && event.data?.usage) {
   this.costTracker.addUsage(resolvedModel, resolvedProvider, event.data.usage);
 }
 
-// 通过 IPC 暴露给 UI
+// 通过 IPC 暴露给 UI（以下通道为规划示例，当前代码未实现）
 ipcMain.handle('ai:getSessionCosts', () => this.costTracker.getSummary());
 ipcMain.handle('ai:getConversationCosts', (_, { conversationId }) => this.getConversationCosts(conversationId));
 ```
@@ -1460,7 +1460,7 @@ export function createMockDeps(responses: string[] = ['Mock response']): AgentDe
 | 2.3  | 实现 `HookManager`                          | 1 天       | `packages/ai/agent/hooks.ts`                   |
 | 2.4  | 迁移现有 Pi tools 为 `ToolDefinition` 格式  | 3-5 天     | `packages/ai/agent/tools/`                     |
 | 2.5  | 实现 `StreamingToolExecutor`                | 2 天       | `packages/ai/agent/streaming-tool-executor.ts` |
-| 2.6  | 实现 Pi ↔ ToolDefinition 桥接层            | 2 天       | `packages/ai/agent/pi-bridge.ts`               |
+| 2.6  | 实现 Pi ↔ ToolDefinition 桥接层             | 2 天       | `packages/ai/agent/pi-bridge.ts`               |
 
 **验收标准**：
 

@@ -20,7 +20,7 @@ function createCoordinatorHarness(options?: { canUseMovement?: () => boolean; ge
     width: 200,
     height: 200,
     padding: 100,
-    showDebugOverlay: false
+    debugOverlayEnabled: false
   };
   let autoMoving = false;
   let autoMoveDirection: 'left' | 'right' | null = null;

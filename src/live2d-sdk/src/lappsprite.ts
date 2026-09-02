@@ -22,13 +22,7 @@ export class LAppSprite {
    * @param height       高さ
    * @param textureId    テクスチャ
    */
-  constructor(
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    textureId: WebGLTexture
-  ) {
+  constructor(x: number, y: number, width: number, height: number, textureId: WebGLTexture) {
     this._rect = new Rect();
     this._rect.left = x - width * 0.5;
     this._rect.right = x + width * 0.5;
@@ -104,9 +98,7 @@ export class LAppSprite {
 
       // uvバッファ、座標初期化
       {
-        this._uvArray = new Float32Array([
-          1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0
-        ]);
+        this._uvArray = new Float32Array([1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
 
         // uvバッファを作成
         this._uvBuffer = gl.createBuffer();
@@ -165,12 +157,7 @@ export class LAppSprite {
 
     // モデルの描画
     gl.bindTexture(gl.TEXTURE_2D, this._texture);
-    gl.drawElements(
-      gl.TRIANGLES,
-      this._indexArray.length,
-      gl.UNSIGNED_SHORT,
-      0
-    );
+    gl.drawElements(gl.TRIANGLES, this._indexArray.length, gl.UNSIGNED_SHORT, 0);
   }
 
   /**
@@ -185,12 +172,7 @@ export class LAppSprite {
     // Y座標は変換する必要あり
     const y = height - pointY;
 
-    return (
-      pointX >= this._rect.left &&
-      pointX <= this._rect.right &&
-      y <= this._rect.up &&
-      y >= this._rect.down
-    );
+    return pointX >= this._rect.left && pointX <= this._rect.right && y <= this._rect.up && y >= this._rect.down;
   }
 
   _texture: WebGLTexture; // テクスチャ

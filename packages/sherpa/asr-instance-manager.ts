@@ -3,7 +3,7 @@ import path from 'path';
 import { getResourcePath } from '../common/utils';
 import { pluginResourceManager } from '../plugins';
 import ChildProcessManager from './child-process-manager';
-import { SherpaModel, CommonConfig, getModelConfig, punctuationModelConfig, StreamInstances, vadModelConfig } from './common';
+import { CommonConfig, getModelConfig, punctuationModelConfig, SherpaModel, StreamInstances, vadModelConfig } from './common';
 import { findSherpaOnnxNativeLibPath, findSherpaOnnxNodePath } from './utils';
 
 const Ins: StreamInstances = {};

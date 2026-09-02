@@ -1,6 +1,6 @@
 import { ipcRenderer } from 'electron';
 
-import { SherpaModel, CommonConfig } from './common';
+import { CommonConfig, SherpaModel } from './common';
 import type { ASRConfig } from './ipc-main';
 
 export const sherpaIpcRenderer = {

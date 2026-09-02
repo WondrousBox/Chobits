@@ -16,11 +16,11 @@ import {
   DEFAULT_SPRITE_PURPOSE_PLANNER_PREFERENCES,
   DEFAULT_SPRITE_ROUTINE_PRESETS,
   normalizeSpritePurposePlannerPreferences,
-  summarizeSpriteRoutinePresets,
-  validateSpritePurposePlannerOutput,
   type SpritePurpose,
   type SpritePurposeHistoryEntry,
-  type SpritePurposePlannerExecutor
+  type SpritePurposePlannerExecutor,
+  summarizeSpriteRoutinePresets,
+  validateSpritePurposePlannerOutput
 } from '../../packages/sprite-core/purpose';
 
 const validationOptions = {

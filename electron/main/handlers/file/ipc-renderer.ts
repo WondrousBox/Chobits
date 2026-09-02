@@ -34,7 +34,7 @@ export type FileIpcParams = {
       ok: boolean;
       content?: string;
       error?: string;
-      truncated?: boolean;
+      wasTruncated?: boolean;
       originalSize?: number;
     }
   >;

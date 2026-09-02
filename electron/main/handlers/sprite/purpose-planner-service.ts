@@ -19,8 +19,8 @@ import type {
   StartSpritePurposeRequest
 } from '../../../../packages/sprite-core/purpose';
 import {
-  createSpriteRoutineFromPlannerDraft,
   createSpritePurposePlannerStepSchema,
+  createSpriteRoutineFromPlannerDraft,
   DEFAULT_SPRITE_PURPOSE_PLANNER_EVENTS,
   DEFAULT_SPRITE_PURPOSE_PLANNER_PREFERENCES,
   DEFAULT_SPRITE_PURPOSE_PLANNER_WINDOWS,
@@ -344,10 +344,7 @@ export class SpritePurposePlannerService {
   }
 }
 
-export function createSpritePurposeRoutinePlanner(
-  service: SpritePurposePlannerService,
-  options: SpritePurposeRoutinePlannerAdapterOptions = {}
-): SpritePurposeRoutinePlanner {
+export function createSpritePurposeRoutinePlanner(service: SpritePurposePlannerService, options: SpritePurposeRoutinePlannerAdapterOptions = {}): SpritePurposeRoutinePlanner {
   return async (purpose, context) => {
     const recentHistory = options.history ? await options.history.list({ limit: options.historyLimit ?? service.getPreferences().historyLimit, status: 'all' }) : undefined;
     const result = await service.plan({

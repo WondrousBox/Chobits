@@ -3,13 +3,7 @@ import { TbChevronRight, TbPlayerPlay, TbRoute } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { cn } from '@/lib/utils';
-
-import {
-  createMainWindowAnimationPresetTimeline,
-  WINDOW_ANIMATION_PRESET_CATEGORIES,
-  WINDOW_ANIMATION_PRESETS,
-  type WindowAnimationPresetId
-} from '@/lib/window-animation-presets';
+import { createMainWindowAnimationPresetTimeline, WINDOW_ANIMATION_PRESET_CATEGORIES, WINDOW_ANIMATION_PRESETS, type WindowAnimationPresetId } from '@/lib/window-animation-presets';
 
 const MAIN_WINDOW_KEY = 'main';
 

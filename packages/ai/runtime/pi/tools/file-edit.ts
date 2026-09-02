@@ -1,8 +1,8 @@
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
 
-import { resolveGuardedToolExecution } from '../skills';
 import { PiWorkspaceFileService } from '../coding/file-service';
+import { resolveGuardedToolExecution } from '../skills';
 import type { PiSessionToolContext } from '../tool-context';
 import { createJsonToolResult } from './result';
 

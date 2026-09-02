@@ -50,31 +50,11 @@ export class CubismViewMatrix extends CubismMatrix44 {
       y = this._screenTop - this._tr[5] * this._maxTop - this._tr[13];
     }
 
-    if (
-      this._tr[5] * this._maxBottom + (this._tr[13] + y) >
-      this._screenBottom
-    ) {
+    if (this._tr[5] * this._maxBottom + (this._tr[13] + y) > this._screenBottom) {
       y = this._screenBottom - this._tr[5] * this._maxBottom - this._tr[13];
     }
 
-    const tr1: Float32Array = new Float32Array([
-      1.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      1.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      1.0,
-      0.0,
-      x,
-      y,
-      0.0,
-      1.0
-    ]);
+    const tr1: Float32Array = new Float32Array([1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, x, y, 0.0, 1.0]);
 
     CubismMatrix44.multiply(tr1, this._tr, this._tr);
   }
@@ -102,62 +82,11 @@ export class CubismViewMatrix extends CubismMatrix44 {
       }
     }
 
-    const tr1: Float32Array = new Float32Array([
-      1.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      1.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      1.0,
-      0.0,
-      cx,
-      cy,
-      0.0,
-      1.0
-    ]);
+    const tr1: Float32Array = new Float32Array([1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, cx, cy, 0.0, 1.0]);
 
-    const tr2: Float32Array = new Float32Array([
-      scale,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      scale,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      1.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      1.0
-    ]);
+    const tr2: Float32Array = new Float32Array([scale, 0.0, 0.0, 0.0, 0.0, scale, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]);
 
-    const tr3: Float32Array = new Float32Array([
-      1.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      1.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      1.0,
-      0.0,
-      -cx,
-      -cy,
-      0.0,
-      1.0
-    ]);
+    const tr3: Float32Array = new Float32Array([1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -cx, -cy, 0.0, 1.0]);
 
     CubismMatrix44.multiply(tr3, this._tr, this._tr);
     CubismMatrix44.multiply(tr2, this._tr, this._tr);
@@ -172,12 +101,7 @@ export class CubismViewMatrix extends CubismMatrix44 {
    * @param bottom    下辺のY軸の位置
    * @param top       上辺のY軸の位置
    */
-  public setScreenRect(
-    left: number,
-    right: number,
-    bottom: number,
-    top: number
-  ): void {
+  public setScreenRect(left: number, right: number, bottom: number, top: number): void {
     this._screenLeft = left;
     this._screenRight = right;
     this._screenBottom = bottom;
@@ -191,12 +115,7 @@ export class CubismViewMatrix extends CubismMatrix44 {
    * @param bottom    下辺のY軸の位置
    * @param top       上辺のY軸の位置
    */
-  public setMaxScreenRect(
-    left: number,
-    right: number,
-    bottom: number,
-    top: number
-  ): void {
+  public setMaxScreenRect(left: number, right: number, bottom: number, top: number): void {
     this._maxLeft = left;
     this._maxRight = right;
     this._maxTop = top;

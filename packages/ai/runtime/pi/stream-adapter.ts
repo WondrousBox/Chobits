@@ -45,12 +45,12 @@ type ChatStreamEmitter = {
 };
 
 export interface ChatStreamEmitterOptions {
-  /** Whether character persona is enabled — controls character-specific tool labels */
-  characterPersonaEnabled?: boolean;
+  /** Whether character prompt injection is enabled — controls character-specific tool labels */
+  characterPromptEnabled?: boolean;
 }
 
 export function createChatStreamEmitter(emit: (event: StreamEvent) => void, options?: ChatStreamEmitterOptions): ChatStreamEmitter {
-  const useCharacterLabels = options?.characterPersonaEnabled ?? false;
+  const shouldUseCharacterLabels = options?.characterPromptEnabled ?? false;
   return {
     connected() {
       emit({ type: 'connected' });
@@ -65,14 +65,14 @@ export function createChatStreamEmitter(emit: (event: StreamEvent) => void, opti
       const parsedArgs =
         typeof args === 'string'
           ? (() => {
-            try {
-              return JSON.parse(args);
-            } catch {
-              return {};
-            }
-          })()
+              try {
+                return JSON.parse(args);
+              } catch {
+                return {};
+              }
+            })()
           : (args ?? {});
-      const label = resolveToolLabel(name, parsedArgs, 'calling', useCharacterLabels);
+      const label = resolveToolLabel(name, parsedArgs, 'calling', shouldUseCharacterLabels);
       console.log(`[AI Tool] 调用工具: ${name} → ${label}`, { callId, args: typeof args === 'string' ? args.slice(0, 200) : args });
       emit({ type: 'tool_call', data: { args, callId, label, name, ...(display ? { display } : {}) } });
     },

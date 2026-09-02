@@ -170,7 +170,7 @@ describe('sprite manager regression coverage', () => {
     dataDirs.clear();
   });
 
-  it('trigger() selects conditional animations with persona state', () => {
+  it('trigger() selects conditional animations with character state', () => {
     const { mgr, dataDir } = createManager();
     dataDirs.add(dataDir);
     const registry = (mgr as any).animationRegistry;
@@ -1700,7 +1700,7 @@ describe('sprite manager regression coverage', () => {
       padding: 100,
       animationPlaylistMode: 'list-loop',
       bubbleMode: 'fixed-top',
-      showDebugOverlay: false
+      debugOverlayEnabled: false
     });
 
     mgr.previewMovement({
@@ -1715,7 +1715,7 @@ describe('sprite manager regression coverage', () => {
       padding: 24,
       animationPlaylistMode: 'list-loop',
       bubbleMode: 'fixed-top',
-      showDebugOverlay: false
+      debugOverlayEnabled: false
     });
 
     mgr.stopMovementPreview();
@@ -1727,7 +1727,7 @@ describe('sprite manager regression coverage', () => {
       padding: 100,
       animationPlaylistMode: 'list-loop',
       bubbleMode: 'fixed-top',
-      showDebugOverlay: false
+      debugOverlayEnabled: false
     });
   });
 
@@ -2234,7 +2234,7 @@ describe('sprite manager regression coverage', () => {
       })
     );
     expect(trigger).toHaveBeenCalledWith('talk', { silent: true });
-    expect(speak).toHaveBeenCalledWith('我想说两句。', { showBubble: true, ambientContext: 'behavior' });
+    expect(speak).toHaveBeenCalledWith('我想说两句。', { bubbleEnabled: true, ambientContext: 'behavior' });
   });
 
   it('gates idle emotion behavior behind emotionExpression capability', () => {

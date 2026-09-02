@@ -11,9 +11,9 @@
 
 ## 两种模式
 
-| 模式 | 说明 | padding 行为 | 气泡承载 |
-|------|------|-------------|---------|
-| `inline` | 气泡渲染在主精灵窗口内，沿用 `padding` 撑出的空白区域 | 使用持久化的真实 `padding` | 主窗口内的 `<SpriteMessage />` |
+| 模式                | 说明                                                                           | padding 行为                     | 气泡承载                       |
+| ------------------- | ------------------------------------------------------------------------------ | -------------------------------- | ------------------------------ |
+| `inline`            | 气泡渲染在主精灵窗口内，沿用 `padding` 撑出的空白区域                          | 使用持久化的真实 `padding`       | 主窗口内的 `<SpriteMessage />` |
 | `fixed-top`（默认） | 气泡由独立的 `spriteBubbleFixedTop` 窗口承载，固定在主窗口上方并跟随主窗口移动 | 运行期强制为 `0`，持久化原值保留 | 独立窗口的 `<SpriteMessage />` |
 
 ## 架构概览
@@ -68,33 +68,33 @@
 
 ### sprite-core 层
 
-| 文件 | 变更内容 |
-|------|---------|
-| `packages/sprite-core/types.ts` | 新增 `SpriteBubbleMode`、`DEFAULT_SPRITE_BUBBLE_MODE`、`SpriteConfig.bubbleMode` |
-| `packages/sprite-core/manager/persistence.ts` | 新增 `BubbleModeConfig` 持久化类（存储路径: `userData/data/sprite-bubble-mode.json`） |
-| `packages/sprite-core/manager/sprite-manager.ts` | 持有 `bubbleModeConfig`；`getEffectivePadding()`、`getBubbleMode()`、`setBubbleMode()`；`forwardBridgeMessage`/`emitConfigChanged` 广播到 `getMessageRecipients` |
-| `packages/sprite-core/manager/movement-coordinator.ts` | `resolveEffectivePadding()` 辅助函数；视口/预览计算使用有效 padding |
-| `packages/sprite-core/manager/types.ts` | `SpriteManagerOptions.getMessageRecipients` 可选注入 |
-| `packages/sprite-core/preload/sprite-bridge.ts` | 暴露 `getBubbleMode`、`setBubbleMode`、`bubbleResize`、`bubbleSetVisible` |
-| `packages/sprite-core/handlers/sprite-manager-ipc.ts` | 注册 `sprite:config:get-bubble-mode`、`sprite:config:set-bubble-mode` handler；注入 `getMessageRecipients`；`WindowController.getPadding` → `mgr.getEffectivePadding()` |
+| 文件                                                   | 变更内容                                                                                                                                                                |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/sprite-core/types.ts`                        | 新增 `SpriteBubbleMode`、`DEFAULT_SPRITE_BUBBLE_MODE`、`SpriteConfig.bubbleMode`                                                                                        |
+| `packages/sprite-core/manager/persistence.ts`          | 新增 `BubbleModeConfig` 持久化类（存储路径: `userData/data/sprite-bubble-mode.json`）                                                                                   |
+| `packages/sprite-core/manager/sprite-manager.ts`       | 持有 `bubbleModeConfig`；`getEffectivePadding()`、`getBubbleMode()`、`setBubbleMode()`；`forwardBridgeMessage`/`emitConfigChanged` 广播到 `getMessageRecipients`        |
+| `packages/sprite-core/manager/movement-coordinator.ts` | `resolveEffectivePadding()` 辅助函数；视口/预览计算使用有效 padding                                                                                                     |
+| `packages/sprite-core/manager/types.ts`                | `SpriteManagerOptions.getMessageRecipients` 可选注入                                                                                                                    |
+| `packages/sprite-core/preload/sprite-bridge.ts`        | 暴露 `getBubbleMode`、`setBubbleMode`、`bubbleResize`、`bubbleSetVisible`                                                                                               |
+| `packages/sprite-core/handlers/sprite-manager-ipc.ts`  | 注册 `sprite:config:get-bubble-mode`、`sprite:config:set-bubble-mode` handler；注入 `getMessageRecipients`；`WindowController.getPadding` → `mgr.getEffectivePadding()` |
 
 ### Electron 主进程层
 
-| 文件 | 变更内容 |
-|------|---------|
-| `electron/main/config/window.ts` | `CustomWindowKeys.spriteBubbleFixedTop`；使用 `followMain: true` + `followerPreferMode: 'fixed-top'` |
+| 文件                               | 变更内容                                                                                                                                        |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `electron/main/config/window.ts`   | `CustomWindowKeys.spriteBubbleFixedTop`；使用 `followMain: true` + `followerPreferMode: 'fixed-top'`                                            |
 | `electron/main/handlers/window.ts` | 注册 `sprite:bubble:resize`、`sprite:bubble:set-visible` IPC；按发送方识别当前气泡窗口并触发 follower reposition；预创建 `spriteBubbleFixedTop` |
 
 ### 渲染层
 
-| 文件 | 变更内容 |
-|------|---------|
-| `src/features/sprite-bubble/SpriteBubblePage.tsx` | 气泡独立窗口页面，包裹 `MessageProvider`，`ResizeObserver` 上报尺寸，`useMessage` 驱动可见性 |
-| `src/features/sprite-bubble/index.ts` | 导出 `SpriteBubblePage` |
-| `src/App.tsx` | 路由 `/sprite-bubble` → `<SpriteBubblePage />` |
-| `src/features/sprite-assistant/SpriteApp.tsx` | `effectivePadding` 计算逻辑；独立窗口模式跳过内联气泡渲染；padding 0 传入 `sprite:size:set` |
-| `src/features/sprite-assistant/context/sprite-state-sync.ts` | `DEFAULT_SPRITE_CONFIG.bubbleMode` 默认值；`resolveInitialSpriteConfig`/`mergePlayCommandIntoSpriteConfig` 传播 `bubbleMode` |
-| `src/pages/ExtensionSettings/BubbleModeSettings.tsx` | 气泡模式切换 UI（Select 组件） |
+| 文件                                                 | 变更内容                                                                                                                     |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `src/features/sprite-bubble/SpriteBubblePage.tsx`    | 气泡独立窗口页面，包裹 `MessageProvider`，`ResizeObserver` 上报尺寸，`useMessage` 驱动可见性                                 |
+| `src/features/sprite-bubble/index.ts`                | 导出 `SpriteBubblePage`                                                                                                      |
+| `src/App.tsx`                                        | 路由 `/sprite-bubble` → `<SpriteBubblePage />`                                                                               |
+| `src/features/sprite/SpriteApp.tsx`                  | `effectivePadding` 计算逻辑；独立窗口模式跳过内联气泡渲染；padding 0 传入 `sprite:size:set`                                  |
+| `src/features/sprite/context/sprite-state-sync.ts`   | `DEFAULT_SPRITE_CONFIG.bubbleMode` 默认值；`resolveInitialSpriteConfig`/`mergePlayCommandIntoSpriteConfig` 传播 `bubbleMode` |
+| `src/pages/ExtensionSettings/BubbleModeSettings.tsx` | 气泡模式切换 UI（Select 组件）                                                                                               |
 
 ## 运行期行为
 

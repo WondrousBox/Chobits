@@ -56,13 +56,13 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isSubt
   const [selectedPresetId, setSelectedPresetId] = useState<string>(() => loadPreferences().selectedPresetId || '');
   const [selectedModel, setSelectedModel] = useState<string>(() => loadPreferences().selectedModelId || '');
   const [providerConfigured, setProviderConfigured] = useState<boolean>(false);
-  const [showProviderConfig, setShowProviderConfig] = useState(true); // 是否显示服务配置表单
+  const [isProviderConfigVisible, setIsProviderConfigVisible] = useState(true); // 是否显示服务配置表单
   const providerSelectRef = useRef<ProviderModelSelectRef>(null);
 
   // 翻译状态
   const [translationEnabled, setTranslationEnabled] = useState(false);
   const [targetLanguage, setTargetLanguage] = useState('zh');
-  const [showLanguageSelect, setShowLanguageSelect] = useState(false); // 是否显示语言选择
+  const [isLanguageSelectVisible, setIsLanguageSelectVisible] = useState(false); // 是否显示语言选择
   const [isTranslating, setIsTranslating] = useState(false);
   const translatingRef = useRef(false);
   const translationAbortRef = useRef(false);
@@ -122,7 +122,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isSubt
         void providerSelectRef.current?.checkConfig(selectedProviderId, selectedPresetId).then((configured) => {
           setProviderConfigured(!!configured);
           if (configured) {
-            setShowProviderConfig(false);
+            setIsProviderConfigVisible(false);
           }
         });
       }
@@ -326,6 +326,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isSubt
       // 检查是否有未翻译的
       const hasUntranslated = segments.some((s) => !s.translation);
       if (hasUntranslated) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- 新增分段时自动续翻,翻译中的 setState 是有意的进度反馈
         void translateAllSegments();
       }
     }
@@ -337,16 +338,16 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isSubt
       // 已开启，点击关闭
       setTranslationEnabled(false);
       translationAbortRef.current = true;
-      setShowLanguageSelect(false);
+      setIsLanguageSelectVisible(false);
     } else {
       // 未开启，显示语言选择
-      setShowLanguageSelect(true);
+      setIsLanguageSelectVisible(true);
     }
   }, [translationEnabled]);
 
   // 确认开启翻译
   const handleConfirmTranslation = useCallback(() => {
-    setShowLanguageSelect(false);
+    setIsLanguageSelectVisible(false);
     setTranslationEnabled(true);
     // 开始翻译
     void translateAllSegments();
@@ -354,7 +355,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isSubt
 
   // 取消语言选择
   const handleCancelLanguageSelect = useCallback(() => {
-    setShowLanguageSelect(false);
+    setIsLanguageSelectVisible(false);
   }, []);
 
   // AI操作：总结
@@ -507,6 +508,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isSubt
     if (vocabularyEnabled && canUseAI && !explainingRef.current) {
       const hasNewWords = advancedWords.some((word) => !explainedWords.has(word));
       if (hasNewWords) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- 新增词汇时自动解释,解释中的 setState 是有意的进度反馈
         void explainNewWords();
       }
     }
@@ -661,7 +663,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isSubt
     <div className="flex flex-col h-full border-l bg-background no-drag">
       {/* 头部：AI服务配置 */}
       <div className={`px-3 py-2 border-b ${isSubtitleMode ? 'border-border/50' : ''}`}>
-        {showProviderConfig ? (
+        {isProviderConfigVisible ? (
           // 展开的配置表单
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -670,7 +672,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isSubt
                 AI 模型
               </Label>
               {providerConfigured && (
-                <Button size="sm" variant="ghost" className="h-5 text-xs px-1" onClick={() => setShowProviderConfig(false)}>
+                <Button size="sm" variant="ghost" className="h-5 text-xs px-1" onClick={() => setIsProviderConfigVisible(false)}>
                   收起
                 </Button>
               )}
@@ -688,7 +690,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isSubt
                   return providerId;
                 });
                 setSelectedModel(modelId);
-                setShowProviderConfig(true);
+                setIsProviderConfigVisible(true);
               }}
               onProviderConfigChange={(_providerId, configured) => {
                 setProviderConfigured(configured);
@@ -723,7 +725,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isSubt
           </div>
         ) : (
           // 折叠状态：显示当前服务按钮
-          <Button variant="ghost" size="sm" className="w-full h-7 justify-between text-xs" onClick={() => setShowProviderConfig(true)}>
+          <Button variant="ghost" size="sm" className="w-full h-7 justify-between text-xs" onClick={() => setIsProviderConfigVisible(true)}>
             <span className="flex items-center gap-1">
               <TbBrain className="h-3.5 w-3.5" />
               {getSelectionLabel()}
@@ -828,7 +830,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isSubt
         )}
 
         {/* 翻译语言选择（仅在选择时显示） */}
-        {showLanguageSelect && (
+        {isLanguageSelectVisible && (
           <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
             <Select value={targetLanguage} onValueChange={setTargetLanguage}>
               <SelectTrigger className="h-7 text-xs flex-1">

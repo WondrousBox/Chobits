@@ -166,7 +166,7 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
   });
 
   // 列出所有资源
-  ipcMain.handle('plugin-resource:list', async (_e, payload?: { pluginId?: string; type?: 'engine' | 'model' }) => {
+  ipcMain.handle('plugin-resource:list', async (_event, payload?: { pluginId?: string; type?: 'engine' | 'model' }) => {
     let definitions: PluginDefinition[] = [];
     // 获取系统预设插件
     let systemPresetResources: any[] = [];
@@ -240,7 +240,7 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
   });
 
   // 获取单个资源
-  ipcMain.handle('plugin-resource:get', async (_e, payload: { id: string }) => {
+  ipcMain.handle('plugin-resource:get', async (_event, payload: { id: string }) => {
     return PluginResourceStore.get(payload.id);
   });
 
@@ -365,13 +365,13 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
   });
 
   // 取消下载
-  ipcMain.handle('plugin-resource:cancel', async (_e, payload: { id: string }) => {
+  ipcMain.handle('plugin-resource:cancel', async (_event, payload: { id: string }) => {
     pluginResourceManager.cancel(payload.id);
     return { ok: true };
   });
 
   // 检查资源是否已安装
-  ipcMain.handle('plugin-resource:is-installed', async (_e, payload: { id: string }) => {
+  ipcMain.handle('plugin-resource:is-installed', async (_event, payload: { id: string }) => {
     // 先检查是否是系统预设插件
     if (getPluginDefinitionsPathFn) {
       const definitions = await loadPluginDefinitions(getPluginDefinitionsPathFn());
@@ -397,19 +397,19 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
   });
 
   // 获取Engine路径
-  ipcMain.handle('plugin-resource:get-engine-path', async (_e, payload: { pluginId: string; binaryName: string }) => {
+  ipcMain.handle('plugin-resource:get-engine-path', async (_event, payload: { pluginId: string; binaryName: string }) => {
     const enginePath = pluginResourceManager.getEnginePath(payload.pluginId, payload.binaryName);
     return { ok: true, path: enginePath };
   });
 
   // 获取模型路径
-  ipcMain.handle('plugin-resource:get-model-path', async (_e, payload: { pluginId: string; modelName: string }) => {
+  ipcMain.handle('plugin-resource:get-model-path', async (_event, payload: { pluginId: string; modelName: string }) => {
     const modelPath = pluginResourceManager.getModelPath(payload.pluginId, payload.modelName);
     return { ok: true, path: modelPath };
   });
 
   // 删除资源。默认只移除记录；deleteFiles=true 时同时删除受管理的安装文件。
-  ipcMain.handle('plugin-resource:remove', async (_e, payload: { id: string; deleteFiles?: boolean }) => {
+  ipcMain.handle('plugin-resource:remove', async (_event, payload: { id: string; deleteFiles?: boolean }) => {
     let resource = PluginResourceStore.get(payload.id);
     if (!resource && getPluginDefinitionsPathFn) {
       const definitions = await loadPluginDefinitions(getPluginDefinitionsPathFn());
@@ -444,7 +444,7 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
   });
 
   // 设置下载目录
-  ipcMain.handle('plugin-resource:set-download-dir', async (_e, payload: { dir: string }) => {
+  ipcMain.handle('plugin-resource:set-download-dir', async (_event, payload: { dir: string }) => {
     pluginResourceManager.setDownloadDir(payload.dir);
     return { ok: true };
   });
@@ -521,7 +521,7 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
   });
 
   // 设置并发数
-  ipcMain.handle('plugin-resource:set-concurrency', async (_e, payload: { concurrency: number }) => {
+  ipcMain.handle('plugin-resource:set-concurrency', async (_event, payload: { concurrency: number }) => {
     pluginResourceManager.setConcurrency(payload.concurrency);
     return { ok: true };
   });
@@ -532,7 +532,7 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
   });
 
   // 更新插件下载配置
-  ipcMain.handle('plugin-resource:set-config', async (_e, payload: Partial<ReturnType<typeof PluginConfigStore.getConfig>>) => {
+  ipcMain.handle('plugin-resource:set-config', async (_event, payload: Partial<ReturnType<typeof PluginConfigStore.getConfig>>) => {
     const config = PluginConfigStore.setConfig(payload);
     if (typeof payload.concurrency === 'number') {
       pluginResourceManager.setConcurrency(payload.concurrency);

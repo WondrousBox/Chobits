@@ -1,0 +1,406 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "meta": {
+        "id": "idle-default",
+        "title": "Idle 默认站立",
+        "description": "默认的待机动画",
+        "tags": ["idle", "default"],
+        "primaryTrigger": "idle"
+      },
+      "source": {
+        "localPath": "./idle.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": true
+    },
+    {
+      "meta": {
+        "id": "walk-default",
+        "title": "Walk 行走",
+        "description": "默认的行走动画",
+        "tags": ["walk", "default"],
+        "primaryTrigger": "walk"
+      },
+      "source": {
+        "localPath": "./walk.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": true,
+      "movement": {
+        "enabled": true,
+        "mode": "walkTo",
+        "speed": 60,
+        "trigger": "behavior",
+        "behaviorSchedule": {
+          "type": "random",
+          "minMs": 10000,
+          "maxMs": 25000,
+          "probability": 0.8,
+          "minIdleMs": 5000
+        },
+        "verticalRange": 0.1
+      }
+    },
+    {
+      "meta": {
+        "id": "sleep-default",
+        "title": "Sleep 睡觉",
+        "description": "默认的睡觉动画",
+        "tags": ["sleep", "default"],
+        "primaryTrigger": "sleep"
+      },
+      "source": {
+        "localPath": "./sleep.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "movement": {
+        "enabled": true,
+        "direction": "random",
+        "speed": 60
+      }
+    },
+    {
+      "meta": {
+        "id": "receive-default",
+        "title": "Receive 接收文件",
+        "primaryTrigger": "fileDragOver"
+      },
+      "source": {
+        "localPath": "./receive.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loopStartMs": 750,
+      "loopEndMs": 3000
+    },
+    {
+      "meta": {
+        "id": "thinking-default",
+        "title": "Thinking 思考中",
+        "description": "AI 思考/处理中动画",
+        "tags": ["thinking"],
+        "primaryTrigger": "thinking"
+      },
+      "source": {
+        "localPath": "./thinking.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "autoIdle": true,
+      "playsInline": true
+    },
+    {
+      "meta": {
+        "id": "success-default",
+        "title": "Success 成功",
+        "description": "任务成功完成动画",
+        "tags": ["success"],
+        "primaryTrigger": "success"
+      },
+      "source": {
+        "localPath": "./success.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false
+    },
+    {
+      "meta": {
+        "id": "error-default",
+        "title": "Error 错误",
+        "description": "错误/失败动画",
+        "tags": ["error"],
+        "primaryTrigger": "error"
+      },
+      "source": {
+        "localPath": "./error.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false
+    },
+    {
+      "meta": {
+        "id": "celebrate-default",
+        "title": "Celebrate 庆祝",
+        "description": "庆祝/完成任务动画",
+        "tags": ["celebrate"],
+        "primaryTrigger": "celebrate"
+      },
+      "source": {
+        "localPath": "./celebrate.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false
+    },
+    {
+      "meta": {
+        "id": "processing-default",
+        "title": "Processing 处理中",
+        "description": "处理/加载中动画",
+        "tags": ["processing", "loading"],
+        "primaryTrigger": "processing"
+      },
+      "source": {
+        "localPath": "./processing.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": true
+    },
+    {
+      "meta": {
+        "id": "loading-default",
+        "title": "Loading 加载中",
+        "description": "加载中动画",
+        "tags": ["loading"],
+        "primaryTrigger": "loading"
+      },
+      "source": {
+        "localPath": "./loading.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": true
+    },
+    {
+      "meta": {
+        "id": "failure-default",
+        "title": "Failure 失败",
+        "description": "失败动画",
+        "tags": ["failure"],
+        "primaryTrigger": "failure"
+      },
+      "source": {
+        "localPath": "./failure.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false
+    },
+    {
+      "meta": {
+        "id": "cancellation-default",
+        "title": "Cancellation 取消",
+        "description": "取消操作动画",
+        "tags": ["cancel"],
+        "primaryTrigger": "cancellation"
+      },
+      "source": {
+        "localPath": "./cancellation.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false
+    },
+    {
+      "meta": {
+        "id": "welcome-default",
+        "title": "welcome",
+        "primaryTrigger": "welcome",
+        "deletable": true
+      },
+      "source": {
+        "localPath": "./welcome.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false,
+      "autoIdle": true,
+      "durationMs": 5016.667
+    },
+    {
+      "meta": {
+        "id": "write-default",
+        "title": "write",
+        "primaryTrigger": "write",
+        "deletable": true
+      },
+      "source": {
+        "localPath": "./write.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false,
+      "autoIdle": true
+    },
+    {
+      "meta": {
+        "id": "wave-default",
+        "title": "wave",
+        "deletable": true,
+        "primaryTrigger": "wave"
+      },
+      "source": {
+        "localPath": "./wave.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false,
+      "autoIdle": true
+    },
+    {
+      "meta": {
+        "id": "talk-default",
+        "title": "talk",
+        "description": "默认的说话动作动画",
+        "tags": ["talk"],
+        "primaryTrigger": "talk",
+        "deletable": true
+      },
+      "source": {
+        "localPath": "./talk.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false,
+      "autoIdle": true
+    },
+    {
+      "meta": {
+        "id": "lookLeft-default",
+        "title": "lookLeft",
+        "deletable": true,
+        "primaryTrigger": "lookLeft"
+      },
+      "source": {
+        "localPath": "./lookLeft.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false,
+      "autoIdle": true
+    },
+    {
+      "meta": {
+        "id": "sprite-119jc4f5",
+        "title": "dance_00",
+        "primaryTrigger": "dance",
+        "deletable": true
+      },
+      "source": {
+        "localPath": "./dance_00.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": true,
+      "loopCount": 3,
+      "autoIdle": false
+    },
+    {
+      "meta": {
+        "id": "sprite-i27hgyeh",
+        "title": "dance_01",
+        "primaryTrigger": "dance",
+        "deletable": true
+      },
+      "source": {
+        "localPath": "./dance_00.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loop": false,
+      "autoIdle": false
+    }
+  ]
+}

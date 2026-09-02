@@ -83,7 +83,7 @@ function normalizeRealtimeSpeechConfig(raw: unknown): SpriteSpeakRealtimeSpeechC
       minChars: Math.round(finiteNumber(chunking.minChars, DEFAULT_REALTIME_SPEECH_CONFIG.chunking.minChars, 1, 200)),
       maxChars: Math.round(finiteNumber(chunking.maxChars, DEFAULT_REALTIME_SPEECH_CONFIG.chunking.maxChars, 8, 500)),
       maxDelayMs: Math.round(finiteNumber(chunking.maxDelayMs, DEFAULT_REALTIME_SPEECH_CONFIG.chunking.maxDelayMs, 50, 3000)),
-      flushOnPunctuation: typeof chunking.flushOnPunctuation === 'boolean' ? chunking.flushOnPunctuation : DEFAULT_REALTIME_SPEECH_CONFIG.chunking.flushOnPunctuation
+      shouldFlushOnPunctuation: typeof chunking.shouldFlushOnPunctuation === 'boolean' ? chunking.shouldFlushOnPunctuation : DEFAULT_REALTIME_SPEECH_CONFIG.chunking.shouldFlushOnPunctuation
     },
     playback: {
       startBufferMs: Math.round(finiteNumber(playback.startBufferMs, DEFAULT_REALTIME_SPEECH_CONFIG.playback.startBufferMs, 0, 5000)),
@@ -96,7 +96,7 @@ function normalizeRealtimeSpeechConfig(raw: unknown): SpriteSpeakRealtimeSpeechC
       mainChat: typeof scopes.mainChat === 'boolean' ? scopes.mainChat : DEFAULT_REALTIME_SPEECH_CONFIG.scopes.mainChat,
       resourceChatSidebar: typeof scopes.resourceChatSidebar === 'boolean' ? scopes.resourceChatSidebar : DEFAULT_REALTIME_SPEECH_CONFIG.scopes.resourceChatSidebar
     },
-    writeFinalCache: typeof source.writeFinalCache === 'boolean' ? source.writeFinalCache : DEFAULT_REALTIME_SPEECH_CONFIG.writeFinalCache
+    shouldWriteFinalCache: typeof source.shouldWriteFinalCache === 'boolean' ? source.shouldWriteFinalCache : DEFAULT_REALTIME_SPEECH_CONFIG.shouldWriteFinalCache
   };
 }
 
@@ -165,25 +165,25 @@ export class SpeakConfigStore {
       aiProvider: partial.aiProvider ? normalizeAiProviderConfig({ ...this.config.aiProvider, ...partial.aiProvider }) : this.config.aiProvider,
       realtimeSpeech: partial.realtimeSpeech
         ? normalizeRealtimeSpeechConfig({
-          ...this.config.realtimeSpeech,
-          ...partial.realtimeSpeech,
-          audioSetting: {
-            ...this.config.realtimeSpeech.audioSetting,
-            ...partial.realtimeSpeech.audioSetting
-          },
-          chunking: {
-            ...this.config.realtimeSpeech.chunking,
-            ...partial.realtimeSpeech.chunking
-          },
-          playback: {
-            ...this.config.realtimeSpeech.playback,
-            ...partial.realtimeSpeech.playback
-          },
-          scopes: {
-            ...this.config.realtimeSpeech.scopes,
-            ...partial.realtimeSpeech.scopes
-          }
-        })
+            ...this.config.realtimeSpeech,
+            ...partial.realtimeSpeech,
+            audioSetting: {
+              ...this.config.realtimeSpeech.audioSetting,
+              ...partial.realtimeSpeech.audioSetting
+            },
+            chunking: {
+              ...this.config.realtimeSpeech.chunking,
+              ...partial.realtimeSpeech.chunking
+            },
+            playback: {
+              ...this.config.realtimeSpeech.playback,
+              ...partial.realtimeSpeech.playback
+            },
+            scopes: {
+              ...this.config.realtimeSpeech.scopes,
+              ...partial.realtimeSpeech.scopes
+            }
+          })
         : this.config.realtimeSpeech
     };
     this.save();

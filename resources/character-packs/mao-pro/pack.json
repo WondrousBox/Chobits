@@ -5,18 +5,10 @@
   "version": "1.0.0",
   "author": "Live2D Inc.",
   "description": "Live2D 官方示例模型「二色豆 Mao(PRO 版)」,用于演示 Blend Shapes 与乘算/加算色。",
-  "license": "Live2D Sample Model License(见 resources/sprites/live2d/mao_pro/ReadMe.txt)",
-  "tags": [
-    "live2d",
-    "sample",
-    "official"
-  ],
+  "license": "Live2D Sample Model License(见 resources/characters/live2d/mao_pro/ReadMe.txt)",
+  "tags": ["live2d", "sample", "official"],
   "minAppVersion": "1.0.0",
-  "platform": [
-    "darwin",
-    "win32",
-    "linux"
-  ],
+  "platform": ["darwin", "win32", "linux"],
   "assets": {
     "character": "character.json",
     "animations": "index.json",
@@ -26,9 +18,7 @@
     "hasVoice": false,
     "hasCustomAnimations": true,
     "has3DModel": false,
-    "supportedLanguages": [
-      "zh-CN"
-    ],
+    "supportedLanguages": ["zh-CN"],
     "dimensionExtensions": []
   }
 }

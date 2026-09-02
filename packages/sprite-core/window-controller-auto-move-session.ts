@@ -1,12 +1,5 @@
 import type { SpriteMovementConfig } from './types';
-import {
-  computeAutoMoveStep,
-  DEFAULT_WALK_SPEED,
-  directionToVelocity,
-  resolveRandomMovementDirection,
-  type WindowControllerPoint,
-  type WindowControllerViewport
-} from './window-controller-model';
+import { computeAutoMoveStep, DEFAULT_WALK_SPEED, directionToVelocity, resolveRandomMovementDirection, type WindowControllerPoint, type WindowControllerViewport } from './window-controller-model';
 
 const IPC_THROTTLE = 33.3;
 

@@ -60,10 +60,7 @@ export class CubismMotionQueueEntry {
     const newEndTimeSeconds: number = userTimeSeconds + fadeOutSeconds;
     this._isTriggeredFadeOut = true;
 
-    if (
-      this._endTimeSeconds < 0.0 ||
-      newEndTimeSeconds < this._endTimeSeconds
-    ) {
+    if (this._endTimeSeconds < 0.0 || newEndTimeSeconds < this._endTimeSeconds) {
       this._endTimeSeconds = newEndTimeSeconds;
     }
   }

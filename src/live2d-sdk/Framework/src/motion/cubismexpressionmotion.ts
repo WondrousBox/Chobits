@@ -41,10 +41,7 @@ export class CubismExpressionMotion extends ACubismMotion {
    * @param size バッファのサイズ
    * @return 作成されたインスタンス
    */
-  public static create(
-    buffer: ArrayBuffer,
-    size: number
-  ): CubismExpressionMotion {
+  public static create(buffer: ArrayBuffer, size: number): CubismExpressionMotion {
     const expression: CubismExpressionMotion = new CubismExpressionMotion();
     expression.parse(buffer, size);
     return expression;
@@ -57,38 +54,21 @@ export class CubismExpressionMotion extends ACubismMotion {
    * @param weight モーションの重み
    * @param motionQueueEntry CubismMotionQueueManagerで管理されているモーション
    */
-  public doUpdateParameters(
-    model: CubismModel,
-    userTimeSeconds: number,
-    weight: number,
-    motionQueueEntry: CubismMotionQueueEntry
-  ): void {
+  public doUpdateParameters(model: CubismModel, userTimeSeconds: number, weight: number, motionQueueEntry: CubismMotionQueueEntry): void {
     for (let i = 0; i < this._parameters.getSize(); ++i) {
       const parameter: ExpressionParameter = this._parameters.at(i);
 
       switch (parameter.blendType) {
         case ExpressionBlendType.Additive: {
-          model.addParameterValueById(
-            parameter.parameterId,
-            parameter.value,
-            weight
-          );
+          model.addParameterValueById(parameter.parameterId, parameter.value, weight);
           break;
         }
         case ExpressionBlendType.Multiply: {
-          model.multiplyParameterValueById(
-            parameter.parameterId,
-            parameter.value,
-            weight
-          );
+          model.multiplyParameterValueById(parameter.parameterId, parameter.value, weight);
           break;
         }
         case ExpressionBlendType.Overwrite: {
-          model.setParameterValueById(
-            parameter.parameterId,
-            parameter.value,
-            weight
-          );
+          model.setParameterValueById(parameter.parameterId, parameter.value, weight);
           break;
         }
         default:
@@ -138,16 +118,12 @@ export class CubismExpressionMotion extends ACubismMotion {
         continue;
       }
 
-      const currentParameterValue = (expressionParameterValue.overwriteValue =
-        model.getParameterValueById(expressionParameterValue.parameterId));
+      const currentParameterValue = (expressionParameterValue.overwriteValue = model.getParameterValueById(expressionParameterValue.parameterId));
 
       const expressionParameters = this.getExpressionParameters();
       let parameterIndex = -1;
       for (let j = 0; j < expressionParameters.getSize(); ++j) {
-        if (
-          expressionParameterValue.parameterId !=
-          expressionParameters.at(j).parameterId
-        ) {
+        if (expressionParameterValue.parameterId != expressionParameters.at(j).parameterId) {
           continue;
         }
 
@@ -159,27 +135,13 @@ export class CubismExpressionMotion extends ACubismMotion {
       // 再生中のExpressionが参照していないパラメータは初期値を適用
       if (parameterIndex < 0) {
         if (expressionIndex == 0) {
-          expressionParameterValue.additiveValue =
-            CubismExpressionMotion.DefaultAdditiveValue;
-          expressionParameterValue.multiplyValue =
-            CubismExpressionMotion.DefaultMultiplyValue;
+          expressionParameterValue.additiveValue = CubismExpressionMotion.DefaultAdditiveValue;
+          expressionParameterValue.multiplyValue = CubismExpressionMotion.DefaultMultiplyValue;
           expressionParameterValue.overwriteValue = currentParameterValue;
         } else {
-          expressionParameterValue.additiveValue = this.calculateValue(
-            expressionParameterValue.additiveValue,
-            CubismExpressionMotion.DefaultAdditiveValue,
-            fadeWeight
-          );
-          expressionParameterValue.multiplyValue = this.calculateValue(
-            expressionParameterValue.multiplyValue,
-            CubismExpressionMotion.DefaultMultiplyValue,
-            fadeWeight
-          );
-          expressionParameterValue.overwriteValue = this.calculateValue(
-            expressionParameterValue.overwriteValue,
-            currentParameterValue,
-            fadeWeight
-          );
+          expressionParameterValue.additiveValue = this.calculateValue(expressionParameterValue.additiveValue, CubismExpressionMotion.DefaultAdditiveValue, fadeWeight);
+          expressionParameterValue.multiplyValue = this.calculateValue(expressionParameterValue.multiplyValue, CubismExpressionMotion.DefaultMultiplyValue, fadeWeight);
+          expressionParameterValue.overwriteValue = this.calculateValue(expressionParameterValue.overwriteValue, currentParameterValue, fadeWeight);
         }
         continue;
       }
@@ -215,15 +177,9 @@ export class CubismExpressionMotion extends ACubismMotion {
         expressionParameterValue.multiplyValue = newMultiplyValue;
         expressionParameterValue.overwriteValue = newOverwriteValue;
       } else {
-        expressionParameterValue.additiveValue =
-          expressionParameterValue.additiveValue * (1.0 - fadeWeight) +
-          newAdditiveValue * fadeWeight;
-        expressionParameterValue.multiplyValue =
-          expressionParameterValue.multiplyValue * (1.0 - fadeWeight) +
-          newMultiplyValue * fadeWeight;
-        expressionParameterValue.overwriteValue =
-          expressionParameterValue.overwriteValue * (1.0 - fadeWeight) +
-          newOverwriteValue * fadeWeight;
+        expressionParameterValue.additiveValue = expressionParameterValue.additiveValue * (1.0 - fadeWeight) + newAdditiveValue * fadeWeight;
+        expressionParameterValue.multiplyValue = expressionParameterValue.multiplyValue * (1.0 - fadeWeight) + newMultiplyValue * fadeWeight;
+        expressionParameterValue.overwriteValue = expressionParameterValue.overwriteValue * (1.0 - fadeWeight) + newOverwriteValue * fadeWeight;
       }
     }
   }
@@ -262,48 +218,27 @@ export class CubismExpressionMotion extends ACubismMotion {
 
     const root: Value = json.getRoot();
 
-    this.setFadeInTime(
-      root.getValueByString(ExpressionKeyFadeIn).toFloat(DefaultFadeTime)
-    ); // フェードイン
-    this.setFadeOutTime(
-      root.getValueByString(ExpressionKeyFadeOut).toFloat(DefaultFadeTime)
-    ); // フェードアウト
+    this.setFadeInTime(root.getValueByString(ExpressionKeyFadeIn).toFloat(DefaultFadeTime)); // フェードイン
+    this.setFadeOutTime(root.getValueByString(ExpressionKeyFadeOut).toFloat(DefaultFadeTime)); // フェードアウト
 
     // 各パラメータについて
-    const parameterCount = root
-      .getValueByString(ExpressionKeyParameters)
-      .getSize();
+    const parameterCount = root.getValueByString(ExpressionKeyParameters).getSize();
     this._parameters.prepareCapacity(parameterCount);
 
     for (let i = 0; i < parameterCount; ++i) {
-      const param: Value = root
-        .getValueByString(ExpressionKeyParameters)
-        .getValueByIndex(i);
-      const parameterId: CubismIdHandle = CubismFramework.getIdManager().getId(
-        param.getValueByString(ExpressionKeyId).getRawString()
-      ); // パラメータID
+      const param: Value = root.getValueByString(ExpressionKeyParameters).getValueByIndex(i);
+      const parameterId: CubismIdHandle = CubismFramework.getIdManager().getId(param.getValueByString(ExpressionKeyId).getRawString()); // パラメータID
 
-      const value: number = param
-        .getValueByString(ExpressionKeyValue)
-        .toFloat(); // 値
+      const value: number = param.getValueByString(ExpressionKeyValue).toFloat(); // 値
 
       // 計算方法の設定
       let blendType: ExpressionBlendType;
 
-      if (
-        param.getValueByString(ExpressionKeyBlend).isNull() ||
-        param.getValueByString(ExpressionKeyBlend).getString() == BlendValueAdd
-      ) {
+      if (param.getValueByString(ExpressionKeyBlend).isNull() || param.getValueByString(ExpressionKeyBlend).getString() == BlendValueAdd) {
         blendType = ExpressionBlendType.Additive;
-      } else if (
-        param.getValueByString(ExpressionKeyBlend).getString() ==
-        BlendValueMultiply
-      ) {
+      } else if (param.getValueByString(ExpressionKeyBlend).getString() == BlendValueMultiply) {
         blendType = ExpressionBlendType.Multiply;
-      } else if (
-        param.getValueByString(ExpressionKeyBlend).getString() ==
-        BlendValueOverwrite
-      ) {
+      } else if (param.getValueByString(ExpressionKeyBlend).getString() == BlendValueOverwrite) {
         blendType = ExpressionBlendType.Overwrite;
       } else {
         // その他 仕様にない値を設定した時は加算モードにすることで復旧
@@ -333,11 +268,7 @@ export class CubismExpressionMotion extends ACubismMotion {
    * @param weight ウェイト
    * @returns 計算結果
    */
-  public calculateValue(
-    source: number,
-    destination: number,
-    fadeWeight: number
-  ): number {
+  public calculateValue(source: number, destination: number, fadeWeight: number): number {
     return source * (1.0 - fadeWeight) + destination * fadeWeight;
   }
 

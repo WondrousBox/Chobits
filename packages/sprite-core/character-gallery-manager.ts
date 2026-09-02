@@ -32,7 +32,7 @@ export interface CharacterGalleryListResult {
     name: string;
     source: CharacterPackSource;
     rootDir: string;
-    writable: boolean;
+    isWritable: boolean;
   };
   indexPath: string;
   items: CharacterGalleryItem[];
@@ -61,7 +61,7 @@ export interface CharacterGalleryCanvasLayoutResult {
   layout: CharacterGalleryCanvasLayout;
   ok: true;
   path: string;
-  writable: boolean;
+  isWritable: boolean;
 }
 
 export interface CharacterGalleryReplaceImageOptions {
@@ -435,7 +435,7 @@ export async function listCharacterGalleryItems(options?: { packId?: string; sou
       name: pack.name,
       source: pack.source,
       rootDir: pack.rootDir,
-      writable: pack.source === 'installed'
+      isWritable: pack.source === 'installed'
     },
     indexPath,
     items: query ? index.items.filter((item) => itemMatchesQuery(item, query)) : index.items
@@ -451,7 +451,7 @@ export async function getCharacterGalleryCanvasLayout(options?: { packId?: strin
   return {
     ok: true,
     path: canvasPath,
-    writable: pack.source === 'installed',
+    isWritable: pack.source === 'installed',
     layout
   };
 }
@@ -469,7 +469,7 @@ export async function saveCharacterGalleryCanvasLayout(
   return {
     ok: true,
     path: canvasPath,
-    writable: true,
+    isWritable: true,
     layout: next
   };
 }

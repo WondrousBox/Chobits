@@ -116,13 +116,7 @@ export class SpriteRoutineRunner {
     }
   }
 
-  private async runStep(
-    routine: SpriteRoutine,
-    step: SpriteRoutineStep,
-    context: SpriteRoutineRunContext,
-    options?: SpriteRoutineRunOptions,
-    updateCursor = false
-  ): Promise<SpriteRoutineStepResult> {
+  private async runStep(routine: SpriteRoutine, step: SpriteRoutineStep, context: SpriteRoutineRunContext, options?: SpriteRoutineRunOptions, updateCursor = false): Promise<SpriteRoutineStepResult> {
     const startedAt = this.now();
     const effectiveOptions = options ?? { signal: new AbortController().signal };
     const signal = effectiveOptions.signal;
@@ -383,16 +377,18 @@ export class SpriteRoutineRunner {
     const resolved = this.resolveUpdateBusyStep(step, context);
     if (typeof resolved.progress !== 'number') {
       return {
-        skipped: true,
+        wasSkipped: true,
         reason: 'missing-progress',
         content: resolved.content
       };
     }
 
-    return this.deps.updateBusy?.(resolved) ?? {
-      progress: resolved.progress,
-      content: resolved.content
-    };
+    return (
+      this.deps.updateBusy?.(resolved) ?? {
+        progress: resolved.progress,
+        content: resolved.content
+      }
+    );
   }
 
   private resolveUpdateBusyStep(step: Extract<SpriteRoutineStep, { type: 'updateBusy' }>, context: SpriteRoutineRunContext): Extract<SpriteRoutineStep, { type: 'updateBusy' }> {
@@ -631,7 +627,12 @@ export class SpriteRoutineRunner {
     }
   }
 
-  private async runSequence(routine: SpriteRoutine, step: Extract<SpriteRoutineStep, { type: 'sequence' }>, options: SpriteRoutineRunOptions, context: SpriteRoutineRunContext): Promise<{ stepCount: number }> {
+  private async runSequence(
+    routine: SpriteRoutine,
+    step: Extract<SpriteRoutineStep, { type: 'sequence' }>,
+    options: SpriteRoutineRunOptions,
+    context: SpriteRoutineRunContext
+  ): Promise<{ stepCount: number }> {
     const signal = options.signal ?? new AbortController().signal;
 
     for (const child of step.body) {
@@ -648,7 +649,12 @@ export class SpriteRoutineRunner {
     return { stepCount: step.body.length };
   }
 
-  private async runBranch(routine: SpriteRoutine, step: Extract<SpriteRoutineStep, { type: 'branch' }>, options: SpriteRoutineRunOptions, context: SpriteRoutineRunContext): Promise<{ caseKey: string; stepCount: number }> {
+  private async runBranch(
+    routine: SpriteRoutine,
+    step: Extract<SpriteRoutineStep, { type: 'branch' }>,
+    options: SpriteRoutineRunOptions,
+    context: SpriteRoutineRunContext
+  ): Promise<{ caseKey: string; stepCount: number }> {
     const value = this.readPath(context.variables, step.by);
     const caseKey = value == null ? '' : String(value);
     const steps = step.cases[caseKey] ?? step.default ?? [];

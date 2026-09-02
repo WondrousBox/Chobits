@@ -43,15 +43,7 @@ function findTerminalEntry(entries: SpritePurposeHistoryEntry[]): SpritePurposeH
   return [...entries].reverse().find((entry) => TERMINAL_PURPOSE_EVENTS.has(entry.eventType));
 }
 
-function inferMemoryWorthiness(input: {
-  purposeKind: string;
-  status: string;
-  source?: string;
-  priority?: number;
-  summary?: string;
-  failedStepIds: string[];
-  plannerFallbackReason?: string;
-}): number {
+function inferMemoryWorthiness(input: { purposeKind: string; status: string; source?: string; priority?: number; summary?: string; failedStepIds: string[]; plannerFallbackReason?: string }): number {
   if (input.purposeKind === 'idle.presence') {
     return 0;
   }
@@ -150,10 +142,7 @@ function buildItem(group: PurposeHistoryGroup): SpritePurposeRetrospectiveItem |
   };
 }
 
-export function buildSpritePurposeDailyRetrospective(
-  entries: SpritePurposeHistoryEntry[],
-  query: SpritePurposeRetrospectiveQuery & { generatedAt?: number } = {}
-): SpritePurposeDailyRetrospective {
+export function buildSpritePurposeDailyRetrospective(entries: SpritePurposeHistoryEntry[], query: SpritePurposeRetrospectiveQuery & { generatedAt?: number } = {}): SpritePurposeDailyRetrospective {
   const generatedAt = query.generatedAt ?? Date.now();
   const date = query.date ?? (entries.length ? formatLocalDateStamp(entries[entries.length - 1].timestamp) : formatLocalDateStamp(generatedAt));
   const allItems = groupByPurpose(entries)

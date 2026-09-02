@@ -1,7 +1,7 @@
 import { PluginDefinition } from '@packages/plugins/types';
 
 import { ASRType, createASRInstance, freeASRInstance, sendASRData } from './asr-instance-manager';
-import { SherpaModel, CommonConfig, FORCE_ONLINE_MODELS, StreamInstances, TTSInstances } from './common';
+import { CommonConfig, FORCE_ONLINE_MODELS, SherpaModel, StreamInstances, TTSInstances } from './common';
 import { getDefaultSherpaModels } from './model';
 import { createTTSInstance, CreateTTSInstanceOptions, destroyTTSInstance, generateSpeech, GenerateSpeechOptions, TTSResult } from './tts-instance-manager';
 

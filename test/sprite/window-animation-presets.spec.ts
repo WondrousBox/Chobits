@@ -287,11 +287,7 @@ describe('window animation presets', () => {
   it('lets playback inherit the current size for position and opacity only presets', () => {
     const baseFrame = createBaseFrame();
     const startSize = { width: 333, height: 222 };
-    const cases = [
-      { presetId: 'fly-in' as const, direction: 'left' as const },
-      { presetId: 'fade-in' as const },
-      { presetId: 'shake' as const, direction: 'top' as const }
-    ];
+    const cases = [{ presetId: 'fly-in' as const, direction: 'left' as const }, { presetId: 'fade-in' as const }, { presetId: 'shake' as const, direction: 'top' as const }];
 
     for (const testCase of cases) {
       const frames = createWindowAnimationPresetFrames({

@@ -239,16 +239,16 @@ Preset-controlled fields:
 
 Direction-aware presets accept the four side directions plus the four corners: `top`, `right`, `bottom`, `left`, `top-left`, `top-right`, `bottom-left`, and `bottom-right`. Fly presets use corner directions as diagonal off-screen endpoints while still serializing only position and opacity.
 
-| Preset | Controlled fields in playback timeline | Fields to omit |
-| --- | --- | --- |
-| `fly-in` | `x/y` or `placement` for path endpoints, `opacity`, segment `duration/easing` | `width/height`; omit `curve` when line |
-| `fly-out` | `x/y` or `placement` for path endpoints, `opacity`, segment `duration/easing` | `width/height`; omit `curve` when line |
-| `fade-in` | `opacity`, segment `duration/easing` | `x/y/width/height/placement/curve` |
-| `fade-out` | `opacity`, segment `duration/easing` | `x/y/width/height/placement/curve` |
-| `shake` | `x/y`, segment `duration/easing` | `width/height/opacity`; omit `curve` when line |
-| `zoom-in` | Phase 1: `x/y`, `width/height`, `opacity`, segment `duration/easing` | No unrelated `placement`; omit `curve` when line |
-| `zoom-out` | Phase 1: `x/y`, `width/height`, `opacity`, segment `duration/easing` | No unrelated `placement`; omit `curve` when line |
-| `pulse` | Phase 1: `x/y`, `width/height`, segment `duration/easing` | `opacity` unless the base opacity is intentionally changed; omit `curve` when line |
+| Preset     | Controlled fields in playback timeline                                        | Fields to omit                                                                     |
+| ---------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `fly-in`   | `x/y` or `placement` for path endpoints, `opacity`, segment `duration/easing` | `width/height`; omit `curve` when line                                             |
+| `fly-out`  | `x/y` or `placement` for path endpoints, `opacity`, segment `duration/easing` | `width/height`; omit `curve` when line                                             |
+| `fade-in`  | `opacity`, segment `duration/easing`                                          | `x/y/width/height/placement/curve`                                                 |
+| `fade-out` | `opacity`, segment `duration/easing`                                          | `x/y/width/height/placement/curve`                                                 |
+| `shake`    | `x/y`, segment `duration/easing`                                              | `width/height/opacity`; omit `curve` when line                                     |
+| `zoom-in`  | Phase 1: `x/y`, `width/height`, `opacity`, segment `duration/easing`          | No unrelated `placement`; omit `curve` when line                                   |
+| `zoom-out` | Phase 1: `x/y`, `width/height`, `opacity`, segment `duration/easing`          | No unrelated `placement`; omit `curve` when line                                   |
+| `pulse`    | Phase 1: `x/y`, `width/height`, segment `duration/easing`                     | `opacity` unless the base opacity is intentionally changed; omit `curve` when line |
 
 The size-changing presets keep `x/y` in Phase 1 because the current manager preserves the previous top-left corner when `x/y` is omitted. Without the Phase 2 manager change, omitting `x/y` from `zoom-in`, `zoom-out`, or `pulse` would make center-based scaling drift.
 
@@ -470,8 +470,7 @@ Each target window that opts into advanced effects can expose a small content-an
 
 ```ts
 type ChobitsWindowContentAnimationMessage =
-  | { type: 'window-content-animation:play'; animationId: string; tracks: ChobitsWindowContentTrack[] }
-  | { type: 'window-content-animation:stop'; animationId?: string; reset?: boolean };
+  { type: 'window-content-animation:play'; animationId: string; tracks: ChobitsWindowContentTrack[] } | { type: 'window-content-animation:stop'; animationId?: string; reset?: boolean };
 ```
 
 The adapter responsibilities:

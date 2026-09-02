@@ -62,11 +62,7 @@ export class CubismBreath {
     for (let i = 0; i < this._breathParameters.getSize(); ++i) {
       const data: BreathParameterData = this._breathParameters.at(i);
 
-      model.addParameterValueById(
-        data.parameterId,
-        data.offset + data.peak * Math.sin(t / data.cycle),
-        data.weight
-      );
+      model.addParameterValueById(data.parameterId, data.offset + data.peak * Math.sin(t / data.cycle), data.weight);
     }
   }
 
@@ -93,13 +89,7 @@ export class BreathParameterData {
    * @param cycle         呼吸を正弦波としたときの、波の周期
    * @param weight        パラメータへの重み
    */
-  constructor(
-    parameterId?: CubismIdHandle,
-    offset?: number,
-    peak?: number,
-    cycle?: number,
-    weight?: number
-  ) {
+  constructor(parameterId?: CubismIdHandle, offset?: number, peak?: number, cycle?: number, weight?: number) {
     this.parameterId = parameterId == undefined ? null : parameterId;
     this.offset = offset == undefined ? 0.0 : offset;
     this.peak = peak == undefined ? 0.0 : peak;

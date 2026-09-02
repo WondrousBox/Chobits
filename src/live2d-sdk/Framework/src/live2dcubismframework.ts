@@ -8,11 +8,7 @@
 
 import { CubismIdManager } from './id/cubismidmanager';
 import { CubismRenderer } from './rendering/cubismrenderer';
-import {
-  CSM_ASSERT,
-  CubismLogInfo,
-  CubismLogWarning
-} from './utils/cubismdebug';
+import { CSM_ASSERT, CubismLogInfo, CubismLogWarning } from './utils/cubismdebug';
 import { Value } from './utils/cubismjson';
 
 export function strtod(s: string, endPtr: string[]): number {
@@ -104,13 +100,7 @@ export class CubismFramework {
       const patch: number = version & 0x0000ffff;
       const versionNumber: number = version;
 
-      CubismLogInfo(
-        `Live2D Cubism Core version: {0}.{1}.{2} ({3})`,
-        ('00' + major).slice(-2),
-        ('00' + minor).slice(-2),
-        ('0000' + patch).slice(-4),
-        versionNumber
-      );
+      CubismLogInfo(`Live2D Cubism Core version: {0}.{1}.{2} ({3})`, ('00' + major).slice(-2), ('00' + minor).slice(-2), ('0000' + patch).slice(-4), versionNumber);
     }
 
     CubismLogInfo('CubismFramework.startUp() is complete.');
@@ -149,9 +139,7 @@ export class CubismFramework {
     // 連続してリソース確保が行われないようにする。
     // 再度Initialize()するには先にDispose()を実行する必要がある。
     if (s_isInitialized) {
-      CubismLogWarning(
-        'CubismFramework.initialize() skipped, already initialized.'
-      );
+      CubismLogWarning('CubismFramework.initialize() skipped, already initialized.');
       return;
     }
 

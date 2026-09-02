@@ -1,11 +1,5 @@
 import { getCharacterRoutineText } from '../messages/character';
-import {
-  CHAT_API_CONFIGURED_GUIDE_GOAL,
-  FIRST_CHAT_GUIDE_GOAL,
-  FIRST_FILE_DROP_GUIDE_GOAL,
-  type SpriteRoutineGuideGoalDefinition,
-  WORKSPACE_EXISTS_GUIDE_GOAL
-} from './guide-goals';
+import { CHAT_API_CONFIGURED_GUIDE_GOAL, FIRST_CHAT_GUIDE_GOAL, FIRST_FILE_DROP_GUIDE_GOAL, type SpriteRoutineGuideGoalDefinition, WORKSPACE_EXISTS_GUIDE_GOAL } from './guide-goals';
 import type { SpritePurpose, SpriteRoutine, SpriteRoutineStep, SpriteRoutineStepInput, StartSpritePurposeRequest } from './types';
 
 export interface SpriteRoutinePresetDefinition {
@@ -202,25 +196,25 @@ function createFileDropIntakeSteps(purpose: SpritePurpose, options: { waitForRes
   const waitForResourcesReady = options.waitForResourcesReady ?? false;
   const readyStep: SpriteRoutineStepInput[] = waitForResourcesReady
     ? [
-      {
-        id: 'wait-file-drop-resources-ready',
-        type: 'waitForEvent',
-        source: 'purpose-event',
-        event: 'fileDrop:resources-ready',
-        match,
-        timeoutMs: 2 * 60 * 1000,
-        assignTo: 'fileDropReady'
-      }
-    ]
+        {
+          id: 'wait-file-drop-resources-ready',
+          type: 'waitForEvent',
+          source: 'purpose-event',
+          event: 'fileDrop:resources-ready',
+          match,
+          timeoutMs: 2 * 60 * 1000,
+          assignTo: 'fileDropReady'
+        }
+      ]
     : [];
   const openWindowStep: SpriteRoutineStepInput = waitForResourcesReady
     ? {
-      id: 'open-file-actions-menu',
-      type: 'openWindow',
-      window: 'fileActionsMenu',
-      payloadFrom: 'fileDropReady.payload.fileActionsMenuPayload',
-      timeoutMs: 10000
-    }
+        id: 'open-file-actions-menu',
+        type: 'openWindow',
+        window: 'fileActionsMenu',
+        payloadFrom: 'fileDropReady.payload.fileActionsMenuPayload',
+        timeoutMs: 10000
+      }
     : { id: 'open-file-actions-menu', type: 'openWindow', window: 'fileActionsMenu', payload: createFileActionsMenuPayload(purpose), timeoutMs: 10000 };
 
   return [
@@ -602,7 +596,7 @@ function createFirstChatRoutineSteps(): SpriteRoutineStepInput[] {
       type: 'loopUntil',
       source: 'app-event',
       untilEvent: ['APP_WINDOW_OPENED'],
-      match: { windowKey: ['assistant', 'assistantMini', 'chat'] },
+      match: { windowKey: ['chatPanel', 'chatMini', 'chat'] },
       maxDurationMs: 10_000,
       assignTo: 'firstChatWindowOpened',
       ignoreHistory: false,
@@ -632,15 +626,15 @@ function createChatApiConfigGuideSteps(purpose: SpritePurpose): SpriteRoutineSte
   const configUpdatedMatch = shouldLockChatApiConfigGuideProvider(purpose) ? { providerId, action: CHAT_API_CONFIG_COMPLETION_ACTIONS } : { action: CHAT_API_CONFIG_COMPLETION_ACTIONS };
   const targetPayload = hasPreset
     ? {
-      providerId,
-      presetId,
-      fields
-    }
+        providerId,
+        presetId,
+        fields
+      }
     : {
-      category: 'ai',
-      tab: 'provider',
-      aiProviderId: providerId
-    };
+        category: 'ai',
+        tab: 'provider',
+        aiProviderId: providerId
+      };
   const openSettingsSteps: SpriteRoutineStepInput[] = [];
   if (!openSettingsDirectly) {
     openSettingsSteps.push({ id: 'chat-api-config-clear-invite', type: 'clearMessage', messageId: CHAT_API_CONFIG_NOTICE_ID, messageType: 'notice' });

@@ -42,10 +42,7 @@ function stripReasoningExtras(extras?: Record<string, any>): Record<string, any>
   return Object.keys(rest).length ? rest : undefined;
 }
 
-export function buildNonReasoningTaskRuntimeRequest(
-  request: CreatePiTaskRuntimeRequest,
-  options: { modelStrategy?: NonReasoningTaskModelStrategy } = {}
-): CreatePiTaskRuntimeRequest {
+export function buildNonReasoningTaskRuntimeRequest(request: CreatePiTaskRuntimeRequest, options: { modelStrategy?: NonReasoningTaskModelStrategy } = {}): CreatePiTaskRuntimeRequest {
   const { extras, model, ...rest } = request;
   const sanitizedExtras = stripReasoningExtras(extras);
   const strategy = options.modelStrategy || 'preserve';

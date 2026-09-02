@@ -125,15 +125,15 @@ type WalkToStep = BaseRoutineStep<'walkTo'> & {
    * - `{ window, placement, offset }`：贴近某个 purpose window，比如 workspaceWizard 右侧。
    */
   target:
-  | 'center'
-  | 'corner'
-  | 'previous'
-  | { x: number; y: number }
-  | {
-    window: string;
-    placement?: 'left' | 'right' | 'top' | 'bottom' | 'center';
-    offset?: number;
-  };
+    | 'center'
+    | 'corner'
+    | 'previous'
+    | { x: number; y: number }
+    | {
+        window: string;
+        placement?: 'left' | 'right' | 'top' | 'bottom' | 'center';
+        offset?: number;
+      };
   /** 移动速度，传给 MovementCoordinator。 */
   speed?: number;
   /** 移动最大耗时；超时会 stopWalk 并让 step 失败。 */
@@ -258,8 +258,7 @@ type UpdateBusyStep = BaseRoutineStep<'updateBusy'> & {
 };
 
 /** 清理 busy/progress 状态。 */
-type ClearBusyStep = BaseRoutineStep<'clearBusy'> & {
-};
+type ClearBusyStep = BaseRoutineStep<'clearBusy'> & {};
 
 /** 打开或聚焦一个由 purposeWindowAdapter 支持的窗口。 */
 type OpenWindowStep = BaseRoutineStep<'openWindow'> & {

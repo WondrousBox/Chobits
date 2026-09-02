@@ -17,9 +17,9 @@ export interface WorkspaceExistsGuideGoalDefinition extends BaseSpriteRoutineGui
 /** Goal: a chat-capable AI provider preset has usable secrets configured. */
 export interface ChatApiConfiguredGuideGoalDefinition extends BaseSpriteRoutineGuideGoalDefinition<'ai.chat-provider-configured'> {}
 
-/** Goal: a durable persona achievement has already been unlocked. */
+/** Goal: a durable character achievement has already been unlocked. */
 export interface AchievementUnlockedGuideGoalDefinition extends BaseSpriteRoutineGuideGoalDefinition<'achievement.unlocked'> {
-  /** Persona achievement id used as the persistent completion marker. */
+  /** Character achievement id used as the persistent completion marker. */
   achievementId: string;
 }
 
@@ -29,10 +29,7 @@ export interface CustomSpriteRoutineGuideGoalDefinition extends BaseSpriteRoutin
 }
 
 export type SpriteRoutineGuideGoalDefinition =
-  | WorkspaceExistsGuideGoalDefinition
-  | ChatApiConfiguredGuideGoalDefinition
-  | AchievementUnlockedGuideGoalDefinition
-  | CustomSpriteRoutineGuideGoalDefinition;
+  WorkspaceExistsGuideGoalDefinition | ChatApiConfiguredGuideGoalDefinition | AchievementUnlockedGuideGoalDefinition | CustomSpriteRoutineGuideGoalDefinition;
 
 export const WORKSPACE_EXISTS_GUIDE_GOAL: SpriteRoutineGuideGoalDefinition = {
   id: 'workspace.exists',
@@ -48,12 +45,7 @@ export const CHAT_API_CONFIGURED_GUIDE_GOAL: SpriteRoutineGuideGoalDefinition = 
   blocking: true
 };
 
-export function createAchievementUnlockedGuideGoal(input: {
-  achievementId: string;
-  id?: string;
-  description?: string;
-  blocking?: boolean;
-}): AchievementUnlockedGuideGoalDefinition {
+export function createAchievementUnlockedGuideGoal(input: { achievementId: string; id?: string; description?: string; blocking?: boolean }): AchievementUnlockedGuideGoalDefinition {
   const achievementId = input.achievementId.trim();
   return {
     id: input.id ?? `achievement.${achievementId}`,

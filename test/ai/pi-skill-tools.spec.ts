@@ -1,35 +1,35 @@
-import fs from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createSkillRegistry, createSkillSessionState, loadSyntheticToolboxSkillEntries, SkillRegistry } from '../../packages/ai/runtime/pi/skills'
-import { createPiSkillSearchTool } from '../../packages/ai/runtime/pi/tools/skill-search'
-import { createPiSkillUseTool } from '../../packages/ai/runtime/pi/tools/skill-use'
+import { createSkillRegistry, createSkillSessionState, loadSyntheticToolboxSkillEntries, SkillRegistry } from '../../packages/ai/runtime/pi/skills';
+import { createPiSkillSearchTool } from '../../packages/ai/runtime/pi/tools/skill-search';
+import { createPiSkillUseTool } from '../../packages/ai/runtime/pi/tools/skill-use';
 
-const tempRoots: string[] = []
+const tempRoots: string[] = [];
 
 afterEach(async () => {
   await Promise.all(
     tempRoots.splice(0).map(async (targetPath) => {
-      await fs.rm(targetPath, { force: true, recursive: true })
+      await fs.rm(targetPath, { force: true, recursive: true });
     })
-  )
-})
+  );
+});
 
 describe('skill tools', () => {
   it('searches project skills and loads them in preview/inline mode', async () => {
-    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-skill-tools-'))
-    tempRoots.push(tempRoot)
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-skill-tools-'));
+    tempRoots.push(tempRoot);
 
-    const bundledRoot = path.join(tempRoot, 'bundled')
-    const homeDir = path.join(tempRoot, 'home')
-    const repoRoot = path.join(tempRoot, 'repo')
-    const workspaceRoot = path.join(repoRoot, 'apps', 'demo')
-    const skillFilePath = path.join(workspaceRoot, '.chobits', 'skills', 'subtitle-translate', 'SKILL.md')
+    const bundledRoot = path.join(tempRoot, 'bundled');
+    const homeDir = path.join(tempRoot, 'home');
+    const repoRoot = path.join(tempRoot, 'repo');
+    const workspaceRoot = path.join(repoRoot, 'apps', 'demo');
+    const skillFilePath = path.join(workspaceRoot, '.chobits', 'skills', 'subtitle-translate', 'SKILL.md');
 
-    await fs.mkdir(path.join(repoRoot, '.git'), { recursive: true })
+    await fs.mkdir(path.join(repoRoot, '.git'), { recursive: true });
     await writeSkill(
       skillFilePath,
       `---
@@ -53,88 +53,94 @@ arguments:
 3. Working directory: \${CHOBITS_SKILL_DIR}
 4. Session: \${CHOBITS_SESSION_ID}
 `
-    )
+    );
 
     const registry = await createSkillRegistry({
       bundledSkillRoot: bundledRoot,
       homeDir,
       includeSyntheticToolbox: false,
       workspaceRoot
-    })
+    });
 
-    const toolContext = createMockToolContext(workspaceRoot, registry)
-    const skillSearchTool = createPiSkillSearchTool(toolContext as any)
-    const skillUseTool = createPiSkillUseTool(toolContext as any)
+    const toolContext = createMockToolContext(workspaceRoot, registry);
+    const skillSearchTool = createPiSkillSearchTool(toolContext as any);
+    const skillUseTool = createPiSkillUseTool(toolContext as any);
 
-    const searchResult = (await executeTool(skillSearchTool, 'call-1', { action: 'search', query: '翻译字幕' })).details as any
-    expect(searchResult.success).toBe(true)
-    expect(searchResult.results).toHaveLength(1)
+    const searchResult = (await executeTool(skillSearchTool, 'call-1', { action: 'search', query: '翻译字幕' })).details as any;
+    expect(searchResult.success).toBe(true);
+    expect(searchResult.results).toHaveLength(1);
     expect(searchResult.results[0]).toMatchObject({
       activationToolIds: ['web-search'],
       allowedToolIds: ['push-card', 'web-search'],
       executionContext: 'inline',
       isDiscovered: true,
       name: 'subtitle-translate'
-    })
-    expect(toolContext.skillSessionState.discoveredSkillNames.has('subtitle-translate')).toBe(true)
+    });
+    expect(toolContext.skillSessionState.discoveredSkillNames.has('subtitle-translate')).toBe(true);
 
-    const previewResult = (await executeTool(skillUseTool, 'call-2', {
-      args: { resourceId: 'res-1', targetLanguage: 'English' },
-      mode: 'preview',
-      skill: '翻译字幕'
-    })).details as any
+    const previewResult = (
+      await executeTool(skillUseTool, 'call-2', {
+        args: { resourceId: 'res-1', targetLanguage: 'English' },
+        mode: 'preview',
+        skill: '翻译字幕'
+      })
+    ).details as any;
 
-    expect(previewResult.success).toBe(true)
-    expect(previewResult.activatedToolNames).toEqual([])
-    expect(previewResult.executionContext).toBe('inline')
-    expect(previewResult.content).toContain('Translate it into English')
-    expect(previewResult.content).toContain('Session: conv-1')
-    expect(previewResult.content).toContain(path.join(workspaceRoot, '.chobits', 'skills', 'subtitle-translate'))
-    expect(toolContext.session.getActiveToolNames()).toEqual(['skillSearchTool', 'skillUseTool'])
+    expect(previewResult.success).toBe(true);
+    expect(previewResult.activatedToolNames).toEqual([]);
+    expect(previewResult.executionContext).toBe('inline');
+    expect(previewResult.content).toContain('Translate it into English');
+    expect(previewResult.content).toContain('Session: conv-1');
+    expect(previewResult.content).toContain(path.join(workspaceRoot, '.chobits', 'skills', 'subtitle-translate'));
+    expect(toolContext.session.getActiveToolNames()).toEqual(['skillSearchTool', 'skillUseTool']);
 
-    const inlineResult = (await executeTool(skillUseTool, 'call-3', {
-      args: { resourceId: 'res-2', targetLanguage: 'Japanese' },
-      mode: 'inline',
-      skill: 'subtitle-translate'
-    })).details as any
+    const inlineResult = (
+      await executeTool(skillUseTool, 'call-3', {
+        args: { resourceId: 'res-2', targetLanguage: 'Japanese' },
+        mode: 'inline',
+        skill: 'subtitle-translate'
+      })
+    ).details as any;
 
-    expect(inlineResult.success).toBe(true)
-    expect(inlineResult.activatedToolNames).toEqual(['webSearchTool'])
-    expect(toolContext.session.getActiveToolNames()).toEqual(['skillSearchTool', 'skillUseTool', 'webSearchTool'])
-    expect(toolContext.skillSessionState.loadedSkillNames.has('subtitle-translate')).toBe(true)
-    expect(toolContext.skillSessionState.activeSkillNames.has('subtitle-translate')).toBe(true)
-    expect(toolContext.skillSessionState.activatedToolNames.has('webSearchTool')).toBe(true)
-  })
+    expect(inlineResult.success).toBe(true);
+    expect(inlineResult.activatedToolNames).toEqual(['webSearchTool']);
+    expect(toolContext.session.getActiveToolNames()).toEqual(['skillSearchTool', 'skillUseTool', 'webSearchTool']);
+    expect(toolContext.skillSessionState.loadedSkillNames.has('subtitle-translate')).toBe(true);
+    expect(toolContext.skillSessionState.activeSkillNames.has('subtitle-translate')).toBe(true);
+    expect(toolContext.skillSessionState.activatedToolNames.has('webSearchTool')).toBe(true);
+  });
 
   it('can use synthetic toolbox skills and activate their suggested tools', async () => {
-    const synthetic = loadSyntheticToolboxSkillEntries()
-    const registry = SkillRegistry.fromEntries(synthetic.entries, synthetic.issues)
-    const toolContext = createMockToolContext(process.cwd(), registry)
-    const skillUseTool = createPiSkillUseTool(toolContext as any)
+    const synthetic = loadSyntheticToolboxSkillEntries();
+    const registry = SkillRegistry.fromEntries(synthetic.entries, synthetic.issues);
+    const toolContext = createMockToolContext(process.cwd(), registry);
+    const skillUseTool = createPiSkillUseTool(toolContext as any);
 
-    const result = (await executeTool(skillUseTool, 'call-4', {
-      mode: 'inline',
-      skill: '网络搜索与网页读取'
-    })).details as any
+    const result = (
+      await executeTool(skillUseTool, 'call-4', {
+        mode: 'inline',
+        skill: '网络搜索与网页读取'
+      })
+    ).details as any;
 
-    expect(result.success).toBe(true)
-    expect(result.executionContext).toBe('inline')
-    expect(result.skill).toBe('网络搜索与网页读取')
-    expect(result.activatedToolNames).toEqual(['webSearchTool', 'webReadTool'])
-    expect(result.content).toContain('webSearchTool')
-    expect(toolContext.skillSessionState.activeSkillNames.has('网络搜索与网页读取')).toBe(true)
-  })
+    expect(result.success).toBe(true);
+    expect(result.executionContext).toBe('inline');
+    expect(result.skill).toBe('网络搜索与网页读取');
+    expect(result.activatedToolNames).toEqual(['webSearchTool', 'webReadTool']);
+    expect(result.content).toContain('webSearchTool');
+    expect(toolContext.skillSessionState.activeSkillNames.has('网络搜索与网页读取')).toBe(true);
+  });
 
   it('surfaces fork/model/effort execution hints without activating the current session tools', async () => {
-    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-skill-tools-fork-'))
-    tempRoots.push(tempRoot)
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-skill-tools-fork-'));
+    tempRoots.push(tempRoot);
 
-    const bundledRoot = path.join(tempRoot, 'bundled')
-    const homeDir = path.join(tempRoot, 'home')
-    const workspaceRoot = path.join(tempRoot, 'repo')
-    const skillFilePath = path.join(workspaceRoot, '.chobits', 'skills', 'forked-review', 'SKILL.md')
+    const bundledRoot = path.join(tempRoot, 'bundled');
+    const homeDir = path.join(tempRoot, 'home');
+    const workspaceRoot = path.join(tempRoot, 'repo');
+    const skillFilePath = path.join(workspaceRoot, '.chobits', 'skills', 'forked-review', 'SKILL.md');
 
-    await fs.mkdir(path.join(workspaceRoot, '.git'), { recursive: true })
+    await fs.mkdir(path.join(workspaceRoot, '.git'), { recursive: true });
     await writeSkill(
       skillFilePath,
       `---
@@ -150,28 +156,28 @@ effort: high
 ---
 1. Review the target in a forked context.
 `
-    )
+    );
 
     const registry = await createSkillRegistry({
       bundledSkillRoot: bundledRoot,
       homeDir,
       includeSyntheticToolbox: false,
       workspaceRoot
-    })
+    });
 
-    const toolContext = createMockToolContext(workspaceRoot, registry)
-    const skillSearchTool = createPiSkillSearchTool(toolContext as any)
-    const skillUseTool = createPiSkillUseTool(toolContext as any)
+    const toolContext = createMockToolContext(workspaceRoot, registry);
+    const skillSearchTool = createPiSkillSearchTool(toolContext as any);
+    const skillUseTool = createPiSkillUseTool(toolContext as any);
 
-    const searchResult = (await executeTool(skillSearchTool, 'call-5', { action: 'get', query: 'forked-review' })).details as any
+    const searchResult = (await executeTool(skillSearchTool, 'call-5', { action: 'get', query: 'forked-review' })).details as any;
     expect(searchResult.skill).toMatchObject({
       effort: 'high',
       executionContext: 'fork',
       model: 'gpt-5.1',
       name: 'forked-review'
-    })
+    });
 
-    const useResult = (await executeTool(skillUseTool, 'call-6', { mode: 'inline', skill: 'forked-review' })).details as any
+    const useResult = (await executeTool(skillUseTool, 'call-6', { mode: 'inline', skill: 'forked-review' })).details as any;
 
     expect(useResult).toMatchObject({
       effort: 'high',
@@ -179,22 +185,22 @@ effort: high
       model: 'gpt-5.1',
       skill: 'forked-review',
       success: true
-    })
-    expect(useResult.activatedToolNames).toEqual([])
-    expect(useResult.warning).toContain('fork execution')
-    expect(toolContext.session.getActiveToolNames()).toEqual(['skillSearchTool', 'skillUseTool'])
-  })
+    });
+    expect(useResult.activatedToolNames).toEqual([]);
+    expect(useResult.warning).toContain('fork execution');
+    expect(toolContext.session.getActiveToolNames()).toEqual(['skillSearchTool', 'skillUseTool']);
+  });
 
   it('runs forked skills through the injected callback when the runtime provides one', async () => {
-    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-skill-tools-fork-runner-'))
-    tempRoots.push(tempRoot)
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-skill-tools-fork-runner-'));
+    tempRoots.push(tempRoot);
 
-    const bundledRoot = path.join(tempRoot, 'bundled')
-    const homeDir = path.join(tempRoot, 'home')
-    const workspaceRoot = path.join(tempRoot, 'repo')
-    const skillFilePath = path.join(workspaceRoot, '.chobits', 'skills', 'forked-review', 'SKILL.md')
+    const bundledRoot = path.join(tempRoot, 'bundled');
+    const homeDir = path.join(tempRoot, 'home');
+    const workspaceRoot = path.join(tempRoot, 'repo');
+    const skillFilePath = path.join(workspaceRoot, '.chobits', 'skills', 'forked-review', 'SKILL.md');
 
-    await fs.mkdir(path.join(workspaceRoot, '.git'), { recursive: true })
+    await fs.mkdir(path.join(workspaceRoot, '.git'), { recursive: true });
     await writeSkill(
       skillFilePath,
       `---
@@ -210,14 +216,14 @@ effort: high
 ---
 1. Review the target in a forked context.
 `
-    )
+    );
 
     const registry = await createSkillRegistry({
       bundledSkillRoot: bundledRoot,
       homeDir,
       includeSyntheticToolbox: false,
       workspaceRoot
-    })
+    });
 
     const runForkedSkill = vi.fn().mockResolvedValue({
       activeToolNames: ['resourceQueryTool'],
@@ -230,13 +236,13 @@ effort: high
           toolName: 'resourceQueryTool'
         }
       ]
-    })
-    const toolContext = createMockToolContext(workspaceRoot, registry, { runForkedSkill })
-    const skillUseTool = createPiSkillUseTool(toolContext as any)
+    });
+    const toolContext = createMockToolContext(workspaceRoot, registry, { runForkedSkill });
+    const skillUseTool = createPiSkillUseTool(toolContext as any);
 
-    const useResult = (await executeTool(skillUseTool, 'call-7', { mode: 'inline', skill: 'forked-review' })).details as any
+    const useResult = (await executeTool(skillUseTool, 'call-7', { mode: 'inline', skill: 'forked-review' })).details as any;
 
-    expect(runForkedSkill).toHaveBeenCalledTimes(1)
+    expect(runForkedSkill).toHaveBeenCalledTimes(1);
     expect(runForkedSkill).toHaveBeenCalledWith(
       expect.objectContaining({
         executionContext: 'fork',
@@ -244,7 +250,7 @@ effort: high
         record: expect.objectContaining({ name: 'forked-review' })
       }),
       { toolCallId: 'call-7' }
-    )
+    );
     expect(useResult.forkedExecution).toMatchObject({
       activeToolNames: ['resourceQueryTool'],
       content: 'forked child finished',
@@ -256,21 +262,21 @@ effort: high
           toolName: 'resourceQueryTool'
         }
       ]
-    })
-    expect(useResult.warning).toBeUndefined()
-    expect(toolContext.session.getActiveToolNames()).toEqual(['skillSearchTool', 'skillUseTool'])
-  })
+    });
+    expect(useResult.warning).toBeUndefined();
+    expect(toolContext.session.getActiveToolNames()).toEqual(['skillSearchTool', 'skillUseTool']);
+  });
 
   it('surfaces plugin source metadata in skill search and use results', async () => {
-    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-skill-tools-plugin-source-'))
-    tempRoots.push(tempRoot)
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-skill-tools-plugin-source-'));
+    tempRoots.push(tempRoot);
 
-    const bundledRoot = path.join(tempRoot, 'bundled')
-    const homeDir = path.join(tempRoot, 'home')
-    const workspaceRoot = path.join(tempRoot, 'repo')
-    const pluginRoot = path.join(tempRoot, 'plugins', 'review-pack')
+    const bundledRoot = path.join(tempRoot, 'bundled');
+    const homeDir = path.join(tempRoot, 'home');
+    const workspaceRoot = path.join(tempRoot, 'repo');
+    const pluginRoot = path.join(tempRoot, 'plugins', 'review-pack');
 
-    await fs.mkdir(path.join(workspaceRoot, '.git'), { recursive: true })
+    await fs.mkdir(path.join(workspaceRoot, '.git'), { recursive: true });
     await writeSkill(
       path.join(pluginRoot, 'review-pack', 'SKILL.md'),
       `---
@@ -280,7 +286,7 @@ user-invocable: true
 ---
 1. Review the selected target.
 `
-    )
+    );
 
     const registry = await createSkillRegistry({
       bundledSkillRoot: bundledRoot,
@@ -288,14 +294,14 @@ user-invocable: true
       includeSyntheticToolbox: false,
       pluginSkillRoots: [pluginRoot],
       workspaceRoot
-    })
+    });
 
-    const toolContext = createMockToolContext(workspaceRoot, registry)
-    const skillSearchTool = createPiSkillSearchTool(toolContext as any)
-    const skillUseTool = createPiSkillUseTool(toolContext as any)
+    const toolContext = createMockToolContext(workspaceRoot, registry);
+    const skillSearchTool = createPiSkillSearchTool(toolContext as any);
+    const skillUseTool = createPiSkillUseTool(toolContext as any);
 
-    const searchResult = (await executeTool(skillSearchTool, 'call-8', { action: 'get', query: 'review-pack' })).details as any
-    const useResult = (await executeTool(skillUseTool, 'call-9', { mode: 'preview', skill: 'review-pack' })).details as any
+    const searchResult = (await executeTool(skillSearchTool, 'call-8', { action: 'get', query: 'review-pack' })).details as any;
+    const useResult = (await executeTool(skillUseTool, 'call-9', { mode: 'preview', skill: 'review-pack' })).details as any;
 
     expect(searchResult.skill).toMatchObject({
       name: 'review-pack',
@@ -309,7 +315,7 @@ user-invocable: true
       },
       trustNote: expect.stringContaining('Plugin-provided skill'),
       trustLevel: 'plugin'
-    })
+    });
     expect(useResult).toMatchObject({
       skill: 'review-pack',
       source: 'plugin',
@@ -322,20 +328,20 @@ user-invocable: true
       },
       trustNote: expect.stringContaining('Plugin-provided skill'),
       trustLevel: 'plugin'
-    })
-    expect(useResult.warning).toContain('Plugin-provided skill')
-  })
+    });
+    expect(useResult.warning).toContain('Plugin-provided skill');
+  });
 
   it('guards high-impact plugin skills unless inline execution is explicitly confirmed', async () => {
-    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-skill-tools-guarded-plugin-'))
-    tempRoots.push(tempRoot)
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-skill-tools-guarded-plugin-'));
+    tempRoots.push(tempRoot);
 
-    const bundledRoot = path.join(tempRoot, 'bundled')
-    const homeDir = path.join(tempRoot, 'home')
-    const workspaceRoot = path.join(tempRoot, 'repo')
-    const pluginRoot = path.join(tempRoot, 'plugins', 'review-pack')
+    const bundledRoot = path.join(tempRoot, 'bundled');
+    const homeDir = path.join(tempRoot, 'home');
+    const workspaceRoot = path.join(tempRoot, 'repo');
+    const pluginRoot = path.join(tempRoot, 'plugins', 'review-pack');
 
-    await fs.mkdir(path.join(workspaceRoot, '.git'), { recursive: true })
+    await fs.mkdir(path.join(workspaceRoot, '.git'), { recursive: true });
     await writeSkill(
       path.join(pluginRoot, 'danger-review', 'SKILL.md'),
       `---
@@ -347,7 +353,7 @@ allowed-tools:
 ---
 1. Run a careful verification workflow.
 `
-    )
+    );
 
     const registry = await createSkillRegistry({
       bundledSkillRoot: bundledRoot,
@@ -355,12 +361,12 @@ allowed-tools:
       includeSyntheticToolbox: false,
       pluginSkillRoots: [pluginRoot],
       workspaceRoot
-    })
+    });
 
-    const toolContext = createMockToolContext(workspaceRoot, registry)
-    const skillUseTool = createPiSkillUseTool(toolContext as any)
+    const toolContext = createMockToolContext(workspaceRoot, registry);
+    const skillUseTool = createPiSkillUseTool(toolContext as any);
 
-    const blockedResult = (await executeTool(skillUseTool, 'call-10', { mode: 'inline', skill: 'danger-review' })).details as any
+    const blockedResult = (await executeTool(skillUseTool, 'call-10', { mode: 'inline', skill: 'danger-review' })).details as any;
     expect(blockedResult).toMatchObject({
       success: false,
       confirmationOutcome: 'blocked',
@@ -375,28 +381,28 @@ allowed-tools:
         riskLevel: 'guarded'
       },
       trustLevel: 'plugin'
-    })
-    expect(blockedResult.nextStep).toContain("mode: 'preview'")
+    });
+    expect(blockedResult.nextStep).toContain("mode: 'preview'");
 
-    const confirmedResult = (await executeTool(skillUseTool, 'call-11', { acknowledgeRisk: true, mode: 'inline', skill: 'danger-review' })).details as any
-    expect(confirmedResult.success).toBe(true)
+    const confirmedResult = (await executeTool(skillUseTool, 'call-11', { acknowledgeRisk: true, mode: 'inline', skill: 'danger-review' })).details as any;
+    expect(confirmedResult.success).toBe(true);
     expect(confirmedResult.sourcePolicy).toMatchObject({
       requiresExplicitUserIntent: true,
       riskLevel: 'guarded'
-    })
-    expect(confirmedResult.warning).toContain('Plugin-provided skill')
-  })
+    });
+    expect(confirmedResult.warning).toContain('Plugin-provided skill');
+  });
 
   it('uses the ask-user interaction channel to resolve guarded skill execution when available', async () => {
-    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-skill-tools-guarded-plugin-choice-'))
-    tempRoots.push(tempRoot)
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-skill-tools-guarded-plugin-choice-'));
+    tempRoots.push(tempRoot);
 
-    const bundledRoot = path.join(tempRoot, 'bundled')
-    const homeDir = path.join(tempRoot, 'home')
-    const workspaceRoot = path.join(tempRoot, 'repo')
-    const pluginRoot = path.join(tempRoot, 'plugins', 'review-pack')
+    const bundledRoot = path.join(tempRoot, 'bundled');
+    const homeDir = path.join(tempRoot, 'home');
+    const workspaceRoot = path.join(tempRoot, 'repo');
+    const pluginRoot = path.join(tempRoot, 'plugins', 'review-pack');
 
-    await fs.mkdir(path.join(workspaceRoot, '.git'), { recursive: true })
+    await fs.mkdir(path.join(workspaceRoot, '.git'), { recursive: true });
     await writeSkill(
       path.join(pluginRoot, 'danger-review', 'SKILL.md'),
       `---
@@ -408,7 +414,7 @@ allowed-tools:
 ---
 1. Run a careful verification workflow.
 `
-    )
+    );
 
     const registry = await createSkillRegistry({
       bundledSkillRoot: bundledRoot,
@@ -416,12 +422,12 @@ allowed-tools:
       includeSyntheticToolbox: false,
       pluginSkillRoots: [pluginRoot],
       workspaceRoot
-    })
+    });
 
-    let choiceRequest: any
+    let choiceRequest: any;
     const toolContext = createMockToolContext(workspaceRoot, registry, {
       emitUserChoiceRequest: (request: unknown) => {
-        choiceRequest = request
+        choiceRequest = request;
       },
       waitForUserChoiceResponse: async () => ({
         answers: {
@@ -429,13 +435,13 @@ allowed-tools:
         },
         choiceId: 'choice-1'
       })
-    })
-    const skillUseTool = createPiSkillUseTool(toolContext as any)
+    });
+    const skillUseTool = createPiSkillUseTool(toolContext as any);
 
-    const previewedResult = (await executeTool(skillUseTool, 'call-12', { mode: 'inline', skill: 'danger-review' })).details as any
+    const previewedResult = (await executeTool(skillUseTool, 'call-12', { mode: 'inline', skill: 'danger-review' })).details as any;
 
-    expect(choiceRequest.prompt).toContain('更严格的执行保护')
-    expect(choiceRequest.questions[0].options.map((option: any) => option.value)).toEqual(['preview', 'inline', 'cancel'])
+    expect(choiceRequest.prompt).toContain('更严格的执行保护');
+    expect(choiceRequest.questions[0].options.map((option: any) => option.value)).toEqual(['preview', 'inline', 'cancel']);
     expect(previewedResult).toMatchObject({
       success: true,
       confirmationOutcome: 'previewed',
@@ -447,14 +453,14 @@ allowed-tools:
         requiresExplicitUserIntent: true,
         riskLevel: 'guarded'
       }
-    })
-    expect(previewedResult.activatedToolNames).toEqual([])
-    expect(previewedResult.warning).toContain('User chose to preview')
-  })
-})
+    });
+    expect(previewedResult.activatedToolNames).toEqual([]);
+    expect(previewedResult.warning).toContain('User chose to preview');
+  });
+});
 
 function createMockToolContext(workspaceRoot: string, registry: SkillRegistry, overrides: Record<string, unknown> = {}) {
-  const activeToolNames = ['skillSearchTool', 'skillUseTool']
+  const activeToolNames = ['skillSearchTool', 'skillUseTool'];
 
   return {
     coding: {
@@ -469,20 +475,20 @@ function createMockToolContext(workspaceRoot: string, registry: SkillRegistry, o
       getActiveToolNames: () => [...activeToolNames],
       getAllTools: () => activeToolNames.map((name) => ({ description: name, name })),
       setActiveToolsByName: (names: string[]) => {
-        activeToolNames.splice(0, activeToolNames.length, ...names)
+        activeToolNames.splice(0, activeToolNames.length, ...names);
       }
     },
     skillRegistry: registry,
     skillSessionState: createSkillSessionState(),
     ...overrides
-  }
+  };
 }
 
 async function writeSkill(skillFilePath: string, content: string) {
-  await fs.mkdir(path.dirname(skillFilePath), { recursive: true })
-  await fs.writeFile(skillFilePath, content, 'utf8')
+  await fs.mkdir(path.dirname(skillFilePath), { recursive: true });
+  await fs.writeFile(skillFilePath, content, 'utf8');
 }
 
 async function executeTool(tool: any, toolCallId: string, input: any) {
-  return tool.execute(toolCallId, input)
+  return tool.execute(toolCallId, input);
 }

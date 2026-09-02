@@ -10,8 +10,8 @@
  * Usage:
  *   // External module (e.g. sprite-core) registers at startup:
  *   registerSystemPromptEnricher({
- *     id: 'character-persona',
- *     resolve: (ctx) => buildPersonaPrompt(ctx),
+ *     id: 'character-prompt',
+ *     resolve: (ctx) => buildCharacterPrompt(ctx),
  *   });
  *
  *   // AI module calls enrichers when building system prompt:

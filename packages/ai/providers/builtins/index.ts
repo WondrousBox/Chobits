@@ -29,4 +29,18 @@ export const BUILTIN_PROVIDER_DEFINITIONS: BuiltinProviderDefinition[] = [
   zhipuDefinition
 ];
 
-export { anthropicDefinition, deepseekDefinition, geminiDefinition, gptSovitsDefinition, gpteamDefinition, kimiDefinition, minimaxDefinition, ollamaDefinition, openaiDefinition, qwenDefinition, vllmDefinition, zaiDefinition, zhipuDefinition };
+export {
+  anthropicDefinition,
+  deepseekDefinition,
+  geminiDefinition,
+  gpteamDefinition,
+  gptSovitsDefinition,
+  kimiDefinition,
+  minimaxDefinition,
+  ollamaDefinition,
+  openaiDefinition,
+  qwenDefinition,
+  vllmDefinition,
+  zaiDefinition,
+  zhipuDefinition
+};

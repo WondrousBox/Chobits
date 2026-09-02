@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { SpritePurposeHistoryEntry, SpriteRoutine, SpriteRoutinePresetDefinition, SpriteRoutineRunResult, SpriteRoutineRunner } from '../../packages/sprite-core/purpose';
+import type { SpritePurposeHistoryEntry, SpriteRoutine, SpriteRoutinePresetDefinition, SpriteRoutineRunner, SpriteRoutineRunResult } from '../../packages/sprite-core/purpose';
 import { SpritePurposeManager, SpriteRoutinePresetRegistry } from '../../packages/sprite-core/purpose';
 
 async function waitFor(predicate: () => boolean, timeoutMs = 200): Promise<void> {
@@ -84,10 +84,7 @@ function createManager() {
   const controlled = createControlledRunner();
   const manager = new SpritePurposeManager({
     runner: controlled.runner,
-    presets: new SpriteRoutinePresetRegistry([
-      holdPreset('idle.presence', 'idle.presence', 10),
-      holdPreset('file.drop.intake', 'file.drop.intake', 100)
-    ]),
+    presets: new SpriteRoutinePresetRegistry([holdPreset('idle.presence', 'idle.presence', 10), holdPreset('file.drop.intake', 'file.drop.intake', 100)]),
     history: {
       append(entry) {
         history.push(entry);

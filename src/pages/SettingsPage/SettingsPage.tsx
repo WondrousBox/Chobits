@@ -97,6 +97,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = EM
   // 当 defaultCategory 变化时，更新 activeCategory
   useEffect(() => {
     if (defaultCategory) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 外部指定默认分类时同步选中,有意跟随 prop
       setActiveCategory(defaultCategory);
     }
   }, [defaultCategory]);

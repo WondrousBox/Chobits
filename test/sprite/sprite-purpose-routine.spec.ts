@@ -378,7 +378,7 @@ describe('SpriteRoutineRunner', () => {
         type: 'waitForEvent',
         source: 'app-event',
         event: 'APP_WINDOW_OPENED',
-        match: { windowKey: ['assistant', 'assistantMini', 'chat', 'chatOverlay'] },
+        match: { windowKey: ['chatPanel', 'chatMini', 'chat', 'chatOverlay'] },
         timeoutMs: 100
       },
       routine
@@ -392,12 +392,12 @@ describe('SpriteRoutineRunner', () => {
     waiter.emit({
       source: 'app-event',
       event: 'APP_WINDOW_OPENED',
-      payload: { windowKey: 'assistantMini' }
+      payload: { windowKey: 'chatMini' }
     });
 
     await expect(promise).resolves.toMatchObject({
       event: 'APP_WINDOW_OPENED',
-      payload: { windowKey: 'assistantMini' }
+      payload: { windowKey: 'chatMini' }
     });
   });
 
@@ -418,11 +418,11 @@ describe('SpriteRoutineRunner', () => {
         id: 'wait-inventory-open',
         type: 'waitForEvent',
         source: 'app-event',
-        event: 'ASSISTANT_MENU_ITEM_SELECTED',
+        event: 'SPRITE_MENU_ITEM_SELECTED',
         match: {
           itemId: 'inventory',
           windowKey: 'inventory',
-          'payload.source': 'assistant-context-menu'
+          'payload.source': 'sprite-context-menu'
         },
         timeoutMs: 100
       },
@@ -431,17 +431,17 @@ describe('SpriteRoutineRunner', () => {
 
     waiter.emit({
       source: 'app-event',
-      event: 'ASSISTANT_MENU_ITEM_SELECTED',
+      event: 'SPRITE_MENU_ITEM_SELECTED',
       payload: {
         itemId: 'inventory',
         windowKey: 'inventory',
-        source: 'assistant-context-menu'
+        source: 'sprite-context-menu'
       }
     });
 
     await expect(promise).resolves.toMatchObject({
       source: 'app-event',
-      payload: { source: 'assistant-context-menu' }
+      payload: { source: 'sprite-context-menu' }
     });
   });
 
@@ -2146,7 +2146,7 @@ describe('SpriteRoutinePresetRegistry', () => {
           type: 'loopUntil',
           source: 'app-event',
           untilEvent: ['APP_WINDOW_OPENED'],
-          match: { windowKey: ['assistant', 'assistantMini', 'chat'] },
+          match: { windowKey: ['chatPanel', 'chatMini', 'chat'] },
           assignTo: 'firstChatWindowOpened'
         })
       ])
@@ -2216,7 +2216,7 @@ describe('SpriteRoutinePresetRegistry', () => {
             event: 'APP_WINDOW_OPENED',
             timestamp: Date.now(),
             payload: {
-              windowKey: 'assistant',
+              windowKey: 'chatPanel',
               source: 'renderer-window-open'
             }
           };
@@ -2276,7 +2276,7 @@ describe('SpriteRoutinePresetRegistry', () => {
             source: 'app-event',
             event: 'APP_WINDOW_OPENED',
             timestamp: Date.now(),
-            payload: { windowKey: 'assistant' }
+            payload: { windowKey: 'chatPanel' }
           };
         }
         return pending(signal);
@@ -2433,14 +2433,7 @@ describe('SpriteRoutinePresetRegistry', () => {
     const result = await runner.run(routine);
 
     expect(result.ok, result.error).toBe(true);
-    expect(calls).toEqual(
-      expect.arrayContaining([
-        'play:welcome',
-        'speak:invite-file-drop-notice:可以把文件拖拽给我',
-        'play:celebrate',
-        'speak:first-file-drop-done:收到啦！已经放到背包。'
-      ])
-    );
+    expect(calls).toEqual(expect.arrayContaining(['play:welcome', 'speak:invite-file-drop-notice:可以把文件拖拽给我', 'play:celebrate', 'speak:first-file-drop-done:收到啦！已经放到背包。']));
   });
 
   it('keeps the workspace onboarding loop alive after the wizard is closed without creation', async () => {

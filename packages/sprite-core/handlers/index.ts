@@ -6,7 +6,7 @@
  */
 
 export type { SpriteAssetsDeps } from './sprite-assets';
-export { getDefaultSpritesDir, initSpriteHandlers, listSprites } from './sprite-assets';
+export { getDefaultCharactersDir, initSpriteHandlers, listSprites } from './sprite-assets';
 export type { SpriteEventPayload } from './sprite-event-listener';
 export { initSpriteEventListener } from './sprite-event-listener';
 export { initSpriteManagerHandlers } from './sprite-manager-ipc';

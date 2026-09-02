@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest';
 
-import { buildSkillDiscoveryPrompt, buildSkillListingPrompt, createSkillSessionState, SkillRegistry } from '../../packages/ai/runtime/pi/skills'
-import type { SkillRegistryEntry } from '../../packages/ai/runtime/pi/skills'
+import type { SkillRegistryEntry } from '../../packages/ai/runtime/pi/skills';
+import { buildSkillDiscoveryPrompt, buildSkillListingPrompt, createSkillSessionState, SkillRegistry } from '../../packages/ai/runtime/pi/skills';
 
 describe('skill prompt helpers', () => {
   it('builds a limited skill listing from model-visible skills', () => {
@@ -20,16 +20,16 @@ describe('skill prompt helpers', () => {
         disableModelInvocation: true,
         name: 'internal-hidden'
       })
-    ])
+    ]);
 
-    const prompt = buildSkillListingPrompt(registry, { limit: 1 })
+    const prompt = buildSkillListingPrompt(registry, { limit: 1 });
 
-    expect(prompt).toContain('## Available Skills')
-    expect(prompt).toContain('`subtitle-summary`')
-    expect(prompt).toContain('source: Bundled')
-    expect(prompt).not.toContain('`internal-hidden`')
-    expect(prompt).toContain('还有 1 个 skills 未展开')
-  })
+    expect(prompt).toContain('## Available Skills');
+    expect(prompt).toContain('`subtitle-summary`');
+    expect(prompt).toContain('source: Bundled');
+    expect(prompt).not.toContain('`internal-hidden`');
+    expect(prompt).toContain('还有 1 个 skills 未展开');
+  });
 
   it('builds turn-level discovery prompts and marks discovered skills in session state', () => {
     const registry = SkillRegistry.fromEntries([
@@ -46,22 +46,22 @@ describe('skill prompt helpers', () => {
         paths: ['packages/mobile/**'],
         whenToUse: 'Use in the mobile workspace.'
       })
-    ])
+    ]);
 
-    const state = createSkillSessionState()
+    const state = createSkillSessionState();
     const prompt = buildSkillDiscoveryPrompt(registry, {
       query: '帮我翻译字幕',
       state,
       workspaceRoot: '/repo/packages/ai/runtime'
-    })
+    });
 
-    expect(prompt).toContain('## Relevant Skills For This Request')
-    expect(prompt).toContain('`subtitle-translate`')
-    expect(prompt).toContain('Source: Bundled')
-    expect(prompt).not.toContain('`mobile-subtitle-translate`')
-    expect(state.discoveredSkillNames.has('subtitle-translate')).toBe(true)
-    expect(state.lastDiscoveryAt).toBeTypeOf('number')
-  })
+    expect(prompt).toContain('## Relevant Skills For This Request');
+    expect(prompt).toContain('`subtitle-translate`');
+    expect(prompt).toContain('Source: Bundled');
+    expect(prompt).not.toContain('`mobile-subtitle-translate`');
+    expect(state.discoveredSkillNames.has('subtitle-translate')).toBe(true);
+    expect(state.lastDiscoveryAt).toBeTypeOf('number');
+  });
 
   it('adds source caution for plugin skills in listing and discovery prompts', () => {
     const registry = SkillRegistry.fromEntries([
@@ -78,25 +78,25 @@ describe('skill prompt helpers', () => {
         },
         whenToUse: 'Use when the user asks for a deeper review.'
       })
-    ])
+    ]);
 
-    const listingPrompt = buildSkillListingPrompt(registry, { limit: 5 })
+    const listingPrompt = buildSkillListingPrompt(registry, { limit: 5 });
     const discoveryPrompt = buildSkillDiscoveryPrompt(registry, {
       query: 'please review this change',
       workspaceRoot: '/repo'
-    })
+    });
 
-    expect(listingPrompt).toContain('source: Plugin: review-pack')
-    expect(listingPrompt).toContain('caution: Plugin-provided skill.')
-    expect(listingPrompt).toContain('guard:')
-    expect(discoveryPrompt).toContain('Source: Plugin: review-pack')
-    expect(discoveryPrompt).toContain('Caution: Plugin-provided skill.')
-    expect(discoveryPrompt).toContain('Guard:')
-  })
-})
+    expect(listingPrompt).toContain('source: Plugin: review-pack');
+    expect(listingPrompt).toContain('caution: Plugin-provided skill.');
+    expect(listingPrompt).toContain('guard:');
+    expect(discoveryPrompt).toContain('Source: Plugin: review-pack');
+    expect(discoveryPrompt).toContain('Caution: Plugin-provided skill.');
+    expect(discoveryPrompt).toContain('Guard:');
+  });
+});
 
 function createEntry(overrides: Partial<SkillRegistryEntry['record']> = {}): SkillRegistryEntry {
-  const name = overrides.name || 'skill'
+  const name = overrides.name || 'skill';
 
   return {
     locator: { kind: 'skill-file' },
@@ -121,5 +121,5 @@ function createEntry(overrides: Partial<SkillRegistryEntry['record']> = {}): Ski
       whenToUse: undefined,
       ...overrides
     }
-  }
+  };
 }

@@ -149,17 +149,17 @@ export function initSystemHandlers(): void {
   ipcMain.handle('system:microphone:request-access', async () => {
     try {
       if (process.platform === 'linux') {
-        return { ok: true, granted: true } as const;
+        return { ok: true, isGranted: true } as const;
       }
       if (process.platform === 'darwin') {
-        const granted = await systemPreferences.askForMediaAccess('microphone');
+        const isGranted = await systemPreferences.askForMediaAccess('microphone');
         notifySpriteCapabilityChanged({ source: 'microphone-access' });
-        return { ok: true, granted } as const;
+        return { ok: true, isGranted } as const;
       }
       // Windows 无运行时请求接口,授权在系统设置里管理,这里只回报当前状态
-      const granted = systemPreferences.getMediaAccessStatus('microphone') === 'granted';
+      const isGranted = systemPreferences.getMediaAccessStatus('microphone') === 'granted';
       notifySpriteCapabilityChanged({ source: 'microphone-access' });
-      return { ok: true, granted } as const;
+      return { ok: true, isGranted } as const;
     } catch (error) {
       return { ok: false, error: String(error) } as const;
     }

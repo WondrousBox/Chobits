@@ -19,8 +19,7 @@ export const qwenDefinition: BuiltinProviderDefinition = {
   source: 'builtin',
   display: {
     label: '通义千问 (Qwen)',
-    description:
-      "Qwen is Alibaba Cloud's large-scale language model with strong understanding and generation, covering Q&A, writing, opinion expression, and code across many domains.",
+    description: "Qwen is Alibaba Cloud's large-scale language model with strong understanding and generation, covering Q&A, writing, opinion expression, and code across many domains.",
     icon: 'providers/icons/qwen-color.svg',
     website: 'https://www.aliyun.com/product/bailian'
   },

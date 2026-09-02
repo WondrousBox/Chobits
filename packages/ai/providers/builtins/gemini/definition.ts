@@ -21,9 +21,7 @@ const geminiSchema: ProviderConfig = {
       }
     }
   },
-  fields: [
-    { key: 'apiKey', label: 'API Key', type: 'password', required: true }
-  ]
+  fields: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }]
 };
 
 export const geminiDefinition: BuiltinProviderDefinition = {

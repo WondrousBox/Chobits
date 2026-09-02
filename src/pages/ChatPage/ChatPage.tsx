@@ -68,7 +68,7 @@ interface ChatWindowPayload {
   codingWorkspaceRoot?: string;
   codingWorkspaceLabel?: string;
   webSearchEnabled?: boolean;
-  characterPersonaEnabled?: boolean;
+  characterPromptEnabled?: boolean;
 }
 
 async function resolveInitialChatModelId(providerId: string, presetId?: string): Promise<string> {
@@ -98,14 +98,14 @@ export default function ChatPage(): JSX.Element {
     codingWorkspaceRoot,
     codingWorkspaceLabel,
     webSearchEnabled,
-    characterPersonaEnabled,
+    characterPromptEnabled,
     setProviderId,
     setModelId,
     setPresetId,
     setAgentId,
     setCodingWorkspace,
     setWebSearchEnabled,
-    setCharacterPersonaEnabled
+    setCharacterPromptEnabled
   } = useChatSelection();
   const [messages, setMessages] = useState<ChatUiMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -115,7 +115,7 @@ export default function ChatPage(): JSX.Element {
   const [conversations, setConversations] = useState<any[]>([]);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [loadingConversations, setLoadingConversations] = useState(false);
-  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
   const [renamingConvId, setRenamingConvId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [pendingConversationTitle, setPendingConversationTitle] = useState<string | null>(null);
@@ -123,10 +123,10 @@ export default function ChatPage(): JSX.Element {
   const [generatingTitleIds, setGeneratingTitleIds] = useState<Set<string>>(new Set());
 
   // 控制历史会话列表的显示/隐藏，默认隐藏
-  const [showHistory, setShowHistory] = useState(false);
+  const [isHistoryVisible, setIsHistoryVisible] = useState(false);
 
   // 删除确认弹窗状态
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deletingConvId, setDeletingConvId] = useState<string | null>(null);
   const initialConfigGuideRanRef = useRef(false);
   const handledPayloadKeysRef = useRef<Map<string, number>>(new Map());
@@ -134,7 +134,7 @@ export default function ChatPage(): JSX.Element {
 
   const currentConversation = useMemo(() => conversations.find((c) => c.id === conversationId) || null, [conversations, conversationId]);
   const conversationUsage = useMemo(() => sumTokenUsage(messages), [messages]);
-  const showEmptyStart = messages.length === 0;
+  const shouldShowEmptyStart = messages.length === 0;
 
   const clearPendingPayloadStartTimer = useCallback((): void => {
     if (pendingPayloadStartTimerRef.current === null) return;
@@ -282,21 +282,21 @@ export default function ChatPage(): JSX.Element {
     const current = conversations.find((c) => c.id === id);
     setRenamingConvId(id);
     setNewTitle(current?.title || '');
-    setRenameDialogOpen(true);
+    setIsRenameDialogOpen(true);
   };
 
   // Apply rename
   const applyRename = async (): Promise<void> => {
     if (!renamingConvId) return;
     await window.chobits.ai.renameConversation(renamingConvId, newTitle.trim() || '未命名会话');
-    setRenameDialogOpen(false);
+    setIsRenameDialogOpen(false);
     await loadConversations();
   };
 
   // 打开删除确认弹窗
   const openDeleteDialog = (id: string): void => {
     setDeletingConvId(id);
-    setDeleteDialogOpen(true);
+    setIsDeleteDialogOpen(true);
   };
 
   // 确认永久删除会话
@@ -313,7 +313,7 @@ export default function ChatPage(): JSX.Element {
       console.error(e);
       toast.error('删除失败');
     } finally {
-      setDeleteDialogOpen(false);
+      setIsDeleteDialogOpen(false);
       setDeletingConvId(null);
     }
   };
@@ -330,7 +330,7 @@ export default function ChatPage(): JSX.Element {
         codingWorkspaceRoot?: string;
         codingWorkspaceLabel?: string;
         webSearchEnabled?: boolean;
-        characterPersonaEnabled?: boolean;
+        characterPromptEnabled?: boolean;
       }) => Promise<void>
     >();
 
@@ -357,11 +357,11 @@ export default function ChatPage(): JSX.Element {
       if (typeof payload.webSearchEnabled === 'boolean') {
         setWebSearchEnabled(payload.webSearchEnabled);
       }
-      if (typeof payload.characterPersonaEnabled === 'boolean') {
-        setCharacterPersonaEnabled(payload.characterPersonaEnabled);
+      if (typeof payload.characterPromptEnabled === 'boolean') {
+        setCharacterPromptEnabled(payload.characterPromptEnabled);
       }
     },
-    [setAgentId, setCharacterPersonaEnabled, setCodingWorkspace, setModelId, setPresetId, setProviderId, setWebSearchEnabled]
+    [setAgentId, setCharacterPromptEnabled, setCodingWorkspace, setModelId, setPresetId, setProviderId, setWebSearchEnabled]
   );
 
   // Listen for initial message or mode switch payload from assistant/chat windows.
@@ -402,7 +402,7 @@ export default function ChatPage(): JSX.Element {
           codingWorkspaceRoot: payload.codingWorkspaceRoot,
           codingWorkspaceLabel: payload.codingWorkspaceLabel,
           webSearchEnabled: payload.webSearchEnabled,
-          characterPersonaEnabled: payload.characterPersonaEnabled
+          characterPromptEnabled: payload.characterPromptEnabled
         });
       }, 50);
     };
@@ -456,7 +456,7 @@ export default function ChatPage(): JSX.Element {
   }, []);
 
   // Smart auto-scroll: only scrolls when user is at bottom（声明需在 start 之前，后者会调用 resetAutoScroll）
-  const { containerRef: scrollContainerRef, showScrollButton, scrollToBottom, resetAutoScroll } = useAutoScroll([messages, isLoading]);
+  const { containerRef: scrollContainerRef, isScrollButtonVisible, scrollToBottom, resetAutoScroll } = useAutoScroll([messages, isLoading]);
 
   const start = async (params: {
     content: string;
@@ -467,7 +467,7 @@ export default function ChatPage(): JSX.Element {
     codingWorkspaceRoot?: string;
     codingWorkspaceLabel?: string;
     webSearchEnabled?: boolean;
-    characterPersonaEnabled?: boolean;
+    characterPromptEnabled?: boolean;
   }): Promise<void> => {
     const content = params.content;
     const selectedProviderId = params.providerId || providerId;
@@ -547,7 +547,7 @@ export default function ChatPage(): JSX.Element {
           ...(realtimeSpeechPromptContext ? { realtimeSpeech: realtimeSpeechPromptContext } : {}),
           ...(explicitSkillInvocation ? { explicitSkillInvocation } : {}),
           ...(params.webSearchEnabled ? { webSearchEnabled: true } : {}),
-          ...(params.characterPersonaEnabled ? { characterPersonaEnabled: true } : {}),
+          ...(params.characterPromptEnabled ? { characterPromptEnabled: true } : {}),
           ...(selectedAgentId === 'coder' && selectedCodingWorkspaceRoot
             ? {
                 codingWorkspaceRoot: selectedCodingWorkspaceRoot,
@@ -785,7 +785,7 @@ export default function ChatPage(): JSX.Element {
       {/* 主体：左侧历史列表（可折叠） + 右侧聊天区 */}
       <div className="flex-1 min-h-0 flex overflow-hidden">
         {/* 左侧：历史会话（可折叠，默认隐藏） */}
-        {showHistory && (
+        {isHistoryVisible && (
           <div className="w-64 border-r shrink-0 flex flex-col bg-muted">
             <div className="p-2 flex items-center gap-1 shrink-0">
               <Button size="icon" variant="outline" className="w-8 h-8 rounded-full" onClick={loadConversations} title="刷新列表">
@@ -879,11 +879,11 @@ export default function ChatPage(): JSX.Element {
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden relative">
           {/* 展开/收起历史按钮 */}
           <div className="absolute top-2 left-2 z-10">
-            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setShowHistory(!showHistory)} title={showHistory ? '收起历史' : '展开历史'}>
-              {showHistory ? <TbChevronRight className="w-4 h-4" /> : <TbHistory className="w-4 h-4" />}
+            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setIsHistoryVisible(!isHistoryVisible)} title={isHistoryVisible ? '收起历史' : '展开历史'}>
+              {isHistoryVisible ? <TbChevronRight className="w-4 h-4" /> : <TbHistory className="w-4 h-4" />}
             </Button>
           </div>
-          {showEmptyStart && (
+          {shouldShowEmptyStart && (
             <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
               <div className="text-center text-lg mb-4">今天有什么能帮到你？</div>
               {/* 固定的常用应用卡片（防止被误删，先放这里） */}
@@ -984,7 +984,7 @@ export default function ChatPage(): JSX.Element {
                 <ScrollAreaPrimitive.Corner />
               </ScrollAreaPrimitive.Root>
               {/* Scroll-to-bottom button */}
-              {showScrollButton && (
+              {isScrollButtonVisible && (
                 <button
                   className="absolute bottom-24 right-6 z-20 flex items-center justify-center w-9 h-9 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-opacity"
                   onClick={() => scrollToBottom(true)}
@@ -1002,7 +1002,7 @@ export default function ChatPage(): JSX.Element {
       </div>
 
       {/* 重命名对话框 */}
-      <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
+      <Dialog open={isRenameDialogOpen} onOpenChange={setIsRenameDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>重命名对话</DialogTitle>
@@ -1016,7 +1016,7 @@ export default function ChatPage(): JSX.Element {
             autoFocus
           />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRenameDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsRenameDialogOpen(false)}>
               取消
             </Button>
             <Button onClick={applyRename}>确定</Button>
@@ -1025,7 +1025,7 @@ export default function ChatPage(): JSX.Element {
       </Dialog>
 
       {/* 删除确认弹窗 */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>删除对话</AlertDialogTitle>

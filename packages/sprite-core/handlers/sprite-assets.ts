@@ -40,7 +40,7 @@ interface SpriteIndexTarget {
   indexPath: string;
   containmentRootDir: string;
   source: CharacterPackRuntimeSource | 'user' | 'resource-fallback';
-  writable: boolean;
+  isWritable: boolean;
 }
 
 interface SpriteIndexReadOptions {
@@ -54,9 +54,7 @@ export interface SpriteAssetsChangeEvent {
   id?: string;
 }
 
-type SpriteAnimationConfigPatch = Partial<
-  Pick<SpriteAnimation, 'width' | 'height' | 'padding' | 'loop' | 'loopCount' | 'autoIdle' | 'durationMs' | 'loopStartMs' | 'loopEndMs' | 'movement'>
-> & {
+type SpriteAnimationConfigPatch = Partial<Pick<SpriteAnimation, 'width' | 'height' | 'padding' | 'loop' | 'loopCount' | 'autoIdle' | 'durationMs' | 'loopStartMs' | 'loopEndMs' | 'movement'>> & {
   meta?: Partial<SpriteAnimation['meta']>;
 };
 
@@ -105,11 +103,11 @@ async function ensureDirs(dir: string): Promise<void> {
 
 const SETTINGS_DIR = path.join(app.getPath('userData'), 'data');
 
-export async function getDefaultSpritesDir(): Promise<string> {
+export async function getDefaultCharactersDir(): Promise<string> {
   // Packaged resources (read-only)
-  const spritesDir = deps().getResourcePath('sprites');
-  deps().addAllowedResourceRoot(spritesDir! as string);
-  return spritesDir!;
+  const charactersDir = deps().getResourcePath('characters');
+  deps().addAllowedResourceRoot(charactersDir! as string);
+  return charactersDir!;
 }
 
 function normalizeSpriteIndexPath(candidate: string): string {
@@ -149,26 +147,26 @@ async function getDefaultSpritesIndexTarget(): Promise<SpriteIndexTarget> {
       indexPath: normalizeSpriteIndexPath(packAnimationsPath),
       containmentRootDir,
       source,
-      writable: source === 'installed'
+      isWritable: source === 'installed'
     };
   }
 
-  const spritesDir = await getDefaultSpritesDir();
+  const charactersDir = await getDefaultCharactersDir();
   return {
-    indexPath: path.join(spritesDir, 'index.json'),
-    containmentRootDir: spritesDir,
+    indexPath: path.join(charactersDir, 'index.json'),
+    containmentRootDir: charactersDir,
     source: 'resource-fallback',
-    writable: false
+    isWritable: false
   };
 }
 
 async function getBuiltinSpritesIndexTarget(): Promise<SpriteIndexTarget> {
-  const spritesDir = await getDefaultSpritesDir();
+  const charactersDir = await getDefaultCharactersDir();
   return {
-    indexPath: readDeclaredAnimationsIndexPath(spritesDir) ?? path.join(spritesDir, 'index.json'),
-    containmentRootDir: spritesDir,
+    indexPath: readDeclaredAnimationsIndexPath(charactersDir) ?? path.join(charactersDir, 'index.json'),
+    containmentRootDir: charactersDir,
     source: 'resource-fallback',
-    writable: false
+    isWritable: false
   };
 }
 
@@ -185,7 +183,7 @@ async function getUserSpritesIndexTarget(): Promise<SpriteIndexTarget> {
     indexPath: path.join(userDir, 'index.json'),
     containmentRootDir: userDir,
     source: 'user',
-    writable: true
+    isWritable: true
   };
 }
 
@@ -433,7 +431,7 @@ function getWritableIndexContainmentRoots(writableTarget: SpriteIndexTarget, def
 
 async function getWritableSpritesIndexTarget(defaultIndex?: SpriteIndexTarget): Promise<SpriteIndexTarget> {
   const activeIndex = defaultIndex ?? (await getDefaultSpritesIndexTarget());
-  if (activeIndex.writable) {
+  if (activeIndex.isWritable) {
     await ensureDirs(path.dirname(activeIndex.indexPath));
     deps().addAllowedResourceRoot(activeIndex.containmentRootDir);
     return activeIndex;
@@ -521,7 +519,7 @@ async function readBuiltinIdleFallbackSprites(defaultIndex: SpriteIndexTarget, d
 export async function listSprites(): Promise<SpriteAnimation[]> {
   const { defaultIndex, defaultSprites, userSprites } = await readVisibleSpriteIndexes();
   // tag origin and deletable
-  const withFlagsDefault = defaultSprites.items.map((it) => withDeletableFlag(it, defaultIndex.writable));
+  const withFlagsDefault = defaultSprites.items.map((it) => withDeletableFlag(it, defaultIndex.isWritable));
   const withFallbackIdle = await readBuiltinIdleFallbackSprites(defaultIndex, defaultSprites);
   const withFlagsUser = userSprites.items.map((it) => withDeletableFlag(it, true));
   // Merge: user overrides default on same id
@@ -547,11 +545,11 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
 
   ipcMain.handle('sprite:list-by-trigger', handleListByTrigger);
 
-  ipcMain.handle('sprite:get', async (_e, payload: { id: string }) => {
+  ipcMain.handle('sprite:get', async (_event, payload: { id: string }) => {
     return (await listSprites()).find((item) => item.meta.id === payload.id);
   });
 
-  ipcMain.handle('sprite:register', async (_e, payload: (Partial<SpriteAnimation> & { filePath?: string }) | { animation?: Partial<SpriteAnimation> & { filePath?: string } }) => {
+  ipcMain.handle('sprite:register', async (_event, payload: (Partial<SpriteAnimation> & { filePath?: string }) | { animation?: Partial<SpriteAnimation> & { filePath?: string } }) => {
     ensureAssetAuthoringCapability();
 
     // Support both direct payload and wrapped { animation } format
@@ -715,7 +713,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
     }
   );
 
-  ipcMain.handle('sprite:remove', async (_e, payload: { id: string; deleteFile?: boolean }) => {
+  ipcMain.handle('sprite:remove', async (_event, payload: { id: string; deleteFile?: boolean }) => {
     ensureAssetAuthoringCapability();
 
     const { id, deleteFile } = payload || ({} as any);
@@ -736,7 +734,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
     return { ok: true };
   });
 
-  ipcMain.handle('sprite:update-meta', async (_e, payload: { id: string; meta: Partial<SpriteAnimation['meta']> }) => {
+  ipcMain.handle('sprite:update-meta', async (_event, payload: { id: string; meta: Partial<SpriteAnimation['meta']> }) => {
     ensureAssetAuthoringCapability();
 
     const { id, meta } = payload || ({} as any);
@@ -744,7 +742,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
     const normalizedMetaPatch = normalizeSpriteAnimationMetaPatch(meta);
     const { defaultIndex, defaultSprites, userIndex, userSprites } = await readVisibleSpriteIndexes();
 
-    if (defaultIndex.writable) {
+    if (defaultIndex.isWritable) {
       const defaultIndexItem = defaultSprites.items.find((i) => i.meta.id === id);
       if (!defaultIndexItem) {
         return { ok: false };
@@ -811,7 +809,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
     return { ok: false };
   });
 
-  ipcMain.handle('sprite:update-config', async (_e, payload: { id: string; patch: SpriteAnimationConfigPatch }) => {
+  ipcMain.handle('sprite:update-config', async (_event, payload: { id: string; patch: SpriteAnimationConfigPatch }) => {
     ensureAssetAuthoringCapability();
 
     const { id, patch } = payload || ({} as any);
@@ -819,7 +817,7 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
 
     const { defaultIndex, defaultSprites, userIndex, userSprites } = await readVisibleSpriteIndexes();
 
-    if (defaultIndex.writable) {
+    if (defaultIndex.isWritable) {
       const indexItemIndex = defaultSprites.items.findIndex((i) => i.meta.id === id);
       if (indexItemIndex === -1) {
         return { ok: false };

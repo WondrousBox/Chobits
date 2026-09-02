@@ -49,7 +49,7 @@ describe('character capability context flags', () => {
         examples: [],
         quirks: []
       },
-      favorPersona: {},
+      favorTiers: {},
       moodExpressions: {},
       dimensions: {
         schema: [],
@@ -118,7 +118,7 @@ describe('character capability context flags', () => {
         examples: [],
         quirks: []
       },
-      favorPersona: {},
+      favorTiers: {},
       moodExpressions: {},
       dimensions: {
         schema: [],

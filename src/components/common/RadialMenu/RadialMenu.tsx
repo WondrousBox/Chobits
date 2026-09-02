@@ -223,7 +223,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, isOpen = true, an
   const [activeParentIndex, setActiveParentIndex] = useState<number | null>(null);
   const [subSelectedIndex, setSubSelectedIndex] = useState(0);
   // When returning from level-2 to level-1, skip staggered entrance animation for level-1 items
-  const [skipL1Stagger, setSkipL1Stagger] = useState(false);
+  const [shouldSkipL1Stagger, setShouldSkipL1Stagger] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const { level1, level2 } = { ...defaultRadii, ...(radii ?? {}) } as Required<typeof defaultRadii>;
@@ -282,7 +282,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, isOpen = true, an
       // ESC to close / back
       if (e.key === 'Escape') {
         if (isSubMenuOpen) {
-          setSkipL1Stagger(true);
+          setShouldSkipL1Stagger(true);
           setIsSubMenuOpen(false);
           setActiveParentIndex(null);
           return;
@@ -349,11 +349,11 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, isOpen = true, an
 
   // Reset the one-shot flag after level-1 is shown again
   useEffect(() => {
-    if (!isSubMenuOpen && skipL1Stagger) {
-      const id = setTimeout(() => setSkipL1Stagger(false), 0);
+    if (!isSubMenuOpen && shouldSkipL1Stagger) {
+      const id = setTimeout(() => setShouldSkipL1Stagger(false), 0);
       return () => clearTimeout(id);
     }
-  }, [isSubMenuOpen, skipL1Stagger]);
+  }, [isSubMenuOpen, shouldSkipL1Stagger]);
 
   const getItemPosition = (index: number, total: number, radius: number): { x: number; y: number } => {
     const angle = (index * 2 * Math.PI) / Math.max(total, 1) - Math.PI / 2; // start from top
@@ -384,7 +384,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, isOpen = true, an
         transition={{ duration: isOpen ? 0.2 : 0.35 }}
         onClick={() => {
           if (isSubMenuOpen) {
-            setSkipL1Stagger(true);
+            setShouldSkipL1Stagger(true);
             setIsSubMenuOpen(false);
             setActiveParentIndex(null);
           } else {
@@ -397,7 +397,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, isOpen = true, an
           className="absolute inset-0"
           onClick={() => {
             if (isSubMenuOpen) {
-              setSkipL1Stagger(true);
+              setShouldSkipL1Stagger(true);
               setIsSubMenuOpen(false);
               setActiveParentIndex(null);
             } else {
@@ -459,12 +459,12 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, isOpen = true, an
                         left: `calc(50% + ${position.x}px - 32px)`,
                         top: `calc(50% + ${position.y}px - 32px)`
                       }}
-                      initial={skipL1Stagger ? false : { x: -position.x, y: -position.y, scale: 0.25, opacity: 0 }}
+                      initial={shouldSkipL1Stagger ? false : { x: -position.x, y: -position.y, scale: 0.25, opacity: 0 }}
                       animate={isOpen ? { x: 0, y: 0, scale: isSelected ? 1.1 : 1, opacity: 1 } : { x: -position.x, y: -position.y, scale: 0.25, opacity: 0 }}
                       exit={{ x: -position.x, y: -position.y, scale: 0.25, opacity: 0 }}
                       transition={{
                         ...(isOpen ? { type: 'spring', stiffness: 400, damping: 25 } : { duration: 0.22, ease: 'easeInOut' }),
-                        delay: skipL1Stagger ? 0 : index * 0.02,
+                        delay: shouldSkipL1Stagger ? 0 : index * 0.02,
                         layout: { duration: 0.2 }
                       }}
                       onClick={(e) => {
@@ -516,7 +516,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, isOpen = true, an
                   transition={{ type: 'spring', stiffness: 400, damping: 25, layout: { duration: 0.2 } }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setSkipL1Stagger(true);
+                    setShouldSkipL1Stagger(true);
                     setIsSubMenuOpen(false);
                     setActiveParentIndex(null);
                   }}

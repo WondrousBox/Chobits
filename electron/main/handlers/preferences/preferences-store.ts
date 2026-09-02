@@ -9,7 +9,7 @@ export type { PreferencesConfig, PreviewMode } from '@packages/common/types/pref
 // 默认配置
 const DEFAULT_CONFIG: PreferencesConfig = {
   previewMode: 'window',
-  assistantMiniWindowEnabled: false
+  miniChatWindowEnabled: true
 };
 
 type StoreShape = {
@@ -50,7 +50,7 @@ function read(): StoreShape {
       preferences: {
         previewMode: data.preferences?.previewMode || DEFAULT_CONFIG.previewMode,
         webRecorderDeviceId: data.preferences?.webRecorderDeviceId,
-        assistantMiniWindowEnabled: typeof data.preferences?.assistantMiniWindowEnabled === 'boolean' ? data.preferences.assistantMiniWindowEnabled : DEFAULT_CONFIG.assistantMiniWindowEnabled,
+        miniChatWindowEnabled: typeof data.preferences?.miniChatWindowEnabled === 'boolean' ? data.preferences.miniChatWindowEnabled : DEFAULT_CONFIG.miniChatWindowEnabled,
         featureFlags: data.preferences?.featureFlags
       }
     };

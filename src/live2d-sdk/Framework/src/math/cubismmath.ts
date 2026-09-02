@@ -247,12 +247,7 @@ export class CubismMath {
    * @param   d -> 定数項の値
    * @return  0.0～1.0の間にある解
    */
-  static cardanoAlgorithmForBezier(
-    a: number,
-    b: number,
-    c: number,
-    d: number
-  ): number {
+  static cardanoAlgorithmForBezier(a: number, b: number, c: number, d: number): number {
     if (this.sqrt(a) < CubismMath.Epsilon) {
       return this.range(this.quadraticEquation(b, c, d), 0.0, 1.0);
     }
@@ -285,14 +280,12 @@ export class CubismMath {
         return this.range(root1, 0.0, 1.0);
       }
 
-      const root2: number =
-        t1 * this.cos((phi + 2.0 * Math.PI) / 3.0) - ba / 3.0;
+      const root2: number = t1 * this.cos((phi + 2.0 * Math.PI) / 3.0) - ba / 3.0;
       if (this.abs(root2 - center) < threshold) {
         return this.range(root2, 0.0, 1.0);
       }
 
-      const root3: number =
-        t1 * this.cos((phi + 4.0 * Math.PI) / 3.0) - ba / 3.0;
+      const root3: number = t1 * this.cos((phi + 4.0 * Math.PI) / 3.0) - ba / 3.0;
       return this.range(root3, 0.0, 1.0);
     }
 
@@ -328,15 +321,8 @@ export class CubismMath {
    * @returns 余り
    */
   static mod(dividend: number, divisor: number): number {
-    if (
-      !isFinite(dividend) ||
-      divisor === 0 ||
-      isNaN(dividend) ||
-      isNaN(divisor)
-    ) {
-      console.warn(
-        `divided: ${dividend}, divisor: ${divisor} mod() returns 'NaN'.`
-      );
+    if (!isFinite(dividend) || divisor === 0 || isNaN(dividend) || isNaN(divisor)) {
+      console.warn(`divided: ${dividend}, divisor: ${divisor} mod() returns 'NaN'.`);
       return NaN;
     }
 
@@ -345,8 +331,7 @@ export class CubismMath {
     const absDivisor = Math.abs(divisor);
 
     // 絶対値で割り算する。
-    let result =
-      absDividend - Math.floor(absDividend / absDivisor) * absDivisor;
+    let result = absDividend - Math.floor(absDividend / absDivisor) * absDivisor;
 
     // 符号を被除数のものに指定する。
     result *= Math.sign(dividend);
