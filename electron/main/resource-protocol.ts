@@ -1,4 +1,4 @@
-import fscb from 'node:fs';
+import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Readable } from 'node:stream';
@@ -32,7 +32,7 @@ const MIME_MAP: Record<string, string> = {
 };
 
 const allowedRoots: string[] = [];
-let protocolHandled = false;
+let isProtocolHandled = false;
 // Map workspaceId -> resources root directory
 const workspaceRoots: Record<string, string> = {};
 
@@ -62,14 +62,14 @@ export function addWorkspaceResourceRoot(workspaceId: string, root: string): voi
   }
 }
 
-function isAllowed(target: string): boolean {
+function isPathAllowed(target: string): boolean {
   return allowedRoots.some((r) => target === r || target.startsWith(r + path.sep));
 }
 
 /** 校验目标路径是否位于任一已注册资源根之内(供 IPC 入口在注册临时根前校验,防止任意目录注册) */
 export function isPathWithinAllowedRoots(target: string): boolean {
   try {
-    return isAllowed(path.resolve(target));
+    return isPathAllowed(path.resolve(target));
   } catch {
     return false;
   }
@@ -82,9 +82,9 @@ export function isPathWithinAllowedRoots(target: string): boolean {
 // This handler resolves to a file inside allowed roots / workspace roots and returns as a Response.
 
 export async function setupResourceProtocol(): Promise<void> {
-  if (protocolHandled) return;
+  if (isProtocolHandled) return;
   const register = async (): Promise<void> => {
-    if (protocolHandled) return;
+    if (isProtocolHandled) return;
     // extraResources are placed directly under Electron's Resources directory
     // in packaged apps, while development assets live under <appPath>/resources.
     const bundledResourceRoot = getResourcePath('resources');
@@ -126,11 +126,11 @@ export async function setupResourceProtocol(): Promise<void> {
         }
 
         if (!abs) return new Response('Resolve error', { status: 500 });
-        if (!isAllowed(abs)) return new Response('Forbidden', { status: 403 });
-        if (!fscb.existsSync(abs) || !fscb.statSync(abs).isFile()) return new Response('Not Found', { status: 404 });
+        if (!isPathAllowed(abs)) return new Response('Forbidden', { status: 403 });
+        if (!fsSync.existsSync(abs) || !fsSync.statSync(abs).isFile()) return new Response('Not Found', { status: 404 });
 
         const ext = path.extname(abs).toLowerCase();
-        const mime = MIME_MAP[ext] || guessMime(ext) || 'application/octet-stream';
+        const mime = MIME_MAP[ext] || guessMimeType(ext) || 'application/octet-stream';
 
         // Common headers for CORS/media friendliness
         const baseHeaders: Record<string, string> = {
@@ -144,7 +144,7 @@ export async function setupResourceProtocol(): Promise<void> {
         const range = request.headers.get('Range');
         if (range) {
           try {
-            const stat = fscb.statSync(abs);
+            const stat = fsSync.statSync(abs);
             const size = stat.size;
             const m = range.match(/bytes=([0-9]*)-([0-9]*)/);
             if (m) {
@@ -155,7 +155,7 @@ export async function setupResourceProtocol(): Promise<void> {
               if (start > end) return new Response('Range Not Satisfiable', { status: 416 });
               const chunkSize = end - start + 1;
               // Use Web ReadableStream for better cross-platform support
-              const nodeStream = fscb.createReadStream(abs, { start, end });
+              const nodeStream = fsSync.createReadStream(abs, { start, end });
               const webStream = (Readable as any).toWeb ? (Readable as any).toWeb(nodeStream) : (nodeStream as any);
               const headers: Record<string, string> = {
                 ...baseHeaders,
@@ -172,7 +172,7 @@ export async function setupResourceProtocol(): Promise<void> {
         // Handle HEAD request (metadata only)
         if (request.method === 'HEAD') {
           try {
-            const stat = fscb.statSync(abs);
+            const stat = fsSync.statSync(abs);
             const headers: Record<string, string> = {
               ...baseHeaders,
               'Content-Length': String(stat.size)
@@ -191,7 +191,7 @@ export async function setupResourceProtocol(): Promise<void> {
         return new Response('Internal Error', { status: 500 });
       }
     });
-    protocolHandled = true;
+    isProtocolHandled = true;
   };
 
   if (app.isReady()) await register();
@@ -202,7 +202,7 @@ export async function setupResourceProtocol(): Promise<void> {
 // function makeResSrc(absPath: string) => 'res://local/' + encodeURIComponent(absPath.replace(/\\/g,'/'))
 // function makeWorkspaceResSrc(workspaceId: string, rel: string) => 'res://ws/' + workspaceId + '/' + encodeURIComponent(rel.replace(/\\/g,'/'))
 
-function guessMime(ext: string): string | undefined {
+function guessMimeType(ext: string): string | undefined {
   switch (ext) {
     case '.mp4':
       return 'video/mp4';

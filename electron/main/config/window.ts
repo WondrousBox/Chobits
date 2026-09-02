@@ -8,10 +8,10 @@ declare module '@aim-packages/window-manager' {
     assistant: void;
     assistantMini: void;
     chat: void;
-    chatOverlay: void;
     aiProviderConfig: void;
     asrConfig: void;
     asr: void;
+    asrTest: void;
     ttsConfig: void;
     tts: void;
     characterPackEditor: void;
@@ -23,7 +23,7 @@ declare module '@aim-packages/window-manager' {
 const HEADER_COMMANDS_HEIGHT = 36;
 const MACOS_TRAFFIC_LIGHTS_HEIGHT = 16;
 
-const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
+const DEFAULT_WINDOW_CONFIGS: Record<WindowKey, WindowConfig> = {
   status: {
     routeHash: 'status',
     followMain: true,
@@ -181,27 +181,6 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
           frame: true
         }
       }
-    }
-  },
-  chatOverlay: {
-    routeHash: 'chat-overlay',
-    autoCenterOn: 'none',
-    showOnReady: false,
-    openDevTools: false,
-    hideOnClose: true,
-    options: {
-      width: 560,
-      height: 720,
-      frame: false,
-      transparent: true,
-      resizable: false,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      hasShadow: false,
-      backgroundColor: '#00000000',
-      show: false,
-      autoHideMenuBar: true,
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
     }
   },
   aiProviderConfig: {
@@ -429,4 +408,4 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
   }
 };
 
-export default defaultWindowConfigs;
+export default DEFAULT_WINDOW_CONFIGS;

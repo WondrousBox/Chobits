@@ -30,7 +30,7 @@ import {
 } from '../../../../packages/sprite-core/purpose';
 
 export interface SpritePurposePlannerServiceOptions {
-  enabled?: boolean;
+  isEnabled?: boolean;
   executor?: SpritePurposePlannerExecutor;
   preferences?: Partial<SpritePurposePlannerPreferences>;
   presets: readonly SpriteRoutinePresetDefinition[];
@@ -99,7 +99,7 @@ export class SpritePurposePlannerService {
     this.preferences = normalizeSpritePurposePlannerPreferences({
       ...DEFAULT_SPRITE_PURPOSE_PLANNER_PREFERENCES,
       ...(options.preferences ?? {}),
-      ...(options.enabled !== undefined ? { enabled: options.enabled } : {})
+      ...(options.isEnabled !== undefined ? { enabled: options.isEnabled } : {})
     });
     this.executor = options.executor;
     this.presets = options.presets;

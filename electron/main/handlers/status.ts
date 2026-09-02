@@ -2,18 +2,19 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 
-import type { RoleProfile } from '@packages/common/types/status';
+import type { CharacterProfile } from '@packages/common/types/status';
 import { app, BrowserWindow, ipcMain } from 'electron';
 
 import pkg from '../../../package.json';
 import { getCharacterInfo, getCharacterPackDefinition } from '../../../packages/sprite-core/character-service';
 
-export type { RoleProfile } from '@packages/common/types/status';
+export type { CharacterProfile } from '@packages/common/types/status';
 
 const SETTINGS_DIR = path.join(app.getPath('userData'), 'data');
-const ROLE_FILE = path.join(SETTINGS_DIR, 'role.json');
+// 落盘文件名为历史契约，保持 role.json 不变
+const CHARACTER_PROFILE_FILE = path.join(SETTINGS_DIR, 'role.json');
 
-function getCurrentCharacterRoleInfo(): Pick<RoleProfile, 'name' | 'description'> | null {
+function getCurrentCharacterProfile(): Pick<CharacterProfile, 'name' | 'description'> | null {
   const pack = getCharacterPackDefinition();
   const character = pack ? getCharacterInfo() : null;
   if (character?.name?.trim()) {
@@ -33,8 +34,8 @@ function getCurrentCharacterRoleInfo(): Pick<RoleProfile, 'name' | 'description'
   return null;
 }
 
-function getDefaultRoleProfile(): RoleProfile {
-  const character = getCurrentCharacterRoleInfo();
+function getDefaultCharacterProfile(): CharacterProfile {
+  const character = getCurrentCharacterProfile();
   return {
     name: character?.name ?? pkg.name,
     mood: 'idle',
@@ -44,14 +45,14 @@ function getDefaultRoleProfile(): RoleProfile {
   };
 }
 
-function applyCurrentCharacterInfo(role: RoleProfile): RoleProfile {
-  const character = getCurrentCharacterRoleInfo();
+function applyCurrentCharacterInfo(profile: CharacterProfile): CharacterProfile {
+  const character = getCurrentCharacterProfile();
   if (!character) {
-    return role;
+    return profile;
   }
 
   return {
-    ...role,
+    ...profile,
     name: character.name,
     ...(character.description ? { description: character.description } : {})
   };
@@ -75,22 +76,22 @@ async function writeJson(file: string, data: any): Promise<void> {
   await fsp.writeFile(file, JSON.stringify(data, null, 2), 'utf-8');
 }
 
-export async function getStoredRoleProfile(): Promise<RoleProfile> {
-  return applyCurrentCharacterInfo(await readJson<RoleProfile>(ROLE_FILE, getDefaultRoleProfile()));
+export async function getStoredCharacterProfile(): Promise<CharacterProfile> {
+  return applyCurrentCharacterInfo(await readJson<CharacterProfile>(CHARACTER_PROFILE_FILE, getDefaultCharacterProfile()));
 }
 
 export function initStatusHandlers(win: BrowserWindow): void {
   void win;
 
-  ipcMain.handle('status:getRole', async () => {
-    const role = await getStoredRoleProfile();
-    return { ok: true, role };
+  ipcMain.handle('character:get-profile', async () => {
+    const profile = await getStoredCharacterProfile();
+    return { ok: true, profile };
   });
 
-  ipcMain.handle('status:updateRole', async (_e, payload: { patch: Partial<RoleProfile> }) => {
-    const current = await readJson<RoleProfile>(ROLE_FILE, getDefaultRoleProfile());
+  ipcMain.handle('character:update-profile', async (_event, payload: { patch: Partial<CharacterProfile> }) => {
+    const current = await readJson<CharacterProfile>(CHARACTER_PROFILE_FILE, getDefaultCharacterProfile());
     const next = { ...current, ...payload?.patch };
-    await writeJson(ROLE_FILE, next);
-    return { ok: true, role: applyCurrentCharacterInfo(next) };
+    await writeJson(CHARACTER_PROFILE_FILE, next);
+    return { ok: true, profile: applyCurrentCharacterInfo(next) };
   });
 }

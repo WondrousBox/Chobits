@@ -2,7 +2,7 @@ import { getResourcePath } from '@packages/common/utils';
 import dayjs from 'dayjs';
 import log, { LogFunctions } from 'electron-log';
 
-import { LOG_LEVEL } from '../config';
+import { LOGGER_SCOPE } from '../config';
 
 console.log('log initialize');
 // It preloads electron-log IPC code in renderer processes
@@ -37,7 +37,7 @@ export default class Logger {
   }
 }
 
-export const logger = Logger.create(LOG_LEVEL);
+export const logger = Logger.create(LOGGER_SCOPE);
 
 logger.log.info(`----------------------------- Starting [${dayjs().format('YYYY-MM-DD HH:mm:ss')}] ---------------------------------------`);
 

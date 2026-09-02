@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { backupDatabase, deleteBackup, importBackup, listBackups, restoreBackup } from '@packages/common/db';
 import { Env, getResourcePath } from '@packages/common/utils';
-import { notifySpriteCapabilityChanged } from '@packages/sprite-core/handler/capability-events';
+import { notifySpriteCapabilityChanged } from '@packages/sprite-core/handlers/capability-broadcast';
 import { app, ipcMain, shell, systemPreferences } from 'electron';
 
 /**
@@ -12,7 +12,7 @@ import { app, ipcMain, shell, systemPreferences } from 'electron';
  */
 export function initSystemHandlers(): void {
   // ---------------- Database ----------------
-  ipcMain.handle('database:getPath', async () => {
+  ipcMain.handle('database:get-path', async () => {
     try {
       const userDir = app.getPath('userData');
       const dbDir = path.join(userDir, 'data');
@@ -23,7 +23,7 @@ export function initSystemHandlers(): void {
     }
   });
 
-  ipcMain.handle('database:openLocation', async () => {
+  ipcMain.handle('database:open-location', async () => {
     try {
       const userDir = app.getPath('userData');
       const dbDir = path.join(userDir, 'data');
@@ -51,19 +51,19 @@ export function initSystemHandlers(): void {
     return backupDatabase(customPath);
   });
 
-  ipcMain.handle('database:listBackups', async (_event, customPath?: string) => {
+  ipcMain.handle('database:list-backups', async (_event, customPath?: string) => {
     return listBackups(customPath);
   });
 
-  ipcMain.handle('database:deleteBackup', async (_event, backupPath: string) => {
+  ipcMain.handle('database:delete-backup', async (_event, backupPath: string) => {
     return deleteBackup(backupPath);
   });
 
-  ipcMain.handle('database:restoreBackup', async (_event, backupPath: string) => {
+  ipcMain.handle('database:restore-backup', async (_event, backupPath: string) => {
     return restoreBackup(backupPath);
   });
 
-  ipcMain.handle('database:importBackup', async (_event, sourcePath: string, options?: { restore?: boolean }) => {
+  ipcMain.handle('database:import-backup', async (_event, sourcePath: string, options?: { restore?: boolean }) => {
     return importBackup(sourcePath, options);
   });
 
@@ -79,7 +79,7 @@ export function initSystemHandlers(): void {
     }
   });
 
-  ipcMain.handle('app:openExternalUrl', async (_event, url: string) => {
+  ipcMain.handle('app:open-external-url', async (_event, url: string) => {
     try {
       const target = typeof url === 'string' ? url.trim() : '';
       if (!target) {
@@ -99,7 +99,7 @@ export function initSystemHandlers(): void {
   });
 
   // ---------------- Logs ----------------
-  ipcMain.handle('logs:getPath', async () => {
+  ipcMain.handle('logs:get-path', async () => {
     try {
       const logDir = getResourcePath('logs');
       return { ok: true, dir: logDir } as const;
@@ -108,7 +108,7 @@ export function initSystemHandlers(): void {
     }
   });
 
-  ipcMain.handle('logs:openLocation', async () => {
+  ipcMain.handle('logs:open-location', async () => {
     try {
       const logDir = getResourcePath('logs');
       if (!logDir) return { ok: false, error: 'Logs directory not found' } as const;
@@ -134,7 +134,7 @@ export function initSystemHandlers(): void {
   // ---------------- 麦克风权限 ----------------
   // 「麦克风录音」能力的激活信号取自系统授权状态(见 sprite-manager-ipc.ts 的 resolveCapabilityContext);
   // 这里提供状态查询与主动请求授权的入口,授权变化后广播能力变更让设置页刷新
-  ipcMain.handle('system:microphone:getStatus', async () => {
+  ipcMain.handle('system:microphone:get-status', async () => {
     try {
       // Linux 无系统级授权接口,视为已授权
       if (process.platform === 'linux') {
@@ -146,7 +146,7 @@ export function initSystemHandlers(): void {
     }
   });
 
-  ipcMain.handle('system:microphone:requestAccess', async () => {
+  ipcMain.handle('system:microphone:request-access', async () => {
     try {
       if (process.platform === 'linux') {
         return { ok: true, granted: true } as const;

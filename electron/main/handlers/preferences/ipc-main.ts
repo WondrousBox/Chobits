@@ -7,7 +7,7 @@ import { type PreferencesConfig, type PreviewMode, PreferencesStore } from './pr
  */
 export function initPreferencesHandlers(): void {
   // 获取完整配置
-  ipcMain.handle('preferences:getConfig', async () => {
+  ipcMain.handle('preferences:get-config', async () => {
     try {
       return { ok: true, config: PreferencesStore.getConfig() };
     } catch (error: any) {
@@ -17,7 +17,7 @@ export function initPreferencesHandlers(): void {
   });
 
   // 设置配置
-  ipcMain.handle('preferences:setConfig', async (_e, payload: { config: Partial<PreferencesConfig> }) => {
+  ipcMain.handle('preferences:set-config', async (_event, payload: { config: Partial<PreferencesConfig> }) => {
     try {
       const config = PreferencesStore.setConfig(payload.config);
       return { ok: true, config };
@@ -28,7 +28,7 @@ export function initPreferencesHandlers(): void {
   });
 
   // 获取预览模式
-  ipcMain.handle('preferences:getPreviewMode', async () => {
+  ipcMain.handle('preferences:get-preview-mode', async () => {
     try {
       return { ok: true, previewMode: PreferencesStore.getPreviewMode() };
     } catch (error: any) {
@@ -38,7 +38,7 @@ export function initPreferencesHandlers(): void {
   });
 
   // 设置预览模式
-  ipcMain.handle('preferences:setPreviewMode', async (_e, payload: { mode: PreviewMode }) => {
+  ipcMain.handle('preferences:set-preview-mode', async (_event, payload: { mode: PreviewMode }) => {
     try {
       const config = PreferencesStore.setPreviewMode(payload.mode);
       return { ok: true, config };
@@ -49,7 +49,7 @@ export function initPreferencesHandlers(): void {
   });
 
   // 获取 WebRecorder 麦克风设备ID
-  ipcMain.handle('preferences:getWebRecorderDeviceId', async () => {
+  ipcMain.handle('preferences:get-web-recorder-device-id', async () => {
     try {
       return { ok: true, deviceId: PreferencesStore.getWebRecorderDeviceId() };
     } catch (error: any) {
@@ -59,7 +59,7 @@ export function initPreferencesHandlers(): void {
   });
 
   // 设置 WebRecorder 麦克风设备ID
-  ipcMain.handle('preferences:setWebRecorderDeviceId', async (_e, payload: { deviceId: string | undefined }) => {
+  ipcMain.handle('preferences:set-web-recorder-device-id', async (_event, payload: { deviceId: string | undefined }) => {
     try {
       const config = PreferencesStore.setWebRecorderDeviceId(payload.deviceId);
       return { ok: true, config };

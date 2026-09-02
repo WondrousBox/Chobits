@@ -16,12 +16,12 @@ export async function initProxyHandlers(win: BrowserWindow): Promise<void> {
   }
 
   // 获取代理配置
-  ipcMain.handle('proxy:getConfig', async () => {
+  ipcMain.handle('proxy:get-config', async () => {
     return ProxyStore.getConfig();
   });
 
   // 设置代理配置
-  ipcMain.handle('proxy:setConfig', async (_e, payload: { config: ProxyConfig }) => {
+  ipcMain.handle('proxy:set-config', async (_event, payload: { config: ProxyConfig }) => {
     try {
       const config = ProxyStore.setConfig(payload.config);
 
@@ -38,7 +38,7 @@ export async function initProxyHandlers(win: BrowserWindow): Promise<void> {
   });
 
   // 获取系统代理
-  ipcMain.handle('proxy:getSystemProxy', async () => {
+  ipcMain.handle('proxy:get-system-proxy', async () => {
     try {
       const result = await getSystemProxy(win);
       return { ok: true, proxy: result };
@@ -48,7 +48,7 @@ export async function initProxyHandlers(win: BrowserWindow): Promise<void> {
   });
 
   // 测试代理连接
-  ipcMain.handle('proxy:test', async (_e, payload?: { testUrl?: string; timeoutMs?: number }) => {
+  ipcMain.handle('proxy:test', async (_event, payload?: { testUrl?: string; timeoutMs?: number }) => {
     try {
       const latency = await testProxy(payload?.testUrl, payload?.timeoutMs || 10000);
       return { ok: true, latency };
@@ -58,7 +58,7 @@ export async function initProxyHandlers(win: BrowserWindow): Promise<void> {
   });
 
   // 添加自定义代理
-  ipcMain.handle('proxy:addCustom', async (_e, payload: { proxy: Omit<CustomProxy, 'active'> }) => {
+  ipcMain.handle('proxy:add-custom', async (_event, payload: { proxy: Omit<CustomProxy, 'active'> }) => {
     try {
       const config = ProxyStore.getConfig();
       if (config.type !== 'custom') {
@@ -81,7 +81,7 @@ export async function initProxyHandlers(win: BrowserWindow): Promise<void> {
   });
 
   // 更新自定义代理
-  ipcMain.handle('proxy:updateCustom', async (_e, payload: { index: number; proxy: Partial<CustomProxy> }) => {
+  ipcMain.handle('proxy:update-custom', async (_event, payload: { index: number; proxy: Partial<CustomProxy> }) => {
     try {
       const config = ProxyStore.getConfig();
       if (config.type !== 'custom' || !config.proxies) {
@@ -111,7 +111,7 @@ export async function initProxyHandlers(win: BrowserWindow): Promise<void> {
   });
 
   // 删除自定义代理
-  ipcMain.handle('proxy:removeCustom', async (_e, payload: { index: number }) => {
+  ipcMain.handle('proxy:remove-custom', async (_event, payload: { index: number }) => {
     try {
       const config = ProxyStore.getConfig();
       if (config.type !== 'custom' || !config.proxies) {

@@ -13,7 +13,7 @@ import { initPluginResourceHandlers } from '../../../packages/plugins/ipc-main';
 import { initSherpaHandlers, initSherpaStubHandlers } from '../../../packages/sherpa/ipc-main';
 import { assertSpriteCapabilityUnlocked } from '../../../packages/sprite-core/capability-runtime';
 import { getCharacterDefinition } from '../../../packages/sprite-core/character-service';
-import { initSpriteHandlers, initSpriteManagerIPC } from '../../../packages/sprite-core/handler';
+import { initSpriteHandlers, initSpriteManagerHandlers } from '../../../packages/sprite-core/handlers';
 import { DEFAULT_SPRITE_ROUTINE_PRESETS, SpritePurposeHistoryStore } from '../../../packages/sprite-core/purpose';
 import {
   SPRITE_EVENT_TYPES,
@@ -30,7 +30,7 @@ import { initProxyHandlers } from './proxy/ipc-main';
 import { getHttpProxy } from './proxy/proxy';
 import { initShortcutsHandlers } from './shortcuts';
 import { SpritePurposePlannerRuntimeContextTracker } from './sprite/purpose-planner-context';
-import { initSpritePurposePlannerIPC } from './sprite/purpose-planner-ipc';
+import { initSpritePurposePlannerHandlers } from './sprite/purpose-planner-ipc';
 import { SpritePurposePlannerPreferencesStore } from './sprite/purpose-planner-preferences';
 import { createSpritePurposePiPlannerExecutor } from './sprite/purpose-planner-runtime';
 import { createSpritePurposeRoutinePlanner, SpritePurposePlannerService } from './sprite/purpose-planner-service';
@@ -269,7 +269,8 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
     getHttpProxy,
     getPluginDefinitionsPath: () => getResourcePath('plugins')!,
     onProgress: (info: DownloadProgress) => {
-      const targets = [win, windowManager.get('settings')];
+      // ttsConfig / asrConfig 内有一键安装卡片，同样需要接收进度
+      const targets = [win, windowManager.get('settings'), windowManager.get('ttsConfig'), windowManager.get('asrConfig')];
       for (const w of targets) {
         try {
           if (w && !w.isDestroyed()) {
@@ -300,8 +301,8 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
     animationTriggers: SPRITE_EVENT_TYPES,
     history: purposeHistoryStore
   });
-  initSpritePurposePlannerIPC(purposePlannerService, purposePlannerPreferencesStore);
-  await initSpriteManagerIPC(win, {
+  initSpritePurposePlannerHandlers(purposePlannerService, purposePlannerPreferencesStore);
+  await initSpriteManagerHandlers(win, {
     addAllowedResourceRoot,
     isPathWithinAllowedRoots,
     registerCharacterPersonaPromptProvider: async (resolveCharacterPersonaPrompt) => {

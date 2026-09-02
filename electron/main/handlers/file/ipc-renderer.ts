@@ -3,8 +3,8 @@ import { ipcRenderer } from 'electron';
 import type { IpcParams } from '../types';
 
 export type FileIpcParams = {
-  'file:pickDir': IpcParams<[Partial<{ allowCreate: boolean; defaultPath: string }>?], { canceled: boolean; path?: string }>;
-  'file:pickFile': IpcParams<
+  'file:pick-dir': IpcParams<[Partial<{ allowCreate: boolean; defaultPath: string }>?], { ok: boolean; path?: string }>;
+  'file:pick-file': IpcParams<
     [
       Partial<{
         filters: { name: string; extensions: string[] }[];
@@ -12,9 +12,9 @@ export type FileIpcParams = {
         multi: boolean;
       }>?
     ],
-    { canceled: boolean; path?: string; paths?: string[] }
+    { ok: boolean; path?: string; paths?: string[] }
   >;
-  'file:saveFile': IpcParams<
+  'file:save-file': IpcParams<
     [
       Partial<{
         filters: { name: string; extensions: string[] }[];
@@ -24,38 +24,38 @@ export type FileIpcParams = {
         showsTagField: boolean;
       }>?
     ],
-    { canceled: boolean; path?: string }
+    { ok: boolean; path?: string }
   >;
-  'file:openPath': IpcParams<[string], { ok: boolean; error?: string }>;
+  'file:open-path': IpcParams<[string], { ok: boolean; error?: string }>;
   'file:reveal': IpcParams<[string], { ok: boolean; error?: string }>;
-  'file:readContent': IpcParams<
+  'file:read-content': IpcParams<
     [string],
     {
-      success: boolean;
+      ok: boolean;
       content?: string;
       error?: string;
       truncated?: boolean;
       originalSize?: number;
     }
   >;
-  'file:readDirRecursive': IpcParams<
+  'file:read-dir-recursive': IpcParams<
     [string],
     {
-      success: boolean;
+      ok: boolean;
       data?: Array<{ name: string; path: string; isDirectory: boolean; relativePath: string }>;
       error?: string;
     }
   >;
-  'file:pickAny': IpcParams<
+  'file:pick-any': IpcParams<
     [Partial<{ defaultPath: string }>?],
     {
-      canceled: boolean;
+      ok: boolean;
       paths?: Array<{ path: string; name: string; isDirectory: boolean }>;
     }
   >;
 };
 
-const methods: Array<keyof FileIpcParams> = ['file:pickDir', 'file:pickFile', 'file:saveFile', 'file:openPath', 'file:reveal', 'file:readContent', 'file:readDirRecursive', 'file:pickAny'];
+const methods: Array<keyof FileIpcParams> = ['file:pick-dir', 'file:pick-file', 'file:save-file', 'file:open-path', 'file:reveal', 'file:read-content', 'file:read-dir-recursive', 'file:pick-any'];
 
 export type FileIpcType = {
   [K in keyof FileIpcParams]: (...args: FileIpcParams[K]['request']) => Promise<FileIpcParams[K]['response']>;

@@ -11,7 +11,7 @@ import {
 import { BrowserWindow, globalShortcut } from 'electron';
 
 // Keep track of what we registered so we can cleanly unregister later
-const registered: Set<string> = new Set();
+const registeredAccelerators: Set<string> = new Set();
 let unsubscribeChange: (() => void) | null = null;
 let unsubscribeEnabledChange: (() => void) | null = null;
 let lastGetMainWindow: GetMainWindow | null = null;
@@ -19,8 +19,8 @@ let lastGetMainWindow: GetMainWindow | null = null;
 export type GetMainWindow = () => BrowserWindow | null;
 
 function applyRegistration(getMainWindow: GetMainWindow): void {
-  const cfg = loadShortcutsConfig();
-  const resolved = resolveAcceleratorsForPlatform(cfg);
+  const config = loadShortcutsConfig();
+  const resolved = resolveAcceleratorsForPlatform(config);
 
   const actions: Record<string, () => void> = {
     toggleAssistant: () => {
@@ -40,9 +40,9 @@ function applyRegistration(getMainWindow: GetMainWindow): void {
       try {
         const win = getMainWindow();
         if (!win || win.isDestroyed()) return;
-        const wc = win.webContents;
-        if (wc.isDevToolsOpened()) wc.closeDevTools();
-        else wc.openDevTools({ mode: 'detach' });
+        const webContents = win.webContents;
+        if (webContents.isDevToolsOpened()) webContents.closeDevTools();
+        else webContents.openDevTools({ mode: 'detach' });
       } catch (e) {
         console.warn('[shortcut] toggle devtools error', e);
       }
@@ -59,22 +59,22 @@ function applyRegistration(getMainWindow: GetMainWindow): void {
     }
   };
 
-  for (const act of getShortcutSchema()) {
+  for (const action of getShortcutSchema()) {
     // 检查该快捷键是否启用
-    if (!isShortcutEnabled(act.id)) {
-      console.log(`[shortcut] skipping ${act.id} (disabled)`);
+    if (!isShortcutEnabled(action.id)) {
+      console.log(`[shortcut] skipping ${action.id} (disabled)`);
       continue;
     }
-    const list = resolved[act.id] || [];
-    const handler = actions[act.id] || (() => {});
-    list.forEach((accel) => {
+    const list = resolved[action.id] || [];
+    const handler = actions[action.id] || (() => {});
+    list.forEach((accelerator) => {
       try {
-        if (!accel) return;
-        const ok = globalShortcut.register(accel, handler);
-        if (!ok) console.warn(`[shortcut] failed to register ${accel} (${act.id})`);
-        else registered.add(accel);
+        if (!accelerator) return;
+        const ok = globalShortcut.register(accelerator, handler);
+        if (!ok) console.warn(`[shortcut] failed to register ${accelerator} (${action.id})`);
+        else registeredAccelerators.add(accelerator);
       } catch (e) {
-        console.warn(`[shortcut] error registering ${accel} (${act.id})`, e);
+        console.warn(`[shortcut] error registering ${accelerator} (${action.id})`, e);
       }
     });
   }
@@ -99,19 +99,19 @@ export function registerGlobalShortcuts(getMainWindow: GetMainWindow): void {
 
 export function unregisterGlobalShortcuts(): void {
   try {
-    for (const accel of registered) {
+    for (const accelerator of registeredAccelerators) {
       try {
-        globalShortcut.unregister(accel);
+        globalShortcut.unregister(accelerator);
       } catch {
         // noop
       }
     }
   } finally {
-    registered.clear();
+    registeredAccelerators.clear();
   }
 }
 
-export async function validateShortcutsConfig(proposed: Partial<ShortcutsConfig>): Promise<{ ok: boolean; details: Record<string, { accel: string; ok: boolean; error?: string }[]> }> {
+export async function validateShortcutsConfig(proposed: Partial<ShortcutsConfig>): Promise<{ ok: boolean; details: Record<string, { accelerator: string; ok: boolean; error?: string }[]> }> {
   const current = loadShortcutsConfig();
   const merged: ShortcutsConfig = { ...current, ...(proposed as any) };
   const toTest = resolveAcceleratorsForPlatform(merged);
@@ -119,30 +119,30 @@ export async function validateShortcutsConfig(proposed: Partial<ShortcutsConfig>
   // Temporarily release current, test, then restore
   const reapply = lastGetMainWindow ? () => applyRegistration(lastGetMainWindow as GetMainWindow) : () => {};
   const tempRegistered: string[] = [];
-  const details: Record<string, { accel: string; ok: boolean; error?: string }[]> = {};
+  const details: Record<string, { accelerator: string; ok: boolean; error?: string }[]> = {};
   try {
     // Unregister our current accelerators to avoid self-conflict
     unregisterGlobalShortcuts();
-    for (const act of getShortcutSchema()) {
-      details[act.id] = [];
-      for (const accel of toTest[act.id] || []) {
+    for (const action of getShortcutSchema()) {
+      details[action.id] = [];
+      for (const accelerator of toTest[action.id] || []) {
         try {
-          const ok = globalShortcut.register(accel, () => {});
-          if (ok) tempRegistered.push(accel);
-          details[act.id].push({ accel, ok });
+          const ok = globalShortcut.register(accelerator, () => {});
+          if (ok) tempRegistered.push(accelerator);
+          details[action.id].push({ accelerator, ok });
           if (!ok) {
             // keep going to collect all failures
           }
         } catch (e: any) {
-          details[act.id].push({ accel, ok: false, error: String(e?.message || e) });
+          details[action.id].push({ accelerator, ok: false, error: String(e?.message || e) });
         }
       }
     }
   } finally {
     // Clean up our temporary registrations
-    for (const accel of tempRegistered) {
+    for (const accelerator of tempRegistered) {
       try {
-        globalShortcut.unregister(accel);
+        globalShortcut.unregister(accelerator);
       } catch {
         /* noop */
       }

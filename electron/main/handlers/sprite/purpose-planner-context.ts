@@ -29,7 +29,7 @@ export class SpritePurposePlannerRuntimeContextTracker {
       };
     });
 
-    eventManager.on(AppEvent.SPRITE_AI_COMPLETE, (payload: { conversationId?: string }) => {
+    eventManager.on(AppEvent.SPRITE_AI_COMPLETED, (payload: { conversationId?: string }) => {
       if (!payload?.conversationId) return;
       this.activeHint = {
         conversationId: payload.conversationId,

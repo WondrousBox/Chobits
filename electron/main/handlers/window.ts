@@ -1,12 +1,12 @@
 import path from 'node:path';
 
-import { initIpcMain, windowManager } from '@aim-packages/window-manager';
+import { initIpcMain as initWindowManagerHandlers, windowManager } from '@aim-packages/window-manager';
 import { attachAppWindowClosedReporter, emitAppWindowOpened, rememberWindowPayload } from '@packages/event/window-events';
 import type { IpcMainInvokeEvent } from 'electron';
 import { BrowserWindow, ipcMain } from 'electron';
 import { app, screen } from 'electron';
 
-import defaultWindowConfigs from '../config/window';
+import DEFAULT_WINDOW_CONFIGS from '../config/window';
 import { globalInputMonitor } from '../global-input-monitor';
 
 const SPRITE_BUBBLE_WINDOW_KEYS = ['spriteBubbleFixedTop'] as const;
@@ -15,7 +15,7 @@ const SPRITE_BUBBLE_MIN_WIDTH = 40;
 const SPRITE_BUBBLE_MIN_HEIGHT = 24;
 const SPRITE_BUBBLE_MAX_WIDTH = 504;
 const SPRITE_BUBBLE_MAX_HEIGHT = 392;
-type AssistantInteractiveRegion = { x: number; y: number; width: number; height: number };
+type SpriteInteractiveRegion = { x: number; y: number; width: number; height: number };
 
 function clampWindowDimension(value: number | undefined, min: number, max: number): number {
   const numericValue = Number(value ?? 0);
@@ -23,7 +23,7 @@ function clampWindowDimension(value: number | undefined, min: number, max: numbe
   return Math.min(max, Math.max(min, rounded));
 }
 
-function normalizeInteractiveRegion(region: Partial<AssistantInteractiveRegion> | null | undefined): AssistantInteractiveRegion | null {
+function normalizeInteractiveRegion(region: Partial<SpriteInteractiveRegion> | null | undefined): SpriteInteractiveRegion | null {
   const x = Number(region?.x);
   const y = Number(region?.y);
   const width = Number(region?.width);
@@ -43,19 +43,19 @@ function normalizeInteractiveRegion(region: Partial<AssistantInteractiveRegion> 
 }
 
 export function initWindowHandlers(win: BrowserWindow): void {
-  // 记录助手窗口的 padding（由渲染进程通过 IPC 动态设置）
-  let assistantPadding = 100; // 默认值，等待渲染进程通过 setAssistantSize 设置
-  let assistantPaddingInitialized = false;
+  // 记录精灵窗口的 padding（由渲染进程通过 IPC 动态设置）
+  let spritePadding = 100; // 默认值，等待渲染进程通过 sprite:size:set 设置
+  let isSpritePaddingInitialized = false;
 
   // ---------------- Hover monitor to manage click-through ---------------
-  // 在透明窗口上，为了让外部（Finder）拖拽能进入助手区域，我们需要在鼠标进入助手内层矩形时
+  // 在透明窗口上，为了让外部（Finder）拖拽能进入精灵区域，我们需要在鼠标进入精灵内层矩形时
   // 自动关闭 ignoreMouseEvents（否则不会收到 dragenter/over 事件）。
   // 优先使用全局系统级鼠标事件钩子（uiohook-napi），不可用时回退到低频轮询。
-  // 记录助手窗口的实际尺寸（由渲染进程通过 IPC 设置）。
-  // 初始值为 0，等待渲染进程通过 setAssistantSize 设置。
-  let assistantWidth = 0;
-  let assistantHeight = 0;
-  let assistantInteractiveRegions: AssistantInteractiveRegion[] = [];
+  // 记录精灵窗口的实际尺寸（由渲染进程通过 IPC 设置）。
+  // 初始值为 0，等待渲染进程通过 sprite:size:set 设置。
+  let spriteWidth = 0;
+  let spriteHeight = 0;
+  let spriteInteractiveRegions: SpriteInteractiveRegion[] = [];
 
   // 缓存窗口边界，避免每次事件都调用 getBounds()
   let cachedBounds = win.getBounds();
@@ -70,20 +70,20 @@ export function initWindowHandlers(win: BrowserWindow): void {
   win.on('move', refreshBounds);
   win.on('resize', refreshBounds);
 
-  let lastInside = true;
-  function pointInside(x: number, y: number): boolean {
-    if (assistantWidth > 0 && assistantHeight > 0) {
-      const padding = assistantPadding ?? 0;
+  let wasInsideLast = true;
+  function isPointInside(x: number, y: number): boolean {
+    if (spriteWidth > 0 && spriteHeight > 0) {
+      const padding = spritePadding ?? 0;
       const ax = cachedBounds.x + padding;
       const ay = cachedBounds.y + padding;
-      const aw = assistantWidth;
-      const ah = assistantHeight;
+      const aw = spriteWidth;
+      const ah = spriteHeight;
       if (x >= ax && x <= ax + aw && y >= ay && y <= ay + ah) {
         return true;
       }
     }
 
-    return assistantInteractiveRegions.some((region) => {
+    return spriteInteractiveRegions.some((region) => {
       const rx = cachedBounds.x + region.x;
       const ry = cachedBounds.y + region.y;
       return x >= rx && x <= rx + region.width && y >= ry && y <= ry + region.height;
@@ -91,10 +91,10 @@ export function initWindowHandlers(win: BrowserWindow): void {
   }
 
   function applyInsideState(inside: boolean): void {
-    if (inside === lastInside) return;
-    lastInside = inside;
+    if (inside === wasInsideLast) return;
+    wasInsideLast = inside;
     try {
-      // 鼠标在助手区域内：允许接收事件（包括外部拖拽）
+      // 鼠标在精灵区域内：允许接收事件（包括外部拖拽）
       // 区域外：继续穿透到底层应用
       win.setIgnoreMouseEvents(!inside, { forward: true });
     } catch {
@@ -107,7 +107,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
   function pollOnce(): void {
     try {
       const p = screen.getCursorScreenPoint();
-      applyInsideState(pointInside(p.x, p.y));
+      applyInsideState(isPointInside(p.x, p.y));
     } catch {
       /* ignore */
     }
@@ -125,8 +125,8 @@ export function initWindowHandlers(win: BrowserWindow): void {
 
   // 全局钩子
   let unsubscribeMouseMove: (() => void) | null = null;
-  let hookActive = false;
-  let hoverMonitorActive = false;
+  let isHookActive = false;
+  let isHoverMonitorActive = false;
   function startHook(): void {
     stopHook();
     // macOS: 检查辅助功能授权，未授权时引导用户授权
@@ -151,19 +151,19 @@ export function initWindowHandlers(win: BrowserWindow): void {
         } catch {
           /* ignore: 转换不可用时按原始坐标处理 */
         }
-        applyInsideState(pointInside(x, y));
+        applyInsideState(isPointInside(x, y));
       });
-      hookActive = true;
+      isHookActive = true;
       // Linux 下 uiohook 可能 start 成功但事件不上报（如 XRecord 不可用），叠加轮询兜底
       if (process.platform === 'linux') startPolling();
     } catch {
       // 模块不可用或启动失败，回退轮询
-      hookActive = false;
+      isHookActive = false;
       startPolling();
     }
   }
   function stopHook(): void {
-    if (hookActive && unsubscribeMouseMove) {
+    if (isHookActive && unsubscribeMouseMove) {
       try {
         unsubscribeMouseMove();
       } catch {
@@ -171,11 +171,11 @@ export function initWindowHandlers(win: BrowserWindow): void {
       }
     }
     unsubscribeMouseMove = null;
-    hookActive = false;
+    isHookActive = false;
   }
 
   function restoreMouseEvents(): void {
-    lastInside = true;
+    wasInsideLast = true;
     try {
       win.setIgnoreMouseEvents(false, { forward: true });
     } catch {
@@ -184,15 +184,15 @@ export function initWindowHandlers(win: BrowserWindow): void {
   }
 
   function shouldRunHoverMonitor(): boolean {
-    return assistantPaddingInitialized && assistantWidth > 0 && assistantHeight > 0;
+    return isSpritePaddingInitialized && spriteWidth > 0 && spriteHeight > 0;
   }
 
   function startHoverMonitor(): void {
-    if (!shouldRunHoverMonitor() || hoverMonitorActive) return;
-    hoverMonitorActive = true;
+    if (!shouldRunHoverMonitor() || isHoverMonitorActive) return;
+    isHoverMonitorActive = true;
     try {
       startHook();
-      if (!hookActive) startPolling();
+      if (!isHookActive) startPolling();
     } catch {
       startPolling();
     }
@@ -201,7 +201,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
   function stopHoverMonitor(options?: { restoreMouseEvents?: boolean }): void {
     stopHook();
     stopPolling();
-    hoverMonitorActive = false;
+    isHoverMonitorActive = false;
     if (options?.restoreMouseEvents) {
       restoreMouseEvents();
     }
@@ -210,7 +210,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
   function syncHoverMonitor(): void {
     if (shouldRunHoverMonitor()) {
       startHoverMonitor();
-      if (hoverMonitorActive) {
+      if (isHoverMonitorActive) {
         pollOnce();
       }
       return;
@@ -226,16 +226,16 @@ export function initWindowHandlers(win: BrowserWindow): void {
   });
 
   // Bootstrap WindowManager with main window context
-  // 注意：anchorWidth 和 anchorHeight 初始为 0，会在 setAssistantSize 时更新
+  // 注意：anchorWidth 和 anchorHeight 初始为 0，会在 sprite:size:set 时更新
   // windowManager 可能需要这些值，但会在渲染进程设置后通过其他方式更新
   windowManager.init(win, {
     preloadPath: (win as any).__preloadPath,
-    assistantPadding: assistantPadding, // 初始为默认值，等待渲染进程设置
-    anchorHeight: assistantHeight, // 初始为 0，等待渲染进程设置
-    anchorWidth: assistantWidth, // 初始为 0，等待渲染进程设置
+    assistantPadding: spritePadding, // window-manager 包的外部选项名，保持不动；初始为默认值，等待渲染进程设置
+    anchorHeight: spriteHeight, // 初始为 0，等待渲染进程设置
+    anchorWidth: spriteWidth, // 初始为 0，等待渲染进程设置
     loadURL: process.env.VITE_DEV_SERVER_URL,
     loadFile: path.join(process.env.APP_ROOT || app.getAppPath(), 'dist'),
-    windowConfigs: defaultWindowConfigs,
+    windowConfigs: DEFAULT_WINDOW_CONFIGS,
     onBeforeFollowerShow: () => {
       stopHoverMonitor();
     },
@@ -244,18 +244,18 @@ export function initWindowHandlers(win: BrowserWindow): void {
     }
   });
 
-  // ---------------- Assistant Size IPC --------------------
+  // ---------------- Sprite Size IPC --------------------
   // 渲染进程通过此接口设置窗口大小和 padding
-  ipcMain.handle('setAssistantSize', (_: IpcMainInvokeEvent, params: { width: number; height: number; padding: number }) => {
+  ipcMain.handle('sprite:size:set', (_event: IpcMainInvokeEvent, params: { width: number; height: number; padding: number }) => {
     try {
-      if (!win || win.isDestroyed()) return { success: false };
+      if (!win || win.isDestroyed()) return { ok: false };
 
       // 更新记录的尺寸（这些值用于鼠标移动效果和窗口贴边等计算）
-      assistantWidth = params.width;
-      assistantHeight = params.height;
-      assistantPaddingInitialized = true;
+      spriteWidth = params.width;
+      spriteHeight = params.height;
+      isSpritePaddingInitialized = true;
 
-      // 计算窗口总大小（助手尺寸 + padding * 2）
+      // 计算窗口总大小（精灵尺寸 + padding * 2）
       const winWidth = params.width + params.padding * 2;
       const winHeight = params.height + params.padding * 2;
 
@@ -265,49 +265,49 @@ export function initWindowHandlers(win: BrowserWindow): void {
       // 更新窗口管理器的 anchor 尺寸（无论 padding 是否改变都要更新）
       try {
         if (typeof windowManager.setAnchorWidth === 'function') {
-          windowManager.setAnchorWidth(assistantWidth);
+          windowManager.setAnchorWidth(spriteWidth);
         }
         if (typeof windowManager.setAnchorHeight === 'function') {
-          windowManager.setAnchorHeight(assistantHeight);
+          windowManager.setAnchorHeight(spriteHeight);
         }
       } catch (error) {
         console.warn('Failed to update windowManager anchor size:', error);
       }
 
       // 更新 padding（如果不同）
-      if (assistantPadding !== params.padding) {
-        const oldPadding = assistantPadding;
-        assistantPadding = params.padding;
+      if (spritePadding !== params.padding) {
+        const oldPadding = spritePadding;
+        spritePadding = params.padding;
         // 更新窗口管理器的 padding（这个方法可能会调整窗口位置，但不会改变大小，因为我们已经设置了）
         windowManager.adjustMainWindowForPadding(oldPadding, params.padding);
       }
       if (params.padding <= 0) {
-        assistantInteractiveRegions = [];
+        spriteInteractiveRegions = [];
       }
 
       // 刷新缓存边界
       refreshBounds();
       syncHoverMonitor();
 
-      return { success: true };
+      return { ok: true };
     } catch (error) {
-      console.error('Failed to set assistant size:', error);
-      return { success: false, error: String(error) };
+      console.error('Failed to set sprite size:', error);
+      return { ok: false, error: String(error) };
     }
   });
 
-  ipcMain.handle('setAssistantInteractiveRegions', (_: IpcMainInvokeEvent, params: { regions?: Array<Partial<AssistantInteractiveRegion>> }) => {
+  ipcMain.handle('sprite:interactive-regions:set', (_event: IpcMainInvokeEvent, params: { regions?: Array<Partial<SpriteInteractiveRegion>> }) => {
     try {
-      assistantInteractiveRegions = (params?.regions ?? []).map(normalizeInteractiveRegion).filter((region): region is AssistantInteractiveRegion => Boolean(region));
+      spriteInteractiveRegions = (params?.regions ?? []).map(normalizeInteractiveRegion).filter((region): region is SpriteInteractiveRegion => Boolean(region));
       syncHoverMonitor();
-      return { success: true };
+      return { ok: true };
     } catch (error) {
-      console.error('Failed to set assistant interactive regions:', error);
-      return { success: false, error: String(error) };
+      console.error('Failed to set sprite interactive regions:', error);
+      return { ok: false, error: String(error) };
     }
   });
 
-  initIpcMain(win);
+  initWindowManagerHandlers(win);
   ipcMain.removeHandler('window:devtools:toggle');
   ipcMain.handle('window:devtools:toggle', (event) => {
     try {
@@ -374,7 +374,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
     try {
       const targetWindow = windowKey ? windowManager.get(windowKey as any) : BrowserWindow.fromWebContents(event.sender);
       if (!targetWindow || targetWindow.isDestroyed()) {
-        return { success: false, error: 'Window not found' };
+        return { ok: false, error: 'Window not found' };
       }
       const nextBounds = {
         x: Math.round(bounds.x),
@@ -383,9 +383,9 @@ export function initWindowHandlers(win: BrowserWindow): void {
         height: Math.max(1, Math.round(bounds.height))
       };
       targetWindow.setBounds(nextBounds);
-      return { success: true, bounds: targetWindow.getBounds() };
+      return { ok: true, bounds: targetWindow.getBounds() };
     } catch (error) {
-      return { success: false, error: String(error) };
+      return { ok: false, error: String(error) };
     }
   });
 
@@ -396,41 +396,41 @@ export function initWindowHandlers(win: BrowserWindow): void {
     try {
       const target = resolveSpriteBubbleEventTarget(event);
       if (!target || target.window.isDestroyed()) {
-        return { success: false, error: 'spriteBubbleFixedTop window not available' };
+        return { ok: false, error: 'spriteBubbleFixedTop window not available' };
       }
       const bubble = target.window;
       const width = clampWindowDimension(payload?.width, SPRITE_BUBBLE_MIN_WIDTH, SPRITE_BUBBLE_MAX_WIDTH);
       const height = clampWindowDimension(payload?.height, SPRITE_BUBBLE_MIN_HEIGHT, SPRITE_BUBBLE_MAX_HEIGHT);
       bubble.setSize(width, height, false);
       updateSpriteBubblePosition();
-      return { success: true };
+      return { ok: true };
     } catch (error) {
-      return { success: false, error: String(error) };
+      return { ok: false, error: String(error) };
     }
   });
 
-  ipcMain.removeHandler('sprite:bubble:setVisible');
-  ipcMain.handle('sprite:bubble:setVisible', async (event, payload: { visible: boolean }) => {
+  ipcMain.removeHandler('sprite:bubble:set-visible');
+  ipcMain.handle('sprite:bubble:set-visible', async (event, payload: { visible: boolean }) => {
     try {
       const target = resolveSpriteBubbleEventTarget(event);
       if (!target) {
-        return { success: false, error: 'spriteBubbleFixedTop window not available' };
+        return { ok: false, error: 'spriteBubbleFixedTop window not available' };
       }
       if (payload?.visible) {
         await windowManager.show(target.key);
       } else {
         await windowManager.hide(target.key);
       }
-      return { success: true };
+      return { ok: true };
     } catch (error) {
-      return { success: false, error: String(error) };
+      return { ok: false, error: String(error) };
     }
   });
 
   // Pre-create menu window in hidden state for faster first-open
   // This reduces the loading delay when user right-clicks for the first time
   windowManager.create('menu');
-  // 预创建固定在主窗口上方的气泡窗口；需要时由渲染进程调 sprite:bubble:setVisible 显示。
+  // 预创建固定在主窗口上方的气泡窗口；需要时由渲染进程调 sprite:bubble:set-visible 显示。
   windowManager.create('spriteBubbleFixedTop');
 
   function resolveSpriteBubbleEventTarget(event: IpcMainInvokeEvent): { key: SpriteBubbleWindowKey; window: BrowserWindow } | null {

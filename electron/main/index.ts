@@ -30,7 +30,7 @@ process.env.APP_ROOT = path.join(__dirname, '../..');
 export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron');
 export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist');
 export const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
-export const DOCKER_ICON = 'icon.png';
+export const DOCK_ICON = 'icon.png';
 
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST;
 
@@ -41,6 +41,8 @@ if (os.release().startsWith('6.1')) app.disableHardwareAcceleration();
 if (process.platform === 'win32') app.setAppUserModelId(app.getName());
 
 if (!app.requestSingleInstanceLock()) {
+  // 锁被占用说明已有实例（或异常残留的孤儿进程）在运行，打日志便于排查"无声退出"
+  console.log('[main] 已有实例在运行（单实例锁被占用），本次启动退出');
   app.quit();
   process.exit(0);
 }
@@ -66,7 +68,7 @@ export function getMainWindow(): BrowserWindow | null {
 }
 
 // splash 不再展示状态/日志文字，仅保留终端日志
-function updateSplashLog(text: string): void {
+function logStartupStep(text: string): void {
   console.log('>> ' + text);
 }
 
@@ -135,9 +137,9 @@ async function createWindow(): Promise<void> {
   });
   (win as any).__preloadPath = preload;
 
-  // 设置 Mac 平台 Docker 上的图标
+  // 设置 Mac 平台 Dock 上的图标
   if (process.platform === 'darwin') {
-    app.dock?.setIcon(path.join(process.env.VITE_PUBLIC, DOCKER_ICON));
+    app.dock?.setIcon(path.join(process.env.VITE_PUBLIC, DOCK_ICON));
     // win.setVibrancy('under-window')
   }
 
@@ -161,9 +163,9 @@ async function createWindow(): Promise<void> {
     return { action: 'deny' };
   });
 
-  updateSplashLog('initializing IPC handlers');
+  logStartupStep('initializing IPC handlers');
   await initHandlers(win);
-  updateSplashLog('IPC handlers registered');
+  logStartupStep('IPC handlers registered');
 
   // https://github.com/electron/electron/issues/7049
   // https://www.electronjs.org/docs/latest/breaking-changes#removed-crashed-event-on-webcontents-and-webview
@@ -182,30 +184,30 @@ app.whenReady().then(async () => {
   await createSplashWindow();
 
   // Setup custom resource protocol (modern protocol.handle API)
-  updateSplashLog('setup res:// protocol handler');
+  logStartupStep('setup res:// protocol handler');
   try {
     await setupResourceProtocol();
-    updateSplashLog('res:// protocol ready');
+    logStartupStep('res:// protocol ready');
   } catch (e) {
     console.warn('[protocol res] setup failed', e);
   }
 
   // Add workspace root if exists
-  updateSplashLog('loading default workspace');
+  logStartupStep('loading default workspace');
   try {
     const ws = await WorkspacesRepo.getDefault();
     if (ws?.rootPath) {
       const resRoot = path.join(ws.rootPath, 'resources');
       addAllowedResourceRoot(resRoot);
       addWorkspaceResourceRoot(ws.id, resRoot);
-      updateSplashLog(`workspace root: ${ws.rootPath}`);
+      logStartupStep(`workspace root: ${ws.rootPath}`);
     }
   } catch (e) {
     console.warn('[protocol res] add workspace root failed', e);
   }
 
   // Add userData/data directory as allowed root for sprite speak cache etc.
-  updateSplashLog('registering userData resource root');
+  logStartupStep('registering userData resource root');
   try {
     const userDataDir = path.join(app.getPath('userData'), 'data');
     addAllowedResourceRoot(userDataDir);
@@ -227,16 +229,16 @@ app.whenReady().then(async () => {
     });
   });
 
-  updateSplashLog('creating main BrowserWindow');
+  logStartupStep('creating main BrowserWindow');
   await createWindow();
-  updateSplashLog('main window created, loading IPC handlers');
+  logStartupStep('main window created, loading IPC handlers');
 
   // Register all global shortcuts (assistant toggle, devtools, etc.)
-  updateSplashLog('registering global shortcuts');
+  logStartupStep('registering global shortcuts');
   registerGlobalShortcuts(getMainWindow);
 
   // --- Wait for renderer to be fully ready ---
-  updateSplashLog('waiting for renderer React mount...');
+  logStartupStep('waiting for renderer React mount...');
 
   // 2) Minimum 2 seconds splash display
   const MIN_SPLASH_MS = 2000;

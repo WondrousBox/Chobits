@@ -1,1 +1,1 @@
-export type { IpcParams, PartialByKey, RequiredByKey, ResParams } from '@packages/common/types/ipc';
+export type { IpcParams, PartialByKey, RequiredByKey } from '@packages/common/types/ipc';

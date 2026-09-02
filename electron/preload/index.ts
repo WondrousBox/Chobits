@@ -13,7 +13,7 @@ import { preferencesIpcRenderer } from '../main/handlers/preferences/ipc-rendere
 import { proxyIpcRenderer } from '../main/handlers/proxy/ipc-renderer';
 import { systemIpcRenderer } from '../main/handlers/system/ipc-renderer';
 import { themeIpcRenderer } from '../main/handlers/theme/ipc-renderer';
-import { personaApi } from './apis/persona';
+import { characterApi } from './apis/character';
 import { shortcutsBridge } from './apis/shortcuts';
 import { statusBridge } from './apis/status';
 import { windowBridge } from './apis/window';
@@ -64,7 +64,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
 });
 
 // --------- AI Assistant API ---------
-contextBridge.exposeInMainWorld('YUA', {
+contextBridge.exposeInMainWorld('chobits', {
   isMac,
   isWindows,
   isLinux,
@@ -78,7 +78,7 @@ contextBridge.exposeInMainWorld('YUA', {
   system: systemIpcRenderer,
   sprite: spriteBridge,
   status: statusBridge,
-  persona: personaApi,
+  character: characterApi,
   shortcuts: shortcutsBridge,
   ai: aiBridge,
   pluginResource: pluginResourceIpcRenderer,
@@ -100,17 +100,17 @@ contextBridge.exposeInMainWorld('YUA', {
       return () => ipcRenderer.off(APP_EVENT_CHANNEL, subscription);
     }
   },
-  handleMessage: (handleFunction: (event: IpcRendererEvent, data: { type: string; data: any }) => any, name: string) => {
+  handleMessage: (handler: (event: IpcRendererEvent, data: { type: string; data: any }) => any, name: string) => {
     if (handles[name]) {
-      ipcRenderer.removeListener('renderer-message', handles[name]);
+      ipcRenderer.removeListener('app:renderer-message', handles[name]);
     }
-    handles[name] = handleFunction;
+    handles[name] = handler;
 
-    return ipcRenderer.addListener('renderer-message', handleFunction);
+    return ipcRenderer.addListener('app:renderer-message', handler);
   },
-  removeHandler: (name: string) => {
+  removeMessageHandler: (name: string) => {
     if (handles[name]) {
-      return ipcRenderer.removeListener('renderer-message', handles[name]);
+      return ipcRenderer.removeListener('app:renderer-message', handles[name]);
     }
   }
 });

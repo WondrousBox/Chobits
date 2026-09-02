@@ -2,7 +2,7 @@ import { windowIpcRenderer, WindowIpcType } from '@aim-packages/window-manager/r
 import type { WindowAnimationPlaybackResult, WindowAnimationState, WindowAnimationStopOptions, WindowAnimationTimeline } from '@packages/common/types/window-animation';
 import { ipcRenderer } from 'electron';
 
-import { IPCParams } from '../type';
+import { IpcParams } from '../type';
 
 export type {
   WindowAnimationAnchor,
@@ -28,22 +28,22 @@ export type {
 } from '@packages/common/types/window-animation';
 
 type WindowBridgeParams = {
-  /** 设置助手窗口大小和 padding */
-  setAssistantSize: IPCParams<[{ width: number; height: number; padding: number }], { success: boolean; error?: string }>;
-  setAssistantInteractiveRegions: IPCParams<[{ regions: Array<{ x: number; y: number; width: number; height: number }> }], { success: boolean; error?: string }>;
-  'screen:work-area:get': IPCParams<[string?], { x: number; y: number; width: number; height: number }>;
-  'window:bounds:set': IPCParams<
+  /** 设置精灵窗口大小和 padding */
+  'sprite:size:set': IpcParams<[{ width: number; height: number; padding: number }], { ok: boolean; error?: string }>;
+  'sprite:interactive-regions:set': IpcParams<[{ regions: Array<{ x: number; y: number; width: number; height: number }> }], { ok: boolean; error?: string }>;
+  'screen:work-area:get': IpcParams<[string?], { x: number; y: number; width: number; height: number }>;
+  'window:bounds:set': IpcParams<
     [string, { x: number; y: number; width: number; height: number }],
-    { success: boolean; bounds?: { x: number; y: number; width: number; height: number }; error?: string }
+    { ok: boolean; bounds?: { x: number; y: number; width: number; height: number }; error?: string }
   >;
-  'window:animation:play': IPCParams<[string, WindowAnimationTimeline], WindowAnimationPlaybackResult>;
-  'window:animation:stop': IPCParams<[string, WindowAnimationStopOptions?], WindowAnimationPlaybackResult>;
-  'window:animation:state': IPCParams<[string?], WindowAnimationState>;
+  'window:animation:play': IpcParams<[string, WindowAnimationTimeline], WindowAnimationPlaybackResult>;
+  'window:animation:stop': IpcParams<[string, WindowAnimationStopOptions?], WindowAnimationPlaybackResult>;
+  'window:animation:state': IpcParams<[string?], WindowAnimationState>;
 };
 
 const methods: Array<keyof WindowBridgeParams> = [
-  'setAssistantSize',
-  'setAssistantInteractiveRegions',
+  'sprite:size:set',
+  'sprite:interactive-regions:set',
   'screen:work-area:get',
   'window:bounds:set',
   'window:animation:play',

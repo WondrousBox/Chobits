@@ -31,7 +31,7 @@ import type {
   SpriteSpontaneousUtteranceResult,
   SpriteSpontaneousUtteranceTonePreference
 } from '../../../../packages/sprite-core/manager';
-import { getStoredRoleProfile } from '../status';
+import { getStoredCharacterProfile } from '../status';
 import {
   buildSpontaneousPurposeRetrospectiveContext,
   formatSpontaneousPurposeRetrospectiveContext,
@@ -42,7 +42,7 @@ import {
 } from './purpose-retrospective-context';
 import { buildSpontaneousUtteranceRuntimeRequest } from './spontaneous-utterance-runtime';
 
-const TAG = '[SpriteAIUtterance]';
+const TAG = '[SpriteSpontaneousUtterance]';
 const MESSAGE_LIMIT = 16;
 const RECENT_MESSAGE_SLICE = 12;
 const MAX_MESSAGE_CHARS = 240;
@@ -265,7 +265,7 @@ function normalizeIntentCategories(value: unknown): SpriteSpontaneousUtteranceIn
 
   const categories = value.map((item) => normalizeIntentCategory(item)).filter((item): item is SpriteSpontaneousUtteranceIntentCategory => !!item);
 
-  return uniqueStrings(categories).length ? (uniqueStrings(categories) as SpriteSpontaneousUtteranceIntentCategory[]) : [...DEFAULT_SPONTANEOUS_UTTERANCE_PREFERENCES.allowedIntentCategories];
+  return deduplicateStrings(categories).length ? (deduplicateStrings(categories) as SpriteSpontaneousUtteranceIntentCategory[]) : [...DEFAULT_SPONTANEOUS_UTTERANCE_PREFERENCES.allowedIntentCategories];
 }
 
 function normalizeSpontaneousUtterancePreferences(value: unknown): SpriteSpontaneousUtterancePreferences {
@@ -294,7 +294,7 @@ function readPreferencesSync(): SpriteSpontaneousUtterancePreferences {
   }
 }
 
-function localDateStamp(ts = Date.now()): string {
+function formatLocalDateStamp(ts = Date.now()): string {
   const date = new Date(ts);
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -329,7 +329,7 @@ function resolveFavorLevel(favor: number): FavorLevel {
   return 'stranger';
 }
 
-function uniqueStrings(values: string[]): string[] {
+function deduplicateStrings(values: string[]): string[] {
   const seen = new Set<string>();
   const result: string[] = [];
 
@@ -351,7 +351,7 @@ function normalizeHistoryTextKey(text: string): string {
     .replace(/[\s\p{P}\p{S}]+/gu, '');
 }
 
-function stableDecisionScore(seed: string): number {
+function computeStableDecisionScore(seed: string): number {
   let hash = 0;
 
   for (const char of seed) {
@@ -379,7 +379,7 @@ function evaluateHistoryNoise(candidate: SpriteSpontaneousUtteranceResult, histo
   }
 
   const sameToneCount = candidate.tone ? recentIntentItems.filter((item) => item.tone === candidate.tone).length : 0;
-  const score = stableDecisionScore(`${candidate.intentCategory}:${candidate.tone || 'auto'}:${candidate.text}`);
+  const score = computeStableDecisionScore(`${candidate.intentCategory}:${candidate.tone || 'auto'}:${candidate.text}`);
   const threshold = recentIntentItems.length >= 4 ? 0.85 : sameToneCount >= 2 ? 0.7 : 0.55;
 
   if (score < threshold) {
@@ -433,7 +433,7 @@ function buildPrompt(
   input: SpriteSpontaneousUtteranceRequest,
   ctx: ResolvedConversationContext,
   persona: PersonaSummary,
-  roleSummary: string[],
+  characterProfileSummary: string[],
   persistentMemory: PersistentMemoryContext,
   importantDialogueDigests: ImportantDialogueDigest[],
   purposeRetrospective: SpontaneousPurposeRetrospectiveContext | null,
@@ -487,7 +487,7 @@ ${characterPersonaPrompt ? truncateText(characterPersonaPrompt, 1800) : ''}
 ${personaSection}
 
 精灵当前角色状态:
-${roleSummary.join('\n') || '暂无'}
+${characterProfileSummary.join('\n') || '暂无'}
 
 
 当前 preset system prompt:
@@ -697,7 +697,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
   private activeHint?: ActiveConversationHint;
   private isGenerating = false;
   private lastSuccessAt = 0;
-  private dailyDate = localDateStamp();
+  private dailyDate = formatLocalDateStamp();
   private dailyCount = 0;
   private pendingExecutionContexts = new Map<string, PendingExecutionContext>();
   private spontaneousUtterancePreferences = readPreferencesSync();
@@ -714,7 +714,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
       };
     });
 
-    eventManager.on(AppEvent.SPRITE_AI_COMPLETE, (payload: { conversationId?: string }) => {
+    eventManager.on(AppEvent.SPRITE_AI_COMPLETED, (payload: { conversationId?: string }) => {
       if (!payload?.conversationId) return;
       this.activeHint = {
         conversationId: payload.conversationId,
@@ -773,21 +773,21 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
         return null;
       }
 
-      const roleProfilePromise = getStoredRoleProfile();
+      const characterProfilePromise = getStoredCharacterProfile();
       persona = await this.loadPersonaSummary(ctx.workspaceId);
-      const [roleProfile, resolvedPurposeRetrospective] = await Promise.all([roleProfilePromise, this.collectPurposeRetrospectiveContext()]);
+      const [characterProfile, resolvedPurposeRetrospective] = await Promise.all([characterProfilePromise, this.collectPurposeRetrospectiveContext()]);
 
       purposeRetrospective = resolvedPurposeRetrospective;
 
-      const roleSummary = [
-        `- 当前角色名: ${roleProfile.name}`,
-        ...(roleProfile.mood ? [`- 当前角色心情: ${roleProfile.mood}`] : []),
-        ...(typeof roleProfile.level === 'number' ? [`- 当前角色等级: ${roleProfile.level}`] : []),
-        ...(typeof roleProfile.favor === 'number' ? [`- 当前角色 favor: ${roleProfile.favor}`] : []),
-        ...(roleProfile.description ? [`- 当前角色描述: ${truncateText(roleProfile.description, 300)}`] : [])
+      const characterProfileSummary = [
+        `- 当前角色名: ${characterProfile.name}`,
+        ...(characterProfile.mood ? [`- 当前角色心情: ${characterProfile.mood}`] : []),
+        ...(typeof characterProfile.level === 'number' ? [`- 当前角色等级: ${characterProfile.level}`] : []),
+        ...(typeof characterProfile.favor === 'number' ? [`- 当前角色 favor: ${characterProfile.favor}`] : []),
+        ...(characterProfile.description ? [`- 当前角色描述: ${truncateText(characterProfile.description, 300)}`] : [])
       ];
 
-      const prompt = buildPrompt(input, ctx, persona, roleSummary, persistentMemory, importantDialogueDigests, purposeRetrospective, preferences);
+      const prompt = buildPrompt(input, ctx, persona, characterProfileSummary, persistentMemory, importantDialogueDigests, purposeRetrospective, preferences);
       const runtime = await createPiTaskChatRuntimeFromRequest(
         buildSpontaneousUtteranceRuntimeRequest({
           providerId: ctx.providerId,
@@ -1072,7 +1072,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
   }
 
   private refreshDailyCounter(): void {
-    const today = localDateStamp();
+    const today = formatLocalDateStamp();
     if (today !== this.dailyDate) {
       this.dailyDate = today;
       this.dailyCount = 0;
@@ -1263,7 +1263,7 @@ export class SpriteSpontaneousUtteranceService implements SpriteSpontaneousUtter
     if (!workspaceRoot) return;
 
     const logDir = path.join(workspaceRoot, 'memory', 'logs');
-    const logPath = path.join(logDir, `${HISTORY_FILE_PREFIX}${localDateStamp()}${HISTORY_FILE_SUFFIX}`);
+    const logPath = path.join(logDir, `${HISTORY_FILE_PREFIX}${formatLocalDateStamp()}${HISTORY_FILE_SUFFIX}`);
     await fs.mkdir(logDir, { recursive: true });
     await fs.appendFile(logPath, `${JSON.stringify(payload)}\n`, 'utf-8');
   }

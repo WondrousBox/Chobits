@@ -1,16 +1,16 @@
-import type { RoleProfile } from '@packages/common/types/status';
+import type { CharacterProfile } from '@packages/common/types/status';
 import { ipcRenderer } from 'electron';
 
-import type { IPCParams } from '../type';
+import type { IpcParams } from '../type';
 
-export type { RoleProfile } from '@packages/common/types/status';
+export type { CharacterProfile } from '@packages/common/types/status';
 
 export type StatusBridgeParams = {
-  'status:getRole': IPCParams<[void], { ok: boolean; role: RoleProfile }>;
-  'status:updateRole': IPCParams<[{ patch: Partial<RoleProfile> }], { ok: boolean; role: RoleProfile }>;
+  'character:get-profile': IpcParams<[void], { ok: boolean; profile: CharacterProfile }>;
+  'character:update-profile': IpcParams<[{ patch: Partial<CharacterProfile> }], { ok: boolean; profile: CharacterProfile }>;
 };
 
-const methods: Array<keyof StatusBridgeParams> = ['status:getRole', 'status:updateRole'];
+const methods: Array<keyof StatusBridgeParams> = ['character:get-profile', 'character:update-profile'];
 
 export type StatusBridgeType = {
   [K in keyof StatusBridgeParams]: (...args: StatusBridgeParams[K]['request']) => Promise<StatusBridgeParams[K]['response']>;

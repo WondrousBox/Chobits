@@ -50,9 +50,9 @@ export function testProxy(testUrl: string = 'https://www.google.com', timeoutMs:
     const startTime = Date.now();
     const agent = getHttpProxy();
     const controller = new AbortController();
-    let timedOut = false;
+    let hasTimedOut = false;
     const timeoutId = setTimeout(() => {
-      timedOut = true;
+      hasTimedOut = true;
       controller.abort();
     }, timeoutMs);
 
@@ -70,7 +70,7 @@ export function testProxy(testUrl: string = 'https://www.google.com', timeoutMs:
         clearTimeout(timeoutId);
         const endTime = Date.now();
         const latency = endTime - startTime;
-        if (timedOut) {
+        if (hasTimedOut) {
           console.warn('[Proxy] test timeout', { latency, timeoutMs });
           reject(new Error('[Proxy] test timeout'));
           return;

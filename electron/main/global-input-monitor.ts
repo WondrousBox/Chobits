@@ -65,10 +65,10 @@ type Listener<K extends keyof GlobalInputEventMap> = (event: GlobalInputEventMap
 const require = createRequire(import.meta.url);
 
 class GlobalInputMonitor {
-  private loadAttempted = false;
+  private hasLoadAttempted = false;
   private hook: UiohookInstance | null = null;
   private keyMap: Record<string, number> | null = null;
-  private active = false;
+  private isActive = false;
   private readonly listeners: { [K in keyof GlobalInputEventMap]: Set<Listener<K>> } = {
     keydown: new Set(),
     keyup: new Set(),
@@ -88,7 +88,7 @@ class GlobalInputMonitor {
   }
 
   get isRunning(): boolean {
-    return this.active;
+    return this.isActive;
   }
 
   on<K extends keyof GlobalInputEventMap>(eventName: K, listener: Listener<K>): () => void {
@@ -122,33 +122,33 @@ class GlobalInputMonitor {
 
   start(): boolean {
     if (!this.ensureLoaded() || !this.hook) return false;
-    if (this.active) return true;
+    if (this.isActive) return true;
     try {
       this.hook.start();
-      this.active = true;
+      this.isActive = true;
       return true;
     } catch (error) {
       console.warn('[global-input] failed to start uiohook:', error);
-      this.active = false;
+      this.isActive = false;
       return false;
     }
   }
 
   stop(): void {
-    if (!this.active || !this.hook) return;
+    if (!this.isActive || !this.hook) return;
     try {
       this.hook.stop();
     } catch (error) {
       console.warn('[global-input] failed to stop uiohook:', error);
     } finally {
-      this.active = false;
+      this.isActive = false;
     }
   }
 
   private ensureLoaded(): boolean {
     if (this.hook) return true;
-    if (this.loadAttempted) return false;
-    this.loadAttempted = true;
+    if (this.hasLoadAttempted) return false;
+    this.hasLoadAttempted = true;
     try {
       const mod = require('uiohook-napi') as UiohookModule;
       const hook = (mod.uIOhook ?? mod) as UiohookInstance;
