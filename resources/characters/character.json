@@ -243,40 +243,10 @@
         }
       ]
     },
-    "resourceQueryTool": {
-      "default": {
-        "calling": "帮你翻翻资源库……",
-        "done": "资源找到了～"
-      }
-    },
     "pushCardTool": {
       "default": {
         "calling": "准备推一张卡片给你",
         "done": "卡片推好啦"
-      }
-    },
-    "translationTool": {
-      "default": {
-        "calling": "开始翻译字幕……",
-        "done": "翻译搞定了！"
-      }
-    },
-    "summaryTool": {
-      "default": {
-        "calling": "认真读一下然后帮你总结……",
-        "done": "总结做好了～"
-      }
-    },
-    "readSubtitleTool": {
-      "default": {
-        "calling": "读一下字幕内容……",
-        "done": "字幕已读取"
-      }
-    },
-    "youtubeDownloadTool": {
-      "default": {
-        "calling": "去下载这个视频：{url}",
-        "done": "下载任务已经安排好了～"
       }
     },
     "memorySearchTool": {

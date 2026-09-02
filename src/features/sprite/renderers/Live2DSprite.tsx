@@ -8,7 +8,7 @@ import { LAppLive2DManager } from '@/live2d-sdk/src/lapplive2dmanager';
 
 import { useSpriteState } from '../context/hooks';
 import { type Live2DConfig, loadLive2DConfig, resolveTriggerMapping } from '../live2d/live2d-config';
-import { destroyLive2DRuntime, initLive2DRuntime } from '../live2d/Live2DRuntime';
+import { destroyLive2DRuntime, initLive2DRuntime } from '../live2d/live2d-runtime';
 import { alignMainWindowToBottomRight } from '../utils/positioning';
 
 const CANVAS_ID = 'live2d-sprite-canvas';

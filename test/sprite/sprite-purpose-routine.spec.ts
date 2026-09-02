@@ -378,7 +378,7 @@ describe('SpriteRoutineRunner', () => {
         type: 'waitForEvent',
         source: 'app-event',
         event: 'APP_WINDOW_OPENED',
-        match: { windowKey: ['chatPanel', 'chatMini', 'chat', 'chatOverlay'] },
+        match: { windowKey: ['chatPanel', 'chatMini', 'chat'] },
         timeoutMs: 100
       },
       routine

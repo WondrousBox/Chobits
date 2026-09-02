@@ -9,7 +9,7 @@ import { app, screen } from 'electron';
 import DEFAULT_WINDOW_CONFIGS from '../config/window';
 import { globalInputMonitor } from '../global-input-monitor';
 
-const SPRITE_BUBBLE_WINDOW_KEYS = ['spriteBubbleFixedTop'] as const;
+const SPRITE_BUBBLE_WINDOW_KEYS = ['spriteBubble'] as const;
 type SpriteBubbleWindowKey = (typeof SPRITE_BUBBLE_WINDOW_KEYS)[number];
 const SPRITE_BUBBLE_MIN_WIDTH = 40;
 const SPRITE_BUBBLE_MIN_HEIGHT = 24;
@@ -207,7 +207,29 @@ export function initWindowHandlers(win: BrowserWindow): void {
     }
   }
 
+  // 是否有"挂起监控"的跟随窗口（菜单/mini 对话框）正在显示
+  function hasVisibleSuspendFollower(): boolean {
+    try {
+      return (Object.keys(DEFAULT_WINDOW_CONFIGS) as Array<keyof typeof DEFAULT_WINDOW_CONFIGS>).some((key) => {
+        const config = DEFAULT_WINDOW_CONFIGS[key];
+        if (!config?.followMain || !config.suspendHoverMonitorOnShow) return false;
+        const follower = windowManager.get(key);
+        return Boolean(follower && !follower.isDestroyed() && follower.isVisible());
+      });
+    } catch {
+      return false;
+    }
+  }
+
   function syncHoverMonitor(): void {
+    // 跟随窗口可见期间：停止监控并强制精灵可交互。
+    // 不能依赖"冻结在跟随窗口打开那一刻的状态"——监控一旦在此期间被重启
+    // （如精灵动画更新尺寸触发 sprite:size:set），会把精灵卡在点击穿透状态，导致无法双击关闭 mini 对话框。
+    if (hasVisibleSuspendFollower()) {
+      stopHoverMonitor({ restoreMouseEvents: true });
+      return;
+    }
+
     if (shouldRunHoverMonitor()) {
       startHoverMonitor();
       if (isHoverMonitorActive) {
@@ -237,7 +259,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
     loadFile: path.join(process.env.APP_ROOT || app.getAppPath(), 'dist'),
     windowConfigs: DEFAULT_WINDOW_CONFIGS,
     onBeforeFollowerShow: () => {
-      stopHoverMonitor();
+      syncHoverMonitor();
     },
     onAfterFollowerHide: () => {
       syncHoverMonitor();
@@ -357,6 +379,26 @@ export function initWindowHandlers(win: BrowserWindow): void {
       return false;
     }
   });
+  // 打开/关闭切换：窗口可见时关闭，否则打开（用于双击精灵等开关式交互）
+  ipcMain.removeHandler('window:toggle');
+  ipcMain.handle('window:toggle', async (event, windowKey, payload) => {
+    if (!win || win.isDestroyed()) return false;
+    try {
+      const existing = windowManager.get(windowKey as any);
+      if (existing && !existing.isDestroyed() && existing.isVisible()) {
+        await windowManager.close(windowKey as any);
+        return true;
+      }
+
+      rememberWindowPayload(String(windowKey), payload);
+      const opened = await windowManager.createOrShow(windowKey, payload);
+      attachAppWindowClosedReporter(opened, String(windowKey), 'renderer-window-toggle');
+      emitAppWindowOpened(String(windowKey), payload, 'renderer-window-toggle');
+      return true;
+    } catch {
+      return false;
+    }
+  });
   ipcMain.removeHandler('screen:work-area:get');
   ipcMain.handle('screen:work-area:get', (event, windowKey?: string) => {
     try {
@@ -396,7 +438,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
     try {
       const target = resolveSpriteBubbleEventTarget(event);
       if (!target || target.window.isDestroyed()) {
-        return { ok: false, error: 'spriteBubbleFixedTop window not available' };
+        return { ok: false, error: 'spriteBubble window not available' };
       }
       const bubble = target.window;
       const width = clampWindowDimension(payload?.width, SPRITE_BUBBLE_MIN_WIDTH, SPRITE_BUBBLE_MAX_WIDTH);
@@ -414,7 +456,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
     try {
       const target = resolveSpriteBubbleEventTarget(event);
       if (!target) {
-        return { ok: false, error: 'spriteBubbleFixedTop window not available' };
+        return { ok: false, error: 'spriteBubble window not available' };
       }
       if (payload?.visible) {
         await windowManager.show(target.key);
@@ -431,7 +473,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
   // This reduces the loading delay when user right-clicks for the first time
   windowManager.create('menu');
   // 预创建固定在主窗口上方的气泡窗口；需要时由渲染进程调 sprite:bubble:set-visible 显示。
-  windowManager.create('spriteBubbleFixedTop');
+  windowManager.create('spriteBubble');
 
   function resolveSpriteBubbleEventTarget(event: IpcMainInvokeEvent): { key: SpriteBubbleWindowKey; window: BrowserWindow } | null {
     const senderWindow = BrowserWindow.fromWebContents(event.sender);
@@ -440,8 +482,8 @@ export function initWindowHandlers(win: BrowserWindow): void {
       if (senderKey) return { key: senderKey, window: senderWindow };
     }
 
-    const fallback = windowManager.get('spriteBubbleFixedTop');
-    return fallback && !fallback.isDestroyed() ? { key: 'spriteBubbleFixedTop', window: fallback } : null;
+    const fallback = windowManager.get('spriteBubble');
+    return fallback && !fallback.isDestroyed() ? { key: 'spriteBubble', window: fallback } : null;
   }
 
   function getSpriteBubbleWindowKey(targetWindow: BrowserWindow): SpriteBubbleWindowKey | null {

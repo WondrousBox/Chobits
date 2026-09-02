@@ -15,11 +15,11 @@ import { ThemeProvider } from '@/pages/SettingsPage/providers/ThemeProvider';
 
 import { TooltipProvider } from './components/ui/tooltip';
 import AIProviderConfigWindow from './pages/AIProviderConfigWindow/AIProviderConfigWindow';
+import ASRConfigPage from './pages/ASRPage/ASRConfigPage';
+import ASRPage from './pages/ASRPage/ASRPage';
+import ASRTestPage from './pages/ASRPage/ASRTestPage';
 import ChatPage from './pages/ChatPage/ChatPage';
-import ChatPanelPage from './pages/ChatPage/StartPage';
-import ASRConfigPage from './pages/RecordingPage/ASRConfigPage';
-import ASRTestPage from './pages/RecordingPage/ASRTestPage';
-import RecordingPage from './pages/RecordingPage/RecordingPage';
+import ChatPanelPage from './pages/ChatPage/ChatPanelPage';
 import SettingsPage from './pages/SettingsPage/SettingsPage';
 import SpriteMenuPage from './pages/SpriteMenuPage/SpriteMenuPage';
 import TTSConfigPage from './pages/TTSPage/TTSConfigPage';
@@ -41,7 +41,7 @@ function StandardAppRoutes(): JSX.Element {
           <Route path="/" element={<SpriteApp />} />
           <Route path="/status" element={<StatusPage />} />
           {flags.localAI && <Route path="/asr-config" element={<ASRConfigPage />} />}
-          {flags.localAI && <Route path="/asr" element={<RecordingPage />} />}
+          {flags.localAI && <Route path="/asr" element={<ASRPage />} />}
           {flags.localAI && <Route path="/asr-test" element={<ASRTestPage />} />}
           <Route path="/tts-config" element={<TTSConfigPage />} />
           <Route path="/tts" element={<TTSPage />} />

@@ -886,46 +886,6 @@ export default function ChatPage(): JSX.Element {
           {shouldShowEmptyStart && (
             <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
               <div className="text-center text-lg mb-4">今天有什么能帮到你？</div>
-              {/* 固定的常用应用卡片（防止被误删，先放这里） */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 w-full max-w-3xl px-4">
-                {/* 视频转写 */}
-                <button
-                  type="button"
-                  className="group flex flex-col items-start justify-between rounded-xl border bg-card text-card-foreground p-4 text-left hover:shadow-sm hover:bg-accent/50 transition-colors"
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">🎙️</div>
-                    <div>
-                      <div className="font-medium text-sm">视频转写</div>
-                      <div className="text-xs text-muted-foreground">将视频语音转换为带时间轴的字幕文本</div>
-                    </div>
-                  </div>
-                  <div className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <span>支持多语言</span>
-                    <span className="mx-1">·</span>
-                    <span>适合长视频整理</span>
-                  </div>
-                </button>
-
-                {/* 字幕翻译 */}
-                <button
-                  type="button"
-                  className="group flex flex-col items-start justify-between rounded-xl border bg-card text-card-foreground p-4 text-left hover:shadow-sm hover:bg-accent/50 transition-colors"
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 rounded-lg bg-green-500/10 text-green-500">🌐</div>
-                    <div>
-                      <div className="font-medium text-sm">字幕翻译</div>
-                      <div className="text-xs text-muted-foreground">一键翻译现有字幕到多种目标语言</div>
-                    </div>
-                  </div>
-                  <div className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <span>保留时间轴</span>
-                    <span className="mx-1">·</span>
-                    <span>适合多语言发布</span>
-                  </div>
-                </button>
-              </div>
               <ChatInputWithService isLoading={isLoading} onStart={start} onStop={stop} />
             </div>
           )}

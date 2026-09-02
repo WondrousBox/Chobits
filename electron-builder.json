@@ -25,10 +25,6 @@
       "to": "./providers"
     },
     {
-      "from": "resources/ffmpeg/${platform}/${arch}",
-      "to": "./ffmpeg/${platform}/${arch}"
-    },
-    {
       "from": "resources/characters",
       "to": "./characters"
     },

@@ -1,5 +1,3 @@
-import type { AimSegments } from '@aim-packages/subtitle';
-
 // Core message primitives
 export type Role = 'system' | 'user' | 'assistant' | 'tool';
 
@@ -393,72 +391,6 @@ export type LyricsGenerationResponse = {
   rawUsage?: unknown;
   rawResponse?: unknown;
 };
-export type TranslateRequest = ProviderScopedRequest & {
-  model: string;
-  segments?: AimSegments[];
-  resourceId?: string;
-  targetLanguage: string;
-  sourceLanguage?: string;
-  languageNames: Record<string, string>;
-  metadata?: Record<string, any>;
-  options?: {
-    /** 最大并发请求数 */
-    maxConcurrency?: number;
-    /** 每个分块的最大字符数 */
-    chunkSize?: number;
-    /** 失败后最大重试次数 */
-    maxRetries?: number;
-    /** 自定义提示词模板 */
-    promptTemplate?: string;
-    /** 是否生成 summary */
-    generateSummary?: boolean;
-    /** 术语表/热词词典
-     * 支持格式:
-     * - 数组: Array<{ source: string; target: string; note?: string }>
-     * - 对象: Record<string, string> (source -> target)
-     * - 带说明的对象: Record<string, { target: string; note?: string }>
-     */
-    glossary?: any;
-  };
-};
-export type SummarizeRequest = ProviderScopedRequest & {
-  model: string;
-  content?: string;
-  segments?: any[];
-  resourceId?: string;
-  targetLanguage: string;
-  languageNames: Record<string, string>;
-  options?: {
-    maxChars?: number;
-    extractKeyPoints?: boolean;
-    extractTimeline?: boolean;
-    keywordCount?: number;
-    promptTemplate?: string;
-  };
-  metadata?: Record<string, any>;
-};
-export type MindmapRequest = ProviderScopedRequest & {
-  model: string;
-  content?: string;
-  segments?: any[];
-  resourceId?: string;
-  targetLanguage: string;
-  languageNames?: Record<string, string>;
-  options?: any;
-  metadata?: any;
-};
-export type SelectedTextExplainRequest = ProviderScopedRequest & {
-  model: string;
-  text: string;
-  targetLanguage?: string;
-  languageNames?: Record<string, string>;
-  metadata?: Record<string, any>;
-  options?: {
-    maxChars?: number;
-    mode?: 'detail' | 'quick';
-    promptTemplate?: string;
-  };
-};
 export type ActiveAITaskSnapshot = {
   requestId: string;
   providerId: string;
@@ -466,12 +398,6 @@ export type ActiveAITaskSnapshot = {
   startTime: number;
   taskLabel?: string;
   metadata?: Record<string, any>;
-};
-export type TranslatedSegmentSnapshot = AimSegments & {
-  index: number;
-  summary?: string;
-  startIndex?: number;
-  endIndex?: number;
 };
 export type ProviderPresetOverrides = Record<string, any>;
 export type ProviderPresetCreatePayload = {

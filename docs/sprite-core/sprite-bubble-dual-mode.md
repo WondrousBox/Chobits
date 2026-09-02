@@ -14,7 +14,7 @@
 | 模式                | 说明                                                                           | padding 行为                     | 气泡承载                       |
 | ------------------- | ------------------------------------------------------------------------------ | -------------------------------- | ------------------------------ |
 | `inline`            | 气泡渲染在主精灵窗口内，沿用 `padding` 撑出的空白区域                          | 使用持久化的真实 `padding`       | 主窗口内的 `<SpriteMessage />` |
-| `fixed-top`（默认） | 气泡由独立的 `spriteBubbleFixedTop` 窗口承载，固定在主窗口上方并跟随主窗口移动 | 运行期强制为 `0`，持久化原值保留 | 独立窗口的 `<SpriteMessage />` |
+| `fixed-top`（默认） | 气泡由独立的 `spriteBubble` 窗口承载，固定在主窗口上方并跟随主窗口移动 | 运行期强制为 `0`，持久化原值保留 | 独立窗口的 `<SpriteMessage />` |
 
 ## 架构概览
 
@@ -28,14 +28,14 @@
 │    ├── forwardBridgeMessage() → broadcasts to:           │
 │    │     ├── this.win (主精灵窗口)                     │
 │    │     └── getMessageRecipients()                    │
-│    │         (spriteBubbleFixedTop)                     │
+│    │         (spriteBubble)                     │
 │    └── emitConfigChanged() → 同上广播                  │
 │                                                       │
 │  WindowController / MovementCoordinator                │
 │    └── 使用 getEffectivePadding() 计算尺寸/视口        │
 │                                                       │
 │  windowManager                                        │
-│    ├── create('spriteBubbleFixedTop')                 │
+│    ├── create('spriteBubble')                 │
 │    └── updateFollowerPositionsManually()              │
 │                                                       │
 │  IPC handlers                                         │
@@ -82,8 +82,8 @@
 
 | 文件                               | 变更内容                                                                                                                                        |
 | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `electron/main/config/window.ts`   | `CustomWindowKeys.spriteBubbleFixedTop`；使用 `followMain: true` + `followerPreferMode: 'fixed-top'`                                            |
-| `electron/main/handlers/window.ts` | 注册 `sprite:bubble:resize`、`sprite:bubble:set-visible` IPC；按发送方识别当前气泡窗口并触发 follower reposition；预创建 `spriteBubbleFixedTop` |
+| `electron/main/config/window.ts`   | `CustomWindowKeys.spriteBubble`；使用 `followMain: true` + `followerPreferMode: 'fixed-top'`                                            |
+| `electron/main/handlers/window.ts` | 注册 `sprite:bubble:resize`、`sprite:bubble:set-visible` IPC；按发送方识别当前气泡窗口并触发 follower reposition；预创建 `spriteBubble` |
 
 ### 渲染层
 
@@ -179,7 +179,7 @@ const effectivePadding = isBubbleWindowMode(bubbleMode) ? 0 : padding;
 
 - [ ] inline 模式下：现有 toast/notice/busy 行为不变；调试 overlay/拖拽热区一致
 - [ ] fixed-top 模式下：
-  - [ ] 启动时 `spriteBubbleFixedTop` 已存在但隐藏
+  - [ ] 启动时 `spriteBubble` 已存在但隐藏
   - [ ] 触发 `showToast`/`speak` 后气泡窗口固定在主窗口上方
   - [ ] 长文本/多行内容下窗口宽高自适应且仍保持在主窗口上方居中
   - [ ] 主精灵移动时气泡继续跟随，但不自动切换到左/右/下方

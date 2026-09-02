@@ -39,6 +39,7 @@ export type {
   CharacterStatePersistenceRow,
   SpriteBehaviorScheduler,
   SpriteManagerOptions,
+  SpriteProactiveSpeechGate,
   SpritePurposeWindowAdapter,
   SpriteSchedulerGateContext,
   SpriteSchedulerGateResult,

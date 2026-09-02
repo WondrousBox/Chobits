@@ -90,7 +90,7 @@ appWindowTool({ action: 'open', windowKey: 'settings', payload: { category: 'ai'
 
 - `menu`
 - `status`
-- `spriteBubbleFixedTop`
+- `spriteBubble`
 
 ## Payload 规则
 

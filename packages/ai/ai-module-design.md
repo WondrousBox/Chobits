@@ -317,7 +317,7 @@ Provider 适配要点：
   - 由 `packages/ai/runtime/pi/profile-registry.ts` 提供 UI 可选 profile 元数据；
   - 主聊天、session tool 调度、one-shot execution 都基于 profile descriptor 决定行为。
 - **业务服务**
-  - 例如 `PiExecutionService`、`SummaryService`、后台任务 chat runner 等；
+  - 例如 `PiExecutionService`、后台任务 chat runner 等；
   - 这些服务直接复用 `ProviderService`、Pi runtime 和 preset/secrets 解析，而不是通过独立 Agent 类再包一层。
 
 后续如果需要恢复更强的“智能体”抽象，建议建立在 Pi profile / tool registry / execution service 之上，而不是回到旧的 `agents/*` 目录模式。

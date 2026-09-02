@@ -94,8 +94,8 @@
   - 在 `coder` 模式下提供“选择项目”入口，并把 `extras.codingWorkspaceRoot` / `extras.codingWorkspaceLabel` 带入请求。
 - `src/pages/ChatPage/ChatPage.tsx`
   - 真实聊天页面入口；会把 coder workspace 一起传给 `chatStream`。
-- `src/pages/ChatPage/StartPage.tsx`
-  - 助手起始页，复用 `ChatInputWithService` / `AssistantMiniInputWithService`；`coder` 模式下同样支持选择项目目录并把 workspace extras 一起传给 `chatStream`。
+- `src/pages/ChatPage/ChatPanelPage.tsx`
+  - 聊天面板页（`/chat-panel` 与 `/chat-mini` 共用），复用 `ChatInputWithService` / `AssistantMiniInputWithService`；`coder` 模式下同样支持选择项目目录并把 workspace extras 一起传给 `chatStream`。
 - `packages/ai/runtime/pi/profiles.md`
   - 定义 `chat` / `assistant` / `coder` 等 profile 的系统提示与元数据（构建时由 `profile-descriptors.ts` 经 `?raw` 加载）。
 - `packages/ai/runtime/pi/session-service.ts`

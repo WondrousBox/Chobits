@@ -69,7 +69,7 @@ import {
 import { type CharacterRuntimeSyncResult, reloadCharacterRuntime, syncCharacterRuntime } from '../character-runtime';
 import { buildCharacterPrompt, getCharacterDefinition, getCharacterInfo, getCharacterToolLabels, getDimensionSchema, initCharacterService, type ToolLabelDefinition } from '../character-service';
 import { isSpriteInteractionIntent, type SpriteInteractionPayload } from '../interaction-contract';
-import type { SpritePurposeRoutinePlanner, SpritePurposeWindowAdapter, SpriteSpontaneousUtteranceExecutor, SpriteWindowAnimationAdapter } from '../manager';
+import type { SpriteProactiveSpeechGate, SpritePurposeRoutinePlanner, SpritePurposeWindowAdapter, SpriteSpontaneousUtteranceExecutor, SpriteWindowAnimationAdapter } from '../manager';
 import { SpriteManager } from '../manager';
 import type { SpritePurposeHistoryQuery, SpritePurposeRetrospectiveQuery, SpritePurposeRuntimeEventInput, StartSpritePurposeRequest } from '../purpose';
 import type { SpeakRequest, SpriteRealtimeSpeechEvent, SpriteRealtimeSpeechSessionRequest, SpriteSpeakConfig, SpriteSpeechSynthesisExecutor, SpriteSpeechTextTranslator } from '../speak/types';
@@ -96,6 +96,8 @@ export interface SpriteManagerDeps {
   isPathWithinAllowedRoots?: (target: string) => boolean;
   registerCharacterPromptProvider?: (provider: () => string | null) => void | Promise<void>;
   spontaneousUtteranceExecutor?: SpriteSpontaneousUtteranceExecutor;
+  /** 主动发言闸门：routine 的 speak 步骤受"主动发言间隔"统一节制 */
+  proactiveSpeechGate?: SpriteProactiveSpeechGate;
   speechSynthesisExecutor?: SpriteSpeechSynthesisExecutor;
   textTranslator?: SpriteSpeechTextTranslator;
   characterSpeechLanguageResolver?: () => string | null | undefined;
@@ -111,7 +113,7 @@ type SpriteBubbleWindowManager = {
   hide: (key: string) => Promise<BrowserWindow | null>;
 };
 
-const SPRITE_BUBBLE_WINDOW_KEYS = ['spriteBubbleFixedTop'] as const;
+const SPRITE_BUBBLE_WINDOW_KEYS = ['spriteBubble'] as const;
 type SpriteBubbleWindowKey = (typeof SPRITE_BUBBLE_WINDOW_KEYS)[number];
 const SPRITE_BUBBLE_READY_TIMEOUT_MS = 1500;
 
@@ -124,7 +126,7 @@ setSherpaCapabilityGuards({
 });
 
 function getSpriteBubbleWindowKeyForMode(mode: SpriteBubbleMode): SpriteBubbleWindowKey | null {
-  if (mode === 'fixed-top') return 'spriteBubbleFixedTop';
+  if (mode === 'fixed-top') return 'spriteBubble';
   return null;
 }
 
@@ -301,6 +303,7 @@ export async function initSpriteManagerHandlers(win: BrowserWindow, deps: Sprite
     getScreenSize: () => (win.isDestroyed() ? screen.getPrimaryDisplay() : screen.getDisplayMatching(win.getBounds())).workArea,
     appName: 'Chobits',
     spontaneousUtteranceExecutor: deps.spontaneousUtteranceExecutor,
+    proactiveSpeechGate: deps.proactiveSpeechGate,
     speechSynthesisExecutor: deps.speechSynthesisExecutor,
     textTranslator: deps.textTranslator,
     characterSpeechLanguageResolver: deps.characterSpeechLanguageResolver,

@@ -16,7 +16,7 @@ declare module '@aim-packages/window-manager' {
     tts: void;
     characterPackEditor: void;
     windowAnimationEditor: void;
-    spriteBubbleFixedTop: void;
+    spriteBubble: void;
   }
 }
 
@@ -377,7 +377,7 @@ const DEFAULT_WINDOW_CONFIGS: Record<WindowKey, WindowConfig> = {
       }
     }
   },
-  spriteBubbleFixedTop: {
+  spriteBubble: {
     routeHash: 'sprite-bubble',
     followMain: true,
     followerPreferMode: 'fixed-top' as any,

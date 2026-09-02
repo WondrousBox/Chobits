@@ -98,6 +98,14 @@ export interface SpriteWindowAnimationAdapter {
   }): Promise<void> | void;
 }
 
+/** 主动发言闸门：统一管理预置提醒（休息/关怀等）与 AI 主动发言的节奏 */
+export interface SpriteProactiveSpeechGate {
+  /** 当前是否允许主动发言（不在冷却期内） */
+  shouldAllow: () => boolean;
+  /** 记录一次实际发生的主动发言，重启冷却计时 */
+  recordSpoken: () => void;
+}
+
 /** SpriteManager 初始化选项 */
 export interface SpriteManagerOptions {
   /** 主窗口 */
@@ -110,6 +118,8 @@ export interface SpriteManagerOptions {
   appName?: string;
   /** AI 自发说话执行器（可选） */
   spontaneousUtteranceExecutor?: SpriteSpontaneousUtteranceExecutor;
+  /** 主动发言闸门（可选）：注入后 routine 的 speak 步骤受"主动发言间隔"统一节制 */
+  proactiveSpeechGate?: SpriteProactiveSpeechGate;
   /** AI Provider speech synthesis executor for sprite speech. */
   speechSynthesisExecutor?: SpriteSpeechSynthesisExecutor;
   /** Optional translator that converts display text into the configured speech language before synthesis. */

@@ -139,7 +139,7 @@ const SpriteMenuPage: React.FC = () => {
           },
           {
             id: 'tts-config',
-            label: 'TTS 测试',
+            label: 'TTS 配置',
             icon: '🔊',
             shortcut: 'v',
             action: () => {

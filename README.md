@@ -79,19 +79,6 @@ pnpm dev
 > 的 `allowBuilds` 白名单控制哪些依赖允许跑安装脚本（better-sqlite3、keytar、sharp 等），
 > 旧版 pnpm 不认识这个字段，原生模块可能编译不出来。
 
-### 可选：下载平台资源二进制
-
-媒体下载 / 转码依赖随附的 ffmpeg 与 yt-dlp，按平台执行对应脚本即可：
-
-| 平台                  | 命令                                                             |
-| --------------------- | ---------------------------------------------------------------- |
-| macOS (Apple Silicon) | `pnpm download-ffmpeg-darwin-arm64` `pnpm download-ytdlp-darwin` |
-| macOS (Intel)         | `pnpm download-ytdlp-darwin`                                     |
-| Windows               | `pnpm download-ffmpeg-win32-x64` `pnpm download-ytdlp-win32`     |
-| Linux                 | 暂无预置脚本，请自行安装 ffmpeg / yt-dlp                         |
-
-不下载也能正常启动、聊天和语音转写，只是视频下载 / 转码等功能不可用。
-
 ### 打包
 
 ```bash
@@ -124,7 +111,7 @@ Chobits/
 ├── electron/     # 主进程 + preload（窗口、IPC、数据库、快捷键等）
 ├── src/          # 渲染进程（React 页面与组件，含 vendored live2d-sdk）
 ├── packages/     # 领域包：ai / common / event / plugins / sherpa / sprite-core / tts
-├── resources/    # 随附资源（平台二进制、精灵素材等；二进制用上面的脚本下载）
+├── resources/    # 随附资源（平台二进制、精灵素材等）
 ├── drizzle/      # 数据库迁移（drizzle-kit 生成）
 ├── docs/         # 各子系统设计文档
 ├── test/         # vitest 测试（按域分目录）
@@ -142,7 +129,6 @@ Chobits/
 | 能力                           | macOS              | Windows            | Linux                    |
 | ------------------------------ | ------------------ | ------------------ | ------------------------ |
 | 核心功能（精灵 / 对话 / 语音） | ✅                 | ✅                 | ✅                       |
-| 媒体下载 / 转码                | ✅（需跑下载脚本） | ✅（需跑下载脚本） | 自行安装 ffmpeg / yt-dlp |
 | 打包发布                       | dmg / zip          | nsis               | AppImage / deb           |
 | 全局快捷键                     | ✅                 | ✅                 | 仅 X11，Wayland 下不可用 |
 
@@ -155,8 +141,6 @@ Linux 特别提示：精灵是透明无边框窗口，需要桌面混成器（GN
   确认系统里有 secret service 在运行（gnome-keyring 或 KWallet）。
 - **Wayland 会话下全局快捷键不生效**
   全局输入监听依赖 X11，请切换到 X11 会话使用。
-- **视频下载 / 转码提示找不到 ffmpeg / yt-dlp**
-  按上文「下载平台资源二进制」执行对应脚本即可。
 
 ## 📸 截图
 

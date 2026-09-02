@@ -49,7 +49,7 @@ function getOSVersion(): string {
 export { arch, cpus, cpuStr, getOSVersion, isLinux, isMac, isMacIntel, isWindows, osName, platform };
 
 /** 随应用打包/下载的第三方二进制种类 */
-export type ResourceBinaryName = 'ffmpeg' | 'ffprobe' | '7za';
+export type ResourceBinaryName = '7za';
 
 /**
  * 获取第三方二进制在当前平台上的文件名

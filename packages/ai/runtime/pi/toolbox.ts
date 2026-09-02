@@ -157,9 +157,9 @@ const SYNONYM_TABLE: Record<string, string[]> = {
 /**
  * Tokenize a mixed CJK+Latin query into meaningful search terms.
  *
- * "翻译字幕"      → ["翻译", "字幕"]     (known CJK compounds)
- * "download video" → ["download", "video"]
- * "翻译subtitle"  → ["翻译", "subtitle"]
+ * "下载模型"      → ["下载", "模型"]     (known CJK compounds)
+ * "push card" → ["push", "card"]
+ * "下载plugin"  → ["下载", "plugin"]
  */
 function tokenizeQuery(text: string): string[] {
   const result: string[] = [];
@@ -188,8 +188,8 @@ function tokenizeQuery(text: string): string[] {
  * Split a CJK string by matching known synonym/trigger terms first,
  * then emit remaining characters as individual tokens.
  *
- * "翻译字幕" → ["翻译", "字幕"] (both are known terms)
- * "看看字幕" → ["看看", "字幕"] (bigram fallback for "看看")
+ * "下载模型" → ["下载", "模型"] ("下载" is a known term)
+ * "看看模型" → ["看看", "模型"] (bigram fallback for "看看")
  */
 function splitCJKByKnownTerms(text: string): string[] {
   const knownTerms = Object.keys(SYNONYM_TABLE).filter((k) => /[\u4e00-\u9fff]/.test(k));
